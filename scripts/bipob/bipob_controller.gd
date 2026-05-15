@@ -23,8 +23,6 @@ enum Direction {
 
 # MVP module model: modules can grant small passive bonuses and command flags.
 # No inventory/equipment UI yet; this only stores and applies data programmatically.
-var installed_modules: Array[BipobModule] = []
-
 var base_max_energy: int = 0
 var base_vision_range: int = 0
 var base_actions_per_turn: int = 0
@@ -36,6 +34,7 @@ var energy: int = 0
 var actions_left: int = 0
 var mission_finished: bool = false
 var has_key: bool = false
+var has_info_key: bool = false
 var installed_modules: Array[BipobModule] = []
 
 @onready var grid_manager: GridManager = get_node("../Field")
@@ -80,15 +79,14 @@ func recalculate_module_stats() -> void:
 	actions_left = clampi(actions_left, 0, actions_per_turn)
 
 func _ready() -> void:
-	create_default_modules()
 	base_max_energy = max_energy
 	base_vision_range = vision_range
 	base_actions_per_turn = actions_per_turn
+	create_default_modules()
 	recalculate_module_stats()
 
 	energy = max_energy
 	actions_left = actions_per_turn
-	create_default_modules()
 	
 	if mission_label != null:
 		mission_label.text = ""
@@ -385,6 +383,8 @@ func interact() -> void:
 			open_door(target_position)
 		GridManager.TILE_DIGITAL_DOOR:
 			open_digital_door(target_position)
+		GridManager.TILE_TERMINAL:
+			read_terminal(target_position)
 		_:
 			print("Nothing to interact with at: ", target_position)
 			hint_requested.emit("Nothing to interact with. Face a key, door, or terminal and press E.")
@@ -392,6 +392,8 @@ func interact() -> void:
 
 func read_terminal(target_position: Vector2i) -> void:
 	if not require_command("read_terminal", "Missing module: Interface V1 required."):
+		return
+	if not can_spend_action(1, 1):
 		return
 	has_info_key = true
 	spend_action(1, 1)
