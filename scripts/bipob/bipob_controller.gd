@@ -24,6 +24,7 @@ var energy: int = 0
 var actions_left: int = 0
 var mission_finished: bool = false
 var has_key: bool = false
+var has_info_key: bool = false
 
 @onready var grid_manager: GridManager = get_node("../Field")
 @onready var mission_label: Label = get_node("../UI/MissionLabel")
@@ -242,10 +243,21 @@ func interact() -> void:
 			pick_up_key(target_position)
 		GridManager.TILE_DOOR:
 			open_door(target_position)
+		GridManager.TILE_TERMINAL:
+			read_terminal(target_position)
 		_:
 			print("Nothing to interact with at: ", target_position)
-			hint_requested.emit("Nothing to interact with. Face a key or door and press E.")
+			hint_requested.emit("Nothing to interact with. Face a key, door, or terminal and press E.")
 			
+
+func read_terminal(target_position: Vector2i) -> void:
+	has_info_key = true
+	spend_action(1, 1)
+	print("Terminal accessed at ", target_position, ". Info-Key downloaded.")
+	hint_requested.emit("Info-Key downloaded. Find the digital door.")
+	status_changed.emit()
+	print_status()
+
 func pick_up_key(key_position: Vector2i) -> void:
 	has_key = true
 	grid_manager.set_tile(key_position, GridManager.TILE_FLOOR)
@@ -258,5 +270,6 @@ func print_status() -> void:
 	print(
 		"Energy: ", energy, " / ", max_energy,
 		" | Actions: ", actions_left, " / ", actions_per_turn,
-		" | Has Key: ", has_key
+		" | Has Key: ", has_key,
+		" | Has Info Key: ", has_info_key
 	)
