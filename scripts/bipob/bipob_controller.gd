@@ -16,6 +16,10 @@ enum Direction {
 @export var max_energy: int = 50
 @export var vision_range: int = 3
 @export var actions_per_turn: int = 5
+@export var debug_install_wheels: bool = true
+@export var debug_install_manipulator: bool = true
+@export var debug_install_interface: bool = true
+@export var debug_install_visor: bool = true
 
 # MVP module model: modules can grant small passive bonuses and command flags.
 # No inventory/equipment UI yet; this only stores and applies data programmatically.
@@ -76,6 +80,7 @@ func recalculate_module_stats() -> void:
 	actions_left = clampi(actions_left, 0, actions_per_turn)
 
 func _ready() -> void:
+	create_default_modules()
 	base_max_energy = max_energy
 	base_vision_range = vision_range
 	base_actions_per_turn = actions_per_turn
@@ -98,29 +103,55 @@ func _ready() -> void:
 
 func create_default_modules() -> void:
 	installed_modules.clear()
-	installed_modules.append(BipobModule.new(
-		"basic_wheels",
-		["move_forward", "move_backward", "turn_left", "turn_right"]
-	))
-	installed_modules.append(BipobModule.new(
-		"manipulator_v1",
-		["interact_key", "open_physical_door"]
-	))
-	installed_modules.append(BipobModule.new(
-		"interface_v1",
-		["read_terminal", "open_digital_door"]
-	))
-	installed_modules.append(BipobModule.new(
-		"basic_visor",
-		["vision"]
-	))
-	print("Installed modules: ", get_installed_module_ids())
 
-func get_installed_module_ids() -> Array[String]:
-	var module_ids: Array[String] = []
-	for module in installed_modules:
-		module_ids.append(module.id)
-	return module_ids
+	if debug_install_wheels:
+		var wheels_module := BipobModule.new()
+		wheels_module.id = "wheels_v1"
+		wheels_module.display_name = "Wheels V1"
+		wheels_module.granted_commands = [
+			"move_forward",
+			"move_backward",
+			"turn_left",
+			"turn_right",
+		]
+		install_module(wheels_module)
+
+	if debug_install_manipulator:
+		var manipulator_module := BipobModule.new()
+		manipulator_module.id = "manipulator_v1"
+		manipulator_module.display_name = "Manipulator V1"
+		manipulator_module.granted_commands = [
+			"interact_key",
+			"open_physical_door",
+		]
+		install_module(manipulator_module)
+
+	if debug_install_interface:
+		var interface_module := BipobModule.new()
+		interface_module.id = "interface_v1"
+		interface_module.display_name = "Interface V1"
+		interface_module.granted_commands = [
+			"read_terminal",
+			"open_digital_door",
+		]
+		install_module(interface_module)
+
+	if debug_install_visor:
+		var visor_module := BipobModule.new()
+		visor_module.id = "visor_v1"
+		visor_module.display_name = "Visor V1"
+		visor_module.granted_commands = [
+			"vision",
+		]
+		install_module(visor_module)
+
+func require_command(command_id: String, missing_message: String) -> bool:
+	if has_command(command_id):
+		return true
+
+	print("Missing command: ", command_id, " | ", missing_message)
+	hint_requested.emit(missing_message)
+	return false
 
 func setup_body() -> void:
 	if body == null:
@@ -152,6 +183,8 @@ func _unhandled_input(event: InputEvent) -> void:
 		interact()
 
 func move_forward() -> void:
+	if not require_command("move_forward", "Missing module: Wheels V1 required."):
+		return
 	if not can_spend_action(1, 1):
 		return
 	
@@ -161,6 +194,8 @@ func move_forward() -> void:
 		spend_action(1, 1)
 
 func move_backward() -> void:
+	if not require_command("move_backward", "Missing module: Wheels V1 required."):
+		return
 	if not can_spend_action(1, 1):
 		return
 	
@@ -170,6 +205,8 @@ func move_backward() -> void:
 		spend_action(1, 1)
 
 func turn_left() -> void:
+	if not require_command("turn_left", "Missing module: Wheels V1 required."):
+		return
 	if not can_spend_action(1, 1):
 		return
 	
@@ -179,6 +216,8 @@ func turn_left() -> void:
 	spend_action(1, 1)
 
 func turn_right() -> void:
+	if not require_command("turn_right", "Missing module: Wheels V1 required."):
+		return
 	if not can_spend_action(1, 1):
 		return
 	
@@ -268,6 +307,8 @@ func update_world_position() -> void:
 	update_vision()
 	
 func update_vision() -> void:
+	if not require_command("vision", "Missing module: Visor V1 required."):
+		return
 	if grid_manager == null:
 		return
 	
@@ -299,6 +340,8 @@ func get_direction_vector(current_direction: Direction) -> Vector2i:
 	return Vector2i.ZERO
 	
 func open_door(door_position: Vector2i) -> void:
+	if not require_command("open_physical_door", "Missing module: Manipulator V1 required."):
+		return
 	if not has_key:
 		print("Door is locked. Physical key required.")
 		hint_requested.emit("Door is locked. Physical key required.")
@@ -311,6 +354,8 @@ func open_door(door_position: Vector2i) -> void:
 	print_status()
 	
 func open_digital_door(door_position: Vector2i) -> void:
+	if not require_command("open_digital_door", "Missing module: Interface V1 required."):
+		return
 	if not has_info_key:
 		print("Digital door locked. Info-Key required from terminal.")
 		hint_requested.emit("Digital door requires Info-Key from terminal.")
@@ -346,6 +391,8 @@ func interact() -> void:
 			
 
 func read_terminal(target_position: Vector2i) -> void:
+	if not require_command("read_terminal", "Missing module: Interface V1 required."):
+		return
 	has_info_key = true
 	spend_action(1, 1)
 	print("Terminal accessed at ", target_position, ". Info-Key downloaded.")
@@ -354,6 +401,8 @@ func read_terminal(target_position: Vector2i) -> void:
 	print_status()
 
 func pick_up_key(key_position: Vector2i) -> void:
+	if not require_command("interact_key", "Missing module: Manipulator V1 required."):
+		return
 	has_key = true
 	grid_manager.set_tile(key_position, GridManager.TILE_FLOOR)
 	spend_action(1, 1)
