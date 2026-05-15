@@ -17,6 +17,14 @@ enum Direction {
 @export var vision_range: int = 3
 @export var actions_per_turn: int = 5
 
+# MVP module model: modules can grant small passive bonuses and command flags.
+# No inventory/equipment UI yet; this only stores and applies data programmatically.
+var installed_modules: Array[BipobModule] = []
+
+var base_max_energy: int = 0
+var base_vision_range: int = 0
+var base_actions_per_turn: int = 0
+
 var grid_position := Vector2i.ZERO
 var direction: Direction = Direction.NORTH
 
@@ -30,7 +38,49 @@ var has_info_key: bool = false
 @onready var mission_label: Label = get_node("../UI/MissionLabel")
 @onready var body: Polygon2D = $Body
 
+func install_module(module: BipobModule) -> void:
+	# MVP behavior: install immediately applies passive bonuses.
+	if module == null:
+		return
+
+	installed_modules.append(module)
+	recalculate_module_stats()
+
+func has_command(command_id: String) -> bool:
+	for module in installed_modules:
+		if module == null:
+			continue
+		if command_id in module.granted_commands:
+			return true
+
+	return false
+
+func recalculate_module_stats() -> void:
+	# MVP module model: aggregate passive stats from installed modules.
+	var energy_bonus_total := 0
+	var actions_bonus_total := 0
+	var vision_bonus_total := 0
+
+	for module in installed_modules:
+		if module == null:
+			continue
+		energy_bonus_total += module.energy_bonus
+		actions_bonus_total += module.actions_bonus
+		vision_bonus_total += module.vision_bonus
+
+	max_energy = base_max_energy + energy_bonus_total
+	actions_per_turn = base_actions_per_turn + actions_bonus_total
+	vision_range = base_vision_range + vision_bonus_total
+
+	energy = clampi(energy, 0, max_energy)
+	actions_left = clampi(actions_left, 0, actions_per_turn)
+
 func _ready() -> void:
+	base_max_energy = max_energy
+	base_vision_range = vision_range
+	base_actions_per_turn = actions_per_turn
+	recalculate_module_stats()
+
 	energy = max_energy
 	actions_left = actions_per_turn
 	
