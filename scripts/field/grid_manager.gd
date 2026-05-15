@@ -6,7 +6,7 @@ const TILE_WALL := 1
 const TILE_DOOR := 2
 const TILE_KEY := 3
 const TILE_EXIT := 4
-const TILE_TERMINAL := 5
+const TILE_DIGITAL_DOOR := 6
 
 @export var cell_size: int = 64
 @export var fog_enabled: bool = true
@@ -32,7 +32,7 @@ var tile_colors := {
 	TILE_DOOR: Color(0.45, 0.25, 0.08),
 	TILE_KEY: Color(0.95, 0.75, 0.15),
 	TILE_EXIT: Color(0.15, 0.65, 0.35),
-	TILE_TERMINAL: Color(0.25, 0.7, 0.95),
+	TILE_DIGITAL_DOOR: Color(0.1, 0.4, 0.85),
 }
 
 func _ready() -> void:
@@ -94,6 +94,9 @@ func is_walkable(grid_position: Vector2i) -> bool:
 		return false
 	
 	if tile_type == TILE_DOOR:
+		return false
+	
+	if tile_type == TILE_DIGITAL_DOOR:
 		return false
 	
 	return true
