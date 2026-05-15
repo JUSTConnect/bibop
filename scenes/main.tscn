@@ -1,0 +1,74 @@
+[gd_scene format=3 uid="uid://diphyupq6cob4"]
+
+[ext_resource type="PackedScene" uid="uid://hh35mlq2ews8" path="res://scenes/field/Field.tscn" id="1_o5qli"]
+[ext_resource type="Script" uid="uid://bw413qh2grm82" path="res://scripts/field/grid_manager.gd" id="2_0wfyh"]
+[ext_resource type="PackedScene" uid="uid://2xanckmu62op" path="res://scenes/bipob/Bipob.tscn" id="3_jyhfs"]
+[ext_resource type="Script" uid="uid://bicmf2modxkrs" path="res://scripts/bipob/bipob_controller.gd" id="4_tbgi4"]
+[ext_resource type="Script" uid="uid://cdcqh8kia25tb" path="res://scripts/ui/game_ui.gd" id="5_tbgi4"]
+
+[node name="Main" type="Node2D" unique_id=13954534]
+
+[node name="Field" parent="." unique_id=435219368 instance=ExtResource("1_o5qli")]
+position = Vector2(100, 80)
+script = ExtResource("2_0wfyh")
+
+[node name="Bipob" parent="." unique_id=1766177282 instance=ExtResource("3_jyhfs")]
+position = Vector2(1, 1)
+script = ExtResource("4_tbgi4")
+
+[node name="UI" type="CanvasLayer" parent="." unique_id=592154289]
+script = ExtResource("5_tbgi4")
+
+[node name="MissionLabel" type="Label" parent="UI" unique_id=1376872374]
+offset_left = 100.0
+offset_top = 20.0
+offset_right = 140.0
+offset_bottom = 65.0
+theme_override_font_sizes/font_size = 32
+
+[node name="StatusLabel" type="Label" parent="UI" unique_id=373089680]
+offset_right = 40.0
+offset_bottom = 23.0
+text = "Energy: -- / -- | Actions: -- / -- | Key: no"
+
+[node name="HintLabel" type="Label" parent="UI" unique_id=924982796]
+offset_right = 40.0
+offset_bottom = 23.0
+text = "Use W/A/S/D to move. E = Action. Space = End Turn."
+
+[node name="CommandPanel" type="PanelContainer" parent="UI" unique_id=59024119]
+anchors_preset = 1
+anchor_left = 1.0
+anchor_right = 1.0
+offset_left = -302.0
+offset_top = 80.0
+offset_right = -82.0
+offset_bottom = 340.0
+grow_horizontal = 0
+
+[node name="CommandList" type="VBoxContainer" parent="UI/CommandPanel" unique_id=851454895]
+layout_mode = 2
+
+[node name="MoveForwardButton" type="Button" parent="UI/CommandPanel/CommandList" unique_id=1630635101]
+layout_mode = 2
+text = "Forward [W]"
+
+[node name="MoveBackwardButton" type="Button" parent="UI/CommandPanel/CommandList" unique_id=1405726949]
+layout_mode = 2
+text = "Backward [S]"
+
+[node name="TurnLeftButton" type="Button" parent="UI/CommandPanel/CommandList" unique_id=1382376185]
+layout_mode = 2
+text = "Turn Left [A]"
+
+[node name="TurnRightButton" type="Button" parent="UI/CommandPanel/CommandList" unique_id=2080515778]
+layout_mode = 2
+text = "Turn Right [D]"
+
+[node name="InteractButton" type="Button" parent="UI/CommandPanel/CommandList" unique_id=1060530431]
+layout_mode = 2
+text = "Action [E]"
+
+[node name="EndTurnButton" type="Button" parent="UI/CommandPanel/CommandList" unique_id=1573204971]
+layout_mode = 2
+text = "End Turn [Space]"
