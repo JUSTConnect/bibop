@@ -73,11 +73,16 @@ func update_status() -> void:
 	var key_text := "no"
 	if bipob.has_key:
 		key_text = "yes"
+
+	var info_key_text := "no"
+	if bipob.has_info_key:
+		info_key_text = "yes"
 	
-	status_label.text = "Energy: %d / %d | Actions: %d / %d | Key: %s" % [
+	status_label.text = "Energy: %d / %d | Actions: %d / %d | Key: %s | Info Key: %s" % [
 		bipob.energy,
 		bipob.max_energy,
 		bipob.actions_left,
 		bipob.actions_per_turn,
-		key_text
+		key_text,
+		info_key_text
 	]
