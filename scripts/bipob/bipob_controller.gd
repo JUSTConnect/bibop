@@ -32,7 +32,7 @@ var energy: int = 0
 var actions_left: int = 0
 var mission_finished: bool = false
 var has_key: bool = false
-var has_info_key: bool = false
+var installed_modules: Array[BipobModule] = []
 
 @onready var grid_manager: GridManager = get_node("../Field")
 @onready var mission_label: Label = get_node("../UI/MissionLabel")
@@ -83,6 +83,7 @@ func _ready() -> void:
 
 	energy = max_energy
 	actions_left = actions_per_turn
+	create_default_modules()
 	
 	if mission_label != null:
 		mission_label.text = ""
@@ -94,6 +95,32 @@ func _ready() -> void:
 	update_world_position()
 	print_status()
 	status_changed.emit()
+
+func create_default_modules() -> void:
+	installed_modules.clear()
+	installed_modules.append(BipobModule.new(
+		"basic_wheels",
+		["move_forward", "move_backward", "turn_left", "turn_right"]
+	))
+	installed_modules.append(BipobModule.new(
+		"manipulator_v1",
+		["interact_key", "open_physical_door"]
+	))
+	installed_modules.append(BipobModule.new(
+		"interface_v1",
+		["read_terminal", "open_digital_door"]
+	))
+	installed_modules.append(BipobModule.new(
+		"basic_visor",
+		["vision"]
+	))
+	print("Installed modules: ", get_installed_module_ids())
+
+func get_installed_module_ids() -> Array[String]:
+	var module_ids: Array[String] = []
+	for module in installed_modules:
+		module_ids.append(module.id)
+	return module_ids
 
 func setup_body() -> void:
 	if body == null:
