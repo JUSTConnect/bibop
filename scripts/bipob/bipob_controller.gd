@@ -24,6 +24,7 @@ var energy: int = 0
 var actions_left: int = 0
 var mission_finished: bool = false
 var has_key: bool = false
+var has_info_key: bool = false
 
 @onready var grid_manager: GridManager = get_node("../Field")
 @onready var mission_label: Label = get_node("../UI/MissionLabel")
@@ -150,6 +151,8 @@ func try_move_to(target_position: Vector2i) -> bool:
 			hint_requested.emit("Blocked by wall.")
 		elif target_tile == GridManager.TILE_DOOR:
 			hint_requested.emit("Door is locked. Find a key and press E while facing it.")
+		elif target_tile == GridManager.TILE_DIGITAL_DOOR:
+			hint_requested.emit("Digital door is locked. Get Info-Key from terminal and press E.")
 		else:
 			hint_requested.emit("Path is blocked.")
 	
@@ -230,18 +233,36 @@ func open_door(door_position: Vector2i) -> void:
 	hint_requested.emit("Door opened. Reach the green exit.")
 	print_status()
 	
-func interact() -> void:
+func open_digital_door(door_position: Vector2i) -> void:
+	if not has_info_key:
+		print("Digital door locked. Info-Key required from terminal.")
+		hint_requested.emit("Digital door requires Info-Key from terminal.")
+		return
+
 	if not can_spend_action(1, 1):
 		return
-	
+
+	grid_manager.set_tile(door_position, GridManager.TILE_FLOOR)
+	spend_action(1, 1)
+	print("Digital door opened.")
+	hint_requested.emit("Digital door opened.")
+	status_changed.emit()
+
+func interact() -> void:
 	var target_position := grid_position + get_direction_vector(direction)
 	var target_tile := grid_manager.get_tile(target_position)
 	
 	match target_tile:
 		GridManager.TILE_KEY:
+			if not can_spend_action(1, 1):
+				return
 			pick_up_key(target_position)
 		GridManager.TILE_DOOR:
+			if not can_spend_action(1, 1):
+				return
 			open_door(target_position)
+		GridManager.TILE_DIGITAL_DOOR:
+			open_digital_door(target_position)
 		_:
 			print("Nothing to interact with at: ", target_position)
 			hint_requested.emit("Nothing to interact with. Face a key or door and press E.")
