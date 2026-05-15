@@ -1,9 +1,12 @@
-extends RefCounted
+extends Resource
 class_name BipobModule
 
-var id: String = ""
-var granted_commands: Array[String] = []
+@export var id: String = ""
+@export var display_name: String = ""
+@export var description: String = ""
 
-func _init(module_id: String = "", commands: Array[String] = []) -> void:
-	id = module_id
-	granted_commands = commands.duplicate()
+@export var granted_commands: Array[String] = []
+
+@export var energy_bonus: int = 0
+@export var actions_bonus: int = 0
+@export var vision_bonus: int = 0
