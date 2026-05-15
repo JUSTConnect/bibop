@@ -36,7 +36,7 @@ var energy: int = 0
 var actions_left: int = 0
 var mission_finished: bool = false
 var has_key: bool = false
-var has_info_key: bool = false
+var installed_modules: Array[BipobModule] = []
 
 @onready var grid_manager: GridManager = get_node("../Field")
 @onready var mission_label: Label = get_node("../UI/MissionLabel")
@@ -88,6 +88,7 @@ func _ready() -> void:
 
 	energy = max_energy
 	actions_left = actions_per_turn
+	create_default_modules()
 	
 	if mission_label != null:
 		mission_label.text = ""
