@@ -17,6 +17,14 @@ enum Direction {
 @export var vision_range: int = 3
 @export var actions_per_turn: int = 5
 
+# MVP module model: modules can grant small passive bonuses and command flags.
+# No inventory/equipment UI yet; this only stores and applies data programmatically.
+var installed_modules: Array[BipobModule] = []
+
+var base_max_energy: int = 0
+var base_vision_range: int = 0
+var base_actions_per_turn: int = 0
+
 var grid_position := Vector2i.ZERO
 var direction: Direction = Direction.NORTH
 
@@ -30,7 +38,49 @@ var installed_modules: Array[BipobModule] = []
 @onready var mission_label: Label = get_node("../UI/MissionLabel")
 @onready var body: Polygon2D = $Body
 
+func install_module(module: BipobModule) -> void:
+	# MVP behavior: install immediately applies passive bonuses.
+	if module == null:
+		return
+
+	installed_modules.append(module)
+	recalculate_module_stats()
+
+func has_command(command_id: String) -> bool:
+	for module in installed_modules:
+		if module == null:
+			continue
+		if command_id in module.granted_commands:
+			return true
+
+	return false
+
+func recalculate_module_stats() -> void:
+	# MVP module model: aggregate passive stats from installed modules.
+	var energy_bonus_total := 0
+	var actions_bonus_total := 0
+	var vision_bonus_total := 0
+
+	for module in installed_modules:
+		if module == null:
+			continue
+		energy_bonus_total += module.energy_bonus
+		actions_bonus_total += module.actions_bonus
+		vision_bonus_total += module.vision_bonus
+
+	max_energy = base_max_energy + energy_bonus_total
+	actions_per_turn = base_actions_per_turn + actions_bonus_total
+	vision_range = base_vision_range + vision_bonus_total
+
+	energy = clampi(energy, 0, max_energy)
+	actions_left = clampi(actions_left, 0, actions_per_turn)
+
 func _ready() -> void:
+	base_max_energy = max_energy
+	base_vision_range = vision_range
+	base_actions_per_turn = actions_per_turn
+	recalculate_module_stats()
+
 	energy = max_energy
 	actions_left = actions_per_turn
 	create_default_modules()
@@ -178,6 +228,8 @@ func try_move_to(target_position: Vector2i) -> bool:
 			hint_requested.emit("Blocked by wall.")
 		elif target_tile == GridManager.TILE_DOOR:
 			hint_requested.emit("Door is locked. Find a key and press E while facing it.")
+		elif target_tile == GridManager.TILE_DIGITAL_DOOR:
+			hint_requested.emit("Digital door is locked. Get Info-Key from terminal and press E.")
 		else:
 			hint_requested.emit("Path is blocked.")
 	
@@ -258,22 +310,49 @@ func open_door(door_position: Vector2i) -> void:
 	hint_requested.emit("Door opened. Reach the green exit.")
 	print_status()
 	
-func interact() -> void:
+func open_digital_door(door_position: Vector2i) -> void:
+	if not has_info_key:
+		print("Digital door locked. Info-Key required from terminal.")
+		hint_requested.emit("Digital door requires Info-Key from terminal.")
+		return
+
 	if not can_spend_action(1, 1):
 		return
-	
+
+	grid_manager.set_tile(door_position, GridManager.TILE_FLOOR)
+	spend_action(1, 1)
+	print("Digital door opened.")
+	hint_requested.emit("Digital door opened.")
+	status_changed.emit()
+
+func interact() -> void:
 	var target_position := grid_position + get_direction_vector(direction)
 	var target_tile := grid_manager.get_tile(target_position)
 	
 	match target_tile:
 		GridManager.TILE_KEY:
+			if not can_spend_action(1, 1):
+				return
 			pick_up_key(target_position)
 		GridManager.TILE_DOOR:
+			if not can_spend_action(1, 1):
+				return
 			open_door(target_position)
+		GridManager.TILE_DIGITAL_DOOR:
+			open_digital_door(target_position)
 		_:
 			print("Nothing to interact with at: ", target_position)
-			hint_requested.emit("Nothing to interact with. Face a key or door and press E.")
+			hint_requested.emit("Nothing to interact with. Face a key, door, or terminal and press E.")
 			
+
+func read_terminal(target_position: Vector2i) -> void:
+	has_info_key = true
+	spend_action(1, 1)
+	print("Terminal accessed at ", target_position, ". Info-Key downloaded.")
+	hint_requested.emit("Info-Key downloaded. Find the digital door.")
+	status_changed.emit()
+	print_status()
+
 func pick_up_key(key_position: Vector2i) -> void:
 	has_key = true
 	grid_manager.set_tile(key_position, GridManager.TILE_FLOOR)
@@ -286,5 +365,6 @@ func print_status() -> void:
 	print(
 		"Energy: ", energy, " / ", max_energy,
 		" | Actions: ", actions_left, " / ", actions_per_turn,
-		" | Has Key: ", has_key
+		" | Has Key: ", has_key,
+		" | Has Info Key: ", has_info_key
 	)
