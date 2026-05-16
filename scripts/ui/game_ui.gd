@@ -202,9 +202,10 @@ func update_diagnostic_status() -> void:
 		diagnostic_label.text = "Diagnostic: none"
 		return
 
-	var device_name := "unknown"
-	if result.device != null and not result.device.display_name.is_empty():
-		device_name = result.device.display_name
+	var device_name: String = str(result.device_name)
+
+	if device_name.is_empty():
+		device_name = "unknown"
 
 	var status_text: String = str(result.get_status_text())
 
