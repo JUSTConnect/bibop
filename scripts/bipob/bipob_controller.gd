@@ -311,11 +311,11 @@ func install_found_module() -> bool:
 	return true
 
 func install_available_module() -> bool:
-	if found_module != null:
-		return install_found_module()
-
 	if not box_storage.is_empty():
 		return install_module_from_box_storage(0)
+
+	if found_module != null:
+		return install_found_module()
 
 	hint_requested.emit("No module to install.")
 	status_changed.emit()
@@ -469,10 +469,12 @@ func complete_mission() -> void:
 	
 	mission_finished = true
 	var stored_module_name := ""
+	var stored_module_this_mission := false
 	if held_module != null:
 		stored_module_name = get_module_display_name(held_module)
 		add_module_to_box_storage(held_module)
 		held_module = null
+		stored_module_this_mission = true
 	
 	if mission_label != null:
 		mission_label.text = "MISSION COMPLETE"
@@ -492,7 +494,11 @@ func complete_mission() -> void:
 		sector_completed = true
 		hint_requested.emit("Sector-01 complete. Playtest build finished.")
 		last_diagnostic_result = null
-	create_debug_found_module()
+
+	if stored_module_this_mission:
+		found_module = null
+	else:
+		create_debug_found_module()
 	status_changed.emit()
 	mission_completed.emit()
 			
