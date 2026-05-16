@@ -276,13 +276,6 @@ func can_spend_action(action_cost: int, energy_cost: int) -> bool:
 	return true
 
 
-func charge_to_full() -> void:
-	energy = max_energy
-	print("Bipob charged to full energy.")
-	print_status()
-	status_changed.emit()
-	hint_requested.emit("Bipob fully charged.")
-
 func spend_action(action_cost: int, energy_cost: int) -> void:
 	actions_left -= action_cost
 	energy -= energy_cost
@@ -336,10 +329,7 @@ func complete_mission() -> void:
 	print("MISSION COMPLETE")
 	print("Bipob reached the exit.")
 	hint_requested.emit("Mission complete. Return to the box.")
-<<<<<<< HEAD
-=======
 	create_debug_found_module()
->>>>>>> 916233b84424b88795241bbaab5f1b126863d586
 	status_changed.emit()
 	mission_completed.emit()
 			
