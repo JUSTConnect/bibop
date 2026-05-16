@@ -22,6 +22,7 @@ enum Direction {
 @export var debug_install_manipulator: bool = true
 @export var debug_install_interface: bool = true
 @export var debug_install_visor: bool = true
+@export var debug_add_mission4_modules_to_box: bool = false
 
 # MVP module model: modules can grant small passive bonuses and command flags.
 # No inventory/equipment UI yet; this only stores and applies data programmatically.
@@ -98,6 +99,17 @@ func get_installed_module_by_id(module_id: String) -> BipobModule:
 
 func has_module_id(module_id: String) -> bool:
 	return get_installed_module_by_id(module_id) != null
+
+func has_module_id_in_box(module_id: String) -> bool:
+	for module in box_storage:
+		if module == null:
+			continue
+		if module.id == module_id:
+			return true
+	return false
+
+func has_module_id_anywhere(module_id: String) -> bool:
+	return has_module_id(module_id) or has_module_id_in_box(module_id)
 
 func get_effective_visor_level() -> int:
 	if has_module_id("visor_v2"):
@@ -195,6 +207,8 @@ func _ready() -> void:
 	base_vision_range = vision_range
 	base_actions_per_turn = actions_per_turn
 	create_default_modules()
+	if debug_add_mission4_modules_to_box:
+		add_debug_mission4_modules_to_box()
 	recalculate_module_stats()
 
 	energy = max_energy
@@ -449,6 +463,36 @@ func create_default_modules() -> void:
 			"vision",
 		]
 		install_module(visor_module)
+
+func create_visor_v2_module() -> BipobModule:
+	var module := BipobModule.new()
+	module.id = "visor_v2"
+	module.display_name = "Visor V2"
+	module.description = "Wide-angle visor. Expands vision width."
+	module.granted_commands = ["vision"]
+	module.vision_bonus = 0
+	return module
+
+func create_gpu_v1_module() -> BipobModule:
+	var module := BipobModule.new()
+	module.id = "gpu_v1"
+	module.display_name = "GPU V1"
+	module.description = "Internal processing module. Increases vision range and supports hidden node detection."
+	module.granted_commands = ["hidden_detection_support"]
+	module.vision_bonus = 0
+	return module
+
+func add_debug_mission4_modules_to_box() -> void:
+	var visor_v2_module := create_visor_v2_module()
+	if not has_module_id_anywhere(visor_v2_module.id):
+		box_storage.append(visor_v2_module)
+
+	var gpu_v1_module := create_gpu_v1_module()
+	if not has_module_id_anywhere(gpu_v1_module.id):
+		box_storage.append(gpu_v1_module)
+
+	hint_requested.emit("Debug modules added to Box: Visor V2, GPU V1")
+	status_changed.emit()
 
 
 func get_module_display_name(module: BipobModule) -> String:
