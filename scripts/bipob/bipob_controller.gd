@@ -462,6 +462,67 @@ func get_facing_device_definition() -> DeviceDefinition:
 	var facing_position := get_facing_device_position()
 	var tile_type := grid_manager.get_tile(facing_position)
 	return get_device_definition_for_tile(tile_type)
+
+func has_required_interface(required_interface: String) -> bool:
+	if required_interface.is_empty():
+		return true
+
+	for module in installed_modules:
+		if module == null:
+			continue
+		if module.id == required_interface:
+			return true
+		if required_interface in module.granted_commands:
+			return true
+		if "interface" in module.granted_commands:
+			return true
+
+	return false
+
+func evaluate_device_capability(device: DeviceDefinition) -> DiagnosticResult:
+	var result := DiagnosticResult.new()
+
+	if device == null:
+		result.status = DiagnosticResult.STATUS_BLOCKED
+		result.device_type = ""
+		result.device_name = "Unknown"
+		result.supported_action = ""
+		result.reason = "No device detected."
+		result.recommendation = "Face a digital device and scan again."
+		result.estimated_risk = "none"
+		return result
+
+	if not has_required_interface(device.required_interface):
+		result.status = DiagnosticResult.STATUS_BLOCKED
+		result.device_type = device.device_type
+		result.device_name = device.display_name
+		result.supported_action = device.supported_action
+		result.reason = "Missing required interface: " + device.required_interface
+		result.recommendation = "Install Interface V1 or compatible module."
+		result.estimated_risk = "low"
+		return result
+
+	result.status = DiagnosticResult.STATUS_READY
+	result.device_type = device.device_type
+	result.device_name = device.display_name
+	result.supported_action = device.supported_action
+	result.reason = "Current build can interact with this device."
+	result.recommendation = "Proceed with Hack Device."
+	result.estimated_risk = "low"
+	return result
+
+func evaluate_facing_device_capability() -> DiagnosticResult:
+	var device := get_facing_device_definition()
+	last_diagnostic_result = evaluate_device_capability(device)
+	print(
+		"Capability check | Status: ",
+		last_diagnostic_result.status,
+		" | Device: ",
+		last_diagnostic_result.device_name,
+		" | Action: ",
+		last_diagnostic_result.supported_action
+	)
+	return last_diagnostic_result
 	
 func open_door(door_position: Vector2i) -> void:
 	if not require_command("open_physical_door", "Missing module: Manipulator V1 required."):
