@@ -76,4 +76,7 @@ text = "End Turn [Space]"
 
 [node name="BoxScreen" parent="UI" unique_id=1571028708 instance=ExtResource("6_tefeu")]
 visible = false
-position = Vector2(850, 350)
+offset_left = 850.0
+offset_top = 80.0
+offset_right = 850.0
+offset_bottom = 80.0
