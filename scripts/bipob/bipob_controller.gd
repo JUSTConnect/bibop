@@ -40,6 +40,7 @@ var max_mission_index: int = 3
 var has_key: bool = false
 var has_info_key: bool = false
 var installed_modules: Array[BipobModule] = []
+var box_storage: Array[BipobModule] = []
 var found_module: BipobModule = null
 var last_diagnostic_result: DiagnosticResult = null
 
@@ -218,6 +219,53 @@ func create_default_modules() -> void:
 		]
 		install_module(visor_module)
 
+
+func get_module_display_name(module: BipobModule) -> String:
+	if module == null:
+		return "Unknown module"
+
+	if not module.display_name.is_empty():
+		return module.display_name
+
+	if not module.id.is_empty():
+		return module.id
+
+	return "Unnamed module"
+
+func add_module_to_box_storage(module: BipobModule) -> void:
+	if module == null:
+		return
+
+	box_storage.append(module)
+	hint_requested.emit("Stored in box: " + get_module_display_name(module))
+	status_changed.emit()
+
+func install_module_from_box_storage(storage_index: int) -> bool:
+	if storage_index < 0 or storage_index >= box_storage.size():
+		hint_requested.emit("No module in that storage slot.")
+		return false
+
+	var module_to_install := box_storage[storage_index]
+	box_storage.remove_at(storage_index)
+	install_module(module_to_install)
+	hint_requested.emit("Installed from box: " + get_module_display_name(module_to_install))
+	status_changed.emit()
+	return true
+
+func return_installed_module_to_box_storage(module: BipobModule) -> void:
+	if module == null:
+		return
+
+	var installed_index := installed_modules.find(module)
+	if installed_index != -1:
+		installed_modules.remove_at(installed_index)
+
+	box_storage.append(module)
+	# TODO: Replace with dedicated equipment refresh when module removal UI is implemented.
+	recalculate_module_stats()
+	hint_requested.emit("Returned to box: " + get_module_display_name(module))
+	status_changed.emit()
+
 func set_found_module(module: BipobModule) -> void:
 	found_module = module
 	status_changed.emit()
@@ -242,8 +290,8 @@ func install_found_module() -> bool:
 	var module_to_install := found_module
 	install_module(module_to_install)
 	found_module = null
-	print("Installed module: ", module_to_install.display_name)
-	hint_requested.emit("Installed module: " + module_to_install.display_name)
+	print("Installed module: ", get_module_display_name(module_to_install))
+	hint_requested.emit("Installed module: " + get_module_display_name(module_to_install))
 	status_changed.emit()
 	return true
 
