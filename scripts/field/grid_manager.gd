@@ -162,26 +162,51 @@ func reveal_around(center_position: Vector2i) -> void:
 func is_vision_blocking_tile(tile_type: int) -> bool:
 	return tile_type == TILE_WALL
 
-func reveal_vision_ray(origin_position: Vector2i, direction_vector: Vector2i, side_vector: Vector2i, side_offset: int, vision_range: int) -> void:
-	for distance in range(1, vision_range + 1):
-		var ray_position := origin_position + direction_vector * distance + side_vector * side_offset
-		if not is_in_bounds(ray_position):
-			break
+func has_line_of_sight(origin_position: Vector2i, target_position: Vector2i) -> bool:
+	if origin_position == target_position:
+		return true
 
-		reveal_cell(ray_position)
-		if is_vision_blocking_tile(get_tile(ray_position)):
-			break
+	var delta := target_position - origin_position
+	var steps := maxi(abs(delta.x), abs(delta.y))
+	if steps <= 0:
+		return true
+
+	var step_vector := Vector2(float(delta.x) / float(steps), float(delta.y) / float(steps))
+
+	for step in range(1, steps + 1):
+		var sample_position := Vector2(origin_position) + step_vector * step
+		var check_position := Vector2i(roundi(sample_position.x), roundi(sample_position.y))
+
+		if not is_in_bounds(check_position):
+			return false
+
+		if check_position == target_position:
+			return true
+
+		if is_vision_blocking_tile(get_tile(check_position)):
+			return false
+
+	return false
+
+func reveal_visible_target(origin_position: Vector2i, target_position: Vector2i) -> void:
+	if not is_in_bounds(target_position):
+		return
+
+	if has_line_of_sight(origin_position, target_position):
+		reveal_cell(target_position)
 
 func reveal_by_vision(origin_position: Vector2i, direction_vector: Vector2i, vision_range: int) -> void:
 	clear_visible_cells()
 	reveal_cell(origin_position)
 
 	var side_vector := Vector2i(-direction_vector.y, direction_vector.x)
-	reveal_vision_ray(origin_position, direction_vector, side_vector, 0, vision_range)
+	for distance in range(1, vision_range + 1):
+		var center_position := origin_position + direction_vector * distance
+		reveal_visible_target(origin_position, center_position)
 
-	var side_range := mini(2, vision_range)
-	reveal_vision_ray(origin_position, direction_vector, side_vector, 1, side_range)
-	reveal_vision_ray(origin_position, direction_vector, side_vector, -1, side_range)
+		if distance <= 2:
+			reveal_visible_target(origin_position, center_position + side_vector)
+			reveal_visible_target(origin_position, center_position - side_vector)
 
 	queue_redraw()
 	
