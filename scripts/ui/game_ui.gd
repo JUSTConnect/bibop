@@ -58,13 +58,8 @@ func _ready() -> void:
 	bipob.hint_requested.connect(show_hint)
 	bipob.mission_completed.connect(show_box_screen)
 
-	hide_box_screen()
-
-
 	update_status()
 	update_box_status()
-	
-	
 
 func _on_charge_button_pressed() -> void:
 	bipob.charge_to_full()
@@ -77,9 +72,8 @@ func _on_install_module_button_pressed() -> void:
 	update_box_status()
 
 func _on_start_mission_button_pressed() -> void:
-	box_screen.visible = false
-	command_panel.visible = true
 	bipob.start_next_mission()
+	hide_box_screen()
 	update_status()
 	update_box_status()
 
