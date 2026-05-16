@@ -178,6 +178,11 @@ func store_digital_record(record_id: String, display_name: String, description: 
 	if record_id.is_empty():
 		return
 
+	if digital_storage_capacity <= 0:
+		digital_storage.clear()
+		status_changed.emit()
+		return
+
 	var record := {
 		"id": record_id,
 		"display_name": display_name,
@@ -186,21 +191,31 @@ func store_digital_record(record_id: String, display_name: String, description: 
 
 	if digital_storage.has(record_id):
 		digital_storage[record_id] = record
-		hint_requested.emit("Digital record stored: " + get_digital_record_display_name(record_id))
+		hint_requested.emit("Digital record updated: " + get_digital_record_display_name(record_id))
 		status_changed.emit()
 		return
 
-	if digital_storage.size() >= digital_storage_capacity and digital_storage_capacity > 0:
+	if digital_storage.size() < digital_storage_capacity:
+		digital_storage[record_id] = record
+		hint_requested.emit("Digital record stored: " + display_name)
+		status_changed.emit()
+		return
+
+	if digital_storage.size() >= digital_storage_capacity:
 		var existing_record_id := String(digital_storage.keys()[0])
+		var old_display_name := get_digital_record_display_name(existing_record_id)
 		digital_storage.erase(existing_record_id)
 		digital_storage[record_id] = record
-		hint_requested.emit("Digital storage overwritten: " + display_name)
+		hint_requested.emit("Digital storage overwritten: " + old_display_name + " -> " + display_name)
 		status_changed.emit()
 		return
 
-	digital_storage[record_id] = record
-	hint_requested.emit("Digital record stored: " + display_name)
-	status_changed.emit()
+func get_first_digital_record_display_name() -> String:
+	if digital_storage.is_empty():
+		return "empty"
+
+	var first_record_id := String(digital_storage.keys()[0])
+	return get_digital_record_display_name(first_record_id)
 
 func has_digital_record(record_id: String) -> bool:
 	return digital_storage.has(record_id)
@@ -229,6 +244,13 @@ func get_digital_storage_text() -> String:
 	for record_id in digital_storage.keys():
 		lines.append("- " + get_digital_record_display_name(String(record_id)))
 	return "\n".join(lines)
+
+func debug_store_route_data() -> void:
+	store_digital_record(
+		"route_data",
+		"Route Data",
+		"Temporary route record for future route mission."
+	)
 
 func start_next_mission() -> void:
 	if sector_completed:
