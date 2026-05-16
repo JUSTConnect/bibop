@@ -110,6 +110,16 @@ func _on_install_module_button_pressed() -> void:
 	update_diagnostic_status()
 
 func _on_start_mission_button_pressed() -> void:
+	if bipob == null:
+		return
+
+	if bipob.sector_completed:
+		bipob.start_next_mission()
+		update_status()
+		update_box_status()
+		update_diagnostic_status()
+		return
+
 	bipob.start_next_mission()
 	hide_box_screen()
 	update_status()
@@ -134,7 +144,10 @@ func update_box_status() -> void:
 
 	update_diagnostic_status()
 
-	box_status_label.text = "Energy: %d / %d" % [bipob.energy, bipob.max_energy]
+	if bipob.sector_completed:
+		box_status_label.text = "Sector-01 complete. Playtest build finished.\nEnergy: %d / %d" % [bipob.energy, bipob.max_energy]
+	else:
+		box_status_label.text = "Energy: %d / %d" % [bipob.energy, bipob.max_energy]
 
 	if bipob.found_module != null:
 		box_module_label.text = "Found module: %s" % bipob.found_module.display_name
