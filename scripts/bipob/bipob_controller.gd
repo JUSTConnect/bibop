@@ -86,6 +86,55 @@ func has_command(command_id: String) -> bool:
 
 	return false
 
+func has_module_id(module_id: String) -> bool:
+	for module in installed_modules:
+		if module == null:
+			continue
+		if module.id == module_id:
+			return true
+	return false
+
+func get_missing_critical_modules() -> Array[String]:
+	var critical_modules := [
+		{"id": "wheels_v1", "display_name": "Wheels V1"},
+		{"id": "manipulator_v1", "display_name": "Manipulator V1"},
+		{"id": "interface_v1", "display_name": "Interface V1"},
+		{"id": "visor_v1", "display_name": "Visor V1"},
+	]
+	var missing_modules: Array[String] = []
+	for critical_module in critical_modules:
+		var required_module_id := String(critical_module.get("id", ""))
+		if has_module_id(required_module_id):
+			continue
+		missing_modules.append(String(critical_module.get("display_name", required_module_id)))
+	return missing_modules
+
+func get_pre_mission_warnings() -> Array[String]:
+	var warnings: Array[String] = []
+	var missing_modules := get_missing_critical_modules()
+	if not missing_modules.is_empty():
+		warnings.append("Missing critical modules: %s" % ", ".join(missing_modules))
+
+	if energy <= 0:
+		warnings.append("Battery depleted. Charge before starting mission.")
+	else:
+		if energy < 5:
+			warnings.append("Battery critically low: %d / %d" % [energy, max_energy])
+		if energy < max_energy:
+			warnings.append("Battery is not fully charged: %d / %d" % [energy, max_energy])
+
+	return warnings
+
+func can_start_mission_from_box() -> bool:
+	return energy > 0
+
+func get_pre_mission_warning_text() -> String:
+	var warnings := get_pre_mission_warnings()
+	if warnings.is_empty():
+		return ""
+
+	return "Warnings before mission:\n- %s" % "\n- ".join(warnings)
+
 func recalculate_module_stats() -> void:
 	# MVP module model: aggregate passive stats from installed modules.
 	var energy_bonus_total := 0
@@ -390,14 +439,32 @@ func return_installed_module_to_box_storage(module: BipobModule) -> void:
 		return
 
 	var installed_index := installed_modules.find(module)
-	if installed_index != -1:
-		installed_modules.remove_at(installed_index)
+	if installed_index == -1:
+		return
 
-	box_storage.append(module)
+	installed_modules.remove_at(installed_index)
+
+	if not box_storage.has(module):
+		box_storage.append(module)
 	# TODO: Replace with dedicated equipment refresh when module removal UI is implemented.
 	recalculate_module_stats()
 	hint_requested.emit("Returned to box: " + get_module_display_name(module))
 	status_changed.emit()
+
+func remove_last_installed_module_to_box() -> bool:
+	if installed_modules.is_empty():
+		hint_requested.emit("No installed modules to remove.")
+		status_changed.emit()
+		return false
+
+	var module_to_remove := installed_modules[installed_modules.size() - 1]
+	if module_to_remove == null:
+		hint_requested.emit("No installed modules to remove.")
+		status_changed.emit()
+		return false
+
+	return_installed_module_to_box_storage(module_to_remove)
+	return true
 
 func set_found_module(module: BipobModule) -> void:
 	found_module = module
