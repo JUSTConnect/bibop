@@ -22,7 +22,14 @@ enum Direction {
 @export var debug_install_manipulator: bool = true
 @export var debug_install_interface: bool = true
 @export var debug_install_visor: bool = true
+<<<<<<< HEAD
 @export var debug_add_mission4_modules_to_box: bool = true
+=======
+@export var debug_add_mission4_modules_to_box: bool = false
+@export var debug_place_hidden_route_node: bool = true
+@export var debug_hidden_route_node_position: Vector2i = Vector2i(3, 1)
+@export var debug_show_hidden_route_node_logs: bool = true
+>>>>>>> 9e6f0c0e2b861459f8531808bdcc79e8b502fbbe
 
 # MVP module model: modules can grant small passive bonuses and command flags.
 # No inventory/equipment UI yet; this only stores and applies data programmatically.
@@ -58,6 +65,7 @@ var mission_start_has_info_key: bool = false
 var mission_start_held_module: BipobModule = null
 var mission_start_stored_physical_module: BipobModule = null
 var missing_visor_hint_shown: bool = false
+var active_hidden_route_node_position: Vector2i = Vector2i(-1, -1)
 
 @onready var grid_manager: GridManager = get_node("../Field")
 @onready var mission_label: Label = get_node("../UI/MissionLabel")
@@ -284,6 +292,48 @@ func start_mission(mission_index: int, save_snapshot: bool = true) -> void:
 	status_changed.emit()
 	hint_requested.emit(get_current_mission_goal_hint())
 
+<<<<<<< HEAD
+=======
+
+func find_valid_debug_hidden_route_node_position() -> Vector2i:
+	var preferred_positions: Array[Vector2i] = [
+		debug_hidden_route_node_position,
+		Vector2i(3, 1),
+		Vector2i(2, 1),
+		Vector2i(3, 2),
+		Vector2i(4, 1)
+	]
+
+	for position in preferred_positions:
+		if grid_manager == null:
+			return Vector2i(-1, -1)
+		if grid_manager.is_in_bounds(position) and grid_manager.get_tile(position) == GridManager.TILE_FLOOR:
+			return position
+
+	return Vector2i(-1, -1)
+
+func place_debug_hidden_route_node() -> void:
+	if not debug_place_hidden_route_node:
+		return
+	if grid_manager == null:
+		return
+
+	var position := find_valid_debug_hidden_route_node_position()
+	if position == Vector2i(-1, -1):
+		hint_requested.emit("Debug hidden route-node was not placed: no valid floor tile.")
+		return
+
+	active_hidden_route_node_position = position
+	grid_manager.set_tile(position, GridManager.TILE_HIDDEN_ROUTE_NODE)
+
+	if grid_manager.has_method("reset_hidden_discoveries"):
+		grid_manager.reset_hidden_discoveries()
+
+	if debug_show_hidden_route_node_logs:
+		print("Debug hidden route-node placed at: ", position)
+		hint_requested.emit("Debug hidden route-node placed at: " + str(position))
+
+>>>>>>> 9e6f0c0e2b861459f8531808bdcc79e8b502fbbe
 func restart_current_mission() -> void:
 	if sector_completed and current_mission_index == max_mission_index:
 		sector_completed = false
@@ -853,25 +903,36 @@ func update_vision() -> void:
 	var effective_range: int = get_effective_vision_range()
 	var side_width: int = get_effective_vision_side_width()
 	grid_manager.reveal_by_vision(grid_position, direction_vector, effective_range, side_width)
+	if debug_show_hidden_route_node_logs:
+		print("Vision update | visor: ", get_effective_visor_level(), " | gpu: ", get_effective_gpu_level(), " | can_detect_hidden_nodes: ", can_detect_hidden_nodes())
 	if can_detect_hidden_nodes():
 		detect_hidden_route_nodes_in_vision()
 
 func detect_hidden_route_nodes_in_vision() -> void:
 	if grid_manager == null:
 		return
-	if not can_detect_hidden_nodes():
+
+	var can_detect := can_detect_hidden_nodes()
+
+	if debug_show_hidden_route_node_logs:
+		print("Hidden detection check | can_detect: ", can_detect, " | visor: ", get_effective_visor_level(), " | gpu: ", get_effective_gpu_level())
+
+	if not can_detect:
 		return
 
-	var discovered_any := false
-	for cell in grid_manager.get_visible_cells():
+	var visible_cells: Array[Vector2i] = grid_manager.get_visible_cells()
+
+	if debug_show_hidden_route_node_logs:
+		print("Visible cells count: ", visible_cells.size())
+		print("Active hidden route-node position: ", active_hidden_route_node_position)
+
+	for cell in visible_cells:
 		if grid_manager.get_tile(cell) == GridManager.TILE_HIDDEN_ROUTE_NODE:
 			if not grid_manager.is_hidden_route_node_discovered(cell):
 				grid_manager.discover_hidden_route_node(cell)
-				discovered_any = true
-
-	if discovered_any:
-		hint_requested.emit("Hidden route-node detected.")
-		status_changed.emit()
+				hint_requested.emit("Hidden route-node detected at " + str(cell))
+				status_changed.emit()
+				return
 	
 func charge_to_full() -> void:
 	# Box preparation action: refill battery without spending field actions/energy.
