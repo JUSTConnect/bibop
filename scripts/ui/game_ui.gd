@@ -32,6 +32,7 @@ var remove_module_button: Button
 var scan_device_button: Button
 var hack_device_button: Button
 var restart_mission_button: Button
+var return_to_box_button: Button
 var drop_item_button: Button
 var rotate_storage_button: Button
 var start_mission_warning_acknowledged: bool = false
@@ -129,6 +130,12 @@ func _ready() -> void:
 		restart_mission_button.focus_mode = Control.FOCUS_NONE
 		command_list.add_child(restart_mission_button)
 		restart_mission_button.pressed.connect(_on_restart_mission_button_pressed)
+		return_to_box_button = Button.new()
+		return_to_box_button.name = "ReturnToBoxButton"
+		return_to_box_button.text = "Return to Box"
+		return_to_box_button.focus_mode = Control.FOCUS_NONE
+		command_list.add_child(return_to_box_button)
+		return_to_box_button.pressed.connect(_on_return_to_box_button_pressed)
 
 	if move_forward_button != null:
 		move_forward_button.pressed.connect(_on_move_forward_pressed)
@@ -162,6 +169,7 @@ func _ready() -> void:
 	bipob.status_changed.connect(update_status)
 	bipob.hint_requested.connect(show_hint)
 	bipob.mission_completed.connect(show_box_screen)
+	bipob.returned_to_box.connect(show_box_screen)
 
 	update_status()
 	update_box_status()
@@ -372,6 +380,16 @@ func _on_restart_mission_button_pressed() -> void:
 	update_status()
 	update_diagnostic_status()
 	update_box_status()
+
+func _on_return_to_box_button_pressed() -> void:
+	if bipob == null:
+		return
+	bipob.return_to_box()
+	if box_screen != null and not box_screen.visible:
+		show_box_screen()
+	update_status()
+	update_box_status()
+	update_diagnostic_status()
 
 func update_status() -> void:
 	if bipob == null:
