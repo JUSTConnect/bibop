@@ -43,6 +43,7 @@ var installed_modules: Array[BipobModule] = []
 var box_storage: Array[BipobModule] = []
 var found_module: BipobModule = null
 var held_module: BipobModule = null
+var field_modules_by_position: Dictionary = {}
 var physical_carry_capacity: int = 1
 var last_diagnostic_result: DiagnosticResult = null
 
@@ -834,10 +835,42 @@ func pick_up_component(component_position: Vector2i) -> void:
 		return
 	if not can_spend_action(1, 1):
 		return
-	held_module = create_debug_field_component()
+
+	var picked_module: BipobModule = field_modules_by_position.get(component_position, null)
+	if picked_module == null:
+		picked_module = create_debug_field_component()
+
+	field_modules_by_position.erase(component_position)
+	held_module = picked_module
 	grid_manager.set_tile(component_position, GridManager.TILE_FLOOR)
 	spend_action(1, 1)
-	hint_requested.emit("Component collected: Cooling V1. Return to the box to store it.")
+	hint_requested.emit("Component collected: %s. Return to the box to store it." % get_module_display_name(picked_module))
+	status_changed.emit()
+
+func drop_held_item() -> void:
+	if mission_finished:
+		return
+
+	if held_module == null:
+		hint_requested.emit("Hand is empty. Nothing to drop.")
+		status_changed.emit()
+		return
+
+	var target_position := grid_position + get_direction_vector()
+	if not grid_manager.is_in_bounds(target_position) or grid_manager.get_tile(target_position) != GridManager.TILE_FLOOR:
+		hint_requested.emit("Cannot drop item here. Face an empty floor cell.")
+		status_changed.emit()
+		return
+
+	if not can_spend_action(1, 1):
+		return
+
+	var module_to_drop := held_module
+	field_modules_by_position[target_position] = module_to_drop
+	grid_manager.set_tile(target_position, GridManager.TILE_COMPONENT)
+	spend_action(1, 1)
+	hint_requested.emit("Dropped: %s." % get_module_display_name(module_to_drop))
+	held_module = null
 	status_changed.emit()
 
 
