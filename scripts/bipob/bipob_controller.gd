@@ -55,6 +55,7 @@ var mission_start_has_key: bool = false
 var mission_start_has_info_key: bool = false
 var mission_start_held_module: BipobModule = null
 var mission_start_stored_physical_module: BipobModule = null
+var missing_visor_hint_shown: bool = false
 
 @onready var grid_manager: GridManager = get_node("../Field")
 @onready var mission_label: Label = get_node("../UI/MissionLabel")
@@ -86,13 +87,46 @@ func has_command(command_id: String) -> bool:
 
 	return false
 
-func has_module_id(module_id: String) -> bool:
+func get_installed_module_by_id(module_id: String) -> BipobModule:
 	for module in installed_modules:
 		if module == null:
 			continue
 		if module.id == module_id:
-			return true
-	return false
+			return module
+	return null
+
+func has_module_id(module_id: String) -> bool:
+	return get_installed_module_by_id(module_id) != null
+
+func get_effective_visor_level() -> int:
+	if has_module_id("visor_v2"):
+		return 2
+	if has_module_id("visor_v1"):
+		return 1
+	return 0
+
+func get_effective_gpu_level() -> int:
+	if has_module_id("gpu_v1"):
+		return 1
+	return 0
+
+func get_effective_vision_range() -> int:
+	var effective_range: int = vision_range
+	if get_effective_gpu_level() >= 1:
+		effective_range += 1
+	return maxi(effective_range, 0)
+
+func get_effective_vision_side_width() -> int:
+	match get_effective_visor_level():
+		2:
+			return 1
+		1:
+			return 0
+		_:
+			return 0
+
+func can_detect_hidden_nodes() -> bool:
+	return get_effective_visor_level() >= 2 and get_effective_gpu_level() >= 1
 
 func get_missing_critical_modules() -> Array[String]:
 	var critical_modules := [
@@ -702,13 +736,23 @@ func update_world_position() -> void:
 	update_vision()
 	
 func update_vision() -> void:
-	if not require_command("vision", "Missing module: Visor V1 required."):
-		return
 	if grid_manager == null:
 		return
-	
+
+	if get_effective_visor_level() <= 0:
+		if not missing_visor_hint_shown:
+			hint_requested.emit("Missing module: Visor V1 required.")
+			missing_visor_hint_shown = true
+		grid_manager.clear_visible_cells()
+		grid_manager.reveal_cell(grid_position)
+		grid_manager.queue_redraw()
+		return
+
+	missing_visor_hint_shown = false
 	var direction_vector := get_direction_vector(direction)
-	grid_manager.reveal_by_vision(grid_position, direction_vector, vision_range)
+	var effective_range: int = get_effective_vision_range()
+	var side_width: int = get_effective_vision_side_width()
+	grid_manager.reveal_by_vision(grid_position, direction_vector, effective_range, side_width)
 	
 func charge_to_full() -> void:
 	# Box preparation action: refill battery without spending field actions/energy.
