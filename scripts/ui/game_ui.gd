@@ -18,6 +18,7 @@ var digital_storage_label: Label
 @onready var charge_button: Button = $BoxScreen/PanelContainer/VBoxContainer/ButtonRow/ChargeButton
 @onready var install_module_button: Button = $BoxScreen/PanelContainer/VBoxContainer/ButtonRow/InstallModuleButton
 @onready var start_mission_button: Button = $BoxScreen/PanelContainer/VBoxContainer/ButtonRow/StartMissionButton
+var remove_module_button: Button
 
 @onready var box_title_label: Label = $BoxScreen/PanelContainer/VBoxContainer/TitleLabel
 
@@ -33,6 +34,7 @@ var hack_device_button: Button
 var restart_mission_button: Button
 var drop_item_button: Button
 var rotate_storage_button: Button
+var start_mission_warning_acknowledged: bool = false
 
 func _ready() -> void:
 	if status_label != null:
@@ -147,6 +149,15 @@ func _ready() -> void:
 		install_module_button.pressed.connect(_on_install_module_button_pressed)
 	if start_mission_button != null:
 		start_mission_button.pressed.connect(_on_start_mission_button_pressed)
+	if box_screen != null:
+		var button_row := box_screen.get_node_or_null("PanelContainer/VBoxContainer/ButtonRow")
+		if button_row != null:
+			remove_module_button = Button.new()
+			remove_module_button.name = "RemoveModuleButton"
+			remove_module_button.text = "Remove Module"
+			remove_module_button.focus_mode = Control.FOCUS_NONE
+			button_row.add_child(remove_module_button)
+			remove_module_button.pressed.connect(_on_remove_module_button_pressed)
 
 	bipob.status_changed.connect(update_status)
 	bipob.hint_requested.connect(show_hint)
@@ -159,6 +170,7 @@ func _ready() -> void:
 func _on_charge_button_pressed() -> void:
 	# BoxScreen preparation action: must not spend field action points or energy.
 	bipob.charge_to_full()
+	start_mission_warning_acknowledged = false
 	update_status()
 	update_box_status()
 	update_diagnostic_status()
@@ -166,6 +178,16 @@ func _on_charge_button_pressed() -> void:
 func _on_install_module_button_pressed() -> void:
 	# BoxScreen preparation action: must not spend field action points or energy.
 	bipob.install_available_module()
+	start_mission_warning_acknowledged = false
+	update_status()
+	update_box_status()
+	update_diagnostic_status()
+
+func _on_remove_module_button_pressed() -> void:
+	if bipob == null:
+		return
+	bipob.remove_last_installed_module_to_box()
+	start_mission_warning_acknowledged = false
 	update_status()
 	update_box_status()
 	update_diagnostic_status()
@@ -177,12 +199,27 @@ func _on_start_mission_button_pressed() -> void:
 	# BoxScreen preparation action: starts mission flow without field action/energy spend.
 	if bipob.sector_completed:
 		bipob.start_next_mission()
+		start_mission_warning_acknowledged = false
 		update_status()
 		update_box_status()
 		update_diagnostic_status()
 		return
 
+	var warnings := bipob.get_pre_mission_warnings()
+	if not bipob.can_start_mission_from_box():
+		show_hint("Cannot start mission. Battery depleted. Charge first.")
+		start_mission_warning_acknowledged = false
+		update_box_status()
+		return
+
+	if not warnings.is_empty() and not start_mission_warning_acknowledged:
+		start_mission_warning_acknowledged = true
+		show_hint("Warnings before mission. Press Start Mission again to continue anyway.")
+		update_box_status()
+		return
+
 	bipob.start_next_mission()
+	start_mission_warning_acknowledged = false
 	if not bipob.sector_completed:
 		hide_box_screen()
 	update_status()
@@ -194,6 +231,7 @@ func show_box_screen() -> void:
 		box_screen.visible = true
 	if command_panel != null:
 		command_panel.visible = false
+	start_mission_warning_acknowledged = false
 	update_box_status()
 	
 func hide_box_screen() -> void:
@@ -220,6 +258,13 @@ func update_box_status() -> void:
 	else:
 		if box_status_label != null:
 			box_status_label.text = "Energy: %d / %d" % [bipob.energy, bipob.max_energy]
+
+	if box_status_label != null:
+		var warnings := bipob.get_pre_mission_warnings()
+		if warnings.is_empty():
+			box_status_label.text += "\n\nWarnings: none"
+		else:
+			box_status_label.text += "\n\nWarnings:\n- %s" % "\n- ".join(warnings)
 
 	if bipob.found_module != null:
 		if box_module_label != null:
