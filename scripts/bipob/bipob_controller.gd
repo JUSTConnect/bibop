@@ -42,6 +42,7 @@ var has_info_key: bool = false
 var installed_modules: Array[BipobModule] = []
 var box_storage: Array[BipobModule] = []
 var found_module: BipobModule = null
+var held_module: BipobModule = null
 var last_diagnostic_result: DiagnosticResult = null
 
 @onready var grid_manager: GridManager = get_node("../Field")
@@ -442,6 +443,11 @@ func complete_mission() -> void:
 		return
 	
 	mission_finished = true
+	var stored_module_name := ""
+	if held_module != null:
+		stored_module_name = get_module_display_name(held_module)
+		add_module_to_box_storage(held_module)
+		held_module = null
 	
 	if mission_label != null:
 		mission_label.text = "MISSION COMPLETE"
@@ -454,6 +460,8 @@ func complete_mission() -> void:
 		hint_requested.emit("Mission 2 complete. Return to the box, then start Mission 3.")
 	else:
 		hint_requested.emit("Mission complete. Return to the box.")
+	if not stored_module_name.is_empty():
+		hint_requested.emit("Stored in box: " + stored_module_name)
 
 	if current_mission_index == max_mission_index:
 		sector_completed = true
@@ -735,6 +743,9 @@ func interact() -> void:
 		return
 	
 	match target_tile:
+		GridManager.TILE_COMPONENT:
+			pick_up_component(target_position)
+			return
 		GridManager.TILE_KEY:
 			if not can_spend_action(1, 1):
 				return
@@ -746,7 +757,31 @@ func interact() -> void:
 		_:
 			print("Nothing to interact with at: ", target_position)
 			hint_requested.emit("Nothing to interact with. Face a key, door, or terminal and press E.")
-			
+
+func create_debug_field_component() -> BipobModule:
+	var module := BipobModule.new()
+	module.id = "cooling_v1"
+	module.display_name = "Cooling V1"
+	module.description = "Basic cooling component for future internal builds."
+	module.energy_bonus = 0
+	module.actions_bonus = 0
+	module.vision_bonus = 0
+	module.granted_commands = []
+	return module
+
+func pick_up_component(component_position: Vector2i) -> void:
+	if held_module != null:
+		hint_requested.emit("Hands full. Return to the box before picking up another component.")
+		status_changed.emit()
+		return
+	if not can_spend_action(1, 1):
+		return
+	held_module = create_debug_field_component()
+	grid_manager.set_tile(component_position, GridManager.TILE_FLOOR)
+	spend_action(1, 1)
+	hint_requested.emit("Component collected: Cooling V1. Return to the box to store it.")
+	status_changed.emit()
+
 
 func read_terminal(target_position: Vector2i) -> void:
 	if not require_command("read_terminal", "Missing module: Interface V1 required."):
@@ -789,5 +824,6 @@ func print_status() -> void:
 		"Energy: ", energy, " / ", max_energy,
 		" | Actions: ", actions_left, " / ", actions_per_turn,
 		" | Has Key: ", has_key,
-		" | Has Info Key: ", has_info_key
+		" | Has Info Key: ", has_info_key,
+		" | Held Module: ", get_module_display_name(held_module) if held_module != null else "none"
 	)
