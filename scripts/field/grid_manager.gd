@@ -15,6 +15,8 @@ const TILE_HIDDEN_ROUTE_NODE := 8
 @export var fog_enabled: bool = true
 @export var reveal_radius: int = 1
 
+var debug_draw_undiscovered_hidden_nodes: bool = true
+
 var visible_cells: Array = []
 var explored_cells: Array = []
 var discovered_hidden_route_nodes: Dictionary = {}
@@ -86,9 +88,14 @@ func _draw() -> void:
 			
 			draw_rect(rect, color, true)
 			draw_rect(rect, Color(0.35, 0.35, 0.38), false, 2.0)
-			if tile_type == TILE_HIDDEN_ROUTE_NODE and is_hidden_route_node_discovered(grid_position):
-				var marker_radius := cell_size * 0.15
-				draw_circle(rect.get_center(), marker_radius, Color(0.45, 0.95, 1.0))
+			if tile_type == TILE_HIDDEN_ROUTE_NODE:
+				if is_hidden_route_node_discovered(grid_position):
+					var discovered_marker_radius := cell_size * 0.15
+					draw_circle(rect.get_center(), discovered_marker_radius, Color(0.45, 0.95, 1.0))
+				elif debug_draw_undiscovered_hidden_nodes:
+					var marker_size := cell_size * 0.14
+					var marker_rect := Rect2(rect.get_center() - Vector2(marker_size * 0.5, marker_size * 0.5), Vector2(marker_size, marker_size))
+					draw_rect(marker_rect, Color(0.24, 0.08, 0.32, 0.95), false, 2.0)
 			
 			if fog_enabled:
 				draw_fog_for_cell(grid_position, rect)
@@ -259,13 +266,16 @@ func get_visible_cells() -> Array[Vector2i]:
 				cells.append(Vector2i(x, y))
 	return cells
 
+func get_position_key(position: Vector2i) -> String:
+	return str(position.x) + "," + str(position.y)
+
 func is_hidden_route_node_discovered(position: Vector2i) -> bool:
-	return discovered_hidden_route_nodes.has(position)
+	return discovered_hidden_route_nodes.has(get_position_key(position))
 
 func discover_hidden_route_node(position: Vector2i) -> void:
 	if get_tile(position) != TILE_HIDDEN_ROUTE_NODE:
 		return
-	discovered_hidden_route_nodes[position] = true
+	discovered_hidden_route_nodes[get_position_key(position)] = true
 	queue_redraw()
 
 func reset_hidden_discoveries() -> void:
@@ -276,7 +286,7 @@ func place_debug_hidden_route_node(position: Vector2i) -> void:
 	if not is_in_bounds(position):
 		return
 	set_tile(position, TILE_HIDDEN_ROUTE_NODE)
-	discovered_hidden_route_nodes.erase(position)
+	discovered_hidden_route_nodes.erase(get_position_key(position))
 	queue_redraw()
 	
 func is_cell_visible(grid_position: Vector2i) -> bool:
