@@ -581,6 +581,62 @@ func scan_device() -> void:
 	hint_requested.emit("Scan complete: " + last_diagnostic_result.get_status_text())
 	status_changed.emit()
 
+func hack_device() -> void:
+	if mission_finished:
+		return
+
+	if last_diagnostic_result == null:
+		hint_requested.emit("Scan device first.")
+		status_changed.emit()
+		return
+
+	if not last_diagnostic_result.is_action_allowed():
+		hint_requested.emit("Hack blocked: " + last_diagnostic_result.reason)
+		status_changed.emit()
+		return
+
+	var device := get_facing_device_definition()
+	if device == null:
+		hint_requested.emit("No digital device detected.")
+		status_changed.emit()
+		return
+
+	if device.device_type != last_diagnostic_result.device_type \
+	or device.supported_action != last_diagnostic_result.supported_action:
+		hint_requested.emit("Device changed. Scan again.")
+		status_changed.emit()
+		return
+
+	match device.supported_action:
+		"download_info_key":
+			if not can_spend_action(1, 1):
+				return
+			spend_action(1, 1)
+			if current_mission_index == 2:
+				hint_requested.emit("Terminal is silent. Interface calibration required.")
+				complete_mission()
+				return
+			has_info_key = true
+			hint_requested.emit("Info-Key downloaded. Find the digital door.")
+			status_changed.emit()
+			return
+		"open_digital_door":
+			if not has_info_key:
+				hint_requested.emit("Digital door requires Info-Key.")
+				status_changed.emit()
+				return
+			if not can_spend_action(1, 1):
+				return
+			spend_action(1, 1)
+			grid_manager.set_tile(get_facing_device_position(), GridManager.TILE_FLOOR)
+			hint_requested.emit("Digital door opened.")
+			status_changed.emit()
+			return
+		_:
+			hint_requested.emit("Unsupported hack action.")
+			status_changed.emit()
+			return
+
 func interact() -> void:
 	var target_position := get_facing_device_position()
 	var target_tile := grid_manager.get_tile(target_position)
