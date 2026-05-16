@@ -22,7 +22,7 @@ enum Direction {
 @export var debug_install_manipulator: bool = true
 @export var debug_install_interface: bool = true
 @export var debug_install_visor: bool = true
-@export var debug_add_mission4_modules_to_box: bool = false
+@export var debug_add_mission4_modules_to_box: bool = true
 
 # MVP module model: modules can grant small passive bonuses and command flags.
 # No inventory/equipment UI yet; this only stores and applies data programmatically.
