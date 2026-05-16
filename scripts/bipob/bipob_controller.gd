@@ -446,9 +446,8 @@ func return_installed_module_to_box_storage(module: BipobModule) -> void:
 
 	if not box_storage.has(module):
 		box_storage.append(module)
-	# TODO: Replace with dedicated equipment refresh when module removal UI is implemented.
+
 	recalculate_module_stats()
-	hint_requested.emit("Returned to box: " + get_module_display_name(module))
 	status_changed.emit()
 
 func remove_last_installed_module_to_box() -> bool:
@@ -457,13 +456,22 @@ func remove_last_installed_module_to_box() -> bool:
 		status_changed.emit()
 		return false
 
-	var module_to_remove := installed_modules[installed_modules.size() - 1]
+	var module_to_remove: BipobModule = installed_modules[installed_modules.size() - 1]
 	if module_to_remove == null:
-		hint_requested.emit("No installed modules to remove.")
+		installed_modules.remove_at(installed_modules.size() - 1)
+		hint_requested.emit("Removed empty module slot.")
 		status_changed.emit()
 		return false
 
-	return_installed_module_to_box_storage(module_to_remove)
+	installed_modules.remove_at(installed_modules.size() - 1)
+
+	if not box_storage.has(module_to_remove):
+		box_storage.append(module_to_remove)
+
+	recalculate_module_stats()
+
+	hint_requested.emit("Removed module to box: " + get_module_display_name(module_to_remove))
+	status_changed.emit()
 	return true
 
 func set_found_module(module: BipobModule) -> void:
