@@ -644,6 +644,10 @@ func evaluate_facing_device_capability() -> DiagnosticResult:
 	return last_diagnostic_result
 	
 func open_door(door_position: Vector2i) -> void:
+	if not can_use_physical_hand():
+		hint_requested.emit("Hand occupied. Return to the box before using physical interact.")
+		status_changed.emit()
+		return
 	if not require_command("open_physical_door", "Missing module: Manipulator V1 required."):
 		return
 	if not has_key:
@@ -864,6 +868,10 @@ func read_terminal(target_position: Vector2i) -> void:
 			hint_requested.emit("Terminal is inactive in this mission.")
 
 func pick_up_key(key_position: Vector2i) -> void:
+	if not can_use_physical_hand():
+		hint_requested.emit("Hand occupied. Return to the box before using physical interact.")
+		status_changed.emit()
+		return
 	if not require_command("interact_key", "Missing module: Manipulator V1 required."):
 		return
 	has_key = true
