@@ -160,7 +160,7 @@ func restart_current_mission() -> void:
 
 func start_next_mission() -> void:
 	if sector_completed:
-		hint_requested.emit("Sector-01 complete. Restart the current mission or wait for the next sector.")
+		hint_requested.emit("Sector-01 complete. Playtest build finished.")
 		status_changed.emit()
 		return
 
@@ -340,7 +340,7 @@ func can_spend_action(action_cost: int, energy_cost: int) -> bool:
 	
 	if energy < energy_cost:
 		print("Not enough energy.")
-		hint_requested.emit("Not enough energy.")
+		hint_requested.emit("Not enough energy. Return to the box and use Charge.")
 		return false
 	
 	return true
@@ -398,10 +398,17 @@ func complete_mission() -> void:
 	
 	print("MISSION COMPLETE")
 	print("Bipob reached the exit.")
-	hint_requested.emit("Mission complete. Return to the box.")
+	if current_mission_index == 1:
+		hint_requested.emit("Mission 1 complete. Return to the box, then start Mission 2.")
+	elif current_mission_index == 2:
+		hint_requested.emit("Mission 2 complete. Return to the box, then start Mission 3.")
+	else:
+		hint_requested.emit("Mission complete. Return to the box.")
+
 	if current_mission_index == max_mission_index:
 		sector_completed = true
 		hint_requested.emit("Sector-01 complete. Playtest build finished.")
+		last_diagnostic_result = null
 	create_debug_found_module()
 	status_changed.emit()
 	mission_completed.emit()

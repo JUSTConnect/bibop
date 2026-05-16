@@ -31,9 +31,11 @@ var hack_device_button: Button
 var restart_mission_button: Button
 
 func _ready() -> void:
-	status_label.position = Vector2(100, 20)
-	hint_label.position = Vector2(100, 50)
-	hint_label.text = "Goal: pick up the key, open the door, reach the exit."
+	if status_label != null:
+		status_label.position = Vector2(100, 20)
+	if hint_label != null:
+		hint_label.position = Vector2(100, 50)
+		hint_label.text = "Mission 1: pick up the key, open the door, reach the exit."
 
 	diagnostic_label = Label.new()
 	diagnostic_label.name = "DiagnosticLabel"
@@ -43,24 +45,35 @@ func _ready() -> void:
 	diagnostic_label.text = "Diagnostic: none"
 	add_child(diagnostic_label)
 
-	command_panel.position = Vector2(850, 80)
-	command_panel.custom_minimum_size = Vector2(220, 260)
+	if command_panel != null:
+		command_panel.position = Vector2(850, 80)
+		command_panel.custom_minimum_size = Vector2(220, 260)
 
-	box_screen.visible = false
-	command_panel.visible = true
+	if box_screen != null:
+		box_screen.visible = false
+	if command_panel != null:
+		command_panel.visible = true
 
-	move_forward_button.focus_mode = Control.FOCUS_NONE
-	move_backward_button.focus_mode = Control.FOCUS_NONE
-	turn_left_button.focus_mode = Control.FOCUS_NONE
-	turn_right_button.focus_mode = Control.FOCUS_NONE
-	interact_button.focus_mode = Control.FOCUS_NONE
-	end_turn_button.focus_mode = Control.FOCUS_NONE
+	if move_forward_button != null:
+		move_forward_button.focus_mode = Control.FOCUS_NONE
+	if move_backward_button != null:
+		move_backward_button.focus_mode = Control.FOCUS_NONE
+	if turn_left_button != null:
+		turn_left_button.focus_mode = Control.FOCUS_NONE
+	if turn_right_button != null:
+		turn_right_button.focus_mode = Control.FOCUS_NONE
+	if interact_button != null:
+		interact_button.focus_mode = Control.FOCUS_NONE
+	if end_turn_button != null:
+		end_turn_button.focus_mode = Control.FOCUS_NONE
 
 	scan_device_button = Button.new()
 	scan_device_button.name = "ScanDeviceButton"
 	scan_device_button.text = "Scan Device"
 	scan_device_button.focus_mode = Control.FOCUS_NONE
-	var command_list := command_panel.get_node_or_null("CommandList")
+	var command_list: Node = null
+	if command_panel != null:
+		command_list = command_panel.get_node_or_null("CommandList")
 	if command_list != null:
 		command_list.add_child(scan_device_button)
 		scan_device_button.pressed.connect(_on_scan_device_button_pressed)
@@ -77,15 +90,23 @@ func _ready() -> void:
 		command_list.add_child(restart_mission_button)
 		restart_mission_button.pressed.connect(_on_restart_mission_button_pressed)
 
-	move_forward_button.pressed.connect(_on_move_forward_pressed)
-	move_backward_button.pressed.connect(_on_move_backward_pressed)
-	turn_left_button.pressed.connect(_on_turn_left_pressed)
-	turn_right_button.pressed.connect(_on_turn_right_pressed)
-	interact_button.pressed.connect(_on_interact_pressed)
-	end_turn_button.pressed.connect(_on_end_turn_pressed)
+	if move_forward_button != null:
+		move_forward_button.pressed.connect(_on_move_forward_pressed)
+	if move_backward_button != null:
+		move_backward_button.pressed.connect(_on_move_backward_pressed)
+	if turn_left_button != null:
+		turn_left_button.pressed.connect(_on_turn_left_pressed)
+	if turn_right_button != null:
+		turn_right_button.pressed.connect(_on_turn_right_pressed)
+	if interact_button != null:
+		interact_button.pressed.connect(_on_interact_pressed)
+	if end_turn_button != null:
+		end_turn_button.pressed.connect(_on_end_turn_pressed)
 
-	charge_button.pressed.connect(_on_charge_button_pressed)
-	install_module_button.pressed.connect(_on_install_module_button_pressed)
+	if charge_button != null:
+		charge_button.pressed.connect(_on_charge_button_pressed)
+	if install_module_button != null:
+		install_module_button.pressed.connect(_on_install_module_button_pressed)
 	if start_mission_button != null:
 		start_mission_button.pressed.connect(_on_start_mission_button_pressed)
 
@@ -121,19 +142,24 @@ func _on_start_mission_button_pressed() -> void:
 		return
 
 	bipob.start_next_mission()
-	hide_box_screen()
+	if not bipob.sector_completed:
+		hide_box_screen()
 	update_status()
 	update_box_status()
 	update_diagnostic_status()
 
 func show_box_screen() -> void:
-	box_screen.visible = true
-	command_panel.visible = false
+	if box_screen != null:
+		box_screen.visible = true
+	if command_panel != null:
+		command_panel.visible = false
 	update_box_status()
 	
 func hide_box_screen() -> void:
-	box_screen.visible = false
-	command_panel.visible = true
+	if box_screen != null:
+		box_screen.visible = false
+	if command_panel != null:
+		command_panel.visible = true
 	update_status()
 	update_box_status()
 	update_diagnostic_status()
@@ -145,25 +171,32 @@ func update_box_status() -> void:
 	update_diagnostic_status()
 
 	if bipob.sector_completed:
-		box_status_label.text = "Sector-01 complete. Playtest build finished.\nEnergy: %d / %d" % [bipob.energy, bipob.max_energy]
+		if box_status_label != null:
+			box_status_label.text = "Sector-01 complete. Playtest build finished.\nEnergy: %d / %d" % [bipob.energy, bipob.max_energy]
 	else:
-		box_status_label.text = "Energy: %d / %d" % [bipob.energy, bipob.max_energy]
+		if box_status_label != null:
+			box_status_label.text = "Energy: %d / %d" % [bipob.energy, bipob.max_energy]
 
 	if bipob.found_module != null:
-		box_module_label.text = "Found module: %s" % bipob.found_module.display_name
+		if box_module_label != null:
+			box_module_label.text = "Found module: %s" % bipob.found_module.display_name
 	else:
-		box_module_label.text = "Found module: none"
+		if box_module_label != null:
+			box_module_label.text = "Found module: none"
 
 	if bipob.installed_modules.is_empty():
-		installed_modules_label.text = "Installed modules: none"
+		if installed_modules_label != null:
+			installed_modules_label.text = "Installed modules: none"
 	else:
 		var installed_modules_text := "Installed modules:"
 		for module in bipob.installed_modules:
 			installed_modules_text += "\n- %s" % module.display_name
-		installed_modules_label.text = installed_modules_text
+		if installed_modules_label != null:
+			installed_modules_label.text = installed_modules_text
 
 func show_hint(message: String) -> void:
-	hint_label.text = message
+	if hint_label != null:
+		hint_label.text = message
 
 func _on_move_forward_pressed() -> void:
 	bipob.move_forward()
@@ -209,7 +242,8 @@ func _on_restart_mission_button_pressed() -> void:
 	if box_screen != null and box_screen.visible:
 		hide_box_screen()
 	else:
-		command_panel.visible = true
+		if command_panel != null:
+			command_panel.visible = true
 
 	update_status()
 	update_diagnostic_status()
@@ -226,6 +260,9 @@ func update_status() -> void:
 	var info_key_text := "no"
 	if bipob.has_info_key:
 		info_key_text = "yes"
+
+	if status_label == null:
+		return
 
 	status_label.text = "Energy: %d / %d | Actions: %d / %d | Key: %s | Info-Key: %s" % [
 		bipob.energy,
