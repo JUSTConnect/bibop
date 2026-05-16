@@ -220,6 +220,9 @@ func get_first_digital_record_display_name() -> String:
 func has_digital_record(record_id: String) -> bool:
 	return digital_storage.has(record_id)
 
+func use_digital_record(record_id: String) -> bool:
+	return has_digital_record(record_id)
+
 func get_digital_record_display_name(record_id: String) -> String:
 	if not digital_storage.has(record_id):
 		return record_id
@@ -745,7 +748,7 @@ func open_door(door_position: Vector2i) -> void:
 func open_digital_door(door_position: Vector2i) -> void:
 	if not require_command("open_digital_door", "Missing module: Interface V1 required."):
 		return
-	if not has_info_key and not has_digital_record("info_key"):
+	if not has_info_key and not use_digital_record("info_key"):
 		print("Digital door locked. Info-Key required from terminal.")
 		hint_requested.emit("Digital door requires Info-Key. Hack the terminal first.")
 		return
@@ -756,7 +759,7 @@ func open_digital_door(door_position: Vector2i) -> void:
 	grid_manager.set_tile(door_position, GridManager.TILE_FLOOR)
 	spend_action(1, 1)
 	print("Digital door opened.")
-	hint_requested.emit("Digital door opened. Reach the exit.")
+	hint_requested.emit("Digital door opened. Info-Key remains stored.")
 	status_changed.emit()
 
 
@@ -829,7 +832,7 @@ func hack_device() -> void:
 			status_changed.emit()
 			return
 		"open_digital_door":
-			if not has_info_key and not has_digital_record("info_key"):
+			if not has_info_key and not use_digital_record("info_key"):
 				hint_requested.emit("Digital door requires Info-Key. Hack the terminal first.")
 				status_changed.emit()
 				return
@@ -837,7 +840,7 @@ func hack_device() -> void:
 				return
 			spend_action(1, 1)
 			grid_manager.set_tile(get_facing_device_position(), GridManager.TILE_FLOOR)
-			hint_requested.emit("Digital door opened. Reach the exit.")
+			hint_requested.emit("Digital door opened. Info-Key remains stored.")
 			status_changed.emit()
 			return
 		_:
