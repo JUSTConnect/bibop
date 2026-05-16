@@ -24,6 +24,10 @@ text = "Energy: -- / --"
 layout_mode = 2
 text = "Found module: --"
 
+[node name="InstalledModulesLabel" type="Label" parent="PanelContainer/VBoxContainer" unique_id=900288789]
+layout_mode = 2
+text = "Installed modules: --"
+
 [node name="ButtonRow" type="VBoxContainer" parent="PanelContainer/VBoxContainer" unique_id=967118503]
 layout_mode = 2
 
