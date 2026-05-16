@@ -28,6 +28,7 @@ var diagnostic_label: Label
 
 var scan_device_button: Button
 var hack_device_button: Button
+var restart_mission_button: Button
 
 func _ready() -> void:
 	status_label.position = Vector2(100, 20)
@@ -69,6 +70,12 @@ func _ready() -> void:
 		hack_device_button.focus_mode = Control.FOCUS_NONE
 		command_list.add_child(hack_device_button)
 		hack_device_button.pressed.connect(_on_hack_device_button_pressed)
+		restart_mission_button = Button.new()
+		restart_mission_button.name = "RestartMissionButton"
+		restart_mission_button.text = "Restart Mission"
+		restart_mission_button.focus_mode = Control.FOCUS_NONE
+		command_list.add_child(restart_mission_button)
+		restart_mission_button.pressed.connect(_on_restart_mission_button_pressed)
 
 	move_forward_button.pressed.connect(_on_move_forward_pressed)
 	move_backward_button.pressed.connect(_on_move_backward_pressed)
@@ -180,6 +187,20 @@ func _on_hack_device_button_pressed() -> void:
 func _on_end_turn_pressed() -> void:
 	bipob.end_turn()
 	update_status()
+
+func _on_restart_mission_button_pressed() -> void:
+	if bipob == null:
+		return
+
+	bipob.restart_current_mission()
+	if box_screen != null and box_screen.visible:
+		hide_box_screen()
+	else:
+		command_panel.visible = true
+
+	update_status()
+	update_diagnostic_status()
+	update_box_status()
 
 func update_status() -> void:
 	if bipob == null:
