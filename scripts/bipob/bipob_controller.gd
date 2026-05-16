@@ -779,10 +779,18 @@ func interact() -> void:
 			pick_up_component(target_position)
 			return
 		GridManager.TILE_KEY:
+			if not can_use_physical_hand():
+				hint_requested.emit("Hand occupied. Return to the box before using physical interact.")
+				status_changed.emit()
+				return
 			if not can_spend_action(1, 1):
 				return
 			pick_up_key(target_position)
 		GridManager.TILE_DOOR:
+			if not can_use_physical_hand():
+				hint_requested.emit("Hand occupied. Return to the box before using physical interact.")
+				status_changed.emit()
+				return
 			if not can_spend_action(1, 1):
 				return
 			open_door(target_position)
@@ -805,6 +813,12 @@ func get_carried_physical_count() -> int:
 	if held_module != null:
 		return 1
 	return 0
+
+func is_hand_occupied() -> bool:
+	return held_module != null
+
+func can_use_physical_hand() -> bool:
+	return not is_hand_occupied()
 
 func can_pick_up_physical_item() -> bool:
 	return get_carried_physical_count() < physical_carry_capacity
