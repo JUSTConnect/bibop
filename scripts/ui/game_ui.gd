@@ -14,6 +14,7 @@ var diagnostic_label: Label
 @onready var box_module_label: Label = $BoxScreen/PanelContainer/VBoxContainer/ModuleLabel
 @onready var installed_modules_label: Label = $BoxScreen/PanelContainer/VBoxContainer/InstalledModulesLabel
 var box_storage_label: Label
+var digital_storage_label: Label
 @onready var charge_button: Button = $BoxScreen/PanelContainer/VBoxContainer/ButtonRow/ChargeButton
 @onready var install_module_button: Button = $BoxScreen/PanelContainer/VBoxContainer/ButtonRow/InstallModuleButton
 @onready var start_mission_button: Button = $BoxScreen/PanelContainer/VBoxContainer/ButtonRow/StartMissionButton
@@ -65,6 +66,16 @@ func _ready() -> void:
 			box_vbox.add_child(box_storage_label)
 			if start_mission_button != null:
 				box_vbox.move_child(box_storage_label, start_mission_button.get_index())
+
+	if digital_storage_label == null:
+		digital_storage_label = Label.new()
+		digital_storage_label.name = "DigitalStorageLabel"
+		digital_storage_label.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+		var digital_box_vbox := box_screen.get_node_or_null("PanelContainer/VBoxContainer")
+		if digital_box_vbox != null:
+			digital_box_vbox.add_child(digital_storage_label)
+			if start_mission_button != null:
+				digital_box_vbox.move_child(digital_storage_label, start_mission_button.get_index())
 
 	if move_forward_button != null:
 		move_forward_button.focus_mode = Control.FOCUS_NONE
@@ -225,6 +236,9 @@ func update_box_status() -> void:
 		if box_storage_label != null:
 			box_storage_label.text = box_storage_text
 
+	if digital_storage_label != null and bipob.has_method("get_digital_storage_text"):
+		digital_storage_label.text = str(bipob.get_digital_storage_text())
+
 	if bipob.installed_modules.is_empty():
 		if installed_modules_label != null:
 			installed_modules_label.text = "Installed modules: none"
@@ -328,6 +342,18 @@ func update_status() -> void:
 		bipob.get_carried_physical_count(),
 		bipob.physical_carry_capacity
 	]
+	var digital_storage_short_text := "empty"
+	if bipob.has_method("get_digital_storage_short_text"):
+		digital_storage_short_text = str(bipob.get_digital_storage_short_text())
+	elif bipob.has_method("get_digital_storage_text"):
+		var full_storage_text := str(bipob.get_digital_storage_text())
+		if full_storage_text.begins_with("Digital storage: "):
+			digital_storage_short_text = full_storage_text.trim_prefix("Digital storage: ")
+		elif full_storage_text.begins_with("Digital storage:\n- "):
+			digital_storage_short_text = full_storage_text.trim_prefix("Digital storage:\n- ").replace("\n- ", ", ")
+		elif not full_storage_text.is_empty():
+			digital_storage_short_text = full_storage_text
+	status_label.text += " | Data: %s" % digital_storage_short_text
 
 
 func update_diagnostic_status() -> void:
