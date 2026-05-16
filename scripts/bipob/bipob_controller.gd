@@ -34,6 +34,7 @@ var direction: Direction = Direction.NORTH
 var energy: int = 0
 var actions_left: int = 0
 var mission_finished: bool = false
+var sector_completed: bool = false
 var current_mission_index: int = 1
 var max_mission_index: int = 3
 var has_key: bool = false
@@ -150,16 +151,26 @@ func start_mission(mission_index: int) -> void:
 	hint_requested.emit(get_current_mission_goal_hint())
 
 func restart_current_mission() -> void:
+	if sector_completed and current_mission_index == max_mission_index:
+		sector_completed = false
+
 	start_mission(current_mission_index)
 	last_diagnostic_result = null
 	status_changed.emit()
 
 func start_next_mission() -> void:
+	if sector_completed:
+		hint_requested.emit("Sector-01 complete. Restart the current mission or wait for the next sector.")
+		status_changed.emit()
+		return
+
 	if current_mission_index < max_mission_index:
 		start_mission(current_mission_index + 1)
 		return
 
-	hint_requested.emit("All available Sector-01 missions completed.")
+	sector_completed = true
+	hint_requested.emit("Sector-01 complete. Playtest build finished.")
+	status_changed.emit()
 
 func create_default_modules() -> void:
 	installed_modules.clear()
@@ -388,6 +399,9 @@ func complete_mission() -> void:
 	print("MISSION COMPLETE")
 	print("Bipob reached the exit.")
 	hint_requested.emit("Mission complete. Return to the box.")
+	if current_mission_index == max_mission_index:
+		sector_completed = true
+		hint_requested.emit("Sector-01 complete. Playtest build finished.")
 	create_debug_found_module()
 	status_changed.emit()
 	mission_completed.emit()
