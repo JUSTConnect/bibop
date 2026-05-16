@@ -856,7 +856,7 @@ func drop_held_item() -> void:
 		status_changed.emit()
 		return
 
-	var target_position := grid_position + get_direction_vector()
+	var target_position := grid_position + get_direction_vector(direction)
 	if not grid_manager.is_in_bounds(target_position) or grid_manager.get_tile(target_position) != GridManager.TILE_FLOOR:
 		hint_requested.emit("Cannot drop item here. Face an empty floor cell.")
 		status_changed.emit()
