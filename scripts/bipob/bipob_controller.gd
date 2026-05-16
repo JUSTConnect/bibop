@@ -50,6 +50,7 @@ func install_module(module: BipobModule) -> void:
 
 	installed_modules.append(module)
 	recalculate_module_stats()
+	status_changed.emit()
 
 func has_command(command_id: String) -> bool:
 	for module in installed_modules:
@@ -153,20 +154,24 @@ func create_debug_found_module() -> void:
 	var module := BipobModule.new()
 	module.id = "battery_v1"
 	module.display_name = "Battery V1"
-	module.description = "Increases max energy."
+	module.description = "Increases max energy by 10."
 	module.energy_bonus = 10
 	module.granted_commands = []
-	set_found_module(module)
+	found_module = module
+	hint_requested.emit("Found module: " + module.display_name)
+	status_changed.emit()
 
 func install_found_module() -> bool:
 	if found_module == null:
+		print("No module to install.")
 		hint_requested.emit("No module to install.")
 		return false
 
 	var module_to_install := found_module
 	install_module(module_to_install)
-	hint_requested.emit("Installed module: %s" % module_to_install.display_name)
 	found_module = null
+	print("Installed module: ", module_to_install.display_name)
+	hint_requested.emit("Installed module: " + module_to_install.display_name)
 	status_changed.emit()
 	return true
 
@@ -330,8 +335,9 @@ func complete_mission() -> void:
 	
 	print("MISSION COMPLETE")
 	print("Bipob reached the exit.")
-	hint_requested.emit("Mission complete. Good job.")
+	hint_requested.emit("Mission complete. Return to the box.")
 	create_debug_found_module()
+	status_changed.emit()
 	mission_completed.emit()
 			
 func update_world_position() -> void:

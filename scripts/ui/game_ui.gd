@@ -11,7 +11,7 @@ class_name GameUI
 @onready var box_status_label: Label = $BoxScreen/PanelContainer/VBoxContainer/StatusLabel
 @onready var box_module_label: Label = $BoxScreen/PanelContainer/VBoxContainer/ModuleLabel
 @onready var box_charge_button: Button = $BoxScreen/PanelContainer/VBoxContainer/ButtonRow/ChargeButton
-@onready var box_install_module_button: Button = $BoxScreen/PanelContainer/VBoxContainer/ButtonRow/InstallModuleButton
+@onready var install_module_button: Button = $BoxScreen/PanelContainer/VBoxContainer/ButtonRow/InstallModuleButton
 @onready var box_start_mission_button: Button = $BoxScreen/PanelContainer/VBoxContainer/ButtonRow/StartMissionButton
 
 @onready var move_forward_button: Button = $CommandPanel/CommandList/MoveForwardButton
@@ -42,14 +42,14 @@ func _ready() -> void:
 	interact_button.pressed.connect(_on_interact_pressed)
 	end_turn_button.pressed.connect(_on_end_turn_pressed)
 	box_charge_button.pressed.connect(_on_box_charge_pressed)
-	box_install_module_button.pressed.connect(_on_box_install_module_pressed)
+	install_module_button.pressed.connect(_on_install_module_button_pressed)
 
 	bipob.status_changed.connect(update_status)
 	bipob.hint_requested.connect(show_hint)
 	bipob.mission_completed.connect(_on_mission_completed)
 
 	box_charge_button.disabled = true
-	box_install_module_button.disabled = true
+	install_module_button.disabled = true
 	box_start_mission_button.disabled = true
 	hide_box_screen()
 
@@ -87,7 +87,7 @@ func _on_box_charge_pressed() -> void:
 	update_status()
 	update_box_status()
 
-func _on_box_install_module_pressed() -> void:
+func _on_install_module_button_pressed() -> void:
 	bipob.install_found_module()
 	update_status()
 	update_box_status()
@@ -132,10 +132,10 @@ func update_box_status() -> void:
 
 	if bipob.found_module != null:
 		box_module_label.text = "Found module: %s" % bipob.found_module.display_name
-		box_install_module_button.disabled = false
+		install_module_button.disabled = false
 	else:
 		box_module_label.text = "Found module: none"
-		box_install_module_button.disabled = true
+		install_module_button.disabled = true
 
 func _on_mission_completed() -> void:
 	show_box_screen()
