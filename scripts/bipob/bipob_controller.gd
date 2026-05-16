@@ -801,9 +801,7 @@ func update_vision() -> void:
 		if not missing_visor_hint_shown:
 			hint_requested.emit("Missing module: Visor V1 required.")
 			missing_visor_hint_shown = true
-		grid_manager.clear_visible_cells()
-		grid_manager.reveal_cell(grid_position)
-		grid_manager.queue_redraw()
+		grid_manager.reveal_current_cell_only(grid_position)
 		return
 
 	missing_visor_hint_shown = false

@@ -176,6 +176,11 @@ func reveal_cell(grid_position: Vector2i) -> void:
 	visible_cells[grid_position.y][grid_position.x] = true
 	explored_cells[grid_position.y][grid_position.x] = true
 
+func reveal_current_cell_only(origin_position: Vector2i) -> void:
+	clear_visible_cells()
+	reveal_cell(origin_position)
+	queue_redraw()
+
 func reveal_around(center_position: Vector2i) -> void:
 	clear_visible_cells()
 	
