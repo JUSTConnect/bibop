@@ -853,6 +853,25 @@ func update_vision() -> void:
 	var effective_range: int = get_effective_vision_range()
 	var side_width: int = get_effective_vision_side_width()
 	grid_manager.reveal_by_vision(grid_position, direction_vector, effective_range, side_width)
+	if can_detect_hidden_nodes():
+		detect_hidden_route_nodes_in_vision()
+
+func detect_hidden_route_nodes_in_vision() -> void:
+	if grid_manager == null:
+		return
+	if not can_detect_hidden_nodes():
+		return
+
+	var discovered_any := false
+	for cell in grid_manager.get_visible_cells():
+		if grid_manager.get_tile(cell) == GridManager.TILE_HIDDEN_ROUTE_NODE:
+			if not grid_manager.is_hidden_route_node_discovered(cell):
+				grid_manager.discover_hidden_route_node(cell)
+				discovered_any = true
+
+	if discovered_any:
+		hint_requested.emit("Hidden route-node detected.")
+		status_changed.emit()
 	
 func charge_to_full() -> void:
 	# Box preparation action: refill battery without spending field actions/energy.
