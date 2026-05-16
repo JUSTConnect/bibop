@@ -43,8 +43,9 @@ var installed_modules: Array[BipobModule] = []
 var box_storage: Array[BipobModule] = []
 var found_module: BipobModule = null
 var held_module: BipobModule = null
+var stored_physical_module: BipobModule = null
 var field_modules_by_position: Dictionary = {}
-var physical_carry_capacity: int = 1
+var physical_carry_capacity: int = 2
 var digital_storage: Dictionary = {}
 var digital_storage_capacity: int = 1
 var last_diagnostic_result: DiagnosticResult = null
@@ -553,12 +554,14 @@ func complete_mission() -> void:
 		return
 	
 	mission_finished = true
-	var stored_module_name := ""
 	var stored_module_this_mission := false
 	if held_module != null:
-		stored_module_name = get_module_display_name(held_module)
 		add_module_to_box_storage(held_module)
 		held_module = null
+		stored_module_this_mission = true
+	if stored_physical_module != null:
+		add_module_to_box_storage(stored_physical_module)
+		stored_physical_module = null
 		stored_module_this_mission = true
 	
 	if mission_label != null:
@@ -572,9 +575,6 @@ func complete_mission() -> void:
 		hint_requested.emit("Mission 2 complete. Return to the box, then start Mission 3.")
 	else:
 		hint_requested.emit("Mission complete. Return to the box.")
-	if not stored_module_name.is_empty():
-		hint_requested.emit("Stored in box: " + stored_module_name)
-
 	if current_mission_index == max_mission_index:
 		sector_completed = true
 		hint_requested.emit("Sector-01 complete. Playtest build finished.")
@@ -899,9 +899,12 @@ func create_debug_field_component() -> BipobModule:
 	return module
 
 func get_carried_physical_count() -> int:
+	var count := 0
 	if held_module != null:
-		return 1
-	return 0
+		count += 1
+	if stored_physical_module != null:
+		count += 1
+	return count
 
 func is_hand_occupied() -> bool:
 	return held_module != null
@@ -909,14 +912,24 @@ func is_hand_occupied() -> bool:
 func can_use_physical_hand() -> bool:
 	return not is_hand_occupied()
 
+func is_physical_storage_occupied() -> bool:
+	return stored_physical_module != null
+
+func has_free_physical_storage() -> bool:
+	return stored_physical_module == null
+
+func has_any_physical_item() -> bool:
+	return held_module != null or stored_physical_module != null
+
 func can_pick_up_physical_item() -> bool:
 	return get_carried_physical_count() < physical_carry_capacity
 
 func pick_up_component(component_position: Vector2i) -> void:
-	if not can_pick_up_physical_item():
-		hint_requested.emit("Carry capacity full. Return to the box to store the current item.")
+	if held_module != null and is_physical_storage_occupied():
+		hint_requested.emit("Physical storage full. Drop or deliver an item first.")
 		status_changed.emit()
 		return
+
 	if not can_spend_action(1, 1):
 		return
 
@@ -925,10 +938,36 @@ func pick_up_component(component_position: Vector2i) -> void:
 		picked_module = create_debug_field_component()
 
 	field_modules_by_position.erase(component_position)
-	held_module = picked_module
 	grid_manager.set_tile(component_position, GridManager.TILE_FLOOR)
+
+	if held_module == null:
+		held_module = picked_module
+		hint_requested.emit("Component collected in hand: %s." % get_module_display_name(picked_module))
+	else:
+		stored_physical_module = picked_module
+		hint_requested.emit("Component stored internally: %s." % get_module_display_name(picked_module))
+
 	spend_action(1, 1)
-	hint_requested.emit("Component collected: %s. Return to the box to store it." % get_module_display_name(picked_module))
+	status_changed.emit()
+
+
+func rotate_physical_storage() -> void:
+	if mission_finished:
+		return
+
+	if not has_any_physical_item():
+		hint_requested.emit("No physical items to rotate.")
+		status_changed.emit()
+		return
+
+	if not can_spend_action(1, 0):
+		return
+
+	var hand_module := held_module
+	held_module = stored_physical_module
+	stored_physical_module = hand_module
+	spend_action(1, 0)
+	hint_requested.emit("Rotated physical storage.")
 	status_changed.emit()
 
 func drop_held_item() -> void:
@@ -1005,6 +1044,7 @@ func print_status() -> void:
 		" | Actions: ", actions_left, " / ", actions_per_turn,
 		" | Has Key: ", has_key,
 		" | Has Info Key: ", has_info_key,
-		" | Carry: ", get_carried_physical_count(), " / ", physical_carry_capacity,
-		" | Held Module: ", get_module_display_name(held_module) if held_module != null else "none"
+		" | Hand: ", get_module_display_name(held_module) if held_module != null else "empty",
+		" | Storage: ", get_module_display_name(stored_physical_module) if stored_physical_module != null else "empty",
+		" | Carry: ", get_carried_physical_count(), " / ", physical_carry_capacity
 	)

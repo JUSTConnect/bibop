@@ -32,6 +32,7 @@ var scan_device_button: Button
 var hack_device_button: Button
 var restart_mission_button: Button
 var drop_item_button: Button
+var rotate_storage_button: Button
 
 func _ready() -> void:
 	if status_label != null:
@@ -95,6 +96,11 @@ func _ready() -> void:
 	drop_item_button.text = "Drop Item"
 	drop_item_button.focus_mode = Control.FOCUS_NONE
 
+	rotate_storage_button = Button.new()
+	rotate_storage_button.name = "RotateStorageButton"
+	rotate_storage_button.text = "Rotate Storage"
+	rotate_storage_button.focus_mode = Control.FOCUS_NONE
+
 	scan_device_button = Button.new()
 	scan_device_button.name = "ScanDeviceButton"
 	scan_device_button.text = "Scan Device"
@@ -105,6 +111,8 @@ func _ready() -> void:
 	if command_list != null:
 		command_list.add_child(drop_item_button)
 		drop_item_button.pressed.connect(_on_drop_item_button_pressed)
+		command_list.add_child(rotate_storage_button)
+		rotate_storage_button.pressed.connect(_on_rotate_storage_button_pressed)
 		command_list.add_child(scan_device_button)
 		scan_device_button.pressed.connect(_on_scan_device_button_pressed)
 		hack_device_button = Button.new()
@@ -223,8 +231,11 @@ func update_box_status() -> void:
 	var hand_text := "empty"
 	if bipob.held_module != null:
 		hand_text = bipob.get_module_display_name(bipob.held_module)
+	var storage_text := "empty"
+	if bipob.stored_physical_module != null:
+		storage_text = bipob.get_module_display_name(bipob.stored_physical_module)
 	if box_module_label != null:
-		box_module_label.text += "\nHand: %s" % hand_text
+		box_module_label.text += "\nHand: %s\nRobot storage: %s" % [hand_text, storage_text]
 
 	if bipob.box_storage.is_empty():
 		if box_storage_label != null:
@@ -279,6 +290,12 @@ func _on_drop_item_button_pressed() -> void:
 	update_diagnostic_status()
 	update_box_status()
 
+func _on_rotate_storage_button_pressed() -> void:
+	bipob.rotate_physical_storage()
+	update_status()
+	update_diagnostic_status()
+	update_box_status()
+
 func _on_scan_device_button_pressed() -> void:
 	bipob.scan_device()
 	update_status()
@@ -325,18 +342,22 @@ func update_status() -> void:
 	var held_text := "empty"
 	if bipob.held_module != null:
 		held_text = bipob.get_module_display_name(bipob.held_module)
+	var storage_text := "empty"
+	if bipob.stored_physical_module != null:
+		storage_text = bipob.get_module_display_name(bipob.stored_physical_module)
 
 	if status_label == null:
 		return
 
-	status_label.text = "Energy: %d / %d | Actions: %d / %d | Key: %s | Info-Key: %s | Hand: %s" % [
+	status_label.text = "Energy: %d / %d | Actions: %d / %d | Key: %s | Info-Key: %s | Hand: %s | Storage: %s" % [
 		bipob.energy,
 		bipob.max_energy,
 		bipob.actions_left,
 		bipob.actions_per_turn,
 		key_text,
 		info_key_text,
-		held_text
+		held_text,
+		storage_text
 	]
 	status_label.text += " | Carry: %d / %d" % [
 		bipob.get_carried_physical_count(),
