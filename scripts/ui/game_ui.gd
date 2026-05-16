@@ -26,6 +26,8 @@ var diagnostic_label: Label
 @onready var interact_button: Button = $CommandPanel/CommandList/InteractButton
 @onready var end_turn_button: Button = $CommandPanel/CommandList/EndTurnButton
 
+var scan_device_button: Button
+
 func _ready() -> void:
 	status_label.position = Vector2(100, 20)
 	hint_label.position = Vector2(100, 50)
@@ -51,6 +53,15 @@ func _ready() -> void:
 	turn_right_button.focus_mode = Control.FOCUS_NONE
 	interact_button.focus_mode = Control.FOCUS_NONE
 	end_turn_button.focus_mode = Control.FOCUS_NONE
+
+	scan_device_button = Button.new()
+	scan_device_button.name = "ScanDeviceButton"
+	scan_device_button.text = "Scan Device"
+	scan_device_button.focus_mode = Control.FOCUS_NONE
+	var command_list := command_panel.get_node_or_null("CommandList")
+	if command_list != null:
+		command_list.add_child(scan_device_button)
+		scan_device_button.pressed.connect(_on_scan_device_button_pressed)
 
 	move_forward_button.pressed.connect(_on_move_forward_pressed)
 	move_backward_button.pressed.connect(_on_move_backward_pressed)
@@ -146,6 +157,12 @@ func _on_turn_right_pressed() -> void:
 func _on_interact_pressed() -> void:
 	bipob.interact()
 	update_status()
+
+func _on_scan_device_button_pressed() -> void:
+	bipob.scan_device()
+	update_status()
+	update_diagnostic_status()
+	update_box_status()
 
 func _on_end_turn_pressed() -> void:
 	bipob.end_turn()
