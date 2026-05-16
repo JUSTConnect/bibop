@@ -9,6 +9,7 @@ const TILE_EXIT := 4
 const TILE_TERMINAL := 5
 const TILE_DIGITAL_DOOR := 6
 const TILE_COMPONENT := 7
+const TILE_HIDDEN_ROUTE_NODE := 8
 
 @export var cell_size: int = 64
 @export var fog_enabled: bool = true
@@ -16,6 +17,7 @@ const TILE_COMPONENT := 7
 
 var visible_cells: Array = []
 var explored_cells: Array = []
+var discovered_hidden_route_nodes: Dictionary = {}
 
 var map_data: Array = [
 	[1, 1, 1, 1, 1, 1, 1, 1],
@@ -40,6 +42,7 @@ var tile_colors := {
 	TILE_TERMINAL: Color(0.6, 0.25, 0.75),
 	TILE_DIGITAL_DOOR: Color(0.1, 0.4, 0.85),
 	TILE_COMPONENT: Color(0.9, 0.45, 0.15),
+	TILE_HIDDEN_ROUTE_NODE: Color(0.16, 0.16, 0.18),
 }
 
 func _ready() -> void:
@@ -62,6 +65,7 @@ func reset_mission_layout(_mission_index: int) -> void:
 	if mission_initial_map_data.is_empty():
 		cache_initial_mission_layout()
 	map_data = duplicate_map_layout(mission_initial_map_data)
+	reset_hidden_discoveries()
 	queue_redraw()
 
 func reset_fog_of_war() -> void:
@@ -77,9 +81,14 @@ func _draw() -> void:
 			var rect := Rect2(cell_position, Vector2(cell_size, cell_size))
 			
 			var color: Color = tile_colors.get(tile_type, Color.MAGENTA)
+			if tile_type == TILE_HIDDEN_ROUTE_NODE and not is_hidden_route_node_discovered(grid_position):
+				color = tile_colors.get(TILE_FLOOR, Color(0.16, 0.16, 0.18))
 			
 			draw_rect(rect, color, true)
 			draw_rect(rect, Color(0.35, 0.35, 0.38), false, 2.0)
+			if tile_type == TILE_HIDDEN_ROUTE_NODE and is_hidden_route_node_discovered(grid_position):
+				var marker_radius := cell_size * 0.15
+				draw_circle(rect.get_center(), marker_radius, Color(0.45, 0.95, 1.0))
 			
 			if fog_enabled:
 				draw_fog_for_cell(grid_position, rect)
@@ -240,6 +249,34 @@ func reveal_by_vision(origin_position: Vector2i, direction_vector: Vector2i, vis
 			reveal_visible_target(origin_position, center_position + side_vector * offset)
 			reveal_visible_target(origin_position, center_position - side_vector * offset)
 
+	queue_redraw()
+
+func get_visible_cells() -> Array[Vector2i]:
+	var cells: Array[Vector2i] = []
+	for y in range(get_map_height()):
+		for x in range(get_map_width()):
+			if visible_cells[y][x]:
+				cells.append(Vector2i(x, y))
+	return cells
+
+func is_hidden_route_node_discovered(position: Vector2i) -> bool:
+	return discovered_hidden_route_nodes.has(position)
+
+func discover_hidden_route_node(position: Vector2i) -> void:
+	if get_tile(position) != TILE_HIDDEN_ROUTE_NODE:
+		return
+	discovered_hidden_route_nodes[position] = true
+	queue_redraw()
+
+func reset_hidden_discoveries() -> void:
+	discovered_hidden_route_nodes.clear()
+	queue_redraw()
+
+func place_debug_hidden_route_node(position: Vector2i) -> void:
+	if not is_in_bounds(position):
+		return
+	set_tile(position, TILE_HIDDEN_ROUTE_NODE)
+	discovered_hidden_route_nodes.erase(position)
 	queue_redraw()
 	
 func is_cell_visible(grid_position: Vector2i) -> bool:
