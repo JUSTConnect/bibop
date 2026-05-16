@@ -37,6 +37,7 @@ var mission_finished: bool = false
 var has_key: bool = false
 var has_info_key: bool = false
 var installed_modules: Array[BipobModule] = []
+var found_module: BipobModule = null
 
 @onready var grid_manager: GridManager = get_node("../Field")
 @onready var mission_label: Label = get_node("../UI/MissionLabel")
@@ -143,6 +144,31 @@ func create_default_modules() -> void:
 			"vision",
 		]
 		install_module(visor_module)
+
+func set_found_module(module: BipobModule) -> void:
+	found_module = module
+	status_changed.emit()
+
+func create_debug_found_module() -> void:
+	var module := BipobModule.new()
+	module.id = "battery_v1"
+	module.display_name = "Battery V1"
+	module.description = "Increases max energy."
+	module.energy_bonus = 10
+	module.granted_commands = []
+	set_found_module(module)
+
+func install_found_module() -> bool:
+	if found_module == null:
+		hint_requested.emit("No module to install.")
+		return false
+
+	var module_to_install := found_module
+	install_module(module_to_install)
+	hint_requested.emit("Installed module: %s" % module_to_install.display_name)
+	found_module = null
+	status_changed.emit()
+	return true
 
 func require_command(command_id: String, missing_message: String) -> bool:
 	if has_command(command_id):
@@ -305,6 +331,7 @@ func complete_mission() -> void:
 	print("MISSION COMPLETE")
 	print("Bipob reached the exit.")
 	hint_requested.emit("Mission complete. Good job.")
+	create_debug_found_module()
 	mission_completed.emit()
 			
 func update_world_position() -> void:
