@@ -22,14 +22,11 @@ enum Direction {
 @export var debug_install_manipulator: bool = true
 @export var debug_install_interface: bool = true
 @export var debug_install_visor: bool = true
-<<<<<<< HEAD
+
 @export var debug_add_mission4_modules_to_box: bool = true
-=======
-@export var debug_add_mission4_modules_to_box: bool = false
 @export var debug_place_hidden_route_node: bool = true
 @export var debug_hidden_route_node_position: Vector2i = Vector2i(3, 1)
 @export var debug_show_hidden_route_node_logs: bool = true
->>>>>>> 9e6f0c0e2b861459f8531808bdcc79e8b502fbbe
 
 # MVP module model: modules can grant small passive bonuses and command flags.
 # No inventory/equipment UI yet; this only stores and applies data programmatically.
@@ -292,9 +289,6 @@ func start_mission(mission_index: int, save_snapshot: bool = true) -> void:
 	status_changed.emit()
 	hint_requested.emit(get_current_mission_goal_hint())
 
-<<<<<<< HEAD
-=======
-
 func find_valid_debug_hidden_route_node_position() -> Vector2i:
 	var preferred_positions: Array[Vector2i] = [
 		debug_hidden_route_node_position,
@@ -333,7 +327,6 @@ func place_debug_hidden_route_node() -> void:
 		print("Debug hidden route-node placed at: ", position)
 		hint_requested.emit("Debug hidden route-node placed at: " + str(position))
 
->>>>>>> 9e6f0c0e2b861459f8531808bdcc79e8b502fbbe
 func restart_current_mission() -> void:
 	if sector_completed and current_mission_index == max_mission_index:
 		sector_completed = false
