@@ -480,10 +480,23 @@ func add_module_to_box_storage(module: BipobModule) -> void:
 func install_module_from_box_storage(storage_index: int) -> bool:
 	if storage_index < 0 or storage_index >= box_storage.size():
 		hint_requested.emit("No module in that storage slot.")
+		status_changed.emit()
 		return false
 
-	var module_to_install := box_storage[storage_index]
+	var module_to_install: BipobModule = box_storage[storage_index]
+	if module_to_install == null:
+		box_storage.remove_at(storage_index)
+		hint_requested.emit("Removed empty module from box storage.")
+		status_changed.emit()
+		return false
+
 	box_storage.remove_at(storage_index)
+
+	if installed_modules.has(module_to_install):
+		hint_requested.emit("Module already installed: " + get_module_display_name(module_to_install))
+		status_changed.emit()
+		return false
+
 	install_module(module_to_install)
 	hint_requested.emit("Installed from box: " + get_module_display_name(module_to_install))
 	status_changed.emit()
@@ -519,6 +532,30 @@ func remove_last_installed_module_to_box() -> bool:
 		return false
 
 	installed_modules.remove_at(installed_modules.size() - 1)
+
+	if not box_storage.has(module_to_remove):
+		box_storage.append(module_to_remove)
+
+	recalculate_module_stats()
+
+	hint_requested.emit("Removed module to box: " + get_module_display_name(module_to_remove))
+	status_changed.emit()
+	return true
+
+func remove_installed_module_to_box_by_index(module_index: int) -> bool:
+	if module_index < 0 or module_index >= installed_modules.size():
+		hint_requested.emit("No installed module in that slot.")
+		status_changed.emit()
+		return false
+
+	var module_to_remove: BipobModule = installed_modules[module_index]
+	if module_to_remove == null:
+		installed_modules.remove_at(module_index)
+		hint_requested.emit("Removed empty module slot.")
+		status_changed.emit()
+		return false
+
+	installed_modules.remove_at(module_index)
 
 	if not box_storage.has(module_to_remove):
 		box_storage.append(module_to_remove)
