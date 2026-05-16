@@ -4,6 +4,7 @@ class_name BipobController
 signal status_changed
 signal hint_requested(message: String)
 signal mission_completed
+signal returned_to_box
 
 enum Direction {
 	NORTH,
@@ -289,6 +290,26 @@ func restart_current_mission() -> void:
 	update_world_position()
 	status_changed.emit()
 	hint_requested.emit(get_current_mission_goal_hint())
+
+func return_to_box() -> void:
+	if mission_finished:
+		returned_to_box.emit()
+		return
+
+	mission_finished = true
+	last_diagnostic_result = null
+
+	if held_module != null:
+		add_module_to_box_storage(held_module)
+		held_module = null
+
+	if stored_physical_module != null:
+		add_module_to_box_storage(stored_physical_module)
+		stored_physical_module = null
+
+	hint_requested.emit("Returned to box. Mission attempt aborted.")
+	status_changed.emit()
+	returned_to_box.emit()
 
 func store_digital_record(record_id: String, display_name: String, description: String = "") -> void:
 	if record_id.is_empty():
