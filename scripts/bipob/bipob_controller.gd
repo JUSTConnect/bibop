@@ -429,6 +429,38 @@ func get_direction_vector(current_direction: Direction) -> Vector2i:
 			return Vector2i(-1, 0)
 	
 	return Vector2i.ZERO
+
+func get_facing_device_position() -> Vector2i:
+	return grid_position + get_direction_vector(direction)
+
+func get_device_definition_for_tile(tile_type: int) -> DeviceDefinition:
+	var definition := DeviceDefinition.new()
+
+	match tile_type:
+		GridManager.TILE_TERMINAL:
+			definition.device_type = "terminal"
+			definition.display_name = "Terminal"
+			definition.required_interface = "interface_v1"
+			definition.difficulty_level = 1
+			definition.supported_action = "download_info_key"
+			return definition
+		GridManager.TILE_DIGITAL_DOOR:
+			definition.device_type = "digital_door"
+			definition.display_name = "Digital Door"
+			definition.required_interface = "interface_v1"
+			definition.difficulty_level = 1
+			definition.supported_action = "open_digital_door"
+			return definition
+		_:
+			return null
+
+func get_facing_device_definition() -> DeviceDefinition:
+	if grid_manager == null:
+		return null
+
+	var facing_position := get_facing_device_position()
+	var tile_type := grid_manager.get_tile(facing_position)
+	return get_device_definition_for_tile(tile_type)
 	
 func open_door(door_position: Vector2i) -> void:
 	if not require_command("open_physical_door", "Missing module: Manipulator V1 required."):
@@ -462,7 +494,7 @@ func open_digital_door(door_position: Vector2i) -> void:
 	status_changed.emit()
 
 func interact() -> void:
-	var target_position := grid_position + get_direction_vector(direction)
+	var target_position := get_facing_device_position()
 	var target_tile := grid_manager.get_tile(target_position)
 	
 	match target_tile:
