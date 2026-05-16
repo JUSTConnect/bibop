@@ -119,12 +119,14 @@ func _ready() -> void:
 	update_diagnostic_status()
 
 func _on_charge_button_pressed() -> void:
+	# BoxScreen preparation action: must not spend field action points or energy.
 	bipob.charge_to_full()
 	update_status()
 	update_box_status()
 	update_diagnostic_status()
 
 func _on_install_module_button_pressed() -> void:
+	# BoxScreen preparation action: must not spend field action points or energy.
 	bipob.install_found_module()
 	update_status()
 	update_box_status()
@@ -134,6 +136,7 @@ func _on_start_mission_button_pressed() -> void:
 	if bipob == null:
 		return
 
+	# BoxScreen preparation action: starts mission flow without field action/energy spend.
 	if bipob.sector_completed:
 		bipob.start_next_mission()
 		update_status()
@@ -238,6 +241,7 @@ func _on_restart_mission_button_pressed() -> void:
 	if bipob == null:
 		return
 
+	# Mission reset action: should not spend field action points or energy as button press.
 	bipob.restart_current_mission()
 	if box_screen != null and box_screen.visible:
 		hide_box_screen()

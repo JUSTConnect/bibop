@@ -133,6 +133,7 @@ func get_current_mission_goal_hint() -> String:
 	return get_mission_goal_hint(current_mission_index)
 
 func start_mission(mission_index: int) -> void:
+	# Box preparation flow: mission start resets turn actions, but does not spend resources.
 	current_mission_index = clampi(mission_index, 1, max_mission_index)
 	mission_finished = false
 	actions_left = actions_per_turn
@@ -154,6 +155,7 @@ func restart_current_mission() -> void:
 	if sector_completed and current_mission_index == max_mission_index:
 		sector_completed = false
 
+	# Restart flow is state reset, not a field action spend.
 	start_mission(current_mission_index)
 	last_diagnostic_result = null
 	status_changed.emit()
@@ -430,6 +432,7 @@ func update_vision() -> void:
 	grid_manager.reveal_by_vision(grid_position, direction_vector, vision_range)
 	
 func charge_to_full() -> void:
+	# Box preparation action: refill battery without spending field actions/energy.
 	energy = max_energy
 	print("Bipob fully charged.")
 	hint_requested.emit("Bipob fully charged.")
