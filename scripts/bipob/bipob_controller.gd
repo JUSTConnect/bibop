@@ -555,6 +555,32 @@ func open_digital_door(door_position: Vector2i) -> void:
 	hint_requested.emit("Digital door opened.")
 	status_changed.emit()
 
+
+func scan_device() -> void:
+	if mission_finished:
+		return
+
+	if not can_spend_action(1, 1):
+		return
+
+	var device := get_facing_device_definition()
+	if device == null:
+		var blocked_result := DiagnosticResult.new()
+		blocked_result.status = DiagnosticResult.STATUS_BLOCKED
+		blocked_result.device_name = "Unknown"
+		blocked_result.reason = "No digital device detected."
+		blocked_result.recommendation = "Face a terminal or digital door and scan again."
+		blocked_result.estimated_risk = "none"
+		last_diagnostic_result = blocked_result
+		hint_requested.emit("No digital device detected.")
+		status_changed.emit()
+		return
+
+	spend_action(1, 1)
+	evaluate_facing_device_capability()
+	hint_requested.emit("Scan complete: " + last_diagnostic_result.get_status_text())
+	status_changed.emit()
+
 func interact() -> void:
 	var target_position := get_facing_device_position()
 	var target_tile := grid_manager.get_tile(target_position)
