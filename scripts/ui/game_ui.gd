@@ -132,8 +132,10 @@ func update_box_status() -> void:
 
 	if bipob.found_module != null:
 		box_module_label.text = "Found module: %s" % bipob.found_module.display_name
+		box_install_module_button.disabled = false
 	else:
 		box_module_label.text = "Found module: none"
+		box_install_module_button.disabled = true
 
 func _on_mission_completed() -> void:
 	show_box_screen()
