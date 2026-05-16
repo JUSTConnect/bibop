@@ -54,6 +54,14 @@ func install_module(module: BipobModule) -> void:
 	if module == null:
 		return
 
+	# Keep module state consistent across storage and installed lists.
+	var storage_index := box_storage.find(module)
+	if storage_index != -1:
+		box_storage.remove_at(storage_index)
+
+	if installed_modules.has(module):
+		return
+
 	installed_modules.append(module)
 	recalculate_module_stats()
 	status_changed.emit()
@@ -237,6 +245,12 @@ func add_module_to_box_storage(module: BipobModule) -> void:
 	if module == null:
 		return
 
+	if installed_modules.has(module):
+		return
+
+	if box_storage.has(module):
+		return
+
 	box_storage.append(module)
 	hint_requested.emit("Stored in box: " + get_module_display_name(module))
 	status_changed.emit()
@@ -295,6 +309,17 @@ func install_found_module() -> bool:
 	hint_requested.emit("Installed module: " + get_module_display_name(module_to_install))
 	status_changed.emit()
 	return true
+
+func install_available_module() -> bool:
+	if not box_storage.is_empty():
+		return install_module_from_box_storage(0)
+
+	if found_module != null:
+		return install_found_module()
+
+	hint_requested.emit("No module to install.")
+	status_changed.emit()
+	return false
 
 func require_command(command_id: String, missing_message: String) -> bool:
 	if has_command(command_id):
@@ -444,10 +469,12 @@ func complete_mission() -> void:
 	
 	mission_finished = true
 	var stored_module_name := ""
+	var stored_module_this_mission := false
 	if held_module != null:
 		stored_module_name = get_module_display_name(held_module)
 		add_module_to_box_storage(held_module)
 		held_module = null
+		stored_module_this_mission = true
 	
 	if mission_label != null:
 		mission_label.text = "MISSION COMPLETE"
@@ -467,7 +494,11 @@ func complete_mission() -> void:
 		sector_completed = true
 		hint_requested.emit("Sector-01 complete. Playtest build finished.")
 		last_diagnostic_result = null
-	create_debug_found_module()
+
+	if stored_module_this_mission:
+		found_module = null
+	else:
+		create_debug_found_module()
 	status_changed.emit()
 	mission_completed.emit()
 			
