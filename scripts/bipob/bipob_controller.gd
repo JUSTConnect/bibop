@@ -45,6 +45,8 @@ var found_module: BipobModule = null
 var held_module: BipobModule = null
 var field_modules_by_position: Dictionary = {}
 var physical_carry_capacity: int = 1
+var digital_storage: Dictionary = {}
+var digital_storage_capacity: int = 1
 var last_diagnostic_result: DiagnosticResult = null
 
 @onready var grid_manager: GridManager = get_node("../Field")
@@ -171,6 +173,62 @@ func restart_current_mission() -> void:
 	start_mission(current_mission_index)
 	last_diagnostic_result = null
 	status_changed.emit()
+
+func store_digital_record(record_id: String, display_name: String, description: String = "") -> void:
+	if record_id.is_empty():
+		return
+
+	var record := {
+		"id": record_id,
+		"display_name": display_name,
+		"description": description,
+	}
+
+	if digital_storage.has(record_id):
+		digital_storage[record_id] = record
+		hint_requested.emit("Digital record stored: " + get_digital_record_display_name(record_id))
+		status_changed.emit()
+		return
+
+	if digital_storage.size() >= digital_storage_capacity and digital_storage_capacity > 0:
+		var existing_record_id := String(digital_storage.keys()[0])
+		digital_storage.erase(existing_record_id)
+		digital_storage[record_id] = record
+		hint_requested.emit("Digital storage overwritten: " + display_name)
+		status_changed.emit()
+		return
+
+	digital_storage[record_id] = record
+	hint_requested.emit("Digital record stored: " + display_name)
+	status_changed.emit()
+
+func has_digital_record(record_id: String) -> bool:
+	return digital_storage.has(record_id)
+
+func get_digital_record_display_name(record_id: String) -> String:
+	if not digital_storage.has(record_id):
+		return record_id
+
+	var record_data: Variant = digital_storage.get(record_id, {})
+	if typeof(record_data) != TYPE_DICTIONARY:
+		return record_id
+
+	var record_dict: Dictionary = record_data
+	if record_dict.has("display_name"):
+		var resolved_display_name := String(record_dict.get("display_name", ""))
+		if not resolved_display_name.is_empty():
+			return resolved_display_name
+
+	return record_id
+
+func get_digital_storage_text() -> String:
+	if digital_storage.is_empty():
+		return "Digital storage: empty"
+
+	var lines := ["Digital storage:"]
+	for record_id in digital_storage.keys():
+		lines.append("- " + get_digital_record_display_name(String(record_id)))
+	return "\n".join(lines)
 
 func start_next_mission() -> void:
 	if sector_completed:
@@ -665,7 +723,7 @@ func open_door(door_position: Vector2i) -> void:
 func open_digital_door(door_position: Vector2i) -> void:
 	if not require_command("open_digital_door", "Missing module: Interface V1 required."):
 		return
-	if not has_info_key:
+	if not has_info_key and not has_digital_record("info_key"):
 		print("Digital door locked. Info-Key required from terminal.")
 		hint_requested.emit("Digital door requires Info-Key. Hack the terminal first.")
 		return
@@ -744,11 +802,12 @@ func hack_device() -> void:
 				complete_mission()
 				return
 			has_info_key = true
+			store_digital_record("info_key", "Info-Key", "Digital authorization record for opening a digital door.")
 			hint_requested.emit("Info-Key downloaded. Now find the digital door, scan it, then hack it.")
 			status_changed.emit()
 			return
 		"open_digital_door":
-			if not has_info_key:
+			if not has_info_key and not has_digital_record("info_key"):
 				hint_requested.emit("Digital door requires Info-Key. Hack the terminal first.")
 				status_changed.emit()
 				return
@@ -890,6 +949,7 @@ func read_terminal(target_position: Vector2i) -> void:
 			if not can_spend_action(1, 1):
 				return
 			has_info_key = true
+			store_digital_record("info_key", "Info-Key", "Digital authorization record for opening a digital door.")
 			spend_action(1, 1)
 			print("Terminal accessed at ", target_position, ". Info-Key downloaded.")
 			hint_requested.emit("Info-Key downloaded. Find the digital door.")
