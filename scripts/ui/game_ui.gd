@@ -7,7 +7,11 @@ class_name GameUI
 @onready var hint_label: Label = $HintLabel
 @onready var command_panel: PanelContainer = $CommandPanel
 @onready var box_screen: Control = $BoxScreen
-
+@onready var box_status_label: Label = $BoxScreen/PanelContainer/VBoxContainer/StatusLabel
+@onready var box_module_label: Label = $BoxScreen/PanelContainer/VBoxContainer/ModuleLabel
+@onready var charge_button: Button = $BoxScreen/PanelContainer/VBoxContainer/ButtonRow/ChargeButton
+@onready var install_module_button: Button = $BoxScreen/PanelContainer/VBoxContainer/ButtonRow/InstallModuleButton
+@onready var start_mission_button: Button = $BoxScreen/PanelContainer/VBoxContainer/ButtonRow/StartMissionButton
 @onready var move_forward_button: Button = $CommandPanel/CommandList/MoveForwardButton
 @onready var move_backward_button: Button = $CommandPanel/CommandList/MoveBackwardButton
 @onready var turn_left_button: Button = $CommandPanel/CommandList/TurnLeftButton
@@ -39,19 +43,33 @@ func _ready() -> void:
 	turn_right_button.pressed.connect(_on_turn_right_pressed)
 	interact_button.pressed.connect(_on_interact_pressed)
 	end_turn_button.pressed.connect(_on_end_turn_pressed)
-
+	
+	charge_button.pressed.connect(_on_charge_button_pressed)
+	
 	bipob.status_changed.connect(update_status)
 	bipob.hint_requested.connect(show_hint)
 	bipob.mission_completed.connect(show_box_screen)
 
 	update_status()
+	
+func _on_charge_button_pressed() -> void:
+	bipob.charge_to_full()
+	update_status()
+	update_box_status()
+		
 func show_box_screen() -> void:
 	box_screen.visible = true
 	command_panel.visible = false
 	update_box_status()
 	
 func update_box_status() -> void:
-	print("Box screen opened.")		
+	if bipob == null:
+		return
+	
+	box_status_label.text = "Energy: %d / %d" % [
+		bipob.energy,
+		bipob.max_energy
+	]
 	
 func show_hint(message: String) -> void:
 	hint_label.text = message
@@ -87,12 +105,12 @@ func update_status() -> void:
 	var key_text := "no"
 	if bipob.has_key:
 		key_text = "yes"
-
+	
 	var info_key_text := "no"
 	if bipob.has_info_key:
 		info_key_text = "yes"
 	
-	status_label.text = "Energy: %d / %d | Actions: %d / %d | Key: %s | Info Key: %s" % [
+	status_label.text = "Energy: %d / %d | Actions: %d / %d | Key: %s | Info-Key: %s" % [
 		bipob.energy,
 		bipob.max_energy,
 		bipob.actions_left,
