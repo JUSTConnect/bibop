@@ -79,7 +79,9 @@ func _on_install_module_button_pressed() -> void:
 func _on_start_mission_button_pressed() -> void:
 	box_screen.visible = false
 	command_panel.visible = true
-	show_hint("Mission restarted. Continue operation.")
+	bipob.start_next_mission()
+	update_status()
+	update_box_status()
 
 func show_box_screen() -> void:
 	box_screen.visible = true
