@@ -8,6 +8,8 @@ class_name GameUI
 @onready var command_panel: PanelContainer = $CommandPanel
 @onready var box_screen: Control = $BoxScreen
 
+var diagnostic_label: Label
+
 @onready var box_status_label: Label = $BoxScreen/PanelContainer/VBoxContainer/StatusLabel
 @onready var box_module_label: Label = $BoxScreen/PanelContainer/VBoxContainer/ModuleLabel
 @onready var installed_modules_label: Label = $BoxScreen/PanelContainer/VBoxContainer/InstalledModulesLabel
@@ -28,6 +30,14 @@ func _ready() -> void:
 	status_label.position = Vector2(100, 20)
 	hint_label.position = Vector2(100, 50)
 	hint_label.text = "Goal: pick up the key, open the door, reach the exit."
+
+	diagnostic_label = Label.new()
+	diagnostic_label.name = "DiagnosticLabel"
+	diagnostic_label.position = Vector2(100, 80)
+	diagnostic_label.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	diagnostic_label.custom_minimum_size = Vector2(700, 140)
+	diagnostic_label.text = "Diagnostic: none"
+	add_child(diagnostic_label)
 
 	command_panel.position = Vector2(850, 80)
 	command_panel.custom_minimum_size = Vector2(220, 260)
@@ -60,22 +70,26 @@ func _ready() -> void:
 
 	update_status()
 	update_box_status()
+	update_diagnostic_status()
 
 func _on_charge_button_pressed() -> void:
 	bipob.charge_to_full()
 	update_status()
 	update_box_status()
+	update_diagnostic_status()
 
 func _on_install_module_button_pressed() -> void:
 	bipob.install_found_module()
 	update_status()
 	update_box_status()
+	update_diagnostic_status()
 
 func _on_start_mission_button_pressed() -> void:
 	bipob.start_next_mission()
 	hide_box_screen()
 	update_status()
 	update_box_status()
+	update_diagnostic_status()
 
 func show_box_screen() -> void:
 	box_screen.visible = true
@@ -87,10 +101,13 @@ func hide_box_screen() -> void:
 	command_panel.visible = true
 	update_status()
 	update_box_status()
+	update_diagnostic_status()
 	
 func update_box_status() -> void:
 	if bipob == null:
 		return
+
+	update_diagnostic_status()
 
 	box_status_label.text = "Energy: %d / %d" % [bipob.energy, bipob.max_energy]
 
@@ -153,4 +170,52 @@ func update_status() -> void:
 		bipob.actions_per_turn,
 		key_text,
 		info_key_text
+	]
+
+
+func update_diagnostic_status() -> void:
+	if bipob == null:
+		return
+
+	if diagnostic_label == null:
+		return
+
+	var result = bipob.last_diagnostic_result
+	if result == null:
+		diagnostic_label.text = "Diagnostic: none"
+		return
+
+	var device_name := "unknown"
+	if result.device != null and not result.device.display_name.is_empty():
+		device_name = result.device.display_name
+
+	var status_text := "unknown"
+	var status_index := int(result.status)
+	var status_keys := DiagnosticResult.Status.keys()
+	if status_index >= 0 and status_index < status_keys.size():
+		status_text = status_keys[status_index]
+
+	var supported_action := result.supported_action
+	if supported_action.is_empty():
+		supported_action = "none"
+
+	var reason := result.reason
+	if reason.is_empty():
+		reason = "n/a"
+
+	var recommendation := result.recommendation
+	if recommendation.is_empty():
+		recommendation = "n/a"
+
+	var estimated_risk := result.estimated_risk
+	if estimated_risk.is_empty():
+		estimated_risk = "n/a"
+
+	diagnostic_label.text = "Diagnostic:\nDevice: %s\nStatus: %s\nAction: %s\nReason: %s\nRecommendation: %s\nRisk: %s" % [
+		device_name,
+		status_text,
+		supported_action,
+		reason,
+		recommendation,
+		estimated_risk
 	]
