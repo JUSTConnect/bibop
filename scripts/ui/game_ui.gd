@@ -13,6 +13,7 @@ var diagnostic_label: Label
 @onready var box_status_label: Label = $BoxScreen/PanelContainer/VBoxContainer/StatusLabel
 @onready var box_module_label: Label = $BoxScreen/PanelContainer/VBoxContainer/ModuleLabel
 @onready var installed_modules_label: Label = $BoxScreen/PanelContainer/VBoxContainer/InstalledModulesLabel
+var box_storage_label: Label
 @onready var charge_button: Button = $BoxScreen/PanelContainer/VBoxContainer/ButtonRow/ChargeButton
 @onready var install_module_button: Button = $BoxScreen/PanelContainer/VBoxContainer/ButtonRow/InstallModuleButton
 @onready var start_mission_button: Button = $BoxScreen/PanelContainer/VBoxContainer/ButtonRow/StartMissionButton
@@ -53,6 +54,16 @@ func _ready() -> void:
 		box_screen.visible = false
 	if command_panel != null:
 		command_panel.visible = true
+
+	if box_storage_label == null:
+		box_storage_label = Label.new()
+		box_storage_label.name = "BoxStorageLabel"
+		box_storage_label.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+		var box_vbox := box_screen.get_node_or_null("PanelContainer/VBoxContainer")
+		if box_vbox != null:
+			box_vbox.add_child(box_storage_label)
+			if start_mission_button != null:
+				box_vbox.move_child(box_storage_label, start_mission_button.get_index())
 
 	if move_forward_button != null:
 		move_forward_button.focus_mode = Control.FOCUS_NONE
@@ -196,6 +207,15 @@ func update_box_status() -> void:
 			installed_modules_text += "\n- %s" % module.display_name
 		if installed_modules_label != null:
 			installed_modules_label.text = installed_modules_text
+
+	if box_storage_label != null:
+		if bipob.box_storage.is_empty():
+			box_storage_label.text = "Box storage: empty"
+		else:
+			var box_storage_text := "Box storage:"
+			for module in bipob.box_storage:
+				box_storage_text += "\n- %s" % bipob.get_module_display_name(module)
+			box_storage_label.text = box_storage_text
 
 func show_hint(message: String) -> void:
 	if hint_label != null:
