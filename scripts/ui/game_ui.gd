@@ -27,6 +27,7 @@ var diagnostic_label: Label
 @onready var end_turn_button: Button = $CommandPanel/CommandList/EndTurnButton
 
 var scan_device_button: Button
+var hack_device_button: Button
 
 func _ready() -> void:
 	status_label.position = Vector2(100, 20)
@@ -62,6 +63,12 @@ func _ready() -> void:
 	if command_list != null:
 		command_list.add_child(scan_device_button)
 		scan_device_button.pressed.connect(_on_scan_device_button_pressed)
+		hack_device_button = Button.new()
+		hack_device_button.name = "HackDeviceButton"
+		hack_device_button.text = "Hack Device"
+		hack_device_button.focus_mode = Control.FOCUS_NONE
+		command_list.add_child(hack_device_button)
+		hack_device_button.pressed.connect(_on_hack_device_button_pressed)
 
 	move_forward_button.pressed.connect(_on_move_forward_pressed)
 	move_backward_button.pressed.connect(_on_move_backward_pressed)
@@ -160,6 +167,12 @@ func _on_interact_pressed() -> void:
 
 func _on_scan_device_button_pressed() -> void:
 	bipob.scan_device()
+	update_status()
+	update_diagnostic_status()
+	update_box_status()
+
+func _on_hack_device_button_pressed() -> void:
+	bipob.hack_device()
 	update_status()
 	update_diagnostic_status()
 	update_box_status()
