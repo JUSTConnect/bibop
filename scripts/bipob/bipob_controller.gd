@@ -40,6 +40,7 @@ var has_key: bool = false
 var has_info_key: bool = false
 var installed_modules: Array[BipobModule] = []
 var found_module: BipobModule = null
+var last_diagnostic_result: DiagnosticResult = null
 
 @onready var grid_manager: GridManager = get_node("../Field")
 @onready var mission_label: Label = get_node("../UI/MissionLabel")
