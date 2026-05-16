@@ -226,6 +226,8 @@ func _ready() -> void:
 	
 	grid_position = start_grid_position
 	update_rotation()
+	if debug_place_hidden_route_node:
+		place_debug_hidden_route_node()
 	update_world_position()
 	hint_requested.emit(get_current_mission_goal_hint())
 	print_status()
@@ -270,6 +272,8 @@ func start_mission(mission_index: int, save_snapshot: bool = true) -> void:
 	if grid_manager != null:
 		grid_manager.reset_mission_layout(current_mission_index)
 		grid_manager.reset_fog_of_war()
+		if debug_place_hidden_route_node:
+			place_debug_hidden_route_node()
 	grid_position = start_grid_position
 	direction = Direction.NORTH
 	update_rotation()
