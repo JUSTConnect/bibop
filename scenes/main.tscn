@@ -5,6 +5,7 @@
 [ext_resource type="PackedScene" uid="uid://2xanckmu62op" path="res://scenes/bipob/Bipob.tscn" id="3_jyhfs"]
 [ext_resource type="Script" uid="uid://bicmf2modxkrs" path="res://scripts/bipob/bipob_controller.gd" id="4_tbgi4"]
 [ext_resource type="Script" uid="uid://cdcqh8kia25tb" path="res://scripts/ui/game_ui.gd" id="5_tbgi4"]
+[ext_resource type="PackedScene" uid="uid://dq47qflxw55b0" path="res://scenes/UI/BoxScreen.tscn" id="6_tefeu"]
 
 [node name="Main" type="Node2D" unique_id=13954534]
 
@@ -72,3 +73,6 @@ text = "Action [E]"
 [node name="EndTurnButton" type="Button" parent="UI/CommandPanel/CommandList" unique_id=1573204971]
 layout_mode = 2
 text = "End Turn [Space]"
+
+[node name="BoxScreen" parent="UI" unique_id=1571028708 instance=ExtResource("6_tefeu")]
+position = Vector2(850, 350)
