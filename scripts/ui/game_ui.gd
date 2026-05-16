@@ -284,17 +284,21 @@ func update_status() -> void:
 	var info_key_text := "no"
 	if bipob.has_info_key:
 		info_key_text = "yes"
+	var held_text := "none"
+	if bipob.held_module != null:
+		held_text = bipob.get_module_display_name(bipob.held_module)
 
 	if status_label == null:
 		return
 
-	status_label.text = "Energy: %d / %d | Actions: %d / %d | Key: %s | Info-Key: %s" % [
+	status_label.text = "Energy: %d / %d | Actions: %d / %d | Key: %s | Info-Key: %s | Held: %s" % [
 		bipob.energy,
 		bipob.max_energy,
 		bipob.actions_left,
 		bipob.actions_per_turn,
 		key_text,
-		info_key_text
+		info_key_text,
+		held_text
 	]
 
 

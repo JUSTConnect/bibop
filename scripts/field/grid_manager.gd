@@ -8,6 +8,7 @@ const TILE_KEY := 3
 const TILE_EXIT := 4
 const TILE_TERMINAL := 5
 const TILE_DIGITAL_DOOR := 6
+const TILE_COMPONENT := 7
 
 @export var cell_size: int = 64
 @export var fog_enabled: bool = true
@@ -21,7 +22,7 @@ var map_data: Array = [
 	[1, 0, 0, 0, 0, 0, 2, 1],
 	[1, 0, 1, 1, 0, 5, 6, 1],
 	[1, 0, 0, 0, 0, 1, 0, 1],
-	[1, 0, 0, 3, 0, 1, 0, 1],
+	[1, 0, 0, 3, 0, 1, 7, 1],
 	[1, 0, 1, 1, 0, 0, 0, 1],
 	[1, 0, 0, 0, 0, 4, 0, 1],
 	[1, 1, 1, 1, 1, 1, 1, 1],
@@ -35,6 +36,7 @@ var tile_colors := {
 	TILE_EXIT: Color(0.15, 0.65, 0.35),
 	TILE_TERMINAL: Color(0.6, 0.25, 0.75),
 	TILE_DIGITAL_DOOR: Color(0.1, 0.4, 0.85),
+	TILE_COMPONENT: Color(0.9, 0.45, 0.15),
 }
 
 func _ready() -> void:
