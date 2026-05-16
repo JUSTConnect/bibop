@@ -159,20 +159,30 @@ func reveal_around(center_position: Vector2i) -> void:
 	
 	queue_redraw()
 
+func is_vision_blocking_tile(tile_type: int) -> bool:
+	return tile_type == TILE_WALL
+
+func reveal_vision_ray(origin_position: Vector2i, direction_vector: Vector2i, side_vector: Vector2i, side_offset: int, vision_range: int) -> void:
+	for distance in range(1, vision_range + 1):
+		var ray_position := origin_position + direction_vector * distance + side_vector * side_offset
+		if not is_in_bounds(ray_position):
+			break
+
+		reveal_cell(ray_position)
+		if is_vision_blocking_tile(get_tile(ray_position)):
+			break
+
 func reveal_by_vision(origin_position: Vector2i, direction_vector: Vector2i, vision_range: int) -> void:
 	clear_visible_cells()
-	
 	reveal_cell(origin_position)
-	
-	for distance in range(1, vision_range + 1):
-		var forward_position := origin_position + direction_vector * distance
-		reveal_cell(forward_position)
-		
-		if distance <= 2:
-			var side_vector := Vector2i(-direction_vector.y, direction_vector.x)
-			reveal_cell(forward_position + side_vector)
-			reveal_cell(forward_position - side_vector)
-	
+
+	var side_vector := Vector2i(-direction_vector.y, direction_vector.x)
+	reveal_vision_ray(origin_position, direction_vector, side_vector, 0, vision_range)
+
+	var side_range := mini(2, vision_range)
+	reveal_vision_ray(origin_position, direction_vector, side_vector, 1, side_range)
+	reveal_vision_ray(origin_position, direction_vector, side_vector, -1, side_range)
+
 	queue_redraw()
 	
 func is_cell_visible(grid_position: Vector2i) -> bool:
