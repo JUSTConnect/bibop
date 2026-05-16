@@ -3,6 +3,7 @@ class_name BipobController
 
 signal status_changed
 signal hint_requested(message: String)
+signal mission_completed
 
 enum Direction {
 	NORTH,
@@ -296,6 +297,7 @@ func complete_mission() -> void:
 	print("MISSION COMPLETE")
 	print("Bipob reached the exit.")
 	hint_requested.emit("Mission complete. Good job.")
+	mission_completed.emit()
 			
 func update_world_position() -> void:
 	if grid_manager == null:

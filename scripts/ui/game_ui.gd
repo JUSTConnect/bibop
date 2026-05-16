@@ -6,6 +6,13 @@ class_name GameUI
 @onready var status_label: Label = $StatusLabel
 @onready var hint_label: Label = $HintLabel
 @onready var command_panel: PanelContainer = $CommandPanel
+@onready var box_screen: Control = $BoxScreen
+@onready var box_title_label: Label = $BoxScreen/PanelContainer/VBoxContainer/TitleLabel
+@onready var box_status_label: Label = $BoxScreen/PanelContainer/VBoxContainer/StatusLabel
+@onready var box_module_label: Label = $BoxScreen/PanelContainer/VBoxContainer/ModuleLabel
+@onready var box_charge_button: Button = $BoxScreen/PanelContainer/VBoxContainer/ButtonRow/ChargeButton
+@onready var box_install_module_button: Button = $BoxScreen/PanelContainer/VBoxContainer/ButtonRow/InstallModuleButton
+@onready var box_start_mission_button: Button = $BoxScreen/PanelContainer/VBoxContainer/ButtonRow/StartMissionButton
 
 @onready var move_forward_button: Button = $CommandPanel/CommandList/MoveForwardButton
 @onready var move_backward_button: Button = $CommandPanel/CommandList/MoveBackwardButton
@@ -37,6 +44,13 @@ func _ready() -> void:
 
 	bipob.status_changed.connect(update_status)
 	bipob.hint_requested.connect(show_hint)
+	bipob.mission_completed.connect(_on_mission_completed)
+
+	box_charge_button.disabled = true
+	box_install_module_button.disabled = true
+	box_start_mission_button.disabled = true
+	hide_box_screen()
+
 	update_status()
 	
 func show_hint(message: String) -> void:
@@ -86,3 +100,23 @@ func update_status() -> void:
 		key_text,
 		info_key_text
 	]
+
+func show_box_screen() -> void:
+	update_box_status()
+	box_screen.visible = true
+	command_panel.visible = false
+
+func hide_box_screen() -> void:
+	box_screen.visible = false
+	command_panel.visible = true
+
+func update_box_status() -> void:
+	if bipob == null:
+		return
+
+	box_title_label.text = "Bipob Box"
+	box_status_label.text = "Status: Mission Complete"
+	box_module_label.text = "Installed Modules: %d" % bipob.installed_modules.size()
+
+func _on_mission_completed() -> void:
+	show_box_screen()
