@@ -486,14 +486,28 @@ func interact() -> void:
 func read_terminal(target_position: Vector2i) -> void:
 	if not require_command("read_terminal", "Missing module: Interface V1 required."):
 		return
-	if not can_spend_action(1, 1):
-		return
-	has_info_key = true
-	spend_action(1, 1)
-	print("Terminal accessed at ", target_position, ". Info-Key downloaded.")
-	hint_requested.emit("Info-Key downloaded. Find the digital door.")
-	status_changed.emit()
-	print_status()
+	match current_mission_index:
+		2:
+			if not can_spend_action(1, 1):
+				return
+			spend_action(1, 1)
+			print("Terminal is silent. Interface calibration required.")
+			hint_requested.emit("Terminal is silent. Interface calibration required.")
+			complete_mission()
+			return
+		3:
+			if not can_spend_action(1, 1):
+				return
+			has_info_key = true
+			spend_action(1, 1)
+			print("Terminal accessed at ", target_position, ". Info-Key downloaded.")
+			hint_requested.emit("Info-Key downloaded. Find the digital door.")
+			status_changed.emit()
+			print_status()
+			return
+		_:
+			print("Terminal is inactive in this mission.")
+			hint_requested.emit("Terminal is inactive in this mission.")
 
 func pick_up_key(key_position: Vector2i) -> void:
 	if not require_command("interact_key", "Missing module: Manipulator V1 required."):
