@@ -351,7 +351,7 @@ func try_move_to(target_position: Vector2i) -> bool:
 		elif target_tile == GridManager.TILE_DOOR:
 			hint_requested.emit("Door is locked. Find a key and press E while facing it.")
 		elif target_tile == GridManager.TILE_DIGITAL_DOOR:
-			hint_requested.emit("Digital door is locked. Get Info-Key from terminal and press E.")
+			hint_requested.emit("Digital door is locked. Use Scan Device, then Hack Device.")
 		else:
 			hint_requested.emit("Path is blocked.")
 	
@@ -651,9 +651,13 @@ func interact() -> void:
 				return
 			open_door(target_position)
 		GridManager.TILE_DIGITAL_DOOR:
-			open_digital_door(target_position)
+			hint_requested.emit("Digital door requires Scan Device and Hack Device.")
+			status_changed.emit()
+			return
 		GridManager.TILE_TERMINAL:
-			read_terminal(target_position)
+			hint_requested.emit("Digital device detected. Use Scan Device first.")
+			status_changed.emit()
+			return
 		_:
 			print("Nothing to interact with at: ", target_position)
 			hint_requested.emit("Nothing to interact with. Face a key, door, or terminal and press E.")
