@@ -1,8 +1,11 @@
 [gd_scene format=3 uid="uid://dq47qflxw55b0"]
 
-[node name="BoxScreen" type="Node2D" unique_id=1571028708]
+[node name="BoxScreen" type="Control" unique_id=706880838]
+layout_mode = 3
+anchors_preset = 0
 
 [node name="PanelContainer" type="PanelContainer" parent="." unique_id=1659657421]
+layout_mode = 0
 offset_right = 131.0
 offset_bottom = 89.0
 
@@ -28,10 +31,10 @@ layout_mode = 2
 layout_mode = 2
 text = "Start Mission"
 
-[node name="InstallModuleButton" type="Button" parent="PanelContainer/VBoxContainer/ButtonRow" unique_id=115772681]
-layout_mode = 2
-text = "Install Module"
-
 [node name="ChargeButton" type="Button" parent="PanelContainer/VBoxContainer/ButtonRow" unique_id=534904530]
 layout_mode = 2
 text = "Charge Bipob"
+
+[node name="InstallModuleButton" type="Button" parent="PanelContainer/VBoxContainer/ButtonRow" unique_id=115772681]
+layout_mode = 2
+text = "Install Module"
