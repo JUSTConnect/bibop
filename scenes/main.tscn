@@ -75,4 +75,5 @@ layout_mode = 2
 text = "End Turn [Space]"
 
 [node name="BoxScreen" parent="UI" unique_id=1571028708 instance=ExtResource("6_tefeu")]
+visible = false
 position = Vector2(850, 350)
