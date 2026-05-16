@@ -36,6 +36,12 @@ var return_to_box_button: Button
 var drop_item_button: Button
 var rotate_storage_button: Button
 var start_mission_warning_acknowledged: bool = false
+var selected_installed_module_index: int = 0
+var selected_box_storage_index: int = 0
+var prev_installed_button: Button
+var next_installed_button: Button
+var prev_box_button: Button
+var next_box_button: Button
 
 func _ready() -> void:
 	if status_label != null:
@@ -153,7 +159,8 @@ func _ready() -> void:
 	if charge_button != null:
 		charge_button.pressed.connect(_on_charge_button_pressed)
 	if install_module_button != null:
-		install_module_button.pressed.connect(_on_install_module_button_pressed)
+		install_module_button.text = "Install Selected"
+		install_module_button.pressed.connect(_on_install_selected_box_module_pressed)
 	if start_mission_button != null:
 		start_mission_button.pressed.connect(_on_start_mission_button_pressed)
 	if box_screen != null:
@@ -161,10 +168,38 @@ func _ready() -> void:
 		if button_row != null:
 			remove_module_button = Button.new()
 			remove_module_button.name = "RemoveModuleButton"
-			remove_module_button.text = "Remove Module"
+			remove_module_button.text = "Remove Selected"
 			remove_module_button.focus_mode = Control.FOCUS_NONE
 			button_row.add_child(remove_module_button)
-			remove_module_button.pressed.connect(_on_remove_module_button_pressed)
+			remove_module_button.pressed.connect(_on_remove_selected_module_pressed)
+
+			prev_installed_button = Button.new()
+			prev_installed_button.name = "PrevInstalledButton"
+			prev_installed_button.text = "Prev Installed"
+			prev_installed_button.focus_mode = Control.FOCUS_NONE
+			button_row.add_child(prev_installed_button)
+			prev_installed_button.pressed.connect(_on_prev_installed_pressed)
+
+			next_installed_button = Button.new()
+			next_installed_button.name = "NextInstalledButton"
+			next_installed_button.text = "Next Installed"
+			next_installed_button.focus_mode = Control.FOCUS_NONE
+			button_row.add_child(next_installed_button)
+			next_installed_button.pressed.connect(_on_next_installed_pressed)
+
+			prev_box_button = Button.new()
+			prev_box_button.name = "PrevBoxButton"
+			prev_box_button.text = "Prev Box"
+			prev_box_button.focus_mode = Control.FOCUS_NONE
+			button_row.add_child(prev_box_button)
+			prev_box_button.pressed.connect(_on_prev_box_pressed)
+
+			next_box_button = Button.new()
+			next_box_button.name = "NextBoxButton"
+			next_box_button.text = "Next Box"
+			next_box_button.focus_mode = Control.FOCUS_NONE
+			button_row.add_child(next_box_button)
+			next_box_button.pressed.connect(_on_next_box_pressed)
 
 	bipob.status_changed.connect(update_status)
 	bipob.hint_requested.connect(show_hint)
@@ -185,20 +220,98 @@ func _on_charge_button_pressed() -> void:
 
 func _on_install_module_button_pressed() -> void:
 	# BoxScreen preparation action: must not spend field action points or energy.
-	bipob.install_available_module()
+	_on_install_selected_box_module_pressed()
+
+func clamp_box_selection_indexes() -> void:
+	if bipob == null:
+		selected_installed_module_index = 0
+		selected_box_storage_index = 0
+		return
+
+	if bipob.installed_modules.is_empty():
+		selected_installed_module_index = 0
+	else:
+		selected_installed_module_index = clampi(selected_installed_module_index, 0, bipob.installed_modules.size() - 1)
+
+	if bipob.box_storage.is_empty():
+		selected_box_storage_index = 0
+	else:
+		selected_box_storage_index = clampi(selected_box_storage_index, 0, bipob.box_storage.size() - 1)
+
+func _on_prev_installed_pressed() -> void:
+	if bipob == null:
+		return
+	if bipob.installed_modules.is_empty():
+		show_hint("No installed modules.")
+		return
+	selected_installed_module_index -= 1
+	if selected_installed_module_index < 0:
+		selected_installed_module_index = bipob.installed_modules.size() - 1
+	update_box_status()
+
+func _on_next_installed_pressed() -> void:
+	if bipob == null:
+		return
+	if bipob.installed_modules.is_empty():
+		show_hint("No installed modules.")
+		return
+	selected_installed_module_index += 1
+	if selected_installed_module_index >= bipob.installed_modules.size():
+		selected_installed_module_index = 0
+	update_box_status()
+
+func _on_remove_selected_module_pressed() -> void:
+	if bipob == null:
+		return
+	if bipob.installed_modules.is_empty():
+		show_hint("No installed modules to remove.")
+		return
+	clamp_box_selection_indexes()
+	bipob.remove_installed_module_to_box_by_index(selected_installed_module_index)
 	start_mission_warning_acknowledged = false
+	clamp_box_selection_indexes()
+	update_status()
+	update_box_status()
+	update_diagnostic_status()
+
+func _on_prev_box_pressed() -> void:
+	if bipob == null:
+		return
+	if bipob.box_storage.is_empty():
+		show_hint("Box storage is empty.")
+		return
+	selected_box_storage_index -= 1
+	if selected_box_storage_index < 0:
+		selected_box_storage_index = bipob.box_storage.size() - 1
+	update_box_status()
+
+func _on_next_box_pressed() -> void:
+	if bipob == null:
+		return
+	if bipob.box_storage.is_empty():
+		show_hint("Box storage is empty.")
+		return
+	selected_box_storage_index += 1
+	if selected_box_storage_index >= bipob.box_storage.size():
+		selected_box_storage_index = 0
+	update_box_status()
+
+func _on_install_selected_box_module_pressed() -> void:
+	if bipob == null:
+		return
+	if bipob.box_storage.is_empty():
+		show_hint("No module in Box Storage to install.")
+		return
+	clamp_box_selection_indexes()
+	bipob.install_module_from_box_storage(selected_box_storage_index)
+	start_mission_warning_acknowledged = false
+	clamp_box_selection_indexes()
 	update_status()
 	update_box_status()
 	update_diagnostic_status()
 
 func _on_remove_module_button_pressed() -> void:
-	if bipob == null:
-		return
-	bipob.remove_last_installed_module_to_box()
-	start_mission_warning_acknowledged = false
-	update_status()
-	update_box_status()
-	update_diagnostic_status()
+	_on_remove_selected_module_pressed()
 
 func _on_start_mission_button_pressed() -> void:
 	if bipob == null:
@@ -255,6 +368,7 @@ func update_box_status() -> void:
 	if bipob == null:
 		return
 
+	clamp_box_selection_indexes()
 	update_diagnostic_status()
 
 	if box_title_label != null:
@@ -295,8 +409,12 @@ func update_box_status() -> void:
 			box_storage_label.text = "Box storage: empty"
 	else:
 		var box_storage_text := "Box storage:"
-		for module in bipob.box_storage:
-			box_storage_text += "\n- %s" % bipob.get_module_display_name(module)
+		for index in range(bipob.box_storage.size()):
+			var module: BipobModule = bipob.box_storage[index]
+			var marker := "  "
+			if index == selected_box_storage_index:
+				marker = "> "
+			box_storage_text += "\n%s%s" % [marker, bipob.get_module_display_name(module)]
 		if box_storage_label != null:
 			box_storage_label.text = box_storage_text
 
@@ -308,8 +426,12 @@ func update_box_status() -> void:
 			installed_modules_label.text = "Installed modules: none"
 	else:
 		var installed_modules_text := "Installed modules:"
-		for module in bipob.installed_modules:
-			installed_modules_text += "\n- %s" % bipob.get_module_display_name(module)
+		for index in range(bipob.installed_modules.size()):
+			var module: BipobModule = bipob.installed_modules[index]
+			var marker := "  "
+			if index == selected_installed_module_index:
+				marker = "> "
+			installed_modules_text += "\n%s%s" % [marker, bipob.get_module_display_name(module)]
 		if installed_modules_label != null:
 			installed_modules_label.text = installed_modules_text
 
