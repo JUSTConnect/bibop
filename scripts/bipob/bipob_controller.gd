@@ -640,6 +640,17 @@ func hack_device() -> void:
 func interact() -> void:
 	var target_position := get_facing_device_position()
 	var target_tile := grid_manager.get_tile(target_position)
+
+	# Legacy interact must not process digital devices.
+	if target_tile == GridManager.TILE_TERMINAL:
+		hint_requested.emit("Digital device detected. Use Scan Device first.")
+		status_changed.emit()
+		return
+
+	if target_tile == GridManager.TILE_DIGITAL_DOOR:
+		hint_requested.emit("Digital door requires Scan Device and Hack Device.")
+		status_changed.emit()
+		return
 	
 	match target_tile:
 		GridManager.TILE_KEY:
@@ -650,14 +661,6 @@ func interact() -> void:
 			if not can_spend_action(1, 1):
 				return
 			open_door(target_position)
-		GridManager.TILE_DIGITAL_DOOR:
-			hint_requested.emit("Digital door requires Scan Device and Hack Device.")
-			status_changed.emit()
-			return
-		GridManager.TILE_TERMINAL:
-			hint_requested.emit("Digital device detected. Use Scan Device first.")
-			status_changed.emit()
-			return
 		_:
 			print("Nothing to interact with at: ", target_position)
 			hint_requested.emit("Nothing to interact with. Face a key, door, or terminal and press E.")
