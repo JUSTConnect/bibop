@@ -184,6 +184,9 @@ func update_box_status() -> void:
 
 	update_diagnostic_status()
 
+	if box_title_label != null:
+		box_title_label.text = "Box / Garage"
+
 	if bipob.sector_completed:
 		if box_status_label != null:
 			box_status_label.text = "Sector-01 complete. Playtest build finished.\nEnergy: %d / %d" % [bipob.energy, bipob.max_energy]
@@ -193,10 +196,26 @@ func update_box_status() -> void:
 
 	if bipob.found_module != null:
 		if box_module_label != null:
-			box_module_label.text = "Found module: %s" % bipob.found_module.display_name
+			box_module_label.text = "Found module: %s" % bipob.get_module_display_name(bipob.found_module)
 	else:
 		if box_module_label != null:
 			box_module_label.text = "Found module: none"
+
+	var hand_text := "empty"
+	if bipob.held_module != null:
+		hand_text = bipob.get_module_display_name(bipob.held_module)
+	if box_module_label != null:
+		box_module_label.text += "\nHand: %s" % hand_text
+
+	if bipob.box_storage.is_empty():
+		if box_storage_label != null:
+			box_storage_label.text = "Box storage: empty"
+	else:
+		var box_storage_text := "Box storage:"
+		for module in bipob.box_storage:
+			box_storage_text += "\n- %s" % bipob.get_module_display_name(module)
+		if box_storage_label != null:
+			box_storage_label.text = box_storage_text
 
 	if bipob.installed_modules.is_empty():
 		if installed_modules_label != null:
@@ -204,18 +223,9 @@ func update_box_status() -> void:
 	else:
 		var installed_modules_text := "Installed modules:"
 		for module in bipob.installed_modules:
-			installed_modules_text += "\n- %s" % module.display_name
+			installed_modules_text += "\n- %s" % bipob.get_module_display_name(module)
 		if installed_modules_label != null:
 			installed_modules_label.text = installed_modules_text
-
-	if box_storage_label != null:
-		if bipob.box_storage.is_empty():
-			box_storage_label.text = "Box storage: empty"
-		else:
-			var box_storage_text := "Box storage:"
-			for module in bipob.box_storage:
-				box_storage_text += "\n- %s" % bipob.get_module_display_name(module)
-			box_storage_label.text = box_storage_text
 
 func show_hint(message: String) -> void:
 	if hint_label != null:
@@ -284,14 +294,14 @@ func update_status() -> void:
 	var info_key_text := "no"
 	if bipob.has_info_key:
 		info_key_text = "yes"
-	var held_text := "none"
+	var held_text := "empty"
 	if bipob.held_module != null:
 		held_text = bipob.get_module_display_name(bipob.held_module)
 
 	if status_label == null:
 		return
 
-	status_label.text = "Energy: %d / %d | Actions: %d / %d | Key: %s | Info-Key: %s | Held: %s" % [
+	status_label.text = "Energy: %d / %d | Actions: %d / %d | Key: %s | Info-Key: %s | Hand: %s" % [
 		bipob.energy,
 		bipob.max_energy,
 		bipob.actions_left,
