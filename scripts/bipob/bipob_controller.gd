@@ -22,12 +22,7 @@ enum Direction {
 @export var debug_install_manipulator: bool = true
 @export var debug_install_interface: bool = true
 @export var debug_install_visor: bool = true
-<<<<<<< HEAD
 @export var debug_add_mission4_modules_to_box: bool = true
-=======
-@export var debug_add_mission4_modules_to_box: bool = false
-@export var debug_place_hidden_route_node: bool = true
->>>>>>> f5d904396a4c80094c51bdec1323fb985d71fc6b
 
 # MVP module model: modules can grant small passive bonuses and command flags.
 # No inventory/equipment UI yet; this only stores and applies data programmatically.
@@ -269,8 +264,6 @@ func start_mission(mission_index: int, save_snapshot: bool = true) -> void:
 	field_modules_by_position.clear()
 	if grid_manager != null:
 		grid_manager.reset_mission_layout(current_mission_index)
-		if debug_place_hidden_route_node:
-			place_debug_hidden_route_node()
 		grid_manager.reset_fog_of_war()
 	grid_position = start_grid_position
 	direction = Direction.NORTH
@@ -290,21 +283,6 @@ func start_mission(mission_index: int, save_snapshot: bool = true) -> void:
 
 	status_changed.emit()
 	hint_requested.emit(get_current_mission_goal_hint())
-
-
-func place_debug_hidden_route_node() -> void:
-	if grid_manager == null:
-		return
-
-	var position := Vector2i(5, 2)
-
-	if not grid_manager.is_in_bounds(position):
-		return
-
-	grid_manager.set_tile(position, GridManager.TILE_HIDDEN_ROUTE_NODE)
-
-	if grid_manager.has_method("reset_hidden_discoveries"):
-		grid_manager.reset_hidden_discoveries()
 
 func restart_current_mission() -> void:
 	if sector_completed and current_mission_index == max_mission_index:
