@@ -43,6 +43,7 @@ var installed_modules: Array[BipobModule] = []
 var box_storage: Array[BipobModule] = []
 var found_module: BipobModule = null
 var held_module: BipobModule = null
+var physical_carry_capacity: int = 1
 var last_diagnostic_result: DiagnosticResult = null
 
 @onready var grid_manager: GridManager = get_node("../Field")
@@ -800,9 +801,17 @@ func create_debug_field_component() -> BipobModule:
 	module.granted_commands = []
 	return module
 
-func pick_up_component(component_position: Vector2i) -> void:
+func get_carried_physical_count() -> int:
 	if held_module != null:
-		hint_requested.emit("Hands full. Return to the box before picking up another component.")
+		return 1
+	return 0
+
+func can_pick_up_physical_item() -> bool:
+	return get_carried_physical_count() < physical_carry_capacity
+
+func pick_up_component(component_position: Vector2i) -> void:
+	if not can_pick_up_physical_item():
+		hint_requested.emit("Carry capacity full. Return to the box to store the current item.")
 		status_changed.emit()
 		return
 	if not can_spend_action(1, 1):
@@ -856,5 +865,6 @@ func print_status() -> void:
 		" | Actions: ", actions_left, " / ", actions_per_turn,
 		" | Has Key: ", has_key,
 		" | Has Info Key: ", has_info_key,
+		" | Carry: ", get_carried_physical_count(), " / ", physical_carry_capacity,
 		" | Held Module: ", get_module_display_name(held_module) if held_module != null else "none"
 	)

@@ -300,6 +300,10 @@ func update_status() -> void:
 		info_key_text,
 		held_text
 	]
+	status_label.text += " | Carry: %d / %d" % [
+		bipob.get_carried_physical_count(),
+		bipob.physical_carry_capacity
+	]
 
 
 func update_diagnostic_status() -> void:
