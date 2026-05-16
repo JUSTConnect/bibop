@@ -189,25 +189,24 @@ func update_diagnostic_status() -> void:
 	if result.device != null and not result.device.display_name.is_empty():
 		device_name = result.device.display_name
 
-	var status_text := "unknown"
-	var status_index := int(result.status)
-	var status_keys := DiagnosticResult.Status.keys()
-	if status_index >= 0 and status_index < status_keys.size():
-		status_text = status_keys[status_index]
+	var status_text: String = str(result.get_status_text())
 
-	var supported_action := result.supported_action
+	if status_text.is_empty():
+		status_text = "UNKNOWN"
+
+	var supported_action: String = str(result.supported_action)
 	if supported_action.is_empty():
 		supported_action = "none"
 
-	var reason := result.reason
+	var reason: String = str(result.reason)
 	if reason.is_empty():
 		reason = "n/a"
 
-	var recommendation := result.recommendation
+	var recommendation: String = str(result.recommendation)
 	if recommendation.is_empty():
 		recommendation = "n/a"
 
-	var estimated_risk := result.estimated_risk
+	var estimated_risk: String = str(result.estimated_risk)
 	if estimated_risk.is_empty():
 		estimated_risk = "n/a"
 
