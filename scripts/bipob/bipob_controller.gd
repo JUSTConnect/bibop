@@ -316,6 +316,12 @@ func update_vision() -> void:
 	var direction_vector := get_direction_vector(direction)
 	grid_manager.reveal_by_vision(grid_position, direction_vector, vision_range)
 	
+func charge_to_full() -> void:
+	energy = max_energy
+	print("Bipob fully charged.")
+	hint_requested.emit("Bipob fully charged.")
+	status_changed.emit()
+		
 func update_rotation() -> void:
 	match direction:
 		Direction.NORTH:
