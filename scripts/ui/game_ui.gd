@@ -7,21 +7,19 @@ class_name GameUI
 @onready var hint_label: Label = $HintLabel
 @onready var command_panel: PanelContainer = $CommandPanel
 @onready var box_screen: Control = $BoxScreen
-<<<<<<< HEAD
+
 @onready var box_status_label: Label = $BoxScreen/PanelContainer/VBoxContainer/StatusLabel
 @onready var box_module_label: Label = $BoxScreen/PanelContainer/VBoxContainer/ModuleLabel
 @onready var charge_button: Button = $BoxScreen/PanelContainer/VBoxContainer/ButtonRow/ChargeButton
 @onready var install_module_button: Button = $BoxScreen/PanelContainer/VBoxContainer/ButtonRow/InstallModuleButton
 @onready var start_mission_button: Button = $BoxScreen/PanelContainer/VBoxContainer/ButtonRow/StartMissionButton
-=======
+
 @onready var box_title_label: Label = $BoxScreen/PanelContainer/VBoxContainer/TitleLabel
-@onready var box_status_label: Label = $BoxScreen/PanelContainer/VBoxContainer/StatusLabel
-@onready var box_module_label: Label = $BoxScreen/PanelContainer/VBoxContainer/ModuleLabel
+
 @onready var box_charge_button: Button = $BoxScreen/PanelContainer/VBoxContainer/ButtonRow/ChargeButton
-@onready var install_module_button: Button = $BoxScreen/PanelContainer/VBoxContainer/ButtonRow/InstallModuleButton
 @onready var box_start_mission_button: Button = $BoxScreen/PanelContainer/VBoxContainer/ButtonRow/StartMissionButton
 
->>>>>>> 916233b84424b88795241bbaab5f1b126863d586
+
 @onready var move_forward_button: Button = $CommandPanel/CommandList/MoveForwardButton
 @onready var move_backward_button: Button = $CommandPanel/CommandList/MoveBackwardButton
 @onready var turn_left_button: Button = $CommandPanel/CommandList/TurnLeftButton
@@ -53,14 +51,12 @@ func _ready() -> void:
 	turn_right_button.pressed.connect(_on_turn_right_pressed)
 	interact_button.pressed.connect(_on_interact_pressed)
 	end_turn_button.pressed.connect(_on_end_turn_pressed)
-<<<<<<< HEAD
 	
 	charge_button.pressed.connect(_on_charge_button_pressed)
 	
 	bipob.status_changed.connect(update_status)
 	bipob.hint_requested.connect(show_hint)
 	bipob.mission_completed.connect(show_box_screen)
-=======
 	box_charge_button.pressed.connect(_on_box_charge_pressed)
 	install_module_button.pressed.connect(_on_install_module_button_pressed)
 
@@ -72,7 +68,6 @@ func _ready() -> void:
 	install_module_button.disabled = true
 	box_start_mission_button.disabled = true
 	hide_box_screen()
->>>>>>> 916233b84424b88795241bbaab5f1b126863d586
 
 	update_status()
 	
