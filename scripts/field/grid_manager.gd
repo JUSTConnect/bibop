@@ -28,6 +28,9 @@ var map_data: Array = [
 	[1, 1, 1, 1, 1, 1, 1, 1],
 ]
 
+
+var mission_initial_map_data: Array = []
+
 var tile_colors := {
 	TILE_FLOOR: Color(0.16, 0.16, 0.18),
 	TILE_WALL: Color(0.05, 0.05, 0.06),
@@ -40,6 +43,28 @@ var tile_colors := {
 }
 
 func _ready() -> void:
+	cache_initial_mission_layout()
+	setup_fog_arrays()
+	queue_redraw()
+
+
+func duplicate_map_layout(layout: Array) -> Array:
+	var duplicated_layout: Array = []
+	for row_variant in layout:
+		var row: Array = row_variant
+		duplicated_layout.append(row.duplicate())
+	return duplicated_layout
+
+func cache_initial_mission_layout() -> void:
+	mission_initial_map_data = duplicate_map_layout(map_data)
+
+func reset_mission_layout(_mission_index: int) -> void:
+	if mission_initial_map_data.is_empty():
+		cache_initial_mission_layout()
+	map_data = duplicate_map_layout(mission_initial_map_data)
+	queue_redraw()
+
+func reset_fog_of_war() -> void:
 	setup_fog_arrays()
 	queue_redraw()
 

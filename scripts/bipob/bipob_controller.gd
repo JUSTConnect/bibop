@@ -49,6 +49,12 @@ var physical_carry_capacity: int = 2
 var digital_storage: Dictionary = {}
 var digital_storage_capacity: int = 1
 var last_diagnostic_result: DiagnosticResult = null
+var mission_start_energy: int = 0
+var mission_start_actions_left: int = 0
+var mission_start_has_key: bool = false
+var mission_start_has_info_key: bool = false
+var mission_start_held_module: BipobModule = null
+var mission_start_stored_physical_module: BipobModule = null
 
 @onready var grid_manager: GridManager = get_node("../Field")
 @onready var mission_label: Label = get_node("../UI/MissionLabel")
@@ -147,7 +153,7 @@ func get_mission_goal_hint(mission_index: int) -> String:
 func get_current_mission_goal_hint() -> String:
 	return get_mission_goal_hint(current_mission_index)
 
-func start_mission(mission_index: int) -> void:
+func start_mission(mission_index: int, save_snapshot: bool = true) -> void:
 	# Box preparation flow: mission start resets turn actions, but does not spend resources.
 	current_mission_index = clampi(mission_index, 1, max_mission_index)
 	mission_finished = false
@@ -155,10 +161,24 @@ func start_mission(mission_index: int) -> void:
 	has_key = false
 	has_info_key = false
 	last_diagnostic_result = null
+	held_module = null
+	stored_physical_module = null
+	field_modules_by_position.clear()
+	if grid_manager != null:
+		grid_manager.reset_mission_layout(current_mission_index)
+		grid_manager.reset_fog_of_war()
 	grid_position = start_grid_position
 	direction = Direction.NORTH
 	update_rotation()
 	update_world_position()
+
+	if save_snapshot:
+		mission_start_energy = energy
+		mission_start_actions_left = actions_left
+		mission_start_has_key = has_key
+		mission_start_has_info_key = has_info_key
+		mission_start_held_module = held_module
+		mission_start_stored_physical_module = stored_physical_module
 
 	if mission_label != null:
 		mission_label.text = ""
@@ -171,9 +191,21 @@ func restart_current_mission() -> void:
 		sector_completed = false
 
 	# Restart flow is state reset, not a field action spend.
-	start_mission(current_mission_index)
+	start_mission(current_mission_index, false)
+	mission_finished = false
+	energy = mission_start_energy
+	actions_left = mission_start_actions_left
+	has_key = mission_start_has_key
+	has_info_key = mission_start_has_info_key
+	held_module = mission_start_held_module
+	stored_physical_module = mission_start_stored_physical_module
 	last_diagnostic_result = null
+	grid_position = start_grid_position
+	direction = Direction.NORTH
+	update_rotation()
+	update_world_position()
 	status_changed.emit()
+	hint_requested.emit(get_current_mission_goal_hint())
 
 func store_digital_record(record_id: String, display_name: String, description: String = "") -> void:
 	if record_id.is_empty():
