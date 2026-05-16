@@ -10,6 +10,7 @@ class_name GameUI
 
 @onready var box_status_label: Label = $BoxScreen/PanelContainer/VBoxContainer/StatusLabel
 @onready var box_module_label: Label = $BoxScreen/PanelContainer/VBoxContainer/ModuleLabel
+@onready var installed_modules_label: Label = $BoxScreen/PanelContainer/VBoxContainer/InstalledModulesLabel
 @onready var charge_button: Button = $BoxScreen/PanelContainer/VBoxContainer/ButtonRow/ChargeButton
 @onready var install_module_button: Button = $BoxScreen/PanelContainer/VBoxContainer/ButtonRow/InstallModuleButton
 @onready var start_mission_button: Button = $BoxScreen/PanelContainer/VBoxContainer/ButtonRow/StartMissionButton
@@ -101,6 +102,14 @@ func update_box_status() -> void:
 		box_module_label.text = "Found module: %s" % bipob.found_module.display_name
 	else:
 		box_module_label.text = "Found module: none"
+
+	if bipob.installed_modules.is_empty():
+		installed_modules_label.text = "Installed modules: none"
+	else:
+		var installed_modules_text := "Installed modules:"
+		for module in bipob.installed_modules:
+			installed_modules_text += "\n- %s" % module.display_name
+		installed_modules_label.text = installed_modules_text
 
 func show_hint(message: String) -> void:
 	hint_label.text = message
