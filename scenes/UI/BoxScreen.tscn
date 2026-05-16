@@ -1,3 +1,50 @@
 [gd_scene format=3 uid="uid://dq47qflxw55b0"]
 
 [node name="BoxScreen" type="Node2D" unique_id=1571028708]
+
+[node name="BoxScreen" type="Control" parent="." unique_id=1137832857]
+layout_mode = 3
+anchors_preset = 0
+offset_right = 40.0
+offset_bottom = 40.0
+
+[node name="PanelContainer" type="PanelContainer" parent="BoxScreen" unique_id=1659657421]
+layout_mode = 0
+offset_right = 40.0
+offset_bottom = 40.0
+
+[node name="VBoxContainer" type="VBoxContainer" parent="BoxScreen/PanelContainer" unique_id=975780276]
+layout_mode = 2
+
+[node name="TitleLabel" type="Label" parent="BoxScreen/PanelContainer/VBoxContainer" unique_id=108188828]
+layout_mode = 2
+text = "BOX / GARAGE"
+
+[node name="StatusLabel" type="Label" parent="BoxScreen/PanelContainer/VBoxContainer" unique_id=1272822651]
+layout_mode = 2
+text = "Energy: -- / --"
+
+[node name="ModuleLabel" type="Label" parent="BoxScreen/PanelContainer/VBoxContainer" unique_id=1625101956]
+layout_mode = 2
+text = "Found module: --"
+
+[node name="ButtonRow" type="Button" parent="BoxScreen/PanelContainer/VBoxContainer" unique_id=340598437]
+layout_mode = 2
+
+[node name="ChargeButton" type="Button" parent="BoxScreen/PanelContainer/VBoxContainer/ButtonRow" unique_id=534904530]
+layout_mode = 0
+offset_right = 8.0
+offset_bottom = 8.0
+text = "Charge Bipob"
+
+[node name="InstallModuleButton" type="Button" parent="BoxScreen/PanelContainer/VBoxContainer/ButtonRow" unique_id=115772681]
+layout_mode = 0
+offset_right = 8.0
+offset_bottom = 8.0
+text = "Install Module"
+
+[node name="StartMissionButton" type="Button" parent="BoxScreen/PanelContainer/VBoxContainer/ButtonRow" unique_id=996787262]
+layout_mode = 0
+offset_right = 8.0
+offset_bottom = 8.0
+text = "Start Mission"
