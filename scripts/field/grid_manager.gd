@@ -222,7 +222,7 @@ func reveal_visible_target(origin_position: Vector2i, target_position: Vector2i)
 	if has_line_of_sight(origin_position, target_position):
 		reveal_cell(target_position)
 
-func reveal_by_vision(origin_position: Vector2i, direction_vector: Vector2i, vision_range: int) -> void:
+func reveal_by_vision(origin_position: Vector2i, direction_vector: Vector2i, vision_range: int, side_width: int = 0) -> void:
 	clear_visible_cells()
 	reveal_cell(origin_position)
 
@@ -231,9 +231,9 @@ func reveal_by_vision(origin_position: Vector2i, direction_vector: Vector2i, vis
 		var center_position := origin_position + direction_vector * distance
 		reveal_visible_target(origin_position, center_position)
 
-		if distance <= 2:
-			reveal_visible_target(origin_position, center_position + side_vector)
-			reveal_visible_target(origin_position, center_position - side_vector)
+		for offset in range(1, side_width + 1):
+			reveal_visible_target(origin_position, center_position + side_vector * offset)
+			reveal_visible_target(origin_position, center_position - side_vector * offset)
 
 	queue_redraw()
 	
