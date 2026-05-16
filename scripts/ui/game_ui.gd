@@ -41,6 +41,7 @@ func _ready() -> void:
 	turn_right_button.pressed.connect(_on_turn_right_pressed)
 	interact_button.pressed.connect(_on_interact_pressed)
 	end_turn_button.pressed.connect(_on_end_turn_pressed)
+	box_charge_button.pressed.connect(_on_box_charge_pressed)
 
 	bipob.status_changed.connect(update_status)
 	bipob.hint_requested.connect(show_hint)
@@ -79,6 +80,11 @@ func _on_interact_pressed() -> void:
 func _on_end_turn_pressed() -> void:
 	bipob.end_turn()
 	update_status()
+
+func _on_box_charge_pressed() -> void:
+	bipob.charge_to_full()
+	update_status()
+	update_box_status()
 	
 func update_status() -> void:
 	if bipob == null:
@@ -102,6 +108,7 @@ func update_status() -> void:
 	]
 
 func show_box_screen() -> void:
+	box_charge_button.disabled = false
 	update_box_status()
 	box_screen.visible = true
 	command_panel.visible = false
@@ -115,7 +122,7 @@ func update_box_status() -> void:
 		return
 
 	box_title_label.text = "Bipob Box"
-	box_status_label.text = "Status: Mission Complete"
+	box_status_label.text = "Energy: %d / %d" % [bipob.energy, bipob.max_energy]
 	box_module_label.text = "Installed Modules: %d" % bipob.installed_modules.size()
 
 func _on_mission_completed() -> void:
