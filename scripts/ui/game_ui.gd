@@ -6,6 +6,7 @@ class_name GameUI
 @onready var status_label: Label = $StatusLabel
 @onready var hint_label: Label = $HintLabel
 @onready var command_panel: PanelContainer = $CommandPanel
+@onready var box_screen: Control = $BoxScreen
 
 @onready var move_forward_button: Button = $CommandPanel/CommandList/MoveForwardButton
 @onready var move_backward_button: Button = $CommandPanel/CommandList/MoveBackwardButton
@@ -18,8 +19,12 @@ func _ready() -> void:
 	status_label.position = Vector2(100, 20)
 	hint_label.position = Vector2(100, 50)
 	hint_label.text = "Goal: pick up the key, open the door, reach the exit."
+	
 	command_panel.position = Vector2(850, 80)
 	command_panel.custom_minimum_size = Vector2(220, 260)
+	
+	box_screen.visible = false
+	command_panel.visible = true
 
 	move_forward_button.focus_mode = Control.FOCUS_NONE
 	move_backward_button.focus_mode = Control.FOCUS_NONE
@@ -37,7 +42,16 @@ func _ready() -> void:
 
 	bipob.status_changed.connect(update_status)
 	bipob.hint_requested.connect(show_hint)
+	bipob.mission_completed.connect(show_box_screen)
+
 	update_status()
+func show_box_screen() -> void:
+	box_screen.visible = true
+	command_panel.visible = false
+	update_box_status()
+	
+func update_box_status() -> void:
+	print("Box screen opened.")		
 	
 func show_hint(message: String) -> void:
 	hint_label.text = message
