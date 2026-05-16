@@ -449,7 +449,7 @@ func open_digital_door(door_position: Vector2i) -> void:
 		return
 	if not has_info_key:
 		print("Digital door locked. Info-Key required from terminal.")
-		hint_requested.emit("Digital door requires Info-Key from terminal.")
+		hint_requested.emit("Digital door requires Info-Key.")
 		return
 
 	if not can_spend_action(1, 1):
