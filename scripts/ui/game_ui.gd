@@ -30,6 +30,7 @@ var box_storage_label: Label
 var scan_device_button: Button
 var hack_device_button: Button
 var restart_mission_button: Button
+var drop_item_button: Button
 
 func _ready() -> void:
 	if status_label != null:
@@ -78,6 +79,11 @@ func _ready() -> void:
 	if end_turn_button != null:
 		end_turn_button.focus_mode = Control.FOCUS_NONE
 
+	drop_item_button = Button.new()
+	drop_item_button.name = "DropItemButton"
+	drop_item_button.text = "Drop Item"
+	drop_item_button.focus_mode = Control.FOCUS_NONE
+
 	scan_device_button = Button.new()
 	scan_device_button.name = "ScanDeviceButton"
 	scan_device_button.text = "Scan Device"
@@ -86,6 +92,8 @@ func _ready() -> void:
 	if command_panel != null:
 		command_list = command_panel.get_node_or_null("CommandList")
 	if command_list != null:
+		command_list.add_child(drop_item_button)
+		drop_item_button.pressed.connect(_on_drop_item_button_pressed)
 		command_list.add_child(scan_device_button)
 		scan_device_button.pressed.connect(_on_scan_device_button_pressed)
 		hack_device_button = Button.new()
@@ -250,6 +258,12 @@ func _on_turn_right_pressed() -> void:
 func _on_interact_pressed() -> void:
 	bipob.interact()
 	update_status()
+
+func _on_drop_item_button_pressed() -> void:
+	bipob.drop_held_item()
+	update_status()
+	update_diagnostic_status()
+	update_box_status()
 
 func _on_scan_device_button_pressed() -> void:
 	bipob.scan_device()
