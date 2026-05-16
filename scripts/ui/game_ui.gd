@@ -205,7 +205,7 @@ func _on_start_mission_button_pressed() -> void:
 		update_diagnostic_status()
 		return
 
-	var warnings := bipob.get_pre_mission_warnings()
+	var warnings: Array[String] = bipob.get_pre_mission_warnings()
 	if not bipob.can_start_mission_from_box():
 		show_hint("Cannot start mission. Battery depleted. Charge first.")
 		start_mission_warning_acknowledged = false
@@ -260,7 +260,7 @@ func update_box_status() -> void:
 			box_status_label.text = "Energy: %d / %d" % [bipob.energy, bipob.max_energy]
 
 	if box_status_label != null:
-		var warnings := bipob.get_pre_mission_warnings()
+		var warnings: Array = bipob.get_pre_mission_warnings()
 		if warnings.is_empty():
 			box_status_label.text += "\n\nWarnings: none"
 		else:
