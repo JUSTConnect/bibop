@@ -37,6 +37,7 @@ var mission_finished: bool = false
 var has_key: bool = false
 var has_info_key: bool = false
 var installed_modules: Array[BipobModule] = []
+var found_module: BipobModule = null
 
 @onready var grid_manager: GridManager = get_node("../Field")
 @onready var mission_label: Label = get_node("../UI/MissionLabel")
@@ -49,6 +50,7 @@ func install_module(module: BipobModule) -> void:
 
 	installed_modules.append(module)
 	recalculate_module_stats()
+	status_changed.emit()
 
 func has_command(command_id: String) -> bool:
 	for module in installed_modules:
@@ -143,6 +145,35 @@ func create_default_modules() -> void:
 			"vision",
 		]
 		install_module(visor_module)
+
+func set_found_module(module: BipobModule) -> void:
+	found_module = module
+	status_changed.emit()
+
+func create_debug_found_module() -> void:
+	var module := BipobModule.new()
+	module.id = "battery_v1"
+	module.display_name = "Battery V1"
+	module.description = "Increases max energy by 10."
+	module.energy_bonus = 10
+	module.granted_commands = []
+	found_module = module
+	hint_requested.emit("Found module: " + module.display_name)
+	status_changed.emit()
+
+func install_found_module() -> bool:
+	if found_module == null:
+		print("No module to install.")
+		hint_requested.emit("No module to install.")
+		return false
+
+	var module_to_install := found_module
+	install_module(module_to_install)
+	found_module = null
+	print("Installed module: ", module_to_install.display_name)
+	hint_requested.emit("Installed module: " + module_to_install.display_name)
+	status_changed.emit()
+	return true
 
 func require_command(command_id: String, missing_message: String) -> bool:
 	if has_command(command_id):
@@ -244,6 +275,14 @@ func can_spend_action(action_cost: int, energy_cost: int) -> bool:
 	
 	return true
 
+
+func charge_to_full() -> void:
+	energy = max_energy
+	print("Bipob charged to full energy.")
+	print_status()
+	status_changed.emit()
+	hint_requested.emit("Bipob fully charged.")
+
 func spend_action(action_cost: int, energy_cost: int) -> void:
 	actions_left -= action_cost
 	energy -= energy_cost
@@ -297,6 +336,10 @@ func complete_mission() -> void:
 	print("MISSION COMPLETE")
 	print("Bipob reached the exit.")
 	hint_requested.emit("Mission complete. Return to the box.")
+<<<<<<< HEAD
+=======
+	create_debug_found_module()
+>>>>>>> 916233b84424b88795241bbaab5f1b126863d586
 	status_changed.emit()
 	mission_completed.emit()
 			
