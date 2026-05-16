@@ -34,6 +34,8 @@ var direction: Direction = Direction.NORTH
 var energy: int = 0
 var actions_left: int = 0
 var mission_finished: bool = false
+var current_mission_index: int = 1
+var max_mission_index: int = 3
 var has_key: bool = false
 var has_info_key: bool = false
 var installed_modules: Array[BipobModule] = []
@@ -99,8 +101,57 @@ func _ready() -> void:
 	grid_position = start_grid_position
 	update_rotation()
 	update_world_position()
+	hint_requested.emit(get_current_mission_goal_hint())
 	print_status()
 	status_changed.emit()
+
+func get_mission_name(mission_index: int) -> String:
+	match mission_index:
+		1:
+			return "Mission 1 — First Key"
+		2:
+			return "Mission 2 — Silent Terminal"
+		3:
+			return "Mission 3 — Info-Key"
+		_:
+			return "Unknown Mission"
+
+func get_mission_goal_hint(mission_index: int) -> String:
+	match mission_index:
+		1:
+			return "Mission 1: pick up the physical key, open the door, reach the exit."
+		2:
+			return "Mission 2: inspect the silent terminal."
+		3:
+			return "Mission 3: download the Info-Key, open the digital door, reach the exit."
+		_:
+			return "No mission goal available."
+
+func get_current_mission_goal_hint() -> String:
+	return get_mission_goal_hint(current_mission_index)
+
+func start_mission(mission_index: int) -> void:
+	current_mission_index = clampi(mission_index, 1, max_mission_index)
+	mission_finished = false
+	actions_left = actions_per_turn
+	has_key = false
+	has_info_key = false
+	grid_position = start_grid_position
+	update_rotation()
+	update_world_position()
+
+	if mission_label != null:
+		mission_label.text = ""
+
+	status_changed.emit()
+	hint_requested.emit(get_current_mission_goal_hint())
+
+func start_next_mission() -> void:
+	if current_mission_index < max_mission_index:
+		start_mission(current_mission_index + 1)
+		return
+
+	hint_requested.emit("All available Sector-01 missions completed.")
 
 func create_default_modules() -> void:
 	installed_modules.clear()
