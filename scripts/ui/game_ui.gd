@@ -138,7 +138,7 @@ func _on_charge_button_pressed() -> void:
 
 func _on_install_module_button_pressed() -> void:
 	# BoxScreen preparation action: must not spend field action points or energy.
-	bipob.install_found_module()
+	bipob.install_available_module()
 	update_status()
 	update_box_status()
 	update_diagnostic_status()
