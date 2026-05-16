@@ -137,7 +137,9 @@ func start_mission(mission_index: int) -> void:
 	actions_left = actions_per_turn
 	has_key = false
 	has_info_key = false
+	last_diagnostic_result = null
 	grid_position = start_grid_position
+	direction = Direction.NORTH
 	update_rotation()
 	update_world_position()
 
@@ -146,6 +148,11 @@ func start_mission(mission_index: int) -> void:
 
 	status_changed.emit()
 	hint_requested.emit(get_current_mission_goal_hint())
+
+func restart_current_mission() -> void:
+	start_mission(current_mission_index)
+	last_diagnostic_result = null
+	status_changed.emit()
 
 func start_next_mission() -> void:
 	if current_mission_index < max_mission_index:
