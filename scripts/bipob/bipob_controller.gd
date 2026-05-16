@@ -120,11 +120,11 @@ func get_mission_name(mission_index: int) -> String:
 func get_mission_goal_hint(mission_index: int) -> String:
 	match mission_index:
 		1:
-			return "Mission 1: pick up the physical key, open the door, reach the exit."
+			return "Mission 1: pick up the physical key with Interact, open the door, then reach the exit."
 		2:
-			return "Mission 2: inspect the silent terminal."
+			return "Mission 2: face the terminal, use Scan Device, then use Hack Device."
 		3:
-			return "Mission 3: download the Info-Key, open the digital door, reach the exit."
+			return "Mission 3: Scan and Hack the terminal to get the Info-Key, then Scan and Hack the digital door."
 		_:
 			return "No mission goal available."
 
@@ -529,13 +529,13 @@ func open_door(door_position: Vector2i) -> void:
 		return
 	if not has_key:
 		print("Door is locked. Physical key required.")
-		hint_requested.emit("Door is locked. Physical key required.")
+		hint_requested.emit("Physical door locked. Find the physical key first.")
 		return
 	
 	grid_manager.set_tile(door_position, GridManager.TILE_FLOOR)
 	spend_action(1, 1)
 	print("Door opened.")
-	hint_requested.emit("Door opened. Reach the green exit.")
+	hint_requested.emit("Physical door opened. Reach the exit.")
 	print_status()
 	
 func open_digital_door(door_position: Vector2i) -> void:
@@ -543,7 +543,7 @@ func open_digital_door(door_position: Vector2i) -> void:
 		return
 	if not has_info_key:
 		print("Digital door locked. Info-Key required from terminal.")
-		hint_requested.emit("Digital door requires Info-Key.")
+		hint_requested.emit("Digital door requires Info-Key. Hack the terminal first.")
 		return
 
 	if not can_spend_action(1, 1):
@@ -552,7 +552,7 @@ func open_digital_door(door_position: Vector2i) -> void:
 	grid_manager.set_tile(door_position, GridManager.TILE_FLOOR)
 	spend_action(1, 1)
 	print("Digital door opened.")
-	hint_requested.emit("Digital door opened.")
+	hint_requested.emit("Digital door opened. Reach the exit.")
 	status_changed.emit()
 
 
@@ -572,13 +572,16 @@ func scan_device() -> void:
 		blocked_result.recommendation = "Face a terminal or digital door and scan again."
 		blocked_result.estimated_risk = "none"
 		last_diagnostic_result = blocked_result
-		hint_requested.emit("No digital device detected.")
+		hint_requested.emit("No digital device detected. Face a terminal or digital door, then scan.")
 		status_changed.emit()
 		return
 
 	spend_action(1, 1)
 	evaluate_facing_device_capability()
-	hint_requested.emit("Scan complete: " + last_diagnostic_result.get_status_text())
+	if last_diagnostic_result.status == DiagnosticResult.STATUS_BLOCKED:
+		hint_requested.emit("Scan complete: BLOCKED. Check Diagnostic panel for missing requirements.")
+	else:
+		hint_requested.emit("Scan complete: " + last_diagnostic_result.get_status_text() + ". Check Diagnostic panel, then use Hack Device if READY.")
 	status_changed.emit()
 
 func hack_device() -> void:
@@ -591,19 +594,19 @@ func hack_device() -> void:
 		return
 
 	if not last_diagnostic_result.is_action_allowed():
-		hint_requested.emit("Hack blocked: " + last_diagnostic_result.reason)
+		hint_requested.emit("Hack blocked. Check Diagnostic panel.")
 		status_changed.emit()
 		return
 
 	var device := get_facing_device_definition()
 	if device == null:
-		hint_requested.emit("No digital device detected.")
+		hint_requested.emit("No digital device detected. Face a terminal or digital door, then scan.")
 		status_changed.emit()
 		return
 
 	if device.device_type != last_diagnostic_result.device_type \
 	or device.supported_action != last_diagnostic_result.supported_action:
-		hint_requested.emit("Device changed. Scan again.")
+		hint_requested.emit("Device changed. Scan this device again.")
 		status_changed.emit()
 		return
 
@@ -613,23 +616,23 @@ func hack_device() -> void:
 				return
 			spend_action(1, 1)
 			if current_mission_index == 2:
-				hint_requested.emit("Terminal is silent. Interface calibration required.")
+				hint_requested.emit("Terminal is silent. Interface calibration required. Return to the box.")
 				complete_mission()
 				return
 			has_info_key = true
-			hint_requested.emit("Info-Key downloaded. Find the digital door.")
+			hint_requested.emit("Info-Key downloaded. Now find the digital door, scan it, then hack it.")
 			status_changed.emit()
 			return
 		"open_digital_door":
 			if not has_info_key:
-				hint_requested.emit("Digital door requires Info-Key.")
+				hint_requested.emit("Digital door requires Info-Key. Hack the terminal first.")
 				status_changed.emit()
 				return
 			if not can_spend_action(1, 1):
 				return
 			spend_action(1, 1)
 			grid_manager.set_tile(get_facing_device_position(), GridManager.TILE_FLOOR)
-			hint_requested.emit("Digital door opened.")
+			hint_requested.emit("Digital door opened. Reach the exit.")
 			status_changed.emit()
 			return
 		_:
@@ -643,12 +646,12 @@ func interact() -> void:
 
 	# Legacy interact must not process digital devices.
 	if target_tile == GridManager.TILE_TERMINAL:
-		hint_requested.emit("Digital device detected. Use Scan Device first.")
+		hint_requested.emit("Terminal is a digital device. Use Scan Device first, then Hack Device.")
 		status_changed.emit()
 		return
 
 	if target_tile == GridManager.TILE_DIGITAL_DOOR:
-		hint_requested.emit("Digital door requires Scan Device and Hack Device.")
+		hint_requested.emit("Digital door cannot be opened with Interact. Use Scan Device, then Hack Device.")
 		status_changed.emit()
 		return
 	
@@ -699,7 +702,7 @@ func pick_up_key(key_position: Vector2i) -> void:
 	grid_manager.set_tile(key_position, GridManager.TILE_FLOOR)
 	spend_action(1, 1)
 	print("Picked up physical key.")
-	hint_requested.emit("Key picked up. Now find the locked door.")
+	hint_requested.emit("Physical key collected. Use Interact on the physical door.")
 	print_status()
 	
 func print_status() -> void:
