@@ -1118,6 +1118,48 @@ func is_internal_data_network_available() -> bool:
 func is_external_data_network_available() -> bool:
 	return has_internal_interface() and has_external_interface_bridge()
 
+func get_status_word(value: bool) -> String:
+	return "available" if value else "unavailable"
+
+func get_thermal_status_word() -> String:
+	var critical_count: int = get_critical_internal_preview_count()
+	if critical_count > 0:
+		return "critical preview"
+	if get_highest_internal_preview_heat() >= 4:
+		return "warning"
+	return "ok"
+
+func get_air_intake_readiness_word() -> String:
+	if not has_air_cooling_requiring_intake():
+		return "not required"
+	if has_external_air_intake():
+		return "installed"
+	return "missing"
+
+func get_warning_count() -> int:
+	return get_constructor_warning_lines().size()
+
+func get_constructor_readiness_summary_text() -> String:
+	var lines: Array[String] = []
+	lines.append("Constructor readiness:")
+	lines.append("- Power: %s" % get_status_word(is_virtual_power_available()))
+	lines.append("- Internal data: %s" % get_status_word(is_internal_data_network_available()))
+	lines.append("- External data: %s" % get_status_word(is_external_data_network_available()))
+	lines.append("- Thermal: %s" % get_thermal_status_word())
+	lines.append("- Air intake: %s" % get_air_intake_readiness_word())
+	lines.append("- Warnings: %d" % get_warning_count())
+	return "\n".join(lines)
+
+func get_constructor_readiness_compact_text() -> String:
+	return "Readiness: Power %s | Data %s/%s | Thermal %s | Air %s | Warnings %d" % [
+		get_status_word(is_virtual_power_available()),
+		get_status_word(is_internal_data_network_available()),
+		get_status_word(is_external_data_network_available()),
+		get_thermal_status_word(),
+		get_air_intake_readiness_word(),
+		get_warning_count()
+	]
+
 func get_virtual_connection_summary_text() -> String:
 	var power_available := is_virtual_power_available()
 	var internal_network_available := is_internal_data_network_available()
