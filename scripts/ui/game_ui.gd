@@ -1456,7 +1456,7 @@ func _on_rotate_internal_pressed() -> void:
 	bipob.selected_internal_rotation = posmod(bipob.selected_internal_rotation + 1, 3)
 	update_box_status()
 func _on_place_internal_pressed() -> void:
-	var raw_storage_index := bipob.get_box_storage_index_for_internal_selection(bipob.selected_internal_box_index)
+	var raw_storage_index: int = bipob.get_box_storage_index_for_internal_selection(bipob.selected_internal_box_index)
 	if raw_storage_index == -1:
 		show_hint("No internal modules in Box Storage.")
 		return
