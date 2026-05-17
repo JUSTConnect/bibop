@@ -552,20 +552,20 @@ func _ready() -> void:
 
 	modules_tab_button = Button.new()
 	modules_tab_button.name = "ModulesTabButton"
-	modules_tab_button.text = "Modules"
+	modules_tab_button.text = "Constructor Dashboard"
 	modules_tab_button.focus_mode = Control.FOCUS_NONE
 	box_tab_row.add_child(modules_tab_button)
 	modules_tab_button.pressed.connect(set_box_menu_mode_modules)
 
 	external_tab_button = Button.new()
 	external_tab_button.name = "ExternalTabButton"
-	external_tab_button.text = "External"
+	external_tab_button.text = "External Modules"
 	external_tab_button.focus_mode = Control.FOCUS_NONE
 	box_tab_row.add_child(external_tab_button)
 	external_tab_button.pressed.connect(set_box_menu_mode_external)
 	internal_tab_button = Button.new()
 	internal_tab_button.name = "InternalTabButton"
-	internal_tab_button.text = "Internal"
+	internal_tab_button.text = "Internal Modules"
 	internal_tab_button.focus_mode = Control.FOCUS_NONE
 	box_tab_row.add_child(internal_tab_button)
 	internal_tab_button.pressed.connect(set_box_menu_mode_internal)
@@ -573,6 +573,8 @@ func _ready() -> void:
 	box_restart_button = null
 
 	box_return_button = null
+
+	_apply_constructor_visual_style()
 
 	bipob.status_changed.connect(update_status)
 	bipob.hint_requested.connect(show_hint)
@@ -583,6 +585,44 @@ func _ready() -> void:
 	rebuild_box_action_buttons()
 	update_box_status()
 	update_diagnostic_status()
+
+
+func _apply_constructor_visual_style() -> void:
+	if box_screen == null:
+		return
+	var panel: PanelContainer = box_screen.get_node_or_null("PanelContainer")
+	if panel != null:
+		var panel_style := StyleBoxFlat.new()
+		panel_style.bg_color = Color("#0b1118")
+		panel_style.border_width_left = 1
+		panel_style.border_width_top = 1
+		panel_style.border_width_right = 1
+		panel_style.border_width_bottom = 1
+		panel_style.border_color = Color("#31d4e2")
+		panel_style.corner_radius_top_left = 4
+		panel_style.corner_radius_top_right = 4
+		panel_style.corner_radius_bottom_left = 4
+		panel_style.corner_radius_bottom_right = 4
+		panel.add_theme_stylebox_override("panel", panel_style)
+
+	if box_content_label != null:
+		box_content_label.add_theme_color_override("font_color", Color("#cbe9ef"))
+
+	for button in [mission_tab_button, modules_tab_button, external_tab_button, internal_tab_button]:
+		if button == null:
+			continue
+		var normal := StyleBoxFlat.new()
+		normal.bg_color = Color("#162635")
+		normal.border_color = Color("#2abfd0")
+		normal.set_border_width_all(1)
+		var pressed := StyleBoxFlat.new()
+		pressed.bg_color = Color("#2d6030")
+		pressed.border_color = Color("#7ce293")
+		pressed.set_border_width_all(1)
+		button.add_theme_stylebox_override("normal", normal)
+		button.add_theme_stylebox_override("pressed", pressed)
+		button.add_theme_stylebox_override("disabled", pressed)
+		button.add_theme_color_override("font_color", Color("#d6f5ff"))
 
 func _on_charge_button_pressed() -> void:
 	# BoxScreen preparation action: must not spend field action points or energy.
@@ -875,9 +915,9 @@ func update_box_status() -> void:
 		if box_menu_mode == BoxMenuMode.MISSION:
 			box_title_label.text = "Constructor — Mission"
 		elif box_menu_mode == BoxMenuMode.EXTERNAL:
-			box_title_label.text = "Constructor — External Slots"
+			box_title_label.text = "Constructor — External Modules"
 		elif box_menu_mode == BoxMenuMode.INTERNAL:
-			box_title_label.text = "Constructor — Internal Constructor"
+			box_title_label.text = "Constructor — Internal Modules"
 		else:
 			box_title_label.text = "Constructor — Modules"
 
@@ -950,12 +990,16 @@ func get_box_modules_menu_text() -> String:
 	var filter_id: String = get_current_constructor_filter()
 	var grouped_ids: Array[String] = get_filtered_grouped_module_ids()
 	var content_lines: Array[String] = []
-	content_lines.append("Constructor Dashboard")
+	content_lines.append("CONSTRUCTOR DASHBOARD")
+	content_lines.append("Top Bar: External Modules | Internal Modules | Available Bipobs")
+	content_lines.append("Available Bipobs: Scout 1x1 | Engineer 2x2 | Tank 3x3")
 	content_lines.append("")
 	content_lines.append(bipob.get_constructor_readiness_summary_text())
 	content_lines.append("")
 	content_lines.append(bipob.get_constructor_warning_summary_text())
 	content_lines.append("")
+	content_lines.append("COMPONENTS IN BOX STORAGE")
+	content_lines.append("Filters row: [Prev Filter] [Next Filter]")
 	content_lines.append("Storage Overview:")
 	content_lines.append("Box Storage: %d" % bipob.box_storage.size())
 	content_lines.append("External Slots: %d" % bipob.get_unique_external_modules().size())
@@ -993,6 +1037,16 @@ func get_box_external_menu_text() -> String:
 	var side_name: String = bipob.get_external_side_display_name(side_id)
 	var slot_module: BipobModule = bipob.get_external_module_at(side_id, selected_external_slot_position)
 	var content_lines: Array[String] = []
+	content_lines.append("CONSTRUCTOR LAYOUT")
+	content_lines.append("TOP BAR: External Modules | Internal Modules | Available Bipobs")
+	content_lines.append("MAIN ROW: Workspace | Components in Box Storage")
+	content_lines.append("BOTTOM INFO BAR: Status | Selected Module")
+	content_lines.append("")
+	content_lines.append("EXTERNAL MODULES ON BODY")
+	content_lines.append("[UP 3x3] above [ROBOT PREVIEW] [DOWN 3x3]")
+	content_lines.append("[LEFT SIDE 3x4] [ROBOT PREVIEW] [RIGHT SIDE 3x4]")
+	content_lines.append("[FRONT 3x4] lower-left | [BACK 3x4] lower-right")
+	content_lines.append("")
 
 	var selected_box_module: BipobModule = get_selected_grouped_module()
 
@@ -1780,6 +1834,16 @@ func get_box_internal_menu_text() -> String:
 		reason = "OK"
 
 	var lines: Array[String] = []
+	lines.append("CONSTRUCTOR LAYOUT")
+	lines.append("TOP BAR: External Modules | Internal Modules | Available Bipobs")
+	lines.append("MAIN ROW: Internal Workspace | Components in Box Storage | Connections")
+	lines.append("BOTTOM BAR: Constructor Status | Selected Module")
+	lines.append("")
+	lines.append("INTERNAL MODULES")
+	lines.append("VERTICAL SLICE | INTERNAL VOLUME | HORIZONTAL SLICE")
+	lines.append("LEGEND: Power Channels / Cooling Channels / Data Buses / Empty Cell")
+	lines.append("CONNECTIONS: POWER, NETWORK / DATA, COOLING")
+	lines.append("")
 	var volume_size: Vector3i = bipob.get_internal_volume_size()
 	var overlay_count: int = bipob.internal_overlay_paths.size()
 	lines.append(_section_title("Internal Constructor"))
