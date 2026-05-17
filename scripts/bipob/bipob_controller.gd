@@ -24,6 +24,7 @@ enum Direction {
 @export var debug_install_visor: bool = true
 
 @export var debug_add_mission4_modules_to_box: bool = true
+@export var debug_place_mission4_field_modules: bool = false
 @export var debug_place_hidden_route_node: bool = true
 @export var debug_hidden_route_node_position: Vector2i = Vector2i(3, 1)
 @export var debug_show_hidden_route_node_logs: bool = true
@@ -271,6 +272,8 @@ func start_mission(mission_index: int, save_snapshot: bool = true) -> void:
 	field_modules_by_position.clear()
 	if grid_manager != null:
 		grid_manager.reset_mission_layout(current_mission_index)
+		if debug_place_mission4_field_modules:
+			place_debug_mission4_field_modules()
 		grid_manager.reset_fog_of_war()
 		if debug_place_hidden_route_node:
 			place_debug_hidden_route_node()
@@ -1226,6 +1229,54 @@ func create_debug_field_component() -> BipobModule:
 	module.granted_commands = []
 	return module
 
+func get_position_key(position: Vector2i) -> String:
+	return str(position.x) + "," + str(position.y)
+
+func set_field_module(position: Vector2i, module: BipobModule) -> void:
+	if grid_manager == null:
+		return
+	if module == null:
+		return
+	if not grid_manager.is_in_bounds(position):
+		return
+
+	grid_manager.set_tile(position, GridManager.TILE_COMPONENT)
+	field_modules_by_position[get_position_key(position)] = module
+
+func get_field_module(position: Vector2i) -> BipobModule:
+	var key := get_position_key(position)
+	if field_modules_by_position.has(key):
+		return field_modules_by_position[key]
+	return null
+
+func clear_field_module(position: Vector2i) -> void:
+	var key := get_position_key(position)
+	if field_modules_by_position.has(key):
+		field_modules_by_position.erase(key)
+
+func place_visor_v2_field_module(position: Vector2i) -> void:
+	set_field_module(position, create_visor_v2_module())
+
+func place_gpu_v1_field_module(position: Vector2i) -> void:
+	set_field_module(position, create_gpu_v1_module())
+
+func place_debug_field_module_if_valid(position: Vector2i, module_name: String, place_callback: Callable) -> void:
+	if grid_manager == null:
+		return
+	if not grid_manager.is_in_bounds(position):
+		print("Skipping debug field module ", module_name, ": out of bounds at ", position)
+		hint_requested.emit("Debug module %s skipped: invalid position %s." % [module_name, str(position)])
+		return
+	if grid_manager.get_tile(position) != GridManager.TILE_FLOOR:
+		print("Skipping debug field module ", module_name, ": blocked tile at ", position)
+		hint_requested.emit("Debug module %s skipped: tile blocked at %s." % [module_name, str(position)])
+		return
+	place_callback.call(position)
+
+func place_debug_mission4_field_modules() -> void:
+	place_debug_field_module_if_valid(Vector2i(4, 1), "Visor V2", Callable(self, "place_visor_v2_field_module"))
+	place_debug_field_module_if_valid(Vector2i(4, 3), "GPU V1", Callable(self, "place_gpu_v1_field_module"))
+
 func get_carried_physical_count() -> int:
 	var count := 0
 	if held_module != null:
@@ -1253,6 +1304,12 @@ func can_pick_up_physical_item() -> bool:
 	return get_carried_physical_count() < physical_carry_capacity
 
 func pick_up_component(component_position: Vector2i) -> void:
+	if grid_manager == null:
+		return
+	if grid_manager.get_tile(component_position) != GridManager.TILE_COMPONENT:
+		hint_requested.emit("No component to pick up here.")
+		status_changed.emit()
+		return
 	if held_module != null and is_physical_storage_occupied():
 		hint_requested.emit("Physical storage full. Drop or deliver an item first.")
 		status_changed.emit()
@@ -1261,11 +1318,11 @@ func pick_up_component(component_position: Vector2i) -> void:
 	if not can_spend_action(1, 1):
 		return
 
-	var picked_module: BipobModule = field_modules_by_position.get(component_position, null)
+	var picked_module := get_field_module(component_position)
 	if picked_module == null:
 		picked_module = create_debug_field_component()
 
-	field_modules_by_position.erase(component_position)
+	clear_field_module(component_position)
 	grid_manager.set_tile(component_position, GridManager.TILE_FLOOR)
 
 	if held_module == null:
@@ -1317,8 +1374,7 @@ func drop_held_item() -> void:
 		return
 
 	var module_to_drop := held_module
-	field_modules_by_position[target_position] = module_to_drop
-	grid_manager.set_tile(target_position, GridManager.TILE_COMPONENT)
+	set_field_module(target_position, module_to_drop)
 	spend_action(1, 1)
 	hint_requested.emit("Dropped: %s." % get_module_display_name(module_to_drop))
 	held_module = null
