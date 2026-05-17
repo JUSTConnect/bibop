@@ -1404,6 +1404,14 @@ func get_box_internal_menu_text() -> String:
 	lines.append("Internal data: %s" % ("available" if bipob.is_internal_data_network_available() else "unavailable"))
 	lines.append("External data: %s" % ("available" if bipob.is_external_data_network_available() else "unavailable"))
 	lines.append("")
+	lines.append("Thermal:")
+	var has_air_intake: bool = bipob.has_external_air_intake()
+	var has_air_cooling: bool = bipob.has_air_cooling_requiring_intake()
+	lines.append("Air intake: %s" % get_yes_no(has_air_intake))
+	lines.append("Air cooling: %s" % ("present" if has_air_cooling else "not present"))
+	if has_air_cooling and not has_air_intake:
+		lines.append("Warning: intake required")
+	lines.append("")
 	lines.append("Roles:")
 	var role_order: Array[String] = [
 		"battery",

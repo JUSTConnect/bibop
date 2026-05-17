@@ -871,6 +871,84 @@ func get_internal_role_summary_text() -> String:
 func get_yes_no(value: bool) -> String:
 	return "yes" if value else "no"
 
+func get_module_idle_heat(module: BipobModule) -> int:
+	if module == null:
+		return 0
+	return clampi(module.heat_idle, 0, 5)
+
+func get_module_active_heat(module: BipobModule) -> int:
+	if module == null:
+		return 0
+	return clampi(module.heat_active, 0, 5)
+
+func get_module_cooling_power(module: BipobModule) -> int:
+	if module == null:
+		return 0
+	return max(0, module.cooling_power)
+
+func is_cooling_module(module: BipobModule) -> bool:
+	return module != null and module.internal_role == "cooling"
+
+func is_air_cooling_module(module: BipobModule) -> bool:
+	return is_cooling_module(module) and module.cooling_type == "air"
+
+func has_external_air_intake() -> bool:
+	for module in get_unique_external_modules():
+		if module != null and module.id == "air_intake_v1":
+			return true
+	return false
+
+func has_air_cooling_requiring_intake() -> bool:
+	for module in get_unique_internal_modules():
+		if module != null and module.requires_air_intake:
+			return true
+	return false
+
+func get_thermal_metadata_summary_text() -> String:
+	var lines: Array[String] = []
+	lines.append("Thermal model:")
+	lines.append("Critical heat: 5")
+	lines.append("")
+	lines.append("Heat sources:")
+	for module in get_unique_internal_modules():
+		if module == null:
+			continue
+		var idle_heat := get_module_idle_heat(module)
+		var active_heat := get_module_active_heat(module)
+		if idle_heat <= 0 and active_heat <= 0:
+			continue
+		lines.append("- %s: %d / %d" % [get_module_display_name(module), idle_heat, active_heat])
+	if lines[lines.size() - 1] == "Heat sources:":
+		lines.append("none")
+	lines.append("")
+	lines.append("Cooling:")
+	for module in get_unique_internal_modules():
+		if module == null or not is_cooling_module(module):
+			continue
+		lines.append("- %s: %s cooling %d" % [get_module_display_name(module), module.cooling_type, get_module_cooling_power(module)])
+	if lines[lines.size() - 1] == "Cooling:":
+		lines.append("none")
+	lines.append("")
+	var requires_intake := has_air_cooling_requiring_intake()
+	var intake_installed := has_external_air_intake()
+	lines.append("Air:")
+	lines.append("- Air cooling requires intake: %s" % get_yes_no(requires_intake))
+	lines.append("- Air Intake Node installed: %s" % get_yes_no(intake_installed))
+	if requires_intake and not intake_installed:
+		lines.append("- Warning: Air cooling requires Air Intake Node on external body.")
+	lines.append("")
+	lines.append("Rules:")
+	lines.append("- Neighbor heat = source heat - 1")
+	lines.append("- Cooler cools adjacent modules by 2")
+	lines.append("- Radiator cools adjacent modules by 2")
+	lines.append("- Radiator near cooler cools by 4")
+	lines.append("- Radiator against body cools by 3")
+	lines.append("- Water tube base cooling is 2")
+	lines.append("- Water tube through cooler = 4")
+	lines.append("- Water tube through radiator = 3")
+	lines.append("- Water tube through radiator near cooler = 5")
+	return "\n".join(lines)
+
 func get_external_device_summary_text() -> String:
 	if external_modules_by_slot.is_empty():
 		return "External devices: none"
@@ -1261,6 +1339,14 @@ func create_default_modules() -> void:
 		]
 		install_module(visor_module)
 
+	var air_intake_module := BipobModule.new()
+	air_intake_module.id = "air_intake_v1"
+	air_intake_module.display_name = "Air Intake Node V1"
+	air_intake_module.placement_type = "external"
+	apply_thermal_metadata(air_intake_module)
+	if not has_module_id_anywhere(air_intake_module.id):
+		box_storage.append(air_intake_module)
+
 	add_internal_mvp_modules_to_box()
 
 func create_internal_module(module_id: String, module_name: String, module_size: Vector3i) -> BipobModule:
@@ -1273,6 +1359,7 @@ func create_internal_module(module_id: String, module_name: String, module_size:
 	module.size_z = module_size.z
 	module.internal_rotatable = true
 	module.internal_role = get_internal_role_for_module_id(module_id)
+	apply_thermal_metadata(module)
 	return module
 
 func get_internal_role_for_module_id(module_id: String) -> String:
@@ -1291,8 +1378,52 @@ func get_internal_role_for_module_id(module_id: String) -> String:
 			return "memory"
 		"hard_drive_v1":
 			return "storage"
+		"cooler_v1", "radiator_v1", "water_tube_v1", "air_duct_v1":
+			return "cooling"
 		_:
 			return "none"
+
+func apply_thermal_metadata(module: BipobModule) -> void:
+	if module == null:
+		return
+	match module.id:
+		"battery_v1_a", "battery_v1_b":
+			module.heat_idle = 1
+			module.heat_active = 1
+		"processor_v1":
+			module.heat_idle = 3
+			module.heat_active = 5
+		"memory_v1":
+			module.heat_idle = 1
+			module.heat_active = 1
+		"hard_drive_v1":
+			module.heat_idle = 1
+			module.heat_active = 1
+		"power_block_v1":
+			module.heat_idle = 3
+			module.heat_active = 5
+		"int_interface_v1", "ext_interface_internal_v1":
+			module.heat_idle = 1
+			module.heat_active = 1
+		"cooler_v1":
+			module.cooling_power = 2
+			module.cooling_type = "air"
+			module.requires_air_intake = true
+		"radiator_v1":
+			module.cooling_power = 2
+			module.cooling_type = "passive"
+		"water_tube_v1":
+			module.cooling_power = 2
+			module.cooling_type = "liquid"
+			module.is_non_volume_cooling_path = true
+		"air_duct_v1":
+			module.cooling_power = 0
+			module.cooling_type = "duct"
+			module.requires_air_intake = true
+			module.is_non_volume_cooling_path = true
+		"air_intake_v1":
+			module.cooling_power = 0
+			module.cooling_type = "air"
 
 func add_internal_mvp_modules_to_box() -> void:
 	var internal_specs: Array[Dictionary] = [
@@ -1304,6 +1435,10 @@ func add_internal_mvp_modules_to_box() -> void:
 		{"id": "memory_v1", "name": "Memory V1", "size": Vector3i(1, 1, 2)},
 		{"id": "power_block_v1", "name": "Power Block V1", "size": Vector3i(1, 2, 2)},
 		{"id": "hard_drive_v1", "name": "Hard Drive V1", "size": Vector3i(2, 2, 1)},
+		{"id": "cooler_v1", "name": "Cooler V1", "size": Vector3i(1, 1, 1)},
+		{"id": "radiator_v1", "name": "Radiator V1", "size": Vector3i(1, 1, 1)},
+		{"id": "water_tube_v1", "name": "Water Tube V1", "size": Vector3i(1, 1, 1)},
+		{"id": "air_duct_v1", "name": "Air Duct V1", "size": Vector3i(1, 1, 1)},
 	]
 	for spec in internal_specs:
 		var module_id := String(spec.get("id", ""))
