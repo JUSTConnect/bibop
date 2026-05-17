@@ -369,7 +369,11 @@ func get_module_details_text(module: BipobModule) -> String:
 	lines.append("Selected item:")
 	lines.append("Name: %s" % bipob.get_module_display_name(module))
 	lines.append("ID: %s" % module.id)
-	lines.append("Placement: %s" % module.placement_type)
+	if module.id == "water_tube_v1" or module.id == "air_duct_v1":
+		lines.append("Placement: overlay path")
+		lines.append("Path type: liquid" if module.id == "water_tube_v1" else "Path type: duct")
+	else:
+		lines.append("Placement: %s" % module.placement_type)
 	lines.append("Category: %s" % bipob.get_module_category(module))
 	if module.placement_type == "external":
 		var module_size_2d: Vector2i = bipob.get_external_module_size(module)
@@ -396,15 +400,9 @@ func get_module_details_text(module: BipobModule) -> String:
 		lines.append("Allowed sides: n/a")
 	if not module.description.is_empty():
 		lines.append("Description: %s" % module.description)
-	lines.append("Availability:")
-	lines.append(
-		"box %d / external %d / internal %d / total %d" % [
-			bipob.get_box_module_count_by_id(module.id),
-			bipob.get_external_module_count_by_id(module.id),
-			bipob.get_internal_module_count_by_id(module.id),
-			bipob.get_total_module_count_by_id(module.id)
-		]
-	)
+	lines.append(bipob.get_module_availability_text(module))
+	if module.id == "water_tube_v1" or module.id == "air_duct_v1":
+		lines.append("Note: does not consume internal volume")
 	return "\n".join(lines)
 
 func _ready() -> void:
@@ -961,6 +959,9 @@ func get_box_modules_menu_text() -> String:
 	content_lines.append("Box: %d" % bipob.box_storage.size())
 	content_lines.append("External installed: %d" % bipob.get_unique_external_modules().size())
 	content_lines.append("Internal installed: %d" % bipob.get_unique_internal_modules().size())
+	content_lines.append("Overlay paths: %d" % bipob.internal_overlay_paths.size())
+	content_lines.append("Liquid paths: %d" % bipob.get_liquid_overlay_path_count())
+	content_lines.append("Duct paths: %d" % bipob.get_duct_overlay_path_count())
 	content_lines.append(str(bipob.get_overlay_effect_compact_text()))
 	content_lines.append(bipob.get_constructor_consistency_compact_text())
 	content_lines.append("")
@@ -1965,7 +1966,6 @@ func _on_commit_overlay_pressed() -> void:
 		show_hint("No Air Duct V1 in Box Storage.")
 	else:
 		show_hint("No Water Tube V1 in Box Storage.")
-	show_hint("Cannot commit overlay path.")
 	update_box_status()
 
 func _on_clear_overlay_pressed() -> void:

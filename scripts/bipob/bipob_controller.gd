@@ -2038,7 +2038,9 @@ func get_constructor_consistency_issue_lines() -> Array[String]:
 			issues.append("%s has unknown category: %s." % [module_label, category])
 
 		if module.placement_type == "internal":
-			if module.internal_role.is_empty() or (module.internal_role == "none" and not is_internal_overlay_module(module)):
+			if module.internal_role.is_empty():
+				issues.append("%s is internal but has no internal_role." % module_label)
+			elif module.internal_role == "none" and not is_internal_overlay_module(module):
 				issues.append("%s is internal but has no internal_role." % module_label)
 
 			var internal_size: Vector3i = get_internal_module_base_size(module)
@@ -2126,6 +2128,20 @@ func get_internal_module_count_by_id(module_id: String) -> int:
 		if module != null and module.id == module_id:
 			count += 1
 	return count
+
+func get_overlay_path_count_by_module_id(module_id: String) -> int:
+	var count: int = 0
+	for record in internal_overlay_paths:
+		var record_module_id: String = String(record.get("module_id", ""))
+		if record_module_id == module_id:
+			count += 1
+	return count
+
+func get_liquid_overlay_path_count() -> int:
+	return get_overlay_path_count_by_module_id("water_tube_v1")
+
+func get_duct_overlay_path_count() -> int:
+	return get_overlay_path_count_by_module_id("air_duct_v1")
 
 func get_total_module_count_by_id(module_id: String) -> int:
 	return get_box_module_count_by_id(module_id) + get_external_module_count_by_id(module_id) + get_internal_module_count_by_id(module_id)
@@ -2242,6 +2258,9 @@ func get_storage_overview_text() -> String:
 	lines.append("- Box Storage: %d" % box_storage.size())
 	lines.append("- External installed: %d" % get_unique_external_modules().size())
 	lines.append("- Internal installed: %d" % get_unique_internal_modules().size())
+	lines.append("- Overlay paths: %d" % internal_overlay_paths.size())
+	lines.append("- Liquid paths: %d" % get_liquid_overlay_path_count())
+	lines.append("- Duct paths: %d" % get_duct_overlay_path_count())
 
 	var warnings_count: int = 0
 	if has_method("get_warning_count"):
@@ -3092,6 +3111,14 @@ func get_module_availability_text(module: BipobModule) -> String:
 		return "Availability: none"
 
 	var box_count: int = get_box_module_count_by_id(module.id)
+	if module.id == "water_tube_v1" or module.id == "air_duct_v1":
+		var overlay_count: int = get_overlay_path_count_by_module_id(module.id)
+		var overlay_total_count: int = box_count + overlay_count
+		return "Availability: box %d / overlay %d / total %d" % [
+			box_count,
+			overlay_count,
+			overlay_total_count
+		]
 	var external_count: int = get_external_module_count_by_id(module.id)
 	var internal_count: int = get_internal_module_count_by_id(module.id)
 	var total_count: int = box_count + external_count + internal_count
@@ -3144,6 +3171,14 @@ func get_module_availability_line_by_id(module_id: String, selected: bool = fals
 	var prefix: String = "> " if selected else "  "
 	var display_name: String = get_module_display_name(module)
 	var box_count: int = get_box_module_count_by_id(module_id)
+	if module_id == "water_tube_v1" or module_id == "air_duct_v1":
+		var overlay_count: int = get_overlay_path_count_by_module_id(module_id)
+		return "%s%s  [box:%d overlay:%d]" % [
+			prefix,
+			display_name,
+			box_count,
+			overlay_count
+		]
 	var external_count: int = get_external_module_count_by_id(module_id)
 	var internal_count: int = get_internal_module_count_by_id(module_id)
 
