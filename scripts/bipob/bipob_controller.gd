@@ -23,7 +23,7 @@ enum Direction {
 @export var debug_install_interface: bool = true
 @export var debug_install_visor: bool = true
 
-@export var debug_add_mission4_modules_to_box: bool = true
+@export var debug_add_mission4_modules_to_box: bool = false
 @export var debug_place_mission4_field_modules: bool = false
 @export var debug_place_hidden_route_node: bool = true
 @export var debug_hidden_route_node_position: Vector2i = Vector2i(3, 1)
