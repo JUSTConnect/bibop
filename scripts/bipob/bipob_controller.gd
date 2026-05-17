@@ -32,6 +32,7 @@ const INTERNAL_SIZE_X := 5
 const INTERNAL_SIZE_Y := 8
 const INTERNAL_SIZE_Z := 5
 const THERMAL_CRITICAL_HEAT := 5
+const MODULE_ICON_DIR: String = "res://assets/ui/module_icons/"
 
 @export var start_grid_position := Vector2i(1, 1)
 
@@ -233,6 +234,17 @@ func get_module_visual_key(module: BipobModule) -> String:
 		return "gpu"
 
 	return "module"
+
+
+
+func get_module_icon_path(module: BipobModule) -> String:
+	var key: String = get_module_visual_key(module)
+	return get_module_icon_path_by_key(key)
+
+func get_module_icon_path_by_key(key: String) -> String:
+	if key.is_empty():
+		key = "unknown"
+	return MODULE_ICON_DIR + key + ".png"
 
 func get_module_visual_short_label(module: BipobModule) -> String:
 	if module == null:
