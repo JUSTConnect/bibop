@@ -63,10 +63,26 @@ func duplicate_map_layout(layout: Array) -> Array:
 func cache_initial_mission_layout() -> void:
 	mission_initial_map_data = duplicate_map_layout(map_data)
 
-func reset_mission_layout(_mission_index: int) -> void:
+func get_mission4_layout() -> Array:
+	return [
+		[1, 1, 1, 1, 1, 1, 1, 1],
+		[1, 0, 0, 0, 7, 0, 0, 1],
+		[1, 0, 1, 1, 1, 1, 0, 1],
+		[1, 0, 0, 0, 0, 1, 0, 1],
+		[1, 1, 1, 1, 0, 1, 0, 1],
+		[1, 0, 0, 0, 0, 0, 0, 1],
+		[1, 0, 7, 0, 8, 0, 4, 1],
+		[1, 1, 1, 1, 1, 1, 1, 1],
+	]
+
+func reset_mission_layout(mission_index: int) -> void:
 	if mission_initial_map_data.is_empty():
 		cache_initial_mission_layout()
-	map_data = duplicate_map_layout(mission_initial_map_data)
+
+	if mission_index == 4:
+		map_data = duplicate_map_layout(get_mission4_layout())
+	else:
+		map_data = duplicate_map_layout(mission_initial_map_data)
 	reset_hidden_discoveries()
 	queue_redraw()
 
