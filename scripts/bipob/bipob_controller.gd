@@ -1009,6 +1009,30 @@ func get_unique_external_modules() -> Array[BipobModule]:
 		unique_modules.append(module)
 	return unique_modules
 
+func get_box_module_count_by_id(module_id: String) -> int:
+	var count: int = 0
+	for module in box_storage:
+		if module != null and module.id == module_id:
+			count += 1
+	return count
+
+func get_external_module_count_by_id(module_id: String) -> int:
+	var count: int = 0
+	for module in get_unique_external_modules():
+		if module != null and module.id == module_id:
+			count += 1
+	return count
+
+func get_internal_module_count_by_id(module_id: String) -> int:
+	var count: int = 0
+	for module in get_unique_internal_modules():
+		if module != null and module.id == module_id:
+			count += 1
+	return count
+
+func get_total_module_count_by_id(module_id: String) -> int:
+	return get_box_module_count_by_id(module_id) + get_external_module_count_by_id(module_id) + get_internal_module_count_by_id(module_id)
+
 func has_internal_role(role_id: String) -> bool:
 	return count_internal_role(role_id) > 0
 
@@ -1764,6 +1788,74 @@ func get_module_display_name(module: BipobModule) -> String:
 		return module.id
 
 	return "Unnamed module"
+
+func get_module_availability_text(module: BipobModule) -> String:
+	if module == null:
+		return "Availability: none"
+
+	var box_count: int = get_box_module_count_by_id(module.id)
+	var external_count: int = get_external_module_count_by_id(module.id)
+	var internal_count: int = get_internal_module_count_by_id(module.id)
+	var total_count: int = box_count + external_count + internal_count
+
+	return "Availability: box %d / external %d / internal %d / total %d" % [
+		box_count,
+		external_count,
+		internal_count,
+		total_count
+	]
+
+func get_module_storage_line(module: BipobModule, selected: bool = false) -> String:
+	if module == null:
+		return ""
+
+	var prefix: String = "> " if selected else "  "
+	var display_name: String = get_module_display_name(module)
+	var box_count: int = get_box_module_count_by_id(module.id)
+	var external_count: int = get_external_module_count_by_id(module.id)
+	var internal_count: int = get_internal_module_count_by_id(module.id)
+
+	return "%s%s  [box:%d ext:%d int:%d]" % [
+		prefix,
+		display_name,
+		box_count,
+		external_count,
+		internal_count
+	]
+
+func get_first_module_by_id(module_id: String) -> BipobModule:
+	for module in box_storage:
+		if module != null and module.id == module_id:
+			return module
+
+	for module in get_unique_external_modules():
+		if module != null and module.id == module_id:
+			return module
+
+	for module in get_unique_internal_modules():
+		if module != null and module.id == module_id:
+			return module
+
+	return null
+
+func get_module_availability_line_by_id(module_id: String, selected: bool = false) -> String:
+	var module: BipobModule = get_first_module_by_id(module_id)
+	if module == null:
+		return ""
+
+	var prefix: String = "> " if selected else "  "
+	var display_name: String = get_module_display_name(module)
+	var box_count: int = get_box_module_count_by_id(module_id)
+	var external_count: int = get_external_module_count_by_id(module_id)
+	var internal_count: int = get_internal_module_count_by_id(module_id)
+
+	return "%s%s  [box:%d ext:%d int:%d]" % [
+		prefix,
+		display_name,
+		box_count,
+		external_count,
+		internal_count
+	]
 
 func add_module_to_box_storage(module: BipobModule) -> void:
 	if module == null:
