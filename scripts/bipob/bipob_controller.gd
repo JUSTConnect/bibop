@@ -72,9 +72,13 @@ var box_storage: Array[BipobModule] = []
 var external_modules_by_slot: Dictionary = {}
 var internal_modules_by_cell: Dictionary = {}
 var placed_internal_modules: Array[Dictionary] = []
+var internal_overlay_paths: Array[Dictionary] = []
+var next_internal_overlay_path_id: int = 1
 var selected_internal_box_index: int = 0
 var selected_internal_origin: Vector3i = Vector3i.ZERO
 var selected_internal_rotation: int = 0
+var selected_overlay_path_type: String = "liquid"
+var selected_overlay_cells: Array[Vector3i] = []
 var found_module: BipobModule = null
 var held_module: BipobModule = null
 var stored_physical_module: BipobModule = null
@@ -782,8 +786,158 @@ func is_internal_cell_in_bounds(cell: Vector3i) -> bool:
 	var volume_size := get_internal_volume_size()
 	return (
 		cell.x >= 0 and cell.y >= 0 and cell.z >= 0
-		and cell.x < volume_size.x and cell.y < volume_size.y and cell.z < volume_size.z
+	and cell.x < volume_size.x and cell.y < volume_size.y and cell.z < volume_size.z
 	)
+
+func get_selected_overlay_module_id() -> String:
+	if selected_overlay_path_type == "duct":
+		return "air_duct_v1"
+	return "water_tube_v1"
+
+func is_internal_overlay_module(module: BipobModule) -> bool:
+	return module != null and module.is_non_volume_cooling_path
+
+func is_valid_internal_overlay_cell(cell: Vector3i) -> bool:
+	return is_internal_cell_in_bounds(cell)
+
+func has_selected_overlay_cell(cell: Vector3i) -> bool:
+	for selected_cell in selected_overlay_cells:
+		if selected_cell == cell:
+			return true
+	return false
+
+func add_selected_overlay_cell(cell: Vector3i) -> bool:
+	if not is_valid_internal_overlay_cell(cell):
+		return false
+	if has_selected_overlay_cell(cell):
+		return false
+	selected_overlay_cells.append(cell)
+	return true
+
+func remove_selected_overlay_cell(cell: Vector3i) -> bool:
+	for i in range(selected_overlay_cells.size()):
+		if selected_overlay_cells[i] == cell:
+			selected_overlay_cells.remove_at(i)
+			return true
+	return false
+
+func clear_selected_overlay_cells() -> void:
+	selected_overlay_cells.clear()
+
+func toggle_selected_overlay_cell(cell: Vector3i) -> bool:
+	if has_selected_overlay_cell(cell):
+		return remove_selected_overlay_cell(cell)
+	return add_selected_overlay_cell(cell)
+
+func commit_selected_overlay_path() -> bool:
+	if selected_overlay_cells.is_empty():
+		return false
+
+	var module_id: String = get_selected_overlay_module_id()
+	var required_module: BipobModule = null
+	var raw_index: int = -1
+	for i in range(box_storage.size()):
+		var module: BipobModule = box_storage[i]
+		if module != null and module.id == module_id:
+			required_module = module
+			raw_index = i
+			break
+	if required_module == null or raw_index < 0:
+		return false
+
+	var copied_cells: Array[Vector3i] = []
+	for cell in selected_overlay_cells:
+		if is_internal_cell_in_bounds(cell):
+			copied_cells.append(cell)
+	if copied_cells.is_empty():
+		return false
+
+	var path_record: Dictionary = {
+		"id": "overlay_%d" % next_internal_overlay_path_id,
+		"module_id": module_id,
+		"path_type": selected_overlay_path_type,
+		"cells": copied_cells
+	}
+	next_internal_overlay_path_id += 1
+	internal_overlay_paths.append(path_record)
+	box_storage.remove_at(raw_index)
+	clear_selected_overlay_cells()
+	return true
+
+func create_overlay_module_by_id(module_id: String) -> BipobModule:
+	match module_id:
+		"water_tube_v1":
+			return create_internal_module("water_tube_v1", "Water Tube V1", Vector3i(1, 1, 1))
+		"air_duct_v1":
+			return create_internal_module("air_duct_v1", "Air Duct V1", Vector3i(1, 1, 1))
+		_:
+			return null
+
+func remove_internal_overlay_path(path_id: String) -> bool:
+	for i in range(internal_overlay_paths.size()):
+		var record: Dictionary = internal_overlay_paths[i]
+		var record_id: String = String(record.get("id", ""))
+		if record_id != path_id:
+			continue
+		var module_id: String = String(record.get("module_id", ""))
+		var returned_module: BipobModule = create_overlay_module_by_id(module_id)
+		if returned_module != null:
+			box_storage.append(returned_module)
+		internal_overlay_paths.remove_at(i)
+		return true
+	return false
+
+func get_internal_overlay_paths_at_cell(cell: Vector3i) -> Array[Dictionary]:
+	var paths: Array[Dictionary] = []
+	for path_record in internal_overlay_paths:
+		var cells: Array = path_record.get("cells", [])
+		for item in cells:
+			var path_cell: Vector3i = item
+			if path_cell == cell:
+				paths.append(path_record)
+				break
+	return paths
+
+func has_internal_overlay_at_cell(cell: Vector3i, path_type: String = "") -> bool:
+	var paths: Array[Dictionary] = get_internal_overlay_paths_at_cell(cell)
+	if path_type.is_empty():
+		return not paths.is_empty()
+	for record in paths:
+		if String(record.get("path_type", "")) == path_type:
+			return true
+	return false
+
+func get_internal_overlay_marker_for_cell(cell: Vector3i) -> String:
+	if has_selected_overlay_cell(cell):
+		if selected_overlay_path_type == "duct":
+			return "A"
+		return "L"
+	if has_internal_overlay_at_cell(cell, "liquid"):
+		return "l"
+	if has_internal_overlay_at_cell(cell, "duct"):
+		return "a"
+	return ""
+
+func get_internal_overlay_summary_text() -> String:
+	var lines: Array[String] = []
+	lines.append("Overlay paths:")
+	if internal_overlay_paths.is_empty():
+		lines.append("none")
+	else:
+		for record in internal_overlay_paths:
+			var path_id: String = String(record.get("id", ""))
+			var module_id: String = String(record.get("module_id", ""))
+			var path_type: String = String(record.get("path_type", ""))
+			var cells: Array = record.get("cells", [])
+			lines.append("- %s %s cells:%d module:%s" % [path_id, path_type, cells.size(), module_id])
+	lines.append("")
+	lines.append("Planning:")
+	lines.append("- Type: %s" % selected_overlay_path_type)
+	lines.append("- Selected cells: %d" % selected_overlay_cells.size())
+	lines.append("- Uses module: %s" % get_selected_overlay_module_id())
+	lines.append("- Overlay can pass over occupied modules.")
+	lines.append("- Route cooling is not applied yet.")
+	return "\n".join(lines)
 
 func get_internal_module_at_cell(cell: Vector3i) -> BipobModule:
 	var key := get_internal_slot_key(cell)
@@ -1169,7 +1323,7 @@ func get_constructor_consistency_issue_lines() -> Array[String]:
 			issues.append("%s has unknown category: %s." % [module_label, category])
 
 		if module.placement_type == "internal":
-			if module.internal_role.is_empty() or module.internal_role == "none":
+			if module.internal_role.is_empty() or (module.internal_role == "none" and not is_internal_overlay_module(module)):
 				issues.append("%s is internal but has no internal_role." % module_label)
 
 			var internal_size: Vector3i = get_internal_module_base_size(module)
