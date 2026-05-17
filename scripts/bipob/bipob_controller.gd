@@ -691,7 +691,10 @@ func get_allowed_external_sides_for_module(module: BipobModule) -> Array[String]
 		"visor_v2":
 			return [EXTERNAL_SIDE_TOP]
 		_:
-			return EXTERNAL_SIDE_ORDER.duplicate()
+			var allowed_sides: Array[String] = []
+			for external_side_id in EXTERNAL_SIDE_ORDER:
+				allowed_sides.append(String(external_side_id))
+			return allowed_sides
 
 func can_place_external_module_on_side(module: BipobModule, side_id: String) -> bool:
 	if module == null:
