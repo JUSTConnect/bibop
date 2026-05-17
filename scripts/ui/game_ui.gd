@@ -963,6 +963,7 @@ func get_box_modules_menu_text() -> String:
 	content_lines.append("Liquid paths: %d" % bipob.get_liquid_overlay_path_count())
 	content_lines.append("Duct paths: %d" % bipob.get_duct_overlay_path_count())
 	content_lines.append(str(bipob.get_overlay_effect_compact_text()))
+	content_lines.append(str(bipob.get_overlay_thermal_contribution_compact_text()))
 	content_lines.append(bipob.get_constructor_consistency_compact_text())
 	content_lines.append("")
 	content_lines.append("Filter: %s" % filter_id.capitalize())
@@ -1153,6 +1154,7 @@ func rebuild_box_action_buttons() -> void:
 		_add_box_action_button("Overlay Check", Callable(self, "_on_overlay_check_pressed"))
 		_add_box_action_button("Overlay Effects", Callable(self, "_on_overlay_effects_pressed"))
 		_add_box_action_button("Overlay Endpoints", Callable(self, "_on_overlay_endpoints_pressed"))
+		_add_box_action_button("Overlay Thermal", Callable(self, "_on_overlay_thermal_pressed"))
 		_add_box_action_button("Warnings", Callable(self, "_on_constructor_warnings_button_pressed"))
 		_add_box_action_button("Reset Internal Cursor", Callable(self, "_on_reset_internal_cursor_pressed"))
 	else:
@@ -1702,6 +1704,7 @@ func get_box_internal_menu_text() -> String:
 		bipob.clamp_selected_overlay_path_index()
 		lines.append("Selected path: %d / %d" % [bipob.selected_overlay_path_index + 1, bipob.internal_overlay_paths.size()])
 	lines.append("Effects: %s" % str(bipob.get_overlay_effect_compact_text()))
+	lines.append(str(bipob.get_overlay_thermal_contribution_compact_text()))
 	if not bipob.internal_overlay_paths.is_empty():
 		lines.append("Overlay paths:")
 		var overlay_list_limit: int = mini(bipob.internal_overlay_paths.size(), 4)
@@ -1982,6 +1985,10 @@ func _on_overlay_check_pressed() -> void:
 
 func _on_overlay_endpoints_pressed() -> void:
 	show_hint(str(bipob.get_overlay_endpoint_preview_text()))
+	update_box_status()
+
+func _on_overlay_thermal_pressed() -> void:
+	show_hint(str(bipob.get_overlay_thermal_contribution_preview_text()))
 	update_box_status()
 
 func _on_prev_overlay_pressed() -> void:
