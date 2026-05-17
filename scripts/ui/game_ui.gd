@@ -907,6 +907,8 @@ func get_box_mission_menu_text() -> String:
 	content_lines.append("Energy:")
 	content_lines.append("%d / %d" % [bipob.energy, bipob.max_energy])
 	content_lines.append("")
+	content_lines.append(bipob.get_constructor_readiness_summary_text())
+	content_lines.append("")
 	content_lines.append(bipob.get_constructor_warning_summary_text())
 
 	var warnings: Array = bipob.get_pre_mission_warnings()
@@ -950,6 +952,8 @@ func get_box_modules_menu_text() -> String:
 	var grouped_ids: Array[String] = get_filtered_grouped_module_ids()
 	var content_lines: Array[String] = []
 	content_lines.append("Filter: %s" % filter_id.capitalize())
+	content_lines.append("")
+	content_lines.append(bipob.get_constructor_readiness_compact_text())
 	content_lines.append("")
 	content_lines.append(get_selected_installed_module_text())
 	content_lines.append("")
@@ -999,6 +1003,7 @@ func get_box_external_menu_text() -> String:
 
 	content_lines.append("Selected side: %s" % side_name)
 	content_lines.append("Filter: %s" % get_current_constructor_filter().capitalize())
+	content_lines.append(bipob.get_constructor_readiness_compact_text())
 	content_lines.append("Side size: %d x %d" % [side_size.x, side_size.y])
 	content_lines.append(get_external_side_orientation_text(side_id))
 	content_lines.append("")
@@ -1603,6 +1608,8 @@ func get_box_internal_menu_text() -> String:
 
 	var lines: Array[String] = []
 	lines.append("Filter: %s" % get_current_constructor_filter().capitalize())
+	lines.append("")
+	lines.append(bipob.get_constructor_readiness_summary_text())
 	lines.append("")
 	if selected_module == null:
 		lines.append("Selected internal module: none")
