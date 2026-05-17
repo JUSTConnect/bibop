@@ -21,6 +21,11 @@ var digital_storage_label: Label
 var remove_module_button: Button
 
 @onready var box_title_label: Label = $BoxScreen/PanelContainer/VBoxContainer/TitleLabel
+var box_content_scroll: ScrollContainer = null
+var box_content_label: Label = null
+var installed_button_row: HBoxContainer = null
+var box_storage_button_row: HBoxContainer = null
+var mission_button_row: HBoxContainer = null
 
 @onready var move_forward_button: Button = $CommandPanel/CommandList/MoveForwardButton
 @onready var move_backward_button: Button = $CommandPanel/CommandList/MoveBackwardButton
@@ -43,6 +48,78 @@ var prev_installed_button: Button
 var next_installed_button: Button
 var prev_box_button: Button
 var next_box_button: Button
+
+func _configure_box_layout() -> void:
+	if box_screen == null:
+		return
+	var panel: PanelContainer = box_screen.get_node_or_null("PanelContainer")
+	var vbox: VBoxContainer = box_screen.get_node_or_null("PanelContainer/VBoxContainer")
+	if panel == null or vbox == null:
+		return
+	panel.set_anchors_preset(Control.PRESET_TOP_RIGHT)
+	panel.offset_left = -340
+	panel.offset_top = 16
+	panel.offset_right = -16
+	panel.offset_bottom = 632
+	panel.custom_minimum_size = Vector2(300, 0)
+
+	box_content_scroll = vbox.get_node_or_null("BoxContentScroll")
+	if box_content_scroll == null:
+		box_content_scroll = ScrollContainer.new()
+		box_content_scroll.name = "BoxContentScroll"
+		vbox.add_child(box_content_scroll)
+	box_content_scroll.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	box_content_scroll.size_flags_vertical = Control.SIZE_EXPAND_FILL
+	box_content_scroll.custom_minimum_size = Vector2(280, 220)
+
+	box_content_label = box_content_scroll.get_node_or_null("BoxContentLabel")
+	if box_content_label == null:
+		box_content_label = Label.new()
+		box_content_label.name = "BoxContentLabel"
+		box_content_scroll.add_child(box_content_label)
+	box_content_label.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	box_content_label.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+
+	if box_status_label != null:
+		box_status_label.visible = false
+		box_status_label.text = ""
+	if box_module_label != null:
+		box_module_label.visible = false
+		box_module_label.text = ""
+	if installed_modules_label != null:
+		installed_modules_label.visible = false
+		installed_modules_label.text = ""
+	if box_storage_label != null:
+		box_storage_label.visible = false
+		box_storage_label.text = ""
+	if digital_storage_label != null:
+		digital_storage_label.visible = false
+		digital_storage_label.text = ""
+
+	var old_button_row := vbox.get_node_or_null("ButtonRow")
+	if old_button_row != null:
+		old_button_row.visible = false
+
+	installed_button_row = vbox.get_node_or_null("InstalledButtonRow")
+	if installed_button_row == null:
+		installed_button_row = HBoxContainer.new()
+		installed_button_row.name = "InstalledButtonRow"
+		vbox.add_child(installed_button_row)
+	installed_button_row.size_flags_vertical = Control.SIZE_SHRINK_END
+
+	box_storage_button_row = vbox.get_node_or_null("BoxStorageButtonRow")
+	if box_storage_button_row == null:
+		box_storage_button_row = HBoxContainer.new()
+		box_storage_button_row.name = "BoxStorageButtonRow"
+		vbox.add_child(box_storage_button_row)
+	box_storage_button_row.size_flags_vertical = Control.SIZE_SHRINK_END
+
+	mission_button_row = vbox.get_node_or_null("MissionButtonRow")
+	if mission_button_row == null:
+		mission_button_row = HBoxContainer.new()
+		mission_button_row.name = "MissionButtonRow"
+		vbox.add_child(mission_button_row)
+	mission_button_row.size_flags_vertical = Control.SIZE_SHRINK_END
 
 func get_short_module_name(module: BipobModule) -> String:
 	if module == null:
@@ -133,6 +210,7 @@ func _ready() -> void:
 		box_screen.visible = false
 	if command_panel != null:
 		command_panel.visible = true
+	_configure_box_layout()
 
 	if box_storage_label == null:
 		box_storage_label = Label.new()
@@ -224,52 +302,55 @@ func _ready() -> void:
 		end_turn_button.pressed.connect(_on_end_turn_pressed)
 
 	if charge_button != null:
-		charge_button.pressed.connect(_on_charge_button_pressed)
+		charge_button.text = "Charge"
+		charge_button.reparent(mission_button_row)
+		if not charge_button.pressed.is_connected(_on_charge_button_pressed):
+			charge_button.pressed.connect(_on_charge_button_pressed)
 	if install_module_button != null:
 		install_module_button.text = "Install"
-		install_module_button.pressed.connect(_on_install_selected_box_module_pressed)
+		install_module_button.reparent(box_storage_button_row)
+		if not install_module_button.pressed.is_connected(_on_install_selected_box_module_pressed):
+			install_module_button.pressed.connect(_on_install_selected_box_module_pressed)
 	if start_mission_button != null:
 		start_mission_button.text = "Start"
-		start_mission_button.pressed.connect(_on_start_mission_button_pressed)
-	if box_screen != null:
-		var button_row := box_screen.get_node_or_null("PanelContainer/VBoxContainer/ButtonRow")
-		if button_row != null:
-			if charge_button != null:
-				charge_button.text = "Charge"
-			remove_module_button = Button.new()
-			remove_module_button.name = "RemoveModuleButton"
-			remove_module_button.text = "Remove"
-			remove_module_button.focus_mode = Control.FOCUS_NONE
-			button_row.add_child(remove_module_button)
-			remove_module_button.pressed.connect(_on_remove_selected_module_pressed)
+		start_mission_button.reparent(mission_button_row)
+		if not start_mission_button.pressed.is_connected(_on_start_mission_button_pressed):
+			start_mission_button.pressed.connect(_on_start_mission_button_pressed)
 
-			prev_installed_button = Button.new()
-			prev_installed_button.name = "PrevInstalledButton"
-			prev_installed_button.text = "Prev Inst"
-			prev_installed_button.focus_mode = Control.FOCUS_NONE
-			button_row.add_child(prev_installed_button)
-			prev_installed_button.pressed.connect(_on_prev_installed_pressed)
+	remove_module_button = Button.new()
+	remove_module_button.name = "RemoveModuleButton"
+	remove_module_button.text = "Remove"
+	remove_module_button.focus_mode = Control.FOCUS_NONE
+	installed_button_row.add_child(remove_module_button)
+	remove_module_button.pressed.connect(_on_remove_selected_module_pressed)
 
-			next_installed_button = Button.new()
-			next_installed_button.name = "NextInstalledButton"
-			next_installed_button.text = "Next Inst"
-			next_installed_button.focus_mode = Control.FOCUS_NONE
-			button_row.add_child(next_installed_button)
-			next_installed_button.pressed.connect(_on_next_installed_pressed)
+	prev_installed_button = Button.new()
+	prev_installed_button.name = "PrevInstalledButton"
+	prev_installed_button.text = "Prev Inst"
+	prev_installed_button.focus_mode = Control.FOCUS_NONE
+	installed_button_row.add_child(prev_installed_button)
+	prev_installed_button.pressed.connect(_on_prev_installed_pressed)
 
-			prev_box_button = Button.new()
-			prev_box_button.name = "PrevBoxButton"
-			prev_box_button.text = "Prev Box"
-			prev_box_button.focus_mode = Control.FOCUS_NONE
-			button_row.add_child(prev_box_button)
-			prev_box_button.pressed.connect(_on_prev_box_pressed)
+	next_installed_button = Button.new()
+	next_installed_button.name = "NextInstalledButton"
+	next_installed_button.text = "Next Inst"
+	next_installed_button.focus_mode = Control.FOCUS_NONE
+	installed_button_row.add_child(next_installed_button)
+	next_installed_button.pressed.connect(_on_next_installed_pressed)
 
-			next_box_button = Button.new()
-			next_box_button.name = "NextBoxButton"
-			next_box_button.text = "Next Box"
-			next_box_button.focus_mode = Control.FOCUS_NONE
-			button_row.add_child(next_box_button)
-			next_box_button.pressed.connect(_on_next_box_pressed)
+	prev_box_button = Button.new()
+	prev_box_button.name = "PrevBoxButton"
+	prev_box_button.text = "Prev Box"
+	prev_box_button.focus_mode = Control.FOCUS_NONE
+	box_storage_button_row.add_child(prev_box_button)
+	prev_box_button.pressed.connect(_on_prev_box_pressed)
+
+	next_box_button = Button.new()
+	next_box_button.name = "NextBoxButton"
+	next_box_button.text = "Next Box"
+	next_box_button.focus_mode = Control.FOCUS_NONE
+	box_storage_button_row.add_child(next_box_button)
+	next_box_button.pressed.connect(_on_next_box_pressed)
 
 	bipob.status_changed.connect(update_status)
 	bipob.hint_requested.connect(show_hint)
@@ -458,32 +539,32 @@ func update_box_status() -> void:
 	if box_title_label != null:
 		box_title_label.text = "Box / Garage"
 
+	var content_lines: Array[String] = []
 	if bipob.sector_completed:
-		if box_status_label != null:
-			box_status_label.text = "Sector-01 complete. Playtest build finished.\nEnergy: %d / %d" % [bipob.energy, bipob.max_energy]
-	else:
-		if box_status_label != null:
-			box_status_label.text = "Energy: %d / %d" % [bipob.energy, bipob.max_energy]
+		content_lines.append("Sector-01 complete. Playtest build finished.")
+	content_lines.append("Energy: %d / %d" % [bipob.energy, bipob.max_energy])
 
-	if box_status_label != null:
-		var warnings: Array = bipob.get_pre_mission_warnings()
-		if warnings.is_empty():
-			box_status_label.text += "\n\nWarnings: none"
-		else:
-			var compact_warnings: Array[String] = []
-			var warning_limit := mini(2, warnings.size())
-			for index in range(warning_limit):
-				compact_warnings.append("- %s" % str(warnings[index]))
-			if warnings.size() > warning_limit:
-				compact_warnings.append("... +%d more" % (warnings.size() - warning_limit))
-			box_status_label.text += "\n\nWarnings:\n%s" % "\n".join(compact_warnings)
+	var warnings: Array = bipob.get_pre_mission_warnings()
+	if warnings.is_empty():
+		content_lines.append("")
+		content_lines.append("Warnings: none")
+	else:
+		content_lines.append("")
+		content_lines.append("Warnings:")
+		var compact_warnings: Array[String] = []
+		var warning_limit := mini(2, warnings.size())
+		for index in range(warning_limit):
+			compact_warnings.append("- %s" % str(warnings[index]))
+		if warnings.size() > warning_limit:
+			compact_warnings.append("... +%d more" % (warnings.size() - warning_limit))
+		content_lines.append_array(compact_warnings)
 
 	if bipob.found_module != null:
-		if box_module_label != null:
-			box_module_label.text = "Found module: %s" % bipob.get_module_display_name(bipob.found_module)
+		content_lines.append("")
+		content_lines.append("Found module: %s" % bipob.get_module_display_name(bipob.found_module))
 	else:
-		if box_module_label != null:
-			box_module_label.text = "Found module: none"
+		content_lines.append("")
+		content_lines.append("Found module: none")
 
 	var hand_text := "empty"
 	if bipob.held_module != null:
@@ -491,25 +572,30 @@ func update_box_status() -> void:
 	var storage_text := "empty"
 	if bipob.stored_physical_module != null:
 		storage_text = bipob.get_module_display_name(bipob.stored_physical_module)
-	if box_module_label != null:
-		box_module_label.text += "\nHand: %s | Robot storage: %s" % [hand_text, storage_text]
-		box_module_label.text += "\n%s" % get_selected_installed_module_text()
-		box_module_label.text += "\n%s" % get_selected_box_module_text()
-		box_module_label.text += "\n%s" % get_digital_storage_short_text()
+	content_lines.append("Hand: %s | Robot storage: %s" % [hand_text, storage_text])
+	content_lines.append(get_selected_installed_module_text())
+	content_lines.append(get_selected_box_module_text())
+	content_lines.append(get_digital_storage_short_text())
 
-	if box_storage_label != null:
-		var box_lines: Array[String] = get_compact_module_window(bipob.box_storage, selected_box_storage_index, 3)
-		box_storage_label.text = "Box storage (%d):\n%s" % [bipob.box_storage.size(), "\n".join(box_lines)]
+	var installed_lines: Array[String] = get_compact_module_window(bipob.installed_modules, selected_installed_module_index, 4)
+	content_lines.append("")
+	content_lines.append("Installed modules (%d):" % bipob.installed_modules.size())
+	content_lines.append_array(installed_lines)
 
-	if digital_storage_label != null:
-		var mission_name := "n/a"
-		if bipob.has_method("get_mission_name"):
-			mission_name = str(bipob.get_mission_name(bipob.current_mission_index))
-		digital_storage_label.text = "Mission:\n%s" % mission_name
+	var box_lines: Array[String] = get_compact_module_window(bipob.box_storage, selected_box_storage_index, 3)
+	content_lines.append("")
+	content_lines.append("Box storage (%d):" % bipob.box_storage.size())
+	content_lines.append_array(box_lines)
 
-	if installed_modules_label != null:
-		var installed_lines: Array[String] = get_compact_module_window(bipob.installed_modules, selected_installed_module_index, 4)
-		installed_modules_label.text = "Installed modules (%d):\n%s" % [bipob.installed_modules.size(), "\n".join(installed_lines)]
+	var mission_name := "n/a"
+	if bipob.has_method("get_mission_name"):
+		mission_name = str(bipob.get_mission_name(bipob.current_mission_index))
+	content_lines.append("")
+	content_lines.append("Mission:")
+	content_lines.append(mission_name)
+
+	if box_content_label != null:
+		box_content_label.text = "\n".join(content_lines)
 
 func show_hint(message: String) -> void:
 	if hint_label != null:
