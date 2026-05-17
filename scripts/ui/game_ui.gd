@@ -121,6 +121,10 @@ const ACTION_BUTTON_SPACING: int = 4
 const STATUS_BADGE_MIN_SIZE: Vector2 = Vector2(96, 26)
 const STATUS_BADGE_SMALL_SIZE: Vector2 = Vector2(78, 24)
 const STATUS_BADGE_GAP: int = 4
+const UI_ANIM_FAST: float = 0.12
+const UI_ANIM_MEDIUM: float = 0.28
+const UI_ANIM_PULSE_ALPHA_LOW: float = 0.72
+const UI_ANIM_PULSE_ALPHA_HIGH: float = 1.0
 
 
 
@@ -197,6 +201,9 @@ func _create_status_badge(label_text: String, role: String = "neutral", small: b
 			label.add_theme_color_override("font_color", UI_COLOR_TEXT)
 
 	panel.add_child(label)
+	_add_hover_scale_feedback(panel, Vector2(1.04, 1.04))
+	if role == "danger":
+		_apply_selected_pulse(panel)
 	return panel
 
 
@@ -295,6 +302,7 @@ func _create_constructor_status_badges_panel() -> Control:
 	if badges.is_empty():
 		root.add_child(_create_status_badge("NO STATUS", "neutral", false))
 		panel.add_child(root)
+		_fade_in_control(panel)
 		return panel
 
 	var row: HBoxContainer = _create_status_badge_row()
@@ -313,6 +321,7 @@ func _create_constructor_status_badges_panel() -> Control:
 		root.add_child(row)
 
 	panel.add_child(root)
+	_fade_in_control(panel)
 	return panel
 
 
@@ -593,6 +602,9 @@ func _create_storage_module_card(module: BipobModule, storage_index: int, select
 	bottom_row.add_child(placement_label)
 	root.add_child(bottom_row)
 	button.add_child(root)
+	_add_hover_scale_feedback(button)
+	if selected:
+		_apply_selected_pulse(button)
 
 	button.pressed.connect(func() -> void:
 		_on_storage_module_card_pressed(storage_index)
@@ -649,6 +661,86 @@ func _apply_label_style(label: Label, dim: bool = false, accent: bool = false) -
 
 func _apply_button_style(button: Button, role: String = "normal") -> void:
 	_apply_action_button_style(button, role, true)
+
+func _create_ui_tween(node: Node) -> Tween:
+	if node == null:
+		return null
+	if not is_instance_valid(node):
+		return null
+	var tween: Tween = node.create_tween()
+	tween.set_trans(Tween.TRANS_SINE)
+	tween.set_ease(Tween.EASE_IN_OUT)
+	return tween
+
+func _apply_selected_pulse(control: Control) -> void:
+	if control == null:
+		return
+	if not is_instance_valid(control):
+		return
+	control.modulate.a = UI_ANIM_PULSE_ALPHA_HIGH
+	var tween: Tween = _create_ui_tween(control)
+	if tween == null:
+		return
+	tween.set_loops()
+	tween.tween_property(control, "modulate:a", UI_ANIM_PULSE_ALPHA_LOW, UI_ANIM_MEDIUM)
+	tween.tween_property(control, "modulate:a", UI_ANIM_PULSE_ALPHA_HIGH, UI_ANIM_MEDIUM)
+
+func _apply_invalid_preview_blink(control: Control) -> void:
+	if control == null:
+		return
+	if not is_instance_valid(control):
+		return
+	var tween: Tween = _create_ui_tween(control)
+	if tween == null:
+		return
+	tween.set_loops()
+	tween.tween_property(control, "modulate:a", 0.55, 0.18)
+	tween.tween_property(control, "modulate:a", 1.0, 0.18)
+
+func _add_hover_scale_feedback(control: Control, hover_scale: Vector2 = Vector2(1.03, 1.03)) -> void:
+	if control == null:
+		return
+	if control.has_meta("hover_feedback_added"):
+		return
+	control.set_meta("hover_feedback_added", true)
+	control.pivot_offset = control.size * 0.5
+	control.mouse_entered.connect(func() -> void:
+		if not is_instance_valid(control):
+			return
+		control.pivot_offset = control.size * 0.5
+		var tween: Tween = _create_ui_tween(control)
+		if tween != null:
+			tween.tween_property(control, "scale", hover_scale, UI_ANIM_FAST)
+	)
+	control.mouse_exited.connect(func() -> void:
+		if not is_instance_valid(control):
+			return
+		var tween: Tween = _create_ui_tween(control)
+		if tween != null:
+			tween.tween_property(control, "scale", Vector2.ONE, UI_ANIM_FAST)
+	)
+
+func _flash_control(control: Control, flash_color: Color = Color(1, 1, 1, 1), duration: float = 0.16) -> void:
+	if control == null:
+		return
+	if not is_instance_valid(control):
+		return
+	var original_modulate: Color = control.modulate
+	var tween: Tween = _create_ui_tween(control)
+	if tween == null:
+		return
+	tween.tween_property(control, "modulate", flash_color, duration)
+	tween.tween_property(control, "modulate", original_modulate, duration)
+
+func _fade_in_control(control: Control) -> void:
+	if control == null:
+		return
+	control.modulate.a = 0.0
+	var tween: Tween = _create_ui_tween(control)
+	if tween == null:
+		control.modulate.a = 1.0
+		return
+	tween.tween_property(control, "modulate:a", 1.0, UI_ANIM_MEDIUM)
 
 func _apply_action_button_style(button: Button, role: String = "normal", available: bool = true) -> void:
 	if button == null:
@@ -751,7 +843,11 @@ func _add_action_button(
 	button.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	button.custom_minimum_size = ACTION_BUTTON_COMPACT_SIZE if compact else ACTION_BUTTON_MIN_SIZE
 	_apply_action_button_style(button, role, available)
-	button.pressed.connect(callback)
+	_add_hover_scale_feedback(button, Vector2(1.025, 1.025))
+	button.pressed.connect(func() -> void:
+		_flash_control(button, Color(1.0, 1.0, 1.0, 1.0), 0.08)
+		callback.call()
+	)
 	parent.add_child(button)
 	return button
 
@@ -1282,6 +1378,7 @@ func _create_selected_module_detail_card() -> Control:
 	description_panel.add_child(desc_box)
 	root.add_child(description_panel)
 	panel.add_child(root)
+	_fade_in_control(panel)
 	return panel
 
 
@@ -1442,6 +1539,10 @@ func _create_external_side_grid(side_id: String) -> Control:
 			cell_button.pressed.connect(func() -> void:
 				_on_external_visual_cell_pressed(side_id, cell)
 			)
+			if selected:
+				_apply_selected_pulse(cell_button)
+			if invalid_preview:
+				_apply_invalid_preview_blink(cell_button)
 			grid.add_child(cell_button)
 
 	root.add_child(grid)
@@ -3300,6 +3401,10 @@ func _create_internal_slice_grid(title_text: String, axis_a: String, axis_b: Str
 			cell_button.add_theme_stylebox_override("pressed", _make_internal_cell_style(cell, module, true, preview, invalid_preview))
 			cell_button.add_theme_color_override("font_color", UI_COLOR_TEXT)
 			cell_button.pressed.connect(func() -> void: _on_internal_visual_cell_pressed(cell))
+			if selected:
+				_apply_selected_pulse(cell_button)
+			if invalid_preview:
+				_apply_invalid_preview_blink(cell_button)
 			grid.add_child(cell_button)
 	root.add_child(grid)
 	panel.add_child(root)
