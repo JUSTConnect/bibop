@@ -906,6 +906,8 @@ func get_box_mission_menu_text() -> String:
 	content_lines.append("")
 	content_lines.append("Energy:")
 	content_lines.append("%d / %d" % [bipob.energy, bipob.max_energy])
+	content_lines.append("")
+	content_lines.append(bipob.get_constructor_warning_summary_text())
 
 	var warnings: Array = bipob.get_pre_mission_warnings()
 	content_lines.append("")
@@ -968,6 +970,12 @@ func get_box_modules_menu_text() -> String:
 	content_lines.append(get_module_details_text(selected_module))
 	content_lines.append("")
 	content_lines.append("External build: %d module(s)" % bipob.external_modules_by_slot.size())
+	content_lines.append("")
+	content_lines.append(bipob.get_constructor_warning_compact_text())
+	var constructor_warnings: Array[String] = bipob.get_constructor_warning_lines()
+	var warning_limit: int = mini(2, constructor_warnings.size())
+	for index in range(warning_limit):
+		content_lines.append("- %s" % constructor_warnings[index])
 	return "\n".join(content_lines)
 
 func get_box_external_menu_text() -> String:
@@ -1060,6 +1068,12 @@ func get_box_external_menu_text() -> String:
 		if not air_intake_warning.is_empty():
 			content_lines.append(air_intake_warning)
 	content_lines.append("")
+	content_lines.append(bipob.get_constructor_warning_compact_text())
+	var constructor_warnings: Array[String] = bipob.get_constructor_warning_lines()
+	var warning_limit: int = mini(2, constructor_warnings.size())
+	for index in range(warning_limit):
+		content_lines.append("- %s" % constructor_warnings[index])
+	content_lines.append("")
 	content_lines.append("Installed on %s:" % side_name)
 	content_lines.append(get_external_side_installed_list_text(side_id))
 	content_lines.append("")
@@ -1090,6 +1104,7 @@ func rebuild_box_action_buttons() -> void:
 
 	if box_menu_mode == BoxMenuMode.MISSION:
 		_add_box_action_button("Charge", Callable(self, "_on_charge_button_pressed"))
+		_add_box_action_button("Warnings", Callable(self, "_on_constructor_warnings_button_pressed"))
 		_add_box_action_button("Start", Callable(self, "_on_start_mission_button_pressed"))
 		_add_box_action_button("Restart", Callable(self, "_on_restart_mission_button_pressed"))
 	elif box_menu_mode == BoxMenuMode.EXTERNAL:
@@ -1103,6 +1118,7 @@ func rebuild_box_action_buttons() -> void:
 		right_button_panel.add_spacer(false)
 		_add_box_action_button("Place", Callable(self, "_on_place_external_module_pressed"))
 		_add_box_action_button("Remove", Callable(self, "_on_remove_external_module_pressed"))
+		_add_box_action_button("Warnings", Callable(self, "_on_constructor_warnings_button_pressed"))
 	elif box_menu_mode == BoxMenuMode.INTERNAL:
 		_add_box_action_button("Prev Filter", Callable(self, "_on_prev_constructor_filter_pressed"))
 		_add_box_action_button("Next Filter", Callable(self, "_on_next_constructor_filter_pressed"))
@@ -1118,6 +1134,7 @@ func rebuild_box_action_buttons() -> void:
 		_add_box_action_button("Place", Callable(self, "_on_place_internal_pressed"))
 		_add_box_action_button("Remove", Callable(self, "_on_remove_internal_pressed"))
 		_add_box_action_button("Toggle View", Callable(self, "_on_toggle_internal_view_pressed"))
+		_add_box_action_button("Warnings", Callable(self, "_on_constructor_warnings_button_pressed"))
 		_add_box_action_button("Reset Internal Cursor", Callable(self, "_on_reset_internal_cursor_pressed"))
 	else:
 		_add_box_action_button("Prev Filter", Callable(self, "_on_prev_constructor_filter_pressed"))
@@ -1130,6 +1147,7 @@ func rebuild_box_action_buttons() -> void:
 		_add_box_action_button("Install", Callable(self, "_on_install_selected_box_module_pressed"))
 		_add_box_action_button("Prev Box", Callable(self, "_on_prev_box_pressed"))
 		_add_box_action_button("Next Box", Callable(self, "_on_next_box_pressed"))
+		_add_box_action_button("Warnings", Callable(self, "_on_constructor_warnings_button_pressed"))
 
 func update_box_button_visibility() -> void:
 	var is_mission := box_menu_mode == BoxMenuMode.MISSION
@@ -1379,6 +1397,12 @@ func _on_remove_external_module_pressed() -> void:
 func show_hint(message: String) -> void:
 	if hint_label != null:
 		hint_label.text = message
+
+func _on_constructor_warnings_button_pressed() -> void:
+	if bipob == null:
+		return
+	show_hint(bipob.get_constructor_warning_summary_text())
+	update_box_status()
 
 func _on_move_forward_pressed() -> void:
 	bipob.move_forward()
@@ -1686,6 +1710,8 @@ func get_box_internal_menu_text() -> String:
 		lines.append(str(bipob.get_air_intake_summary_text()))
 	else:
 		lines.append("Air intake: %s" % get_air_intake_status_text())
+	lines.append("")
+	lines.append(bipob.get_constructor_warning_summary_text())
 	lines.append("")
 	lines.append("Roles:")
 	var role_order: Array[String] = [
