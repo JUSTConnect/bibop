@@ -367,7 +367,25 @@ func get_module_visual_card_line(module: BipobModule) -> String:
 		name,
 		size_text
 	]
+func get_external_module_footprint_size(module: BipobModule) -> Vector2i:
+	if module == null:
+		return Vector2i.ONE
 
+	var module_id: String = module.id
+
+	if module_id.contains("manipulator") or module_id.contains("interface"):
+		return Vector2i(2, 2)
+
+	if module_id.contains("wheel") or module_id.contains("leg") or module_id.contains("track"):
+		return Vector2i(3, 2)
+
+	if module_id.contains("visor"):
+		return Vector2i(3, 1)
+
+	if module_id.contains("air_intake"):
+		return Vector2i(1, 1)
+
+	return Vector2i(1, 1)
 func get_module_category(module: BipobModule) -> String:
 	if module == null:
 		return "utility"
