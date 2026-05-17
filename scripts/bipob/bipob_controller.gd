@@ -2605,6 +2605,7 @@ func get_constructor_dashboard_text() -> String:
 	lines.append("")
 
 	lines.append(get_storage_overview_text())
+	lines.append(get_constructor_planning_checkpoint_compact_text())
 	lines.append("")
 
 	var thermal_critical_heat: int = THERMAL_CRITICAL_HEAT
@@ -2623,6 +2624,110 @@ func get_constructor_dashboard_text() -> String:
 	lines.append(get_installed_internal_summary_text())
 
 	return "\n".join(lines)
+
+func get_constructor_planning_checkpoint_text() -> String:
+	var lines: Array[String] = []
+
+	lines.append("Constructor Planning Checkpoint")
+	lines.append("")
+	lines.append("Systems:")
+
+	var internal_count: int = get_unique_internal_modules().size()
+	var external_count: int = get_unique_external_modules().size()
+	var overlay_count: int = internal_overlay_paths.size()
+	var liquid_count: int = get_liquid_overlay_path_count() if has_method("get_liquid_overlay_path_count") else 0
+	var duct_count: int = get_duct_overlay_path_count() if has_method("get_duct_overlay_path_count") else 0
+
+	lines.append("- Box Storage: %d module(s)" % box_storage.size())
+	lines.append("- Internal Volume: %d installed module(s)" % internal_count)
+	lines.append("- External Slots: %d installed module(s)" % external_count)
+	lines.append("- Overlay Paths: %d total / %d liquid / %d duct" % [
+		overlay_count,
+		liquid_count,
+		duct_count
+	])
+
+	lines.append("")
+	lines.append("Thermal:")
+	lines.append("- Highest Thermal Preview: %d / %d" % [
+		get_highest_internal_preview_heat(),
+		THERMAL_CRITICAL_HEAT
+	])
+	lines.append("- Critical Thermal Preview: %d" % get_critical_internal_preview_count())
+
+	if has_method("get_overlay_thermal_contribution_compact_text"):
+		lines.append("- " + get_overlay_thermal_contribution_compact_text())
+
+	if has_method("get_overlay_heat_diff_compact_text"):
+		lines.append("- " + get_overlay_heat_diff_compact_text())
+
+	lines.append("")
+	lines.append("Damage / Repair:")
+	if has_method("get_damage_planning_compact_text"):
+		lines.append("- " + get_damage_planning_compact_text())
+	if has_method("get_repair_planning_compact_reference_text"):
+		lines.append("- " + get_repair_planning_compact_reference_text())
+
+	lines.append("")
+	lines.append("Readiness:")
+	if has_method("get_constructor_readiness_summary_text"):
+		lines.append(get_constructor_readiness_summary_text())
+	else:
+		lines.append("- Readiness summary unavailable")
+
+	lines.append("")
+	lines.append("Warnings:")
+	if has_method("get_warning_count"):
+		lines.append("- Warning count: %d" % get_warning_count())
+	elif has_method("get_constructor_warning_lines"):
+		var warning_lines: Array[String] = get_constructor_warning_lines()
+		lines.append("- Warning count: %d" % warning_lines.size())
+	else:
+		lines.append("- Warning count unavailable")
+
+	lines.append("")
+	lines.append("Consistency:")
+	if has_method("get_constructor_consistency_issue_lines"):
+		var issue_lines: Array[String] = get_constructor_consistency_issue_lines()
+		lines.append("- Consistency issues: %d" % issue_lines.size())
+	else:
+		lines.append("- Consistency check unavailable")
+
+	lines.append("")
+	lines.append("Implementation status:")
+	lines.append("- Constructor planning is UI/data preview only.")
+	lines.append("- Overlay Thermal is hypothetical only.")
+	lines.append("- Damage/Repair is metadata only.")
+	lines.append("- No Test Build is implemented.")
+	lines.append("- No runtime module damage is implemented.")
+	lines.append("- Missions are not blocked by constructor planning.")
+
+	return "\n".join(lines)
+
+func get_constructor_planning_checkpoint_compact_text() -> String:
+	var internal_count: int = get_unique_internal_modules().size()
+	var external_count: int = get_unique_external_modules().size()
+	var overlay_count: int = internal_overlay_paths.size()
+	var warning_count: int = 0
+	var consistency_count: int = 0
+
+	if has_method("get_warning_count"):
+		warning_count = get_warning_count()
+	elif has_method("get_constructor_warning_lines"):
+		var warning_lines: Array[String] = get_constructor_warning_lines()
+		warning_count = warning_lines.size()
+
+	if has_method("get_constructor_consistency_issue_lines"):
+		var issue_lines: Array[String] = get_constructor_consistency_issue_lines()
+		consistency_count = issue_lines.size()
+
+	return "Checkpoint: internal %d / external %d / overlay %d / warnings %d / consistency %d" % [
+		internal_count,
+		external_count,
+		overlay_count,
+		warning_count,
+		consistency_count
+	]
 func get_constructor_readiness_summary_text() -> String:
 	var lines: Array[String] = []
 	lines.append("Constructor readiness:")
