@@ -107,6 +107,8 @@ const UI_COLOR_DISABLED: Color = Color(0.250, 0.280, 0.320, 1.0)
 
 const STORAGE_CARD_MIN_SIZE: Vector2 = Vector2(118, 86)
 const STORAGE_CARD_ICON_SIZE: Vector2 = Vector2(42, 42)
+const EXTERNAL_GRID_CELL_SIZE: Vector2 = Vector2(42, 42)
+const EXTERNAL_GRID_CELL_GAP: int = 4
 
 
 
@@ -661,6 +663,9 @@ func _on_storage_module_card_pressed(storage_index: int) -> void:
 
 
 func _build_storage_cards_panel(parent: Control) -> void:
+	if box_menu_mode == BoxMenuMode.EXTERNAL:
+		parent.add_child(_create_external_visual_workspace())
+
 	var title: Label = Label.new()
 	title.text = "COMPONENTS IN BOX STORAGE"
 	_apply_label_style(title, false, true)
@@ -701,6 +706,269 @@ func _build_storage_cards_panel(parent: Control) -> void:
 	details.text = get_module_details_text(selected_module)
 	_apply_label_style(details)
 	parent.add_child(details)
+
+
+func _get_external_side_display_name(side_id: String) -> String:
+	match side_id:
+		"top":
+			return "UP"
+		"bottom":
+			return "DOWN"
+		"left":
+			return "LEFT SIDE"
+		"right":
+			return "RIGHT SIDE"
+		"front":
+			return "FRONT"
+		"back":
+			return "BACK"
+		_:
+			return side_id.to_upper()
+
+
+func _make_external_cell_style(
+	module: BipobModule,
+	selected: bool,
+	preview: bool,
+	invalid_preview: bool,
+	origin: bool
+) -> StyleBoxFlat:
+	var bg_color: Color = Color(0.035, 0.050, 0.060, 1.0)
+	var border_color: Color = UI_COLOR_BORDER_DIM
+	var border_width: int = 1
+
+	if module != null:
+		if bipob.has_method("get_module_visual_color"):
+			var module_color: Color = bipob.get_module_visual_color(module)
+			bg_color = module_color.darkened(0.62)
+			border_color = module_color
+		else:
+			bg_color = Color(0.120, 0.160, 0.180, 1.0)
+
+	if preview:
+		bg_color = Color(0.100, 0.230, 0.130, 1.0)
+		border_color = UI_COLOR_OK
+
+	if invalid_preview:
+		bg_color = Color(0.260, 0.070, 0.070, 1.0)
+		border_color = UI_COLOR_DANGER
+
+	if selected:
+		border_color = UI_COLOR_SELECTED
+		border_width = 2
+
+	if origin:
+		border_color = UI_COLOR_ACCENT
+		border_width = 2
+
+	return _make_panel_style(bg_color, border_color, border_width, 5)
+
+
+func _get_selected_external_candidate_module() -> BipobModule:
+	var selected_module: BipobModule = null
+
+	if selected_box_storage_index >= 0 and selected_box_storage_index < bipob.box_storage.size():
+		selected_module = bipob.box_storage[selected_box_storage_index]
+
+	if selected_module != null and bipob.is_external_module(selected_module):
+		return selected_module
+
+	return null
+
+
+func _get_external_preview_cells_for_side(side_id: String) -> Dictionary:
+	var result: Dictionary = {}
+	var module: BipobModule = _get_selected_external_candidate_module()
+
+	if module == null:
+		return result
+
+	if side_id != get_selected_external_side_id():
+		return result
+
+	var origin: Vector2i = selected_external_slot_position
+	var can_place: bool = bipob.can_place_external_module(side_id, origin, module)
+	var covered_cells: Array[Vector2i] = bipob.get_external_module_covered_cells(side_id, origin, module)
+
+	for cell in covered_cells:
+		var key: String = bipob.get_external_slot_key(side_id, cell)
+		result[key] = can_place
+
+	return result
+
+
+func _get_external_cell_label(module: BipobModule) -> String:
+	if module == null:
+		return ""
+
+	if bipob.has_method("get_module_visual_short_label"):
+		return bipob.get_module_visual_short_label(module)
+
+	return "M"
+
+
+func _on_external_visual_cell_pressed(side_id: String, cell: Vector2i) -> void:
+	selected_external_side_index = bipob.EXTERNAL_SIDE_ORDER.find(side_id)
+	selected_external_slot_position = cell
+	clamp_external_selection()
+	update_box_status()
+
+
+func _create_external_side_grid(side_id: String) -> Control:
+	var side_panel: PanelContainer = PanelContainer.new()
+	_apply_panel_style(side_panel)
+
+	var root: VBoxContainer = VBoxContainer.new()
+	root.add_theme_constant_override("separation", 4)
+
+	var title: Label = Label.new()
+	title.text = _get_external_side_display_name(side_id)
+	title.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	_apply_label_style(title, false, true)
+	root.add_child(title)
+
+	var side_size: Vector2i = bipob.get_external_side_size(side_id)
+	var preview_cells: Dictionary = _get_external_preview_cells_for_side(side_id)
+	var selected_side_id: String = get_selected_external_side_id()
+
+	var grid: GridContainer = GridContainer.new()
+	grid.columns = side_size.x
+	grid.add_theme_constant_override("h_separation", EXTERNAL_GRID_CELL_GAP)
+	grid.add_theme_constant_override("v_separation", EXTERNAL_GRID_CELL_GAP)
+
+	for y in range(side_size.y):
+		for x in range(side_size.x):
+			var cell: Vector2i = Vector2i(x, y)
+			var key: String = bipob.get_external_slot_key(side_id, cell)
+			var module: BipobModule = bipob.get_external_module_at(side_id, cell)
+
+			var selected: bool = side_id == selected_side_id and cell == selected_external_slot_position
+
+			var preview: bool = false
+			var invalid_preview: bool = false
+			if preview_cells.has(key):
+				var can_place_preview: bool = bool(preview_cells[key])
+				preview = can_place_preview
+				invalid_preview = not can_place_preview
+
+			var origin: bool = selected
+
+			var cell_button: Button = Button.new()
+			cell_button.custom_minimum_size = EXTERNAL_GRID_CELL_SIZE
+			cell_button.focus_mode = Control.FOCUS_NONE
+			cell_button.text = _get_external_cell_label(module)
+			cell_button.add_theme_stylebox_override("normal", _make_external_cell_style(module, selected, preview, invalid_preview, origin))
+			cell_button.add_theme_stylebox_override("hover", _make_external_cell_style(module, true, preview, invalid_preview, origin))
+			cell_button.add_theme_stylebox_override("pressed", _make_external_cell_style(module, true, preview, invalid_preview, origin))
+			cell_button.add_theme_color_override("font_color", UI_COLOR_TEXT)
+			cell_button.pressed.connect(func() -> void:
+				_on_external_visual_cell_pressed(side_id, cell)
+			)
+			grid.add_child(cell_button)
+
+	root.add_child(grid)
+	side_panel.add_child(root)
+	return side_panel
+
+
+func _create_external_robot_preview_panel() -> Control:
+	var panel: PanelContainer = PanelContainer.new()
+	_apply_panel_style(panel, true)
+	panel.custom_minimum_size = Vector2(220, 220)
+
+	var root: VBoxContainer = VBoxContainer.new()
+	root.alignment = BoxContainer.ALIGNMENT_CENTER
+
+	var title: Label = Label.new()
+	title.text = "ROBOT PREVIEW"
+	title.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	_apply_label_style(title, false, true)
+	root.add_child(title)
+
+	var robot_label: Label = Label.new()
+	robot_label.text = "[ BIPOB BODY ]"
+	robot_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	robot_label.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
+	_apply_label_style(robot_label)
+	root.add_child(robot_label)
+
+	var hint: Label = Label.new()
+	hint.text = "External Slots"
+	hint.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	_apply_label_style(hint, true, false)
+	root.add_child(hint)
+
+	panel.add_child(root)
+	return panel
+
+
+func _get_external_selected_slot_summary_text() -> String:
+	var side_id: String = get_selected_external_side_id()
+	var side_name: String = _get_external_side_display_name(side_id)
+	var cell: Vector2i = selected_external_slot_position
+	var module: BipobModule = _get_selected_external_candidate_module()
+	var can_place_text: String = "n/a"
+	var selected_module_text: String = "none"
+	var selected_footprint_text: String = "n/a"
+
+	if module != null:
+		var can_place: bool = bipob.can_place_external_module(side_id, cell, module)
+		can_place_text = "yes" if can_place else "no"
+		selected_module_text = bipob.get_module_display_name(module)
+		var footprint: Vector2i = bipob.get_external_module_footprint_size(module)
+		selected_footprint_text = "%dx%d" % [footprint.x, footprint.y]
+
+	return "Selected External Slot: Side: %s / Cell: %d,%d\nSelected Module: %s / Footprint: %s / Can place: %s" % [
+		side_name,
+		cell.x,
+		cell.y,
+		selected_module_text,
+		selected_footprint_text,
+		can_place_text
+	]
+
+
+func _create_external_visual_workspace() -> Control:
+	var workspace: PanelContainer = PanelContainer.new()
+	_apply_panel_style(workspace, true)
+
+	var root: VBoxContainer = VBoxContainer.new()
+	root.add_theme_constant_override("separation", 8)
+
+	var title: Label = Label.new()
+	title.text = "EXTERNAL MODULES ON BODY"
+	_apply_label_style(title, false, true)
+	root.add_child(title)
+
+	var top_row: HBoxContainer = HBoxContainer.new()
+	top_row.alignment = BoxContainer.ALIGNMENT_CENTER
+	top_row.add_child(_create_external_side_grid("top"))
+	root.add_child(top_row)
+
+	var middle_row: HBoxContainer = HBoxContainer.new()
+	middle_row.alignment = BoxContainer.ALIGNMENT_CENTER
+	middle_row.add_theme_constant_override("separation", 12)
+	middle_row.add_child(_create_external_side_grid("left"))
+	middle_row.add_child(_create_external_robot_preview_panel())
+	middle_row.add_child(_create_external_side_grid("right"))
+	root.add_child(middle_row)
+
+	var bottom_row: HBoxContainer = HBoxContainer.new()
+	bottom_row.alignment = BoxContainer.ALIGNMENT_CENTER
+	bottom_row.add_theme_constant_override("separation", 12)
+	bottom_row.add_child(_create_external_side_grid("front"))
+	bottom_row.add_child(_create_external_side_grid("bottom"))
+	bottom_row.add_child(_create_external_side_grid("back"))
+	root.add_child(bottom_row)
+
+	var status_label: Label = Label.new()
+	status_label.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	status_label.text = _get_external_selected_slot_summary_text()
+	_apply_label_style(status_label, true)
+	root.add_child(status_label)
+
+	workspace.add_child(root)
+	return workspace
 
 
 func get_compact_module_window(modules: Array, selected_index: int, max_lines: int = 4) -> Array[String]:
