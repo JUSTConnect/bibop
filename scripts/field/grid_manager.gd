@@ -17,6 +17,8 @@ const TILE_FAN_PLATFORM := 12
 const TILE_PLATFORM_CONTROL := 13
 const TILE_FAN_CONTROL := 14
 const TILE_AIRFLOW := 15
+const TILE_PLATFORM_CONTROL_LEFT := 16
+const TILE_PLATFORM_CONTROL_RIGHT := 17
 
 @export var cell_size: int = 64
 @export var fog_enabled: bool = true
@@ -59,6 +61,8 @@ var tile_colors := {
 	TILE_PLATFORM_CONTROL: Color(0.95, 0.8, 0.22),
 	TILE_FAN_CONTROL: Color(0.2, 0.8, 1.0),
 	TILE_AIRFLOW: Color(0.45, 0.85, 1.0, 0.65),
+	TILE_PLATFORM_CONTROL_LEFT: Color(0.95, 0.68, 0.2),
+	TILE_PLATFORM_CONTROL_RIGHT: Color(0.8, 0.9, 0.24),
 }
 
 func _ready() -> void:
@@ -106,7 +110,7 @@ func get_mission8_layout() -> Array:
 	return [
 		[1, 1, 1, 1, 1, 1, 1, 1],
 		[1, 0, 0, 0, 0, 0, 0, 1],
-		[1, 0, TILE_PLATFORM_CONTROL, 0, TILE_FAN_PLATFORM, 0, 0, 1],
+		[1, 0, TILE_PLATFORM_CONTROL_LEFT, 0, TILE_FAN_PLATFORM, TILE_PLATFORM_CONTROL_RIGHT, 0, 1],
 		[1, 0, 0, 0, 0, 0, TILE_AIRFLOW_TERMINAL, 1],
 		[1, 0, TILE_FAN_CONTROL, 0, 0, 0, TILE_DIGITAL_DOOR, 1],
 		[1, 0, 0, 0, 0, 0, 0, 1],
@@ -220,6 +224,12 @@ func is_walkable(grid_position: Vector2i) -> bool:
 		return false
 
 	if tile_type == TILE_PLATFORM_CONTROL:
+		return false
+
+	if tile_type == TILE_PLATFORM_CONTROL_LEFT:
+		return false
+
+	if tile_type == TILE_PLATFORM_CONTROL_RIGHT:
 		return false
 
 	if tile_type == TILE_FAN_CONTROL:
