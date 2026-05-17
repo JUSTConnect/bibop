@@ -76,6 +76,8 @@ var mission8_platform_control_position: Vector2i = Vector2i(-1, -1)
 var mission8_platform_left_control_position: Vector2i = Vector2i(-1, -1)
 var mission8_platform_right_control_position: Vector2i = Vector2i(-1, -1)
 var mission8_fan_control_position: Vector2i = Vector2i(-1, -1)
+var mission8_fan_speed_up_control_position: Vector2i = Vector2i(-1, -1)
+var mission8_fan_speed_down_control_position: Vector2i = Vector2i(-1, -1)
 var mission8_terminal_position: Vector2i = Vector2i(-1, -1)
 var mission8_door_position: Vector2i = Vector2i(-1, -1)
 var mission8_airflow_cells: Array[Vector2i] = []
@@ -916,6 +918,10 @@ func try_move_to(target_position: Vector2i) -> bool:
 			hint_requested.emit("Use Interact to rotate the fan platform.")
 		elif target_tile == GridManager.TILE_FAN_CONTROL:
 			hint_requested.emit("Use Interact to change fan speed.")
+		elif target_tile == GridManager.TILE_FAN_SPEED_UP_CONTROL:
+			hint_requested.emit("Use Interact to increase fan speed.")
+		elif target_tile == GridManager.TILE_FAN_SPEED_DOWN_CONTROL:
+			hint_requested.emit("Use Interact to decrease fan speed.")
 		else:
 			hint_requested.emit("Path is blocked.")
 
@@ -1419,7 +1425,14 @@ func interact() -> void:
 		interact_mission8_platform_control_right()
 		return
 	if target_tile == GridManager.TILE_FAN_CONTROL:
-		interact_mission8_fan_control()
+		hint_requested.emit("Use fan speed up/down controls.")
+		status_changed.emit()
+		return
+	if target_tile == GridManager.TILE_FAN_SPEED_UP_CONTROL:
+		increase_mission8_fan_speed()
+		return
+	if target_tile == GridManager.TILE_FAN_SPEED_DOWN_CONTROL:
+		decrease_mission8_fan_speed()
 		return
 	
 	match target_tile:
@@ -1454,6 +1467,8 @@ func setup_mission8() -> void:
 	mission8_platform_left_control_position = Vector2i(2, 2)
 	mission8_platform_right_control_position = Vector2i(5, 2)
 	mission8_fan_control_position = Vector2i(2, 4)
+	mission8_fan_speed_up_control_position = Vector2i(2, 3)
+	mission8_fan_speed_down_control_position = Vector2i(2, 4)
 	mission8_terminal_position = Vector2i(6, 3)
 	mission8_door_position = Vector2i(6, 4)
 	mission8_fan_direction = Direction.EAST
@@ -1549,6 +1564,42 @@ func interact_mission8_fan_control() -> void:
 	hint_requested.emit("Fan speed set to %d. Airflow range: %d | Terminal: %s." % [mission8_fan_speed, range, get_mission8_terminal_state_text()])
 	status_changed.emit()
 
+func change_mission8_fan_speed(delta: int) -> void:
+	if current_mission_index != 8:
+		hint_requested.emit("Fan speed controls are inactive in this mission.")
+		status_changed.emit()
+		return
+	if not can_spend_action(1, 1):
+		return
+
+	var previous_speed := mission8_fan_speed
+	mission8_fan_speed = clampi(mission8_fan_speed + delta, 0, 3)
+	if mission8_fan_speed == previous_speed:
+		if delta > 0:
+			hint_requested.emit("Fan speed already at maximum.")
+		else:
+			hint_requested.emit("Fan speed already at minimum.")
+		status_changed.emit()
+		return
+
+	update_mission8_airflow()
+	var airflow_range := get_mission8_airflow_range_for_speed(mission8_fan_speed)
+	hint_requested.emit(
+		"Fan speed set to %d. Airflow range: %d | Terminal: %s" % [
+			mission8_fan_speed,
+			airflow_range,
+			get_mission8_terminal_state_text()
+		]
+	)
+	spend_action(1, 1)
+	status_changed.emit()
+
+func increase_mission8_fan_speed() -> void:
+	change_mission8_fan_speed(1)
+
+func decrease_mission8_fan_speed() -> void:
+	change_mission8_fan_speed(-1)
+
 func get_mission8_airflow_range_for_speed(speed: int) -> int:
 	match speed:
 		0:
@@ -1598,7 +1649,7 @@ func update_mission8_airflow() -> void:
 		if tile == GridManager.TILE_AIRFLOW_TERMINAL:
 			mission8_terminal_cooled = true
 			break
-		if tile == GridManager.TILE_FAN_PLATFORM or tile == GridManager.TILE_PLATFORM_CONTROL or tile == GridManager.TILE_PLATFORM_CONTROL_LEFT or tile == GridManager.TILE_PLATFORM_CONTROL_RIGHT or tile == GridManager.TILE_FAN_CONTROL:
+		if tile == GridManager.TILE_FAN_PLATFORM or tile == GridManager.TILE_PLATFORM_CONTROL or tile == GridManager.TILE_PLATFORM_CONTROL_LEFT or tile == GridManager.TILE_PLATFORM_CONTROL_RIGHT or tile == GridManager.TILE_FAN_CONTROL or tile == GridManager.TILE_FAN_SPEED_UP_CONTROL or tile == GridManager.TILE_FAN_SPEED_DOWN_CONTROL:
 			break
 		if tile == GridManager.TILE_FLOOR or tile == GridManager.TILE_AIRFLOW:
 			grid_manager.set_tile(current_position, GridManager.TILE_AIRFLOW)
