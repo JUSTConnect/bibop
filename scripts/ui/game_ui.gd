@@ -1087,12 +1087,22 @@ func get_box_external_menu_text() -> String:
 func _add_box_action_button(button_text: String, handler: Callable) -> void:
 	if right_button_panel == null:
 		return
-	var button := Button.new()
+	var button: Button = Button.new()
 	button.text = button_text
 	button.focus_mode = Control.FOCUS_NONE
 	button.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	right_button_panel.add_child(button)
 	button.pressed.connect(handler)
+
+func _add_right_action_group(title: String) -> void:
+	if right_button_panel == null:
+		return
+	var label: Label = Label.new()
+	label.text = title
+	right_button_panel.add_child(label)
+
+func _add_right_action_button(text: String, callable_ref: Callable) -> void:
+	_add_box_action_button(text, callable_ref)
 
 func rebuild_box_action_buttons() -> void:
 	if right_button_panel == null:
@@ -1123,40 +1133,51 @@ func rebuild_box_action_buttons() -> void:
 		_add_box_action_button("Remove", Callable(self, "_on_remove_external_module_pressed"))
 		_add_box_action_button("Warnings", Callable(self, "_on_constructor_warnings_button_pressed"))
 	elif box_menu_mode == BoxMenuMode.INTERNAL:
-		_add_box_action_button("Prev Filter", Callable(self, "_on_prev_constructor_filter_pressed"))
-		_add_box_action_button("Next Filter", Callable(self, "_on_next_constructor_filter_pressed"))
+		_add_right_action_group("Selection")
+		_add_right_action_button("Prev Filter", Callable(self, "_on_prev_constructor_filter_pressed"))
+		_add_right_action_button("Next Filter", Callable(self, "_on_next_constructor_filter_pressed"))
+		_add_right_action_button("Prev Box", Callable(self, "_on_prev_internal_box_pressed"))
+		_add_right_action_button("Next Box", Callable(self, "_on_next_internal_box_pressed"))
 		right_button_panel.add_spacer(false)
-		_add_box_action_button("X-", Callable(self, "_on_internal_x_minus_pressed"))
-		_add_box_action_button("X+", Callable(self, "_on_internal_x_plus_pressed"))
-		_add_box_action_button("Y-", Callable(self, "_on_internal_y_minus_pressed"))
-		_add_box_action_button("Y+", Callable(self, "_on_internal_y_plus_pressed"))
-		_add_box_action_button("Z-", Callable(self, "_on_internal_z_minus_pressed"))
-		_add_box_action_button("Z+", Callable(self, "_on_internal_z_plus_pressed"))
+		_add_right_action_group("Position")
+		_add_right_action_button("X-", Callable(self, "_on_internal_x_minus_pressed"))
+		_add_right_action_button("X+", Callable(self, "_on_internal_x_plus_pressed"))
+		_add_right_action_button("Y-", Callable(self, "_on_internal_y_minus_pressed"))
+		_add_right_action_button("Y+", Callable(self, "_on_internal_y_plus_pressed"))
+		_add_right_action_button("Z-", Callable(self, "_on_internal_z_minus_pressed"))
+		_add_right_action_button("Z+", Callable(self, "_on_internal_z_plus_pressed"))
 		right_button_panel.add_spacer(false)
-		_add_box_action_button("Rotate", Callable(self, "_on_rotate_internal_pressed"))
-		_add_box_action_button("Place", Callable(self, "_on_place_internal_pressed"))
-		_add_box_action_button("Remove", Callable(self, "_on_remove_internal_pressed"))
-		_add_box_action_button("Toggle View", Callable(self, "_on_toggle_internal_view_pressed"))
-		_add_box_action_button("Overlay Type", Callable(self, "_on_overlay_type_pressed"))
-		_add_box_action_button("Toggle Overlay", Callable(self, "_on_toggle_overlay_cell_pressed"))
-		_add_box_action_button("Extend +X", Callable(self, "_on_extend_overlay_pos_x_pressed"))
-		_add_box_action_button("Extend -X", Callable(self, "_on_extend_overlay_neg_x_pressed"))
-		_add_box_action_button("Extend +Y", Callable(self, "_on_extend_overlay_pos_y_pressed"))
-		_add_box_action_button("Extend -Y", Callable(self, "_on_extend_overlay_neg_y_pressed"))
-		_add_box_action_button("Extend +Z", Callable(self, "_on_extend_overlay_pos_z_pressed"))
-		_add_box_action_button("Extend -Z", Callable(self, "_on_extend_overlay_neg_z_pressed"))
-		_add_box_action_button("Undo Overlay", Callable(self, "_on_undo_overlay_cell_pressed"))
-		_add_box_action_button("Commit Overlay", Callable(self, "_on_commit_overlay_pressed"))
-		_add_box_action_button("Clear Overlay", Callable(self, "_on_clear_overlay_pressed"))
-		_add_box_action_button("Prev Overlay", Callable(self, "_on_prev_overlay_pressed"))
-		_add_box_action_button("Next Overlay", Callable(self, "_on_next_overlay_pressed"))
-		_add_box_action_button("Remove Overlay", Callable(self, "_on_remove_selected_overlay_pressed"))
-		_add_box_action_button("Overlay Check", Callable(self, "_on_overlay_check_pressed"))
-		_add_box_action_button("Overlay Effects", Callable(self, "_on_overlay_effects_pressed"))
-		_add_box_action_button("Overlay Endpoints", Callable(self, "_on_overlay_endpoints_pressed"))
-		_add_box_action_button("Overlay Thermal", Callable(self, "_on_overlay_thermal_pressed"))
-		_add_box_action_button("Warnings", Callable(self, "_on_constructor_warnings_button_pressed"))
-		_add_box_action_button("Reset Internal Cursor", Callable(self, "_on_reset_internal_cursor_pressed"))
+		_add_right_action_group("Module")
+		_add_right_action_button("Rotate", Callable(self, "_on_rotate_internal_pressed"))
+		_add_right_action_button("Place", Callable(self, "_on_place_internal_pressed"))
+		_add_right_action_button("Remove", Callable(self, "_on_remove_internal_pressed"))
+		right_button_panel.add_spacer(false)
+		_add_right_action_group("View")
+		_add_right_action_button("Toggle View", Callable(self, "_on_toggle_internal_view_pressed"))
+		right_button_panel.add_spacer(false)
+		_add_right_action_group("Overlay Plan")
+		_add_right_action_button("Type", Callable(self, "_on_overlay_type_pressed"))
+		_add_right_action_button("Toggle Cell", Callable(self, "_on_toggle_overlay_cell_pressed"))
+		_add_right_action_button("+X", Callable(self, "_on_extend_overlay_pos_x_pressed"))
+		_add_right_action_button("-X", Callable(self, "_on_extend_overlay_neg_x_pressed"))
+		_add_right_action_button("+Y", Callable(self, "_on_extend_overlay_pos_y_pressed"))
+		_add_right_action_button("-Y", Callable(self, "_on_extend_overlay_neg_y_pressed"))
+		_add_right_action_button("+Z", Callable(self, "_on_extend_overlay_pos_z_pressed"))
+		_add_right_action_button("-Z", Callable(self, "_on_extend_overlay_neg_z_pressed"))
+		_add_right_action_button("Undo", Callable(self, "_on_undo_overlay_cell_pressed"))
+		_add_right_action_button("Clear", Callable(self, "_on_clear_overlay_pressed"))
+		_add_right_action_button("Commit", Callable(self, "_on_commit_overlay_pressed"))
+		right_button_panel.add_spacer(false)
+		_add_right_action_group("Overlay Paths")
+		_add_right_action_button("Prev Path", Callable(self, "_on_prev_overlay_pressed"))
+		_add_right_action_button("Next Path", Callable(self, "_on_next_overlay_pressed"))
+		_add_right_action_button("Remove Path", Callable(self, "_on_remove_selected_overlay_pressed"))
+		right_button_panel.add_spacer(false)
+		_add_right_action_group("Preview")
+		_add_right_action_button("Check", Callable(self, "_on_overlay_check_pressed"))
+		_add_right_action_button("Endpoints", Callable(self, "_on_overlay_endpoints_pressed"))
+		_add_right_action_button("Thermal", Callable(self, "_on_overlay_thermal_pressed"))
+		_add_right_action_button("Diff", Callable(self, "_on_overlay_effects_pressed"))
 	else:
 		_add_box_action_button("Prev Filter", Callable(self, "_on_prev_constructor_filter_pressed"))
 		_add_box_action_button("Next Filter", Callable(self, "_on_next_constructor_filter_pressed"))
@@ -1710,6 +1731,7 @@ func get_box_internal_menu_text() -> String:
 
 	var lines: Array[String] = []
 	lines.append("Filter: %s" % get_current_constructor_filter().capitalize())
+	lines.append("Right panel groups: Selection / Position / Module / View / Overlay")
 	lines.append("")
 	lines.append(bipob.get_constructor_readiness_summary_text())
 	lines.append("")
