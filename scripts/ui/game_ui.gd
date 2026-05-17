@@ -111,6 +111,10 @@ const EXTERNAL_GRID_CELL_SIZE: Vector2 = Vector2(42, 42)
 const EXTERNAL_GRID_CELL_GAP: int = 4
 const INTERNAL_GRID_CELL_SIZE: Vector2 = Vector2(36, 36)
 const INTERNAL_GRID_CELL_GAP: int = 3
+const ACTION_BUTTON_MIN_SIZE: Vector2 = Vector2(120, 32)
+const ACTION_BUTTON_COMPACT_SIZE: Vector2 = Vector2(56, 30)
+const ACTION_GROUP_SPACING: int = 6
+const ACTION_BUTTON_SPACING: int = 4
 
 
 
@@ -349,34 +353,57 @@ func _apply_label_style(label: Label, dim: bool = false, accent: bool = false) -
 		label.add_theme_color_override("font_color", UI_COLOR_TEXT)
 
 func _apply_button_style(button: Button, role: String = "normal") -> void:
+	_apply_action_button_style(button, role, true)
+
+func _apply_action_button_style(button: Button, role: String = "normal", available: bool = true) -> void:
 	if button == null:
 		return
+	var actual_role: String = role
+	if not available:
+		actual_role = "disabled"
 	var normal_bg: Color = Color(0.105, 0.130, 0.160, 1.0)
 	var hover_bg: Color = Color(0.145, 0.185, 0.220, 1.0)
 	var pressed_bg: Color = Color(0.070, 0.100, 0.130, 1.0)
 	var border_color: Color = UI_COLOR_BORDER_DIM
-	if role == "primary":
-		normal_bg = Color(0.080, 0.220, 0.300, 1.0)
-		hover_bg = Color(0.100, 0.300, 0.400, 1.0)
-		pressed_bg = Color(0.050, 0.160, 0.220, 1.0)
-		border_color = UI_COLOR_ACCENT
-	elif role == "danger":
-		normal_bg = Color(0.240, 0.080, 0.080, 1.0)
-		hover_bg = Color(0.350, 0.100, 0.100, 1.0)
-		pressed_bg = Color(0.160, 0.050, 0.050, 1.0)
-		border_color = UI_COLOR_DANGER
-	elif role == "warning":
-		normal_bg = Color(0.250, 0.160, 0.060, 1.0)
-		hover_bg = Color(0.360, 0.220, 0.080, 1.0)
-		pressed_bg = Color(0.170, 0.100, 0.040, 1.0)
-		border_color = UI_COLOR_WARNING
+	var font_color: Color = UI_COLOR_TEXT
+	match actual_role:
+		"primary":
+			normal_bg = Color(0.060, 0.220, 0.160, 1.0)
+			hover_bg = Color(0.080, 0.320, 0.220, 1.0)
+			pressed_bg = Color(0.040, 0.150, 0.110, 1.0)
+			border_color = UI_COLOR_OK
+		"danger":
+			normal_bg = Color(0.220, 0.065, 0.065, 1.0)
+			hover_bg = Color(0.330, 0.090, 0.090, 1.0)
+			pressed_bg = Color(0.150, 0.045, 0.045, 1.0)
+			border_color = UI_COLOR_DANGER
+		"warning":
+			normal_bg = Color(0.240, 0.150, 0.050, 1.0)
+			hover_bg = Color(0.340, 0.210, 0.070, 1.0)
+			pressed_bg = Color(0.160, 0.095, 0.035, 1.0)
+			border_color = UI_COLOR_WARNING
+		"reference":
+			normal_bg = Color(0.080, 0.110, 0.170, 1.0)
+			hover_bg = Color(0.110, 0.150, 0.240, 1.0)
+			pressed_bg = Color(0.055, 0.080, 0.130, 1.0)
+			border_color = UI_COLOR_ACCENT
+		"disabled":
+			normal_bg = Color(0.055, 0.060, 0.070, 0.85)
+			hover_bg = normal_bg
+			pressed_bg = normal_bg
+			border_color = UI_COLOR_DISABLED
+			font_color = UI_COLOR_TEXT_DIM
+		_:
+			pass
+	button.custom_minimum_size = ACTION_BUTTON_MIN_SIZE
 	button.add_theme_stylebox_override("normal", _make_button_style(normal_bg, border_color, 6))
 	button.add_theme_stylebox_override("hover", _make_button_style(hover_bg, border_color, 6))
 	button.add_theme_stylebox_override("pressed", _make_button_style(pressed_bg, border_color, 6))
-	button.add_theme_stylebox_override("disabled", _make_button_style(UI_COLOR_DISABLED, UI_COLOR_BORDER_DIM, 6))
-	button.add_theme_color_override("font_color", UI_COLOR_TEXT)
+	button.add_theme_stylebox_override("disabled", _make_button_style(Color(0.050, 0.055, 0.065, 1.0), UI_COLOR_DISABLED, 6))
+	button.add_theme_color_override("font_color", font_color)
 	button.add_theme_color_override("font_hover_color", Color.WHITE)
 	button.add_theme_color_override("font_pressed_color", Color.WHITE)
+	button.add_theme_color_override("font_disabled_color", UI_COLOR_TEXT_DIM)
 
 func _get_status_color(status: String) -> Color:
 	var normalized: String = status.to_lower()
@@ -396,8 +423,42 @@ func _get_button_role(button_text: String) -> String:
 			return "danger"
 		"Damage Plan", "Thermal Rules", "Repair Rules":
 			return "warning"
+		"Checkpoint", "Overlay Check", "Endpoints", "Overlay Thermal", "Overlay Diff":
+			return "reference"
 		_:
 			return "normal"
+
+func _create_action_group_panel(title_text: String) -> VBoxContainer:
+	var group: VBoxContainer = VBoxContainer.new()
+	group.add_theme_constant_override("separation", ACTION_BUTTON_SPACING)
+	var title: Label = Label.new()
+	title.text = title_text.to_upper()
+	_apply_label_style(title, false, true)
+	group.add_child(title)
+	return group
+
+func _create_action_button_row() -> HBoxContainer:
+	var row: HBoxContainer = HBoxContainer.new()
+	row.add_theme_constant_override("separation", ACTION_BUTTON_SPACING)
+	return row
+
+func _add_action_button(
+	parent: Control,
+	text: String,
+	callback: Callable,
+	role: String = "normal",
+	available: bool = true,
+	compact: bool = false
+) -> Button:
+	var button: Button = Button.new()
+	button.text = text
+	button.focus_mode = Control.FOCUS_NONE
+	button.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	button.custom_minimum_size = ACTION_BUTTON_COMPACT_SIZE if compact else ACTION_BUTTON_MIN_SIZE
+	_apply_action_button_style(button, role, available)
+	button.pressed.connect(callback)
+	parent.add_child(button)
+	return button
 
 func _apply_constructor_ui_skin() -> void:
 	_apply_dark_panel_style(command_panel)
@@ -1891,24 +1952,33 @@ func get_box_external_menu_text() -> String:
 func _add_box_action_button(button_text: String, handler: Callable) -> void:
 	if right_button_panel == null:
 		return
-	var button: Button = Button.new()
-	button.text = button_text
-	button.focus_mode = Control.FOCUS_NONE
-	button.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-	right_button_panel.add_child(button)
-	_apply_button_style(button, _get_button_role(button_text))
-	button.pressed.connect(handler)
+	_add_action_button(right_button_panel, button_text, handler, _get_button_role(button_text), true, false)
 
-func _add_right_action_group(title: String) -> void:
-	if right_button_panel == null:
-		return
-	var label: Label = Label.new()
-	label.text = title
-	right_button_panel.add_child(label)
-	_apply_label_style(label, false, true)
+func _can_place_selected_internal_visual() -> bool:
+	var module: BipobModule = _get_selected_internal_candidate_module()
+	if module == null:
+		return false
+	return bipob.can_place_internal_module(bipob.selected_internal_origin, module, bipob.selected_internal_rotation)
 
-func _add_right_action_button(text: String, callable_ref: Callable) -> void:
-	_add_box_action_button(text, callable_ref)
+func _can_place_selected_external_visual() -> bool:
+	var module: BipobModule = _get_selected_external_candidate_module()
+	if module == null:
+		return false
+	return bipob.can_place_external_module(bipob.selected_external_side, bipob.selected_external_origin, module)
+
+func _can_commit_overlay_plan_visual() -> bool:
+	if bipob.selected_overlay_cells.is_empty():
+		return false
+	var module_id: String = bipob.get_selected_overlay_module_id()
+	if bipob.has_method("get_box_module_count_by_id"):
+		return bipob.get_box_module_count_by_id(module_id) > 0
+	return true
+
+func _has_selected_overlay_path_visual() -> bool:
+	if not bipob.has_method("get_selected_overlay_path_record"):
+		return false
+	var record: Dictionary = bipob.get_selected_overlay_path_record()
+	return not record.is_empty()
 
 func rebuild_box_action_buttons() -> void:
 	if right_button_panel == null:
@@ -1916,10 +1986,12 @@ func rebuild_box_action_buttons() -> void:
 	for child in right_button_panel.get_children():
 		child.queue_free()
 
-	var actions_label := Label.new()
+	var actions_label: Label = Label.new()
 	actions_label.name = "ActionsLabel"
 	actions_label.text = "Actions"
 	right_button_panel.add_child(actions_label)
+	_apply_label_style(actions_label, false, true)
+	right_button_panel.add_theme_constant_override("separation", ACTION_GROUP_SPACING)
 
 	if box_menu_mode == BoxMenuMode.MISSION:
 		_add_box_action_button("Charge", Callable(self, "_on_charge_button_pressed"))
@@ -1927,75 +1999,113 @@ func rebuild_box_action_buttons() -> void:
 		_add_box_action_button("Start", Callable(self, "_on_start_mission_button_pressed"))
 		_add_box_action_button("Restart", Callable(self, "_on_restart_mission_button_pressed"))
 	elif box_menu_mode == BoxMenuMode.EXTERNAL:
-		_add_box_action_button("Prev Filter", Callable(self, "_on_prev_constructor_filter_pressed"))
-		_add_box_action_button("Next Filter", Callable(self, "_on_next_constructor_filter_pressed"))
-		right_button_panel.add_spacer(false)
-		_add_box_action_button("Prev Side", Callable(self, "_on_prev_external_side_pressed"))
-		_add_box_action_button("Next Side", Callable(self, "_on_next_external_side_pressed"))
-		_add_box_action_button("Prev Slot", Callable(self, "_on_prev_external_slot_pressed"))
-		_add_box_action_button("Next Slot", Callable(self, "_on_next_external_slot_pressed"))
-		right_button_panel.add_spacer(false)
-		_add_box_action_button("Place", Callable(self, "_on_place_external_module_pressed"))
-		_add_box_action_button("Remove", Callable(self, "_on_remove_external_module_pressed"))
-		_add_box_action_button("Warnings", Callable(self, "_on_constructor_warnings_button_pressed"))
-	elif box_menu_mode == BoxMenuMode.INTERNAL:
-		_add_right_action_group("Selection")
-		_add_right_action_button("Prev Filter", Callable(self, "_on_prev_constructor_filter_pressed"))
-		_add_right_action_button("Next Filter", Callable(self, "_on_next_constructor_filter_pressed"))
-		_add_right_action_button("Prev Box", Callable(self, "_on_prev_internal_box_pressed"))
-		_add_right_action_button("Next Box", Callable(self, "_on_next_internal_box_pressed"))
-		right_button_panel.add_spacer(false)
-		_add_right_action_group("Position")
-		_add_right_action_button("X-", Callable(self, "_on_internal_x_minus_pressed"))
-		_add_right_action_button("X+", Callable(self, "_on_internal_x_plus_pressed"))
-		_add_right_action_button("Y-", Callable(self, "_on_internal_y_minus_pressed"))
-		_add_right_action_button("Y+", Callable(self, "_on_internal_y_plus_pressed"))
-		_add_right_action_button("Z-", Callable(self, "_on_internal_z_minus_pressed"))
-		_add_right_action_button("Z+", Callable(self, "_on_internal_z_plus_pressed"))
-		right_button_panel.add_spacer(false)
-		_add_right_action_group("Module")
-		_add_right_action_button("Rotate", Callable(self, "_on_rotate_internal_pressed"))
-		_add_right_action_button("Place", Callable(self, "_on_place_internal_pressed"))
-		_add_right_action_button("Remove", Callable(self, "_on_remove_internal_pressed"))
-		right_button_panel.add_spacer(false)
-		_add_right_action_group("View")
-		_add_right_action_button("Toggle View", Callable(self, "_on_toggle_internal_view_pressed"))
-		right_button_panel.add_spacer(false)
-		_add_right_action_group("Overlay Plan")
-		_add_right_action_button("Overlay Type", Callable(self, "_on_overlay_type_pressed"))
-		_add_right_action_button("Toggle Cell", Callable(self, "_on_toggle_overlay_cell_pressed"))
-		_add_right_action_button("+X", Callable(self, "_on_extend_overlay_pos_x_pressed"))
-		_add_right_action_button("-X", Callable(self, "_on_extend_overlay_neg_x_pressed"))
-		_add_right_action_button("+Y", Callable(self, "_on_extend_overlay_pos_y_pressed"))
-		_add_right_action_button("-Y", Callable(self, "_on_extend_overlay_neg_y_pressed"))
-		_add_right_action_button("+Z", Callable(self, "_on_extend_overlay_pos_z_pressed"))
-		_add_right_action_button("-Z", Callable(self, "_on_extend_overlay_neg_z_pressed"))
-		_add_right_action_button("Undo Cell", Callable(self, "_on_undo_overlay_cell_pressed"))
-		_add_right_action_button("Clear Plan", Callable(self, "_on_clear_overlay_pressed"))
-		_add_right_action_button("Commit Plan", Callable(self, "_on_commit_overlay_pressed"))
-		right_button_panel.add_spacer(false)
-		_add_right_action_group("Overlay Paths")
-		_add_right_action_button("Prev Path", Callable(self, "_on_prev_overlay_pressed"))
-		_add_right_action_button("Next Path", Callable(self, "_on_next_overlay_pressed"))
-		_add_right_action_button("Remove Path", Callable(self, "_on_remove_selected_overlay_pressed"))
-		right_button_panel.add_spacer(false)
-		_add_right_action_group("Reference / Preview")
-		if bipob.has_method("get_thermal_rules_reference_text"):
-			_add_right_action_button("Thermal Rules", Callable(self, "_on_thermal_rules_pressed"))
-		if bipob.has_method("get_repair_planning_reference_text"):
-			_add_right_action_button("Repair Rules", Callable(self, "_on_repair_rules_pressed"))
-		if bipob.has_method("get_damage_planning_preview_text"):
-			_add_right_action_button("Damage Plan", Callable(self, "_on_damage_plan_pressed"))
+		var selected_external_slot_module: BipobModule = bipob.get_external_module_at(
+			bipob.selected_external_side,
+			bipob.selected_external_origin
+		)
+		var selection_group: VBoxContainer = _create_action_group_panel("Selection")
+		right_button_panel.add_child(selection_group)
+		var external_filter_row: HBoxContainer = _create_action_button_row()
+		selection_group.add_child(external_filter_row)
+		_add_action_button(external_filter_row, "Prev Filter", Callable(self, "_on_prev_constructor_filter_pressed"), "normal", true, true)
+		_add_action_button(external_filter_row, "Next Filter", Callable(self, "_on_next_constructor_filter_pressed"), "normal", true, true)
+		var external_box_row: HBoxContainer = _create_action_button_row()
+		selection_group.add_child(external_box_row)
+		_add_action_button(external_box_row, "Prev Box", Callable(self, "_on_prev_external_slot_pressed"), "normal", true, true)
+		_add_action_button(external_box_row, "Next Box", Callable(self, "_on_next_external_slot_pressed"), "normal", true, true)
+
+		var external_position_group: VBoxContainer = _create_action_group_panel("Position")
+		right_button_panel.add_child(external_position_group)
+		var side_row: HBoxContainer = _create_action_button_row()
+		external_position_group.add_child(side_row)
+		_add_action_button(side_row, "Side Prev", Callable(self, "_on_prev_external_side_pressed"), "normal", true, true)
+		_add_action_button(side_row, "Side Next", Callable(self, "_on_next_external_side_pressed"), "normal", true, true)
+		var external_x_row: HBoxContainer = _create_action_button_row()
+		external_position_group.add_child(external_x_row)
+		_add_action_button(external_x_row, "X-", Callable(self, "_on_prev_external_slot_pressed"), "normal", true, true)
+		_add_action_button(external_x_row, "X+", Callable(self, "_on_next_external_slot_pressed"), "normal", true, true)
+		var external_y_row: HBoxContainer = _create_action_button_row()
+		external_position_group.add_child(external_y_row)
+		_add_action_button(external_y_row, "Y-", Callable(self, "_on_prev_external_side_pressed"), "normal", true, true)
+		_add_action_button(external_y_row, "Y+", Callable(self, "_on_next_external_side_pressed"), "normal", true, true)
+
+		var external_module_group: VBoxContainer = _create_action_group_panel("Module")
+		right_button_panel.add_child(external_module_group)
+		_add_action_button(external_module_group, "Place", Callable(self, "_on_place_external_module_pressed"), "primary", _can_place_selected_external_visual())
+		_add_action_button(external_module_group, "Remove", Callable(self, "_on_remove_external_module_pressed"), "danger", selected_external_slot_module != null)
+
+		var external_view_group: VBoxContainer = _create_action_group_panel("View")
+		right_button_panel.add_child(external_view_group)
+		_add_action_button(external_view_group, "Toggle External View", Callable(self, "_on_toggle_internal_view_pressed"))
+
+		var external_reference_group: VBoxContainer = _create_action_group_panel("Reference / Preview")
+		right_button_panel.add_child(external_reference_group)
 		if bipob.has_method("get_constructor_planning_checkpoint_text"):
-			_add_right_action_button("Checkpoint", Callable(self, "_on_constructor_checkpoint_pressed"))
+			_add_action_button(external_reference_group, "Checkpoint", Callable(self, "_on_constructor_checkpoint_pressed"), "reference")
+	elif box_menu_mode == BoxMenuMode.INTERNAL:
+		var internal_remove_available: bool = bipob.get_internal_module_at(bipob.selected_internal_origin) != null
+		var selection_group: VBoxContainer = _create_action_group_panel("Selection")
+		right_button_panel.add_child(selection_group)
+		var filter_row: HBoxContainer = _create_action_button_row()
+		selection_group.add_child(filter_row)
+		_add_action_button(filter_row, "Prev Filter", Callable(self, "_on_prev_constructor_filter_pressed"), "normal", true, true)
+		_add_action_button(filter_row, "Next Filter", Callable(self, "_on_next_constructor_filter_pressed"), "normal", true, true)
+		var box_row: HBoxContainer = _create_action_button_row()
+		selection_group.add_child(box_row)
+		_add_action_button(box_row, "Prev Box", Callable(self, "_on_prev_internal_box_pressed"), "normal", true, true)
+		_add_action_button(box_row, "Next Box", Callable(self, "_on_next_internal_box_pressed"), "normal", true, true)
+		var position_group: VBoxContainer = _create_action_group_panel("Position")
+		right_button_panel.add_child(position_group)
+		for row_data in [["X-", "_on_internal_x_minus_pressed", "X+", "_on_internal_x_plus_pressed"], ["Y-", "_on_internal_y_minus_pressed", "Y+", "_on_internal_y_plus_pressed"], ["Z-", "_on_internal_z_minus_pressed", "Z+", "_on_internal_z_plus_pressed"]]:
+			var row: HBoxContainer = _create_action_button_row()
+			position_group.add_child(row)
+			_add_action_button(row, row_data[0], Callable(self, row_data[1]), "normal", true, true)
+			_add_action_button(row, row_data[2], Callable(self, row_data[3]), "normal", true, true)
+		var module_group: VBoxContainer = _create_action_group_panel("Module")
+		right_button_panel.add_child(module_group)
+		_add_action_button(module_group, "Rotate", Callable(self, "_on_rotate_internal_pressed"))
+		_add_action_button(module_group, "Place", Callable(self, "_on_place_internal_pressed"), "primary", _can_place_selected_internal_visual())
+		_add_action_button(module_group, "Remove", Callable(self, "_on_remove_internal_pressed"), "danger", internal_remove_available)
+		var view_group: VBoxContainer = _create_action_group_panel("View")
+		right_button_panel.add_child(view_group)
+		_add_action_button(view_group, "Toggle View", Callable(self, "_on_toggle_internal_view_pressed"))
+		var overlay_plan_group: VBoxContainer = _create_action_group_panel("Overlay Plan")
+		right_button_panel.add_child(overlay_plan_group)
+		_add_action_button(overlay_plan_group, "Overlay Type", Callable(self, "_on_overlay_type_pressed"))
+		_add_action_button(overlay_plan_group, "Toggle Cell", Callable(self, "_on_toggle_overlay_cell_pressed"))
+		for overlay_row_data in [["+X", "_on_extend_overlay_pos_x_pressed", "-X", "_on_extend_overlay_neg_x_pressed"], ["+Y", "_on_extend_overlay_pos_y_pressed", "-Y", "_on_extend_overlay_neg_y_pressed"], ["+Z", "_on_extend_overlay_pos_z_pressed", "-Z", "_on_extend_overlay_neg_z_pressed"]]:
+			var overlay_row: HBoxContainer = _create_action_button_row()
+			overlay_plan_group.add_child(overlay_row)
+			_add_action_button(overlay_row, overlay_row_data[0], Callable(self, overlay_row_data[1]), "normal", true, true)
+			_add_action_button(overlay_row, overlay_row_data[2], Callable(self, overlay_row_data[3]), "normal", true, true)
+		_add_action_button(overlay_plan_group, "Undo Cell", Callable(self, "_on_undo_overlay_cell_pressed"))
+		_add_action_button(overlay_plan_group, "Clear Plan", Callable(self, "_on_clear_overlay_pressed"), "danger")
+		_add_action_button(overlay_plan_group, "Commit Plan", Callable(self, "_on_commit_overlay_pressed"), "primary", _can_commit_overlay_plan_visual())
+		var overlay_paths_group: VBoxContainer = _create_action_group_panel("Overlay Paths")
+		right_button_panel.add_child(overlay_paths_group)
+		var path_row: HBoxContainer = _create_action_button_row()
+		overlay_paths_group.add_child(path_row)
+		_add_action_button(path_row, "Prev Path", Callable(self, "_on_prev_overlay_pressed"), "normal", true, true)
+		_add_action_button(path_row, "Next Path", Callable(self, "_on_next_overlay_pressed"), "normal", true, true)
+		_add_action_button(overlay_paths_group, "Remove Path", Callable(self, "_on_remove_selected_overlay_pressed"), "danger", _has_selected_overlay_path_visual())
+		var reference_group: VBoxContainer = _create_action_group_panel("Reference / Preview")
+		right_button_panel.add_child(reference_group)
+		if bipob.has_method("get_thermal_rules_reference_text"):
+			_add_action_button(reference_group, "Thermal Rules", Callable(self, "_on_thermal_rules_pressed"), "warning")
+		if bipob.has_method("get_repair_planning_reference_text"):
+			_add_action_button(reference_group, "Repair Rules", Callable(self, "_on_repair_rules_pressed"), "warning")
+		if bipob.has_method("get_damage_planning_preview_text"):
+			_add_action_button(reference_group, "Damage Plan", Callable(self, "_on_damage_plan_pressed"), "warning")
+		if bipob.has_method("get_constructor_planning_checkpoint_text"):
+			_add_action_button(reference_group, "Checkpoint", Callable(self, "_on_constructor_checkpoint_pressed"), "reference")
 		if bipob.has_method("get_overlay_connectivity_preview_text"):
-			_add_right_action_button("Overlay Check", Callable(self, "_on_overlay_check_pressed"))
+			_add_action_button(reference_group, "Overlay Check", Callable(self, "_on_overlay_check_pressed"), "reference")
 		if bipob.has_method("get_overlay_endpoint_preview_text"):
-			_add_right_action_button("Endpoints", Callable(self, "_on_overlay_endpoints_pressed"))
+			_add_action_button(reference_group, "Endpoints", Callable(self, "_on_overlay_endpoints_pressed"), "reference")
 		if bipob.has_method("get_overlay_thermal_contribution_preview_text"):
-			_add_right_action_button("Overlay Thermal", Callable(self, "_on_overlay_thermal_pressed"))
+			_add_action_button(reference_group, "Overlay Thermal", Callable(self, "_on_overlay_thermal_pressed"), "reference")
 		if bipob.has_method("get_overlay_heat_diff_summary_text"):
-			_add_right_action_button("Overlay Diff", Callable(self, "_on_overlay_diff_pressed"))
+			_add_action_button(reference_group, "Overlay Diff", Callable(self, "_on_overlay_diff_pressed"), "reference")
 	else:
 		_add_box_action_button("Prev Filter", Callable(self, "_on_prev_constructor_filter_pressed"))
 		_add_box_action_button("Next Filter", Callable(self, "_on_next_constructor_filter_pressed"))
