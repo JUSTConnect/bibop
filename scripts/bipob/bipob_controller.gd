@@ -1023,6 +1023,58 @@ func get_overlay_path_component_count(path_record: Dictionary) -> int:
 				queue.append(next_cell)
 	return component_count
 
+func get_overlay_path_neighbor_count(path_record: Dictionary, cell: Vector3i) -> int:
+	var cells: Array[Vector3i] = get_overlay_path_cells(path_record)
+	var cell_keys: Dictionary = {}
+
+	for path_cell in cells:
+		cell_keys[get_internal_slot_key(path_cell)] = true
+
+	var count: int = 0
+	for offset in get_internal_neighbor_offsets():
+		var neighbor: Vector3i = cell + offset
+		var neighbor_key: String = get_internal_slot_key(neighbor)
+		if cell_keys.has(neighbor_key):
+			count += 1
+
+	return count
+
+func get_overlay_path_endpoint_cells(path_record: Dictionary) -> Array[Vector3i]:
+	var endpoints: Array[Vector3i] = []
+	var cells: Array[Vector3i] = get_overlay_path_cells(path_record)
+
+	if cells.is_empty():
+		return endpoints
+
+	if cells.size() == 1:
+		endpoints.append(cells[0])
+		return endpoints
+
+	for cell in cells:
+		var neighbor_count: int = get_overlay_path_neighbor_count(path_record, cell)
+		if neighbor_count == 1:
+			endpoints.append(cell)
+
+	return endpoints
+
+func get_overlay_path_endpoint_count(path_record: Dictionary) -> int:
+	return get_overlay_path_endpoint_cells(path_record).size()
+
+func format_internal_cell(cell: Vector3i) -> String:
+	return "%d,%d,%d" % [cell.x, cell.y, cell.z]
+
+func get_overlay_path_endpoints_text(path_record: Dictionary) -> String:
+	var endpoints: Array[Vector3i] = get_overlay_path_endpoint_cells(path_record)
+
+	if endpoints.is_empty():
+		return "none"
+
+	var parts: Array[String] = []
+	for cell in endpoints:
+		parts.append(format_internal_cell(cell))
+
+	return ", ".join(parts)
+
 func is_selected_overlay_plan_connected() -> bool:
 	if selected_overlay_cells.size() <= 1:
 		return true
@@ -1179,6 +1231,42 @@ func does_overlay_path_reach_body_edge(path_record: Dictionary) -> bool:
 
 	return false
 
+func does_overlay_path_endpoint_touch_body_edge(path_record: Dictionary) -> bool:
+	var endpoints: Array[Vector3i] = get_overlay_path_endpoint_cells(path_record)
+
+	for cell in endpoints:
+		if is_internal_cell_on_body_edge(cell):
+			return true
+
+	return false
+
+func get_modules_touched_by_overlay_endpoints(path_record: Dictionary) -> Array[BipobModule]:
+	var modules: Array[BipobModule] = []
+	var endpoints: Array[Vector3i] = get_overlay_path_endpoint_cells(path_record)
+
+	for cell in endpoints:
+		var module: BipobModule = get_internal_module_at_cell(cell)
+		if module != null and not modules.has(module):
+			modules.append(module)
+
+	return modules
+
+func get_modules_adjacent_to_overlay_endpoints(path_record: Dictionary) -> Array[BipobModule]:
+	var modules: Array[BipobModule] = []
+	var endpoints: Array[Vector3i] = get_overlay_path_endpoint_cells(path_record)
+
+	for cell in endpoints:
+		for offset in get_internal_neighbor_offsets():
+			var neighbor: Vector3i = cell + offset
+			if not is_internal_cell_in_bounds(neighbor):
+				continue
+
+			var module: BipobModule = get_internal_module_at_cell(neighbor)
+			if module != null and not modules.has(module):
+				modules.append(module)
+
+	return modules
+
 func does_overlay_path_touch_cooler(path_record: Dictionary) -> bool:
 	var modules: Array[BipobModule] = get_modules_touched_by_overlay_path(path_record)
 
@@ -1205,6 +1293,129 @@ func does_overlay_path_touch_radiator_next_to_cooler(path_record: Dictionary) ->
 			return true
 
 	return false
+
+func is_hot_internal_module(module: BipobModule) -> bool:
+	if module == null:
+		return false
+
+	return get_module_preview_heat(module, false) >= 3
+
+func does_overlay_path_touch_hot_module(path_record: Dictionary) -> bool:
+	var modules: Array[BipobModule] = get_modules_touched_by_overlay_path(path_record)
+
+	for module in modules:
+		if is_hot_internal_module(module):
+			return true
+
+	return false
+
+func does_overlay_path_endpoint_touch_hot_module(path_record: Dictionary) -> bool:
+	var modules: Array[BipobModule] = get_modules_touched_by_overlay_endpoints(path_record)
+
+	for module in modules:
+		if is_hot_internal_module(module):
+			return true
+
+	return false
+
+func get_overlay_path_endpoint_suitability_text(path_record: Dictionary) -> String:
+	var path_type: String = String(path_record.get("path_type", ""))
+	var connected: bool = is_overlay_path_connected(path_record)
+	var reaches_edge_endpoint: bool = does_overlay_path_endpoint_touch_body_edge(path_record)
+	var touches_cooler: bool = does_overlay_path_touch_cooler(path_record)
+	var touches_radiator: bool = does_overlay_path_touch_radiator(path_record)
+	var touches_hot: bool = does_overlay_path_touch_hot_module(path_record)
+
+	if path_type == "liquid":
+		var has_cooling_source: bool = touches_cooler or touches_radiator
+		var has_target: bool = touches_hot
+
+		if connected and has_cooling_source and has_target:
+			return "good: liquid path touches cooling source and hot module"
+		if not connected:
+			return "notice: liquid path is disconnected"
+		if not has_cooling_source:
+			return "notice: liquid path does not touch cooler/radiator"
+		if not has_target:
+			return "notice: liquid path does not touch hot module"
+		return "ok"
+
+	if path_type == "duct":
+		if connected and reaches_edge_endpoint:
+			return "good: duct has endpoint at body edge"
+		if not connected:
+			return "notice: duct path is disconnected"
+		if not reaches_edge_endpoint:
+			return "notice: duct endpoint does not reach body edge"
+		return "ok"
+
+	return "unknown path type"
+
+func get_overlay_path_endpoint_line(path_record: Dictionary) -> String:
+	var path_id: String = String(path_record.get("id", ""))
+	var path_type: String = String(path_record.get("path_type", ""))
+	var cells: Array[Vector3i] = get_overlay_path_cells(path_record)
+	var endpoint_count: int = get_overlay_path_endpoint_count(path_record)
+	var endpoint_text: String = get_overlay_path_endpoints_text(path_record)
+	var suitability: String = get_overlay_path_endpoint_suitability_text(path_record)
+
+	return "%s %s cells:%d endpoints:%d [%s] %s" % [
+		path_id,
+		path_type,
+		cells.size(),
+		endpoint_count,
+		endpoint_text,
+		suitability
+	]
+
+func get_overlay_endpoint_preview_text() -> String:
+	var lines: Array[String] = []
+	lines.append("Overlay endpoint preview:")
+
+	var planning_record: Dictionary = {
+		"id": "planning",
+		"module_id": get_selected_overlay_module_id(),
+		"path_type": selected_overlay_path_type,
+		"cells": selected_overlay_cells
+	}
+
+	lines.append("Planning:")
+	lines.append("- " + get_overlay_path_endpoint_line(planning_record))
+	lines.append("")
+	lines.append("Committed paths:")
+
+	if internal_overlay_paths.is_empty():
+		lines.append("none")
+	else:
+		for path_record in internal_overlay_paths:
+			lines.append("- " + get_overlay_path_endpoint_line(path_record))
+
+	lines.append("")
+	lines.append("Rules:")
+	lines.append("- Endpoint = path cell with exactly 1 path neighbor.")
+	lines.append("- Single-cell path has one endpoint.")
+	lines.append("- Loop path has zero endpoints.")
+	lines.append("- Liquid preview prefers cooling source + hot module.")
+	lines.append("- Duct preview prefers endpoint on body edge.")
+	lines.append("- Endpoint preview is informational only.")
+	return "\n".join(lines)
+
+func get_overlay_endpoint_compact_text() -> String:
+	var selected_record: Dictionary = get_selected_overlay_path_record()
+
+	if selected_record.is_empty():
+		var planning_record: Dictionary = {
+			"id": "planning",
+			"module_id": get_selected_overlay_module_id(),
+			"path_type": selected_overlay_path_type,
+			"cells": selected_overlay_cells
+		}
+		var planning_endpoints: int = get_overlay_path_endpoint_count(planning_record)
+		return "Overlay endpoints: planning %d" % planning_endpoints
+
+	var endpoint_count: int = get_overlay_path_endpoint_count(selected_record)
+	var suitability: String = get_overlay_path_endpoint_suitability_text(selected_record)
+	return "Overlay endpoints: %d — %s" % [endpoint_count, suitability]
 
 func get_overlay_path_potential_cooling_value(path_record: Dictionary) -> int:
 	var path_type: String = String(path_record.get("path_type", ""))
@@ -1355,6 +1566,9 @@ func get_selected_overlay_path_details_text() -> String:
 	var components: int = get_overlay_path_component_count(record)
 	var reaches_edge: bool = does_overlay_path_reach_body_edge(record)
 	var potential_value: int = get_overlay_path_potential_cooling_value(record)
+	var endpoint_count: int = get_overlay_path_endpoint_count(record)
+	var endpoint_text: String = get_overlay_path_endpoints_text(record)
+	var suitability: String = get_overlay_path_endpoint_suitability_text(record)
 
 	var edge_text: String = "yes" if reaches_edge else "no"
 	var connected_text: String = "yes" if connected else "no"
@@ -1369,6 +1583,9 @@ func get_selected_overlay_path_details_text() -> String:
 	lines.append("- Components: %d" % components)
 	lines.append("- Reaches body edge: %s" % edge_text)
 	lines.append("- Potential value: %d" % potential_value)
+	lines.append("- Endpoints: %d" % endpoint_count)
+	lines.append("- Endpoint cells: %s" % endpoint_text)
+	lines.append("- Suitability: %s" % suitability)
 	lines.append("- Preview only: yes")
 
 	return "\n".join(lines)
