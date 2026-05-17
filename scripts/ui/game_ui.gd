@@ -1287,6 +1287,8 @@ func _build_internal_axis_header(prefix: String, count: int) -> String:
 func _get_internal_cell_marker(cell: Vector3i, preview_cells_map: Dictionary, can_place: bool) -> String:
 	if internal_view_mode == "thermal":
 		return _get_internal_thermal_cell_marker(cell, preview_cells_map, can_place)
+	if internal_view_mode == "overlay":
+		return _get_internal_overlay_cell_marker(cell, preview_cells_map, can_place)
 	return _get_internal_module_cell_marker(cell, preview_cells_map, can_place)
 
 func _get_internal_module_cell_marker(cell: Vector3i, preview_cells_map: Dictionary, can_place: bool) -> String:
@@ -1327,6 +1329,31 @@ func _get_internal_thermal_cell_marker(cell: Vector3i, preview_cells_map: Dictio
 		return "[>]"
 	if not overlay_marker.is_empty():
 		return "[%s]" % overlay_marker
+	return "[ ]"
+
+func _get_internal_background_module_marker(module: BipobModule) -> String:
+	if module == null:
+		return " "
+	var marker: String = get_internal_module_marker(module)
+	return marker.to_lower()
+
+func _get_internal_overlay_cell_marker(cell: Vector3i, preview_cells_map: Dictionary, can_place: bool) -> String:
+	var is_origin: bool = cell == bipob.selected_internal_origin
+	var overlay_marker: String = bipob.get_internal_overlay_marker_for_cell(cell)
+	var occupied_module: BipobModule = bipob.get_internal_module_at_cell(cell)
+	var is_occupied: bool = occupied_module != null
+	var in_preview: bool = preview_cells_map.has(bipob.get_internal_slot_key(cell))
+	if not overlay_marker.is_empty():
+		return "[>%s]" % overlay_marker if is_origin else "[%s]" % overlay_marker
+	if in_preview:
+		if can_place:
+			return "[>*]" if is_origin else "[*]"
+		return "[>!]" if is_origin else "[!]"
+	if is_occupied:
+		var background_marker: String = _get_internal_background_module_marker(occupied_module)
+		return "[>%s]" % background_marker if is_origin else "[%s]" % background_marker
+	if is_origin:
+		return "[>]"
 	return "[ ]"
 
 func get_air_intake_status_text() -> String:
@@ -1654,18 +1681,33 @@ func get_box_internal_menu_text() -> String:
 	lines.append("Type: %s" % bipob.selected_overlay_path_type)
 	lines.append("Selected cells: %d" % bipob.selected_overlay_cells.size())
 	lines.append("Committed paths: %d" % bipob.internal_overlay_paths.size())
-	lines.append("Legend: L selected liquid, A selected duct, l committed liquid, a committed duct")
-	lines.append("Overlay can pass over occupied modules; occupied cells keep module marker.")
-	lines.append(str(bipob.get_overlay_effect_compact_text()))
+	lines.append("Effects: %s" % str(bipob.get_overlay_effect_compact_text()))
+	if not bipob.internal_overlay_paths.is_empty():
+		lines.append("Overlay paths:")
+		var overlay_list_limit: int = mini(bipob.internal_overlay_paths.size(), 4)
+		for i in range(overlay_list_limit):
+			var overlay_record: Dictionary = bipob.internal_overlay_paths[i]
+			var overlay_id: String = str(overlay_record.get("id", "overlay_%d" % (i + 1)))
+			var overlay_type: String = str(overlay_record.get("type", "unknown"))
+			var overlay_cells: Array = overlay_record.get("cells", [])
+			lines.append("- %s %s cells:%d" % [overlay_id, overlay_type, overlay_cells.size()])
+		if bipob.internal_overlay_paths.size() > overlay_list_limit:
+			lines.append("- ...")
 	lines.append("")
-	lines.append("View mode: %s" % ("Thermal" if internal_view_mode == "thermal" else "Modules"))
+	var view_mode_label: String = "Modules"
+	if internal_view_mode == "thermal":
+		view_mode_label = "Thermal"
+	elif internal_view_mode == "overlay":
+		view_mode_label = "Overlay"
+	lines.append("View mode: %s" % view_mode_label)
 	lines.append("")
 	lines.append("Marker legend:")
 	if internal_view_mode == "thermal":
-		lines.append("[1-5] preview heat after cooling")
-		lines.append("[5] critical preview")
-		lines.append("[*] placement preview")
-		lines.append("[!] invalid")
+		lines.append("[1-5] preview heat after cooling, [5] critical preview, [*] placement preview, [!] invalid")
+	elif internal_view_mode == "overlay":
+		lines.append("[L] selected liquid, [A] selected duct, [l] liquid path, [a] air duct path, lowercase modules = underneath")
+		lines.append("Overlay can pass over occupied modules.")
+		lines.append("Overlay effects are preview only.")
 	else:
 		lines.append("[ ] empty, [>] origin, [*] preview, [!] invalid, [B/P/E/I/M/W/H] modules")
 	lines.append("")
@@ -1830,7 +1872,12 @@ func _on_remove_internal_pressed() -> void:
 		update_box_status()
 
 func _on_toggle_internal_view_pressed() -> void:
-	internal_view_mode = "thermal" if internal_view_mode == "modules" else "modules"
+	if internal_view_mode == "modules":
+		internal_view_mode = "thermal"
+	elif internal_view_mode == "thermal":
+		internal_view_mode = "overlay"
+	else:
+		internal_view_mode = "modules"
 	update_box_status()
 func _on_reset_internal_cursor_pressed() -> void:
 	bipob.selected_internal_origin = Vector3i.ZERO
