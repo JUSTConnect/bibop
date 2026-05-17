@@ -43,7 +43,7 @@ var actions_left: int = 0
 var mission_finished: bool = false
 var sector_completed: bool = false
 var current_mission_index: int = 1
-var max_mission_index: int = 4
+var max_mission_index: int = 6
 var mission4_hidden_route_node_discovered: bool = false
 var has_key: bool = false
 var has_info_key: bool = false
@@ -265,6 +265,10 @@ func get_mission_name(mission_index: int) -> String:
 			return "Mission 3 — Info-Key"
 		4:
 			return "Mission 4 — Blind Sector"
+		5:
+			return "Mission 5 — Route Gate"
+		6:
+			return "Mission 6 — Hot Node"
 		_:
 			return "Unknown Mission"
 
@@ -278,6 +282,10 @@ func get_mission_goal_hint(mission_index: int) -> String:
 			return "Mission 3: Scan and Hack the terminal to get the Info-Key, then Scan and Hack the digital door."
 		4:
 			return get_mission4_context_hint()
+		5:
+			return "Mission 5: use Route Data to unlock the Route Gate and reach the exit."
+		6:
+			return "Mission 6: scan the hot node, manage the risk, then hack it to open the path."
 		_:
 			return "No mission goal available."
 
@@ -507,7 +515,7 @@ func debug_store_route_data() -> void:
 
 func start_next_mission() -> void:
 	if sector_completed:
-		hint_requested.emit("Sector-01 complete. Blind Sector cleared.")
+		hint_requested.emit("Sector-01 complete. Hot Node stabilized.")
 		status_changed.emit()
 		return
 
@@ -516,7 +524,7 @@ func start_next_mission() -> void:
 		return
 
 	sector_completed = true
-	hint_requested.emit("Sector-01 complete. Blind Sector cleared.")
+	hint_requested.emit("Sector-01 complete. Hot Node stabilized.")
 	status_changed.emit()
 
 func create_default_modules() -> void:
@@ -874,9 +882,11 @@ func try_move_to(target_position: Vector2i) -> bool:
 			hint_requested.emit("Door is locked. Find a key and press E while facing it.")
 		elif target_tile == GridManager.TILE_DIGITAL_DOOR:
 			hint_requested.emit("Digital door is locked. Use Scan Device, then Hack Device.")
+		elif target_tile == GridManager.TILE_HOT_NODE:
+			hint_requested.emit("Hot Node blocks the route. Scan it first.")
 		else:
 			hint_requested.emit("Path is blocked.")
-	
+
 		print("Blocked: ", target_position)
 		return false
 	
@@ -921,11 +931,15 @@ func complete_mission() -> void:
 		hint_requested.emit("Mission 2 complete. Return to the box, then start Mission 3.")
 	elif current_mission_index == 3:
 		hint_requested.emit("Mission complete. Return to the box.")
+	elif current_mission_index == 4:
+		hint_requested.emit("Mission 4 complete. Return to the box, then start Mission 5.")
+	elif current_mission_index == 5:
+		hint_requested.emit("Mission 5 complete. Return to the box, then start Mission 6.")
 	else:
-		hint_requested.emit("Mission 4 complete. Return to the box.")
+		hint_requested.emit("Mission 6 complete. Return to the box.")
 	if current_mission_index == max_mission_index:
 		sector_completed = true
-		hint_requested.emit("Sector-01 complete. Blind Sector cleared.")
+		hint_requested.emit("Sector-01 complete. Hot Node stabilized.")
 		last_diagnostic_result = null
 
 	if stored_module_this_mission:
@@ -1050,6 +1064,13 @@ func get_device_definition_for_tile(tile_type: int) -> DeviceDefinition:
 			definition.difficulty_level = 1
 			definition.supported_action = "open_digital_door"
 			return definition
+		GridManager.TILE_HOT_NODE:
+			definition.device_type = "hot_node"
+			definition.display_name = "Hot Node"
+			definition.required_interface = "interface_v1"
+			definition.difficulty_level = 2
+			definition.supported_action = "stabilize_hot_node"
+			return definition
 		_:
 			return null
 
@@ -1077,6 +1098,9 @@ func has_required_interface(required_interface: String) -> bool:
 
 	return false
 
+func has_cooling_support() -> bool:
+	return has_module_id("cooling_v1")
+
 func evaluate_device_capability(device: DeviceDefinition) -> DiagnosticResult:
 	var result := DiagnosticResult.new()
 
@@ -1098,6 +1122,22 @@ func evaluate_device_capability(device: DeviceDefinition) -> DiagnosticResult:
 		result.reason = "Missing required interface: " + device.required_interface
 		result.recommendation = "Install Interface V1 or compatible module."
 		result.estimated_risk = "low"
+		return result
+
+	if device.device_type == "hot_node":
+		result.device_type = device.device_type
+		result.device_name = device.display_name
+		result.supported_action = device.supported_action
+		if has_cooling_support():
+			result.status = DiagnosticResult.STATUS_READY
+			result.reason = "Cooling support detected."
+			result.recommendation = "Hack Device can stabilize the node safely."
+			result.estimated_risk = "low"
+			return result
+		result.status = DiagnosticResult.STATUS_RISKY
+		result.reason = "No cooling support installed."
+		result.recommendation = "Install Cooling V1 or proceed with extra energy cost."
+		result.estimated_risk = "medium"
 		return result
 
 	result.status = DiagnosticResult.STATUS_READY
@@ -1238,6 +1278,26 @@ func hack_device() -> void:
 			hint_requested.emit("Digital door opened. Info-Key remains stored.")
 			status_changed.emit()
 			return
+		"stabilize_hot_node":
+			var energy_cost := 1
+			if last_diagnostic_result.status == DiagnosticResult.STATUS_RISKY:
+				energy_cost = 3
+			if not can_spend_action(1, energy_cost):
+				return
+			spend_action(1, energy_cost)
+			var hot_node_position := get_facing_device_position()
+			grid_manager.set_tile(hot_node_position, GridManager.TILE_FLOOR)
+			var adjacent_offsets: Array[Vector2i] = [Vector2i(1, 0), Vector2i(-1, 0), Vector2i(0, 1), Vector2i(0, -1)]
+			for offset in adjacent_offsets:
+				var adjacent_position := hot_node_position + offset
+				if grid_manager.get_tile(adjacent_position) == GridManager.TILE_DIGITAL_DOOR:
+					grid_manager.set_tile(adjacent_position, GridManager.TILE_FLOOR)
+			if last_diagnostic_result.status == DiagnosticResult.STATUS_RISKY:
+				hint_requested.emit("Risky hack succeeded, but Bipob spent extra energy.")
+			else:
+				hint_requested.emit("Hot Node stabilized.")
+			status_changed.emit()
+			return
 		_:
 			hint_requested.emit("Unsupported hack action.")
 			status_changed.emit()
@@ -1255,6 +1315,10 @@ func interact() -> void:
 
 	if target_tile == GridManager.TILE_DIGITAL_DOOR:
 		hint_requested.emit("Digital door cannot be opened with Interact. Use Scan Device, then Hack Device.")
+		status_changed.emit()
+		return
+	if target_tile == GridManager.TILE_HOT_NODE:
+		hint_requested.emit("Hot Node is a digital device. Use Scan Device, then Hack Device.")
 		status_changed.emit()
 		return
 	
