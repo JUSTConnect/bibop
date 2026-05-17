@@ -36,6 +36,7 @@ var return_to_box_button: Button
 var drop_item_button: Button
 var rotate_storage_button: Button
 var start_mission_warning_acknowledged: bool = false
+var should_advance_mission_on_start: bool = false
 var selected_installed_module_index: int = 0
 var selected_box_storage_index: int = 0
 var prev_installed_button: Button
@@ -203,8 +204,8 @@ func _ready() -> void:
 
 	bipob.status_changed.connect(update_status)
 	bipob.hint_requested.connect(show_hint)
-	bipob.mission_completed.connect(show_box_screen)
-	bipob.returned_to_box.connect(show_box_screen)
+	bipob.mission_completed.connect(_on_mission_completed)
+	bipob.returned_to_box.connect(_on_returned_to_box)
 
 	update_status()
 	update_box_status()
@@ -318,7 +319,7 @@ func _on_start_mission_button_pressed() -> void:
 		return
 
 	# BoxScreen preparation action: starts mission flow without field action/energy spend.
-	if bipob.sector_completed:
+	if bipob.sector_completed and should_advance_mission_on_start:
 		bipob.start_next_mission()
 		start_mission_warning_acknowledged = false
 		update_status()
@@ -339,13 +340,27 @@ func _on_start_mission_button_pressed() -> void:
 		update_box_status()
 		return
 
-	bipob.start_next_mission()
+	if should_advance_mission_on_start:
+		bipob.start_next_mission()
+	else:
+		bipob.start_mission(bipob.current_mission_index)
+	should_advance_mission_on_start = false
 	start_mission_warning_acknowledged = false
 	if not bipob.sector_completed:
 		hide_box_screen()
 	update_status()
 	update_box_status()
 	update_diagnostic_status()
+
+func _on_mission_completed() -> void:
+	should_advance_mission_on_start = true
+	show_box_screen()
+	update_box_status()
+
+func _on_returned_to_box() -> void:
+	should_advance_mission_on_start = false
+	show_box_screen()
+	update_box_status()
 
 func show_box_screen() -> void:
 	if box_screen != null:
