@@ -258,7 +258,7 @@ func get_missing_critical_modules() -> Array[String]:
 	var critical_modules := [
 		{"id": "wheels_v1", "display_name": "Wheels V1"},
 		{"id": "manipulator_v1", "display_name": "Manipulator V1"},
-		{"id": "interface_v1", "display_name": "Interface V1"},
+		{"id": "interface_v1", "display_name": "External Interface Port V1"},
 		{"id": "visor_v1", "display_name": "Visor V1"},
 	]
 	var missing_modules: Array[String] = []
@@ -327,6 +327,40 @@ func get_constructor_warning_summary_text() -> String:
 
 	for warning in warnings:
 		lines.append("- " + warning)
+
+	return "\n".join(lines)
+
+func get_constructor_metadata_summary_text() -> String:
+	var lines: Array[String] = []
+	lines.append("Constructor metadata:")
+
+	var all_modules: Array[BipobModule] = []
+	for module_variant in box_storage:
+		var module: BipobModule = module_variant
+		if module != null and not all_modules.has(module):
+			all_modules.append(module)
+	for module in get_unique_external_modules():
+		if module != null and not all_modules.has(module):
+			all_modules.append(module)
+	for module in get_unique_internal_modules():
+		if module != null and not all_modules.has(module):
+			all_modules.append(module)
+
+	if all_modules.is_empty():
+		lines.append("none")
+		return "\n".join(lines)
+
+	for module in all_modules:
+		if module == null:
+			continue
+
+		lines.append("- %s | id=%s | placement=%s | category=%s | role=%s" % [
+			get_module_display_name(module),
+			module.id,
+			module.placement_type,
+			get_module_category(module),
+			module.internal_role
+		])
 
 	return "\n".join(lines)
 
@@ -1747,12 +1781,15 @@ func create_default_modules() -> void:
 		wheels_module.display_name = "Wheels V1"
 		wheels_module.placement_type = "external"
 		wheels_module.category = "locomotion"
+		wheels_module.internal_role = "none"
+		wheels_module.description = "Bottom locomotion module for flat terrain."
 		wheels_module.granted_commands = [
 			"move_forward",
 			"move_backward",
 			"turn_left",
 			"turn_right",
 		]
+		apply_thermal_metadata(wheels_module)
 		install_module(wheels_module)
 
 	if debug_install_manipulator:
@@ -1761,22 +1798,28 @@ func create_default_modules() -> void:
 		manipulator_module.display_name = "Manipulator V1"
 		manipulator_module.placement_type = "external"
 		manipulator_module.category = "utility"
+		manipulator_module.internal_role = "none"
+		manipulator_module.description = "External manipulation module for physical interactions."
 		manipulator_module.granted_commands = [
 			"interact_key",
 			"open_physical_door",
 		]
+		apply_thermal_metadata(manipulator_module)
 		install_module(manipulator_module)
 
 	if debug_install_interface:
 		var interface_module := BipobModule.new()
 		interface_module.id = "interface_v1"
-		interface_module.display_name = "Interface V1"
+		interface_module.display_name = "External Interface Port V1"
 		interface_module.placement_type = "external"
 		interface_module.category = "data"
+		interface_module.internal_role = "none"
+		interface_module.description = "External interface port for connecting external devices to the internal bridge."
 		interface_module.granted_commands = [
 			"read_terminal",
 			"open_digital_door",
 		]
+		apply_thermal_metadata(interface_module)
 		install_module(interface_module)
 
 	if debug_install_visor:
@@ -1785,9 +1828,12 @@ func create_default_modules() -> void:
 		visor_module.display_name = "Visor V1"
 		visor_module.placement_type = "external"
 		visor_module.category = "vision"
+		visor_module.internal_role = "none"
+		visor_module.description = "External vision module."
 		visor_module.granted_commands = [
 			"vision",
 		]
+		apply_thermal_metadata(visor_module)
 		install_module(visor_module)
 
 	var air_intake_module := BipobModule.new()
@@ -1795,6 +1841,8 @@ func create_default_modules() -> void:
 	air_intake_module.display_name = "Air Intake Node V1"
 	air_intake_module.placement_type = "external"
 	air_intake_module.category = "cooling"
+	air_intake_module.internal_role = "none"
+	air_intake_module.description = "External air intake required by internal air cooling modules."
 	apply_thermal_metadata(air_intake_module)
 	if not has_module_id_anywhere(air_intake_module.id):
 		box_storage.append(air_intake_module)
@@ -1839,6 +1887,12 @@ func get_internal_role_for_module_id(module_id: String) -> String:
 func apply_thermal_metadata(module: BipobModule) -> void:
 	if module == null:
 		return
+	module.cooling_type = "none"
+	module.cooling_power = 0
+	module.requires_air_intake = false
+	module.is_non_volume_cooling_path = false
+	if module.placement_type == "external":
+		module.internal_role = "none"
 	match module.id:
 		"battery_v1_a", "battery_v1_b":
 			module.heat_idle = 1
@@ -1878,13 +1932,56 @@ func apply_thermal_metadata(module: BipobModule) -> void:
 			module.cooling_power = 0
 			module.cooling_type = "air"
 
+func get_module_description_for_id(module_id: String) -> String:
+	match module_id:
+		"wheels_v1":
+			return "Bottom locomotion module for flat terrain."
+		"legs_v1":
+			return "Bottom locomotion module for stepped terrain."
+		"tracks_v1":
+			return "Bottom locomotion module for rough terrain."
+		"visor_v1":
+			return "External vision module."
+		"visor_v2":
+			return "Improved external vision module with wider scan shape."
+		"manipulator_v1":
+			return "External manipulation module for physical interactions."
+		"interface_v1":
+			return "External interface port for connecting external devices to the internal bridge."
+		"air_intake_v1":
+			return "External air intake required by internal air cooling modules."
+		"battery_v1_a", "battery_v1_b":
+			return "Internal power source."
+		"processor_v1":
+			return "Internal processing module. Generates more heat under heavy load."
+		"memory_v1":
+			return "Internal memory module."
+		"hard_drive_v1":
+			return "Internal storage module."
+		"power_block_v1":
+			return "Distributes power from batteries to devices. Generates more heat under heavy tool load."
+		"int_interface_v1":
+			return "Internal data network interface."
+		"ext_interface_internal_v1":
+			return "Internal bridge for external devices."
+		"cooler_v1":
+			return "Air cooling module. Requires an external Air Intake Node."
+		"radiator_v1":
+			return "Passive cooling module. More effective near body or next to a cooler."
+		"water_tube_v1":
+			return "Liquid cooling path placeholder. Future overlay module."
+		"air_duct_v1":
+			return "Air duct path placeholder. Future overlay module."
+		_:
+			return ""
+
 func add_internal_mvp_modules_to_box() -> void:
 	var internal_specs: Array[Dictionary] = [
 		{"id": "battery_v1_a", "name": "Battery V1 A", "size": Vector3i(2, 2, 1)},
 		{"id": "battery_v1_b", "name": "Battery V1 B", "size": Vector3i(2, 2, 1)},
 		{"id": "processor_v1", "name": "Processor V1", "size": Vector3i(1, 1, 1)},
-		{"id": "ext_interface_internal_v1", "name": "Ext Interface Internal V1", "size": Vector3i(2, 2, 1)},
-		{"id": "int_interface_v1", "name": "Int Interface V1", "size": Vector3i(1, 1, 1)},
+		{"id": "ext_interface_internal_v1", "name": "External Interface Bridge V1", "size": Vector3i(2, 2, 1)},
+		{"id": "int_interface_v1", "name": "Internal Interface V1", "size": Vector3i(1, 1, 1)},
 		{"id": "memory_v1", "name": "Memory V1", "size": Vector3i(1, 1, 2)},
 		{"id": "power_block_v1", "name": "Power Block V1", "size": Vector3i(1, 2, 2)},
 		{"id": "hard_drive_v1", "name": "Hard Drive V1", "size": Vector3i(2, 2, 1)},
@@ -1899,16 +1996,21 @@ func add_internal_mvp_modules_to_box() -> void:
 			continue
 		var module_name := String(spec.get("name", module_id))
 		var module_size: Vector3i = spec.get("size", Vector3i.ONE)
-		box_storage.append(create_internal_module(module_id, module_name, module_size))
+		var module: BipobModule = create_internal_module(module_id, module_name, module_size)
+		module.description = get_module_description_for_id(module.id)
+		box_storage.append(module)
 
 func create_visor_v2_module() -> BipobModule:
 	var module := BipobModule.new()
 	module.id = "visor_v2"
 	module.display_name = "Visor V2"
 	module.placement_type = "external"
-	module.description = "Wide-angle visor. Expands vision width."
+	module.category = "vision"
+	module.internal_role = "none"
+	module.description = "Improved external vision module with wider scan shape."
 	module.granted_commands = ["vision"]
 	module.vision_bonus = 0
+	apply_thermal_metadata(module)
 	return module
 
 func create_gpu_v1_module() -> BipobModule:
@@ -1925,7 +2027,9 @@ func create_legs_v1_module() -> BipobModule:
 	module.id = "legs_v1"
 	module.display_name = "Legs V1"
 	module.placement_type = "external"
-	module.description = "Locomotion module. Allows crossing stepped terrain."
+	module.category = "locomotion"
+	module.internal_role = "none"
+	module.description = "Bottom locomotion module for stepped terrain."
 	module.granted_commands = [
 		"move_forward",
 		"move_backward",
@@ -1933,6 +2037,7 @@ func create_legs_v1_module() -> BipobModule:
 		"turn_right",
 		"cross_stepped_floor"
 	]
+	apply_thermal_metadata(module)
 	return module
 
 func add_debug_mission4_modules_to_box() -> void:
