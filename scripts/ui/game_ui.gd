@@ -992,10 +992,10 @@ func _build_internal_axis_header(prefix: String, count: int) -> String:
 	return "    %s" % " ".join(labels)
 
 func _get_internal_cell_marker(cell: Vector3i, preview_cells_map: Dictionary, can_place: bool) -> String:
-	var is_origin := cell == bipob.selected_internal_origin
+	var is_origin: bool = cell == bipob.selected_internal_origin
 	var occupied_module: BipobModule = bipob.get_internal_module_at_cell(cell)
-	var is_occupied := occupied_module != null
-	var in_preview := preview_cells_map.has(bipob.get_internal_slot_key(cell))
+	var is_occupied: bool = occupied_module != null
+	var in_preview: bool = preview_cells_map.has(bipob.get_internal_slot_key(cell))
 	if in_preview:
 		if can_place:
 			return "[>]" if is_origin else "[*]"
@@ -1274,7 +1274,7 @@ func get_box_internal_menu_text() -> String:
 		can_place = placement_error.is_empty()
 	if can_place:
 		placement_error = "OK"
-	var selected_cell_module := bipob.get_internal_module_at_cell(bipob.selected_internal_origin)
+	var selected_cell_module: BipobModule = bipob.get_internal_module_at_cell(bipob.selected_internal_origin)
 
 	var lines: Array[String] = []
 	lines.append("Selected internal module: %s" % ("none" if selected_module == null else ""))
@@ -1361,7 +1361,9 @@ func get_box_internal_menu_text() -> String:
 			])
 	lines.append("")
 	lines.append("Placement:")
-	var placement_size := Vector3i.ZERO if selected_module == null else bipob.get_rotated_internal_size(selected_module, bipob.selected_internal_rotation)
+	var placement_size: Vector3i = Vector3i.ZERO
+	if selected_module != null:
+		placement_size = bipob.get_rotated_internal_size(selected_module, bipob.selected_internal_rotation)
 	lines.append("Origin: %d,%d,%d" % [bipob.selected_internal_origin.x, bipob.selected_internal_origin.y, bipob.selected_internal_origin.z])
 	lines.append("Rotation: %d" % bipob.selected_internal_rotation)
 	lines.append("Rotated size: %d×%d×%d" % [placement_size.x, placement_size.y, placement_size.z])
