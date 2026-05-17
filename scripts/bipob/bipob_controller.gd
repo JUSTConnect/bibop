@@ -585,7 +585,7 @@ func debug_store_route_data() -> void:
 
 func start_next_mission() -> void:
 	if sector_completed:
-		hint_requested.emit("Sector-01 complete. Terrain passage cleared.")
+		hint_requested.emit("Sector-01 complete. All systems cleared.")
 		status_changed.emit()
 		return
 
@@ -594,7 +594,7 @@ func start_next_mission() -> void:
 		return
 
 	sector_completed = true
-	hint_requested.emit("Sector-01 complete. Terrain passage cleared.")
+	hint_requested.emit("Sector-01 complete. All systems cleared.")
 	status_changed.emit()
 
 func create_default_modules() -> void:
@@ -1042,7 +1042,7 @@ func complete_mission() -> void:
 	elif current_mission_index == 2:
 		hint_requested.emit("Mission 2 complete. Return to the box, then start Mission 3.")
 	elif current_mission_index == 3:
-		hint_requested.emit("Mission complete. Return to the box.")
+		hint_requested.emit("Mission 3 complete. Return to the box, then start Mission 4.")
 	elif current_mission_index == 4:
 		hint_requested.emit("Mission 4 complete. Return to the box, then start Mission 5.")
 	elif current_mission_index == 5:
@@ -1054,12 +1054,11 @@ func complete_mission() -> void:
 	elif current_mission_index == 8:
 		hint_requested.emit("Mission 8 complete. Return to the box, then start Mission 9.")
 	elif current_mission_index == 9:
-		hint_requested.emit("Mission 9 complete. Return to the box.")
+		hint_requested.emit("Mission 9 complete. Return to the box. Sector-01 complete. Terrain passage cleared.")
 	else:
 		hint_requested.emit("Mission complete. Return to the box.")
 	if current_mission_index == max_mission_index:
 		sector_completed = true
-		hint_requested.emit("Sector-01 complete. Terrain passage cleared.")
 		last_diagnostic_result = null
 
 	if stored_module_this_mission:
