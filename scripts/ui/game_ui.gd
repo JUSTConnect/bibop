@@ -117,6 +117,26 @@ func _make_panel_style(
 	style.content_margin_bottom = 6
 	return style
 
+
+func _create_module_placeholder_icon(module: BipobModule, size: Vector2 = Vector2(44, 44)) -> Control:
+	var panel: PanelContainer = PanelContainer.new()
+	panel.custom_minimum_size = size
+
+	var bg_color: Color = bipob.get_module_visual_color(module)
+	var border_color: Color = bipob.get_module_visual_border_color(module)
+
+	var style: StyleBoxFlat = _make_panel_style(bg_color.darkened(0.45), border_color, 1, 6)
+	panel.add_theme_stylebox_override("panel", style)
+
+	var label: Label = Label.new()
+	label.text = bipob.get_module_visual_short_label(module)
+	label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	label.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
+	label.add_theme_color_override("font_color", Color.WHITE)
+
+	panel.add_child(label)
+	return panel
+
 func _make_button_style(
 	bg_color: Color,
 	border_color: Color,
@@ -527,6 +547,7 @@ func get_module_details_text(module: BipobModule) -> String:
 	lines.append("Selected Module:")
 	lines.append("Selected: %s" % bipob.get_module_display_name(module))
 	lines.append("ID: %s" % module.id)
+	lines.append("Visual: %s / %s" % [bipob.get_module_visual_short_label(module), bipob.get_module_visual_key(module)])
 	if module.id == "water_tube_v1" or module.id == "air_duct_v1":
 		lines.append("Placement: overlay path")
 		lines.append("Overlay Type: liquid" if module.id == "water_tube_v1" else "Overlay Type: duct")
@@ -1181,7 +1202,10 @@ func get_box_modules_menu_text() -> String:
 	else:
 		selected_grouped_module_index = clampi(selected_grouped_module_index, 0, grouped_ids.size() - 1)
 		for i in range(grouped_ids.size()):
-			content_lines.append(bipob.get_module_availability_line_by_id(grouped_ids[i], i == selected_grouped_module_index))
+			var availability_line: String = bipob.get_module_availability_line_by_id(grouped_ids[i], i == selected_grouped_module_index)
+			var group_module: BipobModule = bipob.get_first_module_by_id(grouped_ids[i])
+			var group_label: String = bipob.get_module_visual_short_label(group_module)
+			content_lines.append("[%s] %s" % [group_label, availability_line])
 	content_lines.append("")
 	var selected_module: BipobModule = get_selected_grouped_module()
 	content_lines.append("Selected Module:")
