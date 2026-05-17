@@ -1500,6 +1500,162 @@ func get_overlay_path_potential_cooling_value(path_record: Dictionary) -> int:
 
 	return 0
 
+func get_liquid_overlay_paths_touching_module(module: BipobModule) -> Array[Dictionary]:
+	var result: Array[Dictionary] = []
+
+	if module == null:
+		return result
+
+	for path_record in internal_overlay_paths:
+		var path_type: String = String(path_record.get("path_type", ""))
+		if path_type != "liquid":
+			continue
+
+		var touched_modules: Array[BipobModule] = get_modules_touched_by_overlay_path(path_record)
+		if touched_modules.has(module):
+			result.append(path_record)
+
+	return result
+
+func get_edge_duct_overlay_paths() -> Array[Dictionary]:
+	var result: Array[Dictionary] = []
+
+	for path_record in internal_overlay_paths:
+		var path_type: String = String(path_record.get("path_type", ""))
+		if path_type != "duct":
+			continue
+
+		if does_overlay_path_reach_body_edge(path_record):
+			result.append(path_record)
+
+	return result
+
+func get_duct_overlay_paths_touching_or_adjacent_to_module(module: BipobModule) -> Array[Dictionary]:
+	var result: Array[Dictionary] = []
+
+	if module == null:
+		return result
+
+	for path_record in internal_overlay_paths:
+		var path_type: String = String(path_record.get("path_type", ""))
+		if path_type != "duct":
+			continue
+
+		var touched_modules: Array[BipobModule] = get_modules_touched_by_overlay_path(path_record)
+		var adjacent_modules: Array[BipobModule] = get_modules_adjacent_to_overlay_path(path_record)
+
+		if touched_modules.has(module) or adjacent_modules.has(module):
+			result.append(path_record)
+
+	return result
+
+func get_liquid_overlay_potential_cooling_for_module(module: BipobModule) -> int:
+	var strongest_value: int = 0
+
+	for path_record in get_liquid_overlay_paths_touching_module(module):
+		var value: int = get_overlay_path_potential_cooling_value(path_record)
+		strongest_value = maxi(strongest_value, value)
+
+	return strongest_value
+
+func get_air_duct_overlay_potential_cooling_for_module(module: BipobModule) -> int:
+	if module == null:
+		return 0
+
+	var strongest_value: int = 0
+
+	for path_record in get_duct_overlay_paths_touching_or_adjacent_to_module(module):
+		if not does_overlay_path_reach_body_edge(path_record):
+			continue
+
+		strongest_value = maxi(strongest_value, 1)
+
+	return strongest_value
+
+func get_overlay_potential_cooling_for_module(module: BipobModule) -> int:
+	var liquid_value: int = get_liquid_overlay_potential_cooling_for_module(module)
+	var duct_value: int = get_air_duct_overlay_potential_cooling_for_module(module)
+
+	return maxi(liquid_value, duct_value)
+
+func get_hypothetical_heat_after_overlay_for_module(module: BipobModule) -> int:
+	if module == null:
+		return 0
+
+	var current_preview_heat: int = get_preview_heat_after_cooling_for_internal_module(module)
+	var overlay_cooling: int = get_overlay_potential_cooling_for_module(module)
+
+	return clampi(current_preview_heat - overlay_cooling, 0, THERMAL_CRITICAL_HEAT)
+
+func get_overlay_thermal_contribution_line(module: BipobModule) -> String:
+	if module == null:
+		return ""
+
+	var base_preview_heat: int = get_preview_heat_after_cooling_for_internal_module(module)
+	var liquid_value: int = get_liquid_overlay_potential_cooling_for_module(module)
+	var duct_value: int = get_air_duct_overlay_potential_cooling_for_module(module)
+	var overlay_value: int = get_overlay_potential_cooling_for_module(module)
+	var hypothetical_heat: int = get_hypothetical_heat_after_overlay_for_module(module)
+
+	return "%s: base preview %d, overlay liquid -%d, duct -%d, strongest -%d, hypothetical %d" % [
+		get_module_display_name(module),
+		base_preview_heat,
+		liquid_value,
+		duct_value,
+		overlay_value,
+		hypothetical_heat
+	]
+
+func get_overlay_thermal_contribution_preview_text() -> String:
+	var lines: Array[String] = []
+	lines.append("Overlay thermal contribution preview:")
+
+	var modules: Array[BipobModule] = get_unique_internal_modules()
+	if modules.is_empty():
+		lines.append("none")
+		return "\n".join(lines)
+
+	var any_contribution: bool = false
+
+	for module in modules:
+		if module == null:
+			continue
+
+		var contribution: int = get_overlay_potential_cooling_for_module(module)
+		if contribution <= 0:
+			continue
+
+		any_contribution = true
+		lines.append("- " + get_overlay_thermal_contribution_line(module))
+
+	if not any_contribution:
+		lines.append("none")
+
+	lines.append("")
+	lines.append("Rules:")
+	lines.append("- Overlay contribution is hypothetical only.")
+	lines.append("- Base thermal heat map is not changed.")
+	lines.append("- Strongest overlay contribution is used, not stacking.")
+	lines.append("- Liquid path must touch module.")
+	lines.append("- Duct path must touch/neighbor module and reach body edge.")
+
+	return "\n".join(lines)
+
+func get_overlay_thermal_contribution_compact_text() -> String:
+	var affected_count: int = 0
+	var highest_contribution: int = 0
+
+	for module in get_unique_internal_modules():
+		var contribution: int = get_overlay_potential_cooling_for_module(module)
+		if contribution > 0:
+			affected_count += 1
+			highest_contribution = maxi(highest_contribution, contribution)
+
+	return "Overlay thermal: affected %d / max potential -%d" % [
+		affected_count,
+		highest_contribution
+	]
+
 func get_overlay_path_effect_line(path_record: Dictionary) -> String:
 	var path_id: String = String(path_record.get("id", ""))
 	var path_type: String = String(path_record.get("path_type", ""))
