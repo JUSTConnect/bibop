@@ -79,6 +79,7 @@ var selected_internal_origin: Vector3i = Vector3i.ZERO
 var selected_internal_rotation: int = 0
 var selected_overlay_path_type: String = "liquid"
 var selected_overlay_cells: Array[Vector3i] = []
+var selected_overlay_path_index: int = 0
 var found_module: BipobModule = null
 var held_module: BipobModule = null
 var stored_physical_module: BipobModule = null
@@ -804,6 +805,53 @@ func is_internal_cell_on_body_edge(cell: Vector3i) -> bool:
 		or cell.z == volume_size.z - 1
 	)
 
+func clamp_selected_overlay_path_index() -> void:
+	if internal_overlay_paths.is_empty():
+		selected_overlay_path_index = 0
+		return
+
+	if selected_overlay_path_index < 0:
+		selected_overlay_path_index = internal_overlay_paths.size() - 1
+	elif selected_overlay_path_index >= internal_overlay_paths.size():
+		selected_overlay_path_index = 0
+
+func get_selected_overlay_path_record() -> Dictionary:
+	clamp_selected_overlay_path_index()
+
+	if internal_overlay_paths.is_empty():
+		return {}
+
+	return internal_overlay_paths[selected_overlay_path_index]
+
+func get_selected_overlay_path_id() -> String:
+	var record: Dictionary = get_selected_overlay_path_record()
+	return String(record.get("id", ""))
+
+func select_prev_overlay_path() -> void:
+	if internal_overlay_paths.is_empty():
+		selected_overlay_path_index = 0
+		return
+
+	selected_overlay_path_index -= 1
+	clamp_selected_overlay_path_index()
+
+func select_next_overlay_path() -> void:
+	if internal_overlay_paths.is_empty():
+		selected_overlay_path_index = 0
+		return
+
+	selected_overlay_path_index += 1
+	clamp_selected_overlay_path_index()
+
+func remove_selected_overlay_path() -> bool:
+	var path_id: String = get_selected_overlay_path_id()
+	if path_id.is_empty():
+		return false
+
+	var removed: bool = remove_internal_overlay_path(path_id)
+	clamp_selected_overlay_path_index()
+	return removed
+
 func get_selected_overlay_module_id() -> String:
 	if selected_overlay_path_type == "duct":
 		return "air_duct_v1"
@@ -875,6 +923,7 @@ func commit_selected_overlay_path() -> bool:
 	}
 	next_internal_overlay_path_id += 1
 	internal_overlay_paths.append(path_record)
+	selected_overlay_path_index = internal_overlay_paths.size() - 1
 	box_storage.remove_at(raw_index)
 	clear_selected_overlay_cells()
 	return true
@@ -922,11 +971,43 @@ func has_internal_overlay_at_cell(cell: Vector3i, path_type: String = "") -> boo
 			return true
 	return false
 
+func is_cell_in_selected_overlay_path(cell: Vector3i) -> bool:
+	var record: Dictionary = get_selected_overlay_path_record()
+	if record.is_empty():
+		return false
+
+	var cells: Array = record.get("cells", [])
+	for item in cells:
+		var path_cell: Vector3i = item
+		if path_cell == cell:
+			return true
+
+	return false
+
+func get_selected_overlay_path_marker_for_cell(cell: Vector3i) -> String:
+	if not is_cell_in_selected_overlay_path(cell):
+		return ""
+
+	var record: Dictionary = get_selected_overlay_path_record()
+	var path_type: String = String(record.get("path_type", ""))
+
+	if path_type == "liquid":
+		return "q"
+
+	if path_type == "duct":
+		return "d"
+
+	return "?"
+
 func get_internal_overlay_marker_for_cell(cell: Vector3i) -> String:
 	if has_selected_overlay_cell(cell):
 		if selected_overlay_path_type == "duct":
 			return "A"
 		return "L"
+
+	var selected_marker: String = get_selected_overlay_path_marker_for_cell(cell)
+	if not selected_marker.is_empty():
+		return selected_marker
 	if has_internal_overlay_at_cell(cell, "liquid"):
 		return "l"
 	if has_internal_overlay_at_cell(cell, "duct"):
@@ -1135,6 +1216,33 @@ func get_internal_overlay_summary_text() -> String:
 	lines.append("- Uses module: %s" % get_selected_overlay_module_id())
 	lines.append("- Overlay can pass over occupied modules.")
 	lines.append("- Route cooling is not applied yet.")
+	return "\n".join(lines)
+
+func get_selected_overlay_path_details_text() -> String:
+	var record: Dictionary = get_selected_overlay_path_record()
+
+	if record.is_empty():
+		return "Selected overlay:\nnone"
+
+	var path_id: String = String(record.get("id", ""))
+	var module_id: String = String(record.get("module_id", ""))
+	var path_type: String = String(record.get("path_type", ""))
+	var cells: Array = record.get("cells", [])
+	var reaches_edge: bool = does_overlay_path_reach_body_edge(record)
+	var potential_value: int = get_overlay_path_potential_cooling_value(record)
+
+	var edge_text: String = "yes" if reaches_edge else "no"
+
+	var lines: Array[String] = []
+	lines.append("Selected overlay:")
+	lines.append("- ID: %s" % path_id)
+	lines.append("- Type: %s" % path_type)
+	lines.append("- Module: %s" % module_id)
+	lines.append("- Cells: %d" % cells.size())
+	lines.append("- Reaches body edge: %s" % edge_text)
+	lines.append("- Potential value: %d" % potential_value)
+	lines.append("- Preview only: yes")
+
 	return "\n".join(lines)
 
 func get_internal_module_at_cell(cell: Vector3i) -> BipobModule:

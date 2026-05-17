@@ -1139,7 +1139,9 @@ func rebuild_box_action_buttons() -> void:
 		_add_box_action_button("Toggle Overlay", Callable(self, "_on_toggle_overlay_cell_pressed"))
 		_add_box_action_button("Commit Overlay", Callable(self, "_on_commit_overlay_pressed"))
 		_add_box_action_button("Clear Overlay", Callable(self, "_on_clear_overlay_pressed"))
-		_add_box_action_button("Remove Overlay", Callable(self, "_on_remove_overlay_pressed"))
+		_add_box_action_button("Prev Overlay", Callable(self, "_on_prev_overlay_pressed"))
+		_add_box_action_button("Next Overlay", Callable(self, "_on_next_overlay_pressed"))
+		_add_box_action_button("Remove Overlay", Callable(self, "_on_remove_selected_overlay_pressed"))
 		_add_box_action_button("Overlay Effects", Callable(self, "_on_overlay_effects_pressed"))
 		_add_box_action_button("Warnings", Callable(self, "_on_constructor_warnings_button_pressed"))
 		_add_box_action_button("Reset Internal Cursor", Callable(self, "_on_reset_internal_cursor_pressed"))
@@ -1679,8 +1681,13 @@ func get_box_internal_menu_text() -> String:
 	lines.append("")
 	lines.append("Overlay:")
 	lines.append("Type: %s" % bipob.selected_overlay_path_type)
-	lines.append("Selected cells: %d" % bipob.selected_overlay_cells.size())
+	lines.append("Planning cells: %d" % bipob.selected_overlay_cells.size())
 	lines.append("Committed paths: %d" % bipob.internal_overlay_paths.size())
+	if bipob.internal_overlay_paths.is_empty():
+		lines.append("Selected path: none")
+	else:
+		bipob.clamp_selected_overlay_path_index()
+		lines.append("Selected path: %d / %d" % [bipob.selected_overlay_path_index + 1, bipob.internal_overlay_paths.size()])
 	lines.append("Effects: %s" % str(bipob.get_overlay_effect_compact_text()))
 	if not bipob.internal_overlay_paths.is_empty():
 		lines.append("Overlay paths:")
@@ -1688,11 +1695,14 @@ func get_box_internal_menu_text() -> String:
 		for i in range(overlay_list_limit):
 			var overlay_record: Dictionary = bipob.internal_overlay_paths[i]
 			var overlay_id: String = str(overlay_record.get("id", "overlay_%d" % (i + 1)))
-			var overlay_type: String = str(overlay_record.get("type", "unknown"))
+			var overlay_type: String = str(overlay_record.get("path_type", "unknown"))
 			var overlay_cells: Array = overlay_record.get("cells", [])
 			lines.append("- %s %s cells:%d" % [overlay_id, overlay_type, overlay_cells.size()])
 		if bipob.internal_overlay_paths.size() > overlay_list_limit:
 			lines.append("- ...")
+	if internal_view_mode == "overlay":
+		lines.append("")
+		lines.append(bipob.get_selected_overlay_path_details_text())
 	lines.append("")
 	var view_mode_label: String = "Modules"
 	if internal_view_mode == "thermal":
@@ -1705,7 +1715,7 @@ func get_box_internal_menu_text() -> String:
 	if internal_view_mode == "thermal":
 		lines.append("[1-5] preview heat after cooling, [5] critical preview, [*] placement preview, [!] invalid")
 	elif internal_view_mode == "overlay":
-		lines.append("[L] selected liquid, [A] selected duct, [l] liquid path, [a] air duct path, lowercase modules = underneath")
+		lines.append("[L] selected liquid, [A] selected duct, [q] selected liquid path, [d] selected duct path, [l/a] other paths, lowercase modules = underneath")
 		lines.append("Overlay can pass over occupied modules.")
 		lines.append("Overlay effects are preview only.")
 	else:
@@ -1912,19 +1922,16 @@ func _on_overlay_effects_pressed() -> void:
 	show_hint(str(bipob.get_overlay_effect_preview_text()))
 	update_box_status()
 
-func _on_remove_overlay_pressed() -> void:
-	var target_path_id: String = ""
-	for record in bipob.internal_overlay_paths:
-		var cells: Array = record.get("cells", [])
-		for cell in cells:
-			if cell == bipob.selected_internal_origin:
-				target_path_id = String(record.get("id", ""))
-				break
-		if not target_path_id.is_empty():
-			break
-	if target_path_id.is_empty() and not bipob.internal_overlay_paths.is_empty():
-		var last_record: Dictionary = bipob.internal_overlay_paths[bipob.internal_overlay_paths.size() - 1]
-		target_path_id = String(last_record.get("id", ""))
-	if not target_path_id.is_empty():
-		bipob.remove_internal_overlay_path(target_path_id)
+func _on_prev_overlay_pressed() -> void:
+	bipob.select_prev_overlay_path()
+	update_box_status()
+
+func _on_next_overlay_pressed() -> void:
+	bipob.select_next_overlay_path()
+	update_box_status()
+
+func _on_remove_selected_overlay_pressed() -> void:
+	var removed: bool = bipob.remove_selected_overlay_path()
+	if not removed:
+		show_hint("No overlay path selected.")
 	update_box_status()
