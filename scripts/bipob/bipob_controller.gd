@@ -43,7 +43,7 @@ var actions_left: int = 0
 var mission_finished: bool = false
 var sector_completed: bool = false
 var current_mission_index: int = 1
-var max_mission_index: int = 4
+var max_mission_index: int = 5
 var mission4_hidden_route_node_discovered: bool = false
 var has_key: bool = false
 var has_info_key: bool = false
@@ -265,6 +265,8 @@ func get_mission_name(mission_index: int) -> String:
 			return "Mission 3 — Info-Key"
 		4:
 			return "Mission 4 — Blind Sector"
+		5:
+			return "Mission 5 — Route"
 		_:
 			return "Unknown Mission"
 
@@ -278,6 +280,8 @@ func get_mission_goal_hint(mission_index: int) -> String:
 			return "Mission 3: Scan and Hack the terminal to get the Info-Key, then Scan and Hack the digital door."
 		4:
 			return get_mission4_context_hint()
+		5:
+			return "Mission 5: use stored Route Data to open the route gate, then reach the exit."
 		_:
 			return "No mission goal available."
 
@@ -507,7 +511,7 @@ func debug_store_route_data() -> void:
 
 func start_next_mission() -> void:
 	if sector_completed:
-		hint_requested.emit("Sector-01 complete. Blind Sector cleared.")
+		hint_requested.emit("Sector-01 complete. Route confirmed.")
 		status_changed.emit()
 		return
 
@@ -516,7 +520,7 @@ func start_next_mission() -> void:
 		return
 
 	sector_completed = true
-	hint_requested.emit("Sector-01 complete. Blind Sector cleared.")
+	hint_requested.emit("Sector-01 complete. Route confirmed.")
 	status_changed.emit()
 
 func create_default_modules() -> void:
@@ -874,6 +878,8 @@ func try_move_to(target_position: Vector2i) -> bool:
 			hint_requested.emit("Door is locked. Find a key and press E while facing it.")
 		elif target_tile == GridManager.TILE_DIGITAL_DOOR:
 			hint_requested.emit("Digital door is locked. Use Scan Device, then Hack Device.")
+		elif target_tile == GridManager.TILE_ROUTE_GATE:
+			hint_requested.emit("Route Gate locked. Use Interact with stored Route Data.")
 		else:
 			hint_requested.emit("Path is blocked.")
 	
@@ -921,11 +927,13 @@ func complete_mission() -> void:
 		hint_requested.emit("Mission 2 complete. Return to the box, then start Mission 3.")
 	elif current_mission_index == 3:
 		hint_requested.emit("Mission complete. Return to the box.")
-	else:
+	elif current_mission_index == 4:
 		hint_requested.emit("Mission 4 complete. Return to the box.")
+	else:
+		hint_requested.emit("Mission 5 complete. Return to the box.")
 	if current_mission_index == max_mission_index:
 		sector_completed = true
-		hint_requested.emit("Sector-01 complete. Blind Sector cleared.")
+		hint_requested.emit("Sector-01 complete. Route confirmed.")
 		last_diagnostic_result = null
 
 	if stored_module_this_mission:
@@ -1243,6 +1251,20 @@ func hack_device() -> void:
 			status_changed.emit()
 			return
 
+func open_route_gate(gate_position: Vector2i) -> void:
+	if not has_digital_record(DIGITAL_RECORD_ROUTE_DATA):
+		hint_requested.emit("Route Gate locked. Route Data required.")
+		status_changed.emit()
+		return
+
+	if not can_spend_action(1, 1):
+		return
+
+	grid_manager.set_tile(gate_position, GridManager.TILE_FLOOR)
+	spend_action(1, 1)
+	hint_requested.emit("Route Gate opened using Route Data.")
+	status_changed.emit()
+
 func interact() -> void:
 	var target_position := get_facing_device_position()
 	var target_tile := grid_manager.get_tile(target_position)
@@ -1278,6 +1300,8 @@ func interact() -> void:
 			if not can_spend_action(1, 1):
 				return
 			open_door(target_position)
+		GridManager.TILE_ROUTE_GATE:
+			open_route_gate(target_position)
 		_:
 			print("Nothing to interact with at: ", target_position)
 			hint_requested.emit("Nothing to interact with. Face a key, door, or terminal and press E.")
