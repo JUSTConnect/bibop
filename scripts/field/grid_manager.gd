@@ -12,6 +12,11 @@ const TILE_COMPONENT := 7
 const TILE_HIDDEN_ROUTE_NODE := 8
 const TILE_ROUTE_GATE := 9
 const TILE_HOT_NODE := 10
+const TILE_AIRFLOW_TERMINAL := 11
+const TILE_FAN_PLATFORM := 12
+const TILE_PLATFORM_CONTROL := 13
+const TILE_FAN_CONTROL := 14
+const TILE_AIRFLOW := 15
 
 @export var cell_size: int = 64
 @export var fog_enabled: bool = true
@@ -49,6 +54,11 @@ var tile_colors := {
 	TILE_HIDDEN_ROUTE_NODE: Color(0.16, 0.16, 0.18),
 	TILE_ROUTE_GATE: Color(0.12, 0.56, 0.7),
 	TILE_HOT_NODE: Color(1.0, 0.25, 0.1),
+	TILE_AIRFLOW_TERMINAL: Color(0.75, 0.2, 0.85),
+	TILE_FAN_PLATFORM: Color(0.45, 0.47, 0.52),
+	TILE_PLATFORM_CONTROL: Color(0.95, 0.8, 0.22),
+	TILE_FAN_CONTROL: Color(0.2, 0.8, 1.0),
+	TILE_AIRFLOW: Color(0.45, 0.85, 1.0, 0.65),
 }
 
 func _ready() -> void:
@@ -91,6 +101,19 @@ func get_mission6_layout() -> Array:
 		[1, 1, 1, 1, 1, 1, 1, 1],
 	]
 
+
+func get_mission8_layout() -> Array:
+	return [
+		[1, 1, 1, 1, 1, 1, 1, 1],
+		[1, 0, 0, 0, 0, 0, 0, 1],
+		[1, 0, TILE_PLATFORM_CONTROL, 0, TILE_FAN_PLATFORM, 0, 0, 1],
+		[1, 0, 0, 0, 0, 0, TILE_AIRFLOW_TERMINAL, 1],
+		[1, 0, TILE_FAN_CONTROL, 0, 0, 0, TILE_DIGITAL_DOOR, 1],
+		[1, 0, 0, 0, 0, 0, 0, 1],
+		[1, 0, 1, 1, 1, 1, 4, 1],
+		[1, 1, 1, 1, 1, 1, 1, 1],
+	]
+
 func reset_mission_layout(mission_index: int) -> void:
 	if mission_initial_map_data.is_empty():
 		cache_initial_mission_layout()
@@ -99,6 +122,8 @@ func reset_mission_layout(mission_index: int) -> void:
 		map_data = duplicate_map_layout(get_mission4_layout())
 	elif mission_index == 6:
 		map_data = duplicate_map_layout(get_mission6_layout())
+	elif mission_index == 8:
+		map_data = duplicate_map_layout(get_mission8_layout())
 	else:
 		map_data = duplicate_map_layout(mission_initial_map_data)
 	reset_hidden_discoveries()
@@ -179,6 +204,18 @@ func is_walkable(grid_position: Vector2i) -> bool:
 		return false
 
 	if tile_type == TILE_HOT_NODE:
+		return false
+
+	if tile_type == TILE_AIRFLOW_TERMINAL:
+		return false
+
+	if tile_type == TILE_FAN_PLATFORM:
+		return false
+
+	if tile_type == TILE_PLATFORM_CONTROL:
+		return false
+
+	if tile_type == TILE_FAN_CONTROL:
 		return false
 
 	return true
