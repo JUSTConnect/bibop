@@ -32,6 +32,7 @@ const INTERNAL_SIZE_X := 5
 const INTERNAL_SIZE_Y := 8
 const INTERNAL_SIZE_Z := 5
 const THERMAL_CRITICAL_HEAT := 5
+const MODULE_ICON_DIR: String = "res://assets/ui/module_icons/"
 
 @export var start_grid_position := Vector2i(1, 1)
 
@@ -189,6 +190,183 @@ func has_module_id_anywhere(module_id: String) -> bool:
 			return true
 
 	return false
+
+
+func get_module_visual_key(module: BipobModule) -> String:
+	if module == null:
+		return "unknown"
+
+	var module_id: String = module.id
+
+	if module_id.contains("battery"):
+		return "battery"
+	if module_id.contains("processor"):
+		return "processor"
+	if module_id.contains("memory"):
+		return "memory"
+	if module_id.contains("hard_drive") or module_id.contains("hdd") or module_id.contains("ssd"):
+		return "storage"
+	if module_id.contains("power_block"):
+		return "power"
+	if module_id.contains("cooler"):
+		return "cooler"
+	if module_id.contains("radiator"):
+		return "radiator"
+	if module_id.contains("water_tube"):
+		return "water_tube"
+	if module_id.contains("air_duct"):
+		return "air_duct"
+	if module_id.contains("air_intake"):
+		return "air_intake"
+	if module_id.contains("visor"):
+		return "visor"
+	if module_id.contains("wheel"):
+		return "wheels"
+	if module_id.contains("leg"):
+		return "legs"
+	if module_id.contains("track"):
+		return "tracks"
+	if module_id.contains("manipulator"):
+		return "manipulator"
+	if module_id.contains("interface"):
+		return "interface"
+	if module_id.contains("gpu"):
+		return "gpu"
+
+	return "module"
+
+
+
+func get_module_icon_path(module: BipobModule) -> String:
+	var key: String = get_module_visual_key(module)
+	return get_module_icon_path_by_key(key)
+
+func get_module_icon_path_by_key(key: String) -> String:
+	if key.is_empty():
+		key = "unknown"
+	return MODULE_ICON_DIR + key + ".png"
+
+func get_module_visual_short_label(module: BipobModule) -> String:
+	if module == null:
+		return "?"
+
+	var key: String = get_module_visual_key(module)
+
+	match key:
+		"battery":
+			return "BAT"
+		"processor":
+			return "CPU"
+		"memory":
+			return "MEM"
+		"storage":
+			return "DRV"
+		"power":
+			return "PWR"
+		"cooler":
+			return "FAN"
+		"radiator":
+			return "RAD"
+		"water_tube":
+			return "TUBE"
+		"air_duct":
+			return "DUCT"
+		"air_intake":
+			return "AIR"
+		"visor":
+			return "VIS"
+		"wheels":
+			return "WHL"
+		"legs":
+			return "LEG"
+		"tracks":
+			return "TRK"
+		"manipulator":
+			return "ARM"
+		"interface":
+			return "I/O"
+		"gpu":
+			return "GPU"
+		_:
+			return "MOD"
+
+func get_module_visual_color(module: BipobModule) -> Color:
+	if module == null:
+		return Color(0.25, 0.28, 0.30, 1.0)
+
+	var key: String = get_module_visual_key(module)
+
+	match key:
+		"battery":
+			return Color(0.25, 0.55, 0.95, 1.0)
+		"processor":
+			return Color(0.95, 0.45, 0.18, 1.0)
+		"memory":
+			return Color(0.55, 0.35, 0.95, 1.0)
+		"storage":
+			return Color(0.65, 0.70, 0.78, 1.0)
+		"power":
+			return Color(0.95, 0.78, 0.20, 1.0)
+		"cooler":
+			return Color(0.20, 0.75, 0.95, 1.0)
+		"radiator":
+			return Color(0.45, 0.85, 0.95, 1.0)
+		"water_tube":
+			return Color(0.05, 0.85, 0.95, 1.0)
+		"air_duct":
+			return Color(0.55, 0.65, 0.70, 1.0)
+		"air_intake":
+			return Color(0.35, 0.80, 0.85, 1.0)
+		"visor":
+			return Color(0.25, 0.95, 0.65, 1.0)
+		"wheels":
+			return Color(0.55, 0.50, 0.42, 1.0)
+		"legs":
+			return Color(0.60, 0.55, 0.45, 1.0)
+		"tracks":
+			return Color(0.45, 0.42, 0.36, 1.0)
+		"manipulator":
+			return Color(0.90, 0.55, 0.25, 1.0)
+		"interface":
+			return Color(0.20, 0.70, 0.95, 1.0)
+		"gpu":
+			return Color(0.20, 0.95, 0.85, 1.0)
+		_:
+			return Color(0.45, 0.50, 0.55, 1.0)
+
+func get_module_visual_border_color(module: BipobModule) -> Color:
+	var base: Color = get_module_visual_color(module)
+	return Color(
+		clampf(base.r + 0.18, 0.0, 1.0),
+		clampf(base.g + 0.18, 0.0, 1.0),
+		clampf(base.b + 0.18, 0.0, 1.0),
+		1.0
+	)
+
+func get_module_visual_card_line(module: BipobModule) -> String:
+	if module == null:
+		return "[?] Unknown"
+
+	var label: String = get_module_visual_short_label(module)
+	var name: String = get_module_display_name(module)
+	var size_text: String = ""
+
+	if is_internal_module(module):
+		var size: Vector3i = get_internal_module_base_size(module)
+		size_text = "%dx%dx%d" % [size.x, size.y, size.z]
+	elif is_external_module(module):
+		var footprint: Vector2i = get_external_module_footprint_size(module)
+		size_text = "%dx%d" % [footprint.x, footprint.y]
+	elif is_internal_overlay_module(module):
+		size_text = "overlay"
+	else:
+		size_text = "module"
+
+	return "[%s] %s — %s" % [
+		label,
+		name,
+		size_text
+	]
 
 func get_module_category(module: BipobModule) -> String:
 	if module == null:

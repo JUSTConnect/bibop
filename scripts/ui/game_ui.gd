@@ -82,7 +82,14 @@ var box_menu_mode: BoxMenuMode = BoxMenuMode.MISSION
 var selected_external_side_index: int = 1
 var selected_external_slot_position: Vector2i = Vector2i(1, 1)
 var internal_view_mode: String = "modules"
+var module_icon_texture_cache: Dictionary = {}
 
+const CONSTRUCTOR_PANEL_BG_PATH: String = "res://assets/ui/constructor/panel_bg.png"
+const CONSTRUCTOR_CELL_EMPTY_PATH: String = "res://assets/ui/constructor/cell_empty.png"
+const CONSTRUCTOR_CELL_SELECTED_PATH: String = "res://assets/ui/constructor/cell_selected.png"
+const CONSTRUCTOR_CELL_INVALID_PATH: String = "res://assets/ui/constructor/cell_invalid.png"
+const CONSTRUCTOR_ROBOT_PLACEHOLDER_PATH: String = "res://assets/ui/constructor/robot_placeholder.png"
+const CONSTRUCTOR_INTERNAL_CUBE_PLACEHOLDER_PATH: String = "res://assets/ui/constructor/internal_cube_placeholder.png"
 
 const UI_COLOR_BG: Color = Color(0.035, 0.045, 0.060, 1.0)
 const UI_COLOR_PANEL: Color = Color(0.075, 0.090, 0.115, 0.96)
@@ -116,6 +123,52 @@ func _make_panel_style(
 	style.content_margin_top = 6
 	style.content_margin_bottom = 6
 	return style
+
+
+func _load_module_icon_texture(module: BipobModule) -> Texture2D:
+	if module == null:
+		return null
+
+	var key: String = bipob.get_module_visual_key(module)
+	if module_icon_texture_cache.has(key):
+		return module_icon_texture_cache[key]
+
+	var path: String = bipob.get_module_icon_path_by_key(key)
+	if not ResourceLoader.exists(path):
+		module_icon_texture_cache[key] = null
+		return null
+
+	var texture: Texture2D = load(path) as Texture2D
+	module_icon_texture_cache[key] = texture
+	return texture
+
+func _create_module_icon_control(module: BipobModule, size: Vector2 = Vector2(44, 44)) -> Control:
+	var panel: PanelContainer = PanelContainer.new()
+	panel.custom_minimum_size = size
+
+	var bg_color: Color = bipob.get_module_visual_color(module)
+	var border_color: Color = bipob.get_module_visual_border_color(module)
+	panel.add_theme_stylebox_override("panel", _make_panel_style(bg_color.darkened(0.55), border_color, 1, 6))
+
+	var texture: Texture2D = _load_module_icon_texture(module)
+	if texture != null:
+		var texture_rect: TextureRect = TextureRect.new()
+		texture_rect.texture = texture
+		texture_rect.expand_mode = TextureRect.EXPAND_FIT_WIDTH_PROPORTIONAL
+		texture_rect.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_CENTERED
+		panel.add_child(texture_rect)
+	else:
+		var label: Label = Label.new()
+		label.text = bipob.get_module_visual_short_label(module)
+		label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+		label.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
+		label.add_theme_color_override("font_color", Color.WHITE)
+		panel.add_child(label)
+
+	return panel
+
+func _create_module_placeholder_icon(module: BipobModule, size: Vector2 = Vector2(44, 44)) -> Control:
+	return _create_module_icon_control(module, size)
 
 func _make_button_style(
 	bg_color: Color,
@@ -527,6 +580,7 @@ func get_module_details_text(module: BipobModule) -> String:
 	lines.append("Selected Module:")
 	lines.append("Selected: %s" % bipob.get_module_display_name(module))
 	lines.append("ID: %s" % module.id)
+	lines.append("Visual: %s / %s" % [bipob.get_module_visual_short_label(module), bipob.get_module_visual_key(module)])
 	if module.id == "water_tube_v1" or module.id == "air_duct_v1":
 		lines.append("Placement: overlay path")
 		lines.append("Overlay Type: liquid" if module.id == "water_tube_v1" else "Overlay Type: duct")
@@ -1181,7 +1235,10 @@ func get_box_modules_menu_text() -> String:
 	else:
 		selected_grouped_module_index = clampi(selected_grouped_module_index, 0, grouped_ids.size() - 1)
 		for i in range(grouped_ids.size()):
-			content_lines.append(bipob.get_module_availability_line_by_id(grouped_ids[i], i == selected_grouped_module_index))
+			var availability_line: String = bipob.get_module_availability_line_by_id(grouped_ids[i], i == selected_grouped_module_index)
+			var group_module: BipobModule = bipob.get_first_module_by_id(grouped_ids[i])
+			var group_label: String = bipob.get_module_visual_short_label(group_module)
+			content_lines.append("[%s] %s" % [group_label, availability_line])
 	content_lines.append("")
 	var selected_module: BipobModule = get_selected_grouped_module()
 	content_lines.append("Selected Module:")
@@ -1752,7 +1809,9 @@ func show_hint(message: String) -> void:
 func _on_constructor_dashboard_button_pressed() -> void:
 	if bipob == null:
 		return
-	show_hint(bipob.get_constructor_dashboard_text())
+	var dashboard_text: String = bipob.get_constructor_dashboard_text()
+	dashboard_text += "\nIcon system: texture icons optional, missing icons use placeholders."
+	show_hint(dashboard_text)
 
 func _on_constructor_warnings_button_pressed() -> void:
 	if bipob == null:
