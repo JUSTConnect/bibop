@@ -1399,10 +1399,28 @@ func get_box_internal_menu_text() -> String:
 	lines.append("Valid: %s" % get_yes_no(can_place))
 	lines.append("Reason: %s" % placement_error)
 	lines.append("")
-	lines.append("Connection model:")
+	lines.append("Connections:")
 	lines.append("Power: %s" % ("available" if bipob.is_virtual_power_available() else "unavailable"))
 	lines.append("Internal data: %s" % ("available" if bipob.is_internal_data_network_available() else "unavailable"))
 	lines.append("External data: %s" % ("available" if bipob.is_external_data_network_available() else "unavailable"))
+	lines.append("")
+	lines.append("Roles:")
+	var role_order: Array[String] = [
+		"battery",
+		"power_block",
+		"internal_interface",
+		"external_interface",
+		"processor",
+		"memory",
+		"storage",
+		"cooling"
+	]
+	var role_parts: Array[String] = []
+	for role_id in role_order:
+		var role_count: int = bipob.count_internal_role(role_id)
+		if role_count > 0:
+			role_parts.append("%s: %d" % [role_id, role_count])
+	lines.append("none" if role_parts.is_empty() else ", ".join(role_parts))
 	return "\n".join(lines)
 
 func _move_internal_cursor(dx: int, dy: int, dz: int) -> void:
