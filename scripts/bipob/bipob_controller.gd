@@ -682,17 +682,20 @@ func get_internal_module_covered_cells(module: BipobModule, origin: Vector3i, ro
 				cells.append(origin + Vector3i(x, y, z))
 	return cells
 
-func can_place_internal_module(module: BipobModule, origin: Vector3i, rotation: int = 0) -> bool:
+func get_internal_module_placement_error(module: BipobModule, origin: Vector3i, rotation: int = 0) -> String:
 	if module == null:
-		return false
+		return "No internal module selected."
 	if module.placement_type != "internal":
-		return false
+		return "Module is not internal."
 	for cell in get_internal_module_covered_cells(module, origin, rotation):
 		if not is_internal_cell_in_bounds(cell):
-			return false
+			return "Internal module footprint is outside robot volume."
 		if get_internal_module_at_cell(cell) != null:
-			return false
-	return true
+			return "Internal cells are occupied."
+	return ""
+
+func can_place_internal_module(module: BipobModule, origin: Vector3i, rotation: int = 0) -> bool:
+	return get_internal_module_placement_error(module, origin, rotation).is_empty()
 
 func place_internal_module(module: BipobModule, origin: Vector3i, rotation: int = 0) -> bool:
 	if not can_place_internal_module(module, origin, rotation):
@@ -752,9 +755,22 @@ func remove_internal_module(cell: Vector3i) -> bool:
 func get_unique_internal_modules() -> Array[BipobModule]:
 	var unique_modules: Array[BipobModule] = []
 	for record in placed_internal_modules:
+		if typeof(record) != TYPE_DICTIONARY:
+			continue
 		var module: BipobModule = record.get("module", null)
 		if module == null:
 			continue
+		if unique_modules.has(module):
+			continue
+		unique_modules.append(module)
+	return unique_modules
+
+func get_unique_external_modules() -> Array[BipobModule]:
+	var unique_modules: Array[BipobModule] = []
+	for module_variant in external_modules_by_slot.values():
+		if module_variant == null:
+			continue
+		var module: BipobModule = module_variant
 		if unique_modules.has(module):
 			continue
 		unique_modules.append(module)
@@ -776,21 +792,94 @@ func get_internal_modules_by_role(role_id: String) -> Array[BipobModule]:
 			modules_by_role.append(module)
 	return modules_by_role
 
-func get_internal_connection_scheme_summary_text() -> String:
+func has_power_source() -> bool:
+	return has_internal_role("battery")
+
+func has_power_block() -> bool:
+	return has_internal_role("power_block")
+
+func has_internal_interface() -> bool:
+	return has_internal_role("internal_interface")
+
+func has_external_interface_bridge() -> bool:
+	return has_internal_role("external_interface")
+
+func is_virtual_power_available() -> bool:
+	return has_power_source() and has_power_block()
+
+func is_internal_data_network_available() -> bool:
+	return has_internal_interface()
+
+func is_external_data_network_available() -> bool:
+	return has_internal_interface() and has_external_interface_bridge()
+
+func get_virtual_connection_summary_text() -> String:
+	var power_available := is_virtual_power_available()
+	var internal_network_available := is_internal_data_network_available()
+	var external_network_available := is_external_data_network_available()
 	var lines: Array[String] = []
-	lines.append("Internal connection scheme:")
+	lines.append("Virtual wiring:")
 	lines.append("Power:")
-	lines.append("Battery -> Power Block -> all devices")
+	lines.append("- Battery source: %s" % ("yes" if has_power_source() else "no"))
+	lines.append("- Power Block: %s" % ("yes" if has_power_block() else "no"))
+	lines.append("- Distribution: %s" % ("available" if power_available else "unavailable"))
+	lines.append("")
 	lines.append("Data:")
+	lines.append("- Internal Interface: %s" % ("yes" if has_internal_interface() else "no"))
+	lines.append("- External Interface: %s" % ("yes" if has_external_interface_bridge() else "no"))
+	lines.append("- Internal network: %s" % ("available" if internal_network_available else "unavailable"))
+	lines.append("- External network: %s" % ("available" if external_network_available else "unavailable"))
+	lines.append("")
+	lines.append("Rules:")
+	lines.append("Battery -> Power Block -> all devices")
 	lines.append("Internal devices -> Internal Interface")
 	lines.append("External devices -> External Interface")
 	lines.append("Internal Interface <-> External Interface")
-	lines.append("")
-	lines.append("Installed internal roles:")
-	lines.append("Battery: %s" % ("yes" if has_internal_role("battery") else "no"))
-	lines.append("Power Block: %s" % ("yes" if has_internal_role("power_block") else "no"))
-	lines.append("Internal Interface: %s" % ("yes" if has_internal_role("internal_interface") else "no"))
-	lines.append("External Interface: %s" % ("yes" if has_internal_role("external_interface") else "no"))
+	return "\n".join(lines)
+
+func get_internal_connection_scheme_summary_text() -> String:
+	return get_virtual_connection_summary_text()
+
+func get_internal_role_summary_text() -> String:
+	var role_order: Array[String] = [
+		"battery",
+		"power_block",
+		"internal_interface",
+		"external_interface",
+		"processor",
+		"memory",
+		"storage",
+		"cooling",
+		"wire",
+	]
+	var lines: Array[String] = ["Internal roles:"]
+	for role_id in role_order:
+		var role_count := get_internal_modules_by_role(role_id).size()
+		if role_count > 0:
+			lines.append("- %s: %d" % [role_id, role_count])
+	if lines.size() == 1:
+		lines.append("none")
+	return "\n".join(lines)
+
+func get_external_device_summary_text() -> String:
+	if external_modules_by_slot.is_empty():
+		return "External devices: none"
+	var lines: Array[String] = ["External devices:"]
+	for side_id in EXTERNAL_SIDE_ORDER:
+		var side_size := get_external_side_size(side_id)
+		var side_module_names: Array[String] = []
+		var side_modules_seen: Array[BipobModule] = []
+		for y in range(side_size.y):
+			for x in range(side_size.x):
+				var module := get_external_module_at(side_id, Vector2i(x, y))
+				if module == null or side_modules_seen.has(module):
+					continue
+				side_modules_seen.append(module)
+				side_module_names.append(get_module_display_name(module))
+		if not side_module_names.is_empty():
+			lines.append("- %s: %s" % [side_id, ", ".join(side_module_names)])
+	if lines.size() == 1:
+		return "External devices: none"
 	return "\n".join(lines)
 
 func get_external_slot_key(side_id: String, slot_position: Vector2i) -> String:
