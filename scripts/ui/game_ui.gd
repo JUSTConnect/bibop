@@ -107,6 +107,9 @@ const UI_COLOR_DISABLED: Color = Color(0.250, 0.280, 0.320, 1.0)
 
 const STORAGE_CARD_MIN_SIZE: Vector2 = Vector2(118, 86)
 const STORAGE_CARD_ICON_SIZE: Vector2 = Vector2(42, 42)
+const SELECTED_MODULE_ICON_SIZE: Vector2 = Vector2(88, 64)
+const SELECTED_MODULE_PREVIEW_CELL_SIZE: Vector2 = Vector2(24, 24)
+const SELECTED_MODULE_PREVIEW_GAP: int = 3
 const EXTERNAL_GRID_CELL_SIZE: Vector2 = Vector2(42, 42)
 const EXTERNAL_GRID_CELL_GAP: int = 4
 const INTERNAL_GRID_CELL_SIZE: Vector2 = Vector2(36, 36)
@@ -215,6 +218,121 @@ func _get_module_card_size_text(module: BipobModule) -> String:
 		return "%dx%d" % [footprint_size.x, footprint_size.y]
 
 	return "module"
+
+
+func _get_selected_box_storage_module() -> BipobModule:
+	if selected_box_storage_index < 0:
+		return null
+	if selected_box_storage_index >= bipob.box_storage.size():
+		return null
+	return bipob.box_storage[selected_box_storage_index]
+
+
+func _get_module_placement_display_text(module: BipobModule) -> String:
+	if module == null:
+		return "none"
+	if bipob.is_internal_overlay_module(module):
+		return "overlay path"
+	if bipob.is_internal_module(module):
+		return "internal volume"
+	if bipob.is_external_module(module):
+		return "external slots"
+	return String(module.placement_type)
+
+
+func _get_selected_module_size_text(module: BipobModule) -> String:
+	if module == null:
+		return "none"
+	if bipob.is_internal_overlay_module(module):
+		return "overlay path"
+	if bipob.is_internal_module(module):
+		var internal_size: Vector3i = bipob.get_internal_module_base_size(module)
+		return "%dx%dx%d" % [internal_size.x, internal_size.y, internal_size.z]
+	if bipob.is_external_module(module):
+		var footprint_size: Vector2i = bipob.get_external_module_footprint_size(module)
+		return "%dx%d" % [footprint_size.x, footprint_size.y]
+	return "module"
+
+
+func _get_module_visual_summary_text(module: BipobModule) -> String:
+	if module == null:
+		return "Visual: none"
+	var key: String = "module"
+	var label: String = "MOD"
+	if bipob.has_method("get_module_visual_key"):
+		key = bipob.get_module_visual_key(module)
+	if bipob.has_method("get_module_visual_short_label"):
+		label = bipob.get_module_visual_short_label(module)
+	return "Visual: %s / %s" % [label, key]
+
+
+func _get_selected_module_availability_text(module: BipobModule) -> String:
+	if module == null:
+		return "Availability: none"
+	if bipob.has_method("get_module_availability_text"):
+		return bipob.get_module_availability_text(module)
+	var module_id: String = module.id
+	var box_count: int = 0
+	for stored_module in bipob.box_storage:
+		if stored_module != null and stored_module.id == module_id:
+			box_count += 1
+	return "Availability: box %d" % box_count
+
+
+func _get_selected_module_stat_lines(module: BipobModule) -> Array[String]:
+	var lines: Array[String] = []
+	if module == null:
+		return lines
+	lines.append("Placement: %s" % _get_module_placement_display_text(module))
+	lines.append("Category: %s" % String(module.category))
+	lines.append("Size: %s" % _get_selected_module_size_text(module))
+	var role_value: Variant = module.get("internal_role")
+	if role_value != null and not String(role_value).is_empty():
+		lines.append("Role: %s" % String(role_value))
+	if bipob.is_external_module(module):
+		if bipob.has_method("get_allowed_external_sides_for_module"):
+			var allowed_sides: Array[String] = bipob.get_allowed_external_sides_for_module(module)
+			var side_names: Array[String] = []
+			for side_id in allowed_sides:
+				side_names.append(_get_external_side_display_name(String(side_id)))
+			lines.append("Allowed: %s" % ", ".join(side_names))
+		var footprint_size: Vector2i = bipob.get_external_module_footprint_size(module)
+		lines.append("Footprint: %dx%d" % [footprint_size.x, footprint_size.y])
+		if box_menu_mode == BoxMenuMode.EXTERNAL:
+			lines.append("Selected Side: %s" % _get_external_side_display_name(String(bipob.selected_external_side)))
+			lines.append("Selected Cell: %d,%d" % [bipob.selected_external_origin.x, bipob.selected_external_origin.y])
+			var can_place_external: bool = bipob.can_place_external_module(module, bipob.selected_external_side, bipob.selected_external_origin)
+			lines.append("Can Place: %s" % get_yes_no(can_place_external))
+	if bipob.is_internal_module(module):
+		var base_size: Vector3i = bipob.get_internal_module_base_size(module)
+		var rotated_size: Vector3i = bipob.get_rotated_internal_size(module, bipob.selected_internal_rotation)
+		lines.append("Base Volume: %dx%dx%d" % [base_size.x, base_size.y, base_size.z])
+		lines.append("Rotated Volume: %dx%dx%d" % [rotated_size.x, rotated_size.y, rotated_size.z])
+		if box_menu_mode == BoxMenuMode.INTERNAL:
+			lines.append("Origin: %d,%d,%d" % [bipob.selected_internal_origin.x, bipob.selected_internal_origin.y, bipob.selected_internal_origin.z])
+			lines.append("Rotation: %d" % bipob.selected_internal_rotation)
+			var can_place_internal: bool = bipob.can_place_internal_module(module, bipob.selected_internal_origin, bipob.selected_internal_rotation)
+			lines.append("Can Place: %s" % get_yes_no(can_place_internal))
+	if bipob.is_internal_overlay_module(module):
+		var overlay_type: String = "liquid"
+		if module.id.contains("air_duct"):
+			overlay_type = "duct"
+		lines.append("Overlay Type: %s" % overlay_type)
+		lines.append("Plan Cells: %d" % bipob.selected_overlay_cells.size())
+		lines.append("Commit uses one module from Box Storage")
+		lines.append("Note: does not consume Internal Volume")
+	var heat_idle_value: int = int(module.get("heat_idle") if module.get("heat_idle") != null else 0)
+	var heat_active_value: int = int(module.get("heat_active") if module.get("heat_active") != null else 0)
+	if heat_idle_value > 0 or heat_active_value > 0:
+		lines.append("Heat: idle %d / active %d" % [heat_idle_value, heat_active_value])
+	var cooling_power_value: int = int(module.get("cooling_power") if module.get("cooling_power") != null else 0)
+	if cooling_power_value > 0:
+		lines.append("Cooling: %s %d" % [String(module.get("cooling_type")), cooling_power_value])
+	if bool(module.get("requires_air_intake")):
+		lines.append("Air Intake: required")
+	if bool(module.get("can_be_damaged")):
+		lines.append("Repair: threshold %d / complexity %d / %s" % [int(module.get("damage_threshold_heat")), int(module.get("repair_complexity")), String(module.get("repair_category"))])
+	return lines
 
 
 func _is_module_valid_for_current_constructor_mode(module: BipobModule) -> bool:
@@ -744,23 +862,7 @@ func _build_storage_cards_panel(parent: Control) -> void:
 			grid.add_child(_create_storage_module_card(module, storage_index, selected))
 	storage_panel.add_child(storage_root)
 
-	var details_panel: PanelContainer = PanelContainer.new()
-	_apply_dark_panel_style(details_panel)
-	var details_root: VBoxContainer = VBoxContainer.new()
-	details_root.add_theme_constant_override("separation", 4)
-	var details_title: Label = Label.new()
-	details_title.text = "SELECTED MODULE"
-	_apply_label_style(details_title, false, true)
-	details_root.add_child(details_title)
-	var selected_module: BipobModule = null
-	if selected_box_storage_index >= 0 and selected_box_storage_index < bipob.box_storage.size():
-		selected_module = bipob.box_storage[selected_box_storage_index]
-	var details: Label = Label.new()
-	details.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
-	details.text = get_module_details_text(selected_module)
-	_apply_label_style(details)
-	details_root.add_child(details)
-	details_panel.add_child(details_root)
+	var details_panel: Control = _create_selected_module_detail_card()
 
 	var side_panel: Control = null
 	if box_menu_mode == BoxMenuMode.INTERNAL:
@@ -768,6 +870,179 @@ func _build_storage_cards_panel(parent: Control) -> void:
 
 	var mode_title: String = "External Modules" if box_menu_mode == BoxMenuMode.EXTERNAL else "Internal Modules"
 	parent.add_child(_create_constructor_mode_layout(mode_title, workspace, storage_panel, details_panel, side_panel))
+
+
+func _create_external_footprint_preview(module: BipobModule) -> Control:
+	var panel: PanelContainer = PanelContainer.new()
+	_apply_dark_panel_style(panel)
+	var root: VBoxContainer = VBoxContainer.new()
+	root.add_theme_constant_override("separation", 4)
+	var title: Label = Label.new()
+	title.text = "FOOTPRINT"
+	_apply_label_style(title, false, true)
+	root.add_child(title)
+	var footprint_size: Vector2i = bipob.get_external_module_footprint_size(module)
+	var grid: GridContainer = GridContainer.new()
+	grid.columns = max(1, footprint_size.x)
+	grid.add_theme_constant_override("h_separation", SELECTED_MODULE_PREVIEW_GAP)
+	grid.add_theme_constant_override("v_separation", SELECTED_MODULE_PREVIEW_GAP)
+	for y in range(footprint_size.y):
+		for x in range(footprint_size.x):
+			var cell: PanelContainer = PanelContainer.new()
+			cell.custom_minimum_size = SELECTED_MODULE_PREVIEW_CELL_SIZE
+			var bg_color: Color = UI_COLOR_PANEL_DARK
+			var border_color: Color = UI_COLOR_BORDER_DIM
+			if bipob.has_method("get_module_visual_color"):
+				var module_color: Color = bipob.get_module_visual_color(module)
+				bg_color = module_color.darkened(0.62)
+				border_color = module_color
+			cell.add_theme_stylebox_override("panel", _make_panel_style(bg_color, border_color, 1, 4))
+			grid.add_child(cell)
+	root.add_child(grid)
+	panel.add_child(root)
+	return panel
+
+
+func _create_internal_volume_preview(module: BipobModule) -> Control:
+	var panel: PanelContainer = PanelContainer.new()
+	_apply_dark_panel_style(panel)
+	var root: VBoxContainer = VBoxContainer.new()
+	root.add_theme_constant_override("separation", 4)
+	var title: Label = Label.new()
+	title.text = "VOLUME"
+	_apply_label_style(title, false, true)
+	root.add_child(title)
+	var size: Vector3i = bipob.get_rotated_internal_size(module, bipob.selected_internal_rotation)
+	var size_label: Label = Label.new()
+	size_label.text = "%dx%dx%d cells" % [size.x, size.y, size.z]
+	_apply_label_style(size_label)
+	root.add_child(size_label)
+	var grid: GridContainer = GridContainer.new()
+	var cols: int = max(1, size.x)
+	var rows: int = max(1, size.y if size.y >= size.z else size.z)
+	grid.columns = cols
+	grid.add_theme_constant_override("h_separation", SELECTED_MODULE_PREVIEW_GAP)
+	grid.add_theme_constant_override("v_separation", SELECTED_MODULE_PREVIEW_GAP)
+	for y in range(rows):
+		for x in range(cols):
+			var cell: PanelContainer = PanelContainer.new()
+			cell.custom_minimum_size = SELECTED_MODULE_PREVIEW_CELL_SIZE
+			var bg_color: Color = UI_COLOR_PANEL_DARK
+			var border_color: Color = UI_COLOR_BORDER_DIM
+			if bipob.has_method("get_module_visual_color"):
+				var module_color: Color = bipob.get_module_visual_color(module)
+				bg_color = module_color.darkened(0.62)
+				border_color = module_color
+			cell.add_theme_stylebox_override("panel", _make_panel_style(bg_color, border_color, 1, 4))
+			grid.add_child(cell)
+	root.add_child(grid)
+	var note: Label = Label.new()
+	note.text = "Projection preview"
+	_apply_label_style(note, true, false)
+	root.add_child(note)
+	panel.add_child(root)
+	return panel
+
+
+func _create_overlay_module_preview(module: BipobModule) -> Control:
+	var panel: PanelContainer = PanelContainer.new()
+	_apply_dark_panel_style(panel)
+	var root: VBoxContainer = VBoxContainer.new()
+	var title: Label = Label.new()
+	title.text = "OVERLAY PATH"
+	_apply_label_style(title, false, true)
+	root.add_child(title)
+	var type_label: Label = Label.new()
+	var overlay_type: String = "Liquid Path"
+	if module != null and module.id.contains("air_duct"):
+		overlay_type = "Duct Path"
+	type_label.text = overlay_type
+	_apply_label_style(type_label)
+	root.add_child(type_label)
+	var note: Label = Label.new()
+	note.text = "Does not consume Internal Volume"
+	_apply_label_style(note, true, false)
+	root.add_child(note)
+	panel.add_child(root)
+	return panel
+
+
+func _create_selected_module_detail_card() -> Control:
+	var panel: PanelContainer = PanelContainer.new()
+	_apply_panel_style(panel, true)
+	var root: VBoxContainer = VBoxContainer.new()
+	root.add_theme_constant_override("separation", 8)
+	var title: Label = Label.new()
+	title.text = "SELECTED MODULE"
+	_apply_label_style(title, false, true)
+	root.add_child(title)
+	var module: BipobModule = _get_selected_box_storage_module()
+	if module == null:
+		var empty_label: Label = Label.new()
+		empty_label.text = "No module selected."
+		_apply_label_style(empty_label, true, false)
+		root.add_child(empty_label)
+		panel.add_child(root)
+		return panel
+	var header_row: HBoxContainer = HBoxContainer.new()
+	header_row.add_theme_constant_override("separation", 8)
+	var icon: Control = _create_module_icon_control(module, SELECTED_MODULE_ICON_SIZE)
+	header_row.add_child(icon)
+	var name_box: VBoxContainer = VBoxContainer.new()
+	var name_label: Label = Label.new()
+	name_label.text = bipob.get_module_display_name(module)
+	_apply_label_style(name_label)
+	name_box.add_child(name_label)
+	var visual_label: Label = Label.new()
+	visual_label.text = _get_module_visual_summary_text(module)
+	_apply_label_style(visual_label, true, false)
+	name_box.add_child(visual_label)
+	var availability_label: Label = Label.new()
+	availability_label.text = _get_selected_module_availability_text(module)
+	_apply_label_style(availability_label, true, false)
+	name_box.add_child(availability_label)
+	header_row.add_child(name_box)
+	root.add_child(header_row)
+	if bipob.is_external_module(module):
+		root.add_child(_create_external_footprint_preview(module))
+	elif bipob.is_internal_module(module):
+		root.add_child(_create_internal_volume_preview(module))
+	elif bipob.is_internal_overlay_module(module):
+		root.add_child(_create_overlay_module_preview(module))
+	var stats_panel: PanelContainer = PanelContainer.new()
+	_apply_dark_panel_style(stats_panel)
+	var stats_box: VBoxContainer = VBoxContainer.new()
+	var stats_title: Label = Label.new()
+	stats_title.text = "CHARACTERISTICS"
+	_apply_label_style(stats_title, false, true)
+	stats_box.add_child(stats_title)
+	var stat_lines: Array[String] = _get_selected_module_stat_lines(module)
+	for line in stat_lines:
+		var stat_label: Label = Label.new()
+		stat_label.text = line
+		_apply_label_style(stat_label, true, false)
+		stats_box.add_child(stat_label)
+	stats_panel.add_child(stats_box)
+	root.add_child(stats_panel)
+	var description_panel: PanelContainer = PanelContainer.new()
+	_apply_dark_panel_style(description_panel)
+	var desc_box: VBoxContainer = VBoxContainer.new()
+	var desc_title: Label = Label.new()
+	desc_title.text = "DESCRIPTION"
+	_apply_label_style(desc_title, false, true)
+	desc_box.add_child(desc_title)
+	var desc_label: Label = Label.new()
+	desc_label.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	var description_value: Variant = module.get("description")
+	desc_label.text = String(description_value) if description_value != null else ""
+	if desc_label.text.is_empty():
+		desc_label.text = "No description."
+	_apply_label_style(desc_label, true, false)
+	desc_box.add_child(desc_label)
+	description_panel.add_child(desc_box)
+	root.add_child(description_panel)
+	panel.add_child(root)
+	return panel
 
 
 
