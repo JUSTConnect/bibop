@@ -603,6 +603,8 @@ func update_status() -> void:
 	var held_text := "empty"
 	if bipob.held_module != null:
 		held_text = bipob.get_module_display_name(bipob.held_module)
+	elif bipob.current_mission_index == 7 and bipob.mission7_is_dragging_cable:
+		held_text = "Cable End"
 	var storage_text := "empty"
 	if bipob.stored_physical_module != null:
 		storage_text = bipob.get_module_display_name(bipob.stored_physical_module)
@@ -640,6 +642,8 @@ func update_status() -> void:
 		var mission8_status := str(bipob.get_mission8_airflow_status_text())
 		if not mission8_status.is_empty():
 			status_label.text += " | %s" % mission8_status
+	if bipob.current_mission_index == 7 and bipob.has_method("get_mission7_cable_status_text"):
+		status_label.text += " | %s" % str(bipob.get_mission7_cable_status_text())
 
 
 func update_diagnostic_status() -> void:

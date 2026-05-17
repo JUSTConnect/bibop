@@ -21,6 +21,10 @@ const TILE_PLATFORM_CONTROL_LEFT := 16
 const TILE_PLATFORM_CONTROL_RIGHT := 17
 const TILE_FAN_SPEED_UP_CONTROL := 18
 const TILE_FAN_SPEED_DOWN_CONTROL := 19
+const TILE_CABLE_REEL := 20
+const TILE_SOCKET := 21
+const TILE_POWERED_GATE := 22
+const TILE_CABLE := 23
 
 @export var cell_size: int = 64
 @export var fog_enabled: bool = true
@@ -69,6 +73,10 @@ var tile_colors := {
 	TILE_PLATFORM_CONTROL_RIGHT: Color(0.8, 0.9, 0.24),
 	TILE_FAN_SPEED_UP_CONTROL: Color(0.2, 0.82, 1.0),
 	TILE_FAN_SPEED_DOWN_CONTROL: Color(0.33, 0.24, 0.72),
+	TILE_CABLE_REEL: Color(0.95, 0.62, 0.2),
+	TILE_SOCKET: Color(0.2, 0.55, 0.95),
+	TILE_POWERED_GATE: Color(0.92, 0.38, 0.2),
+	TILE_CABLE: Color(0.22, 0.88, 0.72),
 }
 
 func _ready() -> void:
@@ -124,6 +132,18 @@ func get_mission8_layout() -> Array:
 		[1, 1, 1, 1, 1, 1, 1, 1],
 	]
 
+func get_mission7_layout() -> Array:
+	return [
+		[1, 1, 1, 1, 1, 1, 1, 1],
+		[1, 0, TILE_CABLE_REEL, 0, 0, 0, 0, 1],
+		[1, 0, 1, 1, 1, 1, 0, 1],
+		[1, 0, 0, 0, 0, TILE_SOCKET, 0, 1],
+		[1, 1, 1, 0, 1, 1, TILE_POWERED_GATE, 1],
+		[1, 0, 0, 0, 0, 0, 0, 1],
+		[1, 0, 1, 1, 1, 1, 4, 1],
+		[1, 1, 1, 1, 1, 1, 1, 1],
+	]
+
 func reset_mission_layout(mission_index: int) -> void:
 	if mission_initial_map_data.is_empty():
 		cache_initial_mission_layout()
@@ -132,6 +152,8 @@ func reset_mission_layout(mission_index: int) -> void:
 		map_data = duplicate_map_layout(get_mission4_layout())
 	elif mission_index == 6:
 		map_data = duplicate_map_layout(get_mission6_layout())
+	elif mission_index == 7:
+		map_data = duplicate_map_layout(get_mission7_layout())
 	elif mission_index == 8:
 		map_data = duplicate_map_layout(get_mission8_layout())
 	else:
@@ -163,6 +185,13 @@ func _draw() -> void:
 				var strip_rect := Rect2(rect.get_center() - strip_size * 0.5, strip_size)
 				draw_rect(strip_rect, Color(0.56, 0.88, 1.0, 0.72), true)
 				draw_circle(rect.get_center(), cell_size * 0.12, Color(0.78, 0.95, 1.0, 0.85))
+			if tile_type == TILE_CABLE:
+				var cable_floor_color: Color = tile_colors.get(TILE_FLOOR, Color(0.16, 0.16, 0.18))
+				draw_rect(rect, cable_floor_color, true)
+				var cable_strip_size := Vector2(cell_size * 0.46, cell_size * 0.1)
+				var cable_strip_rect := Rect2(rect.get_center() - cable_strip_size * 0.5, cable_strip_size)
+				draw_rect(cable_strip_rect, Color(0.22, 0.88, 0.72, 0.92), true)
+				draw_circle(rect.get_center(), cell_size * 0.09, Color(0.38, 0.97, 0.84, 0.96))
 			draw_rect(rect, Color(0.35, 0.35, 0.38), false, 2.0)
 
 			if grid_position == fan_platform_marker_position:
@@ -248,6 +277,12 @@ func is_walkable(grid_position: Vector2i) -> bool:
 		return false
 
 	if tile_type == TILE_FAN_SPEED_DOWN_CONTROL:
+		return false
+	if tile_type == TILE_CABLE_REEL:
+		return false
+	if tile_type == TILE_SOCKET:
+		return false
+	if tile_type == TILE_POWERED_GATE:
 		return false
 
 	return true
