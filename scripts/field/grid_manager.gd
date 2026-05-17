@@ -323,8 +323,8 @@ func set_tile(grid_position: Vector2i, tile_type: int) -> void:
 	queue_redraw()
 
 
-func set_fan_platform_marker(position: Vector2i, direction_vector: Vector2i) -> void:
-	fan_platform_marker_position = position
+func set_fan_platform_marker(marker_position: Vector2i, direction_vector: Vector2i) -> void:
+	fan_platform_marker_position = marker_position
 	fan_platform_marker_direction = direction_vector
 	queue_redraw()
 
@@ -448,27 +448,27 @@ func get_visible_cells() -> Array[Vector2i]:
 				cells.append(Vector2i(x, y))
 	return cells
 
-func get_position_key(position: Vector2i) -> String:
-	return str(position.x) + "," + str(position.y)
+func get_position_key(cell_position_arg: Vector2i) -> String:
+	return str(cell_position_arg.x) + "," + str(cell_position_arg.y)
 
-func is_hidden_route_node_discovered(position: Vector2i) -> bool:
-	return discovered_hidden_route_nodes.has(get_position_key(position))
+func is_hidden_route_node_discovered(cell_position_arg: Vector2i) -> bool:
+	return discovered_hidden_route_nodes.has(get_position_key(cell_position_arg))
 
-func discover_hidden_route_node(position: Vector2i) -> void:
-	if get_tile(position) != TILE_HIDDEN_ROUTE_NODE:
+func discover_hidden_route_node(cell_position_arg: Vector2i) -> void:
+	if get_tile(cell_position_arg) != TILE_HIDDEN_ROUTE_NODE:
 		return
-	discovered_hidden_route_nodes[get_position_key(position)] = true
+	discovered_hidden_route_nodes[get_position_key(cell_position_arg)] = true
 	queue_redraw()
 
 func reset_hidden_discoveries() -> void:
 	discovered_hidden_route_nodes.clear()
 	queue_redraw()
 
-func place_debug_hidden_route_node(position: Vector2i) -> void:
-	if not is_in_bounds(position):
+func place_debug_hidden_route_node(cell_position_arg: Vector2i) -> void:
+	if not is_in_bounds(cell_position_arg):
 		return
-	set_tile(position, TILE_HIDDEN_ROUTE_NODE)
-	discovered_hidden_route_nodes.erase(get_position_key(position))
+	set_tile(cell_position_arg, TILE_HIDDEN_ROUTE_NODE)
+	discovered_hidden_route_nodes.erase(get_position_key(cell_position_arg))
 	queue_redraw()
 	
 func is_cell_visible(grid_position: Vector2i) -> bool:
