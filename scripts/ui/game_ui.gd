@@ -519,12 +519,12 @@ func clamp_external_selection() -> void:
 		selected_external_side_index = 0
 
 	var side_id := get_selected_external_side_id()
-	var side_size := bipob.get_external_side_size(side_id)
+	var side_size: Vector2i = bipob.get_external_side_size(side_id)
 	selected_external_slot_position.x = clampi(selected_external_slot_position.x, 0, side_size.x - 1)
 	selected_external_slot_position.y = clampi(selected_external_slot_position.y, 0, side_size.y - 1)
 
 func _get_external_slot_mark(module: BipobModule) -> String:
-	var module_name := bipob.get_module_display_name(module).to_upper()
+	var module_name: String = bipob.get_module_display_name(module).to_upper()
 	if module_name.is_empty():
 		return "M"
 	return module_name.substr(0, 1)
@@ -683,7 +683,7 @@ func get_box_modules_menu_text() -> String:
 func get_box_external_menu_text() -> String:
 	clamp_external_selection()
 	var side_id := get_selected_external_side_id()
-	var side_size := bipob.get_external_side_size(side_id)
+	var side_size: Vector2i = bipob.get_external_side_size(side_id)
 	var content_lines: Array[String] = []
 	content_lines.append("Side: %s" % side_id)
 	content_lines.append("Selected slot: %d,%d" % [selected_external_slot_position.x, selected_external_slot_position.y])
@@ -695,12 +695,13 @@ func get_box_external_menu_text() -> String:
 		var row_cells: Array[String] = []
 		for x in range(side_size.x):
 			var slot_pos := Vector2i(x, y)
-			var module := bipob.get_external_module_at(side_id, slot_pos)
-			var is_selected := slot_pos == selected_external_slot_position
+			var module: BipobModule = bipob.get_external_module_at(side_id, slot_pos)
+			var is_selected: bool = slot_pos == selected_external_slot_position
+
 			if module == null:
 				row_cells.append("[>]" if is_selected else "[ ]")
 			else:
-				var mark := _get_external_slot_mark(module)
+				var mark: String = _get_external_slot_mark(module)
 				row_cells.append("[>%s]" % mark if is_selected else "[%s]" % mark)
 		content_lines.append("".join(row_cells))
 
@@ -803,7 +804,7 @@ func _move_external_slot_by(delta: int) -> void:
 		return
 	clamp_external_selection()
 	var side_id := get_selected_external_side_id()
-	var side_size := bipob.get_external_side_size(side_id)
+	var side_size: Vector2i = bipob.get_external_side_size(side_id)
 	var width := side_size.x
 	var total_slots := width * side_size.y
 	if total_slots <= 0:
