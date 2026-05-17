@@ -43,7 +43,7 @@ var actions_left: int = 0
 var mission_finished: bool = false
 var sector_completed: bool = false
 var current_mission_index: int = 1
-var max_mission_index: int = 6
+var max_mission_index: int = 6 # TODO(BIB-361): Mission 7 is not implemented yet; keep progression capped until Mission 7 exists.
 var mission4_hidden_route_node_discovered: bool = false
 var has_key: bool = false
 var has_info_key: bool = false
@@ -67,6 +67,16 @@ var mission_start_held_module: BipobModule = null
 var mission_start_stored_physical_module: BipobModule = null
 var missing_visor_hint_shown: bool = false
 var active_hidden_route_node_position: Vector2i = Vector2i(-1, -1)
+var mission8_fan_direction: Direction = Direction.EAST
+var mission8_fan_speed: int = 0
+var mission8_terminal_cooled: bool = false
+var mission8_terminal_hacked: bool = false
+var mission8_fan_platform_position: Vector2i = Vector2i(-1, -1)
+var mission8_platform_control_position: Vector2i = Vector2i(-1, -1)
+var mission8_fan_control_position: Vector2i = Vector2i(-1, -1)
+var mission8_terminal_position: Vector2i = Vector2i(-1, -1)
+var mission8_door_position: Vector2i = Vector2i(-1, -1)
+var mission8_airflow_cells: Array[Vector2i] = []
 
 @onready var grid_manager: GridManager = get_node("../Field")
 @onready var mission_label: Label = get_node("../UI/MissionLabel")
@@ -269,6 +279,8 @@ func get_mission_name(mission_index: int) -> String:
 			return "Mission 5 — Route Gate"
 		6:
 			return "Mission 6 — Hot Node"
+		8:
+			return "Mission 8 — Airflow Terminal"
 		_:
 			return "Unknown Mission"
 
@@ -286,6 +298,8 @@ func get_mission_goal_hint(mission_index: int) -> String:
 			return "Mission 5: use Route Data to unlock the Route Gate and reach the exit."
 		6:
 			return "Mission 6: scan the hot node, manage the risk, then hack it to open the path."
+		8:
+			return "Mission 8: cool the terminal with directed airflow, then hack it and reach the exit."
 		_:
 			return "No mission goal available."
 
@@ -328,6 +342,8 @@ func start_mission(mission_index: int, save_snapshot: bool = true) -> void:
 			setup_mission4_field_modules()
 		elif debug_place_mission4_field_modules:
 			place_debug_mission4_field_modules()
+		if current_mission_index == 8:
+			setup_mission8()
 		grid_manager.reset_fog_of_war()
 		if current_mission_index != 4 and debug_place_hidden_route_node:
 			place_debug_hidden_route_node()
@@ -884,6 +900,14 @@ func try_move_to(target_position: Vector2i) -> bool:
 			hint_requested.emit("Digital door is locked. Use Scan Device, then Hack Device.")
 		elif target_tile == GridManager.TILE_HOT_NODE:
 			hint_requested.emit("Hot Node blocks the route. Scan it first.")
+		elif target_tile == GridManager.TILE_AIRFLOW_TERMINAL:
+			hint_requested.emit("Terminal blocks the route. Scan it first.")
+		elif target_tile == GridManager.TILE_FAN_PLATFORM:
+			hint_requested.emit("Fan platform blocks the path. Use controls to rotate airflow.")
+		elif target_tile == GridManager.TILE_PLATFORM_CONTROL:
+			hint_requested.emit("Use Interact to rotate the fan platform.")
+		elif target_tile == GridManager.TILE_FAN_CONTROL:
+			hint_requested.emit("Use Interact to change fan speed.")
 		else:
 			hint_requested.emit("Path is blocked.")
 
@@ -935,11 +959,15 @@ func complete_mission() -> void:
 		hint_requested.emit("Mission 4 complete. Return to the box, then start Mission 5.")
 	elif current_mission_index == 5:
 		hint_requested.emit("Mission 5 complete. Return to the box, then start Mission 6.")
-	else:
+	elif current_mission_index == 6:
 		hint_requested.emit("Mission 6 complete. Return to the box.")
-	if current_mission_index == max_mission_index:
+	elif current_mission_index == 8:
+		hint_requested.emit("Mission 8 complete. Return to the box.")
+	else:
+		hint_requested.emit("Mission complete. Return to the box.")
+	if current_mission_index == max_mission_index or current_mission_index == 8:
 		sector_completed = true
-		hint_requested.emit("Sector-01 complete. Hot Node stabilized.")
+		hint_requested.emit("Sector-01 complete. Airflow Terminal solved.")
 		last_diagnostic_result = null
 
 	if stored_module_this_mission:
@@ -1071,6 +1099,13 @@ func get_device_definition_for_tile(tile_type: int) -> DeviceDefinition:
 			definition.difficulty_level = 2
 			definition.supported_action = "stabilize_hot_node"
 			return definition
+		GridManager.TILE_AIRFLOW_TERMINAL:
+			definition.device_type = "airflow_terminal"
+			definition.display_name = "Airflow Terminal"
+			definition.required_interface = "interface_v1"
+			definition.difficulty_level = 2
+			definition.supported_action = "unlock_airflow_terminal"
+			return definition
 		_:
 			return null
 
@@ -1121,6 +1156,22 @@ func evaluate_device_capability(device: DeviceDefinition) -> DiagnosticResult:
 		result.supported_action = device.supported_action
 		result.reason = "Missing required interface: " + device.required_interface
 		result.recommendation = "Install Interface V1 or compatible module."
+		result.estimated_risk = "low"
+		return result
+
+	if device.device_type == "airflow_terminal":
+		result.device_type = device.device_type
+		result.device_name = device.display_name
+		result.supported_action = device.supported_action
+		if not mission8_terminal_cooled:
+			result.status = DiagnosticResult.STATUS_BLOCKED
+			result.reason = "Terminal heat is too high without airflow."
+			result.recommendation = "Rotate the fan platform and increase fan speed until airflow reaches the terminal."
+			result.estimated_risk = "high"
+			return result
+		result.status = DiagnosticResult.STATUS_READY
+		result.reason = "Terminal cooled by directed airflow."
+		result.recommendation = "Proceed with Hack Device."
 		result.estimated_risk = "low"
 		return result
 
@@ -1278,6 +1329,16 @@ func hack_device() -> void:
 			hint_requested.emit("Digital door opened. Info-Key remains stored.")
 			status_changed.emit()
 			return
+		"unlock_airflow_terminal":
+			if not can_spend_action(1, 1):
+				return
+			spend_action(1, 1)
+			mission8_terminal_hacked = true
+			if grid_manager != null and grid_manager.is_in_bounds(mission8_door_position):
+				grid_manager.set_tile(mission8_door_position, GridManager.TILE_FLOOR)
+			hint_requested.emit("Airflow Terminal hacked. Path opened.")
+			status_changed.emit()
+			return
 		"stabilize_hot_node":
 			var energy_cost := 1
 			if last_diagnostic_result.status == DiagnosticResult.STATUS_RISKY:
@@ -1335,6 +1396,16 @@ func interact() -> void:
 		hint_requested.emit("Hot Node is a digital device. Use Scan Device, then Hack Device.")
 		status_changed.emit()
 		return
+	if target_tile == GridManager.TILE_AIRFLOW_TERMINAL:
+		hint_requested.emit("Airflow Terminal is a digital device. Use Scan Device, then Hack Device.")
+		status_changed.emit()
+		return
+	if target_tile == GridManager.TILE_PLATFORM_CONTROL:
+		interact_mission8_platform_control()
+		return
+	if target_tile == GridManager.TILE_FAN_CONTROL:
+		interact_mission8_fan_control()
+		return
 	
 	match target_tile:
 		GridManager.TILE_COMPONENT:
@@ -1361,6 +1432,90 @@ func interact() -> void:
 		_:
 			print("Nothing to interact with at: ", target_position)
 			hint_requested.emit("Nothing to interact with. Face a key, door, or terminal and press E.")
+
+func setup_mission8() -> void:
+	mission8_fan_platform_position = Vector2i(4, 2)
+	mission8_platform_control_position = Vector2i(2, 2)
+	mission8_fan_control_position = Vector2i(2, 4)
+	mission8_terminal_position = Vector2i(6, 3)
+	mission8_door_position = Vector2i(6, 4)
+	mission8_fan_direction = Direction.EAST
+	mission8_fan_speed = 0
+	mission8_terminal_cooled = false
+	mission8_terminal_hacked = false
+	mission8_airflow_cells.clear()
+	update_mission8_airflow()
+
+func get_direction_name(value: Direction) -> String:
+	match value:
+		Direction.NORTH:
+			return "NORTH"
+		Direction.EAST:
+			return "EAST"
+		Direction.SOUTH:
+			return "SOUTH"
+		Direction.WEST:
+			return "WEST"
+		_:
+			return "UNKNOWN"
+
+func interact_mission8_platform_control() -> void:
+	if current_mission_index != 8:
+		hint_requested.emit("Platform control is inactive in this mission.")
+		status_changed.emit()
+		return
+	if not can_spend_action(1, 1):
+		return
+	mission8_fan_direction = Direction.values()[(int(mission8_fan_direction) + 1) % 4]
+	spend_action(1, 1)
+	update_mission8_airflow()
+	hint_requested.emit("Fan platform rotated. Airflow direction: %s." % get_direction_name(mission8_fan_direction))
+	status_changed.emit()
+
+func interact_mission8_fan_control() -> void:
+	if current_mission_index != 8:
+		hint_requested.emit("Fan control is inactive in this mission.")
+		status_changed.emit()
+		return
+	if not can_spend_action(1, 1):
+		return
+	mission8_fan_speed = (mission8_fan_speed + 1) % 4
+	spend_action(1, 1)
+	update_mission8_airflow()
+	hint_requested.emit("Fan speed set to %d." % mission8_fan_speed)
+	status_changed.emit()
+
+func update_mission8_airflow() -> void:
+	if grid_manager == null:
+		return
+	for cell in mission8_airflow_cells:
+		if not grid_manager.is_in_bounds(cell):
+			continue
+		if grid_manager.get_tile(cell) == GridManager.TILE_AIRFLOW:
+			grid_manager.set_tile(cell, GridManager.TILE_FLOOR)
+	mission8_airflow_cells.clear()
+	mission8_terminal_cooled = false
+	if mission8_fan_speed <= 0:
+		return
+
+	var airflow_ranges := {1: 2, 2: 4, 3: 6}
+	var max_range: int = int(airflow_ranges.get(mission8_fan_speed, 0))
+	var direction_vector := get_direction_vector(mission8_fan_direction)
+	var current_position := mission8_fan_platform_position + direction_vector
+
+	for _i in range(max_range):
+		if not grid_manager.is_in_bounds(current_position):
+			break
+		if current_position == mission8_terminal_position:
+			mission8_terminal_cooled = true
+			break
+		var tile := grid_manager.get_tile(current_position)
+		if tile == GridManager.TILE_WALL or tile == GridManager.TILE_DIGITAL_DOOR or tile == GridManager.TILE_ROUTE_GATE:
+			break
+		if tile == GridManager.TILE_FLOOR:
+			grid_manager.set_tile(current_position, GridManager.TILE_AIRFLOW)
+			mission8_airflow_cells.append(current_position)
+		current_position += direction_vector
 
 func create_debug_field_component() -> BipobModule:
 	var module := BipobModule.new()
