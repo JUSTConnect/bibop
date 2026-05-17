@@ -2917,7 +2917,99 @@ func get_external_device_summary_text() -> String:
 	if lines.size() == 1:
 		return "External devices: none"
 	return "\n".join(lines)
+func get_overlay_heat_delta_for_module(module: BipobModule) -> int:
+	if module == null:
+		return 0
 
+	var base_heat: int = get_preview_heat_after_cooling_for_internal_module(module)
+	var overlay_heat: int = get_hypothetical_heat_after_overlay_for_module(module)
+
+	return overlay_heat - base_heat
+
+
+func does_overlay_improve_module_heat(module: BipobModule) -> bool:
+	return get_overlay_heat_delta_for_module(module) < 0
+
+
+func get_overlay_heat_diff_line(module: BipobModule) -> String:
+	if module == null:
+		return ""
+
+	var base_heat: int = get_preview_heat_after_cooling_for_internal_module(module)
+	var overlay_heat: int = get_hypothetical_heat_after_overlay_for_module(module)
+	var delta: int = overlay_heat - base_heat
+
+	var delta_text: String = "0"
+	if delta < 0:
+		delta_text = "%d" % delta
+	elif delta > 0:
+		delta_text = "+%d" % delta
+
+	return "%s: base %d -> overlay %d (%s)" % [
+		get_module_display_name(module),
+		base_heat,
+		overlay_heat,
+		delta_text
+	]
+
+
+func get_overlay_heat_diff_summary_text(show_unchanged: bool = false) -> String:
+	var lines: Array[String] = []
+	lines.append("Overlay Diff")
+
+	var modules: Array[BipobModule] = get_unique_internal_modules()
+	if modules.is_empty():
+		lines.append("none")
+		lines.append("")
+		lines.append("Note: Overlay Diff is hypothetical only.")
+		lines.append("Base Thermal Preview is unchanged.")
+		return "\n".join(lines)
+
+	var changed_count: int = 0
+
+	for module in modules:
+		if module == null:
+			continue
+
+		var delta: int = get_overlay_heat_delta_for_module(module)
+
+		if delta == 0 and not show_unchanged:
+			continue
+
+		if delta != 0:
+			changed_count += 1
+
+		lines.append("- " + get_overlay_heat_diff_line(module))
+
+	if lines.size() == 1:
+		lines.append("none")
+
+	lines.append("")
+	lines.append("Changed modules: %d" % changed_count)
+	lines.append("Note: Overlay Diff is hypothetical only.")
+	lines.append("Base Thermal Preview is unchanged.")
+
+	return "\n".join(lines)
+
+
+func get_overlay_heat_diff_compact_text() -> String:
+	var changed_count: int = 0
+	var best_delta: int = 0
+
+	for module in get_unique_internal_modules():
+		if module == null:
+			continue
+
+		var delta: int = get_overlay_heat_delta_for_module(module)
+
+		if delta < 0:
+			changed_count += 1
+			best_delta = mini(best_delta, delta)
+
+	return "Overlay Diff: changed %d / best %d" % [
+		changed_count,
+		best_delta
+	]
 func get_external_slot_key(side_id: String, slot_position: Vector2i) -> String:
 	return "%s:%d,%d" % [side_id, slot_position.x, slot_position.y]
 
