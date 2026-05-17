@@ -749,6 +749,50 @@ func remove_internal_module(cell: Vector3i) -> bool:
 	status_changed.emit()
 	return true
 
+func get_unique_internal_modules() -> Array[BipobModule]:
+	var unique_modules: Array[BipobModule] = []
+	for record in placed_internal_modules:
+		var module: BipobModule = record.get("module", null)
+		if module == null:
+			continue
+		if unique_modules.has(module):
+			continue
+		unique_modules.append(module)
+	return unique_modules
+
+func has_internal_role(role_id: String) -> bool:
+	if role_id.is_empty():
+		return false
+	return not get_internal_modules_by_role(role_id).is_empty()
+
+func get_internal_modules_by_role(role_id: String) -> Array[BipobModule]:
+	var modules_by_role: Array[BipobModule] = []
+	if role_id.is_empty():
+		return modules_by_role
+	for module in get_unique_internal_modules():
+		if module == null:
+			continue
+		if module.internal_role == role_id:
+			modules_by_role.append(module)
+	return modules_by_role
+
+func get_internal_connection_scheme_summary_text() -> String:
+	var lines: Array[String] = []
+	lines.append("Internal connection scheme:")
+	lines.append("Power:")
+	lines.append("Battery -> Power Block -> all devices")
+	lines.append("Data:")
+	lines.append("Internal devices -> Internal Interface")
+	lines.append("External devices -> External Interface")
+	lines.append("Internal Interface <-> External Interface")
+	lines.append("")
+	lines.append("Installed internal roles:")
+	lines.append("Battery: %s" % ("yes" if has_internal_role("battery") else "no"))
+	lines.append("Power Block: %s" % ("yes" if has_internal_role("power_block") else "no"))
+	lines.append("Internal Interface: %s" % ("yes" if has_internal_role("internal_interface") else "no"))
+	lines.append("External Interface: %s" % ("yes" if has_internal_role("external_interface") else "no"))
+	return "\n".join(lines)
+
 func get_external_slot_key(side_id: String, slot_position: Vector2i) -> String:
 	return "%s:%d,%d" % [side_id, slot_position.x, slot_position.y]
 
@@ -1110,7 +1154,27 @@ func create_internal_module(module_id: String, module_name: String, module_size:
 	module.size_y = module_size.y
 	module.size_z = module_size.z
 	module.internal_rotatable = true
+	module.internal_role = get_internal_role_for_module_id(module_id)
 	return module
+
+func get_internal_role_for_module_id(module_id: String) -> String:
+	match module_id:
+		"battery_v1_a", "battery_v1_b":
+			return "battery"
+		"power_block_v1":
+			return "power_block"
+		"int_interface_v1":
+			return "internal_interface"
+		"ext_interface_internal_v1":
+			return "external_interface"
+		"processor_v1":
+			return "processor"
+		"memory_v1":
+			return "memory"
+		"hard_drive_v1":
+			return "storage"
+		_:
+			return "none"
 
 func add_internal_mvp_modules_to_box() -> void:
 	var internal_specs: Array[Dictionary] = [
