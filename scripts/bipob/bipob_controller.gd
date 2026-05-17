@@ -701,6 +701,41 @@ func place_external_module(module: BipobModule, side_id: String, slot_position: 
 	status_changed.emit()
 	return true
 
+func place_external_module_from_box_storage(storage_index: int, side_id: String, slot_position: Vector2i) -> bool:
+	if storage_index < 0 or storage_index >= box_storage.size():
+		hint_requested.emit("No module in that Box slot.")
+		status_changed.emit()
+		return false
+
+	var module: BipobModule = box_storage[storage_index]
+	if module == null:
+		box_storage.remove_at(storage_index)
+		hint_requested.emit("Removed empty module from Box Storage.")
+		status_changed.emit()
+		return false
+
+	if not is_external_module(module):
+		hint_requested.emit("Module cannot be installed outside: " + get_module_display_name(module))
+		status_changed.emit()
+		return false
+
+	if not is_external_slot_in_bounds(side_id, slot_position):
+		hint_requested.emit("External slot is out of bounds.")
+		status_changed.emit()
+		return false
+
+	if not is_external_slot_empty(side_id, slot_position):
+		hint_requested.emit("External slot is occupied.")
+		status_changed.emit()
+		return false
+
+	box_storage.remove_at(storage_index)
+	external_modules_by_slot[get_external_slot_key(side_id, slot_position)] = module
+
+	hint_requested.emit("External module installed: " + get_module_display_name(module))
+	status_changed.emit()
+	return true
+
 func remove_external_module(side_id: String, slot_position: Vector2i) -> BipobModule:
 	if not is_external_slot_in_bounds(side_id, slot_position):
 		hint_requested.emit("External slot is out of bounds.")
@@ -718,6 +753,28 @@ func remove_external_module(side_id: String, slot_position: Vector2i) -> BipobMo
 	hint_requested.emit("External module removed: " + get_module_display_name(module))
 	status_changed.emit()
 	return module
+
+func remove_external_module_to_box_storage(side_id: String, slot_position: Vector2i) -> bool:
+	if not is_external_slot_in_bounds(side_id, slot_position):
+		hint_requested.emit("External slot is out of bounds.")
+		status_changed.emit()
+		return false
+
+	var key := get_external_slot_key(side_id, slot_position)
+	if not external_modules_by_slot.has(key):
+		hint_requested.emit("External slot is empty.")
+		status_changed.emit()
+		return false
+
+	var module: BipobModule = external_modules_by_slot[key]
+	external_modules_by_slot.erase(key)
+
+	if module != null and not box_storage.has(module):
+		box_storage.append(module)
+
+	hint_requested.emit("External module removed to Box: " + get_module_display_name(module))
+	status_changed.emit()
+	return true
 
 func get_external_build_summary_text() -> String:
 	if external_modules_by_slot.is_empty():
