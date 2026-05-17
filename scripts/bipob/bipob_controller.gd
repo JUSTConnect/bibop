@@ -13,6 +13,22 @@ enum Direction {
 	WEST
 }
 
+const EXTERNAL_SIDE_TOP := "top"
+const EXTERNAL_SIDE_BOTTOM := "bottom"
+const EXTERNAL_SIDE_LEFT := "left"
+const EXTERNAL_SIDE_RIGHT := "right"
+const EXTERNAL_SIDE_FRONT := "front"
+const EXTERNAL_SIDE_BACK := "back"
+
+const EXTERNAL_SIDE_ORDER := [
+	EXTERNAL_SIDE_TOP,
+	EXTERNAL_SIDE_FRONT,
+	EXTERNAL_SIDE_LEFT,
+	EXTERNAL_SIDE_RIGHT,
+	EXTERNAL_SIDE_BACK,
+	EXTERNAL_SIDE_BOTTOM
+]
+
 @export var start_grid_position := Vector2i(1, 1)
 
 @export var max_energy: int = 50
@@ -49,6 +65,7 @@ var has_key: bool = false
 var has_info_key: bool = false
 var installed_modules: Array[BipobModule] = []
 var box_storage: Array[BipobModule] = []
+var external_modules_by_slot: Dictionary = {}
 var found_module: BipobModule = null
 var held_module: BipobModule = null
 var stored_physical_module: BipobModule = null
@@ -597,6 +614,142 @@ func start_next_mission() -> void:
 	hint_requested.emit("Sector-01 complete. All systems cleared.")
 	status_changed.emit()
 
+func get_external_side_size(side_id: String) -> Vector2i:
+	match side_id:
+		EXTERNAL_SIDE_TOP:
+			return Vector2i(3, 3)
+		EXTERNAL_SIDE_BOTTOM:
+			return Vector2i(3, 3)
+		EXTERNAL_SIDE_LEFT:
+			return Vector2i(3, 4)
+		EXTERNAL_SIDE_RIGHT:
+			return Vector2i(3, 4)
+		EXTERNAL_SIDE_FRONT:
+			return Vector2i(3, 4)
+		EXTERNAL_SIDE_BACK:
+			return Vector2i(3, 4)
+		_:
+			return Vector2i.ZERO
+
+func get_external_slot_key(side_id: String, slot_position: Vector2i) -> String:
+	return "%s:%d,%d" % [side_id, slot_position.x, slot_position.y]
+
+func is_external_side_valid(side_id: String) -> bool:
+	return side_id in EXTERNAL_SIDE_ORDER
+
+func is_external_slot_in_bounds(side_id: String, slot_position: Vector2i) -> bool:
+	if not is_external_side_valid(side_id):
+		return false
+	var side_size := get_external_side_size(side_id)
+	return (
+		slot_position.x >= 0
+		and slot_position.y >= 0
+		and slot_position.x < side_size.x
+		and slot_position.y < side_size.y
+	)
+
+func get_external_module_at(side_id: String, slot_position: Vector2i) -> BipobModule:
+	var key := get_external_slot_key(side_id, slot_position)
+	if external_modules_by_slot.has(key):
+		return external_modules_by_slot[key]
+	return null
+
+func is_external_slot_empty(side_id: String, slot_position: Vector2i) -> bool:
+	return get_external_module_at(side_id, slot_position) == null
+
+func is_external_module(module: BipobModule) -> bool:
+	if module == null:
+		return false
+
+	if module.placement_type == "external" or module.placement_type == "any":
+		return true
+
+	var external_ids := [
+		"wheels_v1",
+		"legs_v1",
+		"tracks_v1",
+		"manipulator_v1",
+		"interface_v1",
+		"visor_v1",
+		"visor_v2"
+	]
+	return module.id in external_ids
+
+func place_external_module(module: BipobModule, side_id: String, slot_position: Vector2i) -> bool:
+	if module == null:
+		hint_requested.emit("No module selected.")
+		status_changed.emit()
+		return false
+
+	if not is_external_module(module):
+		hint_requested.emit("Module cannot be installed outside: " + get_module_display_name(module))
+		status_changed.emit()
+		return false
+
+	if not is_external_slot_in_bounds(side_id, slot_position):
+		hint_requested.emit("External slot is out of bounds.")
+		status_changed.emit()
+		return false
+
+	if not is_external_slot_empty(side_id, slot_position):
+		hint_requested.emit("External slot is occupied.")
+		status_changed.emit()
+		return false
+
+	external_modules_by_slot[get_external_slot_key(side_id, slot_position)] = module
+	hint_requested.emit("External module placed: " + get_module_display_name(module))
+	status_changed.emit()
+	return true
+
+func remove_external_module(side_id: String, slot_position: Vector2i) -> BipobModule:
+	if not is_external_slot_in_bounds(side_id, slot_position):
+		hint_requested.emit("External slot is out of bounds.")
+		status_changed.emit()
+		return null
+
+	var key := get_external_slot_key(side_id, slot_position)
+	if not external_modules_by_slot.has(key):
+		hint_requested.emit("External slot is empty.")
+		status_changed.emit()
+		return null
+
+	var module: BipobModule = external_modules_by_slot[key]
+	external_modules_by_slot.erase(key)
+	hint_requested.emit("External module removed: " + get_module_display_name(module))
+	status_changed.emit()
+	return module
+
+func get_external_build_summary_text() -> String:
+	if external_modules_by_slot.is_empty():
+		return "External build: empty"
+
+	var lines: Array[String] = ["External build:"]
+	for side_id in EXTERNAL_SIDE_ORDER:
+		var side_size := get_external_side_size(side_id)
+		var side_count := 0
+		for y in range(side_size.y):
+			for x in range(side_size.x):
+				if get_external_module_at(side_id, Vector2i(x, y)) != null:
+					side_count += 1
+		if side_count > 0:
+			lines.append("- %s: %d module(s)" % [side_id, side_count])
+
+	return "\n".join(lines)
+
+func debug_place_first_installed_external_module() -> void:
+	if installed_modules.is_empty():
+		hint_requested.emit("No installed modules to place externally.")
+		status_changed.emit()
+		return
+
+	for module in installed_modules:
+		if is_external_module(module):
+			place_external_module(module, EXTERNAL_SIDE_FRONT, Vector2i(1, 1))
+			return
+
+	hint_requested.emit("No external installed module found.")
+	status_changed.emit()
+
 func create_default_modules() -> void:
 	installed_modules.clear()
 
@@ -604,6 +757,7 @@ func create_default_modules() -> void:
 		var wheels_module := BipobModule.new()
 		wheels_module.id = "wheels_v1"
 		wheels_module.display_name = "Wheels V1"
+		wheels_module.placement_type = "external"
 		wheels_module.granted_commands = [
 			"move_forward",
 			"move_backward",
@@ -616,6 +770,7 @@ func create_default_modules() -> void:
 		var manipulator_module := BipobModule.new()
 		manipulator_module.id = "manipulator_v1"
 		manipulator_module.display_name = "Manipulator V1"
+		manipulator_module.placement_type = "external"
 		manipulator_module.granted_commands = [
 			"interact_key",
 			"open_physical_door",
@@ -626,6 +781,7 @@ func create_default_modules() -> void:
 		var interface_module := BipobModule.new()
 		interface_module.id = "interface_v1"
 		interface_module.display_name = "Interface V1"
+		interface_module.placement_type = "external"
 		interface_module.granted_commands = [
 			"read_terminal",
 			"open_digital_door",
@@ -636,6 +792,7 @@ func create_default_modules() -> void:
 		var visor_module := BipobModule.new()
 		visor_module.id = "visor_v1"
 		visor_module.display_name = "Visor V1"
+		visor_module.placement_type = "external"
 		visor_module.granted_commands = [
 			"vision",
 		]
@@ -645,6 +802,7 @@ func create_visor_v2_module() -> BipobModule:
 	var module := BipobModule.new()
 	module.id = "visor_v2"
 	module.display_name = "Visor V2"
+	module.placement_type = "external"
 	module.description = "Wide-angle visor. Expands vision width."
 	module.granted_commands = ["vision"]
 	module.vision_bonus = 0
@@ -663,6 +821,7 @@ func create_legs_v1_module() -> BipobModule:
 	var module := BipobModule.new()
 	module.id = "legs_v1"
 	module.display_name = "Legs V1"
+	module.placement_type = "external"
 	module.description = "Locomotion module. Allows crossing stepped terrain."
 	module.granted_commands = [
 		"move_forward",
