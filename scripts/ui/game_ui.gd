@@ -1177,14 +1177,21 @@ func rebuild_box_action_buttons() -> void:
 		_add_right_action_button("Next Path", Callable(self, "_on_next_overlay_pressed"))
 		_add_right_action_button("Remove Path", Callable(self, "_on_remove_selected_overlay_pressed"))
 		right_button_panel.add_spacer(false)
-		_add_right_action_group("Preview")
-		_add_right_action_button("Check", Callable(self, "_on_overlay_check_pressed"))
-		_add_right_action_button("Endpoints", Callable(self, "_on_overlay_endpoints_pressed"))
-		_add_right_action_button("Thermal", Callable(self, "_on_overlay_thermal_pressed"))
-		_add_right_action_button("Damage Plan", Callable(self, "_on_damage_plan_pressed"))
-		_add_right_action_button("Repair Rules", Callable(self, "_on_repair_rules_pressed"))
-		_add_right_action_button("Rules", Callable(self, "_on_thermal_rules_pressed"))
-		_add_right_action_button("Diff", Callable(self, "_on_overlay_effects_pressed"))
+		_add_right_action_group("Reference / Preview")
+		if bipob.has_method("get_thermal_rules_reference_text"):
+			_add_right_action_button("Thermal Rules", Callable(self, "_on_thermal_rules_pressed"))
+		if bipob.has_method("get_repair_planning_reference_text"):
+			_add_right_action_button("Repair Rules", Callable(self, "_on_repair_rules_pressed"))
+		if bipob.has_method("get_damage_planning_preview_text"):
+			_add_right_action_button("Damage Plan", Callable(self, "_on_damage_plan_pressed"))
+		if bipob.has_method("get_overlay_connectivity_preview_text"):
+			_add_right_action_button("Overlay Check", Callable(self, "_on_overlay_check_pressed"))
+		if bipob.has_method("get_overlay_endpoint_preview_text"):
+			_add_right_action_button("Endpoints", Callable(self, "_on_overlay_endpoints_pressed"))
+		if bipob.has_method("get_overlay_thermal_contribution_preview_text"):
+			_add_right_action_button("Overlay Thermal", Callable(self, "_on_overlay_thermal_pressed"))
+		if bipob.has_method("get_overlay_heat_diff_summary_text"):
+			_add_right_action_button("Overlay Diff", Callable(self, "_on_overlay_diff_pressed"))
 	else:
 		_add_box_action_button("Prev Filter", Callable(self, "_on_prev_constructor_filter_pressed"))
 		_add_box_action_button("Next Filter", Callable(self, "_on_next_constructor_filter_pressed"))
@@ -2053,10 +2060,6 @@ func _on_clear_overlay_pressed() -> void:
 	bipob.clear_selected_overlay_cells()
 	update_box_status()
 
-func _on_overlay_effects_pressed() -> void:
-	show_hint(str(bipob.get_overlay_effect_preview_text()))
-	update_box_status()
-
 func _on_overlay_check_pressed() -> void:
 	show_hint(str(bipob.get_overlay_connectivity_preview_text()))
 	update_box_status()
@@ -2079,6 +2082,10 @@ func _on_damage_plan_pressed() -> void:
 
 func _on_repair_rules_pressed() -> void:
 	show_hint(str(bipob.get_repair_planning_reference_text()))
+	update_box_status()
+
+func _on_overlay_diff_pressed() -> void:
+	show_hint(str(bipob.get_overlay_heat_diff_summary_text(false)))
 	update_box_status()
 
 func _on_prev_overlay_pressed() -> void:
