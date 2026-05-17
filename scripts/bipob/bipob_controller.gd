@@ -1023,9 +1023,28 @@ func is_external_module(module: BipobModule) -> bool:
 	return module.id in external_ids
 
 func is_internal_module(module: BipobModule) -> bool:
-	if module == null:
-		return false
-	return module.placement_type == "internal"
+	return module != null and module.placement_type == "internal"
+
+func get_internal_modules_in_box_storage() -> Array[BipobModule]:
+	var modules: Array[BipobModule] = []
+	for module in box_storage:
+		if is_internal_module(module):
+			modules.append(module)
+	return modules
+
+func get_box_storage_index_for_internal_selection(internal_index: int) -> int:
+	var current_internal_index := 0
+	for i in range(box_storage.size()):
+		var module: BipobModule = box_storage[i]
+		if not is_internal_module(module):
+			continue
+
+		if current_internal_index == internal_index:
+			return i
+
+		current_internal_index += 1
+
+	return -1
 
 func get_allowed_external_sides_for_module(module: BipobModule) -> Array[String]:
 	if module == null:

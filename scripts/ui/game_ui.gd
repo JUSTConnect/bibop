@@ -939,11 +939,44 @@ func set_box_menu_mode_internal() -> void:
 	rebuild_box_action_buttons()
 
 func _get_internal_box_modules() -> Array[BipobModule]:
-	var internal_modules: Array[BipobModule] = []
-	for module in bipob.box_storage:
-		if bipob.is_internal_module(module):
-			internal_modules.append(module)
-	return internal_modules
+	if bipob == null:
+		return []
+	return bipob.get_internal_modules_in_box_storage()
+
+func get_internal_role_display_name(role_id: String) -> String:
+	match role_id:
+		"battery":
+			return "Battery"
+		"power_block":
+			return "Power Block"
+		"internal_interface":
+			return "Internal Interface"
+		"external_interface":
+			return "External Interface"
+		"processor":
+			return "Processor"
+		"memory":
+			return "Memory"
+		"storage":
+			return "Storage"
+		"cooling":
+			return "Cooling"
+		_:
+			return "None"
+
+func get_internal_module_info_text(module: BipobModule) -> String:
+	if module == null:
+		return "Selected internal module: none"
+	var base_size: Vector3i = bipob.get_internal_module_base_size(module)
+	var lines: Array[String] = []
+	lines.append("Selected internal module:")
+	lines.append(bipob.get_module_display_name(module))
+	lines.append("Size: %d×%d×%d" % [base_size.x, base_size.y, base_size.z])
+	lines.append("Role: %s" % get_internal_role_display_name(module.internal_role))
+	lines.append("Placement: %s" % module.placement_type)
+	if not module.description.is_empty():
+		lines.append("Description: %s" % module.description)
+	return "\n".join(lines)
 
 func _clamp_internal_selection() -> void:
 	var modules := _get_internal_box_modules()
@@ -1277,16 +1310,12 @@ func get_box_internal_menu_text() -> String:
 	var selected_cell_module: BipobModule = bipob.get_internal_module_at_cell(bipob.selected_internal_origin)
 
 	var lines: Array[String] = []
-	lines.append("Selected internal module: %s" % ("none" if selected_module == null else ""))
 	if selected_module == null:
-		pass
+		lines.append("Selected internal module: none")
 	else:
-		var base_size: Vector3i = bipob.get_internal_module_base_size(selected_module)
 		var rotated_size: Vector3i = bipob.get_rotated_internal_size(selected_module, bipob.selected_internal_rotation)
-		lines.append("> %s" % bipob.get_module_display_name(selected_module))
-		lines.append("Size: %d×%d×%d" % [base_size.x, base_size.y, base_size.z])
+		lines.append(get_internal_module_info_text(selected_module))
 		lines.append("Rotated: %d×%d×%d" % [rotated_size.x, rotated_size.y, rotated_size.z])
-		lines.append("Role: %s" % selected_module.internal_role)
 	lines.append("")
 	lines.append("Selected cell: %s" % ("empty" if selected_cell_module == null else "occupied by %s" % bipob.get_module_display_name(selected_cell_module)))
 	lines.append("")
@@ -1386,7 +1415,7 @@ func _move_internal_cursor(dx: int, dy: int, dz: int) -> void:
 func _on_prev_internal_box_pressed() -> void:
 	var modules := _get_internal_box_modules()
 	if modules.is_empty():
-		show_hint("No internal modules in Box storage.")
+		show_hint("No internal modules in Box Storage.")
 		return
 	bipob.selected_internal_box_index = posmod(bipob.selected_internal_box_index - 1, modules.size())
 	update_box_status()
@@ -1394,7 +1423,7 @@ func _on_prev_internal_box_pressed() -> void:
 func _on_next_internal_box_pressed() -> void:
 	var modules := _get_internal_box_modules()
 	if modules.is_empty():
-		show_hint("No internal modules in Box storage.")
+		show_hint("No internal modules in Box Storage.")
 		return
 	bipob.selected_internal_box_index = posmod(bipob.selected_internal_box_index + 1, modules.size())
 	update_box_status()
@@ -1409,9 +1438,13 @@ func _on_rotate_internal_pressed() -> void:
 	bipob.selected_internal_rotation = posmod(bipob.selected_internal_rotation + 1, 3)
 	update_box_status()
 func _on_place_internal_pressed() -> void:
-	var module := _get_selected_internal_module()
+	var raw_storage_index := bipob.get_box_storage_index_for_internal_selection(bipob.selected_internal_box_index)
+	if raw_storage_index == -1:
+		show_hint("No internal modules in Box Storage.")
+		return
+	var module: BipobModule = bipob.box_storage[raw_storage_index]
 	if module == null:
-		show_hint("No internal module selected.")
+		show_hint("No internal modules in Box Storage.")
 		return
 	if bipob.place_internal_module(module, bipob.selected_internal_origin, bipob.selected_internal_rotation):
 		update_box_status()
