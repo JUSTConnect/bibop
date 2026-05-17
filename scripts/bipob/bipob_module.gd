@@ -16,3 +16,4 @@ class_name BipobModule
 @export var size_y: int = 1
 @export var size_z: int = 1
 @export var internal_rotatable: bool = true
+@export var internal_role: String = "none"
