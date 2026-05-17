@@ -1567,7 +1567,7 @@ func get_mission7_cable_status_text() -> String:
 		return "Cable: connected"
 	if mission7_is_dragging_cable:
 		return "Cable: dragging"
-	return "Cable: not connected"
+	return "Cable: idle"
 
 func setup_mission7() -> void:
 	mission7_is_dragging_cable = false
