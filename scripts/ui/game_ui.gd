@@ -66,6 +66,7 @@ enum BoxMenuMode {
 var box_menu_mode: BoxMenuMode = BoxMenuMode.MISSION
 var selected_external_side_index: int = 1
 var selected_external_slot_position: Vector2i = Vector2i(1, 1)
+var internal_view_mode: String = "modules"
 
 func _configure_box_layout() -> void:
 	if box_screen == null:
@@ -889,9 +890,10 @@ func rebuild_box_action_buttons() -> void:
 		_add_box_action_button("Z-", Callable(self, "_on_internal_z_minus_pressed"))
 		_add_box_action_button("Z+", Callable(self, "_on_internal_z_plus_pressed"))
 		right_button_panel.add_spacer(false)
-		_add_box_action_button("Rotate Internal", Callable(self, "_on_rotate_internal_pressed"))
-		_add_box_action_button("Place Internal", Callable(self, "_on_place_internal_pressed"))
-		_add_box_action_button("Remove Internal", Callable(self, "_on_remove_internal_pressed"))
+		_add_box_action_button("Rotate", Callable(self, "_on_rotate_internal_pressed"))
+		_add_box_action_button("Place", Callable(self, "_on_place_internal_pressed"))
+		_add_box_action_button("Remove", Callable(self, "_on_remove_internal_pressed"))
+		_add_box_action_button("Toggle View", Callable(self, "_on_toggle_internal_view_pressed"))
 		_add_box_action_button("Reset Internal Cursor", Callable(self, "_on_reset_internal_cursor_pressed"))
 	else:
 		_add_box_action_button("Remove", Callable(self, "_on_remove_selected_module_pressed"))
@@ -1025,16 +1027,19 @@ func _build_internal_axis_header(prefix: String, count: int) -> String:
 	return "    %s" % " ".join(labels)
 
 func _get_internal_cell_marker(cell: Vector3i, preview_cells_map: Dictionary, can_place: bool) -> String:
+	if internal_view_mode == "thermal":
+		return _get_internal_thermal_cell_marker(cell, preview_cells_map, can_place)
+	return _get_internal_module_cell_marker(cell, preview_cells_map, can_place)
+
+func _get_internal_module_cell_marker(cell: Vector3i, preview_cells_map: Dictionary, can_place: bool) -> String:
 	var is_origin: bool = cell == bipob.selected_internal_origin
 	var occupied_module: BipobModule = bipob.get_internal_module_at_cell(cell)
 	var is_occupied: bool = occupied_module != null
 	var in_preview: bool = preview_cells_map.has(bipob.get_internal_slot_key(cell))
 	if in_preview:
 		if can_place:
-			return "[>]" if is_origin else "[*]"
-		if is_origin and is_occupied:
-			return "[>%s]" % get_internal_module_marker(occupied_module)
-		return "[!]"
+			return "[>*]" if is_origin else "[*]"
+		return "[>!]" if is_origin else "[!]"
 	if is_origin and is_occupied:
 		return "[>%s]" % get_internal_module_marker(occupied_module)
 	if is_origin:
@@ -1042,6 +1047,32 @@ func _get_internal_cell_marker(cell: Vector3i, preview_cells_map: Dictionary, ca
 	if is_occupied:
 		return "[%s]" % get_internal_module_marker(occupied_module)
 	return "[ ]"
+
+func _get_internal_thermal_cell_marker(cell: Vector3i, preview_cells_map: Dictionary, can_place: bool) -> String:
+	var is_origin: bool = cell == bipob.selected_internal_origin
+	var occupied_module: BipobModule = bipob.get_internal_module_at_cell(cell)
+	var is_occupied: bool = occupied_module != null
+	var in_preview: bool = preview_cells_map.has(bipob.get_internal_slot_key(cell))
+	if in_preview:
+		if can_place:
+			return "[>*]" if is_origin else "[*]"
+		return "[>!]" if is_origin else "[!]"
+	if is_occupied:
+		var heat: int = bipob.get_preview_heat_after_cooling_for_internal_module(occupied_module)
+		heat = clampi(heat, 0, 5)
+		return "[>%d]" % heat if is_origin else "[%d]" % heat
+	if is_origin:
+		return "[>]"
+	return "[ ]"
+
+func get_air_intake_status_text() -> String:
+	if bipob == null:
+		return "unknown"
+	if not bipob.has_air_cooling_requiring_intake():
+		return "not required"
+	if bipob.has_external_air_intake():
+		return "installed"
+	return "missing"
 
 func _on_prev_external_side_pressed() -> void:
 	if bipob == null:
@@ -1327,13 +1358,16 @@ func get_box_internal_menu_text() -> String:
 		for i in range(internal_modules.size()):
 			lines.append(("> " if i == bipob.selected_internal_box_index else "  ") + bipob.get_module_display_name(internal_modules[i]))
 	lines.append("")
+	lines.append("View mode: %s" % ("Thermal" if internal_view_mode == "thermal" else "Modules"))
+	lines.append("")
 	lines.append("Marker legend:")
-	lines.append("[ ] empty")
-	lines.append("[>] selected origin")
-	lines.append("[*] valid preview footprint")
-	lines.append("[!] invalid preview footprint")
-	lines.append("[X] occupied (default)")
-	lines.append("[>X] selected occupied cell")
+	if internal_view_mode == "thermal":
+		lines.append("[1-5] preview heat after cooling")
+		lines.append("[5] critical preview")
+		lines.append("[*] placement preview")
+		lines.append("[!] invalid")
+	else:
+		lines.append("[ ] empty, [>] origin, [*] preview, [!] invalid, [B/P/E/I/M/W/H] modules")
 	lines.append("")
 	var v: Vector3i = bipob.get_internal_volume_size()
 
@@ -1407,15 +1441,10 @@ func get_box_internal_menu_text() -> String:
 	lines.append("Thermal:")
 	var highest_heat: int = bipob.get_highest_internal_preview_heat()
 	var critical_count: int = bipob.get_critical_internal_preview_count()
-	var has_air_intake: bool = bipob.has_external_air_intake()
-	var has_air_cooling: bool = bipob.has_air_cooling_requiring_intake()
-	var air_intake_status := "not required"
-	if has_air_cooling:
-		air_intake_status = "installed" if has_air_intake else "missing"
 	lines.append("Highest heat: %d / %d" % [highest_heat, bipob.THERMAL_CRITICAL_HEAT])
 	lines.append("Critical preview: %d" % critical_count)
-	lines.append("Air intake: %s" % air_intake_status)
-	if has_air_cooling and not has_air_intake:
+	lines.append("Air intake: %s" % get_air_intake_status_text())
+	if bipob.has_air_cooling_requiring_intake() and not bipob.has_external_air_intake():
 		lines.append("Warning: intake required")
 	lines.append("")
 	lines.append("Roles:")
@@ -1483,6 +1512,10 @@ func _on_place_internal_pressed() -> void:
 func _on_remove_internal_pressed() -> void:
 	if bipob.remove_internal_module(bipob.selected_internal_origin):
 		update_box_status()
+
+func _on_toggle_internal_view_pressed() -> void:
+	internal_view_mode = "thermal" if internal_view_mode == "modules" else "modules"
+	update_box_status()
 func _on_reset_internal_cursor_pressed() -> void:
 	bipob.selected_internal_origin = Vector3i.ZERO
 	bipob.selected_internal_rotation = 0
