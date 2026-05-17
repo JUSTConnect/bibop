@@ -450,11 +450,11 @@ func find_valid_debug_hidden_route_node_position() -> Vector2i:
 		Vector2i(4, 1)
 	]
 
-	for position in preferred_positions:
+	for cell_position in preferred_positions:
 		if grid_manager == null:
 			return Vector2i(-1, -1)
-		if grid_manager.is_in_bounds(position) and grid_manager.get_tile(position) == GridManager.TILE_FLOOR:
-			return position
+		if grid_manager.is_in_bounds(cell_position) and grid_manager.get_tile(cell_position) == GridManager.TILE_FLOOR:
+			return cell_position
 
 	return Vector2i(-1, -1)
 
@@ -464,20 +464,20 @@ func place_debug_hidden_route_node() -> void:
 	if grid_manager == null:
 		return
 
-	var position := find_valid_debug_hidden_route_node_position()
-	if position == Vector2i(-1, -1):
+	var hidden_node_position := find_valid_debug_hidden_route_node_position()
+	if hidden_node_position == Vector2i(-1, -1):
 		hint_requested.emit("Debug hidden route-node was not placed: no valid floor tile.")
 		return
 
-	active_hidden_route_node_position = position
-	grid_manager.set_tile(position, GridManager.TILE_HIDDEN_ROUTE_NODE)
+	active_hidden_route_node_position = hidden_node_position
+	grid_manager.set_tile(hidden_node_position, GridManager.TILE_HIDDEN_ROUTE_NODE)
 
 	if grid_manager.has_method("reset_hidden_discoveries"):
 		grid_manager.reset_hidden_discoveries()
 
 	if debug_show_hidden_route_node_logs:
-		print("Debug hidden route-node placed at: ", position)
-		hint_requested.emit("Debug hidden route-node placed at: " + str(position))
+		print("Debug hidden route-node placed at: ", hidden_node_position)
+		hint_requested.emit("Debug hidden route-node placed at: " + str(hidden_node_position))
 
 func restart_current_mission() -> void:
 	if sector_completed and current_mission_index == max_mission_index:
@@ -663,9 +663,9 @@ func get_internal_module_base_size(module: BipobModule) -> Vector3i:
 		return Vector3i.ONE
 	return Vector3i(maxi(module.size_x, 1), maxi(module.size_y, 1), maxi(module.size_z, 1))
 
-func get_rotated_internal_size(module: BipobModule, rotation: int) -> Vector3i:
+func get_rotated_internal_size(module: BipobModule, rotation_index: int) -> Vector3i:
 	var base_size := get_internal_module_base_size(module)
-	match posmod(rotation, 3):
+	match posmod(rotation_index, 3):
 		1:
 			return Vector3i(base_size.z, base_size.y, base_size.x)
 		2:
@@ -673,44 +673,44 @@ func get_rotated_internal_size(module: BipobModule, rotation: int) -> Vector3i:
 		_:
 			return base_size
 
-func get_internal_module_covered_cells(module: BipobModule, origin: Vector3i, rotation: int = 0) -> Array[Vector3i]:
+func get_internal_module_covered_cells(module: BipobModule, origin: Vector3i, rotation_index: int = 0) -> Array[Vector3i]:
 	var cells: Array[Vector3i] = []
-	var module_size := get_rotated_internal_size(module, rotation)
+	var module_size := get_rotated_internal_size(module, rotation_index)
 	for z in range(module_size.z):
 		for y in range(module_size.y):
 			for x in range(module_size.x):
 				cells.append(origin + Vector3i(x, y, z))
 	return cells
 
-func get_internal_module_placement_error(module: BipobModule, origin: Vector3i, rotation: int = 0) -> String:
+func get_internal_module_placement_error(module: BipobModule, origin: Vector3i, rotation_index: int = 0) -> String:
 	if module == null:
 		return "No internal module selected."
 	if module.placement_type != "internal":
 		return "Module is not internal."
-	for cell in get_internal_module_covered_cells(module, origin, rotation):
+	for cell in get_internal_module_covered_cells(module, origin, rotation_index):
 		if not is_internal_cell_in_bounds(cell):
 			return "Internal module footprint is outside robot volume."
 		if get_internal_module_at_cell(cell) != null:
 			return "Internal cells are occupied."
 	return ""
 
-func can_place_internal_module(module: BipobModule, origin: Vector3i, rotation: int = 0) -> bool:
-	return get_internal_module_placement_error(module, origin, rotation).is_empty()
+func can_place_internal_module(module: BipobModule, origin: Vector3i, rotation_index: int = 0) -> bool:
+	return get_internal_module_placement_error(module, origin, rotation_index).is_empty()
 
-func place_internal_module(module: BipobModule, origin: Vector3i, rotation: int = 0) -> bool:
-	if not can_place_internal_module(module, origin, rotation):
+func place_internal_module(module: BipobModule, origin: Vector3i, rotation_index: int = 0) -> bool:
+	if not can_place_internal_module(module, origin, rotation_index):
 		hint_requested.emit("Cannot place internal module here.")
 		status_changed.emit()
 		return false
-	var rotated_size := get_rotated_internal_size(module, rotation)
+	var rotated_size := get_rotated_internal_size(module, rotation_index)
 	var record := {
 		"module": module,
 		"origin": origin,
 		"size": rotated_size,
-		"rotation": posmod(rotation, 3),
+		"rotation": posmod(rotation_index, 3),
 	}
 	placed_internal_modules.append(record)
-	for cell in get_internal_module_covered_cells(module, origin, rotation):
+	for cell in get_internal_module_covered_cells(module, origin, rotation_index):
 		internal_modules_by_cell[get_internal_slot_key(cell)] = module
 	var storage_index := box_storage.find(module)
 	if storage_index != -1:
@@ -724,8 +724,8 @@ func find_internal_module_record_at_cell(cell: Vector3i) -> int:
 		var record: Dictionary = placed_internal_modules[index]
 		var record_module: BipobModule = record.get("module", null)
 		var origin: Vector3i = record.get("origin", Vector3i.ZERO)
-		var rotation: int = int(record.get("rotation", 0))
-		if get_internal_module_covered_cells(record_module, origin, rotation).has(cell):
+		var rotation_index: int = int(record.get("rotation", 0))
+		if get_internal_module_covered_cells(record_module, origin, rotation_index).has(cell):
 			return index
 	return -1
 
@@ -742,8 +742,8 @@ func remove_internal_module(cell: Vector3i) -> bool:
 	var record: Dictionary = placed_internal_modules[index]
 	var module: BipobModule = record.get("module", null)
 	var origin: Vector3i = record.get("origin", Vector3i.ZERO)
-	var rotation: int = int(record.get("rotation", 0))
-	for covered_cell in get_internal_module_covered_cells(module, origin, rotation):
+	var rotation_index: int = int(record.get("rotation", 0))
+	for covered_cell in get_internal_module_covered_cells(module, origin, rotation_index):
 		internal_modules_by_cell.erase(get_internal_slot_key(covered_cell))
 	placed_internal_modules.remove_at(index)
 	if module != null and not box_storage.has(module):
@@ -2259,11 +2259,11 @@ func get_mission8_airflow_status_text() -> String:
 	if current_mission_index != 8:
 		return ""
 
-	var range := get_mission8_airflow_range_for_speed(mission8_fan_speed)
+	var airflow_range := get_mission8_airflow_range_for_speed(mission8_fan_speed)
 	return "Airflow: %s | Speed: %d | Range: %d | Terminal: %s" % [
 		get_direction_display_name(mission8_fan_direction),
 		mission8_fan_speed,
-		range,
+		airflow_range,
 		get_mission8_terminal_state_text()
 	]
 
@@ -2334,9 +2334,9 @@ func clear_mission7_cable_tiles() -> void:
 	if grid_manager == null:
 		mission7_cable_path.clear()
 		return
-	for position in mission7_cable_path:
-		if grid_manager.is_in_bounds(position) and grid_manager.get_tile(position) == GridManager.TILE_CABLE:
-			grid_manager.set_tile(position, GridManager.TILE_FLOOR)
+	for cable_position in mission7_cable_path:
+		if grid_manager.is_in_bounds(cable_position) and grid_manager.get_tile(cable_position) == GridManager.TILE_CABLE:
+			grid_manager.set_tile(cable_position, GridManager.TILE_FLOOR)
 	mission7_cable_path.clear()
 
 func release_mission7_cable_end() -> void:
@@ -2393,8 +2393,8 @@ func interact_mission8_fan_control() -> void:
 	mission8_fan_speed = (mission8_fan_speed + 1) % 4
 	spend_action(1, 1)
 	update_mission8_airflow()
-	var range := get_mission8_airflow_range_for_speed(mission8_fan_speed)
-	hint_requested.emit("Fan speed set to %d. Airflow range: %d | Terminal: %s." % [mission8_fan_speed, range, get_mission8_terminal_state_text()])
+	var airflow_range := get_mission8_airflow_range_for_speed(mission8_fan_speed)
+	hint_requested.emit("Fan speed set to %d. Airflow range: %d | Terminal: %s." % [mission8_fan_speed, airflow_range, get_mission8_terminal_state_text()])
 	status_changed.emit()
 
 func change_mission8_fan_speed(delta: int) -> void:
@@ -2503,36 +2503,36 @@ func create_debug_field_component() -> BipobModule:
 	module.granted_commands = []
 	return module
 
-func get_position_key(position: Vector2i) -> String:
-	return str(position.x) + "," + str(position.y)
+func get_position_key(cell_position_arg: Vector2i) -> String:
+	return str(cell_position_arg.x) + "," + str(cell_position_arg.y)
 
-func set_field_module(position: Vector2i, module: BipobModule) -> void:
+func set_field_module(cell_position_arg: Vector2i, module: BipobModule) -> void:
 	if grid_manager == null:
 		return
 	if module == null:
 		return
-	if not grid_manager.is_in_bounds(position):
+	if not grid_manager.is_in_bounds(cell_position_arg):
 		return
 
-	grid_manager.set_tile(position, GridManager.TILE_COMPONENT)
-	field_modules_by_position[get_position_key(position)] = module
+	grid_manager.set_tile(cell_position_arg, GridManager.TILE_COMPONENT)
+	field_modules_by_position[get_position_key(cell_position_arg)] = module
 
-func get_field_module(position: Vector2i) -> BipobModule:
-	var key := get_position_key(position)
+func get_field_module(cell_position_arg: Vector2i) -> BipobModule:
+	var key := get_position_key(cell_position_arg)
 	if field_modules_by_position.has(key):
 		return field_modules_by_position[key]
 	return null
 
-func clear_field_module(position: Vector2i) -> void:
-	var key := get_position_key(position)
+func clear_field_module(cell_position_arg: Vector2i) -> void:
+	var key := get_position_key(cell_position_arg)
 	if field_modules_by_position.has(key):
 		field_modules_by_position.erase(key)
 
-func place_visor_v2_field_module(position: Vector2i) -> void:
-	set_field_module(position, create_visor_v2_module())
+func place_visor_v2_field_module(slot_position: Vector2i) -> void:
+	set_field_module(slot_position, create_visor_v2_module())
 
-func place_gpu_v1_field_module(position: Vector2i) -> void:
-	set_field_module(position, create_gpu_v1_module())
+func place_gpu_v1_field_module(slot_position: Vector2i) -> void:
+	set_field_module(slot_position, create_gpu_v1_module())
 
 func setup_mission4_field_modules() -> void:
 	if grid_manager == null:
@@ -2557,18 +2557,18 @@ func setup_mission4_field_modules() -> void:
 		grid_manager.set_tile(hidden_node_position, GridManager.TILE_HIDDEN_ROUTE_NODE)
 		active_hidden_route_node_position = hidden_node_position
 
-func place_debug_field_module_if_valid(position: Vector2i, module_name: String, place_callback: Callable) -> void:
+func place_debug_field_module_if_valid(slot_position: Vector2i, module_name: String, place_callback: Callable) -> void:
 	if grid_manager == null:
 		return
-	if not grid_manager.is_in_bounds(position):
-		print("Skipping debug field module ", module_name, ": out of bounds at ", position)
-		hint_requested.emit("Debug module %s skipped: invalid position %s." % [module_name, str(position)])
+	if not grid_manager.is_in_bounds(slot_position):
+		print("Skipping debug field module ", module_name, ": out of bounds at ", slot_position)
+		hint_requested.emit("Debug module %s skipped: invalid position %s." % [module_name, str(slot_position)])
 		return
-	if grid_manager.get_tile(position) != GridManager.TILE_FLOOR:
-		print("Skipping debug field module ", module_name, ": blocked tile at ", position)
-		hint_requested.emit("Debug module %s skipped: tile blocked at %s." % [module_name, str(position)])
+	if grid_manager.get_tile(slot_position) != GridManager.TILE_FLOOR:
+		print("Skipping debug field module ", module_name, ": blocked tile at ", slot_position)
+		hint_requested.emit("Debug module %s skipped: tile blocked at %s." % [module_name, str(slot_position)])
 		return
-	place_callback.call(position)
+	place_callback.call(slot_position)
 
 func place_debug_mission4_field_modules() -> void:
 	place_debug_field_module_if_valid(Vector2i(4, 1), "Visor V2", Callable(self, "place_visor_v2_field_module"))
