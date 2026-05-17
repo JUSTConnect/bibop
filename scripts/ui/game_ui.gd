@@ -1226,7 +1226,7 @@ func get_box_internal_menu_text() -> String:
 	if selected_module == null:
 		lines.append("- none")
 	else:
-		var size := bipob.get_rotated_internal_size(selected_module, bipob.selected_internal_rotation)
+		var size: Vector3i = bipob.get_rotated_internal_size(selected_module, bipob.selected_internal_rotation)
 		lines.append("- %s" % bipob.get_module_display_name(selected_module))
 		lines.append("- size: %dx%dx%d" % [size.x, size.y, size.z])
 		lines.append("- rotation: %d" % bipob.selected_internal_rotation)
@@ -1239,7 +1239,7 @@ func get_box_internal_menu_text() -> String:
 		for i in range(internal_modules.size()):
 			lines.append(("> " if i == bipob.selected_internal_box_index else "  ") + bipob.get_module_display_name(internal_modules[i]))
 	lines.append("")
-	var v := bipob.get_internal_volume_size()
+	var v: Vector3i = bipob.get_internal_volume_size()
 	lines.append("Front view (X/Y):")
 	for y in range(v.y):
 		var row: Array[String] = []
