@@ -10,6 +10,7 @@ const TILE_TERMINAL := 5
 const TILE_DIGITAL_DOOR := 6
 const TILE_COMPONENT := 7
 const TILE_HIDDEN_ROUTE_NODE := 8
+const TILE_ROUTE_GATE := 9
 
 @export var cell_size: int = 64
 @export var fog_enabled: bool = true
@@ -45,6 +46,7 @@ var tile_colors := {
 	TILE_DIGITAL_DOOR: Color(0.1, 0.4, 0.85),
 	TILE_COMPONENT: Color(0.9, 0.45, 0.15),
 	TILE_HIDDEN_ROUTE_NODE: Color(0.16, 0.16, 0.18),
+	TILE_ROUTE_GATE: Color(0.12, 0.72, 0.68),
 }
 
 func _ready() -> void:
@@ -75,12 +77,26 @@ func get_mission4_layout() -> Array:
 		[1, 1, 1, 1, 1, 1, 1, 1],
 	]
 
+func get_mission5_layout() -> Array:
+	return [
+		[1, 1, 1, 1, 1, 1, 1, 1],
+		[1, 0, 0, 0, 0, 0, 0, 1],
+		[1, 0, 1, 1, 1, 1, 0, 1],
+		[1, 0, 0, 0, TILE_ROUTE_GATE, 0, 0, 1],
+		[1, 1, 1, 0, 1, 1, 0, 1],
+		[1, 0, 0, 0, 0, 1, 0, 1],
+		[1, 0, 1, 1, 0, 0, 4, 1],
+		[1, 1, 1, 1, 1, 1, 1, 1],
+	]
+
 func reset_mission_layout(mission_index: int) -> void:
 	if mission_initial_map_data.is_empty():
 		cache_initial_mission_layout()
 
 	if mission_index == 4:
 		map_data = duplicate_map_layout(get_mission4_layout())
+	elif mission_index == 5:
+		map_data = duplicate_map_layout(get_mission5_layout())
 	else:
 		map_data = duplicate_map_layout(mission_initial_map_data)
 	reset_hidden_discoveries()
@@ -159,7 +175,10 @@ func is_walkable(grid_position: Vector2i) -> bool:
 	
 	if tile_type == TILE_DIGITAL_DOOR:
 		return false
-	
+
+	if tile_type == TILE_ROUTE_GATE:
+		return false
+
 	return true
 
 func grid_to_world(grid_position: Vector2i) -> Vector2:
