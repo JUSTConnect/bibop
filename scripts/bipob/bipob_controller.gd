@@ -1170,7 +1170,7 @@ func get_overlay_path_connectivity_text(path_record: Dictionary) -> String:
 
 func get_overlay_connectivity_preview_text() -> String:
 	var lines: Array[String] = []
-	lines.append("Overlay connectivity preview:")
+	lines.append("Overlay Check")
 	lines.append("Planning:")
 	lines.append("- Type: %s" % selected_overlay_path_type)
 	lines.append("- Cells: %d" % selected_overlay_cells.size())
@@ -1434,7 +1434,7 @@ func get_overlay_path_endpoint_line(path_record: Dictionary) -> String:
 
 func get_overlay_endpoint_preview_text() -> String:
 	var lines: Array[String] = []
-	lines.append("Overlay endpoint preview:")
+	lines.append("Overlay Endpoint Preview")
 
 	var planning_record: Dictionary = {
 		"id": "planning",
@@ -1608,7 +1608,7 @@ func get_overlay_thermal_contribution_line(module: BipobModule) -> String:
 
 func get_overlay_thermal_contribution_preview_text() -> String:
 	var lines: Array[String] = []
-	lines.append("Overlay thermal contribution preview:")
+	lines.append("Overlay Thermal Preview")
 
 	var modules: Array[BipobModule] = get_unique_internal_modules()
 	if modules.is_empty():
@@ -1663,10 +1663,8 @@ func get_overlay_thermal_contribution_diff_summary_text() -> String:
 		else:
 			unchanged_count += 1
 
-	return "Overlay thermal diff: improved %d, unchanged %d, total -%d, best -%d" % [
+	return "Overlay Diff: changed %d / best -%d" % [
 		improved_count,
-		unchanged_count,
-		total_delta,
 		best_delta
 	]
 
@@ -1680,7 +1678,7 @@ func get_overlay_thermal_contribution_compact_text() -> String:
 			affected_count += 1
 			highest_contribution = maxi(highest_contribution, contribution)
 
-	return "Overlay thermal: affected %d / max potential -%d | %s" % [
+	return "Overlay Thermal: affected %d / max potential -%d | %s" % [
 		affected_count,
 		highest_contribution,
 		get_overlay_thermal_contribution_diff_summary_text()
@@ -1740,7 +1738,7 @@ func get_thermal_rules_reference_text() -> String:
 	return "\n".join(lines)
 
 func get_thermal_rules_compact_text() -> String:
-	return "Thermal rules: heat 1-5, critical 5, neighbor heat source-1, overlay hypothetical"
+	return "Thermal Rules: heat 1-5, critical 5, overlay hypothetical"
 
 func get_overlay_path_effect_line(path_record: Dictionary) -> String:
 	var path_id: String = String(path_record.get("id", ""))
@@ -3337,7 +3335,7 @@ func apply_damage_metadata(module: BipobModule) -> void:
 
 func get_damage_planning_preview_text() -> String:
 	var lines: Array[String] = []
-	lines.append("Damage / Repair Planning Preview")
+	lines.append("Damage Preview")
 	var modules: Array[BipobModule] = get_unique_internal_modules()
 	if modules.is_empty():
 		lines.append("No internal modules placed.")
@@ -3364,7 +3362,7 @@ func get_damage_planning_preview_text() -> String:
 	lines.append("Rules:")
 	lines.append("- Damage is preview only.")
 	lines.append("- No module is broken automatically.")
-	lines.append("- Overlay heat is hypothetical only.")
+	lines.append("- Overlay Thermal is hypothetical only.")
 	lines.append("- Repair in Box is not implemented yet.")
 	return "\n".join(lines)
 
@@ -3382,7 +3380,7 @@ func get_damage_planning_compact_text() -> String:
 			critical_count += 1
 		elif preview_heat == threshold - 1:
 			warning_count += 1
-	return "Damage preview: critical %d / warning %d" % [critical_count, warning_count]
+	return "Damage Preview: critical %d / warning %d" % [critical_count, warning_count]
 
 func get_repair_planning_reference_text() -> String:
 	var lines: Array[String] = []
@@ -3404,7 +3402,7 @@ func get_repair_planning_reference_text() -> String:
 	lines.append("")
 	lines.append("Damage preview:")
 	lines.append("- Damage preview uses base thermal preview.")
-	lines.append("- Overlay heat is shown only as hypothetical comparison.")
+	lines.append("- Overlay Thermal is shown only as hypothetical comparison.")
 	lines.append("- Overlay does not reduce real warning/readiness counts.")
 	lines.append("")
 	lines.append("Repair complexity:")
@@ -3439,7 +3437,7 @@ func get_repair_planning_reference_text() -> String:
 	return "\n".join(lines)
 
 func get_repair_planning_compact_reference_text() -> String:
-	return "Repair planning: threshold heat 5, complexity 1-3, categories metadata only"
+	return "Repair Planning: threshold heat 5, complexity 1-3, metadata only"
 
 func get_module_description_for_id(module_id: String) -> String:
 	match module_id:

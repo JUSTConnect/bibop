@@ -364,16 +364,16 @@ func format_3d_size(size: Vector3i) -> String:
 
 func get_module_details_text(module: BipobModule) -> String:
 	if module == null:
-		return "Selected item:\nnone"
+		return "Selected Module:\nnone"
 	var lines: Array[String] = []
-	lines.append("Selected item:")
-	lines.append("Name: %s" % bipob.get_module_display_name(module))
+	lines.append("Selected Module:")
+	lines.append("Selected: %s" % bipob.get_module_display_name(module))
 	lines.append("ID: %s" % module.id)
 	if module.id == "water_tube_v1" or module.id == "air_duct_v1":
 		lines.append("Placement: overlay path")
-		lines.append("Path type: liquid" if module.id == "water_tube_v1" else "Path type: duct")
+		lines.append("Overlay Type: liquid" if module.id == "water_tube_v1" else "Overlay Type: duct")
 	else:
-		lines.append("Placement: %s" % module.placement_type)
+		lines.append("Placement: %s" % ("external slot" if module.placement_type == "external" else "internal volume"))
 	lines.append("Category: %s" % bipob.get_module_category(module))
 	if module.placement_type == "external":
 		var module_size_2d: Vector2i = bipob.get_external_module_size(module)
@@ -393,7 +393,7 @@ func get_module_details_text(module: BipobModule) -> String:
 				lines.append("Cooling: %s" % module.cooling_type)
 		else:
 			lines.append("Cooling: none")
-		lines.append("Air intake: %s" % ("required" if module.requires_air_intake else "no"))
+		lines.append("Air Intake: %s" % ("required" if module.requires_air_intake else "no"))
 		lines.append("Allowed sides: n/a")
 	else:
 		lines.append("Size: n/a")
@@ -403,7 +403,7 @@ func get_module_details_text(module: BipobModule) -> String:
 	lines.append(str(bipob.get_module_repair_metadata_text(module)))
 	lines.append(bipob.get_module_availability_text(module))
 	if module.id == "water_tube_v1" or module.id == "air_duct_v1":
-		lines.append("Note: does not consume internal volume")
+		lines.append("Note: does not consume Internal Volume")
 	return "\n".join(lines)
 
 func _ready() -> void:
@@ -873,13 +873,13 @@ func update_box_status() -> void:
 
 	if box_title_label != null:
 		if box_menu_mode == BoxMenuMode.MISSION:
-			box_title_label.text = "Box / Garage — Mission"
+			box_title_label.text = "Constructor — Mission"
 		elif box_menu_mode == BoxMenuMode.EXTERNAL:
-			box_title_label.text = "Box / Garage — External Constructor"
+			box_title_label.text = "Constructor — External Slots"
 		elif box_menu_mode == BoxMenuMode.INTERNAL:
-			box_title_label.text = "Box / Garage — Internal Constructor"
+			box_title_label.text = "Constructor — Internal Constructor"
 		else:
-			box_title_label.text = "Box / Garage — Modules"
+			box_title_label.text = "Constructor — Modules"
 
 	var content_text: String
 	if box_menu_mode == BoxMenuMode.MISSION:
@@ -931,7 +931,7 @@ func get_box_mission_menu_text() -> String:
 	content_lines.append("")
 	content_lines.append("Carry:")
 	content_lines.append("Hand: %s" % hand_text)
-	content_lines.append("Robot storage: %s" % storage_text)
+	content_lines.append("Box Storage: %s" % storage_text)
 	content_lines.append("Carry: %d / %d" % [bipob.get_carried_physical_count(), bipob.physical_carry_capacity])
 
 	content_lines.append("")
@@ -941,7 +941,7 @@ func get_box_mission_menu_text() -> String:
 		content_lines.append("Found: %s" % bipob.get_module_display_name(bipob.found_module))
 	else:
 		content_lines.append("Found: none")
-	content_lines.append("Box storage: %d modules" % bipob.box_storage.size())
+	content_lines.append("Box Storage: %d modules" % bipob.box_storage.size())
 	content_lines.append("Installed: %d modules" % bipob.installed_modules.size())
 	return "\n".join(content_lines)
 
@@ -956,18 +956,18 @@ func get_box_modules_menu_text() -> String:
 	content_lines.append("")
 	content_lines.append(bipob.get_constructor_warning_summary_text())
 	content_lines.append("")
-	content_lines.append("Storage:")
-	content_lines.append("Box: %d" % bipob.box_storage.size())
-	content_lines.append("External installed: %d" % bipob.get_unique_external_modules().size())
-	content_lines.append("Internal installed: %d" % bipob.get_unique_internal_modules().size())
-	content_lines.append("Overlay paths: %d" % bipob.internal_overlay_paths.size())
+	content_lines.append("Storage Overview:")
+	content_lines.append("Box Storage: %d" % bipob.box_storage.size())
+	content_lines.append("External Slots: %d" % bipob.get_unique_external_modules().size())
+	content_lines.append("Internal Volume: %d" % bipob.get_unique_internal_modules().size())
+	content_lines.append("Overlay Paths: %d" % bipob.internal_overlay_paths.size())
 	content_lines.append("Liquid paths: %d" % bipob.get_liquid_overlay_path_count())
 	content_lines.append("Duct paths: %d" % bipob.get_duct_overlay_path_count())
 	content_lines.append(str(bipob.get_overlay_effect_compact_text()))
 	content_lines.append(str(bipob.get_overlay_thermal_contribution_compact_text()))
 	content_lines.append(str(bipob.get_damage_planning_compact_text()))
 	content_lines.append(str(bipob.get_repair_planning_compact_reference_text()))
-	content_lines.append("Thermal rules: heat 1-5, critical 5, overlay hypothetical")
+	content_lines.append("Thermal Rules: heat 1-5, critical 5, overlay hypothetical")
 	content_lines.append(bipob.get_constructor_consistency_compact_text())
 	content_lines.append("")
 	content_lines.append("Filter: %s" % filter_id.capitalize())
@@ -980,7 +980,7 @@ func get_box_modules_menu_text() -> String:
 			content_lines.append(bipob.get_module_availability_line_by_id(grouped_ids[i], i == selected_grouped_module_index))
 	content_lines.append("")
 	var selected_module: BipobModule = get_selected_grouped_module()
-	content_lines.append("Selected item:")
+	content_lines.append("Selected Module:")
 	content_lines.append(get_module_details_text(selected_module))
 	return "\n".join(content_lines)
 
@@ -1160,7 +1160,7 @@ func rebuild_box_action_buttons() -> void:
 		_add_right_action_button("Toggle View", Callable(self, "_on_toggle_internal_view_pressed"))
 		right_button_panel.add_spacer(false)
 		_add_right_action_group("Overlay Plan")
-		_add_right_action_button("Type", Callable(self, "_on_overlay_type_pressed"))
+		_add_right_action_button("Overlay Type", Callable(self, "_on_overlay_type_pressed"))
 		_add_right_action_button("Toggle Cell", Callable(self, "_on_toggle_overlay_cell_pressed"))
 		_add_right_action_button("+X", Callable(self, "_on_extend_overlay_pos_x_pressed"))
 		_add_right_action_button("-X", Callable(self, "_on_extend_overlay_neg_x_pressed"))
@@ -1168,9 +1168,9 @@ func rebuild_box_action_buttons() -> void:
 		_add_right_action_button("-Y", Callable(self, "_on_extend_overlay_neg_y_pressed"))
 		_add_right_action_button("+Z", Callable(self, "_on_extend_overlay_pos_z_pressed"))
 		_add_right_action_button("-Z", Callable(self, "_on_extend_overlay_neg_z_pressed"))
-		_add_right_action_button("Undo", Callable(self, "_on_undo_overlay_cell_pressed"))
-		_add_right_action_button("Clear", Callable(self, "_on_clear_overlay_pressed"))
-		_add_right_action_button("Commit", Callable(self, "_on_commit_overlay_pressed"))
+		_add_right_action_button("Undo Cell", Callable(self, "_on_undo_overlay_cell_pressed"))
+		_add_right_action_button("Clear Plan", Callable(self, "_on_clear_overlay_pressed"))
+		_add_right_action_button("Commit Plan", Callable(self, "_on_commit_overlay_pressed"))
 		right_button_panel.add_spacer(false)
 		_add_right_action_group("Overlay Paths")
 		_add_right_action_button("Prev Path", Callable(self, "_on_prev_overlay_pressed"))
@@ -1205,7 +1205,7 @@ func rebuild_box_action_buttons() -> void:
 		_add_box_action_button("Next Box", Callable(self, "_on_next_box_pressed"))
 		_add_box_action_button("Consistency", Callable(self, "_on_constructor_consistency_button_pressed"))
 		_add_box_action_button("Warnings", Callable(self, "_on_constructor_warnings_button_pressed"))
-		_add_box_action_button("Dashboard", Callable(self, "_on_constructor_dashboard_button_pressed"))
+		_add_box_action_button("Constructor Dashboard", Callable(self, "_on_constructor_dashboard_button_pressed"))
 		_add_box_action_button("Repair Rules", Callable(self, "_on_repair_rules_pressed"))
 
 func update_box_button_visibility() -> void:
@@ -1276,14 +1276,14 @@ func get_internal_role_display_name(role_id: String) -> String:
 
 func get_internal_module_info_text(module: BipobModule) -> String:
 	if module == null:
-		return "Selected internal module: none"
+		return "Selected Module: none"
 	var base_size: Vector3i = bipob.get_internal_module_base_size(module)
 	var lines: Array[String] = []
-	lines.append("Selected internal module:")
+	lines.append("Selected Module:")
 	lines.append(bipob.get_module_display_name(module))
 	lines.append("Size: %d×%d×%d" % [base_size.x, base_size.y, base_size.z])
 	lines.append("Role: %s" % get_internal_role_display_name(module.internal_role))
-	lines.append("Placement: %s" % module.placement_type)
+	lines.append("Placement: %s" % ("external slot" if module.placement_type == "external" else "internal volume"))
 	if not module.description.is_empty():
 		lines.append("Description: %s" % module.description)
 	return "\n".join(lines)
@@ -1777,8 +1777,8 @@ func get_box_internal_menu_text() -> String:
 	lines.append("View mode: %s" % _get_internal_view_mode_display_name())
 	lines.append("Filter: %s" % get_current_constructor_filter().capitalize())
 	lines.append("Cursor: %d,%d,%d" % [bipob.selected_internal_origin.x, bipob.selected_internal_origin.y, bipob.selected_internal_origin.z])
-	lines.append("Volume: %d×%d×%d" % [volume_size.x, volume_size.y, volume_size.z])
-	lines.append("Right panel groups: Selection / Position / Module / View / Overlay")
+	lines.append("Internal Volume: %d×%d×%d" % [volume_size.x, volume_size.y, volume_size.z])
+	lines.append("Right panel groups: Selection / Position / Module / View / Overlay Plan")
 	_empty_line(lines)
 
 	lines.append(_section_title("Selected Module"))
@@ -1800,7 +1800,7 @@ func get_box_internal_menu_text() -> String:
 		lines.append("Role: %s" % selected_module.role)
 		lines.append("Heat: %d / %d" % [selected_module.heat_output, selected_module.heat_limit])
 		lines.append("Cooling: %s %d" % [selected_module.cooling_type, selected_module.cooling_power])
-		lines.append("Air intake: %s" % ("required" if selected_module.requires_air_intake else "not required"))
+		lines.append("Air Intake: %s" % ("required" if selected_module.requires_air_intake else "not required"))
 	_empty_line(lines)
 
 	lines.append(_section_title("Placement"))
@@ -1818,9 +1818,9 @@ func get_box_internal_menu_text() -> String:
 
 	lines.append(_section_title("Status"))
 	lines.append("Power: %s" % ("available" if bipob.is_virtual_power_available() else "unavailable"))
-	lines.append("Internal data: %s" % ("available" if bipob.is_internal_data_network_available() else "unavailable"))
-	lines.append("External data: %s" % ("available" if bipob.is_external_data_network_available() else "unavailable"))
-	lines.append("Air intake: %s" % get_air_intake_status_text())
+	lines.append("Internal Data: %s" % ("available" if bipob.is_internal_data_network_available() else "unavailable"))
+	lines.append("External Data: %s" % ("available" if bipob.is_external_data_network_available() else "unavailable"))
+	lines.append("Air Intake: %s" % get_air_intake_status_text())
 	lines.append("Warnings: %d" % bipob.get_constructor_warning_lines().size())
 	var highest_heat: int = bipob.get_highest_internal_preview_heat()
 	var critical_count: int = bipob.get_critical_internal_preview_count()
@@ -1864,9 +1864,9 @@ func get_box_internal_menu_text() -> String:
 		lines.append("z%d %s" % [z, " ".join(horizontal_row)])
 	_empty_line(lines)
 
-	lines.append(_section_title("Overlay Planning"))
-	lines.append("Type: %s" % bipob.selected_overlay_path_type)
-	lines.append("Planning cells: %d" % bipob.selected_overlay_cells.size())
+	lines.append(_section_title("Overlay Plan"))
+	lines.append("Overlay Type: %s" % bipob.selected_overlay_path_type)
+	lines.append("Overlay Cells: %d" % bipob.selected_overlay_cells.size())
 	lines.append(str(bipob.get_selected_overlay_plan_short_text()))
 	lines.append(str(bipob.get_overlay_connectivity_compact_text()))
 	lines.append(str(bipob.get_overlay_endpoint_compact_text()))
@@ -1877,13 +1877,13 @@ func get_box_internal_menu_text() -> String:
 
 	lines.append(_section_title("Selected Overlay Path"))
 	if overlay_count <= 0:
-		lines.append("Selected overlay path: none")
+		lines.append("Selected Overlay Path: none")
 	else:
 		bipob.clamp_selected_overlay_path_index()
 		var selected_overlay_record: Dictionary = bipob.get_selected_overlay_path_record()
 		lines.append("Selected path: %d / %d" % [bipob.selected_overlay_path_index + 1, overlay_count])
 		lines.append("ID: %s" % str(selected_overlay_record.get("id", "overlay_%d" % (bipob.selected_overlay_path_index + 1))))
-		lines.append("Type: %s" % str(selected_overlay_record.get("path_type", "unknown")))
+		lines.append("Overlay Type: %s" % str(selected_overlay_record.get("path_type", "unknown")))
 		var selected_overlay_cells: Array = selected_overlay_record.get("cells", [])
 		lines.append("Cells: %d" % selected_overlay_cells.size())
 		lines.append("Connected: %s" % ("yes" if bool(selected_overlay_record.get("connected", false)) else "no"))
@@ -1897,9 +1897,9 @@ func get_box_internal_menu_text() -> String:
 	lines.append("Critical preview: %d" % critical_count)
 	lines.append(str(bipob.get_damage_planning_compact_text()))
 	lines.append(str(bipob.get_repair_planning_compact_reference_text()))
-	lines.append("Overlay thermal: %s" % str(bipob.get_overlay_thermal_contribution_compact_text()))
-	lines.append("Overlay diff: %s" % str(bipob.get_overlay_thermal_contribution_diff_summary_text()))
-	lines.append("Thermal rules: heat 1-5, critical 5, overlay hypothetical")
+	lines.append("Overlay Thermal: %s" % str(bipob.get_overlay_thermal_contribution_compact_text()))
+	lines.append("Overlay Diff: %s" % str(bipob.get_overlay_thermal_contribution_diff_summary_text()))
+	lines.append("Thermal Rules: heat 1-5, critical 5, overlay hypothetical")
 	lines.append("Base thermal remains unchanged.")
 	_empty_line(lines)
 
