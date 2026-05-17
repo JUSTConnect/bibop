@@ -664,44 +664,94 @@ func _on_storage_module_card_pressed(storage_index: int) -> void:
 	update_box_status()
 
 
+
+func _create_constructor_mode_layout(
+	mode_title: String,
+	workspace: Control,
+	storage_panel: Control,
+	details_panel: Control,
+	side_panel: Control = null
+) -> Control:
+	var root: VBoxContainer = VBoxContainer.new()
+	root.add_theme_constant_override("separation", 8)
+
+	var title_label: Label = Label.new()
+	title_label.text = mode_title
+	_apply_label_style(title_label, false, true)
+	root.add_child(title_label)
+
+	var main_row: HBoxContainer = HBoxContainer.new()
+	main_row.add_theme_constant_override("separation", 10)
+
+	if workspace != null:
+		workspace.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+		workspace.size_flags_vertical = Control.SIZE_EXPAND_FILL
+		main_row.add_child(workspace)
+
+	var right_column: VBoxContainer = VBoxContainer.new()
+	right_column.custom_minimum_size = Vector2(360, 0)
+	right_column.size_flags_vertical = Control.SIZE_EXPAND_FILL
+	right_column.add_theme_constant_override("separation", 8)
+
+	if storage_panel != null:
+		storage_panel.size_flags_vertical = Control.SIZE_EXPAND_FILL
+		right_column.add_child(storage_panel)
+
+	if side_panel != null:
+		right_column.add_child(side_panel)
+
+	if details_panel != null:
+		right_column.add_child(details_panel)
+
+	main_row.add_child(right_column)
+	root.add_child(main_row)
+
+	return root
+
+
 func _build_storage_cards_panel(parent: Control) -> void:
-	if box_menu_mode == BoxMenuMode.EXTERNAL:
-		parent.add_child(_create_external_visual_workspace())
-	elif box_menu_mode == BoxMenuMode.INTERNAL:
-		parent.add_child(_create_internal_visual_workspace())
+	if box_menu_mode != BoxMenuMode.EXTERNAL and box_menu_mode != BoxMenuMode.INTERNAL:
+		return
 
-	var title: Label = Label.new()
-	title.text = "COMPONENTS IN BOX STORAGE"
-	_apply_label_style(title, false, true)
-	parent.add_child(title)
+	var workspace: Control = _create_external_visual_workspace() if box_menu_mode == BoxMenuMode.EXTERNAL else _create_internal_visual_workspace()
 
+	var storage_panel: PanelContainer = PanelContainer.new()
+	_apply_panel_style(storage_panel)
+	var storage_root: VBoxContainer = VBoxContainer.new()
+	storage_root.add_theme_constant_override("separation", 6)
+	var storage_title: Label = Label.new()
+	storage_title.text = "COMPONENTS IN BOX STORAGE"
+	_apply_label_style(storage_title, false, true)
+	storage_root.add_child(storage_title)
 	var filter_label: Label = Label.new()
 	filter_label.text = "Filter: %s" % get_current_constructor_filter().capitalize()
 	_apply_label_style(filter_label, true)
-	parent.add_child(filter_label)
-
+	storage_root.add_child(filter_label)
 	var grid: GridContainer = GridContainer.new()
-	grid.columns = 4
+	grid.columns = 3
 	grid.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-	parent.add_child(grid)
-
+	storage_root.add_child(grid)
 	var storage_indices: Array[int] = get_current_filtered_box_storage_indices()
 	if storage_indices.is_empty():
 		var empty_label: Label = Label.new()
 		empty_label.text = "No modules match current filter."
-		empty_label.add_theme_color_override("font_color", UI_COLOR_TEXT_DIM)
+		_apply_label_style(empty_label, true)
 		grid.add_child(empty_label)
 	else:
 		for storage_index in storage_indices:
 			var module: BipobModule = bipob.box_storage[storage_index]
 			var selected: bool = storage_index == selected_box_storage_index
 			grid.add_child(_create_storage_module_card(module, storage_index, selected))
+	storage_panel.add_child(storage_root)
 
+	var details_panel: PanelContainer = PanelContainer.new()
+	_apply_dark_panel_style(details_panel)
+	var details_root: VBoxContainer = VBoxContainer.new()
+	details_root.add_theme_constant_override("separation", 4)
 	var details_title: Label = Label.new()
 	details_title.text = "SELECTED MODULE"
 	_apply_label_style(details_title, false, true)
-	parent.add_child(details_title)
-
+	details_root.add_child(details_title)
 	var selected_module: BipobModule = null
 	if selected_box_storage_index >= 0 and selected_box_storage_index < bipob.box_storage.size():
 		selected_module = bipob.box_storage[selected_box_storage_index]
@@ -709,7 +759,16 @@ func _build_storage_cards_panel(parent: Control) -> void:
 	details.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 	details.text = get_module_details_text(selected_module)
 	_apply_label_style(details)
-	parent.add_child(details)
+	details_root.add_child(details)
+	details_panel.add_child(details_root)
+
+	var side_panel: Control = null
+	if box_menu_mode == BoxMenuMode.INTERNAL:
+		side_panel = _create_internal_connections_panel()
+
+	var mode_title: String = "External Modules" if box_menu_mode == BoxMenuMode.EXTERNAL else "Internal Modules"
+	parent.add_child(_create_constructor_mode_layout(mode_title, workspace, storage_panel, details_panel, side_panel))
+
 
 
 func _get_external_side_display_name(side_id: String) -> String:
@@ -1212,7 +1271,7 @@ func _ready() -> void:
 
 	mission_tab_button = Button.new()
 	mission_tab_button.name = "MissionTabButton"
-	mission_tab_button.text = "Mission"
+	mission_tab_button.text = "Available Bipobs"
 	mission_tab_button.focus_mode = Control.FOCUS_NONE
 	box_tab_row.add_child(mission_tab_button)
 	mission_tab_button.pressed.connect(set_box_menu_mode_mission)
@@ -1601,7 +1660,10 @@ func update_box_status() -> void:
 	update_box_button_visibility()
 
 	if box_content_label != null:
-		box_content_label.text = content_text
+		if box_menu_mode == BoxMenuMode.EXTERNAL or box_menu_mode == BoxMenuMode.INTERNAL:
+			box_content_label.text = ""
+		else:
+			box_content_label.text = content_text
 	var ui_panel: VBoxContainer = box_content_scroll.get_node_or_null("BoxContentCards")
 	if box_menu_mode == BoxMenuMode.MISSION:
 		if ui_panel != null:
@@ -2734,13 +2796,41 @@ func _create_internal_legend_panel() -> Control:
 	panel.add_child(root)
 	return panel
 
+func _create_internal_connections_panel() -> Control:
+	var panel: PanelContainer = PanelContainer.new()
+	_apply_dark_panel_style(panel)
+	var root: VBoxContainer = VBoxContainer.new()
+	root.add_theme_constant_override("separation", 2)
+	var title: Label = Label.new()
+	title.text = "CONNECTIONS"
+	_apply_label_style(title, false, true)
+	root.add_child(title)
+	var lines: Array[String] = [
+		"POWER",
+		"- Power Cable Heavy",
+		"- Power Cable Light",
+		"NETWORK / DATA",
+		"- Fiber Data Cable",
+		"- Copper Data Cable",
+		"COOLING",
+		"- Air Duct",
+		"- Water Tube"
+	]
+	for line in lines:
+		var label: Label = Label.new()
+		label.text = line
+		_apply_label_style(label, true if line.begins_with("-") else false, false if line.begins_with("-") else true)
+		root.add_child(label)
+	panel.add_child(root)
+	return panel
+
 func _create_internal_visual_workspace() -> Control:
 	var workspace: PanelContainer = PanelContainer.new()
 	_apply_panel_style(workspace, true)
 	var root: VBoxContainer = VBoxContainer.new()
 	root.add_theme_constant_override("separation", 8)
 	var title: Label = Label.new()
-	title.text = "INTERNAL MODULES"
+	title.text = "INTERNAL MODULES IN VOLUME"
 	_apply_label_style(title, false, true)
 	root.add_child(title)
 	var middle_row: HBoxContainer = HBoxContainer.new()
