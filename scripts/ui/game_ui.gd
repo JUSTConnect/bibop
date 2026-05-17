@@ -23,9 +23,9 @@ var remove_module_button: Button
 @onready var box_title_label: Label = $BoxScreen/PanelContainer/VBoxContainer/TitleLabel
 var box_content_scroll: ScrollContainer = null
 var box_content_label: Label = null
-var installed_button_row: HBoxContainer = null
-var box_storage_button_row: HBoxContainer = null
-var mission_button_row: HBoxContainer = null
+var right_button_panel: VBoxContainer = null
+var main_box_row: HBoxContainer = null
+var left_panel: VBoxContainer = null
 
 @onready var move_forward_button: Button = $CommandPanel/CommandList/MoveForwardButton
 @onready var move_backward_button: Button = $CommandPanel/CommandList/MoveBackwardButton
@@ -69,20 +69,45 @@ func _configure_box_layout() -> void:
 	if panel == null or vbox == null:
 		return
 	panel.set_anchors_preset(Control.PRESET_TOP_RIGHT)
-	panel.offset_left = -340
+	panel.offset_left = -540
 	panel.offset_top = 16
 	panel.offset_right = -16
 	panel.offset_bottom = 632
-	panel.custom_minimum_size = Vector2(300, 0)
+	panel.custom_minimum_size = Vector2(520, 0)
 
-	box_content_scroll = vbox.get_node_or_null("BoxContentScroll")
+	main_box_row = vbox.get_node_or_null("MainBoxRow")
+	if main_box_row == null:
+		main_box_row = HBoxContainer.new()
+		main_box_row.name = "MainBoxRow"
+		vbox.add_child(main_box_row)
+
+	left_panel = vbox.get_node_or_null("MainBoxRow/LeftPanel")
+	if left_panel == null:
+		left_panel = VBoxContainer.new()
+		left_panel.name = "LeftPanel"
+		main_box_row.add_child(left_panel)
+	left_panel.custom_minimum_size = Vector2(350, 0)
+	left_panel.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	left_panel.size_flags_vertical = Control.SIZE_EXPAND_FILL
+
+	if box_title_label != null:
+		box_title_label.reparent(left_panel)
+
+	box_tab_row = left_panel.get_node_or_null("BoxTabRow")
+	if box_tab_row == null:
+		box_tab_row = HBoxContainer.new()
+		box_tab_row.name = "BoxTabRow"
+		left_panel.add_child(box_tab_row)
+	box_tab_row.size_flags_vertical = Control.SIZE_SHRINK_BEGIN
+
+	box_content_scroll = left_panel.get_node_or_null("BoxContentScroll")
 	if box_content_scroll == null:
 		box_content_scroll = ScrollContainer.new()
 		box_content_scroll.name = "BoxContentScroll"
-		vbox.add_child(box_content_scroll)
+		left_panel.add_child(box_content_scroll)
 	box_content_scroll.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	box_content_scroll.size_flags_vertical = Control.SIZE_EXPAND_FILL
-	box_content_scroll.custom_minimum_size = Vector2(280, 220)
+	box_content_scroll.custom_minimum_size = Vector2(320, 340)
 
 	box_content_label = box_content_scroll.get_node_or_null("BoxContentLabel")
 	if box_content_label == null:
@@ -111,36 +136,24 @@ func _configure_box_layout() -> void:
 	var old_button_row := vbox.get_node_or_null("ButtonRow")
 	if old_button_row != null:
 		old_button_row.visible = false
+		for child in old_button_row.get_children():
+			child.queue_free()
 
-	installed_button_row = vbox.get_node_or_null("InstalledButtonRow")
-	if installed_button_row == null:
-		installed_button_row = HBoxContainer.new()
-		installed_button_row.name = "InstalledButtonRow"
-		vbox.add_child(installed_button_row)
-	installed_button_row.size_flags_vertical = Control.SIZE_SHRINK_END
+	for row_name in ["InstalledButtonRow", "BoxStorageButtonRow", "MissionButtonRow"]:
+		var old_row := vbox.get_node_or_null(row_name)
+		if old_row != null:
+			old_row.visible = false
+			for child in old_row.get_children():
+				child.queue_free()
 
-	box_storage_button_row = vbox.get_node_or_null("BoxStorageButtonRow")
-	if box_storage_button_row == null:
-		box_storage_button_row = HBoxContainer.new()
-		box_storage_button_row.name = "BoxStorageButtonRow"
-		vbox.add_child(box_storage_button_row)
-	box_storage_button_row.size_flags_vertical = Control.SIZE_SHRINK_END
-
-	mission_button_row = vbox.get_node_or_null("MissionButtonRow")
-	if mission_button_row == null:
-		mission_button_row = HBoxContainer.new()
-		mission_button_row.name = "MissionButtonRow"
-		vbox.add_child(mission_button_row)
-	mission_button_row.size_flags_vertical = Control.SIZE_SHRINK_END
-
-	box_tab_row = vbox.get_node_or_null("BoxTabRow")
-	if box_tab_row == null:
-		box_tab_row = HBoxContainer.new()
-		box_tab_row.name = "BoxTabRow"
-		vbox.add_child(box_tab_row)
-	if box_title_label != null:
-		vbox.move_child(box_tab_row, box_title_label.get_index() + 1)
-	box_tab_row.size_flags_vertical = Control.SIZE_SHRINK_BEGIN
+	right_button_panel = main_box_row.get_node_or_null("RightButtonPanel")
+	if right_button_panel == null:
+		right_button_panel = VBoxContainer.new()
+		right_button_panel.name = "RightButtonPanel"
+		main_box_row.add_child(right_button_panel)
+	right_button_panel.custom_minimum_size = Vector2(140, 0)
+	right_button_panel.size_flags_horizontal = Control.SIZE_SHRINK_END
+	right_button_panel.size_flags_vertical = Control.SIZE_EXPAND_FILL
 
 func get_short_module_name(module: BipobModule) -> String:
 	if module == null:
@@ -324,54 +337,54 @@ func _ready() -> void:
 
 	if charge_button != null:
 		charge_button.text = "Charge"
-		charge_button.reparent(mission_button_row)
-		if not charge_button.pressed.is_connected(_on_charge_button_pressed):
-			charge_button.pressed.connect(_on_charge_button_pressed)
+		charge_button.visible = false
+		charge_button.focus_mode = Control.FOCUS_NONE
+		charge_button.reparent(box_screen)
 	if install_module_button != null:
 		install_module_button.text = "Install"
-		install_module_button.reparent(box_storage_button_row)
-		if not install_module_button.pressed.is_connected(_on_install_selected_box_module_pressed):
-			install_module_button.pressed.connect(_on_install_selected_box_module_pressed)
+		install_module_button.visible = false
+		install_module_button.focus_mode = Control.FOCUS_NONE
+		install_module_button.reparent(box_screen)
 	if start_mission_button != null:
 		start_mission_button.text = "Start"
-		start_mission_button.reparent(mission_button_row)
-		if not start_mission_button.pressed.is_connected(_on_start_mission_button_pressed):
-			start_mission_button.pressed.connect(_on_start_mission_button_pressed)
+		start_mission_button.visible = false
+		start_mission_button.focus_mode = Control.FOCUS_NONE
+		start_mission_button.reparent(box_screen)
 
 	remove_module_button = Button.new()
 	remove_module_button.name = "RemoveModuleButton"
 	remove_module_button.text = "Remove"
 	remove_module_button.focus_mode = Control.FOCUS_NONE
-	installed_button_row.add_child(remove_module_button)
-	remove_module_button.pressed.connect(_on_remove_selected_module_pressed)
+	remove_module_button.visible = false
+	remove_module_button.reparent(box_screen)
 
 	prev_installed_button = Button.new()
 	prev_installed_button.name = "PrevInstalledButton"
 	prev_installed_button.text = "Prev Inst"
 	prev_installed_button.focus_mode = Control.FOCUS_NONE
-	installed_button_row.add_child(prev_installed_button)
-	prev_installed_button.pressed.connect(_on_prev_installed_pressed)
+	prev_installed_button.visible = false
+	prev_installed_button.reparent(box_screen)
 
 	next_installed_button = Button.new()
 	next_installed_button.name = "NextInstalledButton"
 	next_installed_button.text = "Next Inst"
 	next_installed_button.focus_mode = Control.FOCUS_NONE
-	installed_button_row.add_child(next_installed_button)
-	next_installed_button.pressed.connect(_on_next_installed_pressed)
+	next_installed_button.visible = false
+	next_installed_button.reparent(box_screen)
 
 	prev_box_button = Button.new()
 	prev_box_button.name = "PrevBoxButton"
 	prev_box_button.text = "Prev Box"
 	prev_box_button.focus_mode = Control.FOCUS_NONE
-	box_storage_button_row.add_child(prev_box_button)
-	prev_box_button.pressed.connect(_on_prev_box_pressed)
+	prev_box_button.visible = false
+	prev_box_button.reparent(box_screen)
 
 	next_box_button = Button.new()
 	next_box_button.name = "NextBoxButton"
 	next_box_button.text = "Next Box"
 	next_box_button.focus_mode = Control.FOCUS_NONE
-	box_storage_button_row.add_child(next_box_button)
-	next_box_button.pressed.connect(_on_next_box_pressed)
+	next_box_button.visible = false
+	next_box_button.reparent(box_screen)
 
 	mission_tab_button = Button.new()
 	mission_tab_button.name = "MissionTabButton"
@@ -391,15 +404,15 @@ func _ready() -> void:
 	box_restart_button.name = "BoxRestartButton"
 	box_restart_button.text = "Restart"
 	box_restart_button.focus_mode = Control.FOCUS_NONE
-	mission_button_row.add_child(box_restart_button)
-	box_restart_button.pressed.connect(_on_restart_mission_button_pressed)
+	box_restart_button.visible = false
+	box_restart_button.reparent(box_screen)
 
 	box_return_button = Button.new()
 	box_return_button.name = "BoxReturnButton"
 	box_return_button.text = "Return"
 	box_return_button.focus_mode = Control.FOCUS_NONE
-	mission_button_row.add_child(box_return_button)
-	box_return_button.pressed.connect(_on_return_to_box_button_pressed)
+	box_return_button.visible = false
+	box_return_button.reparent(box_screen)
 
 	bipob.status_changed.connect(update_status)
 	bipob.hint_requested.connect(show_hint)
@@ -407,6 +420,7 @@ func _ready() -> void:
 	bipob.returned_to_box.connect(_on_returned_to_box)
 
 	update_status()
+	rebuild_box_action_buttons()
 	update_box_status()
 	update_diagnostic_status()
 
@@ -660,34 +674,42 @@ func get_box_modules_menu_text() -> String:
 	content_lines.append_array(get_compact_module_window(bipob.box_storage, selected_box_storage_index, 5))
 	return "\n".join(content_lines)
 
+func _add_box_action_button(button_text: String, handler: Callable) -> void:
+	if right_button_panel == null:
+		return
+	var button := Button.new()
+	button.text = button_text
+	button.focus_mode = Control.FOCUS_NONE
+	button.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	right_button_panel.add_child(button)
+	button.pressed.connect(handler)
+
+func rebuild_box_action_buttons() -> void:
+	if right_button_panel == null:
+		return
+	for child in right_button_panel.get_children():
+		child.queue_free()
+
+	var actions_label := Label.new()
+	actions_label.name = "ActionsLabel"
+	actions_label.text = "Actions"
+	right_button_panel.add_child(actions_label)
+
+	if box_menu_mode == BoxMenuMode.MISSION:
+		_add_box_action_button("Charge", Callable(self, "_on_charge_button_pressed"))
+		_add_box_action_button("Start", Callable(self, "_on_start_mission_button_pressed"))
+		_add_box_action_button("Restart", Callable(self, "_on_restart_mission_button_pressed"))
+	else:
+		_add_box_action_button("Remove", Callable(self, "_on_remove_selected_module_pressed"))
+		_add_box_action_button("Prev Inst", Callable(self, "_on_prev_installed_pressed"))
+		_add_box_action_button("Next Inst", Callable(self, "_on_next_installed_pressed"))
+		right_button_panel.add_spacer(false)
+		_add_box_action_button("Install", Callable(self, "_on_install_selected_box_module_pressed"))
+		_add_box_action_button("Prev Box", Callable(self, "_on_prev_box_pressed"))
+		_add_box_action_button("Next Box", Callable(self, "_on_next_box_pressed"))
+
 func update_box_button_visibility() -> void:
 	var is_mission := box_menu_mode == BoxMenuMode.MISSION
-	if mission_button_row != null:
-		mission_button_row.visible = true
-	if installed_button_row != null:
-		installed_button_row.visible = not is_mission
-	if box_storage_button_row != null:
-		box_storage_button_row.visible = not is_mission
-	if charge_button != null:
-		charge_button.visible = is_mission
-	if start_mission_button != null:
-		start_mission_button.visible = is_mission
-	if box_restart_button != null:
-		box_restart_button.visible = is_mission
-	if box_return_button != null:
-		box_return_button.visible = false
-	if remove_module_button != null:
-		remove_module_button.visible = not is_mission
-	if prev_installed_button != null:
-		prev_installed_button.visible = not is_mission
-	if next_installed_button != null:
-		next_installed_button.visible = not is_mission
-	if install_module_button != null:
-		install_module_button.visible = not is_mission
-	if prev_box_button != null:
-		prev_box_button.visible = not is_mission
-	if next_box_button != null:
-		next_box_button.visible = not is_mission
 	if mission_tab_button != null:
 		mission_tab_button.disabled = is_mission
 	if modules_tab_button != null:
@@ -695,10 +717,12 @@ func update_box_button_visibility() -> void:
 
 func set_box_menu_mode_mission() -> void:
 	box_menu_mode = BoxMenuMode.MISSION
+	rebuild_box_action_buttons()
 	update_box_status()
 
 func set_box_menu_mode_modules() -> void:
 	box_menu_mode = BoxMenuMode.MODULES
+	rebuild_box_action_buttons()
 	update_box_status()
 
 func show_hint(message: String) -> void:
