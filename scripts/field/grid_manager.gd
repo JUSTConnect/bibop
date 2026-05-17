@@ -25,6 +25,7 @@ const TILE_CABLE_REEL := 20
 const TILE_SOCKET := 21
 const TILE_POWERED_GATE := 22
 const TILE_CABLE := 23
+const TILE_STEPPED_FLOOR := 24
 
 @export var cell_size: int = 64
 @export var fog_enabled: bool = true
@@ -77,6 +78,7 @@ var tile_colors := {
 	TILE_SOCKET: Color(0.2, 0.55, 0.95),
 	TILE_POWERED_GATE: Color(0.92, 0.38, 0.2),
 	TILE_CABLE: Color(0.22, 0.88, 0.72),
+	TILE_STEPPED_FLOOR: Color(0.46, 0.42, 0.36),
 }
 
 func _ready() -> void:
@@ -132,6 +134,18 @@ func get_mission8_layout() -> Array:
 		[1, 1, 1, 1, 1, 1, 1, 1],
 	]
 
+
+func get_mission9_layout() -> Array:
+	return [
+		[1, 1, 1, 1, 1, 1, 1, 1],
+		[1, 0, 0, 7, 0, 0, 0, 1],
+		[1, 0, 1, 1, 1, 1, 0, 1],
+		[1, 0, 0, TILE_STEPPED_FLOOR, TILE_STEPPED_FLOOR, TILE_STEPPED_FLOOR, 0, 1],
+		[1, 1, 1, 1, 1, TILE_STEPPED_FLOOR, 1, 1],
+		[1, 0, 0, 0, 0, TILE_STEPPED_FLOOR, 0, 1],
+		[1, 0, 1, 1, 0, 0, 4, 1],
+		[1, 1, 1, 1, 1, 1, 1, 1],
+	]
 func get_mission7_layout() -> Array:
 	return [
 		[1, 1, 1, 1, 1, 1, 1, 1],
@@ -156,6 +170,8 @@ func reset_mission_layout(mission_index: int) -> void:
 		map_data = duplicate_map_layout(get_mission7_layout())
 	elif mission_index == 8:
 		map_data = duplicate_map_layout(get_mission8_layout())
+	elif mission_index == 9:
+		map_data = duplicate_map_layout(get_mission9_layout())
 	else:
 		map_data = duplicate_map_layout(mission_initial_map_data)
 	reset_hidden_discoveries()

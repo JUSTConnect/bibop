@@ -43,7 +43,7 @@ var actions_left: int = 0
 var mission_finished: bool = false
 var sector_completed: bool = false
 var current_mission_index: int = 1
-var max_mission_index: int = 8
+var max_mission_index: int = 9
 var mission4_hidden_route_node_discovered: bool = false
 var has_key: bool = false
 var has_info_key: bool = false
@@ -294,6 +294,8 @@ func get_mission_name(mission_index: int) -> String:
 			return "Mission 7 — Cable Route"
 		8:
 			return "Mission 8 — Airflow Terminal"
+		9:
+			return "Mission 9 — Terrain Passage"
 		_:
 			return "Unknown Mission"
 
@@ -315,6 +317,8 @@ func get_mission_goal_hint(mission_index: int) -> String:
 			return "Mission 7: take the cable end from the reel, drag it to the socket, then reach the exit."
 		8:
 			return "Mission 8: cool the terminal with directed airflow, then hack it and reach the exit."
+		9:
+			return get_mission9_context_hint()
 		_:
 			return "No mission goal available."
 
@@ -336,6 +340,25 @@ func get_mission4_context_hint() -> String:
 		return "Visor V2 recovered. Return to the box and install it."
 	return "Mission 4: base vision is too narrow. Search the blind sector for a wider visor."
 
+
+func get_mission9_context_hint() -> String:
+	if has_module_id("legs_v1"):
+		return "Legs V1 installed. Cross the stepped passage."
+	if has_module_id_anywhere("legs_v1"):
+		return "Legs V1 recovered. Return to the box and install it."
+	return "Mission 9: wheels work on flat floor. Stepped terrain requires Legs V1."
+
+func has_wheels() -> bool:
+	return has_module_id("wheels_v1")
+
+func has_legs() -> bool:
+	return has_module_id("legs_v1")
+
+func has_tracks() -> bool:
+	return has_module_id("tracks_v1")
+
+func can_cross_stepped_floor() -> bool:
+	return has_legs() or has_tracks()
 func get_current_mission_goal_hint() -> String:
 	return get_mission_goal_hint(current_mission_index)
 
@@ -367,6 +390,8 @@ func start_mission(mission_index: int, save_snapshot: bool = true) -> void:
 			setup_mission8()
 		elif current_mission_index == 7:
 			setup_mission7()
+		elif current_mission_index == 9:
+			setup_mission9()
 		elif grid_manager.has_method("clear_fan_platform_marker"):
 			grid_manager.clear_fan_platform_marker()
 		grid_manager.reset_fog_of_war()
@@ -470,6 +495,8 @@ func return_to_box() -> void:
 
 	if current_mission_index == 4 and (has_module_id_anywhere("visor_v2") or has_module_id_anywhere("gpu_v1")):
 		hint_requested.emit(get_mission4_context_hint())
+	elif current_mission_index == 9 and has_module_id_anywhere("legs_v1"):
+		hint_requested.emit(get_mission9_context_hint())
 	else:
 		hint_requested.emit("Returned to box. Mission attempt aborted.")
 	status_changed.emit()
@@ -558,7 +585,7 @@ func debug_store_route_data() -> void:
 
 func start_next_mission() -> void:
 	if sector_completed:
-		hint_requested.emit("Sector-01 complete. Airflow Terminal solved.")
+		hint_requested.emit("Sector-01 complete. Terrain passage cleared.")
 		status_changed.emit()
 		return
 
@@ -567,7 +594,7 @@ func start_next_mission() -> void:
 		return
 
 	sector_completed = true
-	hint_requested.emit("Sector-01 complete. Airflow Terminal solved.")
+	hint_requested.emit("Sector-01 complete. Terrain passage cleared.")
 	status_changed.emit()
 
 func create_default_modules() -> void:
@@ -630,6 +657,20 @@ func create_gpu_v1_module() -> BipobModule:
 	module.description = "Internal processing module. Increases vision range and supports hidden node detection."
 	module.granted_commands = ["hidden_detection_support"]
 	module.vision_bonus = 0
+	return module
+
+func create_legs_v1_module() -> BipobModule:
+	var module := BipobModule.new()
+	module.id = "legs_v1"
+	module.display_name = "Legs V1"
+	module.description = "Locomotion module. Allows crossing stepped terrain."
+	module.granted_commands = [
+		"move_forward",
+		"move_backward",
+		"turn_left",
+		"turn_right",
+		"cross_stepped_floor"
+	]
 	return module
 
 func add_debug_mission4_modules_to_box() -> void:
@@ -916,9 +957,13 @@ func try_move_to(target_position: Vector2i) -> bool:
 		push_error("BipobController: grid_manager is null")
 		return false
 	
+	var target_tile := grid_manager.get_tile(target_position)
+	if target_tile == GridManager.TILE_STEPPED_FLOOR and not can_cross_stepped_floor():
+		hint_requested.emit("Stepped terrain blocks wheels. Install Legs V1 or Tracks V1.")
+		status_changed.emit()
+		return false
+
 	if not grid_manager.is_walkable(target_position):
-		var target_tile := grid_manager.get_tile(target_position)
-	
 		if target_tile == GridManager.TILE_WALL:
 			hint_requested.emit("Blocked by wall.")
 		elif target_tile == GridManager.TILE_DOOR:
@@ -1007,12 +1052,14 @@ func complete_mission() -> void:
 	elif current_mission_index == 7:
 		hint_requested.emit("Mission 7 complete. Return to the box, then start Mission 8.")
 	elif current_mission_index == 8:
-		hint_requested.emit("Mission 8 complete. Return to the box.")
+		hint_requested.emit("Mission 8 complete. Return to the box, then start Mission 9.")
+	elif current_mission_index == 9:
+		hint_requested.emit("Mission 9 complete. Return to the box.")
 	else:
 		hint_requested.emit("Mission complete. Return to the box.")
 	if current_mission_index == max_mission_index:
 		sector_completed = true
-		hint_requested.emit("Sector-01 complete. Airflow Terminal solved.")
+		hint_requested.emit("Sector-01 complete. Terrain passage cleared.")
 		last_diagnostic_result = null
 
 	if stored_module_this_mission:
@@ -1022,6 +1069,22 @@ func complete_mission() -> void:
 	status_changed.emit()
 	mission_completed.emit()
 			
+
+func setup_mission9() -> void:
+	if grid_manager == null:
+		return
+
+	var module_position := Vector2i(3, 1)
+	if not grid_manager.is_in_bounds(module_position):
+		return
+
+	if has_module_id_anywhere("legs_v1"):
+		grid_manager.set_tile(module_position, GridManager.TILE_FLOOR)
+		field_modules_by_position.erase(module_position)
+		return
+
+	grid_manager.set_tile(module_position, GridManager.TILE_COMPONENT)
+	set_field_module(module_position, create_legs_v1_module())
 func update_world_position() -> void:
 	if grid_manager == null:
 		return
