@@ -675,6 +675,42 @@ func is_external_module(module: BipobModule) -> bool:
 	]
 	return module.id in external_ids
 
+func get_allowed_external_sides_for_module(module: BipobModule) -> Array[String]:
+	if module == null:
+		return []
+
+	match module.id:
+		"wheels_v1":
+			return [EXTERNAL_SIDE_BOTTOM]
+		"legs_v1":
+			return [EXTERNAL_SIDE_BOTTOM]
+		"tracks_v1":
+			return [EXTERNAL_SIDE_BOTTOM]
+		"visor_v1":
+			return [EXTERNAL_SIDE_TOP]
+		"visor_v2":
+			return [EXTERNAL_SIDE_TOP]
+		_:
+			return EXTERNAL_SIDE_ORDER.duplicate()
+
+func can_place_external_module_on_side(module: BipobModule, side_id: String) -> bool:
+	if module == null:
+		return false
+	var allowed_sides := get_allowed_external_sides_for_module(module)
+	return side_id in allowed_sides
+
+func get_external_side_display_name(side_id: String) -> String:
+	return side_id.capitalize()
+
+func get_allowed_external_sides_text(module: BipobModule) -> String:
+	var allowed := get_allowed_external_sides_for_module(module)
+	if allowed.is_empty():
+		return "none"
+	var names: Array[String] = []
+	for side_id in allowed:
+		names.append(get_external_side_display_name(side_id))
+	return ", ".join(names)
+
 func place_external_module(module: BipobModule, side_id: String, slot_position: Vector2i) -> bool:
 	if module == null:
 		hint_requested.emit("No module selected.")
@@ -683,6 +719,14 @@ func place_external_module(module: BipobModule, side_id: String, slot_position: 
 
 	if not is_external_module(module):
 		hint_requested.emit("Module cannot be installed outside: " + get_module_display_name(module))
+		status_changed.emit()
+		return false
+
+	if not can_place_external_module_on_side(module, side_id):
+		hint_requested.emit(
+			"Cannot install %s on %s. Allowed side: %s."
+			% [get_module_display_name(module), side_id, get_allowed_external_sides_text(module).to_lower()]
+		)
 		status_changed.emit()
 		return false
 
@@ -716,6 +760,14 @@ func place_external_module_from_box_storage(storage_index: int, side_id: String,
 
 	if not is_external_module(module):
 		hint_requested.emit("Module cannot be installed outside: " + get_module_display_name(module))
+		status_changed.emit()
+		return false
+
+	if not can_place_external_module_on_side(module, side_id):
+		hint_requested.emit(
+			"Cannot install %s on %s. Allowed side: %s."
+			% [get_module_display_name(module), side_id, get_allowed_external_sides_text(module).to_lower()]
+		)
 		status_changed.emit()
 		return false
 
