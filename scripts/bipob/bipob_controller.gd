@@ -558,7 +558,7 @@ func debug_store_route_data() -> void:
 
 func start_next_mission() -> void:
 	if sector_completed:
-		hint_requested.emit("Sector-01 complete. Hot Node stabilized.")
+		hint_requested.emit("Sector-01 complete. Airflow Terminal solved.")
 		status_changed.emit()
 		return
 
@@ -567,7 +567,7 @@ func start_next_mission() -> void:
 		return
 
 	sector_completed = true
-	hint_requested.emit("Sector-01 complete. Hot Node stabilized.")
+	hint_requested.emit("Sector-01 complete. Airflow Terminal solved.")
 	status_changed.emit()
 
 func create_default_modules() -> void:
