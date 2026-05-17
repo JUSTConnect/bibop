@@ -831,20 +831,24 @@ func _on_place_external_module_pressed() -> void:
 		return
 	clamp_box_selection_indexes()
 	clamp_external_selection()
-	var module: BipobModule = bipob.box_storage[selected_box_storage_index]
-	if module == null:
-		return
 	var side_id := get_selected_external_side_id()
-	bipob.place_external_module(module, side_id, selected_external_slot_position)
-	update_box_status()
+	if bipob.place_external_module_from_box_storage(
+		selected_box_storage_index,
+		side_id,
+		selected_external_slot_position
+	):
+		clamp_box_selection_indexes()
+		clamp_external_selection()
+		update_box_status()
 
 func _on_remove_external_module_pressed() -> void:
 	if bipob == null:
 		return
 	clamp_external_selection()
 	var side_id := get_selected_external_side_id()
-	bipob.remove_external_module(side_id, selected_external_slot_position)
-	update_box_status()
+	if bipob.remove_external_module_to_box_storage(side_id, selected_external_slot_position):
+		clamp_box_selection_indexes()
+		update_box_status()
 
 func show_hint(message: String) -> void:
 	if hint_label != null:
