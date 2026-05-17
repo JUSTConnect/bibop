@@ -44,6 +44,72 @@ var next_installed_button: Button
 var prev_box_button: Button
 var next_box_button: Button
 
+func get_short_module_name(module: BipobModule) -> String:
+	if module == null:
+		return "empty"
+	return bipob.get_module_display_name(module)
+
+func get_selected_installed_module_text() -> String:
+	if bipob == null or bipob.installed_modules.is_empty():
+		return "Selected installed: none"
+	clamp_box_selection_indexes()
+	var module: BipobModule = bipob.installed_modules[selected_installed_module_index]
+	return "Selected installed: " + get_short_module_name(module)
+
+func get_selected_box_module_text() -> String:
+	if bipob == null or bipob.box_storage.is_empty():
+		return "Selected box: none"
+	clamp_box_selection_indexes()
+	var module: BipobModule = bipob.box_storage[selected_box_storage_index]
+	return "Selected box: " + get_short_module_name(module)
+
+func get_compact_module_window(modules: Array, selected_index: int, max_lines: int = 4) -> Array[String]:
+	if modules.is_empty():
+		return ["empty"]
+
+	var total: int = modules.size()
+	var safe_index: int = clampi(selected_index, 0, total - 1)
+	var window_size: int = mini(max_lines, total)
+	var start_idx: int = clampi(safe_index - int(window_size / 2), 0, total - window_size)
+	var end_idx: int = start_idx + window_size - 1
+	var lines: Array[String] = []
+
+	if start_idx > 0:
+		lines.append("... ")
+
+	for index in range(start_idx, end_idx + 1):
+		var marker := "  "
+		if index == safe_index:
+			marker = "> "
+		lines.append("%s%s" % [marker, get_short_module_name(modules[index])])
+
+	if end_idx < total - 1:
+		lines.append("... ")
+
+	return lines
+
+func get_digital_storage_short_text() -> String:
+	if bipob == null:
+		return "Digital: empty"
+	if bipob.has_method("get_digital_storage_short_text"):
+		var short_text := str(bipob.get_digital_storage_short_text())
+		if short_text.is_empty() or short_text == "empty":
+			return "Digital: empty"
+		return "Digital: %s" % short_text
+	if bipob.has_method("get_digital_storage_text"):
+		var full_text := str(bipob.get_digital_storage_text())
+		if full_text.begins_with("Digital storage:\n- "):
+			var list_text := full_text.trim_prefix("Digital storage:\n- ").replace("\n- ", ", ")
+			if list_text.is_empty():
+				return "Digital: empty"
+			return "Digital: %s" % list_text
+		if full_text.begins_with("Digital storage: "):
+			var one_line := full_text.trim_prefix("Digital storage: ")
+			if one_line.is_empty() or one_line == "empty":
+				return "Digital: empty"
+			return "Digital: %s" % one_line
+	return "Digital: empty"
+
 func _ready() -> void:
 	if status_label != null:
 		status_label.position = Vector2(100, 20)
@@ -160,30 +226,33 @@ func _ready() -> void:
 	if charge_button != null:
 		charge_button.pressed.connect(_on_charge_button_pressed)
 	if install_module_button != null:
-		install_module_button.text = "Install Selected"
+		install_module_button.text = "Install"
 		install_module_button.pressed.connect(_on_install_selected_box_module_pressed)
 	if start_mission_button != null:
+		start_mission_button.text = "Start"
 		start_mission_button.pressed.connect(_on_start_mission_button_pressed)
 	if box_screen != null:
 		var button_row := box_screen.get_node_or_null("PanelContainer/VBoxContainer/ButtonRow")
 		if button_row != null:
+			if charge_button != null:
+				charge_button.text = "Charge"
 			remove_module_button = Button.new()
 			remove_module_button.name = "RemoveModuleButton"
-			remove_module_button.text = "Remove Selected"
+			remove_module_button.text = "Remove"
 			remove_module_button.focus_mode = Control.FOCUS_NONE
 			button_row.add_child(remove_module_button)
 			remove_module_button.pressed.connect(_on_remove_selected_module_pressed)
 
 			prev_installed_button = Button.new()
 			prev_installed_button.name = "PrevInstalledButton"
-			prev_installed_button.text = "Prev Installed"
+			prev_installed_button.text = "Prev Inst"
 			prev_installed_button.focus_mode = Control.FOCUS_NONE
 			button_row.add_child(prev_installed_button)
 			prev_installed_button.pressed.connect(_on_prev_installed_pressed)
 
 			next_installed_button = Button.new()
 			next_installed_button.name = "NextInstalledButton"
-			next_installed_button.text = "Next Installed"
+			next_installed_button.text = "Next Inst"
 			next_installed_button.focus_mode = Control.FOCUS_NONE
 			button_row.add_child(next_installed_button)
 			next_installed_button.pressed.connect(_on_next_installed_pressed)
@@ -401,7 +470,13 @@ func update_box_status() -> void:
 		if warnings.is_empty():
 			box_status_label.text += "\n\nWarnings: none"
 		else:
-			box_status_label.text += "\n\nWarnings:\n- %s" % "\n- ".join(warnings)
+			var compact_warnings: Array[String] = []
+			var warning_limit := mini(2, warnings.size())
+			for index in range(warning_limit):
+				compact_warnings.append("- %s" % str(warnings[index]))
+			if warnings.size() > warning_limit:
+				compact_warnings.append("... +%d more" % (warnings.size() - warning_limit))
+			box_status_label.text += "\n\nWarnings:\n%s" % "\n".join(compact_warnings)
 
 	if bipob.found_module != null:
 		if box_module_label != null:
@@ -417,38 +492,24 @@ func update_box_status() -> void:
 	if bipob.stored_physical_module != null:
 		storage_text = bipob.get_module_display_name(bipob.stored_physical_module)
 	if box_module_label != null:
-		box_module_label.text += "\nHand: %s\nRobot storage: %s" % [hand_text, storage_text]
+		box_module_label.text += "\nHand: %s | Robot storage: %s" % [hand_text, storage_text]
+		box_module_label.text += "\n%s" % get_selected_installed_module_text()
+		box_module_label.text += "\n%s" % get_selected_box_module_text()
+		box_module_label.text += "\n%s" % get_digital_storage_short_text()
 
-	if bipob.box_storage.is_empty():
-		if box_storage_label != null:
-			box_storage_label.text = "Box storage: empty"
-	else:
-		var box_storage_text := "Box storage:"
-		for index in range(bipob.box_storage.size()):
-			var module: BipobModule = bipob.box_storage[index]
-			var marker := "  "
-			if index == selected_box_storage_index:
-				marker = "> "
-			box_storage_text += "\n%s%s" % [marker, bipob.get_module_display_name(module)]
-		if box_storage_label != null:
-			box_storage_label.text = box_storage_text
+	if box_storage_label != null:
+		var box_lines: Array[String] = get_compact_module_window(bipob.box_storage, selected_box_storage_index, 3)
+		box_storage_label.text = "Box storage (%d):\n%s" % [bipob.box_storage.size(), "\n".join(box_lines)]
 
-	if digital_storage_label != null and bipob.has_method("get_digital_storage_text"):
-		digital_storage_label.text = str(bipob.get_digital_storage_text())
+	if digital_storage_label != null:
+		var mission_name := "n/a"
+		if bipob.has_method("get_mission_name"):
+			mission_name = str(bipob.get_mission_name(bipob.current_mission_index))
+		digital_storage_label.text = "Mission:\n%s" % mission_name
 
-	if bipob.installed_modules.is_empty():
-		if installed_modules_label != null:
-			installed_modules_label.text = "Installed modules: none"
-	else:
-		var installed_modules_text := "Installed modules:"
-		for index in range(bipob.installed_modules.size()):
-			var module: BipobModule = bipob.installed_modules[index]
-			var marker := "  "
-			if index == selected_installed_module_index:
-				marker = "> "
-			installed_modules_text += "\n%s%s" % [marker, bipob.get_module_display_name(module)]
-		if installed_modules_label != null:
-			installed_modules_label.text = installed_modules_text
+	if installed_modules_label != null:
+		var installed_lines: Array[String] = get_compact_module_window(bipob.installed_modules, selected_installed_module_index, 4)
+		installed_modules_label.text = "Installed modules (%d):\n%s" % [bipob.installed_modules.size(), "\n".join(installed_lines)]
 
 func show_hint(message: String) -> void:
 	if hint_label != null:
