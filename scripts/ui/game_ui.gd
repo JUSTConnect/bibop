@@ -1744,6 +1744,7 @@ func get_box_internal_menu_text() -> String:
 		lines.append("Selected path: %d / %d" % [bipob.selected_overlay_path_index + 1, bipob.internal_overlay_paths.size()])
 	lines.append("Effects: %s" % str(bipob.get_overlay_effect_compact_text()))
 	lines.append(str(bipob.get_overlay_thermal_contribution_compact_text()))
+	lines.append(str(bipob.get_overlay_thermal_contribution_diff_summary_text()))
 	if internal_view_mode == "thermal_overlay":
 		lines.append("Thermal+Overlay:")
 		lines.append("Overlay thermal: %s" % str(bipob.get_overlay_thermal_contribution_compact_text()))
