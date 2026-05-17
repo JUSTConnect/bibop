@@ -105,6 +105,9 @@ const UI_COLOR_WARNING: Color = Color(0.950, 0.640, 0.230, 1.0)
 const UI_COLOR_DANGER: Color = Color(0.950, 0.250, 0.250, 1.0)
 const UI_COLOR_DISABLED: Color = Color(0.250, 0.280, 0.320, 1.0)
 
+const STORAGE_CARD_MIN_SIZE: Vector2 = Vector2(118, 86)
+const STORAGE_CARD_ICON_SIZE: Vector2 = Vector2(42, 42)
+
 
 
 func _make_panel_style(
@@ -169,6 +172,132 @@ func _create_module_icon_control(module: BipobModule, size: Vector2 = Vector2(44
 
 func _create_module_placeholder_icon(module: BipobModule, size: Vector2 = Vector2(44, 44)) -> Control:
 	return _create_module_icon_control(module, size)
+
+
+func _make_storage_card_style(module: BipobModule, selected: bool = false, disabled: bool = false) -> StyleBoxFlat:
+	var bg_color: Color = UI_COLOR_PANEL_DARK
+	var border_color: Color = UI_COLOR_BORDER_DIM
+	var border_width: int = 1
+
+	if module != null and bipob.has_method("get_module_visual_color"):
+		var module_color: Color = bipob.get_module_visual_color(module)
+		bg_color = module_color.darkened(0.72)
+		border_color = module_color.darkened(0.15)
+
+	if selected:
+		border_color = UI_COLOR_SELECTED
+		border_width = 2
+
+	if disabled:
+		bg_color = Color(0.045, 0.048, 0.055, 0.85)
+		border_color = UI_COLOR_DISABLED
+
+	return _make_panel_style(bg_color, border_color, border_width, 6)
+
+
+func _get_module_card_size_text(module: BipobModule) -> String:
+	if module == null:
+		return "?"
+
+	if bipob.is_internal_overlay_module(module):
+		return "overlay"
+
+	if bipob.is_internal_module(module):
+		var internal_size: Vector3i = bipob.get_internal_module_base_size(module)
+		return "%dx%dx%d" % [internal_size.x, internal_size.y, internal_size.z]
+
+	if bipob.is_external_module(module):
+		var footprint_size: Vector2i = bipob.get_external_module_footprint_size(module)
+		return "%dx%d" % [footprint_size.x, footprint_size.y]
+
+	return "module"
+
+
+func _is_module_valid_for_current_constructor_mode(module: BipobModule) -> bool:
+	if module == null:
+		return false
+
+	if box_menu_mode == BoxMenuMode.INTERNAL:
+		return bipob.is_internal_module(module) or bipob.is_internal_overlay_module(module)
+
+	if box_menu_mode == BoxMenuMode.EXTERNAL:
+		return bipob.is_external_module(module)
+
+	return true
+
+
+func _create_storage_module_card(module: BipobModule, storage_index: int, selected: bool) -> Control:
+	var button: Button = Button.new()
+	button.custom_minimum_size = STORAGE_CARD_MIN_SIZE
+	button.focus_mode = Control.FOCUS_NONE
+	button.clip_text = true
+
+	var disabled_visual: bool = not _is_module_valid_for_current_constructor_mode(module)
+	button.add_theme_stylebox_override("normal", _make_storage_card_style(module, selected, disabled_visual))
+	button.add_theme_stylebox_override("hover", _make_storage_card_style(module, true, disabled_visual))
+	button.add_theme_stylebox_override("pressed", _make_storage_card_style(module, true, disabled_visual))
+	button.add_theme_color_override("font_color", UI_COLOR_TEXT)
+
+	var root: VBoxContainer = VBoxContainer.new()
+	root.mouse_filter = Control.MOUSE_FILTER_IGNORE
+
+	var top_row: HBoxContainer = HBoxContainer.new()
+	top_row.mouse_filter = Control.MOUSE_FILTER_IGNORE
+
+	var icon: Control = _create_module_icon_control(module, STORAGE_CARD_ICON_SIZE)
+	icon.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	top_row.add_child(icon)
+
+	var title_box: VBoxContainer = VBoxContainer.new()
+	title_box.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	title_box.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+
+	var name_label: Label = Label.new()
+	name_label.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	name_label.text = bipob.get_module_display_name(module)
+	name_label.add_theme_color_override("font_color", UI_COLOR_TEXT)
+	name_label.clip_text = true
+
+	var meta_label: Label = Label.new()
+	meta_label.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	meta_label.text = "%s / %s" % [_get_module_card_size_text(module), String(module.category)]
+	meta_label.add_theme_color_override("font_color", UI_COLOR_TEXT_DIM)
+	meta_label.clip_text = true
+
+	title_box.add_child(name_label)
+	title_box.add_child(meta_label)
+	top_row.add_child(title_box)
+	root.add_child(top_row)
+
+	var bottom_row: HBoxContainer = HBoxContainer.new()
+	bottom_row.mouse_filter = Control.MOUSE_FILTER_IGNORE
+
+	var label_text: String = "MOD"
+	if bipob.has_method("get_module_visual_short_label"):
+		label_text = bipob.get_module_visual_short_label(module)
+
+	var short_label: Label = Label.new()
+	short_label.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	short_label.text = label_text
+	short_label.add_theme_color_override("font_color", UI_COLOR_ACCENT)
+
+	var placement_label: Label = Label.new()
+	placement_label.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	placement_label.text = String(module.placement_type)
+	placement_label.add_theme_color_override("font_color", UI_COLOR_TEXT_DIM)
+
+	bottom_row.add_child(short_label)
+	bottom_row.add_child(placement_label)
+	root.add_child(bottom_row)
+	button.add_child(root)
+
+	button.pressed.connect(func() -> void:
+		_on_storage_module_card_pressed(storage_index)
+	)
+
+	return button
+
+
 
 func _make_button_style(
 	bg_color: Color,
@@ -519,6 +648,60 @@ func sync_selected_box_storage_index_from_grouped_selection() -> void:
 			selected_box_storage_index = i
 			return
 	selected_box_storage_index = -1
+
+
+func _on_storage_module_card_pressed(storage_index: int) -> void:
+	bipob.selected_box_storage_index = storage_index
+	selected_box_storage_index = storage_index
+	var module: BipobModule = bipob.box_storage[storage_index] if storage_index >= 0 and storage_index < bipob.box_storage.size() else null
+	if module != null:
+		var grouped_ids: Array[String] = get_filtered_grouped_module_ids()
+		selected_grouped_module_index = maxi(grouped_ids.find(module.id), 0)
+	update_box_status()
+
+
+func _build_storage_cards_panel(parent: Control) -> void:
+	var title: Label = Label.new()
+	title.text = "COMPONENTS IN BOX STORAGE"
+	_apply_label_style(title, false, true)
+	parent.add_child(title)
+
+	var filter_label: Label = Label.new()
+	filter_label.text = "Filter: %s" % get_current_constructor_filter().capitalize()
+	_apply_label_style(filter_label, true)
+	parent.add_child(filter_label)
+
+	var grid: GridContainer = GridContainer.new()
+	grid.columns = 4
+	grid.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	parent.add_child(grid)
+
+	var storage_indices: Array[int] = get_current_filtered_box_storage_indices()
+	if storage_indices.is_empty():
+		var empty_label: Label = Label.new()
+		empty_label.text = "No modules match current filter."
+		empty_label.add_theme_color_override("font_color", UI_COLOR_TEXT_DIM)
+		grid.add_child(empty_label)
+	else:
+		for storage_index in storage_indices:
+			var module: BipobModule = bipob.box_storage[storage_index]
+			var selected: bool = storage_index == selected_box_storage_index
+			grid.add_child(_create_storage_module_card(module, storage_index, selected))
+
+	var details_title: Label = Label.new()
+	details_title.text = "SELECTED MODULE"
+	_apply_label_style(details_title, false, true)
+	parent.add_child(details_title)
+
+	var selected_module: BipobModule = null
+	if selected_box_storage_index >= 0 and selected_box_storage_index < bipob.box_storage.size():
+		selected_module = bipob.box_storage[selected_box_storage_index]
+	var details: Label = Label.new()
+	details.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	details.text = get_module_details_text(selected_module)
+	_apply_label_style(details)
+	parent.add_child(details)
+
 
 func get_compact_module_window(modules: Array, selected_index: int, max_lines: int = 4) -> Array[String]:
 	if modules.is_empty():
@@ -1147,6 +1330,18 @@ func update_box_status() -> void:
 
 	if box_content_label != null:
 		box_content_label.text = content_text
+	var ui_panel: VBoxContainer = box_content_scroll.get_node_or_null("BoxContentCards")
+	if box_menu_mode == BoxMenuMode.MISSION:
+		if ui_panel != null:
+			ui_panel.queue_free()
+	else:
+		if ui_panel != null:
+			ui_panel.queue_free()
+		ui_panel = VBoxContainer.new()
+		ui_panel.name = "BoxContentCards"
+		ui_panel.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+		box_content_scroll.add_child(ui_panel)
+		_build_storage_cards_panel(ui_panel)
 
 func get_box_mission_menu_text() -> String:
 	var content_lines: Array[String] = []
