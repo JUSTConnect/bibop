@@ -1244,8 +1244,8 @@ func get_box_internal_menu_text() -> String:
 	for y in range(v.y):
 		var row: Array[String] = []
 		for x in range(v.x):
-			var cell := Vector3i(x, y, bipob.selected_internal_origin.z)
-			var marker := "[ ]" if bipob.get_internal_module_at_cell(cell) == null else "[X]"
+			var cell: Vector3i = Vector3i(x, y, bipob.selected_internal_origin.z)
+			var marker: String = " " if bipob.get_internal_module_at_cell(cell) == null else "[X]"
 			if preview_cells.has(cell):
 				marker = "[*]" if can_place else "[!]"
 			if x == bipob.selected_internal_origin.x and y == bipob.selected_internal_origin.y:
