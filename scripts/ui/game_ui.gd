@@ -1298,11 +1298,27 @@ func _build_internal_axis_header(prefix: String, count: int) -> String:
 		labels.append("%s%d" % [prefix, i])
 	return "    %s" % " ".join(labels)
 
+
+func _get_internal_view_mode_display_name() -> String:
+	match internal_view_mode:
+		"modules":
+			return "Modules"
+		"thermal":
+			return "Thermal"
+		"overlay":
+			return "Overlay"
+		"thermal_overlay":
+			return "Thermal+Overlay"
+		_:
+			return String(internal_view_mode)
+
 func _get_internal_cell_marker(cell: Vector3i, preview_cells_map: Dictionary, can_place: bool) -> String:
 	if internal_view_mode == "thermal":
 		return _get_internal_thermal_cell_marker(cell, preview_cells_map, can_place)
 	if internal_view_mode == "overlay":
 		return _get_internal_overlay_cell_marker(cell, preview_cells_map, can_place)
+	if internal_view_mode == "thermal_overlay":
+		return _get_internal_thermal_overlay_cell_marker(cell, preview_cells_map, can_place)
 	return _get_internal_module_cell_marker(cell, preview_cells_map, can_place)
 
 func _get_internal_module_cell_marker(cell: Vector3i, preview_cells_map: Dictionary, can_place: bool) -> String:
@@ -1343,6 +1359,29 @@ func _get_internal_thermal_cell_marker(cell: Vector3i, preview_cells_map: Dictio
 		return "[>]"
 	if not overlay_marker.is_empty():
 		return "[%s]" % overlay_marker
+	return "[ ]"
+
+func _get_internal_thermal_overlay_cell_marker(cell: Vector3i, preview_cells_map: Dictionary, can_place: bool) -> String:
+	var is_origin: bool = cell == bipob.selected_internal_origin
+	var occupied_module: BipobModule = bipob.get_internal_module_at_cell(cell)
+	var overlay_marker: String = bipob.get_internal_overlay_marker_for_cell(cell)
+	var in_preview: bool = preview_cells_map.has(bipob.get_internal_slot_key(cell))
+	if in_preview:
+		if can_place:
+			return "[>*]" if is_origin else "[*]"
+		return "[>!]" if is_origin else "[!]"
+	if occupied_module != null:
+		var heat: int = bipob.get_hypothetical_heat_after_overlay_for_module(occupied_module)
+		heat = clampi(heat, 0, 5)
+		if is_origin:
+			return "[>%d]" % heat
+		return "[%d]" % heat
+	if not overlay_marker.is_empty():
+		if is_origin:
+			return "[>%s]" % overlay_marker
+		return "[%s]" % overlay_marker
+	if is_origin:
+		return "[>]"
 	return "[ ]"
 
 func _get_internal_background_module_marker(module: BipobModule) -> String:
@@ -1705,6 +1744,10 @@ func get_box_internal_menu_text() -> String:
 		lines.append("Selected path: %d / %d" % [bipob.selected_overlay_path_index + 1, bipob.internal_overlay_paths.size()])
 	lines.append("Effects: %s" % str(bipob.get_overlay_effect_compact_text()))
 	lines.append(str(bipob.get_overlay_thermal_contribution_compact_text()))
+	if internal_view_mode == "thermal_overlay":
+		lines.append("Thermal+Overlay:")
+		lines.append("Overlay thermal: %s" % str(bipob.get_overlay_thermal_contribution_compact_text()))
+		lines.append("Base thermal remains unchanged.")
 	if not bipob.internal_overlay_paths.is_empty():
 		lines.append("Overlay paths:")
 		var overlay_list_limit: int = mini(bipob.internal_overlay_paths.size(), 4)
@@ -1720,20 +1763,16 @@ func get_box_internal_menu_text() -> String:
 		lines.append("")
 		lines.append(bipob.get_selected_overlay_path_details_text())
 	lines.append("")
-	var view_mode_label: String = "Modules"
-	if internal_view_mode == "thermal":
-		view_mode_label = "Thermal"
-	elif internal_view_mode == "overlay":
-		view_mode_label = "Overlay"
-	lines.append("View mode: %s" % view_mode_label)
+	lines.append("View mode: %s" % _get_internal_view_mode_display_name())
 	lines.append("")
 	lines.append("Marker legend:")
 	if internal_view_mode == "thermal":
-		lines.append("[1-5] preview heat after cooling, [5] critical preview, [*] placement preview, [!] invalid")
+		lines.append("[1-5] base preview heat after normal cooling, [5] critical preview")
 	elif internal_view_mode == "overlay":
-		lines.append("[L] selected liquid, [A] selected duct, [q] selected liquid path, [d] selected duct path, [l/a] other paths, lowercase modules = underneath")
-		lines.append("Overlay can pass over occupied modules.")
-		lines.append("Overlay effects are preview only.")
+		lines.append("[L] selected liquid, [A] selected duct, [l] liquid path, [a] duct path, [q/d] selected committed path, lowercase modules = underneath")
+	elif internal_view_mode == "thermal_overlay":
+		lines.append("[1-5] hypothetical heat after overlay contribution, [l/a] overlay on empty cells, [*] placement preview, [!] invalid")
+		lines.append("Base thermal is unchanged; this view is informational only.")
 	else:
 		lines.append("[ ] empty, [>] origin, [*] preview, [!] invalid, [B/P/E/I/M/W/H] modules")
 	lines.append("")
@@ -1902,6 +1941,8 @@ func _on_toggle_internal_view_pressed() -> void:
 		internal_view_mode = "thermal"
 	elif internal_view_mode == "thermal":
 		internal_view_mode = "overlay"
+	elif internal_view_mode == "overlay":
+		internal_view_mode = "thermal_overlay"
 	else:
 		internal_view_mode = "modules"
 	update_box_status()
