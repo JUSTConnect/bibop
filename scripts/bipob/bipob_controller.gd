@@ -43,7 +43,8 @@ var actions_left: int = 0
 var mission_finished: bool = false
 var sector_completed: bool = false
 var current_mission_index: int = 1
-var max_mission_index: int = 3
+var max_mission_index: int = 4
+var mission4_hidden_route_node_discovered: bool = false
 var has_key: bool = false
 var has_info_key: bool = false
 var installed_modules: Array[BipobModule] = []
@@ -115,7 +116,24 @@ func has_module_id_in_box(module_id: String) -> bool:
 	return false
 
 func has_module_id_anywhere(module_id: String) -> bool:
-	return has_module_id(module_id) or has_module_id_in_box(module_id)
+	if has_module_id(module_id) or has_module_id_in_box(module_id):
+		return true
+
+	if held_module != null and held_module.id == module_id:
+		return true
+
+	if stored_physical_module != null and stored_physical_module.id == module_id:
+		return true
+
+	for module_position in field_modules_by_position.keys():
+		var field_module_variant: Variant = field_modules_by_position[module_position]
+		if field_module_variant == null:
+			continue
+		var field_module: BipobModule = field_module_variant
+		if field_module.id == module_id:
+			return true
+
+	return false
 
 func get_effective_visor_level() -> int:
 	if has_module_id("visor_v2"):
@@ -242,6 +260,8 @@ func get_mission_name(mission_index: int) -> String:
 			return "Mission 2 — Silent Terminal"
 		3:
 			return "Mission 3 — Info-Key"
+		4:
+			return "Mission 4 — Blind Sector"
 		_:
 			return "Unknown Mission"
 
@@ -253,6 +273,8 @@ func get_mission_goal_hint(mission_index: int) -> String:
 			return "Mission 2: face the terminal, use Scan Device, then use Hack Device."
 		3:
 			return "Mission 3: Scan and Hack the terminal to get the Info-Key, then Scan and Hack the digital door."
+		4:
+			return "Mission 4: recover Visor V2 and GPU V1, install them in the box, then find the hidden route-node."
 		_:
 			return "No mission goal available."
 
@@ -267,15 +289,18 @@ func start_mission(mission_index: int, save_snapshot: bool = true) -> void:
 	has_key = false
 	has_info_key = false
 	last_diagnostic_result = null
+	mission4_hidden_route_node_discovered = false
 	held_module = null
 	stored_physical_module = null
 	field_modules_by_position.clear()
 	if grid_manager != null:
 		grid_manager.reset_mission_layout(current_mission_index)
-		if debug_place_mission4_field_modules:
+		if current_mission_index == 4:
+			setup_mission4_field_modules()
+		elif debug_place_mission4_field_modules:
 			place_debug_mission4_field_modules()
 		grid_manager.reset_fog_of_war()
-		if debug_place_hidden_route_node:
+		if current_mission_index != 4 and debug_place_hidden_route_node:
 			place_debug_hidden_route_node()
 	grid_position = start_grid_position
 	direction = Direction.NORTH
@@ -458,7 +483,7 @@ func debug_store_route_data() -> void:
 
 func start_next_mission() -> void:
 	if sector_completed:
-		hint_requested.emit("Sector-01 complete. Playtest build finished.")
+		hint_requested.emit("Sector-01 complete. Blind Sector cleared.")
 		status_changed.emit()
 		return
 
@@ -467,7 +492,7 @@ func start_next_mission() -> void:
 		return
 
 	sector_completed = true
-	hint_requested.emit("Sector-01 complete. Playtest build finished.")
+	hint_requested.emit("Sector-01 complete. Blind Sector cleared.")
 	status_changed.emit()
 
 func create_default_modules() -> void:
@@ -840,6 +865,10 @@ func check_mission_complete() -> void:
 	var current_tile := grid_manager.get_tile(grid_position)
 	
 	if current_tile == GridManager.TILE_EXIT:
+		if current_mission_index == 4 and not mission4_hidden_route_node_discovered:
+			hint_requested.emit("Exit route is incomplete. Find the hidden route-node first.")
+			status_changed.emit()
+			return
 		complete_mission()
 
 func complete_mission() -> void:
@@ -866,11 +895,13 @@ func complete_mission() -> void:
 		hint_requested.emit("Mission 1 complete. Return to the box, then start Mission 2.")
 	elif current_mission_index == 2:
 		hint_requested.emit("Mission 2 complete. Return to the box, then start Mission 3.")
-	else:
+	elif current_mission_index == 3:
 		hint_requested.emit("Mission complete. Return to the box.")
+	else:
+		hint_requested.emit("Mission 4 complete. Return to the box.")
 	if current_mission_index == max_mission_index:
 		sector_completed = true
-		hint_requested.emit("Sector-01 complete. Playtest build finished.")
+		hint_requested.emit("Sector-01 complete. Blind Sector cleared.")
 		last_diagnostic_result = null
 
 	if stored_module_this_mission:
@@ -930,7 +961,11 @@ func detect_hidden_route_nodes_in_vision() -> void:
 		if grid_manager.get_tile(cell) == GridManager.TILE_HIDDEN_ROUTE_NODE:
 			if not grid_manager.is_hidden_route_node_discovered(cell):
 				grid_manager.discover_hidden_route_node(cell)
-				hint_requested.emit("Hidden route-node detected at " + str(cell))
+				if current_mission_index == 4:
+					mission4_hidden_route_node_discovered = true
+					hint_requested.emit("Hidden route-node found. Reach the exit.")
+				else:
+					hint_requested.emit("Hidden route-node detected at " + str(cell))
 				status_changed.emit()
 				return
 	
@@ -1259,6 +1294,23 @@ func place_visor_v2_field_module(position: Vector2i) -> void:
 
 func place_gpu_v1_field_module(position: Vector2i) -> void:
 	set_field_module(position, create_gpu_v1_module())
+
+func setup_mission4_field_modules() -> void:
+	if grid_manager == null:
+		return
+
+	var visor_position := Vector2i(4, 1)
+	var gpu_position := Vector2i(2, 6)
+
+	if not has_module_id_anywhere("visor_v2"):
+		place_visor_v2_field_module(visor_position)
+	else:
+		grid_manager.set_tile(visor_position, GridManager.TILE_FLOOR)
+
+	if not has_module_id_anywhere("gpu_v1"):
+		place_gpu_v1_field_module(gpu_position)
+	else:
+		grid_manager.set_tile(gpu_position, GridManager.TILE_FLOOR)
 
 func place_debug_field_module_if_valid(position: Vector2i, module_name: String, place_callback: Callable) -> void:
 	if grid_manager == null:
