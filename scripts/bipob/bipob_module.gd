@@ -11,3 +11,8 @@ class_name BipobModule
 @export var energy_bonus: int = 0
 @export var actions_bonus: int = 0
 @export var vision_bonus: int = 0
+
+@export var size_x: int = 1
+@export var size_y: int = 1
+@export var size_z: int = 1
+@export var internal_rotatable: bool = true

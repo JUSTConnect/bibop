@@ -52,13 +52,15 @@ var box_tab_row: HBoxContainer = null
 var mission_tab_button: Button
 var modules_tab_button: Button
 var external_tab_button: Button
+var internal_tab_button: Button
 var box_restart_button: Button
 var box_return_button: Button
 
 enum BoxMenuMode {
 	MISSION,
 	MODULES,
-	EXTERNAL
+	EXTERNAL,
+	INTERNAL
 }
 
 var box_menu_mode: BoxMenuMode = BoxMenuMode.MISSION
@@ -382,6 +384,12 @@ func _ready() -> void:
 	external_tab_button.focus_mode = Control.FOCUS_NONE
 	box_tab_row.add_child(external_tab_button)
 	external_tab_button.pressed.connect(set_box_menu_mode_external)
+	internal_tab_button = Button.new()
+	internal_tab_button.name = "InternalTabButton"
+	internal_tab_button.text = "Internal"
+	internal_tab_button.focus_mode = Control.FOCUS_NONE
+	box_tab_row.add_child(internal_tab_button)
+	internal_tab_button.pressed.connect(set_box_menu_mode_internal)
 
 	box_restart_button = null
 
@@ -677,6 +685,8 @@ func update_box_status() -> void:
 			box_title_label.text = "Box / Garage — Mission"
 		elif box_menu_mode == BoxMenuMode.EXTERNAL:
 			box_title_label.text = "Box / Garage — External Constructor"
+		elif box_menu_mode == BoxMenuMode.INTERNAL:
+			box_title_label.text = "Box / Garage — Internal Constructor"
 		else:
 			box_title_label.text = "Box / Garage — Modules"
 
@@ -685,6 +695,8 @@ func update_box_status() -> void:
 		content_text = get_box_mission_menu_text()
 	elif box_menu_mode == BoxMenuMode.EXTERNAL:
 		content_text = get_box_external_menu_text()
+	elif box_menu_mode == BoxMenuMode.INTERNAL:
+		content_text = get_box_internal_menu_text()
 	else:
 		content_text = get_box_modules_menu_text()
 	update_box_button_visibility()
@@ -866,6 +878,21 @@ func rebuild_box_action_buttons() -> void:
 		right_button_panel.add_spacer(false)
 		_add_box_action_button("Place", Callable(self, "_on_place_external_module_pressed"))
 		_add_box_action_button("Remove", Callable(self, "_on_remove_external_module_pressed"))
+	elif box_menu_mode == BoxMenuMode.INTERNAL:
+		_add_box_action_button("Prev Internal Box", Callable(self, "_on_prev_internal_box_pressed"))
+		_add_box_action_button("Next Internal Box", Callable(self, "_on_next_internal_box_pressed"))
+		right_button_panel.add_spacer(false)
+		_add_box_action_button("X-", Callable(self, "_on_internal_x_minus_pressed"))
+		_add_box_action_button("X+", Callable(self, "_on_internal_x_plus_pressed"))
+		_add_box_action_button("Y-", Callable(self, "_on_internal_y_minus_pressed"))
+		_add_box_action_button("Y+", Callable(self, "_on_internal_y_plus_pressed"))
+		_add_box_action_button("Z-", Callable(self, "_on_internal_z_minus_pressed"))
+		_add_box_action_button("Z+", Callable(self, "_on_internal_z_plus_pressed"))
+		right_button_panel.add_spacer(false)
+		_add_box_action_button("Rotate Internal", Callable(self, "_on_rotate_internal_pressed"))
+		_add_box_action_button("Place Internal", Callable(self, "_on_place_internal_pressed"))
+		_add_box_action_button("Remove Internal", Callable(self, "_on_remove_internal_pressed"))
+		_add_box_action_button("Reset Internal Cursor", Callable(self, "_on_reset_internal_cursor_pressed"))
 	else:
 		_add_box_action_button("Remove", Callable(self, "_on_remove_selected_module_pressed"))
 		_add_box_action_button("Prev Inst", Callable(self, "_on_prev_installed_pressed"))
@@ -879,12 +906,15 @@ func update_box_button_visibility() -> void:
 	var is_mission := box_menu_mode == BoxMenuMode.MISSION
 	var is_modules := box_menu_mode == BoxMenuMode.MODULES
 	var is_external := box_menu_mode == BoxMenuMode.EXTERNAL
+	var is_internal := box_menu_mode == BoxMenuMode.INTERNAL
 	if mission_tab_button != null:
 		mission_tab_button.disabled = is_mission
 	if modules_tab_button != null:
 		modules_tab_button.disabled = is_modules
 	if external_tab_button != null:
 		external_tab_button.disabled = is_external
+	if internal_tab_button != null:
+		internal_tab_button.disabled = is_internal
 
 func set_box_menu_mode_mission() -> void:
 	box_menu_mode = BoxMenuMode.MISSION
@@ -901,6 +931,38 @@ func set_box_menu_mode_external() -> void:
 	clamp_external_selection()
 	update_box_status()
 	rebuild_box_action_buttons()
+
+
+func set_box_menu_mode_internal() -> void:
+	box_menu_mode = BoxMenuMode.INTERNAL
+	update_box_status()
+	rebuild_box_action_buttons()
+
+func _get_internal_box_modules() -> Array[BipobModule]:
+	var internal_modules: Array[BipobModule] = []
+	for module in bipob.box_storage:
+		if bipob.is_internal_module(module):
+			internal_modules.append(module)
+	return internal_modules
+
+func _clamp_internal_selection() -> void:
+	var modules := _get_internal_box_modules()
+	if modules.is_empty():
+		bipob.selected_internal_box_index = 0
+	else:
+		bipob.selected_internal_box_index = clampi(bipob.selected_internal_box_index, 0, modules.size() - 1)
+	bipob.selected_internal_rotation = posmod(bipob.selected_internal_rotation, 3)
+	var v: Vector3i = bipob.get_internal_volume_size()
+	bipob.selected_internal_origin.x = clampi(bipob.selected_internal_origin.x, 0, v.x - 1)
+	bipob.selected_internal_origin.y = clampi(bipob.selected_internal_origin.y, 0, v.y - 1)
+	bipob.selected_internal_origin.z = clampi(bipob.selected_internal_origin.z, 0, v.z - 1)
+
+func _get_selected_internal_module() -> BipobModule:
+	var modules := _get_internal_box_modules()
+	if modules.is_empty():
+		return null
+	_clamp_internal_selection()
+	return modules[bipob.selected_internal_box_index]
 
 func _on_prev_external_side_pressed() -> void:
 	if bipob == null:
@@ -1149,3 +1211,119 @@ func update_diagnostic_status() -> void:
 		recommendation,
 		estimated_risk
 	]
+
+
+func get_box_internal_menu_text() -> String:
+	_clamp_internal_selection()
+	var selected_module := _get_selected_internal_module()
+	var preview_cells: Array[Vector3i] = []
+	var can_place := false
+	if selected_module != null:
+		preview_cells = bipob.get_internal_module_covered_cells(selected_module, bipob.selected_internal_origin, bipob.selected_internal_rotation)
+		can_place = bipob.can_place_internal_module(selected_module, bipob.selected_internal_origin, bipob.selected_internal_rotation)
+	var lines: Array[String] = []
+	lines.append("Selected internal module:")
+	if selected_module == null:
+		lines.append("- none")
+	else:
+		var size := bipob.get_rotated_internal_size(selected_module, bipob.selected_internal_rotation)
+		lines.append("- %s" % bipob.get_module_display_name(selected_module))
+		lines.append("- size: %dx%dx%d" % [size.x, size.y, size.z])
+		lines.append("- rotation: %d" % bipob.selected_internal_rotation)
+	lines.append("")
+	lines.append("Internal box storage:")
+	var internal_modules := _get_internal_box_modules()
+	if internal_modules.is_empty():
+		lines.append("empty")
+	else:
+		for i in range(internal_modules.size()):
+			lines.append(("> " if i == bipob.selected_internal_box_index else "  ") + bipob.get_module_display_name(internal_modules[i]))
+	lines.append("")
+	var v := bipob.get_internal_volume_size()
+	lines.append("Front view (X/Y):")
+	for y in range(v.y):
+		var row: Array[String] = []
+		for x in range(v.x):
+			var cell := Vector3i(x, y, bipob.selected_internal_origin.z)
+			var marker := "[ ]" if bipob.get_internal_module_at_cell(cell) == null else "[X]"
+			if preview_cells.has(cell):
+				marker = "[*]" if can_place else "[!]"
+			if x == bipob.selected_internal_origin.x and y == bipob.selected_internal_origin.y:
+				marker = "[>]"
+			row.append(marker)
+		lines.append(" ".join(row))
+	lines.append("")
+	lines.append("Vertical slice (Z/Y at X=%d):" % bipob.selected_internal_origin.x)
+	for y in range(v.y):
+		var row: Array[String] = []
+		for z in range(v.z):
+			var cell := Vector3i(bipob.selected_internal_origin.x, y, z)
+			var marker := "[ ]" if bipob.get_internal_module_at_cell(cell) == null else "[X]"
+			if preview_cells.has(cell):
+				marker = "[*]" if can_place else "[!]"
+			row.append(marker)
+		lines.append(" ".join(row))
+	lines.append("")
+	lines.append("Horizontal slice (X/Z at Y=%d):" % bipob.selected_internal_origin.y)
+	for z in range(v.z):
+		var row: Array[String] = []
+		for x in range(v.x):
+			var cell := Vector3i(x, bipob.selected_internal_origin.y, z)
+			var marker := "[ ]" if bipob.get_internal_module_at_cell(cell) == null else "[X]"
+			if preview_cells.has(cell):
+				marker = "[*]" if can_place else "[!]"
+			row.append(marker)
+		lines.append(" ".join(row))
+	lines.append("")
+	lines.append("Placement:")
+	lines.append("origin = (%d, %d, %d)" % [bipob.selected_internal_origin.x, bipob.selected_internal_origin.y, bipob.selected_internal_origin.z])
+	lines.append("rotation = %d" % bipob.selected_internal_rotation)
+	lines.append("valid = %s" % get_yes_no(can_place))
+	return "\n".join(lines)
+
+func _move_internal_cursor(dx: int, dy: int, dz: int) -> void:
+	var v: Vector3i = bipob.get_internal_volume_size()
+	bipob.selected_internal_origin.x = clampi(bipob.selected_internal_origin.x + dx, 0, v.x - 1)
+	bipob.selected_internal_origin.y = clampi(bipob.selected_internal_origin.y + dy, 0, v.y - 1)
+	bipob.selected_internal_origin.z = clampi(bipob.selected_internal_origin.z + dz, 0, v.z - 1)
+	update_box_status()
+
+func _on_prev_internal_box_pressed() -> void:
+	var modules := _get_internal_box_modules()
+	if modules.is_empty():
+		show_hint("No internal modules in Box storage.")
+		return
+	bipob.selected_internal_box_index = posmod(bipob.selected_internal_box_index - 1, modules.size())
+	update_box_status()
+
+func _on_next_internal_box_pressed() -> void:
+	var modules := _get_internal_box_modules()
+	if modules.is_empty():
+		show_hint("No internal modules in Box storage.")
+		return
+	bipob.selected_internal_box_index = posmod(bipob.selected_internal_box_index + 1, modules.size())
+	update_box_status()
+
+func _on_internal_x_minus_pressed() -> void: _move_internal_cursor(-1, 0, 0)
+func _on_internal_x_plus_pressed() -> void: _move_internal_cursor(1, 0, 0)
+func _on_internal_y_minus_pressed() -> void: _move_internal_cursor(0, -1, 0)
+func _on_internal_y_plus_pressed() -> void: _move_internal_cursor(0, 1, 0)
+func _on_internal_z_minus_pressed() -> void: _move_internal_cursor(0, 0, -1)
+func _on_internal_z_plus_pressed() -> void: _move_internal_cursor(0, 0, 1)
+func _on_rotate_internal_pressed() -> void:
+	bipob.selected_internal_rotation = posmod(bipob.selected_internal_rotation + 1, 3)
+	update_box_status()
+func _on_place_internal_pressed() -> void:
+	var module := _get_selected_internal_module()
+	if module == null:
+		show_hint("No internal module selected.")
+		return
+	if bipob.place_internal_module(module, bipob.selected_internal_origin, bipob.selected_internal_rotation):
+		update_box_status()
+func _on_remove_internal_pressed() -> void:
+	if bipob.remove_internal_module(bipob.selected_internal_origin):
+		update_box_status()
+func _on_reset_internal_cursor_pressed() -> void:
+	bipob.selected_internal_origin = Vector3i.ZERO
+	bipob.selected_internal_rotation = 0
+	update_box_status()

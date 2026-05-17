@@ -28,6 +28,9 @@ const EXTERNAL_SIDE_ORDER := [
 	EXTERNAL_SIDE_BACK,
 	EXTERNAL_SIDE_BOTTOM
 ]
+const INTERNAL_SIZE_X := 5
+const INTERNAL_SIZE_Y := 8
+const INTERNAL_SIZE_Z := 5
 
 @export var start_grid_position := Vector2i(1, 1)
 
@@ -66,6 +69,11 @@ var has_info_key: bool = false
 var installed_modules: Array[BipobModule] = []
 var box_storage: Array[BipobModule] = []
 var external_modules_by_slot: Dictionary = {}
+var internal_modules_by_cell: Dictionary = {}
+var placed_internal_modules: Array[Dictionary] = []
+var selected_internal_box_index: int = 0
+var selected_internal_origin: Vector3i = Vector3i.ZERO
+var selected_internal_rotation: int = 0
 var found_module: BipobModule = null
 var held_module: BipobModule = null
 var stored_physical_module: BipobModule = null
@@ -631,6 +639,116 @@ func get_external_side_size(side_id: String) -> Vector2i:
 		_:
 			return Vector2i.ZERO
 
+func get_internal_volume_size() -> Vector3i:
+	return Vector3i(INTERNAL_SIZE_X, INTERNAL_SIZE_Y, INTERNAL_SIZE_Z)
+
+func get_internal_slot_key(cell: Vector3i) -> String:
+	return "%d:%d:%d" % [cell.x, cell.y, cell.z]
+
+func is_internal_cell_in_bounds(cell: Vector3i) -> bool:
+	var volume_size := get_internal_volume_size()
+	return (
+		cell.x >= 0 and cell.y >= 0 and cell.z >= 0
+		and cell.x < volume_size.x and cell.y < volume_size.y and cell.z < volume_size.z
+	)
+
+func get_internal_module_at_cell(cell: Vector3i) -> BipobModule:
+	var key := get_internal_slot_key(cell)
+	if internal_modules_by_cell.has(key):
+		return internal_modules_by_cell[key]
+	return null
+
+func get_internal_module_base_size(module: BipobModule) -> Vector3i:
+	if module == null:
+		return Vector3i.ONE
+	return Vector3i(maxi(module.size_x, 1), maxi(module.size_y, 1), maxi(module.size_z, 1))
+
+func get_rotated_internal_size(module: BipobModule, rotation: int) -> Vector3i:
+	var base_size := get_internal_module_base_size(module)
+	match posmod(rotation, 3):
+		1:
+			return Vector3i(base_size.z, base_size.y, base_size.x)
+		2:
+			return Vector3i(base_size.x, base_size.z, base_size.y)
+		_:
+			return base_size
+
+func get_internal_module_covered_cells(module: BipobModule, origin: Vector3i, rotation: int = 0) -> Array[Vector3i]:
+	var cells: Array[Vector3i] = []
+	var module_size := get_rotated_internal_size(module, rotation)
+	for z in range(module_size.z):
+		for y in range(module_size.y):
+			for x in range(module_size.x):
+				cells.append(origin + Vector3i(x, y, z))
+	return cells
+
+func can_place_internal_module(module: BipobModule, origin: Vector3i, rotation: int = 0) -> bool:
+	if module == null:
+		return false
+	if module.placement_type != "internal":
+		return false
+	for cell in get_internal_module_covered_cells(module, origin, rotation):
+		if not is_internal_cell_in_bounds(cell):
+			return false
+		if get_internal_module_at_cell(cell) != null:
+			return false
+	return true
+
+func place_internal_module(module: BipobModule, origin: Vector3i, rotation: int = 0) -> bool:
+	if not can_place_internal_module(module, origin, rotation):
+		hint_requested.emit("Cannot place internal module here.")
+		status_changed.emit()
+		return false
+	var rotated_size := get_rotated_internal_size(module, rotation)
+	var record := {
+		"module": module,
+		"origin": origin,
+		"size": rotated_size,
+		"rotation": posmod(rotation, 3),
+	}
+	placed_internal_modules.append(record)
+	for cell in get_internal_module_covered_cells(module, origin, rotation):
+		internal_modules_by_cell[get_internal_slot_key(cell)] = module
+	var storage_index := box_storage.find(module)
+	if storage_index != -1:
+		box_storage.remove_at(storage_index)
+	hint_requested.emit("Internal module installed: %s" % get_module_display_name(module))
+	status_changed.emit()
+	return true
+
+func find_internal_module_record_at_cell(cell: Vector3i) -> int:
+	for index in range(placed_internal_modules.size()):
+		var record: Dictionary = placed_internal_modules[index]
+		var record_module: BipobModule = record.get("module", null)
+		var origin: Vector3i = record.get("origin", Vector3i.ZERO)
+		var rotation: int = int(record.get("rotation", 0))
+		if get_internal_module_covered_cells(record_module, origin, rotation).has(cell):
+			return index
+	return -1
+
+func remove_internal_module(cell: Vector3i) -> bool:
+	if not is_internal_cell_in_bounds(cell):
+		hint_requested.emit("Internal cell is out of bounds.")
+		status_changed.emit()
+		return false
+	var index := find_internal_module_record_at_cell(cell)
+	if index == -1:
+		hint_requested.emit("No internal module at selected cell.")
+		status_changed.emit()
+		return false
+	var record: Dictionary = placed_internal_modules[index]
+	var module: BipobModule = record.get("module", null)
+	var origin: Vector3i = record.get("origin", Vector3i.ZERO)
+	var rotation: int = int(record.get("rotation", 0))
+	for covered_cell in get_internal_module_covered_cells(module, origin, rotation):
+		internal_modules_by_cell.erase(get_internal_slot_key(covered_cell))
+	placed_internal_modules.remove_at(index)
+	if module != null and not box_storage.has(module):
+		box_storage.append(module)
+	hint_requested.emit("Internal module removed to Box: %s" % get_module_display_name(module))
+	status_changed.emit()
+	return true
+
 func get_external_slot_key(side_id: String, slot_position: Vector2i) -> String:
 	return "%s:%d,%d" % [side_id, slot_position.x, slot_position.y]
 
@@ -770,6 +888,11 @@ func is_external_module(module: BipobModule) -> bool:
 		"visor_v2"
 	]
 	return module.id in external_ids
+
+func is_internal_module(module: BipobModule) -> bool:
+	if module == null:
+		return false
+	return module.placement_type == "internal"
 
 func get_allowed_external_sides_for_module(module: BipobModule) -> Array[String]:
 	if module == null:
@@ -975,6 +1098,38 @@ func create_default_modules() -> void:
 			"vision",
 		]
 		install_module(visor_module)
+
+	add_internal_mvp_modules_to_box()
+
+func create_internal_module(module_id: String, module_name: String, module_size: Vector3i) -> BipobModule:
+	var module := BipobModule.new()
+	module.id = module_id
+	module.display_name = module_name
+	module.placement_type = "internal"
+	module.size_x = module_size.x
+	module.size_y = module_size.y
+	module.size_z = module_size.z
+	module.internal_rotatable = true
+	return module
+
+func add_internal_mvp_modules_to_box() -> void:
+	var internal_specs: Array[Dictionary] = [
+		{"id": "battery_v1_a", "name": "Battery V1 A", "size": Vector3i(2, 2, 1)},
+		{"id": "battery_v1_b", "name": "Battery V1 B", "size": Vector3i(2, 2, 1)},
+		{"id": "processor_v1", "name": "Processor V1", "size": Vector3i(1, 1, 1)},
+		{"id": "ext_interface_internal_v1", "name": "Ext Interface Internal V1", "size": Vector3i(2, 2, 1)},
+		{"id": "int_interface_v1", "name": "Int Interface V1", "size": Vector3i(1, 1, 1)},
+		{"id": "memory_v1", "name": "Memory V1", "size": Vector3i(1, 1, 2)},
+		{"id": "power_block_v1", "name": "Power Block V1", "size": Vector3i(1, 2, 2)},
+		{"id": "hard_drive_v1", "name": "Hard Drive V1", "size": Vector3i(2, 2, 1)},
+	]
+	for spec in internal_specs:
+		var module_id := String(spec.get("id", ""))
+		if has_module_id_anywhere(module_id):
+			continue
+		var module_name := String(spec.get("name", module_id))
+		var module_size: Vector3i = spec.get("size", Vector3i.ONE)
+		box_storage.append(create_internal_module(module_id, module_name, module_size))
 
 func create_visor_v2_module() -> BipobModule:
 	var module := BipobModule.new()
