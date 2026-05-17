@@ -777,9 +777,16 @@ func get_unique_external_modules() -> Array[BipobModule]:
 	return unique_modules
 
 func has_internal_role(role_id: String) -> bool:
+	return count_internal_role(role_id) > 0
+
+func count_internal_role(role_id: String) -> int:
 	if role_id.is_empty():
-		return false
-	return not get_internal_modules_by_role(role_id).is_empty()
+		return 0
+	var count: int = 0
+	for module in get_unique_internal_modules():
+		if module != null and module.internal_role == role_id:
+			count += 1
+	return count
 
 func get_internal_modules_by_role(role_id: String) -> Array[BipobModule]:
 	var modules_by_role: Array[BipobModule] = []
@@ -820,18 +827,18 @@ func get_virtual_connection_summary_text() -> String:
 	var lines: Array[String] = []
 	lines.append("Virtual wiring:")
 	lines.append("Power:")
-	lines.append("- Battery source: %s" % ("yes" if has_power_source() else "no"))
-	lines.append("- Power Block: %s" % ("yes" if has_power_block() else "no"))
-	lines.append("- Distribution: %s" % ("available" if power_available else "unavailable"))
+	lines.append("- Battery source: %s" % get_yes_no(has_power_source()))
+	lines.append("- Power Block: %s" % get_yes_no(has_power_block()))
+	lines.append("- Power distribution: %s" % ("available" if power_available else "unavailable"))
 	lines.append("")
 	lines.append("Data:")
-	lines.append("- Internal Interface: %s" % ("yes" if has_internal_interface() else "no"))
-	lines.append("- External Interface: %s" % ("yes" if has_external_interface_bridge() else "no"))
-	lines.append("- Internal network: %s" % ("available" if internal_network_available else "unavailable"))
-	lines.append("- External network: %s" % ("available" if external_network_available else "unavailable"))
+	lines.append("- Internal Interface: %s" % get_yes_no(has_internal_interface()))
+	lines.append("- External Interface bridge: %s" % get_yes_no(has_external_interface_bridge()))
+	lines.append("- Internal data network: %s" % ("available" if internal_network_available else "unavailable"))
+	lines.append("- External data network: %s" % ("available" if external_network_available else "unavailable"))
 	lines.append("")
 	lines.append("Rules:")
-	lines.append("Battery -> Power Block -> all devices")
+	lines.append("Battery -> Power Block -> devices")
 	lines.append("Internal devices -> Internal Interface")
 	lines.append("External devices -> External Interface")
 	lines.append("Internal Interface <-> External Interface")
@@ -854,12 +861,15 @@ func get_internal_role_summary_text() -> String:
 	]
 	var lines: Array[String] = ["Internal roles:"]
 	for role_id in role_order:
-		var role_count := get_internal_modules_by_role(role_id).size()
+		var role_count := count_internal_role(role_id)
 		if role_count > 0:
 			lines.append("- %s: %d" % [role_id, role_count])
 	if lines.size() == 1:
 		lines.append("none")
 	return "\n".join(lines)
+
+func get_yes_no(value: bool) -> String:
+	return "yes" if value else "no"
 
 func get_external_device_summary_text() -> String:
 	if external_modules_by_slot.is_empty():
