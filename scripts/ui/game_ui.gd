@@ -400,6 +400,7 @@ func get_module_details_text(module: BipobModule) -> String:
 		lines.append("Allowed sides: n/a")
 	if not module.description.is_empty():
 		lines.append("Description: %s" % module.description)
+	lines.append(str(bipob.get_module_repair_metadata_text(module)))
 	lines.append(bipob.get_module_availability_text(module))
 	if module.id == "water_tube_v1" or module.id == "air_duct_v1":
 		lines.append("Note: does not consume internal volume")
@@ -964,6 +965,7 @@ func get_box_modules_menu_text() -> String:
 	content_lines.append("Duct paths: %d" % bipob.get_duct_overlay_path_count())
 	content_lines.append(str(bipob.get_overlay_effect_compact_text()))
 	content_lines.append(str(bipob.get_overlay_thermal_contribution_compact_text()))
+	content_lines.append(str(bipob.get_damage_planning_compact_text()))
 	content_lines.append("Thermal rules: heat 1-5, critical 5, overlay hypothetical")
 	content_lines.append(bipob.get_constructor_consistency_compact_text())
 	content_lines.append("")
@@ -1178,6 +1180,7 @@ func rebuild_box_action_buttons() -> void:
 		_add_right_action_button("Check", Callable(self, "_on_overlay_check_pressed"))
 		_add_right_action_button("Endpoints", Callable(self, "_on_overlay_endpoints_pressed"))
 		_add_right_action_button("Thermal", Callable(self, "_on_overlay_thermal_pressed"))
+		_add_right_action_button("Damage Plan", Callable(self, "_on_damage_plan_pressed"))
 		_add_right_action_button("Rules", Callable(self, "_on_thermal_rules_pressed"))
 		_add_right_action_button("Diff", Callable(self, "_on_overlay_effects_pressed"))
 	else:
@@ -1882,6 +1885,7 @@ func get_box_internal_menu_text() -> String:
 	lines.append(_section_title("Thermal Preview"))
 	lines.append("Highest heat: %d / %d" % [highest_heat, bipob.THERMAL_CRITICAL_HEAT])
 	lines.append("Critical preview: %d" % critical_count)
+	lines.append(str(bipob.get_damage_planning_compact_text()))
 	lines.append("Overlay thermal: %s" % str(bipob.get_overlay_thermal_contribution_compact_text()))
 	lines.append("Overlay diff: %s" % str(bipob.get_overlay_thermal_contribution_diff_summary_text()))
 	lines.append("Thermal rules: heat 1-5, critical 5, overlay hypothetical")
@@ -2063,6 +2067,10 @@ func _on_overlay_thermal_pressed() -> void:
 
 func _on_thermal_rules_pressed() -> void:
 	show_hint(str(bipob.get_thermal_rules_reference_text()))
+	update_box_status()
+
+func _on_damage_plan_pressed() -> void:
+	show_hint(str(bipob.get_damage_planning_preview_text()))
 	update_box_status()
 
 func _on_prev_overlay_pressed() -> void:

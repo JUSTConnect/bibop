@@ -2249,6 +2249,68 @@ func get_allowed_constructor_categories() -> Array[String]:
 func get_allowed_cooling_types() -> Array[String]:
 	return ["none", "air", "passive", "liquid", "duct"]
 
+func get_allowed_repair_categories() -> Array[String]:
+	return ["standard", "electronics", "power", "cooling", "mechanical", "interface"]
+
+func get_repair_category_display_name(category_id: String) -> String:
+	match category_id:
+		"standard":
+			return "Standard"
+		"electronics":
+			return "Electronics"
+		"power":
+			return "Power"
+		"cooling":
+			return "Cooling"
+		"mechanical":
+			return "Mechanical"
+		"interface":
+			return "Interface"
+		_:
+			return category_id
+
+func get_module_damage_threshold(module: BipobModule) -> int:
+	if module == null:
+		return 5
+	return clampi(module.damage_threshold_heat, 1, 5)
+
+func get_module_repair_metadata_text(module: BipobModule) -> String:
+	if module == null:
+		return "Repair: none"
+	if not module.can_be_damaged:
+		return "Repair: not damageable"
+	return "Repair: threshold heat %d / complexity %d / category %s" % [
+		get_module_damage_threshold(module),
+		module.repair_complexity,
+		get_repair_category_display_name(module.repair_category)
+	]
+
+func get_module_damage_risk_preview_text(module: BipobModule) -> String:
+	if module == null:
+		return "Damage risk: none"
+	if not module.can_be_damaged:
+		return "Damage risk: not damageable"
+	var preview_heat: int = get_preview_heat_after_cooling_for_internal_module(module)
+	var threshold: int = get_module_damage_threshold(module)
+	if preview_heat >= threshold:
+		return "Damage risk: critical preview"
+	if preview_heat == threshold - 1:
+		return "Damage risk: warning preview"
+	return "Damage risk: low preview"
+
+func get_module_overlay_damage_risk_preview_text(module: BipobModule) -> String:
+	if module == null:
+		return "Overlay damage risk: none"
+	if not module.can_be_damaged:
+		return "Overlay damage risk: not damageable"
+	var overlay_heat: int = get_hypothetical_heat_after_overlay_for_module(module)
+	var threshold: int = get_module_damage_threshold(module)
+	if overlay_heat >= threshold:
+		return "Overlay damage risk: critical preview"
+	if overlay_heat == threshold - 1:
+		return "Overlay damage risk: warning preview"
+	return "Overlay damage risk: low preview"
+
 func get_constructor_consistency_issue_lines() -> Array[String]:
 	var issues: Array[String] = []
 	var modules: Array[BipobModule] = get_all_constructor_modules()
@@ -2315,6 +2377,21 @@ func get_constructor_consistency_issue_lines() -> Array[String]:
 			if module.cooling_type != "air" and module.cooling_type != "duct":
 				issues.append("%s requires air intake but cooling_type is %s." % [module_label, module.cooling_type])
 
+		if module.damage_threshold_heat < 1 or module.damage_threshold_heat > 5:
+			issues.append("%s has damage_threshold_heat outside 1..5: %d." % [module_label, module.damage_threshold_heat])
+
+		if module.repair_complexity < 0:
+			issues.append("%s has repair_complexity < 0: %d." % [module_label, module.repair_complexity])
+
+		if not get_allowed_repair_categories().has(module.repair_category):
+			issues.append("%s has unknown repair_category: %s." % [module_label, module.repair_category])
+
+		if module.can_be_damaged and module.damage_threshold_heat <= 0:
+			issues.append("%s can be damaged but damage_threshold_heat <= 0." % module_label)
+
+		if module.can_be_damaged and module.repair_complexity <= 0:
+			issues.append("%s can be damaged but repair_complexity <= 0." % module_label)
+
 	_append_duplicate_constructor_metadata_issues(issues, modules)
 	return issues
 
@@ -2339,6 +2416,10 @@ func _append_duplicate_constructor_metadata_issues(issues: Array[String], module
 		_compare_constructor_metadata_field(issues, module_id, "cooling_type", first_module.cooling_type, module.cooling_type)
 		_compare_constructor_metadata_field(issues, module_id, "cooling_power", str(first_module.cooling_power), str(module.cooling_power))
 		_compare_constructor_metadata_field(issues, module_id, "requires_air_intake", str(first_module.requires_air_intake), str(module.requires_air_intake))
+		_compare_constructor_metadata_field(issues, module_id, "can_be_damaged", str(first_module.can_be_damaged), str(module.can_be_damaged))
+		_compare_constructor_metadata_field(issues, module_id, "damage_threshold_heat", str(first_module.damage_threshold_heat), str(module.damage_threshold_heat))
+		_compare_constructor_metadata_field(issues, module_id, "repair_complexity", str(first_module.repair_complexity), str(module.repair_complexity))
+		_compare_constructor_metadata_field(issues, module_id, "repair_category", first_module.repair_category, module.repair_category)
 
 func _compare_constructor_metadata_field(
 	issues: Array[String],
@@ -3073,6 +3154,7 @@ func create_default_modules() -> void:
 			"turn_right",
 		]
 		apply_thermal_metadata(wheels_module)
+		apply_damage_metadata(wheels_module)
 		install_module(wheels_module)
 
 	if debug_install_manipulator:
@@ -3088,6 +3170,7 @@ func create_default_modules() -> void:
 			"open_physical_door",
 		]
 		apply_thermal_metadata(manipulator_module)
+		apply_damage_metadata(manipulator_module)
 		install_module(manipulator_module)
 
 	if debug_install_interface:
@@ -3103,6 +3186,7 @@ func create_default_modules() -> void:
 			"open_digital_door",
 		]
 		apply_thermal_metadata(interface_module)
+		apply_damage_metadata(interface_module)
 		install_module(interface_module)
 
 	if debug_install_visor:
@@ -3117,6 +3201,7 @@ func create_default_modules() -> void:
 			"vision",
 		]
 		apply_thermal_metadata(visor_module)
+		apply_damage_metadata(visor_module)
 		install_module(visor_module)
 
 	var air_intake_module := BipobModule.new()
@@ -3127,6 +3212,7 @@ func create_default_modules() -> void:
 	air_intake_module.internal_role = "none"
 	air_intake_module.description = "External air intake required by internal air cooling modules."
 	apply_thermal_metadata(air_intake_module)
+	apply_damage_metadata(air_intake_module)
 	if not has_module_id_anywhere(air_intake_module.id):
 		box_storage.append(air_intake_module)
 
@@ -3144,6 +3230,7 @@ func create_internal_module(module_id: String, module_name: String, module_size:
 	module.internal_role = get_internal_role_for_module_id(module_id)
 	module.category = get_module_category(module)
 	apply_thermal_metadata(module)
+	apply_damage_metadata(module)
 	return module
 
 func get_internal_role_for_module_id(module_id: String) -> String:
@@ -3214,6 +3301,88 @@ func apply_thermal_metadata(module: BipobModule) -> void:
 		"air_intake_v1":
 			module.cooling_power = 0
 			module.cooling_type = "air"
+
+func apply_damage_metadata(module: BipobModule) -> void:
+	if module == null:
+		return
+	module.can_be_damaged = true
+	module.damage_threshold_heat = 5
+	module.repair_complexity = 1
+	module.repair_category = "standard"
+	match module.id:
+		"processor_v1":
+			module.repair_complexity = 3
+			module.repair_category = "electronics"
+		"memory_v1", "hard_drive_v1", "visor_v1", "visor_v2":
+			module.repair_complexity = 2
+			module.repair_category = "electronics"
+		"power_block_v1":
+			module.repair_complexity = 3
+			module.repair_category = "power"
+		"battery_v1_a", "battery_v1_b":
+			module.repair_complexity = 2
+			module.repair_category = "power"
+		"int_interface_v1", "ext_interface_internal_v1", "interface_v1":
+			module.repair_complexity = 2
+			module.repair_category = "interface"
+		"cooler_v1":
+			module.repair_complexity = 2
+			module.repair_category = "cooling"
+		"radiator_v1", "water_tube_v1", "air_duct_v1", "air_intake_v1":
+			module.repair_complexity = 1
+			module.repair_category = "cooling"
+		"wheels_v1", "legs_v1", "tracks_v1", "manipulator_v1":
+			module.repair_complexity = 2
+			module.repair_category = "mechanical"
+
+func get_damage_planning_preview_text() -> String:
+	var lines: Array[String] = []
+	lines.append("Damage / Repair Planning Preview")
+	var modules: Array[BipobModule] = get_unique_internal_modules()
+	if modules.is_empty():
+		lines.append("No internal modules placed.")
+		lines.append("")
+		lines.append("Rules:")
+		lines.append("- Heat 5 will later damage devices.")
+		lines.append("- Repair is not implemented yet.")
+		return "\n".join(lines)
+	for module in modules:
+		if module == null:
+			continue
+		var preview_heat: int = get_preview_heat_after_cooling_for_internal_module(module)
+		var overlay_heat: int = get_hypothetical_heat_after_overlay_for_module(module)
+		var threshold: int = get_module_damage_threshold(module)
+		lines.append("- %s: heat %d / overlay %d / threshold %d / %s / repair complexity %d" % [
+			get_module_display_name(module),
+			preview_heat,
+			overlay_heat,
+			threshold,
+			get_repair_category_display_name(module.repair_category),
+			module.repair_complexity
+		])
+	lines.append("")
+	lines.append("Rules:")
+	lines.append("- Damage is preview only.")
+	lines.append("- No module is broken automatically.")
+	lines.append("- Overlay heat is hypothetical only.")
+	lines.append("- Repair in Box is not implemented yet.")
+	return "\n".join(lines)
+
+func get_damage_planning_compact_text() -> String:
+	var critical_count: int = 0
+	var warning_count: int = 0
+	for module in get_unique_internal_modules():
+		if module == null:
+			continue
+		if not module.can_be_damaged:
+			continue
+		var preview_heat: int = get_preview_heat_after_cooling_for_internal_module(module)
+		var threshold: int = get_module_damage_threshold(module)
+		if preview_heat >= threshold:
+			critical_count += 1
+		elif preview_heat == threshold - 1:
+			warning_count += 1
+	return "Damage preview: critical %d / warning %d" % [critical_count, warning_count]
 
 func get_module_description_for_id(module_id: String) -> String:
 	match module_id:
@@ -3294,6 +3463,7 @@ func create_visor_v2_module() -> BipobModule:
 	module.granted_commands = ["vision"]
 	module.vision_bonus = 0
 	apply_thermal_metadata(module)
+	apply_damage_metadata(module)
 	return module
 
 func create_gpu_v1_module() -> BipobModule:
@@ -3321,6 +3491,7 @@ func create_legs_v1_module() -> BipobModule:
 		"cross_stepped_floor"
 	]
 	apply_thermal_metadata(module)
+	apply_damage_metadata(module)
 	return module
 
 func add_debug_mission4_modules_to_box() -> void:
