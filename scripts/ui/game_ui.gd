@@ -1144,6 +1144,7 @@ func rebuild_box_action_buttons() -> void:
 		_add_box_action_button("Remove Overlay", Callable(self, "_on_remove_selected_overlay_pressed"))
 		_add_box_action_button("Overlay Check", Callable(self, "_on_overlay_check_pressed"))
 		_add_box_action_button("Overlay Effects", Callable(self, "_on_overlay_effects_pressed"))
+		_add_box_action_button("Overlay Endpoints", Callable(self, "_on_overlay_endpoints_pressed"))
 		_add_box_action_button("Warnings", Callable(self, "_on_constructor_warnings_button_pressed"))
 		_add_box_action_button("Reset Internal Cursor", Callable(self, "_on_reset_internal_cursor_pressed"))
 	else:
@@ -1685,6 +1686,7 @@ func get_box_internal_menu_text() -> String:
 	lines.append("Planning cells: %d" % bipob.selected_overlay_cells.size())
 	lines.append("Committed paths: %d" % bipob.internal_overlay_paths.size())
 	lines.append(str(bipob.get_overlay_connectivity_compact_text()))
+	lines.append(str(bipob.get_overlay_endpoint_compact_text()))
 	if bipob.internal_overlay_paths.is_empty():
 		lines.append("Selected path: none")
 	else:
@@ -1926,6 +1928,10 @@ func _on_overlay_effects_pressed() -> void:
 
 func _on_overlay_check_pressed() -> void:
 	show_hint(str(bipob.get_overlay_connectivity_preview_text()))
+	update_box_status()
+
+func _on_overlay_endpoints_pressed() -> void:
+	show_hint(str(bipob.get_overlay_endpoint_preview_text()))
 	update_box_status()
 
 func _on_prev_overlay_pressed() -> void:
