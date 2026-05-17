@@ -1711,194 +1711,197 @@ func update_diagnostic_status() -> void:
 	]
 
 
+func _section_title(title: String) -> String:
+	return "== %s ==" % title
+
+func _subsection_title(title: String) -> String:
+	return "-- %s --" % title
+
+func _empty_line(lines: Array[String]) -> void:
+	lines.append("")
+
+func _get_internal_view_legend_text() -> String:
+	if internal_view_mode == "thermal":
+		return "[1-5] base preview heat after normal cooling, [5] critical preview"
+	if internal_view_mode == "overlay":
+		return "[L] selected liquid, [A] selected duct, [l] liquid path, [a] duct path"
+	if internal_view_mode == "thermal_overlay":
+		return "[1-5] hypothetical heat, [l/a] overlay, [*] preview, [!] invalid"
+	return "[ ] empty, [>] origin, [*] preview, [!] invalid, [B/P/E/I/M/W/H] modules"
+
 func get_box_internal_menu_text() -> String:
 	_clamp_internal_selection()
 	sync_selected_box_storage_index_from_filter()
-	var selected_module := _get_selected_internal_module()
+	var selected_module: BipobModule = _get_selected_internal_module()
 	var preview_cells: Array[Vector3i] = []
-	var preview_cells_map := {}
-	var placement_error := "No internal module selected."
-	var can_place := false
+	var preview_cells_map: Dictionary = {}
+	var reason: String = "No internal module selected."
+	var can_place: bool = false
+	var placement_size: Vector3i = Vector3i.ZERO
+	var base_size: Vector3i = Vector3i.ZERO
+	var selected_cell_module: BipobModule = bipob.get_internal_module_at_cell(bipob.selected_internal_origin)
+	var selected_module_id: String = ""
+	var is_overlay_module: bool = false
 	if selected_module != null:
+		selected_module_id = selected_module.id
+		is_overlay_module = selected_module_id == "water_tube_v1" or selected_module_id == "air_duct_v1"
+		base_size = selected_module.internal_size
+		placement_size = bipob.get_rotated_internal_size(selected_module, bipob.selected_internal_rotation)
 		preview_cells = bipob.get_internal_module_covered_cells(selected_module, bipob.selected_internal_origin, bipob.selected_internal_rotation)
 		for cell in preview_cells:
 			preview_cells_map[bipob.get_internal_slot_key(cell)] = true
-		placement_error = bipob.get_internal_module_placement_error(selected_module, bipob.selected_internal_origin, bipob.selected_internal_rotation)
-		can_place = placement_error.is_empty()
+		reason = bipob.get_internal_module_placement_error(selected_module, bipob.selected_internal_origin, bipob.selected_internal_rotation)
+		can_place = reason.is_empty()
 	if can_place:
-		placement_error = "OK"
-	var selected_cell_module: BipobModule = bipob.get_internal_module_at_cell(bipob.selected_internal_origin)
+		reason = "OK"
 
 	var lines: Array[String] = []
+	var volume_size: Vector3i = bipob.get_internal_volume_size()
+	var overlay_count: int = bipob.internal_overlay_paths.size()
+	lines.append(_section_title("Internal Constructor"))
+	lines.append("View mode: %s" % _get_internal_view_mode_display_name())
 	lines.append("Filter: %s" % get_current_constructor_filter().capitalize())
+	lines.append("Cursor: %d,%d,%d" % [bipob.selected_internal_origin.x, bipob.selected_internal_origin.y, bipob.selected_internal_origin.z])
+	lines.append("Volume: %d×%d×%d" % [volume_size.x, volume_size.y, volume_size.z])
 	lines.append("Right panel groups: Selection / Position / Module / View / Overlay")
-	lines.append("")
-	lines.append(bipob.get_constructor_readiness_summary_text())
-	lines.append("")
+	_empty_line(lines)
+
+	lines.append(_section_title("Selected Module"))
 	if selected_module == null:
-		lines.append("Selected internal module: none")
+		lines.append("Selected: none")
+		lines.append("Hint: No module matches current filter.")
 	else:
-		var rotated_size: Vector3i = bipob.get_rotated_internal_size(selected_module, bipob.selected_internal_rotation)
-		lines.append(get_module_details_text(selected_module))
-		lines.append("Rotated: %d×%d×%d" % [rotated_size.x, rotated_size.y, rotated_size.z])
-	lines.append("")
+		lines.append("Selected: %s" % bipob.get_module_display_name(selected_module))
+		var box_count: int = bipob.get_box_module_count_by_id(selected_module.id)
+		var overlay_available: int = 0
+		lines.append("Availability: box %d / overlay %d / total %d" % [box_count, overlay_available, box_count + overlay_available])
+		lines.append("Placement: %s" % selected_module.placement_type)
+		if selected_module.placement_type != "internal" and not is_overlay_module:
+			lines.append("Hint: Cannot place in internal volume.")
+		elif is_overlay_module:
+			lines.append("Hint: Use Overlay Plan actions, not Place Internal.")
+		lines.append("Category: %s" % bipob.get_module_category(selected_module))
+		lines.append("Size: %d×%d×%d" % [base_size.x, base_size.y, base_size.z])
+		lines.append("Role: %s" % selected_module.role)
+		lines.append("Heat: %d / %d" % [selected_module.heat_output, selected_module.heat_limit])
+		lines.append("Cooling: %s %d" % [selected_module.cooling_type, selected_module.cooling_power])
+		lines.append("Air intake: %s" % ("required" if selected_module.requires_air_intake else "not required"))
+	_empty_line(lines)
+
+	lines.append(_section_title("Placement"))
+	lines.append("Origin: %d,%d,%d" % [bipob.selected_internal_origin.x, bipob.selected_internal_origin.y, bipob.selected_internal_origin.z])
+	lines.append("Rotation: %d" % bipob.selected_internal_rotation)
+	lines.append("Base size: %d×%d×%d" % [base_size.x, base_size.y, base_size.z])
+	lines.append("Rotated size: %d×%d×%d" % [placement_size.x, placement_size.y, placement_size.z])
+	if is_overlay_module:
+		lines.append("Overlay path module: use Commit Plan.")
+	else:
+		lines.append("Valid: %s" % get_yes_no(can_place))
+		lines.append("Reason: %s" % reason)
 	lines.append("Selected cell: %s" % ("empty" if selected_cell_module == null else "occupied by %s" % bipob.get_module_display_name(selected_cell_module)))
-	lines.append("")
-	lines.append("Internal box storage:")
-	var internal_modules := _get_internal_box_modules()
-	if internal_modules.is_empty():
-		lines.append("empty")
-	else:
-		for i in range(internal_modules.size()):
-			lines.append(("> " if i == bipob.selected_internal_box_index else "  ") + bipob.get_module_display_name(internal_modules[i]))
-	lines.append("")
-	lines.append("Overlay:")
+	_empty_line(lines)
+
+	lines.append(_section_title("Status"))
+	lines.append("Power: %s" % ("available" if bipob.is_virtual_power_available() else "unavailable"))
+	lines.append("Internal data: %s" % ("available" if bipob.is_internal_data_network_available() else "unavailable"))
+	lines.append("External data: %s" % ("available" if bipob.is_external_data_network_available() else "unavailable"))
+	lines.append("Air intake: %s" % get_air_intake_status_text())
+	lines.append("Warnings: %d" % bipob.get_constructor_warning_lines().size())
+	var highest_heat: int = bipob.get_highest_internal_preview_heat()
+	var critical_count: int = bipob.get_critical_internal_preview_count()
+	var thermal_status: String = "ok"
+	if critical_count > 0:
+		thermal_status = "critical preview"
+	elif bipob.get_warning_level() == "warning":
+		thermal_status = "warning"
+	lines.append("Thermal: %s" % thermal_status)
+	var consistency_issue_count: int = bipob.get_constructor_consistency_issue_lines().size()
+	lines.append("Consistency: %s" % ("OK" if consistency_issue_count <= 0 else "%d issue(s)" % consistency_issue_count))
+	_empty_line(lines)
+
+	lines.append(_section_title("Views"))
+	lines.append("Legend: %s" % _get_internal_view_legend_text())
+	lines.append("Front view — X/Y at Z=%d" % bipob.selected_internal_origin.z)
+	lines.append(_build_internal_axis_header("x", volume_size.x))
+	for y in range(volume_size.y):
+		var front_row: Array[String] = []
+		for x in range(volume_size.x):
+			var front_cell: Vector3i = Vector3i(x, y, bipob.selected_internal_origin.z)
+			front_row.append(_get_internal_cell_marker(front_cell, preview_cells_map, can_place))
+		lines.append("y%d %s" % [y, " ".join(front_row)])
+	_empty_line(lines)
+	lines.append("Vertical slice — Z/Y at X=%d" % bipob.selected_internal_origin.x)
+	lines.append(_build_internal_axis_header("z", volume_size.z))
+	for y in range(volume_size.y):
+		var vertical_row: Array[String] = []
+		for z in range(volume_size.z):
+			var vertical_cell: Vector3i = Vector3i(bipob.selected_internal_origin.x, y, z)
+			vertical_row.append(_get_internal_cell_marker(vertical_cell, preview_cells_map, can_place))
+		lines.append("y%d %s" % [y, " ".join(vertical_row)])
+	_empty_line(lines)
+	lines.append("Horizontal slice — X/Z at Y=%d" % bipob.selected_internal_origin.y)
+	lines.append(_build_internal_axis_header("x", volume_size.x))
+	for z in range(volume_size.z):
+		var horizontal_row: Array[String] = []
+		for x in range(volume_size.x):
+			var horizontal_cell: Vector3i = Vector3i(x, bipob.selected_internal_origin.y, z)
+			horizontal_row.append(_get_internal_cell_marker(horizontal_cell, preview_cells_map, can_place))
+		lines.append("z%d %s" % [z, " ".join(horizontal_row)])
+	_empty_line(lines)
+
+	lines.append(_section_title("Overlay Planning"))
 	lines.append("Type: %s" % bipob.selected_overlay_path_type)
 	lines.append("Planning cells: %d" % bipob.selected_overlay_cells.size())
 	lines.append(str(bipob.get_selected_overlay_plan_short_text()))
-	lines.append("Committed paths: %d" % bipob.internal_overlay_paths.size())
 	lines.append(str(bipob.get_overlay_connectivity_compact_text()))
 	lines.append(str(bipob.get_overlay_endpoint_compact_text()))
-	if bipob.internal_overlay_paths.is_empty():
-		lines.append("Selected path: none")
+	var required_overlay_module_id: String = bipob.get_selected_overlay_module_id()
+	lines.append("Required module: %s" % required_overlay_module_id)
+	lines.append("Available in box: %d" % bipob.get_box_module_count_by_id(required_overlay_module_id))
+	_empty_line(lines)
+
+	lines.append(_section_title("Selected Overlay Path"))
+	if overlay_count <= 0:
+		lines.append("Selected overlay path: none")
 	else:
 		bipob.clamp_selected_overlay_path_index()
-		lines.append("Selected path: %d / %d" % [bipob.selected_overlay_path_index + 1, bipob.internal_overlay_paths.size()])
-	lines.append("Effects: %s" % str(bipob.get_overlay_effect_compact_text()))
-	lines.append(str(bipob.get_overlay_thermal_contribution_compact_text()))
-	lines.append(str(bipob.get_overlay_thermal_contribution_diff_summary_text()))
-	if internal_view_mode == "thermal_overlay":
-		lines.append("Thermal+Overlay:")
-		lines.append("Overlay thermal: %s" % str(bipob.get_overlay_thermal_contribution_compact_text()))
-		lines.append("Base thermal remains unchanged.")
-	if not bipob.internal_overlay_paths.is_empty():
-		lines.append("Overlay paths:")
-		var overlay_list_limit: int = mini(bipob.internal_overlay_paths.size(), 4)
-		for i in range(overlay_list_limit):
-			var overlay_record: Dictionary = bipob.internal_overlay_paths[i]
-			var overlay_id: String = str(overlay_record.get("id", "overlay_%d" % (i + 1)))
-			var overlay_type: String = str(overlay_record.get("path_type", "unknown"))
-			var overlay_cells: Array = overlay_record.get("cells", [])
-			lines.append("- %s %s cells:%d" % [overlay_id, overlay_type, overlay_cells.size()])
-		if bipob.internal_overlay_paths.size() > overlay_list_limit:
-			lines.append("- ...")
-	if internal_view_mode == "overlay":
-		lines.append("")
-		lines.append(bipob.get_selected_overlay_path_details_text())
-	lines.append("")
-	lines.append("View mode: %s" % _get_internal_view_mode_display_name())
-	lines.append("")
-	lines.append("Marker legend:")
-	if internal_view_mode == "thermal":
-		lines.append("[1-5] base preview heat after normal cooling, [5] critical preview")
-	elif internal_view_mode == "overlay":
-		lines.append("[L] selected liquid, [A] selected duct, [l] liquid path, [a] duct path, [q/d] selected committed path, lowercase modules = underneath")
-	elif internal_view_mode == "thermal_overlay":
-		lines.append("[1-5] hypothetical heat after overlay contribution, [l/a] overlay on empty cells, [*] placement preview, [!] invalid")
-		lines.append("Base thermal is unchanged; this view is informational only.")
-	else:
-		lines.append("[ ] empty, [>] origin, [*] preview, [!] invalid, [B/P/E/I/M/W/H] modules")
-	lines.append("")
-	var v: Vector3i = bipob.get_internal_volume_size()
+		var selected_overlay_record: Dictionary = bipob.get_selected_overlay_path_record()
+		lines.append("Selected path: %d / %d" % [bipob.selected_overlay_path_index + 1, overlay_count])
+		lines.append("ID: %s" % str(selected_overlay_record.get("id", "overlay_%d" % (bipob.selected_overlay_path_index + 1))))
+		lines.append("Type: %s" % str(selected_overlay_record.get("path_type", "unknown")))
+		var selected_overlay_cells: Array = selected_overlay_record.get("cells", [])
+		lines.append("Cells: %d" % selected_overlay_cells.size())
+		lines.append("Connected: %s" % ("yes" if bool(selected_overlay_record.get("connected", false)) else "no"))
+		lines.append("Components: %d" % int(selected_overlay_record.get("component_count", 0)))
+		lines.append("Endpoints: %d" % int(selected_overlay_record.get("endpoint_count", 0)))
+		lines.append("Suitability: %s" % str(selected_overlay_record.get("suitability", "unknown")))
+	_empty_line(lines)
 
-	lines.append("")
-	lines.append("Front view X/Y at Z=%d" % bipob.selected_internal_origin.z)
-	lines.append(_build_internal_axis_header("x", v.x))
+	lines.append(_section_title("Thermal Preview"))
+	lines.append("Highest heat: %d / %d" % [highest_heat, bipob.THERMAL_CRITICAL_HEAT])
+	lines.append("Critical preview: %d" % critical_count)
+	lines.append("Overlay thermal: %s" % str(bipob.get_overlay_thermal_contribution_compact_text()))
+	lines.append("Overlay diff: %s" % str(bipob.get_overlay_thermal_contribution_diff_summary_text()))
+	lines.append("Base thermal remains unchanged.")
+	_empty_line(lines)
 
-	for y in range(v.y):
-		var row: Array[String] = []
-		for x in range(v.x):
-			var cell: Vector3i = Vector3i(x, y, bipob.selected_internal_origin.z)
-			row.append(_get_internal_cell_marker(cell, preview_cells_map, can_place))
-		lines.append("y%d %s" % [y, " ".join(row)])
-
-	lines.append("")
-	lines.append("Vertical slice Z/Y at X=%d" % bipob.selected_internal_origin.x)
-	lines.append(_build_internal_axis_header("z", v.z))
-
-	for y in range(v.y):
-		var row: Array[String] = []
-		for z in range(v.z):
-			var cell: Vector3i = Vector3i(bipob.selected_internal_origin.x, y, z)
-			row.append(_get_internal_cell_marker(cell, preview_cells_map, can_place))
-		lines.append("y%d %s" % [y, " ".join(row)])
-
-	lines.append("")
-	lines.append("Horizontal slice X/Z at Y=%d" % bipob.selected_internal_origin.y)
-	lines.append(_build_internal_axis_header("x", v.x))
-
-	for z in range(v.z):
-		var row: Array[String] = []
-		for x in range(v.x):
-			var cell: Vector3i = Vector3i(x, bipob.selected_internal_origin.y, z)
-			row.append(_get_internal_cell_marker(cell, preview_cells_map, can_place))
-		lines.append("z%d %s" % [z, " ".join(row)])
-	lines.append("")
-	lines.append("Placed internal modules:")
+	lines.append(_section_title("Placed Internal Modules"))
 	if bipob.placed_internal_modules.is_empty():
 		lines.append("none")
 	else:
-		for record_variant in bipob.placed_internal_modules:
-			var record: Dictionary = record_variant
+		var display_limit: int = mini(8, bipob.placed_internal_modules.size())
+		for i in range(display_limit):
+			var record: Dictionary = bipob.placed_internal_modules[i]
 			var placed_module: BipobModule = record.get("module", null)
 			if placed_module == null:
 				continue
 			var origin: Vector3i = record.get("origin", Vector3i.ZERO)
 			var rotation_index: int = int(record.get("rotation", 0))
 			var size: Vector3i = bipob.get_rotated_internal_size(placed_module, rotation_index)
-			lines.append("- %s at %d,%d,%d size %d×%d×%d rot %d" % [
-				bipob.get_module_display_name(placed_module),
-				origin.x, origin.y, origin.z,
-				size.x, size.y, size.z,
-				rotation_index
-			])
-	lines.append("")
-	lines.append("Placement:")
-	var placement_size: Vector3i = Vector3i.ZERO
-	if selected_module != null:
-		placement_size = bipob.get_rotated_internal_size(selected_module, bipob.selected_internal_rotation)
-	lines.append("Origin: %d,%d,%d" % [bipob.selected_internal_origin.x, bipob.selected_internal_origin.y, bipob.selected_internal_origin.z])
-	lines.append("Rotation: %d" % bipob.selected_internal_rotation)
-	lines.append("Rotated size: %d×%d×%d" % [placement_size.x, placement_size.y, placement_size.z])
-	lines.append("Valid: %s" % get_yes_no(can_place))
-	lines.append("Reason: %s" % placement_error)
-	lines.append("")
-	lines.append(bipob.get_internal_overlay_summary_text())
-	lines.append("")
-	lines.append("Connections:")
-	lines.append("Power: %s" % ("available" if bipob.is_virtual_power_available() else "unavailable"))
-	lines.append("Internal data: %s" % ("available" if bipob.is_internal_data_network_available() else "unavailable"))
-	lines.append("External data: %s" % ("available" if bipob.is_external_data_network_available() else "unavailable"))
-	lines.append("")
-	lines.append("Thermal:")
-	var highest_heat: int = bipob.get_highest_internal_preview_heat()
-	var critical_count: int = bipob.get_critical_internal_preview_count()
-	lines.append("Highest heat: %d / %d" % [highest_heat, bipob.THERMAL_CRITICAL_HEAT])
-	lines.append("Critical preview: %d" % critical_count)
-	if bipob.has_method("get_air_intake_summary_text"):
-		lines.append(str(bipob.get_air_intake_summary_text()))
-	else:
-		lines.append("Air intake: %s" % get_air_intake_status_text())
-	lines.append("")
-	lines.append(bipob.get_constructor_warning_summary_text())
-	lines.append("")
-	lines.append("Roles:")
-	var role_order: Array[String] = [
-		"battery",
-		"power_block",
-		"internal_interface",
-		"external_interface",
-		"processor",
-		"memory",
-		"storage",
-		"cooling"
-	]
-	var role_parts: Array[String] = []
-	for role_id in role_order:
-		var role_count: int = bipob.count_internal_role(role_id)
-		if role_count > 0:
-			role_parts.append("%s: %d" % [role_id, role_count])
-	lines.append("none" if role_parts.is_empty() else ", ".join(role_parts))
+			lines.append("- %s at %d,%d,%d size %d×%d×%d rot %d" % [bipob.get_module_display_name(placed_module), origin.x, origin.y, origin.z, size.x, size.y, size.z, rotation_index])
+		if bipob.placed_internal_modules.size() > display_limit:
+			lines.append("...and %d more" % (bipob.placed_internal_modules.size() - display_limit))
+
 	return "\n".join(lines)
 
 func _move_internal_cursor(dx: int, dy: int, dz: int) -> void:
