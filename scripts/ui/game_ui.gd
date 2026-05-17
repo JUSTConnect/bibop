@@ -1307,40 +1307,37 @@ func get_box_internal_menu_text() -> String:
 	lines.append("[>X] selected occupied cell")
 	lines.append("")
 	var v: Vector3i = bipob.get_internal_volume_size()
+
+	lines.append("")
 	lines.append("Front view X/Y at Z=%d" % bipob.selected_internal_origin.z)
 	lines.append(_build_internal_axis_header("x", v.x))
+
 	for y in range(v.y):
 		var row: Array[String] = []
 		for x in range(v.x):
 			var cell: Vector3i = Vector3i(x, y, bipob.selected_internal_origin.z)
-			var marker: String = " " if bipob.get_internal_module_at_cell(cell) == null else "[X]"
-			if preview_cells.has(cell):
-				marker = "[*]" if can_place else "[!]"
-			if x == bipob.selected_internal_origin.x and y == bipob.selected_internal_origin.y:
-				marker = "[>]"
-			row.append(marker)
-		lines.append(" ".join(row))
-
-			var cell := Vector3i(x, y, bipob.selected_internal_origin.z)
 			row.append(_get_internal_cell_marker(cell, preview_cells_map, can_place))
 		lines.append("y%d %s" % [y, " ".join(row)])
 
 	lines.append("")
 	lines.append("Vertical slice Z/Y at X=%d" % bipob.selected_internal_origin.x)
 	lines.append(_build_internal_axis_header("z", v.z))
+
 	for y in range(v.y):
 		var row: Array[String] = []
 		for z in range(v.z):
-			var cell := Vector3i(bipob.selected_internal_origin.x, y, z)
+			var cell: Vector3i = Vector3i(bipob.selected_internal_origin.x, y, z)
 			row.append(_get_internal_cell_marker(cell, preview_cells_map, can_place))
 		lines.append("y%d %s" % [y, " ".join(row)])
+
 	lines.append("")
 	lines.append("Horizontal slice X/Z at Y=%d" % bipob.selected_internal_origin.y)
 	lines.append(_build_internal_axis_header("x", v.x))
+
 	for z in range(v.z):
 		var row: Array[String] = []
 		for x in range(v.x):
-			var cell := Vector3i(x, bipob.selected_internal_origin.y, z)
+			var cell: Vector3i = Vector3i(x, bipob.selected_internal_origin.y, z)
 			row.append(_get_internal_cell_marker(cell, preview_cells_map, can_place))
 		lines.append("z%d %s" % [z, " ".join(row)])
 	lines.append("")
