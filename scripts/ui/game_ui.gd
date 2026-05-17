@@ -1360,6 +1360,11 @@ func get_box_internal_menu_text() -> String:
 	lines.append("Rotated size: %d×%d×%d" % [placement_size.x, placement_size.y, placement_size.z])
 	lines.append("Valid: %s" % get_yes_no(can_place))
 	lines.append("Reason: %s" % placement_error)
+	lines.append("")
+	lines.append("Connection model:")
+	lines.append("Power: %s" % ("available" if bipob.is_virtual_power_available() else "unavailable"))
+	lines.append("Internal data: %s" % ("available" if bipob.is_internal_data_network_available() else "unavailable"))
+	lines.append("External data: %s" % ("available" if bipob.is_external_data_network_available() else "unavailable"))
 	return "\n".join(lines)
 
 func _move_internal_cursor(dx: int, dy: int, dz: int) -> void:
