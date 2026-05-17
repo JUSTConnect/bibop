@@ -3384,6 +3384,63 @@ func get_damage_planning_compact_text() -> String:
 			warning_count += 1
 	return "Damage preview: critical %d / warning %d" % [critical_count, warning_count]
 
+func get_repair_planning_reference_text() -> String:
+	var lines: Array[String] = []
+
+	lines.append("Repair Planning Reference")
+	lines.append("")
+	lines.append("Current status:")
+	lines.append("- Damage and repair are planning metadata only.")
+	lines.append("- Modules do not break automatically.")
+	lines.append("- Repair in Box is not implemented yet.")
+	lines.append("- Missions are not blocked by damage preview.")
+	lines.append("- Test Build is not implemented yet.")
+	lines.append("")
+	lines.append("Damage threshold:")
+	lines.append("- damage_threshold_heat defines when a module would be at damage risk later.")
+	lines.append("- Current default threshold is heat 5.")
+	lines.append("- Heat 5 is critical preview.")
+	lines.append("- Heat 4 is warning preview when threshold is 5.")
+	lines.append("")
+	lines.append("Damage preview:")
+	lines.append("- Damage preview uses base thermal preview.")
+	lines.append("- Overlay heat is shown only as hypothetical comparison.")
+	lines.append("- Overlay does not reduce real warning/readiness counts.")
+	lines.append("")
+	lines.append("Repair complexity:")
+	lines.append("- 1 = simple repair")
+	lines.append("- 2 = normal repair")
+	lines.append("- 3 = complex repair")
+	lines.append("- Higher values may later require more parts, time, or tools.")
+	lines.append("")
+	lines.append("Repair categories:")
+	lines.append("- Standard: fallback/common repair")
+	lines.append("- Electronics: processor, memory, storage, vision electronics")
+	lines.append("- Power: batteries, power block")
+	lines.append("- Cooling: cooler, radiator, water tube, air duct, air intake")
+	lines.append("- Mechanical: wheels, legs, tracks, manipulator")
+	lines.append("- Interface: internal/external interfaces")
+	lines.append("")
+	lines.append("Future direction:")
+	lines.append("- Critical heat may later create damaged state.")
+	lines.append("- Damaged modules may later be disabled or degraded.")
+	lines.append("- Box may later get Repair actions.")
+	lines.append("- Repair may later consume resources.")
+	lines.append("- Repair may later require specific tools or modules.")
+	lines.append("")
+	lines.append("Not implemented:")
+	lines.append("- No damaged state.")
+	lines.append("- No repair action.")
+	lines.append("- No repair cost.")
+	lines.append("- No repair time.")
+	lines.append("- No mission failure from damage.")
+	lines.append("- No automatic module disabling.")
+
+	return "\n".join(lines)
+
+func get_repair_planning_compact_reference_text() -> String:
+	return "Repair planning: threshold heat 5, complexity 1-3, categories metadata only"
+
 func get_module_description_for_id(module_id: String) -> String:
 	match module_id:
 		"wheels_v1":
