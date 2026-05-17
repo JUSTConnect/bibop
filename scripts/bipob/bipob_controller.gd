@@ -789,6 +789,21 @@ func is_internal_cell_in_bounds(cell: Vector3i) -> bool:
 	and cell.x < volume_size.x and cell.y < volume_size.y and cell.z < volume_size.z
 	)
 
+func is_internal_cell_on_body_edge(cell: Vector3i) -> bool:
+	if not is_internal_cell_in_bounds(cell):
+		return false
+
+	var volume_size: Vector3i = get_internal_volume_size()
+
+	return (
+		cell.x == 0
+		or cell.y == 0
+		or cell.z == 0
+		or cell.x == volume_size.x - 1
+		or cell.y == volume_size.y - 1
+		or cell.z == volume_size.z - 1
+	)
+
 func get_selected_overlay_module_id() -> String:
 	if selected_overlay_path_type == "duct":
 		return "air_duct_v1"
@@ -917,6 +932,189 @@ func get_internal_overlay_marker_for_cell(cell: Vector3i) -> String:
 	if has_internal_overlay_at_cell(cell, "duct"):
 		return "a"
 	return ""
+
+func get_modules_touched_by_overlay_path(path_record: Dictionary) -> Array[BipobModule]:
+	var modules: Array[BipobModule] = []
+	var cells: Array = path_record.get("cells", [])
+
+	for item in cells:
+		var cell: Vector3i = item
+		if not is_internal_cell_in_bounds(cell):
+			continue
+
+		var module: BipobModule = get_internal_module_at_cell(cell)
+		if module != null and not modules.has(module):
+			modules.append(module)
+
+	return modules
+
+func get_modules_adjacent_to_overlay_path(path_record: Dictionary) -> Array[BipobModule]:
+	var modules: Array[BipobModule] = []
+	var cells: Array = path_record.get("cells", [])
+
+	for item in cells:
+		var cell: Vector3i = item
+		if not is_internal_cell_in_bounds(cell):
+			continue
+
+		for offset in get_internal_neighbor_offsets():
+			var neighbor_cell: Vector3i = cell + offset
+			if not is_internal_cell_in_bounds(neighbor_cell):
+				continue
+
+			var module: BipobModule = get_internal_module_at_cell(neighbor_cell)
+			if module != null and not modules.has(module):
+				modules.append(module)
+
+	return modules
+
+func does_overlay_path_reach_body_edge(path_record: Dictionary) -> bool:
+	var cells: Array = path_record.get("cells", [])
+
+	for item in cells:
+		var cell: Vector3i = item
+		if is_internal_cell_on_body_edge(cell):
+			return true
+
+	return false
+
+func does_overlay_path_touch_cooler(path_record: Dictionary) -> bool:
+	var modules: Array[BipobModule] = get_modules_touched_by_overlay_path(path_record)
+
+	for module in modules:
+		if is_cooler_module(module):
+			return true
+
+	return false
+
+func does_overlay_path_touch_radiator(path_record: Dictionary) -> bool:
+	var modules: Array[BipobModule] = get_modules_touched_by_overlay_path(path_record)
+
+	for module in modules:
+		if is_radiator_module(module):
+			return true
+
+	return false
+
+func does_overlay_path_touch_radiator_next_to_cooler(path_record: Dictionary) -> bool:
+	var modules: Array[BipobModule] = get_modules_touched_by_overlay_path(path_record)
+
+	for module in modules:
+		if is_radiator_module(module) and is_radiator_next_to_cooler(module):
+			return true
+
+	return false
+
+func get_overlay_path_potential_cooling_value(path_record: Dictionary) -> int:
+	var path_type: String = String(path_record.get("path_type", ""))
+
+	if path_type == "liquid":
+		if does_overlay_path_touch_radiator_next_to_cooler(path_record):
+			return 5
+		if does_overlay_path_touch_cooler(path_record):
+			return 4
+		if does_overlay_path_touch_radiator(path_record):
+			return 3
+		return 2
+
+	if path_type == "duct":
+		if does_overlay_path_reach_body_edge(path_record):
+			return 1
+		return 0
+
+	return 0
+
+func get_overlay_path_effect_line(path_record: Dictionary) -> String:
+	var path_id: String = String(path_record.get("id", ""))
+	var path_type: String = String(path_record.get("path_type", ""))
+	var cells: Array = path_record.get("cells", [])
+
+	var touched: Array[BipobModule] = get_modules_touched_by_overlay_path(path_record)
+	var adjacent: Array[BipobModule] = get_modules_adjacent_to_overlay_path(path_record)
+	var reaches_edge: bool = does_overlay_path_reach_body_edge(path_record)
+	var potential_value: int = get_overlay_path_potential_cooling_value(path_record)
+
+	var touched_names: Array[String] = []
+	for module in touched:
+		touched_names.append(get_module_display_name(module))
+
+	var adjacent_names: Array[String] = []
+	for module in adjacent:
+		if not touched.has(module):
+			adjacent_names.append(get_module_display_name(module))
+
+	var touched_text: String = "none" if touched_names.is_empty() else ", ".join(touched_names)
+	var adjacent_text: String = "none" if adjacent_names.is_empty() else ", ".join(adjacent_names)
+	var edge_text: String = "yes" if reaches_edge else "no"
+
+	if path_type == "liquid":
+		return "%s liquid cells:%d potential:%d touched:%s adjacent:%s" % [
+			path_id,
+			cells.size(),
+			potential_value,
+			touched_text,
+			adjacent_text
+		]
+
+	if path_type == "duct":
+		return "%s duct cells:%d edge:%s support:%d touched:%s adjacent:%s" % [
+			path_id,
+			cells.size(),
+			edge_text,
+			potential_value,
+			touched_text,
+			adjacent_text
+		]
+
+	return "%s %s cells:%d touched:%s adjacent:%s" % [
+		path_id,
+		path_type,
+		cells.size(),
+		touched_text,
+		adjacent_text
+	]
+
+func get_overlay_effect_preview_text() -> String:
+	var lines: Array[String] = []
+
+	lines.append("Overlay effect preview:")
+
+	if internal_overlay_paths.is_empty():
+		lines.append("none")
+	else:
+		for path_record in internal_overlay_paths:
+			lines.append("- " + get_overlay_path_effect_line(path_record))
+
+	lines.append("")
+	lines.append("Rules preview:")
+	lines.append("- Water Tube base potential cooling: 2")
+	lines.append("- Water Tube through Cooler: 4")
+	lines.append("- Water Tube through Radiator: 3")
+	lines.append("- Water Tube through Radiator near Cooler: 5")
+	lines.append("- Air Duct reaching body edge can support air routing")
+	lines.append("- Overlay effects are not applied to thermal calculation yet")
+
+	return "\n".join(lines)
+
+func get_overlay_effect_compact_text() -> String:
+	var liquid_count: int = 0
+	var duct_count: int = 0
+	var edge_duct_count: int = 0
+
+	for path_record in internal_overlay_paths:
+		var path_type: String = String(path_record.get("path_type", ""))
+		if path_type == "liquid":
+			liquid_count += 1
+		elif path_type == "duct":
+			duct_count += 1
+			if does_overlay_path_reach_body_edge(path_record):
+				edge_duct_count += 1
+
+	return "Overlay effects: liquid %d / duct %d / edge ducts %d" % [
+		liquid_count,
+		duct_count,
+		edge_duct_count
+	]
 
 func get_internal_overlay_summary_text() -> String:
 	var lines: Array[String] = []

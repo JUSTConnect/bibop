@@ -961,6 +961,7 @@ func get_box_modules_menu_text() -> String:
 	content_lines.append("Box: %d" % bipob.box_storage.size())
 	content_lines.append("External installed: %d" % bipob.get_unique_external_modules().size())
 	content_lines.append("Internal installed: %d" % bipob.get_unique_internal_modules().size())
+	content_lines.append(str(bipob.get_overlay_effect_compact_text()))
 	content_lines.append(bipob.get_constructor_consistency_compact_text())
 	content_lines.append("")
 	content_lines.append("Filter: %s" % filter_id.capitalize())
@@ -1139,6 +1140,7 @@ func rebuild_box_action_buttons() -> void:
 		_add_box_action_button("Commit Overlay", Callable(self, "_on_commit_overlay_pressed"))
 		_add_box_action_button("Clear Overlay", Callable(self, "_on_clear_overlay_pressed"))
 		_add_box_action_button("Remove Overlay", Callable(self, "_on_remove_overlay_pressed"))
+		_add_box_action_button("Overlay Effects", Callable(self, "_on_overlay_effects_pressed"))
 		_add_box_action_button("Warnings", Callable(self, "_on_constructor_warnings_button_pressed"))
 		_add_box_action_button("Reset Internal Cursor", Callable(self, "_on_reset_internal_cursor_pressed"))
 	else:
@@ -1654,6 +1656,7 @@ func get_box_internal_menu_text() -> String:
 	lines.append("Committed paths: %d" % bipob.internal_overlay_paths.size())
 	lines.append("Legend: L selected liquid, A selected duct, l committed liquid, a committed duct")
 	lines.append("Overlay can pass over occupied modules; occupied cells keep module marker.")
+	lines.append(str(bipob.get_overlay_effect_compact_text()))
 	lines.append("")
 	lines.append("View mode: %s" % ("Thermal" if internal_view_mode == "thermal" else "Modules"))
 	lines.append("")
@@ -1856,6 +1859,10 @@ func _on_commit_overlay_pressed() -> void:
 
 func _on_clear_overlay_pressed() -> void:
 	bipob.clear_selected_overlay_cells()
+	update_box_status()
+
+func _on_overlay_effects_pressed() -> void:
+	show_hint(str(bipob.get_overlay_effect_preview_text()))
 	update_box_status()
 
 func _on_remove_overlay_pressed() -> void:
