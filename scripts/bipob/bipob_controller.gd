@@ -1686,6 +1686,62 @@ func get_overlay_thermal_contribution_compact_text() -> String:
 		get_overlay_thermal_contribution_diff_summary_text()
 	]
 
+func get_thermal_rules_reference_text() -> String:
+	var lines: Array[String] = []
+
+	lines.append("Thermal Rules Reference")
+	lines.append("")
+	lines.append("Heat scale:")
+	lines.append("- 1 = low heat")
+	lines.append("- 2 = moderate heat")
+	lines.append("- 3 = hot")
+	lines.append("- 4 = very hot")
+	lines.append("- 5 = critical preview")
+	lines.append("")
+	lines.append("Device heat:")
+	lines.append("- Processor: idle 3 / active 5")
+	lines.append("- GPU / vision processor: idle 3 / active 5")
+	lines.append("- Memory: 1")
+	lines.append("- Hard Drive: 1")
+	lines.append("- Power Block: idle 3 / active 5")
+	lines.append("- Interfaces: 1")
+	lines.append("- Batteries: 1")
+	lines.append("")
+	lines.append("Neighbor heat:")
+	lines.append("- Neighbor heat = source heat - 1")
+	lines.append("- Final base preview uses strongest heat, not stacking")
+	lines.append("")
+	lines.append("Direct cooling:")
+	lines.append("- Cooler cools adjacent modules by 2")
+	lines.append("- Radiator cools adjacent modules by 2")
+	lines.append("- Radiator near Cooler cools by 4")
+	lines.append("- Radiator against body cools by 3")
+	lines.append("")
+	lines.append("Overlay paths:")
+	lines.append("- Water Tube does not consume internal volume")
+	lines.append("- Water Tube base potential cooling: 2")
+	lines.append("- Water Tube through Cooler: 4")
+	lines.append("- Water Tube through Radiator: 3")
+	lines.append("- Water Tube through Radiator near Cooler: 5")
+	lines.append("- Air Duct does not consume internal volume")
+	lines.append("- Air Duct supports air route/exhaust to body edge")
+	lines.append("")
+	lines.append("Air intake:")
+	lines.append("- Air cooling requires Air Intake Node on external body")
+	lines.append("- Liquid cooling does not require Air Intake Node")
+	lines.append("")
+	lines.append("Current implementation:")
+	lines.append("- Base thermal preview is informational")
+	lines.append("- Overlay contribution is hypothetical only")
+	lines.append("- Thermal+Overlay view does not affect gameplay")
+	lines.append("- No device damage or repair is implemented yet")
+	lines.append("- No Test Build is implemented yet")
+
+	return "\n".join(lines)
+
+func get_thermal_rules_compact_text() -> String:
+	return "Thermal rules: heat 1-5, critical 5, neighbor heat source-1, overlay hypothetical"
+
 func get_overlay_path_effect_line(path_record: Dictionary) -> String:
 	var path_id: String = String(path_record.get("id", ""))
 	var path_type: String = String(path_record.get("path_type", ""))
