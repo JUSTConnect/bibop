@@ -339,52 +339,24 @@ func _ready() -> void:
 		charge_button.text = "Charge"
 		charge_button.visible = false
 		charge_button.focus_mode = Control.FOCUS_NONE
-		charge_button.reparent(box_screen)
 	if install_module_button != null:
 		install_module_button.text = "Install"
 		install_module_button.visible = false
 		install_module_button.focus_mode = Control.FOCUS_NONE
-		install_module_button.reparent(box_screen)
 	if start_mission_button != null:
 		start_mission_button.text = "Start"
 		start_mission_button.visible = false
 		start_mission_button.focus_mode = Control.FOCUS_NONE
-		start_mission_button.reparent(box_screen)
 
-	remove_module_button = Button.new()
-	remove_module_button.name = "RemoveModuleButton"
-	remove_module_button.text = "Remove"
-	remove_module_button.focus_mode = Control.FOCUS_NONE
-	remove_module_button.visible = false
-	remove_module_button.reparent(box_screen)
+	remove_module_button = null
 
-	prev_installed_button = Button.new()
-	prev_installed_button.name = "PrevInstalledButton"
-	prev_installed_button.text = "Prev Inst"
-	prev_installed_button.focus_mode = Control.FOCUS_NONE
-	prev_installed_button.visible = false
-	prev_installed_button.reparent(box_screen)
+	prev_installed_button = null
 
-	next_installed_button = Button.new()
-	next_installed_button.name = "NextInstalledButton"
-	next_installed_button.text = "Next Inst"
-	next_installed_button.focus_mode = Control.FOCUS_NONE
-	next_installed_button.visible = false
-	next_installed_button.reparent(box_screen)
+	next_installed_button = null
 
-	prev_box_button = Button.new()
-	prev_box_button.name = "PrevBoxButton"
-	prev_box_button.text = "Prev Box"
-	prev_box_button.focus_mode = Control.FOCUS_NONE
-	prev_box_button.visible = false
-	prev_box_button.reparent(box_screen)
+	prev_box_button = null
 
-	next_box_button = Button.new()
-	next_box_button.name = "NextBoxButton"
-	next_box_button.text = "Next Box"
-	next_box_button.focus_mode = Control.FOCUS_NONE
-	next_box_button.visible = false
-	next_box_button.reparent(box_screen)
+	next_box_button = null
 
 	mission_tab_button = Button.new()
 	mission_tab_button.name = "MissionTabButton"
@@ -400,19 +372,9 @@ func _ready() -> void:
 	box_tab_row.add_child(modules_tab_button)
 	modules_tab_button.pressed.connect(set_box_menu_mode_modules)
 
-	box_restart_button = Button.new()
-	box_restart_button.name = "BoxRestartButton"
-	box_restart_button.text = "Restart"
-	box_restart_button.focus_mode = Control.FOCUS_NONE
-	box_restart_button.visible = false
-	box_restart_button.reparent(box_screen)
+	box_restart_button = null
 
-	box_return_button = Button.new()
-	box_return_button.name = "BoxReturnButton"
-	box_return_button.text = "Return"
-	box_return_button.focus_mode = Control.FOCUS_NONE
-	box_return_button.visible = false
-	box_return_button.reparent(box_screen)
+	box_return_button = null
 
 	bipob.status_changed.connect(update_status)
 	bipob.hint_requested.connect(show_hint)
@@ -717,13 +679,13 @@ func update_box_button_visibility() -> void:
 
 func set_box_menu_mode_mission() -> void:
 	box_menu_mode = BoxMenuMode.MISSION
-	rebuild_box_action_buttons()
 	update_box_status()
+	rebuild_box_action_buttons()
 
 func set_box_menu_mode_modules() -> void:
 	box_menu_mode = BoxMenuMode.MODULES
-	rebuild_box_action_buttons()
 	update_box_status()
+	rebuild_box_action_buttons()
 
 func show_hint(message: String) -> void:
 	if hint_label != null:
