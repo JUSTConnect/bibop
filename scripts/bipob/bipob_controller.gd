@@ -295,6 +295,47 @@ func get_pre_mission_warning_text() -> String:
 
 	return "Warnings before mission:\n- %s" % "\n- ".join(warnings)
 
+func get_constructor_warning_lines() -> Array[String]:
+	var warnings: Array[String] = []
+
+	if has_air_cooling_requiring_intake() and not has_external_air_intake():
+		warnings.append("Air cooling requires Air Intake Node on external body.")
+
+	if not is_virtual_power_available():
+		warnings.append("Virtual power unavailable: Battery and Power Block required.")
+
+	if not is_internal_data_network_available():
+		warnings.append("Internal data network unavailable: Internal Interface required.")
+
+	if not is_external_data_network_available():
+		warnings.append("External data bridge unavailable: Internal Interface and External Interface required.")
+
+	var critical_count: int = get_critical_internal_preview_count()
+	if critical_count > 0:
+		warnings.append("Thermal critical preview: %d module(s) at heat 5." % critical_count)
+
+	return warnings
+
+func get_constructor_warning_summary_text() -> String:
+	var warnings: Array[String] = get_constructor_warning_lines()
+	var lines: Array[String] = []
+	lines.append("Constructor warnings:")
+
+	if warnings.is_empty():
+		lines.append("none")
+		return "\n".join(lines)
+
+	for warning in warnings:
+		lines.append("- " + warning)
+
+	return "\n".join(lines)
+
+func get_constructor_warning_compact_text() -> String:
+	var warnings: Array[String] = get_constructor_warning_lines()
+	if warnings.is_empty():
+		return "Warnings: none"
+	return "Warnings: %d" % warnings.size()
+
 func recalculate_module_stats() -> void:
 	# MVP module model: aggregate passive stats from installed modules.
 	var energy_bonus_total := 0
