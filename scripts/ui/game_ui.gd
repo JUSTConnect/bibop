@@ -48,6 +48,18 @@ var prev_installed_button: Button
 var next_installed_button: Button
 var prev_box_button: Button
 var next_box_button: Button
+var box_tab_row: HBoxContainer = null
+var mission_tab_button: Button
+var modules_tab_button: Button
+var box_restart_button: Button
+var box_return_button: Button
+
+enum BoxMenuMode {
+	MISSION,
+	MODULES
+}
+
+var box_menu_mode: BoxMenuMode = BoxMenuMode.MISSION
 
 func _configure_box_layout() -> void:
 	if box_screen == null:
@@ -120,6 +132,15 @@ func _configure_box_layout() -> void:
 		mission_button_row.name = "MissionButtonRow"
 		vbox.add_child(mission_button_row)
 	mission_button_row.size_flags_vertical = Control.SIZE_SHRINK_END
+
+	box_tab_row = vbox.get_node_or_null("BoxTabRow")
+	if box_tab_row == null:
+		box_tab_row = HBoxContainer.new()
+		box_tab_row.name = "BoxTabRow"
+		vbox.add_child(box_tab_row)
+	if box_title_label != null:
+		vbox.move_child(box_tab_row, box_title_label.get_index() + 1)
+	box_tab_row.size_flags_vertical = Control.SIZE_SHRINK_BEGIN
 
 func get_short_module_name(module: BipobModule) -> String:
 	if module == null:
@@ -352,6 +373,34 @@ func _ready() -> void:
 	box_storage_button_row.add_child(next_box_button)
 	next_box_button.pressed.connect(_on_next_box_pressed)
 
+	mission_tab_button = Button.new()
+	mission_tab_button.name = "MissionTabButton"
+	mission_tab_button.text = "Mission"
+	mission_tab_button.focus_mode = Control.FOCUS_NONE
+	box_tab_row.add_child(mission_tab_button)
+	mission_tab_button.pressed.connect(set_box_menu_mode_mission)
+
+	modules_tab_button = Button.new()
+	modules_tab_button.name = "ModulesTabButton"
+	modules_tab_button.text = "Modules"
+	modules_tab_button.focus_mode = Control.FOCUS_NONE
+	box_tab_row.add_child(modules_tab_button)
+	modules_tab_button.pressed.connect(set_box_menu_mode_modules)
+
+	box_restart_button = Button.new()
+	box_restart_button.name = "BoxRestartButton"
+	box_restart_button.text = "Restart"
+	box_restart_button.focus_mode = Control.FOCUS_NONE
+	mission_button_row.add_child(box_restart_button)
+	box_restart_button.pressed.connect(_on_restart_mission_button_pressed)
+
+	box_return_button = Button.new()
+	box_return_button.name = "BoxReturnButton"
+	box_return_button.text = "Return"
+	box_return_button.focus_mode = Control.FOCUS_NONE
+	mission_button_row.add_child(box_return_button)
+	box_return_button.pressed.connect(_on_return_to_box_button_pressed)
+
 	bipob.status_changed.connect(update_status)
 	bipob.hint_requested.connect(show_hint)
 	bipob.mission_completed.connect(_on_mission_completed)
@@ -537,34 +586,43 @@ func update_box_status() -> void:
 	update_diagnostic_status()
 
 	if box_title_label != null:
-		box_title_label.text = "Box / Garage"
+		if box_menu_mode == BoxMenuMode.MISSION:
+			box_title_label.text = "Box / Garage — Mission"
+		else:
+			box_title_label.text = "Box / Garage — Modules"
 
+	var content_text: String
+	if box_menu_mode == BoxMenuMode.MISSION:
+		content_text = get_box_mission_menu_text()
+	else:
+		content_text = get_box_modules_menu_text()
+	update_box_button_visibility()
+
+	if box_content_label != null:
+		box_content_label.text = content_text
+
+func get_box_mission_menu_text() -> String:
 	var content_lines: Array[String] = []
-	if bipob.sector_completed:
-		content_lines.append("Sector-01 complete. Playtest build finished.")
-	content_lines.append("Energy: %d / %d" % [bipob.energy, bipob.max_energy])
+	var mission_name := "n/a"
+	if bipob.has_method("get_mission_name"):
+		mission_name = str(bipob.get_mission_name(bipob.current_mission_index))
+	content_lines.append("Mission:")
+	content_lines.append("Mission %d — %s" % [bipob.current_mission_index + 1, mission_name])
+	content_lines.append("")
+	content_lines.append("Energy:")
+	content_lines.append("%d / %d" % [bipob.energy, bipob.max_energy])
 
 	var warnings: Array = bipob.get_pre_mission_warnings()
+	content_lines.append("")
 	if warnings.is_empty():
-		content_lines.append("")
 		content_lines.append("Warnings: none")
 	else:
-		content_lines.append("")
 		content_lines.append("Warnings:")
-		var compact_warnings: Array[String] = []
 		var warning_limit := mini(2, warnings.size())
 		for index in range(warning_limit):
-			compact_warnings.append("- %s" % str(warnings[index]))
+			content_lines.append("- %s" % str(warnings[index]))
 		if warnings.size() > warning_limit:
-			compact_warnings.append("... +%d more" % (warnings.size() - warning_limit))
-		content_lines.append_array(compact_warnings)
-
-	if bipob.found_module != null:
-		content_lines.append("")
-		content_lines.append("Found module: %s" % bipob.get_module_display_name(bipob.found_module))
-	else:
-		content_lines.append("")
-		content_lines.append("Found module: none")
+			content_lines.append("- ... +%d more" % (warnings.size() - warning_limit))
 
 	var hand_text := "empty"
 	if bipob.held_module != null:
@@ -572,30 +630,76 @@ func update_box_status() -> void:
 	var storage_text := "empty"
 	if bipob.stored_physical_module != null:
 		storage_text = bipob.get_module_display_name(bipob.stored_physical_module)
-	content_lines.append("Hand: %s | Robot storage: %s" % [hand_text, storage_text])
-	content_lines.append(get_selected_installed_module_text())
-	content_lines.append(get_selected_box_module_text())
-	content_lines.append(get_digital_storage_short_text())
+	content_lines.append("")
+	content_lines.append("Carry:")
+	content_lines.append("Hand: %s" % hand_text)
+	content_lines.append("Robot storage: %s" % storage_text)
+	content_lines.append("Carry: %d / %d" % [bipob.get_carried_physical_count(), bipob.physical_carry_capacity])
 
-	var installed_lines: Array[String] = get_compact_module_window(bipob.installed_modules, selected_installed_module_index, 4)
+	content_lines.append("")
+	content_lines.append(get_digital_storage_short_text())
+	content_lines.append("")
+	if bipob.found_module != null:
+		content_lines.append("Found: %s" % bipob.get_module_display_name(bipob.found_module))
+	else:
+		content_lines.append("Found: none")
+	content_lines.append("Box storage: %d modules" % bipob.box_storage.size())
+	content_lines.append("Installed: %d modules" % bipob.installed_modules.size())
+	return "\n".join(content_lines)
+
+func get_box_modules_menu_text() -> String:
+	var content_lines: Array[String] = []
+	content_lines.append(get_selected_installed_module_text())
 	content_lines.append("")
 	content_lines.append("Installed modules (%d):" % bipob.installed_modules.size())
-	content_lines.append_array(installed_lines)
-
-	var box_lines: Array[String] = get_compact_module_window(bipob.box_storage, selected_box_storage_index, 3)
+	content_lines.append_array(get_compact_module_window(bipob.installed_modules, selected_installed_module_index, 5))
+	content_lines.append("")
+	content_lines.append(get_selected_box_module_text())
 	content_lines.append("")
 	content_lines.append("Box storage (%d):" % bipob.box_storage.size())
-	content_lines.append_array(box_lines)
+	content_lines.append_array(get_compact_module_window(bipob.box_storage, selected_box_storage_index, 5))
+	return "\n".join(content_lines)
 
-	var mission_name := "n/a"
-	if bipob.has_method("get_mission_name"):
-		mission_name = str(bipob.get_mission_name(bipob.current_mission_index))
-	content_lines.append("")
-	content_lines.append("Mission:")
-	content_lines.append(mission_name)
+func update_box_button_visibility() -> void:
+	var is_mission := box_menu_mode == BoxMenuMode.MISSION
+	if mission_button_row != null:
+		mission_button_row.visible = true
+	if installed_button_row != null:
+		installed_button_row.visible = not is_mission
+	if box_storage_button_row != null:
+		box_storage_button_row.visible = not is_mission
+	if charge_button != null:
+		charge_button.visible = is_mission
+	if start_mission_button != null:
+		start_mission_button.visible = is_mission
+	if box_restart_button != null:
+		box_restart_button.visible = is_mission
+	if box_return_button != null:
+		box_return_button.visible = false
+	if remove_module_button != null:
+		remove_module_button.visible = not is_mission
+	if prev_installed_button != null:
+		prev_installed_button.visible = not is_mission
+	if next_installed_button != null:
+		next_installed_button.visible = not is_mission
+	if install_module_button != null:
+		install_module_button.visible = not is_mission
+	if prev_box_button != null:
+		prev_box_button.visible = not is_mission
+	if next_box_button != null:
+		next_box_button.visible = not is_mission
+	if mission_tab_button != null:
+		mission_tab_button.disabled = is_mission
+	if modules_tab_button != null:
+		modules_tab_button.disabled = not is_mission
 
-	if box_content_label != null:
-		box_content_label.text = "\n".join(content_lines)
+func set_box_menu_mode_mission() -> void:
+	box_menu_mode = BoxMenuMode.MISSION
+	update_box_status()
+
+func set_box_menu_mode_modules() -> void:
+	box_menu_mode = BoxMenuMode.MODULES
+	update_box_status()
 
 func show_hint(message: String) -> void:
 	if hint_label != null:
