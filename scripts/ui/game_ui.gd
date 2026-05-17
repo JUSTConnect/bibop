@@ -961,6 +961,7 @@ func get_box_modules_menu_text() -> String:
 	content_lines.append("Box: %d" % bipob.box_storage.size())
 	content_lines.append("External installed: %d" % bipob.get_unique_external_modules().size())
 	content_lines.append("Internal installed: %d" % bipob.get_unique_internal_modules().size())
+	content_lines.append(bipob.get_constructor_consistency_compact_text())
 	content_lines.append("")
 	content_lines.append("Filter: %s" % filter_id.capitalize())
 	content_lines.append("Available / Installed:")
@@ -1146,6 +1147,7 @@ func rebuild_box_action_buttons() -> void:
 		_add_box_action_button("Install", Callable(self, "_on_install_selected_box_module_pressed"))
 		_add_box_action_button("Prev Box", Callable(self, "_on_prev_box_pressed"))
 		_add_box_action_button("Next Box", Callable(self, "_on_next_box_pressed"))
+		_add_box_action_button("Consistency", Callable(self, "_on_constructor_consistency_button_pressed"))
 		_add_box_action_button("Warnings", Callable(self, "_on_constructor_warnings_button_pressed"))
 		_add_box_action_button("Dashboard", Callable(self, "_on_constructor_dashboard_button_pressed"))
 
@@ -1408,6 +1410,12 @@ func _on_constructor_warnings_button_pressed() -> void:
 	if bipob == null:
 		return
 	show_hint(bipob.get_constructor_warning_summary_text())
+	update_box_status()
+
+func _on_constructor_consistency_button_pressed() -> void:
+	if bipob == null:
+		return
+	show_hint(bipob.get_constructor_consistency_summary_text())
 	update_box_status()
 
 func _on_move_forward_pressed() -> void:

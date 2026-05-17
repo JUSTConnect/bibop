@@ -370,6 +370,24 @@ func get_constructor_warning_compact_text() -> String:
 		return "Warnings: none"
 	return "Warnings: %d" % warnings.size()
 
+func get_constructor_consistency_summary_text() -> String:
+	var issues: Array[String] = get_constructor_consistency_issue_lines()
+	var lines: Array[String] = []
+	lines.append("Constructor consistency:")
+	if issues.is_empty():
+		lines.append("OK")
+		return "\n".join(lines)
+	lines.append("%d issue(s)" % issues.size())
+	for issue in issues:
+		lines.append("- " + issue)
+	return "\n".join(lines)
+
+func get_constructor_consistency_compact_text() -> String:
+	var issue_count: int = get_constructor_consistency_issue_lines().size()
+	if issue_count == 0:
+		return "Consistency: OK"
+	return "Consistency: %d issue(s)" % issue_count
+
 func recalculate_module_stats() -> void:
 	# MVP module model: aggregate passive stats from installed modules.
 	var energy_bonus_total := 0
@@ -1083,6 +1101,141 @@ func get_unique_external_modules() -> Array[BipobModule]:
 			continue
 		unique_modules.append(module)
 	return unique_modules
+
+func get_all_constructor_modules() -> Array[BipobModule]:
+	var modules: Array[BipobModule] = []
+
+	for module in box_storage:
+		if module != null and not modules.has(module):
+			modules.append(module)
+
+	for module in get_unique_external_modules():
+		if module != null and not modules.has(module):
+			modules.append(module)
+
+	for module in get_unique_internal_modules():
+		if module != null and not modules.has(module):
+			modules.append(module)
+
+	return modules
+
+func get_allowed_constructor_placement_types() -> Array[String]:
+	return ["internal", "external", "none"]
+
+func get_allowed_constructor_categories() -> Array[String]:
+	return [
+		"external",
+		"internal",
+		"power",
+		"cooling",
+		"data",
+		"locomotion",
+		"vision",
+		"storage",
+		"utility"
+	]
+
+func get_allowed_cooling_types() -> Array[String]:
+	return ["none", "air", "passive", "liquid", "duct"]
+
+func get_constructor_consistency_issue_lines() -> Array[String]:
+	var issues: Array[String] = []
+	var modules: Array[BipobModule] = get_all_constructor_modules()
+
+	for module in modules:
+		if module == null:
+			continue
+
+		var module_label: String = get_module_display_name(module)
+		if module_label.is_empty():
+			module_label = "<unnamed>"
+
+		var module_id: String = module.id
+		if module_id.is_empty():
+			issues.append("%s has missing id." % module_label)
+
+		if module.display_name.is_empty():
+			issues.append("%s has missing display_name." % module_id)
+
+		if module.placement_type.is_empty():
+			issues.append("%s has missing placement_type." % module_label)
+		elif not get_allowed_constructor_placement_types().has(module.placement_type):
+			issues.append("%s has unknown placement_type: %s." % [module_label, module.placement_type])
+
+		var category: String = get_module_category(module)
+		if category.is_empty():
+			issues.append("%s has missing category." % module_label)
+		elif not get_allowed_constructor_categories().has(category):
+			issues.append("%s has unknown category: %s." % [module_label, category])
+
+		if module.placement_type == "internal":
+			if module.internal_role.is_empty() or module.internal_role == "none":
+				issues.append("%s is internal but has no internal_role." % module_label)
+
+			var internal_size: Vector3i = get_internal_module_base_size(module)
+			if internal_size.x <= 0 or internal_size.y <= 0 or internal_size.z <= 0:
+				issues.append("%s has invalid internal size: %s." % [module_label, str(internal_size)])
+
+		if module.placement_type == "external":
+			var footprint_size: Vector2i = get_external_module_size(module)
+			if footprint_size.x <= 0 or footprint_size.y <= 0:
+				issues.append("%s has invalid external footprint: %s." % [module_label, str(footprint_size)])
+
+		if not get_allowed_cooling_types().has(module.cooling_type):
+			issues.append("%s has unknown cooling_type: %s." % [module_label, module.cooling_type])
+
+		if module.heat_idle < 0 or module.heat_idle > 5:
+			issues.append("%s has heat_idle outside 0..5: %d." % [module_label, module.heat_idle])
+
+		if module.heat_active < 0 or module.heat_active > 5:
+			issues.append("%s has heat_active outside 0..5: %d." % [module_label, module.heat_active])
+
+		if module.heat_active < module.heat_idle:
+			issues.append("%s has heat_active lower than heat_idle." % module_label)
+
+		if module.internal_role == "cooling":
+			if module.id != "air_duct_v1" and module.id != "air_intake_v1":
+				if module.cooling_power <= 0:
+					issues.append("%s is cooling module but has cooling_power <= 0." % module_label)
+
+		if module.requires_air_intake:
+			if module.cooling_type != "air" and module.cooling_type != "duct":
+				issues.append("%s requires air intake but cooling_type is %s." % [module_label, module.cooling_type])
+
+	_append_duplicate_constructor_metadata_issues(issues, modules)
+	return issues
+
+func _append_duplicate_constructor_metadata_issues(issues: Array[String], modules: Array[BipobModule]) -> void:
+	var first_by_id: Dictionary = {}
+	for module in modules:
+		if module == null:
+			continue
+		var module_id: String = module.id
+		if module_id.is_empty():
+			continue
+		if not first_by_id.has(module_id):
+			first_by_id[module_id] = module
+			continue
+		var first_module: BipobModule = first_by_id[module_id]
+		_compare_constructor_metadata_field(issues, module_id, "display_name", first_module.display_name, module.display_name)
+		_compare_constructor_metadata_field(issues, module_id, "placement_type", first_module.placement_type, module.placement_type)
+		_compare_constructor_metadata_field(issues, module_id, "category", get_module_category(first_module), get_module_category(module))
+		_compare_constructor_metadata_field(issues, module_id, "internal_role", first_module.internal_role, module.internal_role)
+		_compare_constructor_metadata_field(issues, module_id, "heat_idle", str(first_module.heat_idle), str(module.heat_idle))
+		_compare_constructor_metadata_field(issues, module_id, "heat_active", str(first_module.heat_active), str(module.heat_active))
+		_compare_constructor_metadata_field(issues, module_id, "cooling_type", first_module.cooling_type, module.cooling_type)
+		_compare_constructor_metadata_field(issues, module_id, "cooling_power", str(first_module.cooling_power), str(module.cooling_power))
+		_compare_constructor_metadata_field(issues, module_id, "requires_air_intake", str(first_module.requires_air_intake), str(module.requires_air_intake))
+
+func _compare_constructor_metadata_field(
+	issues: Array[String],
+	module_id: String,
+	field_name: String,
+	first_value: String,
+	next_value: String
+) -> void:
+	if first_value != next_value:
+		issues.append("Duplicate metadata mismatch for %s: %s differs (%s vs %s)." % [module_id, field_name, first_value, next_value])
 
 func get_box_module_count_by_id(module_id: String) -> int:
 	var count: int = 0
