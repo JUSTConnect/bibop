@@ -589,6 +589,15 @@ func get_constructor_consistency_compact_text() -> String:
 		return "Consistency: OK"
 	return "Consistency: %d issue(s)" % issue_count
 
+func get_constructor_consistency_issue_count() -> int:
+	var count: int = 0
+	var text: String = get_constructor_consistency_check_text()
+	for line in text.split("\n"):
+		var lower_line: String = String(line).to_lower()
+		if lower_line.contains("missing") or lower_line.contains("invalid") or lower_line.contains("error"):
+			count += 1
+	return count
+
 func recalculate_module_stats() -> void:
 	# MVP module model: aggregate passive stats from installed modules.
 	var energy_bonus_total := 0
