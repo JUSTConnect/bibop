@@ -1312,7 +1312,6 @@ func get_box_internal_menu_text() -> String:
 	for y in range(v.y):
 		var row: Array[String] = []
 		for x in range(v.x):
-<<<<<<< HEAD
 			var cell: Vector3i = Vector3i(x, y, bipob.selected_internal_origin.z)
 			var marker: String = " " if bipob.get_internal_module_at_cell(cell) == null else "[X]"
 			if preview_cells.has(cell):
@@ -1321,11 +1320,11 @@ func get_box_internal_menu_text() -> String:
 				marker = "[>]"
 			row.append(marker)
 		lines.append(" ".join(row))
-=======
+
 			var cell := Vector3i(x, y, bipob.selected_internal_origin.z)
 			row.append(_get_internal_cell_marker(cell, preview_cells_map, can_place))
 		lines.append("y%d %s" % [y, " ".join(row)])
->>>>>>> ee97a6a4cb8400fc87f14d0f1e3382aa4b8b2847
+
 	lines.append("")
 	lines.append("Vertical slice Z/Y at X=%d" % bipob.selected_internal_origin.x)
 	lines.append(_build_internal_axis_header("z", v.z))
