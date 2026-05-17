@@ -1351,13 +1351,13 @@ func get_box_internal_menu_text() -> String:
 			if placed_module == null:
 				continue
 			var origin: Vector3i = record.get("origin", Vector3i.ZERO)
-			var rotation: int = int(record.get("rotation", 0))
-			var size: Vector3i = bipob.get_rotated_internal_size(placed_module, rotation)
+			var rotation_index: int = int(record.get("rotation", 0))
+			var size: Vector3i = bipob.get_rotated_internal_size(placed_module, rotation_index)
 			lines.append("- %s at %d,%d,%d size %d×%d×%d rot %d" % [
 				bipob.get_module_display_name(placed_module),
 				origin.x, origin.y, origin.z,
 				size.x, size.y, size.z,
-				rotation
+				rotation_index
 			])
 	lines.append("")
 	lines.append("Placement:")
