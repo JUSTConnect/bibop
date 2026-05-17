@@ -1098,6 +1098,25 @@ func has_air_cooling_requiring_intake() -> bool:
 			return true
 	return false
 
+func get_air_intake_status_text() -> String:
+	if not has_air_cooling_requiring_intake():
+		return "not required"
+	if has_external_air_intake():
+		return "installed"
+	return "missing"
+
+func get_air_intake_warning_text() -> String:
+	if has_air_cooling_requiring_intake() and not has_external_air_intake():
+		return "Warning: Air cooling requires Air Intake Node on external body."
+	return ""
+
+func get_air_intake_summary_text() -> String:
+	var status: String = get_air_intake_status_text()
+	var warning: String = get_air_intake_warning_text()
+	if warning.is_empty():
+		return "Air intake: " + status
+	return "Air intake: " + status + "\n" + warning
+
 func get_thermal_metadata_summary_text() -> String:
 	var lines: Array[String] = []
 	lines.append("Thermal model:")

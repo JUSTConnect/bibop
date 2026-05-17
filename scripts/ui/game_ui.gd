@@ -837,7 +837,18 @@ func get_box_external_menu_text() -> String:
 			content_lines.append("Placement: valid")
 		else:
 			content_lines.append("Placement: invalid — %s" % placement_error)
+		if selected_box_module.id == "air_intake_v1":
+			content_lines.append("Purpose: supplies air to internal air cooling modules.")
+			content_lines.append("Allowed sides: Any")
 
+	content_lines.append("")
+	content_lines.append("Air intake requirement:")
+	content_lines.append("- internal air cooling: %s" % get_yes_no(bipob.has_air_cooling_requiring_intake()))
+	content_lines.append("- air intake installed: %s" % get_yes_no(bipob.has_external_air_intake()))
+	if bipob.has_method("get_air_intake_warning_text"):
+		var air_intake_warning: String = str(bipob.get_air_intake_warning_text())
+		if not air_intake_warning.is_empty():
+			content_lines.append(air_intake_warning)
 	content_lines.append("")
 	content_lines.append("Installed on %s:" % side_name)
 	content_lines.append(get_external_side_installed_list_text(side_id))
@@ -1068,11 +1079,9 @@ func _get_internal_thermal_cell_marker(cell: Vector3i, preview_cells_map: Dictio
 func get_air_intake_status_text() -> String:
 	if bipob == null:
 		return "unknown"
-	if not bipob.has_air_cooling_requiring_intake():
-		return "not required"
-	if bipob.has_external_air_intake():
-		return "installed"
-	return "missing"
+	if bipob.has_method("get_air_intake_status_text"):
+		return str(bipob.get_air_intake_status_text())
+	return "unknown"
 
 func _on_prev_external_side_pressed() -> void:
 	if bipob == null:
@@ -1443,9 +1452,10 @@ func get_box_internal_menu_text() -> String:
 	var critical_count: int = bipob.get_critical_internal_preview_count()
 	lines.append("Highest heat: %d / %d" % [highest_heat, bipob.THERMAL_CRITICAL_HEAT])
 	lines.append("Critical preview: %d" % critical_count)
-	lines.append("Air intake: %s" % get_air_intake_status_text())
-	if bipob.has_air_cooling_requiring_intake() and not bipob.has_external_air_intake():
-		lines.append("Warning: intake required")
+	if bipob.has_method("get_air_intake_summary_text"):
+		lines.append(str(bipob.get_air_intake_summary_text()))
+	else:
+		lines.append("Air intake: %s" % get_air_intake_status_text())
 	lines.append("")
 	lines.append("Roles:")
 	var role_order: Array[String] = [
