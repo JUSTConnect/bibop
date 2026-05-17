@@ -305,6 +305,48 @@ func get_digital_storage_short_text() -> String:
 			return "Digital: %s" % one_line
 	return "Digital: empty"
 
+func format_2d_size(size: Vector2i) -> String:
+	return "%d×%d" % [size.x, size.y]
+
+func format_3d_size(size: Vector3i) -> String:
+	return "%d×%d×%d" % [size.x, size.y, size.z]
+
+func get_module_details_text(module: BipobModule) -> String:
+	if module == null:
+		return "Selected item:\nnone"
+	var lines: Array[String] = []
+	lines.append("Selected item:")
+	lines.append("Name: %s" % bipob.get_module_display_name(module))
+	lines.append("ID: %s" % module.id)
+	lines.append("Placement: %s" % module.placement_type)
+	lines.append("Category: %s" % bipob.get_module_category(module))
+	if module.placement_type == "external":
+		var module_size_2d: Vector2i = bipob.get_external_module_size(module)
+		lines.append("Size: %s external" % format_2d_size(module_size_2d))
+		lines.append("Allowed sides: %s" % bipob.get_allowed_external_sides_text(module))
+	elif module.placement_type == "internal":
+		var module_size_3d := Vector3i(module.size_x, module.size_y, module.size_z)
+		lines.append("Size: %s" % format_3d_size(module_size_3d))
+		lines.append("Role: %s" % (module.internal_role if not module.internal_role.is_empty() else "none"))
+		lines.append("Heat: %d / %d" % [module.heat_idle, module.heat_active])
+		if module.cooling_power > 0 or module.cooling_type != "none":
+			if module.cooling_type == "none":
+				lines.append("Cooling: %d" % module.cooling_power)
+			elif module.cooling_power > 0:
+				lines.append("Cooling: %s %d" % [module.cooling_type, module.cooling_power])
+			else:
+				lines.append("Cooling: %s" % module.cooling_type)
+		else:
+			lines.append("Cooling: none")
+		lines.append("Air intake: %s" % ("required" if module.requires_air_intake else "no"))
+		lines.append("Allowed sides: n/a")
+	else:
+		lines.append("Size: n/a")
+		lines.append("Allowed sides: n/a")
+	if not module.description.is_empty():
+		lines.append("Description: %s" % module.description)
+	return "\n".join(lines)
+
 func _ready() -> void:
 	if status_label != null:
 		status_label.position = Vector2(100, 20)
@@ -864,6 +906,11 @@ func get_box_modules_menu_text() -> String:
 	content_lines.append("Box storage filtered (%d / %d):" % [filtered_modules.size(), bipob.box_storage.size()])
 	content_lines.append_array(get_compact_module_window(filtered_modules, selected_filtered_box_index, 5))
 	content_lines.append("")
+	var selected_module: BipobModule = null
+	if selected_box_storage_index >= 0 and selected_box_storage_index < bipob.box_storage.size():
+		selected_module = bipob.box_storage[selected_box_storage_index]
+	content_lines.append(get_module_details_text(selected_module))
+	content_lines.append("")
 	content_lines.append("External build: %d module(s)" % bipob.external_modules_by_slot.size())
 	return "\n".join(content_lines)
 
@@ -942,6 +989,11 @@ func get_box_external_menu_text() -> String:
 		if selected_box_module.id == "air_intake_v1":
 			content_lines.append("Purpose: supplies air to internal air cooling modules.")
 			content_lines.append("Allowed sides: Any")
+		if selected_box_module.placement_type != "external":
+			content_lines.append("Cannot place: module is not external.")
+
+	content_lines.append("")
+	content_lines.append(get_module_details_text(selected_box_module))
 
 	content_lines.append("")
 	content_lines.append("Air intake requirement:")
@@ -1470,7 +1522,7 @@ func get_box_internal_menu_text() -> String:
 		lines.append("Selected internal module: none")
 	else:
 		var rotated_size: Vector3i = bipob.get_rotated_internal_size(selected_module, bipob.selected_internal_rotation)
-		lines.append(get_internal_module_info_text(selected_module))
+		lines.append(get_module_details_text(selected_module))
 		lines.append("Rotated: %d×%d×%d" % [rotated_size.x, rotated_size.y, rotated_size.z])
 	lines.append("")
 	lines.append("Selected cell: %s" % ("empty" if selected_cell_module == null else "occupied by %s" % bipob.get_module_display_name(selected_cell_module)))
