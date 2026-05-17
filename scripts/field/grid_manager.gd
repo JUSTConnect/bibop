@@ -146,6 +146,13 @@ func _draw() -> void:
 				color = tile_colors.get(TILE_FLOOR, Color(0.16, 0.16, 0.18))
 			
 			draw_rect(rect, color, true)
+			if tile_type == TILE_AIRFLOW:
+				var floor_color: Color = tile_colors.get(TILE_FLOOR, Color(0.16, 0.16, 0.18))
+				draw_rect(rect, floor_color, true)
+				var strip_size := Vector2(cell_size * 0.55, cell_size * 0.18)
+				var strip_rect := Rect2(rect.get_center() - strip_size * 0.5, strip_size)
+				draw_rect(strip_rect, Color(0.62, 0.9, 1.0, 0.9), true)
+				draw_circle(rect.get_center(), cell_size * 0.1, Color(0.8, 0.95, 1.0, 0.95))
 			draw_rect(rect, Color(0.35, 0.35, 0.38), false, 2.0)
 			if tile_type == TILE_HIDDEN_ROUTE_NODE:
 				if is_hidden_route_node_discovered(grid_position):

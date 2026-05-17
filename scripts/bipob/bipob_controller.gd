@@ -1446,6 +1446,18 @@ func setup_mission8() -> void:
 	mission8_airflow_cells.clear()
 	update_mission8_airflow()
 
+func get_direction_display_name(direction_value: Direction) -> String:
+	match direction_value:
+		Direction.NORTH:
+			return "NORTH"
+		Direction.EAST:
+			return "EAST"
+		Direction.SOUTH:
+			return "SOUTH"
+		Direction.WEST:
+			return "WEST"
+	return "UNKNOWN"
+
 func get_direction_name(value: Direction) -> String:
 	match value:
 		Direction.NORTH:
@@ -1459,6 +1471,17 @@ func get_direction_name(value: Direction) -> String:
 		_:
 			return "UNKNOWN"
 
+func get_mission8_airflow_status_text() -> String:
+	if current_mission_index != 8:
+		return ""
+
+	var terminal_state := "cooled" if mission8_terminal_cooled else "hot"
+	return "Airflow: %s | Speed: %d | Terminal: %s" % [
+		get_direction_display_name(mission8_fan_direction),
+		mission8_fan_speed,
+		terminal_state
+	]
+
 func interact_mission8_platform_control() -> void:
 	if current_mission_index != 8:
 		hint_requested.emit("Platform control is inactive in this mission.")
@@ -1469,7 +1492,8 @@ func interact_mission8_platform_control() -> void:
 	mission8_fan_direction = Direction.values()[(int(mission8_fan_direction) + 1) % 4]
 	spend_action(1, 1)
 	update_mission8_airflow()
-	hint_requested.emit("Fan platform rotated. Airflow direction: %s." % get_direction_name(mission8_fan_direction))
+	var terminal_state := "cooled" if mission8_terminal_cooled else "hot"
+	hint_requested.emit("Fan platform rotated. Airflow: %s | Terminal: %s." % [get_direction_display_name(mission8_fan_direction), terminal_state])
 	status_changed.emit()
 
 func interact_mission8_fan_control() -> void:
@@ -1482,7 +1506,8 @@ func interact_mission8_fan_control() -> void:
 	mission8_fan_speed = (mission8_fan_speed + 1) % 4
 	spend_action(1, 1)
 	update_mission8_airflow()
-	hint_requested.emit("Fan speed set to %d." % mission8_fan_speed)
+	var terminal_state := "cooled" if mission8_terminal_cooled else "hot"
+	hint_requested.emit("Fan speed set to %d. Terminal: %s." % [mission8_fan_speed, terminal_state])
 	status_changed.emit()
 
 func update_mission8_airflow() -> void:
@@ -1496,6 +1521,8 @@ func update_mission8_airflow() -> void:
 	mission8_airflow_cells.clear()
 	mission8_terminal_cooled = false
 	if mission8_fan_speed <= 0:
+		grid_manager.queue_redraw()
+		status_changed.emit()
 		return
 
 	var airflow_ranges := {1: 2, 2: 4, 3: 6}
@@ -1512,10 +1539,18 @@ func update_mission8_airflow() -> void:
 		var tile := grid_manager.get_tile(current_position)
 		if tile == GridManager.TILE_WALL or tile == GridManager.TILE_DIGITAL_DOOR or tile == GridManager.TILE_ROUTE_GATE:
 			break
+		if tile == GridManager.TILE_AIRFLOW_TERMINAL:
+			mission8_terminal_cooled = true
+			break
+		if tile == GridManager.TILE_FAN_PLATFORM or tile == GridManager.TILE_PLATFORM_CONTROL or tile == GridManager.TILE_FAN_CONTROL:
+			break
 		if tile == GridManager.TILE_FLOOR:
 			grid_manager.set_tile(current_position, GridManager.TILE_AIRFLOW)
 			mission8_airflow_cells.append(current_position)
 		current_position += direction_vector
+
+	grid_manager.queue_redraw()
+	status_changed.emit()
 
 func create_debug_field_component() -> BipobModule:
 	var module := BipobModule.new()

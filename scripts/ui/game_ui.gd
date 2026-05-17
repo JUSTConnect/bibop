@@ -636,6 +636,10 @@ func update_status() -> void:
 		elif not full_storage_text.is_empty():
 			digital_storage_short_text = full_storage_text
 	status_label.text += " | Data: %s" % digital_storage_short_text
+	if bipob.has_method("get_mission8_airflow_status_text"):
+		var mission8_status := str(bipob.get_mission8_airflow_status_text())
+		if not mission8_status.is_empty():
+			status_label.text += " | %s" % mission8_status
 
 
 func update_diagnostic_status() -> void:
