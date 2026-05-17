@@ -964,6 +964,52 @@ func _get_selected_internal_module() -> BipobModule:
 	_clamp_internal_selection()
 	return modules[bipob.selected_internal_box_index]
 
+func get_internal_module_marker(module: BipobModule) -> String:
+	if module == null:
+		return "X"
+	match module.internal_role:
+		"battery":
+			return "B"
+		"processor":
+			return "P"
+		"external_interface":
+			return "E"
+		"internal_interface":
+			return "I"
+		"memory":
+			return "M"
+		"power_block":
+			return "W"
+		"storage":
+			return "H"
+		_:
+			return "X"
+
+func _build_internal_axis_header(prefix: String, count: int) -> String:
+	var labels: Array[String] = []
+	for i in range(count):
+		labels.append("%s%d" % [prefix, i])
+	return "    %s" % " ".join(labels)
+
+func _get_internal_cell_marker(cell: Vector3i, preview_cells_map: Dictionary, can_place: bool) -> String:
+	var is_origin := cell == bipob.selected_internal_origin
+	var occupied_module: BipobModule = bipob.get_internal_module_at_cell(cell)
+	var is_occupied := occupied_module != null
+	var in_preview := preview_cells_map.has(bipob.get_internal_slot_key(cell))
+	if in_preview:
+		if can_place:
+			return "[>]" if is_origin else "[*]"
+		if is_origin and is_occupied:
+			return "[>%s]" % get_internal_module_marker(occupied_module)
+		return "[!]"
+	if is_origin and is_occupied:
+		return "[>%s]" % get_internal_module_marker(occupied_module)
+	if is_origin:
+		return "[>]"
+	if is_occupied:
+		return "[%s]" % get_internal_module_marker(occupied_module)
+	return "[ ]"
+
 func _on_prev_external_side_pressed() -> void:
 	if bipob == null:
 		return
@@ -1217,19 +1263,32 @@ func get_box_internal_menu_text() -> String:
 	_clamp_internal_selection()
 	var selected_module := _get_selected_internal_module()
 	var preview_cells: Array[Vector3i] = []
+	var preview_cells_map := {}
+	var placement_error := "No internal module selected."
 	var can_place := false
 	if selected_module != null:
 		preview_cells = bipob.get_internal_module_covered_cells(selected_module, bipob.selected_internal_origin, bipob.selected_internal_rotation)
-		can_place = bipob.can_place_internal_module(selected_module, bipob.selected_internal_origin, bipob.selected_internal_rotation)
+		for cell in preview_cells:
+			preview_cells_map[bipob.get_internal_slot_key(cell)] = true
+		placement_error = bipob.get_internal_module_placement_error(selected_module, bipob.selected_internal_origin, bipob.selected_internal_rotation)
+		can_place = placement_error.is_empty()
+	if can_place:
+		placement_error = "OK"
+	var selected_cell_module := bipob.get_internal_module_at_cell(bipob.selected_internal_origin)
+
 	var lines: Array[String] = []
-	lines.append("Selected internal module:")
+	lines.append("Selected internal module: %s" % ("none" if selected_module == null else ""))
 	if selected_module == null:
-		lines.append("- none")
+		pass
 	else:
-		var size: Vector3i = bipob.get_rotated_internal_size(selected_module, bipob.selected_internal_rotation)
-		lines.append("- %s" % bipob.get_module_display_name(selected_module))
-		lines.append("- size: %dx%dx%d" % [size.x, size.y, size.z])
-		lines.append("- rotation: %d" % bipob.selected_internal_rotation)
+		var base_size: Vector3i = bipob.get_internal_module_base_size(selected_module)
+		var rotated_size: Vector3i = bipob.get_rotated_internal_size(selected_module, bipob.selected_internal_rotation)
+		lines.append("> %s" % bipob.get_module_display_name(selected_module))
+		lines.append("Size: %d×%d×%d" % [base_size.x, base_size.y, base_size.z])
+		lines.append("Rotated: %d×%d×%d" % [rotated_size.x, rotated_size.y, rotated_size.z])
+		lines.append("Role: %s" % selected_module.internal_role)
+	lines.append("")
+	lines.append("Selected cell: %s" % ("empty" if selected_cell_module == null else "occupied by %s" % bipob.get_module_display_name(selected_cell_module)))
 	lines.append("")
 	lines.append("Internal box storage:")
 	var internal_modules := _get_internal_box_modules()
@@ -1239,46 +1298,68 @@ func get_box_internal_menu_text() -> String:
 		for i in range(internal_modules.size()):
 			lines.append(("> " if i == bipob.selected_internal_box_index else "  ") + bipob.get_module_display_name(internal_modules[i]))
 	lines.append("")
+	lines.append("Marker legend:")
+	lines.append("[ ] empty")
+	lines.append("[>] selected origin")
+	lines.append("[*] valid preview footprint")
+	lines.append("[!] invalid preview footprint")
+	lines.append("[X] occupied (default)")
+	lines.append("[>X] selected occupied cell")
+	lines.append("")
 	var v: Vector3i = bipob.get_internal_volume_size()
-	lines.append("Front view (X/Y):")
+	lines.append("Front view X/Y at Z=%d" % bipob.selected_internal_origin.z)
+	lines.append(_build_internal_axis_header("x", v.x))
 	for y in range(v.y):
 		var row: Array[String] = []
 		for x in range(v.x):
 			var cell := Vector3i(x, y, bipob.selected_internal_origin.z)
-			var marker := "[ ]" if bipob.get_internal_module_at_cell(cell) == null else "[X]"
-			if preview_cells.has(cell):
-				marker = "[*]" if can_place else "[!]"
-			if x == bipob.selected_internal_origin.x and y == bipob.selected_internal_origin.y:
-				marker = "[>]"
-			row.append(marker)
-		lines.append(" ".join(row))
+			row.append(_get_internal_cell_marker(cell, preview_cells_map, can_place))
+		lines.append("y%d %s" % [y, " ".join(row)])
 	lines.append("")
-	lines.append("Vertical slice (Z/Y at X=%d):" % bipob.selected_internal_origin.x)
+	lines.append("Vertical slice Z/Y at X=%d" % bipob.selected_internal_origin.x)
+	lines.append(_build_internal_axis_header("z", v.z))
 	for y in range(v.y):
 		var row: Array[String] = []
 		for z in range(v.z):
 			var cell := Vector3i(bipob.selected_internal_origin.x, y, z)
-			var marker := "[ ]" if bipob.get_internal_module_at_cell(cell) == null else "[X]"
-			if preview_cells.has(cell):
-				marker = "[*]" if can_place else "[!]"
-			row.append(marker)
-		lines.append(" ".join(row))
+			row.append(_get_internal_cell_marker(cell, preview_cells_map, can_place))
+		lines.append("y%d %s" % [y, " ".join(row)])
 	lines.append("")
-	lines.append("Horizontal slice (X/Z at Y=%d):" % bipob.selected_internal_origin.y)
+	lines.append("Horizontal slice X/Z at Y=%d" % bipob.selected_internal_origin.y)
+	lines.append(_build_internal_axis_header("x", v.x))
 	for z in range(v.z):
 		var row: Array[String] = []
 		for x in range(v.x):
 			var cell := Vector3i(x, bipob.selected_internal_origin.y, z)
-			var marker := "[ ]" if bipob.get_internal_module_at_cell(cell) == null else "[X]"
-			if preview_cells.has(cell):
-				marker = "[*]" if can_place else "[!]"
-			row.append(marker)
-		lines.append(" ".join(row))
+			row.append(_get_internal_cell_marker(cell, preview_cells_map, can_place))
+		lines.append("z%d %s" % [z, " ".join(row)])
+	lines.append("")
+	lines.append("Placed internal modules:")
+	if bipob.placed_internal_modules.is_empty():
+		lines.append("none")
+	else:
+		for record_variant in bipob.placed_internal_modules:
+			var record: Dictionary = record_variant
+			var placed_module: BipobModule = record.get("module", null)
+			if placed_module == null:
+				continue
+			var origin: Vector3i = record.get("origin", Vector3i.ZERO)
+			var rotation: int = int(record.get("rotation", 0))
+			var size: Vector3i = bipob.get_rotated_internal_size(placed_module, rotation)
+			lines.append("- %s at %d,%d,%d size %d×%d×%d rot %d" % [
+				bipob.get_module_display_name(placed_module),
+				origin.x, origin.y, origin.z,
+				size.x, size.y, size.z,
+				rotation
+			])
 	lines.append("")
 	lines.append("Placement:")
-	lines.append("origin = (%d, %d, %d)" % [bipob.selected_internal_origin.x, bipob.selected_internal_origin.y, bipob.selected_internal_origin.z])
-	lines.append("rotation = %d" % bipob.selected_internal_rotation)
-	lines.append("valid = %s" % get_yes_no(can_place))
+	var placement_size := Vector3i.ZERO if selected_module == null else bipob.get_rotated_internal_size(selected_module, bipob.selected_internal_rotation)
+	lines.append("Origin: %d,%d,%d" % [bipob.selected_internal_origin.x, bipob.selected_internal_origin.y, bipob.selected_internal_origin.z])
+	lines.append("Rotation: %d" % bipob.selected_internal_rotation)
+	lines.append("Rotated size: %d×%d×%d" % [placement_size.x, placement_size.y, placement_size.z])
+	lines.append("Valid: %s" % get_yes_no(can_place))
+	lines.append("Reason: %s" % placement_error)
 	return "\n".join(lines)
 
 func _move_internal_cursor(dx: int, dy: int, dz: int) -> void:

@@ -682,17 +682,20 @@ func get_internal_module_covered_cells(module: BipobModule, origin: Vector3i, ro
 				cells.append(origin + Vector3i(x, y, z))
 	return cells
 
-func can_place_internal_module(module: BipobModule, origin: Vector3i, rotation: int = 0) -> bool:
+func get_internal_module_placement_error(module: BipobModule, origin: Vector3i, rotation: int = 0) -> String:
 	if module == null:
-		return false
+		return "No internal module selected."
 	if module.placement_type != "internal":
-		return false
+		return "Module is not internal."
 	for cell in get_internal_module_covered_cells(module, origin, rotation):
 		if not is_internal_cell_in_bounds(cell):
-			return false
+			return "Internal module footprint is outside robot volume."
 		if get_internal_module_at_cell(cell) != null:
-			return false
-	return true
+			return "Internal cells are occupied."
+	return ""
+
+func can_place_internal_module(module: BipobModule, origin: Vector3i, rotation: int = 0) -> bool:
+	return get_internal_module_placement_error(module, origin, rotation).is_empty()
 
 func place_internal_module(module: BipobModule, origin: Vector3i, rotation: int = 0) -> bool:
 	if not can_place_internal_module(module, origin, rotation):
