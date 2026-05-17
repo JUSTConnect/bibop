@@ -51,15 +51,19 @@ var next_box_button: Button
 var box_tab_row: HBoxContainer = null
 var mission_tab_button: Button
 var modules_tab_button: Button
+var external_tab_button: Button
 var box_restart_button: Button
 var box_return_button: Button
 
 enum BoxMenuMode {
 	MISSION,
-	MODULES
+	MODULES,
+	EXTERNAL
 }
 
 var box_menu_mode: BoxMenuMode = BoxMenuMode.MISSION
+var selected_external_side_index: int = 1
+var selected_external_slot_position: Vector2i = Vector2i(1, 1)
 
 func _configure_box_layout() -> void:
 	if box_screen == null:
@@ -372,6 +376,13 @@ func _ready() -> void:
 	box_tab_row.add_child(modules_tab_button)
 	modules_tab_button.pressed.connect(set_box_menu_mode_modules)
 
+	external_tab_button = Button.new()
+	external_tab_button.name = "ExternalTabButton"
+	external_tab_button.text = "External"
+	external_tab_button.focus_mode = Control.FOCUS_NONE
+	box_tab_row.add_child(external_tab_button)
+	external_tab_button.pressed.connect(set_box_menu_mode_external)
+
 	box_restart_button = null
 
 	box_return_button = null
@@ -489,6 +500,35 @@ func _on_install_selected_box_module_pressed() -> void:
 func _on_remove_module_button_pressed() -> void:
 	_on_remove_selected_module_pressed()
 
+func get_selected_external_side_id() -> String:
+	if bipob == null:
+		return ""
+	if selected_external_side_index < 0:
+		selected_external_side_index = 0
+	if selected_external_side_index >= bipob.EXTERNAL_SIDE_ORDER.size():
+		selected_external_side_index = 0
+	return String(bipob.EXTERNAL_SIDE_ORDER[selected_external_side_index])
+
+func clamp_external_selection() -> void:
+	if bipob == null:
+		return
+
+	if selected_external_side_index < 0:
+		selected_external_side_index = bipob.EXTERNAL_SIDE_ORDER.size() - 1
+	elif selected_external_side_index >= bipob.EXTERNAL_SIDE_ORDER.size():
+		selected_external_side_index = 0
+
+	var side_id := get_selected_external_side_id()
+	var side_size := bipob.get_external_side_size(side_id)
+	selected_external_slot_position.x = clampi(selected_external_slot_position.x, 0, side_size.x - 1)
+	selected_external_slot_position.y = clampi(selected_external_slot_position.y, 0, side_size.y - 1)
+
+func _get_external_slot_mark(module: BipobModule) -> String:
+	var module_name := bipob.get_module_display_name(module).to_upper()
+	if module_name.is_empty():
+		return "M"
+	return module_name.substr(0, 1)
+
 func _on_start_mission_button_pressed() -> void:
 	if bipob == null:
 		return
@@ -564,12 +604,16 @@ func update_box_status() -> void:
 	if box_title_label != null:
 		if box_menu_mode == BoxMenuMode.MISSION:
 			box_title_label.text = "Box / Garage — Mission"
+		elif box_menu_mode == BoxMenuMode.EXTERNAL:
+			box_title_label.text = "Box / Garage — External"
 		else:
 			box_title_label.text = "Box / Garage — Modules"
 
 	var content_text: String
 	if box_menu_mode == BoxMenuMode.MISSION:
 		content_text = get_box_mission_menu_text()
+	elif box_menu_mode == BoxMenuMode.EXTERNAL:
+		content_text = get_box_external_menu_text()
 	else:
 		content_text = get_box_modules_menu_text()
 	update_box_button_visibility()
@@ -636,6 +680,41 @@ func get_box_modules_menu_text() -> String:
 	content_lines.append_array(get_compact_module_window(bipob.box_storage, selected_box_storage_index, 5))
 	return "\n".join(content_lines)
 
+func get_box_external_menu_text() -> String:
+	clamp_external_selection()
+	var side_id := get_selected_external_side_id()
+	var side_size := bipob.get_external_side_size(side_id)
+	var content_lines: Array[String] = []
+	content_lines.append("Side: %s" % side_id)
+	content_lines.append("Selected slot: %d,%d" % [selected_external_slot_position.x, selected_external_slot_position.y])
+	content_lines.append(get_selected_box_module_text())
+	content_lines.append("")
+	content_lines.append("External side %s (%dx%d):" % [side_id, side_size.x, side_size.y])
+
+	for y in range(side_size.y):
+		var row_cells: Array[String] = []
+		for x in range(side_size.x):
+			var slot_pos := Vector2i(x, y)
+			var module := bipob.get_external_module_at(side_id, slot_pos)
+			var is_selected := slot_pos == selected_external_slot_position
+			if module == null:
+				row_cells.append("[>]" if is_selected else "[ ]")
+			else:
+				var mark := _get_external_slot_mark(module)
+				row_cells.append("[>%s]" % mark if is_selected else "[%s]" % mark)
+		content_lines.append("".join(row_cells))
+
+	content_lines.append("")
+	content_lines.append("Legend:")
+	content_lines.append("- empty slot: [ ]")
+	content_lines.append("- selected empty slot: [>]")
+	content_lines.append("- occupied slot: [V] or [M]")
+	content_lines.append("- selected occupied slot: [>V]")
+	content_lines.append("")
+	content_lines.append("External build summary:")
+	content_lines.append(str(bipob.get_external_build_summary_text()))
+	return "\n".join(content_lines)
+
 func _add_box_action_button(button_text: String, handler: Callable) -> void:
 	if right_button_panel == null:
 		return
@@ -661,6 +740,14 @@ func rebuild_box_action_buttons() -> void:
 		_add_box_action_button("Charge", Callable(self, "_on_charge_button_pressed"))
 		_add_box_action_button("Start", Callable(self, "_on_start_mission_button_pressed"))
 		_add_box_action_button("Restart", Callable(self, "_on_restart_mission_button_pressed"))
+	elif box_menu_mode == BoxMenuMode.EXTERNAL:
+		_add_box_action_button("Prev Side", Callable(self, "_on_prev_external_side_pressed"))
+		_add_box_action_button("Next Side", Callable(self, "_on_next_external_side_pressed"))
+		_add_box_action_button("Prev Slot", Callable(self, "_on_prev_external_slot_pressed"))
+		_add_box_action_button("Next Slot", Callable(self, "_on_next_external_slot_pressed"))
+		right_button_panel.add_spacer(false)
+		_add_box_action_button("Place", Callable(self, "_on_place_external_module_pressed"))
+		_add_box_action_button("Remove", Callable(self, "_on_remove_external_module_pressed"))
 	else:
 		_add_box_action_button("Remove", Callable(self, "_on_remove_selected_module_pressed"))
 		_add_box_action_button("Prev Inst", Callable(self, "_on_prev_installed_pressed"))
@@ -672,10 +759,14 @@ func rebuild_box_action_buttons() -> void:
 
 func update_box_button_visibility() -> void:
 	var is_mission := box_menu_mode == BoxMenuMode.MISSION
+	var is_modules := box_menu_mode == BoxMenuMode.MODULES
+	var is_external := box_menu_mode == BoxMenuMode.EXTERNAL
 	if mission_tab_button != null:
 		mission_tab_button.disabled = is_mission
 	if modules_tab_button != null:
-		modules_tab_button.disabled = not is_mission
+		modules_tab_button.disabled = is_modules
+	if external_tab_button != null:
+		external_tab_button.disabled = is_external
 
 func set_box_menu_mode_mission() -> void:
 	box_menu_mode = BoxMenuMode.MISSION
@@ -686,6 +777,74 @@ func set_box_menu_mode_modules() -> void:
 	box_menu_mode = BoxMenuMode.MODULES
 	update_box_status()
 	rebuild_box_action_buttons()
+
+func set_box_menu_mode_external() -> void:
+	box_menu_mode = BoxMenuMode.EXTERNAL
+	clamp_external_selection()
+	update_box_status()
+	rebuild_box_action_buttons()
+
+func _on_prev_external_side_pressed() -> void:
+	if bipob == null:
+		return
+	selected_external_side_index -= 1
+	clamp_external_selection()
+	update_box_status()
+
+func _on_next_external_side_pressed() -> void:
+	if bipob == null:
+		return
+	selected_external_side_index += 1
+	clamp_external_selection()
+	update_box_status()
+
+func _move_external_slot_by(delta: int) -> void:
+	if bipob == null:
+		return
+	clamp_external_selection()
+	var side_id := get_selected_external_side_id()
+	var side_size := bipob.get_external_side_size(side_id)
+	var width := side_size.x
+	var total_slots := width * side_size.y
+	if total_slots <= 0:
+		return
+	var index := selected_external_slot_position.y * width + selected_external_slot_position.x
+	index = (index + delta) % total_slots
+	if index < 0:
+		index += total_slots
+	selected_external_slot_position.x = index % width
+	selected_external_slot_position.y = int(index / width)
+
+func _on_prev_external_slot_pressed() -> void:
+	_move_external_slot_by(-1)
+	update_box_status()
+
+func _on_next_external_slot_pressed() -> void:
+	_move_external_slot_by(1)
+	update_box_status()
+
+func _on_place_external_module_pressed() -> void:
+	if bipob == null:
+		return
+	if bipob.box_storage.is_empty():
+		show_hint("Box storage is empty.")
+		return
+	clamp_box_selection_indexes()
+	clamp_external_selection()
+	var module: BipobModule = bipob.box_storage[selected_box_storage_index]
+	if module == null:
+		return
+	var side_id := get_selected_external_side_id()
+	bipob.place_external_module(module, side_id, selected_external_slot_position)
+	update_box_status()
+
+func _on_remove_external_module_pressed() -> void:
+	if bipob == null:
+		return
+	clamp_external_selection()
+	var side_id := get_selected_external_side_id()
+	bipob.remove_external_module(side_id, selected_external_slot_position)
+	update_box_status()
 
 func show_hint(message: String) -> void:
 	if hint_label != null:
