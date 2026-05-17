@@ -1134,6 +1134,11 @@ func rebuild_box_action_buttons() -> void:
 		_add_box_action_button("Place", Callable(self, "_on_place_internal_pressed"))
 		_add_box_action_button("Remove", Callable(self, "_on_remove_internal_pressed"))
 		_add_box_action_button("Toggle View", Callable(self, "_on_toggle_internal_view_pressed"))
+		_add_box_action_button("Overlay Type", Callable(self, "_on_overlay_type_pressed"))
+		_add_box_action_button("Toggle Overlay", Callable(self, "_on_toggle_overlay_cell_pressed"))
+		_add_box_action_button("Commit Overlay", Callable(self, "_on_commit_overlay_pressed"))
+		_add_box_action_button("Clear Overlay", Callable(self, "_on_clear_overlay_pressed"))
+		_add_box_action_button("Remove Overlay", Callable(self, "_on_remove_overlay_pressed"))
 		_add_box_action_button("Warnings", Callable(self, "_on_constructor_warnings_button_pressed"))
 		_add_box_action_button("Reset Internal Cursor", Callable(self, "_on_reset_internal_cursor_pressed"))
 	else:
@@ -1286,6 +1291,7 @@ func _get_internal_module_cell_marker(cell: Vector3i, preview_cells_map: Diction
 	var is_origin: bool = cell == bipob.selected_internal_origin
 	var occupied_module: BipobModule = bipob.get_internal_module_at_cell(cell)
 	var is_occupied: bool = occupied_module != null
+	var overlay_marker: String = bipob.get_internal_overlay_marker_for_cell(cell)
 	var in_preview: bool = preview_cells_map.has(bipob.get_internal_slot_key(cell))
 	if in_preview:
 		if can_place:
@@ -1297,12 +1303,15 @@ func _get_internal_module_cell_marker(cell: Vector3i, preview_cells_map: Diction
 		return "[>]"
 	if is_occupied:
 		return "[%s]" % get_internal_module_marker(occupied_module)
+	if not overlay_marker.is_empty():
+		return "[%s]" % overlay_marker
 	return "[ ]"
 
 func _get_internal_thermal_cell_marker(cell: Vector3i, preview_cells_map: Dictionary, can_place: bool) -> String:
 	var is_origin: bool = cell == bipob.selected_internal_origin
 	var occupied_module: BipobModule = bipob.get_internal_module_at_cell(cell)
 	var is_occupied: bool = occupied_module != null
+	var overlay_marker: String = bipob.get_internal_overlay_marker_for_cell(cell)
 	var in_preview: bool = preview_cells_map.has(bipob.get_internal_slot_key(cell))
 	if in_preview:
 		if can_place:
@@ -1314,6 +1323,8 @@ func _get_internal_thermal_cell_marker(cell: Vector3i, preview_cells_map: Dictio
 		return "[>%d]" % heat if is_origin else "[%d]" % heat
 	if is_origin:
 		return "[>]"
+	if not overlay_marker.is_empty():
+		return "[%s]" % overlay_marker
 	return "[ ]"
 
 func get_air_intake_status_text() -> String:
@@ -1637,6 +1648,13 @@ func get_box_internal_menu_text() -> String:
 		for i in range(internal_modules.size()):
 			lines.append(("> " if i == bipob.selected_internal_box_index else "  ") + bipob.get_module_display_name(internal_modules[i]))
 	lines.append("")
+	lines.append("Overlay:")
+	lines.append("Type: %s" % bipob.selected_overlay_path_type)
+	lines.append("Selected cells: %d" % bipob.selected_overlay_cells.size())
+	lines.append("Committed paths: %d" % bipob.internal_overlay_paths.size())
+	lines.append("Legend: L selected liquid, A selected duct, l committed liquid, a committed duct")
+	lines.append("Overlay can pass over occupied modules; occupied cells keep module marker.")
+	lines.append("")
 	lines.append("View mode: %s" % ("Thermal" if internal_view_mode == "thermal" else "Modules"))
 	lines.append("")
 	lines.append("Marker legend:")
@@ -1711,6 +1729,8 @@ func get_box_internal_menu_text() -> String:
 	lines.append("Rotated size: %d×%d×%d" % [placement_size.x, placement_size.y, placement_size.z])
 	lines.append("Valid: %s" % get_yes_no(can_place))
 	lines.append("Reason: %s" % placement_error)
+	lines.append("")
+	lines.append(bipob.get_internal_overlay_summary_text())
 	lines.append("")
 	lines.append("Connections:")
 	lines.append("Power: %s" % ("available" if bipob.is_virtual_power_available() else "unavailable"))
@@ -1812,4 +1832,45 @@ func _on_toggle_internal_view_pressed() -> void:
 func _on_reset_internal_cursor_pressed() -> void:
 	bipob.selected_internal_origin = Vector3i.ZERO
 	bipob.selected_internal_rotation = 0
+	update_box_status()
+
+
+func _on_overlay_type_pressed() -> void:
+	bipob.selected_overlay_path_type = "duct" if bipob.selected_overlay_path_type == "liquid" else "liquid"
+	update_box_status()
+
+func _on_toggle_overlay_cell_pressed() -> void:
+	bipob.toggle_selected_overlay_cell(bipob.selected_internal_origin)
+	update_box_status()
+
+func _on_commit_overlay_pressed() -> void:
+	if bipob.commit_selected_overlay_path():
+		update_box_status()
+		return
+	if bipob.get_selected_overlay_module_id() == "air_duct_v1":
+		show_hint("No Air Duct V1 in Box Storage.")
+	else:
+		show_hint("No Water Tube V1 in Box Storage.")
+	show_hint("Cannot commit overlay path.")
+	update_box_status()
+
+func _on_clear_overlay_pressed() -> void:
+	bipob.clear_selected_overlay_cells()
+	update_box_status()
+
+func _on_remove_overlay_pressed() -> void:
+	var target_path_id: String = ""
+	for record in bipob.internal_overlay_paths:
+		var cells: Array = record.get("cells", [])
+		for cell in cells:
+			if cell == bipob.selected_internal_origin:
+				target_path_id = String(record.get("id", ""))
+				break
+		if not target_path_id.is_empty():
+			break
+	if target_path_id.is_empty() and not bipob.internal_overlay_paths.is_empty():
+		var last_record: Dictionary = bipob.internal_overlay_paths[bipob.internal_overlay_paths.size() - 1]
+		target_path_id = String(last_record.get("id", ""))
+	if not target_path_id.is_empty():
+		bipob.remove_internal_overlay_path(target_path_id)
 	update_box_status()
