@@ -25,6 +25,8 @@ const TILE_PLATFORM_CONTROL_RIGHT := 17
 @export var reveal_radius: int = 1
 
 var debug_draw_undiscovered_hidden_nodes: bool = false
+var fan_platform_marker_position: Vector2i = Vector2i(-1, -1)
+var fan_platform_marker_direction: Vector2i = Vector2i.RIGHT
 
 var visible_cells: Array = []
 var explored_cells: Array = []
@@ -153,11 +155,14 @@ func _draw() -> void:
 			if tile_type == TILE_AIRFLOW:
 				var floor_color: Color = tile_colors.get(TILE_FLOOR, Color(0.16, 0.16, 0.18))
 				draw_rect(rect, floor_color, true)
-				var strip_size := Vector2(cell_size * 0.55, cell_size * 0.18)
+				var strip_size := Vector2(cell_size * 0.52, cell_size * 0.12)
 				var strip_rect := Rect2(rect.get_center() - strip_size * 0.5, strip_size)
-				draw_rect(strip_rect, Color(0.62, 0.9, 1.0, 0.9), true)
-				draw_circle(rect.get_center(), cell_size * 0.1, Color(0.8, 0.95, 1.0, 0.95))
+				draw_rect(strip_rect, Color(0.56, 0.88, 1.0, 0.72), true)
+				draw_circle(rect.get_center(), cell_size * 0.12, Color(0.78, 0.95, 1.0, 0.85))
 			draw_rect(rect, Color(0.35, 0.35, 0.38), false, 2.0)
+
+			if grid_position == fan_platform_marker_position:
+				draw_fan_platform_marker(rect)
 			if tile_type == TILE_HIDDEN_ROUTE_NODE:
 				if is_hidden_route_node_discovered(grid_position):
 					var discovered_marker_radius := cell_size * 0.15
@@ -255,6 +260,31 @@ func set_tile(grid_position: Vector2i, tile_type: int) -> void:
 	
 	map_data[grid_position.y][grid_position.x] = tile_type
 	queue_redraw()
+
+
+func set_fan_platform_marker(position: Vector2i, direction_vector: Vector2i) -> void:
+	fan_platform_marker_position = position
+	fan_platform_marker_direction = direction_vector
+	queue_redraw()
+
+func clear_fan_platform_marker() -> void:
+	fan_platform_marker_position = Vector2i(-1, -1)
+	fan_platform_marker_direction = Vector2i.RIGHT
+	queue_redraw()
+
+func draw_fan_platform_marker(rect: Rect2) -> void:
+	var direction := Vector2(fan_platform_marker_direction.x, fan_platform_marker_direction.y)
+	if direction.length_squared() <= 0.0:
+		direction = Vector2.RIGHT
+	direction = direction.normalized()
+	var perpendicular := Vector2(-direction.y, direction.x)
+	var center := rect.get_center()
+	var tip := center + direction * cell_size * 0.28
+	var base := center - direction * cell_size * 0.08
+	var left := base + perpendicular * cell_size * 0.16
+	var right := base - perpendicular * cell_size * 0.16
+	draw_colored_polygon(PackedVector2Array([tip, left, right]), Color(0.97, 0.97, 1.0, 0.96))
+	draw_line(base, tip, Color(0.18, 0.28, 0.45, 0.9), 2.0)
 
 func setup_fog_arrays() -> void:
 	visible_cells.clear()

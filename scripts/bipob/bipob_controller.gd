@@ -346,6 +346,8 @@ func start_mission(mission_index: int, save_snapshot: bool = true) -> void:
 			place_debug_mission4_field_modules()
 		if current_mission_index == 8:
 			setup_mission8()
+		elif grid_manager.has_method("clear_fan_platform_marker"):
+			grid_manager.clear_fan_platform_marker()
 		grid_manager.reset_fog_of_war()
 		if current_mission_index != 4 and debug_place_hidden_route_node:
 			place_debug_hidden_route_node()
@@ -1570,6 +1572,11 @@ func update_mission8_airflow() -> void:
 			grid_manager.set_tile(cell, GridManager.TILE_FLOOR)
 	mission8_airflow_cells.clear()
 	mission8_terminal_cooled = false
+	grid_manager.set_fan_platform_marker(
+		mission8_fan_platform_position,
+		get_direction_vector(mission8_fan_direction)
+	)
+
 	if mission8_fan_speed <= 0:
 		grid_manager.queue_redraw()
 		status_changed.emit()
@@ -1593,7 +1600,7 @@ func update_mission8_airflow() -> void:
 			break
 		if tile == GridManager.TILE_FAN_PLATFORM or tile == GridManager.TILE_PLATFORM_CONTROL or tile == GridManager.TILE_PLATFORM_CONTROL_LEFT or tile == GridManager.TILE_PLATFORM_CONTROL_RIGHT or tile == GridManager.TILE_FAN_CONTROL:
 			break
-		if tile == GridManager.TILE_FLOOR:
+		if tile == GridManager.TILE_FLOOR or tile == GridManager.TILE_AIRFLOW:
 			grid_manager.set_tile(current_position, GridManager.TILE_AIRFLOW)
 			mission8_airflow_cells.append(current_position)
 		current_position += direction_vector
