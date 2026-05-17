@@ -969,6 +969,7 @@ func get_box_modules_menu_text() -> String:
 	content_lines.append(str(bipob.get_repair_planning_compact_reference_text()))
 	content_lines.append("Thermal Rules: heat 1-5, critical 5, overlay hypothetical")
 	content_lines.append(bipob.get_constructor_consistency_compact_text())
+	content_lines.append(bipob.get_constructor_planning_checkpoint_compact_text())
 	content_lines.append("")
 	content_lines.append("Filter: %s" % filter_id.capitalize())
 	content_lines.append("Available / Installed:")
@@ -1184,6 +1185,8 @@ func rebuild_box_action_buttons() -> void:
 			_add_right_action_button("Repair Rules", Callable(self, "_on_repair_rules_pressed"))
 		if bipob.has_method("get_damage_planning_preview_text"):
 			_add_right_action_button("Damage Plan", Callable(self, "_on_damage_plan_pressed"))
+		if bipob.has_method("get_constructor_planning_checkpoint_text"):
+			_add_right_action_button("Checkpoint", Callable(self, "_on_constructor_checkpoint_pressed"))
 		if bipob.has_method("get_overlay_connectivity_preview_text"):
 			_add_right_action_button("Overlay Check", Callable(self, "_on_overlay_check_pressed"))
 		if bipob.has_method("get_overlay_endpoint_preview_text"):
@@ -1547,6 +1550,12 @@ func _on_constructor_consistency_button_pressed() -> void:
 	show_hint(bipob.get_constructor_consistency_summary_text())
 	update_box_status()
 
+func _on_constructor_checkpoint_pressed() -> void:
+	if bipob == null:
+		return
+	show_hint(bipob.get_constructor_planning_checkpoint_text())
+	update_box_status()
+
 func _on_move_forward_pressed() -> void:
 	bipob.move_forward()
 	update_status()
@@ -1822,6 +1831,7 @@ func get_box_internal_menu_text() -> String:
 	lines.append("External Data: %s" % ("available" if bipob.is_external_data_network_available() else "unavailable"))
 	lines.append("Air Intake: %s" % get_air_intake_status_text())
 	lines.append("Warnings: %d" % bipob.get_constructor_warning_lines().size())
+	lines.append(bipob.get_constructor_planning_checkpoint_compact_text())
 	var highest_heat: int = bipob.get_highest_internal_preview_heat()
 	var critical_count: int = bipob.get_critical_internal_preview_count()
 	var thermal_status: String = "ok"
