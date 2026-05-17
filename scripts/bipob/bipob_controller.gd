@@ -962,6 +962,126 @@ func get_internal_overlay_paths_at_cell(cell: Vector3i) -> Array[Dictionary]:
 				break
 	return paths
 
+func get_overlay_path_cells(path_record: Dictionary) -> Array[Vector3i]:
+	var result: Array[Vector3i] = []
+	var raw_cells: Array = path_record.get("cells", [])
+	for item in raw_cells:
+		var cell: Vector3i = item
+		if is_internal_cell_in_bounds(cell):
+			result.append(cell)
+	return result
+
+func is_overlay_path_connected(path_record: Dictionary) -> bool:
+	var cells: Array[Vector3i] = get_overlay_path_cells(path_record)
+	if cells.size() <= 1:
+		return true
+	var cell_keys: Dictionary = {}
+	for cell in cells:
+		cell_keys[get_internal_slot_key(cell)] = true
+	var visited: Dictionary = {}
+	var queue: Array[Vector3i] = []
+	queue.append(cells[0])
+	visited[get_internal_slot_key(cells[0])] = true
+	while not queue.is_empty():
+		var current: Vector3i = queue.pop_front()
+		for offset in get_internal_neighbor_offsets():
+			var neighbor: Vector3i = current + offset
+			var neighbor_key: String = get_internal_slot_key(neighbor)
+			if not cell_keys.has(neighbor_key):
+				continue
+			if visited.has(neighbor_key):
+				continue
+			visited[neighbor_key] = true
+			queue.append(neighbor)
+	return visited.size() == cell_keys.size()
+
+func get_overlay_path_component_count(path_record: Dictionary) -> int:
+	var cells: Array[Vector3i] = get_overlay_path_cells(path_record)
+	if cells.is_empty():
+		return 0
+	var remaining: Dictionary = {}
+	for cell in cells:
+		remaining[get_internal_slot_key(cell)] = cell
+	var component_count: int = 0
+	while not remaining.is_empty():
+		var keys: Array = remaining.keys()
+		var start_key: String = String(keys[0])
+		var start_cell: Vector3i = remaining[start_key]
+		component_count += 1
+		var queue: Array[Vector3i] = []
+		queue.append(start_cell)
+		remaining.erase(start_key)
+		while not queue.is_empty():
+			var current: Vector3i = queue.pop_front()
+			for offset in get_internal_neighbor_offsets():
+				var neighbor: Vector3i = current + offset
+				var neighbor_key: String = get_internal_slot_key(neighbor)
+				if not remaining.has(neighbor_key):
+					continue
+				var next_cell: Vector3i = remaining[neighbor_key]
+				remaining.erase(neighbor_key)
+				queue.append(next_cell)
+	return component_count
+
+func is_selected_overlay_plan_connected() -> bool:
+	if selected_overlay_cells.size() <= 1:
+		return true
+	var path_record: Dictionary = {
+		"id": "planning",
+		"module_id": get_selected_overlay_module_id(),
+		"path_type": selected_overlay_path_type,
+		"cells": selected_overlay_cells
+	}
+	return is_overlay_path_connected(path_record)
+
+func get_selected_overlay_plan_component_count() -> int:
+	var path_record: Dictionary = {
+		"id": "planning",
+		"module_id": get_selected_overlay_module_id(),
+		"path_type": selected_overlay_path_type,
+		"cells": selected_overlay_cells
+	}
+	return get_overlay_path_component_count(path_record)
+
+func get_overlay_path_connectivity_text(path_record: Dictionary) -> String:
+	var path_id: String = String(path_record.get("id", ""))
+	var path_type: String = String(path_record.get("path_type", ""))
+	var cells: Array[Vector3i] = get_overlay_path_cells(path_record)
+	var connected: bool = is_overlay_path_connected(path_record)
+	var components: int = get_overlay_path_component_count(path_record)
+	var status: String = "connected" if connected else "disconnected"
+	return "%s %s cells:%d %s components:%d" % [path_id, path_type, cells.size(), status, components]
+
+func get_overlay_connectivity_preview_text() -> String:
+	var lines: Array[String] = []
+	lines.append("Overlay connectivity preview:")
+	lines.append("Planning:")
+	lines.append("- Type: %s" % selected_overlay_path_type)
+	lines.append("- Cells: %d" % selected_overlay_cells.size())
+	lines.append("- Status: %s" % ("connected" if is_selected_overlay_plan_connected() else "disconnected"))
+	lines.append("- Components: %d" % get_selected_overlay_plan_component_count())
+	lines.append("")
+	lines.append("Committed paths:")
+	if internal_overlay_paths.is_empty():
+		lines.append("none")
+	else:
+		for path_record in internal_overlay_paths:
+			lines.append("- " + get_overlay_path_connectivity_text(path_record))
+	lines.append("")
+	lines.append("Rules:")
+	lines.append("- Connectivity uses 6-direction orthogonal neighbors.")
+	lines.append("- Overlay can pass over occupied modules.")
+	lines.append("- Disconnected paths are informational only.")
+	return "\n".join(lines)
+
+func get_overlay_connectivity_compact_text() -> String:
+	var disconnected_count: int = 0
+	for path_record in internal_overlay_paths:
+		if not is_overlay_path_connected(path_record):
+			disconnected_count += 1
+	var planning_status: String = "connected" if is_selected_overlay_plan_connected() else "disconnected"
+	return "Overlay connectivity: planning %s / disconnected paths %d" % [planning_status, disconnected_count]
+
 func has_internal_overlay_at_cell(cell: Vector3i, path_type: String = "") -> bool:
 	var paths: Array[Dictionary] = get_internal_overlay_paths_at_cell(cell)
 	if path_type.is_empty():
@@ -1214,8 +1334,11 @@ func get_internal_overlay_summary_text() -> String:
 	lines.append("- Type: %s" % selected_overlay_path_type)
 	lines.append("- Selected cells: %d" % selected_overlay_cells.size())
 	lines.append("- Uses module: %s" % get_selected_overlay_module_id())
+	lines.append("- Connectivity: %s" % ("connected" if is_selected_overlay_plan_connected() else "disconnected"))
+	lines.append("- Components: %d" % get_selected_overlay_plan_component_count())
 	lines.append("- Overlay can pass over occupied modules.")
 	lines.append("- Route cooling is not applied yet.")
+	lines.append("- Disconnected paths are informational only.")
 	return "\n".join(lines)
 
 func get_selected_overlay_path_details_text() -> String:
@@ -1227,11 +1350,14 @@ func get_selected_overlay_path_details_text() -> String:
 	var path_id: String = String(record.get("id", ""))
 	var module_id: String = String(record.get("module_id", ""))
 	var path_type: String = String(record.get("path_type", ""))
-	var cells: Array = record.get("cells", [])
+	var cells: Array[Vector3i] = get_overlay_path_cells(record)
+	var connected: bool = is_overlay_path_connected(record)
+	var components: int = get_overlay_path_component_count(record)
 	var reaches_edge: bool = does_overlay_path_reach_body_edge(record)
 	var potential_value: int = get_overlay_path_potential_cooling_value(record)
 
 	var edge_text: String = "yes" if reaches_edge else "no"
+	var connected_text: String = "yes" if connected else "no"
 
 	var lines: Array[String] = []
 	lines.append("Selected overlay:")
@@ -1239,6 +1365,8 @@ func get_selected_overlay_path_details_text() -> String:
 	lines.append("- Type: %s" % path_type)
 	lines.append("- Module: %s" % module_id)
 	lines.append("- Cells: %d" % cells.size())
+	lines.append("- Connected: %s" % connected_text)
+	lines.append("- Components: %d" % components)
 	lines.append("- Reaches body edge: %s" % edge_text)
 	lines.append("- Potential value: %d" % potential_value)
 	lines.append("- Preview only: yes")
