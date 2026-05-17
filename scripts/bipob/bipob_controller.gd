@@ -73,6 +73,8 @@ var mission8_terminal_cooled: bool = false
 var mission8_terminal_hacked: bool = false
 var mission8_fan_platform_position: Vector2i = Vector2i(-1, -1)
 var mission8_platform_control_position: Vector2i = Vector2i(-1, -1)
+var mission8_platform_left_control_position: Vector2i = Vector2i(-1, -1)
+var mission8_platform_right_control_position: Vector2i = Vector2i(-1, -1)
 var mission8_fan_control_position: Vector2i = Vector2i(-1, -1)
 var mission8_terminal_position: Vector2i = Vector2i(-1, -1)
 var mission8_door_position: Vector2i = Vector2i(-1, -1)
@@ -904,6 +906,10 @@ func try_move_to(target_position: Vector2i) -> bool:
 			hint_requested.emit("Terminal blocks the route. Scan it first.")
 		elif target_tile == GridManager.TILE_FAN_PLATFORM:
 			hint_requested.emit("Fan platform blocks the path. Use controls to rotate airflow.")
+		elif target_tile == GridManager.TILE_PLATFORM_CONTROL_LEFT:
+			hint_requested.emit("Use Interact to rotate fan platform left.")
+		elif target_tile == GridManager.TILE_PLATFORM_CONTROL_RIGHT:
+			hint_requested.emit("Use Interact to rotate fan platform right.")
 		elif target_tile == GridManager.TILE_PLATFORM_CONTROL:
 			hint_requested.emit("Use Interact to rotate the fan platform.")
 		elif target_tile == GridManager.TILE_FAN_CONTROL:
@@ -1401,7 +1407,14 @@ func interact() -> void:
 		status_changed.emit()
 		return
 	if target_tile == GridManager.TILE_PLATFORM_CONTROL:
-		interact_mission8_platform_control()
+		hint_requested.emit("Use left/right platform controls.")
+		status_changed.emit()
+		return
+	if target_tile == GridManager.TILE_PLATFORM_CONTROL_LEFT:
+		interact_mission8_platform_control_left()
+		return
+	if target_tile == GridManager.TILE_PLATFORM_CONTROL_RIGHT:
+		interact_mission8_platform_control_right()
 		return
 	if target_tile == GridManager.TILE_FAN_CONTROL:
 		interact_mission8_fan_control()
@@ -1436,6 +1449,8 @@ func interact() -> void:
 func setup_mission8() -> void:
 	mission8_fan_platform_position = Vector2i(4, 2)
 	mission8_platform_control_position = Vector2i(2, 2)
+	mission8_platform_left_control_position = Vector2i(2, 2)
+	mission8_platform_right_control_position = Vector2i(5, 2)
 	mission8_fan_control_position = Vector2i(2, 4)
 	mission8_terminal_position = Vector2i(6, 3)
 	mission8_door_position = Vector2i(6, 4)
@@ -1475,26 +1490,48 @@ func get_mission8_airflow_status_text() -> String:
 	if current_mission_index != 8:
 		return ""
 
-	var terminal_state := "cooled" if mission8_terminal_cooled else "hot"
-	return "Airflow: %s | Speed: %d | Terminal: %s" % [
+	var range := get_mission8_airflow_range_for_speed(mission8_fan_speed)
+	return "Airflow: %s | Speed: %d | Range: %d | Terminal: %s" % [
 		get_direction_display_name(mission8_fan_direction),
 		mission8_fan_speed,
-		terminal_state
+		range,
+		get_mission8_terminal_state_text()
 	]
 
-func interact_mission8_platform_control() -> void:
+func get_mission8_terminal_state_text() -> String:
+	return "cooled" if mission8_terminal_cooled else "hot"
+
+func rotate_mission8_fan_left() -> void:
+	mission8_fan_direction = Direction.values()[(int(mission8_fan_direction) + 3) % 4]
+	update_mission8_airflow()
+	hint_requested.emit("Fan platform rotated left. Airflow: %s | Terminal: %s" % [get_direction_display_name(mission8_fan_direction), get_mission8_terminal_state_text()])
+	status_changed.emit()
+
+func rotate_mission8_fan_right() -> void:
+	mission8_fan_direction = Direction.values()[(int(mission8_fan_direction) + 1) % 4]
+	update_mission8_airflow()
+	hint_requested.emit("Fan platform rotated right. Airflow: %s | Terminal: %s" % [get_direction_display_name(mission8_fan_direction), get_mission8_terminal_state_text()])
+	status_changed.emit()
+
+func interact_mission8_platform_control_left() -> void:
 	if current_mission_index != 8:
 		hint_requested.emit("Platform control is inactive in this mission.")
 		status_changed.emit()
 		return
 	if not can_spend_action(1, 1):
 		return
-	mission8_fan_direction = Direction.values()[(int(mission8_fan_direction) + 1) % 4]
 	spend_action(1, 1)
-	update_mission8_airflow()
-	var terminal_state := "cooled" if mission8_terminal_cooled else "hot"
-	hint_requested.emit("Fan platform rotated. Airflow: %s | Terminal: %s." % [get_direction_display_name(mission8_fan_direction), terminal_state])
-	status_changed.emit()
+	rotate_mission8_fan_left()
+
+func interact_mission8_platform_control_right() -> void:
+	if current_mission_index != 8:
+		hint_requested.emit("Platform control is inactive in this mission.")
+		status_changed.emit()
+		return
+	if not can_spend_action(1, 1):
+		return
+	spend_action(1, 1)
+	rotate_mission8_fan_right()
 
 func interact_mission8_fan_control() -> void:
 	if current_mission_index != 8:
@@ -1506,9 +1543,22 @@ func interact_mission8_fan_control() -> void:
 	mission8_fan_speed = (mission8_fan_speed + 1) % 4
 	spend_action(1, 1)
 	update_mission8_airflow()
-	var terminal_state := "cooled" if mission8_terminal_cooled else "hot"
-	hint_requested.emit("Fan speed set to %d. Terminal: %s." % [mission8_fan_speed, terminal_state])
+	var range := get_mission8_airflow_range_for_speed(mission8_fan_speed)
+	hint_requested.emit("Fan speed set to %d. Airflow range: %d | Terminal: %s." % [mission8_fan_speed, range, get_mission8_terminal_state_text()])
 	status_changed.emit()
+
+func get_mission8_airflow_range_for_speed(speed: int) -> int:
+	match speed:
+		0:
+			return 0
+		1:
+			return 2
+		2:
+			return 4
+		3:
+			return 6
+		_:
+			return 0
 
 func update_mission8_airflow() -> void:
 	if grid_manager == null:
@@ -1525,8 +1575,7 @@ func update_mission8_airflow() -> void:
 		status_changed.emit()
 		return
 
-	var airflow_ranges := {1: 2, 2: 4, 3: 6}
-	var max_range: int = int(airflow_ranges.get(mission8_fan_speed, 0))
+	var max_range := get_mission8_airflow_range_for_speed(mission8_fan_speed)
 	var direction_vector := get_direction_vector(mission8_fan_direction)
 	var current_position := mission8_fan_platform_position + direction_vector
 
@@ -1542,7 +1591,7 @@ func update_mission8_airflow() -> void:
 		if tile == GridManager.TILE_AIRFLOW_TERMINAL:
 			mission8_terminal_cooled = true
 			break
-		if tile == GridManager.TILE_FAN_PLATFORM or tile == GridManager.TILE_PLATFORM_CONTROL or tile == GridManager.TILE_FAN_CONTROL:
+		if tile == GridManager.TILE_FAN_PLATFORM or tile == GridManager.TILE_PLATFORM_CONTROL or tile == GridManager.TILE_PLATFORM_CONTROL_LEFT or tile == GridManager.TILE_PLATFORM_CONTROL_RIGHT or tile == GridManager.TILE_FAN_CONTROL:
 			break
 		if tile == GridManager.TILE_FLOOR:
 			grid_manager.set_tile(current_position, GridManager.TILE_AIRFLOW)
