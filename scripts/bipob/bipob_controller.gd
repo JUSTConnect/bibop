@@ -1638,8 +1638,37 @@ func get_overlay_thermal_contribution_preview_text() -> String:
 	lines.append("- Strongest overlay contribution is used, not stacking.")
 	lines.append("- Liquid path must touch module.")
 	lines.append("- Duct path must touch/neighbor module and reach body edge.")
+	lines.append("- " + get_overlay_thermal_contribution_diff_summary_text())
 
 	return "\n".join(lines)
+
+
+func get_overlay_thermal_contribution_diff_summary_text() -> String:
+	var improved_count: int = 0
+	var unchanged_count: int = 0
+	var total_delta: int = 0
+	var best_delta: int = 0
+
+	for module in get_unique_internal_modules():
+		if module == null:
+			continue
+
+		var base_preview_heat: int = get_preview_heat_after_cooling_for_internal_module(module)
+		var hypothetical_heat: int = get_hypothetical_heat_after_overlay_for_module(module)
+		var delta: int = base_preview_heat - hypothetical_heat
+		if delta > 0:
+			improved_count += 1
+			total_delta += delta
+			best_delta = maxi(best_delta, delta)
+		else:
+			unchanged_count += 1
+
+	return "Overlay thermal diff: improved %d, unchanged %d, total -%d, best -%d" % [
+		improved_count,
+		unchanged_count,
+		total_delta,
+		best_delta
+	]
 
 func get_overlay_thermal_contribution_compact_text() -> String:
 	var affected_count: int = 0
@@ -1651,9 +1680,10 @@ func get_overlay_thermal_contribution_compact_text() -> String:
 			affected_count += 1
 			highest_contribution = maxi(highest_contribution, contribution)
 
-	return "Overlay thermal: affected %d / max potential -%d" % [
+	return "Overlay thermal: affected %d / max potential -%d | %s" % [
 		affected_count,
-		highest_contribution
+		highest_contribution,
+		get_overlay_thermal_contribution_diff_summary_text()
 	]
 
 func get_overlay_path_effect_line(path_record: Dictionary) -> String:
