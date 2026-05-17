@@ -951,18 +951,19 @@ func get_box_modules_menu_text() -> String:
 	var filter_id: String = get_current_constructor_filter()
 	var grouped_ids: Array[String] = get_filtered_grouped_module_ids()
 	var content_lines: Array[String] = []
+	content_lines.append("Constructor Dashboard")
+	content_lines.append("")
+	content_lines.append(bipob.get_constructor_readiness_summary_text())
+	content_lines.append("")
+	content_lines.append(bipob.get_constructor_warning_summary_text())
+	content_lines.append("")
+	content_lines.append("Storage:")
+	content_lines.append("Box: %d" % bipob.box_storage.size())
+	content_lines.append("External installed: %d" % bipob.get_unique_external_modules().size())
+	content_lines.append("Internal installed: %d" % bipob.get_unique_internal_modules().size())
+	content_lines.append("")
 	content_lines.append("Filter: %s" % filter_id.capitalize())
-	content_lines.append("")
-	content_lines.append(bipob.get_constructor_readiness_compact_text())
-	content_lines.append("")
-	content_lines.append(get_selected_installed_module_text())
-	content_lines.append("")
-	content_lines.append("Installed modules (%d):" % bipob.installed_modules.size())
-	content_lines.append_array(get_compact_module_window(bipob.installed_modules, selected_installed_module_index, 5))
-	content_lines.append("")
-	content_lines.append("Selected grouped: %s" % (get_selected_grouped_module_id() if not get_selected_grouped_module_id().is_empty() else "none"))
-	content_lines.append("")
-	content_lines.append("Box / Installed modules (%d unique):" % grouped_ids.size())
+	content_lines.append("Available / Installed:")
 	if grouped_ids.is_empty():
 		content_lines.append("empty")
 	else:
@@ -971,15 +972,8 @@ func get_box_modules_menu_text() -> String:
 			content_lines.append(bipob.get_module_availability_line_by_id(grouped_ids[i], i == selected_grouped_module_index))
 	content_lines.append("")
 	var selected_module: BipobModule = get_selected_grouped_module()
+	content_lines.append("Selected item:")
 	content_lines.append(get_module_details_text(selected_module))
-	content_lines.append("")
-	content_lines.append("External build: %d module(s)" % bipob.external_modules_by_slot.size())
-	content_lines.append("")
-	content_lines.append(bipob.get_constructor_warning_compact_text())
-	var constructor_warnings: Array[String] = bipob.get_constructor_warning_lines()
-	var warning_limit: int = mini(2, constructor_warnings.size())
-	for index in range(warning_limit):
-		content_lines.append("- %s" % constructor_warnings[index])
 	return "\n".join(content_lines)
 
 func get_box_external_menu_text() -> String:
@@ -1153,6 +1147,7 @@ func rebuild_box_action_buttons() -> void:
 		_add_box_action_button("Prev Box", Callable(self, "_on_prev_box_pressed"))
 		_add_box_action_button("Next Box", Callable(self, "_on_next_box_pressed"))
 		_add_box_action_button("Warnings", Callable(self, "_on_constructor_warnings_button_pressed"))
+		_add_box_action_button("Dashboard", Callable(self, "_on_constructor_dashboard_button_pressed"))
 
 func update_box_button_visibility() -> void:
 	var is_mission := box_menu_mode == BoxMenuMode.MISSION
@@ -1402,6 +1397,12 @@ func _on_remove_external_module_pressed() -> void:
 func show_hint(message: String) -> void:
 	if hint_label != null:
 		hint_label.text = message
+
+
+func _on_constructor_dashboard_button_pressed() -> void:
+	if bipob == null:
+		return
+	show_hint(bipob.get_constructor_dashboard_text())
 
 func _on_constructor_warnings_button_pressed() -> void:
 	if bipob == null:

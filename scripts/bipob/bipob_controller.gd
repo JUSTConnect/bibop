@@ -1139,6 +1139,94 @@ func get_air_intake_readiness_word() -> String:
 func get_warning_count() -> int:
 	return get_constructor_warning_lines().size()
 
+
+func get_installed_external_summary_text() -> String:
+	var lines: Array[String] = []
+	lines.append("Installed external:")
+
+	var modules: Array[BipobModule] = get_unique_external_modules()
+	if modules.is_empty():
+		lines.append("none")
+		return "\n".join(lines)
+
+	for module in modules:
+		if module == null:
+			continue
+		lines.append("- %s" % get_module_display_name(module))
+
+	return "\n".join(lines)
+
+func get_installed_internal_summary_text() -> String:
+	var lines: Array[String] = []
+	lines.append("Installed internal:")
+
+	var modules: Array[BipobModule] = get_unique_internal_modules()
+	if modules.is_empty():
+		lines.append("none")
+		return "\n".join(lines)
+
+	for module in modules:
+		if module == null:
+			continue
+
+		var role_text: String = ""
+		if not module.internal_role.is_empty():
+			role_text = " (%s)" % module.internal_role
+
+		lines.append("- %s%s" % [
+			get_module_display_name(module),
+			role_text
+		])
+
+	return "\n".join(lines)
+
+func get_storage_overview_text() -> String:
+	var lines: Array[String] = []
+	lines.append("Storage overview:")
+	lines.append("- Box Storage: %d" % box_storage.size())
+	lines.append("- External installed: %d" % get_unique_external_modules().size())
+	lines.append("- Internal installed: %d" % get_unique_internal_modules().size())
+
+	var warnings_count: int = 0
+	if has_method("get_warning_count"):
+		warnings_count = get_warning_count()
+	else:
+		warnings_count = get_constructor_warning_lines().size()
+
+	lines.append("- Warnings: %d" % warnings_count)
+	return "\n".join(lines)
+
+func get_constructor_dashboard_text() -> String:
+	var lines: Array[String] = []
+
+	lines.append("Constructor Dashboard")
+	lines.append("")
+
+	lines.append(get_constructor_readiness_summary_text())
+	lines.append("")
+
+	lines.append(get_constructor_warning_summary_text())
+	lines.append("")
+
+	lines.append(get_storage_overview_text())
+	lines.append("")
+
+	var thermal_critical_heat: int = THERMAL_CRITICAL_HEAT
+	lines.append("Thermal:")
+	lines.append("- Highest heat: %d / %d" % [
+		get_highest_internal_preview_heat(),
+		thermal_critical_heat
+	])
+	lines.append("- Critical preview: %d" % get_critical_internal_preview_count())
+	lines.append("- Air intake: %s" % get_air_intake_readiness_word())
+	lines.append("")
+
+	lines.append(get_installed_external_summary_text())
+	lines.append("")
+
+	lines.append(get_installed_internal_summary_text())
+
+	return "\n".join(lines)
 func get_constructor_readiness_summary_text() -> String:
 	var lines: Array[String] = []
 	lines.append("Constructor readiness:")
