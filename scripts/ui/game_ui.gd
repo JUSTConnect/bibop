@@ -1405,10 +1405,16 @@ func get_box_internal_menu_text() -> String:
 	lines.append("External data: %s" % ("available" if bipob.is_external_data_network_available() else "unavailable"))
 	lines.append("")
 	lines.append("Thermal:")
+	var highest_heat: int = bipob.get_highest_internal_preview_heat()
+	var critical_count: int = bipob.get_critical_internal_preview_count()
 	var has_air_intake: bool = bipob.has_external_air_intake()
 	var has_air_cooling: bool = bipob.has_air_cooling_requiring_intake()
-	lines.append("Air intake: %s" % get_yes_no(has_air_intake))
-	lines.append("Air cooling: %s" % ("present" if has_air_cooling else "not present"))
+	var air_intake_status := "not required"
+	if has_air_cooling:
+		air_intake_status = "installed" if has_air_intake else "missing"
+	lines.append("Highest heat: %d / %d" % [highest_heat, bipob.THERMAL_CRITICAL_HEAT])
+	lines.append("Critical preview: %d" % critical_count)
+	lines.append("Air intake: %s" % air_intake_status)
 	if has_air_cooling and not has_air_intake:
 		lines.append("Warning: intake required")
 	lines.append("")

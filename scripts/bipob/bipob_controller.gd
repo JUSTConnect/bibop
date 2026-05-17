@@ -31,6 +31,7 @@ const EXTERNAL_SIDE_ORDER := [
 const INTERNAL_SIZE_X := 5
 const INTERNAL_SIZE_Y := 8
 const INTERNAL_SIZE_Z := 5
+const THERMAL_CRITICAL_HEAT := 5
 
 @export var start_grid_position := Vector2i(1, 1)
 
@@ -751,6 +752,199 @@ func remove_internal_module(cell: Vector3i) -> bool:
 	hint_requested.emit("Internal module removed to Box: %s" % get_module_display_name(module))
 	status_changed.emit()
 	return true
+
+
+func get_cells_for_internal_module(module: BipobModule) -> Array[Vector3i]:
+	var cells: Array[Vector3i] = []
+	if module == null:
+		return cells
+
+	for record_variant in placed_internal_modules:
+		if typeof(record_variant) != TYPE_DICTIONARY:
+			continue
+		var record: Dictionary = record_variant
+		var record_module: BipobModule = record.get("module", null)
+		if record_module != module:
+			continue
+		var origin: Vector3i = record.get("origin", Vector3i.ZERO)
+		var rotation_index: int = int(record.get("rotation", 0))
+		for covered_cell in get_internal_module_covered_cells(module, origin, rotation_index):
+			if not cells.has(covered_cell):
+				cells.append(covered_cell)
+
+	if not cells.is_empty():
+		return cells
+
+	for key_variant in internal_modules_by_cell.keys():
+		var key := String(key_variant)
+		var cell_module: BipobModule = internal_modules_by_cell.get(key, null)
+		if cell_module != module:
+			continue
+		var parts := key.split(":")
+		if parts.size() != 3:
+			continue
+		var cell := Vector3i(int(parts[0]), int(parts[1]), int(parts[2]))
+		if not cells.has(cell):
+			cells.append(cell)
+
+	return cells
+
+func get_internal_neighbor_offsets() -> Array[Vector3i]:
+	return [
+		Vector3i(1, 0, 0),
+		Vector3i(-1, 0, 0),
+		Vector3i(0, 1, 0),
+		Vector3i(0, -1, 0),
+		Vector3i(0, 0, 1),
+		Vector3i(0, 0, -1),
+	]
+
+func get_module_preview_heat(module: BipobModule, active_mode: bool = false) -> int:
+	if module == null:
+		return 0
+	var heat_value: int = module.heat_active if active_mode else module.heat_idle
+	return clampi(heat_value, 0, THERMAL_CRITICAL_HEAT)
+
+func get_neighbor_heat_for_internal_module(module: BipobModule) -> int:
+	if module == null:
+		return 0
+	var strongest_neighbor_heat: int = 0
+	var own_cells: Array[Vector3i] = get_cells_for_internal_module(module)
+	for cell in own_cells:
+		for offset in get_internal_neighbor_offsets():
+			var neighbor_cell: Vector3i = cell + offset
+			if not is_internal_cell_in_bounds(neighbor_cell):
+				continue
+			var neighbor_module: BipobModule = get_internal_module_at_cell(neighbor_cell)
+			if neighbor_module == null or neighbor_module == module:
+				continue
+			var neighbor_heat: int = maxi(0, get_module_preview_heat(neighbor_module, false) - 1)
+			strongest_neighbor_heat = maxi(strongest_neighbor_heat, neighbor_heat)
+	return strongest_neighbor_heat
+
+func get_preview_heat_for_internal_module(module: BipobModule) -> int:
+	if module == null:
+		return 0
+	var base_heat: int = get_module_preview_heat(module, false)
+	var neighbor_heat: int = get_neighbor_heat_for_internal_module(module)
+	return maxi(base_heat, neighbor_heat)
+
+func is_internal_module_against_body(module: BipobModule) -> bool:
+	if module == null:
+		return false
+	var volume_size: Vector3i = get_internal_volume_size()
+	var cells: Array[Vector3i] = get_cells_for_internal_module(module)
+	for cell in cells:
+		if cell.x == 0 or cell.y == 0 or cell.z == 0:
+			return true
+		if cell.x == volume_size.x - 1 or cell.y == volume_size.y - 1 or cell.z == volume_size.z - 1:
+			return true
+	return false
+
+func is_cooler_module(module: BipobModule) -> bool:
+	return module != null and module.id == "cooler_v1"
+
+func is_radiator_module(module: BipobModule) -> bool:
+	return module != null and module.id == "radiator_v1"
+
+func is_radiator_next_to_cooler(radiator_module: BipobModule) -> bool:
+	if not is_radiator_module(radiator_module):
+		return false
+	var cells: Array[Vector3i] = get_cells_for_internal_module(radiator_module)
+	for cell in cells:
+		for offset in get_internal_neighbor_offsets():
+			var neighbor_cell: Vector3i = cell + offset
+			if not is_internal_cell_in_bounds(neighbor_cell):
+				continue
+			var neighbor_module: BipobModule = get_internal_module_at_cell(neighbor_cell)
+			if is_cooler_module(neighbor_module):
+				return true
+	return false
+
+func get_cooling_power_for_internal_module(cooling_module: BipobModule) -> int:
+	if cooling_module == null:
+		return 0
+	if is_cooler_module(cooling_module):
+		return 2
+	if is_radiator_module(cooling_module):
+		if is_radiator_next_to_cooler(cooling_module):
+			return 4
+		if is_internal_module_against_body(cooling_module):
+			return 3
+		return 2
+	return max(0, cooling_module.cooling_power)
+
+func get_cooling_received_by_internal_module(module: BipobModule) -> int:
+	if module == null:
+		return 0
+	var strongest_cooling: int = 0
+	var own_cells: Array[Vector3i] = get_cells_for_internal_module(module)
+	for cell in own_cells:
+		for offset in get_internal_neighbor_offsets():
+			var neighbor_cell: Vector3i = cell + offset
+			if not is_internal_cell_in_bounds(neighbor_cell):
+				continue
+			var neighbor_module: BipobModule = get_internal_module_at_cell(neighbor_cell)
+			if neighbor_module == null or neighbor_module == module:
+				continue
+			if is_cooling_module(neighbor_module):
+				strongest_cooling = maxi(strongest_cooling, get_cooling_power_for_internal_module(neighbor_module))
+	return strongest_cooling
+
+func get_preview_heat_after_cooling_for_internal_module(module: BipobModule) -> int:
+	var raw_heat: int = get_preview_heat_for_internal_module(module)
+	var cooling_received: int = get_cooling_received_by_internal_module(module)
+	return clampi(raw_heat - cooling_received, 0, THERMAL_CRITICAL_HEAT)
+
+func get_internal_module_thermal_line(module: BipobModule) -> String:
+	if module == null:
+		return ""
+	var base_heat: int = get_module_preview_heat(module, false)
+	var neighbor_heat: int = get_neighbor_heat_for_internal_module(module)
+	var cooling_received: int = get_cooling_received_by_internal_module(module)
+	var final_heat: int = get_preview_heat_after_cooling_for_internal_module(module)
+	return "%s: base %d, neighbor %d, cooling -%d, preview %d" % [
+		get_module_display_name(module),
+		base_heat,
+		neighbor_heat,
+		cooling_received,
+		final_heat,
+	]
+
+func get_internal_thermal_preview_text() -> String:
+	var lines: Array[String] = []
+	lines.append("Thermal preview:")
+	lines.append("Critical heat: %d" % THERMAL_CRITICAL_HEAT)
+	var modules: Array[BipobModule] = get_unique_internal_modules()
+	if modules.is_empty():
+		lines.append("none")
+		return "\n".join(lines)
+	for module in modules:
+		if module == null:
+			continue
+		lines.append("- " + get_internal_module_thermal_line(module))
+	lines.append("")
+	lines.append("Rules:")
+	lines.append("- neighbor heat = source heat - 1")
+	lines.append("- final heat uses strongest heat/cooling only")
+	lines.append("- critical heat 5 is informational for now")
+	if has_air_cooling_requiring_intake() and not has_external_air_intake():
+		lines.append("")
+		lines.append("Warning: Air cooling requires Air Intake Node on external body.")
+	return "\n".join(lines)
+
+func get_highest_internal_preview_heat() -> int:
+	var highest_heat: int = 0
+	for module in get_unique_internal_modules():
+		highest_heat = maxi(highest_heat, get_preview_heat_after_cooling_for_internal_module(module))
+	return highest_heat
+
+func get_critical_internal_preview_count() -> int:
+	var count: int = 0
+	for module in get_unique_internal_modules():
+		if get_preview_heat_after_cooling_for_internal_module(module) >= THERMAL_CRITICAL_HEAT:
+			count += 1
+	return count
 
 func get_unique_internal_modules() -> Array[BipobModule]:
 	var unique_modules: Array[BipobModule] = []
