@@ -109,6 +109,8 @@ const STORAGE_CARD_MIN_SIZE: Vector2 = Vector2(118, 86)
 const STORAGE_CARD_ICON_SIZE: Vector2 = Vector2(42, 42)
 const EXTERNAL_GRID_CELL_SIZE: Vector2 = Vector2(42, 42)
 const EXTERNAL_GRID_CELL_GAP: int = 4
+const INTERNAL_GRID_CELL_SIZE: Vector2 = Vector2(36, 36)
+const INTERNAL_GRID_CELL_GAP: int = 3
 
 
 
@@ -665,6 +667,8 @@ func _on_storage_module_card_pressed(storage_index: int) -> void:
 func _build_storage_cards_panel(parent: Control) -> void:
 	if box_menu_mode == BoxMenuMode.EXTERNAL:
 		parent.add_child(_create_external_visual_workspace())
+	elif box_menu_mode == BoxMenuMode.INTERNAL:
+		parent.add_child(_create_internal_visual_workspace())
 
 	var title: Label = Label.new()
 	title.text = "COMPONENTS IN BOX STORAGE"
@@ -2491,6 +2495,270 @@ func _get_internal_view_legend_text() -> String:
 		return "[1-5] hypothetical heat, [l/a] overlay, [*] preview, [!] invalid"
 	return "[ ] empty, [>] origin, [*] preview, [!] invalid, [B/P/E/I/M/W/H] modules"
 
+func _get_selected_internal_candidate_module() -> BipobModule:
+	if bipob.selected_box_storage_index < 0:
+		return null
+	if bipob.selected_box_storage_index >= bipob.box_storage.size():
+		return null
+	var module: BipobModule = bipob.box_storage[bipob.selected_box_storage_index]
+	if module == null:
+		return null
+	if bipob.is_internal_module(module):
+		return module
+	return null
+
+func _get_internal_preview_cells_map() -> Dictionary:
+	var result: Dictionary = {}
+	var module: BipobModule = _get_selected_internal_candidate_module()
+	if module == null:
+		return result
+	var origin: Vector3i = bipob.selected_internal_origin
+	var rotation: int = bipob.selected_internal_rotation
+	var can_place: bool = bipob.can_place_internal_module(origin, module, rotation)
+	var covered_cells: Array[Vector3i] = bipob.get_internal_module_covered_cells(module, origin, rotation)
+	for cell in covered_cells:
+		var key: String = bipob.get_internal_slot_key(cell)
+		result[key] = can_place
+	return result
+
+func _get_internal_visual_cell_label(cell: Vector3i, module: BipobModule) -> String:
+	if internal_view_mode == "thermal":
+		if module == null:
+			return ""
+		var heat: int = bipob.get_preview_heat_after_cooling_for_internal_module(module)
+		return "%d" % heat
+	if internal_view_mode == "thermal_overlay":
+		if module == null:
+			var overlay_marker_empty: String = bipob.get_internal_overlay_marker_for_cell(cell)
+			return overlay_marker_empty
+		var overlay_heat: int = bipob.get_hypothetical_heat_after_overlay_for_module(module)
+		return "%d" % overlay_heat
+	if internal_view_mode == "overlay":
+		var overlay_marker: String = bipob.get_internal_overlay_marker_for_cell(cell)
+		if not overlay_marker.is_empty():
+			return overlay_marker
+		if module != null:
+			var bg_label: String = "M"
+			if bipob.has_method("get_module_visual_short_label"):
+				bg_label = bipob.get_module_visual_short_label(module)
+			return bg_label.to_lower()
+		return ""
+	if module != null:
+		if bipob.has_method("get_module_visual_short_label"):
+			return bipob.get_module_visual_short_label(module)
+		return "M"
+	return ""
+
+func _get_internal_heat_color(heat: int) -> Color:
+	match heat:
+		0: return Color(0.050, 0.070, 0.080, 1.0)
+		1: return Color(0.080, 0.250, 0.160, 1.0)
+		2: return Color(0.200, 0.320, 0.130, 1.0)
+		3: return Color(0.450, 0.320, 0.100, 1.0)
+		4: return Color(0.650, 0.250, 0.080, 1.0)
+		5: return Color(0.750, 0.060, 0.060, 1.0)
+		_: return Color(0.050, 0.070, 0.080, 1.0)
+
+func _make_internal_cell_style(cell: Vector3i, module: BipobModule, selected: bool, preview: bool, invalid_preview: bool) -> StyleBoxFlat:
+	var bg_color: Color = Color(0.035, 0.050, 0.060, 1.0)
+	var border_color: Color = UI_COLOR_BORDER_DIM
+	var border_width: int = 1
+	if internal_view_mode == "thermal" and module != null:
+		var heat: int = bipob.get_preview_heat_after_cooling_for_internal_module(module)
+		bg_color = _get_internal_heat_color(heat)
+		border_color = bg_color.lightened(0.25)
+	elif internal_view_mode == "thermal_overlay" and module != null:
+		var overlay_heat: int = bipob.get_hypothetical_heat_after_overlay_for_module(module)
+		bg_color = _get_internal_heat_color(overlay_heat)
+		border_color = bg_color.lightened(0.25)
+	elif internal_view_mode == "overlay":
+		var marker: String = bipob.get_internal_overlay_marker_for_cell(cell)
+		if not marker.is_empty():
+			if marker == "L" or marker == "l" or marker == "q":
+				bg_color = Color(0.020, 0.280, 0.330, 1.0)
+				border_color = Color(0.050, 0.850, 0.950, 1.0)
+			elif marker == "A" or marker == "a" or marker == "d":
+				bg_color = Color(0.180, 0.200, 0.220, 1.0)
+				border_color = Color(0.650, 0.750, 0.800, 1.0)
+		elif module != null and bipob.has_method("get_module_visual_color"):
+			var module_color_overlay: Color = bipob.get_module_visual_color(module)
+			bg_color = module_color_overlay.darkened(0.75)
+			border_color = module_color_overlay.darkened(0.25)
+	elif module != null:
+		if bipob.has_method("get_module_visual_color"):
+			var module_color: Color = bipob.get_module_visual_color(module)
+			bg_color = module_color.darkened(0.62)
+			border_color = module_color
+		else:
+			bg_color = Color(0.120, 0.160, 0.180, 1.0)
+	if internal_view_mode == "thermal_overlay" and module == null:
+		var empty_overlay_marker: String = bipob.get_internal_overlay_marker_for_cell(cell)
+		if not empty_overlay_marker.is_empty():
+			if empty_overlay_marker == "L" or empty_overlay_marker == "l" or empty_overlay_marker == "q":
+				bg_color = Color(0.020, 0.230, 0.280, 1.0)
+				border_color = Color(0.050, 0.700, 0.850, 1.0)
+			elif empty_overlay_marker == "A" or empty_overlay_marker == "a" or empty_overlay_marker == "d":
+				bg_color = Color(0.160, 0.180, 0.200, 1.0)
+				border_color = Color(0.550, 0.650, 0.700, 1.0)
+	if preview:
+		bg_color = Color(0.100, 0.230, 0.130, 1.0)
+		border_color = UI_COLOR_OK
+	if invalid_preview:
+		bg_color = Color(0.260, 0.070, 0.070, 1.0)
+		border_color = UI_COLOR_DANGER
+	if selected:
+		border_color = UI_COLOR_SELECTED
+		border_width = 2
+	return _make_panel_style(bg_color, border_color, border_width, 5)
+
+func _on_internal_visual_cell_pressed(cell: Vector3i) -> void:
+	if not bipob.is_internal_cell_in_bounds(cell):
+		return
+	bipob.selected_internal_origin = cell
+	update_box_status()
+
+func _make_cell_from_slice_axes(axis_a: String, value_a: int, axis_b: String, value_b: int, fixed_axis: String, fixed_value: int) -> Vector3i:
+	var x: int = 0
+	var y: int = 0
+	var z: int = 0
+	match axis_a:
+		"x": x = value_a
+		"y": y = value_a
+		"z": z = value_a
+	match axis_b:
+		"x": x = value_b
+		"y": y = value_b
+		"z": z = value_b
+	match fixed_axis:
+		"x": x = fixed_value
+		"y": y = fixed_value
+		"z": z = fixed_value
+	return Vector3i(x, y, z)
+
+func _create_internal_slice_grid(title_text: String, axis_a: String, axis_b: String, fixed_axis: String, fixed_value: int) -> Control:
+	var panel: PanelContainer = PanelContainer.new()
+	_apply_panel_style(panel)
+	var root: VBoxContainer = VBoxContainer.new()
+	root.add_theme_constant_override("separation", 4)
+	var title: Label = Label.new()
+	title.text = title_text
+	title.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	_apply_label_style(title, false, true)
+	root.add_child(title)
+	var preview_cells: Dictionary = _get_internal_preview_cells_map()
+	var volume_size: Vector3i = bipob.get_internal_volume_size()
+	var columns: int = volume_size.x if axis_a == "x" else (volume_size.y if axis_a == "y" else volume_size.z)
+	var rows: int = volume_size.x if axis_b == "x" else (volume_size.y if axis_b == "y" else volume_size.z)
+	var grid: GridContainer = GridContainer.new()
+	grid.columns = columns
+	grid.add_theme_constant_override("h_separation", INTERNAL_GRID_CELL_GAP)
+	grid.add_theme_constant_override("v_separation", INTERNAL_GRID_CELL_GAP)
+	for b in range(rows):
+		for a in range(columns):
+			var cell: Vector3i = _make_cell_from_slice_axes(axis_a, a, axis_b, b, fixed_axis, fixed_value)
+			var module: BipobModule = bipob.get_internal_module_at_cell(cell)
+			var selected: bool = cell == bipob.selected_internal_origin
+			var key: String = bipob.get_internal_slot_key(cell)
+			var preview: bool = false
+			var invalid_preview: bool = false
+			if preview_cells.has(key):
+				var can_place_preview: bool = bool(preview_cells[key])
+				preview = can_place_preview
+				invalid_preview = not can_place_preview
+			var cell_button: Button = Button.new()
+			cell_button.custom_minimum_size = INTERNAL_GRID_CELL_SIZE
+			cell_button.focus_mode = Control.FOCUS_NONE
+			cell_button.text = _get_internal_visual_cell_label(cell, module)
+			cell_button.add_theme_stylebox_override("normal", _make_internal_cell_style(cell, module, selected, preview, invalid_preview))
+			cell_button.add_theme_stylebox_override("hover", _make_internal_cell_style(cell, module, true, preview, invalid_preview))
+			cell_button.add_theme_stylebox_override("pressed", _make_internal_cell_style(cell, module, true, preview, invalid_preview))
+			cell_button.add_theme_color_override("font_color", UI_COLOR_TEXT)
+			cell_button.pressed.connect(func() -> void: _on_internal_visual_cell_pressed(cell))
+			grid.add_child(cell_button)
+	root.add_child(grid)
+	panel.add_child(root)
+	return panel
+
+func _create_internal_cube_preview_panel() -> Control:
+	var panel: PanelContainer = PanelContainer.new()
+	_apply_panel_style(panel, true)
+	panel.custom_minimum_size = Vector2(220, 220)
+	var root: VBoxContainer = VBoxContainer.new()
+	root.alignment = BoxContainer.ALIGNMENT_CENTER
+	var title: Label = Label.new()
+	title.text = "INTERNAL VOLUME"
+	title.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	_apply_label_style(title, false, true)
+	root.add_child(title)
+	var volume_size: Vector3i = bipob.get_internal_volume_size()
+	var cube_label: Label = Label.new()
+	cube_label.text = "[ INTERNAL CUBE %dx%dx%d ]" % [volume_size.x, volume_size.y, volume_size.z]
+	cube_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	cube_label.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
+	_apply_label_style(cube_label)
+	root.add_child(cube_label)
+	var cursor_label: Label = Label.new()
+	cursor_label.text = "Cursor: %d,%d,%d" % [bipob.selected_internal_origin.x, bipob.selected_internal_origin.y, bipob.selected_internal_origin.z]
+	cursor_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	_apply_label_style(cursor_label, true, false)
+	root.add_child(cursor_label)
+	panel.add_child(root)
+	return panel
+
+func _get_internal_visual_legend_text() -> String:
+	if internal_view_mode == "thermal":
+		return "1-5 = Thermal Preview\nYellow border = Cursor\nGreen = valid preview\nRed = invalid preview"
+	if internal_view_mode == "thermal_overlay":
+		return "1-5 = Thermal+Overlay\nl/a = empty Overlay Path\nBase Thermal unchanged"
+	if internal_view_mode == "overlay":
+		return "L/A = Overlay Plan\nl/a = Overlay Path\nq/d = Selected Path\nlowercase modules = underneath"
+	return "BAT/CPU/FAN/etc = modules\nYellow border = Cursor\nGreen = valid preview\nRed = invalid preview"
+
+func _create_internal_legend_panel() -> Control:
+	var panel: PanelContainer = PanelContainer.new()
+	_apply_dark_panel_style(panel)
+	panel.custom_minimum_size = Vector2(260, 120)
+	var root: VBoxContainer = VBoxContainer.new()
+	var title: Label = Label.new()
+	title.text = "LEGEND"
+	_apply_label_style(title, false, true)
+	root.add_child(title)
+	var mode_label: Label = Label.new()
+	mode_label.text = "View Mode: %s" % _get_internal_view_mode_display_name()
+	_apply_label_style(mode_label)
+	root.add_child(mode_label)
+	var legend_text: Label = Label.new()
+	legend_text.text = _get_internal_visual_legend_text()
+	_apply_label_style(legend_text, true, false)
+	root.add_child(legend_text)
+	panel.add_child(root)
+	return panel
+
+func _create_internal_visual_workspace() -> Control:
+	var workspace: PanelContainer = PanelContainer.new()
+	_apply_panel_style(workspace, true)
+	var root: VBoxContainer = VBoxContainer.new()
+	root.add_theme_constant_override("separation", 8)
+	var title: Label = Label.new()
+	title.text = "INTERNAL MODULES"
+	_apply_label_style(title, false, true)
+	root.add_child(title)
+	var middle_row: HBoxContainer = HBoxContainer.new()
+	middle_row.alignment = BoxContainer.ALIGNMENT_CENTER
+	middle_row.add_theme_constant_override("separation", 12)
+	middle_row.add_child(_create_internal_slice_grid("VERTICAL SLICE", "z", "y", "x", bipob.selected_internal_origin.x))
+	middle_row.add_child(_create_internal_cube_preview_panel())
+	middle_row.add_child(_create_internal_slice_grid("MAIN SLICE", "x", "y", "z", bipob.selected_internal_origin.z))
+	root.add_child(middle_row)
+	var bottom_row: HBoxContainer = HBoxContainer.new()
+	bottom_row.alignment = BoxContainer.ALIGNMENT_CENTER
+	bottom_row.add_theme_constant_override("separation", 12)
+	bottom_row.add_child(_create_internal_slice_grid("HORIZONTAL SLICE", "x", "z", "y", bipob.selected_internal_origin.y))
+	bottom_row.add_child(_create_internal_legend_panel())
+	root.add_child(bottom_row)
+	workspace.add_child(root)
+	return workspace
+
 func get_box_internal_menu_text() -> String:
 	_clamp_internal_selection()
 	sync_selected_box_storage_index_from_filter()
@@ -2507,7 +2775,7 @@ func get_box_internal_menu_text() -> String:
 	if selected_module != null:
 		selected_module_id = selected_module.id
 		is_overlay_module = selected_module_id == "water_tube_v1" or selected_module_id == "air_duct_v1"
-		base_size = selected_module.internal_size
+		base_size = bipob.get_internal_module_base_size(selected_module)
 		placement_size = bipob.get_rotated_internal_size(selected_module, bipob.selected_internal_rotation)
 		preview_cells = bipob.get_internal_module_covered_cells(selected_module, bipob.selected_internal_origin, bipob.selected_internal_rotation)
 		for cell in preview_cells:
