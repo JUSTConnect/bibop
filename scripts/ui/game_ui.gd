@@ -581,12 +581,21 @@ func get_external_side_orientation_text(side_id: String) -> String:
 func get_external_side_installed_list_text(side_id: String) -> String:
 	var side_size: Vector2i = bipob.get_external_side_size(side_id)
 	var lines: Array[String] = []
+	var seen_modules: Array[BipobModule] = []
 	for y in range(side_size.y):
 		for x in range(side_size.x):
 			var module: BipobModule = bipob.get_external_module_at(side_id, Vector2i(x, y))
-			if module == null:
+			if module == null or seen_modules.has(module):
 				continue
-			lines.append("- x%d,y%d: %s" % [x, y, bipob.get_module_display_name(module)])
+			seen_modules.append(module)
+			var origin := Vector2i(side_size.x, side_size.y)
+			for yy in range(side_size.y):
+				for xx in range(side_size.x):
+					if bipob.get_external_module_at(side_id, Vector2i(xx, yy)) == module:
+						origin.x = mini(origin.x, xx)
+						origin.y = mini(origin.y, yy)
+			var module_size: Vector2i = bipob.get_external_module_size(module)
+			lines.append("- x%d,y%d: %s (%dx%d)" % [origin.x, origin.y, bipob.get_module_display_name(module), module_size.x, module_size.y])
 	if lines.is_empty():
 		return "none"
 	return "\n".join(lines)
@@ -752,6 +761,19 @@ func get_box_external_menu_text() -> String:
 	var slot_module: BipobModule = bipob.get_external_module_at(side_id, selected_external_slot_position)
 	var content_lines: Array[String] = []
 
+	var selected_box_module: BipobModule = null
+	if not bipob.box_storage.is_empty():
+		clamp_box_selection_indexes()
+		selected_box_module = bipob.box_storage[selected_box_storage_index]
+
+	var placement_error := ""
+	var preview_footprint: Array[Vector2i] = []
+	var preview_safe_area: Array[Vector2i] = []
+	if selected_box_module != null:
+		preview_footprint = bipob.get_external_module_footprint_cells(selected_box_module, selected_external_slot_position)
+		preview_safe_area = bipob.get_external_module_safe_area_cells(selected_box_module, selected_external_slot_position)
+		placement_error = bipob.get_external_module_placement_error(selected_box_module, side_id, selected_external_slot_position)
+
 	content_lines.append("Selected side: %s" % side_name)
 	content_lines.append("Side size: %d x %d" % [side_size.x, side_size.y])
 	content_lines.append(get_external_side_orientation_text(side_id))
@@ -767,11 +789,18 @@ func get_box_external_menu_text() -> String:
 			var slot_pos := Vector2i(x, y)
 			var module: BipobModule = bipob.get_external_module_at(side_id, slot_pos)
 			var is_selected: bool = slot_pos == selected_external_slot_position
-			if module == null:
-				row_cells.append("[>]" if is_selected else "[ ]")
-			else:
-				var mark: String = get_external_module_marker(module)
-				row_cells.append("[>%s]" % mark if is_selected else "[%s]" % mark)
+			var has_footprint_preview := selected_box_module != null and preview_footprint.has(slot_pos)
+			var has_safe_preview := selected_box_module != null and preview_safe_area.has(slot_pos)
+			var cell_text := "[ ]"
+			if has_safe_preview:
+				cell_text = "[.]" if module == null else "[x]"
+			if module != null:
+				cell_text = "[%s]" % get_external_module_marker(module)
+			if has_footprint_preview:
+				cell_text = "[+]" if module == null else "[!]"
+			if is_selected and selected_box_module == null:
+				cell_text = "[>]" if module == null else "[>%s]" % get_external_module_marker(module)
+			row_cells.append(cell_text)
 		content_lines.append(" ".join(row_cells))
 
 	content_lines.append("")
@@ -781,35 +810,26 @@ func get_box_external_menu_text() -> String:
 	else:
 		content_lines.append("Slot status: %s" % bipob.get_module_display_name(slot_module))
 
-	var selected_box_module: BipobModule = null
-	if not bipob.box_storage.is_empty():
-		clamp_box_selection_indexes()
-		selected_box_module = bipob.box_storage[selected_box_storage_index]
 	if selected_box_module == null:
 		content_lines.append("Selected Box module: none")
+		content_lines.append("Module size: n/a")
 		content_lines.append("Allowed sides: n/a")
-		content_lines.append("Can place on current side: n/a")
+		content_lines.append("Placement: n/a")
 	else:
+		var module_size: Vector2i = bipob.get_external_module_size(selected_box_module)
 		content_lines.append("Selected Box module: %s" % bipob.get_module_display_name(selected_box_module))
+		content_lines.append("Module size: %d x %d" % [module_size.x, module_size.y])
 		content_lines.append("Allowed sides: %s" % bipob.get_allowed_external_sides_text(selected_box_module))
-		content_lines.append("Can place on current side: %s" % get_yes_no(bipob.can_place_external_module_on_side(selected_box_module, side_id)))
+		if placement_error.is_empty():
+			content_lines.append("Placement: valid")
+		else:
+			content_lines.append("Placement: invalid — %s" % placement_error)
 
 	content_lines.append("")
 	content_lines.append("Installed on %s:" % side_name)
 	content_lines.append(get_external_side_installed_list_text(side_id))
 	content_lines.append("")
-	content_lines.append("External build:")
-	for ordered_side_id in bipob.EXTERNAL_SIDE_ORDER:
-		var count := 0
-		var ordered_size: Vector2i = bipob.get_external_side_size(ordered_side_id)
-		for y in range(ordered_size.y):
-			for x in range(ordered_size.x):
-				if bipob.get_external_module_at(ordered_side_id, Vector2i(x, y)) != null:
-					count += 1
-		if count > 0:
-			content_lines.append("- %s: %d module(s)" % [ordered_side_id, count])
-	if content_lines[content_lines.size() - 1] == "External build:":
-		content_lines.append("- none")
+	content_lines.append(bipob.get_external_build_summary_text())
 
 	return "\n".join(content_lines)
 

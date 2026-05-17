@@ -657,6 +657,102 @@ func get_external_module_at(side_id: String, slot_position: Vector2i) -> BipobMo
 func is_external_slot_empty(side_id: String, slot_position: Vector2i) -> bool:
 	return get_external_module_at(side_id, slot_position) == null
 
+
+func get_external_module_size(module: BipobModule) -> Vector2i:
+	if module == null:
+		return Vector2i.ONE
+
+	match module.id:
+		"manipulator_v1":
+			return Vector2i(2, 2)
+		"interface_v1":
+			return Vector2i(2, 2)
+		"wheels_v1":
+			return Vector2i(3, 2)
+		"legs_v1":
+			return Vector2i(3, 2)
+		"tracks_v1":
+			return Vector2i(3, 2)
+		"visor_v1":
+			return Vector2i(3, 1)
+		"visor_v2":
+			return Vector2i(3, 1)
+		_:
+			return Vector2i(1, 1)
+
+func get_external_module_footprint_cells(module: BipobModule, origin: Vector2i) -> Array[Vector2i]:
+	var cells: Array[Vector2i] = []
+	var module_size: Vector2i = get_external_module_size(module)
+	for y in range(module_size.y):
+		for x in range(module_size.x):
+			cells.append(origin + Vector2i(x, y))
+	return cells
+
+func get_external_module_safe_area_cells(module: BipobModule, origin: Vector2i) -> Array[Vector2i]:
+	var safe_cells: Array[Vector2i] = []
+	var module_size: Vector2i = get_external_module_size(module)
+	var footprint_map: Dictionary = {}
+	for footprint_cell in get_external_module_footprint_cells(module, origin):
+		footprint_map[footprint_cell] = true
+
+	for y in range(origin.y - 1, origin.y + module_size.y + 1):
+		for x in range(origin.x - 1, origin.x + module_size.x + 1):
+			var cell := Vector2i(x, y)
+			if footprint_map.has(cell):
+				continue
+			if safe_cells.has(cell):
+				continue
+			safe_cells.append(cell)
+	return safe_cells
+
+func is_external_cell_occupied(side_id: String, cell_position: Vector2i) -> bool:
+	return get_external_module_at(side_id, cell_position) != null
+
+func can_place_external_module_at(module: BipobModule, side_id: String, origin: Vector2i) -> bool:
+	return get_external_module_placement_error(module, side_id, origin).is_empty()
+
+func get_external_module_placement_error(module: BipobModule, side_id: String, origin: Vector2i) -> String:
+	if module == null:
+		return "No module selected."
+	if not is_external_module(module):
+		return "Module cannot be installed outside: %s" % get_module_display_name(module)
+	if not is_external_side_valid(side_id):
+		return "Invalid external side: %s." % side_id
+	if not can_place_external_module_on_side(module, side_id):
+		return "Cannot install %s on %s. Allowed side: %s." % [
+			get_module_display_name(module),
+			get_external_side_display_name(side_id),
+			get_allowed_external_sides_text(module)
+		]
+
+	for cell in get_external_module_footprint_cells(module, origin):
+		if not is_external_slot_in_bounds(side_id, cell):
+			return "Module footprint is outside the %s side." % get_external_side_display_name(side_id)
+		if is_external_cell_occupied(side_id, cell):
+			return "External slot is occupied."
+
+	for safe_cell in get_external_module_safe_area_cells(module, origin):
+		if not is_external_slot_in_bounds(side_id, safe_cell):
+			continue
+		if is_external_cell_occupied(side_id, safe_cell):
+			return "External safe area is blocked."
+
+	return ""
+
+func _remove_external_module_instance_cells(side_id: String, module: BipobModule) -> void:
+	if module == null:
+		return
+	var keys_to_remove: Array[String] = []
+	for slot_key_variant in external_modules_by_slot.keys():
+		var slot_key := String(slot_key_variant)
+		if not slot_key.begins_with(side_id + ":"):
+			continue
+		var stored_module: BipobModule = external_modules_by_slot[slot_key]
+		if stored_module == module:
+			keys_to_remove.append(slot_key)
+	for slot_key in keys_to_remove:
+		external_modules_by_slot.erase(slot_key)
+
 func is_external_module(module: BipobModule) -> bool:
 	if module == null:
 		return false
@@ -715,36 +811,19 @@ func get_allowed_external_sides_text(module: BipobModule) -> String:
 	return ", ".join(names)
 
 func place_external_module(module: BipobModule, side_id: String, slot_position: Vector2i) -> bool:
-	if module == null:
-		hint_requested.emit("No module selected.")
+	var placement_error := get_external_module_placement_error(module, side_id, slot_position)
+	if not placement_error.is_empty():
+		hint_requested.emit(placement_error)
 		status_changed.emit()
 		return false
 
-	if not is_external_module(module):
-		hint_requested.emit("Module cannot be installed outside: " + get_module_display_name(module))
-		status_changed.emit()
-		return false
-
-	if not can_place_external_module_on_side(module, side_id):
-		hint_requested.emit(
-			"Cannot install %s on %s. Allowed side: %s."
-			% [get_module_display_name(module), side_id, get_allowed_external_sides_text(module).to_lower()]
-		)
-		status_changed.emit()
-		return false
-
-	if not is_external_slot_in_bounds(side_id, slot_position):
-		hint_requested.emit("External slot is out of bounds.")
-		status_changed.emit()
-		return false
-
-	if not is_external_slot_empty(side_id, slot_position):
-		hint_requested.emit("External slot is occupied.")
-		status_changed.emit()
-		return false
-
-	external_modules_by_slot[get_external_slot_key(side_id, slot_position)] = module
-	hint_requested.emit("External module placed: " + get_module_display_name(module))
+	for cell in get_external_module_footprint_cells(module, slot_position):
+		external_modules_by_slot[get_external_slot_key(side_id, cell)] = module
+	hint_requested.emit("External module placed: %s (%dx%d)" % [
+		get_module_display_name(module),
+		get_external_module_size(module).x,
+		get_external_module_size(module).y
+	])
 	status_changed.emit()
 	return true
 
@@ -761,33 +840,21 @@ func place_external_module_from_box_storage(storage_index: int, side_id: String,
 		status_changed.emit()
 		return false
 
-	if not is_external_module(module):
-		hint_requested.emit("Module cannot be installed outside: " + get_module_display_name(module))
-		status_changed.emit()
-		return false
-
-	if not can_place_external_module_on_side(module, side_id):
-		hint_requested.emit(
-			"Cannot install %s on %s. Allowed side: %s."
-			% [get_module_display_name(module), side_id, get_allowed_external_sides_text(module).to_lower()]
-		)
-		status_changed.emit()
-		return false
-
-	if not is_external_slot_in_bounds(side_id, slot_position):
-		hint_requested.emit("External slot is out of bounds.")
-		status_changed.emit()
-		return false
-
-	if not is_external_slot_empty(side_id, slot_position):
-		hint_requested.emit("External slot is occupied.")
+	var placement_error := get_external_module_placement_error(module, side_id, slot_position)
+	if not placement_error.is_empty():
+		hint_requested.emit(placement_error)
 		status_changed.emit()
 		return false
 
 	box_storage.remove_at(storage_index)
-	external_modules_by_slot[get_external_slot_key(side_id, slot_position)] = module
+	for cell in get_external_module_footprint_cells(module, slot_position):
+		external_modules_by_slot[get_external_slot_key(side_id, cell)] = module
 
-	hint_requested.emit("External module installed: " + get_module_display_name(module))
+	hint_requested.emit("External module installed: %s (%dx%d)" % [
+		get_module_display_name(module),
+		get_external_module_size(module).x,
+		get_external_module_size(module).y
+	])
 	status_changed.emit()
 	return true
 
@@ -797,14 +864,13 @@ func remove_external_module(side_id: String, slot_position: Vector2i) -> BipobMo
 		status_changed.emit()
 		return null
 
-	var key := get_external_slot_key(side_id, slot_position)
-	if not external_modules_by_slot.has(key):
+	var module: BipobModule = get_external_module_at(side_id, slot_position)
+	if module == null:
 		hint_requested.emit("External slot is empty.")
 		status_changed.emit()
 		return null
 
-	var module: BipobModule = external_modules_by_slot[key]
-	external_modules_by_slot.erase(key)
+	_remove_external_module_instance_cells(side_id, module)
 	hint_requested.emit("External module removed: " + get_module_display_name(module))
 	status_changed.emit()
 	return module
@@ -815,15 +881,13 @@ func remove_external_module_to_box_storage(side_id: String, slot_position: Vecto
 		status_changed.emit()
 		return false
 
-	var key := get_external_slot_key(side_id, slot_position)
-	if not external_modules_by_slot.has(key):
+	var module: BipobModule = get_external_module_at(side_id, slot_position)
+	if module == null:
 		hint_requested.emit("External slot is empty.")
 		status_changed.emit()
 		return false
 
-	var module: BipobModule = external_modules_by_slot[key]
-	external_modules_by_slot.erase(key)
-
+	_remove_external_module_instance_cells(side_id, module)
 	if module != null and not box_storage.has(module):
 		box_storage.append(module)
 
@@ -838,13 +902,15 @@ func get_external_build_summary_text() -> String:
 	var lines: Array[String] = ["External build:"]
 	for side_id in EXTERNAL_SIDE_ORDER:
 		var side_size := get_external_side_size(side_id)
-		var side_count := 0
+		var seen_modules: Array[BipobModule] = []
 		for y in range(side_size.y):
 			for x in range(side_size.x):
-				if get_external_module_at(side_id, Vector2i(x, y)) != null:
-					side_count += 1
-		if side_count > 0:
-			lines.append("- %s: %d module(s)" % [side_id, side_count])
+				var module: BipobModule = get_external_module_at(side_id, Vector2i(x, y))
+				if module == null or seen_modules.has(module):
+					continue
+				seen_modules.append(module)
+		if not seen_modules.is_empty():
+			lines.append("- %s: %d module(s)" % [side_id, seen_modules.size()])
 
 	return "\n".join(lines)
 
