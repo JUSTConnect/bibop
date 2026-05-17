@@ -83,6 +83,164 @@ var selected_external_side_index: int = 1
 var selected_external_slot_position: Vector2i = Vector2i(1, 1)
 var internal_view_mode: String = "modules"
 
+
+const UI_COLOR_BG: Color = Color(0.035, 0.045, 0.060, 1.0)
+const UI_COLOR_PANEL: Color = Color(0.075, 0.090, 0.115, 0.96)
+const UI_COLOR_PANEL_DARK: Color = Color(0.045, 0.055, 0.075, 0.98)
+const UI_COLOR_BORDER: Color = Color(0.220, 0.480, 0.620, 0.85)
+const UI_COLOR_BORDER_DIM: Color = Color(0.120, 0.220, 0.280, 0.75)
+const UI_COLOR_TEXT: Color = Color(0.820, 0.900, 0.920, 1.0)
+const UI_COLOR_TEXT_DIM: Color = Color(0.520, 0.650, 0.690, 1.0)
+const UI_COLOR_ACCENT: Color = Color(0.200, 0.760, 0.950, 1.0)
+const UI_COLOR_SELECTED: Color = Color(0.950, 0.820, 0.250, 1.0)
+const UI_COLOR_OK: Color = Color(0.250, 0.850, 0.480, 1.0)
+const UI_COLOR_WARNING: Color = Color(0.950, 0.640, 0.230, 1.0)
+const UI_COLOR_DANGER: Color = Color(0.950, 0.250, 0.250, 1.0)
+const UI_COLOR_DISABLED: Color = Color(0.250, 0.280, 0.320, 1.0)
+
+
+
+func _make_panel_style(
+	bg_color: Color,
+	border_color: Color = UI_COLOR_BORDER_DIM,
+	border_width: int = 1,
+	corner_radius: int = 8
+) -> StyleBoxFlat:
+	var style: StyleBoxFlat = StyleBoxFlat.new()
+	style.bg_color = bg_color
+	style.border_color = border_color
+	style.set_border_width_all(border_width)
+	style.set_corner_radius_all(corner_radius)
+	style.content_margin_left = 8
+	style.content_margin_right = 8
+	style.content_margin_top = 6
+	style.content_margin_bottom = 6
+	return style
+
+func _make_button_style(
+	bg_color: Color,
+	border_color: Color,
+	corner_radius: int = 6
+) -> StyleBoxFlat:
+	var style: StyleBoxFlat = StyleBoxFlat.new()
+	style.bg_color = bg_color
+	style.border_color = border_color
+	style.set_border_width_all(1)
+	style.set_corner_radius_all(corner_radius)
+	style.content_margin_left = 8
+	style.content_margin_right = 8
+	style.content_margin_top = 5
+	style.content_margin_bottom = 5
+	return style
+
+func _apply_panel_style(panel: Control, accent: bool = false) -> void:
+	if panel == null:
+		return
+	var border_color: Color = UI_COLOR_BORDER if accent else UI_COLOR_BORDER_DIM
+	var style: StyleBoxFlat = _make_panel_style(UI_COLOR_PANEL, border_color, 1, 8)
+	if panel is PanelContainer:
+		panel.add_theme_stylebox_override("panel", style)
+	elif panel is Panel:
+		panel.add_theme_stylebox_override("panel", style)
+
+func _apply_dark_panel_style(panel: Control) -> void:
+	if panel == null:
+		return
+	var style: StyleBoxFlat = _make_panel_style(UI_COLOR_PANEL_DARK, UI_COLOR_BORDER_DIM, 1, 8)
+	if panel is PanelContainer:
+		panel.add_theme_stylebox_override("panel", style)
+	elif panel is Panel:
+		panel.add_theme_stylebox_override("panel", style)
+
+func _apply_label_style(label: Label, dim: bool = false, accent: bool = false) -> void:
+	if label == null:
+		return
+	if accent:
+		label.add_theme_color_override("font_color", UI_COLOR_ACCENT)
+	elif dim:
+		label.add_theme_color_override("font_color", UI_COLOR_TEXT_DIM)
+	else:
+		label.add_theme_color_override("font_color", UI_COLOR_TEXT)
+
+func _apply_button_style(button: Button, role: String = "normal") -> void:
+	if button == null:
+		return
+	var normal_bg: Color = Color(0.105, 0.130, 0.160, 1.0)
+	var hover_bg: Color = Color(0.145, 0.185, 0.220, 1.0)
+	var pressed_bg: Color = Color(0.070, 0.100, 0.130, 1.0)
+	var border_color: Color = UI_COLOR_BORDER_DIM
+	if role == "primary":
+		normal_bg = Color(0.080, 0.220, 0.300, 1.0)
+		hover_bg = Color(0.100, 0.300, 0.400, 1.0)
+		pressed_bg = Color(0.050, 0.160, 0.220, 1.0)
+		border_color = UI_COLOR_ACCENT
+	elif role == "danger":
+		normal_bg = Color(0.240, 0.080, 0.080, 1.0)
+		hover_bg = Color(0.350, 0.100, 0.100, 1.0)
+		pressed_bg = Color(0.160, 0.050, 0.050, 1.0)
+		border_color = UI_COLOR_DANGER
+	elif role == "warning":
+		normal_bg = Color(0.250, 0.160, 0.060, 1.0)
+		hover_bg = Color(0.360, 0.220, 0.080, 1.0)
+		pressed_bg = Color(0.170, 0.100, 0.040, 1.0)
+		border_color = UI_COLOR_WARNING
+	button.add_theme_stylebox_override("normal", _make_button_style(normal_bg, border_color, 6))
+	button.add_theme_stylebox_override("hover", _make_button_style(hover_bg, border_color, 6))
+	button.add_theme_stylebox_override("pressed", _make_button_style(pressed_bg, border_color, 6))
+	button.add_theme_stylebox_override("disabled", _make_button_style(UI_COLOR_DISABLED, UI_COLOR_BORDER_DIM, 6))
+	button.add_theme_color_override("font_color", UI_COLOR_TEXT)
+	button.add_theme_color_override("font_hover_color", Color.WHITE)
+	button.add_theme_color_override("font_pressed_color", Color.WHITE)
+
+func _get_status_color(status: String) -> Color:
+	var normalized: String = status.to_lower()
+	if normalized.contains("ok") or normalized.contains("available") or normalized.contains("ready"):
+		return UI_COLOR_OK
+	if normalized.contains("warning") or normalized.contains("missing"):
+		return UI_COLOR_WARNING
+	if normalized.contains("critical") or normalized.contains("danger") or normalized.contains("unavailable"):
+		return UI_COLOR_DANGER
+	return UI_COLOR_TEXT
+
+func _get_button_role(button_text: String) -> String:
+	match button_text:
+		"Place", "Commit Plan", "Start", "Install", "Confirm":
+			return "primary"
+		"Remove", "Remove Path", "Clear Plan", "Clear Overlay", "Delete":
+			return "danger"
+		"Damage Plan", "Thermal Rules", "Repair Rules":
+			return "warning"
+		_:
+			return "normal"
+
+func _apply_constructor_ui_skin() -> void:
+	_apply_dark_panel_style(command_panel)
+	var panel: PanelContainer = box_screen.get_node_or_null("PanelContainer") if box_screen != null else null
+	_apply_panel_style(panel, true)
+	if box_content_scroll != null:
+		box_content_scroll.add_theme_stylebox_override("panel", _make_panel_style(UI_COLOR_PANEL_DARK, UI_COLOR_BORDER_DIM, 1, 8))
+	if box_title_label != null:
+		_apply_label_style(box_title_label, false, true)
+	if box_content_label != null:
+		box_content_label.add_theme_color_override("font_color", UI_COLOR_TEXT)
+		box_content_label.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	if status_label != null:
+		_apply_label_style(status_label)
+	if hint_label != null:
+		_apply_label_style(hint_label, true)
+	if diagnostic_label != null:
+		_apply_label_style(diagnostic_label, true)
+	for tab_button in [mission_tab_button, modules_tab_button, external_tab_button, internal_tab_button]:
+		if tab_button != null:
+			_apply_button_style(tab_button)
+	if right_button_panel != null:
+		for child in right_button_panel.get_children():
+			if child is Button:
+				_apply_button_style(child, _get_button_role(child.text))
+			elif child is Label:
+				var label_child: Label = child
+				_apply_label_style(label_child, false, true)
+
 func _configure_box_layout() -> void:
 	if box_screen == null:
 		return
@@ -581,6 +739,7 @@ func _ready() -> void:
 
 	update_status()
 	rebuild_box_action_buttons()
+	_apply_constructor_ui_skin()
 	update_box_status()
 	update_diagnostic_status()
 
@@ -1097,6 +1256,7 @@ func _add_box_action_button(button_text: String, handler: Callable) -> void:
 	button.focus_mode = Control.FOCUS_NONE
 	button.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	right_button_panel.add_child(button)
+	_apply_button_style(button, _get_button_role(button_text))
 	button.pressed.connect(handler)
 
 func _add_right_action_group(title: String) -> void:
@@ -1105,6 +1265,7 @@ func _add_right_action_group(title: String) -> void:
 	var label: Label = Label.new()
 	label.text = title
 	right_button_panel.add_child(label)
+	_apply_label_style(label, false, true)
 
 func _add_right_action_button(text: String, callable_ref: Callable) -> void:
 	_add_box_action_button(text, callable_ref)
@@ -1210,6 +1371,7 @@ func rebuild_box_action_buttons() -> void:
 		_add_box_action_button("Warnings", Callable(self, "_on_constructor_warnings_button_pressed"))
 		_add_box_action_button("Constructor Dashboard", Callable(self, "_on_constructor_dashboard_button_pressed"))
 		_add_box_action_button("Repair Rules", Callable(self, "_on_repair_rules_pressed"))
+	_apply_constructor_ui_skin()
 
 func update_box_button_visibility() -> void:
 	var is_mission := box_menu_mode == BoxMenuMode.MISSION
