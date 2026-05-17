@@ -118,6 +118,9 @@ const ACTION_BUTTON_MIN_SIZE: Vector2 = Vector2(120, 32)
 const ACTION_BUTTON_COMPACT_SIZE: Vector2 = Vector2(56, 30)
 const ACTION_GROUP_SPACING: int = 6
 const ACTION_BUTTON_SPACING: int = 4
+const STATUS_BADGE_MIN_SIZE: Vector2 = Vector2(96, 26)
+const STATUS_BADGE_SMALL_SIZE: Vector2 = Vector2(78, 24)
+const STATUS_BADGE_GAP: int = 4
 
 
 
@@ -137,6 +140,180 @@ func _make_panel_style(
 	style.content_margin_top = 6
 	style.content_margin_bottom = 6
 	return style
+
+
+func _make_status_badge_style(role: String) -> StyleBoxFlat:
+	var bg_color: Color = Color(0.080, 0.095, 0.115, 1.0)
+	var border_color: Color = UI_COLOR_BORDER_DIM
+
+	match role:
+		"ok":
+			bg_color = Color(0.045, 0.150, 0.095, 1.0)
+			border_color = UI_COLOR_OK
+		"warning":
+			bg_color = Color(0.200, 0.120, 0.035, 1.0)
+			border_color = UI_COLOR_WARNING
+		"danger":
+			bg_color = Color(0.200, 0.050, 0.050, 1.0)
+			border_color = UI_COLOR_DANGER
+		"info":
+			bg_color = Color(0.055, 0.105, 0.160, 1.0)
+			border_color = UI_COLOR_ACCENT
+		"neutral":
+			bg_color = Color(0.070, 0.080, 0.095, 1.0)
+			border_color = UI_COLOR_BORDER_DIM
+		_:
+			pass
+
+	return _make_panel_style(bg_color, border_color, 1, 6)
+
+
+func _create_status_badge(label_text: String, role: String = "neutral", small: bool = false) -> Control:
+	var panel: PanelContainer = PanelContainer.new()
+
+	if small:
+		panel.custom_minimum_size = STATUS_BADGE_SMALL_SIZE
+	else:
+		panel.custom_minimum_size = STATUS_BADGE_MIN_SIZE
+
+	panel.add_theme_stylebox_override("panel", _make_status_badge_style(role))
+
+	var label: Label = Label.new()
+	label.text = label_text
+	label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	label.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
+	label.clip_text = true
+
+	match role:
+		"ok":
+			label.add_theme_color_override("font_color", UI_COLOR_OK.lightened(0.25))
+		"warning":
+			label.add_theme_color_override("font_color", UI_COLOR_WARNING.lightened(0.15))
+		"danger":
+			label.add_theme_color_override("font_color", UI_COLOR_DANGER.lightened(0.20))
+		"info":
+			label.add_theme_color_override("font_color", UI_COLOR_ACCENT.lightened(0.15))
+		_:
+			label.add_theme_color_override("font_color", UI_COLOR_TEXT)
+
+	panel.add_child(label)
+	return panel
+
+
+func _create_status_badge_row() -> HBoxContainer:
+	var row: HBoxContainer = HBoxContainer.new()
+	row.add_theme_constant_override("separation", STATUS_BADGE_GAP)
+	return row
+
+
+func _get_constructor_status_badges() -> Array[Dictionary]:
+	var badges: Array[Dictionary] = []
+
+	if bipob.has_method("is_virtual_power_available"):
+		if bipob.is_virtual_power_available():
+			badges.append({"label": "POWER OK", "role": "ok"})
+		else:
+			badges.append({"label": "POWER MISSING", "role": "danger"})
+
+	if bipob.has_method("is_internal_data_network_available"):
+		if bipob.is_internal_data_network_available():
+			badges.append({"label": "DATA OK", "role": "ok"})
+		else:
+			badges.append({"label": "DATA MISSING", "role": "warning"})
+
+	if bipob.has_method("is_external_data_network_available"):
+		if bipob.is_external_data_network_available():
+			badges.append({"label": "EXT LINK OK", "role": "ok"})
+		else:
+			badges.append({"label": "EXT LINK MISSING", "role": "warning"})
+
+	if bipob.has_method("has_air_cooling_requiring_intake") and bipob.has_method("has_external_air_intake"):
+		if bipob.has_air_cooling_requiring_intake():
+			if bipob.has_external_air_intake():
+				badges.append({"label": "AIR OK", "role": "ok"})
+			else:
+				badges.append({"label": "AIR REQUIRED", "role": "warning"})
+
+	if bipob.has_method("get_highest_internal_preview_heat"):
+		var highest_heat: int = bipob.get_highest_internal_preview_heat()
+		if highest_heat >= 5:
+			badges.append({"label": "THERMAL CRITICAL", "role": "danger"})
+		elif highest_heat >= 4:
+			badges.append({"label": "THERMAL WARNING", "role": "warning"})
+		elif highest_heat > 0:
+			badges.append({"label": "THERMAL OK", "role": "ok"})
+		else:
+			badges.append({"label": "THERMAL IDLE", "role": "neutral"})
+
+	if bipob.has_method("get_overlay_heat_diff_compact_text"):
+		var overlay_changed: bool = false
+		if bipob.has_method("get_overlay_thermal_contribution_compact_text"):
+			var compact_text: String = bipob.get_overlay_thermal_contribution_compact_text()
+			overlay_changed = not compact_text.contains("affected 0")
+		if overlay_changed:
+			badges.append({"label": "OVERLAY ACTIVE", "role": "info"})
+		else:
+			badges.append({"label": "OVERLAY HYPOTH", "role": "neutral"})
+
+	if bipob.has_method("get_damage_planning_compact_text"):
+		var damage_text: String = bipob.get_damage_planning_compact_text()
+		if damage_text.contains("critical 0 / warning 0"):
+			badges.append({"label": "DAMAGE LOW", "role": "ok"})
+		elif damage_text.contains("critical 0"):
+			badges.append({"label": "DAMAGE WARN", "role": "warning"})
+		else:
+			badges.append({"label": "DAMAGE CRIT", "role": "danger"})
+
+	var warning_count: int = 0
+	if bipob.has_method("get_warning_count"):
+		warning_count = bipob.get_warning_count()
+	elif bipob.has_method("get_constructor_warning_lines"):
+		var warning_lines: Array[String] = bipob.get_constructor_warning_lines()
+		warning_count = warning_lines.size()
+
+	if warning_count <= 0:
+		badges.append({"label": "NO WARNINGS", "role": "ok"})
+	else:
+		badges.append({"label": "WARNINGS %d" % warning_count, "role": "warning"})
+
+	return badges
+
+
+func _create_constructor_status_badges_panel() -> Control:
+	var panel: PanelContainer = PanelContainer.new()
+	_apply_dark_panel_style(panel)
+
+	var root: VBoxContainer = VBoxContainer.new()
+	root.add_theme_constant_override("separation", 5)
+
+	var title: Label = Label.new()
+	title.text = "STATUS BADGES"
+	_apply_label_style(title, false, true)
+	root.add_child(title)
+
+	var badges: Array[Dictionary] = _get_constructor_status_badges()
+	if badges.is_empty():
+		root.add_child(_create_status_badge("NO STATUS", "neutral", false))
+		panel.add_child(root)
+		return panel
+
+	var row: HBoxContainer = _create_status_badge_row()
+	var count_in_row: int = 0
+	for badge in badges:
+		var badge_label: String = String(badge.get("label", "STATUS"))
+		var badge_role: String = String(badge.get("role", "neutral"))
+		row.add_child(_create_status_badge(badge_label, badge_role, true))
+		count_in_row += 1
+		if count_in_row >= 3:
+			root.add_child(row)
+			row = _create_status_badge_row()
+			count_in_row = 0
+
+	if row.get_child_count() > 0:
+		root.add_child(row)
+
+	panel.add_child(root)
+	return panel
 
 
 func _load_module_icon_texture(module: BipobModule) -> Texture2D:
@@ -925,9 +1102,11 @@ func _build_storage_cards_panel(parent: Control) -> void:
 
 	var details_panel: Control = _create_selected_module_detail_card()
 
-	var side_panel: Control = null
+	var side_panel: VBoxContainer = VBoxContainer.new()
+	side_panel.add_theme_constant_override("separation", 8)
+	side_panel.add_child(_create_constructor_status_badges_panel())
 	if box_menu_mode == BoxMenuMode.INTERNAL:
-		side_panel = _create_internal_connections_panel()
+		side_panel.add_child(_create_internal_connections_panel())
 
 	var mode_title: String = "External Modules" if box_menu_mode == BoxMenuMode.EXTERNAL else "Internal Modules"
 	parent.add_child(_create_constructor_mode_layout(mode_title, workspace, storage_panel, details_panel, side_panel))
