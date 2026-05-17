@@ -15,7 +15,7 @@ const TILE_HIDDEN_ROUTE_NODE := 8
 @export var fog_enabled: bool = true
 @export var reveal_radius: int = 1
 
-var debug_draw_undiscovered_hidden_nodes: bool = true
+var debug_draw_undiscovered_hidden_nodes: bool = false
 
 var visible_cells: Array = []
 var explored_cells: Array = []

@@ -25,9 +25,9 @@ enum Direction {
 
 @export var debug_add_mission4_modules_to_box: bool = false
 @export var debug_place_mission4_field_modules: bool = false
-@export var debug_place_hidden_route_node: bool = true
+@export var debug_place_hidden_route_node: bool = false
 @export var debug_hidden_route_node_position: Vector2i = Vector2i(3, 1)
-@export var debug_show_hidden_route_node_logs: bool = true
+@export var debug_show_hidden_route_node_logs: bool = false
 
 # MVP module model: modules can grant small passive bonuses and command flags.
 # No inventory/equipment UI yet; this only stores and applies data programmatically.
@@ -115,14 +115,15 @@ func has_module_id_in_box(module_id: String) -> bool:
 			return true
 	return false
 
-func has_module_id_anywhere(module_id: String) -> bool:
-	if has_module_id(module_id) or has_module_id_in_box(module_id):
-		return true
-
+func has_module_id_in_physical_carry(module_id: String) -> bool:
 	if held_module != null and held_module.id == module_id:
 		return true
-
 	if stored_physical_module != null and stored_physical_module.id == module_id:
+		return true
+	return false
+
+func has_module_id_anywhere(module_id: String) -> bool:
+	if has_module_id(module_id) or has_module_id_in_box(module_id) or has_module_id_in_physical_carry(module_id):
 		return true
 
 	for module_position in field_modules_by_position.keys():
@@ -274,9 +275,27 @@ func get_mission_goal_hint(mission_index: int) -> String:
 		3:
 			return "Mission 3: Scan and Hack the terminal to get the Info-Key, then Scan and Hack the digital door."
 		4:
-			return "Mission 4: recover Visor V2 and GPU V1, install them in the box, then find the hidden route-node."
+			return get_mission4_context_hint()
 		_:
 			return "No mission goal available."
+
+func get_mission4_context_hint() -> String:
+	var has_visor_anywhere := has_module_id_anywhere("visor_v2")
+	var has_visor_installed := has_module_id("visor_v2")
+	var has_gpu_anywhere := has_module_id_anywhere("gpu_v1")
+	var has_gpu_installed := has_module_id("gpu_v1")
+
+	if mission4_hidden_route_node_discovered:
+		return "Hidden route-node found. Reach the exit."
+	if has_visor_installed and has_gpu_installed:
+		return "Vision system ready. Find the hidden route-node."
+	if has_visor_installed and not has_gpu_anywhere:
+		return "Visor V2 widens vision, but hidden route data needs processing. Search for GPU V1."
+	if has_visor_installed and has_gpu_anywhere and not has_gpu_installed:
+		return "GPU V1 recovered. Return to the box and install it."
+	if has_visor_anywhere and not has_visor_installed:
+		return "Visor V2 recovered. Return to the box and install it."
+	return "Mission 4: base vision is too narrow. Search the blind sector for a wider visor."
 
 func get_current_mission_goal_hint() -> String:
 	return get_mission_goal_hint(current_mission_index)
@@ -396,7 +415,10 @@ func return_to_box() -> void:
 		add_module_to_box_storage(stored_physical_module)
 		stored_physical_module = null
 
-	hint_requested.emit("Returned to box. Mission attempt aborted.")
+	if current_mission_index == 4 and (has_module_id_anywhere("visor_v2") or has_module_id_anywhere("gpu_v1")):
+		hint_requested.emit(get_mission4_context_hint())
+	else:
+		hint_requested.emit("Returned to box. Mission attempt aborted.")
 	status_changed.emit()
 	returned_to_box.emit()
 
@@ -1301,6 +1323,7 @@ func setup_mission4_field_modules() -> void:
 
 	var visor_position := Vector2i(4, 1)
 	var gpu_position := Vector2i(2, 6)
+	var hidden_node_position := Vector2i(4, 6)
 
 	if not has_module_id_anywhere("visor_v2"):
 		place_visor_v2_field_module(visor_position)
@@ -1311,6 +1334,11 @@ func setup_mission4_field_modules() -> void:
 		place_gpu_v1_field_module(gpu_position)
 	else:
 		grid_manager.set_tile(gpu_position, GridManager.TILE_FLOOR)
+
+	active_hidden_route_node_position = Vector2i(-1, -1)
+	if grid_manager.is_in_bounds(hidden_node_position):
+		grid_manager.set_tile(hidden_node_position, GridManager.TILE_HIDDEN_ROUTE_NODE)
+		active_hidden_route_node_position = hidden_node_position
 
 func place_debug_field_module_if_valid(position: Vector2i, module_name: String, place_callback: Callable) -> void:
 	if grid_manager == null:
@@ -1383,6 +1411,12 @@ func pick_up_component(component_position: Vector2i) -> void:
 	else:
 		stored_physical_module = picked_module
 		hint_requested.emit("Component stored internally: %s." % get_module_display_name(picked_module))
+
+	if current_mission_index == 4:
+		if picked_module.id == "visor_v2":
+			hint_requested.emit("Visor V2 recovered. Return to the box and install it.")
+		elif picked_module.id == "gpu_v1":
+			hint_requested.emit("GPU V1 recovered. Return to the box and install it.")
 
 	spend_action(1, 1)
 	status_changed.emit()
