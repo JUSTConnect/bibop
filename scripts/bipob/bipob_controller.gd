@@ -1303,6 +1303,20 @@ func hack_device() -> void:
 			status_changed.emit()
 			return
 
+func open_route_gate(gate_position: Vector2i) -> void:
+	if not has_digital_record(DIGITAL_RECORD_ROUTE_DATA):
+		hint_requested.emit("Route Gate locked. Route Data required.")
+		status_changed.emit()
+		return
+
+	if not can_spend_action(1, 1):
+		return
+
+	grid_manager.set_tile(gate_position, GridManager.TILE_FLOOR)
+	spend_action(1, 1)
+	hint_requested.emit("Route Gate opened using Route Data.")
+	status_changed.emit()
+
 func interact() -> void:
 	var target_position := get_facing_device_position()
 	var target_tile := grid_manager.get_tile(target_position)
@@ -1342,6 +1356,8 @@ func interact() -> void:
 			if not can_spend_action(1, 1):
 				return
 			open_door(target_position)
+		GridManager.TILE_ROUTE_GATE:
+			open_route_gate(target_position)
 		_:
 			print("Nothing to interact with at: ", target_position)
 			hint_requested.emit("Nothing to interact with. Face a key, door, or terminal and press E.")
