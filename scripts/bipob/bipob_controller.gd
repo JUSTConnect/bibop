@@ -892,6 +892,70 @@ func toggle_selected_overlay_cell(cell: Vector3i) -> bool:
 		return remove_selected_overlay_cell(cell)
 	return add_selected_overlay_cell(cell)
 
+func get_last_selected_overlay_cell() -> Vector3i:
+	if selected_overlay_cells.is_empty():
+		return selected_internal_origin
+	return selected_overlay_cells[selected_overlay_cells.size() - 1]
+
+func get_overlay_direction_offset(direction_id: String) -> Vector3i:
+	match direction_id:
+		"+x":
+			return Vector3i(1, 0, 0)
+		"-x":
+			return Vector3i(-1, 0, 0)
+		"+y":
+			return Vector3i(0, 1, 0)
+		"-y":
+			return Vector3i(0, -1, 0)
+		"+z":
+			return Vector3i(0, 0, 1)
+		"-z":
+			return Vector3i(0, 0, -1)
+		_:
+			return Vector3i.ZERO
+
+func start_overlay_path_from_cursor_if_empty() -> void:
+	if selected_overlay_cells.is_empty():
+		add_selected_overlay_cell(selected_internal_origin)
+
+func extend_selected_overlay_path(direction_id: String) -> bool:
+	var offset: Vector3i = get_overlay_direction_offset(direction_id)
+	if offset == Vector3i.ZERO:
+		return false
+	start_overlay_path_from_cursor_if_empty()
+	var start_cell: Vector3i = get_last_selected_overlay_cell()
+	var next_cell: Vector3i = start_cell + offset
+	if not is_internal_cell_in_bounds(next_cell):
+		return false
+	return add_selected_overlay_cell(next_cell)
+
+func undo_selected_overlay_cell() -> bool:
+	if selected_overlay_cells.is_empty():
+		return false
+	selected_overlay_cells.remove_at(selected_overlay_cells.size() - 1)
+	return true
+
+func get_selected_overlay_plan_short_text() -> String:
+	var lines: Array[String] = []
+	lines.append("Overlay planning:")
+	lines.append("- Type: %s" % selected_overlay_path_type)
+	lines.append("- Cells: %d" % selected_overlay_cells.size())
+	if selected_overlay_cells.is_empty():
+		lines.append("- Start: cursor %s" % format_internal_cell(selected_internal_origin))
+	else:
+		lines.append("- Start: %s" % format_internal_cell(selected_overlay_cells[0]))
+		lines.append("- Last: %s" % format_internal_cell(get_last_selected_overlay_cell()))
+	lines.append("- Connectivity: %s" % ("connected" if is_selected_overlay_plan_connected() else "disconnected"))
+	lines.append("- Components: %d" % get_selected_overlay_plan_component_count())
+	if has_method("get_overlay_path_endpoint_count"):
+		lines.append("- Endpoints: %d" % get_overlay_path_endpoint_count({
+			"id": "planning",
+			"module_id": get_selected_overlay_module_id(),
+			"path_type": selected_overlay_path_type,
+			"cells": selected_overlay_cells
+		}))
+	return "\n".join(lines)
+
 func commit_selected_overlay_path() -> bool:
 	if selected_overlay_cells.is_empty():
 		return false

@@ -1137,6 +1137,13 @@ func rebuild_box_action_buttons() -> void:
 		_add_box_action_button("Toggle View", Callable(self, "_on_toggle_internal_view_pressed"))
 		_add_box_action_button("Overlay Type", Callable(self, "_on_overlay_type_pressed"))
 		_add_box_action_button("Toggle Overlay", Callable(self, "_on_toggle_overlay_cell_pressed"))
+		_add_box_action_button("Extend +X", Callable(self, "_on_extend_overlay_pos_x_pressed"))
+		_add_box_action_button("Extend -X", Callable(self, "_on_extend_overlay_neg_x_pressed"))
+		_add_box_action_button("Extend +Y", Callable(self, "_on_extend_overlay_pos_y_pressed"))
+		_add_box_action_button("Extend -Y", Callable(self, "_on_extend_overlay_neg_y_pressed"))
+		_add_box_action_button("Extend +Z", Callable(self, "_on_extend_overlay_pos_z_pressed"))
+		_add_box_action_button("Extend -Z", Callable(self, "_on_extend_overlay_neg_z_pressed"))
+		_add_box_action_button("Undo Overlay", Callable(self, "_on_undo_overlay_cell_pressed"))
 		_add_box_action_button("Commit Overlay", Callable(self, "_on_commit_overlay_pressed"))
 		_add_box_action_button("Clear Overlay", Callable(self, "_on_clear_overlay_pressed"))
 		_add_box_action_button("Prev Overlay", Callable(self, "_on_prev_overlay_pressed"))
@@ -1684,6 +1691,7 @@ func get_box_internal_menu_text() -> String:
 	lines.append("Overlay:")
 	lines.append("Type: %s" % bipob.selected_overlay_path_type)
 	lines.append("Planning cells: %d" % bipob.selected_overlay_cells.size())
+	lines.append(str(bipob.get_selected_overlay_plan_short_text()))
 	lines.append("Committed paths: %d" % bipob.internal_overlay_paths.size())
 	lines.append(str(bipob.get_overlay_connectivity_compact_text()))
 	lines.append(str(bipob.get_overlay_endpoint_compact_text()))
@@ -1905,6 +1913,48 @@ func _on_overlay_type_pressed() -> void:
 
 func _on_toggle_overlay_cell_pressed() -> void:
 	bipob.toggle_selected_overlay_cell(bipob.selected_internal_origin)
+	update_box_status()
+
+func _on_extend_overlay_pos_x_pressed() -> void:
+	var ok: bool = bipob.extend_selected_overlay_path("+x")
+	if not ok:
+		show_hint("Cannot extend overlay +X.")
+	update_box_status()
+
+func _on_extend_overlay_neg_x_pressed() -> void:
+	var ok: bool = bipob.extend_selected_overlay_path("-x")
+	if not ok:
+		show_hint("Cannot extend overlay -X.")
+	update_box_status()
+
+func _on_extend_overlay_pos_y_pressed() -> void:
+	var ok: bool = bipob.extend_selected_overlay_path("+y")
+	if not ok:
+		show_hint("Cannot extend overlay +Y.")
+	update_box_status()
+
+func _on_extend_overlay_neg_y_pressed() -> void:
+	var ok: bool = bipob.extend_selected_overlay_path("-y")
+	if not ok:
+		show_hint("Cannot extend overlay -Y.")
+	update_box_status()
+
+func _on_extend_overlay_pos_z_pressed() -> void:
+	var ok: bool = bipob.extend_selected_overlay_path("+z")
+	if not ok:
+		show_hint("Cannot extend overlay +Z.")
+	update_box_status()
+
+func _on_extend_overlay_neg_z_pressed() -> void:
+	var ok: bool = bipob.extend_selected_overlay_path("-z")
+	if not ok:
+		show_hint("Cannot extend overlay -Z.")
+	update_box_status()
+
+func _on_undo_overlay_cell_pressed() -> void:
+	var ok: bool = bipob.undo_selected_overlay_cell()
+	if not ok:
+		show_hint("No overlay cell to undo.")
 	update_box_status()
 
 func _on_commit_overlay_pressed() -> void:
