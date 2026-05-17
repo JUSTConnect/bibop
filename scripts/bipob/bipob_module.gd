@@ -17,3 +17,10 @@ class_name BipobModule
 @export var size_z: int = 1
 @export var internal_rotatable: bool = true
 @export var internal_role: String = "none"
+
+@export var heat_idle: int = 0
+@export var heat_active: int = 0
+@export var cooling_power: int = 0
+@export var cooling_type: String = "none"
+@export var requires_air_intake: bool = false
+@export var is_non_volume_cooling_path: bool = false
