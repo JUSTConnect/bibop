@@ -55,7 +55,9 @@ var stored_physical_module: BipobModule = null
 var field_modules_by_position: Dictionary = {}
 var physical_carry_capacity: int = 2
 var digital_storage: Dictionary = {}
-var digital_storage_capacity: int = 1
+var digital_storage_capacity: int = 2
+const DIGITAL_RECORD_ROUTE_DATA := "route_data"
+const DIGITAL_RECORD_INFO_KEY := "info_key"
 var last_diagnostic_result: DiagnosticResult = null
 var mission_start_energy: int = 0
 var mission_start_actions_left: int = 0
@@ -286,7 +288,7 @@ func get_mission4_context_hint() -> String:
 	var has_gpu_installed := has_module_id("gpu_v1")
 
 	if mission4_hidden_route_node_discovered:
-		return "Hidden route-node found. Reach the exit."
+		return "Hidden route-node found. Route Data stored. Reach the exit."
 	if has_visor_installed and has_gpu_installed:
 		return "Vision system ready. Find the hidden route-node."
 	if has_visor_installed and not has_gpu_anywhere:
@@ -498,7 +500,7 @@ func get_digital_storage_text() -> String:
 
 func debug_store_route_data() -> void:
 	store_digital_record(
-		"route_data",
+		DIGITAL_RECORD_ROUTE_DATA,
 		"Route Data",
 		"Temporary route record for future route mission."
 	)
@@ -983,11 +985,16 @@ func detect_hidden_route_nodes_in_vision() -> void:
 		if grid_manager.get_tile(cell) == GridManager.TILE_HIDDEN_ROUTE_NODE:
 			if not grid_manager.is_hidden_route_node_discovered(cell):
 				grid_manager.discover_hidden_route_node(cell)
+				store_digital_record(
+					DIGITAL_RECORD_ROUTE_DATA,
+					"Route Data",
+					"Recovered hidden route information."
+				)
 				if current_mission_index == 4:
 					mission4_hidden_route_node_discovered = true
-					hint_requested.emit("Hidden route-node found. Reach the exit.")
+					hint_requested.emit("Hidden route-node found. Route Data stored. Reach the exit.")
 				else:
-					hint_requested.emit("Hidden route-node detected at " + str(cell))
+					hint_requested.emit("Hidden route-node detected. Route Data stored.")
 				status_changed.emit()
 				return
 	
@@ -1136,7 +1143,7 @@ func open_door(door_position: Vector2i) -> void:
 func open_digital_door(door_position: Vector2i) -> void:
 	if not require_command("open_digital_door", "Missing module: Interface V1 required."):
 		return
-	if not has_info_key and not use_digital_record("info_key"):
+	if not has_info_key and not use_digital_record(DIGITAL_RECORD_INFO_KEY):
 		print("Digital door locked. Info-Key required from terminal.")
 		hint_requested.emit("Digital door requires Info-Key. Hack the terminal first.")
 		return
@@ -1215,12 +1222,12 @@ func hack_device() -> void:
 				complete_mission()
 				return
 			has_info_key = true
-			store_digital_record("info_key", "Info-Key", "Digital authorization record for opening a digital door.")
+			store_digital_record(DIGITAL_RECORD_INFO_KEY, "Info-Key", "Digital authorization record for opening a digital door.")
 			hint_requested.emit("Info-Key downloaded. Now find the digital door, scan it, then hack it.")
 			status_changed.emit()
 			return
 		"open_digital_door":
-			if not has_info_key and not use_digital_record("info_key"):
+			if not has_info_key and not use_digital_record(DIGITAL_RECORD_INFO_KEY):
 				hint_requested.emit("Digital door requires Info-Key. Hack the terminal first.")
 				status_changed.emit()
 				return
@@ -1483,7 +1490,7 @@ func read_terminal(target_position: Vector2i) -> void:
 			if not can_spend_action(1, 1):
 				return
 			has_info_key = true
-			store_digital_record("info_key", "Info-Key", "Digital authorization record for opening a digital door.")
+			store_digital_record(DIGITAL_RECORD_INFO_KEY, "Info-Key", "Digital authorization record for opening a digital door.")
 			spend_action(1, 1)
 			print("Terminal accessed at ", target_position, ". Info-Key downloaded.")
 			hint_requested.emit("Info-Key downloaded. Find the digital door.")
