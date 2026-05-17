@@ -5,6 +5,7 @@ class_name BipobModule
 @export var display_name: String = ""
 @export var description: String = ""
 @export var placement_type: String = "unknown"
+@export var category: String = "utility"
 
 @export var granted_commands: Array[String] = []
 

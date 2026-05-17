@@ -185,6 +185,45 @@ func has_module_id_anywhere(module_id: String) -> bool:
 
 	return false
 
+func get_module_category(module: BipobModule) -> String:
+	if module == null:
+		return "utility"
+
+	if not module.category.is_empty():
+		return module.category
+
+	match module.id:
+		"wheels_v1", "legs_v1", "tracks_v1":
+			return "locomotion"
+		"visor_v1", "visor_v2":
+			return "vision"
+		"manipulator_v1":
+			return "utility"
+		"interface_v1":
+			return "data"
+		"air_intake_v1":
+			return "cooling"
+		"battery_v1_a", "battery_v1_b":
+			return "power"
+		"power_block_v1":
+			return "power"
+		"processor_v1":
+			return "data"
+		"memory_v1":
+			return "data"
+		"hard_drive_v1":
+			return "storage"
+		"int_interface_v1", "ext_interface_internal_v1":
+			return "data"
+		"cooler_v1", "radiator_v1", "water_tube_v1", "air_duct_v1":
+			return "cooling"
+		_:
+			if module.placement_type == "external":
+				return "external"
+			if module.placement_type == "internal":
+				return "internal"
+			return "utility"
+
 func get_effective_visor_level() -> int:
 	if has_module_id("visor_v2"):
 		return 2
@@ -1512,6 +1551,7 @@ func create_default_modules() -> void:
 		wheels_module.id = "wheels_v1"
 		wheels_module.display_name = "Wheels V1"
 		wheels_module.placement_type = "external"
+		wheels_module.category = "locomotion"
 		wheels_module.granted_commands = [
 			"move_forward",
 			"move_backward",
@@ -1525,6 +1565,7 @@ func create_default_modules() -> void:
 		manipulator_module.id = "manipulator_v1"
 		manipulator_module.display_name = "Manipulator V1"
 		manipulator_module.placement_type = "external"
+		manipulator_module.category = "utility"
 		manipulator_module.granted_commands = [
 			"interact_key",
 			"open_physical_door",
@@ -1536,6 +1577,7 @@ func create_default_modules() -> void:
 		interface_module.id = "interface_v1"
 		interface_module.display_name = "Interface V1"
 		interface_module.placement_type = "external"
+		interface_module.category = "data"
 		interface_module.granted_commands = [
 			"read_terminal",
 			"open_digital_door",
@@ -1547,6 +1589,7 @@ func create_default_modules() -> void:
 		visor_module.id = "visor_v1"
 		visor_module.display_name = "Visor V1"
 		visor_module.placement_type = "external"
+		visor_module.category = "vision"
 		visor_module.granted_commands = [
 			"vision",
 		]
@@ -1556,6 +1599,7 @@ func create_default_modules() -> void:
 	air_intake_module.id = "air_intake_v1"
 	air_intake_module.display_name = "Air Intake Node V1"
 	air_intake_module.placement_type = "external"
+	air_intake_module.category = "cooling"
 	apply_thermal_metadata(air_intake_module)
 	if not has_module_id_anywhere(air_intake_module.id):
 		box_storage.append(air_intake_module)
@@ -1572,6 +1616,7 @@ func create_internal_module(module_id: String, module_name: String, module_size:
 	module.size_z = module_size.z
 	module.internal_rotatable = true
 	module.internal_role = get_internal_role_for_module_id(module_id)
+	module.category = get_module_category(module)
 	apply_thermal_metadata(module)
 	return module
 
