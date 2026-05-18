@@ -90,7 +90,7 @@ var bipob_beta_button: Button
 var box_back_button: Button
 var active_bipob_profile_id: String = "alpha"
 var constructor_profiles: Dictionary = {}
-const BIPOB_PROFILE_NAMES: Dictionary = {"alpha": "Разведчик", "beta": "Инженер"}
+const BIPOB_PROFILE_NAMES: Dictionary = {"alpha": "Scout", "beta": "Engineer"}
 
 enum BoxMenuMode {
 	MISSION,
@@ -1335,9 +1335,9 @@ func _configure_box_layout() -> void:
 		return
 	panel.set_anchors_preset(Control.PRESET_TOP_RIGHT)
 	panel.offset_left = -540
-	panel.offset_top = 16
+	panel.offset_top = 5
 	panel.offset_right = -16
-	panel.offset_bottom = 632
+	panel.offset_bottom = -8
 	panel.custom_minimum_size = Vector2(520, 0)
 
 	main_box_row = vbox.get_node_or_null("MainBoxRow")
@@ -2178,7 +2178,7 @@ func _create_external_visual_workspace() -> Control:
 	root.size_flags_vertical = Control.SIZE_EXPAND_FILL
 
 	var title: Label = Label.new()
-	title.text = "ВНЕШНИЕ МОДУЛИ НА КОРПУСЕ"
+	title.text = "EXTERNAL MODULES ON BODY"
 	_apply_label_style(title, false, true)
 	root.add_child(title)
 
@@ -2186,8 +2186,8 @@ func _create_external_visual_workspace() -> Control:
 	info_row.add_theme_constant_override("separation", 4)
 
 	var left_info: Control = _create_external_info_stub_panel(
-		"Блок информации",
-		"Заглушка. Общие данные о выбранном Бипобе."
+		"Info",
+		"General info about selected Bipob."
 	)
 	info_row.add_child(left_info)
 
@@ -2196,8 +2196,8 @@ func _create_external_visual_workspace() -> Control:
 	info_row.add_child(info_spacer)
 
 	var right_info: Control = _create_external_info_stub_panel(
-		"Блок информации",
-		"Заглушка. Данные об установленных внешних модулях."
+		"Info",
+		"Installed external module overview."
 	)
 	info_row.add_child(right_info)
 	root.add_child(info_row)
@@ -2254,10 +2254,15 @@ func _get_external_right_column_width() -> float:
 
 
 func _get_external_storage_grid_columns() -> int:
+	return _get_adaptive_storage_columns(false)
+
+
+func _get_adaptive_storage_columns(is_internal: bool) -> int:
 	var viewport_width: float = _get_viewport_width()
-	if viewport_width < 1100.0:
-		return 2
-	return 3
+	var estimated_right_width: float = viewport_width * 0.5
+	var width_for_grid: float = estimated_right_width - (210.0 if is_internal else 24.0)
+	var card_width: float = STORAGE_CARD_MIN_SIZE.x + 8.0
+	return maxi(2, int(floor(width_for_grid / card_width)))
 
 
 func _get_external_bottom_bar_height() -> float:
@@ -2280,12 +2285,13 @@ func _create_external_constructor_layout() -> Control:
 
 	var left: Control = _create_external_visual_workspace()
 	left.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	left.size_flags_stretch_ratio = 1.0
 	left.size_flags_vertical = Control.SIZE_EXPAND_FILL
 	top_content_row.add_child(left)
 
 	var right: Control = _create_external_storage_right_column()
-	right.custom_minimum_size = Vector2(_get_external_right_column_width(), 0)
-	right.size_flags_horizontal = Control.SIZE_SHRINK_END
+	right.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	right.size_flags_stretch_ratio = 1.0
 	right.size_flags_vertical = Control.SIZE_EXPAND_FILL
 	top_content_row.add_child(right)
 
@@ -2313,13 +2319,13 @@ func _create_internal_constructor_layout() -> Control:
 
 	var workspace: Control = _create_internal_visual_workspace()
 	workspace.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-	workspace.size_flags_stretch_ratio = 0.4
+	workspace.size_flags_stretch_ratio = 1.0
 	workspace.size_flags_vertical = Control.SIZE_EXPAND_FILL
 	top_content_row.add_child(workspace)
 
 	var right_column: Control = _create_internal_storage_right_column()
 	right_column.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-	right_column.size_flags_stretch_ratio = 0.6
+	right_column.size_flags_stretch_ratio = 1.0
 	right_column.size_flags_vertical = Control.SIZE_EXPAND_FILL
 	top_content_row.add_child(right_column)
 
@@ -2366,22 +2372,10 @@ func _create_internal_filter_panel() -> Control:
 	root.add_theme_constant_override("separation", 4)
 
 	var title: Label = Label.new()
-	title.text = "ФИЛЬТРЫ"
+	title.text = "FILTERS"
 	_apply_label_style(title, false, true)
 	root.add_child(title)
-
-	var filter_label: Label = Label.new()
-	filter_label.text = "Текущий фильтр: %s" % get_current_constructor_filter().capitalize()
-	_apply_label_style(filter_label, true, false)
-	root.add_child(filter_label)
-
-	var row: HBoxContainer = HBoxContainer.new()
-	row.add_theme_constant_override("separation", 4)
-	var prev_button: Button = _create_menu_button("Назад", Callable(self, "_on_prev_constructor_filter_pressed"), Vector2(96, 26))
-	var next_button: Button = _create_menu_button("Вперёд", Callable(self, "_on_next_constructor_filter_pressed"), Vector2(96, 26))
-	row.add_child(prev_button)
-	row.add_child(next_button)
-	root.add_child(row)
+	root.add_child(_create_filter_dropdown_button(true))
 
 	panel.add_child(root)
 	return panel
@@ -2408,6 +2402,28 @@ func _create_external_info_stub_panel(title_text: String, body_text: String) -> 
 
 	panel.add_child(root)
 	return panel
+
+
+func _create_filter_dropdown_button(is_internal: bool) -> Control:
+	var option: OptionButton = OptionButton.new()
+	option.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	option.focus_mode = Control.FOCUS_NONE
+	var entries: Array[Dictionary] = []
+	if is_internal:
+		entries = [{"id":"all","label":"ALL"},{"id":"broken","label":"BRK"},{"id":"unknown","label":"UNK"},{"id":"cpu","label":"CPU/GPU"},{"id":"cooling","label":"COOL"},{"id":"data","label":"RAM/SD"},{"id":"power","label":"PWR"},{"id":"utility","label":"OTH"}]
+	else:
+		entries = [{"id":"all","label":"ALL"},{"id":"broken","label":"BRK"},{"id":"unknown","label":"UNK"},{"id":"external","label":"CHAS"},{"id":"sensor","label":"SENS"},{"id":"tool","label":"TOOL"},{"id":"manipulator","label":"ARM"},{"id":"armor","label":"ARMR"},{"id":"weapon","label":"WPN"},{"id":"utility","label":"OTH"}]
+	for i in range(entries.size()):
+		option.add_item(entries[i]["label"], i)
+		if String(entries[i]["id"]) == get_current_constructor_filter():
+			option.select(i)
+	option.item_selected.connect(func(index: int) -> void:
+		var filter_id: String = String(entries[index]["id"])
+		constructor_filter_index = maxi(CONSTRUCTOR_FILTERS.find(filter_id), 0)
+		selected_filtered_box_index = 0
+		update_box_status()
+	)
+	return option
 
 
 func _create_external_side_grid_workspace() -> Control:
@@ -2442,8 +2458,7 @@ func _create_external_side_grid_workspace() -> Control:
 
 func _create_external_storage_right_column() -> Control:
 	var column: VBoxContainer = VBoxContainer.new()
-	column.custom_minimum_size = Vector2(_get_external_right_column_width(), 0)
-	column.size_flags_horizontal = Control.SIZE_SHRINK_END
+	column.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	column.size_flags_vertical = Control.SIZE_EXPAND_FILL
 	column.add_theme_constant_override("separation", 6)
 
@@ -2473,22 +2488,11 @@ func _create_external_filter_panel() -> Control:
 	root.add_theme_constant_override("separation", 4)
 
 	var title: Label = Label.new()
-	title.text = "ФИЛЬТРЫ"
+	title.text = "FILTERS"
 	_apply_label_style(title, false, true)
 	root.add_child(title)
 
-	var filter_label: Label = Label.new()
-	filter_label.text = "Текущий фильтр: %s" % get_current_constructor_filter().capitalize()
-	_apply_label_style(filter_label, true, false)
-	root.add_child(filter_label)
-
-	var row: HBoxContainer = HBoxContainer.new()
-	row.add_theme_constant_override("separation", 4)
-	var prev_button: Button = _create_menu_button("Назад", Callable(self, "_on_prev_constructor_filter_pressed"), Vector2(96, 26))
-	var next_button: Button = _create_menu_button("Вперёд", Callable(self, "_on_next_constructor_filter_pressed"), Vector2(96, 26))
-	row.add_child(prev_button)
-	row.add_child(next_button)
-	root.add_child(row)
+	root.add_child(_create_filter_dropdown_button(false))
 
 	panel.add_child(root)
 	return panel
@@ -2505,7 +2509,7 @@ func _create_external_storage_components_panel() -> Control:
 	root.size_flags_vertical = Control.SIZE_EXPAND_FILL
 
 	var title: Label = Label.new()
-	title.text = "КОМПОНЕНТЫ В STORAGE"
+	title.text = "COMPONENTS IN STORAGE"
 	_apply_label_style(title, false, true)
 	root.add_child(title)
 
@@ -2516,7 +2520,7 @@ func _create_external_storage_components_panel() -> Control:
 	root.add_child(storage_scroll)
 
 	var grid: GridContainer = GridContainer.new()
-	grid.columns = _get_external_storage_grid_columns()
+	grid.columns = _get_adaptive_storage_columns(false)
 	grid.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	storage_scroll.add_child(grid)
 
@@ -2534,7 +2538,7 @@ func _create_external_storage_components_panel() -> Control:
 
 	if not has_external_modules:
 		var empty_label: Label = Label.new()
-		empty_label.text = "Нет внешних модулей в Storage."
+		empty_label.text = "No external modules in storage."
 		_apply_label_style(empty_label, true, false)
 		grid.add_child(empty_label)
 
@@ -2592,24 +2596,29 @@ func _create_internal_storage_components_panel() -> Control:
 	root.size_flags_vertical = Control.SIZE_EXPAND_FILL
 
 	var title: Label = Label.new()
-	title.text = "КОМПОНЕНТЫ В STORAGE"
+	title.text = "COMPONENTS IN STORAGE"
 	_apply_label_style(title, false, true)
 	root.add_child(title)
 
+	var split: HBoxContainer = HBoxContainer.new()
+	split.size_flags_vertical = Control.SIZE_EXPAND_FILL
+	split.add_theme_constant_override("separation", 6)
+	root.add_child(split)
+
 	var storage_scroll: ScrollContainer = ScrollContainer.new()
 	storage_scroll.size_flags_vertical = Control.SIZE_EXPAND_FILL
+	storage_scroll.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	storage_scroll.horizontal_scroll_mode = ScrollContainer.SCROLL_MODE_DISABLED
 	storage_scroll.vertical_scroll_mode = ScrollContainer.SCROLL_MODE_AUTO
-	root.add_child(storage_scroll)
+	split.add_child(storage_scroll)
 
 	var grid: GridContainer = GridContainer.new()
-	var columns: int = _get_internal_storage_grid_columns()
+	var columns: int = _get_adaptive_storage_columns(true)
 	grid.columns = columns
 	grid.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	storage_scroll.add_child(grid)
 
 	var storage_indices: Array[int] = get_current_filtered_box_storage_indices()
-	storage_indices = _reorder_indices_right_to_left_by_rows(storage_indices, columns)
 	var has_internal_modules: bool = false
 	for storage_index in storage_indices:
 		var module: BipobModule = bipob.box_storage[storage_index]
@@ -2623,10 +2632,36 @@ func _create_internal_storage_components_panel() -> Control:
 
 	if not has_internal_modules:
 		var empty_label: Label = Label.new()
-		empty_label.text = "Нет внутренних модулей в Storage."
+		empty_label.text = "No internal modules in storage."
 		_apply_label_style(empty_label, true, false)
 		grid.add_child(empty_label)
+	split.add_child(_create_internal_interfaces_placeholder_panel())
 
+	panel.add_child(root)
+	return panel
+
+
+func _create_internal_interfaces_placeholder_panel() -> Control:
+	var panel: PanelContainer = PanelContainer.new()
+	_apply_dark_panel_style(panel)
+	panel.custom_minimum_size = Vector2(180, 0)
+	var root: VBoxContainer = VBoxContainer.new()
+	root.add_theme_constant_override("separation", 4)
+	var title: Label = Label.new()
+	title.text = "INTERFACES"
+	_apply_label_style(title, false, true)
+	root.add_child(title)
+	for row_title in ["Power", "Data", "Cooling"]:
+		var section: HBoxContainer = HBoxContainer.new()
+		section.add_theme_constant_override("separation", 4)
+		var label: Label = Label.new()
+		label.text = row_title
+		_apply_label_style(label, true, false)
+		section.add_child(label)
+		var button: Button = _create_menu_button("%s Line" % row_title, Callable(), Vector2(88, 22))
+		button.disabled = true
+		section.add_child(button)
+		root.add_child(section)
 	panel.add_child(root)
 	return panel
 
@@ -2639,14 +2674,14 @@ func _create_internal_selected_module_panel() -> Control:
 	root.add_theme_constant_override("separation", 4)
 
 	var title: Label = Label.new()
-	title.text = "SELECTED MODULE / ОПИСАНИЕ"
+	title.text = "SELECTED MODULE / DESCRIPTION"
 	_apply_label_style(title, false, true)
 	root.add_child(title)
 
 	var module: BipobModule = _get_selected_box_storage_module()
 	if module == null:
 		var empty_label: Label = Label.new()
-		empty_label.text = "Выберите модуль."
+		empty_label.text = "Select a module."
 		_apply_label_style(empty_label, true, false)
 		root.add_child(empty_label)
 	else:
@@ -2656,7 +2691,7 @@ func _create_internal_selected_module_panel() -> Control:
 		root.add_child(name_label)
 
 		var size_label: Label = Label.new()
-		size_label.text = "Размер: %s" % _get_selected_module_size_text(module)
+		size_label.text = "Size: %s" % _get_selected_module_size_text(module)
 		_apply_label_style(size_label, true, false)
 		root.add_child(size_label)
 
@@ -2665,7 +2700,7 @@ func _create_internal_selected_module_panel() -> Control:
 		var description_value: Variant = module.get("description")
 		desc_label.text = String(description_value) if description_value != null else ""
 		if desc_label.text.is_empty():
-			desc_label.text = "Описание будет добавлено позже."
+			desc_label.text = "Description will be added later."
 		_apply_label_style(desc_label, true, false)
 		root.add_child(desc_label)
 
@@ -2774,7 +2809,7 @@ func _create_constructor_dashboard_layout() -> Control:
 		root.add_child(_create_constructor_playable_status_panel())
 
 	var hint_label: Label = Label.new()
-	hint_label.text = "Выберите вкладку External или Internal для настройки BOX."
+	hint_label.text = "Select External or Internal tab to configure BOX."
 	hint_label.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 	_apply_label_style(hint_label, true, false)
 	root.add_child(hint_label)
@@ -2792,14 +2827,14 @@ func _create_external_selected_description_panel() -> Control:
 	root.add_theme_constant_override("separation", 4)
 
 	var title: Label = Label.new()
-	title.text = "ОПИСАНИЕ ВЫБРАННОГО БЛОКА"
+	title.text = "SELECTED MODULE / DESCRIPTION"
 	_apply_label_style(title, false, true)
 	root.add_child(title)
 
 	var module: BipobModule = _get_selected_box_storage_module()
 	if module == null or not bipob.is_external_module(module):
 		var empty_label: Label = Label.new()
-		empty_label.text = "Выберите внешний модуль."
+		empty_label.text = "Select an external module."
 		_apply_label_style(empty_label, true, false)
 		root.add_child(empty_label)
 	else:
@@ -2809,14 +2844,14 @@ func _create_external_selected_description_panel() -> Control:
 		root.add_child(name_label)
 
 		var size_label: Label = Label.new()
-		size_label.text = "Размер: %s" % _get_selected_module_size_text(module)
+		size_label.text = "Size: %s" % _get_selected_module_size_text(module)
 		_apply_label_style(size_label, true, false)
 		root.add_child(size_label)
 
 		var desc_label: Label = Label.new()
 		desc_label.text = String(module.description)
 		if desc_label.text.is_empty():
-			desc_label.text = "Описание будет добавлено позже."
+			desc_label.text = "Description will be added later."
 		desc_label.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 		_apply_label_style(desc_label, true, false)
 		root.add_child(desc_label)
@@ -4193,18 +4228,18 @@ func _setup_box_top_bar() -> void:
 	root.add_child(spacer_left)
 	var bipob_box: VBoxContainer = VBoxContainer.new()
 	var bipob_title: Label = Label.new()
-	bipob_title.text = "Доступные бипобы"
+	bipob_title.text = "Available Bipobs"
 	_apply_label_style(bipob_title, false, true)
 	bipob_box.add_child(bipob_title)
 	var bipob_row: HBoxContainer = HBoxContainer.new()
 	bipob_row.add_theme_constant_override("separation", 4)
 	bipob_row.add_child(_make_box_top_button(
-		"Разведчик",
+		"Scout",
 		Callable(self, "_on_bipob_alpha_pressed"),
 		active_bipob_profile_id == "alpha"
 	))
 	bipob_row.add_child(_make_box_top_button(
-		"Инженер",
+		"Engineer",
 		Callable(self, "_on_bipob_beta_pressed"),
 		active_bipob_profile_id == "beta"
 	))
@@ -4214,7 +4249,7 @@ func _setup_box_top_bar() -> void:
 	spacer_right.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	root.add_child(spacer_right)
 	root.add_child(_make_box_top_button(
-		"Назад",
+		"Back",
 		Callable(self, "_on_box_back_pressed"),
 		false,
 		"normal"
@@ -5325,7 +5360,7 @@ func _create_internal_visual_workspace() -> Control:
 	middle_row.alignment = BoxContainer.ALIGNMENT_CENTER
 	middle_row.add_theme_constant_override("separation", 4)
 	middle_row.add_child(_create_internal_slice_grid("VERTICAL SLICE", "z", "y", "x", bipob.selected_internal_origin.x))
-	middle_row.add_child(_create_internal_cube_preview_panel())
+	middle_row.add_child(_create_internal_isometric_preview_panel())
 	middle_row.add_child(_create_internal_slice_grid("MAIN SLICE", "x", "y", "z", bipob.selected_internal_origin.z))
 	root.add_child(middle_row)
 	var bottom_row: HBoxContainer = HBoxContainer.new()
@@ -5336,6 +5371,48 @@ func _create_internal_visual_workspace() -> Control:
 	root.add_child(bottom_row)
 	workspace.add_child(root)
 	return workspace
+
+
+func _create_internal_isometric_preview_panel() -> Control:
+	var panel: PanelContainer = PanelContainer.new()
+	_apply_dark_panel_style(panel)
+	panel.custom_minimum_size = Vector2(180, 180)
+	var root: VBoxContainer = VBoxContainer.new()
+	root.add_theme_constant_override("separation", 3)
+	var title: Label = Label.new()
+	title.text = "ISOMETRIC VIEW"
+	_apply_label_style(title, false, true)
+	title.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	root.add_child(title)
+	var grid: GridContainer = GridContainer.new()
+	grid.columns = maxi(3, bipob.internal_volume_size.x)
+	grid.add_theme_constant_override("h_separation", 2)
+	grid.add_theme_constant_override("v_separation", 2)
+	for y in range(bipob.internal_volume_size.y):
+		for x in range(bipob.internal_volume_size.x):
+			var top_z: int = -1
+			for z in range(bipob.internal_volume_size.z - 1, -1, -1):
+				if bipob.get_internal_module_at_cell(Vector3i(x, y, z)) != null:
+					top_z = z
+					break
+			var cell_button: Label = Label.new()
+			cell_button.custom_minimum_size = Vector2(22, 20)
+			if top_z >= 0:
+				cell_button.text = str(top_z + 1)
+			else:
+				cell_button.text = "·"
+			var is_cursor: bool = bipob.selected_internal_origin.x == x and bipob.selected_internal_origin.y == y
+			var is_slice: bool = top_z == bipob.selected_internal_origin.z
+			cell_button.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+			cell_button.add_theme_color_override("font_color", UI_COLOR_SELECTED if is_cursor else (UI_COLOR_ACCENT if is_slice else UI_COLOR_TEXT_DIM))
+			grid.add_child(cell_button)
+	root.add_child(grid)
+	var hint: Label = Label.new()
+	hint.text = "Cursor highlighted. Numbers show occupied height."
+	_apply_label_style(hint, true, false)
+	root.add_child(hint)
+	panel.add_child(root)
+	return panel
 
 func get_box_internal_menu_text() -> String:
 	_clamp_internal_selection()
