@@ -127,6 +127,7 @@ var main_menu_root: Control
 var center_menu_root: Control
 var placeholder_menu_root: Control
 var placeholder_title_label: Label
+var placeholder_body_label: Label
 
 const CONSTRUCTOR_PANEL_BG_PATH: String = "res://assets/ui/constructor/panel_bg.png"
 const CONSTRUCTOR_CELL_EMPTY_PATH: String = "res://assets/ui/constructor/cell_empty.png"
@@ -3501,13 +3502,15 @@ func show_center_screen() -> void:
 	if center_menu_root != null:
 		center_menu_root.visible = true
 
-func show_placeholder_screen(title_text: String) -> void:
+func show_placeholder_screen(title_text: String, body_text: String = "This section will be added later.") -> void:
 	previous_app_screen_mode = app_screen_mode
 	app_screen_mode = AppScreenMode.SETTINGS_PLACEHOLDER
 	_hide_all_app_screens()
 	_set_gameplay_visible(false)
 	if placeholder_title_label != null:
 		placeholder_title_label.text = title_text
+	if placeholder_body_label != null:
+		placeholder_body_label.text = body_text
 	if placeholder_menu_root != null:
 		placeholder_menu_root.visible = true
 
@@ -4912,6 +4915,7 @@ func _build_center_menu_layout() -> void:
 	bottom_grid.add_theme_constant_override("v_separation", 10)
 	root.add_child(bottom_grid)
 	bottom_grid.add_child(_create_menu_button("Box", Callable(self, "_on_center_box_pressed"), Vector2(150, 54)))
+	bottom_grid.add_child(_create_menu_button("Mission Setup", Callable(self, "_on_center_mission_setup_pressed"), Vector2(150, 54)))
 	bottom_grid.add_child(_create_menu_button("Зарядка", Callable(self, "_on_center_charge_pressed"), Vector2(150, 54)))
 	bottom_grid.add_child(_create_menu_button("Исследования", Callable(self, "_on_center_research_pressed"), Vector2(150, 54)))
 	bottom_grid.add_child(_create_menu_button("Ремонт", Callable(self, "_on_center_repair_pressed"), Vector2(150, 54)))
@@ -4951,13 +4955,13 @@ func _build_placeholder_layout() -> void:
 	placeholder_title_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	vbox.add_child(placeholder_title_label)
 
-	var body := Label.new()
-	body.text = "Раздел в разработке."
-	_apply_label_style(body)
-	body.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
-	vbox.add_child(body)
+	placeholder_body_label = Label.new()
+	placeholder_body_label.text = "This section will be added later."
+	_apply_label_style(placeholder_body_label)
+	placeholder_body_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	vbox.add_child(placeholder_body_label)
 
-	vbox.add_child(_create_menu_button("Назад", Callable(self, "_on_placeholder_back_pressed"), Vector2(160, 34)))
+	vbox.add_child(_create_menu_button("Back", Callable(self, "_on_placeholder_back_pressed"), Vector2(160, 34)))
 
 func _on_main_play_pressed() -> void:
 	show_center_screen()
@@ -4971,6 +4975,8 @@ func _on_center_tasks_pressed() -> void:
 	start_gameplay_from_center()
 func _on_center_box_pressed() -> void:
 	show_box_constructor_from_center()
+func _on_center_mission_setup_pressed() -> void:
+	show_placeholder_screen("Mission Setup", "This section will be added later.")
 func _on_center_charge_pressed() -> void:
 	charge_bipob_from_center()
 func _on_center_research_pressed() -> void:
