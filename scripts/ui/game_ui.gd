@@ -3056,7 +3056,7 @@ func _get_runtime_margin() -> float:
 
 
 func _get_runtime_top_panel_height() -> float:
-	return 120.0
+	return 48.0
 
 
 func _get_runtime_bottom_panel_height() -> float:
@@ -3156,16 +3156,20 @@ func _apply_runtime_hud_layout() -> void:
 	objective_panel.size = Vector2(maxf(viewport.x - sidebar_width - margin * 3.0, 200.0), top_panel_height)
 	objective_panel.add_theme_stylebox_override("panel", _make_panel_style(UI_COLOR_PANEL_DARK, UI_COLOR_BORDER, 1, 8))
 	root.add_child(objective_panel)
-	var objective_vbox := VBoxContainer.new()
-	objective_vbox.add_theme_constant_override("separation", 2)
-	objective_panel.add_child(objective_vbox)
-	var objective_title := Label.new()
-	objective_title.text = "Mission Objective"
-	objective_vbox.add_child(objective_title)
+	var objective_margin := MarginContainer.new()
+	objective_margin.add_theme_constant_override("margin_left", 10)
+	objective_margin.add_theme_constant_override("margin_right", 10)
+	objective_margin.add_theme_constant_override("margin_top", 6)
+	objective_margin.add_theme_constant_override("margin_bottom", 6)
+	objective_panel.add_child(objective_margin)
 	mission_goal_value_label = Label.new()
-	mission_goal_value_label.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	mission_goal_value_label.name = "RuntimeObjectiveLabel"
+	mission_goal_value_label.autowrap_mode = TextServer.AUTOWRAP_OFF
+	mission_goal_value_label.clip_text = true
+	mission_goal_value_label.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
+	mission_goal_value_label.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	mission_goal_value_label.text = "Mission 1: pick up the key, open the door, reach the exit."
-	objective_vbox.add_child(mission_goal_value_label)
+	objective_margin.add_child(mission_goal_value_label)
 
 	runtime_storage_panel = _create_runtime_storage_panel()
 	runtime_storage_panel.position = Vector2(viewport.x - sidebar_width - margin, margin)
@@ -3227,6 +3231,37 @@ func _apply_runtime_hud_layout() -> void:
 	if end_turn_button != null:
 		end_turn_button.text = "End Turn [Space]"
 		_safe_reparent_control(end_turn_button, row_s)
+
+	var mission_panel: PanelContainer = _create_runtime_mission_panel()
+	mission_panel.position = Vector2(viewport.x - sidebar_width - margin, viewport.y - bottom_panel_height - margin)
+	mission_panel.size = Vector2(sidebar_width, bottom_panel_height)
+	root.add_child(mission_panel)
+
+
+func _create_runtime_mission_panel() -> PanelContainer:
+	var panel := PanelContainer.new()
+	panel.name = "RuntimeMissionPanel"
+	panel.visible = true
+	panel.add_theme_stylebox_override("panel", _make_panel_style(UI_COLOR_PANEL, UI_COLOR_BORDER, 1, 8))
+	var vbox := VBoxContainer.new()
+	vbox.add_theme_constant_override("separation", 6)
+	panel.add_child(vbox)
+	var title := Label.new()
+	title.text = "Mission"
+	vbox.add_child(title)
+	if restart_mission_button != null:
+		restart_mission_button.text = "Restart Mission"
+		_safe_reparent_control(restart_mission_button, vbox)
+	if return_to_box_button != null:
+		return_to_box_button.text = "Return to Center"
+		_safe_reparent_control(return_to_box_button, vbox)
+	if settings_button != null:
+		settings_button.text = "Settings"
+		_safe_reparent_control(settings_button, vbox)
+	if exit_main_menu_button != null:
+		exit_main_menu_button.text = "Exit to Main Menu"
+		_safe_reparent_control(exit_main_menu_button, vbox)
+	return panel
 
 func _create_runtime_storage_panel() -> PanelContainer:
 	var panel := PanelContainer.new()
