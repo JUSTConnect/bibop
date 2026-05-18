@@ -3712,6 +3712,7 @@ func create_external_module_by_id(module_id: String) -> BipobModule:
 			module.display_name = "Шасси колеса V1"
 			module.category = "movement"
 			module.description = "Колёсное шасси для быстрого перемещения."
+			module.granted_commands = ["move_forward", "move_backward", "turn_left", "turn_right"]
 		"tracks_v1":
 			module.display_name = "Шасси гусеницы V1"
 			module.category = "movement"
