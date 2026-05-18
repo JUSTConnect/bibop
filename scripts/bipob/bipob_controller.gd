@@ -172,6 +172,12 @@ func has_module_id_in_box(module_id: String) -> bool:
 			return true
 	return false
 
+func has_module_id_in_box_storage(module_id: String) -> bool:
+	for module in box_storage:
+		if module != null and module.id == module_id:
+			return true
+	return false
+
 func has_module_id_in_physical_carry(module_id: String) -> bool:
 	if held_module != null and held_module.id == module_id:
 		return true
@@ -220,6 +226,56 @@ func get_module_visual_key(module: BipobModule) -> String:
 		return "air_duct"
 	if module_id.contains("air_intake"):
 		return "air_intake"
+	match module_id:
+		"manipulator_arm_v1", "manipulator_v1":
+			return "manipulator_arm"
+		"manipulator_tentacle_v1":
+			return "manipulator_tentacle"
+		"manipulator_magnetic_v1":
+			return "manipulator_magnetic"
+		"connector_v1", "interface_v1":
+			return "connector"
+		"legs_v1":
+			return "legs"
+		"wheels_v1":
+			return "wheels"
+		"tracks_v1":
+			return "tracks"
+		"radar_v1":
+			return "radar"
+		"visor_v1":
+			return "visor"
+		"visor_v2":
+			return "visor_v2"
+		"thermal_visor_v1":
+			return "thermal_visor"
+		"xray_v1":
+			return "xray"
+		"pocket_v1":
+			return "pocket"
+		"air_duct_external_v1":
+			return "air_duct_external"
+		"motion_detector_v1":
+			return "motion_detector"
+		"torch_v1":
+			return "torch"
+		"gas_tank_v1":
+			return "gas_tank"
+		"plasma_cutter_v1":
+			return "plasma_cutter"
+		"laser_v1":
+			return "laser"
+		"shock_device_v1":
+			return "shock_device"
+		"saw_v1":
+			return "saw"
+		"sledgehammer_v1":
+			return "sledgehammer"
+		"repair_module_v1":
+			return "repair_module"
+		"welder_v1":
+			return "welder"
+
 	if module_id.contains("visor"):
 		return "visor"
 	if module_id.contains("wheel"):
@@ -229,9 +285,9 @@ func get_module_visual_key(module: BipobModule) -> String:
 	if module_id.contains("track"):
 		return "tracks"
 	if module_id.contains("manipulator"):
-		return "manipulator"
+		return "manipulator_arm"
 	if module_id.contains("interface"):
-		return "interface"
+		return "connector"
 	if module_id.contains("gpu"):
 		return "gpu"
 
@@ -275,8 +331,48 @@ func get_module_visual_short_label(module: BipobModule) -> String:
 			return "DUCT"
 		"air_intake":
 			return "AIR"
+		"air_duct_external":
+			return "DUCT"
+		"manipulator_arm":
+			return "ARM"
+		"manipulator_tentacle":
+			return "TENT"
+		"manipulator_magnetic":
+			return "MAG"
+		"connector":
+			return "CON"
+		"radar":
+			return "RAD"
 		"visor":
 			return "VIS"
+		"visor_v2":
+			return "VIS2"
+		"thermal_visor":
+			return "THM"
+		"xray":
+			return "XRY"
+		"pocket":
+			return "PCK"
+		"motion_detector":
+			return "MOV"
+		"torch":
+			return "TOR"
+		"gas_tank":
+			return "GAS"
+		"plasma_cutter":
+			return "PLC"
+		"laser":
+			return "LSR"
+		"shock_device":
+			return "SHK"
+		"saw":
+			return "SAW"
+		"sledgehammer":
+			return "HAM"
+		"repair_module":
+			return "REP"
+		"welder":
+			return "WLD"
 		"wheels":
 			return "WHL"
 		"legs":
@@ -319,6 +415,22 @@ func get_module_visual_color(module: BipobModule) -> Color:
 			return Color(0.55, 0.65, 0.70, 1.0)
 		"air_intake":
 			return Color(0.35, 0.80, 0.85, 1.0)
+		"air_duct_external":
+			return Color(0.55, 0.65, 0.70, 1.0)
+		"connector":
+			return Color(0.20, 0.70, 0.95, 1.0)
+		"manipulator_arm", "manipulator_tentacle", "manipulator_magnetic":
+			return Color(0.90, 0.55, 0.25, 1.0)
+		"radar", "thermal_visor", "xray", "motion_detector":
+			return Color(0.25, 0.95, 0.65, 1.0)
+		"pocket":
+			return Color(0.65, 0.70, 0.78, 1.0)
+		"torch", "gas_tank", "plasma_cutter", "saw", "sledgehammer", "welder":
+			return Color(0.85, 0.58, 0.22, 1.0)
+		"laser", "shock_device":
+			return Color(0.95, 0.30, 0.30, 1.0)
+		"repair_module":
+			return Color(0.25, 0.80, 0.45, 1.0)
 		"visor":
 			return Color(0.25, 0.95, 0.65, 1.0)
 		"wheels":
@@ -373,21 +485,25 @@ func get_external_module_footprint_size(module: BipobModule) -> Vector2i:
 	if module == null:
 		return Vector2i.ONE
 
-	var module_id: String = module.id
-
-	if module_id.contains("manipulator") or module_id.contains("interface"):
-		return Vector2i(2, 2)
-
-	if module_id.contains("wheel") or module_id.contains("leg") or module_id.contains("track"):
-		return Vector2i(3, 2)
-
-	if module_id.contains("visor"):
-		return Vector2i(3, 1)
-
-	if module_id.contains("air_intake"):
-		return Vector2i(1, 1)
-
-	return Vector2i(1, 1)
+	match module.id:
+		"manipulator_arm_v1", "manipulator_tentacle_v1", "manipulator_v1":
+			return Vector2i(2, 2)
+		"manipulator_magnetic_v1":
+			return Vector2i(2, 1)
+		"connector_v1", "interface_v1", "motion_detector_v1", "pocket_v1", "air_intake_v1", "shock_device_v1":
+			return Vector2i(1, 1)
+		"legs_v1", "wheels_v1", "tracks_v1":
+			return Vector2i(3, 2)
+		"radar_v1", "repair_module_v1":
+			return Vector2i(2, 2)
+		"visor_v1", "visor_v2":
+			return Vector2i(3, 1)
+		"thermal_visor_v1", "xray_v1", "plasma_cutter_v1", "laser_v1", "saw_v1", "sledgehammer_v1", "welder_v1":
+			return Vector2i(2, 1)
+		"air_duct_external_v1", "torch_v1", "gas_tank_v1":
+			return Vector2i(1, 2)
+		_:
+			return Vector2i(1, 1)
 func get_module_category(module: BipobModule) -> String:
 	if module == null:
 		return "utility"
@@ -3286,26 +3402,7 @@ func get_external_module_covered_cells(_side_id: String, origin: Vector2i, modul
 
 
 func get_external_module_size(module: BipobModule) -> Vector2i:
-	if module == null:
-		return Vector2i.ONE
-
-	match module.id:
-		"manipulator_v1":
-			return Vector2i(2, 2)
-		"interface_v1":
-			return Vector2i(2, 2)
-		"wheels_v1":
-			return Vector2i(3, 2)
-		"legs_v1":
-			return Vector2i(3, 2)
-		"tracks_v1":
-			return Vector2i(3, 2)
-		"visor_v1":
-			return Vector2i(3, 1)
-		"visor_v2":
-			return Vector2i(3, 1)
-		_:
-			return Vector2i(1, 1)
+	return get_external_module_footprint_size(module)
 
 func get_external_module_footprint_cells(module: BipobModule, origin: Vector2i) -> Array[Vector2i]:
 	var cells: Array[Vector2i] = []
@@ -3427,16 +3524,18 @@ func get_allowed_external_sides_for_module(module: BipobModule) -> Array[String]
 		return []
 
 	match module.id:
-		"wheels_v1":
+		"legs_v1", "wheels_v1", "tracks_v1":
 			return [EXTERNAL_SIDE_BOTTOM]
-		"legs_v1":
-			return [EXTERNAL_SIDE_BOTTOM]
-		"tracks_v1":
-			return [EXTERNAL_SIDE_BOTTOM]
-		"visor_v1":
-			return [EXTERNAL_SIDE_TOP]
-		"visor_v2":
-			return [EXTERNAL_SIDE_TOP]
+		"radar_v1", "visor_v1", "visor_v2", "thermal_visor_v1", "xray_v1", "motion_detector_v1":
+			return [EXTERNAL_SIDE_TOP, EXTERNAL_SIDE_FRONT, EXTERNAL_SIDE_LEFT, EXTERNAL_SIDE_RIGHT]
+		"manipulator_arm_v1", "manipulator_tentacle_v1", "manipulator_magnetic_v1", "manipulator_v1", "torch_v1", "plasma_cutter_v1", "saw_v1", "sledgehammer_v1", "laser_v1", "shock_device_v1", "repair_module_v1", "welder_v1":
+			return [EXTERNAL_SIDE_FRONT, EXTERNAL_SIDE_LEFT, EXTERNAL_SIDE_RIGHT]
+		"connector_v1", "interface_v1":
+			return [EXTERNAL_SIDE_TOP, EXTERNAL_SIDE_FRONT, EXTERNAL_SIDE_LEFT, EXTERNAL_SIDE_RIGHT, EXTERNAL_SIDE_BACK]
+		"pocket_v1":
+			return [EXTERNAL_SIDE_LEFT, EXTERNAL_SIDE_RIGHT, EXTERNAL_SIDE_BACK]
+		"air_duct_external_v1", "air_intake_v1", "gas_tank_v1":
+			return [EXTERNAL_SIDE_TOP, EXTERNAL_SIDE_BACK, EXTERNAL_SIDE_LEFT, EXTERNAL_SIDE_RIGHT]
 		_:
 			var allowed_sides: Array[String] = []
 			for external_side_id in EXTERNAL_SIDE_ORDER:
@@ -3587,39 +3686,62 @@ func create_external_module_by_id(module_id: String) -> BipobModule:
 	module.internal_role = "none"
 
 	match module_id:
-		"wheels_v1":
-			module.display_name = "Wheels V1"
-			module.category = "locomotion"
-			module.description = "External wheel chassis module."
-			module.granted_commands = ["move_forward", "move_backward", "turn_left", "turn_right"]
-		"legs_v1":
-			module.display_name = "Legs V1"
-			module.category = "locomotion"
-			module.description = "External leg chassis module for stepped terrain."
-			module.granted_commands = ["move_forward", "move_backward", "turn_left", "turn_right", "cross_stepped_floor"]
-		"tracks_v1":
-			module.display_name = "Tracks V1"
-			module.category = "locomotion"
-			module.description = "External tracked chassis module."
-		"manipulator_v1":
-			module.display_name = "Manipulator V1"
-			module.category = "utility"
-			module.description = "External manipulation module."
+		"manipulator_arm_v1", "manipulator_v1":
+			module.display_name = "Манипулятор рука V1"
+			module.category = "manipulator"
+			module.description = "Базовый внешний манипулятор для взаимодействия с объектами."
 			module.granted_commands = ["interact_key", "open_physical_door"]
-		"interface_v1":
-			module.display_name = "External Interface Port V1"
-			module.category = "data"
-			module.description = "External interface port for outside devices."
+		"manipulator_tentacle_v1":
+			module.display_name = "Манипулятор Щупальца V1"
+			module.category = "manipulator"
+			module.description = "Гибкий внешний манипулятор для сложного захвата."
+		"manipulator_magnetic_v1":
+			module.display_name = "Манипулятор Магнитный V1"
+			module.category = "manipulator"
+			module.description = "Магнитный манипулятор для металлических объектов."
+		"connector_v1", "interface_v1":
+			module.display_name = "Коннектор V1"
+			module.category = "connector"
+			module.description = "Внешний соединительный порт для подключения модулей."
 			module.granted_commands = ["read_terminal", "open_digital_door"]
+		"legs_v1":
+			module.display_name = "Шасси ноги V1"
+			module.category = "movement"
+			module.description = "Ножное шасси для перемещения по неровной поверхности."
+		"wheels_v1":
+			module.display_name = "Шасси колеса V1"
+			module.category = "movement"
+			module.description = "Колёсное шасси для быстрого перемещения."
+		"tracks_v1":
+			module.display_name = "Шасси гусеницы V1"
+			module.category = "movement"
+			module.description = "Гусеничное шасси для устойчивого движения."
+		"radar_v1": module.display_name = "Радар V1"; module.category = "sensor"; module.description = "Внешний радар для обнаружения объектов."
 		"visor_v1":
-			module.display_name = "Visor V1"
-			module.category = "vision"
-			module.description = "External vision module."
+			module.display_name = "Визор V1"
+			module.category = "sensor"
+			module.description = "Базовый внешний визуальный сенсор."
 			module.granted_commands = ["vision"]
-		"air_intake_v1":
-			module.display_name = "Air Intake Node V1"
-			module.category = "cooling"
-			module.description = "External air intake required by air cooling."
+		"visor_v2":
+			module.display_name = "Визор V2"
+			module.category = "sensor"
+			module.description = "Улучшенный внешний визуальный сенсор."
+			module.granted_commands = ["vision"]
+		"thermal_visor_v1": module.display_name = "Тепловизор V1"; module.category = "sensor"; module.description = "Сенсор для обнаружения тепловых следов."
+		"xray_v1": module.display_name = "Рентген V1"; module.category = "sensor"; module.description = "Сенсор для просмотра скрытых объектов."
+		"pocket_v1": module.display_name = "Карман V1"; module.category = "storage"; module.description = "Внешний малый отсек для переноски предметов."
+		"air_duct_external_v1": module.display_name = "Воздуховод V1"; module.category = "cooling"; module.description = "Внешний воздуховод для отвода горячего воздуха."
+		"motion_detector_v1": module.display_name = "Детектор движения V1"; module.category = "sensor"; module.description = "Сенсор для фиксации движения поблизости."
+		"torch_v1": module.display_name = "Горелка V1"; module.category = "tool"; module.description = "Внешняя горелка для нагрева и резки."
+		"gas_tank_v1": module.display_name = "Газовый балон V1"; module.category = "tool"; module.description = "Баллон топлива для газовых инструментов."
+		"plasma_cutter_v1": module.display_name = "Плазменный резак V1"; module.category = "tool"; module.description = "Инструмент для резки прочных материалов."
+		"laser_v1": module.display_name = "Лазер V1"; module.category = "weapon"; module.description = "Энергетический внешний модуль направленного действия."
+		"shock_device_v1": module.display_name = "Шокер V1"; module.category = "weapon"; module.description = "Электрошоковый внешний модуль."
+		"saw_v1": module.display_name = "Пила V1"; module.category = "tool"; module.description = "Механический режущий инструмент."
+		"sledgehammer_v1": module.display_name = "Кувалда V1"; module.category = "tool"; module.description = "Ударный внешний инструмент."
+		"repair_module_v1": module.display_name = "Ремонтный модуль V1"; module.category = "repair"; module.description = "Внешний модуль для полевого ремонта."
+		"welder_v1": module.display_name = "Сварочный аппарат V1"; module.category = "repair"; module.description = "Инструмент для сварки и восстановления конструкций."
+		"air_intake_v1": module.display_name = "Air Intake Node V1"; module.category = "cooling"; module.description = "External air intake required by air cooling."
 		_:
 			return null
 
@@ -3629,19 +3751,16 @@ func create_external_module_by_id(module_id: String) -> BipobModule:
 
 func ensure_external_constructor_modules_in_box_storage() -> void:
 	var required_ids: Array[String] = [
-		"wheels_v1",
-		"legs_v1",
-		"tracks_v1",
-		"manipulator_v1",
-		"interface_v1",
-		"visor_v1",
-		"air_intake_v1"
+		"manipulator_arm_v1", "manipulator_tentacle_v1", "manipulator_magnetic_v1", "connector_v1",
+		"legs_v1", "wheels_v1", "tracks_v1", "radar_v1", "visor_v1", "visor_v2", "thermal_visor_v1",
+		"xray_v1", "pocket_v1", "air_duct_external_v1", "motion_detector_v1", "torch_v1", "gas_tank_v1",
+		"plasma_cutter_v1", "laser_v1", "shock_device_v1", "saw_v1", "sledgehammer_v1", "repair_module_v1",
+		"welder_v1", "air_intake_v1"
 	]
 
 	for module_id in required_ids:
-		if has_module_id_anywhere(module_id):
+		if has_module_id_in_box_storage(module_id):
 			continue
-
 		var module: BipobModule = create_external_module_by_id(module_id)
 		if module != null:
 			box_storage.append(module)

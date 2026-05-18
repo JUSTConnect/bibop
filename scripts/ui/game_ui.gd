@@ -51,12 +51,19 @@ const CONSTRUCTOR_FILTERS: Array[String] = [
 	"all",
 	"external",
 	"internal",
-	"power",
+	"manipulator",
+	"movement",
+	"sensor",
+	"connector",
 	"cooling",
+	"tool",
+	"weapon",
+	"repair",
+	"storage",
+	"power",
 	"data",
 	"locomotion",
 	"vision",
-	"storage",
 	"utility"
 ]
 var prev_installed_button: Button
