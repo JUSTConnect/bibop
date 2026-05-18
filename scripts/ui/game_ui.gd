@@ -2246,23 +2246,15 @@ func _get_viewport_width() -> float:
 func _get_viewport_height() -> float:
 	return _get_viewport_size().y
 
-func _get_external_right_column_width() -> float:
-	var viewport_width: float = _get_viewport_width()
-	if viewport_width < 1100.0:
-		return 300.0
-	return 340.0
+func _get_box_half_width_estimate() -> float:
+	return maxf(320.0, _get_viewport_width() * 0.5)
 
 
-func _get_external_storage_grid_columns() -> int:
-	return _get_adaptive_storage_columns(false)
-
-
-func _get_adaptive_storage_columns(is_internal: bool) -> int:
-	var viewport_width: float = _get_viewport_width()
-	var estimated_right_width: float = viewport_width * 0.5
-	var width_for_grid: float = estimated_right_width - (210.0 if is_internal else 24.0)
-	var card_width: float = STORAGE_CARD_MIN_SIZE.x + 8.0
-	return maxi(2, int(floor(width_for_grid / card_width)))
+func _get_box_storage_grid_columns() -> int:
+	var half_width: float = _get_box_half_width_estimate()
+	if half_width < 420.0:
+		return 3
+	return 4
 
 
 func _get_external_bottom_bar_height() -> float:
@@ -2279,6 +2271,9 @@ func _create_external_constructor_layout() -> Control:
 	root.add_theme_constant_override("separation", 6)
 
 	var top_content_row: HBoxContainer = HBoxContainer.new()
+	# IMPORTANT: Keep left/right BOX split 50/50.
+	# Do not set fixed right_column width here.
+	# Both children must use EXPAND_FILL + stretch_ratio 1.0.
 	top_content_row.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	top_content_row.size_flags_vertical = Control.SIZE_EXPAND_FILL
 	top_content_row.add_theme_constant_override("separation", 8)
@@ -2313,6 +2308,9 @@ func _create_internal_constructor_layout() -> Control:
 	root.add_theme_constant_override("separation", 6)
 
 	var top_content_row: HBoxContainer = HBoxContainer.new()
+	# IMPORTANT: Keep left/right BOX split 50/50.
+	# Do not set fixed right_column width here.
+	# Both children must use EXPAND_FILL + stretch_ratio 1.0.
 	top_content_row.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	top_content_row.size_flags_vertical = Control.SIZE_EXPAND_FILL
 	top_content_row.add_theme_constant_override("separation", 8)
@@ -2367,8 +2365,10 @@ func _create_internal_filter_panel() -> Control:
 	var panel: PanelContainer = PanelContainer.new()
 	_apply_panel_style(panel)
 	panel.custom_minimum_size = Vector2(0, 92)
+	panel.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 
 	var root: VBoxContainer = VBoxContainer.new()
+	root.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	root.add_theme_constant_override("separation", 4)
 
 	var title: Label = Label.new()
@@ -2384,7 +2384,7 @@ func _create_internal_filter_panel() -> Control:
 func _create_external_info_stub_panel(title_text: String, body_text: String) -> Control:
 	var panel: PanelContainer = PanelContainer.new()
 	_apply_dark_panel_style(panel)
-	panel.custom_minimum_size = Vector2(170, 64)
+	panel.custom_minimum_size = Vector2(150, 60)
 
 	var root: VBoxContainer = VBoxContainer.new()
 	root.add_theme_constant_override("separation", 4)
@@ -2464,6 +2464,7 @@ func _create_external_storage_right_column() -> Control:
 
 	var filters_panel: Control = _create_external_filter_panel()
 	filters_panel.custom_minimum_size = Vector2(0, 80)
+	filters_panel.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	filters_panel.size_flags_vertical = Control.SIZE_SHRINK_END
 	column.add_child(filters_panel)
 
@@ -2483,8 +2484,10 @@ func _create_external_filter_panel() -> Control:
 	var panel: PanelContainer = PanelContainer.new()
 	_apply_panel_style(panel)
 	panel.custom_minimum_size = Vector2(0, 80)
+	panel.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 
 	var root: VBoxContainer = VBoxContainer.new()
+	root.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	root.add_theme_constant_override("separation", 4)
 
 	var title: Label = Label.new()
@@ -2502,9 +2505,11 @@ func _create_external_storage_components_panel() -> Control:
 	var panel: PanelContainer = PanelContainer.new()
 	_apply_panel_style(panel)
 	panel.custom_minimum_size = Vector2(0, 0)
+	panel.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	panel.size_flags_vertical = Control.SIZE_EXPAND_FILL
 
 	var root: VBoxContainer = VBoxContainer.new()
+	root.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	root.add_theme_constant_override("separation", 4)
 	root.size_flags_vertical = Control.SIZE_EXPAND_FILL
 
@@ -2515,12 +2520,13 @@ func _create_external_storage_components_panel() -> Control:
 
 	var storage_scroll: ScrollContainer = ScrollContainer.new()
 	storage_scroll.size_flags_vertical = Control.SIZE_EXPAND_FILL
+	storage_scroll.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	storage_scroll.horizontal_scroll_mode = ScrollContainer.SCROLL_MODE_DISABLED
 	storage_scroll.vertical_scroll_mode = ScrollContainer.SCROLL_MODE_AUTO
 	root.add_child(storage_scroll)
 
 	var grid: GridContainer = GridContainer.new()
-	grid.columns = _get_adaptive_storage_columns(false)
+	grid.columns = _get_box_storage_grid_columns()
 	grid.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	storage_scroll.add_child(grid)
 
@@ -2589,9 +2595,11 @@ func _create_internal_storage_components_panel() -> Control:
 	var panel: PanelContainer = PanelContainer.new()
 	_apply_panel_style(panel)
 	panel.custom_minimum_size = Vector2(0, 0)
+	panel.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	panel.size_flags_vertical = Control.SIZE_EXPAND_FILL
 
 	var root: VBoxContainer = VBoxContainer.new()
+	root.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	root.add_theme_constant_override("separation", 4)
 	root.size_flags_vertical = Control.SIZE_EXPAND_FILL
 
@@ -2600,20 +2608,15 @@ func _create_internal_storage_components_panel() -> Control:
 	_apply_label_style(title, false, true)
 	root.add_child(title)
 
-	var split: HBoxContainer = HBoxContainer.new()
-	split.size_flags_vertical = Control.SIZE_EXPAND_FILL
-	split.add_theme_constant_override("separation", 6)
-	root.add_child(split)
-
 	var storage_scroll: ScrollContainer = ScrollContainer.new()
 	storage_scroll.size_flags_vertical = Control.SIZE_EXPAND_FILL
 	storage_scroll.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	storage_scroll.horizontal_scroll_mode = ScrollContainer.SCROLL_MODE_DISABLED
 	storage_scroll.vertical_scroll_mode = ScrollContainer.SCROLL_MODE_AUTO
-	split.add_child(storage_scroll)
+	root.add_child(storage_scroll)
 
 	var grid: GridContainer = GridContainer.new()
-	var columns: int = _get_adaptive_storage_columns(true)
+	var columns: int = _get_box_storage_grid_columns()
 	grid.columns = columns
 	grid.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	storage_scroll.add_child(grid)
@@ -2635,7 +2638,7 @@ func _create_internal_storage_components_panel() -> Control:
 		empty_label.text = "No internal modules in storage."
 		_apply_label_style(empty_label, true, false)
 		grid.add_child(empty_label)
-	split.add_child(_create_internal_interfaces_placeholder_panel())
+	root.add_child(_create_internal_interfaces_placeholder_panel())
 
 	panel.add_child(root)
 	return panel
@@ -2669,8 +2672,10 @@ func _create_internal_interfaces_placeholder_panel() -> Control:
 func _create_internal_selected_module_panel() -> Control:
 	var panel: PanelContainer = PanelContainer.new()
 	_apply_panel_style(panel)
+	panel.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 
 	var root: VBoxContainer = VBoxContainer.new()
+	root.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	root.add_theme_constant_override("separation", 4)
 
 	var title: Label = Label.new()
@@ -2756,10 +2761,7 @@ func _create_internal_bottom_action_bar() -> Control:
 
 
 func _get_internal_storage_grid_columns() -> int:
-	var viewport_width: float = _get_viewport_width()
-	if viewport_width < 1100.0:
-		return 3
-	return 4
+	return _get_box_storage_grid_columns()
 
 
 func _get_internal_bottom_bar_height() -> float:
@@ -5432,7 +5434,7 @@ func _create_internal_visual_workspace() -> Control:
 func _create_internal_isometric_preview_panel() -> Control:
 	var panel: PanelContainer = PanelContainer.new()
 	_apply_dark_panel_style(panel)
-	panel.custom_minimum_size = Vector2(180, 180)
+	panel.custom_minimum_size = Vector2(180, 160)
 	var volume_size: Vector3i = Vector3i(5, 8, 5)
 	if bipob != null and bipob.has_method("get_internal_volume_size"):
 		volume_size = bipob.get_internal_volume_size()
