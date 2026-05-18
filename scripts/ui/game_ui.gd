@@ -3021,6 +3021,9 @@ func _apply_runtime_hud_layout() -> void:
 	var top_vbox := VBoxContainer.new()
 	top_vbox.add_theme_constant_override("separation", 2)
 	top_panel.add_child(top_vbox)
+	var diagnostic_runtime_label := Label.new()
+	diagnostic_runtime_label.text = "Diagnostic"
+	top_vbox.add_child(diagnostic_runtime_label)
 	var objective_title := Label.new()
 	objective_title.text = "Mission Objective"
 	top_vbox.add_child(objective_title)
@@ -3035,10 +3038,24 @@ func _apply_runtime_hud_layout() -> void:
 	middle_hbox.add_theme_constant_override("separation", 8)
 	main_vbox.add_child(middle_hbox)
 
-	var left_spacer := Control.new()
-	left_spacer.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-	left_spacer.size_flags_vertical = Control.SIZE_EXPAND_FILL
-	middle_hbox.add_child(left_spacer)
+	var mission_field_panel := PanelContainer.new()
+	mission_field_panel.name = "MissionFieldPanel"
+	mission_field_panel.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	mission_field_panel.size_flags_vertical = Control.SIZE_EXPAND_FILL
+	mission_field_panel.add_theme_stylebox_override("panel", _make_panel_style(UI_COLOR_PANEL_DARK, UI_COLOR_BORDER, 1, 8))
+	middle_hbox.add_child(mission_field_panel)
+	var mission_field_host := MarginContainer.new()
+	mission_field_host.name = "MissionFieldHost"
+	mission_field_host.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	mission_field_host.size_flags_vertical = Control.SIZE_EXPAND_FILL
+	mission_field_host.add_theme_constant_override("margin_left", 8)
+	mission_field_host.add_theme_constant_override("margin_right", 8)
+	mission_field_host.add_theme_constant_override("margin_top", 8)
+	mission_field_host.add_theme_constant_override("margin_bottom", 8)
+	mission_field_panel.add_child(mission_field_host)
+	var mission_field_title := Label.new()
+	mission_field_title.text = "Mission Field"
+	mission_field_host.add_child(mission_field_title)
 
 	var right_sidebar := VBoxContainer.new()
 	right_sidebar.custom_minimum_size = Vector2(_get_runtime_sidebar_width(), 0)
