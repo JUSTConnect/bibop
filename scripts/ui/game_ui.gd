@@ -2324,9 +2324,17 @@ func _create_external_storage_right_column() -> Control:
 	column.size_flags_vertical = Control.SIZE_EXPAND_FILL
 	column.add_theme_constant_override("separation", 6)
 
-	column.add_child(_create_external_filter_panel())
-	column.add_child(_create_external_storage_components_panel())
-	column.add_child(_create_external_selected_description_panel())
+	var filters_panel: Control = _create_external_filter_panel()
+	filters_panel.size_flags_vertical = Control.SIZE_SHRINK_BEGIN
+	column.add_child(filters_panel)
+
+	var storage_panel: Control = _create_external_storage_components_panel()
+	storage_panel.size_flags_vertical = Control.SIZE_EXPAND_FILL
+	column.add_child(storage_panel)
+
+	var selected_panel: Control = _create_external_selected_description_panel()
+	selected_panel.size_flags_vertical = Control.SIZE_SHRINK_END
+	column.add_child(selected_panel)
 
 	return column
 
@@ -2364,6 +2372,7 @@ func _create_external_filter_panel() -> Control:
 func _create_external_storage_components_panel() -> Control:
 	var panel: PanelContainer = PanelContainer.new()
 	_apply_panel_style(panel)
+	panel.custom_minimum_size = Vector2(0, 280)
 	panel.size_flags_vertical = Control.SIZE_EXPAND_FILL
 
 	var root: VBoxContainer = VBoxContainer.new()
@@ -2375,10 +2384,17 @@ func _create_external_storage_components_panel() -> Control:
 	_apply_label_style(title, false, true)
 	root.add_child(title)
 
+	var storage_scroll: ScrollContainer = ScrollContainer.new()
+	storage_scroll.custom_minimum_size = Vector2(0, 236)
+	storage_scroll.size_flags_vertical = Control.SIZE_EXPAND_FILL
+	storage_scroll.horizontal_scroll_mode = ScrollContainer.SCROLL_MODE_DISABLED
+	storage_scroll.vertical_scroll_mode = ScrollContainer.SCROLL_MODE_AUTO
+	root.add_child(storage_scroll)
+
 	var grid: GridContainer = GridContainer.new()
 	grid.columns = 3
-	grid.size_flags_vertical = Control.SIZE_EXPAND_FILL
-	root.add_child(grid)
+	grid.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	storage_scroll.add_child(grid)
 
 	var storage_indices: Array[int] = get_current_filtered_box_storage_indices()
 	var has_external_modules: bool = false
@@ -2405,7 +2421,7 @@ func _create_external_storage_components_panel() -> Control:
 func _create_external_selected_description_panel() -> Control:
 	var panel: PanelContainer = PanelContainer.new()
 	_apply_panel_style(panel)
-	panel.custom_minimum_size = Vector2(0, 160)
+	panel.custom_minimum_size = Vector2(0, 170)
 
 	var root: VBoxContainer = VBoxContainer.new()
 	root.add_theme_constant_override("separation", 4)
