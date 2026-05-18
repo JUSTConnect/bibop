@@ -149,7 +149,7 @@ const SELECTED_MODULE_PREVIEW_CELL_SIZE: Vector2 = Vector2(14, 14)
 const SELECTED_MODULE_PREVIEW_GAP: int = 3
 const EXTERNAL_GRID_CELL_SIZE: Vector2 = Vector2(22, 22)
 const EXTERNAL_GRID_CELL_GAP: int = 2
-const INTERNAL_GRID_CELL_SIZE: Vector2 = Vector2(24, 24)
+const INTERNAL_GRID_CELL_SIZE: Vector2 = Vector2(22, 22)
 const INTERNAL_GRID_CELL_GAP: int = 2
 const ACTION_BUTTON_MIN_SIZE: Vector2 = Vector2(100, 24)
 const ACTION_BUTTON_COMPACT_SIZE: Vector2 = Vector2(46, 22)
@@ -2307,12 +2307,13 @@ func _create_internal_constructor_layout() -> Control:
 
 	var workspace: Control = _create_internal_visual_workspace()
 	workspace.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	workspace.size_flags_stretch_ratio = 0.4
 	workspace.size_flags_vertical = Control.SIZE_EXPAND_FILL
 	top_content_row.add_child(workspace)
 
 	var right_column: Control = _create_internal_storage_right_column()
-	right_column.custom_minimum_size = Vector2(_get_internal_right_column_width(), 0)
-	right_column.size_flags_horizontal = Control.SIZE_SHRINK_END
+	right_column.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	right_column.size_flags_stretch_ratio = 0.6
 	right_column.size_flags_vertical = Control.SIZE_EXPAND_FILL
 	top_content_row.add_child(right_column)
 
@@ -2329,8 +2330,7 @@ func _create_internal_constructor_layout() -> Control:
 
 func _create_internal_storage_right_column() -> Control:
 	var column: VBoxContainer = VBoxContainer.new()
-	column.custom_minimum_size = Vector2(_get_internal_right_column_width(), 0)
-	column.size_flags_horizontal = Control.SIZE_SHRINK_END
+	column.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	column.size_flags_vertical = Control.SIZE_EXPAND_FILL
 	column.add_theme_constant_override("separation", 6)
 
@@ -2684,34 +2684,19 @@ func _create_internal_bottom_action_bar() -> Control:
 	row_one.add_theme_constant_override("separation", 4)
 	row_one.add_spacer(true)
 
-	var row_two: HBoxContainer = HBoxContainer.new()
-	row_two.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-	row_two.alignment = BoxContainer.ALIGNMENT_CENTER
-	row_two.add_theme_constant_override("separation", 4)
-	row_two.add_spacer(true)
-
 	var internal_remove_available: bool = bipob.get_internal_module_at_cell(bipob.selected_internal_origin) != null
+	# View/overlay debug controls intentionally hidden from player-facing Internal UI.
+	# They can be reintroduced under Reference / Preview later.
 	var row_one_buttons: Array[Dictionary] = [
-		{"text": "X-", "handler": Callable(self, "_on_internal_x_minus_pressed"), "role": "normal", "enabled": true, "compact": true},
-		{"text": "X+", "handler": Callable(self, "_on_internal_x_plus_pressed"), "role": "normal", "enabled": true, "compact": true},
-		{"text": "Y-", "handler": Callable(self, "_on_internal_y_minus_pressed"), "role": "normal", "enabled": true, "compact": true},
-		{"text": "Y+", "handler": Callable(self, "_on_internal_y_plus_pressed"), "role": "normal", "enabled": true, "compact": true},
-		{"text": "Z-", "handler": Callable(self, "_on_internal_z_minus_pressed"), "role": "normal", "enabled": true, "compact": true},
-		{"text": "Z+", "handler": Callable(self, "_on_internal_z_plus_pressed"), "role": "normal", "enabled": true, "compact": true},
 		{"text": "Rotate", "handler": Callable(self, "_on_rotate_internal_pressed"), "role": "normal", "enabled": true, "compact": true},
 		{"text": "Place", "handler": Callable(self, "_on_place_internal_pressed"), "role": "primary", "enabled": _can_place_selected_internal_visual(), "compact": true},
 		{"text": "Remove", "handler": Callable(self, "_on_remove_internal_pressed"), "role": "danger", "enabled": internal_remove_available, "compact": true},
-		{"text": "Toggle View", "handler": Callable(self, "_on_toggle_internal_view_pressed"), "role": "normal", "enabled": true, "compact": true},
-	]
-
-	var row_two_buttons: Array[Dictionary] = [
-		{"text": "Overlay Type", "handler": Callable(self, "_on_overlay_type_pressed"), "role": "normal", "enabled": true, "compact": true},
-		{"text": "Toggle Cell", "handler": Callable(self, "_on_toggle_overlay_cell_pressed"), "role": "normal", "enabled": true, "compact": true},
 		{"text": "Commit Plan", "handler": Callable(self, "_on_commit_overlay_pressed"), "role": "primary", "enabled": _can_commit_overlay_plan_visual(), "compact": true},
 		{"text": "Clear Plan", "handler": Callable(self, "_on_clear_overlay_pressed"), "role": "danger", "enabled": true, "compact": true},
 		{"text": "Checkpoint", "handler": Callable(self, "_on_constructor_checkpoint_pressed"), "role": "reference", "enabled": true, "compact": true},
 		{"text": "Final Audit", "handler": Callable(self, "_on_constructor_final_audit_pressed"), "role": "reference", "enabled": true, "compact": true},
 	]
+
 
 	for config in row_one_buttons:
 		_add_action_button(
@@ -2724,35 +2709,16 @@ func _create_internal_bottom_action_bar() -> Control:
 		)
 	row_one.add_spacer(true)
 
-	for config in row_two_buttons:
-		_add_action_button(
-			row_two,
-			String(config.get("text", "")),
-			config.get("handler", Callable()),
-			String(config.get("role", "normal")),
-			bool(config.get("enabled", true)),
-			bool(config.get("compact", true))
-		)
-	row_two.add_spacer(true)
-
 	root.add_child(row_one)
-	root.add_child(row_two)
 	panel.add_child(root)
 	return panel
-
-
-func _get_internal_right_column_width() -> float:
-	var viewport_width: float = _get_viewport_width()
-	if viewport_width < 1100.0:
-		return 300.0
-	return 360.0
 
 
 func _get_internal_storage_grid_columns() -> int:
 	var viewport_width: float = _get_viewport_width()
 	if viewport_width < 1100.0:
-		return 2
-	return 3
+		return 3
+	return 4
 
 
 func _get_internal_bottom_bar_height() -> float:
