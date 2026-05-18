@@ -3579,87 +3579,98 @@ func debug_place_first_installed_external_module() -> void:
 	hint_requested.emit("No external installed module found.")
 	status_changed.emit()
 
+
+func create_external_module_by_id(module_id: String) -> BipobModule:
+	var module := BipobModule.new()
+	module.id = module_id
+	module.placement_type = "external"
+	module.internal_role = "none"
+
+	match module_id:
+		"wheels_v1":
+			module.display_name = "Wheels V1"
+			module.category = "locomotion"
+			module.description = "External wheel chassis module."
+			module.granted_commands = ["move_forward", "move_backward", "turn_left", "turn_right"]
+		"legs_v1":
+			module.display_name = "Legs V1"
+			module.category = "locomotion"
+			module.description = "External leg chassis module for stepped terrain."
+			module.granted_commands = ["move_forward", "move_backward", "turn_left", "turn_right", "cross_stepped_floor"]
+		"tracks_v1":
+			module.display_name = "Tracks V1"
+			module.category = "locomotion"
+			module.description = "External tracked chassis module."
+		"manipulator_v1":
+			module.display_name = "Manipulator V1"
+			module.category = "utility"
+			module.description = "External manipulation module."
+			module.granted_commands = ["interact_key", "open_physical_door"]
+		"interface_v1":
+			module.display_name = "External Interface Port V1"
+			module.category = "data"
+			module.description = "External interface port for outside devices."
+			module.granted_commands = ["read_terminal", "open_digital_door"]
+		"visor_v1":
+			module.display_name = "Visor V1"
+			module.category = "vision"
+			module.description = "External vision module."
+			module.granted_commands = ["vision"]
+		"air_intake_v1":
+			module.display_name = "Air Intake Node V1"
+			module.category = "cooling"
+			module.description = "External air intake required by air cooling."
+		_:
+			return null
+
+	apply_thermal_metadata(module)
+	apply_damage_metadata(module)
+	return module
+
+func ensure_external_constructor_modules_in_box_storage() -> void:
+	var required_ids: Array[String] = [
+		"wheels_v1",
+		"legs_v1",
+		"tracks_v1",
+		"manipulator_v1",
+		"interface_v1",
+		"visor_v1",
+		"air_intake_v1"
+	]
+
+	for module_id in required_ids:
+		if has_module_id_anywhere(module_id):
+			continue
+
+		var module: BipobModule = create_external_module_by_id(module_id)
+		if module != null:
+			box_storage.append(module)
+
 func create_default_modules() -> void:
 	installed_modules.clear()
 
 	if debug_install_wheels:
-		var wheels_module := BipobModule.new()
-		wheels_module.id = "wheels_v1"
-		wheels_module.display_name = "Wheels V1"
-		wheels_module.placement_type = "external"
-		wheels_module.category = "locomotion"
-		wheels_module.internal_role = "none"
-		wheels_module.description = "Bottom locomotion module for flat terrain."
-		wheels_module.granted_commands = [
-			"move_forward",
-			"move_backward",
-			"turn_left",
-			"turn_right",
-		]
-		apply_thermal_metadata(wheels_module)
-		apply_damage_metadata(wheels_module)
-		install_module(wheels_module)
+		var wheels_module: BipobModule = create_external_module_by_id("wheels_v1")
+		if wheels_module != null:
+			install_module(wheels_module)
 
 	if debug_install_manipulator:
-		var manipulator_module := BipobModule.new()
-		manipulator_module.id = "manipulator_v1"
-		manipulator_module.display_name = "Manipulator V1"
-		manipulator_module.placement_type = "external"
-		manipulator_module.category = "utility"
-		manipulator_module.internal_role = "none"
-		manipulator_module.description = "External manipulation module for physical interactions."
-		manipulator_module.granted_commands = [
-			"interact_key",
-			"open_physical_door",
-		]
-		apply_thermal_metadata(manipulator_module)
-		apply_damage_metadata(manipulator_module)
-		install_module(manipulator_module)
+		var manipulator_module: BipobModule = create_external_module_by_id("manipulator_v1")
+		if manipulator_module != null:
+			install_module(manipulator_module)
 
 	if debug_install_interface:
-		var interface_module := BipobModule.new()
-		interface_module.id = "interface_v1"
-		interface_module.display_name = "External Interface Port V1"
-		interface_module.placement_type = "external"
-		interface_module.category = "data"
-		interface_module.internal_role = "none"
-		interface_module.description = "External interface port for connecting external devices to the internal bridge."
-		interface_module.granted_commands = [
-			"read_terminal",
-			"open_digital_door",
-		]
-		apply_thermal_metadata(interface_module)
-		apply_damage_metadata(interface_module)
-		install_module(interface_module)
+		var interface_module: BipobModule = create_external_module_by_id("interface_v1")
+		if interface_module != null:
+			install_module(interface_module)
 
 	if debug_install_visor:
-		var visor_module := BipobModule.new()
-		visor_module.id = "visor_v1"
-		visor_module.display_name = "Visor V1"
-		visor_module.placement_type = "external"
-		visor_module.category = "vision"
-		visor_module.internal_role = "none"
-		visor_module.description = "External vision module."
-		visor_module.granted_commands = [
-			"vision",
-		]
-		apply_thermal_metadata(visor_module)
-		apply_damage_metadata(visor_module)
-		install_module(visor_module)
-
-	var air_intake_module := BipobModule.new()
-	air_intake_module.id = "air_intake_v1"
-	air_intake_module.display_name = "Air Intake Node V1"
-	air_intake_module.placement_type = "external"
-	air_intake_module.category = "cooling"
-	air_intake_module.internal_role = "none"
-	air_intake_module.description = "External air intake required by internal air cooling modules."
-	apply_thermal_metadata(air_intake_module)
-	apply_damage_metadata(air_intake_module)
-	if not has_module_id_anywhere(air_intake_module.id):
-		box_storage.append(air_intake_module)
+		var visor_module: BipobModule = create_external_module_by_id("visor_v1")
+		if visor_module != null:
+			install_module(visor_module)
 
 	add_internal_mvp_modules_to_box()
+	ensure_external_constructor_modules_in_box_storage()
 
 func create_internal_module(module_id: String, module_name: String, module_size: Vector3i) -> BipobModule:
 	var module := BipobModule.new()
