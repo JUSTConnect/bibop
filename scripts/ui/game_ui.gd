@@ -147,7 +147,7 @@ const STORAGE_CARD_ICON_SIZE: Vector2 = Vector2(26, 26)
 const SELECTED_MODULE_ICON_SIZE: Vector2 = Vector2(52, 38)
 const SELECTED_MODULE_PREVIEW_CELL_SIZE: Vector2 = Vector2(14, 14)
 const SELECTED_MODULE_PREVIEW_GAP: int = 3
-const EXTERNAL_GRID_CELL_SIZE: Vector2 = Vector2(26, 26)
+const EXTERNAL_GRID_CELL_SIZE: Vector2 = Vector2(24, 24)
 const EXTERNAL_GRID_CELL_GAP: int = 2
 const INTERNAL_GRID_CELL_SIZE: Vector2 = Vector2(24, 24)
 const INTERNAL_GRID_CELL_GAP: int = 2
@@ -2229,11 +2229,36 @@ func get_compact_module_window(modules: Array, selected_index: int, max_lines: i
 
 	return lines
 
+func _get_viewport_width() -> float:
+	return get_viewport_rect().size.x
+
+
+func _get_external_right_column_width() -> float:
+	var viewport_width: float = _get_viewport_width()
+	if viewport_width < 1100.0:
+		return 300.0
+	return 340.0
+
+
+func _get_external_storage_grid_columns() -> int:
+	var viewport_width: float = _get_viewport_width()
+	if viewport_width < 1100.0:
+		return 2
+	return 3
+
+
+func _get_external_bottom_bar_height() -> float:
+	var viewport_height: float = get_viewport_rect().size.y
+	if viewport_height < 720.0:
+		return 42.0
+	return 48.0
+
+
 func _create_external_constructor_layout() -> Control:
 	var root: VBoxContainer = VBoxContainer.new()
 	root.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	root.size_flags_vertical = Control.SIZE_EXPAND_FILL
-	root.add_theme_constant_override("separation", 8)
+	root.add_theme_constant_override("separation", 6)
 
 	var top_content_row: HBoxContainer = HBoxContainer.new()
 	top_content_row.size_flags_horizontal = Control.SIZE_EXPAND_FILL
@@ -2246,12 +2271,18 @@ func _create_external_constructor_layout() -> Control:
 	top_content_row.add_child(left)
 
 	var right: Control = _create_external_storage_right_column()
+	right.custom_minimum_size = Vector2(_get_external_right_column_width(), 0)
 	right.size_flags_horizontal = Control.SIZE_SHRINK_END
 	right.size_flags_vertical = Control.SIZE_EXPAND_FILL
 	top_content_row.add_child(right)
 
 	root.add_child(top_content_row)
-	root.add_child(_create_external_bottom_action_bar())
+
+	var bottom_bar: Control = _create_external_bottom_action_bar()
+	bottom_bar.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	bottom_bar.size_flags_vertical = Control.SIZE_SHRINK_END
+	bottom_bar.custom_minimum_size = Vector2(0, _get_external_bottom_bar_height())
+	root.add_child(bottom_bar)
 
 	return root
 
@@ -2313,7 +2344,7 @@ func _create_internal_filter_panel() -> Control:
 func _create_external_info_stub_panel(title_text: String, body_text: String) -> Control:
 	var panel: PanelContainer = PanelContainer.new()
 	_apply_dark_panel_style(panel)
-	panel.custom_minimum_size = Vector2(190, 78)
+	panel.custom_minimum_size = Vector2(180, 72)
 
 	var root: VBoxContainer = VBoxContainer.new()
 	root.add_theme_constant_override("separation", 4)
@@ -2364,13 +2395,13 @@ func _create_external_side_grid_workspace() -> Control:
 
 func _create_external_storage_right_column() -> Control:
 	var column: VBoxContainer = VBoxContainer.new()
-	column.custom_minimum_size = Vector2(330, 0)
+	column.custom_minimum_size = Vector2(_get_external_right_column_width(), 0)
 	column.size_flags_horizontal = Control.SIZE_SHRINK_END
 	column.size_flags_vertical = Control.SIZE_EXPAND_FILL
 	column.add_theme_constant_override("separation", 6)
 
 	var filters_panel: Control = _create_external_filter_panel()
-	filters_panel.size_flags_vertical = Control.SIZE_SHRINK_BEGIN
+	filters_panel.size_flags_vertical = Control.SIZE_SHRINK_END
 	column.add_child(filters_panel)
 
 	var storage_panel: Control = _create_external_storage_components_panel()
@@ -2378,7 +2409,8 @@ func _create_external_storage_right_column() -> Control:
 	column.add_child(storage_panel)
 
 	var selected_panel: Control = _create_external_selected_description_panel()
-	selected_panel.size_flags_vertical = Control.SIZE_EXPAND_FILL
+	selected_panel.custom_minimum_size = Vector2(0, 160)
+	selected_panel.size_flags_vertical = Control.SIZE_SHRINK_END
 	column.add_child(selected_panel)
 
 	return column
@@ -2387,7 +2419,7 @@ func _create_external_storage_right_column() -> Control:
 func _create_external_filter_panel() -> Control:
 	var panel: PanelContainer = PanelContainer.new()
 	_apply_panel_style(panel)
-	panel.custom_minimum_size = Vector2(0, 92)
+	panel.custom_minimum_size = Vector2(0, 90)
 
 	var root: VBoxContainer = VBoxContainer.new()
 	root.add_theme_constant_override("separation", 4)
@@ -2417,7 +2449,7 @@ func _create_external_filter_panel() -> Control:
 func _create_external_storage_components_panel() -> Control:
 	var panel: PanelContainer = PanelContainer.new()
 	_apply_panel_style(panel)
-	panel.custom_minimum_size = Vector2(0, 280)
+	panel.custom_minimum_size = Vector2(0, 0)
 	panel.size_flags_vertical = Control.SIZE_EXPAND_FILL
 
 	var root: VBoxContainer = VBoxContainer.new()
@@ -2430,14 +2462,13 @@ func _create_external_storage_components_panel() -> Control:
 	root.add_child(title)
 
 	var storage_scroll: ScrollContainer = ScrollContainer.new()
-	storage_scroll.custom_minimum_size = Vector2(0, 236)
 	storage_scroll.size_flags_vertical = Control.SIZE_EXPAND_FILL
 	storage_scroll.horizontal_scroll_mode = ScrollContainer.SCROLL_MODE_DISABLED
 	storage_scroll.vertical_scroll_mode = ScrollContainer.SCROLL_MODE_AUTO
 	root.add_child(storage_scroll)
 
 	var grid: GridContainer = GridContainer.new()
-	grid.columns = 3
+	grid.columns = _get_external_storage_grid_columns()
 	grid.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	storage_scroll.add_child(grid)
 
@@ -2465,14 +2496,15 @@ func _create_external_storage_components_panel() -> Control:
 func _create_external_bottom_action_bar() -> Control:
 	var panel: PanelContainer = PanelContainer.new()
 	_apply_panel_style(panel)
-	panel.custom_minimum_size = Vector2(0, 54)
+	panel.custom_minimum_size = Vector2(0, _get_external_bottom_bar_height())
 	panel.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-	panel.size_flags_vertical = Control.SIZE_SHRINK_BEGIN
+	panel.size_flags_vertical = Control.SIZE_SHRINK_END
 
 	var actions_row: HBoxContainer = HBoxContainer.new()
 	actions_row.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	actions_row.alignment = BoxContainer.ALIGNMENT_CENTER
 	actions_row.add_theme_constant_override("separation", 6)
+	actions_row.add_spacer(true)
 
 	var selected_external_slot_module: BipobModule = bipob.get_external_module_at(
 		bipob.selected_external_side,
@@ -2495,6 +2527,7 @@ func _create_external_bottom_action_bar() -> Control:
 			bool(config.get("enabled", true)),
 			true
 		)
+	actions_row.add_spacer(true)
 
 	panel.add_child(actions_row)
 	return panel
@@ -2719,6 +2752,8 @@ func _ready() -> void:
 	_configure_box_layout()
 	_apply_box_screen_fullscreen_layout()
 	_ensure_action_panel_scrollable()
+	if get_viewport() != null and not get_viewport().size_changed.is_connected(_on_viewport_size_changed):
+		get_viewport().size_changed.connect(_on_viewport_size_changed)
 
 	if box_storage_label == null:
 		box_storage_label = Label.new()
@@ -3157,6 +3192,14 @@ func _set_external_selection_from_side_and_cell(side_id: String, cell: Vector2i)
 	bipob.selected_external_side = side_id
 	bipob.selected_external_origin = cell
 
+
+
+func _on_viewport_size_changed() -> void:
+	if box_screen == null or not box_screen.visible:
+		return
+	_apply_box_screen_fullscreen_layout()
+	if box_menu_mode == BoxMenuMode.EXTERNAL:
+		update_box_status()
 func _apply_box_screen_fullscreen_layout() -> void:
 	if box_screen == null:
 		return
@@ -3662,24 +3705,26 @@ func rebuild_box_action_buttons() -> void:
 	if right_button_panel == null:
 		return
 	_clear_box_actions()
+	right_button_panel.visible = true
 
 	var actions_label: Label = Label.new()
 	actions_label.name = "ActionsLabel"
 	actions_label.text = "Actions"
+	right_button_panel.add_theme_constant_override("separation", ACTION_GROUP_SPACING)
+
+	if box_menu_mode == BoxMenuMode.EXTERNAL:
+		right_button_panel.visible = false
+		_apply_constructor_ui_skin()
+		return
+
 	right_button_panel.add_child(actions_label)
 	_apply_label_style(actions_label, false, true)
-	right_button_panel.add_theme_constant_override("separation", ACTION_GROUP_SPACING)
 
 	if box_menu_mode == BoxMenuMode.MISSION:
 		_add_box_action_button("Charge", Callable(self, "_on_charge_button_pressed"))
 		_add_box_action_button("Warnings", Callable(self, "_on_constructor_warnings_button_pressed"))
 		_add_box_action_button("Start", Callable(self, "_on_start_mission_button_pressed"))
 		_add_box_action_button("Restart", Callable(self, "_on_restart_mission_button_pressed"))
-	elif box_menu_mode == BoxMenuMode.EXTERNAL:
-		var external_actions_hint: Label = Label.new()
-		external_actions_hint.text = "External actions moved under Storage panel."
-		_apply_label_style(external_actions_hint, true, false)
-		right_button_panel.add_child(external_actions_hint)
 	elif box_menu_mode == BoxMenuMode.INTERNAL:
 		var internal_remove_available: bool = bipob.get_internal_module_at_cell(bipob.selected_internal_origin) != null
 		var selection_group: VBoxContainer = _create_action_group_panel("Selection")
