@@ -9,6 +9,7 @@ class_name GameUI
 @onready var box_screen: Control = $BoxScreen
 
 var diagnostic_label: Label
+var runtime_mission_field_host: Control
 
 @onready var box_status_label: Label = $BoxScreen/PanelContainer/VBoxContainer/StatusLabel
 @onready var box_module_label: Label = $BoxScreen/PanelContainer/VBoxContainer/ModuleLabel
@@ -2975,6 +2976,39 @@ func _safe_reparent_control(control: Control, new_parent: Node) -> void:
 	new_parent.add_child(control)
 
 
+
+func _get_runtime_field_rect() -> Rect2:
+	if runtime_mission_field_host == null or not is_instance_valid(runtime_mission_field_host):
+		return Rect2()
+	var size: Vector2 = runtime_mission_field_host.size
+	if size.x <= 0.0 or size.y <= 0.0:
+		return Rect2()
+	return Rect2(runtime_mission_field_host.get_global_position(), size)
+
+
+func _attach_runtime_gameplay_view() -> void:
+	var field: Node2D = get_node_or_null("../Field") as Node2D
+	if field == null:
+		return
+	var field_rect: Rect2 = _get_runtime_field_rect()
+	if field_rect.size.x <= 0.0 or field_rect.size.y <= 0.0:
+		return
+	var grid := field as GridManager
+	if grid == null:
+		return
+	var board_size: Vector2 = Vector2(grid.get_map_width() * grid.cell_size, grid.get_map_height() * grid.cell_size)
+	if board_size.x <= 0.0 or board_size.y <= 0.0:
+		return
+	var target_origin := field_rect.position + (field_rect.size - board_size) * 0.5
+	field.global_position = target_origin
+
+	var player: Node2D = get_node_or_null("../Bipob") as Node2D
+	if player != null:
+		var body_marker: CanvasItem = player.get_node_or_null("Body") as CanvasItem
+		if body_marker != null:
+			body_marker.visible = true
+
+
 func _apply_runtime_hud_layout() -> void:
 	if command_panel == null:
 		return
@@ -3086,6 +3120,7 @@ func _apply_runtime_hud_layout() -> void:
 	middle_hbox.add_child(mission_field_panel)
 	var mission_field_host := MarginContainer.new()
 	mission_field_host.name = "MissionFieldHost"
+	runtime_mission_field_host = mission_field_host
 	mission_field_host.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	mission_field_host.size_flags_vertical = Control.SIZE_EXPAND_FILL
 	mission_field_host.add_theme_constant_override("margin_left", 8)
@@ -3172,6 +3207,8 @@ func _apply_runtime_hud_layout() -> void:
 
 	if hint_label != null and not hint_label.text.is_empty() and mission_goal_value_label != null:
 		mission_goal_value_label.text = hint_label.text
+
+	call_deferred("_attach_runtime_gameplay_view")
 func _ready() -> void:
 	if hint_label != null:
 		hint_label.text = "Mission 1: pick up the key, open the door, reach the exit."
@@ -3282,6 +3319,7 @@ func _ready() -> void:
 		command_list.add_child(exit_main_menu_button)
 
 	_apply_runtime_hud_layout()
+	call_deferred("_attach_runtime_gameplay_view")
 
 	if move_forward_button != null:
 		move_forward_button.pressed.connect(_on_move_forward_pressed)
@@ -3473,6 +3511,7 @@ func start_gameplay_from_center() -> void:
 	_hide_all_app_screens()
 	_set_gameplay_visible(true)
 	_on_start_mission_button_pressed()
+	call_deferred("_attach_runtime_gameplay_view")
 
 func show_box_constructor_from_center() -> void:
 	app_screen_mode = AppScreenMode.BOX_CONSTRUCTOR
