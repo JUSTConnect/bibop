@@ -1624,7 +1624,33 @@ func _build_storage_cards_panel(parent: Control) -> void:
 	if box_menu_mode != BoxMenuMode.EXTERNAL and box_menu_mode != BoxMenuMode.INTERNAL:
 		return
 
-	var workspace: Control = _create_external_visual_workspace() if box_menu_mode == BoxMenuMode.EXTERNAL else _create_internal_visual_workspace()
+	if box_menu_mode == BoxMenuMode.EXTERNAL:
+		var external_root: HBoxContainer = HBoxContainer.new()
+		external_root.size_flags_vertical = Control.SIZE_EXPAND_FILL
+		external_root.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+		external_root.add_theme_constant_override("separation", 8)
+
+		var external_layout: Control = _create_external_constructor_layout()
+		external_layout.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+		external_layout.size_flags_vertical = Control.SIZE_EXPAND_FILL
+		external_root.add_child(external_layout)
+
+		var side_panel: VBoxContainer = VBoxContainer.new()
+		side_panel.custom_minimum_size = Vector2(230, 0)
+		side_panel.add_theme_constant_override("separation", 4)
+		side_panel.size_flags_vertical = Control.SIZE_EXPAND_FILL
+		side_panel.add_child(_create_constructor_playable_status_panel())
+		if CONSTRUCTOR_COMPACT_STATUS:
+			var diagnostics_hint: Label = Label.new()
+			diagnostics_hint.text = "More details in Reference / Preview."
+			_apply_label_style(diagnostics_hint, true, false)
+			side_panel.add_child(diagnostics_hint)
+		external_root.add_child(side_panel)
+
+		parent.add_child(external_root)
+		return
+
+	var workspace: Control = _create_internal_visual_workspace()
 
 	var storage_panel: PanelContainer = PanelContainer.new()
 	_apply_panel_style(storage_panel)
@@ -1663,16 +1689,14 @@ func _build_storage_cards_panel(parent: Control) -> void:
 	side_panel.custom_minimum_size = Vector2(230, 0)
 	side_panel.add_theme_constant_override("separation", 4)
 	side_panel.add_child(_create_constructor_playable_status_panel())
-	if box_menu_mode == BoxMenuMode.INTERNAL:
-		side_panel.add_child(_create_internal_connections_panel())
+	side_panel.add_child(_create_internal_connections_panel())
 	if CONSTRUCTOR_COMPACT_STATUS:
 		var diagnostics_hint: Label = Label.new()
 		diagnostics_hint.text = "More details in Reference / Preview."
 		_apply_label_style(diagnostics_hint, true, false)
 		side_panel.add_child(diagnostics_hint)
 
-	var mode_title: String = "External Modules on Body" if box_menu_mode == BoxMenuMode.EXTERNAL else "Internal Modules in Volume"
-	parent.add_child(_create_constructor_mode_layout(mode_title, workspace, storage_panel, details_panel, side_panel))
+	parent.add_child(_create_constructor_mode_layout("Internal Modules in Volume", workspace, storage_panel, details_panel, side_panel))
 
 func _get_storage_empty_state_text() -> String:
 	if box_menu_mode == BoxMenuMode.EXTERNAL:
@@ -2106,7 +2130,7 @@ func _create_external_side_grid(side_id: String) -> Control:
 func _create_external_robot_preview_panel() -> Control:
 	var panel: PanelContainer = PanelContainer.new()
 	_apply_panel_style(panel, true)
-	panel.custom_minimum_size = Vector2(135, 135)
+	panel.custom_minimum_size = Vector2(150, 150)
 
 	var root: VBoxContainer = VBoxContainer.new()
 	root.alignment = BoxContainer.ALIGNMENT_CENTER
@@ -2161,63 +2185,46 @@ func _get_external_selected_slot_summary_text() -> String:
 
 
 func _create_external_visual_workspace() -> Control:
-	var workspace: PanelContainer = PanelContainer.new()
-	_apply_panel_style(workspace, true)
+	var panel: PanelContainer = PanelContainer.new()
+	_apply_panel_style(panel, true)
+	panel.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	panel.size_flags_vertical = Control.SIZE_EXPAND_FILL
 
 	var root: VBoxContainer = VBoxContainer.new()
-	root.add_theme_constant_override("separation", 4)
-	root.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	root.add_theme_constant_override("separation", 6)
 	root.size_flags_vertical = Control.SIZE_EXPAND_FILL
 
 	var title: Label = Label.new()
-	title.text = "External Modules Workspace"
+	title.text = "ВНЕШНИЕ МОДУЛИ НА КОРПУСЕ"
 	_apply_label_style(title, false, true)
 	root.add_child(title)
 
-	var top_row: HBoxContainer = HBoxContainer.new()
-	top_row.alignment = BoxContainer.ALIGNMENT_CENTER
-	top_row.add_child(_create_external_side_grid("top"))
-	root.add_child(top_row)
+	var info_row: HBoxContainer = HBoxContainer.new()
+	info_row.add_theme_constant_override("separation", 8)
 
-	var middle_row: HBoxContainer = HBoxContainer.new()
-	middle_row.alignment = BoxContainer.ALIGNMENT_CENTER
-	middle_row.add_theme_constant_override("separation", 4)
-	middle_row.add_child(_create_external_side_grid("left"))
-	middle_row.add_child(_create_external_robot_preview_panel())
-	middle_row.add_child(_create_external_side_grid("right"))
-	root.add_child(middle_row)
+	var left_info: Control = _create_external_info_stub_panel(
+		"Блок информации",
+		"Заглушка. Общие данные о выбранном Бипобе."
+	)
+	info_row.add_child(left_info)
 
-	var bottom_row: HBoxContainer = HBoxContainer.new()
-	bottom_row.alignment = BoxContainer.ALIGNMENT_CENTER
-	bottom_row.add_theme_constant_override("separation", 4)
-	bottom_row.add_child(_create_external_side_grid("front"))
-	bottom_row.add_child(_create_external_side_grid("bottom"))
-	bottom_row.add_child(_create_external_side_grid("back"))
-	root.add_child(bottom_row)
+	var info_spacer: Control = Control.new()
+	info_spacer.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	info_row.add_child(info_spacer)
 
-	var installed_summary: Label = Label.new()
-	var installed_modules: Array[BipobModule] = bipob.get_unique_external_modules() if bipob.has_method("get_unique_external_modules") else []
-	if installed_modules.is_empty():
-		installed_summary.text = "Installed: none"
-	else:
-		var names: Array[String] = []
-		for module in installed_modules:
-			if module != null:
-				names.append(bipob.get_module_display_name(module))
-		installed_summary.text = "Installed: " + ", ".join(names)
-	_apply_label_style(installed_summary, true, false)
-	installed_summary.clip_text = true
-	root.add_child(installed_summary)
+	var right_info: Control = _create_external_info_stub_panel(
+		"Блок информации",
+		"Заглушка. Данные об установленных внешних модулях."
+	)
+	info_row.add_child(right_info)
+	root.add_child(info_row)
 
-	if not CONSTRUCTOR_COMPACT_STATUS:
-		var status_text_label: Label = Label.new()
-		status_text_label.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
-		status_text_label.text = _get_external_selected_slot_summary_text()
-		_apply_label_style(status_text_label, true)
-		root.add_child(status_text_label)
+	var grid_area: Control = _create_external_side_grid_workspace()
+	grid_area.size_flags_vertical = Control.SIZE_EXPAND_FILL
+	root.add_child(grid_area)
 
-	workspace.add_child(root)
-	return workspace
+	panel.add_child(root)
+	return panel
 
 
 func get_compact_module_window(modules: Array, selected_index: int, max_lines: int = 4) -> Array[String]:
@@ -2244,6 +2251,194 @@ func get_compact_module_window(modules: Array, selected_index: int, max_lines: i
 		lines.append("... ")
 
 	return lines
+
+func _create_external_constructor_layout() -> Control:
+	var root: HBoxContainer = HBoxContainer.new()
+	root.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	root.size_flags_vertical = Control.SIZE_EXPAND_FILL
+	root.add_theme_constant_override("separation", 8)
+
+	var left: Control = _create_external_visual_workspace()
+	left.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	left.size_flags_vertical = Control.SIZE_EXPAND_FILL
+	root.add_child(left)
+
+	var right: Control = _create_external_storage_right_column()
+	right.size_flags_horizontal = Control.SIZE_SHRINK_END
+	right.size_flags_vertical = Control.SIZE_EXPAND_FILL
+	root.add_child(right)
+
+	return root
+
+
+func _create_external_info_stub_panel(title_text: String, body_text: String) -> Control:
+	var panel: PanelContainer = PanelContainer.new()
+	_apply_dark_panel_style(panel)
+	panel.custom_minimum_size = Vector2(190, 78)
+
+	var root: VBoxContainer = VBoxContainer.new()
+	root.add_theme_constant_override("separation", 4)
+
+	var title: Label = Label.new()
+	title.text = title_text
+	_apply_label_style(title, false, true)
+	root.add_child(title)
+
+	var body: Label = Label.new()
+	body.text = body_text
+	body.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	_apply_label_style(body, true, false)
+	root.add_child(body)
+
+	panel.add_child(root)
+	return panel
+
+
+func _create_external_side_grid_workspace() -> Control:
+	var root: VBoxContainer = VBoxContainer.new()
+	root.add_theme_constant_override("separation", 6)
+	root.size_flags_vertical = Control.SIZE_EXPAND_FILL
+
+	var top_row: HBoxContainer = HBoxContainer.new()
+	top_row.alignment = BoxContainer.ALIGNMENT_CENTER
+	top_row.add_child(_create_external_side_grid("top"))
+	root.add_child(top_row)
+
+	var middle_row: HBoxContainer = HBoxContainer.new()
+	middle_row.alignment = BoxContainer.ALIGNMENT_CENTER
+	middle_row.add_theme_constant_override("separation", 4)
+	middle_row.add_child(_create_external_side_grid("left"))
+	middle_row.add_child(_create_external_robot_preview_panel())
+	middle_row.add_child(_create_external_side_grid("right"))
+	root.add_child(middle_row)
+
+	var bottom_row: HBoxContainer = HBoxContainer.new()
+	bottom_row.alignment = BoxContainer.ALIGNMENT_CENTER
+	bottom_row.add_theme_constant_override("separation", 4)
+	bottom_row.add_child(_create_external_side_grid("front"))
+	bottom_row.add_child(_create_external_side_grid("bottom"))
+	bottom_row.add_child(_create_external_side_grid("back"))
+	root.add_child(bottom_row)
+
+	return root
+
+
+func _create_external_storage_right_column() -> Control:
+	var column: VBoxContainer = VBoxContainer.new()
+	column.custom_minimum_size = Vector2(330, 0)
+	column.size_flags_vertical = Control.SIZE_EXPAND_FILL
+	column.add_theme_constant_override("separation", 6)
+
+	column.add_child(_create_external_filter_panel())
+	column.add_child(_create_external_storage_components_panel())
+	column.add_child(_create_external_selected_description_panel())
+
+	return column
+
+
+func _create_external_filter_panel() -> Control:
+	var panel: PanelContainer = PanelContainer.new()
+	_apply_panel_style(panel)
+	panel.custom_minimum_size = Vector2(0, 72)
+
+	var root: VBoxContainer = VBoxContainer.new()
+
+	var title: Label = Label.new()
+	title.text = "ФИЛЬТРЫ"
+	_apply_label_style(title, false, true)
+	root.add_child(title)
+
+	var filter_label: Label = Label.new()
+	filter_label.text = "Текущий фильтр: %s" % get_current_constructor_filter().capitalize()
+	_apply_label_style(filter_label, true, false)
+	root.add_child(filter_label)
+
+	panel.add_child(root)
+	return panel
+
+
+func _create_external_storage_components_panel() -> Control:
+	var panel: PanelContainer = PanelContainer.new()
+	_apply_panel_style(panel)
+	panel.size_flags_vertical = Control.SIZE_EXPAND_FILL
+
+	var root: VBoxContainer = VBoxContainer.new()
+	root.add_theme_constant_override("separation", 4)
+	root.size_flags_vertical = Control.SIZE_EXPAND_FILL
+
+	var title: Label = Label.new()
+	title.text = "КОМПОНЕНТЫ В STORAGE"
+	_apply_label_style(title, false, true)
+	root.add_child(title)
+
+	var grid: GridContainer = GridContainer.new()
+	grid.columns = 3
+	grid.size_flags_vertical = Control.SIZE_EXPAND_FILL
+	root.add_child(grid)
+
+	var storage_indices: Array[int] = get_current_filtered_box_storage_indices()
+	var has_external_modules: bool = false
+	for storage_index in storage_indices:
+		var module: BipobModule = bipob.box_storage[storage_index]
+		if module == null:
+			continue
+		if not bipob.is_external_module(module):
+			continue
+		has_external_modules = true
+		var selected: bool = storage_index == selected_box_storage_index
+		grid.add_child(_create_storage_module_card(module, storage_index, selected))
+
+	if not has_external_modules:
+		var empty_label: Label = Label.new()
+		empty_label.text = "Нет внешних модулей в Storage."
+		_apply_label_style(empty_label, true, false)
+		grid.add_child(empty_label)
+
+	panel.add_child(root)
+	return panel
+
+
+func _create_external_selected_description_panel() -> Control:
+	var panel: PanelContainer = PanelContainer.new()
+	_apply_panel_style(panel)
+	panel.custom_minimum_size = Vector2(0, 160)
+
+	var root: VBoxContainer = VBoxContainer.new()
+	root.add_theme_constant_override("separation", 4)
+
+	var title: Label = Label.new()
+	title.text = "ОПИСАНИЕ ВЫБРАННОГО БЛОКА"
+	_apply_label_style(title, false, true)
+	root.add_child(title)
+
+	var module: BipobModule = _get_selected_box_storage_module()
+	if module == null or not bipob.is_external_module(module):
+		var empty_label: Label = Label.new()
+		empty_label.text = "Выберите внешний модуль."
+		_apply_label_style(empty_label, true, false)
+		root.add_child(empty_label)
+	else:
+		var name_label: Label = Label.new()
+		name_label.text = bipob.get_module_display_name(module)
+		_apply_label_style(name_label)
+		root.add_child(name_label)
+
+		var size_label: Label = Label.new()
+		size_label.text = "Размер: %s" % _get_selected_module_size_text(module)
+		_apply_label_style(size_label, true, false)
+		root.add_child(size_label)
+
+		var desc_label: Label = Label.new()
+		desc_label.text = String(module.description)
+		if desc_label.text.is_empty():
+			desc_label.text = "Описание будет добавлено позже."
+		desc_label.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+		_apply_label_style(desc_label, true, false)
+		root.add_child(desc_label)
+
+	panel.add_child(root)
+	return panel
+
 
 func get_digital_storage_short_text() -> String:
 	if bipob == null:
