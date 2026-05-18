@@ -2479,7 +2479,8 @@ func _get_constructor_cell_size(max_columns: int, max_rows: int, available_size:
 	var gap: float = 3.0
 	var cell_w: float = floor((available_size.x - float(safe_columns - 1) * gap) / float(safe_columns))
 	var cell_h: float = floor((available_size.y - float(safe_rows - 1) * gap) / float(safe_rows))
-	var size: float = clamp(minf(cell_w, cell_h, preferred), minimum, preferred)
+	var raw_size: float = minf(cell_w, cell_h)
+	var size: float = clampf(raw_size, minimum, preferred)
 	return Vector2(size, size)
 
 
