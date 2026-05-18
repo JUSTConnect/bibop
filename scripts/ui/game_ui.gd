@@ -2315,6 +2315,7 @@ func _create_internal_constructor_layout() -> Control:
 	top_content_row.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	top_content_row.size_flags_vertical = Control.SIZE_EXPAND_FILL
 	top_content_row.add_theme_constant_override("separation", 8)
+	top_content_row.alignment = BoxContainer.ALIGNMENT_BEGIN
 
 	var workspace: Control = _create_internal_visual_workspace()
 	workspace.size_flags_horizontal = Control.SIZE_EXPAND_FILL
@@ -2609,17 +2610,25 @@ func _create_internal_storage_components_panel() -> Control:
 	_apply_label_style(title, false, true)
 	root.add_child(title)
 
+	var storage_content_row: HBoxContainer = HBoxContainer.new()
+	storage_content_row.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	storage_content_row.size_flags_vertical = Control.SIZE_EXPAND_FILL
+	storage_content_row.add_theme_constant_override("separation", 6)
+	root.add_child(storage_content_row)
+
 	var storage_scroll: ScrollContainer = ScrollContainer.new()
 	storage_scroll.size_flags_vertical = Control.SIZE_EXPAND_FILL
 	storage_scroll.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	storage_scroll.size_flags_stretch_ratio = 1.0
 	storage_scroll.horizontal_scroll_mode = ScrollContainer.SCROLL_MODE_DISABLED
 	storage_scroll.vertical_scroll_mode = ScrollContainer.SCROLL_MODE_AUTO
-	root.add_child(storage_scroll)
+	storage_content_row.add_child(storage_scroll)
 
 	var grid: GridContainer = GridContainer.new()
 	var columns: int = _get_box_storage_grid_columns()
 	grid.columns = columns
 	grid.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	grid.size_flags_vertical = Control.SIZE_EXPAND_FILL
 	storage_scroll.add_child(grid)
 
 	var storage_indices: Array[int] = get_current_filtered_box_storage_indices()
@@ -2639,7 +2648,8 @@ func _create_internal_storage_components_panel() -> Control:
 		empty_label.text = "No internal modules in storage."
 		_apply_label_style(empty_label, true, false)
 		grid.add_child(empty_label)
-	root.add_child(_create_internal_interfaces_placeholder_panel())
+
+	storage_content_row.add_child(_create_internal_interfaces_placeholder_panel())
 
 	panel.add_child(root)
 	return panel
@@ -2648,7 +2658,9 @@ func _create_internal_storage_components_panel() -> Control:
 func _create_internal_interfaces_placeholder_panel() -> Control:
 	var panel: PanelContainer = PanelContainer.new()
 	_apply_dark_panel_style(panel)
-	panel.custom_minimum_size = Vector2(180, 0)
+	panel.custom_minimum_size = Vector2(170, 140)
+	panel.size_flags_horizontal = Control.SIZE_SHRINK_END
+	panel.size_flags_vertical = Control.SIZE_SHRINK_BEGIN
 	var root: VBoxContainer = VBoxContainer.new()
 	root.add_theme_constant_override("separation", 4)
 	var title: Label = Label.new()
@@ -2656,15 +2668,10 @@ func _create_internal_interfaces_placeholder_panel() -> Control:
 	_apply_label_style(title, false, true)
 	root.add_child(title)
 	for row_title in ["Power", "Data", "Cooling"]:
-		var section: HBoxContainer = HBoxContainer.new()
-		section.add_theme_constant_override("separation", 4)
-		var label: Label = Label.new()
-		label.text = row_title
-		_apply_label_style(label, true, false)
-		section.add_child(label)
-		var button: Button = _create_menu_button("%s Line" % row_title, Callable(), Vector2(88, 22))
-		section.add_child(button)
-		root.add_child(section)
+		var line_label: Label = Label.new()
+		line_label.text = "%s Line" % row_title
+		_apply_label_style(line_label, true, false)
+		root.add_child(line_label)
 	panel.add_child(root)
 	return panel
 
@@ -4800,7 +4807,7 @@ func _create_menu_button(text: String, callback: Callable = Callable(), min_size
 	button.custom_minimum_size = min_size
 	button.focus_mode = Control.FOCUS_NONE
 	_apply_action_button_style(button, role, true)
-	if callback.is_valid():
+	if not callback.is_null() and callback.is_valid():
 		button.pressed.connect(callback)
 	else:
 		button.disabled = true
@@ -5460,7 +5467,7 @@ func _create_internal_visual_workspace() -> Control:
 	middle_row.alignment = BoxContainer.ALIGNMENT_CENTER
 	middle_row.add_theme_constant_override("separation", 4)
 	middle_row.add_child(_create_internal_slice_grid("VERTICAL SLICE", "z", "y", "x", bipob.selected_internal_origin.x))
-	middle_row.add_child(_create_internal_isometric_preview_panel())
+	middle_row.add_child(_create_internal_volume_placeholder_panel())
 	middle_row.add_child(_create_internal_slice_grid("MAIN SLICE", "x", "y", "z", bipob.selected_internal_origin.z))
 	root.add_child(middle_row)
 	var bottom_row: HBoxContainer = HBoxContainer.new()
@@ -5473,47 +5480,23 @@ func _create_internal_visual_workspace() -> Control:
 	return workspace
 
 
-func _create_internal_isometric_preview_panel() -> Control:
+func _create_internal_volume_placeholder_panel() -> Control:
 	var panel: PanelContainer = PanelContainer.new()
 	_apply_dark_panel_style(panel)
 	panel.custom_minimum_size = Vector2(180, 160)
-	var volume_size: Vector3i = Vector3i(5, 8, 5)
-	if bipob != null and bipob.has_method("get_internal_volume_size"):
-		volume_size = bipob.get_internal_volume_size()
 	var root: VBoxContainer = VBoxContainer.new()
 	root.add_theme_constant_override("separation", 3)
+	root.alignment = BoxContainer.ALIGNMENT_CENTER
 	var title: Label = Label.new()
-	title.text = "ISOMETRIC VIEW"
+	title.text = "VOLUME PREVIEW"
 	_apply_label_style(title, false, true)
 	title.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	root.add_child(title)
-	var grid: GridContainer = GridContainer.new()
-	grid.columns = maxi(3, volume_size.x)
-	grid.add_theme_constant_override("h_separation", 2)
-	grid.add_theme_constant_override("v_separation", 2)
-	for y in range(volume_size.y):
-		for x in range(volume_size.x):
-			var top_z: int = -1
-			for z in range(volume_size.z - 1, -1, -1):
-				if bipob.get_internal_module_at_cell(Vector3i(x, y, z)) != null:
-					top_z = z
-					break
-			var cell_button: Label = Label.new()
-			cell_button.custom_minimum_size = Vector2(22, 20)
-			if top_z >= 0:
-				cell_button.text = str(top_z + 1)
-			else:
-				cell_button.text = "·"
-			var is_cursor: bool = bipob.selected_internal_origin.x == x and bipob.selected_internal_origin.y == y
-			var is_slice: bool = top_z == bipob.selected_internal_origin.z
-			cell_button.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
-			cell_button.add_theme_color_override("font_color", UI_COLOR_SELECTED if is_cursor else (UI_COLOR_ACCENT if is_slice else UI_COLOR_TEXT_DIM))
-			grid.add_child(cell_button)
-	root.add_child(grid)
-	var hint: Label = Label.new()
-	hint.text = "Cursor highlighted. Numbers show occupied height."
-	_apply_label_style(hint, true, false)
-	root.add_child(hint)
+	var body: Label = Label.new()
+	body.text = "Placeholder"
+	body.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	_apply_label_style(body, true, false)
+	root.add_child(body)
 	panel.add_child(root)
 	return panel
 
