@@ -127,19 +127,19 @@ const UI_COLOR_WARNING: Color = Color(0.950, 0.640, 0.230, 1.0)
 const UI_COLOR_DANGER: Color = Color(0.950, 0.250, 0.250, 1.0)
 const UI_COLOR_DISABLED: Color = Color(0.250, 0.280, 0.320, 1.0)
 
-const STORAGE_CARD_MIN_SIZE: Vector2 = Vector2(92, 64)
-const STORAGE_CARD_ICON_SIZE: Vector2 = Vector2(30, 30)
-const SELECTED_MODULE_ICON_SIZE: Vector2 = Vector2(58, 42)
-const SELECTED_MODULE_PREVIEW_CELL_SIZE: Vector2 = Vector2(16, 16)
+const STORAGE_CARD_MIN_SIZE: Vector2 = Vector2(86, 58)
+const STORAGE_CARD_ICON_SIZE: Vector2 = Vector2(26, 26)
+const SELECTED_MODULE_ICON_SIZE: Vector2 = Vector2(52, 38)
+const SELECTED_MODULE_PREVIEW_CELL_SIZE: Vector2 = Vector2(14, 14)
 const SELECTED_MODULE_PREVIEW_GAP: int = 3
-const EXTERNAL_GRID_CELL_SIZE: Vector2 = Vector2(28, 28)
+const EXTERNAL_GRID_CELL_SIZE: Vector2 = Vector2(26, 26)
 const EXTERNAL_GRID_CELL_GAP: int = 2
-const INTERNAL_GRID_CELL_SIZE: Vector2 = Vector2(26, 26)
+const INTERNAL_GRID_CELL_SIZE: Vector2 = Vector2(24, 24)
 const INTERNAL_GRID_CELL_GAP: int = 2
-const ACTION_BUTTON_MIN_SIZE: Vector2 = Vector2(104, 26)
-const ACTION_BUTTON_COMPACT_SIZE: Vector2 = Vector2(48, 24)
-const ACTION_GROUP_SPACING: int = 3
-const ACTION_BUTTON_SPACING: int = 3
+const ACTION_BUTTON_MIN_SIZE: Vector2 = Vector2(100, 24)
+const ACTION_BUTTON_COMPACT_SIZE: Vector2 = Vector2(46, 22)
+const ACTION_GROUP_SPACING: int = 2
+const ACTION_BUTTON_SPACING: int = 2
 const STATUS_BADGE_MIN_SIZE: Vector2 = Vector2(96, 26)
 const STATUS_BADGE_SMALL_SIZE: Vector2 = Vector2(70, 20)
 const STATUS_BADGE_GAP: int = 4
@@ -1351,7 +1351,9 @@ func _configure_box_layout() -> void:
 		left_panel.add_child(box_content_scroll)
 	box_content_scroll.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	box_content_scroll.size_flags_vertical = Control.SIZE_EXPAND_FILL
-	box_content_scroll.custom_minimum_size = Vector2(320, 340)
+	box_content_scroll.custom_minimum_size = Vector2(320, 320)
+	box_content_scroll.horizontal_scroll_mode = ScrollContainer.SCROLL_MODE_DISABLED
+	box_content_scroll.vertical_scroll_mode = ScrollContainer.SCROLL_MODE_DISABLED
 
 	box_content_label = box_content_scroll.get_node_or_null("BoxContentLabel")
 	if box_content_label == null:
@@ -1591,27 +1593,22 @@ func _create_constructor_mode_layout(
 		main_row.add_child(workspace)
 
 	if storage_panel != null:
-		storage_panel.custom_minimum_size = Vector2(250, 0)
+		storage_panel.custom_minimum_size = Vector2(240, 0)
 		storage_panel.size_flags_horizontal = Control.SIZE_SHRINK_BEGIN
 		storage_panel.size_flags_vertical = Control.SIZE_EXPAND_FILL
 		main_row.add_child(storage_panel)
 
-	var right_column: VBoxContainer = VBoxContainer.new()
-	right_column.custom_minimum_size = Vector2(280, 0)
-	right_column.size_flags_horizontal = Control.SIZE_SHRINK_BEGIN
-	right_column.size_flags_vertical = Control.SIZE_EXPAND_FILL
-	right_column.add_theme_constant_override("separation", 4)
+	if details_panel != null:
+		details_panel.custom_minimum_size = Vector2(260, 0)
+		details_panel.size_flags_horizontal = Control.SIZE_SHRINK_BEGIN
+		details_panel.size_flags_vertical = Control.SIZE_EXPAND_FILL
+		main_row.add_child(details_panel)
 
 	if side_panel != null:
-		side_panel.custom_minimum_size = Vector2(280, 0)
+		side_panel.custom_minimum_size = Vector2(230, 0)
+		side_panel.size_flags_horizontal = Control.SIZE_SHRINK_BEGIN
 		side_panel.size_flags_vertical = Control.SIZE_EXPAND_FILL
-		right_column.add_child(side_panel)
-
-	if details_panel != null:
-		details_panel.custom_minimum_size = Vector2(280, 0)
-		right_column.add_child(details_panel)
-
-	main_row.add_child(right_column)
+		main_row.add_child(side_panel)
 	root.add_child(main_row)
 
 	return root
@@ -1625,7 +1622,7 @@ func _build_storage_cards_panel(parent: Control) -> void:
 
 	var storage_panel: PanelContainer = PanelContainer.new()
 	_apply_panel_style(storage_panel)
-	storage_panel.custom_minimum_size = Vector2(250, 0)
+	storage_panel.custom_minimum_size = Vector2(240, 0)
 	storage_panel.size_flags_vertical = Control.SIZE_EXPAND_FILL
 	var storage_root: VBoxContainer = VBoxContainer.new()
 	storage_root.add_theme_constant_override("separation", 4)
@@ -1657,7 +1654,7 @@ func _build_storage_cards_panel(parent: Control) -> void:
 	var details_panel: Control = _create_selected_module_detail_card()
 
 	var side_panel: VBoxContainer = VBoxContainer.new()
-	side_panel.custom_minimum_size = Vector2(280, 0)
+	side_panel.custom_minimum_size = Vector2(230, 0)
 	side_panel.add_theme_constant_override("separation", 4)
 	side_panel.add_child(_create_constructor_playable_status_panel())
 	if box_menu_mode == BoxMenuMode.INTERNAL:
@@ -1731,7 +1728,7 @@ func _create_constructor_playable_status_panel() -> Control:
 	title.text = "Constructor Status"
 	_apply_label_style(title, false, true)
 	root.add_child(title)
-	root.add_child(_create_constructor_status_badges_panel(6))
+	root.add_child(_create_constructor_status_badges_panel(4))
 	if not CONSTRUCTOR_COMPACT_STATUS:
 		root.add_child(_create_constructor_warning_readiness_panel())
 	var compact_panel: PanelContainer = PanelContainer.new()
@@ -1741,7 +1738,7 @@ func _create_constructor_playable_status_panel() -> Control:
 		var warning_count: int = bipob.get_constructor_warning_lines().size() if bipob.has_method("get_constructor_warning_lines") else 0
 		var thermal_text: String = "WARN" if bipob.has_method("has_thermal_issues") and bipob.has_thermal_issues() else "OK"
 		var power_text: String = "MISSING" if bipob.has_method("has_missing_power_for_critical_modules") and bipob.has_missing_power_for_critical_modules() else "OK"
-		compact_label.text = "Warnings: %d | Thermal: %s | Power: %s\n%s" % [warning_count, thermal_text, power_text, _get_constructor_playable_status_text()]
+		compact_label.text = "Power: %s | Thermal: %s | Warnings: %d" % [power_text, thermal_text, warning_count]
 	else:
 		compact_label.text = _get_constructor_playable_status_text()
 	compact_label.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
@@ -1900,7 +1897,7 @@ func _create_selected_module_detail_card() -> Control:
 	_apply_label_style(stats_title, false, true)
 	stats_box.add_child(stats_title)
 	var stat_lines: Array[String] = _get_selected_module_stat_lines(module)
-	var stat_limit: int = mini(5, stat_lines.size()) if CONSTRUCTOR_COMPACT_DETAILS else stat_lines.size()
+	var stat_limit: int = mini(4, stat_lines.size()) if CONSTRUCTOR_COMPACT_DETAILS else stat_lines.size()
 	for index in range(stat_limit):
 		var line: String = stat_lines[index]
 		var stat_label: Label = Label.new()
@@ -2103,7 +2100,7 @@ func _create_external_side_grid(side_id: String) -> Control:
 func _create_external_robot_preview_panel() -> Control:
 	var panel: PanelContainer = PanelContainer.new()
 	_apply_panel_style(panel, true)
-	panel.custom_minimum_size = Vector2(150, 150)
+	panel.custom_minimum_size = Vector2(135, 135)
 
 	var root: VBoxContainer = VBoxContainer.new()
 	root.alignment = BoxContainer.ALIGNMENT_CENTER
@@ -2167,7 +2164,7 @@ func _create_external_visual_workspace() -> Control:
 	root.size_flags_vertical = Control.SIZE_EXPAND_FILL
 
 	var title: Label = Label.new()
-	title.text = "EXTERNAL MODULES ON BODY"
+	title.text = "External Modules Workspace"
 	_apply_label_style(title, false, true)
 	root.add_child(title)
 
@@ -2191,6 +2188,20 @@ func _create_external_visual_workspace() -> Control:
 	bottom_row.add_child(_create_external_side_grid("bottom"))
 	bottom_row.add_child(_create_external_side_grid("back"))
 	root.add_child(bottom_row)
+
+	var installed_summary: Label = Label.new()
+	var installed_modules: Array[BipobModule] = bipob.get_unique_external_modules() if bipob.has_method("get_unique_external_modules") else []
+	if installed_modules.is_empty():
+		installed_summary.text = "Installed: none"
+	else:
+		var names: Array[String] = []
+		for module in installed_modules:
+			if module != null:
+				names.append(bipob.get_module_display_name(module))
+		installed_summary.text = "Installed: " + ", ".join(names)
+	_apply_label_style(installed_summary, true, false)
+	installed_summary.clip_text = true
+	root.add_child(installed_summary)
 
 	if not CONSTRUCTOR_COMPACT_STATUS:
 		var status_text_label: Label = Label.new()
@@ -2783,10 +2794,10 @@ func _apply_box_screen_fullscreen_layout() -> void:
 	var box_panel: Control = box_screen.get_node_or_null("PanelContainer")
 	if box_panel != null:
 		box_panel.set_anchors_preset(Control.PRESET_FULL_RECT)
-		box_panel.offset_left = 6
-		box_panel.offset_top = 6
-		box_panel.offset_right = -6
-		box_panel.offset_bottom = -6
+		box_panel.offset_left = 4
+		box_panel.offset_top = 4
+		box_panel.offset_right = -4
+		box_panel.offset_bottom = -4
 		box_panel.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 		box_panel.size_flags_vertical = Control.SIZE_EXPAND_FILL
 		var box_vbox: VBoxContainer = box_panel.get_node_or_null("VBoxContainer")
@@ -3269,8 +3280,8 @@ func rebuild_box_action_buttons() -> void:
 		_add_action_button(external_filter_row, "Next Filter", Callable(self, "_on_next_constructor_filter_pressed"), "normal", true, true)
 		var external_box_row: HBoxContainer = _create_action_button_row()
 		selection_group.add_child(external_box_row)
-		_add_action_button(external_box_row, "Prev Box", Callable(self, "_on_prev_external_slot_pressed"), "normal", true, true)
-		_add_action_button(external_box_row, "Next Box", Callable(self, "_on_next_external_slot_pressed"), "normal", true, true)
+		_add_action_button(external_box_row, "Prev Box", Callable(self, "_on_prev_box_pressed"), "normal", true, true)
+		_add_action_button(external_box_row, "Next Box", Callable(self, "_on_next_box_pressed"), "normal", true, true)
 
 		var external_position_group: VBoxContainer = _create_action_group_panel("Position")
 		right_button_panel.add_child(external_position_group)
