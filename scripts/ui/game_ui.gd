@@ -2832,34 +2832,11 @@ func _ready() -> void:
 
 	next_box_button = null
 
-	external_tab_button = Button.new()
-	external_tab_button.name = "ExternalTabButton"
-	external_tab_button.text = "External Modules"
-	external_tab_button.focus_mode = Control.FOCUS_NONE
-	box_tab_row.add_child(external_tab_button)
-	external_tab_button.pressed.connect(set_box_menu_mode_external)
-	internal_tab_button = Button.new()
-	internal_tab_button.name = "InternalTabButton"
-	internal_tab_button.text = "Internal Modules"
-	internal_tab_button.focus_mode = Control.FOCUS_NONE
-	box_tab_row.add_child(internal_tab_button)
-	internal_tab_button.pressed.connect(set_box_menu_mode_internal)
-
-	bipob_alpha_button = Button.new()
-	bipob_alpha_button.name = "BipobAlphaButton"
-	bipob_alpha_button.text = "Разведчик"
-	bipob_alpha_button.focus_mode = Control.FOCUS_NONE
-	bipob_alpha_button.pressed.connect(func() -> void: _switch_active_bipob("alpha"))
-	bipob_beta_button = Button.new()
-	bipob_beta_button.name = "BipobBetaButton"
-	bipob_beta_button.text = "Инженер"
-	bipob_beta_button.focus_mode = Control.FOCUS_NONE
-	bipob_beta_button.pressed.connect(func() -> void: _switch_active_bipob("beta"))
-	box_back_button = Button.new()
-	box_back_button.name = "BoxBackButton"
-	box_back_button.text = "Назад"
-	box_back_button.focus_mode = Control.FOCUS_NONE
-	box_back_button.pressed.connect(_on_box_back_pressed)
+	external_tab_button = null
+	internal_tab_button = null
+	bipob_alpha_button = null
+	bipob_beta_button = null
+	box_back_button = null
 	_setup_box_top_bar()
 	_ensure_constructor_profiles_initialized()
 	_load_bipob_profile(active_bipob_profile_id)
@@ -2954,15 +2931,15 @@ func _hide_all_app_screens() -> void:
 	if box_screen != null:
 		box_screen.visible = false
 
-func _set_gameplay_visible(is_visible: bool) -> void:
+func _set_gameplay_visible(visible_state: bool) -> void:
 	if command_panel != null:
-		command_panel.visible = is_visible
+		command_panel.visible = visible_state
 	if status_label != null:
-		status_label.visible = is_visible
+		status_label.visible = visible_state
 	if hint_label != null:
-		hint_label.visible = is_visible
+		hint_label.visible = visible_state
 	if diagnostic_label != null:
-		diagnostic_label.visible = is_visible
+		diagnostic_label.visible = visible_state
 
 	var gameplay_nodes: Array[String] = [
 		"../GridRoot",
@@ -2976,7 +2953,7 @@ func _set_gameplay_visible(is_visible: bool) -> void:
 	for node_path in gameplay_nodes:
 		var node: CanvasItem = get_node_or_null(node_path) as CanvasItem
 		if node != null:
-			node.visible = is_visible
+			node.visible = visible_state
 
 func show_main_menu_screen() -> void:
 	app_screen_mode = AppScreenMode.MAIN_MENU
@@ -3771,48 +3748,73 @@ func rebuild_box_action_buttons() -> void:
 		_add_box_action_button("Repair Rules", Callable(self, "_on_repair_rules_pressed"))
 	_apply_constructor_ui_skin()
 
-func _create_box_top_tab_button(text: String, callback: Callable, active: bool) -> Button:
+func _make_box_top_button(
+	text: String,
+	callback: Callable,
+	active: bool = false,
+	role: String = "normal"
+) -> Button:
 	var button: Button = Button.new()
 	button.text = text
 	button.focus_mode = Control.FOCUS_NONE
 	button.custom_minimum_size = Vector2(120, 32)
-	_apply_action_button_style(button, "primary" if active else "normal", true)
+	var style_role: String = "primary" if active else role
+	_apply_action_button_style(button, style_role, true)
 	button.pressed.connect(callback)
 	return button
 
 func _setup_box_top_bar() -> void:
 	if box_top_bar_root == null:
 		return
-	_clear_box_top_bar()
+	for child in box_top_bar_root.get_children():
+		child.queue_free()
+	var root: HBoxContainer = HBoxContainer.new()
+	root.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	root.add_theme_constant_override("separation", 8)
+	box_top_bar_root.add_child(root)
 	var left_tabs: HBoxContainer = HBoxContainer.new()
-	left_tabs.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-	box_top_bar_root.add_child(left_tabs)
-	var external_tab_button: Button = _create_box_top_tab_button(
+	left_tabs.add_child(_make_box_top_button(
 		"External",
 		Callable(self, "set_box_menu_mode_external"),
 		box_menu_mode == BoxMenuMode.EXTERNAL
-	)
-	var internal_tab_button: Button = _create_box_top_tab_button(
+	))
+	left_tabs.add_child(_make_box_top_button(
 		"Internal",
 		Callable(self, "set_box_menu_mode_internal"),
 		box_menu_mode == BoxMenuMode.INTERNAL
-	)
-	left_tabs.add_child(external_tab_button)
-	left_tabs.add_child(internal_tab_button)
-	var center_section := VBoxContainer.new()
-	center_section.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-	box_top_bar_root.add_child(center_section)
-	var center_title := Label.new()
-	center_title.text = "Доступные бипобы"
-	center_section.add_child(center_title)
-	var selector_row := HBoxContainer.new()
-	center_section.add_child(selector_row)
-	selector_row.add_child(bipob_alpha_button)
-	selector_row.add_child(bipob_beta_button)
-	var right_section := HBoxContainer.new()
-	right_section.alignment = BoxContainer.ALIGNMENT_END
-	box_top_bar_root.add_child(right_section)
-	right_section.add_child(box_back_button)
+	))
+	root.add_child(left_tabs)
+	var spacer_left: Control = Control.new()
+	spacer_left.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	root.add_child(spacer_left)
+	var bipob_box: VBoxContainer = VBoxContainer.new()
+	var bipob_title: Label = Label.new()
+	bipob_title.text = "Доступные бипобы"
+	_apply_label_style(bipob_title, false, true)
+	bipob_box.add_child(bipob_title)
+	var bipob_row: HBoxContainer = HBoxContainer.new()
+	bipob_row.add_theme_constant_override("separation", 4)
+	bipob_row.add_child(_make_box_top_button(
+		"Разведчик",
+		Callable(self, "_on_bipob_alpha_pressed"),
+		active_bipob_profile_id == "alpha"
+	))
+	bipob_row.add_child(_make_box_top_button(
+		"Инженер",
+		Callable(self, "_on_bipob_beta_pressed"),
+		active_bipob_profile_id == "beta"
+	))
+	bipob_box.add_child(bipob_row)
+	root.add_child(bipob_box)
+	var spacer_right: Control = Control.new()
+	spacer_right.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	root.add_child(spacer_right)
+	root.add_child(_make_box_top_button(
+		"Назад",
+		Callable(self, "_on_box_back_pressed"),
+		false,
+		"normal"
+	))
 
 func _make_module_by_id(module_id: String) -> BipobModule:
 	if module_id.is_empty() or bipob == null:
@@ -3903,23 +3905,21 @@ func _switch_active_bipob(profile_id: String) -> void:
 	update_box_status()
 	rebuild_box_action_buttons()
 
+func _on_bipob_alpha_pressed() -> void:
+	_switch_active_bipob("alpha")
+
+func _on_bipob_beta_pressed() -> void:
+	_switch_active_bipob("beta")
+
 func _update_bipob_selector_visuals() -> void:
-	if bipob_alpha_button != null:
-		bipob_alpha_button.disabled = active_bipob_profile_id == "alpha"
-	if bipob_beta_button != null:
-		bipob_beta_button.disabled = active_bipob_profile_id == "beta"
+	_setup_box_top_bar()
 
 func _on_box_back_pressed() -> void:
 	_save_active_bipob_profile()
 	show_center_screen()
 
 func update_box_button_visibility() -> void:
-	var is_external := box_menu_mode == BoxMenuMode.EXTERNAL
-	var is_internal := box_menu_mode == BoxMenuMode.INTERNAL
-	if external_tab_button != null:
-		external_tab_button.disabled = is_external
-	if internal_tab_button != null:
-		internal_tab_button.disabled = is_internal
+	_setup_box_top_bar()
 
 func set_box_menu_mode_mission() -> void:
 	box_menu_mode = BoxMenuMode.MISSION
