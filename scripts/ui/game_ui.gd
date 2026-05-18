@@ -2662,7 +2662,6 @@ func _create_internal_interfaces_placeholder_panel() -> Control:
 		_apply_label_style(label, true, false)
 		section.add_child(label)
 		var button: Button = _create_menu_button("%s Line" % row_title, Callable(), Vector2(88, 22))
-		button.disabled = true
 		section.add_child(button)
 		root.add_child(section)
 	panel.add_child(root)
@@ -4756,13 +4755,17 @@ func _on_constructor_checkpoint_pressed() -> void:
 		_show_constructor_reference_text("CHECKPOINT", "Checkpoint helper is unavailable.")
 
 
-func _create_menu_button(text: String, callback: Callable, min_size: Vector2 = Vector2(150, 34), role: String = "normal") -> Button:
+func _create_menu_button(text: String, callback: Callable = Callable(), min_size: Vector2 = Vector2(150, 34), role: String = "normal") -> Button:
 	var button: Button = Button.new()
 	button.text = text
 	button.custom_minimum_size = min_size
 	button.focus_mode = Control.FOCUS_NONE
 	_apply_action_button_style(button, role, true)
-	button.pressed.connect(callback)
+	if callback.is_valid():
+		button.pressed.connect(callback)
+	else:
+		button.disabled = true
+		button.tooltip_text = "Placeholder"
 	return button
 
 func _build_main_menu_layout() -> void:
