@@ -2256,6 +2256,60 @@ func _create_external_constructor_layout() -> Control:
 	return root
 
 
+func _create_internal_constructor_layout() -> Control:
+	var root: HBoxContainer = HBoxContainer.new()
+	root.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	root.size_flags_vertical = Control.SIZE_EXPAND_FILL
+	root.add_theme_constant_override("separation", 8)
+
+	var workspace: Control = _create_internal_visual_workspace()
+	workspace.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	workspace.size_flags_vertical = Control.SIZE_EXPAND_FILL
+	root.add_child(workspace)
+
+	var right_column: VBoxContainer = VBoxContainer.new()
+	right_column.custom_minimum_size = Vector2(330, 0)
+	right_column.size_flags_horizontal = Control.SIZE_SHRINK_END
+	right_column.size_flags_vertical = Control.SIZE_EXPAND_FILL
+	right_column.add_theme_constant_override("separation", 6)
+	right_column.add_child(_create_internal_filter_panel())
+	right_column.add_child(_create_internal_storage_components_panel())
+	right_column.add_child(_create_selected_module_detail_card())
+	root.add_child(right_column)
+
+	return root
+
+
+func _create_internal_filter_panel() -> Control:
+	var panel: PanelContainer = PanelContainer.new()
+	_apply_panel_style(panel)
+	panel.custom_minimum_size = Vector2(0, 92)
+
+	var root: VBoxContainer = VBoxContainer.new()
+	root.add_theme_constant_override("separation", 4)
+
+	var title: Label = Label.new()
+	title.text = "ФИЛЬТРЫ"
+	_apply_label_style(title, false, true)
+	root.add_child(title)
+
+	var filter_label: Label = Label.new()
+	filter_label.text = "Текущий фильтр: %s" % get_current_constructor_filter().capitalize()
+	_apply_label_style(filter_label, true, false)
+	root.add_child(filter_label)
+
+	var row: HBoxContainer = HBoxContainer.new()
+	row.add_theme_constant_override("separation", 4)
+	var prev_button: Button = _create_menu_button("Назад", Callable(self, "_on_prev_constructor_filter_pressed"), Vector2(96, 26))
+	var next_button: Button = _create_menu_button("Вперёд", Callable(self, "_on_next_constructor_filter_pressed"), Vector2(96, 26))
+	row.add_child(prev_button)
+	row.add_child(next_button)
+	root.add_child(row)
+
+	panel.add_child(root)
+	return panel
+
+
 func _create_external_info_stub_panel(title_text: String, body_text: String) -> Control:
 	var panel: PanelContainer = PanelContainer.new()
 	_apply_dark_panel_style(panel)
@@ -2457,7 +2511,7 @@ func _create_internal_storage_components_panel() -> Control:
 	root.size_flags_vertical = Control.SIZE_EXPAND_FILL
 
 	var title: Label = Label.new()
-	title.text = "COMPONENTS IN BOX STORAGE"
+	title.text = "КОМПОНЕНТЫ В STORAGE"
 	_apply_label_style(title, false, true)
 	root.add_child(title)
 
@@ -2479,7 +2533,7 @@ func _create_internal_storage_components_panel() -> Control:
 		var module: BipobModule = bipob.box_storage[storage_index]
 		if module == null:
 			continue
-		if not bipob.is_internal_module(module):
+		if not bipob.is_internal_module(module) and not bipob.is_internal_overlay_module(module):
 			continue
 		has_internal_modules = true
 		var selected: bool = storage_index == selected_box_storage_index
@@ -2490,6 +2544,35 @@ func _create_internal_storage_components_panel() -> Control:
 		empty_label.text = "Нет внутренних модулей в Storage."
 		_apply_label_style(empty_label, true, false)
 		grid.add_child(empty_label)
+
+	panel.add_child(root)
+	return panel
+
+
+func _create_constructor_dashboard_layout() -> Control:
+	var panel: PanelContainer = PanelContainer.new()
+	_apply_panel_style(panel)
+	panel.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	panel.size_flags_vertical = Control.SIZE_EXPAND_FILL
+
+	var root: VBoxContainer = VBoxContainer.new()
+	root.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	root.size_flags_vertical = Control.SIZE_EXPAND_FILL
+	root.add_theme_constant_override("separation", 8)
+
+	var title: Label = Label.new()
+	title.text = "CONSTRUCTOR DASHBOARD"
+	_apply_label_style(title, false, true)
+	root.add_child(title)
+
+	if _safe_has_bipob_method("get_constructor_readiness_summary_text"):
+		root.add_child(_create_constructor_playable_status_panel())
+
+	var hint_label: Label = Label.new()
+	hint_label.text = "Выберите вкладку External или Internal для настройки BOX."
+	hint_label.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	_apply_label_style(hint_label, true, false)
+	root.add_child(hint_label)
 
 	panel.add_child(root)
 	return panel
