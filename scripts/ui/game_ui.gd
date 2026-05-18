@@ -2332,6 +2332,10 @@ func _create_external_storage_right_column() -> Control:
 	storage_panel.size_flags_vertical = Control.SIZE_EXPAND_FILL
 	column.add_child(storage_panel)
 
+	var action_bar_panel: Control = _create_external_storage_action_bar_panel()
+	action_bar_panel.size_flags_vertical = Control.SIZE_SHRINK_BEGIN
+	column.add_child(action_bar_panel)
+
 	var selected_panel: Control = _create_external_selected_description_panel()
 	selected_panel.size_flags_vertical = Control.SIZE_SHRINK_END
 	column.add_child(selected_panel)
@@ -2414,6 +2418,58 @@ func _create_external_storage_components_panel() -> Control:
 		_apply_label_style(empty_label, true, false)
 		grid.add_child(empty_label)
 
+	panel.add_child(root)
+	return panel
+
+func _create_external_storage_action_bar_panel() -> Control:
+	var panel: PanelContainer = PanelContainer.new()
+	_apply_panel_style(panel)
+	panel.custom_minimum_size = Vector2(0, 84)
+	panel.size_flags_vertical = Control.SIZE_SHRINK_BEGIN
+
+	var root: VBoxContainer = VBoxContainer.new()
+	root.add_theme_constant_override("separation", 4)
+
+	var title: Label = Label.new()
+	title.text = "ДЕЙСТВИЯ"
+	_apply_label_style(title, false, true)
+	root.add_child(title)
+
+	var actions_row: HFlowContainer = HFlowContainer.new()
+	actions_row.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	actions_row.alignment = FlowContainer.ALIGNMENT_BEGIN
+	actions_row.add_theme_constant_override("h_separation", 4)
+	actions_row.add_theme_constant_override("v_separation", 4)
+
+	var selected_external_slot_module: BipobModule = bipob.get_external_module_at(
+		bipob.selected_external_side,
+		bipob.selected_external_origin
+	)
+
+	var buttons: Array[Dictionary] = [
+		{"text": "Side Prev", "handler": Callable(self, "_on_prev_external_side_pressed"), "role": "normal", "enabled": true},
+		{"text": "Side Next", "handler": Callable(self, "_on_next_external_side_pressed"), "role": "normal", "enabled": true},
+		{"text": "X-", "handler": Callable(self, "_on_prev_external_slot_pressed"), "role": "normal", "enabled": true},
+		{"text": "X+", "handler": Callable(self, "_on_next_external_slot_pressed"), "role": "normal", "enabled": true},
+		{"text": "Y-", "handler": Callable(self, "_on_prev_external_side_pressed"), "role": "normal", "enabled": true},
+		{"text": "Y+", "handler": Callable(self, "_on_next_external_side_pressed"), "role": "normal", "enabled": true},
+		{"text": "Place", "handler": Callable(self, "_on_place_external_module_pressed"), "role": "primary", "enabled": _can_place_selected_external_visual()},
+		{"text": "Remove", "handler": Callable(self, "_on_remove_external_module_pressed"), "role": "danger", "enabled": selected_external_slot_module != null},
+		{"text": "Checkpoint", "handler": Callable(self, "_on_constructor_checkpoint_pressed"), "role": "reference", "enabled": true},
+		{"text": "Final Audit", "handler": Callable(self, "_on_constructor_final_audit_pressed"), "role": "reference", "enabled": true},
+	]
+
+	for config in buttons:
+		_add_action_button(
+			actions_row,
+			String(config.get("text", "")),
+			config.get("handler", Callable()),
+			String(config.get("role", "normal")),
+			bool(config.get("enabled", true)),
+			true
+		)
+
+	root.add_child(actions_row)
 	panel.add_child(root)
 	return panel
 
@@ -3507,35 +3563,10 @@ func rebuild_box_action_buttons() -> void:
 		_add_box_action_button("Start", Callable(self, "_on_start_mission_button_pressed"))
 		_add_box_action_button("Restart", Callable(self, "_on_restart_mission_button_pressed"))
 	elif box_menu_mode == BoxMenuMode.EXTERNAL:
-		var selected_external_slot_module: BipobModule = bipob.get_external_module_at(
-			bipob.selected_external_side,
-			bipob.selected_external_origin
-		)
-
-		var external_position_group: VBoxContainer = _create_action_group_panel("Position")
-		right_button_panel.add_child(external_position_group)
-		var side_row: HBoxContainer = _create_action_button_row()
-		external_position_group.add_child(side_row)
-		_add_action_button(side_row, "Side Prev", Callable(self, "_on_prev_external_side_pressed"), "normal", true, true)
-		_add_action_button(side_row, "Side Next", Callable(self, "_on_next_external_side_pressed"), "normal", true, true)
-		var external_x_row: HBoxContainer = _create_action_button_row()
-		external_position_group.add_child(external_x_row)
-		_add_action_button(external_x_row, "X-", Callable(self, "_on_prev_external_slot_pressed"), "normal", true, true)
-		_add_action_button(external_x_row, "X+", Callable(self, "_on_next_external_slot_pressed"), "normal", true, true)
-		var external_y_row: HBoxContainer = _create_action_button_row()
-		external_position_group.add_child(external_y_row)
-		_add_action_button(external_y_row, "Y-", Callable(self, "_on_prev_external_side_pressed"), "normal", true, true)
-		_add_action_button(external_y_row, "Y+", Callable(self, "_on_next_external_side_pressed"), "normal", true, true)
-
-		var external_module_group: VBoxContainer = _create_action_group_panel("Module")
-		right_button_panel.add_child(external_module_group)
-		_add_action_button(external_module_group, "Place", Callable(self, "_on_place_external_module_pressed"), "primary", _can_place_selected_external_visual())
-		_add_action_button(external_module_group, "Remove", Callable(self, "_on_remove_external_module_pressed"), "danger", selected_external_slot_module != null)
-
-		var external_reference_group: VBoxContainer = _create_action_group_panel("Reference / Preview")
-		right_button_panel.add_child(external_reference_group)
-		_add_action_button(external_reference_group, "Checkpoint", Callable(self, "_on_constructor_checkpoint_pressed"), "reference")
-		_add_action_button(external_reference_group, "Final Audit", Callable(self, "_on_constructor_final_audit_pressed"), "reference")
+		var external_actions_hint: Label = Label.new()
+		external_actions_hint.text = "External actions moved under Storage panel."
+		_apply_label_style(external_actions_hint, true, false)
+		right_button_panel.add_child(external_actions_hint)
 	elif box_menu_mode == BoxMenuMode.INTERNAL:
 		var internal_remove_available: bool = bipob.get_internal_module_at_cell(bipob.selected_internal_origin) != null
 		var selection_group: VBoxContainer = _create_action_group_panel("Selection")
