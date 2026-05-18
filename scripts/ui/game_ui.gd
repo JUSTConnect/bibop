@@ -2901,7 +2901,7 @@ func get_module_details_text(module: BipobModule) -> String:
 
 
 func _get_runtime_sidebar_width() -> float:
-	var viewport_size: Vector2 = get_viewport_rect().size
+	var viewport_size: Vector2 = _get_viewport_size()
 	if viewport_size.x <= 1100.0:
 		return 260.0
 	if viewport_size.x <= 1500.0:
@@ -2910,7 +2910,7 @@ func _get_runtime_sidebar_width() -> float:
 
 
 func _get_runtime_top_bar_height() -> float:
-	var viewport_height: float = get_viewport_rect().size.y
+	var viewport_height: float = _get_viewport_height()
 	if viewport_height <= 768.0:
 		return 78.0
 	if viewport_height <= 900.0:
@@ -2919,7 +2919,7 @@ func _get_runtime_top_bar_height() -> float:
 
 
 func _get_runtime_control_panel_height() -> float:
-	var viewport_height: float = get_viewport_rect().size.y
+	var viewport_height: float = _get_viewport_height()
 	if viewport_height <= 768.0:
 		return 150.0
 	if viewport_height <= 900.0:
