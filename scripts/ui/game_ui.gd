@@ -147,7 +147,7 @@ const STORAGE_CARD_ICON_SIZE: Vector2 = Vector2(26, 26)
 const SELECTED_MODULE_ICON_SIZE: Vector2 = Vector2(52, 38)
 const SELECTED_MODULE_PREVIEW_CELL_SIZE: Vector2 = Vector2(14, 14)
 const SELECTED_MODULE_PREVIEW_GAP: int = 3
-const EXTERNAL_GRID_CELL_SIZE: Vector2 = Vector2(24, 24)
+const EXTERNAL_GRID_CELL_SIZE: Vector2 = Vector2(22, 22)
 const EXTERNAL_GRID_CELL_GAP: int = 2
 const INTERNAL_GRID_CELL_SIZE: Vector2 = Vector2(24, 24)
 const INTERNAL_GRID_CELL_GAP: int = 2
@@ -2107,7 +2107,7 @@ func _create_external_side_grid(side_id: String) -> Control:
 func _create_external_robot_preview_panel() -> Control:
 	var panel: PanelContainer = PanelContainer.new()
 	_apply_panel_style(panel, true)
-	panel.custom_minimum_size = Vector2(150, 150)
+	panel.custom_minimum_size = Vector2(120, 120)
 
 	var root: VBoxContainer = VBoxContainer.new()
 	root.alignment = BoxContainer.ALIGNMENT_CENTER
@@ -2168,7 +2168,7 @@ func _create_external_visual_workspace() -> Control:
 	panel.size_flags_vertical = Control.SIZE_EXPAND_FILL
 
 	var root: VBoxContainer = VBoxContainer.new()
-	root.add_theme_constant_override("separation", 6)
+	root.add_theme_constant_override("separation", 4)
 	root.size_flags_vertical = Control.SIZE_EXPAND_FILL
 
 	var title: Label = Label.new()
@@ -2177,7 +2177,7 @@ func _create_external_visual_workspace() -> Control:
 	root.add_child(title)
 
 	var info_row: HBoxContainer = HBoxContainer.new()
-	info_row.add_theme_constant_override("separation", 8)
+	info_row.add_theme_constant_override("separation", 4)
 
 	var left_info: Control = _create_external_info_stub_panel(
 		"Блок информации",
@@ -2384,7 +2384,7 @@ func _create_internal_filter_panel() -> Control:
 func _create_external_info_stub_panel(title_text: String, body_text: String) -> Control:
 	var panel: PanelContainer = PanelContainer.new()
 	_apply_dark_panel_style(panel)
-	panel.custom_minimum_size = Vector2(180, 72)
+	panel.custom_minimum_size = Vector2(170, 64)
 
 	var root: VBoxContainer = VBoxContainer.new()
 	root.add_theme_constant_override("separation", 4)
@@ -2406,11 +2406,12 @@ func _create_external_info_stub_panel(title_text: String, body_text: String) -> 
 
 func _create_external_side_grid_workspace() -> Control:
 	var root: VBoxContainer = VBoxContainer.new()
-	root.add_theme_constant_override("separation", 6)
+	root.add_theme_constant_override("separation", 4)
 	root.size_flags_vertical = Control.SIZE_EXPAND_FILL
 
 	var top_row: HBoxContainer = HBoxContainer.new()
 	top_row.alignment = BoxContainer.ALIGNMENT_CENTER
+	top_row.add_theme_constant_override("separation", 4)
 	top_row.add_child(_create_external_side_grid("top"))
 	root.add_child(top_row)
 
@@ -2441,6 +2442,7 @@ func _create_external_storage_right_column() -> Control:
 	column.add_theme_constant_override("separation", 6)
 
 	var filters_panel: Control = _create_external_filter_panel()
+	filters_panel.custom_minimum_size = Vector2(0, 80)
 	filters_panel.size_flags_vertical = Control.SIZE_SHRINK_END
 	column.add_child(filters_panel)
 
@@ -2449,7 +2451,7 @@ func _create_external_storage_right_column() -> Control:
 	column.add_child(storage_panel)
 
 	var selected_panel: Control = _create_external_selected_description_panel()
-	selected_panel.custom_minimum_size = Vector2(0, 160)
+	selected_panel.custom_minimum_size = Vector2(0, 145)
 	selected_panel.size_flags_vertical = Control.SIZE_SHRINK_END
 	column.add_child(selected_panel)
 
@@ -2459,7 +2461,7 @@ func _create_external_storage_right_column() -> Control:
 func _create_external_filter_panel() -> Control:
 	var panel: PanelContainer = PanelContainer.new()
 	_apply_panel_style(panel)
-	panel.custom_minimum_size = Vector2(0, 90)
+	panel.custom_minimum_size = Vector2(0, 80)
 
 	var root: VBoxContainer = VBoxContainer.new()
 	root.add_theme_constant_override("separation", 4)
