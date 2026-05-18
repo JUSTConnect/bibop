@@ -3885,7 +3885,9 @@ func get_constructor_final_audit_text() -> String:
 	lines.append("- Constructor is not gameplay-authoritative yet.")
 	lines.append("- Test Build is not implemented.")
 	return "\n".join(lines)
-
+func rebuild_internal_modules_by_cell() -> void:
+	pass
+	
 func get_repair_planning_reference_text() -> String:
 	var lines: Array[String] = []
 
