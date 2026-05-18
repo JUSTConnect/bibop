@@ -26,6 +26,8 @@ var box_content_label: Label = null
 var right_button_panel: VBoxContainer = null
 var main_box_row: HBoxContainer = null
 var left_panel: VBoxContainer = null
+var box_constructor_content_root: Control = null
+var box_top_bar_root: Control = null
 
 @onready var move_forward_button: Button = $CommandPanel/CommandList/MoveForwardButton
 @onready var move_backward_button: Button = $CommandPanel/CommandList/MoveBackwardButton
@@ -1356,6 +1358,7 @@ func _configure_box_layout() -> void:
 		box_tab_row.name = "BoxTabRow"
 		left_panel.add_child(box_tab_row)
 	box_tab_row.size_flags_vertical = Control.SIZE_SHRINK_BEGIN
+	box_top_bar_root = box_tab_row
 
 	box_content_scroll = left_panel.get_node_or_null("BoxContentScroll")
 	if box_content_scroll == null:
@@ -1375,6 +1378,15 @@ func _configure_box_layout() -> void:
 		box_content_scroll.add_child(box_content_label)
 	box_content_label.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 	box_content_label.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	box_content_label.visible = false
+
+	box_constructor_content_root = box_content_scroll.get_node_or_null("BoxConstructorContentRoot")
+	if box_constructor_content_root == null:
+		box_constructor_content_root = VBoxContainer.new()
+		box_constructor_content_root.name = "BoxConstructorContentRoot"
+		box_content_scroll.add_child(box_constructor_content_root)
+	box_constructor_content_root.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	box_constructor_content_root.size_flags_vertical = Control.SIZE_EXPAND_FILL
 
 	if box_status_label != null:
 		box_status_label.visible = false
@@ -3276,29 +3288,62 @@ func update_box_status() -> void:
 		content_text = get_box_modules_menu_text()
 
 	update_box_button_visibility()
-
-	var ui_panel: VBoxContainer = box_content_scroll.get_node_or_null("BoxContentCards")
+	_setup_box_top_bar()
 	if box_menu_mode == BoxMenuMode.EXTERNAL or box_menu_mode == BoxMenuMode.INTERNAL:
 		if box_content_label != null:
 			box_content_label.text = ""
 			box_content_label.visible = false
-		if ui_panel != null:
-			ui_panel.queue_free()
-		ui_panel = VBoxContainer.new()
-		ui_panel.name = "BoxContentCards"
-		ui_panel.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-		ui_panel.size_flags_vertical = Control.SIZE_EXPAND_FILL
-		box_content_scroll.add_child(ui_panel)
-		_build_storage_cards_panel(ui_panel)
-		rebuild_box_action_buttons()
+		_rebuild_box_constructor_content()
+		_rebuild_box_actions_for_current_mode()
 		update_box_button_visibility()
 		return
 
 	if box_content_label != null:
 		box_content_label.visible = true
 		box_content_label.text = content_text
-	if ui_panel != null:
-		ui_panel.queue_free()
+	_clear_box_constructor_content()
+	_rebuild_box_actions_for_current_mode()
+
+func _clear_box_constructor_content() -> void:
+	if box_constructor_content_root == null:
+		return
+	for child in box_constructor_content_root.get_children():
+		child.queue_free()
+
+func _rebuild_box_constructor_content() -> void:
+	_clear_box_constructor_content()
+	if box_constructor_content_root == null:
+		return
+	var layout: Control = null
+	match box_menu_mode:
+		BoxMenuMode.EXTERNAL:
+			layout = _create_external_constructor_layout()
+		BoxMenuMode.INTERNAL:
+			layout = _create_internal_constructor_layout()
+		BoxMenuMode.MODULES:
+			layout = _create_constructor_dashboard_layout()
+		_:
+			layout = null
+	if layout != null:
+		layout.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+		layout.size_flags_vertical = Control.SIZE_EXPAND_FILL
+		box_constructor_content_root.add_child(layout)
+
+func _clear_box_top_bar() -> void:
+	if box_top_bar_root == null:
+		return
+	for child in box_top_bar_root.get_children():
+		child.queue_free()
+
+func _clear_box_actions() -> void:
+	if right_button_panel == null:
+		return
+	for child in right_button_panel.get_children():
+		child.queue_free()
+
+func _rebuild_box_actions_for_current_mode() -> void:
+	_clear_box_actions()
+	rebuild_box_action_buttons()
 
 func get_box_mission_menu_text() -> String:
 	var content_lines: Array[String] = []
@@ -3547,8 +3592,7 @@ func _has_selected_overlay_path_visual() -> bool:
 func rebuild_box_action_buttons() -> void:
 	if right_button_panel == null:
 		return
-	for child in right_button_panel.get_children():
-		child.queue_free()
+	_clear_box_actions()
 
 	var actions_label: Label = Label.new()
 	actions_label.name = "ActionsLabel"
@@ -3645,13 +3689,12 @@ func _create_box_top_tab_button(text: String, callback: Callable, active: bool) 
 	return button
 
 func _setup_box_top_bar() -> void:
-	if box_tab_row == null:
+	if box_top_bar_root == null:
 		return
-	for child in box_tab_row.get_children():
-		child.queue_free()
+	_clear_box_top_bar()
 	var left_tabs: HBoxContainer = HBoxContainer.new()
 	left_tabs.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-	box_tab_row.add_child(left_tabs)
+	box_top_bar_root.add_child(left_tabs)
 	var external_tab_button: Button = _create_box_top_tab_button(
 		"External",
 		Callable(self, "set_box_menu_mode_external"),
@@ -3666,7 +3709,7 @@ func _setup_box_top_bar() -> void:
 	left_tabs.add_child(internal_tab_button)
 	var center_section := VBoxContainer.new()
 	center_section.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-	box_tab_row.add_child(center_section)
+	box_top_bar_root.add_child(center_section)
 	var center_title := Label.new()
 	center_title.text = "Доступные бипобы"
 	center_section.add_child(center_title)
@@ -3676,7 +3719,7 @@ func _setup_box_top_bar() -> void:
 	selector_row.add_child(bipob_beta_button)
 	var right_section := HBoxContainer.new()
 	right_section.alignment = BoxContainer.ALIGNMENT_END
-	box_tab_row.add_child(right_section)
+	box_top_bar_root.add_child(right_section)
 	right_section.add_child(box_back_button)
 
 func _make_module_by_id(module_id: String) -> BipobModule:
