@@ -81,6 +81,8 @@ var selected_internal_rotation: int = 0
 var selected_overlay_path_type: String = "liquid"
 var selected_overlay_cells: Array[Vector3i] = []
 var selected_overlay_path_index: int = 0
+var selected_external_side: String = EXTERNAL_SIDE_TOP
+var selected_external_origin: Vector2i = Vector2i.ZERO
 var found_module: BipobModule = null
 var held_module: BipobModule = null
 var stored_physical_module: BipobModule = null
@@ -3241,6 +3243,22 @@ func is_external_slot_in_bounds(side_id: String, slot_position: Vector2i) -> boo
 		and slot_position.x < side_size.x
 		and slot_position.y < side_size.y
 	)
+
+func set_selected_external_slot(side_id: String, origin: Vector2i) -> void:
+	if not is_external_side_valid(side_id):
+		return
+
+	if not is_external_slot_in_bounds(side_id, origin):
+		return
+
+	selected_external_side = side_id
+	selected_external_origin = origin
+
+func get_selected_external_side() -> String:
+	return selected_external_side
+
+func get_selected_external_origin() -> Vector2i:
+	return selected_external_origin
 
 func get_external_module_at(side_id: String, slot_position: Vector2i) -> BipobModule:
 	var key := get_external_slot_key(side_id, slot_position)
