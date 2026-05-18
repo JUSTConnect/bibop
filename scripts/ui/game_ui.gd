@@ -175,6 +175,27 @@ const CONSTRUCTOR_COMPACT_DETAILS: bool = true
 const CONSTRUCTOR_COMPACT_STATUS: bool = true
 const CONSTRUCTOR_SHOW_MODE_LAYOUT_TITLE: bool = false
 
+
+func _disconnect_all_pressed_connections(button: Button) -> void:
+	if button == null:
+		return
+	for connection in button.pressed.get_connections():
+		var callable: Callable = connection.get("callable", Callable())
+		if callable.is_valid():
+			button.pressed.disconnect(callable)
+
+
+func _connect_button_pressed_once(button: Button, callback: Callable) -> void:
+	if button == null:
+		return
+	if not callback.is_valid():
+		return
+	for connection in button.pressed.get_connections():
+		var callable: Callable = connection.get("callable", Callable())
+		if callable == callback:
+			return
+	button.pressed.connect(callback)
+
 func _safe_has_bipob_method(method_name: String) -> bool:
 	if bipob == null:
 		return false
@@ -3211,6 +3232,11 @@ func _apply_runtime_hud_layout() -> void:
 		exit_main_menu_button.text = "Exit to Main Menu"
 		_safe_reparent_control(exit_main_menu_button, mission_vbox)
 
+	_disconnect_all_pressed_connections(return_to_box_button)
+	_connect_button_pressed_once(return_to_box_button, Callable(self, "_on_runtime_return_to_center_pressed"))
+	_disconnect_all_pressed_connections(exit_main_menu_button)
+	_connect_button_pressed_once(exit_main_menu_button, Callable(self, "_on_runtime_exit_to_main_menu_pressed"))
+
 	for button in [move_forward_button, move_backward_button, turn_left_button, turn_right_button, interact_button, scan_device_button, hack_device_button, end_turn_button, rotate_storage_button, restart_mission_button, return_to_box_button, settings_button, exit_main_menu_button]:
 		if button != null:
 			button.size_flags_horizontal = Control.SIZE_EXPAND_FILL
@@ -5079,6 +5105,12 @@ func _on_return_to_box_button_pressed() -> void:
 	update_status()
 	update_box_status()
 	update_diagnostic_status()
+
+func _on_runtime_return_to_center_pressed() -> void:
+	show_center_screen()
+
+func _on_runtime_exit_to_main_menu_pressed() -> void:
+	show_main_menu_screen()
 
 func update_status() -> void:
 	if bipob == null:
