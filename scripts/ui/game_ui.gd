@@ -1431,6 +1431,15 @@ func module_matches_constructor_filter(module: BipobModule, filter_id: String) -
 		return module.placement_type == "internal"
 	return false
 
+func _is_module_visible_in_current_constructor_mode(module: BipobModule) -> bool:
+	if module == null:
+		return false
+	if box_menu_mode == BoxMenuMode.EXTERNAL:
+		return bipob.is_external_module(module)
+	if box_menu_mode == BoxMenuMode.INTERNAL:
+		return bipob.is_internal_module(module) or bipob.is_internal_overlay_module(module)
+	return true
+
 func get_filtered_box_storage_indices(filter_id: String) -> Array[int]:
 	var indices: Array[int] = []
 	if bipob == null:
@@ -1454,10 +1463,20 @@ func get_filtered_internal_box_storage_indices(filter_id: String) -> Array[int]:
 	return indices
 
 func get_current_filtered_box_storage_indices() -> Array[int]:
+	var result: Array[int] = []
+	if bipob == null:
+		return result
 	var filter_id: String = get_current_constructor_filter()
-	if box_menu_mode == BoxMenuMode.INTERNAL:
-		return get_filtered_internal_box_storage_indices(filter_id)
-	return get_filtered_box_storage_indices(filter_id)
+	for i in range(bipob.box_storage.size()):
+		var module: BipobModule = bipob.box_storage[i]
+		if module == null:
+			continue
+		if not _is_module_visible_in_current_constructor_mode(module):
+			continue
+		if not module_matches_constructor_filter(module, filter_id):
+			continue
+		result.append(i)
+	return result
 
 func get_selected_filtered_box_storage_index() -> int:
 	var indices: Array[int] = get_current_filtered_box_storage_indices()
@@ -1468,8 +1487,7 @@ func get_selected_filtered_box_storage_index() -> int:
 
 func sync_selected_box_storage_index_from_filter() -> void:
 	var raw_index: int = get_selected_filtered_box_storage_index()
-	if raw_index >= 0:
-		selected_box_storage_index = raw_index
+	selected_box_storage_index = raw_index
 
 func get_filtered_grouped_module_ids() -> Array[String]:
 	var ids: Array[String] = []
@@ -1481,6 +1499,8 @@ func get_filtered_grouped_module_ids() -> Array[String]:
 			return
 		var representative: BipobModule = bipob.get_first_module_by_id(module_id)
 		if representative == null:
+			return
+		if not _is_module_visible_in_current_constructor_mode(representative):
 			return
 		if module_matches_constructor_filter(representative, filter_id):
 			ids.append(module_id)
@@ -1611,7 +1631,7 @@ func _build_storage_cards_panel(parent: Control) -> void:
 	var storage_indices: Array[int] = get_current_filtered_box_storage_indices()
 	if storage_indices.is_empty():
 		var empty_label: Label = Label.new()
-		empty_label.text = "No modules match current filter."
+		empty_label.text = _get_storage_empty_state_text()
 		_apply_label_style(empty_label, true)
 		grid.add_child(empty_label)
 	else:
@@ -1635,6 +1655,13 @@ func _build_storage_cards_panel(parent: Control) -> void:
 
 	var mode_title: String = "External Modules on Body" if box_menu_mode == BoxMenuMode.EXTERNAL else "Internal Modules in Volume"
 	parent.add_child(_create_constructor_mode_layout(mode_title, workspace, storage_panel, details_panel, side_panel))
+
+func _get_storage_empty_state_text() -> String:
+	if box_menu_mode == BoxMenuMode.EXTERNAL:
+		return "No external modules in Box Storage."
+	if box_menu_mode == BoxMenuMode.INTERNAL:
+		return "No internal modules in Box Storage."
+	return "No modules match current filter."
 
 
 func _get_constructor_playable_status_text() -> String:
@@ -3246,6 +3273,8 @@ func set_box_menu_mode_modules() -> void:
 
 func set_box_menu_mode_external() -> void:
 	box_menu_mode = BoxMenuMode.EXTERNAL
+	selected_grouped_module_index = 0
+	sync_selected_box_storage_index_from_grouped_selection()
 	clamp_external_selection()
 	update_box_status()
 	rebuild_box_action_buttons()
@@ -3253,6 +3282,8 @@ func set_box_menu_mode_external() -> void:
 
 func set_box_menu_mode_internal() -> void:
 	box_menu_mode = BoxMenuMode.INTERNAL
+	selected_grouped_module_index = 0
+	sync_selected_box_storage_index_from_grouped_selection()
 	update_box_status()
 	rebuild_box_action_buttons()
 
