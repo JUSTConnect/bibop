@@ -106,14 +106,14 @@ const UI_COLOR_WARNING: Color = Color(0.950, 0.640, 0.230, 1.0)
 const UI_COLOR_DANGER: Color = Color(0.950, 0.250, 0.250, 1.0)
 const UI_COLOR_DISABLED: Color = Color(0.250, 0.280, 0.320, 1.0)
 
-const STORAGE_CARD_MIN_SIZE: Vector2 = Vector2(118, 86)
-const STORAGE_CARD_ICON_SIZE: Vector2 = Vector2(42, 42)
-const SELECTED_MODULE_ICON_SIZE: Vector2 = Vector2(88, 64)
+const STORAGE_CARD_MIN_SIZE: Vector2 = Vector2(104, 78)
+const STORAGE_CARD_ICON_SIZE: Vector2 = Vector2(34, 34)
+const SELECTED_MODULE_ICON_SIZE: Vector2 = Vector2(72, 52)
 const SELECTED_MODULE_PREVIEW_CELL_SIZE: Vector2 = Vector2(24, 24)
 const SELECTED_MODULE_PREVIEW_GAP: int = 3
-const EXTERNAL_GRID_CELL_SIZE: Vector2 = Vector2(42, 42)
+const EXTERNAL_GRID_CELL_SIZE: Vector2 = Vector2(34, 34)
 const EXTERNAL_GRID_CELL_GAP: int = 4
-const INTERNAL_GRID_CELL_SIZE: Vector2 = Vector2(36, 36)
+const INTERNAL_GRID_CELL_SIZE: Vector2 = Vector2(30, 30)
 const INTERNAL_GRID_CELL_GAP: int = 3
 const ACTION_BUTTON_MIN_SIZE: Vector2 = Vector2(120, 32)
 const ACTION_BUTTON_COMPACT_SIZE: Vector2 = Vector2(56, 30)
@@ -1383,7 +1383,7 @@ func _configure_box_layout() -> void:
 		right_button_panel = VBoxContainer.new()
 		right_button_panel.name = "RightButtonPanel"
 		main_box_row.add_child(right_button_panel)
-	right_button_panel.custom_minimum_size = Vector2(140, 0)
+	right_button_panel.custom_minimum_size = Vector2(260, 0)
 	right_button_panel.size_flags_horizontal = Control.SIZE_SHRINK_END
 	right_button_panel.size_flags_vertical = Control.SIZE_EXPAND_FILL
 
@@ -1521,7 +1521,6 @@ func sync_selected_box_storage_index_from_grouped_selection() -> void:
 
 
 func _on_storage_module_card_pressed(storage_index: int) -> void:
-	bipob.selected_box_storage_index = storage_index
 	selected_box_storage_index = storage_index
 	var module: BipobModule = bipob.box_storage[storage_index] if storage_index >= 0 and storage_index < bipob.box_storage.size() else null
 	if module != null:
@@ -1560,13 +1559,17 @@ func _create_constructor_mode_layout(
 	right_column.add_theme_constant_override("separation", 8)
 
 	if storage_panel != null:
+		storage_panel.custom_minimum_size = Vector2(380, 0)
+		storage_panel.size_flags_horizontal = Control.SIZE_FILL
 		storage_panel.size_flags_vertical = Control.SIZE_EXPAND_FILL
 		right_column.add_child(storage_panel)
 
 	if side_panel != null:
+		side_panel.custom_minimum_size = Vector2(340, 0)
 		right_column.add_child(side_panel)
 
 	if details_panel != null:
+		details_panel.custom_minimum_size = Vector2(380, 0)
 		right_column.add_child(details_panel)
 
 	main_row.add_child(right_column)
@@ -2253,6 +2256,8 @@ func _ready() -> void:
 	if command_panel != null:
 		command_panel.visible = true
 	_configure_box_layout()
+	_apply_box_screen_fullscreen_layout()
+	_ensure_action_panel_scrollable()
 
 	if box_storage_label == null:
 		box_storage_label = Label.new()
@@ -2598,6 +2603,36 @@ func _set_external_selection_from_side_and_cell(side_id: String, cell: Vector2i)
 	bipob.selected_external_side = side_id
 	bipob.selected_external_origin = cell
 
+func _apply_box_screen_fullscreen_layout() -> void:
+	if box_screen == null:
+		return
+	box_screen.set_anchors_preset(Control.PRESET_FULL_RECT)
+	box_screen.offset_left = 0
+	box_screen.offset_top = 0
+	box_screen.offset_right = 0
+	box_screen.offset_bottom = 0
+	box_screen.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	box_screen.size_flags_vertical = Control.SIZE_EXPAND_FILL
+	var box_panel: Control = box_screen.get_node_or_null("PanelContainer")
+	if box_panel != null:
+		box_panel.set_anchors_preset(Control.PRESET_FULL_RECT)
+		box_panel.offset_left = 12
+		box_panel.offset_top = 12
+		box_panel.offset_right = -12
+		box_panel.offset_bottom = -12
+		box_panel.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+		box_panel.size_flags_vertical = Control.SIZE_EXPAND_FILL
+		var box_vbox: VBoxContainer = box_panel.get_node_or_null("VBoxContainer")
+		if box_vbox != null:
+			box_vbox.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+			box_vbox.size_flags_vertical = Control.SIZE_EXPAND_FILL
+
+func _ensure_action_panel_scrollable() -> void:
+	if right_button_panel == null:
+		return
+	right_button_panel.custom_minimum_size = Vector2(260, 0)
+	right_button_panel.size_flags_vertical = Control.SIZE_EXPAND_FILL
+
 func get_external_module_marker(module: BipobModule) -> String:
 	if module == null:
 		return "M"
@@ -2728,6 +2763,7 @@ func show_box_screen() -> void:
 		box_screen.visible = true
 	if command_panel != null:
 		command_panel.visible = false
+	_apply_box_screen_fullscreen_layout()
 	start_mission_warning_acknowledged = false
 	update_box_status()
 	
@@ -2743,6 +2779,8 @@ func hide_box_screen() -> void:
 func update_box_status() -> void:
 	if bipob == null:
 		return
+	_apply_box_screen_fullscreen_layout()
+	_ensure_action_panel_scrollable()
 
 	clamp_box_selection_indexes()
 	update_diagnostic_status()
@@ -2761,9 +2799,15 @@ func update_box_status() -> void:
 	if box_menu_mode == BoxMenuMode.MISSION:
 		content_text = get_box_mission_menu_text()
 	elif box_menu_mode == BoxMenuMode.EXTERNAL:
-		content_text = get_box_external_menu_text()
+		if CONSTRUCTOR_SHOW_DEBUG_TEXT_IN_MAIN:
+			content_text = get_box_external_menu_text()
+		else:
+			content_text = ""
 	elif box_menu_mode == BoxMenuMode.INTERNAL:
-		content_text = get_box_internal_menu_text()
+		if CONSTRUCTOR_SHOW_DEBUG_TEXT_IN_MAIN:
+			content_text = get_box_internal_menu_text()
+		else:
+			content_text = ""
 	else:
 		content_text = get_box_modules_menu_text()
 	update_box_button_visibility()
@@ -3712,11 +3756,11 @@ func _get_internal_view_legend_text() -> String:
 	return "[ ] empty, [>] origin, [*] preview, [!] invalid, [B/P/E/I/M/W/H] modules"
 
 func _get_selected_internal_candidate_module() -> BipobModule:
-	if bipob.selected_box_storage_index < 0:
+	if selected_box_storage_index < 0:
 		return null
-	if bipob.selected_box_storage_index >= bipob.box_storage.size():
+	if selected_box_storage_index >= bipob.box_storage.size():
 		return null
-	var module: BipobModule = bipob.box_storage[bipob.selected_box_storage_index]
+	var module: BipobModule = bipob.box_storage[selected_box_storage_index]
 	if module == null:
 		return null
 	if bipob.is_internal_module(module):
@@ -4096,12 +4140,16 @@ func get_box_internal_menu_text() -> String:
 	lines.append("Air Intake: %s" % get_air_intake_status_text())
 	lines.append("Warnings: %d" % bipob.get_constructor_warning_lines().size())
 	lines.append(bipob.get_constructor_planning_checkpoint_compact_text())
-	var highest_heat: int = bipob.get_highest_internal_preview_heat()
-	var critical_count: int = bipob.get_critical_internal_preview_count()
+	var highest_heat: int = 0
+	var critical_count: int = 0
+	if bipob.has_method("get_highest_internal_preview_heat"):
+		highest_heat = bipob.get_highest_internal_preview_heat()
+	if bipob.has_method("get_critical_internal_preview_count"):
+		critical_count = bipob.get_critical_internal_preview_count()
 	var thermal_status: String = "ok"
-	if critical_count > 0:
+	if critical_count > 0 or highest_heat >= 5:
 		thermal_status = "critical preview"
-	elif bipob.get_warning_level() == "warning":
+	elif highest_heat >= 4:
 		thermal_status = "warning"
 	lines.append("Thermal: %s" % thermal_status)
 	var consistency_issue_count: int = bipob.get_constructor_consistency_issue_lines().size()
