@@ -2230,20 +2230,28 @@ func get_compact_module_window(modules: Array, selected_index: int, max_lines: i
 	return lines
 
 func _create_external_constructor_layout() -> Control:
-	var root: HBoxContainer = HBoxContainer.new()
+	var root: VBoxContainer = VBoxContainer.new()
 	root.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	root.size_flags_vertical = Control.SIZE_EXPAND_FILL
 	root.add_theme_constant_override("separation", 8)
 
+	var top_content_row: HBoxContainer = HBoxContainer.new()
+	top_content_row.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	top_content_row.size_flags_vertical = Control.SIZE_EXPAND_FILL
+	top_content_row.add_theme_constant_override("separation", 8)
+
 	var left: Control = _create_external_visual_workspace()
 	left.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	left.size_flags_vertical = Control.SIZE_EXPAND_FILL
-	root.add_child(left)
+	top_content_row.add_child(left)
 
 	var right: Control = _create_external_storage_right_column()
 	right.size_flags_horizontal = Control.SIZE_SHRINK_END
 	right.size_flags_vertical = Control.SIZE_EXPAND_FILL
-	root.add_child(right)
+	top_content_row.add_child(right)
+
+	root.add_child(top_content_row)
+	root.add_child(_create_external_bottom_action_bar())
 
 	return root
 
@@ -2303,6 +2311,7 @@ func _create_external_side_grid_workspace() -> Control:
 func _create_external_storage_right_column() -> Control:
 	var column: VBoxContainer = VBoxContainer.new()
 	column.custom_minimum_size = Vector2(330, 0)
+	column.size_flags_horizontal = Control.SIZE_SHRINK_END
 	column.size_flags_vertical = Control.SIZE_EXPAND_FILL
 	column.add_theme_constant_override("separation", 6)
 
@@ -2314,12 +2323,8 @@ func _create_external_storage_right_column() -> Control:
 	storage_panel.size_flags_vertical = Control.SIZE_EXPAND_FILL
 	column.add_child(storage_panel)
 
-	var action_bar_panel: Control = _create_external_storage_action_bar_panel()
-	action_bar_panel.size_flags_vertical = Control.SIZE_SHRINK_BEGIN
-	column.add_child(action_bar_panel)
-
 	var selected_panel: Control = _create_external_selected_description_panel()
-	selected_panel.size_flags_vertical = Control.SIZE_SHRINK_END
+	selected_panel.size_flags_vertical = Control.SIZE_EXPAND_FILL
 	column.add_child(selected_panel)
 
 	return column
@@ -2403,25 +2408,17 @@ func _create_external_storage_components_panel() -> Control:
 	panel.add_child(root)
 	return panel
 
-func _create_external_storage_action_bar_panel() -> Control:
+func _create_external_bottom_action_bar() -> Control:
 	var panel: PanelContainer = PanelContainer.new()
 	_apply_panel_style(panel)
-	panel.custom_minimum_size = Vector2(0, 84)
+	panel.custom_minimum_size = Vector2(0, 54)
+	panel.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	panel.size_flags_vertical = Control.SIZE_SHRINK_BEGIN
 
-	var root: VBoxContainer = VBoxContainer.new()
-	root.add_theme_constant_override("separation", 4)
-
-	var title: Label = Label.new()
-	title.text = "ДЕЙСТВИЯ"
-	_apply_label_style(title, false, true)
-	root.add_child(title)
-
-	var actions_row: HFlowContainer = HFlowContainer.new()
+	var actions_row: HBoxContainer = HBoxContainer.new()
 	actions_row.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-	actions_row.alignment = FlowContainer.ALIGNMENT_BEGIN
-	actions_row.add_theme_constant_override("h_separation", 4)
-	actions_row.add_theme_constant_override("v_separation", 4)
+	actions_row.alignment = BoxContainer.ALIGNMENT_CENTER
+	actions_row.add_theme_constant_override("separation", 6)
 
 	var selected_external_slot_module: BipobModule = bipob.get_external_module_at(
 		bipob.selected_external_side,
@@ -2429,12 +2426,6 @@ func _create_external_storage_action_bar_panel() -> Control:
 	)
 
 	var buttons: Array[Dictionary] = [
-		{"text": "Side Prev", "handler": Callable(self, "_on_prev_external_side_pressed"), "role": "normal", "enabled": true},
-		{"text": "Side Next", "handler": Callable(self, "_on_next_external_side_pressed"), "role": "normal", "enabled": true},
-		{"text": "X-", "handler": Callable(self, "_on_prev_external_slot_pressed"), "role": "normal", "enabled": true},
-		{"text": "X+", "handler": Callable(self, "_on_next_external_slot_pressed"), "role": "normal", "enabled": true},
-		{"text": "Y-", "handler": Callable(self, "_on_prev_external_side_pressed"), "role": "normal", "enabled": true},
-		{"text": "Y+", "handler": Callable(self, "_on_next_external_side_pressed"), "role": "normal", "enabled": true},
 		{"text": "Place", "handler": Callable(self, "_on_place_external_module_pressed"), "role": "primary", "enabled": _can_place_selected_external_visual()},
 		{"text": "Remove", "handler": Callable(self, "_on_remove_external_module_pressed"), "role": "danger", "enabled": selected_external_slot_module != null},
 		{"text": "Checkpoint", "handler": Callable(self, "_on_constructor_checkpoint_pressed"), "role": "reference", "enabled": true},
@@ -2451,8 +2442,7 @@ func _create_external_storage_action_bar_panel() -> Control:
 			true
 		)
 
-	root.add_child(actions_row)
-	panel.add_child(root)
+	panel.add_child(actions_row)
 	return panel
 
 
