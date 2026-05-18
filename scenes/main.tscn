@@ -16,6 +16,19 @@ script = ExtResource("2_0wfyh")
 [node name="Bipob" parent="." unique_id=1766177282 instance=ExtResource("3_jyhfs")]
 position = Vector2(1, 1)
 script = ExtResource("4_tbgi4")
+start_grid_position = null
+max_energy = null
+vision_range = null
+actions_per_turn = null
+debug_install_wheels = null
+debug_install_manipulator = null
+debug_install_interface = null
+debug_install_visor = null
+debug_add_mission4_modules_to_box = null
+debug_place_mission4_field_modules = null
+debug_place_hidden_route_node = null
+debug_hidden_route_node_position = null
+debug_show_hidden_route_node_logs = null
 
 [node name="UI" type="CanvasLayer" parent="." unique_id=592154289]
 script = ExtResource("5_tbgi4")
