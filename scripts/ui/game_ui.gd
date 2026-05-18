@@ -3271,41 +3271,6 @@ func _create_runtime_storage_panel() -> PanelContainer:
 	var dstore := Button.new(); dstore.text = "STORE"; dstore.pressed.connect(_on_storage_data_store_pressed); digital_actions.add_child(dstore)
 	_refresh_runtime_storage_panel()
 	return panel
-	var mission_vbox := VBoxContainer.new()
-	mission_vbox.add_theme_constant_override("separation", 4)
-	mission_panel.add_child(mission_vbox)
-	var mission_title := Label.new()
-	mission_title.text = "Mission"
-	mission_vbox.add_child(mission_title)
-	if restart_mission_button != null:
-		restart_mission_button.text = "Restart Mission"
-		_safe_reparent_control(restart_mission_button, mission_vbox)
-	if return_to_box_button != null:
-		return_to_box_button.text = "Return to Center"
-		_safe_reparent_control(return_to_box_button, mission_vbox)
-	if settings_button != null:
-		settings_button.text = "Settings"
-		_safe_reparent_control(settings_button, mission_vbox)
-	if exit_main_menu_button != null:
-		exit_main_menu_button.text = "Exit to Main Menu"
-		_safe_reparent_control(exit_main_menu_button, mission_vbox)
-
-	_disconnect_all_pressed_connections(return_to_box_button)
-	_connect_button_pressed_once(return_to_box_button, Callable(self, "_on_runtime_return_to_center_pressed"))
-	_disconnect_all_pressed_connections(exit_main_menu_button)
-	_connect_button_pressed_once(exit_main_menu_button, Callable(self, "_on_runtime_exit_to_main_menu_pressed"))
-
-	for button in [move_forward_button, move_backward_button, turn_left_button, turn_right_button, interact_button, scan_device_button, hack_device_button, end_turn_button, rotate_storage_button, drop_item_button, restart_mission_button, return_to_box_button, settings_button, exit_main_menu_button]:
-		if button != null:
-			button.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-			button.focus_mode = Control.FOCUS_NONE
-	if command_panel != null:
-		command_panel.visible = false
-
-	if hint_label != null and not hint_label.text.is_empty() and mission_goal_value_label != null:
-		mission_goal_value_label.text = hint_label.text
-
-	call_deferred("_attach_runtime_gameplay_view")
 
 func _ready() -> void:
 	if hint_label != null:
@@ -5473,21 +5438,21 @@ func _on_rotate_storage_button_pressed() -> void:
 func _refresh_runtime_storage_panel() -> void:
 	if bipob == null or runtime_storage_panel == null:
 		return
-	var available_man := bipob.get_available_manipulator_slots()
+	var available_man: int = int(bipob.get_available_manipulator_slots())
 	var man_items: Array = bipob.get_manipulator_items()
 	for i in range(runtime_manipulator_slots.size()):
 		var slot := runtime_manipulator_slots[i]
-		var enabled := i < available_man
+		var enabled: bool = i < available_man
 		slot.disabled = not enabled
 		slot.modulate = Color.WHITE if enabled else UI_COLOR_DISABLED
 		var item = man_items[i] if i < man_items.size() else null
 		slot.text = bipob.get_module_display_name(item) if item != null else "Empty"
-	var available_pocket := bipob.get_available_pocket_slots()
+	var available_pocket: int = int(bipob.get_available_pocket_slots())
 	runtime_pocket_title_label.text = "POCKET %d/%d" % [available_pocket, bipob.get_max_pocket_slots()]
 	var pocket_items: Array = bipob.get_pocket_items()
 	for i in range(runtime_pocket_slots.size()):
 		var slot := runtime_pocket_slots[i]
-		var enabled := i < available_pocket
+		var enabled: bool = i < available_pocket
 		slot.disabled = not enabled
 		slot.modulate = Color.WHITE if enabled else UI_COLOR_DISABLED
 		var item = pocket_items[i] if i < pocket_items.size() else null
