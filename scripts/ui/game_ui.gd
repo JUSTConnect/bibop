@@ -829,6 +829,26 @@ func _get_selected_module_size_text(module: BipobModule) -> String:
 	return "module"
 
 
+
+func _get_module_role_text(module: BipobModule) -> String:
+	if module == null:
+		return "none"
+
+	if bipob.is_internal_module(module):
+		if not String(module.internal_role).is_empty():
+			return String(module.internal_role)
+
+	if bipob.is_external_module(module):
+		return "external_device"
+
+	if bipob.is_internal_overlay_module(module):
+		if module.id.contains("air_duct"):
+			return "duct_path"
+		return "liquid_path"
+
+	return "module"
+
+
 func _get_module_visual_summary_text(module: BipobModule) -> String:
 	if module == null:
 		return "Visual: none"
@@ -861,9 +881,7 @@ func _get_selected_module_stat_lines(module: BipobModule) -> Array[String]:
 	lines.append("Placement: %s" % _get_module_placement_display_text(module))
 	lines.append("Category: %s" % String(module.category))
 	lines.append("Size: %s" % _get_selected_module_size_text(module))
-	var role_value: Variant = module.get("internal_role")
-	if role_value != null and not String(role_value).is_empty():
-		lines.append("Role: %s" % String(role_value))
+	lines.append("Role: %s" % _get_module_role_text(module))
 	if bipob.is_external_module(module):
 		if bipob.has_method("get_allowed_external_sides_for_module"):
 			var allowed_sides: Array[String] = bipob.get_allowed_external_sides_for_module(module)
@@ -2177,7 +2195,7 @@ func get_module_details_text(module: BipobModule) -> String:
 	elif module.placement_type == "internal":
 		var module_size_3d := Vector3i(module.size_x, module.size_y, module.size_z)
 		lines.append("Size: %s" % format_3d_size(module_size_3d))
-		lines.append("Role: %s" % (module.internal_role if not module.internal_role.is_empty() else "none"))
+		lines.append("Role: %s" % _get_module_role_text(module))
 		lines.append("Heat: %d / %d" % [module.heat_idle, module.heat_active])
 		if module.cooling_power > 0 or module.cooling_type != "none":
 			if module.cooling_type == "none":
@@ -3201,7 +3219,7 @@ func get_internal_module_info_text(module: BipobModule) -> String:
 	lines.append("Selected Module:")
 	lines.append(bipob.get_module_display_name(module))
 	lines.append("Size: %d×%d×%d" % [base_size.x, base_size.y, base_size.z])
-	lines.append("Role: %s" % get_internal_role_display_name(module.internal_role))
+	lines.append("Role: %s" % _get_module_role_text(module))
 	lines.append("Placement: %s" % ("external slot" if module.placement_type == "external" else "internal volume"))
 	if not module.description.is_empty():
 		lines.append("Description: %s" % module.description)
@@ -4030,7 +4048,7 @@ func get_box_internal_menu_text() -> String:
 			lines.append("Hint: Use Overlay Plan actions, not Place Internal.")
 		lines.append("Category: %s" % bipob.get_module_category(selected_module))
 		lines.append("Size: %d×%d×%d" % [base_size.x, base_size.y, base_size.z])
-		lines.append("Role: %s" % selected_module.role)
+		lines.append("Role: %s" % _get_module_role_text(selected_module))
 		lines.append("Heat: %d / %d" % [selected_module.heat_output, selected_module.heat_limit])
 		lines.append("Cooling: %s %d" % [selected_module.cooling_type, selected_module.cooling_power])
 		lines.append("Air Intake: %s" % ("required" if selected_module.requires_air_intake else "not required"))
