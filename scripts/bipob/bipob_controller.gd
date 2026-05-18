@@ -350,7 +350,7 @@ func get_module_visual_card_line(module: BipobModule) -> String:
 		return "[?] Unknown"
 
 	var label: String = get_module_visual_short_label(module)
-	var name: String = get_module_display_name(module)
+	var module_name: String = get_module_display_name(module)
 	var size_text: String = ""
 
 	if is_internal_module(module):
@@ -366,7 +366,7 @@ func get_module_visual_card_line(module: BipobModule) -> String:
 
 	return "[%s] %s — %s" % [
 		label,
-		name,
+		module_name,
 		size_text
 	]
 func get_external_module_footprint_size(module: BipobModule) -> Vector2i:
@@ -1862,8 +1862,6 @@ func get_overlay_thermal_contribution_preview_text() -> String:
 
 func get_overlay_thermal_contribution_diff_summary_text() -> String:
 	var improved_count: int = 0
-	var unchanged_count: int = 0
-	var total_delta: int = 0
 	var best_delta: int = 0
 
 	for module in get_unique_internal_modules():
@@ -1875,10 +1873,8 @@ func get_overlay_thermal_contribution_diff_summary_text() -> String:
 		var delta: int = base_preview_heat - hypothetical_heat
 		if delta > 0:
 			improved_count += 1
-			total_delta += delta
 			best_delta = maxi(best_delta, delta)
 		else:
-			unchanged_count += 1
 
 	return "Overlay Diff: changed %d / best -%d" % [
 		improved_count,
@@ -3274,7 +3270,7 @@ func can_place_external_module(module: BipobModule, side_id: String, origin: Vec
 	return can_place_external_module_at(module, side_id, origin)
 
 
-func get_external_module_covered_cells(side_id: String, origin: Vector2i, module: BipobModule) -> Array[Vector2i]:
+func get_external_module_covered_cells(_side_id: String, origin: Vector2i, module: BipobModule) -> Array[Vector2i]:
 	var cells: Array[Vector2i] = []
 
 	if module == null:

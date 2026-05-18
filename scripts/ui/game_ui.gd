@@ -559,19 +559,19 @@ func _get_constructor_warning_items() -> Array[Dictionary]:
 
 
 func _get_constructor_readiness_state() -> Dictionary:
-	var ready: bool = false
+	var constructor_ready: bool = false
 	var label: String = "NOT READY"
 	var severity: String = "warning"
 	var hint: String = "Review constructor warnings."
 
 	if bipob != null and bipob.has_method("is_constructor_ready"):
-		ready = bipob.is_constructor_ready()
+		constructor_ready = bipob.is_constructor_ready()
 	elif bipob != null and bipob.has_method("get_constructor_readiness_compact_text"):
 		var ready_text: String = bipob.get_constructor_readiness_compact_text()
 		var ready_lower: String = ready_text.to_lower()
-		ready = ready_lower.contains("ready") and not ready_lower.contains("not ready")
+		constructor_ready = ready_lower.contains("ready") and not ready_lower.contains("not ready")
 
-	if ready:
+	if constructor_ready:
 		label = "READY"
 		severity = "ok"
 		hint = "Configuration passes current constructor readiness checks."
@@ -590,7 +590,7 @@ func _get_constructor_readiness_state() -> Dictionary:
 		label = "BLOCKED"
 		severity = "danger"
 		hint = "Fix critical constructor issues first."
-	elif warning_count > 0 and ready:
+	elif warning_count > 0 and constructor_ready:
 		label = "READY WITH WARNINGS"
 		severity = "warning"
 		hint = "Configuration can continue, but warnings remain."
@@ -599,7 +599,7 @@ func _get_constructor_readiness_state() -> Dictionary:
 		severity = "warning"
 		hint = "Fix warnings or complete required modules."
 
-	return {"ready": ready, "label": label, "severity": severity, "hint": hint, "danger_count": danger_count, "warning_count": warning_count}
+	return {"ready": constructor_ready, "label": label, "severity": severity, "hint": hint, "danger_count": danger_count, "warning_count": warning_count}
 
 
 func _get_warning_severity_rank(severity: String) -> int:
@@ -639,12 +639,12 @@ func _create_constructor_readiness_banner() -> Control:
 	label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	_apply_label_style(label, false, true)
 	root.add_child(label)
-	var hint_label: Label = Label.new()
-	hint_label.text = String(state.get("hint", "Review constructor setup."))
-	hint_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
-	hint_label.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
-	_apply_label_style(hint_label, true, false)
-	root.add_child(hint_label)
+	var hint_text_label: Label = Label.new()
+	hint_text_label.text = String(state.get("hint", "Review constructor setup."))
+	hint_text_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	hint_text_label.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	_apply_label_style(hint_text_label, true, false)
+	root.add_child(hint_text_label)
 	panel.add_child(root)
 	return panel
 
@@ -668,11 +668,11 @@ func _create_warning_item_card(item: Dictionary) -> Control:
 	_apply_label_style(message_label)
 	root.add_child(message_label)
 	if not hint.is_empty():
-		var hint_label: Label = Label.new()
-		hint_label.text = "Next: " + hint
-		hint_label.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
-		_apply_label_style(hint_label, true, false)
-		root.add_child(hint_label)
+		var hint_text_label: Label = Label.new()
+		hint_text_label.text = "Next: " + hint
+		hint_text_label.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+		_apply_label_style(hint_text_label, true, false)
+		root.add_child(hint_text_label)
 	panel.add_child(root)
 	return panel
 
@@ -2137,11 +2137,11 @@ func _create_external_visual_workspace() -> Control:
 	bottom_row.add_child(_create_external_side_grid("back"))
 	root.add_child(bottom_row)
 
-	var status_label: Label = Label.new()
-	status_label.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
-	status_label.text = _get_external_selected_slot_summary_text()
-	_apply_label_style(status_label, true)
-	root.add_child(status_label)
+	var status_text_label: Label = Label.new()
+	status_text_label.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	status_text_label.text = _get_external_selected_slot_summary_text()
+	_apply_label_style(status_text_label, true)
+	root.add_child(status_text_label)
 
 	workspace.add_child(root)
 	return workspace
@@ -2154,7 +2154,7 @@ func get_compact_module_window(modules: Array, selected_index: int, max_lines: i
 	var total: int = modules.size()
 	var safe_index: int = clampi(selected_index, 0, total - 1)
 	var window_size: int = mini(max_lines, total)
-	var start_idx: int = clampi(safe_index - int(window_size / 2), 0, total - window_size)
+	var start_idx: int = clampi(safe_index - floori(float(window_size) / 2.0), 0, total - window_size)
 	var end_idx: int = start_idx + window_size - 1
 	var lines: Array[String] = []
 
@@ -3493,7 +3493,7 @@ func _move_external_slot_by(delta: int) -> void:
 	if index < 0:
 		index += total_slots
 	selected_external_slot_position.x = index % width
-	selected_external_slot_position.y = int(index / width)
+	selected_external_slot_position.y = floori(float(index) / float(width))
 
 func _on_prev_external_slot_pressed() -> void:
 	_move_external_slot_by(-1)
@@ -3782,9 +3782,9 @@ func _get_internal_preview_cells_map() -> Dictionary:
 	if module == null:
 		return result
 	var origin: Vector3i = bipob.selected_internal_origin
-	var rotation: int = bipob.selected_internal_rotation
-	var can_place: bool = bipob.can_place_internal_module(module, origin, rotation)
-	var covered_cells: Array[Vector3i] = bipob.get_internal_module_covered_cells(module, origin, rotation)
+	var rotation_index: int = bipob.selected_internal_rotation
+	var can_place: bool = bipob.can_place_internal_module(module, origin, rotation_index)
+	var covered_cells: Array[Vector3i] = bipob.get_internal_module_covered_cells(module, origin, rotation_index)
 	for cell in covered_cells:
 		var key: String = bipob.get_internal_slot_key(cell)
 		result[key] = can_place
