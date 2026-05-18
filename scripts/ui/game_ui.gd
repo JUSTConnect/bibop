@@ -75,22 +75,19 @@ var selected_grouped_module_index: int = 0
 var constructor_filter_index: int = 0
 const CONSTRUCTOR_FILTERS: Array[String] = [
 	"all",
-	"external",
-	"internal",
-	"manipulator",
-	"movement",
-	"sensor",
-	"connector",
+	"broken",
+	"unknown",
+	"cpu_gpu",
 	"cooling",
-	"tool",
-	"weapon",
-	"repair",
-	"storage",
+	"ram_sd",
 	"power",
-	"data",
-	"locomotion",
-	"vision",
-	"utility"
+	"gear",
+	"visor_radar",
+	"tool",
+	"manipulator",
+	"armor",
+	"weapon",
+	"other"
 ]
 var prev_installed_button: Button
 var next_installed_button: Button
@@ -141,6 +138,7 @@ enum AppScreenMode {
 var app_screen_mode: AppScreenMode = AppScreenMode.MAIN_MENU
 var previous_app_screen_mode: AppScreenMode = AppScreenMode.MAIN_MENU
 var box_opened_from_center: bool = false
+var placeholder_return_screen_mode: AppScreenMode = AppScreenMode.CENTER
 
 var main_menu_root: Control
 var center_menu_root: Control
@@ -1133,7 +1131,7 @@ func _create_storage_module_card(module: BipobModule, storage_index: int, select
 
 	var name_label: Label = Label.new()
 	name_label.mouse_filter = Control.MOUSE_FILTER_IGNORE
-	name_label.text = bipob.get_module_display_name(module)
+	name_label.text = _get_module_known_label(module, bipob.is_external_module(module))
 	name_label.add_theme_color_override("font_color", UI_COLOR_TEXT)
 	name_label.clip_text = true
 
@@ -1142,7 +1140,7 @@ func _create_storage_module_card(module: BipobModule, storage_index: int, select
 	var label_text: String = "MOD"
 	if bipob.has_method("get_module_visual_short_label"):
 		label_text = bipob.get_module_visual_short_label(module)
-	meta_label.text = "%s\n%s" % [label_text, _get_module_card_size_text(module)]
+	meta_label.text = "UNK\nTBD" if _is_module_unknown(module) else "%s\n%s" % [label_text, _get_module_card_size_text(module)]
 	meta_label.add_theme_color_override("font_color", UI_COLOR_TEXT_DIM)
 	meta_label.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 	meta_label.clip_text = true
@@ -1564,19 +1562,97 @@ func get_current_constructor_filter() -> String:
 		constructor_filter_index = 0
 	return String(CONSTRUCTOR_FILTERS[constructor_filter_index])
 
+func _is_module_unknown(module: BipobModule) -> bool:
+	if module == null:
+		return false
+	if module.get("is_unknown") != null:
+		return bool(module.get("is_unknown"))
+	if module.get("is_researched") != null:
+		return not bool(module.get("is_researched"))
+	if module.get("known") != null:
+		return not bool(module.get("known"))
+	if module.get("researched") != null:
+		return not bool(module.get("researched"))
+	return false
+
+func _is_module_broken(module: BipobModule) -> bool:
+	if module == null:
+		return false
+	for key in ["is_broken", "broken", "is_damaged", "damaged"]:
+		if module.get(key) != null:
+			return bool(module.get(key))
+	return false
+
+func _text_contains_any(text: String, needles: Array[String]) -> bool:
+	for needle in needles:
+		if text.contains(needle):
+			return true
+	return false
+
+func _get_module_filter_group(module: BipobModule, is_external: bool) -> String:
+	if module == null:
+		return "other"
+	var values: Array[String] = []
+	for key in ["id", "module_type", "category", "internal_role", "placement_type", "name", "description"]:
+		var value = module.get(key)
+		if value != null:
+			values.append(String(value).to_lower())
+	var haystack: String = " ".join(values)
+	if is_external:
+		if _text_contains_any(haystack, ["wheel", "wheels", "leg", "legs", "track", "tracks", "chassis", "gear", "movement"]):
+			return "gear"
+		if _text_contains_any(haystack, ["visor", "radar", "sensor", "scanner", "xray", "thermal"]):
+			return "visor_radar"
+		if _text_contains_any(haystack, ["tool", "welding", "welder", "repair", "cutter", "drill"]):
+			return "tool"
+		if _text_contains_any(haystack, ["manipulator", "arm", "claw", "hand", "magnetic"]):
+			return "manipulator"
+		if _text_contains_any(haystack, ["armor", "shield", "ram", "protection", "defense"]):
+			return "armor"
+		if _text_contains_any(haystack, ["weapon", "laser", "plasma", "shock", "shocker", "flame", "flamethrower", "saw", "hammer", "gun", "cannon"]):
+			return "weapon"
+	else:
+		if _text_contains_any(haystack, ["processor", "cpu", "gpu"]):
+			return "cpu_gpu"
+		if _text_contains_any(haystack, ["cooler", "cooling", "radiator", "tube", "duct", "air"]):
+			return "cooling"
+		if _text_contains_any(haystack, ["memory", "ram", "hard_drive", "drive", "sd", "storage"]):
+			return "ram_sd"
+		if _text_contains_any(haystack, ["battery", "power"]):
+			return "power"
+	return "other"
+
+func _does_module_match_filter(module: BipobModule, filter_name: String, is_external: bool) -> bool:
+	if module == null:
+		return false
+	match filter_name:
+		"all":
+			return true
+		"broken":
+			return _is_module_broken(module)
+		"unknown":
+			return _is_module_unknown(module)
+		"other":
+			return _get_module_filter_group(module, is_external) == "other"
+		_:
+			if is_external and filter_name in ["cpu_gpu", "cooling", "ram_sd", "power"]:
+				return false
+			if not is_external and filter_name in ["gear", "visor_radar", "tool", "manipulator", "armor", "weapon"]:
+				return false
+			return _get_module_filter_group(module, is_external) == filter_name
+
+func _get_module_known_label(module: BipobModule, is_external: bool) -> String:
+	if not _is_module_unknown(module):
+		return bipob.get_module_display_name(module)
+	var broad_type: String = _get_module_filter_group(module, is_external).replace("_", " ").capitalize()
+	if broad_type == "Other":
+		broad_type = "module"
+	return "Unknown %s" % broad_type
+
 func module_matches_constructor_filter(module: BipobModule, filter_id: String) -> bool:
 	if module == null:
 		return false
-	if filter_id == "all":
-		return true
-	var category: String = bipob.get_module_category(module)
-	if category == filter_id:
-		return true
-	if filter_id == "external":
-		return module.placement_type == "external"
-	if filter_id == "internal":
-		return module.placement_type == "internal"
-	return false
+	return _does_module_match_filter(module, filter_id, bipob.is_external_module(module))
 
 func _is_module_visible_in_current_constructor_mode(module: BipobModule) -> bool:
 	if module == null:
@@ -1605,7 +1681,7 @@ func get_filtered_internal_box_storage_indices(filter_id: String) -> Array[int]:
 		var module: BipobModule = bipob.box_storage[i]
 		if module == null or module.placement_type != "internal":
 			continue
-		if filter_id == "all" or filter_id == "internal" or module_matches_constructor_filter(module, filter_id):
+		if module_matches_constructor_filter(module, filter_id):
 			indices.append(i)
 	return indices
 
@@ -2142,10 +2218,9 @@ func _get_external_cell_label(module: BipobModule) -> String:
 	if module == null:
 		return ""
 
-	if bipob.has_method("get_module_visual_short_label"):
-		return bipob.get_module_visual_short_label(module)
-
-	return "M"
+	var group: String = _get_module_filter_group(module, true)
+	var short_map: Dictionary = {"gear":"GER","visor_radar":"VIS","tool":"TOL","manipulator":"ARM","armor":"AMR","weapon":"WPN","other":"MOD"}
+	return String(short_map.get(group, "MOD"))
 
 
 func _on_external_visual_cell_pressed(side_id: String, cell: Vector2i) -> void:
@@ -2195,6 +2270,12 @@ func _create_external_side_grid(side_id: String) -> Control:
 			var cell_button: Button = Button.new()
 			cell_button.custom_minimum_size = EXTERNAL_GRID_CELL_SIZE
 			cell_button.focus_mode = Control.FOCUS_NONE
+			cell_button.size_flags_horizontal = Control.SIZE_SHRINK_CENTER
+			cell_button.size_flags_vertical = Control.SIZE_SHRINK_CENTER
+			cell_button.clip_text = true
+			cell_button.text_overrun_behavior = TextServer.OVERRUN_TRIM_ELLIPSIS
+			cell_button.autowrap_mode = TextServer.AUTOWRAP_OFF
+			cell_button.add_theme_font_size_override("font_size", 11)
 			cell_button.text = _get_external_cell_label(module)
 			cell_button.add_theme_stylebox_override("normal", _make_external_cell_style(module, selected, preview, invalid_preview, origin))
 			cell_button.add_theme_stylebox_override("hover", _make_external_cell_style(module, true, preview, invalid_preview, origin))
@@ -2515,9 +2596,9 @@ func _create_filter_dropdown_button(is_internal: bool) -> Control:
 	option.focus_mode = Control.FOCUS_NONE
 	var entries: Array[Dictionary] = []
 	if is_internal:
-		entries = [{"id":"all","label":"ALL"},{"id":"broken","label":"BRK"},{"id":"unknown","label":"UNK"},{"id":"cpu","label":"CPU/GPU"},{"id":"cooling","label":"COOL"},{"id":"data","label":"RAM/SD"},{"id":"power","label":"PWR"},{"id":"utility","label":"OTH"}]
+		entries = [{"id":"all","label":"ALL"},{"id":"broken","label":"BROKEN"},{"id":"unknown","label":"UNKNOWN"},{"id":"cpu_gpu","label":"CPU | GPU"},{"id":"cooling","label":"COOLING"},{"id":"ram_sd","label":"RAM | SD"},{"id":"power","label":"POWER"},{"id":"other","label":"OTHER"}]
 	else:
-		entries = [{"id":"all","label":"ALL"},{"id":"broken","label":"BRK"},{"id":"unknown","label":"UNK"},{"id":"external","label":"CHAS"},{"id":"sensor","label":"SENS"},{"id":"tool","label":"TOOL"},{"id":"manipulator","label":"ARM"},{"id":"armor","label":"ARMR"},{"id":"weapon","label":"WPN"},{"id":"utility","label":"OTH"}]
+		entries = [{"id":"all","label":"ALL"},{"id":"broken","label":"BROKEN"},{"id":"unknown","label":"UNKNOWN"},{"id":"gear","label":"GEAR"},{"id":"visor_radar","label":"VISOR | RADAR"},{"id":"tool","label":"TOOL"},{"id":"manipulator","label":"MANIPULATOR"},{"id":"armor","label":"ARMOR"},{"id":"weapon","label":"WEAPON"},{"id":"other","label":"OTHER"}]
 	for i in range(entries.size()):
 		option.add_item(entries[i]["label"], i)
 		if String(entries[i]["id"]) == get_current_constructor_filter():
@@ -2951,22 +3032,31 @@ func _create_external_selected_description_panel() -> Control:
 		root.add_child(empty_label)
 	else:
 		var name_label: Label = Label.new()
-		name_label.text = bipob.get_module_display_name(module)
+		name_label.text = _get_module_known_label(module, true)
 		_apply_label_style(name_label)
 		root.add_child(name_label)
 
-		var size_label: Label = Label.new()
-		size_label.text = "Size: %s" % _get_selected_module_size_text(module)
-		_apply_label_style(size_label, true, false)
-		root.add_child(size_label)
-
-		var desc_label: Label = Label.new()
-		desc_label.text = String(module.description)
-		if desc_label.text.is_empty():
-			desc_label.text = "Description will be added later."
-		desc_label.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
-		_apply_label_style(desc_label, true, false)
-		root.add_child(desc_label)
+		if _is_module_unknown(module):
+			var unknown_label: Label = Label.new()
+			unknown_label.text = "Unknown module"
+			_apply_label_style(unknown_label, true, false)
+			root.add_child(unknown_label)
+			var unknown_desc_label: Label = Label.new()
+			unknown_desc_label.text = "Details unavailable."
+			_apply_label_style(unknown_desc_label, true, false)
+			root.add_child(unknown_desc_label)
+		else:
+			var size_label: Label = Label.new()
+			size_label.text = "Size: %s" % _get_selected_module_size_text(module)
+			_apply_label_style(size_label, true, false)
+			root.add_child(size_label)
+			var desc_label: Label = Label.new()
+			desc_label.text = String(module.description)
+			if desc_label.text.is_empty():
+				desc_label.text = "Description will be added later."
+			desc_label.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+			_apply_label_style(desc_label, true, false)
+			root.add_child(desc_label)
 
 	panel.add_child(root)
 	return panel
@@ -3839,6 +3929,7 @@ func show_tasks_screen() -> void:
 
 func show_placeholder_screen(title_text: String, body_text: String = "This section will be added later.") -> void:
 	previous_app_screen_mode = app_screen_mode
+	placeholder_return_screen_mode = previous_app_screen_mode
 	app_screen_mode = AppScreenMode.SETTINGS_PLACEHOLDER
 	_hide_all_app_screens()
 	_set_gameplay_visible(false)
@@ -5629,10 +5720,20 @@ func _on_center_main_menu_pressed() -> void:
 func _on_center_exit_pressed() -> void:
 	show_placeholder_screen("Выход из игры")
 func _on_placeholder_back_pressed() -> void:
-	if previous_app_screen_mode == AppScreenMode.MAIN_MENU:
-		show_main_menu_screen()
-	else:
-		show_center_screen()
+	match placeholder_return_screen_mode:
+		AppScreenMode.GAMEPLAY:
+			_hide_all_app_screens()
+			_apply_runtime_hud_layout()
+			_set_gameplay_visible(true)
+			call_deferred("_attach_runtime_gameplay_view")
+			app_screen_mode = AppScreenMode.GAMEPLAY
+		AppScreenMode.MAIN_MENU:
+			show_main_menu_screen()
+		AppScreenMode.CENTER:
+			show_center_screen()
+		_:
+			show_center_screen()
+	placeholder_return_screen_mode = AppScreenMode.CENTER
 
 func _on_tasks_tab_pressed(tab_name: String) -> void:
 	tasks_current_tab = tab_name
@@ -5780,6 +5881,7 @@ func _on_runtime_return_to_center_pressed() -> void:
 	show_center_screen()
 
 func _on_runtime_settings_pressed() -> void:
+	placeholder_return_screen_mode = AppScreenMode.GAMEPLAY
 	show_placeholder_screen("Settings")
 
 func _on_runtime_exit_to_main_menu_pressed() -> void:
