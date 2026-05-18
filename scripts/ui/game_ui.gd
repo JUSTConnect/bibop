@@ -70,6 +70,12 @@ var external_tab_button: Button
 var internal_tab_button: Button
 var box_restart_button: Button
 var box_return_button: Button
+var bipob_alpha_button: Button
+var bipob_beta_button: Button
+var box_back_button: Button
+var active_bipob_profile_id: String = "alpha"
+var constructor_profiles: Dictionary = {}
+const BIPOB_PROFILE_NAMES: Dictionary = {"alpha": "Разведчик", "beta": "Инженер"}
 
 enum BoxMenuMode {
 	MISSION,
@@ -1294,7 +1300,7 @@ func _apply_constructor_ui_skin() -> void:
 		_apply_label_style(hint_label, true)
 	if diagnostic_label != null:
 		_apply_label_style(diagnostic_label, true)
-	for tab_button in [mission_tab_button, modules_tab_button, external_tab_button, internal_tab_button]:
+	for tab_button in [external_tab_button, internal_tab_button, bipob_alpha_button, bipob_beta_button, box_back_button]:
 		if tab_button != null:
 			_apply_button_style(tab_button)
 	if right_button_panel != null:
@@ -2451,20 +2457,6 @@ func _ready() -> void:
 
 	next_box_button = null
 
-	mission_tab_button = Button.new()
-	mission_tab_button.name = "MissionTabButton"
-	mission_tab_button.text = "Available Bipobs"
-	mission_tab_button.focus_mode = Control.FOCUS_NONE
-	box_tab_row.add_child(mission_tab_button)
-	mission_tab_button.pressed.connect(set_box_menu_mode_mission)
-
-	modules_tab_button = Button.new()
-	modules_tab_button.name = "ModulesTabButton"
-	modules_tab_button.text = "Constructor Dashboard"
-	modules_tab_button.focus_mode = Control.FOCUS_NONE
-	box_tab_row.add_child(modules_tab_button)
-	modules_tab_button.pressed.connect(set_box_menu_mode_modules)
-
 	external_tab_button = Button.new()
 	external_tab_button.name = "ExternalTabButton"
 	external_tab_button.text = "External Modules"
@@ -2477,6 +2469,25 @@ func _ready() -> void:
 	internal_tab_button.focus_mode = Control.FOCUS_NONE
 	box_tab_row.add_child(internal_tab_button)
 	internal_tab_button.pressed.connect(set_box_menu_mode_internal)
+
+	bipob_alpha_button = Button.new()
+	bipob_alpha_button.name = "BipobAlphaButton"
+	bipob_alpha_button.text = "Разведчик"
+	bipob_alpha_button.focus_mode = Control.FOCUS_NONE
+	bipob_alpha_button.pressed.connect(func() -> void: _switch_active_bipob("alpha"))
+	bipob_beta_button = Button.new()
+	bipob_beta_button.name = "BipobBetaButton"
+	bipob_beta_button.text = "Инженер"
+	bipob_beta_button.focus_mode = Control.FOCUS_NONE
+	bipob_beta_button.pressed.connect(func() -> void: _switch_active_bipob("beta"))
+	box_back_button = Button.new()
+	box_back_button.name = "BoxBackButton"
+	box_back_button.text = "Назад"
+	box_back_button.focus_mode = Control.FOCUS_NONE
+	box_back_button.pressed.connect(_on_box_back_pressed)
+	_setup_box_top_bar()
+	_ensure_constructor_profiles_initialized()
+	_load_bipob_profile(active_bipob_profile_id)
 
 	box_restart_button = null
 
@@ -2520,7 +2531,7 @@ func _apply_constructor_visual_style() -> void:
 	if box_content_label != null:
 		box_content_label.add_theme_color_override("font_color", Color("#cbe9ef"))
 
-	for button in [mission_tab_button, modules_tab_button, external_tab_button, internal_tab_button]:
+	for button in [external_tab_button, internal_tab_button, bipob_alpha_button, bipob_beta_button, box_back_button]:
 		if button == null:
 			continue
 		var normal := StyleBoxFlat.new()
@@ -3388,15 +3399,133 @@ func rebuild_box_action_buttons() -> void:
 		_add_box_action_button("Repair Rules", Callable(self, "_on_repair_rules_pressed"))
 	_apply_constructor_ui_skin()
 
+func _setup_box_top_bar() -> void:
+	if box_tab_row == null:
+		return
+	for child in box_tab_row.get_children():
+		child.queue_free()
+	var left_section := HBoxContainer.new()
+	left_section.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	box_tab_row.add_child(left_section)
+	left_section.add_child(external_tab_button)
+	left_section.add_child(internal_tab_button)
+	var center_section := VBoxContainer.new()
+	center_section.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	box_tab_row.add_child(center_section)
+	var center_title := Label.new()
+	center_title.text = "Доступные бипобы"
+	center_section.add_child(center_title)
+	var selector_row := HBoxContainer.new()
+	center_section.add_child(selector_row)
+	selector_row.add_child(bipob_alpha_button)
+	selector_row.add_child(bipob_beta_button)
+	var right_section := HBoxContainer.new()
+	right_section.alignment = BoxContainer.ALIGNMENT_END
+	box_tab_row.add_child(right_section)
+	right_section.add_child(box_back_button)
+
+func _make_module_by_id(module_id: String) -> BipobModule:
+	if module_id.is_empty() or bipob == null:
+		return null
+	var ext: BipobModule = bipob.create_external_module_by_id(module_id)
+	if ext != null:
+		return ext
+	var overlay: BipobModule = bipob.create_overlay_module_by_id(module_id)
+	if overlay != null:
+		return overlay
+	var internal_specs := {
+		"battery_v1_a": {"name": "Battery V1 A", "size": Vector3i(2,2,1)},
+		"battery_v1_b": {"name": "Battery V1 B", "size": Vector3i(2,2,1)},
+		"processor_v1": {"name": "Processor V1", "size": Vector3i(1,1,1)},
+		"ext_interface_internal_v1": {"name": "External Interface Bridge V1", "size": Vector3i(2,2,1)},
+		"int_interface_v1": {"name": "Internal Interface V1", "size": Vector3i(1,1,1)},
+		"memory_v1": {"name": "Memory V1", "size": Vector3i(1,1,2)},
+		"power_block_v1": {"name": "Power Block V1", "size": Vector3i(1,2,2)},
+		"hard_drive_v1": {"name": "Hard Drive V1", "size": Vector3i(2,2,1)},
+		"cooler_v1": {"name": "Cooler V1", "size": Vector3i(1,1,1)},
+		"radiator_v1": {"name": "Radiator V1", "size": Vector3i(1,1,1)}
+	}
+	if not internal_specs.has(module_id):
+		return null
+	var spec: Dictionary = internal_specs[module_id]
+	return bipob.create_internal_module(module_id, String(spec["name"]), spec["size"])
+
+func _capture_constructor_profile_state() -> Dictionary:
+	var data: Dictionary = {
+		"installed_ids": [], "box_ids": [], "external_slots": {}, "placed_internal": bipob.placed_internal_modules.duplicate(true),
+		"overlay_paths": bipob.internal_overlay_paths.duplicate(true), "next_overlay_id": bipob.next_internal_overlay_path_id
+	}
+	for module in bipob.installed_modules: data["installed_ids"].append(module.id)
+	for module in bipob.box_storage: data["box_ids"].append(module.id)
+	for key in bipob.external_modules_by_slot.keys(): data["external_slots"][key] = bipob.external_modules_by_slot[key].id
+	return data
+
+func _apply_constructor_profile_state(data: Dictionary) -> void:
+	bipob.installed_modules.clear(); bipob.box_storage.clear(); bipob.external_modules_by_slot.clear(); bipob.internal_modules_by_cell.clear()
+	bipob.placed_internal_modules = data.get("placed_internal", []).duplicate(true)
+	bipob.internal_overlay_paths = data.get("overlay_paths", []).duplicate(true)
+	bipob.next_internal_overlay_path_id = int(data.get("next_overlay_id", 1))
+	for id in data.get("installed_ids", []):
+		var m := _make_module_by_id(String(id))
+		if m != null:
+			bipob.installed_modules.append(m)
+	for id in data.get("box_ids", []):
+		var m := _make_module_by_id(String(id))
+		if m != null:
+			bipob.box_storage.append(m)
+	for key in data.get("external_slots", {}).keys():
+		var m := _make_module_by_id(String(data["external_slots"][key]))
+		if m != null:
+			bipob.external_modules_by_slot[key] = m
+	bipob.rebuild_internal_modules_by_cell()
+	bipob.recalculate_module_stats()
+
+func _ensure_constructor_profiles_initialized() -> void:
+	if not constructor_profiles.is_empty():
+		return
+	constructor_profiles["alpha"] = _capture_constructor_profile_state()
+	bipob.add_internal_mvp_modules_to_box()
+	var battery_module: BipobModule = _make_module_by_id("battery_v1_a")
+	if battery_module != null:
+		bipob.box_storage.append(battery_module)
+	var cooler_module: BipobModule = _make_module_by_id("cooler_v1")
+	if cooler_module != null:
+		bipob.box_storage.append(cooler_module)
+	bipob.recalculate_module_stats()
+	constructor_profiles["beta"] = _capture_constructor_profile_state()
+	_apply_constructor_profile_state(constructor_profiles["alpha"])
+
+func _save_active_bipob_profile() -> void:
+	constructor_profiles[active_bipob_profile_id] = _capture_constructor_profile_state()
+
+func _load_bipob_profile(profile_id: String) -> void:
+	if not constructor_profiles.has(profile_id):
+		return
+	_apply_constructor_profile_state(constructor_profiles[profile_id])
+	active_bipob_profile_id = profile_id
+	_update_bipob_selector_visuals()
+
+func _switch_active_bipob(profile_id: String) -> void:
+	if profile_id == active_bipob_profile_id:
+		return
+	_save_active_bipob_profile()
+	_load_bipob_profile(profile_id)
+	update_box_status()
+	rebuild_box_action_buttons()
+
+func _update_bipob_selector_visuals() -> void:
+	if bipob_alpha_button != null:
+		bipob_alpha_button.disabled = active_bipob_profile_id == "alpha"
+	if bipob_beta_button != null:
+		bipob_beta_button.disabled = active_bipob_profile_id == "beta"
+
+func _on_box_back_pressed() -> void:
+	_save_active_bipob_profile()
+	show_center_screen()
+
 func update_box_button_visibility() -> void:
-	var is_mission := box_menu_mode == BoxMenuMode.MISSION
-	var is_modules := box_menu_mode == BoxMenuMode.MODULES
 	var is_external := box_menu_mode == BoxMenuMode.EXTERNAL
 	var is_internal := box_menu_mode == BoxMenuMode.INTERNAL
-	if mission_tab_button != null:
-		mission_tab_button.disabled = is_mission
-	if modules_tab_button != null:
-		modules_tab_button.disabled = is_modules
 	if external_tab_button != null:
 		external_tab_button.disabled = is_external
 	if internal_tab_button != null:
