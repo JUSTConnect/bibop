@@ -102,10 +102,12 @@ var box_restart_button: Button
 var box_return_button: Button
 var bipob_alpha_button: Button
 var bipob_beta_button: Button
+var bipob_juggernaut_button: Button
 var box_back_button: Button
 var active_bipob_profile_id: String = "alpha"
 var constructor_profiles: Dictionary = {}
-const BIPOB_PROFILE_NAMES: Dictionary = {"alpha": "Scout", "beta": "Engineer"}
+const BIPOB_PROFILE_NAMES: Dictionary = {"alpha": "Scout", "beta": "Engineer", "juggernaut": "Juggernaut"}
+const BIPOB_PROFILE_SIZES: Dictionary = {"alpha": Vector3i(3, 3, 4), "beta": Vector3i(5, 5, 6), "juggernaut": Vector3i(7, 7, 9)}
 
 enum BoxMenuMode {
 	MISSION,
@@ -238,6 +240,9 @@ const EXTERNAL_GRID_CELL_SIZE: Vector2 = Vector2(22, 22)
 const EXTERNAL_GRID_CELL_GAP: int = 2
 const INTERNAL_GRID_CELL_SIZE: Vector2 = Vector2(22, 22)
 const INTERNAL_GRID_CELL_GAP: int = 2
+const CONSTRUCTOR_GRID_PREFERRED_CELL_SIZE: float = 28.0
+const CONSTRUCTOR_GRID_MIN_CELL_SIZE: float = 12.0
+const CONSTRUCTOR_SMALL_LABEL_CELL_SIZE: float = 16.0
 const ACTION_BUTTON_MIN_SIZE: Vector2 = Vector2(100, 24)
 const ACTION_BUTTON_COMPACT_SIZE: Vector2 = Vector2(46, 22)
 const ACTION_GROUP_SPACING: int = 2
@@ -2244,11 +2249,13 @@ func _create_external_side_grid(side_id: String) -> Control:
 	var side_size: Vector2i = bipob.get_external_side_size(side_id)
 	var preview_cells: Dictionary = _get_external_preview_cells_for_side(side_id)
 	var selected_side_id: String = get_selected_external_side_id()
+	var cell_size: Vector2 = _get_constructor_cell_size(side_size.x, side_size.y, _get_external_grid_available_size(side_id))
+	var grid_gap: int = _get_constructor_grid_gap(side_size.x, side_size.y)
 
 	var grid: GridContainer = GridContainer.new()
 	grid.columns = side_size.x
-	grid.add_theme_constant_override("h_separation", EXTERNAL_GRID_CELL_GAP)
-	grid.add_theme_constant_override("v_separation", EXTERNAL_GRID_CELL_GAP)
+	grid.add_theme_constant_override("h_separation", grid_gap)
+	grid.add_theme_constant_override("v_separation", grid_gap)
 
 	for y in range(side_size.y):
 		for x in range(side_size.x):
@@ -2268,15 +2275,15 @@ func _create_external_side_grid(side_id: String) -> Control:
 			var origin: bool = selected
 
 			var cell_button: Button = Button.new()
-			cell_button.custom_minimum_size = EXTERNAL_GRID_CELL_SIZE
+			cell_button.custom_minimum_size = cell_size
 			cell_button.focus_mode = Control.FOCUS_NONE
 			cell_button.size_flags_horizontal = Control.SIZE_SHRINK_CENTER
 			cell_button.size_flags_vertical = Control.SIZE_SHRINK_CENTER
 			cell_button.clip_text = true
 			cell_button.text_overrun_behavior = TextServer.OVERRUN_TRIM_ELLIPSIS
 			cell_button.autowrap_mode = TextServer.AUTOWRAP_OFF
-			cell_button.add_theme_font_size_override("font_size", 11)
-			cell_button.text = _get_external_cell_label(module)
+			cell_button.add_theme_font_size_override("font_size", 11 if cell_size.x >= CONSTRUCTOR_SMALL_LABEL_CELL_SIZE else 8)
+			cell_button.text = _get_external_cell_label(module) if cell_size.x >= CONSTRUCTOR_SMALL_LABEL_CELL_SIZE else ""
 			cell_button.add_theme_stylebox_override("normal", _make_external_cell_style(module, selected, preview, invalid_preview, origin))
 			cell_button.add_theme_stylebox_override("hover", _make_external_cell_style(module, true, preview, invalid_preview, origin))
 			cell_button.add_theme_stylebox_override("pressed", _make_external_cell_style(module, true, preview, invalid_preview, origin))
@@ -2383,7 +2390,7 @@ func _create_external_visual_workspace() -> Control:
 
 	var left_info: Control = _create_external_info_stub_panel(
 		"Info",
-		"General info about selected Bipob."
+		"Body: %s" % _get_constructor_body_summary()
 	)
 	left_info.custom_minimum_size = Vector2(150, 96)
 	left_info.size_flags_horizontal = Control.SIZE_SHRINK_BEGIN
@@ -2464,6 +2471,66 @@ func _get_box_storage_grid_columns() -> int:
 	if half_width < 420.0:
 		return 3
 	return 4
+
+
+func _get_constructor_cell_size(max_columns: int, max_rows: int, available_size: Vector2, preferred: float = CONSTRUCTOR_GRID_PREFERRED_CELL_SIZE, minimum: float = CONSTRUCTOR_GRID_MIN_CELL_SIZE) -> Vector2:
+	var safe_columns: int = max(1, max_columns)
+	var safe_rows: int = max(1, max_rows)
+	var gap: float = 3.0
+	var cell_w: float = floor((available_size.x - float(safe_columns - 1) * gap) / float(safe_columns))
+	var cell_h: float = floor((available_size.y - float(safe_rows - 1) * gap) / float(safe_rows))
+	var size: float = clamp(minf(cell_w, cell_h, preferred), minimum, preferred)
+	return Vector2(size, size)
+
+
+func _get_constructor_profile_size(profile_id: String = "") -> Vector3i:
+	var resolved_profile_id: String = active_bipob_profile_id if profile_id.is_empty() else profile_id
+	var profile_size: Vector3i = BIPOB_PROFILE_SIZES.get(resolved_profile_id, Vector3i(3, 3, 4))
+	return profile_size
+
+
+func _get_constructor_profile_name(profile_id: String = "") -> String:
+	var resolved_profile_id: String = active_bipob_profile_id if profile_id.is_empty() else profile_id
+	return String(BIPOB_PROFILE_NAMES.get(resolved_profile_id, "Scout"))
+
+
+func _get_constructor_body_summary(profile_id: String = "") -> String:
+	var body_size: Vector3i = _get_constructor_profile_size(profile_id)
+	return "%s %dx%dx%d" % [_get_constructor_profile_name(profile_id), body_size.x, body_size.y, body_size.z]
+
+
+func _apply_constructor_profile_dimensions(profile_id: String) -> void:
+	if bipob == null or not bipob.has_method("set_constructor_body_size"):
+		return
+	bipob.set_constructor_body_size(_get_constructor_profile_size(profile_id))
+	clamp_external_selection()
+	_clamp_internal_selection()
+
+
+func _get_constructor_grid_gap(max_columns: int, max_rows: int) -> int:
+	if max_columns >= 7 or max_rows >= 7:
+		return 1
+	if max_columns >= 5 or max_rows >= 5:
+		return 2
+	return 3
+
+
+func _get_external_grid_available_size(side_id: String) -> Vector2:
+	var half_width: float = _get_box_half_width_estimate()
+	var grid_width: float = maxf(110.0, (half_width - 72.0) / 3.0)
+	var grid_height: float = 124.0
+	if side_id == "top" or side_id == "bottom":
+		grid_height = 110.0
+	return Vector2(grid_width, grid_height)
+
+
+func _get_internal_grid_available_size(columns: int, rows: int) -> Vector2:
+	var half_width: float = _get_box_half_width_estimate()
+	var grid_width: float = maxf(110.0, (half_width - 76.0) / 3.0)
+	var grid_height: float = 146.0
+	if columns == rows:
+		grid_height = 118.0
+	return Vector2(grid_width, grid_height)
 
 
 func _get_external_bottom_bar_height() -> float:
@@ -3785,6 +3852,7 @@ func _ready() -> void:
 	internal_tab_button = null
 	bipob_alpha_button = null
 	bipob_beta_button = null
+	bipob_juggernaut_button = null
 	box_back_button = null
 	_setup_box_top_bar()
 	_ensure_constructor_profiles_initialized()
@@ -4906,6 +4974,11 @@ func _setup_box_top_bar() -> void:
 		Callable(self, "_on_bipob_beta_pressed"),
 		active_bipob_profile_id == "beta"
 	))
+	bipob_row.add_child(_make_box_top_button(
+		"Juggernaut",
+		Callable(self, "_on_bipob_juggernaut_pressed"),
+		active_bipob_profile_id == "juggernaut"
+	))
 	bipob_box.add_child(bipob_row)
 	root.add_child(bipob_box)
 	var spacer_right: Control = Control.new()
@@ -4977,6 +5050,7 @@ func _apply_constructor_profile_state(data: Dictionary) -> void:
 func _ensure_constructor_profiles_initialized() -> void:
 	if not constructor_profiles.is_empty():
 		return
+	_apply_constructor_profile_dimensions("alpha")
 	constructor_profiles["alpha"] = _capture_constructor_profile_state()
 	bipob.add_internal_mvp_modules_to_box()
 	var battery_module: BipobModule = _make_module_by_id("battery_v1_a")
@@ -4986,7 +5060,11 @@ func _ensure_constructor_profiles_initialized() -> void:
 	if cooler_module != null:
 		bipob.box_storage.append(cooler_module)
 	bipob.recalculate_module_stats()
+	_apply_constructor_profile_dimensions("beta")
 	constructor_profiles["beta"] = _capture_constructor_profile_state()
+	_apply_constructor_profile_dimensions("juggernaut")
+	constructor_profiles["juggernaut"] = _capture_constructor_profile_state()
+	_apply_constructor_profile_dimensions("alpha")
 	_apply_constructor_profile_state(constructor_profiles["alpha"])
 
 func _save_active_bipob_profile() -> void:
@@ -4995,6 +5073,7 @@ func _save_active_bipob_profile() -> void:
 func _load_bipob_profile(profile_id: String) -> void:
 	if not constructor_profiles.has(profile_id):
 		return
+	_apply_constructor_profile_dimensions(profile_id)
 	_apply_constructor_profile_state(constructor_profiles[profile_id])
 	active_bipob_profile_id = profile_id
 	_update_bipob_selector_visuals()
@@ -5012,6 +5091,9 @@ func _on_bipob_alpha_pressed() -> void:
 
 func _on_bipob_beta_pressed() -> void:
 	_switch_active_bipob("beta")
+
+func _on_bipob_juggernaut_pressed() -> void:
+	_switch_active_bipob("juggernaut")
 
 func _update_bipob_selector_visuals() -> void:
 	_setup_box_top_bar()
@@ -6193,10 +6275,12 @@ func _create_internal_slice_grid(title_text: String, axis_a: String, axis_b: Str
 	var volume_size: Vector3i = bipob.get_internal_volume_size()
 	var columns: int = volume_size.x if axis_a == "x" else (volume_size.y if axis_a == "y" else volume_size.z)
 	var rows: int = volume_size.x if axis_b == "x" else (volume_size.y if axis_b == "y" else volume_size.z)
+	var cell_size: Vector2 = _get_constructor_cell_size(columns, rows, _get_internal_grid_available_size(columns, rows))
+	var grid_gap: int = _get_constructor_grid_gap(columns, rows)
 	var grid: GridContainer = GridContainer.new()
 	grid.columns = columns
-	grid.add_theme_constant_override("h_separation", INTERNAL_GRID_CELL_GAP)
-	grid.add_theme_constant_override("v_separation", INTERNAL_GRID_CELL_GAP)
+	grid.add_theme_constant_override("h_separation", grid_gap)
+	grid.add_theme_constant_override("v_separation", grid_gap)
 	for b in range(rows):
 		for a in range(columns):
 			var cell: Vector3i = _make_cell_from_slice_axes(axis_a, a, axis_b, b, fixed_axis, fixed_value)
@@ -6210,9 +6294,13 @@ func _create_internal_slice_grid(title_text: String, axis_a: String, axis_b: Str
 				preview = can_place_preview
 				invalid_preview = not can_place_preview
 			var cell_button: Button = Button.new()
-			cell_button.custom_minimum_size = INTERNAL_GRID_CELL_SIZE
+			cell_button.custom_minimum_size = cell_size
 			cell_button.focus_mode = Control.FOCUS_NONE
-			cell_button.text = _get_internal_visual_cell_label(cell, module)
+			cell_button.clip_text = true
+			cell_button.text_overrun_behavior = TextServer.OVERRUN_TRIM_ELLIPSIS
+			cell_button.autowrap_mode = TextServer.AUTOWRAP_OFF
+			cell_button.add_theme_font_size_override("font_size", 11 if cell_size.x >= CONSTRUCTOR_SMALL_LABEL_CELL_SIZE else 8)
+			cell_button.text = _get_internal_visual_cell_label(cell, module) if cell_size.x >= CONSTRUCTOR_SMALL_LABEL_CELL_SIZE else ""
 			cell_button.add_theme_stylebox_override("normal", _make_internal_cell_style(cell, module, selected, preview, invalid_preview))
 			cell_button.add_theme_stylebox_override("hover", _make_internal_cell_style(cell, module, true, preview, invalid_preview))
 			cell_button.add_theme_stylebox_override("pressed", _make_internal_cell_style(cell, module, true, preview, invalid_preview))
@@ -6314,14 +6402,14 @@ func _create_internal_visual_workspace() -> Control:
 	var middle_row: HBoxContainer = HBoxContainer.new()
 	middle_row.alignment = BoxContainer.ALIGNMENT_CENTER
 	middle_row.add_theme_constant_override("separation", 4)
-	middle_row.add_child(_create_internal_slice_grid("VERTICAL SLICE", "z", "y", "x", bipob.selected_internal_origin.x))
+	middle_row.add_child(_create_internal_slice_grid("VERTICAL SLICE", "y", "z", "x", bipob.selected_internal_origin.x))
 	middle_row.add_child(_create_internal_volume_placeholder_panel())
-	middle_row.add_child(_create_internal_slice_grid("MAIN SLICE", "x", "y", "z", bipob.selected_internal_origin.z))
+	middle_row.add_child(_create_internal_slice_grid("MAIN SLICE", "x", "z", "y", bipob.selected_internal_origin.y))
 	root.add_child(middle_row)
 	var bottom_row: HBoxContainer = HBoxContainer.new()
 	bottom_row.alignment = BoxContainer.ALIGNMENT_CENTER
 	bottom_row.add_theme_constant_override("separation", 4)
-	bottom_row.add_child(_create_internal_slice_grid("HORIZONTAL SLICE", "x", "z", "y", bipob.selected_internal_origin.y))
+	bottom_row.add_child(_create_internal_slice_grid("HORIZONTAL SLICE", "x", "y", "z", bipob.selected_internal_origin.z))
 	bottom_row.add_child(_create_internal_legend_panel())
 	root.add_child(bottom_row)
 	workspace.add_child(root)
@@ -6340,8 +6428,9 @@ func _create_internal_volume_placeholder_panel() -> Control:
 	_apply_label_style(title, false, true)
 	title.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	root.add_child(title)
+	var volume_size: Vector3i = bipob.get_internal_volume_size()
 	var body: Label = Label.new()
-	body.text = "Placeholder"
+	body.text = "INTERNAL CUBE %dx%dx%d" % [volume_size.x, volume_size.y, volume_size.z]
 	body.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	_apply_label_style(body, true, false)
 	root.add_child(body)

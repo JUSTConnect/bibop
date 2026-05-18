@@ -31,6 +31,9 @@ const EXTERNAL_SIDE_ORDER := [
 const INTERNAL_SIZE_X := 5
 const INTERNAL_SIZE_Y := 8
 const INTERNAL_SIZE_Z := 5
+const CONSTRUCTOR_PROFILE_SCOUT_SIZE := Vector3i(3, 3, 4)
+const CONSTRUCTOR_PROFILE_ENGINEER_SIZE := Vector3i(5, 5, 6)
+const CONSTRUCTOR_PROFILE_JUGGERNAUT_SIZE := Vector3i(7, 7, 9)
 const THERMAL_CRITICAL_HEAT := 5
 const MODULE_ICON_DIR: String = "res://assets/ui/module_icons/"
 
@@ -75,6 +78,7 @@ var internal_modules_by_cell: Dictionary = {}
 var placed_internal_modules: Array[Dictionary] = []
 var internal_overlay_paths: Array[Dictionary] = []
 var next_internal_overlay_path_id: int = 1
+var constructor_body_size: Vector3i = CONSTRUCTOR_PROFILE_SCOUT_SIZE
 var selected_internal_box_index: int = 0
 var selected_internal_origin: Vector3i = Vector3i.ZERO
 var selected_internal_rotation: int = 0
@@ -1104,25 +1108,39 @@ func start_next_mission() -> void:
 	hint_requested.emit("Sector-01 complete. All systems cleared.")
 	status_changed.emit()
 
+func set_constructor_body_size(body_size: Vector3i) -> void:
+	constructor_body_size = Vector3i(
+		maxi(1, body_size.x),
+		maxi(1, body_size.y),
+		maxi(1, body_size.z)
+	)
+
+
+func get_constructor_body_size() -> Vector3i:
+	return constructor_body_size
+
+
 func get_external_side_size(side_id: String) -> Vector2i:
+	var body_size: Vector3i = get_constructor_body_size()
 	match side_id:
 		EXTERNAL_SIDE_TOP:
-			return Vector2i(3, 3)
+			return Vector2i(body_size.x, body_size.y)
 		EXTERNAL_SIDE_BOTTOM:
-			return Vector2i(3, 3)
+			return Vector2i(body_size.x, body_size.y)
 		EXTERNAL_SIDE_LEFT:
-			return Vector2i(3, 4)
+			return Vector2i(body_size.y, body_size.z)
 		EXTERNAL_SIDE_RIGHT:
-			return Vector2i(3, 4)
+			return Vector2i(body_size.y, body_size.z)
 		EXTERNAL_SIDE_FRONT:
-			return Vector2i(3, 4)
+			return Vector2i(body_size.x, body_size.z)
 		EXTERNAL_SIDE_BACK:
-			return Vector2i(3, 4)
+			return Vector2i(body_size.x, body_size.z)
 		_:
 			return Vector2i.ZERO
 
+
 func get_internal_volume_size() -> Vector3i:
-	return Vector3i(INTERNAL_SIZE_X, INTERNAL_SIZE_Y, INTERNAL_SIZE_Z)
+	return get_constructor_body_size()
 
 func get_internal_slot_key(cell: Vector3i) -> String:
 	return "%d:%d:%d" % [cell.x, cell.y, cell.z]
