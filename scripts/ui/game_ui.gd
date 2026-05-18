@@ -2754,9 +2754,11 @@ func _get_internal_storage_grid_columns() -> int:
 
 
 func _get_internal_bottom_bar_height() -> float:
-	var viewport_height: float = get_viewport_rect().size.y
+	var viewport_height: float = _get_viewport_height()
+
 	if viewport_height < 720.0:
 		return 44.0
+
 	return 52.0
 
 
