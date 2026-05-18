@@ -10,6 +10,7 @@ class_name GameUI
 
 var diagnostic_label: Label
 var runtime_mission_field_host: Control
+var runtime_hud_root: Control = null
 
 @onready var box_status_label: Label = $BoxScreen/PanelContainer/VBoxContainer/StatusLabel
 @onready var box_module_label: Label = $BoxScreen/PanelContainer/VBoxContainer/ModuleLabel
@@ -3027,6 +3028,7 @@ func _apply_runtime_gameplay_field_transform() -> void:
 	if field == null:
 		return
 	field.visible = true
+	field.z_index = 0
 	var field_rect: Rect2 = _get_runtime_field_rect()
 	if field_rect.size.x <= 0.0 or field_rect.size.y <= 0.0:
 		return
@@ -3042,27 +3044,29 @@ func _apply_runtime_gameplay_field_transform() -> void:
 	var player: Node2D = get_node_or_null("../Bipob") as Node2D
 	if player != null:
 		player.visible = true
+		player.z_index = 1
 		var body_marker: CanvasItem = player.get_node_or_null("Body") as CanvasItem
 		if body_marker != null:
 			body_marker.visible = true
 
 
+func _ensure_runtime_hud_root() -> Control:
+	if runtime_hud_root != null and is_instance_valid(runtime_hud_root):
+		return runtime_hud_root
+	runtime_hud_root = Control.new()
+	runtime_hud_root.name = "RuntimeHudRoot"
+	runtime_hud_root.set_anchors_preset(Control.PRESET_FULL_RECT)
+	runtime_hud_root.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	runtime_hud_root.z_index = 50
+	add_child(runtime_hud_root)
+	return runtime_hud_root
+
+
 func _apply_runtime_hud_layout() -> void:
-	if command_panel == null:
-		return
-	command_panel.set_anchors_preset(Control.PRESET_FULL_RECT)
-	command_panel.offset_left = 0
-	command_panel.offset_top = 0
-	command_panel.offset_right = 0
-	command_panel.offset_bottom = 0
-	command_panel.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-	command_panel.size_flags_vertical = Control.SIZE_EXPAND_FILL
-	command_panel.custom_minimum_size = Vector2.ZERO
-	var transparent_style := StyleBoxFlat.new()
-	transparent_style.bg_color = Color(0, 0, 0, 0)
-	transparent_style.set_border_width_all(0)
-	command_panel.add_theme_stylebox_override("panel", transparent_style)
-	command_panel.mouse_filter = Control.MOUSE_FILTER_PASS
+	var root: Control = _ensure_runtime_hud_root()
+	root.visible = true
+	for child in root.get_children():
+		child.queue_free()
 
 	if status_label != null:
 		status_label.visible = false
@@ -3071,19 +3075,14 @@ func _apply_runtime_hud_layout() -> void:
 	if diagnostic_label != null:
 		diagnostic_label.visible = false
 
-	var existing_root: Control = command_panel.get_node_or_null("RuntimeHudRoot")
-	if existing_root != null:
-		existing_root.queue_free()
-
 	var runtime_root := MarginContainer.new()
-	runtime_root.name = "RuntimeHudRoot"
 	runtime_root.add_theme_constant_override("margin_left", 8)
 	runtime_root.add_theme_constant_override("margin_right", 8)
 	runtime_root.add_theme_constant_override("margin_top", 5)
 	runtime_root.add_theme_constant_override("margin_bottom", 8)
 	runtime_root.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	runtime_root.size_flags_vertical = Control.SIZE_EXPAND_FILL
-	command_panel.add_child(runtime_root)
+	root.add_child(runtime_root)
 
 	var main_vbox := VBoxContainer.new()
 	main_vbox.add_theme_constant_override("separation", 8)
@@ -3160,15 +3159,12 @@ func _apply_runtime_hud_layout() -> void:
 	mission_field_panel.size_flags_vertical = Control.SIZE_EXPAND_FILL
 	mission_field_panel.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	middle_hbox.add_child(mission_field_panel)
-	var mission_field_host := MarginContainer.new()
+	var mission_field_host := Control.new()
 	mission_field_host.name = "MissionFieldHost"
 	runtime_mission_field_host = mission_field_host
 	mission_field_host.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	mission_field_host.size_flags_vertical = Control.SIZE_EXPAND_FILL
-	mission_field_host.add_theme_constant_override("margin_left", 8)
-	mission_field_host.add_theme_constant_override("margin_right", 8)
-	mission_field_host.add_theme_constant_override("margin_top", 8)
-	mission_field_host.add_theme_constant_override("margin_bottom", 8)
+	mission_field_host.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	mission_field_panel.add_child(mission_field_host)
 	var right_spacer := Control.new()
 	right_spacer.custom_minimum_size = Vector2(_get_runtime_sidebar_width(), 0)
@@ -3251,6 +3247,8 @@ func _apply_runtime_hud_layout() -> void:
 		if button != null:
 			button.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 			button.focus_mode = Control.FOCUS_NONE
+	if command_panel != null:
+		command_panel.visible = false
 
 	if hint_label != null and not hint_label.text.is_empty() and mission_goal_value_label != null:
 		mission_goal_value_label.text = hint_label.text
@@ -3270,7 +3268,7 @@ func _ready() -> void:
 	if box_screen != null:
 		box_screen.visible = false
 	if command_panel != null:
-		command_panel.visible = true
+		command_panel.visible = false
 	_configure_box_layout()
 	_apply_box_screen_fullscreen_layout()
 	_ensure_action_panel_scrollable()
@@ -3507,16 +3505,20 @@ func _hide_all_app_screens() -> void:
 		mission_constructor_root.visible = false
 	if box_screen != null:
 		box_screen.visible = false
+	if runtime_hud_root != null and is_instance_valid(runtime_hud_root):
+		runtime_hud_root.visible = false
 
 func _set_gameplay_visible(visible_state: bool) -> void:
 	if command_panel != null:
-		command_panel.visible = visible_state
+		command_panel.visible = false
+	if runtime_hud_root != null and is_instance_valid(runtime_hud_root):
+		runtime_hud_root.visible = visible_state
 	if status_label != null:
-		status_label.visible = visible_state
+		status_label.visible = false
 	if hint_label != null:
-		hint_label.visible = visible_state
+		hint_label.visible = false
 	if diagnostic_label != null:
-		diagnostic_label.visible = visible_state
+		diagnostic_label.visible = false
 
 	var gameplay_nodes: Array[String] = [
 		"../GridRoot",
@@ -3572,6 +3574,7 @@ func start_gameplay_from_center() -> void:
 	app_screen_mode = AppScreenMode.GAMEPLAY
 	box_opened_from_center = false
 	_hide_all_app_screens()
+	_apply_runtime_hud_layout()
 	_set_gameplay_visible(true)
 	_on_start_mission_button_pressed()
 	call_deferred("_attach_runtime_gameplay_view")
@@ -3762,9 +3765,9 @@ func _on_viewport_size_changed() -> void:
 		_apply_box_screen_fullscreen_layout()
 		if box_menu_mode == BoxMenuMode.EXTERNAL or box_menu_mode == BoxMenuMode.INTERNAL:
 			update_box_status()
-	if command_panel != null and command_panel.visible:
+	if runtime_hud_root != null and is_instance_valid(runtime_hud_root) and runtime_hud_root.visible:
 		_apply_runtime_hud_layout()
-		call_deferred("_apply_runtime_gameplay_field_transform")
+		call_deferred("_attach_runtime_gameplay_view")
 func _apply_box_screen_fullscreen_layout() -> void:
 	if box_screen == null:
 		return
