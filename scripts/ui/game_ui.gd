@@ -109,14 +109,14 @@ const UI_COLOR_DISABLED: Color = Color(0.250, 0.280, 0.320, 1.0)
 const STORAGE_CARD_MIN_SIZE: Vector2 = Vector2(104, 78)
 const STORAGE_CARD_ICON_SIZE: Vector2 = Vector2(34, 34)
 const SELECTED_MODULE_ICON_SIZE: Vector2 = Vector2(72, 52)
-const SELECTED_MODULE_PREVIEW_CELL_SIZE: Vector2 = Vector2(24, 24)
+const SELECTED_MODULE_PREVIEW_CELL_SIZE: Vector2 = Vector2(20, 20)
 const SELECTED_MODULE_PREVIEW_GAP: int = 3
 const EXTERNAL_GRID_CELL_SIZE: Vector2 = Vector2(34, 34)
 const EXTERNAL_GRID_CELL_GAP: int = 4
 const INTERNAL_GRID_CELL_SIZE: Vector2 = Vector2(30, 30)
 const INTERNAL_GRID_CELL_GAP: int = 3
-const ACTION_BUTTON_MIN_SIZE: Vector2 = Vector2(120, 32)
-const ACTION_BUTTON_COMPACT_SIZE: Vector2 = Vector2(56, 30)
+const ACTION_BUTTON_MIN_SIZE: Vector2 = Vector2(112, 30)
+const ACTION_BUTTON_COMPACT_SIZE: Vector2 = Vector2(52, 28)
 const ACTION_GROUP_SPACING: int = 6
 const ACTION_BUTTON_SPACING: int = 4
 const STATUS_BADGE_MIN_SIZE: Vector2 = Vector2(96, 26)
@@ -682,6 +682,8 @@ func _create_constructor_warning_readiness_panel() -> Control:
 	_apply_panel_style(panel, true)
 	var root: VBoxContainer = VBoxContainer.new()
 	root.add_theme_constant_override("separation", 8)
+	root.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	root.size_flags_vertical = Control.SIZE_EXPAND_FILL
 	var title: Label = Label.new()
 	title.text = "READINESS / WARNINGS"
 	_apply_label_style(title, false, true)
@@ -1539,6 +1541,8 @@ func _create_constructor_mode_layout(
 ) -> Control:
 	var root: VBoxContainer = VBoxContainer.new()
 	root.add_theme_constant_override("separation", 8)
+	root.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	root.size_flags_vertical = Control.SIZE_EXPAND_FILL
 
 	var title_label: Label = Label.new()
 	title_label.text = mode_title
@@ -1547,6 +1551,8 @@ func _create_constructor_mode_layout(
 
 	var main_row: HBoxContainer = HBoxContainer.new()
 	main_row.add_theme_constant_override("separation", 10)
+	main_row.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	main_row.size_flags_vertical = Control.SIZE_EXPAND_FILL
 
 	if workspace != null:
 		workspace.size_flags_horizontal = Control.SIZE_EXPAND_FILL
@@ -1555,6 +1561,7 @@ func _create_constructor_mode_layout(
 
 	var right_column: VBoxContainer = VBoxContainer.new()
 	right_column.custom_minimum_size = Vector2(360, 0)
+	right_column.size_flags_horizontal = Control.SIZE_SHRINK_END
 	right_column.size_flags_vertical = Control.SIZE_EXPAND_FILL
 	right_column.add_theme_constant_override("separation", 8)
 
@@ -1566,6 +1573,7 @@ func _create_constructor_mode_layout(
 
 	if side_panel != null:
 		side_panel.custom_minimum_size = Vector2(340, 0)
+		side_panel.size_flags_vertical = Control.SIZE_EXPAND_FILL
 		right_column.add_child(side_panel)
 
 	if details_panel != null:
@@ -1597,7 +1605,7 @@ func _build_storage_cards_panel(parent: Control) -> void:
 	_apply_label_style(filter_label, true)
 	storage_root.add_child(filter_label)
 	var grid: GridContainer = GridContainer.new()
-	grid.columns = 3
+	grid.columns = 2
 	grid.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	storage_root.add_child(grid)
 	var storage_indices: Array[int] = get_current_filtered_box_storage_indices()
@@ -1675,6 +1683,8 @@ func _create_constructor_playable_status_panel() -> Control:
 	_apply_panel_style(panel, true)
 	var root: VBoxContainer = VBoxContainer.new()
 	root.add_theme_constant_override("separation", 8)
+	root.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	root.size_flags_vertical = Control.SIZE_EXPAND_FILL
 	var title: Label = Label.new()
 	title.text = "Constructor Status"
 	_apply_label_style(title, false, true)
@@ -1793,6 +1803,8 @@ func _create_selected_module_detail_card() -> Control:
 	_apply_panel_style(panel, true)
 	var root: VBoxContainer = VBoxContainer.new()
 	root.add_theme_constant_override("separation", 8)
+	root.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	root.size_flags_vertical = Control.SIZE_EXPAND_FILL
 	var title: Label = Label.new()
 	title.text = "SELECTED MODULE"
 	_apply_label_style(title, false, true)
@@ -1969,7 +1981,6 @@ func _get_external_cell_label(module: BipobModule) -> String:
 
 func _on_external_visual_cell_pressed(side_id: String, cell: Vector2i) -> void:
 	_set_external_selection_from_side_and_cell(side_id, cell)
-	clamp_external_selection()
 	update_box_status()
 
 
@@ -2097,6 +2108,8 @@ func _create_external_visual_workspace() -> Control:
 
 	var root: VBoxContainer = VBoxContainer.new()
 	root.add_theme_constant_override("separation", 8)
+	root.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	root.size_flags_vertical = Control.SIZE_EXPAND_FILL
 
 	var title: Label = Label.new()
 	title.text = "EXTERNAL MODULES ON BODY"
@@ -2795,40 +2808,36 @@ func update_box_status() -> void:
 		else:
 			box_title_label.text = "Constructor — Modules"
 
-	var content_text: String
+	var content_text: String = ""
 	if box_menu_mode == BoxMenuMode.MISSION:
 		content_text = get_box_mission_menu_text()
-	elif box_menu_mode == BoxMenuMode.EXTERNAL:
-		if CONSTRUCTOR_SHOW_DEBUG_TEXT_IN_MAIN:
-			content_text = get_box_external_menu_text()
-		else:
-			content_text = ""
-	elif box_menu_mode == BoxMenuMode.INTERNAL:
-		if CONSTRUCTOR_SHOW_DEBUG_TEXT_IN_MAIN:
-			content_text = get_box_internal_menu_text()
-		else:
-			content_text = ""
-	else:
+	elif box_menu_mode == BoxMenuMode.MODULES:
 		content_text = get_box_modules_menu_text()
+
 	update_box_button_visibility()
 
-	if box_content_label != null:
-		if box_menu_mode == BoxMenuMode.EXTERNAL or box_menu_mode == BoxMenuMode.INTERNAL:
-			box_content_label.text = ""
-		else:
-			box_content_label.text = content_text
 	var ui_panel: VBoxContainer = box_content_scroll.get_node_or_null("BoxContentCards")
-	if box_menu_mode == BoxMenuMode.MISSION:
-		if ui_panel != null:
-			ui_panel.queue_free()
-	else:
+	if box_menu_mode == BoxMenuMode.EXTERNAL or box_menu_mode == BoxMenuMode.INTERNAL:
+		if box_content_label != null:
+			box_content_label.text = ""
+			box_content_label.visible = false
 		if ui_panel != null:
 			ui_panel.queue_free()
 		ui_panel = VBoxContainer.new()
 		ui_panel.name = "BoxContentCards"
 		ui_panel.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+		ui_panel.size_flags_vertical = Control.SIZE_EXPAND_FILL
 		box_content_scroll.add_child(ui_panel)
 		_build_storage_cards_panel(ui_panel)
+		rebuild_box_action_buttons()
+		update_box_button_visibility()
+		return
+
+	if box_content_label != null:
+		box_content_label.visible = true
+		box_content_label.text = content_text
+	if ui_panel != null:
+		ui_panel.queue_free()
 
 func get_box_mission_menu_text() -> String:
 	var content_lines: Array[String] = []
@@ -4031,6 +4040,8 @@ func _create_internal_visual_workspace() -> Control:
 	_apply_panel_style(workspace, true)
 	var root: VBoxContainer = VBoxContainer.new()
 	root.add_theme_constant_override("separation", 8)
+	root.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	root.size_flags_vertical = Control.SIZE_EXPAND_FILL
 	var title: Label = Label.new()
 	title.text = "INTERNAL MODULES IN VOLUME"
 	_apply_label_style(title, false, true)
