@@ -3021,9 +3021,12 @@ func _attach_runtime_gameplay_view() -> void:
 
 
 func _apply_runtime_gameplay_field_transform() -> void:
+	if runtime_mission_field_host == null or not is_instance_valid(runtime_mission_field_host):
+		return
 	var field: Node2D = get_node_or_null("../Field") as Node2D
 	if field == null:
 		return
+	field.visible = true
 	var field_rect: Rect2 = _get_runtime_field_rect()
 	if field_rect.size.x <= 0.0 or field_rect.size.y <= 0.0:
 		return
@@ -3038,6 +3041,7 @@ func _apply_runtime_gameplay_field_transform() -> void:
 
 	var player: Node2D = get_node_or_null("../Bipob") as Node2D
 	if player != null:
+		player.visible = true
 		var body_marker: CanvasItem = player.get_node_or_null("Body") as CanvasItem
 		if body_marker != null:
 			body_marker.visible = true
@@ -3054,6 +3058,11 @@ func _apply_runtime_hud_layout() -> void:
 	command_panel.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	command_panel.size_flags_vertical = Control.SIZE_EXPAND_FILL
 	command_panel.custom_minimum_size = Vector2.ZERO
+	var transparent_style := StyleBoxFlat.new()
+	transparent_style.bg_color = Color(0, 0, 0, 0)
+	transparent_style.set_border_width_all(0)
+	command_panel.add_theme_stylebox_override("panel", transparent_style)
+	command_panel.mouse_filter = Control.MOUSE_FILTER_PASS
 
 	if status_label != null:
 		status_label.visible = false
@@ -3145,11 +3154,10 @@ func _apply_runtime_hud_layout() -> void:
 	middle_hbox.add_theme_constant_override("separation", 8)
 	main_vbox.add_child(middle_hbox)
 
-	var mission_field_panel := PanelContainer.new()
+	var mission_field_panel := Control.new()
 	mission_field_panel.name = "MissionFieldPanel"
 	mission_field_panel.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	mission_field_panel.size_flags_vertical = Control.SIZE_EXPAND_FILL
-	mission_field_panel.add_theme_stylebox_override("panel", _make_panel_style(Color(0, 0, 0, 0), UI_COLOR_BORDER_DIM, 1, 8))
 	mission_field_panel.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	middle_hbox.add_child(mission_field_panel)
 	var mission_field_host := MarginContainer.new()
@@ -3524,6 +3532,14 @@ func _set_gameplay_visible(visible_state: bool) -> void:
 		var node: CanvasItem = get_node_or_null(node_path) as CanvasItem
 		if node != null:
 			node.visible = visible_state
+
+	if visible_state:
+		var field: CanvasItem = get_node_or_null("../Field") as CanvasItem
+		if field != null:
+			field.visible = true
+		var player: CanvasItem = get_node_or_null("../Bipob") as CanvasItem
+		if player != null:
+			player.visible = true
 
 func show_main_menu_screen() -> void:
 	app_screen_mode = AppScreenMode.MAIN_MENU
