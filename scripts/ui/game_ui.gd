@@ -51,13 +51,14 @@ var storage_items_value_label: Label
 var storage_information_value_label: Label
 var storage_keys_value_label: Label
 var runtime_storage_panel: PanelContainer
-var runtime_manipulator_slots: Array[Button] = []
+var runtime_manipulator_content_label: Label
 var runtime_pocket_slots: Array[Button] = []
 var runtime_digital_slots: Array[Button] = []
-var runtime_buffer_slot: Button
-var runtime_keys_value_label: Label
+var runtime_buffer_content_label: Label
 var runtime_pocket_title_label: Label
 var runtime_digital_title_label: Label
+var runtime_digital_store_title_label: Label
+var runtime_key_slots: Array[Control] = []
 var selected_manipulator_slot: int = 0
 var selected_pocket_slot: int = 0
 var selected_digital_slot: int = 0
@@ -3232,45 +3233,98 @@ func _create_runtime_storage_panel() -> PanelContainer:
 	var panel := PanelContainer.new()
 	panel.name = "StoragePanel"
 	panel.add_theme_stylebox_override("panel", _make_panel_style(UI_COLOR_PANEL, UI_COLOR_BORDER, 1, 8))
+	var margin := MarginContainer.new()
+	margin.add_theme_constant_override("margin_left", 8)
+	margin.add_theme_constant_override("margin_top", 8)
+	margin.add_theme_constant_override("margin_right", 8)
+	margin.add_theme_constant_override("margin_bottom", 8)
+	panel.add_child(margin)
 	var root := VBoxContainer.new()
 	root.add_theme_constant_override("separation", 6)
-	panel.add_child(root)
-	root.add_child(Label.new())
-	root.get_child(0).text = "STORAGE"
-	runtime_manipulator_slots.clear(); runtime_pocket_slots.clear(); runtime_digital_slots.clear()
-	var physical := VBoxContainer.new(); root.add_child(physical); physical.add_child(Label.new()); physical.get_child(0).text = "PHYSICAL"
-	var keys_row := HBoxContainer.new(); physical.add_child(keys_row)
-	var keys_label := Label.new(); keys_label.text = "KEYS"; keys_row.add_child(keys_label)
-	runtime_keys_value_label = Label.new(); keys_row.add_child(runtime_keys_value_label)
-	if drop_item_button != null:
-		drop_item_button.text = "DROP"
-		_safe_reparent_control(drop_item_button, keys_row)
-	var man_title := Label.new(); man_title.text = "MANIPULATOR"; physical.add_child(man_title)
-	var man_row := HBoxContainer.new(); physical.add_child(man_row)
-	for i in range(3):
-		var b := Button.new(); b.text = "Empty"; b.pressed.connect(func() -> void: selected_manipulator_slot = i; _refresh_runtime_storage_panel())
-		man_row.add_child(b); runtime_manipulator_slots.append(b)
-	runtime_pocket_title_label = Label.new(); physical.add_child(runtime_pocket_title_label)
-	var pocket_row := HBoxContainer.new(); physical.add_child(pocket_row)
+	margin.add_child(root)
+	var things_title := Label.new()
+	things_title.text = "THINGS"
+	root.add_child(things_title)
+	runtime_pocket_slots.clear()
+	runtime_digital_slots.clear()
+	runtime_key_slots.clear()
+	root.add_child(_create_runtime_storage_section_header("MANIPULATOR", "DROP", Callable(self, "_on_storage_store_pressed")))
+	runtime_manipulator_content_label = Label.new()
+	runtime_manipulator_content_label.text = "Empty"
+	root.add_child(runtime_manipulator_content_label)
+	runtime_pocket_title_label = Label.new()
+	runtime_pocket_title_label.text = "POCKET 1/4"
+	root.add_child(_create_runtime_storage_section_header("", "POCKET", Callable(self, "_on_storage_take_pressed"), runtime_pocket_title_label))
+	var pocket_row := HBoxContainer.new()
+	pocket_row.add_theme_constant_override("separation", 4)
+	root.add_child(pocket_row)
 	for i in range(4):
-		var b := Button.new(); b.text = "Empty"; b.pressed.connect(func() -> void: selected_pocket_slot = i; _refresh_runtime_storage_panel())
-		pocket_row.add_child(b); runtime_pocket_slots.append(b)
-	var physical_actions := HBoxContainer.new(); physical.add_child(physical_actions)
-	var take := Button.new(); take.text = "TAKE"; take.pressed.connect(_on_storage_take_pressed); physical_actions.add_child(take)
-	var store := Button.new(); store.text = "STORE"; store.pressed.connect(_on_storage_store_pressed); physical_actions.add_child(store)
-	var digital := VBoxContainer.new(); root.add_child(digital); digital.add_child(Label.new()); digital.get_child(0).text = "DIGITAL"
-	var buffer_title := Label.new(); buffer_title.text = "BUFFER"; digital.add_child(buffer_title)
-	runtime_buffer_slot = Button.new(); runtime_buffer_slot.text = "Empty"; digital.add_child(runtime_buffer_slot)
-	runtime_digital_title_label = Label.new(); digital.add_child(runtime_digital_title_label)
-	var digital_row := HBoxContainer.new(); digital.add_child(digital_row)
+		var b := _create_storage_slot("Empty", i == 0)
+		b.pressed.connect(func() -> void: selected_pocket_slot = i; _refresh_runtime_storage_panel())
+		pocket_row.add_child(b)
+		runtime_pocket_slots.append(b)
+	var keys_row := HBoxContainer.new()
+	keys_row.add_theme_constant_override("separation", 4)
+	root.add_child(keys_row)
+	for i in range(6):
+		var key_slot := _create_storage_key_slot(true)
+		keys_row.add_child(key_slot)
+		runtime_key_slots.append(key_slot)
+	runtime_digital_title_label = Label.new()
+	runtime_digital_title_label.text = "BUFFER"
+	root.add_child(_create_runtime_storage_section_header("", "STORE", Callable(self, "_on_storage_data_store_pressed"), runtime_digital_title_label))
+	runtime_buffer_content_label = Label.new()
+	runtime_buffer_content_label.text = "Empty"
+	root.add_child(runtime_buffer_content_label)
+	runtime_digital_store_title_label = Label.new()
+	runtime_digital_store_title_label.text = "STORE 1/4"
+	root.add_child(runtime_digital_store_title_label)
+	var digital_row := HBoxContainer.new()
+	digital_row.add_theme_constant_override("separation", 4)
+	root.add_child(digital_row)
 	for i in range(4):
-		var b := Button.new(); b.text = "Empty"; b.pressed.connect(func() -> void: selected_digital_slot = i; _refresh_runtime_storage_panel())
-		digital_row.add_child(b); runtime_digital_slots.append(b)
-	var digital_actions := HBoxContainer.new(); digital.add_child(digital_actions)
-	var load := Button.new(); load.text = "LOAD"; load.pressed.connect(_on_storage_load_pressed); digital_actions.add_child(load)
-	var dstore := Button.new(); dstore.text = "STORE"; dstore.pressed.connect(_on_storage_data_store_pressed); digital_actions.add_child(dstore)
+		var b := _create_storage_slot("Empty", i == 0)
+		b.pressed.connect(func() -> void: selected_digital_slot = i; _refresh_runtime_storage_panel())
+		digital_row.add_child(b)
+		runtime_digital_slots.append(b)
 	_refresh_runtime_storage_panel()
 	return panel
+
+func _create_runtime_storage_section_header(title: String, action_text: String, action_callable: Callable, title_label: Label = null) -> HBoxContainer:
+	var row := HBoxContainer.new()
+	row.add_theme_constant_override("separation", 4)
+	var label := title_label if title_label != null else Label.new()
+	if title_label == null:
+		label.text = title
+	row.add_child(label)
+	var spacer := Control.new()
+	spacer.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	row.add_child(spacer)
+	var button := Button.new()
+	button.text = action_text
+	button.focus_mode = Control.FOCUS_NONE
+	_apply_action_button_style(button, "normal", action_callable.is_valid())
+	button.disabled = not action_callable.is_valid()
+	if action_callable.is_valid():
+		button.pressed.connect(action_callable)
+	row.add_child(button)
+	return row
+
+func _create_storage_slot(text: String, enabled: bool, min_size: Vector2 = Vector2(54, 34)) -> Button:
+	var slot := Button.new()
+	slot.text = text
+	slot.focus_mode = Control.FOCUS_NONE
+	slot.custom_minimum_size = min_size
+	slot.disabled = not enabled
+	slot.modulate = Color.WHITE if enabled else UI_COLOR_DISABLED
+	return slot
+
+func _create_storage_key_slot(enabled: bool) -> Control:
+	var key_slot := PanelContainer.new()
+	key_slot.custom_minimum_size = Vector2(24, 24)
+	key_slot.add_theme_stylebox_override("panel", _make_panel_style(Color(0.090, 0.110, 0.145, 1.0), UI_COLOR_BORDER_DIM, 1, 4))
+	key_slot.modulate = Color.WHITE if enabled else UI_COLOR_DISABLED
+	return key_slot
 
 func _ready() -> void:
 	if hint_label != null:
@@ -5438,15 +5492,10 @@ func _on_rotate_storage_button_pressed() -> void:
 func _refresh_runtime_storage_panel() -> void:
 	if bipob == null or runtime_storage_panel == null:
 		return
-	var available_man: int = int(bipob.get_available_manipulator_slots())
 	var man_items: Array = bipob.get_manipulator_items()
-	for i in range(runtime_manipulator_slots.size()):
-		var slot := runtime_manipulator_slots[i]
-		var enabled: bool = i < available_man
-		slot.disabled = not enabled
-		slot.modulate = Color.WHITE if enabled else UI_COLOR_DISABLED
-		var item = man_items[i] if i < man_items.size() else null
-		slot.text = bipob.get_module_display_name(item) if item != null else "Empty"
+	var manipulator_item = man_items[0] if not man_items.is_empty() else null
+	if runtime_manipulator_content_label != null:
+		runtime_manipulator_content_label.text = bipob.get_module_display_name(manipulator_item) if manipulator_item != null else "Empty"
 	var available_pocket: int = int(bipob.get_available_pocket_slots())
 	runtime_pocket_title_label.text = "POCKET %d/%d" % [available_pocket, bipob.get_max_pocket_slots()]
 	var pocket_items: Array = bipob.get_pocket_items()
@@ -5457,7 +5506,16 @@ func _refresh_runtime_storage_panel() -> void:
 		slot.modulate = Color.WHITE if enabled else UI_COLOR_DISABLED
 		var item = pocket_items[i] if i < pocket_items.size() else null
 		slot.text = bipob.get_module_display_name(item) if item != null else "Empty"
-	runtime_keys_value_label.text = "x%d" % bipob.get_key_count()
+	var digital_available: int = 1
+	runtime_digital_store_title_label.text = "STORE %d/%d" % [digital_available, runtime_digital_slots.size()]
+	for i in range(runtime_digital_slots.size()):
+		var dslot := runtime_digital_slots[i]
+		var denabled: bool = i < digital_available
+		dslot.disabled = not denabled
+		dslot.modulate = Color.WHITE if denabled else UI_COLOR_DISABLED
+		dslot.text = "Empty"
+	if runtime_buffer_content_label != null:
+		runtime_buffer_content_label.text = "Empty"
 
 func _on_storage_take_pressed() -> void:
 	bipob.move_pocket_to_manipulator(selected_pocket_slot)
