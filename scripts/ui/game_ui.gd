@@ -3674,7 +3674,7 @@ func show_mission_constructor_screen() -> void:
 func _refresh_tasks_content() -> void:
 	for tab_name in tasks_tab_buttons.keys():
 		var button: Button = tasks_tab_buttons[tab_name]
-		var selected := tab_name == tasks_current_tab
+		var selected : bool = tab_name == tasks_current_tab
 		button.modulate = UI_COLOR_SELECTED if selected else Color(1, 1, 1, 1)
 	if tasks_list_container == null:
 		return
@@ -3700,7 +3700,35 @@ func _refresh_tasks_content() -> void:
 		card.modulate = UI_COLOR_SELECTED if i == tasks_selected_career_index else Color(1, 1, 1, 1)
 		tasks_list_container.add_child(card)
 	_update_tasks_details_panel()
+func _apply_menu_button_theme(button: Button) -> void:
+	if button == null:
+		return
 
+	button.focus_mode = Control.FOCUS_NONE
+	button.add_theme_color_override("font_color", UI_COLOR_TEXT)
+
+	var normal: StyleBoxFlat = StyleBoxFlat.new()
+	normal.bg_color = UI_COLOR_PANEL
+	normal.border_color = UI_COLOR_BORDER_DIM
+	normal.set_border_width_all(1)
+	normal.set_corner_radius_all(6)
+
+	var hover: StyleBoxFlat = StyleBoxFlat.new()
+	hover.bg_color = UI_COLOR_PANEL_DARK
+	hover.border_color = UI_COLOR_BORDER
+	hover.set_border_width_all(1)
+	hover.set_corner_radius_all(6)
+
+	var pressed: StyleBoxFlat = StyleBoxFlat.new()
+	pressed.bg_color = Color(0.08, 0.20, 0.14, 1.0)
+	pressed.border_color = UI_COLOR_OK
+	pressed.set_border_width_all(1)
+	pressed.set_corner_radius_all(6)
+
+	button.add_theme_stylebox_override("normal", normal)
+	button.add_theme_stylebox_override("hover", hover)
+	button.add_theme_stylebox_override("pressed", pressed)
+	
 func _apply_tasks_placeholder_details() -> void:
 	if tasks_title_label != null:
 		tasks_title_label.text = "%s Tasks" % tasks_current_tab
@@ -5217,8 +5245,8 @@ func _build_tasks_menu_layout() -> void:
 	right_panel.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	right_panel.size_flags_vertical = Control.SIZE_EXPAND_FILL
 	content_row.add_child(right_panel)
-	content_row.set_stretch_ratio(0, 1.0)
-	content_row.set_stretch_ratio(1, 2.0)
+	left_panel.size_flags_stretch_ratio = 1.0
+	right_panel.size_flags_stretch_ratio = 2.0
 
 	var right_margin := MarginContainer.new()
 	right_margin.add_theme_constant_override("margin_left", 10)
