@@ -829,6 +829,17 @@ func _get_selected_module_size_text(module: BipobModule) -> String:
 	return "module"
 
 
+func _get_module_heat_text(module: BipobModule) -> String:
+	if module == null:
+		return "Heat: none"
+
+	if module.heat_idle <= 0 and module.heat_active <= 0:
+		return "Heat: none"
+
+	return "Heat: idle %d / active %d" % [
+		module.heat_idle,
+		module.heat_active
+	]
 
 func _get_module_role_text(module: BipobModule) -> String:
 	if module == null:
@@ -4049,7 +4060,7 @@ func get_box_internal_menu_text() -> String:
 		lines.append("Category: %s" % bipob.get_module_category(selected_module))
 		lines.append("Size: %d×%d×%d" % [base_size.x, base_size.y, base_size.z])
 		lines.append("Role: %s" % _get_module_role_text(selected_module))
-		lines.append("Heat: %d / %d" % [selected_module.heat_output, selected_module.heat_limit])
+		lines.append(_get_module_heat_text(selected_module))
 		lines.append("Cooling: %s %d" % [selected_module.cooling_type, selected_module.cooling_power])
 		lines.append("Air Intake: %s" % ("required" if selected_module.requires_air_intake else "not required"))
 	_empty_line(lines)
