@@ -2962,6 +2962,17 @@ func _get_runtime_control_panel_height() -> float:
 	return 190.0
 
 
+func _safe_reparent_control(control: Control, new_parent: Node) -> void:
+	if control == null or new_parent == null:
+		return
+	var current_parent: Node = control.get_parent()
+	if current_parent == new_parent:
+		return
+	if current_parent != null:
+		current_parent.remove_child(control)
+	new_parent.add_child(control)
+
+
 func _apply_runtime_hud_layout() -> void:
 	if command_panel == null:
 		return
@@ -3078,25 +3089,7 @@ func _apply_runtime_hud_layout() -> void:
 	storage_vbox.add_child(rotate_row)
 	if rotate_storage_button != null:
 		rotate_storage_button.text = "Rotate Storage"
-		rotate_row.add_child(rotate_storage_button)
-	if drop_item_button != null:
-		drop_item_button.text = "Drop Item"
-		rotate_row.add_child(drop_item_button)
-
-	var device_actions_panel := PanelContainer.new()
-	device_actions_panel.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-	device_actions_panel.add_theme_stylebox_override("panel", _make_panel_style(UI_COLOR_PANEL, UI_COLOR_BORDER, 1, 8))
-	right_sidebar.add_child(device_actions_panel)
-	var device_actions_vbox := VBoxContainer.new()
-	device_actions_vbox.add_theme_constant_override("separation", 4)
-	device_actions_panel.add_child(device_actions_vbox)
-	var device_title := Label.new()
-	device_title.text = "Device Actions"
-	device_actions_vbox.add_child(device_title)
-	if scan_device_button != null:
-		device_actions_vbox.add_child(scan_device_button)
-	if hack_device_button != null:
-		device_actions_vbox.add_child(hack_device_button)
+		_safe_reparent_control(rotate_storage_button, rotate_row)
 
 	var mission_panel := PanelContainer.new()
 	mission_panel.size_flags_horizontal = Control.SIZE_EXPAND_FILL
@@ -3106,12 +3099,15 @@ func _apply_runtime_hud_layout() -> void:
 	mission_vbox.add_theme_constant_override("separation", 4)
 	mission_panel.add_child(mission_vbox)	
 	var mission_title := Label.new(); mission_title.text = "Mission"; mission_vbox.add_child(mission_title)
-	if restart_mission_button != null: mission_vbox.add_child(restart_mission_button)
+	if restart_mission_button != null:
+		_safe_reparent_control(restart_mission_button, mission_vbox)
 	if return_to_box_button != null:
 		return_to_box_button.text = "Return to Center"
-		mission_vbox.add_child(return_to_box_button)
-	if settings_button != null: mission_vbox.add_child(settings_button)
-	if exit_main_menu_button != null: mission_vbox.add_child(exit_main_menu_button)
+		_safe_reparent_control(return_to_box_button, mission_vbox)
+	if settings_button != null:
+		_safe_reparent_control(settings_button, mission_vbox)
+	if exit_main_menu_button != null:
+		_safe_reparent_control(exit_main_menu_button, mission_vbox)
 
 	var bottom_row := HBoxContainer.new()
 	bottom_row.size_flags_horizontal = Control.SIZE_EXPAND_FILL
@@ -3126,18 +3122,28 @@ func _apply_runtime_hud_layout() -> void:
 	var controls_title := Label.new(); controls_title.text = "Controls"; controls_vbox.add_child(controls_title)
 	var row_f := HBoxContainer.new(); controls_vbox.add_child(row_f)
 	row_f.add_child(Control.new())
-	if move_forward_button != null: row_f.add_child(move_forward_button)
+	if move_forward_button != null:
+		_safe_reparent_control(move_forward_button, row_f)
 	row_f.add_child(Control.new())
 	var row_m := HBoxContainer.new(); row_m.add_theme_constant_override("separation", 4); controls_vbox.add_child(row_m)
-	if turn_left_button != null: row_m.add_child(turn_left_button)
-	if interact_button != null: row_m.add_child(interact_button)
-	if turn_right_button != null: row_m.add_child(turn_right_button)
+	if turn_left_button != null:
+		_safe_reparent_control(turn_left_button, row_m)
+	if interact_button != null:
+		_safe_reparent_control(interact_button, row_m)
+	if turn_right_button != null:
+		_safe_reparent_control(turn_right_button, row_m)
 	var row_b := HBoxContainer.new(); controls_vbox.add_child(row_b)
 	row_b.add_child(Control.new())
-	if move_backward_button != null: row_b.add_child(move_backward_button)
+	if move_backward_button != null:
+		_safe_reparent_control(move_backward_button, row_b)
 	row_b.add_child(Control.new())
 	var row_s := HBoxContainer.new(); row_s.add_theme_constant_override("separation", 4); controls_vbox.add_child(row_s)
-	if end_turn_button != null: row_s.add_child(end_turn_button)
+	if scan_device_button != null:
+		_safe_reparent_control(scan_device_button, row_s)
+	if hack_device_button != null:
+		_safe_reparent_control(hack_device_button, row_s)
+	if end_turn_button != null:
+		_safe_reparent_control(end_turn_button, row_s)
 	var spacer := Control.new(); spacer.size_flags_horizontal = Control.SIZE_EXPAND_FILL; bottom_row.add_child(spacer)
 
 	for button in [move_forward_button, move_backward_button, turn_left_button, turn_right_button, interact_button, scan_device_button, hack_device_button, end_turn_button, rotate_storage_button, restart_mission_button, return_to_box_button, settings_button, exit_main_menu_button]:
