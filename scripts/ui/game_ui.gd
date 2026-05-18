@@ -85,6 +85,27 @@ var internal_view_mode: String = "modules"
 var module_icon_texture_cache: Dictionary = {}
 var constructor_reference_text: String = ""
 
+enum AppScreenMode {
+	MAIN_MENU,
+	CENTER,
+	GAMEPLAY,
+	BOX_CONSTRUCTOR,
+	SETTINGS_PLACEHOLDER,
+	ABOUT_PLACEHOLDER,
+	SHOP_PLACEHOLDER,
+	RESEARCH_PLACEHOLDER,
+	REPAIR_PLACEHOLDER
+}
+
+var app_screen_mode: AppScreenMode = AppScreenMode.MAIN_MENU
+var previous_app_screen_mode: AppScreenMode = AppScreenMode.MAIN_MENU
+var box_opened_from_center: bool = false
+
+var main_menu_root: Control
+var center_menu_root: Control
+var placeholder_menu_root: Control
+var placeholder_title_label: Label
+
 const CONSTRUCTOR_PANEL_BG_PATH: String = "res://assets/ui/constructor/panel_bg.png"
 const CONSTRUCTOR_CELL_EMPTY_PATH: String = "res://assets/ui/constructor/cell_empty.png"
 const CONSTRUCTOR_CELL_SELECTED_PATH: String = "res://assets/ui/constructor/cell_selected.png"
@@ -2450,6 +2471,8 @@ func _ready() -> void:
 
 	box_return_button = null
 
+	_create_app_menu_roots()
+
 	_apply_constructor_visual_style()
 
 	bipob.status_changed.connect(update_status)
@@ -2462,6 +2485,7 @@ func _ready() -> void:
 	_apply_constructor_ui_skin()
 	update_box_status()
 	update_diagnostic_status()
+	show_main_menu_screen()
 
 
 func _apply_constructor_visual_style() -> void:
@@ -2500,6 +2524,101 @@ func _apply_constructor_visual_style() -> void:
 		button.add_theme_stylebox_override("pressed", pressed)
 		button.add_theme_stylebox_override("disabled", pressed)
 		button.add_theme_color_override("font_color", Color("#d6f5ff"))
+
+
+func _create_app_menu_roots() -> void:
+	main_menu_root = _build_fullscreen_root("MainMenuRoot")
+	center_menu_root = _build_fullscreen_root("CenterMenuRoot")
+	placeholder_menu_root = _build_fullscreen_root("PlaceholderMenuRoot")
+	add_child(main_menu_root)
+	add_child(center_menu_root)
+	add_child(placeholder_menu_root)
+	_build_main_menu_layout()
+	_build_center_menu_layout()
+	_build_placeholder_layout()
+
+func _build_fullscreen_root(node_name: String) -> Control:
+	var root := Control.new()
+	root.name = node_name
+	root.set_anchors_preset(Control.PRESET_FULL_RECT)
+	root.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	root.size_flags_vertical = Control.SIZE_EXPAND_FILL
+	return root
+
+func _hide_all_app_screens() -> void:
+	if main_menu_root != null:
+		main_menu_root.visible = false
+	if center_menu_root != null:
+		center_menu_root.visible = false
+	if placeholder_menu_root != null:
+		placeholder_menu_root.visible = false
+	if box_screen != null:
+		box_screen.visible = false
+
+func _set_gameplay_ui_visible(is_visible: bool) -> void:
+	if command_panel != null:
+		command_panel.visible = is_visible
+	if status_label != null:
+		status_label.visible = is_visible
+	if hint_label != null:
+		hint_label.visible = is_visible
+	if diagnostic_label != null:
+		diagnostic_label.visible = is_visible
+
+func show_main_menu_screen() -> void:
+	app_screen_mode = AppScreenMode.MAIN_MENU
+	box_opened_from_center = false
+	_hide_all_app_screens()
+	_set_gameplay_ui_visible(false)
+	if main_menu_root != null:
+		main_menu_root.visible = true
+
+func show_center_screen() -> void:
+	app_screen_mode = AppScreenMode.CENTER
+	_hide_all_app_screens()
+	_set_gameplay_ui_visible(false)
+	if center_menu_root != null:
+		center_menu_root.visible = true
+
+func show_placeholder_screen(title_text: String) -> void:
+	previous_app_screen_mode = app_screen_mode
+	app_screen_mode = AppScreenMode.SETTINGS_PLACEHOLDER
+	_hide_all_app_screens()
+	_set_gameplay_ui_visible(false)
+	if placeholder_title_label != null:
+		placeholder_title_label.text = title_text
+	if placeholder_menu_root != null:
+		placeholder_menu_root.visible = true
+
+func start_gameplay_from_center() -> void:
+	app_screen_mode = AppScreenMode.GAMEPLAY
+	box_opened_from_center = false
+	_hide_all_app_screens()
+	_set_gameplay_ui_visible(true)
+	_on_start_mission_button_pressed()
+
+func show_box_constructor_from_center() -> void:
+	app_screen_mode = AppScreenMode.BOX_CONSTRUCTOR
+	box_opened_from_center = true
+	_hide_all_app_screens()
+	_set_gameplay_ui_visible(false)
+	show_box_screen()
+	if modules_tab_button != null:
+		set_box_menu_mode_modules()
+	else:
+		set_box_menu_mode_external()
+
+func charge_bipob_from_center() -> void:
+	if bipob == null:
+		return
+	if bipob.has_method("charge"):
+		bipob.charge()
+	elif bipob.has_method("restore_energy"):
+		bipob.restore_energy()
+	else:
+		bipob.energy = bipob.max_energy
+	show_hint("Бипоб заряжен.")
+	update_status()
 
 func _on_charge_button_pressed() -> void:
 	# BoxScreen preparation action: must not spend field action points or energy.
@@ -2803,6 +2922,7 @@ func _on_mission_completed() -> void:
 
 func _on_returned_to_box() -> void:
 	should_advance_mission_on_start = false
+	box_opened_from_center = false
 	show_box_screen()
 	update_box_status()
 
@@ -3595,6 +3715,148 @@ func _on_constructor_checkpoint_pressed() -> void:
 	else:
 		_show_constructor_reference_text("CHECKPOINT", "Checkpoint helper is unavailable.")
 
+
+func _build_main_menu_layout() -> void:
+	var panel := PanelContainer.new()
+	panel.custom_minimum_size = Vector2(280, 360)
+	panel.position = Vector2(500, 170)
+	_apply_panel_style(panel, "panel")
+	main_menu_root.add_child(panel)
+	var vbox := VBoxContainer.new()
+	vbox.alignment = BoxContainer.ALIGNMENT_CENTER
+	vbox.add_theme_constant_override("separation", 14)
+	panel.add_child(vbox)
+	var title := Label.new()
+	title.text = "BIPOB"
+	_apply_label_style(title, "header")
+	title.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	vbox.add_child(title)
+	for data in [["Играть","_on_main_play_pressed"],["Настройки","_on_main_settings_pressed"],["О нас","_on_main_about_pressed"],["Выйти из игры","_on_main_exit_pressed"]]:
+		var b := Button.new()
+		b.text = data[0]
+		b.custom_minimum_size = Vector2(160, 34)
+		_apply_action_button_style(b, "normal")
+		b.pressed.connect(Callable(self, data[1]))
+		vbox.add_child(b)
+	var spacer := Control.new()
+	spacer.custom_minimum_size = Vector2(0, 14)
+	vbox.add_child(spacer)
+	var social := Label.new()
+	social.text = "Соцсети"
+	_apply_label_style(social, "caption")
+	social.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	vbox.add_child(social)
+	var version := Label.new()
+	version.text = "версия"
+	_apply_label_style(version, "caption")
+	version.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	vbox.add_child(version)
+
+func _build_center_menu_layout() -> void:
+	var tasks := Button.new()
+	tasks.text = "Задания"
+	tasks.position = Vector2(24, 24)
+	tasks.custom_minimum_size = Vector2(160, 34)
+	_apply_action_button_style(tasks, "normal")
+	tasks.pressed.connect(_on_center_tasks_pressed)
+	center_menu_root.add_child(tasks)
+	var exit_btn := Button.new()
+	exit_btn.text = "Выйти из игры"
+	exit_btn.position = Vector2(980, 24)
+	exit_btn.custom_minimum_size = Vector2(170, 34)
+	_apply_action_button_style(exit_btn, "danger")
+	exit_btn.pressed.connect(_on_center_exit_pressed)
+	center_menu_root.add_child(exit_btn)
+	var settings := Button.new()
+	settings.text = "Настройки"
+	settings.position = Vector2(980, 68)
+	settings.custom_minimum_size = Vector2(170, 34)
+	_apply_action_button_style(settings, "normal")
+	settings.pressed.connect(_on_center_settings_pressed)
+	center_menu_root.add_child(settings)
+	var shop := Button.new()
+	shop.text = "Магазин"
+	shop.position = Vector2(980, 320)
+	shop.custom_minimum_size = Vector2(170, 34)
+	_apply_action_button_style(shop, "normal")
+	shop.pressed.connect(_on_center_shop_pressed)
+	center_menu_root.add_child(shop)
+	var row := HBoxContainer.new()
+	row.position = Vector2(280, 640)
+	row.add_theme_constant_override("separation", 12)
+	center_menu_root.add_child(row)
+	for data in [["Box","_on_center_box_pressed"],["Зарядка","_on_center_charge_pressed"],["Исследования","_on_center_research_pressed"],["Ремонт","_on_center_repair_pressed"]]:
+		var b := Button.new()
+		b.text = data[0]
+		b.custom_minimum_size = Vector2(170, 34)
+		_apply_action_button_style(b, "normal")
+		b.pressed.connect(Callable(self, data[1]))
+		row.add_child(b)
+	var to_main := Button.new()
+	to_main.text = "Выйти в главное меню"
+	to_main.position = Vector2(920, 680)
+	to_main.custom_minimum_size = Vector2(230, 34)
+	_apply_action_button_style(to_main, "normal")
+	to_main.pressed.connect(_on_center_main_menu_pressed)
+	center_menu_root.add_child(to_main)
+
+func _build_placeholder_layout() -> void:
+	var panel := PanelContainer.new()
+	panel.custom_minimum_size = Vector2(420, 220)
+	panel.position = Vector2(430, 250)
+	_apply_panel_style(panel, "panel")
+	placeholder_menu_root.add_child(panel)
+	var vbox := VBoxContainer.new()
+	vbox.add_theme_constant_override("separation", 12)
+	panel.add_child(vbox)
+	placeholder_title_label = Label.new()
+	_apply_label_style(placeholder_title_label, "header")
+	placeholder_title_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	vbox.add_child(placeholder_title_label)
+	var body := Label.new()
+	body.text = "Раздел в разработке."
+	_apply_label_style(body, "body")
+	body.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	vbox.add_child(body)
+	var back := Button.new()
+	back.text = "Назад"
+	back.custom_minimum_size = Vector2(160, 34)
+	_apply_action_button_style(back, "normal")
+	back.pressed.connect(_on_placeholder_back_pressed)
+	vbox.add_child(back)
+
+func _on_main_play_pressed() -> void:
+	show_center_screen()
+func _on_main_settings_pressed() -> void:
+	show_placeholder_screen("Настройки")
+func _on_main_about_pressed() -> void:
+	show_placeholder_screen("О нас")
+func _on_main_exit_pressed() -> void:
+	show_placeholder_screen("Выход из игры")
+func _on_center_tasks_pressed() -> void:
+	start_gameplay_from_center()
+func _on_center_box_pressed() -> void:
+	show_box_constructor_from_center()
+func _on_center_charge_pressed() -> void:
+	charge_bipob_from_center()
+func _on_center_research_pressed() -> void:
+	show_placeholder_screen("Исследования")
+func _on_center_repair_pressed() -> void:
+	show_placeholder_screen("Ремонт")
+func _on_center_shop_pressed() -> void:
+	show_placeholder_screen("Магазин")
+func _on_center_settings_pressed() -> void:
+	show_placeholder_screen("Настройки")
+func _on_center_main_menu_pressed() -> void:
+	show_main_menu_screen()
+func _on_center_exit_pressed() -> void:
+	show_placeholder_screen("Выход из игры")
+func _on_placeholder_back_pressed() -> void:
+	if previous_app_screen_mode == AppScreenMode.MAIN_MENU:
+		show_main_menu_screen()
+	else:
+		show_center_screen()
+
 func _on_move_forward_pressed() -> void:
 	bipob.move_forward()
 	update_status()
@@ -3661,6 +3923,9 @@ func _on_restart_mission_button_pressed() -> void:
 
 func _on_return_to_box_button_pressed() -> void:
 	if bipob == null:
+		return
+	if box_opened_from_center or app_screen_mode == AppScreenMode.BOX_CONSTRUCTOR:
+		show_center_screen()
 		return
 	bipob.return_to_box()
 	if box_screen != null and not box_screen.visible:
