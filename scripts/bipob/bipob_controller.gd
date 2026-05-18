@@ -3784,6 +3784,54 @@ func get_damage_planning_compact_text() -> String:
 			warning_count += 1
 	return "Damage Preview: critical %d / warning %d" % [critical_count, warning_count]
 
+func get_damage_preview_critical_count() -> int:
+	var critical_count: int = 0
+	for module in get_unique_internal_modules():
+		if module == null or not module.can_be_damaged:
+			continue
+		var preview_heat: int = get_preview_heat_after_cooling_for_internal_module(module)
+		if preview_heat >= get_module_damage_threshold(module):
+			critical_count += 1
+	return critical_count
+
+func get_damage_preview_warning_count() -> int:
+	var warning_count: int = 0
+	for module in get_unique_internal_modules():
+		if module == null or not module.can_be_damaged:
+			continue
+		var preview_heat: int = get_preview_heat_after_cooling_for_internal_module(module)
+		var threshold: int = get_module_damage_threshold(module)
+		if preview_heat == threshold - 1:
+			warning_count += 1
+	return warning_count
+
+func get_constructor_final_audit_text() -> String:
+	var lines: Array[String] = []
+	lines.append("Constructor Final Audit")
+	lines.append("Box Storage: %d" % box_storage.size())
+	lines.append("Internal Modules: %d" % get_unique_internal_modules().size())
+	lines.append("External Modules: %d" % get_unique_external_modules().size())
+	var overlay_paths_value: Variant = get("internal_overlay_paths")
+	if overlay_paths_value is Array:
+		lines.append("Overlay Paths: %d" % overlay_paths_value.size())
+	lines.append("Highest Heat: %d" % get_highest_internal_preview_heat())
+	lines.append("Damage Preview: critical %d / warning %d" % [
+		get_damage_preview_critical_count(),
+		get_damage_preview_warning_count()
+	])
+	lines.append("Consistency Issues: %d" % get_constructor_consistency_issue_count())
+	lines.append("Power: %s" % ("OK" if is_virtual_power_available() else "MISSING"))
+	lines.append("Internal Data: %s" % ("OK" if is_internal_data_network_available() else "MISSING"))
+	lines.append("External Link: %s" % ("OK" if is_external_data_network_available() else "MISSING"))
+	lines.append("")
+	lines.append("Status:")
+	lines.append("- UI-only constructor visuals are active.")
+	lines.append("- Overlay thermal effects are hypothetical only.")
+	lines.append("- Damage/repair is planning metadata only.")
+	lines.append("- Constructor is not gameplay-authoritative yet.")
+	lines.append("- Test Build is not implemented.")
+	return "\n".join(lines)
+
 func get_repair_planning_reference_text() -> String:
 	var lines: Array[String] = []
 

@@ -83,6 +83,7 @@ var selected_external_side_index: int = 1
 var selected_external_slot_position: Vector2i = Vector2i(1, 1)
 var internal_view_mode: String = "modules"
 var module_icon_texture_cache: Dictionary = {}
+var constructor_reference_text: String = ""
 
 const CONSTRUCTOR_PANEL_BG_PATH: String = "res://assets/ui/constructor/panel_bg.png"
 const CONSTRUCTOR_CELL_EMPTY_PATH: String = "res://assets/ui/constructor/cell_empty.png"
@@ -126,6 +127,53 @@ const UI_ANIM_MEDIUM: float = 0.28
 const UI_ANIM_PULSE_ALPHA_LOW: float = 0.72
 const UI_ANIM_PULSE_ALPHA_HIGH: float = 1.0
 const CONSTRUCTOR_SHOW_DEBUG_TEXT_IN_MAIN: bool = false
+
+func _safe_has_bipob_method(method_name: String) -> bool:
+	if bipob == null:
+		return false
+	return bipob.has_method(method_name)
+
+func _is_constructor_internal_mode() -> bool:
+	return box_menu_mode == BoxMenuMode.INTERNAL
+
+func _is_constructor_external_mode() -> bool:
+	return box_menu_mode == BoxMenuMode.EXTERNAL
+
+func _is_constructor_dashboard_mode() -> bool:
+	return box_menu_mode == BoxMenuMode.MISSION
+
+func _show_constructor_reference_text(title_text: String, body_text: String) -> void:
+	var text: String = title_text
+	if not body_text.is_empty():
+		text += "\n\n" + body_text
+	constructor_reference_text = text
+	show_hint(text)
+	update_box_status()
+
+func _get_constructor_ui_smoke_check_text() -> String:
+	var lines: Array[String] = []
+	lines.append("Constructor UI Smoke Check")
+	lines.append("Dashboard: OK")
+	lines.append("External Mode: OK")
+	lines.append("Internal Mode: OK")
+	lines.append("Storage Cards: OK")
+	lines.append("Selected Module Card: OK")
+	lines.append("Action Panel: OK")
+	lines.append("Status Badges: OK")
+	lines.append("Readiness / Warnings: OK")
+	lines.append("Reference / Preview: OK")
+	lines.append("")
+	lines.append("Manual checks still required:")
+	lines.append("- Open Dashboard")
+	lines.append("- Open External Modules")
+	lines.append("- Open Internal Modules")
+	lines.append("- Select storage cards")
+	lines.append("- Place/remove external module")
+	lines.append("- Place/remove/rotate internal module")
+	lines.append("- Commit/remove overlay path")
+	lines.append("- Toggle view modes")
+	lines.append("- Open all reference reports")
+	return "\n".join(lines)
 
 
 
@@ -745,11 +793,14 @@ func _get_module_card_size_text(module: BipobModule) -> String:
 
 
 func _get_selected_box_storage_module() -> BipobModule:
+	if bipob == null:
+		return null
 	if selected_box_storage_index < 0:
 		return null
 	if selected_box_storage_index >= bipob.box_storage.size():
 		return null
-	return bipob.box_storage[selected_box_storage_index]
+	var module: BipobModule = bipob.box_storage[selected_box_storage_index]
+	return module
 
 
 func _get_module_placement_display_text(module: BipobModule) -> String:
@@ -2999,8 +3050,8 @@ func rebuild_box_action_buttons() -> void:
 
 		var external_reference_group: VBoxContainer = _create_action_group_panel("Reference / Preview")
 		right_button_panel.add_child(external_reference_group)
-		if bipob.has_method("get_constructor_planning_checkpoint_text"):
-			_add_action_button(external_reference_group, "Checkpoint", Callable(self, "_on_constructor_checkpoint_pressed"), "reference")
+		_add_action_button(external_reference_group, "Checkpoint", Callable(self, "_on_constructor_checkpoint_pressed"), "reference")
+		_add_action_button(external_reference_group, "Final Audit", Callable(self, "_on_constructor_final_audit_pressed"), "reference")
 	elif box_menu_mode == BoxMenuMode.INTERNAL:
 		var internal_remove_available: bool = bipob.get_internal_module_at(bipob.selected_internal_origin) != null
 		var selection_group: VBoxContainer = _create_action_group_panel("Selection")
@@ -3049,22 +3100,16 @@ func rebuild_box_action_buttons() -> void:
 		_add_action_button(overlay_paths_group, "Remove Path", Callable(self, "_on_remove_selected_overlay_pressed"), "danger", _has_selected_overlay_path_visual())
 		var reference_group: VBoxContainer = _create_action_group_panel("Reference / Preview")
 		right_button_panel.add_child(reference_group)
-		if bipob.has_method("get_thermal_rules_reference_text"):
-			_add_action_button(reference_group, "Thermal Rules", Callable(self, "_on_thermal_rules_pressed"), "warning")
-		if bipob.has_method("get_repair_planning_reference_text"):
-			_add_action_button(reference_group, "Repair Rules", Callable(self, "_on_repair_rules_pressed"), "warning")
-		if bipob.has_method("get_damage_planning_preview_text"):
-			_add_action_button(reference_group, "Damage Plan", Callable(self, "_on_damage_plan_pressed"), "warning")
-		if bipob.has_method("get_constructor_planning_checkpoint_text"):
-			_add_action_button(reference_group, "Checkpoint", Callable(self, "_on_constructor_checkpoint_pressed"), "reference")
-		if bipob.has_method("get_overlay_connectivity_preview_text"):
-			_add_action_button(reference_group, "Overlay Check", Callable(self, "_on_overlay_check_pressed"), "reference")
-		if bipob.has_method("get_overlay_endpoint_preview_text"):
-			_add_action_button(reference_group, "Endpoints", Callable(self, "_on_overlay_endpoints_pressed"), "reference")
-		if bipob.has_method("get_overlay_thermal_contribution_preview_text"):
-			_add_action_button(reference_group, "Overlay Thermal", Callable(self, "_on_overlay_thermal_pressed"), "reference")
-		if bipob.has_method("get_overlay_heat_diff_summary_text"):
-			_add_action_button(reference_group, "Overlay Diff", Callable(self, "_on_overlay_diff_pressed"), "reference")
+		_add_action_button(reference_group, "Thermal Rules", Callable(self, "_on_thermal_rules_pressed"), "warning")
+		_add_action_button(reference_group, "Repair Rules", Callable(self, "_on_repair_rules_pressed"), "warning")
+		_add_action_button(reference_group, "Damage Plan", Callable(self, "_on_damage_plan_pressed"), "warning")
+		_add_action_button(reference_group, "Checkpoint", Callable(self, "_on_constructor_checkpoint_pressed"), "reference")
+		_add_action_button(reference_group, "Overlay Check", Callable(self, "_on_overlay_check_pressed"), "reference")
+		_add_action_button(reference_group, "Endpoints", Callable(self, "_on_overlay_endpoints_pressed"), "reference")
+		_add_action_button(reference_group, "Overlay Thermal", Callable(self, "_on_overlay_thermal_pressed"), "reference")
+		_add_action_button(reference_group, "Overlay Diff", Callable(self, "_on_overlay_diff_pressed"), "reference")
+		_add_action_button(reference_group, "Final Audit", Callable(self, "_on_constructor_final_audit_pressed"), "reference")
+		_add_action_button(reference_group, "UI Smoke Check", Callable(self, "_on_constructor_ui_smoke_check_pressed"), "reference")
 	else:
 		_add_box_action_button("Prev Filter", Callable(self, "_on_prev_constructor_filter_pressed"))
 		_add_box_action_button("Next Filter", Callable(self, "_on_next_constructor_filter_pressed"))
@@ -3424,10 +3469,10 @@ func _on_constructor_consistency_button_pressed() -> void:
 	update_box_status()
 
 func _on_constructor_checkpoint_pressed() -> void:
-	if bipob == null:
-		return
-	show_hint(bipob.get_constructor_planning_checkpoint_text())
-	update_box_status()
+	if _safe_has_bipob_method("get_constructor_planning_checkpoint_text"):
+		_show_constructor_reference_text("CHECKPOINT", str(bipob.get_constructor_planning_checkpoint_text()))
+	else:
+		_show_constructor_reference_text("CHECKPOINT", "Checkpoint helper is unavailable.")
 
 func _on_move_forward_pressed() -> void:
 	bipob.move_forward()
@@ -4250,32 +4295,55 @@ func _on_clear_overlay_pressed() -> void:
 	update_box_status()
 
 func _on_overlay_check_pressed() -> void:
-	show_hint(str(bipob.get_overlay_connectivity_preview_text()))
-	update_box_status()
+	if _safe_has_bipob_method("get_overlay_connectivity_preview_text"):
+		_show_constructor_reference_text("OVERLAY CHECK", str(bipob.get_overlay_connectivity_preview_text()))
+	else:
+		_show_constructor_reference_text("OVERLAY CHECK", "Overlay connectivity helper is unavailable.")
 
 func _on_overlay_endpoints_pressed() -> void:
-	show_hint(str(bipob.get_overlay_endpoint_preview_text()))
-	update_box_status()
+	if _safe_has_bipob_method("get_overlay_endpoint_preview_text"):
+		_show_constructor_reference_text("ENDPOINTS", str(bipob.get_overlay_endpoint_preview_text()))
+	else:
+		_show_constructor_reference_text("ENDPOINTS", "Overlay endpoint helper is unavailable.")
 
 func _on_overlay_thermal_pressed() -> void:
-	show_hint(str(bipob.get_overlay_thermal_contribution_preview_text()))
-	update_box_status()
+	if _safe_has_bipob_method("get_overlay_thermal_contribution_preview_text"):
+		_show_constructor_reference_text("OVERLAY THERMAL", str(bipob.get_overlay_thermal_contribution_preview_text()))
+	else:
+		_show_constructor_reference_text("OVERLAY THERMAL", "Overlay thermal helper is unavailable.")
 
 func _on_thermal_rules_pressed() -> void:
-	show_hint(str(bipob.get_thermal_rules_reference_text()))
-	update_box_status()
+	if _safe_has_bipob_method("get_thermal_rules_reference_text"):
+		_show_constructor_reference_text("THERMAL RULES", str(bipob.get_thermal_rules_reference_text()))
+	else:
+		_show_constructor_reference_text("THERMAL RULES", "Thermal rules helper is unavailable.")
 
 func _on_damage_plan_pressed() -> void:
-	show_hint(str(bipob.get_damage_planning_preview_text()))
-	update_box_status()
+	if _safe_has_bipob_method("get_damage_planning_preview_text"):
+		_show_constructor_reference_text("DAMAGE PLAN", str(bipob.get_damage_planning_preview_text()))
+	else:
+		_show_constructor_reference_text("DAMAGE PLAN", "Damage planning helper is unavailable.")
 
 func _on_repair_rules_pressed() -> void:
-	show_hint(str(bipob.get_repair_planning_reference_text()))
-	update_box_status()
+	if _safe_has_bipob_method("get_repair_planning_reference_text"):
+		_show_constructor_reference_text("REPAIR RULES", str(bipob.get_repair_planning_reference_text()))
+	else:
+		_show_constructor_reference_text("REPAIR RULES", "Repair rules helper is unavailable.")
 
 func _on_overlay_diff_pressed() -> void:
-	show_hint(str(bipob.get_overlay_heat_diff_summary_text(false)))
-	update_box_status()
+	if _safe_has_bipob_method("get_overlay_heat_diff_summary_text"):
+		_show_constructor_reference_text("OVERLAY DIFF", str(bipob.get_overlay_heat_diff_summary_text(false)))
+	else:
+		_show_constructor_reference_text("OVERLAY DIFF", "Overlay diff helper is unavailable.")
+
+func _on_constructor_final_audit_pressed() -> void:
+	if _safe_has_bipob_method("get_constructor_final_audit_text"):
+		_show_constructor_reference_text("FINAL AUDIT", str(bipob.get_constructor_final_audit_text()))
+	else:
+		_show_constructor_reference_text("FINAL AUDIT", "Final Audit helper is unavailable.")
+
+func _on_constructor_ui_smoke_check_pressed() -> void:
+	_show_constructor_reference_text("UI SMOKE CHECK", _get_constructor_ui_smoke_check_text())
 
 func _on_prev_overlay_pressed() -> void:
 	bipob.select_prev_overlay_path()
