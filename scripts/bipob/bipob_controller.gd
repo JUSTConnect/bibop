@@ -589,9 +589,19 @@ func get_constructor_consistency_compact_text() -> String:
 		return "Consistency: OK"
 	return "Consistency: %d issue(s)" % issue_count
 
+func get_constructor_consistency_text() -> String:
+	return get_constructor_consistency_summary_text()
+
+func get_constructor_consistency_check_text() -> String:
+	return get_constructor_consistency_text()
+
 func get_constructor_consistency_issue_count() -> int:
 	var count: int = 0
-	var text: String = get_constructor_consistency_check_text()
+	var text: String = ""
+	if has_method("get_constructor_consistency_text"):
+		text = get_constructor_consistency_text()
+	elif has_method("get_constructor_consistency_check_text"):
+		text = get_constructor_consistency_check_text()
 	for line in text.split("\n"):
 		var lower_line: String = String(line).to_lower()
 		if lower_line.contains("missing") or lower_line.contains("invalid") or lower_line.contains("error"):
