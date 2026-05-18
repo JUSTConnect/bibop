@@ -3010,6 +3010,9 @@ func _apply_runtime_hud_layout() -> void:
 	var top_vbox := VBoxContainer.new()
 	top_vbox.add_theme_constant_override("separation", 2)
 	top_panel.add_child(top_vbox)
+	var diagnostic_runtime_label := Label.new()
+	diagnostic_runtime_label.text = "Diagnostic"
+	top_vbox.add_child(diagnostic_runtime_label)
 	var objective_title := Label.new()
 	objective_title.text = "Mission Objective"
 	top_vbox.add_child(objective_title)
@@ -3024,10 +3027,24 @@ func _apply_runtime_hud_layout() -> void:
 	middle_hbox.add_theme_constant_override("separation", 8)
 	main_vbox.add_child(middle_hbox)
 
-	var left_spacer := Control.new()
-	left_spacer.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-	left_spacer.size_flags_vertical = Control.SIZE_EXPAND_FILL
-	middle_hbox.add_child(left_spacer)
+	var mission_field_panel := PanelContainer.new()
+	mission_field_panel.name = "MissionFieldPanel"
+	mission_field_panel.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	mission_field_panel.size_flags_vertical = Control.SIZE_EXPAND_FILL
+	mission_field_panel.add_theme_stylebox_override("panel", _make_panel_style(UI_COLOR_PANEL_DARK, UI_COLOR_BORDER, 1, 8))
+	middle_hbox.add_child(mission_field_panel)
+	var mission_field_host := MarginContainer.new()
+	mission_field_host.name = "MissionFieldHost"
+	mission_field_host.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	mission_field_host.size_flags_vertical = Control.SIZE_EXPAND_FILL
+	mission_field_host.add_theme_constant_override("margin_left", 8)
+	mission_field_host.add_theme_constant_override("margin_right", 8)
+	mission_field_host.add_theme_constant_override("margin_top", 8)
+	mission_field_host.add_theme_constant_override("margin_bottom", 8)
+	mission_field_panel.add_child(mission_field_host)
+	var mission_field_title := Label.new()
+	mission_field_title.text = "Mission Field"
+	mission_field_host.add_child(mission_field_title)
 
 	var right_sidebar := VBoxContainer.new()
 	right_sidebar.custom_minimum_size = Vector2(_get_runtime_sidebar_width(), 0)
@@ -3062,6 +3079,24 @@ func _apply_runtime_hud_layout() -> void:
 	if rotate_storage_button != null:
 		rotate_storage_button.text = "Rotate Storage"
 		rotate_row.add_child(rotate_storage_button)
+	if drop_item_button != null:
+		drop_item_button.text = "Drop Item"
+		rotate_row.add_child(drop_item_button)
+
+	var device_actions_panel := PanelContainer.new()
+	device_actions_panel.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	device_actions_panel.add_theme_stylebox_override("panel", _make_panel_style(UI_COLOR_PANEL, UI_COLOR_BORDER, 1, 8))
+	right_sidebar.add_child(device_actions_panel)
+	var device_actions_vbox := VBoxContainer.new()
+	device_actions_vbox.add_theme_constant_override("separation", 4)
+	device_actions_panel.add_child(device_actions_vbox)
+	var device_title := Label.new()
+	device_title.text = "Device Actions"
+	device_actions_vbox.add_child(device_title)
+	if scan_device_button != null:
+		device_actions_vbox.add_child(scan_device_button)
+	if hack_device_button != null:
+		device_actions_vbox.add_child(hack_device_button)
 
 	var mission_panel := PanelContainer.new()
 	mission_panel.size_flags_horizontal = Control.SIZE_EXPAND_FILL
@@ -3102,8 +3137,6 @@ func _apply_runtime_hud_layout() -> void:
 	if move_backward_button != null: row_b.add_child(move_backward_button)
 	row_b.add_child(Control.new())
 	var row_s := HBoxContainer.new(); row_s.add_theme_constant_override("separation", 4); controls_vbox.add_child(row_s)
-	if scan_device_button != null: row_s.add_child(scan_device_button)
-	if hack_device_button != null: row_s.add_child(hack_device_button)
 	if end_turn_button != null: row_s.add_child(end_turn_button)
 	var spacer := Control.new(); spacer.size_flags_horizontal = Control.SIZE_EXPAND_FILL; bottom_row.add_child(spacer)
 
