@@ -3336,32 +3336,44 @@ func _create_runtime_mission_panel() -> PanelContainer:
 	panel.visible = true
 	panel.add_theme_stylebox_override("panel", _make_panel_style(UI_COLOR_PANEL, UI_COLOR_BORDER, 1, 8))
 	var margin := MarginContainer.new()
-	margin.add_theme_constant_override("margin_left", 8)
-	margin.add_theme_constant_override("margin_top", 8)
-	margin.add_theme_constant_override("margin_right", 8)
-	margin.add_theme_constant_override("margin_bottom", 8)
+	margin.add_theme_constant_override("margin_left", 6)
+	margin.add_theme_constant_override("margin_top", 6)
+	margin.add_theme_constant_override("margin_right", 6)
+	margin.add_theme_constant_override("margin_bottom", 6)
 	panel.add_child(margin)
 	var vbox := VBoxContainer.new()
-	vbox.add_theme_constant_override("separation", 6)
+	vbox.add_theme_constant_override("separation", 4)
 	margin.add_child(vbox)
 	if restart_mission_button != null:
+		_disconnect_all_pressed_connections(restart_mission_button)
+		restart_mission_button.pressed.connect(_on_restart_mission_button_pressed)
 		restart_mission_button.text = "Restart Mission"
-		restart_mission_button.custom_minimum_size = Vector2(0, 30)
+		restart_mission_button.custom_minimum_size = Vector2(0, 28)
+		restart_mission_button.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 		restart_mission_button.size_flags_vertical = Control.SIZE_EXPAND_FILL
 		_safe_reparent_control(restart_mission_button, vbox)
 	if return_to_box_button != null:
+		_disconnect_all_pressed_connections(return_to_box_button)
+		return_to_box_button.pressed.connect(_on_runtime_return_to_center_pressed)
 		return_to_box_button.text = "Return to Center"
-		return_to_box_button.custom_minimum_size = Vector2(0, 30)
+		return_to_box_button.custom_minimum_size = Vector2(0, 28)
+		return_to_box_button.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 		return_to_box_button.size_flags_vertical = Control.SIZE_EXPAND_FILL
 		_safe_reparent_control(return_to_box_button, vbox)
 	if settings_button != null:
+		_disconnect_all_pressed_connections(settings_button)
+		settings_button.pressed.connect(_on_runtime_settings_pressed)
 		settings_button.text = "Settings"
-		settings_button.custom_minimum_size = Vector2(0, 30)
+		settings_button.custom_minimum_size = Vector2(0, 28)
+		settings_button.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 		settings_button.size_flags_vertical = Control.SIZE_EXPAND_FILL
 		_safe_reparent_control(settings_button, vbox)
 	if exit_main_menu_button != null:
+		_disconnect_all_pressed_connections(exit_main_menu_button)
+		exit_main_menu_button.pressed.connect(_on_runtime_exit_to_main_menu_pressed)
 		exit_main_menu_button.text = "Exit to Main Menu"
-		exit_main_menu_button.custom_minimum_size = Vector2(0, 30)
+		exit_main_menu_button.custom_minimum_size = Vector2(0, 28)
+		exit_main_menu_button.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 		exit_main_menu_button.size_flags_vertical = Control.SIZE_EXPAND_FILL
 		_safe_reparent_control(exit_main_menu_button, vbox)
 	return panel
