@@ -40,8 +40,14 @@ var scan_device_button: Button
 var hack_device_button: Button
 var restart_mission_button: Button
 var return_to_box_button: Button
+var settings_button: Button
+var exit_main_menu_button: Button
 var drop_item_button: Button
 var rotate_storage_button: Button
+var mission_goal_value_label: Label
+var storage_items_value_label: Label
+var storage_information_value_label: Label
+var storage_keys_value_label: Label
 var start_mission_warning_acknowledged: bool = false
 var should_advance_mission_on_start: bool = false
 var selected_installed_module_index: int = 0
@@ -2892,24 +2898,197 @@ func get_module_details_text(module: BipobModule) -> String:
 		lines.append("Note: does not consume Internal Volume")
 	return "\n".join(lines)
 
-func _ready() -> void:
+
+
+func _get_runtime_sidebar_width() -> float:
+	var viewport_size: Vector2 = get_viewport_rect().size
+	if viewport_size.x <= 1100.0:
+		return 260.0
+	if viewport_size.x <= 1500.0:
+		return 285.0
+	return 320.0
+
+
+func _get_runtime_top_bar_height() -> float:
+	var viewport_height: float = get_viewport_rect().size.y
+	if viewport_height <= 768.0:
+		return 78.0
+	if viewport_height <= 900.0:
+		return 90.0
+	return 102.0
+
+
+func _get_runtime_control_panel_height() -> float:
+	var viewport_height: float = get_viewport_rect().size.y
+	if viewport_height <= 768.0:
+		return 150.0
+	if viewport_height <= 900.0:
+		return 170.0
+	return 190.0
+
+
+func _apply_runtime_hud_layout() -> void:
+	if command_panel == null:
+		return
+	command_panel.set_anchors_preset(Control.PRESET_FULL_RECT)
+	command_panel.offset_left = 0
+	command_panel.offset_top = 0
+	command_panel.offset_right = 0
+	command_panel.offset_bottom = 0
+	command_panel.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	command_panel.size_flags_vertical = Control.SIZE_EXPAND_FILL
+	command_panel.custom_minimum_size = Vector2.ZERO
+
 	if status_label != null:
-		status_label.position = Vector2(100, 20)
+		status_label.visible = false
 	if hint_label != null:
-		hint_label.position = Vector2(100, 50)
+		hint_label.visible = false
+	if diagnostic_label != null:
+		diagnostic_label.visible = false
+
+	var existing_root: Control = command_panel.get_node_or_null("RuntimeHudRoot")
+	if existing_root != null:
+		existing_root.queue_free()
+
+	var runtime_root := MarginContainer.new()
+	runtime_root.name = "RuntimeHudRoot"
+	runtime_root.add_theme_constant_override("margin_left", 12)
+	runtime_root.add_theme_constant_override("margin_right", 12)
+	runtime_root.add_theme_constant_override("margin_top", 10)
+	runtime_root.add_theme_constant_override("margin_bottom", 10)
+	runtime_root.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	runtime_root.size_flags_vertical = Control.SIZE_EXPAND_FILL
+	command_panel.add_child(runtime_root)
+
+	var main_vbox := VBoxContainer.new()
+	main_vbox.add_theme_constant_override("separation", 8)
+	main_vbox.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	main_vbox.size_flags_vertical = Control.SIZE_EXPAND_FILL
+	runtime_root.add_child(main_vbox)
+
+	var top_panel := PanelContainer.new()
+	top_panel.custom_minimum_size = Vector2(0, _get_runtime_top_bar_height())
+	top_panel.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	top_panel.add_theme_stylebox_override("panel", _make_panel_style(UI_COLOR_PANEL_DARK, UI_COLOR_BORDER, 1, 8))
+	main_vbox.add_child(top_panel)
+
+	var top_vbox := VBoxContainer.new()
+	top_vbox.add_theme_constant_override("separation", 2)
+	top_panel.add_child(top_vbox)
+	var objective_title := Label.new()
+	objective_title.text = "Mission Objective"
+	top_vbox.add_child(objective_title)
+	mission_goal_value_label = Label.new()
+	mission_goal_value_label.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	mission_goal_value_label.text = "Goal information will be displayed here."
+	top_vbox.add_child(mission_goal_value_label)
+
+	var middle_hbox := HBoxContainer.new()
+	middle_hbox.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	middle_hbox.size_flags_vertical = Control.SIZE_EXPAND_FILL
+	middle_hbox.add_theme_constant_override("separation", 8)
+	main_vbox.add_child(middle_hbox)
+
+	var left_spacer := Control.new()
+	left_spacer.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	left_spacer.size_flags_vertical = Control.SIZE_EXPAND_FILL
+	middle_hbox.add_child(left_spacer)
+
+	var right_sidebar := VBoxContainer.new()
+	right_sidebar.custom_minimum_size = Vector2(_get_runtime_sidebar_width(), 0)
+	right_sidebar.size_flags_vertical = Control.SIZE_EXPAND_FILL
+	right_sidebar.add_theme_constant_override("separation", 8)
+	middle_hbox.add_child(right_sidebar)
+
+	var storage_panel := PanelContainer.new()
+	storage_panel.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	storage_panel.add_theme_stylebox_override("panel", _make_panel_style(UI_COLOR_PANEL, UI_COLOR_BORDER, 1, 8))
+	right_sidebar.add_child(storage_panel)
+	var storage_vbox := VBoxContainer.new()
+	storage_vbox.add_theme_constant_override("separation", 4)
+	storage_panel.add_child(storage_vbox)
+	for title in ["Storage", "Items:", "Information:", "Keys:"]:
+		var row := HBoxContainer.new()
+		storage_vbox.add_child(row)
+		if title == "Storage":
+			var title_label := Label.new()
+			title_label.text = title
+			row.add_child(title_label)
+		else:
+			var k := Label.new(); k.text = title; row.add_child(k)
+			var v := Label.new(); v.text = "0"; row.add_child(v)
+			if title == "Items:": storage_items_value_label = v
+			elif title == "Information:": storage_information_value_label = v
+			else: storage_keys_value_label = v
+
+	var rotate_row := HBoxContainer.new()
+	rotate_row.add_theme_constant_override("separation", 4)
+	storage_vbox.add_child(rotate_row)
+	if rotate_storage_button != null:
+		rotate_storage_button.text = "Rotate Storage"
+		rotate_row.add_child(rotate_storage_button)
+
+	var mission_panel := PanelContainer.new()
+	mission_panel.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	mission_panel.add_theme_stylebox_override("panel", _make_panel_style(UI_COLOR_PANEL, UI_COLOR_BORDER, 1, 8))
+	right_sidebar.add_child(mission_panel)
+	var mission_vbox := VBoxContainer.new()
+	mission_vbox.add_theme_constant_override("separation", 4)
+	mission_panel.add_child(mission_vbox)	
+	var mission_title := Label.new(); mission_title.text = "Mission"; mission_vbox.add_child(mission_title)
+	if restart_mission_button != null: mission_vbox.add_child(restart_mission_button)
+	if return_to_box_button != null:
+		return_to_box_button.text = "Return to Center"
+		mission_vbox.add_child(return_to_box_button)
+	if settings_button != null: mission_vbox.add_child(settings_button)
+	if exit_main_menu_button != null: mission_vbox.add_child(exit_main_menu_button)
+
+	var bottom_row := HBoxContainer.new()
+	bottom_row.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	main_vbox.add_child(bottom_row)
+	var controls_panel := PanelContainer.new()
+	controls_panel.custom_minimum_size = Vector2(0, _get_runtime_control_panel_height())
+	controls_panel.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	controls_panel.size_flags_stretch_ratio = 1.8
+	controls_panel.add_theme_stylebox_override("panel", _make_panel_style(UI_COLOR_PANEL, UI_COLOR_BORDER, 1, 8))
+	bottom_row.add_child(controls_panel)
+	var controls_vbox := VBoxContainer.new(); controls_vbox.add_theme_constant_override("separation", 4); controls_panel.add_child(controls_vbox)
+	var controls_title := Label.new(); controls_title.text = "Controls"; controls_vbox.add_child(controls_title)
+	var row_f := HBoxContainer.new(); controls_vbox.add_child(row_f)
+	row_f.add_child(Control.new())
+	if move_forward_button != null: row_f.add_child(move_forward_button)
+	row_f.add_child(Control.new())
+	var row_m := HBoxContainer.new(); row_m.add_theme_constant_override("separation", 4); controls_vbox.add_child(row_m)
+	if turn_left_button != null: row_m.add_child(turn_left_button)
+	if interact_button != null: row_m.add_child(interact_button)
+	if turn_right_button != null: row_m.add_child(turn_right_button)
+	var row_b := HBoxContainer.new(); controls_vbox.add_child(row_b)
+	row_b.add_child(Control.new())
+	if move_backward_button != null: row_b.add_child(move_backward_button)
+	row_b.add_child(Control.new())
+	var row_s := HBoxContainer.new(); row_s.add_theme_constant_override("separation", 4); controls_vbox.add_child(row_s)
+	if scan_device_button != null: row_s.add_child(scan_device_button)
+	if hack_device_button != null: row_s.add_child(hack_device_button)
+	if end_turn_button != null: row_s.add_child(end_turn_button)
+	var spacer := Control.new(); spacer.size_flags_horizontal = Control.SIZE_EXPAND_FILL; bottom_row.add_child(spacer)
+
+	for button in [move_forward_button, move_backward_button, turn_left_button, turn_right_button, interact_button, scan_device_button, hack_device_button, end_turn_button, rotate_storage_button, restart_mission_button, return_to_box_button, settings_button, exit_main_menu_button]:
+		if button != null:
+			button.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+			button.focus_mode = Control.FOCUS_NONE
+
+	if hint_label != null and not hint_label.text.is_empty() and mission_goal_value_label != null:
+		mission_goal_value_label.text = hint_label.text
+func _ready() -> void:
+	if hint_label != null:
 		hint_label.text = "Mission 1: pick up the key, open the door, reach the exit."
 
 	diagnostic_label = Label.new()
 	diagnostic_label.name = "DiagnosticLabel"
-	diagnostic_label.position = Vector2(100, 80)
 	diagnostic_label.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 	diagnostic_label.custom_minimum_size = Vector2(700, 140)
 	diagnostic_label.text = "Diagnostic: none"
 	add_child(diagnostic_label)
-
-	if command_panel != null:
-		command_panel.position = Vector2(850, 80)
-		command_panel.custom_minimum_size = Vector2(220, 260)
 
 	if box_screen != null:
 		box_screen.visible = false
@@ -2996,6 +3175,20 @@ func _ready() -> void:
 		return_to_box_button.focus_mode = Control.FOCUS_NONE
 		command_list.add_child(return_to_box_button)
 		return_to_box_button.pressed.connect(_on_return_to_box_button_pressed)
+		settings_button = Button.new()
+		settings_button.name = "SettingsButton"
+		settings_button.text = "Settings"
+		settings_button.focus_mode = Control.FOCUS_NONE
+		settings_button.pressed.connect(func() -> void: show_hint("Settings are not available yet."))
+		command_list.add_child(settings_button)
+		exit_main_menu_button = Button.new()
+		exit_main_menu_button.name = "ExitMainMenuButton"
+		exit_main_menu_button.text = "Exit to Main Menu"
+		exit_main_menu_button.focus_mode = Control.FOCUS_NONE
+		exit_main_menu_button.pressed.connect(func() -> void: show_hint("Exit to Main Menu is not available yet."))
+		command_list.add_child(exit_main_menu_button)
+
+	_apply_runtime_hud_layout()
 
 	if move_forward_button != null:
 		move_forward_button.pressed.connect(_on_move_forward_pressed)
@@ -3361,11 +3554,12 @@ func _set_external_selection_from_side_and_cell(side_id: String, cell: Vector2i)
 
 
 func _on_viewport_size_changed() -> void:
-	if box_screen == null or not box_screen.visible:
-		return
-	_apply_box_screen_fullscreen_layout()
-	if box_menu_mode == BoxMenuMode.EXTERNAL or box_menu_mode == BoxMenuMode.INTERNAL:
-		update_box_status()
+	if box_screen != null and box_screen.visible:
+		_apply_box_screen_fullscreen_layout()
+		if box_menu_mode == BoxMenuMode.EXTERNAL or box_menu_mode == BoxMenuMode.INTERNAL:
+			update_box_status()
+	if command_panel != null and command_panel.visible:
+		_apply_runtime_hud_layout()
 func _apply_box_screen_fullscreen_layout() -> void:
 	if box_screen == null:
 		return
