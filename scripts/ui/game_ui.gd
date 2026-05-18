@@ -3036,26 +3036,20 @@ func _get_runtime_sidebar_width() -> float:
 	if viewport_size.x <= 1100.0:
 		return 260.0
 	if viewport_size.x <= 1500.0:
-		return 285.0
-	return 320.0
+		return 300.0
+	return 340.0
 
 
-func _get_runtime_top_bar_height() -> float:
-	var viewport_height: float = _get_viewport_height()
-	if viewport_height <= 768.0:
-		return 78.0
-	if viewport_height <= 900.0:
-		return 90.0
-	return 102.0
+func _get_runtime_margin() -> float:
+	return 12.0
 
 
-func _get_runtime_control_panel_height() -> float:
-	var viewport_height: float = _get_viewport_height()
-	if viewport_height <= 768.0:
-		return 150.0
-	if viewport_height <= 900.0:
-		return 170.0
-	return 190.0
+func _get_runtime_top_panel_height() -> float:
+	return 120.0
+
+
+func _get_runtime_bottom_panel_height() -> float:
+	return 150.0
 
 
 func _safe_reparent_control(control: Control, new_parent: Node) -> void:
@@ -3070,13 +3064,16 @@ func _safe_reparent_control(control: Control, new_parent: Node) -> void:
 
 
 
-func _get_runtime_field_rect() -> Rect2:
-	if runtime_mission_field_host == null or not is_instance_valid(runtime_mission_field_host):
-		return Rect2()
-	var size: Vector2 = runtime_mission_field_host.size
-	if size.x <= 0.0 or size.y <= 0.0:
-		return Rect2()
-	return Rect2(runtime_mission_field_host.get_global_position(), size)
+func _get_runtime_play_area_rect() -> Rect2:
+	var margin: float = _get_runtime_margin()
+	var top_h: float = _get_runtime_top_panel_height()
+	var bottom_h: float = _get_runtime_bottom_panel_height()
+	var viewport: Vector2 = _get_viewport_size()
+	var left: float = margin
+	var top: float = margin + top_h + margin
+	var right: float = viewport.x - margin
+	var bottom: float = viewport.y - bottom_h - margin * 2.0
+	return Rect2(Vector2(left, top), Vector2(maxf(right - left, 1.0), maxf(bottom - top, 1.0)))
 
 
 func _attach_runtime_gameplay_view() -> void:
@@ -3084,23 +3081,21 @@ func _attach_runtime_gameplay_view() -> void:
 
 
 func _apply_runtime_gameplay_field_transform() -> void:
-	if runtime_mission_field_host == null or not is_instance_valid(runtime_mission_field_host):
-		return
-	var field: Node2D = get_node_or_null("../Field") as Node2D
+	var grid: GridManager = get_node_or_null("../Field") as GridManager
+	var field: Node2D = grid as Node2D
 	if field == null:
+		return
+	if runtime_mission_field_host == null or not is_instance_valid(runtime_mission_field_host):
 		return
 	field.visible = true
 	field.z_index = 0
-	var field_rect: Rect2 = _get_runtime_field_rect()
-	if field_rect.size.x <= 0.0 or field_rect.size.y <= 0.0:
-		return
-	var grid := field as GridManager
-	if grid == null:
-		return
+	var play_rect: Rect2 = _get_runtime_play_area_rect()
+	runtime_mission_field_host.global_position = play_rect.position
+	runtime_mission_field_host.size = play_rect.size
 	var board_size: Vector2 = Vector2(grid.get_map_width() * grid.cell_size, grid.get_map_height() * grid.cell_size)
 	if board_size.x <= 0.0 or board_size.y <= 0.0:
 		return
-	var target_origin := field_rect.position + (field_rect.size - board_size) * 0.5
+	var target_origin := play_rect.position + (play_rect.size - board_size) * 0.5
 	field.global_position = target_origin
 
 	var player: Node2D = get_node_or_null("../Bipob") as Node2D
@@ -3127,6 +3122,7 @@ func _ensure_runtime_hud_root() -> Control:
 func _apply_runtime_hud_layout() -> void:
 	var root: Control = _ensure_runtime_hud_root()
 	root.visible = true
+	root.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	for child in root.get_children():
 		child.queue_free()
 
@@ -3137,32 +3133,18 @@ func _apply_runtime_hud_layout() -> void:
 	if diagnostic_label != null:
 		diagnostic_label.visible = false
 
-	var runtime_root := MarginContainer.new()
-	runtime_root.add_theme_constant_override("margin_left", 8)
-	runtime_root.add_theme_constant_override("margin_right", 8)
-	runtime_root.add_theme_constant_override("margin_top", 5)
-	runtime_root.add_theme_constant_override("margin_bottom", 8)
-	runtime_root.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-	runtime_root.size_flags_vertical = Control.SIZE_EXPAND_FILL
-	root.add_child(runtime_root)
-
-	var main_vbox := VBoxContainer.new()
-	main_vbox.add_theme_constant_override("separation", 8)
-	main_vbox.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-	main_vbox.size_flags_vertical = Control.SIZE_EXPAND_FILL
-	runtime_root.add_child(main_vbox)
-
-	var top_row := HBoxContainer.new()
-	top_row.custom_minimum_size = Vector2(0, _get_runtime_top_bar_height())
-	top_row.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-	top_row.add_theme_constant_override("separation", 8)
-	main_vbox.add_child(top_row)
+	var margin: float = _get_runtime_margin()
+	var top_panel_height: float = _get_runtime_top_panel_height()
+	var bottom_panel_height: float = _get_runtime_bottom_panel_height()
+	var sidebar_width: float = _get_runtime_sidebar_width()
+	var viewport: Vector2 = _get_viewport_size()
 
 	var objective_panel := PanelContainer.new()
-	objective_panel.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-	objective_panel.size_flags_stretch_ratio = 1.65
+	objective_panel.name = "ObjectivePanel"
+	objective_panel.position = Vector2(margin, margin)
+	objective_panel.size = Vector2(maxf(viewport.x - sidebar_width - margin * 3.0, 200.0), top_panel_height)
 	objective_panel.add_theme_stylebox_override("panel", _make_panel_style(UI_COLOR_PANEL_DARK, UI_COLOR_BORDER, 1, 8))
-	top_row.add_child(objective_panel)
+	root.add_child(objective_panel)
 	var objective_vbox := VBoxContainer.new()
 	objective_vbox.add_theme_constant_override("separation", 2)
 	objective_panel.add_child(objective_vbox)
@@ -3175,10 +3157,11 @@ func _apply_runtime_hud_layout() -> void:
 	objective_vbox.add_child(mission_goal_value_label)
 
 	var storage_panel := PanelContainer.new()
-	storage_panel.custom_minimum_size = Vector2(_get_runtime_sidebar_width(), 0)
-	storage_panel.size_flags_horizontal = Control.SIZE_FILL
+	storage_panel.name = "StoragePanel"
+	storage_panel.position = Vector2(viewport.x - sidebar_width - margin, margin)
+	storage_panel.size = Vector2(sidebar_width, top_panel_height)
 	storage_panel.add_theme_stylebox_override("panel", _make_panel_style(UI_COLOR_PANEL, UI_COLOR_BORDER, 1, 8))
-	top_row.add_child(storage_panel)
+	root.add_child(storage_panel)
 	var storage_vbox := VBoxContainer.new()
 	storage_vbox.add_theme_constant_override("separation", 4)
 	storage_panel.add_child(storage_vbox)
@@ -3208,19 +3191,17 @@ func _apply_runtime_hud_layout() -> void:
 	if rotate_storage_button != null:
 		rotate_storage_button.text = "Rotate Storage"
 		_safe_reparent_control(rotate_storage_button, rotate_row)
-
-	var middle_hbox := HBoxContainer.new()
-	middle_hbox.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-	middle_hbox.size_flags_vertical = Control.SIZE_EXPAND_FILL
-	middle_hbox.add_theme_constant_override("separation", 8)
-	main_vbox.add_child(middle_hbox)
+	if drop_item_button != null:
+		drop_item_button.text = "Drop Item"
+		_safe_reparent_control(drop_item_button, storage_vbox)
 
 	var mission_field_panel := Control.new()
 	mission_field_panel.name = "MissionFieldPanel"
-	mission_field_panel.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-	mission_field_panel.size_flags_vertical = Control.SIZE_EXPAND_FILL
+	var play_rect: Rect2 = _get_runtime_play_area_rect()
+	mission_field_panel.position = play_rect.position
+	mission_field_panel.size = play_rect.size
 	mission_field_panel.mouse_filter = Control.MOUSE_FILTER_IGNORE
-	middle_hbox.add_child(mission_field_panel)
+	root.add_child(mission_field_panel)
 	var mission_field_host := Control.new()
 	mission_field_host.name = "MissionFieldHost"
 	runtime_mission_field_host = mission_field_host
@@ -3228,20 +3209,13 @@ func _apply_runtime_hud_layout() -> void:
 	mission_field_host.size_flags_vertical = Control.SIZE_EXPAND_FILL
 	mission_field_host.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	mission_field_panel.add_child(mission_field_host)
-	var right_spacer := Control.new()
-	right_spacer.custom_minimum_size = Vector2(_get_runtime_sidebar_width(), 0)
-	middle_hbox.add_child(right_spacer)
 
-	var bottom_row := HBoxContainer.new()
-	bottom_row.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-	bottom_row.add_theme_constant_override("separation", 8)
-	main_vbox.add_child(bottom_row)
 	var controls_panel := PanelContainer.new()
-	controls_panel.custom_minimum_size = Vector2(0, _get_runtime_control_panel_height())
-	controls_panel.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-	controls_panel.size_flags_stretch_ratio = 1.8
+	controls_panel.name = "ControlsPanel"
+	controls_panel.position = Vector2(margin, viewport.y - bottom_panel_height - margin)
+	controls_panel.size = Vector2(maxf(viewport.x - sidebar_width - margin * 3.0, 200.0), bottom_panel_height)
 	controls_panel.add_theme_stylebox_override("panel", _make_panel_style(UI_COLOR_PANEL, UI_COLOR_BORDER, 1, 8))
-	bottom_row.add_child(controls_panel)
+	root.add_child(controls_panel)
 	var controls_vbox := VBoxContainer.new(); controls_vbox.add_theme_constant_override("separation", 4); controls_panel.add_child(controls_vbox)
 	var controls_title := Label.new(); controls_title.text = "Controls"; controls_vbox.add_child(controls_title)
 	var row_f := HBoxContainer.new(); controls_vbox.add_child(row_f)
@@ -3276,11 +3250,13 @@ func _apply_runtime_hud_layout() -> void:
 	if end_turn_button != null:
 		end_turn_button.text = "End Turn [Space]"
 		_safe_reparent_control(end_turn_button, row_s)
+
 	var mission_panel := PanelContainer.new()
-	mission_panel.custom_minimum_size = Vector2(_get_runtime_sidebar_width(), _get_runtime_control_panel_height())
-	mission_panel.size_flags_horizontal = Control.SIZE_FILL
+	mission_panel.name = "MissionPanel"
+	mission_panel.position = Vector2(viewport.x - sidebar_width - margin, viewport.y - bottom_panel_height - margin)
+	mission_panel.size = Vector2(sidebar_width, bottom_panel_height)
 	mission_panel.add_theme_stylebox_override("panel", _make_panel_style(UI_COLOR_PANEL, UI_COLOR_BORDER, 1, 8))
-	bottom_row.add_child(mission_panel)
+	root.add_child(mission_panel)
 	var mission_vbox := VBoxContainer.new()
 	mission_vbox.add_theme_constant_override("separation", 4)
 	mission_panel.add_child(mission_vbox)
@@ -3305,7 +3281,7 @@ func _apply_runtime_hud_layout() -> void:
 	_disconnect_all_pressed_connections(exit_main_menu_button)
 	_connect_button_pressed_once(exit_main_menu_button, Callable(self, "_on_runtime_exit_to_main_menu_pressed"))
 
-	for button in [move_forward_button, move_backward_button, turn_left_button, turn_right_button, interact_button, scan_device_button, hack_device_button, end_turn_button, rotate_storage_button, restart_mission_button, return_to_box_button, settings_button, exit_main_menu_button]:
+	for button in [move_forward_button, move_backward_button, turn_left_button, turn_right_button, interact_button, scan_device_button, hack_device_button, end_turn_button, rotate_storage_button, drop_item_button, restart_mission_button, return_to_box_button, settings_button, exit_main_menu_button]:
 		if button != null:
 			button.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 			button.focus_mode = Control.FOCUS_NONE
@@ -3316,6 +3292,7 @@ func _apply_runtime_hud_layout() -> void:
 		mission_goal_value_label.text = hint_label.text
 
 	call_deferred("_attach_runtime_gameplay_view")
+
 func _ready() -> void:
 	if hint_label != null:
 		hint_label.text = "Mission 1: pick up the key, open the door, reach the exit."
