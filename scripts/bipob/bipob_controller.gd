@@ -86,10 +86,19 @@ var selected_external_origin: Vector2i = Vector2i.ZERO
 var found_module: BipobModule = null
 var held_module: BipobModule = null
 var stored_physical_module: BipobModule = null
+var manipulator_items: Array[BipobModule] = []
+var pocket_items: Array[BipobModule] = []
+var available_manipulator_slots: int = 1
+var max_manipulator_slots: int = 3
+var available_pocket_slots: int = 1
+var max_pocket_slots: int = 4
 var field_modules_by_position: Dictionary = {}
 var physical_carry_capacity: int = 2
 var digital_storage: Dictionary = {}
-var digital_storage_capacity: int = 2
+var digital_storage_capacity: int = 1
+var max_digital_storage_slots: int = 4
+var available_digital_storage_slots: int = 1
+var buffer_item: Dictionary = {}
 const DIGITAL_RECORD_ROUTE_DATA := "route_data"
 const DIGITAL_RECORD_INFO_KEY := "info_key"
 var last_diagnostic_result: DiagnosticResult = null
@@ -754,6 +763,7 @@ func _ready() -> void:
 	if debug_add_mission4_modules_to_box:
 		add_debug_mission4_modules_to_box()
 	recalculate_module_stats()
+	_initialize_runtime_storage_slots()
 
 	energy = max_energy
 	actions_left = actions_per_turn
@@ -869,6 +879,7 @@ func start_mission(mission_index: int, save_snapshot: bool = true) -> void:
 	mission4_hidden_route_node_discovered = false
 	held_module = null
 	stored_physical_module = null
+	_initialize_runtime_storage_slots()
 	field_modules_by_position.clear()
 	mission7_is_dragging_cable = false
 	mission7_cable_connected = false
@@ -5516,30 +5527,25 @@ func place_debug_mission4_field_modules() -> void:
 	place_debug_field_module_if_valid(Vector2i(4, 3), "GPU V1", Callable(self, "place_gpu_v1_field_module"))
 
 func get_carried_physical_count() -> int:
-	var count := 0
-	if held_module != null:
-		count += 1
-	if stored_physical_module != null:
-		count += 1
-	return count
+	return get_manipulator_items().size() + get_pocket_items().size()
 
 func is_hand_occupied() -> bool:
-	return held_module != null
+	return _get_first_free_manipulator_index() == -1
 
 func can_use_physical_hand() -> bool:
 	return not is_hand_occupied()
 
 func is_physical_storage_occupied() -> bool:
-	return stored_physical_module != null
+	return _get_first_free_pocket_index() == -1
 
 func has_free_physical_storage() -> bool:
-	return stored_physical_module == null
+	return _get_first_free_pocket_index() != -1
 
 func has_any_physical_item() -> bool:
-	return held_module != null or stored_physical_module != null
+	return get_carried_physical_count() > 0
 
 func can_pick_up_physical_item() -> bool:
-	return get_carried_physical_count() < physical_carry_capacity
+	return get_carried_physical_count() < (available_manipulator_slots + available_pocket_slots)
 
 func pick_up_component(component_position: Vector2i) -> void:
 	if grid_manager == null:
@@ -5548,7 +5554,7 @@ func pick_up_component(component_position: Vector2i) -> void:
 		hint_requested.emit("No component to pick up here.")
 		status_changed.emit()
 		return
-	if held_module != null and is_physical_storage_occupied():
+	if _get_first_free_manipulator_index() == -1 and is_physical_storage_occupied():
 		hint_requested.emit("Physical storage full. Drop or deliver an item first.")
 		status_changed.emit()
 		return
@@ -5563,12 +5569,18 @@ func pick_up_component(component_position: Vector2i) -> void:
 	clear_field_module(component_position)
 	grid_manager.set_tile(component_position, GridManager.TILE_FLOOR)
 
-	if held_module == null:
-		held_module = picked_module
+	var free_manipulator_index := _get_first_free_manipulator_index()
+	if free_manipulator_index != -1:
+		manipulator_items[free_manipulator_index] = picked_module
 		hint_requested.emit("Component collected in hand: %s." % get_module_display_name(picked_module))
 	else:
-		stored_physical_module = picked_module
-		hint_requested.emit("Component stored internally: %s." % get_module_display_name(picked_module))
+		var free_pocket_index := _get_first_free_pocket_index()
+		if free_pocket_index == -1:
+			hint_requested.emit("No free pocket slot.")
+			status_changed.emit()
+			return
+		pocket_items[free_pocket_index] = picked_module
+		hint_requested.emit("Component stored in pocket: %s." % get_module_display_name(picked_module))
 
 	if current_mission_index == 4:
 		if picked_module.id == "visor_v2":
@@ -5592,9 +5604,7 @@ func rotate_physical_storage() -> void:
 	if not can_spend_action(1, 0):
 		return
 
-	var hand_module := held_module
-	held_module = stored_physical_module
-	stored_physical_module = hand_module
+	_rotate_first_manipulator_and_pocket()
 	spend_action(1, 0)
 	hint_requested.emit("Rotated physical storage.")
 	status_changed.emit()
@@ -5606,7 +5616,8 @@ func drop_held_item() -> void:
 		release_mission7_cable_end()
 		return
 
-	if held_module == null:
+	var active_index := _get_first_occupied_manipulator_index()
+	if active_index == -1:
 		hint_requested.emit("Hand is empty. Nothing to drop.")
 		status_changed.emit()
 		return
@@ -5620,11 +5631,12 @@ func drop_held_item() -> void:
 	if not can_spend_action(1, 1):
 		return
 
-	var module_to_drop := held_module
+	var module_to_drop := manipulator_items[active_index]
 	set_field_module(target_position, module_to_drop)
 	spend_action(1, 1)
 	hint_requested.emit("Dropped: %s." % get_module_display_name(module_to_drop))
-	held_module = null
+	manipulator_items[active_index] = null
+	_sync_legacy_physical_slots()
 	status_changed.emit()
 
 
@@ -5657,7 +5669,7 @@ func read_terminal(target_position: Vector2i) -> void:
 
 func pick_up_key(key_position: Vector2i) -> void:
 	if not can_use_physical_hand():
-		hint_requested.emit("Hand occupied. Return to the box before using physical interact.")
+		hint_requested.emit("Free manipulator required to use a key.")
 		status_changed.emit()
 		return
 	if not require_command("interact_key", "Missing module: Manipulator V1 required."):
@@ -5668,6 +5680,76 @@ func pick_up_key(key_position: Vector2i) -> void:
 	print("Picked up physical key.")
 	hint_requested.emit("Physical key collected. Use Interact on the physical door.")
 	print_status()
+
+func get_available_manipulator_slots() -> int:
+	return clampi(available_manipulator_slots, 0, get_max_manipulator_slots())
+
+func get_max_manipulator_slots() -> int:
+	return max_manipulator_slots
+
+func get_manipulator_items() -> Array:
+	return manipulator_items.duplicate()
+
+func get_available_pocket_slots() -> int:
+	return clampi(available_pocket_slots, 0, get_max_pocket_slots())
+
+func get_max_pocket_slots() -> int:
+	return max_pocket_slots
+
+func get_pocket_items() -> Array:
+	return pocket_items.duplicate()
+
+func get_key_count() -> int:
+	return 1 if has_key else 0
+
+func get_available_digital_storage_slots() -> int:
+	return clampi(available_digital_storage_slots, 0, get_max_digital_storage_slots())
+
+func get_max_digital_storage_slots() -> int:
+	return max_digital_storage_slots
+
+func get_digital_storage_items() -> Array:
+	var items: Array = []
+	for key in digital_storage.keys():
+		items.append(digital_storage[key])
+	return items
+
+func get_buffer_item() -> Variant:
+	if buffer_item.is_empty():
+		return null
+	return buffer_item
+
+func move_pocket_to_manipulator(pocket_index: int) -> bool:
+	if pocket_index < 0 or pocket_index >= get_available_pocket_slots():
+		return false
+	if pocket_items[pocket_index] == null:
+		hint_requested.emit("No pocket item selected.")
+		return false
+	var free_index := _get_first_free_manipulator_index()
+	if free_index == -1:
+		hint_requested.emit("No free manipulator slot.")
+		return false
+	manipulator_items[free_index] = pocket_items[pocket_index]
+	pocket_items[pocket_index] = null
+	_sync_legacy_physical_slots()
+	status_changed.emit()
+	return true
+
+func move_manipulator_to_pocket(manipulator_index: int) -> bool:
+	if manipulator_index < 0 or manipulator_index >= get_available_manipulator_slots():
+		return false
+	if manipulator_items[manipulator_index] == null:
+		hint_requested.emit("No manipulator item selected.")
+		return false
+	var free_index := _get_first_free_pocket_index()
+	if free_index == -1:
+		hint_requested.emit("No free pocket slot.")
+		return false
+	pocket_items[free_index] = manipulator_items[manipulator_index]
+	manipulator_items[manipulator_index] = null
+	_sync_legacy_physical_slots()
+	status_changed.emit()
+	return true
 	
 func print_status() -> void:
 	print(
@@ -5679,3 +5761,47 @@ func print_status() -> void:
 		" | Storage: ", get_module_display_name(stored_physical_module) if stored_physical_module != null else "empty",
 		" | Carry: ", get_carried_physical_count(), " / ", physical_carry_capacity
 	)
+func _initialize_runtime_storage_slots() -> void:
+	manipulator_items.resize(max_manipulator_slots)
+	pocket_items.resize(max_pocket_slots)
+	for i in range(manipulator_items.size()):
+		manipulator_items[i] = null
+	for i in range(pocket_items.size()):
+		pocket_items[i] = null
+	_sync_legacy_physical_slots()
+	digital_storage_capacity = get_available_digital_storage_slots()
+
+func _sync_legacy_physical_slots() -> void:
+	held_module = manipulator_items[0] if manipulator_items.size() > 0 else null
+	stored_physical_module = pocket_items[0] if pocket_items.size() > 0 else null
+	physical_carry_capacity = get_available_manipulator_slots() + get_available_pocket_slots()
+
+func _get_first_free_manipulator_index() -> int:
+	for i in range(get_available_manipulator_slots()):
+		if manipulator_items[i] == null:
+			return i
+	return -1
+
+func _get_first_occupied_manipulator_index() -> int:
+	for i in range(get_available_manipulator_slots()):
+		if manipulator_items[i] != null:
+			return i
+	return -1
+
+func _get_first_free_pocket_index() -> int:
+	for i in range(get_available_pocket_slots()):
+		if pocket_items[i] == null:
+			return i
+	return -1
+
+func _get_first_occupied_pocket_index() -> int:
+	for i in range(get_available_pocket_slots()):
+		if pocket_items[i] != null:
+			return i
+	return -1
+
+func _rotate_first_manipulator_and_pocket() -> void:
+	var hand_module: BipobModule = manipulator_items[0]
+	manipulator_items[0] = pocket_items[0]
+	pocket_items[0] = hand_module
+	_sync_legacy_physical_slots()
