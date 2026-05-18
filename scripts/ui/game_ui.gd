@@ -125,6 +125,7 @@ const UI_ANIM_FAST: float = 0.12
 const UI_ANIM_MEDIUM: float = 0.28
 const UI_ANIM_PULSE_ALPHA_LOW: float = 0.72
 const UI_ANIM_PULSE_ALPHA_HIGH: float = 1.0
+const CONSTRUCTOR_SHOW_DEBUG_TEXT_IN_MAIN: bool = false
 
 
 
@@ -1533,13 +1534,80 @@ func _build_storage_cards_panel(parent: Control) -> void:
 
 	var side_panel: VBoxContainer = VBoxContainer.new()
 	side_panel.add_theme_constant_override("separation", 8)
-	side_panel.add_child(_create_constructor_status_badges_panel())
-	side_panel.add_child(_create_constructor_warning_readiness_panel())
+	side_panel.add_child(_create_constructor_playable_status_panel())
 	if box_menu_mode == BoxMenuMode.INTERNAL:
 		side_panel.add_child(_create_internal_connections_panel())
+	var diagnostics_hint: Label = Label.new()
+	diagnostics_hint.text = "Detailed diagnostics are available in Reference / Preview."
+	_apply_label_style(diagnostics_hint, true, false)
+	side_panel.add_child(diagnostics_hint)
 
-	var mode_title: String = "External Modules" if box_menu_mode == BoxMenuMode.EXTERNAL else "Internal Modules"
+	var mode_title: String = "External Modules on Body" if box_menu_mode == BoxMenuMode.EXTERNAL else "Internal Modules in Volume"
 	parent.add_child(_create_constructor_mode_layout(mode_title, workspace, storage_panel, details_panel, side_panel))
+
+
+func _get_constructor_playable_status_text() -> String:
+	var lines: Array[String] = []
+	if box_menu_mode == BoxMenuMode.INTERNAL:
+		lines.append("Mode: Internal Volume")
+		lines.append("View: %s" % _get_internal_view_mode_display_name())
+		lines.append("Cursor: %d,%d,%d" % [bipob.selected_internal_origin.x, bipob.selected_internal_origin.y, bipob.selected_internal_origin.z])
+		lines.append("Rotation: %d" % bipob.selected_internal_rotation)
+		var selected_module: BipobModule = _get_selected_internal_candidate_module()
+		if selected_module != null:
+			var can_place: bool = bipob.can_place_internal_module(bipob.selected_internal_origin, selected_module, bipob.selected_internal_rotation)
+			lines.append("Can Place: %s" % ("yes" if can_place else "no"))
+		else:
+			lines.append("Can Place: n/a")
+		if bipob.has_method("get_overlay_heat_diff_compact_text"):
+			lines.append(str(bipob.get_overlay_heat_diff_compact_text()))
+		if bipob.has_method("get_damage_planning_compact_text"):
+			lines.append(str(bipob.get_damage_planning_compact_text()))
+	elif box_menu_mode == BoxMenuMode.EXTERNAL:
+		lines.append("Mode: External Slots")
+		lines.append("Side: %s" % _get_external_side_display_name(bipob.selected_external_side))
+		lines.append("Cell: %d,%d" % [bipob.selected_external_origin.x, bipob.selected_external_origin.y])
+		var selected_external: BipobModule = _get_selected_external_candidate_module()
+		if selected_external != null:
+			var can_place_external: bool = bipob.can_place_external_module(bipob.selected_external_side, bipob.selected_external_origin, selected_external)
+			var footprint_size: Vector2i = bipob.get_external_module_footprint_size(selected_external)
+			lines.append("Footprint: %dx%d" % [footprint_size.x, footprint_size.y])
+			lines.append("Can Place: %s" % ("yes" if can_place_external else "no"))
+		else:
+			lines.append("Footprint: n/a")
+			lines.append("Can Place: n/a")
+		if bipob.has_method("get_unique_external_modules"):
+			lines.append("Installed External: %d" % bipob.get_unique_external_modules().size())
+	else:
+		lines.append("Mode: Constructor Dashboard")
+		if bipob.has_method("get_constructor_checkpoint_compact_text"):
+			lines.append(str(bipob.get_constructor_checkpoint_compact_text()))
+		elif bipob.has_method("get_constructor_readiness_compact_text"):
+			lines.append(str(bipob.get_constructor_readiness_compact_text()))
+	return "\n".join(lines)
+
+
+func _create_constructor_playable_status_panel() -> Control:
+	var panel: PanelContainer = PanelContainer.new()
+	_apply_panel_style(panel, true)
+	var root: VBoxContainer = VBoxContainer.new()
+	root.add_theme_constant_override("separation", 8)
+	var title: Label = Label.new()
+	title.text = "Constructor Status"
+	_apply_label_style(title, false, true)
+	root.add_child(title)
+	root.add_child(_create_constructor_status_badges_panel())
+	root.add_child(_create_constructor_warning_readiness_panel())
+	var compact_panel: PanelContainer = PanelContainer.new()
+	_apply_dark_panel_style(compact_panel)
+	var compact_label: Label = Label.new()
+	compact_label.text = _get_constructor_playable_status_text()
+	compact_label.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	_apply_label_style(compact_label, true, false)
+	compact_panel.add_child(compact_label)
+	root.add_child(compact_panel)
+	panel.add_child(root)
+	return panel
 
 
 func _create_external_footprint_preview(module: BipobModule) -> Control:
@@ -2683,30 +2751,9 @@ func get_box_modules_menu_text() -> String:
 	var grouped_ids: Array[String] = get_filtered_grouped_module_ids()
 	var content_lines: Array[String] = []
 	content_lines.append("CONSTRUCTOR DASHBOARD")
-	content_lines.append("Top Bar: External Modules | Internal Modules | Available Bipobs")
-	content_lines.append("Available Bipobs: Scout 1x1 | Engineer 2x2 | Tank 3x3")
+	content_lines.append(_get_constructor_dashboard_playable_summary_text())
 	content_lines.append("")
-	content_lines.append(bipob.get_constructor_readiness_summary_text())
-	content_lines.append("")
-	content_lines.append(bipob.get_constructor_warning_summary_text())
-	content_lines.append("")
-	content_lines.append("COMPONENTS IN BOX STORAGE")
-	content_lines.append("Filters row: [Prev Filter] [Next Filter]")
-	content_lines.append("Storage Overview:")
-	content_lines.append("Box Storage: %d" % bipob.box_storage.size())
-	content_lines.append("External Slots: %d" % bipob.get_unique_external_modules().size())
-	content_lines.append("Internal Volume: %d" % bipob.get_unique_internal_modules().size())
-	content_lines.append("Overlay Paths: %d" % bipob.internal_overlay_paths.size())
-	content_lines.append("Liquid paths: %d" % bipob.get_liquid_overlay_path_count())
-	content_lines.append("Duct paths: %d" % bipob.get_duct_overlay_path_count())
-	content_lines.append(str(bipob.get_overlay_effect_compact_text()))
-	content_lines.append(str(bipob.get_overlay_thermal_contribution_compact_text()))
-	content_lines.append(str(bipob.get_damage_planning_compact_text()))
-	content_lines.append(str(bipob.get_repair_planning_compact_reference_text()))
-	content_lines.append("Thermal Rules: heat 1-5, critical 5, overlay hypothetical")
-	content_lines.append(bipob.get_constructor_consistency_compact_text())
-	content_lines.append(bipob.get_constructor_planning_checkpoint_compact_text())
-	content_lines.append("")
+	content_lines.append("Components in Box Storage")
 	content_lines.append("Filter: %s" % filter_id.capitalize())
 	content_lines.append("Available / Installed:")
 	if grouped_ids.is_empty():
@@ -2722,7 +2769,30 @@ func get_box_modules_menu_text() -> String:
 	var selected_module: BipobModule = get_selected_grouped_module()
 	content_lines.append("Selected Module:")
 	content_lines.append(get_module_details_text(selected_module))
+	if CONSTRUCTOR_SHOW_DEBUG_TEXT_IN_MAIN:
+		content_lines.append("")
+		content_lines.append(bipob.get_constructor_dashboard_text())
 	return "\n".join(content_lines)
+
+
+func _get_constructor_dashboard_playable_summary_text() -> String:
+	var lines: Array[String] = []
+	lines.append("Constructor Overview")
+	if bipob.has_method("get_unique_internal_modules"):
+		lines.append("Internal Modules: %d" % bipob.get_unique_internal_modules().size())
+	if bipob.has_method("get_unique_external_modules"):
+		lines.append("External Modules: %d" % bipob.get_unique_external_modules().size())
+	var has_internal_overlay_paths: bool = false
+	for property_data in bipob.get_property_list():
+		if String(property_data.get("name", "")) == "internal_overlay_paths":
+			has_internal_overlay_paths = true
+			break
+	if has_internal_overlay_paths:
+		lines.append("Overlay Paths: %d" % bipob.internal_overlay_paths.size())
+	lines.append("Box Storage: %d" % bipob.box_storage.size())
+	if bipob.has_method("get_constructor_checkpoint_compact_text"):
+		lines.append(str(bipob.get_constructor_checkpoint_compact_text()))
+	return "\n".join(lines)
 
 func get_box_external_menu_text() -> String:
 	clamp_external_selection()
