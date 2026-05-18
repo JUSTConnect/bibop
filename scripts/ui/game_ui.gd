@@ -3187,46 +3187,76 @@ func _apply_runtime_hud_layout() -> void:
 	mission_field_host.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	mission_field_panel.add_child(mission_field_host)
 
-	var controls_panel := PanelContainer.new()
-	controls_panel.name = "ControlsPanel"
+	var controls_panel := _create_runtime_controls_panel()
 	controls_panel.position = Vector2(margin, viewport.y - bottom_panel_height - margin)
 	controls_panel.size = Vector2(maxf(viewport.x - sidebar_width - margin * 3.0, 200.0), bottom_panel_height)
 	controls_panel.add_theme_stylebox_override("panel", _make_panel_style(UI_COLOR_PANEL, UI_COLOR_BORDER, 1, 8))
 	root.add_child(controls_panel)
-	var controls_vbox := VBoxContainer.new(); controls_vbox.add_theme_constant_override("separation", 4); controls_panel.add_child(controls_vbox)
-	var controls_title := Label.new(); controls_title.text = "Controls"; controls_vbox.add_child(controls_title)
-	var row_f := HBoxContainer.new(); controls_vbox.add_child(row_f)
-	row_f.add_child(Control.new())
+
+
+func _create_runtime_controls_panel() -> Control:
+	var panel := PanelContainer.new()
+	panel.name = "RuntimeControlsPanel"
+	panel.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	panel.custom_minimum_size = Vector2(0, 110)
+
+	var margin := MarginContainer.new()
+	margin.add_theme_constant_override("margin_left", 8)
+	margin.add_theme_constant_override("margin_right", 8)
+	margin.add_theme_constant_override("margin_top", 8)
+	margin.add_theme_constant_override("margin_bottom", 8)
+	panel.add_child(margin)
+
+	var grid := GridContainer.new()
+	grid.columns = 4
+	grid.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	grid.add_theme_constant_override("h_separation", 8)
+	grid.add_theme_constant_override("v_separation", 8)
+	margin.add_child(grid)
+
+	var ordered_buttons: Array[Control] = []
+
 	if move_forward_button != null:
 		move_forward_button.text = "Forward [W]"
-		_safe_reparent_control(move_forward_button, row_f)
-	row_f.add_child(Control.new())
-	var row_m := HBoxContainer.new(); row_m.add_theme_constant_override("separation", 4); controls_vbox.add_child(row_m)
+		ordered_buttons.append(move_forward_button)
+
 	if turn_left_button != null:
 		turn_left_button.text = "Turn Left [A]"
-		_safe_reparent_control(turn_left_button, row_m)
+		ordered_buttons.append(turn_left_button)
+
 	if interact_button != null:
 		interact_button.text = "Action [E]"
-		_safe_reparent_control(interact_button, row_m)
+		ordered_buttons.append(interact_button)
+
 	if turn_right_button != null:
 		turn_right_button.text = "Turn Right [D]"
-		_safe_reparent_control(turn_right_button, row_m)
-	var row_b := HBoxContainer.new(); controls_vbox.add_child(row_b)
-	row_b.add_child(Control.new())
+		ordered_buttons.append(turn_right_button)
+
 	if move_backward_button != null:
 		move_backward_button.text = "Backward [S]"
-		_safe_reparent_control(move_backward_button, row_b)
-	row_b.add_child(Control.new())
-	var row_s := HBoxContainer.new(); row_s.add_theme_constant_override("separation", 4); controls_vbox.add_child(row_s)
+		ordered_buttons.append(move_backward_button)
+
 	if scan_device_button != null:
 		scan_device_button.text = "Scan Device"
-		_safe_reparent_control(scan_device_button, row_s)
+		ordered_buttons.append(scan_device_button)
+
 	if hack_device_button != null:
 		hack_device_button.text = "Hack Device"
-		_safe_reparent_control(hack_device_button, row_s)
+		ordered_buttons.append(hack_device_button)
+
 	if end_turn_button != null:
 		end_turn_button.text = "End Turn [Space]"
-		_safe_reparent_control(end_turn_button, row_s)
+		ordered_buttons.append(end_turn_button)
+
+	for button in ordered_buttons:
+		if button == null:
+			continue
+		button.custom_minimum_size = Vector2(0, 42)
+		button.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+		button.size_flags_vertical = Control.SIZE_EXPAND_FILL
+		_safe_reparent_control(button, grid)
+
+	return panel
 
 func _create_runtime_storage_panel() -> PanelContainer:
 	var panel := PanelContainer.new()
