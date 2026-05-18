@@ -1095,12 +1095,49 @@ func _get_selected_module_stat_lines(module: BipobModule) -> Array[String]:
 	return lines
 
 
+func _is_line_or_overlay_component(module: BipobModule) -> bool:
+	if module == null:
+		return false
+
+	var module_id: String = String(module.id).to_lower()
+	var line_ids: Array[String] = [
+		"water_tube",
+		"air_duct",
+		"cooling_line",
+		"power_line",
+		"data_line",
+		"overlay_path"
+	]
+	for line_id in line_ids:
+		if module_id == line_id or module_id.begins_with("%s_" % line_id):
+			return true
+
+	var placement_type: String = String(module.placement_type).to_lower()
+	if placement_type in ["overlay", "path", "line"]:
+		return true
+
+	return bool(module.get("is_non_volume_cooling_path"))
+
+
+func _should_show_module_in_internal_storage(module: BipobModule) -> bool:
+	if module == null:
+		return false
+	if _is_line_or_overlay_component(module):
+		return false
+	if bipob != null and bipob.has_method("is_internal_module") and bipob.is_internal_module(module):
+		return true
+
+	var placement_type: String = String(module.placement_type).to_lower()
+	var internal_role: String = String(module.internal_role).to_lower()
+	return placement_type.contains("internal") or (not internal_role.is_empty() and internal_role != "none")
+
+
 func _is_module_valid_for_current_constructor_mode(module: BipobModule) -> bool:
 	if module == null:
 		return false
 
 	if box_menu_mode == BoxMenuMode.INTERNAL:
-		return bipob.is_internal_module(module) or bipob.is_internal_overlay_module(module)
+		return _should_show_module_in_internal_storage(module)
 
 	if box_menu_mode == BoxMenuMode.EXTERNAL:
 		return bipob.is_external_module(module)
@@ -1665,7 +1702,7 @@ func _is_module_visible_in_current_constructor_mode(module: BipobModule) -> bool
 	if box_menu_mode == BoxMenuMode.EXTERNAL:
 		return bipob.is_external_module(module)
 	if box_menu_mode == BoxMenuMode.INTERNAL:
-		return bipob.is_internal_module(module) or bipob.is_internal_overlay_module(module)
+		return _should_show_module_in_internal_storage(module)
 	return true
 
 func get_filtered_box_storage_indices(filter_id: String) -> Array[int]:
@@ -1684,7 +1721,7 @@ func get_filtered_internal_box_storage_indices(filter_id: String) -> Array[int]:
 		return indices
 	for i in range(bipob.box_storage.size()):
 		var module: BipobModule = bipob.box_storage[i]
-		if module == null or module.placement_type != "internal":
+		if not _should_show_module_in_internal_storage(module):
 			continue
 		if module_matches_constructor_filter(module, filter_id):
 			indices.append(i)
@@ -2152,12 +2189,10 @@ func _make_external_cell_style(
 	module: BipobModule,
 	selected: bool,
 	preview: bool,
-	invalid_preview: bool,
-	origin: bool
+	invalid_preview: bool
 ) -> StyleBoxFlat:
 	var bg_color: Color = Color(0.035, 0.050, 0.060, 1.0)
 	var border_color: Color = UI_COLOR_BORDER_DIM
-	var border_width: int = 1
 
 	if module != null:
 		if bipob.has_method("get_module_visual_color"):
@@ -2177,13 +2212,36 @@ func _make_external_cell_style(
 
 	if selected:
 		border_color = UI_COLOR_SELECTED
-		border_width = 2
 
-	if origin:
-		border_color = UI_COLOR_ACCENT
-		border_width = 2
+	return _make_panel_style(bg_color, border_color, 1, 5)
 
-	return _make_panel_style(bg_color, border_color, border_width, 5)
+
+func _apply_external_cell_visual(
+	cell: Button,
+	module: BipobModule,
+	selected: bool,
+	preview: bool,
+	invalid_preview: bool,
+	cell_size: Vector2
+) -> void:
+	if cell == null:
+		return
+
+	cell.custom_minimum_size = cell_size
+	cell.size_flags_horizontal = Control.SIZE_SHRINK_CENTER
+	cell.size_flags_vertical = Control.SIZE_SHRINK_CENTER
+	cell.focus_mode = Control.FOCUS_NONE
+	cell.clip_text = true
+	cell.text_overrun_behavior = TextServer.OVERRUN_TRIM_ELLIPSIS
+	cell.autowrap_mode = TextServer.AUTOWRAP_OFF
+	cell.add_theme_font_size_override("font_size", 11 if cell_size.x >= CONSTRUCTOR_SMALL_LABEL_CELL_SIZE else 8)
+	cell.text = _get_external_cell_label(module) if cell_size.x >= CONSTRUCTOR_SMALL_LABEL_CELL_SIZE else ""
+	cell.add_theme_color_override("font_color", UI_COLOR_TEXT)
+
+	var style: StyleBoxFlat = _make_external_cell_style(module, selected, preview, invalid_preview)
+	cell.add_theme_stylebox_override("normal", style)
+	cell.add_theme_stylebox_override("hover", style)
+	cell.add_theme_stylebox_override("pressed", style)
 
 
 func _get_selected_external_candidate_module() -> BipobModule:
@@ -2272,22 +2330,8 @@ func _create_external_side_grid(side_id: String) -> Control:
 				preview = can_place_preview
 				invalid_preview = not can_place_preview
 
-			var origin: bool = selected
-
 			var cell_button: Button = Button.new()
-			cell_button.custom_minimum_size = cell_size
-			cell_button.focus_mode = Control.FOCUS_NONE
-			cell_button.size_flags_horizontal = Control.SIZE_SHRINK_CENTER
-			cell_button.size_flags_vertical = Control.SIZE_SHRINK_CENTER
-			cell_button.clip_text = true
-			cell_button.text_overrun_behavior = TextServer.OVERRUN_TRIM_ELLIPSIS
-			cell_button.autowrap_mode = TextServer.AUTOWRAP_OFF
-			cell_button.add_theme_font_size_override("font_size", 11 if cell_size.x >= CONSTRUCTOR_SMALL_LABEL_CELL_SIZE else 8)
-			cell_button.text = _get_external_cell_label(module) if cell_size.x >= CONSTRUCTOR_SMALL_LABEL_CELL_SIZE else ""
-			cell_button.add_theme_stylebox_override("normal", _make_external_cell_style(module, selected, preview, invalid_preview, origin))
-			cell_button.add_theme_stylebox_override("hover", _make_external_cell_style(module, true, preview, invalid_preview, origin))
-			cell_button.add_theme_stylebox_override("pressed", _make_external_cell_style(module, true, preview, invalid_preview, origin))
-			cell_button.add_theme_color_override("font_color", UI_COLOR_TEXT)
+			_apply_external_cell_visual(cell_button, module, selected, preview, invalid_preview, cell_size)
 			cell_button.pressed.connect(func() -> void:
 				_on_external_visual_cell_pressed(side_id, cell)
 			)
@@ -2912,7 +2956,7 @@ func _create_internal_storage_components_panel() -> Control:
 		var module: BipobModule = bipob.box_storage[storage_index]
 		if module == null:
 			continue
-		if not bipob.is_internal_module(module) and not bipob.is_internal_overlay_module(module):
+		if not _should_show_module_in_internal_storage(module):
 			continue
 		has_internal_modules = true
 		var selected: bool = storage_index == selected_box_storage_index
@@ -5127,8 +5171,11 @@ func set_box_menu_mode_external() -> void:
 
 func set_box_menu_mode_internal() -> void:
 	box_menu_mode = BoxMenuMode.INTERNAL
+	if get_current_constructor_filter() in ["gear", "visor_radar", "tool", "manipulator", "armor", "weapon"]:
+		constructor_filter_index = CONSTRUCTOR_FILTERS.find("all")
 	selected_grouped_module_index = 0
 	sync_selected_box_storage_index_from_grouped_selection()
+	_clamp_internal_selection()
 	update_box_status()
 	rebuild_box_action_buttons()
 
@@ -6390,6 +6437,7 @@ func _create_internal_connections_panel() -> Control:
 	return panel
 
 func _create_internal_visual_workspace() -> Control:
+	_clamp_internal_selection()
 	var workspace: PanelContainer = PanelContainer.new()
 	_apply_panel_style(workspace, true)
 	var root: VBoxContainer = VBoxContainer.new()
