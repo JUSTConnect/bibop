@@ -2994,6 +2994,10 @@ func _get_runtime_field_rect() -> Rect2:
 
 
 func _attach_runtime_gameplay_view() -> void:
+	_apply_runtime_gameplay_field_transform()
+
+
+func _apply_runtime_gameplay_field_transform() -> void:
 	var field: Node2D = get_node_or_null("../Field") as Node2D
 	if field == null:
 		return
@@ -3122,7 +3126,7 @@ func _apply_runtime_hud_layout() -> void:
 	mission_field_panel.name = "MissionFieldPanel"
 	mission_field_panel.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	mission_field_panel.size_flags_vertical = Control.SIZE_EXPAND_FILL
-	mission_field_panel.add_theme_stylebox_override("panel", _make_panel_style(Color(0, 0, 0, 0.04), UI_COLOR_BORDER_DIM, 1, 8))
+	mission_field_panel.add_theme_stylebox_override("panel", _make_panel_style(Color(0, 0, 0, 0), UI_COLOR_BORDER_DIM, 1, 8))
 	mission_field_panel.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	middle_hbox.add_child(mission_field_panel)
 	var mission_field_host := MarginContainer.new()
@@ -3479,6 +3483,7 @@ func _set_gameplay_visible(visible_state: bool) -> void:
 		"../PlayerSprite",
 		"../Grid",
 		"../World",
+		"../Field",
 		"../BipobSprite",
 		"../Bipob"
 	]
@@ -3701,6 +3706,7 @@ func _on_viewport_size_changed() -> void:
 			update_box_status()
 	if command_panel != null and command_panel.visible:
 		_apply_runtime_hud_layout()
+		call_deferred("_apply_runtime_gameplay_field_transform")
 func _apply_box_screen_fullscreen_layout() -> void:
 	if box_screen == null:
 		return
