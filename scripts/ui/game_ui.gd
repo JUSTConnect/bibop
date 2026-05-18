@@ -5416,6 +5416,9 @@ func _create_internal_isometric_preview_panel() -> Control:
 	var panel: PanelContainer = PanelContainer.new()
 	_apply_dark_panel_style(panel)
 	panel.custom_minimum_size = Vector2(180, 180)
+	var volume_size: Vector3i = Vector3i(5, 8, 5)
+	if bipob != null and bipob.has_method("get_internal_volume_size"):
+		volume_size = bipob.get_internal_volume_size()
 	var root: VBoxContainer = VBoxContainer.new()
 	root.add_theme_constant_override("separation", 3)
 	var title: Label = Label.new()
@@ -5424,13 +5427,13 @@ func _create_internal_isometric_preview_panel() -> Control:
 	title.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	root.add_child(title)
 	var grid: GridContainer = GridContainer.new()
-	grid.columns = maxi(3, bipob.internal_volume_size.x)
+	grid.columns = maxi(3, volume_size.x)
 	grid.add_theme_constant_override("h_separation", 2)
 	grid.add_theme_constant_override("v_separation", 2)
-	for y in range(bipob.internal_volume_size.y):
-		for x in range(bipob.internal_volume_size.x):
+	for y in range(volume_size.y):
+		for x in range(volume_size.x):
 			var top_z: int = -1
-			for z in range(bipob.internal_volume_size.z - 1, -1, -1):
+			for z in range(volume_size.z - 1, -1, -1):
 				if bipob.get_internal_module_at_cell(Vector3i(x, y, z)) != null:
 					top_z = z
 					break
