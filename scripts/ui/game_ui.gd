@@ -1635,18 +1635,6 @@ func _build_storage_cards_panel(parent: Control) -> void:
 		external_layout.size_flags_vertical = Control.SIZE_EXPAND_FILL
 		external_root.add_child(external_layout)
 
-		var side_panel: VBoxContainer = VBoxContainer.new()
-		side_panel.custom_minimum_size = Vector2(230, 0)
-		side_panel.add_theme_constant_override("separation", 4)
-		side_panel.size_flags_vertical = Control.SIZE_EXPAND_FILL
-		side_panel.add_child(_create_constructor_playable_status_panel())
-		if CONSTRUCTOR_COMPACT_STATUS:
-			var diagnostics_hint: Label = Label.new()
-			diagnostics_hint.text = "More details in Reference / Preview."
-			_apply_label_style(diagnostics_hint, true, false)
-			side_panel.add_child(diagnostics_hint)
-		external_root.add_child(side_panel)
-
 		parent.add_child(external_root)
 		return
 
@@ -2339,9 +2327,10 @@ func _create_external_storage_right_column() -> Control:
 func _create_external_filter_panel() -> Control:
 	var panel: PanelContainer = PanelContainer.new()
 	_apply_panel_style(panel)
-	panel.custom_minimum_size = Vector2(0, 72)
+	panel.custom_minimum_size = Vector2(0, 92)
 
 	var root: VBoxContainer = VBoxContainer.new()
+	root.add_theme_constant_override("separation", 4)
 
 	var title: Label = Label.new()
 	title.text = "ФИЛЬТРЫ"
@@ -2352,6 +2341,14 @@ func _create_external_filter_panel() -> Control:
 	filter_label.text = "Текущий фильтр: %s" % get_current_constructor_filter().capitalize()
 	_apply_label_style(filter_label, true, false)
 	root.add_child(filter_label)
+
+	var row: HBoxContainer = HBoxContainer.new()
+	row.add_theme_constant_override("separation", 4)
+	var prev_button: Button = _create_menu_button("Назад", Callable(self, "_on_prev_constructor_filter_pressed"), Vector2(96, 26))
+	var next_button: Button = _create_menu_button("Вперёд", Callable(self, "_on_next_constructor_filter_pressed"), Vector2(96, 26))
+	row.add_child(prev_button)
+	row.add_child(next_button)
+	root.add_child(row)
 
 	panel.add_child(root)
 	return panel
@@ -3491,16 +3488,6 @@ func rebuild_box_action_buttons() -> void:
 			bipob.selected_external_side,
 			bipob.selected_external_origin
 		)
-		var selection_group: VBoxContainer = _create_action_group_panel("Selection")
-		right_button_panel.add_child(selection_group)
-		var external_filter_row: HBoxContainer = _create_action_button_row()
-		selection_group.add_child(external_filter_row)
-		_add_action_button(external_filter_row, "Prev Filter", Callable(self, "_on_prev_constructor_filter_pressed"), "normal", true, true)
-		_add_action_button(external_filter_row, "Next Filter", Callable(self, "_on_next_constructor_filter_pressed"), "normal", true, true)
-		var external_box_row: HBoxContainer = _create_action_button_row()
-		selection_group.add_child(external_box_row)
-		_add_action_button(external_box_row, "Prev Box", Callable(self, "_on_prev_box_pressed"), "normal", true, true)
-		_add_action_button(external_box_row, "Next Box", Callable(self, "_on_next_box_pressed"), "normal", true, true)
 
 		var external_position_group: VBoxContainer = _create_action_group_panel("Position")
 		right_button_panel.add_child(external_position_group)
