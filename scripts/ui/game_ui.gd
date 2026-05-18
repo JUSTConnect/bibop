@@ -2552,6 +2552,8 @@ func _build_fullscreen_root(node_name: String) -> Control:
 	var root := Control.new()
 	root.name = node_name
 	root.set_anchors_preset(Control.PRESET_FULL_RECT)
+	root.mouse_filter = Control.MOUSE_FILTER_STOP
+	root.z_index = 100
 	root.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	root.size_flags_vertical = Control.SIZE_EXPAND_FILL
 	return root
@@ -2566,7 +2568,7 @@ func _hide_all_app_screens() -> void:
 	if box_screen != null:
 		box_screen.visible = false
 
-func _set_gameplay_ui_visible(is_visible: bool) -> void:
+func _set_gameplay_visible(is_visible: bool) -> void:
 	if command_panel != null:
 		command_panel.visible = is_visible
 	if status_label != null:
@@ -2576,18 +2578,32 @@ func _set_gameplay_ui_visible(is_visible: bool) -> void:
 	if diagnostic_label != null:
 		diagnostic_label.visible = is_visible
 
+	var gameplay_nodes: Array[String] = [
+		"../GridRoot",
+		"../WorldRoot",
+		"../PlayerSprite",
+		"../Grid",
+		"../World",
+		"../BipobSprite",
+		"../Bipob"
+	]
+	for node_path in gameplay_nodes:
+		var node: CanvasItem = get_node_or_null(node_path) as CanvasItem
+		if node != null:
+			node.visible = is_visible
+
 func show_main_menu_screen() -> void:
 	app_screen_mode = AppScreenMode.MAIN_MENU
 	box_opened_from_center = false
 	_hide_all_app_screens()
-	_set_gameplay_ui_visible(false)
+	_set_gameplay_visible(false)
 	if main_menu_root != null:
 		main_menu_root.visible = true
 
 func show_center_screen() -> void:
 	app_screen_mode = AppScreenMode.CENTER
 	_hide_all_app_screens()
-	_set_gameplay_ui_visible(false)
+	_set_gameplay_visible(false)
 	if center_menu_root != null:
 		center_menu_root.visible = true
 
@@ -2595,7 +2611,7 @@ func show_placeholder_screen(title_text: String) -> void:
 	previous_app_screen_mode = app_screen_mode
 	app_screen_mode = AppScreenMode.SETTINGS_PLACEHOLDER
 	_hide_all_app_screens()
-	_set_gameplay_ui_visible(false)
+	_set_gameplay_visible(false)
 	if placeholder_title_label != null:
 		placeholder_title_label.text = title_text
 	if placeholder_menu_root != null:
@@ -2605,19 +2621,16 @@ func start_gameplay_from_center() -> void:
 	app_screen_mode = AppScreenMode.GAMEPLAY
 	box_opened_from_center = false
 	_hide_all_app_screens()
-	_set_gameplay_ui_visible(true)
+	_set_gameplay_visible(true)
 	_on_start_mission_button_pressed()
 
 func show_box_constructor_from_center() -> void:
 	app_screen_mode = AppScreenMode.BOX_CONSTRUCTOR
 	box_opened_from_center = true
 	_hide_all_app_screens()
-	_set_gameplay_ui_visible(false)
+	_set_gameplay_visible(false)
 	show_box_screen()
-	if modules_tab_button != null:
-		set_box_menu_mode_modules()
-	else:
-		set_box_menu_mode_external()
+	set_box_menu_mode_external()
 
 func charge_bipob_from_center() -> void:
 	if bipob == null:
@@ -3727,36 +3740,59 @@ func _on_constructor_checkpoint_pressed() -> void:
 		_show_constructor_reference_text("CHECKPOINT", "Checkpoint helper is unavailable.")
 
 
+func _create_menu_button(text: String, callback: Callable, min_size: Vector2 = Vector2(150, 34), role: String = "normal") -> Button:
+	var button: Button = Button.new()
+	button.text = text
+	button.custom_minimum_size = min_size
+	button.focus_mode = Control.FOCUS_NONE
+	_apply_action_button_style(button, role, true)
+	button.pressed.connect(callback)
+	return button
+
 func _build_main_menu_layout() -> void:
+	var margin := MarginContainer.new()
+	margin.set_anchors_preset(Control.PRESET_FULL_RECT)
+	margin.add_theme_constant_override("margin_left", 24)
+	margin.add_theme_constant_override("margin_right", 24)
+	margin.add_theme_constant_override("margin_top", 24)
+	margin.add_theme_constant_override("margin_bottom", 24)
+	main_menu_root.add_child(margin)
+
+	var center := CenterContainer.new()
+	center.set_anchors_preset(Control.PRESET_FULL_RECT)
+	margin.add_child(center)
+
 	var panel := PanelContainer.new()
-	panel.custom_minimum_size = Vector2(280, 360)
-	panel.position = Vector2(500, 170)
+	panel.custom_minimum_size = Vector2(320, 380)
 	_apply_panel_style(panel, true)
-	main_menu_root.add_child(panel)
+	center.add_child(panel)
+
 	var vbox := VBoxContainer.new()
 	vbox.alignment = BoxContainer.ALIGNMENT_CENTER
 	vbox.add_theme_constant_override("separation", 14)
 	panel.add_child(vbox)
+
 	var title := Label.new()
 	title.text = "BIPOB"
 	_apply_label_style(title, false, true)
 	title.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	vbox.add_child(title)
-	for data in [["Играть","_on_main_play_pressed"],["Настройки","_on_main_settings_pressed"],["О нас","_on_main_about_pressed"],["Выйти из игры","_on_main_exit_pressed"]]:
-		var b := Button.new()
-		b.text = data[0]
-		b.custom_minimum_size = Vector2(160, 34)
-		_apply_action_button_style(b, "normal")
-		b.pressed.connect(Callable(self, data[1]))
-		vbox.add_child(b)
+
+	vbox.add_child(_create_menu_button("Играть", Callable(self, "_on_main_play_pressed"), Vector2(180, 36)))
+	vbox.add_child(_create_menu_button("Настройки", Callable(self, "_on_main_settings_pressed"), Vector2(180, 36)))
+	vbox.add_child(_create_menu_button("О нас", Callable(self, "_on_main_about_pressed"), Vector2(180, 36)))
+	vbox.add_child(_create_menu_button("Выйти из игры", Callable(self, "_on_main_exit_pressed"), Vector2(180, 36), "danger"))
+
 	var spacer := Control.new()
 	spacer.custom_minimum_size = Vector2(0, 14)
 	vbox.add_child(spacer)
+
 	var social := Label.new()
 	social.text = "Соцсети"
 	_apply_label_style(social, true, false)
 	social.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	vbox.add_child(social)
+
 	var version := Label.new()
 	version.text = "версия"
 	_apply_label_style(version, true, false)
@@ -3764,77 +3800,99 @@ func _build_main_menu_layout() -> void:
 	vbox.add_child(version)
 
 func _build_center_menu_layout() -> void:
-	var tasks := Button.new()
-	tasks.text = "Задания"
-	tasks.position = Vector2(24, 24)
-	tasks.custom_minimum_size = Vector2(160, 34)
-	_apply_action_button_style(tasks, "normal")
-	tasks.pressed.connect(_on_center_tasks_pressed)
-	center_menu_root.add_child(tasks)
-	var exit_btn := Button.new()
-	exit_btn.text = "Выйти из игры"
-	exit_btn.position = Vector2(980, 24)
-	exit_btn.custom_minimum_size = Vector2(170, 34)
-	_apply_action_button_style(exit_btn, "danger")
-	exit_btn.pressed.connect(_on_center_exit_pressed)
-	center_menu_root.add_child(exit_btn)
-	var settings := Button.new()
-	settings.text = "Настройки"
-	settings.position = Vector2(980, 68)
-	settings.custom_minimum_size = Vector2(170, 34)
-	_apply_action_button_style(settings, "normal")
-	settings.pressed.connect(_on_center_settings_pressed)
-	center_menu_root.add_child(settings)
-	var shop := Button.new()
-	shop.text = "Магазин"
-	shop.position = Vector2(980, 320)
-	shop.custom_minimum_size = Vector2(170, 34)
-	_apply_action_button_style(shop, "normal")
-	shop.pressed.connect(_on_center_shop_pressed)
-	center_menu_root.add_child(shop)
-	var row := HBoxContainer.new()
-	row.position = Vector2(280, 640)
-	row.add_theme_constant_override("separation", 12)
-	center_menu_root.add_child(row)
-	for data in [["Box","_on_center_box_pressed"],["Зарядка","_on_center_charge_pressed"],["Исследования","_on_center_research_pressed"],["Ремонт","_on_center_repair_pressed"]]:
-		var b := Button.new()
-		b.text = data[0]
-		b.custom_minimum_size = Vector2(170, 34)
-		_apply_action_button_style(b, "normal")
-		b.pressed.connect(Callable(self, data[1]))
-		row.add_child(b)
-	var to_main := Button.new()
-	to_main.text = "Выйти в главное меню"
-	to_main.position = Vector2(920, 680)
-	to_main.custom_minimum_size = Vector2(230, 34)
-	_apply_action_button_style(to_main, "normal")
-	to_main.pressed.connect(_on_center_main_menu_pressed)
-	center_menu_root.add_child(to_main)
+	var background := PanelContainer.new()
+	background.set_anchors_preset(Control.PRESET_FULL_RECT)
+	_apply_panel_style(background, true)
+	center_menu_root.add_child(background)
+
+	var margin := MarginContainer.new()
+	margin.set_anchors_preset(Control.PRESET_FULL_RECT)
+	margin.add_theme_constant_override("margin_left", 24)
+	margin.add_theme_constant_override("margin_right", 24)
+	margin.add_theme_constant_override("margin_top", 24)
+	margin.add_theme_constant_override("margin_bottom", 24)
+	background.add_child(margin)
+
+	var root := VBoxContainer.new()
+	root.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	root.size_flags_vertical = Control.SIZE_EXPAND_FILL
+	root.add_theme_constant_override("separation", 16)
+	margin.add_child(root)
+
+	var top_row := HBoxContainer.new()
+	top_row.add_theme_constant_override("separation", 8)
+	root.add_child(top_row)
+	top_row.add_child(_create_menu_button("Задания", Callable(self, "_on_center_tasks_pressed"), Vector2(170, 36)))
+	var top_spacer := Control.new()
+	top_spacer.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	top_row.add_child(top_spacer)
+	var top_right := VBoxContainer.new()
+	top_right.add_theme_constant_override("separation", 8)
+	top_right.add_child(_create_menu_button("Выйти из игры", Callable(self, "_on_center_exit_pressed"), Vector2(190, 36), "danger"))
+	top_right.add_child(_create_menu_button("Настройки", Callable(self, "_on_center_settings_pressed"), Vector2(190, 36)))
+	top_row.add_child(top_right)
+
+	var middle_row := HBoxContainer.new()
+	middle_row.size_flags_vertical = Control.SIZE_EXPAND_FILL
+	root.add_child(middle_row)
+	var middle_spacer := Control.new()
+	middle_spacer.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	middle_row.add_child(middle_spacer)
+	middle_row.add_child(_create_menu_button("Магазин", Callable(self, "_on_center_shop_pressed"), Vector2(170, 56)))
+
+	var bottom_grid := GridContainer.new()
+	bottom_grid.columns = 4
+	bottom_grid.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	bottom_grid.add_theme_constant_override("h_separation", 10)
+	bottom_grid.add_theme_constant_override("v_separation", 10)
+	root.add_child(bottom_grid)
+	bottom_grid.add_child(_create_menu_button("Box", Callable(self, "_on_center_box_pressed"), Vector2(150, 54)))
+	bottom_grid.add_child(_create_menu_button("Зарядка", Callable(self, "_on_center_charge_pressed"), Vector2(150, 54)))
+	bottom_grid.add_child(_create_menu_button("Исследования", Callable(self, "_on_center_research_pressed"), Vector2(150, 54)))
+	bottom_grid.add_child(_create_menu_button("Ремонт", Callable(self, "_on_center_repair_pressed"), Vector2(150, 54)))
+
+	var back_row := HBoxContainer.new()
+	root.add_child(back_row)
+	var back_spacer := Control.new()
+	back_spacer.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	back_row.add_child(back_spacer)
+	back_row.add_child(_create_menu_button("Выйти в главное меню", Callable(self, "_on_center_main_menu_pressed"), Vector2(220, 36)))
 
 func _build_placeholder_layout() -> void:
+	var margin := MarginContainer.new()
+	margin.set_anchors_preset(Control.PRESET_FULL_RECT)
+	margin.add_theme_constant_override("margin_left", 24)
+	margin.add_theme_constant_override("margin_right", 24)
+	margin.add_theme_constant_override("margin_top", 24)
+	margin.add_theme_constant_override("margin_bottom", 24)
+	placeholder_menu_root.add_child(margin)
+
+	var center := CenterContainer.new()
+	center.set_anchors_preset(Control.PRESET_FULL_RECT)
+	margin.add_child(center)
+
 	var panel := PanelContainer.new()
 	panel.custom_minimum_size = Vector2(420, 220)
-	panel.position = Vector2(430, 250)
 	_apply_panel_style(panel, true)
-	placeholder_menu_root.add_child(panel)
+	center.add_child(panel)
+
 	var vbox := VBoxContainer.new()
+	vbox.alignment = BoxContainer.ALIGNMENT_CENTER
 	vbox.add_theme_constant_override("separation", 12)
 	panel.add_child(vbox)
+
 	placeholder_title_label = Label.new()
 	_apply_label_style(placeholder_title_label, false, true)
 	placeholder_title_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	vbox.add_child(placeholder_title_label)
+
 	var body := Label.new()
 	body.text = "Раздел в разработке."
 	_apply_label_style(body)
 	body.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	vbox.add_child(body)
-	var back := Button.new()
-	back.text = "Назад"
-	back.custom_minimum_size = Vector2(160, 34)
-	_apply_action_button_style(back, "normal")
-	back.pressed.connect(_on_placeholder_back_pressed)
-	vbox.add_child(back)
+
+	vbox.add_child(_create_menu_button("Назад", Callable(self, "_on_placeholder_back_pressed"), Vector2(160, 34)))
 
 func _on_main_play_pressed() -> void:
 	show_center_screen()
