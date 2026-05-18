@@ -112,6 +112,7 @@ enum AppScreenMode {
 	CENTER,
 	GAMEPLAY,
 	BOX_CONSTRUCTOR,
+	MISSION_CONSTRUCTOR,
 	SETTINGS_PLACEHOLDER,
 	ABOUT_PLACEHOLDER,
 	SHOP_PLACEHOLDER,
@@ -125,6 +126,7 @@ var box_opened_from_center: bool = false
 
 var main_menu_root: Control
 var center_menu_root: Control
+var mission_constructor_root: Control
 var placeholder_menu_root: Control
 var placeholder_title_label: Label
 var placeholder_body_label: Label
@@ -3465,12 +3467,15 @@ func _apply_constructor_visual_style() -> void:
 func _create_app_menu_roots() -> void:
 	main_menu_root = _build_fullscreen_root("MainMenuRoot")
 	center_menu_root = _build_fullscreen_root("CenterMenuRoot")
+	mission_constructor_root = _build_fullscreen_root("MissionConstructorRoot")
 	placeholder_menu_root = _build_fullscreen_root("PlaceholderMenuRoot")
 	add_child(main_menu_root)
 	add_child(center_menu_root)
+	add_child(mission_constructor_root)
 	add_child(placeholder_menu_root)
 	_build_main_menu_layout()
 	_build_center_menu_layout()
+	_build_mission_constructor_screen()
 	_build_placeholder_layout()
 
 func _build_fullscreen_root(node_name: String) -> Control:
@@ -3490,6 +3495,8 @@ func _hide_all_app_screens() -> void:
 		center_menu_root.visible = false
 	if placeholder_menu_root != null:
 		placeholder_menu_root.visible = false
+	if mission_constructor_root != null:
+		mission_constructor_root.visible = false
 	if box_screen != null:
 		box_screen.visible = false
 
@@ -3560,6 +3567,15 @@ func show_box_constructor_from_center() -> void:
 	_set_gameplay_visible(false)
 	show_box_screen()
 	set_box_menu_mode_external()
+
+func show_mission_constructor_screen() -> void:
+	app_screen_mode = AppScreenMode.MISSION_CONSTRUCTOR
+	box_opened_from_center = false
+	_hide_all_app_screens()
+	_set_gameplay_visible(false)
+	_build_mission_constructor_screen()
+	if mission_constructor_root != null:
+		mission_constructor_root.visible = true
 
 func charge_bipob_from_center() -> void:
 	if bipob == null:
@@ -4922,7 +4938,8 @@ func _build_center_menu_layout() -> void:
 	var top_row := HBoxContainer.new()
 	top_row.add_theme_constant_override("separation", 8)
 	root.add_child(top_row)
-	top_row.add_child(_create_menu_button("Задания", Callable(self, "_on_center_tasks_pressed"), Vector2(170, 36)))
+	top_row.add_child(_create_menu_button("Tasks", Callable(self, "_on_center_tasks_pressed"), Vector2(170, 36)))
+	top_row.add_child(_create_menu_button("Constructor", Callable(self, "_on_center_constructor_pressed"), Vector2(170, 36)))
 	var top_spacer := Control.new()
 	top_spacer.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	top_row.add_child(top_spacer)
@@ -4947,7 +4964,7 @@ func _build_center_menu_layout() -> void:
 	bottom_grid.add_theme_constant_override("v_separation", 10)
 	root.add_child(bottom_grid)
 	bottom_grid.add_child(_create_menu_button("Box", Callable(self, "_on_center_box_pressed"), Vector2(150, 54)))
-	bottom_grid.add_child(_create_menu_button("Mission Setup", Callable(self, "_on_center_mission_setup_pressed"), Vector2(150, 54)))
+	bottom_grid.add_child(_create_menu_button("Shop", Callable(self, "_on_center_shop_pressed"), Vector2(150, 54)))
 	bottom_grid.add_child(_create_menu_button("Зарядка", Callable(self, "_on_center_charge_pressed"), Vector2(150, 54)))
 	bottom_grid.add_child(_create_menu_button("Исследования", Callable(self, "_on_center_research_pressed"), Vector2(150, 54)))
 	bottom_grid.add_child(_create_menu_button("Ремонт", Callable(self, "_on_center_repair_pressed"), Vector2(150, 54)))
@@ -4958,6 +4975,55 @@ func _build_center_menu_layout() -> void:
 	back_spacer.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	back_row.add_child(back_spacer)
 	back_row.add_child(_create_menu_button("Выйти в главное меню", Callable(self, "_on_center_main_menu_pressed"), Vector2(220, 36)))
+
+func _build_mission_constructor_screen() -> void:
+	if mission_constructor_root == null:
+		return
+	for child in mission_constructor_root.get_children():
+		child.queue_free()
+
+	var background := PanelContainer.new()
+	background.set_anchors_preset(Control.PRESET_FULL_RECT)
+	_apply_panel_style(background, true)
+	mission_constructor_root.add_child(background)
+
+	var margin := MarginContainer.new()
+	margin.set_anchors_preset(Control.PRESET_FULL_RECT)
+	margin.add_theme_constant_override("margin_left", 24)
+	margin.add_theme_constant_override("margin_right", 24)
+	margin.add_theme_constant_override("margin_top", 24)
+	margin.add_theme_constant_override("margin_bottom", 24)
+	background.add_child(margin)
+
+	var content := VBoxContainer.new()
+	content.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	content.size_flags_vertical = Control.SIZE_EXPAND_FILL
+	content.add_theme_constant_override("separation", 12)
+	margin.add_child(content)
+
+	var title := Label.new()
+	title.text = "Constructor — Mission"
+	_apply_label_style(title, false, true)
+	content.add_child(title)
+
+	var body := Label.new()
+	body.text = get_box_mission_menu_text()
+	_apply_label_style(body)
+	body.size_flags_vertical = Control.SIZE_EXPAND_FILL
+	body.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	content.add_child(body)
+
+	var actions := HBoxContainer.new()
+	actions.add_theme_constant_override("separation", 8)
+	content.add_child(actions)
+	actions.add_child(_create_menu_button("Charge", Callable(self, "_on_charge_button_pressed"), Vector2(140, 34)))
+	actions.add_child(_create_menu_button("Warnings", Callable(self, "_on_constructor_warnings_button_pressed"), Vector2(140, 34)))
+	actions.add_child(_create_menu_button("Start", Callable(self, "_on_start_mission_button_pressed"), Vector2(140, 34)))
+	actions.add_child(_create_menu_button("Restart", Callable(self, "_on_restart_mission_button_pressed"), Vector2(140, 34)))
+	var spacer := Control.new()
+	spacer.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	actions.add_child(spacer)
+	actions.add_child(_create_menu_button("Back", Callable(self, "show_center_screen"), Vector2(140, 34)))
 
 func _build_placeholder_layout() -> void:
 	var margin := MarginContainer.new()
@@ -5007,8 +5073,8 @@ func _on_center_tasks_pressed() -> void:
 	start_gameplay_from_center()
 func _on_center_box_pressed() -> void:
 	show_box_constructor_from_center()
-func _on_center_mission_setup_pressed() -> void:
-	show_placeholder_screen("Mission Setup", "This section will be added later.")
+func _on_center_constructor_pressed() -> void:
+	show_mission_constructor_screen()
 func _on_center_charge_pressed() -> void:
 	charge_bipob_from_center()
 func _on_center_research_pressed() -> void:
@@ -5094,17 +5160,7 @@ func _on_restart_mission_button_pressed() -> void:
 	update_box_status()
 
 func _on_return_to_box_button_pressed() -> void:
-	if bipob == null:
-		return
-	if box_opened_from_center or app_screen_mode == AppScreenMode.BOX_CONSTRUCTOR:
-		show_center_screen()
-		return
-	bipob.return_to_box()
-	if box_screen != null and not box_screen.visible:
-		show_box_screen()
-	update_status()
-	update_box_status()
-	update_diagnostic_status()
+	show_center_screen()
 
 func _on_runtime_return_to_center_pressed() -> void:
 	show_center_screen()
