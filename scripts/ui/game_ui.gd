@@ -58,6 +58,8 @@ var runtime_buffer_content_label: Label
 var runtime_pocket_title_label: Label
 var runtime_digital_title_label: Label
 var runtime_digital_store_title_label: Label
+var runtime_energy_label: Label
+var runtime_actions_label: Label
 var runtime_key_slots: Array[Control] = []
 var selected_manipulator_slot: int = 0
 var selected_pocket_slot: int = 0
@@ -3150,6 +3152,7 @@ func _apply_runtime_hud_layout() -> void:
 	var bottom_panel_height: float = _get_runtime_bottom_panel_height()
 	var sidebar_width: float = _get_runtime_sidebar_width()
 	var viewport: Vector2 = _get_viewport_size()
+	var stats_height: float = 34.0
 
 	var objective_panel := PanelContainer.new()
 	objective_panel.name = "ObjectivePanel"
@@ -3192,11 +3195,59 @@ func _apply_runtime_hud_layout() -> void:
 	mission_field_host.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	mission_field_panel.add_child(mission_field_host)
 
+	var bottom_left_vbox := VBoxContainer.new()
+	bottom_left_vbox.name = "RuntimeBottomLeft"
+	bottom_left_vbox.position = Vector2(margin, viewport.y - bottom_panel_height - stats_height - margin)
+	bottom_left_vbox.size = Vector2(maxf(viewport.x - sidebar_width - margin * 3.0, 200.0), bottom_panel_height + stats_height)
+	bottom_left_vbox.add_theme_constant_override("separation", 4)
+	root.add_child(bottom_left_vbox)
+
+	var stats_strip := _create_runtime_stats_strip()
+	bottom_left_vbox.add_child(stats_strip)
+
 	var controls_panel := _create_runtime_controls_panel()
-	controls_panel.position = Vector2(margin, viewport.y - bottom_panel_height - margin)
-	controls_panel.size = Vector2(maxf(viewport.x - sidebar_width - margin * 3.0, 200.0), bottom_panel_height)
+	controls_panel.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	controls_panel.custom_minimum_size = Vector2(0, bottom_panel_height)
 	controls_panel.add_theme_stylebox_override("panel", _make_panel_style(UI_COLOR_PANEL, UI_COLOR_BORDER, 1, 8))
-	root.add_child(controls_panel)
+	bottom_left_vbox.add_child(controls_panel)
+
+	var mission_panel: PanelContainer = _create_runtime_mission_panel()
+	mission_panel.position = Vector2(viewport.x - sidebar_width - margin, viewport.y - bottom_panel_height - margin)
+	mission_panel.size = Vector2(sidebar_width, bottom_panel_height)
+	root.add_child(mission_panel)
+
+
+func _create_runtime_stats_strip() -> Control:
+	var panel: PanelContainer = PanelContainer.new()
+	panel.name = "RuntimeStatsStrip"
+	panel.custom_minimum_size = Vector2(0, 32)
+	panel.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	panel.add_theme_stylebox_override("panel", _make_panel_style(UI_COLOR_PANEL, UI_COLOR_BORDER, 1, 6))
+
+	var margin: MarginContainer = MarginContainer.new()
+	margin.add_theme_constant_override("margin_left", 8)
+	margin.add_theme_constant_override("margin_right", 8)
+	margin.add_theme_constant_override("margin_top", 4)
+	margin.add_theme_constant_override("margin_bottom", 4)
+	panel.add_child(margin)
+
+	var row: HBoxContainer = HBoxContainer.new()
+	row.add_theme_constant_override("separation", 18)
+	margin.add_child(row)
+
+	var energy_label: Label = Label.new()
+	energy_label.name = "RuntimeEnergyLabel"
+	energy_label.text = _get_runtime_energy_text()
+	row.add_child(energy_label)
+	runtime_energy_label = energy_label
+
+	var actions_label: Label = Label.new()
+	actions_label.name = "RuntimeActionsLabel"
+	actions_label.text = _get_runtime_actions_text()
+	row.add_child(actions_label)
+	runtime_actions_label = actions_label
+
+	return panel
 
 
 func _create_runtime_controls_panel() -> Control:
@@ -3263,10 +3314,17 @@ func _create_runtime_controls_panel() -> Control:
 
 	return panel
 
-	var mission_panel: PanelContainer = _create_runtime_mission_panel()
-	mission_panel.position = Vector2(viewport.x - sidebar_width - margin, viewport.y - bottom_panel_height - margin)
-	mission_panel.size = Vector2(sidebar_width, bottom_panel_height)
-	root.add_child(mission_panel)
+
+func _get_runtime_energy_text() -> String:
+	if bipob == null:
+		return "ENERGY --/--"
+	return "ENERGY %d/%d" % [int(bipob.energy), int(bipob.max_energy)]
+
+
+func _get_runtime_actions_text() -> String:
+	if bipob == null:
+		return "ACTIONS --/--"
+	return "ACTIONS %d/%d" % [int(bipob.actions_left), int(bipob.actions_per_turn)]
 
 
 func _create_runtime_mission_panel() -> PanelContainer:
@@ -5640,6 +5698,11 @@ func _on_runtime_exit_to_main_menu_pressed() -> void:
 func update_status() -> void:
 	if bipob == null:
 		return
+
+	if runtime_energy_label != null:
+		runtime_energy_label.text = _get_runtime_energy_text()
+	if runtime_actions_label != null:
+		runtime_actions_label.text = _get_runtime_actions_text()
 
 	var key_text := "no"
 	if bipob.has_key:
