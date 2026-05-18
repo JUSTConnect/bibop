@@ -1635,7 +1635,7 @@ func _get_constructor_playable_status_text() -> String:
 		lines.append("Rotation: %d" % bipob.selected_internal_rotation)
 		var selected_module: BipobModule = _get_selected_internal_candidate_module()
 		if selected_module != null:
-			var can_place: bool = bipob.can_place_internal_module(bipob.selected_internal_origin, selected_module, bipob.selected_internal_rotation)
+			var can_place: bool = bipob.can_place_internal_module(selected_module, bipob.selected_internal_origin, bipob.selected_internal_rotation)
 			lines.append("Can Place: %s" % ("yes" if can_place else "no"))
 		else:
 			lines.append("Can Place: n/a")
@@ -1649,7 +1649,7 @@ func _get_constructor_playable_status_text() -> String:
 		lines.append("Cell: %d,%d" % [bipob.selected_external_origin.x, bipob.selected_external_origin.y])
 		var selected_external: BipobModule = _get_selected_external_candidate_module()
 		if selected_external != null:
-			var can_place_external: bool = bipob.can_place_external_module(bipob.selected_external_side, bipob.selected_external_origin, selected_external)
+			var can_place_external: bool = bipob.can_place_external_module(selected_external, bipob.selected_external_side, bipob.selected_external_origin)
 			var footprint_size: Vector2i = bipob.get_external_module_footprint_size(selected_external)
 			lines.append("Footprint: %dx%d" % [footprint_size.x, footprint_size.y])
 			lines.append("Can Place: %s" % ("yes" if can_place_external else "no"))
@@ -1944,7 +1944,7 @@ func _get_external_preview_cells_for_side(side_id: String) -> Dictionary:
 		return result
 
 	var origin: Vector2i = selected_external_slot_position
-	var can_place: bool = bipob.can_place_external_module(side_id, origin, module)
+	var can_place: bool = bipob.can_place_external_module(module, side_id, origin)
 	var covered_cells: Array[Vector2i] = bipob.get_external_module_covered_cells(side_id, origin, module)
 
 	for cell in covered_cells:
@@ -1965,8 +1965,7 @@ func _get_external_cell_label(module: BipobModule) -> String:
 
 
 func _on_external_visual_cell_pressed(side_id: String, cell: Vector2i) -> void:
-	selected_external_side_index = bipob.EXTERNAL_SIDE_ORDER.find(side_id)
-	selected_external_slot_position = cell
+	_set_external_selection_from_side_and_cell(side_id, cell)
 	clamp_external_selection()
 	update_box_status()
 
@@ -2073,7 +2072,7 @@ func _get_external_selected_slot_summary_text() -> String:
 	var selected_footprint_text: String = "n/a"
 
 	if module != null:
-		var can_place: bool = bipob.can_place_external_module(side_id, cell, module)
+		var can_place: bool = bipob.can_place_external_module(module, side_id, cell)
 		can_place_text = "yes" if can_place else "no"
 		selected_module_text = bipob.get_module_display_name(module)
 		var footprint: Vector2i = bipob.get_external_module_footprint_size(module)
@@ -2586,6 +2585,18 @@ func clamp_external_selection() -> void:
 	var side_size: Vector2i = bipob.get_external_side_size(side_id)
 	selected_external_slot_position.x = clampi(selected_external_slot_position.x, 0, side_size.x - 1)
 	selected_external_slot_position.y = clampi(selected_external_slot_position.y, 0, side_size.y - 1)
+	bipob.selected_external_side = get_selected_external_side_id()
+	bipob.selected_external_origin = selected_external_slot_position
+
+func _set_external_selection_from_side_and_cell(side_id: String, cell: Vector2i) -> void:
+	if bipob == null:
+		return
+	var side_index: int = bipob.EXTERNAL_SIDE_ORDER.find(side_id)
+	if side_index >= 0:
+		selected_external_side_index = side_index
+	selected_external_slot_position = cell
+	bipob.selected_external_side = side_id
+	bipob.selected_external_origin = cell
 
 func get_external_module_marker(module: BipobModule) -> String:
 	if module == null:
@@ -2997,13 +3008,13 @@ func _can_place_selected_internal_visual() -> bool:
 	var module: BipobModule = _get_selected_internal_candidate_module()
 	if module == null:
 		return false
-	return bipob.can_place_internal_module(bipob.selected_internal_origin, module, bipob.selected_internal_rotation)
+	return bipob.can_place_internal_module(module, bipob.selected_internal_origin, bipob.selected_internal_rotation)
 
 func _can_place_selected_external_visual() -> bool:
 	var module: BipobModule = _get_selected_external_candidate_module()
 	if module == null:
 		return false
-	return bipob.can_place_external_module(bipob.selected_external_side, bipob.selected_external_origin, module)
+	return bipob.can_place_external_module(module, bipob.selected_external_side, bipob.selected_external_origin)
 
 func _can_commit_overlay_plan_visual() -> bool:
 	if bipob.selected_overlay_cells.is_empty():
@@ -3082,7 +3093,7 @@ func rebuild_box_action_buttons() -> void:
 		_add_action_button(external_reference_group, "Checkpoint", Callable(self, "_on_constructor_checkpoint_pressed"), "reference")
 		_add_action_button(external_reference_group, "Final Audit", Callable(self, "_on_constructor_final_audit_pressed"), "reference")
 	elif box_menu_mode == BoxMenuMode.INTERNAL:
-		var internal_remove_available: bool = bipob.get_internal_module_at(bipob.selected_internal_origin) != null
+		var internal_remove_available: bool = bipob.get_internal_module_at_cell(bipob.selected_internal_origin) != null
 		var selection_group: VBoxContainer = _create_action_group_panel("Selection")
 		right_button_panel.add_child(selection_group)
 		var filter_row: HBoxContainer = _create_action_button_row()
@@ -3719,7 +3730,7 @@ func _get_internal_preview_cells_map() -> Dictionary:
 		return result
 	var origin: Vector3i = bipob.selected_internal_origin
 	var rotation: int = bipob.selected_internal_rotation
-	var can_place: bool = bipob.can_place_internal_module(origin, module, rotation)
+	var can_place: bool = bipob.can_place_internal_module(module, origin, rotation)
 	var covered_cells: Array[Vector3i] = bipob.get_internal_module_covered_cells(module, origin, rotation)
 	for cell in covered_cells:
 		var key: String = bipob.get_internal_slot_key(cell)

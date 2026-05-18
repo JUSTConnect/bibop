@@ -3270,33 +3270,8 @@ func is_external_slot_empty(side_id: String, slot_position: Vector2i) -> bool:
 	return get_external_module_at(side_id, slot_position) == null
 
 
-func can_place_external_module(side_id: String, origin: Vector2i, module: BipobModule) -> bool:
-	if module == null:
-		return false
-
-	if not is_external_module(module):
-		return false
-
-	if not is_external_side_valid(side_id):
-		return false
-
-	if not is_external_slot_in_bounds(side_id, origin):
-		return false
-
-	var allowed_sides: Array[String] = get_allowed_external_sides_for_module(module)
-	if not allowed_sides.has(side_id):
-		return false
-
-	var covered_cells: Array[Vector2i] = get_external_module_covered_cells(side_id, origin, module)
-
-	for cell in covered_cells:
-		if not is_external_slot_in_bounds(side_id, cell):
-			return false
-
-		if not is_external_slot_empty(side_id, cell):
-			return false
-
-	return true
+func can_place_external_module(module: BipobModule, side_id: String, origin: Vector2i) -> bool:
+	return can_place_external_module_at(module, side_id, origin)
 
 
 func get_external_module_covered_cells(side_id: String, origin: Vector2i, module: BipobModule) -> Array[Vector2i]:
