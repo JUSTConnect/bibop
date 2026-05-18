@@ -1874,7 +1874,6 @@ func get_overlay_thermal_contribution_diff_summary_text() -> String:
 		if delta > 0:
 			improved_count += 1
 			best_delta = maxi(best_delta, delta)
-		else:
 
 	return "Overlay Diff: changed %d / best -%d" % [
 		improved_count,
