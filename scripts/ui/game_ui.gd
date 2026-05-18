@@ -1645,53 +1645,23 @@ func _build_storage_cards_panel(parent: Control) -> void:
 		parent.add_child(external_root)
 		return
 
+	var internal_layout: HBoxContainer = HBoxContainer.new()
+	internal_layout.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	internal_layout.size_flags_vertical = Control.SIZE_EXPAND_FILL
+	internal_layout.add_theme_constant_override("separation", 8)
 	var workspace: Control = _create_internal_visual_workspace()
-
-	var storage_panel: PanelContainer = PanelContainer.new()
-	_apply_panel_style(storage_panel)
-	storage_panel.custom_minimum_size = Vector2(240, 0)
-	storage_panel.size_flags_vertical = Control.SIZE_EXPAND_FILL
-	var storage_root: VBoxContainer = VBoxContainer.new()
-	storage_root.add_theme_constant_override("separation", 4)
-	var storage_title: Label = Label.new()
-	storage_title.text = "COMPONENTS IN BOX STORAGE"
-	_apply_label_style(storage_title, false, true)
-	storage_root.add_child(storage_title)
-	var filter_label: Label = Label.new()
-	filter_label.text = "Filter: %s" % get_current_constructor_filter().capitalize()
-	_apply_label_style(filter_label, true)
-	storage_root.add_child(filter_label)
-	var grid: GridContainer = GridContainer.new()
-	grid.columns = 2
-	grid.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-	storage_root.add_child(grid)
-	var storage_indices: Array[int] = get_current_filtered_box_storage_indices()
-	if storage_indices.is_empty():
-		var empty_label: Label = Label.new()
-		empty_label.text = _get_storage_empty_state_text()
-		_apply_label_style(empty_label, true)
-		grid.add_child(empty_label)
-	else:
-		for storage_index in storage_indices:
-			var module: BipobModule = bipob.box_storage[storage_index]
-			var selected: bool = storage_index == selected_box_storage_index
-			grid.add_child(_create_storage_module_card(module, storage_index, selected))
-	storage_panel.add_child(storage_root)
-
-	var details_panel: Control = _create_selected_module_detail_card()
-
-	var side_panel: VBoxContainer = VBoxContainer.new()
-	side_panel.custom_minimum_size = Vector2(230, 0)
-	side_panel.add_theme_constant_override("separation", 4)
-	side_panel.add_child(_create_constructor_playable_status_panel())
-	side_panel.add_child(_create_internal_connections_panel())
-	if CONSTRUCTOR_COMPACT_STATUS:
-		var diagnostics_hint: Label = Label.new()
-		diagnostics_hint.text = "More details in Reference / Preview."
-		_apply_label_style(diagnostics_hint, true, false)
-		side_panel.add_child(diagnostics_hint)
-
-	parent.add_child(_create_constructor_mode_layout("Internal Modules in Volume", workspace, storage_panel, details_panel, side_panel))
+	workspace.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	workspace.size_flags_vertical = Control.SIZE_EXPAND_FILL
+	internal_layout.add_child(workspace)
+	var right_column: VBoxContainer = VBoxContainer.new()
+	right_column.custom_minimum_size = Vector2(330, 0)
+	right_column.size_flags_vertical = Control.SIZE_EXPAND_FILL
+	right_column.add_theme_constant_override("separation", 6)
+	right_column.add_child(_create_external_filter_panel())
+	right_column.add_child(_create_internal_storage_components_panel())
+	right_column.add_child(_create_selected_module_detail_card())
+	internal_layout.add_child(right_column)
+	parent.add_child(internal_layout)
 
 func _get_storage_empty_state_text() -> String:
 	if box_menu_mode == BoxMenuMode.EXTERNAL:
@@ -2411,6 +2381,55 @@ func _create_external_storage_components_panel() -> Control:
 	if not has_external_modules:
 		var empty_label: Label = Label.new()
 		empty_label.text = "Нет внешних модулей в Storage."
+		_apply_label_style(empty_label, true, false)
+		grid.add_child(empty_label)
+
+	panel.add_child(root)
+	return panel
+
+
+func _create_internal_storage_components_panel() -> Control:
+	var panel: PanelContainer = PanelContainer.new()
+	_apply_panel_style(panel)
+	panel.custom_minimum_size = Vector2(0, 280)
+	panel.size_flags_vertical = Control.SIZE_EXPAND_FILL
+
+	var root: VBoxContainer = VBoxContainer.new()
+	root.add_theme_constant_override("separation", 4)
+	root.size_flags_vertical = Control.SIZE_EXPAND_FILL
+
+	var title: Label = Label.new()
+	title.text = "COMPONENTS IN BOX STORAGE"
+	_apply_label_style(title, false, true)
+	root.add_child(title)
+
+	var storage_scroll: ScrollContainer = ScrollContainer.new()
+	storage_scroll.custom_minimum_size = Vector2(0, 236)
+	storage_scroll.size_flags_vertical = Control.SIZE_EXPAND_FILL
+	storage_scroll.horizontal_scroll_mode = ScrollContainer.SCROLL_MODE_DISABLED
+	storage_scroll.vertical_scroll_mode = ScrollContainer.SCROLL_MODE_AUTO
+	root.add_child(storage_scroll)
+
+	var grid: GridContainer = GridContainer.new()
+	grid.columns = 2
+	grid.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	storage_scroll.add_child(grid)
+
+	var storage_indices: Array[int] = get_current_filtered_box_storage_indices()
+	var has_internal_modules: bool = false
+	for storage_index in storage_indices:
+		var module: BipobModule = bipob.box_storage[storage_index]
+		if module == null:
+			continue
+		if not bipob.is_internal_module(module):
+			continue
+		has_internal_modules = true
+		var selected: bool = storage_index == selected_box_storage_index
+		grid.add_child(_create_storage_module_card(module, storage_index, selected))
+
+	if not has_internal_modules:
+		var empty_label: Label = Label.new()
+		empty_label.text = "Нет внутренних модулей в Storage."
 		_apply_label_style(empty_label, true, false)
 		grid.add_child(empty_label)
 
