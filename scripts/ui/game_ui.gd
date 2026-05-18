@@ -2288,27 +2288,60 @@ func _create_external_constructor_layout() -> Control:
 
 
 func _create_internal_constructor_layout() -> Control:
-	var root: HBoxContainer = HBoxContainer.new()
+	var root: VBoxContainer = VBoxContainer.new()
 	root.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	root.size_flags_vertical = Control.SIZE_EXPAND_FILL
-	root.add_theme_constant_override("separation", 8)
+	root.add_theme_constant_override("separation", 6)
+
+	var top_content_row: HBoxContainer = HBoxContainer.new()
+	top_content_row.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	top_content_row.size_flags_vertical = Control.SIZE_EXPAND_FILL
+	top_content_row.add_theme_constant_override("separation", 8)
 
 	var workspace: Control = _create_internal_visual_workspace()
 	workspace.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	workspace.size_flags_vertical = Control.SIZE_EXPAND_FILL
-	root.add_child(workspace)
+	top_content_row.add_child(workspace)
 
-	var right_column: VBoxContainer = VBoxContainer.new()
-	right_column.custom_minimum_size = Vector2(330, 0)
+	var right_column: Control = _create_internal_storage_right_column()
+	right_column.custom_minimum_size = Vector2(_get_internal_right_column_width(), 0)
 	right_column.size_flags_horizontal = Control.SIZE_SHRINK_END
 	right_column.size_flags_vertical = Control.SIZE_EXPAND_FILL
-	right_column.add_theme_constant_override("separation", 6)
-	right_column.add_child(_create_internal_filter_panel())
-	right_column.add_child(_create_internal_storage_components_panel())
-	right_column.add_child(_create_selected_module_detail_card())
-	root.add_child(right_column)
+	top_content_row.add_child(right_column)
+
+	root.add_child(top_content_row)
+
+	var bottom_bar: Control = _create_internal_bottom_action_bar()
+	bottom_bar.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	bottom_bar.size_flags_vertical = Control.SIZE_SHRINK_END
+	bottom_bar.custom_minimum_size = Vector2(0, _get_internal_bottom_bar_height())
+	root.add_child(bottom_bar)
 
 	return root
+
+
+func _create_internal_storage_right_column() -> Control:
+	var column: VBoxContainer = VBoxContainer.new()
+	column.custom_minimum_size = Vector2(_get_internal_right_column_width(), 0)
+	column.size_flags_horizontal = Control.SIZE_SHRINK_END
+	column.size_flags_vertical = Control.SIZE_EXPAND_FILL
+	column.add_theme_constant_override("separation", 6)
+
+	var filters_panel: Control = _create_internal_filter_panel()
+	filters_panel.custom_minimum_size = Vector2(0, 88)
+	filters_panel.size_flags_vertical = Control.SIZE_SHRINK_END
+	column.add_child(filters_panel)
+
+	var storage_panel: Control = _create_internal_storage_components_panel()
+	storage_panel.size_flags_vertical = Control.SIZE_EXPAND_FILL
+	column.add_child(storage_panel)
+
+	var selected_panel: Control = _create_internal_selected_module_panel()
+	selected_panel.custom_minimum_size = Vector2(0, 180)
+	selected_panel.size_flags_vertical = Control.SIZE_SHRINK_END
+	column.add_child(selected_panel)
+
+	return column
 
 
 func _create_internal_filter_panel() -> Control:
@@ -2536,7 +2569,7 @@ func _create_external_bottom_action_bar() -> Control:
 func _create_internal_storage_components_panel() -> Control:
 	var panel: PanelContainer = PanelContainer.new()
 	_apply_panel_style(panel)
-	panel.custom_minimum_size = Vector2(0, 280)
+	panel.custom_minimum_size = Vector2(0, 0)
 	panel.size_flags_vertical = Control.SIZE_EXPAND_FILL
 
 	var root: VBoxContainer = VBoxContainer.new()
@@ -2549,18 +2582,19 @@ func _create_internal_storage_components_panel() -> Control:
 	root.add_child(title)
 
 	var storage_scroll: ScrollContainer = ScrollContainer.new()
-	storage_scroll.custom_minimum_size = Vector2(0, 236)
 	storage_scroll.size_flags_vertical = Control.SIZE_EXPAND_FILL
 	storage_scroll.horizontal_scroll_mode = ScrollContainer.SCROLL_MODE_DISABLED
 	storage_scroll.vertical_scroll_mode = ScrollContainer.SCROLL_MODE_AUTO
 	root.add_child(storage_scroll)
 
 	var grid: GridContainer = GridContainer.new()
-	grid.columns = 2
+	var columns: int = _get_internal_storage_grid_columns()
+	grid.columns = columns
 	grid.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	storage_scroll.add_child(grid)
 
 	var storage_indices: Array[int] = get_current_filtered_box_storage_indices()
+	storage_indices = _reorder_indices_right_to_left_by_rows(storage_indices, columns)
 	var has_internal_modules: bool = false
 	for storage_index in storage_indices:
 		var module: BipobModule = bipob.box_storage[storage_index]
@@ -2580,6 +2614,161 @@ func _create_internal_storage_components_panel() -> Control:
 
 	panel.add_child(root)
 	return panel
+
+
+func _create_internal_selected_module_panel() -> Control:
+	var panel: PanelContainer = PanelContainer.new()
+	_apply_panel_style(panel)
+
+	var root: VBoxContainer = VBoxContainer.new()
+	root.add_theme_constant_override("separation", 4)
+
+	var title: Label = Label.new()
+	title.text = "SELECTED MODULE / ОПИСАНИЕ"
+	_apply_label_style(title, false, true)
+	root.add_child(title)
+
+	var module: BipobModule = _get_selected_box_storage_module()
+	if module == null:
+		var empty_label: Label = Label.new()
+		empty_label.text = "Выберите модуль."
+		_apply_label_style(empty_label, true, false)
+		root.add_child(empty_label)
+	else:
+		var name_label: Label = Label.new()
+		name_label.text = bipob.get_module_display_name(module)
+		_apply_label_style(name_label)
+		root.add_child(name_label)
+
+		var size_label: Label = Label.new()
+		size_label.text = "Размер: %s" % _get_selected_module_size_text(module)
+		_apply_label_style(size_label, true, false)
+		root.add_child(size_label)
+
+		var desc_label: Label = Label.new()
+		desc_label.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+		var description_value: Variant = module.get("description")
+		desc_label.text = String(description_value) if description_value != null else ""
+		if desc_label.text.is_empty():
+			desc_label.text = "Описание будет добавлено позже."
+		_apply_label_style(desc_label, true, false)
+		root.add_child(desc_label)
+
+	panel.add_child(root)
+	return panel
+
+
+func _create_internal_bottom_action_bar() -> Control:
+	var panel: PanelContainer = PanelContainer.new()
+	_apply_panel_style(panel)
+	panel.custom_minimum_size = Vector2(0, _get_internal_bottom_bar_height())
+	panel.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	panel.size_flags_vertical = Control.SIZE_SHRINK_END
+
+	var root: VBoxContainer = VBoxContainer.new()
+	root.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	root.add_theme_constant_override("separation", 4)
+
+	var row_one: HBoxContainer = HBoxContainer.new()
+	row_one.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	row_one.alignment = BoxContainer.ALIGNMENT_CENTER
+	row_one.add_theme_constant_override("separation", 4)
+	row_one.add_spacer(true)
+
+	var row_two: HBoxContainer = HBoxContainer.new()
+	row_two.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	row_two.alignment = BoxContainer.ALIGNMENT_CENTER
+	row_two.add_theme_constant_override("separation", 4)
+	row_two.add_spacer(true)
+
+	var internal_remove_available: bool = bipob.get_internal_module_at_cell(bipob.selected_internal_origin) != null
+	var row_one_buttons: Array[Dictionary] = [
+		{"text": "X-", "handler": Callable(self, "_on_internal_x_minus_pressed"), "role": "normal", "enabled": true, "compact": true},
+		{"text": "X+", "handler": Callable(self, "_on_internal_x_plus_pressed"), "role": "normal", "enabled": true, "compact": true},
+		{"text": "Y-", "handler": Callable(self, "_on_internal_y_minus_pressed"), "role": "normal", "enabled": true, "compact": true},
+		{"text": "Y+", "handler": Callable(self, "_on_internal_y_plus_pressed"), "role": "normal", "enabled": true, "compact": true},
+		{"text": "Z-", "handler": Callable(self, "_on_internal_z_minus_pressed"), "role": "normal", "enabled": true, "compact": true},
+		{"text": "Z+", "handler": Callable(self, "_on_internal_z_plus_pressed"), "role": "normal", "enabled": true, "compact": true},
+		{"text": "Rotate", "handler": Callable(self, "_on_rotate_internal_pressed"), "role": "normal", "enabled": true, "compact": true},
+		{"text": "Place", "handler": Callable(self, "_on_place_internal_pressed"), "role": "primary", "enabled": _can_place_selected_internal_visual(), "compact": true},
+		{"text": "Remove", "handler": Callable(self, "_on_remove_internal_pressed"), "role": "danger", "enabled": internal_remove_available, "compact": true},
+		{"text": "Toggle View", "handler": Callable(self, "_on_toggle_internal_view_pressed"), "role": "normal", "enabled": true, "compact": true},
+	]
+
+	var row_two_buttons: Array[Dictionary] = [
+		{"text": "Overlay Type", "handler": Callable(self, "_on_overlay_type_pressed"), "role": "normal", "enabled": true, "compact": true},
+		{"text": "Toggle Cell", "handler": Callable(self, "_on_toggle_overlay_cell_pressed"), "role": "normal", "enabled": true, "compact": true},
+		{"text": "Commit Plan", "handler": Callable(self, "_on_commit_overlay_pressed"), "role": "primary", "enabled": _can_commit_overlay_plan_visual(), "compact": true},
+		{"text": "Clear Plan", "handler": Callable(self, "_on_clear_overlay_pressed"), "role": "danger", "enabled": true, "compact": true},
+		{"text": "Checkpoint", "handler": Callable(self, "_on_constructor_checkpoint_pressed"), "role": "reference", "enabled": true, "compact": true},
+		{"text": "Final Audit", "handler": Callable(self, "_on_constructor_final_audit_pressed"), "role": "reference", "enabled": true, "compact": true},
+	]
+
+	for config in row_one_buttons:
+		_add_action_button(
+			row_one,
+			String(config.get("text", "")),
+			config.get("handler", Callable()),
+			String(config.get("role", "normal")),
+			bool(config.get("enabled", true)),
+			bool(config.get("compact", true))
+		)
+	row_one.add_spacer(true)
+
+	for config in row_two_buttons:
+		_add_action_button(
+			row_two,
+			String(config.get("text", "")),
+			config.get("handler", Callable()),
+			String(config.get("role", "normal")),
+			bool(config.get("enabled", true)),
+			bool(config.get("compact", true))
+		)
+	row_two.add_spacer(true)
+
+	root.add_child(row_one)
+	root.add_child(row_two)
+	panel.add_child(root)
+	return panel
+
+
+func _get_internal_right_column_width() -> float:
+	var viewport_width: float = _get_viewport_width()
+	if viewport_width < 1100.0:
+		return 300.0
+	return 360.0
+
+
+func _get_internal_storage_grid_columns() -> int:
+	var viewport_width: float = _get_viewport_width()
+	if viewport_width < 1100.0:
+		return 2
+	return 3
+
+
+func _get_internal_bottom_bar_height() -> float:
+	var viewport_height: float = get_viewport_rect().size.y
+	if viewport_height < 720.0:
+		return 44.0
+	return 52.0
+
+
+func _reorder_indices_right_to_left_by_rows(indices: Array[int], columns: int) -> Array[int]:
+	if columns <= 1:
+		return indices
+	var result: Array[int] = []
+	var row_start: int = 0
+	while row_start < indices.size():
+		var row: Array[int] = []
+		for i in range(columns):
+			var source_index: int = row_start + i
+			if source_index >= indices.size():
+				break
+			row.append(indices[source_index])
+		row.reverse()
+		result.append_array(row)
+		row_start += columns
+	return result
 
 
 func _create_constructor_dashboard_layout() -> Control:
@@ -3198,7 +3387,7 @@ func _on_viewport_size_changed() -> void:
 	if box_screen == null or not box_screen.visible:
 		return
 	_apply_box_screen_fullscreen_layout()
-	if box_menu_mode == BoxMenuMode.EXTERNAL:
+	if box_menu_mode == BoxMenuMode.EXTERNAL or box_menu_mode == BoxMenuMode.INTERNAL:
 		update_box_status()
 func _apply_box_screen_fullscreen_layout() -> void:
 	if box_screen == null:
@@ -3705,15 +3894,14 @@ func rebuild_box_action_buttons() -> void:
 	if right_button_panel == null:
 		return
 	_clear_box_actions()
-	right_button_panel.visible = true
+	right_button_panel.visible = not (box_menu_mode == BoxMenuMode.EXTERNAL or box_menu_mode == BoxMenuMode.INTERNAL)
 
 	var actions_label: Label = Label.new()
 	actions_label.name = "ActionsLabel"
 	actions_label.text = "Actions"
 	right_button_panel.add_theme_constant_override("separation", ACTION_GROUP_SPACING)
 
-	if box_menu_mode == BoxMenuMode.EXTERNAL:
-		right_button_panel.visible = false
+	if box_menu_mode == BoxMenuMode.EXTERNAL or box_menu_mode == BoxMenuMode.INTERNAL:
 		_apply_constructor_ui_skin()
 		return
 
