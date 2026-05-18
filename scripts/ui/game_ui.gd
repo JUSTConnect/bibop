@@ -3399,16 +3399,35 @@ func rebuild_box_action_buttons() -> void:
 		_add_box_action_button("Repair Rules", Callable(self, "_on_repair_rules_pressed"))
 	_apply_constructor_ui_skin()
 
+func _create_box_top_tab_button(text: String, callback: Callable, active: bool) -> Button:
+	var button: Button = Button.new()
+	button.text = text
+	button.focus_mode = Control.FOCUS_NONE
+	button.custom_minimum_size = Vector2(120, 32)
+	_apply_action_button_style(button, "primary" if active else "normal", true)
+	button.pressed.connect(callback)
+	return button
+
 func _setup_box_top_bar() -> void:
 	if box_tab_row == null:
 		return
 	for child in box_tab_row.get_children():
 		child.queue_free()
-	var left_section := HBoxContainer.new()
-	left_section.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-	box_tab_row.add_child(left_section)
-	left_section.add_child(external_tab_button)
-	left_section.add_child(internal_tab_button)
+	var left_tabs: HBoxContainer = HBoxContainer.new()
+	left_tabs.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	box_tab_row.add_child(left_tabs)
+	var external_tab_button: Button = _create_box_top_tab_button(
+		"External",
+		Callable(self, "set_box_menu_mode_external"),
+		box_menu_mode == BoxMenuMode.EXTERNAL
+	)
+	var internal_tab_button: Button = _create_box_top_tab_button(
+		"Internal",
+		Callable(self, "set_box_menu_mode_internal"),
+		box_menu_mode == BoxMenuMode.INTERNAL
+	)
+	left_tabs.add_child(external_tab_button)
+	left_tabs.add_child(internal_tab_button)
 	var center_section := VBoxContainer.new()
 	center_section.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	box_tab_row.add_child(center_section)
