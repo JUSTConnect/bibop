@@ -3731,7 +3731,7 @@ func _build_main_menu_layout() -> void:
 	var panel := PanelContainer.new()
 	panel.custom_minimum_size = Vector2(280, 360)
 	panel.position = Vector2(500, 170)
-	_apply_panel_style(panel, "panel")
+	_apply_panel_style(panel, true)
 	main_menu_root.add_child(panel)
 	var vbox := VBoxContainer.new()
 	vbox.alignment = BoxContainer.ALIGNMENT_CENTER
@@ -3739,7 +3739,7 @@ func _build_main_menu_layout() -> void:
 	panel.add_child(vbox)
 	var title := Label.new()
 	title.text = "BIPOB"
-	_apply_label_style(title, "header")
+	_apply_label_style(title, false, true)
 	title.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	vbox.add_child(title)
 	for data in [["Играть","_on_main_play_pressed"],["Настройки","_on_main_settings_pressed"],["О нас","_on_main_about_pressed"],["Выйти из игры","_on_main_exit_pressed"]]:
@@ -3754,12 +3754,12 @@ func _build_main_menu_layout() -> void:
 	vbox.add_child(spacer)
 	var social := Label.new()
 	social.text = "Соцсети"
-	_apply_label_style(social, "caption")
+	_apply_label_style(social, true, false)
 	social.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	vbox.add_child(social)
 	var version := Label.new()
 	version.text = "версия"
-	_apply_label_style(version, "caption")
+	_apply_label_style(version, true, false)
 	version.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	vbox.add_child(version)
 
@@ -3815,18 +3815,18 @@ func _build_placeholder_layout() -> void:
 	var panel := PanelContainer.new()
 	panel.custom_minimum_size = Vector2(420, 220)
 	panel.position = Vector2(430, 250)
-	_apply_panel_style(panel, "panel")
+	_apply_panel_style(panel, true)
 	placeholder_menu_root.add_child(panel)
 	var vbox := VBoxContainer.new()
 	vbox.add_theme_constant_override("separation", 12)
 	panel.add_child(vbox)
 	placeholder_title_label = Label.new()
-	_apply_label_style(placeholder_title_label, "header")
+	_apply_label_style(placeholder_title_label, false, true)
 	placeholder_title_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	vbox.add_child(placeholder_title_label)
 	var body := Label.new()
 	body.text = "Раздел в разработке."
-	_apply_label_style(body, "body")
+	_apply_label_style(body)
 	body.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	vbox.add_child(body)
 	var back := Button.new()
