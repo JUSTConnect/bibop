@@ -110,6 +110,7 @@ var constructor_reference_text: String = ""
 enum AppScreenMode {
 	MAIN_MENU,
 	CENTER,
+	TASKS,
 	GAMEPLAY,
 	BOX_CONSTRUCTOR,
 	MISSION_CONSTRUCTOR,
@@ -126,10 +127,71 @@ var box_opened_from_center: bool = false
 
 var main_menu_root: Control
 var center_menu_root: Control
+var tasks_menu_root: Control
 var mission_constructor_root: Control
 var placeholder_menu_root: Control
 var placeholder_title_label: Label
 var placeholder_body_label: Label
+var tasks_tab_buttons: Dictionary = {}
+var tasks_current_tab: String = "Career"
+var tasks_career_data: Array[Dictionary] = [
+	{
+		"title": "Career Task 1",
+		"description": "Recover the key, unlock the door, and reach extraction.",
+		"difficulty": "Difficulty: TBD",
+		"reward": "Reward: TBD",
+		"requirements": [
+			"Bipobs: 1 Scout",
+			"Modules: basic movement + sensor",
+			"Battery: medium",
+			"Storage: small"
+		],
+		"warnings": [
+			"Battery may be insufficient.",
+			"Sensor module recommended."
+		]
+	},
+	{
+		"title": "Career Task 2",
+		"description": "Survey the sector and complete the requested scan route.",
+		"difficulty": "Difficulty: TBD",
+		"reward": "Reward: TBD",
+		"requirements": [
+			"Bipobs: 1 Engineer",
+			"Modules: scan device, data interface",
+			"Battery: medium",
+			"Storage: medium"
+		],
+		"warnings": [
+			"Internal interface missing.",
+			"Data storage may be insufficient."
+		]
+	},
+	{
+		"title": "Career Task 3",
+		"description": "Deliver and retrieve mission cargo across a contested route.",
+		"difficulty": "Difficulty: TBD",
+		"reward": "Reward: TBD",
+		"requirements": [
+			"Bipobs: 2 (Scout + Engineer)",
+			"Modules: storage expansion, manipulator",
+			"Battery: high",
+			"Storage: high"
+		],
+		"warnings": [
+			"Not enough storage capacity.",
+			"Second Bipob not configured."
+		]
+	}
+]
+var tasks_selected_career_index: int = 0
+var tasks_list_container: VBoxContainer
+var tasks_title_label: Label
+var tasks_difficulty_label: Label
+var tasks_reward_label: Label
+var tasks_description_label: Label
+var tasks_requirements_label: Label
+var tasks_warnings_label: Label
 
 const CONSTRUCTOR_PANEL_BG_PATH: String = "res://assets/ui/constructor/panel_bg.png"
 const CONSTRUCTOR_CELL_EMPTY_PATH: String = "res://assets/ui/constructor/cell_empty.png"
@@ -3475,14 +3537,17 @@ func _apply_constructor_visual_style() -> void:
 func _create_app_menu_roots() -> void:
 	main_menu_root = _build_fullscreen_root("MainMenuRoot")
 	center_menu_root = _build_fullscreen_root("CenterMenuRoot")
+	tasks_menu_root = _build_fullscreen_root("TasksMenuRoot")
 	mission_constructor_root = _build_fullscreen_root("MissionConstructorRoot")
 	placeholder_menu_root = _build_fullscreen_root("PlaceholderMenuRoot")
 	add_child(main_menu_root)
 	add_child(center_menu_root)
+	add_child(tasks_menu_root)
 	add_child(mission_constructor_root)
 	add_child(placeholder_menu_root)
 	_build_main_menu_layout()
 	_build_center_menu_layout()
+	_build_tasks_menu_layout()
 	_build_mission_constructor_screen()
 	_build_placeholder_layout()
 
@@ -3501,6 +3566,8 @@ func _hide_all_app_screens() -> void:
 		main_menu_root.visible = false
 	if center_menu_root != null:
 		center_menu_root.visible = false
+	if tasks_menu_root != null:
+		tasks_menu_root.visible = false
 	if placeholder_menu_root != null:
 		placeholder_menu_root.visible = false
 	if mission_constructor_root != null:
@@ -3556,6 +3623,14 @@ func show_center_screen() -> void:
 	if center_menu_root != null:
 		center_menu_root.visible = true
 
+func show_tasks_screen() -> void:
+	app_screen_mode = AppScreenMode.TASKS
+	_hide_all_app_screens()
+	_set_gameplay_visible(false)
+	_refresh_tasks_content()
+	if tasks_menu_root != null:
+		tasks_menu_root.visible = true
+
 func show_placeholder_screen(title_text: String, body_text: String = "This section will be added later.") -> void:
 	previous_app_screen_mode = app_screen_mode
 	app_screen_mode = AppScreenMode.SETTINGS_PLACEHOLDER
@@ -3592,6 +3667,70 @@ func show_mission_constructor_screen() -> void:
 	_build_mission_constructor_screen()
 	if mission_constructor_root != null:
 		mission_constructor_root.visible = true
+
+func _refresh_tasks_content() -> void:
+	for tab_name in tasks_tab_buttons.keys():
+		var button: Button = tasks_tab_buttons[tab_name]
+		var selected := tab_name == tasks_current_tab
+		button.modulate = UI_COLOR_SELECTED if selected else Color(1, 1, 1, 1)
+	if tasks_list_container == null:
+		return
+	for child in tasks_list_container.get_children():
+		child.queue_free()
+	if tasks_current_tab != "Career":
+		var placeholder := Label.new()
+		placeholder.text = "No tasks in this category yet."
+		_apply_label_style(placeholder)
+		tasks_list_container.add_child(placeholder)
+		_apply_tasks_placeholder_details()
+		return
+	for i in tasks_career_data.size():
+		var card := Button.new()
+		card.text = "%s\n%s\nReward preview: TBD" % [tasks_career_data[i].get("title", ""), tasks_career_data[i].get("description", "")]
+		card.alignment = HORIZONTAL_ALIGNMENT_LEFT
+		card.text_overrun_behavior = TextServer.OVERRUN_TRIM_ELLIPSIS
+		card.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+		card.custom_minimum_size = Vector2(0, 86)
+		card.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+		_apply_menu_button_theme(card)
+		card.pressed.connect(_on_tasks_career_selected.bind(i))
+		card.modulate = UI_COLOR_SELECTED if i == tasks_selected_career_index else Color(1, 1, 1, 1)
+		tasks_list_container.add_child(card)
+	_update_tasks_details_panel()
+
+func _apply_tasks_placeholder_details() -> void:
+	if tasks_title_label != null:
+		tasks_title_label.text = "%s Tasks" % tasks_current_tab
+	if tasks_difficulty_label != null:
+		tasks_difficulty_label.text = "Difficulty: TBD"
+	if tasks_reward_label != null:
+		tasks_reward_label.text = "Reward: TBD"
+	if tasks_description_label != null:
+		tasks_description_label.text = "Description:\nThis category is not available yet."
+	if tasks_requirements_label != null:
+		tasks_requirements_label.text = "Requirements:\nTBD"
+	if tasks_warnings_label != null:
+		tasks_warnings_label.text = "Warnings:\nNo active warnings."
+
+func _update_tasks_details_panel() -> void:
+	if tasks_current_tab != "Career":
+		return
+	if tasks_career_data.is_empty():
+		return
+	tasks_selected_career_index = clampi(tasks_selected_career_index, 0, tasks_career_data.size() - 1)
+	var task := tasks_career_data[tasks_selected_career_index]
+	if tasks_title_label != null:
+		tasks_title_label.text = task.get("title", "")
+	if tasks_difficulty_label != null:
+		tasks_difficulty_label.text = task.get("difficulty", "Difficulty: TBD")
+	if tasks_reward_label != null:
+		tasks_reward_label.text = task.get("reward", "Reward: TBD")
+	if tasks_description_label != null:
+		tasks_description_label.text = "Description:\n%s" % task.get("description", "")
+	if tasks_requirements_label != null:
+		tasks_requirements_label.text = "Requirements:\n- %s" % "\n- ".join(task.get("requirements", []))
+	if tasks_warnings_label != null:
+		tasks_warnings_label.text = "Warnings:\n- %s" % "\n- ".join(task.get("warnings", []))
 
 func charge_bipob_from_center() -> void:
 	if bipob == null:
@@ -4954,7 +5093,7 @@ func _build_center_menu_layout() -> void:
 	var top_row := HBoxContainer.new()
 	top_row.add_theme_constant_override("separation", 8)
 	root.add_child(top_row)
-	top_row.add_child(_create_menu_button("Tasks", Callable(self, "_on_center_tasks_pressed"), Vector2(170, 36)))
+	top_row.add_child(_create_menu_button("TSK", Callable(self, "_on_center_tasks_pressed"), Vector2(170, 36)))
 	top_row.add_child(_create_menu_button("Constructor", Callable(self, "_on_center_constructor_pressed"), Vector2(170, 36)))
 	var top_spacer := Control.new()
 	top_spacer.size_flags_horizontal = Control.SIZE_EXPAND_FILL
@@ -4991,6 +5130,150 @@ func _build_center_menu_layout() -> void:
 	back_spacer.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	back_row.add_child(back_spacer)
 	back_row.add_child(_create_menu_button("Выйти в главное меню", Callable(self, "_on_center_main_menu_pressed"), Vector2(220, 36)))
+
+func _build_tasks_menu_layout() -> void:
+	if tasks_menu_root == null:
+		return
+	for child in tasks_menu_root.get_children():
+		child.queue_free()
+	tasks_tab_buttons.clear()
+
+	var background := PanelContainer.new()
+	background.set_anchors_preset(Control.PRESET_FULL_RECT)
+	_apply_panel_style(background, true)
+	tasks_menu_root.add_child(background)
+
+	var margin := MarginContainer.new()
+	margin.set_anchors_preset(Control.PRESET_FULL_RECT)
+	margin.add_theme_constant_override("margin_left", 24)
+	margin.add_theme_constant_override("margin_right", 24)
+	margin.add_theme_constant_override("margin_top", 24)
+	margin.add_theme_constant_override("margin_bottom", 24)
+	background.add_child(margin)
+
+	var root := VBoxContainer.new()
+	root.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	root.size_flags_vertical = Control.SIZE_EXPAND_FILL
+	root.add_theme_constant_override("separation", 10)
+	margin.add_child(root)
+
+	var tabs := HBoxContainer.new()
+	tabs.add_theme_constant_override("separation", 8)
+	root.add_child(tabs)
+	for tab_name in ["Career", "Daily", "Defense", "Support"]:
+		var tab_button := _create_menu_button(tab_name, Callable(self, "_on_tasks_tab_pressed").bind(tab_name), Vector2(130, 34))
+		tasks_tab_buttons[tab_name] = tab_button
+		tabs.add_child(tab_button)
+	var tab_spacer := Control.new()
+	tab_spacer.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	tabs.add_child(tab_spacer)
+
+	var content_row := HBoxContainer.new()
+	content_row.size_flags_vertical = Control.SIZE_EXPAND_FILL
+	content_row.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	content_row.add_theme_constant_override("separation", 10)
+	root.add_child(content_row)
+
+	var left_panel := PanelContainer.new()
+	_apply_panel_style(left_panel)
+	left_panel.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	left_panel.size_flags_vertical = Control.SIZE_EXPAND_FILL
+	content_row.add_child(left_panel)
+
+	var left_margin := MarginContainer.new()
+	left_margin.add_theme_constant_override("margin_left", 10)
+	left_margin.add_theme_constant_override("margin_right", 10)
+	left_margin.add_theme_constant_override("margin_top", 10)
+	left_margin.add_theme_constant_override("margin_bottom", 10)
+	left_panel.add_child(left_margin)
+
+	var left_vbox := VBoxContainer.new()
+	left_vbox.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	left_vbox.size_flags_vertical = Control.SIZE_EXPAND_FILL
+	left_vbox.add_theme_constant_override("separation", 8)
+	left_margin.add_child(left_vbox)
+
+	var tasks_list_title := Label.new()
+	tasks_list_title.text = "Tasks"
+	_apply_label_style(tasks_list_title, false, true)
+	left_vbox.add_child(tasks_list_title)
+
+	var list_scroll := ScrollContainer.new()
+	list_scroll.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	list_scroll.size_flags_vertical = Control.SIZE_EXPAND_FILL
+	list_scroll.horizontal_scroll_mode = ScrollContainer.SCROLL_MODE_DISABLED
+	left_vbox.add_child(list_scroll)
+
+	tasks_list_container = VBoxContainer.new()
+	tasks_list_container.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	tasks_list_container.add_theme_constant_override("separation", 6)
+	list_scroll.add_child(tasks_list_container)
+
+	var right_panel := PanelContainer.new()
+	_apply_panel_style(right_panel)
+	right_panel.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	right_panel.size_flags_vertical = Control.SIZE_EXPAND_FILL
+	content_row.add_child(right_panel)
+	content_row.set_stretch_ratio(0, 1.0)
+	content_row.set_stretch_ratio(1, 2.0)
+
+	var right_margin := MarginContainer.new()
+	right_margin.add_theme_constant_override("margin_left", 10)
+	right_margin.add_theme_constant_override("margin_right", 10)
+	right_margin.add_theme_constant_override("margin_top", 10)
+	right_margin.add_theme_constant_override("margin_bottom", 10)
+	right_panel.add_child(right_margin)
+
+	var right_vbox := VBoxContainer.new()
+	right_vbox.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	right_vbox.size_flags_vertical = Control.SIZE_EXPAND_FILL
+	right_vbox.add_theme_constant_override("separation", 8)
+	right_margin.add_child(right_vbox)
+
+	tasks_title_label = Label.new()
+	_apply_label_style(tasks_title_label, false, true)
+	right_vbox.add_child(tasks_title_label)
+	tasks_difficulty_label = Label.new()
+	_apply_label_style(tasks_difficulty_label)
+	right_vbox.add_child(tasks_difficulty_label)
+	tasks_reward_label = Label.new()
+	_apply_label_style(tasks_reward_label)
+	right_vbox.add_child(tasks_reward_label)
+
+	var details_scroll := ScrollContainer.new()
+	details_scroll.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	details_scroll.size_flags_vertical = Control.SIZE_EXPAND_FILL
+	details_scroll.horizontal_scroll_mode = ScrollContainer.SCROLL_MODE_DISABLED
+	right_vbox.add_child(details_scroll)
+
+	var details_vbox := VBoxContainer.new()
+	details_vbox.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	details_vbox.add_theme_constant_override("separation", 6)
+	details_scroll.add_child(details_vbox)
+
+	tasks_description_label = Label.new()
+	tasks_description_label.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	_apply_label_style(tasks_description_label)
+	details_vbox.add_child(tasks_description_label)
+	tasks_requirements_label = Label.new()
+	tasks_requirements_label.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	_apply_label_style(tasks_requirements_label)
+	details_vbox.add_child(tasks_requirements_label)
+	tasks_warnings_label = Label.new()
+	tasks_warnings_label.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	_apply_label_style(tasks_warnings_label)
+	details_vbox.add_child(tasks_warnings_label)
+
+	var actions := HBoxContainer.new()
+	actions.add_theme_constant_override("separation", 8)
+	right_vbox.add_child(actions)
+	actions.add_child(_create_menu_button("Start", Callable(self, "_on_tasks_start_pressed"), Vector2(120, 34)))
+	actions.add_child(_create_menu_button("Warnings", Callable(self, "_on_tasks_warnings_pressed"), Vector2(140, 34)))
+	var actions_spacer := Control.new()
+	actions_spacer.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	actions.add_child(actions_spacer)
+	actions.add_child(_create_menu_button("Back", Callable(self, "show_center_screen"), Vector2(120, 34)))
+	_refresh_tasks_content()
 
 func _build_mission_constructor_screen() -> void:
 	if mission_constructor_root == null:
@@ -5086,7 +5369,7 @@ func _on_main_about_pressed() -> void:
 func _on_main_exit_pressed() -> void:
 	show_placeholder_screen("Выход из игры")
 func _on_center_tasks_pressed() -> void:
-	start_gameplay_from_center()
+	show_tasks_screen()
 func _on_center_box_pressed() -> void:
 	show_box_constructor_from_center()
 func _on_center_constructor_pressed() -> void:
@@ -5110,6 +5393,23 @@ func _on_placeholder_back_pressed() -> void:
 		show_main_menu_screen()
 	else:
 		show_center_screen()
+
+func _on_tasks_tab_pressed(tab_name: String) -> void:
+	tasks_current_tab = tab_name
+	if tasks_current_tab == "Career" and tasks_selected_career_index < 0:
+		tasks_selected_career_index = 0
+	_refresh_tasks_content()
+
+func _on_tasks_career_selected(index: int) -> void:
+	tasks_selected_career_index = index
+	_refresh_tasks_content()
+
+func _on_tasks_start_pressed() -> void:
+	# TODO(BIB-453): bind each task to a dedicated mission profile when mission registry is ready.
+	start_gameplay_from_center()
+
+func _on_tasks_warnings_pressed() -> void:
+	show_hint("Warnings section updated for selected task.")
 
 func _on_move_forward_pressed() -> void:
 	bipob.move_forward()
