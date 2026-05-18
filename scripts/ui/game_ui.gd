@@ -2228,10 +2228,17 @@ func get_compact_module_window(modules: Array, selected_index: int, max_lines: i
 		lines.append("... ")
 
 	return lines
+func _get_viewport_size() -> Vector2:
+	if get_viewport() == null:
+		return Vector2(1280, 768)
 
+	return get_viewport().get_visible_rect().size
+	
 func _get_viewport_width() -> float:
-	return get_viewport_rect().size.x
-
+	return _get_viewport_size().x
+	
+func _get_viewport_height() -> float:
+	return _get_viewport_size().y
 
 func _get_external_right_column_width() -> float:
 	var viewport_width: float = _get_viewport_width()
@@ -2248,7 +2255,7 @@ func _get_external_storage_grid_columns() -> int:
 
 
 func _get_external_bottom_bar_height() -> float:
-	var viewport_height: float = get_viewport_rect().size.y
+	var viewport_height: float = get_viewport().get_visible_rect().size.y
 	if viewport_height < 720.0:
 		return 42.0
 	return 48.0
