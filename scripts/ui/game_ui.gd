@@ -3151,10 +3151,11 @@ func _apply_runtime_hud_layout() -> void:
 
 	var margin: float = _get_runtime_margin()
 	var top_panel_height: float = _get_runtime_top_panel_height()
-	var bottom_panel_height: float = _get_runtime_bottom_panel_height()
+	var bottom_area_height: float = _get_runtime_bottom_panel_height()
 	var sidebar_width: float = _get_runtime_sidebar_width()
 	var viewport: Vector2 = _get_viewport_size()
 	var stats_height: float = 34.0
+	var bottom_y: float = viewport.y - bottom_area_height - margin
 
 	var objective_panel := PanelContainer.new()
 	objective_panel.name = "ObjectivePanel"
@@ -3199,8 +3200,8 @@ func _apply_runtime_hud_layout() -> void:
 
 	var bottom_left_vbox := VBoxContainer.new()
 	bottom_left_vbox.name = "RuntimeBottomLeft"
-	bottom_left_vbox.position = Vector2(margin, viewport.y - bottom_panel_height - stats_height - margin)
-	bottom_left_vbox.size = Vector2(maxf(viewport.x - sidebar_width - margin * 3.0, 200.0), bottom_panel_height + stats_height)
+	bottom_left_vbox.position = Vector2(margin, bottom_y)
+	bottom_left_vbox.size = Vector2(maxf(viewport.x - sidebar_width - margin * 3.0, 200.0), bottom_area_height)
 	bottom_left_vbox.add_theme_constant_override("separation", 4)
 	root.add_child(bottom_left_vbox)
 
@@ -3209,13 +3210,13 @@ func _apply_runtime_hud_layout() -> void:
 
 	var controls_panel := _create_runtime_controls_panel()
 	controls_panel.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-	controls_panel.custom_minimum_size = Vector2(0, bottom_panel_height)
+	controls_panel.custom_minimum_size = Vector2(0, maxf(bottom_area_height - stats_height - 4.0, 88.0))
 	controls_panel.add_theme_stylebox_override("panel", _make_panel_style(UI_COLOR_PANEL, UI_COLOR_BORDER, 1, 8))
 	bottom_left_vbox.add_child(controls_panel)
 
 	var mission_panel: PanelContainer = _create_runtime_mission_panel()
-	mission_panel.position = Vector2(viewport.x - sidebar_width - margin, viewport.y - bottom_panel_height - margin)
-	mission_panel.size = Vector2(sidebar_width, bottom_panel_height)
+	mission_panel.position = Vector2(viewport.x - sidebar_width - margin, bottom_y)
+	mission_panel.size = Vector2(sidebar_width, bottom_area_height)
 	root.add_child(mission_panel)
 
 
@@ -3334,24 +3335,34 @@ func _create_runtime_mission_panel() -> PanelContainer:
 	panel.name = "RuntimeMissionPanel"
 	panel.visible = true
 	panel.add_theme_stylebox_override("panel", _make_panel_style(UI_COLOR_PANEL, UI_COLOR_BORDER, 1, 8))
+	var margin := MarginContainer.new()
+	margin.add_theme_constant_override("margin_left", 8)
+	margin.add_theme_constant_override("margin_top", 8)
+	margin.add_theme_constant_override("margin_right", 8)
+	margin.add_theme_constant_override("margin_bottom", 8)
+	panel.add_child(margin)
 	var vbox := VBoxContainer.new()
 	vbox.add_theme_constant_override("separation", 6)
-	vbox.add_theme_constant_override("margin_left", 8)
-	vbox.add_theme_constant_override("margin_top", 8)
-	vbox.add_theme_constant_override("margin_right", 8)
-	vbox.add_theme_constant_override("margin_bottom", 8)
-	panel.add_child(vbox)
+	margin.add_child(vbox)
 	if restart_mission_button != null:
 		restart_mission_button.text = "Restart Mission"
+		restart_mission_button.custom_minimum_size = Vector2(0, 30)
+		restart_mission_button.size_flags_vertical = Control.SIZE_EXPAND_FILL
 		_safe_reparent_control(restart_mission_button, vbox)
 	if return_to_box_button != null:
 		return_to_box_button.text = "Return to Center"
+		return_to_box_button.custom_minimum_size = Vector2(0, 30)
+		return_to_box_button.size_flags_vertical = Control.SIZE_EXPAND_FILL
 		_safe_reparent_control(return_to_box_button, vbox)
 	if settings_button != null:
 		settings_button.text = "Settings"
+		settings_button.custom_minimum_size = Vector2(0, 30)
+		settings_button.size_flags_vertical = Control.SIZE_EXPAND_FILL
 		_safe_reparent_control(settings_button, vbox)
 	if exit_main_menu_button != null:
 		exit_main_menu_button.text = "Exit to Main Menu"
+		exit_main_menu_button.custom_minimum_size = Vector2(0, 30)
+		exit_main_menu_button.size_flags_vertical = Control.SIZE_EXPAND_FILL
 		_safe_reparent_control(exit_main_menu_button, vbox)
 	return panel
 
@@ -3558,11 +3569,6 @@ func _ready() -> void:
 	if end_turn_button != null:
 		end_turn_button.focus_mode = Control.FOCUS_NONE
 
-	drop_item_button = Button.new()
-	drop_item_button.name = "DropItemButton"
-	drop_item_button.text = "Drop Item"
-	drop_item_button.focus_mode = Control.FOCUS_NONE
-
 	rotate_storage_button = Button.new()
 	rotate_storage_button.name = "RotateStorageButton"
 	rotate_storage_button.text = "Rotate Storage"
@@ -3576,8 +3582,6 @@ func _ready() -> void:
 	if command_panel != null:
 		command_list = command_panel.get_node_or_null("CommandList")
 	if command_list != null:
-		command_list.add_child(drop_item_button)
-		drop_item_button.pressed.connect(_on_drop_item_button_pressed)
 		command_list.add_child(rotate_storage_button)
 		rotate_storage_button.pressed.connect(_on_rotate_storage_button_pressed)
 		command_list.add_child(scan_device_button)
@@ -3604,13 +3608,13 @@ func _ready() -> void:
 		settings_button.name = "SettingsButton"
 		settings_button.text = "Settings"
 		settings_button.focus_mode = Control.FOCUS_NONE
-		settings_button.pressed.connect(func() -> void: show_hint("Settings are not available yet."))
+		settings_button.pressed.connect(_on_runtime_settings_pressed)
 		command_list.add_child(settings_button)
 		exit_main_menu_button = Button.new()
 		exit_main_menu_button.name = "ExitMainMenuButton"
 		exit_main_menu_button.text = "Exit to Main Menu"
 		exit_main_menu_button.focus_mode = Control.FOCUS_NONE
-		exit_main_menu_button.pressed.connect(func() -> void: show_hint("Exit to Main Menu is not available yet."))
+		exit_main_menu_button.pressed.connect(_on_runtime_exit_to_main_menu_pressed)
 		command_list.add_child(exit_main_menu_button)
 
 	_apply_runtime_hud_layout()
@@ -5762,6 +5766,9 @@ func _on_return_to_box_button_pressed() -> void:
 
 func _on_runtime_return_to_center_pressed() -> void:
 	show_center_screen()
+
+func _on_runtime_settings_pressed() -> void:
+	show_placeholder_screen("Settings")
 
 func _on_runtime_exit_to_main_menu_pressed() -> void:
 	show_main_menu_screen()
