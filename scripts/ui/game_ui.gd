@@ -2358,8 +2358,17 @@ func _create_external_visual_workspace() -> Control:
 	panel.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	panel.size_flags_vertical = Control.SIZE_EXPAND_FILL
 
+	var margin: MarginContainer = MarginContainer.new()
+	margin.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	margin.size_flags_vertical = Control.SIZE_EXPAND_FILL
+	margin.add_theme_constant_override("margin_left", 6)
+	margin.add_theme_constant_override("margin_right", 6)
+	margin.add_theme_constant_override("margin_top", 6)
+	margin.add_theme_constant_override("margin_bottom", 6)
+
 	var root: VBoxContainer = VBoxContainer.new()
-	root.add_theme_constant_override("separation", 4)
+	root.add_theme_constant_override("separation", 6)
+	root.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	root.size_flags_vertical = Control.SIZE_EXPAND_FILL
 
 	var title: Label = Label.new()
@@ -2367,31 +2376,46 @@ func _create_external_visual_workspace() -> Control:
 	_apply_label_style(title, false, true)
 	root.add_child(title)
 
-	var info_row: HBoxContainer = HBoxContainer.new()
-	info_row.add_theme_constant_override("separation", 4)
+	var top_row: HBoxContainer = HBoxContainer.new()
+	top_row.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	top_row.size_flags_vertical = Control.SIZE_SHRINK_BEGIN
+	top_row.add_theme_constant_override("separation", 10)
 
 	var left_info: Control = _create_external_info_stub_panel(
 		"Info",
 		"General info about selected Bipob."
 	)
-	info_row.add_child(left_info)
+	left_info.custom_minimum_size = Vector2(150, 96)
+	left_info.size_flags_horizontal = Control.SIZE_SHRINK_BEGIN
+	left_info.size_flags_vertical = Control.SIZE_SHRINK_BEGIN
+	top_row.add_child(left_info)
 
-	var info_spacer: Control = Control.new()
-	info_spacer.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-	info_row.add_child(info_spacer)
+	var up_wrap: VBoxContainer = VBoxContainer.new()
+	up_wrap.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	up_wrap.size_flags_vertical = Control.SIZE_SHRINK_BEGIN
+	up_wrap.alignment = BoxContainer.ALIGNMENT_CENTER
+	var up_grid: Control = _create_external_side_grid("top")
+	up_grid.size_flags_horizontal = Control.SIZE_SHRINK_CENTER
+	up_grid.size_flags_vertical = Control.SIZE_SHRINK_BEGIN
+	up_wrap.add_child(up_grid)
+	top_row.add_child(up_wrap)
 
 	var right_info: Control = _create_external_info_stub_panel(
 		"Info",
 		"Installed external module overview."
 	)
-	info_row.add_child(right_info)
-	root.add_child(info_row)
+	right_info.custom_minimum_size = Vector2(150, 96)
+	right_info.size_flags_horizontal = Control.SIZE_SHRINK_BEGIN
+	right_info.size_flags_vertical = Control.SIZE_SHRINK_BEGIN
+	top_row.add_child(right_info)
+	root.add_child(top_row)
 
 	var grid_area: Control = _create_external_side_grid_workspace()
-	grid_area.size_flags_vertical = Control.SIZE_EXPAND_FILL
+	grid_area.size_flags_vertical = Control.SIZE_SHRINK_BEGIN
 	root.add_child(grid_area)
 
-	panel.add_child(root)
+	margin.add_child(root)
+	panel.add_child(margin)
 	return panel
 
 
@@ -2614,26 +2638,25 @@ func _create_filter_dropdown_button(is_internal: bool) -> Control:
 
 func _create_external_side_grid_workspace() -> Control:
 	var root: VBoxContainer = VBoxContainer.new()
-	root.add_theme_constant_override("separation", 4)
-	root.size_flags_vertical = Control.SIZE_EXPAND_FILL
-
-	var top_row: HBoxContainer = HBoxContainer.new()
-	top_row.alignment = BoxContainer.ALIGNMENT_CENTER
-	top_row.add_theme_constant_override("separation", 4)
-	top_row.add_child(_create_external_side_grid("top"))
-	root.add_child(top_row)
+	root.add_theme_constant_override("separation", 6)
+	root.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	root.size_flags_vertical = Control.SIZE_SHRINK_BEGIN
 
 	var middle_row: HBoxContainer = HBoxContainer.new()
+	middle_row.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	middle_row.size_flags_vertical = Control.SIZE_SHRINK_BEGIN
 	middle_row.alignment = BoxContainer.ALIGNMENT_CENTER
-	middle_row.add_theme_constant_override("separation", 4)
+	middle_row.add_theme_constant_override("separation", 8)
 	middle_row.add_child(_create_external_side_grid("left"))
 	middle_row.add_child(_create_external_robot_preview_panel())
 	middle_row.add_child(_create_external_side_grid("right"))
 	root.add_child(middle_row)
 
 	var bottom_row: HBoxContainer = HBoxContainer.new()
+	bottom_row.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	bottom_row.size_flags_vertical = Control.SIZE_SHRINK_BEGIN
 	bottom_row.alignment = BoxContainer.ALIGNMENT_CENTER
-	bottom_row.add_theme_constant_override("separation", 4)
+	bottom_row.add_theme_constant_override("separation", 8)
 	bottom_row.add_child(_create_external_side_grid("front"))
 	bottom_row.add_child(_create_external_side_grid("bottom"))
 	bottom_row.add_child(_create_external_side_grid("back"))
