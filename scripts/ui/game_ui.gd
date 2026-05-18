@@ -3654,6 +3654,11 @@ func start_gameplay_from_center() -> void:
 	_on_start_mission_button_pressed()
 	call_deferred("_attach_runtime_gameplay_view")
 
+func start_selected_task_mission() -> void:
+	if bipob != null:
+		bipob.current_mission_index = tasks_selected_career_index + 1
+	start_gameplay_from_center()
+
 func show_box_constructor_from_center() -> void:
 	app_screen_mode = AppScreenMode.BOX_CONSTRUCTOR
 	box_opened_from_center = true
@@ -5348,7 +5353,7 @@ func _build_mission_constructor_screen() -> void:
 	content.add_child(actions)
 	actions.add_child(_create_menu_button("Charge", Callable(self, "_on_charge_button_pressed"), Vector2(140, 34)))
 	actions.add_child(_create_menu_button("Warnings", Callable(self, "_on_constructor_warnings_button_pressed"), Vector2(140, 34)))
-	actions.add_child(_create_menu_button("Start", Callable(self, "_on_start_mission_button_pressed"), Vector2(140, 34)))
+	actions.add_child(_create_menu_button("Start", Callable(self, "start_gameplay_from_center"), Vector2(140, 34)))
 	actions.add_child(_create_menu_button("Restart", Callable(self, "_on_restart_mission_button_pressed"), Vector2(140, 34)))
 	var spacer := Control.new()
 	spacer.size_flags_horizontal = Control.SIZE_EXPAND_FILL
@@ -5437,7 +5442,7 @@ func _on_tasks_career_selected(index: int) -> void:
 
 func _on_tasks_start_pressed() -> void:
 	# TODO(BIB-453): bind each task to a dedicated mission profile when mission registry is ready.
-	start_gameplay_from_center()
+	start_selected_task_mission()
 
 func _on_tasks_warnings_pressed() -> void:
 	show_hint("Warnings section updated for selected task.")
