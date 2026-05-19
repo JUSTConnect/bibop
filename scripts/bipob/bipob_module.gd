@@ -67,7 +67,7 @@ class_name BipobModule
 @export var requires_air_intake: bool = false
 @export var is_non_volume_cooling_path: bool = false
 
-# Damage/repair
+# Damage / repair
 @export var can_be_damaged: bool = true
 @export var damage_threshold_heat: int = 5
 @export var repair_complexity: int = 1
