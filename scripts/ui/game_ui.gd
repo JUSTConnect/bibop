@@ -2320,8 +2320,12 @@ func _create_external_side_grid(side_id: String) -> Control:
 		for pocket_index in range(bipob.get_max_pockets_per_side()):
 			var pocket_button: Button = Button.new()
 			pocket_button.custom_minimum_size = Vector2(20, 18)
+			var is_valid_pocket: bool = true
+			if bipob.has_method("is_external_pocket_index_valid_for_side"):
+				is_valid_pocket = bipob.is_external_pocket_index_valid_for_side(side_id, pocket_index)
 			var enabled: bool = bipob.is_external_pocket_enabled(side_id, pocket_index) if bipob.has_method("is_external_pocket_enabled") else false
 			pocket_button.text = "-" if enabled else "P"
+			pocket_button.disabled = not is_valid_pocket
 			pocket_button.pressed.connect(func() -> void:
 				bipob.toggle_external_pocket(side_id, pocket_index)
 				update_box_status()
@@ -2447,11 +2451,6 @@ func _create_external_visual_workspace() -> Control:
 	root.add_theme_constant_override("separation", 6)
 	root.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	root.size_flags_vertical = Control.SIZE_EXPAND_FILL
-
-	var title: Label = Label.new()
-	title.text = "EXTERNAL MODULES ON BODY"
-	_apply_label_style(title, false, true)
-	root.add_child(title)
 
 	var top_row: HBoxContainer = HBoxContainer.new()
 	top_row.size_flags_horizontal = Control.SIZE_EXPAND_FILL
@@ -2787,14 +2786,23 @@ func _get_external_build_warnings() -> Array[String]:
 			has_manipulator = true
 		for key in ["is_broken", "broken", "is_damaged", "damaged"]:
 			if module.get(key) != null and bool(module.get(key)):
-				warnings.append("Damaged: %s" % bipob.get_module_display_name(module))
+				var damaged_name: String = "module"
+				if text.contains("visor") or text.contains("radar"):
+					damaged_name = "visor"
+				elif text.contains("hard_drive") or text.contains("hard drive") or text.contains("storage"):
+					damaged_name = "hard drive"
+				elif text.contains("manipulator"):
+					damaged_name = "manipulator"
+				elif text.contains("gear") or text.contains("wheel") or text.contains("track") or text.contains("leg"):
+					damaged_name = "gear"
+				warnings.append("damaged %s" % damaged_name)
 				break
 	if not has_gear:
-		warnings.append("Missing gear")
+		warnings.append("gear")
 	if not has_visor:
-		warnings.append("Missing visor")
+		warnings.append("visor")
 	if not has_manipulator:
-		warnings.append("Missing manipulator")
+		warnings.append("manipulator")
 	return warnings
 
 func _create_external_warning_panel() -> Control:
@@ -2806,13 +2814,13 @@ func _create_external_warning_panel() -> Control:
 	var warnings: Array[String] = _get_external_build_warnings()
 	if warnings.is_empty():
 		var none_label: Label = Label.new()
-		none_label.text = "No warnings"
+		none_label.text = "none"
 		_apply_label_style(none_label, true, false)
 		root.add_child(none_label)
 	else:
 		for warning_line in warnings:
 			var warning_label: Label = Label.new()
-			warning_label.text = "- %s" % warning_line
+			warning_label.text = warning_line
 			_apply_label_style(warning_label, true, false)
 			warning_label.add_theme_color_override("font_color", UI_COLOR_DANGER)
 			root.add_child(warning_label)
@@ -2880,9 +2888,9 @@ func _get_external_left_info_text() -> String:
 		if not _does_external_module_deal_damage(module):
 			continue
 		damage_rows += 1
-		lines.append("- %s: %d %s" % [bipob.get_module_display_name(module), _get_external_module_damage_value(module), _get_external_module_damage_type(module)])
+		lines.append("%d %s" % [_get_external_module_damage_value(module), _get_external_module_damage_type(module)])
 	if damage_rows == 0:
-		lines.append("- none")
+		lines.append("none")
 	var shield_installed: bool = false
 	for module in _get_external_installed_unique_modules():
 		if module != null and ("%s %s" % [module.id, module.display_name]).to_lower().contains("shield"):

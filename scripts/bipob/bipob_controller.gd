@@ -3474,12 +3474,21 @@ func get_external_pocket_reserved_cells(side_id: String, pocket_index: int) -> A
 	var side_size: Vector2i = get_external_side_size(side_id)
 	if side_size.x <= 0 or side_size.y <= 0:
 		return reserved
-	var column: int = clampi(pocket_index, 0, side_size.x - 1)
+	var col_a: int = pocket_index * 2
+	var col_b: int = col_a + 1
 	var bottom_row: int = side_size.y - 1
-	reserved.append(Vector2i(column, bottom_row))
-	if side_size.y > 1:
-		reserved.append(Vector2i(column, bottom_row - 1))
+	if col_a >= 0 and col_a < side_size.x:
+		reserved.append(Vector2i(col_a, bottom_row))
+	if col_b >= 0 and col_b < side_size.x:
+		reserved.append(Vector2i(col_b, bottom_row))
 	return reserved
+
+func is_external_pocket_index_valid_for_side(side_id: String, pocket_index: int) -> bool:
+	var side_size: Vector2i = get_external_side_size(side_id)
+	if side_size.x <= 0 or side_size.y <= 0:
+		return false
+	var col_b: int = pocket_index * 2 + 1
+	return col_b >= 0 and col_b < side_size.x
 
 func is_external_cell_reserved_for_pocket(side_id: String, cell: Vector2i) -> bool:
 	_ensure_external_pockets_shape()
@@ -3499,6 +3508,8 @@ func toggle_external_pocket(side_id: String, pocket_index: int) -> void:
 		return
 	var row: Array = external_pockets_by_side[side_id]
 	if pocket_index < 0 or pocket_index >= row.size():
+		return
+	if not is_external_pocket_index_valid_for_side(side_id, pocket_index):
 		return
 	var is_enabled: bool = bool(row[pocket_index])
 	if not is_enabled:
