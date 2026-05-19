@@ -29,6 +29,18 @@ const EXTERNAL_SIDE_ORDER := [
 	EXTERNAL_SIDE_BACK,
 	EXTERNAL_SIDE_BOTTOM
 ]
+const EXTERNAL_CATEGORY_MAP := {"movement":"Gear","sensor":"Sensors","manipulator":"Manipulators","connector":"Interface","tool":"Tools","repair":"Tools","weapon":"Weapons","armor":"Defense","other":"Other"}
+const EXTERNAL_MODULE_CATALOG: Dictionary = {
+"wheels_v1":{"name":"Wheels","cat":"Gear","size":Vector2i(3,2),"sides":[EXTERNAL_SIDE_BOTTOM]},
+"legs_v1":{"name":"Legs","cat":"Gear","size":Vector2i(3,2),"sides":[EXTERNAL_SIDE_BOTTOM]},"tracks_v1":{"name":"Tracks","cat":"Gear","size":Vector2i(3,2),"sides":[EXTERNAL_SIDE_BOTTOM]},"jumper_v1":{"name":"Jumper","cat":"Gear","size":Vector2i(3,2),"sides":[EXTERNAL_SIDE_BOTTOM]},"hover_pad_v1":{"name":"Hover Pad","cat":"Gear","size":Vector2i(3,2),"sides":[EXTERNAL_SIDE_BOTTOM]},
+"visor_v1":{"name":"Visor","cat":"Sensors","size":Vector2i(3,1),"sides":[EXTERNAL_SIDE_TOP],"scan":12},"thermal_visor_v1":{"name":"Thermal Visor","cat":"Sensors","size":Vector2i(3,1),"sides":[EXTERNAL_SIDE_TOP],"heat":2,"scan":15},"radar_v1":{"name":"Radar","cat":"Sensors","size":Vector2i(3,1),"sides":[EXTERNAL_SIDE_TOP],"scan":15},"xray_v1":{"name":"X-Ray","cat":"Sensors","size":Vector2i(3,1),"sides":[EXTERNAL_SIDE_TOP],"heat":2,"scan":12},
+"manipulator_arm_v1":{"name":"Manipulator Arm","cat":"Manipulators","size":Vector2i(2,2),"sides":[EXTERNAL_SIDE_LEFT,EXTERNAL_SIDE_RIGHT,EXTERNAL_SIDE_FRONT]},"manipulator_heavy_claw_v1":{"name":"Manipulator Heavy Claw","cat":"Manipulators","size":Vector2i(2,2),"sides":[EXTERNAL_SIDE_LEFT,EXTERNAL_SIDE_RIGHT,EXTERNAL_SIDE_FRONT]},"magnetic_manipulator_v1":{"name":"Magnetic Manipulator","cat":"Manipulators","size":Vector2i(2,2),"sides":[EXTERNAL_SIDE_LEFT,EXTERNAL_SIDE_RIGHT,EXTERNAL_SIDE_FRONT]},"tentacle_manipulator_v1":{"name":"Tentacle Manipulator","cat":"Manipulators","size":Vector2i(2,2),"sides":[EXTERNAL_SIDE_LEFT,EXTERNAL_SIDE_RIGHT,EXTERNAL_SIDE_FRONT]},"telescopic_arm_v1":{"name":"Telescopic Arm","cat":"Manipulators","size":Vector2i(2,2),"sides":[EXTERNAL_SIDE_LEFT,EXTERNAL_SIDE_RIGHT,EXTERNAL_SIDE_FRONT]},
+"high_bandwidth_interface_v1":{"name":"High-Bandwidth Interface","cat":"Interface","size":Vector2i(1,1),"sides":[EXTERNAL_SIDE_TOP,EXTERNAL_SIDE_LEFT,EXTERNAL_SIDE_RIGHT,EXTERNAL_SIDE_FRONT,EXTERNAL_SIDE_BACK]},"external_interface_connector_v1":{"name":"External Interface Connector","cat":"Interface","size":Vector2i(1,1),"sides":[EXTERNAL_SIDE_TOP,EXTERNAL_SIDE_LEFT,EXTERNAL_SIDE_RIGHT,EXTERNAL_SIDE_FRONT,EXTERNAL_SIDE_BACK]},"optical_interface_v1":{"name":"Optical Interface","cat":"Interface","size":Vector2i(1,1),"sides":[EXTERNAL_SIDE_TOP,EXTERNAL_SIDE_LEFT,EXTERNAL_SIDE_RIGHT,EXTERNAL_SIDE_FRONT,EXTERNAL_SIDE_BACK]},"wireless_interface_v1":{"name":"Wireless Interface","cat":"Interface","size":Vector2i(1,1),"sides":[EXTERNAL_SIDE_TOP,EXTERNAL_SIDE_LEFT,EXTERNAL_SIDE_RIGHT,EXTERNAL_SIDE_FRONT,EXTERNAL_SIDE_BACK]},
+"welder_v1":{"name":"Welder","cat":"Tools","size":Vector2i(2,1),"sides":[EXTERNAL_SIDE_LEFT,EXTERNAL_SIDE_RIGHT,EXTERNAL_SIDE_FRONT]},"repair_v1":{"name":"Repair","cat":"Tools","size":Vector2i(2,2),"sides":[EXTERNAL_SIDE_LEFT,EXTERNAL_SIDE_RIGHT,EXTERNAL_SIDE_FRONT]},"plasma_cutter_v1":{"name":"Plasma Cutter","cat":"Tools","size":Vector2i(2,1),"sides":[EXTERNAL_SIDE_LEFT,EXTERNAL_SIDE_RIGHT,EXTERNAL_SIDE_FRONT]},
+"laser_v1":{"name":"Laser","cat":"Weapons","size":Vector2i(3,3),"sides":[EXTERNAL_SIDE_LEFT,EXTERNAL_SIDE_RIGHT],"energy":2,"heat":5,"damage":"1-2","range":"Ranged"},"shocker_v1":{"name":"Shocker","cat":"Weapons","size":Vector2i(2,2),"sides":[EXTERNAL_SIDE_LEFT,EXTERNAL_SIDE_RIGHT,EXTERNAL_SIDE_FRONT],"damage":"1","range":"Melee"},"sledgehammer_v1":{"name":"Sledgehammer","cat":"Weapons","size":Vector2i(2,2),"sides":[EXTERNAL_SIDE_LEFT,EXTERNAL_SIDE_RIGHT,EXTERNAL_SIDE_FRONT],"damage":"3","range":"Melee"},"saw_v1":{"name":"Saw","cat":"Weapons","size":Vector2i(2,1),"sides":[EXTERNAL_SIDE_LEFT,EXTERNAL_SIDE_RIGHT,EXTERNAL_SIDE_FRONT],"damage":"1","range":"Melee"},"gas_canister_v1":{"name":"Gas Canister","cat":"Weapons","size":Vector2i(1,2),"sides":[EXTERNAL_SIDE_LEFT,EXTERNAL_SIDE_RIGHT,EXTERNAL_SIDE_FRONT,EXTERNAL_SIDE_BACK]},"gas_burner_v1":{"name":"Gas Burner","cat":"Weapons","size":Vector2i(2,1),"sides":[EXTERNAL_SIDE_LEFT,EXTERNAL_SIDE_RIGHT,EXTERNAL_SIDE_FRONT],"damage":"1","range":"Ranged"},
+"shield_module_v1":{"name":"Shield Module","cat":"Defense","size":Vector2i(2,2),"sides":[EXTERNAL_SIDE_TOP,EXTERNAL_SIDE_BOTTOM,EXTERNAL_SIDE_LEFT,EXTERNAL_SIDE_RIGHT,EXTERNAL_SIDE_FRONT,EXTERNAL_SIDE_BACK],"shield":20},"emp_shield_v1":{"name":"EMP Shield","cat":"Defense","size":Vector2i(2,2),"sides":[EXTERNAL_SIDE_TOP,EXTERNAL_SIDE_BOTTOM,EXTERNAL_SIDE_LEFT,EXTERNAL_SIDE_RIGHT,EXTERNAL_SIDE_FRONT,EXTERNAL_SIDE_BACK],"shield":15},"heat_shield_v1":{"name":"Heat Shield","cat":"Defense","size":Vector2i(2,2),"sides":[EXTERNAL_SIDE_TOP,EXTERNAL_SIDE_BOTTOM,EXTERNAL_SIDE_LEFT,EXTERNAL_SIDE_RIGHT,EXTERNAL_SIDE_FRONT,EXTERNAL_SIDE_BACK]},"reactive_bumper_v1":{"name":"Reactive Bumper","cat":"Defense","size":Vector2i(2,1),"sides":[EXTERNAL_SIDE_LEFT,EXTERNAL_SIDE_RIGHT,EXTERNAL_SIDE_FRONT,EXTERNAL_SIDE_BACK],"armor":10},"armor_plate_v1":{"name":"Armor Plate","cat":"Defense","size":Vector2i(2,2),"sides":[EXTERNAL_SIDE_TOP,EXTERNAL_SIDE_BOTTOM,EXTERNAL_SIDE_LEFT,EXTERNAL_SIDE_RIGHT,EXTERNAL_SIDE_FRONT,EXTERNAL_SIDE_BACK],"armor":20},
+"antenna_v1":{"name":"Antenna","cat":"Other","size":Vector2i(1,2),"sides":[EXTERNAL_SIDE_TOP,EXTERNAL_SIDE_BACK]},"intiradar_v1":{"name":"Intiradar","cat":"Other","size":Vector2i(2,2),"sides":[EXTERNAL_SIDE_TOP]},"smoke_emitter_v1":{"name":"Smoke Emitter","cat":"Other","size":Vector2i(1,1),"sides":[EXTERNAL_SIDE_BACK]},"beacon_module_v1":{"name":"Beacon Module","cat":"Other","size":Vector2i(1,1),"sides":[EXTERNAL_SIDE_TOP,EXTERNAL_SIDE_BACK]},"signal_jammer_v1":{"name":"Signal Jammer","cat":"Other","size":Vector2i(1,2),"sides":[EXTERNAL_SIDE_LEFT,EXTERNAL_SIDE_RIGHT,EXTERNAL_SIDE_FRONT,EXTERNAL_SIDE_BACK]},"ventilation_port_v1":{"name":"Ventilation Port","cat":"Other","size":Vector2i(1,1),"sides":[EXTERNAL_SIDE_TOP,EXTERNAL_SIDE_BACK]}
+}
 const INTERNAL_SIZE_X := 3
 const INTERNAL_SIZE_Y := 3
 const INTERNAL_SIZE_Z := 4
@@ -499,26 +511,11 @@ func get_module_visual_card_line(module: BipobModule) -> String:
 func get_external_module_footprint_size(module: BipobModule) -> Vector2i:
 	if module == null:
 		return Vector2i.ONE
-
-	match module.id:
-		"manipulator_arm_v1", "manipulator_tentacle_v1", "manipulator_v1":
-			return Vector2i(2, 2)
-		"manipulator_magnetic_v1":
-			return Vector2i(2, 1)
-		"connector_v1", "interface_v1", "motion_detector_v1", "pocket_v1", "air_intake_v1", "shock_device_v1":
-			return Vector2i(1, 1)
-		"legs_v1", "wheels_v1", "tracks_v1":
-			return Vector2i(3, 2)
-		"radar_v1", "repair_module_v1":
-			return Vector2i(2, 2)
-		"visor_v1", "visor_v2":
-			return Vector2i(3, 1)
-		"thermal_visor_v1", "xray_v1", "plasma_cutter_v1", "laser_v1", "saw_v1", "sledgehammer_v1", "welder_v1":
-			return Vector2i(2, 1)
-		"air_duct_external_v1", "torch_v1", "gas_tank_v1":
-			return Vector2i(1, 2)
-		_:
-			return Vector2i(1, 1)
+	if module.external_width > 0 and module.external_height > 0:
+		return Vector2i(module.external_width, module.external_height)
+	if EXTERNAL_MODULE_CATALOG.has(module.id):
+		return EXTERNAL_MODULE_CATALOG[module.id].get("size", Vector2i.ONE)
+	return Vector2i(1, 1)
 func get_module_category(module: BipobModule) -> String:
 	if module == null:
 		return "utility"
@@ -3648,20 +3645,9 @@ func _remove_external_module_instance_cells(side_id: String, module: BipobModule
 func is_external_module(module: BipobModule) -> bool:
 	if module == null:
 		return false
-
 	if module.placement_type == "external" or module.placement_type == "any":
 		return true
-
-	var external_ids := [
-		"wheels_v1",
-		"legs_v1",
-		"tracks_v1",
-		"manipulator_v1",
-		"interface_v1",
-		"visor_v1",
-		"visor_v2"
-	]
-	return module.id in external_ids
+	return EXTERNAL_MODULE_CATALOG.has(module.id)
 
 func is_internal_module(module: BipobModule) -> bool:
 	return module != null and module.placement_type == "internal"
@@ -3690,27 +3676,11 @@ func get_box_storage_index_for_internal_selection(internal_index: int) -> int:
 func get_allowed_external_sides_for_module(module: BipobModule) -> Array[String]:
 	if module == null:
 		return []
-
-	match module.id:
-		"legs_v1", "wheels_v1", "tracks_v1":
-			return [EXTERNAL_SIDE_BOTTOM]
-		"radar_v1", "visor_v1", "visor_v2", "thermal_visor_v1", "xray_v1", "motion_detector_v1":
-			return [EXTERNAL_SIDE_TOP, EXTERNAL_SIDE_FRONT, EXTERNAL_SIDE_LEFT, EXTERNAL_SIDE_RIGHT]
-		"manipulator_arm_v1", "manipulator_tentacle_v1", "manipulator_magnetic_v1", "manipulator_v1", "torch_v1", "plasma_cutter_v1", "saw_v1", "sledgehammer_v1", "hammer_v1", "laser_v1", "shock_device_v1", "repair_module_v1", "welder_v1":
-			return [EXTERNAL_SIDE_FRONT, EXTERNAL_SIDE_LEFT, EXTERNAL_SIDE_RIGHT]
-		"energy_shield_v1":
-			return [EXTERNAL_SIDE_TOP, EXTERNAL_SIDE_FRONT, EXTERNAL_SIDE_LEFT, EXTERNAL_SIDE_RIGHT, EXTERNAL_SIDE_BACK]
-		"connector_v1", "interface_v1":
-			return [EXTERNAL_SIDE_TOP, EXTERNAL_SIDE_FRONT, EXTERNAL_SIDE_LEFT, EXTERNAL_SIDE_RIGHT, EXTERNAL_SIDE_BACK]
-		"pocket_v1":
-			return [EXTERNAL_SIDE_LEFT, EXTERNAL_SIDE_RIGHT, EXTERNAL_SIDE_BACK]
-		"air_duct_external_v1", "air_intake_v1", "gas_tank_v1":
-			return [EXTERNAL_SIDE_TOP, EXTERNAL_SIDE_BACK, EXTERNAL_SIDE_LEFT, EXTERNAL_SIDE_RIGHT]
-		_:
-			var allowed_sides: Array[String] = []
-			for external_side_id in EXTERNAL_SIDE_ORDER:
-				allowed_sides.append(String(external_side_id))
-			return allowed_sides
+	if not module.allowed_external_sides.is_empty():
+		return module.allowed_external_sides.duplicate()
+	if EXTERNAL_MODULE_CATALOG.has(module.id):
+		return EXTERNAL_MODULE_CATALOG[module.id].get("sides", []).duplicate()
+	return EXTERNAL_SIDE_ORDER.duplicate()
 
 func can_place_external_module_on_side(module: BipobModule, side_id: String) -> bool:
 	if module == null:
@@ -3852,84 +3822,56 @@ func debug_place_first_installed_external_module() -> void:
 func create_external_module_by_id(module_id: String) -> BipobModule:
 	var module := BipobModule.new()
 	module.id = module_id
+	module.module_id = module_id
 	module.placement_type = "external"
+	module.version = "V1"
+	module.module_version = 1
 	module.internal_role = "none"
-
+	var normalized_id: String = module_id
 	match module_id:
-		"manipulator_arm_v1", "manipulator_v1":
-			module.display_name = "Манипулятор рука V1"
-			module.category = "manipulator"
-			module.description = "Базовый внешний манипулятор для взаимодействия с объектами."
-			module.granted_commands = ["interact_key", "open_physical_door"]
-		"manipulator_tentacle_v1":
-			module.display_name = "Манипулятор Щупальца V1"
-			module.category = "manipulator"
-			module.description = "Гибкий внешний манипулятор для сложного захвата."
-		"manipulator_magnetic_v1":
-			module.display_name = "Манипулятор Магнитный V1"
-			module.category = "manipulator"
-			module.description = "Магнитный манипулятор для металлических объектов."
-		"connector_v1", "interface_v1":
-			module.display_name = "Коннектор V1"
-			module.category = "connector"
-			module.description = "Внешний соединительный порт для подключения модулей."
-			module.granted_commands = ["read_terminal", "open_digital_door"]
-		"legs_v1":
-			module.display_name = "Шасси ноги V1"
-			module.category = "movement"
-			module.description = "Ножное шасси для перемещения по неровной поверхности."
-		"wheels_v1":
-			module.display_name = "Шасси колеса V1"
-			module.category = "movement"
-			module.description = "Колёсное шасси для быстрого перемещения."
-			module.granted_commands = ["move_forward", "move_backward", "turn_left", "turn_right"]
-		"tracks_v1":
-			module.display_name = "Шасси гусеницы V1"
-			module.category = "movement"
-			module.description = "Гусеничное шасси для устойчивого движения."
-		"radar_v1": module.display_name = "Радар V1"; module.category = "sensor"; module.description = "Внешний радар для обнаружения объектов."
-		"visor_v1":
-			module.display_name = "Визор V1"
-			module.category = "sensor"
-			module.description = "Базовый внешний визуальный сенсор."
-			module.granted_commands = ["vision"]
-		"visor_v2":
-			module.display_name = "Визор V2"
-			module.category = "sensor"
-			module.description = "Улучшенный внешний визуальный сенсор."
-			module.granted_commands = ["vision"]
-		"thermal_visor_v1": module.display_name = "Тепловизор V1"; module.category = "sensor"; module.description = "Сенсор для обнаружения тепловых следов."
-		"xray_v1": module.display_name = "Рентген V1"; module.category = "sensor"; module.description = "Сенсор для просмотра скрытых объектов."
-		"pocket_v1": module.display_name = "Карман V1"; module.category = "storage"; module.description = "Внешний малый отсек для переноски предметов."
-		"air_duct_external_v1": module.display_name = "Воздуховод V1"; module.category = "cooling"; module.description = "Внешний воздуховод для отвода горячего воздуха."
-		"motion_detector_v1": module.display_name = "Детектор движения V1"; module.category = "sensor"; module.description = "Сенсор для фиксации движения поблизости."
-		"torch_v1": module.display_name = "Горелка V1"; module.category = "tool"; module.description = "Внешняя горелка для нагрева и резки."
-		"gas_tank_v1": module.display_name = "Газовый балон V1"; module.category = "tool"; module.description = "Баллон топлива для газовых инструментов."
-		"plasma_cutter_v1": module.display_name = "Плазменный резак V1"; module.category = "tool"; module.description = "Инструмент для резки прочных материалов."
-		"laser_v1": module.display_name = "Лазер V1"; module.category = "weapon"; module.description = "Энергетический внешний модуль направленного действия."
-		"hammer_v1": module.display_name = "Молот V1"; module.category = "weapon"; module.description = "Ударный внешний боевой модуль ближнего действия."
-		"shock_device_v1": module.display_name = "Шокер V1"; module.category = "weapon"; module.description = "Электрошоковый внешний модуль."
-		"saw_v1": module.display_name = "Пила V1"; module.category = "tool"; module.description = "Механический режущий инструмент."
-		"sledgehammer_v1": module.display_name = "Кувалда V1"; module.category = "tool"; module.description = "Ударный внешний инструмент."
-		"energy_shield_v1": module.display_name = "Энергощит V1"; module.category = "armor"; module.description = "Внешний модуль энергетического щита, связанный с зарядом батареи."
-		"repair_module_v1": module.display_name = "Ремонтный модуль V1"; module.category = "repair"; module.description = "Внешний модуль для полевого ремонта."
-		"welder_v1": module.display_name = "Сварочный аппарат V1"; module.category = "repair"; module.description = "Инструмент для сварки и восстановления конструкций."
-		"air_intake_v1": module.display_name = "Air Intake Node V1"; module.category = "cooling"; module.description = "External air intake required by air cooling."
-		_:
-			return null
-
+		"manipulator_v1", "manipulator_tentacle_v1": normalized_id = "manipulator_arm_v1"
+		"manipulator_magnetic_v1": normalized_id = "magnetic_manipulator_v1"
+		"interface_v1", "connector_v1": normalized_id = "external_interface_connector_v1"
+		"shock_device_v1": normalized_id = "shocker_v1"
+		"hammer_v1": normalized_id = "sledgehammer_v1"
+		"repair_module_v1": normalized_id = "repair_v1"
+		"energy_shield_v1": normalized_id = "shield_module_v1"
+		_: pass
+	module.id = normalized_id
+	module.module_id = normalized_id
+	var metadata: Dictionary = EXTERNAL_MODULE_CATALOG.get(normalized_id, {})
+	if metadata.is_empty():
+		return null
+	module.display_name = String(metadata.get("name", module_id))
+	module.category = String(metadata.get("cat", "Other"))
+	module.description = String(metadata.get("desc", ""))
+	module.external_width = int(metadata.get("size", Vector2i.ONE).x)
+	module.external_height = int(metadata.get("size", Vector2i.ONE).y)
+	module.allowed_external_sides = metadata.get("sides", [])
+	module.energy_cost = int(metadata.get("energy", 0))
+	module.heat_value = int(metadata.get("heat", 0))
+	module.scan_range = int(metadata.get("scan", 0))
+	module.scan_accuracy = int(metadata.get("accuracy", 0))
+	module.armor_bonus = int(metadata.get("armor", 0))
+	module.shield_value = int(metadata.get("shield", 0))
+	module.damage_value = String(metadata.get("damage", ""))
+	module.weapon_range_type = String(metadata.get("range", ""))
+	module.special_effect_text = String(metadata.get("special", ""))
+	module.action_modifier = int(metadata.get("actions", 0))
+	if module.id in ["manipulator_arm_v1", "manipulator_heavy_claw_v1", "magnetic_manipulator_v1", "tentacle_manipulator_v1", "telescopic_arm_v1"]:
+		module.granted_commands = ["interact_key", "open_physical_door"]
+	if module.id in ["external_interface_connector_v1", "high_bandwidth_interface_v1", "optical_interface_v1", "wireless_interface_v1"]:
+		module.granted_commands = ["read_terminal", "open_digital_door"]
+	if module.id == "wheels_v1":
+		module.granted_commands = ["move_forward", "move_backward", "turn_left", "turn_right"]
+	if module.id == "visor_v1":
+		module.granted_commands = ["vision"]
 	apply_thermal_metadata(module)
 	apply_damage_metadata(module)
 	return module
 
 func ensure_external_constructor_modules_in_box_storage() -> void:
-	var required_ids: Array[String] = [
-		"manipulator_arm_v1", "manipulator_tentacle_v1", "manipulator_magnetic_v1", "connector_v1",
-		"legs_v1", "wheels_v1", "tracks_v1", "radar_v1", "visor_v1", "visor_v2", "thermal_visor_v1",
-		"xray_v1", "pocket_v1", "air_duct_external_v1", "motion_detector_v1", "torch_v1", "gas_tank_v1",
-		"plasma_cutter_v1", "laser_v1", "hammer_v1", "shock_device_v1", "saw_v1", "sledgehammer_v1", "repair_module_v1",
-		"welder_v1", "air_intake_v1", "energy_shield_v1"
-	]
+	var required_ids: Array[String] = EXTERNAL_MODULE_CATALOG.keys()
 
 	for module_id in required_ids:
 		if has_module_id_in_box_storage(module_id):

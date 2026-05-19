@@ -7,6 +7,24 @@ class_name BipobModule
 @export var placement_type: String = "unknown"
 @export var category: String = "utility"
 
+@export var module_id: String = ""
+@export var version: String = "V1"
+@export var external_width: int = 0
+@export var external_height: int = 0
+@export var allowed_external_sides: Array[String] = []
+
+@export var energy_cost: int = 0
+@export var heat_value: int = 0
+@export var scan_range: int = 0
+@export var scan_accuracy: int = 0
+@export var armor_bonus: int = 0
+@export var shield_value: int = 0
+
+@export var damage_value: String = ""
+@export var weapon_range_type: String = ""
+@export var special_effect_text: String = ""
+@export var action_modifier: int = 0
+
 @export var granted_commands: Array[String] = []
 
 @export var energy_bonus: int = 0
