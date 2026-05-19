@@ -2456,7 +2456,7 @@ func _create_external_visual_workspace() -> Control:
 	margin.add_theme_constant_override("margin_bottom", 6)
 
 	var root: VBoxContainer = VBoxContainer.new()
-	root.add_theme_constant_override("separation", 6)
+	root.add_theme_constant_override("separation", 3)
 	root.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	root.size_flags_vertical = Control.SIZE_EXPAND_FILL
 
@@ -2471,15 +2471,19 @@ func _create_external_visual_workspace() -> Control:
 	left_info.size_flags_vertical = Control.SIZE_SHRINK_BEGIN
 	top_row.add_child(left_info)
 
-	var up_wrap: VBoxContainer = VBoxContainer.new()
-	up_wrap.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-	up_wrap.size_flags_vertical = Control.SIZE_SHRINK_BEGIN
-	up_wrap.alignment = BoxContainer.ALIGNMENT_CENTER
+	var up_slot: VBoxContainer = VBoxContainer.new()
+	up_slot.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	up_slot.size_flags_vertical = Control.SIZE_EXPAND_FILL
+
+	var up_spacer: Control = Control.new()
+	up_spacer.size_flags_vertical = Control.SIZE_EXPAND_FILL
+	up_slot.add_child(up_spacer)
+
 	var up_grid: Control = _create_external_side_grid("top")
 	up_grid.size_flags_horizontal = Control.SIZE_SHRINK_CENTER
-	up_grid.size_flags_vertical = Control.SIZE_SHRINK_BEGIN
-	up_wrap.add_child(up_grid)
-	top_row.add_child(up_wrap)
+	up_grid.size_flags_vertical = Control.SIZE_SHRINK_END
+	up_slot.add_child(up_grid)
+	top_row.add_child(up_slot)
 
 	var right_info: Control = _create_external_warning_panel()
 	right_info.custom_minimum_size = Vector2(240, 110)
