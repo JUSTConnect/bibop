@@ -523,6 +523,25 @@ func get_module_category(module: BipobModule) -> String:
 	if not module.category.is_empty():
 		return module.category
 
+	if module.placement_type == "internal" or module.placement_type == "internal_overlay":
+		match String(module.internal_family).to_lower():
+			"battery", "power":
+				return "Power"
+			"cpu":
+				return "CPU"
+			"gpu":
+				return "GPU"
+			"ram":
+				return "RAM"
+			"storage":
+				return "Storage"
+			"interface":
+				return "Interface"
+			"cooling":
+				return "Cooling"
+			_:
+				return "Other"
+
 	match module.id:
 		"wheels_v1", "legs_v1", "tracks_v1":
 			return "locomotion"
@@ -534,25 +553,9 @@ func get_module_category(module: BipobModule) -> String:
 			return "data"
 		"air_intake_v1":
 			return "cooling"
-		"battery_v1_a", "battery_v1_b", "battery_v2", "battery_v3":
-			return "power"
-		"power_block_v1":
-			return "power"
-		"processor_v1", "processor_v2", "processor_v3":
-			return "data"
-		"memory_v1", "memory_v2", "memory_v3":
-			return "data"
-		"hard_drive_v1", "hard_drive_v2", "hard_drive_v3":
-			return "storage"
-		"int_interface_v1", "ext_interface_internal_v1":
-			return "data"
-		"cooler_v1", "radiator_v1", "water_tube_v1", "air_duct_v1":
-			return "cooling"
 		_:
 			if module.placement_type == "external":
 				return "external"
-			if module.placement_type == "internal":
-				return "internal"
 			return "utility"
 
 func get_effective_visor_level() -> int:
@@ -3650,7 +3653,7 @@ func is_external_module(module: BipobModule) -> bool:
 	return EXTERNAL_MODULE_CATALOG.has(module.id)
 
 func is_internal_module(module: BipobModule) -> bool:
-	return module != null and module.placement_type == "internal"
+	return module != null and (module.placement_type == "internal" or module.placement_type == "internal_overlay")
 
 func get_internal_modules_in_box_storage() -> Array[BipobModule]:
 	var modules: Array[BipobModule] = []
@@ -3909,20 +3912,32 @@ func create_default_modules() -> void:
 func create_internal_module(module_id: String, module_name: String, module_size: Vector3i) -> BipobModule:
 	var module := BipobModule.new()
 	module.id = module_id
+	module.module_id = module_id
 	module.display_name = module_name
-	module.placement_type = "internal"
+	module.placement_type = "internal_overlay" if module_size == Vector3i.ZERO else "internal"
 	module.size_x = module_size.x
 	module.size_y = module_size.y
 	module.size_z = module_size.z
+	module.internal_size = module_size
 	module.internal_rotatable = true
 	module.internal_role = get_internal_role_for_module_id(module_id)
 	module.internal_family = get_internal_family_for_module_id(module_id)
 	module.module_version = get_module_version_for_module_id(module_id)
+	module.version = "V%d" % module.module_version
 	module.battery_capacity = get_internal_battery_capacity(module_id)
 	module.storage_capacity = get_internal_storage_capacity(module_id)
 	module.actions_capacity = get_internal_actions_capacity(module_id)
 	module.hack_level = get_internal_hack_level(module_id)
+	module.energy_capacity = module.battery_capacity
+	module.action_capacity = module.actions_capacity
+	module.digital_storage_slots = module.storage_capacity
+	module.hack_value = module.hack_level
+	module.gpu_value = get_internal_gpu_value(module_id)
+	module.cooling_value = get_internal_cooling_value(module_id)
+	module.power_distribution = get_internal_power_distribution(module_id)
+	module.interface_role = get_internal_interface_role(module_id)
 	module.category = get_module_category(module)
+	module.characteristics_text = get_internal_characteristics_text(module)
 	apply_thermal_metadata(module)
 	apply_damage_metadata(module)
 	return module
@@ -3936,8 +3951,16 @@ func get_internal_family_for_module_id(module_id: String) -> String:
 		return "storage"
 	if module_id.begins_with("battery_"):
 		return "battery"
+	if module_id.begins_with("power_block_") or module_id.begins_with("capacitor_bank_"):
+		return "power"
 	if module_id.begins_with("cooler_") or module_id.begins_with("radiator_") or module_id.begins_with("water_tube_") or module_id.begins_with("air_duct_"):
 		return "cooling"
+	if module_id.begins_with("gpu_"):
+		return "gpu"
+	if module_id.begins_with("internal_interface_") or module_id.begins_with("external_interface_"):
+		return "interface"
+	if module_id.begins_with("targeting_computer_") or module_id.begins_with("encryption_module_") or module_id.begins_with("motor_controller_") or module_id.begins_with("weapon_controller_") or module_id.begins_with("firewall_module_") or module_id.begins_with("auto_repair_unit_") or module_id.begins_with("sample_analyzer_"):
+		return "other"
 	return "none"
 
 func get_module_version_for_module_id(module_id: String) -> int:
@@ -3971,15 +3994,66 @@ func get_internal_hack_level(module_id: String) -> int:
 		return 0
 	return clampi(get_module_version_for_module_id(module_id), 1, 3)
 
+func get_internal_gpu_value(module_id: String) -> int:
+	if not module_id.begins_with("gpu_"):
+		return 0
+	return clampi(get_module_version_for_module_id(module_id), 1, 3) + 2
+
+func get_internal_cooling_value(module_id: String) -> int:
+	match module_id:
+		"cooler_v1":
+			return -2
+		"radiator_v1":
+			return -1
+		"water_tube_v1":
+			return -2
+		"air_duct_v1":
+			return -1
+		_:
+			return 0
+
+func get_internal_power_distribution(module_id: String) -> int:
+	return 1 if module_id == "power_block_v1" else 0
+
+func get_internal_interface_role(module_id: String) -> String:
+	if module_id == "internal_interface_v1":
+		return "internal"
+	if module_id == "external_interface_v1":
+		return "external"
+	return ""
+
+func get_internal_characteristics_text(module: BipobModule) -> String:
+	var lines: Array[String] = []
+	lines.append("Category: %s" % module.category)
+	lines.append("Size: %dx%dx%d" % [module.size_x, module.size_y, module.size_z])
+	lines.append("Version: %s" % module.version)
+	if module.heat_value != 0:
+		lines.append("Heat: %d" % module.heat_value)
+	if module.cooling_value != 0:
+		lines.append("Cooling: %d" % module.cooling_value)
+	if module.energy_capacity > 0:
+		lines.append("Energy Capacity: %d" % module.energy_capacity)
+	if module.action_capacity > 0:
+		lines.append("Actions: %d" % module.action_capacity)
+	if module.hack_value > 0:
+		lines.append("Hack: %d" % module.hack_value)
+	if module.gpu_value > 0:
+		lines.append("GPU: %d" % module.gpu_value)
+	if module.digital_storage_slots > 0:
+		lines.append("Storage: %d" % module.digital_storage_slots)
+	if not module.interface_role.is_empty():
+		lines.append("Interface role: %s" % module.interface_role)
+	return "\n".join(lines)
+
 func get_internal_role_for_module_id(module_id: String) -> String:
 	match module_id:
-		"battery_v1_a", "battery_v1_b", "battery_v2", "battery_v3":
+		"battery_v1", "battery_v2", "battery_v3":
 			return "battery"
 		"power_block_v1":
 			return "power_block"
-		"int_interface_v1":
+		"internal_interface_v1":
 			return "internal_interface"
-		"ext_interface_internal_v1":
+		"external_interface_v1":
 			return "external_interface"
 		"processor_v1", "processor_v2", "processor_v3":
 			return "processor"
@@ -4002,37 +4076,43 @@ func apply_thermal_metadata(module: BipobModule) -> void:
 	if module.placement_type == "external":
 		module.internal_role = "none"
 	match module.id:
-		"battery_v1_a", "battery_v1_b":
-			module.heat_idle = 1
-			module.heat_active = 1
-		"processor_v1", "processor_v2", "processor_v3":
-			module.heat_idle = 3
-			module.heat_active = 5
-		"memory_v1":
-			module.heat_idle = 1
-			module.heat_active = 1
-		"hard_drive_v1":
-			module.heat_idle = 1
-			module.heat_active = 1
+		"battery_v1", "battery_v2", "battery_v3":
+			module.heat_idle = 1; module.heat_active = 1
+		"processor_v1":
+			module.heat_idle = 3; module.heat_active = 3
+		"processor_v2":
+			module.heat_idle = 4; module.heat_active = 4
+		"processor_v3":
+			module.heat_idle = 5; module.heat_active = 5
+		"gpu_v1":
+			module.heat_idle = 3; module.heat_active = 3
+		"gpu_v2":
+			module.heat_idle = 4; module.heat_active = 4
+		"gpu_v3":
+			module.heat_idle = 5; module.heat_active = 5
+		"memory_v1", "memory_v2", "memory_v3":
+			module.heat_idle = 2; module.heat_active = 2
+		"hard_drive_v1", "hard_drive_v2", "hard_drive_v3":
+			module.heat_idle = 3; module.heat_active = 3
 		"power_block_v1":
-			module.heat_idle = 3
-			module.heat_active = 5
-		"int_interface_v1", "ext_interface_internal_v1":
-			module.heat_idle = 1
-			module.heat_active = 1
+			module.heat_idle = 3; module.heat_active = 3
+		"capacitor_bank_v1":
+			module.heat_idle = 3; module.heat_active = 3
+		"internal_interface_v1", "external_interface_v1":
+			module.heat_idle = 1; module.heat_active = 1
 		"cooler_v1":
 			module.cooling_power = 2
 			module.cooling_type = "air"
 			module.requires_air_intake = true
 		"radiator_v1":
-			module.cooling_power = 2
+			module.cooling_power = 1
 			module.cooling_type = "passive"
 		"water_tube_v1":
 			module.cooling_power = 2
 			module.cooling_type = "liquid"
 			module.is_non_volume_cooling_path = true
 		"air_duct_v1":
-			module.cooling_power = 0
+			module.cooling_power = 1
 			module.cooling_type = "duct"
 			module.requires_air_intake = true
 			module.is_non_volume_cooling_path = true
@@ -4057,10 +4137,10 @@ func apply_damage_metadata(module: BipobModule) -> void:
 		"power_block_v1":
 			module.repair_complexity = 3
 			module.repair_category = "power"
-		"battery_v1_a", "battery_v1_b", "battery_v2", "battery_v3":
+		"battery_v1", "battery_v2", "battery_v3":
 			module.repair_complexity = 2
 			module.repair_category = "power"
-		"int_interface_v1", "ext_interface_internal_v1", "interface_v1":
+		"internal_interface_v1", "external_interface_v1", "interface_v1":
 			module.repair_complexity = 2
 			module.repair_category = "interface"
 		"cooler_v1":
@@ -4247,8 +4327,8 @@ func get_module_description_for_id(module_id: String) -> String:
 			return "External interface port for connecting external devices to the internal bridge."
 		"air_intake_v1":
 			return "External air intake required by internal air cooling modules."
-		"battery_v1_a", "battery_v1_b":
-			return "Internal power source."
+		"battery_v1":
+			return "Stores robot energy."
 		"processor_v1":
 			return "Internal processing module. Generates more heat under heavy load."
 		"processor_v2":
@@ -4273,10 +4353,10 @@ func get_module_description_for_id(module_id: String) -> String:
 			return "Internal high-capacity power source."
 		"power_block_v1":
 			return "Distributes power from batteries to devices. Generates more heat under heavy tool load."
-		"int_interface_v1":
-			return "Internal data network interface."
-		"ext_interface_internal_v1":
-			return "Internal bridge for external devices."
+		"internal_interface_v1":
+			return "Internal data network."
+		"external_interface_v1":
+			return "Bridge between internal systems and external modules."
 		"cooler_v1":
 			return "Air cooling module. Requires an external Air Intake Node."
 		"radiator_v1":
@@ -4290,26 +4370,36 @@ func get_module_description_for_id(module_id: String) -> String:
 
 func add_internal_mvp_modules_to_box() -> void:
 	var internal_specs: Array[Dictionary] = [
-		{"id": "battery_v1_a", "name": "Battery V1 A", "size": Vector3i(2, 2, 1)},
-		{"id": "battery_v1_b", "name": "Battery V1 B", "size": Vector3i(2, 2, 1)},
+		{"id": "battery_v1", "name": "Battery V1", "size": Vector3i(2, 2, 1)},
+		{"id": "power_block_v1", "name": "Power Block V1", "size": Vector3i(1, 2, 2)},
 		{"id": "battery_v2", "name": "Battery V2", "size": Vector3i(2, 2, 1)},
 		{"id": "battery_v3", "name": "Battery V3", "size": Vector3i(2, 2, 1)},
-		{"id": "processor_v1", "name": "CPU V1", "size": Vector3i(1, 1, 1)},
+		{"id": "capacitor_bank_v1", "name": "Capacitor Bank V1", "size": Vector3i(1, 1, 1)},
+		{"id": "processor_v1", "name": "Processor V1", "size": Vector3i(1, 1, 1)},
 		{"id": "processor_v2", "name": "CPU V2", "size": Vector3i(1, 1, 1)},
 		{"id": "processor_v3", "name": "CPU V3", "size": Vector3i(1, 1, 1)},
-		{"id": "ext_interface_internal_v1", "name": "External Interface Bridge V1", "size": Vector3i(2, 2, 1)},
-		{"id": "int_interface_v1", "name": "Internal Interface V1", "size": Vector3i(1, 1, 1)},
-		{"id": "memory_v1", "name": "RAM V1", "size": Vector3i(1, 1, 2)},
+		{"id": "gpu_v1", "name": "GPU V1", "size": Vector3i(1, 1, 1)},
+		{"id": "gpu_v2", "name": "GPU V2", "size": Vector3i(1, 1, 1)},
+		{"id": "gpu_v3", "name": "GPU V3", "size": Vector3i(1, 1, 1)},
+		{"id": "memory_v1", "name": "Memory V1", "size": Vector3i(1, 1, 2)},
 		{"id": "memory_v2", "name": "RAM V2", "size": Vector3i(1, 1, 2)},
 		{"id": "memory_v3", "name": "RAM V3", "size": Vector3i(1, 1, 2)},
-		{"id": "power_block_v1", "name": "Power Block V1", "size": Vector3i(1, 2, 2)},
-		{"id": "hard_drive_v1", "name": "HDD V1", "size": Vector3i(2, 2, 1)},
+		{"id": "hard_drive_v1", "name": "Hard Drive V1", "size": Vector3i(2, 2, 1)},
 		{"id": "hard_drive_v2", "name": "HDD V2", "size": Vector3i(2, 2, 1)},
 		{"id": "hard_drive_v3", "name": "HDD V3", "size": Vector3i(2, 2, 1)},
+		{"id": "internal_interface_v1", "name": "Internal Interface V1", "size": Vector3i(1, 1, 1)},
+		{"id": "external_interface_v1", "name": "External Interface V1", "size": Vector3i(2, 2, 1)},
 		{"id": "cooler_v1", "name": "Cooler V1", "size": Vector3i(1, 1, 1)},
 		{"id": "radiator_v1", "name": "Radiator V1", "size": Vector3i(1, 1, 1)},
-		{"id": "water_tube_v1", "name": "Water Tube V1", "size": Vector3i(1, 1, 1)},
-		{"id": "air_duct_v1", "name": "Air Duct V1", "size": Vector3i(1, 1, 1)},
+		{"id": "water_tube_v1", "name": "Water Tube V1", "size": Vector3i(0, 0, 0)},
+		{"id": "air_duct_v1", "name": "Air Duct V1", "size": Vector3i(0, 0, 0)},
+		{"id": "targeting_computer_v1", "name": "Targeting Computer V1", "size": Vector3i(1, 1, 1)},
+		{"id": "encryption_module_v1", "name": "Encryption Module V1", "size": Vector3i(1, 1, 1)},
+		{"id": "motor_controller_v1", "name": "Motor Controller V1", "size": Vector3i(1, 1, 1)},
+		{"id": "weapon_controller_v1", "name": "Weapon Controller V1", "size": Vector3i(1, 1, 1)},
+		{"id": "firewall_module_v1", "name": "Firewall Module V1", "size": Vector3i(1, 1, 1)},
+		{"id": "auto_repair_unit_v1", "name": "Auto Repair Unit V1", "size": Vector3i(1, 1, 1)},
+		{"id": "sample_analyzer_v1", "name": "Sample Analyzer V1", "size": Vector3i(1, 1, 1)}
 	]
 	for spec in internal_specs:
 		var module_id := String(spec.get("id", ""))
