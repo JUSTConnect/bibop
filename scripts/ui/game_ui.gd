@@ -2471,19 +2471,18 @@ func _create_external_visual_workspace() -> Control:
 	left_info.size_flags_vertical = Control.SIZE_SHRINK_BEGIN
 	top_row.add_child(left_info)
 
-	var up_slot: VBoxContainer = VBoxContainer.new()
-	up_slot.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-	up_slot.size_flags_vertical = Control.SIZE_EXPAND_FILL
-
+	var up_wrap: VBoxContainer = VBoxContainer.new()
+	up_wrap.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	up_wrap.size_flags_vertical = Control.SIZE_EXPAND_FILL
+	up_wrap.alignment = BoxContainer.ALIGNMENT_END
 	var up_spacer: Control = Control.new()
 	up_spacer.size_flags_vertical = Control.SIZE_EXPAND_FILL
-	up_slot.add_child(up_spacer)
-
+	up_wrap.add_child(up_spacer)
 	var up_grid: Control = _create_external_side_grid("top")
 	up_grid.size_flags_horizontal = Control.SIZE_SHRINK_CENTER
 	up_grid.size_flags_vertical = Control.SIZE_SHRINK_END
-	up_slot.add_child(up_grid)
-	top_row.add_child(up_slot)
+	up_wrap.add_child(up_grid)
+	top_row.add_child(up_wrap)
 
 	var right_info: Control = _create_external_warning_panel()
 	right_info.custom_minimum_size = Vector2(240, 110)
