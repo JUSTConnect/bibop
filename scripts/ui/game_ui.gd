@@ -3430,16 +3430,12 @@ func _create_selected_module_info_panel(module: BipobModule, context: String) ->
 	right.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	right.add_theme_constant_override("separation", 2)
 	var c_title := Label.new(); c_title.text = "Characteristics"; _apply_label_style(c_title, false, true); right.add_child(c_title)
-	var chars := _get_module_characteristics_lines(module, context)
-	if chars.is_empty():
-		chars.append("—")
-	for line in chars:
-		var characteristic_label := Label.new()
-		characteristic_label.text = String(line)
-		characteristic_label.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
-		characteristic_label.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-		_apply_label_style(characteristic_label, true, false)
-		right.add_child(characteristic_label)
+	var characteristic_placeholder_label := Label.new()
+	characteristic_placeholder_label.text = "Characteristics will be added later."
+	characteristic_placeholder_label.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	characteristic_placeholder_label.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	_apply_label_style(characteristic_placeholder_label, true, false)
+	right.add_child(characteristic_placeholder_label)
 	var d_title := Label.new(); d_title.text = "Description"; _apply_label_style(d_title, false, true); right.add_child(d_title)
 	var description_text := module.description.strip_edges()
 	if description_text.is_empty():
