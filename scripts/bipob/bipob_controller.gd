@@ -537,15 +537,15 @@ func get_module_category(module: BipobModule) -> String:
 			return "data"
 		"air_intake_v1":
 			return "cooling"
-		"battery_v1_a", "battery_v1_b":
+		"battery_v1_a", "battery_v1_b", "battery_v2", "battery_v3":
 			return "power"
 		"power_block_v1":
 			return "power"
-		"processor_v1":
+		"processor_v1", "processor_v2", "processor_v3":
 			return "data"
-		"memory_v1":
+		"memory_v1", "memory_v2", "memory_v3":
 			return "data"
-		"hard_drive_v1":
+		"hard_drive_v1", "hard_drive_v2", "hard_drive_v3":
 			return "storage"
 		"int_interface_v1", "ext_interface_internal_v1":
 			return "data"
@@ -3939,14 +3939,64 @@ func create_internal_module(module_id: String, module_name: String, module_size:
 	module.size_z = module_size.z
 	module.internal_rotatable = true
 	module.internal_role = get_internal_role_for_module_id(module_id)
+	module.internal_family = get_internal_family_for_module_id(module_id)
+	module.module_version = get_module_version_for_module_id(module_id)
+	module.battery_capacity = get_internal_battery_capacity(module_id)
+	module.storage_capacity = get_internal_storage_capacity(module_id)
+	module.actions_capacity = get_internal_actions_capacity(module_id)
+	module.hack_level = get_internal_hack_level(module_id)
 	module.category = get_module_category(module)
 	apply_thermal_metadata(module)
 	apply_damage_metadata(module)
 	return module
 
+func get_internal_family_for_module_id(module_id: String) -> String:
+	if module_id.begins_with("processor_"):
+		return "cpu"
+	if module_id.begins_with("memory_"):
+		return "ram"
+	if module_id.begins_with("hard_drive_"):
+		return "storage"
+	if module_id.begins_with("battery_"):
+		return "battery"
+	if module_id.begins_with("cooler_") or module_id.begins_with("radiator_") or module_id.begins_with("water_tube_") or module_id.begins_with("air_duct_"):
+		return "cooling"
+	return "none"
+
+func get_module_version_for_module_id(module_id: String) -> int:
+	if module_id.contains("_v3"):
+		return 3
+	if module_id.contains("_v2"):
+		return 2
+	return 1
+
+func get_internal_battery_capacity(module_id: String) -> int:
+	if not module_id.begins_with("battery_"):
+		return 0
+	match get_module_version_for_module_id(module_id):
+		1: return 30
+		2: return 40
+		3: return 50
+		_: return 0
+
+func get_internal_storage_capacity(module_id: String) -> int:
+	if not module_id.begins_with("hard_drive_"):
+		return 0
+	return clampi(get_module_version_for_module_id(module_id), 1, 3)
+
+func get_internal_actions_capacity(module_id: String) -> int:
+	if not module_id.begins_with("memory_"):
+		return 0
+	return clampi(get_module_version_for_module_id(module_id), 1, 3) * 5
+
+func get_internal_hack_level(module_id: String) -> int:
+	if not module_id.begins_with("processor_"):
+		return 0
+	return clampi(get_module_version_for_module_id(module_id), 1, 3)
+
 func get_internal_role_for_module_id(module_id: String) -> String:
 	match module_id:
-		"battery_v1_a", "battery_v1_b":
+		"battery_v1_a", "battery_v1_b", "battery_v2", "battery_v3":
 			return "battery"
 		"power_block_v1":
 			return "power_block"
@@ -3954,11 +4004,11 @@ func get_internal_role_for_module_id(module_id: String) -> String:
 			return "internal_interface"
 		"ext_interface_internal_v1":
 			return "external_interface"
-		"processor_v1":
+		"processor_v1", "processor_v2", "processor_v3":
 			return "processor"
-		"memory_v1":
+		"memory_v1", "memory_v2", "memory_v3":
 			return "memory"
-		"hard_drive_v1":
+		"hard_drive_v1", "hard_drive_v2", "hard_drive_v3":
 			return "storage"
 		"cooler_v1", "radiator_v1", "water_tube_v1", "air_duct_v1":
 			return "cooling"
@@ -3978,7 +4028,7 @@ func apply_thermal_metadata(module: BipobModule) -> void:
 		"battery_v1_a", "battery_v1_b":
 			module.heat_idle = 1
 			module.heat_active = 1
-		"processor_v1":
+		"processor_v1", "processor_v2", "processor_v3":
 			module.heat_idle = 3
 			module.heat_active = 5
 		"memory_v1":
@@ -4024,13 +4074,13 @@ func apply_damage_metadata(module: BipobModule) -> void:
 		"processor_v1":
 			module.repair_complexity = 3
 			module.repair_category = "electronics"
-		"memory_v1", "hard_drive_v1", "visor_v1", "visor_v2":
+		"memory_v1", "memory_v2", "memory_v3", "hard_drive_v1", "hard_drive_v2", "hard_drive_v3", "visor_v1", "visor_v2":
 			module.repair_complexity = 2
 			module.repair_category = "electronics"
 		"power_block_v1":
 			module.repair_complexity = 3
 			module.repair_category = "power"
-		"battery_v1_a", "battery_v1_b":
+		"battery_v1_a", "battery_v1_b", "battery_v2", "battery_v3":
 			module.repair_complexity = 2
 			module.repair_category = "power"
 		"int_interface_v1", "ext_interface_internal_v1", "interface_v1":
@@ -4224,10 +4274,26 @@ func get_module_description_for_id(module_id: String) -> String:
 			return "Internal power source."
 		"processor_v1":
 			return "Internal processing module. Generates more heat under heavy load."
+		"processor_v2":
+			return "CPU V2 internal processing module. Higher hack performance with moderate heat."
+		"processor_v3":
+			return "CPU V3 internal processing module. Maximum hack performance with high heat risk."
 		"memory_v1":
 			return "Internal memory module."
+		"memory_v2":
+			return "RAM V2 internal memory module with improved action throughput."
+		"memory_v3":
+			return "RAM V3 internal memory module with maximum action throughput."
 		"hard_drive_v1":
 			return "Internal storage module."
+		"hard_drive_v2":
+			return "HDD V2 internal storage module with increased capacity."
+		"hard_drive_v3":
+			return "HDD V3 internal storage module with maximum capacity."
+		"battery_v2":
+			return "Internal power source with increased capacity."
+		"battery_v3":
+			return "Internal high-capacity power source."
 		"power_block_v1":
 			return "Distributes power from batteries to devices. Generates more heat under heavy tool load."
 		"int_interface_v1":
@@ -4249,12 +4315,20 @@ func add_internal_mvp_modules_to_box() -> void:
 	var internal_specs: Array[Dictionary] = [
 		{"id": "battery_v1_a", "name": "Battery V1 A", "size": Vector3i(2, 2, 1)},
 		{"id": "battery_v1_b", "name": "Battery V1 B", "size": Vector3i(2, 2, 1)},
-		{"id": "processor_v1", "name": "Processor V1", "size": Vector3i(1, 1, 1)},
+		{"id": "battery_v2", "name": "Battery V2", "size": Vector3i(2, 2, 1)},
+		{"id": "battery_v3", "name": "Battery V3", "size": Vector3i(2, 2, 1)},
+		{"id": "processor_v1", "name": "CPU V1", "size": Vector3i(1, 1, 1)},
+		{"id": "processor_v2", "name": "CPU V2", "size": Vector3i(1, 1, 1)},
+		{"id": "processor_v3", "name": "CPU V3", "size": Vector3i(1, 1, 1)},
 		{"id": "ext_interface_internal_v1", "name": "External Interface Bridge V1", "size": Vector3i(2, 2, 1)},
 		{"id": "int_interface_v1", "name": "Internal Interface V1", "size": Vector3i(1, 1, 1)},
-		{"id": "memory_v1", "name": "Memory V1", "size": Vector3i(1, 1, 2)},
+		{"id": "memory_v1", "name": "RAM V1", "size": Vector3i(1, 1, 2)},
+		{"id": "memory_v2", "name": "RAM V2", "size": Vector3i(1, 1, 2)},
+		{"id": "memory_v3", "name": "RAM V3", "size": Vector3i(1, 1, 2)},
 		{"id": "power_block_v1", "name": "Power Block V1", "size": Vector3i(1, 2, 2)},
-		{"id": "hard_drive_v1", "name": "Hard Drive V1", "size": Vector3i(2, 2, 1)},
+		{"id": "hard_drive_v1", "name": "HDD V1", "size": Vector3i(2, 2, 1)},
+		{"id": "hard_drive_v2", "name": "HDD V2", "size": Vector3i(2, 2, 1)},
+		{"id": "hard_drive_v3", "name": "HDD V3", "size": Vector3i(2, 2, 1)},
 		{"id": "cooler_v1", "name": "Cooler V1", "size": Vector3i(1, 1, 1)},
 		{"id": "radiator_v1", "name": "Radiator V1", "size": Vector3i(1, 1, 1)},
 		{"id": "water_tube_v1", "name": "Water Tube V1", "size": Vector3i(1, 1, 1)},

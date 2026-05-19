@@ -18,6 +18,12 @@ class_name BipobModule
 @export var size_z: int = 1
 @export var internal_rotatable: bool = true
 @export var internal_role: String = "none"
+@export var internal_family: String = "none"
+@export var module_version: int = 1
+@export var battery_capacity: int = 0
+@export var storage_capacity: int = 0
+@export var actions_capacity: int = 0
+@export var hack_level: int = 0
 
 @export var heat_idle: int = 0
 @export var heat_active: int = 0
