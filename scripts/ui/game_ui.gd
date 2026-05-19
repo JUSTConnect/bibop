@@ -3420,7 +3420,7 @@ func _create_selected_module_info_panel(module: BipobModule, context: String) ->
 	previews.add_child(_create_module_icon_control(module, SELECTED_MODULE_ICON_SIZE))
 	previews.add_child(_create_selected_module_size_preview(module, context))
 	left.add_child(previews)
-	var name_label := Label.new(); name_label.text = bipob.get_module_display_name(module); _apply_label_style(name_label); left.add_child(name_label)
+	var name_label := Label.new(); name_label.text = _get_module_title_for_selected_info(module); _apply_label_style(name_label); left.add_child(name_label)
 	var type_label := Label.new(); type_label.text = "Type: %s" % String(bipob.get_module_category(module)).capitalize(); _apply_label_style(type_label, true, false); left.add_child(type_label)
 	var version_label := Label.new(); version_label.text = "Version: V%d" % maxi(1, int(module.module_version)); _apply_label_style(version_label, true, false); left.add_child(version_label)
 	var install_text := _get_module_install_text(module)
@@ -3455,6 +3455,20 @@ func _create_selected_module_info_panel(module: BipobModule, context: String) ->
 	info_root.add_child(right)
 	panel.add_child(info_root)
 	return panel
+
+func _get_module_title_for_selected_info(module: BipobModule) -> String:
+	if module == null:
+		return ""
+
+	var title: String = module.get_display_name()
+	var version_text: String = module.version.strip_edges()
+
+	if not version_text.is_empty():
+		var suffix: String = " " + version_text
+		if title.ends_with(suffix):
+			title = title.substr(0, title.length() - suffix.length())
+
+	return title
 
 func _create_internal_bottom_action_bar() -> Control:
 	var panel: PanelContainer = PanelContainer.new()
