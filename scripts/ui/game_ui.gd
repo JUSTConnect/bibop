@@ -6874,20 +6874,27 @@ func _create_internal_visual_workspace() -> Control:
 	root.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	root.size_flags_vertical = Control.SIZE_EXPAND_FILL
 	root.add_child(_create_internal_summary_warnings_row())
-	var middle_row: HBoxContainer = HBoxContainer.new()
-	middle_row.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-	middle_row.alignment = BoxContainer.ALIGNMENT_CENTER
-	middle_row.add_theme_constant_override("separation", 4)
-	middle_row.add_child(_create_internal_slice_grid("VERTICAL SLICE", "y", "z", "x", bipob.selected_internal_origin.x))
-	middle_row.add_child(_create_internal_volume_placeholder_panel())
-	middle_row.add_child(_create_internal_slice_grid("MAIN SLICE", "x", "z", "y", bipob.selected_internal_origin.y))
-	root.add_child(middle_row)
-	var bottom_row: HBoxContainer = HBoxContainer.new()
-	bottom_row.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-	bottom_row.alignment = BoxContainer.ALIGNMENT_CENTER
-	bottom_row.add_theme_constant_override("separation", 4)
-	bottom_row.add_child(_create_internal_slice_grid("HORIZONTAL SLICE", "x", "y", "z", bipob.selected_internal_origin.z))
-	root.add_child(bottom_row)
+	var constructor_row: HBoxContainer = HBoxContainer.new()
+	constructor_row.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	constructor_row.size_flags_vertical = Control.SIZE_EXPAND_FILL
+	constructor_row.alignment = BoxContainer.ALIGNMENT_CENTER
+	constructor_row.add_theme_constant_override("separation", 6)
+
+	var left_column: VBoxContainer = VBoxContainer.new()
+	left_column.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	left_column.size_flags_vertical = Control.SIZE_EXPAND_FILL
+	left_column.size_flags_stretch_ratio = 1.0
+	left_column.add_theme_constant_override("separation", 4)
+	left_column.add_child(_create_internal_slice_grid("VERTICAL SLICE", "y", "z", "x", bipob.selected_internal_origin.x))
+	left_column.add_child(_create_internal_slice_grid("HORIZONTAL SLICE", "x", "y", "z", bipob.selected_internal_origin.z))
+	constructor_row.add_child(left_column)
+
+	var volume_preview: Control = _create_internal_volume_placeholder_panel()
+	volume_preview.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	volume_preview.size_flags_vertical = Control.SIZE_EXPAND_FILL
+	volume_preview.size_flags_stretch_ratio = 1.0
+	constructor_row.add_child(volume_preview)
+	root.add_child(constructor_row)
 	workspace.add_child(root)
 	return workspace
 
@@ -7260,7 +7267,7 @@ func get_box_internal_menu_text() -> String:
 	lines.append("BOTTOM BAR: Constructor Status | Selected Module")
 	lines.append("")
 	lines.append("INTERNAL MODULES")
-	lines.append("VERTICAL SLICE | INTERNAL VOLUME | HORIZONTAL SLICE")
+	lines.append("VERTICAL SLICE | HORIZONTAL SLICE | INTERNAL VOLUME")
 	lines.append("LEGEND: Power Channels / Cooling Channels / Data Buses / Empty Cell")
 	lines.append("CONNECTIONS: POWER, NETWORK / DATA, COOLING")
 	lines.append("")
