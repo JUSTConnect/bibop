@@ -6833,19 +6833,22 @@ func _create_internal_info_line(label_text: String, value_text: String) -> Contr
 func _create_internal_missing_required_panel() -> Control:
 	var panel: PanelContainer = PanelContainer.new()
 	_apply_dark_panel_style(panel)
-	panel.custom_minimum_size = Vector2(180, 74)
+	panel.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	panel.size_flags_vertical = Control.SIZE_SHRINK_BEGIN
+	panel.custom_minimum_size = Vector2(180, 110)
 	var root: VBoxContainer = VBoxContainer.new()
-	root.add_theme_constant_override("separation", 2)
+	root.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	root.size_flags_vertical = Control.SIZE_EXPAND_FILL
 	var warnings: Array[String] = _build_internal_missing_required_warnings()
-	if warnings.is_empty():
-		root.add_child(_create_internal_info_line("No warnings", "none"))
-	else:
-		for warning_text in warnings:
-			var warning_label: Label = Label.new()
-			warning_label.text = "- %s" % warning_text
-			_apply_label_style(warning_label, true, false)
-			warning_label.add_theme_color_override("font_color", UI_COLOR_DANGER)
-			root.add_child(warning_label)
+	var warning_label: Label = Label.new()
+	warning_label.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	warning_label.size_flags_vertical = Control.SIZE_EXPAND_FILL
+	warning_label.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	warning_label.clip_text = true
+	warning_label.text = " ".join(warnings)
+	_apply_label_style(warning_label, true, false)
+	warning_label.add_theme_color_override("font_color", UI_COLOR_DANGER)
+	root.add_child(warning_label)
 	panel.add_child(root)
 	return panel
 
@@ -6921,15 +6924,15 @@ func _build_internal_missing_required_warnings() -> Array[String]:
 		if not family_id.is_empty():
 			family_set[family_id] = true
 	if not family_set.has("cpu"):
-		warnings.append("Missing CPU")
+		warnings.append("CPU")
 	if not family_set.has("ram"):
-		warnings.append("Missing RAM")
+		warnings.append("RAM")
 	if not family_set.has("battery"):
-		warnings.append("Missing Battery")
+		warnings.append("Battery")
 	if not family_set.has("storage"):
-		warnings.append("Missing Storage")
+		warnings.append("Storage")
 	if not family_set.has("cooling"):
-		warnings.append("Missing Cooling")
+		warnings.append("Cooling")
 	return warnings
 
 
