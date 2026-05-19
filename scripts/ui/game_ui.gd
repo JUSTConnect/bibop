@@ -2189,7 +2189,8 @@ func _make_external_cell_style(
 	module: BipobModule,
 	selected: bool,
 	preview: bool,
-	invalid_preview: bool
+	invalid_preview: bool,
+	reserved_for_pocket: bool
 ) -> StyleBoxFlat:
 	var bg_color: Color = Color(0.035, 0.050, 0.060, 1.0)
 	var border_color: Color = UI_COLOR_BORDER_DIM
@@ -2201,6 +2202,10 @@ func _make_external_cell_style(
 			border_color = module_color
 		else:
 			bg_color = Color(0.120, 0.160, 0.180, 1.0)
+
+	if reserved_for_pocket and module == null:
+		bg_color = Color(0.110, 0.090, 0.180, 1.0)
+		border_color = Color(0.640, 0.480, 0.900, 0.95)
 
 	if preview:
 		bg_color = Color(0.100, 0.230, 0.130, 1.0)
@@ -2222,6 +2227,7 @@ func _apply_external_cell_visual(
 	selected: bool,
 	preview: bool,
 	invalid_preview: bool,
+	reserved_for_pocket: bool,
 	cell_size: Vector2
 ) -> void:
 	if cell == null:
@@ -2235,10 +2241,13 @@ func _apply_external_cell_visual(
 	cell.text_overrun_behavior = TextServer.OVERRUN_TRIM_ELLIPSIS
 	cell.autowrap_mode = TextServer.AUTOWRAP_OFF
 	cell.add_theme_font_size_override("font_size", 11 if cell_size.x >= CONSTRUCTOR_SMALL_LABEL_CELL_SIZE else 8)
-	cell.text = _get_external_cell_label(module) if cell_size.x >= CONSTRUCTOR_SMALL_LABEL_CELL_SIZE else ""
+	if reserved_for_pocket and module == null:
+		cell.text = "P"
+	else:
+		cell.text = _get_external_cell_label(module) if cell_size.x >= CONSTRUCTOR_SMALL_LABEL_CELL_SIZE else ""
 	cell.add_theme_color_override("font_color", UI_COLOR_TEXT)
 
-	var style: StyleBoxFlat = _make_external_cell_style(module, selected, preview, invalid_preview)
+	var style: StyleBoxFlat = _make_external_cell_style(module, selected, preview, invalid_preview, reserved_for_pocket)
 	cell.add_theme_stylebox_override("normal", style)
 	cell.add_theme_stylebox_override("hover", style)
 	cell.add_theme_stylebox_override("pressed", style)
@@ -2298,11 +2307,25 @@ func _create_external_side_grid(side_id: String) -> Control:
 	var root: VBoxContainer = VBoxContainer.new()
 	root.add_theme_constant_override("separation", 4)
 
+	var header: HBoxContainer = HBoxContainer.new()
+	header.add_theme_constant_override("separation", 4)
 	var title: Label = Label.new()
 	title.text = _get_external_side_display_name(side_id)
 	title.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	_apply_label_style(title, false, true)
-	root.add_child(title)
+	header.add_child(title)
+	if side_id in ["front", "back", "left", "right"] and bipob.has_method("get_max_pockets_per_side"):
+		for pocket_index in range(bipob.get_max_pockets_per_side()):
+			var pocket_button: Button = Button.new()
+			pocket_button.custom_minimum_size = Vector2(20, 18)
+			var enabled: bool = bipob.is_external_pocket_enabled(side_id, pocket_index) if bipob.has_method("is_external_pocket_enabled") else false
+			pocket_button.text = "-" if enabled else "P"
+			pocket_button.pressed.connect(func() -> void:
+				bipob.toggle_external_pocket(side_id, pocket_index)
+				update_box_status()
+			)
+			header.add_child(pocket_button)
+	root.add_child(header)
 
 	var side_size: Vector2i = bipob.get_external_side_size(side_id)
 	var preview_cells: Dictionary = _get_external_preview_cells_for_side(side_id)
@@ -2320,6 +2343,7 @@ func _create_external_side_grid(side_id: String) -> Control:
 			var cell: Vector2i = Vector2i(x, y)
 			var key: String = bipob.get_external_slot_key(side_id, cell)
 			var module: BipobModule = bipob.get_external_module_at(side_id, cell)
+			var reserved_for_pocket: bool = bipob.is_external_cell_reserved_for_pocket(side_id, cell) if bipob.has_method("is_external_cell_reserved_for_pocket") else false
 
 			var selected: bool = side_id == selected_side_id and cell == selected_external_slot_position
 
@@ -2331,7 +2355,7 @@ func _create_external_side_grid(side_id: String) -> Control:
 				invalid_preview = not can_place_preview
 
 			var cell_button: Button = Button.new()
-			_apply_external_cell_visual(cell_button, module, selected, preview, invalid_preview, cell_size)
+			_apply_external_cell_visual(cell_button, module, selected, preview, invalid_preview, reserved_for_pocket, cell_size)
 			cell_button.pressed.connect(func() -> void:
 				_on_external_visual_cell_pressed(side_id, cell)
 			)
@@ -2432,10 +2456,7 @@ func _create_external_visual_workspace() -> Control:
 	top_row.size_flags_vertical = Control.SIZE_SHRINK_BEGIN
 	top_row.add_theme_constant_override("separation", 10)
 
-	var left_info: Control = _create_external_info_stub_panel(
-		"Info",
-		"Body: %s" % _get_constructor_body_summary()
-	)
+	var left_info: Control = _create_external_info_stub_panel("Body Stats", _get_external_left_info_text())
 	left_info.custom_minimum_size = Vector2(150, 96)
 	left_info.size_flags_horizontal = Control.SIZE_SHRINK_BEGIN
 	left_info.size_flags_vertical = Control.SIZE_SHRINK_BEGIN
@@ -2451,10 +2472,7 @@ func _create_external_visual_workspace() -> Control:
 	up_wrap.add_child(up_grid)
 	top_row.add_child(up_wrap)
 
-	var right_info: Control = _create_external_info_stub_panel(
-		"Info",
-		"Installed external module overview."
-	)
+	var right_info: Control = _create_external_warning_panel()
 	right_info.custom_minimum_size = Vector2(150, 96)
 	right_info.size_flags_horizontal = Control.SIZE_SHRINK_BEGIN
 	right_info.size_flags_vertical = Control.SIZE_SHRINK_BEGIN
@@ -2542,6 +2560,34 @@ func _get_constructor_profile_name(profile_id: String = "") -> String:
 func _get_constructor_body_summary(profile_id: String = "") -> String:
 	var body_size: Vector3i = _get_constructor_profile_size(profile_id)
 	return "%s %dx%dx%d" % [_get_constructor_profile_name(profile_id), body_size.x, body_size.y, body_size.z]
+
+func _get_external_installed_unique_modules() -> Array[BipobModule]:
+	if bipob == null or not bipob.has_method("get_unique_external_modules"):
+		return []
+	return bipob.get_unique_external_modules()
+
+func _does_external_module_deal_damage(module: BipobModule) -> bool:
+	return _get_external_module_damage_value(module) > 0
+
+func _get_external_module_damage_value(module: BipobModule) -> int:
+	if module == null:
+		return 0
+	var text: String = ("%s %s" % [module.id, module.display_name]).to_lower()
+	if text.contains("laser"):
+		return 1
+	if text.contains("hammer") or text.contains("sledgehammer"):
+		return 1
+	return 0
+
+func _get_external_module_damage_type(module: BipobModule) -> String:
+	if module == null:
+		return ""
+	var text: String = ("%s %s" % [module.id, module.display_name]).to_lower()
+	if text.contains("laser"):
+		return "ranged"
+	if text.contains("hammer") or text.contains("sledgehammer"):
+		return "melee"
+	return ""
 
 
 func _apply_constructor_profile_dimensions(profile_id: String) -> void:
@@ -2725,6 +2771,60 @@ func _create_external_info_stub_panel(title_text: String, body_text: String) -> 
 	panel.add_child(root)
 	return panel
 
+func _get_external_build_warnings() -> Array[String]:
+	var warnings: Array[String] = []
+	var modules: Array[BipobModule] = _get_external_installed_unique_modules()
+	var has_gear: bool = false
+	var has_visor: bool = false
+	var has_manipulator: bool = false
+	for module in modules:
+		if module == null:
+			continue
+		var text: String = ("%s %s %s" % [module.id, module.display_name, module.category]).to_lower()
+		if text.contains("wheel") or text.contains("track") or text.contains("leg") or text.contains("chassis") or text.contains("gear"):
+			has_gear = true
+		if text.contains("visor") or text.contains("radar"):
+			has_visor = true
+		if text.contains("manipulator"):
+			has_manipulator = true
+		for key in ["is_broken", "broken", "is_damaged", "damaged"]:
+			if module.get(key) != null and bool(module.get(key)):
+				warnings.append("Damaged: %s" % bipob.get_module_display_name(module))
+				break
+	if not has_gear:
+		warnings.append("Missing gear")
+	if not has_visor:
+		warnings.append("Missing visor")
+	if not has_manipulator:
+		warnings.append("Missing manipulator")
+	return warnings
+
+func _create_external_warning_panel() -> Control:
+	var panel: PanelContainer = PanelContainer.new()
+	_apply_dark_panel_style(panel)
+	panel.custom_minimum_size = Vector2(150, 60)
+	var root: VBoxContainer = VBoxContainer.new()
+	root.add_theme_constant_override("separation", 4)
+	var title: Label = Label.new()
+	title.text = "Warnings"
+	_apply_label_style(title, false, true)
+	root.add_child(title)
+	var warnings: Array[String] = _get_external_build_warnings()
+	if warnings.is_empty():
+		var none_label: Label = Label.new()
+		none_label.text = "Warnings: none"
+		_apply_label_style(none_label, true, false)
+		root.add_child(none_label)
+	else:
+		for warning_line in warnings:
+			var warning_label: Label = Label.new()
+			warning_label.text = "- %s" % warning_line
+			_apply_label_style(warning_label, true, false)
+			warning_label.add_theme_color_override("font_color", UI_COLOR_DANGER)
+			root.add_child(warning_label)
+	panel.add_child(root)
+	return panel
+
 
 func _create_filter_dropdown_button(is_internal: bool) -> Control:
 	var option: OptionButton = OptionButton.new()
@@ -2775,6 +2875,39 @@ func _create_external_side_grid_workspace() -> Control:
 	root.add_child(bottom_row)
 
 	return root
+
+func _get_external_left_info_text() -> String:
+	var lines: Array[String] = []
+	lines.append("Body: %s" % _get_constructor_profile_name())
+	var armor_max: int = bipob.get_bipop_body_armor_max(active_bipob_profile_id) if bipob.has_method("get_bipop_body_armor_max") else 10
+	lines.append("Armor: %d / %d" % [armor_max, armor_max])
+	lines.append("Damage:")
+	var damage_rows: int = 0
+	for module in _get_external_installed_unique_modules():
+		if not _does_external_module_deal_damage(module):
+			continue
+		damage_rows += 1
+		lines.append("- %s: %d %s" % [bipob.get_module_display_name(module), _get_external_module_damage_value(module), _get_external_module_damage_type(module)])
+	if damage_rows == 0:
+		lines.append("- none")
+	var shield_installed: bool = false
+	for module in _get_external_installed_unique_modules():
+		if module != null and ("%s %s" % [module.id, module.display_name]).to_lower().contains("shield"):
+			shield_installed = true
+			break
+	var shield_current: int = bipob.energy if shield_installed else 0
+	var shield_max: int = bipob.max_energy if shield_installed else 0
+	lines.append("Energy Shield: %d / %d" % [shield_current, shield_max])
+	var used_pockets: int = 0
+	var max_pockets: int = 4
+	if bipob.has_method("get_max_pockets_per_side"):
+		max_pockets = bipob.get_max_pockets_per_side() * 4
+	for side_id in ["front", "back", "left", "right"]:
+		for pocket_index in range(3):
+			if bipob.has_method("is_external_pocket_enabled") and bipob.is_external_pocket_enabled(side_id, pocket_index):
+				used_pockets += 1
+	lines.append("Pocket: %d / %d" % [used_pockets, max_pockets])
+	return "\n".join(lines)
 
 
 func _create_external_storage_right_column() -> Control:
