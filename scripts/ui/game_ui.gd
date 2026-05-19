@@ -7074,7 +7074,7 @@ func _draw_internal_isometric_preview(control: Control) -> void:
 	var rect: Rect2 = control.get_rect()
 	if rect.size.x <= 8.0 or rect.size.y <= 8.0:
 		return
-	var origin: Vector2 = Vector2(rect.size.x * 0.5, rect.size.y * 0.82 - 10.0)
+	var origin: Vector2 = Vector2(rect.size.x * 0.5, rect.size.y * 0.82 - 22.0)
 	var cell_w: float = minf((rect.size.x - 26.0) / float(maxi(volume_size.x + volume_size.y, 1)) * 2.0, 30.0)
 	var cell_h: float = cell_w
 	var cell_z: float = minf((rect.size.y - 24.0) / float(maxi(volume_size.z, 1)), cell_w * 0.52)
@@ -7095,6 +7095,9 @@ func _internal_iso_project(origin: Vector2, p: Vector3, cell_w: float, cell_h: f
 	var screen_x: float = origin.x + (p.x - p.y) * cell_w * 0.5
 	var screen_y: float = origin.y + (p.x + p.y) * cell_h * 0.25 - p.z * cell_z
 	return Vector2(screen_x, screen_y)
+
+func _get_internal_iso_display_z(z: int, volume_size: Vector3i) -> int:
+	return (volume_size.z - 1) - z
 
 func _draw_internal_iso_grid_lines(control: Control, volume_size: Vector3i, origin: Vector2, cell_w: float, cell_h: float, cell_z: float, line_color: Color) -> void:
 	for x in range(volume_size.x + 1):
@@ -7183,15 +7186,18 @@ func _draw_internal_isometric_module_projections(control: Control, volume_size: 
 			min_x = mini(min_x, cell.x); max_x = maxi(max_x, cell.x)
 			min_y = mini(min_y, cell.y); max_y = maxi(max_y, cell.y)
 			min_z = mini(min_z, cell.z); max_z = maxi(max_z, cell.z)
+		var iso_min_z: int = _get_internal_iso_display_z(max_z, volume_size)
+		var iso_max_z_exclusive: int = _get_internal_iso_display_z(min_z, volume_size) + 1
 		var col: Color = bipob.get_module_visual_color(module) if bipob.has_method("get_module_visual_color") else Color(0.30, 0.60, 0.90, 1.0)
-		_draw_internal_iso_cuboid(control, origin, cell_w, cell_h, cell_z, Vector3(min_x, min_y, min_z), Vector3(max_x + 1, max_y + 1, max_z + 1), Color(col.r, col.g, col.b, 0.45), col)
+		_draw_internal_iso_cuboid(control, origin, cell_w, cell_h, cell_z, Vector3(min_x, min_y, iso_min_z), Vector3(max_x + 1, max_y + 1, iso_max_z_exclusive), Color(col.r, col.g, col.b, 0.45), col)
 
 func _draw_internal_isometric_cursor_projection(control: Control, volume_size: Vector3i, origin: Vector2, cell_w: float, cell_h: float, cell_z: float) -> void:
 	if bipob == null:
 		return
 	var c: Vector3i = bipob.selected_internal_origin
+	var iso_z: int = _get_internal_iso_display_z(c.z, volume_size)
 	var selected_outline: Color = Color(1.0, 0.90, 0.30, 0.85)
-	_draw_internal_iso_cuboid_edges(control, origin, cell_w, cell_h, cell_z, Vector3(c.x, c.y, c.z), Vector3(c.x + 1, c.y + 1, c.z + 1), selected_outline, 1.8)
+	_draw_internal_iso_cuboid_edges(control, origin, cell_w, cell_h, cell_z, Vector3(c.x, c.y, iso_z), Vector3(c.x + 1, c.y + 1, iso_z + 1), selected_outline, 1.8)
 
 func _draw_internal_iso_cuboid(control: Control, origin: Vector2, cell_w: float, cell_h: float, cell_z: float, min_cell: Vector3, max_cell: Vector3, fill_col: Color, edge_col: Color) -> void:
 	var corners: Dictionary = _internal_iso_cuboid_corners(origin, cell_w, cell_h, cell_z, min_cell, max_cell)
