@@ -2307,6 +2307,8 @@ func _on_external_visual_cell_pressed(side_id: String, cell: Vector2i) -> void:
 func _create_external_side_grid(side_id: String) -> Control:
 	var side_panel: PanelContainer = PanelContainer.new()
 	_apply_panel_style(side_panel)
+	side_panel.size_flags_horizontal = Control.SIZE_SHRINK_CENTER
+	side_panel.size_flags_vertical = Control.SIZE_SHRINK_CENTER
 
 	var root: VBoxContainer = VBoxContainer.new()
 	root.add_theme_constant_override("separation", 4)
@@ -2343,6 +2345,8 @@ func _create_external_side_grid(side_id: String) -> Control:
 
 	var grid: GridContainer = GridContainer.new()
 	grid.columns = side_size.x
+	grid.size_flags_horizontal = Control.SIZE_SHRINK_CENTER
+	grid.size_flags_vertical = Control.SIZE_SHRINK_CENTER
 	grid.add_theme_constant_override("h_separation", grid_gap)
 	grid.add_theme_constant_override("v_separation", grid_gap)
 
@@ -2440,6 +2444,7 @@ func _create_external_visual_workspace() -> Control:
 	_apply_panel_style(panel, true)
 	panel.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	panel.size_flags_vertical = Control.SIZE_EXPAND_FILL
+	panel.custom_minimum_size = Vector2(0, 0)
 
 	var margin: MarginContainer = MarginContainer.new()
 	margin.size_flags_horizontal = Control.SIZE_EXPAND_FILL
@@ -6638,6 +6643,8 @@ func _make_cell_from_slice_axes(axis_a: String, value_a: int, axis_b: String, va
 func _create_internal_slice_grid(title_text: String, axis_a: String, axis_b: String, fixed_axis: String, fixed_value: int) -> Control:
 	var panel: PanelContainer = PanelContainer.new()
 	_apply_panel_style(panel)
+	panel.size_flags_horizontal = Control.SIZE_SHRINK_CENTER
+	panel.size_flags_vertical = Control.SIZE_SHRINK_CENTER
 	var root: VBoxContainer = VBoxContainer.new()
 	root.add_theme_constant_override("separation", 4)
 	var title: Label = Label.new()
@@ -6653,6 +6660,8 @@ func _create_internal_slice_grid(title_text: String, axis_a: String, axis_b: Str
 	var grid_gap: int = _get_constructor_grid_gap(columns, rows)
 	var grid: GridContainer = GridContainer.new()
 	grid.columns = columns
+	grid.size_flags_horizontal = Control.SIZE_SHRINK_CENTER
+	grid.size_flags_vertical = Control.SIZE_SHRINK_CENTER
 	grid.add_theme_constant_override("h_separation", grid_gap)
 	grid.add_theme_constant_override("v_separation", grid_gap)
 	for b in range(rows):
@@ -6766,12 +6775,16 @@ func _create_internal_visual_workspace() -> Control:
 	_clamp_internal_selection()
 	var workspace: PanelContainer = PanelContainer.new()
 	_apply_panel_style(workspace, true)
+	workspace.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	workspace.size_flags_vertical = Control.SIZE_EXPAND_FILL
+	workspace.custom_minimum_size = Vector2(0, 0)
 	var root: VBoxContainer = VBoxContainer.new()
 	root.add_theme_constant_override("separation", 4)
 	root.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	root.size_flags_vertical = Control.SIZE_EXPAND_FILL
 	root.add_child(_create_internal_summary_warnings_row())
 	var middle_row: HBoxContainer = HBoxContainer.new()
+	middle_row.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	middle_row.alignment = BoxContainer.ALIGNMENT_CENTER
 	middle_row.add_theme_constant_override("separation", 4)
 	middle_row.add_child(_create_internal_slice_grid("VERTICAL SLICE", "y", "z", "x", bipob.selected_internal_origin.x))
@@ -6779,6 +6792,7 @@ func _create_internal_visual_workspace() -> Control:
 	middle_row.add_child(_create_internal_slice_grid("MAIN SLICE", "x", "z", "y", bipob.selected_internal_origin.y))
 	root.add_child(middle_row)
 	var bottom_row: HBoxContainer = HBoxContainer.new()
+	bottom_row.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	bottom_row.alignment = BoxContainer.ALIGNMENT_CENTER
 	bottom_row.add_theme_constant_override("separation", 4)
 	bottom_row.add_child(_create_internal_slice_grid("HORIZONTAL SLICE", "x", "y", "z", bipob.selected_internal_origin.z))
