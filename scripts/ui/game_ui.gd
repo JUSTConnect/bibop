@@ -3229,83 +3229,146 @@ func _create_selected_module_size_preview(module: BipobModule, context: String) 
 	return panel
 
 func _get_module_size_text(module: BipobModule) -> String:
-	return _get_selected_module_size_text(module)
-
-
-func _get_module_install_text(module: BipobModule, context: String) -> String:
 	if module == null:
 		return ""
-	var normalized: String = context.to_lower()
-	if bipob.is_external_module(module) or normalized == "external":
-		if bipob.has_method("get_allowed_external_sides_text"):
-			var sides_text: String = String(bipob.get_allowed_external_sides_text(module)).strip_edges()
-			if not sides_text.is_empty():
-				return sides_text
+
+	if module.placement_type == "external":
+		return "%dx%d" % [module.external_width, module.external_height]
+
+	if module.placement_type == "internal_overlay":
+		return "Overlay"
+
+	var size := module.get_internal_size()
+	if size == Vector3i.ZERO:
+		return "Overlay"
+
+	return "%dx%dx%d" % [size.x, size.y, size.z]
+
+
+func _format_external_sides_for_ui(sides: Array) -> String:
+	var normalized: Array = []
+	for side_variant in sides:
+		normalized.append(String(side_variant))
+
+	if normalized.is_empty():
 		return ""
-	if bipob.is_internal_module(module) or bipob.is_internal_overlay_module(module) or normalized == "internal":
-		var install_notes: String = String(module.get("install_notes") if module.get("install_notes") != null else "").strip_edges()
-		return install_notes
-	return ""
+
+	var has_top := "top" in normalized
+	var has_bottom := "bottom" in normalized
+	var has_left := "left" in normalized
+	var has_right := "right" in normalized
+	var has_front := "front" in normalized
+	var has_back := "back" in normalized
+
+	if has_top and has_bottom and has_left and has_right and has_front and has_back:
+		return "All"
+
+	if has_left and has_right and has_front and has_back and not has_top and not has_bottom:
+		return "Side/Front/Back"
+
+	if has_left and has_right and has_front and not has_back and not has_top and not has_bottom:
+		return "Side/Front"
+
+	if has_left and has_right and not has_front and not has_back and not has_top and not has_bottom:
+		return "Side"
+
+	var names: Array = []
+	if has_top:
+		names.append("Top")
+	if has_bottom:
+		names.append("Bottom")
+	if has_front:
+		names.append("Front")
+	if has_back:
+		names.append("Back")
+	if has_left or has_right:
+		names.append("Side")
+
+	return "/".join(names)
 
 
-func _get_module_characteristics_lines(module: BipobModule, context: String) -> Array:
+func _get_module_install_text(module: BipobModule) -> String:
+	if module == null:
+		return ""
+	if module.placement_type == "external":
+		var sides: Array = []
+		if bipob.has_method("get_allowed_external_sides_for_module"):
+			sides = bipob.get_allowed_external_sides_for_module(module)
+		var sides_text := _format_external_sides_for_ui(sides)
+		return "Install: %s" % sides_text if not sides_text.is_empty() else ""
+	var notes := String(module.install_notes).strip_edges()
+	return "Install: %s" % notes if not notes.is_empty() else ""
+
+
+func _get_module_characteristics_lines(module: BipobModule, context: String = "") -> Array:
 	var lines: Array = []
 	if module == null:
 		return lines
-	if _is_module_unknown(module):
-		lines.append("Details: unknown")
-		return lines
-	var normalized: String = context.to_lower()
-	var is_external: bool = bipob.is_external_module(module) or normalized == "external"
-	if is_external:
-		lines.append("Category: %s" % module.category)
-		lines.append("Size: %s" % _get_module_size_text(module))
-		var install_text: String = _get_module_install_text(module, context)
-		if not install_text.is_empty():
-			lines.append("Install: %s" % install_text)
-		if module.energy_cost > 0 or module.category == "Sensors":
-			lines.append("Energy: %d" % module.energy_cost)
-		if module.heat_value > 0:
-			lines.append("Heat: %d" % module.heat_value)
-		if module.scan_range > 0:
-			lines.append("Scan Range: %d" % module.scan_range)
-		if module.scan_accuracy > 0:
-			lines.append("Scan Accuracy: %d" % module.scan_accuracy)
-		if not module.damage_value.is_empty() and module.damage_value != "0":
-			lines.append("Damage: %s" % module.damage_value)
-		if not module.weapon_range_type.is_empty():
-			lines.append("Weapon Type: %s" % module.weapon_range_type)
-		if module.armor_bonus > 0:
-			lines.append("Armor: +%d" % module.armor_bonus)
-		if module.shield_value > 0:
-			lines.append("Shield: %d" % module.shield_value)
-		if module.action_modifier != 0:
-			lines.append("Actions: %+d" % module.action_modifier)
-		if not module.special_effect_text.is_empty():
-			lines.append("Special: %s" % module.special_effect_text)
-		return lines
-	lines.append("Category: %s" % module.category)
-	lines.append("Size: %s" % _get_module_size_text(module))
-	if module.heat_value > 0:
+
+	var size_text := _get_module_size_text(module)
+	if not size_text.is_empty():
+		lines.append("Size: %s" % size_text)
+
+	if not module.category.is_empty():
+		lines.append("Type: %s" % module.category)
+
+	if not module.version.is_empty():
+		lines.append("Version: %s" % module.version)
+
+	if module.energy_cost != 0:
+		lines.append("Energy: %d" % module.energy_cost)
+
+	if module.heat_value != 0:
 		lines.append("Heat: %d" % module.heat_value)
-	if module.cooling_value > 0:
-		lines.append("Cooling: %d" % module.cooling_value)
-	if module.energy_capacity > 0:
+
+	if module.scan_range != 0:
+		lines.append("Scan Range: %d" % module.scan_range)
+
+	if module.scan_accuracy != 0:
+		lines.append("Scan Accuracy: %d" % module.scan_accuracy)
+
+	if not module.damage_value.is_empty() and module.damage_value != "0":
+		lines.append("Damage: %s" % module.damage_value)
+
+	if not module.weapon_range_type.is_empty():
+		lines.append("Weapon Type: %s" % module.weapon_range_type)
+
+	if module.armor_bonus != 0:
+		lines.append("Armor: +%d" % module.armor_bonus)
+
+	if module.shield_value != 0:
+		lines.append("Shield: %d" % module.shield_value)
+
+	if module.action_modifier != 0:
+		lines.append("Actions: %+d" % module.action_modifier)
+
+	if module.energy_capacity != 0:
 		lines.append("Energy Capacity: %d" % module.energy_capacity)
-	if module.action_capacity > 0:
+
+	if module.action_capacity != 0:
 		lines.append("Actions: %d" % module.action_capacity)
-	if module.hack_value > 0:
-		lines.append("Hack: %d" % module.hack_value)
-	if module.gpu_value > 0:
-		lines.append("GPU: %d" % module.gpu_value)
-	if module.digital_storage_slots > 0:
+
+	if module.digital_storage_slots != 0:
 		lines.append("Storage: %d" % module.digital_storage_slots)
-	if module.power_distribution > 0:
+
+	if module.hack_value != 0:
+		lines.append("Hack: %d" % module.hack_value)
+
+	if module.gpu_value != 0:
+		lines.append("GPU: %d" % module.gpu_value)
+
+	if module.cooling_value != 0:
+		lines.append("Cooling: %d" % module.cooling_value)
+
+	if module.power_distribution != 0:
 		lines.append("Power Distribution: %d" % module.power_distribution)
-	if not String(module.interface_role).is_empty():
-		lines.append("Interface: %s" % String(module.interface_role))
+
+	if not module.interface_role.is_empty():
+		lines.append("Interface: %s" % module.interface_role)
+
 	if not module.special_effect_text.is_empty():
 		lines.append("Special: %s" % module.special_effect_text)
+
 	return lines
 
 func _create_selected_module_info_panel(module: BipobModule, context: String) -> Control:
@@ -3334,23 +3397,34 @@ func _create_selected_module_info_panel(module: BipobModule, context: String) ->
 	var name_label := Label.new(); name_label.text = bipob.get_module_display_name(module); _apply_label_style(name_label); left.add_child(name_label)
 	var type_label := Label.new(); type_label.text = "Type: %s" % String(bipob.get_module_category(module)).capitalize(); _apply_label_style(type_label, true, false); left.add_child(type_label)
 	var version_label := Label.new(); version_label.text = "Version: V%d" % maxi(1, int(module.module_version)); _apply_label_style(version_label, true, false); left.add_child(version_label)
-	var size_label := Label.new(); size_label.text = "Size: %s" % _get_module_size_text(module); _apply_label_style(size_label, true, false); left.add_child(size_label)
-	var install_notes := _get_module_install_text(module, context)
-	if not install_notes.is_empty():
-		var install_label := Label.new(); install_label.text = "Install: %s" % install_notes; install_label.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART; _apply_label_style(install_label, true, false); left.add_child(install_label)
+	var install_text := _get_module_install_text(module)
+	if not install_text.is_empty():
+		var install_label := Label.new(); install_label.text = install_text; install_label.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART; _apply_label_style(install_label, true, false); left.add_child(install_label)
 	var right := VBoxContainer.new()
 	right.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	right.add_theme_constant_override("separation", 2)
 	var c_title := Label.new(); c_title.text = "Characteristics"; _apply_label_style(c_title, false, true); right.add_child(c_title)
-	var c_text := Label.new(); c_text.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART; c_text.clip_text = true
 	var chars := _get_module_characteristics_lines(module, context)
-	c_text.text = "\n".join(chars) if not chars.is_empty() else "—"
-	_apply_label_style(c_text, true, false); right.add_child(c_text)
+	if chars.is_empty():
+		chars.append("—")
+	for line in chars:
+		var characteristic_label := Label.new()
+		characteristic_label.text = String(line)
+		characteristic_label.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+		characteristic_label.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+		_apply_label_style(characteristic_label, true, false)
+		right.add_child(characteristic_label)
 	var d_title := Label.new(); d_title.text = "Description"; _apply_label_style(d_title, false, true); right.add_child(d_title)
-	var d_text := Label.new(); d_text.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART; d_text.clip_text = true
-	var desc := String(module.get("description") if module.get("description") != null else "")
-	d_text.text = desc if not desc.is_empty() else "Description will be added later."
-	_apply_label_style(d_text, true, false); right.add_child(d_text)
+	var description_text := module.description.strip_edges()
+	if description_text.is_empty():
+		description_text = "Description will be added later."
+	var description_label := Label.new()
+	description_label.text = description_text
+	description_label.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	description_label.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	description_label.size_flags_vertical = Control.SIZE_SHRINK_BEGIN
+	_apply_label_style(description_label, true, false)
+	right.add_child(description_label)
 	info_root.add_child(left)
 	info_root.add_child(right)
 	panel.add_child(info_root)
