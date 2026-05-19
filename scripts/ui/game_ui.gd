@@ -130,6 +130,7 @@ enum AppScreenMode {
 	GAMEPLAY,
 	BOX_CONSTRUCTOR,
 	MISSION_CONSTRUCTOR,
+	MISSION_RESULT,
 	SETTINGS_PLACEHOLDER,
 	ABOUT_PLACEHOLDER,
 	SHOP_PLACEHOLDER,
@@ -146,6 +147,7 @@ var main_menu_root: Control
 var center_menu_root: Control
 var tasks_menu_root: Control
 var mission_constructor_root: Control
+var mission_result_root: Control = null
 var placeholder_menu_root: Control
 var placeholder_title_label: Label
 var placeholder_body_label: Label
@@ -3914,6 +3916,7 @@ func _ready() -> void:
 	bipob.status_changed.connect(update_status)
 	bipob.hint_requested.connect(show_hint)
 	bipob.mission_completed.connect(_on_mission_completed)
+	bipob.mission_failed.connect(_on_mission_failed)
 	bipob.returned_to_box.connect(_on_returned_to_box)
 
 	update_status()
@@ -4000,6 +4003,8 @@ func _hide_all_app_screens() -> void:
 		placeholder_menu_root.visible = false
 	if mission_constructor_root != null:
 		mission_constructor_root.visible = false
+	if mission_result_root != null:
+		mission_result_root.visible = false
 	if box_screen != null:
 		box_screen.visible = false
 	if runtime_hud_root != null and is_instance_valid(runtime_hud_root):
@@ -4106,6 +4111,30 @@ func show_mission_constructor_screen() -> void:
 	_build_mission_constructor_screen()
 	if mission_constructor_root != null:
 		mission_constructor_root.visible = true
+
+func _ensure_mission_result_root() -> Control:
+	if mission_result_root != null:
+		return mission_result_root
+	mission_result_root = _build_fullscreen_root("MissionResultRoot")
+	add_child(mission_result_root)
+	return mission_result_root
+
+func _clear_children(root: Node) -> void:
+	if root == null:
+		return
+	for child in root.get_children():
+		child.queue_free()
+
+func show_mission_result_screen(success: bool, mission_index: int = -1) -> void:
+	app_screen_mode = AppScreenMode.MISSION_RESULT
+	_hide_all_app_screens()
+	_set_gameplay_visible(false)
+	var root: Control = _ensure_mission_result_root()
+	root.visible = true
+	_clear_children(root)
+	var result_data: Dictionary = _build_mission_result_data(success, mission_index)
+	var layout: Control = _create_mission_result_layout(result_data)
+	root.add_child(layout)
 
 func _refresh_tasks_content() -> void:
 	for tab_name in tasks_tab_buttons.keys():
@@ -4518,8 +4547,11 @@ func _on_start_mission_button_pressed() -> void:
 
 func _on_mission_completed() -> void:
 	should_advance_mission_on_start = true
-	show_box_screen()
-	update_box_status()
+	show_mission_result_screen(true)
+
+func _on_mission_failed() -> void:
+	should_advance_mission_on_start = false
+	show_mission_result_screen(false)
 
 func _on_returned_to_box() -> void:
 	should_advance_mission_on_start = false
@@ -5504,6 +5536,63 @@ func _create_menu_button(text: String, callback: Callable = Callable(), min_size
 		button.tooltip_text = "Placeholder"
 	return button
 
+func _build_mission_result_data(success: bool, mission_index: int = -1) -> Dictionary:
+	var resolved_index: int = mission_index if mission_index > 0 else _get_current_mission_index_safe()
+	var turns_used: int = _get_turns_used_safe()
+	var turn_limit: int = _get_turn_limit_safe()
+	return {
+		"success": success,
+		"mission_index": resolved_index,
+		"mission_title": _get_mission_result_title(resolved_index),
+		"turns_used": turns_used,
+		"turn_limit": turn_limit,
+		"stars": _calculate_mission_result_stars(success, turns_used, turn_limit),
+		"completed_main_goals": _get_completed_main_goals_safe(success),
+		"failed_main_goals": _get_failed_main_goals_safe(success),
+		"completed_optional_goals": _get_completed_optional_goals_safe(),
+		"failed_optional_goals": _get_failed_optional_goals_safe(),
+		"rewards": _get_mission_rewards_safe()
+	}
+
+func _calculate_mission_result_stars(success: bool, turns_used: int, turn_limit: int) -> int:
+	if not success:
+		return 0
+	if turn_limit <= 0:
+		return 1
+	var ratio: float = float(turns_used) / float(turn_limit)
+	if ratio <= 0.5:
+		return 3
+	if ratio <= 0.8:
+		return 2
+	return 1
+
+func _get_current_mission_index_safe() -> int:
+	return maxi(1, int(bipob.current_mission_index)) if bipob != null else 1
+
+func _get_mission_result_title(mission_index: int) -> String:
+	return "Mission %d" % maxi(1, mission_index)
+
+func _get_turns_used_safe() -> int:
+	return maxi(0, int(bipob.get("turn_counter"))) if bipob != null else 0
+
+func _get_turn_limit_safe() -> int:
+	return 0
+
+func _get_completed_main_goals_safe(success: bool) -> Array[String]:
+	return ["Main: Reach extraction — completed"] if success else []
+
+func _get_failed_main_goals_safe(success: bool) -> Array[String]:
+	return [] if success else ["Main: Reach extraction — failed"]
+
+func _get_completed_optional_goals_safe() -> Array[String]:
+	return []
+
+func _get_failed_optional_goals_safe() -> Array[String]:
+	return []
+
+func _get_mission_rewards_safe() -> Array[String]:
+	return ["No rewards"]
+
 func _build_main_menu_layout() -> void:
 	var margin := MarginContainer.new()
 	margin.set_anchors_preset(Control.PRESET_FULL_RECT)
@@ -5844,6 +5933,103 @@ func _build_placeholder_layout() -> void:
 
 	vbox.add_child(_create_menu_button("Back", Callable(self, "_on_placeholder_back_pressed"), Vector2(160, 34)))
 
+func _create_mission_result_layout(data: Dictionary) -> Control:
+	var background := ColorRect.new()
+	background.color = Color(0, 0, 0, 0.78)
+	background.set_anchors_preset(Control.PRESET_FULL_RECT)
+	var margin := MarginContainer.new()
+	margin.set_anchors_preset(Control.PRESET_FULL_RECT)
+	margin.add_theme_constant_override("margin_left", 120)
+	margin.add_theme_constant_override("margin_right", 120)
+	margin.add_theme_constant_override("margin_top", 50)
+	margin.add_theme_constant_override("margin_bottom", 50)
+	background.add_child(margin)
+	var panel := PanelContainer.new()
+	_apply_panel_style(panel, true)
+	margin.add_child(panel)
+	var vbox := VBoxContainer.new()
+	vbox.add_theme_constant_override("separation", 10)
+	panel.add_child(vbox)
+	var title := Label.new()
+	title.text = str(data.get("mission_title", "Mission 1"))
+	title.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	_apply_label_style(title, true)
+	vbox.add_child(title)
+	var status := Label.new()
+	var success: bool = bool(data.get("success", false))
+	status.text = "COMPLETE" if success else "FAIL"
+	status.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	status.add_theme_font_size_override("font_size", 38)
+	status.add_theme_color_override("font_color", UI_COLOR_OK if success else UI_COLOR_DANGER)
+	vbox.add_child(status)
+	var turns_used: int = int(data.get("turns_used", 0))
+	var turn_limit: int = int(data.get("turn_limit", 0))
+	var stars: int = int(data.get("stars", 0))
+	var score := Label.new()
+	score.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	score.text = "Turns: %d / %s\nStars: %d/3 %s" % [turns_used, str(turn_limit) if turn_limit > 0 else "—", stars, "★".repeat(stars)]
+	_apply_label_style(score)
+	vbox.add_child(score)
+	var goals_row := HBoxContainer.new()
+	goals_row.add_theme_constant_override("separation", 10)
+	goals_row.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	vbox.add_child(goals_row)
+	goals_row.add_child(_create_mission_result_goal_panel("Completed Goals", data.get("completed_main_goals", []), data.get("completed_optional_goals", [])))
+	goals_row.add_child(_create_mission_result_goal_panel("Failed Goals", data.get("failed_main_goals", []), data.get("failed_optional_goals", [])))
+	vbox.add_child(_create_mission_result_rewards_panel(data.get("rewards", [])))
+	var button_column := VBoxContainer.new()
+	button_column.add_theme_constant_override("separation", 8)
+	button_column.alignment = BoxContainer.ALIGNMENT_CENTER
+	vbox.add_child(button_column)
+	button_column.add_child(_create_menu_button("Restart", Callable(self, "_on_mission_result_restart_pressed"), Vector2(220, 38)))
+	button_column.add_child(_create_menu_button("Center", Callable(self, "_on_mission_result_center_pressed"), Vector2(220, 38)))
+	button_column.add_child(_create_menu_button("Main Menu", Callable(self, "_on_mission_result_main_menu_pressed"), Vector2(220, 38)))
+	return background
+
+func _create_mission_result_goal_panel(title_text: String, main_goals: Array, optional_goals: Array) -> Control:
+	var panel := PanelContainer.new()
+	panel.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	_apply_panel_style(panel)
+	var vbox := VBoxContainer.new()
+	panel.add_child(vbox)
+	var title := Label.new()
+	title.text = title_text
+	_apply_label_style(title, true)
+	vbox.add_child(title)
+	for item in main_goals:
+		var line := Label.new()
+		line.text = str(item)
+		_apply_label_style(line)
+		vbox.add_child(line)
+	for item in optional_goals:
+		var line := Label.new()
+		line.text = str(item)
+		_apply_label_style(line)
+		vbox.add_child(line)
+	if main_goals.is_empty() and optional_goals.is_empty():
+		var empty := Label.new()
+		empty.text = "—"
+		_apply_label_style(empty)
+		vbox.add_child(empty)
+	return panel
+
+func _create_mission_result_rewards_panel(rewards: Array) -> Control:
+	var panel := PanelContainer.new()
+	_apply_panel_style(panel)
+	var vbox := VBoxContainer.new()
+	panel.add_child(vbox)
+	var title := Label.new()
+	title.text = "Rewards"
+	_apply_label_style(title, true)
+	vbox.add_child(title)
+	var source_rewards: Array = rewards if not rewards.is_empty() else ["No rewards"]
+	for reward in source_rewards:
+		var line := Label.new()
+		line.text = str(reward)
+		_apply_label_style(line)
+		vbox.add_child(line)
+	return panel
+
 func _on_main_play_pressed() -> void:
 	show_center_screen()
 func _on_main_settings_pressed() -> void:
@@ -5904,6 +6090,15 @@ func _on_tasks_start_pressed() -> void:
 
 func _on_tasks_warnings_pressed() -> void:
 	show_hint("Warnings section updated for selected task.")
+
+func _on_mission_result_restart_pressed() -> void:
+	start_gameplay_from_center()
+
+func _on_mission_result_center_pressed() -> void:
+	show_center_screen()
+
+func _on_mission_result_main_menu_pressed() -> void:
+	show_main_menu_screen()
 
 func _on_move_forward_pressed() -> void:
 	bipob.move_forward()

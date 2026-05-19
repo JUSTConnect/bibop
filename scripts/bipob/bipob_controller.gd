@@ -4,6 +4,7 @@ class_name BipobController
 signal status_changed
 signal hint_requested(message: String)
 signal mission_completed
+signal mission_failed
 signal returned_to_box
 
 enum Direction {
@@ -4566,6 +4567,7 @@ func spend_action(action_cost: int, energy_cost: int) -> void:
 	
 	if energy <= 0:
 		print("Energy depleted. Mission failed.")
+		mission_failed.emit()
 
 func try_move_to(target_position: Vector2i) -> bool:
 	if grid_manager == null:
