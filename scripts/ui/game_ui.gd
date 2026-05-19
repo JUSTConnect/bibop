@@ -7228,13 +7228,34 @@ func _draw_internal_isometric_preview(control: Control) -> void:
 	var rect: Rect2 = control.get_rect()
 	if rect.size.x <= 8.0 or rect.size.y <= 8.0:
 		return
-	var origin: Vector2 = Vector2(rect.size.x * 0.5, rect.size.y * 0.82 - 22.0)
+	var origin: Vector2 = rect.size * 0.5
 	var cell_w: float = minf((rect.size.x - 26.0) / float(maxi(volume_size.x + volume_size.y, 1)) * 2.0, 30.0)
 	var cell_h: float = cell_w
 	var cell_z: float = minf((rect.size.y - 24.0) / float(maxi(volume_size.z, 1)), cell_w * 0.52)
 	cell_w = maxf(cell_w, 9.0)
 	cell_h = maxf(cell_h, 9.0)
 	cell_z = maxf(cell_z, 7.0)
+	var iso_corners: Array[Vector3] = [
+		Vector3(0.0, 0.0, 0.0),
+		Vector3(float(volume_size.x), 0.0, 0.0),
+		Vector3(0.0, float(volume_size.y), 0.0),
+		Vector3(float(volume_size.x), float(volume_size.y), 0.0),
+		Vector3(0.0, 0.0, float(volume_size.z)),
+		Vector3(float(volume_size.x), 0.0, float(volume_size.z)),
+		Vector3(0.0, float(volume_size.y), float(volume_size.z)),
+		Vector3(float(volume_size.x), float(volume_size.y), float(volume_size.z))
+	]
+	var min_point: Vector2 = _internal_iso_project(origin, iso_corners[0], cell_w, cell_h, cell_z)
+	var max_point: Vector2 = min_point
+	for corner in iso_corners:
+		var p: Vector2 = _internal_iso_project(origin, corner, cell_w, cell_h, cell_z)
+		min_point.x = minf(min_point.x, p.x)
+		min_point.y = minf(min_point.y, p.y)
+		max_point.x = maxf(max_point.x, p.x)
+		max_point.y = maxf(max_point.y, p.y)
+	var iso_center: Vector2 = (min_point + max_point) * 0.5
+	var target_center: Vector2 = rect.size * 0.5
+	origin += target_center - iso_center
 	var outer_edge: Color = Color(0.25, 0.95, 1.0, 0.75)
 	var inner_grid: Color = Color(0.20, 0.75, 0.90, 0.28)
 	var face_fill: Color = Color(0.04, 0.10, 0.13, 0.18)
