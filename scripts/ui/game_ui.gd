@@ -243,6 +243,7 @@ const INTERNAL_GRID_CELL_GAP: int = 2
 const CONSTRUCTOR_GRID_PREFERRED_CELL_SIZE: float = 28.0
 const CONSTRUCTOR_GRID_MIN_CELL_SIZE: float = 12.0
 const CONSTRUCTOR_SMALL_LABEL_CELL_SIZE: float = 16.0
+const CONSTRUCTOR_TOP_BUTTON_HEIGHT: float = 32.0
 const ACTION_BUTTON_MIN_SIZE: Vector2 = Vector2(100, 24)
 const ACTION_BUTTON_COMPACT_SIZE: Vector2 = Vector2(46, 22)
 const ACTION_GROUP_SPACING: int = 2
@@ -1502,6 +1503,7 @@ func _configure_box_layout() -> void:
 
 	if box_title_label != null:
 		box_title_label.reparent(left_panel)
+		box_title_label.visible = false
 
 	box_tab_row = left_panel.get_node_or_null("BoxTabRow")
 	if box_tab_row == null:
@@ -4714,12 +4716,7 @@ func update_box_status() -> void:
 	update_diagnostic_status()
 
 	if box_title_label != null:
-		if box_menu_mode == BoxMenuMode.EXTERNAL:
-			box_title_label.text = "Box — External"
-		elif box_menu_mode == BoxMenuMode.INTERNAL:
-			box_title_label.text = "Box — Internal"
-		else:
-			box_title_label.text = "Box — External"
+		box_title_label.text = ""
 
 	var content_text: String = ""
 
@@ -5119,7 +5116,7 @@ func _make_box_top_button(
 	var button: Button = Button.new()
 	button.text = text
 	button.focus_mode = Control.FOCUS_NONE
-	button.custom_minimum_size = Vector2(120, 32)
+	button.custom_minimum_size = Vector2(120, CONSTRUCTOR_TOP_BUTTON_HEIGHT)
 	var style_role: String = "primary" if active else role
 	_apply_action_button_style(button, style_role, true)
 	button.pressed.connect(callback)
@@ -5149,11 +5146,6 @@ func _setup_box_top_bar() -> void:
 	var spacer_left: Control = Control.new()
 	spacer_left.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	root.add_child(spacer_left)
-	var bipob_box: VBoxContainer = VBoxContainer.new()
-	var bipob_title: Label = Label.new()
-	bipob_title.text = "Available Bipobs"
-	_apply_label_style(bipob_title, false, true)
-	bipob_box.add_child(bipob_title)
 	var bipob_row: HBoxContainer = HBoxContainer.new()
 	bipob_row.add_theme_constant_override("separation", 4)
 	bipob_row.add_child(_make_box_top_button(
@@ -5171,8 +5163,7 @@ func _setup_box_top_bar() -> void:
 		Callable(self, "_on_bipob_juggernaut_pressed"),
 		active_bipob_profile_id == "juggernaut"
 	))
-	bipob_box.add_child(bipob_row)
-	root.add_child(bipob_box)
+	root.add_child(bipob_row)
 	var spacer_right: Control = Control.new()
 	spacer_right.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	root.add_child(spacer_right)
