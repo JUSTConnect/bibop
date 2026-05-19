@@ -30,6 +30,7 @@ var main_box_row: HBoxContainer = null
 var left_panel: VBoxContainer = null
 var box_constructor_content_root: Control = null
 var box_top_bar_root: Control = null
+var internal_iso_preview_control: Control = null
 
 @onready var move_forward_button: Button = $CommandPanel/CommandList/MoveForwardButton
 @onready var move_backward_button: Button = $CommandPanel/CommandList/MoveBackwardButton
@@ -4749,6 +4750,8 @@ func update_box_status() -> void:
 			box_content_label.text = ""
 			box_content_label.visible = false
 		_rebuild_box_constructor_content()
+		if box_menu_mode == BoxMenuMode.INTERNAL and internal_iso_preview_control != null:
+			internal_iso_preview_control.queue_redraw()
 		_rebuild_box_actions_for_current_mode()
 		update_box_button_visibility()
 		return
@@ -4762,6 +4765,7 @@ func update_box_status() -> void:
 func _clear_box_constructor_content() -> void:
 	if box_constructor_content_root == null:
 		return
+	internal_iso_preview_control = null
 	for child in box_constructor_content_root.get_children():
 		child.queue_free()
 
@@ -6788,6 +6792,21 @@ func _create_internal_connections_panel() -> Control:
 	panel.add_child(root)
 	return panel
 
+class InternalIsoPreviewControl:
+	extends Control
+
+	var owner_ui: GameUI = null
+
+	func _ready() -> void:
+		visible = true
+		size_flags_horizontal = Control.SIZE_EXPAND_FILL
+		size_flags_vertical = Control.SIZE_EXPAND_FILL
+		custom_minimum_size = Vector2(180, 130)
+
+	func _draw() -> void:
+		if owner_ui != null and owner_ui.has_method("_draw_internal_isometric_preview"):
+			owner_ui._draw_internal_isometric_preview(self)
+
 func _create_internal_visual_workspace() -> Control:
 	_clamp_internal_selection()
 	var workspace: PanelContainer = PanelContainer.new()
@@ -6805,7 +6824,7 @@ func _create_internal_visual_workspace() -> Control:
 	middle_row.alignment = BoxContainer.ALIGNMENT_CENTER
 	middle_row.add_theme_constant_override("separation", 4)
 	middle_row.add_child(_create_internal_slice_grid("VERTICAL SLICE", "y", "z", "x", bipob.selected_internal_origin.x))
-	middle_row.add_child(_create_internal_volume_placeholder_panel())
+	middle_row.add_child(_create_internal_isometric_preview_panel())
 	middle_row.add_child(_create_internal_slice_grid("MAIN SLICE", "x", "z", "y", bipob.selected_internal_origin.y))
 	root.add_child(middle_row)
 	var bottom_row: HBoxContainer = HBoxContainer.new()
@@ -6959,25 +6978,64 @@ func _build_internal_missing_required_warnings() -> Array[String]:
 
 
 func _create_internal_volume_placeholder_panel() -> Control:
+	return _create_internal_isometric_preview_panel()
+
+func _create_internal_isometric_preview_panel() -> Control:
 	var panel: PanelContainer = PanelContainer.new()
 	_apply_dark_panel_style(panel)
-	panel.custom_minimum_size = Vector2(180, 160)
-	var root: VBoxContainer = VBoxContainer.new()
-	root.add_theme_constant_override("separation", 3)
-	root.alignment = BoxContainer.ALIGNMENT_CENTER
-	var title: Label = Label.new()
-	title.text = "VOLUME PREVIEW"
-	_apply_label_style(title, false, true)
-	title.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
-	root.add_child(title)
-	var volume_size: Vector3i = bipob.get_internal_volume_size()
-	var body: Label = Label.new()
-	body.text = "INTERNAL CUBE %dx%dx%d" % [volume_size.x, volume_size.y, volume_size.z]
-	body.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
-	_apply_label_style(body, true, false)
-	root.add_child(body)
-	panel.add_child(root)
+	panel.visible = true
+	panel.size_flags_horizontal = Control.SIZE_SHRINK_CENTER
+	panel.size_flags_vertical = Control.SIZE_SHRINK_CENTER
+	panel.custom_minimum_size = Vector2(190, 150)
+	var iso: InternalIsoPreviewControl = InternalIsoPreviewControl.new()
+	iso.owner_ui = self
+	iso.visible = true
+	panel.add_child(iso)
+	internal_iso_preview_control = iso
+	iso.queue_redraw()
 	return panel
+
+func _draw_internal_isometric_preview(draw_control: Control) -> void:
+	if draw_control == null or bipob == null:
+		return
+	var volume_size: Vector3i = bipob.get_internal_volume_size()
+	if volume_size.x <= 0 or volume_size.y <= 0 or volume_size.z <= 0:
+		return
+	var size: Vector2 = draw_control.size
+	var origin: Vector2 = Vector2(size.x * 0.5, size.y * 0.85)
+	var step_x: Vector2 = Vector2(18.0, -9.0)
+	var step_y: Vector2 = Vector2(-18.0, -9.0)
+	var step_z: Vector2 = Vector2(0.0, -15.0)
+	var front_left: Vector2 = origin
+	var front_right: Vector2 = origin + step_x * volume_size.x
+	var back_right: Vector2 = front_right + step_y * volume_size.y
+	var back_left: Vector2 = origin + step_y * volume_size.y
+	var top_front_left: Vector2 = front_left + step_z * volume_size.z
+	var top_front_right: Vector2 = front_right + step_z * volume_size.z
+	var top_back_right: Vector2 = back_right + step_z * volume_size.z
+	var top_back_left: Vector2 = back_left + step_z * volume_size.z
+	var color_top: Color = Color(0.18, 0.33, 0.45, 0.85)
+	var color_right: Color = Color(0.12, 0.22, 0.32, 0.82)
+	var color_front: Color = Color(0.10, 0.18, 0.26, 0.85)
+	draw_control.draw_polygon(PackedVector2Array([top_front_left, top_front_right, top_back_right, top_back_left]), PackedColorArray([color_top]))
+	draw_control.draw_polygon(PackedVector2Array([front_right, back_right, top_back_right, top_front_right]), PackedColorArray([color_right]))
+	draw_control.draw_polygon(PackedVector2Array([front_left, front_right, top_front_right, top_front_left]), PackedColorArray([color_front]))
+	var edge_color: Color = Color(0.42, 0.80, 0.95, 0.95)
+	draw_control.draw_polyline(PackedVector2Array([front_left, front_right, back_right, back_left, front_left]), edge_color, 2.0)
+	draw_control.draw_polyline(PackedVector2Array([top_front_left, top_front_right, top_back_right, top_back_left, top_front_left]), edge_color, 2.0)
+	draw_control.draw_line(front_left, top_front_left, edge_color, 2.0)
+	draw_control.draw_line(front_right, top_front_right, edge_color, 2.0)
+	draw_control.draw_line(back_right, top_back_right, edge_color, 2.0)
+	draw_control.draw_line(back_left, top_back_left, edge_color, 2.0)
+	var grid_color: Color = Color(0.34, 0.63, 0.78, 0.45)
+	for x in range(1, volume_size.x):
+		draw_control.draw_line(front_left + step_x * x, top_front_left + step_x * x, grid_color, 1.0)
+	for y in range(1, volume_size.y):
+		draw_control.draw_line(front_left + step_y * y, top_front_left + step_y * y, grid_color, 1.0)
+	for z in range(1, volume_size.z):
+		draw_control.draw_line(front_left + step_z * z, front_right + step_z * z, grid_color, 1.0)
+	var volume_label: String = "INTERNAL %dx%dx%d" % [volume_size.x, volume_size.y, volume_size.z]
+	draw_control.draw_string(ThemeDB.fallback_font, Vector2(12, 18), volume_label, HORIZONTAL_ALIGNMENT_LEFT, -1, 12, UI_COLOR_TEXT)
 
 func get_box_internal_menu_text() -> String:
 	_clamp_internal_selection()
