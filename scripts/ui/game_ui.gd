@@ -1511,7 +1511,8 @@ func _configure_box_layout() -> void:
 		box_tab_row.name = "BoxTabRow"
 		left_panel.add_child(box_tab_row)
 	box_tab_row.size_flags_vertical = Control.SIZE_SHRINK_BEGIN
-	box_tab_row.custom_minimum_size = Vector2(0, 60)
+	box_tab_row.alignment = BoxContainer.ALIGNMENT_BEGIN
+	box_tab_row.custom_minimum_size = Vector2(0, 44)
 	box_top_bar_root = box_tab_row
 
 	box_content_scroll = left_panel.get_node_or_null("BoxContentScroll")
