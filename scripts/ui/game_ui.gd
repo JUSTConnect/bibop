@@ -5554,12 +5554,27 @@ func _build_mission_result_data(success: bool, mission_index: int = -1) -> Dicti
 		"rewards": _get_mission_rewards_safe()
 	}
 
+func _safe_int(value: Variant, fallback: int = 0) -> int:
+	if typeof(value) == TYPE_INT:
+		return value
+	if typeof(value) == TYPE_FLOAT:
+		return int(value)
+	if typeof(value) == TYPE_STRING:
+		var text: String = String(value)
+		if text.is_valid_int():
+			return text.to_int()
+		if text.is_valid_float():
+			return int(text.to_float())
+	return fallback
+
 func _calculate_mission_result_stars(success: bool, turns_used: int, turn_limit: int) -> int:
+	var safe_turns_used: int = maxi(0, _safe_int(turns_used, 0))
+	var safe_turn_limit: int = _safe_int(turn_limit, 0)
 	if not success:
 		return 0
-	if turn_limit <= 0:
+	if safe_turn_limit <= 0:
 		return 1
-	var ratio: float = float(turns_used) / float(turn_limit)
+	var ratio: float = float(safe_turns_used) / float(safe_turn_limit)
 	if ratio <= 0.5:
 		return 3
 	if ratio <= 0.8:
@@ -5567,16 +5582,39 @@ func _calculate_mission_result_stars(success: bool, turns_used: int, turn_limit:
 	return 1
 
 func _get_current_mission_index_safe() -> int:
-	return maxi(1, int(bipob.current_mission_index)) if bipob != null else 1
+	return maxi(1, _safe_int(bipob.current_mission_index, 1)) if bipob != null else 1
 
 func _get_mission_result_title(mission_index: int) -> String:
-	return "Mission %d" % maxi(1, mission_index)
+	return "Mission %d" % maxi(1, _safe_int(mission_index, 1))
 
 func _get_turns_used_safe() -> int:
-	return maxi(0, int(bipob.get("turn_counter"))) if bipob != null else 0
+	if mission_manager != null:
+		if mission_manager.has_method("get_turns_used"):
+			return maxi(0, _safe_int(mission_manager.get_turns_used(), 0))
+		if "turns_used" in mission_manager:
+			return maxi(0, _safe_int(mission_manager.turns_used, 0))
+		if "current_turn" in mission_manager:
+			return maxi(0, _safe_int(mission_manager.current_turn, 0))
+	if bipob != null:
+		if bipob.has_method("get_turns_used"):
+			return maxi(0, _safe_int(bipob.get_turns_used(), 0))
+		if "turns_used" in bipob:
+			return maxi(0, _safe_int(bipob.turns_used, 0))
+		if "turn_counter" in bipob:
+			return maxi(0, _safe_int(bipob.turn_counter, 0))
+		if "current_turn" in bipob:
+			return maxi(0, _safe_int(bipob.current_turn, 0))
+	return 0
 
 func _get_turn_limit_safe() -> int:
-	return 0
+	if mission_manager != null:
+		if mission_manager.has_method("get_turn_limit"):
+			return _safe_int(mission_manager.get_turn_limit(), 30)
+		if "turn_limit" in mission_manager:
+			return _safe_int(mission_manager.turn_limit, 30)
+		if "max_turns" in mission_manager:
+			return _safe_int(mission_manager.max_turns, 30)
+	return 30
 
 func _get_completed_main_goals_safe(success: bool) -> Array[String]:
 	return ["Main: Reach extraction — completed"] if success else []
@@ -5962,9 +6000,9 @@ func _create_mission_result_layout(data: Dictionary) -> Control:
 	status.add_theme_font_size_override("font_size", 38)
 	status.add_theme_color_override("font_color", UI_COLOR_OK if success else UI_COLOR_DANGER)
 	vbox.add_child(status)
-	var turns_used: int = int(data.get("turns_used", 0))
-	var turn_limit: int = int(data.get("turn_limit", 0))
-	var stars: int = int(data.get("stars", 0))
+	var turns_used: int = _safe_int(data.get("turns_used", 0), 0)
+	var turn_limit: int = _safe_int(data.get("turn_limit", 0), 0)
+	var stars: int = _safe_int(data.get("stars", 0), 0)
 	var score := Label.new()
 	score.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	score.text = "Turns: %d / %s\nStars: %d/3 %s" % [turns_used, str(turn_limit) if turn_limit > 0 else "—", stars, "★".repeat(stars)]
