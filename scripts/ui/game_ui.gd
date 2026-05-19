@@ -1483,6 +1483,7 @@ func _configure_box_layout() -> void:
 	panel.offset_right = -16
 	panel.offset_bottom = -8
 	panel.custom_minimum_size = Vector2(520, 0)
+	vbox.add_theme_constant_override("separation", 5)
 
 	main_box_row = vbox.get_node_or_null("MainBoxRow")
 	if main_box_row == null:
@@ -1508,6 +1509,7 @@ func _configure_box_layout() -> void:
 		box_tab_row.name = "BoxTabRow"
 		left_panel.add_child(box_tab_row)
 	box_tab_row.size_flags_vertical = Control.SIZE_SHRINK_BEGIN
+	box_tab_row.custom_minimum_size = Vector2(0, 60)
 	box_top_bar_root = box_tab_row
 
 	box_content_scroll = left_panel.get_node_or_null("BoxContentScroll")
@@ -2456,8 +2458,8 @@ func _create_external_visual_workspace() -> Control:
 	top_row.size_flags_vertical = Control.SIZE_SHRINK_BEGIN
 	top_row.add_theme_constant_override("separation", 10)
 
-	var left_info: Control = _create_external_info_stub_panel("Body Stats", _get_external_left_info_text())
-	left_info.custom_minimum_size = Vector2(150, 96)
+	var left_info: Control = _create_external_info_stub_panel("", _get_external_left_info_text())
+	left_info.custom_minimum_size = Vector2(210, 110)
 	left_info.size_flags_horizontal = Control.SIZE_SHRINK_BEGIN
 	left_info.size_flags_vertical = Control.SIZE_SHRINK_BEGIN
 	top_row.add_child(left_info)
@@ -2473,7 +2475,7 @@ func _create_external_visual_workspace() -> Control:
 	top_row.add_child(up_wrap)
 
 	var right_info: Control = _create_external_warning_panel()
-	right_info.custom_minimum_size = Vector2(150, 96)
+	right_info.custom_minimum_size = Vector2(210, 110)
 	right_info.size_flags_horizontal = Control.SIZE_SHRINK_BEGIN
 	right_info.size_flags_vertical = Control.SIZE_SHRINK_BEGIN
 	top_row.add_child(right_info)
@@ -2732,17 +2734,12 @@ func _create_internal_storage_right_column() -> Control:
 func _create_internal_filter_panel() -> Control:
 	var panel: PanelContainer = PanelContainer.new()
 	_apply_panel_style(panel)
-	panel.custom_minimum_size = Vector2(0, 92)
+	panel.custom_minimum_size = Vector2(0, 46)
 	panel.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 
 	var root: VBoxContainer = VBoxContainer.new()
 	root.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-	root.add_theme_constant_override("separation", 4)
-
-	var title: Label = Label.new()
-	title.text = "FILTERS"
-	_apply_label_style(title, false, true)
-	root.add_child(title)
+	root.add_theme_constant_override("separation", 0)
 	root.add_child(_create_filter_dropdown_button(true))
 
 	panel.add_child(root)
@@ -2752,19 +2749,20 @@ func _create_internal_filter_panel() -> Control:
 func _create_external_info_stub_panel(title_text: String, body_text: String) -> Control:
 	var panel: PanelContainer = PanelContainer.new()
 	_apply_dark_panel_style(panel)
-	panel.custom_minimum_size = Vector2(150, 60)
+	panel.custom_minimum_size = Vector2(210, 110)
 
 	var root: VBoxContainer = VBoxContainer.new()
 	root.add_theme_constant_override("separation", 4)
 
-	var title: Label = Label.new()
-	title.text = title_text
-	_apply_label_style(title, false, true)
-	root.add_child(title)
+	if not title_text.is_empty():
+		var title: Label = Label.new()
+		title.text = title_text
+		_apply_label_style(title, false, true)
+		root.add_child(title)
 
 	var body: Label = Label.new()
 	body.text = body_text
-	body.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	body.autowrap_mode = TextServer.AUTOWRAP_OFF
 	_apply_label_style(body, true, false)
 	root.add_child(body)
 
@@ -2802,17 +2800,13 @@ func _get_external_build_warnings() -> Array[String]:
 func _create_external_warning_panel() -> Control:
 	var panel: PanelContainer = PanelContainer.new()
 	_apply_dark_panel_style(panel)
-	panel.custom_minimum_size = Vector2(150, 60)
+	panel.custom_minimum_size = Vector2(210, 110)
 	var root: VBoxContainer = VBoxContainer.new()
 	root.add_theme_constant_override("separation", 4)
-	var title: Label = Label.new()
-	title.text = "Warnings"
-	_apply_label_style(title, false, true)
-	root.add_child(title)
 	var warnings: Array[String] = _get_external_build_warnings()
 	if warnings.is_empty():
 		var none_label: Label = Label.new()
-		none_label.text = "Warnings: none"
+		none_label.text = "No warnings"
 		_apply_label_style(none_label, true, false)
 		root.add_child(none_label)
 	else:
@@ -2878,7 +2872,6 @@ func _create_external_side_grid_workspace() -> Control:
 
 func _get_external_left_info_text() -> String:
 	var lines: Array[String] = []
-	lines.append("Body: %s" % _get_constructor_profile_name())
 	var armor_max: int = bipob.get_bipop_body_armor_max(active_bipob_profile_id) if bipob.has_method("get_bipop_body_armor_max") else 10
 	lines.append("Armor: %d / %d" % [armor_max, armor_max])
 	lines.append("Damage:")
@@ -2917,7 +2910,7 @@ func _create_external_storage_right_column() -> Control:
 	column.add_theme_constant_override("separation", 6)
 
 	var filters_panel: Control = _create_external_filter_panel()
-	filters_panel.custom_minimum_size = Vector2(0, 80)
+	filters_panel.custom_minimum_size = Vector2(0, 46)
 	filters_panel.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	filters_panel.size_flags_vertical = Control.SIZE_SHRINK_END
 	column.add_child(filters_panel)
@@ -2937,17 +2930,12 @@ func _create_external_storage_right_column() -> Control:
 func _create_external_filter_panel() -> Control:
 	var panel: PanelContainer = PanelContainer.new()
 	_apply_panel_style(panel)
-	panel.custom_minimum_size = Vector2(0, 80)
+	panel.custom_minimum_size = Vector2(0, 46)
 	panel.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 
 	var root: VBoxContainer = VBoxContainer.new()
 	root.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-	root.add_theme_constant_override("separation", 4)
-
-	var title: Label = Label.new()
-	title.text = "FILTERS"
-	_apply_label_style(title, false, true)
-	root.add_child(title)
+	root.add_theme_constant_override("separation", 0)
 
 	root.add_child(_create_filter_dropdown_button(false))
 
@@ -4719,11 +4707,11 @@ func update_box_status() -> void:
 
 	if box_title_label != null:
 		if box_menu_mode == BoxMenuMode.EXTERNAL:
-			box_title_label.text = "Constructor — External Modules"
+			box_title_label.text = "Box — External"
 		elif box_menu_mode == BoxMenuMode.INTERNAL:
-			box_title_label.text = "Constructor — Internal Modules"
+			box_title_label.text = "Box — Internal"
 		else:
-			box_title_label.text = "Constructor — External Modules"
+			box_title_label.text = "Box — External"
 
 	var content_text: String = ""
 
@@ -5713,19 +5701,29 @@ func _get_turn_limit_safe() -> int:
 	return 30
 
 func _get_completed_main_goals_safe(success: bool) -> Array[String]:
-	return ["Main: Reach extraction — completed"] if success else []
+	var goals: Array[String] = []
+	if success:
+		goals.append("Main: Reach extraction — completed")
+	return goals
 
 func _get_failed_main_goals_safe(success: bool) -> Array[String]:
-	return [] if success else ["Main: Reach extraction — failed"]
+	var goals: Array[String] = []
+	if not success:
+		goals.append("Main: Reach extraction — failed")
+	return goals
 
 func _get_completed_optional_goals_safe() -> Array[String]:
-	return []
+	var goals: Array[String] = []
+	return goals
 
 func _get_failed_optional_goals_safe() -> Array[String]:
-	return []
+	var goals: Array[String] = []
+	return goals
 
 func _get_mission_rewards_safe() -> Array[String]:
-	return ["No rewards"]
+	var rewards: Array[String] = []
+	rewards.append("No rewards")
+	return rewards
 
 func _build_main_menu_layout() -> void:
 	var margin := MarginContainer.new()
