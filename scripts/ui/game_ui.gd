@@ -2794,6 +2794,16 @@ func _create_nowrap_label(text: String) -> Label:
 	label.size_flags_vertical = Control.SIZE_SHRINK_CENTER
 	return label
 
+func _format_warning_name(raw: String) -> String:
+	var words: PackedStringArray = raw.strip_edges().replace("_", " ").split(" ", false)
+	var formatted_words: Array[String] = []
+	for word in words:
+		if word.is_empty():
+			continue
+		formatted_words.append(word.substr(0, 1).to_upper() + word.substr(1).to_lower())
+	return " ".join(formatted_words)
+
+
 func _get_external_build_warnings() -> Array[String]:
 	var warnings: Array[String] = []
 	var modules: Array[BipobModule] = _get_external_installed_unique_modules()
@@ -2821,32 +2831,34 @@ func _get_external_build_warnings() -> Array[String]:
 					damaged_name = "manipulator"
 				elif text.contains("gear") or text.contains("wheel") or text.contains("track") or text.contains("leg"):
 					damaged_name = "gear"
-				warnings.append("damaged %s" % damaged_name)
+				warnings.append(_format_warning_name("damaged %s" % damaged_name))
 				break
 	if not has_gear:
-		warnings.append("gear")
+		warnings.append(_format_warning_name("gear"))
 	if not has_visor:
-		warnings.append("visor")
+		warnings.append(_format_warning_name("visor"))
 	if not has_manipulator:
-		warnings.append("manipulator")
+		warnings.append(_format_warning_name("manipulator"))
 	return warnings
 
 func _create_external_warning_panel() -> Control:
 	var panel: PanelContainer = PanelContainer.new()
 	_apply_dark_panel_style(panel)
 	panel.custom_minimum_size = Vector2(240, 110)
+	panel.size_flags_vertical = Control.SIZE_SHRINK_BEGIN
 	var root: VBoxContainer = VBoxContainer.new()
-	root.add_theme_constant_override("separation", 4)
-	var warnings: Array[String] = _get_external_build_warnings()
-	for warning_line in warnings:
-		var warning_label: Label = Label.new()
-		warning_label.text = warning_line
-		warning_label.autowrap_mode = TextServer.AUTOWRAP_OFF
-		warning_label.clip_text = true
-		warning_label.text_overrun_behavior = TextServer.OVERRUN_TRIM_ELLIPSIS
-		_apply_label_style(warning_label, true, false)
-		warning_label.add_theme_color_override("font_color", UI_COLOR_DANGER)
-		root.add_child(warning_label)
+	root.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	root.size_flags_vertical = Control.SIZE_EXPAND_FILL
+	var warning_label: Label = Label.new()
+	warning_label.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	warning_label.size_flags_vertical = Control.SIZE_EXPAND_FILL
+	warning_label.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	warning_label.clip_text = true
+	warning_label.text_overrun_behavior = TextServer.OVERRUN_TRIM_ELLIPSIS
+	warning_label.text = " ".join(_get_external_build_warnings())
+	_apply_label_style(warning_label, true, false)
+	warning_label.add_theme_color_override("font_color", UI_COLOR_DANGER)
+	root.add_child(warning_label)
 	panel.add_child(root)
 	return panel
 
