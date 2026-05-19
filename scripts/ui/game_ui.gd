@@ -1867,22 +1867,35 @@ func _on_storage_module_card_pressed(storage_index: int) -> void:
 	_preserve_constructor_storage_scroll_and_update()
 
 
+func _get_active_constructor_storage_scroll() -> ScrollContainer:
+	if box_constructor_content_root == null:
+		return null
+	var scroll_name: String = "ExternalStorageScroll" if box_menu_mode == BoxMenuMode.EXTERNAL else "InternalStorageScroll"
+	var preferred_scroll: Node = box_constructor_content_root.find_child(scroll_name, true, false)
+	if preferred_scroll is ScrollContainer:
+		return preferred_scroll
+	for fallback_name in ["ExternalStorageScroll", "InternalStorageScroll"]:
+		var fallback_scroll: Node = box_constructor_content_root.find_child(fallback_name, true, false)
+		if fallback_scroll is ScrollContainer:
+			return fallback_scroll
+	return null
+
+
 func _preserve_constructor_storage_scroll_and_update() -> void:
-	var old_scroll := 0
-	var storage_scroll: ScrollContainer = box_constructor_content_root.get_node_or_null("**/ExternalStorageScroll")
-	if storage_scroll == null:
-		storage_scroll = box_constructor_content_root.get_node_or_null("**/InternalStorageScroll")
+	var storage_scroll: ScrollContainer = _get_active_constructor_storage_scroll()
+	var old_scroll_vertical: int = 0
+	var old_scroll_horizontal: int = 0
 	if storage_scroll != null:
-		old_scroll = storage_scroll.scroll_vertical
+		old_scroll_vertical = storage_scroll.scroll_vertical
+		old_scroll_horizontal = storage_scroll.scroll_horizontal
 	update_box_status()
 	if storage_scroll == null:
 		return
 	await get_tree().process_frame
-	var rebuilt_scroll: ScrollContainer = box_constructor_content_root.get_node_or_null("**/ExternalStorageScroll")
-	if rebuilt_scroll == null:
-		rebuilt_scroll = box_constructor_content_root.get_node_or_null("**/InternalStorageScroll")
+	var rebuilt_scroll: ScrollContainer = _get_active_constructor_storage_scroll()
 	if rebuilt_scroll != null:
-		rebuilt_scroll.scroll_vertical = old_scroll
+		rebuilt_scroll.scroll_vertical = old_scroll_vertical
+		rebuilt_scroll.scroll_horizontal = old_scroll_horizontal
 
 
 
