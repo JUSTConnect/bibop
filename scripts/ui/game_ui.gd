@@ -2713,7 +2713,7 @@ func _create_internal_storage_right_column() -> Control:
 	column.add_theme_constant_override("separation", 6)
 
 	var filters_panel: Control = _create_internal_filter_panel()
-	filters_panel.custom_minimum_size = Vector2(0, 88)
+	filters_panel.custom_minimum_size = Vector2(0, 46)
 	filters_panel.size_flags_vertical = Control.SIZE_SHRINK_END
 	column.add_child(filters_panel)
 
@@ -2732,17 +2732,13 @@ func _create_internal_storage_right_column() -> Control:
 func _create_internal_filter_panel() -> Control:
 	var panel: PanelContainer = PanelContainer.new()
 	_apply_panel_style(panel)
-	panel.custom_minimum_size = Vector2(0, 92)
+	panel.custom_minimum_size = Vector2(0, 46)
 	panel.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 
 	var root: VBoxContainer = VBoxContainer.new()
 	root.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-	root.add_theme_constant_override("separation", 4)
-
-	var title: Label = Label.new()
-	title.text = "FILTERS"
-	_apply_label_style(title, false, true)
-	root.add_child(title)
+	root.size_flags_vertical = Control.SIZE_SHRINK_CENTER
+	root.add_theme_constant_override("separation", 0)
 	root.add_child(_create_filter_dropdown_button(true))
 
 	panel.add_child(root)
@@ -6774,10 +6770,6 @@ func _create_internal_visual_workspace() -> Control:
 	root.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	root.size_flags_vertical = Control.SIZE_EXPAND_FILL
 	root.add_child(_create_internal_summary_warnings_row())
-	var title: Label = Label.new()
-	title.text = "INTERNAL MODULES IN VOLUME"
-	_apply_label_style(title, false, true)
-	root.add_child(title)
 	var middle_row: HBoxContainer = HBoxContainer.new()
 	middle_row.alignment = BoxContainer.ALIGNMENT_CENTER
 	middle_row.add_theme_constant_override("separation", 4)
@@ -6789,7 +6781,6 @@ func _create_internal_visual_workspace() -> Control:
 	bottom_row.alignment = BoxContainer.ALIGNMENT_CENTER
 	bottom_row.add_theme_constant_override("separation", 4)
 	bottom_row.add_child(_create_internal_slice_grid("HORIZONTAL SLICE", "x", "y", "z", bipob.selected_internal_origin.z))
-	bottom_row.add_child(_create_internal_legend_panel())
 	root.add_child(bottom_row)
 	workspace.add_child(root)
 	return workspace
@@ -6815,10 +6806,6 @@ func _create_internal_summary_panel() -> Control:
 	panel.custom_minimum_size = Vector2(180, 74)
 	var root: VBoxContainer = VBoxContainer.new()
 	root.add_theme_constant_override("separation", 2)
-	var title: Label = Label.new()
-	title.text = "INTERNAL SUMMARY"
-	_apply_label_style(title, false, true)
-	root.add_child(title)
 	root.add_child(_create_internal_info_line("Cooling / Overheat", "+%d" % _calculate_internal_max_overheat()))
 	root.add_child(_create_internal_info_line("Actions", str(_calculate_internal_actions())))
 	root.add_child(_create_internal_info_line("Hack", str(_calculate_internal_hack_level())))
@@ -6839,13 +6826,9 @@ func _create_internal_missing_required_panel() -> Control:
 	panel.custom_minimum_size = Vector2(180, 74)
 	var root: VBoxContainer = VBoxContainer.new()
 	root.add_theme_constant_override("separation", 2)
-	var title: Label = Label.new()
-	title.text = "WARNINGS"
-	_apply_label_style(title, false, true)
-	root.add_child(title)
 	var warnings: Array[String] = _build_internal_missing_required_warnings()
 	if warnings.is_empty():
-		root.add_child(_create_internal_info_line("Status", "All required installed"))
+		root.add_child(_create_internal_info_line("No warnings", "none"))
 	else:
 		for warning_text in warnings:
 			var warning_label: Label = Label.new()
