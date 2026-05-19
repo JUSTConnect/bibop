@@ -6792,6 +6792,7 @@ func _create_internal_visual_workspace() -> Control:
 	root.add_theme_constant_override("separation", 4)
 	root.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	root.size_flags_vertical = Control.SIZE_EXPAND_FILL
+	root.add_child(_create_internal_summary_warnings_row())
 	var title: Label = Label.new()
 	title.text = "INTERNAL MODULES IN VOLUME"
 	_apply_label_style(title, false, true)
@@ -6811,6 +6812,151 @@ func _create_internal_visual_workspace() -> Control:
 	root.add_child(bottom_row)
 	workspace.add_child(root)
 	return workspace
+
+func _create_internal_summary_warnings_row() -> Control:
+	var row: HBoxContainer = HBoxContainer.new()
+	row.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	row.size_flags_vertical = Control.SIZE_SHRINK_BEGIN
+	row.add_theme_constant_override("separation", 6)
+	var summary_panel: Control = _create_internal_summary_panel()
+	summary_panel.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	summary_panel.size_flags_stretch_ratio = 1.0
+	row.add_child(summary_panel)
+	var warnings_panel: Control = _create_internal_missing_required_panel()
+	warnings_panel.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	warnings_panel.size_flags_stretch_ratio = 1.0
+	row.add_child(warnings_panel)
+	return row
+
+func _create_internal_summary_panel() -> Control:
+	var panel: PanelContainer = PanelContainer.new()
+	_apply_dark_panel_style(panel)
+	panel.custom_minimum_size = Vector2(180, 74)
+	var root: VBoxContainer = VBoxContainer.new()
+	root.add_theme_constant_override("separation", 2)
+	var title: Label = Label.new()
+	title.text = "INTERNAL SUMMARY"
+	_apply_label_style(title, false, true)
+	root.add_child(title)
+	root.add_child(_create_internal_info_line("Cooling / Overheat", "+%d" % _calculate_internal_max_overheat()))
+	root.add_child(_create_internal_info_line("Actions", str(_calculate_internal_actions())))
+	root.add_child(_create_internal_info_line("Hack", str(_calculate_internal_hack_level())))
+	root.add_child(_create_internal_info_line("Storage", str(_calculate_internal_storage_capacity())))
+	root.add_child(_create_internal_info_line("Energy", str(_calculate_internal_energy_capacity())))
+	panel.add_child(root)
+	return panel
+
+func _create_internal_info_line(label_text: String, value_text: String) -> Control:
+	var line: Label = Label.new()
+	line.text = "%s: %s" % [label_text, value_text]
+	_apply_label_style(line, true, false)
+	return line
+
+func _create_internal_missing_required_panel() -> Control:
+	var panel: PanelContainer = PanelContainer.new()
+	_apply_dark_panel_style(panel)
+	panel.custom_minimum_size = Vector2(180, 74)
+	var root: VBoxContainer = VBoxContainer.new()
+	root.add_theme_constant_override("separation", 2)
+	var title: Label = Label.new()
+	title.text = "WARNINGS"
+	_apply_label_style(title, false, true)
+	root.add_child(title)
+	var warnings: Array[String] = _build_internal_missing_required_warnings()
+	if warnings.is_empty():
+		root.add_child(_create_internal_info_line("Status", "All required installed"))
+	else:
+		for warning_text in warnings:
+			var warning_label: Label = Label.new()
+			warning_label.text = "- %s" % warning_text
+			_apply_label_style(warning_label, true, false)
+			warning_label.add_theme_color_override("font_color", UI_COLOR_DANGER)
+			root.add_child(warning_label)
+	panel.add_child(root)
+	return panel
+
+func _get_internal_installed_modules() -> Array[BipobModule]:
+	var modules: Array[BipobModule] = []
+	if bipob == null:
+		return modules
+	if bipob.has_method("get_unique_internal_modules"):
+		modules = bipob.get_unique_internal_modules()
+	return modules
+
+func _calculate_internal_actions() -> int:
+	var highest_version: int = 0
+	for module in _get_internal_installed_modules():
+		if module == null:
+			continue
+		if String(module.internal_family).to_lower() != "ram":
+			continue
+		highest_version = maxi(highest_version, int(module.module_version))
+	return clampi(highest_version, 0, 3) * 5
+
+func _calculate_internal_hack_level() -> int:
+	var highest_version: int = 0
+	for module in _get_internal_installed_modules():
+		if module == null:
+			continue
+		if String(module.internal_family).to_lower() != "cpu":
+			continue
+		highest_version = maxi(highest_version, int(module.module_version))
+	return clampi(highest_version, 0, 3)
+
+func _calculate_internal_storage_capacity() -> int:
+	var total_slots: int = 0
+	for module in _get_internal_installed_modules():
+		if module == null:
+			continue
+		if String(module.internal_family).to_lower() != "storage":
+			continue
+		total_slots += maxi(int(module.storage_capacity), 0)
+	return total_slots
+
+func _calculate_internal_energy_capacity() -> int:
+	var total_energy: int = 0
+	for module in _get_internal_installed_modules():
+		if module == null:
+			continue
+		if String(module.internal_family).to_lower() != "battery":
+			continue
+		total_energy += maxi(int(module.battery_capacity), 0)
+	return total_energy
+
+func _calculate_internal_max_overheat() -> int:
+	var total_cooling: int = 0
+	for module in _get_internal_installed_modules():
+		if module != null:
+			total_cooling += maxi(int(module.cooling_power), 0)
+	var max_overheat: int = 0
+	for module in _get_internal_installed_modules():
+		if module == null:
+			continue
+		var module_heat: int = maxi(int(module.heat_active), int(module.heat_idle))
+		var final_overheat: int = maxi(module_heat - total_cooling, 0)
+		max_overheat = maxi(max_overheat, final_overheat)
+	return max_overheat
+
+func _build_internal_missing_required_warnings() -> Array[String]:
+	var warnings: Array[String] = []
+	var family_set: Dictionary = {}
+	for module in _get_internal_installed_modules():
+		if module == null:
+			continue
+		var family_id: String = String(module.internal_family).to_lower()
+		if not family_id.is_empty():
+			family_set[family_id] = true
+	if not family_set.has("cpu"):
+		warnings.append("Missing CPU")
+	if not family_set.has("ram"):
+		warnings.append("Missing RAM")
+	if not family_set.has("battery"):
+		warnings.append("Missing Battery")
+	if not family_set.has("storage"):
+		warnings.append("Missing Storage")
+	if not family_set.has("cooling"):
+		warnings.append("Missing Cooling")
+	return warnings
 
 
 func _create_internal_volume_placeholder_panel() -> Control:
