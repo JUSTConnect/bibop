@@ -25,6 +25,18 @@ class_name BipobModule
 @export var special_effect_text: String = ""
 @export var action_modifier: int = 0
 
+@export var install_notes: String = ""
+@export var characteristics_text: String = ""
+@export var internal_size: Vector3i = Vector3i(1, 1, 1)
+@export var energy_capacity: int = 0
+@export var action_capacity: int = 0
+@export var digital_storage_slots: int = 0
+@export var hack_value: int = 0
+@export var gpu_value: int = 0
+@export var cooling_value: int = 0
+@export var power_distribution: int = 0
+@export var interface_role: String = ""
+
 @export var granted_commands: Array[String] = []
 
 @export var energy_bonus: int = 0
@@ -54,3 +66,17 @@ class_name BipobModule
 @export var damage_threshold_heat: int = 5
 @export var repair_complexity: int = 1
 @export var repair_category: String = "standard"
+
+
+func get_display_name() -> String:
+	if not display_name.is_empty():
+		return display_name
+	return id
+
+
+func get_external_size() -> Vector2i:
+	return Vector2i(external_width, external_height)
+
+
+func get_internal_size() -> Vector3i:
+	return internal_size
