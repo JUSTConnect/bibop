@@ -2610,22 +2610,16 @@ func _does_external_module_deal_damage(module: BipobModule) -> bool:
 func _get_external_module_damage_value(module: BipobModule) -> int:
 	if module == null:
 		return 0
-	var text: String = ("%s %s" % [module.id, module.display_name]).to_lower()
-	if text.contains("laser"):
-		return 1
-	if text.contains("hammer") or text.contains("sledgehammer"):
-		return 1
+	if not module.damage_value.is_empty():
+		var token: String = module.damage_value.split("-")[0]
+		if token.is_valid_int():
+			return int(token)
 	return 0
 
 func _get_external_module_damage_type(module: BipobModule) -> String:
 	if module == null:
 		return ""
-	var text: String = ("%s %s" % [module.id, module.display_name]).to_lower()
-	if text.contains("laser"):
-		return "ranged"
-	if text.contains("hammer") or text.contains("sledgehammer"):
-		return "melee"
-	return ""
+	return module.weapon_range_type.to_lower()
 
 
 func _apply_constructor_profile_dimensions(profile_id: String) -> void:
@@ -2947,19 +2941,21 @@ func _get_external_left_info_text() -> String:
 func _get_external_left_info_lines() -> Array[String]:
 	var lines: Array[String] = []
 	var armor_max: int = bipob.get_bipop_body_armor_max(active_bipob_profile_id) if bipob.has_method("get_bipop_body_armor_max") else 10
-	lines.append("Armor: %d / %d" % [armor_max, armor_max])
+	var armor_bonus: int = 0
+	for module in _get_external_installed_unique_modules():
+		if module != null:
+			armor_bonus += module.armor_bonus
+	lines.append("Armor: %d / %d" % [armor_max + armor_bonus, armor_max + armor_bonus])
 	var damage_lines: Array[String] = _get_external_damage_lines()
 	if damage_lines.size() > 0:
 		var max_damage_rows: int = mini(3, damage_lines.size())
 		for i in range(max_damage_rows):
 			lines.append("Damage: %s" % damage_lines[i])
-	var shield_installed: bool = false
+	var shield_max: int = 0
 	for module in _get_external_installed_unique_modules():
-		if module != null and ("%s %s" % [module.id, module.display_name]).to_lower().contains("shield"):
-			shield_installed = true
-			break
-	var shield_current: int = bipob.energy if shield_installed else 0
-	var shield_max: int = bipob.max_energy if shield_installed else 0
+		if module != null:
+			shield_max += module.shield_value
+	var shield_current: int = mini(shield_max, bipob.energy)
 	lines.append("Energy Shield: %d / %d" % [shield_current, shield_max])
 	var used_pockets: int = 0
 	var max_pockets: int = 4
@@ -3237,36 +3233,32 @@ func _get_module_characteristics_lines(module: BipobModule, context: String) -> 
 	if module == null:
 		return lines
 	if _is_module_unknown(module):
-		lines.append("Type: %s" % String(module.category).capitalize())
 		lines.append("Details: unknown")
 		return lines
-	var text := ("%s %s %s" % [module.id, module.display_name, module.category]).to_lower()
-	if text.contains("damage") or text.contains("laser") or text.contains("shock") or text.contains("weapon"):
-		lines.append("Damage: %d %s" % [_get_external_module_damage_value(module), _get_external_module_damage_type(module)])
-	if text.contains("armor"):
-		lines.append("Armor: reinforced")
-	if text.contains("shield"):
-		lines.append("Energy Shield: enabled")
-	if text.contains("pocket"):
-		lines.append("Pocket: utility slot")
-	if text.contains("scan") or text.contains("vision") or text.contains("visor") or text.contains("radar"):
-		lines.append("Vision: sensor module")
-	if text.contains("gear") or text.contains("wheel") or text.contains("track") or text.contains("leg") or text.contains("chassis"):
-		lines.append("Movement: chassis component")
-	if module.actions_capacity > 0:
-		lines.append("Actions: %d" % module.actions_capacity)
-	if module.hack_level > 0:
-		lines.append("Hack: %d" % module.hack_level)
-	if module.storage_capacity > 0:
-		lines.append("Storage: %d" % module.storage_capacity)
-	if module.battery_capacity > 0:
-		lines.append("Energy: %d" % module.battery_capacity)
-	if module.cooling_power > 0:
-		lines.append("Cooling: %s %d" % [module.cooling_type.capitalize(), module.cooling_power])
-	if not String(module.internal_role).is_empty() and context == "internal":
-		lines.append("Interface: %s" % String(module.internal_role))
-	if module.heat_idle > 0 or module.heat_active > 0:
-		lines.append("Heat: idle %d / active %d" % [module.heat_idle, module.heat_active])
+	if bipob.is_external_module(module):
+		lines.append("Category: %s" % module.category)
+		lines.append("Size: %s" % _get_selected_module_size_text(module))
+		lines.append("Install: %s" % bipob.get_allowed_external_sides_text(module))
+		lines.append("Version: %s" % module.version)
+		if module.energy_cost > 0 or module.category == "Sensors":
+			lines.append("Energy: %d" % module.energy_cost)
+		if module.heat_value > 0:
+			lines.append("Heat: %d" % module.heat_value)
+		if module.scan_range > 0:
+			lines.append("Scan Range: %d" % module.scan_range)
+		if module.armor_bonus > 0:
+			lines.append("Armor: +%d" % module.armor_bonus)
+		if module.shield_value > 0:
+			lines.append("Shield: %d" % module.shield_value)
+		if not module.damage_value.is_empty():
+			lines.append("Damage: %s" % module.damage_value)
+		if not module.weapon_range_type.is_empty():
+			lines.append("Weapon Type: %s" % module.weapon_range_type)
+		if module.action_modifier != 0:
+			lines.append("Actions: %+d" % module.action_modifier)
+		if not module.special_effect_text.is_empty():
+			lines.append("Special: %s" % module.special_effect_text)
+		return lines
 	lines.append("Size: %s" % _get_selected_module_size_text(module))
 	return lines
 
