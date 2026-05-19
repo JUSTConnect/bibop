@@ -2923,8 +2923,10 @@ func _get_external_left_info_lines() -> Array[String]:
 	lines.append("Armor: %d / %d" % [armor_max, armor_max])
 	var damage_lines: Array[String] = _get_external_damage_lines()
 	if damage_lines.size() > 0:
-		var damage_text: String = ", ".join(damage_lines)
-		lines.append("Damage: %s" % damage_text)
+		lines.append("Damage:")
+		var max_damage_rows: int = mini(3, damage_lines.size())
+		for i in range(max_damage_rows):
+			lines.append(damage_lines[i])
 	var shield_installed: bool = false
 	for module in _get_external_installed_unique_modules():
 		if module != null and ("%s %s" % [module.id, module.display_name]).to_lower().contains("shield"):
