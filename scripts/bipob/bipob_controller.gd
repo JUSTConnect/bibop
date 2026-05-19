@@ -75,6 +75,7 @@ var has_info_key: bool = false
 var installed_modules: Array[BipobModule] = []
 var box_storage: Array[BipobModule] = []
 var external_modules_by_slot: Dictionary = {}
+var external_pockets_by_side: Dictionary = {}
 var internal_modules_by_cell: Dictionary = {}
 var placed_internal_modules: Array[Dictionary] = []
 var internal_overlay_paths: Array[Dictionary] = []
@@ -764,6 +765,7 @@ func _ready() -> void:
 	base_max_energy = max_energy
 	base_vision_range = vision_range
 	base_actions_per_turn = actions_per_turn
+	_ensure_external_pockets_shape()
 	create_default_modules()
 	if debug_add_mission4_modules_to_box:
 		add_debug_mission4_modules_to_box()
@@ -1115,6 +1117,7 @@ func set_constructor_body_size(body_size: Vector3i) -> void:
 		maxi(1, body_size.y),
 		maxi(1, body_size.z)
 	)
+	_ensure_external_pockets_shape()
 
 
 func get_constructor_body_size() -> Vector3i:
@@ -1138,6 +1141,25 @@ func get_external_side_size(side_id: String) -> Vector2i:
 			return Vector2i(body_size.x, body_size.z)
 		_:
 			return Vector2i.ZERO
+
+func get_bipop_body_armor_max(profile_id: String = "") -> int:
+	var normalized: String = profile_id.strip_edges().to_lower()
+	if normalized.is_empty():
+		var size: Vector3i = get_constructor_body_size()
+		if size == CONSTRUCTOR_PROFILE_JUGGERNAUT_SIZE:
+			normalized = "juggernaut"
+		elif size == CONSTRUCTOR_PROFILE_ENGINEER_SIZE:
+			normalized = "engineer"
+		else:
+			normalized = "scout"
+
+	match normalized:
+		"juggernaut":
+			return 40
+		"engineer", "beta":
+			return 20
+		_:
+			return 10
 
 
 func get_internal_volume_size() -> Vector3i:
@@ -3410,6 +3432,85 @@ func get_external_module_at(side_id: String, slot_position: Vector2i) -> BipobMo
 func is_external_slot_empty(side_id: String, slot_position: Vector2i) -> bool:
 	return get_external_module_at(side_id, slot_position) == null
 
+func get_max_pockets_per_side(profile_id: String = "") -> int:
+	var normalized: String = profile_id.strip_edges().to_lower()
+	if normalized.is_empty():
+		var size: Vector3i = get_constructor_body_size()
+		if size == CONSTRUCTOR_PROFILE_JUGGERNAUT_SIZE:
+			normalized = "juggernaut"
+		elif size == CONSTRUCTOR_PROFILE_ENGINEER_SIZE:
+			normalized = "engineer"
+		else:
+			normalized = "scout"
+	match normalized:
+		"engineer", "beta":
+			return 2
+		"juggernaut":
+			return 3
+		_:
+			return 1
+
+func _ensure_external_pockets_shape() -> void:
+	var max_count: int = get_max_pockets_per_side()
+	for side_id in [EXTERNAL_SIDE_FRONT, EXTERNAL_SIDE_BACK, EXTERNAL_SIDE_LEFT, EXTERNAL_SIDE_RIGHT]:
+		var row: Array = []
+		if external_pockets_by_side.has(side_id):
+			row = Array(external_pockets_by_side[side_id])
+		while row.size() < max_count:
+			row.append(false)
+		if row.size() > max_count:
+			row.resize(max_count)
+		external_pockets_by_side[side_id] = row
+
+func is_external_pocket_enabled(side_id: String, pocket_index: int) -> bool:
+	_ensure_external_pockets_shape()
+	if not external_pockets_by_side.has(side_id):
+		return false
+	var row: Array = external_pockets_by_side[side_id]
+	return pocket_index >= 0 and pocket_index < row.size() and bool(row[pocket_index])
+
+func get_external_pocket_reserved_cells(side_id: String, pocket_index: int) -> Array[Vector2i]:
+	var reserved: Array[Vector2i] = []
+	var side_size: Vector2i = get_external_side_size(side_id)
+	if side_size.x <= 0 or side_size.y <= 0:
+		return reserved
+	var column: int = clampi(pocket_index, 0, side_size.x - 1)
+	var bottom_row: int = side_size.y - 1
+	reserved.append(Vector2i(column, bottom_row))
+	if side_size.y > 1:
+		reserved.append(Vector2i(column, bottom_row - 1))
+	return reserved
+
+func is_external_cell_reserved_for_pocket(side_id: String, cell: Vector2i) -> bool:
+	_ensure_external_pockets_shape()
+	if not external_pockets_by_side.has(side_id):
+		return false
+	var row: Array = external_pockets_by_side[side_id]
+	for pocket_index in range(row.size()):
+		if not bool(row[pocket_index]):
+			continue
+		if get_external_pocket_reserved_cells(side_id, pocket_index).has(cell):
+			return true
+	return false
+
+func toggle_external_pocket(side_id: String, pocket_index: int) -> void:
+	_ensure_external_pockets_shape()
+	if not external_pockets_by_side.has(side_id):
+		return
+	var row: Array = external_pockets_by_side[side_id]
+	if pocket_index < 0 or pocket_index >= row.size():
+		return
+	var is_enabled: bool = bool(row[pocket_index])
+	if not is_enabled:
+		for cell in get_external_pocket_reserved_cells(side_id, pocket_index):
+			if is_external_cell_occupied(side_id, cell):
+				hint_requested.emit("Cannot reserve pocket: cells are occupied.")
+				status_changed.emit()
+				return
+	row[pocket_index] = not is_enabled
+	external_pockets_by_side[side_id] = row
+	status_changed.emit()
+
 
 func can_place_external_module(module: BipobModule, side_id: String, origin: Vector2i) -> bool:
 	return can_place_external_module_at(module, side_id, origin)
@@ -3484,6 +3585,8 @@ func get_external_module_placement_error(module: BipobModule, side_id: String, o
 			return "Module footprint is outside the %s side." % get_external_side_display_name(side_id)
 		if is_external_cell_occupied(side_id, cell):
 			return "External slot is occupied."
+		if is_external_cell_reserved_for_pocket(side_id, cell):
+			return "External pocket cell is reserved."
 
 	for safe_cell in get_external_module_safe_area_cells(module, origin):
 		if not is_external_slot_in_bounds(side_id, safe_cell):
@@ -3558,8 +3661,10 @@ func get_allowed_external_sides_for_module(module: BipobModule) -> Array[String]
 			return [EXTERNAL_SIDE_BOTTOM]
 		"radar_v1", "visor_v1", "visor_v2", "thermal_visor_v1", "xray_v1", "motion_detector_v1":
 			return [EXTERNAL_SIDE_TOP, EXTERNAL_SIDE_FRONT, EXTERNAL_SIDE_LEFT, EXTERNAL_SIDE_RIGHT]
-		"manipulator_arm_v1", "manipulator_tentacle_v1", "manipulator_magnetic_v1", "manipulator_v1", "torch_v1", "plasma_cutter_v1", "saw_v1", "sledgehammer_v1", "laser_v1", "shock_device_v1", "repair_module_v1", "welder_v1":
+		"manipulator_arm_v1", "manipulator_tentacle_v1", "manipulator_magnetic_v1", "manipulator_v1", "torch_v1", "plasma_cutter_v1", "saw_v1", "sledgehammer_v1", "hammer_v1", "laser_v1", "shock_device_v1", "repair_module_v1", "welder_v1":
 			return [EXTERNAL_SIDE_FRONT, EXTERNAL_SIDE_LEFT, EXTERNAL_SIDE_RIGHT]
+		"energy_shield_v1":
+			return [EXTERNAL_SIDE_TOP, EXTERNAL_SIDE_FRONT, EXTERNAL_SIDE_LEFT, EXTERNAL_SIDE_RIGHT, EXTERNAL_SIDE_BACK]
 		"connector_v1", "interface_v1":
 			return [EXTERNAL_SIDE_TOP, EXTERNAL_SIDE_FRONT, EXTERNAL_SIDE_LEFT, EXTERNAL_SIDE_RIGHT, EXTERNAL_SIDE_BACK]
 		"pocket_v1":
@@ -3767,9 +3872,11 @@ func create_external_module_by_id(module_id: String) -> BipobModule:
 		"gas_tank_v1": module.display_name = "Газовый балон V1"; module.category = "tool"; module.description = "Баллон топлива для газовых инструментов."
 		"plasma_cutter_v1": module.display_name = "Плазменный резак V1"; module.category = "tool"; module.description = "Инструмент для резки прочных материалов."
 		"laser_v1": module.display_name = "Лазер V1"; module.category = "weapon"; module.description = "Энергетический внешний модуль направленного действия."
+		"hammer_v1": module.display_name = "Молот V1"; module.category = "weapon"; module.description = "Ударный внешний боевой модуль ближнего действия."
 		"shock_device_v1": module.display_name = "Шокер V1"; module.category = "weapon"; module.description = "Электрошоковый внешний модуль."
 		"saw_v1": module.display_name = "Пила V1"; module.category = "tool"; module.description = "Механический режущий инструмент."
 		"sledgehammer_v1": module.display_name = "Кувалда V1"; module.category = "tool"; module.description = "Ударный внешний инструмент."
+		"energy_shield_v1": module.display_name = "Энергощит V1"; module.category = "armor"; module.description = "Внешний модуль энергетического щита, связанный с зарядом батареи."
 		"repair_module_v1": module.display_name = "Ремонтный модуль V1"; module.category = "repair"; module.description = "Внешний модуль для полевого ремонта."
 		"welder_v1": module.display_name = "Сварочный аппарат V1"; module.category = "repair"; module.description = "Инструмент для сварки и восстановления конструкций."
 		"air_intake_v1": module.display_name = "Air Intake Node V1"; module.category = "cooling"; module.description = "External air intake required by air cooling."
@@ -3785,8 +3892,8 @@ func ensure_external_constructor_modules_in_box_storage() -> void:
 		"manipulator_arm_v1", "manipulator_tentacle_v1", "manipulator_magnetic_v1", "connector_v1",
 		"legs_v1", "wheels_v1", "tracks_v1", "radar_v1", "visor_v1", "visor_v2", "thermal_visor_v1",
 		"xray_v1", "pocket_v1", "air_duct_external_v1", "motion_detector_v1", "torch_v1", "gas_tank_v1",
-		"plasma_cutter_v1", "laser_v1", "shock_device_v1", "saw_v1", "sledgehammer_v1", "repair_module_v1",
-		"welder_v1", "air_intake_v1"
+		"plasma_cutter_v1", "laser_v1", "hammer_v1", "shock_device_v1", "saw_v1", "sledgehammer_v1", "repair_module_v1",
+		"welder_v1", "air_intake_v1", "energy_shield_v1"
 	]
 
 	for module_id in required_ids:
