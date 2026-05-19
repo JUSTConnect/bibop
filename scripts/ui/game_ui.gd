@@ -252,8 +252,8 @@ const UI_COLOR_DISABLED: Color = Color(0.250, 0.280, 0.320, 1.0)
 
 const STORAGE_CARD_MIN_SIZE: Vector2 = Vector2(84, 56)
 const STORAGE_CARD_ICON_SIZE: Vector2 = Vector2(26, 26)
-const SELECTED_MODULE_ICON_SIZE: Vector2 = Vector2(52, 38)
-const SELECTED_MODULE_PREVIEW_CELL_SIZE: Vector2 = Vector2(14, 14)
+const SELECTED_MODULE_ICON_SIZE: Vector2 = Vector2(68, 64)
+const SELECTED_MODULE_PREVIEW_CELL_SIZE: Vector2 = Vector2(18, 18)
 const SELECTED_MODULE_PREVIEW_GAP: int = 3
 const EXTERNAL_GRID_CELL_SIZE: Vector2 = Vector2(22, 22)
 const EXTERNAL_GRID_CELL_GAP: int = 2
@@ -2755,7 +2755,7 @@ func _create_internal_storage_right_column() -> Control:
 	storage_panel.size_flags_vertical = Control.SIZE_EXPAND_FILL
 	column.add_child(storage_panel)
 
-	var selected_panel: Control = _create_internal_selected_module_panel()
+	var selected_panel: Control = _create_selected_module_info_panel(_get_selected_module_for_context("internal"), "internal")
 	selected_panel.custom_minimum_size = Vector2(0, 180)
 	selected_panel.size_flags_vertical = Control.SIZE_SHRINK_END
 	column.add_child(selected_panel)
@@ -2994,7 +2994,7 @@ func _create_external_storage_right_column() -> Control:
 	storage_panel.size_flags_vertical = Control.SIZE_EXPAND_FILL
 	column.add_child(storage_panel)
 
-	var selected_panel: Control = _create_external_selected_description_panel()
+	var selected_panel: Control = _create_selected_module_info_panel(_get_selected_module_for_context("external"), "external")
 	selected_panel.custom_minimum_size = Vector2(0, 145)
 	selected_panel.size_flags_vertical = Control.SIZE_SHRINK_END
 	column.add_child(selected_panel)
@@ -3175,45 +3175,143 @@ func _create_internal_interfaces_placeholder_panel() -> Control:
 	return panel
 
 
-func _create_internal_selected_module_panel() -> Control:
-	var panel: PanelContainer = PanelContainer.new()
-	_apply_panel_style(panel)
-	panel.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 
-	var root: VBoxContainer = VBoxContainer.new()
+func _get_selected_module_for_context(context: String) -> BipobModule:
+	var normalized: String = context.to_lower()
+	if normalized == "external":
+		var installed_external: BipobModule = bipob.get_external_module_at(bipob.selected_external_side, bipob.selected_external_origin)
+		if installed_external != null:
+			return installed_external
+		return _get_selected_external_candidate_module()
+	if normalized == "internal":
+		var installed_internal: BipobModule = bipob.get_internal_module_at_cell(bipob.selected_internal_origin)
+		if installed_internal != null:
+			return installed_internal
+		var storage_module: BipobModule = _get_selected_box_storage_module()
+		if storage_module != null and (bipob.is_internal_module(storage_module) or bipob.is_internal_overlay_module(storage_module)):
+			return storage_module
+	return _get_selected_box_storage_module()
+
+
+func _create_selected_module_size_preview(module: BipobModule, context: String) -> Control:
+	var panel := PanelContainer.new()
+	panel.custom_minimum_size = Vector2(84, 64)
+	panel.add_theme_stylebox_override("panel", _make_panel_style(UI_COLOR_PANEL_DARK, UI_COLOR_BORDER_DIM, 1, 4))
+	var root := VBoxContainer.new()
+	root.add_theme_constant_override("separation", 2)
 	root.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-	root.add_theme_constant_override("separation", 4)
-
-
-	var module: BipobModule = _get_selected_box_storage_module()
-	if module == null:
-		var empty_label: Label = Label.new()
-		empty_label.text = "Select a module."
-		_apply_label_style(empty_label, true, false)
-		root.add_child(empty_label)
-	else:
-		var name_label: Label = Label.new()
-		name_label.text = bipob.get_module_display_name(module)
-		_apply_label_style(name_label)
-		root.add_child(name_label)
-
-		var size_label: Label = Label.new()
-		size_label.text = "Size: %s" % _get_selected_module_size_text(module)
-		_apply_label_style(size_label, true, false)
-		root.add_child(size_label)
-
-		var desc_label: Label = Label.new()
-		desc_label.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
-		var description_value: Variant = module.get("description")
-		desc_label.text = String(description_value) if description_value != null else ""
-		if desc_label.text.is_empty():
-			desc_label.text = "Description will be added later."
-		_apply_label_style(desc_label, true, false)
-		root.add_child(desc_label)
-
+	var grid := GridContainer.new()
+	grid.columns = 4
+	grid.add_theme_constant_override("h_separation", 2)
+	grid.add_theme_constant_override("v_separation", 2)
+	var fill_cells: int = 1
+	var total_cells: int = 16
+	if bipob.is_external_module(module):
+		var ext: Vector2i = bipob.get_external_module_footprint_size(module)
+		fill_cells = mini(16, maxi(1, ext.x * ext.y))
+	elif bipob.is_internal_module(module):
+		var vol: Vector3i = bipob.get_internal_module_base_size(module)
+		fill_cells = mini(16, maxi(1, vol.x * vol.y))
+	elif bipob.is_internal_overlay_module(module):
+		fill_cells = 3
+	for i in range(total_cells):
+		var c := ColorRect.new()
+		c.custom_minimum_size = SELECTED_MODULE_PREVIEW_CELL_SIZE
+		c.color = Color(0.35,0.75,0.95,0.45) if i < fill_cells else Color(0.2,0.24,0.3,0.35)
+		grid.add_child(c)
+	root.add_child(grid)
+	if bipob.is_internal_overlay_module(module):
+		var overlay_label := Label.new()
+		overlay_label.text = "Overlay"
+		_apply_label_style(overlay_label, true, false)
+		root.add_child(overlay_label)
 	panel.add_child(root)
 	return panel
 
+func _get_module_characteristics_lines(module: BipobModule, context: String) -> Array[String]:
+	var lines: Array[String] = []
+	if module == null:
+		return lines
+	if _is_module_unknown(module):
+		lines.append("Type: %s" % String(module.category).capitalize())
+		lines.append("Details: unknown")
+		return lines
+	var text := ("%s %s %s" % [module.id, module.display_name, module.category]).to_lower()
+	if text.contains("damage") or text.contains("laser") or text.contains("shock") or text.contains("weapon"):
+		lines.append("Damage: %d %s" % [_get_external_module_damage_value(module), _get_external_module_damage_type(module)])
+	if text.contains("armor"):
+		lines.append("Armor: reinforced")
+	if text.contains("shield"):
+		lines.append("Energy Shield: enabled")
+	if text.contains("pocket"):
+		lines.append("Pocket: utility slot")
+	if text.contains("scan") or text.contains("vision") or text.contains("visor") or text.contains("radar"):
+		lines.append("Vision: sensor module")
+	if text.contains("gear") or text.contains("wheel") or text.contains("track") or text.contains("leg") or text.contains("chassis"):
+		lines.append("Movement: chassis component")
+	if module.actions_capacity > 0:
+		lines.append("Actions: %d" % module.actions_capacity)
+	if module.hack_level > 0:
+		lines.append("Hack: %d" % module.hack_level)
+	if module.storage_capacity > 0:
+		lines.append("Storage: %d" % module.storage_capacity)
+	if module.battery_capacity > 0:
+		lines.append("Energy: %d" % module.battery_capacity)
+	if module.cooling_power > 0:
+		lines.append("Cooling: %s %d" % [module.cooling_type.capitalize(), module.cooling_power])
+	if not String(module.internal_role).is_empty() and context == "internal":
+		lines.append("Interface: %s" % String(module.internal_role))
+	if module.heat_idle > 0 or module.heat_active > 0:
+		lines.append("Heat: idle %d / active %d" % [module.heat_idle, module.heat_active])
+	lines.append("Size: %s" % _get_selected_module_size_text(module))
+	return lines
+
+func _create_selected_module_info_panel(module: BipobModule, context: String) -> Control:
+	var panel := PanelContainer.new()
+	_apply_panel_style(panel)
+	panel.custom_minimum_size = Vector2(0, 190)
+	var info_root := HBoxContainer.new()
+	info_root.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	info_root.add_theme_constant_override("separation", 10)
+	if module == null:
+		var empty := Label.new()
+		empty.text = "Select a module"
+		_apply_label_style(empty, true, false)
+		info_root.add_child(empty)
+		panel.add_child(info_root)
+		return panel
+	var left := VBoxContainer.new()
+	left.custom_minimum_size = Vector2(236, 0)
+	left.size_flags_horizontal = Control.SIZE_SHRINK_BEGIN
+	left.add_theme_constant_override("separation", 4)
+	var previews := HBoxContainer.new()
+	previews.add_theme_constant_override("separation", 8)
+	previews.add_child(_create_module_icon_control(module, SELECTED_MODULE_ICON_SIZE))
+	previews.add_child(_create_selected_module_size_preview(module, context))
+	left.add_child(previews)
+	var name_label := Label.new(); name_label.text = bipob.get_module_display_name(module); _apply_label_style(name_label); left.add_child(name_label)
+	var type_label := Label.new(); type_label.text = "Type: %s" % String(bipob.get_module_category(module)).capitalize(); _apply_label_style(type_label, true, false); left.add_child(type_label)
+	var version_label := Label.new(); version_label.text = "Version: V%d" % maxi(1, int(module.module_version)); _apply_label_style(version_label, true, false); left.add_child(version_label)
+	var install_notes := _get_selected_module_availability_text(module)
+	if not install_notes.is_empty():
+		var install_label := Label.new(); install_label.text = "Install: %s" % install_notes; install_label.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART; _apply_label_style(install_label, true, false); left.add_child(install_label)
+	var right := VBoxContainer.new()
+	right.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	right.add_theme_constant_override("separation", 2)
+	var c_title := Label.new(); c_title.text = "Characteristics"; _apply_label_style(c_title, false, true); right.add_child(c_title)
+	var c_text := Label.new(); c_text.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART; c_text.clip_text = true
+	var chars := _get_module_characteristics_lines(module, context)
+	c_text.text = "\n".join(chars) if not chars.is_empty() else "—"
+	_apply_label_style(c_text, true, false); right.add_child(c_text)
+	var d_title := Label.new(); d_title.text = "Description"; _apply_label_style(d_title, false, true); right.add_child(d_title)
+	var d_text := Label.new(); d_text.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART; d_text.clip_text = true
+	var desc := String(module.get("description") if module.get("description") != null else "")
+	d_text.text = desc if not desc.is_empty() else "Description will be added later."
+	_apply_label_style(d_text, true, false); right.add_child(d_text)
+	info_root.add_child(left)
+	info_root.add_child(right)
+	panel.add_child(info_root)
+	return panel
 
 func _create_internal_bottom_action_bar() -> Control:
 	var panel: PanelContainer = PanelContainer.new()
@@ -3317,53 +3415,6 @@ func _create_constructor_dashboard_layout() -> Control:
 	hint_label.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 	_apply_label_style(hint_label, true, false)
 	root.add_child(hint_label)
-
-	panel.add_child(root)
-	return panel
-
-
-func _create_external_selected_description_panel() -> Control:
-	var panel: PanelContainer = PanelContainer.new()
-	_apply_panel_style(panel)
-	panel.custom_minimum_size = Vector2(0, 170)
-
-	var root: VBoxContainer = VBoxContainer.new()
-	root.add_theme_constant_override("separation", 4)
-
-
-	var module: BipobModule = _get_selected_box_storage_module()
-	if module == null or not bipob.is_external_module(module):
-		var empty_label: Label = Label.new()
-		empty_label.text = "Select an external module."
-		_apply_label_style(empty_label, true, false)
-		root.add_child(empty_label)
-	else:
-		var name_label: Label = Label.new()
-		name_label.text = _get_module_known_label(module, true)
-		_apply_label_style(name_label)
-		root.add_child(name_label)
-
-		if _is_module_unknown(module):
-			var unknown_label: Label = Label.new()
-			unknown_label.text = "Unknown module"
-			_apply_label_style(unknown_label, true, false)
-			root.add_child(unknown_label)
-			var unknown_desc_label: Label = Label.new()
-			unknown_desc_label.text = "Details unavailable."
-			_apply_label_style(unknown_desc_label, true, false)
-			root.add_child(unknown_desc_label)
-		else:
-			var size_label: Label = Label.new()
-			size_label.text = "Size: %s" % _get_selected_module_size_text(module)
-			_apply_label_style(size_label, true, false)
-			root.add_child(size_label)
-			var desc_label: Label = Label.new()
-			desc_label.text = String(module.description)
-			if desc_label.text.is_empty():
-				desc_label.text = "Description will be added later."
-			desc_label.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
-			_apply_label_style(desc_label, true, false)
-			root.add_child(desc_label)
 
 	panel.add_child(root)
 	return panel
