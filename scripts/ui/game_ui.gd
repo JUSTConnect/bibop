@@ -110,13 +110,11 @@ const BIPOB_PROFILE_NAMES: Dictionary = {"alpha": "Scout", "beta": "Engineer", "
 const BIPOB_PROFILE_SIZES: Dictionary = {"alpha": Vector3i(3, 3, 4), "beta": Vector3i(5, 5, 6), "juggernaut": Vector3i(7, 7, 9)}
 
 enum BoxMenuMode {
-	MISSION,
-	MODULES,
 	EXTERNAL,
 	INTERNAL
 }
 
-var box_menu_mode: BoxMenuMode = BoxMenuMode.MISSION
+var box_menu_mode: BoxMenuMode = BoxMenuMode.EXTERNAL
 var selected_external_side_index: int = 1
 var selected_external_slot_position: Vector2i = Vector2i(1, 1)
 var internal_view_mode: String = "modules"
@@ -294,7 +292,7 @@ func _is_constructor_external_mode() -> bool:
 	return box_menu_mode == BoxMenuMode.EXTERNAL
 
 func _is_constructor_dashboard_mode() -> bool:
-	return box_menu_mode == BoxMenuMode.MISSION
+	return false
 
 func _show_constructor_reference_text(title_text: String, body_text: String) -> void:
 	var text: String = title_text
@@ -4587,20 +4585,14 @@ func update_box_status() -> void:
 	update_diagnostic_status()
 
 	if box_title_label != null:
-		if box_menu_mode == BoxMenuMode.MISSION:
-			box_title_label.text = "Constructor — Mission"
-		elif box_menu_mode == BoxMenuMode.EXTERNAL:
+		if box_menu_mode == BoxMenuMode.EXTERNAL:
 			box_title_label.text = "Constructor — External Modules"
 		elif box_menu_mode == BoxMenuMode.INTERNAL:
 			box_title_label.text = "Constructor — Internal Modules"
 		else:
-			box_title_label.text = "Constructor — Modules"
+			box_title_label.text = "Constructor — External Modules"
 
 	var content_text: String = ""
-	if box_menu_mode == BoxMenuMode.MISSION:
-		content_text = get_box_mission_menu_text()
-	elif box_menu_mode == BoxMenuMode.MODULES:
-		content_text = get_box_modules_menu_text()
 
 	update_box_button_visibility()
 	_setup_box_top_bar()
@@ -4635,10 +4627,9 @@ func _rebuild_box_constructor_content() -> void:
 			layout = _create_external_constructor_layout()
 		BoxMenuMode.INTERNAL:
 			layout = _create_internal_constructor_layout()
-		BoxMenuMode.MODULES:
-			layout = _create_constructor_dashboard_layout()
 		_:
-			layout = null
+			box_menu_mode = BoxMenuMode.EXTERNAL
+			layout = _create_external_constructor_layout()
 	if layout != null:
 		layout.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 		layout.size_flags_vertical = Control.SIZE_EXPAND_FILL
@@ -4922,12 +4913,7 @@ func rebuild_box_action_buttons() -> void:
 	right_button_panel.add_child(actions_label)
 	_apply_label_style(actions_label, false, true)
 
-	if box_menu_mode == BoxMenuMode.MISSION:
-		_add_box_action_button("Charge", Callable(self, "_on_charge_button_pressed"))
-		_add_box_action_button("Warnings", Callable(self, "_on_constructor_warnings_button_pressed"))
-		_add_box_action_button("Start", Callable(self, "_on_start_mission_button_pressed"))
-		_add_box_action_button("Restart", Callable(self, "_on_restart_mission_button_pressed"))
-	elif box_menu_mode == BoxMenuMode.INTERNAL:
+	if box_menu_mode == BoxMenuMode.INTERNAL:
 		var internal_remove_available: bool = bipob.get_internal_module_at_cell(bipob.selected_internal_origin) != null
 		var selection_group: VBoxContainer = _create_action_group_panel("Selection")
 		right_button_panel.add_child(selection_group)
@@ -5183,14 +5169,10 @@ func update_box_button_visibility() -> void:
 	_setup_box_top_bar()
 
 func set_box_menu_mode_mission() -> void:
-	box_menu_mode = BoxMenuMode.MISSION
-	update_box_status()
-	rebuild_box_action_buttons()
+	set_box_menu_mode_external()
 
 func set_box_menu_mode_modules() -> void:
-	box_menu_mode = BoxMenuMode.MODULES
-	update_box_status()
-	rebuild_box_action_buttons()
+	set_box_menu_mode_external()
 
 func set_box_menu_mode_external() -> void:
 	box_menu_mode = BoxMenuMode.EXTERNAL
