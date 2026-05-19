@@ -1,6 +1,25 @@
 extends CanvasLayer
 class_name GameUI
 
+
+class InternalIsoPreviewControl:
+	extends Control
+	var ui_ref: GameUI
+
+	func _init(ui_owner: GameUI) -> void:
+		ui_ref = ui_owner
+		mouse_filter = Control.MOUSE_FILTER_IGNORE
+
+	func _ready() -> void:
+		set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
+
+	func _process(_delta: float) -> void:
+		queue_redraw()
+
+	func _draw() -> void:
+		if ui_ref != null:
+			ui_ref._draw_internal_isometric_preview(self)
+
 @onready var bipob = get_node("../Bipob")
 
 @onready var status_label: Label = $StatusLabel
@@ -6961,23 +6980,145 @@ func _build_internal_missing_required_warnings() -> Array[String]:
 func _create_internal_volume_placeholder_panel() -> Control:
 	var panel: PanelContainer = PanelContainer.new()
 	_apply_dark_panel_style(panel)
-	panel.custom_minimum_size = Vector2(180, 160)
+	panel.custom_minimum_size = Vector2(190, 150)
 	var root: VBoxContainer = VBoxContainer.new()
+	root.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	root.size_flags_vertical = Control.SIZE_EXPAND_FILL
 	root.add_theme_constant_override("separation", 3)
-	root.alignment = BoxContainer.ALIGNMENT_CENTER
 	var title: Label = Label.new()
 	title.text = "VOLUME PREVIEW"
-	_apply_label_style(title, false, true)
 	title.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	_apply_label_style(title, false, true)
 	root.add_child(title)
-	var volume_size: Vector3i = bipob.get_internal_volume_size()
-	var body: Label = Label.new()
-	body.text = "INTERNAL CUBE %dx%dx%d" % [volume_size.x, volume_size.y, volume_size.z]
-	body.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
-	_apply_label_style(body, true, false)
-	root.add_child(body)
+	var draw_host := InternalIsoPreviewControl.new(self)
+	draw_host.name = "InternalIsoPreview"
+	draw_host.custom_minimum_size = Vector2(184, 124)
+	draw_host.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	draw_host.size_flags_vertical = Control.SIZE_EXPAND_FILL
+	root.add_child(draw_host)
 	panel.add_child(root)
 	return panel
+
+func _get_internal_preview_volume_size() -> Vector3i:
+	if bipob != null and bipob.has_method("get_internal_volume_size"):
+		var size: Vector3i = bipob.get_internal_volume_size()
+		if size.x > 0 and size.y > 0 and size.z > 0:
+			return size
+	return Vector3i(3, 3, 4)
+
+func _draw_internal_isometric_preview(control: Control) -> void:
+	if control == null:
+		return
+	var volume_size: Vector3i = _get_internal_preview_volume_size()
+	var rect: Rect2 = control.get_rect()
+	if rect.size.x <= 8.0 or rect.size.y <= 8.0:
+		return
+	var w: float = clampf(rect.size.x * 0.48, 70.0, 120.0)
+	var h: float = clampf(rect.size.y * 0.58, 52.0, 98.0)
+	var d: float = clampf(rect.size.x * 0.19, 22.0, 44.0)
+	var center: Vector2 = rect.size * 0.5
+	var front_tl: Vector2 = Vector2(center.x - w * 0.5 - d * 0.28, center.y - h * 0.30)
+	var front_tr: Vector2 = front_tl + Vector2(w, 0.0)
+	var front_br: Vector2 = front_tr + Vector2(0.0, h)
+	var front_bl: Vector2 = front_tl + Vector2(0.0, h)
+	var top_offset: Vector2 = Vector2(d, -d * 0.58)
+	var top_a: Vector2 = front_tl + top_offset
+	var top_b: Vector2 = front_tr + top_offset
+	var side_a: Vector2 = front_tr + top_offset
+	var side_b: Vector2 = front_br + top_offset
+	var front_face: PackedVector2Array = PackedVector2Array([front_tl, front_tr, front_br, front_bl])
+	var top_face: PackedVector2Array = PackedVector2Array([top_a, top_b, front_tr, front_tl])
+	var right_face: PackedVector2Array = PackedVector2Array([side_a, side_b, front_br, front_tr])
+	control.draw_colored_polygon(top_face, Color(0.080, 0.145, 0.175, 0.92))
+	control.draw_colored_polygon(right_face, Color(0.060, 0.100, 0.135, 0.93))
+	control.draw_colored_polygon(front_face, Color(0.040, 0.075, 0.110, 0.94))
+	for x in range(volume_size.x + 1):
+		var t: float = float(x) / float(maxi(volume_size.x, 1))
+		control.draw_line(front_tl.lerp(front_tr, t), front_bl.lerp(front_br, t), Color(0.220, 0.640, 0.760, 0.33), 1.0)
+		control.draw_line(top_a.lerp(top_b, t), front_tl.lerp(front_tr, t), Color(0.220, 0.640, 0.760, 0.30), 1.0)
+	for y in range(volume_size.y + 1):
+		var u: float = float(y) / float(maxi(volume_size.y, 1))
+		control.draw_line(top_a.lerp(front_tl, u), top_b.lerp(front_tr, u), Color(0.220, 0.640, 0.760, 0.30), 1.0)
+		control.draw_line(side_a.lerp(front_tr, u), side_b.lerp(front_br, u), Color(0.220, 0.640, 0.760, 0.28), 1.0)
+	for z in range(volume_size.z + 1):
+		var v: float = float(z) / float(maxi(volume_size.z, 1))
+		control.draw_line(front_tl.lerp(front_bl, v), front_tr.lerp(front_br, v), Color(0.220, 0.640, 0.760, 0.33), 1.0)
+		control.draw_line(side_a.lerp(side_b, v), front_tr.lerp(front_br, v), Color(0.220, 0.640, 0.760, 0.28), 1.0)
+	_draw_internal_isometric_module_projections(control, front_tl, front_tr, front_bl, top_a, top_b, side_a, side_b, volume_size)
+	_draw_internal_isometric_cursor_projection(control, front_tl, front_tr, front_bl, top_a, top_b, side_a, side_b, volume_size)
+	var border_col: Color = Color(0.420, 0.820, 0.930, 0.62)
+	control.draw_polyline(PackedVector2Array([top_a, top_b, front_tr, front_tl, top_a]), border_col, 1.4, true)
+	control.draw_polyline(PackedVector2Array([side_a, side_b, front_br, front_tr, side_a]), border_col, 1.4, true)
+	control.draw_polyline(PackedVector2Array([front_tl, front_tr, front_br, front_bl, front_tl]), border_col, 1.4, true)
+
+func _draw_internal_isometric_module_projections(control: Control, front_tl: Vector2, front_tr: Vector2, front_bl: Vector2, top_a: Vector2, top_b: Vector2, side_a: Vector2, side_b: Vector2, volume_size: Vector3i) -> void:
+	if bipob == null:
+		return
+	for record_variant in bipob.placed_internal_modules:
+		if typeof(record_variant) != TYPE_DICTIONARY:
+			continue
+		var record: Dictionary = record_variant
+		var module: BipobModule = record.get("module", null)
+		if module == null:
+			continue
+		var origin: Vector3i = record.get("origin", Vector3i.ZERO)
+		var rotation_index: int = int(record.get("rotation", 0))
+		var covered_cells: Array[Vector3i] = bipob.get_internal_module_covered_cells(module, origin, rotation_index)
+		if covered_cells.is_empty():
+			continue
+		var min_x: int = covered_cells[0].x
+		var max_x: int = covered_cells[0].x
+		var min_y: int = covered_cells[0].y
+		var max_y: int = covered_cells[0].y
+		var min_z: int = covered_cells[0].z
+		var max_z: int = covered_cells[0].z
+		for cell in covered_cells:
+			min_x = mini(min_x, cell.x); max_x = maxi(max_x, cell.x)
+			min_y = mini(min_y, cell.y); max_y = maxi(max_y, cell.y)
+			min_z = mini(min_z, cell.z); max_z = maxi(max_z, cell.z)
+		var c: Color = bipob.get_module_visual_color(module) if bipob.has_method("get_module_visual_color") else Color(0.300, 0.600, 0.900, 0.85)
+		_draw_iso_rect_front(control, front_tl, front_tr, front_bl, volume_size, min_x, max_x + 1, min_z, max_z + 1, c, 0.32)
+		_draw_iso_rect_top(control, front_tl, front_tr, top_a, top_b, volume_size, min_x, max_x + 1, min_y, max_y + 1, c, 0.24)
+		_draw_iso_rect_right(control, front_tr, side_a, side_b, volume_size, min_y, max_y + 1, min_z, max_z + 1, c, 0.26)
+
+func _draw_internal_isometric_cursor_projection(control: Control, front_tl: Vector2, front_tr: Vector2, front_bl: Vector2, top_a: Vector2, top_b: Vector2, side_a: Vector2, side_b: Vector2, volume_size: Vector3i) -> void:
+	if bipob == null:
+		return
+	var c: Vector3i = bipob.selected_internal_origin
+	var highlight: Color = UI_COLOR_SELECTED
+	_draw_iso_rect_front(control, front_tl, front_tr, front_bl, volume_size, c.x, c.x + 1, c.z, c.z + 1, highlight, 0.18, true)
+	_draw_iso_rect_top(control, front_tl, front_tr, top_a, top_b, volume_size, c.x, c.x + 1, c.y, c.y + 1, highlight, 0.14, true)
+	_draw_iso_rect_right(control, front_tr, side_a, side_b, volume_size, c.y, c.y + 1, c.z, c.z + 1, highlight, 0.16, true)
+
+func _draw_iso_rect_front(control: Control, front_tl: Vector2, front_tr: Vector2, front_bl: Vector2, volume_size: Vector3i, min_x: int, max_x: int, min_z: int, max_z: int, color: Color, alpha_scale: float, outline: bool = false) -> void:
+	var p0: Vector2 = front_tl.lerp(front_tr, float(min_x) / float(maxi(volume_size.x, 1))).lerp(front_bl, float(min_z) / float(maxi(volume_size.z, 1)))
+	var p1: Vector2 = front_tl.lerp(front_tr, float(max_x) / float(maxi(volume_size.x, 1))).lerp(front_bl, float(min_z) / float(maxi(volume_size.z, 1)))
+	var p2: Vector2 = front_tl.lerp(front_tr, float(max_x) / float(maxi(volume_size.x, 1))).lerp(front_bl, float(max_z) / float(maxi(volume_size.z, 1)))
+	var p3: Vector2 = front_tl.lerp(front_tr, float(min_x) / float(maxi(volume_size.x, 1))).lerp(front_bl, float(max_z) / float(maxi(volume_size.z, 1)))
+	var poly := PackedVector2Array([p0, p1, p2, p3])
+	control.draw_colored_polygon(poly, Color(color.r, color.g, color.b, clampf(alpha_scale, 0.0, 1.0)))
+	if outline:
+		control.draw_polyline(PackedVector2Array([p0, p1, p2, p3, p0]), color, 1.7, true)
+
+func _draw_iso_rect_top(control: Control, front_tl: Vector2, front_tr: Vector2, top_a: Vector2, top_b: Vector2, volume_size: Vector3i, min_x: int, max_x: int, min_y: int, max_y: int, color: Color, alpha_scale: float, outline: bool = false) -> void:
+	var p0: Vector2 = top_a.lerp(top_b, float(min_x) / float(maxi(volume_size.x, 1))).lerp(front_tl.lerp(front_tr, float(min_x) / float(maxi(volume_size.x, 1))), float(min_y) / float(maxi(volume_size.y, 1)))
+	var p1: Vector2 = top_a.lerp(top_b, float(max_x) / float(maxi(volume_size.x, 1))).lerp(front_tl.lerp(front_tr, float(max_x) / float(maxi(volume_size.x, 1))), float(min_y) / float(maxi(volume_size.y, 1)))
+	var p2: Vector2 = top_a.lerp(top_b, float(max_x) / float(maxi(volume_size.x, 1))).lerp(front_tl.lerp(front_tr, float(max_x) / float(maxi(volume_size.x, 1))), float(max_y) / float(maxi(volume_size.y, 1)))
+	var p3: Vector2 = top_a.lerp(top_b, float(min_x) / float(maxi(volume_size.x, 1))).lerp(front_tl.lerp(front_tr, float(min_x) / float(maxi(volume_size.x, 1))), float(max_y) / float(maxi(volume_size.y, 1)))
+	var poly := PackedVector2Array([p0, p1, p2, p3])
+	control.draw_colored_polygon(poly, Color(color.r, color.g, color.b, clampf(alpha_scale, 0.0, 1.0)))
+	if outline:
+		control.draw_polyline(PackedVector2Array([p0, p1, p2, p3, p0]), color, 1.7, true)
+
+func _draw_iso_rect_right(control: Control, front_tr: Vector2, side_a: Vector2, side_b: Vector2, volume_size: Vector3i, min_y: int, max_y: int, min_z: int, max_z: int, color: Color, alpha_scale: float, outline: bool = false) -> void:
+	var p0: Vector2 = side_a.lerp(front_tr, float(min_y) / float(maxi(volume_size.y, 1))).lerp(side_b.lerp(front_tr + (side_b - side_a), float(min_y) / float(maxi(volume_size.y, 1))), float(min_z) / float(maxi(volume_size.z, 1)))
+	var p1: Vector2 = side_a.lerp(front_tr, float(max_y) / float(maxi(volume_size.y, 1))).lerp(side_b.lerp(front_tr + (side_b - side_a), float(max_y) / float(maxi(volume_size.y, 1))), float(min_z) / float(maxi(volume_size.z, 1)))
+	var p2: Vector2 = side_a.lerp(front_tr, float(max_y) / float(maxi(volume_size.y, 1))).lerp(side_b.lerp(front_tr + (side_b - side_a), float(max_y) / float(maxi(volume_size.y, 1))), float(max_z) / float(maxi(volume_size.z, 1)))
+	var p3: Vector2 = side_a.lerp(front_tr, float(min_y) / float(maxi(volume_size.y, 1))).lerp(side_b.lerp(front_tr + (side_b - side_a), float(min_y) / float(maxi(volume_size.y, 1))), float(max_z) / float(maxi(volume_size.z, 1)))
+	var poly := PackedVector2Array([p0, p1, p2, p3])
+	control.draw_colored_polygon(poly, Color(color.r, color.g, color.b, clampf(alpha_scale, 0.0, 1.0)))
+	if outline:
+		control.draw_polyline(PackedVector2Array([p0, p1, p2, p3, p0]), color, 1.7, true)
 
 func get_box_internal_menu_text() -> String:
 	_clamp_internal_selection()
