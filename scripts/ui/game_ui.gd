@@ -1841,7 +1841,25 @@ func _on_storage_module_card_pressed(storage_index: int) -> void:
 	if module != null:
 		var grouped_ids: Array[String] = get_filtered_grouped_module_ids()
 		selected_grouped_module_index = maxi(grouped_ids.find(module.id), 0)
+	_preserve_constructor_storage_scroll_and_update()
+
+
+func _preserve_constructor_storage_scroll_and_update() -> void:
+	var old_scroll := 0
+	var storage_scroll: ScrollContainer = box_constructor_content_root.get_node_or_null("**/ExternalStorageScroll")
+	if storage_scroll == null:
+		storage_scroll = box_constructor_content_root.get_node_or_null("**/InternalStorageScroll")
+	if storage_scroll != null:
+		old_scroll = storage_scroll.scroll_vertical
 	update_box_status()
+	if storage_scroll == null:
+		return
+	await get_tree().process_frame
+	var rebuilt_scroll: ScrollContainer = box_constructor_content_root.get_node_or_null("**/ExternalStorageScroll")
+	if rebuilt_scroll == null:
+		rebuilt_scroll = box_constructor_content_root.get_node_or_null("**/InternalStorageScroll")
+	if rebuilt_scroll != null:
+		rebuilt_scroll.scroll_vertical = old_scroll
 
 
 
@@ -3032,6 +3050,7 @@ func _create_external_storage_components_panel() -> Control:
 
 
 	var storage_scroll: ScrollContainer = ScrollContainer.new()
+	storage_scroll.name = "ExternalStorageScroll"
 	storage_scroll.size_flags_vertical = Control.SIZE_EXPAND_FILL
 	storage_scroll.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	storage_scroll.horizontal_scroll_mode = ScrollContainer.SCROLL_MODE_DISABLED
@@ -3118,6 +3137,7 @@ func _create_internal_storage_components_panel() -> Control:
 
 
 	var storage_scroll: ScrollContainer = ScrollContainer.new()
+	storage_scroll.name = "InternalStorageScroll"
 	storage_scroll.size_flags_vertical = Control.SIZE_EXPAND_FILL
 	storage_scroll.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	storage_scroll.horizontal_scroll_mode = ScrollContainer.SCROLL_MODE_DISABLED
@@ -3284,7 +3304,7 @@ func _format_external_sides_for_ui(sides: Array) -> String:
 	if has_left or has_right:
 		names.append("Side")
 
-	return "/".join(names)
+	return ", ".join(names)
 
 
 func _get_module_install_text(module: BipobModule) -> String:
