@@ -20,6 +20,29 @@ class InternalIsoPreviewControl:
 		if ui_ref != null:
 			ui_ref._draw_internal_isometric_preview(self)
 
+
+class SelectedModuleMiniPreviewControl:
+	extends Control
+	var ui_ref: GameUI
+	var module_ref: BipobModule
+	var preview_context: String = ""
+
+	func _init(ui_owner: GameUI, preview_module: BipobModule, context: String) -> void:
+		ui_ref = ui_owner
+		module_ref = preview_module
+		preview_context = context
+		mouse_filter = Control.MOUSE_FILTER_IGNORE
+
+	func _ready() -> void:
+		set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
+
+	func _process(_delta: float) -> void:
+		queue_redraw()
+
+	func _draw() -> void:
+		if ui_ref != null:
+			ui_ref._draw_selected_module_mini_preview(self, module_ref, preview_context)
+
 @onready var bipob = get_node("../Bipob")
 
 @onready var status_label: Label = $StatusLabel
@@ -3214,45 +3237,93 @@ func _get_selected_module_for_context(context: String) -> BipobModule:
 
 
 func _create_selected_module_size_preview(module: BipobModule, context: String) -> Control:
+	if context == "internal" or (module != null and module.placement_type.begins_with("internal")):
+		return _create_internal_mini_isometric_size_preview(module, context)
+	return _create_external_flat_size_preview(module)
+
+
+func _create_external_flat_size_preview(module: BipobModule) -> Control:
 	var panel := PanelContainer.new()
 	panel.custom_minimum_size = Vector2(84, 64)
 	panel.add_theme_stylebox_override("panel", _make_panel_style(UI_COLOR_PANEL_DARK, UI_COLOR_BORDER_DIM, 1, 4))
 	var root := VBoxContainer.new()
 	root.add_theme_constant_override("separation", 2)
 	root.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-	var is_overlay: bool = bipob.is_internal_overlay_module(module) or (module != null and module.placement_type == "internal_overlay") or (module != null and module.get_internal_size() == Vector3i.ZERO)
-	if is_overlay:
-		var overlay_marker := ColorRect.new()
-		overlay_marker.custom_minimum_size = Vector2(78, 8)
-		overlay_marker.color = Color(0.35, 0.75, 0.95, 0.65)
-		root.add_child(overlay_marker)
-		var overlay_label := Label.new()
-		overlay_label.text = "Overlay"
-		_apply_label_style(overlay_label, true, false)
-		root.add_child(overlay_label)
-	else:
-		var footprint_size := Vector2i.ONE
-		if bipob.is_external_module(module):
-			footprint_size = Vector2i(maxi(1, module.external_width), maxi(1, module.external_height))
-		elif bipob.is_internal_module(module):
-			var internal_size: Vector3i = bipob.get_internal_module_base_size(module)
-			footprint_size = Vector2i(maxi(1, internal_size.x), maxi(1, internal_size.y))
-		var preview_columns: int = maxi(4, footprint_size.x)
-		var preview_rows: int = maxi(4, footprint_size.y)
-		var grid := GridContainer.new()
-		grid.columns = preview_columns
-		grid.add_theme_constant_override("h_separation", 2)
-		grid.add_theme_constant_override("v_separation", 2)
-		for y in range(preview_rows):
-			for x in range(preview_columns):
-				var c := ColorRect.new()
-				c.custom_minimum_size = SELECTED_MODULE_PREVIEW_CELL_SIZE
-				var is_filled: bool = x < footprint_size.x and y < footprint_size.y
-				c.color = Color(0.35, 0.75, 0.95, 0.45) if is_filled else Color(0.2, 0.24, 0.3, 0.35)
-				grid.add_child(c)
-		root.add_child(grid)
+	var footprint_size := Vector2i(maxi(1, module.external_width), maxi(1, module.external_height))
+	var preview_columns: int = maxi(4, footprint_size.x)
+	var preview_rows: int = maxi(4, footprint_size.y)
+	var grid := GridContainer.new()
+	grid.columns = preview_columns
+	grid.add_theme_constant_override("h_separation", 2)
+	grid.add_theme_constant_override("v_separation", 2)
+	for y in range(preview_rows):
+		for x in range(preview_columns):
+			var c := ColorRect.new()
+			c.custom_minimum_size = SELECTED_MODULE_PREVIEW_CELL_SIZE
+			var is_filled: bool = x < footprint_size.x and y < footprint_size.y
+			c.color = Color(0.35, 0.75, 0.95, 0.45) if is_filled else Color(0.2, 0.24, 0.3, 0.35)
+			grid.add_child(c)
+	root.add_child(grid)
 	panel.add_child(root)
 	return panel
+
+
+func _create_internal_mini_isometric_size_preview(module: BipobModule, context: String) -> Control:
+	var panel := PanelContainer.new()
+	panel.custom_minimum_size = Vector2(84, 64)
+	panel.add_theme_stylebox_override("panel", _make_panel_style(UI_COLOR_PANEL_DARK, UI_COLOR_BORDER_DIM, 1, 4))
+	var preview := SelectedModuleMiniPreviewControl.new(self, module, context)
+	panel.add_child(preview)
+	return panel
+
+
+func _draw_selected_module_mini_preview(control: Control, module: BipobModule, context: String) -> void:
+	if control == null or module == null:
+		return
+	var rect_size: Vector2 = control.size
+	var is_overlay: bool = context == "internal" and (bipob.is_internal_overlay_module(module) or module.placement_type == "internal_overlay" or module.get_internal_size() == Vector3i.ZERO)
+	if is_overlay:
+		var mid_y: float = rect_size.y * 0.52
+		var line_color: Color = Color(0.35, 0.75, 0.95, 0.72)
+		control.draw_line(Vector2(14, mid_y), Vector2(rect_size.x - 14, mid_y), line_color, 2.0, true)
+		control.draw_line(Vector2(20, mid_y - 6), Vector2(rect_size.x - 20, mid_y + 6), Color(0.35, 0.75, 0.95, 0.35), 1.0, true)
+		return
+
+	var module_size: Vector3i = module.get_internal_size()
+	var size_x: int = maxi(1, module_size.x)
+	var size_y: int = maxi(1, module_size.y)
+	var size_z: int = maxi(1, module_size.z)
+
+	var margin: float = 10.0
+	var available_w: float = maxi(8.0, rect_size.x - margin * 2.0)
+	var available_h: float = maxi(8.0, rect_size.y - margin * 2.0)
+	var sx: float = available_w / float(size_x + size_y)
+	var sy: float = available_h / float((size_x + size_y) * 0.5 + size_z)
+	var unit: float = maxf(2.0, minf(sx, sy))
+	var origin: Vector2 = Vector2(rect_size.x * 0.5, rect_size.y - margin)
+
+	var p000: Vector2 = _project_selected_module_iso_point(origin, unit, 0, 0, 0)
+	var p100: Vector2 = _project_selected_module_iso_point(origin, unit, size_x, 0, 0)
+	var p010: Vector2 = _project_selected_module_iso_point(origin, unit, 0, size_y, 0)
+	var p110: Vector2 = _project_selected_module_iso_point(origin, unit, size_x, size_y, 0)
+	var p001: Vector2 = _project_selected_module_iso_point(origin, unit, 0, 0, size_z)
+	var p101: Vector2 = _project_selected_module_iso_point(origin, unit, size_x, 0, size_z)
+	var p011: Vector2 = _project_selected_module_iso_point(origin, unit, 0, size_y, size_z)
+	var p111: Vector2 = _project_selected_module_iso_point(origin, unit, size_x, size_y, size_z)
+
+	control.draw_colored_polygon(PackedVector2Array([p001, p101, p111, p011]), Color(0.20, 0.50, 0.65, 0.38))
+	control.draw_colored_polygon(PackedVector2Array([p000, p100, p101, p001]), Color(0.12, 0.30, 0.42, 0.48))
+	control.draw_colored_polygon(PackedVector2Array([p000, p001, p011, p010]), Color(0.09, 0.25, 0.36, 0.52))
+
+	var edge_color: Color = Color(0.35, 0.78, 0.96, 0.9)
+	var edge_width: float = 1.1
+	for pair in [[p000,p100],[p100,p110],[p110,p010],[p010,p000],[p001,p101],[p101,p111],[p111,p011],[p011,p001],[p000,p001],[p100,p101],[p010,p011],[p110,p111]]:
+		control.draw_line(pair[0], pair[1], edge_color, edge_width, true)
+
+
+
+func _project_selected_module_iso_point(origin: Vector2, unit: float, x: int, y: int, z: int) -> Vector2:
+	return origin + Vector2((float(x) - float(y)) * unit, -(float(x + y)) * unit * 0.5 - float(z) * unit)
 
 func _get_module_size_text(module: BipobModule) -> String:
 	if module == null:
