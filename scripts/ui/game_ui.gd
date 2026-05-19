@@ -2751,27 +2751,36 @@ func _create_internal_filter_panel() -> Control:
 func _create_external_info_stub_panel(title_text: String, body_text: String) -> Control:
 	var panel: PanelContainer = PanelContainer.new()
 	_apply_dark_panel_style(panel)
-	panel.custom_minimum_size = Vector2(240, 110)
+	panel.custom_minimum_size = Vector2(220, 112)
 
 	var root: VBoxContainer = VBoxContainer.new()
-	root.add_theme_constant_override("separation", 4)
+	root.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	root.size_flags_vertical = Control.SIZE_SHRINK_CENTER
+	root.add_theme_constant_override("separation", 2)
 
 	if not title_text.is_empty():
-		var title: Label = Label.new()
-		title.text = title_text
+		var title: Label = _create_nowrap_label(title_text)
 		_apply_label_style(title, false, true)
 		root.add_child(title)
 
-	var body: Label = Label.new()
-	body.text = body_text
-	body.autowrap_mode = TextServer.AUTOWRAP_OFF
-	body.clip_text = true
-	body.text_overrun_behavior = TextServer.OVERRUN_TRIM_ELLIPSIS
-	_apply_label_style(body, true, false)
-	root.add_child(body)
+	for info_row in _get_external_left_info_lines():
+		var row_label: Label = _create_nowrap_label(info_row)
+		_apply_label_style(row_label, true, false)
+		root.add_child(row_label)
 
 	panel.add_child(root)
 	return panel
+
+
+func _create_nowrap_label(text: String) -> Label:
+	var label: Label = Label.new()
+	label.text = text
+	label.autowrap_mode = TextServer.AUTOWRAP_OFF
+	label.clip_text = true
+	label.text_overrun_behavior = TextServer.OVERRUN_TRIM_ELLIPSIS
+	label.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	label.size_flags_vertical = Control.SIZE_SHRINK_CENTER
+	return label
 
 func _get_external_build_warnings() -> Array[String]:
 	var warnings: Array[String] = []
@@ -2881,18 +2890,18 @@ func _create_external_side_grid_workspace() -> Control:
 	return root
 
 func _get_external_left_info_text() -> String:
+	return "\n".join(_get_external_left_info_lines())
+
+
+func _get_external_left_info_lines() -> Array[String]:
 	var lines: Array[String] = []
 	var armor_max: int = bipob.get_bipop_body_armor_max(active_bipob_profile_id) if bipob.has_method("get_bipop_body_armor_max") else 10
 	lines.append("Armor: %d / %d" % [armor_max, armor_max])
-	lines.append("Damage:")
-	var damage_rows: int = 0
-	for module in _get_external_installed_unique_modules():
-		if not _does_external_module_deal_damage(module):
-			continue
-		damage_rows += 1
-		lines.append("%d %s" % [_get_external_module_damage_value(module), _get_external_module_damage_type(module)])
-	if damage_rows == 0:
-		lines.append("none")
+	var damage_lines: Array[String] = _get_external_damage_lines()
+	if damage_lines.size() > 0:
+		lines.append("Damage:")
+		for damage_line in damage_lines:
+			lines.append(damage_line)
 	var shield_installed: bool = false
 	for module in _get_external_installed_unique_modules():
 		if module != null and ("%s %s" % [module.id, module.display_name]).to_lower().contains("shield"):
@@ -2910,7 +2919,16 @@ func _get_external_left_info_text() -> String:
 			if bipob.has_method("is_external_pocket_enabled") and bipob.is_external_pocket_enabled(side_id, pocket_index):
 				used_pockets += 1
 	lines.append("Pocket: %d / %d" % [used_pockets, max_pockets])
-	return "\n".join(lines)
+	return lines
+
+
+func _get_external_damage_lines() -> Array[String]:
+	var lines: Array[String] = []
+	for module in _get_external_installed_unique_modules():
+		if not _does_external_module_deal_damage(module):
+			continue
+		lines.append("%d %s" % [_get_external_module_damage_value(module), _get_external_module_damage_type(module)])
+	return lines
 
 
 func _create_external_storage_right_column() -> Control:
