@@ -2754,7 +2754,7 @@ func _create_internal_filter_panel() -> Control:
 func _create_external_info_stub_panel(title_text: String, body_text: String) -> Control:
 	var panel: PanelContainer = PanelContainer.new()
 	_apply_dark_panel_style(panel)
-	panel.custom_minimum_size = Vector2(220, 112)
+	panel.custom_minimum_size = Vector2(240, 112)
 
 	var root: VBoxContainer = VBoxContainer.new()
 	root.size_flags_horizontal = Control.SIZE_EXPAND_FILL
@@ -2767,12 +2767,16 @@ func _create_external_info_stub_panel(title_text: String, body_text: String) -> 
 		root.add_child(title)
 
 	for info_row in _get_external_left_info_lines():
-		var row_label: Label = _create_nowrap_label(info_row)
-		_apply_label_style(row_label, true, false)
-		root.add_child(row_label)
+		_add_nowrap_info_label(root, info_row)
 
 	panel.add_child(root)
 	return panel
+
+
+func _add_nowrap_info_label(vbox: VBoxContainer, text: String) -> void:
+	var row_label: Label = _create_nowrap_label(text)
+	_apply_label_style(row_label, true, false)
+	vbox.add_child(row_label)
 
 
 func _create_nowrap_label(text: String) -> Label:
@@ -2902,9 +2906,8 @@ func _get_external_left_info_lines() -> Array[String]:
 	lines.append("Armor: %d / %d" % [armor_max, armor_max])
 	var damage_lines: Array[String] = _get_external_damage_lines()
 	if damage_lines.size() > 0:
-		lines.append("Damage:")
-		for damage_line in damage_lines:
-			lines.append(damage_line)
+		var damage_text: String = ", ".join(damage_lines)
+		lines.append("Damage: %s" % damage_text)
 	var shield_installed: bool = false
 	for module in _get_external_installed_unique_modules():
 		if module != null and ("%s %s" % [module.id, module.display_name]).to_lower().contains("shield"):
