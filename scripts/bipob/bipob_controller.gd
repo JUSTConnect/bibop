@@ -3676,13 +3676,17 @@ func get_box_storage_index_for_internal_selection(internal_index: int) -> int:
 
 	return -1
 
-func get_allowed_external_sides_for_module(module: BipobModule) -> Array[String]:
+func get_allowed_external_sides_for_module(module: BipobModule) -> Array:
 	if module == null:
 		return []
+
 	if not module.allowed_external_sides.is_empty():
 		return module.allowed_external_sides.duplicate()
+
 	if EXTERNAL_MODULE_CATALOG.has(module.id):
-		return EXTERNAL_MODULE_CATALOG[module.id].get("sides", []).duplicate()
+		var catalog_sides: Array = EXTERNAL_MODULE_CATALOG[module.id].get("sides", [])
+		return catalog_sides.duplicate()
+
 	return EXTERNAL_SIDE_ORDER.duplicate()
 
 func can_place_external_module_on_side(module: BipobModule, side_id: String) -> bool:
@@ -3850,7 +3854,10 @@ func create_external_module_by_id(module_id: String) -> BipobModule:
 	module.description = String(metadata.get("desc", ""))
 	module.external_width = int(metadata.get("size", Vector2i.ONE).x)
 	module.external_height = int(metadata.get("size", Vector2i.ONE).y)
-	module.allowed_external_sides = metadata.get("sides", [])
+	module.allowed_external_sides.clear()
+	var raw_sides: Array = metadata.get("sides", [])
+	for side in raw_sides:
+		module.allowed_external_sides.append(String(side))
 	module.energy_cost = int(metadata.get("energy", 0))
 	module.heat_value = int(metadata.get("heat", 0))
 	module.scan_range = int(metadata.get("scan", 0))
@@ -3874,11 +3881,14 @@ func create_external_module_by_id(module_id: String) -> BipobModule:
 	return module
 
 func ensure_external_constructor_modules_in_box_storage() -> void:
-	var required_ids: Array[String] = EXTERNAL_MODULE_CATALOG.keys()
+	var required_ids: Array = EXTERNAL_MODULE_CATALOG.keys()
 
-	for module_id in required_ids:
+	for module_id_variant in required_ids:
+		var module_id: String = String(module_id_variant)
+
 		if has_module_id_in_box_storage(module_id):
 			continue
+
 		var module: BipobModule = create_external_module_by_id(module_id)
 		if module != null:
 			box_storage.append(module)
