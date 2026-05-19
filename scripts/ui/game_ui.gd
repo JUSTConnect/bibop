@@ -3297,33 +3297,60 @@ func _draw_selected_module_mini_preview(control: Control, module: BipobModule, c
 	var margin: float = 10.0
 	var available_w: float = maxi(8.0, rect_size.x - margin * 2.0)
 	var available_h: float = maxi(8.0, rect_size.y - margin * 2.0)
-	var sx: float = available_w / float(size_x + size_y)
-	var sy: float = available_h / float((size_x + size_y) * 0.5 + size_z)
+	var sx: float = available_w / float(size_x + size_y + 1)
+	var sy: float = available_h / float((size_x + size_y) * 0.5 + size_z + 1)
 	var unit: float = maxf(2.0, minf(sx, sy))
-	var origin: Vector2 = Vector2(rect_size.x * 0.5, rect_size.y - margin)
 
-	var p000: Vector2 = _project_selected_module_iso_point(origin, unit, 0, 0, 0)
-	var p100: Vector2 = _project_selected_module_iso_point(origin, unit, size_x, 0, 0)
-	var p010: Vector2 = _project_selected_module_iso_point(origin, unit, 0, size_y, 0)
-	var p110: Vector2 = _project_selected_module_iso_point(origin, unit, size_x, size_y, 0)
-	var p001: Vector2 = _project_selected_module_iso_point(origin, unit, 0, 0, size_z)
-	var p101: Vector2 = _project_selected_module_iso_point(origin, unit, size_x, 0, size_z)
-	var p011: Vector2 = _project_selected_module_iso_point(origin, unit, 0, size_y, size_z)
-	var p111: Vector2 = _project_selected_module_iso_point(origin, unit, size_x, size_y, size_z)
+	var local_origin: Vector2 = Vector2.ZERO
+	var min_point: Vector2 = _project_selected_module_iso_point(local_origin, unit, 0, 0, 0)
+	var max_point: Vector2 = min_point
+	for z in range(size_z + 1):
+		for y in range(size_y + 1):
+			for x in range(size_x + 1):
+				var corner: Vector2 = _project_selected_module_iso_point(local_origin, unit, x, y, z)
+				min_point.x = minf(min_point.x, corner.x)
+				min_point.y = minf(min_point.y, corner.y)
+				max_point.x = maxf(max_point.x, corner.x)
+				max_point.y = maxf(max_point.y, corner.y)
+	var shape_size: Vector2 = max_point - min_point
+	var origin: Vector2 = Vector2(
+		margin + (available_w - shape_size.x) * 0.5 - min_point.x,
+		margin + (available_h - shape_size.y) * 0.5 - min_point.y
+	)
 
-	control.draw_colored_polygon(PackedVector2Array([p001, p101, p111, p011]), Color(0.20, 0.50, 0.65, 0.38))
-	control.draw_colored_polygon(PackedVector2Array([p000, p100, p101, p001]), Color(0.12, 0.30, 0.42, 0.48))
-	control.draw_colored_polygon(PackedVector2Array([p000, p001, p011, p010]), Color(0.09, 0.25, 0.36, 0.52))
-
-	var edge_color: Color = Color(0.35, 0.78, 0.96, 0.9)
-	var edge_width: float = 1.1
-	for pair in [[p000,p100],[p100,p110],[p110,p010],[p010,p000],[p001,p101],[p101,p111],[p111,p011],[p011,p001],[p000,p001],[p100,p101],[p010,p011],[p110,p111]]:
-		control.draw_line(pair[0], pair[1], edge_color, edge_width, true)
+	for z in range(size_z):
+		for y in range(size_y):
+			for x in range(size_x):
+				_draw_selected_module_mini_iso_cell(control, origin, unit, x, y, z)
 
 
 
 func _project_selected_module_iso_point(origin: Vector2, unit: float, x: int, y: int, z: int) -> Vector2:
 	return origin + Vector2((float(x) - float(y)) * unit, -(float(x + y)) * unit * 0.5 - float(z) * unit)
+
+
+func _draw_selected_module_mini_iso_cell(control: Control, origin: Vector2, unit: float, x: int, y: int, z: int) -> void:
+	var p000: Vector2 = _project_selected_module_iso_point(origin, unit, x, y, z)
+	var p100: Vector2 = _project_selected_module_iso_point(origin, unit, x + 1, y, z)
+	var p010: Vector2 = _project_selected_module_iso_point(origin, unit, x, y + 1, z)
+	var p001: Vector2 = _project_selected_module_iso_point(origin, unit, x, y, z + 1)
+	var p101: Vector2 = _project_selected_module_iso_point(origin, unit, x + 1, y, z + 1)
+	var p011: Vector2 = _project_selected_module_iso_point(origin, unit, x, y + 1, z + 1)
+	var p111: Vector2 = _project_selected_module_iso_point(origin, unit, x + 1, y + 1, z + 1)
+
+	control.draw_colored_polygon(PackedVector2Array([p001, p101, p111, p011]), Color(0.20, 0.56, 0.74, 0.52))
+	control.draw_colored_polygon(PackedVector2Array([p000, p100, p101, p001]), Color(0.12, 0.34, 0.50, 0.58))
+	control.draw_colored_polygon(PackedVector2Array([p000, p001, p011, p010]), Color(0.09, 0.28, 0.44, 0.62))
+
+	var edge_color: Color = Color(0.36, 0.82, 1.0, 0.92)
+	var edge_width: float = 0.95
+	control.draw_line(p001, p101, edge_color, edge_width, true)
+	control.draw_line(p101, p111, edge_color, edge_width, true)
+	control.draw_line(p111, p011, edge_color, edge_width, true)
+	control.draw_line(p011, p001, edge_color, edge_width, true)
+	control.draw_line(p000, p001, edge_color, edge_width, true)
+	control.draw_line(p000, p100, edge_color, edge_width, true)
+	control.draw_line(p000, p010, edge_color, edge_width, true)
 
 func _get_module_size_text(module: BipobModule) -> String:
 	if module == null:
