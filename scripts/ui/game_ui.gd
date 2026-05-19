@@ -3200,31 +3200,37 @@ func _create_selected_module_size_preview(module: BipobModule, context: String) 
 	var root := VBoxContainer.new()
 	root.add_theme_constant_override("separation", 2)
 	root.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-	var grid := GridContainer.new()
-	grid.columns = 4
-	grid.add_theme_constant_override("h_separation", 2)
-	grid.add_theme_constant_override("v_separation", 2)
-	var fill_cells: int = 1
-	var total_cells: int = 16
-	if bipob.is_external_module(module):
-		var ext: Vector2i = bipob.get_external_module_footprint_size(module)
-		fill_cells = mini(16, maxi(1, ext.x * ext.y))
-	elif bipob.is_internal_module(module):
-		var vol: Vector3i = bipob.get_internal_module_base_size(module)
-		fill_cells = mini(16, maxi(1, vol.x * vol.y))
-	elif bipob.is_internal_overlay_module(module):
-		fill_cells = 3
-	for i in range(total_cells):
-		var c := ColorRect.new()
-		c.custom_minimum_size = SELECTED_MODULE_PREVIEW_CELL_SIZE
-		c.color = Color(0.35,0.75,0.95,0.45) if i < fill_cells else Color(0.2,0.24,0.3,0.35)
-		grid.add_child(c)
-	root.add_child(grid)
-	if bipob.is_internal_overlay_module(module):
+	var is_overlay: bool = bipob.is_internal_overlay_module(module) or (module != null and module.placement_type == "internal_overlay") or (module != null and module.get_internal_size() == Vector3i.ZERO)
+	if is_overlay:
+		var overlay_marker := ColorRect.new()
+		overlay_marker.custom_minimum_size = Vector2(78, 8)
+		overlay_marker.color = Color(0.35, 0.75, 0.95, 0.65)
+		root.add_child(overlay_marker)
 		var overlay_label := Label.new()
 		overlay_label.text = "Overlay"
 		_apply_label_style(overlay_label, true, false)
 		root.add_child(overlay_label)
+	else:
+		var footprint_size := Vector2i.ONE
+		if bipob.is_external_module(module):
+			footprint_size = Vector2i(maxi(1, module.external_width), maxi(1, module.external_height))
+		elif bipob.is_internal_module(module):
+			var internal_size: Vector3i = bipob.get_internal_module_base_size(module)
+			footprint_size = Vector2i(maxi(1, internal_size.x), maxi(1, internal_size.y))
+		var preview_columns: int = maxi(4, footprint_size.x)
+		var preview_rows: int = maxi(4, footprint_size.y)
+		var grid := GridContainer.new()
+		grid.columns = preview_columns
+		grid.add_theme_constant_override("h_separation", 2)
+		grid.add_theme_constant_override("v_separation", 2)
+		for y in range(preview_rows):
+			for x in range(preview_columns):
+				var c := ColorRect.new()
+				c.custom_minimum_size = SELECTED_MODULE_PREVIEW_CELL_SIZE
+				var is_filled: bool = x < footprint_size.x and y < footprint_size.y
+				c.color = Color(0.35, 0.75, 0.95, 0.45) if is_filled else Color(0.2, 0.24, 0.3, 0.35)
+				grid.add_child(c)
+		root.add_child(grid)
 	panel.add_child(root)
 	return panel
 
