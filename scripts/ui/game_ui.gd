@@ -231,7 +231,7 @@ const UI_COLOR_WARNING: Color = Color(0.950, 0.640, 0.230, 1.0)
 const UI_COLOR_DANGER: Color = Color(0.950, 0.250, 0.250, 1.0)
 const UI_COLOR_DISABLED: Color = Color(0.250, 0.280, 0.320, 1.0)
 
-const STORAGE_CARD_MIN_SIZE: Vector2 = Vector2(86, 58)
+const STORAGE_CARD_MIN_SIZE: Vector2 = Vector2(84, 56)
 const STORAGE_CARD_ICON_SIZE: Vector2 = Vector2(26, 26)
 const SELECTED_MODULE_ICON_SIZE: Vector2 = Vector2(52, 38)
 const SELECTED_MODULE_PREVIEW_CELL_SIZE: Vector2 = Vector2(14, 14)
@@ -2531,11 +2531,14 @@ func _get_box_half_width_estimate() -> float:
 	return maxf(320.0, _get_viewport_width() * 0.5)
 
 
+func _get_storage_grid_columns(available_width: float, card_width: float = 86.0, gap: float = 6.0) -> int:
+	var columns: int = int(floor((available_width + gap) / (card_width + gap)))
+	return maxi(1, columns)
+
+
 func _get_box_storage_grid_columns() -> int:
-	var half_width: float = _get_box_half_width_estimate()
-	if half_width < 420.0:
-		return 3
-	return 4
+	var right_column_width_estimate: float = maxf(200.0, _get_box_half_width_estimate() - 24.0)
+	return _get_storage_grid_columns(right_column_width_estimate, STORAGE_CARD_MIN_SIZE.x, 6.0)
 
 
 func _get_constructor_cell_size(max_columns: int, max_rows: int, available_size: Vector2, preferred: float = CONSTRUCTOR_GRID_PREFERRED_CELL_SIZE, minimum: float = CONSTRUCTOR_GRID_MIN_CELL_SIZE) -> Vector2:
@@ -2983,10 +2986,6 @@ func _create_external_storage_components_panel() -> Control:
 	root.add_theme_constant_override("separation", 4)
 	root.size_flags_vertical = Control.SIZE_EXPAND_FILL
 
-	var title: Label = Label.new()
-	title.text = "COMPONENTS IN STORAGE"
-	_apply_label_style(title, false, true)
-	root.add_child(title)
 
 	var storage_scroll: ScrollContainer = ScrollContainer.new()
 	storage_scroll.size_flags_vertical = Control.SIZE_EXPAND_FILL
@@ -3073,24 +3072,13 @@ func _create_internal_storage_components_panel() -> Control:
 	root.add_theme_constant_override("separation", 4)
 	root.size_flags_vertical = Control.SIZE_EXPAND_FILL
 
-	var title: Label = Label.new()
-	title.text = "COMPONENTS IN STORAGE"
-	_apply_label_style(title, false, true)
-	root.add_child(title)
-
-	var storage_content_row: HBoxContainer = HBoxContainer.new()
-	storage_content_row.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-	storage_content_row.size_flags_vertical = Control.SIZE_EXPAND_FILL
-	storage_content_row.add_theme_constant_override("separation", 6)
-	root.add_child(storage_content_row)
 
 	var storage_scroll: ScrollContainer = ScrollContainer.new()
 	storage_scroll.size_flags_vertical = Control.SIZE_EXPAND_FILL
 	storage_scroll.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-	storage_scroll.size_flags_stretch_ratio = 1.0
 	storage_scroll.horizontal_scroll_mode = ScrollContainer.SCROLL_MODE_DISABLED
 	storage_scroll.vertical_scroll_mode = ScrollContainer.SCROLL_MODE_AUTO
-	storage_content_row.add_child(storage_scroll)
+	root.add_child(storage_scroll)
 
 	var grid: GridContainer = GridContainer.new()
 	var columns: int = _get_box_storage_grid_columns()
@@ -3117,7 +3105,6 @@ func _create_internal_storage_components_panel() -> Control:
 		_apply_label_style(empty_label, true, false)
 		grid.add_child(empty_label)
 
-	storage_content_row.add_child(_create_internal_interfaces_placeholder_panel())
 
 	panel.add_child(root)
 	return panel
@@ -3153,10 +3140,6 @@ func _create_internal_selected_module_panel() -> Control:
 	root.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	root.add_theme_constant_override("separation", 4)
 
-	var title: Label = Label.new()
-	title.text = "SELECTED MODULE / DESCRIPTION"
-	_apply_label_style(title, false, true)
-	root.add_child(title)
 
 	var module: BipobModule = _get_selected_box_storage_module()
 	if module == null:
@@ -3303,10 +3286,6 @@ func _create_external_selected_description_panel() -> Control:
 	var root: VBoxContainer = VBoxContainer.new()
 	root.add_theme_constant_override("separation", 4)
 
-	var title: Label = Label.new()
-	title.text = "SELECTED MODULE / DESCRIPTION"
-	_apply_label_style(title, false, true)
-	root.add_child(title)
 
 	var module: BipobModule = _get_selected_box_storage_module()
 	if module == null or not bipob.is_external_module(module):
