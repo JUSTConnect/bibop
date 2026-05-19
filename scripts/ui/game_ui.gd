@@ -2458,7 +2458,7 @@ func _create_external_visual_workspace() -> Control:
 	top_row.add_theme_constant_override("separation", 10)
 
 	var left_info: Control = _create_external_info_stub_panel("", _get_external_left_info_text())
-	left_info.custom_minimum_size = Vector2(210, 110)
+	left_info.custom_minimum_size = Vector2(240, 110)
 	left_info.size_flags_horizontal = Control.SIZE_SHRINK_BEGIN
 	left_info.size_flags_vertical = Control.SIZE_SHRINK_BEGIN
 	top_row.add_child(left_info)
@@ -2474,7 +2474,7 @@ func _create_external_visual_workspace() -> Control:
 	top_row.add_child(up_wrap)
 
 	var right_info: Control = _create_external_warning_panel()
-	right_info.custom_minimum_size = Vector2(210, 110)
+	right_info.custom_minimum_size = Vector2(240, 110)
 	right_info.size_flags_horizontal = Control.SIZE_SHRINK_BEGIN
 	right_info.size_flags_vertical = Control.SIZE_SHRINK_BEGIN
 	top_row.add_child(right_info)
@@ -2749,7 +2749,7 @@ func _create_internal_filter_panel() -> Control:
 func _create_external_info_stub_panel(title_text: String, body_text: String) -> Control:
 	var panel: PanelContainer = PanelContainer.new()
 	_apply_dark_panel_style(panel)
-	panel.custom_minimum_size = Vector2(210, 110)
+	panel.custom_minimum_size = Vector2(240, 110)
 
 	var root: VBoxContainer = VBoxContainer.new()
 	root.add_theme_constant_override("separation", 4)
@@ -2763,6 +2763,8 @@ func _create_external_info_stub_panel(title_text: String, body_text: String) -> 
 	var body: Label = Label.new()
 	body.text = body_text
 	body.autowrap_mode = TextServer.AUTOWRAP_OFF
+	body.clip_text = true
+	body.text_overrun_behavior = TextServer.OVERRUN_TRIM_ELLIPSIS
 	_apply_label_style(body, true, false)
 	root.add_child(body)
 
@@ -2809,22 +2811,19 @@ func _get_external_build_warnings() -> Array[String]:
 func _create_external_warning_panel() -> Control:
 	var panel: PanelContainer = PanelContainer.new()
 	_apply_dark_panel_style(panel)
-	panel.custom_minimum_size = Vector2(210, 110)
+	panel.custom_minimum_size = Vector2(240, 110)
 	var root: VBoxContainer = VBoxContainer.new()
 	root.add_theme_constant_override("separation", 4)
 	var warnings: Array[String] = _get_external_build_warnings()
-	if warnings.is_empty():
-		var none_label: Label = Label.new()
-		none_label.text = "none"
-		_apply_label_style(none_label, true, false)
-		root.add_child(none_label)
-	else:
-		for warning_line in warnings:
-			var warning_label: Label = Label.new()
-			warning_label.text = warning_line
-			_apply_label_style(warning_label, true, false)
-			warning_label.add_theme_color_override("font_color", UI_COLOR_DANGER)
-			root.add_child(warning_label)
+	for warning_line in warnings:
+		var warning_label: Label = Label.new()
+		warning_label.text = warning_line
+		warning_label.autowrap_mode = TextServer.AUTOWRAP_OFF
+		warning_label.clip_text = true
+		warning_label.text_overrun_behavior = TextServer.OVERRUN_TRIM_ELLIPSIS
+		_apply_label_style(warning_label, true, false)
+		warning_label.add_theme_color_override("font_color", UI_COLOR_DANGER)
+		root.add_child(warning_label)
 	panel.add_child(root)
 	return panel
 

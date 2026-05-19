@@ -3591,19 +3591,13 @@ func get_external_module_placement_error(module: BipobModule, side_id: String, o
 			get_allowed_external_sides_text(module)
 		]
 
-	for cell in get_external_module_footprint_cells(module, origin):
+	for cell in get_external_module_covered_cells(side_id, origin, module):
 		if not is_external_slot_in_bounds(side_id, cell):
 			return "Module footprint is outside the %s side." % get_external_side_display_name(side_id)
 		if is_external_cell_occupied(side_id, cell):
 			return "External slot is occupied."
 		if is_external_cell_reserved_for_pocket(side_id, cell):
 			return "External pocket cell is reserved."
-
-	for safe_cell in get_external_module_safe_area_cells(module, origin):
-		if not is_external_slot_in_bounds(side_id, safe_cell):
-			continue
-		if is_external_cell_occupied(side_id, safe_cell):
-			return "External safe area is blocked."
 
 	return ""
 
