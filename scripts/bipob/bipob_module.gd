@@ -9,6 +9,7 @@ class_name BipobModule
 
 @export var module_id: String = ""
 @export var version: String = "V1"
+@export var internal_size: Vector3i = Vector3i(1, 1, 1)
 @export var external_width: int = 0
 @export var external_height: int = 0
 @export var allowed_external_sides: Array[String] = []
@@ -30,6 +31,16 @@ class_name BipobModule
 @export var energy_bonus: int = 0
 @export var actions_bonus: int = 0
 @export var vision_bonus: int = 0
+@export var effect_value: int = 0
+@export var energy_capacity: int = 0
+@export var action_capacity: int = 0
+@export var digital_storage_slots: int = 0
+@export var hack_value: int = 0
+@export var gpu_value: int = 0
+@export var cooling_value: int = 0
+@export var power_distribution: int = 0
+@export var interface_role: String = ""
+@export var characteristics_text: String = ""
 
 @export var size_x: int = 1
 @export var size_y: int = 1

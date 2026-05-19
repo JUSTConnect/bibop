@@ -5272,16 +5272,24 @@ func _make_module_by_id(module_id: String) -> BipobModule:
 	if overlay != null:
 		return overlay
 	var internal_specs := {
-		"battery_v1_a": {"name": "Battery V1 A", "size": Vector3i(2,2,1)},
-		"battery_v1_b": {"name": "Battery V1 B", "size": Vector3i(2,2,1)},
+		"battery_v1": {"name": "Battery V1", "size": Vector3i(2,2,1)},
+		"battery_v2": {"name": "Battery V2", "size": Vector3i(2,2,1)},
+		"battery_v3": {"name": "Battery V3", "size": Vector3i(2,2,1)},
 		"processor_v1": {"name": "Processor V1", "size": Vector3i(1,1,1)},
-		"ext_interface_internal_v1": {"name": "External Interface Bridge V1", "size": Vector3i(2,2,1)},
-		"int_interface_v1": {"name": "Internal Interface V1", "size": Vector3i(1,1,1)},
+		"processor_v2": {"name": "Processor V2", "size": Vector3i(1,1,1)},
+		"processor_v3": {"name": "Processor V3", "size": Vector3i(1,1,1)},
+		"gpu_v1": {"name": "GPU V1", "size": Vector3i(1,1,1)},
+		"gpu_v2": {"name": "GPU V2", "size": Vector3i(1,1,1)},
+		"gpu_v3": {"name": "GPU V3", "size": Vector3i(1,1,1)},
+		"external_interface_v1": {"name": "External Interface V1", "size": Vector3i(2,2,1)},
+		"internal_interface_v1": {"name": "Internal Interface V1", "size": Vector3i(1,1,1)},
 		"memory_v1": {"name": "Memory V1", "size": Vector3i(1,1,2)},
 		"power_block_v1": {"name": "Power Block V1", "size": Vector3i(1,2,2)},
 		"hard_drive_v1": {"name": "Hard Drive V1", "size": Vector3i(2,2,1)},
 		"cooler_v1": {"name": "Cooler V1", "size": Vector3i(1,1,1)},
-		"radiator_v1": {"name": "Radiator V1", "size": Vector3i(1,1,1)}
+		"radiator_v1": {"name": "Radiator V1", "size": Vector3i(1,1,1)},
+		"water_tube_v1": {"name": "Water Tube V1", "size": Vector3i(0,0,0)},
+		"air_duct_v1": {"name": "Air Duct V1", "size": Vector3i(0,0,0)}
 	}
 	if not internal_specs.has(module_id):
 		return null
@@ -5324,7 +5332,7 @@ func _ensure_constructor_profiles_initialized() -> void:
 	_apply_constructor_profile_dimensions("alpha")
 	constructor_profiles["alpha"] = _capture_constructor_profile_state()
 	bipob.add_internal_mvp_modules_to_box()
-	var battery_module: BipobModule = _make_module_by_id("battery_v1_a")
+	var battery_module: BipobModule = _make_module_by_id("battery_v1")
 	if battery_module != null:
 		bipob.box_storage.append(battery_module)
 	var cooler_module: BipobModule = _make_module_by_id("cooler_v1")
@@ -6949,24 +6957,24 @@ func _get_internal_installed_modules() -> Array[BipobModule]:
 	return modules
 
 func _calculate_internal_actions() -> int:
-	var highest_version: int = 0
+	var total_actions: int = 0
 	for module in _get_internal_installed_modules():
 		if module == null:
 			continue
 		if String(module.internal_family).to_lower() != "ram":
 			continue
-		highest_version = maxi(highest_version, int(module.module_version))
-	return clampi(highest_version, 0, 3) * 5
+		total_actions += maxi(int(module.action_capacity), 0)
+	return total_actions
 
 func _calculate_internal_hack_level() -> int:
-	var highest_version: int = 0
+	var highest_hack: int = 0
 	for module in _get_internal_installed_modules():
 		if module == null:
 			continue
 		if String(module.internal_family).to_lower() != "cpu":
 			continue
-		highest_version = maxi(highest_version, int(module.module_version))
-	return clampi(highest_version, 0, 3)
+		highest_hack = maxi(highest_hack, int(module.hack_value))
+	return highest_hack
 
 func _calculate_internal_storage_capacity() -> int:
 	var total_slots: int = 0
@@ -6975,7 +6983,7 @@ func _calculate_internal_storage_capacity() -> int:
 			continue
 		if String(module.internal_family).to_lower() != "storage":
 			continue
-		total_slots += maxi(int(module.storage_capacity), 0)
+		total_slots += maxi(int(module.digital_storage_slots), 0)
 	return total_slots
 
 func _calculate_internal_energy_capacity() -> int:
@@ -6985,19 +6993,19 @@ func _calculate_internal_energy_capacity() -> int:
 			continue
 		if String(module.internal_family).to_lower() != "battery":
 			continue
-		total_energy += maxi(int(module.battery_capacity), 0)
+		total_energy += maxi(int(module.energy_capacity), 0)
 	return total_energy
 
 func _calculate_internal_max_overheat() -> int:
 	var total_cooling: int = 0
 	for module in _get_internal_installed_modules():
 		if module != null:
-			total_cooling += maxi(int(module.cooling_power), 0)
+			total_cooling += maxi(-int(module.cooling_value), 0)
 	var max_overheat: int = 0
 	for module in _get_internal_installed_modules():
 		if module == null:
 			continue
-		var module_heat: int = maxi(int(module.heat_active), int(module.heat_idle))
+		var module_heat: int = maxi(int(module.heat_value), maxi(int(module.heat_active), int(module.heat_idle)))
 		var final_overheat: int = maxi(module_heat - total_cooling, 0)
 		max_overheat = maxi(max_overheat, final_overheat)
 	return max_overheat
@@ -7013,6 +7021,8 @@ func _build_internal_missing_required_warnings() -> Array[String]:
 			family_set[family_id] = true
 	if not family_set.has("cpu"):
 		warnings.append("CPU")
+	if not family_set.has("gpu"):
+		warnings.append("GPU")
 	if not family_set.has("ram"):
 		warnings.append("RAM")
 	if not family_set.has("battery"):
