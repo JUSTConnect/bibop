@@ -3396,6 +3396,14 @@ func _get_module_install_text(module: BipobModule) -> String:
 	var notes := String(module.install_notes).strip_edges()
 	return "Install: %s" % notes if not notes.is_empty() else ""
 
+func _get_module_type_text(module: BipobModule) -> String:
+	if module == null:
+		return "Other"
+	var type_text := String(module.category).strip_edges()
+	if type_text.is_empty() or type_text.to_lower() == "utility":
+		type_text = "Other"
+	return type_text
+
 
 func _get_module_characteristics_lines(module: BipobModule, context: String = "") -> Array:
 	var lines: Array = []
@@ -3406,8 +3414,9 @@ func _get_module_characteristics_lines(module: BipobModule, context: String = ""
 	if not size_text.is_empty():
 		lines.append("Size: %s" % size_text)
 
-	if not module.category.is_empty():
-		lines.append("Type: %s" % module.category)
+	var module_type_text := _get_module_type_text(module)
+	if not module_type_text.is_empty():
+		lines.append("Type: %s" % module_type_text)
 
 	if not module.version.is_empty():
 		lines.append("Version: %s" % module.version)
@@ -3492,7 +3501,7 @@ func _create_selected_module_info_panel(module: BipobModule, context: String) ->
 	previews.add_child(_create_selected_module_size_preview(module, context))
 	left.add_child(previews)
 	var name_label := Label.new(); name_label.text = _get_module_title_for_selected_info(module); _apply_label_style(name_label); left.add_child(name_label)
-	var type_label := Label.new(); type_label.text = "Type: %s" % String(bipob.get_module_category(module)).capitalize(); _apply_label_style(type_label, true, false); left.add_child(type_label)
+	var type_label := Label.new(); type_label.text = "Type: %s" % _get_module_type_text(module); _apply_label_style(type_label, true, false); left.add_child(type_label)
 	var version_label := Label.new(); version_label.text = "Version: V%d" % maxi(1, int(module.module_version)); _apply_label_style(version_label, true, false); left.add_child(version_label)
 	var install_text := _get_module_install_text(module)
 	if not install_text.is_empty():
