@@ -971,6 +971,10 @@ func _get_module_card_size_text(module: BipobModule) -> String:
 func _get_selected_box_storage_module() -> BipobModule:
 	if bipob == null:
 		return null
+	if _is_constructor_internal_mode() and bipob.has_method("get_internal_module_at_cell"):
+		var installed_module: BipobModule = bipob.get_internal_module_at_cell(bipob.selected_internal_origin)
+		if installed_module != null:
+			return installed_module
 	if selected_box_storage_index < 0:
 		return null
 	if selected_box_storage_index >= bipob.box_storage.size():
@@ -6974,6 +6978,10 @@ func _build_internal_missing_required_warnings() -> Array[String]:
 		warnings.append("Storage")
 	if not family_set.has("cooling"):
 		warnings.append("Cooling")
+	if not bipob.has_internal_interface():
+		warnings.append("Internal Interface")
+	if not bipob.has_external_interface_bridge():
+		warnings.append("External Interface")
 	return warnings
 
 
@@ -7013,7 +7021,7 @@ func _draw_internal_isometric_preview(control: Control) -> void:
 	var rect: Rect2 = control.get_rect()
 	if rect.size.x <= 8.0 or rect.size.y <= 8.0:
 		return
-	var origin: Vector2 = Vector2(rect.size.x * 0.5, rect.size.y * 0.82)
+	var origin: Vector2 = Vector2(rect.size.x * 0.5, rect.size.y * 0.82 - 10.0)
 	var cell_w: float = minf((rect.size.x - 26.0) / float(maxi(volume_size.x + volume_size.y, 1)) * 2.0, 30.0)
 	var cell_h: float = cell_w
 	var cell_z: float = minf((rect.size.y - 24.0) / float(maxi(volume_size.z, 1)), cell_w * 0.52)
@@ -7488,7 +7496,13 @@ func _on_commit_overlay_pressed() -> void:
 	update_box_status()
 
 func _on_clear_overlay_pressed() -> void:
-	bipob.clear_selected_overlay_cells()
+	if _is_constructor_internal_mode():
+		if bipob.has_method("clear_internal_plan_to_storage"):
+			bipob.clear_internal_plan_to_storage()
+		else:
+			bipob.clear_selected_overlay_cells()
+	else:
+		bipob.clear_selected_overlay_cells()
 	update_box_status()
 
 func _on_overlay_check_pressed() -> void:

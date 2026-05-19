@@ -2374,6 +2374,36 @@ func remove_internal_module(cell: Vector3i) -> bool:
 	status_changed.emit()
 	return true
 
+func clear_internal_plan_to_storage() -> int:
+	var returned_count: int = 0
+	var modules_to_return: Array[BipobModule] = []
+
+	for record_variant in placed_internal_modules:
+		if typeof(record_variant) != TYPE_DICTIONARY:
+			continue
+		var record: Dictionary = record_variant
+		var module: BipobModule = record.get("module", null)
+		if module != null and not modules_to_return.has(module):
+			modules_to_return.append(module)
+
+	if modules_to_return.is_empty():
+		for key in internal_modules_by_cell.keys():
+			var module: BipobModule = internal_modules_by_cell.get(key, null)
+			if module != null and not modules_to_return.has(module):
+				modules_to_return.append(module)
+
+	for module in modules_to_return:
+		if module != null:
+			box_storage.append(module)
+			returned_count += 1
+
+	internal_modules_by_cell.clear()
+	placed_internal_modules.clear()
+	clear_selected_overlay_cells()
+
+	status_changed.emit()
+	return returned_count
+
 
 func get_cells_for_internal_module(module: BipobModule) -> Array[Vector3i]:
 	var cells: Array[Vector3i] = []
