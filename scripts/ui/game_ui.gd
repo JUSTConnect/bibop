@@ -5703,32 +5703,13 @@ func _get_mission_result_title(mission_index: int) -> String:
 	return "Mission %d" % maxi(1, _safe_int(mission_index, 1))
 
 func _get_turns_used_safe() -> int:
-	if mission_manager != null:
-		if mission_manager.has_method("get_turns_used"):
-			return maxi(0, _safe_int(mission_manager.get_turns_used(), 0))
-		if "turns_used" in mission_manager:
-			return maxi(0, _safe_int(mission_manager.turns_used, 0))
-		if "current_turn" in mission_manager:
-			return maxi(0, _safe_int(mission_manager.current_turn, 0))
-	if bipob != null:
-		if bipob.has_method("get_turns_used"):
-			return maxi(0, _safe_int(bipob.get_turns_used(), 0))
-		if "turns_used" in bipob:
-			return maxi(0, _safe_int(bipob.turns_used, 0))
-		if "turn_counter" in bipob:
-			return maxi(0, _safe_int(bipob.turn_counter, 0))
-		if "current_turn" in bipob:
-			return maxi(0, _safe_int(bipob.current_turn, 0))
+	if bipob != null and bipob.has_method("get_turns_used"):
+		return maxi(0, _safe_int(bipob.get_turns_used(), 0))
 	return 0
 
 func _get_turn_limit_safe() -> int:
-	if mission_manager != null:
-		if mission_manager.has_method("get_turn_limit"):
-			return _safe_int(mission_manager.get_turn_limit(), 30)
-		if "turn_limit" in mission_manager:
-			return _safe_int(mission_manager.turn_limit, 30)
-		if "max_turns" in mission_manager:
-			return _safe_int(mission_manager.max_turns, 30)
+	if bipob != null and bipob.has_method("get_turn_limit"):
+		return maxi(1, _safe_int(bipob.get_turn_limit(), 30))
 	return 30
 
 func _get_completed_main_goals_safe(success: bool) -> Array[String]:
