@@ -7013,47 +7013,86 @@ func _draw_internal_isometric_preview(control: Control) -> void:
 	var rect: Rect2 = control.get_rect()
 	if rect.size.x <= 8.0 or rect.size.y <= 8.0:
 		return
-	var w: float = clampf(rect.size.x * 0.48, 70.0, 120.0)
-	var h: float = clampf(rect.size.y * 0.58, 52.0, 98.0)
-	var d: float = clampf(rect.size.x * 0.19, 22.0, 44.0)
-	var center: Vector2 = rect.size * 0.5
-	var front_tl: Vector2 = Vector2(center.x - w * 0.5 - d * 0.28, center.y - h * 0.30)
-	var front_tr: Vector2 = front_tl + Vector2(w, 0.0)
-	var front_br: Vector2 = front_tr + Vector2(0.0, h)
-	var front_bl: Vector2 = front_tl + Vector2(0.0, h)
-	var top_offset: Vector2 = Vector2(d, -d * 0.58)
-	var top_a: Vector2 = front_tl + top_offset
-	var top_b: Vector2 = front_tr + top_offset
-	var side_a: Vector2 = front_tr + top_offset
-	var side_b: Vector2 = front_br + top_offset
-	var front_face: PackedVector2Array = PackedVector2Array([front_tl, front_tr, front_br, front_bl])
-	var top_face: PackedVector2Array = PackedVector2Array([top_a, top_b, front_tr, front_tl])
-	var right_face: PackedVector2Array = PackedVector2Array([side_a, side_b, front_br, front_tr])
-	control.draw_colored_polygon(top_face, Color(0.080, 0.145, 0.175, 0.92))
-	control.draw_colored_polygon(right_face, Color(0.060, 0.100, 0.135, 0.93))
-	control.draw_colored_polygon(front_face, Color(0.040, 0.075, 0.110, 0.94))
-	for x in range(volume_size.x + 1):
-		var t: float = float(x) / float(maxi(volume_size.x, 1))
-		control.draw_line(front_tl.lerp(front_tr, t), front_bl.lerp(front_br, t), Color(0.220, 0.640, 0.760, 0.33), 1.0)
-		control.draw_line(top_a.lerp(top_b, t), front_tl.lerp(front_tr, t), Color(0.220, 0.640, 0.760, 0.30), 1.0)
-	for y in range(volume_size.y + 1):
-		var u: float = float(y) / float(maxi(volume_size.y, 1))
-		control.draw_line(top_a.lerp(front_tl, u), top_b.lerp(front_tr, u), Color(0.220, 0.640, 0.760, 0.30), 1.0)
-		control.draw_line(side_a.lerp(front_tr, u), side_b.lerp(front_br, u), Color(0.220, 0.640, 0.760, 0.28), 1.0)
-	for z in range(volume_size.z + 1):
-		var v: float = float(z) / float(maxi(volume_size.z, 1))
-		control.draw_line(front_tl.lerp(front_bl, v), front_tr.lerp(front_br, v), Color(0.220, 0.640, 0.760, 0.33), 1.0)
-		control.draw_line(side_a.lerp(side_b, v), front_tr.lerp(front_br, v), Color(0.220, 0.640, 0.760, 0.28), 1.0)
-	_draw_internal_isometric_module_projections(control, front_tl, front_tr, front_bl, top_a, top_b, side_a, side_b, volume_size)
-	_draw_internal_isometric_cursor_projection(control, front_tl, front_tr, front_bl, top_a, top_b, side_a, side_b, volume_size)
-	var border_col: Color = Color(0.420, 0.820, 0.930, 0.62)
-	control.draw_polyline(PackedVector2Array([top_a, top_b, front_tr, front_tl, top_a]), border_col, 1.4, true)
-	control.draw_polyline(PackedVector2Array([side_a, side_b, front_br, front_tr, side_a]), border_col, 1.4, true)
-	control.draw_polyline(PackedVector2Array([front_tl, front_tr, front_br, front_bl, front_tl]), border_col, 1.4, true)
+	var origin: Vector2 = Vector2(rect.size.x * 0.5, rect.size.y * 0.82)
+	var cell_w: float = minf((rect.size.x - 26.0) / float(maxi(volume_size.x + volume_size.y, 1)) * 2.0, 30.0)
+	var cell_h: float = cell_w
+	var cell_z: float = minf((rect.size.y - 24.0) / float(maxi(volume_size.z, 1)), cell_w * 0.52)
+	cell_w = maxf(cell_w, 9.0)
+	cell_h = maxf(cell_h, 9.0)
+	cell_z = maxf(cell_z, 7.0)
+	var outer_edge: Color = Color(0.25, 0.95, 1.0, 0.75)
+	var inner_grid: Color = Color(0.20, 0.75, 0.90, 0.28)
+	var face_fill: Color = Color(0.04, 0.10, 0.13, 0.18)
 
-func _draw_internal_isometric_module_projections(control: Control, front_tl: Vector2, front_tr: Vector2, front_bl: Vector2, top_a: Vector2, top_b: Vector2, side_a: Vector2, side_b: Vector2, volume_size: Vector3i) -> void:
+	_draw_internal_iso_grid_lines(control, volume_size, origin, cell_w, cell_h, cell_z, inner_grid)
+	_draw_internal_iso_volume_faces(control, volume_size, origin, cell_w, cell_h, cell_z, face_fill)
+	_draw_internal_isometric_module_projections(control, volume_size, origin, cell_w, cell_h, cell_z)
+	_draw_internal_isometric_cursor_projection(control, volume_size, origin, cell_w, cell_h, cell_z)
+	_draw_internal_iso_outer_edges(control, volume_size, origin, cell_w, cell_h, cell_z, outer_edge)
+
+func _internal_iso_project(origin: Vector2, p: Vector3, cell_w: float, cell_h: float, cell_z: float) -> Vector2:
+	var screen_x: float = origin.x + (p.x - p.y) * cell_w * 0.5
+	var screen_y: float = origin.y + (p.x + p.y) * cell_h * 0.25 - p.z * cell_z
+	return Vector2(screen_x, screen_y)
+
+func _draw_internal_iso_grid_lines(control: Control, volume_size: Vector3i, origin: Vector2, cell_w: float, cell_h: float, cell_z: float, line_color: Color) -> void:
+	for x in range(volume_size.x + 1):
+		for y in range(volume_size.y + 1):
+			var top_point: Vector2 = _internal_iso_project(origin, Vector3(x, y, float(volume_size.z)), cell_w, cell_h, cell_z)
+			var bottom_point: Vector2 = _internal_iso_project(origin, Vector3(x, y, 0.0), cell_w, cell_h, cell_z)
+			control.draw_line(top_point, bottom_point, line_color, 1.0)
+	for z in range(volume_size.z + 1):
+		for y in range(volume_size.y + 1):
+			var start_x: Vector2 = _internal_iso_project(origin, Vector3(0.0, y, z), cell_w, cell_h, cell_z)
+			var end_x: Vector2 = _internal_iso_project(origin, Vector3(float(volume_size.x), y, z), cell_w, cell_h, cell_z)
+			control.draw_line(start_x, end_x, line_color, 1.0)
+		for x in range(volume_size.x + 1):
+			var start_y: Vector2 = _internal_iso_project(origin, Vector3(x, 0.0, z), cell_w, cell_h, cell_z)
+			var end_y: Vector2 = _internal_iso_project(origin, Vector3(x, float(volume_size.y), z), cell_w, cell_h, cell_z)
+			control.draw_line(start_y, end_y, line_color, 1.0)
+
+func _draw_internal_iso_volume_faces(control: Control, volume_size: Vector3i, origin: Vector2, cell_w: float, cell_h: float, cell_z: float, fill_color: Color) -> void:
+	var top_face: PackedVector2Array = PackedVector2Array([
+		_internal_iso_project(origin, Vector3(0.0, 0.0, float(volume_size.z)), cell_w, cell_h, cell_z),
+		_internal_iso_project(origin, Vector3(float(volume_size.x), 0.0, float(volume_size.z)), cell_w, cell_h, cell_z),
+		_internal_iso_project(origin, Vector3(float(volume_size.x), float(volume_size.y), float(volume_size.z)), cell_w, cell_h, cell_z),
+		_internal_iso_project(origin, Vector3(0.0, float(volume_size.y), float(volume_size.z)), cell_w, cell_h, cell_z)
+	])
+	var front_face: PackedVector2Array = PackedVector2Array([
+		_internal_iso_project(origin, Vector3(0.0, 0.0, 0.0), cell_w, cell_h, cell_z),
+		_internal_iso_project(origin, Vector3(float(volume_size.x), 0.0, 0.0), cell_w, cell_h, cell_z),
+		_internal_iso_project(origin, Vector3(float(volume_size.x), 0.0, float(volume_size.z)), cell_w, cell_h, cell_z),
+		_internal_iso_project(origin, Vector3(0.0, 0.0, float(volume_size.z)), cell_w, cell_h, cell_z)
+	])
+	var right_face: PackedVector2Array = PackedVector2Array([
+		_internal_iso_project(origin, Vector3(float(volume_size.x), 0.0, 0.0), cell_w, cell_h, cell_z),
+		_internal_iso_project(origin, Vector3(float(volume_size.x), float(volume_size.y), 0.0), cell_w, cell_h, cell_z),
+		_internal_iso_project(origin, Vector3(float(volume_size.x), float(volume_size.y), float(volume_size.z)), cell_w, cell_h, cell_z),
+		_internal_iso_project(origin, Vector3(float(volume_size.x), 0.0, float(volume_size.z)), cell_w, cell_h, cell_z)
+	])
+	control.draw_colored_polygon(top_face, fill_color)
+	control.draw_colored_polygon(front_face, fill_color)
+	control.draw_colored_polygon(right_face, fill_color)
+
+func _draw_internal_iso_outer_edges(control: Control, volume_size: Vector3i, origin: Vector2, cell_w: float, cell_h: float, cell_z: float, edge_color: Color) -> void:
+	var corners: Array[Vector2] = [
+		_internal_iso_project(origin, Vector3(0.0, 0.0, 0.0), cell_w, cell_h, cell_z),
+		_internal_iso_project(origin, Vector3(float(volume_size.x), 0.0, 0.0), cell_w, cell_h, cell_z),
+		_internal_iso_project(origin, Vector3(0.0, float(volume_size.y), 0.0), cell_w, cell_h, cell_z),
+		_internal_iso_project(origin, Vector3(float(volume_size.x), float(volume_size.y), 0.0), cell_w, cell_h, cell_z),
+		_internal_iso_project(origin, Vector3(0.0, 0.0, float(volume_size.z)), cell_w, cell_h, cell_z),
+		_internal_iso_project(origin, Vector3(float(volume_size.x), 0.0, float(volume_size.z)), cell_w, cell_h, cell_z),
+		_internal_iso_project(origin, Vector3(0.0, float(volume_size.y), float(volume_size.z)), cell_w, cell_h, cell_z),
+		_internal_iso_project(origin, Vector3(float(volume_size.x), float(volume_size.y), float(volume_size.z)), cell_w, cell_h, cell_z)
+	]
+	var edges: Array = [[0,1],[0,2],[1,3],[2,3],[4,5],[4,6],[5,7],[6,7],[0,4],[1,5],[2,6],[3,7]]
+	for edge in edges:
+		control.draw_line(corners[edge[0]], corners[edge[1]], edge_color, 1.5)
+
+func _draw_internal_isometric_module_projections(control: Control, volume_size: Vector3i, origin: Vector2, cell_w: float, cell_h: float, cell_z: float) -> void:
 	if bipob == null:
 		return
+	var modules: Array = []
 	for record_variant in bipob.placed_internal_modules:
 		if typeof(record_variant) != TYPE_DICTIONARY:
 			continue
@@ -7061,10 +7100,17 @@ func _draw_internal_isometric_module_projections(control: Control, front_tl: Vec
 		var module: BipobModule = record.get("module", null)
 		if module == null:
 			continue
-		var origin: Vector3i = record.get("origin", Vector3i.ZERO)
+		var origin_cell: Vector3i = record.get("origin", Vector3i.ZERO)
 		var rotation_index: int = int(record.get("rotation", 0))
-		var covered_cells: Array[Vector3i] = bipob.get_internal_module_covered_cells(module, origin, rotation_index)
+		var covered_cells: Array[Vector3i] = bipob.get_internal_module_covered_cells(module, origin_cell, rotation_index)
 		if covered_cells.is_empty():
+			continue
+		modules.append({"module":module, "cells":covered_cells, "sort":origin_cell.x + origin_cell.y + origin_cell.z})
+	modules.sort_custom(func(a: Dictionary, b: Dictionary) -> bool: return int(a.get("sort", 0)) < int(b.get("sort", 0)))
+	for item in modules:
+		var covered_cells: Array[Vector3i] = item.get("cells", [])
+		var module: BipobModule = item.get("module", null)
+		if covered_cells.is_empty() or module == null:
 			continue
 		var min_x: int = covered_cells[0].x
 		var max_x: int = covered_cells[0].x
@@ -7076,49 +7122,43 @@ func _draw_internal_isometric_module_projections(control: Control, front_tl: Vec
 			min_x = mini(min_x, cell.x); max_x = maxi(max_x, cell.x)
 			min_y = mini(min_y, cell.y); max_y = maxi(max_y, cell.y)
 			min_z = mini(min_z, cell.z); max_z = maxi(max_z, cell.z)
-		var c: Color = bipob.get_module_visual_color(module) if bipob.has_method("get_module_visual_color") else Color(0.300, 0.600, 0.900, 0.85)
-		_draw_iso_rect_front(control, front_tl, front_tr, front_bl, volume_size, min_x, max_x + 1, min_z, max_z + 1, c, 0.32)
-		_draw_iso_rect_top(control, front_tl, front_tr, top_a, top_b, volume_size, min_x, max_x + 1, min_y, max_y + 1, c, 0.24)
-		_draw_iso_rect_right(control, front_tr, side_a, side_b, volume_size, min_y, max_y + 1, min_z, max_z + 1, c, 0.26)
+		var col: Color = bipob.get_module_visual_color(module) if bipob.has_method("get_module_visual_color") else Color(0.30, 0.60, 0.90, 1.0)
+		_draw_internal_iso_cuboid(control, origin, cell_w, cell_h, cell_z, Vector3(min_x, min_y, min_z), Vector3(max_x + 1, max_y + 1, max_z + 1), Color(col.r, col.g, col.b, 0.45), col)
 
-func _draw_internal_isometric_cursor_projection(control: Control, front_tl: Vector2, front_tr: Vector2, front_bl: Vector2, top_a: Vector2, top_b: Vector2, side_a: Vector2, side_b: Vector2, volume_size: Vector3i) -> void:
+func _draw_internal_isometric_cursor_projection(control: Control, volume_size: Vector3i, origin: Vector2, cell_w: float, cell_h: float, cell_z: float) -> void:
 	if bipob == null:
 		return
 	var c: Vector3i = bipob.selected_internal_origin
-	var highlight: Color = UI_COLOR_SELECTED
-	_draw_iso_rect_front(control, front_tl, front_tr, front_bl, volume_size, c.x, c.x + 1, c.z, c.z + 1, highlight, 0.18, true)
-	_draw_iso_rect_top(control, front_tl, front_tr, top_a, top_b, volume_size, c.x, c.x + 1, c.y, c.y + 1, highlight, 0.14, true)
-	_draw_iso_rect_right(control, front_tr, side_a, side_b, volume_size, c.y, c.y + 1, c.z, c.z + 1, highlight, 0.16, true)
+	var selected_outline: Color = Color(1.0, 0.90, 0.30, 0.85)
+	_draw_internal_iso_cuboid_edges(control, origin, cell_w, cell_h, cell_z, Vector3(c.x, c.y, c.z), Vector3(c.x + 1, c.y + 1, c.z + 1), selected_outline, 1.8)
 
-func _draw_iso_rect_front(control: Control, front_tl: Vector2, front_tr: Vector2, front_bl: Vector2, volume_size: Vector3i, min_x: int, max_x: int, min_z: int, max_z: int, color: Color, alpha_scale: float, outline: bool = false) -> void:
-	var p0: Vector2 = front_tl.lerp(front_tr, float(min_x) / float(maxi(volume_size.x, 1))).lerp(front_bl, float(min_z) / float(maxi(volume_size.z, 1)))
-	var p1: Vector2 = front_tl.lerp(front_tr, float(max_x) / float(maxi(volume_size.x, 1))).lerp(front_bl, float(min_z) / float(maxi(volume_size.z, 1)))
-	var p2: Vector2 = front_tl.lerp(front_tr, float(max_x) / float(maxi(volume_size.x, 1))).lerp(front_bl, float(max_z) / float(maxi(volume_size.z, 1)))
-	var p3: Vector2 = front_tl.lerp(front_tr, float(min_x) / float(maxi(volume_size.x, 1))).lerp(front_bl, float(max_z) / float(maxi(volume_size.z, 1)))
-	var poly := PackedVector2Array([p0, p1, p2, p3])
-	control.draw_colored_polygon(poly, Color(color.r, color.g, color.b, clampf(alpha_scale, 0.0, 1.0)))
-	if outline:
-		control.draw_polyline(PackedVector2Array([p0, p1, p2, p3, p0]), color, 1.7, true)
+func _draw_internal_iso_cuboid(control: Control, origin: Vector2, cell_w: float, cell_h: float, cell_z: float, min_cell: Vector3, max_cell: Vector3, fill_col: Color, edge_col: Color) -> void:
+	var corners: Dictionary = _internal_iso_cuboid_corners(origin, cell_w, cell_h, cell_z, min_cell, max_cell)
+	var top: PackedVector2Array = PackedVector2Array([corners["011"], corners["111"], corners["101"], corners["001"]])
+	var front: PackedVector2Array = PackedVector2Array([corners["000"], corners["100"], corners["101"], corners["001"]])
+	var right: PackedVector2Array = PackedVector2Array([corners["100"], corners["110"], corners["111"], corners["101"]])
+	control.draw_colored_polygon(top, Color(fill_col.r, fill_col.g, fill_col.b, fill_col.a * 0.92))
+	control.draw_colored_polygon(front, fill_col)
+	control.draw_colored_polygon(right, Color(fill_col.r, fill_col.g, fill_col.b, fill_col.a * 0.86))
+	_draw_internal_iso_cuboid_edges(control, origin, cell_w, cell_h, cell_z, min_cell, max_cell, Color(edge_col.r, edge_col.g, edge_col.b, 0.85), 1.2)
 
-func _draw_iso_rect_top(control: Control, front_tl: Vector2, front_tr: Vector2, top_a: Vector2, top_b: Vector2, volume_size: Vector3i, min_x: int, max_x: int, min_y: int, max_y: int, color: Color, alpha_scale: float, outline: bool = false) -> void:
-	var p0: Vector2 = top_a.lerp(top_b, float(min_x) / float(maxi(volume_size.x, 1))).lerp(front_tl.lerp(front_tr, float(min_x) / float(maxi(volume_size.x, 1))), float(min_y) / float(maxi(volume_size.y, 1)))
-	var p1: Vector2 = top_a.lerp(top_b, float(max_x) / float(maxi(volume_size.x, 1))).lerp(front_tl.lerp(front_tr, float(max_x) / float(maxi(volume_size.x, 1))), float(min_y) / float(maxi(volume_size.y, 1)))
-	var p2: Vector2 = top_a.lerp(top_b, float(max_x) / float(maxi(volume_size.x, 1))).lerp(front_tl.lerp(front_tr, float(max_x) / float(maxi(volume_size.x, 1))), float(max_y) / float(maxi(volume_size.y, 1)))
-	var p3: Vector2 = top_a.lerp(top_b, float(min_x) / float(maxi(volume_size.x, 1))).lerp(front_tl.lerp(front_tr, float(min_x) / float(maxi(volume_size.x, 1))), float(max_y) / float(maxi(volume_size.y, 1)))
-	var poly := PackedVector2Array([p0, p1, p2, p3])
-	control.draw_colored_polygon(poly, Color(color.r, color.g, color.b, clampf(alpha_scale, 0.0, 1.0)))
-	if outline:
-		control.draw_polyline(PackedVector2Array([p0, p1, p2, p3, p0]), color, 1.7, true)
+func _draw_internal_iso_cuboid_edges(control: Control, origin: Vector2, cell_w: float, cell_h: float, cell_z: float, min_cell: Vector3, max_cell: Vector3, edge_color: Color, width: float) -> void:
+	var corners: Dictionary = _internal_iso_cuboid_corners(origin, cell_w, cell_h, cell_z, min_cell, max_cell)
+	var edges: Array = [["000","100"],["000","010"],["100","110"],["010","110"],["001","101"],["001","011"],["101","111"],["011","111"],["000","001"],["100","101"],["010","011"],["110","111"]]
+	for edge in edges:
+		control.draw_line(corners[edge[0]], corners[edge[1]], edge_color, width)
 
-func _draw_iso_rect_right(control: Control, front_tr: Vector2, side_a: Vector2, side_b: Vector2, volume_size: Vector3i, min_y: int, max_y: int, min_z: int, max_z: int, color: Color, alpha_scale: float, outline: bool = false) -> void:
-	var p0: Vector2 = side_a.lerp(front_tr, float(min_y) / float(maxi(volume_size.y, 1))).lerp(side_b.lerp(front_tr + (side_b - side_a), float(min_y) / float(maxi(volume_size.y, 1))), float(min_z) / float(maxi(volume_size.z, 1)))
-	var p1: Vector2 = side_a.lerp(front_tr, float(max_y) / float(maxi(volume_size.y, 1))).lerp(side_b.lerp(front_tr + (side_b - side_a), float(max_y) / float(maxi(volume_size.y, 1))), float(min_z) / float(maxi(volume_size.z, 1)))
-	var p2: Vector2 = side_a.lerp(front_tr, float(max_y) / float(maxi(volume_size.y, 1))).lerp(side_b.lerp(front_tr + (side_b - side_a), float(max_y) / float(maxi(volume_size.y, 1))), float(max_z) / float(maxi(volume_size.z, 1)))
-	var p3: Vector2 = side_a.lerp(front_tr, float(min_y) / float(maxi(volume_size.y, 1))).lerp(side_b.lerp(front_tr + (side_b - side_a), float(min_y) / float(maxi(volume_size.y, 1))), float(max_z) / float(maxi(volume_size.z, 1)))
-	var poly := PackedVector2Array([p0, p1, p2, p3])
-	control.draw_colored_polygon(poly, Color(color.r, color.g, color.b, clampf(alpha_scale, 0.0, 1.0)))
-	if outline:
-		control.draw_polyline(PackedVector2Array([p0, p1, p2, p3, p0]), color, 1.7, true)
+func _internal_iso_cuboid_corners(origin: Vector2, cell_w: float, cell_h: float, cell_z: float, min_cell: Vector3, max_cell: Vector3) -> Dictionary:
+	return {
+		"000": _internal_iso_project(origin, Vector3(min_cell.x, min_cell.y, min_cell.z), cell_w, cell_h, cell_z),
+		"100": _internal_iso_project(origin, Vector3(max_cell.x, min_cell.y, min_cell.z), cell_w, cell_h, cell_z),
+		"010": _internal_iso_project(origin, Vector3(min_cell.x, max_cell.y, min_cell.z), cell_w, cell_h, cell_z),
+		"110": _internal_iso_project(origin, Vector3(max_cell.x, max_cell.y, min_cell.z), cell_w, cell_h, cell_z),
+		"001": _internal_iso_project(origin, Vector3(min_cell.x, min_cell.y, max_cell.z), cell_w, cell_h, cell_z),
+		"101": _internal_iso_project(origin, Vector3(max_cell.x, min_cell.y, max_cell.z), cell_w, cell_h, cell_z),
+		"011": _internal_iso_project(origin, Vector3(min_cell.x, max_cell.y, max_cell.z), cell_w, cell_h, cell_z),
+		"111": _internal_iso_project(origin, Vector3(max_cell.x, max_cell.y, max_cell.z), cell_w, cell_h, cell_z)
+	}
 
 func get_box_internal_menu_text() -> String:
 	_clamp_internal_selection()
