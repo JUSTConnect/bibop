@@ -12,7 +12,7 @@ class_name BipobModule
 # External metadata
 @export var external_width: int = 0
 @export var external_height: int = 0
-@export var allowed_external_sides: Array[String] = []
+@export var allowed_external_sides: Array = []
 
 # Internal metadata
 @export var internal_size: Vector3i = Vector3i(1, 1, 1)
