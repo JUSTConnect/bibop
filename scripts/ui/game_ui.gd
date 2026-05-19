@@ -2456,7 +2456,7 @@ func _create_external_visual_workspace() -> Control:
 	margin.add_theme_constant_override("margin_bottom", 6)
 
 	var root: VBoxContainer = VBoxContainer.new()
-	root.add_theme_constant_override("separation", 6)
+	root.add_theme_constant_override("separation", 3)
 	root.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	root.size_flags_vertical = Control.SIZE_EXPAND_FILL
 
@@ -2473,11 +2473,14 @@ func _create_external_visual_workspace() -> Control:
 
 	var up_wrap: VBoxContainer = VBoxContainer.new()
 	up_wrap.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-	up_wrap.size_flags_vertical = Control.SIZE_SHRINK_BEGIN
-	up_wrap.alignment = BoxContainer.ALIGNMENT_CENTER
+	up_wrap.size_flags_vertical = Control.SIZE_EXPAND_FILL
+	up_wrap.alignment = BoxContainer.ALIGNMENT_END
+	var up_spacer: Control = Control.new()
+	up_spacer.size_flags_vertical = Control.SIZE_EXPAND_FILL
+	up_wrap.add_child(up_spacer)
 	var up_grid: Control = _create_external_side_grid("top")
 	up_grid.size_flags_horizontal = Control.SIZE_SHRINK_CENTER
-	up_grid.size_flags_vertical = Control.SIZE_SHRINK_BEGIN
+	up_grid.size_flags_vertical = Control.SIZE_SHRINK_END
 	up_wrap.add_child(up_grid)
 	top_row.add_child(up_wrap)
 
