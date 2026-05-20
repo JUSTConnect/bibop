@@ -4231,6 +4231,20 @@ func get_internal_description_for_module_id(module_id: String) -> String:
 			return "Creates the internal data bus that connects core modules into one stable robot network."
 		"external_interface_v1", "external_interface_v2", "external_interface_v3":
 			return "Bridges internal systems with external body modules, allowing modules to receive data and control signals."
+		"targeting_computer_v1":
+			return "Calculates firing angles, movement prediction, and weapon correction to improve accuracy with ranged and precision weapons."
+		"encryption_module_v1":
+			return "Protects internal data channels from hacking, interception, and unauthorized access."
+		"motor_controller_v1":
+			return "Ensures the coordination of movement commands between core systems and installed equipment modules. Essential for the stable control of jumper and air-cushion-based movement."
+		"weapon_controller_v1":
+			return "Manages weapon activation, targeting signals, safety locks, and firing commands for complex weapon systems."
+		"firewall_module_v1":
+			return "Blocks hostile hacking attempts and protects the internal network from remote intrusion."
+		"auto_repair_unit_v1":
+			return "Performs slow automatic repairs on damaged internal modules using available repair resources."
+		"sample_analyzer_v1":
+			return "Analyzes collected samples, materials, biological traces, and objects directly inside."
 		_:
 			return get_module_description_for_id(module_id)
 
@@ -4376,6 +4390,8 @@ func apply_thermal_metadata(module: BipobModule) -> void:
 		"capacitor_bank_v1":
 			module.heat_idle = 3; module.heat_active = 3
 		"internal_interface_v1", "external_interface_v1":
+			module.heat_idle = 1; module.heat_active = 1
+		"targeting_computer_v1", "encryption_module_v1", "motor_controller_v1", "weapon_controller_v1", "firewall_module_v1", "auto_repair_unit_v1", "sample_analyzer_v1":
 			module.heat_idle = 1; module.heat_active = 1
 		"cooler_v1":
 			module.cooling_power = 2
@@ -4647,6 +4663,20 @@ func get_module_description_for_id(module_id: String) -> String:
 			return "Active air-cooling unit that removes heat from nearby internal modules. Should external ventilation path."
 		"radiator_v1":
 			return "Passive cooling block that disperses accumulated heat without consuming additional control resources."
+		"targeting_computer_v1":
+			return "Calculates firing angles, movement prediction, and weapon correction to improve accuracy with ranged and precision weapons."
+		"encryption_module_v1":
+			return "Protects internal data channels from hacking, interception, and unauthorized access."
+		"motor_controller_v1":
+			return "Ensures the coordination of movement commands between core systems and installed equipment modules. Essential for the stable control of jumper and air-cushion-based movement."
+		"weapon_controller_v1":
+			return "Manages weapon activation, targeting signals, safety locks, and firing commands for complex weapon systems."
+		"firewall_module_v1":
+			return "Blocks hostile hacking attempts and protects the internal network from remote intrusion."
+		"auto_repair_unit_v1":
+			return "Performs slow automatic repairs on damaged internal modules using available repair resources."
+		"sample_analyzer_v1":
+			return "Analyzes collected samples, materials, biological traces, and objects directly inside."
 		"water_tube_v1":
 			return "Description will be added later."
 		"air_duct_v1":
