@@ -39,6 +39,7 @@ class_name BipobModule
 @export var weapon_range_type: String = ""
 @export var special_effect_text: String = ""
 @export var energy_effect_text: String = ""
+@export var action_text: String = ""
 @export var action_modifier: int = 0
 @export var install_notes: String = ""
 @export var characteristics_text: String = ""

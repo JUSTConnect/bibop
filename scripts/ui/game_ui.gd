@@ -183,6 +183,7 @@ enum AppScreenMode {
 
 var app_screen_mode: AppScreenMode = AppScreenMode.MAIN_MENU
 var previous_app_screen_mode: AppScreenMode = AppScreenMode.MAIN_MENU
+var last_mission_success: bool = true
 var box_opened_from_center: bool = false
 var placeholder_return_screen_mode: AppScreenMode = AppScreenMode.CENTER
 
@@ -3629,6 +3630,14 @@ func _get_module_characteristics_lines(module: BipobModule, context: String = ""
 			lines.append("Special: %s" % module.special_effect_text)
 		return lines
 
+	if module.placement_type == "external" and String(module.category) == "Other":
+		lines.append("Energy: %d" % module.energy_cost)
+		if not module.action_text.is_empty():
+			lines.append("Action: %s" % module.action_text)
+		if not module.special_effect_text.is_empty():
+			lines.append("Special: %s" % module.special_effect_text)
+		return lines
+
 	if module.placement_type == "external" and String(module.category) == "Weapons":
 		lines.append("Energy: %d" % module.energy_cost)
 		if module.fuel_capacity > 0:
@@ -4882,6 +4891,7 @@ func show_mission_result_screen(success: bool, mission_index: int = -1) -> void:
 	_hide_runtime_mission_ui()
 	_hide_all_app_screens()
 	_set_gameplay_visible(false)
+	last_mission_success = success
 	var root: Control = _ensure_mission_result_root()
 	root.visible = true
 	_clear_children(root)
@@ -6304,7 +6314,8 @@ func _build_mission_result_data(success: bool, mission_index: int = -1) -> Dicti
 		"failed_main_goals": _get_failed_main_goals_safe(success),
 		"completed_optional_goals": _get_completed_optional_goals_safe(),
 		"failed_optional_goals": _get_failed_optional_goals_safe(),
-		"rewards": _get_mission_rewards_safe()
+		"rewards": _get_mission_rewards_safe(),
+		"can_return_to_center": _can_return_to_center_after_result(success)
 	}
 
 func _safe_int(value: Variant, fallback: int = 0) -> int:
@@ -6715,6 +6726,20 @@ func _build_placeholder_layout() -> void:
 
 	vbox.add_child(_create_menu_button("Back", Callable(self, "_on_placeholder_back_pressed"), Vector2(160, 34)))
 
+func _has_installed_beacon_module_for_recovery() -> bool:
+	if bipob == null:
+		return false
+	if bipob.has_method("has_installed_beacon_module"):
+		return bool(bipob.has_installed_beacon_module())
+	if bipob.has_method("has_installed_external_module_id"):
+		return bool(bipob.has_installed_external_module_id("beacon_module_v1"))
+	return false
+
+func _can_return_to_center_after_result(success: bool) -> bool:
+	if success:
+		return true
+	return _has_installed_beacon_module_for_recovery()
+
 func _create_mission_result_layout(data: Dictionary) -> Control:
 	var background := ColorRect.new()
 	background.color = Color(0, 0, 0, 0.78)
@@ -6764,7 +6789,12 @@ func _create_mission_result_layout(data: Dictionary) -> Control:
 	button_column.alignment = BoxContainer.ALIGNMENT_CENTER
 	vbox.add_child(button_column)
 	button_column.add_child(_create_menu_button("Restart", Callable(self, "_on_mission_result_restart_pressed"), Vector2(220, 38)))
-	button_column.add_child(_create_menu_button("Center", Callable(self, "_on_mission_result_center_pressed"), Vector2(220, 38)))
+	var center_button: Button = _create_menu_button("Center", Callable(self, "_on_mission_result_center_pressed"), Vector2(220, 38))
+	var allow_center_return: bool = bool(data.get("can_return_to_center", true))
+	if not allow_center_return:
+		center_button.disabled = true
+		center_button.tooltip_text = "Beacon Module required"
+	button_column.add_child(center_button)
 	button_column.add_child(_create_menu_button("Main Menu", Callable(self, "_on_mission_result_main_menu_pressed"), Vector2(220, 38)))
 	return background
 
@@ -6877,6 +6907,9 @@ func _on_mission_result_restart_pressed() -> void:
 	start_gameplay_from_center()
 
 func _on_mission_result_center_pressed() -> void:
+	if not _can_return_to_center_after_result(last_mission_success):
+		show_hint("Beacon Module required")
+		return
 	show_center_screen()
 
 func _on_mission_result_main_menu_pressed() -> void:
