@@ -4381,17 +4381,17 @@ func get_module_description_for_id(module_id: String) -> String:
 		"processor_v3":
 			return "CPU V3 internal processing module. Maximum hack performance with high heat risk."
 		"memory_v1":
-			return "Internal memory module."
+			return "Stores short-term operational data and increases the number of available actions during a mission."
 		"memory_v2":
-			return "RAM V2 internal memory module with improved action throughput."
+			return "Expands short-term memory capacity, allowing the robot to process more commands and perform longer action chains."
 		"memory_v3":
-			return "RAM V3 internal memory module with maximum action throughput."
+			return "High-speed memory module for complex builds that require many actions, advanced control, and fast response."
 		"hard_drive_v1":
-			return "Internal storage module."
+			return "Provides basic digital storage for mission data, downloaded files, access keys, and collected information."
 		"hard_drive_v2":
-			return "HDD V2 internal storage module with increased capacity."
+			return "Expands digital storage capacity for longer missions with more data, files, and collected digital items."
 		"hard_drive_v3":
-			return "HDD V3 internal storage module with maximum capacity."
+			return "High-capacity storage module for complex missions, large data packages, hidden archives, and advanced recovery objectives."
 		"battery_v2":
 			return "Accumulates an increased volume of energy, enabling the execution of longer missions and the use of enhanced modules."
 		"battery_v3":

@@ -3606,14 +3606,14 @@ func _get_module_characteristics_lines(module: BipobModule, context: String = ""
 	if module.action_capacity > 0:
 		lines.append("Actions: +%d" % module.action_capacity)
 
-	if module.digital_storage_slots > 0:
-		lines.append("Storage: +%d" % module.digital_storage_slots)
-
 	if module.hack_value > 0:
 		lines.append("Hack: +%d" % module.hack_value)
 
 	if module.gpu_value > 0:
 		lines.append("GPU: +%d" % module.gpu_value)
+
+	if module.digital_storage_slots > 0:
+		lines.append("Storage: +%d" % module.digital_storage_slots)
 
 	if module.power_distribution > 0:
 		lines.append("Power Distribution: +%d" % module.power_distribution)
