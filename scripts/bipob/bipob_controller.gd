@@ -637,10 +637,32 @@ func get_active_sensor_module() -> BipobModule:
 			return module
 	return null
 
+func _extract_module_from_internal_record(record) -> BipobModule:
+	if record == null:
+		return null
+
+	if record is BipobModule:
+		return record
+
+	if record is Dictionary:
+		var module = record.get("module", null)
+		if module is BipobModule:
+			return module
+
+		module = record.get("bipob_module", null)
+		if module is BipobModule:
+			return module
+
+		module = record.get("data", null)
+		if module is BipobModule:
+			return module
+
+	return null
+
 func get_total_sensor_range_bonus() -> int:
 	var total := 0
-	for module in placed_internal_modules:
-		var internal_module: BipobModule = _extract_module_from_internal_record(module)
+	for record in placed_internal_modules:
+		var internal_module: BipobModule = _extract_module_from_internal_record(record)
 		if internal_module == null:
 			continue
 		total += internal_module.sensor_range_bonus
@@ -648,8 +670,8 @@ func get_total_sensor_range_bonus() -> int:
 
 func get_total_sensor_visibility_bonus() -> int:
 	var total := 0
-	for module in placed_internal_modules:
-		var internal_module: BipobModule = _extract_module_from_internal_record(module)
+	for record in placed_internal_modules:
+		var internal_module: BipobModule = _extract_module_from_internal_record(record)
 		if internal_module == null:
 			continue
 		total += internal_module.sensor_visibility_bonus
