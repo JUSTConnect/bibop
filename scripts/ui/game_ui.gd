@@ -3634,7 +3634,7 @@ func _get_internal_characteristics_lines(module: BipobModule) -> Array:
 	var lines: Array = []
 
 	if module.cooling_value != 0:
-		lines.append("Cooling: %d" % module.cooling_value)
+		lines.append("Cooling: %d" % abs(module.cooling_value))
 	elif module.heat_value > 0:
 		lines.append("Overheat: +%d" % module.heat_value)
 
@@ -7390,7 +7390,7 @@ func _create_internal_summary_panel() -> Control:
 	panel.custom_minimum_size = Vector2(180, 74)
 	var root: VBoxContainer = VBoxContainer.new()
 	root.add_theme_constant_override("separation", 2)
-	root.add_child(_create_internal_info_line("Cooling / Overheat", "+%d" % _calculate_internal_max_overheat()))
+	root.add_child(_create_internal_info_line("Temperature", _format_signed_temperature(_calculate_internal_temperature_summary())))
 	root.add_child(_create_internal_info_line("Actions", str(_calculate_internal_actions())))
 	root.add_child(_create_internal_info_line("Hack", str(_calculate_internal_hack_level())))
 	root.add_child(_create_internal_info_line("Storage", str(_calculate_internal_storage_capacity())))
@@ -7474,19 +7474,29 @@ func _calculate_internal_energy_capacity() -> int:
 		total_energy += maxi(int(module.energy_capacity), 0)
 	return total_energy
 
-func _calculate_internal_max_overheat() -> int:
-	var total_cooling: int = 0
-	for module in _get_internal_installed_modules():
-		if module != null:
-			total_cooling += maxi(-int(module.cooling_value), 0)
-	var max_overheat: int = 0
+func _calculate_internal_temperature_summary() -> int:
+	var total_temperature: int = 0
 	for module in _get_internal_installed_modules():
 		if module == null:
 			continue
-		var module_heat: int = maxi(int(module.heat_value), maxi(int(module.heat_active), int(module.heat_idle)))
-		var final_overheat: int = maxi(module_heat - total_cooling, 0)
-		max_overheat = maxi(max_overheat, final_overheat)
-	return max_overheat
+		total_temperature += int(module.heat_value)
+		total_temperature += int(module.cooling_value)
+	# TODO temperature stacking:
+	# - Overheat stacks by adjacency.
+	# - If several hot modules touch the same module, their overheat pressure can combine.
+	# - Cooling modules apply cooling to nearby cells.
+	# - Cooler + Radiator may stack when both affect the same hot module.
+	# - Cooling lines can transfer cooling from a cooling source to remote modules.
+	# - Final Temperature should be calculated per-module first, then the summary shows the worst positive temperature or total balance depending on design decision.
+	return total_temperature
+
+
+func _format_signed_temperature(value: int) -> String:
+	if value > 0:
+		return "+%d" % value
+	if value < 0:
+		return "%d" % value
+	return "0"
 
 func _build_internal_missing_required_warnings() -> Array[String]:
 	var warnings: Array[String] = []

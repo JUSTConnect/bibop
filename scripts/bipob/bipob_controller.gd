@@ -4188,7 +4188,7 @@ func get_internal_overheat_for_module_id(module_id: String) -> int:
 func get_internal_characteristics_text(module: BipobModule) -> String:
 	var lines: Array[String] = []
 	if module.cooling_value != 0:
-		lines.append("Cooling: %d" % module.cooling_value)
+		lines.append("Cooling: %d" % abs(module.cooling_value))
 	elif module.heat_value > 0:
 		lines.append("Overheat: +%d" % module.heat_value)
 	if module.energy_capacity > 0:
@@ -4527,13 +4527,13 @@ func get_module_description_for_id(module_id: String) -> String:
 		"external_interface_v1":
 			return "Bridge between internal systems and external modules."
 		"cooler_v1":
-			return "Air cooling module. Requires an external Air Intake Node."
+			return "Active air-cooling unit that removes heat from nearby internal modules. Should external ventilation path."
 		"radiator_v1":
-			return "Passive cooling module. More effective near body or next to a cooler."
+			return "Passive cooling block that disperses accumulated heat without consuming additional control resources."
 		"water_tube_v1":
-			return "Liquid cooling path placeholder. Future overlay module."
+			return "Description will be added later."
 		"air_duct_v1":
-			return "Air duct path placeholder. Future overlay module."
+			return "Description will be added later."
 		_:
 			return ""
 
