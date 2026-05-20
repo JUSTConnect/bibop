@@ -2959,6 +2959,7 @@ func _get_external_build_warnings() -> Array[String]:
 	var has_ventilation_port: bool = false
 	var has_gas_burner: bool = false
 	var has_gas_canister: bool = false
+	var has_jumper_or_air_cushion: bool = false
 	for module in modules:
 		if module == null:
 			continue
@@ -2968,6 +2969,8 @@ func _get_external_build_warnings() -> Array[String]:
 			has_gas_burner = true
 		elif module.id == "gas_canister_v1":
 			has_gas_canister = true
+		elif module.id == "jumper_v1" or module.id == "hover_pad_v1":
+			has_jumper_or_air_cushion = true
 	if bipob != null and not has_ventilation_port:
 		var needs_airflow_dependency: bool = false
 		for internal_module in bipob.installed_modules:
@@ -2982,6 +2985,8 @@ func _get_external_build_warnings() -> Array[String]:
 			warnings.append("Ventilation Port")
 	if has_gas_burner and not has_gas_canister:
 		warnings.append("Gas Canister")
+	if has_jumper_or_air_cushion and bipob != null and not bipob.has_module_id_anywhere("motor_controller_v1"):
+		warnings.append("Motor Controller")
 	if bipob != null and bipob.has_method("is_power_port_overloaded") and bipob.is_power_port_overloaded():
 		if not warnings.has("Power ports shortage"):
 			warnings.append("Power ports shortage")
@@ -3567,6 +3572,17 @@ func _get_module_characteristics_lines(module: BipobModule, context: String = ""
 	var is_internal_module: bool = module.placement_type == "internal" or module.placement_type == "internal_overlay"
 	if is_internal_module:
 		return _get_internal_characteristics_lines(module)
+	if module.placement_type == "external" and String(module.category).to_lower() == "gear":
+		lines.append("Energy: %d" % module.energy_cost)
+		if not module.terrain_type.is_empty():
+			lines.append("Terrain: %s" % module.terrain_type)
+		if not module.movement_type.is_empty():
+			lines.append("Movement: %s" % module.movement_type)
+		if module.gear_speed > 0:
+			lines.append("Speed: %d" % module.gear_speed)
+		if module.ignore_terrain_debuff:
+			lines.append("Special: ignore debuff")
+		return lines
 
 	var size_text := _get_module_size_text(module)
 	if not size_text.is_empty():

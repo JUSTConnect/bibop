@@ -38,6 +38,10 @@ class_name BipobModule
 @export var action_modifier: int = 0
 @export var install_notes: String = ""
 @export var characteristics_text: String = ""
+@export var movement_type: String = ""
+@export var terrain_type: String = ""
+@export var gear_speed: int = 0
+@export var ignore_terrain_debuff: bool = false
 
 # Internal stat outputs
 @export var energy_capacity: int = 0
