@@ -48,6 +48,8 @@ class_name BipobModule
 @export var reach_value: int = 0
 @export var direction_text: String = ""
 @export var carry_text: String = ""
+@export var connection_type: String = ""
+@export var connection_range_text: String = ""
 
 # Internal stat outputs
 @export var energy_capacity: int = 0
