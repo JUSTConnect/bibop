@@ -81,6 +81,7 @@ var mission_finished: bool = false
 var sector_completed: bool = false
 var current_mission_index: int = 1
 var max_mission_index: int = 9
+var turns_used: int = 0
 var mission4_hidden_route_node_discovered: bool = false
 var has_key: bool = false
 var has_info_key: bool = false
@@ -879,6 +880,7 @@ func start_mission(mission_index: int, save_snapshot: bool = true) -> void:
 	# Box preparation flow: mission start resets turn actions, but does not spend resources.
 	current_mission_index = clampi(mission_index, 1, max_mission_index)
 	mission_finished = false
+	turns_used = 0
 	actions_left = actions_per_turn
 	has_key = false
 	has_info_key = false
@@ -4821,9 +4823,16 @@ func turn_right() -> void:
 
 func end_turn() -> void:
 	actions_left = actions_per_turn
+	turns_used += 1
 	print("End Turn. Actions restored.")
 	print_status()
 	status_changed.emit()
+
+func get_turns_used() -> int:
+	return maxi(0, turns_used)
+
+func get_turn_limit() -> int:
+	return 30
 
 func can_spend_action(action_cost: int, energy_cost: int) -> bool:
 	if actions_left < action_cost:
