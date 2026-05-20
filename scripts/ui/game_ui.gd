@@ -197,55 +197,13 @@ var placeholder_title_label: Label
 var placeholder_body_label: Label
 var tasks_tab_buttons: Dictionary = {}
 var tasks_current_tab: String = "Career"
-var tasks_career_data: Array[Dictionary] = [
-	{
-		"title": "Career Task 1",
-		"description": "Recover the key, unlock the door, and reach extraction.",
-		"difficulty": "Difficulty: TBD",
-		"reward": "Reward: TBD",
-		"requirements": [
-			"Bipobs: 1 Scout",
-			"Modules: basic movement + sensor",
-			"Battery: medium",
-			"Storage: small"
-		],
-		"warnings": [
-			"Battery may be insufficient.",
-			"Sensor module recommended."
-		]
-	},
-	{
-		"title": "Career Task 2",
-		"description": "Survey the sector and complete the requested scan route.",
-		"difficulty": "Difficulty: TBD",
-		"reward": "Reward: TBD",
-		"requirements": [
-			"Bipobs: 1 Engineer",
-			"Modules: scan device, data interface",
-			"Battery: medium",
-			"Storage: medium"
-		],
-		"warnings": [
-			"Internal interface missing.",
-			"Data storage may be insufficient."
-		]
-	},
-	{
-		"title": "Career Task 3",
-		"description": "Deliver and retrieve mission cargo across a contested route.",
-		"difficulty": "Difficulty: TBD",
-		"reward": "Reward: TBD",
-		"requirements": [
-			"Bipobs: 2 (Scout + Engineer)",
-			"Modules: storage expansion, manipulator",
-			"Battery: high",
-			"Storage: high"
-		],
-		"warnings": [
-			"Not enough storage capacity.",
-			"Second Bipob not configured."
-		]
-	}
+var tasks_mission_data: Array[Dictionary] = []
+var tasks_selected_ids: Array[String] = ["alpha"]
+var tasks_selected_mission_id: int = 1
+var tasks_available_bipobs: Array[Dictionary] = [
+	{"id": "alpha", "name": "Scout"},
+	{"id": "beta", "name": "Engineer"},
+	{"id": "juggernaut", "name": "Juggernaut"}
 ]
 var tasks_selected_career_index: int = 0
 var tasks_list_container: VBoxContainer
@@ -255,6 +213,9 @@ var tasks_reward_label: Label
 var tasks_description_label: Label
 var tasks_requirements_label: Label
 var tasks_warnings_label: Label
+var tasks_bipob_buttons_row: HBoxContainer
+var tasks_validation_label: Label
+var tasks_start_button: Button
 
 const CONSTRUCTOR_PANEL_BG_PATH: String = "res://assets/ui/constructor/panel_bg.png"
 const CONSTRUCTOR_CELL_EMPTY_PATH: String = "res://assets/ui/constructor/cell_empty.png"
@@ -4851,9 +4812,46 @@ func start_gameplay_from_center() -> void:
 	_on_start_mission_button_pressed()
 	call_deferred("_attach_runtime_gameplay_view")
 
-func start_selected_task_mission() -> void:
+
+func _build_tasks_mission_data() -> void:
+	tasks_mission_data.clear()
+	var total_missions: int = 9
 	if bipob != null:
-		bipob.current_mission_index = tasks_selected_career_index + 1
+		total_missions = maxi(1, int(bipob.max_mission_index))
+	for i in range(total_missions):
+		var mission_id: int = i + 1
+		tasks_mission_data.append({
+			"id": mission_id,
+			"title_short": "Mission %d" % mission_id,
+			"title_full": "Mission %d" % mission_id,
+			"category": "career",
+			"short_description": "Reach extraction.",
+			"main_goal": "Find the way to reach extraction.",
+			"extra_goals": ["Find the key.", "Open the door."],
+			"reward": "TBD",
+			"difficulty": "TBD",
+			"required_bipob_type": "Scout",
+			"required_bipob_count": 1,
+			"required_movement_type": "basic movement",
+			"required_sensor_type": "basic sensor",
+			"required_battery": 50,
+			"required_pocket": 1,
+			"warnings_default": ["Battery may be insufficient.", "Sensor module recommended."]
+		})
+	if tasks_selected_career_index >= tasks_mission_data.size():
+		tasks_selected_career_index = maxi(tasks_mission_data.size() - 1, 0)
+	tasks_selected_mission_id = tasks_selected_career_index + 1
+
+func start_selected_task_mission() -> void:
+	var mission := get_selected_task_mission()
+	var selected_bipobs: Array[Dictionary] = get_selected_bipobs_for_mission()
+	var validation := validate_mission_requirements(mission, selected_bipobs)
+	if not bool(validation.get("valid", false)):
+		show_hint("Mission config invalid. Check warnings.")
+		_refresh_tasks_content()
+		return
+	if bipob != null:
+		bipob.current_mission_index = int(mission.get("id", tasks_selected_career_index + 1))
 	start_gameplay_from_center()
 
 func show_box_constructor_from_center() -> void:
@@ -4900,6 +4898,8 @@ func show_mission_result_screen(success: bool, mission_index: int = -1) -> void:
 	root.add_child(layout)
 
 func _refresh_tasks_content() -> void:
+	if tasks_mission_data.is_empty():
+		_build_tasks_mission_data()
 	for tab_name in tasks_tab_buttons.keys():
 		var button: Button = tasks_tab_buttons[tab_name]
 		var selected : bool = tab_name == tasks_current_tab
@@ -4915,9 +4915,9 @@ func _refresh_tasks_content() -> void:
 		tasks_list_container.add_child(placeholder)
 		_apply_tasks_placeholder_details()
 		return
-	for i in tasks_career_data.size():
+	for i in tasks_mission_data.size():
 		var card := Button.new()
-		card.text = "%s\n%s\nReward preview: TBD" % [tasks_career_data[i].get("title", ""), tasks_career_data[i].get("description", "")]
+		card.text = "%s\n%s\nReward preview: TBD" % [tasks_mission_data[i].get("title_short", ""), tasks_mission_data[i].get("short_description", "Reach extraction.")]
 		card.alignment = HORIZONTAL_ALIGNMENT_LEFT
 		card.text_overrun_behavior = TextServer.OVERRUN_TRIM_ELLIPSIS
 		card.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
@@ -4927,7 +4927,23 @@ func _refresh_tasks_content() -> void:
 		card.pressed.connect(_on_tasks_career_selected.bind(i))
 		card.modulate = UI_COLOR_SELECTED if i == tasks_selected_career_index else Color(1, 1, 1, 1)
 		tasks_list_container.add_child(card)
+	_refresh_tasks_bipob_buttons()
 	_update_tasks_details_panel()
+func _refresh_tasks_bipob_buttons() -> void:
+	if tasks_bipob_buttons_row == null:
+		return
+	for child in tasks_bipob_buttons_row.get_children():
+		child.queue_free()
+	for entry in tasks_available_bipobs:
+		var bipob_id: String = String(entry.get("id", ""))
+		var button := _create_menu_button(String(entry.get("name", bipob_id)), Callable(self, "_on_tasks_bipob_selected").bind(bipob_id), Vector2(120, 30))
+		button.modulate = UI_COLOR_SELECTED if tasks_selected_ids.has(bipob_id) else Color(1, 1, 1, 1)
+		tasks_bipob_buttons_row.add_child(button)
+
+func _on_tasks_bipob_selected(bipob_id: String) -> void:
+	tasks_selected_ids = [bipob_id]
+	_refresh_tasks_content()
+
 func _apply_menu_button_theme(button: Button) -> void:
 	if button == null:
 		return
@@ -4974,22 +4990,141 @@ func _apply_tasks_placeholder_details() -> void:
 func _update_tasks_details_panel() -> void:
 	if tasks_current_tab != "Career":
 		return
-	if tasks_career_data.is_empty():
+	if tasks_mission_data.is_empty():
 		return
-	tasks_selected_career_index = clampi(tasks_selected_career_index, 0, tasks_career_data.size() - 1)
-	var task := tasks_career_data[tasks_selected_career_index]
+	tasks_selected_career_index = clampi(tasks_selected_career_index, 0, tasks_mission_data.size() - 1)
+	tasks_selected_mission_id = tasks_selected_career_index + 1
+	var task := tasks_mission_data[tasks_selected_career_index]
+	var selected_bipobs: Array[Dictionary] = get_selected_bipobs_for_mission()
+	var validation := validate_mission_requirements(task, selected_bipobs)
 	if tasks_title_label != null:
-		tasks_title_label.text = task.get("title", "")
+		tasks_title_label.text = str(task.get("title_full", "Mission %d" % tasks_selected_mission_id))
 	if tasks_difficulty_label != null:
-		tasks_difficulty_label.text = task.get("difficulty", "Difficulty: TBD")
+		tasks_difficulty_label.text = "Difficulty: %s" % str(task.get("difficulty", "TBD"))
 	if tasks_reward_label != null:
-		tasks_reward_label.text = task.get("reward", "Reward: TBD")
+		tasks_reward_label.text = "Reward: %s" % str(task.get("reward", "TBD"))
 	if tasks_description_label != null:
-		tasks_description_label.text = "Description:\n%s" % task.get("description", "")
+		tasks_description_label.text = "Main Goal:\n%s\n\nExtra Goal:\n- %s" % [str(task.get("main_goal", "Find the way to reach extraction.")), "\n- ".join(task.get("extra_goals", []))]
 	if tasks_requirements_label != null:
-		tasks_requirements_label.text = "Requirements:\n- %s" % "\n- ".join(task.get("requirements", []))
+		tasks_requirements_label.text = build_requirements_text(task, selected_bipobs, validation)
 	if tasks_warnings_label != null:
-		tasks_warnings_label.text = "Warnings:\n- %s" % "\n- ".join(task.get("warnings", []))
+		tasks_warnings_label.text = "Warnings:\n- %s\n\nConfiguration Check:\n%s" % ["\n- ".join(task.get("warnings_default", [])), _build_validation_summary(validation)]
+	if tasks_start_button != null:
+		tasks_start_button.disabled = not bool(validation.get("valid", false))
+	if tasks_validation_label != null:
+		tasks_validation_label.text = _build_validation_summary(validation)
+		tasks_validation_label.add_theme_color_override("font_color", UI_COLOR_OK if bool(validation.get("valid", false)) else UI_COLOR_DANGER)
+
+
+func get_selected_task_mission() -> Dictionary:
+	if tasks_mission_data.is_empty():
+		_build_tasks_mission_data()
+	if tasks_mission_data.is_empty():
+		return {}
+	tasks_selected_career_index = clampi(tasks_selected_career_index, 0, tasks_mission_data.size() - 1)
+	return tasks_mission_data[tasks_selected_career_index]
+
+func get_selected_bipobs_for_mission() -> Array[Dictionary]:
+	var selected: Array[Dictionary] = []
+	for bipob_id in tasks_selected_ids:
+		for entry in tasks_available_bipobs:
+			if String(entry.get("id", "")) == bipob_id:
+				selected.append(entry)
+	if selected.is_empty() and not tasks_available_bipobs.is_empty():
+		selected.append(tasks_available_bipobs[0])
+	return selected
+
+func get_bipob_movement_modules() -> Array[String]:
+	var names: Array[String] = []
+	if bipob == null:
+		return names
+	for module in bipob.get_unique_external_modules():
+		if module != null and String(module.movement_type) != "":
+			names.append(bipob.get_module_display_name(module))
+	return names
+
+func get_bipob_sensor_modules() -> Array[String]:
+	var names: Array[String] = []
+	if bipob == null:
+		return names
+	for module in bipob.get_unique_external_modules():
+		if module != null and String(module.sensor_direction) != "":
+			names.append(bipob.get_module_display_name(module))
+	return names
+
+func get_bipob_total_battery_capacity() -> int:
+	return 0 if bipob == null else int(bipob.max_energy)
+
+func get_bipob_remaining_battery() -> int:
+	return 0 if bipob == null else int(bipob.energy)
+
+func get_bipob_pocket_slots() -> int:
+	return 0 if bipob == null else int(bipob.get_available_pocket_slots())
+
+func validate_mission_requirements(mission_data: Dictionary, selected_bipobs: Array[Dictionary]) -> Dictionary:
+	var messages: Array[String] = []
+	var required_bipobs: int = int(mission_data.get("required_bipob_count", 1))
+	var required_bipob_type: String = String(mission_data.get("required_bipob_type", "Scout"))
+	if selected_bipobs.size() < required_bipobs:
+		messages.append("Selected bipob does not match mission requirement.")
+	if selected_bipobs.is_empty() or String(selected_bipobs[0].get("name", "")) != required_bipob_type:
+		messages.append("Selected bipob does not match mission requirement.")
+	if get_bipob_movement_modules().is_empty():
+		messages.append("Missing required movement module.")
+	if get_bipob_sensor_modules().is_empty():
+		messages.append("Missing required sensor module.")
+	if get_bipob_remaining_battery() < int(mission_data.get("required_battery", 50)):
+		messages.append("Low battery charge for mission.")
+	if get_bipob_pocket_slots() < int(mission_data.get("required_pocket", 1)):
+		messages.append("Pocket capacity is insufficient.")
+	return {"valid": messages.is_empty(), "messages": messages}
+
+func _build_validation_summary(validation: Dictionary) -> String:
+	if bool(validation.get("valid", false)):
+		return "READY: Configuration is valid."
+	return "- %s" % "\n- ".join(validation.get("messages", []))
+
+func build_requirements_text(mission_data: Dictionary, selected_bipobs: Array[Dictionary], validation: Dictionary) -> String:
+	var req_battery: int = int(mission_data.get("required_battery", 50))
+	var rem: int = get_bipob_remaining_battery()
+	var max_b: int = get_bipob_total_battery_capacity()
+	var battery_line: String = "Max capacity: %d / Remaining: %d" % [max_b, rem]
+	if rem < req_battery:
+		battery_line += "  [LOW]"
+	var selected_names: Array[String] = []
+	for row in selected_bipobs:
+		selected_names.append(String(row.get("name", "")))
+	var missing := "— !"
+	return """Requirements
+
+Bipobs:
+- Required: %d %s
+- Current: %s
+
+Movement:
+- Required: %s
+- Current: %s
+
+Sensor:
+- Required: %s
+- Current: %s
+
+Battery:
+- Required: %d
+- Current: %s
+
+Pocket:
+- Required: %d
+- Current: %s""" % [
+		int(mission_data.get("required_bipob_count", 1)), String(mission_data.get("required_bipob_type", "Scout")),
+		", ".join(selected_names) if not selected_names.is_empty() else missing,
+		String(mission_data.get("required_movement_type", "basic movement")),
+		", ".join(get_bipob_movement_modules()) if not get_bipob_movement_modules().is_empty() else missing,
+		String(mission_data.get("required_sensor_type", "basic sensor")),
+		", ".join(get_bipob_sensor_modules()) if not get_bipob_sensor_modules().is_empty() else missing,
+		req_battery, battery_line,
+		int(mission_data.get("required_pocket", 1)), str(get_bipob_pocket_slots()) if get_bipob_pocket_slots() > 0 else missing
+	]
 
 func charge_bipob_from_center() -> void:
 	if bipob == null:
@@ -6527,7 +6662,7 @@ func _build_tasks_menu_layout() -> void:
 	tabs.add_theme_constant_override("separation", 8)
 	root.add_child(tabs)
 	for tab_name in ["Career", "Daily", "Defense", "Support"]:
-		var tab_button := _create_menu_button(tab_name, Callable(self, "_on_tasks_tab_pressed").bind(tab_name), Vector2(130, 34))
+		var tab_button := _create_menu_button(tab_name, Callable(self, "_on_tasks_tab_pressed").bind(tab_name), Vector2(102, 34))
 		tasks_tab_buttons[tab_name] = tab_button
 		tabs.add_child(tab_button)
 	var tab_spacer := Control.new()
@@ -6559,11 +6694,6 @@ func _build_tasks_menu_layout() -> void:
 	left_vbox.add_theme_constant_override("separation", 8)
 	left_margin.add_child(left_vbox)
 
-	var tasks_list_title := Label.new()
-	tasks_list_title.text = "Tasks"
-	_apply_label_style(tasks_list_title, false, true)
-	left_vbox.add_child(tasks_list_title)
-
 	var list_scroll := ScrollContainer.new()
 	list_scroll.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	list_scroll.size_flags_vertical = Control.SIZE_EXPAND_FILL
@@ -6580,7 +6710,7 @@ func _build_tasks_menu_layout() -> void:
 	right_panel.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	right_panel.size_flags_vertical = Control.SIZE_EXPAND_FILL
 	content_row.add_child(right_panel)
-	left_panel.size_flags_stretch_ratio = 1.0
+	left_panel.size_flags_stretch_ratio = 1.2
 	right_panel.size_flags_stretch_ratio = 2.0
 
 	var right_margin := MarginContainer.new()
@@ -6595,6 +6725,10 @@ func _build_tasks_menu_layout() -> void:
 	right_vbox.size_flags_vertical = Control.SIZE_EXPAND_FILL
 	right_vbox.add_theme_constant_override("separation", 8)
 	right_margin.add_child(right_vbox)
+
+	tasks_bipob_buttons_row = HBoxContainer.new()
+	tasks_bipob_buttons_row.add_theme_constant_override("separation", 6)
+	right_vbox.add_child(tasks_bipob_buttons_row)
 
 	tasks_title_label = Label.new()
 	_apply_label_style(tasks_title_label, false, true)
@@ -6633,8 +6767,12 @@ func _build_tasks_menu_layout() -> void:
 	var actions := HBoxContainer.new()
 	actions.add_theme_constant_override("separation", 8)
 	right_vbox.add_child(actions)
-	actions.add_child(_create_menu_button("Start", Callable(self, "_on_tasks_start_pressed"), Vector2(120, 34)))
+	tasks_start_button = _create_menu_button("Start", Callable(self, "_on_tasks_start_pressed"), Vector2(120, 34))
+	actions.add_child(tasks_start_button)
 	actions.add_child(_create_menu_button("Warnings", Callable(self, "_on_tasks_warnings_pressed"), Vector2(140, 34)))
+	tasks_validation_label = Label.new()
+	_apply_label_style(tasks_validation_label)
+	right_vbox.add_child(tasks_validation_label)
 	var actions_spacer := Control.new()
 	actions_spacer.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	actions.add_child(actions_spacer)
