@@ -4067,25 +4067,26 @@ func get_internal_interface_role(module_id: String) -> String:
 
 func get_internal_characteristics_text(module: BipobModule) -> String:
 	var lines: Array[String] = []
-	lines.append("Category: %s" % module.category)
-	lines.append("Size: %dx%dx%d" % [module.size_x, module.size_y, module.size_z])
-	lines.append("Version: %s" % module.version)
-	if module.heat_value != 0:
-		lines.append("Heat: %d" % module.heat_value)
 	if module.cooling_value != 0:
 		lines.append("Cooling: %d" % module.cooling_value)
+	elif module.heat_value > 0:
+		lines.append("Overheat: +%d" % module.heat_value)
 	if module.energy_capacity > 0:
-		lines.append("Energy Capacity: %d" % module.energy_capacity)
+		lines.append("Energy: +%d" % module.energy_capacity)
 	if module.action_capacity > 0:
-		lines.append("Actions: %d" % module.action_capacity)
+		lines.append("Actions: +%d" % module.action_capacity)
 	if module.hack_value > 0:
-		lines.append("Hack: %d" % module.hack_value)
+		lines.append("Hack: +%d" % module.hack_value)
 	if module.gpu_value > 0:
-		lines.append("GPU: %d" % module.gpu_value)
+		lines.append("GPU: +%d" % module.gpu_value)
 	if module.digital_storage_slots > 0:
-		lines.append("Storage: %d" % module.digital_storage_slots)
+		lines.append("Storage: +%d" % module.digital_storage_slots)
+	if module.power_distribution > 0:
+		lines.append("Power Distribution: +%d" % module.power_distribution)
 	if not module.interface_role.is_empty():
-		lines.append("Interface role: %s" % module.interface_role)
+		lines.append("Interface: %s" % module.interface_role)
+	if not module.special_effect_text.is_empty():
+		lines.append("Special: %s" % module.special_effect_text)
 	return "\n".join(lines)
 
 func get_internal_role_for_module_id(module_id: String) -> String:
@@ -4162,6 +4163,7 @@ func apply_thermal_metadata(module: BipobModule) -> void:
 		"air_intake_v1":
 			module.cooling_power = 0
 			module.cooling_type = "air"
+	module.heat_value = maxi(int(module.heat_value), maxi(int(module.heat_idle), int(module.heat_active)))
 
 func apply_damage_metadata(module: BipobModule) -> void:
 	if module == null:
@@ -4371,7 +4373,7 @@ func get_module_description_for_id(module_id: String) -> String:
 		"air_intake_v1":
 			return "External air intake required by internal air cooling modules."
 		"battery_v1":
-			return "Stores robot energy."
+			return "Stores a basic amount of energy for movement, tools and other actions."
 		"processor_v1":
 			return "Internal processing module. Generates more heat under heavy load."
 		"processor_v2":
@@ -4391,11 +4393,13 @@ func get_module_description_for_id(module_id: String) -> String:
 		"hard_drive_v3":
 			return "HDD V3 internal storage module with maximum capacity."
 		"battery_v2":
-			return "Internal power source with increased capacity."
+			return "Accumulates an increased volume of energy, enabling the execution of longer missions and the use of enhanced modules."
 		"battery_v3":
-			return "Internal high-capacity power source."
+			return "A high-capacity energy storage unit for demanding builds equipped with heavy sensors, shields, weaponry, or advanced equipment."
 		"power_block_v1":
-			return "Distributes power from batteries to devices. Generates more heat under heavy tool load."
+			return "Distributes battery power between internal systems and connected external modules. Required for stable operation and recharge."
+		"capacitor_bank_v1":
+			return "Accumulates a short-duration impulse charge to execute powerful actions. An essential component for many advanced modules."
 		"internal_interface_v1":
 			return "Internal data network."
 		"external_interface_v1":

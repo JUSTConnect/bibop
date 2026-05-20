@@ -3556,22 +3556,28 @@ func _get_module_characteristics_lines(module: BipobModule, context: String = ""
 	if module == null:
 		return lines
 
-	var size_text := _get_module_size_text(module)
-	if not size_text.is_empty():
-		lines.append("Size: %s" % size_text)
-
-	var module_type_text := _get_module_type_text(module)
-	if not module_type_text.is_empty():
-		lines.append("Type: %s" % module_type_text)
-
-	if not module.version.is_empty():
-		lines.append("Version: %s" % module.version)
+	var is_internal_module: bool = module.placement_type == "internal" or module.placement_type == "internal_overlay"
+	if not is_internal_module:
+		var size_text := _get_module_size_text(module)
+		if not size_text.is_empty():
+			lines.append("Size: %s" % size_text)
+		var module_type_text := _get_module_type_text(module)
+		if not module_type_text.is_empty():
+			lines.append("Type: %s" % module_type_text)
+		if not module.version.is_empty():
+			lines.append("Version: %s" % module.version)
 
 	if module.energy_cost != 0:
 		lines.append("Energy: %d" % module.energy_cost)
 
-	if module.heat_value != 0:
-		lines.append("Heat: %d" % module.heat_value)
+	if is_internal_module:
+		if module.cooling_value != 0:
+			lines.append("Cooling: %d" % module.cooling_value)
+		elif module.heat_value > 0:
+			lines.append("Overheat: +%d" % module.heat_value)
+	else:
+		if module.heat_value != 0:
+			lines.append("Heat: %d" % module.heat_value)
 
 	if module.scan_range != 0:
 		lines.append("Scan Range: %d" % module.scan_range)
@@ -3594,26 +3600,23 @@ func _get_module_characteristics_lines(module: BipobModule, context: String = ""
 	if module.action_modifier != 0:
 		lines.append("Actions: %+d" % module.action_modifier)
 
-	if module.energy_capacity != 0:
-		lines.append("Energy Capacity: %d" % module.energy_capacity)
+	if module.energy_capacity > 0:
+		lines.append("Energy: +%d" % module.energy_capacity)
 
-	if module.action_capacity != 0:
-		lines.append("Actions: %d" % module.action_capacity)
+	if module.action_capacity > 0:
+		lines.append("Actions: +%d" % module.action_capacity)
 
-	if module.digital_storage_slots != 0:
-		lines.append("Storage: %d" % module.digital_storage_slots)
+	if module.digital_storage_slots > 0:
+		lines.append("Storage: +%d" % module.digital_storage_slots)
 
-	if module.hack_value != 0:
-		lines.append("Hack: %d" % module.hack_value)
+	if module.hack_value > 0:
+		lines.append("Hack: +%d" % module.hack_value)
 
-	if module.gpu_value != 0:
-		lines.append("GPU: %d" % module.gpu_value)
+	if module.gpu_value > 0:
+		lines.append("GPU: +%d" % module.gpu_value)
 
-	if module.cooling_value != 0:
-		lines.append("Cooling: %d" % module.cooling_value)
-
-	if module.power_distribution != 0:
-		lines.append("Power Distribution: %d" % module.power_distribution)
+	if module.power_distribution > 0:
+		lines.append("Power Distribution: +%d" % module.power_distribution)
 
 	if not module.interface_role.is_empty():
 		lines.append("Interface: %s" % module.interface_role)
@@ -3656,12 +3659,13 @@ func _create_selected_module_info_panel(module: BipobModule, context: String) ->
 	right.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	right.add_theme_constant_override("separation", 2)
 	var c_title := Label.new(); c_title.text = "Characteristics"; _apply_label_style(c_title, false, true); right.add_child(c_title)
-	var characteristic_placeholder_label := Label.new()
-	characteristic_placeholder_label.text = "Characteristics will be added later."
-	characteristic_placeholder_label.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
-	characteristic_placeholder_label.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-	_apply_label_style(characteristic_placeholder_label, true, false)
-	right.add_child(characteristic_placeholder_label)
+	var characteristic_lines: Array = _get_module_characteristics_lines(module, context)
+	var characteristic_label := Label.new()
+	characteristic_label.text = "Characteristics will be added later." if characteristic_lines.is_empty() else "\n".join(characteristic_lines)
+	characteristic_label.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	characteristic_label.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	_apply_label_style(characteristic_label, true, false)
+	right.add_child(characteristic_label)
 	var d_title := Label.new(); d_title.text = "Description"; _apply_label_style(d_title, false, true); right.add_child(d_title)
 	var description_text := module.description.strip_edges()
 	if description_text.is_empty():
