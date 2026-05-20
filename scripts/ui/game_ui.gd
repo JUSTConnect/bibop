@@ -2982,6 +2982,9 @@ func _get_external_build_warnings() -> Array[String]:
 			warnings.append("Ventilation Port")
 	if has_gas_burner and not has_gas_canister:
 		warnings.append("Gas Canister")
+	if bipob != null and bipob.has_method("is_power_port_overloaded") and bipob.is_power_port_overloaded():
+		if not warnings.has("Power ports shortage"):
+			warnings.append("Power ports shortage")
 	if bipob != null and bipob.has_method("get_external_connected_module_count") and bipob.has_method("get_external_interface_port_capacity"):
 		var external_connected_count: int = bipob.get_external_connected_module_count()
 		var external_port_capacity: int = bipob.get_external_interface_port_capacity()
@@ -3618,6 +3621,8 @@ func _get_module_characteristics_lines(module: BipobModule, context: String = ""
 
 	if module.power_distribution > 0:
 		lines.append("Power Distribution: +%d" % module.power_distribution)
+	if module.power_ports > 0:
+		lines.append("Power Ports: %d" % module.power_ports)
 
 	if module.ports > 0:
 		lines.append("Ports: %d" % module.ports)
@@ -3637,6 +3642,8 @@ func _get_internal_characteristics_lines(module: BipobModule) -> Array:
 		lines.append("Cooling: %d" % abs(module.cooling_value))
 	elif module.heat_value > 0:
 		lines.append("Overheat: +%d" % module.heat_value)
+	if module.power_ports > 0:
+		lines.append("Power Ports: %d" % module.power_ports)
 
 	if module.energy_capacity > 0:
 		lines.append("Energy: +%d" % module.energy_capacity)
@@ -5744,7 +5751,10 @@ func _make_module_by_id(module_id: String) -> BipobModule:
 		"internal_interface_v3": {"name": "Internal Interface V3", "size": Vector3i(1,1,1)},
 		"memory_v1": {"name": "Memory V1", "size": Vector3i(1,1,2)},
 		"power_block_v1": {"name": "Power Block V1", "size": Vector3i(1,2,2)},
+		"power_block_v2": {"name": "Power Block V2", "size": Vector3i(1,2,2)},
+		"power_block_v3": {"name": "Power Block V3", "size": Vector3i(1,2,2)},
 		"capacitor_bank_v1": {"name": "Capacitor Bank V1", "size": Vector3i(1,1,1)},
+		"charger_v1": {"name": "Charger V1", "size": Vector3i(1,1,1)},
 		"hard_drive_v1": {"name": "Hard Drive V1", "size": Vector3i(2,2,1)},
 		"hard_drive_v2": {"name": "Hard Drive V2", "size": Vector3i(2,2,1)},
 		"hard_drive_v3": {"name": "Hard Drive V3", "size": Vector3i(2,2,1)},
@@ -7528,6 +7538,9 @@ func _build_internal_missing_required_warnings() -> Array[String]:
 			warnings.append("Internal Interface")
 	if not bipob.has_external_interface_bridge():
 		warnings.append("External Interface")
+	if bipob.has_method("is_power_port_overloaded") and bipob.is_power_port_overloaded():
+		if not warnings.has("Power Block"):
+			warnings.append("Power Block")
 	return warnings
 
 
