@@ -36,7 +36,12 @@ const EXTERNAL_MODULE_CATALOG: Dictionary = {
 "tracks_v1":{"name":"Tracks V1","cat":"Gear","size":Vector2i(3,2),"sides":[EXTERNAL_SIDE_BOTTOM],"desc":"Heavy traction system for slow but reliable movement across mud, rubble, slopes, and stairs.","energy":2,"terrain":"Any surface","movement":"Drive","speed":1,"ignore_debuff":true,"special":"ignore debuff"},
 "jumper_v1":{"name":"Jumper V1","cat":"Gear","size":Vector2i(3,3),"sides":[EXTERNAL_SIDE_BOTTOM],"desc":"A movement system based on jumping, allowing you to traverse gaps, obstacles, traps, and difficult terrain. Requires a Motor Controller.","energy":3,"terrain":"Any surface","movement":"Jump","speed":6,"ignore_debuff":true,"special":"ignore debuff"},
 "hover_pad_v1":{"name":"Air Cushion V1","cat":"Gear","size":Vector2i(3,3),"sides":[EXTERNAL_SIDE_BOTTOM],"desc":"Hover movement system that provides high mobility over difficult surfaces, but requires increased energy consumption. Requires a Motor Controller.","energy":3,"terrain":"Any surface","movement":"Levitate","speed":5,"ignore_debuff":true,"special":"ignore debuff"},
-"visor_v1":{"name":"Visor","cat":"Sensors","size":Vector2i(3,1),"sides":[EXTERNAL_SIDE_TOP],"scan":12},"thermal_visor_v1":{"name":"Thermal Visor","cat":"Sensors","size":Vector2i(3,1),"sides":[EXTERNAL_SIDE_TOP],"heat":2,"scan":15},"radar_v1":{"name":"Radar","cat":"Sensors","size":Vector2i(2,2),"sides":[EXTERNAL_SIDE_TOP],"scan":15},"xray_v1":{"name":"X-Ray","cat":"Sensors","size":Vector2i(2,2),"sides":[EXTERNAL_SIDE_TOP],"heat":2,"scan":12},
+"visor_v1":{"name":"Visor V1","cat":"Sensors","size":Vector2i(3,1),"sides":[EXTERNAL_SIDE_TOP],"desc":"Basic visual sensor module for standard object detection, navigation, and direct line-of-sight observation.","energy":0,"direction":"Front","scan":2,"visibility":15},
+"visor_v2":{"name":"Visor V2","cat":"Sensors","size":Vector2i(3,1),"sides":[EXTERNAL_SIDE_TOP],"desc":"Basic visual sensor module for standard object detection, navigation, and direct line-of-sight observation.","energy":0,"direction":"Front","scan":3,"visibility":30},
+"visor_v3":{"name":"Visor V3","cat":"Sensors","size":Vector2i(3,1),"sides":[EXTERNAL_SIDE_TOP],"desc":"Basic visual sensor module for standard object detection, navigation, and direct line-of-sight observation.","energy":0,"direction":"Front","scan":5,"visibility":60},
+"thermal_visor_v1":{"name":"Thermal Visor V1","cat":"Sensors","size":Vector2i(3,1),"sides":[EXTERNAL_SIDE_TOP],"desc":"Heat-detection sensor that reveals active devices, hot zones, recently used systems, and heat-emitting targets.","energy":1,"direction":"Front","scan":5,"visibility":30,"special":"thermal objects"},
+"radar_v1":{"name":"Radar V1","cat":"Sensors","size":Vector2i(2,2),"sides":[EXTERNAL_SIDE_TOP],"desc":"Detects movement and objects across the entire open area of the level, providing only approximate location data.","energy":2,"direction":"Front","scan":8,"visibility":90,"special":"approximate position"},
+"xray_v1":{"name":"X-Ray V1","cat":"Sensors","size":Vector2i(2,2),"sides":[EXTERNAL_SIDE_TOP],"desc":"Deep scanning through walls and obstacles, revealing hidden objects, internal structures, cables, locks, containers, and concealed mechanisms.","energy":2,"direction":"Front","scan":5,"visibility":30,"special":"hidden/internal object"},
 "manipulator_arm_v1":{"name":"Manipulator Arm V1","cat":"Manipulator","size":Vector2i(2,2),"sides":[EXTERNAL_SIDE_LEFT,EXTERNAL_SIDE_RIGHT,EXTERNAL_SIDE_FRONT],"desc":"Basic external arm for grabbing, pressing buttons, and interacting with devices directly in front.","energy":1,"reach":1,"direction":"front","carry":"normal"},"manipulator_heavy_claw_v1":{"name":"Manipulator Heavy Claw V1","cat":"Manipulator","size":Vector2i(3,2),"sides":[EXTERNAL_SIDE_LEFT,EXTERNAL_SIDE_RIGHT],"desc":"Heavy-duty gripping module for moving heavy objects, holding doors, breaking weak obstacles, and performing force-based interactions.","energy":2,"reach":4,"direction":"front","carry":"Heavy"},"magnetic_manipulator_v1":{"name":"Magnetic Manipulator V1","cat":"Manipulator","size":Vector2i(3,2),"sides":[EXTERNAL_SIDE_LEFT,EXTERNAL_SIDE_RIGHT,EXTERNAL_SIDE_FRONT],"desc":"Magnetic gripping module that can attract and move metal objects from a distance without direct physical contact.","energy":2,"reach":4,"direction":"front","carry":"Heavy","special":"metal objects"},"tentacle_manipulator_v1":{"name":"Tentacle Manipulator V1","cat":"Manipulator","size":Vector2i(2,2),"sides":[EXTERNAL_SIDE_LEFT,EXTERNAL_SIDE_RIGHT,EXTERNAL_SIDE_FRONT],"desc":"Flexible manipulator that can interact with objects at an angle and reach targets that are not directly in area front.","energy":1,"reach":1,"direction":"side/front","carry":"normal"},"telescopic_arm_v1":{"name":"Telescopic Arm V1","cat":"Manipulator","size":Vector2i(2,2),"sides":[EXTERNAL_SIDE_LEFT,EXTERNAL_SIDE_RIGHT,EXTERNAL_SIDE_FRONT],"desc":"Extendable manipulator that allows the robot to interact with objects away.","energy":1,"reach":2,"direction":"front","carry":"normal"},
 "high_bandwidth_interface_v1":{"name":"High-Bandwidth Interface","cat":"Interface","size":Vector2i(1,2),"sides":[EXTERNAL_SIDE_LEFT,EXTERNAL_SIDE_RIGHT,EXTERNAL_SIDE_FRONT]},"external_interface_connector_v1":{"name":"External Interface Connector","cat":"Interface","size":Vector2i(1,1),"sides":[EXTERNAL_SIDE_TOP,EXTERNAL_SIDE_LEFT,EXTERNAL_SIDE_RIGHT,EXTERNAL_SIDE_FRONT,EXTERNAL_SIDE_BACK]},"optical_interface_v1":{"name":"Optical Interface","cat":"Interface","size":Vector2i(1,1),"sides":[EXTERNAL_SIDE_TOP,EXTERNAL_SIDE_LEFT,EXTERNAL_SIDE_RIGHT,EXTERNAL_SIDE_FRONT,EXTERNAL_SIDE_BACK]},"wireless_interface_v1":{"name":"Wireless Interface","cat":"Interface","size":Vector2i(1,1),"sides":[EXTERNAL_SIDE_TOP,EXTERNAL_SIDE_LEFT,EXTERNAL_SIDE_RIGHT,EXTERNAL_SIDE_FRONT,EXTERNAL_SIDE_BACK]},
 "welder_v1":{"name":"Welder","cat":"Tools","size":Vector2i(2,2),"sides":[EXTERNAL_SIDE_LEFT,EXTERNAL_SIDE_RIGHT,EXTERNAL_SIDE_FRONT]},"repair_v1":{"name":"Repair","cat":"Tools","size":Vector2i(2,2),"sides":[EXTERNAL_SIDE_LEFT,EXTERNAL_SIDE_RIGHT,EXTERNAL_SIDE_FRONT]},"plasma_cutter_v1":{"name":"Plasma Cutter","cat":"Tools","size":Vector2i(3,2),"sides":[EXTERNAL_SIDE_LEFT,EXTERNAL_SIDE_RIGHT]},
@@ -578,6 +583,8 @@ func get_module_category(module: BipobModule) -> String:
 			return "utility"
 
 func get_effective_visor_level() -> int:
+	if has_module_id("visor_v3"):
+		return 3
 	if has_module_id("visor_v2"):
 		return 2
 	if has_module_id("visor_v1"):
@@ -590,13 +597,13 @@ func get_effective_gpu_level() -> int:
 	return 0
 
 func get_effective_vision_range() -> int:
-	var effective_range: int = vision_range
-	if get_effective_gpu_level() >= 1:
-		effective_range += 1
-	return maxi(effective_range, 0)
+	var active_sensor := get_active_sensor_module()
+	return get_effective_sensor_range(active_sensor)
 
 func get_effective_vision_side_width() -> int:
 	match get_effective_visor_level():
+		3:
+			return 2
 		2:
 			return 1
 		1:
@@ -606,6 +613,50 @@ func get_effective_vision_side_width() -> int:
 
 func can_detect_hidden_nodes() -> bool:
 	return get_effective_visor_level() >= 2 and get_effective_gpu_level() >= 1
+
+func is_sensor_module(module: BipobModule) -> bool:
+	if module == null or module.placement_type != "external":
+		return false
+	return String(module.category) == "Sensors"
+
+func get_active_sensor_module() -> BipobModule:
+	var preferred_ids: Array[String] = ["visor_v3", "visor_v2", "visor_v1", "thermal_visor_v1", "radar_v1", "xray_v1"]
+	for module_id in preferred_ids:
+		var module := get_installed_module_by_id(module_id)
+		if is_sensor_module(module):
+			return module
+	for module in installed_modules:
+		if is_sensor_module(module):
+			return module
+	return null
+
+func get_total_sensor_range_bonus() -> int:
+	var total := 0
+	for module in placed_internal_modules:
+		var internal_module: BipobModule = _extract_module_from_internal_record(module)
+		if internal_module == null:
+			continue
+		total += internal_module.sensor_range_bonus
+	return total
+
+func get_total_sensor_visibility_bonus() -> int:
+	var total := 0
+	for module in placed_internal_modules:
+		var internal_module: BipobModule = _extract_module_from_internal_record(module)
+		if internal_module == null:
+			continue
+		total += internal_module.sensor_visibility_bonus
+	return total
+
+func get_effective_sensor_range(sensor: BipobModule) -> int:
+	if sensor == null:
+		return 0
+	return maxi(sensor.scan_range + get_total_sensor_range_bonus(), 0)
+
+func get_effective_sensor_visibility(sensor: BipobModule) -> int:
+	if sensor == null:
+		return 0
+	return maxi(sensor.visibility_value + get_total_sensor_visibility_bonus(), 0)
 
 func get_missing_critical_modules() -> Array[String]:
 	var critical_modules := [
@@ -3881,7 +3932,9 @@ func create_external_module_by_id(module_id: String) -> BipobModule:
 	module.energy_cost = int(metadata.get("energy", 0))
 	module.heat_value = int(metadata.get("heat", 0))
 	module.scan_range = int(metadata.get("scan", 0))
+	module.visibility_value = int(metadata.get("visibility", 0))
 	module.scan_accuracy = int(metadata.get("accuracy", 0))
+	module.sensor_direction = String(metadata.get("direction", ""))
 	module.armor_bonus = int(metadata.get("armor", 0))
 	module.shield_value = int(metadata.get("shield", 0))
 	module.damage_value = String(metadata.get("damage", ""))
@@ -3901,7 +3954,7 @@ func create_external_module_by_id(module_id: String) -> BipobModule:
 		module.granted_commands = ["read_terminal", "open_digital_door"]
 	if module.id == "wheels_v1":
 		module.granted_commands = ["move_forward", "move_backward", "turn_left", "turn_right"]
-	if module.id == "visor_v1":
+	if module.id in ["visor_v1", "visor_v2", "visor_v3"]:
 		module.granted_commands = ["vision"]
 	apply_thermal_metadata(module)
 	apply_damage_metadata(module)
@@ -3970,6 +4023,8 @@ func create_internal_module(module_id: String, module_name: String, module_size:
 	module.digital_storage_slots = module.storage_capacity
 	module.hack_value = module.hack_level
 	module.gpu_value = get_internal_gpu_value(module_id)
+	module.sensor_range_bonus = get_internal_sensor_range_bonus(module_id)
+	module.sensor_visibility_bonus = get_internal_sensor_visibility_bonus(module_id)
 	module.cooling_value = get_internal_cooling_value(module_id)
 	module.power_distribution = get_internal_power_distribution(module_id)
 	module.interface_role = get_internal_interface_role(module_id)
@@ -3979,6 +4034,7 @@ func create_internal_module(module_id: String, module_name: String, module_size:
 	module.description = get_internal_description_for_module_id(module_id)
 	module.heat_value = get_internal_overheat_for_module_id(module_id)
 	module.energy_effect_text = get_internal_energy_effect_text(module_id)
+	module.special_effect_text = get_internal_special_effect_text(module_id)
 	module.characteristics_text = get_internal_characteristics_text(module)
 	apply_thermal_metadata(module)
 	apply_damage_metadata(module)
@@ -4065,6 +4121,28 @@ func get_internal_gpu_value(module_id: String) -> int:
 	if not module_id.begins_with("gpu_"):
 		return 0
 	return clampi(get_module_version_for_module_id(module_id), 1, 3) + 2
+
+func get_internal_sensor_range_bonus(module_id: String) -> int:
+	match module_id:
+		"gpu_v1":
+			return 3
+		"gpu_v2":
+			return 5
+		"gpu_v3":
+			return 7
+		_:
+			return 0
+
+func get_internal_sensor_visibility_bonus(module_id: String) -> int:
+	match module_id:
+		"gpu_v1":
+			return 15
+		"gpu_v2":
+			return 30
+		"gpu_v3":
+			return 45
+		_:
+			return 0
 
 func get_internal_cooling_value(module_id: String) -> int:
 	match module_id:
@@ -4334,6 +4412,17 @@ func get_internal_energy_effect_text(module_id: String) -> String:
 			return "+1 / one degree"
 		"energy_drain_v1":
 			return "+10 / action"
+		_:
+			return ""
+
+func get_internal_special_effect_text(module_id: String) -> String:
+	match module_id:
+		"gpu_v1":
+			return "All sensors +3 Range +15 Visibility"
+		"gpu_v2":
+			return "All sensors +5 Range +30 Visibility"
+		"gpu_v3":
+			return "All sensors +7 Range +45 Visibility"
 		_:
 			return ""
 

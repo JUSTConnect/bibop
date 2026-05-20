@@ -3596,6 +3596,16 @@ func _get_module_characteristics_lines(module: BipobModule, context: String = ""
 			lines.append("Special: %s" % module.special_effect_text)
 		return lines
 
+	if module.placement_type == "external" and String(module.category) == "Sensors":
+		lines.append("Energy: %d" % module.energy_cost)
+		if not module.sensor_direction.is_empty():
+			lines.append("Direction: %s" % module.sensor_direction)
+		lines.append("Range: %d" % module.scan_range)
+		lines.append("Visibility: %d" % module.visibility_value)
+		if not module.special_effect_text.is_empty():
+			lines.append("Special: %s" % module.special_effect_text)
+		return lines
+
 	var size_text := _get_module_size_text(module)
 	if not size_text.is_empty():
 		lines.append("Size: %s" % size_text)
@@ -3645,6 +3655,8 @@ func _get_module_characteristics_lines(module: BipobModule, context: String = ""
 
 	if module.gpu_value > 0:
 		lines.append("GPU: +%d" % module.gpu_value)
+	if module.sensor_range_bonus > 0 or module.sensor_visibility_bonus > 0:
+		lines.append("Special: All sensors +%d Range +%d Visibility" % [module.sensor_range_bonus, module.sensor_visibility_bonus])
 
 	if module.digital_storage_slots > 0:
 		lines.append("Storage: +%d" % module.digital_storage_slots)
@@ -3660,7 +3672,7 @@ func _get_module_characteristics_lines(module: BipobModule, context: String = ""
 	if not module.interface_role.is_empty():
 		lines.append("Interface: %s" % module.interface_role)
 
-	if not module.special_effect_text.is_empty():
+	if not module.special_effect_text.is_empty() and not (module.sensor_range_bonus > 0 or module.sensor_visibility_bonus > 0):
 		lines.append("Special: %s" % module.special_effect_text)
 
 	return lines
