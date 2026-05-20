@@ -2403,12 +2403,20 @@ func _create_external_side_grid(side_id: String) -> Control:
 	root.add_theme_constant_override("separation", 4)
 
 	var header: HBoxContainer = HBoxContainer.new()
+	header.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	header.add_theme_constant_override("separation", 4)
 	var title: Label = Label.new()
 	title.text = _get_external_side_display_name(side_id)
+	title.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	title.clip_text = true
+	title.text_overrun_behavior = TextServer.OVERRUN_TRIM_ELLIPSIS
 	title.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	_apply_label_style(title, false, true)
 	header.add_child(title)
+	var pockets_wrap: HBoxContainer = HBoxContainer.new()
+	pockets_wrap.add_theme_constant_override("separation", 2)
+	pockets_wrap.size_flags_horizontal = Control.SIZE_SHRINK_END
+	pockets_wrap.custom_minimum_size = Vector2(66, 0)
 	if side_id in ["front", "back", "left", "right"] and bipob.has_method("get_max_pockets_per_side"):
 		for pocket_index in range(bipob.get_max_pockets_per_side()):
 			var pocket_button: Button = Button.new()
@@ -2423,14 +2431,15 @@ func _create_external_side_grid(side_id: String) -> Control:
 				bipob.toggle_external_pocket(side_id, pocket_index)
 				update_box_status()
 			)
-			header.add_child(pocket_button)
+			pockets_wrap.add_child(pocket_button)
+	header.add_child(pockets_wrap)
 	root.add_child(header)
 
 	var side_size: Vector2i = bipob.get_external_side_size(side_id)
 	var preview_cells: Dictionary = _get_external_preview_cells_for_side(side_id)
 	var selected_side_id: String = get_selected_external_side_id()
-	var cell_size: Vector2 = _get_constructor_cell_size(side_size.x, side_size.y, _get_external_grid_available_size(side_id))
-	var grid_gap: int = _get_constructor_grid_gap(side_size.x, side_size.y)
+	var cell_size: Vector2 = EXTERNAL_GRID_CELL_SIZE
+	var grid_gap: int = EXTERNAL_GRID_CELL_GAP
 
 	var grid: GridContainer = GridContainer.new()
 	grid.columns = side_size.x
@@ -2438,6 +2447,11 @@ func _create_external_side_grid(side_id: String) -> Control:
 	grid.size_flags_vertical = Control.SIZE_SHRINK_CENTER
 	grid.add_theme_constant_override("h_separation", grid_gap)
 	grid.add_theme_constant_override("v_separation", grid_gap)
+	var grid_size: Vector2 = Vector2(
+		float(side_size.x) * cell_size.x + float(maxi(side_size.x - 1, 0) * grid_gap),
+		float(side_size.y) * cell_size.y + float(maxi(side_size.y - 1, 0) * grid_gap)
+	)
+	grid.custom_minimum_size = grid_size
 
 	for y in range(side_size.y):
 		for x in range(side_size.x):
@@ -2467,6 +2481,8 @@ func _create_external_side_grid(side_id: String) -> Control:
 			grid.add_child(cell_button)
 
 	root.add_child(grid)
+	var side_panel_width: float = grid_size.x + 16.0
+	side_panel.custom_minimum_size = Vector2(side_panel_width, 0.0)
 	side_panel.add_child(root)
 	return side_panel
 
