@@ -47,6 +47,7 @@ class_name BipobModule
 @export var cooling_value: int = 0
 @export var power_distribution: int = 0
 @export var interface_role: String = ""
+@export var ports: int = 0
 
 # Legacy compatibility fields
 @export var granted_commands: Array[String] = []

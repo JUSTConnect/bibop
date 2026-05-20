@@ -3956,6 +3956,7 @@ func create_internal_module(module_id: String, module_name: String, module_size:
 	module.cooling_value = get_internal_cooling_value(module_id)
 	module.power_distribution = get_internal_power_distribution(module_id)
 	module.interface_role = get_internal_interface_role(module_id)
+	module.ports = get_internal_interface_ports(module_id)
 	module.category = get_internal_category_for_module_id(module_id)
 	module.description = get_internal_description_for_module_id(module_id)
 	module.heat_value = get_internal_overheat_for_module_id(module_id)
@@ -4061,11 +4062,67 @@ func get_internal_power_distribution(module_id: String) -> int:
 	return 1 if module_id == "power_block_v1" else 0
 
 func get_internal_interface_role(module_id: String) -> String:
-	if module_id == "internal_interface_v1":
+	if module_id.begins_with("internal_interface_"):
 		return "internal"
-	if module_id == "external_interface_v1":
+	if module_id.begins_with("external_interface_"):
 		return "external"
 	return ""
+
+func get_internal_interface_ports(module_id: String) -> int:
+	match module_id:
+		"internal_interface_v1", "external_interface_v1":
+			return 6
+		"internal_interface_v2", "external_interface_v2":
+			return 7
+		"internal_interface_v3", "external_interface_v3":
+			return 8
+		_:
+			return 0
+
+func get_internal_interface_port_capacity() -> int:
+	var total := 0
+	for record in placed_internal_modules:
+		var module: BipobModule = record.get("module", null)
+		if module != null and module.interface_role == "internal":
+			total += module.ports
+	return total
+
+func get_external_interface_port_capacity() -> int:
+	var total := 0
+	for record in placed_internal_modules:
+		var module: BipobModule = record.get("module", null)
+		if module != null and module.interface_role == "external":
+			total += module.ports
+	return total
+
+func get_internal_connected_module_count() -> int:
+	var count := 0
+	for record in placed_internal_modules:
+		var module: BipobModule = record.get("module", null)
+		if module == null:
+			continue
+		if module.interface_role == "internal" or module.interface_role == "external":
+			continue
+		if module.placement_type == "internal_overlay":
+			continue
+		if module.is_non_volume_cooling_path:
+			continue
+		count += 1
+	return count
+
+func get_external_connected_module_count() -> int:
+	var unique_modules: Dictionary = {}
+	for key in external_modules_by_slot.keys():
+		var entry: Variant = external_modules_by_slot[key]
+		var module: BipobModule = null
+		if entry is BipobModule:
+			module = entry
+		elif entry is Dictionary:
+			module = entry.get("module", null)
+		if module == null:
+			continue
+		unique_modules[module.get_instance_id()] = true
+	return unique_modules.size()
 func get_internal_description_for_module_id(module_id: String) -> String:
 	match module_id:
 		"battery_v1":
@@ -4090,6 +4147,10 @@ func get_internal_description_for_module_id(module_id: String) -> String:
 			return "Improves sensor data processing, allowing better analysis of hidden objects, movement and heat signatures."
 		"gpu_v3":
 			return "Advanced sensor-processing unit for heavy scanners, X-Ray systems and radar interpretation."
+		"internal_interface_v1", "internal_interface_v2", "internal_interface_v3":
+			return "Creates the internal data bus that connects core modules into one stable robot network."
+		"external_interface_v1", "external_interface_v2", "external_interface_v3":
+			return "Bridges internal systems with external body modules, allowing modules to receive data and control signals."
 		_:
 			return get_module_description_for_id(module_id)
 
@@ -4115,7 +4176,7 @@ func get_internal_overheat_for_module_id(module_id: String) -> int:
 			return 2
 		"hard_drive_v1", "hard_drive_v2", "hard_drive_v3":
 			return 3
-		"internal_interface_v1", "external_interface_v1":
+		"internal_interface_v1", "internal_interface_v2", "internal_interface_v3", "external_interface_v1", "external_interface_v2", "external_interface_v3":
 			return 1
 		"targeting_computer_v1", "encryption_module_v1", "motor_controller_v1", "weapon_controller_v1", "firewall_module_v1", "auto_repair_unit_v1", "sample_analyzer_v1":
 			return 1
@@ -4142,6 +4203,8 @@ func get_internal_characteristics_text(module: BipobModule) -> String:
 		lines.append("Storage: +%d" % module.digital_storage_slots)
 	if module.power_distribution > 0:
 		lines.append("Power Distribution: +%d" % module.power_distribution)
+	if module.ports > 0:
+		lines.append("Ports: %d" % module.ports)
 	if not module.interface_role.is_empty():
 		lines.append("Interface: %s" % module.interface_role)
 	if not module.special_effect_text.is_empty():
@@ -4154,9 +4217,9 @@ func get_internal_role_for_module_id(module_id: String) -> String:
 			return "battery"
 		"power_block_v1":
 			return "power_block"
-		"internal_interface_v1":
+		"internal_interface_v1", "internal_interface_v2", "internal_interface_v3":
 			return "internal_interface"
-		"external_interface_v1":
+		"external_interface_v1", "external_interface_v2", "external_interface_v3":
 			return "external_interface"
 		"processor_v1", "processor_v2", "processor_v3":
 			return "processor"
@@ -4494,7 +4557,11 @@ func add_internal_mvp_modules_to_box() -> void:
 		{"id": "hard_drive_v2", "name": "Hard Drive V2", "size": Vector3i(2, 2, 1)},
 		{"id": "hard_drive_v3", "name": "Hard Drive V3", "size": Vector3i(2, 2, 1)},
 		{"id": "internal_interface_v1", "name": "Internal Interface V1", "size": Vector3i(1, 1, 1)},
+		{"id": "internal_interface_v2", "name": "Internal Interface V2", "size": Vector3i(1, 1, 1)},
+		{"id": "internal_interface_v3", "name": "Internal Interface V3", "size": Vector3i(1, 1, 1)},
 		{"id": "external_interface_v1", "name": "External Interface V1", "size": Vector3i(2, 2, 1)},
+		{"id": "external_interface_v2", "name": "External Interface V2", "size": Vector3i(2, 2, 1)},
+		{"id": "external_interface_v3", "name": "External Interface V3", "size": Vector3i(2, 2, 1)},
 		{"id": "cooler_v1", "name": "Cooler V1", "size": Vector3i(1, 1, 1)},
 		{"id": "radiator_v1", "name": "Radiator V1", "size": Vector3i(1, 1, 1)},
 		{"id": "water_tube_v1", "name": "Water Tube V1", "size": Vector3i(0, 0, 0)},
