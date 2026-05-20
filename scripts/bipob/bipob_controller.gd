@@ -37,7 +37,7 @@ const EXTERNAL_MODULE_CATALOG: Dictionary = {
 "jumper_v1":{"name":"Jumper V1","cat":"Gear","size":Vector2i(3,3),"sides":[EXTERNAL_SIDE_BOTTOM],"desc":"A movement system based on jumping, allowing you to traverse gaps, obstacles, traps, and difficult terrain. Requires a Motor Controller.","energy":3,"terrain":"Any surface","movement":"Jump","speed":6,"ignore_debuff":true,"special":"ignore debuff"},
 "hover_pad_v1":{"name":"Air Cushion V1","cat":"Gear","size":Vector2i(3,3),"sides":[EXTERNAL_SIDE_BOTTOM],"desc":"Hover movement system that provides high mobility over difficult surfaces, but requires increased energy consumption. Requires a Motor Controller.","energy":3,"terrain":"Any surface","movement":"Levitate","speed":5,"ignore_debuff":true,"special":"ignore debuff"},
 "visor_v1":{"name":"Visor","cat":"Sensors","size":Vector2i(3,1),"sides":[EXTERNAL_SIDE_TOP],"scan":12},"thermal_visor_v1":{"name":"Thermal Visor","cat":"Sensors","size":Vector2i(3,1),"sides":[EXTERNAL_SIDE_TOP],"heat":2,"scan":15},"radar_v1":{"name":"Radar","cat":"Sensors","size":Vector2i(2,2),"sides":[EXTERNAL_SIDE_TOP],"scan":15},"xray_v1":{"name":"X-Ray","cat":"Sensors","size":Vector2i(2,2),"sides":[EXTERNAL_SIDE_TOP],"heat":2,"scan":12},
-"manipulator_arm_v1":{"name":"Manipulator Arm","cat":"Manipulator","size":Vector2i(2,2),"sides":[EXTERNAL_SIDE_LEFT,EXTERNAL_SIDE_RIGHT,EXTERNAL_SIDE_FRONT]},"manipulator_heavy_claw_v1":{"name":"Manipulator Heavy Claw","cat":"Manipulator","size":Vector2i(2,2),"sides":[EXTERNAL_SIDE_LEFT,EXTERNAL_SIDE_RIGHT,EXTERNAL_SIDE_FRONT]},"magnetic_manipulator_v1":{"name":"Magnetic Manipulator","cat":"Manipulator","size":Vector2i(2,2),"sides":[EXTERNAL_SIDE_LEFT,EXTERNAL_SIDE_RIGHT,EXTERNAL_SIDE_FRONT]},"tentacle_manipulator_v1":{"name":"Tentacle Manipulator","cat":"Manipulator","size":Vector2i(2,2),"sides":[EXTERNAL_SIDE_LEFT,EXTERNAL_SIDE_RIGHT,EXTERNAL_SIDE_FRONT]},"telescopic_arm_v1":{"name":"Telescopic Arm","cat":"Manipulator","size":Vector2i(2,2),"sides":[EXTERNAL_SIDE_LEFT,EXTERNAL_SIDE_RIGHT,EXTERNAL_SIDE_FRONT]},
+"manipulator_arm_v1":{"name":"Manipulator Arm V1","cat":"Manipulator","size":Vector2i(2,2),"sides":[EXTERNAL_SIDE_LEFT,EXTERNAL_SIDE_RIGHT,EXTERNAL_SIDE_FRONT],"desc":"Basic external arm for grabbing, pressing buttons, and interacting with devices directly in front.","energy":1,"reach":1,"direction":"front","carry":"normal"},"manipulator_heavy_claw_v1":{"name":"Manipulator Heavy Claw V1","cat":"Manipulator","size":Vector2i(3,2),"sides":[EXTERNAL_SIDE_LEFT,EXTERNAL_SIDE_RIGHT],"desc":"Heavy-duty gripping module for moving heavy objects, holding doors, breaking weak obstacles, and performing force-based interactions.","energy":2,"reach":4,"direction":"front","carry":"Heavy"},"magnetic_manipulator_v1":{"name":"Magnetic Manipulator V1","cat":"Manipulator","size":Vector2i(3,2),"sides":[EXTERNAL_SIDE_LEFT,EXTERNAL_SIDE_RIGHT,EXTERNAL_SIDE_FRONT],"desc":"Magnetic gripping module that can attract and move metal objects from a distance without direct physical contact.","energy":2,"reach":4,"direction":"front","carry":"Heavy","special":"metal objects"},"tentacle_manipulator_v1":{"name":"Tentacle Manipulator V1","cat":"Manipulator","size":Vector2i(2,2),"sides":[EXTERNAL_SIDE_LEFT,EXTERNAL_SIDE_RIGHT,EXTERNAL_SIDE_FRONT],"desc":"Flexible manipulator that can interact with objects at an angle and reach targets that are not directly in area front.","energy":1,"reach":1,"direction":"side/front","carry":"normal"},"telescopic_arm_v1":{"name":"Telescopic Arm V1","cat":"Manipulator","size":Vector2i(2,2),"sides":[EXTERNAL_SIDE_LEFT,EXTERNAL_SIDE_RIGHT,EXTERNAL_SIDE_FRONT],"desc":"Extendable manipulator that allows the robot to interact with objects away.","energy":1,"reach":2,"direction":"front","carry":"normal"},
 "high_bandwidth_interface_v1":{"name":"High-Bandwidth Interface","cat":"Interface","size":Vector2i(1,2),"sides":[EXTERNAL_SIDE_LEFT,EXTERNAL_SIDE_RIGHT,EXTERNAL_SIDE_FRONT]},"external_interface_connector_v1":{"name":"External Interface Connector","cat":"Interface","size":Vector2i(1,1),"sides":[EXTERNAL_SIDE_TOP,EXTERNAL_SIDE_LEFT,EXTERNAL_SIDE_RIGHT,EXTERNAL_SIDE_FRONT,EXTERNAL_SIDE_BACK]},"optical_interface_v1":{"name":"Optical Interface","cat":"Interface","size":Vector2i(1,1),"sides":[EXTERNAL_SIDE_TOP,EXTERNAL_SIDE_LEFT,EXTERNAL_SIDE_RIGHT,EXTERNAL_SIDE_FRONT,EXTERNAL_SIDE_BACK]},"wireless_interface_v1":{"name":"Wireless Interface","cat":"Interface","size":Vector2i(1,1),"sides":[EXTERNAL_SIDE_TOP,EXTERNAL_SIDE_LEFT,EXTERNAL_SIDE_RIGHT,EXTERNAL_SIDE_FRONT,EXTERNAL_SIDE_BACK]},
 "welder_v1":{"name":"Welder","cat":"Tools","size":Vector2i(2,2),"sides":[EXTERNAL_SIDE_LEFT,EXTERNAL_SIDE_RIGHT,EXTERNAL_SIDE_FRONT]},"repair_v1":{"name":"Repair","cat":"Tools","size":Vector2i(2,2),"sides":[EXTERNAL_SIDE_LEFT,EXTERNAL_SIDE_RIGHT,EXTERNAL_SIDE_FRONT]},"plasma_cutter_v1":{"name":"Plasma Cutter","cat":"Tools","size":Vector2i(3,2),"sides":[EXTERNAL_SIDE_LEFT,EXTERNAL_SIDE_RIGHT]},
 "laser_v1":{"name":"Laser","cat":"Weapons","size":Vector2i(3,3),"sides":[EXTERNAL_SIDE_LEFT,EXTERNAL_SIDE_RIGHT],"energy":2,"heat":5,"damage":"1-2","range":"Ranged"},"shocker_v1":{"name":"Shocker","cat":"Weapons","size":Vector2i(3,3),"sides":[EXTERNAL_SIDE_LEFT,EXTERNAL_SIDE_RIGHT,EXTERNAL_SIDE_FRONT],"damage":"1","range":"Melee"},"sledgehammer_v1":{"name":"Sledgehammer","cat":"Weapons","size":Vector2i(3,3),"sides":[EXTERNAL_SIDE_LEFT,EXTERNAL_SIDE_RIGHT],"damage":"3","range":"Melee"},"saw_v1":{"name":"Saw","cat":"Weapons","size":Vector2i(3,3),"sides":[EXTERNAL_SIDE_LEFT,EXTERNAL_SIDE_RIGHT],"damage":"1","range":"Melee"},"gas_canister_v1":{"name":"Gas Canister","cat":"Weapons","size":Vector2i(2,4),"sides":[EXTERNAL_SIDE_BACK],"desc":"Fuel/ammo for gas weapon.","energy":0,"heat":0,"damage":"0","range":"","special":"Fuel capacity 6. Explosive."},"gas_burner_v1":{"name":"Gas Burner","cat":"Weapons","size":Vector2i(3,3),"sides":[EXTERNAL_SIDE_LEFT,EXTERNAL_SIDE_RIGHT,EXTERNAL_SIDE_FRONT],"desc":"Flamethrower / gas burner.","energy":0,"heat":4,"damage":"1-3","range":"Ranged","special":"Area attack in front, 3x4 cells."},
@@ -3892,6 +3892,9 @@ func create_external_module_by_id(module_id: String) -> BipobModule:
 	module.terrain_type = String(metadata.get("terrain", ""))
 	module.gear_speed = int(metadata.get("speed", 0))
 	module.ignore_terrain_debuff = bool(metadata.get("ignore_debuff", false))
+	module.reach_value = int(metadata.get("reach", 0))
+	module.direction_text = String(metadata.get("direction", ""))
+	module.carry_text = String(metadata.get("carry", ""))
 	if module.id in ["manipulator_arm_v1", "manipulator_heavy_claw_v1", "magnetic_manipulator_v1", "tentacle_manipulator_v1", "telescopic_arm_v1"]:
 		module.granted_commands = ["interact_key", "open_physical_door"]
 	if module.id in ["external_interface_connector_v1", "high_bandwidth_interface_v1", "optical_interface_v1", "wireless_interface_v1"]:
@@ -5599,7 +5602,7 @@ func evaluate_facing_device_capability() -> DiagnosticResult:
 	)
 	return last_diagnostic_result
 	
-func open_door(door_position: Vector2i) -> void:
+func open_door(door_position: Vector2i, manipulator_module: BipobModule = null) -> void:
 	if not can_use_physical_hand():
 		hint_requested.emit("Hand occupied. Return to the box before using physical interact.")
 		status_changed.emit()
@@ -5611,8 +5614,15 @@ func open_door(door_position: Vector2i) -> void:
 		hint_requested.emit("Physical door locked. Find the physical key first.")
 		return
 	
+	if not can_spend_action(1, 0):
+		return
+	if not spend_energy_for_manipulator_action(manipulator_module):
+		hint_requested.emit("Not enough energy for manipulator action.")
+		status_changed.emit()
+		return
+
 	grid_manager.set_tile(door_position, GridManager.TILE_FLOOR)
-	spend_action(1, 1)
+	spend_action(1, 0)
 	print("Door opened.")
 	hint_requested.emit("Physical door opened. Reach the exit.")
 	print_status()
@@ -5764,6 +5774,42 @@ func open_route_gate(gate_position: Vector2i) -> void:
 	hint_requested.emit("Route Gate opened using Route Data.")
 	status_changed.emit()
 
+func get_installed_manipulators() -> Array:
+	var result: Array = []
+	for module in installed_modules:
+		if module != null and String(module.category) == "Manipulator":
+			result.append(module)
+	return result
+
+func can_manipulator_interact(module: BipobModule, _target_position: Vector2i, _interaction_data: Dictionary = {}) -> bool:
+	if module == null:
+		return false
+	if String(module.category) != "Manipulator":
+		return false
+	# TODO: add direction/reach/material/weight checks when mission objects expose metadata.
+	return true
+
+func get_best_manipulator_for_interaction(target_position: Vector2i = Vector2i.ZERO, interaction_data: Dictionary = {}) -> BipobModule:
+	var manipulators: Array = get_installed_manipulators()
+	for module in manipulators:
+		if can_manipulator_interact(module, target_position, interaction_data):
+			return module
+	return null
+
+func get_manipulator_energy_cost(module: BipobModule) -> int:
+	if module == null:
+		return 0
+	return maxi(0, module.energy_cost)
+
+func spend_energy_for_manipulator_action(module: BipobModule) -> bool:
+	var cost := get_manipulator_energy_cost(module)
+	if cost <= 0:
+		return true
+	if energy < cost:
+		return false
+	energy -= cost
+	return true
+
 func interact() -> void:
 	var target_position := get_facing_device_position()
 	var target_tile := grid_manager.get_tile(target_position)
@@ -5821,26 +5867,24 @@ func interact() -> void:
 		status_changed.emit()
 		return
 	
+	var active_manipulator: BipobModule = get_best_manipulator_for_interaction(target_position)
+
 	match target_tile:
 		GridManager.TILE_COMPONENT:
-			pick_up_component(target_position)
+			pick_up_component(target_position, active_manipulator)
 			return
 		GridManager.TILE_KEY:
 			if not can_use_physical_hand():
 				hint_requested.emit("Hand occupied. Return to the box before using physical interact.")
 				status_changed.emit()
 				return
-			if not can_spend_action(1, 1):
-				return
-			pick_up_key(target_position)
+			pick_up_key(target_position, active_manipulator)
 		GridManager.TILE_DOOR:
 			if not can_use_physical_hand():
 				hint_requested.emit("Hand occupied. Return to the box before using physical interact.")
 				status_changed.emit()
 				return
-			if not can_spend_action(1, 1):
-				return
-			open_door(target_position)
+			open_door(target_position, active_manipulator)
 		GridManager.TILE_ROUTE_GATE:
 			open_route_gate(target_position)
 		_:
@@ -6229,7 +6273,7 @@ func has_any_physical_item() -> bool:
 func can_pick_up_physical_item() -> bool:
 	return get_carried_physical_count() < (available_manipulator_slots + available_pocket_slots)
 
-func pick_up_component(component_position: Vector2i) -> void:
+func pick_up_component(component_position: Vector2i, manipulator_module: BipobModule = null) -> void:
 	if grid_manager == null:
 		return
 	if grid_manager.get_tile(component_position) != GridManager.TILE_COMPONENT:
@@ -6241,7 +6285,11 @@ func pick_up_component(component_position: Vector2i) -> void:
 		status_changed.emit()
 		return
 
-	if not can_spend_action(1, 1):
+	if not can_spend_action(1, 0):
+		return
+	if not spend_energy_for_manipulator_action(manipulator_module):
+		hint_requested.emit("Not enough energy for manipulator action.")
+		status_changed.emit()
 		return
 
 	var picked_module := get_field_module(component_position)
@@ -6270,7 +6318,7 @@ func pick_up_component(component_position: Vector2i) -> void:
 		elif picked_module.id == "gpu_v1":
 			hint_requested.emit("GPU V1 recovered. Return to the box and install it.")
 
-	spend_action(1, 1)
+	spend_action(1, 0)
 	status_changed.emit()
 
 
@@ -6349,16 +6397,22 @@ func read_terminal(target_position: Vector2i) -> void:
 			print("Terminal is inactive in this mission.")
 			hint_requested.emit("Terminal is inactive in this mission.")
 
-func pick_up_key(key_position: Vector2i) -> void:
+func pick_up_key(key_position: Vector2i, manipulator_module: BipobModule = null) -> void:
 	if not can_use_physical_hand():
 		hint_requested.emit("Free manipulator required to use a key.")
 		status_changed.emit()
 		return
 	if not require_command("interact_key", "Missing module: Manipulator V1 required."):
 		return
+	if not can_spend_action(1, 0):
+		return
+	if not spend_energy_for_manipulator_action(manipulator_module):
+		hint_requested.emit("Not enough energy for manipulator action.")
+		status_changed.emit()
+		return
 	has_key = true
 	grid_manager.set_tile(key_position, GridManager.TILE_FLOOR)
-	spend_action(1, 1)
+	spend_action(1, 0)
 	print("Picked up physical key.")
 	hint_requested.emit("Physical key collected. Use Interact on the physical door.")
 	print_status()

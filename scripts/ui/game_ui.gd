@@ -3584,6 +3584,18 @@ func _get_module_characteristics_lines(module: BipobModule, context: String = ""
 			lines.append("Special: ignore debuff")
 		return lines
 
+	if module.placement_type == "external" and String(module.category) == "Manipulator":
+		lines.append("Energy: %d" % module.energy_cost)
+		if module.reach_value > 0:
+			lines.append("Reach: %d" % module.reach_value)
+		if not module.direction_text.is_empty():
+			lines.append("Direction: %s" % module.direction_text)
+		if not module.carry_text.is_empty():
+			lines.append("Carry: %s" % module.carry_text)
+		if not module.special_effect_text.is_empty():
+			lines.append("Special: %s" % module.special_effect_text)
+		return lines
+
 	var size_text := _get_module_size_text(module)
 	if not size_text.is_empty():
 		lines.append("Size: %s" % size_text)
