@@ -115,7 +115,8 @@ var selected_installed_module_index: int = 0
 var selected_box_storage_index: int = 0
 var selected_filtered_box_index: int = 0
 var selected_grouped_module_index: int = 0
-var constructor_filter_index: int = 0
+var external_filter_index: int = 0
+var internal_filter_index: int = 0
 const CONSTRUCTOR_FILTERS: Array[String] = [
 	"all",
 	"broken",
@@ -130,6 +131,7 @@ const CONSTRUCTOR_FILTERS: Array[String] = [
 	"manipulator",
 	"armor",
 	"weapon",
+	"interface",
 	"other"
 ]
 var prev_installed_button: Button
@@ -1649,12 +1651,23 @@ func get_selected_box_module_text() -> String:
 	var module: BipobModule = bipob.box_storage[selected_box_storage_index]
 	return "Selected box: " + get_short_module_name(module)
 
+func _get_active_filter_index() -> int:
+	return internal_filter_index if box_menu_mode == BoxMenuMode.INTERNAL else external_filter_index
+
+func _set_active_filter_index(value: int) -> void:
+	if box_menu_mode == BoxMenuMode.INTERNAL:
+		internal_filter_index = value
+	else:
+		external_filter_index = value
+
 func get_current_constructor_filter() -> String:
-	if constructor_filter_index < 0:
-		constructor_filter_index = CONSTRUCTOR_FILTERS.size() - 1
-	elif constructor_filter_index >= CONSTRUCTOR_FILTERS.size():
-		constructor_filter_index = 0
-	return String(CONSTRUCTOR_FILTERS[constructor_filter_index])
+	var filter_index: int = _get_active_filter_index()
+	if filter_index < 0:
+		filter_index = CONSTRUCTOR_FILTERS.size() - 1
+	elif filter_index >= CONSTRUCTOR_FILTERS.size():
+		filter_index = 0
+	_set_active_filter_index(filter_index)
+	return String(CONSTRUCTOR_FILTERS[filter_index])
 
 func _is_module_unknown(module: BipobModule) -> bool:
 	if module == null:
@@ -1697,6 +1710,22 @@ func _get_module_filter_group(module: BipobModule, is_external: bool) -> String:
 			return "gear"
 		if _text_contains_any(haystack, ["visor", "radar", "sensor", "scanner", "xray", "thermal"]):
 			return "visor_radar"
+		if String(module.category) == "Gear":
+			return "gear"
+		if String(module.category) == "Sensors":
+			return "visor_radar"
+		if String(module.category) == "Manipulator":
+			return "manipulator"
+		if String(module.category) == "Interface":
+			return "interface"
+		if String(module.category) == "Tools":
+			return "tool"
+		if String(module.category) == "Weapons":
+			return "weapon"
+		if String(module.category) == "Defense":
+			return "armor"
+		if String(module.category) == "Other":
+			return "other"
 		if _text_contains_any(haystack, ["tool", "welding", "welder", "repair", "cutter", "drill"]):
 			return "tool"
 		if _text_contains_any(haystack, ["manipulator", "arm", "claw", "hand", "magnetic"]):
@@ -1706,6 +1735,18 @@ func _get_module_filter_group(module: BipobModule, is_external: bool) -> String:
 		if _text_contains_any(haystack, ["weapon", "laser", "plasma", "shock", "shocker", "flame", "flamethrower", "saw", "hammer", "gun", "cannon"]):
 			return "weapon"
 	else:
+		if String(module.category) == "Power":
+			return "power"
+		if String(module.category) == "CPU" or String(module.category) == "GPU":
+			return "cpu_gpu"
+		if String(module.category) == "RAM" or String(module.category) == "Storage":
+			return "ram_sd"
+		if String(module.category) == "Cooling":
+			return "cooling"
+		if String(module.category) == "Interface":
+			return "interface"
+		if String(module.category) == "Other":
+			return "other"
 		if _text_contains_any(haystack, ["processor", "cpu", "gpu"]):
 			return "cpu_gpu"
 		if _text_contains_any(haystack, ["cooler", "cooling", "radiator", "tube", "duct", "air"]):
@@ -2915,6 +2956,32 @@ func _get_external_build_warnings() -> Array[String]:
 		warnings.append(_format_warning_name("visor"))
 	if not has_manipulator:
 		warnings.append(_format_warning_name("manipulator"))
+	var has_ventilation_port: bool = false
+	var has_gas_burner: bool = false
+	var has_gas_canister: bool = false
+	for module in modules:
+		if module == null:
+			continue
+		if module.id == "ventilation_port_v1":
+			has_ventilation_port = true
+		elif module.id == "gas_burner_v1":
+			has_gas_burner = true
+		elif module.id == "gas_canister_v1":
+			has_gas_canister = true
+	if bipob != null and not has_ventilation_port:
+		var needs_airflow_dependency: bool = false
+		for internal_module in bipob.installed_modules:
+			if internal_module == null:
+				continue
+			if not bipob.is_internal_module(internal_module):
+				continue
+			if internal_module.id == "cooler_v1" or internal_module.id == "air_duct_v1" or bool(internal_module.requires_air_intake):
+				needs_airflow_dependency = true
+				break
+		if needs_airflow_dependency:
+			warnings.append("Ventilation Port")
+	if has_gas_burner and not has_gas_canister:
+		warnings.append("Gas Canister")
 	return warnings
 
 func _create_external_warning_panel() -> Control:
@@ -2945,16 +3012,16 @@ func _create_filter_dropdown_button(is_internal: bool) -> Control:
 	option.focus_mode = Control.FOCUS_NONE
 	var entries: Array[Dictionary] = []
 	if is_internal:
-		entries = [{"id":"all","label":"ALL"},{"id":"broken","label":"BROKEN"},{"id":"unknown","label":"UNKNOWN"},{"id":"cpu_gpu","label":"CPU | GPU"},{"id":"cooling","label":"COOLING"},{"id":"ram_sd","label":"RAM | SD"},{"id":"power","label":"POWER"},{"id":"other","label":"OTHER"}]
+		entries = [{"id":"all","label":"ALL"},{"id":"broken","label":"BROKEN"},{"id":"unknown","label":"UNKNOWN"},{"id":"cpu_gpu","label":"CPU | GPU"},{"id":"cooling","label":"COOLING"},{"id":"ram_sd","label":"RAM | SD"},{"id":"power","label":"POWER"},{"id":"interface","label":"INTERFACE"},{"id":"other","label":"OTHER"}]
 	else:
-		entries = [{"id":"all","label":"ALL"},{"id":"broken","label":"BROKEN"},{"id":"unknown","label":"UNKNOWN"},{"id":"gear","label":"GEAR"},{"id":"visor_radar","label":"VISOR | RADAR"},{"id":"tool","label":"TOOL"},{"id":"manipulator","label":"MANIPULATOR"},{"id":"armor","label":"ARMOR"},{"id":"weapon","label":"WEAPON"},{"id":"other","label":"OTHER"}]
+		entries = [{"id":"all","label":"ALL"},{"id":"broken","label":"BROKEN"},{"id":"unknown","label":"UNKNOWN"},{"id":"gear","label":"GEAR"},{"id":"visor_radar","label":"VISOR | RADAR"},{"id":"tool","label":"TOOL"},{"id":"manipulator","label":"MANIPULATOR"},{"id":"armor","label":"ARMOR"},{"id":"weapon","label":"WEAPON"},{"id":"interface","label":"INTERFACE"},{"id":"other","label":"OTHER"}]
 	for i in range(entries.size()):
 		option.add_item(entries[i]["label"], i)
 		if String(entries[i]["id"]) == get_current_constructor_filter():
 			option.select(i)
 	option.item_selected.connect(func(index: int) -> void:
 		var filter_id: String = String(entries[index]["id"])
-		constructor_filter_index = maxi(CONSTRUCTOR_FILTERS.find(filter_id), 0)
+		_set_active_filter_index(maxi(CONSTRUCTOR_FILTERS.find(filter_id), 0))
 		selected_filtered_box_index = 0
 		update_box_status()
 	)
@@ -5625,11 +5692,23 @@ func _make_module_by_id(module_id: String) -> BipobModule:
 		"internal_interface_v1": {"name": "Internal Interface V1", "size": Vector3i(1,1,1)},
 		"memory_v1": {"name": "Memory V1", "size": Vector3i(1,1,2)},
 		"power_block_v1": {"name": "Power Block V1", "size": Vector3i(1,2,2)},
+		"capacitor_bank_v1": {"name": "Capacitor Bank V1", "size": Vector3i(1,1,1)},
 		"hard_drive_v1": {"name": "Hard Drive V1", "size": Vector3i(2,2,1)},
+		"hard_drive_v2": {"name": "Hard Drive V2", "size": Vector3i(2,2,1)},
+		"hard_drive_v3": {"name": "Hard Drive V3", "size": Vector3i(2,2,1)},
+		"memory_v2": {"name": "Memory V2", "size": Vector3i(1,1,2)},
+		"memory_v3": {"name": "Memory V3", "size": Vector3i(1,1,2)},
 		"cooler_v1": {"name": "Cooler V1", "size": Vector3i(1,1,1)},
 		"radiator_v1": {"name": "Radiator V1", "size": Vector3i(1,1,1)},
 		"water_tube_v1": {"name": "Water Tube V1", "size": Vector3i(0,0,0)},
-		"air_duct_v1": {"name": "Air Duct V1", "size": Vector3i(0,0,0)}
+		"air_duct_v1": {"name": "Air Duct V1", "size": Vector3i(0,0,0)},
+		"targeting_computer_v1": {"name": "Targeting Computer V1", "size": Vector3i(1,1,1)},
+		"encryption_module_v1": {"name": "Encryption Module V1", "size": Vector3i(1,1,1)},
+		"motor_controller_v1": {"name": "Motor Controller V1", "size": Vector3i(1,1,1)},
+		"weapon_controller_v1": {"name": "Weapon Controller V1", "size": Vector3i(1,1,1)},
+		"firewall_module_v1": {"name": "Firewall Module V1", "size": Vector3i(1,1,1)},
+		"auto_repair_unit_v1": {"name": "Auto Repair Unit V1", "size": Vector3i(1,1,1)},
+		"sample_analyzer_v1": {"name": "Sample Analyzer V1", "size": Vector3i(1,1,1)}
 	}
 	if not internal_specs.has(module_id):
 		return null
@@ -5742,7 +5821,7 @@ func set_box_menu_mode_external() -> void:
 func set_box_menu_mode_internal() -> void:
 	box_menu_mode = BoxMenuMode.INTERNAL
 	if get_current_constructor_filter() in ["gear", "visor_radar", "tool", "manipulator", "armor", "weapon"]:
-		constructor_filter_index = CONSTRUCTOR_FILTERS.find("all")
+		internal_filter_index = CONSTRUCTOR_FILTERS.find("all")
 	selected_grouped_module_index = 0
 	sync_selected_box_storage_index_from_grouped_selection()
 	_clamp_internal_selection()
@@ -7802,18 +7881,20 @@ func _on_next_internal_box_pressed() -> void:
 	_on_next_box_pressed()
 
 func _on_prev_constructor_filter_pressed() -> void:
-	constructor_filter_index -= 1
-	if constructor_filter_index < 0:
-		constructor_filter_index = CONSTRUCTOR_FILTERS.size() - 1
+	var filter_index: int = _get_active_filter_index() - 1
+	if filter_index < 0:
+		filter_index = CONSTRUCTOR_FILTERS.size() - 1
+	_set_active_filter_index(filter_index)
 	clamp_box_selection_indexes()
 	selected_grouped_module_index = clampi(selected_grouped_module_index, 0, maxi(get_filtered_grouped_module_ids().size() - 1, 0))
 	sync_selected_box_storage_index_from_grouped_selection()
 	update_box_status()
 
 func _on_next_constructor_filter_pressed() -> void:
-	constructor_filter_index += 1
-	if constructor_filter_index >= CONSTRUCTOR_FILTERS.size():
-		constructor_filter_index = 0
+	var filter_index: int = _get_active_filter_index() + 1
+	if filter_index >= CONSTRUCTOR_FILTERS.size():
+		filter_index = 0
+	_set_active_filter_index(filter_index)
 	clamp_box_selection_indexes()
 	selected_grouped_module_index = clampi(selected_grouped_module_index, 0, maxi(get_filtered_grouped_module_ids().size() - 1, 0))
 	sync_selected_box_storage_index_from_grouped_selection()

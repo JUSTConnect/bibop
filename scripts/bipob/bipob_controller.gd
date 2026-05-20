@@ -29,17 +29,17 @@ const EXTERNAL_SIDE_ORDER := [
 	EXTERNAL_SIDE_BACK,
 	EXTERNAL_SIDE_BOTTOM
 ]
-const EXTERNAL_CATEGORY_MAP := {"movement":"Gear","sensor":"Sensors","manipulator":"Manipulators","connector":"Interface","tool":"Tools","repair":"Tools","weapon":"Weapons","armor":"Defense","other":"Other"}
+const EXTERNAL_CATEGORY_MAP := {"movement":"Gear","sensor":"Sensors","manipulator":"Manipulator","connector":"Interface","tool":"Tools","repair":"Tools","weapon":"Weapons","armor":"Defense","other":"Other"}
 const EXTERNAL_MODULE_CATALOG: Dictionary = {
 "wheels_v1":{"name":"Wheels","cat":"Gear","size":Vector2i(3,2),"sides":[EXTERNAL_SIDE_BOTTOM]},
 "legs_v1":{"name":"Legs","cat":"Gear","size":Vector2i(3,2),"sides":[EXTERNAL_SIDE_BOTTOM]},"tracks_v1":{"name":"Tracks","cat":"Gear","size":Vector2i(3,2),"sides":[EXTERNAL_SIDE_BOTTOM]},"jumper_v1":{"name":"Jumper","cat":"Gear","size":Vector2i(3,3),"sides":[EXTERNAL_SIDE_BOTTOM]},"hover_pad_v1":{"name":"Hover Pad","cat":"Gear","size":Vector2i(3,3),"sides":[EXTERNAL_SIDE_BOTTOM]},
 "visor_v1":{"name":"Visor","cat":"Sensors","size":Vector2i(3,1),"sides":[EXTERNAL_SIDE_TOP],"scan":12},"thermal_visor_v1":{"name":"Thermal Visor","cat":"Sensors","size":Vector2i(3,1),"sides":[EXTERNAL_SIDE_TOP],"heat":2,"scan":15},"radar_v1":{"name":"Radar","cat":"Sensors","size":Vector2i(2,2),"sides":[EXTERNAL_SIDE_TOP],"scan":15},"xray_v1":{"name":"X-Ray","cat":"Sensors","size":Vector2i(2,2),"sides":[EXTERNAL_SIDE_TOP],"heat":2,"scan":12},
-"manipulator_arm_v1":{"name":"Manipulator Arm","cat":"Manipulators","size":Vector2i(2,2),"sides":[EXTERNAL_SIDE_LEFT,EXTERNAL_SIDE_RIGHT,EXTERNAL_SIDE_FRONT]},"manipulator_heavy_claw_v1":{"name":"Manipulator Heavy Claw","cat":"Manipulators","size":Vector2i(2,2),"sides":[EXTERNAL_SIDE_LEFT,EXTERNAL_SIDE_RIGHT,EXTERNAL_SIDE_FRONT]},"magnetic_manipulator_v1":{"name":"Magnetic Manipulator","cat":"Manipulators","size":Vector2i(2,2),"sides":[EXTERNAL_SIDE_LEFT,EXTERNAL_SIDE_RIGHT,EXTERNAL_SIDE_FRONT]},"tentacle_manipulator_v1":{"name":"Tentacle Manipulator","cat":"Manipulators","size":Vector2i(2,2),"sides":[EXTERNAL_SIDE_LEFT,EXTERNAL_SIDE_RIGHT,EXTERNAL_SIDE_FRONT]},"telescopic_arm_v1":{"name":"Telescopic Arm","cat":"Manipulators","size":Vector2i(2,2),"sides":[EXTERNAL_SIDE_LEFT,EXTERNAL_SIDE_RIGHT,EXTERNAL_SIDE_FRONT]},
+"manipulator_arm_v1":{"name":"Manipulator Arm","cat":"Manipulator","size":Vector2i(2,2),"sides":[EXTERNAL_SIDE_LEFT,EXTERNAL_SIDE_RIGHT,EXTERNAL_SIDE_FRONT]},"manipulator_heavy_claw_v1":{"name":"Manipulator Heavy Claw","cat":"Manipulator","size":Vector2i(2,2),"sides":[EXTERNAL_SIDE_LEFT,EXTERNAL_SIDE_RIGHT,EXTERNAL_SIDE_FRONT]},"magnetic_manipulator_v1":{"name":"Magnetic Manipulator","cat":"Manipulator","size":Vector2i(2,2),"sides":[EXTERNAL_SIDE_LEFT,EXTERNAL_SIDE_RIGHT,EXTERNAL_SIDE_FRONT]},"tentacle_manipulator_v1":{"name":"Tentacle Manipulator","cat":"Manipulator","size":Vector2i(2,2),"sides":[EXTERNAL_SIDE_LEFT,EXTERNAL_SIDE_RIGHT,EXTERNAL_SIDE_FRONT]},"telescopic_arm_v1":{"name":"Telescopic Arm","cat":"Manipulator","size":Vector2i(2,2),"sides":[EXTERNAL_SIDE_LEFT,EXTERNAL_SIDE_RIGHT,EXTERNAL_SIDE_FRONT]},
 "high_bandwidth_interface_v1":{"name":"High-Bandwidth Interface","cat":"Interface","size":Vector2i(1,2),"sides":[EXTERNAL_SIDE_LEFT,EXTERNAL_SIDE_RIGHT,EXTERNAL_SIDE_FRONT]},"external_interface_connector_v1":{"name":"External Interface Connector","cat":"Interface","size":Vector2i(1,1),"sides":[EXTERNAL_SIDE_TOP,EXTERNAL_SIDE_LEFT,EXTERNAL_SIDE_RIGHT,EXTERNAL_SIDE_FRONT,EXTERNAL_SIDE_BACK]},"optical_interface_v1":{"name":"Optical Interface","cat":"Interface","size":Vector2i(1,1),"sides":[EXTERNAL_SIDE_TOP,EXTERNAL_SIDE_LEFT,EXTERNAL_SIDE_RIGHT,EXTERNAL_SIDE_FRONT,EXTERNAL_SIDE_BACK]},"wireless_interface_v1":{"name":"Wireless Interface","cat":"Interface","size":Vector2i(1,1),"sides":[EXTERNAL_SIDE_TOP,EXTERNAL_SIDE_LEFT,EXTERNAL_SIDE_RIGHT,EXTERNAL_SIDE_FRONT,EXTERNAL_SIDE_BACK]},
 "welder_v1":{"name":"Welder","cat":"Tools","size":Vector2i(2,2),"sides":[EXTERNAL_SIDE_LEFT,EXTERNAL_SIDE_RIGHT,EXTERNAL_SIDE_FRONT]},"repair_v1":{"name":"Repair","cat":"Tools","size":Vector2i(2,2),"sides":[EXTERNAL_SIDE_LEFT,EXTERNAL_SIDE_RIGHT,EXTERNAL_SIDE_FRONT]},"plasma_cutter_v1":{"name":"Plasma Cutter","cat":"Tools","size":Vector2i(3,2),"sides":[EXTERNAL_SIDE_LEFT,EXTERNAL_SIDE_RIGHT]},
-"laser_v1":{"name":"Laser","cat":"Weapons","size":Vector2i(3,3),"sides":[EXTERNAL_SIDE_LEFT,EXTERNAL_SIDE_RIGHT],"energy":2,"heat":5,"damage":"1-2","range":"Ranged"},"shocker_v1":{"name":"Shocker","cat":"Weapons","size":Vector2i(3,3),"sides":[EXTERNAL_SIDE_LEFT,EXTERNAL_SIDE_RIGHT,EXTERNAL_SIDE_FRONT],"damage":"1","range":"Melee"},"sledgehammer_v1":{"name":"Sledgehammer","cat":"Weapons","size":Vector2i(3,3),"sides":[EXTERNAL_SIDE_LEFT,EXTERNAL_SIDE_RIGHT],"damage":"3","range":"Melee"},"saw_v1":{"name":"Saw","cat":"Weapons","size":Vector2i(3,3),"sides":[EXTERNAL_SIDE_LEFT,EXTERNAL_SIDE_RIGHT],"damage":"1","range":"Melee"},"gas_canister_v1":{"name":"Gas Canister","cat":"Weapons","size":Vector2i(2,4),"sides":[EXTERNAL_SIDE_BACK],"desc":"Fuel/ammo for gas weapon.","energy":0,"heat":0,"damage":"0","range":"","special":"Fuel capacity 6. Explosive."},"gas_burner_v1":{"name":"Gas Burner","cat":"Weapons","size":Vector2i(2,1),"sides":[EXTERNAL_SIDE_LEFT,EXTERNAL_SIDE_RIGHT,EXTERNAL_SIDE_FRONT],"damage":"1","range":"Ranged"},
+"laser_v1":{"name":"Laser","cat":"Weapons","size":Vector2i(3,3),"sides":[EXTERNAL_SIDE_LEFT,EXTERNAL_SIDE_RIGHT],"energy":2,"heat":5,"damage":"1-2","range":"Ranged"},"shocker_v1":{"name":"Shocker","cat":"Weapons","size":Vector2i(3,3),"sides":[EXTERNAL_SIDE_LEFT,EXTERNAL_SIDE_RIGHT,EXTERNAL_SIDE_FRONT],"damage":"1","range":"Melee"},"sledgehammer_v1":{"name":"Sledgehammer","cat":"Weapons","size":Vector2i(3,3),"sides":[EXTERNAL_SIDE_LEFT,EXTERNAL_SIDE_RIGHT],"damage":"3","range":"Melee"},"saw_v1":{"name":"Saw","cat":"Weapons","size":Vector2i(3,3),"sides":[EXTERNAL_SIDE_LEFT,EXTERNAL_SIDE_RIGHT],"damage":"1","range":"Melee"},"gas_canister_v1":{"name":"Gas Canister","cat":"Weapons","size":Vector2i(2,4),"sides":[EXTERNAL_SIDE_BACK],"desc":"Fuel/ammo for gas weapon.","energy":0,"heat":0,"damage":"0","range":"","special":"Fuel capacity 6. Explosive."},"gas_burner_v1":{"name":"Gas Burner","cat":"Weapons","size":Vector2i(3,3),"sides":[EXTERNAL_SIDE_LEFT,EXTERNAL_SIDE_RIGHT,EXTERNAL_SIDE_FRONT],"desc":"Flamethrower / gas burner.","energy":0,"heat":4,"damage":"1-3","range":"Ranged","special":"Area attack in front, 3x4 cells."},
 "shield_module_v1":{"name":"Shield Module","cat":"Defense","size":Vector2i(1,2),"sides":[EXTERNAL_SIDE_TOP,EXTERNAL_SIDE_BOTTOM,EXTERNAL_SIDE_LEFT,EXTERNAL_SIDE_RIGHT,EXTERNAL_SIDE_FRONT,EXTERNAL_SIDE_BACK],"shield":20},"emp_shield_v1":{"name":"EMP Shield","cat":"Defense","size":Vector2i(1,1),"sides":[EXTERNAL_SIDE_TOP,EXTERNAL_SIDE_BOTTOM,EXTERNAL_SIDE_LEFT,EXTERNAL_SIDE_RIGHT,EXTERNAL_SIDE_FRONT,EXTERNAL_SIDE_BACK],"shield":15},"heat_shield_v1":{"name":"Heat Shield","cat":"Defense","size":Vector2i(1,1),"sides":[EXTERNAL_SIDE_LEFT,EXTERNAL_SIDE_RIGHT,EXTERNAL_SIDE_FRONT]},"reactive_bumper_v1":{"name":"Reactive Bumper","cat":"Defense","size":Vector2i(2,1),"sides":[EXTERNAL_SIDE_LEFT,EXTERNAL_SIDE_RIGHT,EXTERNAL_SIDE_FRONT,EXTERNAL_SIDE_BACK],"armor":10},"armor_plate_v1":{"name":"Armor Plate","cat":"Defense","size":Vector2i(2,2),"sides":[EXTERNAL_SIDE_TOP,EXTERNAL_SIDE_BOTTOM,EXTERNAL_SIDE_LEFT,EXTERNAL_SIDE_RIGHT,EXTERNAL_SIDE_FRONT,EXTERNAL_SIDE_BACK],"armor":20},
-"antenna_v1":{"name":"Antenna","cat":"Other","size":Vector2i(1,1),"sides":[EXTERNAL_SIDE_TOP]},"intiradar_v1":{"name":"Intiradar","cat":"Other","size":Vector2i(1,2),"sides":[EXTERNAL_SIDE_TOP,EXTERNAL_SIDE_BOTTOM,EXTERNAL_SIDE_LEFT,EXTERNAL_SIDE_RIGHT,EXTERNAL_SIDE_FRONT,EXTERNAL_SIDE_BACK]},"smoke_emitter_v1":{"name":"Smoke Emitter","cat":"Other","size":Vector2i(1,2),"sides":[EXTERNAL_SIDE_TOP,EXTERNAL_SIDE_BOTTOM,EXTERNAL_SIDE_LEFT,EXTERNAL_SIDE_RIGHT,EXTERNAL_SIDE_FRONT,EXTERNAL_SIDE_BACK]},"beacon_module_v1":{"name":"Beacon Module","cat":"Other","size":Vector2i(1,2),"sides":[EXTERNAL_SIDE_TOP,EXTERNAL_SIDE_BOTTOM,EXTERNAL_SIDE_LEFT,EXTERNAL_SIDE_RIGHT,EXTERNAL_SIDE_FRONT,EXTERNAL_SIDE_BACK]},"signal_jammer_v1":{"name":"Signal Jammer","cat":"Other","size":Vector2i(1,2),"sides":[EXTERNAL_SIDE_TOP,EXTERNAL_SIDE_BOTTOM,EXTERNAL_SIDE_LEFT,EXTERNAL_SIDE_RIGHT,EXTERNAL_SIDE_FRONT,EXTERNAL_SIDE_BACK]},"ventilation_port_v1":{"name":"Ventilation Port","cat":"Other","size":Vector2i(1,1),"sides":[EXTERNAL_SIDE_TOP,EXTERNAL_SIDE_BOTTOM,EXTERNAL_SIDE_LEFT,EXTERNAL_SIDE_RIGHT,EXTERNAL_SIDE_FRONT,EXTERNAL_SIDE_BACK]}
+"antenna_v1":{"name":"Antenna","cat":"Other","size":Vector2i(1,1),"sides":[EXTERNAL_SIDE_TOP]},"intiradar_v1":{"name":"Anti-Radar Module","cat":"Other","size":Vector2i(1,2),"sides":[EXTERNAL_SIDE_TOP,EXTERNAL_SIDE_BOTTOM,EXTERNAL_SIDE_LEFT,EXTERNAL_SIDE_RIGHT,EXTERNAL_SIDE_FRONT,EXTERNAL_SIDE_BACK]},"smoke_emitter_v1":{"name":"Smoke Emitter","cat":"Other","size":Vector2i(1,2),"sides":[EXTERNAL_SIDE_TOP,EXTERNAL_SIDE_BOTTOM,EXTERNAL_SIDE_LEFT,EXTERNAL_SIDE_RIGHT,EXTERNAL_SIDE_FRONT,EXTERNAL_SIDE_BACK]},"beacon_module_v1":{"name":"Beacon Module","cat":"Other","size":Vector2i(1,2),"sides":[EXTERNAL_SIDE_TOP,EXTERNAL_SIDE_BOTTOM,EXTERNAL_SIDE_LEFT,EXTERNAL_SIDE_RIGHT,EXTERNAL_SIDE_FRONT,EXTERNAL_SIDE_BACK]},"signal_jammer_v1":{"name":"Signal Jammer","cat":"Other","size":Vector2i(1,2),"sides":[EXTERNAL_SIDE_TOP,EXTERNAL_SIDE_BOTTOM,EXTERNAL_SIDE_LEFT,EXTERNAL_SIDE_RIGHT,EXTERNAL_SIDE_FRONT,EXTERNAL_SIDE_BACK]},"ventilation_port_v1":{"name":"Ventilation Port","cat":"Other","size":Vector2i(1,1),"sides":[EXTERNAL_SIDE_TOP,EXTERNAL_SIDE_BOTTOM,EXTERNAL_SIDE_LEFT,EXTERNAL_SIDE_RIGHT,EXTERNAL_SIDE_FRONT,EXTERNAL_SIDE_BACK]}
 }
 const INTERNAL_SIZE_X := 3
 const INTERNAL_SIZE_Y := 3
@@ -335,6 +335,14 @@ func get_module_icon_path_by_key(key: String) -> String:
 func get_module_visual_short_label(module: BipobModule) -> String:
 	if module == null:
 		return "?"
+	if module.id == "intiradar_v1":
+		return "ARD"
+	if module.id == "gas_burner_v1":
+		return "BRN"
+	if module.id == "gas_canister_v1":
+		return "GAS"
+	if module.id == "ventilation_port_v1":
+		return "VNT"
 
 	var key: String = get_module_visual_key(module)
 
@@ -4411,17 +4419,17 @@ func add_internal_mvp_modules_to_box() -> void:
 		{"id": "battery_v3", "name": "Battery V3", "size": Vector3i(2, 2, 1)},
 		{"id": "capacitor_bank_v1", "name": "Capacitor Bank V1", "size": Vector3i(1, 1, 1)},
 		{"id": "processor_v1", "name": "Processor V1", "size": Vector3i(1, 1, 1)},
-		{"id": "processor_v2", "name": "CPU V2", "size": Vector3i(1, 1, 1)},
-		{"id": "processor_v3", "name": "CPU V3", "size": Vector3i(1, 1, 1)},
+		{"id": "processor_v2", "name": "Processor V2", "size": Vector3i(1, 1, 1)},
+		{"id": "processor_v3", "name": "Processor V3", "size": Vector3i(1, 1, 1)},
 		{"id": "gpu_v1", "name": "GPU V1", "size": Vector3i(1, 1, 1)},
 		{"id": "gpu_v2", "name": "GPU V2", "size": Vector3i(1, 1, 1)},
 		{"id": "gpu_v3", "name": "GPU V3", "size": Vector3i(1, 1, 1)},
 		{"id": "memory_v1", "name": "Memory V1", "size": Vector3i(1, 1, 2)},
-		{"id": "memory_v2", "name": "RAM V2", "size": Vector3i(1, 1, 2)},
-		{"id": "memory_v3", "name": "RAM V3", "size": Vector3i(1, 1, 2)},
+		{"id": "memory_v2", "name": "Memory V2", "size": Vector3i(1, 1, 2)},
+		{"id": "memory_v3", "name": "Memory V3", "size": Vector3i(1, 1, 2)},
 		{"id": "hard_drive_v1", "name": "Hard Drive V1", "size": Vector3i(2, 2, 1)},
-		{"id": "hard_drive_v2", "name": "HDD V2", "size": Vector3i(2, 2, 1)},
-		{"id": "hard_drive_v3", "name": "HDD V3", "size": Vector3i(2, 2, 1)},
+		{"id": "hard_drive_v2", "name": "Hard Drive V2", "size": Vector3i(2, 2, 1)},
+		{"id": "hard_drive_v3", "name": "Hard Drive V3", "size": Vector3i(2, 2, 1)},
 		{"id": "internal_interface_v1", "name": "Internal Interface V1", "size": Vector3i(1, 1, 1)},
 		{"id": "external_interface_v1", "name": "External Interface V1", "size": Vector3i(2, 2, 1)},
 		{"id": "cooler_v1", "name": "Cooler V1", "size": Vector3i(1, 1, 1)},
