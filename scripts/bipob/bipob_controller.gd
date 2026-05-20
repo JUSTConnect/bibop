@@ -3957,6 +3957,8 @@ func create_internal_module(module_id: String, module_name: String, module_size:
 	module.power_distribution = get_internal_power_distribution(module_id)
 	module.interface_role = get_internal_interface_role(module_id)
 	module.category = get_internal_category_for_module_id(module_id)
+	module.description = get_internal_description_for_module_id(module_id)
+	module.heat_value = get_internal_overheat_for_module_id(module_id)
 	module.characteristics_text = get_internal_characteristics_text(module)
 	apply_thermal_metadata(module)
 	apply_damage_metadata(module)
@@ -4064,6 +4066,63 @@ func get_internal_interface_role(module_id: String) -> String:
 	if module_id == "external_interface_v1":
 		return "external"
 	return ""
+func get_internal_description_for_module_id(module_id: String) -> String:
+	match module_id:
+		"battery_v1":
+			return "Stores a basic amount of energy for movement, tools and other actions."
+		"battery_v2":
+			return "Accumulates an increased volume of energy, enabling the execution of longer missions and the use of enhanced modules."
+		"battery_v3":
+			return "A high-capacity energy storage unit for demanding builds equipped with heavy sensors, shields, weaponry, or advanced equipment."
+		"power_block_v1":
+			return "Distributes battery power between internal systems and connected external modules. Required for stable operation and recharge."
+		"capacitor_bank_v1":
+			return "Accumulates a short-duration impulse charge to execute powerful actions. An essential component for many advanced modules."
+		"processor_v1":
+			return "Performs basic logical operations, hacking routines, and system calculations."
+		"processor_v2":
+			return "Provides improved computing power for more complex hacking tasks."
+		"processor_v3":
+			return "High-performance computation core designed for complex security systems and advanced automation."
+		"gpu_v1":
+			return "Processes basic visual and sensor data. Required for stable operation of standard scanners and visual recognition systems."
+		"gpu_v2":
+			return "Improves sensor data processing, allowing better analysis of hidden objects, movement and heat signatures."
+		"gpu_v3":
+			return "Advanced sensor-processing unit for heavy scanners, X-Ray systems and radar interpretation."
+		_:
+			return get_module_description_for_id(module_id)
+
+func get_internal_overheat_for_module_id(module_id: String) -> int:
+	match module_id:
+		"battery_v1", "battery_v2", "battery_v3":
+			return 1
+		"power_block_v1", "capacitor_bank_v1":
+			return 3
+		"processor_v1":
+			return 3
+		"processor_v2":
+			return 4
+		"processor_v3":
+			return 5
+		"gpu_v1":
+			return 3
+		"gpu_v2":
+			return 4
+		"gpu_v3":
+			return 5
+		"memory_v1", "memory_v2", "memory_v3":
+			return 2
+		"hard_drive_v1", "hard_drive_v2", "hard_drive_v3":
+			return 3
+		"internal_interface_v1", "external_interface_v1":
+			return 1
+		"targeting_computer_v1", "encryption_module_v1", "motor_controller_v1", "weapon_controller_v1", "firewall_module_v1", "auto_repair_unit_v1", "sample_analyzer_v1":
+			return 1
+		_:
+			return 0
+
+
 
 func get_internal_characteristics_text(module: BipobModule) -> String:
 	var lines: Array[String] = []
@@ -4455,7 +4514,6 @@ func add_internal_mvp_modules_to_box() -> void:
 		var module_name := String(spec.get("name", module_id))
 		var module_size: Vector3i = spec.get("size", Vector3i.ONE)
 		var module: BipobModule = create_internal_module(module_id, module_name, module_size)
-		module.description = get_module_description_for_id(module.id)
 		box_storage.append(module)
 
 func create_visor_v2_module() -> BipobModule:

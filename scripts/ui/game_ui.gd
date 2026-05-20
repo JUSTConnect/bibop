@@ -3557,27 +3557,23 @@ func _get_module_characteristics_lines(module: BipobModule, context: String = ""
 		return lines
 
 	var is_internal_module: bool = module.placement_type == "internal" or module.placement_type == "internal_overlay"
-	if not is_internal_module:
-		var size_text := _get_module_size_text(module)
-		if not size_text.is_empty():
-			lines.append("Size: %s" % size_text)
-		var module_type_text := _get_module_type_text(module)
-		if not module_type_text.is_empty():
-			lines.append("Type: %s" % module_type_text)
-		if not module.version.is_empty():
-			lines.append("Version: %s" % module.version)
+	if is_internal_module:
+		return _get_internal_characteristics_lines(module)
+
+	var size_text := _get_module_size_text(module)
+	if not size_text.is_empty():
+		lines.append("Size: %s" % size_text)
+	var module_type_text := _get_module_type_text(module)
+	if not module_type_text.is_empty():
+		lines.append("Type: %s" % module_type_text)
+	if not module.version.is_empty():
+		lines.append("Version: %s" % module.version)
 
 	if module.energy_cost != 0:
 		lines.append("Energy: %d" % module.energy_cost)
 
-	if is_internal_module:
-		if module.cooling_value != 0:
-			lines.append("Cooling: %d" % module.cooling_value)
-		elif module.heat_value > 0:
-			lines.append("Overheat: +%d" % module.heat_value)
-	else:
-		if module.heat_value != 0:
-			lines.append("Heat: %d" % module.heat_value)
+	if module.heat_value != 0:
+		lines.append("Heat: %d" % module.heat_value)
 
 	if module.scan_range != 0:
 		lines.append("Scan Range: %d" % module.scan_range)
@@ -3623,6 +3619,43 @@ func _get_module_characteristics_lines(module: BipobModule, context: String = ""
 
 	if not module.special_effect_text.is_empty():
 		lines.append("Special: %s" % module.special_effect_text)
+
+	return lines
+
+func _get_internal_characteristics_lines(module: BipobModule) -> Array:
+	var lines: Array = []
+
+	if module.cooling_value != 0:
+		lines.append("Cooling: %d" % module.cooling_value)
+	elif module.heat_value > 0:
+		lines.append("Overheat: +%d" % module.heat_value)
+
+	if module.energy_capacity > 0:
+		lines.append("Energy: +%d" % module.energy_capacity)
+
+	if module.action_capacity > 0:
+		lines.append("Actions: +%d" % module.action_capacity)
+
+	if module.hack_value > 0:
+		lines.append("Hack: +%d" % module.hack_value)
+
+	if module.gpu_value > 0:
+		lines.append("GPU: +%d" % module.gpu_value)
+
+	if module.digital_storage_slots > 0:
+		lines.append("Storage: +%d" % module.digital_storage_slots)
+
+	if module.power_distribution > 0:
+		lines.append("Power Distribution: +%d" % module.power_distribution)
+
+	if not module.interface_role.is_empty():
+		lines.append("Interface: %s" % module.interface_role)
+
+	if not module.special_effect_text.is_empty():
+		lines.append("Special: %s" % module.special_effect_text)
+
+	if lines.is_empty():
+		lines.append("Characteristics will be added later.")
 
 	return lines
 
