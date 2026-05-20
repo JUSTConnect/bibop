@@ -223,6 +223,10 @@ var tasks_start_button: Button
 var tasks_claim_button: Button
 var tasks_actions_row: HBoxContainer
 var mission_progress: Dictionary = {}
+var repair_menu_root: Control = null
+var repair_selected_item: Variant = null
+var repair_selected_item_type: String = ""
+var repair_button: Button = null
 
 const CONSTRUCTOR_PANEL_BG_PATH: String = "res://assets/ui/constructor/panel_bg.png"
 const CONSTRUCTOR_CELL_EMPTY_PATH: String = "res://assets/ui/constructor/cell_empty.png"
@@ -1729,12 +1733,15 @@ func _get_module_filter_group(module: BipobModule, is_external: bool) -> String:
 func _does_module_match_filter(module: BipobModule, filter_name: String, is_external: bool) -> bool:
 	if module == null:
 		return false
+	var broken: bool = _is_module_broken(module)
 	match filter_name:
 		"all":
-			return true
+			return not broken
 		"broken":
-			return _is_module_broken(module)
+			return broken
 		"unknown":
+			if broken:
+				return false
 			return _is_module_unknown(module)
 		"other":
 			return _get_module_filter_group(module, is_external) == "other"
@@ -1742,6 +1749,8 @@ func _does_module_match_filter(module: BipobModule, filter_name: String, is_exte
 			if is_external and filter_name in ["cpu_gpu", "cooling", "ram_sd", "power"]:
 				return false
 			if not is_external and filter_name in ["gear", "visor_radar", "tool", "manipulator", "armor", "weapon"]:
+				return false
+			if broken:
 				return false
 			return _get_module_filter_group(module, is_external) == filter_name
 
@@ -3799,6 +3808,18 @@ func _create_selected_module_info_panel(module: BipobModule, context: String) ->
 	info_root.add_child(left)
 	info_root.add_child(right)
 	panel.add_child(info_root)
+	if _is_module_broken(module):
+		var overlay := ColorRect.new()
+		overlay.color = Color(0.35, 0.05, 0.08, 0.55)
+		overlay.set_anchors_preset(Control.PRESET_FULL_RECT)
+		panel.add_child(overlay)
+		var broken_label := Label.new()
+		broken_label.text = "BROKEN"
+		broken_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+		broken_label.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
+		broken_label.set_anchors_preset(Control.PRESET_FULL_RECT)
+		_apply_label_style(broken_label, false, true)
+		panel.add_child(broken_label)
 	return panel
 
 func _get_module_title_for_selected_info(module: BipobModule) -> String:
@@ -6035,11 +6056,15 @@ func _can_place_selected_internal_visual() -> bool:
 	var module: BipobModule = _get_selected_internal_candidate_module()
 	if module == null:
 		return false
+	if _is_module_broken(module):
+		return false
 	return bipob.can_place_internal_module(module, bipob.selected_internal_origin, bipob.selected_internal_rotation)
 
 func _can_place_selected_external_visual() -> bool:
 	var module: BipobModule = _get_selected_external_candidate_module()
 	if module == null:
+		return false
+	if _is_module_broken(module):
 		return false
 	return bipob.can_place_external_module(module, bipob.selected_external_side, bipob.selected_external_origin)
 
@@ -7274,7 +7299,7 @@ func _on_center_charge_pressed() -> void:
 func _on_center_research_pressed() -> void:
 	show_placeholder_screen("Исследования")
 func _on_center_repair_pressed() -> void:
-	show_placeholder_screen("Ремонт")
+	show_repair_menu()
 func _on_center_shop_pressed() -> void:
 	show_placeholder_screen("Магазин")
 func _on_center_settings_pressed() -> void:
@@ -7283,6 +7308,105 @@ func _on_center_main_menu_pressed() -> void:
 	show_main_menu_screen()
 func _on_center_exit_pressed() -> void:
 	show_placeholder_screen("Выход из игры")
+
+func show_repair_menu() -> void:
+	_hide_all_app_screens()
+	if repair_menu_root != null and is_instance_valid(repair_menu_root):
+		repair_menu_root.queue_free()
+	repair_selected_item = null
+	repair_selected_item_type = ""
+	repair_menu_root = _build_fullscreen_root("RepairMenuRoot")
+	add_child(repair_menu_root)
+	var margin := MarginContainer.new()
+	margin.set_anchors_preset(Control.PRESET_FULL_RECT)
+	margin.add_theme_constant_override("margin_left", 30)
+	margin.add_theme_constant_override("margin_right", 30)
+	margin.add_theme_constant_override("margin_top", 26)
+	margin.add_theme_constant_override("margin_bottom", 26)
+	repair_menu_root.add_child(margin)
+	var panel := PanelContainer.new()
+	_apply_panel_style(panel, true)
+	margin.add_child(panel)
+	var root := VBoxContainer.new()
+	root.add_theme_constant_override("separation", 8)
+	panel.add_child(root)
+	var tabs := HBoxContainer.new()
+	tabs.add_child(_create_menu_button("Workshop", Callable(), Vector2(180, 34), "primary"))
+	var service_button := _create_menu_button("Service Center", Callable(), Vector2(180, 34))
+	service_button.disabled = true
+	tabs.add_child(service_button)
+	root.add_child(tabs)
+	var main_row := HBoxContainer.new()
+	main_row.add_theme_constant_override("separation", 8)
+	var selected_info := Label.new()
+	selected_info.name = "RepairSelectedInfo"
+	selected_info.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	_apply_label_style(selected_info)
+	main_row.add_child(selected_info)
+	repair_button = _create_menu_button("Repair", Callable(self, "_on_repair_button_pressed"), Vector2(140, 38), "primary")
+	main_row.add_child(repair_button)
+	root.add_child(main_row)
+	var modules_title := Label.new(); modules_title.text = "Damaged Modules"; _apply_label_style(modules_title, false, true); root.add_child(modules_title)
+	var modules_list := VBoxContainer.new(); modules_list.name = "RepairModulesList"; root.add_child(modules_list)
+	var bipobs_title := Label.new(); bipobs_title.text = "Damaged Bipobs"; _apply_label_style(bipobs_title, false, true); root.add_child(bipobs_title)
+	var bipobs_list := VBoxContainer.new(); bipobs_list.name = "RepairBipobsList"; root.add_child(bipobs_list)
+	var legend := Label.new(); legend.text = "Legend: [selected]=yellow, [broken/damaged]=red, [intact]=grey"; _apply_label_style(legend, true, false); root.add_child(legend)
+	root.add_child(_create_menu_button("Back", Callable(self, "show_center_screen"), Vector2(120, 34)))
+	_refresh_repair_menu()
+
+func _refresh_repair_menu() -> void:
+	if repair_menu_root == null:
+		return
+	var modules_list: VBoxContainer = repair_menu_root.find_child("RepairModulesList", true, false)
+	var bipobs_list: VBoxContainer = repair_menu_root.find_child("RepairBipobsList", true, false)
+	var selected_info: Label = repair_menu_root.find_child("RepairSelectedInfo", true, false)
+	for node in [modules_list, bipobs_list]:
+		if node == null:
+			continue
+		for child in node.get_children():
+			child.queue_free()
+	var broken_modules: Array = bipob.get_broken_modules_for_repair() if bipob.has_method("get_broken_modules_for_repair") else []
+	var damaged_bipobs: Array = bipob.get_damaged_bipobs_for_repair() if bipob.has_method("get_damaged_bipobs_for_repair") else []
+	if modules_list != null:
+		if broken_modules.is_empty():
+			var none := Label.new(); none.text = "No damaged modules."; _apply_label_style(none, true, false); modules_list.add_child(none)
+		for module in broken_modules:
+			var btn := _create_menu_button("[BROKEN] %s" % bipob.get_module_display_name(module), Callable(self, "_on_repair_item_selected").bind(module, "module"), Vector2(320, 30), "danger")
+			modules_list.add_child(btn)
+	if bipobs_list != null:
+		if damaged_bipobs.is_empty():
+			var none_b := Label.new(); none_b.text = "No damaged Bipobs."; _apply_label_style(none_b, true, false); bipobs_list.add_child(none_b)
+		for row in damaged_bipobs:
+			var btn_b := _create_menu_button("[DAMAGED] %s" % String(row.get("name", "Bipob")), Callable(self, "_on_repair_item_selected").bind(row, "bipob"), Vector2(320, 30), "danger")
+			bipobs_list.add_child(btn_b)
+	if selected_info != null:
+		selected_info.text = "Cost: 0\nSelected: %s" % ("none" if repair_selected_item == null else _get_repair_selected_text())
+	if repair_button != null:
+		repair_button.disabled = repair_selected_item == null
+
+func _get_repair_selected_text() -> String:
+	if repair_selected_item_type == "module":
+		return bipob.get_module_display_name(repair_selected_item)
+	if repair_selected_item_type == "bipob":
+		return String(repair_selected_item.get("name", "Bipob"))
+	return "none"
+
+func _on_repair_item_selected(item: Variant, item_type: String) -> void:
+	repair_selected_item = item
+	repair_selected_item_type = item_type
+	_refresh_repair_menu()
+
+func _on_repair_button_pressed() -> void:
+	if repair_selected_item == null:
+		return
+	if repair_selected_item_type == "module" and bipob.has_method("repair_module"):
+		bipob.repair_module(repair_selected_item)
+	elif repair_selected_item_type == "bipob" and bipob.has_method("repair_bipob"):
+		bipob.repair_bipob(repair_selected_item)
+	repair_selected_item = null
+	repair_selected_item_type = ""
+	update_box_status()
+	_refresh_repair_menu()
 func _on_placeholder_back_pressed() -> void:
 	match placeholder_return_screen_mode:
 		AppScreenMode.GAMEPLAY:

@@ -166,6 +166,7 @@ var mission7_powered_gate_position: Vector2i = Vector2i(-1, -1)
 var mission7_cable_path: Array[Vector2i] = []
 var mission7_cable_max_length: int = 12
 var movement_cells_since_energy_spend: int = 0
+var bipob_damage_state_by_profile: Dictionary = {"alpha": false, "beta": true, "juggernaut": false}
 
 @onready var grid_manager: GridManager = get_node("../Field")
 @onready var mission_label: Label = get_node("../UI/MissionLabel")
@@ -174,6 +175,9 @@ var movement_cells_since_energy_spend: int = 0
 func install_module(module: BipobModule) -> void:
 	# MVP behavior: install immediately applies passive bonuses.
 	if module == null:
+		return
+	if is_module_broken(module):
+		hint_requested.emit("Broken module cannot be installed.")
 		return
 
 	# Keep module state consistent across storage and installed lists.
@@ -4084,6 +4088,21 @@ func create_default_modules() -> void:
 
 	add_internal_mvp_modules_to_box()
 	ensure_external_constructor_modules_in_box_storage()
+	_add_broken_test_visor_v2_to_box_storage()
+
+func _add_broken_test_visor_v2_to_box_storage() -> void:
+	var broken_exists: bool = false
+	for module in box_storage:
+		if module != null and module.id == "visor_v2" and is_module_broken(module):
+			broken_exists = true
+			break
+	if broken_exists:
+		return
+	var broken_visor: BipobModule = create_external_module_by_id("visor_v2")
+	if broken_visor == null:
+		return
+	set_module_broken(broken_visor, true)
+	box_storage.append(broken_visor)
 
 func create_internal_module(module_id: String, module_name: String, module_size: Vector3i) -> BipobModule:
 	var module := BipobModule.new()
@@ -5104,6 +5123,10 @@ func install_module_from_box_storage(storage_index: int) -> bool:
 		hint_requested.emit("Removed empty module from box storage.")
 		status_changed.emit()
 		return false
+	if is_module_broken(module_to_install):
+		hint_requested.emit("Broken module cannot be installed.")
+		status_changed.emit()
+		return false
 
 	box_storage.remove_at(storage_index)
 
@@ -5116,6 +5139,56 @@ func install_module_from_box_storage(storage_index: int) -> bool:
 	hint_requested.emit("Installed from box: " + get_module_display_name(module_to_install))
 	status_changed.emit()
 	return true
+
+func is_module_broken(module: BipobModule) -> bool:
+	return module != null and bool(module.is_broken)
+
+func set_module_broken(module: BipobModule, value: bool) -> void:
+	if module == null:
+		return
+	module.is_broken = value
+
+func get_broken_modules_for_repair() -> Array:
+	var result: Array = []
+	for module in box_storage:
+		if is_module_broken(module):
+			result.append(module)
+	for module in pocket_items:
+		if is_module_broken(module) and not result.has(module):
+			result.append(module)
+	for module in manipulator_items:
+		if is_module_broken(module) and not result.has(module):
+			result.append(module)
+	return result
+
+func get_damaged_bipobs_for_repair() -> Array:
+	var result: Array = []
+	for profile_id in ["alpha", "beta", "juggernaut"]:
+		if bool(bipob_damage_state_by_profile.get(profile_id, false)):
+			result.append({"profile_id": profile_id, "name": _get_bipob_profile_display_name(profile_id), "is_damaged": true})
+	return result
+
+func repair_module(module: BipobModule) -> void:
+	set_module_broken(module, false)
+	status_changed.emit()
+
+func repair_bipob(bipob_data: Dictionary) -> void:
+	var profile_id: String = String(bipob_data.get("profile_id", ""))
+	if profile_id.is_empty():
+		return
+	bipob_damage_state_by_profile[profile_id] = false
+	status_changed.emit()
+
+func _get_bipob_profile_display_name(profile_id: String) -> String:
+	match profile_id:
+		"alpha":
+			return "Scout"
+		"beta":
+			return "Engineer"
+		"juggernaut":
+			return "Juggernaut"
+		_:
+			return profile_id.capitalize()
 
 func return_installed_module_to_box_storage(module: BipobModule) -> void:
 	if module == null:
@@ -6627,6 +6700,32 @@ func drop_held_item() -> void:
 	hint_requested.emit("Dropped: %s." % get_module_display_name(module_to_drop))
 	manipulator_items[active_index] = null
 	_sync_legacy_physical_slots()
+	status_changed.emit()
+
+func break_installed_module(module: BipobModule, _bipob = null) -> void:
+	if module == null:
+		return
+	var installed_index: int = installed_modules.find(module)
+	if installed_index != -1:
+		installed_modules.remove_at(installed_index)
+	set_module_broken(module, true)
+	var free_pocket_index: int = _get_first_free_pocket_index()
+	if free_pocket_index != -1:
+		pocket_items[free_pocket_index] = module
+		hint_requested.emit("%s broke and moved to pocket." % get_module_display_name(module))
+	else:
+		var front_position: Vector2i = grid_position + get_direction_vector(direction)
+		var drop_position: Vector2i = grid_position
+		if grid_manager != null and grid_manager.is_in_bounds(front_position) and grid_manager.get_tile(front_position) == GridManager.TILE_FLOOR and get_field_module(front_position) == null:
+			drop_position = front_position
+		if grid_manager != null and grid_manager.is_in_bounds(drop_position):
+			set_field_module(drop_position, module)
+		else:
+			# TODO(BIB-539): fallback when runtime grid context is unavailable.
+			box_storage.append(module)
+		hint_requested.emit("%s broke and dropped." % get_module_display_name(module))
+	_sync_legacy_physical_slots()
+	recalculate_module_stats()
 	status_changed.emit()
 
 
