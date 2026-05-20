@@ -3946,11 +3946,34 @@ func create_internal_module(module_id: String, module_name: String, module_size:
 	module.cooling_value = get_internal_cooling_value(module_id)
 	module.power_distribution = get_internal_power_distribution(module_id)
 	module.interface_role = get_internal_interface_role(module_id)
-	module.category = get_module_category(module)
+	module.category = get_internal_category_for_module_id(module_id)
 	module.characteristics_text = get_internal_characteristics_text(module)
 	apply_thermal_metadata(module)
 	apply_damage_metadata(module)
 	return module
+
+func get_internal_category_for_module_id(module_id: String) -> String:
+	var family := get_internal_family_for_module_id(module_id)
+
+	match family:
+		"battery", "power":
+			return "Power"
+		"cpu":
+			return "CPU"
+		"gpu":
+			return "GPU"
+		"ram":
+			return "RAM"
+		"storage":
+			return "Storage"
+		"interface":
+			return "Interface"
+		"cooling":
+			return "Cooling"
+		"other":
+			return "Other"
+		_:
+			return "Other"
 
 func get_internal_family_for_module_id(module_id: String) -> String:
 	if module_id.begins_with("processor_"):
