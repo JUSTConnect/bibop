@@ -3606,14 +3606,16 @@ func _get_module_characteristics_lines(module: BipobModule, context: String = ""
 			lines.append("Special: %s" % module.special_effect_text)
 		return lines
 
-	var size_text := _get_module_size_text(module)
-	if not size_text.is_empty():
-		lines.append("Size: %s" % size_text)
-	var module_type_text := _get_module_type_text(module)
-	if not module_type_text.is_empty():
-		lines.append("Type: %s" % module_type_text)
-	if not module.version.is_empty():
-		lines.append("Version: %s" % module.version)
+	if module.placement_type == "external" and String(module.category) == "Interface":
+		if module.energy_cost > 0:
+			lines.append("Energy: %d" % module.energy_cost)
+		if not module.connection_type.is_empty():
+			lines.append("Connection: %s" % module.connection_type)
+		if not module.connection_range_text.is_empty():
+			lines.append("Range: %s" % module.connection_range_text)
+		if not module.special_effect_text.is_empty():
+			lines.append("Special: %s" % module.special_effect_text)
+		return lines
 
 	if module.energy_cost != 0:
 		lines.append("Energy: %d" % module.energy_cost)
