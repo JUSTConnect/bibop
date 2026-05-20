@@ -3734,7 +3734,7 @@ func _create_selected_module_info_panel(module: BipobModule, context: String) ->
 	panel.custom_minimum_size = Vector2(0, 190)
 	var info_root := HBoxContainer.new()
 	info_root.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-	info_root.add_theme_constant_override("separation", 10)
+	info_root.add_theme_constant_override("separation", 6)
 	if module == null:
 		var empty := Label.new()
 		empty.text = "Select a module"
@@ -3743,11 +3743,11 @@ func _create_selected_module_info_panel(module: BipobModule, context: String) ->
 		panel.add_child(info_root)
 		return panel
 	var left := VBoxContainer.new()
-	left.custom_minimum_size = Vector2(236, 0)
+	left.custom_minimum_size = Vector2(192, 0)
 	left.size_flags_horizontal = Control.SIZE_SHRINK_BEGIN
 	left.add_theme_constant_override("separation", 4)
 	var previews := HBoxContainer.new()
-	previews.add_theme_constant_override("separation", 8)
+	previews.add_theme_constant_override("separation", 6)
 	previews.add_child(_create_module_icon_control(module, SELECTED_MODULE_ICON_SIZE))
 	previews.add_child(_create_selected_module_size_preview(module, context))
 	left.add_child(previews)
@@ -3758,6 +3758,7 @@ func _create_selected_module_info_panel(module: BipobModule, context: String) ->
 	if not install_text.is_empty():
 		var install_label := Label.new(); install_label.text = install_text; install_label.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART; _apply_label_style(install_label, true, false); left.add_child(install_label)
 	var right := VBoxContainer.new()
+	right.custom_minimum_size = Vector2(0, 0)
 	right.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	right.add_theme_constant_override("separation", 2)
 	var c_title := Label.new(); c_title.text = "Characteristics"; _apply_label_style(c_title, false, true); right.add_child(c_title)
