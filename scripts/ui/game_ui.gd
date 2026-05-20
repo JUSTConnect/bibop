@@ -2982,6 +2982,11 @@ func _get_external_build_warnings() -> Array[String]:
 			warnings.append("Ventilation Port")
 	if has_gas_burner and not has_gas_canister:
 		warnings.append("Gas Canister")
+	if bipob != null and bipob.has_method("get_external_connected_module_count") and bipob.has_method("get_external_interface_port_capacity"):
+		var external_connected_count: int = bipob.get_external_connected_module_count()
+		var external_port_capacity: int = bipob.get_external_interface_port_capacity()
+		if external_connected_count > external_port_capacity and not warnings.has("Too many external devices"):
+			warnings.append("Too many external devices")
 	return warnings
 
 func _create_external_warning_panel() -> Control:
@@ -3614,6 +3619,9 @@ func _get_module_characteristics_lines(module: BipobModule, context: String = ""
 	if module.power_distribution > 0:
 		lines.append("Power Distribution: +%d" % module.power_distribution)
 
+	if module.ports > 0:
+		lines.append("Ports: %d" % module.ports)
+
 	if not module.interface_role.is_empty():
 		lines.append("Interface: %s" % module.interface_role)
 
@@ -3647,6 +3655,9 @@ func _get_internal_characteristics_lines(module: BipobModule) -> Array:
 
 	if module.power_distribution > 0:
 		lines.append("Power Distribution: +%d" % module.power_distribution)
+
+	if module.ports > 0:
+		lines.append("Ports: %d" % module.ports)
 
 	if not module.interface_role.is_empty():
 		lines.append("Interface: %s" % module.interface_role)
@@ -5726,7 +5737,11 @@ func _make_module_by_id(module_id: String) -> BipobModule:
 		"gpu_v2": {"name": "GPU V2", "size": Vector3i(1,1,1)},
 		"gpu_v3": {"name": "GPU V3", "size": Vector3i(1,1,1)},
 		"external_interface_v1": {"name": "External Interface V1", "size": Vector3i(2,2,1)},
+		"external_interface_v2": {"name": "External Interface V2", "size": Vector3i(2,2,1)},
+		"external_interface_v3": {"name": "External Interface V3", "size": Vector3i(2,2,1)},
 		"internal_interface_v1": {"name": "Internal Interface V1", "size": Vector3i(1,1,1)},
+		"internal_interface_v2": {"name": "Internal Interface V2", "size": Vector3i(1,1,1)},
+		"internal_interface_v3": {"name": "Internal Interface V3", "size": Vector3i(1,1,1)},
 		"memory_v1": {"name": "Memory V1", "size": Vector3i(1,1,2)},
 		"power_block_v1": {"name": "Power Block V1", "size": Vector3i(1,2,2)},
 		"capacitor_bank_v1": {"name": "Capacitor Bank V1", "size": Vector3i(1,1,1)},
@@ -7496,6 +7511,11 @@ func _build_internal_missing_required_warnings() -> Array[String]:
 		warnings.append("Cooling")
 	if not bipob.has_internal_interface():
 		warnings.append("Internal Interface")
+	if bipob.has_method("get_internal_connected_module_count") and bipob.has_method("get_internal_interface_port_capacity"):
+		var internal_connected_count: int = bipob.get_internal_connected_module_count()
+		var internal_port_capacity: int = bipob.get_internal_interface_port_capacity()
+		if internal_connected_count > internal_port_capacity and not warnings.has("Internal Interface"):
+			warnings.append("Internal Interface")
 	if not bipob.has_external_interface_bridge():
 		warnings.append("External Interface")
 	return warnings
