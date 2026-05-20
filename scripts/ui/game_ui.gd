@@ -213,9 +213,13 @@ var tasks_reward_label: Label
 var tasks_description_label: Label
 var tasks_requirements_label: Label
 var tasks_warnings_label: Label
+var tasks_report_label: Label
 var tasks_bipob_buttons_row: HBoxContainer
 var tasks_validation_label: Label
 var tasks_start_button: Button
+var tasks_claim_button: Button
+var tasks_actions_row: HBoxContainer
+var mission_progress: Dictionary = {}
 
 const CONSTRUCTOR_PANEL_BG_PATH: String = "res://assets/ui/constructor/panel_bg.png"
 const CONSTRUCTOR_CELL_EMPTY_PATH: String = "res://assets/ui/constructor/cell_empty.png"
@@ -4842,6 +4846,38 @@ func _build_tasks_mission_data() -> void:
 		tasks_selected_career_index = maxi(tasks_mission_data.size() - 1, 0)
 	tasks_selected_mission_id = tasks_selected_career_index + 1
 
+func _get_mission_progress(mission_id: int) -> Dictionary:
+	if not mission_progress.has(mission_id):
+		mission_progress[mission_id] = {
+			"completed": false,
+			"claimed": false,
+			"stars": 0,
+			"turns_used": 0,
+			"turn_limit": 0,
+			"main_goal_completed": false,
+			"extra_goals": {},
+			"reward_claimed_text": ""
+		}
+	return mission_progress[mission_id]
+
+func _is_mission_claimed(mission_id: int) -> bool:
+	return bool(_get_mission_progress(mission_id).get("claimed", false))
+
+func _is_mission_completed_unclaimed(mission_id: int) -> bool:
+	var progress: Dictionary = _get_mission_progress(mission_id)
+	return bool(progress.get("completed", false)) and not bool(progress.get("claimed", false))
+
+func _get_mission_display_title(mission_data: Dictionary) -> String:
+	var mission_id: int = int(mission_data.get("id", 0))
+	var base_title: String = "Mission %d" % mission_id
+	var progress: Dictionary = _get_mission_progress(mission_id)
+	var stars: int = int(progress.get("stars", 0))
+	if bool(progress.get("claimed", false)):
+		return "%s — Claimed%s" % [base_title, " %s" % ("★".repeat(stars)) if stars > 0 else ""]
+	if bool(progress.get("completed", false)):
+		return "%s — Completed%s" % [base_title, " %s" % ("★".repeat(stars)) if stars > 0 else ""]
+	return base_title
+
 func start_selected_task_mission() -> void:
 	var mission := get_selected_task_mission()
 	var selected_bipobs: Array[Dictionary] = get_selected_bipobs_for_mission()
@@ -4894,6 +4930,22 @@ func show_mission_result_screen(success: bool, mission_index: int = -1) -> void:
 	root.visible = true
 	_clear_children(root)
 	var result_data: Dictionary = _build_mission_result_data(success, mission_index)
+	if success:
+		var result_mission_id: int = int(result_data.get("mission_id", mission_index if mission_index > 0 else 1))
+		var progress: Dictionary = _get_mission_progress(result_mission_id)
+		progress["completed"] = true
+		progress["claimed"] = bool(progress.get("claimed", false))
+		progress["stars"] = int(result_data.get("stars", progress.get("stars", 0)))
+		progress["turns_used"] = int(result_data.get("turns_used", 0))
+		progress["turn_limit"] = int(result_data.get("turn_limit", 0))
+		progress["main_goal_completed"] = true
+		progress["extra_goals"] = {
+			"find_key": "TBD",
+			"open_door": "TBD"
+		}
+		if String(progress.get("reward_claimed_text", "")).is_empty():
+			progress["reward_claimed_text"] = "TBD"
+		mission_progress[result_mission_id] = progress
 	var layout: Control = _create_mission_result_layout(result_data)
 	root.add_child(layout)
 
@@ -4915,9 +4967,18 @@ func _refresh_tasks_content() -> void:
 		tasks_list_container.add_child(placeholder)
 		_apply_tasks_placeholder_details()
 		return
-	for i in tasks_mission_data.size():
+	var sorted_missions: Array = _sort_missions_for_task_list(tasks_mission_data)
+	for mission in sorted_missions:
+		var i: int = int(mission.get("source_index", 0))
+		var mission_id: int = int(mission.get("id", i + 1))
+		var progress: Dictionary = _get_mission_progress(mission_id)
 		var card := Button.new()
-		card.text = "%s\n%s\nReward preview: TBD" % [tasks_mission_data[i].get("title_short", ""), tasks_mission_data[i].get("short_description", "Reach extraction.")]
+		var suffix: String = ""
+		if bool(progress.get("claimed", false)):
+			suffix = " — Claimed"
+		elif bool(progress.get("completed", false)):
+			suffix = " — Completed"
+		card.text = "%s%s\n%s\nReward preview: TBD" % [str(mission.get("title_short", "Mission %d" % mission_id)), suffix, mission.get("short_description", "Reach extraction.")]
 		card.alignment = HORIZONTAL_ALIGNMENT_LEFT
 		card.text_overrun_behavior = TextServer.OVERRUN_TRIM_ELLIPSIS
 		card.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
@@ -4925,7 +4986,12 @@ func _refresh_tasks_content() -> void:
 		card.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 		_apply_menu_button_theme(card)
 		card.pressed.connect(_on_tasks_career_selected.bind(i))
-		card.modulate = UI_COLOR_SELECTED if i == tasks_selected_career_index else Color(1, 1, 1, 1)
+		if bool(progress.get("claimed", false)):
+			card.modulate = Color(0.62, 0.62, 0.62, 1.0)
+		elif bool(progress.get("completed", false)):
+			card.modulate = Color(0.62, 1.0, 0.72, 1.0) if i != tasks_selected_career_index else UI_COLOR_SELECTED
+		else:
+			card.modulate = UI_COLOR_SELECTED if i == tasks_selected_career_index else Color(1, 1, 1, 1)
 		tasks_list_container.add_child(card)
 	_refresh_tasks_bipob_buttons()
 	_update_tasks_details_panel()
@@ -4997,8 +5063,12 @@ func _update_tasks_details_panel() -> void:
 	var task := tasks_mission_data[tasks_selected_career_index]
 	var selected_bipobs: Array[Dictionary] = get_selected_bipobs_for_mission()
 	var validation := validate_mission_requirements(task, selected_bipobs)
+	var mission_id: int = int(task.get("id", tasks_selected_mission_id))
+	var progress: Dictionary = _get_mission_progress(mission_id)
+	var critical_warnings: Array = _get_mission_critical_warnings(task, selected_bipobs)
+	var recommendations: Array = _get_mission_recommendations(task, selected_bipobs)
 	if tasks_title_label != null:
-		tasks_title_label.text = str(task.get("title_full", "Mission %d" % tasks_selected_mission_id))
+		tasks_title_label.text = _get_mission_display_title(task)
 	if tasks_difficulty_label != null:
 		tasks_difficulty_label.text = "Difficulty: %s" % str(task.get("difficulty", "TBD"))
 	if tasks_reward_label != null:
@@ -5008,9 +5078,19 @@ func _update_tasks_details_panel() -> void:
 	if tasks_requirements_label != null:
 		tasks_requirements_label.text = build_requirements_text(task, selected_bipobs, validation)
 	if tasks_warnings_label != null:
-		tasks_warnings_label.text = "Warnings:\n- %s\n\nConfiguration Check:\n%s" % ["\n- ".join(task.get("warnings_default", [])), _build_validation_summary(validation)]
+		tasks_warnings_label.text = _build_warnings_block_text(critical_warnings, recommendations)
+	if tasks_report_label != null:
+		tasks_report_label.text = _build_mission_report_text(task, progress)
 	if tasks_start_button != null:
 		tasks_start_button.disabled = not bool(validation.get("valid", false))
+		tasks_start_button.visible = not bool(progress.get("completed", false))
+	if tasks_claim_button != null:
+		tasks_claim_button.visible = _is_mission_completed_unclaimed(mission_id)
+	if tasks_start_button != null and _is_mission_completed_unclaimed(mission_id):
+		tasks_start_button.text = "Restart"
+		tasks_start_button.disabled = false
+	elif tasks_start_button != null:
+		tasks_start_button.text = "Start"
 	if tasks_validation_label != null:
 		tasks_validation_label.text = _build_validation_summary(validation)
 		tasks_validation_label.add_theme_color_override("font_color", UI_COLOR_OK if bool(validation.get("valid", false)) else UI_COLOR_DANGER)
@@ -5079,6 +5159,70 @@ func validate_mission_requirements(mission_data: Dictionary, selected_bipobs: Ar
 		messages.append("Pocket capacity is insufficient.")
 	return {"valid": messages.is_empty(), "messages": messages}
 
+func _get_mission_critical_warnings(mission_data: Dictionary, selected_bipobs: Array[Dictionary]) -> Array:
+	return validate_mission_requirements(mission_data, selected_bipobs).get("messages", [])
+
+func _get_mission_recommendations(_mission_data: Dictionary, _selected_bipobs: Array[Dictionary]) -> Array:
+	var recommendations: Array = []
+	if get_bipob_remaining_battery() < get_bipob_total_battery_capacity():
+		recommendations.append("Charge the battery before the mission.")
+	if _bipob_has_damage():
+		recommendations.append("Repair the bipob before the mission.")
+	if not _has_installed_beacon_module_for_recovery():
+		recommendations.append("Install Beacon Module to recover the bipob if the mission fails.")
+	return recommendations
+
+func _bipob_has_damage() -> bool:
+	# TODO(BIB-535): replace with full damage model once persisted module/body damage is available.
+	return false
+
+func _build_warnings_block_text(critical_warnings: Array, recommendations: Array) -> String:
+	var lines: Array[String] = ["Warnings"]
+	if critical_warnings.is_empty() and recommendations.is_empty():
+		lines.append("No warnings.")
+		return "\n".join(lines)
+	if not critical_warnings.is_empty():
+		lines.append("\nCritical:")
+		for warning in critical_warnings:
+			lines.append("- [CRITICAL] %s" % str(warning))
+	if not recommendations.is_empty():
+		lines.append("\nRecommendations:")
+		for warning in recommendations:
+			lines.append("- [RECOMMEND] %s" % str(warning))
+	return "\n".join(lines)
+
+func _build_mission_report_text(task: Dictionary, progress: Dictionary) -> String:
+	if not bool(progress.get("completed", false)):
+		return ""
+	var lines: Array[String] = ["Mission Report"]
+	lines.append("Turns: %d / %s" % [int(progress.get("turns_used", 0)), str(progress.get("turn_limit", int(task.get("turn_limit", 0))))])
+	lines.append("Main Goal:")
+	lines.append("- Reach extraction — %s" % ("completed" if bool(progress.get("main_goal_completed", false)) else "failed"))
+	lines.append("Extra Goals:")
+	var extra_goals: Dictionary = progress.get("extra_goals", {})
+	lines.append("- Find the key — %s" % str(extra_goals.get("find_key", "TBD")))
+	lines.append("- Open the door — %s" % str(extra_goals.get("open_door", "TBD")))
+	var stars: int = int(progress.get("stars", 0))
+	lines.append("Stars: %s" % ("★".repeat(stars) if stars > 0 else "0 / 3"))
+	lines.append("Reward: %s" % str(progress.get("reward_claimed_text", "TBD")))
+	return "\n".join(lines)
+
+func _sort_missions_for_task_list(missions: Array) -> Array:
+	var active: Array = []
+	var completed: Array = []
+	var claimed: Array = []
+	for i in missions.size():
+		var mission: Dictionary = missions[i].duplicate(true)
+		mission["source_index"] = i
+		var mission_id: int = int(mission.get("id", i + 1))
+		if _is_mission_claimed(mission_id):
+			claimed.append(mission)
+		elif _is_mission_completed_unclaimed(mission_id):
+			completed.append(mission)
+		else:
+			active.append(mission)
+	return active + completed + claimed
+
 func _build_validation_summary(validation: Dictionary) -> String:
 	if bool(validation.get("valid", false)):
 		return "READY: Configuration is valid."
@@ -5090,7 +5234,7 @@ func build_requirements_text(mission_data: Dictionary, selected_bipobs: Array[Di
 	var max_b: int = get_bipob_total_battery_capacity()
 	var battery_line: String = "Max capacity: %d / Remaining: %d" % [max_b, rem]
 	if rem < req_battery:
-		battery_line += "  [LOW]"
+		battery_line += "  [LOW !]"
 	var selected_names: Array[String] = []
 	for row in selected_bipobs:
 		selected_names.append(String(row.get("name", "")))
@@ -5123,7 +5267,7 @@ Pocket:
 		String(mission_data.get("required_sensor_type", "basic sensor")),
 		", ".join(get_bipob_sensor_modules()) if not get_bipob_sensor_modules().is_empty() else missing,
 		req_battery, battery_line,
-		int(mission_data.get("required_pocket", 1)), str(get_bipob_pocket_slots()) if get_bipob_pocket_slots() > 0 else missing
+		int(mission_data.get("required_pocket", 1)), str(get_bipob_pocket_slots()) + (" !" if get_bipob_pocket_slots() < int(mission_data.get("required_pocket", 1)) else "") if get_bipob_pocket_slots() > 0 else missing
 	]
 
 func charge_bipob_from_center() -> void:
@@ -6762,14 +6906,22 @@ func _build_tasks_menu_layout() -> void:
 	tasks_warnings_label = Label.new()
 	tasks_warnings_label.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 	_apply_label_style(tasks_warnings_label)
+	tasks_warnings_label.add_theme_stylebox_override("normal", _make_panel_style(UI_COLOR_PANEL_DARK, UI_COLOR_BORDER_DIM, 1, 6))
 	details_vbox.add_child(tasks_warnings_label)
+	tasks_report_label = Label.new()
+	tasks_report_label.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	_apply_label_style(tasks_report_label, true, false)
+	details_vbox.add_child(tasks_report_label)
 
 	var actions := HBoxContainer.new()
+	tasks_actions_row = actions
 	actions.add_theme_constant_override("separation", 8)
 	right_vbox.add_child(actions)
 	tasks_start_button = _create_menu_button("Start", Callable(self, "_on_tasks_start_pressed"), Vector2(120, 34))
 	actions.add_child(tasks_start_button)
-	actions.add_child(_create_menu_button("Warnings", Callable(self, "_on_tasks_warnings_pressed"), Vector2(140, 34)))
+	tasks_claim_button = _create_menu_button("Claim Reward", Callable(self, "_on_tasks_claim_reward_pressed"), Vector2(160, 34), "warning")
+	tasks_claim_button.visible = false
+	actions.add_child(tasks_claim_button)
 	tasks_validation_label = Label.new()
 	_apply_label_style(tasks_validation_label)
 	right_vbox.add_child(tasks_validation_label)
@@ -7038,8 +7190,36 @@ func _on_tasks_start_pressed() -> void:
 	# TODO(BIB-453): bind each task to a dedicated mission profile when mission registry is ready.
 	start_selected_task_mission()
 
-func _on_tasks_warnings_pressed() -> void:
-	show_hint("Warnings section updated for selected task.")
+func _on_tasks_claim_reward_pressed() -> void:
+	var mission: Dictionary = get_selected_task_mission()
+	var mission_id: int = int(mission.get("id", 0))
+	if mission_id <= 0:
+		return
+	_confirm_claim_reward(mission_id)
+
+func _confirm_claim_reward(mission_id: int) -> void:
+	var dialog := ConfirmationDialog.new()
+	dialog.title = "Claim Reward"
+	dialog.dialog_text = "If you claim the reward, this mission can no longer be replayed. Claim reward now?"
+	add_child(dialog)
+	dialog.confirmed.connect(func() -> void:
+		_claim_mission_reward(mission_id)
+		dialog.queue_free()
+	)
+	dialog.canceled.connect(func() -> void:
+		dialog.queue_free()
+	)
+	dialog.popup_centered(Vector2i(540, 180))
+
+func _claim_mission_reward(mission_id: int) -> void:
+	var progress: Dictionary = _get_mission_progress(mission_id)
+	progress["completed"] = true
+	progress["claimed"] = true
+	if String(progress.get("reward_claimed_text", "")).is_empty():
+		progress["reward_claimed_text"] = "Reward claimed (TBD)"
+	# TODO(BIB-535): hook actual reward grant system.
+	mission_progress[mission_id] = progress
+	_refresh_tasks_content()
 
 func _on_mission_result_restart_pressed() -> void:
 	start_gameplay_from_center()
