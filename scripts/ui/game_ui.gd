@@ -7473,7 +7473,7 @@ func _create_internal_visual_workspace() -> Control:
 	left_column.size_flags_vertical = Control.SIZE_EXPAND_FILL
 	left_column.size_flags_stretch_ratio = 1.0
 	left_column.add_theme_constant_override("separation", 4)
-	left_column.add_child(_create_internal_slice_grid("VERTICAL SLICE", "y", "z", "x", bipob.selected_internal_origin.x))
+	left_column.add_child(_create_internal_slice_grid("VERTICAL SLICE", "x", "z", "y", bipob.selected_internal_origin.y))
 	left_column.add_child(_create_internal_slice_grid("HORIZONTAL SLICE", "x", "y", "z", bipob.selected_internal_origin.z))
 	constructor_row.add_child(left_column)
 
