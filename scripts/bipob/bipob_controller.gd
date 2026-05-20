@@ -31,8 +31,11 @@ const EXTERNAL_SIDE_ORDER := [
 ]
 const EXTERNAL_CATEGORY_MAP := {"movement":"Gear","sensor":"Sensors","manipulator":"Manipulator","connector":"Interface","tool":"Tools","repair":"Tools","weapon":"Weapons","armor":"Defense","other":"Other"}
 const EXTERNAL_MODULE_CATALOG: Dictionary = {
-"wheels_v1":{"name":"Wheels","cat":"Gear","size":Vector2i(3,2),"sides":[EXTERNAL_SIDE_BOTTOM]},
-"legs_v1":{"name":"Legs","cat":"Gear","size":Vector2i(3,2),"sides":[EXTERNAL_SIDE_BOTTOM]},"tracks_v1":{"name":"Tracks","cat":"Gear","size":Vector2i(3,2),"sides":[EXTERNAL_SIDE_BOTTOM]},"jumper_v1":{"name":"Jumper","cat":"Gear","size":Vector2i(3,3),"sides":[EXTERNAL_SIDE_BOTTOM]},"hover_pad_v1":{"name":"Hover Pad","cat":"Gear","size":Vector2i(3,3),"sides":[EXTERNAL_SIDE_BOTTOM]},
+"wheels_v1":{"name":"Wheels V1","cat":"Gear","size":Vector2i(3,2),"sides":[EXTERNAL_SIDE_BOTTOM],"desc":"Fast movement system for flat and stable surfaces. Ineffective on stairs, mud and debris.","energy":1,"terrain":"Flat surface","movement":"Drive","speed":3},
+"legs_v1":{"name":"Legs V1","cat":"Gear","size":Vector2i(3,2),"sides":[EXTERNAL_SIDE_BOTTOM],"desc":"Universal movement system that provides stable traversal across uneven terrain, steps, obstacles, and mixed surfaces.","energy":1,"terrain":"Any surface","movement":"Walk","speed":2},
+"tracks_v1":{"name":"Tracks V1","cat":"Gear","size":Vector2i(3,2),"sides":[EXTERNAL_SIDE_BOTTOM],"desc":"Heavy traction system for slow but reliable movement across mud, rubble, slopes, and stairs.","energy":2,"terrain":"Any surface","movement":"Drive","speed":1,"ignore_debuff":true,"special":"ignore debuff"},
+"jumper_v1":{"name":"Jumper V1","cat":"Gear","size":Vector2i(3,3),"sides":[EXTERNAL_SIDE_BOTTOM],"desc":"A movement system based on jumping, allowing you to traverse gaps, obstacles, traps, and difficult terrain. Requires a Motor Controller.","energy":3,"terrain":"Any surface","movement":"Jump","speed":6,"ignore_debuff":true,"special":"ignore debuff"},
+"hover_pad_v1":{"name":"Air Cushion V1","cat":"Gear","size":Vector2i(3,3),"sides":[EXTERNAL_SIDE_BOTTOM],"desc":"Hover movement system that provides high mobility over difficult surfaces, but requires increased energy consumption. Requires a Motor Controller.","energy":3,"terrain":"Any surface","movement":"Levitate","speed":5,"ignore_debuff":true,"special":"ignore debuff"},
 "visor_v1":{"name":"Visor","cat":"Sensors","size":Vector2i(3,1),"sides":[EXTERNAL_SIDE_TOP],"scan":12},"thermal_visor_v1":{"name":"Thermal Visor","cat":"Sensors","size":Vector2i(3,1),"sides":[EXTERNAL_SIDE_TOP],"heat":2,"scan":15},"radar_v1":{"name":"Radar","cat":"Sensors","size":Vector2i(2,2),"sides":[EXTERNAL_SIDE_TOP],"scan":15},"xray_v1":{"name":"X-Ray","cat":"Sensors","size":Vector2i(2,2),"sides":[EXTERNAL_SIDE_TOP],"heat":2,"scan":12},
 "manipulator_arm_v1":{"name":"Manipulator Arm","cat":"Manipulator","size":Vector2i(2,2),"sides":[EXTERNAL_SIDE_LEFT,EXTERNAL_SIDE_RIGHT,EXTERNAL_SIDE_FRONT]},"manipulator_heavy_claw_v1":{"name":"Manipulator Heavy Claw","cat":"Manipulator","size":Vector2i(2,2),"sides":[EXTERNAL_SIDE_LEFT,EXTERNAL_SIDE_RIGHT,EXTERNAL_SIDE_FRONT]},"magnetic_manipulator_v1":{"name":"Magnetic Manipulator","cat":"Manipulator","size":Vector2i(2,2),"sides":[EXTERNAL_SIDE_LEFT,EXTERNAL_SIDE_RIGHT,EXTERNAL_SIDE_FRONT]},"tentacle_manipulator_v1":{"name":"Tentacle Manipulator","cat":"Manipulator","size":Vector2i(2,2),"sides":[EXTERNAL_SIDE_LEFT,EXTERNAL_SIDE_RIGHT,EXTERNAL_SIDE_FRONT]},"telescopic_arm_v1":{"name":"Telescopic Arm","cat":"Manipulator","size":Vector2i(2,2),"sides":[EXTERNAL_SIDE_LEFT,EXTERNAL_SIDE_RIGHT,EXTERNAL_SIDE_FRONT]},
 "high_bandwidth_interface_v1":{"name":"High-Bandwidth Interface","cat":"Interface","size":Vector2i(1,2),"sides":[EXTERNAL_SIDE_LEFT,EXTERNAL_SIDE_RIGHT,EXTERNAL_SIDE_FRONT]},"external_interface_connector_v1":{"name":"External Interface Connector","cat":"Interface","size":Vector2i(1,1),"sides":[EXTERNAL_SIDE_TOP,EXTERNAL_SIDE_LEFT,EXTERNAL_SIDE_RIGHT,EXTERNAL_SIDE_FRONT,EXTERNAL_SIDE_BACK]},"optical_interface_v1":{"name":"Optical Interface","cat":"Interface","size":Vector2i(1,1),"sides":[EXTERNAL_SIDE_TOP,EXTERNAL_SIDE_LEFT,EXTERNAL_SIDE_RIGHT,EXTERNAL_SIDE_FRONT,EXTERNAL_SIDE_BACK]},"wireless_interface_v1":{"name":"Wireless Interface","cat":"Interface","size":Vector2i(1,1),"sides":[EXTERNAL_SIDE_TOP,EXTERNAL_SIDE_LEFT,EXTERNAL_SIDE_RIGHT,EXTERNAL_SIDE_FRONT,EXTERNAL_SIDE_BACK]},
@@ -150,6 +153,7 @@ var mission7_socket_position: Vector2i = Vector2i(-1, -1)
 var mission7_powered_gate_position: Vector2i = Vector2i(-1, -1)
 var mission7_cable_path: Array[Vector2i] = []
 var mission7_cable_max_length: int = 12
+var movement_cells_since_energy_spend: int = 0
 
 @onready var grid_manager: GridManager = get_node("../Field")
 @onready var mission_label: Label = get_node("../UI/MissionLabel")
@@ -3884,6 +3888,10 @@ func create_external_module_by_id(module_id: String) -> BipobModule:
 	module.weapon_range_type = String(metadata.get("range", ""))
 	module.special_effect_text = String(metadata.get("special", ""))
 	module.action_modifier = int(metadata.get("actions", 0))
+	module.movement_type = String(metadata.get("movement", ""))
+	module.terrain_type = String(metadata.get("terrain", ""))
+	module.gear_speed = int(metadata.get("speed", 0))
+	module.ignore_terrain_debuff = bool(metadata.get("ignore_debuff", false))
 	if module.id in ["manipulator_arm_v1", "manipulator_heavy_claw_v1", "magnetic_manipulator_v1", "tentacle_manipulator_v1", "telescopic_arm_v1"]:
 		module.granted_commands = ["interact_key", "open_physical_door"]
 	if module.id in ["external_interface_connector_v1", "high_bandwidth_interface_v1", "optical_interface_v1", "wireless_interface_v1"]:
@@ -5070,46 +5078,48 @@ func _unhandled_input(event: InputEvent) -> void:
 func move_forward() -> void:
 	if not require_command("move_forward", "Missing module: Wheels V1 required."):
 		return
-	if not can_spend_action(1, 1):
+	if not can_spend_action(1, 0):
 		return
 	
 	var target_position := grid_position + get_direction_vector(direction)
 	
 	if try_move_to(target_position):
-		spend_action(1, 1)
+		spend_action(1, 0)
+		register_successful_movement_cells(1, get_surface_id_for_position(target_position))
 
 func move_backward() -> void:
 	if not require_command("move_backward", "Missing module: Wheels V1 required."):
 		return
-	if not can_spend_action(1, 1):
+	if not can_spend_action(1, 0):
 		return
 	
 	var target_position := grid_position - get_direction_vector(direction)
 	
 	if try_move_to(target_position):
-		spend_action(1, 1)
+		spend_action(1, 0)
+		register_successful_movement_cells(1, get_surface_id_for_position(target_position))
 
 func turn_left() -> void:
 	if not require_command("turn_left", "Missing module: Wheels V1 required."):
 		return
-	if not can_spend_action(1, 1):
+	if not can_spend_action(1, 0):
 		return
 	
 	direction = Direction.values()[(int(direction) + 3) % 4]
 	update_rotation()
 	update_vision()
-	spend_action(1, 1)
+	spend_action(1, 0)
 
 func turn_right() -> void:
 	if not require_command("turn_right", "Missing module: Wheels V1 required."):
 		return
-	if not can_spend_action(1, 1):
+	if not can_spend_action(1, 0):
 		return
 	
 	direction = Direction.values()[(int(direction) + 1) % 4]
 	update_rotation()
 	update_vision()
-	spend_action(1, 1)
+	spend_action(1, 0)
 
 func end_turn() -> void:
 	actions_left = actions_per_turn
@@ -5155,8 +5165,14 @@ func try_move_to(target_position: Vector2i) -> bool:
 		return false
 	
 	var target_tile := grid_manager.get_tile(target_position)
-	if target_tile == GridManager.TILE_STEPPED_FLOOR and not can_cross_stepped_floor():
-		hint_requested.emit("Stepped terrain blocks wheels. Install Legs V1 or Tracks V1.")
+	var target_surface_id: String = get_surface_id_for_tile(target_tile)
+	var active_gear: BipobModule = get_active_gear_module()
+	if active_gear == null:
+		hint_requested.emit("Missing module: Wheels V1 required.")
+		status_changed.emit()
+		return false
+	if not can_gear_move_on_surface(active_gear, target_surface_id):
+		hint_requested.emit("Current gear cannot move on this surface.")
 		status_changed.emit()
 		return false
 
@@ -5203,6 +5219,72 @@ func try_move_to(target_position: Vector2i) -> bool:
 		add_current_cell_to_mission7_cable_path()
 	check_mission_complete()
 	return true
+
+func get_active_gear_module() -> BipobModule:
+	for module in installed_modules:
+		if module == null or module.placement_type != "external":
+			continue
+		if String(module.category).to_lower() == "gear":
+			return module
+	return null
+
+func get_gear_energy_cost() -> int:
+	var gear := get_active_gear_module()
+	return gear.energy_cost if gear != null else 0
+
+func get_gear_base_speed() -> int:
+	var gear := get_active_gear_module()
+	return gear.gear_speed if gear != null and gear.gear_speed > 0 else 1
+
+func get_surface_id_for_position(position: Vector2i) -> String:
+	if grid_manager == null:
+		return "flat"
+	return get_surface_id_for_tile(grid_manager.get_tile(position))
+
+func get_surface_id_for_tile(tile_id: int) -> String:
+	if tile_id == GridManager.TILE_STEPPED_FLOOR:
+		return "mud"
+	return "flat"
+
+func can_gear_move_on_surface(gear: BipobModule, surface_id: String) -> bool:
+	if gear == null:
+		return false
+	if String(gear.terrain_type).to_lower() == "any surface":
+		return true
+	return surface_id == "flat"
+
+func get_effective_gear_speed_for_surface(gear: BipobModule, surface_id: String) -> int:
+	if gear == null:
+		return 1
+	var speed := maxi(1, gear.gear_speed)
+	if gear.ignore_terrain_debuff:
+		return speed
+	if surface_id == "mud":
+		speed -= 1
+	elif surface_id == "water":
+		speed -= 2
+	return maxi(1, speed)
+
+func register_successful_movement_cells(cell_count: int, surface_id: String) -> void:
+	if cell_count <= 0:
+		return
+	var gear := get_active_gear_module()
+	if gear == null:
+		return
+	var effective_speed: int = get_effective_gear_speed_for_surface(gear, surface_id)
+	movement_cells_since_energy_spend += cell_count
+	var spend_intervals: int = movement_cells_since_energy_spend / effective_speed
+	if spend_intervals <= 0:
+		return
+	var energy_to_spend: int = spend_intervals * maxi(0, gear.energy_cost)
+	movement_cells_since_energy_spend = movement_cells_since_energy_spend % effective_speed
+	if energy_to_spend > 0:
+		energy = maxi(0, energy - energy_to_spend)
+		print_status()
+		status_changed.emit()
+		if energy <= 0:
+			print("Energy depleted. Mission failed.")
+			mission_failed.emit()
 	
 func check_mission_complete() -> void:
 	var current_tile := grid_manager.get_tile(grid_position)
