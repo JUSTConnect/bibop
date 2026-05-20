@@ -42,6 +42,9 @@ class_name BipobModule
 @export var terrain_type: String = ""
 @export var gear_speed: int = 0
 @export var ignore_terrain_debuff: bool = false
+@export var reach_value: int = 0
+@export var direction_text: String = ""
+@export var carry_text: String = ""
 
 # Internal stat outputs
 @export var energy_capacity: int = 0
