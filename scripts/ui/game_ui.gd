@@ -3251,7 +3251,7 @@ func _get_selected_module_for_context(context: String) -> BipobModule:
 
 func _create_selected_module_size_preview(module: BipobModule, context: String) -> Control:
 	if context == "internal" or (module != null and module.placement_type.begins_with("internal")):
-		return _create_internal_mini_isometric_size_preview(module, context)
+		return _create_internal_footprint_size_preview(module, context)
 	return _create_external_flat_size_preview(module)
 
 
@@ -3281,12 +3281,50 @@ func _create_external_flat_size_preview(module: BipobModule) -> Control:
 	return panel
 
 
-func _create_internal_mini_isometric_size_preview(module: BipobModule, context: String) -> Control:
+func _create_internal_footprint_size_preview(module: BipobModule, context: String) -> Control:
 	var panel := PanelContainer.new()
 	panel.custom_minimum_size = Vector2(84, 64)
 	panel.add_theme_stylebox_override("panel", _make_panel_style(UI_COLOR_PANEL_DARK, UI_COLOR_BORDER_DIM, 1, 4))
-	var preview := SelectedModuleMiniPreviewControl.new(self, module, context)
-	panel.add_child(preview)
+	var root := VBoxContainer.new()
+	root.add_theme_constant_override("separation", 2)
+	root.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	root.alignment = BoxContainer.ALIGNMENT_CENTER
+	if module == null:
+		panel.add_child(root)
+		return panel
+	var is_overlay: bool = context == "internal" and (bipob.is_internal_overlay_module(module) or module.placement_type == "internal_overlay" or module.get_internal_size() == Vector3i.ZERO)
+	if is_overlay:
+		var overlay_label := Label.new()
+		overlay_label.text = "Overlay"
+		_apply_label_style(overlay_label, true, false)
+		overlay_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+		root.add_child(overlay_label)
+		panel.add_child(root)
+		return panel
+
+	var internal_size: Vector3i = module.get_internal_size()
+	var footprint_size := Vector2i(maxi(1, internal_size.x), maxi(1, internal_size.y))
+	var preview_columns: int = maxi(4, footprint_size.x)
+	var preview_rows: int = maxi(4, footprint_size.y)
+	var grid := GridContainer.new()
+	grid.columns = preview_columns
+	grid.add_theme_constant_override("h_separation", 2)
+	grid.add_theme_constant_override("v_separation", 2)
+	grid.size_flags_horizontal = Control.SIZE_SHRINK_CENTER
+	for y in range(preview_rows):
+		for x in range(preview_columns):
+			var c := ColorRect.new()
+			c.custom_minimum_size = SELECTED_MODULE_PREVIEW_CELL_SIZE
+			var is_filled: bool = x < footprint_size.x and y < footprint_size.y
+			c.color = Color(0.35, 0.75, 0.95, 0.55) if is_filled else Color(0.2, 0.24, 0.3, 0.35)
+			grid.add_child(c)
+	root.add_child(grid)
+	var height_label := Label.new()
+	height_label.text = "H:%d" % maxi(1, internal_size.z)
+	_apply_label_style(height_label, true, false)
+	height_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	root.add_child(height_label)
+	panel.add_child(root)
 	return panel
 
 
@@ -3440,7 +3478,7 @@ func _get_module_type_text(module: BipobModule) -> String:
 	if module == null:
 		return "Other"
 	var type_text := String(module.category).strip_edges()
-	if type_text.is_empty() or type_text.to_lower() == "utility":
+	if type_text.is_empty():
 		type_text = "Other"
 	return type_text
 
