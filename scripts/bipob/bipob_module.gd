@@ -96,6 +96,7 @@ class_name BipobModule
 @export var damage_threshold_heat: int = 5
 @export var repair_complexity: int = 1
 @export var repair_category: String = "standard"
+@export var is_broken: bool = false
 
 
 func get_display_name() -> String:
