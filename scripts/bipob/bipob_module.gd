@@ -34,6 +34,7 @@ class_name BipobModule
 @export var scan_type: String = ""
 @export var armor_bonus: int = 0
 @export var shield_value: int = 0
+@export var defense_type: String = ""
 @export var damage_value: String = ""
 @export var weapon_range_type: String = ""
 @export var special_effect_text: String = ""
