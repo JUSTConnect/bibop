@@ -54,6 +54,9 @@ class SelectedModuleMiniPreviewControl:
 var diagnostic_label: Label
 var runtime_mission_field_host: Control
 var runtime_hud_root: Control = null
+var runtime_bipob_switcher_panel: PanelContainer = null
+var runtime_selected_mission_bipob_index: int = 0
+var runtime_mission_bipob_cards: Array[Button] = []
 
 @onready var box_status_label: Label = $BoxScreen/PanelContainer/VBoxContainer/StatusLabel
 @onready var box_module_label: Label = $BoxScreen/PanelContainer/VBoxContainer/ModuleLabel
@@ -4065,6 +4068,97 @@ func _ensure_runtime_hud_root() -> Control:
 	return runtime_hud_root
 
 
+func _get_mission_bipobs() -> Array[Dictionary]:
+	return get_selected_bipobs_for_mission()
+
+
+func _has_multiple_mission_bipobs() -> bool:
+	return _get_mission_bipobs().size() > 1
+
+
+func _get_mission_bipob_display_name(bipob_data: Dictionary, index: int) -> String:
+	var display_name: String = str(bipob_data.get("name", "")).strip_edges()
+	if display_name.is_empty():
+		var profile_id: String = str(bipob_data.get("id", "")).strip_edges()
+		if BIPOB_PROFILE_NAMES.has(profile_id):
+			display_name = str(BIPOB_PROFILE_NAMES[profile_id])
+	if display_name.is_empty():
+		display_name = "Bipob %d" % (index + 1)
+	return display_name
+
+
+func _set_active_mission_bipob(index: int) -> void:
+	var mission_bipobs: Array[Dictionary] = _get_mission_bipobs()
+	if mission_bipobs.is_empty():
+		runtime_selected_mission_bipob_index = 0
+		return
+	var clamped_index: int = clampi(index, 0, mission_bipobs.size() - 1)
+	if clamped_index == runtime_selected_mission_bipob_index and bipob != null:
+		return
+	runtime_selected_mission_bipob_index = clamped_index
+	var selected_data: Dictionary = mission_bipobs[clamped_index]
+	var profile_id: String = str(selected_data.get("id", "")).strip_edges()
+	if not profile_id.is_empty() and profile_id != active_bipob_profile_id:
+		_save_active_bipob_profile()
+		_load_bipob_profile(profile_id)
+	_refresh_active_mission_bipob_hud()
+
+
+func _refresh_active_mission_bipob_hud() -> void:
+	update_status()
+	_update_runtime_bipob_switch_card_styles()
+
+
+func _on_bipob_switch_card_pressed(index: int) -> void:
+	_set_active_mission_bipob(index)
+
+
+func _update_runtime_bipob_switch_card_styles() -> void:
+	for i in range(runtime_mission_bipob_cards.size()):
+		var card: Button = runtime_mission_bipob_cards[i]
+		if card == null:
+			continue
+		var is_active: bool = i == runtime_selected_mission_bipob_index
+		card.button_pressed = is_active
+		card.modulate = Color(1, 1, 1, 1) if is_active else Color(0.78, 0.82, 0.88, 1.0)
+
+
+func _create_bipob_switcher_panel() -> PanelContainer:
+	var panel := PanelContainer.new()
+	panel.name = "RuntimeBipobSwitcher"
+	panel.add_theme_stylebox_override("panel", _make_panel_style(UI_COLOR_PANEL, UI_COLOR_BORDER, 1, 8))
+	var margin := MarginContainer.new()
+	margin.add_theme_constant_override("margin_left", 8)
+	margin.add_theme_constant_override("margin_top", 8)
+	margin.add_theme_constant_override("margin_right", 8)
+	margin.add_theme_constant_override("margin_bottom", 8)
+	panel.add_child(margin)
+	var root := VBoxContainer.new()
+	root.add_theme_constant_override("separation", 4)
+	margin.add_child(root)
+	var title := Label.new()
+	title.text = "BIPOB"
+	root.add_child(title)
+	var row := HBoxContainer.new()
+	row.add_theme_constant_override("separation", 4)
+	root.add_child(row)
+	runtime_mission_bipob_cards.clear()
+	var mission_bipobs: Array[Dictionary] = _get_mission_bipobs()
+	for i in range(mission_bipobs.size()):
+		var bipob_data: Dictionary = mission_bipobs[i]
+		var button := Button.new()
+		button.toggle_mode = true
+		button.focus_mode = Control.FOCUS_NONE
+		button.custom_minimum_size = Vector2(72, 28)
+		button.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+		button.text = _get_mission_bipob_display_name(bipob_data, i)
+		button.pressed.connect(_on_bipob_switch_card_pressed.bind(i))
+		runtime_mission_bipob_cards.append(button)
+		row.add_child(button)
+	_update_runtime_bipob_switch_card_styles()
+	return panel
+
+
 func _apply_runtime_hud_layout() -> void:
 	var root: Control = _ensure_runtime_hud_root()
 	root.visible = true
@@ -4108,8 +4202,19 @@ func _apply_runtime_hud_layout() -> void:
 	mission_goal_value_label.text = "Mission 1: pick up the key, open the door, reach the exit."
 	objective_margin.add_child(mission_goal_value_label)
 
+	var right_x: float = viewport.x - sidebar_width - margin
+	var switcher_height: float = 0.0
+	if _has_multiple_mission_bipobs():
+		runtime_bipob_switcher_panel = _create_bipob_switcher_panel()
+		runtime_bipob_switcher_panel.position = Vector2(right_x, margin)
+		runtime_bipob_switcher_panel.size = Vector2(sidebar_width, 76)
+		switcher_height = runtime_bipob_switcher_panel.size.y + 6.0
+		root.add_child(runtime_bipob_switcher_panel)
+	else:
+		runtime_bipob_switcher_panel = null
+
 	runtime_storage_panel = _create_runtime_storage_panel()
-	runtime_storage_panel.position = Vector2(viewport.x - sidebar_width - margin, margin)
+	runtime_storage_panel.position = Vector2(right_x, margin + switcher_height)
 	runtime_storage_panel.size = Vector2(sidebar_width, top_panel_height)
 	root.add_child(runtime_storage_panel)
 
@@ -4145,7 +4250,7 @@ func _apply_runtime_hud_layout() -> void:
 	bottom_left_vbox.add_child(controls_panel)
 
 	var mission_panel: PanelContainer = _create_runtime_mission_panel()
-	mission_panel.position = Vector2(viewport.x - sidebar_width - margin, bottom_y)
+	mission_panel.position = Vector2(right_x, bottom_y)
 	mission_panel.size = Vector2(sidebar_width, bottom_area_height)
 	root.add_child(mission_panel)
 
@@ -4811,6 +4916,7 @@ func start_gameplay_from_center() -> void:
 	app_screen_mode = AppScreenMode.GAMEPLAY
 	box_opened_from_center = false
 	_hide_all_app_screens()
+	_set_active_mission_bipob(0)
 	_apply_runtime_hud_layout()
 	_set_gameplay_visible(true)
 	_on_start_mission_button_pressed()
