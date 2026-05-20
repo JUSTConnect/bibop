@@ -47,7 +47,12 @@ const EXTERNAL_MODULE_CATALOG: Dictionary = {
 "welder_v1":{"name":"Welder V1","cat":"Tools","size":Vector2i(2,2),"sides":[EXTERNAL_SIDE_LEFT,EXTERNAL_SIDE_RIGHT,EXTERNAL_SIDE_FRONT],"desc":"External welding tool for sealing doors, repairing metal surfaces, reinforcing damaged structures, and creating temporary welded connections.","energy":1,"range_value":1,"direction":"Front","tool_action":"weld"},
 "repair_v1":{"name":"Repair V1","cat":"Tools","size":Vector2i(2,2),"sides":[EXTERNAL_SIDE_LEFT,EXTERNAL_SIDE_RIGHT,EXTERNAL_SIDE_FRONT],"desc":"Field repair module for restoring damaged robot modules, fixing mission equipment, and performing basic mechanical recovery tasks.","energy":1,"range_value":1,"direction":"Front","tool_action":"repair"},
 "plasma_cutter_v1":{"name":"Plasma Cutter V1","cat":"Tools","size":Vector2i(3,2),"sides":[EXTERNAL_SIDE_LEFT,EXTERNAL_SIDE_RIGHT],"desc":"High-energy cutting tool for opening metal doors, cutting grates, removing armor plates, and breaking through heavy obstacles.","energy":2,"range_value":1,"direction":"Front","tool_action":"cut","special":"opens blocked paths"},
-"laser_v1":{"name":"Laser","cat":"Weapons","size":Vector2i(3,3),"sides":[EXTERNAL_SIDE_LEFT,EXTERNAL_SIDE_RIGHT],"energy":2,"heat":5,"damage":"1-2","range":"Ranged"},"shocker_v1":{"name":"Shocker","cat":"Weapons","size":Vector2i(3,3),"sides":[EXTERNAL_SIDE_LEFT,EXTERNAL_SIDE_RIGHT,EXTERNAL_SIDE_FRONT],"damage":"1","range":"Melee"},"sledgehammer_v1":{"name":"Sledgehammer","cat":"Weapons","size":Vector2i(3,3),"sides":[EXTERNAL_SIDE_LEFT,EXTERNAL_SIDE_RIGHT],"damage":"3","range":"Melee"},"saw_v1":{"name":"Saw","cat":"Weapons","size":Vector2i(3,3),"sides":[EXTERNAL_SIDE_LEFT,EXTERNAL_SIDE_RIGHT],"damage":"1","range":"Melee"},"gas_canister_v1":{"name":"Gas Canister","cat":"Weapons","size":Vector2i(2,4),"sides":[EXTERNAL_SIDE_BACK],"desc":"Fuel/ammo for gas weapon.","energy":0,"heat":0,"damage":"0","range":"","special":"Fuel capacity 6. Explosive."},"gas_burner_v1":{"name":"Gas Burner","cat":"Weapons","size":Vector2i(3,3),"sides":[EXTERNAL_SIDE_LEFT,EXTERNAL_SIDE_RIGHT,EXTERNAL_SIDE_FRONT],"desc":"Flamethrower / gas burner.","energy":0,"heat":4,"damage":"1-3","range":"Ranged","special":"Area attack in front, 3x4 cells."},
+"laser_v1":{"name":"Laser","cat":"Weapons","size":Vector2i(3,3),"sides":[EXTERNAL_SIDE_LEFT,EXTERNAL_SIDE_RIGHT],"desc":"Long-range energy weapon that damages targets with a focused beam and increases heat on repeated hits.","energy":2,"damage":"1-3","range":"Ranged","range_value":5,"direction":"Front","span":"Ranged","special":"target overheat +1"},
+"shocker_v1":{"name":"Shocker","cat":"Weapons","size":Vector2i(3,3),"sides":[EXTERNAL_SIDE_LEFT,EXTERNAL_SIDE_RIGHT,EXTERNAL_SIDE_FRONT],"desc":"Close-range electric weapon that stuns or disables targets for a short time.","energy":1,"damage":"1","range":"Melee","range_value":1,"direction":"Front","span":"Melee","special":"immobilize 1 turn"},
+"sledgehammer_v1":{"name":"Sledgehammer","cat":"Weapons","size":Vector2i(3,3),"sides":[EXTERNAL_SIDE_LEFT,EXTERNAL_SIDE_RIGHT],"desc":"Heavy melee impact weapon that strikes a small area in front of the robot with strong but inaccurate force.","energy":1,"damage":"3","range":"Melee","range_value":1,"direction":"Front","span":"Melee","special":"Splash area front 3 cells"},
+"saw_v1":{"name":"Saw","cat":"Weapons","size":Vector2i(3,3),"sides":[EXTERNAL_SIDE_LEFT,EXTERNAL_SIDE_RIGHT],"desc":"Close-range cutting weapon for damaging nearby targets and mechanical obstacles.","energy":1,"damage":"3","range":"Melee","range_value":1,"direction":"Front","span":"Melee","special":"Splash area side 3 cells"},
+"gas_canister_v1":{"name":"Gas Canister","cat":"Weapons","size":Vector2i(2,4),"sides":[EXTERNAL_SIDE_BACK],"desc":"Fuel container for gas-based weapons. Stores limited fuel and can become dangerous if damaged.","energy":0,"fuel_capacity":6,"special":"explosive"},
+"gas_burner_v1":{"name":"Gas Burner","cat":"Weapons","size":Vector2i(3,3),"sides":[EXTERNAL_SIDE_LEFT,EXTERNAL_SIDE_RIGHT],"desc":"Gas-based flame weapon that projects fire across an area in front of the robot.","energy":0,"damage":"1-3","range":"Ranged","range_value":1,"direction":"Front","span":"Ranged","ammo_dependency_id":"gas_canister_v1","special":"Splash area square 3*4 cells"},
 "shield_module_v1":{"name":"Shield Module V1","cat":"Defense","size":Vector2i(1,2),"sides":[EXTERNAL_SIDE_TOP,EXTERNAL_SIDE_BOTTOM,EXTERNAL_SIDE_LEFT,EXTERNAL_SIDE_RIGHT,EXTERNAL_SIDE_FRONT,EXTERNAL_SIDE_BACK],"desc":"Energy shield generator that absorbs incoming damage using battery charge. The shield weakens as available energy drops.","energy":1,"shield":20,"defense_type":"Absorption","special":"disables below 25% battery"},"emp_shield_v1":{"name":"EMP Shield V1","cat":"Defense","size":Vector2i(1,1),"sides":[EXTERNAL_SIDE_TOP,EXTERNAL_SIDE_BOTTOM,EXTERNAL_SIDE_LEFT,EXTERNAL_SIDE_RIGHT,EXTERNAL_SIDE_FRONT,EXTERNAL_SIDE_BACK],"desc":"Protective module that reduces the effect of EMP attacks, electric shock, forced shutdowns, and hostile module disruption.","energy":1,"shield":15,"defense_type":"EMP","special":"shock protection"},"heat_shield_v1":{"name":"Heat Shield V1","cat":"Defense","size":Vector2i(1,1),"sides":[EXTERNAL_SIDE_LEFT,EXTERNAL_SIDE_RIGHT,EXTERNAL_SIDE_FRONT],"desc":"Thermal protection plate that reduces damage and overheating from fire, lasers, gas burners, and other high-temperature sources.","energy":1,"defense_type":"Absorption","special":"fire and laser protection heat"},"reactive_bumper_v1":{"name":"Reactive Bumper V1","cat":"Defense","size":Vector2i(2,1),"sides":[EXTERNAL_SIDE_LEFT,EXTERNAL_SIDE_RIGHT,EXTERNAL_SIDE_FRONT,EXTERNAL_SIDE_BACK],"desc":"Impact protection module that absorbs collision damage and allows safer ramming, pushing, and contact with heavy obstacles.","energy":0,"damage":"1","armor":10,"special":"ram attack"},"armor_plate_v1":{"name":"Armor Plate V1","cat":"Defense","size":Vector2i(2,2),"sides":[EXTERNAL_SIDE_TOP,EXTERNAL_SIDE_BOTTOM,EXTERNAL_SIDE_LEFT,EXTERNAL_SIDE_RIGHT,EXTERNAL_SIDE_FRONT,EXTERNAL_SIDE_BACK],"desc":"Passive armor plating that increases the robot body durability and protects mounted external modules from direct damage.","energy":0,"armor":20},
 "antenna_v1":{"name":"Antenna","cat":"Other","size":Vector2i(1,1),"sides":[EXTERNAL_SIDE_TOP]},"intiradar_v1":{"name":"Anti-Radar Module","cat":"Other","size":Vector2i(1,2),"sides":[EXTERNAL_SIDE_TOP,EXTERNAL_SIDE_BOTTOM,EXTERNAL_SIDE_LEFT,EXTERNAL_SIDE_RIGHT,EXTERNAL_SIDE_FRONT,EXTERNAL_SIDE_BACK]},"smoke_emitter_v1":{"name":"Smoke Emitter","cat":"Other","size":Vector2i(1,2),"sides":[EXTERNAL_SIDE_TOP,EXTERNAL_SIDE_BOTTOM,EXTERNAL_SIDE_LEFT,EXTERNAL_SIDE_RIGHT,EXTERNAL_SIDE_FRONT,EXTERNAL_SIDE_BACK]},"beacon_module_v1":{"name":"Beacon Module","cat":"Other","size":Vector2i(1,2),"sides":[EXTERNAL_SIDE_TOP,EXTERNAL_SIDE_BOTTOM,EXTERNAL_SIDE_LEFT,EXTERNAL_SIDE_RIGHT,EXTERNAL_SIDE_FRONT,EXTERNAL_SIDE_BACK]},"signal_jammer_v1":{"name":"Signal Jammer","cat":"Other","size":Vector2i(1,2),"sides":[EXTERNAL_SIDE_TOP,EXTERNAL_SIDE_BOTTOM,EXTERNAL_SIDE_LEFT,EXTERNAL_SIDE_RIGHT,EXTERNAL_SIDE_FRONT,EXTERNAL_SIDE_BACK]},"ventilation_port_v1":{"name":"Ventilation Port","cat":"Other","size":Vector2i(1,1),"sides":[EXTERNAL_SIDE_TOP,EXTERNAL_SIDE_BOTTOM,EXTERNAL_SIDE_LEFT,EXTERNAL_SIDE_RIGHT,EXTERNAL_SIDE_FRONT,EXTERNAL_SIDE_BACK]}
 }
@@ -3951,6 +3956,9 @@ func create_external_module_by_id(module_id: String) -> BipobModule:
 	module.reach_value = int(metadata.get("reach", 0))
 	module.range_value = int(metadata.get("range_value", module.reach_value))
 	module.direction_text = String(metadata.get("direction", ""))
+	module.span_text = String(metadata.get("span", module.weapon_range_type))
+	module.fuel_capacity = int(metadata.get("fuel_capacity", 0))
+	module.ammo_dependency_id = String(metadata.get("ammo_dependency_id", ""))
 	module.tool_action = String(metadata.get("tool_action", ""))
 	module.carry_text = String(metadata.get("carry", ""))
 	module.connection_type = String(metadata.get("connection", ""))
@@ -5969,6 +5977,45 @@ func spend_energy_for_tool_action(module: BipobModule) -> bool:
 		return false
 	energy -= cost
 	return true
+
+func has_installed_external_module_id(module_id: String) -> bool:
+	for module in installed_modules:
+		if module != null and module.placement_type == "external" and module.id == module_id:
+			return true
+	return false
+
+func get_installed_weapons() -> Array:
+	var result: Array = []
+	for module in installed_modules:
+		if module != null and String(module.category) == "Weapons":
+			result.append(module)
+	return result
+
+func can_weapon_attack(module: BipobModule, _attack_data: Dictionary = {}) -> bool:
+	if module == null:
+		return false
+	if String(module.category) != "Weapons":
+		return false
+	if module.id == "gas_canister_v1":
+		return false
+	if not module.ammo_dependency_id.is_empty():
+		if not has_installed_external_module_id(module.ammo_dependency_id):
+			return false
+	return true
+
+func spend_energy_for_weapon_attack(module: BipobModule) -> bool:
+	if module == null:
+		return false
+	var cost := maxi(0, int(module.energy_cost))
+	if cost <= 0:
+		return true
+	if energy < cost:
+		return false
+	energy -= cost
+	return true
+
+# TODO(BIB-531): Wire weapon selection/attack flow to can_weapon_attack() and spend_energy_for_weapon_attack()
+# when dedicated combat actions are implemented. Keep gas dependency + metadata checks in these helpers.
 
 # TODO(BIB-529): validate concrete target metadata/range for weld/repair/cut interactions once mission objects expose these constraints.
 func try_commit_tool_action(action_id: String) -> bool:
