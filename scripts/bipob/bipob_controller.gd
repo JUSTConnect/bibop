@@ -3957,6 +3957,7 @@ func create_internal_module(module_id: String, module_name: String, module_size:
 	module.power_distribution = get_internal_power_distribution(module_id)
 	module.interface_role = get_internal_interface_role(module_id)
 	module.ports = get_internal_interface_ports(module_id)
+	module.power_ports = get_internal_power_ports(module_id)
 	module.category = get_internal_category_for_module_id(module_id)
 	module.description = get_internal_description_for_module_id(module_id)
 	module.heat_value = get_internal_overheat_for_module_id(module_id)
@@ -3997,7 +3998,7 @@ func get_internal_family_for_module_id(module_id: String) -> String:
 		return "storage"
 	if module_id.begins_with("battery_"):
 		return "battery"
-	if module_id.begins_with("power_block_") or module_id.begins_with("capacitor_bank_"):
+	if module_id.begins_with("power_block_") or module_id.begins_with("capacitor_bank_") or module_id.begins_with("charger_"):
 		return "power"
 	if module_id.begins_with("cooler_") or module_id.begins_with("radiator_") or module_id.begins_with("water_tube_") or module_id.begins_with("air_duct_"):
 		return "cooling"
@@ -4059,7 +4060,18 @@ func get_internal_cooling_value(module_id: String) -> int:
 			return 0
 
 func get_internal_power_distribution(module_id: String) -> int:
-	return 1 if module_id == "power_block_v1" else 0
+	return 1 if module_id.begins_with("power_block_") else 0
+
+func get_internal_power_ports(module_id: String) -> int:
+	match module_id:
+		"power_block_v1":
+			return 15
+		"power_block_v2":
+			return 17
+		"power_block_v3":
+			return 20
+		_:
+			return 0
 
 func get_internal_interface_role(module_id: String) -> String:
 	if module_id.begins_with("internal_interface_"):
@@ -4123,6 +4135,53 @@ func get_external_connected_module_count() -> int:
 			continue
 		unique_modules[module.get_instance_id()] = true
 	return unique_modules.size()
+
+func is_power_block_module(module: BipobModule) -> bool:
+	if module == null:
+		return false
+	return module.id.begins_with("power_block_")
+
+func get_power_port_capacity() -> int:
+	var total := 0
+	for record in placed_internal_modules:
+		var module: BipobModule = record.get("module", null)
+		if module != null:
+			total += module.power_ports
+	return total
+
+func get_internal_powered_device_count() -> int:
+	var count := 0
+	for record in placed_internal_modules:
+		var module: BipobModule = record.get("module", null)
+		if module == null:
+			continue
+		if is_power_block_module(module):
+			continue
+		if module.placement_type == "internal_overlay":
+			continue
+		count += 1
+	return count
+
+func get_external_powered_device_count() -> int:
+	var unique_modules: Dictionary = {}
+	for key in external_modules_by_slot.keys():
+		var entry: Variant = external_modules_by_slot[key]
+		var module: BipobModule = null
+		if entry is BipobModule:
+			module = entry
+		elif entry is Dictionary:
+			module = entry.get("module", null)
+		if module == null:
+			continue
+		unique_modules[module.get_instance_id()] = true
+	return unique_modules.size()
+
+func get_used_power_port_count() -> int:
+	return get_internal_powered_device_count() + get_external_powered_device_count()
+
+func is_power_port_overloaded() -> bool:
+	return get_used_power_port_count() > get_power_port_capacity()
+
 func get_internal_description_for_module_id(module_id: String) -> String:
 	match module_id:
 		"battery_v1":
@@ -4132,9 +4191,15 @@ func get_internal_description_for_module_id(module_id: String) -> String:
 		"battery_v3":
 			return "A high-capacity energy storage unit for demanding builds equipped with heavy sensors, shields, weaponry, or advanced equipment."
 		"power_block_v1":
-			return "Distributes battery power between internal systems and connected external modules. Required for stable operation and recharge."
+			return "Distributes battery power between internal systems and connected external modules."
+		"power_block_v2":
+			return "It improves the distribution of power from the battery between internal systems and connected external modules."
+		"power_block_v3":
+			return "The ultimate power distributor for routing power from the battery to internal and external modules."
 		"capacitor_bank_v1":
 			return "Accumulates a short-duration impulse charge to execute powerful actions. An essential component for many advanced modules."
+		"charger_v1":
+			return "Allows batteries to be charged without removing them."
 		"processor_v1":
 			return "Performs basic logical operations, hacking routines, and system calculations."
 		"processor_v2":
@@ -4158,8 +4223,10 @@ func get_internal_overheat_for_module_id(module_id: String) -> int:
 	match module_id:
 		"battery_v1", "battery_v2", "battery_v3":
 			return 1
-		"power_block_v1", "capacitor_bank_v1":
+		"power_block_v1", "power_block_v2", "power_block_v3", "capacitor_bank_v1":
 			return 3
+		"charger_v1":
+			return 1
 		"processor_v1":
 			return 3
 		"processor_v2":
@@ -4203,6 +4270,8 @@ func get_internal_characteristics_text(module: BipobModule) -> String:
 		lines.append("Storage: +%d" % module.digital_storage_slots)
 	if module.power_distribution > 0:
 		lines.append("Power Distribution: +%d" % module.power_distribution)
+	if module.power_ports > 0:
+		lines.append("Power Ports: %d" % module.power_ports)
 	if module.ports > 0:
 		lines.append("Ports: %d" % module.ports)
 	if not module.interface_role.is_empty():
@@ -4215,8 +4284,10 @@ func get_internal_role_for_module_id(module_id: String) -> String:
 	match module_id:
 		"battery_v1", "battery_v2", "battery_v3":
 			return "battery"
-		"power_block_v1":
+		"power_block_v1", "power_block_v2", "power_block_v3":
 			return "power_block"
+		"charger_v1":
+			return "charger"
 		"internal_interface_v1", "internal_interface_v2", "internal_interface_v3":
 			return "internal_interface"
 		"external_interface_v1", "external_interface_v2", "external_interface_v3":
@@ -4260,8 +4331,10 @@ func apply_thermal_metadata(module: BipobModule) -> void:
 			module.heat_idle = 2; module.heat_active = 2
 		"hard_drive_v1", "hard_drive_v2", "hard_drive_v3":
 			module.heat_idle = 3; module.heat_active = 3
-		"power_block_v1":
+		"power_block_v1", "power_block_v2", "power_block_v3":
 			module.heat_idle = 3; module.heat_active = 3
+		"charger_v1":
+			module.heat_idle = 1; module.heat_active = 1
 		"capacitor_bank_v1":
 			module.heat_idle = 3; module.heat_active = 3
 		"internal_interface_v1", "external_interface_v1":
@@ -4301,7 +4374,7 @@ func apply_damage_metadata(module: BipobModule) -> void:
 		"memory_v1", "memory_v2", "memory_v3", "hard_drive_v1", "hard_drive_v2", "hard_drive_v3", "visor_v1", "visor_v2":
 			module.repair_complexity = 2
 			module.repair_category = "electronics"
-		"power_block_v1":
+		"power_block_v1", "power_block_v2", "power_block_v3", "charger_v1":
 			module.repair_complexity = 3
 			module.repair_category = "power"
 		"battery_v1", "battery_v2", "battery_v3":
@@ -4519,7 +4592,13 @@ func get_module_description_for_id(module_id: String) -> String:
 		"battery_v3":
 			return "A high-capacity energy storage unit for demanding builds equipped with heavy sensors, shields, weaponry, or advanced equipment."
 		"power_block_v1":
-			return "Distributes battery power between internal systems and connected external modules. Required for stable operation and recharge."
+			return "Distributes battery power between internal systems and connected external modules."
+		"power_block_v2":
+			return "It improves the distribution of power from the battery between internal systems and connected external modules."
+		"power_block_v3":
+			return "The ultimate power distributor for routing power from the battery to internal and external modules."
+		"charger_v1":
+			return "Allows batteries to be charged without removing them."
 		"capacitor_bank_v1":
 			return "Accumulates a short-duration impulse charge to execute powerful actions. An essential component for many advanced modules."
 		"internal_interface_v1":
@@ -4541,9 +4620,12 @@ func add_internal_mvp_modules_to_box() -> void:
 	var internal_specs: Array[Dictionary] = [
 		{"id": "battery_v1", "name": "Battery V1", "size": Vector3i(2, 2, 1)},
 		{"id": "power_block_v1", "name": "Power Block V1", "size": Vector3i(1, 2, 2)},
+		{"id": "power_block_v2", "name": "Power Block V2", "size": Vector3i(1, 2, 2)},
+		{"id": "power_block_v3", "name": "Power Block V3", "size": Vector3i(1, 2, 2)},
 		{"id": "battery_v2", "name": "Battery V2", "size": Vector3i(2, 2, 1)},
 		{"id": "battery_v3", "name": "Battery V3", "size": Vector3i(2, 2, 1)},
 		{"id": "capacitor_bank_v1", "name": "Capacitor Bank V1", "size": Vector3i(1, 1, 1)},
+		{"id": "charger_v1", "name": "Charger V1", "size": Vector3i(1, 1, 1)},
 		{"id": "processor_v1", "name": "Processor V1", "size": Vector3i(1, 1, 1)},
 		{"id": "processor_v2", "name": "Processor V2", "size": Vector3i(1, 1, 1)},
 		{"id": "processor_v3", "name": "Processor V3", "size": Vector3i(1, 1, 1)},
