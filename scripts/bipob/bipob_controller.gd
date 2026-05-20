@@ -46,7 +46,7 @@ const EXTERNAL_MODULE_CATALOG: Dictionary = {
 "high_bandwidth_interface_v1":{"name":"High-Bandwidth Interface","cat":"Interface","size":Vector2i(1,2),"sides":[EXTERNAL_SIDE_LEFT,EXTERNAL_SIDE_RIGHT,EXTERNAL_SIDE_FRONT],"desc":"High-capacity external data channel for demanding modules such as radar, X-Ray systems, heavy sensors, turrets, and advanced tools.","energy":3,"connection":"high-bandwidth","connection_range":"contact","special":"heavy modules"},"external_interface_connector_v1":{"name":"External Interface Connector","cat":"Interface","size":Vector2i(1,1),"sides":[EXTERNAL_SIDE_LEFT,EXTERNAL_SIDE_RIGHT,EXTERNAL_SIDE_FRONT],"desc":"Basic physical connector for linking external body modules to the robot’s internal control and power systems.","energy":1,"connection":"physical","connection_range":"contact"},"optical_interface_v1":{"name":"Optical Interface","cat":"Interface","size":Vector2i(1,1),"sides":[EXTERNAL_SIDE_LEFT,EXTERNAL_SIDE_RIGHT,EXTERNAL_SIDE_FRONT],"desc":"Fast optical communication channel with reduced interference, designed for sensors, cameras, and precision data transfer.","energy":1,"connection":"optical","connection_range":"contact","special":"reduced interference"},"wireless_interface_v1":{"name":"Wireless Interface","cat":"Interface","size":Vector2i(1,1),"sides":[EXTERNAL_SIDE_LEFT,EXTERNAL_SIDE_RIGHT,EXTERNAL_SIDE_FRONT],"desc":"Wireless connection module that allows nearby devices and external systems to exchange data without direct physical contact, but remains vulnerable to jamming.","energy":2,"connection":"wireless","connection_range":"3","special":"vulnerable to jamming"},
 "welder_v1":{"name":"Welder","cat":"Tools","size":Vector2i(2,2),"sides":[EXTERNAL_SIDE_LEFT,EXTERNAL_SIDE_RIGHT,EXTERNAL_SIDE_FRONT]},"repair_v1":{"name":"Repair","cat":"Tools","size":Vector2i(2,2),"sides":[EXTERNAL_SIDE_LEFT,EXTERNAL_SIDE_RIGHT,EXTERNAL_SIDE_FRONT]},"plasma_cutter_v1":{"name":"Plasma Cutter","cat":"Tools","size":Vector2i(3,2),"sides":[EXTERNAL_SIDE_LEFT,EXTERNAL_SIDE_RIGHT]},
 "laser_v1":{"name":"Laser","cat":"Weapons","size":Vector2i(3,3),"sides":[EXTERNAL_SIDE_LEFT,EXTERNAL_SIDE_RIGHT],"energy":2,"heat":5,"damage":"1-2","range":"Ranged"},"shocker_v1":{"name":"Shocker","cat":"Weapons","size":Vector2i(3,3),"sides":[EXTERNAL_SIDE_LEFT,EXTERNAL_SIDE_RIGHT,EXTERNAL_SIDE_FRONT],"damage":"1","range":"Melee"},"sledgehammer_v1":{"name":"Sledgehammer","cat":"Weapons","size":Vector2i(3,3),"sides":[EXTERNAL_SIDE_LEFT,EXTERNAL_SIDE_RIGHT],"damage":"3","range":"Melee"},"saw_v1":{"name":"Saw","cat":"Weapons","size":Vector2i(3,3),"sides":[EXTERNAL_SIDE_LEFT,EXTERNAL_SIDE_RIGHT],"damage":"1","range":"Melee"},"gas_canister_v1":{"name":"Gas Canister","cat":"Weapons","size":Vector2i(2,4),"sides":[EXTERNAL_SIDE_BACK],"desc":"Fuel/ammo for gas weapon.","energy":0,"heat":0,"damage":"0","range":"","special":"Fuel capacity 6. Explosive."},"gas_burner_v1":{"name":"Gas Burner","cat":"Weapons","size":Vector2i(3,3),"sides":[EXTERNAL_SIDE_LEFT,EXTERNAL_SIDE_RIGHT,EXTERNAL_SIDE_FRONT],"desc":"Flamethrower / gas burner.","energy":0,"heat":4,"damage":"1-3","range":"Ranged","special":"Area attack in front, 3x4 cells."},
-"shield_module_v1":{"name":"Shield Module","cat":"Defense","size":Vector2i(1,2),"sides":[EXTERNAL_SIDE_TOP,EXTERNAL_SIDE_BOTTOM,EXTERNAL_SIDE_LEFT,EXTERNAL_SIDE_RIGHT,EXTERNAL_SIDE_FRONT,EXTERNAL_SIDE_BACK],"shield":20},"emp_shield_v1":{"name":"EMP Shield","cat":"Defense","size":Vector2i(1,1),"sides":[EXTERNAL_SIDE_TOP,EXTERNAL_SIDE_BOTTOM,EXTERNAL_SIDE_LEFT,EXTERNAL_SIDE_RIGHT,EXTERNAL_SIDE_FRONT,EXTERNAL_SIDE_BACK],"shield":15},"heat_shield_v1":{"name":"Heat Shield","cat":"Defense","size":Vector2i(1,1),"sides":[EXTERNAL_SIDE_LEFT,EXTERNAL_SIDE_RIGHT,EXTERNAL_SIDE_FRONT]},"reactive_bumper_v1":{"name":"Reactive Bumper","cat":"Defense","size":Vector2i(2,1),"sides":[EXTERNAL_SIDE_LEFT,EXTERNAL_SIDE_RIGHT,EXTERNAL_SIDE_FRONT,EXTERNAL_SIDE_BACK],"armor":10},"armor_plate_v1":{"name":"Armor Plate","cat":"Defense","size":Vector2i(2,2),"sides":[EXTERNAL_SIDE_TOP,EXTERNAL_SIDE_BOTTOM,EXTERNAL_SIDE_LEFT,EXTERNAL_SIDE_RIGHT,EXTERNAL_SIDE_FRONT,EXTERNAL_SIDE_BACK],"armor":20},
+"shield_module_v1":{"name":"Shield Module V1","cat":"Defense","size":Vector2i(1,2),"sides":[EXTERNAL_SIDE_TOP,EXTERNAL_SIDE_BOTTOM,EXTERNAL_SIDE_LEFT,EXTERNAL_SIDE_RIGHT,EXTERNAL_SIDE_FRONT,EXTERNAL_SIDE_BACK],"desc":"Energy shield generator that absorbs incoming damage using battery charge. The shield weakens as available energy drops.","energy":1,"shield":20,"defense_type":"Absorption","special":"disables below 25% battery"},"emp_shield_v1":{"name":"EMP Shield V1","cat":"Defense","size":Vector2i(1,1),"sides":[EXTERNAL_SIDE_TOP,EXTERNAL_SIDE_BOTTOM,EXTERNAL_SIDE_LEFT,EXTERNAL_SIDE_RIGHT,EXTERNAL_SIDE_FRONT,EXTERNAL_SIDE_BACK],"desc":"Protective module that reduces the effect of EMP attacks, electric shock, forced shutdowns, and hostile module disruption.","energy":1,"shield":15,"defense_type":"EMP","special":"shock protection"},"heat_shield_v1":{"name":"Heat Shield V1","cat":"Defense","size":Vector2i(1,1),"sides":[EXTERNAL_SIDE_LEFT,EXTERNAL_SIDE_RIGHT,EXTERNAL_SIDE_FRONT],"desc":"Thermal protection plate that reduces damage and overheating from fire, lasers, gas burners, and other high-temperature sources.","energy":1,"defense_type":"Absorption","special":"fire and laser protection heat"},"reactive_bumper_v1":{"name":"Reactive Bumper V1","cat":"Defense","size":Vector2i(2,1),"sides":[EXTERNAL_SIDE_LEFT,EXTERNAL_SIDE_RIGHT,EXTERNAL_SIDE_FRONT,EXTERNAL_SIDE_BACK],"desc":"Impact protection module that absorbs collision damage and allows safer ramming, pushing, and contact with heavy obstacles.","energy":0,"damage":"1","armor":10,"special":"ram attack"},"armor_plate_v1":{"name":"Armor Plate V1","cat":"Defense","size":Vector2i(2,2),"sides":[EXTERNAL_SIDE_TOP,EXTERNAL_SIDE_BOTTOM,EXTERNAL_SIDE_LEFT,EXTERNAL_SIDE_RIGHT,EXTERNAL_SIDE_FRONT,EXTERNAL_SIDE_BACK],"desc":"Passive armor plating that increases the robot body durability and protects mounted external modules from direct damage.","energy":0,"armor":20},
 "antenna_v1":{"name":"Antenna","cat":"Other","size":Vector2i(1,1),"sides":[EXTERNAL_SIDE_TOP]},"intiradar_v1":{"name":"Anti-Radar Module","cat":"Other","size":Vector2i(1,2),"sides":[EXTERNAL_SIDE_TOP,EXTERNAL_SIDE_BOTTOM,EXTERNAL_SIDE_LEFT,EXTERNAL_SIDE_RIGHT,EXTERNAL_SIDE_FRONT,EXTERNAL_SIDE_BACK]},"smoke_emitter_v1":{"name":"Smoke Emitter","cat":"Other","size":Vector2i(1,2),"sides":[EXTERNAL_SIDE_TOP,EXTERNAL_SIDE_BOTTOM,EXTERNAL_SIDE_LEFT,EXTERNAL_SIDE_RIGHT,EXTERNAL_SIDE_FRONT,EXTERNAL_SIDE_BACK]},"beacon_module_v1":{"name":"Beacon Module","cat":"Other","size":Vector2i(1,2),"sides":[EXTERNAL_SIDE_TOP,EXTERNAL_SIDE_BOTTOM,EXTERNAL_SIDE_LEFT,EXTERNAL_SIDE_RIGHT,EXTERNAL_SIDE_FRONT,EXTERNAL_SIDE_BACK]},"signal_jammer_v1":{"name":"Signal Jammer","cat":"Other","size":Vector2i(1,2),"sides":[EXTERNAL_SIDE_TOP,EXTERNAL_SIDE_BOTTOM,EXTERNAL_SIDE_LEFT,EXTERNAL_SIDE_RIGHT,EXTERNAL_SIDE_FRONT,EXTERNAL_SIDE_BACK]},"ventilation_port_v1":{"name":"Ventilation Port","cat":"Other","size":Vector2i(1,1),"sides":[EXTERNAL_SIDE_TOP,EXTERNAL_SIDE_BOTTOM,EXTERNAL_SIDE_LEFT,EXTERNAL_SIDE_RIGHT,EXTERNAL_SIDE_FRONT,EXTERNAL_SIDE_BACK]}
 }
 const INTERNAL_SIZE_X := 3
@@ -3937,6 +3937,7 @@ func create_external_module_by_id(module_id: String) -> BipobModule:
 	module.sensor_direction = String(metadata.get("direction", ""))
 	module.armor_bonus = int(metadata.get("armor", 0))
 	module.shield_value = int(metadata.get("shield", 0))
+	module.defense_type = String(metadata.get("defense_type", ""))
 	module.damage_value = String(metadata.get("damage", ""))
 	module.weapon_range_type = String(metadata.get("range", ""))
 	module.special_effect_text = String(metadata.get("special", ""))
@@ -3962,6 +3963,54 @@ func create_external_module_by_id(module_id: String) -> BipobModule:
 	apply_damage_metadata(module)
 	return module
 
+
+
+func is_defense_module_active(module: BipobModule) -> bool:
+	if module == null:
+		return false
+	if String(module.category) != "Defense":
+		return false
+	if module.id == "shield_module_v1" and max_energy > 0:
+		var shield_disable_threshold: float = float(max_energy) * 0.25
+		if float(energy) < shield_disable_threshold:
+			return false
+	return true
+
+
+func try_apply_defense_energy_cost(module: BipobModule) -> bool:
+	if module == null:
+		return false
+	if not is_defense_module_active(module):
+		return false
+	var energy_cost: int = maxi(0, module.energy_cost)
+	if energy_cost <= 0:
+		return true
+	if energy < energy_cost:
+		return false
+	energy -= energy_cost
+	status_changed.emit()
+	return true
+
+
+# TODO(BIB-530): Wire this helper into combat/status effect systems when damage hooks are available.
+func consume_defense_energy_for_effect(effect_type: String) -> bool:
+	var normalized_effect: String = effect_type.strip_edges().to_lower()
+	for module in installed_modules:
+		if module == null or module.placement_type != "external":
+			continue
+		if String(module.category) != "Defense":
+			continue
+		match normalized_effect:
+			"emp", "shock":
+				if module.id == "emp_shield_v1":
+					return try_apply_defense_energy_cost(module)
+			"heat", "fire", "laser":
+				if module.id == "heat_shield_v1":
+					return try_apply_defense_energy_cost(module)
+			"damage", "absorption", "shield":
+				if module.id == "shield_module_v1":
+					return try_apply_defense_energy_cost(module)
+	return false
 func ensure_external_constructor_modules_in_box_storage() -> void:
 	var required_ids: Array = EXTERNAL_MODULE_CATALOG.keys()
 

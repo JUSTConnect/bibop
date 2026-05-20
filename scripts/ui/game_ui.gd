@@ -3617,6 +3617,18 @@ func _get_module_characteristics_lines(module: BipobModule, context: String = ""
 			lines.append("Special: %s" % module.special_effect_text)
 		return lines
 
+	if module.placement_type == "external" and String(module.category) == "Defense":
+		lines.append("Energy: %d" % module.energy_cost)
+		if not module.defense_type.is_empty():
+			lines.append("Type Defense: %s" % module.defense_type)
+		if not module.damage_value.is_empty() and module.damage_value != "0":
+			lines.append("Damage: +%s" % module.damage_value)
+		if module.armor_bonus != 0:
+			lines.append("Armor: +%d" % module.armor_bonus)
+		if not module.special_effect_text.is_empty():
+			lines.append("Special: %s" % module.special_effect_text)
+		return lines
+
 	if module.energy_cost != 0:
 		lines.append("Energy: %d" % module.energy_cost)
 
