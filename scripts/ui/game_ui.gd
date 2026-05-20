@@ -45,6 +45,7 @@ class SelectedModuleMiniPreviewControl:
 
 @onready var bipob = get_node("../Bipob")
 
+@onready var mission_label: Label = $MissionLabel
 @onready var status_label: Label = $StatusLabel
 @onready var hint_label: Label = $HintLabel
 @onready var command_panel: PanelContainer = $CommandPanel
@@ -4504,11 +4505,32 @@ func _hide_all_app_screens() -> void:
 	if runtime_hud_root != null and is_instance_valid(runtime_hud_root):
 		runtime_hud_root.visible = false
 
+func _hide_runtime_mission_ui() -> void:
+	if mission_label != null:
+		mission_label.visible = false
+		mission_label.text = ""
+	if status_label != null:
+		status_label.visible = false
+		status_label.text = ""
+	if hint_label != null:
+		hint_label.visible = false
+		hint_label.text = ""
+	if command_panel != null:
+		command_panel.visible = false
+	if runtime_hud_root != null and is_instance_valid(runtime_hud_root):
+		runtime_hud_root.visible = false
+	if runtime_mission_field_host != null and is_instance_valid(runtime_mission_field_host):
+		runtime_mission_field_host.visible = false
+
 func _set_gameplay_visible(visible_state: bool) -> void:
+	if not visible_state:
+		_hide_runtime_mission_ui()
 	if command_panel != null:
 		command_panel.visible = false
 	if runtime_hud_root != null and is_instance_valid(runtime_hud_root):
 		runtime_hud_root.visible = visible_state
+	if mission_label != null:
+		mission_label.visible = false
 	if status_label != null:
 		status_label.visible = false
 	if hint_label != null:
@@ -4542,6 +4564,7 @@ func _set_gameplay_visible(visible_state: bool) -> void:
 func show_main_menu_screen() -> void:
 	app_screen_mode = AppScreenMode.MAIN_MENU
 	box_opened_from_center = false
+	_hide_runtime_mission_ui()
 	_hide_all_app_screens()
 	_set_gameplay_visible(false)
 	if main_menu_root != null:
@@ -4549,6 +4572,7 @@ func show_main_menu_screen() -> void:
 
 func show_center_screen() -> void:
 	app_screen_mode = AppScreenMode.CENTER
+	_hide_runtime_mission_ui()
 	_hide_all_app_screens()
 	_set_gameplay_visible(false)
 	if center_menu_root != null:
@@ -4621,6 +4645,7 @@ func _clear_children(root: Node) -> void:
 
 func show_mission_result_screen(success: bool, mission_index: int = -1) -> void:
 	app_screen_mode = AppScreenMode.MISSION_RESULT
+	_hide_runtime_mission_ui()
 	_hide_all_app_screens()
 	_set_gameplay_visible(false)
 	var root: Control = _ensure_mission_result_root()
