@@ -343,6 +343,12 @@ func get_module_visual_short_label(module: BipobModule) -> String:
 		return "GAS"
 	if module.id == "ventilation_port_v1":
 		return "VNT"
+	if module.id == "charging_via_external_heat_v1":
+		return "CEH"
+	if module.id == "charging_via_internal_heat_v1":
+		return "CIH"
+	if module.id == "energy_drain_v1":
+		return "END"
 
 	var key: String = get_module_visual_key(module)
 
@@ -3961,6 +3967,7 @@ func create_internal_module(module_id: String, module_name: String, module_size:
 	module.category = get_internal_category_for_module_id(module_id)
 	module.description = get_internal_description_for_module_id(module_id)
 	module.heat_value = get_internal_overheat_for_module_id(module_id)
+	module.energy_effect_text = get_internal_energy_effect_text(module_id)
 	module.characteristics_text = get_internal_characteristics_text(module)
 	apply_thermal_metadata(module)
 	apply_damage_metadata(module)
@@ -3999,6 +4006,8 @@ func get_internal_family_for_module_id(module_id: String) -> String:
 	if module_id.begins_with("battery_"):
 		return "battery"
 	if module_id.begins_with("power_block_") or module_id.begins_with("capacitor_bank_") or module_id.begins_with("charger_"):
+		return "power"
+	if module_id.begins_with("charging_via_external_heat_") or module_id.begins_with("charging_via_internal_heat_") or module_id.begins_with("energy_drain_"):
 		return "power"
 	if module_id.begins_with("cooler_") or module_id.begins_with("radiator_") or module_id.begins_with("water_tube_") or module_id.begins_with("air_duct_"):
 		return "cooling"
@@ -4200,6 +4209,12 @@ func get_internal_description_for_module_id(module_id: String) -> String:
 			return "Accumulates a short-duration impulse charge to execute powerful actions. An essential component for many advanced modules."
 		"charger_v1":
 			return "Allows batteries to be charged without removing them."
+		"charging_via_external_heat_v1":
+			return "Converts heat from the external environment into battery charge. Useful in hot zones, near fire, or around overheated machinery."
+		"charging_via_internal_heat_v1":
+			return "Recovers part of the robot’s internal waste heat and converts it into battery charge. Works best in builds with many overheating modules."
+		"energy_drain_v1":
+			return "Extracts energy from nearby powered objects, damaged machines, or exposed energy systems and redirects it into the robot’s batteries."
 		"processor_v1":
 			return "Performs basic logical operations, hacking routines, and system calculations."
 		"processor_v2":
@@ -4227,6 +4242,10 @@ func get_internal_overheat_for_module_id(module_id: String) -> int:
 			return 3
 		"charger_v1":
 			return 1
+		"charging_via_external_heat_v1", "charging_via_internal_heat_v1":
+			return 2
+		"energy_drain_v1":
+			return 3
 		"processor_v1":
 			return 3
 		"processor_v2":
@@ -4260,6 +4279,8 @@ func get_internal_characteristics_text(module: BipobModule) -> String:
 		lines.append("Overheat: +%d" % module.heat_value)
 	if module.energy_capacity > 0:
 		lines.append("Energy: +%d" % module.energy_capacity)
+	if not module.energy_effect_text.is_empty():
+		lines.append("Energy: %s" % module.energy_effect_text)
 	if module.action_capacity > 0:
 		lines.append("Actions: +%d" % module.action_capacity)
 	if module.hack_value > 0:
@@ -4280,6 +4301,17 @@ func get_internal_characteristics_text(module: BipobModule) -> String:
 		lines.append("Special: %s" % module.special_effect_text)
 	return "\n".join(lines)
 
+func get_internal_energy_effect_text(module_id: String) -> String:
+	match module_id:
+		"charging_via_external_heat_v1":
+			return "+2 / one degree up"
+		"charging_via_internal_heat_v1":
+			return "+1 / one degree"
+		"energy_drain_v1":
+			return "+10 / action"
+		_:
+			return ""
+
 func get_internal_role_for_module_id(module_id: String) -> String:
 	match module_id:
 		"battery_v1", "battery_v2", "battery_v3":
@@ -4287,6 +4319,8 @@ func get_internal_role_for_module_id(module_id: String) -> String:
 		"power_block_v1", "power_block_v2", "power_block_v3":
 			return "power_block"
 		"charger_v1":
+			return "charger"
+		"charging_via_external_heat_v1", "charging_via_internal_heat_v1", "energy_drain_v1":
 			return "charger"
 		"internal_interface_v1", "internal_interface_v2", "internal_interface_v3":
 			return "internal_interface"
@@ -4332,6 +4366,10 @@ func apply_thermal_metadata(module: BipobModule) -> void:
 		"hard_drive_v1", "hard_drive_v2", "hard_drive_v3":
 			module.heat_idle = 3; module.heat_active = 3
 		"power_block_v1", "power_block_v2", "power_block_v3":
+			module.heat_idle = 3; module.heat_active = 3
+		"charging_via_external_heat_v1", "charging_via_internal_heat_v1":
+			module.heat_idle = 2; module.heat_active = 2
+		"energy_drain_v1":
 			module.heat_idle = 3; module.heat_active = 3
 		"charger_v1":
 			module.heat_idle = 1; module.heat_active = 1
@@ -4626,6 +4664,9 @@ func add_internal_mvp_modules_to_box() -> void:
 		{"id": "battery_v3", "name": "Battery V3", "size": Vector3i(2, 2, 1)},
 		{"id": "capacitor_bank_v1", "name": "Capacitor Bank V1", "size": Vector3i(1, 1, 1)},
 		{"id": "charger_v1", "name": "Charger V1", "size": Vector3i(1, 1, 1)},
+		{"id": "charging_via_external_heat_v1", "name": "Charging via External Heat V1", "size": Vector3i(1, 1, 2)},
+		{"id": "charging_via_internal_heat_v1", "name": "Charging via Internal Heat V1", "size": Vector3i(1, 1, 2)},
+		{"id": "energy_drain_v1", "name": "Energy Drain V1", "size": Vector3i(1, 1, 2)},
 		{"id": "processor_v1", "name": "Processor V1", "size": Vector3i(1, 1, 1)},
 		{"id": "processor_v2", "name": "Processor V2", "size": Vector3i(1, 1, 1)},
 		{"id": "processor_v3", "name": "Processor V3", "size": Vector3i(1, 1, 1)},

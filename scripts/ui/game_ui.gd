@@ -3606,6 +3606,8 @@ func _get_module_characteristics_lines(module: BipobModule, context: String = ""
 
 	if module.energy_capacity > 0:
 		lines.append("Energy: +%d" % module.energy_capacity)
+	if not module.energy_effect_text.is_empty():
+		lines.append("Energy: %s" % module.energy_effect_text)
 
 	if module.action_capacity > 0:
 		lines.append("Actions: +%d" % module.action_capacity)
@@ -3647,6 +3649,8 @@ func _get_internal_characteristics_lines(module: BipobModule) -> Array:
 
 	if module.energy_capacity > 0:
 		lines.append("Energy: +%d" % module.energy_capacity)
+	if not module.energy_effect_text.is_empty():
+		lines.append("Energy: %s" % module.energy_effect_text)
 
 	if module.action_capacity > 0:
 		lines.append("Actions: +%d" % module.action_capacity)
