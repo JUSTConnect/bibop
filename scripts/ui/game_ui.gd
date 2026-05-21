@@ -219,8 +219,8 @@ var tasks_reward_label: Label
 var tasks_description_label: Label
 var tasks_main_goal_label: Label
 var tasks_extra_goal_label: Label
-var tasks_requirements_required_label: Label
-var tasks_requirements_current_label: RichTextLabel
+var tasks_requirements_required_labels: Array[Label] = []
+var tasks_requirements_current_labels: Array[RichTextLabel] = []
 var tasks_warnings_label: RichTextLabel
 var tasks_report_label: Label
 var tasks_bipob_buttons_row: HBoxContainer
@@ -289,6 +289,8 @@ const CONSTRUCTOR_SHOW_DEBUG_TEXT_IN_MAIN: bool = false
 const CONSTRUCTOR_COMPACT_DETAILS: bool = true
 const CONSTRUCTOR_COMPACT_STATUS: bool = true
 const CONSTRUCTOR_SHOW_MODE_LAYOUT_TITLE: bool = false
+const TASK_REQUIREMENT_ROW_HEIGHT: float = 32.0
+const TASK_REQUIREMENT_REQUIRED_COL_WIDTH: float = 320.0
 
 
 func _disconnect_all_pressed_connections(button: Button) -> void:
@@ -5245,10 +5247,10 @@ func _apply_tasks_placeholder_details() -> void:
 		tasks_main_goal_label.text = "This category is not available yet."
 	if tasks_extra_goal_label != null:
 		tasks_extra_goal_label.text = "—"
-	if tasks_requirements_required_label != null:
-		tasks_requirements_required_label.text = "TBD"
-	if tasks_requirements_current_label != null:
-		tasks_requirements_current_label.text = "TBD"
+	for i in tasks_requirements_required_labels.size():
+		tasks_requirements_required_labels[i].text = "TBD" if i == 0 else ""
+	for i in tasks_requirements_current_labels.size():
+		tasks_requirements_current_labels[i].text = "TBD" if i == 0 else ""
 	if tasks_warnings_label != null:
 		tasks_warnings_label.text = "No warnings."
 
@@ -5277,10 +5279,12 @@ func _update_tasks_details_panel() -> void:
 	if tasks_extra_goal_label != null:
 		tasks_extra_goal_label.text = "- %s" % "\n- ".join(task.get("extra_goals", []))
 	var requirements_ui: Dictionary = build_requirements_text(task, selected_bipobs, validation)
-	if tasks_requirements_required_label != null:
-		tasks_requirements_required_label.text = String(requirements_ui.get("required", ""))
-	if tasks_requirements_current_label != null:
-		tasks_requirements_current_label.text = String(requirements_ui.get("current", ""))
+	var required_rows: Array = requirements_ui.get("required_rows", [])
+	var current_rows: Array = requirements_ui.get("current_rows", [])
+	for i in tasks_requirements_required_labels.size():
+		tasks_requirements_required_labels[i].text = String(required_rows[i]) if i < required_rows.size() else ""
+	for i in tasks_requirements_current_labels.size():
+		tasks_requirements_current_labels[i].text = String(current_rows[i]) if i < current_rows.size() else ""
 	if tasks_warnings_label != null:
 		tasks_warnings_label.text = _build_warnings_block_text(critical_warnings, recommendations)
 	if tasks_report_label != null:
@@ -5431,6 +5435,24 @@ func _build_validation_summary(validation: Dictionary) -> String:
 		return "READY: Configuration is valid."
 	return "- %s" % "\n- ".join(validation.get("messages", []))
 
+func _configure_requirement_cell_label(label: Label, is_required_column: bool) -> void:
+	label.autowrap_mode = TextServer.AUTOWRAP_OFF
+	label.clip_text = true
+	label.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
+	label.custom_minimum_size = Vector2(TASK_REQUIREMENT_REQUIRED_COL_WIDTH if is_required_column else 0.0, TASK_REQUIREMENT_ROW_HEIGHT)
+	label.size_flags_horizontal = Control.SIZE_SHRINK_BEGIN if is_required_column else Control.SIZE_EXPAND_FILL
+	_apply_label_style(label)
+
+func _configure_requirement_cell_rich_label(label: RichTextLabel) -> void:
+	label.bbcode_enabled = true
+	label.fit_content = true
+	label.scroll_active = false
+	label.autowrap_mode = TextServer.AUTOWRAP_OFF
+	label.clip_contents = true
+	label.custom_minimum_size = Vector2(0.0, TASK_REQUIREMENT_ROW_HEIGHT)
+	label.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	label.add_theme_color_override("default_color", UI_COLOR_TEXT)
+
 func build_requirements_text(mission_data: Dictionary, selected_bipobs: Array[Dictionary], validation: Dictionary) -> Dictionary:
 	var req_battery: int = int(mission_data.get("required_battery", 50))
 	var rem: int = get_bipob_remaining_battery()
@@ -5443,20 +5465,25 @@ func build_requirements_text(mission_data: Dictionary, selected_bipobs: Array[Di
 	var sensors: Array[String] = get_bipob_sensor_modules()
 	var pocket: int = get_bipob_pocket_slots()
 	var req_pocket: int = int(mission_data.get("required_pocket", 1))
-	var required_text := "Bipobs: %d %s\nMovement: %s\nSensor: %s\nBattery: %d\nPocket: %d" % [int(mission_data.get("required_bipob_count", 1)), String(mission_data.get("required_bipob_type", "Scout")), String(mission_data.get("required_movement_type", "basic movement")), String(mission_data.get("required_sensor_type", "basic sensor")), req_battery, req_pocket]
-	var current_lines: Array[String] = []
-	current_lines.append("Bipobs: %s" % (", ".join(selected_names) if not selected_names.is_empty() else "[color=#%s]%s[/color]" % [UI_COLOR_DANGER.to_html(false), missing]))
-	current_lines.append("Movement: %s" % (", ".join(movement) if not movement.is_empty() else "[color=#%s]%s[/color]" % [UI_COLOR_DANGER.to_html(false), missing]))
-	current_lines.append("Sensor: %s" % (", ".join(sensors) if not sensors.is_empty() else "[color=#%s]%s[/color]" % [UI_COLOR_DANGER.to_html(false), missing]))
+	var required_rows: Array[String] = []
+	required_rows.append("Bipobs: %d %s" % [int(mission_data.get("required_bipob_count", 1)), String(mission_data.get("required_bipob_type", "Scout"))])
+	required_rows.append("Movement: %s" % String(mission_data.get("required_movement_type", "basic movement")))
+	required_rows.append("Sensor: %s" % String(mission_data.get("required_sensor_type", "basic sensor")))
+	required_rows.append("Battery: %d" % req_battery)
+	required_rows.append("Pocket: %d" % req_pocket)
+	var current_rows: Array[String] = []
+	current_rows.append(", ".join(selected_names) if not selected_names.is_empty() else "[color=#%s]%s[/color]" % [UI_COLOR_DANGER.to_html(false), missing])
+	current_rows.append(", ".join(movement) if not movement.is_empty() else "[color=#%s]%s[/color]" % [UI_COLOR_DANGER.to_html(false), missing])
+	current_rows.append(", ".join(sensors) if not sensors.is_empty() else "[color=#%s]%s[/color]" % [UI_COLOR_DANGER.to_html(false), missing])
 	var battery_text: String = "Max: %d / Remaining: %d" % [max_b, rem]
 	if rem < req_battery:
 		battery_text = "[color=#%s]%s[/color]" % [UI_COLOR_DANGER.to_html(false), battery_text]
-	current_lines.append("Battery: %s" % battery_text)
+	current_rows.append(battery_text)
 	var pocket_text: String = str(pocket)
 	if pocket < req_pocket:
 		pocket_text = "[color=#%s]%s[/color]" % [UI_COLOR_DANGER.to_html(false), missing]
-	current_lines.append("Pocket: %s" % pocket_text)
-	return {"required": required_text, "current": "\n".join(current_lines), "valid": validation.get("valid", false)}
+	current_rows.append(pocket_text)
+	return {"required_rows": required_rows, "current_rows": current_rows, "valid": validation.get("valid", false)}
 
 func charge_bipob_from_center() -> void:
 	if bipob == null:
@@ -7148,29 +7175,36 @@ func _build_tasks_menu_layout() -> void:
 	_apply_label_style(tasks_extra_goal_label)
 	extra_goal_box.add_child(tasks_extra_goal_label)
 
-	var req_row := HBoxContainer.new()
-	req_row.add_theme_constant_override("separation", 8)
-	details_content.add_child(req_row)
-	var req_required_panel := PanelContainer.new()
-	req_required_panel.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-	req_required_panel.add_theme_stylebox_override("panel", _make_panel_style(UI_COLOR_PANEL_DARK, UI_COLOR_BORDER_DIM, 1, 6))
-	req_row.add_child(req_required_panel)
-	var req_required_v := VBoxContainer.new()
-	req_required_panel.add_child(req_required_v)
-	var req_required_title := Label.new(); req_required_title.text = "Required"; _apply_label_style(req_required_title, true); req_required_v.add_child(req_required_title)
-	tasks_requirements_required_label = Label.new()
-	tasks_requirements_required_label.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
-	_apply_label_style(tasks_requirements_required_label)
-	req_required_v.add_child(tasks_requirements_required_label)
-	var req_current_panel := PanelContainer.new()
-	req_current_panel.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-	req_current_panel.add_theme_stylebox_override("panel", _make_panel_style(UI_COLOR_PANEL_DARK, UI_COLOR_BORDER_DIM, 1, 6))
-	req_row.add_child(req_current_panel)
-	var req_current_v := VBoxContainer.new(); req_current_panel.add_child(req_current_v)
-	var req_current_title := Label.new(); req_current_title.text = "Current"; _apply_label_style(req_current_title, true); req_current_v.add_child(req_current_title)
-	tasks_requirements_current_label = RichTextLabel.new(); tasks_requirements_current_label.fit_content = true; tasks_requirements_current_label.bbcode_enabled = true
-	tasks_requirements_current_label.add_theme_color_override("default_color", UI_COLOR_TEXT)
-	req_current_v.add_child(tasks_requirements_current_label)
+	var requirements_panel := PanelContainer.new()
+	requirements_panel.add_theme_stylebox_override("panel", _make_panel_style(UI_COLOR_PANEL_DARK, UI_COLOR_BORDER_DIM, 1, 6))
+	details_content.add_child(requirements_panel)
+	var requirements_grid := GridContainer.new()
+	requirements_grid.columns = 2
+	requirements_grid.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	requirements_grid.add_theme_constant_override("h_separation", 12)
+	requirements_grid.add_theme_constant_override("v_separation", 4)
+	requirements_panel.add_child(requirements_grid)
+	tasks_requirements_required_labels.clear()
+	tasks_requirements_current_labels.clear()
+	var required_title := Label.new()
+	required_title.text = "Required"
+	_configure_requirement_cell_label(required_title, true)
+	_apply_label_style(required_title, true)
+	requirements_grid.add_child(required_title)
+	var current_title := Label.new()
+	current_title.text = "Current"
+	_configure_requirement_cell_label(current_title, false)
+	_apply_label_style(current_title, true)
+	requirements_grid.add_child(current_title)
+	for _idx in 5:
+		var required_cell := Label.new()
+		_configure_requirement_cell_label(required_cell, true)
+		requirements_grid.add_child(required_cell)
+		tasks_requirements_required_labels.append(required_cell)
+		var current_cell := RichTextLabel.new()
+		_configure_requirement_cell_rich_label(current_cell)
+		requirements_grid.add_child(current_cell)
+		tasks_requirements_current_labels.append(current_cell)
 
 	var warnings_panel := PanelContainer.new()
 	warnings_panel.add_theme_stylebox_override("panel", _make_panel_style(UI_COLOR_PANEL_DARK, UI_COLOR_BORDER_DIM, 1, 6))
