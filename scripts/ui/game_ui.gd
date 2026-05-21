@@ -7804,6 +7804,15 @@ func _refresh_all_energy_dependent_ui() -> void:
 	_setup_mission_field_hud()
 	update_status()
 
+func _setup_mission_field_hud() -> void:
+	# Keep mission gameplay HUD in sync after screen hierarchy/runtime refreshes.
+	if app_screen_mode != AppScreenMode.GAMEPLAY:
+		return
+	_hide_all_app_screens()
+	_apply_runtime_hud_layout()
+	_set_gameplay_visible(true)
+	call_deferred("_attach_runtime_gameplay_view")
+
 func _get_profile_battery_modules(profile_id: String) -> Array[BipobModule]:
 	var modules: Array[BipobModule] = []
 	if profile_id == active_bipob_profile_id:
