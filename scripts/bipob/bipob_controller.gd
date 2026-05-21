@@ -4196,17 +4196,15 @@ func create_default_modules() -> void:
 	_add_unknown_test_visor_v3_to_box_storage()
 
 func _add_broken_test_visor_v2_to_box_storage() -> void:
-	var broken_exists: bool = false
 	for module in box_storage:
-		if module != null and module.id == "visor_v2" and is_module_broken(module):
-			broken_exists = true
-			break
-	if broken_exists:
-		return
+		if module == null:
+			continue
+		if module.module_id == "test_broken_visor_v2":
+			return
 	var broken_visor: BipobModule = create_external_module_by_id("visor_v2")
 	if broken_visor == null:
 		return
-	broken_visor.module_id = "visor_v2_broken_test"
+	broken_visor.module_id = "test_broken_visor_v2"
 	set_module_broken(broken_visor, true)
 	box_storage.append(broken_visor)
 
