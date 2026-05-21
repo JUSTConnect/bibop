@@ -6949,7 +6949,7 @@ func _build_center_menu_layout() -> void:
 	top_row.add_child(top_spacer)
 	var top_right := VBoxContainer.new()
 	top_right.add_theme_constant_override("separation", 8)
-	top_right.add_child(_create_menu_button("Выйти из игры", Callable(self, "_on_center_exit_pressed"), Vector2(190, 36), "danger"))
+	top_right.add_child(_create_menu_button("Выйти в главное меню", Callable(self, "_on_center_main_menu_pressed"), Vector2(220, 36)))
 	top_right.add_child(_create_menu_button("Настройки", Callable(self, "_on_center_settings_pressed"), Vector2(190, 36)))
 	top_row.add_child(top_right)
 
@@ -6972,13 +6972,6 @@ func _build_center_menu_layout() -> void:
 	bottom_grid.add_child(_create_menu_button("Зарядка", Callable(self, "_on_center_charge_pressed"), Vector2(150, 54)))
 	bottom_grid.add_child(_create_menu_button("Исследования", Callable(self, "_on_center_research_pressed"), Vector2(150, 54)))
 	bottom_grid.add_child(_create_menu_button("Ремонт", Callable(self, "_on_center_repair_pressed"), Vector2(150, 54)))
-
-	var back_row := HBoxContainer.new()
-	root.add_child(back_row)
-	var back_spacer := Control.new()
-	back_spacer.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-	back_row.add_child(back_spacer)
-	back_row.add_child(_create_menu_button("Выйти в главное меню", Callable(self, "_on_center_main_menu_pressed"), Vector2(220, 36)))
 
 func _build_tasks_menu_layout() -> void:
 	if tasks_menu_root == null:
@@ -7414,8 +7407,6 @@ func _on_center_settings_pressed() -> void:
 	show_placeholder_screen("Настройки")
 func _on_center_main_menu_pressed() -> void:
 	show_main_menu_screen()
-func _on_center_exit_pressed() -> void:
-	show_placeholder_screen("Выход из игры")
 
 func show_charging_menu() -> void:
 	app_screen_mode = AppScreenMode.CHARGING_MENU
