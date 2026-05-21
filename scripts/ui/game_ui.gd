@@ -167,6 +167,9 @@ var selected_external_side_index: int = 1
 var selected_external_slot_position: Vector2i = Vector2i(1, 1)
 var selected_constructor_module: BipobModule = null
 var selected_module_source: String = "none"
+var selected_install_record: Dictionary = {}
+var selected_external_side: String = ""
+var selected_external_cell: Vector2i = Vector2i.ZERO
 var internal_view_mode: String = "modules"
 var module_icon_texture_cache: Dictionary = {}
 var constructor_reference_text: String = ""
@@ -2438,10 +2441,17 @@ func _get_external_cell_label(module: BipobModule) -> String:
 
 func _on_external_visual_cell_pressed(side_id: String, cell: Vector2i) -> void:
 	_set_external_selection_from_side_and_cell(side_id, cell)
+	selected_external_side = side_id
+	selected_external_cell = cell
+	selected_install_record = {}
 	var installed_module: BipobModule = bipob.get_external_module_at(side_id, cell)
 	if installed_module != null:
 		selected_constructor_module = installed_module
 		selected_module_source = "installed_external"
+		selected_install_record = bipob.get_external_module_record_at(side_id, cell)
+	else:
+		selected_constructor_module = null
+		selected_module_source = "none"
 	update_box_status()
 
 
@@ -6822,11 +6832,22 @@ func _on_remove_external_module_pressed() -> void:
 	if bipob == null:
 		return
 	clamp_external_selection()
-	var side_id := get_selected_external_side_id()
-	if bipob.remove_external_module_to_box_storage(side_id, selected_external_slot_position):
-		if selected_module_source == "installed_external":
-			selected_constructor_module = null
-			selected_module_source = "none"
+	if selected_module_source != "installed_external":
+		show_hint("Select an installed external module first.")
+		return
+	var side_id: String = selected_external_side if not selected_external_side.is_empty() else get_selected_external_side_id()
+	var cell: Vector2i = selected_external_cell if selected_external_side == side_id else selected_external_slot_position
+	var record: Dictionary = selected_install_record
+	if record.is_empty():
+		record = bipob.get_external_module_record_at(side_id, cell)
+	if record.is_empty():
+		show_hint("Cannot remove: installed external module record not found.")
+		update_box_status()
+		return
+	if bipob.remove_external_module_record(record, true):
+		selected_constructor_module = null
+		selected_module_source = "none"
+		selected_install_record = {}
 		clamp_box_selection_indexes()
 		update_box_status()
 
@@ -9467,12 +9488,18 @@ func _on_commit_overlay_pressed() -> void:
 	update_box_status()
 
 func _on_clear_plan_pressed() -> void:
+	if _is_constructor_external_mode() and bipob.has_method("clear_external_modules_for_profile"):
+		bipob.clear_external_modules_for_profile(active_bipob_profile_id)
+		selected_constructor_module = null
+		selected_module_source = "none"
+		selected_install_record = {}
+		update_box_status()
+		return
 	if _is_constructor_internal_mode() and bipob.has_method("clear_internal_modules_for_profile"):
 		bipob.clear_internal_modules_for_profile(active_bipob_profile_id)
-	elif _is_constructor_external_mode() and bipob.has_method("clear_external_modules_for_profile"):
-		bipob.clear_external_modules_for_profile(active_bipob_profile_id)
-	else:
-		bipob.clear_selected_overlay_cells()
+		update_box_status()
+		return
+	bipob.clear_selected_overlay_cells()
 	update_box_status()
 
 func _on_clear_overlay_pressed() -> void:
@@ -9602,6 +9629,107 @@ func _module_matches_external_group(module: BipobModule, group: String) -> bool:
 func _is_ready_module(module: BipobModule) -> bool:
 	return module != null and not bipob.is_module_broken(module) and not bipob.is_module_unknown(module)
 
+func _is_internal_interface_module(module: BipobModule) -> bool:
+	if module == null:
+		return false
+	if not bipob.is_internal_module(module):
+		return false
+	var id: String = String(module.id).to_lower()
+	var name: String = String(module.get_display_name()).to_lower()
+	var family: String = String(module.internal_family).to_lower()
+	return id.contains("internal_interface") or name.contains("internal interface") or family in ["internal_interface", "internal interface"]
+
+func _is_external_interface_module(module: BipobModule) -> bool:
+	if module == null:
+		return false
+	if not bipob.is_internal_module(module):
+		return false
+	var id: String = String(module.id).to_lower()
+	var name: String = String(module.get_display_name()).to_lower()
+	var family: String = String(module.internal_family).to_lower()
+	if name.contains("wired interface") or name.contains("optical interface") or name.contains("wireless interface"):
+		return false
+	return id.contains("external_interface") or name.contains("external interface") or family in ["external_interface", "external interface"]
+
+func _is_power_block_module(module: BipobModule) -> bool:
+	if module == null:
+		return false
+	if not bipob.is_internal_module(module):
+		return false
+	var id: String = String(module.id).to_lower()
+	var name: String = String(module.get_display_name()).to_lower()
+	var family: String = String(module.internal_family).to_lower()
+	return id.contains("power_block") or name.contains("power block") or family in ["power_block", "power block", "power"]
+
+func _has_installed_internal_group(group_id: String) -> bool:
+	for module in _get_internal_installed_modules():
+		if module == null:
+			continue
+		match group_id:
+			"power_block":
+				if _is_power_block_module(module):
+					return true
+			"internal_interface":
+				if _is_internal_interface_module(module):
+					return true
+			"external_interface":
+				if _is_external_interface_module(module):
+					return true
+			_:
+				if _normalize_text(String(module.internal_family)) == group_id:
+					return true
+	return false
+
+func _find_available_internal_module_by_group(group_id: String) -> BipobModule:
+	for module in bipob.box_storage:
+		if not _is_ready_module(module) or not bipob.is_internal_module(module):
+			continue
+		match group_id:
+			"power_block":
+				if _is_power_block_module(module):
+					return module
+			"internal_interface":
+				if _is_internal_interface_module(module):
+					return module
+			"external_interface":
+				if _is_external_interface_module(module):
+					return module
+			_:
+				var family: String = _normalize_text(String(module.internal_family))
+				var name: String = _normalize_text(module.get_display_name())
+				if group_id == "storage" and (family == "storage" or name.contains("hard drive")):
+					return module
+				if group_id == "processor" and family in ["cpu","processor"]:
+					return module
+				if group_id == "memory" and family in ["ram","memory"]:
+					return module
+				if group_id == "gpu" and family == "gpu":
+					return module
+				if group_id == "cooler" and (family == "cooler" or name.contains("cooler")):
+					return module
+				if group_id == "radiator" and (family == "radiator" or name.contains("radiator")):
+					return module
+				if group_id == "charger" and (family == "charger" or name.contains("charger") or module.id == "charger_v1"):
+					return module
+				if group_id == "battery" and (family == "battery" or String(module.id).begins_with("battery_")):
+					return module
+	return null
+
+func _try_place_internal_module_for_group(group_id: String, warn_name: String = "") -> bool:
+	var module: BipobModule = _find_available_internal_module_by_group(group_id)
+	if module == null:
+		return false
+	var size: Vector3i = _get_internal_preview_volume_size()
+	for z in range(size.z):
+		for y in range(size.y):
+			for x in range(size.x):
+				var pos := Vector3i(x, y, z)
+				if bipob.place_internal_module(module, pos, 0) or bipob.place_internal_module(module, pos, 1):
+					return true
+	if not warn_name.is_empty():
+		show_hint("Auto Configure: no valid space for %s" % warn_name)
+	return false
+
 func _on_auto_configure_pressed() -> void:
 	if _is_constructor_internal_mode():
 		_auto_configure_internal()
@@ -9610,13 +9738,31 @@ func _on_auto_configure_pressed() -> void:
 	update_box_status()
 
 func _auto_configure_internal() -> void:
-	var targets: Array[String] = ["battery","battery","cpu","ram","gpu","storage","internal_interface","external_interface","cooler","radiator","power","charger"]
-	for target in targets:
-		if target != "battery" and _has_internal_family(target):
-			continue
-		if target == "battery" and _count_internal_family("battery") >= 2:
-			continue
-		_place_first_internal_family(target)
+	var target_groups: Array[Dictionary] = [
+		{"id":"battery","count":2,"label":"Battery"},
+		{"id":"power_block","count":1,"label":"Power Block"},
+		{"id":"processor","count":1,"label":"Processor"},
+		{"id":"memory","count":1,"label":"Memory"},
+		{"id":"gpu","count":1,"label":"GPU"},
+		{"id":"storage","count":1,"label":"Storage"},
+		{"id":"internal_interface","count":1,"label":"Internal Interface"},
+		{"id":"external_interface","count":1,"label":"External Interface"},
+		{"id":"cooler","count":1,"label":"Cooler"},
+		{"id":"radiator","count":1,"label":"Radiator"},
+		{"id":"charger","count":1,"label":"Charger"}
+	]
+	for target in target_groups:
+		var group_id: String = String(target.get("id", ""))
+		var target_count: int = int(target.get("count", 1))
+		var label: String = String(target.get("label", group_id))
+		while true:
+			if group_id == "battery":
+				if _count_internal_family("battery") >= target_count:
+					break
+			elif _has_installed_internal_group(group_id):
+				break
+			if not _try_place_internal_module_for_group(group_id, label):
+				break
 
 func _auto_configure_external() -> void:
 	_place_external_group_if_missing("gear", ["bottom"])
