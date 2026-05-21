@@ -165,6 +165,8 @@ enum BoxMenuMode {
 var box_menu_mode: BoxMenuMode = BoxMenuMode.EXTERNAL
 var selected_external_side_index: int = 1
 var selected_external_slot_position: Vector2i = Vector2i(1, 1)
+var selected_constructor_module: BipobModule = null
+var selected_module_source: String = "none"
 var internal_view_mode: String = "modules"
 var module_icon_texture_cache: Dictionary = {}
 var constructor_reference_text: String = ""
@@ -979,10 +981,8 @@ func _get_module_card_size_text(module: BipobModule) -> String:
 func _get_selected_box_storage_module() -> BipobModule:
 	if bipob == null:
 		return null
-	if _is_constructor_internal_mode() and bipob.has_method("get_internal_module_at_cell"):
-		var installed_module: BipobModule = bipob.get_internal_module_at_cell(bipob.selected_internal_origin)
-		if installed_module != null:
-			return installed_module
+	if selected_constructor_module != null:
+		return selected_constructor_module
 	if selected_box_storage_index < 0:
 		return null
 	if selected_box_storage_index >= bipob.box_storage.size():
@@ -1892,6 +1892,8 @@ func _on_storage_module_card_pressed(storage_index: int) -> void:
 	selected_box_storage_index = storage_index
 	var module: BipobModule = bipob.box_storage[storage_index] if storage_index >= 0 and storage_index < bipob.box_storage.size() else null
 	if module != null:
+		selected_constructor_module = module
+		selected_module_source = "storage"
 		var grouped_ids: Array[String] = get_filtered_grouped_module_ids()
 		selected_grouped_module_index = maxi(grouped_ids.find(module.id), 0)
 	_preserve_constructor_storage_scroll_and_update()
@@ -2366,9 +2368,9 @@ func _apply_external_cell_visual(
 
 
 func _get_selected_external_candidate_module() -> BipobModule:
-	var selected_module: BipobModule = null
+	var selected_module: BipobModule = selected_constructor_module if selected_module_source == "storage" else null
 
-	if selected_box_storage_index >= 0 and selected_box_storage_index < bipob.box_storage.size():
+	if selected_module == null and selected_box_storage_index >= 0 and selected_box_storage_index < bipob.box_storage.size():
 		selected_module = bipob.box_storage[selected_box_storage_index]
 
 	if selected_module != null and bipob.is_external_module(selected_module):
@@ -2409,6 +2411,10 @@ func _get_external_cell_label(module: BipobModule) -> String:
 
 func _on_external_visual_cell_pressed(side_id: String, cell: Vector2i) -> void:
 	_set_external_selection_from_side_and_cell(side_id, cell)
+	var installed_module: BipobModule = bipob.get_external_module_at(side_id, cell)
+	if installed_module != null:
+		selected_constructor_module = installed_module
+		selected_module_source = "installed_external"
 	update_box_status()
 
 
@@ -3217,7 +3223,7 @@ func _create_external_bottom_action_bar() -> Control:
 	actions_row.add_theme_constant_override("separation", 6)
 	actions_row.add_spacer(true)
 
-	var selected_external_slot_module: BipobModule = bipob.get_external_module_at(
+	var selected_external_slot_module: BipobModule = selected_constructor_module if selected_module_source == "installed_external" else bipob.get_external_module_at(
 		bipob.selected_external_side,
 		bipob.selected_external_origin
 	)
@@ -3318,19 +3324,6 @@ func _create_internal_interfaces_placeholder_panel() -> Control:
 
 
 func _get_selected_module_for_context(context: String) -> BipobModule:
-	var normalized: String = context.to_lower()
-	if normalized == "external":
-		var installed_external: BipobModule = bipob.get_external_module_at(bipob.selected_external_side, bipob.selected_external_origin)
-		if installed_external != null:
-			return installed_external
-		return _get_selected_external_candidate_module()
-	if normalized == "internal":
-		var installed_internal: BipobModule = bipob.get_internal_module_at_cell(bipob.selected_internal_origin)
-		if installed_internal != null:
-			return installed_internal
-		var storage_module: BipobModule = _get_selected_box_storage_module()
-		if storage_module != null and (bipob.is_internal_module(storage_module) or bipob.is_internal_overlay_module(storage_module)):
-			return storage_module
 	return _get_selected_box_storage_module()
 
 
@@ -6333,7 +6326,7 @@ func _apply_constructor_profile_state(data: Dictionary) -> void:
 	bipob.recalculate_module_stats()
 
 func _can_remove_selected_internal_module() -> bool:
-	var module: BipobModule = bipob.get_internal_module_at_cell(bipob.selected_internal_origin)
+	var module: BipobModule = selected_constructor_module if selected_module_source == "installed_internal" else bipob.get_internal_module_at_cell(bipob.selected_internal_origin)
 	return module != null and bool(module.is_removable)
 
 func _add_juggernaut_builtin_batteries() -> void:
@@ -6712,6 +6705,9 @@ func _on_remove_external_module_pressed() -> void:
 	clamp_external_selection()
 	var side_id := get_selected_external_side_id()
 	if bipob.remove_external_module_to_box_storage(side_id, selected_external_slot_position):
+		if selected_module_source == "installed_external":
+			selected_constructor_module = null
+			selected_module_source = "none"
 		clamp_box_selection_indexes()
 		update_box_status()
 
@@ -8039,11 +8035,13 @@ func _get_internal_view_legend_text() -> String:
 	return "[ ] empty, [>] origin, [*] preview, [!] invalid, [B/P/E/I/M/W/H] modules"
 
 func _get_selected_internal_candidate_module() -> BipobModule:
-	if selected_box_storage_index < 0:
-		return null
-	if selected_box_storage_index >= bipob.box_storage.size():
-		return null
-	var module: BipobModule = bipob.box_storage[selected_box_storage_index]
+	var module: BipobModule = selected_constructor_module if selected_module_source == "storage" else null
+	if module == null:
+		if selected_box_storage_index < 0:
+			return null
+		if selected_box_storage_index >= bipob.box_storage.size():
+			return null
+		module = bipob.box_storage[selected_box_storage_index]
 	if module == null:
 		return null
 	if bipob.is_internal_module(module):
@@ -8158,6 +8156,10 @@ func _on_internal_visual_cell_pressed(cell: Vector3i) -> void:
 	if not bipob.is_internal_cell_in_bounds(cell):
 		return
 	bipob.selected_internal_origin = cell
+	var installed_module: BipobModule = bipob.get_internal_module_at_cell(cell)
+	if installed_module != null:
+		selected_constructor_module = installed_module
+		selected_module_source = "installed_internal"
 	update_box_status()
 
 func _make_cell_from_slice_axes(axis_a: String, value_a: int, axis_b: String, value_b: int, fixed_axis: String, fixed_value: int) -> Vector3i:
@@ -9019,6 +9021,9 @@ func _on_place_internal_pressed() -> void:
 		update_box_status()
 func _on_remove_internal_pressed() -> void:
 	if bipob.remove_internal_module(bipob.selected_internal_origin):
+		if selected_module_source == "installed_internal":
+			selected_constructor_module = null
+			selected_module_source = "none"
 		update_box_status()
 
 func _on_toggle_internal_view_pressed() -> void:
