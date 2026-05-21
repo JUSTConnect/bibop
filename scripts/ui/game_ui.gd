@@ -7477,47 +7477,53 @@ func _create_charge_row(entry: Variant, is_bipob_row: bool) -> Control:
 	var card := PanelContainer.new()
 	_apply_panel_style(card)
 	card.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	var card_content := VBoxContainer.new()
+	card_content.add_theme_constant_override("separation", 4)
 	var card_text := Label.new()
 	card_text.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 	_apply_label_style(card_text)
+	var status_label := Label.new()
+	status_label.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	_apply_label_style(status_label)
 	if is_bipob_row:
-		var current_energy := int(entry.get("current_energy", 0))
-		var max_energy_value := int(entry.get("max_energy", 0))
+		var max_energy_value := get_bipob_max_energy(entry)
+		var current_energy := get_bipob_current_energy(entry)
 		var energy_text: String = "-" if max_energy_value <= 0 else "%d / %d" % [current_energy, max_energy_value]
 		card_text.text = "%s\nEnergy: %s" % [String(entry.get("name", "Bipob")), energy_text]
 	else:
 		var module: BipobModule = entry
-		card_text.text = "%s\nCharge: %d / %d" % [module.get_display_name(), module.current_charge, module.energy_capacity]
-	card.add_child(card_text)
-	row.add_child(card)
-
-	var cost_label := Label.new()
-	cost_label.custom_minimum_size = Vector2(120, 0)
-	cost_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
-	cost_label.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
-	cost_label.text = "Cost: 0"
-	_apply_label_style(cost_label, true, false)
-	row.add_child(cost_label)
+		var current_charge := get_battery_current_charge(module)
+		var capacity := get_battery_capacity(module)
+		card_text.text = "%s\nCharge: %d / %d" % [module.get_display_name(), current_charge, capacity]
+	status_label.text = "Cost: 0"
 
 	var action_button := _create_menu_button("Charge", Callable(), Vector2(140, 34), "primary")
 	var is_full := is_bipob_fully_charged(entry) if is_bipob_row else is_battery_fully_charged(entry)
 	if is_bipob_row:
-		var has_battery: bool = int(entry.get("max_energy", 0)) > 0
-		var has_charger: bool = bool(entry.get("has_charger", false))
+		var has_battery: bool = bipob_has_any_battery(entry)
+		var has_charger: bool = bipob_has_charger(entry)
 		if not has_battery:
-			cost_label.text = "need battery"
-			cost_label.add_theme_color_override("font_color", UI_COLOR_DANGER)
+			status_label.text = "need battery"
+			status_label.add_theme_color_override("font_color", UI_COLOR_DANGER)
 			action_button.disabled = true
+			action_button.text = "Charge"
 		elif not has_charger:
-			cost_label.text = "need charger module"
-			cost_label.add_theme_color_override("font_color", UI_COLOR_DANGER)
+			status_label.text = "need charger module"
+			status_label.add_theme_color_override("font_color", UI_COLOR_DANGER)
 			action_button.disabled = true
+			action_button.text = "Charge"
+		else:
+			status_label.text = "Cost: 0"
 	if is_full:
 		action_button.text = "Charged"
 		action_button.disabled = true
 	else:
 		if not action_button.disabled:
 			action_button.pressed.connect(_on_charge_entry_pressed.bind(entry, is_bipob_row))
+	card_content.add_child(card_text)
+	card_content.add_child(status_label)
+	card.add_child(card_content)
+	row.add_child(card)
 	row.add_child(action_button)
 	return row
 
@@ -7558,7 +7564,7 @@ func get_chargeable_batteries() -> Array:
 	for module in bipob.box_storage:
 		if module == null:
 			continue
-		if module.energy_capacity <= 0:
+		if get_battery_capacity(module) <= 0:
 			continue
 		if bipob.has_method("is_module_broken") and bipob.is_module_broken(module):
 			continue
@@ -7566,7 +7572,19 @@ func get_chargeable_batteries() -> Array:
 	return batteries
 
 func is_bipob_fully_charged(bipob_data: Dictionary) -> bool:
-	return int(bipob_data.get("current_energy", 0)) >= int(bipob_data.get("max_energy", 0))
+	return get_bipob_current_energy(bipob_data) >= get_bipob_max_energy(bipob_data)
+
+func bipob_has_any_battery(bipob_data: Dictionary) -> bool:
+	return get_bipob_max_energy(bipob_data) > 0
+
+func bipob_has_charger(bipob_data: Dictionary) -> bool:
+	return bool(bipob_data.get("has_charger", false))
+
+func get_bipob_current_energy(bipob_data: Dictionary) -> int:
+	return maxi(int(bipob_data.get("current_energy", 0)), 0)
+
+func get_bipob_max_energy(bipob_data: Dictionary) -> int:
+	return maxi(int(bipob_data.get("max_energy", 0)), 0)
 
 func charge_bipob_to_full(bipob_data: Dictionary) -> void:
 	if String(bipob_data.get("id", "")) != active_bipob_profile_id:
@@ -7585,12 +7603,33 @@ func charge_bipob_to_full(bipob_data: Dictionary) -> void:
 func is_battery_fully_charged(module: BipobModule) -> bool:
 	if module == null:
 		return true
-	return module.current_charge >= module.energy_capacity
+	return get_battery_current_charge(module) >= get_battery_capacity(module)
+
+func get_battery_capacity(module: BipobModule) -> int:
+	if module == null:
+		return 0
+	if module.energy_capacity > 0:
+		return module.energy_capacity
+	if module.battery_capacity > 0:
+		return module.battery_capacity
+	match module.version:
+		"V1":
+			return 30
+		"V2":
+			return 40
+		"V3":
+			return 50
+	return 0
+
+func get_battery_current_charge(module: BipobModule) -> int:
+	if module == null:
+		return 0
+	return maxi(module.current_charge, 0)
 
 func charge_battery_to_full(module: BipobModule) -> void:
 	if module == null:
 		return
-	module.current_charge = module.energy_capacity
+	module.current_charge = get_battery_capacity(module)
 	# TODO: persist battery charging state when save system is implemented.
 
 func show_repair_menu() -> void:
