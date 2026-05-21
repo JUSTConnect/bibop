@@ -6364,6 +6364,7 @@ func _capture_constructor_profile_state() -> Dictionary:
 	var data: Dictionary = {
 		"installed_ids": [], "box_ids": [], "external_slots": {}, "placed_internal": bipob.placed_internal_modules.duplicate(true),
 		"placed_external": bipob.placed_external_modules.duplicate(true),
+		"external_pockets": bipob.external_pockets_by_side.duplicate(true),
 		"overlay_paths": bipob.internal_overlay_paths.duplicate(true), "next_overlay_id": bipob.next_internal_overlay_path_id
 	}
 	for module in bipob.installed_modules: data["installed_ids"].append(module.id)
@@ -6374,6 +6375,8 @@ func _capture_constructor_profile_state() -> Dictionary:
 func _apply_constructor_profile_state(data: Dictionary) -> void:
 	bipob.installed_modules.clear(); bipob.box_storage.clear(); bipob.external_modules_by_slot.clear(); bipob.internal_modules_by_cell.clear(); bipob.placed_external_modules.clear()
 	bipob.placed_internal_modules = data.get("placed_internal", []).duplicate(true)
+	bipob.external_pockets_by_side = data.get("external_pockets", {}).duplicate(true)
+	bipob._ensure_external_pockets_shape()
 	bipob.internal_overlay_paths = data.get("overlay_paths", []).duplicate(true)
 	bipob.next_internal_overlay_path_id = int(data.get("next_overlay_id", 1))
 	for id in data.get("installed_ids", []):
