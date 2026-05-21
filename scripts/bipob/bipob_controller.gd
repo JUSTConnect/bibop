@@ -167,6 +167,7 @@ var mission7_cable_path: Array[Vector2i] = []
 var mission7_cable_max_length: int = 12
 var movement_cells_since_energy_spend: int = 0
 var bipob_damage_state_by_profile: Dictionary = {"alpha": false, "beta": true, "juggernaut": false}
+var bipob_armor_state_by_profile: Dictionary = {"alpha": {"current": 20, "max": 20}, "beta": {"current": 10, "max": 20}, "juggernaut": {"current": 20, "max": 20}}
 
 @onready var grid_manager: GridManager = get_node("../Field")
 @onready var mission_label: Label = get_node("../UI/MissionLabel")
@@ -5164,8 +5165,14 @@ func get_broken_modules_for_repair() -> Array:
 func get_damaged_bipobs_for_repair() -> Array:
 	var result: Array = []
 	for profile_id in ["alpha", "beta", "juggernaut"]:
-		if bool(bipob_damage_state_by_profile.get(profile_id, false)):
-			result.append({"profile_id": profile_id, "name": _get_bipob_profile_display_name(profile_id), "is_damaged": true})
+		if is_bipob_damaged(profile_id):
+			result.append({
+				"profile_id": profile_id,
+				"name": _get_bipob_profile_display_name(profile_id),
+				"is_damaged": true,
+				"current_armor": get_bipob_current_armor(profile_id),
+				"max_armor": get_bipob_max_armor(profile_id)
+			})
 	return result
 
 func repair_module(module: BipobModule) -> void:
@@ -5176,8 +5183,27 @@ func repair_bipob(bipob_data: Dictionary) -> void:
 	var profile_id: String = String(bipob_data.get("profile_id", ""))
 	if profile_id.is_empty():
 		return
+	set_bipob_current_armor(profile_id, get_bipob_max_armor(profile_id))
 	bipob_damage_state_by_profile[profile_id] = false
 	status_changed.emit()
+
+func get_bipob_current_armor(profile_id: String = "") -> int:
+	var resolved: String = "beta" if profile_id.is_empty() else profile_id
+	return int((bipob_armor_state_by_profile.get(resolved, {"current": 20})).get("current", 20))
+
+func get_bipob_max_armor(profile_id: String = "") -> int:
+	var resolved: String = "beta" if profile_id.is_empty() else profile_id
+	return int((bipob_armor_state_by_profile.get(resolved, {"max": 20})).get("max", 20))
+
+func set_bipob_current_armor(profile_id: String, value: int) -> void:
+	var max_armor: int = get_bipob_max_armor(profile_id)
+	var state: Dictionary = bipob_armor_state_by_profile.get(profile_id, {"current": max_armor, "max": max_armor})
+	state["current"] = clampi(value, 0, max_armor)
+	bipob_armor_state_by_profile[profile_id] = state
+	bipob_damage_state_by_profile[profile_id] = int(state["current"]) < max_armor
+
+func is_bipob_damaged(profile_id: String) -> bool:
+	return get_bipob_current_armor(profile_id) < get_bipob_max_armor(profile_id)
 
 func _get_bipob_profile_display_name(profile_id: String) -> String:
 	match profile_id:
