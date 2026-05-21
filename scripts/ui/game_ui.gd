@@ -2470,6 +2470,7 @@ func _create_external_side_grid(side_id: String) -> Control:
 	_apply_panel_style(side_panel)
 	side_panel.size_flags_horizontal = Control.SIZE_SHRINK_CENTER
 	side_panel.size_flags_vertical = Control.SIZE_SHRINK_CENTER
+	side_panel.custom_minimum_size = _get_external_side_panel_size(side_id)
 
 	var root: VBoxContainer = VBoxContainer.new()
 	root.add_theme_constant_override("separation", 4)
@@ -2510,7 +2511,7 @@ func _create_external_side_grid(side_id: String) -> Control:
 	var side_size: Vector2i = bipob.get_external_side_size(side_id)
 	var preview_cells: Dictionary = _get_external_preview_cells_for_side(side_id)
 	var selected_side_id: String = get_selected_external_side_id()
-	var cell_size: Vector2 = EXTERNAL_GRID_CELL_SIZE
+	var cell_size: Vector2 = _get_external_adaptive_cell_size(side_id)
 	var grid_gap: int = EXTERNAL_GRID_CELL_GAP
 
 	var grid: GridContainer = GridContainer.new()
@@ -2519,12 +2520,6 @@ func _create_external_side_grid(side_id: String) -> Control:
 	grid.size_flags_vertical = Control.SIZE_SHRINK_CENTER
 	grid.add_theme_constant_override("h_separation", grid_gap)
 	grid.add_theme_constant_override("v_separation", grid_gap)
-	var grid_size: Vector2 = Vector2(
-		float(side_size.x) * cell_size.x + float(maxi(side_size.x - 1, 0) * grid_gap),
-		float(side_size.y) * cell_size.y + float(maxi(side_size.y - 1, 0) * grid_gap)
-	)
-	grid.custom_minimum_size = grid_size
-
 	for y in range(side_size.y):
 		for x in range(side_size.x):
 			var cell: Vector2i = Vector2i(x, y)
@@ -2553,10 +2548,42 @@ func _create_external_side_grid(side_id: String) -> Control:
 			grid.add_child(cell_button)
 
 	root.add_child(grid)
-	var side_panel_width: float = grid_size.x + 16.0
-	side_panel.custom_minimum_size = Vector2(side_panel_width, 0.0)
 	side_panel.add_child(root)
 	return side_panel
+
+
+func _get_external_side_panel_size(side_id: String) -> Vector2:
+	match side_id:
+		"top":
+			return Vector2(150.0, 120.0)
+		"left", "right":
+			return Vector2(160.0, 190.0)
+		"front", "bottom", "back":
+			return Vector2(160.0, 190.0)
+		_:
+			return Vector2(160.0, 160.0)
+
+
+func _get_external_adaptive_cell_size(side_id: String) -> Vector2:
+	var side_size: Vector2i = bipob.get_external_side_size(side_id)
+	var max_grid_width: float = 170.0
+	var max_grid_height: float = 170.0
+
+	if side_id == "top":
+		max_grid_width = 150.0
+		max_grid_height = 110.0
+	elif side_id in ["left", "right"]:
+		max_grid_width = 150.0
+		max_grid_height = 180.0
+	elif side_id in ["front", "bottom", "back"]:
+		max_grid_width = 150.0
+		max_grid_height = 180.0
+
+	var gap: float = float(EXTERNAL_GRID_CELL_GAP)
+	var cell_w: float = floor((max_grid_width - gap * float(maxi(0, side_size.x - 1))) / float(maxi(1, side_size.x)))
+	var cell_h: float = floor((max_grid_height - gap * float(maxi(0, side_size.y - 1))) / float(maxi(1, side_size.y)))
+	var cell: float = clampf(minf(cell_w, cell_h), 12.0, 22.0)
+	return Vector2(cell, cell)
 
 
 func _create_external_robot_preview_panel() -> Control:
@@ -2830,17 +2857,19 @@ func _create_external_constructor_layout() -> Control:
 	top_content_row.size_flags_vertical = Control.SIZE_EXPAND_FILL
 	top_content_row.add_theme_constant_override("separation", 8)
 
-	var left: Control = _create_external_visual_workspace()
-	left.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-	left.size_flags_stretch_ratio = 1.0
-	left.size_flags_vertical = Control.SIZE_EXPAND_FILL
-	top_content_row.add_child(left)
+	var left_wrapper: PanelContainer = PanelContainer.new()
+	left_wrapper.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	left_wrapper.size_flags_vertical = Control.SIZE_EXPAND_FILL
+	left_wrapper.size_flags_stretch_ratio = 1.0
+	left_wrapper.add_child(_create_external_visual_workspace())
+	top_content_row.add_child(left_wrapper)
 
-	var right: Control = _create_external_storage_right_column()
-	right.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-	right.size_flags_stretch_ratio = 1.0
-	right.size_flags_vertical = Control.SIZE_EXPAND_FILL
-	top_content_row.add_child(right)
+	var right_wrapper: PanelContainer = PanelContainer.new()
+	right_wrapper.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	right_wrapper.size_flags_vertical = Control.SIZE_EXPAND_FILL
+	right_wrapper.size_flags_stretch_ratio = 1.0
+	right_wrapper.add_child(_create_external_storage_right_column())
+	top_content_row.add_child(right_wrapper)
 
 	root.add_child(top_content_row)
 
@@ -3102,11 +3131,12 @@ func _create_external_side_grid_workspace() -> Control:
 	var root: VBoxContainer = VBoxContainer.new()
 	root.add_theme_constant_override("separation", 6)
 	root.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-	root.size_flags_vertical = Control.SIZE_SHRINK_BEGIN
+	root.size_flags_vertical = Control.SIZE_EXPAND_FILL
+	root.custom_minimum_size = Vector2.ZERO
 
 	var middle_row: HBoxContainer = HBoxContainer.new()
 	middle_row.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-	middle_row.size_flags_vertical = Control.SIZE_SHRINK_BEGIN
+	middle_row.size_flags_vertical = Control.SIZE_SHRINK_CENTER
 	middle_row.alignment = BoxContainer.ALIGNMENT_CENTER
 	middle_row.add_theme_constant_override("separation", 8)
 	middle_row.add_child(_create_external_side_grid("left"))
@@ -3116,7 +3146,7 @@ func _create_external_side_grid_workspace() -> Control:
 
 	var bottom_row: HBoxContainer = HBoxContainer.new()
 	bottom_row.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-	bottom_row.size_flags_vertical = Control.SIZE_SHRINK_BEGIN
+	bottom_row.size_flags_vertical = Control.SIZE_SHRINK_CENTER
 	bottom_row.alignment = BoxContainer.ALIGNMENT_CENTER
 	bottom_row.add_theme_constant_override("separation", 8)
 	bottom_row.add_child(_create_external_side_grid("front"))
@@ -3174,6 +3204,7 @@ func _create_external_storage_right_column() -> Control:
 	var column: VBoxContainer = VBoxContainer.new()
 	column.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	column.size_flags_vertical = Control.SIZE_EXPAND_FILL
+	column.custom_minimum_size = Vector2.ZERO
 	column.add_theme_constant_override("separation", 6)
 
 	var filters_panel: Control = _create_external_filter_panel()
