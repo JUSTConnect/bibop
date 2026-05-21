@@ -5149,7 +5149,7 @@ func _refresh_tasks_content() -> void:
 			suffix = " — Claimed"
 		elif bool(progress.get("completed", false)):
 			suffix = " — Completed"
-		card.text = "%s%s\n%s\nReward preview: TBD" % [str(mission.get("title_short", "Mission %d" % mission_id)), suffix, mission.get("short_description", "Reach extraction.")]
+		card.text = "%s%s\n%s\nReward preview: TBD" % [str(mission.get("title_short", "Mission %d" % mission_id)), suffix, mission.get("main_goal", "Find the way to reach extraction.")]
 		card.alignment = HORIZONTAL_ALIGNMENT_LEFT
 		card.text_overrun_behavior = TextServer.OVERRUN_TRIM_ELLIPSIS
 		card.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
