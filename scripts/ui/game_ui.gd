@@ -6483,16 +6483,48 @@ func _make_module_by_id(module_id: String) -> BipobModule:
 	var spec: Dictionary = internal_specs[module_id]
 	return bipob.create_internal_module(module_id, String(spec["name"]), spec["size"])
 
+func _capture_module_profile_record(module: BipobModule) -> Dictionary:
+	if module == null:
+		return {}
+	return {
+		"id": module.id,
+		"module_id": module.module_id,
+		"status": module.status,
+		"is_broken": module.is_broken,
+		"current_charge": module.current_charge,
+		"is_builtin": module.is_builtin,
+		"is_removable": module.is_removable,
+		"energy_capacity": module.energy_capacity,
+		"battery_capacity": module.battery_capacity
+	}
+
+func _restore_module_from_profile_record(record: Dictionary) -> BipobModule:
+	var module := _make_module_by_id(String(record.get("id", "")))
+	if module == null:
+		return null
+	module.module_id = String(record.get("module_id", module.module_id))
+	module.status = String(record.get("status", module.status))
+	module.is_broken = bool(record.get("is_broken", module.status == "broken"))
+	module.current_charge = int(record.get("current_charge", module.current_charge))
+	module.is_builtin = bool(record.get("is_builtin", module.is_builtin))
+	module.is_removable = bool(record.get("is_removable", module.is_removable))
+	module.energy_capacity = int(record.get("energy_capacity", module.energy_capacity))
+	module.battery_capacity = int(record.get("battery_capacity", module.battery_capacity))
+	return module
+
 func _capture_constructor_profile_state() -> Dictionary:
 	var data: Dictionary = {
-		"installed_ids": [], "box_ids": [], "external_slots": {}, "placed_internal": bipob.placed_internal_modules.duplicate(true),
+		"installed_modules": [], "box_modules": [], "external_slots": {}, "placed_internal": bipob.placed_internal_modules.duplicate(true),
 		"placed_external": bipob.placed_external_modules.duplicate(true),
 		"external_pockets": bipob.external_pockets_by_side.duplicate(true),
 		"overlay_paths": bipob.internal_overlay_paths.duplicate(true), "next_overlay_id": bipob.next_internal_overlay_path_id
 	}
-	for module in bipob.installed_modules: data["installed_ids"].append(module.id)
-	for module in bipob.box_storage: data["box_ids"].append(module.id)
-	for key in bipob.external_modules_by_slot.keys(): data["external_slots"][key] = bipob.external_modules_by_slot[key].id
+	for module in bipob.installed_modules:
+		data["installed_modules"].append(_capture_module_profile_record(module))
+	for module in bipob.box_storage:
+		data["box_modules"].append(_capture_module_profile_record(module))
+	for key in bipob.external_modules_by_slot.keys():
+		data["external_slots"][key] = _capture_module_profile_record(bipob.external_modules_by_slot[key])
 	return data
 
 func _apply_constructor_profile_state(data: Dictionary) -> void:
@@ -6502,16 +6534,23 @@ func _apply_constructor_profile_state(data: Dictionary) -> void:
 	bipob._ensure_external_pockets_shape()
 	bipob.internal_overlay_paths = data.get("overlay_paths", []).duplicate(true)
 	bipob.next_internal_overlay_path_id = int(data.get("next_overlay_id", 1))
-	for id in data.get("installed_ids", []):
-		var m := _make_module_by_id(String(id))
+	for record_variant in data.get("installed_modules", []):
+		if typeof(record_variant) != TYPE_DICTIONARY:
+			continue
+		var m := _restore_module_from_profile_record(record_variant)
 		if m != null:
 			bipob.installed_modules.append(m)
-	for id in data.get("box_ids", []):
-		var m := _make_module_by_id(String(id))
+	for record_variant in data.get("box_modules", []):
+		if typeof(record_variant) != TYPE_DICTIONARY:
+			continue
+		var m := _restore_module_from_profile_record(record_variant)
 		if m != null:
 			bipob.box_storage.append(m)
 	for key in data.get("external_slots", {}).keys():
-		var m := _make_module_by_id(String(data["external_slots"][key]))
+		var slot_record: Variant = data["external_slots"][key]
+		if typeof(slot_record) != TYPE_DICTIONARY:
+			continue
+		var m := _restore_module_from_profile_record(slot_record)
 		if m != null:
 			bipob.external_modules_by_slot[key] = m
 	bipob.placed_external_modules = data.get("placed_external", []).duplicate(true)
@@ -8924,6 +8963,12 @@ func _profile_has_charger(profile_id: String) -> bool:
 	if not constructor_profiles.has(profile_id):
 		return false
 	var profile_data: Dictionary = constructor_profiles[profile_id]
+	for record_variant in profile_data.get("installed_modules", []):
+		if typeof(record_variant) != TYPE_DICTIONARY:
+			continue
+		var record: Dictionary = record_variant
+		if String(record.get("id", "")) == "charger_v1":
+			return true
 	for module_id in profile_data.get("installed_ids", []):
 		if String(module_id) == "charger_v1":
 			return true
