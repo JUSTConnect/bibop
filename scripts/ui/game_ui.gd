@@ -2552,37 +2552,52 @@ func _create_external_side_grid(side_id: String) -> Control:
 	return side_panel
 
 
+func _is_juggernaut_profile() -> bool:
+	return active_bipob_profile_id == "juggernaut"
+
+
 func _get_external_side_panel_size(side_id: String) -> Vector2:
 	match side_id:
 		"top":
-			return Vector2(150.0, 120.0)
+			return Vector2(210.0, 120.0) if _is_juggernaut_profile() else Vector2(210.0, 135.0)
 		"left", "right":
-			return Vector2(160.0, 190.0)
+			return Vector2(190.0, 210.0) if _is_juggernaut_profile() else Vector2(190.0, 245.0)
 		"front", "bottom", "back":
-			return Vector2(160.0, 190.0)
+			return Vector2(190.0, 175.0) if _is_juggernaut_profile() else Vector2(190.0, 205.0)
 		_:
-			return Vector2(160.0, 160.0)
+			return Vector2(190.0, 170.0) if _is_juggernaut_profile() else Vector2(190.0, 190.0)
 
 
 func _get_external_adaptive_cell_size(side_id: String) -> Vector2:
 	var side_size: Vector2i = bipob.get_external_side_size(side_id)
-	var max_grid_width: float = 170.0
-	var max_grid_height: float = 170.0
 
-	if side_id == "top":
-		max_grid_width = 150.0
-		max_grid_height = 110.0
-	elif side_id in ["left", "right"]:
-		max_grid_width = 150.0
-		max_grid_height = 180.0
-	elif side_id in ["front", "bottom", "back"]:
-		max_grid_width = 150.0
-		max_grid_height = 180.0
+	var max_grid_width := 156.0
+	var max_grid_height := 156.0
 
-	var gap: float = float(EXTERNAL_GRID_CELL_GAP)
-	var cell_w: float = floor((max_grid_width - gap * float(maxi(0, side_size.x - 1))) / float(maxi(1, side_size.x)))
-	var cell_h: float = floor((max_grid_height - gap * float(maxi(0, side_size.y - 1))) / float(maxi(1, side_size.y)))
-	var cell: float = clampf(minf(cell_w, cell_h), 12.0, 22.0)
+	match side_id:
+		"top":
+			max_grid_width = 190.0
+			max_grid_height = 110.0
+		"left", "right":
+			max_grid_width = 170.0
+			max_grid_height = 220.0
+		"front", "bottom", "back":
+			max_grid_width = 170.0
+			max_grid_height = 180.0
+		_:
+			max_grid_width = 160.0
+			max_grid_height = 160.0
+
+	var gap := 3.0
+	var cols: int = maxi(1, side_size.x)
+	var rows: int = maxi(1, side_size.y)
+
+	var cell_w := floor((max_grid_width - gap * float(cols - 1)) / float(cols))
+	var cell_h := floor((max_grid_height - gap * float(rows - 1)) / float(rows))
+	var cell := clampf(minf(cell_w, cell_h), 10.0, 22.0)
+	if _is_juggernaut_profile():
+		cell = clampf(cell, 9.0, 18.0)
+
 	return Vector2(cell, cell)
 
 
@@ -2659,14 +2674,14 @@ func _create_external_visual_workspace() -> Control:
 	margin.add_theme_constant_override("margin_bottom", 6)
 
 	var root: VBoxContainer = VBoxContainer.new()
-	root.add_theme_constant_override("separation", 3)
+	root.add_theme_constant_override("separation", 3 if _is_juggernaut_profile() else 4)
 	root.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	root.size_flags_vertical = Control.SIZE_EXPAND_FILL
 
 	var top_row: HBoxContainer = HBoxContainer.new()
 	top_row.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	top_row.size_flags_vertical = Control.SIZE_SHRINK_BEGIN
-	top_row.add_theme_constant_override("separation", 10)
+	top_row.add_theme_constant_override("separation", 6)
 
 	var left_info: Control = _create_external_info_stub_panel("", _get_external_left_info_text())
 	left_info.custom_minimum_size = Vector2(240, 110)
@@ -2676,14 +2691,11 @@ func _create_external_visual_workspace() -> Control:
 
 	var up_wrap: VBoxContainer = VBoxContainer.new()
 	up_wrap.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-	up_wrap.size_flags_vertical = Control.SIZE_EXPAND_FILL
-	up_wrap.alignment = BoxContainer.ALIGNMENT_END
-	var up_spacer: Control = Control.new()
-	up_spacer.size_flags_vertical = Control.SIZE_EXPAND_FILL
-	up_wrap.add_child(up_spacer)
+	up_wrap.size_flags_vertical = Control.SIZE_SHRINK_BEGIN
+	up_wrap.alignment = BoxContainer.ALIGNMENT_BEGIN
 	var up_grid: Control = _create_external_side_grid("top")
 	up_grid.size_flags_horizontal = Control.SIZE_SHRINK_CENTER
-	up_grid.size_flags_vertical = Control.SIZE_SHRINK_END
+	up_grid.size_flags_vertical = Control.SIZE_SHRINK_BEGIN
 	up_wrap.add_child(up_grid)
 	top_row.add_child(up_wrap)
 
@@ -2847,7 +2859,7 @@ func _create_external_constructor_layout() -> Control:
 	var root: VBoxContainer = VBoxContainer.new()
 	root.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	root.size_flags_vertical = Control.SIZE_EXPAND_FILL
-	root.add_theme_constant_override("separation", 6)
+	root.add_theme_constant_override("separation", 3 if _is_juggernaut_profile() else 4)
 
 	var top_content_row: HBoxContainer = HBoxContainer.new()
 	# IMPORTANT: Keep left/right BOX split 50/50.
@@ -2861,6 +2873,7 @@ func _create_external_constructor_layout() -> Control:
 	left_wrapper.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	left_wrapper.size_flags_vertical = Control.SIZE_EXPAND_FILL
 	left_wrapper.size_flags_stretch_ratio = 1.0
+	left_wrapper.custom_minimum_size = Vector2.ZERO
 	left_wrapper.add_child(_create_external_visual_workspace())
 	top_content_row.add_child(left_wrapper)
 
@@ -2868,6 +2881,7 @@ func _create_external_constructor_layout() -> Control:
 	right_wrapper.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	right_wrapper.size_flags_vertical = Control.SIZE_EXPAND_FILL
 	right_wrapper.size_flags_stretch_ratio = 1.0
+	right_wrapper.custom_minimum_size = Vector2.ZERO
 	right_wrapper.add_child(_create_external_storage_right_column())
 	top_content_row.add_child(right_wrapper)
 
@@ -3129,16 +3143,16 @@ func _create_filter_dropdown_button(is_internal: bool) -> Control:
 
 func _create_external_side_grid_workspace() -> Control:
 	var root: VBoxContainer = VBoxContainer.new()
-	root.add_theme_constant_override("separation", 6)
+	root.add_theme_constant_override("separation", 3 if _is_juggernaut_profile() else 4)
 	root.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	root.size_flags_vertical = Control.SIZE_EXPAND_FILL
 	root.custom_minimum_size = Vector2.ZERO
 
 	var middle_row: HBoxContainer = HBoxContainer.new()
 	middle_row.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-	middle_row.size_flags_vertical = Control.SIZE_SHRINK_CENTER
+	middle_row.size_flags_vertical = Control.SIZE_SHRINK_BEGIN
 	middle_row.alignment = BoxContainer.ALIGNMENT_CENTER
-	middle_row.add_theme_constant_override("separation", 8)
+	middle_row.add_theme_constant_override("separation", 6)
 	middle_row.add_child(_create_external_side_grid("left"))
 	middle_row.add_child(_create_external_robot_preview_panel())
 	middle_row.add_child(_create_external_side_grid("right"))
@@ -3148,7 +3162,7 @@ func _create_external_side_grid_workspace() -> Control:
 	bottom_row.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	bottom_row.size_flags_vertical = Control.SIZE_SHRINK_CENTER
 	bottom_row.alignment = BoxContainer.ALIGNMENT_CENTER
-	bottom_row.add_theme_constant_override("separation", 8)
+	bottom_row.add_theme_constant_override("separation", 6)
 	bottom_row.add_child(_create_external_side_grid("front"))
 	bottom_row.add_child(_create_external_side_grid("bottom"))
 	bottom_row.add_child(_create_external_side_grid("back"))
