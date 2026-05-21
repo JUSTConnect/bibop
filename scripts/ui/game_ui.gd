@@ -265,7 +265,8 @@ const STORAGE_CARD_ICON_SIZE: Vector2 = Vector2(26, 26)
 const SELECTED_MODULE_ICON_SIZE: Vector2 = Vector2(68, 64)
 const SELECTED_MODULE_PREVIEW_CELL_SIZE: Vector2 = Vector2(18, 18)
 const SELECTED_MODULE_PREVIEW_GAP: int = 3
-const EXTERNAL_GRID_CELL_SIZE: Vector2 = Vector2(22, 22)
+const EXTERNAL_SLOT_CELL_SIZE: Vector2 = Vector2(22, 22)
+const EXTERNAL_GRID_CELL_SIZE: Vector2 = EXTERNAL_SLOT_CELL_SIZE
 const EXTERNAL_GRID_CELL_GAP: int = 2
 const INTERNAL_GRID_CELL_SIZE: Vector2 = Vector2(22, 22)
 const INTERNAL_GRID_CELL_GAP: int = 2
@@ -2356,24 +2357,42 @@ func _apply_external_cell_visual(
 	if cell == null:
 		return
 
-	cell.custom_minimum_size = cell_size
+	cell.custom_minimum_size = EXTERNAL_SLOT_CELL_SIZE
 	cell.size_flags_horizontal = Control.SIZE_SHRINK_CENTER
 	cell.size_flags_vertical = Control.SIZE_SHRINK_CENTER
 	cell.focus_mode = Control.FOCUS_NONE
-	cell.clip_text = true
-	cell.text_overrun_behavior = TextServer.OVERRUN_TRIM_ELLIPSIS
-	cell.autowrap_mode = TextServer.AUTOWRAP_OFF
-	cell.add_theme_font_size_override("font_size", 11 if cell_size.x >= CONSTRUCTOR_SMALL_LABEL_CELL_SIZE else 8)
+	cell.clip_text = false
+	cell.text = ""
 	if reserved_for_pocket and module == null:
-		cell.text = "P"
+		_set_external_cell_label(cell, "P", cell_size)
 	else:
-		cell.text = _get_external_cell_label(module) if cell_size.x >= CONSTRUCTOR_SMALL_LABEL_CELL_SIZE else ""
-	cell.add_theme_color_override("font_color", UI_COLOR_TEXT)
+		_set_external_cell_label(cell, _get_external_cell_label(module) if cell_size.x >= CONSTRUCTOR_SMALL_LABEL_CELL_SIZE else "", cell_size)
 
 	var style: StyleBoxFlat = _make_external_cell_style(module, selected, preview, invalid_preview, reserved_for_pocket)
 	cell.add_theme_stylebox_override("normal", style)
 	cell.add_theme_stylebox_override("hover", style)
 	cell.add_theme_stylebox_override("pressed", style)
+
+
+func _set_external_cell_label(cell: Button, text_value: String, cell_size: Vector2) -> void:
+	var label: Label = cell.get_node_or_null("CellLabel") as Label
+	if label == null:
+		label = Label.new()
+		label.name = "CellLabel"
+		label.mouse_filter = Control.MOUSE_FILTER_IGNORE
+		label.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
+		label.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+		label.size_flags_vertical = Control.SIZE_EXPAND_FILL
+		label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+		label.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
+		label.clip_text = true
+		label.text_overrun_behavior = TextServer.OVERRUN_TRIM_ELLIPSIS
+		label.autowrap_mode = TextServer.AUTOWRAP_OFF
+		label.custom_minimum_size = Vector2.ZERO
+		cell.add_child(label)
+	label.add_theme_font_size_override("font_size", 11 if cell_size.x >= CONSTRUCTOR_SMALL_LABEL_CELL_SIZE else 8)
+	label.add_theme_color_override("font_color", UI_COLOR_TEXT)
+	label.text = text_value
 
 
 func _get_selected_external_candidate_module() -> BipobModule:
