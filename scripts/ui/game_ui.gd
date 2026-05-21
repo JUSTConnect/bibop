@@ -6397,9 +6397,11 @@ func _can_remove_selected_internal_module() -> bool:
 	return module != null and bool(module.is_removable)
 
 func _add_juggernaut_builtin_batteries() -> void:
+	var size: Vector3i = bipob.get_internal_volume_size()
+	var right_origin_x: int = maxi(0, size.x - 2)
 	var builtins: Array[Dictionary] = [
 		{"origin": Vector3i(0, 0, 0)},
-		{"origin": Vector3i(2, 0, 0)}
+		{"origin": Vector3i(right_origin_x, 0, 0)}
 	]
 	for entry in builtins:
 		var module: BipobModule = _make_module_by_id("battery_v3")
@@ -6407,6 +6409,8 @@ func _add_juggernaut_builtin_batteries() -> void:
 			continue
 		module.is_builtin = true
 		module.is_removable = false
+		module.status = "ready"
+		module.energy_capacity = 50
 		module.current_charge = maxi(int(module.energy_capacity), 0)
 		bipob.place_internal_module(module, entry.get("origin", Vector3i.ZERO), 0)
 
@@ -6823,7 +6827,9 @@ func _create_menu_button(text: String, callback: Callable = Callable(), min_size
 	return button
 
 func _create_top_right_back_button(callback: Callable) -> Button:
-	return _create_menu_button("Back", callback, MENU_BACK_BUTTON_SIZE)
+	var button := _create_menu_button("Back", callback, MENU_BACK_BUTTON_SIZE)
+	_set_menu_top_button_height(button)
+	return button
 
 func _set_menu_top_button_height(button: Button) -> void:
 	if button == null:
@@ -7613,9 +7619,7 @@ func _on_charge_entry_pressed(entry: Variant, is_bipob_row: bool) -> void:
 		charge_bipob_to_full(entry)
 	else:
 		charge_battery_to_full(entry)
-	show_charging_menu()
-	update_status()
-	update_box_status()
+	_refresh_all_energy_dependent_ui()
 
 func get_chargeable_bipobs() -> Array:
 	var items: Array = []
@@ -7665,18 +7669,16 @@ func get_bipob_max_energy(bipob_data: Dictionary) -> int:
 	return maxi(int(bipob_data.get("max_energy", 0)), 0)
 
 func charge_bipob_to_full(bipob_data: Dictionary) -> void:
-	if String(bipob_data.get("id", "")) != active_bipob_profile_id:
+	var profile_id: String = String(bipob_data.get("id", ""))
+	if profile_id.is_empty():
 		return
-	if not bool(bipob_data.get("has_charger", false)):
+	if not _profile_has_charger(profile_id):
 		return
-	for module in _get_internal_installed_modules():
-		if module == null:
-			continue
-		if String(module.internal_family).to_lower() != "battery":
-			continue
-		module.current_charge = maxi(int(module.energy_capacity), 0)
-	bipob.recalculate_module_stats()
-	# TODO: persist bipob charging state when profile save system is implemented.
+	for module in _get_profile_battery_modules(profile_id):
+		if module != null:
+			module.current_charge = get_battery_capacity(module)
+	_mark_energy_state_dirty()
+	_sync_profile_energy_cache(profile_id)
 
 func is_battery_fully_charged(module: BipobModule) -> bool:
 	if module == null:
@@ -7728,7 +7730,55 @@ func can_charge_loose_battery(module: BipobModule) -> bool:
 func charge_loose_battery(module: BipobModule) -> void:
 	if module == null:
 		return
+	if not is_loose_battery_module(module):
+		return
+	var status_text: String = String(module.status).to_lower()
+	if status_text == "broken" or status_text == "unknown":
+		return
 	module.current_charge = get_battery_capacity(module)
+	_mark_energy_state_dirty()
+
+func _mark_energy_state_dirty() -> void:
+	_save_active_bipob_profile()
+	if bipob != null:
+		bipob.recalculate_module_stats()
+	_sync_profile_energy_cache(active_bipob_profile_id)
+
+func _refresh_all_energy_dependent_ui() -> void:
+	if app_screen_mode == AppScreenMode.CHARGING_MENU:
+		show_charging_menu()
+	if app_screen_mode == AppScreenMode.BOX_CONSTRUCTOR:
+		update_box_status()
+		rebuild_box_action_buttons()
+	_setup_mission_field_hud()
+	update_status()
+
+func _get_profile_battery_modules(profile_id: String) -> Array[BipobModule]:
+	var modules: Array[BipobModule] = []
+	if profile_id == active_bipob_profile_id:
+		for module in _get_internal_installed_modules():
+			if module != null and String(module.internal_family).to_lower() == "battery":
+				modules.append(module)
+		return modules
+	if not constructor_profiles.has(profile_id):
+		return modules
+	var profile_data: Dictionary = constructor_profiles[profile_id]
+	for record_variant in profile_data.get("placed_internal", []):
+		if typeof(record_variant) != TYPE_DICTIONARY:
+			continue
+		var module: BipobModule = record_variant.get("module", null)
+		if module != null and String(module.internal_family).to_lower() == "battery":
+			modules.append(module)
+	return modules
+
+func _sync_profile_energy_cache(profile_id: String) -> void:
+	if not constructor_profiles.has(profile_id):
+		return
+	var summary: Dictionary = _get_profile_energy_summary(profile_id)
+	var profile_data: Dictionary = constructor_profiles[profile_id]
+	profile_data["current_energy"] = int(summary.get("current", 0))
+	profile_data["max_energy"] = int(summary.get("max", 0))
+	constructor_profiles[profile_id] = profile_data
 
 func get_bipob_charge_warning(bipob_data: Dictionary) -> String:
 	if not bipob_has_any_battery(bipob_data):
@@ -7765,10 +7815,12 @@ func show_repair_menu() -> void:
 	panel.add_child(root)
 	var tabs := HBoxContainer.new()
 	tabs.add_theme_constant_override("separation", 8)
-	var workshop_button := _create_menu_button("Workshop", Callable(), Vector2(180, MENU_TOP_BUTTON_HEIGHT), "primary")
+	var workshop_button := _create_menu_button("Workshop", Callable(), Vector2(180, MENU_BACK_BUTTON_SIZE.y), "primary")
+	_set_menu_top_button_height(workshop_button)
 	workshop_button.disabled = true
 	tabs.add_child(workshop_button)
-	var service_button := _create_menu_button("Service Center", Callable(), Vector2(180, MENU_TOP_BUTTON_HEIGHT))
+	var service_button := _create_menu_button("Service Center", Callable(), Vector2(180, MENU_BACK_BUTTON_SIZE.y))
+	_set_menu_top_button_height(service_button)
 	service_button.disabled = true
 	tabs.add_child(service_button)
 	var tabs_spacer := Control.new()
