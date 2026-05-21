@@ -103,6 +103,7 @@ var has_info_key: bool = false
 var installed_modules: Array[BipobModule] = []
 var box_storage: Array[BipobModule] = []
 var external_modules_by_slot: Dictionary = {}
+var placed_external_modules: Array[Dictionary] = []
 var external_pockets_by_side: Dictionary = {}
 var internal_modules_by_cell: Dictionary = {}
 var placed_internal_modules: Array[Dictionary] = []
@@ -2461,26 +2462,52 @@ func remove_internal_module(cell: Vector3i) -> bool:
 		hint_requested.emit("Internal cell is out of bounds.")
 		status_changed.emit()
 		return false
-	var index := find_internal_module_record_at_cell(cell)
-	if index == -1:
+	var record: Dictionary = get_internal_module_record_at(cell)
+	if record.is_empty():
 		hint_requested.emit("No internal module at selected cell.")
 		status_changed.emit()
 		return false
-	var record: Dictionary = placed_internal_modules[index]
 	var module: BipobModule = record.get("module", null)
-	if module != null and not bool(module.is_removable):
+	if module != null and (bool(module.is_builtin) or not bool(module.is_removable)):
 		hint_requested.emit("Built-in module cannot be removed.")
 		status_changed.emit()
 		return false
-	var origin: Vector3i = record.get("origin", Vector3i.ZERO)
-	var rotation_index: int = int(record.get("rotation", 0))
-	for covered_cell in get_internal_module_covered_cells(module, origin, rotation_index):
-		internal_modules_by_cell.erase(get_internal_slot_key(covered_cell))
-	placed_internal_modules.remove_at(index)
+	remove_internal_module_record(record)
 	if module != null and not box_storage.has(module):
 		box_storage.append(module)
 	hint_requested.emit("Internal module removed to Box: %s" % get_module_display_name(module))
 	status_changed.emit()
+	return true
+
+func get_internal_module_record_at(cell: Vector3i) -> Dictionary:
+	for record_variant in placed_internal_modules:
+		if typeof(record_variant) != TYPE_DICTIONARY:
+			continue
+		var record: Dictionary = record_variant
+		var module: BipobModule = record.get("module", null)
+		var origin: Vector3i = record.get("origin", Vector3i.ZERO)
+		var rotation_index: int = int(record.get("rotation", 0))
+		if get_internal_module_covered_cells(module, origin, rotation_index).has(cell):
+			return record
+	return {}
+
+func remove_internal_module_record(record: Dictionary) -> bool:
+	if record.is_empty():
+		return false
+	var module: BipobModule = record.get("module", null)
+	var origin: Vector3i = record.get("origin", Vector3i.ZERO)
+	var rotation_index: int = int(record.get("rotation", 0))
+	for covered_cell in get_internal_module_covered_cells(module, origin, rotation_index):
+		internal_modules_by_cell.erase(get_internal_slot_key(covered_cell))
+	for index in range(placed_internal_modules.size() - 1, -1, -1):
+		if placed_internal_modules[index] == record:
+			placed_internal_modules.remove_at(index)
+			return true
+	for index in range(placed_internal_modules.size() - 1, -1, -1):
+		var placed_record: Dictionary = placed_internal_modules[index]
+		if placed_record.get("module", null) == module and placed_record.get("origin", Vector3i.ZERO) == origin and int(placed_record.get("rotation", 0)) == rotation_index:
+			placed_internal_modules.remove_at(index)
+			return true
 	return true
 
 func clear_internal_plan_to_storage() -> int:
@@ -3825,6 +3852,11 @@ func place_external_module(module: BipobModule, side_id: String, slot_position: 
 
 	for cell in get_external_module_footprint_cells(module, slot_position):
 		external_modules_by_slot[get_external_slot_key(side_id, cell)] = module
+	placed_external_modules.append({
+		"module": module,
+		"side": side_id,
+		"origin": slot_position
+	})
 	hint_requested.emit("External module placed: %s (%dx%d)" % [
 		get_module_display_name(module),
 		get_external_module_size(module).x,
@@ -3855,6 +3887,11 @@ func place_external_module_from_box_storage(storage_index: int, side_id: String,
 	box_storage.remove_at(storage_index)
 	for cell in get_external_module_footprint_cells(module, slot_position):
 		external_modules_by_slot[get_external_slot_key(side_id, cell)] = module
+	placed_external_modules.append({
+		"module": module,
+		"side": side_id,
+		"origin": slot_position
+	})
 
 	hint_requested.emit("External module installed: %s (%dx%d)" % [
 		get_module_display_name(module),
@@ -3870,13 +3907,13 @@ func remove_external_module(side_id: String, slot_position: Vector2i) -> BipobMo
 		status_changed.emit()
 		return null
 
-	var module: BipobModule = get_external_module_at(side_id, slot_position)
-	if module == null:
+	var record: Dictionary = get_external_module_record_at(side_id, slot_position)
+	if record.is_empty():
 		hint_requested.emit("External slot is empty.")
 		status_changed.emit()
 		return null
-
-	_remove_external_module_instance_cells(side_id, module)
+	var module: BipobModule = record.get("module", null)
+	remove_external_module_record(record, false)
 	hint_requested.emit("External module removed: " + get_module_display_name(module))
 	status_changed.emit()
 	return module
@@ -3887,18 +3924,72 @@ func remove_external_module_to_box_storage(side_id: String, slot_position: Vecto
 		status_changed.emit()
 		return false
 
-	var module: BipobModule = get_external_module_at(side_id, slot_position)
-	if module == null:
+	var record: Dictionary = get_external_module_record_at(side_id, slot_position)
+	if record.is_empty():
 		hint_requested.emit("External slot is empty.")
 		status_changed.emit()
 		return false
-
-	_remove_external_module_instance_cells(side_id, module)
-	if module != null and not box_storage.has(module):
-		box_storage.append(module)
+	var module: BipobModule = record.get("module", null)
+	if module != null and (bool(module.is_builtin) or not bool(module.is_removable)):
+		hint_requested.emit("Built-in module cannot be removed.")
+		status_changed.emit()
+		return false
+	remove_external_module_record(record, true)
 
 	hint_requested.emit("External module removed to Box: " + get_module_display_name(module))
 	status_changed.emit()
+	return true
+
+func get_external_module_record_at(side_id: String, cell: Vector2i) -> Dictionary:
+	var module: BipobModule = get_external_module_at(side_id, cell)
+	if module == null:
+		return {}
+	for record_variant in placed_external_modules:
+		if typeof(record_variant) != TYPE_DICTIONARY:
+			continue
+		var record: Dictionary = record_variant
+		if String(record.get("side", "")) != side_id:
+			continue
+		if record.get("module", null) != module:
+			continue
+		var origin: Vector2i = record.get("origin", Vector2i.ZERO)
+		if get_external_module_footprint_cells(module, origin).has(cell):
+			return record
+	var module_size: Vector2i = get_external_module_size(module)
+	for y in range(cell.y - module_size.y + 1, cell.y + 1):
+		for x in range(cell.x - module_size.x + 1, cell.x + 1):
+			var origin := Vector2i(x, y)
+			var covered_cells: Array[Vector2i] = get_external_module_footprint_cells(module, origin)
+			if not covered_cells.has(cell):
+				continue
+			var valid := true
+			for covered_cell in covered_cells:
+				if get_external_module_at(side_id, covered_cell) != module:
+					valid = false
+					break
+			if valid:
+				return {"module": module, "side": side_id, "origin": origin}
+	return {}
+
+func remove_external_module_record(record: Dictionary, return_to_box: bool = true) -> bool:
+	if record.is_empty():
+		return false
+	var module: BipobModule = record.get("module", null)
+	var side_id: String = String(record.get("side", ""))
+	var origin: Vector2i = record.get("origin", Vector2i.ZERO)
+	if module == null or side_id.is_empty():
+		return false
+	for cell in get_external_module_footprint_cells(module, origin):
+		var key: String = get_external_slot_key(side_id, cell)
+		if external_modules_by_slot.get(key, null) == module:
+			external_modules_by_slot.erase(key)
+	for index in range(placed_external_modules.size() - 1, -1, -1):
+		var placed_record: Dictionary = placed_external_modules[index]
+		if String(placed_record.get("side", "")) == side_id and placed_record.get("origin", Vector2i.ZERO) == origin and placed_record.get("module", null) == module:
+			placed_external_modules.remove_at(index)
+			break
+	if return_to_box and module != null and not box_storage.has(module):
+		box_storage.append(module)
 	return true
 
 func get_external_build_summary_text() -> String:
