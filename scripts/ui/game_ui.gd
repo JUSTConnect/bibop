@@ -7577,8 +7577,6 @@ func is_bipob_fully_charged(bipob_data: Dictionary) -> bool:
 func bipob_has_any_battery(bipob_data: Dictionary) -> bool:
 	return get_bipob_max_energy(bipob_data) > 0
 
-func bipob_has_charger(bipob_data: Dictionary) -> bool:
-	return bool(bipob_data.get("has_charger", false))
 
 func get_bipob_current_energy(bipob_data: Dictionary) -> int:
 	return maxi(int(bipob_data.get("current_energy", 0)), 0)
@@ -8546,9 +8544,28 @@ func _get_internal_energy_display_text() -> String:
 	return "%d / %d" % [int(totals.get("current", 0)), max_energy]
 
 func bipob_has_charger(_bipob: Variant = null) -> bool:
-	for module in _get_internal_installed_modules():
-		if module != null and module.id == "charger_v1":
+	var modules: Array = []
+
+	if _bipob == null:
+		modules = _get_internal_installed_modules()
+	elif typeof(_bipob) == TYPE_STRING:
+		return _profile_has_charger(String(_bipob))
+	elif typeof(_bipob) == TYPE_DICTIONARY:
+		var data: Dictionary = _bipob
+		if data.has("has_charger"):
+			return bool(data.get("has_charger", false))
+		if data.has("id"):
+			return _profile_has_charger(String(data.get("id", "")))
+		modules = _get_internal_installed_modules()
+	else:
+		modules = _get_internal_installed_modules()
+
+	for module in modules:
+		if module == null:
+			continue
+		if module.id == "charger_v1":
 			return true
+
 	return false
 
 func _profile_has_charger(profile_id: String) -> bool:
