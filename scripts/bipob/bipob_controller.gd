@@ -2468,6 +2468,10 @@ func remove_internal_module(cell: Vector3i) -> bool:
 		return false
 	var record: Dictionary = placed_internal_modules[index]
 	var module: BipobModule = record.get("module", null)
+	if module != null and not bool(module.is_removable):
+		hint_requested.emit("Built-in module cannot be removed.")
+		status_changed.emit()
+		return false
 	var origin: Vector3i = record.get("origin", Vector3i.ZERO)
 	var rotation_index: int = int(record.get("rotation", 0))
 	for covered_cell in get_internal_module_covered_cells(module, origin, rotation_index):

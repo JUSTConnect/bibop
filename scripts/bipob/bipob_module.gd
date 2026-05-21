@@ -61,6 +61,8 @@ class_name BipobModule
 # Internal stat outputs
 @export var energy_capacity: int = 0
 @export var current_charge: int = 0
+@export var is_builtin: bool = false
+@export var is_removable: bool = true
 @export var action_capacity: int = 0
 @export var digital_storage_slots: int = 0
 @export var hack_value: int = 0
