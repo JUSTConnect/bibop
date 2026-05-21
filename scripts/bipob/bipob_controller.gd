@@ -4000,6 +4000,28 @@ func remove_external_module_record(record: Dictionary, return_to_box: bool = tru
 		box_storage.append(module)
 	return true
 
+
+func clear_external_modules_for_profile(profile_id: String) -> void:
+	for index in range(placed_external_modules.size() - 1, -1, -1):
+		var record: Dictionary = placed_external_modules[index]
+		var module: BipobModule = record.get("module", null)
+		if module != null and (bool(module.is_builtin) or not bool(module.is_removable)):
+			continue
+		remove_external_module_record(record, true)
+	status_changed.emit()
+
+func clear_internal_modules_for_profile(profile_id: String) -> void:
+	for index in range(placed_internal_modules.size() - 1, -1, -1):
+		var record: Dictionary = placed_internal_modules[index]
+		var module: BipobModule = record.get("module", null)
+		if module != null and (bool(module.is_builtin) or not bool(module.is_removable)):
+			continue
+		remove_internal_module_record(record)
+		if module != null and not box_storage.has(module):
+			box_storage.append(module)
+	clear_selected_overlay_cells()
+	status_changed.emit()
+
 func get_external_build_summary_text() -> String:
 	if external_modules_by_slot.is_empty():
 		return "External build: empty"

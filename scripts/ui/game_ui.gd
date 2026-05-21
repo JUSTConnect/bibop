@@ -3258,8 +3258,8 @@ func _create_external_bottom_action_bar() -> Control:
 	var buttons: Array[Dictionary] = [
 		{"text": "Place", "handler": Callable(self, "_on_place_external_module_pressed"), "role": "primary", "enabled": _can_place_selected_external_visual()},
 		{"text": "Remove", "handler": Callable(self, "_on_remove_external_module_pressed"), "role": "danger", "enabled": selected_external_slot_module != null},
-		{"text": "Checkpoint", "handler": Callable(self, "_on_constructor_checkpoint_pressed"), "role": "reference", "enabled": true},
-		{"text": "Final Audit", "handler": Callable(self, "_on_constructor_final_audit_pressed"), "role": "reference", "enabled": true},
+		{"text": "Clear Plan", "handler": Callable(self, "_on_clear_plan_pressed"), "role": "danger", "enabled": true},
+		{"text": "Auto Configure", "handler": Callable(self, "_on_auto_configure_pressed"), "role": "primary", "enabled": true},
 	]
 
 	for config in buttons:
@@ -3903,10 +3903,8 @@ func _create_internal_bottom_action_bar() -> Control:
 		{"text": "Rotate", "handler": Callable(self, "_on_rotate_internal_pressed"), "role": "normal", "enabled": true, "compact": true},
 		{"text": "Place", "handler": Callable(self, "_on_place_internal_pressed"), "role": "primary", "enabled": _can_place_selected_internal_visual(), "compact": true},
 		{"text": "Remove", "handler": Callable(self, "_on_remove_internal_pressed"), "role": "danger", "enabled": internal_remove_available, "compact": true},
-		{"text": "Commit Plan", "handler": Callable(self, "_on_commit_overlay_pressed"), "role": "primary", "enabled": _can_commit_overlay_plan_visual(), "compact": true},
-		{"text": "Clear Plan", "handler": Callable(self, "_on_clear_overlay_pressed"), "role": "danger", "enabled": true, "compact": true},
-		{"text": "Checkpoint", "handler": Callable(self, "_on_constructor_checkpoint_pressed"), "role": "reference", "enabled": true, "compact": true},
-		{"text": "Final Audit", "handler": Callable(self, "_on_constructor_final_audit_pressed"), "role": "reference", "enabled": true, "compact": true},
+		{"text": "Clear Plan", "handler": Callable(self, "_on_clear_plan_pressed"), "role": "danger", "enabled": true, "compact": true},
+		{"text": "Auto Configure", "handler": Callable(self, "_on_auto_configure_pressed"), "role": "primary", "enabled": true, "compact": true},
 	]
 
 
@@ -7613,7 +7611,10 @@ func _create_charge_row(entry: Variant, is_bipob_row: bool) -> Control:
 	warning_label.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	warning_label.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 	_apply_label_style(warning_label)
-	warning_label.add_theme_color_override("font_color", UI_COLOR_DANGER)
+	var warning_color: Color = UI_COLOR_DANGER
+	if warnings.size() == 1 and warnings.has("Charger"):
+		warning_color = UI_COLOR_WARNING
+	warning_label.add_theme_color_override("font_color", warning_color)
 	var cost_label := Label.new()
 	cost_label.custom_minimum_size.x = 120
 	cost_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_RIGHT
@@ -8728,7 +8729,10 @@ func _create_internal_missing_required_panel() -> Control:
 	warning_label.clip_text = true
 	warning_label.text = " ".join(warnings)
 	_apply_label_style(warning_label, true, false)
-	warning_label.add_theme_color_override("font_color", UI_COLOR_DANGER)
+	var warning_color: Color = UI_COLOR_DANGER
+	if warnings.size() == 1 and warnings.has("Charger"):
+		warning_color = UI_COLOR_WARNING
+	warning_label.add_theme_color_override("font_color", warning_color)
 	root.add_child(warning_label)
 	panel.add_child(root)
 	return panel
@@ -8905,6 +8909,8 @@ func _build_internal_missing_required_warnings() -> Array[String]:
 	if bipob.has_method("is_power_port_overloaded") and bipob.is_power_port_overloaded():
 		if not warnings.has("Power Block"):
 			warnings.append("Power Block")
+	if not bipob_has_charger() and not warnings.has("Charger"):
+		warnings.append("Charger")
 	return warnings
 
 
@@ -9450,15 +9456,17 @@ func _on_commit_overlay_pressed() -> void:
 		show_hint("No Water Tube V1 in Box Storage.")
 	update_box_status()
 
-func _on_clear_overlay_pressed() -> void:
-	if _is_constructor_internal_mode():
-		if bipob.has_method("clear_internal_plan_to_storage"):
-			bipob.clear_internal_plan_to_storage()
-		else:
-			bipob.clear_selected_overlay_cells()
+func _on_clear_plan_pressed() -> void:
+	if _is_constructor_internal_mode() and bipob.has_method("clear_internal_modules_for_profile"):
+		bipob.clear_internal_modules_for_profile(active_bipob_profile_id)
+	elif _is_constructor_external_mode() and bipob.has_method("clear_external_modules_for_profile"):
+		bipob.clear_external_modules_for_profile(active_bipob_profile_id)
 	else:
 		bipob.clear_selected_overlay_cells()
 	update_box_status()
+
+func _on_clear_overlay_pressed() -> void:
+	_on_clear_plan_pressed()
 
 func _on_overlay_check_pressed() -> void:
 	if _safe_has_bipob_method("get_overlay_connectivity_preview_text"):
@@ -9501,6 +9509,110 @@ func _on_overlay_diff_pressed() -> void:
 		_show_constructor_reference_text("OVERLAY DIFF", str(bipob.get_overlay_heat_diff_summary_text(false)))
 	else:
 		_show_constructor_reference_text("OVERLAY DIFF", "Overlay diff helper is unavailable.")
+
+
+
+func _normalize_text(value: String) -> String:
+	return value.to_lower().strip_edges()
+
+func _count_internal_family(family: String) -> int:
+	var total: int = 0
+	for module in _get_internal_installed_modules():
+		if module == null:
+			continue
+		var f := _normalize_text(String(module.internal_family))
+		if family == "battery" and (f == "battery" or module.id.begins_with("battery_")):
+			total += 1
+		elif f == family:
+			total += 1
+	return total
+
+func _has_internal_family(family: String) -> bool:
+	return _count_internal_family(family) > 0
+
+func _place_first_internal_family(family: String) -> void:
+	for i in range(bipob.box_storage.size()):
+		var module: BipobModule = bipob.box_storage[i]
+		if not _is_ready_module(module) or not bipob.is_internal_module(module):
+			continue
+		var f := _normalize_text(String(module.internal_family))
+		var n := _normalize_text(module.get_display_name())
+		if family == "storage" and not (f == "storage" or n.contains("hard drive")):
+			continue
+		elif family == "cooler" and not n.contains("cooler"):
+			continue
+		elif family == "radiator" and not n.contains("radiator"):
+			continue
+		elif family == "power" and not (f == "power" or n.contains("power block")):
+			continue
+		elif family == "charger" and not (module.id == "charger_v1" or n.contains("charger")):
+			continue
+		elif family in ["battery","cpu","ram","gpu","internal_interface","external_interface"] and f != family and not (family=="battery" and module.id.begins_with("battery_")):
+			continue
+		for z in range(_get_internal_preview_volume_size().z):
+			for y in range(_get_internal_preview_volume_size().y):
+				for x in range(_get_internal_preview_volume_size().x):
+					var pos := Vector3i(x,y,z)
+					if bipob.place_internal_module(module, pos, 0) or bipob.place_internal_module(module, pos, 1):
+						return
+		return
+
+func _place_external_group_if_missing(group: String, preferred_sides: Array[String]) -> void:
+	if _has_external_group(group):
+		return
+	for i in range(bipob.box_storage.size()):
+		var module: BipobModule = bipob.box_storage[i]
+		if not _is_ready_module(module) or not bipob.is_external_module(module):
+			continue
+		if not _module_matches_external_group(module, group):
+			continue
+		for side in preferred_sides:
+			var size: Vector2i = bipob.get_external_side_size(side)
+			for y in range(size.y):
+				for x in range(size.x):
+					if bipob.place_external_module_from_box_storage(i, side, Vector2i(x,y)):
+						return
+
+func _has_external_group(group: String) -> bool:
+	for record in bipob.placed_external_modules:
+		var module: BipobModule = record.get("module", null)
+		if module != null and _module_matches_external_group(module, group):
+			return true
+	return false
+
+func _module_matches_external_group(module: BipobModule, group: String) -> bool:
+	var c := _normalize_text(module.category)
+	var n := _normalize_text(module.get_display_name())
+	if group == "gear": return c in ["gear","gears"] or n.contains("gear") or n.contains("chassis")
+	if group == "sensor": return c.contains("sensor") or n.contains("visor")
+	if group == "interface": return c.contains("interface") or n.contains("wired interface") or n.contains("connector")
+	if group == "manipulator": return c in ["manipulator","manipulators"] or n.contains("manipulator") or n.contains("arm")
+	return false
+
+func _is_ready_module(module: BipobModule) -> bool:
+	return module != null and not bipob.is_module_broken(module) and not bipob.is_module_unknown(module)
+
+func _on_auto_configure_pressed() -> void:
+	if _is_constructor_internal_mode():
+		_auto_configure_internal()
+	else:
+		_auto_configure_external()
+	update_box_status()
+
+func _auto_configure_internal() -> void:
+	var targets: Array[String] = ["battery","battery","cpu","ram","gpu","storage","internal_interface","external_interface","cooler","radiator","power","charger"]
+	for target in targets:
+		if target != "battery" and _has_internal_family(target):
+			continue
+		if target == "battery" and _count_internal_family("battery") >= 2:
+			continue
+		_place_first_internal_family(target)
+
+func _auto_configure_external() -> void:
+	_place_external_group_if_missing("gear", ["bottom"])
+	_place_external_group_if_missing("sensor", ["top"])
+	_place_external_group_if_missing("interface", ["front"])
+	_place_external_group_if_missing("manipulator", ["left","right","front","back"])
 
 func _on_constructor_final_audit_pressed() -> void:
 	if _safe_has_bipob_method("get_constructor_final_audit_text"):
