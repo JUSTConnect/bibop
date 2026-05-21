@@ -8539,18 +8539,13 @@ func _create_internal_slice_grid(title_text: String, axis_a: String, axis_b: Str
 				var can_place_preview: bool = bool(preview_cells[key])
 				preview = can_place_preview
 				invalid_preview = not can_place_preview
-			var cell_button: Button = Button.new()
-			cell_button.custom_minimum_size = cell_size
-			cell_button.focus_mode = Control.FOCUS_NONE
-			cell_button.clip_text = true
-			cell_button.text_overrun_behavior = TextServer.OVERRUN_TRIM_ELLIPSIS
-			cell_button.autowrap_mode = TextServer.AUTOWRAP_OFF
-			cell_button.add_theme_font_size_override("font_size", 11 if cell_size.x >= CONSTRUCTOR_SMALL_LABEL_CELL_SIZE else 8)
-			cell_button.text = _get_internal_visual_cell_label(cell, module) if cell_size.x >= CONSTRUCTOR_SMALL_LABEL_CELL_SIZE else ""
+			var cell_button: Button = _create_internal_slice_cell_button(
+				cell_size,
+				_get_internal_visual_cell_label(cell, module) if cell_size.x >= CONSTRUCTOR_SMALL_LABEL_CELL_SIZE else ""
+			)
 			cell_button.add_theme_stylebox_override("normal", _make_internal_cell_style(cell, module, selected, preview, invalid_preview))
 			cell_button.add_theme_stylebox_override("hover", _make_internal_cell_style(cell, module, true, preview, invalid_preview))
 			cell_button.add_theme_stylebox_override("pressed", _make_internal_cell_style(cell, module, true, preview, invalid_preview))
-			cell_button.add_theme_color_override("font_color", UI_COLOR_TEXT)
 			cell_button.pressed.connect(func() -> void: _on_internal_visual_cell_pressed(cell))
 			if selected:
 				_apply_selected_pulse(cell_button)
@@ -8560,6 +8555,26 @@ func _create_internal_slice_grid(title_text: String, axis_a: String, axis_b: Str
 	root.add_child(grid)
 	panel.add_child(root)
 	return panel
+
+func _create_internal_slice_cell_button(cell_size: Vector2, marker_text: String) -> Button:
+	var cell_button: Button = Button.new()
+	cell_button.custom_minimum_size = cell_size
+	cell_button.focus_mode = Control.FOCUS_NONE
+	cell_button.text = ""
+	var marker_label: Label = Label.new()
+	marker_label.text = marker_text
+	marker_label.custom_minimum_size = Vector2.ZERO
+	marker_label.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	marker_label.size_flags_vertical = Control.SIZE_EXPAND_FILL
+	marker_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	marker_label.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
+	marker_label.clip_text = true
+	marker_label.text_overrun_behavior = TextServer.OVERRUN_TRIM_ELLIPSIS
+	marker_label.autowrap_mode = TextServer.AUTOWRAP_OFF
+	marker_label.add_theme_color_override("font_color", UI_COLOR_TEXT)
+	marker_label.add_theme_font_size_override("font_size", 11 if cell_size.x >= CONSTRUCTOR_SMALL_LABEL_CELL_SIZE else 8)
+	cell_button.add_child(marker_label)
+	return cell_button
 
 func _create_internal_cube_preview_panel() -> Control:
 	var panel: PanelContainer = PanelContainer.new()
