@@ -7880,13 +7880,13 @@ func show_repair_menu() -> void:
 	panel.add_child(root)
 	var tabs := HBoxContainer.new()
 	tabs.add_theme_constant_override("separation", 8)
-	var workshop_button := _create_menu_button("Workshop", Callable(), Vector2(180, MENU_BACK_BUTTON_SIZE.y), "primary")
+	var workshop_button := _create_menu_button("Workshop", Callable(), Vector2(180, MENU_BACK_BUTTON_SIZE.y))
 	_set_menu_top_button_height(workshop_button)
 	workshop_button.disabled = true
 	tabs.add_child(workshop_button)
-	var service_button := _create_menu_button("Service Center", Callable(), Vector2(180, MENU_BACK_BUTTON_SIZE.y))
+	var service_button := _create_menu_button("Service Center", Callable(self, "_on_repair_service_tab_pressed"), Vector2(180, MENU_BACK_BUTTON_SIZE.y), "primary")
 	_set_menu_top_button_height(service_button)
-	service_button.disabled = true
+	service_button.tooltip_text = "Current tab"
 	tabs.add_child(service_button)
 	var tabs_spacer := Control.new()
 	tabs_spacer.size_flags_horizontal = Control.SIZE_EXPAND_FILL
@@ -7915,29 +7915,15 @@ func _refresh_repair_menu() -> void:
 		child.queue_free()
 	var broken_modules: Array = bipob.get_broken_modules_for_repair() if bipob.has_method("get_broken_modules_for_repair") else []
 	var damaged_bipobs: Array = bipob.get_damaged_bipobs_for_repair() if bipob.has_method("get_damaged_bipobs_for_repair") else []
-	var modules_title := Label.new()
-	modules_title.text = "Damaged Modules"
-	_apply_label_style(modules_title, false, true)
-	rows_vbox.add_child(modules_title)
-	if broken_modules.is_empty():
-		var none_modules := Label.new()
-		none_modules.text = "No damaged modules."
-		_apply_label_style(none_modules, true, false)
-		rows_vbox.add_child(none_modules)
 	for module in broken_modules:
 		rows_vbox.add_child(_create_repair_module_row(module))
-
-	var bipobs_title := Label.new()
-	bipobs_title.text = "Damaged Bipops"
-	_apply_label_style(bipobs_title, false, true)
-	rows_vbox.add_child(bipobs_title)
-	if damaged_bipobs.is_empty():
-		var none_bipobs := Label.new()
-		none_bipobs.text = "No damaged Bipops."
-		_apply_label_style(none_bipobs, true, false)
-		rows_vbox.add_child(none_bipobs)
 	for row in damaged_bipobs:
 		rows_vbox.add_child(_create_repair_bipob_row(row))
+	if broken_modules.is_empty() and damaged_bipobs.is_empty():
+		var empty_state := Label.new()
+		empty_state.text = "No damaged Bipops or modules."
+		_apply_label_style(empty_state, true, false)
+		rows_vbox.add_child(empty_state)
 
 func _create_repair_bipob_card(bipob_data: Dictionary, selected: bool) -> Button:
 	var profile_id := String(bipob_data.get("profile_id", ""))
@@ -8011,6 +7997,10 @@ func _create_repair_bipob_row(bipob_data: Dictionary) -> Control:
 	var repair_btn := _create_menu_button("Repair", Callable(self, "_on_repair_bipob_row_pressed").bind(bipob_data), Vector2(120, 38), "primary")
 	row.add_child(repair_btn)
 	return panel
+
+func _on_repair_service_tab_pressed() -> void:
+	# Active tab placeholder for current screen.
+	pass
 
 func _on_repair_module_row_pressed(module: BipobModule) -> void:
 	if bipob.has_method("repair_module"):
