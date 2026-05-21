@@ -6984,16 +6984,24 @@ func _build_tasks_menu_layout() -> void:
 	root.add_theme_constant_override("separation", 10)
 	margin.add_child(root)
 
-	var tabs := HBoxContainer.new()
-	tabs.add_theme_constant_override("separation", 8)
-	root.add_child(tabs)
+	var top_row := HBoxContainer.new()
+	top_row.add_theme_constant_override("separation", 8)
+	root.add_child(top_row)
 	for tab_name in ["Career", "Daily", "Defense", "Support"]:
 		var tab_button := _create_menu_button(tab_name, Callable(self, "_on_tasks_tab_pressed").bind(tab_name), Vector2(102, 34))
 		tasks_tab_buttons[tab_name] = tab_button
-		tabs.add_child(tab_button)
-	var tab_spacer := Control.new()
-	tab_spacer.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-	tabs.add_child(tab_spacer)
+		top_row.add_child(tab_button)
+	var top_spacer := Control.new()
+	top_spacer.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	top_row.add_child(top_spacer)
+	tasks_bipob_buttons_row = HBoxContainer.new()
+	tasks_bipob_buttons_row.custom_minimum_size = Vector2(0, 34)
+	tasks_bipob_buttons_row.add_theme_constant_override("separation", 6)
+	top_row.add_child(tasks_bipob_buttons_row)
+	var top_gap := Control.new()
+	top_gap.custom_minimum_size = Vector2(8, 0)
+	top_row.add_child(top_gap)
+	top_row.add_child(_create_top_right_back_button(Callable(self, "show_center_screen")))
 
 	var content_row := HBoxContainer.new()
 	content_row.size_flags_vertical = Control.SIZE_EXPAND_FILL
@@ -7052,18 +7060,24 @@ func _build_tasks_menu_layout() -> void:
 	right_vbox.add_theme_constant_override("separation", 8)
 	right_margin.add_child(right_vbox)
 
-	tasks_bipob_buttons_row = HBoxContainer.new()
-	tasks_bipob_buttons_row.custom_minimum_size = Vector2(0, 56)
-	tasks_bipob_buttons_row.add_theme_constant_override("separation", 6)
-	right_vbox.add_child(tasks_bipob_buttons_row)
+	var details_scroll := ScrollContainer.new()
+	details_scroll.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	details_scroll.size_flags_vertical = Control.SIZE_EXPAND_FILL
+	details_scroll.horizontal_scroll_mode = ScrollContainer.SCROLL_MODE_DISABLED
+	right_vbox.add_child(details_scroll)
+
+	var details_content := VBoxContainer.new()
+	details_content.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	details_content.add_theme_constant_override("separation", 8)
+	details_scroll.add_child(details_content)
 
 	tasks_title_label = Label.new()
 	_apply_label_style(tasks_title_label, false, true)
-	right_vbox.add_child(tasks_title_label)
+	details_content.add_child(tasks_title_label)
 
 	var header_line := HBoxContainer.new()
 	header_line.add_theme_constant_override("separation", 14)
-	right_vbox.add_child(header_line)
+	details_content.add_child(header_line)
 	tasks_difficulty_label = Label.new()
 	_apply_label_style(tasks_difficulty_label)
 	header_line.add_child(tasks_difficulty_label)
@@ -7073,7 +7087,7 @@ func _build_tasks_menu_layout() -> void:
 
 	var goals_panel := PanelContainer.new()
 	goals_panel.add_theme_stylebox_override("panel", _make_panel_style(UI_COLOR_PANEL_DARK, UI_COLOR_BORDER_DIM, 1, 6))
-	right_vbox.add_child(goals_panel)
+	details_content.add_child(goals_panel)
 	var goals_row := HBoxContainer.new()
 	goals_row.add_theme_constant_override("separation", 10)
 	goals_panel.add_child(goals_row)
@@ -7102,7 +7116,7 @@ func _build_tasks_menu_layout() -> void:
 
 	var req_row := HBoxContainer.new()
 	req_row.add_theme_constant_override("separation", 8)
-	right_vbox.add_child(req_row)
+	details_content.add_child(req_row)
 	var req_required_panel := PanelContainer.new()
 	req_required_panel.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	req_required_panel.add_theme_stylebox_override("panel", _make_panel_style(UI_COLOR_PANEL_DARK, UI_COLOR_BORDER_DIM, 1, 6))
@@ -7127,7 +7141,7 @@ func _build_tasks_menu_layout() -> void:
 	var warnings_panel := PanelContainer.new()
 	warnings_panel.add_theme_stylebox_override("panel", _make_panel_style(UI_COLOR_PANEL_DARK, UI_COLOR_BORDER_DIM, 1, 6))
 	warnings_panel.custom_minimum_size = Vector2(0, 100)
-	right_vbox.add_child(warnings_panel)
+	details_content.add_child(warnings_panel)
 	var warnings_v := VBoxContainer.new(); warnings_panel.add_child(warnings_v)
 	var warnings_title := Label.new(); warnings_title.text = "Warnings"; _apply_label_style(warnings_title, true); warnings_v.add_child(warnings_title)
 	tasks_warnings_label = RichTextLabel.new(); tasks_warnings_label.bbcode_enabled = true; tasks_warnings_label.fit_content = true
@@ -7137,7 +7151,7 @@ func _build_tasks_menu_layout() -> void:
 	tasks_report_label = Label.new()
 	tasks_report_label.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 	_apply_label_style(tasks_report_label, true, false)
-	right_vbox.add_child(tasks_report_label)
+	details_content.add_child(tasks_report_label)
 
 	var actions := HBoxContainer.new()
 	tasks_actions_row = actions
@@ -7149,7 +7163,6 @@ func _build_tasks_menu_layout() -> void:
 	tasks_claim_button.visible = false
 	actions.add_child(tasks_claim_button)
 	var actions_spacer := Control.new(); actions_spacer.size_flags_horizontal = Control.SIZE_EXPAND_FILL; actions.add_child(actions_spacer)
-	actions.add_child(_create_top_right_back_button(Callable(self, "show_center_screen")))
 	_refresh_tasks_content()
 
 func _build_mission_constructor_screen() -> void:
