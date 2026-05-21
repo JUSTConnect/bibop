@@ -6372,7 +6372,7 @@ func _make_box_top_button(
 	var button: Button = Button.new()
 	button.text = text
 	button.focus_mode = Control.FOCUS_NONE
-	button.custom_minimum_size = Vector2(120, CONSTRUCTOR_TOP_BUTTON_HEIGHT)
+	button.custom_minimum_size = Vector2(120, MENU_TOP_BUTTON_HEIGHT)
 	var style_role: String = "primary" if active else role
 	_apply_action_button_style(button, style_role, true)
 	button.pressed.connect(callback)
