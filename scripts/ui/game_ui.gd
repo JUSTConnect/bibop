@@ -7005,7 +7005,7 @@ func _build_main_menu_layout() -> void:
 	vbox.add_child(_create_menu_button("Играть", Callable(self, "_on_main_play_pressed"), Vector2(180, 36)))
 	vbox.add_child(_create_menu_button("Настройки", Callable(self, "_on_main_settings_pressed"), Vector2(180, 36)))
 	vbox.add_child(_create_menu_button("О нас", Callable(self, "_on_main_about_pressed"), Vector2(180, 36)))
-	vbox.add_child(_create_menu_button("Выйти из игры", Callable(self, "_on_main_exit_pressed"), Vector2(180, 36), "danger"))
+	vbox.add_child(_create_menu_button("Выйти из игры", Callable(self, "_on_exit_game_pressed"), Vector2(180, 36), "danger"))
 
 	var spacer := Control.new()
 	spacer.custom_minimum_size = Vector2(0, 14)
@@ -7499,7 +7499,10 @@ func _on_main_settings_pressed() -> void:
 func _on_main_about_pressed() -> void:
 	show_placeholder_screen("О нас")
 func _on_main_exit_pressed() -> void:
-	show_placeholder_screen("Выход из игры")
+	_on_exit_game_pressed()
+
+func _on_exit_game_pressed() -> void:
+	get_tree().quit()
 func _on_center_tasks_pressed() -> void:
 	navigate_to_screen(AppScreenMode.TASKS)
 func _on_center_box_pressed() -> void:
