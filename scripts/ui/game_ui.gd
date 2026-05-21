@@ -1526,6 +1526,8 @@ func _configure_box_layout() -> void:
 		main_box_row = HBoxContainer.new()
 		main_box_row.name = "MainBoxRow"
 		vbox.add_child(main_box_row)
+	if main_box_row.get_parent() == vbox:
+		vbox.move_child(main_box_row, 0)
 
 	left_panel = vbox.get_node_or_null("MainBoxRow/LeftPanel")
 	if left_panel == null:
@@ -1581,12 +1583,15 @@ func _configure_box_layout() -> void:
 	if box_status_label != null:
 		box_status_label.visible = false
 		box_status_label.text = ""
+		box_status_label.custom_minimum_size = Vector2.ZERO
 	if box_module_label != null:
 		box_module_label.visible = false
 		box_module_label.text = ""
+		box_module_label.custom_minimum_size = Vector2.ZERO
 	if installed_modules_label != null:
 		installed_modules_label.visible = false
 		installed_modules_label.text = ""
+		installed_modules_label.custom_minimum_size = Vector2.ZERO
 	if box_storage_label != null:
 		box_storage_label.visible = false
 		box_storage_label.text = ""
@@ -1597,6 +1602,9 @@ func _configure_box_layout() -> void:
 	var old_button_row := vbox.get_node_or_null("ButtonRow")
 	if old_button_row != null:
 		old_button_row.visible = false
+		if old_button_row is Control:
+			var old_button_row_control: Control = old_button_row
+			old_button_row_control.custom_minimum_size = Vector2.ZERO
 		for child in old_button_row.get_children():
 			child.queue_free()
 
