@@ -3877,6 +3877,14 @@ func place_external_module_from_box_storage(storage_index: int, side_id: String,
 		hint_requested.emit("Removed empty module from Box Storage.")
 		status_changed.emit()
 		return false
+	if is_module_broken(module):
+		hint_requested.emit("Broken module cannot be installed.")
+		status_changed.emit()
+		return false
+	if is_module_unknown(module):
+		hint_requested.emit("Unknown module must be identified first.")
+		status_changed.emit()
+		return false
 
 	var placement_error := get_external_module_placement_error(module, side_id, slot_position)
 	if not placement_error.is_empty():
@@ -4185,6 +4193,7 @@ func create_default_modules() -> void:
 	add_internal_mvp_modules_to_box()
 	ensure_external_constructor_modules_in_box_storage()
 	_add_broken_test_visor_v2_to_box_storage()
+	_add_unknown_test_visor_v3_to_box_storage()
 
 func _add_broken_test_visor_v2_to_box_storage() -> void:
 	var broken_exists: bool = false
@@ -4197,8 +4206,25 @@ func _add_broken_test_visor_v2_to_box_storage() -> void:
 	var broken_visor: BipobModule = create_external_module_by_id("visor_v2")
 	if broken_visor == null:
 		return
+	broken_visor.module_id = "visor_v2_broken_test"
 	set_module_broken(broken_visor, true)
 	box_storage.append(broken_visor)
+
+func _add_unknown_test_visor_v3_to_box_storage() -> void:
+	for module in box_storage:
+		if module == null:
+			continue
+		if module.module_id == "visor_v3_unknown_test":
+			return
+		if module.id == "visor_v3" and is_module_unknown(module):
+			return
+	var unknown_visor: BipobModule = create_external_module_by_id("visor_v3")
+	if unknown_visor == null:
+		return
+	unknown_visor.module_id = "visor_v3_unknown_test"
+	unknown_visor.status = "unknown"
+	unknown_visor.is_broken = false
+	box_storage.append(unknown_visor)
 
 func create_internal_module(module_id: String, module_name: String, module_size: Vector3i) -> BipobModule:
 	var module := BipobModule.new()
@@ -5225,6 +5251,10 @@ func install_module_from_box_storage(storage_index: int) -> bool:
 		hint_requested.emit("Broken module cannot be installed.")
 		status_changed.emit()
 		return false
+	if is_module_unknown(module_to_install):
+		hint_requested.emit("Unknown module must be identified first.")
+		status_changed.emit()
+		return false
 
 	box_storage.remove_at(storage_index)
 
@@ -5239,12 +5269,29 @@ func install_module_from_box_storage(storage_index: int) -> bool:
 	return true
 
 func is_module_broken(module: BipobModule) -> bool:
-	return module != null and bool(module.is_broken)
+	return module != null and module.status == "broken"
+
+func is_module_ready(module: BipobModule) -> bool:
+	return module != null and module.status == "ready"
+
+func is_module_unknown(module: BipobModule) -> bool:
+	if module == null:
+		return false
+	return module.status == "unknown"
 
 func set_module_broken(module: BipobModule, value: bool) -> void:
 	if module == null:
 		return
+	module.status = "broken" if value else "ready"
 	module.is_broken = value
+
+func identify_unknown_module(module: BipobModule) -> void:
+	if module == null:
+		return
+	if module.status != "unknown":
+		return
+	module.status = "ready"
+	module.is_broken = false
 
 func get_broken_modules_for_repair() -> Array:
 	var result: Array = []
@@ -5273,7 +5320,12 @@ func get_damaged_bipobs_for_repair() -> Array:
 	return result
 
 func repair_module(module: BipobModule) -> void:
-	set_module_broken(module, false)
+	if module == null:
+		return
+	if not is_module_broken(module):
+		return
+	module.status = "ready"
+	module.is_broken = false
 	status_changed.emit()
 
 func repair_bipob(bipob_data: Dictionary) -> void:

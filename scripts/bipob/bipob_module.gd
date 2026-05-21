@@ -100,6 +100,7 @@ class_name BipobModule
 @export var repair_complexity: int = 1
 @export var repair_category: String = "standard"
 @export var is_broken: bool = false
+@export var status: String = "ready"
 
 
 func get_display_name() -> String:
