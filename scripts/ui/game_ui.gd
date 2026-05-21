@@ -228,6 +228,7 @@ var tasks_warnings_label: RichTextLabel
 var tasks_report_label: Label
 var tasks_bipob_buttons_row: HBoxContainer
 var charging_menu_root: Control = null
+var box_menu_root: Control = null
 var charging_active_tab: String = "supercharger"
 var tasks_validation_label: Label
 var tasks_start_button: Button
@@ -4674,8 +4675,7 @@ func _ready() -> void:
 		box_screen.visible = false
 	if command_panel != null:
 		command_panel.visible = false
-	_configure_box_layout()
-	_apply_box_screen_fullscreen_layout()
+	_build_box_menu_layout()
 	_ensure_action_panel_scrollable()
 	if get_viewport() != null and not get_viewport().size_changed.is_connected(_on_viewport_size_changed):
 		get_viewport().size_changed.connect(_on_viewport_size_changed)
@@ -4913,6 +4913,8 @@ func _hide_all_app_screens() -> void:
 		mission_result_root.visible = false
 	if charging_menu_root != null:
 		charging_menu_root.visible = false
+	if box_menu_root != null:
+		box_menu_root.visible = false
 	if box_screen != null:
 		box_screen.visible = false
 	if runtime_hud_root != null and is_instance_valid(runtime_hud_root):
@@ -5006,7 +5008,7 @@ func navigate_to_screen(target_screen: AppScreenMode, payload: Dictionary = {}) 
 			show_center_screen()
 
 func _assert_single_active_major_screen() -> void:
-	var roots: Array[Control] = [main_menu_root, center_menu_root, tasks_menu_root, mission_constructor_root, placeholder_menu_root, mission_result_root, charging_menu_root, repair_menu_root, box_screen, runtime_hud_root]
+	var roots: Array[Control] = [main_menu_root, center_menu_root, tasks_menu_root, mission_constructor_root, placeholder_menu_root, mission_result_root, charging_menu_root, repair_menu_root, box_menu_root, box_screen, runtime_hud_root]
 	var visible_count: int = 0
 	for root in roots:
 		if root != null and is_instance_valid(root) and root.visible:
@@ -5707,17 +5709,71 @@ func _set_external_selection_from_side_and_cell(side_id: String, cell: Vector2i)
 	bipob.selected_external_side = side_id
 	bipob.selected_external_origin = cell
 
+func _build_box_menu_layout() -> void:
+	if box_menu_root != null and is_instance_valid(box_menu_root):
+		box_menu_root.queue_free()
+	box_menu_root = _build_fullscreen_root("BoxMenuRoot")
+	add_child(box_menu_root)
+	var margin := MarginContainer.new()
+	margin.set_anchors_preset(Control.PRESET_FULL_RECT)
+	margin.add_theme_constant_override("margin_left", 30)
+	margin.add_theme_constant_override("margin_right", 30)
+	margin.add_theme_constant_override("margin_top", 26)
+	margin.add_theme_constant_override("margin_bottom", 26)
+	box_menu_root.add_child(margin)
+	var panel := PanelContainer.new()
+	_apply_panel_style(panel, true)
+	margin.add_child(panel)
+	var vbox := VBoxContainer.new()
+	vbox.add_theme_constant_override("separation", 8)
+	panel.add_child(vbox)
+
+	box_top_bar_root = HBoxContainer.new()
+	(box_top_bar_root as HBoxContainer).add_theme_constant_override("separation", 8)
+	vbox.add_child(box_top_bar_root)
+
+	box_content_scroll = ScrollContainer.new()
+	box_content_scroll.name = "BoxContentScroll"
+	box_content_scroll.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	box_content_scroll.size_flags_vertical = Control.SIZE_EXPAND_FILL
+	box_content_scroll.horizontal_scroll_mode = ScrollContainer.SCROLL_MODE_DISABLED
+	box_content_scroll.vertical_scroll_mode = ScrollContainer.SCROLL_MODE_AUTO
+	vbox.add_child(box_content_scroll)
+
+	box_constructor_content_root = VBoxContainer.new()
+	box_constructor_content_root.name = "BoxConstructorContentRoot"
+	box_constructor_content_root.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	box_constructor_content_root.size_flags_vertical = Control.SIZE_EXPAND_FILL
+	box_constructor_content_root.add_theme_constant_override("separation", 8)
+	box_content_scroll.add_child(box_constructor_content_root)
+
+	box_content_label = Label.new()
+	box_content_label.name = "BoxContentLabel"
+	box_content_label.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	box_content_label.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	box_content_label.visible = false
+	box_constructor_content_root.add_child(box_content_label)
+
+	right_button_panel = VBoxContainer.new()
+	right_button_panel.name = "RightButtonPanel"
+	right_button_panel.add_theme_constant_override("separation", 8)
+	right_button_panel.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	vbox.add_child(right_button_panel)
+	if box_screen != null:
+		box_screen.visible = false
+
 
 
 func _on_viewport_size_changed() -> void:
-	if box_screen != null and box_screen.visible:
-		_apply_box_screen_fullscreen_layout()
+	if box_menu_root != null and box_menu_root.visible:
 		if box_menu_mode == BoxMenuMode.EXTERNAL or box_menu_mode == BoxMenuMode.INTERNAL:
 			update_box_status()
 	if runtime_hud_root != null and is_instance_valid(runtime_hud_root) and runtime_hud_root.visible:
 		_apply_runtime_hud_layout()
 		call_deferred("_attach_runtime_gameplay_view")
 func _apply_box_screen_fullscreen_layout() -> void:
+	if box_menu_root != null and is_instance_valid(box_menu_root):
+		return
 	if box_screen == null:
 		return
 	box_screen.set_anchors_preset(Control.PRESET_FULL_RECT)
@@ -5877,15 +5933,20 @@ func _on_returned_to_box() -> void:
 	update_box_status()
 
 func show_box_screen() -> void:
+	if box_menu_root == null or not is_instance_valid(box_menu_root):
+		_build_box_menu_layout()
+	if box_menu_root != null:
+		box_menu_root.visible = true
 	if box_screen != null:
-		box_screen.visible = true
+		box_screen.visible = false
 	if command_panel != null:
 		command_panel.visible = false
-	_apply_box_screen_fullscreen_layout()
 	start_mission_warning_acknowledged = false
 	update_box_status()
 	
 func hide_box_screen() -> void:
+	if box_menu_root != null:
+		box_menu_root.visible = false
 	if box_screen != null:
 		box_screen.visible = false
 	if command_panel != null:
@@ -5897,7 +5958,6 @@ func hide_box_screen() -> void:
 func update_box_status() -> void:
 	if bipob == null:
 		return
-	_apply_box_screen_fullscreen_layout()
 	_ensure_action_panel_scrollable()
 
 	clamp_box_selection_indexes()
