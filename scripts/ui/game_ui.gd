@@ -7590,7 +7590,7 @@ func show_repair_menu() -> void:
 	var tabs_spacer := Control.new()
 	tabs_spacer.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	tabs.add_child(tabs_spacer)
-	tabs.add_child(_create_top_right_back_button(Callable(self, "show_center_screen")))
+	tabs.add_child(_create_top_right_back_button(Callable(self, "_on_repair_back_pressed")))
 	root.add_child(tabs)
 	var main_row := HBoxContainer.new()
 	main_row.add_theme_constant_override("separation", 8)
@@ -7699,6 +7699,14 @@ func _on_repair_button_pressed() -> void:
 	repair_selected_item_type = ""
 	update_box_status()
 	_refresh_repair_menu()
+func _on_repair_back_pressed() -> void:
+	repair_selected_item = null
+	repair_selected_item_type = ""
+	if repair_menu_root != null and is_instance_valid(repair_menu_root):
+		repair_menu_root.queue_free()
+		repair_menu_root = null
+	show_center_screen()
+
 func _on_placeholder_back_pressed() -> void:
 	match placeholder_return_screen_mode:
 		AppScreenMode.GAMEPLAY:
