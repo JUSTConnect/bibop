@@ -3729,7 +3729,9 @@ func _get_internal_characteristics_lines(module: BipobModule) -> Array:
 	if module.power_ports > 0:
 		lines.append("Power Ports: %d" % module.power_ports)
 
-	if module.energy_capacity > 0:
+	if String(module.internal_family).to_lower() == "battery" and module.energy_capacity > 0:
+		lines.append("Energy: %d / %d" % [clampi(int(module.current_charge), 0, int(module.energy_capacity)), int(module.energy_capacity)])
+	elif module.energy_capacity > 0:
 		lines.append("Energy: +%d" % module.energy_capacity)
 	if not module.energy_effect_text.is_empty():
 		lines.append("Energy: %s" % module.energy_effect_text)
@@ -3754,6 +3756,8 @@ func _get_internal_characteristics_lines(module: BipobModule) -> Array:
 
 	if not module.interface_role.is_empty():
 		lines.append("Interface: %s" % module.interface_role)
+	if bool(module.is_builtin):
+		lines.append("Special: Built-in, non-removable")
 
 	if not module.special_effect_text.is_empty():
 		lines.append("Special: %s" % module.special_effect_text)
@@ -3863,7 +3867,7 @@ func _create_internal_bottom_action_bar() -> Control:
 	row_one.add_theme_constant_override("separation", 4)
 	row_one.add_spacer(true)
 
-	var internal_remove_available: bool = bipob.get_internal_module_at_cell(bipob.selected_internal_origin) != null
+	var internal_remove_available: bool = _can_remove_selected_internal_module()
 	# View/overlay debug controls intentionally hidden from player-facing Internal UI.
 	# They can be reintroduced under Reference / Preview later.
 	var row_one_buttons: Array[Dictionary] = [
@@ -6111,7 +6115,7 @@ func rebuild_box_action_buttons() -> void:
 	_apply_label_style(actions_label, false, true)
 
 	if box_menu_mode == BoxMenuMode.INTERNAL:
-		var internal_remove_available: bool = bipob.get_internal_module_at_cell(bipob.selected_internal_origin) != null
+		var internal_remove_available: bool = _can_remove_selected_internal_module()
 		var selection_group: VBoxContainer = _create_action_group_panel("Selection")
 		right_button_panel.add_child(selection_group)
 		var filter_row: HBoxContainer = _create_action_button_row()
@@ -6328,6 +6332,24 @@ func _apply_constructor_profile_state(data: Dictionary) -> void:
 	bipob.rebuild_internal_modules_by_cell()
 	bipob.recalculate_module_stats()
 
+func _can_remove_selected_internal_module() -> bool:
+	var module: BipobModule = bipob.get_internal_module_at_cell(bipob.selected_internal_origin)
+	return module != null and bool(module.is_removable)
+
+func _add_juggernaut_builtin_batteries() -> void:
+	var builtins: Array[Dictionary] = [
+		{"origin": Vector3i(0, 0, 0)},
+		{"origin": Vector3i(2, 0, 0)}
+	]
+	for entry in builtins:
+		var module: BipobModule = _make_module_by_id("battery_v3")
+		if module == null:
+			continue
+		module.is_builtin = true
+		module.is_removable = false
+		module.current_charge = maxi(int(module.energy_capacity), 0)
+		bipob.place_internal_module(module, entry.get("origin", Vector3i.ZERO), 0)
+
 func _ensure_constructor_profiles_initialized() -> void:
 	if not constructor_profiles.is_empty():
 		return
@@ -6344,6 +6366,7 @@ func _ensure_constructor_profiles_initialized() -> void:
 	_apply_constructor_profile_dimensions("beta")
 	constructor_profiles["beta"] = _capture_constructor_profile_state()
 	_apply_constructor_profile_dimensions("juggernaut")
+	_add_juggernaut_builtin_batteries()
 	constructor_profiles["juggernaut"] = _capture_constructor_profile_state()
 	_apply_constructor_profile_dimensions("alpha")
 	_apply_constructor_profile_state(constructor_profiles["alpha"])
@@ -7427,7 +7450,8 @@ func _create_charge_row(entry: Variant, is_bipob_row: bool) -> Control:
 	if is_bipob_row:
 		var current_energy := int(entry.get("current_energy", 0))
 		var max_energy_value := int(entry.get("max_energy", 0))
-		card_text.text = "%s\nEnergy: %d / %d" % [String(entry.get("name", "Bipob")), current_energy, max_energy_value]
+		var energy_text: String = "-" if max_energy_value <= 0 else "%d / %d" % [current_energy, max_energy_value]
+		card_text.text = "%s\nEnergy: %s" % [String(entry.get("name", "Bipob")), energy_text]
 	else:
 		var module: BipobModule = entry
 		card_text.text = "%s\nCharge: %d / %d" % [module.get_display_name(), module.current_charge, module.energy_capacity]
@@ -7444,11 +7468,23 @@ func _create_charge_row(entry: Variant, is_bipob_row: bool) -> Control:
 
 	var action_button := _create_menu_button("Charge", Callable(), Vector2(140, 34), "primary")
 	var is_full := is_bipob_fully_charged(entry) if is_bipob_row else is_battery_fully_charged(entry)
+	if is_bipob_row:
+		var has_battery: bool = int(entry.get("max_energy", 0)) > 0
+		var has_charger: bool = bool(entry.get("has_charger", false))
+		if not has_battery:
+			cost_label.text = "need battery"
+			cost_label.add_theme_color_override("font_color", UI_COLOR_DANGER)
+			action_button.disabled = true
+		elif not has_charger:
+			cost_label.text = "need charger module"
+			cost_label.add_theme_color_override("font_color", UI_COLOR_DANGER)
+			action_button.disabled = true
 	if is_full:
 		action_button.text = "Charged"
 		action_button.disabled = true
 	else:
-		action_button.pressed.connect(_on_charge_entry_pressed.bind(entry, is_bipob_row))
+		if not action_button.disabled:
+			action_button.pressed.connect(_on_charge_entry_pressed.bind(entry, is_bipob_row))
 	row.add_child(action_button)
 	return row
 
@@ -7469,9 +7505,16 @@ func get_chargeable_bipobs() -> Array:
 	var items: Array = []
 	for bipob_data in tasks_available_bipobs:
 		var profile_id: String = String(bipob_data.get("id", ""))
-		var item := {"id": profile_id, "name": String(bipob_data.get("name", "Bipob")), "current_energy": bipob.max_energy, "max_energy": bipob.max_energy}
+		var current_and_max: Dictionary = _get_profile_energy_summary(profile_id)
+		var item := {
+			"id": profile_id,
+			"name": String(bipob_data.get("name", "Bipob")),
+			"current_energy": int(current_and_max.get("current", 0)),
+			"max_energy": int(current_and_max.get("max", 0)),
+			"has_charger": _profile_has_charger(profile_id)
+		}
 		if profile_id == active_bipob_profile_id:
-			item["current_energy"] = bipob.energy
+			item["current_energy"] = int(current_and_max.get("current", 0))
 		items.append(item)
 	return items
 
@@ -7495,7 +7538,15 @@ func is_bipob_fully_charged(bipob_data: Dictionary) -> bool:
 func charge_bipob_to_full(bipob_data: Dictionary) -> void:
 	if String(bipob_data.get("id", "")) != active_bipob_profile_id:
 		return
-	bipob.energy = bipob.max_energy
+	if not bool(bipob_data.get("has_charger", false)):
+		return
+	for module in _get_internal_installed_modules():
+		if module == null:
+			continue
+		if String(module.internal_family).to_lower() != "battery":
+			continue
+		module.current_charge = maxi(int(module.energy_capacity), 0)
+	bipob.recalculate_module_stats()
 	# TODO: persist bipob charging state when profile save system is implemented.
 
 func is_battery_fully_charged(module: BipobModule) -> bool:
@@ -8319,7 +8370,7 @@ func _create_internal_summary_panel() -> Control:
 	root.add_child(_create_internal_info_line("Actions", str(_calculate_internal_actions())))
 	root.add_child(_create_internal_info_line("Hack", str(_calculate_internal_hack_level())))
 	root.add_child(_create_internal_info_line("Storage", str(_calculate_internal_storage_capacity())))
-	root.add_child(_create_internal_info_line("Energy", str(_calculate_internal_energy_capacity())))
+	root.add_child(_create_internal_info_line("Energy", _get_internal_energy_display_text()))
 	panel.add_child(root)
 	return panel
 
@@ -8389,15 +8440,63 @@ func _calculate_internal_storage_capacity() -> int:
 		total_slots += maxi(int(module.digital_storage_slots), 0)
 	return total_slots
 
-func _calculate_internal_energy_capacity() -> int:
+func _calculate_internal_energy_totals() -> Dictionary:
 	var total_energy: int = 0
+	var total_charge: int = 0
 	for module in _get_internal_installed_modules():
 		if module == null:
 			continue
 		if String(module.internal_family).to_lower() != "battery":
 			continue
 		total_energy += maxi(int(module.energy_capacity), 0)
-	return total_energy
+		total_charge += clampi(int(module.current_charge), 0, maxi(int(module.energy_capacity), 0))
+	return {"current": total_charge, "max": total_energy}
+
+func _get_internal_energy_display_text() -> String:
+	var totals: Dictionary = _calculate_internal_energy_totals()
+	var max_energy: int = int(totals.get("max", 0))
+	if max_energy <= 0:
+		return "-"
+	return "%d / %d" % [int(totals.get("current", 0)), max_energy]
+
+func bipob_has_charger(_bipob: Variant = null) -> bool:
+	for module in _get_internal_installed_modules():
+		if module != null and module.id == "charger_v1":
+			return true
+	return false
+
+func _profile_has_charger(profile_id: String) -> bool:
+	if profile_id == active_bipob_profile_id:
+		return bipob_has_charger()
+	if not constructor_profiles.has(profile_id):
+		return false
+	var profile_data: Dictionary = constructor_profiles[profile_id]
+	for module_id in profile_data.get("installed_ids", []):
+		if String(module_id) == "charger_v1":
+			return true
+	return false
+
+func _get_profile_energy_summary(profile_id: String) -> Dictionary:
+	if profile_id == active_bipob_profile_id:
+		return _calculate_internal_energy_totals()
+	if not constructor_profiles.has(profile_id):
+		return {"current": 0, "max": 0}
+	var current_charge: int = 0
+	var max_capacity: int = 0
+	var profile_data: Dictionary = constructor_profiles[profile_id]
+	for record_variant in profile_data.get("placed_internal", []):
+		if typeof(record_variant) != TYPE_DICTIONARY:
+			continue
+		var record: Dictionary = record_variant
+		var module: BipobModule = record.get("module", null)
+		if module == null:
+			continue
+		if String(module.internal_family).to_lower() != "battery":
+			continue
+		var cap: int = maxi(int(module.energy_capacity), 0)
+		max_capacity += cap
+		current_charge += clampi(int(module.current_charge), 0, cap)
+	return {"current": current_charge, "max": max_capacity}
 
 func _calculate_internal_temperature_summary() -> int:
 	var total_temperature: int = 0
