@@ -260,6 +260,7 @@ const UI_COLOR_DISABLED: Color = Color(0.250, 0.280, 0.320, 1.0)
 
 const STORAGE_CARD_MIN_SIZE: Vector2 = Vector2(84, 56)
 const MENU_TOP_BUTTON_HEIGHT := 56
+const BOX_TOP_BUTTON_HEIGHT := 56.0
 const MENU_BACK_BUTTON_SIZE: Vector2 = Vector2(120, 56)
 const REPAIR_BIPOB_CARD_SIZE: Vector2 = Vector2(120, 56)
 const STORAGE_CARD_ICON_SIZE: Vector2 = Vector2(26, 26)
@@ -4675,7 +4676,6 @@ func _ready() -> void:
 		box_screen.visible = false
 	if command_panel != null:
 		command_panel.visible = false
-	_build_box_menu_layout()
 	_ensure_action_panel_scrollable()
 	if get_viewport() != null and not get_viewport().size_changed.is_connected(_on_viewport_size_changed):
 		get_viewport().size_changed.connect(_on_viewport_size_changed)
@@ -4807,7 +4807,6 @@ func _ready() -> void:
 	bipob_beta_button = null
 	bipob_juggernaut_button = null
 	box_back_button = null
-	_setup_box_top_bar()
 	_ensure_constructor_profiles_initialized()
 	_load_bipob_profile(active_bipob_profile_id)
 
@@ -5729,23 +5728,18 @@ func _build_box_menu_layout() -> void:
 	panel.add_child(vbox)
 
 	box_top_bar_root = HBoxContainer.new()
+	box_top_bar_root.name = "TopRow"
 	(box_top_bar_root as HBoxContainer).add_theme_constant_override("separation", 8)
 	vbox.add_child(box_top_bar_root)
 
-	box_content_scroll = ScrollContainer.new()
-	box_content_scroll.name = "BoxContentScroll"
-	box_content_scroll.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-	box_content_scroll.size_flags_vertical = Control.SIZE_EXPAND_FILL
-	box_content_scroll.horizontal_scroll_mode = ScrollContainer.SCROLL_MODE_DISABLED
-	box_content_scroll.vertical_scroll_mode = ScrollContainer.SCROLL_MODE_AUTO
-	vbox.add_child(box_content_scroll)
-
 	box_constructor_content_root = VBoxContainer.new()
-	box_constructor_content_root.name = "BoxConstructorContentRoot"
+	box_constructor_content_root.name = "MainConstructorContent"
 	box_constructor_content_root.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	box_constructor_content_root.size_flags_vertical = Control.SIZE_EXPAND_FILL
 	box_constructor_content_root.add_theme_constant_override("separation", 8)
-	box_content_scroll.add_child(box_constructor_content_root)
+	vbox.add_child(box_constructor_content_root)
+
+	box_content_scroll = null
 
 	box_content_label = Label.new()
 	box_content_label.name = "BoxContentLabel"
@@ -5755,12 +5749,13 @@ func _build_box_menu_layout() -> void:
 	box_constructor_content_root.add_child(box_content_label)
 
 	right_button_panel = VBoxContainer.new()
-	right_button_panel.name = "RightButtonPanel"
+	right_button_panel.name = "BottomActionRow"
 	right_button_panel.add_theme_constant_override("separation", 8)
 	right_button_panel.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	vbox.add_child(right_button_panel)
 	if box_screen != null:
 		box_screen.visible = false
+	_setup_box_top_bar()
 
 
 
@@ -6376,7 +6371,16 @@ func _make_box_top_button(
 	var style_role: String = "primary" if active else role
 	_apply_action_button_style(button, style_role, true)
 	button.pressed.connect(callback)
+	_apply_box_top_button(button)
 	return button
+
+func _apply_box_top_button(button: Button) -> void:
+	if button == null:
+		return
+	button.custom_minimum_size.y = BOX_TOP_BUTTON_HEIGHT
+	button.size_flags_vertical = Control.SIZE_SHRINK_CENTER
+	button.clip_text = false
+	button.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 
 func _setup_box_top_bar() -> void:
 	if box_top_bar_root == null:
@@ -6633,6 +6637,9 @@ func _update_bipob_selector_visuals() -> void:
 
 func _on_box_back_pressed() -> void:
 	_save_active_bipob_profile()
+	if box_menu_root != null and is_instance_valid(box_menu_root):
+		box_menu_root.queue_free()
+	box_menu_root = null
 	show_center_screen()
 
 func update_box_button_visibility() -> void:
