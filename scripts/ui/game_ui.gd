@@ -7614,10 +7614,7 @@ func _create_charge_row(entry: Variant, is_bipob_row: bool) -> Control:
 	warning_label.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	warning_label.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 	_apply_label_style(warning_label)
-	var warning_color: Color = UI_COLOR_DANGER
-	if warnings.size() == 1 and warnings.has("Charger"):
-		warning_color = UI_COLOR_WARNING
-	warning_label.add_theme_color_override("font_color", warning_color)
+	var warning_text := ""
 	var cost_label := Label.new()
 	cost_label.custom_minimum_size.x = 120
 	cost_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_RIGHT
@@ -7639,17 +7636,22 @@ func _create_charge_row(entry: Variant, is_bipob_row: bool) -> Control:
 	var is_full := is_bipob_fully_charged(entry) if is_bipob_row else is_battery_fully_charged(entry)
 	var can_charge_now := false
 	if is_bipob_row:
-		warning_label.text = get_bipob_charge_warning(entry)
+		warning_text = get_bipob_charge_warning(entry)
 		can_charge_now = can_charge_bipob(entry)
 		action_button.text = "Charged" if is_full else "Charge"
 		action_button.disabled = not can_charge_now
 	else:
 		var battery: BipobModule = entry
 		if battery != null and String(battery.status).to_lower() == "broken":
-			warning_label.text = "broken"
+			warning_text = "broken"
 		can_charge_now = can_charge_loose_battery(battery)
 		action_button.text = "Charged" if is_full else "Charge"
 		action_button.disabled = not can_charge_now
+	warning_label.text = warning_text
+	var warning_color: Color = UI_COLOR_DANGER
+	if warning_text == "Charger" or warning_text == "Need charger module":
+		warning_color = UI_COLOR_WARNING
+	warning_label.add_theme_color_override("font_color", warning_color)
 	if is_full:
 		action_button.text = "Charged"
 		action_button.disabled = true
