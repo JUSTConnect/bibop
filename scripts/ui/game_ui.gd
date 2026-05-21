@@ -215,8 +215,11 @@ var tasks_title_label: Label
 var tasks_difficulty_label: Label
 var tasks_reward_label: Label
 var tasks_description_label: Label
-var tasks_requirements_label: Label
-var tasks_warnings_label: Label
+var tasks_main_goal_label: Label
+var tasks_extra_goal_label: Label
+var tasks_requirements_required_label: Label
+var tasks_requirements_current_label: RichTextLabel
+var tasks_warnings_label: RichTextLabel
 var tasks_report_label: Label
 var tasks_bipob_buttons_row: HBoxContainer
 var charging_menu_root: Control = null
@@ -5159,12 +5162,13 @@ func _refresh_tasks_bipob_buttons() -> void:
 		var max_armor: int = bipob.get_bipob_max_armor(bipob_id) if bipob.has_method("get_bipob_max_armor") else 0
 		var button := _create_menu_button("%s\n%d / %d" % [String(entry.get("name", bipob_id)), current_armor, max_armor], Callable(self, "_on_tasks_bipob_selected").bind(bipob_id), MENU_BACK_BUTTON_SIZE)
 		button.modulate = UI_COLOR_SELECTED if tasks_selected_ids.has(bipob_id) else Color(1, 1, 1, 1)
-		if max_armor > 0 and current_armor < max_armor:
-			button.modulate = Color(1.0, 0.65, 0.65, 1.0)
 		tasks_bipob_buttons_row.add_child(button)
 
 func _on_tasks_bipob_selected(bipob_id: String) -> void:
-	tasks_selected_ids = [bipob_id]
+	if tasks_selected_ids.has(bipob_id):
+		tasks_selected_ids.erase(bipob_id)
+	else:
+		tasks_selected_ids.append(bipob_id)
 	_refresh_tasks_content()
 
 func _apply_menu_button_theme(button: Button) -> void:
@@ -5203,12 +5207,16 @@ func _apply_tasks_placeholder_details() -> void:
 		tasks_difficulty_label.text = "Difficulty: TBD"
 	if tasks_reward_label != null:
 		tasks_reward_label.text = "Reward: TBD"
-	if tasks_description_label != null:
-		tasks_description_label.text = "Description:\nThis category is not available yet."
-	if tasks_requirements_label != null:
-		tasks_requirements_label.text = "Requirements:\nTBD"
+	if tasks_main_goal_label != null:
+		tasks_main_goal_label.text = "This category is not available yet."
+	if tasks_extra_goal_label != null:
+		tasks_extra_goal_label.text = "—"
+	if tasks_requirements_required_label != null:
+		tasks_requirements_required_label.text = "TBD"
+	if tasks_requirements_current_label != null:
+		tasks_requirements_current_label.text = "TBD"
 	if tasks_warnings_label != null:
-		tasks_warnings_label.text = "Warnings:\nNo active warnings."
+		tasks_warnings_label.text = "No warnings."
 
 func _update_tasks_details_panel() -> void:
 	if tasks_current_tab != "Career":
@@ -5230,10 +5238,15 @@ func _update_tasks_details_panel() -> void:
 		tasks_difficulty_label.text = "Difficulty: %s" % str(task.get("difficulty", "TBD"))
 	if tasks_reward_label != null:
 		tasks_reward_label.text = "Reward: %s" % str(task.get("reward", "TBD"))
-	if tasks_description_label != null:
-		tasks_description_label.text = "Main Goal:\n%s\n\nExtra Goal:\n- %s" % [str(task.get("main_goal", "Find the way to reach extraction.")), "\n- ".join(task.get("extra_goals", []))]
-	if tasks_requirements_label != null:
-		tasks_requirements_label.text = build_requirements_text(task, selected_bipobs, validation)
+	if tasks_main_goal_label != null:
+		tasks_main_goal_label.text = str(task.get("main_goal", "Find the way to reach extraction."))
+	if tasks_extra_goal_label != null:
+		tasks_extra_goal_label.text = "- %s" % "\n- ".join(task.get("extra_goals", []))
+	var requirements_ui: Dictionary = build_requirements_text(task, selected_bipobs, validation)
+	if tasks_requirements_required_label != null:
+		tasks_requirements_required_label.text = String(requirements_ui.get("required", ""))
+	if tasks_requirements_current_label != null:
+		tasks_requirements_current_label.text = String(requirements_ui.get("current", ""))
 	if tasks_warnings_label != null:
 		tasks_warnings_label.text = _build_warnings_block_text(critical_warnings, recommendations)
 	if tasks_report_label != null:
@@ -5249,8 +5262,7 @@ func _update_tasks_details_panel() -> void:
 	elif tasks_start_button != null:
 		tasks_start_button.text = "Start"
 	if tasks_validation_label != null:
-		tasks_validation_label.text = _build_validation_summary(validation)
-		tasks_validation_label.add_theme_color_override("font_color", UI_COLOR_OK if bool(validation.get("valid", false)) else UI_COLOR_DANGER)
+		tasks_validation_label.text = ""
 
 
 func get_selected_task_mission() -> Dictionary:
@@ -5267,8 +5279,6 @@ func get_selected_bipobs_for_mission() -> Array[Dictionary]:
 		for entry in tasks_available_bipobs:
 			if String(entry.get("id", "")) == bipob_id:
 				selected.append(entry)
-	if selected.is_empty() and not tasks_available_bipobs.is_empty():
-		selected.append(tasks_available_bipobs[0])
 	return selected
 
 func get_bipob_movement_modules() -> Array[String]:
@@ -5302,9 +5312,12 @@ func validate_mission_requirements(mission_data: Dictionary, selected_bipobs: Ar
 	var messages: Array[String] = []
 	var required_bipobs: int = int(mission_data.get("required_bipob_count", 1))
 	var required_bipob_type: String = String(mission_data.get("required_bipob_type", "Scout"))
+	var selected_names: Array[String] = []
+	for row in selected_bipobs:
+		selected_names.append(String(row.get("name", "")))
 	if selected_bipobs.size() < required_bipobs:
 		messages.append("Selected bipob does not match mission requirement.")
-	if selected_bipobs.is_empty() or String(selected_bipobs[0].get("name", "")) != required_bipob_type:
+	if selected_names.count(required_bipob_type) < required_bipobs:
 		messages.append("Selected bipob does not match mission requirement.")
 	if get_bipob_movement_modules().is_empty():
 		messages.append("Missing required movement module.")
@@ -5337,18 +5350,14 @@ func _bipob_has_damage() -> bool:
 	return false
 
 func _build_warnings_block_text(critical_warnings: Array, recommendations: Array) -> String:
-	var lines: Array[String] = ["Warnings"]
+	var lines: Array[String] = []
 	if critical_warnings.is_empty() and recommendations.is_empty():
-		lines.append("No warnings.")
+		lines.append("[color=#%s]No warnings.[/color]" % UI_COLOR_TEXT.to_html(false))
 		return "\n".join(lines)
-	if not critical_warnings.is_empty():
-		lines.append("\nCritical:")
-		for warning in critical_warnings:
-			lines.append("- [CRITICAL] %s" % str(warning))
-	if not recommendations.is_empty():
-		lines.append("\nRecommendations:")
-		for warning in recommendations:
-			lines.append("- [RECOMMEND] %s" % str(warning))
+	for warning in critical_warnings:
+		lines.append("[color=#%s]%s[/color]" % [UI_COLOR_DANGER.to_html(false), str(warning)])
+	for warning in recommendations:
+		lines.append("[color=#%s]%s[/color]" % [UI_COLOR_WARNING.to_html(false), str(warning)])
 	return "\n".join(lines)
 
 func _build_mission_report_text(task: Dictionary, progress: Dictionary) -> String:
@@ -5388,47 +5397,32 @@ func _build_validation_summary(validation: Dictionary) -> String:
 		return "READY: Configuration is valid."
 	return "- %s" % "\n- ".join(validation.get("messages", []))
 
-func build_requirements_text(mission_data: Dictionary, selected_bipobs: Array[Dictionary], validation: Dictionary) -> String:
+func build_requirements_text(mission_data: Dictionary, selected_bipobs: Array[Dictionary], validation: Dictionary) -> Dictionary:
 	var req_battery: int = int(mission_data.get("required_battery", 50))
 	var rem: int = get_bipob_remaining_battery()
 	var max_b: int = get_bipob_total_battery_capacity()
-	var battery_line: String = "Max capacity: %d / Remaining: %d" % [max_b, rem]
-	if rem < req_battery:
-		battery_line += "  [LOW !]"
 	var selected_names: Array[String] = []
 	for row in selected_bipobs:
 		selected_names.append(String(row.get("name", "")))
 	var missing := "— !"
-	return """Requirements
-
-Bipobs:
-- Required: %d %s
-- Current: %s
-
-Movement:
-- Required: %s
-- Current: %s
-
-Sensor:
-- Required: %s
-- Current: %s
-
-Battery:
-- Required: %d
-- Current: %s
-
-Pocket:
-- Required: %d
-- Current: %s""" % [
-		int(mission_data.get("required_bipob_count", 1)), String(mission_data.get("required_bipob_type", "Scout")),
-		", ".join(selected_names) if not selected_names.is_empty() else missing,
-		String(mission_data.get("required_movement_type", "basic movement")),
-		", ".join(get_bipob_movement_modules()) if not get_bipob_movement_modules().is_empty() else missing,
-		String(mission_data.get("required_sensor_type", "basic sensor")),
-		", ".join(get_bipob_sensor_modules()) if not get_bipob_sensor_modules().is_empty() else missing,
-		req_battery, battery_line,
-		int(mission_data.get("required_pocket", 1)), str(get_bipob_pocket_slots()) + (" !" if get_bipob_pocket_slots() < int(mission_data.get("required_pocket", 1)) else "") if get_bipob_pocket_slots() > 0 else missing
-	]
+	var movement: Array[String] = get_bipob_movement_modules()
+	var sensors: Array[String] = get_bipob_sensor_modules()
+	var pocket: int = get_bipob_pocket_slots()
+	var req_pocket: int = int(mission_data.get("required_pocket", 1))
+	var required_text := "Bipobs: %d %s\nMovement: %s\nSensor: %s\nBattery: %d\nPocket: %d" % [int(mission_data.get("required_bipob_count", 1)), String(mission_data.get("required_bipob_type", "Scout")), String(mission_data.get("required_movement_type", "basic movement")), String(mission_data.get("required_sensor_type", "basic sensor")), req_battery, req_pocket]
+	var current_lines: Array[String] = []
+	current_lines.append("Bipobs: %s" % (", ".join(selected_names) if not selected_names.is_empty() else "[color=#%s]%s[/color]" % [UI_COLOR_DANGER.to_html(false), missing]))
+	current_lines.append("Movement: %s" % (", ".join(movement) if not movement.is_empty() else "[color=#%s]%s[/color]" % [UI_COLOR_DANGER.to_html(false), missing]))
+	current_lines.append("Sensor: %s" % (", ".join(sensors) if not sensors.is_empty() else "[color=#%s]%s[/color]" % [UI_COLOR_DANGER.to_html(false), missing]))
+	var battery_text: String = "Max: %d / Remaining: %d" % [max_b, rem]
+	if rem < req_battery:
+		battery_text = "[color=#%s]%s[/color]" % [UI_COLOR_DANGER.to_html(false), battery_text]
+	current_lines.append("Battery: %s" % battery_text)
+	var pocket_text: String = str(pocket)
+	if pocket < req_pocket:
+		pocket_text = "[color=#%s]%s[/color]" % [UI_COLOR_DANGER.to_html(false), missing]
+	current_lines.append("Pocket: %s" % pocket_text)
+	return {"required": required_text, "current": "\n".join(current_lines), "valid": validation.get("valid", false)}
 
 func charge_bipob_from_center() -> void:
 	if bipob == null:
@@ -7038,47 +7032,91 @@ func _build_tasks_menu_layout() -> void:
 	right_margin.add_child(right_vbox)
 
 	tasks_bipob_buttons_row = HBoxContainer.new()
+	tasks_bipob_buttons_row.custom_minimum_size = Vector2(0, 56)
 	tasks_bipob_buttons_row.add_theme_constant_override("separation", 6)
 	right_vbox.add_child(tasks_bipob_buttons_row)
 
 	tasks_title_label = Label.new()
 	_apply_label_style(tasks_title_label, false, true)
 	right_vbox.add_child(tasks_title_label)
+
+	var header_line := HBoxContainer.new()
+	header_line.add_theme_constant_override("separation", 14)
+	right_vbox.add_child(header_line)
 	tasks_difficulty_label = Label.new()
 	_apply_label_style(tasks_difficulty_label)
-	right_vbox.add_child(tasks_difficulty_label)
+	header_line.add_child(tasks_difficulty_label)
 	tasks_reward_label = Label.new()
 	_apply_label_style(tasks_reward_label)
-	right_vbox.add_child(tasks_reward_label)
+	header_line.add_child(tasks_reward_label)
 
-	var details_scroll := ScrollContainer.new()
-	details_scroll.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-	details_scroll.size_flags_vertical = Control.SIZE_EXPAND_FILL
-	details_scroll.horizontal_scroll_mode = ScrollContainer.SCROLL_MODE_DISABLED
-	right_vbox.add_child(details_scroll)
+	var goals_panel := PanelContainer.new()
+	goals_panel.add_theme_stylebox_override("panel", _make_panel_style(UI_COLOR_PANEL_DARK, UI_COLOR_BORDER_DIM, 1, 6))
+	right_vbox.add_child(goals_panel)
+	var goals_row := HBoxContainer.new()
+	goals_row.add_theme_constant_override("separation", 10)
+	goals_panel.add_child(goals_row)
+	var main_goal_box := VBoxContainer.new()
+	main_goal_box.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	goals_row.add_child(main_goal_box)
+	var main_goal_title := Label.new()
+	main_goal_title.text = "Main Goal"
+	_apply_label_style(main_goal_title, true)
+	main_goal_box.add_child(main_goal_title)
+	tasks_main_goal_label = Label.new()
+	tasks_main_goal_label.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	_apply_label_style(tasks_main_goal_label)
+	main_goal_box.add_child(tasks_main_goal_label)
+	var extra_goal_box := VBoxContainer.new()
+	extra_goal_box.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	goals_row.add_child(extra_goal_box)
+	var extra_goal_title := Label.new()
+	extra_goal_title.text = "Extra Goal"
+	_apply_label_style(extra_goal_title, true)
+	extra_goal_box.add_child(extra_goal_title)
+	tasks_extra_goal_label = Label.new()
+	tasks_extra_goal_label.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	_apply_label_style(tasks_extra_goal_label)
+	extra_goal_box.add_child(tasks_extra_goal_label)
 
-	var details_vbox := VBoxContainer.new()
-	details_vbox.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-	details_vbox.add_theme_constant_override("separation", 6)
-	details_scroll.add_child(details_vbox)
+	var req_row := HBoxContainer.new()
+	req_row.add_theme_constant_override("separation", 8)
+	right_vbox.add_child(req_row)
+	var req_required_panel := PanelContainer.new()
+	req_required_panel.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	req_required_panel.add_theme_stylebox_override("panel", _make_panel_style(UI_COLOR_PANEL_DARK, UI_COLOR_BORDER_DIM, 1, 6))
+	req_row.add_child(req_required_panel)
+	var req_required_v := VBoxContainer.new()
+	req_required_panel.add_child(req_required_v)
+	var req_required_title := Label.new(); req_required_title.text = "Required"; _apply_label_style(req_required_title, true); req_required_v.add_child(req_required_title)
+	tasks_requirements_required_label = Label.new()
+	tasks_requirements_required_label.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	_apply_label_style(tasks_requirements_required_label)
+	req_required_v.add_child(tasks_requirements_required_label)
+	var req_current_panel := PanelContainer.new()
+	req_current_panel.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	req_current_panel.add_theme_stylebox_override("panel", _make_panel_style(UI_COLOR_PANEL_DARK, UI_COLOR_BORDER_DIM, 1, 6))
+	req_row.add_child(req_current_panel)
+	var req_current_v := VBoxContainer.new(); req_current_panel.add_child(req_current_v)
+	var req_current_title := Label.new(); req_current_title.text = "Current"; _apply_label_style(req_current_title, true); req_current_v.add_child(req_current_title)
+	tasks_requirements_current_label = RichTextLabel.new(); tasks_requirements_current_label.fit_content = true; tasks_requirements_current_label.bbcode_enabled = true
+	tasks_requirements_current_label.add_theme_color_override("default_color", UI_COLOR_TEXT)
+	req_current_v.add_child(tasks_requirements_current_label)
 
-	tasks_description_label = Label.new()
-	tasks_description_label.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
-	_apply_label_style(tasks_description_label)
-	details_vbox.add_child(tasks_description_label)
-	tasks_requirements_label = Label.new()
-	tasks_requirements_label.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
-	_apply_label_style(tasks_requirements_label)
-	details_vbox.add_child(tasks_requirements_label)
-	tasks_warnings_label = Label.new()
-	tasks_warnings_label.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
-	_apply_label_style(tasks_warnings_label)
-	tasks_warnings_label.add_theme_stylebox_override("normal", _make_panel_style(UI_COLOR_PANEL_DARK, UI_COLOR_BORDER_DIM, 1, 6))
-	details_vbox.add_child(tasks_warnings_label)
+	var warnings_panel := PanelContainer.new()
+	warnings_panel.add_theme_stylebox_override("panel", _make_panel_style(UI_COLOR_PANEL_DARK, UI_COLOR_BORDER_DIM, 1, 6))
+	warnings_panel.custom_minimum_size = Vector2(0, 100)
+	right_vbox.add_child(warnings_panel)
+	var warnings_v := VBoxContainer.new(); warnings_panel.add_child(warnings_v)
+	var warnings_title := Label.new(); warnings_title.text = "Warnings"; _apply_label_style(warnings_title, true); warnings_v.add_child(warnings_title)
+	tasks_warnings_label = RichTextLabel.new(); tasks_warnings_label.bbcode_enabled = true; tasks_warnings_label.fit_content = true
+	tasks_warnings_label.add_theme_color_override("default_color", UI_COLOR_TEXT)
+	warnings_v.add_child(tasks_warnings_label)
+
 	tasks_report_label = Label.new()
 	tasks_report_label.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 	_apply_label_style(tasks_report_label, true, false)
-	details_vbox.add_child(tasks_report_label)
+	right_vbox.add_child(tasks_report_label)
 
 	var actions := HBoxContainer.new()
 	tasks_actions_row = actions
@@ -7089,12 +7127,7 @@ func _build_tasks_menu_layout() -> void:
 	tasks_claim_button = _create_menu_button("Claim Reward", Callable(self, "_on_tasks_claim_reward_pressed"), Vector2(160, 34), "warning")
 	tasks_claim_button.visible = false
 	actions.add_child(tasks_claim_button)
-	tasks_validation_label = Label.new()
-	_apply_label_style(tasks_validation_label)
-	right_vbox.add_child(tasks_validation_label)
-	var actions_spacer := Control.new()
-	actions_spacer.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-	actions.add_child(actions_spacer)
+	var actions_spacer := Control.new(); actions_spacer.size_flags_horizontal = Control.SIZE_EXPAND_FILL; actions.add_child(actions_spacer)
 	actions.add_child(_create_top_right_back_button(Callable(self, "show_center_screen")))
 	_refresh_tasks_content()
 
