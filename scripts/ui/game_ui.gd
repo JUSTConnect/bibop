@@ -4747,6 +4747,7 @@ func _ready() -> void:
 
 	_apply_runtime_hud_layout()
 	call_deferred("_attach_runtime_gameplay_view")
+	_assert_single_active_major_screen()
 
 	if move_forward_button != null:
 		move_forward_button.pressed.connect(_on_move_forward_pressed)
@@ -4957,6 +4958,46 @@ func _set_gameplay_visible(visible_state: bool) -> void:
 		if player != null:
 			player.visible = true
 
+func navigate_to_screen(target_screen: AppScreenMode, payload: Dictionary = {}) -> void:
+	match target_screen:
+		AppScreenMode.MAIN_MENU:
+			show_main_menu_screen()
+		AppScreenMode.CENTER:
+			show_center_screen()
+		AppScreenMode.TASKS:
+			show_tasks_screen()
+		AppScreenMode.BOX_CONSTRUCTOR:
+			show_box_constructor_from_center()
+		AppScreenMode.MISSION_CONSTRUCTOR:
+			show_mission_constructor_screen()
+		AppScreenMode.CHARGING_MENU:
+			show_charging_menu()
+		AppScreenMode.REPAIR_PLACEHOLDER:
+			show_repair_menu()
+		AppScreenMode.GAMEPLAY:
+			start_gameplay_from_center()
+		AppScreenMode.MISSION_RESULT:
+			show_mission_result_screen(bool(payload.get("success", false)), int(payload.get("mission_index", -1)))
+		AppScreenMode.RESEARCH_PLACEHOLDER:
+			show_placeholder_screen("Исследования")
+		AppScreenMode.SHOP_PLACEHOLDER:
+			show_placeholder_screen("Магазин")
+		AppScreenMode.SETTINGS_PLACEHOLDER:
+			show_placeholder_screen("Настройки")
+		AppScreenMode.ABOUT_PLACEHOLDER:
+			show_placeholder_screen("О нас")
+		_:
+			show_center_screen()
+
+func _assert_single_active_major_screen() -> void:
+	var roots: Array[Control] = [main_menu_root, center_menu_root, tasks_menu_root, mission_constructor_root, placeholder_menu_root, mission_result_root, charging_menu_root, repair_menu_root, box_screen, runtime_hud_root]
+	var visible_count: int = 0
+	for root in roots:
+		if root != null and is_instance_valid(root) and root.visible:
+			visible_count += 1
+	if visible_count > 1:
+		push_warning("More than one major screen visible: %d" % visible_count)
+
 func show_main_menu_screen() -> void:
 	app_screen_mode = AppScreenMode.MAIN_MENU
 	box_opened_from_center = false
@@ -4965,6 +5006,7 @@ func show_main_menu_screen() -> void:
 	_set_gameplay_visible(false)
 	if main_menu_root != null:
 		main_menu_root.visible = true
+	_assert_single_active_major_screen()
 
 func show_center_screen() -> void:
 	app_screen_mode = AppScreenMode.CENTER
@@ -4973,6 +5015,7 @@ func show_center_screen() -> void:
 	_set_gameplay_visible(false)
 	if center_menu_root != null:
 		center_menu_root.visible = true
+	_assert_single_active_major_screen()
 
 func show_tasks_screen() -> void:
 	app_screen_mode = AppScreenMode.TASKS
@@ -4981,6 +5024,7 @@ func show_tasks_screen() -> void:
 	_refresh_tasks_content()
 	if tasks_menu_root != null:
 		tasks_menu_root.visible = true
+	_assert_single_active_major_screen()
 
 func show_placeholder_screen(title_text: String, body_text: String = "This section will be added later.") -> void:
 	previous_app_screen_mode = app_screen_mode
@@ -4994,6 +5038,7 @@ func show_placeholder_screen(title_text: String, body_text: String = "This secti
 		placeholder_body_label.text = body_text
 	if placeholder_menu_root != null:
 		placeholder_menu_root.visible = true
+	_assert_single_active_major_screen()
 
 func start_gameplay_from_center() -> void:
 	app_screen_mode = AppScreenMode.GAMEPLAY
@@ -5095,6 +5140,7 @@ func show_mission_constructor_screen() -> void:
 	_build_mission_constructor_screen()
 	if mission_constructor_root != null:
 		mission_constructor_root.visible = true
+	_assert_single_active_major_screen()
 
 func _ensure_mission_result_root() -> Control:
 	if mission_result_root != null:
@@ -5137,6 +5183,7 @@ func show_mission_result_screen(success: bool, mission_index: int = -1) -> void:
 		mission_progress[result_mission_id] = progress
 	var layout: Control = _create_mission_result_layout(result_data)
 	root.add_child(layout)
+	_assert_single_active_major_screen()
 
 func _refresh_tasks_content() -> void:
 	if tasks_mission_data.is_empty():
@@ -7443,7 +7490,7 @@ func _create_mission_result_rewards_panel(rewards: Array) -> Control:
 	return panel
 
 func _on_main_play_pressed() -> void:
-	show_center_screen()
+	navigate_to_screen(AppScreenMode.CENTER)
 func _on_main_settings_pressed() -> void:
 	show_placeholder_screen("Настройки")
 func _on_main_about_pressed() -> void:
@@ -7451,23 +7498,23 @@ func _on_main_about_pressed() -> void:
 func _on_main_exit_pressed() -> void:
 	show_placeholder_screen("Выход из игры")
 func _on_center_tasks_pressed() -> void:
-	show_tasks_screen()
+	navigate_to_screen(AppScreenMode.TASKS)
 func _on_center_box_pressed() -> void:
-	show_box_constructor_from_center()
+	navigate_to_screen(AppScreenMode.BOX_CONSTRUCTOR)
 func _on_center_constructor_pressed() -> void:
-	show_mission_constructor_screen()
+	navigate_to_screen(AppScreenMode.MISSION_CONSTRUCTOR)
 func _on_center_charge_pressed() -> void:
-	show_charging_menu()
+	navigate_to_screen(AppScreenMode.CHARGING_MENU)
 func _on_center_research_pressed() -> void:
-	show_placeholder_screen("Исследования")
+	navigate_to_screen(AppScreenMode.RESEARCH_PLACEHOLDER)
 func _on_center_repair_pressed() -> void:
-	show_repair_menu()
+	navigate_to_screen(AppScreenMode.REPAIR_PLACEHOLDER)
 func _on_center_shop_pressed() -> void:
-	show_placeholder_screen("Магазин")
+	navigate_to_screen(AppScreenMode.SHOP_PLACEHOLDER)
 func _on_center_settings_pressed() -> void:
-	show_placeholder_screen("Настройки")
+	navigate_to_screen(AppScreenMode.SETTINGS_PLACEHOLDER)
 func _on_center_main_menu_pressed() -> void:
-	show_main_menu_screen()
+	navigate_to_screen(AppScreenMode.MAIN_MENU)
 
 func show_charging_menu() -> void:
 	app_screen_mode = AppScreenMode.CHARGING_MENU
@@ -7479,6 +7526,7 @@ func show_charging_menu() -> void:
 	add_child(charging_menu_root)
 	_build_charging_menu_layout()
 	charging_menu_root.visible = true
+	_assert_single_active_major_screen()
 
 func _build_charging_menu_layout() -> void:
 	if charging_menu_root == null:
@@ -7795,6 +7843,7 @@ func can_charge_bipob(bipob_data: Dictionary) -> bool:
 	return get_bipob_current_energy(bipob_data) < get_bipob_max_energy(bipob_data)
 
 func show_repair_menu() -> void:
+	app_screen_mode = AppScreenMode.REPAIR_PLACEHOLDER
 	_hide_all_app_screens()
 	if repair_menu_root != null and is_instance_valid(repair_menu_root):
 		repair_menu_root.queue_free()
@@ -7838,6 +7887,7 @@ func show_repair_menu() -> void:
 	rows_vbox.add_theme_constant_override("separation", 8)
 	scroll.add_child(rows_vbox)
 	_refresh_repair_menu()
+	_assert_single_active_major_screen()
 
 func _refresh_repair_menu() -> void:
 	if repair_menu_root == null:
