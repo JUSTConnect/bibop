@@ -4357,23 +4357,23 @@ func is_power_block_module(module: BipobModule) -> bool:
 func get_power_port_capacity() -> int:
 	var total := 0
 	for record in placed_internal_modules:
-		var module: BipobModule = record.get("module", null)
-		if module != null:
+		var module: BipobModule = _extract_module_from_internal_record(record)
+		if module != null and is_power_block_module(module):
 			total += module.power_ports
 	return total
 
 func get_internal_powered_device_count() -> int:
-	var count := 0
+	var unique_modules: Dictionary = {}
 	for record in placed_internal_modules:
-		var module: BipobModule = record.get("module", null)
+		var module: BipobModule = _extract_module_from_internal_record(record)
 		if module == null:
 			continue
 		if is_power_block_module(module):
 			continue
 		if module.placement_type == "internal_overlay":
 			continue
-		count += 1
-	return count
+		unique_modules[module.get_instance_id()] = true
+	return unique_modules.size()
 
 func get_external_powered_device_count() -> int:
 	var unique_modules: Dictionary = {}
@@ -4385,6 +4385,8 @@ func get_external_powered_device_count() -> int:
 		elif entry is Dictionary:
 			module = entry.get("module", null)
 		if module == null:
+			continue
+		if is_power_block_module(module):
 			continue
 		unique_modules[module.get_instance_id()] = true
 	return unique_modules.size()
