@@ -1655,6 +1655,8 @@ func get_current_constructor_filter() -> String:
 func _is_module_unknown(module: BipobModule) -> bool:
 	if module == null:
 		return false
+	if module.get("status") != null:
+		return String(module.get("status")) == "unknown"
 	if module.get("is_unknown") != null:
 		return bool(module.get("is_unknown"))
 	if module.get("is_researched") != null:
@@ -1668,10 +1670,19 @@ func _is_module_unknown(module: BipobModule) -> bool:
 func _is_module_broken(module: BipobModule) -> bool:
 	if module == null:
 		return false
+	if module.get("status") != null:
+		return String(module.get("status")) == "broken"
 	for key in ["is_broken", "broken", "is_damaged", "damaged"]:
 		if module.get(key) != null:
 			return bool(module.get(key))
 	return false
+
+func _is_module_ready(module: BipobModule) -> bool:
+	if module == null:
+		return false
+	if module.get("status") != null:
+		return String(module.get("status")) == "ready"
+	return not _is_module_broken(module) and not _is_module_unknown(module)
 
 func _text_contains_any(text: String, needles: Array[String]) -> bool:
 	for needle in needles:
@@ -1746,12 +1757,10 @@ func _does_module_match_filter(module: BipobModule, filter_name: String, is_exte
 	var broken: bool = _is_module_broken(module)
 	match filter_name:
 		"all":
-			return not broken
+			return true
 		"broken":
 			return broken
 		"unknown":
-			if broken:
-				return false
 			return _is_module_unknown(module)
 		"other":
 			return _get_module_filter_group(module, is_external) == "other"
@@ -1760,7 +1769,7 @@ func _does_module_match_filter(module: BipobModule, filter_name: String, is_exte
 				return false
 			if not is_external and filter_name in ["gear", "visor_radar", "tool", "manipulator", "armor", "weapon"]:
 				return false
-			if broken:
+			if not _is_module_ready(module):
 				return false
 			return _get_module_filter_group(module, is_external) == filter_name
 
@@ -3773,6 +3782,15 @@ func _create_selected_module_info_panel(module: BipobModule, context: String) ->
 		_apply_label_style(empty, true, false)
 		info_root.add_child(empty)
 		panel.add_child(info_root)
+		return panel
+	if _is_module_unknown(module):
+		var unknown_label := Label.new()
+		unknown_label.text = "UNKNOWN"
+		unknown_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+		unknown_label.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
+		unknown_label.set_anchors_preset(Control.PRESET_FULL_RECT)
+		_apply_label_style(unknown_label, false, true)
+		panel.add_child(unknown_label)
 		return panel
 	var left := VBoxContainer.new()
 	left.custom_minimum_size = Vector2(192, 0)
@@ -6065,6 +6083,8 @@ func _can_place_selected_internal_visual() -> bool:
 		return false
 	if _is_module_broken(module):
 		return false
+	if _is_module_unknown(module):
+		return false
 	return bipob.can_place_internal_module(module, bipob.selected_internal_origin, bipob.selected_internal_rotation)
 
 func _can_place_selected_external_visual() -> bool:
@@ -6072,6 +6092,8 @@ func _can_place_selected_external_visual() -> bool:
 	if module == null:
 		return false
 	if _is_module_broken(module):
+		return false
+	if _is_module_unknown(module):
 		return false
 	return bipob.can_place_external_module(module, bipob.selected_external_side, bipob.selected_external_origin)
 
