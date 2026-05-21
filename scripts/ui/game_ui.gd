@@ -232,10 +232,6 @@ var tasks_claim_button: Button
 var tasks_actions_row: HBoxContainer
 var mission_progress: Dictionary = {}
 var repair_menu_root: Control = null
-var repair_selected_item: Variant = null
-var repair_selected_item_type: String = ""
-var repair_button: Button = null
-var repair_selected_card_host: VBoxContainer = null
 
 const CONSTRUCTOR_PANEL_BG_PATH: String = "res://assets/ui/constructor/panel_bg.png"
 const CONSTRUCTOR_CELL_EMPTY_PATH: String = "res://assets/ui/constructor/cell_empty.png"
@@ -7752,8 +7748,6 @@ func show_repair_menu() -> void:
 	_hide_all_app_screens()
 	if repair_menu_root != null and is_instance_valid(repair_menu_root):
 		repair_menu_root.queue_free()
-	repair_selected_item = null
-	repair_selected_item_type = ""
 	repair_menu_root = _build_fullscreen_root("RepairMenuRoot")
 	add_child(repair_menu_root)
 	var margin := MarginContainer.new()
@@ -7771,94 +7765,61 @@ func show_repair_menu() -> void:
 	panel.add_child(root)
 	var tabs := HBoxContainer.new()
 	tabs.add_theme_constant_override("separation", 8)
-	var workshop_button := _create_menu_button("Workshop", Callable(), Vector2(180, MENU_BACK_BUTTON_SIZE.y), "primary")
+	var workshop_button := _create_menu_button("Workshop", Callable(), Vector2(180, MENU_TOP_BUTTON_HEIGHT), "primary")
 	workshop_button.disabled = true
 	tabs.add_child(workshop_button)
-	var service_button := _create_menu_button("Service Center", Callable(), Vector2(180, MENU_BACK_BUTTON_SIZE.y))
+	var service_button := _create_menu_button("Service Center", Callable(), Vector2(180, MENU_TOP_BUTTON_HEIGHT))
 	service_button.disabled = true
 	tabs.add_child(service_button)
 	var tabs_spacer := Control.new()
 	tabs_spacer.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	tabs.add_child(tabs_spacer)
-	tabs.add_child(_create_top_right_back_button(Callable(self, "_on_repair_back_pressed")))
+	tabs.add_child(_create_menu_button("Back", Callable(self, "_on_repair_back_pressed"), Vector2(120, MENU_TOP_BUTTON_HEIGHT)))
 	root.add_child(tabs)
-	var main_row := HBoxContainer.new()
-	main_row.add_theme_constant_override("separation", 8)
-	var selected_panel := PanelContainer.new()
-	_apply_panel_style(selected_panel)
-	selected_panel.custom_minimum_size = Vector2(300, 120)
-	var selected_vbox := VBoxContainer.new()
-	selected_vbox.name = "RepairSelectedInfo"
-	selected_vbox.add_theme_constant_override("separation", 6)
-	selected_panel.add_child(selected_vbox)
-	main_row.add_child(selected_panel)
-	var cost_panel := PanelContainer.new()
-	_apply_panel_style(cost_panel)
-	cost_panel.custom_minimum_size = Vector2(120, 120)
-	var cost_label := Label.new()
-	cost_label.text = "Cost\nCost: 0"
-	_apply_label_style(cost_label)
-	cost_panel.add_child(cost_label)
-	main_row.add_child(cost_panel)
-	repair_button = _create_menu_button("Repair", Callable(self, "_on_repair_button_pressed"), Vector2(140, 38), "primary")
-	main_row.add_child(repair_button)
-	root.add_child(main_row)
-	var modules_panel := PanelContainer.new(); _apply_panel_style(modules_panel); root.add_child(modules_panel)
-	var modules_box := VBoxContainer.new(); modules_box.add_theme_constant_override("separation", 6); modules_panel.add_child(modules_box)
-	var modules_title := Label.new(); modules_title.text = "Damaged Modules"; _apply_label_style(modules_title, false, true); modules_box.add_child(modules_title)
-	var modules_list := HBoxContainer.new(); modules_list.name = "RepairModulesList"; modules_list.add_theme_constant_override("separation", 8); modules_box.add_child(modules_list)
-	var bipobs_panel := PanelContainer.new(); _apply_panel_style(bipobs_panel); root.add_child(bipobs_panel)
-	var bipobs_box := VBoxContainer.new(); bipobs_box.add_theme_constant_override("separation", 6); bipobs_panel.add_child(bipobs_box)
-	var bipobs_title := Label.new(); bipobs_title.text = "Damaged Bipobs"; _apply_label_style(bipobs_title, false, true); bipobs_box.add_child(bipobs_title)
-	var bipobs_list := HBoxContainer.new(); bipobs_list.name = "RepairBipobsList"; bipobs_list.add_theme_constant_override("separation", 8); bipobs_box.add_child(bipobs_list)
+	var scroll := ScrollContainer.new()
+	scroll.size_flags_vertical = Control.SIZE_EXPAND_FILL
+	scroll.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	root.add_child(scroll)
+	var rows_vbox := VBoxContainer.new()
+	rows_vbox.name = "RepairRowsVBox"
+	rows_vbox.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	rows_vbox.add_theme_constant_override("separation", 8)
+	scroll.add_child(rows_vbox)
 	_refresh_repair_menu()
 
 func _refresh_repair_menu() -> void:
 	if repair_menu_root == null:
 		return
-	var modules_list: HBoxContainer = repair_menu_root.find_child("RepairModulesList", true, false)
-	var bipobs_list: HBoxContainer = repair_menu_root.find_child("RepairBipobsList", true, false)
-	repair_selected_card_host = repair_menu_root.find_child("RepairSelectedInfo", true, false)
-	for node in [modules_list, bipobs_list]:
-		if node == null:
-			continue
-		for child in node.get_children():
-			child.queue_free()
+	var rows_vbox: VBoxContainer = repair_menu_root.find_child("RepairRowsVBox", true, false)
+	if rows_vbox == null:
+		return
+	for child in rows_vbox.get_children():
+		child.queue_free()
 	var broken_modules: Array = bipob.get_broken_modules_for_repair() if bipob.has_method("get_broken_modules_for_repair") else []
 	var damaged_bipobs: Array = bipob.get_damaged_bipobs_for_repair() if bipob.has_method("get_damaged_bipobs_for_repair") else []
-	if modules_list != null:
-		if broken_modules.is_empty():
-			var none := Label.new(); none.text = "No damaged modules."; _apply_label_style(none, true, false); modules_list.add_child(none)
-		for module in broken_modules:
-			var btn := _create_storage_module_card(module, -1, repair_selected_item == module) as Button
-			btn.pressed.connect(Callable(self, "_on_repair_item_selected").bind(module, "module"))
-			modules_list.add_child(btn)
-	if bipobs_list != null:
-		if damaged_bipobs.is_empty():
-			var none_b := Label.new(); none_b.text = "No damaged Bipobs."; _apply_label_style(none_b, true, false); bipobs_list.add_child(none_b)
-		for row in damaged_bipobs:
-			var btn_b := _create_repair_bipob_card(row, repair_selected_item_type == "bipob" and String(repair_selected_item.get("profile_id", "")) == String(row.get("profile_id", "")))
-			btn_b.pressed.connect(Callable(self, "_on_repair_item_selected").bind(row, "bipob"))
-			bipobs_list.add_child(btn_b)
-	if repair_selected_card_host != null:
-		for child in repair_selected_card_host.get_children():
-			child.queue_free()
-		var title := Label.new(); title.text = "Selected"; _apply_label_style(title, false, true); repair_selected_card_host.add_child(title)
-		if repair_selected_item == null:
-			var empty := Label.new(); empty.text = "Empty"; _apply_label_style(empty, true, false); repair_selected_card_host.add_child(empty)
-		elif repair_selected_item_type == "module":
-			repair_selected_card_host.add_child(_create_storage_module_card(repair_selected_item, -1, true))
-		elif repair_selected_item_type == "bipob":
-			repair_selected_card_host.add_child(_create_repair_bipob_card(repair_selected_item, true))
-	if repair_button != null:
-		repair_button.disabled = repair_selected_item == null
+	var modules_title := Label.new()
+	modules_title.text = "Damaged Modules"
+	_apply_label_style(modules_title, false, true)
+	rows_vbox.add_child(modules_title)
+	if broken_modules.is_empty():
+		var none_modules := Label.new()
+		none_modules.text = "No damaged modules."
+		_apply_label_style(none_modules, true, false)
+		rows_vbox.add_child(none_modules)
+	for module in broken_modules:
+		rows_vbox.add_child(_create_repair_module_row(module))
 
-func _get_repair_selected_text() -> String:
-	if repair_selected_item_type == "module":
-		return bipob.get_module_display_name(repair_selected_item)
-	if repair_selected_item_type == "bipob":
-		return String(repair_selected_item.get("name", "Bipob"))
-	return "none"
+	var bipobs_title := Label.new()
+	bipobs_title.text = "Damaged Bipops"
+	_apply_label_style(bipobs_title, false, true)
+	rows_vbox.add_child(bipobs_title)
+	if damaged_bipobs.is_empty():
+		var none_bipobs := Label.new()
+		none_bipobs.text = "No damaged Bipops."
+		_apply_label_style(none_bipobs, true, false)
+		rows_vbox.add_child(none_bipobs)
+	for row in damaged_bipobs:
+		rows_vbox.add_child(_create_repair_bipob_row(row))
 
 func _create_repair_bipob_card(bipob_data: Dictionary, selected: bool) -> Button:
 	var profile_id := String(bipob_data.get("profile_id", ""))
@@ -7873,25 +7834,79 @@ func _create_repair_bipob_card(bipob_data: Dictionary, selected: bool) -> Button
 	button.text = "%s\nArmor: %d / %d" % [String(bipob_data.get("name", "Bipob")), current_armor, max_armor]
 	return button
 
-func _on_repair_item_selected(item: Variant, item_type: String) -> void:
-	repair_selected_item = item
-	repair_selected_item_type = item_type
-	_refresh_repair_menu()
+func _create_repair_module_row(module: BipobModule) -> Control:
+	var row := HBoxContainer.new()
+	row.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	row.add_theme_constant_override("separation", 8)
+	var panel := PanelContainer.new()
+	_apply_panel_style(panel)
+	panel.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	panel.add_child(row)
+	var card := _create_storage_module_card(module, -1, false)
+	row.add_child(card)
+	var info := VBoxContainer.new()
+	info.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	var title := Label.new()
+	title.text = bipob.get_module_display_name(module)
+	_apply_label_style(title)
+	info.add_child(title)
+	var status := Label.new()
+	status.text = "Status: %s" % String(module.status)
+	_apply_label_style(status, true, false)
+	info.add_child(status)
+	row.add_child(info)
+	var cost := Label.new()
+	cost.text = "Cost: 0"
+	_apply_label_style(cost, false, true)
+	row.add_child(cost)
+	var repair_btn := _create_menu_button("Repair", Callable(self, "_on_repair_module_row_pressed").bind(module), Vector2(120, 38), "primary")
+	row.add_child(repair_btn)
+	return panel
 
-func _on_repair_button_pressed() -> void:
-	if repair_selected_item == null:
-		return
-	if repair_selected_item_type == "module" and bipob.has_method("repair_module"):
-		bipob.repair_module(repair_selected_item)
-	elif repair_selected_item_type == "bipob" and bipob.has_method("repair_bipob"):
-		bipob.repair_bipob(repair_selected_item)
-	repair_selected_item = null
-	repair_selected_item_type = ""
+func _create_repair_bipob_row(bipob_data: Dictionary) -> Control:
+	var row := HBoxContainer.new()
+	row.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	row.add_theme_constant_override("separation", 8)
+	var panel := PanelContainer.new()
+	_apply_panel_style(panel)
+	panel.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	panel.add_child(row)
+	row.add_child(_create_repair_bipob_card(bipob_data, false))
+	var info := VBoxContainer.new()
+	info.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	var name_label := Label.new()
+	name_label.text = String(bipob_data.get("name", "Bipob"))
+	_apply_label_style(name_label)
+	info.add_child(name_label)
+	var profile_id := String(bipob_data.get("profile_id", ""))
+	var current_armor: int = bipob.get_bipob_current_armor(profile_id) if bipob.has_method("get_bipob_current_armor") else int(bipob_data.get("current_armor", 0))
+	var max_armor: int = bipob.get_bipob_max_armor(profile_id) if bipob.has_method("get_bipob_max_armor") else int(bipob_data.get("max_armor", 0))
+	var armor_label := Label.new()
+	armor_label.text = "Armor: %d / %d" % [current_armor, max_armor]
+	_apply_label_style(armor_label, true, false)
+	info.add_child(armor_label)
+	row.add_child(info)
+	var cost := Label.new()
+	cost.text = "Cost: 0"
+	_apply_label_style(cost, false, true)
+	row.add_child(cost)
+	var repair_btn := _create_menu_button("Repair", Callable(self, "_on_repair_bipob_row_pressed").bind(bipob_data), Vector2(120, 38), "primary")
+	row.add_child(repair_btn)
+	return panel
+
+func _on_repair_module_row_pressed(module: BipobModule) -> void:
+	if bipob.has_method("repair_module"):
+		bipob.repair_module(module)
 	update_box_status()
 	_refresh_repair_menu()
+
+func _on_repair_bipob_row_pressed(bipob_data: Dictionary) -> void:
+	if bipob.has_method("repair_bipob"):
+		bipob.repair_bipob(bipob_data)
+	update_box_status()
+	_refresh_repair_menu()
+
 func _on_repair_back_pressed() -> void:
-	repair_selected_item = null
-	repair_selected_item_type = ""
 	if repair_menu_root != null and is_instance_valid(repair_menu_root):
 		repair_menu_root.queue_free()
 		repair_menu_root = null
