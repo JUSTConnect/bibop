@@ -2571,8 +2571,8 @@ func _get_external_side_panel_size(side_id: String) -> Vector2:
 func _get_external_adaptive_cell_size(side_id: String) -> Vector2:
 	var side_size: Vector2i = bipob.get_external_side_size(side_id)
 
-	var max_grid_width := 156.0
-	var max_grid_height := 156.0
+	var max_grid_width: float = 156.0
+	var max_grid_height: float = 156.0
 
 	match side_id:
 		"top":
@@ -2588,13 +2588,13 @@ func _get_external_adaptive_cell_size(side_id: String) -> Vector2:
 			max_grid_width = 160.0
 			max_grid_height = 160.0
 
-	var gap := 3.0
+	var gap: float = 3.0
 	var cols: int = maxi(1, side_size.x)
 	var rows: int = maxi(1, side_size.y)
 
-	var cell_w := floor((max_grid_width - gap * float(cols - 1)) / float(cols))
-	var cell_h := floor((max_grid_height - gap * float(rows - 1)) / float(rows))
-	var cell := clampf(minf(cell_w, cell_h), 10.0, 22.0)
+	var cell_w: float = floor((max_grid_width - gap * float(cols - 1)) / float(cols))
+	var cell_h: float = floor((max_grid_height - gap * float(rows - 1)) / float(rows))
+	var cell: float = clampf(minf(cell_w, cell_h), 10.0, 22.0)
 	if _is_juggernaut_profile():
 		cell = clampf(cell, 9.0, 18.0)
 
