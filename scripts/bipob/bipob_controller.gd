@@ -33,6 +33,7 @@ const EXTERNAL_CATEGORY_MAP := {"movement":"Gear","sensor":"Sensors","manipulato
 const MissionManagerScript = preload("res://scripts/game/mission_manager.gd")
 const ScanSystem = preload("res://scripts/world/scan_system.gd")
 const InteractionSystem = preload("res://scripts/world/interaction_system.gd")
+const PowerSystem = preload("res://scripts/world/power_system.gd")
 const EXTERNAL_MODULE_CATALOG: Dictionary = {
 "wheels_v1":{"name":"Wheels V1","cat":"Gear","size":Vector2i(3,2),"sides":[EXTERNAL_SIDE_BOTTOM],"desc":"Fast movement system for flat and stable surfaces. Ineffective on stairs, mud and debris.","energy":1,"terrain":"Flat surface","movement":"Drive","speed":3},
 "legs_v1":{"name":"Legs V1","cat":"Gear","size":Vector2i(3,2),"sides":[EXTERNAL_SIDE_BOTTOM],"desc":"Universal movement system that provides stable traversal across uneven terrain, steps, obstacles, and mixed surfaces.","energy":1,"terrain":"Any surface","movement":"Walk","speed":2},
@@ -6109,6 +6110,20 @@ func scan_device() -> void:
 	if mission_finished:
 		return
 
+	var facing_cell := get_facing_device_position()
+	if mission_manager != null:
+		var world_object := mission_manager.get_world_object_at_cell(facing_cell)
+		if not world_object.is_empty():
+			if not can_spend_action(1, 1):
+				return
+			spend_action(1, 1)
+			var scan_type := get_world_scan_type_from_installed_modules()
+			var result := ScanSystem.scan_object(world_object, scan_type, get_effective_visor_level())
+			world_object["scan_level"] = int(result.get("scan_level", 1))
+			hint_requested.emit("Scan: %s" % ScanSystem.get_scan_display_text(world_object, scan_type))
+			status_changed.emit()
+			return
+
 	if not can_spend_action(1, 1):
 		return
 
@@ -6127,20 +6142,6 @@ func scan_device() -> void:
 
 	spend_action(1, 1)
 	evaluate_facing_device_capability()
-	if mission_manager != null:
-		var cell := get_facing_device_position()
-		var object_data := mission_manager.get_world_object_at_cell(cell)
-		if not object_data.is_empty():
-			var scan_type := "visor"
-			if has_module_id("radar_v1"):
-				scan_type = "radar"
-			if has_module_id("xray_v1"):
-				scan_type = "xray"
-			if has_module_id("thermal_visor_v1"):
-				scan_type = "thermal"
-			var result := ScanSystem.scan_object(object_data, scan_type, get_effective_visor_level())
-			object_data["scan_level"] = int(result.get("scan_level", 1))
-			hint_requested.emit("Scan: %s" % ScanSystem.get_scan_display_text(object_data, scan_type))
 	if last_diagnostic_result.status == DiagnosticResult.STATUS_BLOCKED:
 		hint_requested.emit("Scan complete: BLOCKED. Check Diagnostic panel for missing requirements.")
 	else:
@@ -6364,6 +6365,101 @@ func spend_energy_for_manipulator_action(module: BipobModule) -> bool:
 	energy -= cost
 	return true
 
+func get_world_scan_type_from_installed_modules() -> String:
+	if has_module_id("thermal_visor_v1"):
+		return "thermal"
+	if has_module_id("xray_v1"):
+		return "xray"
+	if has_module_id("radar_v1"):
+		return "radar"
+	return "visor"
+
+func _extract_module_level_by_prefix(prefix: String) -> int:
+	var best := 0
+	for module in installed_modules:
+		if module == null:
+			continue
+		var module_id := String(module.id)
+		if not module_id.begins_with(prefix):
+			continue
+		var match := RegEx.new()
+		match.compile("_v(\\d+)$")
+		var found := match.search(module_id)
+		if found != null:
+			best = maxi(best, int(found.get_string(1)))
+		elif module_id.ends_with("_v1"):
+			best = maxi(best, 1)
+	return best
+
+func get_installed_manipulator_level() -> int:
+	return maxi(_extract_module_level_by_prefix("manipulator_arm"), _extract_module_level_by_prefix("manipulator_heavy_claw"))
+
+func get_installed_cpu_level() -> int:
+	return _extract_module_level_by_prefix("processor")
+
+func get_installed_interface_level(kind: String) -> int:
+	return _extract_module_level_by_prefix("%s_interface" % kind)
+
+func get_bipob_power_class() -> String:
+	if has_module_id("manipulator_heavy_claw_v1"):
+		return "juggernaut"
+	if has_module_id("repair_v1") or has_module_id("wired_interface_v1") or has_module_id("optical_interface_v1"):
+		return "engineer"
+	return "scout"
+
+func get_world_object_action_for_context(world_object: Dictionary, active_module: BipobModule, target_position: Vector2i) -> String:
+	var group := String(world_object.get("object_group", ""))
+	var state := String(world_object.get("state", ""))
+	var module_id := active_module.id if active_module != null else ""
+	var items_here: Array[Dictionary] = mission_manager.get_items_at_cell(target_position) if mission_manager != null else []
+	if group == "door":
+		if state == "locked" and (has_key or has_digital_record(DIGITAL_RECORD_INFO_KEY)):
+			return "unlock"
+		if state == "closed":
+			return "open"
+		if state in ["damaged", "half_open", "jammed"] and has_module_id("manipulator_heavy_claw_v1"):
+			return "force_open"
+		if module_id == "plasma_cutter_v1":
+			return "cut"
+		if module_id == "sledgehammer_v1":
+			return "impact"
+	elif group == "terminal":
+		if bool(world_object.get("connected", false)) and get_installed_cpu_level() > 0:
+			return "hack"
+		if get_installed_interface_level(String(world_object.get("connection_type", "wired"))) > 0:
+			return "connect"
+	elif group == "wall":
+		if module_id == "plasma_cutter_v1":
+			return "cut"
+		if module_id == "sledgehammer_v1":
+			return "impact"
+		if has_module_id("manipulator_heavy_claw_v1") and (state == "damaged" or String(world_object.get("material", "")) == "brick"):
+			return "force_open"
+	elif String(world_object.get("object_type", "")) == "power_cable":
+		if module_id == "plasma_cutter_v1":
+			return "cut"
+		if module_id == "repair_v1":
+			return "repair"
+	elif String(world_object.get("object_type", "")) in ["circuit_breaker", "light_switch", "circuit_switch"]:
+		return "switch"
+	elif String(world_object.get("object_type", "")).begins_with("fuse_box"):
+		if not items_here.is_empty():
+			return "insert_fuse"
+		if module_id == "repair_v1":
+			return "repair"
+	elif group == "physical_object":
+		if has_module_id("manipulator_heavy_claw_v1"):
+			return "push"
+		if module_id == "magnetic_manipulator_v1":
+			return "pull"
+		if module_id == "sledgehammer_v1":
+			return "impact"
+		if module_id == "plasma_cutter_v1":
+			return "cut"
+	elif group == "item":
+		return "pickup"
+	return ""
+
 func interact() -> void:
 	var target_position := get_facing_device_position()
 	var target_tile := grid_manager.get_tile(target_position)
@@ -6423,18 +6519,38 @@ func interact() -> void:
 	
 	var active_manipulator: BipobModule = get_best_manipulator_for_interaction(target_position)
 	if mission_manager != null:
+		var cell_items := mission_manager.get_items_at_cell(target_position)
+		if not cell_items.is_empty():
+			var item := cell_items[0]
+			var item_actor := {"manipulator_occupied": not can_use_physical_hand()}
+			var item_result := InteractionSystem.apply_action(item_actor, {"id": active_manipulator.id if active_manipulator != null else ""}, item, "pickup")
+			if bool(item_result.get("success", false)):
+				if can_use_physical_hand():
+					mission_manager.remove_first_item_at_cell(target_position)
+					if String(item.get("storage_type", item.get("item_storage", "physical"))) == "digital":
+						store_digital_record(String(item.get("id", "item_record")), String(item.get("display_name", "Item")), "Recovered digital world item.")
+					else:
+						buffer_item = item
+					hint_requested.emit("Item picked up.")
+				else:
+					hint_requested.emit("Manipulator is occupied.")
+			else:
+				hint_requested.emit(String(item_result.get("message", "Pickup failed.")))
+			status_changed.emit()
+			return
+
 		var world_object := mission_manager.get_world_object_at_cell(target_position)
 		if not world_object.is_empty():
 			var actor := {
-				"manipulator_level": 1,
-				"interface_level": 1,
-				"wired_interface_level": int(has_module_id("wired_interface_v1")),
-				"optical_interface_level": int(has_module_id("optical_interface_v1")),
-				"wireless_interface_level": int(has_module_id("wireless_interface_v1")),
-				"high_bandwidth_interface_level": int(has_module_id("high_bandwidth_interface_v1")),
-				"cpu_level": 1,
+				"manipulator_level": get_installed_manipulator_level(),
+				"interface_level": maxi(get_installed_interface_level("wired"), get_installed_interface_level("optical")),
+				"wired_interface_level": get_installed_interface_level("wired"),
+				"optical_interface_level": get_installed_interface_level("optical"),
+				"wireless_interface_level": get_installed_interface_level("wireless"),
+				"high_bandwidth_interface_level": get_installed_interface_level("high_bandwidth"),
+				"cpu_level": get_installed_cpu_level(),
 				"firewall_module_v1": has_module_id("firewall_module_v1"),
-				"power_class": "scout",
+				"power_class": get_bipob_power_class(),
 				"manipulator_occupied": not can_use_physical_hand(),
 				"pocket_full": get_available_pocket_slots() <= 0,
 				"range_to_target": 1,
@@ -6443,15 +6559,32 @@ func interact() -> void:
 				"target_is_grate": world_object.get("object_type", "") == "grate_wall"
 			}
 			var module := {"id": active_manipulator.id if active_manipulator != null else ""}
-			var action_id := "open" if world_object.get("object_group", "") == "door" else "pickup"
+			var action_id := get_world_object_action_for_context(world_object, active_manipulator, target_position)
+			if action_id.is_empty():
+				hint_requested.emit("No available action for this object.")
+				status_changed.emit()
+				return
 			var action_result := InteractionSystem.apply_action(actor, module, world_object, action_id)
 			if bool(action_result.get("success", false)):
 				for effect in action_result.get("effects", []):
+					if effect is String:
+						if String(effect) == "power_recalc_needed":
+							var network_id := String(world_object.get("power_network_id", ""))
+							if not network_id.is_empty():
+								PowerSystem.recalculate_network(mission_manager.mission_world_objects, network_id)
+						continue
 					if effect.get("type", "") == "state_set":
 						world_object["state"] = effect.get("state", world_object.get("state", ""))
 					if effect.get("type", "") == "set_blocks_movement":
 						world_object["blocks_movement"] = effect.get("value", world_object.get("blocks_movement", false))
-				hint_requested.emit(String(action_result.get("message", "Action complete.")))
+					if effect.get("type", "") == "power_recalc_needed":
+						var network_id := String(world_object.get("power_network_id", ""))
+						if not network_id.is_empty():
+							PowerSystem.recalculate_network(mission_manager.mission_world_objects, network_id)
+				if world_object.get("state", "") in ["open", "destroyed", "inactive", "unpowered"]:
+					world_object["blocks_movement"] = false
+				mission_manager.set_world_object_at_cell(target_position, world_object)
+				hint_requested.emit("%s (%s): %s" % [world_object.get("display_name", "Object"), world_object.get("state", "unknown"), String(action_result.get("message", "Action complete."))])
 			else:
 				hint_requested.emit(String(action_result.get("message", "Action failed.")))
 			status_changed.emit()
