@@ -30,6 +30,9 @@ const EXTERNAL_SIDE_ORDER := [
 	EXTERNAL_SIDE_BOTTOM
 ]
 const EXTERNAL_CATEGORY_MAP := {"movement":"Gear","sensor":"Sensors","manipulator":"Manipulator","connector":"Interface","tool":"Tools","repair":"Tools","weapon":"Weapons","armor":"Defense","other":"Other"}
+const MissionManagerScript = preload("res://scripts/game/mission_manager.gd")
+const ScanSystem = preload("res://scripts/world/scan_system.gd")
+const InteractionSystem = preload("res://scripts/world/interaction_system.gd")
 const EXTERNAL_MODULE_CATALOG: Dictionary = {
 "wheels_v1":{"name":"Wheels V1","cat":"Gear","size":Vector2i(3,2),"sides":[EXTERNAL_SIDE_BOTTOM],"desc":"Fast movement system for flat and stable surfaces. Ineffective on stairs, mud and debris.","energy":1,"terrain":"Flat surface","movement":"Drive","speed":3},
 "legs_v1":{"name":"Legs V1","cat":"Gear","size":Vector2i(3,2),"sides":[EXTERNAL_SIDE_BOTTOM],"desc":"Universal movement system that provides stable traversal across uneven terrain, steps, obstacles, and mixed surfaces.","energy":1,"terrain":"Any surface","movement":"Walk","speed":2},
@@ -173,6 +176,7 @@ var bipob_armor_state_by_profile: Dictionary = {"alpha": {"current": 20, "max": 
 @onready var grid_manager: GridManager = get_node("../Field")
 @onready var mission_label: Label = get_node("../UI/MissionLabel")
 @onready var body: Polygon2D = $Body
+@onready var mission_manager: Node = get_node_or_null("../MissionManager")
 
 func install_module(module: BipobModule) -> void:
 	# MVP behavior: install immediately applies passive bonuses.
@@ -1002,6 +1006,8 @@ func start_mission(mission_index: int, save_snapshot: bool = true) -> void:
 	mission7_cable_path.clear()
 	if grid_manager != null:
 		grid_manager.reset_mission_layout(current_mission_index)
+		if mission_manager != null:
+			mission_manager.setup_world_objects_for_mission("mission_%d" % current_mission_index)
 		if current_mission_index == 4:
 			setup_mission4_field_modules()
 		elif debug_place_mission4_field_modules:
@@ -5663,6 +5669,12 @@ func try_move_to(target_position: Vector2i) -> bool:
 
 		print("Blocked: ", target_position)
 		return false
+
+	if mission_manager != null:
+		var blocking_obj := mission_manager.get_world_object_at_cell(target_position)
+		if not blocking_obj.is_empty() and bool(blocking_obj.get("blocks_movement", false)):
+			hint_requested.emit("Blocked by %s." % blocking_obj.get("display_name", "object"))
+			return false
 	
 	grid_position = target_position
 	update_world_position()
@@ -6115,6 +6127,20 @@ func scan_device() -> void:
 
 	spend_action(1, 1)
 	evaluate_facing_device_capability()
+	if mission_manager != null:
+		var cell := get_facing_device_position()
+		var object_data := mission_manager.get_world_object_at_cell(cell)
+		if not object_data.is_empty():
+			var scan_type := "visor"
+			if has_module_id("radar_v1"):
+				scan_type = "radar"
+			if has_module_id("xray_v1"):
+				scan_type = "xray"
+			if has_module_id("thermal_visor_v1"):
+				scan_type = "thermal"
+			var result := ScanSystem.scan_object(object_data, scan_type, get_effective_visor_level())
+			object_data["scan_level"] = int(result.get("scan_level", 1))
+			hint_requested.emit("Scan: %s" % ScanSystem.get_scan_display_text(object_data, scan_type))
 	if last_diagnostic_result.status == DiagnosticResult.STATUS_BLOCKED:
 		hint_requested.emit("Scan complete: BLOCKED. Check Diagnostic panel for missing requirements.")
 	else:
@@ -6396,6 +6422,40 @@ func interact() -> void:
 		return
 	
 	var active_manipulator: BipobModule = get_best_manipulator_for_interaction(target_position)
+	if mission_manager != null:
+		var world_object := mission_manager.get_world_object_at_cell(target_position)
+		if not world_object.is_empty():
+			var actor := {
+				"manipulator_level": 1,
+				"interface_level": 1,
+				"wired_interface_level": int(has_module_id("wired_interface_v1")),
+				"optical_interface_level": int(has_module_id("optical_interface_v1")),
+				"wireless_interface_level": int(has_module_id("wireless_interface_v1")),
+				"high_bandwidth_interface_level": int(has_module_id("high_bandwidth_interface_v1")),
+				"cpu_level": 1,
+				"firewall_module_v1": has_module_id("firewall_module_v1"),
+				"power_class": "scout",
+				"manipulator_occupied": not can_use_physical_hand(),
+				"pocket_full": get_available_pocket_slots() <= 0,
+				"range_to_target": 1,
+				"is_straight_line": true,
+				"magnetic_path_blocked": false,
+				"target_is_grate": world_object.get("object_type", "") == "grate_wall"
+			}
+			var module := {"id": active_manipulator.id if active_manipulator != null else ""}
+			var action_id := "open" if world_object.get("object_group", "") == "door" else "pickup"
+			var action_result := InteractionSystem.apply_action(actor, module, world_object, action_id)
+			if bool(action_result.get("success", false)):
+				for effect in action_result.get("effects", []):
+					if effect.get("type", "") == "state_set":
+						world_object["state"] = effect.get("state", world_object.get("state", ""))
+					if effect.get("type", "") == "set_blocks_movement":
+						world_object["blocks_movement"] = effect.get("value", world_object.get("blocks_movement", false))
+				hint_requested.emit(String(action_result.get("message", "Action complete.")))
+			else:
+				hint_requested.emit(String(action_result.get("message", "Action failed.")))
+			status_changed.emit()
+			return
 
 	match target_tile:
 		GridManager.TILE_COMPONENT:
