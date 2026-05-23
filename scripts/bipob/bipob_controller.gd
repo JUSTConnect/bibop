@@ -5596,6 +5596,8 @@ func turn_right() -> void:
 	spend_action(1, 0)
 
 func end_turn() -> void:
+	if mission_manager != null:
+		mission_manager.reset_world_object_turn_flags()
 	actions_left = actions_per_turn
 	turns_used += 1
 	print("End Turn. Actions restored.")
@@ -5864,6 +5866,8 @@ func emit_facing_world_object_hint() -> void:
 		object_data = items[0]
 	var scan_level := int(object_data.get("scan_level", 0))
 	var generic := String(object_data.get("object_group", "Object")).capitalize()
+	if String(object_data.get("object_group", "")) == "threat" and scan_level <= 0:
+		generic = "Unknown movement"
 	var name := generic if scan_level <= 0 else String(object_data.get("display_name", generic))
 	var details: Array[String] = []
 	details.append("State: %s" % String(object_data.get("state", "unknown")))
@@ -6589,6 +6593,22 @@ func get_available_world_actions(world_object: Dictionary, target_position: Vect
 			actions.append("impact")
 		if has_plasma_cutter():
 			actions.append("cut")
+	elif group == "threat":
+		if state in ["destroyed", "disabled"]:
+			return actions
+		var distance := mini(abs(target_position.x - grid_position.x) + abs(target_position.y - grid_position.y), 99)
+		if has_module_id("laser_v1") and distance <= 4:
+			actions.append("attack")
+		if distance <= 1 and (has_module_id("saw_v1") or has_module_id("sledgehammer_v1") or has_module_id("gas_burner_v1")) and not actions.has("attack"):
+			actions.append("attack")
+		if has_module_id("shocker_v1") and distance <= 1:
+			actions.append("stun")
+		if has_module_id("energy_drain_v1") and distance <= 1:
+			actions.append("drain_energy")
+		if get_installed_cpu_level() >= int(world_object.get("required_cpu_level", 1)) and (has_module_id("wired_interface_v1") or has_module_id("wireless_interface_v1")):
+			actions.append("hack")
+		if has_heavy_claw() and distance <= 1:
+			actions.append("push")
 	elif group == "item":
 		actions.append("pickup")
 	return actions
@@ -6619,12 +6639,34 @@ func get_world_action_module(action_id: String, world_object: Dictionary) -> Dic
 			var level := get_installed_interface_level(connection_type)
 			return _module_dict("%s_interface_v%d" % [connection_type, level] if level > 0 else "")
 		"hack":
+			if String(world_object.get("object_group", "")) == "threat":
+				if has_module_id("wired_interface_v1"):
+					return _module_dict("wired_interface_v1")
+				if has_module_id("wireless_interface_v1"):
+					return _module_dict("wireless_interface_v1")
+				return _module_dict("")
 			var cpu_level := get_installed_cpu_level()
 			return _module_dict("processor_v%d" % cpu_level if cpu_level > 0 else "")
 		"cut":
 			return _module_dict("plasma_cutter_v1" if has_module_id("plasma_cutter_v1") else "")
 		"impact":
 			return _module_dict("sledgehammer_v1" if has_module_id("sledgehammer_v1") else "")
+		"attack":
+			var target_pos := Vector2i(world_object.get("position", get_facing_device_position()))
+			var distance := abs(target_pos.x - grid_position.x) + abs(target_pos.y - grid_position.y)
+			if has_module_id("laser_v1") and distance <= 4:
+				return _module_dict("laser_v1")
+			if has_module_id("saw_v1") and distance <= 1:
+				return _module_dict("saw_v1")
+			if has_module_id("sledgehammer_v1") and distance <= 1:
+				return _module_dict("sledgehammer_v1")
+			if has_module_id("gas_burner_v1") and distance <= 1:
+				return _module_dict("gas_burner_v1")
+			return _module_dict("")
+		"stun":
+			return _module_dict("shocker_v1" if has_module_id("shocker_v1") else "")
+		"drain_energy":
+			return _module_dict("energy_drain_v1" if has_module_id("energy_drain_v1") else "")
 		"force_open", "push":
 			return _module_dict("manipulator_heavy_claw_v1" if has_module_id("manipulator_heavy_claw_v1") else "")
 		"repair":
@@ -6819,6 +6861,28 @@ func _apply_world_object_effects(effects: Array, world_object: Dictionary, targe
 			var control_messages := _apply_terminal_controls(world_object)
 			if not control_messages.is_empty():
 				hint_requested.emit(" ".join(control_messages))
+		elif effect_type == "damage_target":
+			var amount := int(effect.get("amount", 0))
+			world_object["durability_current"] = maxi(0, int(world_object.get("durability_current", world_object.get("durability_max", 0))) - amount)
+			if int(world_object.get("durability_current", 0)) <= 0:
+				world_object["state"] = "destroyed"
+				world_object["behavior_state"] = "idle"
+				world_object["blocks_movement"] = false
+				for drop_id in Array(world_object.get("drops", [])):
+					var drop := WorldObjectCatalog.create_world_object(String(drop_id), "%s_drop_%s" % [String(world_object.get("id", "threat")), String(drop_id)])
+					if not drop.is_empty():
+						mission_manager.add_item_at_cell(target_position, drop)
+		elif effect_type == "set_state":
+			world_object["state"] = effect.get("state", world_object.get("state", ""))
+		elif effect_type == "set_behavior_state":
+			world_object["behavior_state"] = effect.get("behavior_state", world_object.get("behavior_state", "idle"))
+		elif effect_type == "set_stunned_turns":
+			world_object["stunned_turns"] = int(effect.get("value", 1))
+		elif effect_type == "drain_energy":
+			var drained := mini(5, int(effect.get("amount", 0)))
+			world_object["drain_energy_pool"] = maxi(0, int(world_object.get("drain_energy_pool", 0)) - drained)
+			world_object["drained_this_turn"] = true
+			energy = mini(max_energy, energy + drained)
 		elif effect_type == "object_move":
 			var move_dir := Vector2i(effect.get("direction", actor.get("facing_direction", Vector2i.ZERO)))
 			if move_dir == Vector2i.ZERO and effect.has("dx"):
@@ -6883,7 +6947,13 @@ func refresh_world_object_overlay() -> void:
 
 func _get_world_marker(object_data: Dictionary) -> String:
 	var object_type := String(object_data.get("object_type", ""))
-	var labels := {"steel_door":"D","energy_door":"ED","grid_door":"GD","brick_wall":"BW","damaged_wall":"DW","energy_wall":"EW","door_terminal":"T","information_terminal":"IT","power_cable":"C","power_source_class_1":"PS","circuit_breaker":"BR","fuse_box_installed":"FB","fuse_box_empty":"FE","fuse":"F","mechanical_keycard":"K","digital_key_opened":"DK","data_file_encrypted":"DF","normal_crate":"CR","heavy_crate":"HC","barrel":"BA","debris":"DB"}
+	if String(object_data.get("state", "")) == "destroyed":
+		return "DB"
+	if String(object_data.get("state", "")) == "stunned":
+		return "ST"
+	if object_type == "turret" and String(object_data.get("state", "")) == "unpowered":
+		return "TU"
+	var labels := {"steel_door":"D","energy_door":"ED","grid_door":"GD","brick_wall":"BW","damaged_wall":"DW","energy_wall":"EW","door_terminal":"T","information_terminal":"IT","power_cable":"C","power_source_class_1":"PS","circuit_breaker":"BR","fuse_box_installed":"FB","fuse_box_empty":"FE","fuse":"F","mechanical_keycard":"K","digital_key_opened":"DK","data_file_encrypted":"DF","normal_crate":"CR","heavy_crate":"HC","barrel":"BA","debris":"DB","enemy_robot":"ER","turret":"TU","bug":"BG","vagus":"VG"}
 	return labels.get(object_type, String(object_data.get("object_group", "O")).substr(0, 2).to_upper())
 
 func setup_mission8() -> void:

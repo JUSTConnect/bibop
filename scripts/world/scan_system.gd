@@ -16,7 +16,10 @@ static func scan_object(object_data: Dictionary, scan_type: String, scanner_leve
 	var out := {"scan_level": level, "name": "Unknown", "details": []}
 	if level == 0:
 		return out
-	out["name"] = object_data.get("display_name", "Object") if level >= 2 else object_data.get("object_group", "Object").capitalize()
+	if object_data.get("object_group", "") == "threat" and level <= 1:
+		out["name"] = "Unknown movement"
+	else:
+		out["name"] = object_data.get("display_name", "Object") if level >= 2 else object_data.get("object_group", "Object").capitalize()
 	if object_data.get("object_group", "") == "door":
 		if scan_type == "visor":
 			out["details"].append("Lock: %s" % object_data.get("lock_type", "unknown"))
@@ -40,9 +43,21 @@ static func scan_object(object_data: Dictionary, scan_type: String, scanner_leve
 	elif object_data.get("object_group", "") == "physical_object":
 		if level >= 2:
 			out["details"].append("Weight: %s" % object_data.get("weight_class", "normal"))
+
 	elif object_data.get("object_group", "") == "threat":
 		if level >= 2:
 			out["details"].append("Behavior: %s" % object_data.get("behavior_state", "idle"))
+		if scan_type == "thermal" and bool(object_data.get("heat_signature", false)):
+			out["details"].append("Heat signature detected")
+			if String(object_data.get("object_type", "")) == "turret" and String(object_data.get("state", "")) == "active":
+				out["details"].append("Active turret")
+		if scan_type == "radar" and String(object_data.get("behavior_state", "")) in ["patrolling", "active"]:
+			out["details"].append("Patrol movement detected")
+			out["details"].append("Threat outline")
+		if scan_type == "xray" and level >= 2:
+			out["details"].append("Power source: %s" % object_data.get("power_mode", "unknown"))
+			out["details"].append("Armor: %s" % ", ".join(Array(object_data.get("material_tags", []))))
+			out["details"].append("Weakness: energy overload")
 	return out
 
 static func get_scan_display_text(object_data: Dictionary, scan_type: String) -> String:
