@@ -124,7 +124,7 @@ static func apply_action(actor: Dictionary, module: Dictionary, target_object: D
 			if int(target_object.get("terminal_class", 1)) >= 3 and target_object.get("can_attack", false) and not actor.get("firewall_module_v1", false):
 				return _result(false, "Firewall required.", ["terminal_attack"])
 			target_object["state"] = "hacked"
-			return _result(true, "Hack successful.")
+			return _result(true, "Hack successful.", [{"type":"terminal_hacked"},{"type":"apply_terminal_controls"},{"type":"state_set","state":"hacked"}])
 		"push", "pull":
 			var move_gate := _validate_weight_class(actor, target_object)
 			if not move_gate.success:
@@ -141,7 +141,11 @@ static func apply_action(actor: Dictionary, module: Dictionary, target_object: D
 				var material_tags: Array = target_object.get("material_tags", [])
 				if not target_object.get("magnetic", false) and not material_tags.has("metal"):
 					return _result(false, "Object is not magnetic.")
-			return _result(true, "Object moved.")
+			var facing := Vector2i(actor.get("facing_direction", Vector2i.ZERO))
+			var direction := facing
+			if action_type == "pull":
+				direction = -facing
+			return _result(true, "Object moved.", [{"type":"object_move","mode":action_type,"direction":direction,"dx":direction.x,"dy":direction.y}])
 		"insert_fuse":
 			if module_id != "fuse":
 				return _result(false, "Fuse required.")
@@ -153,12 +157,16 @@ static func apply_action(actor: Dictionary, module: Dictionary, target_object: D
 			if String(target_object.get("state", "")) != "damaged":
 				return _result(false, "Object is not damaged.")
 			target_object["state"] = "active"
-			return _result(true, "Object repaired.", [{"type":"state_set","state":"active"}])
+			var effects := [{"type":"state_set","state":"active"}]
+			var object_group := String(target_object.get("object_group", ""))
+			if target_object.has("power_network_id") or object_group in ["power", "terminal"]:
+				effects.append({"type":"power_recalc_needed"})
+			return _result(true, "Object repaired.", effects)
 		"switch":
 			var state := String(target_object.get("state", "switch_off"))
 			var next_state := "switch_on" if state == "switch_off" else "switch_off"
 			target_object["state"] = next_state
-			return _result(true, "Switch toggled.", [{"type":"state_set","state":next_state}])
+			return _result(true, "Switch toggled.", [{"type":"state_set","state":next_state},{"type":"power_recalc_needed"}])
 		"pickup":
 			if group == "item":
 				return _result(true, "Item picked up.")

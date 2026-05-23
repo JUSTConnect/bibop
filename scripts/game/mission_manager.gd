@@ -39,6 +39,8 @@ func setup_world_objects_for_mission(mission_id: String) -> void:
 	}
 	for object_data in objects:
 		var object_id := String(object_data.get("id", ""))
+		if object_id == "terminal_t1":
+			object_data["controls"] = ["door_e1"]
 		if object_id == "wall_b1":
 			object_data["hidden_content"] = ["power_cable"]
 		if object_id == "wall_d1":
