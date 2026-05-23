@@ -38,6 +38,7 @@ var fan_platform_marker_direction: Vector2i = Vector2i.RIGHT
 var visible_cells: Array = []
 var explored_cells: Array = []
 var discovered_hidden_route_nodes: Dictionary = {}
+var world_overlay_markers: Dictionary = {}
 
 var map_data: Array = [
 	[1, 1, 1, 1, 1, 1, 1, 1],
@@ -223,6 +224,23 @@ func _draw() -> void:
 			
 			if fog_enabled:
 				draw_fog_for_cell(grid_position, rect)
+			if world_overlay_markers.has(grid_position) and is_cell_visible(grid_position):
+				_draw_world_overlay_marker(rect, String(world_overlay_markers[grid_position]))
+
+func _draw_world_overlay_marker(rect: Rect2, marker: String) -> void:
+	if marker.is_empty():
+		return
+	var font: Font = ThemeDB.fallback_font
+	if font == null:
+		return
+	var font_size := 14
+	var text_size := font.get_string_size(marker, HORIZONTAL_ALIGNMENT_CENTER, -1, font_size)
+	var pos := rect.get_center() - text_size * 0.5 + Vector2(0, text_size.y * 0.35)
+	draw_string(font, pos, marker, HORIZONTAL_ALIGNMENT_LEFT, -1, font_size, Color(1.0, 0.95, 0.4))
+
+func set_world_overlay_markers(markers: Dictionary) -> void:
+	world_overlay_markers = markers.duplicate()
+	queue_redraw()
 				
 func draw_fog_for_cell(grid_position: Vector2i, rect: Rect2) -> void:
 	if is_cell_visible(grid_position):

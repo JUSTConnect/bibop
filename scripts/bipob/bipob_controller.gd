@@ -139,6 +139,7 @@ var max_digital_storage_slots: int = 4
 var available_digital_storage_slots: int = 1
 var buffer_item: Dictionary = {}
 var digital_world_records: Dictionary = {}
+var selected_world_action: String = ""
 const DIGITAL_RECORD_ROUTE_DATA := "route_data"
 const DIGITAL_RECORD_INFO_KEY := "info_key"
 var last_diagnostic_result: DiagnosticResult = null
@@ -1010,6 +1011,7 @@ func start_mission(mission_index: int, save_snapshot: bool = true) -> void:
 		grid_manager.reset_mission_layout(current_mission_index)
 		if mission_manager != null:
 			mission_manager.setup_world_objects_for_mission("mission_%d" % current_mission_index)
+			refresh_world_object_overlay()
 		if current_mission_index == 4:
 			setup_mission4_field_modules()
 		elif debug_place_mission4_field_modules:
@@ -5834,6 +5836,30 @@ func update_world_position() -> void:
 	
 	global_position = grid_manager.global_position + grid_manager.grid_to_world(grid_position)
 	update_vision()
+	emit_facing_world_object_hint()
+
+func emit_facing_world_object_hint() -> void:
+	if mission_manager == null:
+		return
+	var facing := get_facing_device_position()
+	var object_data := mission_manager.get_world_object_at_cell(facing)
+	if object_data.is_empty():
+		var items := mission_manager.get_items_at_cell(facing)
+		if items.is_empty():
+			return
+		object_data = items[0]
+	var scan_level := int(object_data.get("scan_level", 0))
+	var generic := String(object_data.get("object_group", "Object")).capitalize()
+	var name := generic if scan_level <= 0 else String(object_data.get("display_name", generic))
+	var details: Array[String] = []
+	details.append("State: %s" % String(object_data.get("state", "unknown")))
+	if object_data.has("is_powered"):
+		details.append("Powered: %s" % ("Yes" if bool(object_data.get("is_powered", false)) else "No"))
+	if scan_level >= 2 and bool(object_data.get("revealed_hidden_content", false)):
+		details.append("Hidden: %s" % ", ".join(Array(object_data.get("hidden_content", []))))
+	var actions := get_available_world_actions(object_data, facing)
+	var action_text := "No available action for this object." if actions.is_empty() else "Action: %s" % actions[0]
+	hint_requested.emit("%s | %s | %s" % [name, " ; ".join(details), action_text])
 	
 func update_vision() -> void:
 	if grid_manager == null:
@@ -6121,6 +6147,10 @@ func scan_device() -> void:
 			var scan_type := get_world_scan_type_from_installed_modules()
 			var result := ScanSystem.scan_object(world_object, scan_type, get_effective_visor_level())
 			world_object["scan_level"] = int(result.get("scan_level", 1))
+			if scan_type == "xray" and world_object.get("object_group", "") == "wall" and not Array(world_object.get("hidden_content", [])).is_empty():
+				world_object["revealed_hidden_content"] = true
+			mission_manager.set_world_object_at_cell(facing_cell, world_object)
+			refresh_world_object_overlay()
 			hint_requested.emit("Scan: %s" % ScanSystem.get_scan_display_text(world_object, scan_type))
 			status_changed.emit()
 			return
@@ -6437,58 +6467,67 @@ func get_bipob_power_class() -> String:
 	return "scout"
 
 func get_world_object_action_for_context(world_object: Dictionary, _active_module: BipobModule, target_position: Vector2i) -> String:
+	var actions := get_available_world_actions(world_object, target_position)
+	if not selected_world_action.is_empty() and actions.has(selected_world_action):
+		return selected_world_action
+	if actions.is_empty():
+		return ""
+	return String(actions[0])
+
+func get_available_world_actions(world_object: Dictionary, target_position: Vector2i) -> Array[String]:
+	var actions: Array[String] = []
 	var group := String(world_object.get("object_group", ""))
 	var state := String(world_object.get("state", ""))
 	var items_here: Array[Dictionary] = mission_manager.get_items_at_cell(target_position) if mission_manager != null else []
 	if group == "door":
 		if state in ["damaged", "half_open", "jammed"] and has_heavy_claw():
-			return "force_open"
+			actions.append("force_open")
 		if state == "locked" and (has_key or has_held_world_item("mechanical_keycard") or has_digital_world_item("digital_key")):
-			return "unlock"
+			actions.append("unlock")
 		if state == "closed" and has_manipulator_arm():
-			return "open"
+			actions.append("open")
 		if has_plasma_cutter() and String(world_object.get("material", "")) in ["steel", "reinforced_steel"]:
-			return "cut"
+			actions.append("cut")
 		if has_sledgehammer() and String(world_object.get("material", "")) in ["steel", "reinforced_steel"]:
-			return "impact"
+			actions.append("impact")
 	elif group == "terminal":
 		if bool(world_object.get("connected", false)) and get_installed_cpu_level() > 0:
-			return "hack"
+			actions.append("hack")
 		if get_installed_interface_level(String(world_object.get("connection_type", "wired"))) > 0:
-			return "connect"
+			actions.append("connect")
 		if has_repair_tool() and state == "damaged":
-			return "repair"
+			actions.append("repair")
 	elif group == "wall":
 		if has_plasma_cutter():
-			return "cut"
+			actions.append("cut")
 		if has_sledgehammer():
-			return "impact"
+			actions.append("impact")
 		if has_heavy_claw() and (state == "damaged" or String(world_object.get("material", "")) == "brick"):
-			return "force_open"
+			actions.append("force_open")
 	elif String(world_object.get("object_type", "")) == "power_cable":
 		if has_plasma_cutter():
-			return "cut"
+			actions.append("cut")
 		if has_repair_tool() and state == "damaged":
-			return "repair"
+			actions.append("repair")
 	elif String(world_object.get("object_type", "")) in ["circuit_breaker", "light_switch", "circuit_switch"]:
-		return "switch"
+		actions.append("switch")
 	elif String(world_object.get("object_type", "")).begins_with("fuse_box"):
 		if has_held_world_item("fuse"):
-			return "insert_fuse"
+			actions.append("insert_fuse")
 		if has_repair_tool() and state == "damaged":
-			return "repair"
+			actions.append("repair")
 	elif group == "physical_object":
 		if has_magnetic_manipulator() and (bool(world_object.get("magnetic", false)) or Array(world_object.get("material_tags", [])).has("metal")):
-			return "pull"
+			actions.append("pull")
 		if has_heavy_claw():
-			return "push"
+			actions.append("push")
 		if has_sledgehammer():
-			return "impact"
+			actions.append("impact")
 		if has_plasma_cutter():
-			return "cut"
+			actions.append("cut")
 	elif group == "item":
-		return "pickup"
-	return ""
+		actions.append("pickup")
+	return actions
 
 func _module_dict(module_id: String) -> Dictionary:
 	return {"id": module_id}
@@ -6640,6 +6679,7 @@ func interact() -> void:
 				"target_is_grate": world_object.get("object_type", "") == "grate_wall"
 			}
 			var action_id := get_world_object_action_for_context(world_object, active_manipulator, target_position)
+			var available_actions := get_available_world_actions(world_object, target_position)
 			var module := get_world_action_module(action_id, world_object)
 			if action_id.is_empty():
 				hint_requested.emit("No available action for this object.")
@@ -6670,7 +6710,9 @@ func interact() -> void:
 				if world_object.get("state", "") in ["open", "destroyed", "inactive", "unpowered"]:
 					world_object["blocks_movement"] = false
 				mission_manager.set_world_object_at_cell(target_position, world_object)
-				hint_requested.emit("%s (%s): %s" % [world_object.get("display_name", "Object"), world_object.get("state", "unknown"), String(action_result.get("message", "Action complete."))])
+				_apply_world_object_effects(action_result.get("effects", []), world_object, target_position)
+				refresh_world_object_overlay()
+				hint_requested.emit("%s (%s): %s | Actions: %s" % [world_object.get("display_name", "Object"), world_object.get("state", "unknown"), String(action_result.get("message", "Action complete.")), ", ".join(available_actions)])
 			else:
 				hint_requested.emit(String(action_result.get("message", "Action failed.")))
 			status_changed.emit()
@@ -6697,6 +6739,40 @@ func interact() -> void:
 		_:
 			print("Nothing to interact with at: ", target_position)
 			hint_requested.emit("Nothing to interact with. Face a key, door, or terminal and press E.")
+
+func _apply_world_object_effects(effects: Array, world_object: Dictionary, target_position: Vector2i) -> void:
+	for effect in effects:
+		if effect is Dictionary and effect.get("type", "") == "object_move":
+			var direction := Vector2i(effect.get("direction", Vector2i.ZERO))
+			var destination := target_position + direction
+			if mission_manager.get_world_object_at_cell(destination).is_empty() and grid_manager.is_walkable(destination):
+				mission_manager.remove_world_object_at_cell(target_position)
+				world_object["position"] = destination
+				mission_manager.set_world_object_at_cell(destination, world_object)
+				break
+
+func refresh_world_object_overlay() -> void:
+	if mission_manager == null or grid_manager == null:
+		return
+	var markers := {}
+	for cell in mission_manager.world_objects_by_cell.keys():
+		var obj: Dictionary = mission_manager.world_objects_by_cell[cell]
+		if obj.get("state", "") in ["destroyed", "open", "inactive"]:
+			continue
+		markers[cell] = _get_world_marker(obj)
+	for cell in mission_manager.cell_items.keys():
+		if markers.has(cell):
+			continue
+		var items: Array = mission_manager.cell_items[cell]
+		if items.is_empty():
+			continue
+		markers[cell] = _get_world_marker(items[0])
+	grid_manager.set_world_overlay_markers(markers)
+
+func _get_world_marker(object_data: Dictionary) -> String:
+	var object_type := String(object_data.get("object_type", ""))
+	var labels := {"steel_door":"D","energy_door":"ED","grid_door":"GD","brick_wall":"BW","damaged_wall":"DW","energy_wall":"EW","door_terminal":"T","information_terminal":"IT","power_cable":"C","power_source_class_1":"PS","circuit_breaker":"BR","fuse_box_installed":"FB","fuse_box_empty":"FE","fuse":"F","mechanical_keycard":"K","digital_key_opened":"DK","data_file_encrypted":"DF","normal_crate":"CR","heavy_crate":"HC","barrel":"BA","debris":"DB"}
+	return labels.get(object_type, String(object_data.get("object_group", "O")).substr(0, 2).to_upper())
 
 func setup_mission8() -> void:
 	mission8_fan_platform_position = Vector2i(4, 2)

@@ -167,6 +167,29 @@ func remove_first_item_at_cell(cell: Vector2i) -> Dictionary:
 	mission_world_objects.erase(item)
 	return item
 
+func get_world_object_by_id(id: String) -> Dictionary:
+	for object_data in mission_world_objects:
+		if String(object_data.get("id", "")) == id:
+			return object_data
+	return {}
+
+func update_world_object_by_id(id: String, data: Dictionary) -> void:
+	if id.is_empty() or data.is_empty():
+		return
+	for index in range(mission_world_objects.size()):
+		var object_data: Dictionary = mission_world_objects[index]
+		if String(object_data.get("id", "")) != id:
+			continue
+		var old_position := Vector2i(object_data.get("position", Vector2i(-1, -1)))
+		for key in data.keys():
+			object_data[key] = data[key]
+		mission_world_objects[index] = object_data
+		var new_position := Vector2i(object_data.get("position", old_position))
+		if old_position != new_position:
+			world_objects_by_cell.erase(old_position)
+		world_objects_by_cell[new_position] = object_data
+		return
+
 func get_hidden_objects_at_cell(cell: Vector2i) -> Array[Dictionary]:
 	var object_data := get_world_object_at_cell(cell)
 	if object_data.is_empty():
