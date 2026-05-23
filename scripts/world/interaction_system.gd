@@ -1,7 +1,7 @@
 extends RefCounted
 class_name InteractionSystem
 
-const SUPPORTED_ACTIONS := ["open","unlock","input_password","cut","impact","force_open","connect","scan","hack","drain_energy","pickup","use_item","insert_fuse","repair","push","pull","switch","disable","enable"]
+const SUPPORTED_ACTIONS := ["open","unlock","input_password","cut","impact","force_open","connect","scan","hack","drain_energy","pickup","use_item","insert_fuse","repair","push","pull","switch","disable","enable","attack","stun","repair_ally"]
 
 static func can_apply_action(actor: Dictionary, module: Dictionary, target_object: Dictionary, action_type: String) -> Dictionary:
 	if action_type not in SUPPORTED_ACTIONS:
@@ -124,6 +124,8 @@ static func apply_action(actor: Dictionary, module: Dictionary, target_object: D
 			if int(target_object.get("terminal_class", 1)) >= 3 and target_object.get("can_attack", false) and not actor.get("firewall_module_v1", false):
 				return _result(false, "Firewall required.", ["terminal_attack"])
 			target_object["state"] = "hacked"
+			if group == "threat":
+				return _result(true, "Hack successful.", [{"type":"set_state","state":"hacked"},{"type":"set_behavior_state","behavior_state":"idle"}])
 			return _result(true, "Hack successful.", [{"type":"terminal_hacked"},{"type":"apply_terminal_controls"},{"type":"state_set","state":"hacked"}])
 		"push", "pull":
 			var move_gate := _validate_weight_class(actor, target_object)
@@ -171,6 +173,42 @@ static func apply_action(actor: Dictionary, module: Dictionary, target_object: D
 			if group == "item":
 				return _result(true, "Item picked up.")
 			return _result(false, "Cannot pick up this object.")
+
+		"attack":
+			if group != "threat":
+				return _result(false, "Cannot attack this object.")
+			var attack_damage := 0
+			if module_id == "laser_v1":
+				attack_damage = 5
+			elif module_id == "sledgehammer_v1":
+				attack_damage = 5
+			elif module_id == "saw_v1":
+				attack_damage = 6
+			elif module_id == "gas_burner_v1":
+				attack_damage = 4
+			if attack_damage <= 0:
+				return _result(false, "No valid attack module.")
+			return _result(true, "Attack landed.", [{"type":"damage_target","amount":attack_damage}])
+		"stun":
+			if group != "threat" or module_id != "shocker_v1":
+				return _result(false, "Cannot stun this object.")
+			return _result(true, "Target stunned.", [{"type":"damage_target","amount":1},{"type":"set_state","state":"stunned"},{"type":"set_behavior_state","behavior_state":"idle"},{"type":"set_stunned_turns","value":1}])
+		"drain_energy":
+			if group != "threat" or module_id != "energy_drain_v1":
+				return _result(false, "Cannot drain this object.")
+			if bool(target_object.get("drained_this_turn", false)):
+				return _result(false, "Target already drained this turn.")
+			var pool := int(target_object.get("drain_energy_pool", 0))
+			if pool <= 0:
+				return _result(false, "No energy left to drain.")
+			var drained := mini(5, pool)
+			return _result(true, "Energy drained.", [{"type":"drain_energy","amount":drained}])
+		"disable":
+			if group != "threat":
+				return _result(false, "Cannot disable this object.")
+			return _result(true, "Target disabled.", [{"type":"set_state","state":"disabled"},{"type":"set_behavior_state","behavior_state":"idle"}])
+		"repair_ally":
+			return _result(false, "No ally repair target.")
 	return _result(false, "No available action for this object.")
 
 static func _validate_door_class(actor: Dictionary, target_object: Dictionary) -> Dictionary:

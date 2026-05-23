@@ -36,8 +36,10 @@ func setup_world_objects_for_mission(mission_id: String) -> void:
 		"crate_n_1": Vector2i(4, 3),
 		"crate_h_1": Vector2i(4, 4),
 		"barrel_1": Vector2i(1, 4),
-		"debris_1": Vector2i(6, 5)
+		"debris_1": Vector2i(6, 5),
+		"turret_1": Vector2i(7, 1)
 	}
+	objects.append(WorldObjectCatalog.create_world_object("turret", "turret_1"))
 	for object_data in objects:
 		var object_id := String(object_data.get("id", ""))
 		if object_id == "terminal_t1":
@@ -255,3 +257,18 @@ func get_hidden_objects_at_cell(cell: Vector2i) -> Array[Dictionary]:
 	for hidden_id in object_data.get("hidden_content", []):
 		hidden.append({"id": hidden_id, "display_name": String(hidden_id).capitalize()})
 	return hidden
+
+
+func reset_world_object_turn_flags() -> void:
+	for object_data in mission_world_objects:
+		if String(object_data.get("object_group", "")) != "threat":
+			continue
+		object_data["drained_this_turn"] = false
+		var stunned_turns := int(object_data.get("stunned_turns", 0))
+		if stunned_turns > 0:
+			stunned_turns -= 1
+			object_data["stunned_turns"] = stunned_turns
+			if stunned_turns <= 0 and String(object_data.get("state", "")) == "stunned":
+				object_data["state"] = "active"
+				if String(object_data.get("behavior_state", "")) == "idle":
+					object_data["behavior_state"] = "patrolling"
