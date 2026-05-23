@@ -33,8 +33,15 @@ static func recalculate_network(objects: Array[Dictionary], network_id: String) 
 			continue
 		obj["is_powered"] = powered
 		var object_type := obj.get("object_type", "")
-		if STATE_DRIVEN_POWER_TYPES.get(object_type, false) and not powered:
-			obj["state"] = "unpowered"
+		var object_group := obj.get("object_group", "")
+		if not powered:
+			if object_group == "terminal":
+				obj["is_powered"] = false
+				obj["state"] = "unpowered"
+			elif object_group == "threat" and object_type == "turret":
+				obj["state"] = "unpowered"
+			elif STATE_DRIVEN_POWER_TYPES.get(object_type, false):
+				obj["state"] = "unpowered"
 		if object_type in ["energy_door", "energy_wall"] and not powered:
 			obj["blocks_movement"] = false
 		elif object_type in ["energy_door", "energy_wall"] and powered and obj.get("state", "") != "open":
