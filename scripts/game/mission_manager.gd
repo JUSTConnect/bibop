@@ -19,7 +19,8 @@ func setup_world_objects_for_mission(mission_id: String) -> void:
 	mission_world_objects.clear()
 	world_objects_by_cell.clear()
 	cell_items.clear()
-
+	if mission_id != "mission_1":
+		return
 	var objects: Array[Dictionary] = WorldObjectCatalog.create_test_set()
 	var placements := {
 		"door_a1": Vector2i(2, 1),
@@ -40,11 +41,15 @@ func setup_world_objects_for_mission(mission_id: String) -> void:
 	for object_data in objects:
 		var object_id := String(object_data.get("id", ""))
 		if object_id == "terminal_t1":
-			object_data["controls"] = ["door_e1"]
+			object_data["id"] = "door_terminal_1"
+			object_data["controls"] = ["steel_door_1"]
 		if object_id == "wall_b1":
 			object_data["hidden_content"] = ["power_cable"]
 		if object_id == "wall_d1":
 			object_data["hidden_content"] = ["secret_passage"]
+		if object_id == "door_e1":
+			object_data["id"] = "steel_door_1"
+			object_data["state"] = "locked"
 		if _should_assign_main_power_network(object_data):
 			object_data["power_network_id"] = "power_net_A"
 		elif object_id == "fuse_box_empty_1":
@@ -54,10 +59,60 @@ func setup_world_objects_for_mission(mission_id: String) -> void:
 		if placements.has(object_id):
 			set_world_object_at_cell(placements[object_id], object_data)
 		elif object_data.get("object_group", "") == "item":
-			add_item_at_cell(Vector2i(1, 3), object_data)
+			match object_id:
+				"keycard_a1":
+					add_item_at_cell(Vector2i(1, 3), object_data)
+				"digikey_a1":
+					add_item_at_cell(Vector2i(5, 1), object_data)
+				"fuse_item_1":
+					add_item_at_cell(Vector2i(4, 1), object_data)
+				"datafile_enc_1":
+					add_item_at_cell(Vector2i(3, 4), object_data)
+				_:
+					add_item_at_cell(Vector2i(1, 3), object_data)
+	PowerSystem.recalculate_network(mission_world_objects, "power_net_A")
+	if debug_world_logs:
+		var scenario_warnings := validate_world_object_scenario()
+		if not scenario_warnings.is_empty():
+			for warning in scenario_warnings:
+				push_warning("[WorldScenario] %s" % warning)
 
-	if mission_id == "mission_1":
-		PowerSystem.recalculate_network(mission_world_objects, "power_net_A")
+func validate_world_object_scenario() -> Array[String]:
+	var warnings: Array[String] = []
+	var ids := {}
+	var occupied_cells := {}
+	for object_data in mission_world_objects:
+		var object_id := String(object_data.get("id", ""))
+		if not object_id.is_empty():
+			ids[object_id] = true
+	for object_data in mission_world_objects:
+		var object_id := String(object_data.get("id", ""))
+		var pos := Vector2i(object_data.get("position", Vector2i(-1, -1)))
+		if object_data.get("object_group", "") != "item":
+			if occupied_cells.has(pos):
+				warnings.append("Two world objects occupy %s." % str(pos))
+			occupied_cells[pos] = object_id
+		var controls: Array = object_data.get("controls", [])
+		if object_data.has("controls") and controls.is_empty():
+			warnings.append("Object %s has empty controls list." % object_id)
+		for controlled_id in controls:
+			if not ids.has(String(controlled_id)):
+				warnings.append("Object %s controls missing id %s." % [object_id, String(controlled_id)])
+		if object_data.has("power_network_id"):
+			var network_id := String(object_data.get("power_network_id", ""))
+			if network_id.is_empty():
+				warnings.append("Object %s has empty power network id." % object_id)
+	for required_id in ["steel_door_1", "door_terminal_1"]:
+		if not ids.has(required_id):
+			warnings.append("Required scenario id missing: %s." % required_id)
+	for cell in cell_items.keys():
+		var seen := {}
+		for item in cell_items[cell]:
+			var item_id := String(item.get("id", ""))
+			if seen.has(item_id):
+				warnings.append("Duplicate item id %s at cell %s." % [item_id, str(cell)])
+			seen[item_id] = true
+	return warnings
 
 func _should_assign_main_power_network(object_data: Dictionary) -> bool:
 	var object_type := String(object_data.get("object_type", ""))
