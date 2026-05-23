@@ -65,6 +65,9 @@ static func apply_action(actor: Dictionary, module: Dictionary, target_object: D
 					target_object["state"] = "damaged"
 					return _result(true, "Door has been cut and damaged.")
 				return _result(false, "Plasma cutter has no effect.")
+			if group == "wall" and module_id == "plasma_cutter_v1":
+				target_object["state"] = "damaged"
+				return _result(true, "Wall cut and damaged.", [{"type":"state_set","state":"damaged"}])
 		"impact":
 			if module_id == "sledgehammer_v1" and group == "door":
 				var hits := int(target_object.get("impact_hits", 0)) + 1
@@ -86,11 +89,22 @@ static func apply_action(actor: Dictionary, module: Dictionary, target_object: D
 					"titanium_door":
 						return _result(false, "Impact ineffective.")
 				return _result(true, "Impact applied.")
+			if module_id == "sledgehammer_v1" and group == "wall":
+				if String(target_object.get("state", "")) == "damaged":
+					target_object["state"] = "destroyed"
+					target_object["blocks_movement"] = false
+					return _result(true, "Wall destroyed.", [{"type":"state_set","state":"destroyed"},{"type":"set_blocks_movement","value":false}])
+				target_object["state"] = "damaged"
+				return _result(true, "Wall damaged.", [{"type":"state_set","state":"damaged"}])
 		"force_open":
 			if group == "door" and target_object.get("state", "") in ["damaged", "half_open", "jammed"] and module_id == "manipulator_heavy_claw_v1":
 				target_object["state"] = "open"
 				target_object["blocks_movement"] = false
 				return _result(true, "Door forced open.", [{"type":"state_set","state":"open"},{"type":"set_blocks_movement","value":false}])
+			if group == "wall" and module_id == "manipulator_heavy_claw_v1" and String(target_object.get("state", "")) == "damaged":
+				target_object["state"] = "open"
+				target_object["blocks_movement"] = false
+				return _result(true, "Wall opening forced.", [{"type":"state_set","state":"open"},{"type":"set_blocks_movement","value":false}])
 			return _result(false, "Door cannot be forced open.")
 		"connect":
 			if group == "terminal":
@@ -129,9 +143,27 @@ static func apply_action(actor: Dictionary, module: Dictionary, target_object: D
 					return _result(false, "Object is not magnetic.")
 			return _result(true, "Object moved.")
 		"insert_fuse":
+			if module_id != "fuse":
+				return _result(false, "Fuse required.")
 			target_object["state"] = "installed"
 			return _result(true, "Fuse installed.", [{"type":"state_set","state":"installed"},{"type":"power_recalc_needed"}])
-	return _result(true, "Action executed as foundation stub.")
+		"repair":
+			if module_id != "repair_v1":
+				return _result(false, "Repair tool required.")
+			if String(target_object.get("state", "")) != "damaged":
+				return _result(false, "Object is not damaged.")
+			target_object["state"] = "active"
+			return _result(true, "Object repaired.", [{"type":"state_set","state":"active"}])
+		"switch":
+			var state := String(target_object.get("state", "switch_off"))
+			var next_state := "switch_on" if state == "switch_off" else "switch_off"
+			target_object["state"] = next_state
+			return _result(true, "Switch toggled.", [{"type":"state_set","state":next_state}])
+		"pickup":
+			if group == "item":
+				return _result(true, "Item picked up.")
+			return _result(false, "Cannot pick up this object.")
+	return _result(false, "No available action for this object.")
 
 static func _validate_door_class(actor: Dictionary, target_object: Dictionary) -> Dictionary:
 	if int(actor.get("manipulator_level", 0)) < int(target_object.get("required_manipulator_level", 1)):
