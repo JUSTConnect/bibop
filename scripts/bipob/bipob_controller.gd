@@ -6392,8 +6392,35 @@ func _extract_module_level_by_prefix(prefix: String) -> int:
 			best = maxi(best, 1)
 	return best
 
+func get_installed_manipulator_arm_level() -> int:
+	return _extract_module_level_by_prefix("manipulator_arm")
+
+func get_installed_heavy_claw_level() -> int:
+	return _extract_module_level_by_prefix("manipulator_heavy_claw")
+
 func get_installed_manipulator_level() -> int:
-	return maxi(_extract_module_level_by_prefix("manipulator_arm"), _extract_module_level_by_prefix("manipulator_heavy_claw"))
+	return get_installed_manipulator_arm_level()
+
+func has_world_tool(module_id: String) -> bool:
+	return has_module_id(module_id)
+
+func has_plasma_cutter() -> bool:
+	return has_world_tool("plasma_cutter_v1")
+
+func has_sledgehammer() -> bool:
+	return has_world_tool("sledgehammer_v1")
+
+func has_repair_tool() -> bool:
+	return has_world_tool("repair_v1")
+
+func has_magnetic_manipulator() -> bool:
+	return has_world_tool("magnetic_manipulator_v1")
+
+func has_heavy_claw() -> bool:
+	return get_installed_heavy_claw_level() > 0
+
+func has_manipulator_arm() -> bool:
+	return get_installed_manipulator_arm_level() > 0
 
 func get_installed_cpu_level() -> int:
 	return _extract_module_level_by_prefix("processor")
@@ -6409,54 +6436,55 @@ func get_bipob_power_class() -> String:
 		return "engineer"
 	return "scout"
 
-func get_world_object_action_for_context(world_object: Dictionary, active_module: BipobModule, target_position: Vector2i) -> String:
+func get_world_object_action_for_context(world_object: Dictionary, _active_module: BipobModule, target_position: Vector2i) -> String:
 	var group := String(world_object.get("object_group", ""))
 	var state := String(world_object.get("state", ""))
-	var module_id := active_module.id if active_module != null else ""
 	var items_here: Array[Dictionary] = mission_manager.get_items_at_cell(target_position) if mission_manager != null else []
 	if group == "door":
-		if module_id == "plasma_cutter_v1":
-			return "cut"
-		if module_id == "sledgehammer_v1":
-			return "impact"
-		if state in ["damaged", "half_open", "jammed"] and has_module_id("manipulator_heavy_claw_v1"):
+		if state in ["damaged", "half_open", "jammed"] and has_heavy_claw():
 			return "force_open"
 		if state == "locked" and (has_key or has_held_world_item("mechanical_keycard") or has_digital_world_item("digital_key")):
 			return "unlock"
-		if state == "closed":
+		if state == "closed" and has_manipulator_arm():
 			return "open"
+		if has_plasma_cutter() and String(world_object.get("material", "")) in ["steel", "reinforced_steel"]:
+			return "cut"
+		if has_sledgehammer() and String(world_object.get("material", "")) in ["steel", "reinforced_steel"]:
+			return "impact"
 	elif group == "terminal":
 		if bool(world_object.get("connected", false)) and get_installed_cpu_level() > 0:
 			return "hack"
 		if get_installed_interface_level(String(world_object.get("connection_type", "wired"))) > 0:
 			return "connect"
+		if has_repair_tool() and state == "damaged":
+			return "repair"
 	elif group == "wall":
-		if module_id == "plasma_cutter_v1":
+		if has_plasma_cutter():
 			return "cut"
-		if module_id == "sledgehammer_v1":
+		if has_sledgehammer():
 			return "impact"
-		if has_module_id("manipulator_heavy_claw_v1") and (state == "damaged" or String(world_object.get("material", "")) == "brick"):
+		if has_heavy_claw() and (state == "damaged" or String(world_object.get("material", "")) == "brick"):
 			return "force_open"
 	elif String(world_object.get("object_type", "")) == "power_cable":
-		if module_id == "plasma_cutter_v1":
+		if has_plasma_cutter():
 			return "cut"
-		if module_id == "repair_v1":
+		if has_repair_tool() and state == "damaged":
 			return "repair"
 	elif String(world_object.get("object_type", "")) in ["circuit_breaker", "light_switch", "circuit_switch"]:
 		return "switch"
 	elif String(world_object.get("object_type", "")).begins_with("fuse_box"):
 		if has_held_world_item("fuse"):
 			return "insert_fuse"
-		if module_id == "repair_v1":
+		if has_repair_tool() and state == "damaged":
 			return "repair"
 	elif group == "physical_object":
-		if has_module_id("manipulator_heavy_claw_v1"):
-			return "push"
-		if module_id == "magnetic_manipulator_v1":
+		if has_magnetic_manipulator() and (bool(world_object.get("magnetic", false)) or Array(world_object.get("material_tags", [])).has("metal")):
 			return "pull"
-		if module_id == "sledgehammer_v1":
+		if has_heavy_claw():
+			return "push"
+		if has_sledgehammer():
 			return "impact"
-		if module_id == "plasma_cutter_v1":
+		if has_plasma_cutter():
 			return "cut"
 	elif group == "item":
 		return "pickup"
@@ -6469,6 +6497,9 @@ func get_world_action_module(action_id: String, world_object: Dictionary) -> Dic
 	var connection_type := String(world_object.get("connection_type", "wired"))
 	match action_id:
 		"open", "switch", "pickup":
+			if action_id == "open":
+				var arm_level := get_installed_manipulator_arm_level()
+				return _module_dict("manipulator_arm_v%d" % arm_level if arm_level > 0 else "")
 			var manipulator := get_best_manipulator_for_interaction()
 			return _module_dict(manipulator.id if manipulator != null else "")
 		"unlock":
@@ -6565,18 +6596,21 @@ func interact() -> void:
 		var cell_items := mission_manager.get_items_at_cell(target_position)
 		if not cell_items.is_empty():
 			var item := cell_items[0]
-			var item_actor := {"manipulator_occupied": not can_use_physical_hand()}
+			var is_digital_item := String(item.get("item_form", "physical")) == "digital"
+			var item_actor := {"manipulator_occupied": not is_digital_item and not can_use_physical_hand()}
 			var item_result := InteractionSystem.apply_action(item_actor, {"id": active_manipulator.id if active_manipulator != null else ""}, item, "pickup")
 			if bool(item_result.get("success", false)):
-				if can_use_physical_hand():
+				if is_digital_item:
 					mission_manager.remove_first_item_at_cell(target_position)
-					if String(item.get("item_form", "physical")) == "digital":
-						store_digital_record(String(item.get("id", "item_record")), String(item.get("display_name", "Item")), "Recovered digital world item.")
-						var item_type := String(item.get("item_type", item.get("id", "")))
-						var digital_state := String(item.get("digital_state", item.get("state", "opened")))
-						digital_world_records[item_type] = {"item_type": item_type, "digital_state": digital_state}
-					else:
-						buffer_item = item
+					store_digital_record(String(item.get("id", "item_record")), String(item.get("display_name", "Item")), "Recovered digital world item.")
+					var item_type := String(item.get("item_type", item.get("id", "")))
+					var digital_state := String(item.get("digital_state", item.get("state", "opened")))
+					var item_family := String(item.get("item_family", infer_digital_item_family(item_type)))
+					digital_world_records[item_family] = {"item_family": item_family, "item_type": item_type, "digital_state": digital_state}
+					hint_requested.emit("Item picked up.")
+				elif can_use_physical_hand():
+					mission_manager.remove_first_item_at_cell(target_position)
+					buffer_item = item
 					hint_requested.emit("Item picked up.")
 				else:
 					hint_requested.emit("Manipulator is occupied.")
@@ -6588,7 +6622,8 @@ func interact() -> void:
 		var world_object := mission_manager.get_world_object_at_cell(target_position)
 		if not world_object.is_empty():
 			var actor := {
-				"manipulator_level": get_installed_manipulator_level(),
+				"manipulator_level": get_installed_manipulator_arm_level(),
+				"heavy_claw_level": get_installed_heavy_claw_level(),
 				"interface_level": maxi(get_installed_interface_level("wired"), get_installed_interface_level("optical")),
 				"wired_interface_level": get_installed_interface_level("wired"),
 				"optical_interface_level": get_installed_interface_level("optical"),
@@ -6612,6 +6647,11 @@ func interact() -> void:
 				return
 			var action_result := InteractionSystem.apply_action(actor, module, world_object, action_id)
 			if bool(action_result.get("success", false)):
+				if action_id == "insert_fuse":
+					if not consume_held_world_item_if_type("fuse"):
+						hint_requested.emit("Fuse required.")
+						status_changed.emit()
+						return
 				for effect in action_result.get("effects", []):
 					if effect is String:
 						if String(effect) == "power_recalc_needed":
@@ -7041,6 +7081,13 @@ func consume_held_world_item_if_type(item_type: String) -> bool:
 		return false
 	buffer_item.clear()
 	return true
+
+func infer_digital_item_family(item_type: String) -> String:
+	if item_type.begins_with("digital_key"):
+		return "digital_key"
+	if item_type.begins_with("data_file"):
+		return "data_file"
+	return item_type
 
 func has_digital_world_item(item_type: String, digital_state: String = "opened") -> bool:
 	var record: Dictionary = digital_world_records.get(item_type, {})
