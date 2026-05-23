@@ -32,7 +32,7 @@ static func apply_action(actor: Dictionary, module: Dictionary, target_object: D
 					return _result(false, "Door cannot be opened.")
 				target_object["state"] = "open"
 				target_object["blocks_movement"] = false
-				return _result(true, "Door opened.", ["door_opened"])
+				return _result(true, "Door opened.", [{"type":"door_opened"},{"type":"state_set","state":"open"},{"type":"set_blocks_movement","value":false}])
 		"unlock":
 			if group != "door":
 				return _result(false, "Cannot unlock this object.")
@@ -41,7 +41,7 @@ static func apply_action(actor: Dictionary, module: Dictionary, target_object: D
 				return door_gate
 			if module_id in ["mechanical_keycard", "digital_key_opened"]:
 				target_object["state"] = "closed"
-				return _result(true, "Door unlocked.", ["door_unlocked"])
+				return _result(true, "Door unlocked.", [{"type":"door_unlocked"},{"type":"state_set","state":"closed"}])
 			if module_id == "digital_key_encrypted":
 				return _result(false, "File rejected: encrypted.")
 			if module_id == "digital_key_damaged":
@@ -57,7 +57,7 @@ static func apply_action(actor: Dictionary, module: Dictionary, target_object: D
 			if target_object.get("object_type", "") == "power_cable":
 				target_object["state"] = "damaged"
 				target_object["is_powered"] = false
-				return _result(true, "Cable cut.", ["power_recalc_needed"])
+				return _result(true, "Cable cut.", [{"type":"power_recalc_needed"},{"type":"state_set","state":"damaged"}])
 			if group == "door" and module_id == "plasma_cutter_v1":
 				if target_object.get("object_type", "") == "energy_door" and target_object.get("is_powered", true):
 					return _result(false, "Plasma cutter has no effect.")
@@ -74,7 +74,7 @@ static func apply_action(actor: Dictionary, module: Dictionary, target_object: D
 						if hits >= 2:
 							target_object["state"] = "destroyed"
 							target_object["blocks_movement"] = false
-							return _result(true, "Grid door destroyed.")
+							return _result(true, "Grid door destroyed.", [{"type":"state_set","state":"destroyed"},{"type":"set_blocks_movement","value":false}])
 					"steel_door":
 						if hits >= 2:
 							target_object["state"] = "damaged"
@@ -90,7 +90,7 @@ static func apply_action(actor: Dictionary, module: Dictionary, target_object: D
 			if group == "door" and target_object.get("state", "") in ["damaged", "half_open", "jammed"] and module_id == "manipulator_heavy_claw_v1":
 				target_object["state"] = "open"
 				target_object["blocks_movement"] = false
-				return _result(true, "Door forced open.")
+				return _result(true, "Door forced open.", [{"type":"state_set","state":"open"},{"type":"set_blocks_movement","value":false}])
 			return _result(false, "Door cannot be forced open.")
 		"connect":
 			if group == "terminal":
@@ -130,7 +130,7 @@ static func apply_action(actor: Dictionary, module: Dictionary, target_object: D
 			return _result(true, "Object moved.")
 		"insert_fuse":
 			target_object["state"] = "installed"
-			return _result(true, "Fuse installed.")
+			return _result(true, "Fuse installed.", [{"type":"state_set","state":"installed"},{"type":"power_recalc_needed"}])
 	return _result(true, "Action executed as foundation stub.")
 
 static func _validate_door_class(actor: Dictionary, target_object: Dictionary) -> Dictionary:

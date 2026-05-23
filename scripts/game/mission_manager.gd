@@ -43,7 +43,12 @@ func setup_world_objects_for_mission(mission_id: String) -> void:
 			object_data["hidden_content"] = ["power_cable"]
 		if object_id == "wall_d1":
 			object_data["hidden_content"] = ["secret_passage"]
-		object_data["power_network_id"] = "power_net_A"
+		if _should_assign_main_power_network(object_data):
+			object_data["power_network_id"] = "power_net_A"
+		elif object_id == "fuse_box_empty_1":
+			object_data["power_network_id"] = "power_net_broken_test"
+		else:
+			object_data.erase("power_network_id")
 		if placements.has(object_id):
 			set_world_object_at_cell(placements[object_id], object_data)
 		elif object_data.get("object_group", "") == "item":
@@ -51,6 +56,24 @@ func setup_world_objects_for_mission(mission_id: String) -> void:
 
 	if mission_id == "mission_1":
 		PowerSystem.recalculate_network(mission_world_objects, "power_net_A")
+
+func _should_assign_main_power_network(object_data: Dictionary) -> bool:
+	var object_type := String(object_data.get("object_type", ""))
+	var object_group := String(object_data.get("object_group", ""))
+	if object_type in [
+		"power_source_class_1",
+		"power_cable",
+		"circuit_breaker",
+		"fuse_box_installed",
+		"door_terminal",
+		"energy_door",
+		"energy_wall",
+		"light"
+	]:
+		return true
+	if object_group in ["terminal", "power"]:
+		return object_type != "fuse_box_empty"
+	return false
 
 func _seed_debug_world_objects() -> void:
 	mission_world_objects = WorldObjectCatalog.create_test_set()
