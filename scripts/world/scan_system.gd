@@ -6,7 +6,7 @@ static func can_scan_through_wall(wall_data: Dictionary, scan_type: String) -> b
 	if wall_type == "outer_wall":
 		return false
 	if scan_type in ["visor", "radar"]:
-		return wall_type in ["grate_wall", "energy_wall", "damaged_wall"]
+		return wall_type in ["grate_wall", "energy_wall"]
 	if scan_type in ["xray", "thermal"]:
 		return wall_type != "outer_wall"
 	return false
