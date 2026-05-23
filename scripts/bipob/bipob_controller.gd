@@ -891,6 +891,7 @@ func _ready() -> void:
 		mission_label.text = ""
 	
 	setup_body()
+	_setup_cycle_world_action_input()
 	
 	grid_position = start_grid_position
 	update_rotation()
@@ -900,6 +901,15 @@ func _ready() -> void:
 	hint_requested.emit(get_current_mission_goal_hint())
 	print_status()
 	status_changed.emit()
+
+func _setup_cycle_world_action_input() -> void:
+	if InputMap.has_action("cycle_world_action"):
+		return
+	InputMap.add_action("cycle_world_action")
+	var cycle_event := InputEventKey.new()
+	cycle_event.keycode = KEY_TAB
+	InputMap.action_add_event("cycle_world_action", cycle_event)
+	# TODO: replace temporary debug action cycling key with final UI action panel.
 
 func get_mission_name(mission_index: int) -> String:
 	match mission_index:
@@ -5523,12 +5533,6 @@ func _unhandled_input(event: InputEvent) -> void:
 	if mission_finished:
 		return
 	
-	if not InputMap.has_action("cycle_world_action"):
-		InputMap.add_action("cycle_world_action")
-		var cycle_event := InputEventKey.new()
-		cycle_event.keycode = KEY_TAB
-		InputMap.action_add_event("cycle_world_action", cycle_event)
-	
 	if event.is_action_pressed("move_forward"):
 		move_forward()
 	elif event.is_action_pressed("move_backward"):
@@ -5543,6 +5547,7 @@ func _unhandled_input(event: InputEvent) -> void:
 		interact()
 	elif event.is_action_pressed("cycle_world_action"):
 		cycle_selected_world_action()
+		return
 
 func move_forward() -> void:
 	if not require_command("move_forward", "Missing module: Wheels V1 required."):
@@ -5867,14 +5872,21 @@ func emit_facing_world_object_hint() -> void:
 	if scan_level >= 2 and bool(object_data.get("revealed_hidden_content", false)):
 		details.append("Hidden: %s" % ", ".join(Array(object_data.get("hidden_content", []))))
 	var actions := get_available_world_actions(object_data, facing)
+	var display_actions: Array[String] = []
+	for action_id in actions:
+		if action_id == "pickup" and String(object_data.get("item_form", "physical")) == "digital":
+			display_actions.append("pickup digital")
+		else:
+			display_actions.append(action_id)
 	var action_text := "No available action for this object."
 	if not actions.is_empty():
 		if not selected_world_action.is_empty() and actions.has(selected_world_action):
-			action_text = "Selected: %s" % selected_world_action
+			var selected_display := "pickup digital" if selected_world_action == "pickup" and String(object_data.get("item_form", "physical")) == "digital" else selected_world_action
+			action_text = "Selected: %s" % selected_display
 		else:
-			action_text = "Action: %s" % actions[0]
+			action_text = "Action: %s" % display_actions[0]
 		if actions.size() > 1:
-			action_text += " | Available: %s" % ", ".join(actions)
+			action_text += " | Available: %s" % ", ".join(display_actions)
 	hint_requested.emit("%s | %s | %s" % [name, " ; ".join(details), action_text])
 	
 func update_vision() -> void:
@@ -6698,11 +6710,15 @@ func interact() -> void:
 					var digital_state := String(item.get("digital_state", item.get("state", "opened")))
 					var item_family := String(item.get("item_family", infer_digital_item_family(item_type)))
 					digital_world_records[item_family] = {"item_family": item_family, "item_type": item_type, "digital_state": digital_state}
-					hint_requested.emit("Item picked up.")
+					clear_selected_world_action_if_invalid({}, target_position)
+					emit_facing_world_object_hint()
+					hint_requested.emit("Pickup digital: item stored.")
 				elif can_use_physical_hand():
 					mission_manager.remove_first_item_at_cell(target_position)
 					buffer_item = item
-					hint_requested.emit("Item picked up.")
+					clear_selected_world_action_if_invalid({}, target_position)
+					emit_facing_world_object_hint()
+					hint_requested.emit("Pickup: item held.")
 				else:
 					hint_requested.emit("Manipulator is occupied.")
 			else:
@@ -6800,7 +6816,9 @@ func _apply_world_object_effects(effects: Array, world_object: Dictionary, targe
 			if not network_id.is_empty():
 				PowerSystem.recalculate_network(mission_manager.mission_world_objects, network_id)
 		elif effect_type == "apply_terminal_controls":
-			_apply_terminal_controls(world_object)
+			var control_messages := _apply_terminal_controls(world_object)
+			if not control_messages.is_empty():
+				hint_requested.emit(" ".join(control_messages))
 		elif effect_type == "object_move":
 			var move_dir := Vector2i(effect.get("direction", actor.get("facing_direction", Vector2i.ZERO)))
 			if move_dir == Vector2i.ZERO and effect.has("dx"):
@@ -6818,23 +6836,32 @@ func _apply_world_object_effects(effects: Array, world_object: Dictionary, targe
 		world_object["blocks_movement"] = false
 	return object_moved
 
-func _apply_terminal_controls(terminal: Dictionary) -> void:
+func _apply_terminal_controls(terminal: Dictionary) -> Array[String]:
+	var messages: Array[String] = []
 	var controls: Array = terminal.get("controls", [])
+	if controls.is_empty():
+		messages.append("Terminal hacked. No linked devices.")
+		return messages
 	for controlled_id in controls:
 		var controlled := mission_manager.get_world_object_by_id(String(controlled_id))
 		if controlled.is_empty():
+			messages.append("Terminal hacked. Linked device not found: %s." % String(controlled_id))
 			continue
 		var terminal_type := String(terminal.get("object_type", ""))
 		if terminal_type == "door_terminal" and String(controlled.get("object_group", "")) == "door":
 			controlled["state"] = "open"
 			controlled["blocks_movement"] = false
+			messages.append("Terminal control applied: %s opened." % String(controlled_id))
 		elif terminal_type == "turret_terminal" and String(controlled.get("object_type", "")) == "turret":
 			controlled["state"] = "disabled"
+			messages.append("Terminal control applied: %s disabled." % String(controlled_id))
 		elif terminal_type == "cooling_terminal":
 			controlled["state"] = "unpowered" if String(controlled.get("state", "active")) == "active" else "active"
+			messages.append("Terminal control applied: %s toggled." % String(controlled_id))
 		elif terminal_type == "information_terminal":
 			hint_requested.emit("Information downloaded.")
 		mission_manager.update_world_object_by_id(String(controlled_id), controlled)
+	return messages
 
 func refresh_world_object_overlay() -> void:
 	if mission_manager == null or grid_manager == null:
