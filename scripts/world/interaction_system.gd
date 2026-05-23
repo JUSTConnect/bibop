@@ -22,12 +22,24 @@ static func apply_action(actor: Dictionary, module: Dictionary, target_object: D
 	var module_id := module.get("id", "")
 	match action_type:
 		"open":
-			if group == "door" and target_object.get("state", "") in ["closed", "unpowered"]:
+			if group == "door":
+				if target_object.get("state", "") == "locked":
+					return _result(false, "Door is locked.")
+				var gate := _validate_door_class(actor, target_object)
+				if not gate.success:
+					return gate
+				if target_object.get("state", "") != "closed":
+					return _result(false, "Door cannot be opened.")
 				target_object["state"] = "open"
 				target_object["blocks_movement"] = false
 				return _result(true, "Door opened.", ["door_opened"])
 		"unlock":
-			if module_id == "mechanical_keycard" or module_id == "digital_key_opened":
+			if group != "door":
+				return _result(false, "Cannot unlock this object.")
+			var door_gate := _validate_door_class(actor, target_object)
+			if not door_gate.success:
+				return door_gate
+			if module_id in ["mechanical_keycard", "digital_key_opened"]:
 				target_object["state"] = "closed"
 				return _result(true, "Door unlocked.", ["door_unlocked"])
 			if module_id == "digital_key_encrypted":
@@ -35,67 +47,107 @@ static func apply_action(actor: Dictionary, module: Dictionary, target_object: D
 			if module_id == "digital_key_damaged":
 				return _result(false, "File rejected: damaged.")
 		"input_password":
-			target_object["state"] = "closed"
-			return _result(true, "Password accepted.")
+			if target_object.get("lock_type", "") != "password":
+				return _result(false, "Password lock not present.")
+			if module.get("input_password", "") == target_object.get("password", "") and module.get("input_password", "") != "":
+				target_object["state"] = "closed"
+				return _result(true, "Password accepted.")
+			return _result(false, "Password rejected.")
 		"cut":
 			if target_object.get("object_type", "") == "power_cable":
 				target_object["state"] = "damaged"
 				target_object["is_powered"] = false
 				return _result(true, "Cable cut.", ["power_recalc_needed"])
-			if group == "door" and target_object.get("material", "") in ["steel", "reinforced_steel"] and module_id == "plasma_cutter_v1":
-				target_object["state"] = "damaged"
-				return _result(true, "Door has been cut and damaged.")
-		"impact":
-			if module_id == "sledgehammer_v1":
-				target_object["durability_current"] = maxi(0, int(target_object.get("durability_current", 0)) - 2)
-				if target_object["durability_current"] == 0:
+			if group == "door" and module_id == "plasma_cutter_v1":
+				if target_object.get("object_type", "") == "energy_door" and target_object.get("is_powered", true):
+					return _result(false, "Plasma cutter has no effect.")
+				if target_object.get("material", "") in ["steel", "reinforced_steel"]:
 					target_object["state"] = "damaged"
+					return _result(true, "Door has been cut and damaged.")
+				return _result(false, "Plasma cutter has no effect.")
+		"impact":
+			if module_id == "sledgehammer_v1" and group == "door":
+				var hits := int(target_object.get("impact_hits", 0)) + 1
+				target_object["impact_hits"] = hits
+				match target_object.get("object_type", ""):
+					"grid_door":
+						if hits >= 2:
+							target_object["state"] = "destroyed"
+							target_object["blocks_movement"] = false
+							return _result(true, "Grid door destroyed.")
+					"steel_door":
+						if hits >= 2:
+							target_object["state"] = "damaged"
+							return _result(true, "Steel door damaged.")
+					"reinforced_steel_door":
+						if hits >= 3:
+							target_object["state"] = "damaged"
+							return _result(true, "Reinforced steel door damaged.")
+					"titanium_door":
+						return _result(false, "Impact ineffective.")
 				return _result(true, "Impact applied.")
 		"force_open":
 			if group == "door" and target_object.get("state", "") in ["damaged", "half_open", "jammed"] and module_id == "manipulator_heavy_claw_v1":
 				target_object["state"] = "open"
 				target_object["blocks_movement"] = false
 				return _result(true, "Door forced open.")
+			return _result(false, "Door cannot be forced open.")
 		"connect":
 			if group == "terminal":
-				var expected = {"wired":"wired_interface","optical":"optical_interface_v1","wireless":"wireless_interface_v1","high_bandwidth":"high_bandwidth_interface_v1"}
-				var needed = expected.get(target_object.get("connection_type", "wired"), "wired_interface")
+				var connection_type := target_object.get("connection_type", "wired")
+				var expected = {"wired":"wired_interface","optical":"optical_interface","wireless":"wireless_interface","high_bandwidth":"high_bandwidth_interface"}
+				var needed = expected.get(connection_type, "wired_interface")
 				if module_id.find(needed) == -1:
 					return _result(false, "Item does not fit this device.")
+				var interface_field := "%s_interface_level" % connection_type
+				if int(actor.get(interface_field, actor.get("interface_level", 0))) < int(target_object.get("required_interface_level", 1)):
+					return _result(false, "Interface level too low.")
 				target_object["connected"] = true
 				return _result(true, "Terminal connected.")
 		"hack":
+			if int(actor.get("cpu_level", 0)) < int(target_object.get("required_cpu_level", 1)):
+				return _result(false, "Hacking impossible")
+			if int(target_object.get("terminal_class", 1)) >= 3 and target_object.get("can_attack", false) and not actor.get("firewall_module_v1", false):
+				return _result(false, "Firewall required.", ["terminal_attack"])
 			target_object["state"] = "hacked"
 			return _result(true, "Hack successful.")
-		"drain_energy":
-			if target_object.get("drained_this_turn", false):
-				return _result(false, "Already drained this turn.")
-			target_object["drained_this_turn"] = true
-			return _result(true, "+5 energy drained.", ["energy:+5"])
-		"pickup":
-			if actor.get("pocket_full", false):
-				return _result(false, "Pocket is full.")
-			return _result(true, "Item picked up.")
-		"use_item":
-			if module_id == "mechanical_keycard" and actor.get("manipulator_occupied", false):
-				return _result(false, "Free manipulator to use key.")
-		"insert_fuse":
-			target_object["state"] = "installed"
-			return _result(true, "Fuse installed.")
-		"repair":
-			target_object["state"] = "active"
-			target_object["durability_current"] = target_object.get("durability_max", 1)
-			return _result(true, "Object repaired.")
 		"push", "pull":
-			if target_object.get("weight_class", "normal") == "block" and actor.get("power_class", "scout") != "juggernaut":
-				return _result(false, "Object is too heavy.")
+			var move_gate := _validate_weight_class(actor, target_object)
+			if not move_gate.success:
+				return move_gate
 			if module_id == "magnetic_manipulator_v1":
-				if actor.get("magnetic_path_blocked", false):
+				if int(actor.get("range_to_target", 0)) > 4:
+					return _result(false, "Target out of range.")
+				if not actor.get("is_straight_line", true):
 					return _result(false, "Magnetic path blocked.")
 				if actor.get("target_is_grate", false):
 					return _result(false, "Cannot pull through grate.")
+				if actor.get("magnetic_path_blocked", false):
+					return _result(false, "Magnetic path blocked.")
+				var material_tags: Array = target_object.get("material_tags", [])
+				if not target_object.get("magnetic", false) and not material_tags.has("metal"):
+					return _result(false, "Object is not magnetic.")
 			return _result(true, "Object moved.")
+		"insert_fuse":
+			target_object["state"] = "installed"
+			return _result(true, "Fuse installed.")
 	return _result(true, "Action executed as foundation stub.")
+
+static func _validate_door_class(actor: Dictionary, target_object: Dictionary) -> Dictionary:
+	if int(actor.get("manipulator_level", 0)) < int(target_object.get("required_manipulator_level", 1)):
+		return _result(false, "Manipulator level too low.")
+	if target_object.get("material", "") == "electromagnetic" and int(actor.get("interface_level", 0)) < int(target_object.get("required_interface_level", 0)):
+		return _result(false, "Interface level too low.")
+	return _result(true, "OK")
+
+static func _validate_weight_class(actor: Dictionary, target_object: Dictionary) -> Dictionary:
+	var weight_class := target_object.get("weight_class", "normal")
+	var actor_power := actor.get("power_class", "scout")
+	if weight_class == "heavy" and actor_power == "scout":
+		return _result(false, "Object is too heavy.")
+	if weight_class == "block" and actor_power != "juggernaut":
+		return _result(false, "Object is too heavy.")
+	return _result(true, "OK")
 
 static func _result(success: bool, message: String, effects: Array = []) -> Dictionary:
 	return {"success": success, "message": message, "effects": effects}
