@@ -5523,6 +5523,12 @@ func _unhandled_input(event: InputEvent) -> void:
 	if mission_finished:
 		return
 	
+	if not InputMap.has_action("cycle_world_action"):
+		InputMap.add_action("cycle_world_action")
+		var cycle_event := InputEventKey.new()
+		cycle_event.keycode = KEY_TAB
+		InputMap.action_add_event("cycle_world_action", cycle_event)
+	
 	if event.is_action_pressed("move_forward"):
 		move_forward()
 	elif event.is_action_pressed("move_backward"):
@@ -5535,6 +5541,8 @@ func _unhandled_input(event: InputEvent) -> void:
 		end_turn()
 	elif event.is_action_pressed("interact"):
 		interact()
+	elif event.is_action_pressed("cycle_world_action"):
+		cycle_selected_world_action()
 
 func move_forward() -> void:
 	if not require_command("move_forward", "Missing module: Wheels V1 required."):
@@ -5681,6 +5689,7 @@ func try_move_to(target_position: Vector2i) -> bool:
 			return false
 	
 	grid_position = target_position
+	clear_selected_world_action_if_invalid({}, target_position)
 	update_world_position()
 	if current_mission_index == 7 and mission7_is_dragging_cable:
 		add_current_cell_to_mission7_cable_path()
@@ -5858,7 +5867,14 @@ func emit_facing_world_object_hint() -> void:
 	if scan_level >= 2 and bool(object_data.get("revealed_hidden_content", false)):
 		details.append("Hidden: %s" % ", ".join(Array(object_data.get("hidden_content", []))))
 	var actions := get_available_world_actions(object_data, facing)
-	var action_text := "No available action for this object." if actions.is_empty() else "Action: %s" % actions[0]
+	var action_text := "No available action for this object."
+	if not actions.is_empty():
+		if not selected_world_action.is_empty() and actions.has(selected_world_action):
+			action_text = "Selected: %s" % selected_world_action
+		else:
+			action_text = "Action: %s" % actions[0]
+		if actions.size() > 1:
+			action_text += " | Available: %s" % ", ".join(actions)
 	hint_requested.emit("%s | %s | %s" % [name, " ; ".join(details), action_text])
 	
 func update_vision() -> void:
@@ -5990,8 +6006,8 @@ func get_facing_device_definition() -> DeviceDefinition:
 	if grid_manager == null:
 		return null
 
-	var facing_position := get_facing_device_position()
-	var tile_type := grid_manager.get_tile(facing_position)
+	var facing_cell := get_facing_device_position()
+	var tile_type := grid_manager.get_tile(facing_cell)
 	return get_device_definition_for_tile(tile_type)
 
 func has_required_interface(required_interface: String) -> bool:
@@ -6152,6 +6168,8 @@ func scan_device() -> void:
 			mission_manager.set_world_object_at_cell(facing_cell, world_object)
 			refresh_world_object_overlay()
 			hint_requested.emit("Scan: %s" % ScanSystem.get_scan_display_text(world_object, scan_type))
+			clear_selected_world_action_if_invalid(world_object, facing_cell)
+			emit_facing_world_object_hint()
 			status_changed.emit()
 			return
 
@@ -6466,6 +6484,40 @@ func get_bipob_power_class() -> String:
 		return "engineer"
 	return "scout"
 
+func cycle_selected_world_action() -> void:
+	if mission_manager == null:
+		selected_world_action = ""
+		hint_requested.emit("No available action for this object.")
+		status_changed.emit()
+		return
+	var target_position := get_facing_device_position()
+	var target_object := mission_manager.get_world_object_at_cell(target_position)
+	if target_object.is_empty():
+		var items := mission_manager.get_items_at_cell(target_position)
+		if not items.is_empty():
+			target_object = items[0]
+	var actions := get_available_world_actions(target_object, target_position) if not target_object.is_empty() else []
+	if actions.is_empty():
+		selected_world_action = ""
+		hint_requested.emit("No available action for this object.")
+		status_changed.emit()
+		return
+	if selected_world_action.is_empty() or not actions.has(selected_world_action):
+		selected_world_action = actions[0]
+	else:
+		var idx := actions.find(selected_world_action)
+		selected_world_action = actions[(idx + 1) % actions.size()]
+	hint_requested.emit("Selected action: %s | Available: %s" % [selected_world_action, ", ".join(actions)])
+	status_changed.emit()
+
+func clear_selected_world_action_if_invalid(target_object: Dictionary, target_position: Vector2i) -> void:
+	if target_object.is_empty():
+		selected_world_action = ""
+		return
+	var actions := get_available_world_actions(target_object, target_position)
+	if actions.is_empty() or not actions.has(selected_world_action):
+		selected_world_action = ""
+
 func get_world_object_action_for_context(world_object: Dictionary, _active_module: BipobModule, target_position: Vector2i) -> String:
 	var actions := get_available_world_actions(world_object, target_position)
 	if not selected_world_action.is_empty() and actions.has(selected_world_action):
@@ -6676,7 +6728,10 @@ func interact() -> void:
 				"range_to_target": 1,
 				"is_straight_line": true,
 				"magnetic_path_blocked": false,
-				"target_is_grate": world_object.get("object_type", "") == "grate_wall"
+				"target_is_grate": world_object.get("object_type", "") == "grate_wall",
+				"facing_direction": get_direction_vector(direction),
+				"target_position": target_position,
+				"actor_position": grid_position
 			}
 			var action_id := get_world_object_action_for_context(world_object, active_manipulator, target_position)
 			var available_actions := get_available_world_actions(world_object, target_position)
@@ -6687,32 +6742,17 @@ func interact() -> void:
 				return
 			var action_result := InteractionSystem.apply_action(actor, module, world_object, action_id)
 			if bool(action_result.get("success", false)):
-				if action_id == "insert_fuse":
-					if not consume_held_world_item_if_type("fuse"):
-						hint_requested.emit("Fuse required.")
-						status_changed.emit()
-						return
-				for effect in action_result.get("effects", []):
-					if effect is String:
-						if String(effect) == "power_recalc_needed":
-							var network_id := String(world_object.get("power_network_id", ""))
-							if not network_id.is_empty():
-								PowerSystem.recalculate_network(mission_manager.mission_world_objects, network_id)
-						continue
-					if effect.get("type", "") == "state_set":
-						world_object["state"] = effect.get("state", world_object.get("state", ""))
-					if effect.get("type", "") == "set_blocks_movement":
-						world_object["blocks_movement"] = effect.get("value", world_object.get("blocks_movement", false))
-					if effect.get("type", "") == "power_recalc_needed":
-						var network_id := String(world_object.get("power_network_id", ""))
-						if not network_id.is_empty():
-							PowerSystem.recalculate_network(mission_manager.mission_world_objects, network_id)
-				if world_object.get("state", "") in ["open", "destroyed", "inactive", "unpowered"]:
-					world_object["blocks_movement"] = false
-				mission_manager.set_world_object_at_cell(target_position, world_object)
-				_apply_world_object_effects(action_result.get("effects", []), world_object, target_position)
+				if action_id == "insert_fuse" and not consume_held_world_item_if_type("fuse"):
+					hint_requested.emit("Fuse required.")
+					status_changed.emit()
+					return
+				var moved := _apply_world_object_effects(action_result.get("effects", []), world_object, target_position, actor)
+				if not moved:
+					mission_manager.set_world_object_at_cell(target_position, world_object)
 				refresh_world_object_overlay()
-				hint_requested.emit("%s (%s): %s | Actions: %s" % [world_object.get("display_name", "Object"), world_object.get("state", "unknown"), String(action_result.get("message", "Action complete.")), ", ".join(available_actions)])
+				clear_selected_world_action_if_invalid(world_object, target_position)
+				emit_facing_world_object_hint()
+				hint_requested.emit("%s (%s): %s | Action: %s" % [world_object.get("display_name", "Object"), world_object.get("state", "unknown"), String(action_result.get("message", "Action complete.")), action_id])
 			else:
 				hint_requested.emit(String(action_result.get("message", "Action failed.")))
 			status_changed.emit()
@@ -6740,16 +6780,61 @@ func interact() -> void:
 			print("Nothing to interact with at: ", target_position)
 			hint_requested.emit("Nothing to interact with. Face a key, door, or terminal and press E.")
 
-func _apply_world_object_effects(effects: Array, world_object: Dictionary, target_position: Vector2i) -> void:
+func _apply_world_object_effects(effects: Array, world_object: Dictionary, target_position: Vector2i, actor: Dictionary = {}) -> bool:
+	var object_moved := false
 	for effect in effects:
-		if effect is Dictionary and effect.get("type", "") == "object_move":
-			var direction := Vector2i(effect.get("direction", Vector2i.ZERO))
-			var destination := target_position + direction
-			if mission_manager.get_world_object_at_cell(destination).is_empty() and grid_manager.is_walkable(destination):
+		if effect is String and String(effect) == "power_recalc_needed":
+			var network_id_text := String(world_object.get("power_network_id", ""))
+			if not network_id_text.is_empty():
+				PowerSystem.recalculate_network(mission_manager.mission_world_objects, network_id_text)
+			continue
+		if not (effect is Dictionary):
+			continue
+		var effect_type := String(effect.get("type", ""))
+		if effect_type == "state_set":
+			world_object["state"] = effect.get("state", world_object.get("state", ""))
+		elif effect_type == "set_blocks_movement":
+			world_object["blocks_movement"] = effect.get("value", world_object.get("blocks_movement", false))
+		elif effect_type == "power_recalc_needed":
+			var network_id := String(world_object.get("power_network_id", ""))
+			if not network_id.is_empty():
+				PowerSystem.recalculate_network(mission_manager.mission_world_objects, network_id)
+		elif effect_type == "apply_terminal_controls":
+			_apply_terminal_controls(world_object)
+		elif effect_type == "object_move":
+			var move_dir := Vector2i(effect.get("direction", actor.get("facing_direction", Vector2i.ZERO)))
+			if move_dir == Vector2i.ZERO and effect.has("dx"):
+				move_dir = Vector2i(int(effect.get("dx", 0)), int(effect.get("dy", 0)))
+			var mode := String(effect.get("mode", "push"))
+			var destination := target_position + move_dir
+			if mode == "pull":
+				destination = target_position + move_dir
+			if grid_manager != null and grid_manager.is_in_bounds(destination) and grid_manager.is_walkable(destination) and mission_manager.get_world_object_at_cell(destination).is_empty():
 				mission_manager.remove_world_object_at_cell(target_position)
 				world_object["position"] = destination
 				mission_manager.set_world_object_at_cell(destination, world_object)
-				break
+				object_moved = true
+	if world_object.get("state", "") in ["open", "destroyed", "inactive", "unpowered", "disabled"]:
+		world_object["blocks_movement"] = false
+	return object_moved
+
+func _apply_terminal_controls(terminal: Dictionary) -> void:
+	var controls: Array = terminal.get("controls", [])
+	for controlled_id in controls:
+		var controlled := mission_manager.get_world_object_by_id(String(controlled_id))
+		if controlled.is_empty():
+			continue
+		var terminal_type := String(terminal.get("object_type", ""))
+		if terminal_type == "door_terminal" and String(controlled.get("object_group", "")) == "door":
+			controlled["state"] = "open"
+			controlled["blocks_movement"] = false
+		elif terminal_type == "turret_terminal" and String(controlled.get("object_type", "")) == "turret":
+			controlled["state"] = "disabled"
+		elif terminal_type == "cooling_terminal":
+			controlled["state"] = "unpowered" if String(controlled.get("state", "active")) == "active" else "active"
+		elif terminal_type == "information_terminal":
+			hint_requested.emit("Information downloaded.")
+		mission_manager.update_world_object_by_id(String(controlled_id), controlled)
 
 func refresh_world_object_overlay() -> void:
 	if mission_manager == null or grid_manager == null:
