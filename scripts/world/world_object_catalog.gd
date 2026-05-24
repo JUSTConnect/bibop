@@ -86,11 +86,43 @@ static func create_world_object(object_type: String, id_override: String = "") -
 static func get_world_object_working_heat(object_data: Dictionary) -> int:
 	return maxi(0, int(object_data.get("working_heat", 0)))
 
+# Persistent world heat uses only working + connection heat minus cooling.
+# Temporary action heat (for example terminal hack heat) is never stored in object data.
 static func get_world_object_current_heat(object_data: Dictionary) -> int:
 	var working_heat := get_world_object_working_heat(object_data)
 	var connection_heat := maxi(0, int(object_data.get("heat_from_connections", 0)))
 	var cooling := maxi(0, int(object_data.get("cooling_received", 0)))
 	return maxi(0, working_heat + connection_heat - cooling)
+
+static func get_world_object_current_heat_with_temporary_heat(object_data: Dictionary, temporary_heat: int = 0) -> int:
+	var working_heat := get_world_object_working_heat(object_data)
+	var connection_heat := maxi(0, int(object_data.get("heat_from_connections", 0)))
+	var cooling := maxi(0, int(object_data.get("cooling_received", 0)))
+	var extra_heat := maxi(0, temporary_heat)
+	return maxi(0, working_heat + connection_heat + extra_heat - cooling)
+
+static func would_world_object_overheat_with_temporary_heat(object_data: Dictionary, temporary_heat: int = 0) -> bool:
+	var threshold := int(object_data.get("overheat_threshold", 0))
+	if threshold <= 0:
+		return false
+	return get_world_object_current_heat_with_temporary_heat(object_data, temporary_heat) >= threshold
+
+static func get_world_object_heat_breakdown(object_data: Dictionary, temporary_heat: int = 0) -> Dictionary:
+	var threshold := int(object_data.get("overheat_threshold", 0))
+	var current_heat := get_world_object_current_heat_with_temporary_heat(object_data, temporary_heat)
+	var would_overheat := false
+	if threshold > 0:
+		would_overheat = current_heat >= threshold
+	return {
+		"working_heat": get_world_object_working_heat(object_data),
+		"heat_from_connections": maxi(0, int(object_data.get("heat_from_connections", 0))),
+		"temporary_heat": maxi(0, temporary_heat),
+		"cooling_received": maxi(0, int(object_data.get("cooling_received", 0))),
+		"current_heat": current_heat,
+		"threshold": threshold,
+		"would_overheat": would_overheat,
+		"state": String(object_data.get("state", "active"))
+	}
 
 static func is_world_object_overheated(object_data: Dictionary) -> bool:
 	var threshold := int(object_data.get("overheat_threshold", 0))
@@ -112,6 +144,7 @@ static func update_world_object_heat_state(object_data: Dictionary) -> Dictionar
 		if state != "overheated":
 			if not ["destroyed", "damaged"].has(state):
 				object_data["overheated_state_before"] = state if not state.is_empty() else "active"
+				object_data["overheated_powered_before"] = bool(object_data.get("is_powered", true))
 			object_data["state"] = "overheated"
 		object_data["is_powered"] = false
 	elif state == "overheated":
@@ -121,7 +154,9 @@ static func update_world_object_heat_state(object_data: Dictionary) -> Dictionar
 		if not ["destroyed", "damaged"].has(restore_state):
 			object_data["state"] = restore_state
 		object_data.erase("overheated_state_before")
-		object_data["is_powered"] = true
+		if object_data.has("overheated_powered_before"):
+			object_data["is_powered"] = bool(object_data.get("overheated_powered_before", true))
+			object_data.erase("overheated_powered_before")
 	return object_data
 
 static func set_world_object_cooling_received(object_data: Dictionary, cooling_value: int) -> Dictionary:
