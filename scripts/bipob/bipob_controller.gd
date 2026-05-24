@@ -2782,11 +2782,11 @@ func get_internal_thermal_preview_text() -> String:
 func get_internal_action_temporary_heat_context(action_id: String) -> Dictionary:
 	match action_id:
 		"hack":
-			return {"temporary_heat_by_role": {"processor": 2}, "temporary_heat_by_module_id": {}, "global_temporary_heat": 0, "source": action_id}
+			return {"temporary_heat_by_role": {"processor": 2}, "temporary_heat_by_module_id": {}, "global_temporary_heat": 0, "source": action_id, "overheat_scope": "affected"}
 		"xray", "thermal_scan":
-			return {"temporary_heat_by_role": {"gpu": 2}, "temporary_heat_by_module_id": {}, "global_temporary_heat": 0, "source": action_id}
+			return {"temporary_heat_by_role": {"gpu": 2}, "temporary_heat_by_module_id": {}, "global_temporary_heat": 0, "source": action_id, "overheat_scope": "affected"}
 		_:
-			return {"temporary_heat_by_role": {}, "temporary_heat_by_module_id": {}, "global_temporary_heat": 0, "source": action_id}
+			return {"temporary_heat_by_role": {}, "temporary_heat_by_module_id": {}, "global_temporary_heat": 0, "source": action_id, "overheat_scope": "affected"}
 
 func get_internal_action_overheat_warnings(action_id: String) -> Array[String]:
 	var context := get_internal_action_temporary_heat_context(action_id)
@@ -2814,6 +2814,26 @@ func break_internal_module(module: BipobModule, reason: String = "") -> bool:
 	status_changed.emit()
 	return true
 
+func get_internal_modules_affected_by_heat_context(context: Dictionary) -> Array[BipobModule]:
+	var affected_modules: Array[BipobModule] = []
+	var overheat_scope := String(context.get("overheat_scope", ""))
+	var global_temporary_heat := int(context.get("global_temporary_heat", 0))
+	var temporary_heat_by_module_id: Dictionary = context.get("temporary_heat_by_module_id", {})
+	var temporary_heat_by_role: Dictionary = context.get("temporary_heat_by_role", {})
+	var include_all := overheat_scope == "all_critical" or global_temporary_heat > 0
+	for module in get_unique_internal_modules():
+		if module == null or not is_module_functional(module):
+			continue
+		if include_all:
+			affected_modules.append(module)
+			continue
+		if temporary_heat_by_module_id.has(module.id):
+			affected_modules.append(module)
+			continue
+		if temporary_heat_by_role.has(module.internal_role):
+			affected_modules.append(module)
+	return affected_modules
+
 func apply_internal_overheat_if_needed(action_id: String, context: Dictionary = {}) -> Dictionary:
 	var result := {
 		"overheated": false,
@@ -2822,7 +2842,14 @@ func apply_internal_overheat_if_needed(action_id: String, context: Dictionary = 
 		"messages": [],
 		"action_id": action_id
 	}
+	# Action temporary heat exists only for this attempted action.
+	# Default scope is "affected": only modules that receive temporary heat can break.
+	# "all_critical" is explicit for global/weapon heat style processing.
 	var working_context: Dictionary = context if not context.is_empty() else get_internal_action_temporary_heat_context(action_id)
+	var overheat_scope := String(working_context.get("overheat_scope", ""))
+	if overheat_scope.is_empty():
+		overheat_scope = "affected"
+		working_context["overheat_scope"] = overheat_scope
 	var action_name := "action"
 	match action_id:
 		"hack":
@@ -2831,9 +2858,7 @@ func apply_internal_overheat_if_needed(action_id: String, context: Dictionary = 
 			action_name = "X-Ray"
 		"thermal_scan":
 			action_name = "Thermal Scan"
-	for module in get_unique_internal_modules():
-		if module == null or not is_module_functional(module):
-			continue
+	for module in get_internal_modules_affected_by_heat_context(working_context):
 		var breakdown := get_internal_module_heat_breakdown(module, working_context)
 		var final_heat := int(breakdown.get("final_heat", 0))
 		if final_heat < THERMAL_CRITICAL_HEAT:
@@ -2864,6 +2889,8 @@ func get_internal_overheat_debug_summary_text() -> String:
 	lines.append("Internal overheat debug:")
 	lines.append("Broken modules: %d" % broken_count)
 	lines.append("Highest current final heat: %d" % highest_final_heat)
+	lines.append("Action overheat scope default: affected")
+	lines.append("Action overheat scope override: all_critical")
 	lines.append("Warn(hack): %d" % get_internal_action_overheat_warnings("hack").size())
 	lines.append("Warn(X-Ray): %d" % get_internal_action_overheat_warnings("xray").size())
 	lines.append("Warn(Thermal): %d" % get_internal_action_overheat_warnings("thermal_scan").size())
@@ -6439,6 +6466,8 @@ func scan_device() -> void:
 		if not world_object.is_empty():
 			if not can_spend_action(1, 1):
 				return
+			# Scan spends action first; then temporary heat is applied.
+			# If GPU overheats, the attempted scan still costs action and reveals no new data.
 			spend_action(1, 1)
 			var scan_type := get_world_scan_type_from_installed_modules()
 			var overheat_action_id := ""
@@ -6517,10 +6546,12 @@ func hack_device() -> void:
 		status_changed.emit()
 		return
 
+	if not can_spend_action(1, 1):
+		return
+	# Hack checks action availability first. Temporary heat is only applied for an actual attempt.
+	# With "affected" scope, only processor-heated modules can break for hack.
 	var overheat_result := apply_internal_overheat_if_needed("hack", get_internal_action_temporary_heat_context("hack"))
 	if bool(overheat_result.get("failed", false)):
-		if not can_spend_action(1, 1):
-			return
 		spend_action(1, 1)
 		for overheat_message in overheat_result.get("messages", []):
 			hint_requested.emit(String(overheat_message))
