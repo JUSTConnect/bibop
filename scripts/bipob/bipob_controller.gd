@@ -6885,7 +6885,13 @@ func _apply_world_object_effects(effects: Array, world_object: Dictionary, targe
 					if not drop.is_empty():
 						mission_manager.add_item_at_cell(target_position, drop)
 		elif effect_type == "set_state":
-			world_object["state"] = effect.get("state", world_object.get("state", ""))
+			var next_state := String(effect.get("state", world_object.get("state", "")))
+			if next_state == "stunned":
+				if not world_object.has("state_before_stun"):
+					world_object["state_before_stun"] = world_object.get("state", "active")
+				if not world_object.has("behavior_before_stun"):
+					world_object["behavior_before_stun"] = world_object.get("behavior_state", "idle")
+			world_object["state"] = next_state
 		elif effect_type == "set_behavior_state":
 			world_object["behavior_state"] = effect.get("behavior_state", world_object.get("behavior_state", "idle"))
 		elif effect_type == "set_stunned_turns":
@@ -6965,6 +6971,7 @@ func update_threat_detection_preview() -> void:
 		return
 	var detected_results: Array[Dictionary] = []
 	var detected_ids: Dictionary = {}
+	var threat_state_changed := false
 	for threat in threats:
 		var threat_id := String(threat.get("id", ""))
 		if threat_id.is_empty():
@@ -6974,17 +6981,27 @@ func update_threat_detection_preview() -> void:
 		if is_detected:
 			detected_results.append(detection)
 			detected_ids[threat_id] = detection.get("detection_mode", "")
-			threat["behavior_state"] = "alert"
+			if String(threat.get("behavior_state", "")) != "alert":
+				threat["behavior_state"] = "alert"
+				threat_state_changed = true
 			if String(threat.get("object_type", "")) == "turret":
+				if Vector2i(threat.get("target_position", Vector2i(-999, -999))) != grid_position:
+					threat_state_changed = true
 				threat["target_position"] = grid_position
 		elif String(threat.get("behavior_state", "")) in ["alert", "attack_preview"] and mission_manager.is_threat_active(threat):
 			threat["behavior_state"] = "idle"
+			threat_state_changed = true
 			if threat.has("target_position"):
 				threat.erase("target_position")
+				threat_state_changed = true
 		if not mission_manager.is_threat_active(threat):
-			threat["behavior_state"] = "idle"
+			if String(threat.get("behavior_state", "")) != "idle":
+				threat["behavior_state"] = "idle"
+				threat_state_changed = true
 			if threat.has("target_position"):
 				threat.erase("target_position")
+				threat_state_changed = true
+			mission_manager.last_threat_warning_ids.erase(threat_id)
 	var previous: Dictionary = mission_manager.last_threat_warning_ids
 	var should_warn := detected_results.size() != previous.size()
 	if not should_warn:
@@ -6993,7 +7010,8 @@ func update_threat_detection_preview() -> void:
 				should_warn = true
 				break
 	mission_manager.last_threat_warning_ids = detected_ids.duplicate()
-	refresh_world_object_overlay()
+	if threat_state_changed or should_warn:
+		refresh_world_object_overlay()
 	if should_warn and not detected_results.is_empty():
 		if detected_results.size() == 1:
 			hint_requested.emit("Warning: %s detected Bipop." % String(detected_results[0].get("threat_name", "Threat")))

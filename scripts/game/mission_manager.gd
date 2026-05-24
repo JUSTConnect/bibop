@@ -85,10 +85,13 @@ func validate_world_object_scenario() -> Array[String]:
 	var warnings: Array[String] = []
 	var ids := {}
 	var occupied_cells := {}
+	var turret_1: Dictionary = {}
 	for object_data in mission_world_objects:
 		var object_id := String(object_data.get("id", ""))
 		if not object_id.is_empty():
 			ids[object_id] = true
+		if object_id == "turret_1":
+			turret_1 = object_data
 	for object_data in mission_world_objects:
 		var object_id := String(object_data.get("id", ""))
 		var pos := Vector2i(object_data.get("position", Vector2i(-1, -1)))
@@ -106,9 +109,25 @@ func validate_world_object_scenario() -> Array[String]:
 			var network_id := String(object_data.get("power_network_id", ""))
 			if network_id.is_empty():
 				warnings.append("Object %s has empty power network id." % object_id)
-	for required_id in ["steel_door_1", "door_terminal_1"]:
+	for required_id in ["steel_door_1", "door_terminal_1", "turret_1"]:
 		if not ids.has(required_id):
 			warnings.append("Required scenario id missing: %s." % required_id)
+	if not turret_1.is_empty():
+		if String(turret_1.get("object_group", "")) != "threat":
+			warnings.append("turret_1 must use object_group threat.")
+		if int(turret_1.get("detection_range", 0)) <= 0:
+			warnings.append("turret_1 must have detection_range > 0.")
+		var extraction_cell := Vector2i(7, 7)
+		var turret_cell := Vector2i(turret_1.get("position", Vector2i(-1, -1)))
+		if turret_cell == extraction_cell:
+			warnings.append("turret_1 cannot be placed on extraction cell %s." % str(extraction_cell))
+		var main_route := [
+			Vector2i(1, 1), Vector2i(2, 1), Vector2i(3, 1), Vector2i(4, 1),
+			Vector2i(5, 1), Vector2i(6, 1), Vector2i(7, 1), Vector2i(7, 2),
+			Vector2i(7, 3), Vector2i(7, 4), Vector2i(7, 5), Vector2i(7, 6), Vector2i(7, 7)
+		]
+		if main_route.has(turret_cell):
+			warnings.append("turret_1 overlaps basic mission route at %s." % str(turret_cell))
 	for cell in cell_items.keys():
 		var seen := {}
 		for item in cell_items[cell]:
@@ -312,13 +331,16 @@ func get_threat_detection_result(threat: Dictionary, bipob_cell: Vector2i, grid_
 func _can_detect_by_mode(mode: String, from_cell: Vector2i, to_cell: Vector2i, grid_manager: Node) -> bool:
 	if grid_manager == null:
 		return false
-	if mode == "vision":
-		return _has_cardinal_clear_path(from_cell, to_cell, grid_manager, mode, false)
-	return _has_cardinal_clear_path(from_cell, to_cell, grid_manager, mode, true)
+	return _has_cardinal_clear_path(from_cell, to_cell, grid_manager, mode, mode != "vision")
 
 func _has_cardinal_clear_path(from_cell: Vector2i, to_cell: Vector2i, grid_manager: Node, scan_type: String, allow_wall_pass: bool) -> bool:
-	if from_cell.x != to_cell.x and from_cell.y != to_cell.y:
-		return scan_type != "vision"
+	var threat := get_world_object_at_cell(from_cell)
+	var detection_shape := String(threat.get("detection_shape", "cardinal"))
+	if detection_shape == "cardinal" and from_cell.x != to_cell.x and from_cell.y != to_cell.y:
+		return false
+	if detection_shape == "radius":
+		if from_cell.x != to_cell.x and from_cell.y != to_cell.y:
+			return true
 	var step := Vector2i(signi(to_cell.x - from_cell.x), signi(to_cell.y - from_cell.y))
 	var current := from_cell + step
 	while current != to_cell:
@@ -350,6 +372,30 @@ func reset_world_object_turn_flags() -> void:
 			stunned_turns -= 1
 			object_data["stunned_turns"] = stunned_turns
 			if stunned_turns <= 0 and String(object_data.get("state", "")) == "stunned":
-				object_data["state"] = "active"
-				if String(object_data.get("behavior_state", "")) == "idle":
-					object_data["behavior_state"] = "patrolling"
+				var previous_state := String(object_data.get("state_before_stun", ""))
+				var previous_behavior := String(object_data.get("behavior_before_stun", ""))
+				if previous_state.is_empty() or previous_state in ["destroyed", "hacked", "disabled", "unpowered", "stunned"]:
+					object_data["state"] = "active"
+				else:
+					object_data["state"] = previous_state
+				if previous_behavior.is_empty():
+					object_data["behavior_state"] = "idle"
+				else:
+					object_data["behavior_state"] = previous_behavior
+				object_data.erase("state_before_stun")
+				object_data.erase("behavior_before_stun")
+
+func get_world_object_debug_summary() -> String:
+	var world_count := mission_world_objects.size()
+	var items_count := 0
+	var threats_count := 0
+	var powered_count := 0
+	for object_data in mission_world_objects:
+		if String(object_data.get("object_group", "")) == "item":
+			items_count += 1
+		if String(object_data.get("object_group", "")) == "threat":
+			threats_count += 1
+		if bool(object_data.get("is_powered", false)):
+			powered_count += 1
+	var warning_count := last_threat_warning_ids.size()
+	return "WorldObjects: %d | Items: %d | Threats: %d | Powered: %d | Warnings: %d" % [world_count, items_count, threats_count, powered_count, warning_count]
