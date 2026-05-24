@@ -176,6 +176,7 @@ var mission7_cable_max_length: int = 12
 var movement_cells_since_energy_spend: int = 0
 var bipob_damage_state_by_profile: Dictionary = {"alpha": false, "beta": true, "juggernaut": false}
 var bipob_armor_state_by_profile: Dictionary = {"alpha": {"current": 20, "max": 20}, "beta": {"current": 10, "max": 20}, "juggernaut": {"current": 20, "max": 20}}
+var last_internal_overheat_messages: Array[String] = []
 
 @onready var grid_manager: GridManager = get_node("../Field")
 @onready var mission_label: Label = get_node("../UI/MissionLabel")
@@ -204,7 +205,7 @@ func install_module(module: BipobModule) -> void:
 
 func has_command(command_id: String) -> bool:
 	for module in installed_modules:
-		if module == null:
+		if module == null or not is_module_functional(module):
 			continue
 		if command_id in module.granted_commands:
 			return true
@@ -213,7 +214,7 @@ func has_command(command_id: String) -> bool:
 
 func get_installed_module_by_id(module_id: String) -> BipobModule:
 	for module in installed_modules:
-		if module == null:
+		if module == null or not is_module_functional(module):
 			continue
 		if module.id == module_id:
 			return module
@@ -864,13 +865,13 @@ func get_constructor_consistency_issue_count() -> int:
 	return count
 
 func recalculate_module_stats() -> void:
-	# MVP module model: aggregate passive stats from installed modules.
+	# MVP module model: aggregate passive stats from functional installed modules.
 	var energy_bonus_total := 0
 	var actions_bonus_total := 0
 	var vision_bonus_total := 0
 
 	for module in installed_modules:
-		if module == null:
+		if module == null or not is_module_functional(module):
 			continue
 		energy_bonus_total += module.energy_bonus
 		actions_bonus_total += module.actions_bonus
@@ -2802,6 +2803,76 @@ func get_internal_action_overheat_warnings(action_id: String) -> Array[String]:
 		if bool(breakdown.get("would_overheat", false)):
 			warnings.append("%s may overheat during %s." % [String(breakdown.get("display_name", "Module")), action_name])
 	return warnings
+
+func break_internal_module(module: BipobModule, reason: String = "") -> bool:
+	if module == null or is_module_broken(module):
+		return false
+	set_module_broken(module, true)
+	recalculate_module_stats()
+	if not reason.is_empty():
+		print("Internal module broken | ", get_module_display_name(module), " | reason: ", reason)
+	status_changed.emit()
+	return true
+
+func apply_internal_overheat_if_needed(action_id: String, context: Dictionary = {}) -> Dictionary:
+	var result := {
+		"overheated": false,
+		"failed": false,
+		"broken_modules": [],
+		"messages": [],
+		"action_id": action_id
+	}
+	var working_context: Dictionary = context if not context.is_empty() else get_internal_action_temporary_heat_context(action_id)
+	var action_name := "action"
+	match action_id:
+		"hack":
+			action_name = "hack"
+		"xray":
+			action_name = "X-Ray"
+		"thermal_scan":
+			action_name = "Thermal Scan"
+	for module in get_unique_internal_modules():
+		if module == null or not is_module_functional(module):
+			continue
+		var breakdown := get_internal_module_heat_breakdown(module, working_context)
+		var final_heat := int(breakdown.get("final_heat", 0))
+		if final_heat < THERMAL_CRITICAL_HEAT:
+			continue
+		if break_internal_module(module, "overheat during %s" % action_id):
+			result["overheated"] = true
+			result["failed"] = true
+			result["broken_modules"].append(module)
+			var module_name := String(breakdown.get("display_name", get_module_display_name(module)))
+			var message := "%s overheated and broke during %s." % [module_name, action_name]
+			if action_id.is_empty():
+				message = "Internal module overheated: %s." % module_name
+			result["messages"].append(message)
+	if result["messages"].is_empty() and bool(result["overheated"]):
+		for broken_module in result["broken_modules"]:
+			result["messages"].append("Internal module overheated: %s." % get_module_display_name(broken_module))
+	last_internal_overheat_messages = result["messages"].duplicate()
+	return result
+
+func get_internal_overheat_debug_summary_text() -> String:
+	var lines: Array[String] = []
+	var broken_count := 0
+	var highest_final_heat := 0
+	for module in get_unique_internal_modules():
+		if is_module_broken(module):
+			broken_count += 1
+		highest_final_heat = maxi(highest_final_heat, int(get_internal_module_heat_breakdown(module).get("final_heat", 0)))
+	lines.append("Internal overheat debug:")
+	lines.append("Broken modules: %d" % broken_count)
+	lines.append("Highest current final heat: %d" % highest_final_heat)
+	lines.append("Warn(hack): %d" % get_internal_action_overheat_warnings("hack").size())
+	lines.append("Warn(X-Ray): %d" % get_internal_action_overheat_warnings("xray").size())
+	lines.append("Warn(Thermal): %d" % get_internal_action_overheat_warnings("thermal_scan").size())
+	if last_internal_overheat_messages.is_empty():
+		lines.append("Last overheat: none")
+	else:
+		for msg in last_internal_overheat_messages:
+			lines.append("- %s" % String(msg))
+	return "\n".join(lines)
 
 func get_internal_heat_debug_summary_text() -> String:
 	var lines: Array[String] = []
@@ -5746,6 +5817,10 @@ func spend_action(action_cost: int, energy_cost: int) -> void:
 		mission_failed.emit()
 
 func try_move_to(target_position: Vector2i) -> bool:
+	if has_power_source() and not has_power_block():
+		hint_requested.emit("Power Block broken. Restart mission or evacuate if possible.")
+		status_changed.emit()
+		return false
 	if grid_manager == null:
 		push_error("BipobController: grid_manager is null")
 		return false
@@ -6366,6 +6441,18 @@ func scan_device() -> void:
 				return
 			spend_action(1, 1)
 			var scan_type := get_world_scan_type_from_installed_modules()
+			var overheat_action_id := ""
+			if scan_type == "xray":
+				overheat_action_id = "xray"
+			elif scan_type == "thermal":
+				overheat_action_id = "thermal_scan"
+			if not overheat_action_id.is_empty():
+				var overheat_result := apply_internal_overheat_if_needed(overheat_action_id, get_internal_action_temporary_heat_context(overheat_action_id))
+				if bool(overheat_result.get("failed", false)):
+					for overheat_message in overheat_result.get("messages", []):
+						hint_requested.emit(String(overheat_message))
+					status_changed.emit()
+					return
 			var result := ScanSystem.scan_object(world_object, scan_type, get_effective_visor_level())
 			world_object["scan_level"] = int(result.get("scan_level", 1))
 			if scan_type == "xray" and world_object.get("object_group", "") == "wall" and not Array(world_object.get("hidden_content", [])).is_empty():
@@ -6427,6 +6514,16 @@ func hack_device() -> void:
 	if device.device_type != last_diagnostic_result.device_type \
 	or device.supported_action != last_diagnostic_result.supported_action:
 		hint_requested.emit("Device changed. Scan this device again.")
+		status_changed.emit()
+		return
+
+	var overheat_result := apply_internal_overheat_if_needed("hack", get_internal_action_temporary_heat_context("hack"))
+	if bool(overheat_result.get("failed", false)):
+		if not can_spend_action(1, 1):
+			return
+		spend_action(1, 1)
+		for overheat_message in overheat_result.get("messages", []):
+			hint_requested.emit(String(overheat_message))
 		status_changed.emit()
 		return
 
