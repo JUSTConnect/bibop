@@ -617,3 +617,111 @@ func get_world_heat_debug_summary_text() -> String:
 				push_warning("[WorldCoolingValidation] %s" % warning)
 		summary += " | cooling_validation_issues=%d" % validation_warnings.size()
 	return summary
+
+func get_world_object_runtime_state() -> Dictionary:
+	# Runtime-only snapshot helper for future save manager integration.
+	var runtime_state := {}
+	var runtime_fields := [
+		"state",
+		"is_powered",
+		"current_heat",
+		"cooling_received",
+		"heat_from_connections",
+		"connected_device_ids",
+		"overheated_state_before",
+		"overheated_powered_before",
+		"facing_dir",
+		"power_network_id",
+		"drain_pool"
+	]
+	for object_data in mission_world_objects:
+		var object_id := String(object_data.get("id", "")).strip_edges()
+		if object_id.is_empty():
+			continue
+		var serialized := {}
+		if object_data.has("object_type"):
+			serialized["object_type"] = String(object_data.get("object_type", ""))
+		if object_data.has("position"):
+			var world_cell := WorldObjectCatalog.to_world_cell(object_data.get("position", Vector2i(-1, -1)), Vector2i(-1, -1))
+			serialized["position"] = [world_cell.x, world_cell.y]
+		for field_name in runtime_fields:
+			if object_data.has(field_name):
+				serialized[field_name] = object_data[field_name]
+		if not serialized.is_empty():
+			runtime_state[object_id] = serialized
+	return runtime_state
+
+func apply_world_object_runtime_state(saved_state: Dictionary) -> void:
+	if saved_state.is_empty():
+		return
+	for object_id_variant in saved_state.keys():
+		var object_id := String(object_id_variant).strip_edges()
+		if object_id.is_empty():
+			continue
+		var saved_data_variant: Variant = saved_state.get(object_id_variant, {})
+		if typeof(saved_data_variant) != TYPE_DICTIONARY:
+			continue
+		var saved_data: Dictionary = saved_data_variant
+		var object_data := get_world_object_by_id(object_id)
+		var is_new_object := object_data.is_empty()
+		if is_new_object:
+			var object_type := String(saved_data.get("object_type", "")).strip_edges()
+			if object_type.is_empty():
+				continue
+			var created := WorldObjectCatalog.create_world_object(object_type, object_id)
+			if created.is_empty():
+				continue
+			created["id"] = object_id
+			object_data = created
+		var old_position := WorldObjectCatalog.to_world_cell(object_data.get("position", Vector2i(-1, -1)), Vector2i(-1, -1))
+		var new_position := old_position
+		if saved_data.has("position"):
+			var position_data := saved_data.get("position")
+			if position_data is Array:
+				var arr: Array = position_data
+				if arr.size() >= 2:
+					new_position = WorldObjectCatalog.to_world_cell(Vector2i(int(arr[0]), int(arr[1])), old_position)
+		for key in saved_data.keys():
+			if String(key) == "position":
+				continue
+			object_data[String(key)] = saved_data[key]
+		object_data["id"] = object_id
+		object_data["position"] = new_position
+		if not is_new_object and old_position != new_position:
+			world_objects_by_cell.erase(old_position)
+		var replaced := get_world_object_at_cell(new_position)
+		if not replaced.is_empty() and String(replaced.get("id", "")) != object_id:
+			world_objects_by_cell.erase(new_position)
+			mission_world_objects.erase(replaced)
+		world_objects_by_cell[new_position] = object_data
+		if is_new_object and not mission_world_objects.has(object_data):
+			mission_world_objects.append(object_data)
+	refresh_world_cooling_received()
+	PowerSystem.recalculate_network(mission_world_objects, "power_net_A")
+	refresh_world_cooling_received()
+
+func get_world_runtime_persistence_debug_summary_text() -> String:
+	var serialized := get_world_object_runtime_state()
+	var moved_objects := 0
+	var heat_enabled_objects := 0
+	var powered_objects := 0
+	var connection_state_objects := 0
+	for object_data in mission_world_objects:
+		var current_position := WorldObjectCatalog.to_world_cell(object_data.get("position", Vector2i(-1, -1)), Vector2i(-1, -1))
+		if object_data.has("original_position"):
+			var original_position := WorldObjectCatalog.to_world_cell(object_data.get("original_position", current_position), current_position)
+			if original_position != current_position:
+				moved_objects += 1
+		if object_data.has("working_heat") or object_data.has("overheat_threshold") or object_data.has("current_heat"):
+			heat_enabled_objects += 1
+		if bool(object_data.get("is_powered", false)):
+			powered_objects += 1
+		if object_data.has("connected_device_ids") or object_data.has("heat_from_connections"):
+			connection_state_objects += 1
+	return "WorldRuntimePersistence: serialized=%d | moved=%d | heat_enabled=%d | powered=%d | connection_state=%d" % [
+		serialized.size(),
+		moved_objects,
+		heat_enabled_objects,
+		powered_objects,
+		connection_state_objects
+	]
