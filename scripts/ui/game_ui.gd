@@ -305,6 +305,7 @@ const CONSTRUCTOR_COMPACT_STATUS: bool = true
 const CONSTRUCTOR_SHOW_MODE_LAYOUT_TITLE: bool = false
 const TASK_REQUIREMENT_ROW_HEIGHT: float = 32.0
 const TASK_REQUIREMENT_REQUIRED_COL_WIDTH: float = 320.0
+const TASK_REQUIREMENT_WARNING_MAX_HEIGHT: float = 140.0
 
 
 func _disconnect_all_pressed_connections(button: Button) -> void:
@@ -5095,17 +5096,19 @@ func _get_runtime_sidebar_width_adaptive() -> float:
 
 func _get_menu_content_max_width() -> float:
 	var vp := _get_viewport_size()
-	return maxf(vp.x - _get_safe_margin() * 2.0, 680.0)
+	var safe_width: float = maxf(vp.x - _get_safe_margin() * 2.0, 0.0)
+	return safe_width
 
 func _get_menu_content_max_height() -> float:
 	var vp := _get_viewport_size()
-	return maxf(vp.y - _get_safe_margin() * 2.0, 420.0)
+	var safe_height: float = maxf(vp.y - _get_safe_margin() * 2.0, 0.0)
+	return safe_height
 
 func get_ui_layout_audit_report() -> String:
 	var vp := _get_viewport_size()
 	var roots := {"main": main_menu_root, "center": center_menu_root, "tasks": tasks_menu_root, "box": box_menu_root, "charging": charging_menu_root, "repair": repair_menu_root, "hud": runtime_hud_root}
 	var visible := 0
-	var lines: Array[String] = ["UI Audit", "screen=%s" % str(app_screen_mode), "viewport=%.0fx%.0f" % [vp.x, vp.y]]
+	var lines: Array[String] = ["UI Audit", "screen=%s" % str(app_screen_mode), "small_viewport=%s" % str(_is_small_viewport()), "viewport=%.0fx%.0f" % [vp.x, vp.y]]
 	for k in roots.keys():
 		var n: Control = roots[k]
 		var ex := n != null and is_instance_valid(n)
@@ -5116,7 +5119,8 @@ func get_ui_layout_audit_report() -> String:
 	lines.insert(2, "visible_major=%d" % visible)
 	var wap_exists := runtime_world_actions_panel != null and is_instance_valid(runtime_world_actions_panel)
 	var wap_visible := wap_exists and runtime_world_actions_panel.visible
-	lines.append("world_actions: exists=%s visible=%s" % [str(wap_exists), str(wap_visible)])
+	lines.append("world_actions: exists=%s visible=%s cache_keys={target:%s actions:%s state:%s selected:%s}" % [str(wap_exists), str(wap_visible), str(not last_world_action_target_id.is_empty()), str(not last_world_action_actions_key.is_empty()), str(not last_world_action_state_key.is_empty()), str(not last_world_action_selected.is_empty())])
+	lines.append("menu_content_max=%.0fx%.0f" % [_get_menu_content_max_width(), _get_menu_content_max_height()])
 	if mission_result_root == null or not is_instance_valid(mission_result_root):
 		lines.append("warning: missing mission_result_root")
 	return "\n".join(lines)
@@ -5131,10 +5135,22 @@ func get_full_menu_ui_smoke_check_text() -> String:
 		"- Main Menu",
 		"- Center Menu",
 		"- Task Menu",
+		"  - Small viewport requirement rows are stacked and wrapped",
+		"  - Warnings remain visible",
+		"  - Back visible",
+		"  - Start reachable",
 		"- Box External",
 		"- Box Internal",
 		"- Charging",
+		"  - Charging Station / Supercharger / Back visible",
+		"  - Rows scroll vertically",
+		"  - Disabled charge buttons are gray",
+		"  - No overlap on small viewport",
 		"- Repair",
+		"  - Service Center / Back visible",
+		"  - Empty state shown once",
+		"  - Damaged rows scroll",
+		"  - Repair buttons reachable",
 		"- Gameplay HUD",
 		"- World Action Panel",
 		"- Mission Result",
@@ -5245,6 +5261,7 @@ func start_gameplay_from_center() -> void:
 	_set_gameplay_visible(true)
 	_on_start_mission_button_pressed()
 	call_deferred("_attach_runtime_gameplay_view")
+	_assert_single_active_major_screen()
 
 
 func _build_tasks_mission_data() -> void:
@@ -5327,6 +5344,7 @@ func show_box_constructor_from_center() -> void:
 	_set_gameplay_visible(false)
 	show_box_screen()
 	set_box_menu_mode_external()
+	_assert_single_active_major_screen()
 
 func show_mission_constructor_screen() -> void:
 	app_screen_mode = AppScreenMode.MISSION_CONSTRUCTOR
@@ -5488,9 +5506,11 @@ func _apply_tasks_placeholder_details() -> void:
 	if tasks_extra_goal_label != null:
 		tasks_extra_goal_label.text = "—"
 	for i in tasks_requirements_required_labels.size():
-		tasks_requirements_required_labels[i].text = "TBD" if i == 0 else ""
+		var required_text: String = "TBD" if i == 0 else ""
+		tasks_requirements_required_labels[i].text = "Required: %s" % required_text if _is_small_viewport() and not required_text.is_empty() else required_text
 	for i in tasks_requirements_current_labels.size():
-		tasks_requirements_current_labels[i].text = "TBD" if i == 0 else ""
+		var current_text: String = "TBD" if i == 0 else ""
+		tasks_requirements_current_labels[i].text = "[color=#9ed6df]Current:[/color] %s" % current_text if _is_small_viewport() and not current_text.is_empty() else current_text
 	if tasks_warnings_label != null:
 		tasks_warnings_label.text = "No warnings."
 
@@ -5522,9 +5542,11 @@ func _update_tasks_details_panel() -> void:
 	var required_rows: Array = requirements_ui.get("required_rows", [])
 	var current_rows: Array = requirements_ui.get("current_rows", [])
 	for i in tasks_requirements_required_labels.size():
-		tasks_requirements_required_labels[i].text = String(required_rows[i]) if i < required_rows.size() else ""
+		var required_text: String = String(required_rows[i]) if i < required_rows.size() else ""
+		tasks_requirements_required_labels[i].text = "Required: %s" % required_text if _is_small_viewport() and not required_text.is_empty() else required_text
 	for i in tasks_requirements_current_labels.size():
-		tasks_requirements_current_labels[i].text = String(current_rows[i]) if i < current_rows.size() else ""
+		var current_text: String = String(current_rows[i]) if i < current_rows.size() else ""
+		tasks_requirements_current_labels[i].text = "[color=#9ed6df]Current:[/color] %s" % current_text if _is_small_viewport() and not current_text.is_empty() else current_text
 	if tasks_warnings_label != null:
 		tasks_warnings_label.text = _build_warnings_block_text(critical_warnings, recommendations)
 	if tasks_report_label != null:
@@ -7373,8 +7395,9 @@ func _build_center_menu_layout() -> void:
 	root.add_theme_constant_override("separation", 16)
 	margin.add_child(root)
 
-	var top_row := HBoxContainer.new()
+	var top_row := HFlowContainer.new()
 	top_row.add_theme_constant_override("separation", 8)
+	top_row.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	root.add_child(top_row)
 	top_row.add_child(_create_menu_button("TSK", Callable(self, "_on_center_tasks_pressed"), Vector2(170, 36)))
 	top_row.add_child(_create_menu_button("Constructor", Callable(self, "_on_center_constructor_pressed"), Vector2(170, 36)))
@@ -7445,6 +7468,7 @@ func _build_tasks_menu_layout() -> void:
 	top_row.add_child(top_spacer)
 	tasks_bipob_buttons_row = HBoxContainer.new()
 	tasks_bipob_buttons_row.custom_minimum_size = Vector2(0, 34)
+	tasks_bipob_buttons_row.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	tasks_bipob_buttons_row.add_theme_constant_override("separation", 6)
 	top_row.add_child(tasks_bipob_buttons_row)
 	var top_gap := Control.new()
@@ -7567,30 +7591,36 @@ func _build_tasks_menu_layout() -> void:
 	requirements_panel.add_theme_stylebox_override("panel", _make_panel_style(UI_COLOR_PANEL_DARK, UI_COLOR_BORDER_DIM, 1, 6))
 	details_content.add_child(requirements_panel)
 	var requirements_grid := GridContainer.new()
-	requirements_grid.columns = 2
+	requirements_grid.columns = 1 if _is_small_viewport() else 2
 	requirements_grid.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	requirements_grid.add_theme_constant_override("h_separation", 12)
 	requirements_grid.add_theme_constant_override("v_separation", 4)
 	requirements_panel.add_child(requirements_grid)
 	tasks_requirements_required_labels.clear()
 	tasks_requirements_current_labels.clear()
-	var required_title := Label.new()
-	required_title.text = "Required"
-	_configure_requirement_cell_label(required_title, true)
-	_apply_label_style(required_title, true)
-	requirements_grid.add_child(required_title)
-	var current_title := Label.new()
-	current_title.text = "Current"
-	_configure_requirement_cell_label(current_title, false)
-	_apply_label_style(current_title, true)
-	requirements_grid.add_child(current_title)
+	if not _is_small_viewport():
+		var required_title := Label.new()
+		required_title.text = "Required"
+		_configure_requirement_cell_label(required_title, true)
+		_apply_label_style(required_title, true)
+		requirements_grid.add_child(required_title)
+		var current_title := Label.new()
+		current_title.text = "Current"
+		_configure_requirement_cell_label(current_title, false)
+		_apply_label_style(current_title, true)
+		requirements_grid.add_child(current_title)
 	for _idx in 5:
 		var required_cell := Label.new()
 		_configure_requirement_cell_label(required_cell, true)
+		if _is_small_viewport():
+			required_cell.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+			required_cell.custom_minimum_size = Vector2(0, 0)
 		requirements_grid.add_child(required_cell)
 		tasks_requirements_required_labels.append(required_cell)
 		var current_cell := RichTextLabel.new()
 		_configure_requirement_cell_rich_label(current_cell)
+		if _is_small_viewport():
+			current_cell.custom_minimum_size = Vector2(0, 28)
 		requirements_grid.add_child(current_cell)
 		tasks_requirements_current_labels.append(current_cell)
 
@@ -7600,9 +7630,19 @@ func _build_tasks_menu_layout() -> void:
 	details_content.add_child(warnings_panel)
 	var warnings_v := VBoxContainer.new(); warnings_panel.add_child(warnings_v)
 	var warnings_title := Label.new(); warnings_title.text = "Warnings"; _apply_label_style(warnings_title, true); warnings_v.add_child(warnings_title)
+	var warnings_scroll := ScrollContainer.new()
+	warnings_scroll.horizontal_scroll_mode = ScrollContainer.SCROLL_MODE_DISABLED
+	warnings_scroll.vertical_scroll_mode = ScrollContainer.SCROLL_MODE_AUTO
+	warnings_scroll.custom_minimum_size = Vector2(0, 72)
+	warnings_scroll.size_flags_vertical = Control.SIZE_EXPAND_FILL
+	warnings_scroll.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	if _is_small_viewport():
+		warnings_scroll.custom_minimum_size = Vector2(0, 56)
+		warnings_scroll.custom_minimum_size.y = minf(TASK_REQUIREMENT_WARNING_MAX_HEIGHT, _get_menu_content_max_height() * 0.22)
+	warnings_v.add_child(warnings_scroll)
 	tasks_warnings_label = RichTextLabel.new(); tasks_warnings_label.bbcode_enabled = true; tasks_warnings_label.fit_content = true
 	tasks_warnings_label.add_theme_color_override("default_color", UI_COLOR_TEXT)
-	warnings_v.add_child(tasks_warnings_label)
+	warnings_scroll.add_child(tasks_warnings_label)
 
 	tasks_report_label = Label.new()
 	tasks_report_label.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
@@ -7869,10 +7909,11 @@ func _build_charging_menu_layout() -> void:
 		return
 	var margin := MarginContainer.new()
 	margin.set_anchors_preset(Control.PRESET_FULL_RECT)
-	margin.add_theme_constant_override("margin_left", 30)
-	margin.add_theme_constant_override("margin_right", 30)
-	margin.add_theme_constant_override("margin_top", 26)
-	margin.add_theme_constant_override("margin_bottom", 26)
+	var safe_margin: int = int(_get_safe_margin())
+	margin.add_theme_constant_override("margin_left", safe_margin)
+	margin.add_theme_constant_override("margin_right", safe_margin)
+	margin.add_theme_constant_override("margin_top", safe_margin)
+	margin.add_theme_constant_override("margin_bottom", safe_margin)
 	charging_menu_root.add_child(margin)
 	var panel := PanelContainer.new()
 	_apply_panel_style(panel, true)
@@ -7880,7 +7921,7 @@ func _build_charging_menu_layout() -> void:
 	var root := VBoxContainer.new()
 	root.add_theme_constant_override("separation", 8)
 	panel.add_child(root)
-	var tabs := HBoxContainer.new()
+	var tabs := HFlowContainer.new()
 	tabs.add_theme_constant_override("separation", 8)
 	var charging_station_button := _create_menu_button("Charging Station", Callable(self, "_on_charging_tab_pressed").bind("station"), Vector2(210, MENU_TOP_BUTTON_HEIGHT))
 	_set_menu_top_button_height(charging_station_button)
@@ -7927,12 +7968,13 @@ func _create_charge_row(entry: Variant, is_bipob_row: bool) -> Control:
 	var row := PanelContainer.new()
 	_apply_panel_style(row)
 	row.custom_minimum_size.y = 96
-	var hbox := HBoxContainer.new()
-	hbox.add_theme_constant_override("separation", 8)
-	row.add_child(hbox)
+	var is_small: bool = _is_small_viewport()
+	var row_container: BoxContainer = VBoxContainer.new() if is_small else HBoxContainer.new()
+	row_container.add_theme_constant_override("separation", 8)
+	row.add_child(row_container)
 
 	var left := VBoxContainer.new()
-	left.custom_minimum_size.x = 280
+	left.custom_minimum_size.x = 0 if is_small else 280
 	left.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	left.add_theme_constant_override("separation", 4)
 	var card_text := Label.new()
@@ -7942,14 +7984,14 @@ func _create_charge_row(entry: Variant, is_bipob_row: bool) -> Control:
 	energy_label.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 	_apply_label_style(energy_label)
 	var warning_label := Label.new()
-	warning_label.custom_minimum_size.x = 260
+	warning_label.custom_minimum_size.x = 0 if is_small else 260
 	warning_label.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	warning_label.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 	_apply_label_style(warning_label)
 	var warning_text := ""
 	var cost_label := Label.new()
-	cost_label.custom_minimum_size.x = 120
-	cost_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_RIGHT
+	cost_label.custom_minimum_size.x = 120 if not is_small else 0
+	cost_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_RIGHT if not is_small else HORIZONTAL_ALIGNMENT_LEFT
 	_apply_label_style(cost_label)
 	cost_label.text = "Cost: 0"
 	if is_bipob_row:
@@ -7983,6 +8025,8 @@ func _create_charge_row(entry: Variant, is_bipob_row: bool) -> Control:
 	var warning_color: Color = UI_COLOR_DANGER
 	if warning_text == "Charger" or warning_text == "Need charger module":
 		warning_color = UI_COLOR_WARNING
+		cost_label.text = "Need charger module"
+		cost_label.add_theme_color_override("font_color", UI_COLOR_DANGER)
 	warning_label.add_theme_color_override("font_color", warning_color)
 	if is_full:
 		action_button.text = "Charged"
@@ -7990,13 +8034,15 @@ func _create_charge_row(entry: Variant, is_bipob_row: bool) -> Control:
 	if not action_button.disabled:
 		action_button.pressed.connect(_on_charge_entry_pressed.bind(entry, is_bipob_row))
 	_apply_action_button_style(action_button, "primary" if not action_button.disabled else "disabled", not action_button.disabled)
+	if action_button.disabled:
+		action_button.modulate = Color(0.65, 0.65, 0.65, 1.0)
 
 	left.add_child(card_text)
 	left.add_child(energy_label)
-	hbox.add_child(left)
-	hbox.add_child(warning_label)
-	hbox.add_child(cost_label)
-	hbox.add_child(action_button)
+	row_container.add_child(left)
+	row_container.add_child(warning_label)
+	row_container.add_child(cost_label)
+	row_container.add_child(action_button)
 	return row
 
 func _on_charging_tab_pressed(tab_id: String) -> void:
@@ -8201,10 +8247,11 @@ func show_repair_menu() -> void:
 	add_child(repair_menu_root)
 	var margin := MarginContainer.new()
 	margin.set_anchors_preset(Control.PRESET_FULL_RECT)
-	margin.add_theme_constant_override("margin_left", 30)
-	margin.add_theme_constant_override("margin_right", 30)
-	margin.add_theme_constant_override("margin_top", 26)
-	margin.add_theme_constant_override("margin_bottom", 26)
+	var safe_margin: int = int(_get_safe_margin())
+	margin.add_theme_constant_override("margin_left", safe_margin)
+	margin.add_theme_constant_override("margin_right", safe_margin)
+	margin.add_theme_constant_override("margin_top", safe_margin)
+	margin.add_theme_constant_override("margin_bottom", safe_margin)
 	repair_menu_root.add_child(margin)
 	var panel := PanelContainer.new()
 	_apply_panel_style(panel, true)
@@ -8212,7 +8259,7 @@ func show_repair_menu() -> void:
 	var root := VBoxContainer.new()
 	root.add_theme_constant_override("separation", 8)
 	panel.add_child(root)
-	var tabs := HBoxContainer.new()
+	var tabs := HFlowContainer.new()
 	tabs.add_theme_constant_override("separation", 8)
 	var workshop_button := _create_menu_button("Workshop", Callable(), Vector2(180, MENU_BACK_BUTTON_SIZE.y))
 	_set_menu_top_button_height(workshop_button)
@@ -8273,7 +8320,7 @@ func _create_repair_bipob_card(bipob_data: Dictionary, selected: bool) -> Button
 	return button
 
 func _create_repair_module_row(module: BipobModule) -> Control:
-	var row := HBoxContainer.new()
+	var row: BoxContainer = VBoxContainer.new() if _is_small_viewport() else HBoxContainer.new()
 	row.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	row.add_theme_constant_override("separation", 8)
 	var panel := PanelContainer.new()
@@ -8286,10 +8333,12 @@ func _create_repair_module_row(module: BipobModule) -> Control:
 	info.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	var title := Label.new()
 	title.text = bipob.get_module_display_name(module)
+	title.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 	_apply_label_style(title)
 	info.add_child(title)
 	var status := Label.new()
 	status.text = "Status: %s" % String(module.status)
+	status.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 	_apply_label_style(status, true, false)
 	info.add_child(status)
 	row.add_child(info)
@@ -8302,7 +8351,7 @@ func _create_repair_module_row(module: BipobModule) -> Control:
 	return panel
 
 func _create_repair_bipob_row(bipob_data: Dictionary) -> Control:
-	var row := HBoxContainer.new()
+	var row: BoxContainer = VBoxContainer.new() if _is_small_viewport() else HBoxContainer.new()
 	row.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	row.add_theme_constant_override("separation", 8)
 	var panel := PanelContainer.new()
@@ -8314,6 +8363,7 @@ func _create_repair_bipob_row(bipob_data: Dictionary) -> Control:
 	info.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	var name_label := Label.new()
 	name_label.text = String(bipob_data.get("name", "Bipob"))
+	name_label.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 	_apply_label_style(name_label)
 	info.add_child(name_label)
 	var profile_id := String(bipob_data.get("profile_id", ""))
