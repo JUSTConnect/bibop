@@ -7155,7 +7155,7 @@ func interact() -> void:
 				return
 			var action_result := InteractionSystem.apply_action(actor, module, world_object, action_id)
 			if bool(action_result.get("success", false)):
-				if action_id == "push" and WorldObjectCatalog.can_world_object_be_moved_by_heavy_claw(world_object):
+				if action_id in ["push", "pull"] and WorldObjectCatalog.can_world_object_be_moved_by_heavy_claw(world_object):
 					if not has_heavy_claw_capability():
 						hint_requested.emit("Heavy Claw required.")
 						status_changed.emit()
