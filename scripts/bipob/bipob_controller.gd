@@ -6559,18 +6559,18 @@ func hack_device() -> void:
 		return
 	var hack_world_object := mission_manager.get_world_object_at_cell(get_facing_device_position())
 	if not hack_world_object.is_empty() and String(hack_world_object.get("object_group", "")) == "terminal":
-		var base_connection_heat := maxi(0, int(hack_world_object.get("heat_from_connections", 0)))
-		var hack_heat := maxi(0, int(hack_world_object.get("hack_heat", 1)))
-		var temp_terminal := hack_world_object.duplicate(true)
-		temp_terminal["heat_from_connections"] = base_connection_heat + hack_heat
-		WorldObjectCatalog.update_world_object_heat_state(temp_terminal)
-		if String(temp_terminal.get("state", "")) == "overheated":
-			if not can_spend_action(1, 1):
-				return
+		WorldObjectCatalog.update_world_object_heat_state(hack_world_object)
+		if String(hack_world_object.get("state", "")) == "overheated":
 			spend_action(1, 1)
-			hack_world_object["state"] = "overheated"
-			hack_world_object["overheated_state_before"] = String(temp_terminal.get("overheated_state_before", "active"))
-			hack_world_object["current_heat"] = int(temp_terminal.get("current_heat", WorldObjectCatalog.get_world_object_current_heat(temp_terminal)))
+			mission_manager.update_world_object_by_id(String(hack_world_object.get("id", "")), hack_world_object)
+			hint_requested.emit("Terminal overheated. Hack failed.")
+			status_changed.emit()
+			return
+		var hack_heat := maxi(0, int(hack_world_object.get("hack_heat", 1)))
+		if WorldObjectCatalog.would_world_object_overheat_with_temporary_heat(hack_world_object, hack_heat):
+			spend_action(1, 1)
+			hack_world_object["current_heat"] = WorldObjectCatalog.get_world_object_current_heat(hack_world_object)
+			WorldObjectCatalog.update_world_object_heat_state(hack_world_object)
 			mission_manager.update_world_object_by_id(String(hack_world_object.get("id", "")), hack_world_object)
 			hint_requested.emit("Terminal overheated. Hack failed.")
 			status_changed.emit()
