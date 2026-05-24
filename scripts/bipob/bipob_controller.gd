@@ -224,6 +224,34 @@ func get_world_runtime_restore_warnings() -> Array[String]:
 		warnings.append(warning)
 	return warnings
 
+func get_world_object_debug_info(object_id: String) -> Dictionary:
+	if mission_manager == null:
+		return {}
+	if not mission_manager.has_method("get_world_object_debug_info"):
+		return {}
+	var info_variant: Variant = mission_manager.call("get_world_object_debug_info", object_id)
+	if typeof(info_variant) != TYPE_DICTIONARY:
+		return {}
+	return info_variant
+
+func get_world_cell_debug_info(cell: Vector2i) -> Dictionary:
+	if mission_manager == null:
+		return {}
+	if not mission_manager.has_method("get_world_cell_debug_info"):
+		return {}
+	var info_variant: Variant = mission_manager.call("get_world_cell_debug_info", cell)
+	if typeof(info_variant) != TYPE_DICTIONARY:
+		return {}
+	return info_variant
+
+func get_world_objects_debug_table_text(filter: String = "") -> String:
+	if mission_manager == null:
+		return "World debug unavailable: mission manager is missing."
+	if not mission_manager.has_method("get_world_objects_debug_table_text"):
+		return "World debug unavailable: mission manager helper missing."
+	var text_variant: Variant = mission_manager.call("get_world_objects_debug_table_text", filter)
+	return String(text_variant)
+
 func install_module(module: BipobModule) -> void:
 	# MVP behavior: install immediately applies passive bonuses.
 	if module == null:

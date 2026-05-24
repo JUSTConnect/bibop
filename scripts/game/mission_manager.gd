@@ -554,6 +554,140 @@ func get_world_object_debug_summary() -> String:
 	var warning_count := last_threat_warning_ids.size()
 	return "WorldObjects: %d | Items: %d | Threats: %d | Powered: %d | Warnings: %d" % [world_count, items_count, threats_count, powered_count, warning_count]
 
+func get_world_object_debug_info(object_id: String) -> Dictionary:
+	var normalized_id := object_id.strip_edges()
+	if normalized_id.is_empty():
+		return {}
+	var object_data := get_world_object_by_id(normalized_id)
+	if object_data.is_empty():
+		return {}
+	var info := {}
+	for key in ["id", "object_type", "display_name", "object_group", "state"]:
+		if object_data.has(key):
+			info[key] = object_data[key]
+	info["position"] = _debug_cell_to_array(WorldObjectCatalog.to_world_cell(object_data.get("position", Vector2i(-1, -1)), Vector2i(-1, -1)))
+	for key in [
+		"is_powered",
+		"current_heat",
+		"working_heat",
+		"cooling_received",
+		"heat_from_connections",
+		"overheat_threshold",
+		"connected_device_ids",
+		"power_network_id",
+		"facing_dir",
+		"movable",
+		"heavy_claw_movable",
+		"cooling_device_type",
+		"cooling_output",
+		"cooling_amplifier",
+		"material",
+		"storage_type",
+		"storage_capacity",
+		"storage_locked",
+		"lock_type",
+		"lock_difficulty",
+		"access_level",
+		"required_access_level"
+	]:
+		if object_data.has(key):
+			info[key] = object_data[key]
+	return info
+
+func get_world_cell_debug_info(cell: Vector2i) -> Dictionary:
+	var info := {"cell": _debug_cell_to_array(cell)}
+	if grid_manager != null:
+		if grid_manager.has_method("is_in_bounds"):
+			info["in_bounds"] = bool(grid_manager.is_in_bounds(cell))
+		if grid_manager.has_method("is_walkable"):
+			info["walkable"] = bool(grid_manager.is_walkable(cell))
+		if grid_manager.has_method("get_tile"):
+			info["tile"] = int(grid_manager.get_tile(cell))
+	var object_data := get_world_object_at_cell(cell)
+	if not object_data.is_empty():
+		info["world_object_id"] = String(object_data.get("id", ""))
+		info["world_object_type"] = String(object_data.get("object_type", ""))
+	var items: Array = cell_items.get(cell, [])
+	info["item_count"] = items.size()
+	if not items.is_empty():
+		var item_ids: Array[String] = []
+		var item_types: Array[String] = []
+		for item_variant in items:
+			if typeof(item_variant) != TYPE_DICTIONARY:
+				continue
+			var item_data := Dictionary(item_variant)
+			item_ids.append(String(item_data.get("id", "")))
+			item_types.append(String(item_data.get("object_type", "")))
+		info["item_ids"] = item_ids
+		info["item_types"] = item_types
+	return info
+
+func get_world_objects_debug_table_text(filter: String = "") -> String:
+	if mission_world_objects.is_empty():
+		return "world_objects: none"
+	var filter_text := filter.strip_edges().to_lower()
+	var object_rows: Array[String] = []
+	for object_data in mission_world_objects:
+		var object_id := String(object_data.get("id", ""))
+		var object_type := String(object_data.get("object_type", ""))
+		var object_group := String(object_data.get("object_group", ""))
+		var state := String(object_data.get("state", ""))
+		if not filter_text.is_empty():
+			var match_blob := ("%s|%s|%s|%s" % [object_id, object_type, object_group, state]).to_lower()
+			if match_blob.find(filter_text) == -1:
+				continue
+		object_rows.append(_format_world_object_debug_row(object_data))
+	if object_rows.is_empty():
+		return "world_objects: none (filter=%s)" % filter_text
+	object_rows.sort()
+	var lines: Array[String] = []
+	lines.append("id | type | pos | state | heat | cooling | powered | facing | movable")
+	lines.append_array(object_rows)
+	if has_method("get_world_runtime_restore_warnings"):
+		var warnings: Array = get_world_runtime_restore_warnings()
+		lines.append("restore_warnings=%d" % warnings.size())
+	return "\n".join(lines)
+
+func _format_world_object_debug_row(object_data: Dictionary) -> String:
+	var object_id := String(object_data.get("id", ""))
+	var object_type := String(object_data.get("object_type", ""))
+	var state := String(object_data.get("state", ""))
+	var cell := WorldObjectCatalog.to_world_cell(object_data.get("position", Vector2i(-1, -1)), Vector2i(-1, -1))
+	var position_text := "[%d,%d]" % [cell.x, cell.y]
+	var heat_text := "-"
+	if object_data.has("current_heat") or object_data.has("overheat_threshold"):
+		heat_text = "%d/%d" % [int(object_data.get("current_heat", 0)), int(object_data.get("overheat_threshold", 0))]
+	var cooling_text := "-"
+	if object_data.has("cooling_received"):
+		cooling_text = str(int(object_data.get("cooling_received", 0)))
+	var powered_text := "-"
+	if object_data.has("is_powered"):
+		powered_text = str(bool(object_data.get("is_powered", false)))
+	var facing_text := "-"
+	if object_data.has("facing_dir"):
+		facing_text = String(object_data.get("facing_dir", "")).strip_edges()
+		if facing_text.is_empty():
+			facing_text = "-"
+	var movable_text := str(WorldObjectCatalog.can_world_object_be_moved_by_heavy_claw(object_data))
+	if object_data.has("heavy_claw_movable"):
+		movable_text = str(bool(object_data.get("heavy_claw_movable", false)))
+	elif object_data.has("movable"):
+		movable_text = str(bool(object_data.get("movable", false)))
+	return "%s | %s | %s | %s | heat=%s | cool=%s | powered=%s | facing=%s | movable=%s" % [
+		object_id,
+		object_type,
+		position_text,
+		state,
+		heat_text,
+		cooling_text,
+		powered_text,
+		facing_text,
+		movable_text
+	]
+
+func _debug_cell_to_array(cell: Vector2i) -> Array[int]:
+	return [cell.x, cell.y]
+
 func get_world_heat_debug_summary_text() -> String:
 	var terminals_count := 0
 	var overheated_terminals := 0
