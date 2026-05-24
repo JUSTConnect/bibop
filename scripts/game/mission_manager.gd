@@ -279,7 +279,7 @@ func refresh_world_cooling_received() -> void:
 	for object_data in mission_world_objects:
 		if not WorldObjectCatalog.can_world_object_receive_cooling(object_data):
 			continue
-		var target_position := Vector2i(object_data.get("position", Vector2i(-1, -1)))
+		var target_position := WorldObjectCatalog.to_world_cell(object_data.get("position", Vector2i(-1, -1)), Vector2i(-1, -1))
 		var cooling_received := WorldObjectCatalog.calculate_world_cooling_received_for_target(object_data, target_position, mission_world_objects)
 		object_data["cooling_received"] = cooling_received
 		WorldObjectCatalog.update_world_object_heat_state(object_data)
