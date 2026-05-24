@@ -677,7 +677,7 @@ func get_total_sensor_range_bonus() -> int:
 	var total := 0
 	for record in placed_internal_modules:
 		var internal_module: BipobModule = _extract_module_from_internal_record(record)
-		if internal_module == null:
+		if not is_module_functional(internal_module):
 			continue
 		total += internal_module.sensor_range_bonus
 	return total
@@ -686,7 +686,7 @@ func get_total_sensor_visibility_bonus() -> int:
 	var total := 0
 	for record in placed_internal_modules:
 		var internal_module: BipobModule = _extract_module_from_internal_record(record)
-		if internal_module == null:
+		if not is_module_functional(internal_module):
 			continue
 		total += internal_module.sensor_visibility_bonus
 	return total
@@ -757,7 +757,16 @@ func get_constructor_warning_lines() -> Array[String]:
 	if not is_external_data_network_available():
 		warnings.append("External data bridge unavailable: Internal Interface and External Interface required.")
 
-	var critical_count: int = get_critical_internal_preview_count()
+	var critical_count: int = 0
+	var warning_heat_count: int = 0
+	for module in get_unique_internal_modules():
+		var final_heat := int(get_internal_module_heat_breakdown(module).get("final_heat", 0))
+		if final_heat >= 4:
+			warning_heat_count += 1
+		if final_heat >= THERMAL_CRITICAL_HEAT:
+			critical_count += 1
+	if warning_heat_count > 0:
+		warnings.append("Thermal warning: %d module(s) at heat 4+." % warning_heat_count)
 	if critical_count > 0:
 		warnings.append("Thermal critical preview: %d module(s) at heat 5." % critical_count)
 
@@ -2204,23 +2213,25 @@ func get_thermal_rules_reference_text() -> String:
 	lines.append("- 5 = critical preview")
 	lines.append("")
 	lines.append("Device heat:")
-	lines.append("- Processor: idle 3 / active 5")
-	lines.append("- GPU / vision processor: idle 3 / active 5")
-	lines.append("- Memory: 1")
-	lines.append("- Hard Drive: 1")
-	lines.append("- Power Block: idle 3 / active 5")
-	lines.append("- Interfaces: 1")
-	lines.append("- Batteries: 1")
+	lines.append("- Base heat is constant (idle = active for v1 preview)")
+	lines.append("- Batteries: V1=1, V2=2, V3=3")
+	lines.append("- Processor/GPU: V1=3, V2=4, V3=5")
+	lines.append("- Memory: V1=1, V2=2, V3=3")
+	lines.append("- Hard Drive: V1=2, V2=3, V3=4")
+	lines.append("- Power Block: V1=1, V2=2, V3=3")
+	lines.append("- Internal/External Interface: V1=1, V2=2, V3=3")
 	lines.append("")
-	lines.append("Neighbor heat:")
-	lines.append("- Neighbor heat = source heat - 1")
-	lines.append("- Final base preview uses strongest heat, not stacking")
+	lines.append("Neighbor doheat:")
+	lines.append("- Calculated after cooling from cooled own heat")
+	lines.append("- If source cooled heat - target cooled heat >= 2: target +1")
+	lines.append("- Max +1, no stacking, no chain reaction")
+	lines.append("- Target with any direct cooling does not receive doheat")
 	lines.append("")
 	lines.append("Direct cooling:")
-	lines.append("- Cooler cools adjacent modules by 2")
-	lines.append("- Radiator cools adjacent modules by 2")
-	lines.append("- Radiator near Cooler cools by 4")
-	lines.append("- Radiator against body cools by 3")
+	lines.append("- Cooler base output 2, requires Air Intake")
+	lines.append("- Radiator base output 1; against body edge output 2")
+	lines.append("- Radiator + working Cooler output 3 each")
+	lines.append("- Cooler + edge Radiator output 5 each")
 	lines.append("")
 	lines.append("Overlay paths:")
 	lines.append("- Water Tube does not consume internal volume")
@@ -2229,13 +2240,14 @@ func get_thermal_rules_reference_text() -> String:
 	lines.append("- Water Tube through Radiator: 3")
 	lines.append("- Water Tube through Radiator near Cooler: 5")
 	lines.append("- Air Duct does not consume internal volume")
-	lines.append("- Air Duct supports air route/exhaust to body edge")
+	lines.append("- Air Duct requires Air Intake + working Cooler")
 	lines.append("")
 	lines.append("Air intake:")
 	lines.append("- Air cooling requires Air Intake Node on external body")
 	lines.append("- Liquid cooling does not require Air Intake Node")
 	lines.append("")
 	lines.append("Current implementation:")
+	lines.append("- Broken modules provide no stats/heat/cooling")
 	lines.append("- Base thermal preview is informational")
 	lines.append("- Overlay contribution is hypothetical only")
 	lines.append("- Thermal+Overlay view does not affect gameplay")
@@ -2608,34 +2620,13 @@ func get_internal_neighbor_offsets() -> Array[Vector3i]:
 	]
 
 func get_module_preview_heat(module: BipobModule, active_mode: bool = false) -> int:
-	if module == null:
+	if not is_module_functional(module):
 		return 0
 	var heat_value: int = module.heat_active if active_mode else module.heat_idle
 	return clampi(heat_value, 0, THERMAL_CRITICAL_HEAT)
 
-func get_neighbor_heat_for_internal_module(module: BipobModule) -> int:
-	if module == null:
-		return 0
-	var strongest_neighbor_heat: int = 0
-	var own_cells: Array[Vector3i] = get_cells_for_internal_module(module)
-	for cell in own_cells:
-		for offset in get_internal_neighbor_offsets():
-			var neighbor_cell: Vector3i = cell + offset
-			if not is_internal_cell_in_bounds(neighbor_cell):
-				continue
-			var neighbor_module: BipobModule = get_internal_module_at_cell(neighbor_cell)
-			if neighbor_module == null or neighbor_module == module:
-				continue
-			var neighbor_heat: int = maxi(0, get_module_preview_heat(neighbor_module, false) - 1)
-			strongest_neighbor_heat = maxi(strongest_neighbor_heat, neighbor_heat)
-	return strongest_neighbor_heat
-
 func get_preview_heat_for_internal_module(module: BipobModule) -> int:
-	if module == null:
-		return 0
-	var base_heat: int = get_module_preview_heat(module, false)
-	var neighbor_heat: int = get_neighbor_heat_for_internal_module(module)
-	return maxi(base_heat, neighbor_heat)
+	return get_module_preview_heat(module, false)
 
 func is_internal_module_against_body(module: BipobModule) -> bool:
 	if module == null:
@@ -2650,10 +2641,10 @@ func is_internal_module_against_body(module: BipobModule) -> bool:
 	return false
 
 func is_cooler_module(module: BipobModule) -> bool:
-	return module != null and module.id == "cooler_v1"
+	return is_module_functional(module) and module.id == "cooler_v1"
 
 func is_radiator_module(module: BipobModule) -> bool:
-	return module != null and module.id == "radiator_v1"
+	return is_module_functional(module) and module.id == "radiator_v1"
 
 func is_radiator_next_to_cooler(radiator_module: BipobModule) -> bool:
 	if not is_radiator_module(radiator_module):
@@ -2670,17 +2661,71 @@ func is_radiator_next_to_cooler(radiator_module: BipobModule) -> bool:
 	return false
 
 func get_cooling_power_for_internal_module(cooling_module: BipobModule) -> int:
-	if cooling_module == null:
+	if not is_module_functional(cooling_module):
 		return 0
+	var cooler_active: bool = has_external_air_intake()
 	if is_cooler_module(cooling_module):
-		return 2
+		if not cooler_active:
+			return 0
+		var cooler_boost := 2
+		var cells := get_cells_for_internal_module(cooling_module)
+		for cell in cells:
+			for offset in get_internal_neighbor_offsets():
+				var neighbor := get_internal_module_at_cell(cell + offset)
+				if is_radiator_module(neighbor):
+					cooler_boost = maxi(cooler_boost, 3)
+					if is_internal_module_against_body(neighbor):
+						cooler_boost = 5
+		return cooler_boost
 	if is_radiator_module(cooling_module):
-		if is_radiator_next_to_cooler(cooling_module):
-			return 4
+		var output := 1
 		if is_internal_module_against_body(cooling_module):
-			return 3
-		return 2
+			output = 2
+		if cooler_active and is_radiator_next_to_cooler(cooling_module):
+			output = 3
+			if is_internal_module_against_body(cooling_module):
+				output = 5
+		return output
 	return max(0, cooling_module.cooling_power)
+
+func get_internal_module_heat_breakdown(module: BipobModule, context: Dictionary = {}) -> Dictionary:
+	var base_heat := get_module_preview_heat(module, false)
+	var direct_cooling := get_cooling_received_by_internal_module(module)
+	var cooled_heat := maxi(base_heat - direct_cooling, 0)
+	var neighbor_doheat := 0
+	if module != null and direct_cooling == 0:
+		for cell in get_cells_for_internal_module(module):
+			for offset in get_internal_neighbor_offsets():
+				var neighbor: BipobModule = get_internal_module_at_cell(cell + offset)
+				if neighbor == null or neighbor == module or not is_module_functional(neighbor):
+					continue
+				var neighbor_cooled := maxi(get_module_preview_heat(neighbor, false) - get_cooling_received_by_internal_module(neighbor), 0)
+				if neighbor_cooled - cooled_heat >= 2:
+					neighbor_doheat = 1
+					break
+			if neighbor_doheat > 0:
+				break
+	var temporary_heat := int(context.get("global_temporary_heat", 0))
+	if module != null:
+		var by_id: Dictionary = context.get("temporary_heat_by_module_id", {})
+		temporary_heat += int(by_id.get(module.id, 0))
+		var by_role: Dictionary = context.get("temporary_heat_by_role", {})
+		temporary_heat += int(by_role.get(module.internal_role, 0))
+	var final_heat := cooled_heat + neighbor_doheat + temporary_heat
+	return {
+		"module_id": "" if module == null else module.id,
+		"display_name": get_module_display_name(module),
+		"base_heat": base_heat,
+		"direct_cooling": direct_cooling,
+		"cooled_heat": cooled_heat,
+		"neighbor_doheat": neighbor_doheat,
+		"temporary_heat": temporary_heat,
+		"final_heat": final_heat,
+		"threshold": THERMAL_CRITICAL_HEAT,
+		"receives_cooling": direct_cooling > 0,
+		"would_overheat": final_heat >= THERMAL_CRITICAL_HEAT,
+		"is_broken": is_module_broken(module),
+	}
 
 func get_cooling_received_by_internal_module(module: BipobModule) -> int:
 	if module == null:
@@ -2700,24 +2745,13 @@ func get_cooling_received_by_internal_module(module: BipobModule) -> int:
 	return strongest_cooling
 
 func get_preview_heat_after_cooling_for_internal_module(module: BipobModule) -> int:
-	var raw_heat: int = get_preview_heat_for_internal_module(module)
-	var cooling_received: int = get_cooling_received_by_internal_module(module)
-	return clampi(raw_heat - cooling_received, 0, THERMAL_CRITICAL_HEAT)
+	return int(get_internal_module_heat_breakdown(module).get("final_heat", 0))
 
 func get_internal_module_thermal_line(module: BipobModule) -> String:
 	if module == null:
 		return ""
-	var base_heat: int = get_module_preview_heat(module, false)
-	var neighbor_heat: int = get_neighbor_heat_for_internal_module(module)
-	var cooling_received: int = get_cooling_received_by_internal_module(module)
-	var final_heat: int = get_preview_heat_after_cooling_for_internal_module(module)
-	return "%s: base %d, neighbor %d, cooling -%d, preview %d" % [
-		get_module_display_name(module),
-		base_heat,
-		neighbor_heat,
-		cooling_received,
-		final_heat,
-	]
+	var breakdown := get_internal_module_heat_breakdown(module)
+	return "%s: base %d, cooling -%d, cooled %d, neighbor +%d, final %d / %d" % [breakdown.display_name, breakdown.base_heat, breakdown.direct_cooling, breakdown.cooled_heat, breakdown.neighbor_doheat, breakdown.final_heat, breakdown.threshold]
 
 func get_internal_thermal_preview_text() -> String:
 	var lines: Array[String] = []
@@ -2733,12 +2767,61 @@ func get_internal_thermal_preview_text() -> String:
 		lines.append("- " + get_internal_module_thermal_line(module))
 	lines.append("")
 	lines.append("Rules:")
-	lines.append("- neighbor heat = source heat - 1")
-	lines.append("- final heat uses strongest heat/cooling only")
+	lines.append("- base heat is constant and does not accumulate")
+	lines.append("- cooling applies before temporary heat")
+	lines.append("- neighbor doheat is max +1 and has no chain")
+	lines.append("- modules receiving cooling do not receive neighbor doheat")
+	lines.append("- broken modules provide no stats/heat/cooling")
 	lines.append("- critical heat 5 is informational for now")
 	if has_air_cooling_requiring_intake() and not has_external_air_intake():
 		lines.append("")
 		lines.append("Warning: Air cooling requires Air Intake Node on external body.")
+	return "\n".join(lines)
+
+func get_internal_action_temporary_heat_context(action_id: String) -> Dictionary:
+	match action_id:
+		"hack":
+			return {"temporary_heat_by_role": {"processor": 2}, "temporary_heat_by_module_id": {}, "global_temporary_heat": 0, "source": action_id}
+		"xray", "thermal_scan":
+			return {"temporary_heat_by_role": {"gpu": 2}, "temporary_heat_by_module_id": {}, "global_temporary_heat": 0, "source": action_id}
+		_:
+			return {"temporary_heat_by_role": {}, "temporary_heat_by_module_id": {}, "global_temporary_heat": 0, "source": action_id}
+
+func get_internal_action_overheat_warnings(action_id: String) -> Array[String]:
+	var context := get_internal_action_temporary_heat_context(action_id)
+	var warnings: Array[String] = []
+	var action_name := "action"
+	if action_id == "hack":
+		action_name = "hack"
+	elif action_id == "xray":
+		action_name = "X-Ray"
+	elif action_id == "thermal_scan":
+		action_name = "Thermal Scan"
+	for module in get_unique_internal_modules():
+		var breakdown := get_internal_module_heat_breakdown(module, context)
+		if bool(breakdown.get("would_overheat", false)):
+			warnings.append("%s may overheat during %s." % [String(breakdown.get("display_name", "Module")), action_name])
+	return warnings
+
+func get_internal_heat_debug_summary_text() -> String:
+	var lines: Array[String] = []
+	var highest := 0
+	var warning_count := 0
+	var critical_count := 0
+	lines.append("Internal heat debug:")
+	lines.append("Air Intake: %s" % get_air_intake_readiness_word())
+	for module in get_unique_internal_modules():
+		var breakdown := get_internal_module_heat_breakdown(module)
+		var final_heat := int(breakdown.get("final_heat", 0))
+		highest = maxi(highest, final_heat)
+		if final_heat >= 4:
+			warning_count += 1
+		if final_heat >= THERMAL_CRITICAL_HEAT:
+			critical_count += 1
+		lines.append("- " + get_internal_module_thermal_line(module))
+	lines.append("Highest final heat: %d" % highest)
+	lines.append("Heat >= 4: %d" % warning_count)
+	lines.append("Heat >= 5: %d" % critical_count)
 	return "\n".join(lines)
 
 func get_highest_internal_preview_heat() -> int:
@@ -3042,7 +3125,7 @@ func count_internal_role(role_id: String) -> int:
 		return 0
 	var count: int = 0
 	for module in get_unique_internal_modules():
-		if module != null and module.internal_role == role_id:
+		if is_module_functional(module) and module.internal_role == role_id:
 			count += 1
 	return count
 
@@ -3051,7 +3134,7 @@ func get_internal_modules_by_role(role_id: String) -> Array[BipobModule]:
 	if role_id.is_empty():
 		return modules_by_role
 	for module in get_unique_internal_modules():
-		if module == null:
+		if not is_module_functional(module):
 			continue
 		if module.internal_role == role_id:
 			modules_by_role.append(module)
@@ -4461,7 +4544,7 @@ func get_internal_interface_port_capacity() -> int:
 	var total := 0
 	for record in placed_internal_modules:
 		var module: BipobModule = record.get("module", null)
-		if module != null and module.interface_role == "internal":
+		if is_module_functional(module) and module.interface_role == "internal":
 			total += module.ports
 	return total
 
@@ -4469,7 +4552,7 @@ func get_external_interface_port_capacity() -> int:
 	var total := 0
 	for record in placed_internal_modules:
 		var module: BipobModule = record.get("module", null)
-		if module != null and module.interface_role == "external":
+		if is_module_functional(module) and module.interface_role == "external":
 			total += module.ports
 	return total
 
@@ -4477,7 +4560,7 @@ func get_internal_connected_module_count() -> int:
 	var count := 0
 	for record in placed_internal_modules:
 		var module: BipobModule = record.get("module", null)
-		if module == null:
+		if not is_module_functional(module):
 			continue
 		if module.interface_role == "internal" or module.interface_role == "external":
 			continue
@@ -4516,7 +4599,7 @@ func get_power_port_capacity() -> int:
 	var total := 0
 	for record in placed_internal_modules:
 		var module: BipobModule = _extract_module_from_internal_record(record)
-		if module != null and is_power_block_module(module):
+		if is_module_functional(module) and is_power_block_module(module):
 			total += module.power_ports
 	return total
 
@@ -4524,7 +4607,7 @@ func get_internal_powered_device_count() -> int:
 	var unique_modules: Dictionary = {}
 	for record in placed_internal_modules:
 		var module: BipobModule = _extract_module_from_internal_record(record)
-		if module == null:
+		if not is_module_functional(module):
 			continue
 		if is_power_block_module(module):
 			continue
@@ -4736,8 +4819,12 @@ func apply_thermal_metadata(module: BipobModule) -> void:
 	if module.placement_type == "external":
 		module.internal_role = "none"
 	match module.id:
-		"battery_v1", "battery_v2", "battery_v3":
+		"battery_v1":
 			module.heat_idle = 1; module.heat_active = 1
+		"battery_v2":
+			module.heat_idle = 2; module.heat_active = 2
+		"battery_v3":
+			module.heat_idle = 3; module.heat_active = 3
 		"processor_v1":
 			module.heat_idle = 3; module.heat_active = 3
 		"processor_v2":
@@ -4750,11 +4837,23 @@ func apply_thermal_metadata(module: BipobModule) -> void:
 			module.heat_idle = 4; module.heat_active = 4
 		"gpu_v3":
 			module.heat_idle = 5; module.heat_active = 5
-		"memory_v1", "memory_v2", "memory_v3":
+		"memory_v1":
+			module.heat_idle = 1; module.heat_active = 1
+		"memory_v2":
 			module.heat_idle = 2; module.heat_active = 2
-		"hard_drive_v1", "hard_drive_v2", "hard_drive_v3":
+		"memory_v3":
 			module.heat_idle = 3; module.heat_active = 3
-		"power_block_v1", "power_block_v2", "power_block_v3":
+		"hard_drive_v1":
+			module.heat_idle = 2; module.heat_active = 2
+		"hard_drive_v2":
+			module.heat_idle = 3; module.heat_active = 3
+		"hard_drive_v3":
+			module.heat_idle = 4; module.heat_active = 4
+		"power_block_v1":
+			module.heat_idle = 1; module.heat_active = 1
+		"power_block_v2":
+			module.heat_idle = 2; module.heat_active = 2
+		"power_block_v3":
 			module.heat_idle = 3; module.heat_active = 3
 		"charging_via_external_heat_v1", "charging_via_internal_heat_v1":
 			module.heat_idle = 2; module.heat_active = 2
@@ -4766,6 +4865,10 @@ func apply_thermal_metadata(module: BipobModule) -> void:
 			module.heat_idle = 3; module.heat_active = 3
 		"internal_interface_v1", "external_interface_v1":
 			module.heat_idle = 1; module.heat_active = 1
+		"internal_interface_v2", "external_interface_v2":
+			module.heat_idle = 2; module.heat_active = 2
+		"internal_interface_v3", "external_interface_v3":
+			module.heat_idle = 3; module.heat_active = 3
 		"targeting_computer_v1", "encryption_module_v1", "motor_controller_v1", "weapon_controller_v1", "firewall_module_v1", "auto_repair_unit_v1", "sample_analyzer_v1":
 			module.heat_idle = 1; module.heat_active = 1
 		"cooler_v1":
@@ -5319,6 +5422,9 @@ func is_module_unknown(module: BipobModule) -> bool:
 	if module == null:
 		return false
 	return module.status == "unknown"
+
+func is_module_functional(module: BipobModule) -> bool:
+	return module != null and not is_module_broken(module) and not is_module_unknown(module)
 
 func set_module_broken(module: BipobModule, value: bool) -> void:
 	if module == null:
