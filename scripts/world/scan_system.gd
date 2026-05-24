@@ -64,6 +64,12 @@ static func scan_object(object_data: Dictionary, scan_type: String, scanner_leve
 		elif String(object_data.get("cooling_device_type", "")) == "air_cooler":
 			out["details"].append("Cooling output: %d" % cooling_output)
 			out["details"].append("Facing: %s" % String(object_data.get("facing_dir", "right")))
+		elif String(object_data.get("cooling_device_type", "")) == "water_pipe":
+			out["details"].append("Cooling output: %d" % cooling_output)
+			out["details"].append("Water cooling: adjacent heat device receives cooling")
+		elif String(object_data.get("cooling_device_type", "")) == "air_duct":
+			out["details"].append("Carries airflow")
+			out["details"].append("Requires External Air Cooler facing duct line")
 		elif bool(object_data.get("cooling_amplifier", false)):
 			out["details"].append("Cooling amplifier")
 

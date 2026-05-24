@@ -39,6 +39,8 @@ const OBJECT_LIBRARY := {
 	"external_radiator": {"group":"cooling","name":"External Radiator","state":"active","cooling_device_type":"radiator","cooling_output":1,"movable":true,"heavy_claw_movable":true,"material":"metal","blocks_movement":true,"blocks_vision":false,"durability":20},
 	"external_air_cooler": {"group":"cooling","name":"External Air Cooler","state":"active","cooling_device_type":"air_cooler","cooling_output":2,"directed_airflow":true,"facing_dir":"right","movable":true,"heavy_claw_movable":true,"material":"metal","blocks_movement":true,"blocks_vision":false,"durability":20},
 	"metal_cooling_block": {"group":"physical","name":"Metal Cooling Block","state":"active","material":"metal","cooling_amplifier":true,"movable":true,"heavy_claw_movable":true,"blocks_movement":true,"blocks_vision":false,"durability":30},
+	"external_water_pipe": {"group":"cooling","name":"External Water Pipe","state":"active","cooling_device_type":"water_pipe","cooling_output":2,"passive_cooling":true,"movable":false,"material":"metal","blocks_movement":false,"blocks_vision":false,"durability":15},
+	"external_air_duct": {"group":"cooling","name":"External Air Duct","state":"active","cooling_device_type":"air_duct","carries_airflow":true,"passive_cooling":true,"movable":false,"material":"metal","blocks_movement":false,"blocks_vision":false,"durability":12},
 	"module_external": {"group":"item","name":"Module External","item_form":"physical","storage_type":"pocket","can_place_in_digital_buffer":false,"consumable":false,"fits_targets":[]},
 	"module_internal": {"group":"item","name":"Module Internal","item_form":"physical","storage_type":"pocket","can_place_in_digital_buffer":false,"consumable":false,"fits_targets":[]},
 	"mechanical_keycard": {"group":"item","name":"Mechanical KeyCard","item_form":"physical","storage_type":"pocket","can_place_in_digital_buffer":false,"consumable":false,"fits_targets":["door"],"key_kind":"mechanical"},
@@ -255,6 +257,55 @@ static func get_air_cooler_world_cooling_for_target(target_object: Dictionary, t
 			continue
 		var output := maxi(1, int(object_data.get("cooling_output", 2)))
 		strongest = maxi(strongest, output)
+	strongest = maxi(strongest, get_air_duct_path_cooling_for_target(target_object, target_position, all_objects))
+	return strongest
+
+static func get_water_pipe_world_cooling_for_target(target_object: Dictionary, target_position: Vector2i, all_objects: Array[Dictionary]) -> int:
+	var strongest := 0
+	for object_data in all_objects:
+		if String(object_data.get("cooling_device_type", "")) != "water_pipe":
+			continue
+		if _is_world_object_inactive_for_cooling(object_data):
+			continue
+		var pipe_position := _to_vector2i(object_data.get("position", Vector2i(-999, -999)))
+		if not _is_adjacent(pipe_position, target_position):
+			continue
+		var output := maxi(1, int(object_data.get("cooling_output", 2)))
+		strongest = maxi(strongest, output)
+	return strongest
+
+static func get_air_duct_path_cooling_for_target(target_object: Dictionary, target_position: Vector2i, all_objects: Array[Dictionary]) -> int:
+	var strongest := 0
+	for object_data in all_objects:
+		if String(object_data.get("cooling_device_type", "")) != "air_cooler":
+			continue
+		if _is_world_object_inactive_for_cooling(object_data):
+			continue
+		var cooler_position := _to_vector2i(object_data.get("position", Vector2i(-999, -999)))
+		var facing_dir := _facing_dir_to_vector2i(object_data.get("facing_dir", "right"))
+		var step_cell := cooler_position + facing_dir
+		var has_duct_chain := false
+		for _step in range(20):
+			var found_active_duct := false
+			for duct_data in all_objects:
+				if String(duct_data.get("cooling_device_type", "")) != "air_duct":
+					continue
+				if _is_world_object_inactive_for_cooling(duct_data):
+					continue
+				var duct_position := _to_vector2i(duct_data.get("position", Vector2i(-999, -999)))
+				if duct_position == step_cell:
+					found_active_duct = true
+					break
+			if not found_active_duct:
+				break
+			has_duct_chain = true
+			step_cell += facing_dir
+		if not has_duct_chain:
+			continue
+		if step_cell != target_position:
+			continue
+		var output := maxi(1, int(object_data.get("cooling_output", 2)))
+		strongest = maxi(strongest, output)
 	return strongest
 
 static func calculate_world_cooling_received_for_target(target_object: Dictionary, target_position: Vector2i, all_objects: Array[Dictionary]) -> int:
@@ -262,9 +313,12 @@ static func calculate_world_cooling_received_for_target(target_object: Dictionar
 		return 0
 	var radiator_cooling := get_radiator_world_cooling_for_target(target_object, target_position, all_objects)
 	var air_cooling := get_air_cooler_world_cooling_for_target(target_object, target_position, all_objects)
-	if radiator_cooling > 0 and air_cooling > 0:
+	var water_cooling := get_water_pipe_world_cooling_for_target(target_object, target_position, all_objects)
+	if air_cooling > 0 and water_cooling > 0:
+		return 4
+	if air_cooling > 0 and radiator_cooling > 0:
 		return 3
-	return maxi(radiator_cooling, air_cooling)
+	return maxi(radiator_cooling, maxi(air_cooling, water_cooling))
 
 static func get_power_source_active_socket_connection_count(source_data: Dictionary) -> int:
 	return Array(source_data.get("connected_device_ids", [])).size()
