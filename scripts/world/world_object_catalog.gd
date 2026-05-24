@@ -189,6 +189,9 @@ static func _to_vector2i(value: Variant, fallback: Vector2i = Vector2i.ZERO) -> 
 		return Vector2i(int(value.get("x", fallback.x)), int(value.get("y", fallback.y)))
 	return fallback
 
+static func to_world_cell(value: Variant, fallback: Vector2i = Vector2i.ZERO) -> Vector2i:
+	return _to_vector2i(value, fallback)
+
 static func _is_world_object_inactive_for_cooling(object_data: Dictionary) -> bool:
 	var state := String(object_data.get("state", "active"))
 	return state in ["damaged", "destroyed", "overheated", "disabled", "inactive", "unpowered"]

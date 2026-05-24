@@ -60,8 +60,7 @@ static func scan_object(object_data: Dictionary, scan_type: String, scanner_leve
 		var cooling_output := maxi(0, int(object_data.get("cooling_output", 0)))
 		if String(object_data.get("cooling_device_type", "")) == "radiator":
 			out["details"].append("Cooling output: %d" % cooling_output)
-			var boosted := "yes" if cooling_output >= 2 else "no"
-			out["details"].append("Boosted by metal: %s" % boosted)
+			out["details"].append("Metal boost: adjacent metal object increases radiator cooling to 2")
 		elif String(object_data.get("cooling_device_type", "")) == "air_cooler":
 			out["details"].append("Cooling output: %d" % cooling_output)
 			out["details"].append("Facing: %s" % String(object_data.get("facing_dir", "right")))
