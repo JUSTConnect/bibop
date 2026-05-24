@@ -8,6 +8,7 @@ const PowerSystem = preload("res://scripts/world/power_system.gd")
 var mission_world_objects: Array[Dictionary] = []
 var world_objects_by_cell: Dictionary = {}
 var cell_items: Dictionary = {}
+var last_threat_warning_ids: Dictionary = {}
 var debug_world_logs := false
 var enable_debug_seed := false
 
@@ -73,6 +74,7 @@ func setup_world_objects_for_mission(mission_id: String) -> void:
 				_:
 					add_item_at_cell(Vector2i(1, 3), object_data)
 	PowerSystem.recalculate_network(mission_world_objects, "power_net_A")
+	last_threat_warning_ids.clear()
 	if debug_world_logs:
 		var scenario_warnings := validate_world_object_scenario()
 		if not scenario_warnings.is_empty():
@@ -257,6 +259,85 @@ func get_hidden_objects_at_cell(cell: Vector2i) -> Array[Dictionary]:
 	for hidden_id in object_data.get("hidden_content", []):
 		hidden.append({"id": hidden_id, "display_name": String(hidden_id).capitalize()})
 	return hidden
+
+func get_threats() -> Array[Dictionary]:
+	var threats: Array[Dictionary] = []
+	for object_data in mission_world_objects:
+		if String(object_data.get("object_group", "")) == "threat":
+			threats.append(object_data)
+	return threats
+
+func is_threat_active(threat: Dictionary) -> bool:
+	if threat.is_empty():
+		return false
+	if String(threat.get("object_group", "")) != "threat":
+		return false
+	var state := String(threat.get("state", "active"))
+	if state in ["destroyed", "disabled", "hacked", "stunned", "unpowered"]:
+		return false
+	if String(threat.get("behavior_state", "")) == "disabled":
+		return false
+	if String(threat.get("power_mode", "")) == "external_power" and not bool(threat.get("is_powered", true)):
+		return false
+	return true
+
+func can_threat_detect_bipop(threat: Dictionary, bipob_cell: Vector2i, grid_manager: Node) -> bool:
+	return bool(get_threat_detection_result(threat, bipob_cell, grid_manager).get("detected", false))
+
+func get_threat_detection_result(threat: Dictionary, bipob_cell: Vector2i, grid_manager: Node) -> Dictionary:
+	var result := {"detected":false, "threat_id":String(threat.get("id", "")), "threat_name":String(threat.get("display_name", "Threat")), "detection_mode":"", "distance":999, "message":"Threat cannot detect Bipop."}
+	if threat.is_empty() or not is_threat_active(threat):
+		result["message"] = "Threat inactive."
+		return result
+	var threat_position := Vector2i(threat.get("position", Vector2i(-1, -1)))
+	var distance := abs(threat_position.x - bipob_cell.x) + abs(threat_position.y - bipob_cell.y)
+	result["distance"] = distance
+	var max_range := int(threat.get("detection_range", 0))
+	if distance > max_range:
+		result["message"] = "%s is out of detection range." % result["threat_name"]
+		return result
+	for mode_variant in Array(threat.get("detection_modes", [])):
+		var mode := String(mode_variant)
+		var mode_range := int(threat.get("%s_range" % mode, max_range))
+		if mode_range <= 0 or distance > mode_range:
+			continue
+		if _can_detect_by_mode(mode, threat_position, bipob_cell, grid_manager):
+			result["detected"] = true
+			result["detection_mode"] = mode
+			result["message"] = "%s detected Bipop by %s." % [result["threat_name"], mode]
+			return result
+	result["message"] = "%s has no clear detection path." % result["threat_name"]
+	return result
+
+func _can_detect_by_mode(mode: String, from_cell: Vector2i, to_cell: Vector2i, grid_manager: Node) -> bool:
+	if grid_manager == null:
+		return false
+	if mode == "vision":
+		return _has_cardinal_clear_path(from_cell, to_cell, grid_manager, mode, false)
+	return _has_cardinal_clear_path(from_cell, to_cell, grid_manager, mode, true)
+
+func _has_cardinal_clear_path(from_cell: Vector2i, to_cell: Vector2i, grid_manager: Node, scan_type: String, allow_wall_pass: bool) -> bool:
+	if from_cell.x != to_cell.x and from_cell.y != to_cell.y:
+		return scan_type != "vision"
+	var step := Vector2i(signi(to_cell.x - from_cell.x), signi(to_cell.y - from_cell.y))
+	var current := from_cell + step
+	while current != to_cell:
+		if not grid_manager.is_in_bounds(current):
+			return false
+		var tile := int(grid_manager.get_tile(current))
+		if tile == grid_manager.TILE_WALL:
+			return false
+		var blocker := get_world_object_at_cell(current)
+		if blocker.is_empty():
+			current += step
+			continue
+		if bool(blocker.get("blocks_vision", false)):
+			if not allow_wall_pass:
+				return false
+			if not ScanSystem.can_scan_through_wall(blocker, scan_type):
+				return false
+		current += step
+	return true
 
 
 func reset_world_object_turn_flags() -> void:
