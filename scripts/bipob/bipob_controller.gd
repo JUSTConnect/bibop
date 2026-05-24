@@ -5582,6 +5582,7 @@ func turn_left() -> void:
 	direction = Direction.values()[(int(direction) + 3) % 4]
 	update_rotation()
 	update_vision()
+	update_threat_detection_preview()
 	spend_action(1, 0)
 
 func turn_right() -> void:
@@ -5593,6 +5594,7 @@ func turn_right() -> void:
 	direction = Direction.values()[(int(direction) + 1) % 4]
 	update_rotation()
 	update_vision()
+	update_threat_detection_preview()
 	spend_action(1, 0)
 
 func end_turn() -> void:
@@ -5600,6 +5602,7 @@ func end_turn() -> void:
 		mission_manager.reset_world_object_turn_flags()
 	actions_left = actions_per_turn
 	turns_used += 1
+	update_threat_detection_preview()
 	print("End Turn. Actions restored.")
 	print_status()
 	status_changed.emit()
@@ -5852,6 +5855,7 @@ func update_world_position() -> void:
 	
 	global_position = grid_manager.global_position + grid_manager.grid_to_world(grid_position)
 	update_vision()
+	update_threat_detection_preview()
 	emit_facing_world_object_hint()
 
 func emit_facing_world_object_hint() -> void:
@@ -5873,6 +5877,12 @@ func emit_facing_world_object_hint() -> void:
 	details.append("State: %s" % String(object_data.get("state", "unknown")))
 	if object_data.has("is_powered"):
 		details.append("Powered: %s" % ("Yes" if bool(object_data.get("is_powered", false)) else "No"))
+	if String(object_data.get("object_group", "")) == "threat":
+		details.append("Behavior: %s" % String(object_data.get("behavior_state", "idle")))
+		if String(object_data.get("object_type", "")) == "turret":
+			details.append("Attack Range: %d" % int(object_data.get("attack_range", 0)))
+			if String(object_data.get("behavior_state", "")) == "alert":
+				details.append("Target: Bipop")
 	if scan_level >= 2 and bool(object_data.get("revealed_hidden_content", false)):
 		details.append("Hidden: %s" % ", ".join(Array(object_data.get("hidden_content", []))))
 	var actions := get_available_world_actions(object_data, facing)
@@ -6183,6 +6193,7 @@ func scan_device() -> void:
 				world_object["revealed_hidden_content"] = true
 			mission_manager.set_world_object_at_cell(facing_cell, world_object)
 			refresh_world_object_overlay()
+			update_threat_detection_preview()
 			hint_requested.emit("Scan: %s" % ScanSystem.get_scan_display_text(world_object, scan_type))
 			clear_selected_world_action_if_invalid(world_object, facing_cell)
 			emit_facing_world_object_hint()
@@ -6808,6 +6819,7 @@ func interact() -> void:
 				if not moved:
 					mission_manager.set_world_object_at_cell(target_position, world_object)
 				refresh_world_object_overlay()
+				update_threat_detection_preview()
 				clear_selected_world_action_if_invalid(world_object, target_position)
 				emit_facing_world_object_hint()
 				hint_requested.emit("%s (%s): %s | Action: %s" % [world_object.get("display_name", "Object"), world_object.get("state", "unknown"), String(action_result.get("message", "Action complete.")), action_id])
@@ -6945,14 +6957,64 @@ func refresh_world_object_overlay() -> void:
 		markers[cell] = _get_world_marker(items[0])
 	grid_manager.set_world_overlay_markers(markers)
 
+func update_threat_detection_preview() -> void:
+	if mission_manager == null:
+		return
+	var threats := mission_manager.get_threats()
+	if threats.is_empty():
+		return
+	var detected_results: Array[Dictionary] = []
+	var detected_ids: Dictionary = {}
+	for threat in threats:
+		var threat_id := String(threat.get("id", ""))
+		if threat_id.is_empty():
+			continue
+		var detection := mission_manager.get_threat_detection_result(threat, grid_position, grid_manager)
+		var is_detected := bool(detection.get("detected", false))
+		if is_detected:
+			detected_results.append(detection)
+			detected_ids[threat_id] = detection.get("detection_mode", "")
+			threat["behavior_state"] = "alert"
+			if String(threat.get("object_type", "")) == "turret":
+				threat["target_position"] = grid_position
+		elif String(threat.get("behavior_state", "")) in ["alert", "attack_preview"] and mission_manager.is_threat_active(threat):
+			threat["behavior_state"] = "idle"
+			if threat.has("target_position"):
+				threat.erase("target_position")
+		if not mission_manager.is_threat_active(threat):
+			threat["behavior_state"] = "idle"
+			if threat.has("target_position"):
+				threat.erase("target_position")
+	var previous: Dictionary = mission_manager.last_threat_warning_ids
+	var should_warn := detected_results.size() != previous.size()
+	if not should_warn:
+		for threat_id in detected_ids.keys():
+			if not previous.has(threat_id) or String(previous[threat_id]) != String(detected_ids[threat_id]):
+				should_warn = true
+				break
+	mission_manager.last_threat_warning_ids = detected_ids.duplicate()
+	refresh_world_object_overlay()
+	if should_warn and not detected_results.is_empty():
+		if detected_results.size() == 1:
+			hint_requested.emit("Warning: %s detected Bipop." % String(detected_results[0].get("threat_name", "Threat")))
+		else:
+			hint_requested.emit("Warning: %d threats detected Bipop." % detected_results.size())
+	elif should_warn and detected_results.is_empty() and previous.size() > 0:
+		hint_requested.emit("Threat warning cleared.")
+
 func _get_world_marker(object_data: Dictionary) -> String:
 	var object_type := String(object_data.get("object_type", ""))
-	if String(object_data.get("state", "")) == "destroyed":
+	var state := String(object_data.get("state", ""))
+	if state == "destroyed":
 		return "DB"
-	if String(object_data.get("state", "")) == "stunned":
+	if state == "stunned":
 		return "ST"
-	if object_type == "turret" and String(object_data.get("state", "")) == "unpowered":
-		return "TU"
+	if state == "hacked":
+		return "HK"
+	if object_type == "turret" and state == "unpowered":
+		return "TO"
+	if object_type == "turret" and String(object_data.get("behavior_state", "")) in ["alert", "attack_preview"]:
+		return "TA"
 	var labels := {"steel_door":"D","energy_door":"ED","grid_door":"GD","brick_wall":"BW","damaged_wall":"DW","energy_wall":"EW","door_terminal":"T","information_terminal":"IT","power_cable":"C","power_source_class_1":"PS","circuit_breaker":"BR","fuse_box_installed":"FB","fuse_box_empty":"FE","fuse":"F","mechanical_keycard":"K","digital_key_opened":"DK","data_file_encrypted":"DF","normal_crate":"CR","heavy_crate":"HC","barrel":"BA","debris":"DB","enemy_robot":"ER","turret":"TU","bug":"BG","vagus":"VG"}
 	return labels.get(object_type, String(object_data.get("object_group", "O")).substr(0, 2).to_upper())
 
