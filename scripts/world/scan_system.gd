@@ -55,6 +55,18 @@ static func scan_object(object_data: Dictionary, scan_type: String, scanner_leve
 	elif object_data.get("object_group", "") == "physical_object":
 		if level >= 2:
 			out["details"].append("Weight: %s" % object_data.get("weight_class", "normal"))
+	elif object_data.get("object_group", "") == "cooling":
+		out["details"].append("Status: %s" % object_data.get("state", "unknown"))
+		var cooling_output := maxi(0, int(object_data.get("cooling_output", 0)))
+		if String(object_data.get("cooling_device_type", "")) == "radiator":
+			out["details"].append("Cooling output: %d" % cooling_output)
+			var boosted := "yes" if cooling_output >= 2 else "no"
+			out["details"].append("Boosted by metal: %s" % boosted)
+		elif String(object_data.get("cooling_device_type", "")) == "air_cooler":
+			out["details"].append("Cooling output: %d" % cooling_output)
+			out["details"].append("Facing: %s" % String(object_data.get("facing_dir", "right")))
+		elif bool(object_data.get("cooling_amplifier", false)):
+			out["details"].append("Cooling amplifier")
 
 	elif object_data.get("object_group", "") == "threat":
 		if level >= 2:
@@ -70,6 +82,8 @@ static func scan_object(object_data: Dictionary, scan_type: String, scanner_leve
 			out["details"].append("Power source: %s" % object_data.get("power_mode", "unknown"))
 			out["details"].append("Armor: %s" % ", ".join(Array(object_data.get("material_tags", []))))
 			out["details"].append("Weakness: energy overload")
+	if bool(object_data.get("cooling_amplifier", false)) and not out["details"].has("Cooling amplifier"):
+		out["details"].append("Cooling amplifier")
 	return out
 
 static func get_scan_display_text(object_data: Dictionary, scan_type: String) -> String:

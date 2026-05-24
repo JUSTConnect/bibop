@@ -74,6 +74,7 @@ func setup_world_objects_for_mission(mission_id: String) -> void:
 				_:
 					add_item_at_cell(Vector2i(1, 3), object_data)
 	PowerSystem.recalculate_network(mission_world_objects, "power_net_A")
+	refresh_world_cooling_received()
 	last_threat_warning_ids.clear()
 	if debug_world_logs:
 		var scenario_warnings := validate_world_object_scenario()
@@ -170,6 +171,7 @@ func _seed_debug_world_objects() -> void:
 		if object_data.get("id", "") == "fuse_box_empty_1":
 			object_data["power_network_id"] = ""
 	PowerSystem.recalculate_network(mission_world_objects, "power_net_A")
+	refresh_world_cooling_received()
 	if debug_world_logs:
 		_debug_world_summary()
 
@@ -220,12 +222,14 @@ func set_world_object_at_cell(cell: Vector2i, object_data: Dictionary) -> void:
 	world_objects_by_cell[cell] = object_data
 	if not mission_world_objects.has(object_data):
 		mission_world_objects.append(object_data)
+	refresh_world_cooling_received()
 
 func remove_world_object_at_cell(cell: Vector2i) -> void:
 	var object_data := get_world_object_at_cell(cell)
 	if not object_data.is_empty():
 		mission_world_objects.erase(object_data)
 	world_objects_by_cell.erase(cell)
+	refresh_world_cooling_received()
 
 func get_items_at_cell(cell: Vector2i) -> Array[Dictionary]:
 	return cell_items.get(cell, [])
@@ -268,7 +272,17 @@ func update_world_object_by_id(id: String, data: Dictionary) -> void:
 		if old_position != new_position:
 			world_objects_by_cell.erase(old_position)
 		world_objects_by_cell[new_position] = object_data
+		refresh_world_cooling_received()
 		return
+
+func refresh_world_cooling_received() -> void:
+	for object_data in mission_world_objects:
+		if not WorldObjectCatalog.can_world_object_receive_cooling(object_data):
+			continue
+		var target_position := Vector2i(object_data.get("position", Vector2i(-1, -1)))
+		var cooling_received := WorldObjectCatalog.calculate_world_cooling_received_for_target(object_data, target_position, mission_world_objects)
+		object_data["cooling_received"] = cooling_received
+		WorldObjectCatalog.update_world_object_heat_state(object_data)
 
 func get_hidden_objects_at_cell(cell: Vector2i) -> Array[Dictionary]:
 	var object_data := get_world_object_at_cell(cell)
@@ -407,10 +421,16 @@ func get_world_heat_debug_summary_text() -> String:
 	var overheated_power_sources := 0
 	var invalid_heat_metadata := 0
 	var missing_threshold := 0
+	var cooling_devices_count := 0
+	var cooled_heat_targets := 0
+	var max_cooling_received := 0
+	var invalid_cooling_metadata := 0
 	for object_data in mission_world_objects:
 		var group := String(object_data.get("object_group", ""))
 		var object_type := String(object_data.get("object_type", ""))
 		var is_power_source := object_type in ["power_source", "power_source_class_1", "power_source_class_2", "power_source_class_3"]
+		if group == "cooling":
+			cooling_devices_count += 1
 		var heat_enabled := object_data.has("working_heat") or object_data.has("overheat_threshold")
 		if group == "terminal":
 			terminals_count += 1
@@ -421,16 +441,30 @@ func get_world_heat_debug_summary_text() -> String:
 			if String(object_data.get("state", "")) == "overheated":
 				overheated_power_sources += 1
 		if heat_enabled:
+			var cooling_value := maxi(0, int(object_data.get("cooling_received", 0)))
+			if cooling_value > 0:
+				cooled_heat_targets += 1
+			max_cooling_received = maxi(max_cooling_received, cooling_value)
 			if not object_data.has("overheat_threshold"):
 				missing_threshold += 1
 			var threshold := int(object_data.get("overheat_threshold", 0))
 			if threshold < 0 or int(object_data.get("working_heat", 0)) < 0:
 				invalid_heat_metadata += 1
-	return "WorldHeat: terminals=%d overheated=%d | power_sources=%d overheated=%d | invalid_heat=%d | missing_threshold=%d" % [
+		var object_cooling_type := String(object_data.get("cooling_device_type", ""))
+		if group == "cooling" and object_cooling_type.is_empty():
+			invalid_cooling_metadata += 1
+		if String(object_data.get("cooling_device_type", "")) == "air_cooler":
+			if not object_data.has("facing_dir"):
+				invalid_cooling_metadata += 1
+	return "WorldHeat: terminals=%d overheated=%d | power_sources=%d overheated=%d | invalid_heat=%d | missing_threshold=%d | cooling_devices=%d | cooled_targets=%d | max_cooling=%d | invalid_cooling=%d" % [
 		terminals_count,
 		overheated_terminals,
 		power_sources_count,
 		overheated_power_sources,
 		invalid_heat_metadata,
-		missing_threshold
+		missing_threshold,
+		cooling_devices_count,
+		cooled_heat_targets,
+		max_cooling_received,
+		invalid_cooling_metadata
 	]

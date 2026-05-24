@@ -36,6 +36,9 @@ const OBJECT_LIBRARY := {
 	"power_source_class_1": {"group":"power","name":"Power Source C1","state":"active","durability":30,"power_source_class":1,"drain_pool":60,"working_heat":1,"current_heat":1,"overheat_threshold":3,"heat_from_connections":0,"cooling_received":0,"overheated_state_before":"","allowed_socket_connections":1,"connected_device_ids":[]},
 	"power_source_class_2": {"group":"power","name":"Power Source C2","state":"active","durability":30,"power_source_class":2,"drain_pool":120,"working_heat":2,"current_heat":2,"overheat_threshold":3,"heat_from_connections":0,"cooling_received":0,"overheated_state_before":"","allowed_socket_connections":2,"connected_device_ids":[]},
 	"power_source_class_3": {"group":"power","name":"Power Source C3","state":"active","durability":30,"power_source_class":3,"drain_pool":240,"working_heat":3,"current_heat":3,"overheat_threshold":3,"heat_from_connections":0,"cooling_received":0,"overheated_state_before":"","allowed_socket_connections":3,"connected_device_ids":[]},
+	"external_radiator": {"group":"cooling","name":"External Radiator","state":"active","cooling_device_type":"radiator","cooling_output":1,"movable":true,"heavy_claw_movable":true,"material":"metal","blocks_movement":true,"blocks_vision":false,"durability":20},
+	"external_air_cooler": {"group":"cooling","name":"External Air Cooler","state":"active","cooling_device_type":"air_cooler","cooling_output":2,"directed_airflow":true,"facing_dir":"right","movable":true,"heavy_claw_movable":true,"material":"metal","blocks_movement":true,"blocks_vision":false,"durability":20},
+	"metal_cooling_block": {"group":"physical","name":"Metal Cooling Block","state":"active","material":"metal","cooling_amplifier":true,"movable":true,"heavy_claw_movable":true,"blocks_movement":true,"blocks_vision":false,"durability":30},
 	"module_external": {"group":"item","name":"Module External","item_form":"physical","storage_type":"pocket","can_place_in_digital_buffer":false,"consumable":false,"fits_targets":[]},
 	"module_internal": {"group":"item","name":"Module Internal","item_form":"physical","storage_type":"pocket","can_place_in_digital_buffer":false,"consumable":false,"fits_targets":[]},
 	"mechanical_keycard": {"group":"item","name":"Mechanical KeyCard","item_form":"physical","storage_type":"pocket","can_place_in_digital_buffer":false,"consumable":false,"fits_targets":["door"],"key_kind":"mechanical"},
@@ -162,6 +165,103 @@ static func update_world_object_heat_state(object_data: Dictionary) -> Dictionar
 static func set_world_object_cooling_received(object_data: Dictionary, cooling_value: int) -> Dictionary:
 	object_data["cooling_received"] = maxi(0, cooling_value)
 	return update_world_object_heat_state(object_data)
+
+static func can_world_object_receive_cooling(object_data: Dictionary) -> bool:
+	if object_data.is_empty():
+		return false
+	var has_heat_metadata := object_data.has("overheat_threshold") or object_data.has("working_heat")
+	if not has_heat_metadata:
+		return false
+	var object_group := String(object_data.get("object_group", ""))
+	if object_group == "terminal":
+		return true
+	var object_type := String(object_data.get("object_type", ""))
+	return object_type in ["power_source", "power_source_class_1", "power_source_class_2", "power_source_class_3"]
+
+static func _to_vector2i(value: Variant, fallback: Vector2i = Vector2i.ZERO) -> Vector2i:
+	if value is Vector2i:
+		return value
+	if value is Vector2:
+		return Vector2i(value)
+	if value is Array and value.size() >= 2:
+		return Vector2i(int(value[0]), int(value[1]))
+	if value is Dictionary:
+		return Vector2i(int(value.get("x", fallback.x)), int(value.get("y", fallback.y)))
+	return fallback
+
+static func _is_world_object_inactive_for_cooling(object_data: Dictionary) -> bool:
+	var state := String(object_data.get("state", "active"))
+	return state in ["damaged", "destroyed", "overheated", "disabled", "inactive", "unpowered"]
+
+static func _is_adjacent(a: Vector2i, b: Vector2i) -> bool:
+	return abs(a.x - b.x) + abs(a.y - b.y) == 1
+
+static func _facing_dir_to_vector2i(value: Variant) -> Vector2i:
+	if value is Vector2i:
+		return value
+	var dir_text := String(value).to_lower()
+	match dir_text:
+		"up":
+			return Vector2i.UP
+		"down":
+			return Vector2i.DOWN
+		"left":
+			return Vector2i.LEFT
+		"right":
+			return Vector2i.RIGHT
+	return Vector2i.RIGHT
+
+static func get_radiator_world_cooling_for_target(target_object: Dictionary, target_position: Vector2i, all_objects: Array[Dictionary]) -> int:
+	var strongest := 0
+	for object_data in all_objects:
+		if String(object_data.get("cooling_device_type", "")) != "radiator":
+			continue
+		if _is_world_object_inactive_for_cooling(object_data):
+			continue
+		var radiator_position := _to_vector2i(object_data.get("position", Vector2i(-999, -999)))
+		if not _is_adjacent(radiator_position, target_position):
+			continue
+		var output := maxi(1, int(object_data.get("cooling_output", 1)))
+		for neighbor in all_objects:
+			if neighbor == target_object:
+				continue
+			if _is_world_object_inactive_for_cooling(neighbor):
+				continue
+			var neighbor_position := _to_vector2i(neighbor.get("position", Vector2i(-999, -999)))
+			if not _is_adjacent(radiator_position, neighbor_position):
+				continue
+			var is_metal := String(neighbor.get("material", "")) == "metal"
+			var is_amplifier := bool(neighbor.get("cooling_amplifier", false))
+			if is_metal or is_amplifier:
+				output = maxi(output, 2)
+				break
+		strongest = maxi(strongest, output)
+	return strongest
+
+static func get_air_cooler_world_cooling_for_target(target_object: Dictionary, target_position: Vector2i, all_objects: Array[Dictionary]) -> int:
+	var strongest := 0
+	for object_data in all_objects:
+		if String(object_data.get("cooling_device_type", "")) != "air_cooler":
+			continue
+		if _is_world_object_inactive_for_cooling(object_data):
+			continue
+		var cooler_position := _to_vector2i(object_data.get("position", Vector2i(-999, -999)))
+		var facing_dir := _facing_dir_to_vector2i(object_data.get("facing_dir", "right"))
+		var affected_cell := cooler_position + facing_dir
+		if affected_cell != target_position:
+			continue
+		var output := maxi(1, int(object_data.get("cooling_output", 2)))
+		strongest = maxi(strongest, output)
+	return strongest
+
+static func calculate_world_cooling_received_for_target(target_object: Dictionary, target_position: Vector2i, all_objects: Array[Dictionary]) -> int:
+	if not can_world_object_receive_cooling(target_object):
+		return 0
+	var radiator_cooling := get_radiator_world_cooling_for_target(target_object, target_position, all_objects)
+	var air_cooling := get_air_cooler_world_cooling_for_target(target_object, target_position, all_objects)
+	if radiator_cooling > 0 and air_cooling > 0:
+		return 3
+	return maxi(radiator_cooling, air_cooling)
 
 static func get_power_source_active_socket_connection_count(source_data: Dictionary) -> int:
 	return Array(source_data.get("connected_device_ids", [])).size()
