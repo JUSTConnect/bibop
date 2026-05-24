@@ -108,6 +108,13 @@ var runtime_digital_title_label: Label
 var runtime_digital_store_title_label: Label
 var runtime_energy_label: Label
 var runtime_actions_label: Label
+var runtime_world_actions_panel: PanelContainer = null
+var runtime_world_actions_target_label: Label = null
+var runtime_world_actions_state_label: Label = null
+var runtime_world_actions_behavior_label: Label = null
+var runtime_world_actions_list: VBoxContainer = null
+var runtime_world_actions_no_actions_label: Label = null
+var runtime_world_actions_selected_button: Button = null
 var runtime_key_slots: Array[Control] = []
 var selected_manipulator_slot: int = 0
 var selected_pocket_slot: int = 0
@@ -4397,6 +4404,11 @@ func _apply_runtime_hud_layout() -> void:
 	mission_panel.position = Vector2(right_x, bottom_y)
 	mission_panel.size = Vector2(sidebar_width, bottom_area_height)
 	root.add_child(mission_panel)
+	var world_actions_panel: PanelContainer = _create_runtime_world_actions_panel()
+	world_actions_panel.position = Vector2(right_x, margin + switcher_height + top_panel_height + 8.0)
+	world_actions_panel.size = Vector2(sidebar_width, maxf(bottom_y - (margin + switcher_height + top_panel_height + 16.0), 140.0))
+	root.add_child(world_actions_panel)
+	runtime_world_actions_panel = world_actions_panel
 
 
 func _create_runtime_stats_strip() -> Control:
@@ -4555,6 +4567,48 @@ func _create_runtime_mission_panel() -> PanelContainer:
 		exit_main_menu_button.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 		exit_main_menu_button.size_flags_vertical = Control.SIZE_EXPAND_FILL
 		_safe_reparent_control(exit_main_menu_button, vbox)
+	return panel
+
+func _create_runtime_world_actions_panel() -> PanelContainer:
+	var panel := PanelContainer.new()
+	panel.name = "RuntimeWorldActionsPanel"
+	panel.visible = false
+	panel.add_theme_stylebox_override("panel", _make_panel_style(UI_COLOR_PANEL, UI_COLOR_BORDER, 1, 8))
+	var margin := MarginContainer.new()
+	margin.add_theme_constant_override("margin_left", 6)
+	margin.add_theme_constant_override("margin_top", 6)
+	margin.add_theme_constant_override("margin_right", 6)
+	margin.add_theme_constant_override("margin_bottom", 6)
+	panel.add_child(margin)
+	var vbox := VBoxContainer.new()
+	vbox.add_theme_constant_override("separation", 4)
+	margin.add_child(vbox)
+	var title := Label.new()
+	title.text = "Actions"
+	vbox.add_child(title)
+	runtime_world_actions_target_label = Label.new()
+	runtime_world_actions_target_label.text = "-"
+	vbox.add_child(runtime_world_actions_target_label)
+	runtime_world_actions_state_label = Label.new()
+	runtime_world_actions_state_label.text = ""
+	vbox.add_child(runtime_world_actions_state_label)
+	runtime_world_actions_behavior_label = Label.new()
+	runtime_world_actions_behavior_label.text = ""
+	vbox.add_child(runtime_world_actions_behavior_label)
+	var scroll := ScrollContainer.new()
+	scroll.custom_minimum_size = Vector2(0, 120)
+	scroll.size_flags_vertical = Control.SIZE_EXPAND_FILL
+	vbox.add_child(scroll)
+	runtime_world_actions_list = VBoxContainer.new()
+	runtime_world_actions_list.add_theme_constant_override("separation", 4)
+	scroll.add_child(runtime_world_actions_list)
+	runtime_world_actions_no_actions_label = Label.new()
+	runtime_world_actions_no_actions_label.text = "No available actions"
+	runtime_world_actions_list.add_child(runtime_world_actions_no_actions_label)
+	var use_button := Button.new()
+	use_button.text = "Use Selected"
+	use_button.pressed.connect(_on_use_selected_world_action_pressed)
+	vbox.add_child(use_button)
 	return panel
 
 func _create_runtime_storage_panel() -> PanelContainer:
@@ -4865,6 +4919,7 @@ func _ready() -> void:
 
 	bipob.status_changed.connect(update_status)
 	bipob.hint_requested.connect(show_hint)
+	bipob.world_action_panel_requested.connect(_on_world_action_panel_requested)
 	bipob.mission_completed.connect(_on_mission_completed)
 	bipob.mission_failed.connect(_on_mission_failed)
 	bipob.returned_to_box.connect(_on_returned_to_box)
@@ -8295,6 +8350,63 @@ func _on_interact_pressed() -> void:
 	bipob.interact()
 	update_status()
 
+func _on_use_selected_world_action_pressed() -> void:
+	if bipob == null:
+		return
+	bipob.interact()
+	update_status()
+
+func _on_world_action_button_pressed(action_id: String) -> void:
+	if bipob == null:
+		return
+	bipob.set_selected_world_action(action_id)
+
+func _on_world_action_panel_requested(target_object: Dictionary, actions: Array[String], selected_action: String) -> void:
+	if runtime_world_actions_panel == null:
+		return
+	if app_screen_mode != AppScreenMode.GAMEPLAY:
+		runtime_world_actions_panel.visible = false
+		return
+	if target_object.is_empty():
+		runtime_world_actions_panel.visible = false
+		return
+	runtime_world_actions_panel.visible = true
+	var scan_level := int(target_object.get("scan_level", 0))
+	var object_group := String(target_object.get("object_group", "object"))
+	var generic := object_group.capitalize()
+	if object_group == "threat" and scan_level <= 0:
+		generic = "Unknown movement"
+	var object_name := generic if scan_level <= 0 else String(target_object.get("display_name", generic))
+	runtime_world_actions_target_label.text = object_name
+	runtime_world_actions_state_label.text = "State: %s" % String(target_object.get("state", "unknown"))
+	if object_group == "threat":
+		runtime_world_actions_behavior_label.visible = true
+		runtime_world_actions_behavior_label.text = "Behavior: %s" % String(target_object.get("behavior_state", "idle"))
+	else:
+		runtime_world_actions_behavior_label.visible = false
+	for child in runtime_world_actions_list.get_children():
+		child.queue_free()
+	runtime_world_actions_selected_button = null
+	if actions.is_empty():
+		var empty_label := Label.new()
+		empty_label.text = "No available actions"
+		runtime_world_actions_list.add_child(empty_label)
+		return
+	var added: Dictionary = {}
+	for action_id in actions:
+		if added.has(action_id):
+			continue
+		added[action_id] = true
+		var action_button := Button.new()
+		action_button.text = bipob.get_world_action_display_label(action_id, target_object)
+		action_button.toggle_mode = true
+		action_button.button_pressed = action_id == selected_action
+		action_button.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+		action_button.pressed.connect(_on_world_action_button_pressed.bind(action_id))
+		runtime_world_actions_list.add_child(action_button)
+		if action_button.button_pressed:
+			runtime_world_actions_selected_button = action_button
+
 func _on_drop_item_button_pressed() -> void:
 	bipob.drop_held_item()
 	update_status()
@@ -8471,6 +8583,8 @@ func update_status() -> void:
 	if bipob.current_mission_index == 7 and bipob.has_method("get_mission7_cable_status_text"):
 		status_label.text += " | %s" % str(bipob.get_mission7_cable_status_text())
 	_refresh_runtime_storage_panel()
+	if bipob.has_method("refresh_world_action_panel"):
+		bipob.refresh_world_action_panel()
 
 
 func update_diagnostic_status() -> void:

@@ -6,6 +6,7 @@ signal hint_requested(message: String)
 signal mission_completed
 signal mission_failed
 signal returned_to_box
+signal world_action_panel_requested(target_object: Dictionary, actions: Array[String], selected_action: String)
 
 enum Direction {
 	NORTH,
@@ -5857,6 +5858,7 @@ func update_world_position() -> void:
 	update_vision()
 	update_threat_detection_preview()
 	emit_facing_world_object_hint()
+	refresh_world_action_panel()
 
 func emit_facing_world_object_hint() -> void:
 	if mission_manager == null:
@@ -5901,7 +5903,71 @@ func emit_facing_world_object_hint() -> void:
 			action_text = "Action: %s" % display_actions[0]
 		if actions.size() > 1:
 			action_text += " | Available: %s" % ", ".join(display_actions)
+	if not actions.is_empty():
+		var selected_label := "None"
+		if not selected_world_action.is_empty() and actions.has(selected_world_action):
+			selected_label = get_world_action_display_label(selected_world_action, object_data)
+		hint_requested.emit("Facing: %s | Selected: %s" % [name, selected_label])
+		return
 	hint_requested.emit("%s | %s | %s" % [name, " ; ".join(details), action_text])
+
+func get_facing_world_action_target() -> Dictionary:
+	var target_position := get_facing_device_position()
+	var target_object: Dictionary = {}
+	var actions: Array[String] = []
+	if mission_manager != null:
+		target_object = mission_manager.get_world_object_at_cell(target_position)
+		if target_object.is_empty():
+			var items := mission_manager.get_items_at_cell(target_position)
+			if not items.is_empty():
+				target_object = items[0]
+		if not target_object.is_empty():
+			actions = get_available_world_actions(target_object, target_position)
+	return {"target_position": target_position, "target_object": target_object, "actions": actions}
+
+func get_world_action_display_label(action_id: String, object_data: Dictionary) -> String:
+	match action_id:
+		"open": return "Open"
+		"unlock": return "Unlock"
+		"input_password": return "Input Password"
+		"cut": return "Cut"
+		"impact": return "Impact"
+		"force_open": return "Force Open"
+		"connect": return "Connect"
+		"scan": return "Scan"
+		"hack": return "Hack"
+		"drain_energy": return "Drain Energy"
+		"pickup": return "Pickup Digital" if String(object_data.get("item_form", "physical")) == "digital" else "Pickup"
+		"use_item": return "Use Item"
+		"insert_fuse": return "Insert Fuse"
+		"repair": return "Repair"
+		"push": return "Push"
+		"pull": return "Pull"
+		"switch": return "Switch"
+		"disable": return "Disable"
+		"enable": return "Enable"
+		"attack": return "Attack"
+		"stun": return "Stun"
+		"repair_ally": return "Repair Ally"
+	return action_id.capitalize()
+
+func set_selected_world_action(action_id: String) -> void:
+	selected_world_action = action_id
+	emit_facing_world_object_hint()
+	refresh_world_action_panel()
+	status_changed.emit()
+
+func refresh_world_action_panel() -> void:
+	var target_data := get_facing_world_action_target()
+	var target_object: Dictionary = target_data.get("target_object", {})
+	var actions: Array[String] = target_data.get("actions", [])
+	if target_object.is_empty():
+		selected_world_action = ""
+		world_action_panel_requested.emit({}, [], "")
+		return
+	if actions.is_empty() or not actions.has(selected_world_action):
+		selected_world_action = ""
+	world_action_panel_requested.emit(target_object, actions, selected_world_action)
 	
 func update_vision() -> void:
 	if grid_manager == null:
@@ -6197,6 +6263,7 @@ func scan_device() -> void:
 			hint_requested.emit("Scan: %s" % ScanSystem.get_scan_display_text(world_object, scan_type))
 			clear_selected_world_action_if_invalid(world_object, facing_cell)
 			emit_facing_world_object_hint()
+			refresh_world_action_panel()
 			status_changed.emit()
 			return
 
@@ -6512,21 +6579,12 @@ func get_bipob_power_class() -> String:
 	return "scout"
 
 func cycle_selected_world_action() -> void:
-	if mission_manager == null:
-		selected_world_action = ""
-		hint_requested.emit("No available action for this object.")
-		status_changed.emit()
-		return
-	var target_position := get_facing_device_position()
-	var target_object := mission_manager.get_world_object_at_cell(target_position)
-	if target_object.is_empty():
-		var items := mission_manager.get_items_at_cell(target_position)
-		if not items.is_empty():
-			target_object = items[0]
-	var actions := get_available_world_actions(target_object, target_position) if not target_object.is_empty() else []
+	var target_data := get_facing_world_action_target()
+	var actions: Array[String] = target_data.get("actions", [])
 	if actions.is_empty():
 		selected_world_action = ""
 		hint_requested.emit("No available action for this object.")
+		refresh_world_action_panel()
 		status_changed.emit()
 		return
 	if selected_world_action.is_empty() or not actions.has(selected_world_action):
@@ -6534,7 +6592,8 @@ func cycle_selected_world_action() -> void:
 	else:
 		var idx := actions.find(selected_world_action)
 		selected_world_action = actions[(idx + 1) % actions.size()]
-	hint_requested.emit("Selected action: %s | Available: %s" % [selected_world_action, ", ".join(actions)])
+	emit_facing_world_object_hint()
+	refresh_world_action_panel()
 	status_changed.emit()
 
 func clear_selected_world_action_if_invalid(target_object: Dictionary, target_position: Vector2i) -> void:
@@ -6765,12 +6824,14 @@ func interact() -> void:
 					digital_world_records[item_family] = {"item_family": item_family, "item_type": item_type, "digital_state": digital_state}
 					clear_selected_world_action_if_invalid({}, target_position)
 					emit_facing_world_object_hint()
+					refresh_world_action_panel()
 					hint_requested.emit("Pickup digital: item stored.")
 				elif can_use_physical_hand():
 					mission_manager.remove_first_item_at_cell(target_position)
 					buffer_item = item
 					clear_selected_world_action_if_invalid({}, target_position)
 					emit_facing_world_object_hint()
+					refresh_world_action_panel()
 					hint_requested.emit("Pickup: item held.")
 				else:
 					hint_requested.emit("Manipulator is occupied.")
@@ -6822,6 +6883,7 @@ func interact() -> void:
 				update_threat_detection_preview()
 				clear_selected_world_action_if_invalid(world_object, target_position)
 				emit_facing_world_object_hint()
+				refresh_world_action_panel()
 				hint_requested.emit("%s (%s): %s | Action: %s" % [world_object.get("display_name", "Object"), world_object.get("state", "unknown"), String(action_result.get("message", "Action complete.")), action_id])
 			else:
 				hint_requested.emit(String(action_result.get("message", "Action failed.")))
