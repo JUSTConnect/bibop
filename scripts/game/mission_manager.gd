@@ -594,6 +594,41 @@ func get_world_object_debug_info(object_id: String) -> Dictionary:
 			info[key] = object_data[key]
 	return info
 
+func _get_debug_tile_info(cell: Vector2i) -> Variant:
+	if grid_manager == null:
+		return null
+	if not grid_manager.has_method("get_tile"):
+		return null
+	var tile_variant: Variant = grid_manager.get_tile(cell)
+	match typeof(tile_variant):
+		TYPE_NIL:
+			return null
+		TYPE_INT:
+			return int(tile_variant)
+		TYPE_FLOAT:
+			return float(tile_variant)
+		TYPE_STRING:
+			return String(tile_variant)
+		TYPE_DICTIONARY:
+			return Dictionary(tile_variant).duplicate(true)
+		TYPE_ARRAY:
+			var tile_array := Array(tile_variant)
+			return tile_array.duplicate(true) if tile_array.size() <= 16 else str(tile_array)
+		_:
+			return str(tile_variant)
+
+func _get_wall_tile_id() -> Variant:
+	if grid_manager == null:
+		return null
+	if not grid_manager.has_method("get_property_list"):
+		return null
+	for property_data in grid_manager.get_property_list():
+		if typeof(property_data) != TYPE_DICTIONARY:
+			continue
+		if String(property_data.get("name", "")) == "TILE_WALL":
+			return grid_manager.get("TILE_WALL")
+	return null
+
 func get_world_cell_debug_info(cell: Vector2i) -> Dictionary:
 	var info := {"cell": _debug_cell_to_array(cell)}
 	if grid_manager != null:
@@ -601,8 +636,17 @@ func get_world_cell_debug_info(cell: Vector2i) -> Dictionary:
 			info["in_bounds"] = bool(grid_manager.is_in_bounds(cell))
 		if grid_manager.has_method("is_walkable"):
 			info["walkable"] = bool(grid_manager.is_walkable(cell))
-		if grid_manager.has_method("get_tile"):
-			info["tile"] = int(grid_manager.get_tile(cell))
+		var tile_info := _get_debug_tile_info(cell)
+		if tile_info != null:
+			info["tile"] = tile_info
+			if typeof(tile_info) == TYPE_DICTIONARY:
+				var tile_data := Dictionary(tile_info)
+				if String(tile_data.get("type", "")) == "wall":
+					info["is_wall"] = true
+			elif typeof(tile_info) == TYPE_INT:
+				var wall_tile_id := _get_wall_tile_id()
+				if wall_tile_id != null and typeof(wall_tile_id) == TYPE_INT:
+					info["is_wall"] = int(tile_info) == int(wall_tile_id)
 	var object_data := get_world_object_at_cell(cell)
 	if not object_data.is_empty():
 		info["world_object_id"] = String(object_data.get("id", ""))
