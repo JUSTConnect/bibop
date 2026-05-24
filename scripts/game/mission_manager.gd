@@ -9,6 +9,7 @@ var mission_world_objects: Array[Dictionary] = []
 var world_objects_by_cell: Dictionary = {}
 var cell_items: Dictionary = {}
 var last_threat_warning_ids: Dictionary = {}
+var last_world_runtime_restore_warnings: Array[String] = []
 var debug_world_logs := false
 var enable_debug_seed := false
 var debug_world_cooling_scenario_enabled: bool = false
@@ -651,7 +652,39 @@ func get_world_object_runtime_state() -> Dictionary:
 			runtime_state[object_id] = serialized
 	return runtime_state
 
+func _add_world_runtime_restore_warning(message: String) -> void:
+	if message.strip_edges().is_empty():
+		return
+	last_world_runtime_restore_warnings.append(message)
+
+func _extract_saved_world_runtime_position(saved_data: Dictionary, object_id: String, fallback_position: Vector2i) -> Dictionary:
+	if not saved_data.has("position"):
+		return {"ok": true, "position": fallback_position}
+	var position_variant: Variant = saved_data.get("position")
+	var parsed_position := WorldObjectCatalog.to_world_cell(position_variant, Vector2i(-1, -1))
+	if parsed_position.x < 0 and parsed_position.y < 0:
+		_add_world_runtime_restore_warning("Restore skipped for %s: invalid position data." % object_id)
+		return {"ok": false}
+	if parsed_position.x < 0 or parsed_position.y < 0:
+		_add_world_runtime_restore_warning("Restore skipped for %s: position has negative coordinate %s." % [object_id, str(parsed_position)])
+		return {"ok": false}
+	if grid_manager != null and grid_manager.has_method("is_in_bounds") and not bool(grid_manager.call("is_in_bounds", parsed_position)):
+		_add_world_runtime_restore_warning("Restore skipped for %s: position %s is out of bounds." % [object_id, str(parsed_position)])
+		return {"ok": false}
+	if grid_manager != null and grid_manager.has_method("is_walkable") and not bool(grid_manager.call("is_walkable", parsed_position)):
+		_add_world_runtime_restore_warning("Restore skipped for %s: position %s is not walkable." % [object_id, str(parsed_position)])
+		return {"ok": false}
+	if grid_manager != null and grid_manager.has_method("get_tile"):
+		var tile_variant: Variant = grid_manager.call("get_tile", parsed_position)
+		if typeof(tile_variant) == TYPE_DICTIONARY:
+			var tile_data: Dictionary = tile_variant
+			if String(tile_data.get("type", "")) == "wall":
+				_add_world_runtime_restore_warning("Restore skipped for %s: position %s is a wall tile." % [object_id, str(parsed_position)])
+				return {"ok": false}
+	return {"ok": true, "position": parsed_position}
+
 func apply_world_object_runtime_state(saved_state: Dictionary) -> void:
+	last_world_runtime_restore_warnings.clear()
 	if saved_state.is_empty():
 		return
 	for object_id_variant in saved_state.keys():
@@ -660,42 +693,47 @@ func apply_world_object_runtime_state(saved_state: Dictionary) -> void:
 			continue
 		var saved_data_variant: Variant = saved_state.get(object_id_variant, {})
 		if typeof(saved_data_variant) != TYPE_DICTIONARY:
+			_add_world_runtime_restore_warning("Restore skipped for %s: runtime entry is not a dictionary." % object_id)
 			continue
 		var saved_data: Dictionary = saved_data_variant
-		var object_data := get_world_object_by_id(object_id)
-		var is_new_object := object_data.is_empty()
+		var existing_object := get_world_object_by_id(object_id)
+		var is_new_object := existing_object.is_empty()
+		var candidate_object := existing_object
 		if is_new_object:
 			var object_type := String(saved_data.get("object_type", "")).strip_edges()
 			if object_type.is_empty():
+				_add_world_runtime_restore_warning("Restore skipped for %s: missing object_type for unknown object id." % object_id)
 				continue
 			var created := WorldObjectCatalog.create_world_object(object_type, object_id)
 			if created.is_empty():
+				_add_world_runtime_restore_warning("Restore skipped for %s: failed to create object_type %s." % [object_id, object_type])
 				continue
 			created["id"] = object_id
-			object_data = created
-		var old_position := WorldObjectCatalog.to_world_cell(object_data.get("position", Vector2i(-1, -1)), Vector2i(-1, -1))
-		var new_position := old_position
-		if saved_data.has("position"):
-			var position_data := saved_data.get("position")
-			if position_data is Array:
-				var arr: Array = position_data
-				if arr.size() >= 2:
-					new_position = WorldObjectCatalog.to_world_cell(Vector2i(int(arr[0]), int(arr[1])), old_position)
-		for key in saved_data.keys():
-			if String(key) == "position":
-				continue
-			object_data[String(key)] = saved_data[key]
-		object_data["id"] = object_id
-		object_data["position"] = new_position
-		if not is_new_object and old_position != new_position:
-			world_objects_by_cell.erase(old_position)
+			candidate_object = created
+		var old_position := WorldObjectCatalog.to_world_cell(candidate_object.get("position", Vector2i(-1, -1)), Vector2i(-1, -1))
+		var parsed_position_info := _extract_saved_world_runtime_position(saved_data, object_id, old_position)
+		if not bool(parsed_position_info.get("ok", false)):
+			continue
+		var new_position := Vector2i(parsed_position_info.get("position", old_position))
 		var replaced := get_world_object_at_cell(new_position)
 		if not replaced.is_empty() and String(replaced.get("id", "")) != object_id:
-			world_objects_by_cell.erase(new_position)
-			mission_world_objects.erase(replaced)
-		world_objects_by_cell[new_position] = object_data
-		if is_new_object and not mission_world_objects.has(object_data):
-			mission_world_objects.append(object_data)
+			_add_world_runtime_restore_warning("Restore skipped for %s: target cell occupied by %s." % [object_id, String(replaced.get("id", ""))])
+			continue
+		var runtime_updates: Dictionary = {}
+		for key_variant in saved_data.keys():
+			var key := String(key_variant)
+			if String(key) == "position":
+				continue
+			runtime_updates[key] = saved_data[key_variant]
+		for key in runtime_updates.keys():
+			candidate_object[key] = runtime_updates[key]
+		candidate_object["id"] = object_id
+		candidate_object["position"] = new_position
+		if not is_new_object and old_position != new_position:
+			world_objects_by_cell.erase(old_position)
+		world_objects_by_cell[new_position] = candidate_object
+		if is_new_object and not mission_world_objects.has(candidate_object):
+			mission_world_objects.append(candidate_object)
 	refresh_world_cooling_received()
 	PowerSystem.recalculate_network(mission_world_objects, "power_net_A")
 	refresh_world_cooling_received()
@@ -718,10 +756,19 @@ func get_world_runtime_persistence_debug_summary_text() -> String:
 			powered_objects += 1
 		if object_data.has("connected_device_ids") or object_data.has("heat_from_connections"):
 			connection_state_objects += 1
-	return "WorldRuntimePersistence: serialized=%d | moved=%d | heat_enabled=%d | powered=%d | connection_state=%d" % [
+	return "WorldRuntimePersistence: serialized=%d | moved=%d | heat_enabled=%d | powered=%d | connection_state=%d | restore_warnings=%d" % [
 		serialized.size(),
 		moved_objects,
 		heat_enabled_objects,
 		powered_objects,
-		connection_state_objects
+		connection_state_objects,
+		last_world_runtime_restore_warnings.size()
 	]
+
+func get_world_runtime_restore_warnings_text() -> String:
+	if last_world_runtime_restore_warnings.is_empty():
+		return "No world runtime restore warnings."
+	return "\n".join(last_world_runtime_restore_warnings)
+
+func get_world_runtime_restore_warnings() -> Array[String]:
+	return last_world_runtime_restore_warnings.duplicate()
