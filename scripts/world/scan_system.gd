@@ -57,6 +57,8 @@ static func scan_object(object_data: Dictionary, scan_type: String, scanner_leve
 			out["details"].append("Weight: %s" % object_data.get("weight_class", "normal"))
 	elif object_data.get("object_group", "") == "cooling":
 		out["details"].append("Status: %s" % object_data.get("state", "unknown"))
+		if WorldObjectCatalog.can_world_object_be_moved_by_heavy_claw(object_data):
+			out["details"].append("Movable: Heavy Claw")
 		var cooling_output := maxi(0, int(object_data.get("cooling_output", 0)))
 		if String(object_data.get("cooling_device_type", "")) == "radiator":
 			out["details"].append("Cooling output: %d" % cooling_output)

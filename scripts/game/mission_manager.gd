@@ -361,6 +361,38 @@ func update_world_object_by_id(id: String, data: Dictionary) -> void:
 		refresh_world_cooling_received()
 		return
 
+
+func move_world_object_by_heavy_claw(object_id: String, target_cell: Vector2i) -> Dictionary:
+	var result := {"success": false, "message": "Cannot move object there.", "object_id": object_id, "from": Vector2i(-1, -1), "to": target_cell}
+	var object_data := get_world_object_by_id(object_id)
+	if object_data.is_empty():
+		result["message"] = "Object not found."
+		return result
+	var from_cell := Vector2i(object_data.get("position", Vector2i(-1, -1)))
+	result["from"] = from_cell
+	if not WorldObjectCatalog.can_world_object_be_moved_by_heavy_claw(object_data):
+		result["message"] = "Heavy Claw required."
+		return result
+	if from_cell == target_cell:
+		result["message"] = "Object already there."
+		return result
+	if target_cell.x < 0 or target_cell.y < 0:
+		return result
+	var target_object := get_world_object_at_cell(target_cell)
+	if not target_object.is_empty():
+		return result
+	if cell_items.has(target_cell) and not Array(cell_items.get(target_cell, [])).is_empty():
+		return result
+	world_objects_by_cell.erase(from_cell)
+	object_data["position"] = target_cell
+	world_objects_by_cell[target_cell] = object_data
+	refresh_world_cooling_received()
+	PowerSystem.recalculate_network(mission_world_objects, "power_net_A")
+	refresh_world_cooling_received()
+	result["success"] = true
+	result["message"] = "Moved %s." % String(object_data.get("display_name", "Object"))
+	return result
+
 func refresh_world_cooling_received() -> void:
 	for object_data in mission_world_objects:
 		if not WorldObjectCatalog.can_world_object_receive_cooling(object_data):
