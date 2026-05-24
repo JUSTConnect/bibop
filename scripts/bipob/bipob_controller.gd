@@ -6876,6 +6876,19 @@ func get_world_object_action_for_context(world_object: Dictionary, _active_modul
 		return ""
 	return String(actions[0])
 
+func get_heavy_claw_move_destination(object_cell: Vector2i, actor_cell: Vector2i, action_id: String) -> Vector2i:
+	var direction_vector := object_cell - actor_cell
+	if direction_vector == Vector2i.ZERO:
+		return Vector2i(-1, -1)
+	if abs(direction_vector.x) + abs(direction_vector.y) != 1:
+		return Vector2i(-1, -1)
+	if action_id == "push":
+		return object_cell + direction_vector
+	if action_id == "pull":
+		# Pull for world cooling objects is intentionally unavailable in this milestone.
+		return Vector2i(-1, -1)
+	return Vector2i(-1, -1)
+
 func get_available_world_actions(world_object: Dictionary, target_position: Vector2i) -> Array[String]:
 	var actions: Array[String] = []
 	var group := String(world_object.get("object_group", ""))
@@ -7147,7 +7160,11 @@ func interact() -> void:
 						hint_requested.emit("Heavy Claw required.")
 						status_changed.emit()
 						return
-					var target_destination := target_position + get_direction_vector(direction)
+					var target_destination := get_heavy_claw_move_destination(target_position, grid_position, action_id)
+					if target_destination.x < 0 or target_destination.y < 0:
+						hint_requested.emit("Heavy Claw move is unavailable for this direction.")
+						status_changed.emit()
+						return
 					var move_result := mission_manager.move_world_object_by_heavy_claw(String(world_object.get("id", "")), target_destination)
 					if bool(move_result.get("success", false)):
 						if can_spend_action(1, 1):
