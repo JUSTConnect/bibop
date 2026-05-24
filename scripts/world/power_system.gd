@@ -1,5 +1,6 @@
 extends RefCounted
 class_name PowerSystem
+const WorldObjectCatalog = preload("res://scripts/world/world_object_catalog.gd")
 
 const STATE_DRIVEN_POWER_TYPES := {
 	"turret": true,
@@ -34,6 +35,7 @@ static func recalculate_network(objects: Array[Dictionary], network_id: String) 
 	for obj in objects:
 		if obj.get("power_network_id", "") != network_id:
 			continue
+		WorldObjectCatalog.update_world_object_heat_state(obj)
 		if obj.get("object_type", "") in ["power_source", "power_source_class_1", "power_source_class_2", "power_source_class_3"] and obj.get("state", "") == "active":
 			has_source = true
 		if obj.get("object_type", "") == "circuit_breaker" and obj.get("state", "") == "switch_off":
