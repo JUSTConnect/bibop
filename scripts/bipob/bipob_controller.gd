@@ -183,6 +183,31 @@ var last_internal_overheat_messages: Array[String] = []
 @onready var body: Polygon2D = $Body
 @onready var mission_manager: Node = get_node_or_null("../MissionManager")
 
+# BIP-604 integration hook:
+# When a real save/load system serializes mission state, include
+# save_data["world_object_runtime_state"] = get_world_object_runtime_state_for_save()
+# and call apply_world_object_runtime_state_from_save(save_data) after
+# start_mission()/setup_world_objects_for_mission() has finished.
+func get_world_object_runtime_state_for_save() -> Dictionary:
+	if mission_manager == null:
+		return {}
+	if not mission_manager.has_method("get_world_object_runtime_state"):
+		return {}
+	var runtime_state_variant: Variant = mission_manager.call("get_world_object_runtime_state")
+	if typeof(runtime_state_variant) != TYPE_DICTIONARY:
+		return {}
+	return runtime_state_variant
+
+func apply_world_object_runtime_state_from_save(save_data: Dictionary) -> void:
+	if mission_manager == null:
+		return
+	if not mission_manager.has_method("apply_world_object_runtime_state"):
+		return
+	var world_runtime_state_variant: Variant = save_data.get("world_object_runtime_state", {})
+	if typeof(world_runtime_state_variant) != TYPE_DICTIONARY:
+		return
+	mission_manager.call("apply_world_object_runtime_state", world_runtime_state_variant)
+
 func install_module(module: BipobModule) -> void:
 	# MVP behavior: install immediately applies passive bonuses.
 	if module == null:
