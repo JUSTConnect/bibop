@@ -364,6 +364,9 @@ func update_world_object_by_id(id: String, data: Dictionary) -> void:
 
 func move_world_object_by_heavy_claw(object_id: String, target_cell: Vector2i) -> Dictionary:
 	var result := {"success": false, "message": "Cannot move object there.", "object_id": object_id, "from": Vector2i(-1, -1), "to": target_cell}
+	if object_id.strip_edges().is_empty():
+		result["message"] = "Object not found."
+		return result
 	var object_data := get_world_object_by_id(object_id)
 	if object_data.is_empty():
 		result["message"] = "Object not found."
