@@ -1,5 +1,6 @@
 extends RefCounted
 class_name InteractionSystem
+const WorldObjectCatalog = preload("res://scripts/world/world_object_catalog.gd")
 
 const SUPPORTED_ACTIONS := ["open","unlock","input_password","cut","impact","force_open","connect","scan","hack","drain_energy","pickup","use_item","insert_fuse","repair","push","pull","switch","disable","enable","attack","stun","repair_ally"]
 
@@ -123,6 +124,16 @@ static func apply_action(actor: Dictionary, module: Dictionary, target_object: D
 				return _result(false, "Hacking impossible")
 			if int(target_object.get("terminal_class", 1)) >= 3 and target_object.get("can_attack", false) and not actor.get("firewall_module_v1", false):
 				return _result(false, "Firewall required.", ["terminal_attack"])
+			if group == "terminal":
+				var hack_heat := maxi(0, int(target_object.get("hack_heat", 1)))
+				var temp_terminal := target_object.duplicate(true)
+				temp_terminal["heat_from_connections"] = maxi(0, int(temp_terminal.get("heat_from_connections", 0))) + hack_heat
+				WorldObjectCatalog.update_world_object_heat_state(temp_terminal)
+				if String(temp_terminal.get("state", "")) == "overheated":
+					target_object["state"] = "overheated"
+					target_object["overheated_state_before"] = String(temp_terminal.get("overheated_state_before", "active"))
+					target_object["current_heat"] = int(temp_terminal.get("current_heat", WorldObjectCatalog.get_world_object_current_heat(temp_terminal)))
+					return _result(false, "Terminal overheated. Hack failed.", [{"type":"terminal_overheated"}])
 			target_object["state"] = "hacked"
 			if group == "threat":
 				return _result(true, "Hack successful.", [{"type":"set_state","state":"hacked"},{"type":"set_behavior_state","behavior_state":"idle"}])

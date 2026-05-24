@@ -9,11 +9,11 @@ const OBJECT_LIBRARY := {
 	"titanium_door": {"group":"door","name":"Titanium Door","material":"titanium","durability":100,"state":"closed","blocks_movement":true,"blocks_vision":true,"door_class":3,"lock_type":"password","required_manipulator_level":3,"required_interface_level":0},
 	"energy_door": {"group":"door","name":"Energy Door","material":"electromagnetic","durability":1,"state":"closed","blocks_movement":true,"blocks_vision":false,"door_class":1,"lock_type":"digital_key","required_manipulator_level":1,"required_interface_level":1,"invulnerable_while_powered":true,"power_mode":"external_power","control_mode":"external_control"},
 	"grid_door": {"group":"door","name":"Grid Door","material":"steel","durability":15,"state":"closed","blocks_movement":true,"blocks_vision":false,"door_class":1,"lock_type":"none","required_manipulator_level":1,"required_interface_level":0},
-	"door_terminal": {"group":"terminal","name":"Door Terminal","connection_type":"wired","terminal_class":1,"required_interface_level":1,"required_cpu_level":1,"encrypts_data":false,"drain_pool":10,"durability":10},
-	"elevator_terminal": {"group":"terminal","name":"Elevator Terminal","connection_type":"high_bandwidth","terminal_class":2,"required_interface_level":2,"required_cpu_level":2,"encrypts_data":true,"drain_pool":20,"durability":10},
-	"information_terminal": {"group":"terminal","name":"Information Terminal","connection_type":"optical","terminal_class":2,"required_interface_level":2,"required_cpu_level":2,"encrypts_data":true,"drain_pool":20,"durability":10},
-	"turret_terminal": {"group":"terminal","name":"Turret Terminal","connection_type":"wireless","terminal_class":3,"required_interface_level":3,"required_cpu_level":3,"can_attack":true,"encrypts_data":true,"drain_pool":30,"durability":10},
-	"cooling_terminal": {"group":"terminal","name":"Cooling Terminal","connection_type":"wired","terminal_class":1,"required_interface_level":1,"required_cpu_level":1,"encrypts_data":false,"drain_pool":10,"durability":10},
+	"door_terminal": {"group":"terminal","name":"Door Terminal","connection_type":"wired","terminal_class":1,"required_interface_level":1,"required_cpu_level":1,"encrypts_data":false,"drain_pool":10,"durability":10,"working_heat":1,"current_heat":1,"overheat_threshold":3,"heat_from_connections":0,"cooling_received":0,"hack_heat":1,"overheated_state_before":""},
+	"elevator_terminal": {"group":"terminal","name":"Elevator Terminal","connection_type":"high_bandwidth","terminal_class":2,"required_interface_level":2,"required_cpu_level":2,"encrypts_data":true,"drain_pool":20,"durability":10,"working_heat":2,"current_heat":2,"overheat_threshold":3,"heat_from_connections":0,"cooling_received":0,"hack_heat":1,"overheated_state_before":""},
+	"information_terminal": {"group":"terminal","name":"Information Terminal","connection_type":"optical","terminal_class":2,"required_interface_level":2,"required_cpu_level":2,"encrypts_data":true,"drain_pool":20,"durability":10,"working_heat":2,"current_heat":2,"overheat_threshold":3,"heat_from_connections":0,"cooling_received":0,"hack_heat":1,"overheated_state_before":""},
+	"turret_terminal": {"group":"terminal","name":"Turret Terminal","connection_type":"wireless","terminal_class":3,"required_interface_level":3,"required_cpu_level":3,"can_attack":true,"encrypts_data":true,"drain_pool":30,"durability":10,"working_heat":2,"current_heat":2,"overheat_threshold":3,"heat_from_connections":0,"cooling_received":0,"hack_heat":2,"overheated_state_before":""},
+	"cooling_terminal": {"group":"terminal","name":"Cooling Terminal","connection_type":"wired","terminal_class":1,"required_interface_level":1,"required_cpu_level":1,"encrypts_data":false,"drain_pool":10,"durability":10,"working_heat":1,"current_heat":1,"overheat_threshold":3,"heat_from_connections":0,"cooling_received":0,"hack_heat":1,"overheated_state_before":""},
 	"outer_wall": {"group":"wall","name":"Outer Wall","material":"steel","durability":9999,"indestructible":true,"blocks_movement":true,"blocks_vision":true},
 	"grate_wall": {"group":"wall","name":"Grate Wall","material":"steel","durability":15,"blocks_movement":true,"blocks_vision":false},
 	"damaged_wall": {"group":"wall","name":"Damaged Wall","material":"concrete","durability":3,"blocks_movement":true,"blocks_vision":false,"hidden_content":["secret_passage"]},
@@ -33,9 +33,9 @@ const OBJECT_LIBRARY := {
 	"light_switch": {"group":"power","name":"Light Switch","state":"switch_off","durability":6,"can_be_switched":true},
 	"power_socket": {"group":"power","name":"Power Socket","state":"disconnected","durability":8,"can_connect_cable":true},
 	"power_cable_reel": {"group":"item","name":"Power Cable Reel","state":"disconnected","item_form":"physical","storage_type":"pocket","can_connect_socket":true,"max_cable_length":5},
-	"power_source_class_1": {"group":"power","name":"Power Source C1","state":"active","durability":30,"power_source_class":1,"drain_pool":60},
-	"power_source_class_2": {"group":"power","name":"Power Source C2","state":"active","durability":30,"power_source_class":2,"drain_pool":120},
-	"power_source_class_3": {"group":"power","name":"Power Source C3","state":"active","durability":30,"power_source_class":3,"drain_pool":240},
+	"power_source_class_1": {"group":"power","name":"Power Source C1","state":"active","durability":30,"power_source_class":1,"drain_pool":60,"working_heat":1,"current_heat":1,"overheat_threshold":3,"heat_from_connections":0,"cooling_received":0,"overheated_state_before":"","allowed_socket_connections":1,"connected_device_ids":[]},
+	"power_source_class_2": {"group":"power","name":"Power Source C2","state":"active","durability":30,"power_source_class":2,"drain_pool":120,"working_heat":2,"current_heat":2,"overheat_threshold":3,"heat_from_connections":0,"cooling_received":0,"overheated_state_before":"","allowed_socket_connections":2,"connected_device_ids":[]},
+	"power_source_class_3": {"group":"power","name":"Power Source C3","state":"active","durability":30,"power_source_class":3,"drain_pool":240,"working_heat":3,"current_heat":3,"overheat_threshold":3,"heat_from_connections":0,"cooling_received":0,"overheated_state_before":"","allowed_socket_connections":3,"connected_device_ids":[]},
 	"module_external": {"group":"item","name":"Module External","item_form":"physical","storage_type":"pocket","can_place_in_digital_buffer":false,"consumable":false,"fits_targets":[]},
 	"module_internal": {"group":"item","name":"Module Internal","item_form":"physical","storage_type":"pocket","can_place_in_digital_buffer":false,"consumable":false,"fits_targets":[]},
 	"mechanical_keycard": {"group":"item","name":"Mechanical KeyCard","item_form":"physical","storage_type":"pocket","can_place_in_digital_buffer":false,"consumable":false,"fits_targets":["door"],"key_kind":"mechanical"},
@@ -80,7 +80,79 @@ static func create_world_object(object_type: String, id_override: String = "") -
 		data["invulnerable"] = true
 	if data.get("invulnerable_while_powered", false) and data.get("is_powered", true):
 		data["invulnerable"] = true
+	data = update_world_object_heat_state(data)
 	return data
+
+static func get_world_object_working_heat(object_data: Dictionary) -> int:
+	return maxi(0, int(object_data.get("working_heat", 0)))
+
+static func get_world_object_current_heat(object_data: Dictionary) -> int:
+	var working_heat := get_world_object_working_heat(object_data)
+	var connection_heat := maxi(0, int(object_data.get("heat_from_connections", 0)))
+	var cooling := maxi(0, int(object_data.get("cooling_received", 0)))
+	return maxi(0, working_heat + connection_heat - cooling)
+
+static func is_world_object_overheated(object_data: Dictionary) -> bool:
+	var threshold := int(object_data.get("overheat_threshold", 0))
+	if threshold <= 0:
+		return false
+	return get_world_object_current_heat(object_data) >= threshold
+
+static func update_world_object_heat_state(object_data: Dictionary) -> Dictionary:
+	if object_data.is_empty():
+		return object_data
+	if not object_data.has("working_heat") and not object_data.has("overheat_threshold") and not object_data.has("cooling_received"):
+		return object_data
+	var state := String(object_data.get("state", "active"))
+	object_data["working_heat"] = get_world_object_working_heat(object_data)
+	object_data["heat_from_connections"] = maxi(0, int(object_data.get("heat_from_connections", 0)))
+	object_data["cooling_received"] = maxi(0, int(object_data.get("cooling_received", 0)))
+	object_data["current_heat"] = get_world_object_current_heat(object_data)
+	if is_world_object_overheated(object_data):
+		if state != "overheated":
+			if not ["destroyed", "damaged"].has(state):
+				object_data["overheated_state_before"] = state if not state.is_empty() else "active"
+			object_data["state"] = "overheated"
+		object_data["is_powered"] = false
+	elif state == "overheated":
+		var restore_state := String(object_data.get("overheated_state_before", "active"))
+		if restore_state.is_empty():
+			restore_state = "active"
+		if not ["destroyed", "damaged"].has(restore_state):
+			object_data["state"] = restore_state
+		object_data.erase("overheated_state_before")
+		object_data["is_powered"] = true
+	return object_data
+
+static func set_world_object_cooling_received(object_data: Dictionary, cooling_value: int) -> Dictionary:
+	object_data["cooling_received"] = maxi(0, cooling_value)
+	return update_world_object_heat_state(object_data)
+
+static func get_power_source_active_socket_connection_count(source_data: Dictionary) -> int:
+	return Array(source_data.get("connected_device_ids", [])).size()
+
+static func can_power_source_accept_connection(source_data: Dictionary) -> bool:
+	var allowed := maxi(0, int(source_data.get("allowed_socket_connections", 0)))
+	if allowed <= 0:
+		return true
+	return get_power_source_active_socket_connection_count(source_data) < allowed
+
+static func add_power_source_socket_connection(source_data: Dictionary, device_id: String) -> Dictionary:
+	var ids: Array = Array(source_data.get("connected_device_ids", []))
+	if not ids.has(device_id):
+		if can_power_source_accept_connection(source_data):
+			ids.append(device_id)
+	source_data["connected_device_ids"] = ids
+	source_data["heat_from_connections"] = ids.size()
+	return update_world_object_heat_state(source_data)
+
+static func remove_power_source_socket_connection(source_data: Dictionary, device_id: String) -> Dictionary:
+	var ids: Array = Array(source_data.get("connected_device_ids", []))
+	if ids.has(device_id):
+		ids.erase(device_id)
+	source_data["connected_device_ids"] = ids
+	source_data["heat_from_connections"] = ids.size()
+	return update_world_object_heat_state(source_data)
 
 static func create_test_set() -> Array[Dictionary]:
 	return [

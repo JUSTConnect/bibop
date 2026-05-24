@@ -1,5 +1,6 @@
 extends RefCounted
 class_name ScanSystem
+const WorldObjectCatalog = preload("res://scripts/world/world_object_catalog.gd")
 
 static func can_scan_through_wall(wall_data: Dictionary, scan_type: String) -> bool:
 	var wall_type: String = wall_data.get("object_type", "")
@@ -30,9 +31,20 @@ static func scan_object(object_data: Dictionary, scan_type: String, scanner_leve
 		out["details"].append("Status: %s" % object_data.get("state", "unknown"))
 		if level >= 2:
 			out["details"].append("Connection: %s" % object_data.get("connection_type", "unknown"))
+			if object_data.has("overheat_threshold"):
+				out["details"].append("Heat: %d / %d" % [WorldObjectCatalog.get_world_object_current_heat(object_data), int(object_data.get("overheat_threshold", 0))])
+				out["details"].append("Cooling: %d" % maxi(0, int(object_data.get("cooling_received", 0))))
 		if level >= 3 or scan_type == "interface":
 			out["details"].append("Controls: %s" % ", ".join(object_data.get("controls", [])))
 			out["details"].append("Class: %s" % str(object_data.get("terminal_class", 1)))
+	elif object_data.get("object_group", "") == "power":
+		out["details"].append("Status: %s" % object_data.get("state", "unknown"))
+		if level >= 2 and object_data.has("overheat_threshold"):
+			out["details"].append("Heat: %d / %d" % [WorldObjectCatalog.get_world_object_current_heat(object_data), int(object_data.get("overheat_threshold", 0))])
+			out["details"].append("Cooling: %d" % maxi(0, int(object_data.get("cooling_received", 0))))
+		if level >= 3:
+			var connected_count := Array(object_data.get("connected_device_ids", [])).size()
+			out["details"].append("Connections: %d / %d" % [connected_count, maxi(0, int(object_data.get("allowed_socket_connections", 0)))])
 	elif object_data.get("object_group", "") == "wall":
 		if scan_type == "xray" and level >= 2:
 			out["details"].append("Embedded: %s" % ", ".join(object_data.get("hidden_content", [])))
