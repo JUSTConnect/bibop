@@ -451,11 +451,13 @@ func get_world_heat_debug_summary_text() -> String:
 			if threshold < 0 or int(object_data.get("working_heat", 0)) < 0:
 				invalid_heat_metadata += 1
 		var object_cooling_type := String(object_data.get("cooling_device_type", ""))
-		if group == "cooling" and object_cooling_type.is_empty():
-			invalid_cooling_metadata += 1
-		if String(object_data.get("cooling_device_type", "")) == "air_cooler":
-			if not object_data.has("facing_dir"):
+		if group == "cooling":
+			if object_cooling_type.is_empty():
 				invalid_cooling_metadata += 1
+			elif not object_cooling_type in ["radiator", "air_cooler", "water_pipe", "air_duct"]:
+				invalid_cooling_metadata += 1
+		if object_cooling_type == "air_cooler" and not object_data.has("facing_dir"):
+			invalid_cooling_metadata += 1
 	return "WorldHeat: terminals=%d overheated=%d | power_sources=%d overheated=%d | invalid_heat=%d | missing_threshold=%d | cooling_devices=%d | cooled_targets=%d | max_cooling=%d | invalid_cooling=%d" % [
 		terminals_count,
 		overheated_terminals,
