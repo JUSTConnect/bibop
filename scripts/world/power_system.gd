@@ -48,15 +48,21 @@ static func recalculate_network(objects: Array[Dictionary], network_id: String) 
 		var object_type := obj.get("object_type", "")
 		if _is_state_driven_powered_object(obj):
 			var current_state := obj.get("state", "")
+			var object_group := String(obj.get("object_group", ""))
 			if not powered:
 				if current_state != "unpowered" and not NON_RESTORABLE_STATES.get(current_state, false):
 					obj["state_before_unpowered"] = current_state
-					obj["state"] = "unpowered"
+					if not (object_group == "threat" and object_type == "turret" and current_state in ["destroyed", "hacked", "disabled"]):
+						obj["state"] = "unpowered"
+				if object_group == "threat" and object_type == "turret" and String(obj.get("state", "")) == "unpowered":
+					obj["behavior_state"] = "idle"
+					obj.erase("target_position")
 			elif current_state == "unpowered":
 				var restored_state: String = obj.get("state_before_unpowered", "active")
 				if restored_state == "":
 					restored_state = "active"
-				obj["state"] = restored_state
+				if not (object_group == "threat" and object_type == "turret" and restored_state in ["destroyed", "hacked", "disabled"]):
+					obj["state"] = restored_state
 				obj.erase("state_before_unpowered")
 		if object_type in ["energy_door", "energy_wall"] and not powered:
 			obj["blocks_movement"] = false
