@@ -208,6 +208,22 @@ func apply_world_object_runtime_state_from_save(save_data: Dictionary) -> void:
 		return
 	mission_manager.call("apply_world_object_runtime_state", world_runtime_state_variant)
 
+func get_world_runtime_restore_warnings() -> Array[String]:
+	if mission_manager == null:
+		return []
+	if not mission_manager.has_method("get_world_runtime_restore_warnings"):
+		return []
+	var warnings_variant: Variant = mission_manager.call("get_world_runtime_restore_warnings")
+	if typeof(warnings_variant) != TYPE_ARRAY:
+		return []
+	var warnings: Array[String] = []
+	for warning_variant in warnings_variant:
+		var warning := String(warning_variant).strip_edges()
+		if warning.is_empty():
+			continue
+		warnings.append(warning)
+	return warnings
+
 func install_module(module: BipobModule) -> void:
 	# MVP behavior: install immediately applies passive bonuses.
 	if module == null:
