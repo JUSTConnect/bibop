@@ -6921,10 +6921,14 @@ func get_available_world_actions(world_object: Dictionary, target_position: Vect
 	elif group == "physical_object":
 		if has_magnetic_manipulator() and (bool(world_object.get("magnetic", false)) or Array(world_object.get("material_tags", [])).has("metal")):
 			actions.append("pull")
-		if has_heavy_claw_capability():
+		if has_heavy_claw_capability() and not actions.has("push"):
 			actions.append("push")
+		if has_sledgehammer():
+			actions.append("impact")
+		if has_plasma_cutter():
+			actions.append("cut")
 	elif WorldObjectCatalog.can_world_object_be_moved_by_heavy_claw(world_object):
-		if has_heavy_claw_capability():
+		if has_heavy_claw_capability() and not actions.has("push"):
 			actions.append("push")
 	elif group == "threat":
 		if state in ["destroyed", "disabled"]:

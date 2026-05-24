@@ -368,10 +368,10 @@ func move_world_object_by_heavy_claw(object_id: String, target_cell: Vector2i) -
 	if object_data.is_empty():
 		result["message"] = "Object not found."
 		return result
-	var from_cell := Vector2i(object_data.get("position", Vector2i(-1, -1)))
+	var from_cell := WorldObjectCatalog.to_world_cell(object_data.get("position", Vector2i(-1, -1)), Vector2i(-1, -1))
 	result["from"] = from_cell
 	if not WorldObjectCatalog.can_world_object_be_moved_by_heavy_claw(object_data):
-		result["message"] = "Heavy Claw required."
+		result["message"] = "Object cannot be moved by Heavy Claw."
 		return result
 	if from_cell == target_cell:
 		result["message"] = "Object already there."
