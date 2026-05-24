@@ -399,3 +399,38 @@ func get_world_object_debug_summary() -> String:
 			powered_count += 1
 	var warning_count := last_threat_warning_ids.size()
 	return "WorldObjects: %d | Items: %d | Threats: %d | Powered: %d | Warnings: %d" % [world_count, items_count, threats_count, powered_count, warning_count]
+
+func get_world_heat_debug_summary_text() -> String:
+	var terminals_count := 0
+	var overheated_terminals := 0
+	var power_sources_count := 0
+	var overheated_power_sources := 0
+	var invalid_heat_metadata := 0
+	var missing_threshold := 0
+	for object_data in mission_world_objects:
+		var group := String(object_data.get("object_group", ""))
+		var object_type := String(object_data.get("object_type", ""))
+		var is_power_source := object_type in ["power_source", "power_source_class_1", "power_source_class_2", "power_source_class_3"]
+		var heat_enabled := object_data.has("working_heat") or object_data.has("overheat_threshold")
+		if group == "terminal":
+			terminals_count += 1
+			if String(object_data.get("state", "")) == "overheated":
+				overheated_terminals += 1
+		elif is_power_source:
+			power_sources_count += 1
+			if String(object_data.get("state", "")) == "overheated":
+				overheated_power_sources += 1
+		if heat_enabled:
+			if not object_data.has("overheat_threshold"):
+				missing_threshold += 1
+			var threshold := int(object_data.get("overheat_threshold", 0))
+			if threshold < 0 or int(object_data.get("working_heat", 0)) < 0:
+				invalid_heat_metadata += 1
+	return "WorldHeat: terminals=%d overheated=%d | power_sources=%d overheated=%d | invalid_heat=%d | missing_threshold=%d" % [
+		terminals_count,
+		overheated_terminals,
+		power_sources_count,
+		overheated_power_sources,
+		invalid_heat_metadata,
+		missing_threshold
+	]
