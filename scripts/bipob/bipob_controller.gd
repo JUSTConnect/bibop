@@ -6817,8 +6817,13 @@ func has_repair_tool() -> bool:
 func has_magnetic_manipulator() -> bool:
 	return has_world_tool("magnetic_manipulator_v1")
 
-func has_heavy_claw() -> bool:
+func has_heavy_claw_capability() -> bool:
+	if has_command("heavy_claw"):
+		return true
 	return get_installed_heavy_claw_level() > 0
+
+func has_heavy_claw() -> bool:
+	return has_heavy_claw_capability()
 
 func has_manipulator_arm() -> bool:
 	return get_installed_manipulator_arm_level() > 0
@@ -6916,12 +6921,11 @@ func get_available_world_actions(world_object: Dictionary, target_position: Vect
 	elif group == "physical_object":
 		if has_magnetic_manipulator() and (bool(world_object.get("magnetic", false)) or Array(world_object.get("material_tags", [])).has("metal")):
 			actions.append("pull")
-		if has_heavy_claw():
+		if has_heavy_claw_capability():
 			actions.append("push")
-		if has_sledgehammer():
-			actions.append("impact")
-		if has_plasma_cutter():
-			actions.append("cut")
+	elif WorldObjectCatalog.can_world_object_be_moved_by_heavy_claw(world_object):
+		if has_heavy_claw_capability():
+			actions.append("push")
 	elif group == "threat":
 		if state in ["destroyed", "disabled"]:
 			return actions
@@ -7126,11 +7130,34 @@ func interact() -> void:
 			var available_actions := get_available_world_actions(world_object, target_position)
 			var module := get_world_action_module(action_id, world_object)
 			if action_id.is_empty():
-				hint_requested.emit("No available action for this object.")
+				if WorldObjectCatalog.can_world_object_be_moved_by_heavy_claw(world_object) and not has_heavy_claw_capability():
+					hint_requested.emit("Heavy Claw required.")
+				else:
+					hint_requested.emit("No available action for this object.")
 				status_changed.emit()
 				return
 			var action_result := InteractionSystem.apply_action(actor, module, world_object, action_id)
 			if bool(action_result.get("success", false)):
+				if action_id == "push" and WorldObjectCatalog.can_world_object_be_moved_by_heavy_claw(world_object):
+					if not has_heavy_claw_capability():
+						hint_requested.emit("Heavy Claw required.")
+						status_changed.emit()
+						return
+					var target_destination := target_position + get_direction_vector(direction)
+					var move_result := mission_manager.move_world_object_by_heavy_claw(String(world_object.get("id", "")), target_destination)
+					if bool(move_result.get("success", false)):
+						if can_spend_action(1, 1):
+							spend_action(1, 1)
+						hint_requested.emit(String(move_result.get("message", "Moved object.")))
+						refresh_world_object_overlay()
+						update_threat_detection_preview()
+						emit_facing_world_object_hint()
+						refresh_world_action_panel()
+						status_changed.emit()
+						return
+					hint_requested.emit(String(move_result.get("message", "Cannot move object there.")))
+					status_changed.emit()
+					return
 				if action_id == "insert_fuse" and not consume_held_world_item_if_type("fuse"):
 					hint_requested.emit("Fuse required.")
 					status_changed.emit()

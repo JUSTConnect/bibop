@@ -168,6 +168,22 @@ static func set_world_object_cooling_received(object_data: Dictionary, cooling_v
 	object_data["cooling_received"] = maxi(0, cooling_value)
 	return update_world_object_heat_state(object_data)
 
+
+static func can_world_object_be_moved_by_heavy_claw(object_data: Dictionary) -> bool:
+	if object_data.is_empty():
+		return false
+	if not bool(object_data.get("movable", false)):
+		return false
+	if not bool(object_data.get("heavy_claw_movable", false)):
+		return false
+	if String(object_data.get("state", "active")) in ["destroyed", "damaged"]:
+		return false
+	var object_group := String(object_data.get("object_group", ""))
+	if object_group not in ["cooling", "physical"]:
+		return false
+	var object_type := String(object_data.get("object_type", ""))
+	return object_type in ["external_radiator", "external_air_cooler", "metal_cooling_block"]
+
 static func can_world_object_receive_cooling(object_data: Dictionary) -> bool:
 	if object_data.is_empty():
 		return false
