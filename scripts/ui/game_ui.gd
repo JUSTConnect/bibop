@@ -115,6 +115,11 @@ var runtime_world_actions_behavior_label: Label = null
 var runtime_world_actions_list: VBoxContainer = null
 var runtime_world_actions_no_actions_label: Label = null
 var runtime_world_actions_selected_button: Button = null
+var last_world_action_target_id: String = ""
+var last_world_action_actions_key: String = ""
+var last_world_action_selected: String = ""
+var last_world_action_state_key: String = ""
+var debug_ui_layout_logs: bool = false
 var runtime_key_slots: Array[Control] = []
 var selected_manipulator_slot: int = 0
 var selected_pocket_slot: int = 0
@@ -4165,7 +4170,7 @@ func _safe_reparent_control(control: Control, new_parent: Node) -> void:
 
 
 func _get_runtime_play_area_rect() -> Rect2:
-	var margin: float = _get_runtime_margin()
+	var margin: float = _get_safe_margin()
 	var top_h: float = _get_runtime_top_panel_height()
 	var bottom_h: float = _get_runtime_bottom_panel_height()
 	var viewport: Vector2 = _get_viewport_size()
@@ -4327,7 +4332,7 @@ func _apply_runtime_hud_layout() -> void:
 	var margin: float = _get_runtime_margin()
 	var top_panel_height: float = _get_runtime_top_panel_height()
 	var bottom_area_height: float = _get_runtime_bottom_panel_height()
-	var sidebar_width: float = _get_runtime_sidebar_width()
+	var sidebar_width: float = _get_runtime_sidebar_width_adaptive()
 	var viewport: Vector2 = _get_viewport_size()
 	var stats_height: float = 34.0
 	var bottom_y: float = viewport.y - bottom_area_height - margin
@@ -4405,8 +4410,11 @@ func _apply_runtime_hud_layout() -> void:
 	mission_panel.size = Vector2(sidebar_width, bottom_area_height)
 	root.add_child(mission_panel)
 	var world_actions_panel: PanelContainer = _create_runtime_world_actions_panel()
-	world_actions_panel.position = Vector2(right_x, margin + switcher_height + top_panel_height + 8.0)
-	world_actions_panel.size = Vector2(sidebar_width, maxf(bottom_y - (margin + switcher_height + top_panel_height + 16.0), 140.0))
+	var wa_top: float = margin + switcher_height + top_panel_height + 8.0
+	var mission_reserved: float = bottom_area_height + 8.0
+	var available_wa_height: float = maxf((viewport.y - margin) - wa_top - mission_reserved, 92.0)
+	world_actions_panel.position = Vector2(right_x, wa_top)
+	world_actions_panel.size = Vector2(sidebar_width, available_wa_height)
 	root.add_child(world_actions_panel)
 	runtime_world_actions_panel = world_actions_panel
 
@@ -5075,6 +5083,64 @@ func _set_gameplay_visible(visible_state: bool) -> void:
 		if player != null:
 			player.visible = true
 
+func _is_small_viewport() -> bool:
+	var vp := _get_viewport_size()
+	return vp.x < 1100.0 or vp.y < 720.0
+
+func _get_safe_margin() -> float:
+	return 16.0 if _is_small_viewport() else 24.0
+
+func _get_runtime_sidebar_width_adaptive() -> float:
+	return 280.0 if _is_small_viewport() else _get_runtime_sidebar_width()
+
+func _get_menu_content_max_width() -> float:
+	var vp := _get_viewport_size()
+	return maxf(vp.x - _get_safe_margin() * 2.0, 680.0)
+
+func _get_menu_content_max_height() -> float:
+	var vp := _get_viewport_size()
+	return maxf(vp.y - _get_safe_margin() * 2.0, 420.0)
+
+func get_ui_layout_audit_report() -> String:
+	var vp := _get_viewport_size()
+	var roots := {"main": main_menu_root, "center": center_menu_root, "tasks": tasks_menu_root, "box": box_menu_root, "charging": charging_menu_root, "repair": repair_menu_root, "hud": runtime_hud_root}
+	var visible := 0
+	var lines: Array[String] = ["UI Audit", "screen=%s" % str(app_screen_mode), "viewport=%.0fx%.0f" % [vp.x, vp.y]]
+	for k in roots.keys():
+		var n: Control = roots[k]
+		var ex := n != null and is_instance_valid(n)
+		var vis := ex and n.visible
+		if vis:
+			visible += 1
+		lines.append("%s: exists=%s visible=%s" % [k, str(ex), str(vis)])
+	lines.insert(2, "visible_major=%d" % visible)
+	var wap_exists := runtime_world_actions_panel != null and is_instance_valid(runtime_world_actions_panel)
+	var wap_visible := wap_exists and runtime_world_actions_panel.visible
+	lines.append("world_actions: exists=%s visible=%s" % [str(wap_exists), str(wap_visible)])
+	if mission_result_root == null or not is_instance_valid(mission_result_root):
+		lines.append("warning: missing mission_result_root")
+	return "\n".join(lines)
+
+func print_ui_layout_audit_if_debug() -> void:
+	if debug_world_logs or debug_ui_layout_logs:
+		print(get_ui_layout_audit_report())
+
+func get_full_menu_ui_smoke_check_text() -> String:
+	return "\n".join([
+		"UI Smoke Checklist:",
+		"- Main Menu",
+		"- Center Menu",
+		"- Task Menu",
+		"- Box External",
+		"- Box Internal",
+		"- Charging",
+		"- Repair",
+		"- Gameplay HUD",
+		"- World Action Panel",
+		"- Mission Result",
+		"- Small viewport checks"
+	])
+
 func navigate_to_screen(target_screen: AppScreenMode, payload: Dictionary = {}) -> void:
 	match target_screen:
 		AppScreenMode.MAIN_MENU:
@@ -5107,13 +5173,26 @@ func navigate_to_screen(target_screen: AppScreenMode, payload: Dictionary = {}) 
 			show_center_screen()
 
 func _assert_single_active_major_screen() -> void:
-	var roots: Array[Control] = [main_menu_root, center_menu_root, tasks_menu_root, mission_constructor_root, placeholder_menu_root, mission_result_root, charging_menu_root, repair_menu_root, box_menu_root, box_screen, runtime_hud_root]
-	var visible_count: int = 0
-	for root in roots:
+	var root_map: Dictionary = {
+		"MainMenu": main_menu_root,
+		"CenterMenu": center_menu_root,
+		"TasksMenu": tasks_menu_root,
+		"MissionConstructor": mission_constructor_root,
+		"PlaceholderMenu": placeholder_menu_root,
+		"MissionResult": mission_result_root,
+		"ChargingMenu": charging_menu_root,
+		"RepairMenu": repair_menu_root,
+		"BoxMenu": box_menu_root,
+		"LegacyBoxScreen": box_screen,
+		"RuntimeHUD": runtime_hud_root
+	}
+	var visible_roots: Array[String] = []
+	for name in root_map.keys():
+		var root: Control = root_map[name]
 		if root != null and is_instance_valid(root) and root.visible:
-			visible_count += 1
-	if visible_count > 1:
-		push_warning("More than one major screen visible: %d" % visible_count)
+			visible_roots.append(name)
+	if visible_roots.size() > 1:
+		push_warning("More than one major screen visible: %s" % ", ".join(visible_roots))
 
 func show_main_menu_screen() -> void:
 	app_screen_mode = AppScreenMode.MAIN_MENU
@@ -6428,7 +6507,6 @@ func rebuild_box_action_buttons() -> void:
 			_add_action_button(overlay_row, overlay_row_data[2], Callable(self, overlay_row_data[3]), "normal", true, true)
 		_add_action_button(overlay_plan_group, "Undo Cell", Callable(self, "_on_undo_overlay_cell_pressed"))
 		_add_action_button(overlay_plan_group, "Clear Plan", Callable(self, "_on_clear_overlay_pressed"), "danger")
-		_add_action_button(overlay_plan_group, "Commit Plan", Callable(self, "_on_commit_overlay_pressed"), "primary", _can_commit_overlay_plan_visual())
 		var overlay_paths_group: VBoxContainer = _create_action_group_panel("Overlay Paths")
 		right_button_panel.add_child(overlay_paths_group)
 		var path_row: HBoxContainer = _create_action_button_row()
@@ -6438,9 +6516,7 @@ func rebuild_box_action_buttons() -> void:
 		_add_action_button(overlay_paths_group, "Remove Path", Callable(self, "_on_remove_selected_overlay_pressed"), "danger", _has_selected_overlay_path_visual())
 		var reference_group: VBoxContainer = _create_action_group_panel("Reference / Preview")
 		right_button_panel.add_child(reference_group)
-		_add_action_button(reference_group, "Checkpoint", Callable(self, "_on_constructor_checkpoint_pressed"), "reference")
 		_add_action_button(reference_group, "Overlay Diff", Callable(self, "_on_overlay_diff_pressed"), "reference")
-		_add_action_button(reference_group, "Final Audit", Callable(self, "_on_constructor_final_audit_pressed"), "reference")
 	else:
 		_add_box_action_button("Prev Filter", Callable(self, "_on_prev_constructor_filter_pressed"))
 		_add_box_action_button("Next Filter", Callable(self, "_on_next_constructor_filter_pressed"))
@@ -6487,6 +6563,27 @@ func _setup_box_top_bar() -> void:
 		return
 	for child in box_top_bar_root.get_children():
 		child.queue_free()
+	if _is_small_viewport():
+		var compact_root := VBoxContainer.new()
+		compact_root.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+		compact_root.add_theme_constant_override("separation", 6)
+		box_top_bar_root.add_child(compact_root)
+		var row_one := HBoxContainer.new()
+		row_one.add_theme_constant_override("separation", 8)
+		row_one.add_child(_make_box_top_button("External", Callable(self, "set_box_menu_mode_external"), box_menu_mode == BoxMenuMode.EXTERNAL))
+		row_one.add_child(_make_box_top_button("Internal", Callable(self, "set_box_menu_mode_internal"), box_menu_mode == BoxMenuMode.INTERNAL))
+		var row_one_spacer := Control.new()
+		row_one_spacer.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+		row_one.add_child(row_one_spacer)
+		row_one.add_child(_make_box_top_button("Back", Callable(self, "_on_box_back_pressed")))
+		compact_root.add_child(row_one)
+		var row_two := HBoxContainer.new()
+		row_two.add_theme_constant_override("separation", 4)
+		row_two.add_child(_make_box_top_button("Scout", Callable(self, "_on_bipob_alpha_pressed"), active_bipob_profile_id == "alpha"))
+		row_two.add_child(_make_box_top_button("Engineer", Callable(self, "_on_bipob_beta_pressed"), active_bipob_profile_id == "beta"))
+		row_two.add_child(_make_box_top_button("Juggernaut", Callable(self, "_on_bipob_juggernaut_pressed"), active_bipob_profile_id == "juggernaut"))
+		compact_root.add_child(row_two)
+		return
 	var root: HBoxContainer = HBoxContainer.new()
 	root.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	root.add_theme_constant_override("separation", 8)
@@ -8384,6 +8481,17 @@ func _on_world_action_panel_requested(target_object: Dictionary, actions: Array[
 		runtime_world_actions_behavior_label.text = "Behavior: %s" % String(target_object.get("behavior_state", "idle"))
 	else:
 		runtime_world_actions_behavior_label.visible = false
+	var target_id: String = String(target_object.get("id", target_object.get("position", object_name)))
+	var actions_key := "|".join(actions)
+	var state_key := "%s|%s|%s" % [String(target_object.get("state", "")), String(target_object.get("behavior_state", "")), String(target_object.get("scan_level", 0))]
+	var only_selection_change: bool = target_id == last_world_action_target_id and actions_key == last_world_action_actions_key and state_key == last_world_action_state_key
+	if only_selection_change and runtime_world_actions_list.get_child_count() > 0:
+		for child_node in runtime_world_actions_list.get_children():
+			if child_node is Button:
+				var btn: Button = child_node
+				btn.button_pressed = String(btn.get_meta("action_id", "")) == selected_action
+		last_world_action_selected = selected_action
+		return
 	for child in runtime_world_actions_list.get_children():
 		child.queue_free()
 	runtime_world_actions_selected_button = null
@@ -8402,10 +8510,15 @@ func _on_world_action_panel_requested(target_object: Dictionary, actions: Array[
 		action_button.toggle_mode = true
 		action_button.button_pressed = action_id == selected_action
 		action_button.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+		action_button.set_meta("action_id", action_id)
 		action_button.pressed.connect(_on_world_action_button_pressed.bind(action_id))
 		runtime_world_actions_list.add_child(action_button)
 		if action_button.button_pressed:
 			runtime_world_actions_selected_button = action_button
+	last_world_action_target_id = target_id
+	last_world_action_actions_key = actions_key
+	last_world_action_selected = selected_action
+	last_world_action_state_key = state_key
 
 func _on_drop_item_button_pressed() -> void:
 	bipob.drop_held_item()
