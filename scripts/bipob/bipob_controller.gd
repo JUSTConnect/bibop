@@ -5952,7 +5952,14 @@ func get_world_action_display_label(action_id: String, object_data: Dictionary) 
 	return action_id.capitalize()
 
 func set_selected_world_action(action_id: String) -> void:
-	selected_world_action = action_id
+	var target_data := get_facing_world_action_target()
+	var actions: Array[String] = target_data.get("actions", [])
+	if action_id.is_empty() or actions.is_empty() or not actions.has(action_id):
+		selected_world_action = ""
+		if not action_id.is_empty():
+			hint_requested.emit("Selected action is not available for this target.")
+	else:
+		selected_world_action = action_id
 	emit_facing_world_object_hint()
 	refresh_world_action_panel()
 	status_changed.emit()
