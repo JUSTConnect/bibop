@@ -449,6 +449,82 @@ func refresh_world_cooling_received() -> void:
 		object_data["cooling_received"] = cooling_received
 		WorldObjectCatalog.update_world_object_heat_state(object_data)
 
+func preview_cooling_application(filter: String = "") -> Dictionary:
+	var resolved_filter := _resolve_power_graph_filter_to_network_id(filter.strip_edges())
+	var report := {"filter": filter.strip_edges(), "resolved_filter": resolved_filter, "cooling_sources": [], "targets": [], "changes": [], "warnings": []}
+	for object_data in mission_world_objects:
+		if not WorldObjectCatalog.can_world_object_receive_cooling(object_data):
+			continue
+		var object_network := _get_power_network_id(object_data)
+		if not resolved_filter.is_empty() and object_network != resolved_filter:
+			continue
+		var object_id := String(object_data.get("id", ""))
+		var previous_cooling := maxi(0, int(object_data.get("cooling_received", 0)))
+		var previous_heat := maxi(0, int(object_data.get("current_heat", 0)))
+		var previous_state := String(object_data.get("state", ""))
+		var target_position := WorldObjectCatalog.to_world_cell(object_data.get("position", Vector2i(-1, -1)), Vector2i(-1, -1))
+		var next_cooling := WorldObjectCatalog.calculate_world_cooling_received_for_target(object_data, target_position, mission_world_objects)
+		var projected_heat := maxi(0, int(object_data.get("working_heat", previous_heat)) + int(object_data.get("heat_from_connections", 0)) - next_cooling)
+		var threshold := maxi(0, int(object_data.get("overheat_threshold", 0)))
+		var next_state := previous_state
+		if threshold > 0 and projected_heat >= threshold:
+			next_state = "overheated"
+		elif previous_state == "overheated":
+			next_state = String(object_data.get("overheated_state_before", object_data.get("powered_state_before_unpowered", "active")))
+		var reason := "stable"
+		if next_cooling > 0:
+			reason = "cooled"
+		report["targets"].append({"object_id": object_id, "cooling_received": next_cooling, "previous_heat": previous_heat, "new_heat": projected_heat, "previous_state": previous_state, "new_state": next_state, "reason": reason})
+		if previous_cooling != next_cooling or previous_heat != projected_heat or previous_state != next_state:
+			report["changes"].append({"object_id": object_id, "cooling_received": next_cooling, "previous_heat": previous_heat, "new_heat": projected_heat, "previous_state": previous_state, "new_state": next_state, "reason": reason})
+	for object_data in mission_world_objects:
+		if String(object_data.get("object_group", "")) != "cooling":
+			continue
+		var object_network := _get_power_network_id(object_data)
+		if not resolved_filter.is_empty() and object_network != resolved_filter:
+			continue
+		report["cooling_sources"].append({"object_id": String(object_data.get("id", "")), "cooling_output": maxi(0, int(object_data.get("cooling_output", 0))), "cooling_device_type": String(object_data.get("cooling_device_type", "")), "facing_dir": String(object_data.get("facing_dir", "")), "state": String(object_data.get("state", ""))})
+	return report
+
+func apply_cooling_application(filter: String = "") -> Dictionary:
+	var preview := preview_cooling_application(filter)
+	for target_variant in preview.get("targets", []):
+		if typeof(target_variant) != TYPE_DICTIONARY:
+			continue
+		var target: Dictionary = target_variant
+		var object_id := String(target.get("object_id", "")).strip_edges()
+		if object_id.is_empty():
+			continue
+		var object_data := get_world_object_by_id(object_id)
+		if object_data.is_empty():
+			continue
+		if not WorldObjectCatalog.can_world_object_receive_cooling(object_data):
+			continue
+		object_data["cooling_received"] = maxi(0, int(target.get("cooling_received", 0)))
+		WorldObjectCatalog.update_world_object_heat_state(object_data)
+	return preview
+
+func update_cooling_for_network_or_area(filter: String = "") -> Dictionary:
+	return apply_cooling_application(filter)
+
+func get_cooling_debug_report_text(filter: String = "") -> String:
+	var preview := preview_cooling_application(filter)
+	var lines: Array[String] = []
+	lines.append("Cooling sources:")
+	for source_variant in preview.get("cooling_sources", []):
+		var source: Dictionary = source_variant
+		lines.append("- %s type=%s output=%d facing=%s state=%s" % [String(source.get("object_id", "")), String(source.get("cooling_device_type", "")), int(source.get("cooling_output", 0)), String(source.get("facing_dir", "-")), String(source.get("state", ""))])
+	lines.append("Cooling targets:")
+	for target_variant in preview.get("targets", []):
+		var target: Dictionary = target_variant
+		lines.append("- %s heat %d->%d cooling=%d state %s->%s reason=%s" % [String(target.get("object_id", "")), int(target.get("previous_heat", 0)), int(target.get("new_heat", 0)), int(target.get("cooling_received", 0)), String(target.get("previous_state", "")), String(target.get("new_state", "")), String(target.get("reason", ""))])
+	lines.append("Preview changes:")
+	lines.append("- %d" % Array(preview.get("changes", [])).size())
+	lines.append("Warnings:")
+	for warning in preview.get("warnings", []):
+		lines.append("- %s" % String(warning))
+	return "\n".join(lines)
+
 func get_hidden_objects_at_cell(cell: Vector2i) -> Array[Dictionary]:
 	var object_data := get_world_object_at_cell(cell)
 	if object_data.is_empty():
@@ -1309,6 +1385,124 @@ func apply_power_network_state_from_preview(filter: String = "") -> Dictionary:
 func _apply_graph_power_after_world_object_power_change(object_data: Dictionary, reason: String) -> Dictionary:
 	var filter := _get_power_event_filter_for_object(object_data)
 	return apply_power_network_after_explicit_power_event(reason, filter)
+
+func preview_cable_path(cable_reel_id: String, target_id: String) -> Dictionary:
+	var reel := get_world_object_by_id(cable_reel_id.strip_edges())
+	var target := get_world_object_by_id(target_id.strip_edges())
+	if reel.is_empty() or target.is_empty():
+		return {"valid": false, "reason": "target_not_connectable", "length": 0, "max_length": 0, "path_cells": []}
+	var reel_cell := WorldObjectCatalog.to_world_cell(reel.get("position", Vector2i(-1, -1)), Vector2i(-1, -1))
+	var target_cell := WorldObjectCatalog.to_world_cell(target.get("position", Vector2i(-1, -1)), Vector2i(-1, -1))
+	var path_cells: Array = []
+	var x_step := signi(target_cell.x - reel_cell.x)
+	var y_step := signi(target_cell.y - reel_cell.y)
+	var current := reel_cell
+	while current.x != target_cell.x:
+		current = Vector2i(current.x + x_step, current.y)
+		path_cells.append(current)
+	while current.y != target_cell.y:
+		current = Vector2i(current.x, current.y + y_step)
+		path_cells.append(current)
+	return validate_cable_path(reel, target, path_cells)
+
+func validate_cable_path(cable_reel: Dictionary, target: Dictionary, path_cells: Array = []) -> Dictionary:
+	if cable_reel.is_empty() or target.is_empty():
+		return {"valid": false, "reason": "target_not_connectable", "length": 0, "max_length": 0, "path_cells": []}
+	if bool(cable_reel.get("cut", false)):
+		return {"valid": false, "reason": "cable_cut", "length": 0, "max_length": 0, "path_cells": path_cells}
+	if bool(cable_reel.get("damaged", false)):
+		return {"valid": false, "reason": "cable_damaged", "length": 0, "max_length": 0, "path_cells": path_cells}
+	if not bool(target.get("can_connect_cable", false)) and String(target.get("object_type", "")) != "power_source":
+		return {"valid": false, "reason": "no_socket", "length": 0, "max_length": 0, "path_cells": path_cells}
+	var max_length := maxi(1, int(cable_reel.get("max_cable_length", 5)))
+	var length := path_cells.size()
+	if length > max_length:
+		return {"valid": false, "reason": "too_far", "length": length, "max_length": max_length, "path_cells": path_cells}
+	for path_cell_variant in path_cells:
+		if typeof(path_cell_variant) != TYPE_VECTOR2I:
+			continue
+		var path_cell: Vector2i = path_cell_variant
+		var blocker := get_world_object_at_cell(path_cell)
+		if blocker.is_empty():
+			continue
+		if bool(blocker.get("blocks_movement", false)) or String(blocker.get("state", "")) == "closed":
+			return {"valid": false, "reason": "path_blocked", "length": length, "max_length": max_length, "path_cells": path_cells}
+	return {"valid": true, "reason": "ok", "length": length, "max_length": max_length, "path_cells": path_cells}
+
+func can_connect_cable_reel_to_target(cable_reel: Dictionary, target: Dictionary) -> Dictionary:
+	var path_report := preview_cable_path(String(cable_reel.get("id", "")), String(target.get("id", "")))
+	if not bool(path_report.get("valid", false)):
+		return path_report
+	return {"valid": true, "reason": "ok", "length": int(path_report.get("length", 0)), "max_length": int(path_report.get("max_length", 0)), "path_cells": path_report.get("path_cells", [])}
+
+func connect_cable_reel_to_target(cable_reel_id: String, target_id: String) -> Dictionary:
+	var cable_reel := get_world_object_by_id(cable_reel_id.strip_edges())
+	var target := get_world_object_by_id(target_id.strip_edges())
+	if cable_reel.is_empty() or target.is_empty():
+		return {"success": false, "reason": "target_not_connectable"}
+	var can_connect := can_connect_cable_reel_to_target(cable_reel, target)
+	if not bool(can_connect.get("valid", false)):
+		return {"success": false, "reason": String(can_connect.get("reason", "target_not_connectable")), "path": can_connect}
+	cable_reel["connected"] = true
+	cable_reel["disconnected"] = false
+	cable_reel["cut"] = false
+	cable_reel["state"] = "connected"
+	cable_reel["cable_endpoint_a_id"] = String(cable_reel.get("id", ""))
+	cable_reel["cable_endpoint_b_id"] = String(target.get("id", ""))
+	cable_reel["cable_path_cells"] = can_connect.get("path_cells", [])
+	cable_reel["cable_length"] = int(can_connect.get("length", 0))
+	cable_reel["cable_max_length"] = int(can_connect.get("max_length", 0))
+	var report := _apply_graph_power_after_world_object_power_change(cable_reel, "cable_connected")
+	return {"success": true, "reason": "ok", "apply": report, "path": can_connect}
+
+func disconnect_cable_from_target(cable_id_or_reel_id: String, target_id: String = "") -> Dictionary:
+	var cable := get_world_object_by_id(cable_id_or_reel_id.strip_edges())
+	if cable.is_empty():
+		return {"success": false, "reason": "target_not_connectable"}
+	if not target_id.strip_edges().is_empty() and String(cable.get("cable_endpoint_b_id", "")) != target_id.strip_edges():
+		return {"success": false, "reason": "target_not_connectable"}
+	cable["connected"] = false
+	cable["disconnected"] = true
+	cable["state"] = "disconnected"
+	var report := _apply_graph_power_after_world_object_power_change(cable, "cable_disconnected")
+	return {"success": true, "reason": "ok", "apply": report}
+
+func cut_power_cable(cable_id: String) -> Dictionary:
+	var cable := get_world_object_by_id(cable_id.strip_edges())
+	if cable.is_empty():
+		return {"success": false, "reason": "target_not_connectable"}
+	cable["state"] = "cut"
+	cable["cut"] = true
+	cable["connected"] = false
+	cable["disconnected"] = true
+	var report := _apply_graph_power_after_world_object_power_change(cable, "cable_cut")
+	return {"success": true, "reason": "cable_cut", "apply": report}
+
+func repair_power_cable(cable_id: String) -> Dictionary:
+	var cable := get_world_object_by_id(cable_id.strip_edges())
+	if cable.is_empty():
+		return {"success": false, "reason": "target_not_connectable"}
+	if not bool(cable.get("cut", false)) and not bool(cable.get("damaged", false)):
+		return {"success": false, "reason": "ok"}
+	cable["cut"] = false
+	cable["damaged"] = false
+	cable["connected"] = false
+	cable["disconnected"] = true
+	cable["state"] = "repaired"
+	var report := _apply_graph_power_after_world_object_power_change(cable, "cable_repaired")
+	return {"success": true, "reason": "cable_repaired", "apply": report}
+
+func reconnect_power_cable(cable_id: String) -> Dictionary:
+	var cable := get_world_object_by_id(cable_id.strip_edges())
+	if cable.is_empty():
+		return {"success": false, "reason": "target_not_connectable"}
+	if bool(cable.get("cut", false)) or bool(cable.get("damaged", false)):
+		return {"success": false, "reason": "cable_damaged"}
+	cable["connected"] = true
+	cable["disconnected"] = false
+	cable["state"] = "connected"
+	var report := _apply_graph_power_after_world_object_power_change(cable, "cable_reconnected")
+	return {"success": true, "reason": "cable_reconnected", "apply": report}
 
 func update_power_source_overheat_recovery_for_network(filter: String = "") -> Dictionary:
 	var resolved_filter := _resolve_power_graph_filter_to_network_id(filter.strip_edges())
@@ -2535,7 +2729,37 @@ func validate_full_power_system_runtime() -> Array[String]:
 		var object_id := String(mission_world_objects[i].get("id", "")).strip_edges()
 		if cleanup_ids.has(object_id):
 			mission_world_objects.remove_at(i)
+	for warning in validate_cooling_runtime():
+		warnings.append(String(warning))
+	for warning in validate_cooling_and_cable_runtime():
+		warnings.append(String(warning))
 	return warnings
+
+func validate_cooling_runtime() -> Array[String]:
+	var warnings: Array[String] = []
+	var preview := preview_cooling_application("")
+	if typeof(preview.get("targets", [])) != TYPE_ARRAY:
+		warnings.append("Cooling preview regression: targets missing.")
+	var apply_snapshot := preview_cooling_application("")
+	if str(preview) != str(apply_snapshot):
+		warnings.append("Cooling preview regression: read-only preview produced unstable results.")
+	return warnings
+
+func validate_cooling_and_cable_runtime() -> Array[String]:
+	var warnings: Array[String] = []
+	var snapshot := get_world_object_runtime_state()
+	for object_id_variant in snapshot.keys():
+		var object_id := String(object_id_variant)
+		var entry: Dictionary = snapshot.get(object_id_variant, {})
+		if entry.has("cable_path_cells") and not entry.has("cable_length"):
+			warnings.append("Runtime cable serialization regression: cable_length missing for %s." % object_id)
+	return warnings
+
+func get_cooling_and_cable_validation_text() -> String:
+	var warnings := validate_cooling_and_cable_runtime()
+	if warnings.is_empty():
+		return "CoolingCableValidation: ok"
+	return "CoolingCableValidation:\n- " + "\n- ".join(warnings)
 
 func get_full_power_system_validation_text() -> String:
 	var warnings := validate_full_power_system_runtime()
@@ -2864,6 +3088,13 @@ func get_world_object_runtime_state() -> Dictionary:
 		"connected",
 		"disconnected",
 		"cut",
+		"cable_endpoint_a_id",
+		"cable_endpoint_b_id",
+		"cable_path_cells",
+		"cable_length",
+		"cable_max_length",
+		"cooling_source_ids",
+		"cooling_reason",
 		"damaged",
 		"broken",
 		"destroyed"
