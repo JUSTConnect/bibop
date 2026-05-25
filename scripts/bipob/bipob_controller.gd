@@ -279,6 +279,13 @@ func get_platform_runtime_table_text(filter: String = "") -> String:
 		return "Platform runtime table unavailable: helper missing."
 	return String(mission_manager.call("get_platform_runtime_table_text", filter))
 
+func get_platform_state_summary_table_text(filter: String = "") -> String:
+	if mission_manager == null:
+		return "Platform state summary unavailable: mission manager is missing."
+	if not mission_manager.has_method("get_platform_state_summary_table_text"):
+		return "Platform state summary unavailable: mission manager/helper missing."
+	return String(mission_manager.call("get_platform_state_summary_table_text", filter))
+
 func validate_platform_height_gating_debug_scenario() -> Array[String]:
 	if mission_manager == null:
 		return ["Platform height gating validation unavailable: mission manager is missing."]
@@ -6700,7 +6707,10 @@ func scan_device() -> void:
 			mission_manager.set_world_object_at_cell(facing_cell, world_object)
 			refresh_world_object_overlay()
 			update_threat_detection_preview()
-			hint_requested.emit("Scan: %s" % ScanSystem.get_scan_display_text(world_object, scan_type))
+			var scan_text := ScanSystem.get_scan_display_text(world_object, scan_type)
+			if String(world_object.get("object_group", "")) == "platform" and mission_manager.has_method("get_platform_state_summary"):
+				scan_text += "\n" + String(mission_manager.call("get_platform_state_summary", world_object))
+			hint_requested.emit("Scan: %s" % scan_text)
 			clear_selected_world_action_if_invalid(world_object, facing_cell)
 			emit_facing_world_object_hint()
 			refresh_world_action_panel()
