@@ -17,6 +17,21 @@ var debug_platform_scenario_enabled: bool = false
 var active_bipob_ref: Node = null
 var platform_last_tick_action_index: int = -1
 
+# region Typed world-object access wrappers
+func _wo_id(object_data: Dictionary) -> String:
+	return String(object_data.get("id", ""))
+
+func _wo_group(object_data: Dictionary) -> String:
+	return String(object_data.get("object_group", ""))
+
+func _wo_type(object_data: Dictionary) -> String:
+	return String(object_data.get("object_type", ""))
+
+func _wo_pos(object_data: Dictionary, fallback: Vector2i = Vector2i(-1, -1)) -> Vector2i:
+	return Vector2i(object_data.get("position", fallback))
+# endregion
+
+# region Lifecycle / setup
 func _ready() -> void:
 	if enable_debug_seed:
 		_seed_debug_world_objects()
@@ -47,7 +62,7 @@ func setup_world_objects_for_mission(mission_id: String) -> void:
 	}
 	objects.append(WorldObjectCatalog.create_world_object("turret", "turret_1"))
 	for object_data in objects:
-		var object_id := String(object_data.get("id", ""))
+		var object_id := _wo_id(object_data)
 		if object_id == "terminal_t1":
 			object_data["id"] = "door_terminal_1"
 			object_data["controls"] = ["steel_door_1"]
@@ -66,7 +81,7 @@ func setup_world_objects_for_mission(mission_id: String) -> void:
 			object_data.erase("power_network_id")
 		if placements.has(object_id):
 			set_world_object_at_cell(placements[object_id], object_data)
-		elif object_data.get("object_group", "") == "item":
+		elif _wo_group(object_data) == "item":
 			match object_id:
 				"keycard_a1":
 					add_item_at_cell(Vector2i(1, 3), object_data)
@@ -90,22 +105,24 @@ func setup_world_objects_for_mission(mission_id: String) -> void:
 		if not scenario_warnings.is_empty():
 			for warning in scenario_warnings:
 				push_warning("[WorldScenario] %s" % warning)
+# endregion
 
+# region Scenario validation
 func validate_world_object_scenario() -> Array[String]:
 	var warnings: Array[String] = []
 	var ids := {}
 	var occupied_cells := {}
 	var turret_1: Dictionary = {}
 	for object_data in mission_world_objects:
-		var object_id := String(object_data.get("id", ""))
+		var object_id := _wo_id(object_data)
 		if not object_id.is_empty():
 			ids[object_id] = true
 		if object_id == "turret_1":
 			turret_1 = object_data
 	for object_data in mission_world_objects:
-		var object_id := String(object_data.get("id", ""))
-		var pos := Vector2i(object_data.get("position", Vector2i(-1, -1)))
-		if object_data.get("object_group", "") != "item":
+		var object_id := _wo_id(object_data)
+		var pos := _wo_pos(object_data)
+		if _wo_group(object_data) != "item":
 			if occupied_cells.has(pos):
 				warnings.append("Two world objects occupy %s." % str(pos))
 			occupied_cells[pos] = object_id
@@ -128,7 +145,7 @@ func validate_world_object_scenario() -> Array[String]:
 		if int(turret_1.get("detection_range", 0)) <= 0:
 			warnings.append("turret_1 must have detection_range > 0.")
 		var extraction_cell := Vector2i(7, 7)
-		var turret_cell := Vector2i(turret_1.get("position", Vector2i(-1, -1)))
+		var turret_cell := _wo_pos(turret_1)
 		if turret_cell == extraction_cell:
 			warnings.append("turret_1 cannot be placed on extraction cell %s." % str(extraction_cell))
 		var main_route := [
@@ -146,10 +163,11 @@ func validate_world_object_scenario() -> Array[String]:
 				warnings.append("Duplicate item id %s at cell %s." % [item_id, str(cell)])
 			seen[item_id] = true
 	return warnings
+# endregion
 
 func _should_assign_main_power_network(object_data: Dictionary) -> bool:
-	var object_type := String(object_data.get("object_type", ""))
-	var object_group := String(object_data.get("object_group", ""))
+	var object_type := _wo_type(object_data)
+	var object_group := _wo_group(object_data)
 	if object_type in [
 		"power_source_class_1",
 		"power_cable",
