@@ -785,6 +785,57 @@ func apply_power_network_state_from_preview(filter: String = "") -> Dictionary:
 		warnings.append(warning_text)
 	return {"applied": applied_changes.size(), "changes": applied_changes, "warnings": warnings}
 
+func apply_power_network_after_explicit_power_event(reason: String = "", filter: String = "") -> Dictionary:
+	var report := apply_power_network_state_from_preview(filter)
+	return {
+		"event_reason": reason,
+		"applied": int(report.get("applied", 0)),
+		"changes": report.get("changes", []),
+		"warnings": report.get("warnings", [])
+	}
+
+func execute_power_event_apply_and_get_report_text(reason: String = "", filter: String = "") -> String:
+	var report := apply_power_network_after_explicit_power_event(reason, filter)
+	var changes: Array = report.get("changes", [])
+	var warnings: Array = report.get("warnings", [])
+	var lines: Array[String] = []
+	lines.append("PowerEventApply: reason=%s applied=%d warnings=%d" % [reason, int(report.get("applied", 0)), warnings.size()])
+	for change_variant in changes:
+		if typeof(change_variant) != TYPE_DICTIONARY:
+			continue
+		var change: Dictionary = change_variant
+		lines.append("APPLIED: object=%s network=%s is_powered %s -> %s reason=%s" % [
+			String(change.get("object_id", "")),
+			String(change.get("network_id", "")),
+			str(bool(change.get("previous_is_powered", false))).to_lower(),
+			str(bool(change.get("new_is_powered", false))).to_lower(),
+			String(change.get("reason", ""))
+		])
+	for warning in warnings:
+		lines.append("WARNING: %s" % String(warning))
+	return "\n".join(lines)
+
+func get_power_event_apply_preview_text(reason: String = "", filter: String = "") -> String:
+	var preview := preview_power_network_state_application(filter)
+	var changes: Array = preview.get("changes", [])
+	var warnings: Array = preview.get("warnings", [])
+	var lines: Array[String] = []
+	lines.append("PowerEventApplyPreview: reason=%s changes=%d warnings=%d" % [reason, changes.size(), warnings.size()])
+	for change_variant in changes:
+		if typeof(change_variant) != TYPE_DICTIONARY:
+			continue
+		var change: Dictionary = change_variant
+		lines.append("WOULD_APPLY: object=%s network=%s is_powered %s -> %s reason=%s" % [
+			String(change.get("object_id", "")),
+			String(change.get("network_id", "")),
+			str(bool(change.get("current_is_powered", false))).to_lower(),
+			str(bool(change.get("preview_is_powered", false))).to_lower(),
+			String(change.get("reason", ""))
+		])
+	for warning in warnings:
+		lines.append("WARNING: %s" % String(warning))
+	return "\n".join(lines)
+
 func execute_power_network_apply_and_get_report_text(filter: String = "") -> String:
 	var report := apply_power_network_state_from_preview(filter)
 	var changes: Array = report.get("changes", [])
@@ -1117,6 +1168,12 @@ func validate_power_network_debug_scenario() -> Array[String]:
 	temp_objects.append(_build_power_network_debug_object("power_debug_apply_case_d_consumer", "power_cable", "power_debug_apply_case_d", {
 		"is_powered": false
 	}))
+	temp_objects.append(_build_power_network_debug_object("power_debug_event_apply_source", "power_source", "power_debug_event_apply", {
+		"is_powered": true
+	}))
+	temp_objects.append(_build_power_network_debug_object("power_debug_event_apply_consumer", "power_cable", "power_debug_event_apply", {
+		"is_powered": false
+	}))
 	for object_data in temp_objects:
 		mission_world_objects.append(object_data)
 		var object_id := String(object_data.get("id", "")).strip_edges()
@@ -1249,6 +1306,32 @@ func validate_power_network_debug_scenario() -> Array[String]:
 	var source_off_after := bool(apply_case_d_source_off.get("is_powered", false))
 	if source_on_before != source_on_after or source_off_before != source_off_after:
 		warnings.append("Apply regression D: source object is_powered mutated by apply.")
+	var event_apply_consumer := get_world_object_by_id("power_debug_event_apply_consumer")
+	var event_preview_before := bool(event_apply_consumer.get("is_powered", false))
+	var event_preview_text := get_power_event_apply_preview_text("debug_event", "power_debug_event_apply")
+	if event_preview_text.find("PowerEventApplyPreview") == -1:
+		warnings.append("Event apply preview regression: missing PowerEventApplyPreview header.")
+	if event_preview_text.find("WOULD_APPLY") == -1:
+		warnings.append("Event apply preview regression: missing WOULD_APPLY entry.")
+	if event_preview_text.find("APPLIED") != -1:
+		warnings.append("Event apply preview regression: preview text must not include APPLIED entries.")
+	var event_preview_after := bool(event_apply_consumer.get("is_powered", false))
+	if event_preview_before != event_preview_after:
+		warnings.append("Event apply preview regression: preview mutated consumer state.")
+	var event_execute_text := execute_power_event_apply_and_get_report_text("debug_event", "power_debug_event_apply")
+	if event_execute_text.find("PowerEventApply") == -1:
+		warnings.append("Event apply execute regression: missing PowerEventApply header.")
+	if event_execute_text.find("reason=debug_event") == -1:
+		warnings.append("Event apply execute regression: missing reason=debug_event in header.")
+	if event_execute_text.find("APPLIED") == -1:
+		warnings.append("Event apply execute regression: missing APPLIED entry.")
+	if not bool(event_apply_consumer.get("is_powered", false)):
+		warnings.append("Event apply execute regression: consumer did not become powered.")
+	var event_dict_report := apply_power_network_after_explicit_power_event("debug_event_dict", "power_debug_event_apply")
+	if int(event_dict_report.get("applied", -1)) != 0:
+		warnings.append("Event apply dictionary regression: expected applied=0 after execute.")
+	if String(event_dict_report.get("event_reason", "")) != "debug_event_dict":
+		warnings.append("Event apply dictionary regression: event_reason mismatch.")
 	var index := mission_world_objects.size() - 1
 	while index >= 0:
 		var object_data: Dictionary = mission_world_objects[index]
