@@ -334,6 +334,33 @@ func apply_power_network_state_from_preview(filter: String = "") -> Dictionary:
 		}
 	return report_variant
 
+func apply_power_network_after_explicit_power_event(reason: String = "", filter: String = "") -> Dictionary:
+	if mission_manager == null or not mission_manager.has_method("apply_power_network_after_explicit_power_event"):
+		return {"event_reason": reason, "applied": 0, "changes": [], "warnings": ["Power event apply unavailable: mission manager/helper missing."]}
+	var report_variant: Variant = mission_manager.call("apply_power_network_after_explicit_power_event", reason, filter)
+	if typeof(report_variant) != TYPE_DICTIONARY:
+		return {"event_reason": reason, "applied": 0, "changes": [], "warnings": ["Power event apply unavailable: mission manager/helper missing."]}
+	var report: Dictionary = report_variant
+	if not report.has("event_reason"):
+		report["event_reason"] = reason
+	if not report.has("applied"):
+		report["applied"] = 0
+	if not report.has("changes"):
+		report["changes"] = []
+	if not report.has("warnings"):
+		report["warnings"] = []
+	return report
+
+func execute_power_event_apply_and_get_report_text(reason: String = "", filter: String = "") -> String:
+	if mission_manager == null or not mission_manager.has_method("execute_power_event_apply_and_get_report_text"):
+		return "Power event apply unavailable: mission manager/helper missing."
+	return String(mission_manager.call("execute_power_event_apply_and_get_report_text", reason, filter))
+
+func get_power_event_apply_preview_text(reason: String = "", filter: String = "") -> String:
+	if mission_manager == null or not mission_manager.has_method("get_power_event_apply_preview_text"):
+		return "Power event apply preview unavailable: mission manager/helper missing."
+	return String(mission_manager.call("get_power_event_apply_preview_text", reason, filter))
+
 func execute_power_network_apply_and_get_report_text(filter: String = "") -> String:
 	if mission_manager == null or not mission_manager.has_method("execute_power_network_apply_and_get_report_text"):
 		return "Power network apply unavailable: mission manager/helper missing."
