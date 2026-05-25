@@ -392,6 +392,11 @@ func execute_power_graph_apply_and_get_report_text(filter: String = "") -> Strin
 		return "Power graph apply unavailable: mission manager/helper missing."
 	return String(mission_manager.call("execute_power_graph_apply_and_get_report_text", filter))
 
+func _is_terminal_powered_for_interaction(world_object: Dictionary) -> bool:
+	if mission_manager == null or not mission_manager.has_method("_is_terminal_powered_for_interaction"):
+		return bool(world_object.get("is_powered", true)) and String(world_object.get("state", "active")) != "unpowered"
+	return bool(mission_manager.call("_is_terminal_powered_for_interaction", world_object))
+
 func get_power_network_apply_preview_report_text(filter: String = "") -> String:
 	if mission_manager == null or not mission_manager.has_method("get_power_network_apply_preview_report_text"):
 		return "Power network apply preview unavailable: mission manager/helper missing."
@@ -6942,6 +6947,10 @@ func hack_device() -> void:
 		return
 	var hack_world_object := mission_manager.get_world_object_at_cell(get_facing_device_position())
 	if not hack_world_object.is_empty() and String(hack_world_object.get("object_group", "")) == "terminal":
+		if not _is_terminal_powered_for_interaction(hack_world_object):
+			hint_requested.emit("Terminal is unpowered.")
+			status_changed.emit()
+			return
 		WorldObjectCatalog.update_world_object_heat_state(hack_world_object)
 		if String(hack_world_object.get("state", "")) == "overheated":
 			spend_action(1, 1)
@@ -7550,6 +7559,15 @@ func interact() -> void:
 			var action_id := get_world_object_action_for_context(world_object, active_manipulator, target_position)
 			var available_actions := get_available_world_actions(world_object, target_position)
 			var module := get_world_action_module(action_id, world_object)
+			if String(world_object.get("object_group", "")) == "terminal" and (action_id == "hack" or action_id == "activate_platform") and not _is_terminal_powered_for_interaction(world_object):
+				hint_requested.emit("Terminal is unpowered.")
+				status_changed.emit()
+				return
+			if String(world_object.get("object_group", "")) == "platform":
+				if String(world_object.get("state", "active")) in ["unpowered", "disabled"] or not bool(world_object.get("is_powered", true)):
+					hint_requested.emit("Platform is unpowered.")
+					status_changed.emit()
+					return
 			if action_id.is_empty():
 				if WorldObjectCatalog.can_world_object_be_moved_by_heavy_claw(world_object) and not has_heavy_claw_capability():
 					hint_requested.emit("Heavy Claw required.")
