@@ -7568,6 +7568,18 @@ func interact() -> void:
 				var moved := _apply_world_object_effects(action_result.get("effects", []), world_object, target_position, actor)
 				if not moved:
 					mission_manager.set_world_object_at_cell(target_position, world_object)
+				if action_id == "switch":
+					var object_type := String(world_object.get("object_type", "")).strip_edges()
+					if object_type in ["light_switch", "circuit_switch", "circuit_breaker"]:
+						var reason := "switch_toggled"
+						if object_type == "circuit_breaker":
+							reason = "circuit_breaker_toggled"
+						var power_filter := ""
+						if mission_manager.has_method("_get_power_event_filter_for_object"):
+							power_filter = String(mission_manager.call("_get_power_event_filter_for_object", world_object))
+						var apply_report := apply_power_network_after_explicit_power_event(reason, power_filter)
+						if action_result is Dictionary:
+							action_result["power_apply_report"] = apply_report
 				refresh_world_object_overlay()
 				update_threat_detection_preview()
 				clear_selected_world_action_if_invalid(world_object, target_position)
