@@ -806,6 +806,11 @@ func execute_power_network_apply_and_get_report_text(filter: String = "") -> Str
 		lines.append("WARNING: %s" % String(warning))
 	return "\n".join(lines)
 
+func execute_power_network_apply_debug_command(filter: String = "") -> String:
+	return execute_power_network_apply_and_get_report_text(filter)
+
+func get_power_network_apply_debug_preview_text(filter: String = "") -> String:
+	return get_power_network_apply_preview_report_text(filter)
 
 func get_power_network_apply_preview_report_text(filter: String = "") -> String:
 	var preview := preview_power_network_state_application(filter)
@@ -1189,7 +1194,7 @@ func validate_power_network_debug_scenario() -> Array[String]:
 		warnings.append("Preview mutated temporary object state for power_debug_preview_cable.")
 	var apply_case_a_consumer := get_world_object_by_id("power_debug_apply_case_a_consumer")
 	var apply_case_a_before_preview_report := bool(apply_case_a_consumer.get("is_powered", false))
-	var apply_preview_report_text := get_power_network_apply_preview_report_text("power_debug_apply_case_a")
+	var apply_preview_report_text := get_power_network_apply_debug_preview_text("power_debug_apply_case_a")
 	if apply_preview_report_text.find("WOULD_APPLY") == -1:
 		warnings.append("Apply preview report regression: missing WOULD_APPLY entry for case A.")
 	if apply_preview_report_text.find("APPLIED") != -1:
@@ -1197,19 +1202,15 @@ func validate_power_network_debug_scenario() -> Array[String]:
 	var apply_case_a_after_preview_report := bool(apply_case_a_consumer.get("is_powered", false))
 	if apply_case_a_before_preview_report != apply_case_a_after_preview_report:
 		warnings.append("Apply preview report regression: report mutated apply_case_a_consumer before apply.")
-	var apply_result_a := apply_power_network_state_from_preview("power_debug_apply_case_a")
+	var apply_execute_report_text := execute_power_network_apply_debug_command("power_debug_apply_case_a")
+	if apply_execute_report_text.find("PowerNetworkApply") == -1:
+		warnings.append("Apply debug execute regression: missing PowerNetworkApply header for case A.")
+	if apply_execute_report_text.find("APPLIED") == -1:
+		warnings.append("Apply debug execute regression: missing APPLIED entry for case A.")
 	if not bool(apply_case_a_consumer.get("is_powered", false)):
 		warnings.append("Apply regression A: powered source did not power unpowered consumer.")
-	var apply_case_a_found := false
-	for change_variant in apply_result_a.get("changes", []):
-		if typeof(change_variant) != TYPE_DICTIONARY:
-			continue
-		var change: Dictionary = change_variant
-		if String(change.get("object_id", "")) == "power_debug_apply_case_a_consumer" and bool(change.get("new_is_powered", false)):
-			apply_case_a_found = true
-			break
-	if not apply_case_a_found:
-		warnings.append("Apply regression A: report missing applied consumer power-up.")
+	if apply_execute_report_text.find("object=power_debug_apply_case_a_consumer") == -1:
+		warnings.append("Apply debug execute regression: report missing applied consumer power-up.")
 	var apply_case_b_consumer := get_world_object_by_id("power_debug_apply_case_b_consumer")
 	var apply_case_b_before := bool(apply_case_b_consumer.get("is_powered", false))
 	var apply_result_b := apply_power_network_state_from_preview("power_debug_apply_case_b")
