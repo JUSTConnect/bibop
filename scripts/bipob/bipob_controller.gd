@@ -6056,6 +6056,14 @@ func _register_successful_player_action() -> void:
 			continue
 		hint_requested.emit(message)
 
+func _register_successful_paid_player_action(action_spent: bool) -> void:
+	if not action_spent:
+		return
+	_register_successful_player_action()
+
+func get_player_action_index() -> int:
+	return player_action_index
+
 func set_platform_height_level(level: int, platform_id: String = "") -> void:
 	platform_height_level = level
 	carried_by_platform_id = platform_id
@@ -7368,9 +7376,12 @@ func interact() -> void:
 						return
 					var move_result := mission_manager.move_world_object_by_heavy_claw(String(world_object.get("id", "")), target_destination)
 					if bool(move_result.get("success", false)):
-						if can_spend_action(1, 1):
-							spend_action(1, 1)
-						_register_successful_player_action()
+						if not can_spend_action(1, 1):
+							hint_requested.emit("Not enough action/energy.")
+							status_changed.emit()
+							return
+						spend_action(1, 1)
+						_register_successful_paid_player_action(true)
 						hint_requested.emit(String(move_result.get("message", "Moved object.")))
 						refresh_world_object_overlay()
 						update_threat_detection_preview()
@@ -7393,7 +7404,15 @@ func interact() -> void:
 				clear_selected_world_action_if_invalid(world_object, target_position)
 				emit_facing_world_object_hint()
 				refresh_world_action_panel()
-				_register_successful_player_action()
+				var paid_action := false
+				if can_spend_action(1, 1):
+					spend_action(1, 1)
+					paid_action = true
+				else:
+					hint_requested.emit("Not enough action/energy.")
+					status_changed.emit()
+					return
+				_register_successful_paid_player_action(paid_action)
 				hint_requested.emit("%s (%s): %s | Action: %s" % [world_object.get("display_name", "Object"), world_object.get("state", "unknown"), String(action_result.get("message", "Action complete.")), action_id])
 			else:
 				hint_requested.emit(String(action_result.get("message", "Action failed.")))
