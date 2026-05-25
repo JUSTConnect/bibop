@@ -7458,6 +7458,8 @@ func _apply_world_object_effects(effects: Array, world_object: Dictionary, targe
 			if grid_manager != null and grid_manager.is_in_bounds(destination) and grid_manager.is_walkable(destination) and mission_manager.get_world_object_at_cell(destination).is_empty():
 				mission_manager.remove_world_object_at_cell(target_position)
 				world_object["position"] = destination
+				if mission_manager != null and mission_manager.has_method("refresh_world_object_platform_height_state"):
+					mission_manager.call("refresh_world_object_platform_height_state", world_object)
 				mission_manager.set_world_object_at_cell(destination, world_object)
 				object_moved = true
 	if world_object.get("state", "") in ["open", "destroyed", "inactive", "unpowered", "disabled"]:

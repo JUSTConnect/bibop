@@ -1014,6 +1014,20 @@ func get_cell_height_level(cell: Vector2i) -> int:
 		return 0
 	return int(platform.get("height_level", 0))
 
+func refresh_world_object_platform_height_state(object_data: Dictionary) -> void:
+	if object_data.is_empty():
+		return
+	var object_cell := WorldObjectCatalog.to_world_cell(object_data.get("position", Vector2i(-1, -1)), Vector2i(-1, -1))
+	if object_cell.x < 0 or object_cell.y < 0:
+		return
+	var platform := get_platform_for_cell(object_cell)
+	if not platform.is_empty() and String(platform.get("platform_type", "")) == "lifting":
+		object_data["platform_height_level"] = int(platform.get("height_level", 0))
+		object_data["carried_by_platform_id"] = String(platform.get("platform_id", ""))
+		return
+	object_data["platform_height_level"] = get_cell_height_level(object_cell)
+	object_data.erase("carried_by_platform_id")
+
 func get_world_object_height_level(object_data: Dictionary) -> int:
 	if object_data.is_empty():
 		return 0
@@ -1141,8 +1155,7 @@ func _execute_platform_action(platform: Dictionary, source: String = "") -> Dict
 		platform["height_level"] = max_h if cur <= min_h else min_h
 		var occupants := get_platform_occupants(String(platform.get("platform_id", "")))
 		for obj in Array(occupants.get("world_objects", [])):
-			obj["platform_height_level"] = int(platform.get("height_level", 0))
-			obj["carried_by_platform_id"] = String(platform.get("platform_id", ""))
+			refresh_world_object_platform_height_state(obj)
 		if active_bipob_ref != null and active_bipob_ref.has_method("set_platform_height_level") and active_bipob_ref.has_method("get_grid_position"):
 			var actor_cell: Vector2i = active_bipob_ref.call("get_grid_position")
 			for platform_cell_variant in Array(platform.get("platform_cells", [])):
@@ -1293,10 +1306,27 @@ func validate_platform_runtime_state() -> Dictionary:
 		var object_id := String(object_data.get("id", ""))
 		var carried_platform_id := String(object_data.get("carried_by_platform_id", "")).strip_edges()
 		if carried_platform_id.is_empty():
+			var object_cell := WorldObjectCatalog.to_world_cell(object_data.get("position", Vector2i(-1, -1)), Vector2i(-1, -1))
+			var object_platform := get_platform_for_cell(object_cell)
+			if not object_platform.is_empty() and String(object_platform.get("platform_type", "")) == "lifting":
+				var expected_platform_id := String(object_platform.get("platform_id", "")).strip_edges()
+				warnings.append("Object %s stands on lifting platform %s but carried_by_platform_id is missing." % [object_id, expected_platform_id])
 			continue
 		if not platform_ids.has(carried_platform_id):
 			warnings.append("Object %s references missing carried_by_platform_id %s." % [object_id, carried_platform_id])
 			continue
+		var object_cell_with_carried := WorldObjectCatalog.to_world_cell(object_data.get("position", Vector2i(-1, -1)), Vector2i(-1, -1))
+		var current_platform := get_platform_for_cell(object_cell_with_carried)
+		if current_platform.is_empty():
+			warnings.append("Object %s references carried_by_platform_id %s but is not on a platform cell." % [object_id, carried_platform_id])
+			continue
+		var current_platform_id := String(current_platform.get("platform_id", "")).strip_edges()
+		var current_platform_type := String(current_platform.get("platform_type", ""))
+		if current_platform_type != "lifting":
+			warnings.append("Object %s references carried_by_platform_id %s but stands on non-lifting platform %s." % [object_id, carried_platform_id, current_platform_id])
+			continue
+		if current_platform_id != carried_platform_id:
+			warnings.append("Object %s references carried_by_platform_id %s but stands on lifting platform %s." % [object_id, carried_platform_id, current_platform_id])
 		if object_data.has("platform_height_level"):
 			var carried_platform := get_platform_by_id(carried_platform_id)
 			if not carried_platform.is_empty():
