@@ -422,6 +422,37 @@ func get_power_network_apply_debug_preview_text(filter: String = "") -> String:
 func get_power_network_apply_report_text(filter: String = "") -> String:
 	return "Power network apply report renamed: use execute_power_network_apply_and_get_report_text() to apply, or get_power_network_apply_preview_report_text() for read-only preview."
 
+
+
+func execute_power_source_recovery_apply(filter: String = "") -> Dictionary:
+	if mission_manager == null or not mission_manager.has_method("execute_power_source_recovery_apply"):
+		return {"recovery": {"filter": filter, "resolved_filter": filter, "recovered": [], "warnings": ["Power source recovery unavailable: mission manager/helper missing."]}, "apply": {"event_reason": "source_cooling_recovered", "applied": 0, "changes": [], "warnings": []}}
+	var report_variant: Variant = mission_manager.call("execute_power_source_recovery_apply", filter)
+	if typeof(report_variant) != TYPE_DICTIONARY:
+		return {"recovery": {"filter": filter, "resolved_filter": filter, "recovered": [], "warnings": ["Power source recovery unavailable: mission manager/helper missing."]}, "apply": {"event_reason": "source_cooling_recovered", "applied": 0, "changes": [], "warnings": []}}
+	return report_variant
+
+func get_power_network_full_debug_report_text(filter: String = "") -> String:
+	if mission_manager == null or not mission_manager.has_method("get_power_network_full_debug_report_text"):
+		return "Power network full debug report unavailable: mission manager/helper missing."
+	return String(mission_manager.call("get_power_network_full_debug_report_text", filter))
+
+func validate_full_power_system_runtime() -> Array[String]:
+	if mission_manager == null or not mission_manager.has_method("validate_full_power_system_runtime"):
+		return ["Full power validation unavailable: mission manager/helper missing."]
+	var warnings_variant: Variant = mission_manager.call("validate_full_power_system_runtime")
+	if typeof(warnings_variant) != TYPE_ARRAY:
+		return ["Full power validation unavailable: mission manager/helper missing."]
+	var warnings: Array[String] = []
+	for warning_variant in warnings_variant:
+		warnings.append(String(warning_variant))
+	return warnings
+
+func get_full_power_system_validation_text() -> String:
+	if mission_manager == null or not mission_manager.has_method("get_full_power_system_validation_text"):
+		return "Full power validation text unavailable: mission manager/helper missing."
+	return String(mission_manager.call("get_full_power_system_validation_text"))
+
 func validate_platform_runtime_state() -> Dictionary:
 	if mission_manager == null:
 		return {"valid": false, "platforms": 0, "terminals": 0, "warnings": ["Mission manager is missing."], "errors": ["Mission manager unavailable."]}
