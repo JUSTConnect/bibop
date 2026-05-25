@@ -5080,14 +5080,25 @@ func _build_tasks_mission_data() -> void:
 		total_missions = maxi(1, int(bipob.max_mission_index))
 	for i in range(total_missions):
 		var mission_id: int = i + 1
+		var mission_title_short := "Mission %d" % mission_id
+		var mission_title_full := "Mission %d" % mission_id
+		var short_description := "Reach extraction."
+		var main_goal := "Find the way to reach extraction."
+		var extra_goals: Array[String] = ["Find the key.", "Open the door."]
+		if mission_id == 10:
+			mission_title_short = "TASK TEST"
+			mission_title_full = "TASK TEST"
+			short_description = "Test room containing current mechanics: power, cooling, cable, terminals, doors, platforms, scan/X-Ray, inventory/tools/modules, save/runtime validation."
+			main_goal = "Run full mechanics checks and enter extraction."
+			extra_goals = ["Validate power/cooling/cables.", "Validate terminals/doors/platforms/scan.", "Reach extraction door."]
 		tasks_mission_data.append({
 			"id": mission_id,
-			"title_short": "Mission %d" % mission_id,
-			"title_full": "Mission %d" % mission_id,
+			"title_short": mission_title_short,
+			"title_full": mission_title_full,
 			"category": "career",
-			"short_description": "Reach extraction.",
-			"main_goal": "Find the way to reach extraction.",
-			"extra_goals": ["Find the key.", "Open the door."],
+			"short_description": short_description,
+			"main_goal": main_goal,
+			"extra_goals": extra_goals,
 			"reward": "TBD",
 			"difficulty": "TBD",
 			"required_bipob_type": "Scout",

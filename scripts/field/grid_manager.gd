@@ -159,6 +159,18 @@ func get_mission7_layout() -> Array:
 		[1, 1, 1, 1, 1, 1, 1, 1],
 	]
 
+func get_mission10_layout() -> Array:
+	return [
+		[1, 1, 1, 1, 1, 1, 1, 1],
+		[1, 0, 0, 0, 0, 0, 0, 1],
+		[1, 0, 1, 1, 1, 1, 0, 1],
+		[1, 0, 0, 0, 0, 1, 0, 1],
+		[1, 1, 1, 0, 0, 1, 0, 1],
+		[1, 0, 0, 0, 0, 1, 0, 1],
+		[1, 0, 1, 1, 0, 0, 4, 1],
+		[1, 1, 1, 1, 1, 1, 1, 1],
+	]
+
 func reset_mission_layout(mission_index: int) -> void:
 	if mission_initial_map_data.is_empty():
 		cache_initial_mission_layout()
@@ -173,6 +185,8 @@ func reset_mission_layout(mission_index: int) -> void:
 		map_data = duplicate_map_layout(get_mission8_layout())
 	elif mission_index == 9:
 		map_data = duplicate_map_layout(get_mission9_layout())
+	elif mission_index == 10:
+		map_data = duplicate_map_layout(get_mission10_layout())
 	else:
 		map_data = duplicate_map_layout(mission_initial_map_data)
 	reset_hidden_discoveries()
