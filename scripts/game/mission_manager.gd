@@ -739,6 +739,73 @@ func get_power_network_state_preview_text(filter: String = "") -> String:
 		lines.append("WARNING: %s" % warning)
 	return "\n".join(lines)
 
+func apply_power_network_state_from_preview(filter: String = "") -> Dictionary:
+	var preview := preview_power_network_state_application(filter)
+	var preview_changes: Array = preview.get("changes", [])
+	var applied_changes: Array[Dictionary] = []
+	var warnings: Array[String] = []
+	for change_variant in preview_changes:
+		if typeof(change_variant) != TYPE_DICTIONARY:
+			continue
+		var change: Dictionary = change_variant
+		var object_id := String(change.get("object_id", "")).strip_edges()
+		if object_id.is_empty():
+			continue
+		var object_data := get_world_object_by_id(object_id)
+		if object_data.is_empty():
+			warnings.append("Power apply skipped missing object %s." % object_id)
+			continue
+		if not _is_power_network_object(object_data):
+			warnings.append("Power apply skipped non-power object %s." % object_id)
+			continue
+		if _is_power_source_object(object_data):
+			continue
+		var previous_is_powered := bool(object_data.get("is_powered", false))
+		var preview_is_powered := bool(change.get("preview_is_powered", false))
+		var object_state := String(object_data.get("state", "")).strip_edges().to_lower()
+		var object_damaged := bool(object_data.get("damaged", false)) or bool(object_data.get("broken", false))
+		var blocked_from_power_up := object_state in ["damaged", "overheated"] or object_damaged
+		var new_is_powered := preview_is_powered
+		if blocked_from_power_up and preview_is_powered:
+			new_is_powered = false
+		if previous_is_powered == new_is_powered:
+			continue
+		object_data["is_powered"] = new_is_powered
+		applied_changes.append({
+			"object_id": object_id,
+			"network_id": String(change.get("network_id", "")),
+			"previous_is_powered": previous_is_powered,
+			"new_is_powered": new_is_powered,
+			"reason": String(change.get("reason", ""))
+		})
+	for preview_warning in preview.get("warnings", []):
+		var warning_text := String(preview_warning).strip_edges()
+		if warning_text.is_empty():
+			continue
+		warnings.append(warning_text)
+	return {"applied": applied_changes.size(), "changes": applied_changes, "warnings": warnings}
+
+func get_power_network_apply_report_text(filter: String = "") -> String:
+	var report := apply_power_network_state_from_preview(filter)
+	var changes: Array = report.get("changes", [])
+	var warnings: Array = report.get("warnings", [])
+	var lines: Array[String] = []
+	lines.append("PowerNetworkApply: applied=%d warnings=%d" % [int(report.get("applied", 0)), warnings.size()])
+	for change_variant in changes:
+		if typeof(change_variant) != TYPE_DICTIONARY:
+			continue
+		var change: Dictionary = change_variant
+		lines.append("APPLIED: object=%s network=%s is_powered %s -> %s reason=%s" % [
+			String(change.get("object_id", "")),
+			String(change.get("network_id", "")),
+			str(bool(change.get("previous_is_powered", false))).to_lower(),
+			str(bool(change.get("new_is_powered", false))).to_lower(),
+			String(change.get("reason", ""))
+		])
+	for warning in warnings:
+		lines.append("WARNING: %s" % String(warning))
+	return "\n".join(lines)
+
 func _get_power_network_summary_lines(filter: String = "") -> Array[String]:
 	var grouped := {}
 	for object_data in mission_world_objects:
@@ -994,6 +1061,35 @@ func validate_power_network_debug_scenario() -> Array[String]:
 		"is_powered": true,
 		"state": "damaged"
 	}))
+	temp_objects.append(_build_power_network_debug_object("power_debug_apply_case_a_source", "power_source", "power_debug_apply_case_a", {
+		"is_powered": true
+	}))
+	temp_objects.append(_build_power_network_debug_object("power_debug_apply_case_a_consumer", "power_cable", "power_debug_apply_case_a", {
+		"is_powered": false
+	}))
+	temp_objects.append(_build_power_network_debug_object("power_debug_apply_case_b_source", "power_source", "power_debug_apply_case_b", {
+		"is_powered": true,
+		"state": "overheated"
+	}))
+	temp_objects.append(_build_power_network_debug_object("power_debug_apply_case_b_consumer", "power_cable", "power_debug_apply_case_b", {
+		"is_powered": false
+	}))
+	temp_objects.append(_build_power_network_debug_object("power_debug_apply_case_c_source", "power_source", "power_debug_apply_case_c", {
+		"is_powered": true
+	}))
+	temp_objects.append(_build_power_network_debug_object("power_debug_apply_case_c_consumer", "power_cable", "power_debug_apply_case_c", {
+		"is_powered": true,
+		"state": "damaged"
+	}))
+	temp_objects.append(_build_power_network_debug_object("power_debug_apply_case_d_source_on", "power_source", "power_debug_apply_case_d", {
+		"is_powered": true
+	}))
+	temp_objects.append(_build_power_network_debug_object("power_debug_apply_case_d_source_off", "power_source", "power_debug_apply_case_d", {
+		"is_powered": false
+	}))
+	temp_objects.append(_build_power_network_debug_object("power_debug_apply_case_d_consumer", "power_cable", "power_debug_apply_case_d", {
+		"is_powered": false
+	}))
 	for object_data in temp_objects:
 		mission_world_objects.append(object_data)
 		var object_id := String(object_data.get("id", "")).strip_edges()
@@ -1069,6 +1165,58 @@ func validate_power_network_debug_scenario() -> Array[String]:
 	var preview_cable_after := bool(preview_cable_object.get("is_powered", false))
 	if preview_cable_before != preview_cable_after:
 		warnings.append("Preview mutated temporary object state for power_debug_preview_cable.")
+	var apply_result_a := apply_power_network_state_from_preview("power_debug_apply_case_a")
+	var apply_case_a_consumer := get_world_object_by_id("power_debug_apply_case_a_consumer")
+	if not bool(apply_case_a_consumer.get("is_powered", false)):
+		warnings.append("Apply regression A: powered source did not power unpowered consumer.")
+	var apply_case_a_found := false
+	for change_variant in apply_result_a.get("changes", []):
+		if typeof(change_variant) != TYPE_DICTIONARY:
+			continue
+		var change: Dictionary = change_variant
+		if String(change.get("object_id", "")) == "power_debug_apply_case_a_consumer" and bool(change.get("new_is_powered", false)):
+			apply_case_a_found = true
+			break
+	if not apply_case_a_found:
+		warnings.append("Apply regression A: report missing applied consumer power-up.")
+	var apply_case_b_consumer := get_world_object_by_id("power_debug_apply_case_b_consumer")
+	var apply_case_b_before := bool(apply_case_b_consumer.get("is_powered", false))
+	var apply_result_b := apply_power_network_state_from_preview("power_debug_apply_case_b")
+	var apply_case_b_after := bool(apply_case_b_consumer.get("is_powered", false))
+	if apply_case_b_before != apply_case_b_after or apply_case_b_after:
+		warnings.append("Apply regression B: consumer power changed with overheated source.")
+	for change_variant in apply_result_b.get("changes", []):
+		if typeof(change_variant) != TYPE_DICTIONARY:
+			continue
+		var change: Dictionary = change_variant
+		if String(change.get("object_id", "")) == "power_debug_apply_case_b_consumer" and bool(change.get("new_is_powered", false)):
+			warnings.append("Apply regression B: report included invalid consumer power-up.")
+			break
+	var apply_case_c_consumer := get_world_object_by_id("power_debug_apply_case_c_consumer")
+	var apply_result_c := apply_power_network_state_from_preview("power_debug_apply_case_c")
+	if bool(apply_case_c_consumer.get("is_powered", false)):
+		warnings.append("Apply regression C: damaged consumer remained powered.")
+	var apply_case_c_reason_ok := false
+	for change_variant in apply_result_c.get("changes", []):
+		if typeof(change_variant) != TYPE_DICTIONARY:
+			continue
+		var change: Dictionary = change_variant
+		if String(change.get("object_id", "")) != "power_debug_apply_case_c_consumer":
+			continue
+		if not bool(change.get("new_is_powered", false)) and String(change.get("reason", "")) == "damaged":
+			apply_case_c_reason_ok = true
+			break
+	if not apply_case_c_reason_ok:
+		warnings.append("Apply regression C: damaged consumer power-down missing reason=damaged.")
+	var apply_case_d_source_on := get_world_object_by_id("power_debug_apply_case_d_source_on")
+	var apply_case_d_source_off := get_world_object_by_id("power_debug_apply_case_d_source_off")
+	var source_on_before := bool(apply_case_d_source_on.get("is_powered", false))
+	var source_off_before := bool(apply_case_d_source_off.get("is_powered", false))
+	apply_power_network_state_from_preview("power_debug_apply_case_d")
+	var source_on_after := bool(apply_case_d_source_on.get("is_powered", false))
+	var source_off_after := bool(apply_case_d_source_off.get("is_powered", false))
+	if source_on_before != source_on_after or source_off_before != source_off_after:
+		warnings.append("Apply regression D: source object is_powered mutated by apply.")
 	var index := mission_world_objects.size() - 1
 	while index >= 0:
 		var object_data: Dictionary = mission_world_objects[index]
