@@ -394,7 +394,14 @@ func execute_power_graph_apply_and_get_report_text(filter: String = "") -> Strin
 
 func _is_terminal_powered_for_interaction(world_object: Dictionary) -> bool:
 	if mission_manager == null or not mission_manager.has_method("_is_terminal_powered_for_interaction"):
-		return bool(world_object.get("is_powered", true)) and String(world_object.get("state", "active")) != "unpowered"
+		var state := String(world_object.get("state", "")).strip_edges().to_lower().replace(" ", "_").replace("-", "_")
+		if bool(world_object.get("damaged", false)) or bool(world_object.get("broken", false)) or bool(world_object.get("destroyed", false)):
+			return false
+		if state in ["damaged", "broken", "destroyed", "overheated", "unpowered"]:
+			return false
+		if world_object.has("is_powered"):
+			return bool(world_object.get("is_powered", true))
+		return true
 	return bool(mission_manager.call("_is_terminal_powered_for_interaction", world_object))
 
 func get_power_network_apply_preview_report_text(filter: String = "") -> String:
