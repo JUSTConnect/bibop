@@ -255,6 +255,23 @@ func get_world_objects_debug_table_text(filter: String = "") -> String:
 	var text_variant: Variant = mission_manager.call("get_world_objects_debug_table_text", filter)
 	return String(text_variant)
 
+func get_power_network_debug_summary_text(filter: String = "") -> String:
+	if mission_manager == null:
+		return "Power network summary unavailable: mission manager is missing."
+	if not mission_manager.has_method("get_power_network_debug_summary_text"):
+		return "Power network summary unavailable: mission manager/helper missing."
+	return String(mission_manager.call("get_power_network_debug_summary_text", filter))
+
+func validate_power_network_runtime_state() -> Dictionary:
+	if mission_manager == null:
+		return {"valid": false, "networks": 0, "objects": 0, "warnings": ["Mission manager is missing."], "errors": ["Mission manager unavailable."]}
+	if not mission_manager.has_method("validate_power_network_runtime_state"):
+		return {"valid": false, "networks": 0, "objects": 0, "warnings": ["Power runtime helper missing."], "errors": ["validate_power_network_runtime_state helper missing."]}
+	var report_variant: Variant = mission_manager.call("validate_power_network_runtime_state")
+	if typeof(report_variant) != TYPE_DICTIONARY:
+		return {"valid": false, "networks": 0, "objects": 0, "warnings": ["Power runtime helper returned invalid data."], "errors": ["Power runtime report is not a dictionary."]}
+	return report_variant
+
 func validate_platform_runtime_state() -> Dictionary:
 	if mission_manager == null:
 		return {"valid": false, "platforms": 0, "terminals": 0, "warnings": ["Mission manager is missing."], "errors": ["Mission manager unavailable."]}
