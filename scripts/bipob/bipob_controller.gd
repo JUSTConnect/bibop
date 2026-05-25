@@ -252,6 +252,30 @@ func get_world_objects_debug_table_text(filter: String = "") -> String:
 	var text_variant: Variant = mission_manager.call("get_world_objects_debug_table_text", filter)
 	return String(text_variant)
 
+func validate_platform_runtime_state() -> Dictionary:
+	if mission_manager == null:
+		return {"valid": false, "platforms": 0, "terminals": 0, "warnings": ["Mission manager is missing."], "errors": ["Mission manager unavailable."]}
+	if not mission_manager.has_method("validate_platform_runtime_state"):
+		return {"valid": false, "platforms": 0, "terminals": 0, "warnings": ["Platform runtime helper missing."], "errors": ["validate_platform_runtime_state helper missing."]}
+	var report_variant: Variant = mission_manager.call("validate_platform_runtime_state")
+	if typeof(report_variant) != TYPE_DICTIONARY:
+		return {"valid": false, "platforms": 0, "terminals": 0, "warnings": ["Platform runtime helper returned invalid data."], "errors": ["Platform runtime report is not a dictionary."]}
+	return report_variant
+
+func get_platform_runtime_validation_text() -> String:
+	if mission_manager == null:
+		return "Platform runtime validation unavailable: mission manager is missing."
+	if not mission_manager.has_method("get_platform_runtime_validation_text"):
+		return "Platform runtime validation unavailable: helper missing."
+	return String(mission_manager.call("get_platform_runtime_validation_text"))
+
+func get_platform_runtime_table_text(filter: String = "") -> String:
+	if mission_manager == null:
+		return "Platform runtime table unavailable: mission manager is missing."
+	if not mission_manager.has_method("get_platform_runtime_table_text"):
+		return "Platform runtime table unavailable: helper missing."
+	return String(mission_manager.call("get_platform_runtime_table_text", filter))
+
 func install_module(module: BipobModule) -> void:
 	# MVP behavior: install immediately applies passive bonuses.
 	if module == null:
