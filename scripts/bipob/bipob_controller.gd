@@ -344,6 +344,16 @@ func get_power_network_apply_preview_report_text(filter: String = "") -> String:
 		return "Power network apply preview unavailable: mission manager/helper missing."
 	return String(mission_manager.call("get_power_network_apply_preview_report_text", filter))
 
+func execute_power_network_apply_debug_command(filter: String = "") -> String:
+	if mission_manager == null or not mission_manager.has_method("execute_power_network_apply_debug_command"):
+		return "Power network apply debug command unavailable: mission manager/helper missing."
+	return String(mission_manager.call("execute_power_network_apply_debug_command", filter))
+
+func get_power_network_apply_debug_preview_text(filter: String = "") -> String:
+	if mission_manager == null or not mission_manager.has_method("get_power_network_apply_debug_preview_text"):
+		return "Power network apply debug preview unavailable: mission manager/helper missing."
+	return String(mission_manager.call("get_power_network_apply_debug_preview_text", filter))
+
 func get_power_network_apply_report_text(filter: String = "") -> String:
 	return "Power network apply report renamed: use execute_power_network_apply_and_get_report_text() to apply, or get_power_network_apply_preview_report_text() for read-only preview."
 
