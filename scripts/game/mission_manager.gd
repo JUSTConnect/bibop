@@ -639,6 +639,126 @@ func _is_power_source_available(source: Dictionary) -> bool:
 func _normalize_power_gate_text(raw_value: Variant) -> String:
 	return String(raw_value).strip_edges().to_lower().replace(" ", "_").replace("-", "_")
 
+func _normalize_power_consumer_text(raw_value: Variant) -> String:
+	return _normalize_power_gate_text(raw_value)
+
+func _is_terminal_object(object_data: Dictionary) -> bool:
+	var object_group := _normalize_power_consumer_text(object_data.get("object_group", ""))
+	var object_type := _normalize_power_consumer_text(object_data.get("object_type", ""))
+	if object_group == "terminal":
+		return true
+	return object_type in ["terminal", "door_terminal", "information_terminal", "info_terminal", "cooling_terminal", "platform_terminal", "elevator_terminal", "turret_terminal", "security_terminal"]
+
+func _is_terminal_powered_for_interaction(object_data: Dictionary) -> bool:
+	var state := _normalize_power_consumer_text(object_data.get("state", ""))
+	if bool(object_data.get("damaged", false)) or bool(object_data.get("broken", false)) or bool(object_data.get("destroyed", false)):
+		return false
+	if state in ["damaged", "broken", "destroyed", "overheated", "unpowered"]:
+		return false
+	return bool(object_data.get("is_powered", false))
+
+func _is_power_reactive_door_object(object_data: Dictionary) -> bool:
+	var object_group := _normalize_power_consumer_text(object_data.get("object_group", ""))
+	var object_type := _normalize_power_consumer_text(object_data.get("object_type", ""))
+	var material := _normalize_power_consumer_text(object_data.get("material", ""))
+	if object_type in ["energy_door", "grid_door", "power_door", "electromagnetic_door"]:
+		return true
+	if object_group == "door" and (material in ["electromagnetic", "energy", "grid"] or object_type.find("electromagnetic") != -1 or object_type.find("energy") != -1 or object_type.find("grid") != -1):
+		return true
+	return false
+
+func _is_platform_power_consumer(object_data: Dictionary) -> bool:
+	var object_group := _normalize_power_consumer_text(object_data.get("object_group", ""))
+	var object_type := _normalize_power_consumer_text(object_data.get("object_type", ""))
+	return object_group == "platform" or object_type in ["platform", "lifting_platform", "rotating_platform"]
+
+func update_terminal_power_state_from_is_powered(object_data: Dictionary) -> Dictionary:
+	var state := _normalize_power_consumer_text(object_data.get("state", ""))
+	var previous_state := String(object_data.get("state", ""))
+	var report := {"changed": false, "object_id": String(object_data.get("id", "")), "previous_state": previous_state, "new_state": previous_state, "reason": "not_terminal"}
+	if not _is_terminal_object(object_data):
+		return report
+	if state in ["damaged", "broken", "destroyed", "overheated"] or bool(object_data.get("damaged", false)) or bool(object_data.get("broken", false)):
+		report["reason"] = "terminal_blocked_state"
+		return report
+	if not bool(object_data.get("is_powered", false)):
+		if not state in ["unpowered", "damaged", "broken", "destroyed", "overheated"]:
+			object_data["powered_state_before_unpowered"] = previous_state
+		if state != "unpowered":
+			object_data["state"] = "unpowered"
+			report["changed"] = true
+			report["new_state"] = "unpowered"
+		report["reason"] = "terminal_unpowered"
+		return report
+	if state == "unpowered":
+		var restore_state := _normalize_power_consumer_text(object_data.get("powered_state_before_unpowered", ""))
+		if restore_state in ["", "unpowered", "damaged", "broken", "destroyed", "overheated"]:
+			restore_state = "active"
+		object_data["state"] = restore_state
+		report["changed"] = true
+		report["new_state"] = restore_state
+		report["reason"] = "terminal_power_restored"
+		return report
+	report["reason"] = "terminal_already_powered"
+	return report
+
+func update_power_door_state_from_is_powered(object_data: Dictionary) -> Dictionary:
+	var previous_state := String(object_data.get("state", ""))
+	var state := _normalize_power_consumer_text(previous_state)
+	var report := {"changed": false, "object_id": String(object_data.get("id", "")), "previous_state": previous_state, "new_state": previous_state, "reason": "not_power_reactive_door"}
+	if not _is_power_reactive_door_object(object_data):
+		return report
+	if state in ["damaged", "broken", "destroyed", "sealed"] or bool(object_data.get("damaged", false)) or bool(object_data.get("broken", false)):
+		report["reason"] = "door_blocked_state"
+		return report
+	if not bool(object_data.get("is_powered", false)):
+		if not state in ["unpowered", "disabled", "damaged", "broken", "destroyed", "sealed"]:
+			object_data["powered_state_before_unpowered"] = previous_state
+		if state != "unpowered":
+			object_data["state"] = "unpowered"
+			report["changed"] = true
+			report["new_state"] = "unpowered"
+		report["reason"] = "door_unpowered"
+		return report
+	if state in ["unpowered", "disabled"]:
+		var restore_state := _normalize_power_consumer_text(object_data.get("powered_state_before_unpowered", ""))
+		if restore_state in ["", "unpowered", "disabled", "damaged", "broken", "destroyed", "sealed"]:
+			restore_state = "closed"
+		object_data["state"] = restore_state
+		report["changed"] = true
+		report["new_state"] = restore_state
+		report["reason"] = "door_power_restored"
+		return report
+	report["reason"] = "door_already_powered"
+	return report
+
+func update_platform_power_state_from_is_powered(object_data: Dictionary) -> Dictionary:
+	var previous_state := String(object_data.get("state", ""))
+	var state := _normalize_power_consumer_text(previous_state)
+	var report := {"changed": false, "object_id": String(object_data.get("id", "")), "previous_state": previous_state, "new_state": previous_state, "reason": "not_platform_consumer"}
+	if not _is_platform_power_consumer(object_data):
+		return report
+	if not bool(object_data.get("is_powered", false)):
+		if not state in ["unpowered", "disabled", "damaged", "broken", "destroyed"]:
+			object_data["powered_state_before_unpowered"] = previous_state
+		if state != "unpowered":
+			object_data["state"] = "unpowered"
+			report["changed"] = true
+			report["new_state"] = "unpowered"
+		report["reason"] = "platform_unpowered"
+		return report
+	if state in ["unpowered", "disabled"]:
+		var restore_state := _normalize_power_consumer_text(object_data.get("powered_state_before_unpowered", ""))
+		if restore_state in ["", "unpowered", "disabled", "damaged", "broken", "destroyed"]:
+			restore_state = "active"
+		object_data["state"] = restore_state
+		report["changed"] = true
+		report["new_state"] = restore_state
+		report["reason"] = "platform_power_restored"
+		return report
+	report["reason"] = "platform_already_powered"
+	return report
+
 func _get_power_gate_state(object_data: Dictionary) -> Dictionary:
 	var object_type := _normalize_power_gate_text(object_data.get("object_type", ""))
 	var state := _normalize_power_gate_text(object_data.get("state", ""))
@@ -824,7 +944,17 @@ func apply_power_graph_state_from_preview(filter: String = "") -> Dictionary:
 		if previous_is_powered == next_is_powered:
 			continue
 		object_data["is_powered"] = next_is_powered
-		applied_changes.append({"object_id": object_id, "network_id": String(change.get("network_id", "")), "previous_is_powered": previous_is_powered, "new_is_powered": next_is_powered, "reason": String(change.get("reason", ""))})
+		var applied_change := {"object_id": object_id, "network_id": String(change.get("network_id", "")), "previous_is_powered": previous_is_powered, "new_is_powered": next_is_powered, "reason": String(change.get("reason", ""))}
+		var consumer_state_report := {}
+		if _is_terminal_object(object_data):
+			consumer_state_report = update_terminal_power_state_from_is_powered(object_data)
+		elif _is_power_reactive_door_object(object_data):
+			consumer_state_report = update_power_door_state_from_is_powered(object_data)
+		elif _is_platform_power_consumer(object_data):
+			consumer_state_report = update_platform_power_state_from_is_powered(object_data)
+		if not consumer_state_report.is_empty():
+			applied_change["consumer_state_report"] = consumer_state_report
+		applied_changes.append(applied_change)
 	return {"applied": applied_changes.size(), "changes": applied_changes, "warnings": preview.get("warnings", [])}
 
 func execute_power_graph_apply_and_get_report_text(filter: String = "") -> String:
@@ -835,7 +965,13 @@ func execute_power_graph_apply_and_get_report_text(filter: String = "") -> Strin
 		if typeof(change_variant) != TYPE_DICTIONARY:
 			continue
 		var change: Dictionary = change_variant
-		lines.append("APPLIED: object=%s network=%s is_powered %s -> %s reason=%s" % [String(change.get("object_id", "")), String(change.get("network_id", "")), str(bool(change.get("previous_is_powered", false))).to_lower(), str(bool(change.get("new_is_powered", false))).to_lower(), String(change.get("reason", ""))])
+		var line := "APPLIED: object=%s network=%s is_powered %s -> %s reason=%s" % [String(change.get("object_id", "")), String(change.get("network_id", "")), str(bool(change.get("previous_is_powered", false))).to_lower(), str(bool(change.get("new_is_powered", false))).to_lower(), String(change.get("reason", ""))]
+		var consumer_state_report_variant: Variant = change.get("consumer_state_report", {})
+		if consumer_state_report_variant is Dictionary:
+			var consumer_state_report: Dictionary = consumer_state_report_variant
+			if bool(consumer_state_report.get("changed", false)):
+				line += " state %s -> %s" % [String(consumer_state_report.get("previous_state", "")), String(consumer_state_report.get("new_state", ""))]
+		lines.append(line)
 	for warning_variant in report.get("warnings", []):
 		lines.append("WARNING: %s" % String(warning_variant))
 	return "\n".join(lines)
@@ -1436,6 +1572,26 @@ func validate_power_network_debug_scenario() -> Array[String]:
 	temp_objects.append(_build_power_network_debug_object("power_debug_graph_no_source_consumer", "power_socket", "power_debug_graph_no_source", {"is_powered": true}))
 	temp_objects.append(_build_power_network_debug_object("power_debug_graph_damaged_consumer_source", "power_source", "power_debug_graph_damaged_consumer", {"is_powered": true}))
 	temp_objects.append(_build_power_network_debug_object("power_debug_graph_damaged_consumer", "power_socket", "power_debug_graph_damaged_consumer", {"is_powered": false, "state": "damaged"}))
+	temp_objects.append(_build_power_network_debug_object("power_debug_terminal_powered_source", "power_source", "power_debug_terminal_powered", {"is_powered": true}))
+	temp_objects.append(_build_power_network_debug_object("power_debug_terminal_powered_switch", "circuit_switch", "power_debug_terminal_powered", {"state": "switch_on"}))
+	temp_objects.append(_build_power_network_debug_object("power_debug_terminal_powered_terminal", "information_terminal", "power_debug_terminal_powered", {"is_powered": false, "state": "unpowered"}))
+	temp_objects.append(_build_power_network_debug_object("power_debug_terminal_blocked_source", "power_source", "power_debug_terminal_blocked", {"is_powered": true}))
+	temp_objects.append(_build_power_network_debug_object("power_debug_terminal_blocked_switch", "circuit_switch", "power_debug_terminal_blocked", {"state": "switch_off"}))
+	temp_objects.append(_build_power_network_debug_object("power_debug_terminal_blocked_terminal", "information_terminal", "power_debug_terminal_blocked", {"is_powered": true, "state": "active"}))
+	temp_objects.append(_build_power_network_debug_object("power_debug_terminal_damaged_source", "power_source", "power_debug_terminal_damaged", {"is_powered": true}))
+	temp_objects.append(_build_power_network_debug_object("power_debug_terminal_damaged_terminal", "information_terminal", "power_debug_terminal_damaged", {"is_powered": false, "state": "damaged"}))
+	temp_objects.append(_build_power_network_debug_object("power_debug_energy_door_blocked_source", "power_source", "power_debug_energy_door_blocked", {"is_powered": true}))
+	temp_objects.append(_build_power_network_debug_object("power_debug_energy_door_blocked_switch", "circuit_switch", "power_debug_energy_door_blocked", {"state": "switch_off"}))
+	temp_objects.append(_build_power_network_debug_object("power_debug_energy_door_blocked_door", "energy_door", "power_debug_energy_door_blocked", {"is_powered": true, "state": "closed"}))
+	temp_objects.append(_build_power_network_debug_object("power_debug_energy_door_powered_source", "power_source", "power_debug_energy_door_powered", {"is_powered": true}))
+	temp_objects.append(_build_power_network_debug_object("power_debug_energy_door_powered_switch", "circuit_switch", "power_debug_energy_door_powered", {"state": "switch_on"}))
+	temp_objects.append(_build_power_network_debug_object("power_debug_energy_door_powered_door", "energy_door", "power_debug_energy_door_powered", {"is_powered": false, "state": "unpowered"}))
+	temp_objects.append(_build_power_network_debug_object("power_debug_platform_blocked_source", "power_source", "power_debug_platform_blocked", {"is_powered": true}))
+	temp_objects.append(_build_power_network_debug_object("power_debug_platform_blocked_switch", "circuit_switch", "power_debug_platform_blocked", {"state": "switch_off"}))
+	temp_objects.append(_build_power_network_debug_object("power_debug_platform_blocked_platform", "lifting_platform", "power_debug_platform_blocked", {"is_powered": true, "state": "active", "height_level": 1}))
+	temp_objects.append(_build_power_network_debug_object("power_debug_platform_powered_source", "power_source", "power_debug_platform_powered", {"is_powered": true}))
+	temp_objects.append(_build_power_network_debug_object("power_debug_platform_powered_switch", "circuit_switch", "power_debug_platform_powered", {"state": "switch_on"}))
+	temp_objects.append(_build_power_network_debug_object("power_debug_platform_powered_platform", "lifting_platform", "power_debug_platform_powered", {"is_powered": false, "state": "unpowered", "height_level": 1}))
 	for object_data in temp_objects:
 		mission_world_objects.append(object_data)
 		var object_id := String(object_data.get("id", "")).strip_edges()
@@ -1806,6 +1962,36 @@ func validate_power_network_debug_scenario() -> Array[String]:
 		var change: Dictionary = change_variant
 		if String(change.get("object_id", "")) == "power_debug_graph_damaged_consumer" and String(change.get("reason", "")) != "damaged":
 			warnings.append("Graph damaged consumer scenario regression: expected reason=damaged for preview change.")
+	var terminal_powered := get_world_object_by_id("power_debug_terminal_powered_terminal")
+	apply_power_graph_state_from_preview("power_debug_terminal_powered")
+	if not bool(terminal_powered.get("is_powered", false)) or String(terminal_powered.get("state", "")) != "active":
+		warnings.append("Terminal powered restore regression: terminal did not restore active powered state.")
+	var terminal_blocked := get_world_object_by_id("power_debug_terminal_blocked_terminal")
+	apply_power_graph_state_from_preview("power_debug_terminal_blocked")
+	if bool(terminal_blocked.get("is_powered", true)) or String(terminal_blocked.get("state", "")) != "unpowered":
+		warnings.append("Terminal blocked regression: terminal should become unpowered.")
+	var terminal_damaged := get_world_object_by_id("power_debug_terminal_damaged_terminal")
+	apply_power_graph_state_from_preview("power_debug_terminal_damaged")
+	if String(terminal_damaged.get("state", "")) != "damaged" or _is_terminal_powered_for_interaction(terminal_damaged):
+		warnings.append("Terminal damaged regression: damaged terminal must remain non-interactable.")
+	var energy_door_blocked := get_world_object_by_id("power_debug_energy_door_blocked_door")
+	apply_power_graph_state_from_preview("power_debug_energy_door_blocked")
+	if bool(energy_door_blocked.get("is_powered", true)) or not String(energy_door_blocked.get("state", "")) in ["unpowered", "disabled"]:
+		warnings.append("Energy door blocked regression: powered barrier did not disable when unpowered.")
+	var energy_door_powered := get_world_object_by_id("power_debug_energy_door_powered_door")
+	apply_power_graph_state_from_preview("power_debug_energy_door_powered")
+	if not bool(energy_door_powered.get("is_powered", false)) or not String(energy_door_powered.get("state", "")) in ["closed", "active", "powered"]:
+		warnings.append("Energy door powered regression: barrier did not restore.")
+	var platform_blocked := get_world_object_by_id("power_debug_platform_blocked_platform")
+	var platform_blocked_height_before := int(platform_blocked.get("height_level", 0))
+	apply_power_graph_state_from_preview("power_debug_platform_blocked")
+	if bool(platform_blocked.get("is_powered", true)) or not String(platform_blocked.get("state", "")) in ["unpowered", "disabled"] or int(platform_blocked.get("height_level", 0)) != platform_blocked_height_before:
+		warnings.append("Platform blocked regression: platform power-off should disable without movement.")
+	var platform_powered := get_world_object_by_id("power_debug_platform_powered_platform")
+	var platform_powered_height_before := int(platform_powered.get("height_level", 0))
+	apply_power_graph_state_from_preview("power_debug_platform_powered")
+	if not bool(platform_powered.get("is_powered", false)) or not String(platform_powered.get("state", "")) in ["active", "idle"] or int(platform_powered.get("height_level", 0)) != platform_powered_height_before:
+		warnings.append("Platform powered regression: platform should restore and not move.")
 	var graph_filter_source := get_world_object_by_id("power_debug_graph_open_switch_source")
 	var graph_filter_gate := get_world_object_by_id("power_debug_graph_open_switch_gate")
 	var graph_filter_consumer := get_world_object_by_id("power_debug_graph_open_switch_consumer")
