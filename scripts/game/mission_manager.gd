@@ -13,6 +13,8 @@ var last_world_runtime_restore_warnings: Array[String] = []
 var debug_world_logs := false
 var enable_debug_seed := false
 var debug_world_cooling_scenario_enabled: bool = false
+var debug_platform_scenario_enabled: bool = false
+var active_bipob_ref: Node = null
 
 func _ready() -> void:
 	if enable_debug_seed:
@@ -79,6 +81,8 @@ func setup_world_objects_for_mission(mission_id: String) -> void:
 	refresh_world_cooling_received()
 	if debug_world_cooling_scenario_enabled:
 		seed_world_cooling_debug_scenario()
+	if debug_platform_scenario_enabled:
+		seed_platform_debug_scenario()
 	last_threat_warning_ids.clear()
 	if debug_world_logs:
 		var scenario_warnings := validate_world_object_scenario()
@@ -178,6 +182,8 @@ func _seed_debug_world_objects() -> void:
 	refresh_world_cooling_received()
 	if debug_world_cooling_scenario_enabled:
 		seed_world_cooling_debug_scenario()
+	if debug_platform_scenario_enabled:
+		seed_platform_debug_scenario()
 	if debug_world_logs:
 		_debug_world_summary()
 
@@ -950,3 +956,139 @@ func get_world_runtime_restore_warnings_text() -> String:
 
 func get_world_runtime_restore_warnings() -> Array[String]:
 	return last_world_runtime_restore_warnings.duplicate()
+
+
+func set_active_bipob_ref(bipob: Node) -> void:
+	active_bipob_ref = bipob
+
+func get_platform_by_id(platform_id: String) -> Dictionary:
+	for object_data in mission_world_objects:
+		if String(object_data.get("object_group", "")) != "platform":
+			continue
+		if String(object_data.get("platform_id", "")) == platform_id:
+			return object_data
+	return {}
+
+func get_platform_for_cell(cell: Vector2i) -> Dictionary:
+	for object_data in mission_world_objects:
+		if String(object_data.get("object_group", "")) != "platform":
+			continue
+		for platform_cell_variant in Array(object_data.get("platform_cells", [])):
+			var platform_cell := WorldObjectCatalog.to_world_cell(platform_cell_variant, Vector2i(-1, -1))
+			if platform_cell == cell:
+				return object_data
+	return {}
+
+func get_platform_occupants(platform_id: String) -> Dictionary:
+	var platform := get_platform_by_id(platform_id)
+	if platform.is_empty():
+		return {"world_objects": [], "items": [], "bipobs": []}
+	var cells: Array = []
+	for c in Array(platform.get("platform_cells", [])):
+		cells.append(WorldObjectCatalog.to_world_cell(c, Vector2i(-1, -1)))
+	var occupants := {"world_objects": [], "items": [], "bipobs": []}
+	for object_data in mission_world_objects:
+		if String(object_data.get("id", "")) == String(platform.get("id", "")):
+			continue
+		var pos := WorldObjectCatalog.to_world_cell(object_data.get("position", Vector2i(-1, -1)), Vector2i(-1, -1))
+		if cells.has(pos):
+			occupants["world_objects"].append(object_data)
+	for cell in cells:
+		for item in get_items_at_cell(cell):
+			occupants["items"].append(item)
+	if active_bipob_ref != null and active_bipob_ref.has_method("get_grid_position"):
+		var bipob_cell: Vector2i = active_bipob_ref.get_grid_position()
+		if cells.has(bipob_cell):
+			occupants["bipobs"].append({"id":"active_bipob","position":bipob_cell,"direction":String(active_bipob_ref.direction)})
+	return occupants
+
+func activate_platform_by_id(platform_id: String, source: String = "") -> Dictionary:
+	var platform := get_platform_by_id(platform_id)
+	if platform.is_empty():
+		return {"success":false, "message":"Platform not found."}
+	if String(platform.get("state", "active")) in ["unpowered", "disabled"] or not bool(platform.get("is_powered", true)):
+		return {"success":false, "message":"Platform is unpowered."}
+	if bool(platform.get("requires_terminal_enabled", false)):
+		var terminal := get_world_object_by_id(String(platform.get("linked_terminal_id", "")))
+		if terminal.is_empty() or String(terminal.get("state", "active")) in ["unpowered", "disabled", "damaged"] or not bool(terminal.get("platform_control_enabled", true)):
+			return {"success":false, "message":"Platform terminal is unavailable."}
+	var mode := String(platform.get("activation_mode", "instant"))
+	if mode == "timer":
+		platform["pending_activation"] = true
+		platform["timer_remaining_turns"] = maxi(1, int(platform.get("timer_turns", 1)))
+		return {"success":true, "message":"Platform timer armed."}
+	if mode == "periodic":
+		platform["periodic_active"] = not bool(platform.get("periodic_active", false))
+		platform["timer_remaining_turns"] = maxi(1, int(platform.get("period_turns", 1)))
+		return {"success":true, "message":"Platform periodic toggled."}
+	if mode == "permanent":
+		platform["permanent_state"] = not bool(platform.get("permanent_state", false))
+	return _execute_platform_action(platform, source)
+
+func _execute_platform_action(platform: Dictionary, source: String = "") -> Dictionary:
+	var platform_type := String(platform.get("platform_type", ""))
+	if platform_type == "rotating":
+		var occupants := get_platform_occupants(String(platform.get("platform_id", "")))
+		for obj in Array(occupants.get("world_objects", [])):
+			if obj.has("facing_dir"):
+				obj["facing_dir"] = _rotate_facing(String(obj.get("facing_dir", "up")), String(platform.get("rotation_direction", "clockwise")) != "counterclockwise")
+		if active_bipob_ref != null and active_bipob_ref.has_method("set_direction") and Array(occupants.get("bipobs", [])).size() > 0:
+			active_bipob_ref.set_direction(_rotate_facing(String(active_bipob_ref.direction), true))
+		refresh_world_cooling_received()
+		return {"success":true, "message":"Rotating platform activated."}
+	if platform_type == "lifting":
+		var min_h := int(platform.get("min_height_level", 0))
+		var max_h := int(platform.get("max_height_level", 1))
+		var cur := int(platform.get("height_level", min_h))
+		platform["height_level"] = max_h if cur <= min_h else min_h
+		var occupants := get_platform_occupants(String(platform.get("platform_id", "")))
+		for obj in Array(occupants.get("world_objects", [])):
+			obj["platform_height_level"] = int(platform.get("height_level", 0))
+			obj["carried_by_platform_id"] = String(platform.get("platform_id", ""))
+		return {"success":true, "message":"Lifting platform toggled."}
+	return {"success":false, "message":"Unknown platform type."}
+
+func _rotate_facing(facing: String, clockwise: bool) -> String:
+	var dirs := ["up", "right", "down", "left"]
+	var idx := dirs.find(facing)
+	if idx == -1:
+		idx = 0
+	idx = posmod(idx + (1 if clockwise else -1), 4)
+	return dirs[idx]
+
+func process_platform_turn_tick() -> void:
+	for object_data in mission_world_objects:
+		if String(object_data.get("object_group", "")) != "platform":
+			continue
+		if bool(object_data.get("pending_activation", false)):
+			object_data["timer_remaining_turns"] = int(object_data.get("timer_remaining_turns", 0)) - 1
+			if int(object_data.get("timer_remaining_turns", 0)) <= 0:
+				object_data["pending_activation"] = false
+				_execute_platform_action(object_data, "timer")
+		if bool(object_data.get("periodic_active", false)):
+			object_data["timer_remaining_turns"] = int(object_data.get("timer_remaining_turns", 0)) - 1
+			if int(object_data.get("timer_remaining_turns", 0)) <= 0:
+				_execute_platform_action(object_data, "periodic")
+				object_data["timer_remaining_turns"] = maxi(1, int(object_data.get("period_turns", 1)))
+
+func get_platform_timer_debug_summary_text() -> String:
+	var lines: Array[String] = []
+	for object_data in mission_world_objects:
+		if String(object_data.get("object_group", "")) != "platform":
+			continue
+		lines.append("%s mode=%s pending=%s periodic=%s remaining=%d" % [String(object_data.get("platform_id", object_data.get("id", ""))), String(object_data.get("activation_mode", "instant")), str(bool(object_data.get("pending_activation", false))), str(bool(object_data.get("periodic_active", false))), int(object_data.get("timer_remaining_turns", 0))])
+	return "\n".join(lines) if not lines.is_empty() else "No platforms."
+
+func seed_platform_debug_scenario(origin: Vector2i = Vector2i(10, 2)) -> void:
+	_place_debug_world_object("rotating_platform", "rotating_platform_debug", origin, {"platform_id":"platform_rot_a","platform_cells":[[origin.x, origin.y],[origin.x+1, origin.y]],"control_type":"external","linked_terminal_id":"platform_terminal_debug","requires_terminal_enabled":true})
+	_place_debug_world_object("lifting_platform", "lifting_platform_debug", origin + Vector2i(0, 3), {"platform_id":"platform_lift_a","platform_cells":[[origin.x, origin.y+3]],"control_type":"internal","local_switch_cell":[origin.x-1, origin.y+3],"height_level":0,"min_height_level":0,"max_height_level":1})
+	_place_debug_world_object("platform_terminal", "platform_terminal_debug", origin + Vector2i(-2, 0), {"target_platform_id":"platform_rot_a","platform_control_enabled":true})
+	_place_debug_world_object("external_air_cooler", "platform_air_cooler_debug", origin, {"facing_dir":"right"})
+
+func validate_platform_debug_scenario() -> Array[String]:
+	var warnings: Array[String] = []
+	if get_platform_by_id("platform_rot_a").is_empty(): warnings.append("Missing rotating platform.")
+	if get_platform_by_id("platform_lift_a").is_empty(): warnings.append("Missing lifting platform.")
+	var terminal := get_world_object_by_id("platform_terminal_debug")
+	if terminal.is_empty() or String(terminal.get("target_platform_id", "")) != "platform_rot_a": warnings.append("Platform terminal link invalid.")
+	return warnings

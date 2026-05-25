@@ -177,6 +177,21 @@ static func apply_action(actor: Dictionary, module: Dictionary, target_object: D
 			var next_state := "switch_on" if state == "switch_off" else "switch_off"
 			target_object["state"] = next_state
 			return _result(true, "Switch toggled.", [{"type":"set_state","state":next_state},{"type":"power_recalc_needed"}])
+
+		"activate_platform", "switch_platform":
+			if group == "platform":
+				if String(target_object.get("state", "active")) in ["unpowered", "disabled", "damaged"] or not bool(target_object.get("is_powered", true)):
+					return _result(false, "Platform is unpowered.")
+				if String(target_object.get("control_type", "internal")) == "internal":
+					if int(actor.get("manipulator_level", 0)) < 1:
+						return _result(false, "Manipulator required.")
+					if not bool(actor.get("platform_switch_access", false)):
+						return _result(false, "Platform switch is not accessible.")
+				return _result(true, "Platform activated.", [{"type":"activate_platform"}])
+			if group == "terminal" and String(target_object.get("terminal_type", "")) == "platform":
+				if String(target_object.get("state", "active")) in ["unpowered", "disabled", "damaged"] or not bool(target_object.get("platform_remote_control", true)):
+					return _result(false, "Platform terminal is unavailable.")
+				return _result(true, "Platform terminal activated.", [{"type":"activate_platform"}])
 		"pickup":
 			if group == "item":
 				return _result(true, "Item picked up.")

@@ -6945,6 +6945,13 @@ func get_world_object_action_for_context(world_object: Dictionary, _active_modul
 		return ""
 	return String(actions[0])
 
+
+func get_grid_position() -> Vector2i:
+	return grid_position
+
+func set_direction(next_direction: String) -> void:
+	direction = next_direction
+
 func get_heavy_claw_move_destination(object_cell: Vector2i, actor_cell: Vector2i, action_id: String) -> Vector2i:
 	var direction_vector := object_cell - actor_cell
 	if direction_vector == Vector2i.ZERO:
@@ -6977,6 +6984,8 @@ func get_available_world_actions(world_object: Dictionary, target_position: Vect
 	elif group == "terminal":
 		if bool(world_object.get("connected", false)) and get_installed_cpu_level() > 0:
 			actions.append("hack")
+		if String(world_object.get("terminal_type", "")) == "platform":
+			actions.append("activate_platform")
 		if get_installed_interface_level(String(world_object.get("connection_type", "wired"))) > 0:
 			actions.append("connect")
 		if has_repair_tool() and state == "damaged":
@@ -7028,6 +7037,8 @@ func get_available_world_actions(world_object: Dictionary, target_position: Vect
 			actions.append("hack")
 		if has_heavy_claw() and distance <= 1:
 			actions.append("push")
+	elif group == "platform":
+		actions.append("activate_platform")
 	elif group == "item":
 		actions.append("pickup")
 	return actions
@@ -7038,7 +7049,7 @@ func _module_dict(module_id: String) -> Dictionary:
 func get_world_action_module(action_id: String, world_object: Dictionary) -> Dictionary:
 	var connection_type := String(world_object.get("connection_type", "wired"))
 	match action_id:
-		"open", "switch", "pickup":
+		"open", "switch", "pickup", "activate_platform":
 			if action_id == "open":
 				var arm_level := get_installed_manipulator_arm_level()
 				return _module_dict("manipulator_arm_v%d" % arm_level if arm_level > 0 else "")
@@ -7099,6 +7110,8 @@ func get_world_action_module(action_id: String, world_object: Dictionary) -> Dic
 	return _module_dict("")
 
 func interact() -> void:
+	if mission_manager != null and mission_manager.has_method("set_active_bipob_ref"):
+		mission_manager.set_active_bipob_ref(self)
 	var target_position := get_facing_device_position()
 	var target_tile := grid_manager.get_tile(target_position)
 
@@ -7210,7 +7223,8 @@ func interact() -> void:
 				"target_is_grate": world_object.get("object_type", "") == "grate_wall",
 				"facing_direction": get_direction_vector(direction),
 				"target_position": target_position,
-				"actor_position": grid_position
+				"actor_position": grid_position,
+				"platform_switch_access": mission_manager.get_platform_for_cell(target_position).is_empty() or true
 			}
 			var action_id := get_world_object_action_for_context(world_object, active_manipulator, target_position)
 			var available_actions := get_available_world_actions(world_object, target_position)
@@ -7339,6 +7353,17 @@ func _apply_world_object_effects(effects: Array, world_object: Dictionary, targe
 			world_object["drain_energy_pool"] = maxi(0, int(world_object.get("drain_energy_pool", 0)) - drained)
 			world_object["drained_this_turn"] = true
 			energy = mini(max_energy, energy + drained)
+		elif effect_type == "activate_platform":
+			if String(world_object.get("object_group", "")) == "terminal" and String(world_object.get("terminal_type", "")) == "platform":
+				var target_platform_id := String(world_object.get("target_platform_id", ""))
+				if target_platform_id.is_empty():
+					hint_requested.emit("Platform terminal target is missing.")
+				else:
+					var platform_result := mission_manager.activate_platform_by_id(target_platform_id, "terminal")
+					hint_requested.emit(String(platform_result.get("message", "Platform action.")))
+			elif String(world_object.get("object_group", "")) == "platform":
+				var platform_result_direct := mission_manager.activate_platform_by_id(String(world_object.get("platform_id", "")), "local")
+				hint_requested.emit(String(platform_result_direct.get("message", "Platform action.")))
 		elif effect_type == "object_move":
 			var move_dir := Vector2i(effect.get("direction", actor.get("facing_direction", Vector2i.ZERO)))
 			if move_dir == Vector2i.ZERO and effect.has("dx"):
