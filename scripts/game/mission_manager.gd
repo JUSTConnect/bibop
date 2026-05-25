@@ -867,7 +867,7 @@ func validate_power_network_debug_scenario() -> Array[String]:
 	if not runtime_errors.has(negative_heat_error):
 		warnings.append("Expected negative current_heat error for power_debug_negative_heat.")
 	var index := mission_world_objects.size() - 1
-	while index >= base_size:
+	while index >= 0:
 		var object_data: Dictionary = mission_world_objects[index]
 		var object_id := String(object_data.get("id", "")).strip_edges()
 		if temp_ids.has(object_id):
@@ -875,7 +875,7 @@ func validate_power_network_debug_scenario() -> Array[String]:
 		index -= 1
 	for object_data in mission_world_objects:
 		var object_id := String(object_data.get("id", "")).strip_edges()
-		if object_id.begins_with("power_debug_"):
+		if temp_ids.has(object_id):
 			warnings.append("Temporary debug power object remained after cleanup: %s." % object_id)
 	if mission_world_objects.size() != base_size:
 		warnings.append("Mission world object count changed after debug scenario cleanup (expected %d, got %d)." % [base_size, mission_world_objects.size()])
