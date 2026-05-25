@@ -8,7 +8,9 @@ const ALLOWED_OBJECT_GROUPS := [
 	"power",
 	"item",
 	"physical_object",
-	"threat"
+	"threat",
+	"platform",
+	"cooling"
 ]
 
 const SCAN_UNKNOWN := 0
