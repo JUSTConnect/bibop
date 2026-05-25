@@ -1639,13 +1639,14 @@ func validate_power_network_debug_scenario() -> Array[String]:
 	var cable_disconnect_report := apply_power_network_after_explicit_power_event("cable_disconnected", cable_filter)
 	if String(cable_disconnect_report.get("event_reason", "")) != "cable_disconnected":
 		warnings.append("Cable disconnect event apply regression: event_reason mismatch.")
-	var graph_closed_preview := preview_power_graph_state_application("power_debug_graph_closed_gate")
 	var graph_closed_source := get_world_object_by_id("power_debug_graph_closed_gate_source")
 	var graph_closed_gate := get_world_object_by_id("power_debug_graph_closed_gate_switch")
 	var graph_closed_consumer := get_world_object_by_id("power_debug_graph_closed_gate_consumer")
 	var graph_closed_source_before_preview := bool(graph_closed_source.get("is_powered", false))
 	var graph_closed_gate_state_before_preview := String(graph_closed_gate.get("state", ""))
+	var graph_closed_gate_power_before_preview := bool(graph_closed_gate.get("is_powered", false))
 	var graph_closed_consumer_before_preview := bool(graph_closed_consumer.get("is_powered", false))
+	var graph_closed_preview := preview_power_graph_state_application("power_debug_graph_closed_gate")
 	var graph_closed_preview_changes: Array = graph_closed_preview.get("changes", [])
 	var graph_closed_preview_reason_ok := false
 	for change_variant in graph_closed_preview_changes:
@@ -1657,7 +1658,7 @@ func validate_power_network_debug_scenario() -> Array[String]:
 			break
 	if not graph_closed_preview_reason_ok:
 		warnings.append("Graph closed gate scenario regression: expected reason=graph_powered_source_reachable.")
-	if graph_closed_source_before_preview != bool(graph_closed_source.get("is_powered", false)) or graph_closed_consumer_before_preview != bool(graph_closed_consumer.get("is_powered", false)) or graph_closed_gate_state_before_preview != String(graph_closed_gate.get("state", "")):
+	if graph_closed_source_before_preview != bool(graph_closed_source.get("is_powered", false)) or graph_closed_consumer_before_preview != bool(graph_closed_consumer.get("is_powered", false)) or graph_closed_gate_state_before_preview != String(graph_closed_gate.get("state", "")) or graph_closed_gate_power_before_preview != bool(graph_closed_gate.get("is_powered", false)):
 		warnings.append("Graph preview regression: preview mutated closed-gate objects.")
 	var graph_closed_apply := apply_power_graph_state_from_preview("power_debug_graph_closed_gate")
 	if int(graph_closed_apply.get("applied", 0)) <= 0:
@@ -1673,18 +1674,19 @@ func validate_power_network_debug_scenario() -> Array[String]:
 		if String(change.get("object_id", "")) == "power_debug_graph_closed_gate_source":
 			warnings.append("Graph apply regression: source object appeared in applied changes.")
 			break
-	var graph_open_preview := preview_power_graph_state_application("power_debug_graph_open_switch")
 	var graph_open_source := get_world_object_by_id("power_debug_graph_open_switch_source")
 	var graph_open_gate := get_world_object_by_id("power_debug_graph_open_switch_gate")
 	var graph_open_consumer := get_world_object_by_id("power_debug_graph_open_switch_consumer")
 	var graph_open_source_before_preview := bool(graph_open_source.get("is_powered", false))
 	var graph_open_gate_state_before_preview := String(graph_open_gate.get("state", ""))
+	var graph_open_gate_power_before_preview := bool(graph_open_gate.get("is_powered", false))
 	var graph_open_consumer_before_preview := bool(graph_open_consumer.get("is_powered", false))
+	var graph_open_preview := preview_power_graph_state_application("power_debug_graph_open_switch")
 	if String(get_power_graph_preview_text("power_debug_graph_open_switch")).find("blocked=1") == -1:
 		warnings.append("Graph open switch scenario regression: blocked gate not reported.")
 	if String(graph_open_preview).find("blocked_by_gate") == -1:
 		warnings.append("Graph open switch scenario regression: reason blocked_by_gate missing.")
-	if graph_open_source_before_preview != bool(graph_open_source.get("is_powered", false)) or graph_open_consumer_before_preview != bool(graph_open_consumer.get("is_powered", false)) or graph_open_gate_state_before_preview != String(graph_open_gate.get("state", "")):
+	if graph_open_source_before_preview != bool(graph_open_source.get("is_powered", false)) or graph_open_consumer_before_preview != bool(graph_open_consumer.get("is_powered", false)) or graph_open_gate_state_before_preview != String(graph_open_gate.get("state", "")) or graph_open_gate_power_before_preview != bool(graph_open_gate.get("is_powered", false)):
 		warnings.append("Graph preview regression: preview mutated open-gate objects.")
 	var graph_open_blocked_ok := false
 	for blocked_variant in graph_open_preview.get("blocked", []):
@@ -1804,9 +1806,18 @@ func validate_power_network_debug_scenario() -> Array[String]:
 		var change: Dictionary = change_variant
 		if String(change.get("object_id", "")) == "power_debug_graph_damaged_consumer" and String(change.get("reason", "")) != "damaged":
 			warnings.append("Graph damaged consumer scenario regression: expected reason=damaged for preview change.")
+	var graph_filter_source := get_world_object_by_id("power_debug_graph_open_switch_source")
+	var graph_filter_gate := get_world_object_by_id("power_debug_graph_open_switch_gate")
+	var graph_filter_consumer := get_world_object_by_id("power_debug_graph_open_switch_consumer")
+	var graph_filter_source_before_preview := bool(graph_filter_source.get("is_powered", false))
+	var graph_filter_gate_state_before_preview := String(graph_filter_gate.get("state", ""))
+	var graph_filter_gate_power_before_preview := bool(graph_filter_gate.get("is_powered", false))
+	var graph_filter_consumer_before_preview := bool(graph_filter_consumer.get("is_powered", false))
 	var graph_filter_object_preview := preview_power_graph_state_application("power_debug_graph_open_switch_gate")
 	if int((graph_filter_object_preview.get("sources", []) as Array).size()) != 1:
 		warnings.append("Graph filter fallback regression: object-id filter did not resolve to network.")
+	if graph_filter_source_before_preview != bool(graph_filter_source.get("is_powered", false)) or graph_filter_consumer_before_preview != bool(graph_filter_consumer.get("is_powered", false)) or graph_filter_gate_state_before_preview != String(graph_filter_gate.get("state", "")) or graph_filter_gate_power_before_preview != bool(graph_filter_gate.get("is_powered", false)):
+		warnings.append("Graph preview regression: object-id filter preview mutated open-switch objects.")
 	var allowed_fuse_remove_fields := {
 		"is_powered": true,
 		"current_heat": true,
