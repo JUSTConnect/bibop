@@ -590,6 +590,15 @@ func _get_power_network_id(object_data: Dictionary) -> String:
 			return value
 	return ""
 
+func _get_power_event_filter_for_object(object_data: Dictionary) -> String:
+	var network_id := _get_power_network_id(object_data)
+	if not network_id.is_empty():
+		return network_id
+	var object_id := String(object_data.get("id", "")).strip_edges()
+	if not object_id.is_empty():
+		return object_id
+	return ""
+
 func _is_power_source_object(object_data: Dictionary) -> bool:
 	var object_type := String(object_data.get("object_type", "")).strip_edges().to_lower()
 	var power_role := String(object_data.get("power_role", "")).strip_edges().to_lower()
@@ -1174,6 +1183,17 @@ func validate_power_network_debug_scenario() -> Array[String]:
 	temp_objects.append(_build_power_network_debug_object("power_debug_event_apply_consumer", "power_cable", "power_debug_event_apply", {
 		"is_powered": false
 	}))
+	var debug_switch_object := _build_power_network_debug_object("power_debug_switch_toggle_object", "circuit_switch", "power_debug_switch_toggle", {
+		"state": "switch_off",
+		"is_powered": false
+	})
+	temp_objects.append(debug_switch_object)
+	temp_objects.append(_build_power_network_debug_object("power_debug_switch_toggle_source", "power_source", "power_debug_switch_toggle", {
+		"is_powered": true
+	}))
+	temp_objects.append(_build_power_network_debug_object("power_debug_switch_toggle_consumer", "power_cable", "power_debug_switch_toggle", {
+		"is_powered": false
+	}))
 	for object_data in temp_objects:
 		mission_world_objects.append(object_data)
 		var object_id := String(object_data.get("id", "")).strip_edges()
@@ -1332,6 +1352,19 @@ func validate_power_network_debug_scenario() -> Array[String]:
 		warnings.append("Event apply dictionary regression: expected applied=0 after execute.")
 	if String(event_dict_report.get("event_reason", "")) != "debug_event_dict":
 		warnings.append("Event apply dictionary regression: event_reason mismatch.")
+	var switch_toggle_consumer := get_world_object_by_id("power_debug_switch_toggle_consumer")
+	var switch_toggle_before := bool(switch_toggle_consumer.get("is_powered", false))
+	debug_switch_object["state"] = "switch_on"
+	var switch_filter := _get_power_event_filter_for_object(debug_switch_object)
+	if switch_filter != "power_debug_switch_toggle":
+		warnings.append("Power event filter helper regression: expected power_debug_switch_toggle for switch object.")
+	var switch_toggle_report := apply_power_network_after_explicit_power_event("switch_toggled", switch_filter)
+	if String(switch_toggle_report.get("event_reason", "")) != "switch_toggled":
+		warnings.append("Switch toggle event apply regression: event_reason mismatch.")
+	if not bool(switch_toggle_consumer.get("is_powered", false)):
+		warnings.append("Switch toggle event apply regression: consumer did not become powered.")
+	if switch_toggle_before == bool(switch_toggle_consumer.get("is_powered", false)):
+		warnings.append("Switch toggle event apply regression: consumer power state did not change.")
 	var index := mission_world_objects.size() - 1
 	while index >= 0:
 		var object_data: Dictionary = mission_world_objects[index]
