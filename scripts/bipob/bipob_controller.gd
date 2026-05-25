@@ -7929,6 +7929,15 @@ func interact_mission7_socket() -> void:
 		return
 	mission7_is_dragging_cable = false
 	mission7_cable_connected = true
+	if mission_manager != null:
+		var mission7_cable_object := mission_manager.get_world_object_by_id("cable_a")
+		if not mission7_cable_object.is_empty():
+			mission7_cable_object["state"] = "connected"
+			mission7_cable_object["connected"] = true
+			var power_filter := ""
+			if mission_manager.has_method("_get_power_event_filter_for_object"):
+				power_filter = String(mission_manager.call("_get_power_event_filter_for_object", mission7_cable_object))
+			apply_power_network_after_explicit_power_event("cable_connected", power_filter)
 	if grid_manager.get_tile(mission7_powered_gate_position) == GridManager.TILE_POWERED_GATE:
 		grid_manager.set_tile(mission7_powered_gate_position, GridManager.TILE_FLOOR)
 	hint_requested.emit("Cable connected. Powered gate opened.")

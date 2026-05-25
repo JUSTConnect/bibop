@@ -1205,6 +1205,17 @@ func validate_power_network_debug_scenario() -> Array[String]:
 	temp_objects.append(_build_power_network_debug_object("power_debug_fuse_consumer", "power_cable", "power_debug_fuse_event", {
 		"is_powered": false
 	}))
+	var debug_cable_object := _build_power_network_debug_object("power_debug_cable_object", "power_cable", "power_debug_cable_event", {
+		"state": "disconnected",
+		"is_powered": false
+	})
+	temp_objects.append(debug_cable_object)
+	temp_objects.append(_build_power_network_debug_object("power_debug_cable_source", "power_source", "power_debug_cable_event", {
+		"is_powered": true
+	}))
+	temp_objects.append(_build_power_network_debug_object("power_debug_cable_consumer", "power_socket", "power_debug_cable_event", {
+		"is_powered": false
+	}))
 	for object_data in temp_objects:
 		mission_world_objects.append(object_data)
 		var object_id := String(object_data.get("id", "")).strip_edges()
@@ -1391,6 +1402,23 @@ func validate_power_network_debug_scenario() -> Array[String]:
 	var fuse_remove_report := apply_power_network_after_explicit_power_event("fuse_removed", fuse_filter)
 	if String(fuse_remove_report.get("event_reason", "")) != "fuse_removed":
 		warnings.append("Fuse remove event apply regression: event_reason mismatch.")
+	var debug_cable_consumer := get_world_object_by_id("power_debug_cable_consumer")
+	debug_cable_object["state"] = "connected"
+	debug_cable_object["connected"] = true
+	var cable_filter := _get_power_event_filter_for_object(debug_cable_object)
+	if cable_filter != "power_debug_cable_event":
+		warnings.append("Power event filter helper regression: expected power_debug_cable_event for cable object.")
+	var cable_connect_report := apply_power_network_after_explicit_power_event("cable_connected", cable_filter)
+	if String(cable_connect_report.get("event_reason", "")) != "cable_connected":
+		warnings.append("Cable connect event apply regression: event_reason mismatch.")
+	if not bool(debug_cable_consumer.get("is_powered", false)):
+		warnings.append("Cable connect event apply regression: consumer did not become powered.")
+	debug_cable_consumer["is_powered"] = true
+	debug_cable_object["state"] = "disconnected"
+	debug_cable_object["connected"] = false
+	var cable_disconnect_report := apply_power_network_after_explicit_power_event("cable_disconnected", cable_filter)
+	if String(cable_disconnect_report.get("event_reason", "")) != "cable_disconnected":
+		warnings.append("Cable disconnect event apply regression: event_reason mismatch.")
 	var allowed_fuse_remove_fields := {
 		"is_powered": true,
 		"current_heat": true,
