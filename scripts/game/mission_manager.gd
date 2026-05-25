@@ -1538,6 +1538,132 @@ func _find_debug_floor_cell_near_platform(platform_cells: Array, origin_cell: Ve
 		return candidate
 	return Vector2i(-1, -1)
 
+
+func _build_platform_timer_tick_debug_platform(platform_id: String, mode: String, overrides: Dictionary = {}) -> Dictionary:
+	var platform: Dictionary = {
+		"id": "platform_timer_tick_debug_%s" % platform_id,
+		"object_group": "platform",
+		"object_type": "platform_debug_helper",
+		"platform_id": platform_id,
+		"platform_type": "lifting",
+		"platform_cells": [[0, 0]],
+		"control_type": "internal",
+		"power_type": "internal",
+		"state": "active",
+		"is_powered": true,
+		"height_level": 0,
+		"min_height_level": 0,
+		"max_height_level": 1,
+		"rotation_direction": "clockwise",
+		"permanent_state": "active",
+		"activation_mode": mode,
+		"timer_turns": 0,
+		"period_turns": 0,
+		"timer_remaining_turns": 0,
+		"pending_activation": false,
+		"periodic_active": false
+	}
+	for key in overrides.keys():
+		platform[key] = overrides[key]
+	return platform
+
+func validate_platform_timer_tick_debug_scenario() -> Array[String]:
+	var warnings: Array[String] = []
+	var fields_to_snapshot: Array[String] = [
+		"activation_mode",
+		"pending_activation",
+		"periodic_active",
+		"timer_turns",
+		"period_turns",
+		"timer_remaining_turns",
+		"height_level",
+		"rotation_direction",
+		"permanent_state",
+		"platform_last_tick_action_index"
+	]
+	var original_last_tick_action_index := platform_last_tick_action_index
+	var original_platform_snapshots := {}
+	for object_data in mission_world_objects:
+		if String(object_data.get("object_group", "")) != "platform":
+			continue
+		original_platform_snapshots[object_data] = _snapshot_platform_debug_fields(object_data, fields_to_snapshot)
+
+	var temp_platforms: Array[Dictionary] = []
+	temp_platforms.append(_build_platform_timer_tick_debug_platform("debug_timer_tick_timer", "timer", {"pending_activation": true, "timer_turns": 2, "timer_remaining_turns": 2}))
+	temp_platforms.append(_build_platform_timer_tick_debug_platform("debug_timer_tick_periodic", "periodic", {"periodic_active": true, "period_turns": 2, "timer_remaining_turns": 2}))
+	temp_platforms.append(_build_platform_timer_tick_debug_platform("debug_timer_tick_periodic_invalid", "periodic", {"periodic_active": true, "period_turns": 0, "timer_remaining_turns": 2}))
+	temp_platforms.append(_build_platform_timer_tick_debug_platform("debug_timer_tick_timer_invalid", "timer", {"pending_activation": true, "timer_turns": 0, "timer_remaining_turns": 0}))
+	temp_platforms.append(_build_platform_timer_tick_debug_platform("debug_timer_tick_instant", "instant", {"height_level": 0}))
+	temp_platforms.append(_build_platform_timer_tick_debug_platform("debug_timer_tick_permanent", "permanent", {"pending_activation": true, "permanent_state": "active", "height_level": 0}))
+	for temp_platform in temp_platforms:
+		mission_world_objects.append(temp_platform)
+
+	var instant_platform := get_platform_by_id("debug_timer_tick_instant")
+	var permanent_platform := get_platform_by_id("debug_timer_tick_permanent")
+	var instant_height_before := int(instant_platform.get("height_level", 0)) if not instant_platform.is_empty() else 0
+	var permanent_height_before := int(permanent_platform.get("height_level", 0)) if not permanent_platform.is_empty() else 0
+
+	process_platform_turn_tick_once(100)
+	process_platform_turn_tick_once(100)
+
+	var timer_platform := get_platform_by_id("debug_timer_tick_timer")
+	if timer_platform.is_empty():
+		warnings.append("Missing timer validation platform.")
+	else:
+		if int(timer_platform.get("timer_remaining_turns", -1)) != 1:
+			warnings.append("Timer platform ticked more than once for the same action index.")
+	process_platform_turn_tick_once(101)
+	if timer_platform.is_empty():
+		timer_platform = get_platform_by_id("debug_timer_tick_timer")
+	if timer_platform.is_empty():
+		warnings.append("Timer platform missing after second tick.")
+	else:
+		if int(timer_platform.get("timer_remaining_turns", -1)) != 0:
+			warnings.append("Timer platform did not complete after two distinct action indices.")
+		if bool(timer_platform.get("pending_activation", true)):
+			warnings.append("Timer platform pending_activation did not clear after activation.")
+
+	var periodic_platform := get_platform_by_id("debug_timer_tick_periodic")
+	if periodic_platform.is_empty():
+		warnings.append("Missing periodic validation platform.")
+	else:
+		if int(periodic_platform.get("timer_remaining_turns", -1)) != 2:
+			warnings.append("Periodic platform did not reactivate every two distinct action indices.")
+
+	var periodic_invalid_platform := get_platform_by_id("debug_timer_tick_periodic_invalid")
+	if periodic_invalid_platform.is_empty():
+		warnings.append("Missing invalid periodic validation platform.")
+	else:
+		if int(periodic_invalid_platform.get("timer_remaining_turns", -1)) != 2:
+			warnings.append("Periodic platform with period_turns <= 0 ticked unexpectedly.")
+
+	var timer_invalid_platform := get_platform_by_id("debug_timer_tick_timer_invalid")
+	if timer_invalid_platform.is_empty():
+		warnings.append("Missing invalid timer validation platform.")
+	else:
+		if bool(timer_invalid_platform.get("pending_activation", true)):
+			warnings.append("Timer platform with invalid turns did not clear pending_activation.")
+		if int(timer_invalid_platform.get("timer_remaining_turns", -1)) != 0:
+			warnings.append("Timer platform with invalid turns changed timer_remaining_turns unexpectedly.")
+
+	if not instant_platform.is_empty() and int(instant_platform.get("height_level", 0)) != instant_height_before:
+		warnings.append("Instant platform tick changed height unexpectedly.")
+	if not permanent_platform.is_empty() and int(permanent_platform.get("height_level", 0)) != permanent_height_before:
+		warnings.append("Permanent platform tick changed height unexpectedly.")
+
+	for temp_platform in temp_platforms:
+		mission_world_objects.erase(temp_platform)
+	for object_data in original_platform_snapshots.keys():
+		_restore_platform_debug_fields(object_data, original_platform_snapshots[object_data])
+	platform_last_tick_action_index = original_last_tick_action_index
+	return warnings
+
+func get_platform_timer_tick_validation_text() -> String:
+	var warnings := validate_platform_timer_tick_debug_scenario()
+	var lines: Array[String] = ["PlatformTimerTickValidation: warnings=%d" % warnings.size()]
+	for warning in warnings:
+		lines.append("WARNING: %s" % warning)
+	return "\n".join(lines)
 func validate_platform_debug_scenario() -> Array[String]:
 	var warnings: Array[String] = []
 	var rotating_platform := get_platform_by_id("platform_rot_a")
@@ -1605,6 +1731,7 @@ func validate_platform_debug_scenario() -> Array[String]:
 			warnings.append("Validation restore mismatch: rotating platform terminal gate flag.")
 	if debug_platform_scenario_enabled:
 		warnings.append_array(validate_platform_height_gating_debug_scenario())
+		warnings.append_array(validate_platform_timer_tick_debug_scenario())
 	refresh_world_cooling_received()
 	return warnings
 
