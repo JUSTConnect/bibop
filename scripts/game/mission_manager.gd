@@ -561,6 +561,203 @@ func get_world_object_debug_summary() -> String:
 	var warning_count := last_threat_warning_ids.size()
 	return "WorldObjects: %d | Items: %d | Threats: %d | Powered: %d | Warnings: %d" % [world_count, items_count, threats_count, powered_count, warning_count]
 
+func _is_power_network_object(object_data: Dictionary) -> bool:
+	if object_data.is_empty():
+		return false
+	var object_group := String(object_data.get("object_group", "")).strip_edges().to_lower()
+	if object_group == "power":
+		return true
+	var object_type := String(object_data.get("object_type", "")).strip_edges().to_lower()
+	if object_type in [
+		"power_source",
+		"power_cable",
+		"power_socket",
+		"cable_reel",
+		"circuit_breaker",
+		"circuit_switch",
+		"fuse_box",
+		"light",
+		"light_switch",
+		"energy_door"
+	]:
+		return true
+	return object_data.has("power_network_id") or object_data.has("network_id") or object_data.has("connected_power_source_id")
+
+func _get_power_network_id(object_data: Dictionary) -> String:
+	for key in ["power_network_id", "network_id", "connected_power_source_id"]:
+		var value := String(object_data.get(key, "")).strip_edges()
+		if not value.is_empty():
+			return value
+	return ""
+
+func _is_power_source_object(object_data: Dictionary) -> bool:
+	var object_type := String(object_data.get("object_type", "")).strip_edges().to_lower()
+	var power_role := String(object_data.get("power_role", "")).strip_edges().to_lower()
+	return object_type == "power_source" or power_role == "source" or object_type in ["power_source_class_1", "power_source_class_2", "power_source_class_3"]
+
+func _get_power_network_summary_lines(filter: String = "") -> Array[String]:
+	var grouped := {}
+	for object_data in mission_world_objects:
+		if not _is_power_network_object(object_data):
+			continue
+		var network_id := _get_power_network_id(object_data)
+		if not grouped.has(network_id):
+			grouped[network_id] = []
+		grouped[network_id].append(object_data)
+	var ids: Array[String] = []
+	for key in grouped.keys():
+		ids.append(String(key))
+	ids.sort()
+	var filter_text := filter.strip_edges().to_lower()
+	var lines: Array[String] = []
+	for network_id in ids:
+		var objects: Array = grouped.get(network_id, [])
+		var object_count := 0
+		var source_count := 0
+		var cable_count := 0
+		var socket_count := 0
+		var network_powered := false
+		var overheated_sources := 0
+		var damaged_count := 0
+		var connection_count := 0
+		for object_variant in objects:
+			if typeof(object_variant) != TYPE_DICTIONARY:
+				continue
+			var object_data: Dictionary = object_variant
+			object_count += 1
+			var object_type := String(object_data.get("object_type", "")).strip_edges().to_lower()
+			var state := String(object_data.get("state", "")).strip_edges().to_lower()
+			var is_source := _is_power_source_object(object_data)
+			if is_source:
+				source_count += 1
+			if object_type.find("cable") != -1 or object_type == "power_cable":
+				cable_count += 1
+			if object_type.find("socket") != -1 or object_type == "power_socket":
+				socket_count += 1
+			if bool(object_data.get("is_powered", false)) or state in ["active", "switch_on", "connected"]:
+				network_powered = true
+			var threshold := int(object_data.get("overheat_threshold", 0))
+			var current_heat := int(object_data.get("current_heat", 0))
+			if is_source and (state == "overheated" or current_heat >= threshold):
+				overheated_sources += 1
+			if state == "damaged" or bool(object_data.get("damaged", false)) or bool(object_data.get("broken", false)):
+				damaged_count += 1
+			if state == "connected" or bool(object_data.get("connected", false)):
+				connection_count += 1
+		var network_text := network_id if not network_id.is_empty() else "-"
+		var line := "network=%s | objects=%d | sources=%d | cables=%d | sockets=%d | powered=%s | overheated_sources=%d | damaged=%d | connections=%d" % [
+			network_text, object_count, source_count, cable_count, socket_count, str(network_powered).to_lower(), overheated_sources, damaged_count, connection_count
+		]
+		if not filter_text.is_empty() and line.to_lower().find(filter_text) == -1:
+			continue
+		lines.append(line)
+	return lines
+
+func get_power_network_debug_summary_text(filter: String = "") -> String:
+	var lines := _get_power_network_summary_lines(filter)
+	if lines.is_empty():
+		return "PowerNetworkSummary:\nnone" if filter.strip_edges().is_empty() else "PowerNetworkSummary:\nnone (filter=%s)" % filter.strip_edges().to_lower()
+	return "PowerNetworkSummary:\n%s" % "\n".join(lines)
+
+func validate_power_network_runtime_state() -> Dictionary:
+	var warnings: Array[String] = []
+	var errors: Array[String] = []
+	var power_objects: Array[Dictionary] = []
+	var networks := {}
+	var source_ids := {}
+	var network_has_powered_source := {}
+	for object_data in mission_world_objects:
+		if not _is_power_network_object(object_data):
+			continue
+		power_objects.append(object_data)
+		var object_id := String(object_data.get("id", "")).strip_edges()
+		var network_id := _get_power_network_id(object_data)
+		if network_id.is_empty():
+			warnings.append("Power object %s has no network id." % object_id)
+		if not networks.has(network_id):
+			networks[network_id] = []
+		networks[network_id].append(object_data)
+		if _is_power_source_object(object_data):
+			if not object_id.is_empty():
+				source_ids[object_id] = true
+			var state := String(object_data.get("state", "")).strip_edges().to_lower()
+			var powered_source := bool(object_data.get("is_powered", false)) and state != "overheated"
+			if powered_source:
+				network_has_powered_source[network_id] = true
+		var current_heat := int(object_data.get("current_heat", 0))
+		var threshold := int(object_data.get("overheat_threshold", 0))
+		if current_heat < 0:
+			errors.append("Power object %s has negative current_heat (%d)." % [object_id, current_heat])
+		if threshold < 0:
+			errors.append("Power object %s has negative overheat_threshold (%d)." % [object_id, threshold])
+		var state_text := String(object_data.get("state", "")).strip_edges().to_lower()
+		var damaged_or_broken := bool(object_data.get("damaged", false)) or bool(object_data.get("broken", false))
+		if _is_power_source_object(object_data):
+			if threshold > 0 and current_heat >= threshold and state_text != "overheated":
+				warnings.append("Power source %s current_heat >= overheat_threshold but state is not overheated." % object_id)
+			if threshold > 0 and state_text == "overheated" and current_heat < threshold and not damaged_or_broken:
+				warnings.append("Power source %s state is overheated but current_heat < overheat_threshold and object is not damaged/broken." % object_id)
+		var linked_source_id := String(object_data.get("connected_power_source_id", "")).strip_edges()
+		if not linked_source_id.is_empty() and not source_ids.has(linked_source_id):
+			warnings.append("Power object %s connected_power_source_id points to missing source %s." % [object_id, linked_source_id])
+	for network_id in networks.keys():
+		var objects: Array = networks[network_id]
+		var has_source := false
+		var has_cable_or_socket := false
+		var has_powered_source := bool(network_has_powered_source.get(network_id, false))
+		for object_variant in objects:
+			if typeof(object_variant) != TYPE_DICTIONARY:
+				continue
+			var object_data: Dictionary = object_variant
+			var object_id := String(object_data.get("id", "")).strip_edges()
+			var object_type := String(object_data.get("object_type", "")).strip_edges().to_lower()
+			var state := String(object_data.get("state", "")).strip_edges().to_lower()
+			var connected := state == "connected" or bool(object_data.get("connected", false))
+			var is_source := _is_power_source_object(object_data)
+			if is_source:
+				has_source = true
+				if object_data.has("allowed_connections"):
+					var allowed := int(object_data.get("allowed_connections", -1))
+					if allowed >= 0:
+						var source_connections := 0
+						for object_variant_2 in objects:
+							if typeof(object_variant_2) != TYPE_DICTIONARY:
+								continue
+							var connected_object: Dictionary = object_variant_2
+							var connected_source_id := String(connected_object.get("connected_power_source_id", "")).strip_edges()
+							var connected_state := String(connected_object.get("state", "")).strip_edges().to_lower()
+							if connected_source_id == object_id or connected_state == "connected" or bool(connected_object.get("connected", false)):
+								source_connections += 1
+						if source_connections > allowed:
+							warnings.append("Power source %s connections (%d) exceed allowed_connections (%d)." % [object_id, source_connections, allowed])
+			if object_type.find("cable") != -1 or object_type.find("socket") != -1:
+				has_cable_or_socket = true
+			if connected and not has_powered_source:
+				warnings.append("Connected power object %s is in network %s but no source is powered." % [object_id, String(network_id if not String(network_id).is_empty() else "-")])
+			if bool(object_data.get("is_powered", false)) and not has_powered_source:
+				warnings.append("Power object %s is_powered=true but network %s has no powered source." % [object_id, String(network_id if not String(network_id).is_empty() else "-")])
+		if has_cable_or_socket and not has_source:
+			warnings.append("Network %s has cables/sockets but no source." % String(network_id if not String(network_id).is_empty() else "-"))
+	return {"valid": errors.is_empty(), "networks": networks.size(), "objects": power_objects.size(), "warnings": warnings, "errors": errors}
+
+func get_power_network_validation_text() -> String:
+	var validation := validate_power_network_runtime_state()
+	var warnings: Array[String] = validation.get("warnings", [])
+	var errors: Array[String] = validation.get("errors", [])
+	var lines: Array[String] = []
+	lines.append("PowerNetworkValidation: valid=%s networks=%d objects=%d warnings=%d errors=%d" % [
+		str(bool(validation.get("valid", false))).to_lower(),
+		int(validation.get("networks", 0)),
+		int(validation.get("objects", 0)),
+		warnings.size(),
+		errors.size()
+	])
+	for warning in warnings:
+		lines.append("WARNING: %s" % warning)
+	for err in errors:
+		lines.append("ERROR: %s" % err)
+	return "\n".join(lines)
+
 func get_world_object_debug_info(object_id: String) -> Dictionary:
 	var normalized_id := object_id.strip_edges()
 	if normalized_id.is_empty():
@@ -602,6 +799,15 @@ func get_world_object_debug_info(object_id: String) -> Dictionary:
 	for key in ["platform_height_level", "carried_by_platform_id"]:
 		if object_data.has(key):
 			info[key] = object_data[key]
+	if _is_power_network_object(object_data):
+		info["power_network_id"] = _get_power_network_id(object_data)
+		info["current_heat"] = int(object_data.get("current_heat", 0))
+		info["overheat_threshold"] = int(object_data.get("overheat_threshold", 0))
+		info["is_powered"] = bool(object_data.get("is_powered", false))
+		info["connected_power_source_id"] = String(object_data.get("connected_power_source_id", "")).strip_edges()
+		var network_summary_lines := _get_power_network_summary_lines(_get_power_network_id(object_data))
+		if not network_summary_lines.is_empty():
+			info["power_network_summary_line"] = network_summary_lines[0]
 	if String(object_data.get("object_group", "")) == "platform":
 		info["platform_state_summary"] = get_platform_state_summary(object_data)
 		info["platform_occupant_summary"] = get_platform_occupant_summary(object_data)
@@ -665,6 +871,12 @@ func get_world_cell_debug_info(cell: Vector2i) -> Dictionary:
 	if not object_data.is_empty():
 		info["world_object_id"] = String(object_data.get("id", ""))
 		info["world_object_type"] = String(object_data.get("object_type", ""))
+		if _is_power_network_object(object_data):
+			var power_network_id := _get_power_network_id(object_data)
+			info["power_network_id"] = power_network_id
+			var network_summary_lines := _get_power_network_summary_lines(power_network_id)
+			if not network_summary_lines.is_empty():
+				info["power_network_debug_summary_line"] = network_summary_lines[0]
 		if String(object_data.get("object_group", "")) == "platform":
 			info["platform_id"] = String(object_data.get("platform_id", ""))
 			info["platform_state_summary"] = get_platform_state_summary(object_data)
