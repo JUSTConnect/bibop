@@ -1326,6 +1326,29 @@ func seed_platform_debug_scenario(origin: Vector2i = Vector2i(10, 2)) -> void:
 	_place_debug_world_object("platform_terminal", "platform_terminal_debug", origin + Vector2i(-2, 0), {"target_platform_id":"platform_rot_a","platform_control_enabled":true})
 	_place_debug_world_object("external_air_cooler", "platform_air_cooler_debug", origin, {"facing_dir":"right"})
 
+func _snapshot_platform_debug_fields(object_data: Dictionary, fields: Array[String]) -> Dictionary:
+	var snapshot := {}
+	for field in fields:
+		var had_field := object_data.has(field)
+		var value = null
+		if had_field:
+			value = object_data[field]
+			if value is Dictionary or value is Array:
+				value = value.duplicate(true)
+		snapshot[field] = {"had_field": had_field, "value": value}
+	return snapshot
+
+func _restore_platform_debug_fields(object_data: Dictionary, snapshot: Dictionary) -> void:
+	for field in snapshot.keys():
+		var field_state: Dictionary = snapshot[field]
+		if bool(field_state.get("had_field", false)):
+			var restored_value = field_state.get("value")
+			if restored_value is Dictionary or restored_value is Array:
+				restored_value = restored_value.duplicate(true)
+			object_data[field] = restored_value
+		else:
+			object_data.erase(field)
+
 func validate_platform_debug_scenario() -> Array[String]:
 	var warnings: Array[String] = []
 	var rotating_platform := get_platform_by_id("platform_rot_a")
@@ -1337,14 +1360,19 @@ func validate_platform_debug_scenario() -> Array[String]:
 	var air_cooler := get_world_object_by_id("platform_air_cooler_debug")
 	if air_cooler.is_empty():
 		warnings.append("Missing air cooler on rotating platform.")
-	var old_facing := String(air_cooler.get("facing_dir", ""))
-	var old_height := int(lifting_platform.get("height_level", 0))
-	var old_terminal_state := String(terminal.get("state", "active"))
-	var old_terminal_powered := bool(terminal.get("is_powered", true))
-	var old_terminal_enabled := bool(terminal.get("platform_control_enabled", true))
-	var old_timer_remaining := int(rotating_platform.get("timer_remaining_turns", 0))
-	var old_pending_activation := bool(rotating_platform.get("pending_activation", false))
-	var old_periodic_active := bool(rotating_platform.get("periodic_active", false))
+	var old_requires_terminal_enabled := bool(rotating_platform.get("requires_terminal_enabled", false))
+	var air_cooler_snapshot := {}
+	var lifting_platform_snapshot := {}
+	var terminal_snapshot := {}
+	var rotating_platform_snapshot := {}
+	if not air_cooler.is_empty():
+		air_cooler_snapshot = _snapshot_platform_debug_fields(air_cooler, ["facing_dir"])
+	if not lifting_platform.is_empty():
+		lifting_platform_snapshot = _snapshot_platform_debug_fields(lifting_platform, ["height_level", "carried_by_platform_id"])
+	if not terminal.is_empty():
+		terminal_snapshot = _snapshot_platform_debug_fields(terminal, ["state", "is_powered", "platform_control_enabled"])
+	if not rotating_platform.is_empty():
+		rotating_platform_snapshot = _snapshot_platform_debug_fields(rotating_platform, ["timer_remaining_turns", "pending_activation", "periodic_active", "requires_terminal_enabled", "permanent_state", "activation_mode", "timer_turns", "period_turns", "rotation_direction"])
 	if not rotating_platform.is_empty() and not air_cooler.is_empty():
 		var before_facing := String(air_cooler.get("facing_dir", ""))
 		var rotate_result := activate_platform_by_id("platform_rot_a", "debug_validation")
@@ -1376,16 +1404,15 @@ func validate_platform_debug_scenario() -> Array[String]:
 		if bool(blocked.get("success", false)):
 			warnings.append("Terminal unavailable did not block rotating platform activation.")
 	if not air_cooler.is_empty():
-		air_cooler["facing_dir"] = old_facing
+		_restore_platform_debug_fields(air_cooler, air_cooler_snapshot)
 	if not lifting_platform.is_empty():
-		lifting_platform["height_level"] = old_height
+		_restore_platform_debug_fields(lifting_platform, lifting_platform_snapshot)
 	if not terminal.is_empty():
-		terminal["state"] = old_terminal_state
-		terminal["is_powered"] = old_terminal_powered
-		terminal["platform_control_enabled"] = old_terminal_enabled
+		_restore_platform_debug_fields(terminal, terminal_snapshot)
 	if not rotating_platform.is_empty():
-		rotating_platform["timer_remaining_turns"] = old_timer_remaining
-		rotating_platform["pending_activation"] = old_pending_activation
-		rotating_platform["periodic_active"] = old_periodic_active
+		rotating_platform["requires_terminal_enabled"] = old_requires_terminal_enabled
+		_restore_platform_debug_fields(rotating_platform, rotating_platform_snapshot)
+		if rotating_platform.get("requires_terminal_enabled", false) != old_requires_terminal_enabled:
+			warnings.append("Validation restore mismatch: rotating platform terminal gate flag.")
 	refresh_world_cooling_received()
 	return warnings
