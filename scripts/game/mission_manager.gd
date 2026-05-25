@@ -1194,6 +1194,17 @@ func validate_power_network_debug_scenario() -> Array[String]:
 	temp_objects.append(_build_power_network_debug_object("power_debug_switch_toggle_consumer", "power_cable", "power_debug_switch_toggle", {
 		"is_powered": false
 	}))
+	var debug_fuse_object := _build_power_network_debug_object("power_debug_fuse_box", "fuse_box", "power_debug_fuse_event", {
+		"state": "empty",
+		"is_powered": false
+	})
+	temp_objects.append(debug_fuse_object)
+	temp_objects.append(_build_power_network_debug_object("power_debug_fuse_source", "power_source", "power_debug_fuse_event", {
+		"is_powered": true
+	}))
+	temp_objects.append(_build_power_network_debug_object("power_debug_fuse_consumer", "power_cable", "power_debug_fuse_event", {
+		"is_powered": false
+	}))
 	for object_data in temp_objects:
 		mission_world_objects.append(object_data)
 		var object_id := String(object_data.get("id", "")).strip_edges()
@@ -1365,6 +1376,38 @@ func validate_power_network_debug_scenario() -> Array[String]:
 		warnings.append("Switch toggle event apply regression: consumer did not become powered.")
 	if switch_toggle_before == bool(switch_toggle_consumer.get("is_powered", false)):
 		warnings.append("Switch toggle event apply regression: consumer power state did not change.")
+	var fuse_consumer := get_world_object_by_id("power_debug_fuse_consumer")
+	var fuse_filter := _get_power_event_filter_for_object(debug_fuse_object)
+	if fuse_filter != "power_debug_fuse_event":
+		warnings.append("Power event filter helper regression: expected power_debug_fuse_event for fuse object.")
+	debug_fuse_object["state"] = "installed"
+	var fuse_insert_report := apply_power_network_after_explicit_power_event("fuse_inserted", fuse_filter)
+	if String(fuse_insert_report.get("event_reason", "")) != "fuse_inserted":
+		warnings.append("Fuse insert event apply regression: event_reason mismatch.")
+	if not bool(fuse_consumer.get("is_powered", false)):
+		warnings.append("Fuse insert event apply regression: consumer did not become powered.")
+	fuse_consumer["is_powered"] = true
+	debug_fuse_object["state"] = "empty"
+	var fuse_remove_report := apply_power_network_after_explicit_power_event("fuse_removed", fuse_filter)
+	if String(fuse_remove_report.get("event_reason", "")) != "fuse_removed":
+		warnings.append("Fuse remove event apply regression: event_reason mismatch.")
+	var allowed_fuse_remove_fields := {
+		"is_powered": true,
+		"current_heat": true,
+		"working_heat": true,
+		"cooling_received": true,
+		"heat_from_connections": true,
+		"state": true
+	}
+	for change_variant in fuse_remove_report.get("changes", []):
+		if typeof(change_variant) != TYPE_DICTIONARY:
+			continue
+		var change: Dictionary = change_variant
+		for key_variant in change.keys():
+			var key := String(key_variant)
+			if not allowed_fuse_remove_fields.has(key):
+				warnings.append("Fuse remove event apply regression: unexpected change field %s." % key)
+				break
 	var index := mission_world_objects.size() - 1
 	while index >= 0:
 		var object_data: Dictionary = mission_world_objects[index]

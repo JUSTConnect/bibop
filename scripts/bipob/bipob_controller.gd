@@ -7581,6 +7581,13 @@ func interact() -> void:
 						var apply_report := apply_power_network_after_explicit_power_event(reason, power_filter)
 						if action_result is Dictionary:
 							action_result["power_apply_report"] = apply_report
+				elif action_id == "insert_fuse":
+					var power_filter := ""
+					if mission_manager.has_method("_get_power_event_filter_for_object"):
+						power_filter = String(mission_manager.call("_get_power_event_filter_for_object", world_object))
+					var apply_report := apply_power_network_after_explicit_power_event("fuse_inserted", power_filter)
+					if action_result is Dictionary:
+						action_result["power_apply_report"] = apply_report
 				refresh_world_object_overlay()
 				update_threat_detection_preview()
 				clear_selected_world_action_if_invalid(world_object, target_position)
