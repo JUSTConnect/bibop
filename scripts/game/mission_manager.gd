@@ -1135,6 +1135,20 @@ func activate_platform_by_id(platform_id: String, source: String = "") -> Dictio
 		platform["permanent_state"] = not bool(platform.get("permanent_state", false))
 	return _execute_platform_action(platform, source)
 
+func _is_active_bipob_on_platform(platform: Dictionary) -> bool:
+	if active_bipob_ref == null:
+		return false
+	if not active_bipob_ref.has_method("get_grid_position"):
+		return false
+	var actor_cell: Variant = active_bipob_ref.call("get_grid_position")
+	if typeof(actor_cell) != TYPE_VECTOR2I:
+		return false
+	for platform_cell_variant in Array(platform.get("platform_cells", [])):
+		var platform_cell := WorldObjectCatalog.to_world_cell(platform_cell_variant, Vector2i(-1, -1))
+		if platform_cell == actor_cell:
+			return true
+	return false
+
 func _execute_platform_action(platform: Dictionary, source: String = "") -> Dictionary:
 	var platform_id := String(platform.get("platform_id", platform.get("id", "")))
 	var platform_type := String(platform.get("platform_type", ""))
@@ -1157,7 +1171,7 @@ func _execute_platform_action(platform: Dictionary, source: String = "") -> Dict
 		for obj in Array(occupants.get("world_objects", [])):
 			if obj.has("facing_dir"):
 				obj["facing_dir"] = _rotate_facing(String(obj.get("facing_dir", "up")), rotation_direction != "counterclockwise")
-		if active_bipob_ref != null and active_bipob_ref.has_method("set_direction") and Array(occupants.get("bipobs", [])).size() > 0:
+		if _is_active_bipob_on_platform(platform) and active_bipob_ref.has_method("set_direction"):
 			var current_direction := "up"
 			if active_bipob_ref.has_method("get_direction"):
 				current_direction = String(active_bipob_ref.get_direction())
