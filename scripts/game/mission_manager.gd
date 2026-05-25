@@ -1135,6 +1135,191 @@ func get_platform_timer_debug_summary_text() -> String:
 		lines.append("%s mode=%s pending=%s periodic=%s remaining=%d" % [String(object_data.get("platform_id", object_data.get("id", ""))), String(object_data.get("activation_mode", "instant")), str(bool(object_data.get("pending_activation", false))), str(bool(object_data.get("periodic_active", false))), int(object_data.get("timer_remaining_turns", 0))])
 	return "\n".join(lines) if not lines.is_empty() else "No platforms."
 
+func validate_platform_runtime_state() -> Dictionary:
+	var warnings: Array[String] = []
+	var errors: Array[String] = []
+	var platforms: Array[Dictionary] = []
+	var terminals: Array[Dictionary] = []
+	var platform_cell_owner := {}
+	var platform_ids := {}
+	var terminal_targets_count := {}
+	for object_data in mission_world_objects:
+		var group := String(object_data.get("object_group", ""))
+		if group == "platform":
+			platforms.append(object_data)
+			continue
+		if String(object_data.get("object_type", "")) == "platform_terminal":
+			terminals.append(object_data)
+	for platform in platforms:
+		var object_id := String(platform.get("id", ""))
+		var platform_id := String(platform.get("platform_id", "")).strip_edges()
+		if platform_id.is_empty():
+			errors.append("Platform %s has empty platform_id." % object_id)
+		else:
+			platform_ids[platform_id] = true
+		var platform_type := String(platform.get("platform_type", ""))
+		if not platform_type in ["rotating", "lifting"]:
+			errors.append("Platform %s has invalid platform_type %s." % [platform_id if not platform_id.is_empty() else object_id, platform_type])
+		var raw_cells: Array = platform.get("platform_cells", [])
+		if raw_cells.is_empty():
+			errors.append("Platform %s has empty platform_cells." % (platform_id if not platform_id.is_empty() else object_id))
+		var local_cells := {}
+		for cell_variant in raw_cells:
+			var world_cell := WorldObjectCatalog.to_world_cell(cell_variant, Vector2i(-1, -1))
+			if world_cell.x < 0 or world_cell.y < 0:
+				errors.append("Platform %s has invalid cell %s." % [platform_id if not platform_id.is_empty() else object_id, str(world_cell)])
+				continue
+			if local_cells.has(world_cell):
+				errors.append("Platform %s has duplicate cell %s." % [platform_id if not platform_id.is_empty() else object_id, str(world_cell)])
+				continue
+			local_cells[world_cell] = true
+			if platform_cell_owner.has(world_cell):
+				errors.append("Cell %s is claimed by multiple platforms (%s and %s)." % [str(world_cell), String(platform_cell_owner[world_cell]), platform_id])
+			else:
+				platform_cell_owner[world_cell] = platform_id
+		var control_type := String(platform.get("control_type", ""))
+		if not control_type in ["internal", "external"]:
+			errors.append("Platform %s has invalid control_type %s." % [platform_id, control_type])
+		var power_type := String(platform.get("power_type", ""))
+		if not power_type in ["internal", "external"]:
+			errors.append("Platform %s has invalid power_type %s." % [platform_id, power_type])
+		if control_type == "internal":
+			var local_switch := WorldObjectCatalog.to_world_cell(platform.get("local_switch_cell", Vector2i(-1, -1)), Vector2i(-1, -1))
+			if local_switch.x < 0 or local_switch.y < 0:
+				errors.append("Platform %s has invalid local_switch_cell %s." % [platform_id, str(local_switch)])
+		if platform_type == "rotating":
+			var rotation_direction := String(platform.get("rotation_direction", ""))
+			if not rotation_direction in ["clockwise", "counterclockwise"]:
+				errors.append("Platform %s has invalid rotation_direction %s." % [platform_id, rotation_direction])
+		if platform_type == "lifting":
+			var min_h := int(platform.get("min_height_level", 0))
+			var max_h := int(platform.get("max_height_level", 0))
+			var height := int(platform.get("height_level", 0))
+			if min_h > height or height > max_h:
+				errors.append("Platform %s has invalid height range min=%d height=%d max=%d." % [platform_id, min_h, height, max_h])
+		for timer_key in ["timer_turns", "timer_remaining_turns", "period_turns"]:
+			if int(platform.get(timer_key, 0)) < 0:
+				errors.append("Platform %s has negative %s." % [platform_id, timer_key])
+		if bool(platform.get("requires_terminal_enabled", false)):
+			var linked_terminal_id := String(platform.get("linked_terminal_id", "")).strip_edges()
+			if linked_terminal_id.is_empty():
+				errors.append("Platform %s requires terminal but linked_terminal_id is empty." % platform_id)
+			else:
+				var linked_terminal := get_world_object_by_id(linked_terminal_id)
+				if linked_terminal.is_empty():
+					errors.append("Platform %s linked terminal %s is missing." % [platform_id, linked_terminal_id])
+				else:
+					if String(linked_terminal.get("terminal_type", "")) != "platform":
+						errors.append("Platform %s linked terminal %s has invalid terminal_type." % [platform_id, linked_terminal_id])
+					if String(linked_terminal.get("target_platform_id", "")) != platform_id:
+						errors.append("Platform %s linked terminal %s targets %s." % [platform_id, linked_terminal_id, String(linked_terminal.get("target_platform_id", ""))])
+	for terminal in terminals:
+		var terminal_id := String(terminal.get("id", ""))
+		var target_platform_id := String(terminal.get("target_platform_id", "")).strip_edges()
+		if target_platform_id.is_empty():
+			errors.append("Platform terminal %s has empty target_platform_id." % terminal_id)
+			continue
+		terminal_targets_count[target_platform_id] = int(terminal_targets_count.get(target_platform_id, 0)) + 1
+		if get_platform_by_id(target_platform_id).is_empty():
+			errors.append("Platform terminal %s targets missing platform %s." % [terminal_id, target_platform_id])
+	for target_id in terminal_targets_count.keys():
+		var count := int(terminal_targets_count[target_id])
+		if count > 1:
+			warnings.append("Multiple terminals (%d) target platform %s." % [count, String(target_id)])
+	return {
+		"valid": errors.is_empty(),
+		"platforms": platforms.size(),
+		"terminals": terminals.size(),
+		"warnings": warnings,
+		"errors": errors
+	}
+
+func get_platform_runtime_validation_text() -> String:
+	var validation := validate_platform_runtime_state()
+	var warnings: Array[String] = validation.get("warnings", [])
+	var errors: Array[String] = validation.get("errors", [])
+	var lines: Array[String] = []
+	lines.append("PlatformRuntimeValidation: valid=%s | platforms=%d | terminals=%d | errors=%d | warnings=%d" % [
+		str(bool(validation.get("valid", false))).to_lower(),
+		int(validation.get("platforms", 0)),
+		int(validation.get("terminals", 0)),
+		errors.size(),
+		warnings.size()
+	])
+	for error in errors:
+		lines.append("ERROR: %s" % error)
+	for warning in warnings:
+		lines.append("WARNING: %s" % warning)
+	return "\n".join(lines)
+
+func get_platform_runtime_table_text(filter: String = "") -> String:
+	var filter_text := filter.strip_edges().to_lower()
+	var platforms: Array[Dictionary] = []
+	var terminals: Array[Dictionary] = []
+	for object_data in mission_world_objects:
+		if String(object_data.get("object_group", "")) == "platform":
+			platforms.append(object_data)
+		elif String(object_data.get("object_type", "")) == "platform_terminal":
+			terminals.append(object_data)
+	platforms.sort_custom(func(a: Dictionary, b: Dictionary) -> bool:
+		var a_key := "%s|%s" % [String(a.get("platform_id", "")), String(a.get("id", ""))]
+		var b_key := "%s|%s" % [String(b.get("platform_id", "")), String(b.get("id", ""))]
+		return a_key < b_key
+	)
+	terminals.sort_custom(func(a: Dictionary, b: Dictionary) -> bool:
+		return String(a.get("id", "")) < String(b.get("id", ""))
+	)
+	var lines: Array[String] = []
+	lines.append("Platforms:")
+	for platform in platforms:
+		var platform_id := String(platform.get("platform_id", platform.get("id", "")))
+		var terminal_id := String(platform.get("linked_terminal_id", "none"))
+		if terminal_id.strip_edges().is_empty():
+			terminal_id = "none"
+		var occupants := get_platform_occupants(platform_id)
+		var occ_obj := Array(occupants.get("world_objects", [])).size()
+		var occ_item := Array(occupants.get("items", [])).size()
+		var occ_bipob := Array(occupants.get("bipobs", [])).size()
+		var mode := String(platform.get("activation_mode", "instant"))
+		var timer_remaining := int(platform.get("timer_remaining_turns", 0))
+		var height := "-"
+		if String(platform.get("platform_type", "")) == "lifting":
+			height = str(int(platform.get("height_level", 0)))
+		var line := "%s | %s | cells=%d | %s | powered=%s | %s/%s | terminal=%s | %s | timer=%d | height=%s | occupants obj=%d item=%d bipob=%d" % [
+			platform_id,
+			String(platform.get("platform_type", "")),
+			Array(platform.get("platform_cells", [])).size(),
+			String(platform.get("state", "active")),
+			str(bool(platform.get("is_powered", true))).to_lower(),
+			String(platform.get("power_type", "internal")),
+			String(platform.get("control_type", "internal")),
+			terminal_id,
+			mode,
+			timer_remaining,
+			height,
+			occ_obj,
+			occ_item,
+			occ_bipob
+		]
+		var haystack := "%s %s %s %s %s" % [platform_id, String(platform.get("id", "")), String(platform.get("platform_type", "")), String(platform.get("state", "")), terminal_id]
+		if filter_text.is_empty() or haystack.to_lower().find(filter_text) != -1:
+			lines.append(line)
+	lines.append("Terminals:")
+	for terminal in terminals:
+		var line := "%s | target=%s | %s | powered=%s | enabled=%s | remote=%s | interface=%s" % [
+			String(terminal.get("id", "")),
+			String(terminal.get("target_platform_id", "")),
+			String(terminal.get("state", "active")),
+			str(bool(terminal.get("is_powered", true))).to_lower(),
+			str(bool(terminal.get("platform_control_enabled", true))).to_lower(),
+			str(bool(terminal.get("platform_remote_control", true))).to_lower(),
+			String(terminal.get("terminal_interface", "standard"))
+		]
+		var haystack := "%s %s %s" % [String(terminal.get("id", "")), String(terminal.get("target_platform_id", "")), String(terminal.get("state", ""))]
+		if filter_text.is_empty() or haystack.to_lower().find(filter_text) != -1:
+			lines.append(line)
+	return "\n".join(lines)
+
 func seed_platform_debug_scenario(origin: Vector2i = Vector2i(10, 2)) -> void:
 	_place_debug_world_object("rotating_platform", "rotating_platform_debug", origin, {"platform_id":"platform_rot_a","platform_cells":[[origin.x, origin.y],[origin.x+1, origin.y]],"control_type":"external","linked_terminal_id":"platform_terminal_debug","requires_terminal_enabled":true})
 	_place_debug_world_object("lifting_platform", "lifting_platform_debug", origin + Vector2i(0, 3), {"platform_id":"platform_lift_a","platform_cells":[[origin.x, origin.y+3]],"control_type":"internal","local_switch_cell":[origin.x-1, origin.y+3],"height_level":0,"min_height_level":0,"max_height_level":1})
@@ -1143,8 +1328,64 @@ func seed_platform_debug_scenario(origin: Vector2i = Vector2i(10, 2)) -> void:
 
 func validate_platform_debug_scenario() -> Array[String]:
 	var warnings: Array[String] = []
-	if get_platform_by_id("platform_rot_a").is_empty(): warnings.append("Missing rotating platform.")
-	if get_platform_by_id("platform_lift_a").is_empty(): warnings.append("Missing lifting platform.")
+	var rotating_platform := get_platform_by_id("platform_rot_a")
+	if rotating_platform.is_empty(): warnings.append("Missing rotating platform.")
+	var lifting_platform := get_platform_by_id("platform_lift_a")
+	if lifting_platform.is_empty(): warnings.append("Missing lifting platform.")
 	var terminal := get_world_object_by_id("platform_terminal_debug")
 	if terminal.is_empty() or String(terminal.get("target_platform_id", "")) != "platform_rot_a": warnings.append("Platform terminal link invalid.")
+	var air_cooler := get_world_object_by_id("platform_air_cooler_debug")
+	if air_cooler.is_empty():
+		warnings.append("Missing air cooler on rotating platform.")
+	var old_facing := String(air_cooler.get("facing_dir", ""))
+	var old_height := int(lifting_platform.get("height_level", 0))
+	var old_terminal_state := String(terminal.get("state", "active"))
+	var old_terminal_powered := bool(terminal.get("is_powered", true))
+	var old_terminal_enabled := bool(terminal.get("platform_control_enabled", true))
+	var old_timer_remaining := int(rotating_platform.get("timer_remaining_turns", 0))
+	var old_pending_activation := bool(rotating_platform.get("pending_activation", false))
+	var old_periodic_active := bool(rotating_platform.get("periodic_active", false))
+	if not rotating_platform.is_empty() and not air_cooler.is_empty():
+		var before_facing := String(air_cooler.get("facing_dir", ""))
+		var rotate_result := activate_platform_by_id("platform_rot_a", "debug_validation")
+		if not bool(rotate_result.get("success", false)):
+			warnings.append("Rotating platform activation failed during validation.")
+		var after_facing := String(air_cooler.get("facing_dir", ""))
+		if before_facing == after_facing:
+			warnings.append("Rotating platform action did not rotate air cooler.")
+	if not lifting_platform.is_empty():
+		var before_height := int(lifting_platform.get("height_level", 0))
+		var lift_result := activate_platform_by_id("platform_lift_a", "debug_validation")
+		if not bool(lift_result.get("success", false)):
+			warnings.append("Lifting platform activation failed during validation.")
+		var after_height := int(lifting_platform.get("height_level", before_height))
+		if before_height == after_height:
+			warnings.append("Lifting platform action did not toggle height_level.")
+		var switch_cell := WorldObjectCatalog.to_world_cell(lifting_platform.get("local_switch_cell", Vector2i(-1, -1)), Vector2i(-1, -1))
+		var wrong_access := can_bipob_access_platform_switch(lifting_platform, switch_cell + Vector2i(2, 0), "left")
+		if wrong_access:
+			warnings.append("Internal switch access returned true from wrong position.")
+		var actor_cell := switch_cell - _facing_to_vector(String(lifting_platform.get("local_switch_facing_dir", "right")))
+		var right_access := can_bipob_access_platform_switch(lifting_platform, actor_cell, String(lifting_platform.get("local_switch_facing_dir", "right")))
+		if not right_access:
+			warnings.append("Internal switch access returned false from valid position.")
+	if not rotating_platform.is_empty() and not terminal.is_empty():
+		rotating_platform["requires_terminal_enabled"] = true
+		terminal["platform_control_enabled"] = false
+		var blocked := activate_platform_by_id("platform_rot_a", "debug_validation_block")
+		if bool(blocked.get("success", false)):
+			warnings.append("Terminal unavailable did not block rotating platform activation.")
+	if not air_cooler.is_empty():
+		air_cooler["facing_dir"] = old_facing
+	if not lifting_platform.is_empty():
+		lifting_platform["height_level"] = old_height
+	if not terminal.is_empty():
+		terminal["state"] = old_terminal_state
+		terminal["is_powered"] = old_terminal_powered
+		terminal["platform_control_enabled"] = old_terminal_enabled
+	if not rotating_platform.is_empty():
+		rotating_platform["timer_remaining_turns"] = old_timer_remaining
+		rotating_platform["pending_activation"] = old_pending_activation
+		rotating_platform["periodic_active"] = old_periodic_active
+	refresh_world_cooling_received()
 	return warnings
