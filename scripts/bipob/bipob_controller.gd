@@ -366,6 +366,32 @@ func execute_power_network_apply_and_get_report_text(filter: String = "") -> Str
 		return "Power network apply unavailable: mission manager/helper missing."
 	return String(mission_manager.call("execute_power_network_apply_and_get_report_text", filter))
 
+func preview_power_graph_state_application(filter: String = "") -> Dictionary:
+	if mission_manager == null or not mission_manager.has_method("preview_power_graph_state_application"):
+		return {"filter": filter, "sources": [], "nodes": [], "reachable_object_ids": [], "blocked": [], "changes": [], "warnings": ["Power graph preview unavailable: mission manager/helper missing."]}
+	var preview_variant: Variant = mission_manager.call("preview_power_graph_state_application", filter)
+	if typeof(preview_variant) != TYPE_DICTIONARY:
+		return {"filter": filter, "sources": [], "nodes": [], "reachable_object_ids": [], "blocked": [], "changes": [], "warnings": ["Power graph preview unavailable: mission manager/helper missing."]}
+	return preview_variant
+
+func get_power_graph_preview_text(filter: String = "") -> String:
+	if mission_manager == null or not mission_manager.has_method("get_power_graph_preview_text"):
+		return "Power graph preview unavailable: mission manager/helper missing."
+	return String(mission_manager.call("get_power_graph_preview_text", filter))
+
+func apply_power_graph_state_from_preview(filter: String = "") -> Dictionary:
+	if mission_manager == null or not mission_manager.has_method("apply_power_graph_state_from_preview"):
+		return {"applied": 0, "changes": [], "warnings": ["Power graph apply unavailable: mission manager/helper missing."]}
+	var report_variant: Variant = mission_manager.call("apply_power_graph_state_from_preview", filter)
+	if typeof(report_variant) != TYPE_DICTIONARY:
+		return {"applied": 0, "changes": [], "warnings": ["Power graph apply unavailable: mission manager/helper missing."]}
+	return report_variant
+
+func execute_power_graph_apply_and_get_report_text(filter: String = "") -> String:
+	if mission_manager == null or not mission_manager.has_method("execute_power_graph_apply_and_get_report_text"):
+		return "Power graph apply unavailable: mission manager/helper missing."
+	return String(mission_manager.call("execute_power_graph_apply_and_get_report_text", filter))
+
 func get_power_network_apply_preview_report_text(filter: String = "") -> String:
 	if mission_manager == null or not mission_manager.has_method("get_power_network_apply_preview_report_text"):
 		return "Power network apply preview unavailable: mission manager/helper missing."

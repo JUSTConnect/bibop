@@ -636,6 +636,190 @@ func _is_power_source_available(source: Dictionary) -> bool:
 		return true
 	return state in ["active", "switch_on", "connected"]
 
+func _normalize_power_gate_text(raw_value: Variant) -> String:
+	return String(raw_value).strip_edges().to_lower().replace(" ", "_").replace("-", "_")
+
+func _get_power_gate_state(object_data: Dictionary) -> Dictionary:
+	var object_type := _normalize_power_gate_text(object_data.get("object_type", ""))
+	var state := _normalize_power_gate_text(object_data.get("state", ""))
+	var damaged_or_broken := bool(object_data.get("damaged", false)) or bool(object_data.get("broken", false))
+	if state in ["cut", "damaged", "broken"] or damaged_or_broken:
+		if object_type in ["switch", "light_switch", "circuit_switch", "circuit_breaker", "fuse_box", "power_cable", "cable", "cable_reel"]:
+			return {"is_gate": true, "gate_type": object_type, "is_closed": false, "reason": state if not state.is_empty() else "damaged"}
+	var closed_states := {}
+	var open_states := {}
+	var is_gate := false
+	if object_type in ["switch", "light_switch", "circuit_switch", "circuit_breaker"]:
+		is_gate = true
+		closed_states = {"switch_on": true, "on": true, "active": true, "closed": true}
+		open_states = {"switch_off": true, "off": true, "inactive": true, "open": true}
+	elif object_type == "fuse_box":
+		is_gate = true
+		closed_states = {"installed": true, "fuse_installed": true, "active": true}
+		open_states = {"empty": true, "missing_fuse": true, "open": true}
+	elif object_type in ["power_cable", "cable", "cable_reel"]:
+		is_gate = true
+		closed_states = {"connected": true, "installed": true, "active": true}
+		open_states = {"disconnected": true, "cut": true, "damaged": true, "broken": true}
+	if not is_gate:
+		return {"is_gate": false, "gate_type": "", "is_closed": true, "reason": "not_gate"}
+	if open_states.has(state):
+		return {"is_gate": true, "gate_type": object_type, "is_closed": false, "reason": state}
+	if closed_states.has(state):
+		return {"is_gate": true, "gate_type": object_type, "is_closed": true, "reason": state}
+	return {"is_gate": true, "gate_type": object_type, "is_closed": true, "reason": "default_closed"}
+
+func _is_power_gate_closed(object_data: Dictionary) -> bool:
+	var gate_state := _get_power_gate_state(object_data)
+	return bool(gate_state.get("is_closed", true))
+
+func preview_power_graph_state_application(filter: String = "") -> Dictionary:
+	var collected := _collect_power_network_objects()
+	var networks: Dictionary = collected.get("networks", {})
+	var filter_text := filter.strip_edges()
+	var result := {"filter": filter_text, "sources": [], "nodes": [], "reachable_object_ids": [], "blocked": [], "changes": [], "warnings": []}
+	var warnings: Array[String] = result["warnings"]
+	warnings.append("Power graph MVP uses network-level gate blocking; adjacency traversal not available yet.")
+	var changes: Array[Dictionary] = result["changes"]
+	var blocked_entries: Array[Dictionary] = result["blocked"]
+	var sources: Array[Dictionary] = result["sources"]
+	var nodes: Array[String] = result["nodes"]
+	var reachable: Array[String] = result["reachable_object_ids"]
+	for network_id_variant in networks.keys():
+		var network_id := String(network_id_variant)
+		if not filter_text.is_empty() and network_id != filter_text:
+			continue
+		var network_objects: Array = networks.get(network_id, [])
+		var has_available_source := false
+		var network_open_gate := false
+		for object_variant in network_objects:
+			if typeof(object_variant) != TYPE_DICTIONARY:
+				continue
+			var object_data: Dictionary = object_variant
+			var object_id := String(object_data.get("id", "")).strip_edges()
+			if not object_id.is_empty():
+				nodes.append(object_id)
+			if _is_power_source_object(object_data) and _is_power_source_available(object_data):
+				has_available_source = true
+				sources.append({"object_id": object_id, "network_id": network_id})
+			var gate_state := _get_power_gate_state(object_data)
+			if bool(gate_state.get("is_gate", false)) and not bool(gate_state.get("is_closed", true)):
+				network_open_gate = true
+				blocked_entries.append({
+					"object_id": object_id,
+					"network_id": network_id,
+					"gate_type": String(gate_state.get("gate_type", "")),
+					"reason": String(gate_state.get("reason", "blocked_by_gate"))
+				})
+		for object_variant in network_objects:
+			if typeof(object_variant) != TYPE_DICTIONARY:
+				continue
+			var object_data: Dictionary = object_variant
+			if _is_power_source_object(object_data):
+				continue
+			var object_id := String(object_data.get("id", "")).strip_edges()
+			var current_is_powered := bool(object_data.get("is_powered", false))
+			var state := _normalize_power_gate_text(object_data.get("state", ""))
+			var damaged_or_broken := bool(object_data.get("damaged", false)) or bool(object_data.get("broken", false))
+			var preview_is_powered := current_is_powered
+			var reason := "no_powered_source"
+			if state == "cut":
+				preview_is_powered = false
+				reason = "cut"
+			elif state == "broken" or damaged_or_broken:
+				preview_is_powered = false
+				reason = "broken" if state == "broken" else "damaged"
+			elif state == "damaged":
+				preview_is_powered = false
+				reason = "damaged"
+			elif not has_available_source:
+				preview_is_powered = false
+				reason = "no_powered_source"
+			elif network_open_gate:
+				preview_is_powered = false
+				reason = "blocked_by_gate"
+			else:
+				preview_is_powered = true
+				reason = "graph_powered_source_reachable"
+			if preview_is_powered:
+				reachable.append(object_id)
+			if preview_is_powered == current_is_powered:
+				continue
+			changes.append({
+				"object_id": object_id,
+				"network_id": network_id,
+				"current_is_powered": current_is_powered,
+				"preview_is_powered": preview_is_powered,
+				"reason": reason
+			})
+	return result
+
+func get_power_graph_preview_text(filter: String = "") -> String:
+	var preview := preview_power_graph_state_application(filter)
+	var lines: Array[String] = []
+	lines.append("PowerGraphPreview: filter=%s sources=%d reachable=%d blocked=%d changes=%d warnings=%d" % [
+		String(preview.get("filter", "")),
+		(preview.get("sources", []) as Array).size(),
+		(preview.get("reachable_object_ids", []) as Array).size(),
+		(preview.get("blocked", []) as Array).size(),
+		(preview.get("changes", []) as Array).size(),
+		(preview.get("warnings", []) as Array).size()
+	])
+	for source_variant in preview.get("sources", []):
+		if typeof(source_variant) != TYPE_DICTIONARY:
+			continue
+		var source: Dictionary = source_variant
+		lines.append("SOURCE: object=%s network=%s" % [String(source.get("object_id", "")), String(source.get("network_id", ""))])
+	for blocked_variant in preview.get("blocked", []):
+		if typeof(blocked_variant) != TYPE_DICTIONARY:
+			continue
+		var blocked: Dictionary = blocked_variant
+		lines.append("BLOCKED: object=%s network=%s gate=%s reason=%s" % [String(blocked.get("object_id", "")), String(blocked.get("network_id", "")), String(blocked.get("gate_type", "")), String(blocked.get("reason", ""))])
+	for change_variant in preview.get("changes", []):
+		if typeof(change_variant) != TYPE_DICTIONARY:
+			continue
+		var change: Dictionary = change_variant
+		lines.append("WOULD_APPLY: object=%s network=%s is_powered %s -> %s reason=%s" % [String(change.get("object_id", "")), String(change.get("network_id", "")), str(bool(change.get("current_is_powered", false))).to_lower(), str(bool(change.get("preview_is_powered", false))).to_lower(), String(change.get("reason", ""))])
+	for warning_variant in preview.get("warnings", []):
+		lines.append("WARNING: %s" % String(warning_variant))
+	return "\n".join(lines)
+
+func apply_power_graph_state_from_preview(filter: String = "") -> Dictionary:
+	var preview := preview_power_graph_state_application(filter)
+	var applied_changes: Array[Dictionary] = []
+	for change_variant in preview.get("changes", []):
+		if typeof(change_variant) != TYPE_DICTIONARY:
+			continue
+		var change: Dictionary = change_variant
+		var object_id := String(change.get("object_id", "")).strip_edges()
+		var object_data := get_world_object_by_id(object_id)
+		if object_data.is_empty() or _is_power_source_object(object_data):
+			continue
+		var previous_is_powered := bool(object_data.get("is_powered", false))
+		var next_is_powered := bool(change.get("preview_is_powered", false))
+		var state := _normalize_power_gate_text(object_data.get("state", ""))
+		var damaged_or_broken := bool(object_data.get("damaged", false)) or bool(object_data.get("broken", false))
+		if next_is_powered and (state in ["damaged", "broken", "cut"] or damaged_or_broken):
+			next_is_powered = false
+		if previous_is_powered == next_is_powered:
+			continue
+		object_data["is_powered"] = next_is_powered
+		applied_changes.append({"object_id": object_id, "network_id": String(change.get("network_id", "")), "previous_is_powered": previous_is_powered, "new_is_powered": next_is_powered, "reason": String(change.get("reason", ""))})
+	return {"applied": applied_changes.size(), "changes": applied_changes, "warnings": preview.get("warnings", [])}
+
+func execute_power_graph_apply_and_get_report_text(filter: String = "") -> String:
+	var report := apply_power_graph_state_from_preview(filter)
+	var lines: Array[String] = []
+	lines.append("PowerGraphApply: filter=%s applied=%d warnings=%d" % [filter, int(report.get("applied", 0)), (report.get("warnings", []) as Array).size()])
+	for change_variant in report.get("changes", []):
+		if typeof(change_variant) != TYPE_DICTIONARY:
+			continue
+		var change: Dictionary = change_variant
+		lines.append("APPLIED: object=%s network=%s is_powered %s -> %s reason=%s" % [String(change.get("object_id", "")), String(change.get("network_id", "")), str(bool(change.get("previous_is_powered", false))).to_lower(), str(bool(change.get("new_is_powered", false))).to_lower(), String(change.get("reason", ""))])
+	for warning_variant in report.get("warnings", []):
+		lines.append("WARNING: %s" % String(warning_variant))
+	return "\n".join(lines)
+
 func preview_power_network_state_application(filter: String = "") -> Dictionary:
 	var collected := _collect_power_network_objects()
 	var power_objects: Array[Dictionary] = collected.get("objects", [])
@@ -795,7 +979,7 @@ func apply_power_network_state_from_preview(filter: String = "") -> Dictionary:
 	return {"applied": applied_changes.size(), "changes": applied_changes, "warnings": warnings}
 
 func apply_power_network_after_explicit_power_event(reason: String = "", filter: String = "") -> Dictionary:
-	var report := apply_power_network_state_from_preview(filter)
+	var report := apply_power_graph_state_from_preview(filter)
 	return {
 		"event_reason": reason,
 		"applied": int(report.get("applied", 0)),
@@ -1216,6 +1400,22 @@ func validate_power_network_debug_scenario() -> Array[String]:
 	temp_objects.append(_build_power_network_debug_object("power_debug_cable_consumer", "power_socket", "power_debug_cable_event", {
 		"is_powered": false
 	}))
+	temp_objects.append(_build_power_network_debug_object("power_debug_graph_closed_gate_source", "power_source", "power_debug_graph_closed_gate", {"is_powered": true}))
+	temp_objects.append(_build_power_network_debug_object("power_debug_graph_closed_gate_switch", "circuit_switch", "power_debug_graph_closed_gate", {"state": "switch_on"}))
+	temp_objects.append(_build_power_network_debug_object("power_debug_graph_closed_gate_consumer", "power_socket", "power_debug_graph_closed_gate", {"is_powered": false}))
+	temp_objects.append(_build_power_network_debug_object("power_debug_graph_open_switch_source", "power_source", "power_debug_graph_open_switch", {"is_powered": true}))
+	temp_objects.append(_build_power_network_debug_object("power_debug_graph_open_switch_gate", "circuit_switch", "power_debug_graph_open_switch", {"state": "switch_off"}))
+	temp_objects.append(_build_power_network_debug_object("power_debug_graph_open_switch_consumer", "power_socket", "power_debug_graph_open_switch", {"is_powered": true}))
+	temp_objects.append(_build_power_network_debug_object("power_debug_graph_empty_fuse_source", "power_source", "power_debug_graph_empty_fuse", {"is_powered": true}))
+	temp_objects.append(_build_power_network_debug_object("power_debug_graph_empty_fuse_gate", "fuse_box", "power_debug_graph_empty_fuse", {"state": "empty"}))
+	temp_objects.append(_build_power_network_debug_object("power_debug_graph_empty_fuse_consumer", "power_socket", "power_debug_graph_empty_fuse", {"is_powered": true}))
+	temp_objects.append(_build_power_network_debug_object("power_debug_graph_cut_cable_source", "power_source", "power_debug_graph_cut_cable", {"is_powered": true}))
+	temp_objects.append(_build_power_network_debug_object("power_debug_graph_cut_cable_gate", "power_cable", "power_debug_graph_cut_cable", {"state": "cut"}))
+	temp_objects.append(_build_power_network_debug_object("power_debug_graph_cut_cable_consumer", "power_socket", "power_debug_graph_cut_cable", {"is_powered": true}))
+	temp_objects.append(_build_power_network_debug_object("power_debug_graph_no_source_source", "power_source", "power_debug_graph_no_source", {"is_powered": false, "state": "off"}))
+	temp_objects.append(_build_power_network_debug_object("power_debug_graph_no_source_consumer", "power_socket", "power_debug_graph_no_source", {"is_powered": true}))
+	temp_objects.append(_build_power_network_debug_object("power_debug_graph_damaged_consumer_source", "power_source", "power_debug_graph_damaged_consumer", {"is_powered": true}))
+	temp_objects.append(_build_power_network_debug_object("power_debug_graph_damaged_consumer", "power_socket", "power_debug_graph_damaged_consumer", {"is_powered": false, "state": "damaged"}))
 	for object_data in temp_objects:
 		mission_world_objects.append(object_data)
 		var object_id := String(object_data.get("id", "")).strip_edges()
@@ -1419,6 +1619,20 @@ func validate_power_network_debug_scenario() -> Array[String]:
 	var cable_disconnect_report := apply_power_network_after_explicit_power_event("cable_disconnected", cable_filter)
 	if String(cable_disconnect_report.get("event_reason", "")) != "cable_disconnected":
 		warnings.append("Cable disconnect event apply regression: event_reason mismatch.")
+	var graph_closed_preview := preview_power_graph_state_application("power_debug_graph_closed_gate")
+	var graph_closed_apply := apply_power_graph_state_from_preview("power_debug_graph_closed_gate")
+	if int(graph_closed_apply.get("applied", 0)) <= 0:
+		warnings.append("Graph closed gate scenario regression: expected apply changes.")
+	var graph_open_preview := preview_power_graph_state_application("power_debug_graph_open_switch")
+	if String(get_power_graph_preview_text("power_debug_graph_open_switch")).find("blocked=1") == -1:
+		warnings.append("Graph open switch scenario regression: blocked gate not reported.")
+	if String(graph_open_preview).find("blocked_by_gate") == -1:
+		warnings.append("Graph open switch scenario regression: reason blocked_by_gate missing.")
+	apply_power_graph_state_from_preview("power_debug_graph_open_switch")
+	apply_power_graph_state_from_preview("power_debug_graph_empty_fuse")
+	apply_power_graph_state_from_preview("power_debug_graph_cut_cable")
+	apply_power_graph_state_from_preview("power_debug_graph_no_source")
+	apply_power_graph_state_from_preview("power_debug_graph_damaged_consumer")
 	var allowed_fuse_remove_fields := {
 		"is_powered": true,
 		"current_heat": true,
