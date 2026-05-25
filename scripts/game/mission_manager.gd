@@ -16,6 +16,15 @@ var debug_world_cooling_scenario_enabled: bool = false
 var debug_platform_scenario_enabled: bool = false
 var active_bipob_ref: Node = null
 var platform_last_tick_action_index: int = -1
+var runtime_inventory_state := {
+	"pocket_items": [],
+	"manipulator_hold": "",
+	"digital_buffer": [],
+	"box_storage": [],
+	"item_amounts": {},
+	"consumed_item_ids": [],
+	"world_item_runtime": {}
+}
 
 # region Typed world-object access wrappers
 func _wo_id(object_data: Dictionary) -> String:
@@ -3170,6 +3179,123 @@ func get_world_object_runtime_state() -> Dictionary:
 			runtime_state[object_id] = serialized
 	return runtime_state
 
+func get_inventory_state() -> Dictionary:
+	return runtime_inventory_state.duplicate(true)
+
+func get_actor_capability_levels() -> Dictionary:
+	var defaults := {
+		"manipulator_level": 0,
+		"interface_level": 0,
+		"cpu_level": 0,
+		"power_class": "none",
+		"modules": [],
+		"tools": []
+	}
+	if active_bipob_ref == null:
+		return defaults
+	defaults["manipulator_level"] = int(active_bipob_ref.call("get_installed_manipulator_arm_level")) if active_bipob_ref.has_method("get_installed_manipulator_arm_level") else 0
+	defaults["interface_level"] = int(active_bipob_ref.call("get_installed_interface_level")) if active_bipob_ref.has_method("get_installed_interface_level") else 0
+	defaults["cpu_level"] = int(active_bipob_ref.call("get_installed_cpu_level")) if active_bipob_ref.has_method("get_installed_cpu_level") else 0
+	return defaults
+
+func check_world_object_requirements(object_id: String, action: String = "") -> Dictionary:
+	var object_data := get_world_object_by_id(object_id)
+	var capabilities := get_actor_capability_levels()
+	var requirements: Dictionary = {}
+	var reasons: Array[String] = []
+	if object_data.is_empty():
+		return {"allowed": false, "object_id": object_id, "action": action, "requirements": requirements, "capabilities": capabilities, "reasons": ["object_missing"]}
+	for key in ["required_manipulator_level", "required_interface_level", "required_cpu_level", "required_bipob_power_class", "fits_targets", "required_tool", "required_item_id", "lock_type", "terminal_class", "door_class", "item_form", "storage_type"]:
+		if object_data.has(key):
+			requirements[key] = object_data[key]
+	if int(requirements.get("required_manipulator_level", 0)) > int(capabilities.get("manipulator_level", 0)): reasons.append("manipulator_level_too_low")
+	if int(requirements.get("required_interface_level", 0)) > int(capabilities.get("interface_level", 0)): reasons.append("interface_level_too_low")
+	if int(requirements.get("required_cpu_level", 0)) > int(capabilities.get("cpu_level", 0)): reasons.append("cpu_level_too_low")
+	var required_power_class := String(requirements.get("required_bipob_power_class", "")).strip_edges()
+	if not required_power_class.is_empty() and required_power_class != String(capabilities.get("power_class", "none")):
+		reasons.append("power_class_too_low")
+	if not String(requirements.get("required_tool", "")).strip_edges().is_empty() and not Array(capabilities.get("tools", [])).has(String(requirements.get("required_tool", ""))):
+		reasons.append("required_tool_missing")
+	if not String(requirements.get("required_item_id", "")).strip_edges().is_empty():
+		var inv := get_inventory_state()
+		var all_items: Array = Array(inv.get("pocket_items", [])) + [String(inv.get("manipulator_hold", ""))] + Array(inv.get("digital_buffer", []))
+		if not all_items.has(String(requirements.get("required_item_id", ""))):
+			reasons.append("required_item_missing")
+	if reasons.is_empty():
+		reasons.append("ok")
+	return {"allowed": reasons.size() == 1 and reasons[0] == "ok", "object_id": object_id, "action": action, "requirements": requirements, "capabilities": capabilities, "reasons": reasons}
+
+func can_pickup_world_item(item_id: String) -> Dictionary:
+	var item := get_world_object_by_id(item_id)
+	if item.is_empty():
+		return {"success": false, "reasons": ["item_missing"], "item_id": item_id}
+	if not bool(item.get("can_pickup", true)):
+		return {"success": false, "reasons": ["item_does_not_fit"], "item_id": item_id}
+	return {"success": true, "reasons": ["ok"], "item_id": item_id}
+
+func pickup_world_item(item_id: String) -> Dictionary:
+	var gate := can_pickup_world_item(item_id)
+	if not bool(gate.get("success", false)):
+		return gate
+	var item := get_world_object_by_id(item_id)
+	var storage_type := String(item.get("storage_type", "pocket"))
+	if String(item.get("item_form", "physical")) == "digital":
+		return place_item_in_digital_buffer(item_id)
+	if storage_type == "manipulator_hold":
+		return hold_item_in_manipulator(item_id)
+	var pocket: Array = runtime_inventory_state.get("pocket_items", [])
+	pocket.append(item_id)
+	runtime_inventory_state["pocket_items"] = pocket
+	runtime_inventory_state["world_item_runtime"][item_id] = {"picked_up": true, "in_inventory": true, "carried_by": "bipob"}
+	return {"success": true, "reasons": ["ok"], "item_id": item_id}
+
+func can_drop_inventory_item(item_id: String) -> Dictionary:
+	var inv := get_inventory_state()
+	var has_item := Array(inv.get("pocket_items", [])).has(item_id) or String(inv.get("manipulator_hold", "")) == item_id
+	return {"success": has_item, "item_id": item_id, "reasons": ["ok"] if has_item else ["item_missing"]}
+
+func drop_inventory_item(item_id: String, target_cell: Vector2i = Vector2i(-1, -1)) -> Dictionary:
+	var gate := can_drop_inventory_item(item_id)
+	if not bool(gate.get("success", false)):
+		return gate
+	var pocket: Array = runtime_inventory_state.get("pocket_items", [])
+	pocket.erase(item_id)
+	runtime_inventory_state["pocket_items"] = pocket
+	if String(runtime_inventory_state.get("manipulator_hold", "")) == item_id:
+		runtime_inventory_state["manipulator_hold"] = ""
+	runtime_inventory_state["world_item_runtime"][item_id] = {"picked_up": false, "in_inventory": false, "carried_by": "", "position": [target_cell.x, target_cell.y]}
+	return {"success": true, "item_id": item_id, "target_cell": target_cell, "reasons": ["ok"]}
+
+func can_hold_item_in_manipulator(item_id: String) -> Dictionary:
+	if String(runtime_inventory_state.get("manipulator_hold", "")) != "":
+		return {"success": false, "item_id": item_id, "reasons": ["item_does_not_fit"]}
+	return {"success": true, "item_id": item_id, "reasons": ["ok"]}
+
+func hold_item_in_manipulator(item_id: String) -> Dictionary:
+	var gate := can_hold_item_in_manipulator(item_id)
+	if not bool(gate.get("success", false)):
+		return gate
+	runtime_inventory_state["manipulator_hold"] = item_id
+	return {"success": true, "item_id": item_id, "reasons": ["ok"]}
+
+func can_place_item_in_digital_buffer(item_id: String) -> Dictionary:
+	var item := get_world_object_by_id(item_id)
+	if item.is_empty():
+		return {"success": false, "item_id": item_id, "reasons": ["item_missing"]}
+	if not bool(item.get("can_place_in_digital_buffer", false)):
+		return {"success": false, "item_id": item_id, "reasons": ["item_does_not_fit"]}
+	return {"success": true, "item_id": item_id, "reasons": ["ok"]}
+
+func place_item_in_digital_buffer(item_id: String) -> Dictionary:
+	var gate := can_place_item_in_digital_buffer(item_id)
+	if not bool(gate.get("success", false)):
+		return gate
+	var buffer: Array = runtime_inventory_state.get("digital_buffer", [])
+	if not buffer.has(item_id):
+		buffer.append(item_id)
+	runtime_inventory_state["digital_buffer"] = buffer
+	return {"success": true, "item_id": item_id, "reasons": ["ok"]}
+
 func _add_world_runtime_restore_warning(message: String) -> void:
 	if message.strip_edges().is_empty():
 		return
@@ -4644,6 +4770,61 @@ func use_access_item_on_door(item_id: String, door_id: String) -> Dictionary:
 	door["is_locked"] = false; door["locked"] = false; door["state"] = "open"
 	return {"success":true, "item_id":item_id, "door_id":door_id, "reasons":["ok"], "door_state_before":before, "door_state_after":"open", "consumed":false}
 
+func use_inventory_item_on_world_object(item_id: String, target_id: String, action: String = "") -> Dictionary:
+	var out := {"success": false, "item_id": item_id, "target_id": target_id, "action": action, "reasons": [], "consumed": false, "target_state_before": "", "target_state_after": "", "side_effects": {}}
+	var item := get_world_object_by_id(item_id)
+	var target := get_world_object_by_id(target_id)
+	if item.is_empty():
+		out["reasons"] = ["item_missing"]
+		return out
+	if target.is_empty():
+		out["reasons"] = ["target_missing"]
+		return out
+	var item_type := String(item.get("item_type", item.get("object_type", item_id)))
+	var before := String(target.get("state", ""))
+	out["target_state_before"] = before
+	if item_type == "fuse" and String(target.get("object_type", "")) in ["fuse_box_empty", "fuse_box_installed"]:
+		if String(target.get("state", "")) == "installed":
+			out["reasons"] = ["fuse_already_installed"]
+			return out
+		target["state"] = "installed"
+		out["side_effects"] = apply_power_network_after_explicit_power_event("fuse_inserted", String(target.get("power_network_id", "")))
+		out["success"] = true
+		out["consumed"] = bool(item.get("consumable", true))
+		out["reasons"] = ["ok"]
+	elif item_type == "repair_kit":
+		if bool(target.get("destroyed", false)) or String(target.get("state", "")) == "destroyed":
+			out["reasons"] = ["target_destroyed"]
+			return out
+		if not (bool(target.get("damaged", false)) or bool(target.get("broken", false)) or String(target.get("state", "")) in ["damaged", "broken"]):
+			out["reasons"] = ["already_repaired"]
+			return out
+		target["damaged"] = false
+		target["broken"] = false
+		if String(target.get("state", "")) in ["damaged", "broken"]:
+			target["state"] = "active"
+		if String(target.get("object_type", "")) == "power_cable":
+			target["disconnected"] = true
+			target["connected"] = false
+		out["success"] = true
+		out["consumed"] = bool(item.get("consumable", true))
+		out["reasons"] = ["ok"]
+	elif item_type == "power_cable_reel":
+		var report := connect_cable_reel_to_target(item_id, target_id)
+		out["success"] = bool(report.get("success", false))
+		out["reasons"] = report.get("reasons", ["cable_connect_failed"])
+		out["side_effects"] = report
+	elif item_type in ["mechanical_keycard", "digital_key", "access_code"]:
+		var access_report := use_access_item_on_door(item_id, target_id)
+		out["success"] = bool(access_report.get("success", false))
+		out["reasons"] = access_report.get("reasons", ["access_denied"])
+		out["side_effects"] = access_report
+	else:
+		out["reasons"] = ["wrong_item_type"]
+		return out
+	out["target_state_after"] = String(target.get("state", before))
+	return out
+
 func get_door_debug_report_text(door_id: String = "") -> String:
 	var ids: Array[String] = []
 	if door_id.strip_edges() != "": ids.append(door_id)
@@ -4709,3 +4890,54 @@ func get_platform_scan_visibility_validation_text() -> String:
 	if warnings.is_empty():
 		return "PlatformScanVisibilityValidation: ok"
 	return "PlatformScanVisibilityValidation:\n- " + "\n- ".join(warnings)
+
+func validate_inventory_tools_modules_runtime() -> Array[String]:
+	var warnings: Array[String] = []
+	var caps := get_actor_capability_levels()
+	if not caps.has("manipulator_level") or not caps.has("interface_level") or not caps.has("cpu_level"):
+		warnings.append("capability_defaults_missing")
+	return warnings
+
+func get_inventory_tools_modules_validation_text() -> String:
+	var warnings := validate_inventory_tools_modules_runtime()
+	return "InventoryToolsModulesValidation: ok" if warnings.is_empty() else "InventoryToolsModulesValidation:\n- " + "\n- ".join(warnings)
+
+func validate_full_runtime_persistence() -> Array[String]:
+	var warnings: Array[String] = []
+	var snap := get_world_object_runtime_state()
+	if snap.is_empty() and not mission_world_objects.is_empty():
+		warnings.append("world_runtime_snapshot_empty")
+	var inv := get_inventory_state()
+	for field_name in ["pocket_items", "manipulator_hold", "digital_buffer", "item_amounts", "consumed_item_ids", "world_item_runtime"]:
+		if not inv.has(field_name):
+			warnings.append("inventory_field_missing_%s" % field_name)
+	return warnings
+
+func run_developer_validation_suite(suite: String = "all") -> Dictionary:
+	var suites := ["power", "cooling_cable", "terminal_door", "platform_scan_visibility", "inventory_tools_modules", "persistence"]
+	var selected := suites if suite == "all" else [suite]
+	var warnings_by_suite := {}
+	var suites_run := 0
+	for suite_id in selected:
+		var warnings: Array[String] = []
+		match suite_id:
+			"power": warnings = validate_full_power_system_runtime()
+			"cooling_cable": warnings = validate_cooling_and_cable_runtime()
+			"terminal_door": warnings = validate_terminal_and_door_runtime()
+			"platform_scan_visibility": warnings = validate_platform_scan_visibility_runtime()
+			"inventory_tools_modules": warnings = validate_inventory_tools_modules_runtime()
+			"persistence": warnings = validate_full_runtime_persistence()
+			_: warnings = ["suite_missing"]
+		warnings_by_suite[suite_id] = warnings
+		suites_run += 1
+	var warnings_count := 0
+	for k in warnings_by_suite.keys():
+		warnings_count += Array(warnings_by_suite[k]).size()
+	return {"suite": suite, "suites_run": suites_run, "warnings_count": warnings_count, "warnings_by_suite": warnings_by_suite}
+
+func get_developer_validation_menu_text() -> String:
+	return "Validation suites: all, power, cooling_cable, terminal_door, platform_scan_visibility, inventory_tools_modules, persistence"
+
+func get_developer_validation_suite_text(suite: String = "all") -> String:
+	var report := run_developer_validation_suite(suite)
+	return JSON.stringify(report)
