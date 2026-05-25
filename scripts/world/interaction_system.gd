@@ -191,6 +191,11 @@ static func apply_action(actor: Dictionary, module: Dictionary, target_object: D
 			if group == "terminal" and String(target_object.get("terminal_type", "")) == "platform":
 				if String(target_object.get("state", "active")) in ["unpowered", "disabled", "damaged"] or not bool(target_object.get("platform_remote_control", true)):
 					return _result(false, "Platform terminal is unavailable.")
+				var required_interface := maxi(1, int(target_object.get("required_interface_level", 1)))
+				var connection_type := String(target_object.get("connection_type", "wired"))
+				var interface_key := "%s_interface_level" % connection_type
+				if int(actor.get(interface_key, 0)) < required_interface:
+					return _result(false, "Interface required.")
 				return _result(true, "Platform terminal activated.", [{"type":"activate_platform"}])
 		"pickup":
 			if group == "item":

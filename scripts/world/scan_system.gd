@@ -43,10 +43,6 @@ static func scan_object(object_data: Dictionary, scan_type: String, scanner_leve
 			out["details"].append("Class: %s" % str(object_data.get("terminal_class", 1)))
 	elif object_data.get("object_group", "") == "power":
 		out["details"].append("Status: %s" % object_data.get("state", "unknown"))
-		if String(object_data.get("terminal_type", "")) == "platform":
-			out["details"].append("Platform Terminal")
-			out["details"].append("Target: %s" % String(object_data.get("target_platform_id", "")))
-			out["details"].append("Control enabled: %s" % str(bool(object_data.get("platform_control_enabled", false))))
 		if level >= 2 and object_data.has("overheat_threshold"):
 			out["details"].append("Heat: %d / %d" % [WorldObjectCatalog.get_world_object_current_heat(object_data), int(object_data.get("overheat_threshold", 0))])
 			out["details"].append("Cooling: %d" % maxi(0, int(object_data.get("cooling_received", 0))))
@@ -65,10 +61,6 @@ static func scan_object(object_data: Dictionary, scan_type: String, scanner_leve
 			out["details"].append("Weight: %s" % object_data.get("weight_class", "normal"))
 	elif object_data.get("object_group", "") == "cooling":
 		out["details"].append("Status: %s" % object_data.get("state", "unknown"))
-		if String(object_data.get("terminal_type", "")) == "platform":
-			out["details"].append("Platform Terminal")
-			out["details"].append("Target: %s" % String(object_data.get("target_platform_id", "")))
-			out["details"].append("Control enabled: %s" % str(bool(object_data.get("platform_control_enabled", false))))
 		if WorldObjectCatalog.can_world_object_be_moved_by_heavy_claw(object_data):
 			out["details"].append("Movable: Heavy Claw")
 		var cooling_output := maxi(0, int(object_data.get("cooling_output", 0)))
