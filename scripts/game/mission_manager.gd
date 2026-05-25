@@ -1205,6 +1205,11 @@ func process_platform_turn_tick() -> Array[String]:
 		if mode == "timer":
 			if not bool(platform.get("pending_activation", false)):
 				continue
+			var timer_turns := int(platform.get("timer_turns", 0))
+			var timer_remaining := int(platform.get("timer_remaining_turns", 0))
+			if timer_turns <= 0 and timer_remaining <= 0:
+				platform["pending_activation"] = false
+				continue
 			var next_timer := maxi(0, int(platform.get("timer_remaining_turns", 0)) - 1)
 			platform["timer_remaining_turns"] = next_timer
 			if next_timer == 0:
@@ -1215,11 +1220,14 @@ func process_platform_turn_tick() -> Array[String]:
 		elif mode == "periodic":
 			if not bool(platform.get("periodic_active", false)):
 				continue
+			var period_turns := int(platform.get("period_turns", 0))
+			if period_turns <= 0:
+				continue
 			var next_periodic_timer := maxi(0, int(platform.get("timer_remaining_turns", 0)) - 1)
 			platform["timer_remaining_turns"] = next_periodic_timer
 			if next_periodic_timer == 0:
 				var periodic_result := _execute_platform_action(platform, "periodic")
-				platform["timer_remaining_turns"] = maxi(0, int(platform.get("period_turns", 0)))
+				platform["timer_remaining_turns"] = maxi(1, period_turns)
 				if bool(periodic_result.get("success", false)):
 					events.append("%s activated (periodic)." % String(platform.get("display_name", platform.get("platform_id", platform.get("id", "Platform")))))
 	return events
@@ -1229,6 +1237,9 @@ func process_platform_turn_tick_once(action_index: int) -> Array[String]:
 		return []
 	platform_last_tick_action_index = action_index
 	return process_platform_turn_tick()
+
+func get_platform_last_tick_action_index() -> int:
+	return platform_last_tick_action_index
 
 func get_platform_timer_debug_summary_text() -> String:
 	var lines: Array[String] = []
