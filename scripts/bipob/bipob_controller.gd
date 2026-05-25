@@ -8513,6 +8513,54 @@ func use_access_item_on_door(item_id: String, door_id: String) -> Dictionary:
 		return {"success":false, "item_id":item_id, "door_id":door_id, "reasons":["item_missing"]}
 	return mission_manager.call("use_access_item_on_door", item_id, door_id)
 
+func get_actor_capability_levels() -> Dictionary:
+	if mission_manager == null or not mission_manager.has_method("get_actor_capability_levels"):
+		return {"manipulator_level": 0, "interface_level": 0, "cpu_level": 0, "power_class": "none", "modules": [], "tools": []}
+	return mission_manager.call("get_actor_capability_levels")
+
+func check_world_object_requirements(object_id: String, action: String = "") -> Dictionary:
+	if mission_manager == null or not mission_manager.has_method("check_world_object_requirements"):
+		return {"allowed": false, "object_id": object_id, "action": action, "requirements": {}, "capabilities": get_actor_capability_levels(), "reasons": ["object_missing"]}
+	return mission_manager.call("check_world_object_requirements", object_id, action)
+
+func get_inventory_state() -> Dictionary:
+	return {} if mission_manager == null or not mission_manager.has_method("get_inventory_state") else mission_manager.call("get_inventory_state")
+
+func can_pickup_world_item(item_id: String) -> Dictionary:
+	return {"success": false, "item_id": item_id, "reasons": ["item_missing"]} if mission_manager == null or not mission_manager.has_method("can_pickup_world_item") else mission_manager.call("can_pickup_world_item", item_id)
+
+func pickup_world_item(item_id: String) -> Dictionary:
+	return {"success": false, "item_id": item_id, "reasons": ["item_missing"]} if mission_manager == null or not mission_manager.has_method("pickup_world_item") else mission_manager.call("pickup_world_item", item_id)
+
+func can_drop_inventory_item(item_id: String) -> Dictionary:
+	return {"success": false, "item_id": item_id, "reasons": ["item_missing"]} if mission_manager == null or not mission_manager.has_method("can_drop_inventory_item") else mission_manager.call("can_drop_inventory_item", item_id)
+
+func drop_inventory_item(item_id: String, target_cell: Vector2i = Vector2i(-1, -1)) -> Dictionary:
+	return {"success": false, "item_id": item_id, "reasons": ["item_missing"]} if mission_manager == null or not mission_manager.has_method("drop_inventory_item") else mission_manager.call("drop_inventory_item", item_id, target_cell)
+
+func hold_item_in_manipulator(item_id: String) -> Dictionary:
+	return {"success": false, "item_id": item_id, "reasons": ["item_missing"]} if mission_manager == null or not mission_manager.has_method("hold_item_in_manipulator") else mission_manager.call("hold_item_in_manipulator", item_id)
+
+func place_item_in_digital_buffer(item_id: String) -> Dictionary:
+	return {"success": false, "item_id": item_id, "reasons": ["item_missing"]} if mission_manager == null or not mission_manager.has_method("place_item_in_digital_buffer") else mission_manager.call("place_item_in_digital_buffer", item_id)
+
+func use_inventory_item_on_world_object(item_id: String, target_id: String, action: String = "") -> Dictionary:
+	return {"success": false, "item_id": item_id, "target_id": target_id, "action": action, "reasons": ["item_missing"]} if mission_manager == null or not mission_manager.has_method("use_inventory_item_on_world_object") else mission_manager.call("use_inventory_item_on_world_object", item_id, target_id, action)
+
+func validate_full_runtime_persistence() -> Array[String]:
+	if mission_manager == null or not mission_manager.has_method("validate_full_runtime_persistence"):
+		return ["validate_full_runtime_persistence_missing"]
+	return mission_manager.call("validate_full_runtime_persistence")
+
+func get_developer_validation_menu_text() -> String:
+	return "Validation unavailable." if mission_manager == null or not mission_manager.has_method("get_developer_validation_menu_text") else String(mission_manager.call("get_developer_validation_menu_text"))
+
+func run_developer_validation_suite(suite: String = "all") -> Dictionary:
+	return {"suite": suite, "suites_run": 0, "warnings_count": 1, "warnings_by_suite": {suite: ["suite_missing"]}} if mission_manager == null or not mission_manager.has_method("run_developer_validation_suite") else mission_manager.call("run_developer_validation_suite", suite)
+
+func get_developer_validation_suite_text(suite: String = "all") -> String:
+	return "Validation unavailable." if mission_manager == null or not mission_manager.has_method("get_developer_validation_suite_text") else String(mission_manager.call("get_developer_validation_suite_text", suite))
+
 func get_door_debug_report_text(door_id: String = "") -> String:
 	if mission_manager == null or not mission_manager.has_method("get_door_debug_report_text"):
 		return "Door debug report unavailable: mission manager/helper missing."
