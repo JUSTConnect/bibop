@@ -598,6 +598,9 @@ func get_world_object_debug_info(object_id: String) -> Dictionary:
 	]:
 		if object_data.has(key):
 			info[key] = object_data[key]
+	for key in ["platform_height_level", "carried_by_platform_id"]:
+		if object_data.has(key):
+			info[key] = object_data[key]
 	return info
 
 func _get_debug_tile_info(cell: Vector2i) -> Variant:
@@ -637,6 +640,7 @@ func _get_wall_tile_id() -> Variant:
 
 func get_world_cell_debug_info(cell: Vector2i) -> Dictionary:
 	var info := {"cell": _debug_cell_to_array(cell)}
+	info["height_level"] = get_cell_height_level(cell)
 	if grid_manager != null:
 		if grid_manager.has_method("is_in_bounds"):
 			info["in_bounds"] = bool(grid_manager.is_in_bounds(cell))
@@ -838,6 +842,8 @@ func get_world_object_runtime_state() -> Dictionary:
 		"permanent_state",
 		"pending_activation",
 		"rotation_direction",
+		"platform_height_level",
+		"carried_by_platform_id",
 		"target_platform_id",
 		"platform_control_enabled",
 		"platform_remote_control"
@@ -1002,6 +1008,38 @@ func get_platform_for_cell(cell: Vector2i) -> Dictionary:
 				return object_data
 	return {}
 
+func get_cell_height_level(cell: Vector2i) -> int:
+	var platform := get_platform_for_cell(cell)
+	if platform.is_empty() or String(platform.get("platform_type", "")) != "lifting":
+		return 0
+	return int(platform.get("height_level", 0))
+
+func get_world_object_height_level(object_data: Dictionary) -> int:
+	if object_data.is_empty():
+		return 0
+	if object_data.has("platform_height_level"):
+		return int(object_data.get("platform_height_level", 0))
+	var object_cell := WorldObjectCatalog.to_world_cell(object_data.get("position", Vector2i(-1, -1)), Vector2i(-1, -1))
+	return get_cell_height_level(object_cell)
+
+func get_actor_height_level(actor_cell: Vector2i, actor: Node = null) -> int:
+	if actor != null and actor.has_method("get_platform_height_level"):
+		return int(actor.call("get_platform_height_level"))
+	return get_cell_height_level(actor_cell)
+
+func can_move_between_height_levels(from_cell: Vector2i, to_cell: Vector2i, actor: Node = null) -> bool:
+	var from_height := get_actor_height_level(from_cell, actor)
+	var to_height := get_cell_height_level(to_cell)
+	if from_height == to_height:
+		return true
+	if actor != null and actor.has_method("get_carried_by_platform_id"):
+		var carried_platform_id := String(actor.call("get_carried_by_platform_id")).strip_edges()
+		if not carried_platform_id.is_empty():
+			var target_platform := get_platform_for_cell(to_cell)
+			if not target_platform.is_empty() and String(target_platform.get("platform_id", "")).strip_edges() == carried_platform_id:
+				return true
+	return false
+
 func get_platform_occupants(platform_id: String) -> Dictionary:
 	var platform := get_platform_by_id(platform_id)
 	if platform.is_empty():
@@ -1089,6 +1127,13 @@ func _execute_platform_action(platform: Dictionary, source: String = "") -> Dict
 		for obj in Array(occupants.get("world_objects", [])):
 			obj["platform_height_level"] = int(platform.get("height_level", 0))
 			obj["carried_by_platform_id"] = String(platform.get("platform_id", ""))
+		if active_bipob_ref != null and active_bipob_ref.has_method("set_platform_height_level"):
+			var actor_cell := Vector2i(active_bipob_ref.get("grid_position"))
+			for platform_cell_variant in Array(platform.get("platform_cells", [])):
+				var platform_cell := WorldObjectCatalog.to_world_cell(platform_cell_variant, Vector2i(-1, -1))
+				if platform_cell == actor_cell:
+					active_bipob_ref.call("set_platform_height_level", int(platform.get("height_level", 0)), String(platform.get("platform_id", "")))
+					break
 		return {"success":true, "message":"Lifting platform toggled."}
 	return {"success":false, "message":"Unknown platform type."}
 
@@ -1194,6 +1239,8 @@ func validate_platform_runtime_state() -> Dictionary:
 		if platform_type == "lifting":
 			var min_h := int(platform.get("min_height_level", 0))
 			var max_h := int(platform.get("max_height_level", 0))
+			if typeof(platform.get("height_level", 0)) != TYPE_INT:
+				errors.append("Platform %s has non-int height_level." % platform_id)
 			var height := int(platform.get("height_level", 0))
 			if min_h > height or height > max_h:
 				errors.append("Platform %s has invalid height range min=%d height=%d max=%d." % [platform_id, min_h, height, max_h])
@@ -1226,6 +1273,21 @@ func validate_platform_runtime_state() -> Dictionary:
 		var count := int(terminal_targets_count[target_id])
 		if count > 1:
 			warnings.append("Multiple terminals (%d) target platform %s." % [count, String(target_id)])
+	for object_data in mission_world_objects:
+		var object_id := String(object_data.get("id", ""))
+		var carried_platform_id := String(object_data.get("carried_by_platform_id", "")).strip_edges()
+		if carried_platform_id.is_empty():
+			continue
+		if not platform_ids.has(carried_platform_id):
+			warnings.append("Object %s references missing carried_by_platform_id %s." % [object_id, carried_platform_id])
+			continue
+		if object_data.has("platform_height_level"):
+			var carried_platform := get_platform_by_id(carried_platform_id)
+			if not carried_platform.is_empty():
+				var platform_height := int(carried_platform.get("height_level", 0))
+				var object_height := int(object_data.get("platform_height_level", 0))
+				if object_height != platform_height:
+					warnings.append("Object %s platform_height_level %d differs from platform %s height %d." % [object_id, object_height, carried_platform_id, platform_height])
 	return {
 		"valid": errors.is_empty(),
 		"platforms": platforms.size(),

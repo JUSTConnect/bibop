@@ -174,6 +174,8 @@ var mission7_powered_gate_position: Vector2i = Vector2i(-1, -1)
 var mission7_cable_path: Array[Vector2i] = []
 var mission7_cable_max_length: int = 12
 var movement_cells_since_energy_spend: int = 0
+var platform_height_level: int = 0
+var carried_by_platform_id: String = ""
 var bipob_damage_state_by_profile: Dictionary = {"alpha": false, "beta": true, "juggernaut": false}
 var bipob_armor_state_by_profile: Dictionary = {"alpha": {"current": 20, "max": 20}, "beta": {"current": 10, "max": 20}, "juggernaut": {"current": 20, "max": 20}}
 var last_internal_overheat_messages: Array[String] = []
@@ -5995,6 +5997,11 @@ func try_move_to(target_position: Vector2i) -> bool:
 		return false
 
 	if mission_manager != null:
+		if mission_manager.has_method("can_move_between_height_levels"):
+			var can_move_height_variant: Variant = mission_manager.call("can_move_between_height_levels", grid_position, target_position, self)
+			if not bool(can_move_height_variant):
+				hint_requested.emit("Height mismatch.")
+				return false
 		var blocking_obj := mission_manager.get_world_object_at_cell(target_position)
 		if not blocking_obj.is_empty() and bool(blocking_obj.get("blocks_movement", false)):
 			hint_requested.emit("Blocked by %s." % blocking_obj.get("display_name", "object"))
@@ -6007,6 +6014,16 @@ func try_move_to(target_position: Vector2i) -> bool:
 		add_current_cell_to_mission7_cable_path()
 	check_mission_complete()
 	return true
+
+func set_platform_height_level(level: int, platform_id: String = "") -> void:
+	platform_height_level = level
+	carried_by_platform_id = platform_id
+
+func get_platform_height_level() -> int:
+	return platform_height_level
+
+func get_carried_by_platform_id() -> String:
+	return carried_by_platform_id
 
 func get_active_gear_module() -> BipobModule:
 	for module in installed_modules:
@@ -7403,6 +7420,11 @@ func _apply_world_object_effects(effects: Array, world_object: Dictionary, targe
 			var destination := target_position + move_dir
 			if mode == "pull":
 				destination = target_position + move_dir
+			if mission_manager != null and mission_manager.has_method("can_move_between_height_levels"):
+				var can_move_object_height_variant: Variant = mission_manager.call("can_move_between_height_levels", target_position, destination, null)
+				if not bool(can_move_object_height_variant):
+					hint_requested.emit("Height mismatch.")
+					continue
 			if grid_manager != null and grid_manager.is_in_bounds(destination) and grid_manager.is_walkable(destination) and mission_manager.get_world_object_at_cell(destination).is_empty():
 				mission_manager.remove_world_object_at_cell(target_position)
 				world_object["position"] = destination
