@@ -176,6 +176,7 @@ var mission7_cable_max_length: int = 12
 var movement_cells_since_energy_spend: int = 0
 var platform_height_level: int = 0
 var carried_by_platform_id: String = ""
+var player_action_index: int = 0
 var bipob_damage_state_by_profile: Dictionary = {"alpha": false, "beta": true, "juggernaut": false}
 var bipob_armor_state_by_profile: Dictionary = {"alpha": {"current": 20, "max": 20}, "beta": {"current": 10, "max": 20}, "juggernaut": {"current": 20, "max": 20}}
 var last_internal_overheat_messages: Array[String] = []
@@ -6036,8 +6037,24 @@ func try_move_to(target_position: Vector2i) -> bool:
 	update_world_position()
 	if current_mission_index == 7 and mission7_is_dragging_cable:
 		add_current_cell_to_mission7_cable_path()
+	_register_successful_player_action()
 	check_mission_complete()
 	return true
+
+func _register_successful_player_action() -> void:
+	player_action_index += 1
+	if mission_manager == null:
+		return
+	if not mission_manager.has_method("process_platform_turn_tick_once"):
+		return
+	var messages_variant: Variant = mission_manager.call("process_platform_turn_tick_once", player_action_index)
+	if typeof(messages_variant) != TYPE_ARRAY:
+		return
+	for message_variant in messages_variant:
+		var message := String(message_variant).strip_edges()
+		if message.is_empty():
+			continue
+		hint_requested.emit(message)
 
 func set_platform_height_level(level: int, platform_id: String = "") -> void:
 	platform_height_level = level
@@ -7353,6 +7370,7 @@ func interact() -> void:
 					if bool(move_result.get("success", false)):
 						if can_spend_action(1, 1):
 							spend_action(1, 1)
+						_register_successful_player_action()
 						hint_requested.emit(String(move_result.get("message", "Moved object.")))
 						refresh_world_object_overlay()
 						update_threat_detection_preview()
@@ -7375,6 +7393,7 @@ func interact() -> void:
 				clear_selected_world_action_if_invalid(world_object, target_position)
 				emit_facing_world_object_hint()
 				refresh_world_action_panel()
+				_register_successful_player_action()
 				hint_requested.emit("%s (%s): %s | Action: %s" % [world_object.get("display_name", "Object"), world_object.get("state", "unknown"), String(action_result.get("message", "Action complete.")), action_id])
 			else:
 				hint_requested.emit(String(action_result.get("message", "Action failed.")))
