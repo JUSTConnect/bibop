@@ -1,6 +1,8 @@
 extends CanvasLayer
 class_name GameUI
 
+const GameUITextHelpers = preload("res://scripts/ui/game_ui_text_helpers.gd")
+
 
 class InternalIsoPreviewControl:
 	extends Control
@@ -3667,6 +3669,7 @@ func _get_module_type_text(module: BipobModule) -> String:
 
 
 func _get_module_characteristics_lines(module: BipobModule, context: String = "") -> Array:
+	return GameUITextHelpers.get_module_characteristics_lines(module, context)
 	var lines: Array = []
 	if module == null:
 		return lines
@@ -3818,6 +3821,7 @@ func _get_module_characteristics_lines(module: BipobModule, context: String = ""
 	return lines
 
 func _get_internal_characteristics_lines(module: BipobModule) -> Array:
+	return GameUITextHelpers.get_internal_characteristics_lines(module)
 	var lines: Array = []
 
 	if module.cooling_value != 0:
