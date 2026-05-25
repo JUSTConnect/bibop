@@ -101,7 +101,7 @@ var actions_left: int = 0
 var mission_finished: bool = false
 var sector_completed: bool = false
 var current_mission_index: int = 1
-var max_mission_index: int = 9
+var max_mission_index: int = 10
 var turns_used: int = 0
 var mission4_hidden_route_node_discovered: bool = false
 var has_key: bool = false
@@ -1129,6 +1129,8 @@ func get_mission_name(mission_index: int) -> String:
 			return "Mission 8 — Airflow Terminal"
 		9:
 			return "Mission 9 — Terrain Passage"
+		10:
+			return "TASK TEST"
 		_:
 			return "Unknown Mission"
 
@@ -1152,6 +1154,8 @@ func get_mission_goal_hint(mission_index: int) -> String:
 			return "Mission 8: cool the terminal with directed airflow, then hack it and reach the exit."
 		9:
 			return get_mission9_context_hint()
+		10:
+			return "TASK TEST: validate power, cooling, cables, terminals, doors, platforms, scan/X-Ray, inventory/tools, and extraction."
 		_:
 			return "No mission goal available."
 
@@ -6284,7 +6288,9 @@ func complete_mission() -> void:
 	elif current_mission_index == 8:
 		hint_requested.emit("Mission 8 complete. Return to the box, then start Mission 9.")
 	elif current_mission_index == 9:
-		hint_requested.emit("Mission 9 complete. Return to the box. Sector-01 complete. Terrain passage cleared.")
+		hint_requested.emit("Mission 9 complete. Return to the box, then start TASK TEST.")
+	elif current_mission_index == 10:
+		hint_requested.emit("TASK TEST complete. Extraction confirmed. Return to the box.")
 	else:
 		hint_requested.emit("Mission complete. Return to the box.")
 	if current_mission_index == max_mission_index:

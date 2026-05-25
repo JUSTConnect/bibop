@@ -49,6 +49,9 @@ func setup_world_objects_for_mission(mission_id: String) -> void:
 	mission_world_objects.clear()
 	world_objects_by_cell.clear()
 	cell_items.clear()
+	if mission_id == "mission_10":
+		_setup_task_test_mission_world()
+		return
 	if mission_id != "mission_1":
 		return
 	var objects: Array[Dictionary] = WorldObjectCatalog.create_test_set()
@@ -115,6 +118,66 @@ func setup_world_objects_for_mission(mission_id: String) -> void:
 			for warning in scenario_warnings:
 				push_warning("[WorldScenario] %s" % warning)
 # endregion
+
+func _setup_task_test_mission_world() -> void:
+	var objects: Array[Dictionary] = []
+	objects.append_array([
+		{"type":"power_source_class_1","id":"task_test_source_class_1","pos":Vector2i(1, 1),"extra":{"power_network_id":"task_test_power","connected_device_ids":["task_test_energy_door"]}},
+		{"type":"power_source_class_2","id":"task_test_source_class_2","pos":Vector2i(1, 3),"extra":{"power_network_id":"task_test_power","connected_device_ids":["task_test_terminal_main","task_test_platform_terminal"],"current_heat":4,"working_heat":3,"overheat_threshold":3}},
+		{"type":"power_source_class_3","id":"task_test_overheated_source","pos":Vector2i(1, 5),"extra":{"power_network_id":"task_test_power","state":"overheated","current_heat":5,"working_heat":3,"overheat_threshold":3}},
+		{"type":"circuit_breaker","id":"task_test_breaker","pos":Vector2i(2, 1),"extra":{"power_network_id":"task_test_power"}},
+		{"type":"circuit_switch","id":"task_test_switch","pos":Vector2i(3, 1),"extra":{"power_network_id":"task_test_power"}},
+		{"type":"fuse_box_empty","id":"task_test_fuse_box_empty","pos":Vector2i(4, 1),"extra":{"power_network_id":"task_test_power"}},
+		{"type":"light","id":"task_test_light","pos":Vector2i(5, 1),"extra":{"power_network_id":"task_test_power"}},
+		{"type":"energy_door","id":"task_test_energy_door","pos":Vector2i(6, 1),"extra":{"power_network_id":"task_test_power","lock_type":"digital_key","is_locked":true}},
+		{"type":"power_socket","id":"task_test_power_socket_a","pos":Vector2i(2, 3),"extra":{"power_network_id":"task_test_power"}},
+		{"type":"power_socket","id":"task_test_power_socket_b","pos":Vector2i(3, 3),"extra":{"power_network_id":"task_test_power"}},
+		{"type":"power_cable","id":"task_test_cut_cable","pos":Vector2i(4, 3),"extra":{"state":"cut","damaged":true}},
+		{"type":"power_cable","id":"task_test_hidden_cable","pos":Vector2i(5, 3),"extra":{"hidden":true,"hidden_cable":true,"visible_with_xray":true}},
+		{"type":"power_socket","id":"task_test_hidden_socket","pos":Vector2i(6, 3),"extra":{"hidden":true,"visible_with_xray":true}},
+		{"type":"external_radiator","id":"task_test_radiator","pos":Vector2i(2, 5)},
+		{"type":"external_air_cooler","id":"task_test_air_cooler","pos":Vector2i(3, 5),"extra":{"facing_dir":"right"}},
+		{"type":"metal_cooling_block","id":"task_test_cooling_block","pos":Vector2i(4, 5)},
+		{"type":"door_terminal","id":"task_test_terminal_main","pos":Vector2i(5, 5),"extra":{"required_interface_level":1,"required_cpu_level":1,"target_door_id":"task_test_door_terminal_locked","state":"active","is_powered":true}},
+		{"type":"door_terminal","id":"task_test_terminal_unpowered","pos":Vector2i(6, 5),"extra":{"state":"unpowered","is_powered":false}},
+		{"type":"door_terminal","id":"task_test_terminal_damaged","pos":Vector2i(1, 6),"extra":{"state":"damaged","damaged":true}},
+		{"type":"reinforced_steel_door","id":"task_test_door_terminal_locked","pos":Vector2i(4, 4),"extra":{"is_locked":true,"lock_type":"terminal_lock"}},
+		{"type":"steel_door","id":"task_test_door_mechanical","pos":Vector2i(5, 4),"extra":{"is_locked":true,"lock_type":"mechanical_key"}},
+		{"type":"energy_door","id":"task_test_door_digital","pos":Vector2i(6, 4),"extra":{"is_locked":true,"lock_type":"digital_key","power_network_id":"task_test_power"}},
+		{"type":"titanium_door","id":"task_test_door_password","pos":Vector2i(2, 6),"extra":{"is_locked":true,"lock_type":"password"}},
+		{"type":"lifting_platform","id":"task_test_platform_lift","pos":Vector2i(3, 4),"extra":{"platform_id":"task_test_platform_lift","is_powered":false}},
+		{"type":"rotating_platform","id":"task_test_platform_rotate","pos":Vector2i(3, 6),"extra":{"platform_id":"task_test_platform_rotate"}},
+		{"type":"lifting_platform","id":"task_test_platform_switch","pos":Vector2i(4, 6),"extra":{"platform_id":"task_test_platform_switch","control_type":"switch"}},
+		{"type":"rotating_platform","id":"task_test_platform_terminal","pos":Vector2i(5, 6),"extra":{"platform_id":"task_test_platform_terminal","linked_terminal_id":"task_test_terminal_main","requires_terminal_enabled":true}},
+		{"type":"power_cable","id":"task_test_xray_route_marker","pos":Vector2i(6, 6),"extra":{"hidden":true,"visible_with_xray":true}},
+		{"type":"energy_door","id":"task_test_extraction_door","pos":Vector2i(6, 6),"extra":{"state":"open","is_locked":false,"mission_exit":true,"extraction":true}},
+		{"type":"grid_door","id":"task_test_blocked_cable_target","pos":Vector2i(1, 2),"extra":{"state":"jammed","damaged":true}}
+	])
+	for spec in objects:
+		var obj := WorldObjectCatalog.create_world_object(String(spec.get("type", "")), String(spec.get("id", "")))
+		if obj.is_empty():
+			continue
+		obj["position"] = Vector2i(spec.get("pos", Vector2i.ZERO))
+		var extra: Dictionary = spec.get("extra", {})
+		for key in extra.keys():
+			obj[String(key)] = extra[key]
+		set_world_object_at_cell(Vector2i(spec.get("pos", Vector2i.ZERO)), obj)
+	add_item_at_cell(Vector2i(1, 1), WorldObjectCatalog.create_world_object("fuse", "task_test_item_fuse"))
+	add_item_at_cell(Vector2i(1, 3), WorldObjectCatalog.create_world_object("repair_kit", "task_test_item_repair_kit"))
+	add_item_at_cell(Vector2i(2, 3), WorldObjectCatalog.create_world_object("power_cable_reel", "task_test_cable_reel"))
+	add_item_at_cell(Vector2i(2, 4), WorldObjectCatalog.create_world_object("mechanical_keycard", "task_test_item_mechanical_keycard"))
+	var opened_key := WorldObjectCatalog.create_world_object("digital_key", "task_test_item_digital_key_opened")
+	opened_key["digital_state"] = "opened"
+	add_item_at_cell(Vector2i(2, 5), opened_key)
+	var enc_key := WorldObjectCatalog.create_world_object("digital_key", "task_test_item_digital_key_encrypted")
+	enc_key["digital_state"] = "encrypted"
+	add_item_at_cell(Vector2i(2, 5), enc_key)
+	var dmg_key := WorldObjectCatalog.create_world_object("digital_key", "task_test_item_digital_key_damaged")
+	dmg_key["digital_state"] = "damaged"
+	add_item_at_cell(Vector2i(2, 5), dmg_key)
+	add_item_at_cell(Vector2i(3, 5), WorldObjectCatalog.create_world_object("access_code", "task_test_item_access_code"))
+	PowerSystem.recalculate_network(mission_world_objects, "task_test_power")
+	refresh_world_cooling_received()
 
 # region Scenario validation
 func validate_world_object_scenario() -> Array[String]:
@@ -5064,8 +5127,44 @@ func validate_full_runtime_persistence() -> Array[String]:
 			warnings.append("inventory_field_missing_%s" % field_name)
 	return warnings
 
+func validate_task_test_mission_runtime() -> Array[String]:
+	var warnings: Array[String] = []
+	setup_world_objects_for_mission("mission_10")
+	var task_ids := {}
+	for obj in mission_world_objects:
+		var oid := String(obj.get("id", "")).strip_edges()
+		if not oid.begins_with("task_test_"):
+			continue
+		if task_ids.has(oid):
+			warnings.append("duplicate_task_test_id_%s" % oid)
+		task_ids[oid] = true
+		if String(obj.get("object_type", "")).strip_edges() == "":
+			warnings.append("task_test_object_missing_type_%s" % oid)
+		if String(obj.get("object_group", "")).strip_edges() == "":
+			warnings.append("task_test_object_missing_group_%s" % oid)
+	for required_id in ["task_test_extraction_door","task_test_source_class_1","task_test_radiator","task_test_terminal_main","task_test_door_mechanical","task_test_platform_lift","task_test_hidden_cable","task_test_item_repair_kit","task_test_cable_reel"]:
+		if not task_ids.has(required_id):
+			var exists_item := false
+			for cell in cell_items.keys():
+				for item in Array(cell_items[cell]):
+					if String(item.get("id", "")) == required_id:
+						exists_item = true
+						break
+				if exists_item:
+					break
+			if not exists_item:
+				warnings.append("missing_%s" % required_id)
+	var extraction := get_world_object_by_id("task_test_extraction_door")
+	if extraction.is_empty() or not bool(extraction.get("mission_exit", false)):
+		warnings.append("task_test_extraction_not_flagged")
+	return warnings
+
+func get_task_test_mission_validation_text() -> String:
+	var warnings := validate_task_test_mission_runtime()
+	return "TaskTestValidation: ok" if warnings.is_empty() else "TaskTestValidation:\n- " + "\n- ".join(warnings)
+
 func run_developer_validation_suite(suite: String = "all") -> Dictionary:
-	var suites := ["power", "cooling_cable", "terminal_door", "platform_scan_visibility", "inventory_tools_modules", "persistence"]
+	var suites := ["power", "cooling_cable", "terminal_door", "platform_scan_visibility", "inventory_tools_modules", "persistence", "task_test"]
 	var selected := suites if suite == "all" else [suite]
 	var warnings_by_suite := {}
 	var suites_run := 0
@@ -5078,6 +5177,7 @@ func run_developer_validation_suite(suite: String = "all") -> Dictionary:
 			"platform_scan_visibility": warnings = validate_platform_scan_visibility_runtime()
 			"inventory_tools_modules": warnings = validate_inventory_tools_modules_runtime()
 			"persistence": warnings = validate_full_runtime_persistence()
+			"task_test": warnings = validate_task_test_mission_runtime()
 			_: warnings = ["suite_missing"]
 		warnings_by_suite[suite_id] = warnings
 		suites_run += 1
@@ -5087,7 +5187,7 @@ func run_developer_validation_suite(suite: String = "all") -> Dictionary:
 	return {"suite": suite, "suites_run": suites_run, "warnings_count": warnings_count, "warnings_by_suite": warnings_by_suite}
 
 func get_developer_validation_menu_text() -> String:
-	return "Validation suites: all, power, cooling_cable, terminal_door, platform_scan_visibility, inventory_tools_modules, persistence"
+	return "Validation suites: all, power, cooling_cable, terminal_door, platform_scan_visibility, inventory_tools_modules, persistence, task_test"
 
 func get_developer_validation_suite_text(suite: String = "all") -> String:
 	var report := run_developer_validation_suite(suite)
