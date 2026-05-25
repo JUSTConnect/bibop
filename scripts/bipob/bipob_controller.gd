@@ -7569,7 +7569,8 @@ func interact() -> void:
 				if not moved:
 					mission_manager.set_world_object_at_cell(target_position, world_object)
 				if action_id == "switch":
-					var object_type := String(world_object.get("object_type", "")).strip_edges()
+					var object_type := String(world_object.get("object_type", "")).strip_edges().to_lower()
+					object_type = object_type.replace(" ", "_").replace("-", "_")
 					if object_type in ["light_switch", "circuit_switch", "circuit_breaker"]:
 						var reason := "switch_toggled"
 						if object_type == "circuit_breaker":
