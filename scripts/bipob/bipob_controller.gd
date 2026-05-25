@@ -6008,6 +6008,7 @@ func try_move_to(target_position: Vector2i) -> bool:
 			return false
 	
 	grid_position = target_position
+	refresh_platform_height_state_after_move()
 	clear_selected_world_action_if_invalid({}, target_position)
 	update_world_position()
 	if current_mission_index == 7 and mission7_is_dragging_cable:
@@ -6019,11 +6020,40 @@ func set_platform_height_level(level: int, platform_id: String = "") -> void:
 	platform_height_level = level
 	carried_by_platform_id = platform_id
 
+func refresh_platform_height_state_after_move() -> void:
+	if mission_manager == null:
+		platform_height_level = 0
+		carried_by_platform_id = ""
+		return
+
+	var platform: Dictionary = {}
+	if mission_manager.has_method("get_platform_for_cell"):
+		var platform_variant: Variant = mission_manager.call("get_platform_for_cell", grid_position)
+		if platform_variant is Dictionary:
+			platform = platform_variant
+
+	if not platform.is_empty() and String(platform.get("platform_type", "")) == "lifting":
+		platform_height_level = int(platform.get("height_level", 0))
+		carried_by_platform_id = String(platform.get("platform_id", ""))
+		return
+
+	if mission_manager.has_method("get_cell_height_level"):
+		platform_height_level = int(mission_manager.call("get_cell_height_level", grid_position))
+	else:
+		platform_height_level = 0
+	carried_by_platform_id = ""
+
 func get_platform_height_level() -> int:
 	return platform_height_level
 
 func get_carried_by_platform_id() -> String:
 	return carried_by_platform_id
+
+func get_platform_height_debug_info() -> Dictionary:
+	return {
+		"platform_height_level": platform_height_level,
+		"carried_by_platform_id": carried_by_platform_id
+	}
 
 func get_active_gear_module() -> BipobModule:
 	for module in installed_modules:
