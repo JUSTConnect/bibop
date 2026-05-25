@@ -2733,6 +2733,9 @@ func validate_full_power_system_runtime() -> Array[String]:
 		warnings.append(String(warning))
 	for warning in validate_cooling_and_cable_runtime():
 		warnings.append(String(warning))
+	if has_method("validate_platform_scan_visibility_runtime"):
+		for warning in validate_platform_scan_visibility_runtime():
+			warnings.append(String(warning))
 	return warnings
 
 func validate_cooling_runtime() -> Array[String]:
@@ -2767,6 +2770,48 @@ func get_full_power_system_validation_text() -> String:
 	for warning in warnings:
 		lines.append("WARNING: %s" % warning)
 	return "\n".join(lines)
+
+
+func _has_xray_capability() -> Dictionary:
+	if active_bipob_ref != null and active_bipob_ref.has_method("has_module_id") and bool(active_bipob_ref.call("has_module_id", "xray_v1")):
+		return {"ok": true, "reason": "ok"}
+	return {"ok": false, "reason": "xray_capability_unavailable", "debug_reason": "debug_xray_allowed"}
+
+func is_world_object_visible_to_player(object_data: Dictionary, scan_mode: String = "basic") -> bool:
+	var cell := WorldObjectCatalog.to_world_cell(object_data.get("position", Vector2i(-1, -1)), Vector2i(-1, -1))
+	var cell_visible := true
+	if grid_manager != null and grid_manager.has_method("is_cell_visible"):
+		cell_visible = bool(grid_manager.call("is_cell_visible", cell))
+	var hidden := bool(object_data.get("hidden", false))
+	if scan_mode == "xray":
+		return cell_visible or bool(object_data.get("revealed", false)) or bool(object_data.get("discovered", false)) or bool(object_data.get("revealed_by_scan", false)) or bool(object_data.get("visible_with_xray", false))
+	if hidden:
+		return cell_visible and (bool(object_data.get("discovered", false)) or bool(object_data.get("revealed", false)) or bool(object_data.get("revealed_by_scan", false)))
+	return cell_visible or bool(object_data.get("revealed", false)) or bool(object_data.get("discovered", false))
+
+func get_visible_world_objects_for_scan(scan_mode: String = "basic") -> Array[Dictionary]:
+	var out: Array[Dictionary] = []
+	for object_data in mission_world_objects:
+		if is_world_object_visible_to_player(object_data, scan_mode): out.append(object_data)
+	return out
+
+func get_xray_visible_objects(filter: String = "") -> Array[Dictionary]:
+	var out: Array[Dictionary] = []
+	for object_data in mission_world_objects:
+		if not bool(object_data.get("hidden", false)): continue
+		if not bool(object_data.get("visible_with_xray", false)) and not bool(object_data.get("hidden_cable", false)): continue
+		if not filter.strip_edges().is_empty() and String(object_data.get("power_network_id", "")) != filter.strip_edges(): continue
+		out.append(object_data)
+	return out
+
+func reveal_xray_objects(filter: String = "") -> Dictionary:
+	var cap := _has_xray_capability()
+	var targets := get_xray_visible_objects(filter)
+	for target in targets:
+		target["revealed"] = true
+		target["discovered"] = true
+		target["revealed_by_scan"] = true
+	return {"success": true, "reason": String(cap.get("reason", "ok")), "debug_reason": String(cap.get("debug_reason", "")), "revealed": targets.size()}
 
 func get_world_object_debug_info(object_id: String) -> Dictionary:
 	var normalized_id := object_id.strip_edges()
@@ -3097,7 +3142,16 @@ func get_world_object_runtime_state() -> Dictionary:
 		"cooling_reason",
 		"damaged",
 		"broken",
-		"destroyed"
+		"destroyed",
+		"revealed",
+		"discovered",
+		"revealed_by_scan",
+		"visible_with_xray",
+		"hidden_cable",
+		"requires_xray",
+		"platform_rotation",
+		"local_switch_enabled",
+		"terminal_control_enabled"
 	]
 	for object_data in mission_world_objects:
 		var object_id := String(object_data.get("id", "")).strip_edges()
@@ -3384,6 +3438,113 @@ func activate_platform_by_id(platform_id: String, source: String = "") -> Dictio
 	if mode == "permanent":
 		platform["permanent_state"] = not bool(platform.get("permanent_state", false))
 	return _execute_platform_action(platform, source)
+
+
+func get_platform_action_availability(platform_id: String, action: String = "") -> Dictionary:
+	var normalized_action := action.strip_edges().to_lower()
+	var result := {"available": false, "platform_id": platform_id, "action": normalized_action, "reasons": [], "state": "", "is_powered": false, "control_type": "", "power_type": ""}
+	var valid_actions := ["", "activate", "raise", "lower", "toggle", "rotate_clockwise", "rotate_counterclockwise"]
+	if not valid_actions.has(normalized_action):
+		result["reasons"] = ["invalid_action"]
+		return result
+	var platform := get_platform_by_id(platform_id)
+	if platform.is_empty():
+		result["reasons"] = ["platform_missing"]
+		return result
+	if String(platform.get("object_group", "")) != "platform":
+		result["reasons"] = ["not_platform"]
+		return result
+	result["state"] = String(platform.get("state", ""))
+	result["is_powered"] = bool(platform.get("is_powered", false))
+	result["control_type"] = String(platform.get("control_type", "internal"))
+	result["power_type"] = String(platform.get("power_type", "external"))
+	var reasons: Array[String] = []
+	if bool(platform.get("damaged", false)) or String(platform.get("state", "")) == "damaged": reasons.append("platform_damaged")
+	if bool(platform.get("broken", false)) or String(platform.get("state", "")) == "broken": reasons.append("platform_broken")
+	if bool(platform.get("destroyed", false)) or String(platform.get("state", "")) == "destroyed": reasons.append("platform_destroyed")
+	if not bool(platform.get("is_powered", true)) or String(platform.get("state", "")) in ["unpowered", "disabled"] or String(platform.get("power_type", "external")) == "external" and not bool(platform.get("is_powered", false)):
+		reasons.append("platform_unpowered")
+	if not bool(platform.get("local_switch_enabled", true)): reasons.append("local_switch_disabled")
+	if not bool(platform.get("terminal_control_enabled", true)): reasons.append("terminal_control_disabled")
+	if bool(platform.get("requires_terminal_enabled", false)):
+		var terminal := get_world_object_by_id(String(platform.get("linked_terminal_id", "")))
+		if terminal.is_empty() or not bool(terminal.get("platform_control_enabled", true)) or String(terminal.get("state", "")) in ["unpowered", "disabled", "damaged"]:
+			reasons.append("linked_terminal_unavailable")
+	if reasons.is_empty(): reasons.append("ok")
+	result["reasons"] = reasons
+	result["available"] = reasons.size() == 1 and reasons[0] == "ok"
+	return result
+
+func get_lifting_platform_carry_targets(platform_id: String) -> Array[Dictionary]:
+	var platform := get_platform_by_id(platform_id)
+	if platform.is_empty() or String(platform.get("platform_type", "")) != "lifting":
+		return []
+	var targets: Array[Dictionary] = []
+	for object_data in mission_world_objects:
+		if String(object_data.get("id", "")) == String(platform.get("id", "")):
+			continue
+		if String(object_data.get("object_group", "")) in ["wall", "door", "terminal"] and not bool(object_data.get("rotate_with_platform", false)):
+			continue
+		if bool(object_data.get("destroyed", false)):
+			continue
+		var object_cell := WorldObjectCatalog.to_world_cell(object_data.get("position", Vector2i(-1, -1)), Vector2i(-1, -1))
+		var on_platform := false
+		for platform_cell_variant in Array(platform.get("platform_cells", [])):
+			if WorldObjectCatalog.to_world_cell(platform_cell_variant, Vector2i(-1, -1)) == object_cell:
+				on_platform = true
+				break
+		if on_platform or String(object_data.get("carried_by_platform_id", "")) == platform_id:
+			targets.append(object_data)
+	return targets
+
+func apply_lifting_platform_height_change(platform_id: String, delta: int, controller_id: String = "") -> Dictionary:
+	var platform := get_platform_by_id(platform_id)
+	if platform.is_empty(): return {"success": false, "reason": "platform_missing"}
+	var current := int(platform.get("height_level", 0))
+	var min_h := int(platform.get("min_height_level", 0))
+	var max_h := int(platform.get("max_height_level", 1))
+	var target := clampi(current + delta, min_h, max_h)
+	if target == current:
+		return {"success": false, "reason": "already_at_max_height" if delta > 0 else "already_at_min_height", "height_level": current}
+	platform["height_level"] = target
+	for obj in get_lifting_platform_carry_targets(platform_id):
+		obj["platform_height_level"] = target
+		obj["height_level"] = target
+		obj["carried_by_platform_id"] = platform_id
+	if active_bipob_ref != null and active_bipob_ref.has_method("set_platform_height_level") and _is_active_bipob_on_platform(platform):
+		active_bipob_ref.call("set_platform_height_level", target, platform_id)
+	return {"success": true, "reason": "ok", "height_level": target, "controller_id": controller_id}
+
+func apply_rotating_platform_rotation(platform_id: String, clockwise: bool = true, controller_id: String = "") -> Dictionary:
+	var platform := get_platform_by_id(platform_id)
+	if platform.is_empty(): return {"success": false, "reason": "platform_missing"}
+	var occupants := get_platform_occupants(platform_id)
+	platform["rotation_direction"] = "clockwise" if clockwise else "counterclockwise"
+	if platform.has("facing_dir"):
+		platform["facing_dir"] = _rotate_facing(String(platform.get("facing_dir", "up")), clockwise)
+	for obj in Array(occupants.get("world_objects", [])):
+		if String(obj.get("object_type", "")) in ["external_air_cooler", "external_air_duct"] or bool(obj.get("rotate_with_platform", false)):
+			if obj.has("facing_dir"):
+				obj["facing_dir"] = _rotate_facing(String(obj.get("facing_dir", "up")), clockwise)
+	var filter := String(platform.get("power_network_id", ""))
+	apply_cooling_application(filter)
+	execute_power_source_recovery_apply(filter)
+	return {"success": true, "reason": "ok", "rotation_direction": platform["rotation_direction"], "controller_id": controller_id}
+
+func execute_platform_action(platform_id: String, action: String = "", controller_id: String = "") -> Dictionary:
+	var availability := get_platform_action_availability(platform_id, action)
+	if not bool(availability.get("available", false)):
+		return {"success": false, "platform_id": platform_id, "action": action, "reason": String((availability.get("reasons", ["blocked"]) as Array)[0]), "availability": availability}
+	var normalized := action.strip_edges().to_lower()
+	if normalized in ["", "activate", "toggle"]:
+		var r := activate_platform_by_id(platform_id, controller_id)
+		r["reason"] = "ok" if bool(r.get("success", false)) else "invalid_action"
+		return r
+	if normalized == "raise": return apply_lifting_platform_height_change(platform_id, 1, controller_id)
+	if normalized == "lower": return apply_lifting_platform_height_change(platform_id, -1, controller_id)
+	if normalized == "rotate_clockwise": return apply_rotating_platform_rotation(platform_id, true, controller_id)
+	if normalized == "rotate_counterclockwise": return apply_rotating_platform_rotation(platform_id, false, controller_id)
+	return {"success": false, "platform_id": platform_id, "action": action, "reason": "invalid_action"}
 
 func _is_active_bipob_on_platform(platform: Dictionary) -> bool:
 	if active_bipob_ref == null:
@@ -4501,3 +4662,50 @@ func validate_terminal_and_door_runtime() -> Array[String]:
 func get_terminal_and_door_validation_text() -> String:
 	var warnings := validate_terminal_and_door_runtime()
 	return "TerminalDoorValidation: warnings=%d" % warnings.size()
+
+func get_scan_result_for_object(object_id: String, scan_mode: String = "basic") -> Dictionary:
+	var object_data := get_world_object_by_id(object_id)
+	if object_data.is_empty():
+		return {"ok": false, "reason": "object_missing", "scan_mode": scan_mode}
+	if not is_world_object_visible_to_player(object_data, scan_mode):
+		return {"ok": false, "reason": "not_visible", "scan_mode": scan_mode}
+	var result := {"ok": true, "scan_mode": scan_mode, "object_id": object_id, "object_type": String(object_data.get("object_type", "")), "state": String(object_data.get("state", ""))}
+	if scan_mode in ["diagnostic", "power", "platform"]:
+		result["power_reason"] = String(object_data.get("power_unavailable_reason", ""))
+	if scan_mode in ["diagnostic", "cooling"]:
+		result["cooling_received"] = int(object_data.get("cooling_received", 0))
+		result["cooling_source_ids"] = object_data.get("cooling_source_ids", [])
+	if scan_mode in ["diagnostic", "platform"] and String(object_data.get("object_group", "")) == "platform":
+		result["platform"] = get_platform_action_availability(String(object_data.get("platform_id", "")), "activate")
+	if scan_mode == "xray":
+		result["xray_objects"] = get_xray_visible_objects(String(object_data.get("power_network_id", "")))
+	return result
+
+func get_scan_result_for_cell(cell: Vector2i, scan_mode: String = "basic") -> Dictionary:
+	var object_data := get_world_object_at_cell(cell)
+	if object_data.is_empty():
+		return {"ok": true, "scan_mode": scan_mode, "cell": [cell.x, cell.y], "object": {}}
+	return get_scan_result_for_object(String(object_data.get("id", "")), scan_mode)
+
+func get_scan_text_for_object(object_id: String, scan_mode: String = "basic") -> String:
+	return JSON.stringify(get_scan_result_for_object(object_id, scan_mode))
+
+func validate_platform_scan_visibility_runtime() -> Array[String]:
+	var warnings: Array[String] = []
+	var platform := get_platform_by_id("platform_lift_a")
+	if not platform.is_empty():
+		var av := get_platform_action_availability(String(platform.get("platform_id", "")), "activate")
+		if not av.has("available"):
+			warnings.append("platform availability helper missing fields")
+	var snapshot_a := str(get_world_object_runtime_state())
+	get_scan_result_for_cell(Vector2i.ZERO, "basic")
+	var snapshot_b := str(get_world_object_runtime_state())
+	if snapshot_a != snapshot_b:
+		warnings.append("scan/report helpers are not read-only")
+	return warnings
+
+func get_platform_scan_visibility_validation_text() -> String:
+	var warnings := validate_platform_scan_visibility_runtime()
+	if warnings.is_empty():
+		return "PlatformScanVisibilityValidation: ok"
+	return "PlatformScanVisibilityValidation:\n- " + "\n- ".join(warnings)
