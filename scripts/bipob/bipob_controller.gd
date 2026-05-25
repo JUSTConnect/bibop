@@ -438,6 +438,23 @@ func get_power_network_full_debug_report_text(filter: String = "") -> String:
 		return "Power network full debug report unavailable: mission manager/helper missing."
 	return String(mission_manager.call("get_power_network_full_debug_report_text", filter))
 
+func preview_cooling_application(filter: String = "") -> Dictionary:
+	if mission_manager == null or not mission_manager.has_method("preview_cooling_application"):
+		return {"filter": filter, "resolved_filter": filter, "cooling_sources": [], "targets": [], "changes": [], "warnings": ["Cooling preview unavailable: mission manager/helper missing."]}
+	var report_variant: Variant = mission_manager.call("preview_cooling_application", filter)
+	return report_variant if typeof(report_variant) == TYPE_DICTIONARY else {"filter": filter, "resolved_filter": filter, "cooling_sources": [], "targets": [], "changes": [], "warnings": ["Cooling preview returned invalid data."]}
+
+func apply_cooling_application(filter: String = "") -> Dictionary:
+	if mission_manager == null or not mission_manager.has_method("apply_cooling_application"):
+		return {"filter": filter, "resolved_filter": filter, "cooling_sources": [], "targets": [], "changes": [], "warnings": ["Cooling apply unavailable: mission manager/helper missing."]}
+	var report_variant: Variant = mission_manager.call("apply_cooling_application", filter)
+	return report_variant if typeof(report_variant) == TYPE_DICTIONARY else {"filter": filter, "resolved_filter": filter, "cooling_sources": [], "targets": [], "changes": [], "warnings": ["Cooling apply returned invalid data."]}
+
+func get_cooling_debug_report_text(filter: String = "") -> String:
+	if mission_manager == null or not mission_manager.has_method("get_cooling_debug_report_text"):
+		return "Cooling debug report unavailable: mission manager/helper missing."
+	return String(mission_manager.call("get_cooling_debug_report_text", filter))
+
 func validate_full_power_system_runtime() -> Array[String]:
 	if mission_manager == null or not mission_manager.has_method("validate_full_power_system_runtime"):
 		return ["Full power validation unavailable: mission manager/helper missing."]
