@@ -7517,7 +7517,7 @@ func _apply_world_object_effects(effects: Array, world_object: Dictionary, targe
 					var platform_result := mission_manager.activate_platform_by_id(target_platform_id, "terminal")
 					hint_requested.emit(String(platform_result.get("message", "Platform action.")))
 			elif String(world_object.get("object_group", "")) == "platform":
-				var platform_result_direct := mission_manager.activate_platform_by_id(String(world_object.get("platform_id", "")), "local")
+				var platform_result_direct := mission_manager.activate_platform_by_id(String(world_object.get("platform_id", "")), "local_switch")
 				hint_requested.emit(String(platform_result_direct.get("message", "Platform action.")))
 		elif effect_type == "object_move":
 			var move_dir := Vector2i(effect.get("direction", actor.get("facing_direction", Vector2i.ZERO)))

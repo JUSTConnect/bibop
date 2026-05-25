@@ -1136,24 +1136,49 @@ func activate_platform_by_id(platform_id: String, source: String = "") -> Dictio
 	return _execute_platform_action(platform, source)
 
 func _execute_platform_action(platform: Dictionary, source: String = "") -> Dictionary:
+	var platform_id := String(platform.get("platform_id", platform.get("id", "")))
 	var platform_type := String(platform.get("platform_type", ""))
+	var activation_mode := String(platform.get("activation_mode", "instant"))
+	var normalized_source := source
+	var result := {
+		"success": false,
+		"message": "",
+		"platform_id": platform_id,
+		"platform_type": platform_type,
+		"activation_mode": activation_mode,
+		"source": normalized_source,
+		"height_level": -1,
+		"rotation_direction": ""
+	}
 	if platform_type == "rotating":
+		var rotation_direction := String(platform.get("rotation_direction", "clockwise"))
+		result["rotation_direction"] = rotation_direction
 		var occupants := get_platform_occupants(String(platform.get("platform_id", "")))
 		for obj in Array(occupants.get("world_objects", [])):
 			if obj.has("facing_dir"):
-				obj["facing_dir"] = _rotate_facing(String(obj.get("facing_dir", "up")), String(platform.get("rotation_direction", "clockwise")) != "counterclockwise")
+				obj["facing_dir"] = _rotate_facing(String(obj.get("facing_dir", "up")), rotation_direction != "counterclockwise")
 		if active_bipob_ref != null and active_bipob_ref.has_method("set_direction") and Array(occupants.get("bipobs", [])).size() > 0:
 			var current_direction := "up"
 			if active_bipob_ref.has_method("get_direction"):
 				current_direction = String(active_bipob_ref.get_direction())
-			active_bipob_ref.set_direction(_rotate_facing(current_direction, true))
+			active_bipob_ref.set_direction(_rotate_facing(current_direction, rotation_direction != "counterclockwise"))
 		refresh_world_cooling_received()
-		return {"success":true, "message":"Rotating platform activated."}
+		result["success"] = true
+		var affected_count := Array(occupants.get("world_objects", [])).size() + Array(occupants.get("items", [])).size() + Array(occupants.get("bipobs", [])).size()
+		if affected_count > 0:
+			result["message"] = "Platform %s rotated %s; occupants affected: %d." % [platform_id, rotation_direction, affected_count]
+		else:
+			result["message"] = "Platform %s rotated %s." % [platform_id, rotation_direction]
+		platform["last_activation_source"] = normalized_source
+		platform["last_activation_message"] = String(result.get("message", ""))
+		return result
 	if platform_type == "lifting":
 		var min_h := int(platform.get("min_height_level", 0))
 		var max_h := int(platform.get("max_height_level", 1))
-		var cur := int(platform.get("height_level", min_h))
-		platform["height_level"] = max_h if cur <= min_h else min_h
+		var previous_height := int(platform.get("height_level", min_h))
+		platform["height_level"] = max_h if previous_height <= min_h else min_h
+		var current_height := int(platform.get("height_level", min_h))
+		result["height_level"] = current_height
 		var occupants := get_platform_occupants(String(platform.get("platform_id", "")))
 		for obj in Array(occupants.get("world_objects", [])):
 			refresh_world_object_platform_height_state(obj)
@@ -1164,8 +1189,18 @@ func _execute_platform_action(platform: Dictionary, source: String = "") -> Dict
 				if platform_cell == actor_cell:
 					active_bipob_ref.call("set_platform_height_level", int(platform.get("height_level", 0)), String(platform.get("platform_id", "")))
 					break
-		return {"success":true, "message":"Lifting platform toggled."}
-	return {"success":false, "message":"Unknown platform type."}
+		result["success"] = true
+		if current_height > previous_height:
+			result["message"] = "Platform %s lifted to height %d." % [platform_id, current_height]
+		elif current_height < previous_height:
+			result["message"] = "Platform %s lowered to height %d." % [platform_id, current_height]
+		else:
+			result["message"] = "Platform %s stayed at height %d." % [platform_id, current_height]
+		platform["last_activation_source"] = normalized_source
+		platform["last_activation_message"] = String(result.get("message", ""))
+		return result
+	result["message"] = "Unknown platform type."
+	return result
 
 func _rotate_facing(facing: String, clockwise: bool) -> String:
 	var dirs := ["up", "right", "down", "left"]
@@ -1216,7 +1251,11 @@ func process_platform_turn_tick() -> Array[String]:
 				platform["pending_activation"] = false
 				var result := _execute_platform_action(platform, "timer")
 				if bool(result.get("success", false)):
-					events.append("%s activated (timer)." % String(platform.get("display_name", platform.get("platform_id", platform.get("id", "Platform")))))
+					var result_message := String(result.get("message", "")).strip_edges()
+					if not result_message.is_empty():
+						events.append(result_message)
+					else:
+						events.append("%s activated (timer)." % String(platform.get("display_name", platform.get("platform_id", platform.get("id", "Platform")))))
 		elif mode == "periodic":
 			if not bool(platform.get("periodic_active", false)):
 				continue
@@ -1229,7 +1268,11 @@ func process_platform_turn_tick() -> Array[String]:
 				var periodic_result := _execute_platform_action(platform, "periodic")
 				platform["timer_remaining_turns"] = maxi(1, period_turns)
 				if bool(periodic_result.get("success", false)):
-					events.append("%s activated (periodic)." % String(platform.get("display_name", platform.get("platform_id", platform.get("id", "Platform")))))
+					var periodic_message := String(periodic_result.get("message", "")).strip_edges()
+					if not periodic_message.is_empty():
+						events.append(periodic_message)
+					else:
+						events.append("%s activated (periodic)." % String(platform.get("display_name", platform.get("platform_id", platform.get("id", "Platform")))))
 	return events
 
 func process_platform_turn_tick_once(action_index: int) -> Array[String]:
@@ -1323,6 +1366,11 @@ func validate_platform_runtime_state() -> Dictionary:
 		if activation_mode == "periodic":
 			if int(platform.get("period_turns", 0)) <= 0:
 				warnings.append("Platform %s uses periodic mode with period_turns <= 0." % platform_id)
+		var last_source := String(platform.get("last_activation_source", ""))
+		if not last_source in ["", "timer", "periodic", "terminal", "local_switch", "debug", "direct"]:
+			warnings.append("Platform %s has unexpected last_activation_source %s." % [platform_id, last_source])
+		if platform.has("last_activation_message") and typeof(platform.get("last_activation_message", "")) != TYPE_STRING:
+			warnings.append("Platform %s has non-string last_activation_message." % platform_id)
 		var has_pending_activation := bool(platform.get("pending_activation", false))
 		if has_pending_activation and not activation_mode in ["timer", "permanent"]:
 			warnings.append("Platform %s has pending_activation outside timer/permanent mode." % platform_id)
@@ -1446,6 +1494,11 @@ func get_platform_runtime_table_text(filter: String = "") -> String:
 		var height := "-"
 		if String(platform.get("platform_type", "")) == "lifting":
 			height = str(int(platform.get("height_level", 0)))
+		var last_source := String(platform.get("last_activation_source", "")).strip_edges()
+		var last_message := String(platform.get("last_activation_message", "")).strip_edges()
+		var last_fragment := "last=-"
+		if not last_source.is_empty() or not last_message.is_empty():
+			last_fragment = "last=%s:%s" % [last_source if not last_source.is_empty() else "-", last_message if not last_message.is_empty() else "-"]
 		var line := "%s | %s | cells=%d | %s | powered=%s | %s/%s | terminal=%s | %s | pending=%s | periodic=%s | timer_turns=%d | period_turns=%d | timer=%d | height=%s | occupants obj=%d item=%d bipob=%d" % [
 			platform_id,
 			String(platform.get("platform_type", "")),
@@ -1466,6 +1519,7 @@ func get_platform_runtime_table_text(filter: String = "") -> String:
 			occ_item,
 			occ_bipob
 		]
+		line = "%s | %s" % [line, last_fragment]
 		var haystack := "%s %s %s %s %s" % [platform_id, String(platform.get("id", "")), String(platform.get("platform_type", "")), String(platform.get("state", "")), terminal_id]
 		if filter_text.is_empty() or haystack.to_lower().find(filter_text) != -1:
 			lines.append(line)
