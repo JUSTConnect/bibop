@@ -286,6 +286,13 @@ func get_platform_state_summary_table_text(filter: String = "") -> String:
 		return "Platform state summary unavailable: mission manager/helper missing."
 	return String(mission_manager.call("get_platform_state_summary_table_text", filter))
 
+func get_platform_occupant_summary_table_text(filter: String = "") -> String:
+	if mission_manager == null:
+		return "Platform occupant summary unavailable: mission manager is missing."
+	if not mission_manager.has_method("get_platform_occupant_summary_table_text"):
+		return "Platform occupant summary unavailable: mission manager/helper missing."
+	return String(mission_manager.call("get_platform_occupant_summary_table_text", filter))
+
 func validate_platform_height_gating_debug_scenario() -> Array[String]:
 	if mission_manager == null:
 		return ["Platform height gating validation unavailable: mission manager is missing."]

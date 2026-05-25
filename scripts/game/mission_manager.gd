@@ -604,6 +604,7 @@ func get_world_object_debug_info(object_id: String) -> Dictionary:
 			info[key] = object_data[key]
 	if String(object_data.get("object_group", "")) == "platform":
 		info["platform_state_summary"] = get_platform_state_summary(object_data)
+		info["platform_occupant_summary"] = get_platform_occupant_summary(object_data)
 	return info
 
 func _get_debug_tile_info(cell: Vector2i) -> Variant:
@@ -665,7 +666,9 @@ func get_world_cell_debug_info(cell: Vector2i) -> Dictionary:
 		info["world_object_id"] = String(object_data.get("id", ""))
 		info["world_object_type"] = String(object_data.get("object_type", ""))
 		if String(object_data.get("object_group", "")) == "platform":
+			info["platform_id"] = String(object_data.get("platform_id", ""))
 			info["platform_state_summary"] = get_platform_state_summary(object_data)
+			info["platform_occupant_summary"] = get_platform_occupant_summary(object_data)
 	var items: Array = cell_items.get(cell, [])
 	info["item_count"] = items.size()
 	if not items.is_empty():
@@ -1391,6 +1394,61 @@ func get_platform_state_summary_table_text(filter: String = "") -> String:
 			lines.append("none (filter=%s)" % filter_text)
 	return "\n".join(lines)
 
+func get_platform_occupant_summary(platform: Dictionary) -> String:
+	var platform_id := String(platform.get("platform_id", platform.get("id", ""))).strip_edges()
+	if platform_id.is_empty():
+		platform_id = "-"
+	var cells_count := Array(platform.get("platform_cells", [])).size()
+	var occupants := get_platform_occupants(platform_id) if platform_id != "-" else {"world_objects": [], "items": [], "bipobs": []}
+	var world_objects: Array = Array(occupants.get("world_objects", []))
+	var items_count := Array(occupants.get("items", [])).size()
+	var bipobs_count := Array(occupants.get("bipobs", [])).size()
+	var carried_world_objects := 0
+	var stale_world_objects := 0
+	for object_data_variant in world_objects:
+		if typeof(object_data_variant) != TYPE_DICTIONARY:
+			continue
+		var object_data: Dictionary = object_data_variant
+		var carried_id := String(object_data.get("carried_by_platform_id", "")).strip_edges()
+		if carried_id == platform_id:
+			carried_world_objects += 1
+		else:
+			stale_world_objects += 1
+	var active_bipob_on_platform := str(_is_active_bipob_on_platform(platform)).to_lower()
+	return "Occupants %s | cells=%d | world_objects=%d | items=%d | bipobs=%d | carried_world_objects=%d | stale_world_objects=%d | active_bipop_on_platform=%s" % [
+		platform_id,
+		cells_count,
+		world_objects.size(),
+		items_count,
+		bipobs_count,
+		carried_world_objects,
+		stale_world_objects,
+		active_bipob_on_platform
+	]
+
+func get_platform_occupant_summary_table_text(filter: String = "") -> String:
+	var filter_text := filter.strip_edges().to_lower()
+	var platforms: Array[Dictionary] = []
+	for object_data in mission_world_objects:
+		if String(object_data.get("object_group", "")) == "platform":
+			platforms.append(object_data)
+	platforms.sort_custom(func(a: Dictionary, b: Dictionary) -> bool:
+		var a_id := String(a.get("platform_id", a.get("id", ""))).strip_edges()
+		var b_id := String(b.get("platform_id", b.get("id", ""))).strip_edges()
+		if a_id == b_id:
+			return String(a.get("id", "")) < String(b.get("id", ""))
+		return a_id < b_id
+	)
+	var lines: Array[String] = ["PlatformOccupantSummary:"]
+	for platform in platforms:
+		var summary := get_platform_occupant_summary(platform)
+		if not filter_text.is_empty() and summary.to_lower().find(filter_text) == -1:
+			continue
+		lines.append(summary)
+	if lines.size() == 1:
+		lines.append("none" if filter_text.is_empty() else "none (filter=%s)" % filter_text)
+	return "\n".join(lines)
+
 func validate_platform_runtime_state() -> Dictionary:
 	var warnings: Array[String] = []
 	var errors: Array[String] = []
@@ -1542,6 +1600,52 @@ func validate_platform_runtime_state() -> Dictionary:
 				var object_height := int(object_data.get("platform_height_level", 0))
 				if object_height != platform_height:
 					warnings.append("Object %s platform_height_level %d differs from platform %s height %d." % [object_id, object_height, carried_platform_id, platform_height])
+	for platform in platforms:
+		var platform_id := String(platform.get("platform_id", "")).strip_edges()
+		if platform_id.is_empty():
+			continue
+		var occupants := get_platform_occupants(platform_id)
+		var platform_cells: Array = []
+		for cell_variant in Array(platform.get("platform_cells", [])):
+			var platform_cell := WorldObjectCatalog.to_world_cell(cell_variant, Vector2i(-1, -1))
+			if platform_cell.x >= 0 and platform_cell.y >= 0:
+				platform_cells.append(platform_cell)
+		var is_lifting_platform := String(platform.get("platform_type", "")) == "lifting"
+		var platform_height := int(platform.get("height_level", 0))
+		for world_object_variant in Array(occupants.get("world_objects", [])):
+			if typeof(world_object_variant) != TYPE_DICTIONARY:
+				continue
+			var world_object: Dictionary = world_object_variant
+			var world_object_id := String(world_object.get("id", ""))
+			var world_object_carried_id := String(world_object.get("carried_by_platform_id", "")).strip_edges()
+			if is_lifting_platform and world_object_carried_id != platform_id:
+				warnings.append("World object %s is on lifting platform %s but carried_by_platform_id is stale." % [world_object_id, platform_id])
+			if is_lifting_platform and int(world_object.get("platform_height_level", 0)) != platform_height:
+				warnings.append("World object %s has platform_height_level mismatch on lifting platform %s." % [world_object_id, platform_id])
+		for world_object in mission_world_objects:
+			if String(world_object.get("carried_by_platform_id", "")).strip_edges() != platform_id:
+				continue
+			var object_cell := WorldObjectCatalog.to_world_cell(world_object.get("position", Vector2i(-1, -1)), Vector2i(-1, -1))
+			if not platform_cells.has(object_cell):
+				warnings.append("World object %s is carried by platform %s but is not on its cells." % [String(world_object.get("id", "")), platform_id])
+		if active_bipob_ref != null and active_bipob_ref.has_method("get_grid_position"):
+			var active_cell_variant: Variant = active_bipob_ref.call("get_grid_position")
+			if typeof(active_cell_variant) == TYPE_VECTOR2I:
+				var active_cell: Vector2i = active_cell_variant
+				var active_on_platform := platform_cells.has(active_cell)
+				var has_bipob_carried_getter := active_bipob_ref.has_method("get_carried_by_platform_id")
+				var has_bipob_height_getter := active_bipob_ref.has_method("get_platform_height_level")
+				var bipob_carried_id := ""
+				if has_bipob_carried_getter:
+					bipob_carried_id = String(active_bipob_ref.call("get_carried_by_platform_id")).strip_edges()
+				if is_lifting_platform and active_on_platform and has_bipob_carried_getter and bipob_carried_id != platform_id:
+					warnings.append("Active Bipop is on lifting platform %s but carried_by_platform_id is stale." % platform_id)
+				if has_bipob_carried_getter and bipob_carried_id == platform_id and not active_on_platform:
+					warnings.append("Active Bipop is carried by platform %s but is not on its cells." % platform_id)
+				if is_lifting_platform and active_on_platform and has_bipob_height_getter:
+					var bipob_height := int(active_bipob_ref.call("get_platform_height_level"))
+					if bipob_height != platform_height:
+						warnings.append("Active Bipop platform_height_level mismatch on lifting platform %s." % platform_id)
 	return {
 		"valid": errors.is_empty(),
 		"platforms": platforms.size(),
