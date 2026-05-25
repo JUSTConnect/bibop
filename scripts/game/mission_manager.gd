@@ -785,7 +785,7 @@ func apply_power_network_state_from_preview(filter: String = "") -> Dictionary:
 		warnings.append(warning_text)
 	return {"applied": applied_changes.size(), "changes": applied_changes, "warnings": warnings}
 
-func get_power_network_apply_report_text(filter: String = "") -> String:
+func execute_power_network_apply_and_get_report_text(filter: String = "") -> String:
 	var report := apply_power_network_state_from_preview(filter)
 	var changes: Array = report.get("changes", [])
 	var warnings: Array = report.get("warnings", [])
@@ -800,6 +800,28 @@ func get_power_network_apply_report_text(filter: String = "") -> String:
 			String(change.get("network_id", "")),
 			str(bool(change.get("previous_is_powered", false))).to_lower(),
 			str(bool(change.get("new_is_powered", false))).to_lower(),
+			String(change.get("reason", ""))
+		])
+	for warning in warnings:
+		lines.append("WARNING: %s" % String(warning))
+	return "\n".join(lines)
+
+
+func get_power_network_apply_preview_report_text(filter: String = "") -> String:
+	var preview := preview_power_network_state_application(filter)
+	var changes: Array = preview.get("changes", [])
+	var warnings: Array = preview.get("warnings", [])
+	var lines: Array[String] = []
+	lines.append("PowerNetworkApplyPreview: changes=%d warnings=%d" % [changes.size(), warnings.size()])
+	for change_variant in changes:
+		if typeof(change_variant) != TYPE_DICTIONARY:
+			continue
+		var change: Dictionary = change_variant
+		lines.append("WOULD_APPLY: object=%s network=%s is_powered %s -> %s reason=%s" % [
+			String(change.get("object_id", "")),
+			String(change.get("network_id", "")),
+			str(bool(change.get("current_is_powered", false))).to_lower(),
+			str(bool(change.get("preview_is_powered", false))).to_lower(),
 			String(change.get("reason", ""))
 		])
 	for warning in warnings:
@@ -1165,8 +1187,17 @@ func validate_power_network_debug_scenario() -> Array[String]:
 	var preview_cable_after := bool(preview_cable_object.get("is_powered", false))
 	if preview_cable_before != preview_cable_after:
 		warnings.append("Preview mutated temporary object state for power_debug_preview_cable.")
-	var apply_result_a := apply_power_network_state_from_preview("power_debug_apply_case_a")
 	var apply_case_a_consumer := get_world_object_by_id("power_debug_apply_case_a_consumer")
+	var apply_case_a_before_preview_report := bool(apply_case_a_consumer.get("is_powered", false))
+	var apply_preview_report_text := get_power_network_apply_preview_report_text("power_debug_apply_case_a")
+	if apply_preview_report_text.find("WOULD_APPLY") == -1:
+		warnings.append("Apply preview report regression: missing WOULD_APPLY entry for case A.")
+	if apply_preview_report_text.find("APPLIED") != -1:
+		warnings.append("Apply preview report regression: preview text must not include APPLIED entries.")
+	var apply_case_a_after_preview_report := bool(apply_case_a_consumer.get("is_powered", false))
+	if apply_case_a_before_preview_report != apply_case_a_after_preview_report:
+		warnings.append("Apply preview report regression: report mutated apply_case_a_consumer before apply.")
+	var apply_result_a := apply_power_network_state_from_preview("power_debug_apply_case_a")
 	if not bool(apply_case_a_consumer.get("is_powered", false)):
 		warnings.append("Apply regression A: powered source did not power unpowered consumer.")
 	var apply_case_a_found := false
