@@ -1403,6 +1403,7 @@ func get_platform_occupant_summary(platform: Dictionary) -> String:
 	var world_objects: Array = Array(occupants.get("world_objects", []))
 	var items_count := Array(occupants.get("items", [])).size()
 	var bipobs_count := Array(occupants.get("bipobs", [])).size()
+	var is_lifting_platform := String(platform.get("platform_type", "")) == "lifting"
 	var carried_world_objects := 0
 	var stale_world_objects := 0
 	for object_data_variant in world_objects:
@@ -1412,15 +1413,19 @@ func get_platform_occupant_summary(platform: Dictionary) -> String:
 		var carried_id := String(object_data.get("carried_by_platform_id", "")).strip_edges()
 		if carried_id == platform_id:
 			carried_world_objects += 1
-		else:
+		elif is_lifting_platform:
 			stale_world_objects += 1
+	if not is_lifting_platform:
+		stale_world_objects = 0
+	var carry_required := str(is_lifting_platform).to_lower()
 	var active_bipob_on_platform := str(_is_active_bipob_on_platform(platform)).to_lower()
-	return "Occupants %s | cells=%d | world_objects=%d | items=%d | bipobs=%d | carried_world_objects=%d | stale_world_objects=%d | active_bipop_on_platform=%s" % [
+	return "Occupants %s | cells=%d | world_objects=%d | items=%d | bipobs=%d | carry_required=%s | carried_world_objects=%d | stale_world_objects=%d | active_bipop_on_platform=%s" % [
 		platform_id,
 		cells_count,
 		world_objects.size(),
 		items_count,
 		bipobs_count,
+		carry_required,
 		carried_world_objects,
 		stale_world_objects,
 		active_bipob_on_platform
