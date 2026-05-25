@@ -638,7 +638,7 @@ func _get_power_network_summary_lines(filter: String = "") -> Array[String]:
 				network_powered = true
 			var threshold := int(object_data.get("overheat_threshold", 0))
 			var current_heat := int(object_data.get("current_heat", 0))
-			if is_source and (state == "overheated" or current_heat >= threshold):
+			if is_source and (state == "overheated" or (threshold > 0 and current_heat >= threshold)):
 				overheated_sources += 1
 			if state == "damaged" or bool(object_data.get("damaged", false)) or bool(object_data.get("broken", false)):
 				damaged_count += 1
@@ -684,6 +684,8 @@ func validate_power_network_runtime_state() -> Dictionary:
 			var powered_source := bool(object_data.get("is_powered", false)) and state != "overheated"
 			if powered_source:
 				network_has_powered_source[network_id] = true
+	for object_data in power_objects:
+		var object_id := String(object_data.get("id", "")).strip_edges()
 		var current_heat := int(object_data.get("current_heat", 0))
 		var threshold := int(object_data.get("overheat_threshold", 0))
 		if current_heat < 0:
@@ -725,8 +727,7 @@ func validate_power_network_runtime_state() -> Dictionary:
 								continue
 							var connected_object: Dictionary = object_variant_2
 							var connected_source_id := String(connected_object.get("connected_power_source_id", "")).strip_edges()
-							var connected_state := String(connected_object.get("state", "")).strip_edges().to_lower()
-							if connected_source_id == object_id or connected_state == "connected" or bool(connected_object.get("connected", false)):
+							if connected_source_id == object_id:
 								source_connections += 1
 						if source_connections > allowed:
 							warnings.append("Power source %s connections (%d) exceed allowed_connections (%d)." % [object_id, source_connections, allowed])
