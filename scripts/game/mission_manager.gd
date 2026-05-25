@@ -673,11 +673,31 @@ func _is_power_gate_closed(object_data: Dictionary) -> bool:
 	var gate_state := _get_power_gate_state(object_data)
 	return bool(gate_state.get("is_closed", true))
 
+func _resolve_power_graph_filter_to_network_id(filter: String) -> String:
+	var filter_text := filter.strip_edges()
+	if filter_text.is_empty():
+		return ""
+	var collected := _collect_power_network_objects()
+	var networks: Dictionary = collected.get("networks", {})
+	if networks.has(filter_text):
+		return filter_text
+	for network_id_variant in networks.keys():
+		var network_id := String(network_id_variant)
+		var network_objects: Array = networks.get(network_id, [])
+		for object_variant in network_objects:
+			if typeof(object_variant) != TYPE_DICTIONARY:
+				continue
+			var object_data: Dictionary = object_variant
+			if String(object_data.get("id", "")).strip_edges() == filter_text:
+				return network_id
+	return filter_text
+
 func preview_power_graph_state_application(filter: String = "") -> Dictionary:
 	var collected := _collect_power_network_objects()
 	var networks: Dictionary = collected.get("networks", {})
 	var filter_text := filter.strip_edges()
-	var result := {"filter": filter_text, "sources": [], "nodes": [], "reachable_object_ids": [], "blocked": [], "changes": [], "warnings": []}
+	var resolved_filter := _resolve_power_graph_filter_to_network_id(filter_text)
+	var result := {"filter": filter_text, "resolved_filter": resolved_filter, "sources": [], "nodes": [], "reachable_object_ids": [], "blocked": [], "changes": [], "warnings": []}
 	var warnings: Array[String] = result["warnings"]
 	warnings.append("Power graph MVP uses network-level gate blocking; adjacency traversal not available yet.")
 	var changes: Array[Dictionary] = result["changes"]
@@ -687,7 +707,7 @@ func preview_power_graph_state_application(filter: String = "") -> Dictionary:
 	var reachable: Array[String] = result["reachable_object_ids"]
 	for network_id_variant in networks.keys():
 		var network_id := String(network_id_variant)
-		if not filter_text.is_empty() and network_id != filter_text:
+		if not resolved_filter.is_empty() and network_id != resolved_filter:
 			continue
 		var network_objects: Array = networks.get(network_id, [])
 		var has_available_source := false
@@ -1620,19 +1640,173 @@ func validate_power_network_debug_scenario() -> Array[String]:
 	if String(cable_disconnect_report.get("event_reason", "")) != "cable_disconnected":
 		warnings.append("Cable disconnect event apply regression: event_reason mismatch.")
 	var graph_closed_preview := preview_power_graph_state_application("power_debug_graph_closed_gate")
+	var graph_closed_source := get_world_object_by_id("power_debug_graph_closed_gate_source")
+	var graph_closed_gate := get_world_object_by_id("power_debug_graph_closed_gate_switch")
+	var graph_closed_consumer := get_world_object_by_id("power_debug_graph_closed_gate_consumer")
+	var graph_closed_source_before_preview := bool(graph_closed_source.get("is_powered", false))
+	var graph_closed_gate_state_before_preview := String(graph_closed_gate.get("state", ""))
+	var graph_closed_consumer_before_preview := bool(graph_closed_consumer.get("is_powered", false))
+	var graph_closed_preview_changes: Array = graph_closed_preview.get("changes", [])
+	var graph_closed_preview_reason_ok := false
+	for change_variant in graph_closed_preview_changes:
+		if typeof(change_variant) != TYPE_DICTIONARY:
+			continue
+		var change: Dictionary = change_variant
+		if String(change.get("object_id", "")) == "power_debug_graph_closed_gate_consumer" and String(change.get("reason", "")) == "graph_powered_source_reachable":
+			graph_closed_preview_reason_ok = true
+			break
+	if not graph_closed_preview_reason_ok:
+		warnings.append("Graph closed gate scenario regression: expected reason=graph_powered_source_reachable.")
+	if graph_closed_source_before_preview != bool(graph_closed_source.get("is_powered", false)) or graph_closed_consumer_before_preview != bool(graph_closed_consumer.get("is_powered", false)) or graph_closed_gate_state_before_preview != String(graph_closed_gate.get("state", "")):
+		warnings.append("Graph preview regression: preview mutated closed-gate objects.")
 	var graph_closed_apply := apply_power_graph_state_from_preview("power_debug_graph_closed_gate")
 	if int(graph_closed_apply.get("applied", 0)) <= 0:
 		warnings.append("Graph closed gate scenario regression: expected apply changes.")
+	if not bool(graph_closed_consumer.get("is_powered", false)):
+		warnings.append("Graph closed gate scenario regression: consumer did not become powered.")
+	if not bool(graph_closed_source.get("is_powered", false)):
+		warnings.append("Graph closed gate scenario regression: source mutated from powered state.")
+	for change_variant in graph_closed_apply.get("changes", []):
+		if typeof(change_variant) != TYPE_DICTIONARY:
+			continue
+		var change: Dictionary = change_variant
+		if String(change.get("object_id", "")) == "power_debug_graph_closed_gate_source":
+			warnings.append("Graph apply regression: source object appeared in applied changes.")
+			break
 	var graph_open_preview := preview_power_graph_state_application("power_debug_graph_open_switch")
+	var graph_open_source := get_world_object_by_id("power_debug_graph_open_switch_source")
+	var graph_open_gate := get_world_object_by_id("power_debug_graph_open_switch_gate")
+	var graph_open_consumer := get_world_object_by_id("power_debug_graph_open_switch_consumer")
+	var graph_open_source_before_preview := bool(graph_open_source.get("is_powered", false))
+	var graph_open_gate_state_before_preview := String(graph_open_gate.get("state", ""))
+	var graph_open_consumer_before_preview := bool(graph_open_consumer.get("is_powered", false))
 	if String(get_power_graph_preview_text("power_debug_graph_open_switch")).find("blocked=1") == -1:
 		warnings.append("Graph open switch scenario regression: blocked gate not reported.")
 	if String(graph_open_preview).find("blocked_by_gate") == -1:
 		warnings.append("Graph open switch scenario regression: reason blocked_by_gate missing.")
-	apply_power_graph_state_from_preview("power_debug_graph_open_switch")
-	apply_power_graph_state_from_preview("power_debug_graph_empty_fuse")
-	apply_power_graph_state_from_preview("power_debug_graph_cut_cable")
-	apply_power_graph_state_from_preview("power_debug_graph_no_source")
-	apply_power_graph_state_from_preview("power_debug_graph_damaged_consumer")
+	if graph_open_source_before_preview != bool(graph_open_source.get("is_powered", false)) or graph_open_consumer_before_preview != bool(graph_open_consumer.get("is_powered", false)) or graph_open_gate_state_before_preview != String(graph_open_gate.get("state", "")):
+		warnings.append("Graph preview regression: preview mutated open-gate objects.")
+	var graph_open_blocked_ok := false
+	for blocked_variant in graph_open_preview.get("blocked", []):
+		if typeof(blocked_variant) != TYPE_DICTIONARY:
+			continue
+		var blocked: Dictionary = blocked_variant
+		if String(blocked.get("object_id", "")) == "power_debug_graph_open_switch_gate":
+			graph_open_blocked_ok = true
+			break
+	if not graph_open_blocked_ok:
+		warnings.append("Graph open switch scenario regression: blocked entry missing switch gate.")
+	var graph_open_apply := apply_power_graph_state_from_preview("power_debug_graph_open_switch")
+	if bool(graph_open_consumer.get("is_powered", false)):
+		warnings.append("Graph open switch scenario regression: consumer should be unpowered.")
+	if not bool(graph_open_source.get("is_powered", false)):
+		warnings.append("Graph open switch scenario regression: source mutated from powered state.")
+	var graph_open_reason_ok := false
+	for change_variant in graph_open_apply.get("changes", []):
+		if typeof(change_variant) != TYPE_DICTIONARY:
+			continue
+		var change: Dictionary = change_variant
+		if String(change.get("object_id", "")) == "power_debug_graph_open_switch_consumer":
+			if String(change.get("reason", "")) == "blocked_by_gate":
+				graph_open_reason_ok = true
+		elif String(change.get("object_id", "")) == "power_debug_graph_open_switch_source":
+			warnings.append("Graph apply regression: source object appeared in open-switch changes.")
+	if not graph_open_reason_ok:
+		warnings.append("Graph open switch scenario regression: missing reason=blocked_by_gate.")
+	var graph_empty_fuse_source := get_world_object_by_id("power_debug_graph_empty_fuse_source")
+	var graph_empty_fuse_consumer := get_world_object_by_id("power_debug_graph_empty_fuse_consumer")
+	var graph_empty_fuse_preview := preview_power_graph_state_application("power_debug_graph_empty_fuse")
+	var graph_empty_fuse_blocked_ok := false
+	for blocked_variant in graph_empty_fuse_preview.get("blocked", []):
+		if typeof(blocked_variant) != TYPE_DICTIONARY:
+			continue
+		var blocked: Dictionary = blocked_variant
+		if String(blocked.get("object_id", "")) == "power_debug_graph_empty_fuse_gate":
+			graph_empty_fuse_blocked_ok = true
+			break
+	if not graph_empty_fuse_blocked_ok:
+		warnings.append("Graph empty fuse scenario regression: blocked entry missing fuse gate.")
+	var graph_empty_fuse_apply := apply_power_graph_state_from_preview("power_debug_graph_empty_fuse")
+	if bool(graph_empty_fuse_consumer.get("is_powered", false)):
+		warnings.append("Graph empty fuse scenario regression: consumer should be unpowered.")
+	if not bool(graph_empty_fuse_source.get("is_powered", false)):
+		warnings.append("Graph empty fuse scenario regression: source mutated from powered state.")
+	var graph_empty_fuse_reason_ok := false
+	for change_variant in graph_empty_fuse_apply.get("changes", []):
+		if typeof(change_variant) != TYPE_DICTIONARY:
+			continue
+		var change: Dictionary = change_variant
+		if String(change.get("object_id", "")) == "power_debug_graph_empty_fuse_consumer" and String(change.get("reason", "")) == "blocked_by_gate":
+			graph_empty_fuse_reason_ok = true
+		elif String(change.get("object_id", "")) == "power_debug_graph_empty_fuse_source":
+			warnings.append("Graph apply regression: source object appeared in empty-fuse changes.")
+	if not graph_empty_fuse_reason_ok:
+		warnings.append("Graph empty fuse scenario regression: missing reason=blocked_by_gate.")
+	var graph_cut_cable_source := get_world_object_by_id("power_debug_graph_cut_cable_source")
+	var graph_cut_cable_consumer := get_world_object_by_id("power_debug_graph_cut_cable_consumer")
+	var graph_cut_cable_preview := preview_power_graph_state_application("power_debug_graph_cut_cable")
+	var graph_cut_cable_blocked_ok := false
+	for blocked_variant in graph_cut_cable_preview.get("blocked", []):
+		if typeof(blocked_variant) != TYPE_DICTIONARY:
+			continue
+		var blocked: Dictionary = blocked_variant
+		if String(blocked.get("object_id", "")) == "power_debug_graph_cut_cable_gate":
+			graph_cut_cable_blocked_ok = true
+			break
+	if not graph_cut_cable_blocked_ok:
+		warnings.append("Graph cut cable scenario regression: blocked entry missing cable gate.")
+	var graph_cut_cable_apply := apply_power_graph_state_from_preview("power_debug_graph_cut_cable")
+	if bool(graph_cut_cable_consumer.get("is_powered", false)):
+		warnings.append("Graph cut cable scenario regression: consumer should be unpowered.")
+	if not bool(graph_cut_cable_source.get("is_powered", false)):
+		warnings.append("Graph cut cable scenario regression: source mutated from powered state.")
+	var graph_cut_cable_reason_ok := false
+	for change_variant in graph_cut_cable_apply.get("changes", []):
+		if typeof(change_variant) != TYPE_DICTIONARY:
+			continue
+		var change: Dictionary = change_variant
+		if String(change.get("object_id", "")) == "power_debug_graph_cut_cable_consumer":
+			var change_reason := String(change.get("reason", ""))
+			if change_reason == "blocked_by_gate" or change_reason == "cut":
+				graph_cut_cable_reason_ok = true
+		elif String(change.get("object_id", "")) == "power_debug_graph_cut_cable_source":
+			warnings.append("Graph apply regression: source object appeared in cut-cable changes.")
+	if not graph_cut_cable_reason_ok:
+		warnings.append("Graph cut cable scenario regression: missing reason=blocked_by_gate/cut.")
+	var graph_no_source_consumer := get_world_object_by_id("power_debug_graph_no_source_consumer")
+	var graph_no_source_apply := apply_power_graph_state_from_preview("power_debug_graph_no_source")
+	if bool(graph_no_source_consumer.get("is_powered", false)):
+		warnings.append("Graph no source scenario regression: consumer should be unpowered.")
+	var graph_no_source_reason_ok := false
+	for change_variant in graph_no_source_apply.get("changes", []):
+		if typeof(change_variant) != TYPE_DICTIONARY:
+			continue
+		var change: Dictionary = change_variant
+		if String(change.get("object_id", "")) == "power_debug_graph_no_source_consumer" and String(change.get("reason", "")) == "no_powered_source":
+			graph_no_source_reason_ok = true
+			break
+	if not graph_no_source_reason_ok:
+		warnings.append("Graph no source scenario regression: missing reason=no_powered_source.")
+	var graph_damaged_consumer := get_world_object_by_id("power_debug_graph_damaged_consumer")
+	var graph_damaged_preview := preview_power_graph_state_application("power_debug_graph_damaged_consumer")
+	var graph_damaged_apply := apply_power_graph_state_from_preview("power_debug_graph_damaged_consumer")
+	if bool(graph_damaged_consumer.get("is_powered", false)):
+		warnings.append("Graph damaged consumer scenario regression: damaged consumer became powered.")
+	for change_variant in graph_damaged_apply.get("changes", []):
+		if typeof(change_variant) != TYPE_DICTIONARY:
+			continue
+		var change: Dictionary = change_variant
+		if String(change.get("object_id", "")) == "power_debug_graph_damaged_consumer_source":
+			warnings.append("Graph apply regression: source object appeared in damaged-consumer changes.")
+	for change_variant in graph_damaged_preview.get("changes", []):
+		if typeof(change_variant) != TYPE_DICTIONARY:
+			continue
+		var change: Dictionary = change_variant
+		if String(change.get("object_id", "")) == "power_debug_graph_damaged_consumer" and String(change.get("reason", "")) != "damaged":
+			warnings.append("Graph damaged consumer scenario regression: expected reason=damaged for preview change.")
+	var graph_filter_object_preview := preview_power_graph_state_application("power_debug_graph_open_switch_gate")
+	if int((graph_filter_object_preview.get("sources", []) as Array).size()) != 1:
+		warnings.append("Graph filter fallback regression: object-id filter did not resolve to network.")
 	var allowed_fuse_remove_fields := {
 		"is_powered": true,
 		"current_heat": true,
