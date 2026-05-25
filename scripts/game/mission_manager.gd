@@ -659,6 +659,22 @@ func get_power_network_debug_summary_text(filter: String = "") -> String:
 		return "PowerNetworkSummary:\nnone" if filter.strip_edges().is_empty() else "PowerNetworkSummary:\nnone (filter=%s)" % filter.strip_edges().to_lower()
 	return "PowerNetworkSummary:\n%s" % "\n".join(lines)
 
+func _build_power_network_debug_object(object_id: String, object_type: String, network_id: String, overrides: Dictionary = {}) -> Dictionary:
+	var object_data := {
+		"id": object_id,
+		"object_group": "power",
+		"object_type": object_type,
+		"power_network_id": network_id,
+		"state": "active",
+		"is_powered": false,
+		"current_heat": 0,
+		"overheat_threshold": 0,
+		"connected": false
+	}
+	for key in overrides.keys():
+		object_data[key] = overrides[key]
+	return object_data
+
 func validate_power_network_runtime_state() -> Dictionary:
 	var warnings: Array[String] = []
 	var errors: Array[String] = []
@@ -757,6 +773,125 @@ func get_power_network_validation_text() -> String:
 		lines.append("WARNING: %s" % warning)
 	for err in errors:
 		lines.append("ERROR: %s" % err)
+	return "\n".join(lines)
+
+func validate_power_network_debug_scenario() -> Array[String]:
+	var warnings: Array[String] = []
+	var temp_objects: Array[Dictionary] = []
+	var temp_ids := {}
+	var base_size := mission_world_objects.size()
+	var unchanged_snapshot: Array = []
+	for object_data in mission_world_objects:
+		unchanged_snapshot.append(object_data)
+	temp_objects.append(_build_power_network_debug_object("power_debug_source_no_threshold", "power_source", "power_debug_no_threshold", {
+		"is_powered": true,
+		"current_heat": 0
+	}))
+	temp_objects.append(_build_power_network_debug_object("power_debug_source_overheated", "power_source", "power_debug_overheated", {
+		"state": "overheated",
+		"is_powered": false,
+		"current_heat": 0,
+		"overheat_threshold": 3
+	}))
+	temp_objects.append(_build_power_network_debug_object("power_debug_cable_before_source", "power_cable", "power_debug_order", {
+		"state": "connected",
+		"connected": true,
+		"connected_power_source_id": "power_debug_source_order"
+	}))
+	temp_objects.append(_build_power_network_debug_object("power_debug_source_order", "power_source", "power_debug_order", {
+		"is_powered": true
+	}))
+	temp_objects.append(_build_power_network_debug_object("power_debug_cable_missing_source", "power_cable", "power_debug_missing_source", {
+		"state": "connected",
+		"connected": true,
+		"connected_power_source_id": "power_debug_source_missing"
+	}))
+	temp_objects.append(_build_power_network_debug_object("power_debug_source_limit", "power_source", "power_debug_limit", {
+		"allowed_connections": 1,
+		"is_powered": true
+	}))
+	temp_objects.append(_build_power_network_debug_object("power_debug_cable_limit_a", "power_cable", "power_debug_limit", {
+		"state": "connected",
+		"connected": true,
+		"connected_power_source_id": "power_debug_source_limit"
+	}))
+	temp_objects.append(_build_power_network_debug_object("power_debug_cable_limit_b", "power_cable", "power_debug_limit", {
+		"state": "connected",
+		"connected": true,
+		"connected_power_source_id": "power_debug_source_limit"
+	}))
+	temp_objects.append(_build_power_network_debug_object("power_debug_source_generic_connected", "power_source", "power_debug_generic_connected", {
+		"allowed_connections": 0
+	}))
+	temp_objects.append(_build_power_network_debug_object("power_debug_cable_generic_connected", "power_cable", "power_debug_generic_connected", {
+		"state": "connected",
+		"connected": true
+	}))
+	temp_objects.append(_build_power_network_debug_object("power_debug_negative_heat", "power_cable", "power_debug_negative_heat", {
+		"current_heat": -1
+	}))
+	for object_data in temp_objects:
+		mission_world_objects.append(object_data)
+		var object_id := String(object_data.get("id", "")).strip_edges()
+		if not object_id.is_empty():
+			temp_ids[object_id] = true
+	var validation := validate_power_network_runtime_state()
+	var runtime_warnings: Array = validation.get("warnings", [])
+	var runtime_errors: Array = validation.get("errors", [])
+	var summary_text := get_power_network_debug_summary_text()
+	if summary_text.find("network=power_debug_no_threshold") == -1:
+		warnings.append("Expected debug network summary for power_debug_no_threshold.")
+	if summary_text.find("network=power_debug_no_threshold") != -1 and summary_text.find("network=power_debug_no_threshold |") != -1:
+		var no_threshold_summary := get_power_network_debug_summary_text("network=power_debug_no_threshold")
+		if no_threshold_summary.find("overheated_sources=1") != -1:
+			warnings.append("No-threshold source regression: power_debug_no_threshold incorrectly counted overheated source.")
+	var no_threshold_warning := "Power source power_debug_source_no_threshold current_heat >= overheat_threshold but state is not overheated."
+	if runtime_warnings.has(no_threshold_warning):
+		warnings.append("No-threshold source regression: unexpected overheat threshold warning for power_debug_source_no_threshold.")
+	var overheated_summary := get_power_network_debug_summary_text("network=power_debug_overheated")
+	if overheated_summary.find("overheated_sources=1") == -1:
+		warnings.append("Expected overheated source count for power_debug_overheated.")
+	var order_missing_source_warning := "Power object power_debug_cable_before_source connected_power_source_id points to missing source power_debug_source_order."
+	if runtime_warnings.has(order_missing_source_warning):
+		warnings.append("Connected object before source produced false missing-source warning.")
+	var true_missing_source_warning := "Power object power_debug_cable_missing_source connected_power_source_id points to missing source power_debug_source_missing."
+	if not runtime_warnings.has(true_missing_source_warning):
+		warnings.append("Missing-source warning not reported for power_debug_cable_missing_source.")
+	var source_limit_warning := "Power source power_debug_source_limit connections (2) exceed allowed_connections (1)."
+	if not runtime_warnings.has(source_limit_warning):
+		warnings.append("Expected allowed_connections warning for power_debug_source_limit.")
+	var generic_limit_warning := "Power source power_debug_source_generic_connected connections (1) exceed allowed_connections (0)."
+	if runtime_warnings.has(generic_limit_warning):
+		warnings.append("Generic connected object without connected_power_source_id incorrectly counted toward source limit.")
+	var negative_heat_error := "Power object power_debug_negative_heat has negative current_heat (-1)."
+	if not runtime_errors.has(negative_heat_error):
+		warnings.append("Expected negative current_heat error for power_debug_negative_heat.")
+	var index := mission_world_objects.size() - 1
+	while index >= base_size:
+		var object_data: Dictionary = mission_world_objects[index]
+		var object_id := String(object_data.get("id", "")).strip_edges()
+		if temp_ids.has(object_id):
+			mission_world_objects.remove_at(index)
+		index -= 1
+	for object_data in mission_world_objects:
+		var object_id := String(object_data.get("id", "")).strip_edges()
+		if object_id.begins_with("power_debug_"):
+			warnings.append("Temporary debug power object remained after cleanup: %s." % object_id)
+	if mission_world_objects.size() != base_size:
+		warnings.append("Mission world object count changed after debug scenario cleanup (expected %d, got %d)." % [base_size, mission_world_objects.size()])
+	if mission_world_objects.size() == unchanged_snapshot.size():
+		for i in range(mission_world_objects.size()):
+			if mission_world_objects[i] != unchanged_snapshot[i]:
+				warnings.append("Mission world object at index %d changed during debug scenario." % i)
+				break
+	return warnings
+
+func get_power_network_debug_validation_text() -> String:
+	var warnings := validate_power_network_debug_scenario()
+	var lines: Array[String] = []
+	lines.append("PowerNetworkDebugScenario: warnings=%d" % warnings.size())
+	for warning in warnings:
+		lines.append("WARNING: %s" % warning)
 	return "\n".join(lines)
 
 func get_world_object_debug_info(object_id: String) -> Dictionary:
