@@ -35,6 +35,7 @@ const MissionManagerScript = preload("res://scripts/game/mission_manager.gd")
 const ScanSystem = preload("res://scripts/world/scan_system.gd")
 const InteractionSystem = preload("res://scripts/world/interaction_system.gd")
 const PowerSystem = preload("res://scripts/world/power_system.gd")
+const BipobModulePresenter = preload("res://scripts/bipob/bipob_module_presenter.gd")
 const EXTERNAL_MODULE_CATALOG: Dictionary = {
 "wheels_v1":{"name":"Wheels V1","cat":"Gear","size":Vector2i(3,2),"sides":[EXTERNAL_SIDE_BOTTOM],"desc":"Fast movement system for flat and stable surfaces. Ineffective on stairs, mud and debris.","energy":1,"terrain":"Flat surface","movement":"Drive","speed":3},
 "legs_v1":{"name":"Legs V1","cat":"Gear","size":Vector2i(3,2),"sides":[EXTERNAL_SIDE_BOTTOM],"desc":"Universal movement system that provides stable traversal across uneven terrain, steps, obstacles, and mixed surfaces.","energy":1,"terrain":"Any surface","movement":"Walk","speed":2},
@@ -614,6 +615,7 @@ func has_module_id_anywhere(module_id: String) -> bool:
 
 
 func get_module_visual_key(module: BipobModule) -> String:
+	return BipobModulePresenter.get_module_visual_key(module)
 	if module == null:
 		return "unknown"
 
@@ -718,6 +720,7 @@ func get_module_icon_path_by_key(key: String) -> String:
 	return MODULE_ICON_DIR + key + ".png"
 
 func get_module_visual_short_label(module: BipobModule) -> String:
+	return BipobModulePresenter.get_module_visual_short_label(module)
 	if module == null:
 		return "?"
 	if module.id == "intiradar_v1":
