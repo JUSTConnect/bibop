@@ -31,6 +31,29 @@ static func _is_state_driven_powered_object(obj: Dictionary) -> bool:
 static func _is_power_source_object(obj: Dictionary) -> bool:
 	return obj.get("object_type", "") in ["power_source", "power_source_class_1", "power_source_class_2", "power_source_class_3"]
 
+static func _get_power_source_capacity_for_load(source: Dictionary) -> int:
+	if source.has("source_capacity"):
+		return maxi(1, int(source.get("source_capacity", 1)))
+	if source.has("allowed_socket_connections"):
+		return maxi(1, int(source.get("allowed_socket_connections", 1)))
+	if source.has("allowed_connections"):
+		return maxi(1, int(source.get("allowed_connections", 1)))
+	if source.has("source_class"):
+		var source_class := int(source.get("source_class", 1))
+		return maxi(1, mini(3, source_class))
+	var object_type := String(source.get("object_type", "")).strip_edges().to_lower()
+	if object_type == "power_source_class_1":
+		return 1
+	if object_type == "power_source_class_2":
+		return 2
+	if object_type == "power_source_class_3":
+		return 3
+	if object_type.find("class_2") != -1:
+		return 2
+	if object_type.find("class_3") != -1:
+		return 3
+	return 1
+
 static func _is_power_consumer_object(obj: Dictionary) -> bool:
 	if _is_power_source_object(obj):
 		return false
@@ -59,7 +82,7 @@ static func recalculate_network(objects: Array[Dictionary], network_id: String) 
 	var fuse_installed := true
 	for obj in network_objects:
 		if _is_power_source_object(obj):
-			var source_capacity := maxi(1, int(obj.get("allowed_socket_connections", 1)))
+			var source_capacity := _get_power_source_capacity_for_load(obj)
 			obj["source_load"] = consumer_count
 			obj["source_capacity"] = source_capacity
 			obj["source_overloaded"] = consumer_count > source_capacity

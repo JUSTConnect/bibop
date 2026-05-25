@@ -853,8 +853,21 @@ func _get_power_source_capacity_for_load(source: Dictionary) -> int:
 		return maxi(1, int(source.get("allowed_socket_connections", 1)))
 	if source.has("allowed_connections"):
 		return maxi(1, int(source.get("allowed_connections", 1)))
-	var source_class := int(source.get("source_class", 1))
-	return maxi(1, mini(3, source_class))
+	if source.has("source_class"):
+		var source_class := int(source.get("source_class", 1))
+		return maxi(1, mini(3, source_class))
+	var object_type := String(source.get("object_type", "")).strip_edges().to_lower()
+	if object_type == "power_source_class_1":
+		return 1
+	if object_type == "power_source_class_2":
+		return 2
+	if object_type == "power_source_class_3":
+		return 3
+	if object_type.find("class_2") != -1:
+		return 2
+	if object_type.find("class_3") != -1:
+		return 3
+	return 1
 
 func preview_power_source_load_heat_for_network(filter: String = "") -> Dictionary:
 	var collected := _collect_power_network_objects()
@@ -1737,6 +1750,13 @@ func validate_power_network_debug_scenario() -> Array[String]:
 	temp_objects.append(_build_power_network_debug_object("power_debug_source_load_ok", "power_source_class_2", "power_debug_source_load_ok", {"is_powered": true, "state": "active", "source_capacity": 2, "current_heat": 0, "overheat_threshold": 10}))
 	temp_objects.append(_build_power_network_debug_object("power_debug_source_load_ok_terminal", "information_terminal", "power_debug_source_load_ok", {"is_powered": false, "state": "unpowered"}))
 	temp_objects.append(_build_power_network_debug_object("power_debug_source_load_ok_door", "energy_door", "power_debug_source_load_ok", {"is_powered": false, "state": "unpowered"}))
+	temp_objects.append(_build_power_network_debug_object("power_debug_source_fallback_class2_source", "power_source_class_2", "power_debug_source_fallback_class2", {"is_powered": true, "state": "active", "current_heat": 0, "overheat_threshold": 10}))
+	temp_objects.append(_build_power_network_debug_object("power_debug_source_fallback_class2_terminal_a", "information_terminal", "power_debug_source_fallback_class2", {"is_powered": false, "state": "unpowered"}))
+	temp_objects.append(_build_power_network_debug_object("power_debug_source_fallback_class2_terminal_b", "information_terminal", "power_debug_source_fallback_class2", {"is_powered": false, "state": "unpowered"}))
+	temp_objects.append(_build_power_network_debug_object("power_debug_source_fallback_class3_source", "power_source_class_3", "power_debug_source_fallback_class3", {"is_powered": true, "state": "active", "current_heat": 0, "overheat_threshold": 10}))
+	temp_objects.append(_build_power_network_debug_object("power_debug_source_fallback_class3_terminal_a", "information_terminal", "power_debug_source_fallback_class3", {"is_powered": false, "state": "unpowered"}))
+	temp_objects.append(_build_power_network_debug_object("power_debug_source_fallback_class3_terminal_b", "information_terminal", "power_debug_source_fallback_class3", {"is_powered": false, "state": "unpowered"}))
+	temp_objects.append(_build_power_network_debug_object("power_debug_source_fallback_class3_terminal_c", "information_terminal", "power_debug_source_fallback_class3", {"is_powered": false, "state": "unpowered"}))
 	temp_objects.append(_build_power_network_debug_object("power_debug_source_overloaded_source", "power_source_class_1", "power_debug_source_overloaded", {"is_powered": true, "state": "active", "source_capacity": 1, "current_heat": 0, "overheat_threshold": 10}))
 	temp_objects.append(_build_power_network_debug_object("power_debug_source_overloaded_terminal", "information_terminal", "power_debug_source_overloaded", {"is_powered": false, "state": "unpowered"}))
 	temp_objects.append(_build_power_network_debug_object("power_debug_source_overloaded_platform", "lifting_platform", "power_debug_source_overloaded", {"is_powered": false, "state": "unpowered"}))
@@ -2182,6 +2202,42 @@ func validate_power_network_debug_scenario() -> Array[String]:
 		warnings.append("Source load scenario A regression: source should not overheat.")
 	if int(load_ok_apply.get("applied", 0)) < 2:
 		warnings.append("Source load scenario A regression: expected consumers to be powered.")
+	var fallback_class2_source := get_world_object_by_id("power_debug_source_fallback_class2_source")
+	var fallback_class2_preview := preview_power_graph_state_application("power_debug_source_fallback_class2")
+	if int(fallback_class2_source.get("source_capacity", -1)) != -1:
+		warnings.append("Source fallback class2 preview regression: preview mutated source capacity fields.")
+	var fallback_class2_preview_sources: Array = fallback_class2_preview.get("source_load_report", {}).get("sources", [])
+	var fallback_class2_preview_capacity_ok := false
+	for source_variant in fallback_class2_preview_sources:
+		if typeof(source_variant) != TYPE_DICTIONARY:
+			continue
+		var source_entry: Dictionary = source_variant
+		if String(source_entry.get("object_id", "")) == "power_debug_source_fallback_class2_source" and int(source_entry.get("source_capacity", -1)) == 2:
+			fallback_class2_preview_capacity_ok = true
+			break
+	if not fallback_class2_preview_capacity_ok:
+		warnings.append("Source fallback class2 preview regression: expected source_capacity=2 from object_type fallback.")
+	apply_power_graph_state_from_preview("power_debug_source_fallback_class2")
+	if int(fallback_class2_source.get("source_capacity", -1)) != 2:
+		warnings.append("Source fallback class2 apply regression: expected source_capacity=2.")
+	var fallback_class3_source := get_world_object_by_id("power_debug_source_fallback_class3_source")
+	var fallback_class3_preview := preview_power_graph_state_application("power_debug_source_fallback_class3")
+	if int(fallback_class3_source.get("source_capacity", -1)) != -1:
+		warnings.append("Source fallback class3 preview regression: preview mutated source capacity fields.")
+	var fallback_class3_preview_sources: Array = fallback_class3_preview.get("source_load_report", {}).get("sources", [])
+	var fallback_class3_preview_capacity_ok := false
+	for source_variant in fallback_class3_preview_sources:
+		if typeof(source_variant) != TYPE_DICTIONARY:
+			continue
+		var source_entry: Dictionary = source_variant
+		if String(source_entry.get("object_id", "")) == "power_debug_source_fallback_class3_source" and int(source_entry.get("source_capacity", -1)) == 3:
+			fallback_class3_preview_capacity_ok = true
+			break
+	if not fallback_class3_preview_capacity_ok:
+		warnings.append("Source fallback class3 preview regression: expected source_capacity=3 from object_type fallback.")
+	apply_power_graph_state_from_preview("power_debug_source_fallback_class3")
+	if int(fallback_class3_source.get("source_capacity", -1)) != 3:
+		warnings.append("Source fallback class3 apply regression: expected source_capacity=3.")
 	var overloaded_source := get_world_object_by_id("power_debug_source_overloaded_source")
 	apply_power_graph_state_from_preview("power_debug_source_overloaded")
 	if int(overloaded_source.get("source_load", 0)) <= int(overloaded_source.get("source_capacity", 0)) or not bool(overloaded_source.get("source_overloaded", false)) or int(overloaded_source.get("heat_from_connections", 0)) <= 0:
