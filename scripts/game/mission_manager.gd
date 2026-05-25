@@ -1522,5 +1522,77 @@ func validate_platform_debug_scenario() -> Array[String]:
 		_restore_platform_debug_fields(rotating_platform, rotating_platform_snapshot)
 		if rotating_platform.get("requires_terminal_enabled", false) != old_requires_terminal_enabled:
 			warnings.append("Validation restore mismatch: rotating platform terminal gate flag.")
+	if debug_platform_scenario_enabled:
+		warnings.append_array(validate_platform_height_gating_debug_scenario())
 	refresh_world_cooling_received()
 	return warnings
+
+func validate_platform_height_gating_debug_scenario() -> Array[String]:
+	var warnings: Array[String] = []
+	var lifting_platform := get_platform_by_id("platform_lift_a")
+	if lifting_platform.is_empty():
+		warnings.append("Missing lifting platform for height gating validation.")
+		return warnings
+	var platform_cells: Array = Array(lifting_platform.get("platform_cells", []))
+	if platform_cells.is_empty():
+		warnings.append("Lifting platform has no platform cells.")
+		return warnings
+	var platform_cell := WorldObjectCatalog.to_world_cell(platform_cells[0], Vector2i(-1, -1))
+	if platform_cell == Vector2i(-1, -1):
+		warnings.append("Lifting platform first platform cell is invalid.")
+		return warnings
+	var floor_cell := platform_cell + Vector2i(1, 0)
+	var same_height_platform_cell := platform_cell
+	if platform_cells.size() > 1:
+		same_height_platform_cell = WorldObjectCatalog.to_world_cell(platform_cells[1], platform_cell)
+	var original_height := int(lifting_platform.get("height_level", 0))
+	lifting_platform["height_level"] = original_height
+	if get_cell_height_level(platform_cell) != original_height:
+		warnings.append("Platform cell height does not match platform.height_level.")
+	if get_cell_height_level(floor_cell) != 0:
+		warnings.append("Normal floor cell did not resolve to height 0.")
+	lifting_platform["height_level"] = 1
+	if can_move_between_height_levels(platform_cell, floor_cell, null):
+		warnings.append("Height gating failed: platform->floor movement allowed on mismatch (1->0).")
+	if can_move_between_height_levels(floor_cell, platform_cell, null):
+		warnings.append("Height gating failed: floor->platform movement allowed on mismatch (0->1).")
+	if not can_move_between_height_levels(platform_cell, same_height_platform_cell, null):
+		warnings.append("Height gating failed: movement between same-height platform cells blocked.")
+	var candidate_object: Dictionary = {}
+	for object_data in mission_world_objects:
+		if String(object_data.get("object_group", "")) == "platform":
+			continue
+		if String(object_data.get("object_group", "")) == "item":
+			continue
+		candidate_object = object_data
+		break
+	if candidate_object.is_empty():
+		warnings.append("No world object available for platform height validation.")
+		lifting_platform["height_level"] = original_height
+		return warnings
+	var object_snapshot := _snapshot_platform_debug_fields(candidate_object, ["position", "platform_height_level", "carried_by_platform_id"])
+	candidate_object["position"] = platform_cell
+	refresh_world_object_platform_height_state(candidate_object)
+	var carried_platform_id := String(candidate_object.get("carried_by_platform_id", "")).strip_edges()
+	if carried_platform_id != String(lifting_platform.get("platform_id", "")).strip_edges():
+		warnings.append("Object on lifting platform did not receive matching carried_by_platform_id.")
+	if int(candidate_object.get("platform_height_level", -1)) != int(lifting_platform.get("height_level", -1)):
+		warnings.append("Object platform height on lifting platform does not match platform height.")
+	candidate_object["position"] = floor_cell
+	refresh_world_object_platform_height_state(candidate_object)
+	if String(candidate_object.get("carried_by_platform_id", "")).strip_edges() != "":
+		warnings.append("Object moved off lifting platform kept carried_by_platform_id.")
+	candidate_object["position"] = platform_cell
+	refresh_world_object_platform_height_state(candidate_object)
+	if String(candidate_object.get("carried_by_platform_id", "")).strip_edges() != String(lifting_platform.get("platform_id", "")).strip_edges():
+		warnings.append("Object moved onto lifting platform did not get carried_by_platform_id.")
+	_restore_platform_debug_fields(candidate_object, object_snapshot)
+	lifting_platform["height_level"] = original_height
+	return warnings
+
+func get_platform_height_gating_validation_text() -> String:
+	var warnings := validate_platform_height_gating_debug_scenario()
+	var lines: Array[String] = ["PlatformHeightGatingValidation: warnings=%d" % warnings.size()]
+	for warning in warnings:
+		lines.append("WARNING: %s" % warning)
+	return "\n".join(lines)
