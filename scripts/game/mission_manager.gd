@@ -990,6 +990,10 @@ func validate_power_network_debug_scenario() -> Array[String]:
 		"is_powered": false,
 		"state": "damaged"
 	}))
+	temp_objects.append(_build_power_network_debug_object("power_debug_preview_consumer_damaged_powered", "power_cable", "power_debug_preview_damaged_consumer", {
+		"is_powered": true,
+		"state": "damaged"
+	}))
 	for object_data in temp_objects:
 		mission_world_objects.append(object_data)
 		var object_id := String(object_data.get("id", "")).strip_edges()
@@ -1031,6 +1035,8 @@ func validate_power_network_debug_scenario() -> Array[String]:
 	var saw_power_up_change := false
 	var saw_overheated_power_up_change := false
 	var saw_damaged_consumer_change := false
+	var saw_damaged_powered_change := false
+	var damaged_powered_reason_ok := false
 	for change_variant in preview_changes:
 		if typeof(change_variant) != TYPE_DICTIONARY:
 			continue
@@ -1043,15 +1049,20 @@ func validate_power_network_debug_scenario() -> Array[String]:
 			saw_overheated_power_up_change = true
 		if changed_id == "power_debug_preview_consumer_damaged":
 			saw_damaged_consumer_change = true
+		if changed_id == "power_debug_preview_consumer_damaged_powered":
+			saw_damaged_powered_change = true
+			if not preview_powered and String(change.get("reason", "")) == "damaged":
+				damaged_powered_reason_ok = true
 	if not saw_power_up_change:
 		warnings.append("Preview regression: powered source did not predict power-up for connected consumer.")
 	if saw_overheated_power_up_change:
 		warnings.append("Preview regression: overheated source incorrectly predicted consumer power-up.")
 	if saw_damaged_consumer_change:
 		warnings.append("Preview regression: damaged consumer should remain unpowered with no change entry.")
-	var preview_damaged_text := get_power_network_state_preview_text("power_debug_preview_consumer_damaged")
-	if preview_damaged_text.find("reason=damaged") == -1:
-		warnings.append("Preview regression: damaged consumer reason not reported as damaged.")
+	if not saw_damaged_powered_change:
+		warnings.append("Preview regression: powered damaged consumer did not emit power-down change.")
+	elif not damaged_powered_reason_ok:
+		warnings.append("Preview regression: powered damaged consumer change missing reason=damaged.")
 	var preview_cable_object := get_world_object_by_id("power_debug_preview_cable")
 	var preview_cable_before := bool(preview_cable_object.get("is_powered", false))
 	preview_power_network_state_application()
