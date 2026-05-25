@@ -7364,6 +7364,10 @@ func interact() -> void:
 				return
 			var action_result := InteractionSystem.apply_action(actor, module, world_object, action_id)
 			if bool(action_result.get("success", false)):
+				if not can_spend_action(1, 1):
+					hint_requested.emit("Not enough action/energy.")
+					status_changed.emit()
+					return
 				if action_id in ["push", "pull"] and WorldObjectCatalog.can_world_object_be_moved_by_heavy_claw(world_object):
 					if not has_heavy_claw_capability():
 						hint_requested.emit("Heavy Claw required.")
@@ -7376,10 +7380,6 @@ func interact() -> void:
 						return
 					var move_result := mission_manager.move_world_object_by_heavy_claw(String(world_object.get("id", "")), target_destination)
 					if bool(move_result.get("success", false)):
-						if not can_spend_action(1, 1):
-							hint_requested.emit("Not enough action/energy.")
-							status_changed.emit()
-							return
 						spend_action(1, 1)
 						_register_successful_paid_player_action(true)
 						hint_requested.emit(String(move_result.get("message", "Moved object.")))
@@ -7404,15 +7404,8 @@ func interact() -> void:
 				clear_selected_world_action_if_invalid(world_object, target_position)
 				emit_facing_world_object_hint()
 				refresh_world_action_panel()
-				var paid_action := false
-				if can_spend_action(1, 1):
-					spend_action(1, 1)
-					paid_action = true
-				else:
-					hint_requested.emit("Not enough action/energy.")
-					status_changed.emit()
-					return
-				_register_successful_paid_player_action(paid_action)
+				spend_action(1, 1)
+				_register_successful_paid_player_action(true)
 				hint_requested.emit("%s (%s): %s | Action: %s" % [world_object.get("display_name", "Object"), world_object.get("state", "unknown"), String(action_result.get("message", "Action complete.")), action_id])
 			else:
 				hint_requested.emit(String(action_result.get("message", "Action failed.")))
