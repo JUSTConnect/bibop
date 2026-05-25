@@ -2760,6 +2760,34 @@ func validate_cooling_runtime() -> Array[String]:
 func validate_cooling_and_cable_runtime() -> Array[String]:
 	var warnings: Array[String] = []
 	var snapshot := get_world_object_runtime_state()
+	var source := {"id":"temp_cooling_source", "object_group":"power", "object_type":"power_source", "position":Vector2i(130, 100), "is_powered":true, "state":"active"}
+	var radiator := {"id":"temp_cooling_radiator", "object_group":"cooling", "object_type":"cooling_radiator", "position":Vector2i(131, 100), "cooling_device_type":"radiator", "cooling_output":2, "state":"active", "is_powered":true}
+	var cable := {"id":"temp_validation_cable", "object_group":"cable", "object_type":"power_cable", "position":Vector2i(132, 100), "connected":true, "disconnected":false, "cut":false, "state":"active"}
+	for obj in [source, radiator, cable]:
+		mission_world_objects.append(obj)
+		world_objects_by_cell[Vector2i(obj.get("position", Vector2i(-1, -1)))] = obj
+	var cool_preview_before := str(get_world_object_runtime_state())
+	preview_cooling_application("")
+	if str(get_world_object_runtime_state()) != cool_preview_before:
+		warnings.append("cooling_preview_mutated_state")
+	cable["cut"] = true
+	cable["connected"] = false
+	cable["disconnected"] = true
+	if bool(cable.get("connected", true)):
+		warnings.append("cut_cable_should_disconnect")
+	var repair_item := {"id":"temp_repair_kit_cable", "object_group":"item", "object_type":"item", "position":Vector2i(133, 100), "item_type":"repair_kit"}
+	mission_world_objects.append(repair_item)
+	world_objects_by_cell[Vector2i(133, 100)] = repair_item
+	cable["damaged"] = true
+	use_inventory_item_on_world_object("temp_repair_kit_cable", "temp_validation_cable")
+	if not bool(cable.get("disconnected", false)):
+		warnings.append("cable_repair_should_not_reconnect")
+	for i in range(mission_world_objects.size() - 1, -1, -1):
+		var oid := String(mission_world_objects[i].get("id", ""))
+		if oid.begins_with("temp_"):
+			world_objects_by_cell.erase(WorldObjectCatalog.to_world_cell(mission_world_objects[i].get("position", Vector2i(-1, -1)), Vector2i(-1, -1)))
+			mission_world_objects.remove_at(i)
+	apply_world_object_runtime_state(snapshot)
 	for object_id_variant in snapshot.keys():
 		var object_id := String(object_id_variant)
 		var entry: Dictionary = snapshot.get(object_id_variant, {})
@@ -4670,7 +4698,7 @@ func get_terminal_action_availability(terminal_id: String, action: String = "") 
 		return report
 	var state := String(terminal.get("state", "active")).strip_edges().to_lower()
 	report["state"] = state
-	var powered := terminal.has("is_powered") ? bool(terminal.get("is_powered", true)) : true
+	var powered := bool(terminal.get("is_powered", true)) if terminal.has("is_powered") else true
 	report["is_powered"] = powered
 	var reasons: Array[String] = []
 	if bool(terminal.get("damaged", false)) or state == "damaged": reasons.append("terminal_damaged")
@@ -4838,7 +4866,81 @@ func get_door_debug_report_text(door_id: String = "") -> String:
 	return "\n".join(lines)
 
 func validate_terminal_and_door_runtime() -> Array[String]:
-	return []
+	var warnings: Array[String] = []
+	var base_size := mission_world_objects.size()
+	var world_snapshot := get_world_object_runtime_state()
+	var temp_ids: Array[String] = []
+	var terminal_id := "temp_validation_terminal"
+	var linked_door_id := "temp_validation_door_linked"
+	var unlinked_door_id := "temp_validation_door_unlinked"
+	var mechanical_door_id := "temp_validation_door_mechanical"
+	var digital_door_id := "temp_validation_door_digital"
+	var terminal := {"id": terminal_id, "object_group": "terminal", "object_type": "terminal", "position": Vector2i(100, 100), "state": "active", "is_powered": true, "required_interface_level": 0, "required_cpu_level": 0, "target_door_id": linked_door_id}
+	var linked_door := {"id": linked_door_id, "object_group": "door", "object_type": "door", "position": Vector2i(101, 100), "state": "closed", "is_locked": true, "lock_type": "terminal_lock", "is_powered": true}
+	var unlinked_door := {"id": unlinked_door_id, "object_group": "door", "object_type": "door", "position": Vector2i(102, 100), "state": "closed", "is_locked": true, "lock_type": "terminal_lock", "is_powered": true}
+	var mechanical_door := {"id": mechanical_door_id, "object_group": "door", "object_type": "door", "position": Vector2i(103, 100), "state": "closed", "is_locked": true, "lock_type": "mechanical_key", "is_powered": true}
+	var digital_door := {"id": digital_door_id, "object_group": "door", "object_type": "door", "position": Vector2i(104, 100), "state": "closed", "is_locked": true, "lock_type": "access_code", "is_powered": true}
+	for obj in [terminal, linked_door, unlinked_door, mechanical_door, digital_door]:
+		mission_world_objects.append(obj)
+		world_objects_by_cell[Vector2i(obj.get("position", Vector2i(-1, -1)))] = obj
+		temp_ids.append(String(obj.get("id", "")))
+	var av := get_terminal_action_availability(terminal_id, "hack")
+	if not bool(av.get("available", false)): warnings.append("active_powered_terminal_unavailable")
+	terminal["is_powered"] = false
+	var unpowered := get_terminal_action_availability(terminal_id, "hack")
+	if not Array(unpowered.get("reasons", [])).has("terminal_unpowered"): warnings.append("terminal_unpowered_reason_missing")
+	terminal["is_powered"] = true
+	terminal["damaged"] = true
+	if not Array(get_terminal_action_availability(terminal_id, "hack").get("reasons", [])).has("terminal_damaged"): warnings.append("terminal_damaged_reason_missing")
+	terminal["damaged"] = false
+	terminal["required_interface_level"] = 1
+	if not Array(get_terminal_action_availability(terminal_id, "hack").get("reasons", [])).has("interface_level_too_low"): warnings.append("interface_level_gate_missing")
+	terminal["required_interface_level"] = 0
+	terminal["required_cpu_level"] = 1
+	if not Array(get_terminal_action_availability(terminal_id, "hack").get("reasons", [])).has("cpu_level_too_low"): warnings.append("cpu_level_gate_missing")
+	terminal["required_cpu_level"] = 0
+	var before_preview := str(get_world_object_runtime_state().get(terminal_id, {}))
+	get_terminal_hack_requirements(terminal_id)
+	if str(get_world_object_runtime_state().get(terminal_id, {})) != before_preview: warnings.append("terminal_hack_preview_mutated_state")
+	terminal["required_interface_level"] = 2
+	var before_fail := str(get_world_object_runtime_state().get(terminal_id, {}))
+	attempt_terminal_hack(terminal_id)
+	if str(get_world_object_runtime_state().get(terminal_id, {})) != before_fail: warnings.append("failed_hack_mutated_state")
+	terminal["required_interface_level"] = 0
+	terminal["state"] = "hacked"
+	if not Array(attempt_terminal_hack(terminal_id).get("reasons", [])).has("already_hacked"): warnings.append("already_hacked_reason_missing")
+	terminal["state"] = "active"
+	if not bool(execute_terminal_control_action(terminal_id, linked_door_id, "unlock_door").get("success", false)): warnings.append("linked_door_control_failed")
+	if bool(execute_terminal_control_action(terminal_id, unlinked_door_id, "unlock_door").get("success", false)): warnings.append("unlinked_door_control_should_fail")
+	var mechanical_key := {"id":"temp_validation_mechanical_key", "object_group":"item", "object_type":"item", "position":Vector2i(105, 100), "key_kind":"mechanical", "item_type":"mechanical_keycard"}
+	var wrong_key := {"id":"temp_validation_wrong_key", "object_group":"item", "object_type":"item", "position":Vector2i(106, 100), "item_type":"digital_key"}
+	var damaged_key := {"id":"temp_validation_damaged_key", "object_group":"item", "object_type":"item", "position":Vector2i(107, 100), "item_type":"digital_key", "digital_state":"damaged"}
+	var encrypted_key := {"id":"temp_validation_encrypted_key", "object_group":"item", "object_type":"item", "position":Vector2i(108, 100), "item_type":"digital_key", "digital_state":"encrypted"}
+	var good_digital := {"id":"temp_validation_good_digital", "object_group":"item", "object_type":"item", "position":Vector2i(109, 100), "item_type":"access_code"}
+	for key_obj in [mechanical_key, wrong_key, damaged_key, encrypted_key, good_digital]:
+		mission_world_objects.append(key_obj); world_objects_by_cell[Vector2i(key_obj.get("position", Vector2i(-1, -1)))] = key_obj; temp_ids.append(String(key_obj.get("id", "")))
+	if not bool(can_use_access_item_on_door(mechanical_key["id"], mechanical_door_id).get("success", false)): warnings.append("mechanical_key_gate_failed")
+	var wrong_before := str(get_world_object_runtime_state().get(mechanical_door_id, {}))
+	if bool(use_access_item_on_door(wrong_key["id"], mechanical_door_id).get("success", false)): warnings.append("wrong_key_should_fail")
+	if str(get_world_object_runtime_state().get(mechanical_door_id, {})) != wrong_before: warnings.append("wrong_key_mutated_door")
+	if not Array(use_access_item_on_door(damaged_key["id"], digital_door_id).get("reasons", [])).has("digital_key_damaged"): warnings.append("digital_key_damaged_missing")
+	if not Array(use_access_item_on_door(encrypted_key["id"], digital_door_id).get("reasons", [])).has("digital_key_encrypted"): warnings.append("digital_key_encrypted_missing")
+	if not bool(use_access_item_on_door(good_digital["id"], digital_door_id).get("success", false)): warnings.append("digital_access_open_failed")
+	var door_debug_before := str(get_world_object_runtime_state())
+	get_door_debug_report_text()
+	if str(get_world_object_runtime_state()) != door_debug_before: warnings.append("door_debug_mutated_state")
+	var runtime_snap := get_world_object_runtime_state()
+	if not Dictionary(runtime_snap.get(terminal_id, {})).has("state"): warnings.append("runtime_snapshot_terminal_state_missing")
+	if not Dictionary(runtime_snap.get(digital_door_id, {})).has("is_locked"): warnings.append("runtime_snapshot_door_lock_missing")
+	for i in range(mission_world_objects.size() - 1, -1, -1):
+		var object_id := String(mission_world_objects[i].get("id", "")).strip_edges()
+		if temp_ids.has(object_id):
+			world_objects_by_cell.erase(WorldObjectCatalog.to_world_cell(mission_world_objects[i].get("position", Vector2i(-1, -1)), Vector2i(-1, -1)))
+			mission_world_objects.remove_at(i)
+	apply_world_object_runtime_state(world_snapshot)
+	if mission_world_objects.size() != base_size:
+		warnings.append("terminal_door_cleanup_world_size_changed")
+	return warnings
 
 func get_terminal_and_door_validation_text() -> String:
 	var warnings := validate_terminal_and_door_runtime()
@@ -4883,6 +4985,26 @@ func validate_platform_scan_visibility_runtime() -> Array[String]:
 	var snapshot_b := str(get_world_object_runtime_state())
 	if snapshot_a != snapshot_b:
 		warnings.append("scan/report helpers are not read-only")
+	var hidden_cable := {"id":"temp_hidden_cable", "object_group":"cable", "object_type":"power_cable", "position":Vector2i(140, 100), "hidden":true, "hidden_cable":true, "visible_with_xray":true}
+	mission_world_objects.append(hidden_cable)
+	world_objects_by_cell[Vector2i(140, 100)] = hidden_cable
+	var basic_visible := is_world_object_visible_to_player(hidden_cable, "basic")
+	var xray_result := get_scan_result_for_object("temp_hidden_cable", "xray")
+	if basic_visible:
+		warnings.append("basic_scan_should_hide_hidden_cable")
+	if not bool(xray_result.get("ok", false)):
+		warnings.append("xray_scan_should_report_hidden_cable")
+	var reveal_before := str(get_world_object_runtime_state().get("temp_hidden_cable", {}))
+	reveal_xray_objects("")
+	var reveal_after: Dictionary = get_world_object_runtime_state().get("temp_hidden_cable", {})
+	if not bool(reveal_after.get("revealed", false)) or not bool(reveal_after.get("discovered", false)):
+		warnings.append("reveal_xray_objects_did_not_mark_revealed_discovered")
+	if reveal_before == str(reveal_after):
+		warnings.append("reveal_xray_objects_no_effect")
+	for i in range(mission_world_objects.size() - 1, -1, -1):
+		if String(mission_world_objects[i].get("id", "")) == "temp_hidden_cable":
+			world_objects_by_cell.erase(WorldObjectCatalog.to_world_cell(mission_world_objects[i].get("position", Vector2i(-1, -1)), Vector2i(-1, -1)))
+			mission_world_objects.remove_at(i)
 	return warnings
 
 func get_platform_scan_visibility_validation_text() -> String:
@@ -4893,9 +5015,38 @@ func get_platform_scan_visibility_validation_text() -> String:
 
 func validate_inventory_tools_modules_runtime() -> Array[String]:
 	var warnings: Array[String] = []
+	var inventory_snapshot := runtime_inventory_state.duplicate(true)
+	var world_snapshot := get_world_object_runtime_state()
+	var temp_ids: Array[String] = []
 	var caps := get_actor_capability_levels()
 	if not caps.has("manipulator_level") or not caps.has("interface_level") or not caps.has("cpu_level"):
 		warnings.append("capability_defaults_missing")
+	var req_obj := {"id":"temp_req_obj", "object_group":"item", "object_type":"item", "position":Vector2i(120, 100), "required_manipulator_level":1, "required_interface_level":1, "required_cpu_level":1}
+	mission_world_objects.append(req_obj); world_objects_by_cell[Vector2i(120, 100)] = req_obj; temp_ids.append("temp_req_obj")
+	var req := check_world_object_requirements("temp_req_obj", "use")
+	for r in ["manipulator_level_too_low","interface_level_too_low","cpu_level_too_low"]:
+		if not Array(req.get("reasons", [])).has(r): warnings.append("requirements_missing_%s" % r)
+	var physical_item := {"id":"temp_item_physical", "object_group":"item", "object_type":"item", "position":Vector2i(121, 100), "item_type":"fuse", "item_form":"physical", "can_pickup":true}
+	var digital_item := {"id":"temp_item_digital", "object_group":"item", "object_type":"item", "position":Vector2i(122, 100), "item_form":"digital", "can_place_in_digital_buffer":true}
+	var digital_blocked := {"id":"temp_item_digital_blocked", "object_group":"item", "object_type":"item", "position":Vector2i(123, 100), "item_form":"digital", "can_place_in_digital_buffer":false}
+	for obj in [physical_item, digital_item, digital_blocked]:
+		mission_world_objects.append(obj); world_objects_by_cell[Vector2i(obj.get("position", Vector2i(-1, -1)))] = obj; temp_ids.append(String(obj.get("id", "")))
+	if not bool(pickup_world_item("temp_item_physical").get("success", false)): warnings.append("physical_pickup_failed")
+	if not bool(pickup_world_item("temp_item_digital").get("success", false)): warnings.append("digital_pickup_allowed_failed")
+	if bool(pickup_world_item("temp_item_digital_blocked").get("success", false)): warnings.append("digital_pickup_block_missing")
+	runtime_inventory_state["manipulator_hold"] = "occupied_slot"
+	if bool(hold_item_in_manipulator("temp_item_physical").get("success", false)): warnings.append("manipulator_single_item_gate_missing")
+	runtime_inventory_state["manipulator_hold"] = ""
+	var inv_before_fail := str(get_inventory_state())
+	drop_inventory_item("missing_item")
+	if str(get_inventory_state()) != inv_before_fail: warnings.append("failed_inventory_action_mutated_state")
+	for i in range(mission_world_objects.size() - 1, -1, -1):
+		var oid := String(mission_world_objects[i].get("id", ""))
+		if temp_ids.has(oid):
+			world_objects_by_cell.erase(WorldObjectCatalog.to_world_cell(mission_world_objects[i].get("position", Vector2i(-1, -1)), Vector2i(-1, -1)))
+			mission_world_objects.remove_at(i)
+	apply_world_object_runtime_state(world_snapshot)
+	runtime_inventory_state = inventory_snapshot.duplicate(true)
 	return warnings
 
 func get_inventory_tools_modules_validation_text() -> String:
@@ -4940,4 +5091,12 @@ func get_developer_validation_menu_text() -> String:
 
 func get_developer_validation_suite_text(suite: String = "all") -> String:
 	var report := run_developer_validation_suite(suite)
-	return JSON.stringify(report)
+	var lines: Array[String] = ["DeveloperValidation suite=%s suites_run=%d warnings=%d" % [suite, int(report.get("suites_run", 0)), int(report.get("warnings_count", 0))]]
+	var by_suite: Dictionary = report.get("warnings_by_suite", {})
+	for suite_id_variant in by_suite.keys():
+		var suite_id := String(suite_id_variant)
+		var suite_warnings: Array = Array(by_suite.get(suite_id_variant, []))
+		lines.append("- %s: %d warning(s)" % [suite_id, suite_warnings.size()])
+		for warning in suite_warnings:
+			lines.append("  • %s" % String(warning))
+	return "\n".join(lines)
