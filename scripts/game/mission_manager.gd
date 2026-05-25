@@ -1457,6 +1457,30 @@ func _restore_platform_debug_fields(object_data: Dictionary, snapshot: Dictionar
 		else:
 			object_data.erase(field)
 
+func _find_debug_floor_cell_near_platform(platform_cells: Array, origin_cell: Vector2i) -> Vector2i:
+	var platform_world_cells: Array[Vector2i] = []
+	for cell in platform_cells:
+		var world_cell := WorldObjectCatalog.to_world_cell(cell, Vector2i(-1, -1))
+		if world_cell != Vector2i(-1, -1):
+			platform_world_cells.append(world_cell)
+	var candidate_offsets: Array[Vector2i] = [
+		Vector2i(1, 0), Vector2i(-1, 0), Vector2i(0, 1), Vector2i(0, -1),
+		Vector2i(2, 0), Vector2i(-2, 0), Vector2i(0, 2), Vector2i(0, -2),
+		Vector2i(1, 1), Vector2i(-1, 1), Vector2i(1, -1), Vector2i(-1, -1)
+	]
+	for offset in candidate_offsets:
+		var candidate := origin_cell + offset
+		if platform_world_cells.has(candidate):
+			continue
+		if not get_platform_for_cell(candidate).is_empty():
+			continue
+		if grid_manager != null and grid_manager.has_method("is_in_bounds") and not grid_manager.is_in_bounds(candidate):
+			continue
+		if grid_manager != null and grid_manager.has_method("is_walkable") and not grid_manager.is_walkable(candidate):
+			continue
+		return candidate
+	return Vector2i(-1, -1)
+
 func validate_platform_debug_scenario() -> Array[String]:
 	var warnings: Array[String] = []
 	var rotating_platform := get_platform_by_id("platform_rot_a")
@@ -1541,11 +1565,15 @@ func validate_platform_height_gating_debug_scenario() -> Array[String]:
 	if platform_cell == Vector2i(-1, -1):
 		warnings.append("Lifting platform first platform cell is invalid.")
 		return warnings
-	var floor_cell := platform_cell + Vector2i(1, 0)
+	var floor_cell := _find_debug_floor_cell_near_platform(platform_cells, platform_cell)
+	if floor_cell == Vector2i(-1, -1):
+		warnings.append("No normal floor cell found near lifting platform for height gating validation.")
+		return warnings
 	var same_height_platform_cell := platform_cell
 	if platform_cells.size() > 1:
 		same_height_platform_cell = WorldObjectCatalog.to_world_cell(platform_cells[1], platform_cell)
 	var original_height := int(lifting_platform.get("height_level", 0))
+	var platform_snapshot := _snapshot_platform_debug_fields(lifting_platform, ["height_level"])
 	lifting_platform["height_level"] = original_height
 	if get_cell_height_level(platform_cell) != original_height:
 		warnings.append("Platform cell height does not match platform.height_level.")
@@ -1568,7 +1596,7 @@ func validate_platform_height_gating_debug_scenario() -> Array[String]:
 		break
 	if candidate_object.is_empty():
 		warnings.append("No world object available for platform height validation.")
-		lifting_platform["height_level"] = original_height
+		_restore_platform_debug_fields(lifting_platform, platform_snapshot)
 		return warnings
 	var object_snapshot := _snapshot_platform_debug_fields(candidate_object, ["position", "platform_height_level", "carried_by_platform_id"])
 	candidate_object["position"] = platform_cell
@@ -1587,7 +1615,7 @@ func validate_platform_height_gating_debug_scenario() -> Array[String]:
 	if String(candidate_object.get("carried_by_platform_id", "")).strip_edges() != String(lifting_platform.get("platform_id", "")).strip_edges():
 		warnings.append("Object moved onto lifting platform did not get carried_by_platform_id.")
 	_restore_platform_debug_fields(candidate_object, object_snapshot)
-	lifting_platform["height_level"] = original_height
+	_restore_platform_debug_fields(lifting_platform, platform_snapshot)
 	return warnings
 
 func get_platform_height_gating_validation_text() -> String:
