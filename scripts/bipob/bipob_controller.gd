@@ -8472,3 +8472,48 @@ func _rotate_first_manipulator_and_pocket() -> void:
 	manipulator_items[0] = pocket_items[0]
 	pocket_items[0] = hand_module
 	_sync_legacy_physical_slots()
+
+func get_terminal_action_availability(terminal_id: String, action: String = "") -> Dictionary:
+	if mission_manager == null or not mission_manager.has_method("get_terminal_action_availability"):
+		return {"available":false, "terminal_id":terminal_id, "action":action, "reasons":["terminal_missing"]}
+	return mission_manager.call("get_terminal_action_availability", terminal_id, action)
+
+func get_terminal_hack_requirements(terminal_id: String) -> Dictionary:
+	if mission_manager == null or not mission_manager.has_method("get_terminal_hack_requirements"):
+		return {"can_hack":false, "terminal_id":terminal_id, "reasons":["terminal_missing"]}
+	return mission_manager.call("get_terminal_hack_requirements", terminal_id)
+
+func attempt_terminal_hack(terminal_id: String) -> Dictionary:
+	if mission_manager == null or not mission_manager.has_method("attempt_terminal_hack"):
+		return {"success":false, "terminal_id":terminal_id, "reasons":["terminal_missing"]}
+	return mission_manager.call("attempt_terminal_hack", terminal_id)
+
+func get_terminal_control_targets(terminal_id: String) -> Array[Dictionary]:
+	if mission_manager == null or not mission_manager.has_method("get_terminal_control_targets"):
+		return []
+	return mission_manager.call("get_terminal_control_targets", terminal_id)
+
+func execute_terminal_control_action(terminal_id: String, target_id: String = "", action: String = "") -> Dictionary:
+	if mission_manager == null or not mission_manager.has_method("execute_terminal_control_action"):
+		return {"success":false, "terminal_id":terminal_id, "target_id":target_id, "action":action, "reasons":["terminal_missing"]}
+	return mission_manager.call("execute_terminal_control_action", terminal_id, target_id, action)
+
+func get_door_access_state(door_id: String) -> Dictionary:
+	if mission_manager == null or not mission_manager.has_method("get_door_access_state"):
+		return {"door_id":door_id, "can_open":false, "reasons":["door_missing"]}
+	return mission_manager.call("get_door_access_state", door_id)
+
+func can_use_access_item_on_door(item_id: String, door_id: String) -> Dictionary:
+	if mission_manager == null or not mission_manager.has_method("can_use_access_item_on_door"):
+		return {"success":false, "item_id":item_id, "door_id":door_id, "reasons":["item_missing"]}
+	return mission_manager.call("can_use_access_item_on_door", item_id, door_id)
+
+func use_access_item_on_door(item_id: String, door_id: String) -> Dictionary:
+	if mission_manager == null or not mission_manager.has_method("use_access_item_on_door"):
+		return {"success":false, "item_id":item_id, "door_id":door_id, "reasons":["item_missing"]}
+	return mission_manager.call("use_access_item_on_door", item_id, door_id)
+
+func get_door_debug_report_text(door_id: String = "") -> String:
+	if mission_manager == null or not mission_manager.has_method("get_door_debug_report_text"):
+		return "Door debug report unavailable: mission manager/helper missing."
+	return String(mission_manager.call("get_door_debug_report_text", door_id))

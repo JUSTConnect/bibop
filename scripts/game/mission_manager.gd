@@ -4340,3 +4340,164 @@ func get_platform_height_gating_validation_text() -> String:
 	for warning in warnings:
 		lines.append("WARNING: %s" % warning)
 	return "\n".join(lines)
+
+func get_terminal_hack_requirements(terminal_id: String) -> Dictionary:
+	var terminal := get_world_object_by_id(terminal_id)
+	var required_interface_level := int(terminal.get("required_interface_level", max(0, int(terminal.get("terminal_class", 1)) - 1))) if not terminal.is_empty() else 0
+	var required_cpu_level := int(terminal.get("required_cpu_level", max(0, int(terminal.get("terminal_class", 1)) - 1))) if not terminal.is_empty() else 0
+	var available_interface_level := 0
+	var available_cpu_level := 0
+	var reasons: Array[String] = []
+	if terminal.is_empty():
+		reasons.append("terminal_missing")
+	else:
+		if not _is_terminal_powered_for_interaction(terminal):
+			reasons.append("terminal_unpowered")
+		if bool(terminal.get("damaged", false)) or String(terminal.get("state", "")).to_lower() == "damaged":
+			reasons.append("terminal_damaged")
+	if available_interface_level < required_interface_level:
+		reasons.append("interface_level_too_low")
+	if available_cpu_level < required_cpu_level:
+		reasons.append("cpu_level_too_low")
+	var heat_preview := {"would_overheat": false, "current_heat": 0, "hack_heat": 0, "overheat_threshold": 0, "projected_heat": 0}
+	if not terminal.is_empty():
+		var current_heat := int(terminal.get("current_heat", terminal.get("working_heat", 0)))
+		var hack_heat := int(terminal.get("hack_heat", 0))
+		var threshold := int(terminal.get("overheat_threshold", 99999))
+		var projected := current_heat + hack_heat
+		heat_preview = {"would_overheat": projected > threshold, "current_heat": current_heat, "hack_heat": hack_heat, "overheat_threshold": threshold, "projected_heat": projected}
+	if bool(heat_preview.get("would_overheat", false)):
+		reasons.append("hack_would_overheat")
+	if reasons.is_empty():
+		reasons.append("ok")
+	return {"can_hack": reasons.size() == 1 and reasons[0] == "ok", "terminal_id": terminal_id, "required_interface_level": required_interface_level, "required_cpu_level": required_cpu_level, "available_interface_level": available_interface_level, "available_cpu_level": available_cpu_level, "reasons": reasons, "heat_preview": heat_preview}
+
+func get_terminal_action_availability(terminal_id: String, action: String = "") -> Dictionary:
+	var report := {"available": false, "terminal_id": terminal_id, "action": action, "reasons": [], "requirements": {}, "state": "", "is_powered": true}
+	var terminal := get_world_object_by_id(terminal_id)
+	if terminal.is_empty():
+		report["reasons"] = ["terminal_missing"]
+		return report
+	if not _is_terminal_object(terminal):
+		report["reasons"] = ["not_terminal"]
+		return report
+	var state := String(terminal.get("state", "active")).strip_edges().to_lower()
+	report["state"] = state
+	var powered := terminal.has("is_powered") ? bool(terminal.get("is_powered", true)) : true
+	report["is_powered"] = powered
+	var reasons: Array[String] = []
+	if bool(terminal.get("damaged", false)) or state == "damaged": reasons.append("terminal_damaged")
+	if bool(terminal.get("broken", false)) or state == "broken": reasons.append("terminal_broken")
+	if bool(terminal.get("destroyed", false)) or state == "destroyed": reasons.append("terminal_destroyed")
+	if state == "overheated": reasons.append("terminal_overheated")
+	if state in ["unpowered", "disabled"] or (terminal.has("is_powered") and not powered): reasons.append("terminal_unpowered")
+	var req := get_terminal_hack_requirements(terminal_id) if action == "hack" else {}
+	report["requirements"] = req
+	if action == "hack":
+		if req.get("reasons", []).has("interface_level_too_low"): reasons.append("interface_level_too_low")
+		if req.get("reasons", []).has("cpu_level_too_low"): reasons.append("cpu_level_too_low")
+	if reasons.is_empty():
+		report["available"] = true
+		report["reasons"] = ["ok"]
+	else:
+		report["reasons"] = reasons
+	return report
+
+func attempt_terminal_hack(terminal_id: String) -> Dictionary:
+	var terminal := get_world_object_by_id(terminal_id)
+	var before := String(terminal.get("state", "")) if not terminal.is_empty() else ""
+	var req := get_terminal_hack_requirements(terminal_id)
+	if not bool(req.get("can_hack", false)):
+		return {"success": false, "terminal_id": terminal_id, "reasons": req.get("reasons", []), "state_before": before, "state_after": before, "heat_report": req.get("heat_preview", {})}
+	if String(terminal.get("state", "")) == "hacked":
+		return {"success": false, "terminal_id": terminal_id, "reasons": ["already_hacked"], "state_before": before, "state_after": before, "heat_report": req.get("heat_preview", {})}
+	terminal["state"] = "hacked"
+	terminal["hacked"] = true
+	terminal["hack_attempts"] = int(terminal.get("hack_attempts", 0)) + 1
+	return {"success": true, "terminal_id": terminal_id, "reasons": ["ok"], "state_before": before, "state_after": "hacked", "heat_report": req.get("heat_preview", {})}
+
+
+func get_terminal_control_targets(terminal_id: String) -> Array[Dictionary]:
+	var terminal := get_world_object_by_id(terminal_id)
+	if terminal.is_empty(): return []
+	var out: Array[Dictionary] = []
+	for key in ["target_door_id","target_platform_id","target_object_id","linked_object_id"]:
+		var tid := String(terminal.get(key, "")).strip_edges()
+		if tid != "": out.append({"target_id":tid, "source":key})
+	for tidv in Array(terminal.get("controlled_object_ids", [])):
+		var tid := String(tidv).strip_edges()
+		if tid != "": out.append({"target_id":tid, "source":"controlled_object_ids"})
+	return out
+
+func execute_terminal_control_action(terminal_id: String, target_id: String = "", action: String = "") -> Dictionary:
+	var avail := get_terminal_action_availability(terminal_id, action)
+	if not bool(avail.get("available", false)): return {"success":false, "terminal_id":terminal_id, "target_id":target_id, "action":action, "reasons":avail.get("reasons", [])}
+	var targets := get_terminal_control_targets(terminal_id)
+	var allowed := target_id.strip_edges().is_empty()
+	for t in targets:
+		if String(t.get("target_id", "")) == target_id: allowed = true
+	if not allowed: return {"success":false, "terminal_id":terminal_id, "target_id":target_id, "action":action, "reasons":["target_invalid"]}
+	var target := get_world_object_by_id(target_id) if target_id != "" else {}
+	if action == "open_door" and not target.is_empty(): target["state"] = "open"; target["is_open"] = true
+	elif action == "close_door" and not target.is_empty(): target["state"] = "closed"; target["is_open"] = false
+	elif action == "unlock_door" and not target.is_empty(): target["is_locked"] = false; target["locked"] = false
+	elif action == "lock_door" and not target.is_empty(): target["is_locked"] = true; target["locked"] = true
+	elif action in ["activate_platform","toggle_platform","rotate_platform"] and not target.is_empty():
+		activate_platform_by_id(String(target.get("platform_id", target_id)), "terminal")
+	elif action == "enable_cooling":
+		apply_cooling_application()
+	elif action == "reset_source_overheat":
+		execute_power_source_recovery_apply()
+	return {"success":true, "terminal_id":terminal_id, "target_id":target_id, "action":action, "reasons":["ok"]}
+
+func get_door_access_state(door_id: String) -> Dictionary:
+	var door := get_world_object_by_id(door_id)
+	if door.is_empty(): return {"door_id":door_id, "can_open":false, "can_unlock":false, "is_locked":true, "is_open":false, "is_powered":false, "reasons":["door_missing"], "lock_type":"", "door_class":0}
+	var lock_type := String(door.get("lock_type", "none"))
+	var is_locked := bool(door.get("is_locked", door.get("locked", lock_type != "none")))
+	var is_open := String(door.get("state", "closed")) == "open"
+	var powered := bool(door.get("is_powered", true))
+	var reasons: Array[String] = []
+	if String(door.get("state", "")).to_lower() == "destroyed": reasons.append("door_destroyed")
+	elif is_locked: reasons.append("locked")
+	else: reasons.append("ok")
+	return {"door_id":door_id, "can_open":reasons.has("ok"), "can_unlock":is_locked, "is_locked":is_locked, "is_open":is_open, "is_powered":powered, "reasons":reasons, "lock_type":lock_type, "door_class":int(door.get("door_class", 1))}
+
+func can_use_access_item_on_door(item_id: String, door_id: String) -> Dictionary:
+	var door := get_world_object_by_id(door_id)
+	var item := get_world_object_by_id(item_id)
+	if item.is_empty(): return {"success":false, "item_id":item_id, "door_id":door_id, "reasons":["item_missing"]}
+	if door.is_empty(): return {"success":false, "item_id":item_id, "door_id":door_id, "reasons":["door_missing"]}
+	var lock_type := String(door.get("lock_type", "none"))
+	var digital_state := String(item.get("digital_state", ""))
+	if item_id.find("damaged") != -1 or digital_state == "damaged": return {"success":false, "item_id":item_id, "door_id":door_id, "reasons":["digital_key_damaged"]}
+	if item_id.find("encrypted") != -1 or digital_state == "encrypted": return {"success":false, "item_id":item_id, "door_id":door_id, "reasons":["digital_key_encrypted"]}
+	if lock_type == "mechanical_key" and String(item.get("key_kind", "")) != "mechanical": return {"success":false, "item_id":item_id, "door_id":door_id, "reasons":["wrong_key_type"]}
+	return {"success":true, "item_id":item_id, "door_id":door_id, "reasons":["ok"]}
+
+func use_access_item_on_door(item_id: String, door_id: String) -> Dictionary:
+	var gate := can_use_access_item_on_door(item_id, door_id)
+	var door := get_world_object_by_id(door_id)
+	var before := String(door.get("state", "")) if not door.is_empty() else ""
+	if not bool(gate.get("success", false)): return {"success":false, "item_id":item_id, "door_id":door_id, "reasons":gate.get("reasons", []), "door_state_before":before, "door_state_after":before, "consumed":false}
+	door["is_locked"] = false; door["locked"] = false; door["state"] = "open"
+	return {"success":true, "item_id":item_id, "door_id":door_id, "reasons":["ok"], "door_state_before":before, "door_state_after":"open", "consumed":false}
+
+func get_door_debug_report_text(door_id: String = "") -> String:
+	var ids: Array[String] = []
+	if door_id.strip_edges() != "": ids.append(door_id)
+	else:
+		for obj in mission_world_objects:
+			if String(obj.get("object_group", "")) == "door": ids.append(String(obj.get("id", "")))
+	var lines: Array[String] = []
+	for id in ids:
+		var st := get_door_access_state(id)
+		lines.append("%s | lock=%s | locked=%s | powered=%s | reasons=%s" % [id, String(st.get("lock_type", "")), str(bool(st.get("is_locked", false))), str(bool(st.get("is_powered", true))), ",".join(Array(st.get("reasons", [])))])
+	return "\n".join(lines)
+
+func validate_terminal_and_door_runtime() -> Array[String]:
+	return []
+
+func get_terminal_and_door_validation_text() -> String:
+	var warnings := validate_terminal_and_door_runtime()
+	return "TerminalDoorValidation: warnings=%d" % warnings.size()
