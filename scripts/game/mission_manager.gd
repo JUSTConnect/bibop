@@ -120,8 +120,22 @@ func setup_world_objects_for_mission(mission_id: String) -> void:
 # endregion
 
 func _setup_task_test_mission_world() -> void:
+	var validation_data := build_task_test_mission_world_objects_for_validation()
+	var objects: Array[Dictionary] = validation_data.get("objects", [])
+	var items_by_cell: Dictionary = validation_data.get("items_by_cell", {})
+	for obj in objects:
+		set_world_object_at_cell(Vector2i(obj.get("position", Vector2i.ZERO)), obj)
+	for cell_variant in items_by_cell.keys():
+		var cell := Vector2i(cell_variant)
+		for item in Array(items_by_cell.get(cell_variant, [])):
+			add_item_at_cell(cell, Dictionary(item).duplicate(true))
+	PowerSystem.recalculate_network(mission_world_objects, "task_test_power")
+	refresh_world_cooling_received()
+
+func build_task_test_mission_world_objects_for_validation() -> Dictionary:
+	var warnings: Array[String] = []
 	var objects: Array[Dictionary] = []
-	objects.append_array([
+	var specs: Array[Dictionary] = [
 		{"type":"power_source_class_1","id":"task_test_source_class_1","pos":Vector2i(1, 1),"extra":{"power_network_id":"task_test_power","connected_device_ids":["task_test_energy_door"]}},
 		{"type":"power_source_class_2","id":"task_test_source_class_2","pos":Vector2i(1, 3),"extra":{"power_network_id":"task_test_power","connected_device_ids":["task_test_terminal_main","task_test_platform_terminal"],"current_heat":4,"working_heat":3,"overheat_threshold":3}},
 		{"type":"power_source_class_3","id":"task_test_overheated_source","pos":Vector2i(1, 5),"extra":{"power_network_id":"task_test_power","state":"overheated","current_heat":5,"working_heat":3,"overheat_threshold":3}},
@@ -149,35 +163,63 @@ func _setup_task_test_mission_world() -> void:
 		{"type":"rotating_platform","id":"task_test_platform_rotate","pos":Vector2i(3, 6),"extra":{"platform_id":"task_test_platform_rotate"}},
 		{"type":"lifting_platform","id":"task_test_platform_switch","pos":Vector2i(4, 6),"extra":{"platform_id":"task_test_platform_switch","control_type":"switch"}},
 		{"type":"rotating_platform","id":"task_test_platform_terminal","pos":Vector2i(5, 6),"extra":{"platform_id":"task_test_platform_terminal","linked_terminal_id":"task_test_terminal_main","requires_terminal_enabled":true}},
-		{"type":"power_cable","id":"task_test_xray_route_marker","pos":Vector2i(6, 6),"extra":{"hidden":true,"visible_with_xray":true}},
+		{"type":"power_cable","id":"task_test_xray_route_marker","pos":Vector2i(5, 2),"extra":{"hidden":true,"visible_with_xray":true}},
 		{"type":"energy_door","id":"task_test_extraction_door","pos":Vector2i(6, 6),"extra":{"state":"open","is_locked":false,"mission_exit":true,"extraction":true}},
 		{"type":"grid_door","id":"task_test_blocked_cable_target","pos":Vector2i(1, 2),"extra":{"state":"jammed","damaged":true}}
-	])
-	for spec in objects:
+	]
+	for spec in specs:
 		var obj := WorldObjectCatalog.create_world_object(String(spec.get("type", "")), String(spec.get("id", "")))
 		if obj.is_empty():
+			warnings.append("catalog_create_failed_%s" % String(spec.get("id", "")))
 			continue
 		obj["position"] = Vector2i(spec.get("pos", Vector2i.ZERO))
 		var extra: Dictionary = spec.get("extra", {})
 		for key in extra.keys():
 			obj[String(key)] = extra[key]
-		set_world_object_at_cell(Vector2i(spec.get("pos", Vector2i.ZERO)), obj)
-	add_item_at_cell(Vector2i(1, 1), WorldObjectCatalog.create_world_object("fuse", "task_test_item_fuse"))
-	add_item_at_cell(Vector2i(1, 3), WorldObjectCatalog.create_world_object("repair_kit", "task_test_item_repair_kit"))
-	add_item_at_cell(Vector2i(2, 3), WorldObjectCatalog.create_world_object("power_cable_reel", "task_test_cable_reel"))
-	add_item_at_cell(Vector2i(2, 4), WorldObjectCatalog.create_world_object("mechanical_keycard", "task_test_item_mechanical_keycard"))
+		objects.append(obj)
+	var items_by_cell: Dictionary = {}
+	var fuse := WorldObjectCatalog.create_world_object("fuse", "task_test_item_fuse")
+	if fuse.is_empty():
+		warnings.append("catalog_create_failed_task_test_item_fuse")
+	else:
+		items_by_cell[Vector2i(1, 1)] = [fuse]
+	var repair := WorldObjectCatalog.create_world_object("repair_kit", "task_test_item_repair_kit")
+	if repair.is_empty():
+		warnings.append("catalog_create_failed_task_test_item_repair_kit")
+	else:
+		items_by_cell[Vector2i(1, 3)] = [repair]
+	var cable_reel := WorldObjectCatalog.create_world_object("power_cable_reel", "task_test_cable_reel")
+	if cable_reel.is_empty():
+		warnings.append("catalog_create_failed_task_test_cable_reel")
+	else:
+		items_by_cell[Vector2i(2, 3)] = [cable_reel]
+	var mech_key := WorldObjectCatalog.create_world_object("mechanical_keycard", "task_test_item_mechanical_keycard")
+	if mech_key.is_empty():
+		warnings.append("catalog_create_failed_task_test_item_mechanical_keycard")
+	else:
+		items_by_cell[Vector2i(2, 4)] = [mech_key]
 	var opened_key := WorldObjectCatalog.create_world_object("digital_key", "task_test_item_digital_key_opened")
-	opened_key["digital_state"] = "opened"
-	add_item_at_cell(Vector2i(2, 5), opened_key)
+	if opened_key.is_empty():
+		warnings.append("catalog_create_failed_task_test_item_digital_key_opened")
+	else:
+		opened_key["digital_state"] = "opened"
 	var enc_key := WorldObjectCatalog.create_world_object("digital_key", "task_test_item_digital_key_encrypted")
-	enc_key["digital_state"] = "encrypted"
-	add_item_at_cell(Vector2i(2, 5), enc_key)
+	if enc_key.is_empty():
+		warnings.append("catalog_create_failed_task_test_item_digital_key_encrypted")
+	else:
+		enc_key["digital_state"] = "encrypted"
 	var dmg_key := WorldObjectCatalog.create_world_object("digital_key", "task_test_item_digital_key_damaged")
-	dmg_key["digital_state"] = "damaged"
-	add_item_at_cell(Vector2i(2, 5), dmg_key)
-	add_item_at_cell(Vector2i(3, 5), WorldObjectCatalog.create_world_object("access_code", "task_test_item_access_code"))
-	PowerSystem.recalculate_network(mission_world_objects, "task_test_power")
-	refresh_world_cooling_received()
+	if dmg_key.is_empty():
+		warnings.append("catalog_create_failed_task_test_item_digital_key_damaged")
+	else:
+		dmg_key["digital_state"] = "damaged"
+	items_by_cell[Vector2i(2, 5)] = [opened_key, enc_key, dmg_key].filter(func(it: Dictionary) -> bool: return not it.is_empty())
+	var access_code := WorldObjectCatalog.create_world_object("access_code", "task_test_item_access_code")
+	if access_code.is_empty():
+		warnings.append("catalog_create_failed_task_test_item_access_code")
+	else:
+		items_by_cell[Vector2i(3, 5)] = [access_code]
+	return {"objects": objects, "items_by_cell": items_by_cell, "warnings": warnings}
 
 # region Scenario validation
 func validate_world_object_scenario() -> Array[String]:
@@ -5129,9 +5171,13 @@ func validate_full_runtime_persistence() -> Array[String]:
 
 func validate_task_test_mission_runtime() -> Array[String]:
 	var warnings: Array[String] = []
-	setup_world_objects_for_mission("mission_10")
+	var built := build_task_test_mission_world_objects_for_validation()
+	warnings.append_array(Array(built.get("warnings", [])))
+	var task_objects: Array[Dictionary] = built.get("objects", [])
+	var task_items_by_cell: Dictionary = built.get("items_by_cell", {})
 	var task_ids := {}
-	for obj in mission_world_objects:
+	var occupied_cells := {}
+	for obj in task_objects:
 		var oid := String(obj.get("id", "")).strip_edges()
 		if not oid.begins_with("task_test_"):
 			continue
@@ -5142,11 +5188,15 @@ func validate_task_test_mission_runtime() -> Array[String]:
 			warnings.append("task_test_object_missing_type_%s" % oid)
 		if String(obj.get("object_group", "")).strip_edges() == "":
 			warnings.append("task_test_object_missing_group_%s" % oid)
+		var cell := Vector2i(obj.get("position", Vector2i.ZERO))
+		if not bool(obj.get("allow_cell_overlap", false)) and occupied_cells.has(cell):
+			warnings.append("duplicate_task_test_cell_%s_between_%s_and_%s" % [str(cell), String(occupied_cells[cell]), oid])
+		occupied_cells[cell] = oid
 	for required_id in ["task_test_extraction_door","task_test_source_class_1","task_test_radiator","task_test_terminal_main","task_test_door_mechanical","task_test_platform_lift","task_test_hidden_cable","task_test_item_repair_kit","task_test_cable_reel"]:
 		if not task_ids.has(required_id):
 			var exists_item := false
-			for cell in cell_items.keys():
-				for item in Array(cell_items[cell]):
+			for cell in task_items_by_cell.keys():
+				for item in Array(task_items_by_cell[cell]):
 					if String(item.get("id", "")) == required_id:
 						exists_item = true
 						break
@@ -5154,9 +5204,39 @@ func validate_task_test_mission_runtime() -> Array[String]:
 					break
 			if not exists_item:
 				warnings.append("missing_%s" % required_id)
-	var extraction := get_world_object_by_id("task_test_extraction_door")
+	var extraction: Dictionary = {}
+	for obj in task_objects:
+		if String(obj.get("id", "")) == "task_test_extraction_door":
+			extraction = obj
+			break
 	if extraction.is_empty() or not bool(extraction.get("mission_exit", false)):
 		warnings.append("task_test_extraction_not_flagged")
+	else:
+		if not bool(extraction.get("extraction", false)):
+			warnings.append("task_test_extraction_missing_extraction_flag")
+		if String(extraction.get("state", "")) != "open":
+			warnings.append("task_test_extraction_not_open")
+		if bool(extraction.get("is_locked", false)):
+			warnings.append("task_test_extraction_locked")
+	var xray_exists := task_ids.has("task_test_xray_route_marker")
+	if not xray_exists:
+		warnings.append("task_test_xray_route_marker_missing")
+	var exit_cell := Vector2i(6, 6)
+	var extraction_cell := Vector2i(extraction.get("position", Vector2i(-999, -999)))
+	if extraction_cell != exit_cell and extraction_cell.distance_to(exit_cell) > 1.0:
+		warnings.append("task_test_extraction_not_on_or_adjacent_to_exit")
+	var mission_layout := GridManager.get_mission10_layout()
+	var exit_tiles := 0
+	var layout_exit_cell := Vector2i(-999, -999)
+	for y in range(mission_layout.size()):
+		for x in range(Array(mission_layout[y]).size()):
+			if int(Array(mission_layout[y])[x]) == GridManager.TILE_EXIT:
+				exit_tiles += 1
+				layout_exit_cell = Vector2i(x, y)
+	if exit_tiles != 1:
+		warnings.append("task_test_layout_exit_tile_count_%d" % exit_tiles)
+	elif extraction_cell != layout_exit_cell and extraction_cell.distance_to(layout_exit_cell) > 1.0:
+		warnings.append("task_test_extraction_cell_not_matching_layout_exit")
 	return warnings
 
 func get_task_test_mission_validation_text() -> String:
