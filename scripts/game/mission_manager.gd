@@ -817,7 +817,30 @@ func get_world_object_runtime_state() -> Dictionary:
 		"overheated_powered_before",
 		"facing_dir",
 		"power_network_id",
-		"drain_pool"
+		"drain_pool",
+		"platform_id",
+		"platform_type",
+		"platform_cells",
+		"local_switch_cell",
+		"local_switch_facing_dir",
+		"linked_terminal_id",
+		"requires_terminal_enabled",
+		"control_type",
+		"power_type",
+		"height_level",
+		"min_height_level",
+		"max_height_level",
+		"activation_mode",
+		"timer_turns",
+		"timer_remaining_turns",
+		"period_turns",
+		"periodic_active",
+		"permanent_state",
+		"pending_activation",
+		"rotation_direction",
+		"target_platform_id",
+		"platform_control_enabled",
+		"platform_remote_control"
 	]
 	for object_data in mission_world_objects:
 		var object_id := String(object_data.get("id", "")).strip_edges()
@@ -999,8 +1022,26 @@ func get_platform_occupants(platform_id: String) -> Dictionary:
 	if active_bipob_ref != null and active_bipob_ref.has_method("get_grid_position"):
 		var bipob_cell: Vector2i = active_bipob_ref.get_grid_position()
 		if cells.has(bipob_cell):
-			occupants["bipobs"].append({"id":"active_bipob","position":bipob_cell,"direction":String(active_bipob_ref.direction)})
+			var bipob_direction := "up"
+			if active_bipob_ref.has_method("get_direction"):
+				bipob_direction = String(active_bipob_ref.get_direction())
+			occupants["bipobs"].append({"id":"active_bipob","position":bipob_cell,"direction":bipob_direction})
 	return occupants
+
+func can_bipob_access_platform_switch(platform: Dictionary, actor_cell: Vector2i, facing_dir: String) -> bool:
+	if platform.is_empty():
+		return false
+	if String(platform.get("object_group", "")) != "platform":
+		return false
+	if String(platform.get("control_type", "internal")) != "internal":
+		return false
+	if not platform.has("local_switch_cell"):
+		return false
+	var local_switch_cell := WorldObjectCatalog.to_world_cell(platform.get("local_switch_cell", Vector2i(-1, -1)), Vector2i(-1, -1))
+	if local_switch_cell.x < 0 or local_switch_cell.y < 0:
+		return false
+	var facing_vector := _facing_to_vector(facing_dir)
+	return actor_cell + facing_vector == local_switch_cell
 
 func activate_platform_by_id(platform_id: String, source: String = "") -> Dictionary:
 	var platform := get_platform_by_id(platform_id)
@@ -1010,7 +1051,7 @@ func activate_platform_by_id(platform_id: String, source: String = "") -> Dictio
 		return {"success":false, "message":"Platform is unpowered."}
 	if bool(platform.get("requires_terminal_enabled", false)):
 		var terminal := get_world_object_by_id(String(platform.get("linked_terminal_id", "")))
-		if terminal.is_empty() or String(terminal.get("state", "active")) in ["unpowered", "disabled", "damaged"] or not bool(terminal.get("platform_control_enabled", true)):
+		if terminal.is_empty() or String(terminal.get("state", "active")) in ["unpowered", "disabled", "damaged"] or not bool(terminal.get("platform_control_enabled", true)) or not bool(terminal.get("is_powered", true)):
 			return {"success":false, "message":"Platform terminal is unavailable."}
 	var mode := String(platform.get("activation_mode", "instant"))
 	if mode == "timer":
@@ -1033,7 +1074,10 @@ func _execute_platform_action(platform: Dictionary, source: String = "") -> Dict
 			if obj.has("facing_dir"):
 				obj["facing_dir"] = _rotate_facing(String(obj.get("facing_dir", "up")), String(platform.get("rotation_direction", "clockwise")) != "counterclockwise")
 		if active_bipob_ref != null and active_bipob_ref.has_method("set_direction") and Array(occupants.get("bipobs", [])).size() > 0:
-			active_bipob_ref.set_direction(_rotate_facing(String(active_bipob_ref.direction), true))
+			var current_direction := "up"
+			if active_bipob_ref.has_method("get_direction"):
+				current_direction = String(active_bipob_ref.get_direction())
+			active_bipob_ref.set_direction(_rotate_facing(current_direction, true))
 		refresh_world_cooling_received()
 		return {"success":true, "message":"Rotating platform activated."}
 	if platform_type == "lifting":
@@ -1055,6 +1099,18 @@ func _rotate_facing(facing: String, clockwise: bool) -> String:
 		idx = 0
 	idx = posmod(idx + (1 if clockwise else -1), 4)
 	return dirs[idx]
+
+func _facing_to_vector(facing_dir: String) -> Vector2i:
+	match facing_dir:
+		"up":
+			return Vector2i(0, -1)
+		"down":
+			return Vector2i(0, 1)
+		"left":
+			return Vector2i(-1, 0)
+		"right":
+			return Vector2i(1, 0)
+	return Vector2i.ZERO
 
 func process_platform_turn_tick() -> void:
 	for object_data in mission_world_objects:
