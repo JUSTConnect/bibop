@@ -295,6 +295,29 @@ func get_power_network_debug_validation_text() -> String:
 		return "Power network debug validation unavailable: mission manager/helper missing."
 	return String(mission_manager.call("get_power_network_debug_validation_text"))
 
+func preview_power_network_state_application(filter: String = "") -> Dictionary:
+	if mission_manager == null or not mission_manager.has_method("preview_power_network_state_application"):
+		return {
+			"networks": 0,
+			"objects": 0,
+			"changes": [],
+			"warnings": ["Power network state preview unavailable: mission manager/helper missing."]
+		}
+	var preview_variant: Variant = mission_manager.call("preview_power_network_state_application", filter)
+	if typeof(preview_variant) != TYPE_DICTIONARY:
+		return {
+			"networks": 0,
+			"objects": 0,
+			"changes": [],
+			"warnings": ["Power network state preview unavailable: mission manager/helper missing."]
+		}
+	return preview_variant
+
+func get_power_network_state_preview_text(filter: String = "") -> String:
+	if mission_manager == null or not mission_manager.has_method("get_power_network_state_preview_text"):
+		return "Power network state preview unavailable: mission manager/helper missing."
+	return String(mission_manager.call("get_power_network_state_preview_text", filter))
+
 func validate_platform_runtime_state() -> Dictionary:
 	if mission_manager == null:
 		return {"valid": false, "platforms": 0, "terminals": 0, "warnings": ["Mission manager is missing."], "errors": ["Mission manager unavailable."]}

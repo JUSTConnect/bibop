@@ -595,6 +595,150 @@ func _is_power_source_object(object_data: Dictionary) -> bool:
 	var power_role := String(object_data.get("power_role", "")).strip_edges().to_lower()
 	return object_type == "power_source" or power_role == "source" or object_type in ["power_source_class_1", "power_source_class_2", "power_source_class_3"]
 
+func _collect_power_network_objects() -> Dictionary:
+	var power_objects: Array[Dictionary] = []
+	var networks := {}
+	var sources_by_id := {}
+	for object_data in mission_world_objects:
+		if not _is_power_network_object(object_data):
+			continue
+		power_objects.append(object_data)
+		var network_id := _get_power_network_id(object_data)
+		if not networks.has(network_id):
+			networks[network_id] = []
+		networks[network_id].append(object_data)
+		if _is_power_source_object(object_data):
+			var source_id := String(object_data.get("id", "")).strip_edges()
+			if not source_id.is_empty():
+				sources_by_id[source_id] = object_data
+	return {"objects": power_objects, "networks": networks, "sources_by_id": sources_by_id}
+
+func _is_power_source_available(source: Dictionary) -> bool:
+	if not _is_power_source_object(source):
+		return false
+	var state := String(source.get("state", "")).strip_edges().to_lower()
+	var is_powered := bool(source.get("is_powered", false))
+	var damaged_or_broken := bool(source.get("damaged", false)) or bool(source.get("broken", false))
+	if state in ["overheated", "damaged"]:
+		return false
+	if damaged_or_broken:
+		return false
+	if is_powered:
+		return true
+	return state in ["active", "switch_on", "connected"]
+
+func preview_power_network_state_application(filter: String = "") -> Dictionary:
+	var collected := _collect_power_network_objects()
+	var power_objects: Array[Dictionary] = collected.get("objects", [])
+	var networks: Dictionary = collected.get("networks", {})
+	var sources_by_id: Dictionary = collected.get("sources_by_id", {})
+	var changes: Array[Dictionary] = []
+	var warnings: Array[String] = []
+	var filter_text := filter.strip_edges().to_lower()
+	var all_network_ids: Array[String] = []
+	for network_id_variant in networks.keys():
+		all_network_ids.append(String(network_id_variant))
+	all_network_ids.sort()
+	for network_id in all_network_ids:
+		var network_objects: Array = networks.get(network_id, [])
+		var network_has_available_source := false
+		var has_powered_consumer := false
+		for object_variant in network_objects:
+			if typeof(object_variant) != TYPE_DICTIONARY:
+				continue
+			var source_candidate: Dictionary = object_variant
+			if not _is_power_source_object(source_candidate):
+				continue
+			if _is_power_source_available(source_candidate):
+				network_has_available_source = true
+			else:
+				var source_state := String(source_candidate.get("state", "")).strip_edges().to_lower()
+				var source_damaged := bool(source_candidate.get("damaged", false)) or bool(source_candidate.get("broken", false))
+				if source_state in ["overheated", "damaged"] or source_damaged:
+					var source_id := String(source_candidate.get("id", "")).strip_edges()
+					warnings.append("Source %s in network %s is unavailable: overheated/damaged." % [source_id, network_id if not network_id.is_empty() else "-"])
+		for object_variant in network_objects:
+			if typeof(object_variant) != TYPE_DICTIONARY:
+				continue
+			var object_data: Dictionary = object_variant
+			if _is_power_source_object(object_data):
+				continue
+			if bool(object_data.get("is_powered", false)):
+				has_powered_consumer = true
+				break
+		if has_powered_consumer and not network_has_available_source:
+			warnings.append("Network %s has powered consumers but no available source." % (network_id if not network_id.is_empty() else "-"))
+		for object_variant in network_objects:
+			if typeof(object_variant) != TYPE_DICTIONARY:
+				continue
+			var object_data: Dictionary = object_variant
+			var object_id := String(object_data.get("id", "")).strip_edges()
+			var object_state := String(object_data.get("state", "")).strip_edges().to_lower()
+			var object_damaged := bool(object_data.get("damaged", false)) or bool(object_data.get("broken", false))
+			var current_is_powered := bool(object_data.get("is_powered", false))
+			var preview_is_powered := current_is_powered
+			var reason := "source"
+			if _is_power_source_object(object_data):
+				preview_is_powered = current_is_powered
+				reason = "source"
+			elif object_state == "damaged" or object_damaged:
+				preview_is_powered = false
+				reason = "damaged"
+			elif object_state == "overheated":
+				preview_is_powered = false
+				reason = "overheated"
+			else:
+				preview_is_powered = network_has_available_source
+				reason = "powered_source_available" if network_has_available_source else "no_powered_source"
+			var connected_source_id := String(object_data.get("connected_power_source_id", "")).strip_edges()
+			if not connected_source_id.is_empty() and not sources_by_id.has(connected_source_id):
+				warnings.append("Power object %s connected_power_source_id points to missing source %s." % [object_id, connected_source_id])
+			if network_id.is_empty():
+				warnings.append("Power object %s has no network id." % object_id)
+			if preview_is_powered == current_is_powered:
+				continue
+			var change_line := "object=%s network=%s reason=%s" % [object_id, network_id, reason]
+			if not filter_text.is_empty() and change_line.to_lower().find(filter_text) == -1:
+				continue
+			changes.append({
+				"object_id": object_id,
+				"network_id": network_id,
+				"current_is_powered": current_is_powered,
+				"preview_is_powered": preview_is_powered,
+				"reason": reason
+			})
+	var filtered_warnings: Array[String] = []
+	for warning in warnings:
+		if filter_text.is_empty() or warning.to_lower().find(filter_text) != -1:
+			filtered_warnings.append(warning)
+	return {"networks": networks.size(), "objects": power_objects.size(), "changes": changes, "warnings": filtered_warnings}
+
+func get_power_network_state_preview_text(filter: String = "") -> String:
+	var preview := preview_power_network_state_application(filter)
+	var changes: Array = preview.get("changes", [])
+	var warnings: Array = preview.get("warnings", [])
+	var lines: Array[String] = []
+	lines.append("PowerNetworkStatePreview: networks=%d objects=%d changes=%d warnings=%d" % [
+		int(preview.get("networks", 0)),
+		int(preview.get("objects", 0)),
+		changes.size(),
+		warnings.size()
+	])
+	for change_variant in changes:
+		if typeof(change_variant) != TYPE_DICTIONARY:
+			continue
+		var change: Dictionary = change_variant
+		lines.append("CHANGE: object=%s network=%s is_powered %s -> %s reason=%s" % [
+			String(change.get("object_id", "")),
+			String(change.get("network_id", "")),
+			str(bool(change.get("current_is_powered", false))).to_lower(),
+			str(bool(change.get("preview_is_powered", false))).to_lower(),
+			String(change.get("reason", ""))
+		])
+	for warning in warnings:
+		lines.append("WARNING: %s" % warning)
+	return "\n".join(lines)
+
 func _get_power_network_summary_lines(filter: String = "") -> Array[String]:
 	var grouped := {}
 	for object_data in mission_world_objects:
@@ -678,24 +822,20 @@ func _build_power_network_debug_object(object_id: String, object_type: String, n
 func validate_power_network_runtime_state() -> Dictionary:
 	var warnings: Array[String] = []
 	var errors: Array[String] = []
-	var power_objects: Array[Dictionary] = []
-	var networks := {}
+	var collected := _collect_power_network_objects()
+	var power_objects: Array[Dictionary] = collected.get("objects", [])
+	var networks: Dictionary = collected.get("networks", {})
+	var sources_by_id: Dictionary = collected.get("sources_by_id", {})
 	var source_ids := {}
+	for source_id in sources_by_id.keys():
+		source_ids[String(source_id)] = true
 	var network_has_powered_source := {}
-	for object_data in mission_world_objects:
-		if not _is_power_network_object(object_data):
-			continue
-		power_objects.append(object_data)
+	for object_data in power_objects:
 		var object_id := String(object_data.get("id", "")).strip_edges()
 		var network_id := _get_power_network_id(object_data)
 		if network_id.is_empty():
 			warnings.append("Power object %s has no network id." % object_id)
-		if not networks.has(network_id):
-			networks[network_id] = []
-		networks[network_id].append(object_data)
 		if _is_power_source_object(object_data):
-			if not object_id.is_empty():
-				source_ids[object_id] = true
 			var state := String(object_data.get("state", "")).strip_edges().to_lower()
 			var powered_source := bool(object_data.get("is_powered", false)) and state != "overheated"
 			if powered_source:
@@ -830,6 +970,26 @@ func validate_power_network_debug_scenario() -> Array[String]:
 	temp_objects.append(_build_power_network_debug_object("power_debug_negative_heat", "power_cable", "power_debug_negative_heat", {
 		"current_heat": -1
 	}))
+	temp_objects.append(_build_power_network_debug_object("power_debug_preview_source", "power_source", "power_debug_preview_active", {
+		"is_powered": true
+	}))
+	temp_objects.append(_build_power_network_debug_object("power_debug_preview_cable", "power_cable", "power_debug_preview_active", {
+		"is_powered": false
+	}))
+	temp_objects.append(_build_power_network_debug_object("power_debug_preview_source_overheated", "power_source", "power_debug_preview_overheated", {
+		"state": "overheated",
+		"is_powered": true
+	}))
+	temp_objects.append(_build_power_network_debug_object("power_debug_preview_cable_overheated", "power_cable", "power_debug_preview_overheated", {
+		"is_powered": false
+	}))
+	temp_objects.append(_build_power_network_debug_object("power_debug_preview_source_damaged_consumer", "power_source", "power_debug_preview_damaged_consumer", {
+		"is_powered": true
+	}))
+	temp_objects.append(_build_power_network_debug_object("power_debug_preview_consumer_damaged", "power_cable", "power_debug_preview_damaged_consumer", {
+		"is_powered": false,
+		"state": "damaged"
+	}))
 	for object_data in temp_objects:
 		mission_world_objects.append(object_data)
 		var object_id := String(object_data.get("id", "")).strip_edges()
@@ -866,6 +1026,38 @@ func validate_power_network_debug_scenario() -> Array[String]:
 	var negative_heat_error := "Power object power_debug_negative_heat has negative current_heat (-1)."
 	if not runtime_errors.has(negative_heat_error):
 		warnings.append("Expected negative current_heat error for power_debug_negative_heat.")
+	var preview_result := preview_power_network_state_application()
+	var preview_changes: Array = preview_result.get("changes", [])
+	var saw_power_up_change := false
+	var saw_overheated_power_up_change := false
+	var saw_damaged_consumer_change := false
+	for change_variant in preview_changes:
+		if typeof(change_variant) != TYPE_DICTIONARY:
+			continue
+		var change: Dictionary = change_variant
+		var changed_id := String(change.get("object_id", ""))
+		var preview_powered := bool(change.get("preview_is_powered", false))
+		if changed_id == "power_debug_preview_cable" and preview_powered:
+			saw_power_up_change = true
+		if changed_id == "power_debug_preview_cable_overheated" and preview_powered:
+			saw_overheated_power_up_change = true
+		if changed_id == "power_debug_preview_consumer_damaged":
+			saw_damaged_consumer_change = true
+	if not saw_power_up_change:
+		warnings.append("Preview regression: powered source did not predict power-up for connected consumer.")
+	if saw_overheated_power_up_change:
+		warnings.append("Preview regression: overheated source incorrectly predicted consumer power-up.")
+	if saw_damaged_consumer_change:
+		warnings.append("Preview regression: damaged consumer should remain unpowered with no change entry.")
+	var preview_damaged_text := get_power_network_state_preview_text("power_debug_preview_consumer_damaged")
+	if preview_damaged_text.find("reason=damaged") == -1:
+		warnings.append("Preview regression: damaged consumer reason not reported as damaged.")
+	var preview_cable_object := get_world_object_by_id("power_debug_preview_cable")
+	var preview_cable_before := bool(preview_cable_object.get("is_powered", false))
+	preview_power_network_state_application()
+	var preview_cable_after := bool(preview_cable_object.get("is_powered", false))
+	if preview_cable_before != preview_cable_after:
+		warnings.append("Preview mutated temporary object state for power_debug_preview_cable.")
 	var index := mission_world_objects.size() - 1
 	while index >= 0:
 		var object_data: Dictionary = mission_world_objects[index]
