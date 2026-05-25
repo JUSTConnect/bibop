@@ -817,12 +817,141 @@ func _resolve_power_graph_filter_to_network_id(filter: String) -> String:
 				return network_id
 	return filter_text
 
+func _is_power_load_gate_object(object_data: Dictionary) -> bool:
+	var object_type := _normalize_power_gate_text(object_data.get("object_type", ""))
+	return object_type in ["switch", "light_switch", "circuit_switch", "circuit_breaker", "fuse_box", "power_cable", "cable", "cable_reel"]
+
+func _is_power_load_consumer_object(object_data: Dictionary) -> bool:
+	if _is_power_source_object(object_data):
+		return false
+	if _is_power_load_gate_object(object_data):
+		return false
+	var state := _normalize_power_gate_text(object_data.get("state", ""))
+	var damaged_or_broken := bool(object_data.get("damaged", false)) or bool(object_data.get("broken", false))
+	if damaged_or_broken or state in ["damaged", "broken", "destroyed"]:
+		return false
+	var object_type := _normalize_power_gate_text(object_data.get("object_type", ""))
+	var object_group := _normalize_power_gate_text(object_data.get("object_group", ""))
+	if bool(object_data.get("consumes_power", false)):
+		return true
+	if object_group == "terminal" or object_type in ["terminal", "door_terminal", "information_terminal"]:
+		return true
+	if object_type in ["energy_door", "energy_wall", "electromagnetic_door", "electromagnetic_wall", "grid_door", "grid_wall"]:
+		return true
+	if object_type in ["platform", "lifting_platform", "rotating_platform", "lift"]:
+		return true
+	if object_type in ["light", "camera", "alarm", "turret"]:
+		return true
+	if object_type.find("cooling") != -1:
+		return true
+	return false
+
+func _get_power_source_capacity_for_load(source: Dictionary) -> int:
+	if source.has("source_capacity"):
+		return maxi(1, int(source.get("source_capacity", 1)))
+	if source.has("allowed_socket_connections"):
+		return maxi(1, int(source.get("allowed_socket_connections", 1)))
+	if source.has("allowed_connections"):
+		return maxi(1, int(source.get("allowed_connections", 1)))
+	var source_class := int(source.get("source_class", 1))
+	return maxi(1, mini(3, source_class))
+
+func preview_power_source_load_heat_for_network(filter: String = "") -> Dictionary:
+	var collected := _collect_power_network_objects()
+	var networks: Dictionary = collected.get("networks", {})
+	var resolved_filter := _resolve_power_graph_filter_to_network_id(filter.strip_edges())
+	var report := {"updated": 0, "sources": [], "warnings": []}
+	var source_reports: Array[Dictionary] = report["sources"]
+	for network_id_variant in networks.keys():
+		var network_id := String(network_id_variant)
+		if not resolved_filter.is_empty() and network_id != resolved_filter:
+			continue
+		var network_objects: Array = networks.get(network_id, [])
+		var consumer_count := 0
+		for object_variant in network_objects:
+			if typeof(object_variant) != TYPE_DICTIONARY:
+				continue
+			var object_data: Dictionary = object_variant
+			if _is_power_load_consumer_object(object_data):
+				consumer_count += 1
+		for object_variant in network_objects:
+			if typeof(object_variant) != TYPE_DICTIONARY:
+				continue
+			var source: Dictionary = object_variant
+			if not _is_power_source_object(source):
+				continue
+			var source_capacity := _get_power_source_capacity_for_load(source)
+			var overheat_threshold := int(source.get("overheat_threshold", 0))
+			var current_heat := int(source.get("current_heat", 0))
+			var source_overloaded := consumer_count > source_capacity
+			var heat_from_connections := maxi(0, consumer_count - source_capacity)
+			var projected_heat := maxi(0, current_heat - int(source.get("cooling_received", 0))) + int(source.get("working_heat", 0)) + heat_from_connections
+			var projected_state := String(source.get("state", "")).strip_edges().to_lower()
+			if overheat_threshold > 0 and projected_heat >= overheat_threshold:
+				projected_state = "overheated"
+			source_reports.append({
+				"object_id": String(source.get("id", "")),
+				"network_id": network_id,
+				"source_load": consumer_count,
+				"source_capacity": source_capacity,
+				"source_overloaded": source_overloaded,
+				"current_heat": projected_heat,
+				"overheat_threshold": overheat_threshold,
+				"state": projected_state
+			})
+			report["updated"] = int(report.get("updated", 0)) + 1
+	return report
+
+func update_power_source_load_heat_for_network(filter: String = "") -> Dictionary:
+	var collected := _collect_power_network_objects()
+	var networks: Dictionary = collected.get("networks", {})
+	var resolved_filter := _resolve_power_graph_filter_to_network_id(filter.strip_edges())
+	var report := {"updated": 0, "sources": [], "warnings": []}
+	var source_reports: Array[Dictionary] = report["sources"]
+	for network_id_variant in networks.keys():
+		var network_id := String(network_id_variant)
+		if not resolved_filter.is_empty() and network_id != resolved_filter:
+			continue
+		var network_objects: Array = networks.get(network_id, [])
+		var consumer_count := 0
+		for object_variant in network_objects:
+			if typeof(object_variant) != TYPE_DICTIONARY:
+				continue
+			var object_data: Dictionary = object_variant
+			if _is_power_load_consumer_object(object_data):
+				consumer_count += 1
+		for object_variant in network_objects:
+			if typeof(object_variant) != TYPE_DICTIONARY:
+				continue
+			var source: Dictionary = object_variant
+			if not _is_power_source_object(source):
+				continue
+			var source_capacity := _get_power_source_capacity_for_load(source)
+			source["source_load"] = consumer_count
+			source["source_capacity"] = source_capacity
+			source["source_overloaded"] = consumer_count > source_capacity
+			source["heat_from_connections"] = maxi(0, consumer_count - source_capacity)
+			WorldObjectCatalog.update_world_object_heat_state(source)
+			source_reports.append({
+				"object_id": String(source.get("id", "")),
+				"network_id": network_id,
+				"source_load": int(source.get("source_load", 0)),
+				"source_capacity": int(source.get("source_capacity", source_capacity)),
+				"source_overloaded": bool(source.get("source_overloaded", false)),
+				"current_heat": int(source.get("current_heat", 0)),
+				"overheat_threshold": int(source.get("overheat_threshold", 0)),
+				"state": String(source.get("state", ""))
+			})
+			report["updated"] = int(report.get("updated", 0)) + 1
+	return report
+
 func preview_power_graph_state_application(filter: String = "") -> Dictionary:
 	var collected := _collect_power_network_objects()
 	var networks: Dictionary = collected.get("networks", {})
 	var filter_text := filter.strip_edges()
 	var resolved_filter := _resolve_power_graph_filter_to_network_id(filter_text)
-	var result := {"filter": filter_text, "resolved_filter": resolved_filter, "sources": [], "nodes": [], "reachable_object_ids": [], "blocked": [], "changes": [], "warnings": []}
+	var source_load_report := preview_power_source_load_heat_for_network(filter_text)
+	var result := {"filter": filter_text, "resolved_filter": resolved_filter, "sources": [], "nodes": [], "reachable_object_ids": [], "blocked": [], "changes": [], "warnings": [], "source_load_report": source_load_report}
 	var warnings: Array[String] = result["warnings"]
 	warnings.append("Power graph MVP uses network-level gate blocking; adjacency traversal not available yet.")
 	var changes: Array[Dictionary] = result["changes"]
@@ -930,6 +1059,7 @@ func get_power_graph_preview_text(filter: String = "") -> String:
 	return "\n".join(lines)
 
 func apply_power_graph_state_from_preview(filter: String = "") -> Dictionary:
+	var source_load_report := update_power_source_load_heat_for_network(filter)
 	var preview := preview_power_graph_state_application(filter)
 	var applied_changes: Array[Dictionary] = []
 	for change_variant in preview.get("changes", []):
@@ -949,6 +1079,10 @@ func apply_power_graph_state_from_preview(filter: String = "") -> Dictionary:
 		if previous_is_powered == next_is_powered:
 			continue
 		object_data["is_powered"] = next_is_powered
+		if next_is_powered:
+			object_data.erase("power_unavailable_reason")
+		else:
+			object_data["power_unavailable_reason"] = String(change.get("reason", ""))
 		var applied_change := {"object_id": object_id, "network_id": String(change.get("network_id", "")), "previous_is_powered": previous_is_powered, "new_is_powered": next_is_powered, "reason": String(change.get("reason", ""))}
 		var consumer_state_report := {}
 		if _is_terminal_object(object_data):
@@ -960,7 +1094,7 @@ func apply_power_graph_state_from_preview(filter: String = "") -> Dictionary:
 		if not consumer_state_report.is_empty():
 			applied_change["consumer_state_report"] = consumer_state_report
 		applied_changes.append(applied_change)
-	return {"applied": applied_changes.size(), "changes": applied_changes, "warnings": preview.get("warnings", [])}
+	return {"applied": applied_changes.size(), "changes": applied_changes, "warnings": preview.get("warnings", []), "source_load_report": source_load_report}
 
 func execute_power_graph_apply_and_get_report_text(filter: String = "") -> String:
 	var report := apply_power_graph_state_from_preview(filter)
@@ -1600,6 +1734,15 @@ func validate_power_network_debug_scenario() -> Array[String]:
 	temp_objects.append(_build_power_network_debug_object("power_debug_platform_damaged_source", "power_source", "power_debug_platform_damaged", {"is_powered": true}))
 	temp_objects.append(_build_power_network_debug_object("power_debug_platform_damaged_switch", "circuit_switch", "power_debug_platform_damaged", {"state": "switch_off"}))
 	temp_objects.append(_build_power_network_debug_object("power_debug_platform_damaged_platform", "lifting_platform", "power_debug_platform_damaged", {"is_powered": true, "state": "damaged", "height_level": 2, "damaged": true}))
+	temp_objects.append(_build_power_network_debug_object("power_debug_source_load_ok", "power_source_class_2", "power_debug_source_load_ok", {"is_powered": true, "state": "active", "source_capacity": 2, "current_heat": 0, "overheat_threshold": 10}))
+	temp_objects.append(_build_power_network_debug_object("power_debug_source_load_ok_terminal", "information_terminal", "power_debug_source_load_ok", {"is_powered": false, "state": "unpowered"}))
+	temp_objects.append(_build_power_network_debug_object("power_debug_source_load_ok_door", "energy_door", "power_debug_source_load_ok", {"is_powered": false, "state": "unpowered"}))
+	temp_objects.append(_build_power_network_debug_object("power_debug_source_overloaded_source", "power_source_class_1", "power_debug_source_overloaded", {"is_powered": true, "state": "active", "source_capacity": 1, "current_heat": 0, "overheat_threshold": 10}))
+	temp_objects.append(_build_power_network_debug_object("power_debug_source_overloaded_terminal", "information_terminal", "power_debug_source_overloaded", {"is_powered": false, "state": "unpowered"}))
+	temp_objects.append(_build_power_network_debug_object("power_debug_source_overloaded_platform", "lifting_platform", "power_debug_source_overloaded", {"is_powered": false, "state": "unpowered"}))
+	temp_objects.append(_build_power_network_debug_object("power_debug_source_overheat_shutdown_source", "power_source_class_1", "power_debug_source_overheat_shutdown", {"is_powered": true, "state": "active", "source_capacity": 1, "current_heat": 0, "overheat_threshold": 2, "working_heat": 1}))
+	temp_objects.append(_build_power_network_debug_object("power_debug_source_overheat_shutdown_terminal", "information_terminal", "power_debug_source_overheat_shutdown", {"is_powered": true, "state": "active"}))
+	temp_objects.append(_build_power_network_debug_object("power_debug_source_overheat_shutdown_platform", "lifting_platform", "power_debug_source_overheat_shutdown", {"is_powered": true, "state": "active"}))
 	for object_data in temp_objects:
 		mission_world_objects.append(object_data)
 		var object_id := String(object_data.get("id", "")).strip_edges()
@@ -2028,6 +2171,41 @@ func validate_power_network_debug_scenario() -> Array[String]:
 		warnings.append("Graph filter fallback regression: object-id filter did not resolve to network.")
 	if graph_filter_source_before_preview != bool(graph_filter_source.get("is_powered", false)) or graph_filter_consumer_before_preview != bool(graph_filter_consumer.get("is_powered", false)) or graph_filter_gate_state_before_preview != String(graph_filter_gate.get("state", "")) or graph_filter_gate_power_before_preview != bool(graph_filter_gate.get("is_powered", false)):
 		warnings.append("Graph preview regression: object-id filter preview mutated open-switch objects.")
+	var load_ok_source := get_world_object_by_id("power_debug_source_load_ok")
+	var load_ok_preview := preview_power_graph_state_application("power_debug_source_load_ok")
+	if int(load_ok_source.get("source_load", -1)) != -1:
+		warnings.append("Source load preview regression: preview mutated source load fields.")
+	var load_ok_apply := apply_power_graph_state_from_preview("power_debug_source_load_ok")
+	if int(load_ok_source.get("source_load", -1)) != 2 or int(load_ok_source.get("source_capacity", -1)) != 2 or bool(load_ok_source.get("source_overloaded", true)):
+		warnings.append("Source load scenario A regression: expected load=2 capacity=2 overloaded=false.")
+	if String(load_ok_source.get("state", "")).to_lower() == "overheated":
+		warnings.append("Source load scenario A regression: source should not overheat.")
+	if int(load_ok_apply.get("applied", 0)) < 2:
+		warnings.append("Source load scenario A regression: expected consumers to be powered.")
+	var overloaded_source := get_world_object_by_id("power_debug_source_overloaded_source")
+	apply_power_graph_state_from_preview("power_debug_source_overloaded")
+	if int(overloaded_source.get("source_load", 0)) <= int(overloaded_source.get("source_capacity", 0)) or not bool(overloaded_source.get("source_overloaded", false)) or int(overloaded_source.get("heat_from_connections", 0)) <= 0:
+		warnings.append("Source load scenario B regression: expected overloaded source with heat_from_connections.")
+	var overheat_source := get_world_object_by_id("power_debug_source_overheat_shutdown_source")
+	var overheat_terminal := get_world_object_by_id("power_debug_source_overheat_shutdown_terminal")
+	var overheat_platform := get_world_object_by_id("power_debug_source_overheat_shutdown_platform")
+	var overheat_preview_before := preview_power_graph_state_application("power_debug_source_overheat_shutdown")
+	if String(overheat_preview_before).find("source_load_report") == -1 and int((overheat_preview_before.get("source_load_report", {}).get("updated", 0))) <= 0:
+		warnings.append("Source load preview regression: missing source_load_report in graph preview.")
+	if int(overheat_source.get("source_load", -1)) != -1:
+		warnings.append("Source load preview regression: source overheat preview mutated source fields.")
+	var overheat_apply := apply_power_graph_state_from_preview("power_debug_source_overheat_shutdown")
+	if String(overheat_source.get("state", "")).to_lower() != "overheated":
+		warnings.append("Source load scenario C regression: source did not overheat.")
+	if bool(overheat_terminal.get("is_powered", true)) or bool(overheat_platform.get("is_powered", true)):
+		warnings.append("Source load scenario C regression: dependent consumers should be unpowered.")
+	for change_variant in overheat_apply.get("changes", []):
+		if typeof(change_variant) != TYPE_DICTIONARY:
+			continue
+		var change: Dictionary = change_variant
+		if String(change.get("object_id", "")) == "power_debug_source_overheat_shutdown_source":
+			warnings.append("Source load scenario C regression: source appeared in applied changes.")
+			break
 	var allowed_fuse_remove_fields := {
 		"is_powered": true,
 		"current_heat": true,

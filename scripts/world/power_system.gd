@@ -74,7 +74,8 @@ static func recalculate_network(objects: Array[Dictionary], network_id: String) 
 
 	var powered := has_source and breaker_on and fuse_installed
 	for obj in network_objects:
-		obj["is_powered"] = powered
+		if not _is_power_source_object(obj):
+			obj["is_powered"] = powered
 		var object_type := obj.get("object_type", "")
 		if _is_state_driven_powered_object(obj):
 			var current_state := obj.get("state", "")

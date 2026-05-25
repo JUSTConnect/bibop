@@ -6485,6 +6485,14 @@ func emit_facing_world_object_hint() -> void:
 		details.append("Load: %d / %d" % [load_value, maxi(1, capacity_value)])
 		if bool(object_data.get("source_overloaded", false)):
 			details.append("Status: overloaded")
+		if String(object_data.get("state", "")).to_lower() == "overheated":
+			details.append("Status: overheated")
+			details.append("Reason: source overloaded")
+	var power_reason := String(object_data.get("power_unavailable_reason", object_data.get("reason", ""))).strip_edges().to_lower()
+	if power_reason == "blocked_by_gate":
+		details.append("Reason: blocked by gate")
+	elif power_reason == "no_powered_source":
+		details.append("Reason: no powered source")
 	if object_data.has("current_heat") and object_data.has("overheat_threshold"):
 		var threshold := int(object_data.get("overheat_threshold", 0))
 		if threshold > 0:
