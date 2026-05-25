@@ -1539,14 +1539,14 @@ func _find_debug_floor_cell_near_platform(platform_cells: Array, origin_cell: Ve
 	return Vector2i(-1, -1)
 
 
-func _build_platform_timer_tick_debug_platform(platform_id: String, mode: String, overrides: Dictionary = {}) -> Dictionary:
+func _build_platform_timer_tick_debug_platform(platform_id: String, mode: String, cell: Vector2i, overrides: Dictionary = {}) -> Dictionary:
 	var platform: Dictionary = {
 		"id": "platform_timer_tick_debug_%s" % platform_id,
 		"object_group": "platform",
 		"object_type": "platform_debug_helper",
 		"platform_id": platform_id,
-		"platform_type": "lifting",
-		"platform_cells": [[0, 0]],
+		"platform_type": "rotating",
+		"platform_cells": [[cell.x, cell.y]],
 		"control_type": "internal",
 		"power_type": "internal",
 		"state": "active",
@@ -1566,6 +1566,14 @@ func _build_platform_timer_tick_debug_platform(platform_id: String, mode: String
 	for key in overrides.keys():
 		platform[key] = overrides[key]
 	return platform
+
+func _cleanup_platform_timer_tick_debug_state(temp_platforms: Array[Dictionary], original_platform_snapshots: Dictionary, original_last_tick_action_index: int) -> void:
+	for temp_platform in temp_platforms:
+		mission_world_objects.erase(temp_platform)
+	for object_data in original_platform_snapshots.keys():
+		_restore_platform_debug_fields(object_data, original_platform_snapshots[object_data])
+	platform_last_tick_action_index = original_last_tick_action_index
+
 
 func validate_platform_timer_tick_debug_scenario() -> Array[String]:
 	var warnings: Array[String] = []
@@ -1589,14 +1597,29 @@ func validate_platform_timer_tick_debug_scenario() -> Array[String]:
 		original_platform_snapshots[object_data] = _snapshot_platform_debug_fields(object_data, fields_to_snapshot)
 
 	var temp_platforms: Array[Dictionary] = []
-	temp_platforms.append(_build_platform_timer_tick_debug_platform("debug_timer_tick_timer", "timer", {"pending_activation": true, "timer_turns": 2, "timer_remaining_turns": 2}))
-	temp_platforms.append(_build_platform_timer_tick_debug_platform("debug_timer_tick_periodic", "periodic", {"periodic_active": true, "period_turns": 2, "timer_remaining_turns": 2}))
-	temp_platforms.append(_build_platform_timer_tick_debug_platform("debug_timer_tick_periodic_invalid", "periodic", {"periodic_active": true, "period_turns": 0, "timer_remaining_turns": 2}))
-	temp_platforms.append(_build_platform_timer_tick_debug_platform("debug_timer_tick_timer_invalid", "timer", {"pending_activation": true, "timer_turns": 0, "timer_remaining_turns": 0}))
-	temp_platforms.append(_build_platform_timer_tick_debug_platform("debug_timer_tick_instant", "instant", {"height_level": 0}))
-	temp_platforms.append(_build_platform_timer_tick_debug_platform("debug_timer_tick_permanent", "permanent", {"pending_activation": true, "permanent_state": "active", "height_level": 0}))
+	temp_platforms.append(_build_platform_timer_tick_debug_platform("debug_timer_tick_timer", "timer", Vector2i(80, 80), {"pending_activation": true, "timer_turns": 2, "timer_remaining_turns": 2}))
+	temp_platforms.append(_build_platform_timer_tick_debug_platform("debug_timer_tick_periodic", "periodic", Vector2i(82, 80), {"periodic_active": true, "period_turns": 2, "timer_remaining_turns": 2}))
+	temp_platforms.append(_build_platform_timer_tick_debug_platform("debug_timer_tick_periodic_invalid", "periodic", Vector2i(84, 80), {"periodic_active": true, "period_turns": 0, "timer_remaining_turns": 2}))
+	temp_platforms.append(_build_platform_timer_tick_debug_platform("debug_timer_tick_timer_invalid", "timer", Vector2i(86, 80), {"pending_activation": true, "timer_turns": 0, "timer_remaining_turns": 0}))
+	temp_platforms.append(_build_platform_timer_tick_debug_platform("debug_timer_tick_instant", "instant", Vector2i(88, 80), {"height_level": 0}))
+	temp_platforms.append(_build_platform_timer_tick_debug_platform("debug_timer_tick_permanent", "permanent", Vector2i(90, 80), {"pending_activation": true, "permanent_state": "active", "height_level": 0}))
 	for temp_platform in temp_platforms:
 		mission_world_objects.append(temp_platform)
+	var temp_cells := {}
+	var has_temp_overlap := false
+	for temp_platform in temp_platforms:
+		var platform_cells: Array = temp_platform.get("platform_cells", [])
+		if platform_cells.is_empty():
+			continue
+		var world_cell := WorldObjectCatalog.to_world_cell(platform_cells[0], Vector2i(-1, -1))
+		if world_cell == Vector2i(-1, -1):
+			continue
+		if temp_cells.has(world_cell):
+			has_temp_overlap = true
+			break
+		temp_cells[world_cell] = true
+	if has_temp_overlap:
+		warnings.append("Timer tick debug platforms overlap cells.")
 
 	var instant_platform := get_platform_by_id("debug_timer_tick_instant")
 	var permanent_platform := get_platform_by_id("debug_timer_tick_permanent")
@@ -1651,11 +1674,7 @@ func validate_platform_timer_tick_debug_scenario() -> Array[String]:
 	if not permanent_platform.is_empty() and int(permanent_platform.get("height_level", 0)) != permanent_height_before:
 		warnings.append("Permanent platform tick changed height unexpectedly.")
 
-	for temp_platform in temp_platforms:
-		mission_world_objects.erase(temp_platform)
-	for object_data in original_platform_snapshots.keys():
-		_restore_platform_debug_fields(object_data, original_platform_snapshots[object_data])
-	platform_last_tick_action_index = original_last_tick_action_index
+	_cleanup_platform_timer_tick_debug_state(temp_platforms, original_platform_snapshots, original_last_tick_action_index)
 	return warnings
 
 func get_platform_timer_tick_validation_text() -> String:
