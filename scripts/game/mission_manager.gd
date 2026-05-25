@@ -628,7 +628,7 @@ func _is_power_source_available(source: Dictionary) -> bool:
 	var state := String(source.get("state", "")).strip_edges().to_lower()
 	var is_powered := bool(source.get("is_powered", false))
 	var damaged_or_broken := bool(source.get("damaged", false)) or bool(source.get("broken", false))
-	if state in ["overheated", "damaged"]:
+	if state in ["overheated", "damaged", "broken", "destroyed"]:
 		return false
 	if damaged_or_broken:
 		return false
@@ -1285,6 +1285,46 @@ func apply_power_network_state_from_preview(filter: String = "") -> Dictionary:
 			continue
 		warnings.append(warning_text)
 	return {"applied": applied_changes.size(), "changes": applied_changes, "warnings": warnings}
+
+
+
+func _apply_graph_power_after_world_object_power_change(object_data: Dictionary, reason: String) -> Dictionary:
+	var filter := _get_power_event_filter_for_object(object_data)
+	return apply_power_network_after_explicit_power_event(reason, filter)
+
+func update_power_source_overheat_recovery_for_network(filter: String = "") -> Dictionary:
+	var resolved_filter := _resolve_power_graph_filter_to_network_id(filter.strip_edges())
+	var recovered: Array[Dictionary] = []
+	var warnings: Array[String] = []
+	for object_data in mission_world_objects:
+		if not _is_power_source_object(object_data):
+			continue
+		var network_id := _get_power_network_id(object_data)
+		if not resolved_filter.is_empty() and network_id != resolved_filter:
+			continue
+		var prev_state := String(object_data.get("state", "")).strip_edges().to_lower()
+		WorldObjectCatalog.update_world_object_heat_state(object_data)
+		var next_state := String(object_data.get("state", "")).strip_edges().to_lower()
+		var threshold := int(object_data.get("overheat_threshold", 0))
+		var heat := int(object_data.get("current_heat", 0))
+		if prev_state != "overheated":
+			continue
+		if bool(object_data.get("damaged", false)) or bool(object_data.get("broken", false)) or bool(object_data.get("destroyed", false)) or next_state in ["damaged", "broken", "destroyed"]:
+			warnings.append("Source %s remains unavailable due to damage state." % String(object_data.get("id", "")))
+			continue
+		if threshold > 0 and heat >= threshold:
+			continue
+		var restore_state := String(object_data.get("overheated_state_before", object_data.get("powered_state_before_unpowered", "active"))).strip_edges().to_lower()
+		if restore_state in ["", "unpowered", "overheated", "damaged", "broken", "destroyed"]:
+			restore_state = "active"
+		object_data["state"] = restore_state
+		recovered.append({"object_id": String(object_data.get("id", "")), "network_id": network_id, "previous_state": prev_state, "new_state": restore_state, "current_heat": heat, "overheat_threshold": threshold})
+	return {"filter": filter.strip_edges(), "resolved_filter": resolved_filter, "recovered": recovered, "warnings": warnings}
+
+func execute_power_source_recovery_apply(filter: String = "") -> Dictionary:
+	var recovery := update_power_source_overheat_recovery_for_network(filter)
+	var apply := apply_power_network_after_explicit_power_event("source_cooling_recovered", String(recovery.get("resolved_filter", filter)))
+	return {"recovery": recovery, "apply": apply}
 
 func apply_power_network_after_explicit_power_event(reason: String = "", filter: String = "") -> Dictionary:
 	var report := apply_power_graph_state_from_preview(filter)
@@ -2307,6 +2347,65 @@ func get_power_network_debug_validation_text() -> String:
 		lines.append("WARNING: %s" % warning)
 	return "\n".join(lines)
 
+
+
+func get_power_network_full_debug_report_text(filter: String = "") -> String:
+	var preview := preview_power_graph_state_application(filter)
+	var lines: Array[String] = []
+	lines.append("PowerNetworkFullDebug: filter=%s resolved_filter=%s" % [filter.strip_edges(), String(preview.get("resolved_filter", ""))])
+	lines.append("Sources:")
+	for source_variant in preview.get("source_load_report", {}).get("sources", []):
+		if typeof(source_variant) != TYPE_DICTIONARY:
+			continue
+		var source: Dictionary = source_variant
+		var obj := get_world_object_by_id(String(source.get("object_id", "")))
+		lines.append("- %s state=%s available=%s load=%d/%d heat=%d/%d overloaded=%s" % [String(source.get("object_id", "")), String(source.get("state", obj.get("state", ""))), str(_is_power_source_available(obj)).to_lower(), int(source.get("source_load", 0)), int(source.get("source_capacity", 0)), int(source.get("current_heat", 0)), int(source.get("overheat_threshold", 0)), str(bool(source.get("source_overloaded", false))).to_lower()])
+	lines.append("Gates:")
+	for object_data in mission_world_objects:
+		if not _is_power_network_object(object_data):
+			continue
+		if not _resolve_power_graph_filter_to_network_id(filter).is_empty() and _get_power_network_id(object_data) != _resolve_power_graph_filter_to_network_id(filter):
+			continue
+		var gate := _get_power_gate_state(object_data)
+		if not bool(gate.get("is_gate", false)):
+			continue
+		lines.append("- %s type=%s state=%s closed=%s reason=%s" % [String(object_data.get("id", "")), String(gate.get("gate_type", "")), String(object_data.get("state", "")), str(bool(gate.get("is_closed", true))).to_lower(), String(gate.get("reason", ""))])
+	lines.append("Consumers:")
+	for object_data in mission_world_objects:
+		if _is_power_source_object(object_data) or not _is_power_network_object(object_data):
+			continue
+		if not _resolve_power_graph_filter_to_network_id(filter).is_empty() and _get_power_network_id(object_data) != _resolve_power_graph_filter_to_network_id(filter):
+			continue
+		lines.append("- %s type=%s powered=%s state=%s reason=%s" % [String(object_data.get("id", "")), String(object_data.get("object_type", "")), str(bool(object_data.get("is_powered", false))).to_lower(), String(object_data.get("state", "")), String(object_data.get("power_unavailable_reason", ""))])
+	lines.append("Blocked:")
+	for b in preview.get("blocked", []):
+		lines.append("- %s" % str(b))
+	lines.append("Preview changes:")
+	for c in preview.get("changes", []):
+		lines.append("- %s" % str(c))
+	lines.append("Source load preview:")
+	lines.append(str(preview.get("source_load_report", {})))
+	lines.append("Warnings:")
+	for w in preview.get("warnings", []):
+		lines.append("- %s" % String(w))
+	return "\n".join(lines)
+
+func validate_full_power_system_runtime() -> Array[String]:
+	var warnings := validate_power_network_debug_scenario()
+	var runtime_validation := validate_power_network_runtime_state()
+	for warning in runtime_validation.get("warnings", []):
+		warnings.append("runtime: %s" % String(warning))
+	for err in runtime_validation.get("errors", []):
+		warnings.append("runtime_error: %s" % String(err))
+	return warnings
+
+func get_full_power_system_validation_text() -> String:
+	var warnings := validate_full_power_system_runtime()
+	var lines: Array[String] = ["FullPowerValidation: warnings=%d" % warnings.size()]
+	for warning in warnings:
+		lines.append("WARNING: %s" % warning)
+	return "\n".join(lines)
+
 func get_world_object_debug_info(object_id: String) -> Dictionary:
 	var normalized_id := object_id.strip_edges()
 	if normalized_id.is_empty():
@@ -2615,7 +2714,20 @@ func get_world_object_runtime_state() -> Dictionary:
 		"carried_by_platform_id",
 		"target_platform_id",
 		"platform_control_enabled",
-		"platform_remote_control"
+		"platform_remote_control",
+		"state_before_unpowered",
+		"powered_state_before_unpowered",
+		"source_load",
+		"source_capacity",
+		"source_overloaded",
+		"overheat_threshold",
+		"power_unavailable_reason",
+		"connected",
+		"disconnected",
+		"cut",
+		"damaged",
+		"broken",
+		"destroyed"
 	]
 	for object_data in mission_world_objects:
 		var object_id := String(object_data.get("id", "")).strip_edges()
