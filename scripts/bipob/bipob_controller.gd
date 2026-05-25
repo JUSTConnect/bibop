@@ -8517,3 +8517,63 @@ func get_door_debug_report_text(door_id: String = "") -> String:
 	if mission_manager == null or not mission_manager.has_method("get_door_debug_report_text"):
 		return "Door debug report unavailable: mission manager/helper missing."
 	return String(mission_manager.call("get_door_debug_report_text", door_id))
+
+func get_platform_action_availability(platform_id: String, action: String = "") -> Dictionary:
+	if mission_manager == null or not mission_manager.has_method("get_platform_action_availability"):
+		return {"available": false, "platform_id": platform_id, "action": action, "reasons": ["platform_missing"], "state": "", "is_powered": false, "control_type": "", "power_type": ""}
+	return mission_manager.call("get_platform_action_availability", platform_id, action)
+
+func execute_platform_action(platform_id: String, action: String = "", controller_id: String = "") -> Dictionary:
+	if mission_manager == null or not mission_manager.has_method("execute_platform_action"):
+		return {"success": false, "reason": "platform_missing"}
+	return mission_manager.call("execute_platform_action", platform_id, action, controller_id)
+
+func get_lifting_platform_carry_targets(platform_id: String) -> Array[Dictionary]:
+	if mission_manager == null or not mission_manager.has_method("get_lifting_platform_carry_targets"):
+		return []
+	return mission_manager.call("get_lifting_platform_carry_targets", platform_id)
+
+func apply_lifting_platform_height_change(platform_id: String, delta: int, controller_id: String = "") -> Dictionary:
+	if mission_manager == null or not mission_manager.has_method("apply_lifting_platform_height_change"):
+		return {"success": false, "reason": "platform_missing"}
+	return mission_manager.call("apply_lifting_platform_height_change", platform_id, delta, controller_id)
+
+func apply_rotating_platform_rotation(platform_id: String, clockwise: bool = true, controller_id: String = "") -> Dictionary:
+	if mission_manager == null or not mission_manager.has_method("apply_rotating_platform_rotation"):
+		return {"success": false, "reason": "platform_missing"}
+	return mission_manager.call("apply_rotating_platform_rotation", platform_id, clockwise, controller_id)
+
+func get_scan_result_for_cell(cell: Vector2i, scan_mode: String = "basic") -> Dictionary:
+	if mission_manager == null or not mission_manager.has_method("get_scan_result_for_cell"):
+		return {"ok": false, "reason": "unavailable"}
+	return mission_manager.call("get_scan_result_for_cell", cell, scan_mode)
+
+func get_scan_result_for_object(object_id: String, scan_mode: String = "basic") -> Dictionary:
+	if mission_manager == null or not mission_manager.has_method("get_scan_result_for_object"):
+		return {"ok": false, "reason": "unavailable"}
+	return mission_manager.call("get_scan_result_for_object", object_id, scan_mode)
+
+func get_scan_text_for_object(object_id: String, scan_mode: String = "basic") -> String:
+	if mission_manager == null or not mission_manager.has_method("get_scan_text_for_object"):
+		return "{}"
+	return String(mission_manager.call("get_scan_text_for_object", object_id, scan_mode))
+
+func get_xray_visible_objects(filter: String = "") -> Array[Dictionary]:
+	if mission_manager == null or not mission_manager.has_method("get_xray_visible_objects"):
+		return []
+	return mission_manager.call("get_xray_visible_objects", filter)
+
+func reveal_xray_objects(filter: String = "") -> Dictionary:
+	if mission_manager == null or not mission_manager.has_method("reveal_xray_objects"):
+		return {"success": false, "reason": "unavailable"}
+	return mission_manager.call("reveal_xray_objects", filter)
+
+func is_world_object_visible_to_player(object_data: Dictionary, scan_mode: String = "basic") -> bool:
+	if mission_manager == null or not mission_manager.has_method("is_world_object_visible_to_player"):
+		return true
+	return bool(mission_manager.call("is_world_object_visible_to_player", object_data, scan_mode))
+
+func get_visible_world_objects_for_scan(scan_mode: String = "basic") -> Array[Dictionary]:
+	if mission_manager == null or not mission_manager.has_method("get_visible_world_objects_for_scan"):
+		return []
+	return mission_manager.call("get_visible_world_objects_for_scan", scan_mode)
