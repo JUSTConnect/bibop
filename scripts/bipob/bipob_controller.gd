@@ -278,6 +278,29 @@ func get_platform_runtime_table_text(filter: String = "") -> String:
 		return "Platform runtime table unavailable: helper missing."
 	return String(mission_manager.call("get_platform_runtime_table_text", filter))
 
+func validate_platform_height_gating_debug_scenario() -> Array[String]:
+	if mission_manager == null:
+		return ["Platform height gating validation unavailable: mission manager is missing."]
+	if not mission_manager.has_method("validate_platform_height_gating_debug_scenario"):
+		return ["Platform height gating validation unavailable: helper missing."]
+	var warnings_variant: Variant = mission_manager.call("validate_platform_height_gating_debug_scenario")
+	if typeof(warnings_variant) != TYPE_ARRAY:
+		return ["Platform height gating validation unavailable: helper returned invalid data."]
+	var warnings: Array[String] = []
+	for warning_variant in warnings_variant:
+		var warning := String(warning_variant).strip_edges()
+		if warning.is_empty():
+			continue
+		warnings.append(warning)
+	return warnings
+
+func get_platform_height_gating_validation_text() -> String:
+	if mission_manager == null:
+		return "Platform height gating validation unavailable: mission manager is missing."
+	if not mission_manager.has_method("get_platform_height_gating_validation_text"):
+		return "Platform height gating validation unavailable: helper missing."
+	return String(mission_manager.call("get_platform_height_gating_validation_text"))
+
 func install_module(module: BipobModule) -> void:
 	# MVP behavior: install immediately applies passive bonuses.
 	if module == null:
