@@ -6479,6 +6479,16 @@ func emit_facing_world_object_hint() -> void:
 	details.append("State: %s" % String(object_data.get("state", "unknown")))
 	if object_data.has("is_powered"):
 		details.append("Powered: %s" % ("Yes" if bool(object_data.get("is_powered", false)) else "No"))
+	if String(object_data.get("object_type", "")).begins_with("power_source"):
+		var load_value := int(object_data.get("source_load", 0))
+		var capacity_value := int(object_data.get("source_capacity", int(object_data.get("allowed_socket_connections", 1))))
+		details.append("Load: %d / %d" % [load_value, maxi(1, capacity_value)])
+		if bool(object_data.get("source_overloaded", false)):
+			details.append("Status: overloaded")
+	if object_data.has("current_heat") and object_data.has("overheat_threshold"):
+		var threshold := int(object_data.get("overheat_threshold", 0))
+		if threshold > 0:
+			details.append("Heat: %d / %d" % [int(object_data.get("current_heat", 0)), threshold])
 	if String(object_data.get("object_group", "")) == "threat":
 		details.append("Behavior: %s" % String(object_data.get("behavior_state", "idle")))
 		if String(object_data.get("object_type", "")) == "turret":
