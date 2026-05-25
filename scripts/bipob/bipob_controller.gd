@@ -272,6 +272,29 @@ func validate_power_network_runtime_state() -> Dictionary:
 		return {"valid": false, "networks": 0, "objects": 0, "warnings": ["Power runtime helper returned invalid data."], "errors": ["Power runtime report is not a dictionary."]}
 	return report_variant
 
+func validate_power_network_debug_scenario() -> Array[String]:
+	if mission_manager == null:
+		return ["Power network debug validation unavailable: mission manager/helper missing."]
+	if not mission_manager.has_method("validate_power_network_debug_scenario"):
+		return ["Power network debug validation unavailable: mission manager/helper missing."]
+	var warnings_variant: Variant = mission_manager.call("validate_power_network_debug_scenario")
+	if typeof(warnings_variant) != TYPE_ARRAY:
+		return ["Power network debug validation unavailable: mission manager/helper missing."]
+	var warnings: Array[String] = []
+	for warning_variant in warnings_variant:
+		var warning := String(warning_variant).strip_edges()
+		if warning.is_empty():
+			continue
+		warnings.append(warning)
+	return warnings
+
+func get_power_network_debug_validation_text() -> String:
+	if mission_manager == null:
+		return "Power network debug validation unavailable: mission manager/helper missing."
+	if not mission_manager.has_method("get_power_network_debug_validation_text"):
+		return "Power network debug validation unavailable: mission manager/helper missing."
+	return String(mission_manager.call("get_power_network_debug_validation_text"))
+
 func validate_platform_runtime_state() -> Dictionary:
 	if mission_manager == null:
 		return {"valid": false, "platforms": 0, "terminals": 0, "warnings": ["Mission manager is missing."], "errors": ["Mission manager unavailable."]}
