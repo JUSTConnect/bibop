@@ -602,6 +602,8 @@ func get_world_object_debug_info(object_id: String) -> Dictionary:
 	for key in ["platform_height_level", "carried_by_platform_id"]:
 		if object_data.has(key):
 			info[key] = object_data[key]
+	if String(object_data.get("object_group", "")) == "platform":
+		info["platform_state_summary"] = get_platform_state_summary(object_data)
 	return info
 
 func _get_debug_tile_info(cell: Vector2i) -> Variant:
@@ -662,6 +664,8 @@ func get_world_cell_debug_info(cell: Vector2i) -> Dictionary:
 	if not object_data.is_empty():
 		info["world_object_id"] = String(object_data.get("id", ""))
 		info["world_object_type"] = String(object_data.get("object_type", ""))
+		if String(object_data.get("object_group", "")) == "platform":
+			info["platform_state_summary"] = get_platform_state_summary(object_data)
 	var items: Array = cell_items.get(cell, [])
 	info["item_count"] = items.size()
 	if not items.is_empty():
@@ -1306,6 +1310,87 @@ func get_platform_timer_debug_summary_text() -> String:
 		lines.append("%s mode=%s pending=%s periodic=%s remaining=%d" % [String(object_data.get("platform_id", object_data.get("id", ""))), String(object_data.get("activation_mode", "instant")), str(bool(object_data.get("pending_activation", false))), str(bool(object_data.get("periodic_active", false))), int(object_data.get("timer_remaining_turns", 0))])
 	return "\n".join(lines) if not lines.is_empty() else "No platforms."
 
+func get_platform_state_summary(platform: Dictionary) -> String:
+	var platform_id := String(platform.get("platform_id", platform.get("id", ""))).strip_edges()
+	if platform_id.is_empty():
+		platform_id = "-"
+	var platform_type := String(platform.get("platform_type", "")).strip_edges()
+	if platform_type.is_empty():
+		platform_type = "-"
+	var activation_mode := String(platform.get("activation_mode", "instant")).strip_edges()
+	if activation_mode.is_empty():
+		activation_mode = "instant"
+	var state := String(platform.get("state", "active")).strip_edges()
+	if state.is_empty():
+		state = "active"
+	var powered_text := str(bool(platform.get("is_powered", true))).to_lower()
+	var details: Array[String] = []
+	if platform_type == "lifting":
+		details.append("height=%d" % int(platform.get("height_level", 0)))
+	elif platform_type == "rotating":
+		var rotation_direction := String(platform.get("rotation_direction", "")).strip_edges()
+		if rotation_direction.is_empty():
+			rotation_direction = "-"
+		details.append("rotation=%s" % rotation_direction)
+	if activation_mode == "timer":
+		details.append("timer=%d/%d" % [int(platform.get("timer_remaining_turns", 0)), int(platform.get("timer_turns", 0))])
+	elif activation_mode == "periodic":
+		details.append("timer=%d/%d" % [int(platform.get("timer_remaining_turns", 0)), int(platform.get("period_turns", 0))])
+	details.append("pending=%s" % str(bool(platform.get("pending_activation", false))).to_lower())
+	details.append("periodic=%s" % str(bool(platform.get("periodic_active", false))).to_lower())
+	var control_type := String(platform.get("control_type", "internal")).strip_edges()
+	if control_type.is_empty():
+		control_type = "internal"
+	details.append("control=%s" % control_type)
+	var terminal_id := String(platform.get("linked_terminal_id", "")).strip_edges()
+	if terminal_id.is_empty():
+		terminal_id = "-"
+	details.append("terminal=%s" % terminal_id)
+	var last_source := String(platform.get("last_activation_source", "")).strip_edges()
+	var last_message := String(platform.get("last_activation_message", "")).strip_edges()
+	var last_text := "-"
+	if not last_source.is_empty() and not last_message.is_empty():
+		last_text = "%s:%s" % [last_source, last_message]
+	elif not last_message.is_empty():
+		last_text = last_message
+	elif not last_source.is_empty():
+		last_text = last_source
+	details.append("last=%s" % last_text)
+	return "Platform %s | %s | mode=%s | state=%s | powered=%s | %s" % [
+		platform_id,
+		platform_type,
+		activation_mode,
+		state,
+		powered_text,
+		" | ".join(details)
+	]
+
+func get_platform_state_summary_table_text(filter: String = "") -> String:
+	var filter_text := filter.strip_edges().to_lower()
+	var platforms: Array[Dictionary] = []
+	for object_data in mission_world_objects:
+		if String(object_data.get("object_group", "")) == "platform":
+			platforms.append(object_data)
+	platforms.sort_custom(func(a: Dictionary, b: Dictionary) -> bool:
+		var a_id := String(a.get("platform_id", a.get("id", ""))).strip_edges()
+		var b_id := String(b.get("platform_id", b.get("id", ""))).strip_edges()
+		if a_id == b_id:
+			return String(a.get("id", "")) < String(b.get("id", ""))
+		return a_id < b_id
+	)
+	var lines: Array[String] = ["PlatformStateSummary:"]
+	for platform in platforms:
+		var summary := get_platform_state_summary(platform)
+		if not filter_text.is_empty() and summary.to_lower().find(filter_text) == -1:
+			continue
+		lines.append(summary)
+	if lines.size() == 1:
+		if filter_text.is_empty():
+			lines.append("none")
+		else:
+			lines.append("none (filter=%s)" % filter_text)
+	return "\n".join(lines)
+
 func validate_platform_runtime_state() -> Dictionary:
 	var warnings: Array[String] = []
 	var errors: Array[String] = []
@@ -1362,6 +1447,8 @@ func validate_platform_runtime_state() -> Dictionary:
 			var rotation_direction := String(platform.get("rotation_direction", ""))
 			if not rotation_direction in ["clockwise", "counterclockwise"]:
 				errors.append("Platform %s has invalid rotation_direction %s." % [platform_id, rotation_direction])
+			if not platform.has("rotation_direction"):
+				warnings.append("Platform %s (rotating) is missing rotation_direction." % platform_id)
 		if platform_type == "lifting":
 			var min_h := int(platform.get("min_height_level", 0))
 			var max_h := int(platform.get("max_height_level", 0))
@@ -1370,6 +1457,8 @@ func validate_platform_runtime_state() -> Dictionary:
 			var height := int(platform.get("height_level", 0))
 			if min_h > height or height > max_h:
 				errors.append("Platform %s has invalid height range min=%d height=%d max=%d." % [platform_id, min_h, height, max_h])
+			if not platform.has("height_level"):
+				warnings.append("Platform %s (lifting) is missing height_level." % platform_id)
 		for timer_key in ["timer_turns", "timer_remaining_turns", "period_turns"]:
 			if int(platform.get(timer_key, 0)) < 0:
 				errors.append("Platform %s has negative %s." % [platform_id, timer_key])
@@ -1377,9 +1466,13 @@ func validate_platform_runtime_state() -> Dictionary:
 		if activation_mode == "timer":
 			if int(platform.get("timer_turns", 0)) <= 0:
 				warnings.append("Platform %s uses timer mode with timer_turns <= 0." % platform_id)
+			if bool(platform.get("pending_activation", false)) and int(platform.get("timer_remaining_turns", 0)) <= 0:
+				warnings.append("Platform %s has pending timer activation with timer_remaining_turns <= 0." % platform_id)
 		if activation_mode == "periodic":
 			if int(platform.get("period_turns", 0)) <= 0:
 				warnings.append("Platform %s uses periodic mode with period_turns <= 0." % platform_id)
+			if bool(platform.get("periodic_active", false)) and int(platform.get("timer_remaining_turns", 0)) <= 0 and int(platform.get("period_turns", 0)) > 0:
+				warnings.append("Platform %s has periodic_active with timer_remaining_turns <= 0." % platform_id)
 		var last_source := String(platform.get("last_activation_source", ""))
 		if not last_source in ["", "timer", "periodic", "terminal", "local_switch", "debug", "direct"]:
 			warnings.append("Platform %s has unexpected last_activation_source %s." % [platform_id, last_source])
