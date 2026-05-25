@@ -155,6 +155,8 @@ static func get_internal_characteristics_lines(module: BipobModule) -> Array:
 		lines.append("Hack: +%d" % module.hack_value)
 	if module.gpu_value > 0:
 		lines.append("GPU: +%d" % module.gpu_value)
+	if module.digital_storage_slots > 0:
+		lines.append("Storage: +%d" % module.digital_storage_slots)
 	if module.cooling_transfer != 0:
 		lines.append("Cooling Transfer: %d" % module.cooling_transfer)
 	if module.cooling_receive != 0:
@@ -167,6 +169,10 @@ static func get_internal_characteristics_lines(module: BipobModule) -> Array:
 		lines.append("Ports: %d" % module.ports)
 	if not module.interface_role.is_empty():
 		lines.append("Interface: %s" % module.interface_role)
+	if bool(module.is_builtin):
+		lines.append("Special: Built-in, non-removable")
 	if not module.special_effect_text.is_empty():
 		lines.append("Special: %s" % module.special_effect_text)
+	if lines.is_empty():
+		lines.append("Characteristics will be added later.")
 	return lines
