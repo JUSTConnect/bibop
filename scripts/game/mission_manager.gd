@@ -655,7 +655,9 @@ func _is_terminal_powered_for_interaction(object_data: Dictionary) -> bool:
 		return false
 	if state in ["damaged", "broken", "destroyed", "overheated", "unpowered"]:
 		return false
-	return bool(object_data.get("is_powered", false))
+	if object_data.has("is_powered"):
+		return bool(object_data.get("is_powered", true))
+	return true
 
 func _is_power_reactive_door_object(object_data: Dictionary) -> bool:
 	var object_group := _normalize_power_consumer_text(object_data.get("object_group", ""))
@@ -737,6 +739,9 @@ func update_platform_power_state_from_is_powered(object_data: Dictionary) -> Dic
 	var state := _normalize_power_consumer_text(previous_state)
 	var report := {"changed": false, "object_id": String(object_data.get("id", "")), "previous_state": previous_state, "new_state": previous_state, "reason": "not_platform_consumer"}
 	if not _is_platform_power_consumer(object_data):
+		return report
+	if state in ["damaged", "broken", "destroyed"] or bool(object_data.get("damaged", false)) or bool(object_data.get("broken", false)) or bool(object_data.get("destroyed", false)):
+		report["reason"] = "platform_blocked_state"
 		return report
 	if not bool(object_data.get("is_powered", false)):
 		if not state in ["unpowered", "disabled", "damaged", "broken", "destroyed"]:
@@ -1592,6 +1597,9 @@ func validate_power_network_debug_scenario() -> Array[String]:
 	temp_objects.append(_build_power_network_debug_object("power_debug_platform_powered_source", "power_source", "power_debug_platform_powered", {"is_powered": true}))
 	temp_objects.append(_build_power_network_debug_object("power_debug_platform_powered_switch", "circuit_switch", "power_debug_platform_powered", {"state": "switch_on"}))
 	temp_objects.append(_build_power_network_debug_object("power_debug_platform_powered_platform", "lifting_platform", "power_debug_platform_powered", {"is_powered": false, "state": "unpowered", "height_level": 1}))
+	temp_objects.append(_build_power_network_debug_object("power_debug_platform_damaged_source", "power_source", "power_debug_platform_damaged", {"is_powered": true}))
+	temp_objects.append(_build_power_network_debug_object("power_debug_platform_damaged_switch", "circuit_switch", "power_debug_platform_damaged", {"state": "switch_off"}))
+	temp_objects.append(_build_power_network_debug_object("power_debug_platform_damaged_platform", "lifting_platform", "power_debug_platform_damaged", {"is_powered": true, "state": "damaged", "height_level": 2, "damaged": true}))
 	for object_data in temp_objects:
 		mission_world_objects.append(object_data)
 		var object_id := String(object_data.get("id", "")).strip_edges()
@@ -1974,6 +1982,12 @@ func validate_power_network_debug_scenario() -> Array[String]:
 	apply_power_graph_state_from_preview("power_debug_terminal_damaged")
 	if String(terminal_damaged.get("state", "")) != "damaged" or _is_terminal_powered_for_interaction(terminal_damaged):
 		warnings.append("Terminal damaged regression: damaged terminal must remain non-interactable.")
+	var terminal_legacy := {"object_type": "terminal", "state": "active"}
+	if not _is_terminal_powered_for_interaction(terminal_legacy):
+		warnings.append("Terminal legacy default regression: missing is_powered must remain interactable.")
+	var terminal_explicit_unpowered := {"object_type": "terminal", "state": "active", "is_powered": false}
+	if _is_terminal_powered_for_interaction(terminal_explicit_unpowered):
+		warnings.append("Terminal explicit unpowered regression: is_powered=false must block interaction.")
 	var energy_door_blocked := get_world_object_by_id("power_debug_energy_door_blocked_door")
 	apply_power_graph_state_from_preview("power_debug_energy_door_blocked")
 	if bool(energy_door_blocked.get("is_powered", true)) or not String(energy_door_blocked.get("state", "")) in ["unpowered", "disabled"]:
@@ -1992,6 +2006,16 @@ func validate_power_network_debug_scenario() -> Array[String]:
 	apply_power_graph_state_from_preview("power_debug_platform_powered")
 	if not bool(platform_powered.get("is_powered", false)) or not String(platform_powered.get("state", "")) in ["active", "idle"] or int(platform_powered.get("height_level", 0)) != platform_powered_height_before:
 		warnings.append("Platform powered regression: platform should restore and not move.")
+	var platform_damaged := get_world_object_by_id("power_debug_platform_damaged_platform")
+	var platform_damaged_state_before := String(platform_damaged.get("state", ""))
+	apply_power_graph_state_from_preview("power_debug_platform_damaged")
+	if String(platform_damaged.get("state", "")) != platform_damaged_state_before or String(platform_damaged.get("state", "")) == "unpowered" or String(platform_damaged.get("state", "")) == "active":
+		warnings.append("Platform damaged regression: damaged platform state must be preserved when unpowered.")
+	var platform_damaged_switch := get_world_object_by_id("power_debug_platform_damaged_switch")
+	platform_damaged_switch["state"] = "switch_on"
+	apply_power_graph_state_from_preview("power_debug_platform_damaged")
+	if String(platform_damaged.get("state", "")) != platform_damaged_state_before:
+		warnings.append("Platform damaged restore regression: power restore must not heal damaged platform.")
 	var graph_filter_source := get_world_object_by_id("power_debug_graph_open_switch_source")
 	var graph_filter_gate := get_world_object_by_id("power_debug_graph_open_switch_gate")
 	var graph_filter_consumer := get_world_object_by_id("power_debug_graph_open_switch_consumer")
