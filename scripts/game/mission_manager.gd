@@ -15,6 +15,7 @@ var enable_debug_seed := false
 var debug_world_cooling_scenario_enabled: bool = false
 var debug_platform_scenario_enabled: bool = false
 var active_bipob_ref: Node = null
+var platform_last_tick_action_index: int = -1
 
 func _ready() -> void:
 	if enable_debug_seed:
@@ -1186,20 +1187,48 @@ func _facing_to_vector(facing_dir: String) -> Vector2i:
 			return Vector2i(1, 0)
 	return Vector2i.ZERO
 
-func process_platform_turn_tick() -> void:
+func process_platform_turn_tick() -> Array[String]:
+	var events: Array[String] = []
+	var platforms: Array[Dictionary] = []
 	for object_data in mission_world_objects:
-		if String(object_data.get("object_group", "")) != "platform":
-			continue
-		if bool(object_data.get("pending_activation", false)):
-			object_data["timer_remaining_turns"] = int(object_data.get("timer_remaining_turns", 0)) - 1
-			if int(object_data.get("timer_remaining_turns", 0)) <= 0:
-				object_data["pending_activation"] = false
-				_execute_platform_action(object_data, "timer")
-		if bool(object_data.get("periodic_active", false)):
-			object_data["timer_remaining_turns"] = int(object_data.get("timer_remaining_turns", 0)) - 1
-			if int(object_data.get("timer_remaining_turns", 0)) <= 0:
-				_execute_platform_action(object_data, "periodic")
-				object_data["timer_remaining_turns"] = maxi(1, int(object_data.get("period_turns", 1)))
+		if String(object_data.get("object_group", "")) == "platform":
+			platforms.append(object_data)
+	if platforms.is_empty():
+		return events
+	platforms.sort_custom(func(a: Dictionary, b: Dictionary) -> bool:
+		var a_key := "%s|%s" % [String(a.get("platform_id", "")), String(a.get("id", ""))]
+		var b_key := "%s|%s" % [String(b.get("platform_id", "")), String(b.get("id", ""))]
+		return a_key < b_key
+	)
+	for platform in platforms:
+		var mode := String(platform.get("activation_mode", "instant"))
+		if mode == "timer":
+			if not bool(platform.get("pending_activation", false)):
+				continue
+			var next_timer := maxi(0, int(platform.get("timer_remaining_turns", 0)) - 1)
+			platform["timer_remaining_turns"] = next_timer
+			if next_timer == 0:
+				platform["pending_activation"] = false
+				var result := _execute_platform_action(platform, "timer")
+				if bool(result.get("success", false)):
+					events.append("%s activated (timer)." % String(platform.get("display_name", platform.get("platform_id", platform.get("id", "Platform")))))
+		elif mode == "periodic":
+			if not bool(platform.get("periodic_active", false)):
+				continue
+			var next_periodic_timer := maxi(0, int(platform.get("timer_remaining_turns", 0)) - 1)
+			platform["timer_remaining_turns"] = next_periodic_timer
+			if next_periodic_timer == 0:
+				var periodic_result := _execute_platform_action(platform, "periodic")
+				platform["timer_remaining_turns"] = maxi(0, int(platform.get("period_turns", 0)))
+				if bool(periodic_result.get("success", false)):
+					events.append("%s activated (periodic)." % String(platform.get("display_name", platform.get("platform_id", platform.get("id", "Platform")))))
+	return events
+
+func process_platform_turn_tick_once(action_index: int) -> Array[String]:
+	if action_index == platform_last_tick_action_index:
+		return []
+	platform_last_tick_action_index = action_index
+	return process_platform_turn_tick()
 
 func get_platform_timer_debug_summary_text() -> String:
 	var lines: Array[String] = []
@@ -1276,6 +1305,19 @@ func validate_platform_runtime_state() -> Dictionary:
 		for timer_key in ["timer_turns", "timer_remaining_turns", "period_turns"]:
 			if int(platform.get(timer_key, 0)) < 0:
 				errors.append("Platform %s has negative %s." % [platform_id, timer_key])
+		var activation_mode := String(platform.get("activation_mode", "instant"))
+		if activation_mode == "timer":
+			if int(platform.get("timer_turns", 0)) <= 0:
+				warnings.append("Platform %s uses timer mode with timer_turns <= 0." % platform_id)
+		if activation_mode == "periodic":
+			if int(platform.get("period_turns", 0)) <= 0:
+				warnings.append("Platform %s uses periodic mode with period_turns <= 0." % platform_id)
+		var has_pending_activation := bool(platform.get("pending_activation", false))
+		if has_pending_activation and not activation_mode in ["timer", "permanent"]:
+			warnings.append("Platform %s has pending_activation outside timer/permanent mode." % platform_id)
+		var has_periodic_active := bool(platform.get("periodic_active", false))
+		if has_periodic_active and activation_mode != "periodic":
+			warnings.append("Platform %s has periodic_active outside periodic mode." % platform_id)
 		if bool(platform.get("requires_terminal_enabled", false)):
 			var linked_terminal_id := String(platform.get("linked_terminal_id", "")).strip_edges()
 			if linked_terminal_id.is_empty():
@@ -1393,7 +1435,7 @@ func get_platform_runtime_table_text(filter: String = "") -> String:
 		var height := "-"
 		if String(platform.get("platform_type", "")) == "lifting":
 			height = str(int(platform.get("height_level", 0)))
-		var line := "%s | %s | cells=%d | %s | powered=%s | %s/%s | terminal=%s | %s | timer=%d | height=%s | occupants obj=%d item=%d bipob=%d" % [
+		var line := "%s | %s | cells=%d | %s | powered=%s | %s/%s | terminal=%s | %s | pending=%s | periodic=%s | timer_turns=%d | period_turns=%d | timer=%d | height=%s | occupants obj=%d item=%d bipob=%d" % [
 			platform_id,
 			String(platform.get("platform_type", "")),
 			Array(platform.get("platform_cells", [])).size(),
@@ -1403,6 +1445,10 @@ func get_platform_runtime_table_text(filter: String = "") -> String:
 			String(platform.get("control_type", "internal")),
 			terminal_id,
 			mode,
+			str(bool(platform.get("pending_activation", false))).to_lower(),
+			str(bool(platform.get("periodic_active", false))).to_lower(),
+			int(platform.get("timer_turns", 0)),
+			int(platform.get("period_turns", 0)),
 			timer_remaining,
 			height,
 			occ_obj,
