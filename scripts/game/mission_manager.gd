@@ -1023,7 +1023,23 @@ func get_world_object_height_level(object_data: Dictionary) -> int:
 	return get_cell_height_level(object_cell)
 
 func get_actor_height_level(actor_cell: Vector2i, actor: Node = null) -> int:
-	if actor != null and actor.has_method("get_platform_height_level"):
+	var cell_height := get_cell_height_level(actor_cell)
+	if actor == null:
+		return cell_height
+	if actor.has_method("get_carried_by_platform_id"):
+		var carried_platform_id := String(actor.call("get_carried_by_platform_id")).strip_edges()
+		if carried_platform_id.is_empty():
+			return cell_height
+		var current_platform := get_platform_for_cell(actor_cell)
+		if current_platform.is_empty():
+			return cell_height
+		var current_platform_id := String(current_platform.get("platform_id", "")).strip_edges()
+		if current_platform_id != carried_platform_id:
+			return cell_height
+		if actor.has_method("get_platform_height_level"):
+			return int(actor.call("get_platform_height_level"))
+		return cell_height
+	if actor.has_method("get_platform_height_level"):
 		return int(actor.call("get_platform_height_level"))
 	return get_cell_height_level(actor_cell)
 
@@ -1127,8 +1143,8 @@ func _execute_platform_action(platform: Dictionary, source: String = "") -> Dict
 		for obj in Array(occupants.get("world_objects", [])):
 			obj["platform_height_level"] = int(platform.get("height_level", 0))
 			obj["carried_by_platform_id"] = String(platform.get("platform_id", ""))
-		if active_bipob_ref != null and active_bipob_ref.has_method("set_platform_height_level"):
-			var actor_cell := Vector2i(active_bipob_ref.get("grid_position"))
+		if active_bipob_ref != null and active_bipob_ref.has_method("set_platform_height_level") and active_bipob_ref.has_method("get_grid_position"):
+			var actor_cell: Vector2i = active_bipob_ref.call("get_grid_position")
 			for platform_cell_variant in Array(platform.get("platform_cells", [])):
 				var platform_cell := WorldObjectCatalog.to_world_cell(platform_cell_variant, Vector2i(-1, -1))
 				if platform_cell == actor_cell:
