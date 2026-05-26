@@ -145,6 +145,9 @@ var available_digital_storage_slots: int = 1
 var buffer_item: Dictionary = {}
 var digital_world_records: Dictionary = {}
 var selected_world_action: String = ""
+var selected_grid_cell: Vector2i = Vector2i(-1, -1)
+var selected_route_target_cell: Vector2i = Vector2i(-1, -1)
+var selected_route_cells: Array[Vector2i] = []
 const DIGITAL_RECORD_ROUTE_DATA := "route_data"
 const DIGITAL_RECORD_INFO_KEY := "info_key"
 var last_diagnostic_result: DiagnosticResult = null
@@ -5945,6 +5948,216 @@ func _unhandled_input(event: InputEvent) -> void:
 	elif event.is_action_pressed("cycle_world_action"):
 		cycle_selected_world_action()
 		return
+
+
+func is_cell_under_fog(cell: Vector2i) -> bool:
+	if grid_manager == null or not grid_manager.is_in_bounds(cell):
+		return true
+	if grid_manager.has_method("is_fog_enabled") and not bool(grid_manager.call("is_fog_enabled")):
+		return false
+	if grid_manager.has_method("is_explored"):
+		return not bool(grid_manager.call("is_explored", cell))
+	return false
+
+func is_cell_visible_to_bipob(cell: Vector2i) -> bool:
+	if grid_manager == null or not grid_manager.is_in_bounds(cell):
+		return false
+	if grid_manager.has_method("is_cell_visible"):
+		return bool(grid_manager.call("is_cell_visible", cell))
+	return false
+
+func _get_world_object_at_cell(cell: Vector2i) -> Dictionary:
+	if mission_manager == null:
+		return {}
+	return Dictionary(mission_manager.get_world_object_at_cell(cell))
+
+func get_cell_basic_composition_text(cell: Vector2i) -> String:
+	if is_cell_under_fog(cell):
+		return "Unknown cell."
+	var parts: Array[String] = []
+	var tile_type: int = grid_manager.get_tile(cell)
+	parts.append(GridManager.get_tile_name(tile_type).to_lower())
+	var object_data: Dictionary = _get_world_object_at_cell(cell)
+	if not object_data.is_empty():
+		parts.append("object: %s" % String(object_data.get("display_name", "object")))
+	if mission_manager != null and mission_manager.has_method("get_items_at_cell"):
+		var items_variant: Variant = mission_manager.call("get_items_at_cell", cell)
+		if typeof(items_variant) == TYPE_ARRAY:
+			var item_count: int = (items_variant as Array).size()
+			if item_count > 0:
+				parts.append("items: %d" % item_count)
+	return "Cell %s: %s." % [str(cell), ", ".join(parts)]
+
+func get_cell_visible_info_text(cell: Vector2i) -> String:
+	var base_text: String = get_cell_basic_composition_text(cell)
+	if not is_cell_visible_to_bipob(cell):
+		return base_text
+	var object_data: Dictionary = _get_world_object_at_cell(cell)
+	if object_data.is_empty():
+		return base_text
+	var info_parts: Array[String] = []
+	info_parts.append("name=%s" % String(object_data.get("display_name", "object")))
+	info_parts.append("group=%s" % String(object_data.get("object_group", "unknown")))
+	info_parts.append("type=%s" % String(object_data.get("object_type", "unknown")))
+	info_parts.append("state=%s" % String(object_data.get("state", "unknown")))
+	info_parts.append("blocks=%s" % str(bool(object_data.get("blocks_movement", false))))
+	if object_data.has("is_locked"):
+		info_parts.append("locked=%s" % str(bool(object_data.get("is_locked", false))))
+	if object_data.has("is_powered"):
+		info_parts.append("powered=%s" % str(bool(object_data.get("is_powered", false))))
+	return "%s | %s" % [base_text, ", ".join(info_parts)]
+
+func get_cell_scanned_info_text(cell: Vector2i) -> String:
+	var text: String = get_cell_visible_info_text(cell)
+	var object_data: Dictionary = _get_world_object_at_cell(cell)
+	if object_data.is_empty():
+		return text
+	var scan_level: int = int(object_data.get("scan_level", 0))
+	var revealed_hidden: bool = bool(object_data.get("revealed_hidden_content", false))
+	if scan_level <= 0 and not revealed_hidden:
+		return text
+	var details: Array[String] = ["scan_level=%d" % scan_level]
+	for key_name in ["damaged", "broken", "destroyed"]:
+		if object_data.has(key_name):
+			details.append("%s=%s" % [key_name, str(bool(object_data.get(key_name, false)))])
+	if object_data.has("power_network_id") and (scan_level > 0 or bool(object_data.get("power_network_revealed", false))):
+		details.append("power_network_id=%s" % String(object_data.get("power_network_id", "")))
+	if object_data.has("lock_type") and (scan_level > 0 or bool(object_data.get("lock_revealed", false))):
+		details.append("lock_type=%s" % String(object_data.get("lock_type", "")))
+	return "%s | %s" % [text, ", ".join(details)]
+
+func get_selected_cell_info_text(cell: Vector2i) -> String:
+	if is_cell_under_fog(cell):
+		return "Unknown area. Cell is under fog of war."
+	if not is_cell_visible_to_bipob(cell):
+		return get_cell_basic_composition_text(cell)
+	var object_data: Dictionary = _get_world_object_at_cell(cell)
+	if not object_data.is_empty() and (int(object_data.get("scan_level", 0)) > 0 or bool(object_data.get("revealed_hidden_content", false))):
+		return get_cell_scanned_info_text(cell)
+	return get_cell_visible_info_text(cell)
+
+func is_mouse_route_target_cell(cell: Vector2i) -> bool:
+	if grid_manager == null or not grid_manager.is_in_bounds(cell) or is_cell_under_fog(cell):
+		return false
+	if not grid_manager.is_walkable(cell):
+		return false
+	var object_data: Dictionary = _get_world_object_at_cell(cell)
+	if not object_data.is_empty() and bool(object_data.get("blocks_movement", false)):
+		return false
+	return true
+
+func build_mouse_route_to_cell(target_cell: Vector2i) -> Array[Vector2i]:
+	var route: Array[Vector2i] = []
+	if grid_manager == null or not grid_manager.is_in_bounds(target_cell):
+		return route
+	var start_cell: Vector2i = grid_position
+	if start_cell == target_cell:
+		return route
+	var queue: Array[Vector2i] = [start_cell]
+	var came_from: Dictionary = {start_cell: start_cell}
+	var offsets: Array[Vector2i] = [Vector2i.UP, Vector2i.RIGHT, Vector2i.DOWN, Vector2i.LEFT]
+	while not queue.is_empty():
+		var current: Vector2i = queue.pop_front()
+		if current == target_cell:
+			break
+		for delta in offsets:
+			var nxt: Vector2i = current + delta
+			if came_from.has(nxt):
+				continue
+			if not grid_manager.is_in_bounds(nxt) or is_cell_under_fog(nxt) or not grid_manager.is_walkable(nxt):
+				continue
+			var obj: Dictionary = _get_world_object_at_cell(nxt)
+			if not obj.is_empty() and bool(obj.get("blocks_movement", false)):
+				continue
+			came_from[nxt] = current
+			queue.append(nxt)
+	if not came_from.has(target_cell):
+		return []
+	var cursor: Vector2i = target_cell
+	while cursor != start_cell:
+		route.push_front(cursor)
+		cursor = came_from[cursor]
+	return route
+
+func set_selected_route(target_cell: Vector2i, route_cells: Array) -> void:
+	selected_route_target_cell = target_cell
+	selected_route_cells.clear()
+	for route_cell_variant in route_cells:
+		if route_cell_variant is Vector2i:
+			selected_route_cells.append(route_cell_variant)
+	if selected_route_cells.is_empty():
+		hint_requested.emit("No route to selected cell.")
+	else:
+		hint_requested.emit("Route selected: %d steps." % selected_route_cells.size())
+	status_changed.emit()
+
+func clear_selected_route() -> void:
+	selected_route_target_cell = Vector2i(-1, -1)
+	selected_route_cells.clear()
+
+func handle_grid_cell_left_click(cell: Vector2i) -> void:
+	if mission_finished or grid_manager == null:
+		return
+	if not grid_manager.is_in_bounds(cell):
+		hint_requested.emit("Invalid cell.")
+		return
+	selected_grid_cell = cell
+	if is_cell_under_fog(cell):
+		clear_selected_route()
+		hint_requested.emit("Unknown area. Cell is under fog of war.")
+		refresh_world_action_panel(); status_changed.emit(); return
+	if cell == grid_position:
+		clear_selected_route(); hint_requested.emit(get_selected_cell_info_text(cell)); refresh_world_action_panel(); status_changed.emit(); return
+	var has_object: bool = not _get_world_object_at_cell(cell).is_empty()
+	if has_object:
+		hint_requested.emit(get_selected_cell_info_text(cell))
+		if not is_mouse_route_target_cell(cell):
+			clear_selected_route()
+		refresh_world_action_panel()
+		status_changed.emit()
+		if not is_mouse_route_target_cell(cell):
+			return
+	if is_mouse_route_target_cell(cell):
+		if selected_route_target_cell == cell and not selected_route_cells.is_empty():
+			execute_selected_mouse_route(); return
+		var route_cells: Array[Vector2i] = build_mouse_route_to_cell(cell)
+		set_selected_route(cell, route_cells)
+		hint_requested.emit(get_selected_cell_info_text(cell))
+		status_changed.emit()
+		return
+
+func handle_grid_cell_right_click(cell: Vector2i) -> void:
+	if cell.x >= -1:
+		hint_requested.emit("Right click actions are not enabled yet.")
+
+func execute_selected_mouse_route() -> void:
+	if selected_route_cells.is_empty():
+		hint_requested.emit("No selected route.")
+		return
+	var target_cell: Vector2i = selected_route_target_cell
+	for next_cell in selected_route_cells:
+		if actions_left <= 0:
+			break
+		if is_cell_under_fog(next_cell) or not grid_manager.is_walkable(next_cell):
+			break
+		var obj: Dictionary = _get_world_object_at_cell(next_cell)
+		if not obj.is_empty() and bool(obj.get("blocks_movement", false)):
+			break
+		var delta: Vector2i = next_cell - grid_position
+		if delta == Vector2i.UP: direction = Direction.NORTH
+		elif delta == Vector2i.RIGHT: direction = Direction.EAST
+		elif delta == Vector2i.DOWN: direction = Direction.SOUTH
+		elif delta == Vector2i.LEFT: direction = Direction.WEST
+		update_visual_facing()
+		if not try_move_to(next_cell):
+			break
+		spend_action(1, 0)
+		register_successful_movement_cells(1, get_surface_id_for_position(next_cell))
+	if grid_position == target_cell:
+		clear_selected_route()
+	else:
+		set_selected_route(target_cell, build_mouse_route_to_cell(target_cell))
+	update_vision(); update_threat_detection_preview(); refresh_world_action_panel(); status_changed.emit()
 
 func move_forward() -> void:
 	if not require_command("move_forward", "Missing module: Wheels V1 required."):

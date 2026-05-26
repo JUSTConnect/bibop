@@ -80,6 +80,10 @@ var _iso_placeholder_texture_cache: Dictionary = {}
 var _grid_manager: GridManager = null
 var _rebuild_requested: bool = false
 
+var selected_iso_cell: Vector2i = Vector2i(-1, -1)
+var selected_iso_route_cells: Array[Vector2i] = []
+var selected_iso_action_cell: Vector2i = Vector2i(-1, -1)
+
 func set_grid_manager(grid: GridManager) -> void:
 	_grid_manager = grid
 	request_rebuild()
@@ -215,6 +219,81 @@ func get_iso_inset_diamond_points(cell: Vector2i, inset: float) -> PackedVector2
 func get_iso_wall_base_points(cell: Vector2i) -> PackedVector2Array:
 	return get_iso_diamond_points(cell)
 
+
+func is_point_inside_iso_diamond(point: Vector2, diamond_points: PackedVector2Array) -> bool:
+	if diamond_points.size() < 3:
+		return false
+	if Geometry2D.is_point_in_polygon(point, diamond_points):
+		return true
+	var sign: int = 0
+	for idx in range(diamond_points.size()):
+		var next_idx: int = (idx + 1) % diamond_points.size()
+		var edge: Vector2 = diamond_points[next_idx] - diamond_points[idx]
+		var point_delta: Vector2 = point - diamond_points[idx]
+		var cross: float = edge.cross(point_delta)
+		if is_zero_approx(cross):
+			continue
+		var current_sign: int = 1 if cross > 0.0 else -1
+		if sign == 0:
+			sign = current_sign
+		elif sign != current_sign:
+			return false
+	return true
+
+func get_cell_at_iso_visual_position(local_position: Vector2) -> Vector2i:
+	if _grid_manager == null:
+		return Vector2i(-1, -1)
+	var map_width: int = _grid_manager.get_map_width()
+	var map_height: int = _grid_manager.get_map_height()
+	if map_width <= 0 or map_height <= 0:
+		return Vector2i(-1, -1)
+	var matched_cells: Array[Vector2i] = []
+	for y in range(map_height):
+		for x in range(map_width):
+			var cell: Vector2i = Vector2i(x, y)
+			var diamond_points: PackedVector2Array = get_iso_diamond_points(cell)
+			if is_point_inside_iso_diamond(local_position, diamond_points):
+				matched_cells.append(cell)
+	if matched_cells.is_empty():
+		return Vector2i(-1, -1)
+	matched_cells.sort_custom(sort_cells_by_iso_depth)
+	return matched_cells[matched_cells.size() - 1]
+
+func set_iso_mouse_selection_visuals(selected_cell: Vector2i, route_cells: Array, action_cell: Vector2i = Vector2i(-1, -1)) -> void:
+	selected_iso_cell = selected_cell
+	selected_iso_route_cells.clear()
+	for route_cell_variant in route_cells:
+		if route_cell_variant is Vector2i:
+			selected_iso_route_cells.append(route_cell_variant)
+	selected_iso_action_cell = action_cell
+	queue_redraw()
+
+func clear_iso_mouse_selection_visuals() -> void:
+	selected_iso_cell = Vector2i(-1, -1)
+	selected_iso_route_cells.clear()
+	selected_iso_action_cell = Vector2i(-1, -1)
+	queue_redraw()
+
+func draw_iso_mouse_selection_overlay() -> void:
+	for route_cell in selected_iso_route_cells:
+		var route_points: PackedVector2Array = get_iso_inset_diamond_points(route_cell, iso_floor_visual_inset + 8.0)
+		if route_points.size() < 4:
+			continue
+		draw_colored_polygon(route_points, Color(0.29, 0.75, 0.95, 0.2))
+	if selected_iso_cell.x >= 0 and selected_iso_cell.y >= 0:
+		var selected_points: PackedVector2Array = get_iso_inset_diamond_points(selected_iso_cell, iso_floor_visual_inset + 4.0)
+		if selected_points.size() >= 4:
+			draw_colored_polygon(selected_points, Color(0.85, 0.93, 1.0, 0.14))
+			for edge_index in range(selected_points.size()):
+				var next_index: int = (edge_index + 1) % selected_points.size()
+				draw_line(selected_points[edge_index], selected_points[next_index], Color(0.72, 0.93, 1.0, 0.95), 2.0)
+	if selected_iso_action_cell.x >= 0 and selected_iso_action_cell.y >= 0:
+		var action_points: PackedVector2Array = get_iso_inset_diamond_points(selected_iso_action_cell, iso_floor_visual_inset + 6.0)
+		if action_points.size() >= 4:
+			draw_colored_polygon(action_points, Color(0.98, 0.66, 0.35, 0.2))
+			for edge_index in range(action_points.size()):
+				var next_index: int = (edge_index + 1) % action_points.size()
+				draw_line(action_points[edge_index], action_points[next_index], Color(0.99, 0.75, 0.45, 0.95), 2.4)
 
 func get_iso_depth_key(cell: Vector2i) -> int:
 	return cell.x + cell.y
@@ -1399,6 +1478,8 @@ func _draw() -> void:
 
 	if should_render_iso_floor_visuals():
 		draw_iso_floor_prototype()
+
+	draw_iso_mouse_selection_overlay()
 
 	if should_render_iso_wall_visuals():
 		draw_iso_wall_prototype()
