@@ -8598,51 +8598,74 @@ func _rotate_first_manipulator_and_pocket() -> void:
 	pocket_items[0] = hand_module
 	_sync_legacy_physical_slots()
 
+
+func _variant_to_dictionary(value: Variant, fallback: Dictionary = {}) -> Dictionary:
+	if typeof(value) == TYPE_DICTIONARY:
+		return Dictionary(value)
+	return fallback
+
+func _variant_to_dictionary_array(value: Variant) -> Array[Dictionary]:
+	var result: Array[Dictionary] = []
+	if typeof(value) != TYPE_ARRAY:
+		return result
+	for item_variant in value:
+		if typeof(item_variant) == TYPE_DICTIONARY:
+			result.append(Dictionary(item_variant))
+	return result
+
+func _variant_to_string_array(value: Variant) -> Array[String]:
+	var result: Array[String] = []
+	if typeof(value) != TYPE_ARRAY:
+		return result
+	for item_variant in value:
+		result.append(String(item_variant))
+	return result
+
 func get_terminal_action_availability(terminal_id: String, action: String = "") -> Dictionary:
 	if mission_manager == null or not mission_manager.has_method("get_terminal_action_availability"):
 		return {"available":false, "terminal_id":terminal_id, "action":action, "reasons":["terminal_missing"]}
-	return mission_manager.call("get_terminal_action_availability", terminal_id, action)
+	return _variant_to_dictionary(mission_manager.call("get_terminal_action_availability", terminal_id, action))
 
 func get_terminal_hack_requirements(terminal_id: String) -> Dictionary:
 	if mission_manager == null or not mission_manager.has_method("get_terminal_hack_requirements"):
 		return {"can_hack":false, "terminal_id":terminal_id, "reasons":["terminal_missing"]}
-	return mission_manager.call("get_terminal_hack_requirements", terminal_id)
+	return _variant_to_dictionary(mission_manager.call("get_terminal_hack_requirements", terminal_id))
 
 func attempt_terminal_hack(terminal_id: String) -> Dictionary:
 	if mission_manager == null or not mission_manager.has_method("attempt_terminal_hack"):
 		return {"success":false, "terminal_id":terminal_id, "reasons":["terminal_missing"]}
-	return mission_manager.call("attempt_terminal_hack", terminal_id)
+	return _variant_to_dictionary(mission_manager.call("attempt_terminal_hack", terminal_id))
 
 func get_terminal_control_targets(terminal_id: String) -> Array[Dictionary]:
 	if mission_manager == null or not mission_manager.has_method("get_terminal_control_targets"):
 		return []
-	return mission_manager.call("get_terminal_control_targets", terminal_id)
+	return _variant_to_dictionary_array(mission_manager.call("get_terminal_control_targets", terminal_id))
 
 func execute_terminal_control_action(terminal_id: String, target_id: String = "", action: String = "") -> Dictionary:
 	if mission_manager == null or not mission_manager.has_method("execute_terminal_control_action"):
 		return {"success":false, "terminal_id":terminal_id, "target_id":target_id, "action":action, "reasons":["terminal_missing"]}
-	return mission_manager.call("execute_terminal_control_action", terminal_id, target_id, action)
+	return _variant_to_dictionary(mission_manager.call("execute_terminal_control_action", terminal_id, target_id, action))
 
 func get_door_access_state(door_id: String) -> Dictionary:
 	if mission_manager == null or not mission_manager.has_method("get_door_access_state"):
 		return {"door_id":door_id, "can_open":false, "reasons":["door_missing"]}
-	return mission_manager.call("get_door_access_state", door_id)
+	return _variant_to_dictionary(mission_manager.call("get_door_access_state", door_id))
 
 func can_use_access_item_on_door(item_id: String, door_id: String) -> Dictionary:
 	if mission_manager == null or not mission_manager.has_method("can_use_access_item_on_door"):
 		return {"success":false, "item_id":item_id, "door_id":door_id, "reasons":["item_missing"]}
-	return mission_manager.call("can_use_access_item_on_door", item_id, door_id)
+	return _variant_to_dictionary(mission_manager.call("can_use_access_item_on_door", item_id, door_id))
 
 func use_access_item_on_door(item_id: String, door_id: String) -> Dictionary:
 	if mission_manager == null or not mission_manager.has_method("use_access_item_on_door"):
 		return {"success":false, "item_id":item_id, "door_id":door_id, "reasons":["item_missing"]}
-	return mission_manager.call("use_access_item_on_door", item_id, door_id)
+	return _variant_to_dictionary(mission_manager.call("use_access_item_on_door", item_id, door_id))
 
 func get_actor_capability_levels() -> Dictionary:
 	if mission_manager == null or not mission_manager.has_method("get_actor_capability_levels"):
 		var port_state := preview_module_port_activity()
 		return {"manipulator_level": 0, "connector_level": 0, "processor_level": 0, "power_class": "none", "modules": [], "tools": [], "connector_types": [], "port_state": port_state}
-	return mission_manager.call("get_actor_capability_levels")
+	return _variant_to_dictionary(mission_manager.call("get_actor_capability_levels"))
 
 func get_installed_module_port_state() -> Dictionary:
 	return preview_module_port_activity()
@@ -8942,10 +8965,10 @@ func get_module_port_debug_report_text() -> String:
 
 func get_module_inactive_reasons(module_id: String) -> Array[String]:
 	var state := preview_module_port_activity()
-	var modules: Dictionary = state.get("modules", {})
+	var modules: Dictionary = Dictionary(state.get("modules", {}))
 	if not modules.has(module_id):
 		return ["module_not_installed"]
-	var module_state: Dictionary = modules[module_id]
+	var module_state: Dictionary = Dictionary(modules.get(module_id, {}))
 	if bool(module_state.get("active", false)):
 		return ["ok"]
 	return [String(module_state.get("inactive_reason", "module_installed_but_inactive"))]
@@ -8953,42 +8976,42 @@ func get_module_inactive_reasons(module_id: String) -> Array[String]:
 func check_world_object_requirements(object_id: String, action: String = "") -> Dictionary:
 	if mission_manager == null or not mission_manager.has_method("check_world_object_requirements"):
 		return {"allowed": false, "object_id": object_id, "action": action, "requirements": {}, "capabilities": get_actor_capability_levels(), "reasons": ["object_missing"]}
-	return mission_manager.call("check_world_object_requirements", object_id, action)
+	return _variant_to_dictionary(mission_manager.call("check_world_object_requirements", object_id, action))
 
 func get_inventory_state() -> Dictionary:
-	return {} if mission_manager == null or not mission_manager.has_method("get_inventory_state") else mission_manager.call("get_inventory_state")
+	return {} if mission_manager == null or not mission_manager.has_method("get_inventory_state") else _variant_to_dictionary(mission_manager.call("get_inventory_state"))
 
 func can_pickup_world_item(item_id: String) -> Dictionary:
-	return {"success": false, "item_id": item_id, "reasons": ["item_missing"]} if mission_manager == null or not mission_manager.has_method("can_pickup_world_item") else mission_manager.call("can_pickup_world_item", item_id)
+	return {"success": false, "item_id": item_id, "reasons": ["item_missing"]} if mission_manager == null or not mission_manager.has_method("can_pickup_world_item") else _variant_to_dictionary(mission_manager.call("can_pickup_world_item", item_id))
 
 func pickup_world_item(item_id: String) -> Dictionary:
-	return {"success": false, "item_id": item_id, "reasons": ["item_missing"]} if mission_manager == null or not mission_manager.has_method("pickup_world_item") else mission_manager.call("pickup_world_item", item_id)
+	return {"success": false, "item_id": item_id, "reasons": ["item_missing"]} if mission_manager == null or not mission_manager.has_method("pickup_world_item") else _variant_to_dictionary(mission_manager.call("pickup_world_item", item_id))
 
 func can_drop_inventory_item(item_id: String) -> Dictionary:
-	return {"success": false, "item_id": item_id, "reasons": ["item_missing"]} if mission_manager == null or not mission_manager.has_method("can_drop_inventory_item") else mission_manager.call("can_drop_inventory_item", item_id)
+	return {"success": false, "item_id": item_id, "reasons": ["item_missing"]} if mission_manager == null or not mission_manager.has_method("can_drop_inventory_item") else _variant_to_dictionary(mission_manager.call("can_drop_inventory_item", item_id))
 
 func drop_inventory_item(item_id: String, target_cell: Vector2i = Vector2i(-1, -1)) -> Dictionary:
-	return {"success": false, "item_id": item_id, "reasons": ["item_missing"]} if mission_manager == null or not mission_manager.has_method("drop_inventory_item") else mission_manager.call("drop_inventory_item", item_id, target_cell)
+	return {"success": false, "item_id": item_id, "reasons": ["item_missing"]} if mission_manager == null or not mission_manager.has_method("drop_inventory_item") else _variant_to_dictionary(mission_manager.call("drop_inventory_item", item_id, target_cell))
 
 func hold_item_in_manipulator(item_id: String) -> Dictionary:
-	return {"success": false, "item_id": item_id, "reasons": ["item_missing"]} if mission_manager == null or not mission_manager.has_method("hold_item_in_manipulator") else mission_manager.call("hold_item_in_manipulator", item_id)
+	return {"success": false, "item_id": item_id, "reasons": ["item_missing"]} if mission_manager == null or not mission_manager.has_method("hold_item_in_manipulator") else _variant_to_dictionary(mission_manager.call("hold_item_in_manipulator", item_id))
 
 func place_item_in_digital_buffer(item_id: String) -> Dictionary:
-	return {"success": false, "item_id": item_id, "reasons": ["item_missing"]} if mission_manager == null or not mission_manager.has_method("place_item_in_digital_buffer") else mission_manager.call("place_item_in_digital_buffer", item_id)
+	return {"success": false, "item_id": item_id, "reasons": ["item_missing"]} if mission_manager == null or not mission_manager.has_method("place_item_in_digital_buffer") else _variant_to_dictionary(mission_manager.call("place_item_in_digital_buffer", item_id))
 
 func use_inventory_item_on_world_object(item_id: String, target_id: String, action: String = "") -> Dictionary:
-	return {"success": false, "item_id": item_id, "target_id": target_id, "action": action, "reasons": ["item_missing"]} if mission_manager == null or not mission_manager.has_method("use_inventory_item_on_world_object") else mission_manager.call("use_inventory_item_on_world_object", item_id, target_id, action)
+	return {"success": false, "item_id": item_id, "target_id": target_id, "action": action, "reasons": ["item_missing"]} if mission_manager == null or not mission_manager.has_method("use_inventory_item_on_world_object") else _variant_to_dictionary(mission_manager.call("use_inventory_item_on_world_object", item_id, target_id, action))
 
 func validate_full_runtime_persistence() -> Array[String]:
 	if mission_manager == null or not mission_manager.has_method("validate_full_runtime_persistence"):
 		return ["validate_full_runtime_persistence_missing"]
-	return mission_manager.call("validate_full_runtime_persistence")
+	return _variant_to_string_array(mission_manager.call("validate_full_runtime_persistence"))
 
 func get_developer_validation_menu_text() -> String:
 	return "Validation unavailable." if mission_manager == null or not mission_manager.has_method("get_developer_validation_menu_text") else String(mission_manager.call("get_developer_validation_menu_text"))
 
 func run_developer_validation_suite(suite: String = "all") -> Dictionary:
-	return {"suite": suite, "suites_run": 0, "warnings_count": 1, "warnings_by_suite": {suite: ["suite_missing"]}} if mission_manager == null or not mission_manager.has_method("run_developer_validation_suite") else mission_manager.call("run_developer_validation_suite", suite)
+	return {"suite": suite, "suites_run": 0, "warnings_count": 1, "warnings_by_suite": {suite: ["suite_missing"]}} if mission_manager == null or not mission_manager.has_method("run_developer_validation_suite") else _variant_to_dictionary(mission_manager.call("run_developer_validation_suite", suite))
 
 func get_developer_validation_suite_text(suite: String = "all") -> String:
 	return "Validation unavailable." if mission_manager == null or not mission_manager.has_method("get_developer_validation_suite_text") else String(mission_manager.call("get_developer_validation_suite_text", suite))
@@ -9004,37 +9027,37 @@ func get_door_debug_report_text(door_id: String = "") -> String:
 func get_platform_action_availability(platform_id: String, action: String = "") -> Dictionary:
 	if mission_manager == null or not mission_manager.has_method("get_platform_action_availability"):
 		return {"available": false, "platform_id": platform_id, "action": action, "reasons": ["platform_missing"], "state": "", "is_powered": false, "control_type": "", "power_type": ""}
-	return mission_manager.call("get_platform_action_availability", platform_id, action)
+	return _variant_to_dictionary(mission_manager.call("get_platform_action_availability", platform_id, action))
 
 func execute_platform_action(platform_id: String, action: String = "", controller_id: String = "") -> Dictionary:
 	if mission_manager == null or not mission_manager.has_method("execute_platform_action"):
 		return {"success": false, "reason": "platform_missing"}
-	return mission_manager.call("execute_platform_action", platform_id, action, controller_id)
+	return _variant_to_dictionary(mission_manager.call("execute_platform_action", platform_id, action, controller_id))
 
 func get_lifting_platform_carry_targets(platform_id: String) -> Array[Dictionary]:
 	if mission_manager == null or not mission_manager.has_method("get_lifting_platform_carry_targets"):
 		return []
-	return mission_manager.call("get_lifting_platform_carry_targets", platform_id)
+	return _variant_to_dictionary_array(mission_manager.call("get_lifting_platform_carry_targets", platform_id))
 
 func apply_lifting_platform_height_change(platform_id: String, delta: int, controller_id: String = "") -> Dictionary:
 	if mission_manager == null or not mission_manager.has_method("apply_lifting_platform_height_change"):
 		return {"success": false, "reason": "platform_missing"}
-	return mission_manager.call("apply_lifting_platform_height_change", platform_id, delta, controller_id)
+	return _variant_to_dictionary(mission_manager.call("apply_lifting_platform_height_change", platform_id, delta, controller_id))
 
 func apply_rotating_platform_rotation(platform_id: String, clockwise: bool = true, controller_id: String = "") -> Dictionary:
 	if mission_manager == null or not mission_manager.has_method("apply_rotating_platform_rotation"):
 		return {"success": false, "reason": "platform_missing"}
-	return mission_manager.call("apply_rotating_platform_rotation", platform_id, clockwise, controller_id)
+	return _variant_to_dictionary(mission_manager.call("apply_rotating_platform_rotation", platform_id, clockwise, controller_id))
 
 func get_scan_result_for_cell(cell: Vector2i, scan_mode: String = "basic") -> Dictionary:
 	if mission_manager == null or not mission_manager.has_method("get_scan_result_for_cell"):
 		return {"ok": false, "reason": "unavailable"}
-	return mission_manager.call("get_scan_result_for_cell", cell, scan_mode)
+	return _variant_to_dictionary(mission_manager.call("get_scan_result_for_cell", cell, scan_mode), {"ok": false, "reason": "invalid_result"})
 
 func get_scan_result_for_object(object_id: String, scan_mode: String = "basic") -> Dictionary:
 	if mission_manager == null or not mission_manager.has_method("get_scan_result_for_object"):
 		return {"ok": false, "reason": "unavailable"}
-	return mission_manager.call("get_scan_result_for_object", object_id, scan_mode)
+	return _variant_to_dictionary(mission_manager.call("get_scan_result_for_object", object_id, scan_mode), {"ok": false, "reason": "invalid_result"})
 
 func get_scan_text_for_object(object_id: String, scan_mode: String = "basic") -> String:
 	if mission_manager == null or not mission_manager.has_method("get_scan_text_for_object"):
@@ -9044,12 +9067,12 @@ func get_scan_text_for_object(object_id: String, scan_mode: String = "basic") ->
 func get_xray_visible_objects(filter: String = "") -> Array[Dictionary]:
 	if mission_manager == null or not mission_manager.has_method("get_xray_visible_objects"):
 		return []
-	return mission_manager.call("get_xray_visible_objects", filter)
+	return _variant_to_dictionary_array(mission_manager.call("get_xray_visible_objects", filter))
 
 func reveal_xray_objects(filter: String = "") -> Dictionary:
 	if mission_manager == null or not mission_manager.has_method("reveal_xray_objects"):
 		return {"success": false, "reason": "unavailable"}
-	return mission_manager.call("reveal_xray_objects", filter)
+	return _variant_to_dictionary(mission_manager.call("reveal_xray_objects", filter))
 
 func is_world_object_visible_to_player(object_data: Dictionary, scan_mode: String = "basic") -> bool:
 	if mission_manager == null or not mission_manager.has_method("is_world_object_visible_to_player"):
@@ -9059,4 +9082,4 @@ func is_world_object_visible_to_player(object_data: Dictionary, scan_mode: Strin
 func get_visible_world_objects_for_scan(scan_mode: String = "basic") -> Array[Dictionary]:
 	if mission_manager == null or not mission_manager.has_method("get_visible_world_objects_for_scan"):
 		return []
-	return mission_manager.call("get_visible_world_objects_for_scan", scan_mode)
+	return _variant_to_dictionary_array(mission_manager.call("get_visible_world_objects_for_scan", scan_mode))

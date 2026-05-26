@@ -5705,8 +5705,89 @@ func get_connector_processor_migration_validation_text() -> String:
 	return "ConnectorProcessorMigrationValidation: ok" if warnings.is_empty() else "ConnectorProcessorMigrationValidation:
 - " + "
 - ".join(warnings)
+
+func _to_stable_validation_summary(value: Variant) -> String:
+	if value == null:
+		return "null"
+	if value is Dictionary:
+		var dict_value: Dictionary = Dictionary(value)
+		var keys: Array[String] = []
+		for key_variant in dict_value.keys():
+			keys.append(String(key_variant))
+		keys.sort()
+		var parts: Array[String] = []
+		for key in keys:
+			parts.append("%s:%s" % [key, _to_stable_validation_summary(dict_value.get(key, null))])
+		return "{%s}" % ",".join(parts)
+	if value is Array:
+		var arr_value: Array = Array(value)
+		var items: Array[String] = []
+		for item in arr_value:
+			items.append(_to_stable_validation_summary(item))
+		items.sort()
+		return "[%s]" % ",".join(items)
+	return str(value)
+
+func _build_developer_validation_runtime_snapshot() -> Dictionary:
+	var snapshot: Dictionary = {}
+	snapshot["mission_id"] = _to_stable_validation_summary(current_mission_id)
+	snapshot["mission_state"] = _to_stable_validation_summary(current_mission_state)
+	snapshot["world_objects"] = _to_stable_validation_summary(world_objects)
+	snapshot["inventory"] = _to_stable_validation_summary(inventory_items)
+	if active_bipob_ref != null and _active_bipob_has_property("installed_modules"):
+		snapshot["installed_modules"] = _to_stable_validation_summary(active_bipob_ref.installed_modules)
+	else:
+		snapshot["installed_modules"] = "unavailable"
+	snapshot["port_state"] = _to_stable_validation_summary(preview_module_port_activity())
+	snapshot["capability_report"] = _to_stable_validation_summary(get_actor_capability_levels())
+	var task_state: Dictionary = {}
+	var property_names: Dictionary = {}
+	for property_data in get_property_list():
+		var property_dict: Dictionary = Dictionary(property_data)
+		var property_name: String = String(property_dict.get("name", ""))
+		if property_name.is_empty():
+			continue
+		property_names[property_name] = true
+	for task_field in ["task_test_started", "task_test_completed", "task_test_failed", "task_test_turns_left", "task_test_auto_seeded", "task_test_progress", "task_test_state"]:
+		if property_names.has(task_field):
+			task_state[task_field] = get(task_field)
+	snapshot["task_state"] = _to_stable_validation_summary(task_state)
+	return snapshot
+
+func validate_developer_validation_no_mutation() -> Array[String]:
+	var warnings: Array[String] = []
+	var baseline: Dictionary = _build_developer_validation_runtime_snapshot()
+	get_developer_validation_suite_text("module_ports")
+	get_developer_validation_suite_text("connector_processor_migration")
+	get_developer_validation_suite_text("all")
+	run_developer_validation_suite("module_ports")
+	run_developer_validation_suite("connector_processor_migration")
+	run_developer_validation_suite("all")
+	var after: Dictionary = _build_developer_validation_runtime_snapshot()
+	if String(after.get("mission_id", "")) != String(baseline.get("mission_id", "")):
+		warnings.append("developer_validation_mutated_mission_id")
+	if String(after.get("world_objects", "")) != String(baseline.get("world_objects", "")):
+		warnings.append("developer_validation_mutated_world_objects")
+	if String(after.get("inventory", "")) != String(baseline.get("inventory", "")):
+		warnings.append("developer_validation_mutated_inventory")
+	if String(after.get("installed_modules", "")) != String(baseline.get("installed_modules", "")):
+		warnings.append("developer_validation_mutated_installed_modules")
+	if String(after.get("port_state", "")) != String(baseline.get("port_state", "")):
+		warnings.append("developer_validation_mutated_port_state")
+	if String(after.get("capability_report", "")) != String(baseline.get("capability_report", "")):
+		warnings.append("developer_validation_mutated_capability_report")
+	if String(after.get("task_state", "")) != String(baseline.get("task_state", "")):
+		warnings.append("developer_validation_mutated_task_state")
+	return warnings
+
+func get_developer_validation_no_mutation_text() -> String:
+	var warnings: Array[String] = validate_developer_validation_no_mutation()
+	if warnings.is_empty():
+		return "DeveloperValidationNoMutation: ok"
+	return "DeveloperValidationNoMutation:\n- " + "\n- ".join(warnings)
+
 func run_developer_validation_suite(suite: String = "all") -> Dictionary:
-	var suites := ["power", "cooling_cable", "terminal_door", "platform_scan_visibility", "inventory_tools_modules", "persistence", "task_test", "module_ports", "connector_processor_migration"]
+	var suites := ["power", "cooling_cable", "terminal_door", "platform_scan_visibility", "inventory_tools_modules", "persistence", "task_test", "module_ports", "connector_processor_migration", "no_mutation"]
 	var selected := suites if suite == "all" else [suite]
 	var warnings_by_suite := {}
 	var suites_run := 0
@@ -5722,6 +5803,7 @@ func run_developer_validation_suite(suite: String = "all") -> Dictionary:
 			"task_test": warnings = validate_task_test_mission_runtime()
 			"module_ports": warnings = validate_module_port_network_runtime()
 			"connector_processor_migration": warnings = validate_connector_processor_migration()
+			"no_mutation": warnings = validate_developer_validation_no_mutation()
 			_: warnings = ["suite_missing"]
 		warnings_by_suite[suite_id] = warnings
 		suites_run += 1
@@ -5731,9 +5813,11 @@ func run_developer_validation_suite(suite: String = "all") -> Dictionary:
 	return {"suite": suite, "suites_run": suites_run, "warnings_count": warnings_count, "warnings_by_suite": warnings_by_suite}
 
 func get_developer_validation_menu_text() -> String:
-	return "Validation suites: all, power, cooling_cable, terminal_door, platform_scan_visibility, inventory_tools_modules, persistence, task_test, module_ports, connector_processor_migration"
+	return "Validation suites: all, power, cooling_cable, terminal_door, platform_scan_visibility, inventory_tools_modules, persistence, task_test, module_ports, connector_processor_migration, no_mutation"
 
 func get_developer_validation_suite_text(suite: String = "all") -> String:
+	if suite == "no_mutation":
+		return get_developer_validation_no_mutation_text()
 	var report := run_developer_validation_suite(suite)
 	var lines: Array[String] = ["DeveloperValidation suite=%s suites_run=%d warnings=%d" % [suite, int(report.get("suites_run", 0)), int(report.get("warnings_count", 0))]]
 	var by_suite: Dictionary = report.get("warnings_by_suite", {})
