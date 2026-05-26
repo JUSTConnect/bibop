@@ -1,12 +1,18 @@
 <svg width="128" height="120" viewBox="0 0 128 120" xmlns="http://www.w3.org/2000/svg">
-  <polygon points="64,14 114,40 64,66 14,40" fill="#7f858d"/>
-  <polygon points="14,40 64,66 64,106 14,80" fill="#5c626a"/>
-  <polygon points="114,40 64,66 64,106 114,80" fill="#505760"/>
-  <polyline points="64,14 114,40 64,66 14,40 64,14" fill="none" stroke="#9ca4ae" stroke-width="1.5"/>
-  <g stroke="#c3cad1" stroke-width="1" opacity="0.35">
+  <polygon points="64,14 114,40 64,66 14,40" fill="#7e858d"/>
+  <polygon points="14,40 64,66 64,106 14,80" fill="#5e656d"/>
+  <polygon points="114,40 64,66 64,106 114,80" fill="#515860"/>
+  <polyline points="64,14 114,40 64,66 14,40 64,14" fill="none" stroke="#b6bec7" stroke-width="1.4"/>
+  <g stroke="#cfd5dc" stroke-width="1" opacity="0.45">
     <line x1="24" y1="53" x2="55" y2="69"/>
-    <line x1="72" y1="70" x2="99" y2="56"/>
-    <line x1="31" y1="75" x2="44" y2="82"/>
-    <line x1="82" y1="85" x2="95" y2="78"/>
+    <line x1="71" y1="70" x2="99" y2="56"/>
+    <line x1="30" y1="76" x2="46" y2="84"/>
+    <line x1="82" y1="86" x2="97" y2="78"/>
+  </g>
+  <g stroke="#8e959d" stroke-width="1" opacity="0.55">
+    <line x1="21" y1="63" x2="41" y2="74"/>
+    <line x1="90" y1="73" x2="106" y2="65"/>
+    <line x1="44" y1="90" x2="58" y2="97"/>
+    <line x1="74" y1="97" x2="88" y2="90"/>
   </g>
 </svg>
