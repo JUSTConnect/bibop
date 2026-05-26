@@ -3329,35 +3329,45 @@ func get_actor_capability_levels() -> Dictionary:
 	if active_bipob_ref == null:
 		return defaults
 	defaults["manipulator_level"] = int(active_bipob_ref.call("get_installed_manipulator_arm_level")) if active_bipob_ref.has_method("get_installed_manipulator_arm_level") else 0
+	defaults["power_class"] = String(active_bipob_ref.call("get_bipob_power_class")) if active_bipob_ref.has_method("get_bipob_power_class") else "none"
+	defaults["tools"] = Array(active_bipob_ref.call("get_installed_tools")) if active_bipob_ref.has_method("get_installed_tools") else []
 	var port_state: Dictionary = active_bipob_ref.call("preview_module_port_activity") if active_bipob_ref.has_method("preview_module_port_activity") else {}
 	defaults["port_state"] = port_state
 	var modules_state: Dictionary = Dictionary(port_state.get("modules", {}))
+	var modules: Array[String] = []
 	var connector_types: Array[String] = []
+	var connector_kind_seen := {}
 	var connector_level := 0
 	var processor_level := 0
+	var level_regex := RegEx.new()
+	level_regex.compile("_v(\\d+)$")
 	for module_id_variant in modules_state.keys():
 		var module_id := String(module_id_variant)
 		var module_state: Dictionary = Dictionary(modules_state.get(module_id_variant, {}))
 		if not bool(module_state.get("active", false)):
 			continue
+		modules.append(module_id)
 		if module_id.contains("_connector_v"):
-			var level_match := RegEx.new(); level_match.compile("_v(\\d+)$")
-			var found := level_match.search(module_id)
+			var found := level_regex.search(module_id)
 			if found != null:
 				connector_level = maxi(connector_level, int(found.get_string(1)))
+			var connector_type := ""
 			if module_id.begins_with("wired_connector_"):
-				connector_types.append("wired")
+				connector_type = "wired"
 			elif module_id.begins_with("optical_connector_"):
-				connector_types.append("optical")
+				connector_type = "optical"
 			elif module_id.begins_with("wireless_connector_"):
-				connector_types.append("wireless")
+				connector_type = "wireless"
 			elif module_id.begins_with("high_bandwidth_connector_"):
-				connector_types.append("high_bandwidth")
+				connector_type = "high_bandwidth"
+			if not connector_type.is_empty() and not connector_kind_seen.has(connector_type):
+				connector_kind_seen[connector_type] = true
+				connector_types.append(connector_type)
 		elif module_id.begins_with("processor_"):
-			var pm := RegEx.new(); pm.compile("_v(\\d+)$")
-			var pfound := pm.search(module_id)
+			var pfound := level_regex.search(module_id)
 			if pfound != null:
 				processor_level = maxi(processor_level, int(pfound.get_string(1)))
+	defaults["modules"] = modules
 	defaults["connector_types"] = connector_types
 	defaults["connector_level"] = connector_level
 	defaults["processor_level"] = processor_level
@@ -5535,32 +5545,40 @@ func get_module_port_network_validation_text() -> String:
 func validate_connector_processor_migration() -> Array[String]:
 	var warnings: Array[String] = []
 	var caps := get_actor_capability_levels()
-	if not caps.has("processor_level"):
-		warnings.append("processor_level_missing")
-	if not caps.has("connector_level"):
-		warnings.append("connector_level_missing")
+	for key in ["processor_level", "connector_level", "connector_types", "modules", "tools", "port_state"]:
+		if not caps.has(key):
+			warnings.append("capability_report_missing_%s" % key)
+	for legacy_key in ["cpu_level", "required_cpu_level", "interface_level", "required_interface_level"]:
+		if caps.has(legacy_key):
+			warnings.append("capability_report_uses_legacy_%s" % legacy_key)
+
 	var task := build_task_test_mission_world_objects_for_validation()
 	for obj in Array(task.get("objects", [])):
-		if String(obj.get("id", "")).begins_with("task_test_terminal"):
-			if obj.has("required_interface_level"):
-				warnings.append("task_test_uses_required_interface_level")
-			if obj.has("required_cpu_level"):
-				warnings.append("task_test_uses_required_cpu_level")
+		var obj_dict := Dictionary(obj)
+		var obj_id := String(obj_dict.get("id", ""))
+		if not obj_id.begins_with("task_test_terminal"):
+			continue
+		if obj_dict.has("required_interface_level"):
+			warnings.append("task_test_uses_required_interface_level")
+		if obj_dict.has("required_cpu_level"):
+			warnings.append("task_test_uses_required_cpu_level")
+		if not obj_dict.has("required_connector_level"):
+			warnings.append("task_test_terminal_missing_required_connector_level")
+		if not obj_dict.has("required_processor_level") and String(obj_dict.get("state", "")).to_lower() not in ["damaged", "unpowered"]:
+			warnings.append("task_test_terminal_missing_required_processor_level")
+
 	if active_bipob_ref != null and active_bipob_ref.has_method("get_world_action_module"):
 		var module := active_bipob_ref.call("get_world_action_module", "connect", {"connection_type":"wired"})
 		if not String(Dictionary(module).get("id", "")).contains("_connector_v"):
 			warnings.append("connect_action_not_connector_id")
-	var terminal_id := "task_test_terminal_1"
-	for obj in Array(task.get("objects", [])):
-		var obj_dict := Dictionary(obj)
-		var obj_id := String(obj_dict.get("id", ""))
-		if obj_id.begins_with("task_test_terminal"):
-			terminal_id = obj_id
-			break
-	var req := get_terminal_hack_requirements(terminal_id)
-	for key in ["available_connector_level", "available_processor_level", "required_connector_level", "required_processor_level"]:
+
+	var req := get_terminal_hack_requirements("task_test_terminal_main")
+	for key in ["required_connector_level", "required_processor_level", "available_connector_level", "available_processor_level"]:
 		if not req.has(key):
 			warnings.append("terminal_requirements_missing_%s" % key)
+	for legacy_key in ["required_cpu_level", "required_interface_level", "cpu_level", "interface_level"]:
+		if req.has(legacy_key):
+			warnings.append("terminal_requirements_uses_legacy_%s" % legacy_key)
 	if req.is_empty():
 		warnings.append("terminal_requirements_empty")
 	elif active_bipob_ref != null and (int(caps.get("connector_level", 0)) > 0 or int(caps.get("processor_level", 0)) > 0):
