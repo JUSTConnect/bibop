@@ -127,6 +127,8 @@ var runtime_world_actions_behavior_label: Label = null
 var runtime_world_actions_list: VBoxContainer = null
 var runtime_world_actions_no_actions_label: Label = null
 var runtime_world_actions_selected_button: Button = null
+var runtime_map_constructor_palette_panel: PanelContainer = null
+var runtime_map_constructor_inspector_panel: PanelContainer = null
 var last_world_action_target_id: String = ""
 var last_world_action_actions_key: String = ""
 var last_world_action_selected: String = ""
@@ -258,6 +260,9 @@ var charging_active_tab: String = "supercharger"
 var tasks_validation_label: Label
 var tasks_start_button: Button
 var tasks_claim_button: Button
+var map_constructor_mode_active: bool = false
+var selected_map_constructor_prefab_id: String = ""
+var pending_map_constructor_cell: Vector2i = Vector2i(-1, -1)
 var tasks_actions_row: HBoxContainer
 var tasks_dev_output_label: RichTextLabel
 var tasks_dev_output_scroll: ScrollContainer
@@ -4481,6 +4486,7 @@ func _apply_runtime_hud_layout() -> void:
 	world_actions_panel.offset_bottom = wa_top + available_wa_height
 	root.add_child(world_actions_panel)
 	runtime_world_actions_panel = world_actions_panel
+	_refresh_map_constructor_panels()
 
 
 func _create_runtime_stats_strip() -> Control:
@@ -8766,8 +8772,24 @@ func _on_mission_result_main_menu_pressed() -> void:
 
 
 func _unhandled_input(event: InputEvent) -> void:
+	if event is InputEventKey and event.pressed and not event.echo and event.keycode == KEY_M:
+		_toggle_map_constructor_mode()
+		return
 	if event is InputEventMouseButton:
 		_handle_runtime_gameplay_mouse_click(event)
+
+func _is_task_test_runtime_active() -> bool:
+	return app_screen_mode == AppScreenMode.GAMEPLAY and bipob != null and int(bipob.current_mission_index) == 10
+
+func _toggle_map_constructor_mode() -> void:
+	if not _is_task_test_runtime_active():
+		return
+	map_constructor_mode_active = not map_constructor_mode_active
+	pending_map_constructor_cell = Vector2i(-1, -1)
+	if bipob != null:
+		bipob.map_constructor_input_blocked = map_constructor_mode_active
+	show_hint("Map Constructor Mode" if map_constructor_mode_active else "Map Constructor Mode Off")
+	_refresh_map_constructor_panels()
 
 func _handle_runtime_gameplay_mouse_click(event: InputEventMouseButton) -> bool:
 	if app_screen_mode != AppScreenMode.GAMEPLAY:
@@ -8790,36 +8812,131 @@ func _handle_runtime_gameplay_mouse_click(event: InputEventMouseButton) -> bool:
 	if cell.x < 0 or cell.y < 0:
 		return false
 	if event.button_index == MOUSE_BUTTON_LEFT:
-		bipob.handle_grid_cell_left_click(cell)
+		if map_constructor_mode_active:
+			_handle_map_constructor_left_click(cell)
+		else:
+			bipob.handle_grid_cell_left_click(cell)
 	else:
-		bipob.handle_grid_cell_right_click(cell)
+		if map_constructor_mode_active:
+			_show_map_constructor_inspector(cell)
+		else:
+			bipob.handle_grid_cell_right_click(cell)
 	var action_cell: Vector2i = Vector2i(-1, -1)
 	if bipob.grid_position.distance_to(cell) <= 1:
 		action_cell = cell
 	renderer.set_iso_mouse_selection_visuals(bipob.selected_grid_cell, bipob.selected_route_cells, action_cell)
+	if map_constructor_mode_active:
+		renderer.set_map_constructor_preview_cell(pending_map_constructor_cell)
 	update_status()
 	update_diagnostic_status()
 	update_box_status()
 	call_deferred("_sync_runtime_bipob_visual_state")
 	return true
 
+func _handle_map_constructor_left_click(cell: Vector2i) -> void:
+	if selected_map_constructor_prefab_id.is_empty():
+		show_hint("Select prefab in constructor palette.")
+		return
+	if pending_map_constructor_cell != cell:
+		pending_map_constructor_cell = cell
+		show_hint("Preview: %s at %s" % [selected_map_constructor_prefab_id, str(cell)])
+		return
+	if mission_manager_runtime == null or not mission_manager_runtime.has_method("place_map_constructor_prefab"):
+		return
+	var result: Dictionary = mission_manager_runtime.call("place_map_constructor_prefab", selected_map_constructor_prefab_id, cell)
+	show_hint(String(result.get("message", "Placement done.")))
+	if bool(result.get("ok", false)):
+		pending_map_constructor_cell = Vector2i(-1, -1)
+		if field_runtime != null and field_runtime.has_method("request_visual_refresh"):
+			field_runtime.call("request_visual_refresh")
+	_refresh_map_constructor_panels()
+
+func _refresh_map_constructor_panels() -> void:
+	if app_screen_mode != AppScreenMode.GAMEPLAY:
+		return
+	if runtime_hud_root == null:
+		return
+	if runtime_map_constructor_palette_panel != null and is_instance_valid(runtime_map_constructor_palette_panel):
+		runtime_map_constructor_palette_panel.queue_free()
+	if not map_constructor_mode_active:
+		return
+	runtime_map_constructor_palette_panel = PanelContainer.new()
+	runtime_map_constructor_palette_panel.position = Vector2(get_viewport_rect().size.x - 260, 360)
+	runtime_map_constructor_palette_panel.size = Vector2(240, 300)
+	runtime_map_constructor_palette_panel.add_theme_stylebox_override("panel", _make_panel_style(UI_COLOR_PANEL, UI_COLOR_BORDER, 1, 8))
+	var scroll := ScrollContainer.new()
+	scroll.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
+	runtime_map_constructor_palette_panel.add_child(scroll)
+	var list := VBoxContainer.new()
+	scroll.add_child(list)
+	if mission_manager_runtime != null and mission_manager_runtime.has_method("get_map_constructor_prefab_catalog"):
+		for entry in mission_manager_runtime.call("get_map_constructor_prefab_catalog"):
+			var id: String = String(entry.get("id", ""))
+			var b := Button.new()
+			b.text = "%s / %s" % [String(entry.get("category", "")), id]
+			b.toggle_mode = true
+			b.button_pressed = id == selected_map_constructor_prefab_id
+			b.pressed.connect(func() -> void:
+				selected_map_constructor_prefab_id = id
+				_refresh_map_constructor_panels()
+			)
+			list.add_child(b)
+	runtime_hud_root.add_child(runtime_map_constructor_palette_panel)
+
+func _show_map_constructor_inspector(cell: Vector2i) -> void:
+	if runtime_map_constructor_inspector_panel != null and is_instance_valid(runtime_map_constructor_inspector_panel):
+		runtime_map_constructor_inspector_panel.queue_free()
+	var object_data: Dictionary = mission_manager_runtime.call("get_world_object_at_cell", cell)
+	if object_data.is_empty():
+		return
+	var panel := PanelContainer.new()
+	panel.position = Vector2(20, 360)
+	panel.size = Vector2(300, 170)
+	panel.add_theme_stylebox_override("panel", _make_panel_style(UI_COLOR_PANEL_DARK, UI_COLOR_BORDER, 1, 8))
+	var v := VBoxContainer.new()
+	panel.add_child(v)
+	v.add_child(Label.new())
+	(v.get_child(0) as Label).text = "ID: %s\nType: %s\nState: %s\nPos: %s" % [String(object_data.get("id","")), String(object_data.get("object_type","")), String(object_data.get("state","")), str(cell)]
+	var del := Button.new()
+	del.text = "Delete"
+	del.pressed.connect(func() -> void:
+		var result: Dictionary = mission_manager_runtime.call("remove_map_constructor_object_at_cell", cell)
+		show_hint(String(result.get("message", "")))
+		if field_runtime != null and field_runtime.has_method("request_visual_refresh"):
+			field_runtime.call("request_visual_refresh")
+		_show_map_constructor_inspector(Vector2i(-1, -1))
+	)
+	v.add_child(del)
+	runtime_map_constructor_inspector_panel = panel
+	runtime_hud_root.add_child(panel)
+
 func _on_move_forward_pressed() -> void:
+	if map_constructor_mode_active:
+		return
 	bipob.move_forward()
 	update_status()
 
 func _on_move_backward_pressed() -> void:
+	if map_constructor_mode_active:
+		return
 	bipob.move_backward()
 	update_status()
 
 func _on_turn_left_pressed() -> void:
+	if map_constructor_mode_active:
+		return
 	bipob.turn_left()
 	update_status()
 
 func _on_turn_right_pressed() -> void:
+	if map_constructor_mode_active:
+		return
 	bipob.turn_right()
 	update_status()
 
 func _on_interact_pressed() -> void:
+	if map_constructor_mode_active:
+		return
 	bipob.interact()
 	update_status()
 
@@ -9010,6 +9127,8 @@ func _on_hack_device_button_pressed() -> void:
 	update_box_status()
 
 func _on_end_turn_pressed() -> void:
+	if map_constructor_mode_active:
+		return
 	bipob.end_turn()
 	update_status()
 

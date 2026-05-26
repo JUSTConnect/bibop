@@ -83,6 +83,7 @@ var _rebuild_requested: bool = false
 var selected_iso_cell: Vector2i = Vector2i(-1, -1)
 var selected_iso_route_cells: Array[Vector2i] = []
 var selected_iso_action_cell: Vector2i = Vector2i(-1, -1)
+var map_constructor_preview_cell: Vector2i = Vector2i(-1, -1)
 
 func set_grid_manager(grid: GridManager) -> void:
 	_grid_manager = grid
@@ -274,6 +275,10 @@ func clear_iso_mouse_selection_visuals() -> void:
 	selected_iso_action_cell = Vector2i(-1, -1)
 	queue_redraw()
 
+func set_map_constructor_preview_cell(cell: Vector2i) -> void:
+	map_constructor_preview_cell = cell
+	queue_redraw()
+
 func draw_iso_mouse_selection_overlay() -> void:
 	for route_cell in selected_iso_route_cells:
 		var route_points: PackedVector2Array = get_iso_inset_diamond_points(route_cell, iso_floor_visual_inset + 10.0)
@@ -299,6 +304,13 @@ func draw_iso_mouse_selection_overlay() -> void:
 			for edge_index in range(action_points.size()):
 				var next_index: int = (edge_index + 1) % action_points.size()
 				draw_line(action_points[edge_index], action_points[next_index], Color(0.99, 0.75, 0.45, 1.0), 2.8)
+	if map_constructor_preview_cell.x >= 0 and map_constructor_preview_cell.y >= 0:
+		var preview_points: PackedVector2Array = get_iso_inset_diamond_points(map_constructor_preview_cell, iso_floor_visual_inset + 3.0)
+		if preview_points.size() >= 4:
+			draw_colored_polygon(preview_points, Color(0.35, 1.0, 0.45, 0.18))
+			for edge_index in range(preview_points.size()):
+				var next_index: int = (edge_index + 1) % preview_points.size()
+				draw_line(preview_points[edge_index], preview_points[next_index], Color(0.52, 1.0, 0.60, 1.0), 2.2)
 
 func get_iso_depth_key(cell: Vector2i) -> int:
 	return cell.x + cell.y
