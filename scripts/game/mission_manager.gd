@@ -4957,8 +4957,8 @@ func execute_terminal_control_action(terminal_id: String, target_id: String = ""
 		if String(t.get("target_id", "")) == target_id: allowed = true
 	if not allowed: return {"success":false, "terminal_id":terminal_id, "target_id":target_id, "action":action, "reasons":["target_invalid"]}
 	var target := get_world_object_by_id(target_id) if target_id != "" else {}
-	if action == "open_door" and not target.is_empty(): target["state"] = "open"; target["is_open"] = true
-	elif action == "close_door" and not target.is_empty(): target["state"] = "closed"; target["is_open"] = false
+	if action == "open_door" and not target.is_empty(): target["state"] = "open"; target["is_open"] = true; target["is_locked"] = false; target["locked"] = false; target["blocks_movement"] = false
+	elif action == "close_door" and not target.is_empty(): target["state"] = "closed"; target["is_open"] = false; target["blocks_movement"] = true
 	elif action == "unlock_door" and not target.is_empty(): target["is_locked"] = false; target["locked"] = false
 	elif action == "lock_door" and not target.is_empty(): target["is_locked"] = true; target["locked"] = true
 	elif action in ["activate_platform","toggle_platform","rotate_platform"] and not target.is_empty():
@@ -4999,7 +4999,7 @@ func use_access_item_on_door(item_id: String, door_id: String) -> Dictionary:
 	var door := get_world_object_by_id(door_id)
 	var before := String(door.get("state", "")) if not door.is_empty() else ""
 	if not bool(gate.get("success", false)): return {"success":false, "item_id":item_id, "door_id":door_id, "reasons":gate.get("reasons", []), "door_state_before":before, "door_state_after":before, "consumed":false}
-	door["is_locked"] = false; door["locked"] = false; door["state"] = "open"
+	door["state"] = "open"; door["is_open"] = true; door["is_locked"] = false; door["locked"] = false; door["blocks_movement"] = false
 	return {"success":true, "item_id":item_id, "door_id":door_id, "reasons":["ok"], "door_state_before":before, "door_state_after":"open", "consumed":false}
 
 func use_inventory_item_on_world_object(item_id: String, target_id: String, action: String = "") -> Dictionary:
