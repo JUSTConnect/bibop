@@ -53,8 +53,8 @@ func rebuild_visuals() -> void:
 
 func get_iso_tile_half_size() -> Vector2:
 	# Visual safety clamp to avoid invalid projection values.
-	var safe_width: float = max(iso_tile_width, 1.0)
-	var safe_height: float = max(iso_tile_height, 1.0)
+	var safe_width: float = maxf(iso_tile_width, 1.0)
+	var safe_height: float = maxf(iso_tile_height, 1.0)
 	return Vector2(safe_width * 0.5, safe_height * 0.5)
 
 func grid_to_iso(cell: Vector2i) -> Vector2:
@@ -122,13 +122,19 @@ func get_floor_prototype_color(tile_type: int, cell: Vector2i) -> Color:
 
 	return base_color
 
+func _get_color_from_dict(data: Dictionary, key: String, fallback: Color) -> Color:
+	var value: Variant = data.get(key, fallback)
+	if value is Color:
+		return value
+	return fallback
+
 func get_wall_prototype_colors(cell: Vector2i) -> Dictionary:
 	var profile_key: String = get_wall_visual_profile_key_for_cell(cell)
 	var profile: Dictionary = get_wall_visual_profile(profile_key)
 	var parity: int = (cell.x + cell.y) % 2
-	var top_color: Color = profile["top"]
-	var left_color: Color = profile["left"]
-	var right_color: Color = profile["right"]
+	var top_color: Color = _get_color_from_dict(profile, "top", Color.WHITE)
+	var left_color: Color = _get_color_from_dict(profile, "left", Color.WHITE)
+	var right_color: Color = _get_color_from_dict(profile, "right", Color.WHITE)
 	if parity != 0:
 		top_color = top_color.lightened(0.06)
 		left_color = left_color.lightened(0.05)
@@ -138,8 +144,8 @@ func get_wall_prototype_colors(cell: Vector2i) -> Dictionary:
 		"top": top_color,
 		"left": left_color,
 		"right": right_color,
-		"outline": profile["outline"],
-		"accent": profile["accent"]
+		"outline": _get_color_from_dict(profile, "outline", Color(0.24, 0.31, 0.36, 0.9)),
+		"accent": _get_color_from_dict(profile, "accent", Color(0.29, 0.35, 0.4, 0.5))
 	}
 
 func get_default_wall_visual_profile_key() -> String:
@@ -265,7 +271,7 @@ func get_wall_visual_profile_key_for_cell(cell: Vector2i) -> String:
 func get_iso_wall_top_points(cell: Vector2i) -> PackedVector2Array:
 	var bottom_points: PackedVector2Array = get_iso_diamond_points(cell)
 	var top_points: PackedVector2Array = PackedVector2Array()
-	var safe_wall_height: float = max(iso_wall_height, 1.0)
+	var safe_wall_height: float = maxf(iso_wall_height, 1.0)
 	var wall_offset: Vector2 = Vector2(0.0, -safe_wall_height)
 	for point in bottom_points:
 		top_points.append(point + wall_offset)
@@ -284,26 +290,32 @@ func draw_iso_wall_block(cell: Vector2i) -> void:
 	var left_face: PackedVector2Array = PackedVector2Array([top_points[3], top_points[2], bottom_points[2], bottom_points[3]])
 	var right_face: PackedVector2Array = PackedVector2Array([top_points[2], top_points[1], bottom_points[1], bottom_points[2]])
 
-	draw_colored_polygon(left_face, colors["left"])
-	draw_colored_polygon(right_face, colors["right"])
-	draw_colored_polygon(top_face, colors["top"])
+	var left_color: Color = _get_color_from_dict(colors, "left", Color.WHITE)
+	var right_color: Color = _get_color_from_dict(colors, "right", Color.WHITE)
+	var top_color: Color = _get_color_from_dict(colors, "top", Color.WHITE)
+	var outline_color: Color = _get_color_from_dict(colors, "outline", Color.WHITE)
+	var accent_color: Color = _get_color_from_dict(colors, "accent", Color.WHITE)
+
+	draw_colored_polygon(left_face, left_color)
+	draw_colored_polygon(right_face, right_color)
+	draw_colored_polygon(top_face, top_color)
 
 	if debug_draw_iso_wall_outlines:
 		for edge_idx in range(top_face.size()):
 			var top_next_idx: int = (edge_idx + 1) % top_face.size()
-			draw_line(top_face[edge_idx], top_face[top_next_idx], colors["outline"], 1.0)
+			draw_line(top_face[edge_idx], top_face[top_next_idx], outline_color, 1.0)
 
 		for edge_idx in range(left_face.size()):
 			var left_next_idx: int = (edge_idx + 1) % left_face.size()
-			draw_line(left_face[edge_idx], left_face[left_next_idx], colors["outline"], 1.0)
+			draw_line(left_face[edge_idx], left_face[left_next_idx], outline_color, 1.0)
 
 		for edge_idx in range(right_face.size()):
 			var right_next_idx: int = (edge_idx + 1) % right_face.size()
-			draw_line(right_face[edge_idx], right_face[right_next_idx], colors["outline"], 1.0)
+			draw_line(right_face[edge_idx], right_face[right_next_idx], outline_color, 1.0)
 
 	var accent_start: Vector2 = top_points[3].lerp(top_points[0], 0.4)
 	var accent_end: Vector2 = top_points[0].lerp(top_points[1], 0.45)
-	draw_line(accent_start, accent_end, colors["accent"], 1.2)
+	draw_line(accent_start, accent_end, accent_color, 1.2)
 
 func draw_iso_floor_prototype() -> void:
 	# Procedural prototype floor renderer for early isometric look exploration.
@@ -450,19 +462,22 @@ func draw_iso_object_slab(cell: Vector2i, profile: Dictionary) -> void:
 	for point in diamond:
 		var offset_point: Vector2 = center + (point - center) * inset + Vector2(0.0, top_offset)
 		slab_points.append(offset_point)
-	draw_colored_polygon(slab_points, profile["base"])
+	var base_color: Color = _get_color_from_dict(profile, "base", Color.WHITE)
+	var accent_color: Color = _get_color_from_dict(profile, "accent", Color.WHITE)
+	var outline_color: Color = _get_color_from_dict(profile, "outline", Color.WHITE)
+	draw_colored_polygon(slab_points, base_color)
 	var accent_start: Vector2 = slab_points[3].lerp(slab_points[0], 0.5)
 	var accent_end: Vector2 = slab_points[0].lerp(slab_points[1], 0.5)
-	draw_line(accent_start, accent_end, profile["accent"], 2.0)
+	draw_line(accent_start, accent_end, accent_color, 2.0)
 	if debug_draw_iso_object_outlines:
 		for edge_idx in range(slab_points.size()):
 			var next_idx: int = (edge_idx + 1) % slab_points.size()
-			draw_line(slab_points[edge_idx], slab_points[next_idx], profile["outline"], 1.0)
+			draw_line(slab_points[edge_idx], slab_points[next_idx], outline_color, 1.0)
 
 func draw_iso_object_pillar(cell: Vector2i, profile: Dictionary) -> void:
 	var center: Vector2 = grid_to_iso(cell)
-	var marker_height: float = max(iso_object_marker_height, 1.0)
-	var half_width: float = max(get_iso_tile_half_size().x * 0.12, 3.0)
+	var marker_height: float = maxf(iso_object_marker_height, 1.0)
+	var half_width: float = maxf(get_iso_tile_half_size().x * 0.12, 3.0)
 	var base_bottom: Vector2 = center + Vector2(0.0, -3.0)
 	var base_top: Vector2 = base_bottom + Vector2(0.0, -marker_height)
 	var left_bottom: Vector2 = base_bottom + Vector2(-half_width, 0.0)
@@ -470,38 +485,50 @@ func draw_iso_object_pillar(cell: Vector2i, profile: Dictionary) -> void:
 	var left_top: Vector2 = base_top + Vector2(-half_width, 0.0)
 	var right_top: Vector2 = base_top + Vector2(half_width, 0.0)
 	var body_points: PackedVector2Array = PackedVector2Array([left_top, right_top, right_bottom, left_bottom])
-	draw_colored_polygon(body_points, profile["base"])
-	draw_line(left_top, right_top, profile["accent"], 2.0)
+	var base_color: Color = _get_color_from_dict(profile, "base", Color.WHITE)
+	var accent_color: Color = _get_color_from_dict(profile, "accent", Color.WHITE)
+	var outline_color: Color = _get_color_from_dict(profile, "outline", Color.WHITE)
+	draw_colored_polygon(body_points, base_color)
+	draw_line(left_top, right_top, accent_color, 2.0)
 	if debug_draw_iso_object_outlines:
 		for edge_idx in range(body_points.size()):
 			var next_idx: int = (edge_idx + 1) % body_points.size()
-			draw_line(body_points[edge_idx], body_points[next_idx], profile["outline"], 1.0)
+			draw_line(body_points[edge_idx], body_points[next_idx], outline_color, 1.0)
 
 func draw_iso_object_small_marker(cell: Vector2i, profile: Dictionary) -> void:
 	var center: Vector2 = grid_to_iso(cell) + Vector2(0.0, -6.0)
-	var radius: float = max(get_iso_tile_half_size().y * 0.16, 3.0)
-	draw_circle(center, radius, profile["base"])
-	draw_circle(center + Vector2(0.0, -radius * 0.3), radius * 0.45, profile["accent"])
+	var radius: float = maxf(get_iso_tile_half_size().y * 0.16, 3.0)
+	var base_color: Color = _get_color_from_dict(profile, "base", Color.WHITE)
+	var accent_color: Color = _get_color_from_dict(profile, "accent", Color.WHITE)
+	var outline_color: Color = _get_color_from_dict(profile, "outline", Color.WHITE)
+	draw_circle(center, radius, base_color)
+	draw_circle(center + Vector2(0.0, -radius * 0.3), radius * 0.45, accent_color)
 	if debug_draw_iso_object_outlines:
-		draw_arc(center, radius, 0.0, PI * 2.0, 24, profile["outline"], 1.0)
+		draw_arc(center, radius, 0.0, PI * 2.0, 24, outline_color, 1.0)
 
 func draw_iso_object_line(cell: Vector2i, profile: Dictionary) -> void:
 	var center: Vector2 = grid_to_iso(cell) + Vector2(0.0, -4.0)
-	var half_width: float = max(get_iso_tile_half_size().x * 0.26, 8.0)
+	var half_width: float = maxf(get_iso_tile_half_size().x * 0.26, 8.0)
 	var line_start: Vector2 = center + Vector2(-half_width, 0.0)
 	var line_end: Vector2 = center + Vector2(half_width, 0.0)
-	draw_line(line_start, line_end, profile["base"], 3.0)
-	draw_line(center + Vector2(-half_width * 0.6, -2.0), center + Vector2(half_width * 0.6, -2.0), profile["accent"], 1.6)
+	var base_color: Color = _get_color_from_dict(profile, "base", Color.WHITE)
+	var accent_color: Color = _get_color_from_dict(profile, "accent", Color.WHITE)
+	var outline_color: Color = _get_color_from_dict(profile, "outline", Color.WHITE)
+	draw_line(line_start, line_end, base_color, 3.0)
+	draw_line(center + Vector2(-half_width * 0.6, -2.0), center + Vector2(half_width * 0.6, -2.0), accent_color, 1.6)
 	if debug_draw_iso_object_outlines:
-		draw_line(line_start, line_end, profile["outline"], 1.0)
+		draw_line(line_start, line_end, outline_color, 1.0)
 
 func draw_iso_object_heat_marker(cell: Vector2i, profile: Dictionary) -> void:
 	var center: Vector2 = grid_to_iso(cell) + Vector2(0.0, -7.0)
-	var radius: float = max(get_iso_tile_half_size().y * 0.18, 3.5)
-	draw_circle(center, radius, profile["base"])
-	draw_circle(center, radius * 0.58, profile["accent"])
+	var radius: float = maxf(get_iso_tile_half_size().y * 0.18, 3.5)
+	var base_color: Color = _get_color_from_dict(profile, "base", Color.WHITE)
+	var accent_color: Color = _get_color_from_dict(profile, "accent", Color.WHITE)
+	var outline_color: Color = _get_color_from_dict(profile, "outline", Color.WHITE)
+	draw_circle(center, radius, base_color)
+	draw_circle(center, radius * 0.58, accent_color)
 	if debug_draw_iso_object_outlines:
-		draw_arc(center, radius, 0.0, PI * 2.0, 24, profile["outline"], 1.0)
+		draw_arc(center, radius, 0.0, PI * 2.0, 24, outline_color, 1.0)
 
 func draw_iso_object_marker(cell: Vector2i, tile_type: int) -> void:
 	var profile_key: String = get_iso_object_profile_key_for_tile(tile_type)
