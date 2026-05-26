@@ -11,6 +11,10 @@ use_iso_placeholder_asset_preset = true
 iso_visual_preview_includes_fog = false
 iso_visual_preview_drives_bipob_visual_position = true
 iso_placeholder_asset_preset_requires_preview = true
+iso_tile_width = 128.0
+iso_tile_height = 48.0
+iso_wall_height = 40.0
+iso_origin = Vector2(320, 64)
 
 [node name="FloorLayer" type="Node2D" parent="RoomVisualRenderer"]
 
