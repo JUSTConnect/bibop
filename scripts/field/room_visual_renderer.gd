@@ -19,6 +19,21 @@ class_name RoomVisualRenderer
 @export var debug_draw_iso_cell_outlines: bool = true
 @export var debug_draw_iso_wall_outlines: bool = true
 @export var debug_draw_iso_object_outlines: bool = true
+@export var use_iso_tile_asset_hooks: bool = false
+@export var iso_floor_default_texture: Texture2D = null
+@export var iso_floor_stepped_texture: Texture2D = null
+@export var iso_floor_door_underlay_texture: Texture2D = null
+@export var iso_wall_default_texture: Texture2D = null
+@export var iso_wall_damaged_texture: Texture2D = null
+@export var iso_wall_steel_texture: Texture2D = null
+@export var iso_wall_energy_texture: Texture2D = null
+@export var iso_object_door_texture: Texture2D = null
+@export var iso_object_terminal_texture: Texture2D = null
+@export var iso_object_key_texture: Texture2D = null
+@export var iso_object_component_texture: Texture2D = null
+@export var iso_object_socket_texture: Texture2D = null
+@export var iso_object_cable_texture: Texture2D = null
+@export var iso_object_generic_texture: Texture2D = null
 @export var iso_tile_width: float = 128.0
 @export var iso_tile_height: float = 64.0
 @export var iso_wall_height: float = 56.0
@@ -121,6 +136,102 @@ func get_floor_prototype_color(tile_type: int, cell: Vector2i) -> Color:
 		base_color = base_color.lerp(Color(0.23, 0.16, 0.15, 0.98), 0.25)
 
 	return base_color
+
+
+func get_iso_floor_asset_key_for_tile(tile_type: int) -> String:
+	if tile_type == GridManager.TILE_WALL:
+		return ""
+	if tile_type == GridManager.TILE_STEPPED_FLOOR:
+		return "floor_stepped"
+	if tile_type == GridManager.TILE_DOOR or tile_type == GridManager.TILE_DIGITAL_DOOR or tile_type == GridManager.TILE_POWERED_GATE:
+		return "floor_door_underlay"
+	if tile_type == GridManager.TILE_FLOOR or is_floor_like_tile(tile_type):
+		return "floor_default"
+	return ""
+
+func get_iso_wall_asset_key_for_profile(profile_key: String) -> String:
+	match profile_key:
+		"damaged_wall":
+			return "wall_damaged"
+		"steel_wall", "reinforced_steel_wall", "titanium_wall":
+			return "wall_steel"
+		"energy_wall":
+			return "wall_energy"
+		_:
+			return "wall_default"
+
+func get_iso_object_asset_key_for_profile(profile_key: String) -> String:
+	match profile_key:
+		"door", "digital_door", "powered_gate":
+			return "object_door"
+		"terminal", "airflow_terminal":
+			return "object_terminal"
+		"key":
+			return "object_key"
+		"component":
+			return "object_component"
+		"socket":
+			return "object_socket"
+		"cable", "cable_reel":
+			return "object_cable"
+		_:
+			return "object_generic"
+
+func get_iso_texture_for_asset_key(asset_key: String) -> Texture2D:
+	match asset_key:
+		"floor_default":
+			return iso_floor_default_texture
+		"floor_stepped":
+			return iso_floor_stepped_texture
+		"floor_door_underlay":
+			return iso_floor_door_underlay_texture
+		"wall_default":
+			return iso_wall_default_texture
+		"wall_damaged":
+			return iso_wall_damaged_texture
+		"wall_steel":
+			return iso_wall_steel_texture
+		"wall_energy":
+			return iso_wall_energy_texture
+		"object_door":
+			return iso_object_door_texture
+		"object_terminal":
+			return iso_object_terminal_texture
+		"object_key":
+			return iso_object_key_texture
+		"object_component":
+			return iso_object_component_texture
+		"object_socket":
+			return iso_object_socket_texture
+		"object_cable":
+			return iso_object_cable_texture
+		"object_generic":
+			return iso_object_generic_texture
+		_:
+			return null
+
+func has_iso_texture_for_asset_key(asset_key: String) -> bool:
+	return get_iso_texture_for_asset_key(asset_key) != null
+
+func get_iso_texture_draw_position(cell: Vector2i, texture: Texture2D) -> Vector2:
+	# Future asset hook: this is a provisional bottom-center-ish alignment.
+	# Final art pivot and per-asset offset tuning will be handled in follow-up PRs.
+	var center: Vector2 = grid_to_iso(cell)
+	var size: Vector2 = texture.get_size()
+	return center - Vector2(size.x * 0.5, size.y * 0.75)
+
+func draw_iso_texture_asset(cell: Vector2i, asset_key: String) -> bool:
+	# Asset hooks are optional. Procedural fallback remains the default path.
+	if not use_iso_tile_asset_hooks:
+		return false
+	if asset_key.is_empty():
+		return false
+	var texture: Texture2D = get_iso_texture_for_asset_key(asset_key)
+	if texture == null:
+		return false
+	var draw_position: Vector2 = get_iso_texture_draw_position(cell, texture)
+	draw_texture(texture, draw_position)
+	return true
 
 func get_wall_prototype_colors(cell: Vector2i) -> Dictionary:
 	var profile_key: String = get_wall_visual_profile_key_for_cell(cell)
@@ -272,6 +383,11 @@ func get_iso_wall_top_points(cell: Vector2i) -> PackedVector2Array:
 	return top_points
 
 func draw_iso_wall_block(cell: Vector2i) -> void:
+	var wall_profile_key: String = get_wall_visual_profile_key_for_cell(cell)
+	var wall_asset_key: String = get_iso_wall_asset_key_for_profile(wall_profile_key)
+	if draw_iso_texture_asset(cell, wall_asset_key):
+		return
+
 	var bottom_points: PackedVector2Array = get_iso_diamond_points(cell)
 	if bottom_points.size() < 4:
 		return
@@ -321,6 +437,10 @@ func draw_iso_floor_prototype() -> void:
 			var cell: Vector2i = Vector2i(x, y)
 			var tile_type: int = _grid_manager.get_tile(cell)
 			if not is_floor_like_tile(tile_type):
+				continue
+
+			var floor_asset_key: String = get_iso_floor_asset_key_for_tile(tile_type)
+			if draw_iso_texture_asset(cell, floor_asset_key):
 				continue
 
 			var diamond_points: PackedVector2Array = get_iso_diamond_points(cell)
@@ -505,6 +625,9 @@ func draw_iso_object_heat_marker(cell: Vector2i, profile: Dictionary) -> void:
 
 func draw_iso_object_marker(cell: Vector2i, tile_type: int) -> void:
 	var profile_key: String = get_iso_object_profile_key_for_tile(tile_type)
+	var object_asset_key: String = get_iso_object_asset_key_for_profile(profile_key)
+	if draw_iso_texture_asset(cell, object_asset_key):
+		return
 	var profile: Dictionary = get_iso_object_profile(profile_key)
 	var shape: String = str(profile.get("shape", "small_marker"))
 	if shape == "slab":
