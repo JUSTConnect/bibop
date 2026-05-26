@@ -3330,11 +3330,12 @@ func get_actor_capability_levels() -> Dictionary:
 		return defaults
 	defaults["manipulator_level"] = int(active_bipob_ref.call("get_installed_manipulator_arm_level")) if active_bipob_ref.has_method("get_installed_manipulator_arm_level") else 0
 	defaults["power_class"] = String(active_bipob_ref.call("get_bipob_power_class")) if active_bipob_ref.has_method("get_bipob_power_class") else "none"
-	defaults["tools"] = Array(active_bipob_ref.call("get_installed_tools")) if active_bipob_ref.has_method("get_installed_tools") else []
 	var port_state: Dictionary = active_bipob_ref.call("preview_module_port_activity") if active_bipob_ref.has_method("preview_module_port_activity") else {}
 	defaults["port_state"] = port_state
 	var modules_state: Dictionary = Dictionary(port_state.get("modules", {}))
 	var modules: Array[String] = []
+	var tools: Array[String] = []
+	var tool_seen := {}
 	var connector_types: Array[String] = []
 	var connector_kind_seen := {}
 	var connector_level := 0
@@ -3352,8 +3353,8 @@ func get_actor_capability_levels() -> Dictionary:
 			if found != null:
 				connector_level = maxi(connector_level, int(found.get_string(1)))
 			var connector_type := ""
-			if module_id.begins_with("wired_connector_"):
-				connector_type = "wired"
+			if module_id.begins_with("external_interface_connector_"):
+				connector_type = "physical"
 			elif module_id.begins_with("optical_connector_"):
 				connector_type = "optical"
 			elif module_id.begins_with("wireless_connector_"):
@@ -3367,7 +3368,13 @@ func get_actor_capability_levels() -> Dictionary:
 			var pfound := level_regex.search(module_id)
 			if pfound != null:
 				processor_level = maxi(processor_level, int(pfound.get_string(1)))
+		var module_state_tool_action := String(module_state.get("tool_action", "")).strip_edges()
+		var tool_id := module_state_tool_action if not module_state_tool_action.is_empty() else module_id
+		if not tool_seen.has(tool_id):
+			tool_seen[tool_id] = true
+			tools.append(tool_id)
 	defaults["modules"] = modules
+	defaults["tools"] = tools
 	defaults["connector_types"] = connector_types
 	defaults["connector_level"] = connector_level
 	defaults["processor_level"] = processor_level
@@ -5548,6 +5555,44 @@ func validate_connector_processor_migration() -> Array[String]:
 	for key in ["processor_level", "connector_level", "connector_types", "modules", "tools", "port_state"]:
 		if not caps.has(key):
 			warnings.append("capability_report_missing_%s" % key)
+	if caps.has("processor_level") and not (caps["processor_level"] is int):
+		warnings.append("capability_report_invalid_processor_level_type")
+	if caps.has("connector_level") and not (caps["connector_level"] is int):
+		warnings.append("capability_report_invalid_connector_level_type")
+	if caps.has("connector_types"):
+		if not (caps["connector_types"] is Array):
+			warnings.append("capability_report_invalid_connector_types_type")
+		else:
+			for entry in Array(caps["connector_types"]):
+				if not (entry is String):
+					warnings.append("capability_report_invalid_connector_types_entry")
+					break
+	if caps.has("modules"):
+		if not (caps["modules"] is Array):
+			warnings.append("capability_report_invalid_modules_type")
+		else:
+			for entry in Array(caps["modules"]):
+				if not (entry is String):
+					warnings.append("capability_report_invalid_modules_entry")
+					break
+	if caps.has("tools"):
+		if not (caps["tools"] is Array):
+			warnings.append("capability_report_invalid_tools_type")
+		else:
+			for entry in Array(caps["tools"]):
+				if not (entry is String):
+					warnings.append("capability_report_invalid_tools_entry")
+					break
+	if caps.has("port_state") and not (caps["port_state"] is Dictionary):
+		warnings.append("capability_report_invalid_port_state_type")
+
+	var cap_port_state := Dictionary(caps.get("port_state", {}))
+	var cap_modules_state := Dictionary(cap_port_state.get("modules", {}))
+	var external_connector_active := false
+	if cap_modules_state.has("external_interface_connector_v1"):
+		external_connector_active = bool(Dictionary(cap_modules_state.get("external_interface_connector_v1", {})).get("active", false))
+	if external_connector_active and not Array(caps.get("connector_types", [])).has("physical"):
+		warnings.append("capability_report_missing_physical_connector_type_for_external_interface")
 	for legacy_key in ["cpu_level", "required_cpu_level", "interface_level", "required_interface_level"]:
 		if caps.has(legacy_key):
 			warnings.append("capability_report_uses_legacy_%s" % legacy_key)
