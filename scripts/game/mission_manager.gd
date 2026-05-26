@@ -15,6 +15,7 @@ var enable_debug_seed := false
 var debug_world_cooling_scenario_enabled: bool = false
 var debug_platform_scenario_enabled: bool = false
 var active_bipob_ref: Node = null
+var grid_manager: Node = null
 var platform_last_tick_action_index: int = -1
 var runtime_inventory_state := {
 	"pocket_items": [],
@@ -220,6 +221,9 @@ func build_task_test_mission_world_objects_for_validation() -> Dictionary:
 	else:
 		items_by_cell[Vector2i(3, 5)] = [access_code]
 	return {"objects": objects, "items_by_cell": items_by_cell, "warnings": warnings}
+
+func set_grid_manager_ref(value: Node) -> void:
+	grid_manager = value
 
 # region Scenario validation
 func validate_world_object_scenario() -> Array[String]:
@@ -678,7 +682,7 @@ func get_threat_detection_result(threat: Dictionary, bipob_cell: Vector2i, grid_
 		result["message"] = "Threat inactive."
 		return result
 	var threat_position := Vector2i(threat.get("position", Vector2i(-1, -1)))
-	var distance := abs(threat_position.x - bipob_cell.x) + abs(threat_position.y - bipob_cell.y)
+	var distance: int = abs(threat_position.x - bipob_cell.x) + abs(threat_position.y - bipob_cell.y)
 	result["distance"] = distance
 	var max_range := int(threat.get("detection_range", 0))
 	if distance > max_range:
@@ -2408,7 +2412,7 @@ func validate_power_network_debug_scenario() -> Array[String]:
 	var graph_open_preview := preview_power_graph_state_application("power_debug_graph_open_switch")
 	if String(get_power_graph_preview_text("power_debug_graph_open_switch")).find("blocked=1") == -1:
 		warnings.append("Graph open switch scenario regression: blocked gate not reported.")
-	if String(graph_open_preview).find("blocked_by_gate") == -1:
+	if str(graph_open_preview).find("blocked_by_gate") == -1:
 		warnings.append("Graph open switch scenario regression: reason blocked_by_gate missing.")
 	if graph_open_source_before_preview != bool(graph_open_source.get("is_powered", false)) or graph_open_consumer_before_preview != bool(graph_open_consumer.get("is_powered", false)) or graph_open_gate_state_before_preview != String(graph_open_gate.get("state", "")) or graph_open_gate_power_before_preview != bool(graph_open_gate.get("is_powered", false)):
 		warnings.append("Graph preview regression: preview mutated open-gate objects.")
@@ -2643,7 +2647,7 @@ func validate_power_network_debug_scenario() -> Array[String]:
 	var overheat_terminal := get_world_object_by_id("power_debug_source_overheat_shutdown_terminal")
 	var overheat_platform := get_world_object_by_id("power_debug_source_overheat_shutdown_platform")
 	var overheat_preview_before := preview_power_graph_state_application("power_debug_source_overheat_shutdown")
-	if String(overheat_preview_before).find("source_load_report") == -1 and int((overheat_preview_before.get("source_load_report", {}).get("updated", 0))) <= 0:
+	if str(overheat_preview_before).find("source_load_report") == -1 and int((overheat_preview_before.get("source_load_report", {}).get("updated", 0))) <= 0:
 		warnings.append("Source load preview regression: missing source_load_report in graph preview.")
 	if int(overheat_source.get("source_load", -1)) != -1:
 		warnings.append("Source load preview regression: source overheat preview mutated source fields.")
@@ -3053,15 +3057,15 @@ func get_world_cell_debug_info(cell: Vector2i) -> Dictionary:
 			info["in_bounds"] = bool(grid_manager.is_in_bounds(cell))
 		if grid_manager.has_method("is_walkable"):
 			info["walkable"] = bool(grid_manager.is_walkable(cell))
-		var tile_info := _get_debug_tile_info(cell)
+		var tile_info: Variant = _get_debug_tile_info(cell)
 		if tile_info != null:
 			info["tile"] = tile_info
 			if typeof(tile_info) == TYPE_DICTIONARY:
-				var tile_data := Dictionary(tile_info)
+				var tile_data: Dictionary = Dictionary(tile_info)
 				if String(tile_data.get("type", "")) == "wall":
 					info["is_wall"] = true
 			elif typeof(tile_info) == TYPE_INT:
-				var wall_tile_id := _get_wall_tile_id()
+				var wall_tile_id: Variant = _get_wall_tile_id()
 				if wall_tile_id != null and typeof(wall_tile_id) == TYPE_INT:
 					info["is_wall"] = int(tile_info) == int(wall_tile_id)
 	var object_data := get_world_object_at_cell(cell)
@@ -5232,6 +5236,14 @@ func validate_full_runtime_persistence() -> Array[String]:
 			warnings.append("inventory_field_missing_%s" % field_name)
 	return warnings
 
+func _get_mission10_layout_for_validation() -> Array:
+	if grid_manager != null and grid_manager.has_method("get_mission10_layout"):
+		return Array(grid_manager.call("get_mission10_layout"))
+	var temporary_grid: GridManager = GridManager.new()
+	var layout: Array = Array(temporary_grid.get_mission10_layout())
+	temporary_grid.free()
+	return layout
+
 func validate_task_test_mission_runtime() -> Array[String]:
 	var warnings: Array[String] = []
 	var built := build_task_test_mission_world_objects_for_validation()
@@ -5288,7 +5300,7 @@ func validate_task_test_mission_runtime() -> Array[String]:
 	var extraction_cell := Vector2i(extraction.get("position", Vector2i(-999, -999)))
 	if extraction_cell != exit_cell and extraction_cell.distance_to(exit_cell) > 1.0:
 		warnings.append("task_test_extraction_not_on_or_adjacent_to_exit")
-	var mission_layout := GridManager.get_mission10_layout()
+	var mission_layout: Array = _get_mission10_layout_for_validation()
 	var exit_tiles := 0
 	var layout_exit_cell := Vector2i(-999, -999)
 	for y in range(mission_layout.size()):
@@ -5729,10 +5741,11 @@ func _to_stable_validation_summary(value: Variant) -> String:
 
 func _build_developer_validation_runtime_snapshot() -> Dictionary:
 	var snapshot: Dictionary = {}
-	snapshot["mission_id"] = _to_stable_validation_summary(current_mission_id)
-	snapshot["mission_state"] = _to_stable_validation_summary(current_mission_state)
-	snapshot["world_objects"] = _to_stable_validation_summary(world_objects)
-	snapshot["inventory"] = _to_stable_validation_summary(inventory_items)
+	snapshot["mission_id"] = "unavailable"
+	snapshot["mission_state"] = "unavailable"
+	snapshot["world_objects"] = _to_stable_validation_summary(mission_world_objects)
+	snapshot["inventory"] = _to_stable_validation_summary(runtime_inventory_state)
+	snapshot["cell_items"] = _to_stable_validation_summary(cell_items)
 	if active_bipob_ref != null and _active_bipob_has_property("installed_modules"):
 		snapshot["installed_modules"] = _to_stable_validation_summary(active_bipob_ref.installed_modules)
 	else:
@@ -5890,13 +5903,9 @@ func _run_developer_validation_suite_internal(suite: String = "all", include_no_
 	var suites: Array[String] = ["power", "cooling_cable", "terminal_door", "platform_scan_visibility", "inventory_tools_modules", "persistence", "task_test", "module_ports", "connector_processor_migration", "systems_audit"]
 	if include_no_mutation:
 		suites.append("no_mutation")
-	var selected: Array[String] = []
-	if suite == "all":
-		selected.append_array(suites)
-	else:
-		selected.append(suite)
+	var selected: Array = suites if suite == "all" else [suite]
 	var warnings_by_suite: Dictionary = {}
-	var suites_run: int = 0
+	var suites_run := 0
 	for suite_id in selected:
 		var warnings: Array[String] = []
 		match suite_id:
@@ -5915,9 +5924,8 @@ func _run_developer_validation_suite_internal(suite: String = "all", include_no_
 		warnings_by_suite[suite_id] = warnings
 		suites_run += 1
 	var warnings_count: int = 0
-	for suite_key_variant in warnings_by_suite.keys():
-		var suite_key: String = String(suite_key_variant)
-		warnings_count += Array(warnings_by_suite.get(suite_key, [])).size()
+	for k in warnings_by_suite.keys():
+		warnings_count += Array(warnings_by_suite[k]).size()
 	return {"suite": suite, "suites_run": suites_run, "warnings_count": warnings_count, "warnings_by_suite": warnings_by_suite}
 
 func get_developer_validation_menu_text() -> String:
