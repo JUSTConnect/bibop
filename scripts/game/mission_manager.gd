@@ -5339,21 +5339,39 @@ func _simulate_task_test_port_state(specs: Array[Dictionary], active_module_ids:
 		modules[tid] = {"id":tid,"active":active,"inactive_reason":reason,"port_priority":int(active_bipob_ref.call("_get_module_port_priority", module_id))}
 	return {"modules":modules, "internal_remaining":internal_remaining, "external_remaining":external_remaining, "power_remaining":power_remaining}
 
+func _active_bipob_has_property(property_name: String) -> bool:
+	if active_bipob_ref == null:
+		return false
+	for property_info in Array(active_bipob_ref.get_property_list()):
+		if String(Dictionary(property_info).get("name", "")) == property_name:
+			return true
+	return false
+
 func _snapshot_installed_modules_for_validation() -> Dictionary:
-	if active_bipob_ref == null or not ("installed_modules" in active_bipob_ref):
+	if not _active_bipob_has_property("installed_modules"):
 		return {"ok": false, "reason": "installed_modules_unavailable"}
 	return {"ok": true, "installed_modules": Array(active_bipob_ref.installed_modules).duplicate()}
 
 func _restore_installed_modules_from_snapshot(snapshot: Dictionary) -> bool:
-	if active_bipob_ref == null or not bool(snapshot.get("ok", false)) or not ("installed_modules" in active_bipob_ref):
+	if not bool(snapshot.get("ok", false)) or not _active_bipob_has_property("installed_modules"):
 		return false
 	active_bipob_ref.installed_modules = Array(snapshot.get("installed_modules", [])).duplicate()
 	return true
 
+func _is_internal_runtime_module_id(module_id: String) -> bool:
+	for prefix in ["internal_interface_","external_interface_","power_block_","processor_","memory_","gpu_","hard_drive_","charger_","battery_","cooler_","radiator_","water_tube_","air_duct_"]:
+		if module_id.begins_with(prefix):
+			return true
+	return false
+
 func _build_runtime_modules_by_id(module_ids: Array[String]) -> Array:
 	var modules: Array = []
 	for module_id in module_ids:
-		var module = active_bipob_ref.call("create_external_module_by_id", module_id)
+		var module = null
+		if _is_internal_runtime_module_id(module_id):
+			module = active_bipob_ref.call("create_internal_module", module_id, module_id, Vector3i.ONE)
+		else:
+			module = active_bipob_ref.call("create_external_module_by_id", module_id)
 		if module == null:
 			return []
 		modules.append(module)
@@ -5378,7 +5396,7 @@ func validate_module_port_network_runtime() -> Array[String]:
 	var warnings: Array[String] = []
 	if active_bipob_ref == null or not active_bipob_ref.has_method("preview_module_port_activity"):
 		return ["active_bipob_missing"]
-	for helper_name in ["_get_module_port_priority", "_module_requires_external_interface_port", "_module_requires_internal_interface_port", "_module_requires_power_block_port", "create_external_module_by_id"]:
+	for helper_name in ["_get_module_port_priority", "_module_requires_external_interface_port", "_module_requires_internal_interface_port", "_module_requires_power_block_port", "create_external_module_by_id", "create_internal_module"]:
 		if not active_bipob_ref.has_method(helper_name):
 			warnings.append("module_ports_helper_missing_%s" % helper_name)
 	if warnings.any(func(warning: String) -> bool: return warning.begins_with("module_ports_helper_missing_")):
@@ -5389,8 +5407,8 @@ func validate_module_port_network_runtime() -> Array[String]:
 		if not baseline.has(key):
 			warnings.append("module_ports_missing_%s" % key)
 
-	var reason_keys_required := ["ok","connector_missing","connector_level_too_low","processor_missing","processor_level_too_low","internal_interface_missing","internal_interface_port_missing","internal_interface_link_missing","external_interface_missing","external_interface_port_missing","external_interface_link_missing","power_block_missing","power_block_port_missing","power_block_link_missing","power_block_overloaded","module_installed_but_inactive","module_not_installed"]
-	var reason_seen := {"ok": true, "module_not_installed": true, "module_installed_but_inactive": true, "connector_level_too_low": true, "processor_level_too_low": true}
+	var known_reason_keys := ["ok","connector_missing","connector_level_too_low","processor_missing","processor_level_too_low","internal_interface_missing","internal_interface_port_missing","internal_interface_link_missing","external_interface_missing","external_interface_port_missing","external_interface_link_missing","power_block_missing","power_block_port_missing","power_block_link_missing","power_block_overloaded","module_installed_but_inactive","module_not_installed"]
+	var observed_runtime_reason_keys: Dictionary = {}
 	var scenarios := [
 		{"id":"processor_active","modules":["internal_interface_v1","power_block_v1","processor_v1"],"module":"processor_v1","active":true,"reason":"ok"},
 		{"id":"memory_active_without_external_interface","modules":["internal_interface_v1","power_block_v1","memory_v1"],"module":"memory_v1","active":true,"reason":"ok"},
@@ -5400,14 +5418,15 @@ func validate_module_port_network_runtime() -> Array[String]:
 		{"id":"cooler_active_without_external_interface","modules":["internal_interface_v1","power_block_v1","cooler_v1"],"module":"cooler_v1","active":true,"reason":"ok"},
 		{"id":"connector_active","modules":["internal_interface_v1","external_interface_v1","power_block_v1","wired_connector_v1"],"module":"wired_connector_v1","active":true,"reason":"ok"},
 		{"id":"external_interface_missing","modules":["internal_interface_v1","power_block_v1","wired_connector_v1"],"module":"wired_connector_v1","active":false,"reason":"external_interface_missing"},
-		{"id":"external_interface_port_missing","modules":["internal_interface_v1","external_interface_v1","power_block_v1","wired_connector_v1","optical_connector_v1","repair_v1"],"module":"repair_v1","active":false,"reason":"external_interface_port_missing"},
+		{"id":"external_interface_port_missing","modules":["internal_interface_v1","external_interface_v1","power_block_v1","wired_connector_v1","optical_connector_v1","visor_v1"],"module":"visor_v1","active":false,"reason":"external_interface_port_missing"},
 		{"id":"internal_interface_missing","modules":["power_block_v1","processor_v1"],"module":"processor_v1","active":false,"reason":"internal_interface_missing"},
 		{"id":"internal_interface_port_missing","modules":["internal_interface_v1","power_block_v1","processor_v1","processor_v2","cooler_v1"],"module":"cooler_v1","active":false,"reason":"internal_interface_port_missing"},
 		{"id":"power_block_missing","modules":["internal_interface_v1","battery_v1"],"module":"battery_v1","active":false,"reason":"power_block_missing"},
 		{"id":"power_block_port_missing","modules":["internal_interface_v1","power_block_v1","processor_v1","processor_v2","wired_connector_v1","optical_connector_v1","battery_v1"],"module":"battery_v1","active":false,"reason":"power_block_port_missing"},
 		{"id":"radiator_no_internal_or_power","modules":["radiator_v1"],"module":"radiator_v1","active":true,"reason":"ok"},
 		{"id":"battery_no_internal_required","modules":["power_block_v1","battery_v1"],"module":"battery_v1","active":true,"reason":"ok"},
-		{"id":"power_block_self_active","modules":["power_block_v1"],"module":"power_block_v1","active":true,"reason":"ok"},
+		{"id":"power_block_requires_internal_interface","modules":["power_block_v1"],"module":"power_block_v1","active":false,"reason":"internal_interface_missing"},
+		{"id":"power_block_active_with_internal_interface","modules":["internal_interface_v1","power_block_v1"],"module":"power_block_v1","active":true,"reason":"ok"},
 		{"id":"internal_interface_v1_capacity","modules":["internal_interface_v1"],"internal_ports_total":6},
 		{"id":"priority_tie","modules":["internal_interface_v1","power_block_v1","processor_v1","processor_v2"],"priority":true}
 	]
@@ -5442,13 +5461,13 @@ func validate_module_port_network_runtime() -> Array[String]:
 		if bool(module_state.get("active", false)) != expected_active:
 			warnings.append("module_ports_runtime_active_mismatch_%s" % String(scenario.get("id", "")))
 		var actual_reason := String(module_state.get("inactive_reason", "module_installed_but_inactive"))
-		reason_seen[actual_reason] = true
+		observed_runtime_reason_keys[actual_reason] = true
 		if actual_reason != expected_reason:
 			warnings.append("module_ports_runtime_reason_mismatch_%s_%s" % [String(scenario.get("id", "")), actual_reason])
 
-	for reason_key in reason_keys_required:
-		if not reason_seen.has(reason_key):
-			warnings.append("module_port_reason_key_not_observed_%s" % reason_key)
+	for reason_key in known_reason_keys:
+		if not observed_runtime_reason_keys.has(reason_key):
+			warnings.append("module_port_reason_key_coverage_gap_%s" % reason_key)
 	return warnings
 
 func get_module_port_network_validation_text() -> String:
