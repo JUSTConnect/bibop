@@ -135,101 +135,121 @@ func _setup_task_test_mission_world() -> void:
 		var cell := Vector2i(cell_variant)
 		for item in Array(items_by_cell.get(cell_variant, [])):
 			add_item_at_cell(cell, Dictionary(item).duplicate(true))
-	PowerSystemRef.recalculate_network(mission_world_objects, "task_test_power")
+	PowerSystemRef.recalculate_network(mission_world_objects, "task_test_power_main")
 	refresh_world_cooling_received()
 
 func build_task_test_mission_world_objects_for_validation() -> Dictionary:
 	var warnings: Array[String] = []
 	var objects: Array[Dictionary] = []
 	var specs: Array[Dictionary] = [
-		{"type":"power_source_class_1","id":"task_test_source_class_1","pos":Vector2i(1, 1),"extra":{"power_network_id":"task_test_power","connected_device_ids":["task_test_energy_door"]}},
-		{"type":"power_source_class_2","id":"task_test_source_class_2","pos":Vector2i(1, 3),"extra":{"power_network_id":"task_test_power","connected_device_ids":["task_test_terminal_main","task_test_platform_terminal"],"current_heat":4,"working_heat":3,"overheat_threshold":3}},
-		{"type":"power_source_class_3","id":"task_test_overheated_source","pos":Vector2i(1, 5),"extra":{"power_network_id":"task_test_power","state":"overheated","current_heat":5,"working_heat":3,"overheat_threshold":3}},
-		{"type":"circuit_breaker","id":"task_test_breaker","pos":Vector2i(2, 1),"extra":{"power_network_id":"task_test_power"}},
-		{"type":"circuit_switch","id":"task_test_switch","pos":Vector2i(3, 1),"extra":{"power_network_id":"task_test_power"}},
-		{"type":"fuse_box_empty","id":"task_test_fuse_box_empty","pos":Vector2i(4, 1),"extra":{"power_network_id":"task_test_power"}},
-		{"type":"light","id":"task_test_light","pos":Vector2i(5, 1),"extra":{"power_network_id":"task_test_power"}},
-		{"type":"energy_door","id":"task_test_energy_door","pos":Vector2i(6, 1),"extra":{"power_network_id":"task_test_power","lock_type":"digital_key","is_locked":true}},
-		{"type":"power_socket","id":"task_test_power_socket_a","pos":Vector2i(2, 3),"extra":{"power_network_id":"task_test_power"}},
-		{"type":"power_socket","id":"task_test_power_socket_b","pos":Vector2i(3, 3),"extra":{"power_network_id":"task_test_power"}},
-		{"type":"power_cable","id":"task_test_cut_cable","pos":Vector2i(4, 3),"extra":{"state":"cut","damaged":true}},
-		{"type":"power_cable","id":"task_test_hidden_cable","pos":Vector2i(5, 3),"extra":{"hidden":true,"hidden_cable":true,"visible_with_xray":true}},
-		{"type":"power_socket","id":"task_test_hidden_socket","pos":Vector2i(6, 3),"extra":{"hidden":true,"visible_with_xray":true}},
-		{"type":"external_radiator","id":"task_test_radiator","pos":Vector2i(2, 5)},
-		{"type":"external_air_cooler","id":"task_test_air_cooler","pos":Vector2i(3, 5),"extra":{"facing_dir":"right"}},
-		{"type":"metal_cooling_block","id":"task_test_cooling_block","pos":Vector2i(4, 5)},
-		{"type":"door_terminal","id":"task_test_terminal_main","pos":Vector2i(5, 5),"extra":{"required_connector_level":1,"required_processor_level":1,"target_door_id":"task_test_door_terminal_locked","state":"active","is_powered":true}},
-		{"type":"door_terminal","id":"task_test_terminal_unpowered","pos":Vector2i(6, 5),"extra":{"state":"unpowered","is_powered":false}},
-		{"type":"door_terminal","id":"task_test_terminal_damaged","pos":Vector2i(1, 6),"extra":{"state":"damaged","damaged":true}},
-		{"type":"reinforced_steel_door","id":"task_test_door_terminal_locked","pos":Vector2i(4, 4),"extra":{"is_locked":true,"lock_type":"terminal_lock"}},
-		{"type":"steel_door","id":"task_test_door_mechanical","pos":Vector2i(5, 4),"extra":{"is_locked":true,"lock_type":"mechanical_key"}},
-		{"type":"energy_door","id":"task_test_door_digital","pos":Vector2i(6, 4),"extra":{"is_locked":true,"lock_type":"digital_key","power_network_id":"task_test_power"}},
-		{"type":"titanium_door","id":"task_test_door_password","pos":Vector2i(2, 6),"extra":{"is_locked":true,"lock_type":"password"}},
-		{"type":"lifting_platform","id":"task_test_platform_lift","pos":Vector2i(3, 4),"extra":{"platform_id":"task_test_platform_lift","is_powered":false}},
-		{"type":"rotating_platform","id":"task_test_platform_rotate","pos":Vector2i(3, 6),"extra":{"platform_id":"task_test_platform_rotate"}},
-		{"type":"lifting_platform","id":"task_test_platform_switch","pos":Vector2i(4, 6),"extra":{"platform_id":"task_test_platform_switch","control_type":"switch"}},
-		{"type":"rotating_platform","id":"task_test_platform_terminal","pos":Vector2i(5, 6),"extra":{"platform_id":"task_test_platform_terminal","linked_terminal_id":"task_test_terminal_main","requires_terminal_enabled":true}},
-		{"type":"power_cable","id":"task_test_xray_route_marker","pos":Vector2i(5, 2),"extra":{"hidden":true,"visible_with_xray":true}},
-		{"type":"energy_door","id":"task_test_extraction_door","pos":Vector2i(6, 6),"extra":{"state":"open","is_locked":false,"mission_exit":true,"extraction":true}},
-		{"type":"grid_door","id":"task_test_blocked_cable_target","pos":Vector2i(1, 2),"extra":{"state":"jammed","damaged":true}},
-		{"type":"outer_wall","id":"task_test_outer_wall_visual","pos":Vector2i(0, 1)},
-		{"type":"brick_wall","id":"task_test_brick_wall_visual","pos":Vector2i(2, 2)},
-		{"type":"concrete_wall","id":"task_test_concrete_wall_visual","pos":Vector2i(3, 2)},
-		{"type":"steel_wall","id":"task_test_steel_wall_visual","pos":Vector2i(4, 2)},
-		{"type":"grate_wall","id":"task_test_grate_wall_visual","pos":Vector2i(1, 4)}
+		# Basic doors
+		{"type":"steel_door","id":"task_test_door_open_mechanical","pos":Vector2i(2, 1),"extra":{"state":"open","is_open":true,"is_locked":false}},
+		{"type":"steel_door","id":"task_test_door_closed_mechanical","pos":Vector2i(3, 1),"extra":{"state":"closed","is_open":false,"is_locked":false}},
+		{"type":"grid_door","id":"task_test_door_jammed","pos":Vector2i(4, 1),"extra":{"state":"jammed","damaged":true,"is_locked":true}},
+		# Mechanical key doors
+		{"type":"steel_door","id":"task_test_door_locked_mechanical","pos":Vector2i(6, 1),"extra":{"state":"locked","is_locked":true,"lock_type":"mechanical_key","required_key_id":"task_test_item_mechanical_keycard"}},
+		# Digital key doors
+		{"type":"energy_door","id":"task_test_door_open_digital","pos":Vector2i(8, 1),"extra":{"state":"open","is_open":true,"is_locked":false,"lock_type":"digital_key","required_key_id":"task_test_item_digital_key_opened","power_network_id":"task_test_power_main"}},
+		{"type":"energy_door","id":"task_test_door_locked_digital","pos":Vector2i(9, 1),"extra":{"state":"locked","is_locked":true,"lock_type":"digital_key","required_key_id":"task_test_item_digital_key_encrypted","power_network_id":"task_test_power_main"}},
+		# Terminal-controlled doors
+		{"type":"reinforced_steel_door","id":"task_test_door_terminal_locked","pos":Vector2i(11, 1),"extra":{"state":"locked","is_locked":true,"lock_type":"terminal_lock","linked_terminal_id":"task_test_terminal_basic_door"}},
+		{"type":"door_terminal","id":"task_test_terminal_basic_door","pos":Vector2i(12, 1),"extra":{"state":"active","is_powered":true,"target_door_id":"task_test_door_terminal_locked"}},
+		# Powered gates
+		{"type":"energy_door","id":"task_test_powered_gate_main","pos":Vector2i(2, 3),"extra":{"state":"closed","is_open":false,"is_locked":false,"requires_external_power":true,"power_network_id":"task_test_power_main"}},
+		{"type":"energy_door","id":"task_test_powered_gate_unpowered","pos":Vector2i(3, 3),"extra":{"state":"unpowered","is_open":false,"is_locked":true,"requires_external_power":true,"is_powered":false,"power_network_id":"task_test_power_missing"}},
+		# Power network
+		{"type":"power_source_class_1","id":"task_test_source_class_1","pos":Vector2i(5, 3),"extra":{"power_network_id":"task_test_power_main","connected_device_ids":["task_test_powered_gate_main"]}},
+		{"type":"power_source_class_2","id":"task_test_source_class_2","pos":Vector2i(6, 3),"extra":{"power_network_id":"task_test_power_main","connected_device_ids":["task_test_terminal_basic_door"],"current_heat":2,"working_heat":3,"overheat_threshold":6}},
+		{"type":"power_source_class_3","id":"task_test_source_class_3","pos":Vector2i(7, 3),"extra":{"power_network_id":"task_test_power_main","connected_device_ids":["task_test_terminal_connector_gate"]}},
+		{"type":"power_source_class_3","id":"task_test_source_overheated","pos":Vector2i(8, 3),"extra":{"power_network_id":"task_test_power_main","state":"overheated","current_heat":8,"working_heat":4,"overheat_threshold":4}},
+		{"type":"circuit_breaker","id":"task_test_breaker","pos":Vector2i(9, 3),"extra":{"power_network_id":"task_test_power_main"}},
+		{"type":"circuit_switch","id":"task_test_switch","pos":Vector2i(10, 3),"extra":{"power_network_id":"task_test_power_main","target_door_id":"task_test_control_switch_door"}},
+		{"type":"fuse_box_empty","id":"task_test_fuse_box_empty","pos":Vector2i(11, 3),"extra":{"power_network_id":"task_test_power_main"}},
+		{"type":"fuse_box_installed","id":"task_test_fuse_box_installed","pos":Vector2i(12, 3),"extra":{"power_network_id":"task_test_power_main"}},
+		{"type":"power_socket","id":"task_test_power_socket_a","pos":Vector2i(13, 3),"extra":{"power_network_id":"task_test_power_main"}},
+		{"type":"power_cable","id":"task_test_power_cable_main","pos":Vector2i(14, 3),"extra":{"power_network_id":"task_test_power_main"}},
+		{"type":"power_cable","id":"task_test_power_cable_cut","pos":Vector2i(14, 4),"extra":{"power_network_id":"task_test_power_main","state":"cut","damaged":true}},
+		{"type":"power_cable","id":"task_test_hidden_cable","pos":Vector2i(13, 4),"extra":{"hidden":true,"visible_with_xray":true,"power_network_id":"task_test_power_main"}},
+		{"type":"power_socket","id":"task_test_hidden_socket","pos":Vector2i(12, 4),"extra":{"hidden":true,"visible_with_xray":true,"power_network_id":"task_test_power_main"}},
+		# Cooling network
+		{"type":"external_radiator","id":"task_test_radiator","pos":Vector2i(2, 5),"extra":{"cooling_device_type":"radiator","cooling_output":3}},
+		{"type":"external_air_cooler","id":"task_test_air_cooler","pos":Vector2i(3, 5),"extra":{"cooling_device_type":"air_cooler","cooling_output":2,"directed_airflow":true,"facing_dir":"right"}},
+		{"type":"metal_cooling_block","id":"task_test_cooling_block","pos":Vector2i(4, 5),"extra":{"cooling_device_type":"block","cooling_output":1}},
+		{"type":"door_terminal","id":"task_test_terminal_heat_device","pos":Vector2i(5, 5),"extra":{"state":"active","is_powered":true,"working_heat":4,"current_heat":6,"overheat_threshold":9,"cooling_received":1,"overheated_state_before":false}},
+		{"type":"door_terminal","id":"task_test_terminal_overheated","pos":Vector2i(6, 5),"extra":{"state":"overheated","is_powered":true,"working_heat":3,"current_heat":7,"overheat_threshold":5,"cooling_received":0,"overheated_state_before":true}},
+		# Control network
+		{"type":"steel_door","id":"task_test_control_switch_door","pos":Vector2i(8, 5),"extra":{"state":"closed","control_type":"switch","control_source_id":"task_test_switch","requires_external_control":true}},
+		{"type":"lifting_platform","id":"task_test_control_terminal_platform","pos":Vector2i(9, 5),"extra":{"platform_id":"task_test_control_terminal_platform","control_type":"terminal","linked_terminal_id":"task_test_terminal_control","requires_external_control":true,"requires_terminal_enabled":true}},
+		{"type":"door_terminal","id":"task_test_terminal_control","pos":Vector2i(10, 5),"extra":{"state":"active","is_powered":true,"target_platform_id":"task_test_control_terminal_platform"}},
+		{"type":"rotating_platform","id":"task_test_control_missing_source","pos":Vector2i(11, 5),"extra":{"platform_id":"task_test_control_missing_source","requires_external_control":true}},
+		{"type":"rotating_platform","id":"task_test_control_invalid_source","pos":Vector2i(12, 5),"extra":{"platform_id":"task_test_control_invalid_source","requires_external_control":true,"control_source_id":"task_test_missing_controller"}},
+		{"type":"rotating_platform","id":"task_test_control_valid_source","pos":Vector2i(13, 5),"extra":{"platform_id":"task_test_control_valid_source","requires_external_control":true,"control_source_id":"task_test_switch"}},
+		# Wall material samples
+		{"type":"outer_wall","id":"task_test_outer_wall_sample","pos":Vector2i(2, 7),"extra":{"material":"outer_wall","durability":99999,"blocks_movement":true,"blocks_vision":true,"destructible":false}},
+		{"type":"brick_wall","id":"task_test_brick_wall_sample","pos":Vector2i(3, 7),"extra":{"material":"brick_wall","durability":6,"blocks_movement":true,"blocks_vision":true,"destructible":true}},
+		{"type":"concrete_wall","id":"task_test_concrete_wall_sample","pos":Vector2i(4, 7),"extra":{"material":"concrete_wall","durability":8,"blocks_movement":true,"blocks_vision":true,"destructible":true}},
+		{"type":"steel_wall","id":"task_test_steel_wall_sample","pos":Vector2i(5, 7),"extra":{"material":"steel_wall","durability":12,"blocks_movement":true,"blocks_vision":true,"destructible":true}},
+		{"type":"reinforced_steel_wall","id":"task_test_reinforced_wall_sample","pos":Vector2i(6, 7),"extra":{"material":"reinforced_steel_wall","durability":18,"blocks_movement":true,"blocks_vision":true,"destructible":false}},
+		{"type":"grate_wall","id":"task_test_grate_wall_sample","pos":Vector2i(7, 7),"extra":{"material":"grate_wall","durability":4,"blocks_movement":true,"blocks_vision":false,"destructible":true}},
+		{"type":"damaged_wall","id":"task_test_damaged_wall_sample","pos":Vector2i(8, 7),"extra":{"material":"damaged_wall","durability":2,"blocks_movement":true,"blocks_vision":false,"destructible":true,"hidden_content":"wiring_fragment"}},
+		# Scan visibility samples
+		{"type":"power_cable","id":"task_test_scan_hidden_object","pos":Vector2i(10, 7),"extra":{"hidden":true,"visible_with_xray":true,"scan_level":1}},
+		{"type":"door_terminal","id":"task_test_scan_thermal_object","pos":Vector2i(11, 7),"extra":{"visible_with_thermal":true,"current_heat":5,"working_heat":2}},
+		{"type":"door_terminal","id":"task_test_scan_connector_gated","pos":Vector2i(12, 7),"extra":{"required_connector_level":2,"state":"active","is_powered":true}},
+		{"type":"door_terminal","id":"task_test_scan_processor_gated","pos":Vector2i(13, 7),"extra":{"required_processor_level":2,"state":"active","is_powered":true}},
+		{"type":"light","id":"task_test_scan_normal_visible","pos":Vector2i(14, 7),"extra":{"hidden":false}},
+		# Terminals coverage + extraction
+		{"type":"door_terminal","id":"task_test_terminal_info","pos":Vector2i(1, 8),"extra":{"connection_type":"info","state":"active","is_powered":true}},
+		{"type":"door_terminal","id":"task_test_terminal_unpowered","pos":Vector2i(2, 8),"extra":{"state":"unpowered","is_powered":false}},
+		{"type":"door_terminal","id":"task_test_terminal_damaged","pos":Vector2i(3, 8),"extra":{"state":"damaged","damaged":true,"is_powered":false}},
+		{"type":"door_terminal","id":"task_test_terminal_encrypted","pos":Vector2i(4, 8),"extra":{"state":"active","is_powered":true,"encrypts_data":true,"drain_pool":2}},
+		{"type":"door_terminal","id":"task_test_terminal_connector_gate","pos":Vector2i(5, 8),"extra":{"state":"active","is_powered":true,"required_connector_level":1}},
+		{"type":"door_terminal","id":"task_test_terminal_processor_gate","pos":Vector2i(6, 8),"extra":{"state":"active","is_powered":true,"required_processor_level":1}},
+		
+		{"type":"door_terminal","id":"task_test_terminal_main","pos":Vector2i(7, 8),"extra":{"state":"active","is_powered":true,"required_connector_level":1,"required_processor_level":1,"target_door_id":"task_test_door_terminal_locked"}},
+		{"type":"steel_door","id":"task_test_door_mechanical","pos":Vector2i(5, 1),"extra":{"state":"locked","is_locked":true,"lock_type":"mechanical_key","required_key_id":"task_test_item_mechanical_keycard"}},
+		{"type":"lifting_platform","id":"task_test_platform_lift","pos":Vector2i(8, 8),"extra":{"platform_id":"task_test_platform_lift","is_powered":false,"requires_external_power":true,"power_network_id":"task_test_power_missing"}},
+		{"type":"power_cable","id":"task_test_xray_route_marker","pos":Vector2i(9, 8),"extra":{"hidden":true,"visible_with_xray":true}},
+{"type":"energy_door","id":"task_test_extraction_door","pos":Vector2i(14, 7),"extra":{"state":"open","is_locked":false,"mission_exit":true,"extraction":true,"allow_cell_overlap":true}}
 	]
 	for spec in specs:
-		var obj := WorldObjectCatalogRef.create_world_object(String(spec.get("type", "")), String(spec.get("id", "")))
+		var obj: Dictionary = WorldObjectCatalogRef.create_world_object(String(spec.get("type", "")), String(spec.get("id", "")))
 		if obj.is_empty():
 			warnings.append("catalog_create_failed_%s" % String(spec.get("id", "")))
 			continue
 		obj["position"] = Vector2i(spec.get("pos", Vector2i.ZERO))
-		var extra: Dictionary = spec.get("extra", {})
-		for key in extra.keys():
-			obj[String(key)] = extra[key]
+		var extra: Dictionary = Dictionary(spec.get("extra", {}))
+		for key_variant in extra.keys():
+			var key_name: String = String(key_variant)
+			obj[key_name] = extra[key_variant]
 		objects.append(obj)
+
 	var items_by_cell: Dictionary = {}
-	var fuse := WorldObjectCatalogRef.create_world_object("fuse", "task_test_item_fuse")
-	if fuse.is_empty():
-		warnings.append("catalog_create_failed_task_test_item_fuse")
-	else:
-		items_by_cell[Vector2i(1, 1)] = [fuse]
-	var repair := WorldObjectCatalogRef.create_world_object("repair_kit", "task_test_item_repair_kit")
-	if repair.is_empty():
-		warnings.append("catalog_create_failed_task_test_item_repair_kit")
-	else:
-		items_by_cell[Vector2i(1, 3)] = [repair]
-	var cable_reel := WorldObjectCatalogRef.create_world_object("power_cable_reel", "task_test_cable_reel")
-	if cable_reel.is_empty():
-		warnings.append("catalog_create_failed_task_test_cable_reel")
-	else:
-		items_by_cell[Vector2i(2, 3)] = [cable_reel]
-	var mech_key := WorldObjectCatalogRef.create_world_object("mechanical_keycard", "task_test_item_mechanical_keycard")
-	if mech_key.is_empty():
-		warnings.append("catalog_create_failed_task_test_item_mechanical_keycard")
-	else:
-		items_by_cell[Vector2i(2, 4)] = [mech_key]
-	var opened_key := WorldObjectCatalogRef.create_world_object("digital_key", "task_test_item_digital_key_opened")
-	if opened_key.is_empty():
-		warnings.append("catalog_create_failed_task_test_item_digital_key_opened")
-	else:
-		opened_key["digital_state"] = "opened"
-	var enc_key := WorldObjectCatalogRef.create_world_object("digital_key", "task_test_item_digital_key_encrypted")
-	if enc_key.is_empty():
-		warnings.append("catalog_create_failed_task_test_item_digital_key_encrypted")
-	else:
-		enc_key["digital_state"] = "encrypted"
-	var dmg_key := WorldObjectCatalogRef.create_world_object("digital_key", "task_test_item_digital_key_damaged")
-	if dmg_key.is_empty():
-		warnings.append("catalog_create_failed_task_test_item_digital_key_damaged")
-	else:
-		dmg_key["digital_state"] = "damaged"
-	items_by_cell[Vector2i(2, 5)] = [opened_key, enc_key, dmg_key].filter(func(it: Dictionary) -> bool: return not it.is_empty())
-	var access_code := WorldObjectCatalogRef.create_world_object("access_code", "task_test_item_access_code")
-	if access_code.is_empty():
-		warnings.append("catalog_create_failed_task_test_item_access_code")
-	else:
-		items_by_cell[Vector2i(3, 5)] = [access_code]
+	var key_specs: Array[Dictionary] = [
+		{"type":"mechanical_keycard","id":"task_test_item_mechanical_keycard","cell":Vector2i(1, 1),"extra":{}},
+		{"type":"digital_key","id":"task_test_item_digital_key_opened","cell":Vector2i(1, 3),"extra":{"digital_state":"opened"}},
+		{"type":"digital_key","id":"task_test_item_digital_key_encrypted","cell":Vector2i(1, 5),"extra":{"digital_state":"encrypted"}},
+		{"type":"digital_key","id":"task_test_item_digital_key_damaged","cell":Vector2i(1, 6),"extra":{"digital_state":"damaged"}},
+		{"type":"access_code","id":"task_test_item_access_code","cell":Vector2i(1, 7),"extra":{}},
+		{"type":"fuse","id":"task_test_item_fuse","cell":Vector2i(1, 2),"extra":{}},
+		{"type":"power_cable_reel","id":"task_test_cable_reel","cell":Vector2i(2, 2),"extra":{}},
+		{"type":"repair_kit","id":"task_test_item_repair_kit","cell":Vector2i(2, 6),"extra":{}}
+	]
+	for item_spec in key_specs:
+		var item: Dictionary = WorldObjectCatalogRef.create_world_object(String(item_spec.get("type", "")), String(item_spec.get("id", "")))
+		if item.is_empty():
+			warnings.append("catalog_create_failed_%s" % String(item_spec.get("id", "")))
+			continue
+		var extra_item: Dictionary = Dictionary(item_spec.get("extra", {}))
+		for item_key_variant in extra_item.keys():
+			var item_key: String = String(item_key_variant)
+			item[item_key] = extra_item[item_key_variant]
+		var cell: Vector2i = Vector2i(item_spec.get("cell", Vector2i.ZERO))
+		if not items_by_cell.has(cell):
+			items_by_cell[cell] = []
+		var cell_items: Array = Array(items_by_cell[cell])
+		cell_items.append(item)
+		items_by_cell[cell] = cell_items
 	return {"objects": objects, "items_by_cell": items_by_cell, "warnings": warnings}
 
 func set_grid_manager_ref(value: Node) -> void:
@@ -5509,7 +5529,7 @@ func validate_task_test_mission_runtime() -> Array[String]:
 	var xray_exists := task_ids.has("task_test_xray_route_marker")
 	if not xray_exists:
 		warnings.append("task_test_xray_route_marker_missing")
-	var exit_cell := Vector2i(6, 6)
+	var exit_cell := Vector2i(14, 7)
 	var extraction_cell := Vector2i(extraction.get("position", Vector2i(-999, -999)))
 	if extraction_cell != exit_cell and extraction_cell.distance_to(exit_cell) > 1.0:
 		warnings.append("task_test_extraction_not_on_or_adjacent_to_exit")
@@ -5532,12 +5552,14 @@ func get_task_test_system_coverage_report() -> Dictionary:
 		"total_objects": 0,
 		"counts_by_object_type": {},
 		"counts_by_object_group": {},
-		"door_cells": [],
-		"powered_objects": [],
-		"controlled_objects": [],
-		"key_locked_doors": [],
-		"cooling_objects": [],
-		"hidden_xray_thermal_objects": []
+		"door_scenarios": {"total":0,"entries":[]},
+		"key_scenarios": {"total":0,"entries":[]},
+		"power_scenarios": {"total":0,"entries":[]},
+		"control_scenarios": {"total":0,"entries":[]},
+		"cooling_scenarios": {"total":0,"entries":[]},
+		"terminal_scenarios": {"total":0,"entries":[]},
+		"wall_material_scenarios": {"total":0,"entries":[]},
+		"scan_scenarios": {"total":0,"entries":[]}
 	}
 	for object_data in mission_world_objects:
 		if typeof(object_data) != TYPE_DICTIONARY:
@@ -5545,41 +5567,69 @@ func get_task_test_system_coverage_report() -> Dictionary:
 		report["total_objects"] = int(report.get("total_objects", 0)) + 1
 		var object_type: String = String(object_data.get("object_type", ""))
 		var object_group: String = String(object_data.get("object_group", ""))
-		var counts_type: Dictionary = report.get("counts_by_object_type", {})
+		var object_id: String = String(object_data.get("id", ""))
+		var counts_type: Dictionary = Dictionary(report.get("counts_by_object_type", {}))
 		counts_type[object_type] = int(counts_type.get(object_type, 0)) + 1
 		report["counts_by_object_type"] = counts_type
-		var counts_group: Dictionary = report.get("counts_by_object_group", {})
+		var counts_group: Dictionary = Dictionary(report.get("counts_by_object_group", {}))
 		counts_group[object_group] = int(counts_group.get(object_group, 0)) + 1
 		report["counts_by_object_group"] = counts_group
-		var cell: Vector2i = Vector2i(object_data.get("position", Vector2i.ZERO))
-		var runtime_state: Dictionary = get_runtime_cell_state(cell)
-		var lock_type: String = String(object_data.get("lock_type", ""))
-		var object_state: String = String(object_data.get("state", "")).to_lower()
-		var is_door: bool = bool(runtime_state.get("is_door_cell", false))
-		if is_door:
-			report["door_cells"].append({
-				"cell": cell,
-				"object_id": String(object_data.get("id", "")),
-				"state": object_state,
-				"tile_type": int(runtime_state.get("tile_type", -1)),
-				"static_walkable": bool(runtime_state.get("static_walkable", false)),
-				"is_door_object": bool(runtime_state.get("is_door_object", false)),
-				"is_door_tile": bool(runtime_state.get("is_door_tile", false)),
-				"is_door_cell": bool(runtime_state.get("is_door_cell", false)),
-				"is_passable": bool(runtime_state.get("is_passable", false)),
-				"block_reason": String(runtime_state.get("block_reason", ""))
-			})
-		if bool(object_data.get("is_powered", false)) or object_data.has("power_network_id"):
-			report["powered_objects"].append({"object_id": String(object_data.get("id", "")), "power_network_id": String(object_data.get("power_network_id", ""))})
-		var control_source_id: String = String(object_data.get("control_source_id", object_data.get("linked_terminal_id", object_data.get("controller_id", ""))))
-		if not control_source_id.is_empty() or bool(object_data.get("requires_external_control", false)):
-			report["controlled_objects"].append({"object_id": String(object_data.get("id", "")), "control_source_id": control_source_id, "linked_terminal_id": String(object_data.get("linked_terminal_id", ""))})
-		if bool(object_data.get("requires_key", false)) or lock_type == "mechanical_key" or lock_type == "digital_key":
-			report["key_locked_doors"].append({"object_id": String(object_data.get("id", "")), "required_key_id": String(object_data.get("required_key_id", "")), "lock_type": lock_type})
-		if object_group == "cooling":
-			report["cooling_objects"].append({"object_id": String(object_data.get("id", "")), "object_type": object_type})
-		if bool(object_data.get("hidden", false)) or bool(object_data.get("visible_with_xray", false)) or bool(object_data.get("visible_with_thermal", false)):
-			report["hidden_xray_thermal_objects"].append({"object_id": String(object_data.get("id", "")), "hidden": bool(object_data.get("hidden", false)), "xray": bool(object_data.get("visible_with_xray", false)), "thermal": bool(object_data.get("visible_with_thermal", false))})
+		if object_group == "door":
+			var door_section: Dictionary = Dictionary(report.get("door_scenarios", {}))
+			var door_entries: Array = Array(door_section.get("entries", []))
+			door_entries.append(object_id)
+			door_section["entries"] = door_entries
+			door_section["total"] = door_entries.size()
+			report["door_scenarios"] = door_section
+		if String(object_data.get("required_key_id", "")) != "":
+			var key_section: Dictionary = Dictionary(report.get("key_scenarios", {}))
+			var key_entries: Array = Array(key_section.get("entries", []))
+			key_entries.append(object_id)
+			key_section["entries"] = key_entries
+			key_section["total"] = key_entries.size()
+			report["key_scenarios"] = key_section
+		if object_data.has("power_network_id"):
+			var power_section: Dictionary = Dictionary(report.get("power_scenarios", {}))
+			var power_entries: Array = Array(power_section.get("entries", []))
+			power_entries.append(object_id)
+			power_section["entries"] = power_entries
+			power_section["total"] = power_entries.size()
+			report["power_scenarios"] = power_section
+		if bool(object_data.get("requires_external_control", false)) or String(object_data.get("control_source_id", object_data.get("linked_terminal_id", ""))) != "":
+			var control_section: Dictionary = Dictionary(report.get("control_scenarios", {}))
+			var control_entries: Array = Array(control_section.get("entries", []))
+			control_entries.append(object_id)
+			control_section["entries"] = control_entries
+			control_section["total"] = control_entries.size()
+			report["control_scenarios"] = control_section
+		if object_group == "cooling" or object_data.has("cooling_device_type"):
+			var cool_section: Dictionary = Dictionary(report.get("cooling_scenarios", {}))
+			var cool_entries: Array = Array(cool_section.get("entries", []))
+			cool_entries.append(object_id)
+			cool_section["entries"] = cool_entries
+			cool_section["total"] = cool_entries.size()
+			report["cooling_scenarios"] = cool_section
+		if object_group == "terminal":
+			var terminal_section: Dictionary = Dictionary(report.get("terminal_scenarios", {}))
+			var terminal_entries: Array = Array(terminal_section.get("entries", []))
+			terminal_entries.append(object_id)
+			terminal_section["entries"] = terminal_entries
+			terminal_section["total"] = terminal_entries.size()
+			report["terminal_scenarios"] = terminal_section
+		if object_group == "wall":
+			var wall_section: Dictionary = Dictionary(report.get("wall_material_scenarios", {}))
+			var wall_entries: Array = Array(wall_section.get("entries", []))
+			wall_entries.append(object_id)
+			wall_section["entries"] = wall_entries
+			wall_section["total"] = wall_entries.size()
+			report["wall_material_scenarios"] = wall_section
+		if bool(object_data.get("hidden", false)) or bool(object_data.get("visible_with_xray", false)) or bool(object_data.get("visible_with_thermal", false)) or object_data.has("required_connector_level"):
+			var scan_section: Dictionary = Dictionary(report.get("scan_scenarios", {}))
+			var scan_entries: Array = Array(scan_section.get("entries", []))
+			scan_entries.append(object_id)
+			scan_section["entries"] = scan_entries
+			scan_section["total"] = scan_entries.size()
+			report["scan_scenarios"] = scan_section
 	return report
 
 func get_task_test_system_coverage_report_text() -> String:
@@ -5588,12 +5638,14 @@ func get_task_test_system_coverage_report_text() -> String:
 	lines.append("TaskTestSystemCoverage: total_objects=%d" % int(report.get("total_objects", 0)))
 	lines.append("By type: %s" % JSON.stringify(report.get("counts_by_object_type", {})))
 	lines.append("By group: %s" % JSON.stringify(report.get("counts_by_object_group", {})))
-	lines.append("Door cells: %s" % JSON.stringify(report.get("door_cells", [])))
-	lines.append("Powered objects: %s" % JSON.stringify(report.get("powered_objects", [])))
-	lines.append("Controlled objects: %s" % JSON.stringify(report.get("controlled_objects", [])))
-	lines.append("Key locked doors: %s" % JSON.stringify(report.get("key_locked_doors", [])))
-	lines.append("Cooling objects: %s" % JSON.stringify(report.get("cooling_objects", [])))
-	lines.append("Hidden/Xray/Thermal objects: %s" % JSON.stringify(report.get("hidden_xray_thermal_objects", [])))
+	lines.append("Door scenarios: %s" % JSON.stringify(report.get("door_scenarios", {})))
+	lines.append("Key scenarios: %s" % JSON.stringify(report.get("key_scenarios", {})))
+	lines.append("Power scenarios: %s" % JSON.stringify(report.get("power_scenarios", {})))
+	lines.append("Control scenarios: %s" % JSON.stringify(report.get("control_scenarios", {})))
+	lines.append("Cooling scenarios: %s" % JSON.stringify(report.get("cooling_scenarios", {})))
+	lines.append("Terminal scenarios: %s" % JSON.stringify(report.get("terminal_scenarios", {})))
+	lines.append("Wall material scenarios: %s" % JSON.stringify(report.get("wall_material_scenarios", {})))
+	lines.append("Scan scenarios: %s" % JSON.stringify(report.get("scan_scenarios", {})))
 	return "\n".join(lines)
 
 func validate_task_test_runtime_cell_states() -> Array[String]:
@@ -5641,6 +5693,20 @@ func validate_task_test_runtime_cell_states() -> Array[String]:
 			warnings.append("required_key_not_in_task_items_%s_%s" % [object_id, required_key_id])
 		if bool(object_data.get("blocks_movement", false)) and bool(runtime_state.get("is_passable", false)) and not (is_door and canonical_open):
 			warnings.append("blocking_object_marked_passable_%s" % object_id)
+	return warnings
+
+
+func validate_task_test_universal_systems_coverage() -> Array[String]:
+	var warnings: Array[String] = []
+	var report: Dictionary = get_task_test_system_coverage_report()
+	for section_name in ["door_scenarios", "key_scenarios", "power_scenarios", "control_scenarios", "cooling_scenarios", "terminal_scenarios", "wall_material_scenarios", "scan_scenarios"]:
+		var section: Dictionary = Dictionary(report.get(section_name, {}))
+		if section.is_empty():
+			warnings.append("coverage_section_missing_%s" % section_name)
+			continue
+		if int(section.get("total", 0)) <= 0:
+			warnings.append("coverage_section_empty_%s" % section_name)
+	warnings.append_array(validate_task_test_runtime_cell_states())
 	return warnings
 
 func get_task_test_mission_validation_text() -> String:
