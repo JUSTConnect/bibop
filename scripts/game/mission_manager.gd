@@ -1095,8 +1095,13 @@ func preview_power_source_load_heat_for_network(filter: String = "") -> Dictiona
 	var collected := _collect_power_network_objects()
 	var networks: Dictionary = collected.get("networks", {})
 	var resolved_filter := _resolve_power_graph_filter_to_network_id(filter.strip_edges())
-	var report := {"updated": 0, "sources": [], "warnings": []}
-	var source_reports: Array[Dictionary] = report["sources"]
+	var source_reports: Array[Dictionary] = []
+	var warnings: Array[String] = []
+	var report := {
+		"updated": 0,
+		"sources": source_reports,
+		"warnings": warnings
+	}
 	for network_id_variant in networks.keys():
 		var network_id := String(network_id_variant)
 		if not resolved_filter.is_empty() and network_id != resolved_filter:
@@ -1141,8 +1146,13 @@ func update_power_source_load_heat_for_network(filter: String = "") -> Dictionar
 	var collected := _collect_power_network_objects()
 	var networks: Dictionary = collected.get("networks", {})
 	var resolved_filter := _resolve_power_graph_filter_to_network_id(filter.strip_edges())
-	var report := {"updated": 0, "sources": [], "warnings": []}
-	var source_reports: Array[Dictionary] = report["sources"]
+	var source_reports: Array[Dictionary] = []
+	var warnings: Array[String] = []
+	var report := {
+		"updated": 0,
+		"sources": source_reports,
+		"warnings": warnings
+	}
 	for network_id_variant in networks.keys():
 		var network_id := String(network_id_variant)
 		if not resolved_filter.is_empty() and network_id != resolved_filter:
