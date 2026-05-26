@@ -7118,8 +7118,41 @@ func has_manipulator_arm() -> bool:
 func get_installed_processor_level() -> int:
 	return _extract_module_level_by_prefix("processor")
 
-func get_installed_connector_level(kind: String) -> int:
-	return _extract_module_level_by_prefix("%s_interface" % kind)
+func _get_connector_module_prefix_for_kind(kind: String) -> String:
+	match String(kind).strip_edges().to_lower():
+		"wired":
+			return "wired_connector"
+		"optical":
+			return "optical_connector"
+		"wireless":
+			return "wireless_connector"
+		"high_bandwidth":
+			return "high_bandwidth_connector"
+		_:
+			return ""
+
+func get_installed_connector_level(kind: String = "") -> int:
+	var port_state := preview_module_port_activity()
+	var modules_state: Dictionary = Dictionary(port_state.get("modules", {}))
+	var target_prefix := _get_connector_module_prefix_for_kind(kind)
+	var best := 0
+	for module in installed_modules:
+		if module == null:
+			continue
+		var module_id := String(module.id)
+		if not module_id.contains("_connector_v"):
+			continue
+		if not target_prefix.is_empty() and not module_id.begins_with(target_prefix):
+			continue
+		var state: Dictionary = Dictionary(modules_state.get(module_id, {}))
+		if not bool(state.get("active", false)):
+			continue
+		var match := RegEx.new()
+		match.compile("_v(\\d+)$")
+		var found := match.search(module_id)
+		if found != null:
+			best = maxi(best, int(found.get_string(1)))
+	return best
 
 func get_bipob_power_class() -> String:
 	var body_size: Vector3i = get_constructor_body_size()
@@ -7289,7 +7322,7 @@ func get_world_action_module(action_id: String, world_object: Dictionary) -> Dic
 			return _module_dict("")
 		"connect":
 			var level := get_installed_connector_level(connection_type)
-			return _module_dict("%s_interface_v%d" % [connection_type, level] if level > 0 else "")
+			return _module_dict("%s_connector_v%d" % [connection_type, level] if level > 0 else "")
 		"hack":
 			if String(world_object.get("object_group", "")) == "threat":
 				if has_module_id("wired_connector_v1"):
@@ -8533,30 +8566,130 @@ func preview_module_port_activity() -> Dictionary:
 	var warnings: Array[String] = []
 	var internal_total := 0
 	var external_total := 0
-	var external_reserved := 0
 	var power_total := 0
-	for module in installed_modules:
+	var installation_order: Dictionary = {}
+	for i in range(installed_modules.size()):
+		var module: BipobModule = installed_modules[i]
 		if module == null:
 			continue
 		var id := String(module.id)
-		var mod: Dictionary = {"id": id, "installed": true, "active": true, "inactive_reason": "ok", "port_priority": 9}
+		installation_order[id] = i
 		if id.begins_with("internal_interface_"):
 			internal_total += 4
-			mod["port_priority"] = 1
 		elif id.begins_with("external_interface_"):
 			external_total += 6
-			external_reserved += 1
-			mod["port_priority"] = 3
 		elif id.begins_with("power_block_"):
 			power_total += 15
-			mod["port_priority"] = 2
-		elif id.begins_with("processor_"):
-			mod["port_priority"] = 4
-		elif id.contains("connector") and id.contains("_v"):
-			mod["port_priority"] = 5
-		modules[id] = mod
-	return {"modules": modules, "internal_interface": {"ports_total": internal_total}, "external_interface": {"ports_total": external_total, "reserved_ports": external_reserved}, "power_block": {"ports_total": power_total}, "warnings": warnings}
 
+	func _priority_for(module_id: String) -> int:
+		if module_id.begins_with("internal_interface_"):
+			return 1
+		if module_id.begins_with("power_block_") or module_id.begins_with("battery_"):
+			return 2
+		if module_id.begins_with("external_interface_"):
+			return 3
+		if module_id.begins_with("processor_") or module_id.begins_with("memory_"):
+			return 4
+		if module_id.contains("_connector_") or module_id.begins_with("hard_drive_"):
+			return 5
+		if module_id in ["wheels_v1", "legs_v1", "tracks_v1", "jumper_v1", "hover_pad_v1"]:
+			return 6
+		if module_id.begins_with("manipulator_") or module_id.begins_with("gpu_") or module_id.begins_with("visor_") or module_id.begins_with("xray_"):
+			return 7
+		if module_id.begins_with("radar_"):
+			return 8
+		return 9
+
+	func _is_external_link_required(module_id: String) -> bool:
+		if module_id in ["pocket_v1", "air_duct_v1", "radiator_v1"]:
+			return false
+		if module_id.begins_with("external_interface_") or module_id.begins_with("internal_interface_") or module_id.begins_with("power_block_"):
+			return false
+		return true
+
+	func _is_internal_link_required(module_id: String) -> bool:
+		if module_id.begins_with("battery_") or module_id in ["radiator_v1", "air_duct_v1", "pocket_v1"]:
+			return false
+		if module_id.begins_with("external_interface_") or module_id.begins_with("internal_interface_") or module_id.begins_with("power_block_"):
+			return false
+		if module_id in ["wheels_v1", "legs_v1", "tracks_v1", "jumper_v1", "hover_pad_v1"]:
+			return false
+		return module_id.begins_with("processor_") or module_id.begins_with("memory_") or module_id.begins_with("gpu_") or module_id.begins_with("hard_drive_") or module_id.begins_with("charger_") or module_id.begins_with("cooler_")
+
+	func _is_power_link_required(module_id: String) -> bool:
+		if module_id.begins_with("power_block_") or module_id in ["radiator_v1", "air_duct_v1", "pocket_v1"]:
+			return false
+		return true
+
+	var internal_available := internal_total
+	var internal_needed_for_internal_links := max(0, 2 * int(installed_modules.filter(func(m): return m != null and String(m.id).begins_with("internal_interface_")).size()) - 2)
+	if internal_available < internal_needed_for_internal_links:
+		internal_needed_for_internal_links = internal_available
+	internal_available -= internal_needed_for_internal_links
+	var external_reserved := int(installed_modules.filter(func(m): return m != null and String(m.id).begins_with("external_interface_")).size())
+	var external_available := maxi(0, external_total - external_reserved)
+	var power_available := power_total
+
+	var ordered_ids: Array[String] = []
+	for module in installed_modules:
+		if module == null:
+			continue
+		ordered_ids.append(String(module.id))
+	ordered_ids.sort_custom(func(a,b):
+		var pa = _priority_for(a)
+		var pb = _priority_for(b)
+		if pa != pb:
+			return pa < pb
+		return int(installation_order.get(a,9999)) < int(installation_order.get(b,9999))
+	)
+
+	for module_id in ordered_ids:
+		var state := {"id": module_id, "installed": true, "active": true, "inactive_reason": "ok", "port_priority": _priority_for(module_id), "internal_ports_used": 0, "external_ports_used": 0, "power_ports_used": 0}
+		if module_id.begins_with("internal_interface_"):
+			if internal_total <= 0:
+				state["active"] = false; state["inactive_reason"] = "internal_interface_missing"
+			elif internal_needed_for_internal_links <= 0 and installed_modules.filter(func(m): return m != null and String(m.id).begins_with("internal_interface_")).size() > 1:
+				state["active"] = false; state["inactive_reason"] = "internal_interface_link_missing"
+			else:
+				state["internal_ports_used"] = 1 if installed_modules.filter(func(m): return m != null and String(m.id).begins_with("internal_interface_")).size() > 1 else 0
+		elif module_id.begins_with("external_interface_"):
+			if internal_total <= 0:
+				state["active"] = false; state["inactive_reason"] = "internal_interface_missing"
+			elif internal_available <= 0:
+				state["active"] = false; state["inactive_reason"] = "internal_interface_port_missing"
+			else:
+				internal_available -= 1
+				state["internal_ports_used"] = 1
+		elif module_id.begins_with("power_block_"):
+			pass
+		else:
+			if _is_internal_link_required(module_id):
+				if internal_total <= 0:
+					state["active"] = false; state["inactive_reason"] = "internal_interface_missing"
+				elif internal_available <= 0:
+					state["active"] = false; state["inactive_reason"] = "internal_interface_port_missing"
+				else:
+					internal_available -= 1
+					state["internal_ports_used"] = 1
+			if bool(state["active"]) and _is_external_link_required(module_id):
+				if external_total <= 0:
+					state["active"] = false; state["inactive_reason"] = "external_interface_missing"
+				elif external_available <= 0:
+					state["active"] = false; state["inactive_reason"] = "external_interface_port_missing"
+				else:
+					external_available -= 1
+					state["external_ports_used"] = 1
+			if bool(state["active"]) and _is_power_link_required(module_id):
+				if power_total <= 0:
+					state["active"] = false; state["inactive_reason"] = "power_block_missing"
+				elif power_available <= 0:
+					state["active"] = false; state["inactive_reason"] = "power_block_port_missing"
+				else:
+					power_available -= 1
+					state["power_ports_used"] = 1
+		modules[module_id] = state
+
+	return {"modules": modules, "internal_interface": {"ports_total": internal_total, "ports_used_for_interface_links": internal_needed_for_internal_links}, "external_interface": {"ports_total": external_total, "reserved_ports": external_reserved}, "power_block": {"ports_total": power_total}, "warnings": warnings}
 func recalculate_module_port_activity() -> Dictionary:
 	return preview_module_port_activity()
 
