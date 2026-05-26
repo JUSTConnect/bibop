@@ -5436,6 +5436,24 @@ func validate_module_port_network_runtime() -> Array[String]:
 	for key in ["modules", "internal_interface", "external_interface", "power_block"]:
 		if not baseline.has(key):
 			warnings.append("module_ports_missing_%s" % key)
+	if not active_bipob_ref.has_method("get_module_port_debug_report"):
+		warnings.append("module_ports_debug_report_missing")
+	if not active_bipob_ref.has_method("get_module_port_debug_report_text"):
+		warnings.append("module_ports_debug_report_text_missing")
+	if warnings.has("module_ports_debug_report_missing") or warnings.has("module_ports_debug_report_text_missing"):
+		return warnings
+	var debug_report_a: Dictionary = Dictionary(active_bipob_ref.call("get_module_port_debug_report"))
+	var debug_report_b: Dictionary = Dictionary(active_bipob_ref.call("get_module_port_debug_report"))
+	for report_key in ["internal_ports_total", "internal_ports_used", "internal_ports_remaining", "external_ports_total", "external_ports_used", "external_ports_remaining", "power_ports_total", "power_ports_used", "power_ports_remaining", "active_modules", "inactive_modules", "modules"]:
+		if not debug_report_a.has(report_key):
+			warnings.append("module_ports_debug_report_missing_%s" % report_key)
+	var debug_text: String = String(active_bipob_ref.call("get_module_port_debug_report_text"))
+	if debug_text.strip_edges().is_empty():
+		warnings.append("module_ports_debug_report_text_empty")
+	var active_modules_a: Array = Array(debug_report_a.get("active_modules", []))
+	var active_modules_b: Array = Array(debug_report_b.get("active_modules", []))
+	if active_modules_a != active_modules_b:
+		warnings.append("module_ports_debug_report_not_read_only")
 
 	var known_reason_keys := ["ok","connector_missing","connector_level_too_low","processor_missing","processor_level_too_low","internal_interface_missing","internal_interface_port_missing","internal_interface_link_missing","external_interface_missing","external_interface_port_missing","external_interface_link_missing","power_block_missing","power_block_port_missing","power_block_link_missing","power_block_overloaded","module_installed_but_inactive","module_not_installed"]
 	var observed_runtime_reason_keys: Dictionary = {}
@@ -5560,6 +5578,9 @@ func get_module_port_network_validation_text() -> String:
 	if not coverage_gaps.is_empty():
 		lines.append("Coverage gaps (informational):")
 		lines.append("- " + "\n- ".join(coverage_gaps))
+	if active_bipob_ref != null and active_bipob_ref.has_method("get_module_port_debug_report_text"):
+		lines.append("")
+		lines.append(String(active_bipob_ref.call("get_module_port_debug_report_text")))
 	return "\n".join(lines)
 
 func validate_connector_processor_migration() -> Array[String]:
