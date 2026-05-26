@@ -2520,7 +2520,7 @@ func _apply_external_cell_visual(
 	if cell == null:
 		return
 
-	cell.custom_minimum_size = EXTERNAL_SLOT_CELL_SIZE
+	cell.custom_minimum_size = cell_size
 	cell.size_flags_horizontal = Control.SIZE_SHRINK_CENTER
 	cell.size_flags_vertical = Control.SIZE_SHRINK_CENTER
 	cell.focus_mode = Control.FOCUS_NONE
@@ -2664,6 +2664,16 @@ func _create_external_side_grid(side_id: String) -> Control:
 	var selected_side_id: String = get_selected_external_side_id()
 	var cell_size: Vector2 = _get_external_adaptive_cell_size(side_id)
 	var grid_gap: int = EXTERNAL_GRID_CELL_GAP
+	var pocket_reserved_map: Dictionary = {}
+	if side_id in ["front", "back", "left", "right"] and bipob.has_method("get_max_pockets_per_side") and bipob.has_method("is_external_pocket_enabled") and bipob.has_method("get_external_pocket_reserved_cells"):
+		for pocket_index in range(bipob.get_max_pockets_per_side()):
+			if not bipob.is_external_pocket_enabled(side_id, pocket_index):
+				continue
+			var reserved_cells: Array = bipob.get_external_pocket_reserved_cells(side_id, pocket_index)
+			for reserved_cell_variant in reserved_cells:
+				var reserved_cell: Vector2i = reserved_cell_variant
+				var reserved_key: String = bipob.get_external_slot_key(side_id, reserved_cell)
+				pocket_reserved_map[reserved_key] = true
 
 	var grid: GridContainer = GridContainer.new()
 	grid.columns = side_size.x
@@ -2676,7 +2686,9 @@ func _create_external_side_grid(side_id: String) -> Control:
 			var cell: Vector2i = Vector2i(x, y)
 			var key: String = bipob.get_external_slot_key(side_id, cell)
 			var module: BipobModule = bipob.get_external_module_at(side_id, cell)
-			var reserved_for_pocket: bool = bipob.is_external_cell_reserved_for_pocket(side_id, cell) if bipob.has_method("is_external_cell_reserved_for_pocket") else false
+			var reserved_for_pocket: bool = bool(pocket_reserved_map.get(key, false))
+			if not reserved_for_pocket and bipob.has_method("is_external_cell_reserved_for_pocket"):
+				reserved_for_pocket = bipob.is_external_cell_reserved_for_pocket(side_id, cell)
 
 			var selected: bool = side_id == selected_side_id and cell == selected_external_slot_position
 
@@ -2708,6 +2720,16 @@ func _create_external_side_grid(side_id: String) -> Control:
 func _is_juggernaut_profile() -> bool:
 	return active_bipob_profile_id == "juggernaut"
 
+func _is_engineer_profile() -> bool:
+	return active_bipob_profile_id == "beta" or active_bipob_profile_id == "engineer"
+
+func _get_external_profile_cell_scale() -> float:
+	if _is_juggernaut_profile():
+		return 0.60
+	if _is_engineer_profile():
+		return 0.90
+	return 1.0
+
 
 func _get_external_side_panel_size(side_id: String) -> Vector2:
 	match side_id:
@@ -2726,12 +2748,14 @@ func _get_external_adaptive_cell_size(side_id: String) -> Vector2:
 		return Vector2(18, 18)
 	var side_size: Vector2i = bipob.get_external_side_size(side_id)
 	var largest_side: int = maxi(side_size.x, side_size.y)
-	var cell: float = 19.0
+	var base_cell: float = 19.0
 	if largest_side >= 7:
-		cell = 15.0
+		base_cell = 15.0
 	elif largest_side >= 5:
-		cell = 17.0
-	return Vector2(cell, cell)
+		base_cell = 17.0
+	var scaled_cell: float = base_cell * _get_external_profile_cell_scale()
+	scaled_cell = clampf(scaled_cell, 9.0, 24.0)
+	return Vector2(scaled_cell, scaled_cell)
 
 
 func _create_external_robot_preview_panel(preview_size: Vector2 = Vector2(136, 130)) -> Control:
