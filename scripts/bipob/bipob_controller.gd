@@ -7136,9 +7136,9 @@ func _extract_module_level_by_prefix(prefix: String) -> int:
 		var module_id := String(module.id)
 		if not module_id.begins_with(prefix):
 			continue
-		var match := RegEx.new()
-		match.compile("_v(\\d+)$")
-		var found := match.search(module_id)
+		var version_regex: RegEx = RegEx.new()
+		version_regex.compile("_v(\\d+)$")
+		var found: RegExMatch = version_regex.search(module_id)
 		if found != null:
 			best = maxi(best, int(found.get_string(1)))
 		elif module_id.ends_with("_v1"):
@@ -7212,9 +7212,9 @@ func get_installed_connector_level(kind: String = "") -> int:
 		var state: Dictionary = Dictionary(modules_state.get(module_id, {}))
 		if not bool(state.get("active", false)):
 			continue
-		var match := RegEx.new()
-		match.compile("_v(\\d+)$")
-		var found := match.search(module_id)
+		var version_regex: RegEx = RegEx.new()
+		version_regex.compile("_v(\\d+)$")
+		var found: RegExMatch = version_regex.search(module_id)
 		if found != null:
 			best = maxi(best, int(found.get_string(1)))
 	return best
