@@ -115,21 +115,144 @@ func get_floor_prototype_color(tile_type: int, cell: Vector2i) -> Color:
 	return base_color
 
 func get_wall_prototype_colors(cell: Vector2i) -> Dictionary:
+	var profile_key: String = get_wall_visual_profile_key_for_cell(cell)
+	var profile: Dictionary = get_wall_visual_profile(profile_key)
 	var parity: int = (cell.x + cell.y) % 2
-	var top_color: Color = Color(0.205, 0.225, 0.255, 0.98)
-	var left_color: Color = Color(0.125, 0.14, 0.165, 0.98)
-	var right_color: Color = Color(0.1, 0.115, 0.14, 0.98)
+	var top_color: Color = profile["top"]
+	var left_color: Color = profile["left"]
+	var right_color: Color = profile["right"]
 	if parity != 0:
-		top_color = Color(0.225, 0.245, 0.275, 0.98)
-		left_color = Color(0.14, 0.155, 0.18, 0.98)
-		right_color = Color(0.115, 0.13, 0.155, 0.98)
+		top_color = top_color.lightened(0.06)
+		left_color = left_color.lightened(0.05)
+		right_color = right_color.lightened(0.045)
 
 	return {
 		"top": top_color,
 		"left": left_color,
 		"right": right_color,
-		"outline": Color(0.24, 0.31, 0.36, 0.9)
+		"outline": profile["outline"],
+		"accent": profile["accent"]
 	}
+
+func get_default_wall_visual_profile_key() -> String:
+	return "default_wall"
+
+func normalize_wall_visual_profile_key(profile_key: String) -> String:
+	var normalized_key: String = profile_key.strip_edges().to_lower()
+	normalized_key = normalized_key.replace(" ", "_")
+	normalized_key = normalized_key.replace("-", "_")
+	if normalized_key.is_empty():
+		return get_default_wall_visual_profile_key()
+
+	var profiles: Dictionary = get_wall_visual_profiles()
+	if not profiles.has(normalized_key):
+		return get_default_wall_visual_profile_key()
+	return normalized_key
+
+func get_wall_visual_profiles() -> Dictionary:
+	# Visual-only mapping layer for procedural wall prototype colors.
+	# Keys intentionally mirror planned WorldObjectCatalog wall IDs for future metadata wiring.
+	return {
+		"default_wall": {
+			"label": "Default Wall",
+			"top": Color(0.205, 0.225, 0.255, 0.98),
+			"left": Color(0.125, 0.14, 0.165, 0.98),
+			"right": Color(0.1, 0.115, 0.14, 0.98),
+			"outline": Color(0.24, 0.31, 0.36, 0.9),
+			"accent": Color(0.29, 0.35, 0.4, 0.5)
+		},
+		"outer_wall": {
+			"label": "Outer Wall",
+			"top": Color(0.19, 0.2, 0.22, 0.98),
+			"left": Color(0.11, 0.12, 0.14, 0.98),
+			"right": Color(0.09, 0.1, 0.12, 0.98),
+			"outline": Color(0.24, 0.29, 0.34, 0.9),
+			"accent": Color(0.26, 0.31, 0.37, 0.45)
+		},
+		"grate_wall": {
+			"label": "Grate Wall",
+			"top": Color(0.17, 0.205, 0.235, 0.98),
+			"left": Color(0.095, 0.125, 0.15, 0.98),
+			"right": Color(0.08, 0.11, 0.135, 0.98),
+			"outline": Color(0.23, 0.31, 0.37, 0.9),
+			"accent": Color(0.31, 0.41, 0.48, 0.52)
+		},
+		"damaged_wall": {
+			"label": "Damaged Wall",
+			"top": Color(0.195, 0.16, 0.16, 0.98),
+			"left": Color(0.125, 0.09, 0.09, 0.98),
+			"right": Color(0.1, 0.075, 0.075, 0.98),
+			"outline": Color(0.33, 0.22, 0.21, 0.9),
+			"accent": Color(0.43, 0.2, 0.16, 0.55)
+		},
+		"brick_wall": {
+			"label": "Brick Wall",
+			"top": Color(0.215, 0.165, 0.145, 0.98),
+			"left": Color(0.14, 0.105, 0.09, 0.98),
+			"right": Color(0.12, 0.09, 0.08, 0.98),
+			"outline": Color(0.34, 0.25, 0.22, 0.9),
+			"accent": Color(0.41, 0.28, 0.2, 0.48)
+		},
+		"concrete_wall": {
+			"label": "Concrete Wall",
+			"top": Color(0.23, 0.24, 0.25, 0.98),
+			"left": Color(0.155, 0.16, 0.17, 0.98),
+			"right": Color(0.13, 0.135, 0.145, 0.98),
+			"outline": Color(0.3, 0.33, 0.35, 0.9),
+			"accent": Color(0.35, 0.39, 0.42, 0.45)
+		},
+		"steel_wall": {
+			"label": "Steel Wall",
+			"top": Color(0.195, 0.23, 0.27, 0.98),
+			"left": Color(0.12, 0.15, 0.185, 0.98),
+			"right": Color(0.1, 0.13, 0.165, 0.98),
+			"outline": Color(0.25, 0.34, 0.4, 0.9),
+			"accent": Color(0.34, 0.45, 0.53, 0.52)
+		},
+		"reinforced_steel_wall": {
+			"label": "Reinforced Steel Wall",
+			"top": Color(0.165, 0.195, 0.235, 0.98),
+			"left": Color(0.1, 0.125, 0.155, 0.98),
+			"right": Color(0.085, 0.11, 0.14, 0.98),
+			"outline": Color(0.22, 0.3, 0.36, 0.9),
+			"accent": Color(0.28, 0.39, 0.48, 0.5)
+		},
+		"titanium_wall": {
+			"label": "Titanium Wall",
+			"top": Color(0.245, 0.265, 0.3, 0.98),
+			"left": Color(0.17, 0.185, 0.215, 0.98),
+			"right": Color(0.14, 0.155, 0.185, 0.98),
+			"outline": Color(0.31, 0.38, 0.45, 0.9),
+			"accent": Color(0.45, 0.53, 0.62, 0.55)
+		},
+		"energy_wall": {
+			"label": "Energy Wall",
+			"top": Color(0.12, 0.165, 0.205, 0.98),
+			"left": Color(0.07, 0.11, 0.145, 0.98),
+			"right": Color(0.055, 0.09, 0.125, 0.98),
+			"outline": Color(0.2, 0.36, 0.47, 0.9),
+			"accent": Color(0.28, 0.83, 0.96, 0.72)
+		}
+	}
+
+func get_wall_visual_profile(profile_key: String) -> Dictionary:
+	var profiles: Dictionary = get_wall_visual_profiles()
+	var default_key: String = get_default_wall_visual_profile_key()
+	var normalized_key: String = normalize_wall_visual_profile_key(profile_key)
+	if not profiles.has(normalized_key):
+		return profiles[default_key]
+	return profiles[normalized_key]
+
+func get_wall_visual_profile_key_for_cell(cell: Vector2i) -> String:
+	if _grid_manager == null:
+		return ""
+	var tile_type: int = _grid_manager.get_tile(cell)
+	if tile_type != GridManager.TILE_WALL:
+		return ""
+	# Visual-only behavior for BIP-Visual-006:
+	# all gameplay wall cells currently share the default visual wall profile.
+	# Future PRs may map this key from mission/world metadata (for example via WorldObjectCatalog IDs).
+	return get_default_wall_visual_profile_key()
 
 func get_iso_wall_top_points(cell: Vector2i) -> PackedVector2Array:
 	var bottom_points: PackedVector2Array = get_iso_diamond_points(cell)
@@ -169,6 +292,10 @@ func draw_iso_wall_block(cell: Vector2i) -> void:
 		for edge_idx in range(right_face.size()):
 			var right_next_idx: int = (edge_idx + 1) % right_face.size()
 			draw_line(right_face[edge_idx], right_face[right_next_idx], colors["outline"], 1.0)
+
+	var accent_start: Vector2 = top_points[3].lerp(top_points[0], 0.4)
+	var accent_end: Vector2 = top_points[0].lerp(top_points[1], 0.45)
+	draw_line(accent_start, accent_end, colors["accent"], 1.2)
 
 func draw_iso_floor_prototype() -> void:
 	# Procedural prototype floor renderer for early isometric look exploration.
