@@ -2725,10 +2725,10 @@ func _is_engineer_profile() -> bool:
 
 func _get_external_profile_cell_scale() -> float:
 	if _is_juggernaut_profile():
-		return 0.60
+		return 0.66
 	if _is_engineer_profile():
-		return 0.90
-	return 1.0
+		return 0.945
+	return 1.40
 
 
 func _get_external_side_panel_size(side_id: String) -> Vector2:
