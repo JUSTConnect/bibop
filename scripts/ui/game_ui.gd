@@ -107,6 +107,8 @@ var runtime_storage_panel: PanelContainer
 var runtime_storage_panel_collapsed: bool = false
 var runtime_storage_panel_body: Control = null
 var runtime_storage_collapse_button: Button = null
+const RUNTIME_STORAGE_PANEL_EXPANDED_SIZE: Vector2 = Vector2(380, 330)
+const RUNTIME_STORAGE_PANEL_COLLAPSED_SIZE: Vector2 = Vector2(380, 48)
 var runtime_manipulator_content_label: Label
 var runtime_pocket_slots: Array[Button] = []
 var runtime_digital_slots: Array[Button] = []
@@ -4413,8 +4415,14 @@ func _apply_runtime_hud_layout() -> void:
 		runtime_bipob_switcher_panel = null
 
 	runtime_storage_panel = _create_runtime_storage_panel()
-	runtime_storage_panel.position = Vector2(right_x, margin + switcher_height)
-	runtime_storage_panel.size = Vector2(sidebar_width, top_panel_height)
+	runtime_storage_panel.anchor_left = 1.0
+	runtime_storage_panel.anchor_right = 1.0
+	runtime_storage_panel.anchor_top = 0.0
+	runtime_storage_panel.anchor_bottom = 0.0
+	runtime_storage_panel.offset_left = -RUNTIME_STORAGE_PANEL_EXPANDED_SIZE.x - margin
+	runtime_storage_panel.offset_right = -margin
+	runtime_storage_panel.offset_top = margin + switcher_height
+	runtime_storage_panel.offset_bottom = runtime_storage_panel.offset_top + RUNTIME_STORAGE_PANEL_EXPANDED_SIZE.y
 	root.add_child(runtime_storage_panel)
 
 	var mission_field_panel := Control.new()
@@ -4758,19 +4766,34 @@ func _on_runtime_storage_collapse_pressed() -> void:
 
 
 func _apply_runtime_storage_collapsed_state() -> void:
-	if runtime_storage_panel == null:
+	if runtime_storage_panel == null or not is_instance_valid(runtime_storage_panel):
 		return
-	if runtime_storage_panel_body != null:
+
+	if runtime_storage_panel_body != null and is_instance_valid(runtime_storage_panel_body):
 		runtime_storage_panel_body.visible = not runtime_storage_panel_collapsed
-	if runtime_storage_collapse_button != null:
+		runtime_storage_panel_body.custom_minimum_size = Vector2.ZERO
+		if runtime_storage_panel_collapsed:
+			runtime_storage_panel_body.size_flags_vertical = Control.SIZE_SHRINK_BEGIN
+		else:
+			runtime_storage_panel_body.size_flags_vertical = Control.SIZE_EXPAND_FILL
+
+	if runtime_storage_collapse_button != null and is_instance_valid(runtime_storage_collapse_button):
 		runtime_storage_collapse_button.text = "◀" if runtime_storage_panel_collapsed else "▶"
 		runtime_storage_collapse_button.tooltip_text = "Expand storage panel" if runtime_storage_panel_collapsed else "Collapse storage panel"
+
+	runtime_storage_panel.size_flags_horizontal = Control.SIZE_SHRINK_END
+	runtime_storage_panel.size_flags_vertical = Control.SIZE_SHRINK_BEGIN
 	if runtime_storage_panel_collapsed:
-		runtime_storage_panel.custom_minimum_size = Vector2(42, 42)
-		runtime_storage_panel.size_flags_horizontal = Control.SIZE_SHRINK_END
+		runtime_storage_panel.custom_minimum_size = RUNTIME_STORAGE_PANEL_COLLAPSED_SIZE
+		runtime_storage_panel.size = RUNTIME_STORAGE_PANEL_COLLAPSED_SIZE
+		runtime_storage_panel.offset_bottom = runtime_storage_panel.offset_top + RUNTIME_STORAGE_PANEL_COLLAPSED_SIZE.y
 	else:
-		runtime_storage_panel.custom_minimum_size = Vector2(380, 0)
-		runtime_storage_panel.size_flags_horizontal = Control.SIZE_SHRINK_END
+		runtime_storage_panel.custom_minimum_size = RUNTIME_STORAGE_PANEL_EXPANDED_SIZE
+		runtime_storage_panel.size = RUNTIME_STORAGE_PANEL_EXPANDED_SIZE
+		runtime_storage_panel.offset_bottom = runtime_storage_panel.offset_top + RUNTIME_STORAGE_PANEL_EXPANDED_SIZE.y
+
+	runtime_storage_panel.queue_sort()
+	runtime_storage_panel.queue_redraw()
 
 func _create_runtime_storage_dual_action_header(title: String, first_action_text: String, first_action_callable: Callable, second_action_text: String, second_action_callable: Callable) -> HBoxContainer:
 	var row := HBoxContainer.new()
