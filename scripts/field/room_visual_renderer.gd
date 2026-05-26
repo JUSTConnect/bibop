@@ -10,11 +10,14 @@ class_name RoomVisualRenderer
 @export var debug_draw_iso_helper_preview: bool = false
 @export var render_iso_floor_prototype: bool = false
 @export var render_iso_wall_prototype: bool = false
+@export var render_iso_object_prototype: bool = false
 @export var debug_draw_iso_cell_outlines: bool = true
 @export var debug_draw_iso_wall_outlines: bool = true
+@export var debug_draw_iso_object_outlines: bool = true
 @export var iso_tile_width: float = 128.0
 @export var iso_tile_height: float = 64.0
 @export var iso_wall_height: float = 56.0
+@export var iso_object_marker_height: float = 18.0
 @export var iso_origin: Vector2 = Vector2.ZERO
 
 var _grid_manager: GridManager = null
@@ -344,6 +347,195 @@ func draw_iso_wall_prototype() -> void:
 	for cell in wall_cells:
 		draw_iso_wall_block(cell)
 
+func get_iso_object_visual_profiles() -> Dictionary:
+	# Visual-only object profile mapping for BIP-Visual-007.
+	# Final asset rendering and gameplay metadata wiring will be added later.
+	return {
+		"door": {"base": Color(0.3, 0.21, 0.15, 0.95), "accent": Color(0.58, 0.41, 0.22, 0.95), "outline": Color(0.16, 0.11, 0.08, 0.92), "label": "Door", "shape": "slab"},
+		"digital_door": {"base": Color(0.15, 0.25, 0.33, 0.95), "accent": Color(0.36, 0.73, 0.88, 0.95), "outline": Color(0.08, 0.15, 0.2, 0.92), "label": "Digital Door", "shape": "slab"},
+		"powered_gate": {"base": Color(0.17, 0.22, 0.3, 0.95), "accent": Color(0.43, 0.81, 0.94, 0.95), "outline": Color(0.1, 0.15, 0.2, 0.92), "label": "Powered Gate", "shape": "slab"},
+		"terminal": {"base": Color(0.16, 0.3, 0.36, 0.95), "accent": Color(0.48, 0.9, 0.84, 0.95), "outline": Color(0.08, 0.16, 0.19, 0.92), "label": "Terminal", "shape": "pillar"},
+		"airflow_terminal": {"base": Color(0.16, 0.25, 0.31, 0.95), "accent": Color(0.54, 0.82, 0.93, 0.95), "outline": Color(0.08, 0.14, 0.18, 0.92), "label": "Airflow Terminal", "shape": "pillar"},
+		"exit": {"base": Color(0.14, 0.3, 0.21, 0.95), "accent": Color(0.48, 0.95, 0.69, 0.95), "outline": Color(0.07, 0.16, 0.11, 0.92), "label": "Exit", "shape": "slab"},
+		"key": {"base": Color(0.31, 0.26, 0.12, 0.95), "accent": Color(0.95, 0.83, 0.35, 0.95), "outline": Color(0.2, 0.16, 0.08, 0.92), "label": "Key", "shape": "small_marker"},
+		"component": {"base": Color(0.25, 0.25, 0.3, 0.95), "accent": Color(0.72, 0.72, 0.85, 0.95), "outline": Color(0.14, 0.14, 0.17, 0.92), "label": "Component", "shape": "pillar"},
+		"hidden_route_node": {"base": Color(0.17, 0.18, 0.27, 0.95), "accent": Color(0.6, 0.58, 0.92, 0.95), "outline": Color(0.1, 0.1, 0.18, 0.92), "label": "Hidden Route Node", "shape": "small_marker"},
+		"route_gate": {"base": Color(0.2, 0.2, 0.31, 0.95), "accent": Color(0.64, 0.62, 0.95, 0.95), "outline": Color(0.11, 0.11, 0.2, 0.92), "label": "Route Gate", "shape": "slab"},
+		"hot_node": {"base": Color(0.35, 0.15, 0.11, 0.95), "accent": Color(0.96, 0.48, 0.2, 0.95), "outline": Color(0.24, 0.1, 0.08, 0.92), "label": "Hot Node", "shape": "heat_marker"},
+		"fan_platform": {"base": Color(0.18, 0.24, 0.29, 0.95), "accent": Color(0.58, 0.78, 0.89, 0.95), "outline": Color(0.1, 0.14, 0.18, 0.92), "label": "Fan Platform", "shape": "slab"},
+		"platform_control": {"base": Color(0.2, 0.29, 0.29, 0.95), "accent": Color(0.56, 0.92, 0.88, 0.95), "outline": Color(0.1, 0.16, 0.16, 0.92), "label": "Platform Control", "shape": "small_marker"},
+		"fan_control": {"base": Color(0.19, 0.25, 0.29, 0.95), "accent": Color(0.57, 0.82, 0.93, 0.95), "outline": Color(0.1, 0.14, 0.17, 0.92), "label": "Fan Control", "shape": "small_marker"},
+		"fan_speed_control": {"base": Color(0.23, 0.26, 0.3, 0.95), "accent": Color(0.77, 0.88, 0.95, 0.95), "outline": Color(0.12, 0.14, 0.18, 0.92), "label": "Fan Speed Control", "shape": "small_marker"},
+		"airflow": {"base": Color(0.15, 0.21, 0.26, 0.95), "accent": Color(0.67, 0.89, 0.97, 0.95), "outline": Color(0.09, 0.13, 0.17, 0.92), "label": "Airflow", "shape": "line"},
+		"cable_reel": {"base": Color(0.2, 0.2, 0.22, 0.95), "accent": Color(0.74, 0.7, 0.62, 0.95), "outline": Color(0.11, 0.11, 0.12, 0.92), "label": "Cable Reel", "shape": "small_marker"},
+		"socket": {"base": Color(0.22, 0.22, 0.25, 0.95), "accent": Color(0.78, 0.85, 0.95, 0.95), "outline": Color(0.12, 0.12, 0.15, 0.92), "label": "Socket", "shape": "small_marker"},
+		"cable": {"base": Color(0.16, 0.17, 0.19, 0.95), "accent": Color(0.89, 0.87, 0.73, 0.95), "outline": Color(0.09, 0.1, 0.12, 0.92), "label": "Cable", "shape": "line"},
+		"generic_object": {"base": Color(0.24, 0.24, 0.28, 0.95), "accent": Color(0.78, 0.8, 0.9, 0.95), "outline": Color(0.14, 0.14, 0.17, 0.92), "label": "Generic Object", "shape": "small_marker"}
+	}
+
+func get_iso_object_profile_key_for_tile(tile_type: int) -> String:
+	match tile_type:
+		GridManager.TILE_DOOR:
+			return "door"
+		GridManager.TILE_DIGITAL_DOOR:
+			return "digital_door"
+		GridManager.TILE_POWERED_GATE:
+			return "powered_gate"
+		GridManager.TILE_TERMINAL:
+			return "terminal"
+		GridManager.TILE_AIRFLOW_TERMINAL:
+			return "airflow_terminal"
+		GridManager.TILE_EXIT:
+			return "exit"
+		GridManager.TILE_KEY:
+			return "key"
+		GridManager.TILE_COMPONENT:
+			return "component"
+		GridManager.TILE_HIDDEN_ROUTE_NODE:
+			return "hidden_route_node"
+		GridManager.TILE_ROUTE_GATE:
+			return "route_gate"
+		GridManager.TILE_HOT_NODE:
+			return "hot_node"
+		GridManager.TILE_FAN_PLATFORM:
+			return "fan_platform"
+		GridManager.TILE_PLATFORM_CONTROL, GridManager.TILE_PLATFORM_CONTROL_LEFT, GridManager.TILE_PLATFORM_CONTROL_RIGHT:
+			return "platform_control"
+		GridManager.TILE_FAN_CONTROL:
+			return "fan_control"
+		GridManager.TILE_FAN_SPEED_UP_CONTROL, GridManager.TILE_FAN_SPEED_DOWN_CONTROL:
+			return "fan_speed_control"
+		GridManager.TILE_AIRFLOW:
+			return "airflow"
+		GridManager.TILE_CABLE_REEL:
+			return "cable_reel"
+		GridManager.TILE_SOCKET:
+			return "socket"
+		GridManager.TILE_CABLE:
+			return "cable"
+		GridManager.TILE_FLOOR, GridManager.TILE_WALL, GridManager.TILE_STEPPED_FLOOR:
+			return ""
+	return ""
+
+func is_iso_object_tile(tile_type: int) -> bool:
+	return not get_iso_object_profile_key_for_tile(tile_type).is_empty()
+
+func get_iso_object_profile(profile_key: String) -> Dictionary:
+	var profiles: Dictionary = get_iso_object_visual_profiles()
+	var safe_key: String = profile_key.strip_edges().to_lower()
+	if safe_key.is_empty() or not profiles.has(safe_key):
+		safe_key = "generic_object"
+	var profile: Dictionary = profiles[safe_key]
+	return {
+		"base": Color(profile.get("base", Color(0.24, 0.24, 0.28, 0.95))),
+		"accent": Color(profile.get("accent", Color(0.78, 0.8, 0.9, 0.95))),
+		"outline": Color(profile.get("outline", Color(0.14, 0.14, 0.17, 0.92))),
+		"label": str(profile.get("label", "Generic Object")),
+		"shape": str(profile.get("shape", "small_marker"))
+	}
+
+func draw_iso_object_slab(cell: Vector2i, profile: Dictionary) -> void:
+	var center: Vector2 = grid_to_iso(cell)
+	var diamond: PackedVector2Array = get_iso_diamond_points(cell)
+	if diamond.size() < 4:
+		return
+	var inset: float = 0.38
+	var top_offset: float = -8.0
+	var slab_points: PackedVector2Array = PackedVector2Array()
+	for point in diamond:
+		var offset_point: Vector2 = center + (point - center) * inset + Vector2(0.0, top_offset)
+		slab_points.append(offset_point)
+	draw_colored_polygon(slab_points, profile["base"])
+	var accent_start: Vector2 = slab_points[3].lerp(slab_points[0], 0.5)
+	var accent_end: Vector2 = slab_points[0].lerp(slab_points[1], 0.5)
+	draw_line(accent_start, accent_end, profile["accent"], 2.0)
+	if debug_draw_iso_object_outlines:
+		for edge_idx in range(slab_points.size()):
+			var next_idx: int = (edge_idx + 1) % slab_points.size()
+			draw_line(slab_points[edge_idx], slab_points[next_idx], profile["outline"], 1.0)
+
+func draw_iso_object_pillar(cell: Vector2i, profile: Dictionary) -> void:
+	var center: Vector2 = grid_to_iso(cell)
+	var marker_height: float = max(iso_object_marker_height, 1.0)
+	var half_width: float = max(get_iso_tile_half_size().x * 0.12, 3.0)
+	var base_bottom: Vector2 = center + Vector2(0.0, -3.0)
+	var base_top: Vector2 = base_bottom + Vector2(0.0, -marker_height)
+	var left_bottom: Vector2 = base_bottom + Vector2(-half_width, 0.0)
+	var right_bottom: Vector2 = base_bottom + Vector2(half_width, 0.0)
+	var left_top: Vector2 = base_top + Vector2(-half_width, 0.0)
+	var right_top: Vector2 = base_top + Vector2(half_width, 0.0)
+	var body_points: PackedVector2Array = PackedVector2Array([left_top, right_top, right_bottom, left_bottom])
+	draw_colored_polygon(body_points, profile["base"])
+	draw_line(left_top, right_top, profile["accent"], 2.0)
+	if debug_draw_iso_object_outlines:
+		for edge_idx in range(body_points.size()):
+			var next_idx: int = (edge_idx + 1) % body_points.size()
+			draw_line(body_points[edge_idx], body_points[next_idx], profile["outline"], 1.0)
+
+func draw_iso_object_small_marker(cell: Vector2i, profile: Dictionary) -> void:
+	var center: Vector2 = grid_to_iso(cell) + Vector2(0.0, -6.0)
+	var radius: float = max(get_iso_tile_half_size().y * 0.16, 3.0)
+	draw_circle(center, radius, profile["base"])
+	draw_circle(center + Vector2(0.0, -radius * 0.3), radius * 0.45, profile["accent"])
+	if debug_draw_iso_object_outlines:
+		draw_circle(center, radius, profile["outline"])
+
+func draw_iso_object_line(cell: Vector2i, profile: Dictionary) -> void:
+	var center: Vector2 = grid_to_iso(cell) + Vector2(0.0, -4.0)
+	var half_width: float = max(get_iso_tile_half_size().x * 0.26, 8.0)
+	var line_start: Vector2 = center + Vector2(-half_width, 0.0)
+	var line_end: Vector2 = center + Vector2(half_width, 0.0)
+	draw_line(line_start, line_end, profile["base"], 3.0)
+	draw_line(center + Vector2(-half_width * 0.6, -2.0), center + Vector2(half_width * 0.6, -2.0), profile["accent"], 1.6)
+	if debug_draw_iso_object_outlines:
+		draw_line(line_start, line_end, profile["outline"], 1.0)
+
+func draw_iso_object_heat_marker(cell: Vector2i, profile: Dictionary) -> void:
+	var center: Vector2 = grid_to_iso(cell) + Vector2(0.0, -7.0)
+	var radius: float = max(get_iso_tile_half_size().y * 0.18, 3.5)
+	draw_circle(center, radius, profile["base"])
+	draw_circle(center, radius * 0.58, profile["accent"])
+	if debug_draw_iso_object_outlines:
+		draw_circle(center, radius, profile["outline"])
+
+func draw_iso_object_marker(cell: Vector2i, tile_type: int) -> void:
+	var profile_key: String = get_iso_object_profile_key_for_tile(tile_type)
+	var profile: Dictionary = get_iso_object_profile(profile_key)
+	var shape: String = str(profile.get("shape", "small_marker"))
+	if shape == "slab":
+		draw_iso_object_slab(cell, profile)
+	elif shape == "pillar":
+		draw_iso_object_pillar(cell, profile)
+	elif shape == "line":
+		draw_iso_object_line(cell, profile)
+	elif shape == "heat_marker":
+		draw_iso_object_heat_marker(cell, profile)
+	else:
+		draw_iso_object_small_marker(cell, profile)
+
+func draw_iso_object_prototype() -> void:
+	# Visual-only procedural object prototype pass for interactive tile markers.
+	# Final object assets and real metadata-driven mapping will be implemented later.
+	if _grid_manager == null:
+		return
+	var map_width: int = _grid_manager.get_map_width()
+	var map_height: int = _grid_manager.get_map_height()
+	if map_width <= 0 or map_height <= 0:
+		return
+
+	var object_cells: Array[Vector2i] = []
+	for y in range(map_height):
+		for x in range(map_width):
+			var cell: Vector2i = Vector2i(x, y)
+			var tile_type: int = _grid_manager.get_tile(cell)
+			if is_iso_object_tile(tile_type):
+				object_cells.append(cell)
+
+	object_cells.sort_custom(sort_cells_by_iso_depth)
+	for cell in object_cells:
+		var tile_type: int = _grid_manager.get_tile(cell)
+		draw_iso_object_marker(cell, tile_type)
+
 func _draw() -> void:
 	if debug_draw_marker:
 		draw_circle(Vector2.ZERO, 3.0, Color(0.8, 0.95, 1.0, 0.75))
@@ -353,6 +545,9 @@ func _draw() -> void:
 
 	if render_iso_wall_prototype:
 		draw_iso_wall_prototype()
+
+	if render_iso_object_prototype:
+		draw_iso_object_prototype()
 
 	if not debug_draw_iso_helper_preview:
 		return
