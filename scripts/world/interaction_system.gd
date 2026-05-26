@@ -11,7 +11,7 @@ static func can_apply_action(actor: Dictionary, module: Dictionary, target_objec
 		return _result(false, "No target object.")
 	if action_type == "pickup" and actor.get("manipulator_occupied", false):
 		return _result(false, "Manipulator is occupied.")
-	if action_type == "hack" and actor.get("cpu_level", 0) < target_object.get("required_cpu_level", 1):
+	if action_type == "hack" and actor.get("processor_level", 0) < target_object.get("required_processor_level", 1):
 		return _result(false, "Hacking impossible")
 	return _result(true, "Action possible.")
 
@@ -110,17 +110,17 @@ static func apply_action(actor: Dictionary, module: Dictionary, target_object: D
 		"connect":
 			if group == "terminal":
 				var connection_type := target_object.get("connection_type", "wired")
-				var expected = {"wired":"wired_interface","optical":"optical_interface","wireless":"wireless_interface","high_bandwidth":"high_bandwidth_interface"}
-				var needed = expected.get(connection_type, "wired_interface")
+				var expected = {"wired":"wired_connector","optical":"optical_connector","wireless":"wireless_connector","high_bandwidth":"high_bandwidth_connector"}
+				var needed = expected.get(connection_type, "wired_connector")
 				if module_id.find(needed) == -1:
 					return _result(false, "Item does not fit this device.")
-				var interface_field := "%s_interface_level" % connection_type
-				if int(actor.get(interface_field, actor.get("interface_level", 0))) < int(target_object.get("required_interface_level", 1)):
+				var interface_field := "%s_connector_level" % connection_type
+				if int(actor.get(interface_field, actor.get("connector_level", 0))) < int(target_object.get("required_connector_level", 1)):
 					return _result(false, "Interface level too low.")
 				target_object["connected"] = true
 				return _result(true, "Terminal connected.")
 		"hack":
-			if int(actor.get("cpu_level", 0)) < int(target_object.get("required_cpu_level", 1)):
+			if int(actor.get("processor_level", 0)) < int(target_object.get("required_processor_level", 1)):
 				return _result(false, "Hacking impossible")
 			if int(target_object.get("terminal_class", 1)) >= 3 and target_object.get("can_attack", false) and not actor.get("firewall_module_v1", false):
 				return _result(false, "Firewall required.", ["terminal_attack"])
@@ -191,9 +191,9 @@ static func apply_action(actor: Dictionary, module: Dictionary, target_object: D
 			if group == "terminal" and String(target_object.get("terminal_type", "")) == "platform":
 				if String(target_object.get("state", "active")) in ["unpowered", "disabled", "damaged"] or not bool(target_object.get("platform_remote_control", true)):
 					return _result(false, "Platform terminal is unavailable.")
-				var required_interface := maxi(1, int(target_object.get("required_interface_level", 1)))
+				var required_interface := maxi(1, int(target_object.get("required_connector_level", 1)))
 				var connection_type := String(target_object.get("connection_type", "wired"))
-				var interface_key := "%s_interface_level" % connection_type
+				var interface_key := "%s_connector_level" % connection_type
 				if int(actor.get(interface_key, 0)) < required_interface:
 					return _result(false, "Interface required.")
 				return _result(true, "Platform terminal activated.", [{"type":"activate_platform"}])
@@ -242,7 +242,7 @@ static func apply_action(actor: Dictionary, module: Dictionary, target_object: D
 static func _validate_door_class(actor: Dictionary, target_object: Dictionary) -> Dictionary:
 	if int(actor.get("manipulator_level", 0)) < int(target_object.get("required_manipulator_level", 1)):
 		return _result(false, "Manipulator level too low.")
-	if target_object.get("material", "") == "electromagnetic" and int(actor.get("interface_level", 0)) < int(target_object.get("required_interface_level", 0)):
+	if target_object.get("material", "") == "electromagnetic" and int(actor.get("connector_level", 0)) < int(target_object.get("required_connector_level", 0)):
 		return _result(false, "Interface level too low.")
 	return _result(true, "OK")
 

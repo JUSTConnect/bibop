@@ -152,7 +152,7 @@ func build_task_test_mission_world_objects_for_validation() -> Dictionary:
 		{"type":"external_radiator","id":"task_test_radiator","pos":Vector2i(2, 5)},
 		{"type":"external_air_cooler","id":"task_test_air_cooler","pos":Vector2i(3, 5),"extra":{"facing_dir":"right"}},
 		{"type":"metal_cooling_block","id":"task_test_cooling_block","pos":Vector2i(4, 5)},
-		{"type":"door_terminal","id":"task_test_terminal_main","pos":Vector2i(5, 5),"extra":{"required_interface_level":1,"required_cpu_level":1,"target_door_id":"task_test_door_terminal_locked","state":"active","is_powered":true}},
+		{"type":"door_terminal","id":"task_test_terminal_main","pos":Vector2i(5, 5),"extra":{"required_connector_level":1,"required_processor_level":1,"target_door_id":"task_test_door_terminal_locked","state":"active","is_powered":true}},
 		{"type":"door_terminal","id":"task_test_terminal_unpowered","pos":Vector2i(6, 5),"extra":{"state":"unpowered","is_powered":false}},
 		{"type":"door_terminal","id":"task_test_terminal_damaged","pos":Vector2i(1, 6),"extra":{"state":"damaged","damaged":true}},
 		{"type":"reinforced_steel_door","id":"task_test_door_terminal_locked","pos":Vector2i(4, 4),"extra":{"is_locked":true,"lock_type":"terminal_lock"}},
@@ -412,13 +412,13 @@ func debug_try_action(target_id: String, action_type: String, module_id: String 
 	if target.is_empty():
 		return {"success": false, "message": "Target not found.", "effects": []}
 	var actor := {
-		"cpu_level": 1,
-		"interface_level": 1,
+		"processor_level": 1,
+		"connector_level": 1,
 		"manipulator_level": 1,
-		"wired_interface_level": 1,
-		"optical_interface_level": 1,
-		"wireless_interface_level": 1,
-		"high_bandwidth_interface_level": 1,
+		"wired_connector_level": 1,
+		"optical_connector_level": 1,
+		"wireless_connector_level": 1,
+		"high_bandwidth_connector_level": 1,
 		"firewall_module_v1": false,
 		"manipulator_occupied": false,
 		"pocket_full": false,
@@ -3318,8 +3318,8 @@ func get_inventory_state() -> Dictionary:
 func get_actor_capability_levels() -> Dictionary:
 	var defaults := {
 		"manipulator_level": 0,
-		"interface_level": 0,
-		"cpu_level": 0,
+		"connector_level": 0,
+		"processor_level": 0,
 		"power_class": "none",
 		"modules": [],
 		"tools": []
@@ -3327,8 +3327,8 @@ func get_actor_capability_levels() -> Dictionary:
 	if active_bipob_ref == null:
 		return defaults
 	defaults["manipulator_level"] = int(active_bipob_ref.call("get_installed_manipulator_arm_level")) if active_bipob_ref.has_method("get_installed_manipulator_arm_level") else 0
-	defaults["interface_level"] = int(active_bipob_ref.call("get_installed_interface_level")) if active_bipob_ref.has_method("get_installed_interface_level") else 0
-	defaults["cpu_level"] = int(active_bipob_ref.call("get_installed_cpu_level")) if active_bipob_ref.has_method("get_installed_cpu_level") else 0
+	defaults["connector_level"] = int(active_bipob_ref.call("get_installed_connector_level")) if active_bipob_ref.has_method("get_installed_connector_level") else 0
+	defaults["processor_level"] = int(active_bipob_ref.call("get_installed_processor_level")) if active_bipob_ref.has_method("get_installed_processor_level") else 0
 	return defaults
 
 func check_world_object_requirements(object_id: String, action: String = "") -> Dictionary:
@@ -3338,12 +3338,12 @@ func check_world_object_requirements(object_id: String, action: String = "") -> 
 	var reasons: Array[String] = []
 	if object_data.is_empty():
 		return {"allowed": false, "object_id": object_id, "action": action, "requirements": requirements, "capabilities": capabilities, "reasons": ["object_missing"]}
-	for key in ["required_manipulator_level", "required_interface_level", "required_cpu_level", "required_bipob_power_class", "fits_targets", "required_tool", "required_item_id", "lock_type", "terminal_class", "door_class", "item_form", "storage_type"]:
+	for key in ["required_manipulator_level", "required_connector_level", "required_processor_level", "required_bipob_power_class", "fits_targets", "required_tool", "required_item_id", "lock_type", "terminal_class", "door_class", "item_form", "storage_type"]:
 		if object_data.has(key):
 			requirements[key] = object_data[key]
 	if int(requirements.get("required_manipulator_level", 0)) > int(capabilities.get("manipulator_level", 0)): reasons.append("manipulator_level_too_low")
-	if int(requirements.get("required_interface_level", 0)) > int(capabilities.get("interface_level", 0)): reasons.append("interface_level_too_low")
-	if int(requirements.get("required_cpu_level", 0)) > int(capabilities.get("cpu_level", 0)): reasons.append("cpu_level_too_low")
+	if int(requirements.get("required_connector_level", 0)) > int(capabilities.get("connector_level", 0)): reasons.append("connector_level_too_low")
+	if int(requirements.get("required_processor_level", 0)) > int(capabilities.get("processor_level", 0)): reasons.append("processor_level_too_low")
 	var required_power_class := String(requirements.get("required_bipob_power_class", "")).strip_edges()
 	if not required_power_class.is_empty() and required_power_class != String(capabilities.get("power_class", "none")):
 		reasons.append("power_class_too_low")
@@ -4763,10 +4763,10 @@ func get_platform_height_gating_validation_text() -> String:
 
 func get_terminal_hack_requirements(terminal_id: String) -> Dictionary:
 	var terminal := get_world_object_by_id(terminal_id)
-	var required_interface_level := int(terminal.get("required_interface_level", max(0, int(terminal.get("terminal_class", 1)) - 1))) if not terminal.is_empty() else 0
-	var required_cpu_level := int(terminal.get("required_cpu_level", max(0, int(terminal.get("terminal_class", 1)) - 1))) if not terminal.is_empty() else 0
-	var available_interface_level := 0
-	var available_cpu_level := 0
+	var required_connector_level := int(terminal.get("required_connector_level", max(0, int(terminal.get("terminal_class", 1)) - 1))) if not terminal.is_empty() else 0
+	var required_processor_level := int(terminal.get("required_processor_level", max(0, int(terminal.get("terminal_class", 1)) - 1))) if not terminal.is_empty() else 0
+	var available_connector_level := 0
+	var available_processor_level := 0
 	var reasons: Array[String] = []
 	if terminal.is_empty():
 		reasons.append("terminal_missing")
@@ -4775,10 +4775,10 @@ func get_terminal_hack_requirements(terminal_id: String) -> Dictionary:
 			reasons.append("terminal_unpowered")
 		if bool(terminal.get("damaged", false)) or String(terminal.get("state", "")).to_lower() == "damaged":
 			reasons.append("terminal_damaged")
-	if available_interface_level < required_interface_level:
-		reasons.append("interface_level_too_low")
-	if available_cpu_level < required_cpu_level:
-		reasons.append("cpu_level_too_low")
+	if available_connector_level < required_connector_level:
+		reasons.append("connector_level_too_low")
+	if available_processor_level < required_processor_level:
+		reasons.append("processor_level_too_low")
 	var heat_preview := {"would_overheat": false, "current_heat": 0, "hack_heat": 0, "overheat_threshold": 0, "projected_heat": 0}
 	if not terminal.is_empty():
 		var current_heat := int(terminal.get("current_heat", terminal.get("working_heat", 0)))
@@ -4790,7 +4790,7 @@ func get_terminal_hack_requirements(terminal_id: String) -> Dictionary:
 		reasons.append("hack_would_overheat")
 	if reasons.is_empty():
 		reasons.append("ok")
-	return {"can_hack": reasons.size() == 1 and reasons[0] == "ok", "terminal_id": terminal_id, "required_interface_level": required_interface_level, "required_cpu_level": required_cpu_level, "available_interface_level": available_interface_level, "available_cpu_level": available_cpu_level, "reasons": reasons, "heat_preview": heat_preview}
+	return {"can_hack": reasons.size() == 1 and reasons[0] == "ok", "terminal_id": terminal_id, "required_connector_level": required_connector_level, "required_processor_level": required_processor_level, "available_connector_level": available_connector_level, "available_processor_level": available_processor_level, "reasons": reasons, "heat_preview": heat_preview}
 
 func get_terminal_action_availability(terminal_id: String, action: String = "") -> Dictionary:
 	var report := {"available": false, "terminal_id": terminal_id, "action": action, "reasons": [], "requirements": {}, "state": "", "is_powered": true}
@@ -4814,8 +4814,8 @@ func get_terminal_action_availability(terminal_id: String, action: String = "") 
 	var req := get_terminal_hack_requirements(terminal_id) if action == "hack" else {}
 	report["requirements"] = req
 	if action == "hack":
-		if req.get("reasons", []).has("interface_level_too_low"): reasons.append("interface_level_too_low")
-		if req.get("reasons", []).has("cpu_level_too_low"): reasons.append("cpu_level_too_low")
+		if req.get("reasons", []).has("connector_level_too_low"): reasons.append("connector_level_too_low")
+		if req.get("reasons", []).has("processor_level_too_low"): reasons.append("processor_level_too_low")
 	if reasons.is_empty():
 		report["available"] = true
 		report["reasons"] = ["ok"]
@@ -4980,7 +4980,7 @@ func validate_terminal_and_door_runtime() -> Array[String]:
 	var unlinked_door_id := "temp_validation_door_unlinked"
 	var mechanical_door_id := "temp_validation_door_mechanical"
 	var digital_door_id := "temp_validation_door_digital"
-	var terminal := {"id": terminal_id, "object_group": "terminal", "object_type": "terminal", "position": Vector2i(100, 100), "state": "active", "is_powered": true, "required_interface_level": 0, "required_cpu_level": 0, "target_door_id": linked_door_id}
+	var terminal := {"id": terminal_id, "object_group": "terminal", "object_type": "terminal", "position": Vector2i(100, 100), "state": "active", "is_powered": true, "required_connector_level": 0, "required_processor_level": 0, "target_door_id": linked_door_id}
 	var linked_door := {"id": linked_door_id, "object_group": "door", "object_type": "door", "position": Vector2i(101, 100), "state": "closed", "is_locked": true, "lock_type": "terminal_lock", "is_powered": true}
 	var unlinked_door := {"id": unlinked_door_id, "object_group": "door", "object_type": "door", "position": Vector2i(102, 100), "state": "closed", "is_locked": true, "lock_type": "terminal_lock", "is_powered": true}
 	var mechanical_door := {"id": mechanical_door_id, "object_group": "door", "object_type": "door", "position": Vector2i(103, 100), "state": "closed", "is_locked": true, "lock_type": "mechanical_key", "is_powered": true}
@@ -4998,20 +4998,20 @@ func validate_terminal_and_door_runtime() -> Array[String]:
 	terminal["damaged"] = true
 	if not Array(get_terminal_action_availability(terminal_id, "hack").get("reasons", [])).has("terminal_damaged"): warnings.append("terminal_damaged_reason_missing")
 	terminal["damaged"] = false
-	terminal["required_interface_level"] = 1
-	if not Array(get_terminal_action_availability(terminal_id, "hack").get("reasons", [])).has("interface_level_too_low"): warnings.append("interface_level_gate_missing")
-	terminal["required_interface_level"] = 0
-	terminal["required_cpu_level"] = 1
-	if not Array(get_terminal_action_availability(terminal_id, "hack").get("reasons", [])).has("cpu_level_too_low"): warnings.append("cpu_level_gate_missing")
-	terminal["required_cpu_level"] = 0
+	terminal["required_connector_level"] = 1
+	if not Array(get_terminal_action_availability(terminal_id, "hack").get("reasons", [])).has("connector_level_too_low"): warnings.append("connector_level_gate_missing")
+	terminal["required_connector_level"] = 0
+	terminal["required_processor_level"] = 1
+	if not Array(get_terminal_action_availability(terminal_id, "hack").get("reasons", [])).has("processor_level_too_low"): warnings.append("processor_level_gate_missing")
+	terminal["required_processor_level"] = 0
 	var before_preview := str(get_world_object_runtime_state().get(terminal_id, {}))
 	get_terminal_hack_requirements(terminal_id)
 	if str(get_world_object_runtime_state().get(terminal_id, {})) != before_preview: warnings.append("terminal_hack_preview_mutated_state")
-	terminal["required_interface_level"] = 2
+	terminal["required_connector_level"] = 2
 	var before_fail := str(get_world_object_runtime_state().get(terminal_id, {}))
 	attempt_terminal_hack(terminal_id)
 	if str(get_world_object_runtime_state().get(terminal_id, {})) != before_fail: warnings.append("failed_hack_mutated_state")
-	terminal["required_interface_level"] = 0
+	terminal["required_connector_level"] = 0
 	terminal["state"] = "hacked"
 	if not Array(attempt_terminal_hack(terminal_id).get("reasons", [])).has("already_hacked"): warnings.append("already_hacked_reason_missing")
 	terminal["state"] = "active"
@@ -5124,12 +5124,12 @@ func validate_inventory_tools_modules_runtime() -> Array[String]:
 	var world_snapshot := get_world_object_runtime_state()
 	var temp_ids: Array[String] = []
 	var caps := get_actor_capability_levels()
-	if not caps.has("manipulator_level") or not caps.has("interface_level") or not caps.has("cpu_level"):
+	if not caps.has("manipulator_level") or not caps.has("connector_level") or not caps.has("processor_level"):
 		warnings.append("capability_defaults_missing")
-	var req_obj := {"id":"temp_req_obj", "object_group":"item", "object_type":"item", "position":Vector2i(120, 100), "required_manipulator_level":1, "required_interface_level":1, "required_cpu_level":1}
+	var req_obj := {"id":"temp_req_obj", "object_group":"item", "object_type":"item", "position":Vector2i(120, 100), "required_manipulator_level":1, "required_connector_level":1, "required_processor_level":1}
 	mission_world_objects.append(req_obj); world_objects_by_cell[Vector2i(120, 100)] = req_obj; temp_ids.append("temp_req_obj")
 	var req := check_world_object_requirements("temp_req_obj", "use")
-	for r in ["manipulator_level_too_low","interface_level_too_low","cpu_level_too_low"]:
+	for r in ["manipulator_level_too_low","connector_level_too_low","processor_level_too_low"]:
 		if not Array(req.get("reasons", [])).has(r): warnings.append("requirements_missing_%s" % r)
 	var physical_item := {"id":"temp_item_physical", "object_group":"item", "object_type":"item", "position":Vector2i(121, 100), "item_type":"fuse", "item_form":"physical", "can_pickup":true}
 	var digital_item := {"id":"temp_item_digital", "object_group":"item", "object_type":"item", "position":Vector2i(122, 100), "item_form":"digital", "can_place_in_digital_buffer":true}
@@ -5243,8 +5243,33 @@ func get_task_test_mission_validation_text() -> String:
 	var warnings := validate_task_test_mission_runtime()
 	return "TaskTestValidation: ok" if warnings.is_empty() else "TaskTestValidation:\n- " + "\n- ".join(warnings)
 
+
+
+func validate_module_port_network_runtime() -> Array[String]:
+	return []
+
+func get_module_port_network_validation_text() -> String:
+	var warnings := validate_module_port_network_runtime()
+	return "ModulePortNetworkValidation: ok" if warnings.is_empty() else "ModulePortNetworkValidation:
+- " + "
+- ".join(warnings)
+
+func validate_connector_processor_migration() -> Array[String]:
+	var warnings: Array[String] = []
+	var caps := get_actor_capability_levels()
+	if not caps.has("processor_level"):
+		warnings.append("processor_level_missing")
+	if not caps.has("connector_level"):
+		warnings.append("connector_level_missing")
+	return warnings
+
+func get_connector_processor_migration_validation_text() -> String:
+	var warnings := validate_connector_processor_migration()
+	return "ConnectorProcessorMigrationValidation: ok" if warnings.is_empty() else "ConnectorProcessorMigrationValidation:
+- " + "
+- ".join(warnings)
 func run_developer_validation_suite(suite: String = "all") -> Dictionary:
-	var suites := ["power", "cooling_cable", "terminal_door", "platform_scan_visibility", "inventory_tools_modules", "persistence", "task_test"]
+	var suites := ["power", "cooling_cable", "terminal_door", "platform_scan_visibility", "inventory_tools_modules", "persistence", "task_test", "module_ports", "connector_processor_migration"]
 	var selected := suites if suite == "all" else [suite]
 	var warnings_by_suite := {}
 	var suites_run := 0
@@ -5258,6 +5283,8 @@ func run_developer_validation_suite(suite: String = "all") -> Dictionary:
 			"inventory_tools_modules": warnings = validate_inventory_tools_modules_runtime()
 			"persistence": warnings = validate_full_runtime_persistence()
 			"task_test": warnings = validate_task_test_mission_runtime()
+			"module_ports": warnings = validate_module_port_network_runtime()
+			"connector_processor_migration": warnings = validate_connector_processor_migration()
 			_: warnings = ["suite_missing"]
 		warnings_by_suite[suite_id] = warnings
 		suites_run += 1
@@ -5267,7 +5294,7 @@ func run_developer_validation_suite(suite: String = "all") -> Dictionary:
 	return {"suite": suite, "suites_run": suites_run, "warnings_count": warnings_count, "warnings_by_suite": warnings_by_suite}
 
 func get_developer_validation_menu_text() -> String:
-	return "Validation suites: all, power, cooling_cable, terminal_door, platform_scan_visibility, inventory_tools_modules, persistence, task_test"
+	return "Validation suites: all, power, cooling_cable, terminal_door, platform_scan_visibility, inventory_tools_modules, persistence, task_test, module_ports, connector_processor_migration"
 
 func get_developer_validation_suite_text(suite: String = "all") -> String:
 	var report := run_developer_validation_suite(suite)

@@ -49,7 +49,7 @@ const EXTERNAL_MODULE_CATALOG: Dictionary = {
 "radar_v1":{"name":"Radar V1","cat":"Sensors","size":Vector2i(2,2),"sides":[EXTERNAL_SIDE_TOP],"desc":"Detects movement and objects across the entire open area of the level, providing only approximate location data.","energy":2,"direction":"Front","scan":8,"visibility":90,"special":"approximate position"},
 "xray_v1":{"name":"X-Ray V1","cat":"Sensors","size":Vector2i(2,2),"sides":[EXTERNAL_SIDE_TOP],"desc":"Deep scanning through walls and obstacles, revealing hidden objects, internal structures, cables, locks, containers, and concealed mechanisms.","energy":2,"direction":"Front","scan":5,"visibility":30,"special":"hidden/internal object"},
 "manipulator_arm_v1":{"name":"Manipulator Arm V1","cat":"Manipulator","size":Vector2i(2,2),"sides":[EXTERNAL_SIDE_LEFT,EXTERNAL_SIDE_RIGHT,EXTERNAL_SIDE_FRONT],"desc":"Basic external arm for grabbing, pressing buttons, and interacting with devices directly in front.","energy":1,"reach":1,"direction":"front","carry":"normal"},"manipulator_heavy_claw_v1":{"name":"Manipulator Heavy Claw V1","cat":"Manipulator","size":Vector2i(3,2),"sides":[EXTERNAL_SIDE_LEFT,EXTERNAL_SIDE_RIGHT],"desc":"Heavy-duty gripping module for moving heavy objects, holding doors, breaking weak obstacles, and performing force-based interactions.","energy":2,"reach":4,"direction":"front","carry":"Heavy"},"magnetic_manipulator_v1":{"name":"Magnetic Manipulator V1","cat":"Manipulator","size":Vector2i(3,2),"sides":[EXTERNAL_SIDE_LEFT,EXTERNAL_SIDE_RIGHT,EXTERNAL_SIDE_FRONT],"desc":"Magnetic gripping module that can attract and move metal objects from a distance without direct physical contact.","energy":2,"reach":4,"direction":"front","carry":"Heavy","special":"metal objects"},"tentacle_manipulator_v1":{"name":"Tentacle Manipulator V1","cat":"Manipulator","size":Vector2i(2,2),"sides":[EXTERNAL_SIDE_LEFT,EXTERNAL_SIDE_RIGHT,EXTERNAL_SIDE_FRONT],"desc":"Flexible manipulator that can interact with objects at an angle and reach targets that are not directly in area front.","energy":1,"reach":1,"direction":"side/front","carry":"normal"},"telescopic_arm_v1":{"name":"Telescopic Arm V1","cat":"Manipulator","size":Vector2i(2,2),"sides":[EXTERNAL_SIDE_LEFT,EXTERNAL_SIDE_RIGHT,EXTERNAL_SIDE_FRONT],"desc":"Extendable manipulator that allows the robot to interact with objects away.","energy":1,"reach":2,"direction":"front","carry":"normal"},
-"high_bandwidth_interface_v1":{"name":"High-Bandwidth Interface","cat":"Interface","size":Vector2i(1,2),"sides":[EXTERNAL_SIDE_LEFT,EXTERNAL_SIDE_RIGHT,EXTERNAL_SIDE_FRONT],"desc":"High-capacity external data channel for demanding modules such as radar, X-Ray systems, heavy sensors, turrets, and advanced tools.","energy":3,"connection":"high-bandwidth","connection_range":"contact","special":"heavy modules"},"external_interface_connector_v1":{"name":"External Interface Connector","cat":"Interface","size":Vector2i(1,1),"sides":[EXTERNAL_SIDE_LEFT,EXTERNAL_SIDE_RIGHT,EXTERNAL_SIDE_FRONT],"desc":"Basic physical connector for linking external body modules to the robot’s internal control and power systems.","energy":1,"connection":"physical","connection_range":"contact"},"optical_interface_v1":{"name":"Optical Interface","cat":"Interface","size":Vector2i(1,1),"sides":[EXTERNAL_SIDE_LEFT,EXTERNAL_SIDE_RIGHT,EXTERNAL_SIDE_FRONT],"desc":"Fast optical communication channel with reduced interference, designed for sensors, cameras, and precision data transfer.","energy":1,"connection":"optical","connection_range":"contact","special":"reduced interference"},"wireless_interface_v1":{"name":"Wireless Interface","cat":"Interface","size":Vector2i(1,1),"sides":[EXTERNAL_SIDE_LEFT,EXTERNAL_SIDE_RIGHT,EXTERNAL_SIDE_FRONT],"desc":"Wireless connection module that allows nearby devices and external systems to exchange data without direct physical contact, but remains vulnerable to jamming.","energy":2,"connection":"wireless","connection_range":"3","special":"vulnerable to jamming"},
+"high_bandwidth_connector_v1":{"name":"High-Bandwidth Connector","cat":"Interface","size":Vector2i(1,2),"sides":[EXTERNAL_SIDE_LEFT,EXTERNAL_SIDE_RIGHT,EXTERNAL_SIDE_FRONT],"desc":"High-capacity external data channel for demanding modules such as radar, X-Ray systems, heavy sensors, turrets, and advanced tools.","energy":3,"connection":"high-bandwidth","connection_range":"contact","special":"heavy modules"},"external_interface_connector_v1":{"name":"External Interface Connector","cat":"Interface","size":Vector2i(1,1),"sides":[EXTERNAL_SIDE_LEFT,EXTERNAL_SIDE_RIGHT,EXTERNAL_SIDE_FRONT],"desc":"Basic physical connector for linking external body modules to the robot’s internal control and power systems.","energy":1,"connection":"physical","connection_range":"contact"},"optical_connector_v1":{"name":"Optical Connector","cat":"Interface","size":Vector2i(1,1),"sides":[EXTERNAL_SIDE_LEFT,EXTERNAL_SIDE_RIGHT,EXTERNAL_SIDE_FRONT],"desc":"Fast optical communication channel with reduced interference, designed for sensors, cameras, and precision data transfer.","energy":1,"connection":"optical","connection_range":"contact","special":"reduced interference"},"wireless_connector_v1":{"name":"Wireless Connector","cat":"Interface","size":Vector2i(1,1),"sides":[EXTERNAL_SIDE_LEFT,EXTERNAL_SIDE_RIGHT,EXTERNAL_SIDE_FRONT],"desc":"Wireless connection module that allows nearby devices and external systems to exchange data without direct physical contact, but remains vulnerable to jamming.","energy":2,"connection":"wireless","connection_range":"3","special":"vulnerable to jamming"},
 "welder_v1":{"name":"Welder V1","cat":"Tools","size":Vector2i(2,2),"sides":[EXTERNAL_SIDE_LEFT,EXTERNAL_SIDE_RIGHT,EXTERNAL_SIDE_FRONT],"desc":"External welding tool for sealing doors, repairing metal surfaces, reinforcing damaged structures, and creating temporary welded connections.","energy":1,"range_value":1,"direction":"Front","tool_action":"weld"},
 "repair_v1":{"name":"Repair V1","cat":"Tools","size":Vector2i(2,2),"sides":[EXTERNAL_SIDE_LEFT,EXTERNAL_SIDE_RIGHT,EXTERNAL_SIDE_FRONT],"desc":"Field repair module for restoring damaged robot modules, fixing mission equipment, and performing basic mechanical recovery tasks.","energy":1,"range_value":1,"direction":"Front","tool_action":"repair"},
 "plasma_cutter_v1":{"name":"Plasma Cutter V1","cat":"Tools","size":Vector2i(3,2),"sides":[EXTERNAL_SIDE_LEFT,EXTERNAL_SIDE_RIGHT],"desc":"High-energy cutting tool for opening metal doors, cutting grates, removing armor plates, and breaking through heavy obstacles.","energy":2,"range_value":1,"direction":"Front","tool_action":"cut","special":"opens blocked paths"},
@@ -4511,7 +4511,7 @@ func create_external_module_by_id(module_id: String) -> BipobModule:
 	module.action_text = String(metadata.get("action", ""))
 	if module.id in ["manipulator_arm_v1", "manipulator_heavy_claw_v1", "magnetic_manipulator_v1", "tentacle_manipulator_v1", "telescopic_arm_v1"]:
 		module.granted_commands = ["interact_key", "open_physical_door"]
-	if module.id in ["external_interface_connector_v1", "high_bandwidth_interface_v1", "optical_interface_v1", "wireless_interface_v1"]:
+	if module.id in ["external_interface_connector_v1", "high_bandwidth_connector_v1", "optical_connector_v1", "wireless_connector_v1"]:
 		module.granted_commands = ["read_terminal", "open_digital_door"]
 	if module.id == "wheels_v1":
 		module.granted_commands = ["move_forward", "move_backward", "turn_left", "turn_right"]
@@ -4861,9 +4861,9 @@ func get_internal_connected_module_count() -> int:
 	return count
 
 # TODO external interface routing:
-# - High-Bandwidth Interface should be required by heavy sensors and advanced tools.
-# - Wireless Interface should allow short-range remote connection.
-# - Optical Interface should reduce interference effects.
+# - High-Bandwidth Connector should be required by heavy sensors and advanced tools.
+# - Wireless Connector should allow short-range remote connection.
+# - Optical Connector should reduce interference effects.
 # - External Interface Connector is the base physical connection.
 func get_external_connected_module_count() -> int:
 	var unique_modules: Dictionary = {}
@@ -7115,10 +7115,10 @@ func has_heavy_claw() -> bool:
 func has_manipulator_arm() -> bool:
 	return get_installed_manipulator_arm_level() > 0
 
-func get_installed_cpu_level() -> int:
+func get_installed_processor_level() -> int:
 	return _extract_module_level_by_prefix("processor")
 
-func get_installed_interface_level(kind: String) -> int:
+func get_installed_connector_level(kind: String) -> int:
 	return _extract_module_level_by_prefix("%s_interface" % kind)
 
 func get_bipob_power_class() -> String:
@@ -7203,11 +7203,11 @@ func get_available_world_actions(world_object: Dictionary, target_position: Vect
 		if has_sledgehammer() and String(world_object.get("material", "")) in ["steel", "reinforced_steel"]:
 			actions.append("impact")
 	elif group == "terminal":
-		if bool(world_object.get("connected", false)) and get_installed_cpu_level() > 0:
+		if bool(world_object.get("connected", false)) and get_installed_processor_level() > 0:
 			actions.append("hack")
-		if String(world_object.get("terminal_type", "")) == "platform" and get_installed_interface_level(String(world_object.get("connection_type", "wired"))) > 0:
+		if String(world_object.get("terminal_type", "")) == "platform" and get_installed_connector_level(String(world_object.get("connection_type", "wired"))) > 0:
 			actions.append("activate_platform")
-		if get_installed_interface_level(String(world_object.get("connection_type", "wired"))) > 0:
+		if get_installed_connector_level(String(world_object.get("connection_type", "wired"))) > 0:
 			actions.append("connect")
 		if has_repair_tool() and state == "damaged":
 			actions.append("repair")
@@ -7254,7 +7254,7 @@ func get_available_world_actions(world_object: Dictionary, target_position: Vect
 			actions.append("stun")
 		if has_module_id("energy_drain_v1") and distance <= 1:
 			actions.append("drain_energy")
-		if get_installed_cpu_level() >= int(world_object.get("required_cpu_level", 1)) and (has_module_id("wired_interface_v1") or has_module_id("wireless_interface_v1")):
+		if get_installed_processor_level() >= int(world_object.get("required_processor_level", 1)) and (has_module_id("wired_connector_v1") or has_module_id("wireless_connector_v1")):
 			actions.append("hack")
 		if has_heavy_claw() and distance <= 1:
 			actions.append("push")
@@ -7288,17 +7288,17 @@ func get_world_action_module(action_id: String, world_object: Dictionary) -> Dic
 				return _module_dict("digital_key_damaged")
 			return _module_dict("")
 		"connect":
-			var level := get_installed_interface_level(connection_type)
+			var level := get_installed_connector_level(connection_type)
 			return _module_dict("%s_interface_v%d" % [connection_type, level] if level > 0 else "")
 		"hack":
 			if String(world_object.get("object_group", "")) == "threat":
-				if has_module_id("wired_interface_v1"):
-					return _module_dict("wired_interface_v1")
-				if has_module_id("wireless_interface_v1"):
-					return _module_dict("wireless_interface_v1")
+				if has_module_id("wired_connector_v1"):
+					return _module_dict("wired_connector_v1")
+				if has_module_id("wireless_connector_v1"):
+					return _module_dict("wireless_connector_v1")
 				return _module_dict("")
-			var cpu_level := get_installed_cpu_level()
-			return _module_dict("processor_v%d" % cpu_level if cpu_level > 0 else "")
+			var processor_level := get_installed_processor_level()
+			return _module_dict("processor_v%d" % processor_level if processor_level > 0 else "")
 		"cut":
 			return _module_dict("plasma_cutter_v1" if has_module_id("plasma_cutter_v1") else "")
 		"impact":
@@ -7432,12 +7432,12 @@ func interact() -> void:
 			var actor := {
 				"manipulator_level": get_installed_manipulator_arm_level(),
 				"heavy_claw_level": get_installed_heavy_claw_level(),
-				"interface_level": maxi(get_installed_interface_level("wired"), get_installed_interface_level("optical")),
-				"wired_interface_level": get_installed_interface_level("wired"),
-				"optical_interface_level": get_installed_interface_level("optical"),
-				"wireless_interface_level": get_installed_interface_level("wireless"),
-				"high_bandwidth_interface_level": get_installed_interface_level("high_bandwidth"),
-				"cpu_level": get_installed_cpu_level(),
+				"connector_level": maxi(get_installed_connector_level("wired"), get_installed_connector_level("optical")),
+				"wired_connector_level": get_installed_connector_level("wired"),
+				"optical_connector_level": get_installed_connector_level("optical"),
+				"wireless_connector_level": get_installed_connector_level("wireless"),
+				"high_bandwidth_connector_level": get_installed_connector_level("high_bandwidth"),
+				"processor_level": get_installed_processor_level(),
 				"firewall_module_v1": has_module_id("firewall_module_v1"),
 				"power_class": get_bipob_power_class(),
 				"manipulator_occupied": not can_use_physical_hand(),
@@ -8521,8 +8521,54 @@ func use_access_item_on_door(item_id: String, door_id: String) -> Dictionary:
 
 func get_actor_capability_levels() -> Dictionary:
 	if mission_manager == null or not mission_manager.has_method("get_actor_capability_levels"):
-		return {"manipulator_level": 0, "interface_level": 0, "cpu_level": 0, "power_class": "none", "modules": [], "tools": []}
+		var port_state := preview_module_port_activity()
+		return {"manipulator_level": 0, "connector_level": 0, "processor_level": 0, "power_class": "none", "modules": [], "tools": [], "connector_types": [], "port_state": port_state}
 	return mission_manager.call("get_actor_capability_levels")
+
+func get_installed_module_port_state() -> Dictionary:
+	return preview_module_port_activity()
+
+func preview_module_port_activity() -> Dictionary:
+	var modules: Dictionary = {}
+	var warnings: Array[String] = []
+	var internal_total := 0
+	var external_total := 0
+	var external_reserved := 0
+	var power_total := 0
+	for module in installed_modules:
+		if module == null:
+			continue
+		var id := String(module.id)
+		var mod: Dictionary = {"id": id, "installed": true, "active": true, "inactive_reason": "ok", "port_priority": 9}
+		if id.begins_with("internal_interface_"):
+			internal_total += 4
+			mod["port_priority"] = 1
+		elif id.begins_with("external_interface_"):
+			external_total += 6
+			external_reserved += 1
+			mod["port_priority"] = 3
+		elif id.begins_with("power_block_"):
+			power_total += 15
+			mod["port_priority"] = 2
+		elif id.begins_with("processor_"):
+			mod["port_priority"] = 4
+		elif id.contains("connector") and id.contains("_v"):
+			mod["port_priority"] = 5
+		modules[id] = mod
+	return {"modules": modules, "internal_interface": {"ports_total": internal_total}, "external_interface": {"ports_total": external_total, "reserved_ports": external_reserved}, "power_block": {"ports_total": power_total}, "warnings": warnings}
+
+func recalculate_module_port_activity() -> Dictionary:
+	return preview_module_port_activity()
+
+func get_module_inactive_reasons(module_id: String) -> Array[String]:
+	var state := preview_module_port_activity()
+	var modules: Dictionary = state.get("modules", {})
+	if not modules.has(module_id):
+		return ["module_not_installed"]
+	var module_state: Dictionary = modules[module_id]
+	if bool(module_state.get("active", false)):
+		return ["ok"]
+	return [String(module_state.get("inactive_reason", "module_installed_but_inactive"))]
 
 func check_world_object_requirements(object_id: String, action: String = "") -> Dictionary:
 	if mission_manager == null or not mission_manager.has_method("check_world_object_requirements"):
