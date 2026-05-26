@@ -8581,12 +8581,38 @@ func _get_module_port_priority(module_id: String) -> int:
 		return 8
 	return 9
 
+
+func _get_internal_interface_port_capacity(module_id: String) -> int:
+	if module_id.ends_with("_v1"):
+		return 6
+	if module_id.ends_with("_v2"):
+		return 8
+	if module_id.ends_with("_v3"):
+		return 10
+	return 6
+
 func _module_requires_external_interface_port(module_id: String) -> bool:
 	if module_id in ["pocket_v1", "air_duct_v1", "radiator_v1"]:
 		return false
-	if module_id.begins_with("external_interface_") or module_id.begins_with("internal_interface_") or module_id.begins_with("power_block_"):
+	if module_id.begins_with("processor_") or module_id.begins_with("memory_") or module_id.begins_with("gpu_"):
 		return false
-	return true
+	if module_id.begins_with("hard_drive_") or module_id.begins_with("charger_") or module_id.begins_with("cooler_"):
+		return false
+	if module_id.begins_with("battery_") or module_id.begins_with("internal_interface_") or module_id.begins_with("external_interface_"):
+		return false
+	if module_id.begins_with("power_block_"):
+		return false
+	if module_id in ["wheels_v1", "legs_v1", "tracks_v1", "jumper_v1", "hover_pad_v1"]:
+		return true
+	if module_id.contains("_connector_"):
+		return true
+	if module_id.begins_with("visor_") or module_id.begins_with("manipulator_") or module_id.begins_with("radar_"):
+		return true
+	if module_id.begins_with("xray_") or module_id.begins_with("sensor_") or module_id.begins_with("sledgehammer_"):
+		return true
+	if module_id.begins_with("tool_"):
+		return true
+	return false
 
 func _module_requires_internal_interface_port(module_id: String) -> bool:
 	if module_id.begins_with("battery_") or module_id in ["radiator_v1", "air_duct_v1", "pocket_v1"]:
@@ -8621,7 +8647,7 @@ func preview_module_port_activity() -> Dictionary:
 		installation_order[id] = i
 		if id.begins_with("internal_interface_"):
 			internal_interface_count += 1
-			internal_total += 4
+			internal_total += _get_internal_interface_port_capacity(id)
 		elif id.begins_with("external_interface_"):
 			external_interface_count += 1
 			external_total += 6

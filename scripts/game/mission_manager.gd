@@ -5393,6 +5393,11 @@ func validate_module_port_network_runtime() -> Array[String]:
 	var reason_seen := {"ok": true, "module_not_installed": true, "module_installed_but_inactive": true, "connector_level_too_low": true, "processor_level_too_low": true}
 	var scenarios := [
 		{"id":"processor_active","modules":["internal_interface_v1","power_block_v1","processor_v1"],"module":"processor_v1","active":true,"reason":"ok"},
+		{"id":"memory_active_without_external_interface","modules":["internal_interface_v1","power_block_v1","memory_v1"],"module":"memory_v1","active":true,"reason":"ok"},
+		{"id":"gpu_active_without_external_interface","modules":["internal_interface_v1","power_block_v1","gpu_v1"],"module":"gpu_v1","active":true,"reason":"ok"},
+		{"id":"hard_drive_active_without_external_interface","modules":["internal_interface_v1","power_block_v1","hard_drive_v1"],"module":"hard_drive_v1","active":true,"reason":"ok"},
+		{"id":"charger_active_without_external_interface","modules":["internal_interface_v1","power_block_v1","charger_v1"],"module":"charger_v1","active":true,"reason":"ok"},
+		{"id":"cooler_active_without_external_interface","modules":["internal_interface_v1","power_block_v1","cooler_v1"],"module":"cooler_v1","active":true,"reason":"ok"},
 		{"id":"connector_active","modules":["internal_interface_v1","external_interface_v1","power_block_v1","wired_connector_v1"],"module":"wired_connector_v1","active":true,"reason":"ok"},
 		{"id":"external_interface_missing","modules":["internal_interface_v1","power_block_v1","wired_connector_v1"],"module":"wired_connector_v1","active":false,"reason":"external_interface_missing"},
 		{"id":"external_interface_port_missing","modules":["internal_interface_v1","external_interface_v1","power_block_v1","wired_connector_v1","optical_connector_v1","repair_v1"],"module":"repair_v1","active":false,"reason":"external_interface_port_missing"},
@@ -5403,6 +5408,7 @@ func validate_module_port_network_runtime() -> Array[String]:
 		{"id":"radiator_no_internal_or_power","modules":["radiator_v1"],"module":"radiator_v1","active":true,"reason":"ok"},
 		{"id":"battery_no_internal_required","modules":["power_block_v1","battery_v1"],"module":"battery_v1","active":true,"reason":"ok"},
 		{"id":"power_block_self_active","modules":["power_block_v1"],"module":"power_block_v1","active":true,"reason":"ok"},
+		{"id":"internal_interface_v1_capacity","modules":["internal_interface_v1"],"internal_ports_total":6},
 		{"id":"priority_tie","modules":["internal_interface_v1","power_block_v1","processor_v1","processor_v2"],"priority":true}
 	]
 
@@ -5413,6 +5419,11 @@ func validate_module_port_network_runtime() -> Array[String]:
 			break
 		var state: Dictionary = Dictionary(runtime.get("state", {}))
 		var modules: Dictionary = Dictionary(state.get("modules", {}))
+		if scenario.has("internal_ports_total"):
+			var internal_interface_state := Dictionary(state.get("internal_interface", {}))
+			if int(internal_interface_state.get("ports_total", -1)) != int(scenario.get("internal_ports_total", -1)):
+				warnings.append("module_ports_internal_interface_capacity_mismatch_%s" % String(scenario.get("id", "")))
+			continue
 		if bool(scenario.get("priority", false)):
 			var p1 := Dictionary(modules.get("processor_v1", {}))
 			var p2 := Dictionary(modules.get("processor_v2", {}))
