@@ -5658,7 +5658,7 @@ func validate_connector_processor_migration() -> Array[String]:
 				"external_interface_connector_v1": true
 			}
 			for entry in tools_array:
-				var tool_entry := String(entry)
+				var tool_entry: String = String(entry)
 				if non_tool_module_ids.has(tool_entry):
 					warnings.append("capability_report_tools_contains_non_tool_module_id_%s" % tool_entry)
 					break
@@ -5676,10 +5676,10 @@ func validate_connector_processor_migration() -> Array[String]:
 		if caps.has(legacy_key):
 			warnings.append("capability_report_uses_legacy_%s" % legacy_key)
 
-	var task: Dictionary = build_task_test_mission_world_objects_for_validation()
-	for obj_variant in Array(task.get("objects", [])):
-		var obj_dict: Dictionary = Dictionary(obj_variant)
-		var obj_id: String = String(obj_dict.get("id", "")).strip_edges()
+	var task := build_task_test_mission_world_objects_for_validation()
+	for obj in Array(task.get("objects", [])):
+		var obj_dict: Dictionary = Dictionary(obj)
+		var obj_id: String = String(obj_dict.get("id", ""))
 		if not obj_id.begins_with("task_test_terminal"):
 			continue
 		if obj_dict.has("required_interface_level"):
@@ -5693,7 +5693,7 @@ func validate_connector_processor_migration() -> Array[String]:
 
 	if active_bipob_ref != null and active_bipob_ref.has_method("get_world_action_module"):
 		var module: Dictionary = Dictionary(active_bipob_ref.call("get_world_action_module", "connect", {"connection_type":"wired"}))
-		if not String(module.get("id", "")).contains("_connector_v"):
+		if not String(Dictionary(module).get("id", "")).contains("_connector_v"):
 			warnings.append("connect_action_not_connector_id")
 
 	var req: Dictionary = get_terminal_hack_requirements("task_test_terminal_main")
