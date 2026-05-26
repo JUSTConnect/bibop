@@ -8748,6 +8748,45 @@ func _on_mission_result_center_pressed() -> void:
 func _on_mission_result_main_menu_pressed() -> void:
 	show_main_menu_screen()
 
+
+func _unhandled_input(event: InputEvent) -> void:
+	if event is InputEventMouseButton:
+		_handle_runtime_gameplay_mouse_click(event)
+
+func _handle_runtime_gameplay_mouse_click(event: InputEventMouseButton) -> bool:
+	if app_screen_mode != AppScreenMode.GAMEPLAY:
+		return false
+	if event == null or not event.pressed:
+		return false
+	if event.button_index != MOUSE_BUTTON_LEFT and event.button_index != MOUSE_BUTTON_RIGHT:
+		return false
+	var hovered_control: Control = get_viewport().gui_get_hovered_control()
+	if hovered_control != null:
+		return false
+	if field_runtime == null or bipob == null:
+		return false
+	var renderer_node: Node = field_runtime.get_node_or_null("RoomVisualRenderer")
+	if renderer_node == null or not (renderer_node is RoomVisualRenderer):
+		return false
+	var renderer: RoomVisualRenderer = renderer_node
+	var local_position: Vector2 = renderer.to_local(event.global_position)
+	var cell: Vector2i = renderer.get_cell_at_iso_visual_position(local_position)
+	if cell.x < 0 or cell.y < 0:
+		return false
+	if event.button_index == MOUSE_BUTTON_LEFT:
+		bipob.handle_grid_cell_left_click(cell)
+	else:
+		bipob.handle_grid_cell_right_click(cell)
+	var action_cell: Vector2i = Vector2i(-1, -1)
+	if bipob.grid_position.distance_to(cell) <= 1:
+		action_cell = cell
+	renderer.set_iso_mouse_selection_visuals(bipob.selected_grid_cell, bipob.selected_route_cells, action_cell)
+	update_status()
+	update_diagnostic_status()
+	update_box_status()
+	call_deferred("_sync_runtime_bipob_visual_state")
+	return true
+
 func _on_move_forward_pressed() -> void:
 	bipob.move_forward()
 	update_status()
