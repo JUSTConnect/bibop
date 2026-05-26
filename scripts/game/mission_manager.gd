@@ -5464,17 +5464,68 @@ func validate_module_port_network_runtime() -> Array[String]:
 		observed_runtime_reason_keys[actual_reason] = true
 		if actual_reason != expected_reason:
 			warnings.append("module_ports_runtime_reason_mismatch_%s_%s" % [String(scenario.get("id", "")), actual_reason])
+	return warnings
 
+func _get_module_port_reason_coverage_gaps() -> Array[String]:
+	if active_bipob_ref == null or not active_bipob_ref.has_method("preview_module_port_activity"):
+		return []
+	for helper_name in ["_get_module_port_priority", "_module_requires_external_interface_port", "_module_requires_internal_interface_port", "_module_requires_power_block_port", "create_external_module_by_id", "create_internal_module"]:
+		if not active_bipob_ref.has_method(helper_name):
+			return []
+
+	var known_reason_keys := ["ok","connector_missing","connector_level_too_low","processor_missing","processor_level_too_low","internal_interface_missing","internal_interface_port_missing","internal_interface_link_missing","external_interface_missing","external_interface_port_missing","external_interface_link_missing","power_block_missing","power_block_port_missing","power_block_link_missing","power_block_overloaded","module_installed_but_inactive","module_not_installed"]
+	var observed_runtime_reason_keys: Dictionary = {}
+	var scenarios := [
+		{"modules":["internal_interface_v1","power_block_v1","processor_v1"],"module":"processor_v1"},
+		{"modules":["internal_interface_v1","power_block_v1","memory_v1"],"module":"memory_v1"},
+		{"modules":["internal_interface_v1","power_block_v1","gpu_v1"],"module":"gpu_v1"},
+		{"modules":["internal_interface_v1","power_block_v1","hard_drive_v1"],"module":"hard_drive_v1"},
+		{"modules":["internal_interface_v1","power_block_v1","charger_v1"],"module":"charger_v1"},
+		{"modules":["internal_interface_v1","power_block_v1","cooler_v1"],"module":"cooler_v1"},
+		{"modules":["internal_interface_v1","external_interface_v1","power_block_v1","external_interface_connector_v1"],"module":"external_interface_connector_v1"},
+		{"modules":["internal_interface_v1","power_block_v1","external_interface_connector_v1"],"module":"external_interface_connector_v1"},
+		{"modules":["internal_interface_v1","internal_interface_v1","external_interface_v1","power_block_v1","external_interface_connector_v1","optical_connector_v1","wireless_connector_v1","high_bandwidth_connector_v1","visor_v1","radar_v1"],"module":"radar_v1"},
+		{"modules":["power_block_v1","processor_v1"],"module":"processor_v1"},
+		{"modules":["internal_interface_v1","power_block_v1","processor_v1","processor_v2","processor_v3","memory_v1","memory_v2","memory_v3","hard_drive_v1","cooler_v1"],"module":"cooler_v1"},
+		{"modules":["internal_interface_v1","battery_v1"],"module":"battery_v1"},
+		{"modules":["internal_interface_v1","internal_interface_v1","power_block_v1","external_interface_v1","processor_v1","processor_v2","processor_v3","memory_v1","memory_v2","memory_v3","hard_drive_v1","charger_v1","cooler_v1","gpu_v1","external_interface_connector_v1","optical_connector_v1","wireless_connector_v1","high_bandwidth_connector_v1","manipulator_arm_v1","visor_v1","radar_v1"],"module":"manipulator_arm_v1"},
+		{"modules":["radiator_v1"],"module":"radiator_v1"},
+		{"modules":["power_block_v1","battery_v1"],"module":"battery_v1"},
+		{"modules":["power_block_v1"],"module":"power_block_v1"},
+		{"modules":["internal_interface_v1","power_block_v1"],"module":"power_block_v1"},
+	]
+	for scenario in scenarios:
+		var runtime := _preview_module_port_activity_for_module_ids(Array(scenario.get("modules", [])))
+		if not bool(runtime.get("ok", false)):
+			return []
+		var state: Dictionary = Dictionary(runtime.get("state", {}))
+		var module_id := String(scenario.get("module", ""))
+		var module_state: Dictionary = Dictionary(Dictionary(state.get("modules", {})).get(module_id, {}))
+		if module_state.is_empty():
+			continue
+		var actual_reason := String(module_state.get("inactive_reason", "module_installed_but_inactive"))
+		observed_runtime_reason_keys[actual_reason] = true
+
+	var gaps: Array[String] = []
 	for reason_key in known_reason_keys:
 		if not observed_runtime_reason_keys.has(reason_key):
-			warnings.append("module_port_reason_key_coverage_gap_%s" % reason_key)
-	return warnings
+			gaps.append("module_port_reason_key_coverage_gap_%s" % reason_key)
+	return gaps
+
+func get_module_port_reason_coverage_gap_text() -> String:
+	var gaps := _get_module_port_reason_coverage_gaps()
+	return "ModulePortReasonCoverage: complete" if gaps.is_empty() else "ModulePortReasonCoverage:\n- " + "\n- ".join(gaps)
 
 func get_module_port_network_validation_text() -> String:
 	var warnings := validate_module_port_network_runtime()
-	return "ModulePortNetworkValidation: ok" if warnings.is_empty() else "ModulePortNetworkValidation:
-- " + "
-- ".join(warnings)
+	var coverage_gaps := _get_module_port_reason_coverage_gaps()
+	var lines: Array[String] = ["ModulePortNetworkValidation: ok" if warnings.is_empty() else "ModulePortNetworkValidation:"]
+	if not warnings.is_empty():
+		lines.append("- " + "\n- ".join(warnings))
+	if not coverage_gaps.is_empty():
+		lines.append("Coverage gaps (informational):")
+		lines.append("- " + "\n- ".join(coverage_gaps))
+	return "\n".join(lines)
 
 func validate_connector_processor_migration() -> Array[String]:
 	var warnings: Array[String] = []
