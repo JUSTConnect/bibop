@@ -2729,6 +2729,9 @@ func _is_juggernaut_profile() -> bool:
 func _is_engineer_profile() -> bool:
 	return active_bipob_profile_id == "beta" or active_bipob_profile_id == "engineer"
 
+func _is_scout_profile() -> bool:
+	return not _is_juggernaut_profile() and not _is_engineer_profile()
+
 func _get_external_profile_cell_scale() -> float:
 	if _is_juggernaut_profile():
 		return 0.66
@@ -2740,11 +2743,23 @@ func _get_external_profile_cell_scale() -> float:
 func _get_external_side_panel_size(side_id: String) -> Vector2:
 	match side_id:
 		"top":
-			return Vector2(180.0, 96.0) if _is_juggernaut_profile() else Vector2(170.0, 95.0)
+			if _is_juggernaut_profile():
+				return Vector2(180.0, 96.0)
+			if _is_scout_profile():
+				return Vector2(182.0, 107.0)
+			return Vector2(170.0, 95.0)
 		"left", "right":
-			return Vector2(160.0, 138.0) if _is_juggernaut_profile() else Vector2(150.0, 140.0)
+			if _is_juggernaut_profile():
+				return Vector2(160.0, 138.0)
+			if _is_scout_profile():
+				return Vector2(162.0, 152.0)
+			return Vector2(150.0, 140.0)
 		"front", "bottom", "back":
-			return Vector2(155.0, 112.0) if _is_juggernaut_profile() else Vector2(145.0, 125.0)
+			if _is_juggernaut_profile():
+				return Vector2(155.0, 112.0)
+			if _is_scout_profile():
+				return Vector2(157.0, 137.0)
+			return Vector2(145.0, 125.0)
 		_:
 			return Vector2(180.0, 150.0)
 
@@ -2760,7 +2775,7 @@ func _get_external_adaptive_cell_size(side_id: String) -> Vector2:
 	elif largest_side >= 5:
 		base_cell = 17.0
 	var scaled_cell: float = base_cell * _get_external_profile_cell_scale()
-	scaled_cell = clampf(scaled_cell, 9.0, 24.0)
+	scaled_cell = clampf(scaled_cell, 9.0, 30.0)
 	return Vector2(scaled_cell, scaled_cell)
 
 
