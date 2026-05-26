@@ -74,6 +74,7 @@ const MODULE_ICON_DIR: String = "res://assets/ui/module_icons/"
 @export var start_grid_position := Vector2i(1, 1)
 @export var use_isometric_visual_position: bool = false
 @export var isometric_visual_y_offset: float = 0.0
+@export var isometric_visual_rotation_offset_degrees: float = 90.0
 
 @export var max_energy: int = 50
 @export var vision_range: int = 3
@@ -6601,21 +6602,36 @@ func charge_to_full() -> void:
 	hint_requested.emit("Bipob fully charged.")
 	status_changed.emit()
 		
-func get_isometric_visual_rotation_for_direction(direction: Vector2i) -> float:
-	match direction:
-		Vector2i.UP:
-			return deg_to_rad(-45.0)
-		Vector2i.RIGHT:
-			return deg_to_rad(45.0)
-		Vector2i.DOWN:
-			return deg_to_rad(135.0)
-		Vector2i.LEFT:
-			return deg_to_rad(-135.0)
-	return 0.0
+func get_forward_grid_delta_for_direction(direction_value: int) -> Vector2i:
+	match direction_value:
+		Direction.NORTH:
+			return Vector2i.UP
+		Direction.EAST:
+			return Vector2i.RIGHT
+		Direction.SOUTH:
+			return Vector2i.DOWN
+		Direction.WEST:
+			return Vector2i.LEFT
+	return Vector2i.ZERO
+
+func get_isometric_visual_rotation_for_direction(direction_value: int) -> float:
+	if grid_manager == null:
+		return 0.0
+	var forward_delta: Vector2i = get_forward_grid_delta_for_direction(direction_value)
+	if forward_delta == Vector2i.ZERO:
+		return 0.0
+	var current_cell: Vector2i = grid_position
+	var next_cell: Vector2i = grid_position + forward_delta
+	var current_visual: Vector2 = get_visual_world_position_for_grid_cell(current_cell)
+	var next_visual: Vector2 = get_visual_world_position_for_grid_cell(next_cell)
+	var movement_delta: Vector2 = next_visual - current_visual
+	if movement_delta.length() <= 0.001:
+		return 0.0
+	return movement_delta.angle() + deg_to_rad(isometric_visual_rotation_offset_degrees)
 
 func update_visual_facing() -> void:
 	if should_use_isometric_visual_position():
-		rotation = get_isometric_visual_rotation_for_direction(get_direction_vector(direction))
+		rotation = get_isometric_visual_rotation_for_direction(direction)
 		return
 
 	match direction:
