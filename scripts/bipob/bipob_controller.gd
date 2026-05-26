@@ -6009,6 +6009,24 @@ func _get_world_object_at_cell(cell: Vector2i) -> Dictionary:
 		return {}
 	return Dictionary(mission_manager.get_world_object_at_cell(cell))
 
+
+func _get_runtime_passability_state(cell: Vector2i) -> Dictionary:
+	if mission_manager == null:
+		return {}
+	if mission_manager.has_method("get_runtime_cell_state"):
+		return Dictionary(mission_manager.call("get_runtime_cell_state", cell))
+	return {}
+
+func _is_runtime_cell_passable(cell: Vector2i) -> bool:
+	if mission_manager != null and mission_manager.has_method("is_runtime_cell_passable"):
+		return bool(mission_manager.call("is_runtime_cell_passable", cell))
+	return false
+
+func _get_runtime_cell_block_reason(cell: Vector2i) -> String:
+	if mission_manager != null and mission_manager.has_method("get_runtime_cell_block_reason"):
+		return String(mission_manager.call("get_runtime_cell_block_reason", cell))
+	return ""
+
 func is_runtime_door_cell_passable(cell: Vector2i) -> bool:
 	if grid_manager == null or not grid_manager.is_in_bounds(cell):
 		return false
@@ -6039,6 +6057,8 @@ func is_runtime_door_cell_passable(cell: Vector2i) -> bool:
 func is_cell_walkable_for_bipob(cell: Vector2i) -> bool:
 	if grid_manager == null or not grid_manager.is_in_bounds(cell):
 		return false
+	if mission_manager != null and mission_manager.has_method("is_runtime_cell_passable"):
+		return _is_runtime_cell_passable(cell)
 	if grid_manager.is_walkable(cell):
 		var object_data: Dictionary = _get_world_object_at_cell(cell)
 		if not object_data.is_empty() and bool(object_data.get("blocks_movement", false)):
@@ -6290,7 +6310,11 @@ func execute_next_mouse_route_step() -> void:
 	var next_cell: Vector2i = pending_mouse_route_cells[0]
 	if not grid_manager.is_in_bounds(next_cell) or is_cell_under_fog(next_cell) or not is_cell_walkable_for_bipob(next_cell):
 		mouse_route_execution_in_progress = false
-		hint_requested.emit("Movement stopped: route is blocked.")
+		var runtime_block_reason: String = _get_runtime_cell_block_reason(next_cell)
+		if runtime_block_reason.is_empty():
+			hint_requested.emit("Movement stopped: route is blocked.")
+		else:
+			hint_requested.emit("Movement stopped: %s." % runtime_block_reason)
 		selected_route_cells.clear()
 		for route_cell in pending_mouse_route_cells:
 			selected_route_cells.append(route_cell)
@@ -6458,6 +6482,7 @@ func try_move_to(target_position: Vector2i) -> bool:
 		return false
 
 	if not is_cell_walkable_for_bipob(target_position):
+		var runtime_block_reason: String = _get_runtime_cell_block_reason(target_position)
 		if target_tile == GridManager.TILE_WALL:
 			hint_requested.emit("Blocked by wall.")
 		elif target_tile == GridManager.TILE_DOOR:
@@ -6498,7 +6523,10 @@ func try_move_to(target_position: Vector2i) -> bool:
 		elif target_tile == GridManager.TILE_SOCKET:
 			hint_requested.emit("Socket. Bring the cable end here and use Interact.")
 		else:
-			hint_requested.emit("Path is blocked.")
+			if runtime_block_reason.is_empty():
+				hint_requested.emit("Path is blocked.")
+			else:
+				hint_requested.emit("Blocked: %s." % runtime_block_reason)
 
 		print("Blocked: ", target_position)
 		return false
@@ -6510,7 +6538,7 @@ func try_move_to(target_position: Vector2i) -> bool:
 				hint_requested.emit("Height mismatch.")
 				return false
 		var blocking_obj: Dictionary = Dictionary(mission_manager.get_world_object_at_cell(target_position))
-		if not blocking_obj.is_empty() and bool(blocking_obj.get("blocks_movement", false)) and not is_runtime_door_cell_passable(target_position):
+		if not blocking_obj.is_empty() and bool(blocking_obj.get("blocks_movement", false)) and not is_cell_walkable_for_bipob(target_position):
 			hint_requested.emit("Blocked by %s." % blocking_obj.get("display_name", "object"))
 			return false
 	
