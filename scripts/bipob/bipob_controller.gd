@@ -192,7 +192,11 @@ var last_internal_overheat_messages: Array[String] = []
 
 @onready var grid_manager: GridManager = get_node("../Field")
 @onready var mission_label: Label = get_node("../UI/MissionLabel")
-@onready var body: Polygon2D = $Body
+@onready var top_face: Polygon2D = get_node_or_null("TopFace")
+@onready var left_face: Polygon2D = get_node_or_null("LeftFace")
+@onready var right_face: Polygon2D = get_node_or_null("RightFace")
+@onready var front_accent: Polygon2D = get_node_or_null("FrontAccent")
+@onready var base_shadow: Polygon2D = get_node_or_null("BaseShadow")
 @onready var mission_manager: Node = get_node_or_null("../MissionManager")
 
 # BIP-604 integration hook:
@@ -5920,16 +5924,45 @@ func require_command(command_id: String, missing_message: String) -> bool:
 	return false
 
 func setup_body() -> void:
-	if body == null:
+	if top_face == null or left_face == null or right_face == null or front_accent == null:
 		return
-	
-	body.polygon = PackedVector2Array([
-		Vector2(0, -22),
-		Vector2(18, 18),
-		Vector2(0, 10),
-		Vector2(-18, 18),
+
+	top_face.polygon = PackedVector2Array([
+		Vector2(0, -14),
+		Vector2(10, -4),
+		Vector2(0, 6),
+		Vector2(-10, -4),
 	])
-	body.color = Color(0.1, 0.8, 0.9)
+	top_face.color = Color(0.2, 0.92, 0.9)
+	left_face.polygon = PackedVector2Array([
+		Vector2(-10, -4),
+		Vector2(0, 6),
+		Vector2(0, 16),
+		Vector2(-10, 6),
+	])
+	left_face.color = Color(0.07, 0.42, 0.49)
+	right_face.polygon = PackedVector2Array([
+		Vector2(10, -4),
+		Vector2(0, 6),
+		Vector2(0, 16),
+		Vector2(10, 6),
+	])
+	right_face.color = Color(0.11, 0.57, 0.64)
+	front_accent.polygon = PackedVector2Array([
+		Vector2(0, -19),
+		Vector2(4, -13),
+		Vector2(0, -11),
+		Vector2(-4, -13),
+	])
+	front_accent.color = Color(0.55, 0.99, 0.97)
+	if base_shadow != null:
+		base_shadow.polygon = PackedVector2Array([
+			Vector2(0, 13),
+			Vector2(9, 17),
+			Vector2(0, 20),
+			Vector2(-9, 17),
+		])
+		base_shadow.color = Color(0.0, 0.0, 0.0, 0.2)
 
 func _unhandled_input(event: InputEvent) -> void:
 	if mission_finished:
@@ -5985,14 +6018,20 @@ func is_runtime_door_cell_passable(cell: Vector2i) -> bool:
 	var state: String = String(object_data.get("state", "")).to_lower()
 	var is_open_flag: bool = bool(object_data.get("is_open", false))
 	var is_open_state: bool = state == "open" or state == "opened"
-	var is_explicitly_open: bool = is_open_flag or is_open_state
-	if bool(object_data.get("is_locked", false)) or bool(object_data.get("locked", false)):
-		return false
+	var access_state := {}
+	if mission_manager != null and mission_manager.has_method("get_door_access_state"):
+		access_state = Dictionary(mission_manager.call("get_door_access_state", String(object_data.get("id", ""))))
+	var access_open: bool = bool(access_state.get("is_open", false)) or bool(access_state.get("can_open", false))
+	var is_explicitly_open: bool = is_open_flag or is_open_state or access_open
 	if state == "closed" or state == "locked" or state == "unpowered" or state == "damaged" or state == "broken" or state == "destroyed":
 		return false
-	if bool(object_data.get("blocks_movement", false)) and not is_explicitly_open:
+	if is_explicitly_open:
+		return true
+	if bool(object_data.get("is_locked", false)) or bool(object_data.get("locked", false)):
 		return false
-	return is_explicitly_open
+	if bool(object_data.get("blocks_movement", false)):
+		return false
+	return false
 
 func is_cell_walkable_for_bipob(cell: Vector2i) -> bool:
 	if grid_manager == null or not grid_manager.is_in_bounds(cell):
