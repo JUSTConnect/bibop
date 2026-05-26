@@ -5665,8 +5665,8 @@ func validate_connector_processor_migration() -> Array[String]:
 	if caps.has("port_state") and not (caps["port_state"] is Dictionary):
 		warnings.append("capability_report_invalid_port_state_type")
 
-	var cap_port_state := Dictionary(caps.get("port_state", {}))
-	var cap_modules_state := Dictionary(cap_port_state.get("modules", {}))
+	var cap_port_state: Dictionary = Dictionary(caps.get("port_state", {}))
+	var cap_modules_state: Dictionary = Dictionary(cap_port_state.get("modules", {}))
 	var external_connector_active := false
 	if cap_modules_state.has("external_interface_connector_v1"):
 		external_connector_active = bool(Dictionary(cap_modules_state.get("external_interface_connector_v1", {})).get("active", false))
