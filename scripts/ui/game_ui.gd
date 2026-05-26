@@ -1,7 +1,7 @@
 extends CanvasLayer
 class_name GameUI
 
-const GameUITextHelpers = preload("res://scripts/ui/game_ui_text_helpers.gd")
+const GameUITextHelpersRef = preload("res://scripts/ui/game_ui_text_helpers.gd")
 
 
 class InternalIsoPreviewControl:
@@ -2642,6 +2642,8 @@ func _create_external_side_grid(side_id: String) -> Control:
 
 			var cell_button: Button = Button.new()
 			_apply_external_cell_visual(cell_button, module, selected, preview, invalid_preview, reserved_for_pocket, cell_size)
+			cell_button.size_flags_horizontal = Control.SIZE_SHRINK_CENTER
+			cell_button.size_flags_vertical = Control.SIZE_SHRINK_CENTER
 			cell_button.pressed.connect(func() -> void:
 				_on_external_visual_cell_pressed(side_id, cell)
 			)
@@ -2663,29 +2665,32 @@ func _is_juggernaut_profile() -> bool:
 func _get_external_side_panel_size(side_id: String) -> Vector2:
 	match side_id:
 		"top":
-			return Vector2(210.0, 120.0) if _is_juggernaut_profile() else Vector2(200.0, 130.0)
+			return Vector2(180.0, 105.0) if _is_juggernaut_profile() else Vector2(170.0, 95.0)
 		"left", "right":
-			return Vector2(190.0, 190.0) if _is_juggernaut_profile() else Vector2(180.0, 170.0)
+			return Vector2(160.0, 150.0) if _is_juggernaut_profile() else Vector2(150.0, 140.0)
 		"front", "bottom", "back":
-			return Vector2(190.0, 165.0) if _is_juggernaut_profile() else Vector2(180.0, 150.0)
+			return Vector2(155.0, 135.0) if _is_juggernaut_profile() else Vector2(145.0, 125.0)
 		_:
 			return Vector2(180.0, 150.0)
 
 
 func _get_external_adaptive_cell_size(side_id: String) -> Vector2:
+	if bipob == null:
+		return Vector2(18, 18)
 	var side_size: Vector2i = bipob.get_external_side_size(side_id)
-	var minimum_cell: float = 18.0
-	var maximum_cell: float = 24.0
-	var base_cell: float = 22.0
-	var density_penalty: float = float(maxi(side_size.x, side_size.y) - 4)
-	var resolved_cell: float = clampf(base_cell - density_penalty, minimum_cell, maximum_cell)
-	return Vector2(resolved_cell, resolved_cell)
+	var largest_side: int = maxi(side_size.x, side_size.y)
+	var cell: float = 19.0
+	if largest_side >= 7:
+		cell = 15.0
+	elif largest_side >= 5:
+		cell = 17.0
+	return Vector2(cell, cell)
 
 
 func _create_external_robot_preview_panel() -> Control:
 	var panel: PanelContainer = PanelContainer.new()
 	_apply_panel_style(panel, true)
-	panel.custom_minimum_size = Vector2(120, 120)
+	panel.custom_minimum_size = Vector2(136, 130)
 
 	var root: VBoxContainer = VBoxContainer.new()
 	root.alignment = BoxContainer.ALIGNMENT_CENTER
@@ -2765,7 +2770,7 @@ func _create_external_visual_workspace() -> Control:
 	top_row.add_theme_constant_override("separation", 6)
 
 	var left_info: Control = _create_external_info_stub_panel("", _get_external_left_info_text())
-	left_info.custom_minimum_size = Vector2(240, 110)
+	left_info.custom_minimum_size = Vector2(190, 86)
 	left_info.size_flags_horizontal = Control.SIZE_SHRINK_BEGIN
 	left_info.size_flags_vertical = Control.SIZE_SHRINK_BEGIN
 	top_row.add_child(left_info)
@@ -2781,7 +2786,7 @@ func _create_external_visual_workspace() -> Control:
 	top_row.add_child(up_wrap)
 
 	var right_info: Control = _create_external_warning_panel()
-	right_info.custom_minimum_size = Vector2(240, 110)
+	right_info.custom_minimum_size = Vector2(190, 86)
 	right_info.size_flags_horizontal = Control.SIZE_SHRINK_BEGIN
 	right_info.size_flags_vertical = Control.SIZE_SHRINK_BEGIN
 	top_row.add_child(right_info)
@@ -2940,42 +2945,30 @@ func _create_external_constructor_layout() -> Control:
 	var root: VBoxContainer = VBoxContainer.new()
 	root.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	root.size_flags_vertical = Control.SIZE_EXPAND_FILL
-	root.add_theme_constant_override("separation", 3 if _is_juggernaut_profile() else 4)
-
-	var content_scroll: ScrollContainer = ScrollContainer.new()
-	content_scroll.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-	content_scroll.size_flags_vertical = Control.SIZE_EXPAND_FILL
-	content_scroll.horizontal_scroll_mode = ScrollContainer.SCROLL_MODE_AUTO
-	content_scroll.vertical_scroll_mode = ScrollContainer.SCROLL_MODE_AUTO
-	content_scroll.follow_focus = true
-	root.add_child(content_scroll)
+	root.add_theme_constant_override("separation", 4)
 
 	var top_content_row: HBoxContainer = HBoxContainer.new()
-	# IMPORTANT: Keep left/right BOX split 50/50.
-	# Do not set fixed right_column width here.
-	# Both children must use EXPAND_FILL + stretch_ratio 1.0.
 	top_content_row.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	top_content_row.size_flags_vertical = Control.SIZE_EXPAND_FILL
-	top_content_row.custom_minimum_size = Vector2(1210.0, 0.0)
-	top_content_row.add_theme_constant_override("separation", 8)
+	top_content_row.add_theme_constant_override("separation", 6)
 
 	var left_wrapper: PanelContainer = PanelContainer.new()
 	left_wrapper.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	left_wrapper.size_flags_vertical = Control.SIZE_EXPAND_FILL
-	left_wrapper.size_flags_stretch_ratio = 1.0
-	left_wrapper.custom_minimum_size = Vector2.ZERO
+	left_wrapper.size_flags_stretch_ratio = 1.05
+	left_wrapper.custom_minimum_size = Vector2(590, 0)
 	left_wrapper.add_child(_create_external_visual_workspace())
 	top_content_row.add_child(left_wrapper)
 
 	var right_wrapper: PanelContainer = PanelContainer.new()
 	right_wrapper.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	right_wrapper.size_flags_vertical = Control.SIZE_EXPAND_FILL
-	right_wrapper.size_flags_stretch_ratio = 1.0
-	right_wrapper.custom_minimum_size = Vector2.ZERO
+	right_wrapper.size_flags_stretch_ratio = 0.95
+	right_wrapper.custom_minimum_size = Vector2(520, 0)
 	right_wrapper.add_child(_create_external_storage_right_column())
 	top_content_row.add_child(right_wrapper)
 
-	content_scroll.add_child(top_content_row)
+	root.add_child(top_content_row)
 
 	var bottom_bar: Control = _create_external_bottom_action_bar()
 	bottom_bar.size_flags_horizontal = Control.SIZE_EXPAND_FILL
@@ -3063,10 +3056,10 @@ func _create_internal_filter_panel() -> Control:
 	return panel
 
 
-func _create_external_info_stub_panel(title_text: String, body_text: String) -> Control:
+func _create_external_info_stub_panel(title_text: String, _body_text: String) -> Control:
 	var panel: PanelContainer = PanelContainer.new()
 	_apply_dark_panel_style(panel)
-	panel.custom_minimum_size = Vector2(240, 112)
+	panel.custom_minimum_size = Vector2(190, 86)
 
 	var root: VBoxContainer = VBoxContainer.new()
 	root.size_flags_horizontal = Control.SIZE_EXPAND_FILL
@@ -3190,7 +3183,7 @@ func _get_external_build_warnings() -> Array[String]:
 func _create_external_warning_panel() -> Control:
 	var panel: PanelContainer = PanelContainer.new()
 	_apply_dark_panel_style(panel)
-	panel.custom_minimum_size = Vector2(240, 110)
+	panel.custom_minimum_size = Vector2(190, 86)
 	panel.size_flags_vertical = Control.SIZE_SHRINK_BEGIN
 	var root: VBoxContainer = VBoxContainer.new()
 	root.size_flags_horizontal = Control.SIZE_EXPAND_FILL
@@ -3505,7 +3498,7 @@ func _create_internal_interfaces_placeholder_panel() -> Control:
 
 
 
-func _get_selected_module_for_context(context: String) -> BipobModule:
+func _get_selected_module_for_context(_context: String) -> BipobModule:
 	return _get_selected_box_storage_module()
 
 
@@ -3744,10 +3737,10 @@ func _get_module_type_text(module: BipobModule) -> String:
 
 
 func _get_module_characteristics_lines(module: BipobModule, context: String = "") -> Array:
-	return GameUITextHelpers.get_module_characteristics_lines(module, context)
+	return GameUITextHelpersRef.get_module_characteristics_lines(module, context)
 
 func _get_internal_characteristics_lines(module: BipobModule) -> Array:
-	return GameUITextHelpers.get_internal_characteristics_lines(module)
+	return GameUITextHelpersRef.get_internal_characteristics_lines(module)
 
 func _create_selected_module_info_panel(module: BipobModule, context: String) -> Control:
 	var panel := PanelContainer.new()

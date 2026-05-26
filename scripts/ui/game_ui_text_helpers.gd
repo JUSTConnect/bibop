@@ -157,10 +157,14 @@ static func get_internal_characteristics_lines(module: BipobModule) -> Array:
 		lines.append("GPU: +%d" % module.gpu_value)
 	if module.digital_storage_slots > 0:
 		lines.append("Storage: +%d" % module.digital_storage_slots)
-	if module.cooling_transfer != 0:
-		lines.append("Cooling Transfer: %d" % module.cooling_transfer)
-	if module.cooling_receive != 0:
-		lines.append("Cooling Receive: %d" % module.cooling_receive)
+	if module.cooling_power != 0:
+		lines.append("Cooling Power: %d" % module.cooling_power)
+	if not String(module.cooling_type).is_empty() and String(module.cooling_type).to_lower() != "none":
+		lines.append("Cooling Type: %s" % module.cooling_type)
+	if module.requires_air_intake:
+		lines.append("Requires: Air Intake")
+	if module.is_non_volume_cooling_path:
+		lines.append("Cooling Path: non-volume")
 	if module.power_distribution > 0:
 		lines.append("Power Distribution: +%d" % module.power_distribution)
 	if module.power_ports > 0:
