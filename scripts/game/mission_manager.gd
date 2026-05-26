@@ -1196,14 +1196,24 @@ func preview_power_graph_state_application(filter: String = "") -> Dictionary:
 	var filter_text := filter.strip_edges()
 	var resolved_filter := _resolve_power_graph_filter_to_network_id(filter_text)
 	var source_load_report := preview_power_source_load_heat_for_network(filter_text)
-	var result := {"filter": filter_text, "resolved_filter": resolved_filter, "sources": [], "nodes": [], "reachable_object_ids": [], "blocked": [], "changes": [], "warnings": [], "source_load_report": source_load_report}
-	var warnings: Array[String] = result["warnings"]
+	var warnings: Array[String] = []
+	var changes: Array[Dictionary] = []
+	var blocked_entries: Array[Dictionary] = []
+	var sources: Array[Dictionary] = []
+	var nodes: Array[String] = []
+	var reachable: Array[String] = []
+	var result: Dictionary = {
+		"filter": filter_text,
+		"resolved_filter": resolved_filter,
+		"sources": sources,
+		"nodes": nodes,
+		"reachable_object_ids": reachable,
+		"blocked": blocked_entries,
+		"changes": changes,
+		"warnings": warnings,
+		"source_load_report": source_load_report
+	}
 	warnings.append("Power graph MVP uses network-level gate blocking; adjacency traversal not available yet.")
-	var changes: Array[Dictionary] = result["changes"]
-	var blocked_entries: Array[Dictionary] = result["blocked"]
-	var sources: Array[Dictionary] = result["sources"]
-	var nodes: Array[String] = result["nodes"]
-	var reachable: Array[String] = result["reachable_object_ids"]
 	for network_id_variant in networks.keys():
 		var network_id := String(network_id_variant)
 		if not resolved_filter.is_empty() and network_id != resolved_filter:
