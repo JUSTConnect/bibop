@@ -5665,8 +5665,8 @@ func validate_connector_processor_migration() -> Array[String]:
 	if caps.has("port_state") and not (caps["port_state"] is Dictionary):
 		warnings.append("capability_report_invalid_port_state_type")
 
-	var cap_port_state := Dictionary(caps.get("port_state", {}))
-	var cap_modules_state := Dictionary(cap_port_state.get("modules", {}))
+	var cap_port_state: Dictionary = Dictionary(caps.get("port_state", {}))
+	var cap_modules_state: Dictionary = Dictionary(cap_port_state.get("modules", {}))
 	var external_connector_active := false
 	if cap_modules_state.has("external_interface_connector_v1"):
 		external_connector_active = bool(Dictionary(cap_modules_state.get("external_interface_connector_v1", {})).get("active", false))
@@ -5676,10 +5676,10 @@ func validate_connector_processor_migration() -> Array[String]:
 		if caps.has(legacy_key):
 			warnings.append("capability_report_uses_legacy_%s" % legacy_key)
 
-	var task := build_task_test_mission_world_objects_for_validation()
-	for obj in Array(task.get("objects", [])):
-		var obj_dict := Dictionary(obj)
-		var obj_id := String(obj_dict.get("id", ""))
+	var task: Dictionary = build_task_test_mission_world_objects_for_validation()
+	for obj_variant in Array(task.get("objects", [])):
+		var obj_dict: Dictionary = Dictionary(obj_variant)
+		var obj_id: String = String(obj_dict.get("id", "")).strip_edges()
 		if not obj_id.begins_with("task_test_terminal"):
 			continue
 		if obj_dict.has("required_interface_level"):
@@ -5692,11 +5692,11 @@ func validate_connector_processor_migration() -> Array[String]:
 			warnings.append("task_test_terminal_missing_required_processor_level")
 
 	if active_bipob_ref != null and active_bipob_ref.has_method("get_world_action_module"):
-		var module := active_bipob_ref.call("get_world_action_module", "connect", {"connection_type":"wired"})
-		if not String(Dictionary(module).get("id", "")).contains("_connector_v"):
+		var module: Dictionary = Dictionary(active_bipob_ref.call("get_world_action_module", "connect", {"connection_type":"wired"}))
+		if not String(module.get("id", "")).contains("_connector_v"):
 			warnings.append("connect_action_not_connector_id")
 
-	var req := get_terminal_hack_requirements("task_test_terminal_main")
+	var req: Dictionary = get_terminal_hack_requirements("task_test_terminal_main")
 	for key in ["required_connector_level", "required_processor_level", "available_connector_level", "available_processor_level"]:
 		if not req.has(key):
 			warnings.append("terminal_requirements_missing_%s" % key)
