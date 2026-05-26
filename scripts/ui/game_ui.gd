@@ -350,8 +350,8 @@ func _has_gameplay_runtime() -> bool:
 func _connect_bipob_runtime_signals_once() -> void:
 	if bipob == null:
 		return
-	if not bipob.status_changed.is_connected(update_status):
-		bipob.status_changed.connect(update_status)
+	if not bipob.status_changed.is_connected(_on_runtime_bipob_status_changed):
+		bipob.status_changed.connect(_on_runtime_bipob_status_changed)
 	if not bipob.hint_requested.is_connected(show_hint):
 		bipob.hint_requested.connect(show_hint)
 	if not bipob.world_action_panel_requested.is_connected(_on_world_action_panel_requested):
@@ -469,6 +469,12 @@ func _sync_runtime_bipob_visual_state() -> void:
 		bipob.call("update_world_position")
 	if field_runtime != null and is_instance_valid(field_runtime) and field_runtime.has_method("request_visual_refresh"):
 		field_runtime.call("request_visual_refresh")
+
+func _on_runtime_bipob_status_changed() -> void:
+	update_status()
+	update_diagnostic_status()
+	update_box_status()
+	call_deferred("_sync_runtime_bipob_visual_state")
 
 func _safe_has_bipob_method(method_name: String) -> bool:
 	if bipob == null:
