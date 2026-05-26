@@ -450,6 +450,107 @@ func _find_object(target_id: String) -> Dictionary:
 func get_world_object_at_cell(cell: Vector2i) -> Dictionary:
 	return world_objects_by_cell.get(cell, {})
 
+
+func get_runtime_cell_state(cell: Vector2i) -> Dictionary:
+	var state: Dictionary = {
+		"cell": cell,
+		"in_bounds": false,
+		"tile_type": -1,
+		"tile_name": "",
+		"static_walkable": false,
+		"has_object": false,
+		"object_id": "",
+		"object_type": "",
+		"object_group": "",
+		"display_name": "",
+		"state": "",
+		"is_open": false,
+		"is_locked": false,
+		"is_powered": false,
+		"blocks_movement": false,
+		"requires_key": false,
+		"required_key_id": "",
+		"lock_type": "",
+		"power_network_id": "",
+		"control_source_id": "",
+		"is_passable": false,
+		"block_reason": "out_of_bounds",
+		"visual_profile": ""
+	}
+	if grid_manager == null or not grid_manager.has_method("is_in_bounds") or not bool(grid_manager.call("is_in_bounds", cell)):
+		return state
+
+	state["in_bounds"] = true
+	state["block_reason"] = ""
+	if grid_manager.has_method("get_tile"):
+		var tile_type: int = int(grid_manager.call("get_tile", cell))
+		state["tile_type"] = tile_type
+		if grid_manager.has_method("get_tile_name"):
+			state["tile_name"] = String(grid_manager.call("get_tile_name", tile_type))
+	if grid_manager.has_method("is_walkable"):
+		state["static_walkable"] = bool(grid_manager.call("is_walkable", cell))
+
+	var object_data: Dictionary = get_world_object_at_cell(cell)
+	if not object_data.is_empty():
+		state["has_object"] = true
+		state["object_id"] = String(object_data.get("id", ""))
+		state["object_type"] = String(object_data.get("object_type", ""))
+		state["object_group"] = String(object_data.get("object_group", ""))
+		state["display_name"] = String(object_data.get("display_name", ""))
+		state["state"] = String(object_data.get("state", "")).to_lower()
+		state["is_open"] = bool(object_data.get("is_open", false))
+		state["is_locked"] = bool(object_data.get("is_locked", false)) or bool(object_data.get("locked", false))
+		state["is_powered"] = bool(object_data.get("is_powered", false))
+		state["blocks_movement"] = bool(object_data.get("blocks_movement", false))
+		state["requires_key"] = bool(object_data.get("requires_key", false))
+		state["required_key_id"] = String(object_data.get("required_key_id", ""))
+		state["lock_type"] = String(object_data.get("lock_type", ""))
+		state["power_network_id"] = String(object_data.get("power_network_id", ""))
+		state["control_source_id"] = String(object_data.get("control_source_id", object_data.get("linked_terminal_id", object_data.get("controller_id", ""))))
+		state["visual_profile"] = String(object_data.get("visual_profile", ""))
+
+	var tile_type_value: int = int(state.get("tile_type", -1))
+	var tile_is_wall: bool = tile_type_value == GridManager.TILE_WALL
+	var tile_is_door: bool = tile_type_value == GridManager.TILE_DOOR or tile_type_value == GridManager.TILE_DIGITAL_DOOR or tile_type_value == GridManager.TILE_POWERED_GATE
+	var object_state: String = String(state.get("state", ""))
+	var is_open_state: bool = object_state == "open" or object_state == "opened"
+	var canonical_open: bool = bool(state.get("is_open", false)) or is_open_state
+	if tile_is_wall:
+		state["is_passable"] = false
+		state["block_reason"] = "wall"
+		return state
+	if tile_is_door:
+		if canonical_open:
+			state["is_passable"] = true
+			state["block_reason"] = ""
+			return state
+		state["is_passable"] = false
+		if object_state == "locked" or bool(state.get("is_locked", false)):
+			state["block_reason"] = "door_locked"
+		elif object_state == "unpowered":
+			state["block_reason"] = "door_unpowered"
+		elif object_state == "damaged" or object_state == "broken" or object_state == "destroyed":
+			state["block_reason"] = "door_damaged"
+		else:
+			state["block_reason"] = "door_closed"
+		return state
+	if bool(state.get("has_object", false)) and bool(state.get("blocks_movement", false)):
+		state["is_passable"] = false
+		state["block_reason"] = "blocked_by_object"
+		return state
+	state["is_passable"] = bool(state.get("static_walkable", false))
+	if not bool(state.get("is_passable", false)):
+		state["block_reason"] = "tile_blocked"
+	return state
+
+func is_runtime_cell_passable(cell: Vector2i) -> bool:
+	var state: Dictionary = get_runtime_cell_state(cell)
+	return bool(state.get("is_passable", false))
+
+func get_runtime_cell_block_reason(cell: Vector2i) -> String:
+	var state: Dictionary = get_runtime_cell_state(cell)
+	return String(state.get("block_reason", ""))
+
 func set_world_object_at_cell(cell: Vector2i, object_data: Dictionary) -> void:
 	if object_data.is_empty():
 		return
@@ -5344,6 +5445,103 @@ func validate_task_test_mission_runtime() -> Array[String]:
 		warnings.append("task_test_layout_exit_tile_count_%d" % exit_tiles)
 	elif extraction_cell != layout_exit_cell and extraction_cell.distance_to(layout_exit_cell) > 1.0:
 		warnings.append("task_test_extraction_cell_not_matching_layout_exit")
+	return warnings
+
+func get_task_test_system_coverage_report() -> Dictionary:
+	var report: Dictionary = {
+		"total_objects": 0,
+		"counts_by_object_type": {},
+		"counts_by_object_group": {},
+		"door_cells": [],
+		"powered_objects": [],
+		"controlled_objects": [],
+		"key_locked_doors": [],
+		"cooling_objects": [],
+		"hidden_xray_thermal_objects": []
+	}
+	for object_data in mission_world_objects:
+		if typeof(object_data) != TYPE_DICTIONARY:
+			continue
+		report["total_objects"] = int(report.get("total_objects", 0)) + 1
+		var object_type: String = String(object_data.get("object_type", ""))
+		var object_group: String = String(object_data.get("object_group", ""))
+		var counts_type: Dictionary = report.get("counts_by_object_type", {})
+		counts_type[object_type] = int(counts_type.get(object_type, 0)) + 1
+		report["counts_by_object_type"] = counts_type
+		var counts_group: Dictionary = report.get("counts_by_object_group", {})
+		counts_group[object_group] = int(counts_group.get(object_group, 0)) + 1
+		report["counts_by_object_group"] = counts_group
+		var cell: Vector2i = Vector2i(object_data.get("position", Vector2i.ZERO))
+		var runtime_state: Dictionary = get_runtime_cell_state(cell)
+		var lock_type: String = String(object_data.get("lock_type", ""))
+		var object_state: String = String(object_data.get("state", "")).to_lower()
+		var is_door: bool = object_type.find("door") >= 0 or lock_type != ""
+		if is_door:
+			report["door_cells"].append({"cell": cell, "object_id": String(object_data.get("id", "")), "state": object_state, "is_passable": bool(runtime_state.get("is_passable", false)), "block_reason": String(runtime_state.get("block_reason", ""))})
+		if bool(object_data.get("is_powered", false)) or object_data.has("power_network_id"):
+			report["powered_objects"].append({"object_id": String(object_data.get("id", "")), "power_network_id": String(object_data.get("power_network_id", ""))})
+		var control_source_id: String = String(object_data.get("control_source_id", object_data.get("linked_terminal_id", object_data.get("controller_id", ""))))
+		if not control_source_id.is_empty() or bool(object_data.get("requires_external_control", false)):
+			report["controlled_objects"].append({"object_id": String(object_data.get("id", "")), "control_source_id": control_source_id, "linked_terminal_id": String(object_data.get("linked_terminal_id", ""))})
+		if bool(object_data.get("requires_key", false)) or lock_type == "mechanical_key" or lock_type == "digital_key":
+			report["key_locked_doors"].append({"object_id": String(object_data.get("id", "")), "required_key_id": String(object_data.get("required_key_id", "")), "lock_type": lock_type})
+		if object_group == "cooling":
+			report["cooling_objects"].append({"object_id": String(object_data.get("id", "")), "object_type": object_type})
+		if bool(object_data.get("hidden", false)) or bool(object_data.get("visible_with_xray", false)) or bool(object_data.get("visible_with_thermal", false)):
+			report["hidden_xray_thermal_objects"].append({"object_id": String(object_data.get("id", "")), "hidden": bool(object_data.get("hidden", false)), "xray": bool(object_data.get("visible_with_xray", false)), "thermal": bool(object_data.get("visible_with_thermal", false))})
+	return report
+
+func get_task_test_system_coverage_report_text() -> String:
+	var report: Dictionary = get_task_test_system_coverage_report()
+	var lines: Array[String] = []
+	lines.append("TaskTestSystemCoverage: total_objects=%d" % int(report.get("total_objects", 0)))
+	lines.append("By type: %s" % JSON.stringify(report.get("counts_by_object_type", {})))
+	lines.append("By group: %s" % JSON.stringify(report.get("counts_by_object_group", {})))
+	lines.append("Door cells: %s" % JSON.stringify(report.get("door_cells", [])))
+	lines.append("Powered objects: %s" % JSON.stringify(report.get("powered_objects", [])))
+	lines.append("Controlled objects: %s" % JSON.stringify(report.get("controlled_objects", [])))
+	lines.append("Key locked doors: %s" % JSON.stringify(report.get("key_locked_doors", [])))
+	lines.append("Cooling objects: %s" % JSON.stringify(report.get("cooling_objects", [])))
+	lines.append("Hidden/Xray/Thermal objects: %s" % JSON.stringify(report.get("hidden_xray_thermal_objects", [])))
+	return "\n".join(lines)
+
+func validate_task_test_runtime_cell_states() -> Array[String]:
+	var warnings: Array[String] = []
+	var task_item_ids: Array[String] = []
+	for cell_variant in cell_items.keys():
+		for item_variant in Array(cell_items.get(cell_variant, [])):
+			if typeof(item_variant) != TYPE_DICTIONARY:
+				continue
+			task_item_ids.append(String(Dictionary(item_variant).get("id", "")))
+	for object_data in mission_world_objects:
+		if typeof(object_data) != TYPE_DICTIONARY:
+			continue
+		var object_id: String = String(object_data.get("id", ""))
+		var object_type: String = String(object_data.get("object_type", "")).to_lower()
+		var cell: Vector2i = Vector2i(object_data.get("position", Vector2i.ZERO))
+		var runtime_state: Dictionary = get_runtime_cell_state(cell)
+		if not bool(runtime_state.get("has_object", false)):
+			warnings.append("object_exists_but_runtime_has_no_object_%s" % object_id)
+		var state_name: String = String(object_data.get("state", "")).to_lower()
+		var canonical_open: bool = state_name == "open" or state_name == "opened" or bool(object_data.get("is_open", false))
+		var is_door: bool = object_type.find("door") >= 0 or String(object_data.get("lock_type", "")) != ""
+		if is_door and canonical_open and not bool(runtime_state.get("is_passable", false)):
+			warnings.append("door_open_not_passable_%s" % object_id)
+		if is_door and (state_name == "closed" or state_name == "locked" or bool(object_data.get("is_locked", false))) and bool(runtime_state.get("is_passable", false)):
+			warnings.append("door_closed_or_locked_but_passable_%s" % object_id)
+		if bool(object_data.get("requires_external_power", false)) and String(object_data.get("power_network_id", "")).is_empty():
+			warnings.append("external_power_missing_network_%s" % object_id)
+		if bool(object_data.get("requires_external_control", false)):
+			var ctrl: String = String(object_data.get("control_source_id", object_data.get("linked_terminal_id", object_data.get("controller_id", ""))))
+			if ctrl.is_empty():
+				warnings.append("external_control_missing_reference_%s" % object_id)
+		if (bool(object_data.get("requires_key", false)) or String(object_data.get("lock_type", "")) == "mechanical_key" or String(object_data.get("lock_type", "")) == "digital_key") and String(object_data.get("required_key_id", "")).is_empty():
+			warnings.append("key_locked_door_missing_required_key_%s" % object_id)
+		var required_key_id: String = String(object_data.get("required_key_id", ""))
+		if not required_key_id.is_empty() and not task_item_ids.has(required_key_id):
+			warnings.append("required_key_not_in_task_items_%s_%s" % [object_id, required_key_id])
+		if bool(object_data.get("blocks_movement", false)) and bool(runtime_state.get("is_passable", false)) and not (is_door and canonical_open):
+			warnings.append("blocking_object_marked_passable_%s" % object_id)
 	return warnings
 
 func get_task_test_mission_validation_text() -> String:
