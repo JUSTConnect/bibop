@@ -3320,15 +3320,47 @@ func get_actor_capability_levels() -> Dictionary:
 		"manipulator_level": 0,
 		"connector_level": 0,
 		"processor_level": 0,
+		"connector_types": [],
 		"power_class": "none",
 		"modules": [],
-		"tools": []
+		"tools": [],
+		"port_state": {}
 	}
 	if active_bipob_ref == null:
 		return defaults
 	defaults["manipulator_level"] = int(active_bipob_ref.call("get_installed_manipulator_arm_level")) if active_bipob_ref.has_method("get_installed_manipulator_arm_level") else 0
-	defaults["connector_level"] = int(active_bipob_ref.call("get_installed_connector_level")) if active_bipob_ref.has_method("get_installed_connector_level") else 0
-	defaults["processor_level"] = int(active_bipob_ref.call("get_installed_processor_level")) if active_bipob_ref.has_method("get_installed_processor_level") else 0
+	var port_state: Dictionary = active_bipob_ref.call("preview_module_port_activity") if active_bipob_ref.has_method("preview_module_port_activity") else {}
+	defaults["port_state"] = port_state
+	var modules_state: Dictionary = Dictionary(port_state.get("modules", {}))
+	var connector_types: Array[String] = []
+	var connector_level := 0
+	var processor_level := 0
+	for module_id_variant in modules_state.keys():
+		var module_id := String(module_id_variant)
+		var module_state: Dictionary = Dictionary(modules_state.get(module_id_variant, {}))
+		if not bool(module_state.get("active", false)):
+			continue
+		if module_id.contains("_connector_v"):
+			var level_match := RegEx.new(); level_match.compile("_v(\\d+)$")
+			var found := level_match.search(module_id)
+			if found != null:
+				connector_level = maxi(connector_level, int(found.get_string(1)))
+			if module_id.begins_with("wired_connector_"):
+				connector_types.append("wired")
+			elif module_id.begins_with("optical_connector_"):
+				connector_types.append("optical")
+			elif module_id.begins_with("wireless_connector_"):
+				connector_types.append("wireless")
+			elif module_id.begins_with("high_bandwidth_connector_"):
+				connector_types.append("high_bandwidth")
+		elif module_id.begins_with("processor_"):
+			var pm := RegEx.new(); pm.compile("_v(\\d+)$")
+			var pfound := pm.search(module_id)
+			if pfound != null:
+				processor_level = maxi(processor_level, int(pfound.get_string(1)))
+	defaults["connector_types"] = connector_types
+	defaults["connector_level"] = connector_level
+	defaults["processor_level"] = processor_level
 	return defaults
 
 func check_world_object_requirements(object_id: String, action: String = "") -> Dictionary:
@@ -4765,8 +4797,8 @@ func get_terminal_hack_requirements(terminal_id: String) -> Dictionary:
 	var terminal := get_world_object_by_id(terminal_id)
 	var required_connector_level := int(terminal.get("required_connector_level", max(0, int(terminal.get("terminal_class", 1)) - 1))) if not terminal.is_empty() else 0
 	var required_processor_level := int(terminal.get("required_processor_level", max(0, int(terminal.get("terminal_class", 1)) - 1))) if not terminal.is_empty() else 0
-	var available_connector_level := 0
-	var available_processor_level := 0
+	var available_connector_level := int(capabilities.get("connector_level", 0))
+	var available_processor_level := int(capabilities.get("processor_level", 0))
 	var reasons: Array[String] = []
 	if terminal.is_empty():
 		reasons.append("terminal_missing")
@@ -5246,7 +5278,23 @@ func get_task_test_mission_validation_text() -> String:
 
 
 func validate_module_port_network_runtime() -> Array[String]:
-	return []
+	var warnings: Array[String] = []
+	if active_bipob_ref == null or not active_bipob_ref.has_method("preview_module_port_activity"):
+		return ["active_bipob_missing"]
+	var state: Dictionary = active_bipob_ref.call("preview_module_port_activity")
+	var modules: Dictionary = Dictionary(state.get("modules", {}))
+	if modules.is_empty():
+		warnings.append("module_ports_state_empty")
+	if int(Dictionary(state.get("external_interface", {})).get("ports_total", 0)) > 0 and int(Dictionary(state.get("external_interface", {})).get("reserved_ports", 0)) <= 0:
+		warnings.append("external_interface_reserved_port_missing")
+	if int(Dictionary(state.get("power_block", {})).get("ports_total", 0)) > 0:
+		var pb := Dictionary(modules.get("power_block_v1", modules.get("power_block_v2", modules.get("power_block_v3", {}))))
+		if not pb.is_empty() and not bool(pb.get("active", false)):
+			warnings.append("power_block_should_be_active_without_self_power")
+	for mid in ["connector_level_too_low","processor_level_too_low","external_interface_port_missing","power_block_port_missing"]:
+		if not str(state).contains(mid):
+			pass
+	return warnings
 
 func get_module_port_network_validation_text() -> String:
 	var warnings := validate_module_port_network_runtime()
@@ -5261,6 +5309,17 @@ func validate_connector_processor_migration() -> Array[String]:
 		warnings.append("processor_level_missing")
 	if not caps.has("connector_level"):
 		warnings.append("connector_level_missing")
+	var task := build_task_test_mission_world_objects_for_validation()
+	for obj in Array(task.get("objects", [])):
+		if String(obj.get("id", "")).begins_with("task_test_terminal"):
+			if obj.has("required_interface_level"):
+				warnings.append("task_test_uses_required_interface_level")
+			if obj.has("required_cpu_level"):
+				warnings.append("task_test_uses_required_cpu_level")
+	if active_bipob_ref != null and active_bipob_ref.has_method("get_world_action_module"):
+		var module := active_bipob_ref.call("get_world_action_module", "connect", {"connection_type":"wired"})
+		if not String(Dictionary(module).get("id", "")).contains("_connector_v"):
+			warnings.append("connect_action_not_connector_id")
 	return warnings
 
 func get_connector_processor_migration_validation_text() -> String:
