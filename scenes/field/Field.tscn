@@ -6,3 +6,15 @@
 
 [node name="RoomVisualRenderer" type="Node2D" parent="." unique_id=469338091]
 script = ExtResource("1_32vmb")
+
+[node name="FloorLayer" type="Node2D" parent="RoomVisualRenderer"]
+
+[node name="WallBackLayer" type="Node2D" parent="RoomVisualRenderer"]
+
+[node name="ObjectLayer" type="Node2D" parent="RoomVisualRenderer"]
+
+[node name="WallFrontLayer" type="Node2D" parent="RoomVisualRenderer"]
+
+[node name="OverlayLayer" type="Node2D" parent="RoomVisualRenderer"]
+
+[node name="FogLayer" type="Node2D" parent="RoomVisualRenderer"]

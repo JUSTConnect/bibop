@@ -54,7 +54,7 @@ var map_data: Array = [
 
 
 var mission_initial_map_data: Array = []
-@onready var room_visual_renderer: RoomVisualRenderer = get_node_or_null("../RoomVisualRenderer")
+@onready var room_visual_renderer: RoomVisualRenderer = get_node_or_null("RoomVisualRenderer")
 
 var tile_colors := {
 	TILE_FLOOR: Color(0.16, 0.16, 0.18),
