@@ -6,6 +6,11 @@
 
 [node name="RoomVisualRenderer" type="Node2D" parent="." unique_id=469338091]
 script = ExtResource("1_32vmb")
+use_iso_visual_preview_preset = true
+use_iso_placeholder_asset_preset = true
+iso_visual_preview_includes_fog = false
+iso_visual_preview_drives_bipob_visual_position = true
+iso_placeholder_asset_preset_requires_preview = true
 
 [node name="FloorLayer" type="Node2D" parent="RoomVisualRenderer"]
 
