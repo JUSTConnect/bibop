@@ -122,6 +122,7 @@ var last_world_action_actions_key: String = ""
 var last_world_action_selected: String = ""
 var last_world_action_state_key: String = ""
 var debug_ui_layout_logs: bool = false
+var debug_world_logs: bool = false
 var runtime_key_slots: Array[Control] = []
 var selected_manipulator_slot: int = 0
 var selected_pocket_slot: int = 0
