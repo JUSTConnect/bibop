@@ -296,39 +296,43 @@ func get_iso_placeholder_texture_for_asset_key(asset_key: String) -> Texture2D:
 func clear_iso_placeholder_texture_cache() -> void:
 	_iso_placeholder_texture_cache.clear()
 
-func get_iso_texture_for_asset_key(asset_key: String) -> Texture2D:
-	var explicit_texture: Texture2D = null
+func get_explicit_iso_texture_for_asset_key(asset_key: String) -> Texture2D:
 	match asset_key:
 		"floor_default":
-			explicit_texture = iso_floor_default_texture
+			return iso_floor_default_texture
 		"floor_stepped":
-			explicit_texture = iso_floor_stepped_texture
+			return iso_floor_stepped_texture
 		"floor_door_underlay":
-			explicit_texture = iso_floor_door_underlay_texture
+			return iso_floor_door_underlay_texture
 		"wall_default":
-			explicit_texture = iso_wall_default_texture
+			return iso_wall_default_texture
 		"wall_damaged":
-			explicit_texture = iso_wall_damaged_texture
+			return iso_wall_damaged_texture
 		"wall_steel":
-			explicit_texture = iso_wall_steel_texture
+			return iso_wall_steel_texture
 		"wall_energy":
-			explicit_texture = iso_wall_energy_texture
+			return iso_wall_energy_texture
 		"object_door":
-			explicit_texture = iso_object_door_texture
+			return iso_object_door_texture
 		"object_terminal":
-			explicit_texture = iso_object_terminal_texture
+			return iso_object_terminal_texture
 		"object_key":
-			explicit_texture = iso_object_key_texture
+			return iso_object_key_texture
 		"object_component":
-			explicit_texture = iso_object_component_texture
+			return iso_object_component_texture
 		"object_socket":
-			explicit_texture = iso_object_socket_texture
+			return iso_object_socket_texture
 		"object_cable":
-			explicit_texture = iso_object_cable_texture
+			return iso_object_cable_texture
 		"object_generic":
-			explicit_texture = iso_object_generic_texture
+			return iso_object_generic_texture
 		_:
 			return null
+
+func get_iso_texture_for_asset_key(asset_key: String) -> Texture2D:
+	var explicit_texture: Texture2D = get_explicit_iso_texture_for_asset_key(asset_key)
+	if explicit_texture == null and not ISO_PLACEHOLDER_ASSET_PATHS.has(asset_key):
+		return null
 
 	if explicit_texture != null:
 		return explicit_texture
@@ -337,6 +341,149 @@ func get_iso_texture_for_asset_key(asset_key: String) -> Texture2D:
 
 func has_iso_texture_for_asset_key(asset_key: String) -> bool:
 	return get_iso_texture_for_asset_key(asset_key) != null
+
+func get_iso_visual_layer_debug_state() -> Dictionary:
+	return {
+		"floor_enabled": should_render_iso_floor_visuals(),
+		"wall_enabled": should_render_iso_wall_visuals(),
+		"object_enabled": should_render_iso_object_visuals(),
+		"fog_enabled": should_render_iso_fog_visuals(),
+		"asset_hooks_enabled": should_use_iso_tile_asset_hook_visuals(),
+		"placeholder_assets_enabled": should_use_iso_placeholder_asset_preset(),
+		"preview_active": is_iso_visual_preview_active(),
+		"debug_marker": debug_draw_marker,
+		"helper_preview": debug_draw_iso_helper_preview,
+		"fog_outlines": debug_draw_iso_fog_outlines,
+		"cell_outlines": debug_draw_iso_cell_outlines,
+		"wall_outlines": debug_draw_iso_wall_outlines,
+		"object_outlines": debug_draw_iso_object_outlines
+	}
+
+func get_iso_visual_texture_debug_state() -> Dictionary:
+	var texture_keys: Array[String] = get_iso_visual_texture_debug_keys()
+	var placeholder_preset_enabled: bool = should_use_iso_placeholder_asset_preset()
+	var debug_state: Dictionary = {}
+	for texture_key in texture_keys:
+		var explicit_texture: Texture2D = get_explicit_iso_texture_for_asset_key(texture_key)
+		var has_explicit_texture: bool = explicit_texture != null
+		var placeholder_path: String = get_iso_placeholder_asset_path(texture_key)
+		var placeholder_available: bool = false
+		if placeholder_preset_enabled and placeholder_path != "":
+			placeholder_available = ResourceLoader.exists(placeholder_path)
+
+		var active_texture_source: String = "none"
+		if has_explicit_texture:
+			active_texture_source = "explicit"
+		elif placeholder_preset_enabled and placeholder_available:
+			active_texture_source = "placeholder"
+
+		debug_state[texture_key] = {
+			"has_explicit_texture": has_explicit_texture,
+			"placeholder_path": placeholder_path,
+			"placeholder_available": placeholder_available,
+			"active_texture_source": active_texture_source
+		}
+	return debug_state
+
+func get_iso_visual_texture_debug_keys() -> Array[String]:
+	return [
+		"floor_default", "floor_stepped", "floor_door_underlay",
+		"wall_default", "wall_damaged", "wall_steel", "wall_energy",
+		"object_door", "object_terminal", "object_key", "object_component",
+		"object_socket", "object_cable", "object_generic"
+	]
+
+func get_iso_visual_debug_report() -> Dictionary:
+	var has_grid_manager: bool = _grid_manager != null
+	var map_width: int = 0
+	var map_height: int = 0
+	if has_grid_manager:
+		map_width = _grid_manager.get_map_width()
+		map_height = _grid_manager.get_map_height()
+	return {
+		"layers": get_iso_visual_layer_debug_state(),
+		"preview": get_iso_visual_preview_state(),
+		"textures": get_iso_visual_texture_debug_state(),
+		"iso_settings": {
+			"tile_width": iso_tile_width,
+			"tile_height": iso_tile_height,
+			"wall_height": iso_wall_height,
+			"object_marker_height": iso_object_marker_height,
+			"origin": iso_origin
+		},
+		"grid": {
+			"has_grid_manager": has_grid_manager,
+			"map_width": map_width,
+			"map_height": map_height
+		}
+	}
+
+func get_iso_visual_debug_report_text() -> String:
+	var report: Dictionary = get_iso_visual_debug_report()
+	var lines: Array[String] = []
+	var layers: Dictionary = report.get("layers", {})
+	var preview: Dictionary = report.get("preview", {})
+	var textures: Dictionary = report.get("textures", {})
+	var grid: Dictionary = report.get("grid", {})
+	var iso_settings: Dictionary = report.get("iso_settings", {})
+	lines.append("IsoVisualDebugReport:")
+	lines.append("Layers:")
+	lines.append("- floor: %s" % str(layers.get("floor_enabled", false)))
+	lines.append("- wall: %s" % str(layers.get("wall_enabled", false)))
+	lines.append("- objects: %s" % str(layers.get("object_enabled", false)))
+	lines.append("- fog: %s" % str(layers.get("fog_enabled", false)))
+	lines.append("- asset_hooks: %s" % str(layers.get("asset_hooks_enabled", false)))
+	lines.append("- placeholder_assets: %s" % str(layers.get("placeholder_assets_enabled", false)))
+	lines.append("Preview:")
+	lines.append("- active: %s" % str(preview.get("preview_active", false)))
+	lines.append("- includes_fog: %s" % str(iso_visual_preview_includes_fog))
+	lines.append("- includes_asset_hooks: %s" % str(iso_visual_preview_includes_asset_hooks))
+	lines.append("Textures:")
+	for texture_key in get_iso_visual_texture_debug_keys():
+		var texture_entry: Dictionary = textures.get(texture_key, {})
+		lines.append("- %s: %s" % [texture_key, str(texture_entry.get("active_texture_source", "none"))])
+	lines.append("Grid:")
+	lines.append("- has_grid_manager: %s" % str(grid.get("has_grid_manager", false)))
+	lines.append("- map_size: %sx%s" % [str(grid.get("map_width", 0)), str(grid.get("map_height", 0))])
+	lines.append("Iso:")
+	lines.append("- tile: %sx%s" % [str(iso_settings.get("tile_width", 0.0)), str(iso_settings.get("tile_height", 0.0))])
+	lines.append("- wall_height: %s" % str(iso_settings.get("wall_height", 0.0)))
+	lines.append("- object_marker_height: %s" % str(iso_settings.get("object_marker_height", 0.0)))
+	return "\n".join(lines)
+
+func validate_iso_visual_debug_report() -> Array[String]:
+	var warnings: Array[String] = []
+	if iso_tile_width <= 0.0:
+		warnings.append("iso_tile_width_invalid")
+	if iso_tile_height <= 0.0:
+		warnings.append("iso_tile_height_invalid")
+	if iso_wall_height <= 0.0:
+		warnings.append("iso_wall_height_invalid")
+	if iso_object_marker_height <= 0.0:
+		warnings.append("iso_object_marker_height_invalid")
+	if use_iso_placeholder_asset_preset and ISO_PLACEHOLDER_ASSET_PATHS.is_empty():
+		warnings.append("iso_placeholder_asset_paths_missing")
+	if use_iso_placeholder_asset_preset and iso_placeholder_asset_preset_requires_preview and not is_iso_visual_preview_active():
+		warnings.append("iso_placeholder_preset_waiting_for_preview")
+	if use_iso_tile_asset_hooks and not should_use_iso_placeholder_asset_preset():
+		var texture_keys: Array[String] = get_iso_visual_texture_debug_keys()
+		var has_explicit_texture: bool = false
+		for texture_key in texture_keys:
+			if get_explicit_iso_texture_for_asset_key(texture_key) != null:
+				has_explicit_texture = true
+				break
+		if not has_explicit_texture:
+			warnings.append("iso_asset_hooks_enabled_without_textures")
+	return warnings
+
+func get_iso_visual_debug_validation_text() -> String:
+	var warnings: Array[String] = validate_iso_visual_debug_report()
+	if warnings.is_empty():
+		return "IsoVisualDebugValidation: ok"
+	var lines: Array[String] = ["IsoVisualDebugValidation:"]
+	for warning_key in warnings:
+		lines.append("- %s" % warning_key)
+	return "\n".join(lines)
 
 func _get_color_from_dict(data: Dictionary, key: String, fallback: Color) -> Color:
 	var value: Variant = data.get(key, fallback)
