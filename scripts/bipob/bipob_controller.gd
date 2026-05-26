@@ -8777,16 +8777,16 @@ func preview_module_port_activity() -> Dictionary:
 		if module == null:
 			continue
 		ordered_ids.append(String(module.id))
-	ordered_ids.sort_custom(func(a,b):
-		var pa = _get_module_port_priority(a)
-		var pb = _get_module_port_priority(b)
+	ordered_ids.sort_custom(func(a: String, b: String) -> bool:
+		var pa: int = _get_module_port_priority(a)
+		var pb: int = _get_module_port_priority(b)
 		if pa != pb:
 			return pa < pb
 		return int(installation_order.get(a,9999)) < int(installation_order.get(b,9999))
 	)
 
 	for module_id in ordered_ids:
-		var state := {"id": module_id, "installed": true, "active": true, "inactive_reason": "ok", "port_priority": _get_module_port_priority(module_id), "internal_ports_used": 0, "external_ports_used": 0, "power_ports_used": 0}
+		var state: Dictionary = {"id": module_id, "installed": true, "active": true, "inactive_reason": "ok", "port_priority": _get_module_port_priority(module_id), "internal_ports_used": 0, "external_ports_used": 0, "power_ports_used": 0}
 		if module_id.begins_with("internal_interface_"):
 			if internal_total <= 0:
 				state["active"] = false; state["inactive_reason"] = "internal_interface_missing"
