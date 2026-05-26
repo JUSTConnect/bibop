@@ -2414,9 +2414,9 @@ func _get_external_side_display_name(side_id: String) -> String:
 		"bottom":
 			return "DOWN"
 		"left":
-			return "LEFT SIDE"
+			return "LEFT SIDE" if _is_juggernaut_profile() else "LEFT"
 		"right":
-			return "RIGHT SIDE"
+			return "RIGHT SIDE" if _is_juggernaut_profile() else "RIGHT"
 		"front":
 			return "FRONT"
 		"back":
@@ -2665,11 +2665,11 @@ func _is_juggernaut_profile() -> bool:
 func _get_external_side_panel_size(side_id: String) -> Vector2:
 	match side_id:
 		"top":
-			return Vector2(180.0, 105.0) if _is_juggernaut_profile() else Vector2(170.0, 95.0)
+			return Vector2(180.0, 96.0) if _is_juggernaut_profile() else Vector2(170.0, 95.0)
 		"left", "right":
-			return Vector2(160.0, 150.0) if _is_juggernaut_profile() else Vector2(150.0, 140.0)
+			return Vector2(160.0, 138.0) if _is_juggernaut_profile() else Vector2(150.0, 140.0)
 		"front", "bottom", "back":
-			return Vector2(155.0, 135.0) if _is_juggernaut_profile() else Vector2(145.0, 125.0)
+			return Vector2(155.0, 112.0) if _is_juggernaut_profile() else Vector2(145.0, 125.0)
 		_:
 			return Vector2(180.0, 150.0)
 
@@ -2687,10 +2687,10 @@ func _get_external_adaptive_cell_size(side_id: String) -> Vector2:
 	return Vector2(cell, cell)
 
 
-func _create_external_robot_preview_panel() -> Control:
+func _create_external_robot_preview_panel(preview_size: Vector2 = Vector2(136, 130)) -> Control:
 	var panel: PanelContainer = PanelContainer.new()
 	_apply_panel_style(panel, true)
-	panel.custom_minimum_size = Vector2(136, 130)
+	panel.custom_minimum_size = preview_size
 
 	var root: VBoxContainer = VBoxContainer.new()
 	root.alignment = BoxContainer.ALIGNMENT_CENTER
@@ -2744,7 +2744,79 @@ func _get_external_selected_slot_summary_text() -> String:
 	]
 
 
+func _create_external_visual_workspace_juggernaut() -> Control:
+	var panel: PanelContainer = PanelContainer.new()
+	_apply_panel_style(panel, true)
+	panel.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	panel.size_flags_vertical = Control.SIZE_EXPAND_FILL
+
+	var margin: MarginContainer = MarginContainer.new()
+	margin.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	margin.size_flags_vertical = Control.SIZE_EXPAND_FILL
+	margin.add_theme_constant_override("margin_left", 4)
+	margin.add_theme_constant_override("margin_right", 4)
+	margin.add_theme_constant_override("margin_top", 4)
+	margin.add_theme_constant_override("margin_bottom", 4)
+
+	var root: VBoxContainer = VBoxContainer.new()
+	root.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	root.size_flags_vertical = Control.SIZE_SHRINK_BEGIN
+	root.add_theme_constant_override("separation", 6)
+
+	var top_row: HBoxContainer = HBoxContainer.new()
+	top_row.size_flags_horizontal = Control.SIZE_SHRINK_CENTER
+	top_row.size_flags_vertical = Control.SIZE_SHRINK_BEGIN
+	top_row.alignment = BoxContainer.ALIGNMENT_CENTER
+	top_row.add_theme_constant_override("separation", 6)
+
+	var info_panel: Control = _create_external_info_stub_panel("", _get_external_left_info_text())
+	info_panel.custom_minimum_size = Vector2(180, 82)
+	var warning_panel: Control = _create_external_warning_panel()
+	warning_panel.custom_minimum_size = Vector2(180, 82)
+
+	var left_column: VBoxContainer = VBoxContainer.new()
+	left_column.add_theme_constant_override("separation", 6)
+	left_column.size_flags_vertical = Control.SIZE_SHRINK_BEGIN
+	left_column.add_child(info_panel)
+	left_column.add_child(_create_external_side_grid("left"))
+	top_row.add_child(left_column)
+
+	var center_column: VBoxContainer = VBoxContainer.new()
+	center_column.add_theme_constant_override("separation", 6)
+	center_column.size_flags_vertical = Control.SIZE_SHRINK_BEGIN
+	var up_grid: Control = _create_external_side_grid("top")
+	var preview: Control = _create_external_robot_preview_panel(Vector2(180, 96))
+	center_column.add_child(up_grid)
+	center_column.add_child(preview)
+	top_row.add_child(center_column)
+
+	var right_column: VBoxContainer = VBoxContainer.new()
+	right_column.add_theme_constant_override("separation", 6)
+	right_column.size_flags_vertical = Control.SIZE_SHRINK_BEGIN
+	right_column.add_child(warning_panel)
+	right_column.add_child(_create_external_side_grid("right"))
+	top_row.add_child(right_column)
+	root.add_child(top_row)
+
+	var bottom_row: HBoxContainer = HBoxContainer.new()
+	bottom_row.size_flags_horizontal = Control.SIZE_SHRINK_CENTER
+	bottom_row.size_flags_vertical = Control.SIZE_SHRINK_BEGIN
+	bottom_row.alignment = BoxContainer.ALIGNMENT_CENTER
+	bottom_row.add_theme_constant_override("separation", 6)
+	bottom_row.add_child(_create_external_side_grid("front"))
+	bottom_row.add_child(_create_external_side_grid("bottom"))
+	bottom_row.add_child(_create_external_side_grid("back"))
+	root.add_child(bottom_row)
+
+	margin.add_child(root)
+	panel.add_child(margin)
+	return panel
+
+
 func _create_external_visual_workspace() -> Control:
+	if _is_juggernaut_profile():
+		return _create_external_visual_workspace_juggernaut()
+
 	var panel: PanelContainer = PanelContainer.new()
 	_apply_panel_style(panel, true)
 	panel.size_flags_horizontal = Control.SIZE_EXPAND_FILL
@@ -2760,7 +2832,7 @@ func _create_external_visual_workspace() -> Control:
 	margin.add_theme_constant_override("margin_bottom", 6)
 
 	var root: VBoxContainer = VBoxContainer.new()
-	root.add_theme_constant_override("separation", 3 if _is_juggernaut_profile() else 4)
+	root.add_theme_constant_override("separation", 4)
 	root.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	root.size_flags_vertical = Control.SIZE_EXPAND_FILL
 
