@@ -148,6 +148,8 @@ var selected_world_action: String = ""
 var selected_grid_cell: Vector2i = Vector2i(-1, -1)
 var selected_route_target_cell: Vector2i = Vector2i(-1, -1)
 var selected_route_cells: Array[Vector2i] = []
+var mouse_route_execution_in_progress: bool = false
+var pending_mouse_route_cells: Array[Vector2i] = []
 const DIGITAL_RECORD_ROUTE_DATA := "route_data"
 const DIGITAL_RECORD_INFO_KEY := "info_key"
 var last_diagnostic_result: DiagnosticResult = null
@@ -6163,59 +6165,130 @@ func handle_grid_cell_left_click(cell: Vector2i) -> void:
 	if is_cell_under_fog(cell):
 		clear_selected_route()
 		hint_requested.emit("Unknown area. Cell is under fog of war.")
-		refresh_world_action_panel(); status_changed.emit(); return
-	if cell == grid_position:
-		clear_selected_route(); hint_requested.emit(get_selected_cell_info_text(cell)); refresh_world_action_panel(); status_changed.emit(); return
-	var has_object: bool = not _get_world_object_at_cell(cell).is_empty()
-	if has_object:
-		hint_requested.emit(get_selected_cell_info_text(cell))
-		if not is_mouse_route_target_cell(cell):
-			clear_selected_route()
 		refresh_world_action_panel()
 		status_changed.emit()
-		if not is_mouse_route_target_cell(cell):
-			return
-	if is_mouse_route_target_cell(cell):
-		if selected_route_target_cell == cell and not selected_route_cells.is_empty():
-			execute_selected_mouse_route(); return
-		var route_cells: Array[Vector2i] = build_mouse_route_to_cell(cell)
-		set_selected_route(cell, route_cells)
-		hint_requested.emit(get_selected_cell_info_text(cell))
+		return
+
+	var cell_info_text: String = get_selected_cell_info_text(cell)
+	hint_requested.emit(cell_info_text)
+
+	var is_route_target: bool = is_mouse_route_target_cell(cell)
+	if not is_route_target:
+		clear_selected_route()
+		refresh_world_action_panel()
 		status_changed.emit()
 		return
+
+	if selected_route_target_cell == cell and not selected_route_cells.is_empty():
+		execute_selected_mouse_route()
+		return
+
+	var route_cells: Array[Vector2i] = build_mouse_route_to_cell(cell)
+	set_selected_route(cell, route_cells)
+	hint_requested.emit(cell_info_text)
+	refresh_world_action_panel()
+	status_changed.emit()
+
+func start_selected_mouse_route_execution() -> void:
+	if mouse_route_execution_in_progress:
+		return
+	if selected_route_cells.is_empty():
+		hint_requested.emit("No selected route.")
+		return
+	pending_mouse_route_cells.clear()
+	for route_cell in selected_route_cells:
+		pending_mouse_route_cells.append(route_cell)
+	mouse_route_execution_in_progress = true
+	execute_next_mouse_route_step()
+
+func execute_next_mouse_route_step() -> void:
+	if not mouse_route_execution_in_progress:
+		return
+	if pending_mouse_route_cells.is_empty():
+		mouse_route_execution_in_progress = false
+		clear_selected_route()
+		refresh_world_action_panel()
+		status_changed.emit()
+		return
+	if actions_left <= 0:
+		mouse_route_execution_in_progress = false
+		hint_requested.emit("Movement stopped: no actions remaining.")
+		selected_route_cells.clear()
+		for route_cell in pending_mouse_route_cells:
+			selected_route_cells.append(route_cell)
+		refresh_world_action_panel()
+		status_changed.emit()
+		return
+
+	var next_cell: Vector2i = pending_mouse_route_cells[0]
+	if not grid_manager.is_in_bounds(next_cell) or is_cell_under_fog(next_cell) or not grid_manager.is_walkable(next_cell):
+		mouse_route_execution_in_progress = false
+		hint_requested.emit("Movement stopped: route is blocked.")
+		selected_route_cells.clear()
+		for route_cell in pending_mouse_route_cells:
+			selected_route_cells.append(route_cell)
+		refresh_world_action_panel()
+		status_changed.emit()
+		return
+	var obj: Dictionary = _get_world_object_at_cell(next_cell)
+	if not obj.is_empty() and bool(obj.get("blocks_movement", false)):
+		mouse_route_execution_in_progress = false
+		hint_requested.emit("Movement stopped: route is blocked.")
+		selected_route_cells.clear()
+		for route_cell in pending_mouse_route_cells:
+			selected_route_cells.append(route_cell)
+		refresh_world_action_panel()
+		status_changed.emit()
+		return
+
+	var delta: Vector2i = next_cell - grid_position
+	if delta == Vector2i.UP:
+		direction = Direction.NORTH
+	elif delta == Vector2i.RIGHT:
+		direction = Direction.EAST
+	elif delta == Vector2i.DOWN:
+		direction = Direction.SOUTH
+	elif delta == Vector2i.LEFT:
+		direction = Direction.WEST
+	update_visual_facing()
+
+	if not try_move_to(next_cell):
+		mouse_route_execution_in_progress = false
+		hint_requested.emit("Movement stopped: unable to move to next cell.")
+		selected_route_cells.clear()
+		for route_cell in pending_mouse_route_cells:
+			selected_route_cells.append(route_cell)
+		refresh_world_action_panel()
+		status_changed.emit()
+		return
+
+	spend_action(1, 0)
+	register_successful_movement_cells(1, get_surface_id_for_position(next_cell))
+	pending_mouse_route_cells.remove_at(0)
+	selected_route_cells.clear()
+	for route_cell in pending_mouse_route_cells:
+		selected_route_cells.append(route_cell)
+	update_vision()
+	update_threat_detection_preview()
+	refresh_world_action_panel()
+	status_changed.emit()
+
+	if pending_mouse_route_cells.is_empty():
+		mouse_route_execution_in_progress = false
+		clear_selected_route()
+		refresh_world_action_panel()
+		status_changed.emit()
+		return
+
+	await get_tree().create_timer(0.1).timeout
+	execute_next_mouse_route_step()
 
 func handle_grid_cell_right_click(cell: Vector2i) -> void:
 	if cell.x >= -1:
 		hint_requested.emit("Right click actions are not enabled yet.")
 
 func execute_selected_mouse_route() -> void:
-	if selected_route_cells.is_empty():
-		hint_requested.emit("No selected route.")
-		return
-	var target_cell: Vector2i = selected_route_target_cell
-	for next_cell in selected_route_cells:
-		if actions_left <= 0:
-			break
-		if is_cell_under_fog(next_cell) or not grid_manager.is_walkable(next_cell):
-			break
-		var obj: Dictionary = _get_world_object_at_cell(next_cell)
-		if not obj.is_empty() and bool(obj.get("blocks_movement", false)):
-			break
-		var delta: Vector2i = next_cell - grid_position
-		if delta == Vector2i.UP: direction = Direction.NORTH
-		elif delta == Vector2i.RIGHT: direction = Direction.EAST
-		elif delta == Vector2i.DOWN: direction = Direction.SOUTH
-		elif delta == Vector2i.LEFT: direction = Direction.WEST
-		update_visual_facing()
-		if not try_move_to(next_cell):
-			break
-		spend_action(1, 0)
-		register_successful_movement_cells(1, get_surface_id_for_position(next_cell))
-	if grid_position == target_cell:
-		clear_selected_route()
-	else:
-		set_selected_route(target_cell, build_mouse_route_to_cell(target_cell))
-	update_vision(); update_threat_detection_preview(); refresh_world_action_panel(); status_changed.emit()
+	start_selected_mouse_route_execution()
 
 func move_forward() -> void:
 	if not require_command("move_forward", "Missing module: Wheels V1 required."):

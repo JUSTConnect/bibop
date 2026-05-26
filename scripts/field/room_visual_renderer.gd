@@ -276,24 +276,29 @@ func clear_iso_mouse_selection_visuals() -> void:
 
 func draw_iso_mouse_selection_overlay() -> void:
 	for route_cell in selected_iso_route_cells:
-		var route_points: PackedVector2Array = get_iso_inset_diamond_points(route_cell, iso_floor_visual_inset + 8.0)
+		var route_points: PackedVector2Array = get_iso_inset_diamond_points(route_cell, iso_floor_visual_inset + 10.0)
 		if route_points.size() < 4:
 			continue
-		draw_colored_polygon(route_points, Color(0.29, 0.75, 0.95, 0.2))
+		draw_colored_polygon(route_points, Color(0.29, 0.75, 0.95, 0.14))
+		for edge_index in range(route_points.size()):
+			var next_index: int = (edge_index + 1) % route_points.size()
+			draw_line(route_points[edge_index], route_points[next_index], Color(0.29, 0.75, 0.95, 0.45), 1.6)
+
 	if selected_iso_cell.x >= 0 and selected_iso_cell.y >= 0:
-		var selected_points: PackedVector2Array = get_iso_inset_diamond_points(selected_iso_cell, iso_floor_visual_inset + 4.0)
+		var selected_points: PackedVector2Array = get_iso_inset_diamond_points(selected_iso_cell, iso_floor_visual_inset + 2.0)
 		if selected_points.size() >= 4:
-			draw_colored_polygon(selected_points, Color(0.85, 0.93, 1.0, 0.14))
+			draw_colored_polygon(selected_points, Color(0.88, 0.95, 1.0, 0.2))
 			for edge_index in range(selected_points.size()):
 				var next_index: int = (edge_index + 1) % selected_points.size()
-				draw_line(selected_points[edge_index], selected_points[next_index], Color(0.72, 0.93, 1.0, 0.95), 2.0)
+				draw_line(selected_points[edge_index], selected_points[next_index], Color(0.8, 0.97, 1.0, 1.0), 2.6)
+
 	if selected_iso_action_cell.x >= 0 and selected_iso_action_cell.y >= 0:
 		var action_points: PackedVector2Array = get_iso_inset_diamond_points(selected_iso_action_cell, iso_floor_visual_inset + 6.0)
 		if action_points.size() >= 4:
-			draw_colored_polygon(action_points, Color(0.98, 0.66, 0.35, 0.2))
+			draw_colored_polygon(action_points, Color(0.98, 0.66, 0.35, 0.24))
 			for edge_index in range(action_points.size()):
 				var next_index: int = (edge_index + 1) % action_points.size()
-				draw_line(action_points[edge_index], action_points[next_index], Color(0.99, 0.75, 0.45, 0.95), 2.4)
+				draw_line(action_points[edge_index], action_points[next_index], Color(0.99, 0.75, 0.45, 1.0), 2.8)
 
 func get_iso_depth_key(cell: Vector2i) -> int:
 	return cell.x + cell.y
