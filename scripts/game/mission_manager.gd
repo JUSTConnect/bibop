@@ -5814,7 +5814,7 @@ func validate_developer_systems_logic_audit() -> Array[String]:
 		if typeof(entry_variant) != TYPE_DICTIONARY:
 			warnings.append("audit_system_missing_required_field_unknown_id")
 			continue
-		var entry: Dictionary = entry_variant
+		var entry: Dictionary = Dictionary(entry_variant)
 		var system_id: String = String(entry.get("id", ""))
 		if not system_id.is_empty():
 			ids[system_id] = true
@@ -5842,7 +5842,7 @@ func get_developer_systems_logic_audit_text() -> String:
 	for entry_variant in systems:
 		if typeof(entry_variant) != TYPE_DICTIONARY:
 			continue
-		var entry: Dictionary = entry_variant
+		var entry: Dictionary = Dictionary(entry_variant)
 		var status: String = String(entry.get("status", "missing"))
 		var logic_flag: String = "yes" if bool(entry.get("has_runtime_logic", false)) else "no"
 		var validation_flag: String = "yes" if bool(entry.get("has_validation", false)) else "no"
@@ -5939,11 +5939,11 @@ func _get_developer_validation_suite_text_internal(suite: String = "all", includ
 		return get_developer_validation_no_mutation_text()
 	if suite == "systems_audit":
 		return get_developer_systems_logic_audit_text()
-	var report := _run_developer_validation_suite_internal(suite, include_no_mutation)
+	var report: Dictionary = _run_developer_validation_suite_internal(suite, include_no_mutation)
 	var lines: Array[String] = ["DeveloperValidation suite=%s suites_run=%d warnings=%d" % [suite, int(report.get("suites_run", 0)), int(report.get("warnings_count", 0))]]
 	var by_suite: Dictionary = Dictionary(report.get("warnings_by_suite", {}))
 	for suite_id_variant in by_suite.keys():
-		var suite_id := String(suite_id_variant)
+		var suite_id: String = String(suite_id_variant)
 		var suite_warnings: Array = Array(by_suite.get(suite_id_variant, []))
 		lines.append("- %s: %d warning(s)" % [suite_id, suite_warnings.size()])
 		for warning in suite_warnings:

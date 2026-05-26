@@ -6333,6 +6333,16 @@ func get_room_visual_renderer() -> RoomVisualRenderer:
 		return renderer_node
 	return null
 
+func should_use_isometric_visual_position() -> bool:
+	if use_isometric_visual_position:
+		return true
+	var room_visual_renderer: RoomVisualRenderer = get_room_visual_renderer()
+	if room_visual_renderer == null:
+		return false
+	if room_visual_renderer.has_method("should_preview_drive_bipob_visual_position"):
+		return bool(room_visual_renderer.call("should_preview_drive_bipob_visual_position"))
+	return false
+
 func get_square_world_position_for_grid_cell_as_parent_local(cell: Vector2i) -> Vector2:
 	if grid_manager == null:
 		return Vector2.ZERO
@@ -6364,7 +6374,7 @@ func get_isometric_world_position_for_grid_cell(cell: Vector2i) -> Vector2:
 func get_visual_world_position_for_grid_cell(cell: Vector2i) -> Vector2:
 	if grid_manager == null:
 		return Vector2.ZERO
-	if use_isometric_visual_position:
+	if should_use_isometric_visual_position():
 		return get_isometric_world_position_for_grid_cell(cell)
 	return grid_manager.grid_to_world(cell)
 
@@ -6372,7 +6382,10 @@ func update_world_position() -> void:
 	if grid_manager == null:
 		return
 
-	if use_isometric_visual_position:
+	var use_iso_visual_position: bool = should_use_isometric_visual_position()
+	# Renderer preview preset is sampled only when Bipob updates visual world position.
+	# It does not force any mission or gameplay state changes.
+	if use_iso_visual_position:
 		var iso_position: Vector2 = get_visual_world_position_for_grid_cell(grid_position)
 		var parent_node: Node = get_parent()
 		if parent_node != null and parent_node is Node2D:
@@ -6388,9 +6401,16 @@ func update_world_position() -> void:
 	refresh_world_action_panel()
 
 func get_visual_position_debug_text() -> String:
-	return "grid=%s isometric=%s pos=%s global=%s" % [
+	var room_visual_renderer: RoomVisualRenderer = get_room_visual_renderer()
+	var renderer_drives_iso: bool = false
+	if room_visual_renderer != null and room_visual_renderer.has_method("should_preview_drive_bipob_visual_position"):
+		renderer_drives_iso = bool(room_visual_renderer.call("should_preview_drive_bipob_visual_position"))
+	var iso_active: bool = should_use_isometric_visual_position()
+	return "grid=%s isometric=%s explicit_iso=%s renderer_preview_iso=%s pos=%s global=%s" % [
 		str(grid_position),
+		str(iso_active),
 		str(use_isometric_visual_position),
+		str(renderer_drives_iso),
 		str(position),
 		str(global_position)
 	]
