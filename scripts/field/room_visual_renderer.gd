@@ -340,6 +340,90 @@ func get_floor_prototype_color(tile_type: int, cell: Vector2i) -> Color:
 	return base_color
 
 
+
+func is_walkable_floor_like_for_iso_passage(tile_type: int) -> bool:
+	if tile_type == GridManager.TILE_FLOOR or tile_type == GridManager.TILE_STEPPED_FLOOR:
+		return true
+	return false
+
+func is_iso_interactive_floor_tile(tile_type: int) -> bool:
+	match tile_type:
+		GridManager.TILE_TERMINAL, GridManager.TILE_AIRFLOW_TERMINAL,
+		GridManager.TILE_PLATFORM_CONTROL, GridManager.TILE_PLATFORM_CONTROL_LEFT, GridManager.TILE_PLATFORM_CONTROL_RIGHT,
+		GridManager.TILE_FAN_CONTROL, GridManager.TILE_FAN_SPEED_UP_CONTROL, GridManager.TILE_FAN_SPEED_DOWN_CONTROL,
+		GridManager.TILE_SOCKET, GridManager.TILE_CABLE_REEL, GridManager.TILE_CABLE:
+			return true
+	return false
+
+func is_iso_passage_floor_cell(cell: Vector2i) -> bool:
+	if _grid_manager == null:
+		return false
+	if not is_cell_in_bounds(cell):
+		return false
+	var tile_type: int = _grid_manager.get_tile(cell)
+	if not is_walkable_floor_like_for_iso_passage(tile_type):
+		return false
+
+	var north: Vector2i = cell + Vector2i(0, -1)
+	var south: Vector2i = cell + Vector2i(0, 1)
+	var west: Vector2i = cell + Vector2i(-1, 0)
+	var east: Vector2i = cell + Vector2i(1, 0)
+	var neighbor_cells: Array[Vector2i] = [north, south, west, east]
+	var wall_neighbor_count: int = 0
+	for neighbor_cell in neighbor_cells:
+		if not is_cell_in_bounds(neighbor_cell):
+			wall_neighbor_count += 1
+		elif _grid_manager.get_tile(neighbor_cell) == GridManager.TILE_WALL:
+			wall_neighbor_count += 1
+
+	var opposite_walls: bool = false
+	if (not is_cell_in_bounds(north) or _grid_manager.get_tile(north) == GridManager.TILE_WALL) and (not is_cell_in_bounds(south) or _grid_manager.get_tile(south) == GridManager.TILE_WALL):
+		opposite_walls = true
+	if (not is_cell_in_bounds(west) or _grid_manager.get_tile(west) == GridManager.TILE_WALL) and (not is_cell_in_bounds(east) or _grid_manager.get_tile(east) == GridManager.TILE_WALL):
+		opposite_walls = true
+
+	return opposite_walls or wall_neighbor_count >= 2
+
+func get_iso_floor_visual_profile_key_for_cell(cell: Vector2i) -> String:
+	if _grid_manager == null:
+		return "floor_default"
+	if not is_cell_in_bounds(cell):
+		return "floor_default"
+	var tile_type: int = _grid_manager.get_tile(cell)
+	if tile_type == GridManager.TILE_WALL:
+		return "floor_wall_base"
+	if tile_type == GridManager.TILE_DOOR or tile_type == GridManager.TILE_DIGITAL_DOOR or tile_type == GridManager.TILE_POWERED_GATE:
+		return "floor_doorway"
+	if is_iso_interactive_floor_tile(tile_type):
+		return "floor_interactive"
+	if tile_type == GridManager.TILE_EXIT:
+		return "floor_exit"
+	if is_iso_passage_floor_cell(cell):
+		return "floor_passage"
+	return "floor_default"
+
+func get_iso_floor_visual_profile(profile_key: String) -> Dictionary:
+	var profiles: Dictionary = {
+		"floor_default": {"fill": Color(0.115, 0.125, 0.145, 0.96), "outline": Color(0.2, 0.28, 0.34, 0.78), "panel": Color(0.16, 0.19, 0.22, 0.4), "seam": Color(0.34, 0.39, 0.44, 0.28)},
+		"floor_passage": {"fill": Color(0.125, 0.14, 0.162, 0.97), "outline": Color(0.28, 0.4, 0.47, 0.9), "panel": Color(0.19, 0.24, 0.29, 0.48), "seam": Color(0.58, 0.72, 0.8, 0.45)},
+		"floor_doorway": {"fill": Color(0.14, 0.15, 0.165, 0.97), "outline": Color(0.34, 0.35, 0.4, 0.88), "panel": Color(0.22, 0.24, 0.28, 0.52), "seam": Color(0.84, 0.7, 0.42, 0.5)},
+		"floor_interactive": {"fill": Color(0.12, 0.145, 0.165, 0.97), "outline": Color(0.26, 0.41, 0.47, 0.88), "panel": Color(0.19, 0.26, 0.3, 0.48), "seam": Color(0.46, 0.82, 0.9, 0.42)},
+		"floor_exit": {"fill": Color(0.12, 0.15, 0.14, 0.97), "outline": Color(0.24, 0.44, 0.32, 0.88), "panel": Color(0.17, 0.24, 0.2, 0.5), "seam": Color(0.54, 0.86, 0.62, 0.45)},
+		"floor_wall_base": {"fill": Color(0.08, 0.09, 0.11, 0.98), "outline": Color(0.14, 0.17, 0.2, 0.72), "panel": Color(0.1, 0.12, 0.14, 0.35), "seam": Color(0.2, 0.23, 0.27, 0.2)}
+	}
+	if profiles.has(profile_key):
+		return Dictionary(profiles.get(profile_key, {}))
+	return Dictionary(profiles.get("floor_default", {}))
+
+func get_iso_door_visual_profile_key_for_tile(tile_type: int) -> String:
+	if tile_type == GridManager.TILE_DOOR:
+		return "door_mechanical"
+	if tile_type == GridManager.TILE_DIGITAL_DOOR:
+		return "door_digital"
+	if tile_type == GridManager.TILE_POWERED_GATE:
+		return "door_powered_gate"
+	return ""
+
 func get_iso_floor_asset_key_for_tile(tile_type: int) -> String:
 	if tile_type == GridManager.TILE_WALL:
 		return ""
@@ -547,6 +631,7 @@ func get_iso_visual_cell_stats() -> Dictionary:
 		"tile_type_counts": {},
 		"object_profile_counts": {},
 		"wall_profile_counts": {},
+		"floor_profile_counts": {},
 		"asset_key_counts": {}
 	}
 	if _grid_manager == null:
@@ -562,6 +647,7 @@ func get_iso_visual_cell_stats() -> Dictionary:
 	var tile_type_counts: Dictionary = Dictionary(stats.get("tile_type_counts", {}))
 	var object_profile_counts: Dictionary = Dictionary(stats.get("object_profile_counts", {}))
 	var wall_profile_counts: Dictionary = Dictionary(stats.get("wall_profile_counts", {}))
+	var floor_profile_counts: Dictionary = Dictionary(stats.get("floor_profile_counts", {}))
 	var asset_key_counts: Dictionary = Dictionary(stats.get("asset_key_counts", {}))
 
 	for y in range(map_height):
@@ -572,6 +658,7 @@ func get_iso_visual_cell_stats() -> Dictionary:
 
 			if is_floor_like_tile(tile_type):
 				stats["floor_like_cells"] = int(stats.get("floor_like_cells", 0)) + 1
+				_increment_iso_debug_count(floor_profile_counts, get_iso_floor_visual_profile_key_for_cell(cell))
 				_increment_iso_debug_count(asset_key_counts, get_iso_floor_asset_key_for_tile(tile_type))
 			if is_wall_tile(tile_type):
 				stats["wall_cells"] = int(stats.get("wall_cells", 0)) + 1
@@ -595,6 +682,7 @@ func get_iso_visual_cell_stats() -> Dictionary:
 	stats["tile_type_counts"] = tile_type_counts
 	stats["object_profile_counts"] = object_profile_counts
 	stats["wall_profile_counts"] = wall_profile_counts
+	stats["floor_profile_counts"] = floor_profile_counts
 	stats["asset_key_counts"] = asset_key_counts
 	return stats
 
@@ -1152,12 +1240,30 @@ func draw_iso_floor_prototype() -> void:
 				continue
 
 			var diamond_points: PackedVector2Array = get_iso_inset_diamond_points(cell, iso_floor_visual_inset)
-			var fill_color: Color = get_floor_prototype_color(tile_type, cell)
+			var profile_key: String = get_iso_floor_visual_profile_key_for_cell(cell)
+			var profile: Dictionary = get_iso_floor_visual_profile(profile_key)
+			var fill_color: Color = _get_color_from_dict(profile, "fill", get_floor_prototype_color(tile_type, cell))
 			draw_colored_polygon(diamond_points, fill_color)
+			var outline_color: Color = _get_color_from_dict(profile, "outline", Color(0.21, 0.33, 0.39, 0.85))
+			var panel_color: Color = _get_color_from_dict(profile, "panel", Color(0.18, 0.2, 0.24, 0.4))
+			var seam_color: Color = _get_color_from_dict(profile, "seam", Color(0.36, 0.42, 0.48, 0.26))
 			if debug_draw_iso_cell_outlines:
 				for edge_index in range(diamond_points.size()):
 					var next_index: int = (edge_index + 1) % diamond_points.size()
-					draw_line(diamond_points[edge_index], diamond_points[next_index], Color(0.21, 0.33, 0.39, 0.85), 1.0)
+					draw_line(diamond_points[edge_index], diamond_points[next_index], outline_color, 1.0)
+			if diamond_points.size() >= 4:
+				var panel_inset_points: PackedVector2Array = get_iso_inset_diamond_points(cell, iso_floor_visual_inset + 8.0)
+				if panel_inset_points.size() >= 4:
+					for edge_index in range(panel_inset_points.size()):
+						var next_index: int = (edge_index + 1) % panel_inset_points.size()
+						draw_line(panel_inset_points[edge_index], panel_inset_points[next_index], panel_color, 0.9)
+				var seam_start: Vector2 = diamond_points[3].lerp(diamond_points[1], 0.35)
+				var seam_end: Vector2 = diamond_points[3].lerp(diamond_points[1], 0.65)
+				draw_line(seam_start, seam_end, seam_color, 1.2)
+				if profile_key == "floor_passage":
+					draw_line(diamond_points[0].lerp(diamond_points[2], 0.32), diamond_points[0].lerp(diamond_points[2], 0.68), seam_color.lightened(0.06), 1.4)
+				elif profile_key == "floor_doorway":
+					draw_line(diamond_points[0].lerp(diamond_points[2], 0.42), diamond_points[0].lerp(diamond_points[2], 0.58), seam_color, 2.0)
 
 func draw_iso_wall_prototype() -> void:
 	if _grid_manager == null:
@@ -1314,8 +1420,8 @@ func draw_iso_object_pillar(cell: Vector2i, profile: Dictionary) -> void:
 func draw_iso_object_door_panel(cell: Vector2i, profile: Dictionary) -> void:
 	var center: Vector2 = grid_to_iso(cell)
 	var marker_height: float = maxf(iso_object_marker_height + 12.0, 18.0)
-	var half_width: float = maxf(get_iso_tile_half_size().x * 0.16, 7.0)
-	var panel_bottom: Vector2 = center + Vector2(0.0, -4.0)
+	var half_width: float = maxf(get_iso_tile_half_size().x * 0.11, 6.0)
+	var panel_bottom: Vector2 = center + Vector2(0.0, -5.0)
 	var panel_top: Vector2 = panel_bottom + Vector2(0.0, -marker_height)
 	var left_bottom: Vector2 = panel_bottom + Vector2(-half_width, 0.0)
 	var right_bottom: Vector2 = panel_bottom + Vector2(half_width, 0.0)
@@ -1325,10 +1431,18 @@ func draw_iso_object_door_panel(cell: Vector2i, profile: Dictionary) -> void:
 	var base_color: Color = _get_color_from_dict(profile, "base", Color.WHITE)
 	var accent_color: Color = _get_color_from_dict(profile, "accent", Color.WHITE)
 	var outline_color: Color = _get_color_from_dict(profile, "outline", Color.WHITE)
+	var frame_color: Color = outline_color.lightened(0.2)
+	var frame_left_top: Vector2 = panel_top + Vector2(-half_width - 3.0, -1.0)
+	var frame_right_top: Vector2 = panel_top + Vector2(half_width + 3.0, -1.0)
+	var frame_left_bottom: Vector2 = panel_bottom + Vector2(-half_width - 3.0, 0.0)
+	var frame_right_bottom: Vector2 = panel_bottom + Vector2(half_width + 3.0, 0.0)
+	var frame_points: PackedVector2Array = PackedVector2Array([frame_left_top, frame_right_top, frame_right_bottom, frame_left_bottom])
+	draw_colored_polygon(frame_points, frame_color.darkened(0.15))
 	draw_colored_polygon(body_points, base_color)
 	draw_line(left_bottom, left_top, accent_color, 2.2)
 	draw_line(right_bottom, right_top, accent_color, 2.2)
 	draw_line(left_top.lerp(right_top, 0.2), left_bottom.lerp(right_bottom, 0.2), accent_color, 1.2)
+	draw_line(left_top.lerp(right_top, 0.8), left_bottom.lerp(right_bottom, 0.8), accent_color, 1.2)
 	if debug_draw_iso_object_outlines:
 		for edge_idx in range(body_points.size()):
 			var next_idx: int = (edge_idx + 1) % body_points.size()
@@ -1401,6 +1515,20 @@ func draw_iso_object_marker(cell: Vector2i, tile_type: int) -> void:
 		return
 	var profile: Dictionary = get_iso_object_profile(profile_key)
 	var shape: String = str(profile.get("shape", "small_marker"))
+	var door_profile_key: String = get_iso_door_visual_profile_key_for_tile(tile_type)
+	if not door_profile_key.is_empty():
+		if door_profile_key == "door_mechanical":
+			profile["base"] = Color(0.3, 0.21, 0.13, 0.96)
+			profile["accent"] = Color(0.96, 0.7, 0.28, 0.98)
+			profile["outline"] = Color(0.2, 0.13, 0.08, 0.94)
+		elif door_profile_key == "door_digital":
+			profile["base"] = Color(0.13, 0.22, 0.31, 0.96)
+			profile["accent"] = Color(0.38, 0.83, 0.97, 0.99)
+			profile["outline"] = Color(0.08, 0.16, 0.22, 0.94)
+		elif door_profile_key == "door_powered_gate":
+			profile["base"] = Color(0.12, 0.18, 0.26, 0.96)
+			profile["accent"] = Color(0.5, 0.9, 1.0, 0.99)
+			profile["outline"] = Color(0.07, 0.14, 0.2, 0.94)
 	if shape == "slab":
 		draw_iso_object_slab(cell, profile)
 	elif shape == "door_panel":
