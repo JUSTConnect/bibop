@@ -478,7 +478,7 @@ func draw_iso_object_small_marker(cell: Vector2i, profile: Dictionary) -> void:
 	draw_circle(center, radius, profile["base"])
 	draw_circle(center + Vector2(0.0, -radius * 0.3), radius * 0.45, profile["accent"])
 	if debug_draw_iso_object_outlines:
-		draw_circle(center, radius, profile["outline"])
+		draw_arc(center, radius, 0.0, PI * 2.0, 24, profile["outline"], 1.0)
 
 func draw_iso_object_line(cell: Vector2i, profile: Dictionary) -> void:
 	var center: Vector2 = grid_to_iso(cell) + Vector2(0.0, -4.0)
@@ -496,7 +496,7 @@ func draw_iso_object_heat_marker(cell: Vector2i, profile: Dictionary) -> void:
 	draw_circle(center, radius, profile["base"])
 	draw_circle(center, radius * 0.58, profile["accent"])
 	if debug_draw_iso_object_outlines:
-		draw_circle(center, radius, profile["outline"])
+		draw_arc(center, radius, 0.0, PI * 2.0, 24, profile["outline"], 1.0)
 
 func draw_iso_object_marker(cell: Vector2i, tile_type: int) -> void:
 	var profile_key: String = get_iso_object_profile_key_for_tile(tile_type)
