@@ -24,6 +24,8 @@ class_name RoomVisualRenderer
 @export var debug_draw_iso_wall_outlines: bool = true
 @export var debug_draw_iso_object_outlines: bool = true
 @export var use_iso_tile_asset_hooks: bool = false
+@export var use_iso_placeholder_asset_preset: bool = false
+@export var iso_placeholder_asset_preset_requires_preview: bool = true
 @export var iso_floor_default_texture: Texture2D = null
 @export var iso_floor_stepped_texture: Texture2D = null
 @export var iso_floor_door_underlay_texture: Texture2D = null
@@ -44,6 +46,28 @@ class_name RoomVisualRenderer
 @export var iso_object_marker_height: float = 18.0
 @export var iso_origin: Vector2 = Vector2.ZERO
 
+# Dev-only placeholder preset: loads BIP-Visual-011 SVG placeholders as visual fallback textures.
+# Explicit exported Texture2D hooks always take priority when assigned.
+# Missing/unsupported placeholder resources safely fall back to procedural rendering.
+# Visual-only behavior; no gameplay state is changed.
+const ISO_PLACEHOLDER_ASSET_PATHS: Dictionary = {
+	"floor_default": "res://assets/visual/isometric/placeholders/iso_floor_default.svg",
+	"floor_stepped": "res://assets/visual/isometric/placeholders/iso_floor_stepped.svg",
+	"floor_door_underlay": "res://assets/visual/isometric/placeholders/iso_floor_door_underlay.svg",
+	"wall_default": "res://assets/visual/isometric/placeholders/iso_wall_default.svg",
+	"wall_damaged": "res://assets/visual/isometric/placeholders/iso_wall_damaged.svg",
+	"wall_steel": "res://assets/visual/isometric/placeholders/iso_wall_steel.svg",
+	"wall_energy": "res://assets/visual/isometric/placeholders/iso_wall_energy.svg",
+	"object_door": "res://assets/visual/isometric/placeholders/iso_object_door.svg",
+	"object_terminal": "res://assets/visual/isometric/placeholders/iso_object_terminal.svg",
+	"object_key": "res://assets/visual/isometric/placeholders/iso_object_key.svg",
+	"object_component": "res://assets/visual/isometric/placeholders/iso_object_component.svg",
+	"object_socket": "res://assets/visual/isometric/placeholders/iso_object_socket.svg",
+	"object_cable": "res://assets/visual/isometric/placeholders/iso_object_cable.svg",
+	"object_generic": "res://assets/visual/isometric/placeholders/iso_object_generic.svg"
+}
+
+var _iso_placeholder_texture_cache: Dictionary = {}
 var _grid_manager: GridManager = null
 var _rebuild_requested: bool = false
 
@@ -85,8 +109,19 @@ func should_render_iso_object_visuals() -> bool:
 func should_render_iso_fog_visuals() -> bool:
 	return (render_iso_fog_overlay or (use_iso_visual_preview_preset and iso_visual_preview_includes_fog))
 
+func should_use_iso_placeholder_asset_preset() -> bool:
+	if not use_iso_placeholder_asset_preset:
+		return false
+	if iso_placeholder_asset_preset_requires_preview and not is_iso_visual_preview_active():
+		return false
+	return true
+
 func should_use_iso_tile_asset_hook_visuals() -> bool:
-	return (use_iso_tile_asset_hooks or (use_iso_visual_preview_preset and iso_visual_preview_includes_asset_hooks))
+	return (
+		use_iso_tile_asset_hooks
+		or (use_iso_visual_preview_preset and iso_visual_preview_includes_asset_hooks)
+		or should_use_iso_placeholder_asset_preset()
+	)
 
 func should_preview_drive_bipob_visual_position() -> bool:
 	return (use_iso_visual_preview_preset and iso_visual_preview_drives_bipob_visual_position)
@@ -99,18 +134,21 @@ func get_iso_visual_preview_state() -> Dictionary:
 		"objects": should_render_iso_object_visuals(),
 		"fog": should_render_iso_fog_visuals(),
 		"asset_hooks": should_use_iso_tile_asset_hook_visuals(),
+		"placeholder_assets": should_use_iso_placeholder_asset_preset(),
+		"placeholder_requires_preview": iso_placeholder_asset_preset_requires_preview,
 		"drives_bipob_visual_position": should_preview_drive_bipob_visual_position()
 	}
 
 func get_iso_visual_preview_state_text() -> String:
 	var state: Dictionary = get_iso_visual_preview_state()
-	return "IsoVisualPreview active=%s floor=%s wall=%s objects=%s fog=%s asset_hooks=%s drives_bipob=%s" % [
+	return "IsoVisualPreview active=%s floor=%s wall=%s objects=%s fog=%s asset_hooks=%s placeholder_assets=%s drives_bipob=%s" % [
 		str(state.get("preview_active", false)),
 		str(state.get("floor", false)),
 		str(state.get("wall", false)),
 		str(state.get("objects", false)),
 		str(state.get("fog", false)),
 		str(state.get("asset_hooks", false)),
+		str(state.get("placeholder_assets", false)),
 		str(state.get("drives_bipob_visual_position", false))
 	]
 
@@ -225,38 +263,77 @@ func get_iso_object_asset_key_for_profile(profile_key: String) -> String:
 		_:
 			return "object_generic"
 
+func get_iso_placeholder_asset_path(asset_key: String) -> String:
+	if asset_key == "":
+		return ""
+	if not ISO_PLACEHOLDER_ASSET_PATHS.has(asset_key):
+		return ""
+	var placeholder_path: String = str(ISO_PLACEHOLDER_ASSET_PATHS.get(asset_key, ""))
+	return placeholder_path
+
+func get_iso_placeholder_texture_for_asset_key(asset_key: String) -> Texture2D:
+	if not should_use_iso_placeholder_asset_preset():
+		return null
+	var placeholder_path: String = get_iso_placeholder_asset_path(asset_key)
+	if placeholder_path == "":
+		return null
+
+	if _iso_placeholder_texture_cache.has(asset_key):
+		var cached_value: Variant = _iso_placeholder_texture_cache.get(asset_key)
+		if cached_value is Texture2D:
+			return cached_value as Texture2D
+		return null
+
+	var loaded_resource: Resource = ResourceLoader.load(placeholder_path)
+	if loaded_resource is Texture2D:
+		var loaded_texture: Texture2D = loaded_resource as Texture2D
+		_iso_placeholder_texture_cache[asset_key] = loaded_texture
+		return loaded_texture
+
+	_iso_placeholder_texture_cache[asset_key] = null
+	return null
+
+func clear_iso_placeholder_texture_cache() -> void:
+	_iso_placeholder_texture_cache.clear()
+
 func get_iso_texture_for_asset_key(asset_key: String) -> Texture2D:
+	var explicit_texture: Texture2D = null
 	match asset_key:
 		"floor_default":
-			return iso_floor_default_texture
+			explicit_texture = iso_floor_default_texture
 		"floor_stepped":
-			return iso_floor_stepped_texture
+			explicit_texture = iso_floor_stepped_texture
 		"floor_door_underlay":
-			return iso_floor_door_underlay_texture
+			explicit_texture = iso_floor_door_underlay_texture
 		"wall_default":
-			return iso_wall_default_texture
+			explicit_texture = iso_wall_default_texture
 		"wall_damaged":
-			return iso_wall_damaged_texture
+			explicit_texture = iso_wall_damaged_texture
 		"wall_steel":
-			return iso_wall_steel_texture
+			explicit_texture = iso_wall_steel_texture
 		"wall_energy":
-			return iso_wall_energy_texture
+			explicit_texture = iso_wall_energy_texture
 		"object_door":
-			return iso_object_door_texture
+			explicit_texture = iso_object_door_texture
 		"object_terminal":
-			return iso_object_terminal_texture
+			explicit_texture = iso_object_terminal_texture
 		"object_key":
-			return iso_object_key_texture
+			explicit_texture = iso_object_key_texture
 		"object_component":
-			return iso_object_component_texture
+			explicit_texture = iso_object_component_texture
 		"object_socket":
-			return iso_object_socket_texture
+			explicit_texture = iso_object_socket_texture
 		"object_cable":
-			return iso_object_cable_texture
+			explicit_texture = iso_object_cable_texture
 		"object_generic":
-			return iso_object_generic_texture
+			explicit_texture = iso_object_generic_texture
 		_:
 			return null
+
+	if explicit_texture != null:
+		return explicit_texture
+
+	return get_iso_placeholder_texture_for_asset_key(asset_key)
 
 func has_iso_texture_for_asset_key(asset_key: String) -> bool:
 	return get_iso_texture_for_asset_key(asset_key) != null
