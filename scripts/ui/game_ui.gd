@@ -249,6 +249,7 @@ var tasks_start_button: Button
 var tasks_claim_button: Button
 var tasks_actions_row: HBoxContainer
 var tasks_dev_output_label: RichTextLabel
+var tasks_dev_output_scroll: ScrollContainer
 var mission_progress: Dictionary = {}
 var repair_menu_root: Control = null
 
@@ -5073,6 +5074,19 @@ func start_gameplay_from_center() -> void:
 	call_deferred("_attach_runtime_gameplay_view")
 	_assert_single_active_major_screen()
 
+func _enter_gameplay_screen_without_starting_mission() -> void:
+	app_screen_mode = AppScreenMode.GAMEPLAY
+	box_opened_from_center = false
+	_hide_all_app_screens()
+	_set_active_mission_bipob(0)
+	_apply_runtime_hud_layout()
+	_set_gameplay_visible(true)
+	call_deferred("_attach_runtime_gameplay_view")
+	_assert_single_active_major_screen()
+	update_status()
+	update_diagnostic_status()
+	update_box_status()
+
 
 func _build_tasks_mission_data() -> void:
 	tasks_mission_data.clear()
@@ -5264,6 +5278,8 @@ func _refresh_tasks_content() -> void:
 	_update_tasks_details_panel()
 	if tasks_dev_output_label != null:
 		tasks_dev_output_label.visible = false
+	if tasks_dev_output_scroll != null:
+		tasks_dev_output_scroll.visible = false
 
 func _reset_tasks_actions_row_for_standard_tabs() -> void:
 	if tasks_actions_row == null:
@@ -5276,6 +5292,8 @@ func _reset_tasks_actions_row_for_standard_tabs() -> void:
 		tasks_start_button.visible = true
 	if tasks_dev_output_label != null:
 		tasks_dev_output_label.visible = false
+	if tasks_dev_output_scroll != null:
+		tasks_dev_output_scroll.visible = false
 func _refresh_tasks_bipob_buttons() -> void:
 	if tasks_bipob_buttons_row == null:
 		return
@@ -7481,13 +7499,13 @@ func _build_tasks_menu_layout() -> void:
 	tasks_report_label.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 	_apply_label_style(tasks_report_label, true, false)
 	details_content.add_child(tasks_report_label)
-	var dev_output_scroll := ScrollContainer.new()
-	dev_output_scroll.horizontal_scroll_mode = ScrollContainer.SCROLL_MODE_DISABLED
-	dev_output_scroll.vertical_scroll_mode = ScrollContainer.SCROLL_MODE_AUTO
-	dev_output_scroll.custom_minimum_size = Vector2(0, 140)
-	dev_output_scroll.size_flags_vertical = Control.SIZE_EXPAND_FILL
-	dev_output_scroll.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-	details_content.add_child(dev_output_scroll)
+	tasks_dev_output_scroll = ScrollContainer.new()
+	tasks_dev_output_scroll.horizontal_scroll_mode = ScrollContainer.SCROLL_MODE_DISABLED
+	tasks_dev_output_scroll.vertical_scroll_mode = ScrollContainer.SCROLL_MODE_AUTO
+	tasks_dev_output_scroll.custom_minimum_size = Vector2(0, 140)
+	tasks_dev_output_scroll.size_flags_vertical = Control.SIZE_EXPAND_FILL
+	tasks_dev_output_scroll.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	details_content.add_child(tasks_dev_output_scroll)
 	tasks_dev_output_label = RichTextLabel.new()
 	tasks_dev_output_label.bbcode_enabled = false
 	tasks_dev_output_label.fit_content = false
@@ -7496,7 +7514,7 @@ func _build_tasks_menu_layout() -> void:
 	tasks_dev_output_label.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	tasks_dev_output_label.size_flags_vertical = Control.SIZE_EXPAND_FILL
 	tasks_dev_output_label.add_theme_color_override("default_color", UI_COLOR_TEXT)
-	dev_output_scroll.add_child(tasks_dev_output_label)
+	tasks_dev_output_scroll.add_child(tasks_dev_output_label)
 
 	var actions := HBoxContainer.new()
 	tasks_actions_row = actions
@@ -8336,7 +8354,7 @@ func _on_dev_start_task_test_pressed() -> void:
 		_set_dev_validation_output("Developer mission start unavailable: BipobController is not ready.")
 		return
 	bipob.call("start_dev_task_test_mission")
-	start_gameplay_from_center()
+	_enter_gameplay_screen_without_starting_mission()
 
 func _on_dev_validation_all_pressed() -> void:
 	_set_dev_validation_output(_get_dev_validation_text_for_suite("all"))
@@ -8350,6 +8368,8 @@ func _get_dev_validation_text_for_suite(suite_id: String) -> String:
 	return String(bipob.call("get_developer_validation_suite_text", suite_id))
 
 func _set_dev_validation_output(text: String) -> void:
+	if tasks_dev_output_scroll != null:
+		tasks_dev_output_scroll.visible = tasks_current_tab == "Dev"
 	if tasks_dev_output_label != null:
 		tasks_dev_output_label.visible = tasks_current_tab == "Dev"
 		tasks_dev_output_label.text = text
