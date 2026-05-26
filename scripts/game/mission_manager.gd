@@ -1,9 +1,9 @@
 extends Node
 
-const WorldObjectCatalog = preload("res://scripts/world/world_object_catalog.gd")
-const ScanSystem = preload("res://scripts/world/scan_system.gd")
-const InteractionSystem = preload("res://scripts/world/interaction_system.gd")
-const PowerSystem = preload("res://scripts/world/power_system.gd")
+const WorldObjectCatalogRef = preload("res://scripts/world/world_object_catalog.gd")
+const ScanSystemRef = preload("res://scripts/world/scan_system.gd")
+const InteractionSystemRef = preload("res://scripts/world/interaction_system.gd")
+const PowerSystemRef = preload("res://scripts/world/power_system.gd")
 
 var mission_world_objects: Array[Dictionary] = []
 var world_objects_by_cell: Dictionary = {}
@@ -55,7 +55,7 @@ func setup_world_objects_for_mission(mission_id: String) -> void:
 		return
 	if mission_id != "mission_1":
 		return
-	var objects: Array[Dictionary] = WorldObjectCatalog.create_test_set()
+	var objects: Array[Dictionary] = WorldObjectCatalogRef.create_test_set()
 	var placements := {
 		"door_a1": Vector2i(2, 1),
 		"door_e1": Vector2i(6, 2),
@@ -73,7 +73,7 @@ func setup_world_objects_for_mission(mission_id: String) -> void:
 		"debris_1": Vector2i(6, 5),
 		"turret_1": Vector2i(7, 1)
 	}
-	objects.append(WorldObjectCatalog.create_world_object("turret", "turret_1"))
+	objects.append(WorldObjectCatalogRef.create_world_object("turret", "turret_1"))
 	for object_data in objects:
 		var object_id := _wo_id(object_data)
 		if object_id == "terminal_t1":
@@ -106,7 +106,7 @@ func setup_world_objects_for_mission(mission_id: String) -> void:
 					add_item_at_cell(Vector2i(3, 4), object_data)
 				_:
 					add_item_at_cell(Vector2i(1, 3), object_data)
-	PowerSystem.recalculate_network(mission_world_objects, "power_net_A")
+	PowerSystemRef.recalculate_network(mission_world_objects, "power_net_A")
 	refresh_world_cooling_received()
 	if debug_world_cooling_scenario_enabled:
 		seed_world_cooling_debug_scenario()
@@ -130,7 +130,7 @@ func _setup_task_test_mission_world() -> void:
 		var cell := Vector2i(cell_variant)
 		for item in Array(items_by_cell.get(cell_variant, [])):
 			add_item_at_cell(cell, Dictionary(item).duplicate(true))
-	PowerSystem.recalculate_network(mission_world_objects, "task_test_power")
+	PowerSystemRef.recalculate_network(mission_world_objects, "task_test_power")
 	refresh_world_cooling_received()
 
 func build_task_test_mission_world_objects_for_validation() -> Dictionary:
@@ -169,7 +169,7 @@ func build_task_test_mission_world_objects_for_validation() -> Dictionary:
 		{"type":"grid_door","id":"task_test_blocked_cable_target","pos":Vector2i(1, 2),"extra":{"state":"jammed","damaged":true}}
 	]
 	for spec in specs:
-		var obj := WorldObjectCatalog.create_world_object(String(spec.get("type", "")), String(spec.get("id", "")))
+		var obj := WorldObjectCatalogRef.create_world_object(String(spec.get("type", "")), String(spec.get("id", "")))
 		if obj.is_empty():
 			warnings.append("catalog_create_failed_%s" % String(spec.get("id", "")))
 			continue
@@ -179,43 +179,43 @@ func build_task_test_mission_world_objects_for_validation() -> Dictionary:
 			obj[String(key)] = extra[key]
 		objects.append(obj)
 	var items_by_cell: Dictionary = {}
-	var fuse := WorldObjectCatalog.create_world_object("fuse", "task_test_item_fuse")
+	var fuse := WorldObjectCatalogRef.create_world_object("fuse", "task_test_item_fuse")
 	if fuse.is_empty():
 		warnings.append("catalog_create_failed_task_test_item_fuse")
 	else:
 		items_by_cell[Vector2i(1, 1)] = [fuse]
-	var repair := WorldObjectCatalog.create_world_object("repair_kit", "task_test_item_repair_kit")
+	var repair := WorldObjectCatalogRef.create_world_object("repair_kit", "task_test_item_repair_kit")
 	if repair.is_empty():
 		warnings.append("catalog_create_failed_task_test_item_repair_kit")
 	else:
 		items_by_cell[Vector2i(1, 3)] = [repair]
-	var cable_reel := WorldObjectCatalog.create_world_object("power_cable_reel", "task_test_cable_reel")
+	var cable_reel := WorldObjectCatalogRef.create_world_object("power_cable_reel", "task_test_cable_reel")
 	if cable_reel.is_empty():
 		warnings.append("catalog_create_failed_task_test_cable_reel")
 	else:
 		items_by_cell[Vector2i(2, 3)] = [cable_reel]
-	var mech_key := WorldObjectCatalog.create_world_object("mechanical_keycard", "task_test_item_mechanical_keycard")
+	var mech_key := WorldObjectCatalogRef.create_world_object("mechanical_keycard", "task_test_item_mechanical_keycard")
 	if mech_key.is_empty():
 		warnings.append("catalog_create_failed_task_test_item_mechanical_keycard")
 	else:
 		items_by_cell[Vector2i(2, 4)] = [mech_key]
-	var opened_key := WorldObjectCatalog.create_world_object("digital_key", "task_test_item_digital_key_opened")
+	var opened_key := WorldObjectCatalogRef.create_world_object("digital_key", "task_test_item_digital_key_opened")
 	if opened_key.is_empty():
 		warnings.append("catalog_create_failed_task_test_item_digital_key_opened")
 	else:
 		opened_key["digital_state"] = "opened"
-	var enc_key := WorldObjectCatalog.create_world_object("digital_key", "task_test_item_digital_key_encrypted")
+	var enc_key := WorldObjectCatalogRef.create_world_object("digital_key", "task_test_item_digital_key_encrypted")
 	if enc_key.is_empty():
 		warnings.append("catalog_create_failed_task_test_item_digital_key_encrypted")
 	else:
 		enc_key["digital_state"] = "encrypted"
-	var dmg_key := WorldObjectCatalog.create_world_object("digital_key", "task_test_item_digital_key_damaged")
+	var dmg_key := WorldObjectCatalogRef.create_world_object("digital_key", "task_test_item_digital_key_damaged")
 	if dmg_key.is_empty():
 		warnings.append("catalog_create_failed_task_test_item_digital_key_damaged")
 	else:
 		dmg_key["digital_state"] = "damaged"
 	items_by_cell[Vector2i(2, 5)] = [opened_key, enc_key, dmg_key].filter(func(it: Dictionary) -> bool: return not it.is_empty())
-	var access_code := WorldObjectCatalog.create_world_object("access_code", "task_test_item_access_code")
+	var access_code := WorldObjectCatalogRef.create_world_object("access_code", "task_test_item_access_code")
 	if access_code.is_empty():
 		warnings.append("catalog_create_failed_task_test_item_access_code")
 	else:
@@ -302,7 +302,7 @@ func _should_assign_main_power_network(object_data: Dictionary) -> bool:
 	return false
 
 func _seed_debug_world_objects() -> void:
-	mission_world_objects = WorldObjectCatalog.create_test_set()
+	mission_world_objects = WorldObjectCatalogRef.create_test_set()
 	for object_data in mission_world_objects:
 		if object_data.get("id", "") in ["wall_b1", "wall_d1"]:
 			object_data["scan_level"] = 3
@@ -315,7 +315,7 @@ func _seed_debug_world_objects() -> void:
 			object_data["power_network_id"] = "power_net_A"
 		if object_data.get("id", "") == "fuse_box_empty_1":
 			object_data["power_network_id"] = ""
-	PowerSystem.recalculate_network(mission_world_objects, "power_net_A")
+	PowerSystemRef.recalculate_network(mission_world_objects, "power_net_A")
 	refresh_world_cooling_received()
 	if debug_world_cooling_scenario_enabled:
 		seed_world_cooling_debug_scenario()
@@ -332,7 +332,7 @@ func _place_debug_world_object(object_type: String, object_id: String, cell: Vec
 		var existing_cell := Vector2i(existing.get("position", cell))
 		world_objects_by_cell.erase(existing_cell)
 		mission_world_objects.erase(existing)
-	var object_data := WorldObjectCatalog.create_world_object(object_type, object_id)
+	var object_data := WorldObjectCatalogRef.create_world_object(object_type, object_id)
 	if object_data.is_empty():
 		return {}
 	object_data["id"] = object_id
@@ -367,7 +367,7 @@ func seed_world_cooling_debug_scenario(origin: Vector2i = Vector2i(8, 8)) -> voi
 	_place_debug_world_object("power_source_class_3", "power_source_c3_cooled", origin + Vector2i(0, 12), {"working_heat": 3, "current_heat": 3, "overheat_threshold": 3, "state": "active"})
 	_place_debug_world_object("external_water_pipe", "cooling_water_g", origin + Vector2i(1, 12))
 	refresh_world_cooling_received()
-	PowerSystem.recalculate_network(mission_world_objects, "power_net_A")
+	PowerSystemRef.recalculate_network(mission_world_objects, "power_net_A")
 	refresh_world_cooling_received()
 
 func validate_world_cooling_debug_scenario() -> Array[String]:
@@ -407,7 +407,7 @@ func validate_world_cooling_debug_scenario() -> Array[String]:
 
 func _debug_world_summary() -> void:
 	for object_data in mission_world_objects:
-		var scan_text := ScanSystem.get_scan_display_text(object_data, "visor")
+		var scan_text := ScanSystemRef.get_scan_display_text(object_data, "visor")
 		print("[WorldObject] %s (%s) state=%s" % [object_data.get("display_name", "Unknown"), object_data.get("object_type", ""), object_data.get("state", "")])
 		print("[Scan] %s" % scan_text)
 
@@ -431,7 +431,7 @@ func debug_try_action(target_id: String, action_type: String, module_id: String 
 		"target_is_grate": false
 	}
 	var module := {"id": module_id}
-	var result := InteractionSystem.apply_action(actor, module, target, action_type)
+	var result := InteractionSystemRef.apply_action(actor, module, target, action_type)
 	if debug_world_logs:
 		print("[Interact] %s -> %s: %s" % [target_id, action_type, result.get("message", "")])
 	return result
@@ -515,9 +515,9 @@ func move_world_object_by_heavy_claw(object_id: String, target_cell: Vector2i) -
 	if object_data.is_empty():
 		result["message"] = "Object not found."
 		return result
-	var from_cell := WorldObjectCatalog.to_world_cell(object_data.get("position", Vector2i(-1, -1)), Vector2i(-1, -1))
+	var from_cell := WorldObjectCatalogRef.to_world_cell(object_data.get("position", Vector2i(-1, -1)), Vector2i(-1, -1))
 	result["from"] = from_cell
-	if not WorldObjectCatalog.can_world_object_be_moved_by_heavy_claw(object_data):
+	if not WorldObjectCatalogRef.can_world_object_be_moved_by_heavy_claw(object_data):
 		result["message"] = "Object cannot be moved by Heavy Claw."
 		return result
 	if from_cell == target_cell:
@@ -552,7 +552,7 @@ func move_world_object_by_heavy_claw(object_id: String, target_cell: Vector2i) -
 	object_data["position"] = target_cell
 	world_objects_by_cell[target_cell] = object_data
 	refresh_world_cooling_received()
-	PowerSystem.recalculate_network(mission_world_objects, "power_net_A")
+	PowerSystemRef.recalculate_network(mission_world_objects, "power_net_A")
 	refresh_world_cooling_received()
 	result["success"] = true
 	result["message"] = "Moved %s." % String(object_data.get("display_name", "Object"))
@@ -560,18 +560,18 @@ func move_world_object_by_heavy_claw(object_id: String, target_cell: Vector2i) -
 
 func refresh_world_cooling_received() -> void:
 	for object_data in mission_world_objects:
-		if not WorldObjectCatalog.can_world_object_receive_cooling(object_data):
+		if not WorldObjectCatalogRef.can_world_object_receive_cooling(object_data):
 			continue
-		var target_position := WorldObjectCatalog.to_world_cell(object_data.get("position", Vector2i(-1, -1)), Vector2i(-1, -1))
-		var cooling_received := WorldObjectCatalog.calculate_world_cooling_received_for_target(object_data, target_position, mission_world_objects)
+		var target_position := WorldObjectCatalogRef.to_world_cell(object_data.get("position", Vector2i(-1, -1)), Vector2i(-1, -1))
+		var cooling_received := WorldObjectCatalogRef.calculate_world_cooling_received_for_target(object_data, target_position, mission_world_objects)
 		object_data["cooling_received"] = cooling_received
-		WorldObjectCatalog.update_world_object_heat_state(object_data)
+		WorldObjectCatalogRef.update_world_object_heat_state(object_data)
 
 func preview_cooling_application(filter: String = "") -> Dictionary:
 	var resolved_filter := _resolve_power_graph_filter_to_network_id(filter.strip_edges())
 	var report := {"filter": filter.strip_edges(), "resolved_filter": resolved_filter, "cooling_sources": [], "targets": [], "changes": [], "warnings": []}
 	for object_data in mission_world_objects:
-		if not WorldObjectCatalog.can_world_object_receive_cooling(object_data):
+		if not WorldObjectCatalogRef.can_world_object_receive_cooling(object_data):
 			continue
 		var object_network := _get_power_network_id(object_data)
 		if not resolved_filter.is_empty() and object_network != resolved_filter:
@@ -580,8 +580,8 @@ func preview_cooling_application(filter: String = "") -> Dictionary:
 		var previous_cooling := maxi(0, int(object_data.get("cooling_received", 0)))
 		var previous_heat := maxi(0, int(object_data.get("current_heat", 0)))
 		var previous_state := String(object_data.get("state", ""))
-		var target_position := WorldObjectCatalog.to_world_cell(object_data.get("position", Vector2i(-1, -1)), Vector2i(-1, -1))
-		var next_cooling := WorldObjectCatalog.calculate_world_cooling_received_for_target(object_data, target_position, mission_world_objects)
+		var target_position := WorldObjectCatalogRef.to_world_cell(object_data.get("position", Vector2i(-1, -1)), Vector2i(-1, -1))
+		var next_cooling := WorldObjectCatalogRef.calculate_world_cooling_received_for_target(object_data, target_position, mission_world_objects)
 		var projected_heat := maxi(0, int(object_data.get("working_heat", previous_heat)) + int(object_data.get("heat_from_connections", 0)) - next_cooling)
 		var threshold := maxi(0, int(object_data.get("overheat_threshold", 0)))
 		var next_state := previous_state
@@ -616,10 +616,10 @@ func apply_cooling_application(filter: String = "") -> Dictionary:
 		var object_data := get_world_object_by_id(object_id)
 		if object_data.is_empty():
 			continue
-		if not WorldObjectCatalog.can_world_object_receive_cooling(object_data):
+		if not WorldObjectCatalogRef.can_world_object_receive_cooling(object_data):
 			continue
 		object_data["cooling_received"] = maxi(0, int(target.get("cooling_received", 0)))
-		WorldObjectCatalog.update_world_object_heat_state(object_data)
+		WorldObjectCatalogRef.update_world_object_heat_state(object_data)
 	return preview
 
 func update_cooling_for_network_or_area(filter: String = "") -> Dictionary:
@@ -729,7 +729,7 @@ func _has_cardinal_clear_path(from_cell: Vector2i, to_cell: Vector2i, grid_manag
 		if bool(blocker.get("blocks_vision", false)):
 			if not allow_wall_pass:
 				return false
-			if not ScanSystem.can_scan_through_wall(blocker, scan_type):
+			if not ScanSystemRef.can_scan_through_wall(blocker, scan_type):
 				return false
 		current += step
 	return true
@@ -1156,7 +1156,7 @@ func update_power_source_load_heat_for_network(filter: String = "") -> Dictionar
 			source["source_capacity"] = source_capacity
 			source["source_overloaded"] = consumer_count > source_capacity
 			source["heat_from_connections"] = maxi(0, consumer_count - source_capacity)
-			WorldObjectCatalog.update_world_object_heat_state(source)
+			WorldObjectCatalogRef.update_world_object_heat_state(source)
 			source_reports.append({
 				"object_id": String(source.get("id", "")),
 				"network_id": network_id,
@@ -1509,8 +1509,8 @@ func preview_cable_path(cable_reel_id: String, target_id: String) -> Dictionary:
 	var target := get_world_object_by_id(target_id.strip_edges())
 	if reel.is_empty() or target.is_empty():
 		return {"valid": false, "reason": "target_not_connectable", "length": 0, "max_length": 0, "path_cells": []}
-	var reel_cell := WorldObjectCatalog.to_world_cell(reel.get("position", Vector2i(-1, -1)), Vector2i(-1, -1))
-	var target_cell := WorldObjectCatalog.to_world_cell(target.get("position", Vector2i(-1, -1)), Vector2i(-1, -1))
+	var reel_cell := WorldObjectCatalogRef.to_world_cell(reel.get("position", Vector2i(-1, -1)), Vector2i(-1, -1))
+	var target_cell := WorldObjectCatalogRef.to_world_cell(target.get("position", Vector2i(-1, -1)), Vector2i(-1, -1))
 	var path_cells: Array = []
 	var x_step := signi(target_cell.x - reel_cell.x)
 	var y_step := signi(target_cell.y - reel_cell.y)
@@ -1643,7 +1643,7 @@ func update_power_source_overheat_recovery_for_network(filter: String = "") -> D
 		var has_prev_damage_flags := prev_damaged_flag or prev_broken_flag or prev_destroyed_flag
 		var prev_state_is_damage := prev_state in ["damaged", "broken", "destroyed"]
 		var prev_overheated_state_is_damage := prev_overheated_state_before in ["damaged", "broken", "destroyed"]
-		WorldObjectCatalog.update_world_object_heat_state(object_data)
+		WorldObjectCatalogRef.update_world_object_heat_state(object_data)
 		var next_state := String(object_data.get("state", "")).strip_edges().to_lower()
 		var threshold := int(object_data.get("overheat_threshold", 0))
 		var heat := int(object_data.get("current_heat", 0))
@@ -2894,7 +2894,7 @@ func validate_cooling_and_cable_runtime() -> Array[String]:
 	for i in range(mission_world_objects.size() - 1, -1, -1):
 		var oid := String(mission_world_objects[i].get("id", ""))
 		if oid.begins_with("temp_"):
-			world_objects_by_cell.erase(WorldObjectCatalog.to_world_cell(mission_world_objects[i].get("position", Vector2i(-1, -1)), Vector2i(-1, -1)))
+			world_objects_by_cell.erase(WorldObjectCatalogRef.to_world_cell(mission_world_objects[i].get("position", Vector2i(-1, -1)), Vector2i(-1, -1)))
 			mission_world_objects.remove_at(i)
 	apply_world_object_runtime_state(snapshot)
 	for object_id_variant in snapshot.keys():
@@ -2924,7 +2924,7 @@ func _has_xray_capability() -> Dictionary:
 	return {"ok": false, "reason": "xray_capability_unavailable", "debug_reason": "debug_xray_allowed"}
 
 func is_world_object_visible_to_player(object_data: Dictionary, scan_mode: String = "basic") -> bool:
-	var cell := WorldObjectCatalog.to_world_cell(object_data.get("position", Vector2i(-1, -1)), Vector2i(-1, -1))
+	var cell := WorldObjectCatalogRef.to_world_cell(object_data.get("position", Vector2i(-1, -1)), Vector2i(-1, -1))
 	var cell_visible := true
 	if grid_manager != null and grid_manager.has_method("is_cell_visible"):
 		cell_visible = bool(grid_manager.call("is_cell_visible", cell))
@@ -2970,7 +2970,7 @@ func get_world_object_debug_info(object_id: String) -> Dictionary:
 	for key in ["id", "object_type", "display_name", "object_group", "state"]:
 		if object_data.has(key):
 			info[key] = object_data[key]
-	info["position"] = _debug_cell_to_array(WorldObjectCatalog.to_world_cell(object_data.get("position", Vector2i(-1, -1)), Vector2i(-1, -1)))
+	info["position"] = _debug_cell_to_array(WorldObjectCatalogRef.to_world_cell(object_data.get("position", Vector2i(-1, -1)), Vector2i(-1, -1)))
 	for key in [
 		"is_powered",
 		"current_heat",
@@ -3127,7 +3127,7 @@ func _format_world_object_debug_row(object_data: Dictionary) -> String:
 	var object_id := String(object_data.get("id", ""))
 	var object_type := String(object_data.get("object_type", ""))
 	var state := String(object_data.get("state", ""))
-	var cell := WorldObjectCatalog.to_world_cell(object_data.get("position", Vector2i(-1, -1)), Vector2i(-1, -1))
+	var cell := WorldObjectCatalogRef.to_world_cell(object_data.get("position", Vector2i(-1, -1)), Vector2i(-1, -1))
 	var position_text := "[%d,%d]" % [cell.x, cell.y]
 	var heat_text := "-"
 	if object_data.has("current_heat") or object_data.has("overheat_threshold"):
@@ -3143,7 +3143,7 @@ func _format_world_object_debug_row(object_data: Dictionary) -> String:
 		facing_text = String(object_data.get("facing_dir", "")).strip_edges()
 		if facing_text.is_empty():
 			facing_text = "-"
-	var movable_text := str(WorldObjectCatalog.can_world_object_be_moved_by_heavy_claw(object_data))
+	var movable_text := str(WorldObjectCatalogRef.can_world_object_be_moved_by_heavy_claw(object_data))
 	if object_data.has("heavy_claw_movable"):
 		movable_text = str(bool(object_data.get("heavy_claw_movable", false)))
 	elif object_data.has("movable"):
@@ -3307,7 +3307,7 @@ func get_world_object_runtime_state() -> Dictionary:
 		if object_data.has("object_type"):
 			serialized["object_type"] = String(object_data.get("object_type", ""))
 		if object_data.has("position"):
-			var world_cell := WorldObjectCatalog.to_world_cell(object_data.get("position", Vector2i(-1, -1)), Vector2i(-1, -1))
+			var world_cell := WorldObjectCatalogRef.to_world_cell(object_data.get("position", Vector2i(-1, -1)), Vector2i(-1, -1))
 			serialized["position"] = [world_cell.x, world_cell.y]
 		for field_name in runtime_fields:
 			if object_data.has(field_name):
@@ -3504,7 +3504,7 @@ func _extract_saved_world_runtime_position(saved_data: Dictionary, object_id: St
 	if not saved_data.has("position"):
 		return {"ok": true, "position": fallback_position}
 	var position_variant: Variant = saved_data.get("position")
-	var parsed_position := WorldObjectCatalog.to_world_cell(position_variant, Vector2i(-1, -1))
+	var parsed_position := WorldObjectCatalogRef.to_world_cell(position_variant, Vector2i(-1, -1))
 	if parsed_position.x < 0 and parsed_position.y < 0:
 		_add_world_runtime_restore_warning("Restore skipped for %s: invalid position data." % object_id)
 		return {"ok": false}
@@ -3547,13 +3547,13 @@ func apply_world_object_runtime_state(saved_state: Dictionary) -> void:
 			if object_type.is_empty():
 				_add_world_runtime_restore_warning("Restore skipped for %s: missing object_type for unknown object id." % object_id)
 				continue
-			var created := WorldObjectCatalog.create_world_object(object_type, object_id)
+			var created := WorldObjectCatalogRef.create_world_object(object_type, object_id)
 			if created.is_empty():
 				_add_world_runtime_restore_warning("Restore skipped for %s: failed to create object_type %s." % [object_id, object_type])
 				continue
 			created["id"] = object_id
 			candidate_object = created
-		var old_position := WorldObjectCatalog.to_world_cell(candidate_object.get("position", Vector2i(-1, -1)), Vector2i(-1, -1))
+		var old_position := WorldObjectCatalogRef.to_world_cell(candidate_object.get("position", Vector2i(-1, -1)), Vector2i(-1, -1))
 		var parsed_position_info := _extract_saved_world_runtime_position(saved_data, object_id, old_position)
 		if not bool(parsed_position_info.get("ok", false)):
 			continue
@@ -3578,7 +3578,7 @@ func apply_world_object_runtime_state(saved_state: Dictionary) -> void:
 		if is_new_object and not mission_world_objects.has(candidate_object):
 			mission_world_objects.append(candidate_object)
 	refresh_world_cooling_received()
-	PowerSystem.recalculate_network(mission_world_objects, "power_net_A")
+	PowerSystemRef.recalculate_network(mission_world_objects, "power_net_A")
 	refresh_world_cooling_received()
 
 func get_world_runtime_persistence_debug_summary_text() -> String:
@@ -3588,9 +3588,9 @@ func get_world_runtime_persistence_debug_summary_text() -> String:
 	var powered_objects := 0
 	var connection_state_objects := 0
 	for object_data in mission_world_objects:
-		var current_position := WorldObjectCatalog.to_world_cell(object_data.get("position", Vector2i(-1, -1)), Vector2i(-1, -1))
+		var current_position := WorldObjectCatalogRef.to_world_cell(object_data.get("position", Vector2i(-1, -1)), Vector2i(-1, -1))
 		if object_data.has("original_position"):
-			var original_position := WorldObjectCatalog.to_world_cell(object_data.get("original_position", current_position), current_position)
+			var original_position := WorldObjectCatalogRef.to_world_cell(object_data.get("original_position", current_position), current_position)
 			if original_position != current_position:
 				moved_objects += 1
 		if object_data.has("working_heat") or object_data.has("overheat_threshold") or object_data.has("current_heat"):
@@ -3633,7 +3633,7 @@ func get_platform_for_cell(cell: Vector2i) -> Dictionary:
 		if String(object_data.get("object_group", "")) != "platform":
 			continue
 		for platform_cell_variant in Array(object_data.get("platform_cells", [])):
-			var platform_cell := WorldObjectCatalog.to_world_cell(platform_cell_variant, Vector2i(-1, -1))
+			var platform_cell := WorldObjectCatalogRef.to_world_cell(platform_cell_variant, Vector2i(-1, -1))
 			if platform_cell == cell:
 				return object_data
 	return {}
@@ -3647,7 +3647,7 @@ func get_cell_height_level(cell: Vector2i) -> int:
 func refresh_world_object_platform_height_state(object_data: Dictionary) -> void:
 	if object_data.is_empty():
 		return
-	var object_cell := WorldObjectCatalog.to_world_cell(object_data.get("position", Vector2i(-1, -1)), Vector2i(-1, -1))
+	var object_cell := WorldObjectCatalogRef.to_world_cell(object_data.get("position", Vector2i(-1, -1)), Vector2i(-1, -1))
 	if object_cell.x < 0 or object_cell.y < 0:
 		return
 	var platform := get_platform_for_cell(object_cell)
@@ -3663,7 +3663,7 @@ func get_world_object_height_level(object_data: Dictionary) -> int:
 		return 0
 	if object_data.has("platform_height_level"):
 		return int(object_data.get("platform_height_level", 0))
-	var object_cell := WorldObjectCatalog.to_world_cell(object_data.get("position", Vector2i(-1, -1)), Vector2i(-1, -1))
+	var object_cell := WorldObjectCatalogRef.to_world_cell(object_data.get("position", Vector2i(-1, -1)), Vector2i(-1, -1))
 	return get_cell_height_level(object_cell)
 
 func get_actor_height_level(actor_cell: Vector2i, actor: Node = null) -> int:
@@ -3706,12 +3706,12 @@ func get_platform_occupants(platform_id: String) -> Dictionary:
 		return {"world_objects": [], "items": [], "bipobs": []}
 	var cells: Array = []
 	for c in Array(platform.get("platform_cells", [])):
-		cells.append(WorldObjectCatalog.to_world_cell(c, Vector2i(-1, -1)))
+		cells.append(WorldObjectCatalogRef.to_world_cell(c, Vector2i(-1, -1)))
 	var occupants := {"world_objects": [], "items": [], "bipobs": []}
 	for object_data in mission_world_objects:
 		if String(object_data.get("id", "")) == String(platform.get("id", "")):
 			continue
-		var pos := WorldObjectCatalog.to_world_cell(object_data.get("position", Vector2i(-1, -1)), Vector2i(-1, -1))
+		var pos := WorldObjectCatalogRef.to_world_cell(object_data.get("position", Vector2i(-1, -1)), Vector2i(-1, -1))
 		if cells.has(pos):
 			occupants["world_objects"].append(object_data)
 	for cell in cells:
@@ -3735,7 +3735,7 @@ func can_bipob_access_platform_switch(platform: Dictionary, actor_cell: Vector2i
 		return false
 	if not platform.has("local_switch_cell"):
 		return false
-	var local_switch_cell := WorldObjectCatalog.to_world_cell(platform.get("local_switch_cell", Vector2i(-1, -1)), Vector2i(-1, -1))
+	var local_switch_cell := WorldObjectCatalogRef.to_world_cell(platform.get("local_switch_cell", Vector2i(-1, -1)), Vector2i(-1, -1))
 	if local_switch_cell.x < 0 or local_switch_cell.y < 0:
 		return false
 	var facing_vector := _facing_to_vector(facing_dir)
@@ -3812,10 +3812,10 @@ func get_lifting_platform_carry_targets(platform_id: String) -> Array[Dictionary
 			continue
 		if bool(object_data.get("destroyed", false)):
 			continue
-		var object_cell := WorldObjectCatalog.to_world_cell(object_data.get("position", Vector2i(-1, -1)), Vector2i(-1, -1))
+		var object_cell := WorldObjectCatalogRef.to_world_cell(object_data.get("position", Vector2i(-1, -1)), Vector2i(-1, -1))
 		var on_platform := false
 		for platform_cell_variant in Array(platform.get("platform_cells", [])):
-			if WorldObjectCatalog.to_world_cell(platform_cell_variant, Vector2i(-1, -1)) == object_cell:
+			if WorldObjectCatalogRef.to_world_cell(platform_cell_variant, Vector2i(-1, -1)) == object_cell:
 				on_platform = true
 				break
 		if on_platform or String(object_data.get("carried_by_platform_id", "")) == platform_id:
@@ -3880,7 +3880,7 @@ func _is_active_bipob_on_platform(platform: Dictionary) -> bool:
 	if typeof(actor_cell) != TYPE_VECTOR2I:
 		return false
 	for platform_cell_variant in Array(platform.get("platform_cells", [])):
-		var platform_cell := WorldObjectCatalog.to_world_cell(platform_cell_variant, Vector2i(-1, -1))
+		var platform_cell := WorldObjectCatalogRef.to_world_cell(platform_cell_variant, Vector2i(-1, -1))
 		if platform_cell == actor_cell:
 			return true
 	return false
@@ -3935,7 +3935,7 @@ func _execute_platform_action(platform: Dictionary, source: String = "") -> Dict
 		if active_bipob_ref != null and active_bipob_ref.has_method("set_platform_height_level") and active_bipob_ref.has_method("get_grid_position"):
 			var actor_cell: Vector2i = active_bipob_ref.call("get_grid_position")
 			for platform_cell_variant in Array(platform.get("platform_cells", [])):
-				var platform_cell := WorldObjectCatalog.to_world_cell(platform_cell_variant, Vector2i(-1, -1))
+				var platform_cell := WorldObjectCatalogRef.to_world_cell(platform_cell_variant, Vector2i(-1, -1))
 				if platform_cell == actor_cell:
 					active_bipob_ref.call("set_platform_height_level", int(platform.get("height_level", 0)), String(platform.get("platform_id", "")))
 					break
@@ -4213,7 +4213,7 @@ func validate_platform_runtime_state() -> Dictionary:
 			errors.append("Platform %s has empty platform_cells." % (platform_id if not platform_id.is_empty() else object_id))
 		var local_cells := {}
 		for cell_variant in raw_cells:
-			var world_cell := WorldObjectCatalog.to_world_cell(cell_variant, Vector2i(-1, -1))
+			var world_cell := WorldObjectCatalogRef.to_world_cell(cell_variant, Vector2i(-1, -1))
 			if world_cell.x < 0 or world_cell.y < 0:
 				errors.append("Platform %s has invalid cell %s." % [platform_id if not platform_id.is_empty() else object_id, str(world_cell)])
 				continue
@@ -4232,7 +4232,7 @@ func validate_platform_runtime_state() -> Dictionary:
 		if not power_type in ["internal", "external"]:
 			errors.append("Platform %s has invalid power_type %s." % [platform_id, power_type])
 		if control_type == "internal":
-			var local_switch := WorldObjectCatalog.to_world_cell(platform.get("local_switch_cell", Vector2i(-1, -1)), Vector2i(-1, -1))
+			var local_switch := WorldObjectCatalogRef.to_world_cell(platform.get("local_switch_cell", Vector2i(-1, -1)), Vector2i(-1, -1))
 			if local_switch.x < 0 or local_switch.y < 0:
 				errors.append("Platform %s has invalid local_switch_cell %s." % [platform_id, str(local_switch)])
 		if platform_type == "rotating":
@@ -4306,7 +4306,7 @@ func validate_platform_runtime_state() -> Dictionary:
 		var object_id := String(object_data.get("id", ""))
 		var carried_platform_id := String(object_data.get("carried_by_platform_id", "")).strip_edges()
 		if carried_platform_id.is_empty():
-			var object_cell := WorldObjectCatalog.to_world_cell(object_data.get("position", Vector2i(-1, -1)), Vector2i(-1, -1))
+			var object_cell := WorldObjectCatalogRef.to_world_cell(object_data.get("position", Vector2i(-1, -1)), Vector2i(-1, -1))
 			var object_platform := get_platform_for_cell(object_cell)
 			if not object_platform.is_empty() and String(object_platform.get("platform_type", "")) == "lifting":
 				var expected_platform_id := String(object_platform.get("platform_id", "")).strip_edges()
@@ -4315,7 +4315,7 @@ func validate_platform_runtime_state() -> Dictionary:
 		if not platform_ids.has(carried_platform_id):
 			warnings.append("Object %s references missing carried_by_platform_id %s." % [object_id, carried_platform_id])
 			continue
-		var object_cell_with_carried := WorldObjectCatalog.to_world_cell(object_data.get("position", Vector2i(-1, -1)), Vector2i(-1, -1))
+		var object_cell_with_carried := WorldObjectCatalogRef.to_world_cell(object_data.get("position", Vector2i(-1, -1)), Vector2i(-1, -1))
 		var current_platform := get_platform_for_cell(object_cell_with_carried)
 		if current_platform.is_empty():
 			warnings.append("Object %s references carried_by_platform_id %s but is not on a platform cell." % [object_id, carried_platform_id])
@@ -4341,7 +4341,7 @@ func validate_platform_runtime_state() -> Dictionary:
 		var occupants := get_platform_occupants(platform_id)
 		var platform_cells: Array = []
 		for cell_variant in Array(platform.get("platform_cells", [])):
-			var platform_cell := WorldObjectCatalog.to_world_cell(cell_variant, Vector2i(-1, -1))
+			var platform_cell := WorldObjectCatalogRef.to_world_cell(cell_variant, Vector2i(-1, -1))
 			if platform_cell.x >= 0 and platform_cell.y >= 0:
 				platform_cells.append(platform_cell)
 		var is_lifting_platform := String(platform.get("platform_type", "")) == "lifting"
@@ -4359,7 +4359,7 @@ func validate_platform_runtime_state() -> Dictionary:
 		for world_object in mission_world_objects:
 			if String(world_object.get("carried_by_platform_id", "")).strip_edges() != platform_id:
 				continue
-			var object_cell := WorldObjectCatalog.to_world_cell(world_object.get("position", Vector2i(-1, -1)), Vector2i(-1, -1))
+			var object_cell := WorldObjectCatalogRef.to_world_cell(world_object.get("position", Vector2i(-1, -1)), Vector2i(-1, -1))
 			if not platform_cells.has(object_cell):
 				warnings.append("World object %s is carried by platform %s but is not on its cells." % [String(world_object.get("id", "")), platform_id])
 		if active_bipob_ref != null and active_bipob_ref.has_method("get_grid_position"):
@@ -4516,7 +4516,7 @@ func _restore_platform_debug_fields(object_data: Dictionary, snapshot: Dictionar
 func _find_debug_floor_cell_near_platform(platform_cells: Array, origin_cell: Vector2i) -> Vector2i:
 	var platform_world_cells: Array[Vector2i] = []
 	for cell in platform_cells:
-		var world_cell := WorldObjectCatalog.to_world_cell(cell, Vector2i(-1, -1))
+		var world_cell := WorldObjectCatalogRef.to_world_cell(cell, Vector2i(-1, -1))
 		if world_cell != Vector2i(-1, -1):
 			platform_world_cells.append(world_cell)
 	var candidate_offsets: Array[Vector2i] = [
@@ -4610,7 +4610,7 @@ func validate_platform_timer_tick_debug_scenario() -> Array[String]:
 		var platform_cells: Array = temp_platform.get("platform_cells", [])
 		if platform_cells.is_empty():
 			continue
-		var world_cell := WorldObjectCatalog.to_world_cell(platform_cells[0], Vector2i(-1, -1))
+		var world_cell := WorldObjectCatalogRef.to_world_cell(platform_cells[0], Vector2i(-1, -1))
 		if world_cell == Vector2i(-1, -1):
 			continue
 		if temp_cells.has(world_cell):
@@ -4722,7 +4722,7 @@ func validate_platform_debug_scenario() -> Array[String]:
 		var after_height := int(lifting_platform.get("height_level", before_height))
 		if before_height == after_height:
 			warnings.append("Lifting platform action did not toggle height_level.")
-		var switch_cell := WorldObjectCatalog.to_world_cell(lifting_platform.get("local_switch_cell", Vector2i(-1, -1)), Vector2i(-1, -1))
+		var switch_cell := WorldObjectCatalogRef.to_world_cell(lifting_platform.get("local_switch_cell", Vector2i(-1, -1)), Vector2i(-1, -1))
 		var wrong_access := can_bipob_access_platform_switch(lifting_platform, switch_cell + Vector2i(2, 0), "left")
 		if wrong_access:
 			warnings.append("Internal switch access returned true from wrong position.")
@@ -4763,7 +4763,7 @@ func validate_platform_height_gating_debug_scenario() -> Array[String]:
 	if platform_cells.is_empty():
 		warnings.append("Lifting platform has no platform cells.")
 		return warnings
-	var platform_cell := WorldObjectCatalog.to_world_cell(platform_cells[0], Vector2i(-1, -1))
+	var platform_cell := WorldObjectCatalogRef.to_world_cell(platform_cells[0], Vector2i(-1, -1))
 	if platform_cell == Vector2i(-1, -1):
 		warnings.append("Lifting platform first platform cell is invalid.")
 		return warnings
@@ -4773,7 +4773,7 @@ func validate_platform_height_gating_debug_scenario() -> Array[String]:
 		return warnings
 	var same_height_platform_cell := platform_cell
 	if platform_cells.size() > 1:
-		same_height_platform_cell = WorldObjectCatalog.to_world_cell(platform_cells[1], platform_cell)
+		same_height_platform_cell = WorldObjectCatalogRef.to_world_cell(platform_cells[1], platform_cell)
 	var original_height := int(lifting_platform.get("height_level", 0))
 	var platform_snapshot := _snapshot_platform_debug_fields(lifting_platform, ["height_level"])
 	lifting_platform["height_level"] = original_height
@@ -5107,7 +5107,7 @@ func validate_terminal_and_door_runtime() -> Array[String]:
 	for i in range(mission_world_objects.size() - 1, -1, -1):
 		var object_id := String(mission_world_objects[i].get("id", "")).strip_edges()
 		if temp_ids.has(object_id):
-			world_objects_by_cell.erase(WorldObjectCatalog.to_world_cell(mission_world_objects[i].get("position", Vector2i(-1, -1)), Vector2i(-1, -1)))
+			world_objects_by_cell.erase(WorldObjectCatalogRef.to_world_cell(mission_world_objects[i].get("position", Vector2i(-1, -1)), Vector2i(-1, -1)))
 			mission_world_objects.remove_at(i)
 	apply_world_object_runtime_state(world_snapshot)
 	if mission_world_objects.size() != base_size:
@@ -5175,7 +5175,7 @@ func validate_platform_scan_visibility_runtime() -> Array[String]:
 		warnings.append("reveal_xray_objects_no_effect")
 	for i in range(mission_world_objects.size() - 1, -1, -1):
 		if String(mission_world_objects[i].get("id", "")) == "temp_hidden_cable":
-			world_objects_by_cell.erase(WorldObjectCatalog.to_world_cell(mission_world_objects[i].get("position", Vector2i(-1, -1)), Vector2i(-1, -1)))
+			world_objects_by_cell.erase(WorldObjectCatalogRef.to_world_cell(mission_world_objects[i].get("position", Vector2i(-1, -1)), Vector2i(-1, -1)))
 			mission_world_objects.remove_at(i)
 	return warnings
 
@@ -5215,7 +5215,7 @@ func validate_inventory_tools_modules_runtime() -> Array[String]:
 	for i in range(mission_world_objects.size() - 1, -1, -1):
 		var oid := String(mission_world_objects[i].get("id", ""))
 		if temp_ids.has(oid):
-			world_objects_by_cell.erase(WorldObjectCatalog.to_world_cell(mission_world_objects[i].get("position", Vector2i(-1, -1)), Vector2i(-1, -1)))
+			world_objects_by_cell.erase(WorldObjectCatalogRef.to_world_cell(mission_world_objects[i].get("position", Vector2i(-1, -1)), Vector2i(-1, -1)))
 			mission_world_objects.remove_at(i)
 	apply_world_object_runtime_state(world_snapshot)
 	runtime_inventory_state = inventory_snapshot.duplicate(true)

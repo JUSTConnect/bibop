@@ -1,6 +1,6 @@
 extends RefCounted
 class_name ScanSystem
-const WorldObjectCatalog = preload("res://scripts/world/world_object_catalog.gd")
+const WorldObjectCatalogRef = preload("res://scripts/world/world_object_catalog.gd")
 
 static func can_scan_through_wall(wall_data: Dictionary, scan_type: String) -> bool:
 	var wall_type: String = wall_data.get("object_type", "")
@@ -36,7 +36,7 @@ static func scan_object(object_data: Dictionary, scan_type: String, scanner_leve
 		if level >= 2:
 			out["details"].append("Connection: %s" % object_data.get("connection_type", "unknown"))
 			if object_data.has("overheat_threshold"):
-				out["details"].append("Heat: %d / %d" % [WorldObjectCatalog.get_world_object_current_heat(object_data), int(object_data.get("overheat_threshold", 0))])
+				out["details"].append("Heat: %d / %d" % [WorldObjectCatalogRef.get_world_object_current_heat(object_data), int(object_data.get("overheat_threshold", 0))])
 				out["details"].append("Cooling: %d" % maxi(0, int(object_data.get("cooling_received", 0))))
 		if level >= 3 or scan_type == "interface":
 			out["details"].append("Controls: %s" % ", ".join(object_data.get("controls", [])))
@@ -44,7 +44,7 @@ static func scan_object(object_data: Dictionary, scan_type: String, scanner_leve
 	elif object_data.get("object_group", "") == "power":
 		out["details"].append("Status: %s" % object_data.get("state", "unknown"))
 		if level >= 2 and object_data.has("overheat_threshold"):
-			out["details"].append("Heat: %d / %d" % [WorldObjectCatalog.get_world_object_current_heat(object_data), int(object_data.get("overheat_threshold", 0))])
+			out["details"].append("Heat: %d / %d" % [WorldObjectCatalogRef.get_world_object_current_heat(object_data), int(object_data.get("overheat_threshold", 0))])
 			out["details"].append("Cooling: %d" % maxi(0, int(object_data.get("cooling_received", 0))))
 		if level >= 3:
 			var connected_count := Array(object_data.get("connected_device_ids", [])).size()
@@ -61,7 +61,7 @@ static func scan_object(object_data: Dictionary, scan_type: String, scanner_leve
 			out["details"].append("Weight: %s" % object_data.get("weight_class", "normal"))
 	elif object_data.get("object_group", "") == "cooling":
 		out["details"].append("Status: %s" % object_data.get("state", "unknown"))
-		if WorldObjectCatalog.can_world_object_be_moved_by_heavy_claw(object_data):
+		if WorldObjectCatalogRef.can_world_object_be_moved_by_heavy_claw(object_data):
 			out["details"].append("Movable: Heavy Claw")
 		var cooling_output := maxi(0, int(object_data.get("cooling_output", 0)))
 		if String(object_data.get("cooling_device_type", "")) == "radiator":

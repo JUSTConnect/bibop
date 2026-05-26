@@ -279,7 +279,7 @@ static func get_air_cooler_world_cooling_for_target(target_object: Dictionary, t
 	strongest = maxi(strongest, get_air_duct_path_cooling_for_target(target_object, target_position, all_objects))
 	return strongest
 
-static func get_water_pipe_world_cooling_for_target(target_object: Dictionary, target_position: Vector2i, all_objects: Array[Dictionary]) -> int:
+static func get_water_pipe_world_cooling_for_target(_target_object: Dictionary, target_position: Vector2i, all_objects: Array[Dictionary]) -> int:
 	var strongest := 0
 	for object_data in all_objects:
 		if String(object_data.get("cooling_device_type", "")) != "water_pipe":
@@ -293,7 +293,7 @@ static func get_water_pipe_world_cooling_for_target(target_object: Dictionary, t
 		strongest = maxi(strongest, output)
 	return strongest
 
-static func get_air_duct_path_cooling_for_target(target_object: Dictionary, target_position: Vector2i, all_objects: Array[Dictionary]) -> int:
+static func get_air_duct_path_cooling_for_target(_target_object: Dictionary, target_position: Vector2i, all_objects: Array[Dictionary]) -> int:
 	var strongest := 0
 	for object_data in all_objects:
 		if String(object_data.get("cooling_device_type", "")) != "air_cooler":
