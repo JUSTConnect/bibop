@@ -17,8 +17,8 @@ class_name RoomVisualRenderer
 @export var iso_visual_preview_includes_asset_hooks: bool = false
 @export var iso_visual_preview_drives_bipob_visual_position: bool = true
 @export var debug_draw_iso_fog_outlines: bool = false
-@export var iso_fog_unexplored_alpha: float = 0.82
-@export var iso_fog_explored_alpha: float = 0.42
+@export var iso_fog_unexplored_alpha: float = 0.42
+@export var iso_fog_explored_alpha: float = 0.18
 @export var iso_fog_visible_alpha: float = 0.0
 @export var debug_draw_iso_cell_outlines: bool = true
 @export var debug_draw_iso_wall_outlines: bool = true
@@ -748,11 +748,11 @@ func get_wall_visual_profiles() -> Dictionary:
 		},
 		"grate_wall": {
 			"label": "Grate Wall",
-			"top": Color(0.17, 0.205, 0.235, 0.98),
-			"left": Color(0.095, 0.125, 0.15, 0.98),
-			"right": Color(0.08, 0.11, 0.135, 0.98),
-			"outline": Color(0.23, 0.31, 0.37, 0.9),
-			"accent": Color(0.31, 0.41, 0.48, 0.52)
+			"top": Color(0.15, 0.18, 0.2, 0.8),
+			"left": Color(0.07, 0.085, 0.1, 0.72),
+			"right": Color(0.06, 0.075, 0.09, 0.72),
+			"outline": Color(0.18, 0.24, 0.28, 0.88),
+			"accent": Color(0.78, 0.86, 0.92, 0.85)
 		},
 		"damaged_wall": {
 			"label": "Damaged Wall",
@@ -764,27 +764,27 @@ func get_wall_visual_profiles() -> Dictionary:
 		},
 		"brick_wall": {
 			"label": "Brick Wall",
-			"top": Color(0.215, 0.165, 0.145, 0.98),
-			"left": Color(0.14, 0.105, 0.09, 0.98),
-			"right": Color(0.12, 0.09, 0.08, 0.98),
-			"outline": Color(0.34, 0.25, 0.22, 0.9),
-			"accent": Color(0.41, 0.28, 0.2, 0.48)
+			"top": Color(0.37, 0.21, 0.16, 0.98),
+			"left": Color(0.28, 0.14, 0.11, 0.98),
+			"right": Color(0.24, 0.12, 0.1, 0.98),
+			"outline": Color(0.46, 0.24, 0.18, 0.92),
+			"accent": Color(0.82, 0.72, 0.58, 0.64)
 		},
 		"concrete_wall": {
 			"label": "Concrete Wall",
-			"top": Color(0.23, 0.24, 0.25, 0.98),
-			"left": Color(0.155, 0.16, 0.17, 0.98),
-			"right": Color(0.13, 0.135, 0.145, 0.98),
-			"outline": Color(0.3, 0.33, 0.35, 0.9),
-			"accent": Color(0.35, 0.39, 0.42, 0.45)
+			"top": Color(0.33, 0.34, 0.35, 0.98),
+			"left": Color(0.23, 0.24, 0.25, 0.98),
+			"right": Color(0.2, 0.21, 0.22, 0.98),
+			"outline": Color(0.42, 0.44, 0.45, 0.9),
+			"accent": Color(0.68, 0.71, 0.73, 0.52)
 		},
 		"steel_wall": {
 			"label": "Steel Wall",
-			"top": Color(0.195, 0.23, 0.27, 0.98),
-			"left": Color(0.12, 0.15, 0.185, 0.98),
-			"right": Color(0.1, 0.13, 0.165, 0.98),
-			"outline": Color(0.25, 0.34, 0.4, 0.9),
-			"accent": Color(0.34, 0.45, 0.53, 0.52)
+			"top": Color(0.26, 0.31, 0.36, 0.98),
+			"left": Color(0.16, 0.2, 0.25, 0.98),
+			"right": Color(0.135, 0.175, 0.22, 0.98),
+			"outline": Color(0.3, 0.39, 0.47, 0.92),
+			"accent": Color(0.66, 0.76, 0.86, 0.65)
 		},
 		"reinforced_steel_wall": {
 			"label": "Reinforced Steel Wall",
@@ -990,10 +990,10 @@ func draw_iso_wall_surface_accent(
 			draw_iso_wall_grate_accent(left_face, right_face, accent_color)
 
 func draw_iso_wall_brick_accent(left_face: PackedVector2Array, right_face: PackedVector2Array, accent_color: Color) -> void:
-	var mortar_color: Color = accent_color.lightened(0.18)
-	for row in [0.25, 0.5, 0.75]:
-		draw_line(left_face[0].lerp(left_face[3], row), left_face[1].lerp(left_face[2], row), mortar_color, 1.0)
-		draw_line(right_face[0].lerp(right_face[3], row), right_face[1].lerp(right_face[2], row), mortar_color, 1.0)
+	var mortar_color: Color = accent_color.lightened(0.05)
+	for row in [0.22, 0.45, 0.68, 0.88]:
+		draw_line(left_face[0].lerp(left_face[3], row), left_face[1].lerp(left_face[2], row), mortar_color, 1.3)
+		draw_line(right_face[0].lerp(right_face[3], row), right_face[1].lerp(right_face[2], row), mortar_color, 1.3)
 
 func draw_iso_wall_concrete_accent(
 	left_face: PackedVector2Array,
@@ -1001,11 +1001,12 @@ func draw_iso_wall_concrete_accent(
 	top_face: PackedVector2Array,
 	accent_color: Color
 ) -> void:
-	var crack_color: Color = accent_color.darkened(0.12)
-	draw_line(left_face[0].lerp(left_face[1], 0.3), left_face[2].lerp(left_face[3], 0.65), crack_color, 1.05)
-	draw_line(right_face[0].lerp(right_face[1], 0.66), right_face[2].lerp(right_face[3], 0.25), crack_color, 1.05)
-	var panel_color: Color = accent_color.lightened(0.08)
-	draw_line(top_face[3].lerp(top_face[0], 0.5), top_face[2].lerp(top_face[1], 0.5), panel_color, 1.0)
+	var crack_color: Color = accent_color.darkened(0.28)
+	draw_line(left_face[0].lerp(left_face[1], 0.26), left_face[2].lerp(left_face[3], 0.7), crack_color, 1.15)
+	draw_line(right_face[0].lerp(right_face[1], 0.64), right_face[2].lerp(right_face[3], 0.22), crack_color, 1.15)
+	var panel_color: Color = accent_color.lightened(0.04)
+	draw_line(left_face[0].lerp(left_face[3], 0.52), left_face[1].lerp(left_face[2], 0.52), panel_color, 1.0)
+	draw_line(right_face[0].lerp(right_face[3], 0.48), right_face[1].lerp(right_face[2], 0.48), panel_color, 1.0)
 
 func draw_iso_wall_steel_accent(
 	left_face: PackedVector2Array,
@@ -1013,22 +1014,35 @@ func draw_iso_wall_steel_accent(
 	top_face: PackedVector2Array,
 	accent_color: Color
 ) -> void:
-	var seam_color: Color = accent_color.lightened(0.15)
-	draw_line(left_face[0].lerp(left_face[1], 0.55), left_face[3].lerp(left_face[2], 0.55), seam_color, 1.0)
-	draw_line(right_face[0].lerp(right_face[1], 0.48), right_face[3].lerp(right_face[2], 0.48), seam_color, 1.0)
-	draw_line(top_face[3].lerp(top_face[0], 0.5), top_face[2].lerp(top_face[1], 0.5), seam_color, 1.0)
+	var seam_color: Color = accent_color.lightened(0.1)
+	draw_line(left_face[0].lerp(left_face[1], 0.5), left_face[3].lerp(left_face[2], 0.5), seam_color, 1.25)
+	draw_line(right_face[0].lerp(right_face[1], 0.5), right_face[3].lerp(right_face[2], 0.5), seam_color, 1.25)
+	draw_line(top_face[3].lerp(top_face[0], 0.5), top_face[2].lerp(top_face[1], 0.5), seam_color, 1.1)
 	var rivet_color: Color = accent_color.lightened(0.3)
 	for side_point in [left_face[1], left_face[2], right_face[1], right_face[2]]:
 		draw_circle(side_point.lerp(top_face[2], 0.08), 1.2, rivet_color)
 
 func draw_iso_wall_grate_accent(left_face: PackedVector2Array, right_face: PackedVector2Array, accent_color: Color) -> void:
-	var bar_color: Color = accent_color.lightened(0.24)
-	var gap_color: Color = accent_color.darkened(0.2)
-	for column in [0.2, 0.4, 0.6, 0.8]:
-		draw_line(left_face[0].lerp(left_face[1], column), left_face[3].lerp(left_face[2], column), bar_color, 1.0)
-		draw_line(right_face[0].lerp(right_face[1], column), right_face[3].lerp(right_face[2], column), bar_color, 1.0)
-	draw_line(left_face[0].lerp(left_face[3], 0.5), left_face[1].lerp(left_face[2], 0.5), gap_color, 1.0)
-	draw_line(right_face[0].lerp(right_face[3], 0.5), right_face[1].lerp(right_face[2], 0.5), gap_color, 1.0)
+	var bar_color: Color = accent_color.lightened(0.2)
+	var gap_color: Color = Color(0.02, 0.03, 0.04, 0.95)
+	for band in [0.3, 0.7]:
+		var left_gap: PackedVector2Array = PackedVector2Array([
+			left_face[0].lerp(left_face[1], band - 0.08),
+			left_face[0].lerp(left_face[1], band + 0.08),
+			left_face[3].lerp(left_face[2], band + 0.08),
+			left_face[3].lerp(left_face[2], band - 0.08)
+		])
+		var right_gap: PackedVector2Array = PackedVector2Array([
+			right_face[0].lerp(right_face[1], band - 0.08),
+			right_face[0].lerp(right_face[1], band + 0.08),
+			right_face[3].lerp(right_face[2], band + 0.08),
+			right_face[3].lerp(right_face[2], band - 0.08)
+		])
+		draw_colored_polygon(left_gap, gap_color)
+		draw_colored_polygon(right_gap, gap_color)
+	for column in [0.16, 0.5, 0.84]:
+		draw_line(left_face[0].lerp(left_face[1], column), left_face[3].lerp(left_face[2], column), bar_color, 1.7)
+		draw_line(right_face[0].lerp(right_face[1], column), right_face[3].lerp(right_face[2], column), bar_color, 1.7)
 
 func draw_iso_floor_prototype() -> void:
 	# Procedural prototype floor renderer for early isometric look exploration.

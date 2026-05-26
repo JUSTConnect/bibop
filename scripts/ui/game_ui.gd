@@ -49,6 +49,7 @@ var bipob: BipobController = null
 var field_runtime: GridManager = null
 const FIELD_SCENE_PATH: String = "res://scenes/field/Field.tscn"
 const BIPOB_SCENE_PATH: String = "res://scenes/bipob/Bipob.tscn"
+const MISSION_MANAGER_SCRIPT_PATH: String = "res://scripts/game/mission_manager.gd"
 
 @onready var mission_label: Label = $MissionLabel
 @onready var status_label: Label = $StatusLabel
@@ -58,6 +59,7 @@ const BIPOB_SCENE_PATH: String = "res://scenes/bipob/Bipob.tscn"
 
 var diagnostic_label: Label
 var runtime_mission_field_host: Control
+var mission_manager_runtime: Node = null
 var runtime_hud_root: Control = null
 var runtime_bipob_switcher_panel: PanelContainer = null
 var runtime_selected_mission_bipob_index: int = 0
@@ -386,6 +388,20 @@ func _ensure_gameplay_runtime_created() -> bool:
 		push_error("GameUI: Field runtime is not GridManager.")
 		field_node.queue_free()
 		return false
+	var mission_script: Script = load(MISSION_MANAGER_SCRIPT_PATH)
+	if mission_script == null:
+		push_error("GameUI: failed to load MissionManager script.")
+		field_runtime.queue_free()
+		field_runtime = null
+		return false
+	mission_manager_runtime = Node.new()
+	mission_manager_runtime.name = "MissionManager"
+	mission_manager_runtime.set_script(mission_script)
+	root.add_child(mission_manager_runtime)
+	if mission_manager_runtime.has_method("set_grid_manager_ref"):
+		mission_manager_runtime.call("set_grid_manager_ref", field_runtime)
+	elif _object_has_property(mission_manager_runtime, "grid_manager"):
+		mission_manager_runtime.set("grid_manager", field_runtime)
 	var bipob_scene: PackedScene = load(BIPOB_SCENE_PATH)
 	if bipob_scene == null:
 		push_error("GameUI: failed to load Bipob scene.")
@@ -399,9 +415,19 @@ func _ensure_gameplay_runtime_created() -> bool:
 	if bipob == null:
 		push_error("GameUI: Bipob runtime is not BipobController.")
 		bipob_node.queue_free()
+		if mission_manager_runtime != null and is_instance_valid(mission_manager_runtime):
+			mission_manager_runtime.queue_free()
+		mission_manager_runtime = null
 		field_runtime.queue_free()
 		field_runtime = null
 		return false
+	if mission_manager_runtime != null and is_instance_valid(mission_manager_runtime):
+		if mission_manager_runtime.has_method("set_active_bipob_ref"):
+			mission_manager_runtime.call("set_active_bipob_ref", bipob)
+		elif _object_has_property(mission_manager_runtime, "active_bipob_ref"):
+			mission_manager_runtime.set("active_bipob_ref", bipob)
+	if _object_has_property(bipob, "mission_manager") and bipob.mission_manager == null:
+		bipob.mission_manager = mission_manager_runtime
 	_initialize_runtime_profiles_if_needed()
 	_connect_bipob_runtime_signals_once()
 	_set_gameplay_visible(false)
@@ -412,8 +438,29 @@ func _destroy_gameplay_runtime() -> void:
 		bipob.queue_free()
 	if field_runtime != null and is_instance_valid(field_runtime):
 		field_runtime.queue_free()
+	if mission_manager_runtime != null and is_instance_valid(mission_manager_runtime):
+		mission_manager_runtime.queue_free()
 	bipob = null
 	field_runtime = null
+	mission_manager_runtime = null
+
+func _object_has_property(target: Object, property_name: String) -> bool:
+	if target == null:
+		return false
+	for property_data in target.get_property_list():
+		if String(property_data.get("name", "")) == property_name:
+			return true
+	return false
+
+func _sync_runtime_bipob_visual_state() -> void:
+	if bipob == null:
+		return
+	if bipob.has_method("update_visual_facing"):
+		bipob.call("update_visual_facing")
+	if bipob.has_method("update_world_position"):
+		bipob.call("update_world_position")
+	if field_runtime != null and is_instance_valid(field_runtime) and field_runtime.has_method("request_visual_refresh"):
+		field_runtime.call("request_visual_refresh")
 
 func _safe_has_bipob_method(method_name: String) -> bool:
 	if bipob == null:
@@ -4061,6 +4108,7 @@ func _get_runtime_play_area_rect() -> Rect2:
 
 func _attach_runtime_gameplay_view() -> void:
 	_apply_runtime_gameplay_field_transform()
+	call_deferred("_sync_runtime_bipob_visual_state")
 
 
 func _apply_runtime_gameplay_field_transform() -> void:
@@ -5696,6 +5744,7 @@ func _on_charge_button_pressed() -> void:
 	update_status()
 	update_box_status()
 	update_diagnostic_status()
+	call_deferred("_sync_runtime_bipob_visual_state")
 
 func _on_install_module_button_pressed() -> void:
 	# BoxScreen preparation action: must not spend field action points or energy.
@@ -8524,7 +8573,19 @@ func _claim_mission_reward(mission_id: int) -> void:
 	_refresh_tasks_content()
 
 func _on_mission_result_restart_pressed() -> void:
-	start_gameplay_from_center()
+	if not _ensure_gameplay_runtime_created():
+		return
+	var restart_mission_id: int = tasks_selected_mission_id
+	if bipob != null:
+		restart_mission_id = int(bipob.current_mission_index)
+	if bipob != null:
+		bipob.current_mission_index = restart_mission_id
+		if bipob.has_method("start_mission"):
+			bipob.start_mission(restart_mission_id, true)
+		elif bipob.has_method("restart_current_mission"):
+			bipob.restart_current_mission()
+	show_gameplay_screen()
+	call_deferred("_sync_runtime_bipob_visual_state")
 
 func _on_mission_result_center_pressed() -> void:
 	if not _can_return_to_center_after_result(last_mission_success):
@@ -8639,6 +8700,7 @@ func _on_drop_item_button_pressed() -> void:
 	update_status()
 	update_diagnostic_status()
 	update_box_status()
+	call_deferred("_sync_runtime_bipob_visual_state")
 
 func _on_rotate_storage_button_pressed() -> void:
 	bipob.rotate_physical_storage()
