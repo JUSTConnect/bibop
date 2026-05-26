@@ -6624,6 +6624,19 @@ func get_forward_grid_delta_for_direction(direction_value: int) -> Vector2i:
 			return Vector2i.LEFT
 	return Vector2i.ZERO
 
+func get_direction_id(direction_value: int) -> String:
+	match direction_value:
+		Direction.NORTH:
+			return "north"
+		Direction.EAST:
+			return "east"
+		Direction.SOUTH:
+			return "south"
+		Direction.WEST:
+			return "west"
+		_:
+			return "north"
+
 func get_isometric_visual_rotation_for_direction(direction_value: int) -> float:
 	if grid_manager == null:
 		return 0.0
@@ -7431,7 +7444,7 @@ func get_available_world_actions(world_object: Dictionary, target_position: Vect
 		if has_heavy_claw() and distance <= 1:
 			actions.append("push")
 	elif group == "platform":
-		if String(world_object.get("control_type", "internal")) == "internal" and get_installed_manipulator_arm_level() >= 1 and mission_manager != null and mission_manager.can_bipob_access_platform_switch(world_object, grid_position, direction):
+		if String(world_object.get("control_type", "internal")) == "internal" and get_installed_manipulator_arm_level() >= 1 and mission_manager != null and mission_manager.can_bipob_access_platform_switch(world_object, grid_position, get_direction_id(direction)):
 			actions.append("activate_platform")
 	elif group == "item":
 		actions.append("pickup")
@@ -7621,7 +7634,7 @@ func interact() -> void:
 				"facing_direction": get_direction_vector(direction),
 				"target_position": target_position,
 				"actor_position": grid_position,
-				"platform_switch_access": mission_manager.can_bipob_access_platform_switch(target_platform, grid_position, direction)
+				"platform_switch_access": mission_manager.can_bipob_access_platform_switch(target_platform, grid_position, get_direction_id(direction))
 			}
 			var action_id := get_world_object_action_for_context(world_object, active_manipulator, target_position)
 			var _available_actions := get_available_world_actions(world_object, target_position)
