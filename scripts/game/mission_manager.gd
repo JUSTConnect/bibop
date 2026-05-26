@@ -197,7 +197,7 @@ func build_task_test_mission_world_objects_for_validation() -> Dictionary:
 		{"type":"door_terminal","id":"task_test_scan_thermal_object","pos":Vector2i(11, 7),"extra":{"visible_with_thermal":true,"current_heat":5,"working_heat":2}},
 		{"type":"door_terminal","id":"task_test_scan_connector_gated","pos":Vector2i(12, 7),"extra":{"required_connector_level":2,"state":"active","is_powered":true}},
 		{"type":"door_terminal","id":"task_test_scan_processor_gated","pos":Vector2i(13, 7),"extra":{"required_processor_level":2,"state":"active","is_powered":true}},
-		{"type":"light","id":"task_test_scan_normal_visible","pos":Vector2i(14, 7),"extra":{"hidden":false}},
+		{"type":"light","id":"task_test_scan_normal_visible","pos":Vector2i(14, 8),"extra":{"hidden":false}},
 		# Terminals coverage + extraction
 		{"type":"door_terminal","id":"task_test_terminal_info","pos":Vector2i(1, 8),"extra":{"connection_type":"info","state":"active","is_powered":true}},
 		{"type":"door_terminal","id":"task_test_terminal_unpowered","pos":Vector2i(2, 8),"extra":{"state":"unpowered","is_powered":false}},
@@ -210,7 +210,7 @@ func build_task_test_mission_world_objects_for_validation() -> Dictionary:
 		{"type":"steel_door","id":"task_test_door_mechanical","pos":Vector2i(5, 1),"extra":{"state":"locked","is_locked":true,"lock_type":"mechanical_key","required_key_id":"task_test_item_mechanical_keycard"}},
 		{"type":"lifting_platform","id":"task_test_platform_lift","pos":Vector2i(8, 8),"extra":{"platform_id":"task_test_platform_lift","is_powered":false,"requires_external_power":true,"power_network_id":"task_test_power_missing"}},
 		{"type":"power_cable","id":"task_test_xray_route_marker","pos":Vector2i(9, 8),"extra":{"hidden":true,"visible_with_xray":true}},
-{"type":"energy_door","id":"task_test_extraction_door","pos":Vector2i(14, 7),"extra":{"state":"open","is_locked":false,"mission_exit":true,"extraction":true,"allow_cell_overlap":true}}
+{"type":"energy_door","id":"task_test_extraction_door","pos":Vector2i(14, 7),"extra":{"state":"open","is_locked":false,"mission_exit":true,"extraction":true}}
 	]
 	for spec in specs:
 		var obj: Dictionary = WorldObjectCatalogRef.create_world_object(String(spec.get("type", "")), String(spec.get("id", "")))
@@ -5651,6 +5651,19 @@ func get_task_test_system_coverage_report_text() -> String:
 func validate_task_test_runtime_cell_states() -> Array[String]:
 	var warnings: Array[String] = []
 	var task_item_ids: Array[String] = []
+	var object_ids := {}
+	var power_source_network_ids := {}
+	for object_data in mission_world_objects:
+		if typeof(object_data) != TYPE_DICTIONARY:
+			continue
+		var existing_object_id := String(object_data.get("id", "")).strip_edges()
+		if not existing_object_id.is_empty():
+			object_ids[existing_object_id] = true
+		var existing_type := String(object_data.get("object_type", "")).to_lower()
+		if existing_type.begins_with("power_source"):
+			var existing_network_id := String(object_data.get("power_network_id", "")).strip_edges()
+			if not existing_network_id.is_empty():
+				power_source_network_ids[existing_network_id] = true
 	for cell_variant in cell_items.keys():
 		for item_variant in Array(cell_items.get(cell_variant, [])):
 			if typeof(item_variant) != TYPE_DICTIONARY:
@@ -5680,12 +5693,33 @@ func validate_task_test_runtime_cell_states() -> Array[String]:
 				warnings.append("door_object_on_non_door_tile_%s" % object_id)
 			if not bool(runtime_state.get("is_door_cell", false)):
 				warnings.append("door_object_tile_mismatch_%s" % object_id)
-		if bool(object_data.get("requires_external_power", false)) and String(object_data.get("power_network_id", "")).is_empty():
-			warnings.append("external_power_missing_network_%s" % object_id)
+		if bool(object_data.get("requires_external_power", false)):
+			var power_network_id: String = String(object_data.get("power_network_id", "")).strip_edges()
+			if power_network_id.is_empty():
+				warnings.append("external_power_missing_network_%s" % object_id)
+			elif not power_source_network_ids.has(power_network_id):
+				warnings.append("external_power_invalid_network_%s_%s" % [object_id, power_network_id])
 		if bool(object_data.get("requires_external_control", false)):
-			var ctrl: String = String(object_data.get("control_source_id", object_data.get("linked_terminal_id", object_data.get("controller_id", ""))))
+			var ctrl: String = String(object_data.get("control_source_id", object_data.get("linked_terminal_id", object_data.get("controller_id", "")))).strip_edges()
 			if ctrl.is_empty():
 				warnings.append("external_control_missing_reference_%s" % object_id)
+			elif not object_ids.has(ctrl):
+				warnings.append("external_control_invalid_reference_%s_%s" % [object_id, ctrl])
+		for control_ref_field in ["control_source_id", "linked_terminal_id", "controller_id"]:
+			var control_ref_id: String = String(object_data.get(control_ref_field, "")).strip_edges()
+			if control_ref_id.is_empty():
+				continue
+			if not object_ids.has(control_ref_id):
+				warnings.append("external_control_invalid_reference_%s_%s" % [object_id, control_ref_id])
+		var target_door_id: String = String(object_data.get("target_door_id", "")).strip_edges()
+		if not target_door_id.is_empty() and not object_ids.has(target_door_id):
+			warnings.append("target_door_missing_%s_%s" % [object_id, target_door_id])
+		var target_platform_id: String = String(object_data.get("target_platform_id", "")).strip_edges()
+		if not target_platform_id.is_empty() and not object_ids.has(target_platform_id):
+			warnings.append("target_platform_missing_%s_%s" % [object_id, target_platform_id])
+		var linked_terminal_id: String = String(object_data.get("linked_terminal_id", "")).strip_edges()
+		if not linked_terminal_id.is_empty() and not object_ids.has(linked_terminal_id):
+			warnings.append("linked_terminal_missing_%s_%s" % [object_id, linked_terminal_id])
 		if (bool(object_data.get("requires_key", false)) or String(object_data.get("lock_type", "")) == "mechanical_key" or String(object_data.get("lock_type", "")) == "digital_key") and String(object_data.get("required_key_id", "")).is_empty():
 			warnings.append("key_locked_door_missing_required_key_%s" % object_id)
 		var required_key_id: String = String(object_data.get("required_key_id", ""))
@@ -5699,6 +5733,19 @@ func validate_task_test_runtime_cell_states() -> Array[String]:
 func validate_task_test_universal_systems_coverage() -> Array[String]:
 	var warnings: Array[String] = []
 	var report: Dictionary = get_task_test_system_coverage_report()
+	var occupied_world_object_cells := {}
+	for object_data in mission_world_objects:
+		if typeof(object_data) != TYPE_DICTIONARY:
+			continue
+		if String(object_data.get("object_group", "")) == "item":
+			continue
+		var object_id := String(object_data.get("id", "")).strip_edges()
+		var object_cell := Vector2i(object_data.get("position", Vector2i.ZERO))
+		if occupied_world_object_cells.has(object_cell):
+			var other_id := String(occupied_world_object_cells[object_cell])
+			warnings.append("duplicate_world_object_cell_%s_%s_%s" % [str(object_cell), other_id, object_id])
+		else:
+			occupied_world_object_cells[object_cell] = object_id
 	for section_name in ["door_scenarios", "key_scenarios", "power_scenarios", "control_scenarios", "cooling_scenarios", "terminal_scenarios", "wall_material_scenarios", "scan_scenarios"]:
 		var section: Dictionary = Dictionary(report.get(section_name, {}))
 		if section.is_empty():
