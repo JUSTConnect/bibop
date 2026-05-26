@@ -8832,6 +8832,108 @@ func preview_module_port_activity() -> Dictionary:
 func recalculate_module_port_activity() -> Dictionary:
 	return preview_module_port_activity()
 
+func get_module_port_debug_report() -> Dictionary:
+	var port_state: Dictionary = preview_module_port_activity()
+	var modules_state: Dictionary = Dictionary(port_state.get("modules", {}))
+	var internal_state: Dictionary = Dictionary(port_state.get("internal_interface", {}))
+	var external_state: Dictionary = Dictionary(port_state.get("external_interface", {}))
+	var power_state: Dictionary = Dictionary(port_state.get("power_block", {}))
+
+	var modules: Array[Dictionary] = []
+	var active_modules: Array[String] = []
+	var inactive_modules: Array[Dictionary] = []
+	var internal_ports_used: int = 0
+	var external_ports_used: int = 0
+	var power_ports_used: int = 0
+
+	var sorted_module_ids: Array[String] = []
+	for module_id_variant in modules_state.keys():
+		sorted_module_ids.append(String(module_id_variant))
+	sorted_module_ids.sort_custom(func(a: String, b: String) -> bool:
+		var pa: int = _get_module_port_priority(a)
+		var pb: int = _get_module_port_priority(b)
+		if pa != pb:
+			return pa < pb
+		return a < b
+	)
+
+	for module_id in sorted_module_ids:
+		var module_state: Dictionary = Dictionary(modules_state.get(module_id, {}))
+		var module_internal_ports_used: int = int(module_state.get("internal_ports_used", 0))
+		var module_external_ports_used: int = int(module_state.get("external_ports_used", 0))
+		var module_power_ports_used: int = int(module_state.get("power_ports_used", 0))
+		var module_active: bool = bool(module_state.get("active", false))
+		var module_inactive_reason: String = String(module_state.get("inactive_reason", "module_installed_but_inactive"))
+		var module_entry: Dictionary = {
+			"module_id": module_id,
+			"active": module_active,
+			"inactive_reason": module_inactive_reason,
+			"port_priority": int(module_state.get("port_priority", _get_module_port_priority(module_id))),
+			"internal_ports_used": module_internal_ports_used,
+			"external_ports_used": module_external_ports_used,
+			"power_ports_used": module_power_ports_used
+		}
+		modules.append(module_entry)
+		internal_ports_used += module_internal_ports_used
+		external_ports_used += module_external_ports_used
+		power_ports_used += module_power_ports_used
+
+		if module_active:
+			active_modules.append(module_id)
+		else:
+			var inactive_entry: Dictionary = {
+				"module_id": module_id,
+				"inactive_reason": module_inactive_reason,
+				"inactive_reasons": get_module_inactive_reasons(module_id),
+				"port_priority": int(module_entry.get("port_priority", 9999))
+			}
+			inactive_modules.append(inactive_entry)
+
+	var internal_ports_total: int = int(internal_state.get("ports_total", 0))
+	var external_ports_total: int = int(external_state.get("ports_total", 0))
+	var power_ports_total: int = int(power_state.get("ports_total", 0))
+	var internal_ports_remaining: int = maxi(0, internal_ports_total - internal_ports_used)
+	var external_ports_remaining: int = maxi(0, external_ports_total - external_ports_used)
+	var power_ports_remaining: int = maxi(0, power_ports_total - power_ports_used)
+
+	return {
+		"internal_ports_total": internal_ports_total,
+		"internal_ports_used": internal_ports_used,
+		"internal_ports_remaining": internal_ports_remaining,
+		"external_ports_total": external_ports_total,
+		"external_ports_used": external_ports_used,
+		"external_ports_remaining": external_ports_remaining,
+		"power_ports_total": power_ports_total,
+		"power_ports_used": power_ports_used,
+		"power_ports_remaining": power_ports_remaining,
+		"internal_interface_link_ports_reserved": int(internal_state.get("ports_used_for_interface_links", 0)),
+		"external_interface_link_ports_reserved": int(external_state.get("reserved_ports", 0)),
+		"active_modules": active_modules,
+		"inactive_modules": inactive_modules,
+		"modules": modules
+	}
+
+func get_module_port_debug_report_text() -> String:
+	var report: Dictionary = get_module_port_debug_report()
+	var lines: Array[String] = []
+	lines.append("ModulePortDebugReport")
+	lines.append("Internal: used=%d / total=%d / remaining=%d (reserved_links=%d)" % [int(report.get("internal_ports_used", 0)), int(report.get("internal_ports_total", 0)), int(report.get("internal_ports_remaining", 0)), int(report.get("internal_interface_link_ports_reserved", 0))])
+	lines.append("External: used=%d / total=%d / remaining=%d (reserved_links=%d)" % [int(report.get("external_ports_used", 0)), int(report.get("external_ports_total", 0)), int(report.get("external_ports_remaining", 0)), int(report.get("external_interface_link_ports_reserved", 0))])
+	lines.append("Power: used=%d / total=%d / remaining=%d" % [int(report.get("power_ports_used", 0)), int(report.get("power_ports_total", 0)), int(report.get("power_ports_remaining", 0))])
+	lines.append("")
+	lines.append("Active modules:")
+	for module_entry_variant in Array(report.get("modules", [])):
+		var module_entry: Dictionary = Dictionary(module_entry_variant)
+		if not bool(module_entry.get("active", false)):
+			continue
+		lines.append("- %s priority=%d ports internal=%d external=%d power=%d" % [String(module_entry.get("module_id", "")), int(module_entry.get("port_priority", 0)), int(module_entry.get("internal_ports_used", 0)), int(module_entry.get("external_ports_used", 0)), int(module_entry.get("power_ports_used", 0))])
+	lines.append("")
+	lines.append("Inactive modules:")
+	for module_entry_variant in Array(report.get("inactive_modules", [])):
+		var module_entry: Dictionary = Dictionary(module_entry_variant)
+		lines.append("- %s reason=%s priority=%d" % [String(module_entry.get("module_id", "")), String(module_entry.get("inactive_reason", "module_installed_but_inactive")), int(module_entry.get("port_priority", 0))])
+	return "\n".join(lines)
+
 func get_module_inactive_reasons(module_id: String) -> Array[String]:
 	var state := preview_module_port_activity()
 	var modules: Dictionary = state.get("modules", {})
