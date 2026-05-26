@@ -11,6 +11,11 @@ class_name RoomVisualRenderer
 @export var render_iso_floor_prototype: bool = false
 @export var render_iso_wall_prototype: bool = false
 @export var render_iso_object_prototype: bool = false
+@export var render_iso_fog_overlay: bool = false
+@export var debug_draw_iso_fog_outlines: bool = false
+@export var iso_fog_unexplored_alpha: float = 0.82
+@export var iso_fog_explored_alpha: float = 0.42
+@export var iso_fog_visible_alpha: float = 0.0
 @export var debug_draw_iso_cell_outlines: bool = true
 @export var debug_draw_iso_wall_outlines: bool = true
 @export var debug_draw_iso_object_outlines: bool = true
@@ -536,6 +541,96 @@ func draw_iso_object_prototype() -> void:
 		var tile_type: int = _grid_manager.get_tile(cell)
 		draw_iso_object_marker(cell, tile_type)
 
+
+func get_iso_fog_color_for_cell(cell: Vector2i) -> Color:
+	# Visual-only fog overlay color sampling.
+	# GridManager remains the source of truth for visibility/exploration state.
+	# This pass reads fog state and never mutates it.
+	if _grid_manager == null:
+		return Color.TRANSPARENT
+
+	var visible_alpha: float = clampf(iso_fog_visible_alpha, 0.0, 1.0)
+	if _grid_manager.is_cell_visible(cell):
+		return Color(0.0, 0.0, 0.0, visible_alpha)
+
+	var explored_alpha: float = clampf(iso_fog_explored_alpha, 0.0, 1.0)
+	if _grid_manager.is_explored(cell):
+		return Color(0.03, 0.05, 0.08, explored_alpha)
+
+	var unexplored_alpha: float = clampf(iso_fog_unexplored_alpha, 0.0, 1.0)
+	return Color(0.01, 0.01, 0.02, unexplored_alpha)
+
+func should_draw_iso_fog_for_cell(cell: Vector2i) -> bool:
+	if _grid_manager == null:
+		return false
+	var fog_color: Color = get_iso_fog_color_for_cell(cell)
+	return fog_color.a > 0.0
+
+func draw_iso_fog_cell_overlay(cell: Vector2i) -> void:
+	var fog_color: Color = get_iso_fog_color_for_cell(cell)
+	if fog_color.a <= 0.0:
+		return
+
+	var diamond_points: PackedVector2Array = get_iso_diamond_points(cell)
+	if diamond_points.size() < 4:
+		return
+	draw_colored_polygon(diamond_points, fog_color)
+
+	if debug_draw_iso_fog_outlines:
+		for edge_index in range(diamond_points.size()):
+			var next_index: int = (edge_index + 1) % diamond_points.size()
+			draw_line(diamond_points[edge_index], diamond_points[next_index], Color(0.5, 0.6, 0.75, 0.75), 1.0)
+
+func draw_iso_fog_wall_overlay(cell: Vector2i) -> void:
+	var fog_color: Color = get_iso_fog_color_for_cell(cell)
+	if fog_color.a <= 0.0:
+		return
+
+	var bottom_points: PackedVector2Array = get_iso_diamond_points(cell)
+	if bottom_points.size() < 4:
+		return
+	var top_points: PackedVector2Array = get_iso_wall_top_points(cell)
+	if top_points.size() < 4:
+		return
+
+	var top_face: PackedVector2Array = PackedVector2Array([top_points[0], top_points[1], top_points[2], top_points[3]])
+	var left_face: PackedVector2Array = PackedVector2Array([top_points[3], top_points[2], bottom_points[2], bottom_points[3]])
+	var right_face: PackedVector2Array = PackedVector2Array([top_points[2], top_points[1], bottom_points[1], bottom_points[2]])
+
+	draw_colored_polygon(left_face, fog_color)
+	draw_colored_polygon(right_face, fog_color)
+	draw_colored_polygon(top_face, fog_color)
+
+	if debug_draw_iso_fog_outlines:
+		for edge_index in range(top_face.size()):
+			var next_top_index: int = (edge_index + 1) % top_face.size()
+			draw_line(top_face[edge_index], top_face[next_top_index], Color(0.5, 0.6, 0.75, 0.75), 1.0)
+
+func draw_iso_fog_overlay() -> void:
+	# Visual-only fog overlay pass for isometric prototypes.
+	# GridManager visibility helpers are read here; gameplay fog logic is not modified.
+	if _grid_manager == null:
+		return
+
+	var map_width: int = _grid_manager.get_map_width()
+	var map_height: int = _grid_manager.get_map_height()
+	if map_width <= 0 or map_height <= 0:
+		return
+
+	var fog_cells: Array[Vector2i] = []
+	for y in range(map_height):
+		for x in range(map_width):
+			var cell: Vector2i = Vector2i(x, y)
+			if should_draw_iso_fog_for_cell(cell):
+				fog_cells.append(cell)
+
+	fog_cells.sort_custom(sort_cells_by_iso_depth)
+	for cell in fog_cells:
+		var tile_type: int = _grid_manager.get_tile(cell)
+		if tile_type == GridManager.TILE_WALL and render_iso_wall_prototype:
+			draw_iso_fog_wall_overlay(cell)
+		draw_iso_fog_cell_overlay(cell)
+
 func _draw() -> void:
 	if debug_draw_marker:
 		draw_circle(Vector2.ZERO, 3.0, Color(0.8, 0.95, 1.0, 0.75))
@@ -548,6 +643,9 @@ func _draw() -> void:
 
 	if render_iso_object_prototype:
 		draw_iso_object_prototype()
+
+	if render_iso_fog_overlay:
+		draw_iso_fog_overlay()
 
 	if not debug_draw_iso_helper_preview:
 		return
