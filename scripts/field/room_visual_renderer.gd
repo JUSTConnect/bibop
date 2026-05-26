@@ -929,11 +929,6 @@ func get_iso_wall_top_points(cell: Vector2i) -> PackedVector2Array:
 	return top_points
 
 func draw_iso_wall_block(cell: Vector2i) -> void:
-	var wall_profile_key: String = get_wall_visual_profile_key_for_cell(cell)
-	var wall_asset_key: String = get_iso_wall_asset_key_for_profile(wall_profile_key)
-	if draw_iso_texture_asset(cell, wall_asset_key):
-		return
-
 	var base_points: PackedVector2Array = get_iso_wall_base_points(cell)
 	if base_points.size() < 4:
 		return
@@ -973,6 +968,68 @@ func draw_iso_wall_block(cell: Vector2i) -> void:
 	var accent_end: Vector2 = top_points[0].lerp(top_points[1], 0.45)
 	draw_line(accent_start, accent_end, accent_color, 1.2)
 
+	var wall_profile_key: String = get_wall_visual_profile_key_for_cell(cell)
+	draw_iso_wall_surface_accent(left_face, right_face, top_face, wall_profile_key, accent_color)
+
+func draw_iso_wall_surface_accent(
+	left_face: PackedVector2Array,
+	right_face: PackedVector2Array,
+	top_face: PackedVector2Array,
+	profile_key: String,
+	accent_color: Color
+) -> void:
+	var accent_key: String = normalize_wall_visual_profile_key(profile_key)
+	match accent_key:
+		"brick_wall":
+			draw_iso_wall_brick_accent(left_face, right_face, accent_color)
+		"concrete_wall":
+			draw_iso_wall_concrete_accent(left_face, right_face, top_face, accent_color)
+		"steel_wall", "reinforced_steel_wall", "titanium_wall":
+			draw_iso_wall_steel_accent(left_face, right_face, top_face, accent_color)
+		"grate_wall":
+			draw_iso_wall_grate_accent(left_face, right_face, accent_color)
+
+func draw_iso_wall_brick_accent(left_face: PackedVector2Array, right_face: PackedVector2Array, accent_color: Color) -> void:
+	var mortar_color: Color = accent_color.lightened(0.18)
+	for row in [0.25, 0.5, 0.75]:
+		draw_line(left_face[0].lerp(left_face[3], row), left_face[1].lerp(left_face[2], row), mortar_color, 1.0)
+		draw_line(right_face[0].lerp(right_face[3], row), right_face[1].lerp(right_face[2], row), mortar_color, 1.0)
+
+func draw_iso_wall_concrete_accent(
+	left_face: PackedVector2Array,
+	right_face: PackedVector2Array,
+	top_face: PackedVector2Array,
+	accent_color: Color
+) -> void:
+	var crack_color: Color = accent_color.darkened(0.12)
+	draw_line(left_face[0].lerp(left_face[1], 0.3), left_face[2].lerp(left_face[3], 0.65), crack_color, 1.05)
+	draw_line(right_face[0].lerp(right_face[1], 0.66), right_face[2].lerp(right_face[3], 0.25), crack_color, 1.05)
+	var panel_color: Color = accent_color.lightened(0.08)
+	draw_line(top_face[3].lerp(top_face[0], 0.5), top_face[2].lerp(top_face[1], 0.5), panel_color, 1.0)
+
+func draw_iso_wall_steel_accent(
+	left_face: PackedVector2Array,
+	right_face: PackedVector2Array,
+	top_face: PackedVector2Array,
+	accent_color: Color
+) -> void:
+	var seam_color: Color = accent_color.lightened(0.15)
+	draw_line(left_face[0].lerp(left_face[1], 0.55), left_face[3].lerp(left_face[2], 0.55), seam_color, 1.0)
+	draw_line(right_face[0].lerp(right_face[1], 0.48), right_face[3].lerp(right_face[2], 0.48), seam_color, 1.0)
+	draw_line(top_face[3].lerp(top_face[0], 0.5), top_face[2].lerp(top_face[1], 0.5), seam_color, 1.0)
+	var rivet_color: Color = accent_color.lightened(0.3)
+	for side_point in [left_face[1], left_face[2], right_face[1], right_face[2]]:
+		draw_circle(side_point.lerp(top_face[2], 0.08), 1.2, rivet_color)
+
+func draw_iso_wall_grate_accent(left_face: PackedVector2Array, right_face: PackedVector2Array, accent_color: Color) -> void:
+	var bar_color: Color = accent_color.lightened(0.24)
+	var gap_color: Color = accent_color.darkened(0.2)
+	for column in [0.2, 0.4, 0.6, 0.8]:
+		draw_line(left_face[0].lerp(left_face[1], column), left_face[3].lerp(left_face[2], column), bar_color, 1.0)
+		draw_line(right_face[0].lerp(right_face[1], column), right_face[3].lerp(right_face[2], column), bar_color, 1.0)
+	draw_line(left_face[0].lerp(left_face[3], 0.5), left_face[1].lerp(left_face[2], 0.5), gap_color, 1.0)
+	draw_line(right_face[0].lerp(right_face[3], 0.5), right_face[1].lerp(right_face[2], 0.5), gap_color, 1.0)
+
 func draw_iso_floor_prototype() -> void:
 	# Procedural prototype floor renderer for early isometric look exploration.
 	# Gameplay remains square-grid based in GridManager; this is visual-only.
@@ -992,7 +1049,8 @@ func draw_iso_floor_prototype() -> void:
 				continue
 
 			var floor_asset_key: String = get_iso_floor_asset_key_for_tile(tile_type)
-			if draw_iso_texture_asset(cell, floor_asset_key):
+			var allow_floor_texture_preview: bool = not should_use_iso_placeholder_asset_preset()
+			if allow_floor_texture_preview and draw_iso_texture_asset(cell, floor_asset_key):
 				continue
 
 			var diamond_points: PackedVector2Array = get_iso_inset_diamond_points(cell, iso_floor_visual_inset)
