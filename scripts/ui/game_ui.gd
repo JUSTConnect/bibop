@@ -3620,8 +3620,8 @@ func _draw_selected_module_mini_preview(control: Control, module: BipobModule, c
 	var size_z: int = maxi(1, module_size.z)
 
 	var margin: float = 10.0
-	var available_w: float = maxi(8.0, rect_size.x - margin * 2.0)
-	var available_h: float = maxi(8.0, rect_size.y - margin * 2.0)
+	var available_w: float = maxf(8.0, rect_size.x - margin * 2.0)
+	var available_h: float = maxf(8.0, rect_size.y - margin * 2.0)
 	var sx: float = available_w / float(size_x + size_y + 1)
 	var sy: float = available_h / float((size_x + size_y) * 0.5 + size_z + 1)
 	var unit: float = maxf(2.0, minf(sx, sy))
@@ -5382,8 +5382,12 @@ func _refresh_tasks_bipob_buttons() -> void:
 		var bipob_id: String = String(entry.get("id", ""))
 		if bipob == null:
 			return
-		var current_armor: int = bipob.get_bipob_current_armor(bipob_id) if bipob.has_method("get_bipob_current_armor") else 0
-		var max_armor: int = bipob.get_bipob_max_armor(bipob_id) if bipob.has_method("get_bipob_max_armor") else 0
+		var current_armor: int = 0
+		var max_armor: int = 0
+		if bipob != null and bipob.has_method("get_bipob_current_armor"):
+			current_armor = int(bipob.get_bipob_current_armor(bipob_id))
+		if bipob != null and bipob.has_method("get_bipob_max_armor"):
+			max_armor = int(bipob.get_bipob_max_armor(bipob_id))
 		var button: Button = _create_menu_button("%s\n%d / %d" % [String(entry.get("name", bipob_id)), current_armor, max_armor], Callable(self, "_on_tasks_bipob_selected").bind(bipob_id), MENU_BACK_BUTTON_SIZE)
 		button.modulate = UI_COLOR_SELECTED if tasks_selected_ids.has(bipob_id) else Color(1, 1, 1, 1)
 		tasks_bipob_buttons_row.add_child(button)
@@ -7442,20 +7446,20 @@ func _build_tasks_menu_layout() -> void:
 	left_panel_container.size_flags_vertical = Control.SIZE_EXPAND_FILL
 	content_row.add_child(left_panel_container)
 
-	var left_margin := MarginContainer.new()
+	var left_margin: MarginContainer = MarginContainer.new()
 	left_margin.add_theme_constant_override("margin_left", 10)
 	left_margin.add_theme_constant_override("margin_right", 10)
 	left_margin.add_theme_constant_override("margin_top", 10)
 	left_margin.add_theme_constant_override("margin_bottom", 10)
 	left_panel_container.add_child(left_margin)
 
-	var left_vbox := VBoxContainer.new()
+	var left_vbox: VBoxContainer = VBoxContainer.new()
 	left_vbox.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	left_vbox.size_flags_vertical = Control.SIZE_EXPAND_FILL
 	left_vbox.add_theme_constant_override("separation", 8)
 	left_margin.add_child(left_vbox)
 
-	var list_scroll := ScrollContainer.new()
+	var list_scroll: ScrollContainer = ScrollContainer.new()
 	list_scroll.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	list_scroll.size_flags_vertical = Control.SIZE_EXPAND_FILL
 	list_scroll.horizontal_scroll_mode = ScrollContainer.SCROLL_MODE_DISABLED
@@ -7466,28 +7470,28 @@ func _build_tasks_menu_layout() -> void:
 	tasks_list_container.add_theme_constant_override("separation", 6)
 	list_scroll.add_child(tasks_list_container)
 
-	var right_panel := PanelContainer.new()
+	var right_panel: PanelContainer = PanelContainer.new()
 	_apply_panel_style(right_panel)
 	right_panel.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	right_panel.size_flags_vertical = Control.SIZE_EXPAND_FILL
 	content_row.add_child(right_panel)
-	left_panel.size_flags_stretch_ratio = 1.2
+	left_panel_container.size_flags_stretch_ratio = 1.2
 	right_panel.size_flags_stretch_ratio = 2.0
 
-	var right_margin := MarginContainer.new()
+	var right_margin: MarginContainer = MarginContainer.new()
 	right_margin.add_theme_constant_override("margin_left", 10)
 	right_margin.add_theme_constant_override("margin_right", 10)
 	right_margin.add_theme_constant_override("margin_top", 10)
 	right_margin.add_theme_constant_override("margin_bottom", 10)
 	right_panel.add_child(right_margin)
 
-	var right_vbox := VBoxContainer.new()
+	var right_vbox: VBoxContainer = VBoxContainer.new()
 	right_vbox.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	right_vbox.size_flags_vertical = Control.SIZE_EXPAND_FILL
 	right_vbox.add_theme_constant_override("separation", 8)
 	right_margin.add_child(right_vbox)
 
-	var details_scroll := ScrollContainer.new()
+	var details_scroll: ScrollContainer = ScrollContainer.new()
 	details_scroll.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	details_scroll.size_flags_vertical = Control.SIZE_EXPAND_FILL
 	details_scroll.horizontal_scroll_mode = ScrollContainer.SCROLL_MODE_DISABLED
@@ -7942,7 +7946,11 @@ func _create_charge_row(entry: Variant, is_bipob_row: bool) -> Control:
 	_apply_panel_style(row)
 	row.custom_minimum_size.y = 96
 	var is_small: bool = _is_small_viewport()
-	var row_container: BoxContainer = VBoxContainer.new() if is_small else HBoxContainer.new()
+	var row_container: BoxContainer = null
+	if is_small:
+		row_container = VBoxContainer.new()
+	else:
+		row_container = HBoxContainer.new()
 	row_container.add_theme_constant_override("separation", 8)
 	row.add_child(row_container)
 
@@ -8288,8 +8296,12 @@ func _refresh_repair_menu() -> void:
 
 func _create_repair_bipob_card(bipob_data: Dictionary, selected: bool) -> Button:
 	var profile_id := String(bipob_data.get("profile_id", ""))
-	var current_armor: int = bipob.get_bipob_current_armor(profile_id) if bipob.has_method("get_bipob_current_armor") else int(bipob_data.get("current_armor", 0))
-	var max_armor: int = bipob.get_bipob_max_armor(profile_id) if bipob.has_method("get_bipob_max_armor") else int(bipob_data.get("max_armor", 0))
+	var current_armor: int = int(bipob_data.get("current_armor", 0))
+	var max_armor: int = int(bipob_data.get("max_armor", 0))
+	if bipob != null and bipob.has_method("get_bipob_current_armor"):
+		current_armor = int(bipob.get_bipob_current_armor(profile_id))
+	if bipob != null and bipob.has_method("get_bipob_max_armor"):
+		max_armor = int(bipob.get_bipob_max_armor(profile_id))
 	var button := Button.new()
 	button.custom_minimum_size = REPAIR_BIPOB_CARD_SIZE
 	button.focus_mode = Control.FOCUS_NONE
@@ -8300,7 +8312,11 @@ func _create_repair_bipob_card(bipob_data: Dictionary, selected: bool) -> Button
 	return button
 
 func _create_repair_module_row(module: BipobModule) -> Control:
-	var row: BoxContainer = VBoxContainer.new() if _is_small_viewport() else HBoxContainer.new()
+	var row: BoxContainer = null
+	if _is_small_viewport():
+		row = VBoxContainer.new()
+	else:
+		row = HBoxContainer.new()
 	row.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	row.add_theme_constant_override("separation", 8)
 	var panel := PanelContainer.new()
@@ -8331,7 +8347,11 @@ func _create_repair_module_row(module: BipobModule) -> Control:
 	return panel
 
 func _create_repair_bipob_row(bipob_data: Dictionary) -> Control:
-	var row: BoxContainer = VBoxContainer.new() if _is_small_viewport() else HBoxContainer.new()
+	var row: BoxContainer = null
+	if _is_small_viewport():
+		row = VBoxContainer.new()
+	else:
+		row = HBoxContainer.new()
 	row.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	row.add_theme_constant_override("separation", 8)
 	var panel := PanelContainer.new()
@@ -8347,8 +8367,12 @@ func _create_repair_bipob_row(bipob_data: Dictionary) -> Control:
 	_apply_label_style(name_label)
 	info.add_child(name_label)
 	var profile_id := String(bipob_data.get("profile_id", ""))
-	var current_armor: int = bipob.get_bipob_current_armor(profile_id) if bipob.has_method("get_bipob_current_armor") else int(bipob_data.get("current_armor", 0))
-	var max_armor: int = bipob.get_bipob_max_armor(profile_id) if bipob.has_method("get_bipob_max_armor") else int(bipob_data.get("max_armor", 0))
+	var current_armor: int = int(bipob_data.get("current_armor", 0))
+	var max_armor: int = int(bipob_data.get("max_armor", 0))
+	if bipob != null and bipob.has_method("get_bipob_current_armor"):
+		current_armor = int(bipob.get_bipob_current_armor(profile_id))
+	if bipob != null and bipob.has_method("get_bipob_max_armor"):
+		max_armor = int(bipob.get_bipob_max_armor(profile_id))
 	var armor_label := Label.new()
 	armor_label.text = "Armor: %d / %d" % [current_armor, max_armor]
 	_apply_label_style(armor_label, true, false)
@@ -10136,9 +10160,9 @@ func _is_internal_interface_module(module: BipobModule) -> bool:
 	if not bipob.is_internal_module(module):
 		return false
 	var id: String = String(module.id).to_lower()
-	var name: String = String(module.get_display_name()).to_lower()
+	var module_name: String = String(module.get_display_name()).to_lower()
 	var family: String = String(module.internal_family).to_lower()
-	return id.contains("internal_interface") or name.contains("internal interface") or family in ["internal_interface", "internal interface"]
+	return id.contains("internal_interface") or module_name.contains("internal interface") or family in ["internal_interface", "internal interface"]
 
 func _is_external_interface_module(module: BipobModule) -> bool:
 	if module == null:
@@ -10146,11 +10170,11 @@ func _is_external_interface_module(module: BipobModule) -> bool:
 	if not bipob.is_internal_module(module):
 		return false
 	var id: String = String(module.id).to_lower()
-	var name: String = String(module.get_display_name()).to_lower()
+	var module_name: String = String(module.get_display_name()).to_lower()
 	var family: String = String(module.internal_family).to_lower()
-	if name.contains("wired interface") or name.contains("optical interface") or name.contains("wireless interface"):
+	if module_name.contains("wired interface") or module_name.contains("optical interface") or module_name.contains("wireless interface"):
 		return false
-	return id.contains("external_interface") or name.contains("external interface") or family in ["external_interface", "external interface"]
+	return id.contains("external_interface") or module_name.contains("external interface") or family in ["external_interface", "external interface"]
 
 func _is_power_block_module(module: BipobModule) -> bool:
 	if module == null:
@@ -10158,9 +10182,9 @@ func _is_power_block_module(module: BipobModule) -> bool:
 	if not bipob.is_internal_module(module):
 		return false
 	var id: String = String(module.id).to_lower()
-	var name: String = String(module.get_display_name()).to_lower()
+	var module_name: String = String(module.get_display_name()).to_lower()
 	var family: String = String(module.internal_family).to_lower()
-	return id.contains("power_block") or name.contains("power block") or family in ["power_block", "power block", "power"]
+	return id.contains("power_block") or module_name.contains("power block") or family in ["power_block", "power block", "power"]
 
 func _has_installed_internal_group(group_id: String) -> bool:
 	for module in _get_internal_installed_modules():
@@ -10197,8 +10221,8 @@ func _find_available_internal_module_by_group(group_id: String) -> BipobModule:
 					return module
 			_:
 				var family: String = _normalize_text(String(module.internal_family))
-				var name: String = _normalize_text(module.get_display_name())
-				if group_id == "storage" and (family == "storage" or name.contains("hard drive")):
+				var display_name: String = _normalize_text(module.get_display_name())
+				if group_id == "storage" and (family == "storage" or display_name.contains("hard drive")):
 					return module
 				if group_id == "processor" and family in ["cpu","processor"]:
 					return module
@@ -10206,11 +10230,11 @@ func _find_available_internal_module_by_group(group_id: String) -> BipobModule:
 					return module
 				if group_id == "gpu" and family == "gpu":
 					return module
-				if group_id == "cooler" and (family == "cooler" or name.contains("cooler")):
+				if group_id == "cooler" and (family == "cooler" or display_name.contains("cooler")):
 					return module
-				if group_id == "radiator" and (family == "radiator" or name.contains("radiator")):
+				if group_id == "radiator" and (family == "radiator" or display_name.contains("radiator")):
 					return module
-				if group_id == "charger" and (family == "charger" or name.contains("charger") or module.id == "charger_v1"):
+				if group_id == "charger" and (family == "charger" or display_name.contains("charger") or module.id == "charger_v1"):
 					return module
 				if group_id == "battery" and (family == "battery" or String(module.id).begins_with("battery_")):
 					return module
