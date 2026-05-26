@@ -8699,6 +8699,23 @@ func _on_world_action_button_pressed(action_id: String) -> void:
 		return
 	bipob.set_selected_world_action(action_id)
 
+func _get_runtime_world_action_target_id(target_object: Dictionary, fallback_name: String) -> String:
+	var raw_id: Variant = target_object.get("id", "")
+	if not str(raw_id).is_empty():
+		return str(raw_id)
+
+	var raw_position: Variant = target_object.get("position", null)
+	if raw_position is Vector2i:
+		var cell: Vector2i = raw_position
+		return "cell_%d_%d" % [cell.x, cell.y]
+	if raw_position is Vector2:
+		var vector_position: Vector2 = raw_position
+		return "pos_%d_%d" % [int(vector_position.x), int(vector_position.y)]
+	if raw_position != null:
+		return str(raw_position)
+
+	return fallback_name
+
 func _on_world_action_panel_requested(target_object: Dictionary, actions: Array, selected_action: String) -> void:
 	if runtime_world_actions_panel == null:
 		return
@@ -8728,7 +8745,7 @@ func _on_world_action_panel_requested(target_object: Dictionary, actions: Array,
 		if action_id.is_empty():
 			continue
 		action_ids.append(action_id)
-	var target_id: String = String(target_object.get("id", target_object.get("position", object_name)))
+	var target_id: String = _get_runtime_world_action_target_id(target_object, object_name)
 	var actions_key := "|".join(action_ids)
 	var state_key := "%s|%s|%s" % [String(target_object.get("state", "")), String(target_object.get("behavior_state", "")), String(target_object.get("scan_level", 0))]
 	var only_selection_change: bool = target_id == last_world_action_target_id and actions_key == last_world_action_actions_key and state_key == last_world_action_state_key
