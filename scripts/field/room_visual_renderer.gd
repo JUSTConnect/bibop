@@ -346,6 +346,11 @@ func is_walkable_floor_like_for_iso_passage(tile_type: int) -> bool:
 		return true
 	return false
 
+func is_cell_in_bounds(cell: Vector2i) -> bool:
+	if _grid_manager == null:
+		return false
+	return _grid_manager.is_in_bounds(cell)
+
 func is_iso_interactive_floor_tile(tile_type: int) -> bool:
 	if tile_type == GridManager.TILE_TERMINAL:
 		return true
