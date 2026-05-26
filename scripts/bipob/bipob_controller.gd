@@ -72,6 +72,8 @@ const THERMAL_CRITICAL_HEAT := 5
 const MODULE_ICON_DIR: String = "res://assets/ui/module_icons/"
 
 @export var start_grid_position := Vector2i(1, 1)
+@export var use_isometric_visual_position: bool = false
+@export var isometric_visual_y_offset: float = 0.0
 
 @export var max_energy: int = 50
 @export var vision_range: int = 3
@@ -6320,15 +6322,65 @@ func setup_mission9() -> void:
 
 	grid_manager.set_tile(module_position, GridManager.TILE_COMPONENT)
 	set_field_module(module_position, create_legs_v1_module())
+
+func get_room_visual_renderer() -> RoomVisualRenderer:
+	if grid_manager == null:
+		return null
+	var renderer_node: Node = grid_manager.get_node_or_null("RoomVisualRenderer")
+	if renderer_node == null:
+		return null
+	if renderer_node is RoomVisualRenderer:
+		return renderer_node
+	return null
+
+func get_isometric_world_position_for_grid_cell(cell: Vector2i) -> Vector2:
+	if grid_manager == null:
+		return Vector2.ZERO
+	var fallback_position: Vector2 = grid_manager.grid_to_world(cell)
+	var room_visual_renderer: RoomVisualRenderer = get_room_visual_renderer()
+	if room_visual_renderer == null:
+		return fallback_position
+	var iso_local: Vector2 = room_visual_renderer.grid_to_iso(cell)
+	var iso_global: Vector2 = room_visual_renderer.to_global(iso_local)
+	var parent_node: Node = get_parent()
+	var final_parent_local: Vector2 = iso_global
+	if parent_node != null and parent_node is Node2D:
+		final_parent_local = (parent_node as Node2D).to_local(iso_global)
+	return final_parent_local + Vector2(0.0, isometric_visual_y_offset)
+
+func get_visual_world_position_for_grid_cell(cell: Vector2i) -> Vector2:
+	if grid_manager == null:
+		return Vector2.ZERO
+	if use_isometric_visual_position:
+		return get_isometric_world_position_for_grid_cell(cell)
+	return grid_manager.grid_to_world(cell)
+
 func update_world_position() -> void:
 	if grid_manager == null:
 		return
-	
-	global_position = grid_manager.global_position + grid_manager.grid_to_world(grid_position)
+
+	if use_isometric_visual_position:
+		var iso_position: Vector2 = get_visual_world_position_for_grid_cell(grid_position)
+		var parent_node: Node = get_parent()
+		if parent_node != null and parent_node is Node2D:
+			position = iso_position
+		else:
+			global_position = iso_position
+		z_index = grid_position.x + grid_position.y + 10
+	else:
+		global_position = grid_manager.global_position + get_visual_world_position_for_grid_cell(grid_position)
 	update_vision()
 	update_threat_detection_preview()
 	emit_facing_world_object_hint()
 	refresh_world_action_panel()
+
+func get_visual_position_debug_text() -> String:
+	return "grid=%s isometric=%s pos=%s global=%s" % [
+		str(grid_position),
+		str(use_isometric_visual_position),
+		str(position),
+		str(global_position)
+	]
 
 func emit_facing_world_object_hint() -> void:
 	if mission_manager == null:
