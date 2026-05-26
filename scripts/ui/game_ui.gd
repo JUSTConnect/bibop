@@ -2663,46 +2663,23 @@ func _is_juggernaut_profile() -> bool:
 func _get_external_side_panel_size(side_id: String) -> Vector2:
 	match side_id:
 		"top":
-			return Vector2(210.0, 120.0) if _is_juggernaut_profile() else Vector2(210.0, 135.0)
+			return Vector2(210.0, 120.0) if _is_juggernaut_profile() else Vector2(200.0, 130.0)
 		"left", "right":
-			return Vector2(190.0, 210.0) if _is_juggernaut_profile() else Vector2(190.0, 245.0)
+			return Vector2(190.0, 190.0) if _is_juggernaut_profile() else Vector2(180.0, 170.0)
 		"front", "bottom", "back":
-			return Vector2(190.0, 175.0) if _is_juggernaut_profile() else Vector2(190.0, 205.0)
+			return Vector2(190.0, 165.0) if _is_juggernaut_profile() else Vector2(180.0, 150.0)
 		_:
-			return Vector2(190.0, 170.0) if _is_juggernaut_profile() else Vector2(190.0, 190.0)
+			return Vector2(180.0, 150.0)
 
 
 func _get_external_adaptive_cell_size(side_id: String) -> Vector2:
 	var side_size: Vector2i = bipob.get_external_side_size(side_id)
-
-	var max_grid_width: float = 156.0
-	var max_grid_height: float = 156.0
-
-	match side_id:
-		"top":
-			max_grid_width = 190.0
-			max_grid_height = 110.0
-		"left", "right":
-			max_grid_width = 170.0
-			max_grid_height = 220.0
-		"front", "bottom", "back":
-			max_grid_width = 170.0
-			max_grid_height = 180.0
-		_:
-			max_grid_width = 160.0
-			max_grid_height = 160.0
-
-	var gap: float = 3.0
-	var cols: int = maxi(1, side_size.x)
-	var rows: int = maxi(1, side_size.y)
-
-	var cell_w: float = floor((max_grid_width - gap * float(cols - 1)) / float(cols))
-	var cell_h: float = floor((max_grid_height - gap * float(rows - 1)) / float(rows))
-	var cell: float = clampf(minf(cell_w, cell_h), 10.0, 22.0)
-	if _is_juggernaut_profile():
-		cell = clampf(cell, 9.0, 18.0)
-
-	return Vector2(cell, cell)
+	var minimum_cell: float = 18.0
+	var maximum_cell: float = 24.0
+	var base_cell: float = 22.0
+	var density_penalty: float = float(maxi(side_size.x, side_size.y) - 4)
+	var resolved_cell: float = clampf(base_cell - density_penalty, minimum_cell, maximum_cell)
+	return Vector2(resolved_cell, resolved_cell)
 
 
 func _create_external_robot_preview_panel() -> Control:
@@ -2965,12 +2942,21 @@ func _create_external_constructor_layout() -> Control:
 	root.size_flags_vertical = Control.SIZE_EXPAND_FILL
 	root.add_theme_constant_override("separation", 3 if _is_juggernaut_profile() else 4)
 
+	var content_scroll: ScrollContainer = ScrollContainer.new()
+	content_scroll.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	content_scroll.size_flags_vertical = Control.SIZE_EXPAND_FILL
+	content_scroll.horizontal_scroll_mode = ScrollContainer.SCROLL_MODE_AUTO
+	content_scroll.vertical_scroll_mode = ScrollContainer.SCROLL_MODE_AUTO
+	content_scroll.follow_focus = true
+	root.add_child(content_scroll)
+
 	var top_content_row: HBoxContainer = HBoxContainer.new()
 	# IMPORTANT: Keep left/right BOX split 50/50.
 	# Do not set fixed right_column width here.
 	# Both children must use EXPAND_FILL + stretch_ratio 1.0.
 	top_content_row.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	top_content_row.size_flags_vertical = Control.SIZE_EXPAND_FILL
+	top_content_row.custom_minimum_size = Vector2(1210.0, 0.0)
 	top_content_row.add_theme_constant_override("separation", 8)
 
 	var left_wrapper: PanelContainer = PanelContainer.new()
@@ -2989,7 +2975,7 @@ func _create_external_constructor_layout() -> Control:
 	right_wrapper.add_child(_create_external_storage_right_column())
 	top_content_row.add_child(right_wrapper)
 
-	root.add_child(top_content_row)
+	content_scroll.add_child(top_content_row)
 
 	var bottom_bar: Control = _create_external_bottom_action_bar()
 	bottom_bar.size_flags_horizontal = Control.SIZE_EXPAND_FILL
@@ -6533,10 +6519,12 @@ func _make_box_top_button(
 func _apply_box_top_button(button: Button) -> void:
 	if button == null:
 		return
+	button.custom_minimum_size.x = maxf(button.custom_minimum_size.x, 118.0)
 	button.custom_minimum_size.y = BOX_TOP_BUTTON_HEIGHT
 	button.size_flags_vertical = Control.SIZE_SHRINK_CENTER
-	button.clip_text = false
-	button.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	button.clip_text = true
+	button.text_overrun_behavior = TextServer.OVERRUN_TRIM_ELLIPSIS
+	button.autowrap_mode = TextServer.AUTOWRAP_OFF
 
 func _setup_box_top_bar() -> void:
 	if box_top_bar_root == null:
