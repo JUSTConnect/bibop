@@ -347,12 +347,28 @@ func is_walkable_floor_like_for_iso_passage(tile_type: int) -> bool:
 	return false
 
 func is_iso_interactive_floor_tile(tile_type: int) -> bool:
-	match tile_type:
-		GridManager.TILE_TERMINAL, GridManager.TILE_AIRFLOW_TERMINAL,
-		GridManager.TILE_PLATFORM_CONTROL, GridManager.TILE_PLATFORM_CONTROL_LEFT, GridManager.TILE_PLATFORM_CONTROL_RIGHT,
-		GridManager.TILE_FAN_CONTROL, GridManager.TILE_FAN_SPEED_UP_CONTROL, GridManager.TILE_FAN_SPEED_DOWN_CONTROL,
-		GridManager.TILE_SOCKET, GridManager.TILE_CABLE_REEL, GridManager.TILE_CABLE:
-			return true
+	if tile_type == GridManager.TILE_TERMINAL:
+		return true
+	if tile_type == GridManager.TILE_AIRFLOW_TERMINAL:
+		return true
+	if tile_type == GridManager.TILE_PLATFORM_CONTROL:
+		return true
+	if tile_type == GridManager.TILE_PLATFORM_CONTROL_LEFT:
+		return true
+	if tile_type == GridManager.TILE_PLATFORM_CONTROL_RIGHT:
+		return true
+	if tile_type == GridManager.TILE_FAN_CONTROL:
+		return true
+	if tile_type == GridManager.TILE_FAN_SPEED_UP_CONTROL:
+		return true
+	if tile_type == GridManager.TILE_FAN_SPEED_DOWN_CONTROL:
+		return true
+	if tile_type == GridManager.TILE_SOCKET:
+		return true
+	if tile_type == GridManager.TILE_CABLE_REEL:
+		return true
+	if tile_type == GridManager.TILE_CABLE:
+		return true
 	return false
 
 func is_iso_passage_floor_cell(cell: Vector2i) -> bool:
