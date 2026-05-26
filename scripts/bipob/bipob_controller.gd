@@ -6621,7 +6621,7 @@ func get_isometric_visual_rotation_for_direction(direction_value: int) -> float:
 	if forward_delta == Vector2i.ZERO:
 		return 0.0
 	var current_cell: Vector2i = grid_position
-	var next_cell: Vector2i = grid_position + forward_delta
+	var next_cell: Vector2i = current_cell + forward_delta
 	var current_visual: Vector2 = get_visual_world_position_for_grid_cell(current_cell)
 	var next_visual: Vector2 = get_visual_world_position_for_grid_cell(next_cell)
 	var movement_delta: Vector2 = next_visual - current_visual
