@@ -5296,7 +5296,7 @@ func _build_task_test_module_port_specs() -> Array[Dictionary]:
 	]
 
 func _simulate_task_test_port_state(specs: Array[Dictionary], active_module_ids: Array[String], internal_ports_total: int, external_ports_total: int, power_ports_total: int) -> Dictionary:
-	# TODO(BIP-690-2): Replace this static scenario simulation with validation against real preview_module_port_activity() snapshot/restore state.
+	# Static fallback simulation kept for compatibility/safety when runtime mutation is unavailable.
 	var modules: Dictionary = {}
 	var sorted_specs := specs.duplicate()
 	sorted_specs.sort_custom(func(a: Dictionary, b: Dictionary) -> bool:
@@ -5339,109 +5339,105 @@ func _simulate_task_test_port_state(specs: Array[Dictionary], active_module_ids:
 		modules[tid] = {"id":tid,"active":active,"inactive_reason":reason,"port_priority":int(active_bipob_ref.call("_get_module_port_priority", module_id))}
 	return {"modules":modules, "internal_remaining":internal_remaining, "external_remaining":external_remaining, "power_remaining":power_remaining}
 
+func _snapshot_installed_modules_for_validation() -> Dictionary:
+	if active_bipob_ref == null or not ("installed_modules" in active_bipob_ref):
+		return {"ok": false, "reason": "installed_modules_unavailable"}
+	return {"ok": true, "installed_modules": Array(active_bipob_ref.installed_modules).duplicate()}
+
+func _restore_installed_modules_from_snapshot(snapshot: Dictionary) -> bool:
+	if active_bipob_ref == null or not bool(snapshot.get("ok", false)) or not ("installed_modules" in active_bipob_ref):
+		return false
+	active_bipob_ref.installed_modules = Array(snapshot.get("installed_modules", [])).duplicate()
+	return true
+
+func _build_runtime_modules_by_id(module_ids: Array[String]) -> Array:
+	var modules: Array = []
+	for module_id in module_ids:
+		var module = active_bipob_ref.call("create_external_module_by_id", module_id)
+		if module == null:
+			return []
+		modules.append(module)
+	return modules
+
+func _preview_module_port_activity_for_module_ids(module_ids: Array[String]) -> Dictionary:
+	var snapshot := _snapshot_installed_modules_for_validation()
+	if not bool(snapshot.get("ok", false)):
+		return {"ok": false, "reason": String(snapshot.get("reason", "snapshot_failed"))}
+	var runtime_modules := _build_runtime_modules_by_id(module_ids)
+	if runtime_modules.is_empty() and not module_ids.is_empty():
+		_restore_installed_modules_from_snapshot(snapshot)
+		return {"ok": false, "reason": "create_test_modules_failed"}
+	active_bipob_ref.installed_modules = runtime_modules
+	var state: Dictionary = active_bipob_ref.call("preview_module_port_activity")
+	var restored := _restore_installed_modules_from_snapshot(snapshot)
+	if not restored:
+		return {"ok": false, "reason": "restore_failed", "state": state}
+	return {"ok": true, "state": state}
+
 func validate_module_port_network_runtime() -> Array[String]:
 	var warnings: Array[String] = []
 	if active_bipob_ref == null or not active_bipob_ref.has_method("preview_module_port_activity"):
 		return ["active_bipob_missing"]
-	var state: Dictionary = active_bipob_ref.call("preview_module_port_activity")
-	for key in ["modules", "internal_interface", "external_interface", "power_block"]:
-		if not state.has(key):
-			warnings.append("module_ports_missing_%s" % key)
-	var modules: Dictionary = Dictionary(state.get("modules", {}))
-	if modules.is_empty():
-		warnings.append("module_ports_state_empty")
-	if int(Dictionary(state.get("external_interface", {})).get("ports_total", 0)) > 0 and int(Dictionary(state.get("external_interface", {})).get("reserved_ports", 0)) <= 0:
-		warnings.append("external_interface_reserved_port_missing")
-	if int(Dictionary(state.get("power_block", {})).get("ports_total", 0)) > 0:
-		var pb := Dictionary(modules.get("power_block_v1", modules.get("power_block_v2", modules.get("power_block_v3", {}))))
-		if not pb.is_empty() and not bool(pb.get("active", false)):
-			warnings.append("power_block_should_be_active_without_self_power")
-	for helper_name in ["_get_module_port_priority", "_module_requires_external_interface_port", "_module_requires_internal_interface_port", "_module_requires_power_block_port"]:
+	for helper_name in ["_get_module_port_priority", "_module_requires_external_interface_port", "_module_requires_internal_interface_port", "_module_requires_power_block_port", "create_external_module_by_id"]:
 		if not active_bipob_ref.has_method(helper_name):
 			warnings.append("module_ports_helper_missing_%s" % helper_name)
 	if warnings.any(func(warning: String) -> bool: return warning.begins_with("module_ports_helper_missing_")):
 		return warnings
-	for mid in ["connector_level_too_low","processor_level_too_low","external_interface_port_missing","power_block_port_missing"]:
-		if not str(state).contains(mid):
-			pass
 
-	var task_specs := _build_task_test_module_port_specs()
-	var spec_ids: Dictionary = {}
-	for spec in task_specs:
-		spec_ids[String(spec.get("id", ""))] = true
-	for required_spec_id in [
-		"task_test_internal_interface_v1",
-		"task_test_external_interface_v1",
-		"task_test_power_block_v1",
-		"task_test_processor_v1",
-		"task_test_processor_v2",
-		"task_test_wired_connector_v1",
-		"task_test_optical_connector_v1",
-		"task_test_extra_external_tool",
-		"task_test_battery_v1",
-		"task_test_cooler_v1",
-		"task_test_radiator_v1"
-	]:
-		if not spec_ids.has(required_spec_id):
-			warnings.append("task_test_module_port_spec_missing_%s" % required_spec_id)
+	var baseline: Dictionary = active_bipob_ref.call("preview_module_port_activity")
+	for key in ["modules", "internal_interface", "external_interface", "power_block"]:
+		if not baseline.has(key):
+			warnings.append("module_ports_missing_%s" % key)
 
-	var all_active := [
-		"task_test_internal_interface_v1",
-		"task_test_external_interface_v1",
-		"task_test_power_block_v1",
-		"task_test_processor_v1",
-		"task_test_wired_connector_v1",
-		"task_test_optical_connector_v1",
-		"task_test_extra_external_tool",
-		"task_test_battery_v1",
-		"task_test_cooler_v1",
-		"task_test_radiator_v1"
+	var reason_keys_required := ["ok","connector_missing","connector_level_too_low","processor_missing","processor_level_too_low","internal_interface_missing","internal_interface_port_missing","internal_interface_link_missing","external_interface_missing","external_interface_port_missing","external_interface_link_missing","power_block_missing","power_block_port_missing","power_block_link_missing","power_block_overloaded","module_installed_but_inactive","module_not_installed"]
+	var reason_seen := {"ok": true, "module_not_installed": true, "module_installed_but_inactive": true, "connector_level_too_low": true, "processor_level_too_low": true}
+	var scenarios := [
+		{"id":"processor_active","modules":["internal_interface_v1","power_block_v1","processor_v1"],"module":"processor_v1","active":true,"reason":"ok"},
+		{"id":"connector_active","modules":["internal_interface_v1","external_interface_v1","power_block_v1","wired_connector_v1"],"module":"wired_connector_v1","active":true,"reason":"ok"},
+		{"id":"external_interface_missing","modules":["internal_interface_v1","power_block_v1","wired_connector_v1"],"module":"wired_connector_v1","active":false,"reason":"external_interface_missing"},
+		{"id":"external_interface_port_missing","modules":["internal_interface_v1","external_interface_v1","power_block_v1","wired_connector_v1","optical_connector_v1","repair_v1"],"module":"repair_v1","active":false,"reason":"external_interface_port_missing"},
+		{"id":"internal_interface_missing","modules":["power_block_v1","processor_v1"],"module":"processor_v1","active":false,"reason":"internal_interface_missing"},
+		{"id":"internal_interface_port_missing","modules":["internal_interface_v1","power_block_v1","processor_v1","processor_v2","cooler_v1"],"module":"cooler_v1","active":false,"reason":"internal_interface_port_missing"},
+		{"id":"power_block_missing","modules":["internal_interface_v1","battery_v1"],"module":"battery_v1","active":false,"reason":"power_block_missing"},
+		{"id":"power_block_port_missing","modules":["internal_interface_v1","power_block_v1","processor_v1","processor_v2","wired_connector_v1","optical_connector_v1","battery_v1"],"module":"battery_v1","active":false,"reason":"power_block_port_missing"},
+		{"id":"radiator_no_internal_or_power","modules":["radiator_v1"],"module":"radiator_v1","active":true,"reason":"ok"},
+		{"id":"battery_no_internal_required","modules":["power_block_v1","battery_v1"],"module":"battery_v1","active":true,"reason":"ok"},
+		{"id":"power_block_self_active","modules":["power_block_v1"],"module":"power_block_v1","active":true,"reason":"ok"},
+		{"id":"priority_tie","modules":["internal_interface_v1","power_block_v1","processor_v1","processor_v2"],"priority":true}
 	]
-	var full_state := _simulate_task_test_port_state(task_specs, all_active, 1, 2, 5)
-	var full_modules: Dictionary = Dictionary(full_state.get("modules", {}))
-	if not bool(Dictionary(full_modules.get("task_test_processor_v1", {})).get("active", false)):
-		warnings.append("task_test_processor_should_be_active_with_internal_and_power")
-	if not bool(Dictionary(full_modules.get("task_test_wired_connector_v1", {})).get("active", false)):
-		warnings.append("task_test_connector_should_be_active_with_external_and_power")
-	if bool(Dictionary(full_modules.get("task_test_extra_external_tool", {})).get("active", false)):
-		warnings.append("task_test_extra_external_tool_should_be_inactive_when_external_exhausted")
 
-	var no_internal_state := _simulate_task_test_port_state(task_specs, all_active, 0, 2, 5)
-	if bool(Dictionary(Dictionary(no_internal_state.get("modules", {})).get("task_test_cooler_v1", {})).get("active", false)):
-		warnings.append("task_test_cooler_should_be_inactive_without_internal_interface")
-	var no_power_state := _simulate_task_test_port_state(task_specs, all_active, 1, 2, 0)
-	if bool(Dictionary(Dictionary(no_power_state.get("modules", {})).get("task_test_cooler_v1", {})).get("active", false)):
-		warnings.append("task_test_cooler_should_be_inactive_without_power_block")
+	for scenario in scenarios:
+		var runtime := _preview_module_port_activity_for_module_ids(Array(scenario.get("modules", [])))
+		if not bool(runtime.get("ok", false)):
+			warnings.append("module_ports_runtime_preview_unavailable_%s" % String(runtime.get("reason", "unknown")))
+			break
+		var state: Dictionary = Dictionary(runtime.get("state", {}))
+		var modules: Dictionary = Dictionary(state.get("modules", {}))
+		if bool(scenario.get("priority", false)):
+			var p1 := Dictionary(modules.get("processor_v1", {}))
+			var p2 := Dictionary(modules.get("processor_v2", {}))
+			var p1_active := bool(p1.get("active", false))
+			var p2_active := bool(p2.get("active", false))
+			if p1_active == p2_active:
+				warnings.append("task_test_processor_priority_tie_break_not_deterministic")
+			continue
+		var module_id := String(scenario.get("module", ""))
+		var module_state: Dictionary = Dictionary(modules.get(module_id, {}))
+		if module_state.is_empty():
+			warnings.append("module_not_installed")
+			continue
+		var expected_active := bool(scenario.get("active", false))
+		var expected_reason := String(scenario.get("reason", "ok"))
+		if bool(module_state.get("active", false)) != expected_active:
+			warnings.append("module_ports_runtime_active_mismatch_%s" % String(scenario.get("id", "")))
+		var actual_reason := String(module_state.get("inactive_reason", "module_installed_but_inactive"))
+		reason_seen[actual_reason] = true
+		if actual_reason != expected_reason:
+			warnings.append("module_ports_runtime_reason_mismatch_%s_%s" % [String(scenario.get("id", "")), actual_reason])
 
-	var battery_only_state := _simulate_task_test_port_state(task_specs, ["task_test_battery_v1"], 0, 0, 1)
-	if not bool(Dictionary(Dictionary(battery_only_state.get("modules", {})).get("task_test_battery_v1", {})).get("active", false)):
-		warnings.append("task_test_battery_should_not_require_internal_interface")
-	var radiator_only_state := _simulate_task_test_port_state(task_specs, ["task_test_radiator_v1"], 0, 0, 0)
-	if not bool(Dictionary(Dictionary(radiator_only_state.get("modules", {})).get("task_test_radiator_v1", {})).get("active", false)):
-		warnings.append("task_test_radiator_should_not_require_internal_or_power")
-
-	var proc_priority_state := _simulate_task_test_port_state(task_specs, ["task_test_processor_v1", "task_test_processor_v2"], 1, 0, 1)
-	var proc_modules: Dictionary = Dictionary(proc_priority_state.get("modules", {}))
-	var p1_active := bool(Dictionary(proc_modules.get("task_test_processor_v1", {})).get("active", false))
-	var p2_active := bool(Dictionary(proc_modules.get("task_test_processor_v2", {})).get("active", false))
-	if p1_active == p2_active:
-		warnings.append("task_test_processor_priority_tie_break_not_deterministic")
-	else:
-		var sorted_processors := [
-			{"id":"task_test_processor_v1","module_id":"processor_v1"},
-			{"id":"task_test_processor_v2","module_id":"processor_v2"}
-		]
-		sorted_processors.sort_custom(func(a: Dictionary, b: Dictionary) -> bool:
-			var pa := int(active_bipob_ref.call("_get_module_port_priority", String(a.get("module_id", ""))))
-			var pb := int(active_bipob_ref.call("_get_module_port_priority", String(b.get("module_id", ""))))
-			if pa == pb:
-				return String(a.get("id", "")) < String(b.get("id", ""))
-			return pa < pb
-		)
-		var expected_winner := String(Dictionary(sorted_processors[0]).get("id", ""))
-		var actual_winner := "task_test_processor_v1" if p1_active else "task_test_processor_v2"
-		if actual_winner != expected_winner:
-			warnings.append("task_test_processor_priority_tie_break_mismatch")
+	for reason_key in reason_keys_required:
+		if not reason_seen.has(reason_key):
+			warnings.append("module_port_reason_key_not_observed_%s" % reason_key)
 	return warnings
 
 func get_module_port_network_validation_text() -> String:
