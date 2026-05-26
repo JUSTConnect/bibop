@@ -359,8 +359,8 @@ func get_wall_visual_profile(profile_key: String) -> Dictionary:
 	var default_key: String = get_default_wall_visual_profile_key()
 	var normalized_key: String = normalize_wall_visual_profile_key(profile_key)
 	if not profiles.has(normalized_key):
-		return profiles[default_key]
-	return profiles[normalized_key]
+		return Dictionary(profiles.get(default_key, {}))
+	return Dictionary(profiles.get(normalized_key, profiles.get(default_key, {})))
 
 func get_wall_visual_profile_key_for_cell(cell: Vector2i) -> String:
 	if _grid_manager == null:
@@ -556,7 +556,7 @@ func get_iso_object_profile(profile_key: String) -> Dictionary:
 	var safe_key: String = profile_key.strip_edges().to_lower()
 	if safe_key.is_empty() or not profiles.has(safe_key):
 		safe_key = "generic_object"
-	var profile: Dictionary = profiles[safe_key]
+	var profile: Dictionary = Dictionary(profiles.get(safe_key, profiles.get("generic_object", {})))
 	return {
 		"base": Color(profile.get("base", Color(0.24, 0.24, 0.28, 0.95))),
 		"accent": Color(profile.get("accent", Color(0.78, 0.8, 0.9, 0.95))),
@@ -796,6 +796,6 @@ func _draw() -> void:
 
 	var preview_points: PackedVector2Array = get_iso_diamond_points(Vector2i.ZERO)
 	draw_colored_polygon(preview_points, Color(0.2, 0.8, 1.0, 0.15))
-	for idx in preview_points.size():
+	for idx in range(preview_points.size()):
 		var next_idx: int = (idx + 1) % preview_points.size()
 		draw_line(preview_points[idx], preview_points[next_idx], Color(0.2, 0.8, 1.0, 0.9), 1.0)
