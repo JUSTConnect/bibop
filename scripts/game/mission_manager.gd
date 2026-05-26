@@ -463,6 +463,9 @@ func get_runtime_cell_state(cell: Vector2i) -> Dictionary:
 		"tile_type": -1,
 		"tile_name": "",
 		"static_walkable": false,
+		"is_door_object": false,
+		"is_door_tile": false,
+		"is_door_cell": false,
 		"has_object": false,
 		"object_id": "",
 		"object_type": "",
@@ -513,18 +516,21 @@ func get_runtime_cell_state(cell: Vector2i) -> Dictionary:
 		state["power_network_id"] = String(object_data.get("power_network_id", ""))
 		state["control_source_id"] = String(object_data.get("control_source_id", object_data.get("linked_terminal_id", object_data.get("controller_id", ""))))
 		state["visual_profile"] = String(object_data.get("visual_profile", ""))
+		var object_group_value: String = String(state.get("object_group", "")).to_lower()
+		var object_type_value: String = String(state.get("object_type", "")).to_lower()
+		var lock_type_value: String = String(state.get("lock_type", ""))
+		var has_door_class: bool = object_data.has("door_class")
+		state["is_door_object"] = object_group_value == "door" or object_type_value.find("door") >= 0 or not lock_type_value.is_empty() or has_door_class
 
 	var tile_type_value: int = int(state.get("tile_type", -1))
 	var tile_is_wall: bool = tile_type_value == GridManager.TILE_WALL
 	var tile_is_door: bool = tile_type_value == GridManager.TILE_DOOR or tile_type_value == GridManager.TILE_DIGITAL_DOOR or tile_type_value == GridManager.TILE_POWERED_GATE
+	state["is_door_tile"] = tile_is_door
+	state["is_door_cell"] = tile_is_door or bool(state.get("is_door_object", false))
 	var object_state: String = String(state.get("state", ""))
 	var is_open_state: bool = object_state == "open" or object_state == "opened"
 	var canonical_open: bool = bool(state.get("is_open", false)) or is_open_state
-	if tile_is_wall:
-		state["is_passable"] = false
-		state["block_reason"] = "wall"
-		return state
-	if tile_is_door:
+	if bool(state.get("is_door_cell", false)):
 		if canonical_open:
 			state["is_passable"] = true
 			state["block_reason"] = ""
@@ -538,6 +544,10 @@ func get_runtime_cell_state(cell: Vector2i) -> Dictionary:
 			state["block_reason"] = "door_damaged"
 		else:
 			state["block_reason"] = "door_closed"
+		return state
+	if tile_is_wall:
+		state["is_passable"] = false
+		state["block_reason"] = "wall"
 		return state
 	if bool(state.get("has_object", false)) and bool(state.get("blocks_movement", false)):
 		state["is_passable"] = false
@@ -5545,9 +5555,20 @@ func get_task_test_system_coverage_report() -> Dictionary:
 		var runtime_state: Dictionary = get_runtime_cell_state(cell)
 		var lock_type: String = String(object_data.get("lock_type", ""))
 		var object_state: String = String(object_data.get("state", "")).to_lower()
-		var is_door: bool = object_type.find("door") >= 0 or lock_type != ""
+		var is_door: bool = bool(runtime_state.get("is_door_cell", false))
 		if is_door:
-			report["door_cells"].append({"cell": cell, "object_id": String(object_data.get("id", "")), "state": object_state, "is_passable": bool(runtime_state.get("is_passable", false)), "block_reason": String(runtime_state.get("block_reason", ""))})
+			report["door_cells"].append({
+				"cell": cell,
+				"object_id": String(object_data.get("id", "")),
+				"state": object_state,
+				"tile_type": int(runtime_state.get("tile_type", -1)),
+				"static_walkable": bool(runtime_state.get("static_walkable", false)),
+				"is_door_object": bool(runtime_state.get("is_door_object", false)),
+				"is_door_tile": bool(runtime_state.get("is_door_tile", false)),
+				"is_door_cell": bool(runtime_state.get("is_door_cell", false)),
+				"is_passable": bool(runtime_state.get("is_passable", false)),
+				"block_reason": String(runtime_state.get("block_reason", ""))
+			})
 		if bool(object_data.get("is_powered", false)) or object_data.has("power_network_id"):
 			report["powered_objects"].append({"object_id": String(object_data.get("id", "")), "power_network_id": String(object_data.get("power_network_id", ""))})
 		var control_source_id: String = String(object_data.get("control_source_id", object_data.get("linked_terminal_id", object_data.get("controller_id", ""))))
@@ -5594,11 +5615,19 @@ func validate_task_test_runtime_cell_states() -> Array[String]:
 			warnings.append("object_exists_but_runtime_has_no_object_%s" % object_id)
 		var state_name: String = String(object_data.get("state", "")).to_lower()
 		var canonical_open: bool = state_name == "open" or state_name == "opened" or bool(object_data.get("is_open", false))
-		var is_door: bool = object_type.find("door") >= 0 or String(object_data.get("lock_type", "")) != ""
-		if is_door and canonical_open and not bool(runtime_state.get("is_passable", false)):
+		var is_door_object: bool = bool(runtime_state.get("is_door_object", false))
+		var is_door: bool = bool(runtime_state.get("is_door_cell", false))
+		if is_door_object and canonical_open and not bool(runtime_state.get("is_passable", false)):
 			warnings.append("door_open_not_passable_%s" % object_id)
-		if is_door and (state_name == "closed" or state_name == "locked" or bool(object_data.get("is_locked", false))) and bool(runtime_state.get("is_passable", false)):
+		var blocked_door_state: bool = state_name in ["closed", "locked", "unpowered", "damaged", "broken", "destroyed"] or bool(object_data.get("is_locked", false))
+		if is_door_object and blocked_door_state and bool(runtime_state.get("is_passable", false)):
 			warnings.append("door_closed_or_locked_but_passable_%s" % object_id)
+		if is_door_object:
+			var tile_type_value: int = int(runtime_state.get("tile_type", -1))
+			if tile_type_value == GridManager.TILE_WALL or tile_type_value == GridManager.TILE_FLOOR or tile_type_value == GridManager.TILE_EXIT:
+				warnings.append("door_object_on_non_door_tile_%s" % object_id)
+			if not bool(runtime_state.get("is_door_cell", false)):
+				warnings.append("door_object_tile_mismatch_%s" % object_id)
 		if bool(object_data.get("requires_external_power", false)) and String(object_data.get("power_network_id", "")).is_empty():
 			warnings.append("external_power_missing_network_%s" % object_id)
 		if bool(object_data.get("requires_external_control", false)):
