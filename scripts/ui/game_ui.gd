@@ -8727,33 +8727,39 @@ func _on_world_action_panel_requested(target_object: Dictionary, actions: Array,
 		return
 	runtime_world_actions_panel.visible = true
 	var scan_level := int(target_object.get("scan_level", 0))
-	var object_group := String(target_object.get("object_group", "object"))
+	var object_group: String = str(target_object.get("object_group", "object"))
 	var generic := object_group.capitalize()
 	if object_group == "threat" and scan_level <= 0:
 		generic = "Unknown movement"
-	var object_name := generic if scan_level <= 0 else String(target_object.get("display_name", generic))
+	var object_name: String = generic
+	if scan_level > 0:
+		object_name = str(target_object.get("display_name", generic))
 	runtime_world_actions_target_label.text = object_name
-	runtime_world_actions_state_label.text = "State: %s" % String(target_object.get("state", "unknown"))
+	runtime_world_actions_state_label.text = "State: %s" % str(target_object.get("state", "unknown"))
 	if object_group == "threat":
 		runtime_world_actions_behavior_label.visible = true
-		runtime_world_actions_behavior_label.text = "Behavior: %s" % String(target_object.get("behavior_state", "idle"))
+		runtime_world_actions_behavior_label.text = "Behavior: %s" % str(target_object.get("behavior_state", "idle"))
 	else:
 		runtime_world_actions_behavior_label.visible = false
 	var action_ids: Array[String] = []
 	for action_variant in actions:
-		var action_id: String = String(action_variant)
+		var action_id: String = str(action_variant)
 		if action_id.is_empty():
 			continue
 		action_ids.append(action_id)
 	var target_id: String = _get_runtime_world_action_target_id(target_object, object_name)
 	var actions_key := "|".join(action_ids)
-	var state_key := "%s|%s|%s" % [String(target_object.get("state", "")), String(target_object.get("behavior_state", "")), String(target_object.get("scan_level", 0))]
+	var state_key: String = "%s|%s|%s" % [
+		str(target_object.get("state", "")),
+		str(target_object.get("behavior_state", "")),
+		str(target_object.get("scan_level", 0))
+	]
 	var only_selection_change: bool = target_id == last_world_action_target_id and actions_key == last_world_action_actions_key and state_key == last_world_action_state_key
 	if only_selection_change and runtime_world_actions_list.get_child_count() > 0:
 		for child_node in runtime_world_actions_list.get_children():
 			if child_node is Button:
 				var btn: Button = child_node
-				btn.button_pressed = String(btn.get_meta("action_id", "")) == selected_action
+				btn.button_pressed = str(btn.get_meta("action_id", "")) == selected_action
 		last_world_action_selected = selected_action
 		return
 	for child in runtime_world_actions_list.get_children():
