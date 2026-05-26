@@ -5280,6 +5280,7 @@ func get_task_test_mission_validation_text() -> String:
 
 
 func _build_task_test_module_port_specs() -> Array[Dictionary]:
+	# TASK TEST module-port scenario data shared across validation checks.
 	return [
 		{"id":"task_test_internal_interface_v1","module_id":"internal_interface_v1"},
 		{"id":"task_test_external_interface_v1","module_id":"external_interface_v1"},
@@ -5295,6 +5296,7 @@ func _build_task_test_module_port_specs() -> Array[Dictionary]:
 	]
 
 func _simulate_task_test_port_state(specs: Array[Dictionary], active_module_ids: Array[String], internal_ports_total: int, external_ports_total: int, power_ports_total: int) -> Dictionary:
+	# TODO(BIP-690-2): Replace this static scenario simulation with validation against real preview_module_port_activity() snapshot/restore state.
 	var modules: Dictionary = {}
 	var sorted_specs := specs.duplicate()
 	sorted_specs.sort_custom(func(a: Dictionary, b: Dictionary) -> bool:
@@ -5311,7 +5313,7 @@ func _simulate_task_test_port_state(specs: Array[Dictionary], active_module_ids:
 		var tid := String(spec.get("id", ""))
 		var module_id := String(spec.get("module_id", ""))
 		if not active_module_ids.has(tid):
-			modules[tid] = {"id":tid,"active":false,"inactive_reason":"not_installed","port_priority":int(active_bipob_ref.call("_get_module_port_priority", module_id))}
+			modules[tid] = {"id":tid,"active":false,"inactive_reason":"module_not_installed","port_priority":int(active_bipob_ref.call("_get_module_port_priority", module_id))}
 			continue
 		var needs_internal := bool(active_bipob_ref.call("_module_requires_internal_interface_port", module_id))
 		var needs_external := bool(active_bipob_ref.call("_module_requires_external_interface_port", module_id))
@@ -5357,6 +5359,8 @@ func validate_module_port_network_runtime() -> Array[String]:
 	for helper_name in ["_get_module_port_priority", "_module_requires_external_interface_port", "_module_requires_internal_interface_port", "_module_requires_power_block_port"]:
 		if not active_bipob_ref.has_method(helper_name):
 			warnings.append("module_ports_helper_missing_%s" % helper_name)
+	if warnings.any(func(warning: String) -> bool: return warning.begins_with("module_ports_helper_missing_")):
+		return warnings
 	for mid in ["connector_level_too_low","processor_level_too_low","external_interface_port_missing","power_block_port_missing"]:
 		if not str(state).contains(mid):
 			pass
@@ -5416,12 +5420,28 @@ func validate_module_port_network_runtime() -> Array[String]:
 	if not bool(Dictionary(Dictionary(radiator_only_state.get("modules", {})).get("task_test_radiator_v1", {})).get("active", false)):
 		warnings.append("task_test_radiator_should_not_require_internal_or_power")
 
-	var proc_priority_state := _simulate_task_test_port_state(task_specs, ["task_test_processor_v1", "task_test_processor_v2"], 2, 0, 1)
+	var proc_priority_state := _simulate_task_test_port_state(task_specs, ["task_test_processor_v1", "task_test_processor_v2"], 1, 0, 1)
 	var proc_modules: Dictionary = Dictionary(proc_priority_state.get("modules", {}))
-	if not bool(Dictionary(proc_modules.get("task_test_processor_v2", {})).get("active", false)):
-		warnings.append("task_test_priority_processor_v2_should_win")
-	if bool(Dictionary(proc_modules.get("task_test_processor_v1", {})).get("active", false)):
-		warnings.append("task_test_priority_processor_v1_should_lose")
+	var p1_active := bool(Dictionary(proc_modules.get("task_test_processor_v1", {})).get("active", false))
+	var p2_active := bool(Dictionary(proc_modules.get("task_test_processor_v2", {})).get("active", false))
+	if p1_active == p2_active:
+		warnings.append("task_test_processor_priority_tie_break_not_deterministic")
+	else:
+		var sorted_processors := [
+			{"id":"task_test_processor_v1","module_id":"processor_v1"},
+			{"id":"task_test_processor_v2","module_id":"processor_v2"}
+		]
+		sorted_processors.sort_custom(func(a: Dictionary, b: Dictionary) -> bool:
+			var pa := int(active_bipob_ref.call("_get_module_port_priority", String(a.get("module_id", ""))))
+			var pb := int(active_bipob_ref.call("_get_module_port_priority", String(b.get("module_id", ""))))
+			if pa == pb:
+				return String(a.get("id", "")) < String(b.get("id", ""))
+			return pa < pb
+		)
+		var expected_winner := String(Dictionary(sorted_processors[0]).get("id", ""))
+		var actual_winner := "task_test_processor_v1" if p1_active else "task_test_processor_v2"
+		if actual_winner != expected_winner:
+			warnings.append("task_test_processor_priority_tie_break_mismatch")
 	return warnings
 
 func get_module_port_network_validation_text() -> String:
