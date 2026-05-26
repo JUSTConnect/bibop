@@ -12,6 +12,10 @@ class_name RoomVisualRenderer
 @export var render_iso_wall_prototype: bool = false
 @export var render_iso_object_prototype: bool = false
 @export var render_iso_fog_overlay: bool = false
+@export var use_iso_visual_preview_preset: bool = false
+@export var iso_visual_preview_includes_fog: bool = true
+@export var iso_visual_preview_includes_asset_hooks: bool = false
+@export var iso_visual_preview_drives_bipob_visual_position: bool = true
 @export var debug_draw_iso_fog_outlines: bool = false
 @export var iso_fog_unexplored_alpha: float = 0.82
 @export var iso_fog_explored_alpha: float = 0.42
@@ -65,6 +69,50 @@ func rebuild_visuals() -> void:
 		return
 	# Placeholder only: future PRs will build projected room visuals here.
 	_rebuild_requested = false
+
+func is_iso_visual_preview_active() -> bool:
+	return use_iso_visual_preview_preset
+
+func should_render_iso_floor_visuals() -> bool:
+	return (render_iso_floor_prototype or use_iso_visual_preview_preset)
+
+func should_render_iso_wall_visuals() -> bool:
+	return (render_iso_wall_prototype or use_iso_visual_preview_preset)
+
+func should_render_iso_object_visuals() -> bool:
+	return (render_iso_object_prototype or use_iso_visual_preview_preset)
+
+func should_render_iso_fog_visuals() -> bool:
+	return (render_iso_fog_overlay or (use_iso_visual_preview_preset and iso_visual_preview_includes_fog))
+
+func should_use_iso_tile_asset_hook_visuals() -> bool:
+	return (use_iso_tile_asset_hooks or (use_iso_visual_preview_preset and iso_visual_preview_includes_asset_hooks))
+
+func should_preview_drive_bipob_visual_position() -> bool:
+	return (use_iso_visual_preview_preset and iso_visual_preview_drives_bipob_visual_position)
+
+func get_iso_visual_preview_state() -> Dictionary:
+	return {
+		"preview_active": is_iso_visual_preview_active(),
+		"floor": should_render_iso_floor_visuals(),
+		"wall": should_render_iso_wall_visuals(),
+		"objects": should_render_iso_object_visuals(),
+		"fog": should_render_iso_fog_visuals(),
+		"asset_hooks": should_use_iso_tile_asset_hook_visuals(),
+		"drives_bipob_visual_position": should_preview_drive_bipob_visual_position()
+	}
+
+func get_iso_visual_preview_state_text() -> String:
+	var state: Dictionary = get_iso_visual_preview_state()
+	return "IsoVisualPreview active=%s floor=%s wall=%s objects=%s fog=%s asset_hooks=%s drives_bipob=%s" % [
+		str(state.get("preview_active", false)),
+		str(state.get("floor", false)),
+		str(state.get("wall", false)),
+		str(state.get("objects", false)),
+		str(state.get("fog", false)),
+		str(state.get("asset_hooks", false)),
+		str(state.get("drives_bipob_visual_position", false))
+	]
 
 func get_iso_tile_half_size() -> Vector2:
 	# Visual safety clamp to avoid invalid projection values.
@@ -228,7 +276,7 @@ func get_iso_texture_draw_position(cell: Vector2i, texture: Texture2D) -> Vector
 
 func draw_iso_texture_asset(cell: Vector2i, asset_key: String) -> bool:
 	# Asset hooks are optional. Procedural fallback remains the default path.
-	if not use_iso_tile_asset_hooks:
+	if not should_use_iso_tile_asset_hook_visuals():
 		return false
 	if asset_key.is_empty():
 		return false
@@ -777,7 +825,7 @@ func draw_iso_fog_overlay() -> void:
 	fog_cells.sort_custom(sort_cells_by_iso_depth)
 	for cell in fog_cells:
 		var tile_type: int = _grid_manager.get_tile(cell)
-		if tile_type == GridManager.TILE_WALL and render_iso_wall_prototype:
+		if tile_type == GridManager.TILE_WALL and should_render_iso_wall_visuals():
 			draw_iso_fog_wall_overlay(cell)
 		draw_iso_fog_cell_overlay(cell)
 
@@ -785,16 +833,16 @@ func _draw() -> void:
 	if debug_draw_marker:
 		draw_circle(Vector2.ZERO, 3.0, Color(0.8, 0.95, 1.0, 0.75))
 
-	if render_iso_floor_prototype:
+	if should_render_iso_floor_visuals():
 		draw_iso_floor_prototype()
 
-	if render_iso_wall_prototype:
+	if should_render_iso_wall_visuals():
 		draw_iso_wall_prototype()
 
-	if render_iso_object_prototype:
+	if should_render_iso_object_visuals():
 		draw_iso_object_prototype()
 
-	if render_iso_fog_overlay:
+	if should_render_iso_fog_visuals():
 		draw_iso_fog_overlay()
 
 	if not debug_draw_iso_helper_preview:
