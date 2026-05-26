@@ -8,6 +8,8 @@ class_name RoomVisualRenderer
 # Future PRs will use them for floor, wall, object, fog, and overlay rendering.
 @export var debug_draw_marker: bool = false
 @export var debug_draw_iso_helper_preview: bool = false
+@export var render_iso_floor_prototype: bool = false
+@export var debug_draw_iso_cell_outlines: bool = true
 @export var iso_tile_width: float = 128.0
 @export var iso_tile_height: float = 64.0
 @export var iso_origin: Vector2 = Vector2.ZERO
@@ -73,9 +75,87 @@ func get_iso_diamond_points(cell: Vector2i) -> PackedVector2Array:
 func get_iso_depth_key(cell: Vector2i) -> int:
 	return cell.x + cell.y
 
+func is_floor_like_tile(tile_type: int) -> bool:
+	if tile_type == GridManager.TILE_WALL:
+		return false
+
+	return (
+		tile_type == GridManager.TILE_FLOOR
+		or tile_type == GridManager.TILE_KEY
+		or tile_type == GridManager.TILE_EXIT
+		or tile_type == GridManager.TILE_TERMINAL
+		or tile_type == GridManager.TILE_DIGITAL_DOOR
+		or tile_type == GridManager.TILE_COMPONENT
+		or tile_type == GridManager.TILE_HIDDEN_ROUTE_NODE
+		or tile_type == GridManager.TILE_ROUTE_GATE
+		or tile_type == GridManager.TILE_HOT_NODE
+		or tile_type == GridManager.TILE_AIRFLOW_TERMINAL
+		or tile_type == GridManager.TILE_FAN_PLATFORM
+		or tile_type == GridManager.TILE_PLATFORM_CONTROL
+		or tile_type == GridManager.TILE_FAN_CONTROL
+		or tile_type == GridManager.TILE_AIRFLOW
+		or tile_type == GridManager.TILE_PLATFORM_CONTROL_LEFT
+		or tile_type == GridManager.TILE_PLATFORM_CONTROL_RIGHT
+		or tile_type == GridManager.TILE_FAN_SPEED_UP_CONTROL
+		or tile_type == GridManager.TILE_FAN_SPEED_DOWN_CONTROL
+		or tile_type == GridManager.TILE_CABLE_REEL
+		or tile_type == GridManager.TILE_SOCKET
+		or tile_type == GridManager.TILE_POWERED_GATE
+		or tile_type == GridManager.TILE_CABLE
+		or tile_type == GridManager.TILE_STEPPED_FLOOR
+	)
+
+func get_floor_prototype_color(tile_type: int, cell: Vector2i) -> Color:
+	# Procedural prototype floor colors for dark industrial sci-fi paneling.
+	# Final assets / TileSet-driven rendering will replace this in future PRs.
+	var base_color: Color = Color(0.115, 0.125, 0.145, 0.96)
+	var parity: int = (cell.x + cell.y) % 2
+	if parity != 0:
+		base_color = Color(0.135, 0.145, 0.165, 0.96)
+
+	if tile_type == GridManager.TILE_TERMINAL or tile_type == GridManager.TILE_AIRFLOW_TERMINAL:
+		base_color = base_color.lerp(Color(0.16, 0.23, 0.29, 0.98), 0.35)
+	elif tile_type == GridManager.TILE_EXIT:
+		base_color = base_color.lerp(Color(0.14, 0.24, 0.2, 0.98), 0.4)
+	elif tile_type == GridManager.TILE_DIGITAL_DOOR or tile_type == GridManager.TILE_POWERED_GATE:
+		base_color = base_color.lerp(Color(0.14, 0.2, 0.27, 0.98), 0.3)
+	elif tile_type == GridManager.TILE_HOT_NODE:
+		base_color = base_color.lerp(Color(0.23, 0.16, 0.15, 0.98), 0.25)
+
+	return base_color
+
+func draw_iso_floor_prototype() -> void:
+	# Procedural prototype floor renderer for early isometric look exploration.
+	# Gameplay remains square-grid based in GridManager; this is visual-only.
+	if _grid_manager == null:
+		return
+
+	var map_width: int = _grid_manager.get_map_width()
+	var map_height: int = _grid_manager.get_map_height()
+	if map_width <= 0 or map_height <= 0:
+		return
+
+	for y in range(map_height):
+		for x in range(map_width):
+			var cell: Vector2i = Vector2i(x, y)
+			var tile_type: int = _grid_manager.get_tile(cell)
+			if not is_floor_like_tile(tile_type):
+				continue
+
+			var diamond_points: PackedVector2Array = get_iso_diamond_points(cell)
+			var fill_color: Color = get_floor_prototype_color(tile_type, cell)
+			draw_colored_polygon(diamond_points, fill_color)
+			if debug_draw_iso_cell_outlines:
+				for edge_index in range(diamond_points.size()):
+					var next_index: int = (edge_index + 1) % diamond_points.size()
+					draw_line(diamond_points[edge_index], diamond_points[next_index], Color(0.21, 0.33, 0.39, 0.85), 1.0)
+
 func _draw() -> void:
 	if debug_draw_marker:
 		draw_circle(Vector2.ZERO, 3.0, Color(0.8, 0.95, 1.0, 0.75))
+
+	if render_iso_floor_prototype:
+		draw_iso_floor_prototype()
 
 	if not debug_draw_iso_helper_preview:
 		return
