@@ -30,6 +30,10 @@ class_name RoomVisualRenderer
 @export var iso_floor_stepped_texture: Texture2D = null
 @export var iso_floor_door_underlay_texture: Texture2D = null
 @export var iso_wall_default_texture: Texture2D = null
+@export var iso_wall_outer_texture: Texture2D = null
+@export var iso_wall_brick_texture: Texture2D = null
+@export var iso_wall_concrete_texture: Texture2D = null
+@export var iso_wall_grate_texture: Texture2D = null
 @export var iso_wall_damaged_texture: Texture2D = null
 @export var iso_wall_steel_texture: Texture2D = null
 @export var iso_wall_energy_texture: Texture2D = null
@@ -55,6 +59,10 @@ const ISO_PLACEHOLDER_ASSET_PATHS: Dictionary = {
 	"floor_stepped": "res://assets/visual/isometric/placeholders/iso_floor_stepped.svg",
 	"floor_door_underlay": "res://assets/visual/isometric/placeholders/iso_floor_door_underlay.svg",
 	"wall_default": "res://assets/visual/isometric/placeholders/iso_wall_default.svg",
+	"wall_outer": "res://assets/visual/isometric/placeholders/iso_wall_outer.svg",
+	"wall_brick": "res://assets/visual/isometric/placeholders/iso_wall_brick.svg",
+	"wall_concrete": "res://assets/visual/isometric/placeholders/iso_wall_concrete.svg",
+	"wall_grate": "res://assets/visual/isometric/placeholders/iso_wall_grate.svg",
 	"wall_damaged": "res://assets/visual/isometric/placeholders/iso_wall_damaged.svg",
 	"wall_steel": "res://assets/visual/isometric/placeholders/iso_wall_steel.svg",
 	"wall_energy": "res://assets/visual/isometric/placeholders/iso_wall_energy.svg",
@@ -237,12 +245,20 @@ func get_iso_floor_asset_key_for_tile(tile_type: int) -> String:
 
 func get_iso_wall_asset_key_for_profile(profile_key: String) -> String:
 	match profile_key:
-		"damaged_wall":
-			return "wall_damaged"
+		"outer_wall":
+			return "wall_outer"
+		"grate_wall":
+			return "wall_grate"
+		"brick_wall":
+			return "wall_brick"
+		"concrete_wall":
+			return "wall_concrete"
 		"steel_wall", "reinforced_steel_wall", "titanium_wall":
 			return "wall_steel"
 		"energy_wall":
 			return "wall_energy"
+		"damaged_wall":
+			return "wall_damaged"
 		_:
 			return "wall_default"
 
@@ -306,6 +322,14 @@ func get_explicit_iso_texture_for_asset_key(asset_key: String) -> Texture2D:
 			return iso_floor_door_underlay_texture
 		"wall_default":
 			return iso_wall_default_texture
+		"wall_outer":
+			return iso_wall_outer_texture
+		"wall_brick":
+			return iso_wall_brick_texture
+		"wall_concrete":
+			return iso_wall_concrete_texture
+		"wall_grate":
+			return iso_wall_grate_texture
 		"wall_damaged":
 			return iso_wall_damaged_texture
 		"wall_steel":
@@ -388,7 +412,7 @@ func get_iso_visual_texture_debug_state() -> Dictionary:
 func get_iso_visual_texture_debug_keys() -> Array[String]:
 	return [
 		"floor_default", "floor_stepped", "floor_door_underlay",
-		"wall_default", "wall_damaged", "wall_steel", "wall_energy",
+		"wall_default", "wall_outer", "wall_brick", "wall_concrete", "wall_grate", "wall_damaged", "wall_steel", "wall_energy",
 		"object_door", "object_terminal", "object_key", "object_component",
 		"object_socket", "object_cable", "object_generic"
 	]
@@ -778,10 +802,85 @@ func get_wall_visual_profile_key_for_cell(cell: Vector2i) -> String:
 	var tile_type: int = _grid_manager.get_tile(cell)
 	if tile_type != GridManager.TILE_WALL:
 		return ""
-	# Visual-only behavior for BIP-Visual-006:
-	# all gameplay wall cells currently share the default visual wall profile.
-	# Future PRs may map this key from mission/world metadata (for example via WorldObjectCatalog IDs).
-	return get_default_wall_visual_profile_key()
+
+	var wall_object_type: String = get_wall_object_type_for_cell(cell)
+	if not wall_object_type.is_empty():
+		return wall_object_type
+
+	if is_outer_border_cell(cell):
+		return "outer_wall"
+
+	return "concrete_wall"
+
+func get_wall_metadata_for_cell(cell: Vector2i) -> Dictionary:
+	var mission_manager: Node = get_mission_manager_ref()
+	if mission_manager == null:
+		return {}
+	if not mission_manager.has_method("get_world_object_at_cell"):
+		return {}
+	var metadata_variant: Variant = mission_manager.call("get_world_object_at_cell", cell)
+	if metadata_variant is Dictionary:
+		return Dictionary(metadata_variant)
+	return {}
+
+func get_wall_object_type_for_cell(cell: Vector2i) -> String:
+	var metadata: Dictionary = get_wall_metadata_for_cell(cell)
+	if metadata.is_empty():
+		return ""
+	var candidates: Array[String] = [
+		String(metadata.get("object_type", "")),
+		String(metadata.get("type", "")),
+		String(metadata.get("catalog_id", "")),
+		String(metadata.get("id", "")),
+		String(metadata.get("material", ""))
+	]
+	for candidate in candidates:
+		var mapped: String = map_wall_metadata_value_to_profile(candidate)
+		if not mapped.is_empty():
+			return mapped
+	return ""
+
+func map_wall_metadata_value_to_profile(raw_value: String) -> String:
+	var value: String = raw_value.strip_edges().to_lower()
+	if value.is_empty():
+		return ""
+	var direct_map: Dictionary = {
+		"outer_wall": "outer_wall",
+		"grate_wall": "grate_wall",
+		"brick_wall": "brick_wall",
+		"concrete_wall": "concrete_wall",
+		"steel_wall": "steel_wall",
+		"reinforced_steel_wall": "reinforced_steel_wall",
+		"titanium_wall": "titanium_wall",
+		"energy_wall": "energy_wall",
+		"damaged_wall": "damaged_wall",
+		"brick": "brick_wall",
+		"concrete": "concrete_wall",
+		"steel": "steel_wall",
+		"reinforced_steel": "reinforced_steel_wall",
+		"titanium": "titanium_wall",
+		"energy_flow": "energy_wall"
+	}
+	if direct_map.has(value):
+		return String(direct_map.get(value, ""))
+	return ""
+
+func get_mission_manager_ref() -> Node:
+	var current: Node = self
+	while current != null:
+		if current.has_node("MissionManager"):
+			return current.get_node("MissionManager")
+		current = current.get_parent()
+	return null
+
+func is_outer_border_cell(cell: Vector2i) -> bool:
+	if _grid_manager == null:
+		return false
+	var max_x: int = _grid_manager.get_map_width() - 1
+	var max_y: int = _grid_manager.get_map_height() - 1
+	if max_x < 0 or max_y < 0:
+		return false
+	return cell.x <= 0 or cell.y <= 0 or cell.x >= max_x or cell.y >= max_y
 
 func get_iso_wall_top_points(cell: Vector2i) -> PackedVector2Array:
 	var bottom_points: PackedVector2Array = get_iso_diamond_points(cell)
