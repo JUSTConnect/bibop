@@ -8591,8 +8591,10 @@ func _module_requires_external_interface_port(module_id: String) -> bool:
 func _module_requires_internal_interface_port(module_id: String) -> bool:
 	if module_id.begins_with("battery_") or module_id in ["radiator_v1", "air_duct_v1", "pocket_v1"]:
 		return false
-	if module_id.begins_with("external_interface_") or module_id.begins_with("internal_interface_") or module_id.begins_with("power_block_"):
+	if module_id.begins_with("internal_interface_"):
 		return false
+	if module_id.begins_with("external_interface_") or module_id.begins_with("power_block_"):
+		return true
 	if module_id in ["wheels_v1", "legs_v1", "tracks_v1", "jumper_v1", "hover_pad_v1"]:
 		return false
 	return module_id.begins_with("processor_") or module_id.begins_with("memory_") or module_id.begins_with("gpu_") or module_id.begins_with("hard_drive_") or module_id.begins_with("charger_") or module_id.begins_with("cooler_")
@@ -8608,6 +8610,8 @@ func preview_module_port_activity() -> Dictionary:
 	var internal_total := 0
 	var external_total := 0
 	var power_total := 0
+	var internal_interface_count := 0
+	var external_interface_count := 0
 	var installation_order: Dictionary = {}
 	for i in range(installed_modules.size()):
 		var module: BipobModule = installed_modules[i]
@@ -8616,18 +8620,20 @@ func preview_module_port_activity() -> Dictionary:
 		var id := String(module.id)
 		installation_order[id] = i
 		if id.begins_with("internal_interface_"):
+			internal_interface_count += 1
 			internal_total += 4
 		elif id.begins_with("external_interface_"):
+			external_interface_count += 1
 			external_total += 6
 		elif id.begins_with("power_block_"):
 			power_total += 15
 
 	var internal_available := internal_total
-	var internal_needed_for_internal_links := max(0, 2 * int(installed_modules.filter(func(m): return m != null and String(m.id).begins_with("internal_interface_")).size()) - 2)
+	var internal_needed_for_internal_links := max(0, 2 * internal_interface_count - 2)
 	if internal_available < internal_needed_for_internal_links:
 		internal_needed_for_internal_links = internal_available
 	internal_available -= internal_needed_for_internal_links
-	var external_reserved := int(installed_modules.filter(func(m): return m != null and String(m.id).begins_with("external_interface_")).size())
+	var external_reserved := external_interface_count
 	var external_available := maxi(0, external_total - external_reserved)
 	var power_available := power_total
 
@@ -8649,10 +8655,17 @@ func preview_module_port_activity() -> Dictionary:
 		if module_id.begins_with("internal_interface_"):
 			if internal_total <= 0:
 				state["active"] = false; state["inactive_reason"] = "internal_interface_missing"
-			elif internal_needed_for_internal_links <= 0 and installed_modules.filter(func(m): return m != null and String(m.id).begins_with("internal_interface_")).size() > 1:
+			elif internal_needed_for_internal_links <= 0 and internal_interface_count > 1:
 				state["active"] = false; state["inactive_reason"] = "internal_interface_link_missing"
 			else:
-				state["internal_ports_used"] = 1 if installed_modules.filter(func(m): return m != null and String(m.id).begins_with("internal_interface_")).size() > 1 else 0
+				state["internal_ports_used"] = 1 if internal_interface_count > 1 else 0
+				if power_total <= 0:
+					state["active"] = false; state["inactive_reason"] = "power_block_missing"
+				elif power_available <= 0:
+					state["active"] = false; state["inactive_reason"] = "power_block_port_missing"
+				else:
+					power_available -= 1
+					state["power_ports_used"] = 1
 		elif module_id.begins_with("external_interface_"):
 			if internal_total <= 0:
 				state["active"] = false; state["inactive_reason"] = "internal_interface_missing"
@@ -8661,8 +8674,21 @@ func preview_module_port_activity() -> Dictionary:
 			else:
 				internal_available -= 1
 				state["internal_ports_used"] = 1
+				if power_total <= 0:
+					state["active"] = false; state["inactive_reason"] = "power_block_missing"
+				elif power_available <= 0:
+					state["active"] = false; state["inactive_reason"] = "power_block_port_missing"
+				else:
+					power_available -= 1
+					state["power_ports_used"] = 1
 		elif module_id.begins_with("power_block_"):
-			pass
+			if internal_total <= 0:
+				state["active"] = false; state["inactive_reason"] = "internal_interface_missing"
+			elif internal_available <= 0:
+				state["active"] = false; state["inactive_reason"] = "internal_interface_port_missing"
+			else:
+				internal_available -= 1
+				state["internal_ports_used"] = 1
 		else:
 			if _module_requires_internal_interface_port(module_id):
 				if internal_total <= 0:

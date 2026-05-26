@@ -5407,18 +5407,52 @@ func validate_module_port_network_runtime() -> Array[String]:
 		warnings.append("task_test_extra_external_tool_should_be_inactive_when_external_exhausted")
 
 	var no_internal_state := _simulate_task_test_port_state(task_specs, all_active, 0, 2, 5)
-	if bool(Dictionary(Dictionary(no_internal_state.get("modules", {})).get("task_test_cooler_v1", {})).get("active", false)):
+	var no_internal_modules: Dictionary = Dictionary(no_internal_state.get("modules", {}))
+	if bool(Dictionary(no_internal_modules.get("task_test_power_block_v1", {})).get("active", false)):
+		warnings.append("task_test_power_block_should_require_internal_interface")
+	if bool(Dictionary(no_internal_modules.get("task_test_external_interface_v1", {})).get("active", false)):
+		warnings.append("task_test_external_interface_should_require_internal_interface")
+	if bool(Dictionary(no_internal_modules.get("task_test_cooler_v1", {})).get("active", false)):
 		warnings.append("task_test_cooler_should_be_inactive_without_internal_interface")
 	var no_power_state := _simulate_task_test_port_state(task_specs, all_active, 1, 2, 0)
-	if bool(Dictionary(Dictionary(no_power_state.get("modules", {})).get("task_test_cooler_v1", {})).get("active", false)):
+	var no_power_modules: Dictionary = Dictionary(no_power_state.get("modules", {}))
+	if bool(Dictionary(no_power_modules.get("task_test_internal_interface_v1", {})).get("active", false)):
+		warnings.append("task_test_internal_interface_should_require_power_block")
+	if bool(Dictionary(no_power_modules.get("task_test_external_interface_v1", {})).get("active", false)):
+		warnings.append("task_test_external_interface_should_require_power_block")
+	if bool(Dictionary(no_power_modules.get("task_test_battery_v1", {})).get("active", false)):
+		warnings.append("task_test_battery_should_require_power_block")
+	if bool(Dictionary(no_power_modules.get("task_test_cooler_v1", {})).get("active", false)):
 		warnings.append("task_test_cooler_should_be_inactive_without_power_block")
 
 	var battery_only_state := _simulate_task_test_port_state(task_specs, ["task_test_battery_v1"], 0, 0, 1)
-	if not bool(Dictionary(Dictionary(battery_only_state.get("modules", {})).get("task_test_battery_v1", {})).get("active", false)):
+	var battery_state_modules: Dictionary = Dictionary(battery_only_state.get("modules", {}))
+	var battery_state: Dictionary = Dictionary(battery_state_modules.get("task_test_battery_v1", {}))
+	if not bool(battery_state.get("active", false)):
 		warnings.append("task_test_battery_should_not_require_internal_interface")
+	elif String(battery_state.get("inactive_reason", "ok")) != "ok":
+		warnings.append("task_test_battery_should_use_power_only")
 	var radiator_only_state := _simulate_task_test_port_state(task_specs, ["task_test_radiator_v1"], 0, 0, 0)
 	if not bool(Dictionary(Dictionary(radiator_only_state.get("modules", {})).get("task_test_radiator_v1", {})).get("active", false)):
 		warnings.append("task_test_radiator_should_not_require_internal_or_power")
+	var pocket_only_state := _simulate_task_test_port_state([{"id":"task_test_pocket_v1","module_id":"pocket_v1"}], ["task_test_pocket_v1"], 0, 0, 0)
+	if not bool(Dictionary(Dictionary(pocket_only_state.get("modules", {})).get("task_test_pocket_v1", {})).get("active", false)):
+		warnings.append("task_test_pocket_should_not_require_external_or_power")
+	var air_duct_only_state := _simulate_task_test_port_state([{"id":"task_test_air_duct_v1","module_id":"air_duct_v1"}], ["task_test_air_duct_v1"], 0, 0, 0)
+	if not bool(Dictionary(Dictionary(air_duct_only_state.get("modules", {})).get("task_test_air_duct_v1", {})).get("active", false)):
+		warnings.append("task_test_air_duct_should_not_require_external_or_power")
+	var power_overflow_state := _simulate_task_test_port_state(task_specs, ["task_test_internal_interface_v1", "task_test_power_block_v1", "task_test_battery_v1", "task_test_cooler_v1"], 2, 0, 2)
+	var power_overflow_modules: Dictionary = Dictionary(power_overflow_state.get("modules", {}))
+	if bool(Dictionary(power_overflow_modules.get("task_test_cooler_v1", {})).get("active", false)):
+		warnings.append("task_test_power_overflow_should_disable_extra_powered_module")
+	var dual_power_blocks := _simulate_task_test_port_state([
+		{"id":"task_test_internal_interface_v1","module_id":"internal_interface_v1"},
+		{"id":"task_test_power_block_v1","module_id":"power_block_v1"},
+		{"id":"task_test_power_block_v2","module_id":"power_block_v2"}
+	], ["task_test_internal_interface_v1", "task_test_power_block_v1", "task_test_power_block_v2"], 3, 0, 30)
+	var dual_power_modules: Dictionary = Dictionary(dual_power_blocks.get("modules", {}))
+	if not bool(Dictionary(dual_power_modules.get("task_test_power_block_v1", {})).get("active", false)) or not bool(Dictionary(dual_power_modules.get("task_test_power_block_v2", {})).get("active", false)):
+		warnings.append("task_test_dual_power_blocks_should_not_require_direct_links")
 
 	var proc_priority_state := _simulate_task_test_port_state(task_specs, ["task_test_processor_v1", "task_test_processor_v2"], 1, 0, 1)
 	var proc_modules: Dictionary = Dictionary(proc_priority_state.get("modules", {}))
