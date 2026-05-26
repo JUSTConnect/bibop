@@ -12,6 +12,10 @@ These files are temporary placeholder source assets for the BIP-Visual isometric
 - `iso_floor_stepped.svg` -> `iso_floor_stepped_texture`
 - `iso_floor_door_underlay.svg` -> `iso_floor_door_underlay_texture`
 - `iso_wall_default.svg` -> `iso_wall_default_texture`
+- `iso_wall_outer.svg` -> `iso_wall_outer_texture`
+- `iso_wall_brick.svg` -> `iso_wall_brick_texture`
+- `iso_wall_concrete.svg` -> `iso_wall_concrete_texture`
+- `iso_wall_grate.svg` -> `iso_wall_grate_texture`
 - `iso_wall_damaged.svg` -> `iso_wall_damaged_texture`
 - `iso_wall_steel.svg` -> `iso_wall_steel_texture`
 - `iso_wall_energy.svg` -> `iso_wall_energy_texture`
@@ -22,3 +26,6 @@ These files are temporary placeholder source assets for the BIP-Visual isometric
 - `iso_object_socket.svg` -> `iso_object_socket_texture`
 - `iso_object_cable.svg` -> `iso_object_cable_texture`
 - `iso_object_generic.svg` -> `iso_object_generic_texture`
+
+
+`iso_wall_grate.svg` is intended for visor / visibility testing scenarios.

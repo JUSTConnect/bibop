@@ -166,7 +166,12 @@ func build_task_test_mission_world_objects_for_validation() -> Dictionary:
 		{"type":"rotating_platform","id":"task_test_platform_terminal","pos":Vector2i(5, 6),"extra":{"platform_id":"task_test_platform_terminal","linked_terminal_id":"task_test_terminal_main","requires_terminal_enabled":true}},
 		{"type":"power_cable","id":"task_test_xray_route_marker","pos":Vector2i(5, 2),"extra":{"hidden":true,"visible_with_xray":true}},
 		{"type":"energy_door","id":"task_test_extraction_door","pos":Vector2i(6, 6),"extra":{"state":"open","is_locked":false,"mission_exit":true,"extraction":true}},
-		{"type":"grid_door","id":"task_test_blocked_cable_target","pos":Vector2i(1, 2),"extra":{"state":"jammed","damaged":true}}
+		{"type":"grid_door","id":"task_test_blocked_cable_target","pos":Vector2i(1, 2),"extra":{"state":"jammed","damaged":true}},
+		{"type":"outer_wall","id":"task_test_outer_wall_visual","pos":Vector2i(0, 1)},
+		{"type":"brick_wall","id":"task_test_brick_wall_visual","pos":Vector2i(2, 2)},
+		{"type":"concrete_wall","id":"task_test_concrete_wall_visual","pos":Vector2i(3, 2)},
+		{"type":"steel_wall","id":"task_test_steel_wall_visual","pos":Vector2i(4, 2)},
+		{"type":"grate_wall","id":"task_test_grate_wall_visual","pos":Vector2i(1, 4)}
 	]
 	for spec in specs:
 		var obj := WorldObjectCatalogRef.create_world_object(String(spec.get("type", "")), String(spec.get("id", "")))
