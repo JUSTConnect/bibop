@@ -6,7 +6,7 @@ signal hint_requested(message: String)
 signal mission_completed
 signal mission_failed
 signal returned_to_box
-signal world_action_panel_requested(target_object: Dictionary, actions: Array[String], selected_action: String)
+signal world_action_panel_requested(target_object: Dictionary, actions: Array, selected_action: String)
 
 enum Direction {
 	NORTH,
@@ -6538,9 +6538,9 @@ func set_selected_world_action(action_id: String) -> void:
 	status_changed.emit()
 
 func refresh_world_action_panel() -> void:
-	var target_data := get_facing_world_action_target()
-	var target_object: Dictionary = target_data.get("target_object", {})
-	var actions: Array[String] = target_data.get("actions", [])
+	var target_data: Dictionary = get_facing_world_action_target()
+	var target_object: Dictionary = Dictionary(target_data.get("target_object", {}))
+	var actions: Array = Array(target_data.get("actions", []))
 	if target_object.is_empty():
 		selected_world_action = ""
 		world_action_panel_requested.emit({}, [], "")
