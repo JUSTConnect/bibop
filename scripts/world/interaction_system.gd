@@ -19,14 +19,14 @@ static func apply_action(actor: Dictionary, module: Dictionary, target_object: D
 	var can := can_apply_action(actor, module, target_object, action_type)
 	if not can.success:
 		return can
-	var group := target_object.get("object_group", "")
-	var module_id := module.get("id", "")
+	var group: String = String(target_object.get("object_group", ""))
+	var module_id: String = String(module.get("id", ""))
 	match action_type:
 		"open":
 			if group == "door":
 				if target_object.get("state", "") == "locked":
 					return _result(false, "Door is locked.")
-				var gate := _validate_door_class(actor, target_object)
+				var gate: Dictionary = _validate_door_class(actor, target_object)
 				if not gate.success:
 					return gate
 				if target_object.get("state", "") != "closed":
@@ -37,7 +37,7 @@ static func apply_action(actor: Dictionary, module: Dictionary, target_object: D
 		"unlock":
 			if group != "door":
 				return _result(false, "Cannot unlock this object.")
-			var door_gate := _validate_door_class(actor, target_object)
+			var door_gate: Dictionary = _validate_door_class(actor, target_object)
 			if not door_gate.success:
 				return door_gate
 			if module_id in ["mechanical_keycard", "digital_key_opened"]:
@@ -71,7 +71,7 @@ static func apply_action(actor: Dictionary, module: Dictionary, target_object: D
 				return _result(true, "Wall cut and damaged.", [{"type":"set_state","state":"damaged"}])
 		"impact":
 			if module_id == "sledgehammer_v1" and group == "door":
-				var hits := int(target_object.get("impact_hits", 0)) + 1
+				var hits: int = int(target_object.get("impact_hits", 0)) + 1
 				target_object["impact_hits"] = hits
 				match target_object.get("object_type", ""):
 					"grid_door":
@@ -109,7 +109,7 @@ static func apply_action(actor: Dictionary, module: Dictionary, target_object: D
 			return _result(false, "Door cannot be forced open.")
 		"connect":
 			if group == "terminal":
-				var connection_type := target_object.get("connection_type", "wired")
+				var connection_type: String = String(target_object.get("connection_type", "wired"))
 				var expected = {"wired":"wired_connector","optical":"optical_connector","wireless":"wireless_connector","high_bandwidth":"high_bandwidth_connector"}
 				var needed = expected.get(connection_type, "wired_connector")
 				if module_id.find(needed) == -1:
@@ -128,7 +128,7 @@ static func apply_action(actor: Dictionary, module: Dictionary, target_object: D
 				WorldObjectCatalog.update_world_object_heat_state(target_object)
 				if String(target_object.get("state", "")) == "overheated":
 					return _result(false, "Terminal overheated. Hack failed.", [{"type":"terminal_overheated","heat_breakdown":WorldObjectCatalog.get_world_object_heat_breakdown(target_object, 0)}])
-				var hack_heat := maxi(0, int(target_object.get("hack_heat", 1)))
+				var hack_heat: int = maxi(0, int(target_object.get("hack_heat", 1)))
 				if WorldObjectCatalog.would_world_object_overheat_with_temporary_heat(target_object, hack_heat):
 					return _result(false, "Terminal overheated. Hack failed.", [{"type":"terminal_overheated","heat_breakdown":WorldObjectCatalog.get_world_object_heat_breakdown(target_object, hack_heat)}])
 			target_object["state"] = "hacked"
@@ -136,7 +136,7 @@ static func apply_action(actor: Dictionary, module: Dictionary, target_object: D
 				return _result(true, "Hack successful.", [{"type":"set_state","state":"hacked"},{"type":"set_behavior_state","behavior_state":"idle"}])
 			return _result(true, "Hack successful.", [{"type":"terminal_hacked"},{"type":"apply_terminal_controls"},{"type":"set_state","state":"hacked"}])
 		"push", "pull":
-			var move_gate := _validate_weight_class(actor, target_object)
+			var move_gate: Dictionary = _validate_weight_class(actor, target_object)
 			if not move_gate.success:
 				return move_gate
 			if module_id == "magnetic_manipulator_v1":
@@ -148,11 +148,11 @@ static func apply_action(actor: Dictionary, module: Dictionary, target_object: D
 					return _result(false, "Cannot pull through grate.")
 				if actor.get("magnetic_path_blocked", false):
 					return _result(false, "Magnetic path blocked.")
-				var material_tags: Array = target_object.get("material_tags", [])
+				var material_tags: Array = Array(target_object.get("material_tags", []))
 				if not target_object.get("magnetic", false) and not material_tags.has("metal"):
 					return _result(false, "Object is not magnetic.")
-			var facing := Vector2i(actor.get("facing_direction", Vector2i.ZERO))
-			var direction := facing
+			var facing: Vector2i = Vector2i(actor.get("facing_direction", Vector2i.ZERO))
+			var direction: Vector2i = facing
 			if action_type == "pull":
 				direction = -facing
 			return _result(true, "Object moved.", [{"type":"object_move","mode":action_type,"direction":direction,"dx":direction.x,"dy":direction.y}])
@@ -167,14 +167,14 @@ static func apply_action(actor: Dictionary, module: Dictionary, target_object: D
 			if String(target_object.get("state", "")) != "damaged":
 				return _result(false, "Object is not damaged.")
 			target_object["state"] = "active"
-			var effects := [{"type":"set_state","state":"active"}]
-			var object_group := String(target_object.get("object_group", ""))
+			var effects: Array = [{"type":"set_state","state":"active"}]
+			var object_group: String = String(target_object.get("object_group", ""))
 			if target_object.has("power_network_id") or object_group in ["power", "terminal"]:
 				effects.append({"type":"power_recalc_needed"})
 			return _result(true, "Object repaired.", effects)
 		"switch":
-			var state := String(target_object.get("state", "switch_off"))
-			var next_state := "switch_on" if state == "switch_off" else "switch_off"
+			var state: String = String(target_object.get("state", "switch_off"))
+			var next_state: String = "switch_on" if state == "switch_off" else "switch_off"
 			target_object["state"] = next_state
 			return _result(true, "Switch toggled.", [{"type":"set_state","state":next_state},{"type":"power_recalc_needed"}])
 
@@ -191,7 +191,7 @@ static func apply_action(actor: Dictionary, module: Dictionary, target_object: D
 			if group == "terminal" and String(target_object.get("terminal_type", "")) == "platform":
 				if String(target_object.get("state", "active")) in ["unpowered", "disabled", "damaged"] or not bool(target_object.get("platform_remote_control", true)):
 					return _result(false, "Platform terminal is unavailable.")
-				var required_interface := maxi(1, int(target_object.get("required_connector_level", 1)))
+				var required_interface: int = maxi(1, int(target_object.get("required_connector_level", 1)))
 				var connection_type := String(target_object.get("connection_type", "wired"))
 				var interface_key := "%s_connector_level" % connection_type
 				if int(actor.get(interface_key, 0)) < required_interface:
@@ -205,7 +205,7 @@ static func apply_action(actor: Dictionary, module: Dictionary, target_object: D
 		"attack":
 			if group != "threat":
 				return _result(false, "Cannot attack this object.")
-			var attack_damage := 0
+			var attack_damage: int = 0
 			if module_id == "laser_v1":
 				attack_damage = 5
 			elif module_id == "sledgehammer_v1":
@@ -226,10 +226,10 @@ static func apply_action(actor: Dictionary, module: Dictionary, target_object: D
 				return _result(false, "Cannot drain this object.")
 			if bool(target_object.get("drained_this_turn", false)):
 				return _result(false, "Target already drained this turn.")
-			var pool := int(target_object.get("drain_energy_pool", 0))
+			var pool: int = int(target_object.get("drain_energy_pool", 0))
 			if pool <= 0:
 				return _result(false, "No energy left to drain.")
-			var drained := mini(5, pool)
+			var drained: int = mini(5, pool)
 			return _result(true, "Energy drained.", [{"type":"drain_energy","amount":drained}])
 		"disable":
 			if group != "threat":
@@ -247,8 +247,8 @@ static func _validate_door_class(actor: Dictionary, target_object: Dictionary) -
 	return _result(true, "OK")
 
 static func _validate_weight_class(actor: Dictionary, target_object: Dictionary) -> Dictionary:
-	var weight_class := target_object.get("weight_class", "normal")
-	var actor_power := actor.get("power_class", "scout")
+	var weight_class: String = String(target_object.get("weight_class", "normal"))
+	var actor_power: String = String(actor.get("power_class", "scout"))
 	if weight_class == "heavy" and actor_power == "scout":
 		return _result(false, "Object is too heavy.")
 	if weight_class == "block" and actor_power != "juggernaut":
