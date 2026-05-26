@@ -5832,7 +5832,7 @@ func _get_developer_validation_suite_text_internal(suite: String = "all", includ
 		return get_developer_validation_no_mutation_text()
 	var report := _run_developer_validation_suite_internal(suite, include_no_mutation)
 	var lines: Array[String] = ["DeveloperValidation suite=%s suites_run=%d warnings=%d" % [suite, int(report.get("suites_run", 0)), int(report.get("warnings_count", 0))]]
-	var by_suite: Dictionary = report.get("warnings_by_suite", {})
+	var by_suite: Dictionary = Dictionary(report.get("warnings_by_suite", {}))
 	for suite_id_variant in by_suite.keys():
 		var suite_id := String(suite_id_variant)
 		var suite_warnings: Array = Array(by_suite.get(suite_id_variant, []))
