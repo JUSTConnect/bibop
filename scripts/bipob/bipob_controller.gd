@@ -1094,7 +1094,7 @@ func _ready() -> void:
 	_setup_cycle_world_action_input()
 	
 	grid_position = start_grid_position
-	update_rotation()
+	update_visual_facing()
 	if debug_place_hidden_route_node:
 		place_debug_hidden_route_node()
 	update_world_position()
@@ -1243,7 +1243,7 @@ func start_mission(mission_index: int, save_snapshot: bool = true) -> void:
 			place_debug_hidden_route_node()
 	grid_position = start_grid_position
 	direction = Direction.NORTH
-	update_rotation()
+	update_visual_facing()
 	update_world_position()
 
 	if save_snapshot:
@@ -1314,7 +1314,7 @@ func restart_current_mission() -> void:
 	last_diagnostic_result = null
 	grid_position = start_grid_position
 	direction = Direction.NORTH
-	update_rotation()
+	update_visual_facing()
 	update_world_position()
 	status_changed.emit()
 	hint_requested.emit(get_current_mission_goal_hint())
@@ -5978,7 +5978,7 @@ func turn_left() -> void:
 		return
 	
 	direction = Direction.values()[(int(direction) + 3) % 4]
-	update_rotation()
+	update_visual_facing()
 	update_vision()
 	update_threat_detection_preview()
 	spend_action(1, 0)
@@ -5990,7 +5990,7 @@ func turn_right() -> void:
 		return
 	
 	direction = Direction.values()[(int(direction) + 1) % 4]
-	update_rotation()
+	update_visual_facing()
 	update_vision()
 	update_threat_detection_preview()
 	spend_action(1, 0)
@@ -6395,6 +6395,7 @@ func update_world_position() -> void:
 		z_index = grid_position.x + grid_position.y + 10
 	else:
 		global_position = grid_manager.global_position + get_visual_world_position_for_grid_cell(grid_position)
+	update_visual_facing()
 	update_vision()
 	update_threat_detection_preview()
 	emit_facing_world_object_hint()
@@ -6612,7 +6613,23 @@ func charge_to_full() -> void:
 	hint_requested.emit("Bipob fully charged.")
 	status_changed.emit()
 		
-func update_rotation() -> void:
+func get_isometric_visual_rotation_for_direction(direction: Vector2i) -> float:
+	match direction:
+		Vector2i.UP:
+			return deg_to_rad(-45.0)
+		Vector2i.RIGHT:
+			return deg_to_rad(45.0)
+		Vector2i.DOWN:
+			return deg_to_rad(135.0)
+		Vector2i.LEFT:
+			return deg_to_rad(-135.0)
+	return 0.0
+
+func update_visual_facing() -> void:
+	if should_use_isometric_visual_position():
+		rotation = get_isometric_visual_rotation_for_direction(get_direction_vector(direction))
+		return
+
 	match direction:
 		Direction.NORTH:
 			rotation_degrees = 0
@@ -6622,6 +6639,9 @@ func update_rotation() -> void:
 			rotation_degrees = 180
 		Direction.WEST:
 			rotation_degrees = 270
+
+func update_rotation() -> void:
+	update_visual_facing()
 
 func get_direction_vector(current_direction: Direction) -> Vector2i:
 	match current_direction:
