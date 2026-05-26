@@ -1305,7 +1305,6 @@ func restart_current_mission() -> void:
 	if sector_completed and current_mission_index == max_mission_index:
 		sector_completed = false
 
-	# Restart flow is a fresh attempt reset, not stale snapshot restore.
 	start_mission(current_mission_index, true)
 
 func return_to_box() -> void:
