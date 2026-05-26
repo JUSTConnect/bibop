@@ -104,6 +104,9 @@ var storage_items_value_label: Label
 var storage_information_value_label: Label
 var storage_keys_value_label: Label
 var runtime_storage_panel: PanelContainer
+var runtime_storage_panel_collapsed: bool = false
+var runtime_storage_panel_body: Control = null
+var runtime_storage_collapse_button: Button = null
 var runtime_manipulator_content_label: Label
 var runtime_pocket_slots: Array[Button] = []
 var runtime_digital_slots: Array[Button] = []
@@ -443,6 +446,9 @@ func _destroy_gameplay_runtime() -> void:
 	bipob = null
 	field_runtime = null
 	mission_manager_runtime = null
+	runtime_storage_panel_collapsed = false
+	runtime_storage_panel_body = null
+	runtime_storage_collapse_button = null
 
 func _object_has_property(target: Object, property_name: String) -> bool:
 	if target == null:
@@ -4654,24 +4660,37 @@ func _create_runtime_storage_panel() -> PanelContainer:
 	var root := VBoxContainer.new()
 	root.add_theme_constant_override("separation", 4)
 	margin.add_child(root)
+	var storage_header := HBoxContainer.new()
+	storage_header.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	storage_header.add_theme_constant_override("separation", 4)
+	root.add_child(storage_header)
 	var things_title := Label.new()
 	things_title.text = "THINGS"
-	root.add_child(things_title)
+	things_title.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	storage_header.add_child(things_title)
+	runtime_storage_collapse_button = Button.new()
+	runtime_storage_collapse_button.custom_minimum_size = Vector2(28, 28)
+	runtime_storage_collapse_button.focus_mode = Control.FOCUS_NONE
+	runtime_storage_collapse_button.pressed.connect(_on_runtime_storage_collapse_pressed)
+	storage_header.add_child(runtime_storage_collapse_button)
+	runtime_storage_panel_body = VBoxContainer.new()
+	runtime_storage_panel_body.add_theme_constant_override("separation", 4)
+	root.add_child(runtime_storage_panel_body)
 	runtime_pocket_slots.clear()
 	runtime_digital_slots.clear()
 	runtime_pocket_take_buttons.clear()
 	runtime_digital_load_buttons.clear()
 	runtime_key_slots.clear()
-	root.add_child(_create_runtime_storage_dual_action_header("MANIPULATOR", "DROP", Callable(self, "_on_storage_store_pressed"), "POCKET", Callable(self, "_on_storage_take_pressed")))
+	runtime_storage_panel_body.add_child(_create_runtime_storage_dual_action_header("MANIPULATOR", "DROP", Callable(self, "_on_storage_store_pressed"), "POCKET", Callable(self, "_on_storage_take_pressed")))
 	runtime_manipulator_content_label = Label.new()
 	runtime_manipulator_content_label.text = "Empty"
-	root.add_child(runtime_manipulator_content_label)
+	runtime_storage_panel_body.add_child(runtime_manipulator_content_label)
 	runtime_pocket_title_label = Label.new()
 	runtime_pocket_title_label.text = "POCKET 1/4"
-	root.add_child(runtime_pocket_title_label)
+	runtime_storage_panel_body.add_child(runtime_pocket_title_label)
 	var pocket_row := HBoxContainer.new()
 	pocket_row.add_theme_constant_override("separation", 4)
-	root.add_child(pocket_row)
+	runtime_storage_panel_body.add_child(pocket_row)
 	for i in range(4):
 		var col := VBoxContainer.new()
 		col.add_theme_constant_override("separation", 2)
@@ -4685,23 +4704,23 @@ func _create_runtime_storage_panel() -> PanelContainer:
 		pocket_row.add_child(col)
 	var keys_row := HBoxContainer.new()
 	keys_row.add_theme_constant_override("separation", 4)
-	root.add_child(keys_row)
+	runtime_storage_panel_body.add_child(keys_row)
 	for i in range(6):
 		var key_slot := _create_storage_key_slot(true)
 		keys_row.add_child(key_slot)
 		runtime_key_slots.append(key_slot)
 	runtime_digital_title_label = Label.new()
 	runtime_digital_title_label.text = "BUFFER"
-	root.add_child(_create_runtime_storage_section_header("", "STORE", Callable(self, "_on_storage_data_store_pressed"), runtime_digital_title_label))
+	runtime_storage_panel_body.add_child(_create_runtime_storage_section_header("", "STORE", Callable(self, "_on_storage_data_store_pressed"), runtime_digital_title_label))
 	runtime_buffer_content_label = Label.new()
 	runtime_buffer_content_label.text = "Empty"
-	root.add_child(runtime_buffer_content_label)
+	runtime_storage_panel_body.add_child(runtime_buffer_content_label)
 	runtime_digital_store_title_label = Label.new()
 	runtime_digital_store_title_label.text = "STORE 1/4"
-	root.add_child(runtime_digital_store_title_label)
+	runtime_storage_panel_body.add_child(runtime_digital_store_title_label)
 	var digital_row := HBoxContainer.new()
 	digital_row.add_theme_constant_override("separation", 4)
-	root.add_child(digital_row)
+	runtime_storage_panel_body.add_child(digital_row)
 	for i in range(4):
 		var col := VBoxContainer.new()
 		col.add_theme_constant_override("separation", 2)
@@ -4714,7 +4733,29 @@ func _create_runtime_storage_panel() -> PanelContainer:
 		runtime_digital_load_buttons.append(load_button)
 		digital_row.add_child(col)
 	_refresh_runtime_storage_panel()
+	_apply_runtime_storage_collapsed_state()
 	return panel
+
+
+func _on_runtime_storage_collapse_pressed() -> void:
+	runtime_storage_panel_collapsed = not runtime_storage_panel_collapsed
+	_apply_runtime_storage_collapsed_state()
+
+
+func _apply_runtime_storage_collapsed_state() -> void:
+	if runtime_storage_panel == null:
+		return
+	if runtime_storage_panel_body != null:
+		runtime_storage_panel_body.visible = not runtime_storage_panel_collapsed
+	if runtime_storage_collapse_button != null:
+		runtime_storage_collapse_button.text = "◀" if runtime_storage_panel_collapsed else "▶"
+		runtime_storage_collapse_button.tooltip_text = "Expand storage panel" if runtime_storage_panel_collapsed else "Collapse storage panel"
+	if runtime_storage_panel_collapsed:
+		runtime_storage_panel.custom_minimum_size = Vector2(42, 42)
+		runtime_storage_panel.size_flags_horizontal = Control.SIZE_SHRINK_END
+	else:
+		runtime_storage_panel.custom_minimum_size = Vector2(380, 0)
+		runtime_storage_panel.size_flags_horizontal = Control.SIZE_SHRINK_END
 
 func _create_runtime_storage_dual_action_header(title: String, first_action_text: String, first_action_callable: Callable, second_action_text: String, second_action_callable: Callable) -> HBoxContainer:
 	var row := HBoxContainer.new()
@@ -8862,6 +8903,7 @@ func _refresh_runtime_storage_panel() -> void:
 			load_button.visible = denabled
 	if runtime_buffer_content_label != null:
 		runtime_buffer_content_label.text = "Empty"
+	_apply_runtime_storage_collapsed_state()
 
 func _on_storage_take_pressed() -> void:
 	bipob.move_pocket_to_manipulator(selected_pocket_slot)
