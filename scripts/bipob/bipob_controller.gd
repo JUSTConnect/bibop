@@ -6100,7 +6100,7 @@ func try_move_to(target_position: Vector2i) -> bool:
 			if not bool(can_move_height_variant):
 				hint_requested.emit("Height mismatch.")
 				return false
-		var blocking_obj := mission_manager.get_world_object_at_cell(target_position)
+		var blocking_obj: Dictionary = Dictionary(mission_manager.get_world_object_at_cell(target_position))
 		if not blocking_obj.is_empty() and bool(blocking_obj.get("blocks_movement", false)):
 			hint_requested.emit("Blocked by %s." % blocking_obj.get("display_name", "object"))
 			return false
@@ -6399,12 +6399,12 @@ func emit_facing_world_object_hint() -> void:
 	if mission_manager == null:
 		return
 	var facing := get_facing_device_position()
-	var object_data := mission_manager.get_world_object_at_cell(facing)
+	var object_data: Dictionary = Dictionary(mission_manager.get_world_object_at_cell(facing))
 	if object_data.is_empty():
-		var items := mission_manager.get_items_at_cell(facing)
+		var items: Array = mission_manager.get_items_at_cell(facing)
 		if items.is_empty():
 			return
-		object_data = items[0]
+		object_data = Dictionary(items[0])
 	var scan_level := int(object_data.get("scan_level", 0))
 	var generic := String(object_data.get("object_group", "Object")).capitalize()
 	if String(object_data.get("object_group", "")) == "threat" and scan_level <= 0:
@@ -6469,11 +6469,11 @@ func get_facing_world_action_target() -> Dictionary:
 	var target_object: Dictionary = {}
 	var actions: Array[String] = []
 	if mission_manager != null:
-		target_object = mission_manager.get_world_object_at_cell(target_position)
+		target_object = Dictionary(mission_manager.get_world_object_at_cell(target_position))
 		if target_object.is_empty():
-			var items := mission_manager.get_items_at_cell(target_position)
+			var items: Array = mission_manager.get_items_at_cell(target_position)
 			if not items.is_empty():
-				target_object = items[0]
+				target_object = Dictionary(items[0])
 		if not target_object.is_empty():
 			actions = get_available_world_actions(target_object, target_position)
 	return {"target_position": target_position, "target_object": target_object, "actions": actions}
@@ -6807,7 +6807,7 @@ func scan_device() -> void:
 
 	var facing_cell := get_facing_device_position()
 	if mission_manager != null:
-		var world_object := mission_manager.get_world_object_at_cell(facing_cell)
+		var world_object: Dictionary = Dictionary(mission_manager.get_world_object_at_cell(facing_cell))
 		if not world_object.is_empty():
 			if not can_spend_action(1, 1):
 				return
@@ -6905,7 +6905,7 @@ func hack_device() -> void:
 			hint_requested.emit(String(overheat_message))
 		status_changed.emit()
 		return
-	var hack_world_object := mission_manager.get_world_object_at_cell(get_facing_device_position())
+	var hack_world_object: Dictionary = Dictionary(mission_manager.get_world_object_at_cell(get_facing_device_position()))
 	if not hack_world_object.is_empty() and String(hack_world_object.get("object_group", "")) == "terminal":
 		if not _is_terminal_powered_for_interaction(hack_world_object):
 			hint_requested.emit("Terminal is unpowered.")
@@ -7266,10 +7266,30 @@ func get_grid_position() -> Vector2i:
 	return grid_position
 
 func set_direction(next_direction: String) -> void:
-	direction = next_direction
+	match next_direction.strip_edges().to_upper():
+		"NORTH":
+			direction = Direction.NORTH
+		"EAST":
+			direction = Direction.EAST
+		"SOUTH":
+			direction = Direction.SOUTH
+		"WEST":
+			direction = Direction.WEST
+		_:
+			direction = Direction.NORTH
 
 func get_direction() -> String:
-	return direction
+	match direction:
+		Direction.NORTH:
+			return "NORTH"
+		Direction.EAST:
+			return "EAST"
+		Direction.SOUTH:
+			return "SOUTH"
+		Direction.WEST:
+			return "WEST"
+		_:
+			return "NORTH"
 
 func get_heavy_claw_move_destination(object_cell: Vector2i, actor_cell: Vector2i, action_id: String) -> Vector2i:
 	var direction_vector := object_cell - actor_cell
@@ -7402,8 +7422,8 @@ func get_world_action_module(action_id: String, world_object: Dictionary) -> Dic
 		"impact":
 			return _module_dict("sledgehammer_v1" if has_module_id("sledgehammer_v1") else "")
 		"attack":
-			var target_pos := Vector2i(world_object.get("position", get_facing_device_position()))
-			var distance := abs(target_pos.x - grid_position.x) + abs(target_pos.y - grid_position.y)
+			var target_pos: Vector2i = Vector2i(world_object.get("position", get_facing_device_position()))
+			var distance: int = abs(target_pos.x - grid_position.x) + abs(target_pos.y - grid_position.y)
 			if has_module_id("laser_v1") and distance <= 4:
 				return _module_dict("laser_v1")
 			if has_module_id("saw_v1") and distance <= 1:
@@ -7490,12 +7510,12 @@ func interact() -> void:
 	
 	var active_manipulator: BipobModule = get_best_manipulator_for_interaction(target_position)
 	if mission_manager != null:
-		var cell_items := mission_manager.get_items_at_cell(target_position)
+		var cell_items: Array = mission_manager.get_items_at_cell(target_position)
 		if not cell_items.is_empty():
-			var item := cell_items[0]
+			var item: Dictionary = Dictionary(cell_items[0])
 			var is_digital_item := String(item.get("item_form", "physical")) == "digital"
 			var item_actor := {"manipulator_occupied": not is_digital_item and not can_use_physical_hand()}
-			var item_result := InteractionSystem.apply_action(item_actor, {"id": active_manipulator.id if active_manipulator != null else ""}, item, "pickup")
+			var item_result: Dictionary = Dictionary(InteractionSystem.apply_action(item_actor, {"id": active_manipulator.id if active_manipulator != null else ""}, item, "pickup"))
 			if bool(item_result.get("success", false)):
 				if is_digital_item:
 					mission_manager.remove_first_item_at_cell(target_position)
@@ -7522,9 +7542,9 @@ func interact() -> void:
 			status_changed.emit()
 			return
 
-		var world_object := mission_manager.get_world_object_at_cell(target_position)
+		var world_object: Dictionary = Dictionary(mission_manager.get_world_object_at_cell(target_position))
 		if not world_object.is_empty():
-			var target_platform := mission_manager.get_platform_for_cell(target_position)
+			var target_platform: Dictionary = Dictionary(mission_manager.get_platform_for_cell(target_position))
 			if String(world_object.get("object_group", "")) == "platform":
 				target_platform = world_object
 			var actor := {
@@ -7568,7 +7588,7 @@ func interact() -> void:
 					hint_requested.emit("No available action for this object.")
 				status_changed.emit()
 				return
-			var action_result := InteractionSystem.apply_action(actor, module, world_object, action_id)
+			var action_result: Dictionary = Dictionary(InteractionSystem.apply_action(actor, module, world_object, action_id))
 			if bool(action_result.get("success", false)):
 				if not can_spend_action(1, 1):
 					hint_requested.emit("Not enough action/energy.")
@@ -7584,7 +7604,7 @@ func interact() -> void:
 						hint_requested.emit("Heavy Claw move is unavailable for this direction.")
 						status_changed.emit()
 						return
-					var move_result := mission_manager.move_world_object_by_heavy_claw(String(world_object.get("id", "")), target_destination)
+					var move_result: Dictionary = Dictionary(mission_manager.move_world_object_by_heavy_claw(String(world_object.get("id", "")), target_destination))
 					if bool(move_result.get("success", false)):
 						spend_action(1, 1)
 						_register_successful_paid_player_action(true)
@@ -7717,10 +7737,10 @@ func _apply_world_object_effects(effects: Array, world_object: Dictionary, targe
 				if target_platform_id.is_empty():
 					hint_requested.emit("Platform terminal target is missing.")
 				else:
-					var platform_result := mission_manager.activate_platform_by_id(target_platform_id, "terminal")
+					var platform_result: Dictionary = Dictionary(mission_manager.activate_platform_by_id(target_platform_id, "terminal"))
 					hint_requested.emit(String(platform_result.get("message", "Platform action.")))
 			elif String(world_object.get("object_group", "")) == "platform":
-				var platform_result_direct := mission_manager.activate_platform_by_id(String(world_object.get("platform_id", "")), "local_switch")
+				var platform_result_direct: Dictionary = Dictionary(mission_manager.activate_platform_by_id(String(world_object.get("platform_id", "")), "local_switch"))
 				hint_requested.emit(String(platform_result_direct.get("message", "Platform action.")))
 		elif effect_type == "object_move":
 			var move_dir := Vector2i(effect.get("direction", actor.get("facing_direction", Vector2i.ZERO)))
@@ -7753,7 +7773,7 @@ func _apply_terminal_controls(terminal: Dictionary) -> Array[String]:
 		messages.append("Terminal hacked. No linked devices.")
 		return messages
 	for controlled_id in controls:
-		var controlled := mission_manager.get_world_object_by_id(String(controlled_id))
+		var controlled: Dictionary = Dictionary(mission_manager.get_world_object_by_id(String(controlled_id)))
 		if controlled.is_empty():
 			messages.append("Terminal hacked. Linked device not found: %s." % String(controlled_id))
 			continue
@@ -7794,17 +7814,18 @@ func refresh_world_object_overlay() -> void:
 func update_threat_detection_preview() -> void:
 	if mission_manager == null:
 		return
-	var threats := mission_manager.get_threats()
+	var threats: Array = mission_manager.get_threats()
 	if threats.is_empty():
 		return
 	var detected_results: Array[Dictionary] = []
 	var detected_ids: Dictionary = {}
 	var threat_state_changed := false
-	for threat in threats:
+	for threat_variant in threats:
+		var threat: Dictionary = Dictionary(threat_variant)
 		var threat_id := String(threat.get("id", ""))
 		if threat_id.is_empty():
 			continue
-		var detection := mission_manager.get_threat_detection_result(threat, grid_position, grid_manager)
+		var detection: Dictionary = Dictionary(mission_manager.get_threat_detection_result(threat, grid_position, grid_manager))
 		var is_detected := bool(detection.get("detected", false))
 		if is_detected:
 			detected_results.append(detection)
@@ -7967,7 +7988,7 @@ func interact_mission7_socket() -> void:
 	mission7_is_dragging_cable = false
 	mission7_cable_connected = true
 	if mission_manager != null:
-		var mission7_cable_object := mission_manager.get_world_object_by_id("cable_a")
+		var mission7_cable_object: Dictionary = Dictionary(mission_manager.get_world_object_by_id("cable_a"))
 		if not mission7_cable_object.is_empty():
 			mission7_cable_object["state"] = "connected"
 			mission7_cable_object["connected"] = true
