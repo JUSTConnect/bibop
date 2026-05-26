@@ -1305,22 +1305,8 @@ func restart_current_mission() -> void:
 	if sector_completed and current_mission_index == max_mission_index:
 		sector_completed = false
 
-	# Restart flow is state reset, not a field action spend.
-	start_mission(current_mission_index, false)
-	mission_finished = false
-	energy = mission_start_energy
-	actions_left = mission_start_actions_left
-	has_key = mission_start_has_key
-	has_info_key = mission_start_has_info_key
-	held_module = mission_start_held_module
-	stored_physical_module = mission_start_stored_physical_module
-	last_diagnostic_result = null
-	grid_position = start_grid_position
-	direction = Direction.NORTH
-	update_visual_facing()
-	update_world_position()
-	status_changed.emit()
-	hint_requested.emit(get_current_mission_goal_hint())
+	# Restart flow is a fresh attempt reset, not stale snapshot restore.
+	start_mission(current_mission_index, true)
 
 func return_to_box() -> void:
 	if mission_finished:
