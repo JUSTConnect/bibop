@@ -4464,7 +4464,8 @@ func _apply_runtime_hud_layout() -> void:
 	var wa_top: float = margin + switcher_height + top_panel_height + 8.0
 	var mission_reserved: float = bottom_area_height + 8.0
 	var available_wa_height: float = maxf((viewport.y - margin) - wa_top - mission_reserved, 92.0)
-	world_actions_panel.position = Vector2(right_x, wa_top)
+	var wa_left: float = margin
+	world_actions_panel.position = Vector2(wa_left, wa_top)
 	world_actions_panel.size = Vector2(sidebar_width, available_wa_height)
 	root.add_child(world_actions_panel)
 	runtime_world_actions_panel = world_actions_panel
