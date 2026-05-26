@@ -8799,6 +8799,9 @@ func run_developer_validation_suite(suite: String = "all") -> Dictionary:
 func get_developer_validation_suite_text(suite: String = "all") -> String:
 	return "Validation unavailable." if mission_manager == null or not mission_manager.has_method("get_developer_validation_suite_text") else String(mission_manager.call("get_developer_validation_suite_text", suite))
 
+func start_dev_task_test_mission() -> void:
+	start_mission(10, false)
+
 func get_door_debug_report_text(door_id: String = "") -> String:
 	if mission_manager == null or not mission_manager.has_method("get_door_debug_report_text"):
 		return "Door debug report unavailable: mission manager/helper missing."
