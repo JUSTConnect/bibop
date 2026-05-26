@@ -421,11 +421,11 @@ func get_iso_visual_debug_report() -> Dictionary:
 func get_iso_visual_debug_report_text() -> String:
 	var report: Dictionary = get_iso_visual_debug_report()
 	var lines: Array[String] = []
-	var layers: Dictionary = report.get("layers", {})
-	var preview: Dictionary = report.get("preview", {})
-	var textures: Dictionary = report.get("textures", {})
-	var grid: Dictionary = report.get("grid", {})
-	var iso_settings: Dictionary = report.get("iso_settings", {})
+	var layers: Dictionary = Dictionary(report.get("layers", {}))
+	var preview: Dictionary = Dictionary(report.get("preview", {}))
+	var textures: Dictionary = Dictionary(report.get("textures", {}))
+	var grid: Dictionary = Dictionary(report.get("grid", {}))
+	var iso_settings: Dictionary = Dictionary(report.get("iso_settings", {}))
 	lines.append("IsoVisualDebugReport:")
 	lines.append("Layers:")
 	lines.append("- floor: %s" % str(layers.get("floor_enabled", false)))
@@ -440,7 +440,7 @@ func get_iso_visual_debug_report_text() -> String:
 	lines.append("- includes_asset_hooks: %s" % str(iso_visual_preview_includes_asset_hooks))
 	lines.append("Textures:")
 	for texture_key in get_iso_visual_texture_debug_keys():
-		var texture_entry: Dictionary = textures.get(texture_key, {})
+		var texture_entry: Dictionary = Dictionary(textures.get(texture_key, {}))
 		lines.append("- %s: %s" % [texture_key, str(texture_entry.get("active_texture_source", "none"))])
 	lines.append("Grid:")
 	lines.append("- has_grid_manager: %s" % str(grid.get("has_grid_manager", false)))
