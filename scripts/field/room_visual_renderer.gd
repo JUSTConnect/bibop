@@ -998,7 +998,7 @@ func draw_iso_wall_brick_accent(left_face: PackedVector2Array, right_face: Packe
 func draw_iso_wall_concrete_accent(
 	left_face: PackedVector2Array,
 	right_face: PackedVector2Array,
-	top_face: PackedVector2Array,
+	_top_face: PackedVector2Array,
 	accent_color: Color
 ) -> void:
 	var crack_color: Color = accent_color.darkened(0.28)

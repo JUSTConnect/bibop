@@ -467,18 +467,23 @@ func remove_world_object_at_cell(cell: Vector2i) -> void:
 	refresh_world_cooling_received()
 
 func get_items_at_cell(cell: Vector2i) -> Array[Dictionary]:
-	return cell_items.get(cell, [])
+	var result: Array[Dictionary] = []
+	var raw_items: Array = Array(cell_items.get(cell, []))
+	for item_variant in raw_items:
+		if item_variant is Dictionary:
+			result.append(Dictionary(item_variant))
+	return result
 
 func add_item_at_cell(cell: Vector2i, item_data: Dictionary) -> void:
 	item_data["position"] = cell
-	var items: Array[Dictionary] = cell_items.get(cell, [])
+	var items: Array[Dictionary] = get_items_at_cell(cell)
 	items.append(item_data)
 	cell_items[cell] = items
 	if not mission_world_objects.has(item_data):
 		mission_world_objects.append(item_data)
 
 func remove_first_item_at_cell(cell: Vector2i) -> Dictionary:
-	var items: Array[Dictionary] = cell_items.get(cell, [])
+	var items: Array[Dictionary] = get_items_at_cell(cell)
 	if items.is_empty():
 		return {}
 	var item: Dictionary = items.pop_front()
@@ -678,10 +683,10 @@ func is_threat_active(threat: Dictionary) -> bool:
 		return false
 	return true
 
-func can_threat_detect_bipop(threat: Dictionary, bipob_cell: Vector2i, grid_manager: Node) -> bool:
-	return bool(get_threat_detection_result(threat, bipob_cell, grid_manager).get("detected", false))
+func can_threat_detect_bipop(threat: Dictionary, bipob_cell: Vector2i, grid_manager_ref: Node) -> bool:
+	return bool(get_threat_detection_result(threat, bipob_cell, grid_manager_ref).get("detected", false))
 
-func get_threat_detection_result(threat: Dictionary, bipob_cell: Vector2i, grid_manager: Node) -> Dictionary:
+func get_threat_detection_result(threat: Dictionary, bipob_cell: Vector2i, grid_manager_ref: Node) -> Dictionary:
 	var result := {"detected":false, "threat_id":String(threat.get("id", "")), "threat_name":String(threat.get("display_name", "Threat")), "detection_mode":"", "distance":999, "message":"Threat cannot detect Bipop."}
 	if threat.is_empty() or not is_threat_active(threat):
 		result["message"] = "Threat inactive."
@@ -698,7 +703,7 @@ func get_threat_detection_result(threat: Dictionary, bipob_cell: Vector2i, grid_
 		var mode_range := int(threat.get("%s_range" % mode, max_range))
 		if mode_range <= 0 or distance > mode_range:
 			continue
-		if _can_detect_by_mode(mode, threat_position, bipob_cell, grid_manager):
+		if _can_detect_by_mode(mode, threat_position, bipob_cell, grid_manager_ref):
 			result["detected"] = true
 			result["detection_mode"] = mode
 			result["message"] = "%s detected Bipop by %s." % [result["threat_name"], mode]
@@ -706,12 +711,12 @@ func get_threat_detection_result(threat: Dictionary, bipob_cell: Vector2i, grid_
 	result["message"] = "%s has no clear detection path." % result["threat_name"]
 	return result
 
-func _can_detect_by_mode(mode: String, from_cell: Vector2i, to_cell: Vector2i, grid_manager: Node) -> bool:
-	if grid_manager == null:
+func _can_detect_by_mode(mode: String, from_cell: Vector2i, to_cell: Vector2i, grid_manager_ref: Node) -> bool:
+	if grid_manager_ref == null:
 		return false
-	return _has_cardinal_clear_path(from_cell, to_cell, grid_manager, mode, mode != "vision")
+	return _has_cardinal_clear_path(from_cell, to_cell, grid_manager_ref, mode, mode != "vision")
 
-func _has_cardinal_clear_path(from_cell: Vector2i, to_cell: Vector2i, grid_manager: Node, scan_type: String, allow_wall_pass: bool) -> bool:
+func _has_cardinal_clear_path(from_cell: Vector2i, to_cell: Vector2i, grid_manager_ref: Node, scan_type: String, allow_wall_pass: bool) -> bool:
 	var threat := get_world_object_at_cell(from_cell)
 	var detection_shape := String(threat.get("detection_shape", "cardinal"))
 	if detection_shape == "cardinal" and from_cell.x != to_cell.x and from_cell.y != to_cell.y:
@@ -722,10 +727,10 @@ func _has_cardinal_clear_path(from_cell: Vector2i, to_cell: Vector2i, grid_manag
 	var step := Vector2i(signi(to_cell.x - from_cell.x), signi(to_cell.y - from_cell.y))
 	var current := from_cell + step
 	while current != to_cell:
-		if not grid_manager.is_in_bounds(current):
+		if not grid_manager_ref.is_in_bounds(current):
 			return false
-		var tile := int(grid_manager.get_tile(current))
-		if tile == grid_manager.TILE_WALL:
+		var tile := int(grid_manager_ref.get_tile(current))
+		if tile == grid_manager_ref.TILE_WALL:
 			return false
 		var blocker := get_world_object_at_cell(current)
 		if blocker.is_empty():
@@ -2598,7 +2603,7 @@ func validate_power_network_debug_scenario() -> Array[String]:
 	if graph_filter_source_before_preview != bool(graph_filter_source.get("is_powered", false)) or graph_filter_consumer_before_preview != bool(graph_filter_consumer.get("is_powered", false)) or graph_filter_gate_state_before_preview != String(graph_filter_gate.get("state", "")) or graph_filter_gate_power_before_preview != bool(graph_filter_gate.get("is_powered", false)):
 		warnings.append("Graph preview regression: object-id filter preview mutated open-switch objects.")
 	var load_ok_source := get_world_object_by_id("power_debug_source_load_ok")
-	var load_ok_preview := preview_power_graph_state_application("power_debug_source_load_ok")
+	var _load_ok_preview := preview_power_graph_state_application("power_debug_source_load_ok")
 	if int(load_ok_source.get("source_load", -1)) != -1:
 		warnings.append("Source load preview regression: preview mutated source load fields.")
 	var load_ok_apply := apply_power_graph_state_from_preview("power_debug_source_load_ok")
@@ -2805,7 +2810,7 @@ func validate_full_power_system_runtime() -> Array[String]:
 		warnings.append("power_debug_source_recovery_damaged: consumer should remain unpowered.")
 	if Array(recovery_b.get("recovery", {}).get("warnings", [])).is_empty():
 		warnings.append("power_debug_source_recovery_damaged: expected recovery warning for blocked damaged restore.")
-	var recovery_c := execute_power_source_recovery_apply("power_debug_source_recovery_broken")
+	var _recovery_c := execute_power_source_recovery_apply("power_debug_source_recovery_broken")
 	var source_c := get_world_object_by_id("power_debug_source_recovery_broken_source")
 	if String(source_c.get("state", "")).to_lower() == "active":
 		warnings.append("power_debug_source_recovery_broken: source unexpectedly recovered while broken=true.")
@@ -3038,7 +3043,9 @@ func _get_debug_tile_info(cell: Vector2i) -> Variant:
 			return Dictionary(tile_variant).duplicate(true)
 		TYPE_ARRAY:
 			var tile_array := Array(tile_variant)
-			return tile_array.duplicate(true) if tile_array.size() <= 16 else str(tile_array)
+			if tile_array.size() <= 16:
+				return tile_array.duplicate(true)
+			return str(tile_array)
 		_:
 			return str(tile_variant)
 
@@ -5491,7 +5498,7 @@ func validate_module_port_network_runtime() -> Array[String]:
 	if internal_interface_link_ports_reserved > 0 and internal_ports_used < internal_interface_link_ports_reserved:
 		warnings.append("module_ports_debug_report_internal_reserved_accounting_mismatch")
 
-	var known_reason_keys := ["ok","connector_missing","connector_level_too_low","processor_missing","processor_level_too_low","internal_interface_missing","internal_interface_port_missing","internal_interface_link_missing","external_interface_missing","external_interface_port_missing","external_interface_link_missing","power_block_missing","power_block_port_missing","power_block_link_missing","power_block_overloaded","module_installed_but_inactive","module_not_installed"]
+	var _known_reason_keys := ["ok","connector_missing","connector_level_too_low","processor_missing","processor_level_too_low","internal_interface_missing","internal_interface_port_missing","internal_interface_link_missing","external_interface_missing","external_interface_port_missing","external_interface_link_missing","power_block_missing","power_block_port_missing","power_block_link_missing","power_block_overloaded","module_installed_but_inactive","module_not_installed"]
 	var observed_runtime_reason_keys: Dictionary = {}
 	var scenarios := [
 		{"id":"processor_active","modules":["internal_interface_v1","power_block_v1","processor_v1"],"module":"processor_v1","active":true,"reason":"ok"},
