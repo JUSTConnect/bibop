@@ -1,6 +1,9 @@
-[gd_scene format=3 uid="uid://2xanckmu62op"]
+[gd_scene load_steps=2 format=3 uid="uid://2xanckmu62op"]
+
+[ext_resource type="Script" path="res://scripts/bipob/bipob_controller.gd" id="1_bipob"]
 
 [node name="Bipob" type="Node2D" unique_id=1766177282]
+script = ExtResource("1_bipob")
 
 [node name="Body" type="Polygon2D" parent="." unique_id=1961091243]
 color = Color(0.122487165, 0.7251536, 0.6693022, 1)

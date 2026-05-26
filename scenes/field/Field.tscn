@@ -1,8 +1,10 @@
-[gd_scene load_steps=2 format=3 uid="uid://hh35mlq2ews8"]
+[gd_scene load_steps=3 format=3 uid="uid://hh35mlq2ews8"]
 
 [ext_resource type="Script" path="res://scripts/field/room_visual_renderer.gd" id="1_32vmb"]
+[ext_resource type="Script" path="res://scripts/field/grid_manager.gd" id="2_grid"]
 
 [node name="Field" type="Node2D" unique_id=435219368]
+script = ExtResource("2_grid")
 
 [node name="RoomVisualRenderer" type="Node2D" parent="." unique_id=469338091]
 script = ExtResource("1_32vmb")
