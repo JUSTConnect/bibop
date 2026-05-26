@@ -5,22 +5,26 @@
 [node name="Bipob" type="Node2D" unique_id=1766177282]
 script = ExtResource("1_bipob")
 
-[node name="TopFace" type="Polygon2D" parent="." unique_id=1961091243]
+[node name="Shadow" type="Polygon2D" parent="."]
+color = Color(0, 0, 0, 0.22)
+polygon = PackedVector2Array(0, 13, 12, 18, 0, 22, -12, 18)
+
+[node name="BodyTop" type="Polygon2D" parent="." unique_id=1961091243]
 color = Color(0.2, 0.92, 0.9, 1)
-polygon = PackedVector2Array(0, -14, 10, -4, 0, 6, -10, -4)
+polygon = PackedVector2Array(0, -15, 12, -5, 0, 7, -12, -5)
 
-[node name="LeftFace" type="Polygon2D" parent="."]
+[node name="BodyLeft" type="Polygon2D" parent="."]
 color = Color(0.07, 0.42, 0.49, 1)
-polygon = PackedVector2Array(-10, -4, 0, 6, 0, 16, -10, 6)
+polygon = PackedVector2Array(-12, -5, 0, 7, 0, 17, -12, 7)
 
-[node name="RightFace" type="Polygon2D" parent="."]
+[node name="BodyRight" type="Polygon2D" parent="."]
 color = Color(0.11, 0.57, 0.64, 1)
-polygon = PackedVector2Array(10, -4, 0, 6, 0, 16, 10, 6)
+polygon = PackedVector2Array(12, -5, 0, 7, 0, 17, 12, 7)
 
 [node name="FrontAccent" type="Polygon2D" parent="."]
-color = Color(0.55, 0.99, 0.97, 1)
-polygon = PackedVector2Array(0, -19, 4, -13, 0, -11, -4, -13)
+color = Color(0.62, 1, 0.98, 1)
+polygon = PackedVector2Array(0, -20, 5, -13, 0, -11, -5, -13)
 
-[node name="BaseShadow" type="Polygon2D" parent="."]
-color = Color(0, 0, 0, 0.2)
-polygon = PackedVector2Array(0, 13, 9, 17, 0, 20, -9, 17)
+[node name="DirectionLens" type="Polygon2D" parent="."]
+color = Color(0.05, 0.2, 0.24, 0.9)
+polygon = PackedVector2Array(0, -11, 3, -8, 0, -6, -3, -8)
