@@ -54,7 +54,7 @@ static func scan_object(object_data: Dictionary, scan_type: String, scanner_leve
 			out["details"].append("Embedded: %s" % ", ".join(object_data.get("hidden_content", [])))
 	elif object_data.get("object_group", "") == "item":
 		if level >= 2:
-			var storage := object_data.get("storage_type", object_data.get("item_storage", "unknown"))
+			var storage: String = String(object_data.get("storage_type", object_data.get("item_storage", "unknown")))
 			out["details"].append("Storage: %s" % storage)
 	elif object_data.get("object_group", "") == "physical_object":
 		if level >= 2:
