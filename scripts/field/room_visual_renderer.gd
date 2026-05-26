@@ -47,6 +47,7 @@ class_name RoomVisualRenderer
 @export var iso_tile_width: float = 128.0
 @export var iso_tile_height: float = 64.0
 @export var iso_wall_height: float = 56.0
+@export var iso_floor_visual_inset: float = 1.0
 @export var iso_object_marker_height: float = 18.0
 @export var iso_origin: Vector2 = Vector2.ZERO
 
@@ -191,6 +192,29 @@ func get_iso_diamond_points(cell: Vector2i) -> PackedVector2Array:
 	points.append(center_point + Vector2(0.0, half_size.y))
 	points.append(center_point + Vector2(-half_size.x, 0.0))
 	return points
+
+func get_iso_inset_diamond_points(cell: Vector2i, inset: float) -> PackedVector2Array:
+	var base_points: PackedVector2Array = get_iso_diamond_points(cell)
+	if inset <= 0.0:
+		return base_points
+	var center_point: Vector2 = grid_to_iso(cell)
+	var inset_points: PackedVector2Array = PackedVector2Array()
+	for point in base_points:
+		var toward_center: Vector2 = center_point - point
+		var distance_to_center: float = toward_center.length()
+		if distance_to_center <= 0.0001:
+			inset_points.append(point)
+			continue
+		var safe_inset: float = minf(inset, distance_to_center - 0.01)
+		if safe_inset <= 0.0:
+			inset_points.append(point)
+			continue
+		inset_points.append(point + toward_center.normalized() * safe_inset)
+	return inset_points
+
+func get_iso_wall_base_points(cell: Vector2i) -> PackedVector2Array:
+	return get_iso_diamond_points(cell)
+
 
 func get_iso_depth_key(cell: Vector2i) -> int:
 	return cell.x + cell.y
@@ -828,14 +852,28 @@ func get_wall_object_type_for_cell(cell: Vector2i) -> String:
 	if metadata.is_empty():
 		return ""
 	var candidates: Array[String] = [
+		String(metadata.get("visual_profile", "")),
+		String(metadata.get("wall_type", "")),
 		String(metadata.get("object_type", "")),
 		String(metadata.get("type", "")),
 		String(metadata.get("catalog_id", "")),
 		String(metadata.get("id", "")),
 		String(metadata.get("material", ""))
 	]
+	var tag_profile: String = get_wall_profile_from_tags(metadata.get("tags", []))
+	if not tag_profile.is_empty():
+		return tag_profile
 	for candidate in candidates:
 		var mapped: String = map_wall_metadata_value_to_profile(candidate)
+		if not mapped.is_empty():
+			return mapped
+	return ""
+
+func get_wall_profile_from_tags(tags_variant: Variant) -> String:
+	if not (tags_variant is Array):
+		return ""
+	for tag_value in Array(tags_variant):
+		var mapped: String = map_wall_metadata_value_to_profile(String(tag_value))
 		if not mapped.is_empty():
 			return mapped
 	return ""
@@ -883,12 +921,11 @@ func is_outer_border_cell(cell: Vector2i) -> bool:
 	return cell.x <= 0 or cell.y <= 0 or cell.x >= max_x or cell.y >= max_y
 
 func get_iso_wall_top_points(cell: Vector2i) -> PackedVector2Array:
-	var bottom_points: PackedVector2Array = get_iso_diamond_points(cell)
+	var base_points: PackedVector2Array = get_iso_wall_base_points(cell)
 	var top_points: PackedVector2Array = PackedVector2Array()
 	var safe_wall_height: float = maxf(iso_wall_height, 1.0)
-	var wall_offset: Vector2 = Vector2(0.0, -safe_wall_height)
-	for point in bottom_points:
-		top_points.append(point + wall_offset)
+	for point in base_points:
+		top_points.append(point + Vector2(0.0, -safe_wall_height))
 	return top_points
 
 func draw_iso_wall_block(cell: Vector2i) -> void:
@@ -897,8 +934,8 @@ func draw_iso_wall_block(cell: Vector2i) -> void:
 	if draw_iso_texture_asset(cell, wall_asset_key):
 		return
 
-	var bottom_points: PackedVector2Array = get_iso_diamond_points(cell)
-	if bottom_points.size() < 4:
+	var base_points: PackedVector2Array = get_iso_wall_base_points(cell)
+	if base_points.size() < 4:
 		return
 	var top_points: PackedVector2Array = get_iso_wall_top_points(cell)
 	if top_points.size() < 4:
@@ -906,8 +943,8 @@ func draw_iso_wall_block(cell: Vector2i) -> void:
 
 	var colors: Dictionary = get_wall_prototype_colors(cell)
 	var top_face: PackedVector2Array = PackedVector2Array([top_points[0], top_points[1], top_points[2], top_points[3]])
-	var left_face: PackedVector2Array = PackedVector2Array([top_points[3], top_points[2], bottom_points[2], bottom_points[3]])
-	var right_face: PackedVector2Array = PackedVector2Array([top_points[2], top_points[1], bottom_points[1], bottom_points[2]])
+	var left_face: PackedVector2Array = PackedVector2Array([top_points[3], top_points[2], base_points[2], base_points[3]])
+	var right_face: PackedVector2Array = PackedVector2Array([top_points[2], top_points[1], base_points[1], base_points[2]])
 
 	var left_color: Color = _get_color_from_dict(colors, "left", Color.WHITE)
 	var right_color: Color = _get_color_from_dict(colors, "right", Color.WHITE)
@@ -958,7 +995,7 @@ func draw_iso_floor_prototype() -> void:
 			if draw_iso_texture_asset(cell, floor_asset_key):
 				continue
 
-			var diamond_points: PackedVector2Array = get_iso_diamond_points(cell)
+			var diamond_points: PackedVector2Array = get_iso_inset_diamond_points(cell, iso_floor_visual_inset)
 			var fill_color: Color = get_floor_prototype_color(tile_type, cell)
 			draw_colored_polygon(diamond_points, fill_color)
 			if debug_draw_iso_cell_outlines:
@@ -1224,7 +1261,7 @@ func draw_iso_fog_cell_overlay(cell: Vector2i) -> void:
 	if fog_color.a <= 0.0:
 		return
 
-	var diamond_points: PackedVector2Array = get_iso_diamond_points(cell)
+	var diamond_points: PackedVector2Array = get_iso_inset_diamond_points(cell, iso_floor_visual_inset)
 	if diamond_points.size() < 4:
 		return
 	draw_colored_polygon(diamond_points, fog_color)
@@ -1239,16 +1276,16 @@ func draw_iso_fog_wall_overlay(cell: Vector2i) -> void:
 	if fog_color.a <= 0.0:
 		return
 
-	var bottom_points: PackedVector2Array = get_iso_diamond_points(cell)
-	if bottom_points.size() < 4:
+	var base_points: PackedVector2Array = get_iso_wall_base_points(cell)
+	if base_points.size() < 4:
 		return
 	var top_points: PackedVector2Array = get_iso_wall_top_points(cell)
 	if top_points.size() < 4:
 		return
 
 	var top_face: PackedVector2Array = PackedVector2Array([top_points[0], top_points[1], top_points[2], top_points[3]])
-	var left_face: PackedVector2Array = PackedVector2Array([top_points[3], top_points[2], bottom_points[2], bottom_points[3]])
-	var right_face: PackedVector2Array = PackedVector2Array([top_points[2], top_points[1], bottom_points[1], bottom_points[2]])
+	var left_face: PackedVector2Array = PackedVector2Array([top_points[3], top_points[2], base_points[2], base_points[3]])
+	var right_face: PackedVector2Array = PackedVector2Array([top_points[2], top_points[1], base_points[1], base_points[2]])
 
 	draw_colored_polygon(left_face, fog_color)
 	draw_colored_polygon(right_face, fog_color)
