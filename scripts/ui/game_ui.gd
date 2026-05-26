@@ -8656,7 +8656,7 @@ func _on_mission_result_restart_pressed() -> void:
 			bipob.start_mission(restart_mission_id, true)
 		elif bipob.has_method("restart_current_mission"):
 			bipob.restart_current_mission()
-	show_gameplay_screen()
+	_enter_gameplay_screen_without_starting_mission()
 	call_deferred("_sync_runtime_bipob_visual_state")
 
 func _on_mission_result_center_pressed() -> void:
