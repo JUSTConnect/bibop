@@ -3333,6 +3333,7 @@ func get_actor_capability_levels() -> Dictionary:
 	var port_state: Dictionary = active_bipob_ref.call("preview_module_port_activity") if active_bipob_ref.has_method("preview_module_port_activity") else {}
 	defaults["port_state"] = port_state
 	var modules_state: Dictionary = Dictionary(port_state.get("modules", {}))
+	var installed_modules: Array = Array(active_bipob_ref.installed_modules) if _active_bipob_has_property("installed_modules") else []
 	var modules: Array[String] = []
 	var tools: Array[String] = []
 	var tool_seen := {}
@@ -3368,11 +3369,23 @@ func get_actor_capability_levels() -> Dictionary:
 			var pfound := level_regex.search(module_id)
 			if pfound != null:
 				processor_level = maxi(processor_level, int(pfound.get_string(1)))
-		var module_state_tool_action := String(module_state.get("tool_action", "")).strip_edges()
-		var tool_id := module_state_tool_action if not module_state_tool_action.is_empty() else module_id
-		if not tool_seen.has(tool_id):
-			tool_seen[tool_id] = true
-			tools.append(tool_id)
+	for module_variant in installed_modules:
+		if module_variant == null:
+			continue
+		var module_id := String(module_variant.id).strip_edges()
+		if module_id.is_empty():
+			continue
+		if String(module_variant.category) != "Tools":
+			continue
+		var module_state: Dictionary = Dictionary(modules_state.get(module_id, {}))
+		if not bool(module_state.get("active", false)):
+			continue
+		var tool_action := String(module_variant.tool_action).strip_edges()
+		var tool_id := tool_action if not tool_action.is_empty() else module_id
+		if tool_seen.has(tool_id):
+			continue
+		tool_seen[tool_id] = true
+		tools.append(tool_id)
 	defaults["modules"] = modules
 	defaults["tools"] = tools
 	defaults["connector_types"] = connector_types
@@ -5582,6 +5595,20 @@ func validate_connector_processor_migration() -> Array[String]:
 			for entry in Array(caps["tools"]):
 				if not (entry is String):
 					warnings.append("capability_report_invalid_tools_entry")
+					break
+			var tools_array: Array = Array(caps["tools"])
+			var non_tool_module_ids := {
+				"internal_interface_v1": true,
+				"power_block_v1": true,
+				"processor_v1": true,
+				"memory_v1": true,
+				"external_interface_v1": true,
+				"external_interface_connector_v1": true
+			}
+			for entry in tools_array:
+				var tool_entry := String(entry)
+				if non_tool_module_ids.has(tool_entry):
+					warnings.append("capability_report_tools_contains_non_tool_module_id_%s" % tool_entry)
 					break
 	if caps.has("port_state") and not (caps["port_state"] is Dictionary):
 		warnings.append("capability_report_invalid_port_state_type")
