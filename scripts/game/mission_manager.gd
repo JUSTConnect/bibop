@@ -5450,10 +5450,29 @@ func validate_module_port_network_runtime() -> Array[String]:
 	var debug_text: String = String(active_bipob_ref.call("get_module_port_debug_report_text"))
 	if debug_text.strip_edges().is_empty():
 		warnings.append("module_ports_debug_report_text_empty")
-	var active_modules_a: Array = Array(debug_report_a.get("active_modules", []))
-	var active_modules_b: Array = Array(debug_report_b.get("active_modules", []))
-	if active_modules_a != active_modules_b:
+	if str(debug_report_a) != str(debug_report_b):
 		warnings.append("module_ports_debug_report_not_read_only")
+	var internal_ports_total: int = int(debug_report_a.get("internal_ports_total", 0))
+	var internal_ports_used: int = int(debug_report_a.get("internal_ports_used", 0))
+	var internal_ports_remaining: int = int(debug_report_a.get("internal_ports_remaining", 0))
+	if internal_ports_remaining != maxi(0, internal_ports_total - internal_ports_used):
+		warnings.append("module_ports_debug_report_internal_accounting_mismatch")
+	var external_ports_total: int = int(debug_report_a.get("external_ports_total", 0))
+	var external_ports_used: int = int(debug_report_a.get("external_ports_used", 0))
+	var external_ports_remaining: int = int(debug_report_a.get("external_ports_remaining", 0))
+	if external_ports_remaining != maxi(0, external_ports_total - external_ports_used):
+		warnings.append("module_ports_debug_report_external_accounting_mismatch")
+	var power_ports_total: int = int(debug_report_a.get("power_ports_total", 0))
+	var power_ports_used: int = int(debug_report_a.get("power_ports_used", 0))
+	var power_ports_remaining: int = int(debug_report_a.get("power_ports_remaining", 0))
+	if power_ports_remaining != maxi(0, power_ports_total - power_ports_used):
+		warnings.append("module_ports_debug_report_power_accounting_mismatch")
+	var external_interface_link_ports_reserved: int = int(debug_report_a.get("external_interface_link_ports_reserved", 0))
+	if external_interface_link_ports_reserved > 0 and external_ports_used < external_interface_link_ports_reserved:
+		warnings.append("module_ports_debug_report_external_reserved_accounting_mismatch")
+	var internal_interface_link_ports_reserved: int = int(debug_report_a.get("internal_interface_link_ports_reserved", 0))
+	if internal_interface_link_ports_reserved > 0 and internal_ports_used < internal_interface_link_ports_reserved:
+		warnings.append("module_ports_debug_report_internal_reserved_accounting_mismatch")
 
 	var known_reason_keys := ["ok","connector_missing","connector_level_too_low","processor_missing","processor_level_too_low","internal_interface_missing","internal_interface_port_missing","internal_interface_link_missing","external_interface_missing","external_interface_port_missing","external_interface_link_missing","power_block_missing","power_block_port_missing","power_block_link_missing","power_block_overloaded","module_installed_but_inactive","module_not_installed"]
 	var observed_runtime_reason_keys: Dictionary = {}

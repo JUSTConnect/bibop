@@ -8845,6 +8845,7 @@ func get_module_port_debug_report() -> Dictionary:
 	var internal_ports_used: int = 0
 	var external_ports_used: int = 0
 	var power_ports_used: int = 0
+	var non_link_internal_module_ports_used: int = 0
 
 	var sorted_module_ids: Array[String] = []
 	for module_id_variant in modules_state.keys():
@@ -8874,7 +8875,8 @@ func get_module_port_debug_report() -> Dictionary:
 			"power_ports_used": module_power_ports_used
 		}
 		modules.append(module_entry)
-		internal_ports_used += module_internal_ports_used
+		if not module_id.begins_with("internal_interface_"):
+			non_link_internal_module_ports_used += module_internal_ports_used
 		external_ports_used += module_external_ports_used
 		power_ports_used += module_power_ports_used
 
@@ -8892,6 +8894,10 @@ func get_module_port_debug_report() -> Dictionary:
 	var internal_ports_total: int = int(internal_state.get("ports_total", 0))
 	var external_ports_total: int = int(external_state.get("ports_total", 0))
 	var power_ports_total: int = int(power_state.get("ports_total", 0))
+	var internal_interface_link_ports_reserved: int = int(internal_state.get("ports_used_for_interface_links", 0))
+	var external_interface_link_ports_reserved: int = int(external_state.get("reserved_ports", 0))
+	internal_ports_used = internal_interface_link_ports_reserved + non_link_internal_module_ports_used
+	external_ports_used += external_interface_link_ports_reserved
 	var internal_ports_remaining: int = maxi(0, internal_ports_total - internal_ports_used)
 	var external_ports_remaining: int = maxi(0, external_ports_total - external_ports_used)
 	var power_ports_remaining: int = maxi(0, power_ports_total - power_ports_used)
@@ -8906,8 +8912,8 @@ func get_module_port_debug_report() -> Dictionary:
 		"power_ports_total": power_ports_total,
 		"power_ports_used": power_ports_used,
 		"power_ports_remaining": power_ports_remaining,
-		"internal_interface_link_ports_reserved": int(internal_state.get("ports_used_for_interface_links", 0)),
-		"external_interface_link_ports_reserved": int(external_state.get("reserved_ports", 0)),
+		"internal_interface_link_ports_reserved": internal_interface_link_ports_reserved,
+		"external_interface_link_ports_reserved": external_interface_link_ports_reserved,
 		"active_modules": active_modules,
 		"inactive_modules": inactive_modules,
 		"modules": modules
