@@ -5756,6 +5756,99 @@ func _build_developer_validation_runtime_snapshot() -> Dictionary:
 	snapshot["task_state"] = _to_stable_validation_summary(task_state)
 	return snapshot
 
+
+func get_developer_systems_logic_audit() -> Dictionary:
+	var systems: Array[Dictionary] = [
+		{
+			"id":"power",
+			"display_name":"Power",
+			"status":"implemented",
+			"has_runtime_logic":true,
+			"has_validation":true,
+			"has_task_test_coverage":true,
+			"related_validation_suite":"power",
+			"notes":["Power graph, sources, consumers, and propagation are validated in developer suites."],
+			"gaps":[]
+		},
+		{"id":"cooling","display_name":"Cooling","status":"implemented","has_runtime_logic":true,"has_validation":true,"has_task_test_coverage":true,"related_validation_suite":"cooling_cable","notes":["Cooling runtime behavior is covered together with cable flow checks."],"gaps":[]},
+		{"id":"cable_socket_reel","display_name":"Cable / Socket / Cable Reel","status":"implemented","has_runtime_logic":true,"has_validation":true,"has_task_test_coverage":true,"related_validation_suite":"cooling_cable","notes":["Cable connectivity, socket linking, and reel interactions are checked by runtime validation."],"gaps":[]},
+		{"id":"terminal_hacking","display_name":"Terminal / Hacking","status":"implemented","has_runtime_logic":true,"has_validation":true,"has_task_test_coverage":true,"related_validation_suite":"terminal_door","notes":["Terminal operations and access interactions are included in terminal/door checks."],"gaps":[]},
+		{"id":"doors_access","display_name":"Doors / Access","status":"implemented","has_runtime_logic":true,"has_validation":true,"has_task_test_coverage":true,"related_validation_suite":"terminal_door","notes":["Door lock/access behavior is covered by runtime door validation."],"gaps":[]},
+		{"id":"inventory_items","display_name":"Inventory / Items","status":"implemented","has_runtime_logic":true,"has_validation":true,"has_task_test_coverage":true,"related_validation_suite":"inventory_tools_modules","notes":["Inventory and item interactions are checked in inventory/tools/modules suite."],"gaps":[]},
+		{"id":"tools_modules","display_name":"Tools / Modules","status":"implemented","has_runtime_logic":true,"has_validation":true,"has_task_test_coverage":true,"related_validation_suite":"inventory_tools_modules","notes":["Tool usage and module workflows have runtime validation coverage."],"gaps":[]},
+		{"id":"module_ports","display_name":"Module Ports","status":"implemented","has_runtime_logic":true,"has_validation":true,"has_task_test_coverage":true,"related_validation_suite":"module_ports","notes":["Module port activation and network mapping are validated."],"gaps":[]},
+		{"id":"connector_processor_requirements","display_name":"Connector / Processor Requirements","status":"implemented","has_runtime_logic":true,"has_validation":true,"has_task_test_coverage":true,"related_validation_suite":"connector_processor_migration","notes":["Connector/processor migration and requirements are validated."],"gaps":[]},
+		{"id":"platforms","display_name":"Platforms","status":"implemented","has_runtime_logic":true,"has_validation":true,"has_task_test_coverage":true,"related_validation_suite":"platform_scan_visibility","notes":["Platform activation, timing, and gating are covered in runtime validation."],"gaps":[]},
+		{"id":"scan_visibility_xray","display_name":"Scan / Visibility / X-Ray","status":"implemented","has_runtime_logic":true,"has_validation":true,"has_task_test_coverage":true,"related_validation_suite":"platform_scan_visibility","notes":["Scanning and visibility logic are covered alongside platform validation."],"gaps":[]},
+		{"id":"persistence","display_name":"Persistence","status":"implemented","has_runtime_logic":true,"has_validation":true,"has_task_test_coverage":false,"related_validation_suite":"persistence","notes":["Runtime persistence consistency is validated."],"gaps":["persistence_task_test_coverage_missing"]},
+		{"id":"task_test","display_name":"TASK TEST","status":"implemented","has_runtime_logic":true,"has_validation":true,"has_task_test_coverage":true,"related_validation_suite":"task_test","notes":["TASK TEST scenario and mission checks are part of developer validation."],"gaps":[]},
+		{"id":"extraction","display_name":"Extraction","status":"partial","has_runtime_logic":true,"has_validation":false,"has_task_test_coverage":true,"related_validation_suite":"","notes":["Extraction flow exists but is not represented as a dedicated validation suite yet."],"gaps":["extraction_validation_missing"]},
+		{"id":"visual_isometric_floor_walls_objects","display_name":"Visual Isometric Floor / Walls / Objects","status":"visual_only","has_runtime_logic":false,"has_validation":false,"has_task_test_coverage":false,"related_validation_suite":"","notes":["Rendering layer is visual-first and intentionally decoupled from gameplay mutation logic."],"gaps":["visual_isometric_objects_validation_missing"]}
+	]
+	return {"systems": systems}
+
+func validate_developer_systems_logic_audit() -> Array[String]:
+	var warnings: Array[String] = []
+	var report: Dictionary = get_developer_systems_logic_audit()
+	var systems: Array = Array(report.get("systems", []))
+	if systems.is_empty():
+		warnings.append("audit_report_empty")
+		return warnings
+	var required_fields: Array[String] = ["id", "display_name", "status", "has_runtime_logic", "has_validation", "has_task_test_coverage", "related_validation_suite", "notes", "gaps"]
+	var allowed_status: Dictionary = {"implemented":true, "partial":true, "data_only":true, "visual_only":true, "missing":true}
+	var ids: Dictionary = {}
+	for entry_variant in systems:
+		if typeof(entry_variant) != TYPE_DICTIONARY:
+			warnings.append("audit_system_missing_required_field_unknown_id")
+			continue
+		var entry: Dictionary = entry_variant
+		var system_id: String = String(entry.get("id", ""))
+		if not system_id.is_empty():
+			ids[system_id] = true
+		for field_name in required_fields:
+			if not entry.has(field_name):
+				warnings.append("audit_system_missing_required_field_%s_%s" % [system_id, field_name])
+		var status: String = String(entry.get("status", ""))
+		if not allowed_status.has(status):
+			warnings.append("audit_system_invalid_status_%s" % system_id)
+	if not ids.has("power"):
+		warnings.append("audit_system_missing_power")
+	if not ids.has("terminal_hacking"):
+		warnings.append("audit_system_missing_terminal")
+	if not ids.has("module_ports"):
+		warnings.append("audit_system_missing_module_ports")
+	if not ids.has("task_test"):
+		warnings.append("audit_system_missing_task_test")
+	return warnings
+
+func get_developer_systems_logic_audit_text() -> String:
+	var report: Dictionary = get_developer_systems_logic_audit()
+	var systems: Array = Array(report.get("systems", []))
+	var lines: Array[String] = ["DeveloperSystemsLogicAudit:"]
+	var gaps: Array[String] = []
+	for entry_variant in systems:
+		if typeof(entry_variant) != TYPE_DICTIONARY:
+			continue
+		var entry: Dictionary = entry_variant
+		var status: String = String(entry.get("status", "missing"))
+		var logic_flag: String = "yes" if bool(entry.get("has_runtime_logic", false)) else "no"
+		var validation_flag: String = "yes" if bool(entry.get("has_validation", false)) else "no"
+		var task_test_flag: String = "yes" if bool(entry.get("has_task_test_coverage", false)) else "no"
+		lines.append("- %s: %s logic=%s validation=%s task_test=%s" % [String(entry.get("id", "unknown")), status, logic_flag, validation_flag, task_test_flag])
+		for gap_variant in Array(entry.get("gaps", [])):
+			var gap_id: String = String(gap_variant)
+			if gap_id.is_empty():
+				continue
+			if gaps.has(gap_id):
+				continue
+			gaps.append(gap_id)
+	if not gaps.is_empty():
+		lines.append("")
+		lines.append("Gaps:")
+		for gap in gaps:
+			lines.append("- %s" % gap)
+	return "\n".join(lines)
+
 func validate_developer_validation_no_mutation() -> Array[String]:
 	var warnings: Array[String] = []
 	var baseline: Dictionary = _build_developer_validation_runtime_snapshot()
@@ -5794,7 +5887,7 @@ func run_developer_validation_suite(suite: String = "all") -> Dictionary:
 	return _run_developer_validation_suite_internal(suite, true)
 
 func _run_developer_validation_suite_internal(suite: String = "all", include_no_mutation: bool = true) -> Dictionary:
-	var suites := ["power", "cooling_cable", "terminal_door", "platform_scan_visibility", "inventory_tools_modules", "persistence", "task_test", "module_ports", "connector_processor_migration"]
+	var suites := ["power", "cooling_cable", "terminal_door", "platform_scan_visibility", "inventory_tools_modules", "persistence", "task_test", "module_ports", "connector_processor_migration", "systems_audit"]
 	if include_no_mutation:
 		suites.append("no_mutation")
 	var selected := suites if suite == "all" else [suite]
@@ -5812,6 +5905,7 @@ func _run_developer_validation_suite_internal(suite: String = "all", include_no_
 			"task_test": warnings = validate_task_test_mission_runtime()
 			"module_ports": warnings = validate_module_port_network_runtime()
 			"connector_processor_migration": warnings = validate_connector_processor_migration()
+			"systems_audit": warnings = validate_developer_systems_logic_audit()
 			"no_mutation": warnings = validate_developer_validation_no_mutation()
 			_: warnings = ["suite_missing"]
 		warnings_by_suite[suite_id] = warnings
@@ -5822,7 +5916,7 @@ func _run_developer_validation_suite_internal(suite: String = "all", include_no_
 	return {"suite": suite, "suites_run": suites_run, "warnings_count": warnings_count, "warnings_by_suite": warnings_by_suite}
 
 func get_developer_validation_menu_text() -> String:
-	return "Validation suites: all, power, cooling_cable, terminal_door, platform_scan_visibility, inventory_tools_modules, persistence, task_test, module_ports, connector_processor_migration, no_mutation"
+	return "Validation suites: all, power, cooling_cable, terminal_door, platform_scan_visibility, inventory_tools_modules, persistence, task_test, module_ports, connector_processor_migration, systems_audit, no_mutation"
 
 func get_developer_validation_suite_text(suite: String = "all") -> String:
 	return _get_developer_validation_suite_text_internal(suite, true)
@@ -5830,6 +5924,8 @@ func get_developer_validation_suite_text(suite: String = "all") -> String:
 func _get_developer_validation_suite_text_internal(suite: String = "all", include_no_mutation: bool = true) -> String:
 	if suite == "no_mutation":
 		return get_developer_validation_no_mutation_text()
+	if suite == "systems_audit":
+		return get_developer_systems_logic_audit_text()
 	var report := _run_developer_validation_suite_internal(suite, include_no_mutation)
 	var lines: Array[String] = ["DeveloperValidation suite=%s suites_run=%d warnings=%d" % [suite, int(report.get("suites_run", 0)), int(report.get("warnings_count", 0))]]
 	var by_suite: Dictionary = report.get("warnings_by_suite", {})
