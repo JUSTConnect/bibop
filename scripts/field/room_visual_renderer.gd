@@ -393,6 +393,131 @@ func get_iso_visual_texture_debug_keys() -> Array[String]:
 		"object_socket", "object_cable", "object_generic"
 	]
 
+func _increment_iso_debug_count(counts: Dictionary, key: String) -> void:
+	if key.is_empty():
+		return
+	var current_value: int = int(counts.get(key, 0))
+	counts[key] = current_value + 1
+
+func get_iso_visual_cell_stats() -> Dictionary:
+	var stats: Dictionary = {
+		"has_grid_manager": _grid_manager != null,
+		"map_width": 0,
+		"map_height": 0,
+		"total_cells": 0,
+		"floor_like_cells": 0,
+		"wall_cells": 0,
+		"object_cells": 0,
+		"fog_overlay_cells": 0,
+		"visible_cells": 0,
+		"explored_cells": 0,
+		"unexplored_cells": 0,
+		"tile_type_counts": {},
+		"object_profile_counts": {},
+		"wall_profile_counts": {},
+		"asset_key_counts": {}
+	}
+	if _grid_manager == null:
+		return stats
+
+	var map_width: int = _grid_manager.get_map_width()
+	var map_height: int = _grid_manager.get_map_height()
+	stats["map_width"] = map_width
+	stats["map_height"] = map_height
+	var total_cells: int = maxi(map_width, 0) * maxi(map_height, 0)
+	stats["total_cells"] = total_cells
+
+	var tile_type_counts: Dictionary = Dictionary(stats.get("tile_type_counts", {}))
+	var object_profile_counts: Dictionary = Dictionary(stats.get("object_profile_counts", {}))
+	var wall_profile_counts: Dictionary = Dictionary(stats.get("wall_profile_counts", {}))
+	var asset_key_counts: Dictionary = Dictionary(stats.get("asset_key_counts", {}))
+
+	for y in range(map_height):
+		for x in range(map_width):
+			var cell: Vector2i = Vector2i(x, y)
+			var tile_type: int = _grid_manager.get_tile(cell)
+			_increment_iso_debug_count(tile_type_counts, str(tile_type))
+
+			if is_floor_like_tile(tile_type):
+				stats["floor_like_cells"] = int(stats.get("floor_like_cells", 0)) + 1
+				_increment_iso_debug_count(asset_key_counts, get_iso_floor_asset_key_for_tile(tile_type))
+			if is_wall_tile(tile_type):
+				stats["wall_cells"] = int(stats.get("wall_cells", 0)) + 1
+				var wall_profile_key: String = get_wall_visual_profile_key_for_cell(cell)
+				_increment_iso_debug_count(wall_profile_counts, wall_profile_key)
+				_increment_iso_debug_count(asset_key_counts, get_iso_wall_asset_key_for_profile(wall_profile_key))
+			if is_iso_object_tile(tile_type):
+				stats["object_cells"] = int(stats.get("object_cells", 0)) + 1
+				var object_profile_key: String = get_iso_object_profile_key_for_tile(tile_type)
+				_increment_iso_debug_count(object_profile_counts, object_profile_key)
+				_increment_iso_debug_count(asset_key_counts, get_iso_object_asset_key_for_profile(object_profile_key))
+			if should_draw_iso_fog_for_cell(cell):
+				stats["fog_overlay_cells"] = int(stats.get("fog_overlay_cells", 0)) + 1
+
+			if _grid_manager.has_method("is_cell_visible") and _grid_manager.is_cell_visible(cell):
+				stats["visible_cells"] = int(stats.get("visible_cells", 0)) + 1
+			if _grid_manager.has_method("is_explored") and _grid_manager.is_explored(cell):
+				stats["explored_cells"] = int(stats.get("explored_cells", 0)) + 1
+
+	stats["unexplored_cells"] = int(stats.get("total_cells", 0)) - int(stats.get("explored_cells", 0))
+	stats["tile_type_counts"] = tile_type_counts
+	stats["object_profile_counts"] = object_profile_counts
+	stats["wall_profile_counts"] = wall_profile_counts
+	stats["asset_key_counts"] = asset_key_counts
+	return stats
+
+func get_iso_visual_cell_stats_text() -> String:
+	var stats: Dictionary = get_iso_visual_cell_stats()
+	var lines: Array[String] = []
+	var asset_key_counts: Dictionary = Dictionary(stats.get("asset_key_counts", {}))
+	lines.append("IsoVisualCellStats:")
+	lines.append("Grid:")
+	lines.append("- has_grid_manager: %s" % str(stats.get("has_grid_manager", false)))
+	lines.append("- map_size: %sx%s" % [str(stats.get("map_width", 0)), str(stats.get("map_height", 0))])
+	lines.append("- total_cells: %s" % str(stats.get("total_cells", 0)))
+	lines.append("Cells:")
+	lines.append("- floor_like: %s" % str(stats.get("floor_like_cells", 0)))
+	lines.append("- walls: %s" % str(stats.get("wall_cells", 0)))
+	lines.append("- objects: %s" % str(stats.get("object_cells", 0)))
+	lines.append("- fog_overlay: %s" % str(stats.get("fog_overlay_cells", 0)))
+	lines.append("- visible: %s" % str(stats.get("visible_cells", 0)))
+	lines.append("- explored: %s" % str(stats.get("explored_cells", 0)))
+	lines.append("- unexplored: %s" % str(stats.get("unexplored_cells", 0)))
+	lines.append("Asset keys:")
+	for asset_key in asset_key_counts.keys():
+		lines.append("- %s: %s" % [str(asset_key), str(asset_key_counts.get(asset_key, 0))])
+	return "\n".join(lines)
+
+func validate_iso_visual_cell_stats() -> Array[String]:
+	var warnings: Array[String] = []
+	var stats: Dictionary = get_iso_visual_cell_stats()
+	if not bool(stats.get("has_grid_manager", false)):
+		warnings.append("iso_cell_stats_missing_grid_manager")
+	if int(stats.get("map_width", 0)) <= 0 or int(stats.get("map_height", 0)) <= 0:
+		warnings.append("iso_cell_stats_empty_map")
+	if int(stats.get("total_cells", 0)) > 0 and int(stats.get("floor_like_cells", 0)) <= 0:
+		warnings.append("iso_cell_stats_no_floor_like_cells")
+	if int(stats.get("total_cells", 0)) > 0 and int(stats.get("wall_cells", 0)) <= 0:
+		warnings.append("iso_cell_stats_no_wall_cells")
+	if int(stats.get("total_cells", 0)) > 0 and int(stats.get("object_cells", 0)) <= 0:
+		warnings.append("iso_cell_stats_no_object_cells")
+	if is_iso_visual_preview_active() and (
+		int(stats.get("floor_like_cells", 0))
+		+ int(stats.get("wall_cells", 0))
+		+ int(stats.get("object_cells", 0))
+	) <= 0:
+		warnings.append("iso_cell_stats_preview_enabled_but_no_visual_cells")
+	return warnings
+
+func get_iso_visual_cell_stats_validation_text() -> String:
+	var warnings: Array[String] = validate_iso_visual_cell_stats()
+	if warnings.is_empty():
+		return "IsoVisualCellStatsValidation: ok"
+	var lines: Array[String] = ["IsoVisualCellStatsValidation:"]
+	for warning_key in warnings:
+		lines.append("- %s" % warning_key)
+	return "\n".join(lines)
+
 func get_iso_visual_debug_report() -> Dictionary:
 	var has_grid_manager: bool = _grid_manager != null
 	var map_width: int = 0
@@ -404,6 +529,7 @@ func get_iso_visual_debug_report() -> Dictionary:
 		"layers": get_iso_visual_layer_debug_state(),
 		"preview": get_iso_visual_preview_state(),
 		"textures": get_iso_visual_texture_debug_state(),
+		"cell_stats": get_iso_visual_cell_stats(),
 		"iso_settings": {
 			"tile_width": iso_tile_width,
 			"tile_height": iso_tile_height,
@@ -424,6 +550,7 @@ func get_iso_visual_debug_report_text() -> String:
 	var layers: Dictionary = Dictionary(report.get("layers", {}))
 	var preview: Dictionary = Dictionary(report.get("preview", {}))
 	var textures: Dictionary = Dictionary(report.get("textures", {}))
+	var cell_stats: Dictionary = Dictionary(report.get("cell_stats", {}))
 	var grid: Dictionary = Dictionary(report.get("grid", {}))
 	var iso_settings: Dictionary = Dictionary(report.get("iso_settings", {}))
 	lines.append("IsoVisualDebugReport:")
@@ -445,6 +572,11 @@ func get_iso_visual_debug_report_text() -> String:
 	lines.append("Grid:")
 	lines.append("- has_grid_manager: %s" % str(grid.get("has_grid_manager", false)))
 	lines.append("- map_size: %sx%s" % [str(grid.get("map_width", 0)), str(grid.get("map_height", 0))])
+	lines.append("Cell stats:")
+	lines.append("- floor_like: %s" % str(cell_stats.get("floor_like_cells", 0)))
+	lines.append("- walls: %s" % str(cell_stats.get("wall_cells", 0)))
+	lines.append("- objects: %s" % str(cell_stats.get("object_cells", 0)))
+	lines.append("- fog_overlay: %s" % str(cell_stats.get("fog_overlay_cells", 0)))
 	lines.append("Iso:")
 	lines.append("- tile: %sx%s" % [str(iso_settings.get("tile_width", 0.0)), str(iso_settings.get("tile_height", 0.0))])
 	lines.append("- wall_height: %s" % str(iso_settings.get("wall_height", 0.0)))
