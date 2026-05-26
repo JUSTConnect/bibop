@@ -8740,14 +8740,14 @@ func preview_module_port_activity() -> Dictionary:
 		elif id.begins_with("power_block_"):
 			power_total += 15
 
-	var internal_available := internal_total
-	var internal_needed_for_internal_links := max(0, 2 * internal_interface_count - 2)
+	var internal_available: int = internal_total
+	var internal_needed_for_internal_links: int = maxi(0, 2 * internal_interface_count - 2)
 	if internal_available < internal_needed_for_internal_links:
 		internal_needed_for_internal_links = internal_available
 	internal_available -= internal_needed_for_internal_links
-	var external_reserved := external_interface_count
-	var external_available := maxi(0, external_total - external_reserved)
-	var power_available := power_total
+	var external_reserved: int = external_interface_count
+	var external_available: int = maxi(0, external_total - external_reserved)
+	var power_available: int = power_total
 
 	var ordered_ids: Array[String] = []
 	for module in installed_modules:
