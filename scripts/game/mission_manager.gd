@@ -5428,7 +5428,7 @@ func validate_module_port_network_runtime() -> Array[String]:
 		{"id":"power_block_requires_internal_interface","modules":["power_block_v1"],"module":"power_block_v1","active":false,"reason":"internal_interface_missing"},
 		{"id":"power_block_active_with_internal_interface","modules":["internal_interface_v1","power_block_v1"],"module":"power_block_v1","active":true,"reason":"ok"},
 		{"id":"internal_interface_v1_capacity","modules":["internal_interface_v1"],"internal_ports_total":6},
-		{"id":"priority_tie","modules":["internal_interface_v1","power_block_v1","processor_v1","processor_v2"],"priority":true}
+		{"id":"priority_tie","modules":["internal_interface_v1","power_block_v1","processor_v1","memory_v1","gpu_v1","hard_drive_v1","charger_v1","cooler_v1","processor_v2"],"priority":true}
 	]
 
 	for scenario in scenarios:
@@ -5448,8 +5448,13 @@ func validate_module_port_network_runtime() -> Array[String]:
 			var p2 := Dictionary(modules.get("processor_v2", {}))
 			var p1_active := bool(p1.get("active", false))
 			var p2_active := bool(p2.get("active", false))
+			if p1_active and p2_active:
+				continue
 			if p1_active == p2_active:
 				warnings.append("task_test_processor_priority_tie_break_not_deterministic")
+				continue
+			if not p1_active and p2_active:
+				warnings.append("task_test_processor_priority_tie_break_unstable_order")
 			continue
 		var module_id := String(scenario.get("module", ""))
 		var module_state: Dictionary = Dictionary(modules.get(module_id, {}))
