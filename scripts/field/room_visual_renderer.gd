@@ -213,6 +213,12 @@ func get_iso_texture_for_asset_key(asset_key: String) -> Texture2D:
 func has_iso_texture_for_asset_key(asset_key: String) -> bool:
 	return get_iso_texture_for_asset_key(asset_key) != null
 
+func _get_color_from_dict(data: Dictionary, key: String, fallback: Color) -> Color:
+	var value: Variant = data.get(key, fallback)
+	if value is Color:
+		return value
+	return fallback
+
 func get_iso_texture_draw_position(cell: Vector2i, texture: Texture2D) -> Vector2:
 	# Future asset hook: this is a provisional bottom-center-ish alignment.
 	# Final art pivot and per-asset offset tuning will be handled in follow-up PRs.
