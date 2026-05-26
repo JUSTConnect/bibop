@@ -5724,7 +5724,6 @@ func _to_stable_validation_summary(value: Variant) -> String:
 		var items: Array[String] = []
 		for item in arr_value:
 			items.append(_to_stable_validation_summary(item))
-		items.sort()
 		return "[%s]" % ",".join(items)
 	return str(value)
 
@@ -5738,7 +5737,10 @@ func _build_developer_validation_runtime_snapshot() -> Dictionary:
 		snapshot["installed_modules"] = _to_stable_validation_summary(active_bipob_ref.installed_modules)
 	else:
 		snapshot["installed_modules"] = "unavailable"
-	snapshot["port_state"] = _to_stable_validation_summary(preview_module_port_activity())
+	if active_bipob_ref != null and active_bipob_ref.has_method("preview_module_port_activity"):
+		snapshot["port_state"] = _to_stable_validation_summary(active_bipob_ref.call("preview_module_port_activity"))
+	else:
+		snapshot["port_state"] = "unavailable"
 	snapshot["capability_report"] = _to_stable_validation_summary(get_actor_capability_levels())
 	var task_state: Dictionary = {}
 	var property_names: Dictionary = {}
@@ -5759,13 +5761,15 @@ func validate_developer_validation_no_mutation() -> Array[String]:
 	var baseline: Dictionary = _build_developer_validation_runtime_snapshot()
 	get_developer_validation_suite_text("module_ports")
 	get_developer_validation_suite_text("connector_processor_migration")
-	get_developer_validation_suite_text("all")
+	_get_developer_validation_suite_text_internal("all", false)
 	run_developer_validation_suite("module_ports")
 	run_developer_validation_suite("connector_processor_migration")
-	run_developer_validation_suite("all")
+	_run_developer_validation_suite_internal("all", false)
 	var after: Dictionary = _build_developer_validation_runtime_snapshot()
 	if String(after.get("mission_id", "")) != String(baseline.get("mission_id", "")):
 		warnings.append("developer_validation_mutated_mission_id")
+	if String(after.get("mission_state", "")) != String(baseline.get("mission_state", "")):
+		warnings.append("developer_validation_mutated_mission_state")
 	if String(after.get("world_objects", "")) != String(baseline.get("world_objects", "")):
 		warnings.append("developer_validation_mutated_world_objects")
 	if String(after.get("inventory", "")) != String(baseline.get("inventory", "")):
@@ -5787,7 +5791,12 @@ func get_developer_validation_no_mutation_text() -> String:
 	return "DeveloperValidationNoMutation:\n- " + "\n- ".join(warnings)
 
 func run_developer_validation_suite(suite: String = "all") -> Dictionary:
-	var suites := ["power", "cooling_cable", "terminal_door", "platform_scan_visibility", "inventory_tools_modules", "persistence", "task_test", "module_ports", "connector_processor_migration", "no_mutation"]
+	return _run_developer_validation_suite_internal(suite, true)
+
+func _run_developer_validation_suite_internal(suite: String = "all", include_no_mutation: bool = true) -> Dictionary:
+	var suites := ["power", "cooling_cable", "terminal_door", "platform_scan_visibility", "inventory_tools_modules", "persistence", "task_test", "module_ports", "connector_processor_migration"]
+	if include_no_mutation:
+		suites.append("no_mutation")
 	var selected := suites if suite == "all" else [suite]
 	var warnings_by_suite := {}
 	var suites_run := 0
@@ -5816,9 +5825,12 @@ func get_developer_validation_menu_text() -> String:
 	return "Validation suites: all, power, cooling_cable, terminal_door, platform_scan_visibility, inventory_tools_modules, persistence, task_test, module_ports, connector_processor_migration, no_mutation"
 
 func get_developer_validation_suite_text(suite: String = "all") -> String:
+	return _get_developer_validation_suite_text_internal(suite, true)
+
+func _get_developer_validation_suite_text_internal(suite: String = "all", include_no_mutation: bool = true) -> String:
 	if suite == "no_mutation":
 		return get_developer_validation_no_mutation_text()
-	var report := run_developer_validation_suite(suite)
+	var report := _run_developer_validation_suite_internal(suite, include_no_mutation)
 	var lines: Array[String] = ["DeveloperValidation suite=%s suites_run=%d warnings=%d" % [suite, int(report.get("suites_run", 0)), int(report.get("warnings_count", 0))]]
 	var by_suite: Dictionary = report.get("warnings_by_suite", {})
 	for suite_id_variant in by_suite.keys():
