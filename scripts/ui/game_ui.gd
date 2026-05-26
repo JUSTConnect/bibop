@@ -45,7 +45,10 @@ class SelectedModuleMiniPreviewControl:
 		if ui_ref != null:
 			ui_ref._draw_selected_module_mini_preview(self, module_ref, preview_context)
 
-@onready var bipob: BipobController = get_node("../Bipob") as BipobController
+var bipob: BipobController = null
+var field_runtime: GridManager = null
+const FIELD_SCENE_PATH: String = "res://scenes/field/Field.tscn"
+const BIPOB_SCENE_PATH: String = "res://scenes/bipob/Bipob.tscn"
 
 @onready var mission_label: Label = $MissionLabel
 @onready var status_label: Label = $StatusLabel
@@ -332,6 +335,85 @@ func _connect_button_pressed_once(button: Button, callback: Callable) -> void:
 		if callable == callback:
 			return
 	button.pressed.connect(callback)
+
+
+func _has_gameplay_runtime() -> bool:
+	return bipob != null and is_instance_valid(bipob) and field_runtime != null and is_instance_valid(field_runtime)
+
+func _connect_bipob_runtime_signals_once() -> void:
+	if bipob == null:
+		return
+	if not bipob.status_changed.is_connected(update_status):
+		bipob.status_changed.connect(update_status)
+	if not bipob.hint_requested.is_connected(show_hint):
+		bipob.hint_requested.connect(show_hint)
+	if not bipob.world_action_panel_requested.is_connected(_on_world_action_panel_requested):
+		bipob.world_action_panel_requested.connect(_on_world_action_panel_requested)
+	if not bipob.mission_completed.is_connected(_on_mission_completed):
+		bipob.mission_completed.connect(_on_mission_completed)
+	if not bipob.mission_failed.is_connected(_on_mission_failed):
+		bipob.mission_failed.connect(_on_mission_failed)
+	if not bipob.returned_to_box.is_connected(_on_returned_to_box):
+		bipob.returned_to_box.connect(_on_returned_to_box)
+
+func _initialize_runtime_profiles_if_needed() -> void:
+	if bipob == null:
+		return
+	if constructor_profiles.is_empty():
+		_ensure_constructor_profiles_initialized()
+	if active_bipob_profile_id.is_empty():
+		active_bipob_profile_id = "alpha"
+	_load_bipob_profile(active_bipob_profile_id)
+
+func _ensure_gameplay_runtime_created() -> bool:
+	if _has_gameplay_runtime():
+		return true
+	var root: Node = get_parent()
+	if root == null:
+		push_error("GameUI: cannot create gameplay runtime without parent root.")
+		return false
+	var field_scene: PackedScene = load(FIELD_SCENE_PATH)
+	if field_scene == null:
+		push_error("GameUI: failed to load Field scene.")
+		return false
+	var field_node: Node = field_scene.instantiate()
+	field_node.name = "Field"
+	if field_node is Node2D:
+		(field_node as Node2D).position = Vector2(100, 80)
+	root.add_child(field_node)
+	field_runtime = field_node as GridManager
+	if field_runtime == null:
+		push_error("GameUI: Field runtime is not GridManager.")
+		field_node.queue_free()
+		return false
+	var bipob_scene: PackedScene = load(BIPOB_SCENE_PATH)
+	if bipob_scene == null:
+		push_error("GameUI: failed to load Bipob scene.")
+		field_runtime.queue_free()
+		field_runtime = null
+		return false
+	var bipob_node: Node = bipob_scene.instantiate()
+	bipob_node.name = "Bipob"
+	root.add_child(bipob_node)
+	bipob = bipob_node as BipobController
+	if bipob == null:
+		push_error("GameUI: Bipob runtime is not BipobController.")
+		bipob_node.queue_free()
+		field_runtime.queue_free()
+		field_runtime = null
+		return false
+	_initialize_runtime_profiles_if_needed()
+	_connect_bipob_runtime_signals_once()
+	_set_gameplay_visible(false)
+	return true
+
+func _destroy_gameplay_runtime() -> void:
+	if bipob != null and is_instance_valid(bipob):
+		bipob.queue_free()
+	if field_runtime != null and is_instance_valid(field_runtime):
+		field_runtime.queue_free()
+	bipob = null
+	field_runtime = null
 
 func _safe_has_bipob_method(method_name: String) -> bool:
 	if bipob == null:
@@ -4727,8 +4809,6 @@ func _ready() -> void:
 	bipob_beta_button = null
 	bipob_juggernaut_button = null
 	box_back_button = null
-	_ensure_constructor_profiles_initialized()
-	_load_bipob_profile(active_bipob_profile_id)
 
 	box_restart_button = null
 
@@ -4738,18 +4818,7 @@ func _ready() -> void:
 
 	_apply_constructor_visual_style()
 
-	bipob.status_changed.connect(update_status)
-	bipob.hint_requested.connect(show_hint)
-	bipob.world_action_panel_requested.connect(_on_world_action_panel_requested)
-	bipob.mission_completed.connect(_on_mission_completed)
-	bipob.mission_failed.connect(_on_mission_failed)
-	bipob.returned_to_box.connect(_on_returned_to_box)
-
-	update_status()
-	rebuild_box_action_buttons()
 	_apply_constructor_ui_skin()
-	update_box_status()
-	update_diagnostic_status()
 	show_main_menu_screen()
 
 
@@ -4872,29 +4941,10 @@ func _set_gameplay_visible(visible_state: bool) -> void:
 		hint_label.visible = false
 	if diagnostic_label != null:
 		diagnostic_label.visible = false
+	if _has_gameplay_runtime():
+		field_runtime.visible = visible_state
+		bipob.visible = visible_state
 
-	var gameplay_nodes: Array[String] = [
-		"../GridRoot",
-		"../WorldRoot",
-		"../PlayerSprite",
-		"../Grid",
-		"../World",
-		"../Field",
-		"../BipobSprite",
-		"../Bipob"
-	]
-	for node_path in gameplay_nodes:
-		var node: CanvasItem = get_node_or_null(node_path) as CanvasItem
-		if node != null:
-			node.visible = visible_state
-
-	if visible_state:
-		var field: CanvasItem = get_node_or_null("../Field") as CanvasItem
-		if field != null:
-			field.visible = true
-		var player: CanvasItem = get_node_or_null("../Bipob") as CanvasItem
-		if player != null:
-			player.visible = true
 
 func _is_small_viewport() -> bool:
 	var vp := _get_viewport_size()
@@ -5028,11 +5078,15 @@ func show_main_menu_screen() -> void:
 	_hide_runtime_mission_ui()
 	_hide_all_app_screens()
 	_set_gameplay_visible(false)
+	_destroy_gameplay_runtime()
 	if main_menu_root != null:
 		main_menu_root.visible = true
 	_assert_single_active_major_screen()
 
 func show_center_screen() -> void:
+	if not _ensure_gameplay_runtime_created():
+		show_hint("Gameplay runtime is unavailable.")
+		return
 	app_screen_mode = AppScreenMode.CENTER
 	_hide_runtime_mission_ui()
 	_hide_all_app_screens()
@@ -5042,6 +5096,9 @@ func show_center_screen() -> void:
 	_assert_single_active_major_screen()
 
 func show_tasks_screen() -> void:
+	if not _ensure_gameplay_runtime_created():
+		show_hint("Gameplay runtime is unavailable.")
+		return
 	app_screen_mode = AppScreenMode.TASKS
 	_hide_all_app_screens()
 	_set_gameplay_visible(false)
@@ -5065,6 +5122,9 @@ func show_placeholder_screen(title_text: String, body_text: String = "This secti
 	_assert_single_active_major_screen()
 
 func start_gameplay_from_center() -> void:
+	if not _ensure_gameplay_runtime_created():
+		show_hint("Gameplay runtime is unavailable.")
+		return
 	app_screen_mode = AppScreenMode.GAMEPLAY
 	box_opened_from_center = false
 	_hide_all_app_screens()
@@ -5076,6 +5136,9 @@ func start_gameplay_from_center() -> void:
 	_assert_single_active_major_screen()
 
 func _enter_gameplay_screen_without_starting_mission() -> void:
+	if not _ensure_gameplay_runtime_created():
+		show_hint("Gameplay runtime is unavailable.")
+		return
 	app_screen_mode = AppScreenMode.GAMEPLAY
 	box_opened_from_center = false
 	_hide_all_app_screens()
@@ -5167,6 +5230,9 @@ func start_selected_task_mission() -> void:
 	start_gameplay_from_center()
 
 func show_box_constructor_from_center() -> void:
+	if not _ensure_gameplay_runtime_created():
+		show_hint("Gameplay runtime is unavailable.")
+		return
 	app_screen_mode = AppScreenMode.BOX_CONSTRUCTOR
 	box_opened_from_center = true
 	_hide_all_app_screens()
@@ -5176,6 +5242,9 @@ func show_box_constructor_from_center() -> void:
 	_assert_single_active_major_screen()
 
 func show_mission_constructor_screen() -> void:
+	if not _ensure_gameplay_runtime_created():
+		show_hint("Gameplay runtime is unavailable.")
+		return
 	app_screen_mode = AppScreenMode.MISSION_CONSTRUCTOR
 	box_opened_from_center = false
 	_hide_all_app_screens()
@@ -7780,6 +7849,9 @@ func _on_center_main_menu_pressed() -> void:
 	navigate_to_screen(AppScreenMode.MAIN_MENU)
 
 func show_charging_menu() -> void:
+	if not _ensure_gameplay_runtime_created():
+		show_hint("Gameplay runtime is unavailable.")
+		return
 	app_screen_mode = AppScreenMode.CHARGING_MENU
 	_hide_all_app_screens()
 	_set_gameplay_visible(false)
@@ -8126,6 +8198,9 @@ func can_charge_bipob(bipob_data: Dictionary) -> bool:
 	return get_bipob_current_energy(bipob_data) < get_bipob_max_energy(bipob_data)
 
 func show_repair_menu() -> void:
+	if not _ensure_gameplay_runtime_created():
+		show_hint("Gameplay runtime is unavailable.")
+		return
 	app_screen_mode = AppScreenMode.REPAIR_PLACEHOLDER
 	_hide_all_app_screens()
 	if repair_menu_root != null and is_instance_valid(repair_menu_root):
