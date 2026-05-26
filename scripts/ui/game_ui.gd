@@ -8468,7 +8468,7 @@ func _on_world_action_button_pressed(action_id: String) -> void:
 		return
 	bipob.set_selected_world_action(action_id)
 
-func _on_world_action_panel_requested(target_object: Dictionary, actions: Array[String], selected_action: String) -> void:
+func _on_world_action_panel_requested(target_object: Dictionary, actions: Array, selected_action: String) -> void:
 	if runtime_world_actions_panel == null:
 		return
 	if app_screen_mode != AppScreenMode.GAMEPLAY:
@@ -8491,8 +8491,14 @@ func _on_world_action_panel_requested(target_object: Dictionary, actions: Array[
 		runtime_world_actions_behavior_label.text = "Behavior: %s" % String(target_object.get("behavior_state", "idle"))
 	else:
 		runtime_world_actions_behavior_label.visible = false
+	var action_ids: Array[String] = []
+	for action_variant in actions:
+		var action_id: String = String(action_variant)
+		if action_id.is_empty():
+			continue
+		action_ids.append(action_id)
 	var target_id: String = String(target_object.get("id", target_object.get("position", object_name)))
-	var actions_key := "|".join(actions)
+	var actions_key := "|".join(action_ids)
 	var state_key := "%s|%s|%s" % [String(target_object.get("state", "")), String(target_object.get("behavior_state", "")), String(target_object.get("scan_level", 0))]
 	var only_selection_change: bool = target_id == last_world_action_target_id and actions_key == last_world_action_actions_key and state_key == last_world_action_state_key
 	if only_selection_change and runtime_world_actions_list.get_child_count() > 0:
@@ -8505,13 +8511,13 @@ func _on_world_action_panel_requested(target_object: Dictionary, actions: Array[
 	for child in runtime_world_actions_list.get_children():
 		child.queue_free()
 	runtime_world_actions_selected_button = null
-	if actions.is_empty():
+	if action_ids.is_empty():
 		var empty_label := Label.new()
 		empty_label.text = "No available actions"
 		runtime_world_actions_list.add_child(empty_label)
 		return
 	var added: Dictionary = {}
-	for action_id in actions:
+	for action_id in action_ids:
 		if added.has(action_id):
 			continue
 		added[action_id] = true
