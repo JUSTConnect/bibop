@@ -6333,10 +6333,23 @@ func get_room_visual_renderer() -> RoomVisualRenderer:
 		return renderer_node
 	return null
 
+func get_square_world_position_for_grid_cell_as_parent_local(cell: Vector2i) -> Vector2:
+	if grid_manager == null:
+		return Vector2.ZERO
+
+	var square_local: Vector2 = grid_manager.grid_to_world(cell)
+	var square_global: Vector2 = grid_manager.global_position + square_local
+	var parent_node: Node = get_parent()
+
+	if parent_node != null and parent_node is Node2D:
+		return (parent_node as Node2D).to_local(square_global)
+
+	return square_global
+
 func get_isometric_world_position_for_grid_cell(cell: Vector2i) -> Vector2:
 	if grid_manager == null:
 		return Vector2.ZERO
-	var fallback_position: Vector2 = grid_manager.grid_to_world(cell)
+	var fallback_position: Vector2 = get_square_world_position_for_grid_cell_as_parent_local(cell)
 	var room_visual_renderer: RoomVisualRenderer = get_room_visual_renderer()
 	if room_visual_renderer == null:
 		return fallback_position
