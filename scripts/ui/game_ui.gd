@@ -551,6 +551,8 @@ func _create_status_badge_row() -> HBoxContainer:
 
 func _get_constructor_status_badges() -> Array[Dictionary]:
 	var badges: Array[Dictionary] = []
+	if bipob == null:
+		return badges
 
 	if bipob.has_method("is_virtual_power_available"):
 		if bipob.is_virtual_power_available():
@@ -852,6 +854,8 @@ func _get_constructor_readiness_state() -> Dictionary:
 	var label: String = "NOT READY"
 	var severity: String = "warning"
 	var hint: String = "Review constructor warnings."
+	if bipob == null:
+		return {"ready": constructor_ready, "label": label, "severity": severity, "hint": hint, "danger_count": 0, "warning_count": 0}
 
 	if bipob != null and bipob.has_method("is_constructor_ready"):
 		constructor_ready = bipob.is_constructor_ready()
@@ -3946,11 +3950,11 @@ func _create_constructor_dashboard_layout() -> Control:
 	if _safe_has_bipob_method("get_constructor_readiness_summary_text"):
 		root.add_child(_create_constructor_playable_status_panel())
 
-	var hint_label: Label = Label.new()
-	hint_label.text = "Select External or Internal tab to configure BOX."
-	hint_label.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
-	_apply_label_style(hint_label, true, false)
-	root.add_child(hint_label)
+	var hint_text_label: Label = Label.new()
+	hint_text_label.text = "Select External or Internal tab to configure BOX."
+	hint_text_label.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	_apply_label_style(hint_text_label, true, false)
+	root.add_child(hint_text_label)
 
 	panel.add_child(root)
 	return panel
@@ -4874,7 +4878,6 @@ func _create_app_menu_roots() -> void:
 	_build_main_menu_layout()
 	_build_center_menu_layout()
 	_build_tasks_menu_layout()
-	_build_mission_constructor_screen()
 	_build_placeholder_layout()
 
 func _build_fullscreen_root(node_name: String) -> Control:
@@ -4969,16 +4972,16 @@ func _get_menu_content_max_height() -> float:
 func get_ui_layout_audit_report() -> String:
 	var vp := _get_viewport_size()
 	var roots := {"main": main_menu_root, "center": center_menu_root, "tasks": tasks_menu_root, "box": box_menu_root, "charging": charging_menu_root, "repair": repair_menu_root, "hud": runtime_hud_root}
-	var visible := 0
+	var is_visible_flag := 0
 	var lines: Array[String] = ["UI Audit", "screen=%s" % str(app_screen_mode), "small_viewport=%s" % str(_is_small_viewport()), "viewport=%.0fx%.0f" % [vp.x, vp.y]]
 	for k in roots.keys():
 		var n: Control = roots[k]
 		var ex := n != null and is_instance_valid(n)
 		var vis := ex and n.visible
 		if vis:
-			visible += 1
+			is_visible_flag += 1
 		lines.append("%s: exists=%s visible=%s" % [k, str(ex), str(vis)])
-	lines.insert(2, "visible_major=%d" % visible)
+	lines.insert(2, "visible_major=%d" % is_visible_flag)
 	var wap_exists := runtime_world_actions_panel != null and is_instance_valid(runtime_world_actions_panel)
 	var wap_visible := wap_exists and runtime_world_actions_panel.visible
 	lines.append("world_actions: exists=%s visible=%s cache_keys={target:%s actions:%s state:%s selected:%s}" % [str(wap_exists), str(wap_visible), str(not last_world_action_target_id.is_empty()), str(not last_world_action_actions_key.is_empty()), str(not last_world_action_state_key.is_empty()), str(not last_world_action_selected.is_empty())])
@@ -5065,10 +5068,10 @@ func _assert_single_active_major_screen() -> void:
 		"RuntimeHUD": runtime_hud_root
 	}
 	var visible_roots: Array[String] = []
-	for name in root_map.keys():
-		var root: Control = root_map[name]
+	for root_name in root_map.keys():
+		var root: Control = root_map[root_name]
 		if root != null and is_instance_valid(root) and root.visible:
-			visible_roots.append(name)
+			visible_roots.append(root_name)
 	if visible_roots.size() > 1:
 		push_warning("More than one major screen visible: %s" % ", ".join(visible_roots))
 
@@ -5243,12 +5246,16 @@ func show_box_constructor_from_center() -> void:
 
 func show_mission_constructor_screen() -> void:
 	if not _ensure_gameplay_runtime_created():
-		show_hint("Gameplay runtime is unavailable.")
+		show_hint("Mission constructor unavailable: gameplay runtime failed to load.")
+		show_main_menu_screen()
 		return
 	app_screen_mode = AppScreenMode.MISSION_CONSTRUCTOR
 	box_opened_from_center = false
 	_hide_all_app_screens()
 	_set_gameplay_visible(false)
+	if mission_constructor_root == null or not is_instance_valid(mission_constructor_root):
+		mission_constructor_root = _build_fullscreen_root("MissionConstructorRoot")
+		add_child(mission_constructor_root)
 	_build_mission_constructor_screen()
 	if mission_constructor_root != null:
 		mission_constructor_root.visible = true
@@ -6162,6 +6169,13 @@ func _rebuild_box_actions_for_current_mode() -> void:
 	rebuild_box_action_buttons()
 
 func get_box_mission_menu_text() -> String:
+	if bipob == null:
+		return "\n".join([
+			"Mission:",
+			"Runtime not loaded.",
+			"",
+			"Press Play to enter the Center before opening mission systems."
+		])
 	var content_lines: Array[String] = []
 	var mission_name := "n/a"
 	if bipob.has_method("get_mission_name"):
@@ -7422,18 +7436,18 @@ func _build_tasks_menu_layout() -> void:
 	content_row.add_theme_constant_override("separation", 10)
 	root.add_child(content_row)
 
-	var left_panel := PanelContainer.new()
-	_apply_panel_style(left_panel)
-	left_panel.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-	left_panel.size_flags_vertical = Control.SIZE_EXPAND_FILL
-	content_row.add_child(left_panel)
+	var left_panel_container := PanelContainer.new()
+	_apply_panel_style(left_panel_container)
+	left_panel_container.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	left_panel_container.size_flags_vertical = Control.SIZE_EXPAND_FILL
+	content_row.add_child(left_panel_container)
 
 	var left_margin := MarginContainer.new()
 	left_margin.add_theme_constant_override("margin_left", 10)
 	left_margin.add_theme_constant_override("margin_right", 10)
 	left_margin.add_theme_constant_override("margin_top", 10)
 	left_margin.add_theme_constant_override("margin_bottom", 10)
-	left_panel.add_child(left_margin)
+	left_panel_container.add_child(left_margin)
 
 	var left_vbox := VBoxContainer.new()
 	left_vbox.size_flags_horizontal = Control.SIZE_EXPAND_FILL
@@ -8256,8 +8270,12 @@ func _refresh_repair_menu() -> void:
 		return
 	for child in rows_vbox.get_children():
 		child.queue_free()
-	var broken_modules: Array = bipob.get_broken_modules_for_repair() if bipob.has_method("get_broken_modules_for_repair") else []
-	var damaged_bipobs: Array = bipob.get_damaged_bipobs_for_repair() if bipob.has_method("get_damaged_bipobs_for_repair") else []
+	var broken_modules: Array = []
+	if bipob.has_method("get_broken_modules_for_repair"):
+		broken_modules = bipob.get_broken_modules_for_repair()
+	var damaged_bipobs: Array = []
+	if bipob.has_method("get_damaged_bipobs_for_repair"):
+		damaged_bipobs = bipob.get_damaged_bipobs_for_repair()
 	for module in broken_modules:
 		rows_vbox.add_child(_create_repair_module_row(module))
 	for row in damaged_bipobs:
