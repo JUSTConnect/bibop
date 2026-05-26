@@ -45,7 +45,7 @@ class SelectedModuleMiniPreviewControl:
 		if ui_ref != null:
 			ui_ref._draw_selected_module_mini_preview(self, module_ref, preview_context)
 
-@onready var bipob = get_node("../Bipob")
+@onready var bipob: BipobController = get_node("../Bipob") as BipobController
 
 @onready var mission_label: Label = $MissionLabel
 @onready var status_label: Label = $StatusLabel
@@ -5123,7 +5123,7 @@ func _build_tasks_mission_data() -> void:
 
 func _get_mission_progress(mission_id: int) -> Dictionary:
 	if not mission_progress.has(mission_id):
-		mission_progress[mission_id] = {
+		var new_progress: Dictionary = {
 			"completed": false,
 			"claimed": false,
 			"stars": 0,
@@ -5133,7 +5133,8 @@ func _get_mission_progress(mission_id: int) -> Dictionary:
 			"extra_goals": {},
 			"reward_claimed_text": ""
 		}
-	return mission_progress[mission_id]
+		mission_progress[mission_id] = new_progress
+	return Dictionary(mission_progress.get(mission_id, {}))
 
 func _is_mission_claimed(mission_id: int) -> bool:
 	return bool(_get_mission_progress(mission_id).get("claimed", false))
@@ -5154,9 +5155,9 @@ func _get_mission_display_title(mission_data: Dictionary) -> String:
 	return base_title
 
 func start_selected_task_mission() -> void:
-	var mission := get_selected_task_mission()
+	var mission: Dictionary = get_selected_task_mission()
 	var selected_bipobs: Array[Dictionary] = get_selected_bipobs_for_mission()
-	var validation := validate_mission_requirements(mission, selected_bipobs)
+	var validation: Dictionary = validate_mission_requirements(mission, selected_bipobs)
 	if not bool(validation.get("valid", false)):
 		show_hint("Mission config invalid. Check warnings.")
 		_refresh_tasks_content()
@@ -5243,18 +5244,19 @@ func _refresh_tasks_content() -> void:
 		return
 	_reset_tasks_actions_row_for_standard_tabs()
 	if tasks_current_tab != "Career":
-		var placeholder := Label.new()
+		var placeholder: Label = Label.new()
 		placeholder.text = "No tasks in this category yet."
 		_apply_label_style(placeholder)
 		tasks_list_container.add_child(placeholder)
 		_apply_tasks_placeholder_details()
 		return
 	var sorted_missions: Array = _sort_missions_for_task_list(tasks_mission_data)
-	for mission in sorted_missions:
+	for mission_variant in sorted_missions:
+		var mission: Dictionary = Dictionary(mission_variant)
 		var i: int = int(mission.get("source_index", 0))
 		var mission_id: int = int(mission.get("id", i + 1))
 		var progress: Dictionary = _get_mission_progress(mission_id)
-		var card := Button.new()
+		var card: Button = Button.new()
 		var suffix: String = ""
 		if bool(progress.get("claimed", false)):
 			suffix = " — Claimed"
@@ -5302,9 +5304,11 @@ func _refresh_tasks_bipob_buttons() -> void:
 		child.queue_free()
 	for entry in tasks_available_bipobs:
 		var bipob_id: String = String(entry.get("id", ""))
+		if bipob == null:
+			return
 		var current_armor: int = bipob.get_bipob_current_armor(bipob_id) if bipob.has_method("get_bipob_current_armor") else 0
 		var max_armor: int = bipob.get_bipob_max_armor(bipob_id) if bipob.has_method("get_bipob_max_armor") else 0
-		var button := _create_menu_button("%s\n%d / %d" % [String(entry.get("name", bipob_id)), current_armor, max_armor], Callable(self, "_on_tasks_bipob_selected").bind(bipob_id), MENU_BACK_BUTTON_SIZE)
+		var button: Button = _create_menu_button("%s\n%d / %d" % [String(entry.get("name", bipob_id)), current_armor, max_armor], Callable(self, "_on_tasks_bipob_selected").bind(bipob_id), MENU_BACK_BUTTON_SIZE)
 		button.modulate = UI_COLOR_SELECTED if tasks_selected_ids.has(bipob_id) else Color(1, 1, 1, 1)
 		tasks_bipob_buttons_row.add_child(button)
 
@@ -5355,10 +5359,10 @@ func _apply_tasks_placeholder_details() -> void:
 		tasks_main_goal_label.text = "This category is not available yet."
 	if tasks_extra_goal_label != null:
 		tasks_extra_goal_label.text = "—"
-	for i in tasks_requirements_required_labels.size():
+	for i in range(tasks_requirements_required_labels.size()):
 		var required_text: String = "TBD" if i == 0 else ""
 		tasks_requirements_required_labels[i].text = "Required: %s" % required_text if _is_small_viewport() and not required_text.is_empty() else required_text
-	for i in tasks_requirements_current_labels.size():
+	for i in range(tasks_requirements_current_labels.size()):
 		var current_text: String = "TBD" if i == 0 else ""
 		tasks_requirements_current_labels[i].text = "[color=#9ed6df]Current:[/color] %s" % current_text if _is_small_viewport() and not current_text.is_empty() else current_text
 	if tasks_warnings_label != null:
@@ -5373,9 +5377,9 @@ func _update_tasks_details_panel() -> void:
 		return
 	tasks_selected_career_index = clampi(tasks_selected_career_index, 0, tasks_mission_data.size() - 1)
 	tasks_selected_mission_id = tasks_selected_career_index + 1
-	var task := tasks_mission_data[tasks_selected_career_index]
+	var task: Dictionary = Dictionary(tasks_mission_data[tasks_selected_career_index])
 	var selected_bipobs: Array[Dictionary] = get_selected_bipobs_for_mission()
-	var validation := validate_mission_requirements(task, selected_bipobs)
+	var validation: Dictionary = validate_mission_requirements(task, selected_bipobs)
 	var mission_id: int = int(task.get("id", tasks_selected_mission_id))
 	var progress: Dictionary = _get_mission_progress(mission_id)
 	var critical_warnings: Array = _get_mission_critical_warnings(task, selected_bipobs)
@@ -5391,12 +5395,12 @@ func _update_tasks_details_panel() -> void:
 	if tasks_extra_goal_label != null:
 		tasks_extra_goal_label.text = "- %s" % "\n- ".join(task.get("extra_goals", []))
 	var requirements_ui: Dictionary = build_requirements_text(task, selected_bipobs, validation)
-	var required_rows: Array = requirements_ui.get("required_rows", [])
-	var current_rows: Array = requirements_ui.get("current_rows", [])
-	for i in tasks_requirements_required_labels.size():
+	var required_rows: Array = Array(requirements_ui.get("required_rows", []))
+	var current_rows: Array = Array(requirements_ui.get("current_rows", []))
+	for i in range(tasks_requirements_required_labels.size()):
 		var required_text: String = String(required_rows[i]) if i < required_rows.size() else ""
 		tasks_requirements_required_labels[i].text = "Required: %s" % required_text if _is_small_viewport() and not required_text.is_empty() else required_text
-	for i in tasks_requirements_current_labels.size():
+	for i in range(tasks_requirements_current_labels.size()):
 		var current_text: String = String(current_rows[i]) if i < current_rows.size() else ""
 		tasks_requirements_current_labels[i].text = "[color=#9ed6df]Current:[/color] %s" % current_text if _is_small_viewport() and not current_text.is_empty() else current_text
 	if tasks_warnings_label != null:
@@ -5423,7 +5427,7 @@ func get_selected_task_mission() -> Dictionary:
 	if tasks_mission_data.is_empty():
 		return {}
 	tasks_selected_career_index = clampi(tasks_selected_career_index, 0, tasks_mission_data.size() - 1)
-	return tasks_mission_data[tasks_selected_career_index]
+	return Dictionary(tasks_mission_data[tasks_selected_career_index])
 
 func get_selected_bipobs_for_mission() -> Array[Dictionary]:
 	var selected: Array[Dictionary] = []
@@ -5482,7 +5486,11 @@ func validate_mission_requirements(mission_data: Dictionary, selected_bipobs: Ar
 	return {"valid": messages.is_empty(), "messages": messages}
 
 func _get_mission_critical_warnings(mission_data: Dictionary, selected_bipobs: Array[Dictionary]) -> Array:
-	return validate_mission_requirements(mission_data, selected_bipobs).get("messages", [])
+	var validation: Dictionary = validate_mission_requirements(mission_data, selected_bipobs)
+	var messages_variant: Variant = validation.get("messages", [])
+	if typeof(messages_variant) != TYPE_ARRAY:
+		return []
+	return Array(messages_variant)
 
 func _get_mission_recommendations(_mission_data: Dictionary, _selected_bipobs: Array[Dictionary]) -> Array:
 	var recommendations: Array = []
@@ -5495,8 +5503,10 @@ func _get_mission_recommendations(_mission_data: Dictionary, _selected_bipobs: A
 	return recommendations
 
 func _bipob_has_damage() -> bool:
+	if bipob == null:
+		return false
 	for entry in tasks_available_bipobs:
-		var profile_id := String(entry.get("id", ""))
+		var profile_id: String = String(entry.get("id", ""))
 		if bipob.has_method("is_bipob_damaged") and bipob.is_bipob_damaged(profile_id):
 			return true
 	return false
@@ -5529,11 +5539,12 @@ func _build_mission_report_text(task: Dictionary, progress: Dictionary) -> Strin
 	return "\n".join(lines)
 
 func _sort_missions_for_task_list(missions: Array) -> Array:
-	var active: Array = []
-	var completed: Array = []
-	var claimed: Array = []
-	for i in missions.size():
-		var mission: Dictionary = missions[i].duplicate(true)
+	var active: Array[Dictionary] = []
+	var completed: Array[Dictionary] = []
+	var claimed: Array[Dictionary] = []
+	for i in range(missions.size()):
+		var mission_source: Dictionary = Dictionary(missions[i])
+		var mission: Dictionary = mission_source.duplicate(true)
 		mission["source_index"] = i
 		var mission_id: int = int(mission.get("id", i + 1))
 		if _is_mission_claimed(mission_id):
@@ -5542,12 +5553,20 @@ func _sort_missions_for_task_list(missions: Array) -> Array:
 			completed.append(mission)
 		else:
 			active.append(mission)
-	return active + completed + claimed
+	var result: Array[Dictionary] = []
+	result.append_array(active)
+	result.append_array(completed)
+	result.append_array(claimed)
+	return result
 
 func _build_validation_summary(validation: Dictionary) -> String:
 	if bool(validation.get("valid", false)):
 		return "READY: Configuration is valid."
-	return "- %s" % "\n- ".join(validation.get("messages", []))
+	var messages: Array = Array(validation.get("messages", []))
+	var message_lines: Array[String] = []
+	for message_variant in messages:
+		message_lines.append(String(message_variant))
+	return "- %s" % "\n- ".join(message_lines)
 
 func _configure_requirement_cell_label(label: Label, is_required_column: bool) -> void:
 	label.autowrap_mode = TextServer.AUTOWRAP_OFF
@@ -8306,7 +8325,7 @@ func _on_tasks_start_pressed() -> void:
 	start_selected_task_mission()
 
 func _build_tasks_dev_content() -> void:
-	var card := Button.new()
+	var card: Button = Button.new()
 	card.text = "TASK TEST\nTest room for mechanics and validation checks.\nMission ID: mission_10"
 	card.alignment = HORIZONTAL_ALIGNMENT_LEFT
 	card.text_overrun_behavior = TextServer.OVERRUN_TRIM_ELLIPSIS
@@ -8341,11 +8360,11 @@ func _build_tasks_dev_content() -> void:
 			if child == tasks_start_button or child == tasks_claim_button:
 				continue
 			child.queue_free()
-		var validation_all_button := _create_menu_button("Run Validation: All", Callable(self, "_on_dev_validation_all_pressed"), Vector2(200, 34))
+		var validation_all_button: Button = _create_menu_button("Run Validation: All", Callable(self, "_on_dev_validation_all_pressed"), Vector2(200, 34))
 		tasks_actions_row.add_child(validation_all_button)
-		var validation_task_test_button := _create_menu_button("Run Validation: Task Test", Callable(self, "_on_dev_validation_task_test_pressed"), Vector2(230, 34))
+		var validation_task_test_button: Button = _create_menu_button("Run Validation: Task Test", Callable(self, "_on_dev_validation_task_test_pressed"), Vector2(230, 34))
 		tasks_actions_row.add_child(validation_task_test_button)
-		var spacer := Control.new()
+		var spacer: Control = Control.new()
 		spacer.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 		tasks_actions_row.add_child(spacer)
 	_set_dev_validation_output("Ready. Select a validation suite to display output.")
