@@ -4026,11 +4026,15 @@ func get_external_pocket_reserved_cells(side_id: String, pocket_index: int) -> A
 		return reserved
 	var col_a: int = pocket_index * 2
 	var col_b: int = col_a + 1
-	var bottom_row: int = side_size.y - 1
-	if col_a >= 0 and col_a < side_size.x:
-		reserved.append(Vector2i(col_a, bottom_row))
-	if col_b >= 0 and col_b < side_size.x:
-		reserved.append(Vector2i(col_b, bottom_row))
+	var row_a: int = side_size.y - 2
+	var row_b: int = side_size.y - 1
+	for y in [row_a, row_b]:
+		if y < 0 or y >= side_size.y:
+			continue
+		if col_a >= 0 and col_a < side_size.x:
+			reserved.append(Vector2i(col_a, y))
+		if col_b >= 0 and col_b < side_size.x:
+			reserved.append(Vector2i(col_b, y))
 	return reserved
 
 func is_external_pocket_index_valid_for_side(side_id: String, pocket_index: int) -> bool:
@@ -4038,7 +4042,13 @@ func is_external_pocket_index_valid_for_side(side_id: String, pocket_index: int)
 	if side_size.x <= 0 or side_size.y <= 0:
 		return false
 	var col_b: int = pocket_index * 2 + 1
-	return col_b >= 0 and col_b < side_size.x
+	var top_reserved_row: int = side_size.y - 2
+	return (
+		pocket_index >= 0
+		and col_b >= 0
+		and col_b < side_size.x
+		and top_reserved_row >= 0
+	)
 
 func is_external_cell_reserved_for_pocket(side_id: String, cell: Vector2i) -> bool:
 	_ensure_external_pockets_shape()
