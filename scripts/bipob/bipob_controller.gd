@@ -32,9 +32,9 @@ const EXTERNAL_SIDE_ORDER := [
 ]
 const EXTERNAL_CATEGORY_MAP := {"movement":"Gear","sensor":"Sensors","manipulator":"Manipulator","connector":"Interface","tool":"Tools","repair":"Tools","weapon":"Weapons","armor":"Defense","other":"Other"}
 const MissionManagerScript = preload("res://scripts/game/mission_manager.gd")
-const ScanSystem = preload("res://scripts/world/scan_system.gd")
-const InteractionSystem = preload("res://scripts/world/interaction_system.gd")
-const PowerSystem = preload("res://scripts/world/power_system.gd")
+const ScanSystemRef = preload("res://scripts/world/scan_system.gd")
+const InteractionSystemRef = preload("res://scripts/world/interaction_system.gd")
+const PowerSystemRef = preload("res://scripts/world/power_system.gd")
 const BipobModulePresenter = preload("res://scripts/bipob/bipob_module_presenter.gd")
 const EXTERNAL_MODULE_CATALOG: Dictionary = {
 "wheels_v1":{"name":"Wheels V1","cat":"Gear","size":Vector2i(3,2),"sides":[EXTERNAL_SIDE_BOTTOM],"desc":"Fast movement system for flat and stable surfaces. Ineffective on stairs, mud and debris.","energy":1,"terrain":"Flat surface","movement":"Drive","speed":3},
@@ -6847,14 +6847,14 @@ func scan_device() -> void:
 						hint_requested.emit(String(overheat_message))
 					status_changed.emit()
 					return
-			var result := ScanSystem.scan_object(world_object, scan_type, get_effective_visor_level())
+			var result := ScanSystemRef.scan_object(world_object, scan_type, get_effective_visor_level())
 			world_object["scan_level"] = int(result.get("scan_level", 1))
 			if scan_type == "xray" and world_object.get("object_group", "") == "wall" and not Array(world_object.get("hidden_content", [])).is_empty():
 				world_object["revealed_hidden_content"] = true
 			mission_manager.set_world_object_at_cell(facing_cell, world_object)
 			refresh_world_object_overlay()
 			update_threat_detection_preview()
-			var scan_text := ScanSystem.get_scan_display_text(world_object, scan_type)
+			var scan_text := ScanSystemRef.get_scan_display_text(world_object, scan_type)
 			if String(world_object.get("object_group", "")) == "platform" and mission_manager.has_method("get_platform_state_summary"):
 				scan_text += "\n" + String(mission_manager.call("get_platform_state_summary", world_object))
 			hint_requested.emit("Scan: %s" % scan_text)
@@ -7535,7 +7535,7 @@ func interact() -> void:
 			var item: Dictionary = Dictionary(cell_items[0])
 			var is_digital_item := String(item.get("item_form", "physical")) == "digital"
 			var item_actor := {"manipulator_occupied": not is_digital_item and not can_use_physical_hand()}
-			var item_result: Dictionary = Dictionary(InteractionSystem.apply_action(item_actor, {"id": active_manipulator.id if active_manipulator != null else ""}, item, "pickup"))
+			var item_result: Dictionary = Dictionary(InteractionSystemRef.apply_action(item_actor, {"id": active_manipulator.id if active_manipulator != null else ""}, item, "pickup"))
 			if bool(item_result.get("success", false)):
 				if is_digital_item:
 					mission_manager.remove_first_item_at_cell(target_position)
@@ -7608,7 +7608,7 @@ func interact() -> void:
 					hint_requested.emit("No available action for this object.")
 				status_changed.emit()
 				return
-			var action_result: Dictionary = Dictionary(InteractionSystem.apply_action(actor, module, world_object, action_id))
+			var action_result: Dictionary = Dictionary(InteractionSystemRef.apply_action(actor, module, world_object, action_id))
 			if bool(action_result.get("success", false)):
 				if not can_spend_action(1, 1):
 					hint_requested.emit("Not enough action/energy.")
@@ -7706,7 +7706,7 @@ func _apply_world_object_effects(effects: Array, world_object: Dictionary, targe
 		if effect is String and String(effect) == "power_recalc_needed":
 			var network_id_text := String(world_object.get("power_network_id", ""))
 			if not network_id_text.is_empty():
-				PowerSystem.recalculate_network(mission_manager.mission_world_objects, network_id_text)
+				PowerSystemRef.recalculate_network(mission_manager.mission_world_objects, network_id_text)
 			continue
 		if not (effect is Dictionary):
 			continue
@@ -7718,7 +7718,7 @@ func _apply_world_object_effects(effects: Array, world_object: Dictionary, targe
 		elif effect_type == "power_recalc_needed":
 			var network_id := String(world_object.get("power_network_id", ""))
 			if not network_id.is_empty():
-				PowerSystem.recalculate_network(mission_manager.mission_world_objects, network_id)
+				PowerSystemRef.recalculate_network(mission_manager.mission_world_objects, network_id)
 		elif effect_type == "apply_terminal_controls":
 			var control_messages := _apply_terminal_controls(world_object)
 			if not control_messages.is_empty():

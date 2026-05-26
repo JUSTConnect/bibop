@@ -1,10 +1,10 @@
 extends RefCounted
 class_name InteractionSystem
-const WorldObjectCatalog = preload("res://scripts/world/world_object_catalog.gd")
+const WorldObjectCatalogRef = preload("res://scripts/world/world_object_catalog.gd")
 
 const SUPPORTED_ACTIONS := ["open","unlock","input_password","cut","impact","force_open","connect","scan","hack","drain_energy","pickup","use_item","insert_fuse","repair","push","pull","switch","disable","enable","attack","stun","repair_ally"]
 
-static func can_apply_action(actor: Dictionary, module: Dictionary, target_object: Dictionary, action_type: String) -> Dictionary:
+static func can_apply_action(actor: Dictionary, _module: Dictionary, target_object: Dictionary, action_type: String) -> Dictionary:
 	if action_type not in SUPPORTED_ACTIONS:
 		return _result(false, "Action not supported.")
 	if target_object.is_empty():
@@ -125,12 +125,12 @@ static func apply_action(actor: Dictionary, module: Dictionary, target_object: D
 			if int(target_object.get("terminal_class", 1)) >= 3 and target_object.get("can_attack", false) and not actor.get("firewall_module_v1", false):
 				return _result(false, "Firewall required.", ["terminal_attack"])
 			if group == "terminal":
-				WorldObjectCatalog.update_world_object_heat_state(target_object)
+				WorldObjectCatalogRef.update_world_object_heat_state(target_object)
 				if String(target_object.get("state", "")) == "overheated":
-					return _result(false, "Terminal overheated. Hack failed.", [{"type":"terminal_overheated","heat_breakdown":WorldObjectCatalog.get_world_object_heat_breakdown(target_object, 0)}])
+					return _result(false, "Terminal overheated. Hack failed.", [{"type":"terminal_overheated","heat_breakdown":WorldObjectCatalogRef.get_world_object_heat_breakdown(target_object, 0)}])
 				var hack_heat: int = maxi(0, int(target_object.get("hack_heat", 1)))
-				if WorldObjectCatalog.would_world_object_overheat_with_temporary_heat(target_object, hack_heat):
-					return _result(false, "Terminal overheated. Hack failed.", [{"type":"terminal_overheated","heat_breakdown":WorldObjectCatalog.get_world_object_heat_breakdown(target_object, hack_heat)}])
+				if WorldObjectCatalogRef.would_world_object_overheat_with_temporary_heat(target_object, hack_heat):
+					return _result(false, "Terminal overheated. Hack failed.", [{"type":"terminal_overheated","heat_breakdown":WorldObjectCatalogRef.get_world_object_heat_breakdown(target_object, hack_heat)}])
 			target_object["state"] = "hacked"
 			if group == "threat":
 				return _result(true, "Hack successful.", [{"type":"set_state","state":"hacked"},{"type":"set_behavior_state","behavior_state":"idle"}])
