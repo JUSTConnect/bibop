@@ -5971,12 +5971,70 @@ func _get_world_object_at_cell(cell: Vector2i) -> Dictionary:
 		return {}
 	return Dictionary(mission_manager.get_world_object_at_cell(cell))
 
+func _get_grid_tile_display_name(tile_type: int) -> String:
+	if grid_manager == null:
+		return "unknown"
+
+	match tile_type:
+		GridManager.TILE_FLOOR:
+			return "floor"
+		GridManager.TILE_WALL:
+			return "wall"
+		GridManager.TILE_DOOR:
+			return "door"
+		GridManager.TILE_KEY:
+			return "key"
+		GridManager.TILE_EXIT:
+			return "exit"
+		GridManager.TILE_TERMINAL:
+			return "terminal"
+		GridManager.TILE_DIGITAL_DOOR:
+			return "digital door"
+		GridManager.TILE_COMPONENT:
+			return "component"
+		GridManager.TILE_HIDDEN_ROUTE_NODE:
+			return "hidden route node"
+		GridManager.TILE_ROUTE_GATE:
+			return "route gate"
+		GridManager.TILE_HOT_NODE:
+			return "hot node"
+		GridManager.TILE_AIRFLOW_TERMINAL:
+			return "airflow terminal"
+		GridManager.TILE_FAN_PLATFORM:
+			return "fan platform"
+		GridManager.TILE_PLATFORM_CONTROL:
+			return "platform control"
+		GridManager.TILE_FAN_CONTROL:
+			return "fan control"
+		GridManager.TILE_AIRFLOW:
+			return "airflow"
+		GridManager.TILE_PLATFORM_CONTROL_LEFT:
+			return "platform control left"
+		GridManager.TILE_PLATFORM_CONTROL_RIGHT:
+			return "platform control right"
+		GridManager.TILE_FAN_SPEED_UP_CONTROL:
+			return "fan speed up control"
+		GridManager.TILE_FAN_SPEED_DOWN_CONTROL:
+			return "fan speed down control"
+		GridManager.TILE_CABLE_REEL:
+			return "cable reel"
+		GridManager.TILE_SOCKET:
+			return "socket"
+		GridManager.TILE_POWERED_GATE:
+			return "powered gate"
+		GridManager.TILE_CABLE:
+			return "cable"
+		GridManager.TILE_STEPPED_FLOOR:
+			return "stepped floor"
+		_:
+			return "tile %d" % tile_type
+
 func get_cell_basic_composition_text(cell: Vector2i) -> String:
 	if is_cell_under_fog(cell):
 		return "Unknown cell."
 	var parts: Array[String] = []
 	var tile_type: int = grid_manager.get_tile(cell)
-	parts.append(GridManager.get_tile_name(tile_type).to_lower())
+	parts.append(_get_grid_tile_display_name(tile_type).to_lower())
 	var object_data: Dictionary = _get_world_object_at_cell(cell)
 	if not object_data.is_empty():
 		parts.append("object: %s" % String(object_data.get("display_name", "object")))
