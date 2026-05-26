@@ -283,7 +283,7 @@ func draw_iso_mouse_selection_overlay() -> void:
 	if selected_iso_cell.x >= 0 and selected_iso_cell.y >= 0:
 		var selected_points: PackedVector2Array = get_iso_inset_diamond_points(selected_iso_cell, iso_floor_visual_inset + 4.0)
 		if selected_points.size() >= 4:
-			draw_colored_polygon(selected_points, Color(0.85, 0.93, 1.0, 0.14))
+			draw_colored_polygon(selected_points, Color(0.85, 0.93, 1.0, 0.09))
 			for edge_index in range(selected_points.size()):
 				var next_index: int = (edge_index + 1) % selected_points.size()
 				draw_line(selected_points[edge_index], selected_points[next_index], Color(0.72, 0.93, 1.0, 0.95), 2.0)
@@ -1179,11 +1179,11 @@ func get_iso_object_visual_profiles() -> Dictionary:
 	# Visual-only object profile mapping for BIP-Visual-007.
 	# Final asset rendering and gameplay metadata wiring will be added later.
 	return {
-		"door": {"base": Color(0.3, 0.21, 0.15, 0.95), "accent": Color(0.58, 0.41, 0.22, 0.95), "outline": Color(0.16, 0.11, 0.08, 0.92), "label": "Door", "shape": "slab"},
+		"door": {"base": Color(0.33, 0.22, 0.12, 0.96), "accent": Color(0.98, 0.74, 0.26, 0.98), "outline": Color(0.2, 0.13, 0.07, 0.94), "label": "Door", "shape": "door_panel"},
 		"digital_door": {"base": Color(0.15, 0.25, 0.33, 0.95), "accent": Color(0.36, 0.73, 0.88, 0.95), "outline": Color(0.08, 0.15, 0.2, 0.92), "label": "Digital Door", "shape": "slab"},
 		"powered_gate": {"base": Color(0.17, 0.22, 0.3, 0.95), "accent": Color(0.43, 0.81, 0.94, 0.95), "outline": Color(0.1, 0.15, 0.2, 0.92), "label": "Powered Gate", "shape": "slab"},
-		"terminal": {"base": Color(0.16, 0.3, 0.36, 0.95), "accent": Color(0.48, 0.9, 0.84, 0.95), "outline": Color(0.08, 0.16, 0.19, 0.92), "label": "Terminal", "shape": "pillar"},
-		"airflow_terminal": {"base": Color(0.16, 0.25, 0.31, 0.95), "accent": Color(0.54, 0.82, 0.93, 0.95), "outline": Color(0.08, 0.14, 0.18, 0.92), "label": "Airflow Terminal", "shape": "pillar"},
+		"terminal": {"base": Color(0.14, 0.24, 0.29, 0.96), "accent": Color(0.34, 0.95, 1.0, 0.98), "outline": Color(0.07, 0.14, 0.18, 0.94), "label": "Terminal", "shape": "terminal_console"},
+		"airflow_terminal": {"base": Color(0.14, 0.22, 0.28, 0.96), "accent": Color(0.5, 0.88, 0.98, 0.98), "outline": Color(0.07, 0.13, 0.17, 0.94), "label": "Airflow Terminal", "shape": "terminal_console"},
 		"exit": {"base": Color(0.14, 0.3, 0.21, 0.95), "accent": Color(0.48, 0.95, 0.69, 0.95), "outline": Color(0.07, 0.16, 0.11, 0.92), "label": "Exit", "shape": "slab"},
 		"key": {"base": Color(0.31, 0.26, 0.12, 0.95), "accent": Color(0.95, 0.83, 0.35, 0.95), "outline": Color(0.2, 0.16, 0.08, 0.92), "label": "Key", "shape": "small_marker"},
 		"component": {"base": Color(0.25, 0.25, 0.3, 0.95), "accent": Color(0.72, 0.72, 0.85, 0.95), "outline": Color(0.14, 0.14, 0.17, 0.92), "label": "Component", "shape": "pillar"},
@@ -1306,6 +1306,54 @@ func draw_iso_object_pillar(cell: Vector2i, profile: Dictionary) -> void:
 			var next_idx: int = (edge_idx + 1) % body_points.size()
 			draw_line(body_points[edge_idx], body_points[next_idx], outline_color, 1.0)
 
+func draw_iso_object_door_panel(cell: Vector2i, profile: Dictionary) -> void:
+	var center: Vector2 = grid_to_iso(cell)
+	var marker_height: float = maxf(iso_object_marker_height + 12.0, 18.0)
+	var half_width: float = maxf(get_iso_tile_half_size().x * 0.16, 7.0)
+	var panel_bottom: Vector2 = center + Vector2(0.0, -4.0)
+	var panel_top: Vector2 = panel_bottom + Vector2(0.0, -marker_height)
+	var left_bottom: Vector2 = panel_bottom + Vector2(-half_width, 0.0)
+	var right_bottom: Vector2 = panel_bottom + Vector2(half_width, 0.0)
+	var left_top: Vector2 = panel_top + Vector2(-half_width, 0.0)
+	var right_top: Vector2 = panel_top + Vector2(half_width, 0.0)
+	var body_points: PackedVector2Array = PackedVector2Array([left_top, right_top, right_bottom, left_bottom])
+	var base_color: Color = _get_color_from_dict(profile, "base", Color.WHITE)
+	var accent_color: Color = _get_color_from_dict(profile, "accent", Color.WHITE)
+	var outline_color: Color = _get_color_from_dict(profile, "outline", Color.WHITE)
+	draw_colored_polygon(body_points, base_color)
+	draw_line(left_bottom, left_top, accent_color, 2.2)
+	draw_line(right_bottom, right_top, accent_color, 2.2)
+	draw_line(left_top.lerp(right_top, 0.2), left_bottom.lerp(right_bottom, 0.2), accent_color, 1.2)
+	if debug_draw_iso_object_outlines:
+		for edge_idx in range(body_points.size()):
+			var next_idx: int = (edge_idx + 1) % body_points.size()
+			draw_line(body_points[edge_idx], body_points[next_idx], outline_color, 1.0)
+
+func draw_iso_object_terminal_console(cell: Vector2i, profile: Dictionary) -> void:
+	var center: Vector2 = grid_to_iso(cell)
+	var body_height: float = maxf(iso_object_marker_height + 2.0, 12.0)
+	var body_half_width: float = maxf(get_iso_tile_half_size().x * 0.11, 5.0)
+	var body_bottom: Vector2 = center + Vector2(0.0, -3.0)
+	var body_top: Vector2 = body_bottom + Vector2(0.0, -body_height)
+	var body: PackedVector2Array = PackedVector2Array([
+		body_top + Vector2(-body_half_width, 0.0),
+		body_top + Vector2(body_half_width, 0.0),
+		body_bottom + Vector2(body_half_width, 0.0),
+		body_bottom + Vector2(-body_half_width, 0.0)
+	])
+	var screen: Rect2 = Rect2(center + Vector2(-body_half_width + 1.0, -body_height + 2.0), Vector2(body_half_width * 2.0 - 2.0, body_height * 0.36))
+	var base_color: Color = _get_color_from_dict(profile, "base", Color.WHITE)
+	var accent_color: Color = _get_color_from_dict(profile, "accent", Color.WHITE)
+	var outline_color: Color = _get_color_from_dict(profile, "outline", Color.WHITE)
+	draw_colored_polygon(body, base_color)
+	draw_rect(screen, accent_color, true)
+	draw_line(screen.position + Vector2(0.0, screen.size.y), screen.position + screen.size, accent_color.lightened(0.25), 1.4)
+	if debug_draw_iso_object_outlines:
+		for edge_idx in range(body.size()):
+			var next_idx: int = (edge_idx + 1) % body.size()
+			draw_line(body[edge_idx], body[next_idx], outline_color, 1.0)
+		draw_rect(screen, outline_color, false, 1.0)
+
 func draw_iso_object_small_marker(cell: Vector2i, profile: Dictionary) -> void:
 	var center: Vector2 = grid_to_iso(cell) + Vector2(0.0, -6.0)
 	var radius: float = maxf(get_iso_tile_half_size().y * 0.16, 3.0)
@@ -1350,8 +1398,12 @@ func draw_iso_object_marker(cell: Vector2i, tile_type: int) -> void:
 	var shape: String = str(profile.get("shape", "small_marker"))
 	if shape == "slab":
 		draw_iso_object_slab(cell, profile)
+	elif shape == "door_panel":
+		draw_iso_object_door_panel(cell, profile)
 	elif shape == "pillar":
 		draw_iso_object_pillar(cell, profile)
+	elif shape == "terminal_console":
+		draw_iso_object_terminal_console(cell, profile)
 	elif shape == "line":
 		draw_iso_object_line(cell, profile)
 	elif shape == "heat_marker":

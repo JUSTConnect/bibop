@@ -4508,63 +4508,43 @@ func _create_runtime_controls_panel() -> Control:
 	var panel := PanelContainer.new()
 	panel.name = "RuntimeControlsPanel"
 	panel.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-	panel.custom_minimum_size = Vector2(0, 110)
+	panel.custom_minimum_size = Vector2(0, 88)
+	panel.add_theme_stylebox_override("panel", _make_panel_style(UI_COLOR_PANEL_DARK, UI_COLOR_BORDER_DIM, 1, 6))
 
 	var margin := MarginContainer.new()
-	margin.add_theme_constant_override("margin_left", 8)
-	margin.add_theme_constant_override("margin_right", 8)
-	margin.add_theme_constant_override("margin_top", 8)
-	margin.add_theme_constant_override("margin_bottom", 8)
+	margin.add_theme_constant_override("margin_left", 10)
+	margin.add_theme_constant_override("margin_right", 10)
+	margin.add_theme_constant_override("margin_top", 6)
+	margin.add_theme_constant_override("margin_bottom", 6)
 	panel.add_child(margin)
 
 	var grid := GridContainer.new()
-	grid.columns = 4
+	grid.columns = 3
 	grid.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-	grid.add_theme_constant_override("h_separation", 8)
-	grid.add_theme_constant_override("v_separation", 8)
+	grid.add_theme_constant_override("h_separation", 12)
+	grid.add_theme_constant_override("v_separation", 4)
 	margin.add_child(grid)
 
-	var ordered_buttons: Array[Control] = []
+	var hint_entries: Array[String] = [
+		"Forward [W]",
+		"Backward [S]",
+		"Turn Left [A]",
+		"Turn Right [D]",
+		"Action [E]",
+		"End Turn [Space]"
+	]
 
-	if move_forward_button != null:
-		move_forward_button.text = "Forward [W]"
-		ordered_buttons.append(move_forward_button)
-
-	if turn_left_button != null:
-		turn_left_button.text = "Turn Left [A]"
-		ordered_buttons.append(turn_left_button)
-
-	if interact_button != null:
-		interact_button.text = "Action [E]"
-		ordered_buttons.append(interact_button)
-
-	if turn_right_button != null:
-		turn_right_button.text = "Turn Right [D]"
-		ordered_buttons.append(turn_right_button)
-
-	if move_backward_button != null:
-		move_backward_button.text = "Backward [S]"
-		ordered_buttons.append(move_backward_button)
-
-	if scan_device_button != null:
-		scan_device_button.text = "Scan Device"
-		ordered_buttons.append(scan_device_button)
-
-	if hack_device_button != null:
-		hack_device_button.text = "Hack Device"
-		ordered_buttons.append(hack_device_button)
-
-	if end_turn_button != null:
-		end_turn_button.text = "End Turn [Space]"
-		ordered_buttons.append(end_turn_button)
-
-	for button in ordered_buttons:
-		if button == null:
-			continue
-		button.custom_minimum_size = Vector2(0, 42)
-		button.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-		button.size_flags_vertical = Control.SIZE_EXPAND_FILL
-		_safe_reparent_control(button, grid)
+	for hint_text in hint_entries:
+		var hint_label: Label = Label.new()
+		hint_label.text = hint_text
+		hint_label.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+		hint_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_LEFT
+		hint_label.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
+		hint_label.mouse_filter = Control.MOUSE_FILTER_IGNORE
+		hint_label.add_theme_color_override("font_color", UI_COLOR_TEXT)
+		hint_label.add_theme_color_override("font_outline_color", Color(0.0, 0.0, 0.0, 0.2))
+		hint_label.add_theme_constant_override("outline_size", 1)
+		grid.add_child(hint_label)
 
 	return panel
 
