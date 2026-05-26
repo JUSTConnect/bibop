@@ -189,6 +189,7 @@ var player_action_index: int = 0
 var bipob_damage_state_by_profile: Dictionary = {"alpha": false, "beta": true, "juggernaut": false}
 var bipob_armor_state_by_profile: Dictionary = {"alpha": {"current": 20, "max": 20}, "beta": {"current": 10, "max": 20}, "juggernaut": {"current": 20, "max": 20}}
 var last_internal_overheat_messages: Array[String] = []
+var map_constructor_input_blocked: bool = false
 
 @onready var grid_manager: GridManager = get_node("../Field")
 @onready var mission_label: Label = get_node("../UI/MissionLabel")
@@ -5966,6 +5967,8 @@ func setup_body() -> void:
 
 func _unhandled_input(event: InputEvent) -> void:
 	if mission_finished:
+		return
+	if map_constructor_input_blocked:
 		return
 	
 	if event.is_action_pressed("move_forward"):

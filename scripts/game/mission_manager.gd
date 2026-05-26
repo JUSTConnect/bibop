@@ -26,6 +26,11 @@ var runtime_inventory_state := {
 	"consumed_item_ids": [],
 	"world_item_runtime": {}
 }
+var _map_constructor_runtime_object_seq: int = 1
+const MAP_CONSTRUCTOR_SOLID_PREFABS: Array[String] = [
+	"outer_wall","brick_wall","concrete_wall","steel_wall","grate_wall",
+	"mechanical_door","digital_door","powered_gate"
+]
 
 # region Typed world-object access wrappers
 func _wo_id(object_data: Dictionary) -> String:
@@ -490,6 +495,71 @@ func remove_first_item_at_cell(cell: Vector2i) -> Dictionary:
 	cell_items[cell] = items
 	mission_world_objects.erase(item)
 	return item
+
+func get_map_constructor_prefab_catalog() -> Array[Dictionary]:
+	return [
+		{"category":"Floors","id":"floor"},{"category":"Floors","id":"stepped_floor"},
+		{"category":"Walls","id":"outer_wall"},{"category":"Walls","id":"brick_wall"},{"category":"Walls","id":"concrete_wall"},{"category":"Walls","id":"steel_wall"},{"category":"Walls","id":"grate_wall"},
+		{"category":"Doors","id":"mechanical_door"},{"category":"Doors","id":"digital_door"},{"category":"Doors","id":"powered_gate"},
+		{"category":"Terminals","id":"information_terminal"},{"category":"Terminals","id":"control_terminal"},
+		{"category":"Power","id":"power_source_class_1"},{"category":"Power","id":"power_socket"},{"category":"Power","id":"power_cable"},{"category":"Power","id":"circuit_switch"},{"category":"Power","id":"fuse_box"},
+		{"category":"Items","id":"mechanical_key"},{"category":"Items","id":"digital_key"},{"category":"Items","id":"access_code"}
+	]
+
+func can_place_map_constructor_prefab(prefab_id: String, cell: Vector2i) -> Dictionary:
+	var result := {"ok": false, "message": "Cannot place prefab.", "object_id": "", "warnings": []}
+	if grid_manager == null or not grid_manager.has_method("is_in_bounds") or not bool(grid_manager.call("is_in_bounds", cell)):
+		result["message"] = "Out of bounds."
+		return result
+	if active_bipob_ref != null and Vector2i(active_bipob_ref.get("grid_position", Vector2i(-1, -1))) == cell:
+		result["message"] = "Cannot place under Bipob."
+		return result
+	var existing: Dictionary = get_world_object_at_cell(cell)
+	if MAP_CONSTRUCTOR_SOLID_PREFABS.has(prefab_id) and not existing.is_empty():
+		var existing_type: String = String(existing.get("object_type", ""))
+		if MAP_CONSTRUCTOR_SOLID_PREFABS.has(existing_type):
+			result["message"] = "Cell already has solid object."
+			return result
+	result["ok"] = true
+	result["message"] = "Placement possible."
+	return result
+
+func place_map_constructor_prefab(prefab_id: String, cell: Vector2i) -> Dictionary:
+	var check := can_place_map_constructor_prefab(prefab_id, cell)
+	if not bool(check.get("ok", false)):
+		return check
+	var result := {"ok": true, "message": "Placed %s." % prefab_id, "object_id": "", "warnings": []}
+	if prefab_id == "floor":
+		grid_manager.call("set_tile", cell, GridManager.TILE_FLOOR)
+		return result
+	if prefab_id == "stepped_floor":
+		grid_manager.call("set_tile", cell, GridManager.TILE_STEPPED_FLOOR)
+		return result
+	if prefab_id.ends_with("_wall") or prefab_id == "outer_wall":
+		grid_manager.call("set_tile", cell, GridManager.TILE_WALL)
+	elif prefab_id == "mechanical_door":
+		grid_manager.call("set_tile", cell, GridManager.TILE_DOOR)
+	elif prefab_id == "digital_door":
+		grid_manager.call("set_tile", cell, GridManager.TILE_DIGITAL_DOOR)
+	elif prefab_id == "powered_gate":
+		grid_manager.call("set_tile", cell, GridManager.TILE_POWERED_GATE)
+	var object_id: String = "mapedit_%s_%d" % [prefab_id, _map_constructor_runtime_object_seq]
+	_map_constructor_runtime_object_seq += 1
+	var object_data: Dictionary = {"id": object_id, "object_type": prefab_id, "position": cell, "display_name": prefab_id.capitalize(), "state": "active"}
+	set_world_object_at_cell(cell, object_data)
+	result["object_id"] = object_id
+	return result
+
+func remove_map_constructor_object_at_cell(cell: Vector2i) -> Dictionary:
+	var result := {"ok": false, "message": "Nothing to remove.", "object_id": "", "warnings": []}
+	var existing: Dictionary = get_world_object_at_cell(cell)
+	if existing.is_empty():
+		return result
+	result["ok"] = true
+	result["object_id"] = String(existing.get("id", ""))
+	result["message"] = "Removed object."
+	remove_world_object_at_cell(cell)
+	return result
 
 func get_world_object_by_id(id: String) -> Dictionary:
 	for object_data in mission_world_objects:
