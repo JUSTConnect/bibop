@@ -76,34 +76,7 @@ func get_iso_depth_key(cell: Vector2i) -> int:
 	return cell.x + cell.y
 
 func is_floor_like_tile(tile_type: int) -> bool:
-	if tile_type == GridManager.TILE_WALL:
-		return false
-
-	return (
-		tile_type == GridManager.TILE_FLOOR
-		or tile_type == GridManager.TILE_KEY
-		or tile_type == GridManager.TILE_EXIT
-		or tile_type == GridManager.TILE_TERMINAL
-		or tile_type == GridManager.TILE_DIGITAL_DOOR
-		or tile_type == GridManager.TILE_COMPONENT
-		or tile_type == GridManager.TILE_HIDDEN_ROUTE_NODE
-		or tile_type == GridManager.TILE_ROUTE_GATE
-		or tile_type == GridManager.TILE_HOT_NODE
-		or tile_type == GridManager.TILE_AIRFLOW_TERMINAL
-		or tile_type == GridManager.TILE_FAN_PLATFORM
-		or tile_type == GridManager.TILE_PLATFORM_CONTROL
-		or tile_type == GridManager.TILE_FAN_CONTROL
-		or tile_type == GridManager.TILE_AIRFLOW
-		or tile_type == GridManager.TILE_PLATFORM_CONTROL_LEFT
-		or tile_type == GridManager.TILE_PLATFORM_CONTROL_RIGHT
-		or tile_type == GridManager.TILE_FAN_SPEED_UP_CONTROL
-		or tile_type == GridManager.TILE_FAN_SPEED_DOWN_CONTROL
-		or tile_type == GridManager.TILE_CABLE_REEL
-		or tile_type == GridManager.TILE_SOCKET
-		or tile_type == GridManager.TILE_POWERED_GATE
-		or tile_type == GridManager.TILE_CABLE
-		or tile_type == GridManager.TILE_STEPPED_FLOOR
-	)
+	return tile_type != GridManager.TILE_WALL
 
 func get_floor_prototype_color(tile_type: int, cell: Vector2i) -> Color:
 	# Procedural prototype floor colors for dark industrial sci-fi paneling.
@@ -119,6 +92,8 @@ func get_floor_prototype_color(tile_type: int, cell: Vector2i) -> Color:
 		base_color = base_color.lerp(Color(0.14, 0.24, 0.2, 0.98), 0.4)
 	elif tile_type == GridManager.TILE_DIGITAL_DOOR or tile_type == GridManager.TILE_POWERED_GATE:
 		base_color = base_color.lerp(Color(0.14, 0.2, 0.27, 0.98), 0.3)
+	elif tile_type == GridManager.TILE_DOOR:
+		base_color = base_color.lerp(Color(0.2, 0.17, 0.13, 0.98), 0.22)
 	elif tile_type == GridManager.TILE_HOT_NODE:
 		base_color = base_color.lerp(Color(0.23, 0.16, 0.15, 0.98), 0.25)
 
