@@ -248,6 +248,7 @@ var tasks_validation_label: Label
 var tasks_start_button: Button
 var tasks_claim_button: Button
 var tasks_actions_row: HBoxContainer
+var tasks_dev_output_label: RichTextLabel
 var mission_progress: Dictionary = {}
 var repair_menu_root: Control = null
 
@@ -5076,8 +5077,6 @@ func start_gameplay_from_center() -> void:
 func _build_tasks_mission_data() -> void:
 	tasks_mission_data.clear()
 	var total_missions: int = 9
-	if bipob != null:
-		total_missions = maxi(1, int(bipob.max_mission_index))
 	for i in range(total_missions):
 		var mission_id: int = i + 1
 		var mission_title_short := "Mission %d" % mission_id
@@ -5085,12 +5084,6 @@ func _build_tasks_mission_data() -> void:
 		var short_description := "Reach extraction."
 		var main_goal := "Find the way to reach extraction."
 		var extra_goals: Array[String] = ["Find the key.", "Open the door."]
-		if mission_id == 10:
-			mission_title_short = "TASK TEST"
-			mission_title_full = "TASK TEST"
-			short_description = "Test room containing current mechanics: power, cooling, cable, terminals, doors, platforms, scan/X-Ray, inventory/tools/modules, save/runtime validation."
-			main_goal = "Run full mechanics checks and enter extraction."
-			extra_goals = ["Validate power/cooling/cables.", "Validate terminals/doors/platforms/scan.", "Reach extraction door."]
 		tasks_mission_data.append({
 			"id": mission_id,
 			"title_short": mission_title_short,
@@ -5230,6 +5223,10 @@ func _refresh_tasks_content() -> void:
 		return
 	for child in tasks_list_container.get_children():
 		child.queue_free()
+	if tasks_current_tab == "Dev":
+		_build_tasks_dev_content()
+		return
+	_reset_tasks_actions_row_for_standard_tabs()
 	if tasks_current_tab != "Career":
 		var placeholder := Label.new()
 		placeholder.text = "No tasks in this category yet."
@@ -5265,6 +5262,20 @@ func _refresh_tasks_content() -> void:
 		tasks_list_container.add_child(card)
 	_refresh_tasks_bipob_buttons()
 	_update_tasks_details_panel()
+	if tasks_dev_output_label != null:
+		tasks_dev_output_label.visible = false
+
+func _reset_tasks_actions_row_for_standard_tabs() -> void:
+	if tasks_actions_row == null:
+		return
+	for child in tasks_actions_row.get_children():
+		if child == tasks_start_button or child == tasks_claim_button:
+			continue
+		child.queue_free()
+	if tasks_start_button != null:
+		tasks_start_button.visible = true
+	if tasks_dev_output_label != null:
+		tasks_dev_output_label.visible = false
 func _refresh_tasks_bipob_buttons() -> void:
 	if tasks_bipob_buttons_row == null:
 		return
@@ -5335,6 +5346,8 @@ func _apply_tasks_placeholder_details() -> void:
 		tasks_warnings_label.text = "No warnings."
 
 func _update_tasks_details_panel() -> void:
+	if tasks_current_tab == "Dev":
+		return
 	if tasks_current_tab != "Career":
 		return
 	if tasks_mission_data.is_empty():
@@ -7279,7 +7292,7 @@ func _build_tasks_menu_layout() -> void:
 	var top_row := HBoxContainer.new()
 	top_row.add_theme_constant_override("separation", 8)
 	root.add_child(top_row)
-	for tab_name in ["Career", "Daily", "Defense", "Support"]:
+	for tab_name in ["Career", "Daily", "Defense", "Support", "Dev"]:
 		var tab_button := _create_menu_button(tab_name, Callable(self, "_on_tasks_tab_pressed").bind(tab_name), Vector2(102, 34))
 		tasks_tab_buttons[tab_name] = tab_button
 		top_row.add_child(tab_button)
@@ -7468,6 +7481,22 @@ func _build_tasks_menu_layout() -> void:
 	tasks_report_label.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 	_apply_label_style(tasks_report_label, true, false)
 	details_content.add_child(tasks_report_label)
+	var dev_output_scroll := ScrollContainer.new()
+	dev_output_scroll.horizontal_scroll_mode = ScrollContainer.SCROLL_MODE_DISABLED
+	dev_output_scroll.vertical_scroll_mode = ScrollContainer.SCROLL_MODE_AUTO
+	dev_output_scroll.custom_minimum_size = Vector2(0, 140)
+	dev_output_scroll.size_flags_vertical = Control.SIZE_EXPAND_FILL
+	dev_output_scroll.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	details_content.add_child(dev_output_scroll)
+	tasks_dev_output_label = RichTextLabel.new()
+	tasks_dev_output_label.bbcode_enabled = false
+	tasks_dev_output_label.fit_content = false
+	tasks_dev_output_label.scroll_active = false
+	tasks_dev_output_label.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	tasks_dev_output_label.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	tasks_dev_output_label.size_flags_vertical = Control.SIZE_EXPAND_FILL
+	tasks_dev_output_label.add_theme_color_override("default_color", UI_COLOR_TEXT)
+	dev_output_scroll.add_child(tasks_dev_output_label)
 
 	var actions := HBoxContainer.new()
 	tasks_actions_row = actions
@@ -8251,8 +8280,79 @@ func _on_tasks_career_selected(index: int) -> void:
 	_refresh_tasks_content()
 
 func _on_tasks_start_pressed() -> void:
+	if tasks_current_tab == "Dev":
+		_on_dev_start_task_test_pressed()
+		return
 	# TODO(BIB-453): bind each task to a dedicated mission profile when mission registry is ready.
 	start_selected_task_mission()
+
+func _build_tasks_dev_content() -> void:
+	var card := Button.new()
+	card.text = "TASK TEST\nTest room for mechanics and validation checks.\nMission ID: mission_10"
+	card.alignment = HORIZONTAL_ALIGNMENT_LEFT
+	card.text_overrun_behavior = TextServer.OVERRUN_TRIM_ELLIPSIS
+	card.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	card.custom_minimum_size = Vector2(0, 86)
+	card.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	card.disabled = true
+	_apply_menu_button_theme(card)
+	tasks_list_container.add_child(card)
+	if tasks_title_label != null:
+		tasks_title_label.text = "Dev Tasks"
+	if tasks_difficulty_label != null:
+		tasks_difficulty_label.text = "Scope: Developer"
+	if tasks_reward_label != null:
+		tasks_reward_label.text = "Rewards: Disabled"
+	if tasks_main_goal_label != null:
+		tasks_main_goal_label.text = "Use this panel to start TASK TEST and run read-only developer validation suites."
+	if tasks_extra_goal_label != null:
+		tasks_extra_goal_label.text = "- Start TASK TEST mission\n- Run validation suites"
+	if tasks_warnings_label != null:
+		tasks_warnings_label.text = "Dev-only tools. Validation is read-only."
+	if tasks_report_label != null:
+		tasks_report_label.text = "TASK TEST does not use Career completion/claim flow."
+	if tasks_claim_button != null:
+		tasks_claim_button.visible = false
+	if tasks_start_button != null:
+		tasks_start_button.visible = true
+		tasks_start_button.disabled = false
+		tasks_start_button.text = "Start TASK TEST"
+	if tasks_actions_row != null:
+		for child in tasks_actions_row.get_children():
+			if child == tasks_start_button or child == tasks_claim_button:
+				continue
+			child.queue_free()
+		var validation_all_button := _create_menu_button("Run Validation: All", Callable(self, "_on_dev_validation_all_pressed"), Vector2(200, 34))
+		tasks_actions_row.add_child(validation_all_button)
+		var validation_task_test_button := _create_menu_button("Run Validation: Task Test", Callable(self, "_on_dev_validation_task_test_pressed"), Vector2(230, 34))
+		tasks_actions_row.add_child(validation_task_test_button)
+		var spacer := Control.new()
+		spacer.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+		tasks_actions_row.add_child(spacer)
+	_set_dev_validation_output("Ready. Select a validation suite to display output.")
+
+func _on_dev_start_task_test_pressed() -> void:
+	if bipob == null or not bipob.has_method("start_dev_task_test_mission"):
+		_set_dev_validation_output("Developer mission start unavailable: BipobController is not ready.")
+		return
+	bipob.call("start_dev_task_test_mission")
+	start_gameplay_from_center()
+
+func _on_dev_validation_all_pressed() -> void:
+	_set_dev_validation_output(_get_dev_validation_text_for_suite("all"))
+
+func _on_dev_validation_task_test_pressed() -> void:
+	_set_dev_validation_output(_get_dev_validation_text_for_suite("task_test"))
+
+func _get_dev_validation_text_for_suite(suite_id: String) -> String:
+	if bipob == null or not bipob.has_method("get_developer_validation_suite_text"):
+		return "Developer validation unavailable: MissionManager is not ready."
+	return String(bipob.call("get_developer_validation_suite_text", suite_id))
+
+func _set_dev_validation_output(text: String) -> void:
+	if tasks_dev_output_label != null:
+		tasks_dev_output_label.visible = tasks_current_tab == "Dev"
+		tasks_dev_output_label.text = text
 
 func _on_tasks_claim_reward_pressed() -> void:
 	var mission: Dictionary = get_selected_task_mission()
