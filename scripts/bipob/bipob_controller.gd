@@ -35,7 +35,7 @@ const MissionManagerScript = preload("res://scripts/game/mission_manager.gd")
 const ScanSystemRef = preload("res://scripts/world/scan_system.gd")
 const InteractionSystemRef = preload("res://scripts/world/interaction_system.gd")
 const PowerSystemRef = preload("res://scripts/world/power_system.gd")
-const BipobModulePresenter = preload("res://scripts/bipob/bipob_module_presenter.gd")
+const BipobModulePresenterRef = preload("res://scripts/bipob/bipob_module_presenter.gd")
 const EXTERNAL_MODULE_CATALOG: Dictionary = {
 "wheels_v1":{"name":"Wheels V1","cat":"Gear","size":Vector2i(3,2),"sides":[EXTERNAL_SIDE_BOTTOM],"desc":"Fast movement system for flat and stable surfaces. Ineffective on stairs, mud and debris.","energy":1,"terrain":"Flat surface","movement":"Drive","speed":3},
 "legs_v1":{"name":"Legs V1","cat":"Gear","size":Vector2i(3,2),"sides":[EXTERNAL_SIDE_BOTTOM],"desc":"Universal movement system that provides stable traversal across uneven terrain, steps, obstacles, and mixed surfaces.","energy":1,"terrain":"Any surface","movement":"Walk","speed":2},
@@ -422,7 +422,7 @@ func get_power_network_apply_debug_preview_text(filter: String = "") -> String:
 		return "Power network apply debug preview unavailable: mission manager/helper missing."
 	return String(mission_manager.call("get_power_network_apply_debug_preview_text", filter))
 
-func get_power_network_apply_report_text(filter: String = "") -> String:
+func get_power_network_apply_report_text(_filter: String = "") -> String:
 	return "Power network apply report renamed: use execute_power_network_apply_and_get_report_text() to apply, or get_power_network_apply_preview_report_text() for read-only preview."
 
 
@@ -634,7 +634,7 @@ func has_module_id_anywhere(module_id: String) -> bool:
 
 
 func get_module_visual_key(module: BipobModule) -> String:
-	return BipobModulePresenter.get_module_visual_key(module)
+	return BipobModulePresenterRef.get_module_visual_key(module)
 
 
 
@@ -648,7 +648,7 @@ func get_module_icon_path_by_key(key: String) -> String:
 	return MODULE_ICON_DIR + key + ".png"
 
 func get_module_visual_short_label(module: BipobModule) -> String:
-	return BipobModulePresenter.get_module_visual_short_label(module)
+	return BipobModulePresenterRef.get_module_visual_short_label(module)
 
 func get_module_visual_color(module: BipobModule) -> Color:
 	if module == null:
@@ -1214,6 +1214,9 @@ func start_mission(mission_index: int, save_snapshot: bool = true) -> void:
 	held_module = null
 	stored_physical_module = null
 	_initialize_runtime_storage_slots()
+	recalculate_module_stats()
+	energy = max_energy
+	actions_left = actions_per_turn
 	field_modules_by_position.clear()
 	mission7_is_dragging_cable = false
 	mission7_cable_connected = false
@@ -4374,7 +4377,7 @@ func get_external_module_record_at(side_id: String, cell: Vector2i) -> Dictionar
 				return {"module": module, "side": side_id, "origin": origin}
 	return {}
 
-func remove_external_module_record(record: Dictionary, return_to_box: bool = true) -> bool:
+func remove_external_module_record(record: Dictionary, should_return_to_box: bool = true) -> bool:
 	if record.is_empty():
 		return false
 	var module: BipobModule = record.get("module", null)
@@ -4391,12 +4394,12 @@ func remove_external_module_record(record: Dictionary, return_to_box: bool = tru
 		if String(placed_record.get("side", "")) == side_id and placed_record.get("origin", Vector2i.ZERO) == origin and placed_record.get("module", null) == module:
 			placed_external_modules.remove_at(index)
 			break
-	if return_to_box and module != null and not box_storage.has(module):
+	if should_return_to_box and module != null and not box_storage.has(module):
 		box_storage.append(module)
 	return true
 
 
-func clear_external_modules_for_profile(profile_id: String) -> void:
+func clear_external_modules_for_profile(_profile_id: String) -> void:
 	for index in range(placed_external_modules.size() - 1, -1, -1):
 		var record: Dictionary = placed_external_modules[index]
 		var module: BipobModule = record.get("module", null)
@@ -4405,7 +4408,7 @@ func clear_external_modules_for_profile(profile_id: String) -> void:
 		remove_external_module_record(record, true)
 	status_changed.emit()
 
-func clear_internal_modules_for_profile(profile_id: String) -> void:
+func clear_internal_modules_for_profile(_profile_id: String) -> void:
 	for index in range(placed_internal_modules.size() - 1, -1, -1):
 		var record: Dictionary = placed_internal_modules[index]
 		var module: BipobModule = record.get("module", null)
@@ -6193,10 +6196,10 @@ func get_gear_base_speed() -> int:
 	var gear := get_active_gear_module()
 	return gear.gear_speed if gear != null and gear.gear_speed > 0 else 1
 
-func get_surface_id_for_position(position: Vector2i) -> String:
+func get_surface_id_for_position(cell_position: Vector2i) -> String:
 	if grid_manager == null:
 		return "flat"
-	return get_surface_id_for_tile(grid_manager.get_tile(position))
+	return get_surface_id_for_tile(grid_manager.get_tile(cell_position))
 
 func get_surface_id_for_tile(tile_id: int) -> String:
 	if tile_id == GridManager.TILE_STEPPED_FLOOR:
@@ -6230,7 +6233,7 @@ func register_successful_movement_cells(cell_count: int, surface_id: String) -> 
 		return
 	var effective_speed: int = get_effective_gear_speed_for_surface(gear, surface_id)
 	movement_cells_since_energy_spend += cell_count
-	var spend_intervals: int = movement_cells_since_energy_spend / effective_speed
+	var spend_intervals: int = floori(float(movement_cells_since_energy_spend) / float(effective_speed))
 	if spend_intervals <= 0:
 		return
 	var energy_to_spend: int = spend_intervals * maxi(0, gear.energy_cost)
@@ -6430,7 +6433,7 @@ func emit_facing_world_object_hint() -> void:
 	var generic := String(object_data.get("object_group", "Object")).capitalize()
 	if String(object_data.get("object_group", "")) == "threat" and scan_level <= 0:
 		generic = "Unknown movement"
-	var name := generic if scan_level <= 0 else String(object_data.get("display_name", generic))
+	var display_name: String = generic if scan_level <= 0 else String(object_data.get("display_name", generic))
 	var details: Array[String] = []
 	details.append("State: %s" % String(object_data.get("state", "unknown")))
 	if object_data.has("is_powered"):
@@ -6481,9 +6484,9 @@ func emit_facing_world_object_hint() -> void:
 		var selected_label := "None"
 		if not selected_world_action.is_empty() and actions.has(selected_world_action):
 			selected_label = get_world_action_display_label(selected_world_action, object_data)
-		hint_requested.emit("Facing: %s | Selected: %s" % [name, selected_label])
+		hint_requested.emit("Facing: %s | Selected: %s" % [display_name, selected_label])
 		return
-	hint_requested.emit("%s | %s | %s" % [name, " ; ".join(details), action_text])
+	hint_requested.emit("%s | %s | %s" % [display_name, " ; ".join(details), action_text])
 
 func get_facing_world_action_target() -> Dictionary:
 	var target_position := get_facing_device_position()
@@ -7348,7 +7351,7 @@ func get_available_world_actions(world_object: Dictionary, target_position: Vect
 	var actions: Array[String] = []
 	var group := String(world_object.get("object_group", ""))
 	var state := String(world_object.get("state", ""))
-	var items_here: Array[Dictionary] = mission_manager.get_items_at_cell(target_position) if mission_manager != null else []
+	var _items_here: Array[Dictionary] = mission_manager.get_items_at_cell(target_position) if mission_manager != null else []
 	if group == "door":
 		if state in ["damaged", "half_open", "jammed"] and has_heavy_claw():
 			actions.append("force_open")
@@ -7610,7 +7613,7 @@ func interact() -> void:
 				"platform_switch_access": mission_manager.can_bipob_access_platform_switch(target_platform, grid_position, direction)
 			}
 			var action_id := get_world_object_action_for_context(world_object, active_manipulator, target_position)
-			var available_actions := get_available_world_actions(world_object, target_position)
+			var _available_actions := get_available_world_actions(world_object, target_position)
 			var module := get_world_action_module(action_id, world_object)
 			if String(world_object.get("object_group", "")) == "terminal" and (action_id == "hack" or action_id == "activate_platform") and not _is_terminal_powered_for_interaction(world_object):
 				hint_requested.emit("Terminal is unpowered.")
@@ -9057,7 +9060,7 @@ func get_developer_validation_suite_text(suite: String = "all") -> String:
 	return "Validation unavailable." if mission_manager == null or not mission_manager.has_method("get_developer_validation_suite_text") else String(mission_manager.call("get_developer_validation_suite_text", suite))
 
 func start_dev_task_test_mission() -> void:
-	start_mission(10, false)
+	start_mission(10, true)
 
 func get_door_debug_report_text(door_id: String = "") -> String:
 	if mission_manager == null or not mission_manager.has_method("get_door_debug_report_text"):
