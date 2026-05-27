@@ -87,6 +87,9 @@ var map_constructor_preview_cell: Vector2i = Vector2i(-1, -1)
 var map_constructor_preview_attached_wall_cell: Vector2i = Vector2i(-1, -1)
 var map_constructor_preview_wall_side: String = ""
 var map_constructor_preview_is_blocked: bool = false
+var selected_wall_mounted_anchor_cell: Vector2i = Vector2i(-1, -1)
+var selected_wall_mounted_attached_wall_cell: Vector2i = Vector2i(-1, -1)
+var selected_wall_mounted_object_id: String = ""
 
 func set_grid_manager(grid: GridManager) -> void:
 	_grid_manager = grid
@@ -292,6 +295,18 @@ func set_map_constructor_wall_mounted_preview(anchor_cell: Vector2i, attached_wa
 	map_constructor_preview_is_blocked = is_blocked
 	queue_redraw()
 
+func set_selected_wall_mounted_object(anchor_cell: Vector2i, attached_wall_cell: Vector2i, object_id: String) -> void:
+	selected_wall_mounted_anchor_cell = anchor_cell
+	selected_wall_mounted_attached_wall_cell = attached_wall_cell
+	selected_wall_mounted_object_id = object_id
+	queue_redraw()
+
+func clear_selected_wall_mounted_object() -> void:
+	selected_wall_mounted_anchor_cell = Vector2i(-1, -1)
+	selected_wall_mounted_attached_wall_cell = Vector2i(-1, -1)
+	selected_wall_mounted_object_id = ""
+	queue_redraw()
+
 func draw_iso_mouse_selection_overlay() -> void:
 	for route_cell in selected_iso_route_cells:
 		var route_points: PackedVector2Array = get_iso_inset_diamond_points(route_cell, iso_floor_visual_inset + 10.0)
@@ -317,6 +332,28 @@ func draw_iso_mouse_selection_overlay() -> void:
 			for edge_index in range(action_points.size()):
 				var next_index: int = (edge_index + 1) % action_points.size()
 				draw_line(action_points[edge_index], action_points[next_index], Color(0.99, 0.75, 0.45, 1.0), 2.8)
+	if selected_wall_mounted_anchor_cell.x >= 0 and selected_wall_mounted_anchor_cell.y >= 0:
+		var anchor_points: PackedVector2Array = get_iso_inset_diamond_points(selected_wall_mounted_anchor_cell, iso_floor_visual_inset + 4.0)
+		if anchor_points.size() >= 4:
+			for edge_index in range(anchor_points.size()):
+				var next_index: int = (edge_index + 1) % anchor_points.size()
+				draw_line(anchor_points[edge_index], anchor_points[next_index], Color(0.35, 0.92, 1.0, 1.0), 2.8)
+	if selected_wall_mounted_attached_wall_cell.x >= 0 and selected_wall_mounted_attached_wall_cell.y >= 0:
+		var attached_points: PackedVector2Array = get_iso_inset_diamond_points(selected_wall_mounted_attached_wall_cell, iso_floor_visual_inset + 8.0)
+		if attached_points.size() >= 4:
+			for edge_index in range(attached_points.size()):
+				var next_index: int = (edge_index + 1) % attached_points.size()
+				draw_line(attached_points[edge_index], attached_points[next_index], Color(1.0, 0.8, 0.35, 1.0), 2.8)
+	if not selected_wall_mounted_object_id.is_empty():
+		var mission_manager: Node = get_mission_manager_ref()
+		var obj: Dictionary = {}
+		if mission_manager != null and mission_manager.has_method("get_world_object_at_cell"):
+			obj = Dictionary(mission_manager.call("get_world_object_at_cell", selected_wall_mounted_anchor_cell))
+		if String(obj.get("id", "")) == selected_wall_mounted_object_id:
+			var center: Vector2 = get_object_visual_center(selected_wall_mounted_anchor_cell, obj)
+			var r: float = 9.0
+			var pts: PackedVector2Array = PackedVector2Array([center + Vector2(0, -r), center + Vector2(r, 0), center + Vector2(0, r), center + Vector2(-r, 0)])
+			draw_polyline(pts, Color(1.0, 0.96, 0.3, 1.0), 2.8, true)
 	if map_constructor_preview_cell.x >= 0 and map_constructor_preview_cell.y >= 0:
 		var preview_points: PackedVector2Array = get_iso_inset_diamond_points(map_constructor_preview_cell, iso_floor_visual_inset + 3.0)
 		if preview_points.size() >= 4:
