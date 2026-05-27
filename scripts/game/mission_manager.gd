@@ -5684,9 +5684,12 @@ func get_task_test_system_audit_report() -> Dictionary:
 		for item_variant in Array(cell_items.get(cell_variant, [])):
 			var item_data: Dictionary = Dictionary(item_variant)
 			item_ids[String(item_data.get("id", ""))] = true
+	var spec: Dictionary = get_task_test_required_system_coverage_spec()
 	var expected_invalid_ids: Dictionary = {}
-	for entry_variant in Array(get_task_test_required_system_coverage_spec().get("negative_samples", {}).get("intentionally_invalid", [])):
+	for entry_variant in Array(spec.get("negative_samples", {}).get("intentionally_invalid", [])):
 		expected_invalid_ids[String(entry_variant)] = true
+	var has_open_passable_door: bool = false
+	var has_closed_not_passable_door: bool = false
 	for object_data in mission_world_objects:
 		var object_id: String = String(object_data.get("id", ""))
 		var tags: Array[String] = classify_task_test_object_for_audit(object_data)
@@ -5699,11 +5702,13 @@ func get_task_test_system_audit_report() -> Dictionary:
 			var lock_type: String = String(object_data.get("lock_type", "")).to_lower()
 			if (state == "open" or bool(object_data.get("is_open", false))) and is_passable:
 				tags.append("door_open_passable")
+				has_open_passable_door = true
 			var closed_like := state in ["closed", "locked", "unpowered", "damaged", "jammed"] or bool(object_data.get("is_locked", false))
 			if lock_type in ["mechanical_key", "digital_key", "terminal_lock"]:
 				closed_like = true
 			if closed_like and not is_passable:
 				tags.append("door_closed_not_passable")
+				has_closed_not_passable_door = true
 		if tags.is_empty():
 			objects_without_audit_tags.append(object_id)
 		for tag in tags:
@@ -5737,8 +5742,23 @@ func get_task_test_system_audit_report() -> Dictionary:
 				expected_invalid_links.append(ctrl_row)
 			else:
 				invalid_links.append(ctrl_row)
-	var runtime_cell_warnings: Array[String] = validate_task_test_runtime_cell_states()
-	var spec: Dictionary = get_task_test_required_system_coverage_spec()
+	if has_open_passable_door and has_closed_not_passable_door:
+		coverage_hits["runtime_door_passability_checks"] = true
+	var expected_runtime_warnings: Array[String] = []
+	var unexpected_runtime_warnings: Array[String] = []
+	for runtime_warning in validate_task_test_runtime_cell_states():
+		var warning_text: String = String(runtime_warning)
+		var matched_expected: bool = false
+		for expected_id_variant in expected_invalid_ids.keys():
+			var expected_id: String = String(expected_id_variant)
+			if not expected_id.is_empty() and warning_text.find(expected_id) != -1:
+				matched_expected = true
+				break
+		if matched_expected:
+			expected_runtime_warnings.append(warning_text)
+		else:
+			unexpected_runtime_warnings.append(warning_text)
+	var runtime_cell_warnings: Array[String] = unexpected_runtime_warnings
 	var coverage: Dictionary = {}
 	var missing_coverage: Array[String] = []
 	for section_name in spec.keys():
@@ -5755,9 +5775,9 @@ func get_task_test_system_audit_report() -> Dictionary:
 				missing_coverage.append("%s:%s" % [String(section_name), req_key])
 		coverage[String(section_name)] = {"ok": missing.is_empty(), "covered": covered, "missing": missing, "object_ids": []}
 	var summary: Dictionary = {"total_objects": mission_world_objects.size(), "total_items": item_ids.size(), "missing_coverage_count": missing_coverage.size()}
-	var ok: bool = missing_coverage.is_empty() and invalid_links.is_empty() and runtime_cell_warnings.is_empty() and duplicate_cell_warnings.is_empty()
+	var ok: bool = missing_coverage.is_empty() and invalid_links.is_empty() and unexpected_runtime_warnings.is_empty() and duplicate_cell_warnings.is_empty()
 	notes.append("Expected invalid links are represented explicitly and do not count as valid.")
-	return {"ok": ok, "summary": summary, "coverage": coverage, "missing_coverage": missing_coverage, "valid_links": valid_links, "invalid_links": invalid_links, "expected_invalid_links": expected_invalid_links, "runtime_cell_warnings": runtime_cell_warnings, "duplicate_cell_warnings": duplicate_cell_warnings, "objects_without_audit_tags": objects_without_audit_tags, "notes": notes}
+	return {"ok": ok, "summary": summary, "coverage": coverage, "missing_coverage": missing_coverage, "valid_links": valid_links, "invalid_links": invalid_links, "expected_invalid_links": expected_invalid_links, "expected_runtime_warnings": expected_runtime_warnings, "unexpected_runtime_warnings": unexpected_runtime_warnings, "runtime_cell_warnings": runtime_cell_warnings, "duplicate_cell_warnings": duplicate_cell_warnings, "objects_without_audit_tags": objects_without_audit_tags, "notes": notes}
 
 func get_task_test_system_audit_report_text() -> String:
 	var report: Dictionary = get_task_test_system_audit_report()
@@ -5766,7 +5786,7 @@ func get_task_test_system_audit_report_text() -> String:
 	lines.append("OK: %s" % String(report.get("ok", false)))
 	lines.append("")
 	lines.append("Coverage:")
-	for section_name in ["doors","keys","power","control","cooling","terminals","wall_materials","scan_visibility","extraction"]:
+	for section_name in ["movement","doors","keys","power","control","cooling","terminals","wall_materials","scan_visibility","runtime_cell_state","extraction"]:
 		var section: Dictionary = Dictionary(Dictionary(report.get("coverage", {})).get(section_name, {}))
 		lines.append("- %s: %s missing=%s" % [section_name.capitalize(), "OK" if bool(section.get("ok", false)) else "MISSING", JSON.stringify(section.get("missing", []))])
 	lines.append("Invalid links:")
@@ -5775,8 +5795,10 @@ func get_task_test_system_audit_report_text() -> String:
 	lines.append("Expected invalid samples:")
 	for row in Array(report.get("expected_invalid_links", [])):
 		lines.append("- %s" % JSON.stringify(row))
+	for warning in Array(report.get("expected_runtime_warnings", [])):
+		lines.append("- %s" % String(warning))
 	lines.append("Runtime cell warnings:")
-	for warning in Array(report.get("runtime_cell_warnings", [])):
+	for warning in Array(report.get("unexpected_runtime_warnings", [])):
 		lines.append("- %s" % String(warning))
 	lines.append("Objects without audit tags:")
 	for object_id in Array(report.get("objects_without_audit_tags", [])):
