@@ -13,8 +13,8 @@ static func can_scan_through_wall(wall_data: Dictionary, scan_type: String) -> b
 	return false
 
 static func scan_object(object_data: Dictionary, scan_type: String, scanner_level: int = 1) -> Dictionary:
-	var level := clampi(scanner_level, 0, 3)
-	var out := {"scan_level": level, "name": "Unknown", "details": []}
+	var level: int = clampi(scanner_level, 0, 3)
+	var out: Dictionary = {"scan_level": level, "name": "Unknown", "details": []}
 	if level == 0:
 		return out
 	if object_data.get("object_group", "") == "threat" and level <= 1:
@@ -47,7 +47,7 @@ static func scan_object(object_data: Dictionary, scan_type: String, scanner_leve
 			out["details"].append("Heat: %d / %d" % [WorldObjectCatalogRef.get_world_object_current_heat(object_data), int(object_data.get("overheat_threshold", 0))])
 			out["details"].append("Cooling: %d" % maxi(0, int(object_data.get("cooling_received", 0))))
 		if level >= 3:
-			var connected_count := Array(object_data.get("connected_device_ids", [])).size()
+			var connected_count: int = Array(object_data.get("connected_device_ids", [])).size()
 			out["details"].append("Connections: %d / %d" % [connected_count, maxi(0, int(object_data.get("allowed_socket_connections", 0)))])
 	elif object_data.get("object_group", "") == "wall":
 		if scan_type == "xray" and level >= 2:
@@ -63,7 +63,7 @@ static func scan_object(object_data: Dictionary, scan_type: String, scanner_leve
 		out["details"].append("Status: %s" % object_data.get("state", "unknown"))
 		if WorldObjectCatalogRef.can_world_object_be_moved_by_heavy_claw(object_data):
 			out["details"].append("Movable: Heavy Claw")
-		var cooling_output := maxi(0, int(object_data.get("cooling_output", 0)))
+		var cooling_output: int = maxi(0, int(object_data.get("cooling_output", 0)))
 		if String(object_data.get("cooling_device_type", "")) == "radiator":
 			out["details"].append("Cooling output: %d" % cooling_output)
 			out["details"].append("Metal boost: adjacent metal object increases radiator cooling to 2")
@@ -110,8 +110,8 @@ static func scan_object(object_data: Dictionary, scan_type: String, scanner_leve
 	return out
 
 static func get_scan_display_text(object_data: Dictionary, scan_type: String) -> String:
-	var result := scan_object(object_data, scan_type, object_data.get("scan_level", 1))
-	var lines := [str(result.get("name", "Unknown"))]
+	var result: Dictionary = scan_object(object_data, scan_type, object_data.get("scan_level", 1))
+	var lines: Array = [str(result.get("name", "Unknown"))]
 	for detail in result.get("details", []):
 		lines.append(str(detail))
 	return "\n".join(lines)

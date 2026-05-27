@@ -6983,7 +6983,7 @@ func get_terminal_action_availability(terminal_id: String, action: String = "") 
 	if bool(terminal.get("destroyed", false)) or state == "destroyed": reasons.append("terminal_destroyed")
 	if state == "overheated": reasons.append("terminal_overheated")
 	if state in ["unpowered", "disabled"] or (terminal.has("is_powered") and not powered): reasons.append("terminal_unpowered")
-	var req := get_terminal_hack_requirements(terminal_id) if action == "hack" else {}
+	var req: Dictionary = get_terminal_hack_requirements(terminal_id) if action == "hack" else {}
 	report["requirements"] = req
 	if action == "hack":
 		if req.get("reasons", []).has("connector_level_too_low"): reasons.append("connector_level_too_low")
@@ -6998,7 +6998,7 @@ func get_terminal_action_availability(terminal_id: String, action: String = "") 
 func attempt_terminal_hack(terminal_id: String) -> Dictionary:
 	var terminal := get_world_object_by_id(terminal_id)
 	var before := String(terminal.get("state", "")) if not terminal.is_empty() else ""
-	var req := get_terminal_hack_requirements(terminal_id)
+	var req: Dictionary = get_terminal_hack_requirements(terminal_id)
 	if not bool(req.get("can_hack", false)):
 		return {"success": false, "terminal_id": terminal_id, "reasons": req.get("reasons", []), "state_before": before, "state_after": before, "heat_report": req.get("heat_preview", {})}
 	if String(terminal.get("state", "")) == "hacked":
@@ -7351,7 +7351,7 @@ func _get_mission10_layout_for_validation() -> Array:
 
 func validate_task_test_mission_runtime() -> Array[String]:
 	var warnings: Array[String] = []
-	var built := build_task_test_mission_world_objects_for_validation()
+	var built: Dictionary = build_task_test_mission_world_objects_for_validation()
 	warnings.append_array(Array(built.get("warnings", [])))
 	var task_objects: Array[Dictionary] = built.get("objects", [])
 	var task_items_by_cell: Dictionary = built.get("items_by_cell", {})
@@ -7368,7 +7368,7 @@ func validate_task_test_mission_runtime() -> Array[String]:
 			warnings.append("task_test_object_missing_type_%s" % oid)
 		if String(obj.get("object_group", "")).strip_edges() == "":
 			warnings.append("task_test_object_missing_group_%s" % oid)
-		var cell := Vector2i(obj.get("position", Vector2i.ZERO))
+		var cell: Vector2i = Vector2i(obj.get("position", Vector2i.ZERO))
 		if not bool(obj.get("allow_cell_overlap", false)) and occupied_cells.has(cell):
 			warnings.append("duplicate_task_test_cell_%s_between_%s_and_%s" % [str(cell), String(occupied_cells[cell]), oid])
 		occupied_cells[cell] = oid
@@ -7984,7 +7984,7 @@ func validate_module_port_network_runtime() -> Array[String]:
 	]
 
 	for scenario in scenarios:
-		var runtime := _preview_module_port_activity_for_module_ids(Array(scenario.get("modules", [])))
+		var runtime: Dictionary = _preview_module_port_activity_for_module_ids(Array(scenario.get("modules", [])))
 		if not bool(runtime.get("ok", false)):
 			warnings.append("module_ports_runtime_preview_unavailable_%s" % String(runtime.get("reason", "unknown")))
 			break
