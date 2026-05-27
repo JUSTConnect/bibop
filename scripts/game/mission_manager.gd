@@ -30,6 +30,8 @@ var _map_constructor_runtime_object_seq: int = 1
 var _task_test_constructor_base_tiles: Dictionary = {}
 var current_mission_id: String = ""
 const MAP_CONSTRUCTOR_PRESET_DIR: String = "user://constructor_presets"
+
+const MAP_CONSTRUCTOR_MISSION_PATCH_DIR: String = "user://constructor_mission_patches"
 const MAP_CONSTRUCTOR_SOLID_PREFABS: Array[String] = [
 	"outer_wall","brick_wall","concrete_wall","steel_wall","grate_wall",
 	"mechanical_door","digital_door","powered_gate"
@@ -203,6 +205,94 @@ func _sanitize_map_constructor_preset_name(raw_name: String) -> String:
 
 func _get_map_constructor_preset_path(preset_name: String) -> String:
 	return "%s/%s.json" % [MAP_CONSTRUCTOR_PRESET_DIR, _sanitize_map_constructor_preset_name(preset_name)]
+
+func _get_map_constructor_mission_patch_path(patch_name: String) -> String:
+	return "%s/%s.json" % [MAP_CONSTRUCTOR_MISSION_PATCH_DIR, _sanitize_map_constructor_preset_name(patch_name)]
+
+func get_map_constructor_mission_patch_data(patch_name: String = "") -> Dictionary:
+	var sanitized_name: String = _sanitize_map_constructor_preset_name(patch_name)
+	var preset_data: Dictionary = get_map_constructor_preset_data()
+	var validation_overlay: Dictionary = get_map_constructor_validation_overlay()
+	var summary: Dictionary = Dictionary(validation_overlay.get("summary", {}))
+	var audit_summary: Dictionary = {}
+	if has_method("get_map_constructor_audit_summary"):
+		audit_summary = get_map_constructor_audit_summary()
+	summary["audit"] = audit_summary
+	var validation: Dictionary = {
+		"ok": bool(validation_overlay.get("ok", false)),
+		"summary": summary
+	}
+	var final_name: String = sanitized_name
+	if final_name.is_empty():
+		final_name = "patch"
+	return {
+		"version": 1,
+		"patch_type": "task_test_constructor_mission_patch",
+		"source_mission_id": String(preset_data.get("mission_id", "mission_10")),
+		"patch_name": final_name,
+		"created_at_unix": int(Time.get_unix_time_from_system()),
+		"world_objects": Array(preset_data.get("world_objects", [])),
+		"cell_items": Array(preset_data.get("cell_items", [])),
+		"grid_overrides": Array(preset_data.get("grid_overrides", [])),
+		"validation": validation,
+		"notes": "TASK TEST constructor mission patch export"
+	}
+
+func export_map_constructor_mission_patch(patch_name: String) -> Dictionary:
+	var sanitized_name: String = _sanitize_map_constructor_preset_name(patch_name)
+	var path: String = _get_map_constructor_mission_patch_path(sanitized_name)
+	if not _is_task_test_constructor_context():
+		return {"ok": false, "message": "Mission patch export works only in TASK TEST constructor mode.", "path": path, "patch_name": sanitized_name}
+	var dir_result: Error = DirAccess.make_dir_recursive_absolute(MAP_CONSTRUCTOR_MISSION_PATCH_DIR)
+	if dir_result != OK and dir_result != ERR_ALREADY_EXISTS:
+		return {"ok": false, "message": "Mission patch export failed: cannot create patch directory.", "path": path, "patch_name": sanitized_name}
+	var patch_data: Dictionary = get_map_constructor_mission_patch_data(sanitized_name)
+	var validation: Dictionary = Dictionary(patch_data.get("validation", {}))
+	var validation_summary: Dictionary = Dictionary(validation.get("summary", {}))
+	var validation_error_count: int = int(validation_summary.get("error_count", 0))
+	var file: FileAccess = FileAccess.open(path, FileAccess.WRITE)
+	if file == null:
+		return {"ok": false, "message": "Mission patch export failed: cannot open file.", "path": path, "patch_name": sanitized_name}
+	file.store_string(JSON.stringify(patch_data, "	"))
+	file.close()
+	var message: String = "Mission patch '%s' exported." % sanitized_name
+	if validation_error_count > 0:
+		message = "%s Exported with validation errors: %d" % [message, validation_error_count]
+	return {"ok": true, "message": message, "path": path, "patch_name": sanitized_name}
+
+func list_map_constructor_mission_patches() -> Array[Dictionary]:
+	var patches: Array[Dictionary] = []
+	var dir: DirAccess = DirAccess.open(MAP_CONSTRUCTOR_MISSION_PATCH_DIR)
+	if dir == null:
+		return patches
+	dir.list_dir_begin()
+	var file_name: String = dir.get_next()
+	while not file_name.is_empty():
+		if not dir.current_is_dir() and file_name.to_lower().ends_with(".json"):
+			var name: String = file_name.substr(0, file_name.length() - 5)
+			var full_path: String = "%s/%s" % [MAP_CONSTRUCTOR_MISSION_PATCH_DIR, file_name]
+			patches.append({"name": name, "path": full_path, "modified_unix": int(FileAccess.get_modified_time(full_path))})
+		file_name = dir.get_next()
+	dir.list_dir_end()
+	patches.sort_custom(func(a: Dictionary, b: Dictionary) -> bool:
+		return String(a.get("name", "")) < String(b.get("name", ""))
+	)
+	return patches
+
+func delete_map_constructor_mission_patch(patch_name: String) -> Dictionary:
+	var sanitized_name: String = _sanitize_map_constructor_preset_name(patch_name)
+	var path: String = _get_map_constructor_mission_patch_path(sanitized_name)
+	if not _is_task_test_constructor_context():
+		return {"ok": false, "message": "Mission patch delete works only in TASK TEST constructor mode.", "patch_name": sanitized_name}
+	if not FileAccess.file_exists(path):
+		return {"ok": false, "message": "Mission patch delete failed: file not found.", "patch_name": sanitized_name}
+	var dir: DirAccess = DirAccess.open(MAP_CONSTRUCTOR_MISSION_PATCH_DIR)
+	if dir == null:
+		return {"ok": false, "message": "Mission patch delete failed: directory unavailable.", "patch_name": sanitized_name}
+	var err: Error = dir.remove("%s.json" % sanitized_name)
+	if err != OK:
+		return {"ok": false, "message": "Mission patch delete failed.", "patch_name": sanitized_name}
+	return {"ok": true, "message": "Mission patch '%s' deleted." % sanitized_name, "patch_name": sanitized_name}
 
 func get_map_constructor_preset_data() -> Dictionary:
 	var world_objects_export: Array[Dictionary] = []

@@ -289,6 +289,9 @@ var map_constructor_picker_field_name: String = ""
 var map_constructor_preset_name: String = "preset"
 var map_constructor_preset_entries: Array[Dictionary] = []
 var map_constructor_selected_preset_name: String = ""
+var map_constructor_patch_name: String = "mission_patch"
+var map_constructor_patch_entries: Array[Dictionary] = []
+var map_constructor_selected_patch_name: String = ""
 var tasks_actions_row: HBoxContainer
 var tasks_dev_output_label: RichTextLabel
 var tasks_dev_output_scroll: ScrollContainer
@@ -9109,6 +9112,66 @@ func _refresh_map_constructor_panels() -> void:
 		_refresh_map_constructor_panels()
 	)
 	list.add_child(refresh_preset_button)
+
+	var patch_export_title: Label = Label.new()
+	patch_export_title.text = "Mission Patch Export"
+	list.add_child(patch_export_title)
+	var patch_name_edit: LineEdit = LineEdit.new()
+	patch_name_edit.placeholder_text = "Patch name"
+	patch_name_edit.text = map_constructor_patch_name
+	patch_name_edit.text_changed.connect(func(new_text: String) -> void:
+		map_constructor_patch_name = new_text
+	)
+	list.add_child(patch_name_edit)
+	if mission_manager_runtime != null and mission_manager_runtime.has_method("list_map_constructor_mission_patches"):
+		map_constructor_patch_entries = mission_manager_runtime.call("list_map_constructor_mission_patches")
+	if map_constructor_selected_patch_name.is_empty() and not map_constructor_patch_entries.is_empty():
+		map_constructor_selected_patch_name = String(map_constructor_patch_entries[0].get("name", ""))
+	var patch_select: OptionButton = OptionButton.new()
+	for i in range(map_constructor_patch_entries.size()):
+		var patch_entry: Dictionary = map_constructor_patch_entries[i]
+		var patch_name_value: String = String(patch_entry.get("name", ""))
+		patch_select.add_item(patch_name_value)
+		if patch_name_value == map_constructor_selected_patch_name:
+			patch_select.select(i)
+	patch_select.item_selected.connect(func(index: int) -> void:
+		if index >= 0 and index < map_constructor_patch_entries.size():
+			map_constructor_selected_patch_name = String(map_constructor_patch_entries[index].get("name", ""))
+	)
+	list.add_child(patch_select)
+	var patch_actions: HBoxContainer = HBoxContainer.new()
+	patch_actions.add_theme_constant_override("separation", 4)
+	list.add_child(patch_actions)
+	var export_patch_button: Button = Button.new()
+	export_patch_button.text = "Export current"
+	export_patch_button.pressed.connect(func() -> void:
+		if not map_constructor_mode_active or mission_manager_runtime == null or not mission_manager_runtime.has_method("export_map_constructor_mission_patch"):
+			show_hint("Mission patch export unavailable.")
+			return
+		var export_result: Dictionary = mission_manager_runtime.call("export_map_constructor_mission_patch", map_constructor_patch_name)
+		show_hint(String(export_result.get("message", "Mission patch export done.")))
+		map_constructor_selected_patch_name = String(export_result.get("patch_name", map_constructor_selected_patch_name))
+		_refresh_map_constructor_panels()
+	)
+	patch_actions.add_child(export_patch_button)
+	var refresh_patch_button: Button = Button.new()
+	refresh_patch_button.text = "Refresh patches"
+	refresh_patch_button.pressed.connect(func() -> void:
+		_refresh_map_constructor_panels()
+	)
+	patch_actions.add_child(refresh_patch_button)
+	var delete_patch_button: Button = Button.new()
+	delete_patch_button.text = "Delete patch"
+	delete_patch_button.pressed.connect(func() -> void:
+		if not map_constructor_mode_active or map_constructor_selected_patch_name.is_empty() or mission_manager_runtime == null or not mission_manager_runtime.has_method("delete_map_constructor_mission_patch"):
+			show_hint("Mission patch delete unavailable.")
+			return
+		var delete_patch_result: Dictionary = mission_manager_runtime.call("delete_map_constructor_mission_patch", map_constructor_selected_patch_name)
+		show_hint(String(delete_patch_result.get("message", "Mission patch delete done.")))
+		map_constructor_selected_patch_name = ""
+		_refresh_map_constructor_panels()
+	)
+	patch_actions.add_child(delete_patch_button)
 	runtime_hud_root.add_child(runtime_map_constructor_palette_panel)
 	if runtime_map_constructor_validation_overlay_control == null or not is_instance_valid(runtime_map_constructor_validation_overlay_control):
 		runtime_map_constructor_validation_overlay_control = ConstructorValidationOverlayControl.new(self)
