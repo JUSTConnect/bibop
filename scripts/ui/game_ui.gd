@@ -8991,6 +8991,8 @@ func _update_map_constructor_preview_for_cell(cell: Vector2i) -> Dictionary:
 			if mission_manager_runtime.has_method("_deserialize_cell_key"):
 				attached_wall_cell = Vector2i(mission_manager_runtime.call("_deserialize_cell_key", String(check.get("attached_wall_cell", ""))))
 			renderer.call("set_map_constructor_wall_mounted_preview", cell, attached_wall_cell, String(check.get("wall_side", "")), not bool(check.get("ok", false)))
+		elif renderer != null and renderer.has_method("set_map_constructor_preview_cell"):
+			renderer.call("set_map_constructor_preview_cell", cell)
 	return check
 
 func _cycle_map_constructor_wall_side() -> void:
