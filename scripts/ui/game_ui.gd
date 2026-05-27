@@ -8975,19 +8975,105 @@ func _show_map_constructor_inspector(cell: Vector2i) -> void:
 	runtime_map_constructor_inspector_panel = null
 	if mission_manager_runtime == null:
 		return
-	if not mission_manager_runtime.has_method("get_world_object_at_cell"):
+	if not mission_manager_runtime.has_method("get_map_constructor_editable_entity_at_cell"):
 		return
-	var object_data: Dictionary = mission_manager_runtime.call("get_world_object_at_cell", cell)
-	if object_data.is_empty():
+	var entity_info: Dictionary = mission_manager_runtime.call("get_map_constructor_editable_entity_at_cell", cell)
+	if not bool(entity_info.get("ok", false)):
 		return
+	var entity_kind: String = String(entity_info.get("entity_kind", "world_object"))
+	var entity_id: String = String(entity_info.get("id", ""))
+	var entity_data: Dictionary = Dictionary(entity_info.get("data", {}))
 	var panel := PanelContainer.new()
 	panel.position = Vector2(20, 360)
-	panel.size = Vector2(300, 170)
+	panel.size = Vector2(380, 430)
 	panel.add_theme_stylebox_override("panel", _make_panel_style(UI_COLOR_PANEL_DARK, UI_COLOR_BORDER, 1, 8))
+	var scroll: ScrollContainer = ScrollContainer.new()
+	scroll.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
+	panel.add_child(scroll)
 	var v := VBoxContainer.new()
-	panel.add_child(v)
-	v.add_child(Label.new())
-	(v.get_child(0) as Label).text = "ID: %s\nType: %s\nState: %s\nPos: %s" % [String(object_data.get("id","")), String(object_data.get("object_type","")), String(object_data.get("state","")), str(cell)]
+	scroll.add_child(v)
+	var header: Label = Label.new()
+	header.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	header.text = "Kind: %s\nID: %s\nType: %s\nState: %s\nPos: %s" % [
+		entity_kind,
+		entity_id,
+		String(entity_data.get("object_type", entity_data.get("item_type", "item"))),
+		String(entity_data.get("state", "")),
+		str(Vector2i(entity_info.get("cell", cell)))
+	]
+	v.add_child(header)
+
+	var preset_row: HBoxContainer = HBoxContainer.new()
+	preset_row.add_theme_constant_override("separation", 4)
+	v.add_child(preset_row)
+	var preset_buttons: Array[String] = ["open", "closed", "locked", "unpowered", "damaged", "active", "overheated"]
+	for preset_name in preset_buttons:
+		var preset_button: Button = Button.new()
+		preset_button.text = preset_name.capitalize()
+		preset_button.pressed.connect(func() -> void:
+			if mission_manager_runtime == null or not mission_manager_runtime.has_method("apply_map_constructor_state_preset"):
+				return
+			var preset_result: Dictionary = mission_manager_runtime.call("apply_map_constructor_state_preset", entity_kind, entity_id, preset_name)
+			show_hint(String(preset_result.get("message", "Preset applied.")))
+			if field_runtime != null and field_runtime.has_method("request_visual_refresh"):
+				field_runtime.call("request_visual_refresh")
+			_refresh_map_constructor_panels()
+			_show_map_constructor_inspector(cell)
+		)
+		preset_row.add_child(preset_button)
+
+	if mission_manager_runtime.has_method("get_map_constructor_editable_fields_for_entity"):
+		var fields: Array[Dictionary] = mission_manager_runtime.call("get_map_constructor_editable_fields_for_entity", entity_id, entity_kind)
+		for field_entry in fields:
+			var field_name: String = String(field_entry.get("name", ""))
+			var field_type: String = String(field_entry.get("type", "string"))
+			var field_value: Variant = field_entry.get("value")
+			var row: HBoxContainer = HBoxContainer.new()
+			row.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+			row.add_theme_constant_override("separation", 6)
+			var name_label: Label = Label.new()
+			name_label.text = field_name
+			name_label.custom_minimum_size = Vector2(145, 0)
+			row.add_child(name_label)
+			if field_type == "bool":
+				var check_box: CheckBox = CheckBox.new()
+				check_box.button_pressed = bool(field_value)
+				row.add_child(check_box)
+				var apply_bool_button: Button = Button.new()
+				apply_bool_button.text = "Apply"
+				apply_bool_button.pressed.connect(func() -> void:
+					if mission_manager_runtime == null or not mission_manager_runtime.has_method("apply_map_constructor_property_update"):
+						return
+					var apply_result: Dictionary = mission_manager_runtime.call("apply_map_constructor_property_update", entity_kind, entity_id, field_name, check_box.button_pressed)
+					show_hint(String(apply_result.get("message", "Updated.")))
+					if field_runtime != null and field_runtime.has_method("request_visual_refresh"):
+						field_runtime.call("request_visual_refresh")
+					_refresh_map_constructor_panels()
+					_show_map_constructor_inspector(cell)
+				)
+				row.add_child(apply_bool_button)
+			else:
+				var value_edit: LineEdit = LineEdit.new()
+				value_edit.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+				value_edit.text = String(field_value)
+				row.add_child(value_edit)
+				var apply_button: Button = Button.new()
+				apply_button.text = "Apply"
+				apply_button.pressed.connect(func() -> void:
+					if mission_manager_runtime == null or not mission_manager_runtime.has_method("apply_map_constructor_property_update"):
+						return
+					var apply_result: Dictionary = mission_manager_runtime.call("apply_map_constructor_property_update", entity_kind, entity_id, field_name, value_edit.text)
+					show_hint(String(apply_result.get("message", "Updated.")))
+					if field_runtime != null and field_runtime.has_method("request_visual_refresh"):
+						field_runtime.call("request_visual_refresh")
+					_refresh_map_constructor_panels()
+					_show_map_constructor_inspector(cell)
+				)
+				value_edit.text_submitted.connect(func(_submitted_text: String) -> void:
+					apply_button.emit_signal("pressed")
+				)
+				row.add_child(apply_button)
+			v.add_child(row)
 	var del := Button.new()
 	del.text = "Delete"
 	var can_delete: bool = mission_manager_runtime.has_method("remove_map_constructor_object_at_cell")
@@ -8999,6 +9085,7 @@ func _show_map_constructor_inspector(cell: Vector2i) -> void:
 		show_hint(String(result.get("message", "")))
 		if field_runtime != null and field_runtime.has_method("request_visual_refresh"):
 			field_runtime.call("request_visual_refresh")
+		_refresh_map_constructor_panels()
 		_show_map_constructor_inspector(Vector2i(-1, -1))
 	)
 	v.add_child(del)

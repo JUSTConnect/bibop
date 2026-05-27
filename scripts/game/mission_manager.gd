@@ -814,6 +814,167 @@ func remove_map_constructor_object_at_cell(cell: Vector2i) -> Dictionary:
 	refresh_world_cooling_received()
 	return result
 
+func get_map_constructor_editable_entity_at_cell(cell: Vector2i) -> Dictionary:
+	var object_data: Dictionary = get_world_object_at_cell(cell)
+	if not object_data.is_empty():
+		return {"ok": true, "entity_kind": "world_object", "id": String(object_data.get("id", "")), "cell": cell, "data": object_data}
+	var items: Array[Dictionary] = get_items_at_cell(cell)
+	if not items.is_empty():
+		var item_data: Dictionary = items[0]
+		return {"ok": true, "entity_kind": "item", "id": String(item_data.get("id", "")), "cell": cell, "data": item_data}
+	return {"ok": false, "reason": "empty_cell"}
+
+func get_map_constructor_entity_by_id(entity_kind: String, entity_id: String) -> Dictionary:
+	if entity_kind == "world_object":
+		var object_data: Dictionary = get_world_object_by_id(entity_id)
+		if object_data.is_empty():
+			return {"ok": false, "reason": "not_found", "entity_kind": entity_kind, "id": entity_id}
+		return {"ok": true, "entity_kind": entity_kind, "id": entity_id, "cell": Vector2i(object_data.get("position", Vector2i(-1, -1))), "data": object_data}
+	if entity_kind == "item":
+		for cell_variant in cell_items.keys():
+			var cell: Vector2i = Vector2i(cell_variant)
+			var items: Array[Dictionary] = get_items_at_cell(cell)
+			for item_data in items:
+				if String(item_data.get("id", "")) == entity_id:
+					return {"ok": true, "entity_kind": entity_kind, "id": entity_id, "cell": cell, "data": item_data}
+		return {"ok": false, "reason": "not_found", "entity_kind": entity_kind, "id": entity_id}
+	return {"ok": false, "reason": "unsupported_entity_kind", "entity_kind": entity_kind, "id": entity_id}
+
+func _get_map_constructor_editable_field_schema() -> Dictionary:
+	return {
+		"state":"string","power_network_id":"string","is_open":"bool","is_locked":"bool","is_powered":"bool",
+		"required_key_id":"string","lock_type":"string","linked_terminal_id":"string","required_connector_level":"int","required_processor_level":"int",
+		"control_source_id":"string","target_door_id":"string","target_platform_id":"string","requires_external_control":"bool","requires_terminal_enabled":"bool",
+		"requires_external_power":"bool","current_heat":"int","working_heat":"int","overheat_threshold":"int",
+		"item_type":"string","digital_state":"string","key_kind":"string","damaged":"bool"
+	}
+
+func get_map_constructor_editable_fields_for_entity(entity_id: String, entity_kind: String) -> Array[Dictionary]:
+	var fields: Array[Dictionary] = []
+	var entity_info: Dictionary = get_map_constructor_entity_by_id(entity_kind, entity_id)
+	if not bool(entity_info.get("ok", false)):
+		return fields
+	var data: Dictionary = Dictionary(entity_info.get("data", {}))
+	var schema: Dictionary = _get_map_constructor_editable_field_schema()
+	for field_name_variant in schema.keys():
+		var field_name: String = String(field_name_variant)
+		if not data.has(field_name):
+			continue
+		fields.append({"name": field_name, "type": String(schema[field_name]), "value": data.get(field_name)})
+	return fields
+
+func _convert_map_constructor_field_value(field_name: String, raw_value: Variant, target_type: String) -> Dictionary:
+	if target_type == "bool":
+		if typeof(raw_value) == TYPE_BOOL:
+			return {"ok": true, "value": raw_value}
+		var lower_text: String = String(raw_value).strip_edges().to_lower()
+		if lower_text in ["1", "true", "yes", "on"]:
+			return {"ok": true, "value": true}
+		if lower_text in ["0", "false", "no", "off", ""]:
+			return {"ok": true, "value": false}
+		return {"ok": false, "message": "Invalid bool for %s." % field_name}
+	if target_type == "int":
+		if typeof(raw_value) == TYPE_INT:
+			return {"ok": true, "value": int(raw_value)}
+		var number_text: String = String(raw_value).strip_edges()
+		if number_text.is_empty():
+			number_text = "0"
+		if not number_text.is_valid_int():
+			return {"ok": false, "message": "Invalid int for %s." % field_name}
+		return {"ok": true, "value": int(number_text)}
+	return {"ok": true, "value": String(raw_value)}
+
+func apply_map_constructor_property_update(entity_kind: String, entity_id: String, field_name: String, raw_value: Variant) -> Dictionary:
+	var result: Dictionary = {"ok": false, "message": "Update failed.", "entity_id": entity_id, "field": field_name, "value": raw_value}
+	var schema: Dictionary = _get_map_constructor_editable_field_schema()
+	if not schema.has(field_name):
+		result["message"] = "Unknown editable field."
+		return result
+	var entity_info: Dictionary = get_map_constructor_entity_by_id(entity_kind, entity_id)
+	if not bool(entity_info.get("ok", false)):
+		result["message"] = "Entity not found."
+		return result
+	var data: Dictionary = Dictionary(entity_info.get("data", {}))
+	if not data.has(field_name):
+		result["message"] = "Field is unavailable for this entity."
+		return result
+	var converted: Dictionary = _convert_map_constructor_field_value(field_name, raw_value, String(schema[field_name]))
+	if not bool(converted.get("ok", false)):
+		result["message"] = String(converted.get("message", "Invalid value."))
+		return result
+	var new_value: Variant = converted.get("value")
+	var old_network_id: String = String(data.get("power_network_id", ""))
+	data[field_name] = new_value
+	if entity_kind == "world_object":
+		update_world_object_by_id(entity_id, data)
+	elif entity_kind == "item":
+		var found_item: bool = false
+		for cell_variant in cell_items.keys():
+			var cell: Vector2i = Vector2i(cell_variant)
+			var items: Array[Dictionary] = get_items_at_cell(cell)
+			for index in range(items.size()):
+				var item_data: Dictionary = items[index]
+				if String(item_data.get("id", "")) != entity_id:
+					continue
+				items[index] = data
+				cell_items[cell] = items
+				found_item = true
+				break
+			if found_item:
+				break
+		if not found_item:
+			result["message"] = "Item not found."
+			return result
+	else:
+		result["message"] = "Unsupported entity kind."
+		return result
+	var needs_power_refresh: bool = field_name == "power_network_id" or field_name in ["is_powered", "requires_external_power", "current_heat", "working_heat", "overheat_threshold"]
+	if needs_power_refresh:
+		PowerSystemRef.recalculate_network(mission_world_objects, old_network_id)
+		PowerSystemRef.recalculate_network(mission_world_objects, String(data.get("power_network_id", "")))
+	refresh_world_cooling_received()
+	result["ok"] = true
+	result["value"] = new_value
+	result["message"] = "Updated %s." % field_name
+	return result
+
+func apply_map_constructor_state_preset(entity_kind: String, entity_id: String, preset: String) -> Dictionary:
+	var lower_preset: String = preset.strip_edges().to_lower()
+	var updates: Array[Dictionary] = []
+	match lower_preset:
+		"active":
+			updates.append({"field":"state", "value":"active"})
+		"open":
+			updates.append({"field":"state", "value":"open"})
+			updates.append({"field":"is_open", "value":true})
+			updates.append({"field":"is_locked", "value":false})
+		"closed":
+			updates.append({"field":"state", "value":"closed"})
+			updates.append({"field":"is_open", "value":false})
+		"locked":
+			updates.append({"field":"state", "value":"locked"})
+			updates.append({"field":"is_open", "value":false})
+			updates.append({"field":"is_locked", "value":true})
+		"unpowered":
+			updates.append({"field":"state", "value":"unpowered"})
+			updates.append({"field":"is_powered", "value":false})
+		"damaged":
+			updates.append({"field":"state", "value":"damaged"})
+			updates.append({"field":"damaged", "value":true})
+		"jammed":
+			updates.append({"field":"state", "value":"jammed"})
+		"overheated":
+			updates.append({"field":"state", "value":"overheated"})
+		_:
+			return {"ok": false, "message": "Unknown preset.", "entity_id": entity_id, "preset": preset}
+	var last_result: Dictionary = {"ok": true, "message": "Preset applied.", "entity_id": entity_id, "preset": preset}
+	for update_entry in updates:
+		var apply_result: Dictionary = apply_map_constructor_property_update(entity_kind, entity_id, String(update_entry.get("field", "")), update_entry.get("value"))
+		if not bool(apply_result.get("ok", false)):
+			return apply_result
+		last_result = apply_result
+	return {"ok": true, "message": "Preset %s applied." % lower_preset, "entity_id": entity_id, "preset": lower_preset, "last_result": last_result}
+
 func get_map_constructor_audit_summary() -> Dictionary:
 	var audit: Dictionary = get_task_test_system_audit_report()
 	return {
