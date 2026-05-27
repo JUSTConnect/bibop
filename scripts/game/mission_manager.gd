@@ -29,6 +29,7 @@ var runtime_inventory_state := {
 var _map_constructor_runtime_object_seq: int = 1
 var _task_test_constructor_base_tiles: Dictionary = {}
 var _map_constructor_last_cleanup_snapshot: Dictionary = {}
+var _map_constructor_last_autofix_snapshot: Dictionary = {}
 var current_mission_id: String = ""
 var constructor_map_width: int = 16
 var constructor_map_height: int = 10
@@ -2688,6 +2689,186 @@ func get_map_constructor_validation_issues() -> Array[Dictionary]:
 			if item_cell.x < 0 or item_cell.y < 0:
 				issues.append(_make_map_constructor_issue("item_invalid_cell_%s" % item_id, "error", "Item cell invalid or negative.", item_cell, source_name, "item", item_id))
 	return issues
+
+func _map_constructor_collect_world_ids() -> Dictionary:
+	var ids: Dictionary = {}
+	for object_data in mission_world_objects:
+		if typeof(object_data) != TYPE_DICTIONARY:
+			continue
+		var object_id: String = String(Dictionary(object_data).get("id", "")).strip_edges()
+		if not object_id.is_empty():
+			ids[object_id] = true
+	return ids
+
+func _map_constructor_collect_item_ids() -> Dictionary:
+	var ids: Dictionary = {}
+	for cell_variant in cell_items.keys():
+		for item_variant in Array(cell_items.get(cell_variant, [])):
+			if typeof(item_variant) != TYPE_DICTIONARY:
+				continue
+			var item_id: String = String(Dictionary(item_variant).get("id", "")).strip_edges()
+			if not item_id.is_empty():
+				ids[item_id] = true
+	return ids
+
+func get_map_constructor_autofix_preview(fix_type: String, options: Dictionary = {}) -> Dictionary:
+	var lower_type: String = String(fix_type).strip_edges().to_lower()
+	var preview: Dictionary = {"ok": false, "fix_type": lower_type, "message": "Unsupported auto-fix type.", "affected_count": 0, "affected_fixes": [], "warnings": []}
+	if not _is_task_test_constructor_context():
+		preview["message"] = "Auto-fix works only in TASK TEST runtime constructor mode."
+		return preview
+	var world_ids: Dictionary = _map_constructor_collect_world_ids()
+	var item_ids: Dictionary = _map_constructor_collect_item_ids()
+	var fixes: Array[Dictionary] = []
+	var warnings: Array[String] = []
+	if lower_type in ["clear_broken_reference", "remove_invalid_reference", "clear_all_broken_references"]:
+		var target_fields: Array[String] = ["target_door_id","target_platform_id","linked_terminal_id","control_source_id","required_key_id","connected_device_ids"]
+		for object_data in mission_world_objects:
+			var data: Dictionary = Dictionary(object_data)
+			var object_id: String = String(data.get("id", ""))
+			if lower_type != "clear_all_broken_references":
+				if object_id != String(options.get("entity_id", "")) or String(options.get("entity_kind", "world_object")) != "world_object":
+					continue
+			for field_name in target_fields:
+				if lower_type != "clear_all_broken_references" and not String(options.get("field_name", "")) == field_name:
+					continue
+				if field_name == "connected_device_ids":
+					var current_ids: Array[String] = []
+					var valid_ids: Array[String] = []
+					for cid_variant in Array(data.get("connected_device_ids", [])):
+						var cid: String = String(cid_variant).strip_edges()
+						if cid.is_empty():
+							continue
+						current_ids.append(cid)
+						if world_ids.has(cid) or item_ids.has(cid):
+							valid_ids.append(cid)
+					if valid_ids.size() != current_ids.size():
+						fixes.append({"entity_kind":"world_object","entity_id":object_id,"field_name":field_name,"old_value":current_ids,"new_value":valid_ids,"cell":Vector2i(data.get("position", Vector2i(-1,-1))),"description":"Remove invalid connected_device_ids on %s" % object_id})
+				else:
+					var ref_id: String = String(data.get(field_name, "")).strip_edges()
+					if ref_id.is_empty():
+						continue
+					var is_valid: bool = world_ids.has(ref_id) or (field_name == "required_key_id" and item_ids.has(ref_id))
+					if not is_valid:
+						fixes.append({"entity_kind":"world_object","entity_id":object_id,"field_name":field_name,"old_value":ref_id,"new_value":"","cell":Vector2i(data.get("position", Vector2i(-1,-1))),"description":"Clear broken %s on %s" % [field_name, object_id]})
+	elif lower_type in ["repair_wall_mounted_attachment", "repair_all_wall_mounted_attachments"]:
+		for object_data in mission_world_objects:
+			var data: Dictionary = Dictionary(object_data)
+			if String(data.get("placement_mode", "")) != "wall_mounted":
+				continue
+			if lower_type == "repair_wall_mounted_attachment" and String(data.get("id", "")) != String(options.get("entity_id", "")):
+				continue
+			var anchor: Vector2i = _deserialize_cell_variant(data.get("anchor_floor_cell", data.get("position", Vector2i(-1, -1))))
+			var preferred: String = String(data.get("wall_side", ""))
+			var resolved: Dictionary = _resolve_wall_mounted_attachment(anchor, preferred)
+			if bool(resolved.get("ok", false)):
+				var new_side: String = String(resolved.get("wall_side", ""))
+				var new_wall: Vector2i = Vector2i(resolved.get("attached_wall_cell", Vector2i(-1, -1)))
+				if new_side != String(data.get("wall_side", "")) or new_wall != _deserialize_cell_variant(data.get("attached_wall_cell", Vector2i(-1,-1))):
+					fixes.append({"entity_kind":"world_object","entity_id":String(data.get("id","")),"field_name":"wall_attachment","old_value":{"wall_side":String(data.get("wall_side","")),"attached_wall_cell":_deserialize_cell_variant(data.get("attached_wall_cell", Vector2i(-1,-1)))},"new_value":{"wall_side":new_side,"attached_wall_cell":new_wall},"cell":anchor,"description":"Repair wall-mounted attachment on %s" % String(data.get("id",""))})
+			else:
+				warnings.append("Cannot repair wall-mounted attachment: no adjacent wall near anchor.")
+	elif lower_type == "assign_power_network":
+		var entity := get_map_constructor_entity_by_id(String(options.get("entity_kind", "world_object")), String(options.get("entity_id", "")))
+		if bool(entity.get("ok", false)):
+			var data: Dictionary = Dictionary(entity.get("data", {}))
+			var new_net: String = String(options.get("new_power_network_id", "")).strip_edges()
+			if new_net.is_empty():
+				warnings.append("New power network id is required.")
+			elif String(data.get("power_network_id", "")) != new_net:
+				fixes.append({"entity_kind":String(entity.get("entity_kind", "world_object")),"entity_id":String(entity.get("id", "")),"field_name":"power_network_id","old_value":String(data.get("power_network_id","")),"new_value":new_net,"cell":Vector2i(entity.get("cell", Vector2i(-1,-1))),"description":"Assign power network on %s" % String(entity.get("id", ""))})
+	elif lower_type == "create_power_network":
+		var selected_ids: Array = Array(options.get("apply_to_selected_ids", []))
+		if selected_ids.is_empty():
+			warnings.append("Choose target objects before creating/assigning a power network.")
+		else:
+			var new_network_id: String = String(options.get("new_power_network_id", "")).strip_edges()
+			for id_variant in selected_ids:
+				var object_id: String = String(id_variant)
+				var entity_info := get_map_constructor_entity_by_id("world_object", object_id)
+				if not bool(entity_info.get("ok", false)):
+					continue
+				var current_data: Dictionary = Dictionary(entity_info.get("data", {}))
+				if new_network_id.is_empty() or String(current_data.get("power_network_id", "")) == new_network_id:
+					continue
+				fixes.append({"entity_kind":"world_object","entity_id":object_id,"field_name":"power_network_id","old_value":String(current_data.get("power_network_id", "")),"new_value":new_network_id,"cell":Vector2i(entity_info.get("cell", Vector2i(-1,-1))),"description":"Assign new network %s to %s" % [new_network_id, object_id]})
+	elif lower_type == "fix_missing_required_id":
+		var entity_kind: String = String(options.get("entity_kind", "world_object"))
+		var entity_id: String = String(options.get("entity_id", ""))
+		var field_name: String = String(options.get("field_name", "id"))
+		var entity_info: Dictionary = get_map_constructor_entity_by_id(entity_kind, entity_id)
+		if bool(entity_info.get("ok", false)):
+			var data: Dictionary = Dictionary(entity_info.get("data", {}))
+			if field_name == "required_key_id" and String(data.get("required_key_id", "")).is_empty():
+				var keys: Array[String] = []
+				for cell_variant in cell_items.keys():
+					for item_variant in Array(cell_items.get(cell_variant, [])):
+						var item: Dictionary = Dictionary(item_variant)
+						var item_type := String(item.get("item_type", item.get("object_type", ""))).to_lower()
+						if item_type in ["mechanical_keycard", "digital_key", "access_code"]:
+							keys.append(String(item.get("id", "")))
+				if keys.size() == 1:
+					fixes.append({"entity_kind":entity_kind,"entity_id":entity_id,"field_name":"required_key_id","old_value":"","new_value":keys[0],"cell":Vector2i(entity_info.get("cell", Vector2i(-1,-1))),"description":"Set required_key_id on %s" % entity_id})
+				else:
+					warnings.append("Cannot safely set required_key_id: need exactly one matching key item.")
+	preview["ok"] = lower_type in ["clear_broken_reference","remove_invalid_reference","clear_all_broken_references","repair_wall_mounted_attachment","repair_all_wall_mounted_attachments","assign_power_network","create_power_network","fix_missing_required_id","apply_issue_fix"]
+	preview["affected_fixes"] = fixes
+	preview["affected_count"] = fixes.size()
+	preview["warnings"] = warnings
+	preview["message"] = "Preview ready." if preview["ok"] else "Unsupported auto-fix type."
+	return preview
+
+func apply_map_constructor_autofix(fix_type: String, options: Dictionary = {}) -> Dictionary:
+	var preview: Dictionary = get_map_constructor_autofix_preview(fix_type, options)
+	if not bool(preview.get("ok", false)):
+		return {"ok": false, "message": String(preview.get("message", "Auto-fix failed.")), "fixed_count": 0, "fix_id": "", "warnings": Array(preview.get("warnings", []))}
+	var fixes: Array = Array(preview.get("affected_fixes", []))
+	if fixes.is_empty():
+		return {"ok": true, "message": "Nothing to fix.", "fixed_count": 0, "fix_id": "", "warnings": Array(preview.get("warnings", []))}
+	_map_constructor_last_autofix_snapshot = {"fix_id":"autofix_%d" % Time.get_unix_time_from_system(), "mission_world_objects": mission_world_objects.duplicate(true), "cell_items": cell_items.duplicate(true), "world_objects_by_cell": world_objects_by_cell.duplicate(true)}
+	for row_variant in fixes:
+		var row: Dictionary = Dictionary(row_variant)
+		var apply_res := apply_map_constructor_property_update(String(row.get("entity_kind", "world_object")), String(row.get("entity_id", "")), String(row.get("field_name", "")), row.get("new_value"))
+		if not bool(apply_res.get("ok", false)) and String(row.get("field_name", "")) == "wall_attachment":
+			var entity := get_map_constructor_entity_by_id("world_object", String(row.get("entity_id", "")))
+			if bool(entity.get("ok", false)):
+				var d: Dictionary = Dictionary(entity.get("data", {}))
+				var wall_data: Dictionary = Dictionary(row.get("new_value", {}))
+				d["wall_side"] = String(wall_data.get("wall_side", d.get("wall_side", "")))
+				d["attached_wall_cell"] = Vector2i(wall_data.get("attached_wall_cell", d.get("attached_wall_cell", Vector2i(-1,-1))))
+				update_world_object_by_id(String(row.get("entity_id", "")), d)
+	PowerSystemRef.recalculate_network(mission_world_objects, "")
+	refresh_world_cooling_received()
+	return {"ok": true, "message": "Auto-fix applied.", "fixed_count": fixes.size(), "fix_id": String(_map_constructor_last_autofix_snapshot.get("fix_id", "")), "warnings": Array(preview.get("warnings", []))}
+
+func undo_last_map_constructor_autofix() -> Dictionary:
+	if _map_constructor_last_autofix_snapshot.is_empty():
+		return {"ok": false, "message": "No auto-fix to undo."}
+	mission_world_objects = Array(_map_constructor_last_autofix_snapshot.get("mission_world_objects", [])).duplicate(true)
+	cell_items = Dictionary(_map_constructor_last_autofix_snapshot.get("cell_items", {})).duplicate(true)
+	world_objects_by_cell = Dictionary(_map_constructor_last_autofix_snapshot.get("world_objects_by_cell", {})).duplicate(true)
+	_map_constructor_last_autofix_snapshot.clear()
+	PowerSystemRef.recalculate_network(mission_world_objects, "")
+	refresh_world_cooling_received()
+	return {"ok": true, "message": "Last auto-fix undone."}
+
+func get_map_constructor_issue_autofix_options(issue: Dictionary) -> Array[Dictionary]:
+	var options: Array[Dictionary] = []
+	var message: String = String(issue.get("message", "")).to_lower()
+	var entity_id: String = String(issue.get("entity_id", ""))
+	var entity_kind: String = String(issue.get("entity_kind", "world_object"))
+	var issue_id: String = String(issue.get("id", ""))
+	if message.find("missing") >= 0 and (message.find("target_door_id") >= 0 or message.find("target_platform_id") >= 0 or message.find("linked_terminal_id") >= 0 or message.find("control_source_id") >= 0 or message.find("required_key_id") >= 0):
+		var field_name: String = ""
+		for candidate in ["target_door_id","target_platform_id","linked_terminal_id","control_source_id","required_key_id"]:
+			if message.find(candidate) >= 0:
+				field_name = candidate
+				break
+		if not field_name.is_empty():
+			options.append({"label":"Clear broken %s" % field_name, "fix_type":"clear_broken_reference", "options":{"entity_kind":entity_kind,"entity_id":entity_id,"field_name":field_name,"issue_id":issue_id}, "danger_level":"safe"})
+	if String(issue_id).begins_with("wm_"):
+		options.append({"label":"Repair wall mount", "fix_type":"repair_wall_mounted_attachment", "options":{"entity_kind":entity_kind,"entity_id":entity_id,"issue_id":issue_id}, "danger_level":"safe"})
+	return options
 
 func get_map_constructor_audit_summary() -> Dictionary:
 	var audit: Dictionary = get_task_test_system_audit_report()
