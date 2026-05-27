@@ -99,6 +99,39 @@ func get_mission_content_catalog_validation_text() -> String:
 	var catalog := MissionContentCatalogRef.new()
 	return catalog.get_mission_catalog_validation_text()
 
+func apply_catalog_mission_layout_to_grid(mission_id: String) -> bool:
+	if grid_manager == null:
+		return false
+	if not grid_manager.has_method("apply_mission_layout"):
+		return false
+	var catalog := MissionContentCatalogRef.new()
+	if not catalog.has_mission_layout(mission_id):
+		return false
+	var catalog_layout: Array = catalog.get_mission_layout(mission_id)
+	if catalog_layout.is_empty():
+		return false
+	return bool(grid_manager.call("apply_mission_layout", catalog_layout.duplicate(true)))
+
+func validate_task_test_catalog_layout_runtime_source() -> Array[String]:
+	var warnings: Array[String] = []
+	var catalog := MissionContentCatalogRef.new()
+	if not catalog.has_mission_layout("mission_10"):
+		warnings.append("task_test_catalog_layout_missing_mission_10")
+		return warnings
+	var layout_size: Vector2i = catalog.get_mission_layout_size("mission_10")
+	if layout_size.x != 16 or layout_size.y != 10:
+		warnings.append("task_test_catalog_layout_expected_16x10_got_%dx%d" % [layout_size.x, layout_size.y])
+	if catalog.get_mission_exit_cells("mission_10").is_empty():
+		warnings.append("task_test_catalog_layout_missing_exit_tile")
+	if grid_manager != null and not grid_manager.has_method("apply_mission_layout"):
+		warnings.append("task_test_catalog_runtime_grid_missing_apply_mission_layout")
+	var runtime_before: Dictionary = _build_world_runtime_validation_fingerprint()
+	apply_catalog_mission_layout_to_grid("mission_10")
+	var runtime_after: Dictionary = _build_world_runtime_validation_fingerprint()
+	if runtime_after != runtime_before:
+		warnings.append("task_test_catalog_runtime_layout_apply_mutated_world_state")
+	return warnings
+
 func setup_world_objects_for_mission(mission_id: String) -> void:
 	current_mission_id = mission_id
 	mission_world_objects.clear()

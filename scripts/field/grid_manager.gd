@@ -200,6 +200,27 @@ func reset_mission_layout(mission_index: int) -> void:
 	reset_hidden_discoveries()
 	request_visual_refresh()
 
+func apply_mission_layout(layout: Array) -> bool:
+	if layout.is_empty():
+		return false
+	var expected_row_width: int = -1
+	for row_variant in layout:
+		if not (row_variant is Array):
+			return false
+		var row: Array = Array(row_variant)
+		if row.is_empty():
+			return false
+		if expected_row_width == -1:
+			expected_row_width = row.size()
+		elif row.size() != expected_row_width:
+			return false
+	if expected_row_width <= 0:
+		return false
+	map_data = duplicate_map_layout(layout)
+	reset_hidden_discoveries()
+	request_visual_refresh()
+	return true
+
 func reset_fog_of_war() -> void:
 	setup_fog_arrays()
 	request_visual_refresh()
