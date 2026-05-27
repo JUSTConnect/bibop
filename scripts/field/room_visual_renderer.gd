@@ -1192,6 +1192,23 @@ func get_wall_metadata_for_cell(cell: Vector2i) -> Dictionary:
 		return Dictionary(metadata_variant)
 	return {}
 
+func _get_iso_world_object_metadata_for_cell(cell: Vector2i) -> Dictionary:
+	var fallback: Dictionary = {"ok": false, "object_id": "", "object_type": "", "data": {}}
+	var mission_manager: Node = get_mission_manager_ref()
+	if mission_manager == null:
+		return fallback
+	if not mission_manager.has_method("get_world_object_at_cell"):
+		return fallback
+	var metadata_variant: Variant = mission_manager.call("get_world_object_at_cell", cell)
+	if not (metadata_variant is Dictionary):
+		return fallback
+	var metadata: Dictionary = Dictionary(metadata_variant)
+	var object_id: String = String(metadata.get("id", "")).strip_edges()
+	var object_type: String = String(metadata.get("object_type", metadata.get("type", ""))).strip_edges()
+	if object_id.is_empty():
+		return fallback
+	return {"ok": true, "object_id": object_id, "object_type": object_type, "data": metadata}
+
 func get_wall_object_type_for_cell(cell: Vector2i) -> String:
 	var metadata: Dictionary = get_wall_metadata_for_cell(cell)
 	if metadata.is_empty():
@@ -1895,16 +1912,43 @@ func draw_wall_mounted_object_shape(cell: Vector2i, profile_key: String, profile
 
 func draw_iso_object_marker(cell: Vector2i, tile_type: int) -> void:
 	var visual_center: Vector2 = get_world_object_visual_position(cell)
-	var metadata: Dictionary = get_wall_metadata_for_cell(cell)
-	var object_id: String = String(metadata.get("id", ""))
+	var object_meta: Dictionary = _get_iso_world_object_metadata_for_cell(cell)
+	var object_id: String = String(object_meta.get("object_id", ""))
 	var profile_key: String = get_iso_object_profile_key_for_tile(tile_type)
 	var object_asset_key: String = get_iso_object_asset_key_for_profile(profile_key)
-	if draw_iso_texture_asset(cell, object_asset_key, visual_center):
-		return
+	var mission_manager: Node = get_mission_manager_ref()
+	var has_door_visual: bool = false
+	var door_visual: Dictionary = {}
+	var has_terminal_visual: bool = false
+	var terminal_visual: Dictionary = {}
+	if not object_id.is_empty() and mission_manager != null:
+		if mission_manager.has_method("get_map_constructor_door_visual_state"):
+			door_visual = Dictionary(mission_manager.call("get_map_constructor_door_visual_state", object_id))
+			has_door_visual = bool(door_visual.get("ok", false))
+		if mission_manager.has_method("get_map_constructor_terminal_visual_state"):
+			terminal_visual = Dictionary(mission_manager.call("get_map_constructor_terminal_visual_state", object_id))
+			has_terminal_visual = bool(terminal_visual.get("ok", false))
 	var wall_mounted_profile_key: String = get_wall_mounted_object_profile_key(cell)
 	if not wall_mounted_profile_key.is_empty():
 		profile_key = wall_mounted_profile_key
 	var profile: Dictionary = get_iso_object_profile(profile_key)
+	if has_door_visual:
+		profile["base"] = _blend_color(_get_color_from_dict(profile, "base", Color.WHITE), Color(door_visual.get("tint", Color.WHITE)), 0.45)
+		profile["accent"] = Color(door_visual.get("accent", _get_color_from_dict(profile, "accent", Color.WHITE)))
+	if has_terminal_visual:
+		profile["base"] = _blend_color(_get_color_from_dict(profile, "base", Color.WHITE), Color(terminal_visual.get("tint", Color.WHITE)), 0.45)
+		profile["accent"] = Color(terminal_visual.get("accent", _get_color_from_dict(profile, "accent", Color.WHITE)))
+	var overlay_accent: Color = _get_color_from_dict(profile, "accent", Color(0.72, 0.78, 0.86, 0.95))
+	var used_texture_asset: bool = draw_iso_texture_asset(cell, object_asset_key, visual_center)
+	if used_texture_asset:
+		draw_circle(visual_center + Vector2(0.0, -iso_object_marker_height - 8.0), 2.4, overlay_accent)
+		draw_line(
+			visual_center + Vector2(-4.0, -iso_object_marker_height - 3.0),
+			visual_center + Vector2(4.0, -iso_object_marker_height - 3.0),
+			overlay_accent,
+			1.5
+		)
+		return
 	if draw_wall_mounted_object_shape(cell, profile_key, profile, visual_center):
 		return
 	var shape: String = str(profile.get("shape", "small_marker"))
@@ -1922,18 +1966,6 @@ func draw_iso_object_marker(cell: Vector2i, tile_type: int) -> void:
 			profile["base"] = Color(0.12, 0.18, 0.26, 0.96)
 			profile["accent"] = Color(0.5, 0.9, 1.0, 0.99)
 			profile["outline"] = Color(0.07, 0.14, 0.2, 0.94)
-	if not object_id.is_empty():
-		var mission_manager: Node = get_mission_manager_ref()
-		if mission_manager != null and mission_manager.has_method("get_map_constructor_door_visual_state"):
-			var door_visual: Dictionary = Dictionary(mission_manager.call("get_map_constructor_door_visual_state", object_id))
-			if bool(door_visual.get("ok", false)):
-				profile["base"] = _blend_color(_get_color_from_dict(profile, "base", Color.WHITE), Color(door_visual.get("tint", Color.WHITE)), 0.45)
-				profile["accent"] = Color(door_visual.get("accent", _get_color_from_dict(profile, "accent", Color.WHITE)))
-		if mission_manager != null and mission_manager.has_method("get_map_constructor_terminal_visual_state"):
-			var terminal_visual: Dictionary = Dictionary(mission_manager.call("get_map_constructor_terminal_visual_state", object_id))
-			if bool(terminal_visual.get("ok", false)):
-				profile["base"] = _blend_color(_get_color_from_dict(profile, "base", Color.WHITE), Color(terminal_visual.get("tint", Color.WHITE)), 0.45)
-				profile["accent"] = Color(terminal_visual.get("accent", _get_color_from_dict(profile, "accent", Color.WHITE)))
 	if shape == "slab":
 		draw_iso_object_slab(cell, profile, visual_center)
 	elif shape == "door_panel":
