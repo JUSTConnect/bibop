@@ -10049,9 +10049,19 @@ func _refresh_map_constructor_panels() -> void:
 	var template_data: Dictionary = mission_manager_runtime.call("get_map_constructor_room_templates") if mission_manager_runtime != null and mission_manager_runtime.has_method("get_map_constructor_room_templates") else {}
 	var kit_rows: Array = Array(kit_data.get("kits", []))
 	var template_rows: Array = Array(template_data.get("templates", []))
-	if map_constructor_selected_kit_id.is_empty() and not kit_rows.is_empty():
+	var selected_kit_exists: bool = false
+	for kit_row_variant in kit_rows:
+		if String(Dictionary(kit_row_variant).get("id", "")) == map_constructor_selected_kit_id:
+			selected_kit_exists = true
+			break
+	if (map_constructor_selected_kit_id.is_empty() or not selected_kit_exists) and not kit_rows.is_empty():
 		map_constructor_selected_kit_id = String(Dictionary(kit_rows[0]).get("id", ""))
-	if map_constructor_selected_template_id.is_empty() and not template_rows.is_empty():
+	var selected_template_exists: bool = false
+	for template_row_variant in template_rows:
+		if String(Dictionary(template_row_variant).get("id", "")) == map_constructor_selected_template_id:
+			selected_template_exists = true
+			break
+	if (map_constructor_selected_template_id.is_empty() or not selected_template_exists) and not template_rows.is_empty():
 		map_constructor_selected_template_id = String(Dictionary(template_rows[0]).get("id", ""))
 	if map_constructor_kit_pending_apply_key != current_kit_key:
 		map_constructor_kit_preview_can_apply = false
@@ -10069,6 +10079,7 @@ func _refresh_map_constructor_panels() -> void:
 	kit_select.item_selected.connect(func(index: int) -> void:
 		map_constructor_selected_kit_id = String(kit_select.get_item_metadata(index))
 		map_constructor_kit_preview_can_apply = false
+		map_constructor_kit_pending_apply_key = ""
 		_refresh_map_constructor_panels()
 	)
 	list.add_child(kit_select)
@@ -10077,7 +10088,7 @@ func _refresh_map_constructor_panels() -> void:
 	for row_variant in kit_rows:
 		var row: Dictionary = Dictionary(row_variant)
 		if String(row.get("id", "")) == map_constructor_selected_kit_id:
-			selected_kit_info.text = "Kit: %s\n%s\nTags: %s" % [String(row.get("display_name", "")), String(row.get("description", "")), ", ".join(PackedStringArray(Array(row.get("tags", []))))]
+			selected_kit_info.text = "Kit: %s\n%s\nTags: %s\nWarnings: %s" % [String(row.get("display_name", "")), String(row.get("description", "")), ", ".join(PackedStringArray(Array(row.get("tags", [])))), String(row.get("warning", "none"))]
 	list.add_child(selected_kit_info)
 	var quick_kits_button: Button = Button.new()
 	quick_kits_button.text = "Preview Kit"
@@ -10087,8 +10098,8 @@ func _refresh_map_constructor_panels() -> void:
 		if map_constructor_selected_kit_id.is_empty():
 			return
 		map_constructor_kit_preview = mission_manager_runtime.call("preview_map_constructor_prefab_kit", map_constructor_selected_kit_id, anchor_cell, kit_options)
-		map_constructor_kit_pending_apply_key = "%s|%s|%s" % [map_constructor_selected_kit_id, str(anchor_cell), JSON.stringify(kit_options)]
 		map_constructor_kit_preview_can_apply = bool(map_constructor_kit_preview.get("can_apply", false))
+		map_constructor_kit_pending_apply_key = "%s|%s|%s" % [map_constructor_selected_kit_id, str(anchor_cell), JSON.stringify(kit_options)] if map_constructor_kit_preview_can_apply else ""
 		_refresh_map_constructor_panels()
 	)
 	list.add_child(quick_kits_button)
@@ -10100,6 +10111,9 @@ func _refresh_map_constructor_panels() -> void:
 			return
 		var result: Dictionary = mission_manager_runtime.call("apply_map_constructor_prefab_kit", map_constructor_selected_kit_id, anchor_cell, kit_options)
 		show_hint(String(result.get("message", "Kit applied.")))
+		map_constructor_kit_preview = {}
+		map_constructor_kit_preview_can_apply = false
+		map_constructor_kit_pending_apply_key = ""
 		_refresh_map_constructor_panels()
 		_refresh_map_constructor_browser()
 		if field_runtime != null and field_runtime.has_method("request_visual_refresh"):
@@ -10113,6 +10127,9 @@ func _refresh_map_constructor_panels() -> void:
 			return
 		var undo_result: Dictionary = mission_manager_runtime.call("undo_last_map_constructor_prefab_kit")
 		show_hint(String(undo_result.get("message", "Kit undo completed.")))
+		map_constructor_kit_preview = {}
+		map_constructor_kit_preview_can_apply = false
+		map_constructor_kit_pending_apply_key = ""
 		_refresh_map_constructor_panels()
 		_refresh_map_constructor_browser()
 		if field_runtime != null and field_runtime.has_method("request_visual_refresh"):
@@ -10131,6 +10148,7 @@ func _refresh_map_constructor_panels() -> void:
 	template_select.item_selected.connect(func(index: int) -> void:
 		map_constructor_selected_template_id = String(template_select.get_item_metadata(index))
 		map_constructor_template_preview_can_apply = false
+		map_constructor_template_pending_apply_key = ""
 		_refresh_map_constructor_panels()
 	)
 	list.add_child(template_select)
@@ -10139,7 +10157,7 @@ func _refresh_map_constructor_panels() -> void:
 	for row_variant in template_rows:
 		var row: Dictionary = Dictionary(row_variant)
 		if String(row.get("id", "")) == map_constructor_selected_template_id:
-			template_info.text = "Template: %s\n%s\nsize=%s\nTags: %s" % [String(row.get("display_name", "")), String(row.get("description", "")), str(row.get("size", Vector2i.ZERO)), ", ".join(PackedStringArray(Array(row.get("tags", []))))]
+			template_info.text = "Template: %s\n%s\nsize=%s\nTags: %s\nWarnings: %s" % [String(row.get("display_name", "")), String(row.get("description", "")), str(row.get("size", Vector2i.ZERO)), ", ".join(PackedStringArray(Array(row.get("tags", [])))), String(row.get("warning", "none"))]
 	list.add_child(template_info)
 	var template_preview_button: Button = Button.new()
 	template_preview_button.text = "Preview Template"
@@ -10149,8 +10167,8 @@ func _refresh_map_constructor_panels() -> void:
 		if map_constructor_selected_template_id.is_empty():
 			return
 		map_constructor_template_preview = mission_manager_runtime.call("preview_map_constructor_room_template", map_constructor_selected_template_id, anchor_cell, template_options)
-		map_constructor_template_pending_apply_key = "%s|%s|%s" % [map_constructor_selected_template_id, str(anchor_cell), JSON.stringify(template_options)]
 		map_constructor_template_preview_can_apply = bool(map_constructor_template_preview.get("can_apply", false))
+		map_constructor_template_pending_apply_key = "%s|%s|%s" % [map_constructor_selected_template_id, str(anchor_cell), JSON.stringify(template_options)] if map_constructor_template_preview_can_apply else ""
 		_refresh_map_constructor_panels()
 	)
 	list.add_child(template_preview_button)
@@ -10162,6 +10180,9 @@ func _refresh_map_constructor_panels() -> void:
 			return
 		var apply_result: Dictionary = mission_manager_runtime.call("apply_map_constructor_room_template", map_constructor_selected_template_id, anchor_cell, template_options)
 		show_hint(String(apply_result.get("message", "Template applied.")))
+		map_constructor_template_preview = {}
+		map_constructor_template_preview_can_apply = false
+		map_constructor_template_pending_apply_key = ""
 		_refresh_map_constructor_panels()
 		_refresh_map_constructor_browser()
 		if field_runtime != null and field_runtime.has_method("request_visual_refresh"):
@@ -10175,6 +10196,9 @@ func _refresh_map_constructor_panels() -> void:
 			return
 		var undo_result: Dictionary = mission_manager_runtime.call("undo_last_map_constructor_room_template")
 		show_hint(String(undo_result.get("message", "Template undo completed.")))
+		map_constructor_template_preview = {}
+		map_constructor_template_preview_can_apply = false
+		map_constructor_template_pending_apply_key = ""
 		_refresh_map_constructor_panels()
 		_refresh_map_constructor_browser()
 		if field_runtime != null and field_runtime.has_method("request_visual_refresh"):
