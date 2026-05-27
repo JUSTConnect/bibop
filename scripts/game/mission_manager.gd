@@ -303,6 +303,9 @@ func get_map_constructor_mission_patch_data(patch_name: String = "") -> Dictiona
 		"created_at_unix": int(Time.get_unix_time_from_system()),
 		"world_objects": Array(preset_data.get("world_objects", [])),
 		"cell_items": Array(preset_data.get("cell_items", [])),
+		"map": Dictionary(preset_data.get("map", {})).duplicate(true),
+		"mission_markers": Dictionary(preset_data.get("mission_markers", {})).duplicate(true),
+		"grid_tiles": Array(preset_data.get("grid_tiles", [])).duplicate(true),
 		"grid_overrides": Array(preset_data.get("grid_overrides", [])),
 		"validation": validation,
 		"notes": "TASK TEST constructor mission patch export"
@@ -380,13 +383,18 @@ func get_map_constructor_preset_data() -> Dictionary:
 			"items": get_items_at_cell(cell)
 		})
 	var grid_tiles: Array[Dictionary] = []
+	var grid_overrides: Array[Dictionary] = []
 	if grid_manager != null and grid_manager.has_method("get_width") and grid_manager.has_method("get_height") and grid_manager.has_method("get_tile"):
 		constructor_map_width = int(grid_manager.call("get_width"))
 		constructor_map_height = int(grid_manager.call("get_height"))
 		for y in range(constructor_map_height):
 			for x in range(constructor_map_width):
 				var tile_cell: Vector2i = Vector2i(x, y)
-				grid_tiles.append({"cell": _serialize_cell_key(tile_cell), "tile_type": int(grid_manager.call("get_tile", tile_cell))})
+				var tile_type: int = int(grid_manager.call("get_tile", tile_cell))
+				grid_tiles.append({"cell": _serialize_cell_key(tile_cell), "tile_type": tile_type})
+				var expected_type: int = GridManager.TILE_WALL if bool(grid_manager.call("is_boundary_cell", tile_cell)) else GridManager.TILE_FLOOR
+				if tile_type != expected_type:
+					grid_overrides.append({"cell": _serialize_cell_key(tile_cell), "tile_type": tile_type})
 	return {
 		"version": 1,
 		"mission_id": String(current_mission_id),
@@ -396,10 +404,29 @@ func get_map_constructor_preset_data() -> Dictionary:
 		"map": {"width": constructor_map_width, "height": constructor_map_height, "boundary_wall_type": "outer_wall"},
 		"mission_markers": get_map_constructor_mission_markers(),
 		"grid_tiles": grid_tiles,
-		"grid_overrides": [],
+		"grid_overrides": grid_overrides,
 		"notes": "TASK TEST constructor preset",
 		"warnings": []
 	}
+
+func _validate_constructor_marker(marker: Dictionary, marker_name: String) -> Dictionary:
+	if marker.is_empty():
+		return {"ok": false, "message": "%s marker missing." % marker_name.capitalize()}
+	var marker_cell: Vector2i = _deserialize_cell_variant(marker.get("cell", "-1,-1"))
+	var inside_cell: Vector2i = _deserialize_cell_variant(marker.get("inside_cell", "-1,-1"))
+	if grid_manager == null or not grid_manager.has_method("is_boundary_cell"):
+		return {"ok": false, "message": "%s marker validation failed: grid unavailable." % marker_name.capitalize()}
+	if not bool(grid_manager.call("is_boundary_cell", marker_cell)):
+		return {"ok": false, "message": "%s marker not boundary: %s." % [marker_name.capitalize(), _serialize_cell_key(marker_cell)]}
+	var inside_info: Dictionary = get_inside_cell_for_boundary_marker(marker_cell)
+	if not bool(inside_info.get("ok", false)):
+		return {"ok": false, "message": "%s inside cell invalid: %s." % [marker_name.capitalize(), String(inside_info.get("message", "invalid marker"))]}
+	var expected_inside: Vector2i = Vector2i(inside_info.get("inside_cell", Vector2i(-1, -1)))
+	if expected_inside != inside_cell:
+		return {"ok": false, "message": "%s inside cell invalid: expected %s, got %s." % [marker_name.capitalize(), _serialize_cell_key(expected_inside), _serialize_cell_key(inside_cell)]}
+	if int(grid_manager.call("get_tile", inside_cell)) == GridManager.TILE_WALL:
+		return {"ok": false, "message": "%s inside cell invalid: %s is wall." % [marker_name.capitalize(), _serialize_cell_key(inside_cell)]}
+	return {"ok": true, "message": ""}
 
 func save_map_constructor_preset(preset_name: String) -> Dictionary:
 	var sanitized_name: String = _sanitize_map_constructor_preset_name(preset_name)
@@ -1879,12 +1906,16 @@ func get_map_constructor_validation_overlay() -> Dictionary:
 			has_error_severity = true
 			break
 	var has_errors: bool = int(summary.get("error_count", 0)) > 0 or has_error_severity
-	if constructor_start_marker.is_empty():
+	var start_validation: Dictionary = _validate_constructor_marker(constructor_start_marker, "start")
+	var exit_validation: Dictionary = _validate_constructor_marker(constructor_exit_marker, "exit")
+	if not bool(start_validation.get("ok", false)):
 		summary["error_count"] = int(summary.get("error_count", 0)) + 1
 		has_errors = true
-	if constructor_exit_marker.is_empty():
+		summary["start_marker_error"] = String(start_validation.get("message", "Start marker error."))
+	if not bool(exit_validation.get("ok", false)):
 		summary["error_count"] = int(summary.get("error_count", 0)) + 1
 		has_errors = true
+		summary["exit_marker_error"] = String(exit_validation.get("message", "Exit marker error."))
 	return {"ok": not has_errors, "cells": overlay_cells, "objects": overlay_objects, "summary": summary}
 
 func get_map_constructor_audit_summary() -> Dictionary:
