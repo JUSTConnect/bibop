@@ -9586,6 +9586,72 @@ func _refresh_map_constructor_panels() -> void:
 	else:
 		browser_selection_label.text = "Browser selection: %s/%s @ %s" % [selected_map_constructor_entity_kind, selected_map_constructor_entity_id, str(selected_map_constructor_entity_cell)]
 	list.add_child(browser_selection_label)
+	var readiness_title: Label = Label.new()
+	readiness_title.text = "Mission Readiness"
+	list.add_child(readiness_title)
+	if mission_manager_runtime != null and mission_manager_runtime.has_method("get_map_constructor_mission_readiness_report"):
+		var readiness: Dictionary = mission_manager_runtime.call("get_map_constructor_mission_readiness_report")
+		var readiness_status: String = String(readiness.get("status", "unknown"))
+		var status_label: Label = Label.new()
+		status_label.text = "Mission Readiness: %s" % ["PLAYABLE" if readiness_status == "playable" else ("BLOCKED" if readiness_status == "blocked" else "WARNINGS")]
+		list.add_child(status_label)
+		var summary_label: Label = Label.new()
+		summary_label.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+		summary_label.text = "blocking=%d warnings=%d expected-invalid=%d info=%d" % [int(readiness.get("blocking_count", 0)), int(readiness.get("warning_count", 0)), int(readiness.get("expected_invalid_count", 0)), int(readiness.get("info_count", 0))]
+		list.add_child(summary_label)
+		var action_by_issue: Dictionary = {}
+		for rec_variant in Array(readiness.get("recommended_actions", [])):
+			var rec: Dictionary = Dictionary(rec_variant)
+			var tid: String = String(rec.get("target_issue_id", ""))
+			if tid.is_empty() or action_by_issue.has(tid):
+				continue
+			action_by_issue[tid] = rec
+		for check_variant in Array(readiness.get("checks", [])):
+			var check: Dictionary = Dictionary(check_variant)
+			var check_status: String = String(check.get("status", "info"))
+			var icon: String = "ℹ"
+			if check_status == "pass":
+				icon = "✅"
+			elif check_status == "fail":
+				icon = "❌"
+			elif check_status == "warning":
+				icon = "⚠"
+			elif check_status == "expected_invalid":
+				icon = "🧪"
+			var check_label: Label = Label.new()
+			check_label.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+			var line: String = "%s %s: %s (count=%d)" % [icon, String(check.get("label", "Check")), String(check.get("message", "")), int(check.get("count", 0))]
+			if not String(check.get("entity_id", "")).is_empty():
+				line += " | id=%s" % String(check.get("entity_id", ""))
+			var c: Vector2i = Vector2i(check.get("cell", Vector2i(-1, -1)))
+			if c.x >= 0 and c.y >= 0:
+				line += " | c=%s" % str(c)
+			check_label.text = line
+			list.add_child(check_label)
+			var issue_id: String = String(check.get("issue_id", ""))
+			if issue_id.is_empty():
+				continue
+			var action_row: HBoxContainer = HBoxContainer.new()
+			var jump_button: Button = Button.new()
+			jump_button.text = "Jump"
+			jump_button.pressed.connect(func() -> void:
+				_focus_map_constructor_readiness_issue_by_id(issue_id)
+			)
+			action_row.add_child(jump_button)
+			if action_by_issue.has(issue_id):
+				var rec: Dictionary = Dictionary(action_by_issue[issue_id])
+				_add_map_constructor_readiness_action_buttons(action_row, rec)
+			list.add_child(action_row)
+		var expected_section: Label = Label.new()
+		expected_section.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+		var expected_ids: Array[String] = []
+		for issue_variant in Array(readiness.get("expected_invalid_issues", [])):
+			if expected_ids.size() >= 10:
+				break
+			var issue_data: Dictionary = Dictionary(issue_variant)
+			expected_ids.append(String(issue_data.get("id", issue_data.get("entity_id", ""))))
+		expected_section.text = "Expected Invalid Cases (%d): %s\nThese are intentional TASK TEST broken cases and do not block readiness." % [int(readiness.get("expected_invalid_count", 0)), ", ".join(expected_ids)]
+		list.add_child(expected_section)
 	var issues_title: Label = Label.new()
 	issues_title.text = "Validation Issues"
 	list.add_child(issues_title)
@@ -10488,6 +10554,42 @@ func _focus_map_constructor_issue(issue: Dictionary) -> void:
 		_focus_map_constructor_cell(issue_cell)
 		_show_map_constructor_inspector(issue_cell)
 	show_hint(String(issue.get("message", "Validation issue selected.")))
+
+func _focus_map_constructor_readiness_issue_by_id(issue_id: String) -> void:
+	if issue_id.is_empty() or mission_manager_runtime == null or not mission_manager_runtime.has_method("get_map_constructor_validation_issues"):
+		return
+	var constructor_issues: Array = mission_manager_runtime.call("get_map_constructor_validation_issues")
+	for issue_variant in constructor_issues:
+		var issue: Dictionary = Dictionary(issue_variant)
+		if String(issue.get("id", "")) != issue_id:
+			continue
+		map_constructor_selected_issue_id = issue_id
+		_focus_map_constructor_issue(issue)
+		_refresh_map_constructor_panels()
+		return
+
+func _add_map_constructor_readiness_action_buttons(action_row: HBoxContainer, recommendation: Dictionary) -> void:
+	var action_type: String = String(recommendation.get("action_type", "none"))
+	if action_type == "autofix":
+		var ftype: String = String(recommendation.get("fix_type", ""))
+		var foptions: Dictionary = Dictionary(recommendation.get("options", {}))
+		var fkey: String = "%s|%s" % [ftype, JSON.stringify(foptions)]
+		var preview_btn: Button = Button.new(); preview_btn.text = "Preview Fix"
+		preview_btn.pressed.connect(func() -> void: _apply_map_constructor_autofix_action(ftype, foptions, false))
+		var apply_btn: Button = Button.new(); apply_btn.text = "Apply Fix"
+		apply_btn.disabled = map_constructor_autofix_pending_apply_key != fkey
+		apply_btn.pressed.connect(func() -> void: _apply_map_constructor_autofix_action(ftype, foptions, true))
+		action_row.add_child(preview_btn); action_row.add_child(apply_btn)
+	elif action_type == "cleanup":
+		var ctype: String = String(recommendation.get("cleanup_type", ""))
+		var coptions: Dictionary = Dictionary(recommendation.get("options", {}))
+		var ckey: String = "%s|%s" % [ctype, JSON.stringify(coptions)]
+		var preview_btn: Button = Button.new(); preview_btn.text = "Preview Cleanup"
+		preview_btn.pressed.connect(func() -> void: _apply_map_constructor_cleanup_action(ctype, coptions, false))
+		var apply_btn: Button = Button.new(); apply_btn.text = "Apply Cleanup"
+		apply_btn.disabled = map_constructor_cleanup_pending_apply_key != ckey
+		apply_btn.pressed.connect(func() -> void: _apply_map_constructor_cleanup_action(ctype, coptions, true))
+		action_row.add_child(preview_btn); action_row.add_child(apply_btn)
 
 func _on_move_forward_pressed() -> void:
 	if map_constructor_mode_active:
