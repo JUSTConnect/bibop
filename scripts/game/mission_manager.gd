@@ -9657,6 +9657,22 @@ func _get_developer_validation_suite_text_internal(suite: String = "all", includ
 var _map_constructor_last_kit_snapshot: Dictionary = {}
 var _map_constructor_last_template_snapshot: Dictionary = {}
 
+func _map_constructor_filter_entry_rows(entries: Array, warnings: Array[String]) -> Array[Dictionary]:
+	var filtered: Array[Dictionary] = []
+	var catalog_ids: Dictionary = {}
+	for catalog_row in get_map_constructor_prefab_catalog():
+		var catalog_entry: Dictionary = Dictionary(catalog_row)
+		catalog_ids[String(catalog_entry.get("id", ""))] = true
+	for entry_variant in entries:
+		var entry: Dictionary = Dictionary(entry_variant)
+		var prefab_id: String = String(entry.get("prefab_id", "")).strip_edges()
+		var has_catalog: bool = catalog_ids.has(prefab_id)
+		if not has_catalog and not MAP_CONSTRUCTOR_PREFAB_METADATA.has(prefab_id):
+			warnings.append("Entry omitted: prefab '%s' not found in catalog/metadata." % prefab_id)
+			continue
+		filtered.append(entry)
+	return filtered
+
 func get_map_constructor_prefab_kits() -> Dictionary:
 	if not _is_task_test_constructor_context():
 		return {"ok": false, "kits": [], "message": "Prefab kits are available only in TASK TEST constructor mode."}
@@ -9669,7 +9685,20 @@ func get_map_constructor_prefab_kits() -> Dictionary:
 		{"id":"cooling_test_kit","display_name":"Cooling Test Kit","category":"power","description":"Cooling and power test objects.","tags":["cooling","power"],"default_options":{"allow_overwrite":false},"entries":[{"prefab_id":"cooling_terminal","offset":Vector2i(0,0),"wall_side":"south","properties":{},"link_group":""}]},
 		{"id":"control_chain_kit","display_name":"Control Chain Kit","category":"control","description":"Control + power chain.","tags":["control","power"],"default_options":{"allow_overwrite":false},"entries":[{"prefab_id":"circuit_breaker","offset":Vector2i(0,0),"wall_side":"","properties":{},"link_group":"control_a"},{"prefab_id":"light_switch","offset":Vector2i(1,0),"wall_side":"west","properties":{},"link_group":"control_a"}]}
 	]
-	return {"ok":true,"kits":kits,"message":"OK"}
+	var filtered_kits: Array[Dictionary] = []
+	for kit_variant in kits:
+		var kit: Dictionary = Dictionary(kit_variant).duplicate(true)
+		var row_warnings: Array[String] = []
+		var entries: Array = Array(kit.get("entries", []))
+		kit["entries"] = _map_constructor_filter_entry_rows(entries, row_warnings)
+		if not row_warnings.is_empty():
+			var existing_warning: String = String(kit.get("warning", "")).strip_edges()
+			var joined_warnings: String = "; ".join(row_warnings)
+			kit["warning"] = joined_warnings if existing_warning.is_empty() else "%s; %s" % [existing_warning, joined_warnings]
+		if Array(kit.get("entries", [])).is_empty():
+			continue
+		filtered_kits.append(kit)
+	return {"ok":true,"kits":filtered_kits,"message":"OK"}
 
 func preview_map_constructor_prefab_kit(kit_id: String, anchor_cell: Vector2i, options: Dictionary = {}) -> Dictionary:
 	if not _is_task_test_constructor_context():
@@ -9739,6 +9768,11 @@ func preview_map_constructor_room_template(template_id: String, anchor_cell: Vec
 		if String(Dictionary(t).get("id", "")) == template_id:
 			var template: Dictionary = Dictionary(t)
 			var preview: Dictionary = _preview_map_constructor_entry_set(Array(template.get("entries", [])), anchor_cell, options)
+			var tile_edits_preview: Dictionary = preview_map_constructor_tile_edits(Array(template.get("tile_edits", [])), anchor_cell, options)
+			preview["affected"] = Array(preview.get("affected", [])) + Array(tile_edits_preview.get("affected", []))
+			preview["warnings"] = Array(preview.get("warnings", [])) + Array(tile_edits_preview.get("warnings", []))
+			preview["conflicts"] = Array(preview.get("conflicts", [])) + Array(tile_edits_preview.get("conflicts", []))
+			preview["can_apply"] = bool(preview.get("can_apply", false)) and bool(tile_edits_preview.get("can_apply", false))
 			preview["template_id"] = template_id
 			return preview
 	return {"ok":false,"template_id":template_id,"anchor_cell":anchor_cell,"affected":[],"warnings":[],"conflicts":[],"can_apply":false,"message":"Template not found."}
@@ -9756,9 +9790,48 @@ func apply_map_constructor_room_template(template_id: String, anchor_cell: Vecto
 		return {"ok": false, "message": "Template not found."}
 	_map_constructor_last_template_snapshot = {"mission_world_objects": mission_world_objects.duplicate(true), "cell_items": cell_items.duplicate(true), "world_objects_by_cell": world_objects_by_cell.duplicate(true)}
 	var result: Dictionary = _apply_map_constructor_entry_set(Array(template.get("entries", [])), anchor_cell, options)
+	if not bool(result.get("ok", false)):
+		return result
+	var tile_apply: Dictionary = apply_map_constructor_tile_edits(Array(template.get("tile_edits", [])), anchor_cell, options)
+	result["warnings"] = Array(result.get("warnings", [])) + Array(tile_apply.get("warnings", []))
+	if not bool(tile_apply.get("ok", false)):
+		result["ok"] = false
+		result["message"] = String(tile_apply.get("message", "Template tile edits failed."))
+		return result
 	if bool(result.get("ok", false)):
 		_record_map_constructor_change("template", {"summary":"Applied template %s" % template_id})
 	return result
+
+func preview_map_constructor_tile_edits(tile_edits: Array, anchor_cell: Vector2i, options: Dictionary = {}) -> Dictionary:
+	var allow_overwrite: bool = bool(options.get("allow_overwrite", false))
+	var affected: Array[Dictionary] = []
+	var conflicts: Array[Dictionary] = []
+	for tile_edit_variant in tile_edits:
+		var tile_edit: Dictionary = Dictionary(tile_edit_variant)
+		var offset: Vector2i = Vector2i(tile_edit.get("offset", Vector2i.ZERO))
+		var cell: Vector2i = anchor_cell + offset
+		var conflict_reason: String = ""
+		var object_here: Dictionary = Dictionary(world_objects_by_cell.get(cell, {}))
+		if not allow_overwrite and not object_here.is_empty():
+			conflict_reason = "cell_has_world_object"
+		var items_here: Array[Dictionary] = get_items_at_cell(cell)
+		if conflict_reason.is_empty() and not allow_overwrite and not items_here.is_empty():
+			conflict_reason = "cell_has_items"
+		if not conflict_reason.is_empty():
+			conflicts.append({"operation":"tile_edit","cell":cell,"reason":conflict_reason,"message":"Tile edit blocked at %s." % str(cell)})
+		affected.append({"operation":"tile_edit","cell":cell,"tile_id":int(tile_edit.get("tile_id", GridManager.TILE_FLOOR))})
+	return {"ok": true, "affected": affected, "warnings": [], "conflicts": conflicts, "can_apply": conflicts.is_empty() or allow_overwrite}
+
+func apply_map_constructor_tile_edits(tile_edits: Array, anchor_cell: Vector2i, options: Dictionary = {}) -> Dictionary:
+	if grid_manager == null or not grid_manager.has_method("set_tile"):
+		return {"ok": false, "warnings": ["Tile edits not applied: safe tile helper unavailable."], "message": "Tile edits not applied: safe tile helper unavailable."}
+	var preview: Dictionary = preview_map_constructor_tile_edits(tile_edits, anchor_cell, options)
+	if not bool(preview.get("can_apply", false)):
+		return {"ok": false, "warnings": [], "message": "Tile edits blocked by conflicts.", "conflicts": Array(preview.get("conflicts", []))}
+	for affected_variant in Array(preview.get("affected", [])):
+		var affected_row: Dictionary = Dictionary(affected_variant)
+		grid_manager.call("set_tile", Vector2i(affected_row.get("cell", Vector2i(-1, -1))), int(affected_row.get("tile_id", GridManager.TILE_FLOOR)))
+	return {"ok": true, "warnings": [], "message": "Tile edits applied."}
 
 func undo_last_map_constructor_room_template() -> Dictionary:
 	if not _is_task_test_constructor_context():
@@ -9789,17 +9862,27 @@ func get_map_constructor_production_pipeline_report(options: Dictionary = {}) ->
 	var notes: Dictionary = export_map_constructor_design_notes()
 	var patch_export: Dictionary = export_map_constructor_runtime_patch()
 	var checks: Array[Dictionary] = []
+	var validation_issues: Array = Array(get_map_constructor_validation_issues())
+	var non_expected_errors: int = 0
+	var warning_count: int = 0
+	for issue_variant in validation_issues:
+		var issue: Dictionary = Dictionary(issue_variant)
+		var severity: String = String(issue.get("severity", "warning")).to_lower()
+		var expected: bool = bool(issue.get("expected_invalid", false))
+		if severity == "error" and not expected:
+			non_expected_errors += 1
+		if severity == "warning":
+			warning_count += 1
 	checks.append({"label":"TASK TEST constructor context active","status":"pass"})
 	checks.append({"label":"readiness playable","status":"pass" if String(readiness.get("status", "")) == "playable" else "fail"})
-	checks.append({"label":"validation blocking errors","status":"pass" if Array(get_map_constructor_validation_issues()).is_empty() else "warning"})
-	checks.append({"label":"expected-invalid objects known/isolated","status":"pass"})
+	checks.append({"label":"validation blocking errors","status":"pass" if non_expected_errors <= 0 else "fail"})
 	checks.append({"label":"patch export ok","status":"pass" if bool(patch_export.get("ok", false)) else "fail"})
 	checks.append({"label":"design notes ok","status":"pass" if bool(notes.get("ok", false)) else "fail"})
-	checks.append({"label":"broken refs","status":"warning"})
-	checks.append({"label":"unresolved links","status":"warning"})
-	checks.append({"label":"wall-mounted placement errors","status":"warning"})
-	checks.append({"label":"power objects missing power_network_id","status":"warning"})
-	var status: String = "ready" if String(readiness.get("status", "")) == "playable" else "blocked"
+	checks.append({"label":"validation warnings","status":"warning" if warning_count > 0 else "pass"})
+	checks.append({"label":"readiness diagnostics","status":"info","message":"not checked"})
+	var blocked: bool = String(readiness.get("status", "")) == "blocked" or not bool(patch_export.get("ok", false)) or not bool(notes.get("ok", false)) or non_expected_errors > 0
+	var has_warnings: bool = warning_count > 0 or String(readiness.get("status", "")) == "playable_with_warnings"
+	var status: String = "blocked" if blocked else ("warning" if has_warnings else "ready")
 	return {"ok":true,"status":status,"message":"Manual promotion required. No mission files were modified.","checks":checks,"promotion_package":{"patch":Dictionary(patch_export.get("patch", {})),"design_notes":Dictionary(notes.get("notes", {})),"summary":{"readiness":String(readiness.get("status", "unknown"))},"manual_steps":["Review design notes","Review patch JSON","Promote manually in controlled pipeline"],"warnings":[]},"recommended_actions":[]}
 
 func _preview_map_constructor_entry_set(entries: Array, anchor_cell: Vector2i, options: Dictionary = {}) -> Dictionary:
@@ -9824,6 +9907,7 @@ func _preview_map_constructor_entry_set(entries: Array, anchor_cell: Vector2i, o
 
 func _apply_map_constructor_entry_set(entries: Array, anchor_cell: Vector2i, options: Dictionary = {}) -> Dictionary:
 	var preview: Dictionary = _preview_map_constructor_entry_set(entries, anchor_cell, options)
+	var warnings: Array[String] = Array(preview.get("warnings", []))
 	if not bool(preview.get("can_apply", false)):
 		preview["ok"] = false
 		preview["message"] = "Apply blocked by conflicts."
@@ -9836,4 +9920,15 @@ func _apply_map_constructor_entry_set(entries: Array, anchor_cell: Vector2i, opt
 		var placed: Dictionary = place_map_constructor_prefab(String(entry.get("prefab_id", "")), cell, wall_side)
 		if bool(placed.get("ok", false)):
 			placed_count += 1
-	return {"ok": true, "placed_count": placed_count, "warnings": Array(preview.get("warnings", []))}
+			var properties: Dictionary = Dictionary(entry.get("properties", {}))
+			if not properties.is_empty():
+				var placed_object_id: String = String(placed.get("object_id", ""))
+				if placed_object_id.is_empty():
+					warnings.append("Properties not applied: placement result did not include entity id.")
+				else:
+					for property_name_variant in properties.keys():
+						var property_name: String = String(property_name_variant)
+						var update_result: Dictionary = apply_map_constructor_property_update("world_object", placed_object_id, property_name, properties.get(property_name_variant))
+						if not bool(update_result.get("ok", false)):
+							warnings.append("Property '%s' not applied for %s." % [property_name, placed_object_id])
+	return {"ok": true, "placed_count": placed_count, "warnings": warnings}
