@@ -901,14 +901,16 @@ func _get_color_from_dict(data: Dictionary, key: String, fallback: Color) -> Col
 		return value
 	return fallback
 
-func get_iso_texture_draw_position(cell: Vector2i, texture: Texture2D) -> Vector2:
-	# Future asset hook: this is a provisional bottom-center-ish alignment.
-	# Final art pivot and per-asset offset tuning will be handled in follow-up PRs.
-	var center: Vector2 = grid_to_iso(cell)
+func get_iso_texture_draw_position_from_center(center: Vector2, texture: Texture2D) -> Vector2:
 	var size: Vector2 = texture.get_size()
 	return center - Vector2(size.x * 0.5, size.y * 0.75)
 
-func draw_iso_texture_asset(cell: Vector2i, asset_key: String) -> bool:
+func get_iso_texture_draw_position(cell: Vector2i, texture: Texture2D) -> Vector2:
+	# Future asset hook: this is a provisional bottom-center-ish alignment.
+	# Final art pivot and per-asset offset tuning will be handled in follow-up PRs.
+	return get_iso_texture_draw_position_from_center(grid_to_iso(cell), texture)
+
+func draw_iso_texture_asset(cell: Vector2i, asset_key: String, visual_center_override: Vector2 = Vector2.INF) -> bool:
 	# Asset hooks are optional. Procedural fallback remains the default path.
 	if not should_use_iso_tile_asset_hook_visuals():
 		return false
@@ -917,7 +919,10 @@ func draw_iso_texture_asset(cell: Vector2i, asset_key: String) -> bool:
 	var texture: Texture2D = get_iso_texture_for_asset_key(asset_key)
 	if texture == null:
 		return false
-	var draw_position: Vector2 = get_iso_texture_draw_position(cell, texture)
+	var visual_center: Vector2 = grid_to_iso(cell)
+	if visual_center_override != Vector2.INF:
+		visual_center = visual_center_override
+	var draw_position: Vector2 = get_iso_texture_draw_position_from_center(visual_center, texture)
 	draw_texture(texture, draw_position)
 	return true
 
@@ -1431,8 +1436,60 @@ func get_iso_object_profile(profile_key: String) -> Dictionary:
 		"shape": str(profile.get("shape", "small_marker"))
 	}
 
-func draw_iso_object_slab(cell: Vector2i, profile: Dictionary) -> void:
+
+func _try_parse_cell_variant(cell_variant: Variant, fallback: Vector2i = Vector2i(-1, -1)) -> Vector2i:
+	if cell_variant is Vector2i:
+		return Vector2i(cell_variant)
+	if cell_variant is Vector2:
+		var cell_vec2: Vector2 = Vector2(cell_variant)
+		return Vector2i(int(round(cell_vec2.x)), int(round(cell_vec2.y)))
+	if cell_variant is Array:
+		var values: Array = Array(cell_variant)
+		if values.size() >= 2:
+			return Vector2i(int(values[0]), int(values[1]))
+	if cell_variant is String:
+		var tokens: PackedStringArray = String(cell_variant).strip_edges().split(",", false)
+		if tokens.size() == 2:
+			return Vector2i(int(tokens[0]), int(tokens[1]))
+	return fallback
+
+func get_wall_mounted_visual_offset(metadata: Dictionary) -> Vector2:
+	var wall_side: String = String(metadata.get("wall_side", "")).to_lower().strip_edges()
+	var half_size: Vector2 = get_iso_tile_half_size()
+	var x_offset: float = half_size.x * 0.34
+	var y_offset: float = half_size.y * 0.2
+	match wall_side:
+		"north":
+			return Vector2(0.0, -y_offset)
+		"south":
+			return Vector2(0.0, y_offset)
+		"east":
+			return Vector2(x_offset, 0.0)
+		"west":
+			return Vector2(-x_offset, 0.0)
+	return Vector2.ZERO
+
+func get_world_object_visual_position(cell: Vector2i) -> Vector2:
+	var base_center: Vector2 = grid_to_iso(cell)
+	var metadata: Dictionary = get_wall_metadata_for_cell(cell)
+	if metadata.is_empty():
+		return base_center
+	var placement_mode: String = String(metadata.get("placement_mode", "")).to_lower().strip_edges()
+	if placement_mode != "wall_mounted":
+		return base_center
+	var anchor_cell: Vector2i = _try_parse_cell_variant(metadata.get("anchor_floor_cell", cell), cell)
+	var attached_wall_cell: Vector2i = _try_parse_cell_variant(metadata.get("attached_wall_cell", Vector2i(-1, -1)), Vector2i(-1, -1))
+	var wall_side: String = String(metadata.get("wall_side", "")).to_lower().strip_edges()
+	if wall_side.is_empty() or attached_wall_cell.x < 0 or attached_wall_cell.y < 0:
+		return base_center
+	if anchor_cell != cell:
+		return base_center
+	return base_center + get_wall_mounted_visual_offset(metadata)
+
+func draw_iso_object_slab(cell: Vector2i, profile: Dictionary, visual_center_override: Vector2 = Vector2.INF) -> void:
 	var center: Vector2 = grid_to_iso(cell)
+	if visual_center_override != Vector2.INF:
+		center = visual_center_override
 	var diamond: PackedVector2Array = get_iso_diamond_points(cell)
 	if diamond.size() < 4:
 		return
@@ -1454,8 +1511,10 @@ func draw_iso_object_slab(cell: Vector2i, profile: Dictionary) -> void:
 			var next_idx: int = (edge_idx + 1) % slab_points.size()
 			draw_line(slab_points[edge_idx], slab_points[next_idx], outline_color, 1.0)
 
-func draw_iso_object_pillar(cell: Vector2i, profile: Dictionary) -> void:
+func draw_iso_object_pillar(cell: Vector2i, profile: Dictionary, visual_center_override: Vector2 = Vector2.INF) -> void:
 	var center: Vector2 = grid_to_iso(cell)
+	if visual_center_override != Vector2.INF:
+		center = visual_center_override
 	var marker_height: float = maxf(iso_object_marker_height, 1.0)
 	var half_width: float = maxf(get_iso_tile_half_size().x * 0.12, 3.0)
 	var base_bottom: Vector2 = center + Vector2(0.0, -3.0)
@@ -1475,8 +1534,10 @@ func draw_iso_object_pillar(cell: Vector2i, profile: Dictionary) -> void:
 			var next_idx: int = (edge_idx + 1) % body_points.size()
 			draw_line(body_points[edge_idx], body_points[next_idx], outline_color, 1.0)
 
-func draw_iso_object_door_panel(cell: Vector2i, profile: Dictionary) -> void:
+func draw_iso_object_door_panel(cell: Vector2i, profile: Dictionary, visual_center_override: Vector2 = Vector2.INF) -> void:
 	var center: Vector2 = grid_to_iso(cell)
+	if visual_center_override != Vector2.INF:
+		center = visual_center_override
 	var marker_height: float = maxf(iso_object_marker_height + 12.0, 18.0)
 	var half_width: float = maxf(get_iso_tile_half_size().x * 0.11, 6.0)
 	var panel_bottom: Vector2 = center + Vector2(0.0, -5.0)
@@ -1506,8 +1567,10 @@ func draw_iso_object_door_panel(cell: Vector2i, profile: Dictionary) -> void:
 			var next_idx: int = (edge_idx + 1) % body_points.size()
 			draw_line(body_points[edge_idx], body_points[next_idx], outline_color, 1.0)
 
-func draw_iso_object_terminal_console(cell: Vector2i, profile: Dictionary) -> void:
+func draw_iso_object_terminal_console(cell: Vector2i, profile: Dictionary, visual_center_override: Vector2 = Vector2.INF) -> void:
 	var center: Vector2 = grid_to_iso(cell)
+	if visual_center_override != Vector2.INF:
+		center = visual_center_override
 	var body_height: float = maxf(iso_object_marker_height + 2.0, 12.0)
 	var body_half_width: float = maxf(get_iso_tile_half_size().x * 0.11, 5.0)
 	var body_bottom: Vector2 = center + Vector2(0.0, -3.0)
@@ -1531,8 +1594,11 @@ func draw_iso_object_terminal_console(cell: Vector2i, profile: Dictionary) -> vo
 			draw_line(body[edge_idx], body[next_idx], outline_color, 1.0)
 		draw_rect(screen, outline_color, false, 1.0)
 
-func draw_iso_object_small_marker(cell: Vector2i, profile: Dictionary) -> void:
-	var center: Vector2 = grid_to_iso(cell) + Vector2(0.0, -6.0)
+func draw_iso_object_small_marker(cell: Vector2i, profile: Dictionary, visual_center_override: Vector2 = Vector2.INF) -> void:
+	var center: Vector2 = grid_to_iso(cell)
+	if visual_center_override != Vector2.INF:
+		center = visual_center_override
+	center += Vector2(0.0, -6.0)
 	var radius: float = maxf(get_iso_tile_half_size().y * 0.16, 3.0)
 	var base_color: Color = _get_color_from_dict(profile, "base", Color.WHITE)
 	var accent_color: Color = _get_color_from_dict(profile, "accent", Color.WHITE)
@@ -1542,8 +1608,11 @@ func draw_iso_object_small_marker(cell: Vector2i, profile: Dictionary) -> void:
 	if debug_draw_iso_object_outlines:
 		draw_arc(center, radius, 0.0, PI * 2.0, 24, outline_color, 1.0)
 
-func draw_iso_object_line(cell: Vector2i, profile: Dictionary) -> void:
-	var center: Vector2 = grid_to_iso(cell) + Vector2(0.0, -4.0)
+func draw_iso_object_line(cell: Vector2i, profile: Dictionary, visual_center_override: Vector2 = Vector2.INF) -> void:
+	var center: Vector2 = grid_to_iso(cell)
+	if visual_center_override != Vector2.INF:
+		center = visual_center_override
+	center += Vector2(0.0, -4.0)
 	var half_width: float = maxf(get_iso_tile_half_size().x * 0.26, 8.0)
 	var line_start: Vector2 = center + Vector2(-half_width, 0.0)
 	var line_end: Vector2 = center + Vector2(half_width, 0.0)
@@ -1555,8 +1624,11 @@ func draw_iso_object_line(cell: Vector2i, profile: Dictionary) -> void:
 	if debug_draw_iso_object_outlines:
 		draw_line(line_start, line_end, outline_color, 1.0)
 
-func draw_iso_object_heat_marker(cell: Vector2i, profile: Dictionary) -> void:
-	var center: Vector2 = grid_to_iso(cell) + Vector2(0.0, -7.0)
+func draw_iso_object_heat_marker(cell: Vector2i, profile: Dictionary, visual_center_override: Vector2 = Vector2.INF) -> void:
+	var center: Vector2 = grid_to_iso(cell)
+	if visual_center_override != Vector2.INF:
+		center = visual_center_override
+	center += Vector2(0.0, -7.0)
 	var radius: float = maxf(get_iso_tile_half_size().y * 0.18, 3.5)
 	var base_color: Color = _get_color_from_dict(profile, "base", Color.WHITE)
 	var accent_color: Color = _get_color_from_dict(profile, "accent", Color.WHITE)
@@ -1567,9 +1639,10 @@ func draw_iso_object_heat_marker(cell: Vector2i, profile: Dictionary) -> void:
 		draw_arc(center, radius, 0.0, PI * 2.0, 24, outline_color, 1.0)
 
 func draw_iso_object_marker(cell: Vector2i, tile_type: int) -> void:
+	var visual_center: Vector2 = get_world_object_visual_position(cell)
 	var profile_key: String = get_iso_object_profile_key_for_tile(tile_type)
 	var object_asset_key: String = get_iso_object_asset_key_for_profile(profile_key)
-	if draw_iso_texture_asset(cell, object_asset_key):
+	if draw_iso_texture_asset(cell, object_asset_key, visual_center):
 		return
 	var profile: Dictionary = get_iso_object_profile(profile_key)
 	var shape: String = str(profile.get("shape", "small_marker"))
@@ -1588,19 +1661,19 @@ func draw_iso_object_marker(cell: Vector2i, tile_type: int) -> void:
 			profile["accent"] = Color(0.5, 0.9, 1.0, 0.99)
 			profile["outline"] = Color(0.07, 0.14, 0.2, 0.94)
 	if shape == "slab":
-		draw_iso_object_slab(cell, profile)
+		draw_iso_object_slab(cell, profile, visual_center)
 	elif shape == "door_panel":
-		draw_iso_object_door_panel(cell, profile)
+		draw_iso_object_door_panel(cell, profile, visual_center)
 	elif shape == "pillar":
-		draw_iso_object_pillar(cell, profile)
+		draw_iso_object_pillar(cell, profile, visual_center)
 	elif shape == "terminal_console":
-		draw_iso_object_terminal_console(cell, profile)
+		draw_iso_object_terminal_console(cell, profile, visual_center)
 	elif shape == "line":
-		draw_iso_object_line(cell, profile)
+		draw_iso_object_line(cell, profile, visual_center)
 	elif shape == "heat_marker":
-		draw_iso_object_heat_marker(cell, profile)
+		draw_iso_object_heat_marker(cell, profile, visual_center)
 	else:
-		draw_iso_object_small_marker(cell, profile)
+		draw_iso_object_small_marker(cell, profile, visual_center)
 
 func draw_iso_object_prototype() -> void:
 	# Visual-only procedural object prototype pass for interactive tile markers.
