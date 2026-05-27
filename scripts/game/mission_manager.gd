@@ -677,11 +677,11 @@ func can_place_map_constructor_prefab(prefab_id: String, cell: Vector2i) -> Dict
 		result["reason"] = "wall_or_static"
 		result["message"] = "Blocked: wall/static obstacle."
 		return result
-	if not tile_is_floor_like and not tile_is_exit:
-		if (prefab_is_item or MAP_CONSTRUCTOR_SOLID_PREFABS.has(prefab_id)) and not (prefab_is_wall or prefab_is_door_or_gate or prefab_is_floor_replacement):
-			result["reason"] = "non_floor_tile"
-			result["message"] = "Blocked: non-floor tile."
-			return result
+	var prefab_can_replace_non_floor: bool = prefab_is_wall or prefab_is_door_or_gate or prefab_is_floor_replacement
+	if not tile_is_floor_like and not tile_is_exit and not prefab_can_replace_non_floor:
+		result["reason"] = "non_floor_tile"
+		result["message"] = "Blocked: non-floor tile."
+		return result
 	if (prefab_is_wall or prefab_is_door_or_gate) and not tile_is_floor_like:
 		result["reason"] = "non_floor_tile"
 		result["message"] = "Blocked: non-floor tile."
