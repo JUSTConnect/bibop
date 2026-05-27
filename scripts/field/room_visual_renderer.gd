@@ -1199,15 +1199,24 @@ func _get_iso_world_object_metadata_for_cell(cell: Vector2i) -> Dictionary:
 		return fallback
 	if not mission_manager.has_method("get_world_object_at_cell"):
 		return fallback
-	var metadata_variant: Variant = mission_manager.call("get_world_object_at_cell", cell)
+	var metadata_variant: Variant = mission_manager.call("get_world_object_at_cell", cell, true)
+	if not (metadata_variant is Dictionary):
+		metadata_variant = mission_manager.call("get_world_object_at_cell", cell)
 	if not (metadata_variant is Dictionary):
 		return fallback
 	var metadata: Dictionary = Dictionary(metadata_variant)
-	var object_id: String = String(metadata.get("id", "")).strip_edges()
+	var nested_data: Dictionary = Dictionary(metadata.get("data", {}))
+	var object_id: String = String(metadata.get("object_id", metadata.get("id", ""))).strip_edges()
+	if object_id.is_empty():
+		object_id = String(nested_data.get("id", nested_data.get("object_id", ""))).strip_edges()
 	var object_type: String = String(metadata.get("object_type", metadata.get("type", ""))).strip_edges()
+	if object_type.is_empty():
+		object_type = String(nested_data.get("object_type", nested_data.get("type", ""))).strip_edges()
 	if object_id.is_empty():
 		return fallback
-	return {"ok": true, "object_id": object_id, "object_type": object_type, "data": metadata}
+	if nested_data.is_empty():
+		nested_data = metadata
+	return {"ok": true, "object_id": object_id, "object_type": object_type, "data": nested_data}
 
 func get_wall_object_type_for_cell(cell: Vector2i) -> String:
 	var metadata: Dictionary = get_wall_metadata_for_cell(cell)
