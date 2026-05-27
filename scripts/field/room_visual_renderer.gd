@@ -84,6 +84,9 @@ var selected_iso_cell: Vector2i = Vector2i(-1, -1)
 var selected_iso_route_cells: Array[Vector2i] = []
 var selected_iso_action_cell: Vector2i = Vector2i(-1, -1)
 var map_constructor_preview_cell: Vector2i = Vector2i(-1, -1)
+var map_constructor_preview_attached_wall_cell: Vector2i = Vector2i(-1, -1)
+var map_constructor_preview_wall_side: String = ""
+var map_constructor_preview_is_blocked: bool = false
 
 func set_grid_manager(grid: GridManager) -> void:
 	_grid_manager = grid
@@ -277,6 +280,16 @@ func clear_iso_mouse_selection_visuals() -> void:
 
 func set_map_constructor_preview_cell(cell: Vector2i) -> void:
 	map_constructor_preview_cell = cell
+	map_constructor_preview_attached_wall_cell = Vector2i(-1, -1)
+	map_constructor_preview_wall_side = ""
+	map_constructor_preview_is_blocked = false
+	queue_redraw()
+
+func set_map_constructor_wall_mounted_preview(anchor_cell: Vector2i, attached_wall_cell: Vector2i, wall_side: String, is_blocked: bool = false) -> void:
+	map_constructor_preview_cell = anchor_cell
+	map_constructor_preview_attached_wall_cell = attached_wall_cell
+	map_constructor_preview_wall_side = wall_side
+	map_constructor_preview_is_blocked = is_blocked
 	queue_redraw()
 
 func draw_iso_mouse_selection_overlay() -> void:
@@ -307,10 +320,22 @@ func draw_iso_mouse_selection_overlay() -> void:
 	if map_constructor_preview_cell.x >= 0 and map_constructor_preview_cell.y >= 0:
 		var preview_points: PackedVector2Array = get_iso_inset_diamond_points(map_constructor_preview_cell, iso_floor_visual_inset + 3.0)
 		if preview_points.size() >= 4:
-			draw_colored_polygon(preview_points, Color(0.35, 1.0, 0.45, 0.18))
+			var floor_fill: Color = Color(0.35, 1.0, 0.45, 0.18)
+			var floor_stroke: Color = Color(0.52, 1.0, 0.60, 1.0)
+			if map_constructor_preview_is_blocked:
+				floor_fill = Color(1.0, 0.35, 0.35, 0.18)
+				floor_stroke = Color(1.0, 0.55, 0.55, 1.0)
+			draw_colored_polygon(preview_points, floor_fill)
 			for edge_index in range(preview_points.size()):
 				var next_index: int = (edge_index + 1) % preview_points.size()
-				draw_line(preview_points[edge_index], preview_points[next_index], Color(0.52, 1.0, 0.60, 1.0), 2.2)
+				draw_line(preview_points[edge_index], preview_points[next_index], floor_stroke, 2.2)
+	if map_constructor_preview_attached_wall_cell.x >= 0 and map_constructor_preview_attached_wall_cell.y >= 0:
+		var wall_points: PackedVector2Array = get_iso_inset_diamond_points(map_constructor_preview_attached_wall_cell, iso_floor_visual_inset + 7.0)
+		if wall_points.size() >= 4:
+			draw_colored_polygon(wall_points, Color(0.45, 0.72, 1.0, 0.2))
+			for edge_index in range(wall_points.size()):
+				var next_index: int = (edge_index + 1) % wall_points.size()
+				draw_line(wall_points[edge_index], wall_points[next_index], Color(0.62, 0.86, 1.0, 1.0), 2.0)
 
 func get_iso_depth_key(cell: Vector2i) -> int:
 	return cell.x + cell.y

@@ -1142,18 +1142,37 @@ func _is_wall_or_boundary_cell(cell: Vector2i) -> bool:
 		return true
 	return int(grid_manager.call("get_tile", cell)) == GridManager.TILE_WALL
 
-func _resolve_wall_mounted_attachment(anchor_floor_cell: Vector2i) -> Dictionary:
+func _resolve_wall_mounted_attachment(anchor_floor_cell: Vector2i, preferred_side: String = "") -> Dictionary:
 	if grid_manager == null:
 		return {"ok": false, "reason": "grid_unavailable", "message": "Blocked: grid unavailable."}
+	var valid_attachments: Array[Dictionary] = []
 	for side_entry in MAP_CONSTRUCTOR_WALL_SIDE_DELTAS:
 		var side: String = String(side_entry.get("side", ""))
 		var delta: Vector2i = Vector2i(side_entry.get("delta", Vector2i.ZERO))
 		var wall_cell: Vector2i = anchor_floor_cell + delta
 		if _is_wall_or_boundary_cell(wall_cell):
-			return {"ok": true, "anchor_floor_cell": anchor_floor_cell, "attached_wall_cell": wall_cell, "wall_side": side}
-	return {"ok": false, "reason": "no_adjacent_wall", "message": "Blocked: no adjacent wall.", "anchor_floor_cell": anchor_floor_cell}
+			valid_attachments.append({"side": side, "attached_wall_cell": wall_cell})
+	if valid_attachments.is_empty():
+		return {"ok": false, "reason": "no_adjacent_wall", "message": "Blocked: no adjacent wall.", "anchor_floor_cell": anchor_floor_cell}
+	var selected: Dictionary = valid_attachments[0]
+	var normalized_preferred: String = preferred_side.to_lower().strip_edges()
+	if not normalized_preferred.is_empty():
+		for attachment in valid_attachments:
+			if String(attachment.get("side", "")) == normalized_preferred:
+				selected = attachment
+				break
+	var available_sides: Array[String] = []
+	for attachment in valid_attachments:
+		available_sides.append(String(attachment.get("side", "")))
+	return {
+		"ok": true,
+		"anchor_floor_cell": anchor_floor_cell,
+		"attached_wall_cell": Vector2i(selected.get("attached_wall_cell", Vector2i(-1, -1))),
+		"wall_side": String(selected.get("side", "north")),
+		"available_wall_sides": available_sides
+	}
 
-func can_place_map_constructor_prefab(prefab_id: String, cell: Vector2i) -> Dictionary:
+func can_place_map_constructor_prefab(prefab_id: String, cell: Vector2i, preferred_wall_side: String = "") -> Dictionary:
 	var result: Dictionary = {"ok": false, "reason": "unsupported_prefab", "message": "Blocked: unsupported prefab.", "cell_state": get_runtime_cell_state(cell)}
 	var is_supported: bool = false
 	for entry in get_map_constructor_prefab_catalog():
@@ -1220,7 +1239,7 @@ func can_place_map_constructor_prefab(prefab_id: String, cell: Vector2i) -> Dict
 			result["message"] = "Blocked: exit cell."
 			return result
 	if prefab_is_wall_mounted:
-		var attachment_check: Dictionary = _resolve_wall_mounted_attachment(cell)
+		var attachment_check: Dictionary = _resolve_wall_mounted_attachment(cell, preferred_wall_side)
 		if not bool(attachment_check.get("ok", false)):
 			result["reason"] = String(attachment_check.get("reason", "no_adjacent_wall"))
 			result["message"] = String(attachment_check.get("message", "Blocked: no adjacent wall."))
@@ -1234,6 +1253,7 @@ func can_place_map_constructor_prefab(prefab_id: String, cell: Vector2i) -> Dict
 		result["anchor_floor_cell"] = _serialize_cell_key(cell)
 		result["attached_wall_cell"] = _serialize_cell_key(attached_wall_cell)
 		result["wall_side"] = String(attachment_check.get("wall_side", "north"))
+		result["available_wall_sides"] = Array(attachment_check.get("available_wall_sides", []))
 	if prefab_id != "powered_gate":
 		var tile_name: String = String(cell_state.get("tile_name", "")).to_lower()
 		if tile_name.find("exit") >= 0 or tile_name.find("extraction") >= 0:
@@ -1245,8 +1265,8 @@ func can_place_map_constructor_prefab(prefab_id: String, cell: Vector2i) -> Dict
 	result["message"] = "OK"
 	return result
 
-func place_map_constructor_prefab(prefab_id: String, cell: Vector2i) -> Dictionary:
-	var check: Dictionary = can_place_map_constructor_prefab(prefab_id, cell)
+func place_map_constructor_prefab(prefab_id: String, cell: Vector2i, preferred_wall_side: String = "") -> Dictionary:
+	var check: Dictionary = can_place_map_constructor_prefab(prefab_id, cell, preferred_wall_side)
 	if not bool(check.get("ok", false)):
 		return check
 	var result: Dictionary = {"ok": true, "message": "Placed %s." % prefab_id, "object_id": "", "warnings": []}
@@ -1306,7 +1326,7 @@ func place_map_constructor_prefab(prefab_id: String, cell: Vector2i) -> Dictiona
 		"map_constructor_previous_tile_type": previous_tile_type
 	}
 	if bool(MAP_CONSTRUCTOR_WALL_MOUNTED_PREFABS.get(prefab_id, false)):
-		var attachment: Dictionary = _resolve_wall_mounted_attachment(cell)
+		var attachment: Dictionary = _resolve_wall_mounted_attachment(cell, preferred_wall_side)
 		if not bool(attachment.get("ok", false)):
 			return {"ok": false, "reason": String(attachment.get("reason", "no_adjacent_wall")), "message": String(attachment.get("message", "Blocked: no adjacent wall.")), "object_id": "", "warnings": []}
 		var attached_wall_cell: Vector2i = Vector2i(attachment.get("attached_wall_cell", Vector2i(-1, -1)))
