@@ -2094,6 +2094,126 @@ func apply_map_constructor_state_preset(entity_kind: String, entity_id: String, 
 	return {"ok": true, "message": "Preset %s applied." % lower_preset, "entity_id": entity_id, "preset": lower_preset}
 
 
+
+func _map_constructor_matches_any_token(text: String, tokens: Array[String]) -> bool:
+	var lower: String = text.to_lower()
+	for token in tokens:
+		if lower.contains(token):
+			return true
+	return false
+
+func get_map_constructor_entity_type_group(entity_kind: String, entity_id: String) -> String:
+	var entity: Dictionary = get_map_constructor_entity_by_id(entity_kind, entity_id)
+	if not bool(entity.get("ok", false)):
+		return "generic"
+	var data: Dictionary = Dictionary(entity.get("data", {}))
+	var object_type: String = String(data.get("object_type", data.get("item_type", ""))).to_lower()
+	var object_group: String = String(data.get("object_group", data.get("group", ""))).to_lower()
+	var category: String = String(data.get("category", "")).to_lower()
+	var placement_mode: String = String(data.get("placement_mode", "")).to_lower()
+	var prefab_id: String = String(data.get("map_constructor_prefab_id", "")).to_lower()
+	var join_text: String = "%s %s %s %s %s %s" % [object_type, object_group, category, placement_mode, prefab_id, entity_id.to_lower()]
+	if _map_constructor_matches_any_token(join_text, ["outer_wall","brick_wall","concrete_wall","steel_wall","grate_wall"]): return "wall"
+	if _map_constructor_matches_any_token(join_text, ["door","gate"]): return "door"
+	if _map_constructor_matches_any_token(join_text, ["terminal"]): return "terminal"
+	if _map_constructor_matches_any_token(join_text, ["power_source","power_socket","power_cable","circuit_switch","circuit_breaker","fuse_box"]): return "power"
+	if _map_constructor_matches_any_token(join_text, ["control", "platform", "fan", "switch"]): return "control"
+	if entity_kind == "item" or _map_constructor_matches_any_token(join_text, ["mechanical_key","digital_key","access_code","fuse","cable","datafile"]): return "item"
+	return "generic"
+
+func get_map_constructor_property_presets(entity_kind: String, entity_id: String) -> Array[Dictionary]:
+	var group: String = get_map_constructor_entity_type_group(entity_kind, entity_id)
+	match group:
+		"door": return [{"id":"open","label":"Open","group":"Door","description":"Door is open and unlocked."},{"id":"closed","label":"Closed","group":"Door","description":"Door is closed and unlocked."},{"id":"locked","label":"Locked","group":"Door","description":"Door is closed and locked."},{"id":"jammed","label":"Jammed","group":"Door","description":"Door is jammed/damaged."}]
+		"terminal": return [{"id":"linked","label":"Linked","group":"Terminal","description":"Terminal set active."},{"id":"unlinked","label":"Unlinked","group":"Terminal","description":"Clears linked targets."},{"id":"damaged","label":"Damaged","group":"Terminal","description":"Marks terminal damaged."},{"id":"encrypted","label":"Encrypted","group":"Terminal","description":"Marks terminal encrypted."}]
+		"power": return [{"id":"powered","label":"Powered","group":"Power","description":"Active powered state."},{"id":"unpowered","label":"Unpowered","group":"Power","description":"Unpowered state."},{"id":"broken","label":"Broken","group":"Power","description":"Broken/damaged state."}]
+		"item": return [{"id":"mechanical_key","label":"Mechanical Key","group":"Item","description":"Set item subtype to mechanical key."},{"id":"digital_key","label":"Digital Key","group":"Item","description":"Set item subtype to digital key."},{"id":"access_code","label":"Access Code","group":"Item","description":"Set item subtype to access code."},{"id":"fuse","label":"Fuse","group":"Item","description":"Set item subtype to fuse."},{"id":"cable","label":"Cable","group":"Item","description":"Set item subtype to cable."}]
+	return []
+
+func apply_map_constructor_property_preset(entity_kind: String, entity_id: String, preset_id: String) -> Dictionary:
+	var updates: Dictionary = {}
+	var group: String = get_map_constructor_entity_type_group(entity_kind, entity_id)
+	var warning: String = ""
+	match group:
+		"door":
+			if preset_id == "open": updates={"state":"open","is_open":true,"is_locked":false,"damaged":false}
+			elif preset_id == "closed": updates={"state":"closed","is_open":false,"is_locked":false,"damaged":false}
+			elif preset_id == "locked": updates={"state":"locked","is_open":false,"is_locked":true,"damaged":false}
+			elif preset_id == "jammed": updates={"state":"jammed","is_open":false,"is_locked":true,"damaged":true}
+		"terminal":
+			if preset_id == "linked": updates={"state":"active","is_powered":true,"damaged":false,"encrypted":false}
+			elif preset_id == "unlinked": updates={"state":"active","target_door_id":"","target_platform_id":"","linked_terminal_id":"","controls":[]}
+			elif preset_id == "damaged": updates={"state":"damaged","damaged":true}
+			elif preset_id == "encrypted": updates={"state":"encrypted","encrypted":true}
+		"power":
+			if preset_id == "powered": updates={"state":"active","is_powered":true,"damaged":false,"broken":false}
+			elif preset_id == "unpowered": updates={"state":"unpowered","is_powered":false}
+			elif preset_id == "broken": updates={"state":"broken","damaged":true,"broken":true}
+		"item":
+			if preset_id == "mechanical_key": updates={"item_type":"mechanical_key","object_type":"mechanical_key","key_type":"mechanical"}
+			elif preset_id == "digital_key": updates={"item_type":"digital_key","object_type":"digital_key","key_type":"digital"}
+			elif preset_id == "access_code": updates={"item_type":"access_code","object_type":"access_code","digital_payload_type":"access_code"}
+			elif preset_id == "fuse": updates={"item_type":"fuse","object_type":"fuse"}
+			elif preset_id == "cable": updates={"item_type":"power_cable","object_type":"power_cable"}
+	if updates.is_empty():
+		return {"ok": false, "message": "Unsupported preset.", "entity_kind": entity_kind, "entity_id": entity_id}
+	var apply: Dictionary = update_map_constructor_entity_properties(entity_kind, entity_id, updates)
+	if group == "terminal" and preset_id == "linked":
+		var e: Dictionary = get_map_constructor_entity_by_id(entity_kind, entity_id)
+		var d: Dictionary = Dictionary(e.get("data", {}))
+		if String(d.get("target_door_id", "")).is_empty() and String(d.get("target_platform_id", "")).is_empty() and String(d.get("linked_terminal_id", "")).is_empty():
+			warning = "Terminal is active but no linked target selected."
+	return {"ok": bool(apply.get("ok", false)), "message": warning if not warning.is_empty() else String(apply.get("message", "Preset applied.")), "entity_kind": entity_kind, "entity_id": entity_id}
+
+func update_map_constructor_entity_properties(entity_kind: String, entity_id: String, updates: Dictionary) -> Dictionary:
+	var warnings: Array[String] = []
+	for k in updates.keys():
+		if String(k) == "id" or String(k) == "position" or String(k) == "wall_side":
+			warnings.append("Field %s is restricted." % String(k))
+	var safe: Dictionary = updates.duplicate(true)
+	safe.erase("id"); safe.erase("position"); safe.erase("wall_side")
+	for k in safe.keys():
+		var r: Dictionary = apply_map_constructor_property_update(entity_kind, entity_id, String(k), safe[k])
+		if not bool(r.get("ok", false)):
+			return {"ok": false, "message": String(r.get("message", "Update failed.")), "warnings": warnings}
+	return {"ok": true, "message": "Updated properties.", "warnings": warnings}
+
+func get_map_constructor_link_candidates(entity_kind: String, entity_id: String, link_type: String) -> Array[Dictionary]:
+	var field_map := {"linked_door":"target_door_id","power_network":"power_network_id","control_source":"control_source_id","terminal_target":"target_door_id","platform_target":"target_platform_id"}
+	if not field_map.has(link_type): return []
+	var raw: Dictionary = get_map_constructor_link_targets_for_field(entity_kind, entity_id, String(field_map[link_type]))
+	var out: Array[Dictionary] = []
+	for t in Array(raw.get("targets", [])):
+		var td: Dictionary = Dictionary(t)
+		if String(td.get("id", "")) == "__none__": continue
+		out.append({"id":String(td.get("id","")),"label":String(td.get("label","")),"cell":Vector2i(td.get("cell",Vector2i(-1,-1))),"entity_kind":"world_object","object_type":String(td.get("kind","")),"current":false})
+	return out
+
+func set_map_constructor_entity_link(entity_kind: String, entity_id: String, link_type: String, target_id: String) -> Dictionary:
+	var field_map := {"linked_door":"target_door_id","power_network":"power_network_id","control_source":"control_source_id","terminal_target":"target_door_id","platform_target":"target_platform_id"}
+	if not field_map.has(link_type): return {"ok":false,"message":"Unsupported link type.","target_id":target_id}
+	var apply: Dictionary = apply_map_constructor_link_target(entity_kind, entity_id, String(field_map[link_type]), target_id)
+	var target_cell: Vector2i = Vector2i(-1, -1)
+	var target_entity: Dictionary = get_map_constructor_entity_by_id("world_object", target_id)
+	if bool(target_entity.get("ok", false)): target_cell = Vector2i(target_entity.get("cell", Vector2i(-1, -1)))
+	return {"ok":bool(apply.get("ok",false)),"message":String(apply.get("message","Link updated.")),"target_cell":target_cell,"target_id":target_id}
+
+func validate_map_constructor_entity_links(entity_kind: String, entity_id: String) -> Dictionary:
+	var warnings: Array[String] = []
+	var missing: Array[String] = []
+	var linked: Array[String] = []
+	var entity: Dictionary = get_map_constructor_entity_by_id(entity_kind, entity_id)
+	if not bool(entity.get("ok", false)):
+		return {"ok": false, "warnings": ["Entity not found."], "missing_links": [], "linked_targets": []}
+	var data: Dictionary = Dictionary(entity.get("data", {}))
+	for key in ["target_door_id","linked_terminal_id","control_source_id","required_key_id"]:
+		var tid: String = String(data.get(key, "")).strip_edges()
+		if tid.is_empty():
+			continue
+		linked.append(tid)
+		if not bool(get_map_constructor_entity_by_id("", tid).get("ok", false)):
+			warnings.append("Missing link target for %s: %s" % [key, tid]); missing.append(key)
+	return {"ok": missing.is_empty(), "warnings": warnings, "missing_links": missing, "linked_targets": linked}
 func is_task_test_expected_invalid_object_id(object_id: String) -> bool:
 	match object_id:
 		"task_test_control_missing_source", "task_test_control_invalid_source", "task_test_powered_gate_unpowered", "task_test_platform_lift":
