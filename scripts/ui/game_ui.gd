@@ -8984,6 +8984,11 @@ func _update_map_constructor_preview_for_cell(cell: Vector2i) -> Dictionary:
 		available_map_constructor_wall_sides.append(String(side_variant))
 	if selected_map_constructor_wall_side.is_empty() and not available_map_constructor_wall_sides.is_empty():
 		selected_map_constructor_wall_side = available_map_constructor_wall_sides[0]
+	elif not selected_map_constructor_wall_side.is_empty() and not available_map_constructor_wall_sides.has(selected_map_constructor_wall_side):
+		if not available_map_constructor_wall_sides.is_empty():
+			selected_map_constructor_wall_side = available_map_constructor_wall_sides[0]
+		else:
+			selected_map_constructor_wall_side = ""
 	if field_runtime != null:
 		var renderer: Node = field_runtime.get_node_or_null("RoomVisualRenderer")
 		if renderer != null and renderer.has_method("set_map_constructor_wall_mounted_preview") and String(check.get("placement_mode", "")) == "wall_mounted":
@@ -8994,6 +8999,61 @@ func _update_map_constructor_preview_for_cell(cell: Vector2i) -> Dictionary:
 		elif renderer != null and renderer.has_method("set_map_constructor_preview_cell"):
 			renderer.call("set_map_constructor_preview_cell", cell)
 	return check
+
+func _get_map_constructor_wall_side_label(side_id: String) -> String:
+	match side_id:
+		"north":
+			return "North"
+		"east":
+			return "East"
+		"south":
+			return "South"
+		"west":
+			return "West"
+		_:
+			return side_id.capitalize()
+
+func _create_map_constructor_wall_side_picker(placement_mode: String) -> Control:
+	var root: VBoxContainer = VBoxContainer.new()
+	root.add_theme_constant_override("separation", 4)
+	if placement_mode != "wall_mounted":
+		return root
+	var title: Label = Label.new()
+	title.text = "Wall Side"
+	root.add_child(title)
+	var row: HBoxContainer = HBoxContainer.new()
+	row.add_theme_constant_override("separation", 4)
+	var canonical_sides: Array[String] = ["north", "east", "south", "west"]
+	for side_id in canonical_sides:
+		var side_button: Button = Button.new()
+		side_button.text = _get_map_constructor_wall_side_label(side_id)
+		side_button.toggle_mode = true
+		side_button.button_pressed = selected_map_constructor_wall_side == side_id
+		var available: bool = available_map_constructor_wall_sides.has(side_id)
+		side_button.disabled = not available
+		side_button.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+		side_button.pressed.connect(func() -> void:
+			if not available_map_constructor_wall_sides.has(side_id):
+				show_hint("Wall side %s is not available for this cell." % _get_map_constructor_wall_side_label(side_id))
+				return
+			selected_map_constructor_wall_side = side_id
+			if pending_map_constructor_cell.x >= 0 and pending_map_constructor_cell.y >= 0:
+				_update_map_constructor_preview_for_cell(pending_map_constructor_cell)
+			_refresh_map_constructor_panels()
+		)
+		row.add_child(side_button)
+	root.add_child(row)
+	var selected_label: Label = Label.new()
+	if selected_map_constructor_wall_side.is_empty():
+		selected_label.text = "Selected: n/a"
+	else:
+		selected_label.text = "Selected: %s" % _get_map_constructor_wall_side_label(selected_map_constructor_wall_side)
+	root.add_child(selected_label)
+	if available_map_constructor_wall_sides.is_empty():
+		var hint_label_local: Label = Label.new()
+		hint_label_local.text = "No wall sides available for this target."
+		root.add_child(hint_label_local)
+	return root
 
 func _cycle_map_constructor_wall_side() -> void:
 	if available_map_constructor_wall_sides.size() <= 1:
@@ -9127,6 +9187,7 @@ func _refresh_map_constructor_panels() -> void:
 	if pending_map_constructor_cell.x >= 0 and pending_map_constructor_cell.y >= 0 and not selected_map_constructor_prefab_id.is_empty():
 		if mission_manager_runtime != null and mission_manager_runtime.has_method("can_place_map_constructor_prefab"):
 			var check: Dictionary = _update_map_constructor_preview_for_cell(pending_map_constructor_cell)
+			list.add_child(_create_map_constructor_wall_side_picker(String(check.get("placement_mode", ""))))
 			var reason: String = String(check.get("reason", "unsupported_prefab"))
 			match reason:
 				"ok":
@@ -9144,7 +9205,7 @@ func _refresh_map_constructor_panels() -> void:
 				_:
 					placement_label.text = "Placement: blocked: unsupported prefab"
 			if String(check.get("placement_mode", "")) == "wall_mounted":
-				placement_label.text += "\nWall side: %s (R to cycle)" % String(check.get("wall_side", selected_map_constructor_wall_side))
+				placement_label.text += "\nWall side: %s (R to cycle)" % _get_map_constructor_wall_side_label(String(check.get("wall_side", selected_map_constructor_wall_side)))
 	list.add_child(placement_label)
 	var audit_label: Label = Label.new()
 	audit_label.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
@@ -9459,6 +9520,15 @@ func _show_map_constructor_inspector(cell: Vector2i) -> void:
 		str(Vector2i(entity_info.get("cell", cell)))
 	]
 	v.add_child(header)
+	if String(entity_data.get("placement_mode", "")) == "wall_mounted":
+		var entity_wall_side: String = String(entity_data.get("wall_side", "")).to_lower()
+		if selected_map_constructor_wall_side.is_empty() and not entity_wall_side.is_empty():
+			selected_map_constructor_wall_side = entity_wall_side
+		var inspector_side_label: Label = Label.new()
+		inspector_side_label.text = "wall_side: %s" % _get_map_constructor_wall_side_label(entity_wall_side)
+		v.add_child(inspector_side_label)
+		available_map_constructor_wall_sides = ["north", "east", "south", "west"]
+		v.add_child(_create_map_constructor_wall_side_picker("wall_mounted"))
 	if mission_manager_runtime.has_method("get_map_constructor_validation_overlay"):
 		var overlay_data: Dictionary = mission_manager_runtime.call("get_map_constructor_validation_overlay")
 		var object_rows: Dictionary = Dictionary(overlay_data.get("objects", {}))
