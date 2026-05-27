@@ -1526,6 +1526,62 @@ func get_map_constructor_editable_entity_at_cell(cell: Vector2i) -> Dictionary:
 		return {"ok": true, "entity_kind": "item", "id": String(item_data.get("id", "")), "cell": cell, "data": item_data}
 	return {"ok": false, "reason": "empty_cell"}
 
+
+func get_map_constructor_placed_object_rows() -> Array[Dictionary]:
+	var rows: Array[Dictionary] = []
+	for object_data_variant in mission_world_objects:
+		if typeof(object_data_variant) != TYPE_DICTIONARY:
+			continue
+		var object_data: Dictionary = Dictionary(object_data_variant)
+		var row_cell: Vector2i = Vector2i(object_data.get("position", Vector2i(-1, -1)))
+		var object_type: String = String(object_data.get("object_type", "object"))
+		var prefab_id: String = String(object_data.get("map_constructor_prefab_id", object_type))
+		var placement_mode: String = String(object_data.get("placement_mode", "floor"))
+		var row: Dictionary = {
+			"entity_kind": "world_object",
+			"id": String(object_data.get("id", "")),
+			"type_or_prefab": prefab_id,
+			"cell": row_cell,
+			"anchor_floor_cell": row_cell,
+			"category_or_placement": String(object_data.get("category", placement_mode.capitalize())),
+			"placement_mode": placement_mode,
+			"attached_wall_cell": Vector2i(-1, -1),
+			"wall_side": String(object_data.get("wall_side", ""))
+		}
+		if placement_mode == "wall_mounted":
+			row["anchor_floor_cell"] = _deserialize_cell_variant(object_data.get("anchor_floor_cell", row_cell))
+			row["attached_wall_cell"] = _deserialize_cell_variant(object_data.get("attached_wall_cell", Vector2i(-1, -1)))
+		rows.append(row)
+	for cell_variant in cell_items.keys():
+		var cell: Vector2i = Vector2i(cell_variant)
+		for item_variant in Array(cell_items.get(cell_variant, [])):
+			if typeof(item_variant) != TYPE_DICTIONARY:
+				continue
+			var item_data: Dictionary = Dictionary(item_variant)
+			rows.append({
+				"entity_kind": "item",
+				"id": String(item_data.get("id", "")),
+				"type_or_prefab": String(item_data.get("item_type", item_data.get("map_constructor_prefab_id", item_data.get("object_type", "item")))),
+				"cell": cell,
+				"anchor_floor_cell": cell,
+				"category_or_placement": "item",
+				"placement_mode": "item",
+				"attached_wall_cell": Vector2i(-1, -1),
+				"wall_side": ""
+			})
+	rows.sort_custom(func(a: Dictionary, b: Dictionary) -> bool:
+		var ay: int = int(Vector2i(a.get("anchor_floor_cell", Vector2i.ZERO)).y)
+		var by: int = int(Vector2i(b.get("anchor_floor_cell", Vector2i.ZERO)).y)
+		if ay == by:
+			var ax: int = int(Vector2i(a.get("anchor_floor_cell", Vector2i.ZERO)).x)
+			var bx: int = int(Vector2i(b.get("anchor_floor_cell", Vector2i.ZERO)).x)
+			if ax == bx:
+				return String(a.get("id", "")) < String(b.get("id", ""))
+			return ax < bx
+		return ay < by
+	)
+	return rows
+
 func get_map_constructor_entity_by_id(entity_kind: String, entity_id: String) -> Dictionary:
 	if entity_kind.is_empty():
 		var world_entity: Dictionary = get_map_constructor_entity_by_id("world_object", entity_id)
