@@ -3353,14 +3353,26 @@ func get_map_constructor_door_visual_state(object_id: String) -> Dictionary:
 	var preset_override: Dictionary = Dictionary(map_constructor_door_visual_preset_overrides.get(normalized_id, {}))
 	var room_visual_preset_id: String = String(preset_override.get("preset_id", "")).strip_edges()
 	var room_visual_hint: String = String(preset_override.get("visual_hint", "")).strip_edges()
+	var normalized_room_visual_hint: String = room_visual_hint.to_lower()
 	var created_by_room_visual_preset: bool = bool(preset_override.get("created_by_room_visual_preset", false))
-	if not room_visual_hint.is_empty():
-		if room_visual_hint == "hazard" or room_visual_hint == "power":
+	if not normalized_room_visual_hint.is_empty():
+		var is_hazard_hint: bool = normalized_room_visual_hint.contains("hazard") or normalized_room_visual_hint.contains("power") or normalized_room_visual_hint.contains("alert") or normalized_room_visual_hint.contains("damaged")
+		var is_diag_hint: bool = normalized_room_visual_hint.contains("diag") or normalized_room_visual_hint.contains("blue") or normalized_room_visual_hint.contains("clean") or normalized_room_visual_hint.contains("cool")
+		var is_security_hint: bool = normalized_room_visual_hint.contains("security") or normalized_room_visual_hint.contains("reinforced")
+		var is_maintenance_hint: bool = normalized_room_visual_hint.contains("maintenance") or normalized_room_visual_hint.contains("dark") or normalized_room_visual_hint.contains("service")
+		if is_hazard_hint:
 			tint = _blend_color(tint, Color(0.95, 0.84, 0.38, 0.95), 0.18)
 			accent = _blend_color(accent, Color(0.44, 0.9, 1.0, 0.98), 0.16)
-		elif room_visual_hint == "cold" or room_visual_hint == "cooling":
+		elif is_diag_hint:
 			tint = _blend_color(tint, Color(0.7, 0.88, 1.0, 0.94), 0.18)
 			accent = _blend_color(accent, Color(0.55, 0.96, 1.0, 0.98), 0.16)
+		elif is_security_hint:
+			tint = _blend_color(tint, Color(0.72, 0.78, 0.86, 0.95), 0.18)
+			accent = _blend_color(accent, Color(0.56, 0.66, 0.78, 0.98), 0.16)
+		elif is_maintenance_hint:
+			tint = _blend_color(tint, Color(0.28, 0.31, 0.36, 0.95), 0.18)
+			accent = _blend_color(accent, Color(0.38, 0.45, 0.54, 0.98), 0.16)
+		room_visual_hint = normalized_room_visual_hint
 	return {"ok": true, "object_id": normalized_id, "state": state, "badges": badges, "tint": tint, "accent": accent, "texture_asset_id": "door_state_generic", "room_visual_preset_id": room_visual_preset_id, "room_visual_hint": room_visual_hint, "created_by_room_visual_preset": created_by_room_visual_preset, "message": message}
 
 func get_map_constructor_terminal_visual_state(object_id: String) -> Dictionary:
@@ -3439,14 +3451,26 @@ func get_map_constructor_terminal_visual_state(object_id: String) -> Dictionary:
 	var terminal_preset_override: Dictionary = Dictionary(map_constructor_terminal_visual_preset_overrides.get(normalized_id, {}))
 	var terminal_room_preset_id: String = String(terminal_preset_override.get("preset_id", "")).strip_edges()
 	var terminal_room_visual_hint: String = String(terminal_preset_override.get("visual_hint", "")).strip_edges()
+	var normalized_terminal_room_visual_hint: String = terminal_room_visual_hint.to_lower()
 	var terminal_created_by_room_preset: bool = bool(terminal_preset_override.get("created_by_room_visual_preset", false))
-	if not terminal_room_visual_hint.is_empty():
-		if terminal_room_visual_hint == "hazard" or terminal_room_visual_hint == "power":
+	if not normalized_terminal_room_visual_hint.is_empty():
+		var terminal_is_hazard_hint: bool = normalized_terminal_room_visual_hint.contains("hazard") or normalized_terminal_room_visual_hint.contains("power") or normalized_terminal_room_visual_hint.contains("alert") or normalized_terminal_room_visual_hint.contains("damaged")
+		var terminal_is_diag_hint: bool = normalized_terminal_room_visual_hint.contains("diag") or normalized_terminal_room_visual_hint.contains("blue") or normalized_terminal_room_visual_hint.contains("clean") or normalized_terminal_room_visual_hint.contains("cool")
+		var terminal_is_security_hint: bool = normalized_terminal_room_visual_hint.contains("security") or normalized_terminal_room_visual_hint.contains("reinforced")
+		var terminal_is_maintenance_hint: bool = normalized_terminal_room_visual_hint.contains("maintenance") or normalized_terminal_room_visual_hint.contains("dark") or normalized_terminal_room_visual_hint.contains("service")
+		if terminal_is_hazard_hint:
 			tint = _blend_color(tint, Color(0.98, 0.83, 0.34, 0.94), 0.16)
 			accent = _blend_color(accent, Color(0.44, 0.92, 1.0, 0.98), 0.14)
-		elif terminal_room_visual_hint == "cold" or terminal_room_visual_hint == "cooling":
+		elif terminal_is_diag_hint:
 			tint = _blend_color(tint, Color(0.72, 0.9, 1.0, 0.94), 0.16)
 			accent = _blend_color(accent, Color(0.56, 0.98, 1.0, 0.98), 0.14)
+		elif terminal_is_security_hint:
+			tint = _blend_color(tint, Color(0.7, 0.76, 0.86, 0.95), 0.16)
+			accent = _blend_color(accent, Color(0.54, 0.64, 0.78, 0.98), 0.14)
+		elif terminal_is_maintenance_hint:
+			tint = _blend_color(tint, Color(0.3, 0.33, 0.38, 0.95), 0.16)
+			accent = _blend_color(accent, Color(0.38, 0.46, 0.55, 0.98), 0.14)
+		terminal_room_visual_hint = normalized_terminal_room_visual_hint
 	return {"ok": true, "object_id": normalized_id, "terminal_type": terminal_type, "state": state, "badges": badges, "tint": tint, "accent": accent, "texture_asset_id": "terminal_state_generic", "room_visual_preset_id": terminal_room_preset_id, "room_visual_hint": terminal_room_visual_hint, "created_by_room_visual_preset": terminal_created_by_room_preset, "message": "Terminal visual state resolved."}
 
 func get_map_constructor_property_presets(entity_kind: String, entity_id: String) -> Array[Dictionary]:
