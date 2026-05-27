@@ -1680,6 +1680,34 @@ func draw_iso_wall_terminal_panel(center: Vector2, profile: Dictionary, screen_t
 		draw_rect(body, outline_color, false, 1.0)
 		draw_rect(screen, outline_color, false, 1.0)
 
+func draw_iso_wall_door_terminal(center: Vector2, profile: Dictionary) -> void:
+	draw_iso_wall_terminal_panel(center, profile, Color(0.36, 0.95, 1.0, 0.98))
+	var glow_rect: Rect2 = Rect2(center + Vector2(-5.0, -8.0), Vector2(10.0, 2.0))
+	draw_rect(glow_rect, Color(0.62, 1.0, 1.0, 0.94), true)
+	if debug_draw_iso_object_outlines:
+		draw_rect(glow_rect, _get_color_from_dict(profile, "outline", Color.WHITE), false, 1.0)
+
+func draw_iso_wall_platform_terminal(center: Vector2, profile: Dictionary) -> void:
+	draw_iso_wall_terminal_panel(center, profile, Color(1.0, 0.72, 0.24, 0.98))
+	var indicator_y: float = center.y - 8.5
+	draw_line(center + Vector2(-5.6, indicator_y), center + Vector2(5.6, indicator_y), Color(1.0, 0.86, 0.45, 0.92), 1.5)
+	draw_circle(center + Vector2(4.8, -14.0), 1.1, Color(1.0, 0.56, 0.18, 0.95))
+	if debug_draw_iso_object_outlines:
+		draw_arc(center + Vector2(4.8, -14.0), 1.1, 0.0, PI * 2.0, 12, _get_color_from_dict(profile, "outline", Color.WHITE), 1.0)
+
+func draw_iso_wall_cooling_terminal(center: Vector2, profile: Dictionary) -> void:
+	draw_iso_wall_terminal_panel(center, profile, Color(0.54, 0.82, 1.0, 0.98))
+	for fin_idx in range(3):
+		var fin_x: float = center.x - 4.0 + float(fin_idx) * 3.8
+		draw_line(Vector2(fin_x, center.y - 14.8), Vector2(fin_x, center.y - 4.8), Color(0.82, 0.94, 1.0, 0.78), 1.1)
+
+func draw_iso_wall_firewall_panel(center: Vector2, profile: Dictionary) -> void:
+	draw_iso_wall_terminal_panel(center, profile, Color(1.0, 0.26, 0.22, 0.99))
+	var warning_top: Vector2 = center + Vector2(0.0, -17.0)
+	draw_line(warning_top + Vector2(-5.0, 9.0), warning_top + Vector2(0.0, 0.0), Color(1.0, 0.9, 0.34, 0.98), 1.5)
+	draw_line(warning_top + Vector2(0.0, 0.0), warning_top + Vector2(5.0, 9.0), Color(1.0, 0.9, 0.34, 0.98), 1.5)
+	draw_line(warning_top + Vector2(5.0, 9.0), warning_top + Vector2(-5.0, 9.0), Color(1.0, 0.9, 0.34, 0.98), 1.5)
+
 func draw_iso_wall_breaker_box(center: Vector2, profile: Dictionary) -> void:
 	var base_color: Color = _get_color_from_dict(profile, "base", Color.WHITE)
 	var accent_color: Color = _get_color_from_dict(profile, "accent", Color.WHITE)
@@ -1730,20 +1758,16 @@ func draw_iso_wall_cable_reel(center: Vector2, profile: Dictionary) -> void:
 func draw_wall_mounted_object_shape(cell: Vector2i, profile_key: String, profile: Dictionary, visual_center: Vector2) -> bool:
 	match profile_key:
 		"door_terminal":
-			draw_iso_wall_terminal_panel(visual_center, profile, Color(0.36, 0.95, 1.0, 0.98))
+			draw_iso_wall_door_terminal(visual_center, profile)
 			return true
 		"platform_terminal":
-			draw_iso_wall_terminal_panel(visual_center, profile, Color(0.48, 0.98, 0.8, 0.98))
+			draw_iso_wall_platform_terminal(visual_center, profile)
 			return true
 		"cooling_terminal":
-			draw_iso_wall_terminal_panel(visual_center, profile, Color(0.63, 0.85, 1.0, 0.98))
+			draw_iso_wall_cooling_terminal(visual_center, profile)
 			return true
 		"firewall":
-			draw_iso_wall_terminal_panel(visual_center, profile, Color(1.0, 0.54, 0.2, 0.98))
-			var warning_top: Vector2 = visual_center + Vector2(0.0, -17.0)
-			draw_line(warning_top + Vector2(-5.0, 9.0), warning_top + Vector2(0.0, 0.0), Color(1.0, 0.84, 0.33, 0.95), 1.4)
-			draw_line(warning_top + Vector2(0.0, 0.0), warning_top + Vector2(5.0, 9.0), Color(1.0, 0.84, 0.33, 0.95), 1.4)
-			draw_line(warning_top + Vector2(5.0, 9.0), warning_top + Vector2(-5.0, 9.0), Color(1.0, 0.84, 0.33, 0.95), 1.4)
+			draw_iso_wall_firewall_panel(visual_center, profile)
 			return true
 		"circuit_breaker":
 			draw_iso_wall_breaker_box(visual_center, profile)
