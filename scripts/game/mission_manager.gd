@@ -1239,21 +1239,24 @@ func can_place_map_constructor_prefab(prefab_id: String, cell: Vector2i, preferr
 			result["message"] = "Blocked: exit cell."
 			return result
 	if prefab_is_wall_mounted:
+		result["placement_mode"] = "wall_mounted"
+		result["anchor_floor_cell"] = _serialize_cell_key(cell)
 		var attachment_check: Dictionary = _resolve_wall_mounted_attachment(cell, preferred_wall_side)
+		result["available_wall_sides"] = Array(attachment_check.get("available_wall_sides", []))
+		result["attached_wall_cell"] = "-1,-1"
+		result["wall_side"] = String(attachment_check.get("wall_side", preferred_wall_side))
 		if not bool(attachment_check.get("ok", false)):
 			result["reason"] = String(attachment_check.get("reason", "no_adjacent_wall"))
 			result["message"] = String(attachment_check.get("message", "Blocked: no adjacent wall."))
 			return result
 		var attached_wall_cell: Vector2i = Vector2i(attachment_check.get("attached_wall_cell", Vector2i(-1, -1)))
 		if not _is_wall_or_boundary_cell(attached_wall_cell):
+			result["attached_wall_cell"] = _serialize_cell_key(attached_wall_cell)
 			result["reason"] = "invalid_wall_attachment"
 			result["message"] = "Blocked: attached wall cell is not wall/boundary."
 			return result
-		result["placement_mode"] = "wall_mounted"
-		result["anchor_floor_cell"] = _serialize_cell_key(cell)
 		result["attached_wall_cell"] = _serialize_cell_key(attached_wall_cell)
 		result["wall_side"] = String(attachment_check.get("wall_side", "north"))
-		result["available_wall_sides"] = Array(attachment_check.get("available_wall_sides", []))
 	if prefab_id != "powered_gate":
 		var tile_name: String = String(cell_state.get("tile_name", "")).to_lower()
 		if tile_name.find("exit") >= 0 or tile_name.find("extraction") >= 0:
