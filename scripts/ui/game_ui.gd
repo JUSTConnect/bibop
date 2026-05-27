@@ -9842,7 +9842,7 @@ func _refresh_map_constructor_panels() -> void:
 	power_assign_row.add_child(power_preview_button)
 	power_assign_row.add_child(power_apply_button)
 	list.add_child(power_assign_row)
-	var autofix_undo_button := Button.new()
+	var autofix_undo_button: Button = Button.new()
 	autofix_undo_button.text = "Undo Last Auto-fix"
 	autofix_undo_button.pressed.connect(func() -> void:
 		if mission_manager_runtime == null or not mission_manager_runtime.has_method("undo_last_map_constructor_autofix"):
