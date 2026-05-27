@@ -9903,7 +9903,7 @@ func _add_text_property(section: VBoxContainer, label: String, entity_kind: Stri
 	var line_edit: LineEdit = LineEdit.new()
 	line_edit.text = String(current_value)
 	line_edit.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-	line_edit.text_submitted.connect(func(_text: String) -> void:
+	var apply_text_update := func() -> void:
 		if mission_manager_runtime == null or not mission_manager_runtime.has_method("update_map_constructor_entity_properties"):
 			return
 		var result: Dictionary = mission_manager_runtime.call("update_map_constructor_entity_properties", entity_kind, entity_id, {field_name: line_edit.text})
@@ -9912,8 +9912,19 @@ func _add_text_property(section: VBoxContainer, label: String, entity_kind: Stri
 		if field_runtime != null and field_runtime.has_method("request_visual_refresh"):
 			field_runtime.call("request_visual_refresh")
 		_show_map_constructor_inspector(selected_map_constructor_entity_cell, selected_map_constructor_entity_kind, selected_map_constructor_entity_id)
+	line_edit.text_submitted.connect(func(_text: String) -> void:
+		apply_text_update.call()
 	)
-	section.add_child(_create_property_row(label, line_edit))
+	var apply_button: Button = Button.new()
+	apply_button.text = "Apply"
+	apply_button.pressed.connect(func() -> void:
+		apply_text_update.call()
+	)
+	var row_controls: HBoxContainer = HBoxContainer.new()
+	row_controls.add_theme_constant_override("separation", 6)
+	row_controls.add_child(line_edit)
+	row_controls.add_child(apply_button)
+	section.add_child(_create_property_row(label, row_controls))
 
 func _add_bool_property(section: VBoxContainer, label: String, entity_kind: String, entity_id: String, field_name: String, current_value: Variant) -> void:
 	var check: CheckBox = CheckBox.new()
@@ -9991,10 +10002,23 @@ func _add_link_picker(section: VBoxContainer, entity_kind: String, entity_id: St
 		if current_target.is_empty():
 			show_hint("No linked target.")
 			return
+		if link_type == "power_network" and mission_manager_runtime.has_method("get_map_constructor_link_candidates"):
+			var candidates: Array = Array(mission_manager_runtime.call("get_map_constructor_link_candidates", entity_kind, entity_id, link_type))
+			for candidate_variant in candidates:
+				var candidate: Dictionary = Dictionary(candidate_variant)
+				if String(candidate.get("id", "")) != current_target:
+					continue
+				var candidate_cell: Vector2i = Vector2i(candidate.get("cell", Vector2i(-1, -1)))
+				if candidate_cell.x < 0 or candidate_cell.y < 0:
+					show_hint("Power network has no single map target.")
+					return
+				break
 		if mission_manager_runtime.has_method("get_map_constructor_entity_by_id"):
 			var target_entity: Dictionary = mission_manager_runtime.call("get_map_constructor_entity_by_id", "world_object", current_target)
 			if bool(target_entity.get("ok", false)):
 				_set_map_constructor_link_target(Vector2i(target_entity.get("cell", Vector2i(-1, -1))), current_target)
+			elif link_type == "power_network":
+				show_hint("Power network has no single map target.")
 	)
 	actions.add_child(show_button)
 	var clear_button: Button = Button.new(); clear_button.text = "Clear Link"
@@ -10093,11 +10117,17 @@ func _show_map_constructor_inspector(cell: Vector2i, preferred_entity_kind: Stri
 	if String(data.get("placement_mode", "")) == "wall_mounted" and mission_manager_runtime.has_method("get_map_constructor_wall_mounted_status"):
 		var wm: Dictionary = mission_manager_runtime.call("get_map_constructor_wall_mounted_status", entity_kind, entity_id)
 		_set_map_constructor_wall_mounted_selection(Vector2i(wm.get("anchor_floor_cell", Vector2i(-1,-1))), Vector2i(wm.get("attached_wall_cell", Vector2i(-1,-1))), entity_id)
-		var wall_side_edit: LineEdit = LineEdit.new(); wall_side_edit.text = String(data.get("wall_side", "north"))
-		placement.add_child(_create_property_row("wall_side", wall_side_edit))
+		var anchor_label: Label = Label.new()
+		anchor_label.text = String(wm.get("anchor_floor_cell", Vector2i(-1, -1)))
+		placement.add_child(_create_property_row("anchor_floor_cell", anchor_label))
+		var attached_label: Label = Label.new()
+		attached_label.text = String(wm.get("attached_wall_cell", Vector2i(-1, -1)))
+		placement.add_child(_create_property_row("attached_wall_cell", attached_label))
+		var wall_side_picker: Control = _create_map_constructor_wall_side_picker("wall_mounted")
+		placement.add_child(_create_property_row("wall_side", wall_side_picker))
 		var apply_side: Button = Button.new(); apply_side.text = "Apply Side"
 		apply_side.pressed.connect(func() -> void:
-			var rr: Dictionary = mission_manager_runtime.call("set_map_constructor_wall_mounted_side", entity_kind, entity_id, wall_side_edit.text)
+			var rr: Dictionary = mission_manager_runtime.call("set_map_constructor_wall_mounted_side", entity_kind, entity_id, selected_map_constructor_wall_side)
 			show_hint(String(rr.get("message", "Updated side.")))
 			_refresh_map_constructor_panels()
 			if field_runtime != null and field_runtime.has_method("request_visual_refresh"): field_runtime.call("request_visual_refresh")
@@ -10108,6 +10138,8 @@ func _show_map_constructor_inspector(cell: Vector2i, preferred_entity_kind: Stri
 		var section := _create_inspector_section(type_group.capitalize())
 		_add_preset_buttons(section, entity_kind, entity_id)
 		if type_group == "door":
+			_add_text_property(section, "lock_type", entity_kind, entity_id, "lock_type", data.get("lock_type", ""))
+			_add_text_property(section, "required_key_id", entity_kind, entity_id, "required_key_id", data.get("required_key_id", ""))
 			_add_bool_property(section, "is_open", entity_kind, entity_id, "is_open", data.get("is_open", false))
 			_add_bool_property(section, "is_locked", entity_kind, entity_id, "is_locked", data.get("is_locked", false))
 			_add_bool_property(section, "damaged", entity_kind, entity_id, "damaged", data.get("damaged", false))
@@ -10123,6 +10155,10 @@ func _show_map_constructor_inspector(cell: Vector2i, preferred_entity_kind: Stri
 			_add_link_picker(section, entity_kind, entity_id, "power_network", "Power Network")
 		if type_group == "item":
 			_add_text_property(section, "item_type", entity_kind, entity_id, "item_type", data.get("item_type", ""))
+			if data.has("key_type") or String(data.get("item_type", "")).findn("key") >= 0:
+				_add_text_property(section, "key_type", entity_kind, entity_id, "key_type", data.get("key_type", ""))
+			if data.has("digital_payload_type") or String(data.get("item_type", "")).findn("digital") >= 0 or String(data.get("item_type", "")).findn("access_code") >= 0:
+				_add_text_property(section, "digital_payload_type", entity_kind, entity_id, "digital_payload_type", data.get("digital_payload_type", ""))
 		v.add_child(section)
 	var control_visible: bool = type_group == "control" or data.has("control_source_id") or data.has("target_door_id") or data.has("target_platform_id")
 	if control_visible:
