@@ -1895,6 +1895,8 @@ func draw_wall_mounted_object_shape(cell: Vector2i, profile_key: String, profile
 
 func draw_iso_object_marker(cell: Vector2i, tile_type: int) -> void:
 	var visual_center: Vector2 = get_world_object_visual_position(cell)
+	var metadata: Dictionary = get_wall_metadata_for_cell(cell)
+	var object_id: String = String(metadata.get("id", ""))
 	var profile_key: String = get_iso_object_profile_key_for_tile(tile_type)
 	var object_asset_key: String = get_iso_object_asset_key_for_profile(profile_key)
 	if draw_iso_texture_asset(cell, object_asset_key, visual_center):
@@ -1920,6 +1922,18 @@ func draw_iso_object_marker(cell: Vector2i, tile_type: int) -> void:
 			profile["base"] = Color(0.12, 0.18, 0.26, 0.96)
 			profile["accent"] = Color(0.5, 0.9, 1.0, 0.99)
 			profile["outline"] = Color(0.07, 0.14, 0.2, 0.94)
+	if not object_id.is_empty():
+		var mission_manager: Node = get_mission_manager_ref()
+		if mission_manager != null and mission_manager.has_method("get_map_constructor_door_visual_state"):
+			var door_visual: Dictionary = Dictionary(mission_manager.call("get_map_constructor_door_visual_state", object_id))
+			if bool(door_visual.get("ok", false)):
+				profile["base"] = _blend_color(_get_color_from_dict(profile, "base", Color.WHITE), Color(door_visual.get("tint", Color.WHITE)), 0.45)
+				profile["accent"] = Color(door_visual.get("accent", _get_color_from_dict(profile, "accent", Color.WHITE)))
+		if mission_manager != null and mission_manager.has_method("get_map_constructor_terminal_visual_state"):
+			var terminal_visual: Dictionary = Dictionary(mission_manager.call("get_map_constructor_terminal_visual_state", object_id))
+			if bool(terminal_visual.get("ok", false)):
+				profile["base"] = _blend_color(_get_color_from_dict(profile, "base", Color.WHITE), Color(terminal_visual.get("tint", Color.WHITE)), 0.45)
+				profile["accent"] = Color(terminal_visual.get("accent", _get_color_from_dict(profile, "accent", Color.WHITE)))
 	if shape == "slab":
 		draw_iso_object_slab(cell, profile, visual_center)
 	elif shape == "door_panel":
