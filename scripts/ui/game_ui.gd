@@ -317,7 +317,9 @@ var map_constructor_patch_json_text: String = ""
 var map_constructor_patch_preview: Dictionary = {}
 var map_constructor_patch_parsed: Dictionary = {}
 var map_constructor_patch_pending_apply: bool = false
+var map_constructor_change_history_filter: String = "All"
 const MAP_CONSTRUCTOR_ISSUE_FILTER_OPTIONS: Array[String] = ["All", "Errors", "Warnings", "Info"]
+const MAP_CONSTRUCTOR_HISTORY_FILTER_OPTIONS: Array[String] = ["All", "Placement", "Edit", "Cleanup", "Auto-fix", "Patch", "Reset"]
 
 const MAP_CONSTRUCTOR_PREFAB_FILTER_CATEGORIES: Array[String] = ["All", "Walls", "Doors", "Terminals", "Power", "Control", "Items", "Wall-mounted"]
 const MAP_CONSTRUCTOR_CONTROL_PREFAB_IDS: Array[String] = [
@@ -9304,6 +9306,44 @@ func _focus_map_constructor_cell(cell: Vector2i) -> void:
 		return
 	show_hint("Selected object at (%d, %d)." % [cell.x, cell.y])
 
+func _map_constructor_history_matches_filter(action_type: String) -> bool:
+	var action: String = action_type.to_lower()
+	match map_constructor_change_history_filter:
+		"Placement":
+			return action in ["place", "duplicate"]
+		"Edit":
+			return action in ["move", "delete", "property_update", "link_update", "side_change"]
+		"Cleanup":
+			return action in ["cleanup", "cleanup_undo"]
+		"Auto-fix":
+			return action in ["autofix", "autofix_undo"]
+		"Patch":
+			return action in ["patch_apply", "patch_rollback"]
+		"Reset":
+			return action == "reset"
+		_:
+			return true
+
+func _jump_to_map_constructor_history_row(row: Dictionary) -> void:
+	var entity_id: String = String(row.get("entity_id", "")).strip_edges()
+	if not entity_id.is_empty() and mission_manager_runtime != null and mission_manager_runtime.has_method("get_map_constructor_entity_by_id"):
+		var world_entity: Dictionary = mission_manager_runtime.call("get_map_constructor_entity_by_id", "world_object", entity_id)
+		if bool(world_entity.get("ok", false)):
+			var world_cell: Vector2i = Vector2i(world_entity.get("cell", Vector2i(-1, -1)))
+			_show_map_constructor_inspector(world_cell, "world_object", entity_id)
+			_focus_map_constructor_cell(world_cell)
+			return
+		var item_entity: Dictionary = mission_manager_runtime.call("get_map_constructor_entity_by_id", "item", entity_id)
+		if bool(item_entity.get("ok", false)):
+			var item_cell: Vector2i = Vector2i(item_entity.get("cell", Vector2i(-1, -1)))
+			_show_map_constructor_inspector(item_cell, "item", entity_id)
+			_focus_map_constructor_cell(item_cell)
+			return
+	var cell: Vector2i = Vector2i(row.get("cell", Vector2i(-1, -1)))
+	if cell.x >= 0 and cell.y >= 0:
+		_show_map_constructor_inspector(cell)
+		_focus_map_constructor_cell(cell)
+
 func _select_map_constructor_entity_from_browser(row: Dictionary) -> void:
 	var entity_kind: String = String(row.get("entity_kind", ""))
 	var entity_id: String = String(row.get("id", ""))
@@ -10030,6 +10070,78 @@ func _refresh_map_constructor_panels() -> void:
 	patch_actions.add_child(apply_patch_button)
 	patch_actions.add_child(rollback_patch_button)
 	list.add_child(patch_actions)
+	var history_title: Label = Label.new()
+	history_title.text = "Change History"
+	list.add_child(history_title)
+	var history_result: Dictionary = {}
+	if mission_manager_runtime != null and mission_manager_runtime.has_method("get_map_constructor_change_history"):
+		history_result = mission_manager_runtime.call("get_map_constructor_change_history", 200)
+	var history_total_label: Label = Label.new()
+	history_total_label.text = "Total: %d" % int(history_result.get("total_count", 0))
+	list.add_child(history_total_label)
+	var history_filter: OptionButton = OptionButton.new()
+	for opt in MAP_CONSTRUCTOR_HISTORY_FILTER_OPTIONS:
+		history_filter.add_item(opt)
+	var history_filter_index: int = MAP_CONSTRUCTOR_HISTORY_FILTER_OPTIONS.find(map_constructor_change_history_filter)
+	if history_filter_index < 0:
+		history_filter_index = 0
+		map_constructor_change_history_filter = "All"
+	history_filter.select(history_filter_index)
+	history_filter.item_selected.connect(func(index: int) -> void:
+		if index >= 0 and index < MAP_CONSTRUCTOR_HISTORY_FILTER_OPTIONS.size():
+			map_constructor_change_history_filter = MAP_CONSTRUCTOR_HISTORY_FILTER_OPTIONS[index]
+			_refresh_map_constructor_panels()
+	)
+	list.add_child(history_filter)
+	var history_buttons: HBoxContainer = HBoxContainer.new()
+	var history_clear_button: Button = Button.new()
+	history_clear_button.text = "Clear History"
+	history_clear_button.pressed.connect(func() -> void:
+		if mission_manager_runtime == null or not mission_manager_runtime.has_method("clear_map_constructor_change_history"):
+			return
+		var clear_result: Dictionary = mission_manager_runtime.call("clear_map_constructor_change_history")
+		show_hint(String(clear_result.get("message", "History cleared.")))
+		_refresh_map_constructor_panels()
+	)
+	var history_refresh_button: Button = Button.new()
+	history_refresh_button.text = "Refresh History"
+	history_refresh_button.pressed.connect(func() -> void:
+		_refresh_map_constructor_panels()
+	)
+	history_buttons.add_child(history_clear_button)
+	history_buttons.add_child(history_refresh_button)
+	list.add_child(history_buttons)
+	var history_rows: Array = Array(history_result.get("history", []))
+	var shown_count: int = 0
+	for i in range(history_rows.size() - 1, -1, -1):
+		var row: Dictionary = Dictionary(history_rows[i])
+		var action_type: String = String(row.get("action_type", "unknown"))
+		if not _map_constructor_history_matches_filter(action_type):
+			continue
+		var row_text: String = "#%d [%s] %s" % [int(row.get("seq", 0)), action_type, String(row.get("summary", ""))]
+		var row_entity_id: String = String(row.get("entity_id", ""))
+		if not row_entity_id.is_empty():
+			row_text += " | id=%s" % row_entity_id
+		var row_cell: Vector2i = Vector2i(row.get("cell", Vector2i(-1, -1)))
+		if row_cell.x >= 0 and row_cell.y >= 0:
+			row_text += " | c=(%d,%d)" % [row_cell.x, row_cell.y]
+		var history_row_line: HBoxContainer = HBoxContainer.new()
+		var history_row_label: Label = Label.new()
+		history_row_label.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+		history_row_label.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+		history_row_label.text = row_text
+		history_row_line.add_child(history_row_label)
+		if not row_entity_id.is_empty() or (row_cell.x >= 0 and row_cell.y >= 0):
+			var jump_btn: Button = Button.new()
+			jump_btn.text = "Jump"
+			jump_btn.pressed.connect(func() -> void:
+				_jump_to_map_constructor_history_row(row)
+			)
+			history_row_line.add_child(jump_btn)
+		list.add_child(history_row_line)
+		shown_count += 1
+		if shown_count >= 30:
+			break
 	var presets_title: Label = Label.new()
 	presets_title.text = "Constructor Presets"
 	list.add_child(presets_title)
