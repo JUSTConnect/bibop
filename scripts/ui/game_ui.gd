@@ -9854,6 +9854,32 @@ func _refresh_map_constructor_panels() -> void:
 	var readiness_title: Label = Label.new()
 	readiness_title.text = "Mission Readiness"
 	list.add_child(readiness_title)
+	var visual_assets_title: Label = Label.new()
+	visual_assets_title.text = "Visual Assets"
+	list.add_child(visual_assets_title)
+	if mission_manager_runtime != null and mission_manager_runtime.has_method("get_visual_texture_asset_catalog"):
+		var visual_catalog: Dictionary = mission_manager_runtime.call("get_visual_texture_asset_catalog")
+		var visual_assets: Array = Array(visual_catalog.get("assets", []))
+		var missing_optional_count: int = 0
+		for row_variant in visual_assets:
+			var row: Dictionary = Dictionary(row_variant)
+			if mission_manager_runtime.has_method("resolve_visual_texture_asset"):
+				var resolved: Dictionary = mission_manager_runtime.call("resolve_visual_texture_asset", String(row.get("id", "")))
+				if bool(resolved.get("ok", false)) and not bool(resolved.get("has_texture", false)) and bool(row.get("is_optional", true)):
+					missing_optional_count += 1
+		var visual_summary_label: Label = Label.new()
+		visual_summary_label.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+		visual_summary_label.text = "assets=%d missing_optional=%d" % [visual_assets.size(), missing_optional_count]
+		list.add_child(visual_summary_label)
+		var selected_texture_asset_id: String = ""
+		if not selected_map_constructor_entity_id.is_empty() and mission_manager_runtime.has_method("get_map_constructor_entity_by_id"):
+			var entity_data: Dictionary = mission_manager_runtime.call("get_map_constructor_entity_by_id", selected_map_constructor_entity_kind, selected_map_constructor_entity_id)
+			var selected_payload: Dictionary = Dictionary(entity_data.get("data", {}))
+			selected_texture_asset_id = String(selected_payload.get("texture_asset_id", ""))
+		var selected_asset_label: Label = Label.new()
+		selected_asset_label.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+		selected_asset_label.text = "selected.texture_asset_id=%s" % (selected_texture_asset_id if not selected_texture_asset_id.is_empty() else "none")
+		list.add_child(selected_asset_label)
 	if mission_manager_runtime != null and mission_manager_runtime.has_method("get_map_constructor_mission_readiness_report"):
 		var readiness: Dictionary = mission_manager_runtime.call("get_map_constructor_mission_readiness_report")
 		var readiness_status: String = String(readiness.get("status", "unknown"))
