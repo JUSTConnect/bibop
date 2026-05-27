@@ -4,6 +4,7 @@ const WorldObjectCatalogRef = preload("res://scripts/world/world_object_catalog.
 const ScanSystemRef = preload("res://scripts/world/scan_system.gd")
 const InteractionSystemRef = preload("res://scripts/world/interaction_system.gd")
 const PowerSystemRef = preload("res://scripts/world/power_system.gd")
+const MissionContentCatalogRef = preload("res://scripts/game/mission_content_catalog.gd")
 
 var mission_world_objects: Array[Dictionary] = []
 var world_objects_by_cell: Dictionary = {}
@@ -88,6 +89,15 @@ func _wo_pos(object_data: Dictionary, fallback: Vector2i = Vector2i(-1, -1)) -> 
 func _ready() -> void:
 	if enable_debug_seed:
 		_seed_debug_world_objects()
+
+
+func validate_mission_content_catalog() -> Array[String]:
+	var catalog := MissionContentCatalogRef.new()
+	return catalog.validate_mission_catalog()
+
+func get_mission_content_catalog_validation_text() -> String:
+	var catalog := MissionContentCatalogRef.new()
+	return catalog.get_mission_catalog_validation_text()
 
 func setup_world_objects_for_mission(mission_id: String) -> void:
 	current_mission_id = mission_id
