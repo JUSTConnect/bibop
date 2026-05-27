@@ -292,6 +292,9 @@ var map_constructor_selected_preset_name: String = ""
 var map_constructor_patch_name: String = "mission_patch"
 var map_constructor_patch_entries: Array[Dictionary] = []
 var map_constructor_selected_patch_name: String = ""
+var map_constructor_geometry_width_text: String = "20"
+var map_constructor_geometry_height_text: String = "12"
+var map_constructor_marker_mode: String = ""
 var tasks_actions_row: HBoxContainer
 var tasks_dev_output_label: RichTextLabel
 var tasks_dev_output_scroll: ScrollContainer
@@ -8842,6 +8845,7 @@ func _deactivate_map_constructor_mode() -> void:
 	map_constructor_picker_entity_kind = ""
 	map_constructor_picker_entity_id = ""
 	map_constructor_picker_field_name = ""
+	map_constructor_marker_mode = ""
 
 	if bipob != null:
 		bipob.map_constructor_input_blocked = false
@@ -8910,6 +8914,18 @@ func _handle_runtime_gameplay_mouse_click(event: InputEventMouseButton) -> bool:
 
 func _handle_map_constructor_left_click(cell: Vector2i) -> void:
 	if selected_map_constructor_prefab_id.is_empty():
+		if map_constructor_marker_mode == "start" or map_constructor_marker_mode == "exit":
+			if mission_manager_runtime == null:
+				return
+			var marker_result: Dictionary = {}
+			if map_constructor_marker_mode == "start" and mission_manager_runtime.has_method("set_map_constructor_start_marker"):
+				marker_result = mission_manager_runtime.call("set_map_constructor_start_marker", cell)
+			elif map_constructor_marker_mode == "exit" and mission_manager_runtime.has_method("set_map_constructor_exit_marker"):
+				marker_result = mission_manager_runtime.call("set_map_constructor_exit_marker", cell)
+			show_hint(String(marker_result.get("message", "Marker set.")))
+			map_constructor_marker_mode = ""
+			_refresh_map_constructor_panels()
+			return
 		show_hint("Select prefab in constructor palette.")
 		return
 	if pending_map_constructor_cell != cell:
@@ -9172,6 +9188,95 @@ func _refresh_map_constructor_panels() -> void:
 		_refresh_map_constructor_panels()
 	)
 	patch_actions.add_child(delete_patch_button)
+	var geometry_title: Label = Label.new()
+	geometry_title.text = "Map Geometry"
+	list.add_child(geometry_title)
+	var geometry_size_row: HBoxContainer = HBoxContainer.new()
+	geometry_size_row.add_theme_constant_override("separation", 4)
+	list.add_child(geometry_size_row)
+	var width_edit: LineEdit = LineEdit.new()
+	width_edit.placeholder_text = "Width >= 6"
+	width_edit.text = map_constructor_geometry_width_text
+	width_edit.custom_minimum_size = Vector2(88, 0)
+	width_edit.text_changed.connect(func(new_text: String) -> void:
+		map_constructor_geometry_width_text = new_text
+	)
+	geometry_size_row.add_child(width_edit)
+	var height_edit: LineEdit = LineEdit.new()
+	height_edit.placeholder_text = "Height >= 6"
+	height_edit.text = map_constructor_geometry_height_text
+	height_edit.custom_minimum_size = Vector2(88, 0)
+	height_edit.text_changed.connect(func(new_text: String) -> void:
+		map_constructor_geometry_height_text = new_text
+	)
+	geometry_size_row.add_child(height_edit)
+	var create_map_button: Button = Button.new()
+	create_map_button.text = "Create Map"
+	create_map_button.pressed.connect(func() -> void:
+		if mission_manager_runtime == null or not mission_manager_runtime.has_method("create_map_constructor_empty_map"):
+			show_hint("Map create unavailable.")
+			return
+		var build_result: Dictionary = mission_manager_runtime.call("create_map_constructor_empty_map", int(map_constructor_geometry_width_text), int(map_constructor_geometry_height_text))
+		show_hint(String(build_result.get("message", "Map created.")))
+		selected_map_constructor_prefab_id = ""
+		map_constructor_marker_mode = ""
+		pending_map_constructor_cell = Vector2i(-1, -1)
+		_refresh_map_constructor_panels()
+	)
+	list.add_child(create_map_button)
+	var marker_button_row: HBoxContainer = HBoxContainer.new()
+	marker_button_row.add_theme_constant_override("separation", 4)
+	list.add_child(marker_button_row)
+	var set_start_button: Button = Button.new()
+	set_start_button.text = "Set Start"
+	set_start_button.pressed.connect(func() -> void:
+		selected_map_constructor_prefab_id = ""
+		map_constructor_marker_mode = "start"
+		show_hint("Click boundary cell to set start marker.")
+	)
+	marker_button_row.add_child(set_start_button)
+	var set_exit_button: Button = Button.new()
+	set_exit_button.text = "Set Exit"
+	set_exit_button.pressed.connect(func() -> void:
+		selected_map_constructor_prefab_id = ""
+		map_constructor_marker_mode = "exit"
+		show_hint("Click boundary cell to set exit marker.")
+	)
+	marker_button_row.add_child(set_exit_button)
+	var marker_clear_row: HBoxContainer = HBoxContainer.new()
+	marker_clear_row.add_theme_constant_override("separation", 4)
+	list.add_child(marker_clear_row)
+	var clear_start_button: Button = Button.new()
+	clear_start_button.text = "Clear Start"
+	clear_start_button.pressed.connect(func() -> void:
+		if mission_manager_runtime != null and mission_manager_runtime.has_method("clear_map_constructor_start_marker"):
+			var clear_start_result: Dictionary = mission_manager_runtime.call("clear_map_constructor_start_marker")
+			show_hint(String(clear_start_result.get("message", "Start marker cleared.")))
+			_refresh_map_constructor_panels()
+	)
+	marker_clear_row.add_child(clear_start_button)
+	var clear_exit_button: Button = Button.new()
+	clear_exit_button.text = "Clear Exit"
+	clear_exit_button.pressed.connect(func() -> void:
+		if mission_manager_runtime != null and mission_manager_runtime.has_method("clear_map_constructor_exit_marker"):
+			var clear_exit_result: Dictionary = mission_manager_runtime.call("clear_map_constructor_exit_marker")
+			show_hint(String(clear_exit_result.get("message", "Exit marker cleared.")))
+			_refresh_map_constructor_panels()
+	)
+	marker_clear_row.add_child(clear_exit_button)
+	if mission_manager_runtime != null and mission_manager_runtime.has_method("get_map_constructor_mission_markers"):
+		var markers: Dictionary = mission_manager_runtime.call("get_map_constructor_mission_markers")
+		var marker_status_label: Label = Label.new()
+		var start_text: String = "-"
+		var exit_text: String = "-"
+		var start_marker: Dictionary = Dictionary(markers.get("start", {}))
+		var exit_marker: Dictionary = Dictionary(markers.get("exit", {}))
+		if not start_marker.is_empty():
+			start_text = String(start_marker.get("cell", "-"))
+		if not exit_marker.is_empty():
+			exit_text = String(exit_marker.get("cell", "-"))
+		marker_status_label.text = "Start: %s | Exit: %s" % [start_text, exit_text]
+		list.add_child(marker_status_label)
 	runtime_hud_root.add_child(runtime_map_constructor_palette_panel)
 	if runtime_map_constructor_validation_overlay_control == null or not is_instance_valid(runtime_map_constructor_validation_overlay_control):
 		runtime_map_constructor_validation_overlay_control = ConstructorValidationOverlayControl.new(self)

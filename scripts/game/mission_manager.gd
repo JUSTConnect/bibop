@@ -29,6 +29,10 @@ var runtime_inventory_state := {
 var _map_constructor_runtime_object_seq: int = 1
 var _task_test_constructor_base_tiles: Dictionary = {}
 var current_mission_id: String = ""
+var constructor_map_width: int = 16
+var constructor_map_height: int = 10
+var constructor_start_marker: Dictionary = {}
+var constructor_exit_marker: Dictionary = {}
 const MAP_CONSTRUCTOR_PRESET_DIR: String = "user://constructor_presets"
 
 const MAP_CONSTRUCTOR_MISSION_PATCH_DIR: String = "user://constructor_mission_patches"
@@ -188,6 +192,72 @@ func _is_valid_grid_cell(cell: Vector2i) -> bool:
 func _is_task_test_constructor_context() -> bool:
 	return String(current_mission_id) == "mission_10"
 
+func create_map_constructor_empty_map(width: int, height: int) -> Dictionary:
+	if not _is_task_test_constructor_context():
+		return {"ok": false, "message": "Constructor map build works only in TASK TEST constructor mode."}
+	constructor_map_width = maxi(6, width)
+	constructor_map_height = maxi(6, height)
+	mission_world_objects.clear()
+	world_objects_by_cell.clear()
+	cell_items.clear()
+	constructor_start_marker.clear()
+	constructor_exit_marker.clear()
+	if grid_manager != null and grid_manager.has_method("build_constructor_map"):
+		var grid_result: Dictionary = grid_manager.call("build_constructor_map", constructor_map_width, constructor_map_height)
+		constructor_map_width = int(grid_result.get("width", constructor_map_width))
+		constructor_map_height = int(grid_result.get("height", constructor_map_height))
+	if grid_manager != null and grid_manager.has_method("request_visual_refresh"):
+		grid_manager.call("request_visual_refresh")
+	return {"ok": true, "message": "Constructor map created.", "width": constructor_map_width, "height": constructor_map_height}
+
+func get_inside_cell_for_boundary_marker(cell: Vector2i) -> Dictionary:
+	if grid_manager == null or not grid_manager.has_method("is_boundary_cell"):
+		return {"ok": false, "inside_cell": Vector2i(-1, -1), "side": "", "message": "Grid is unavailable."}
+	if not bool(grid_manager.call("is_boundary_cell", cell)):
+		return {"ok": false, "inside_cell": Vector2i(-1, -1), "side": "", "message": "Marker cell must be on map boundary."}
+	var width: int = int(grid_manager.call("get_width"))
+	var height: int = int(grid_manager.call("get_height"))
+	if (cell.x == 0 or cell.x == width - 1) and (cell.y == 0 or cell.y == height - 1):
+		return {"ok": false, "inside_cell": Vector2i(-1, -1), "side": "", "message": "corner markers are not supported yet"}
+	if cell.x == 0:
+		return {"ok": true, "inside_cell": Vector2i(1, cell.y), "side": "west", "message": "Start marker set."}
+	if cell.x == width - 1:
+		return {"ok": true, "inside_cell": Vector2i(width - 2, cell.y), "side": "east", "message": "Start marker set."}
+	if cell.y == 0:
+		return {"ok": true, "inside_cell": Vector2i(cell.x, 1), "side": "north", "message": "Start marker set."}
+	return {"ok": true, "inside_cell": Vector2i(cell.x, height - 2), "side": "south", "message": "Start marker set."}
+
+func _set_constructor_marker(marker_type: String, cell: Vector2i) -> Dictionary:
+	var inside_info: Dictionary = get_inside_cell_for_boundary_marker(cell)
+	if not bool(inside_info.get("ok", false)):
+		return {"ok": false, "message": String(inside_info.get("message", "Marker placement failed."))}
+	var inside_cell: Vector2i = Vector2i(inside_info.get("inside_cell", Vector2i(-1, -1)))
+	if grid_manager == null or int(grid_manager.call("get_tile", inside_cell)) == GridManager.TILE_WALL:
+		return {"ok": false, "message": "Inside marker cell is invalid."}
+	var marker: Dictionary = {"cell": _serialize_cell_key(cell), "inside_cell": _serialize_cell_key(inside_cell), "side": String(inside_info.get("side", ""))}
+	if marker_type == "start":
+		constructor_start_marker = marker
+		return {"ok": true, "message": "Start marker set.", "marker": marker}
+	constructor_exit_marker = marker
+	return {"ok": true, "message": "Exit marker set.", "marker": marker}
+
+func set_map_constructor_start_marker(cell: Vector2i) -> Dictionary:
+	return _set_constructor_marker("start", cell)
+
+func set_map_constructor_exit_marker(cell: Vector2i) -> Dictionary:
+	return _set_constructor_marker("exit", cell)
+
+func clear_map_constructor_start_marker() -> Dictionary:
+	constructor_start_marker.clear()
+	return {"ok": true, "message": "Start marker cleared."}
+
+func clear_map_constructor_exit_marker() -> Dictionary:
+	constructor_exit_marker.clear()
+	return {"ok": true, "message": "Exit marker cleared."}
+
+func get_map_constructor_mission_markers() -> Dictionary:
+	return {"start": Dictionary(constructor_start_marker).duplicate(true), "exit": Dictionary(constructor_exit_marker).duplicate(true)}
+
 func _sanitize_map_constructor_preset_name(raw_name: String) -> String:
 	var value: String = raw_name.strip_edges().to_lower().replace(" ", "_")
 	var result: String = ""
@@ -309,12 +379,23 @@ func get_map_constructor_preset_data() -> Dictionary:
 			"cell": _serialize_cell_key(cell),
 			"items": get_items_at_cell(cell)
 		})
+	var grid_tiles: Array[Dictionary] = []
+	if grid_manager != null and grid_manager.has_method("get_width") and grid_manager.has_method("get_height") and grid_manager.has_method("get_tile"):
+		constructor_map_width = int(grid_manager.call("get_width"))
+		constructor_map_height = int(grid_manager.call("get_height"))
+		for y in range(constructor_map_height):
+			for x in range(constructor_map_width):
+				var tile_cell: Vector2i = Vector2i(x, y)
+				grid_tiles.append({"cell": _serialize_cell_key(tile_cell), "tile_type": int(grid_manager.call("get_tile", tile_cell))})
 	return {
 		"version": 1,
 		"mission_id": String(current_mission_id),
 		"saved_at_unix": Time.get_unix_time_from_system(),
 		"world_objects": world_objects_export,
 		"cell_items": cell_items_export,
+		"map": {"width": constructor_map_width, "height": constructor_map_height, "boundary_wall_type": "outer_wall"},
+		"mission_markers": get_map_constructor_mission_markers(),
+		"grid_tiles": grid_tiles,
 		"grid_overrides": [],
 		"notes": "TASK TEST constructor preset",
 		"warnings": []
@@ -374,6 +455,10 @@ func load_map_constructor_preset(preset_name: String) -> Dictionary:
 	if String(preset.get("mission_id", "")) != "mission_10":
 		return {"ok": false, "message": "Preset load failed: mission mismatch.", "preset_name": sanitized_name}
 	var warnings: Array[String] = []
+	var map_data: Dictionary = Dictionary(preset.get("map", {}))
+	var map_width: int = int(map_data.get("width", constructor_map_width))
+	var map_height: int = int(map_data.get("height", constructor_map_height))
+	create_map_constructor_empty_map(map_width, map_height)
 	mission_world_objects.clear()
 	world_objects_by_cell.clear()
 	cell_items.clear()
@@ -400,6 +485,19 @@ func load_map_constructor_preset(preset_name: String) -> Dictionary:
 		for item_variant in Array(cell_entry.get("items", [])):
 			if item_variant is Dictionary:
 				add_item_at_cell(cell, Dictionary(item_variant).duplicate(true))
+	var loaded_grid_tiles: Array = Array(preset.get("grid_tiles", []))
+	for tile_variant in loaded_grid_tiles:
+		if not (tile_variant is Dictionary):
+			continue
+		var tile_row: Dictionary = Dictionary(tile_variant)
+		var tile_cell: Vector2i = _deserialize_cell_variant(tile_row.get("cell", "-1,-1"))
+		if not _is_valid_grid_cell(tile_cell):
+			continue
+		if grid_manager != null and grid_manager.has_method("set_tile"):
+			grid_manager.call("set_tile", tile_cell, int(tile_row.get("tile_type", GridManager.TILE_FLOOR)))
+	var mission_markers: Dictionary = Dictionary(preset.get("mission_markers", {}))
+	constructor_start_marker = Dictionary(mission_markers.get("start", {})).duplicate(true)
+	constructor_exit_marker = Dictionary(mission_markers.get("exit", {})).duplicate(true)
 	PowerSystemRef.recalculate_network(mission_world_objects, "task_test_power_main")
 	var networks: Dictionary = {}
 	for object_data_variant in mission_world_objects:
@@ -1781,6 +1879,12 @@ func get_map_constructor_validation_overlay() -> Dictionary:
 			has_error_severity = true
 			break
 	var has_errors: bool = int(summary.get("error_count", 0)) > 0 or has_error_severity
+	if constructor_start_marker.is_empty():
+		summary["error_count"] = int(summary.get("error_count", 0)) + 1
+		has_errors = true
+	if constructor_exit_marker.is_empty():
+		summary["error_count"] = int(summary.get("error_count", 0)) + 1
+		has_errors = true
 	return {"ok": not has_errors, "cells": overlay_cells, "objects": overlay_objects, "summary": summary}
 
 func get_map_constructor_audit_summary() -> Dictionary:

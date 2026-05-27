@@ -284,6 +284,12 @@ func get_map_width() -> int:
 func get_map_height() -> int:
 	return map_data.size()
 
+func get_width() -> int:
+	return get_map_width()
+
+func get_height() -> int:
+	return get_map_height()
+
 func is_in_bounds(grid_position: Vector2i) -> bool:
 	return (
 		grid_position.x >= 0
@@ -363,6 +369,32 @@ func set_tile(grid_position: Vector2i, tile_type: int) -> void:
 	
 	map_data[grid_position.y][grid_position.x] = tile_type
 	request_visual_refresh()
+
+func is_boundary_cell(cell: Vector2i) -> bool:
+	if not is_in_bounds(cell):
+		return false
+	var width: int = get_map_width()
+	var height: int = get_map_height()
+	return cell.x == 0 or cell.y == 0 or cell.x == width - 1 or cell.y == height - 1
+
+func build_constructor_map(width: int, height: int) -> Dictionary:
+	var safe_width: int = maxi(6, width)
+	var safe_height: int = maxi(6, height)
+	map_data.clear()
+	for y in range(safe_height):
+		var row: Array = []
+		for x in range(safe_width):
+			var cell: Vector2i = Vector2i(x, y)
+			if x == 0 or y == 0 or x == safe_width - 1 or y == safe_height - 1:
+				row.append(TILE_WALL)
+			else:
+				row.append(TILE_FLOOR)
+		map_data.append(row)
+	reset_hidden_discoveries()
+	setup_fog_arrays()
+	request_visual_refresh()
+	queue_redraw()
+	return {"ok": true, "message": "Constructor map created.", "width": safe_width, "height": safe_height}
 
 
 func set_fan_platform_marker(marker_position: Vector2i, direction_vector: Vector2i) -> void:
