@@ -1029,7 +1029,13 @@ func _blend_color(base_color: Color, tint_color: Color, amount: float) -> Color:
 
 func _get_wall_material_override_for_cell(cell: Vector2i) -> Dictionary:
 	var mission_manager: Node = get_mission_manager_ref()
-	if mission_manager == null or not mission_manager.has_method("get_map_constructor_wall_material"):
+	if mission_manager == null:
+		return {"ok": false}
+	if mission_manager.has_method("get_map_constructor_wall_material_for_wall_cell"):
+		var wall_cell_result: Dictionary = Dictionary(mission_manager.call("get_map_constructor_wall_material_for_wall_cell", cell))
+		if bool(wall_cell_result.get("ok", false)):
+			return wall_cell_result
+	if not mission_manager.has_method("get_map_constructor_wall_material"):
 		return {"ok": false}
 	var side_order: Array[String] = ["north", "east", "south", "west"]
 	var chosen_override: Dictionary = {}
