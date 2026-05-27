@@ -1348,8 +1348,76 @@ func _find_object(target_id: String) -> Dictionary:
 			return object_data
 	return {}
 
-func get_world_object_at_cell(cell: Vector2i) -> Dictionary:
-	return world_objects_by_cell.get(cell, {})
+func _get_world_object_cell_from_data(object_data: Dictionary) -> Vector2i:
+	var position_cell: Vector2i = _deserialize_cell_variant(object_data.get("position", Vector2i(-1, -1)))
+	if position_cell.x >= 0 and position_cell.y >= 0:
+		return position_cell
+	var cell_value: Vector2i = _deserialize_cell_variant(object_data.get("cell", Vector2i(-1, -1)))
+	if cell_value.x >= 0 and cell_value.y >= 0:
+		return cell_value
+	var grid_cell: Vector2i = _deserialize_cell_variant(object_data.get("grid_cell", Vector2i(-1, -1)))
+	return grid_cell
+
+func _get_world_object_lookup_priority(object_data: Dictionary) -> int:
+	var object_group: String = String(object_data.get("object_group", "")).to_lower()
+	var object_type: String = String(object_data.get("object_type", "")).to_lower()
+	var score: int = 0
+	if object_group != "visual":
+		score += 10
+	if object_type.find("door") != -1 or object_type.find("gate") != -1 or object_type.find("terminal") != -1 or object_type.find("device") != -1:
+		score += 5
+	return score
+
+func _select_world_object_for_cell(cell: Vector2i) -> Dictionary:
+	var selected_object: Dictionary = {}
+	var selected_score: int = -1
+	for object_data_variant in mission_world_objects:
+		var object_data: Dictionary = Dictionary(object_data_variant)
+		if String(object_data.get("object_group", "")).to_lower() == "item":
+			continue
+		var object_cell: Vector2i = _get_world_object_cell_from_data(object_data)
+		if object_cell != cell:
+			continue
+		var object_score: int = _get_world_object_lookup_priority(object_data)
+		if selected_object.is_empty() or object_score > selected_score:
+			selected_object = object_data
+			selected_score = object_score
+	if not selected_object.is_empty():
+		return selected_object
+	var by_cell: Dictionary = Dictionary(world_objects_by_cell.get(cell, {}))
+	if String(by_cell.get("object_group", "")).to_lower() == "item":
+		return {}
+	return by_cell
+
+func get_world_object_at_cell(cell: Vector2i, include_lookup_metadata: bool = false) -> Dictionary:
+	var selected_object: Dictionary = _select_world_object_for_cell(cell)
+	if not include_lookup_metadata:
+		return selected_object
+	if selected_object.is_empty():
+		return {
+			"ok": false,
+			"id": "",
+			"object_id": "",
+			"object_type": "",
+			"object_group": "",
+			"position": cell,
+			"data": {}
+		}
+	var object_id: String = String(selected_object.get("id", "")).strip_edges()
+	var object_type: String = String(selected_object.get("object_type", "")).strip_edges()
+	var object_group: String = String(selected_object.get("object_group", "")).strip_edges()
+	var position: Vector2i = _get_world_object_cell_from_data(selected_object)
+	if position.x < 0 or position.y < 0:
+		position = cell
+	return {
+		"ok": true,
+		"id": object_id,
+		"object_id": object_id,
+		"object_type": object_type,
+		"object_group": object_group,
+		"position": position,
+		"data": selected_object.duplicate(true)
+	}
 
 
 func get_runtime_cell_state(cell: Vector2i) -> Dictionary:
