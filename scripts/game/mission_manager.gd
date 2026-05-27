@@ -1906,11 +1906,44 @@ func apply_map_constructor_batch_operation(operation_type: String, entities: Arr
 			"duplicate_selected":
 				if bool(duplicate_map_constructor_entity_to_cell(ek, eid, to_cell, "").get("ok", false)): applied_count += 1
 			"assign_power_network":
-				var update := update_map_constructor_entity_field(ek, eid, "power_network_id", String(options.get("power_network_id", "")))
-				if bool(update.get("ok", false)): applied_count += 1
+				var update: Dictionary = apply_map_constructor_property_update(ek, eid, "power_network_id", String(options.get("power_network_id", "")))
+				if bool(update.get("ok", false)):
+					applied_count += 1
 			"clear_broken_references":
-				var clean := apply_map_constructor_autofix("invalid_references", {"entity_kind":ek, "entity_id":eid})
-				if bool(clean.get("ok", false)): applied_count += 1
+				if ek != "world_object":
+					continue
+				var world_ids: Dictionary = _map_constructor_collect_world_ids()
+				var item_ids: Dictionary = _map_constructor_collect_item_ids()
+				var entity_info: Dictionary = get_map_constructor_entity_by_id(ek, eid)
+				if not bool(entity_info.get("ok", false)):
+					continue
+				var data: Dictionary = Dictionary(entity_info.get("data", {}))
+				var cleared_any: bool = false
+				for ref_field in ["target_door_id", "target_platform_id", "linked_terminal_id", "control_source_id", "required_key_id"]:
+					var ref_id: String = String(data.get(ref_field, "")).strip_edges()
+					if ref_id.is_empty():
+						continue
+					var ref_valid: bool = world_ids.has(ref_id) or (ref_field == "required_key_id" and item_ids.has(ref_id))
+					if ref_valid:
+						continue
+					var clear_result: Dictionary = apply_map_constructor_property_update(ek, eid, ref_field, "")
+					if bool(clear_result.get("ok", false)):
+						cleared_any = true
+				var connected_ids: Array[String] = []
+				var connected_valid_ids: Array[String] = []
+				for connected_id_variant in Array(data.get("connected_device_ids", [])):
+					var connected_id: String = String(connected_id_variant).strip_edges()
+					if connected_id.is_empty():
+						continue
+					connected_ids.append(connected_id)
+					if world_ids.has(connected_id) or item_ids.has(connected_id):
+						connected_valid_ids.append(connected_id)
+				if connected_valid_ids.size() != connected_ids.size():
+					var connected_update: Dictionary = apply_map_constructor_property_update(ek, eid, "connected_device_ids", connected_valid_ids)
+					if bool(connected_update.get("ok", false)):
+						cleared_any = true
+				if cleared_any:
+					applied_count += 1
 	PowerSystemRef.recalculate_network(mission_world_objects, "")
 	refresh_world_cooling_received()
 	_record_map_constructor_change("batch", {"summary":"Batch %s: %d affected" % [String(preview.get("operation_type", "")), applied_count], "details":{"operation_type":String(preview.get("operation_type", "")), "affected_count":applied_count}, "undo_hint":"Use Undo Last Batch."})
