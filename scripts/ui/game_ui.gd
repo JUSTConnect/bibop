@@ -302,6 +302,11 @@ var map_constructor_geometry_height_text: String = "12"
 var map_constructor_marker_mode: String = ""
 var map_constructor_prefab_search_text: String = ""
 var map_constructor_prefab_category_filter: String = "All"
+var map_constructor_prefab_role_filter: String = "All"
+var map_constructor_prefab_placement_filter: String = "All"
+var map_constructor_prefab_show_diagnostics: bool = true
+var map_constructor_prefab_show_expected_invalid: bool = true
+var map_constructor_prefab_show_only_placeable_here: bool = false
 var map_constructor_prefab_favorites: Dictionary = {}
 var map_constructor_prefab_recent_ids: Array[String] = []
 const MAP_CONSTRUCTOR_PREFAB_RECENT_LIMIT: int = 8
@@ -335,7 +340,9 @@ const MAP_CONSTRUCTOR_ISSUE_FILTER_OPTIONS: Array[String] = ["All", "Errors", "W
 const MAP_CONSTRUCTOR_HISTORY_FILTER_OPTIONS: Array[String] = ["All", "Placement", "Edit", "Cleanup", "Auto-fix", "Patch", "Reset"]
 const MAP_CONSTRUCTOR_OVERVIEW_FILTER_OPTIONS: Array[String] = ["All", "Issues", "Errors", "Warnings", "Expected Invalid", "Objects", "Items", "Power", "Terminals", "Doors", "Wall-mounted", "History", "Selected"]
 
-const MAP_CONSTRUCTOR_PREFAB_FILTER_CATEGORIES: Array[String] = ["All", "Walls", "Doors", "Terminals", "Power", "Control", "Items", "Wall-mounted"]
+const MAP_CONSTRUCTOR_PREFAB_FILTER_CATEGORIES: Array[String] = ["All", "Structural", "Door", "Terminal", "Power", "Control", "Item", "Wall-mounted", "Diagnostic", "Expected Invalid", "Utility"]
+const MAP_CONSTRUCTOR_PREFAB_FILTER_ROLES: Array[String] = ["All", "navigation", "blocking", "access_control", "power_source", "power_consumer", "power_network", "signal_control", "terminal_interaction", "key_item", "diagnostics", "readiness_test", "expected_invalid_test"]
+const MAP_CONSTRUCTOR_PREFAB_FILTER_PLACEMENT_MODES: Array[String] = ["All", "tile", "object", "item", "wall_mounted"]
 const MAP_CONSTRUCTOR_CONTROL_PREFAB_IDS: Array[String] = [
 	"control_terminal",
 	"circuit_switch",
@@ -353,14 +360,16 @@ const MAP_CONSTRUCTOR_POWER_PREFAB_IDS: Array[String] = [
 	"powered_gate"
 ]
 const MAP_CONSTRUCTOR_PREFAB_CATEGORY_GROUP_ORDER: Array[String] = [
-	"Floors",
-	"Walls",
-	"Doors",
-	"Terminals",
+	"Structural",
+	"Door",
+	"Terminal",
 	"Power",
 	"Control",
-	"Items",
-	"Wall-mounted"
+	"Item",
+	"Wall-mounted",
+	"Diagnostic",
+	"Expected Invalid",
+	"Utility"
 ]
 var edge_scroll_enabled: bool = true
 var edge_scroll_margin_px: float = 28.0
@@ -9234,19 +9243,21 @@ func _handle_map_constructor_left_click(cell: Vector2i) -> void:
 func _map_constructor_prefab_matches_filters(entry: Dictionary) -> bool:
 	var search_text: String = map_constructor_prefab_search_text.strip_edges().to_lower()
 	var prefab_id: String = String(entry.get("id", ""))
-	var label_text: String = String(entry.get("label", ""))
+	var label_text: String = String(entry.get("display_name", entry.get("label", "")))
 	var category_text: String = String(entry.get("category", ""))
-	var placement_mode: String = String(entry.get("placement_mode", ""))
-	if map_constructor_prefab_category_filter == "Wall-mounted":
-		if placement_mode != "wall_mounted":
-			return false
-	elif map_constructor_prefab_category_filter != "All":
-		var category_match: bool = _map_constructor_prefab_matches_category_filter(prefab_id, category_text, map_constructor_prefab_category_filter)
-		if not category_match:
-			return false
+	var placement_mode: String = String(entry.get("placement_mode", "")).to_lower()
+	var roles_text: String = ", ".join(PackedStringArray(entry.get("system_roles", [])))
+	var tags_text: String = ", ".join(PackedStringArray(entry.get("tags", [])))
+	var description: String = String(entry.get("description", ""))
+	if map_constructor_prefab_category_filter != "All" and category_text != map_constructor_prefab_category_filter:
+		return false
+	if map_constructor_prefab_role_filter != "All" and not Array(entry.get("system_roles", [])).has(map_constructor_prefab_role_filter):
+		return false
+	if map_constructor_prefab_placement_filter != "All" and placement_mode != map_constructor_prefab_placement_filter:
+		return false
 	if search_text.is_empty():
 		return true
-	var haystack: String = "%s %s %s %s" % [prefab_id.to_lower(), label_text.to_lower(), category_text.to_lower(), placement_mode.to_lower()]
+	var haystack: String = "%s %s %s %s %s %s %s" % [prefab_id.to_lower(), label_text.to_lower(), category_text.to_lower(), placement_mode.to_lower(), roles_text.to_lower(), tags_text.to_lower(), description.to_lower()]
 	return haystack.find(search_text) >= 0
 
 func _map_constructor_prefab_matches_category_filter(prefab_id: String, category_text: String, category_filter: String) -> bool:
@@ -9612,9 +9623,46 @@ func _refresh_map_constructor_panels() -> void:
 			_refresh_map_constructor_panels()
 	)
 	list.add_child(category_option)
+	var role_option := OptionButton.new()
+	for role_name in MAP_CONSTRUCTOR_PREFAB_FILTER_ROLES:
+		role_option.add_item(role_name)
+	role_option.select(maxi(0, MAP_CONSTRUCTOR_PREFAB_FILTER_ROLES.find(map_constructor_prefab_role_filter)))
+	role_option.item_selected.connect(func(index: int) -> void:
+		if index >= 0 and index < MAP_CONSTRUCTOR_PREFAB_FILTER_ROLES.size():
+			map_constructor_prefab_role_filter = MAP_CONSTRUCTOR_PREFAB_FILTER_ROLES[index]
+			_refresh_map_constructor_panels())
+	list.add_child(role_option)
+	var placement_option := OptionButton.new()
+	for mode_name in MAP_CONSTRUCTOR_PREFAB_FILTER_PLACEMENT_MODES:
+		placement_option.add_item(mode_name)
+	placement_option.select(maxi(0, MAP_CONSTRUCTOR_PREFAB_FILTER_PLACEMENT_MODES.find(map_constructor_prefab_placement_filter)))
+	placement_option.item_selected.connect(func(index: int) -> void:
+		if index >= 0 and index < MAP_CONSTRUCTOR_PREFAB_FILTER_PLACEMENT_MODES.size():
+			map_constructor_prefab_placement_filter = MAP_CONSTRUCTOR_PREFAB_FILTER_PLACEMENT_MODES[index]
+			_refresh_map_constructor_panels())
+	list.add_child(placement_option)
+	var show_diag := CheckBox.new(); show_diag.text = "Show Diagnostics"; show_diag.button_pressed = map_constructor_prefab_show_diagnostics
+	show_diag.toggled.connect(func(v: bool) -> void: map_constructor_prefab_show_diagnostics = v; _refresh_map_constructor_panels())
+	list.add_child(show_diag)
+	var show_invalid := CheckBox.new(); show_invalid.text = "Show Expected Invalid"; show_invalid.button_pressed = map_constructor_prefab_show_expected_invalid
+	show_invalid.toggled.connect(func(v: bool) -> void: map_constructor_prefab_show_expected_invalid = v; _refresh_map_constructor_panels())
+	list.add_child(show_invalid)
+	var show_placeable := CheckBox.new(); show_placeable.text = "Show Only Placeable Here"; show_placeable.button_pressed = map_constructor_prefab_show_only_placeable_here
+	show_placeable.toggled.connect(func(v: bool) -> void: map_constructor_prefab_show_only_placeable_here = v; _refresh_map_constructor_panels())
+	list.add_child(show_placeable)
 	var catalog: Array[Dictionary] = []
-	if mission_manager_runtime != null and mission_manager_runtime.has_method("get_map_constructor_prefab_catalog"):
-		catalog = mission_manager_runtime.call("get_map_constructor_prefab_catalog")
+	if mission_manager_runtime != null and mission_manager_runtime.has_method("get_map_constructor_prefab_palette_rows"):
+		var palette_rows: Dictionary = mission_manager_runtime.call("get_map_constructor_prefab_palette_rows", {
+			"search": map_constructor_prefab_search_text,
+			"category": map_constructor_prefab_category_filter,
+			"role": map_constructor_prefab_role_filter,
+			"placement_mode": map_constructor_prefab_placement_filter,
+			"show_expected_invalid": map_constructor_prefab_show_expected_invalid,
+			"show_diagnostics": map_constructor_prefab_show_diagnostics,
+			"show_only_placeable_here": map_constructor_prefab_show_only_placeable_here,
+			"selected_cell": pending_map_constructor_cell
+		})
+		catalog = Array(palette_rows.get("rows", []))
 	var catalog_by_id: Dictionary = {}
 	for entry in catalog:
 		catalog_by_id[String(entry.get("id", ""))] = entry
@@ -9627,7 +9675,9 @@ func _refresh_map_constructor_panels() -> void:
 			continue
 		var group_name: String = _get_map_constructor_prefab_group_name(entry)
 		if group_name.is_empty() or not grouped_entries.has(group_name):
-			continue
+			group_name = "Utility"
+			if not grouped_entries.has(group_name):
+				grouped_entries[group_name] = []
 		var group_entries: Array = grouped_entries[group_name]
 		group_entries.append(entry)
 		grouped_entries[group_name] = group_entries
@@ -9659,7 +9709,7 @@ func _refresh_map_constructor_panels() -> void:
 		for entry in section_entries:
 			var id: String = String(entry.get("id", ""))
 			var b := Button.new()
-			b.text = String(entry.get("label", id))
+			b.text = "%s [%s] — %s\n%s\nhint: %s\n%s | %s" % [String(entry.get("display_name", entry.get("label", id))), id, String(entry.get("category", "")), String(entry.get("description", "")), String(entry.get("placement_hint", "")), ", ".join(PackedStringArray(entry.get("tags", []))), ", ".join(PackedStringArray(entry.get("system_roles", [])))]
 			b.toggle_mode = true
 			b.button_pressed = id == selected_map_constructor_prefab_id
 			if b.button_pressed:
@@ -9679,7 +9729,10 @@ func _refresh_map_constructor_panels() -> void:
 		for entry in entries:
 			var id: String = String(entry.get("id", ""))
 			var b := Button.new()
-			b.text = String(entry.get("label", id))
+			var warning_text: String = ""
+			if bool(entry.get("is_destructive", false)) or bool(entry.get("is_expected_invalid_tool", false)) or bool(entry.get("can_have_links", false)):
+				warning_text = " ⚠"
+			b.text = "%s%s [%s] — %s\n%s\nhint: %s\n%s | %s" % [String(entry.get("display_name", entry.get("label", id))), warning_text, id, String(entry.get("category", "")), String(entry.get("description", "")), String(entry.get("placement_hint", "")), ", ".join(PackedStringArray(entry.get("tags", []))), ", ".join(PackedStringArray(entry.get("system_roles", [])))]
 			b.toggle_mode = true
 			b.button_pressed = id == selected_map_constructor_prefab_id
 			if b.button_pressed:

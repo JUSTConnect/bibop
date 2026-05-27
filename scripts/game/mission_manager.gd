@@ -1519,6 +1519,95 @@ func get_map_constructor_prefab_catalog() -> Array[Dictionary]:
 		entries[i] = entry
 	return entries
 
+func _get_map_constructor_prefab_metadata_catalog() -> Dictionary:
+	var metadata: Dictionary = {
+		"floor": {"display_name":"Floor Tile","category":"Structural","subcategory":"Floor","placement_mode":"tile","system_roles":["navigation"],"tags":["floor","walkable","structural"],"description":"Basic walkable floor tile.","placement_hint":"Use to restore walkable space.","requires_wall":false,"requires_floor":false,"is_destructive":false,"is_diagnostic":false,"is_expected_invalid_tool":false,"can_have_power_network":false,"can_have_links":false,"default_state":{}},
+		"stepped_floor": {"display_name":"Stepped Floor","category":"Structural","subcategory":"Floor","placement_mode":"tile","system_roles":["navigation"],"tags":["floor","walkable","elevation"],"description":"Walkable stepped floor tile.","placement_hint":"Use for alternate floor visuals.","requires_wall":false,"requires_floor":false,"is_destructive":false,"is_diagnostic":false,"is_expected_invalid_tool":false,"can_have_power_network":false,"can_have_links":false,"default_state":{}},
+		"outer_wall": {"display_name":"Outer Wall","category":"Structural","subcategory":"Wall","placement_mode":"tile","system_roles":["blocking"],"tags":["wall","solid","boundary"],"description":"Solid wall that blocks movement and vision.","placement_hint":"Place on floor to create barriers.","requires_wall":false,"requires_floor":true,"is_destructive":true,"is_diagnostic":false,"is_expected_invalid_tool":false,"can_have_power_network":false,"can_have_links":false,"default_state":{}},
+		"brick_wall": {"display_name":"Brick Wall","category":"Structural","subcategory":"Wall","placement_mode":"object","system_roles":["blocking"],"tags":["wall","brick","obstacle"],"description":"Brick obstacle wall object.","placement_hint":"Requires a floor cell.","requires_wall":false,"requires_floor":true,"is_destructive":true,"is_diagnostic":false,"is_expected_invalid_tool":false,"can_have_power_network":false,"can_have_links":false,"default_state":{}},
+		"concrete_wall": {"display_name":"Concrete Wall","category":"Structural","subcategory":"Wall","placement_mode":"object","system_roles":["blocking"],"tags":["wall","concrete","obstacle"],"description":"Concrete obstacle wall object.","placement_hint":"Requires a floor cell.","requires_wall":false,"requires_floor":true,"is_destructive":true,"is_diagnostic":false,"is_expected_invalid_tool":false,"can_have_power_network":false,"can_have_links":false,"default_state":{}},
+		"steel_wall": {"display_name":"Steel Wall","category":"Structural","subcategory":"Wall","placement_mode":"object","system_roles":["blocking"],"tags":["wall","steel","obstacle"],"description":"Durable steel wall object.","placement_hint":"Requires a floor cell.","requires_wall":false,"requires_floor":true,"is_destructive":true,"is_diagnostic":false,"is_expected_invalid_tool":false,"can_have_power_network":false,"can_have_links":false,"default_state":{}},
+		"grate_wall": {"display_name":"Grate Wall","category":"Structural","subcategory":"Wall","placement_mode":"object","system_roles":["blocking"],"tags":["wall","grate","obstacle"],"description":"Grated wall obstacle.","placement_hint":"Requires a floor cell.","requires_wall":false,"requires_floor":true,"is_destructive":true,"is_diagnostic":false,"is_expected_invalid_tool":false,"can_have_power_network":false,"can_have_links":false,"default_state":{}},
+		"mechanical_door": {"display_name":"Mechanical Door","category":"Door","subcategory":"Mechanical","placement_mode":"object","system_roles":["navigation","access_control"],"tags":["door","mechanical","locked"],"description":"Door that may require physical access.","placement_hint":"Place on floor path segments.","requires_wall":false,"requires_floor":true,"is_destructive":false,"is_diagnostic":false,"is_expected_invalid_tool":false,"can_have_power_network":false,"can_have_links":true,"default_state":{"state":"closed"}},
+		"digital_door": {"display_name":"Digital Door","category":"Door","subcategory":"Digital","placement_mode":"object","system_roles":["navigation","access_control","signal_control"],"tags":["door","digital","control"],"description":"Digitally controlled access door.","placement_hint":"Usually paired with control or door terminals.","requires_wall":false,"requires_floor":true,"is_destructive":false,"is_diagnostic":false,"is_expected_invalid_tool":false,"can_have_power_network":true,"can_have_links":true,"default_state":{"state":"locked"}},
+		"powered_gate": {"display_name":"Powered Gate","category":"Door","subcategory":"Gate","placement_mode":"object","system_roles":["navigation","access_control","power_consumer"],"tags":["gate","powered","access"],"description":"Power-driven gate for controlled routes.","placement_hint":"Set power network and controls after placement.","requires_wall":false,"requires_floor":true,"is_destructive":false,"is_diagnostic":false,"is_expected_invalid_tool":false,"can_have_power_network":true,"can_have_links":true,"default_state":{"state":"locked"}},
+		"information_terminal": {"display_name":"Information Terminal","category":"Terminal","subcategory":"Info","placement_mode":"object","system_roles":["terminal_interaction"],"tags":["terminal","info","device"],"description":"Read-only terminal for mission text/data.","placement_hint":"Place on floor near navigation paths.","requires_wall":false,"requires_floor":true,"is_destructive":false,"is_diagnostic":false,"is_expected_invalid_tool":false,"can_have_power_network":true,"can_have_links":false,"default_state":{}},
+		"control_terminal": {"display_name":"Control Terminal","category":"Control","subcategory":"Terminal","placement_mode":"object","system_roles":["terminal_interaction","signal_control"],"tags":["terminal","control","link"],"description":"Terminal used to send control signals.","placement_hint":"Configure target links in inspector.","requires_wall":false,"requires_floor":true,"is_destructive":false,"is_diagnostic":false,"is_expected_invalid_tool":false,"can_have_power_network":true,"can_have_links":true,"default_state":{}},
+		"door_terminal": {"display_name":"Door Terminal","category":"Terminal","subcategory":"Door","placement_mode":"wall_mounted","system_roles":["terminal_interaction","access_control","signal_control"],"tags":["terminal","door","wall"],"description":"Wall terminal for door control.","placement_hint":"Requires a valid adjacent wall side.","requires_wall":true,"requires_floor":true,"is_destructive":false,"is_diagnostic":false,"is_expected_invalid_tool":false,"can_have_power_network":true,"can_have_links":true,"default_state":{}},
+		"platform_terminal": {"display_name":"Platform Terminal","category":"Terminal","subcategory":"Platform","placement_mode":"wall_mounted","system_roles":["terminal_interaction","signal_control"],"tags":["terminal","platform","wall"],"description":"Wall terminal for platform control.","placement_hint":"Requires a valid adjacent wall side.","requires_wall":true,"requires_floor":true,"is_destructive":false,"is_diagnostic":false,"is_expected_invalid_tool":false,"can_have_power_network":true,"can_have_links":true,"default_state":{}},
+		"cooling_terminal": {"display_name":"Cooling Terminal","category":"Terminal","subcategory":"Cooling","placement_mode":"wall_mounted","system_roles":["terminal_interaction","signal_control"],"tags":["terminal","cooling","wall"],"description":"Wall terminal for cooling subsystem.","placement_hint":"Requires a valid adjacent wall side.","requires_wall":true,"requires_floor":true,"is_destructive":false,"is_diagnostic":false,"is_expected_invalid_tool":false,"can_have_power_network":true,"can_have_links":true,"default_state":{}},
+		"firewall": {"display_name":"Firewall Node","category":"Wall-mounted","subcategory":"Security","placement_mode":"wall_mounted","system_roles":["signal_control"],"tags":["firewall","security","wall"],"description":"Wall-mounted digital security node.","placement_hint":"Requires a valid adjacent wall side.","requires_wall":true,"requires_floor":true,"is_destructive":false,"is_diagnostic":false,"is_expected_invalid_tool":false,"can_have_power_network":true,"can_have_links":true,"default_state":{}},
+		"power_source_class_1": {"display_name":"Power Source C1","category":"Power","subcategory":"Source","placement_mode":"object","system_roles":["power_source","power_network"],"tags":["power","source","generator"],"description":"Primary local power source.","placement_hint":"Set power_network_id in inspector after placement.","requires_wall":false,"requires_floor":true,"is_destructive":false,"is_diagnostic":false,"is_expected_invalid_tool":false,"can_have_power_network":true,"can_have_links":false,"default_state":{"is_powered":true}},
+		"power_socket": {"display_name":"Power Socket","category":"Power","subcategory":"Connector","placement_mode":"object","system_roles":["power_network","power_consumer"],"tags":["power","socket","connector"],"description":"Power connector point for devices.","placement_hint":"Set power_network_id in inspector after placement.","requires_wall":false,"requires_floor":true,"is_destructive":false,"is_diagnostic":false,"is_expected_invalid_tool":false,"can_have_power_network":true,"can_have_links":false,"default_state":{}},
+		"power_cable": {"display_name":"Power Cable","category":"Power","subcategory":"Network","placement_mode":"object","system_roles":["power_network"],"tags":["power","cable","network"],"description":"Cable segment for power routing.","placement_hint":"Set power_network_id in inspector after placement.","requires_wall":false,"requires_floor":true,"is_destructive":false,"is_diagnostic":false,"is_expected_invalid_tool":false,"can_have_power_network":true,"can_have_links":false,"default_state":{}},
+		"circuit_switch": {"display_name":"Circuit Switch","category":"Control","subcategory":"Power","placement_mode":"object","system_roles":["signal_control","power_network"],"tags":["switch","circuit","control"],"description":"Switch controlling power state.","placement_hint":"Configure links in inspector after placement.","requires_wall":false,"requires_floor":true,"is_destructive":false,"is_diagnostic":false,"is_expected_invalid_tool":false,"can_have_power_network":true,"can_have_links":true,"default_state":{}},
+		"circuit_breaker": {"display_name":"Circuit Breaker","category":"Power","subcategory":"Protection","placement_mode":"wall_mounted","system_roles":["power_network","signal_control"],"tags":["breaker","power","wall"],"description":"Wall-mounted power safety breaker.","placement_hint":"Requires a valid adjacent wall side.","requires_wall":true,"requires_floor":true,"is_destructive":false,"is_diagnostic":false,"is_expected_invalid_tool":false,"can_have_power_network":true,"can_have_links":true,"default_state":{}},
+		"light_switch": {"display_name":"Light Switch","category":"Control","subcategory":"Lighting","placement_mode":"wall_mounted","system_roles":["signal_control","power_consumer"],"tags":["switch","light","wall"],"description":"Wall-mounted switch for lights/devices.","placement_hint":"Requires a valid adjacent wall side.","requires_wall":true,"requires_floor":true,"is_destructive":false,"is_diagnostic":false,"is_expected_invalid_tool":false,"can_have_power_network":true,"can_have_links":true,"default_state":{}},
+		"fuse_box": {"display_name":"Fuse Box","category":"Power","subcategory":"Protection","placement_mode":"wall_mounted","system_roles":["power_network","power_consumer"],"tags":["fuse","power","wall"],"description":"Wall-mounted fuse control box.","placement_hint":"Requires a valid adjacent wall side.","requires_wall":true,"requires_floor":true,"is_destructive":false,"is_diagnostic":false,"is_expected_invalid_tool":false,"can_have_power_network":true,"can_have_links":true,"default_state":{}},
+		"power_cable_reel": {"display_name":"Cable Reel","category":"Utility","subcategory":"Power Utility","placement_mode":"wall_mounted","system_roles":["power_network"],"tags":["cable","reel","wall","utility"],"description":"Wall-mounted cable utility node.","placement_hint":"Requires a valid adjacent wall side.","requires_wall":true,"requires_floor":true,"is_destructive":false,"is_diagnostic":false,"is_expected_invalid_tool":false,"can_have_power_network":true,"can_have_links":false,"default_state":{}},
+		"mechanical_key": {"display_name":"Mechanical Key","category":"Item","subcategory":"Access","placement_mode":"item","system_roles":["key_item","access_control"],"tags":["item","key","mechanical"],"description":"Physical key item for locks.","placement_hint":"Place on floor as pick-up item.","requires_wall":false,"requires_floor":true,"is_destructive":false,"is_diagnostic":false,"is_expected_invalid_tool":false,"can_have_power_network":false,"can_have_links":false,"default_state":{"item_type":"key"}},
+		"digital_key": {"display_name":"Digital Key","category":"Item","subcategory":"Access","placement_mode":"item","system_roles":["key_item","access_control"],"tags":["item","key","digital"],"description":"Digital key credential item.","placement_hint":"Place on floor as pick-up item.","requires_wall":false,"requires_floor":true,"is_destructive":false,"is_diagnostic":false,"is_expected_invalid_tool":false,"can_have_power_network":false,"can_have_links":false,"default_state":{"item_type":"digital_key"}},
+		"access_code": {"display_name":"Access Code","category":"Item","subcategory":"Credential","placement_mode":"item","system_roles":["key_item","access_control"],"tags":["item","code","credential"],"description":"Code item used for access checks.","placement_hint":"Place on floor as pick-up item.","requires_wall":false,"requires_floor":true,"is_destructive":false,"is_diagnostic":false,"is_expected_invalid_tool":false,"can_have_power_network":false,"can_have_links":false,"default_state":{"item_type":"access_code"}}
+	}
+	return metadata
+
+func get_map_constructor_prefab_metadata(prefab_id: String) -> Dictionary:
+	var catalog: Dictionary = _get_map_constructor_prefab_metadata_catalog()
+	var id: String = prefab_id.strip_edges()
+	if not catalog.has(id):
+		return {"ok": false, "prefab": {}, "message": "Unknown prefab id."}
+	var row: Dictionary = Dictionary(catalog[id]).duplicate(true)
+	row["id"] = id
+	return {"ok": true, "prefab": row, "message": "OK"}
+
+func get_map_constructor_prefab_palette_rows(options: Dictionary = {}) -> Dictionary:
+	var search: String = String(options.get("search", "")).strip_edges().to_lower()
+	var category_filter: String = String(options.get("category", "All")).strip_edges()
+	var role_filter: String = String(options.get("role", "All")).strip_edges()
+	var placement_filter: String = String(options.get("placement_mode", "All")).strip_edges()
+	var show_expected_invalid: bool = bool(options.get("show_expected_invalid", true))
+	var show_diagnostics: bool = bool(options.get("show_diagnostics", true))
+	var only_placeable: bool = bool(options.get("show_only_placeable_here", false))
+	var selected_cell: Vector2i = _map_constructor_cell_from_variant(options.get("selected_cell", Vector2i(-1, -1)))
+	var rows: Array[Dictionary] = []
+	var categories: Array[String] = []
+	var roles: Array[String] = []
+	for prefab_id in _get_map_constructor_prefab_metadata_catalog().keys():
+		var meta: Dictionary = get_map_constructor_prefab_metadata(String(prefab_id)).get("prefab", {})
+		var category: String = String(meta.get("category", ""))
+		var placement_mode: String = String(meta.get("placement_mode", ""))
+		var role_values: Array[String] = []
+		for role in Array(meta.get("system_roles", [])):
+			role_values.append(String(role))
+			if not roles.has(String(role)):
+				roles.append(String(role))
+		if not categories.has(category):
+			categories.append(category)
+		if not show_expected_invalid and bool(meta.get("is_expected_invalid_tool", false)):
+			continue
+		if not show_diagnostics and bool(meta.get("is_diagnostic", false)):
+			continue
+		if category_filter != "All" and category != category_filter:
+			continue
+		if role_filter != "All" and not role_values.has(role_filter):
+			continue
+		if placement_filter != "All" and placement_mode != placement_filter:
+			continue
+		var haystack: String = "%s %s %s %s %s %s" % [String(meta.get("id", "")).to_lower(), String(meta.get("display_name", "")).to_lower(), category.to_lower(), " ".join(PackedStringArray(meta.get("tags", []))).to_lower(), " ".join(PackedStringArray(role_values)).to_lower(), String(meta.get("description", "")).to_lower()]
+		if not search.is_empty() and haystack.find(search) < 0:
+			continue
+		var row: Dictionary = meta.duplicate(true)
+		if selected_cell.x >= 0 and selected_cell.y >= 0:
+			var place_check: Dictionary = can_place_map_constructor_prefab(String(meta.get("id", "")), selected_cell, "")
+			row["placeability"] = place_check
+			if only_placeable and not bool(place_check.get("ok", false)):
+				continue
+		rows.append(row)
+	categories.sort()
+	roles.sort()
+	rows.sort_custom(func(a: Dictionary, b: Dictionary) -> bool: return String(a.get("display_name", a.get("id", ""))) < String(b.get("display_name", b.get("id", ""))))
+	return {"ok": true, "rows": rows, "categories": categories, "roles": roles, "message": "OK"}
+
 func is_map_constructor_item_prefab(prefab_id: String) -> bool:
 	return prefab_id in ["mechanical_key", "digital_key", "access_code"]
 
@@ -2246,6 +2335,14 @@ func get_map_constructor_placed_object_rows() -> Array[Dictionary]:
 			"attached_wall_cell": Vector2i(-1, -1),
 			"wall_side": String(object_data.get("wall_side", ""))
 		}
+		var meta_result: Dictionary = get_map_constructor_prefab_metadata(prefab_id)
+		if bool(meta_result.get("ok", false)):
+			var prefab_meta: Dictionary = Dictionary(meta_result.get("prefab", {}))
+			row["display_name"] = String(prefab_meta.get("display_name", prefab_id))
+			row["metadata_category"] = String(prefab_meta.get("category", ""))
+			row["metadata_roles"] = Array(prefab_meta.get("system_roles", []))
+			row["metadata_tags"] = Array(prefab_meta.get("tags", []))
+			row["is_expected_invalid_tool"] = bool(prefab_meta.get("is_expected_invalid_tool", false))
 		if placement_mode == "wall_mounted":
 			row["anchor_floor_cell"] = _deserialize_cell_variant(object_data.get("anchor_floor_cell", row_cell))
 			row["attached_wall_cell"] = _deserialize_cell_variant(object_data.get("attached_wall_cell", Vector2i(-1, -1)))
@@ -2267,6 +2364,14 @@ func get_map_constructor_placed_object_rows() -> Array[Dictionary]:
 				"attached_wall_cell": Vector2i(-1, -1),
 				"wall_side": ""
 			})
+			var meta_item: Dictionary = get_map_constructor_prefab_metadata(String(item_data.get("map_constructor_prefab_id", "")))
+			if bool(meta_item.get("ok", false)):
+				var meta: Dictionary = Dictionary(meta_item.get("prefab", {}))
+				rows[rows.size() - 1]["display_name"] = String(meta.get("display_name", rows[rows.size() - 1].get("type_or_prefab", "item")))
+				rows[rows.size() - 1]["metadata_category"] = String(meta.get("category", "Item"))
+				rows[rows.size() - 1]["metadata_roles"] = Array(meta.get("system_roles", []))
+				rows[rows.size() - 1]["metadata_tags"] = Array(meta.get("tags", []))
+				rows[rows.size() - 1]["is_expected_invalid_tool"] = bool(meta.get("is_expected_invalid_tool", false))
 	rows.sort_custom(func(a: Dictionary, b: Dictionary) -> bool:
 		var ay: int = int(Vector2i(a.get("anchor_floor_cell", Vector2i.ZERO)).y)
 		var by: int = int(Vector2i(b.get("anchor_floor_cell", Vector2i.ZERO)).y)
