@@ -27,6 +27,8 @@ var runtime_inventory_state := {
 	"world_item_runtime": {}
 }
 var _map_constructor_runtime_object_seq: int = 1
+var _task_test_constructor_base_tiles: Dictionary = {}
+const MAP_CONSTRUCTOR_PRESET_PATH: String = "user://task_test_constructor_preset.json"
 const MAP_CONSTRUCTOR_SOLID_PREFABS: Array[String] = [
 	"outer_wall","brick_wall","concrete_wall","steel_wall","grate_wall",
 	"mechanical_door","digital_door","powered_gate"
@@ -126,6 +128,7 @@ func setup_world_objects_for_mission(mission_id: String) -> void:
 # endregion
 
 func _setup_task_test_mission_world() -> void:
+	_capture_task_test_constructor_base_tiles()
 	var validation_data := build_task_test_mission_world_objects_for_validation()
 	var objects: Array[Dictionary] = validation_data.get("objects", [])
 	var items_by_cell: Dictionary = validation_data.get("items_by_cell", {})
@@ -137,6 +140,110 @@ func _setup_task_test_mission_world() -> void:
 			add_item_at_cell(cell, Dictionary(item).duplicate(true))
 	PowerSystemRef.recalculate_network(mission_world_objects, "task_test_power_main")
 	refresh_world_cooling_received()
+
+func _capture_task_test_constructor_base_tiles() -> void:
+	_task_test_constructor_base_tiles.clear()
+	if grid_manager == null or not grid_manager.has_method("get_width") or not grid_manager.has_method("get_height") or not grid_manager.has_method("get_tile"):
+		return
+	var width: int = int(grid_manager.call("get_width"))
+	var height: int = int(grid_manager.call("get_height"))
+	for y in range(height):
+		for x in range(width):
+			var cell: Vector2i = Vector2i(x, y)
+			_task_test_constructor_base_tiles["%d,%d" % [x, y]] = int(grid_manager.call("get_tile", cell))
+
+func _serialize_cell_key(cell: Vector2i) -> String:
+	return "%d,%d" % [cell.x, cell.y]
+
+func _deserialize_cell_key(cell_key: String) -> Vector2i:
+	var parts: PackedStringArray = cell_key.split(",")
+	if parts.size() != 2:
+		return Vector2i(-1, -1)
+	return Vector2i(int(parts[0]), int(parts[1]))
+
+func save_task_test_constructor_preset() -> Dictionary:
+	if grid_manager == null:
+		return {"ok": false, "message": "Preset save failed: grid manager unavailable."}
+	var preset: Dictionary = {}
+	var world_objects_export: Array[Dictionary] = []
+	for object_data in mission_world_objects:
+		if object_data is Dictionary and String(Dictionary(object_data).get("object_group", "")) != "item":
+			world_objects_export.append(Dictionary(object_data).duplicate(true))
+	preset["mission_world_objects"] = world_objects_export
+	var cell_items_export: Dictionary = {}
+	for cell_variant in cell_items.keys():
+		var cell: Vector2i = Vector2i(cell_variant)
+		cell_items_export[_serialize_cell_key(cell)] = get_items_at_cell(cell)
+	preset["cell_items"] = cell_items_export
+	var modified_tiles: Dictionary = {}
+	if grid_manager.has_method("get_width") and grid_manager.has_method("get_height") and grid_manager.has_method("get_tile"):
+		var width: int = int(grid_manager.call("get_width"))
+		var height: int = int(grid_manager.call("get_height"))
+		for y in range(height):
+			for x in range(width):
+				var cell: Vector2i = Vector2i(x, y)
+				var cell_key: String = _serialize_cell_key(cell)
+				var tile_type: int = int(grid_manager.call("get_tile", cell))
+				var base_tile_type: int = int(_task_test_constructor_base_tiles.get(cell_key, tile_type))
+				if tile_type != base_tile_type:
+					modified_tiles[cell_key] = tile_type
+	preset["modified_grid_tiles"] = modified_tiles
+	var file := FileAccess.open(MAP_CONSTRUCTOR_PRESET_PATH, FileAccess.WRITE)
+	if file == null:
+		return {"ok": false, "message": "Preset save failed: cannot open file."}
+	file.store_string(JSON.stringify(preset, "\t"))
+	file.close()
+	return {"ok": true, "message": "TASK TEST preset saved.", "path": MAP_CONSTRUCTOR_PRESET_PATH}
+
+func load_task_test_constructor_preset() -> Dictionary:
+	if grid_manager == null:
+		return {"ok": false, "message": "Preset load failed: grid manager unavailable."}
+	if not FileAccess.file_exists(MAP_CONSTRUCTOR_PRESET_PATH):
+		return {"ok": false, "message": "Preset load failed: file not found."}
+	var file := FileAccess.open(MAP_CONSTRUCTOR_PRESET_PATH, FileAccess.READ)
+	if file == null:
+		return {"ok": false, "message": "Preset load failed: cannot open file."}
+	var parse_result: Variant = JSON.parse_string(file.get_as_text())
+	file.close()
+	if not (parse_result is Dictionary):
+		return {"ok": false, "message": "Preset load failed: invalid JSON."}
+	var preset: Dictionary = Dictionary(parse_result)
+	mission_world_objects.clear()
+	world_objects_by_cell.clear()
+	cell_items.clear()
+	for object_variant in Array(preset.get("mission_world_objects", [])):
+		if not (object_variant is Dictionary):
+			continue
+		var object_data: Dictionary = Dictionary(object_variant).duplicate(true)
+		var cell: Vector2i = Vector2i(object_data.get("position", Vector2i(-1, -1)))
+		set_world_object_at_cell(cell, object_data)
+	var imported_items: Dictionary = Dictionary(preset.get("cell_items", {}))
+	for cell_key_variant in imported_items.keys():
+		var cell_key: String = String(cell_key_variant)
+		var cell: Vector2i = _deserialize_cell_key(cell_key)
+		if cell.x < 0 or cell.y < 0:
+			continue
+		for item_variant in Array(imported_items.get(cell_key_variant, [])):
+			if item_variant is Dictionary:
+				add_item_at_cell(cell, Dictionary(item_variant).duplicate(true))
+	if grid_manager.has_method("get_width") and grid_manager.has_method("get_height") and grid_manager.has_method("set_tile"):
+		var width: int = int(grid_manager.call("get_width"))
+		var height: int = int(grid_manager.call("get_height"))
+		for y in range(height):
+			for x in range(width):
+				var cell: Vector2i = Vector2i(x, y)
+				var cell_key: String = _serialize_cell_key(cell)
+				var base_tile_type: int = int(_task_test_constructor_base_tiles.get(cell_key, GridManager.TILE_FLOOR))
+				grid_manager.call("set_tile", cell, base_tile_type)
+	var modified_tiles: Dictionary = Dictionary(preset.get("modified_grid_tiles", {}))
+	for cell_key_variant in modified_tiles.keys():
+		var cell: Vector2i = _deserialize_cell_key(String(cell_key_variant))
+		if cell.x < 0 or cell.y < 0:
+			continue
+		grid_manager.call("set_tile", cell, int(modified_tiles.get(cell_key_variant, GridManager.TILE_FLOOR)))
+	PowerSystemRef.recalculate_network(mission_world_objects, "")
+	refresh_world_cooling_received()
+	return {"ok": true, "message": "TASK TEST preset loaded.", "path": MAP_CONSTRUCTOR_PRESET_PATH}
 
 func build_task_test_mission_world_objects_for_validation() -> Dictionary:
 	var warnings: Array[String] = []
