@@ -342,6 +342,8 @@ var map_constructor_template_pending_apply_key: String = ""
 var map_constructor_kit_preview_can_apply: bool = false
 var map_constructor_template_preview_can_apply: bool = false
 var map_constructor_design_notes_text: String = ""
+var selected_room_visual_preset_id: String = ""
+var room_visual_preset_preview: Dictionary = {}
 var map_constructor_overlay_mode: String = "None"
 var map_constructor_overlay_visibility: Dictionary = {"show_preview": true, "show_validation": true, "show_links": true, "show_power": true, "show_wall_side_arrows": true, "show_multi_select": true}
 var map_constructor_pipeline_report: Dictionary = {}
@@ -10334,6 +10336,77 @@ func _refresh_map_constructor_panels() -> void:
 		show_hint("Overlay data ready; renderer highlight not available.")
 	)
 	list.add_child(overlay_mode_option)
+	var notes_button: Button = Button.new()
+	var room_preset_title: Label = Label.new()
+	room_preset_title.text = "Room Visual Presets"
+	list.add_child(room_preset_title)
+	var preset_catalog: Dictionary = mission_manager_runtime.call("get_room_visual_preset_catalog") if mission_manager_runtime != null and mission_manager_runtime.has_method("get_room_visual_preset_catalog") else {}
+	var preset_rows: Array = Array(preset_catalog.get("presets", []))
+	var preset_select: OptionButton = OptionButton.new()
+	for preset_row_variant in preset_rows:
+		var preset_row: Dictionary = Dictionary(preset_row_variant)
+		preset_select.add_item(String(preset_row.get("display_name", preset_row.get("id", ""))))
+		preset_select.set_item_metadata(preset_select.item_count - 1, String(preset_row.get("id", "")))
+	if selected_room_visual_preset_id.is_empty() and not preset_rows.is_empty():
+		selected_room_visual_preset_id = String(Dictionary(preset_rows[0]).get("id", ""))
+	for preset_index in range(preset_select.item_count):
+		if String(preset_select.get_item_metadata(preset_index)) == selected_room_visual_preset_id:
+			preset_select.select(preset_index)
+			break
+	preset_select.item_selected.connect(func(index: int) -> void:
+		selected_room_visual_preset_id = String(preset_select.get_item_metadata(index))
+		room_visual_preset_preview.clear()
+		_refresh_map_constructor_panels()
+	)
+	list.add_child(preset_select)
+	var preset_info_label: Label = Label.new()
+	preset_info_label.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	for preset_row_variant in preset_rows:
+		var preset_row: Dictionary = Dictionary(preset_row_variant)
+		if String(preset_row.get("id", "")) == selected_room_visual_preset_id:
+			preset_info_label.text = String(preset_row.get("description", ""))
+	list.add_child(preset_info_label)
+	var preview_preset_button: Button = Button.new()
+	preview_preset_button.text = "Preview Preset"
+	preview_preset_button.pressed.connect(func() -> void:
+		if mission_manager_runtime == null or not mission_manager_runtime.has_method("preview_room_visual_preset"):
+			return
+		room_visual_preset_preview = mission_manager_runtime.call("preview_room_visual_preset", selected_room_visual_preset_id, {"scope":"task_test_room", "include_walls":true, "include_doors":true, "include_terminals":true})
+		show_hint(String(room_visual_preset_preview.get("message", "Preview ready.")))
+		_refresh_map_constructor_panels()
+	)
+	list.add_child(preview_preset_button)
+	var apply_preset_button: Button = Button.new()
+	apply_preset_button.text = "Apply Preset"
+	apply_preset_button.pressed.connect(func() -> void:
+		if mission_manager_runtime == null or not mission_manager_runtime.has_method("apply_room_visual_preset"):
+			return
+		var apply_preset_result: Dictionary = mission_manager_runtime.call("apply_room_visual_preset", selected_room_visual_preset_id, {"scope":"task_test_room", "include_walls":true, "include_doors":true, "include_terminals":true})
+		show_hint(String(apply_preset_result.get("message", "Preset applied.")))
+		_refresh_map_constructor_panels()
+		if field_runtime != null and field_runtime.has_method("request_visual_refresh"):
+			field_runtime.call("request_visual_refresh")
+	)
+	list.add_child(apply_preset_button)
+	var clear_preset_button: Button = Button.new()
+	clear_preset_button.text = "Clear Preset Overrides"
+	clear_preset_button.pressed.connect(func() -> void:
+		if mission_manager_runtime == null or not mission_manager_runtime.has_method("clear_room_visual_preset_overrides"):
+			return
+		var clear_preset_result: Dictionary = mission_manager_runtime.call("clear_room_visual_preset_overrides", {})
+		show_hint(String(clear_preset_result.get("message", "Preset overrides cleared.")))
+		room_visual_preset_preview.clear()
+		_refresh_map_constructor_panels()
+		if field_runtime != null and field_runtime.has_method("request_visual_refresh"):
+			field_runtime.call("request_visual_refresh")
+	)
+	list.add_child(clear_preset_button)
+	if not room_visual_preset_preview.is_empty():
+		var room_preview_summary: Dictionary = Dictionary(room_visual_preset_preview.get("summary", {}))
+		var room_preview_label: Label = Label.new()
+		room_preview_label.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+		room_preview_label.text = "Preset Preview: walls=%d doors=%d terminals=%d can_apply=%s\n%s" % [int(room_preview_summary.get("affected_walls", 0)), int(room_preview_summary.get("affected_doors", 0)), int(room_preview_summary.get("affected_terminals", 0)), str(bool(room_visual_preset_preview.get("can_apply", false))), String(room_visual_preset_preview.get("message", ""))]
+		list.add_child(room_preview_label)
 	var notes_button: Button = Button.new()
 	notes_button.text = "Generate Design Notes"
 	notes_button.pressed.connect(func() -> void:
