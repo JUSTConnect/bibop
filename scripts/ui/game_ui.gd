@@ -10159,6 +10159,48 @@ func _refresh_map_constructor_panels() -> void:
 		if String(row.get("id", "")) == map_constructor_selected_template_id:
 			template_info.text = "Template: %s\n%s\nsize=%s\nTags: %s\nWarnings: %s" % [String(row.get("display_name", "")), String(row.get("description", "")), str(row.get("size", Vector2i.ZERO)), ", ".join(PackedStringArray(Array(row.get("tags", [])))), String(row.get("warning", "none"))]
 	list.add_child(template_info)
+	var template_transform_row: HBoxContainer = HBoxContainer.new()
+	var rotation_label: Label = Label.new()
+	rotation_label.text = "Rotation"
+	template_transform_row.add_child(rotation_label)
+	var rotation_select: OptionButton = OptionButton.new()
+	for rotation_option in [0, 90, 180, 270]:
+		rotation_select.add_item("%d" % rotation_option)
+	for rotation_index in range(rotation_select.item_count):
+		if int(rotation_select.get_item_text(rotation_index)) == map_constructor_template_rotation:
+			rotation_select.select(rotation_index)
+			break
+	rotation_select.item_selected.connect(func(index: int) -> void:
+		map_constructor_template_rotation = int(rotation_select.get_item_text(index))
+		map_constructor_template_preview = {}
+		map_constructor_template_preview_can_apply = false
+		map_constructor_template_pending_apply_key = ""
+		_refresh_map_constructor_panels()
+	)
+	template_transform_row.add_child(rotation_select)
+	var mirror_x_check: CheckBox = CheckBox.new()
+	mirror_x_check.text = "Mirror X"
+	mirror_x_check.button_pressed = map_constructor_template_mirror_x
+	mirror_x_check.toggled.connect(func(enabled: bool) -> void:
+		map_constructor_template_mirror_x = enabled
+		map_constructor_template_preview = {}
+		map_constructor_template_preview_can_apply = false
+		map_constructor_template_pending_apply_key = ""
+		_refresh_map_constructor_panels()
+	)
+	template_transform_row.add_child(mirror_x_check)
+	var mirror_y_check: CheckBox = CheckBox.new()
+	mirror_y_check.text = "Mirror Y"
+	mirror_y_check.button_pressed = map_constructor_template_mirror_y
+	mirror_y_check.toggled.connect(func(enabled: bool) -> void:
+		map_constructor_template_mirror_y = enabled
+		map_constructor_template_preview = {}
+		map_constructor_template_preview_can_apply = false
+		map_constructor_template_pending_apply_key = ""
+		_refresh_map_constructor_panels()
+	)
+	template_transform_row.add_child(mirror_y_check)
+	list.add_child(template_transform_row)
 	var template_preview_button: Button = Button.new()
 	template_preview_button.text = "Preview Template"
 	template_preview_button.pressed.connect(func() -> void:
@@ -10258,6 +10300,41 @@ func _refresh_map_constructor_panels() -> void:
 		_refresh_map_constructor_panels()
 	)
 	list.add_child(pipeline_button)
+	var refresh_package_button: Button = Button.new()
+	refresh_package_button.text = "Refresh Package"
+	refresh_package_button.pressed.connect(func() -> void:
+		if mission_manager_runtime == null or not mission_manager_runtime.has_method("get_map_constructor_production_pipeline_report"):
+			return
+		map_constructor_pipeline_report = mission_manager_runtime.call("get_map_constructor_production_pipeline_report", {})
+		_refresh_map_constructor_panels()
+	)
+	list.add_child(refresh_package_button)
+	if not map_constructor_pipeline_report.is_empty():
+		var pipeline_status: String = String(map_constructor_pipeline_report.get("status", "unknown"))
+		var pipeline_message: String = String(map_constructor_pipeline_report.get("message", ""))
+		var pipeline_lines: Array[String] = ["Pipeline status: %s" % pipeline_status, pipeline_message]
+		var checks: Array = Array(map_constructor_pipeline_report.get("checks", []))
+		for check_index in range(mini(12, checks.size())):
+			var check_row: Dictionary = Dictionary(checks[check_index])
+			var check_line: String = "- %s [%s]" % [String(check_row.get("label", "")), String(check_row.get("status", ""))]
+			var check_message: String = String(check_row.get("message", "")).strip_edges()
+			if not check_message.is_empty():
+				check_line += " — %s" % check_message
+			pipeline_lines.append(check_line)
+		var promotion_package: Dictionary = Dictionary(map_constructor_pipeline_report.get("promotion_package", {}))
+		var package_warnings: Array = Array(promotion_package.get("warnings", []))
+		pipeline_lines.append("Warning summary: count=%d" % package_warnings.size())
+		for warning_index in range(mini(5, package_warnings.size())):
+			pipeline_lines.append("  • %s" % String(package_warnings[warning_index]))
+		var manual_steps: Array = Array(promotion_package.get("manual_steps", []))
+		if not manual_steps.is_empty():
+			pipeline_lines.append("Manual steps:")
+			for manual_step in manual_steps:
+				pipeline_lines.append("  - %s" % String(manual_step))
+		var pipeline_label: Label = Label.new()
+		pipeline_label.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+		pipeline_label.text = "\n".join(pipeline_lines)
+		list.add_child(pipeline_label)
 	var refresh_audit_button: Button = Button.new()
 	refresh_audit_button.text = "Refresh Audit"
 	refresh_audit_button.pressed.connect(func() -> void:
