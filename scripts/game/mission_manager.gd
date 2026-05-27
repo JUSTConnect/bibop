@@ -33,6 +33,8 @@ var _map_constructor_last_autofix_snapshot: Dictionary = {}
 var _map_constructor_last_patch_snapshot: Dictionary = {}
 var _map_constructor_last_batch_snapshot: Dictionary = {}
 var _map_constructor_wall_material_overrides: Dictionary = {}
+var map_constructor_door_visual_preset_overrides: Dictionary = {}
+var map_constructor_terminal_visual_preset_overrides: Dictionary = {}
 var _map_constructor_change_history: Array[Dictionary] = []
 var _map_constructor_change_history_seq: int = 1
 var current_mission_id: String = ""
@@ -219,6 +221,17 @@ func _is_valid_grid_cell(cell: Vector2i) -> bool:
 
 func _is_task_test_constructor_context() -> bool:
 	return String(current_mission_id) == "mission_10"
+
+func _is_known_map_constructor_wall_material_id(material_id: String) -> bool:
+	var normalized_id: String = material_id.to_lower().strip_edges()
+	if normalized_id.is_empty():
+		return false
+	var catalog: Dictionary = get_map_constructor_wall_material_catalog()
+	for row_variant in Array(catalog.get("materials", [])):
+		var row: Dictionary = Dictionary(row_variant)
+		if String(row.get("id", "")).to_lower().strip_edges() == normalized_id:
+			return true
+	return false
 
 func _format_map_constructor_cell(cell: Vector2i) -> String:
 	return "(%d, %d)" % [cell.x, cell.y]
@@ -2624,6 +2637,26 @@ func get_map_constructor_wall_material_overrides() -> Dictionary:
 		rows.append(Dictionary(_map_constructor_wall_material_overrides.get(String(key_variant), {})).duplicate(true))
 	return {"ok": true, "message": "OK", "overrides": rows}
 
+func get_room_visual_preset_catalog() -> Dictionary:
+	var presets: Array[Dictionary] = [
+		{"id":"clean_lab","display_name":"Clean Lab","description":"Sterile lab look with neutral access cues.","wall_material_id":"clean_lab","door_visual_hint":"secure_clean","terminal_visual_hint":"diagnostic_clean","floor_style":"polished","overlay_tone":"cool_white","tags":["clean","lab"],"is_default":true},
+		{"id":"dark_service_tunnel","display_name":"Dark Service Tunnel","description":"Low-light maintenance tunnel style.","wall_material_id":"dark_service","door_visual_hint":"maintenance_dark","terminal_visual_hint":"service_dim","floor_style":"grit","overlay_tone":"deep_gray","tags":["service","dark"],"is_default":false},
+		{"id":"hazard_power_room","display_name":"Hazard Power Room","description":"High-voltage room with hazard accents.","wall_material_id":"orange_hazard","door_visual_hint":"power_hazard","terminal_visual_hint":"power_hot","floor_style":"striped_hazard","overlay_tone":"amber","tags":["hazard","power"],"is_default":false},
+		{"id":"damaged_red_zone","display_name":"Damaged Red Zone","description":"Compromised zone with emergency warning tone.","wall_material_id":"damaged_red","door_visual_hint":"damaged_alert","terminal_visual_hint":"error_red","floor_style":"damaged","overlay_tone":"red_alert","tags":["damaged","alert"],"is_default":false},
+		{"id":"diagnostic_bay","display_name":"Diagnostic Bay","description":"Service bay with diagnostic emphasis.","wall_material_id":"diagnostic_blue","door_visual_hint":"diag_access","terminal_visual_hint":"diag_blue","floor_style":"service_grid","overlay_tone":"blue_scan","tags":["diagnostic","service"],"is_default":false},
+		{"id":"reinforced_security_room","display_name":"Reinforced Security Room","description":"Heavy security room with hardened materials.","wall_material_id":"reinforced","door_visual_hint":"security_reinforced","terminal_visual_hint":"security_hardened","floor_style":"reinforced_plate","overlay_tone":"steel","tags":["security","reinforced"],"is_default":false},
+		{"id":"mixed_test_room","display_name":"Mixed Test Room","description":"Mixed-purpose test room balancing safety and diagnostics.","wall_material_id":"default_metal","door_visual_hint":"mixed_generic","terminal_visual_hint":"mixed_console","floor_style":"mixed_grid","overlay_tone":"neutral","tags":["mixed","test"],"is_default":false}
+	]
+	return {"ok": true, "presets": presets, "message": "OK"}
+
+func _get_room_visual_preset_by_id(preset_id: String) -> Dictionary:
+	var normalized_id: String = preset_id.to_lower().strip_edges()
+	for preset_variant in Array(get_room_visual_preset_catalog().get("presets", [])):
+		var preset: Dictionary = Dictionary(preset_variant)
+		if String(preset.get("id", "")).to_lower().strip_edges() == normalized_id:
+			return preset
+	return {}
+
 func get_map_constructor_placed_object_rows() -> Array[Dictionary]:
 	var rows: Array[Dictionary] = []
 	for object_data_variant in mission_world_objects:
@@ -2856,6 +2889,112 @@ func _map_constructor_is_item_like_world_object(object_data: Dictionary) -> bool
 	var object_group: String = String(object_data.get("object_group", "")).to_lower()
 	var object_type: String = String(object_data.get("object_type", "")).to_lower()
 	return object_group == "item" or object_type.contains("key") or object_type.contains("access_code")
+
+func preview_room_visual_preset(preset_id: String, options: Dictionary = {}) -> Dictionary:
+	var scope: String = String(options.get("scope", "task_test_room")).strip_edges()
+	var result: Dictionary = {"ok": false, "preset_id": preset_id, "scope": scope, "affected_walls": [], "affected_doors": [], "affected_terminals": [], "summary": {}, "can_apply": false, "message": "Preview failed."}
+	if not _is_task_test_constructor_context():
+		result["message"] = "Room visual presets are available only in TASK TEST constructor mode."
+		return result
+	if scope == "selected_area":
+		result["message"] = "Selected area preview is not available yet."
+		return result
+	if scope != "task_test_room":
+		result["message"] = "Unsupported preview scope: %s" % scope
+		return result
+	var preset: Dictionary = _get_room_visual_preset_by_id(preset_id)
+	if preset.is_empty():
+		result["message"] = "Unknown room visual preset id: %s" % preset_id
+		return result
+	var material_id: String = String(preset.get("wall_material_id", "")).to_lower().strip_edges()
+	var include_walls: bool = bool(options.get("include_walls", true))
+	var include_doors: bool = bool(options.get("include_doors", true))
+	var include_terminals: bool = bool(options.get("include_terminals", true))
+	var walls: Array[Dictionary] = []
+	var doors: Array[Dictionary] = []
+	var terminals: Array[Dictionary] = []
+	if include_walls and grid_manager != null and grid_manager.has_method("get_width") and grid_manager.has_method("get_height") and grid_manager.has_method("get_tile"):
+		var width: int = int(grid_manager.call("get_width"))
+		var height: int = int(grid_manager.call("get_height"))
+		for y in range(height):
+			for x in range(width):
+				var cell: Vector2i = Vector2i(x, y)
+				var tile_type: int = int(grid_manager.call("get_tile", cell))
+				if tile_type != 1:
+					continue
+				for side_row in MAP_CONSTRUCTOR_WALL_SIDE_DELTAS:
+					var side: String = String(side_row.get("side", ""))
+					var delta: Vector2i = Vector2i(side_row.get("delta", Vector2i.ZERO))
+					var floor_cell: Vector2i = cell - delta
+					if not _is_valid_grid_cell(floor_cell):
+						continue
+					var current_material_id: String = String(get_map_constructor_wall_material(floor_cell, side).get("override", {}).get("material_id", "default_metal"))
+					walls.append({"cell": floor_cell, "side": side, "current_material_id": current_material_id, "new_material_id": material_id})
+	if include_doors or include_terminals:
+		for object_data in mission_world_objects:
+			var row: Dictionary = Dictionary(object_data)
+			var object_id: String = String(row.get("id", ""))
+			var object_cell: Vector2i = Vector2i(row.get("position", Vector2i(-1, -1)))
+			var object_type: String = String(row.get("object_type", "")).to_lower()
+			if include_doors and (object_type.contains("door") or object_type.contains("gate") or String(row.get("object_group", "")).to_lower() == "door"):
+				doors.append({"object_id": object_id, "cell": object_cell, "current_visual_hint": String(Dictionary(map_constructor_door_visual_preset_overrides.get(object_id, {})).get("visual_hint", "")), "new_visual_hint": String(preset.get("door_visual_hint", ""))})
+			if include_terminals and (object_type.contains("terminal") or String(row.get("object_group", "")).to_lower() == "terminal"):
+				terminals.append({"object_id": object_id, "cell": object_cell, "current_visual_hint": String(Dictionary(map_constructor_terminal_visual_preset_overrides.get(object_id, {})).get("visual_hint", "")), "new_visual_hint": String(preset.get("terminal_visual_hint", ""))})
+	var can_apply: bool = _is_known_map_constructor_wall_material_id(material_id) and (not walls.is_empty() or not doors.is_empty() or not terminals.is_empty())
+	result["ok"] = true
+	result["affected_walls"] = walls
+	result["affected_doors"] = doors
+	result["affected_terminals"] = terminals
+	result["can_apply"] = can_apply
+	result["summary"] = {"affected_walls": walls.size(), "affected_doors": doors.size(), "affected_terminals": terminals.size()}
+	result["message"] = "Preview ready." if can_apply else "Preview has no applicable targets or preset wall material is unknown."
+	return result
+
+func apply_room_visual_preset(preset_id: String, options: Dictionary = {}) -> Dictionary:
+	var preview: Dictionary = preview_room_visual_preset(preset_id, options)
+	if not bool(preview.get("ok", false)) or not bool(preview.get("can_apply", false)):
+		return {"ok": false, "preset_id": preset_id, "applied_walls": 0, "applied_doors": 0, "applied_terminals": 0, "message": String(preview.get("message", "Cannot apply preset."))}
+	var applied_walls: int = 0
+	for wall_row_variant in Array(preview.get("affected_walls", [])):
+		var wall_row: Dictionary = Dictionary(wall_row_variant)
+		var wall_cell: Vector2i = Vector2i(wall_row.get("cell", Vector2i(-1, -1)))
+		var wall_side: String = String(wall_row.get("side", ""))
+		var wall_material_id: String = String(wall_row.get("new_material_id", ""))
+		var key: String = _serialize_wall_material_override_key(wall_cell, wall_side)
+		_map_constructor_wall_material_overrides[key] = {"cell": wall_cell, "side": wall_side, "material_id": wall_material_id, "created_by_room_visual_preset": true, "room_visual_preset_id": String(preset_id).to_lower().strip_edges()}
+		applied_walls += 1
+	var applied_doors: int = 0
+	for door_row_variant in Array(preview.get("affected_doors", [])):
+		var door_row: Dictionary = Dictionary(door_row_variant)
+		var door_object_id: String = String(door_row.get("object_id", ""))
+		if door_object_id.is_empty():
+			continue
+		map_constructor_door_visual_preset_overrides[door_object_id] = {"preset_id": String(preset_id).to_lower().strip_edges(), "visual_hint": String(door_row.get("new_visual_hint", "")), "created_by_room_visual_preset": true}
+		applied_doors += 1
+	var applied_terminals: int = 0
+	for terminal_row_variant in Array(preview.get("affected_terminals", [])):
+		var terminal_row: Dictionary = Dictionary(terminal_row_variant)
+		var terminal_object_id: String = String(terminal_row.get("object_id", ""))
+		if terminal_object_id.is_empty():
+			continue
+		map_constructor_terminal_visual_preset_overrides[terminal_object_id] = {"preset_id": String(preset_id).to_lower().strip_edges(), "visual_hint": String(terminal_row.get("new_visual_hint", "")), "created_by_room_visual_preset": true}
+		applied_terminals += 1
+	return {"ok": true, "preset_id": preset_id, "applied_walls": applied_walls, "applied_doors": applied_doors, "applied_terminals": applied_terminals, "message": "Room visual preset applied (runtime-only)."}
+
+func clear_room_visual_preset_overrides(options: Dictionary = {}) -> Dictionary:
+	var cleared_walls: int = 0
+	var wall_keys: Array = _map_constructor_wall_material_overrides.keys()
+	for key_variant in wall_keys:
+		var key: String = String(key_variant)
+		var row: Dictionary = Dictionary(_map_constructor_wall_material_overrides.get(key, {}))
+		if bool(row.get("created_by_room_visual_preset", false)):
+			_map_constructor_wall_material_overrides.erase(key)
+			cleared_walls += 1
+	var cleared_doors: int = map_constructor_door_visual_preset_overrides.size()
+	var cleared_terminals: int = map_constructor_terminal_visual_preset_overrides.size()
+	map_constructor_door_visual_preset_overrides.clear()
+	map_constructor_terminal_visual_preset_overrides.clear()
+	return {"ok": true, "cleared_walls": cleared_walls, "cleared_doors": cleared_doors, "cleared_terminals": cleared_terminals, "message": "Room visual preset overrides cleared."}
 
 func _map_constructor_make_link_target(target_id: String, label: String, target_kind: String, target_cell: Vector2i, status: String, reason: String) -> Dictionary:
 	return {"id": target_id, "label": label, "kind": target_kind, "cell": target_cell, "status": status, "reason": reason}
