@@ -1837,6 +1837,12 @@ func get_visual_texture_asset_catalog() -> Dictionary:
 	var assets: Array[Dictionary] = [
 		{"id":"wall_default_metal","category":"wall","display_name":"Wall / Default Metal","description":"Default wall material texture slot.","texture_path":"","atlas_region":Rect2i(0, 0, 0, 0),"fallback_style":"default","fallback_color":Color(0.33, 0.37, 0.43, 0.98),"tags":["wall","default"],"is_optional":true},
 		{"id":"wall_clean_lab","category":"wall","display_name":"Wall / Clean Lab","description":"Clean lab wall texture slot.","texture_path":"","atlas_region":Rect2i(0, 0, 0, 0),"fallback_style":"clean","fallback_color":Color(0.66, 0.72, 0.76, 0.98),"tags":["wall","lab"],"is_optional":true},
+		{"id":"wall_dark_service","category":"wall","display_name":"Wall / Dark Service","description":"Dark service wall texture slot.","texture_path":"","atlas_region":Rect2i(0, 0, 0, 0),"fallback_style":"dark","fallback_color":Color(0.18, 0.2, 0.24, 0.98),"tags":["wall","service"],"is_optional":true},
+		{"id":"wall_orange_hazard","category":"wall","display_name":"Wall / Orange Hazard","description":"Orange hazard wall texture slot.","texture_path":"","atlas_region":Rect2i(0, 0, 0, 0),"fallback_style":"hazard","fallback_color":Color(0.48, 0.31, 0.16, 0.98),"tags":["wall","hazard"],"is_optional":true},
+		{"id":"wall_damaged_red","category":"wall","display_name":"Wall / Damaged Red","description":"Damaged red wall texture slot.","texture_path":"","atlas_region":Rect2i(0, 0, 0, 0),"fallback_style":"damaged","fallback_color":Color(0.42, 0.19, 0.2, 0.98),"tags":["wall","damaged"],"is_optional":true},
+		{"id":"wall_reinforced","category":"wall","display_name":"Wall / Reinforced","description":"Reinforced wall texture slot.","texture_path":"","atlas_region":Rect2i(0, 0, 0, 0),"fallback_style":"reinforced","fallback_color":Color(0.24, 0.27, 0.33, 0.98),"tags":["wall","reinforced"],"is_optional":true},
+		{"id":"wall_power_room","category":"wall","display_name":"Wall / Power Room","description":"Power room wall texture slot.","texture_path":"","atlas_region":Rect2i(0, 0, 0, 0),"fallback_style":"power","fallback_color":Color(0.28, 0.3, 0.21, 0.98),"tags":["wall","power"],"is_optional":true},
+		{"id":"wall_diagnostic_blue","category":"wall","display_name":"Wall / Diagnostic Blue","description":"Diagnostic blue wall texture slot.","texture_path":"","atlas_region":Rect2i(0, 0, 0, 0),"fallback_style":"diagnostic","fallback_color":Color(0.21, 0.3, 0.49, 0.98),"tags":["wall","diagnostic"],"is_optional":true},
 		{"id":"door_state_generic","category":"door","display_name":"Door / Generic","description":"Door visual state texture slot.","texture_path":"","atlas_region":Rect2i(0, 0, 0, 0),"fallback_style":"state_tint","fallback_color":Color(0.72, 0.78, 0.86, 0.95),"tags":["door","state"],"is_optional":true},
 		{"id":"terminal_state_generic","category":"terminal","display_name":"Terminal / Generic","description":"Terminal visual state texture slot.","texture_path":"","atlas_region":Rect2i(0, 0, 0, 0),"fallback_style":"state_tint","fallback_color":Color(0.78, 0.87, 0.96, 0.98),"tags":["terminal","state"],"is_optional":true},
 		{"id":"item_generic_marker","category":"item","display_name":"Item / Marker","description":"Generic item marker texture slot.","texture_path":"","atlas_region":Rect2i(0, 0, 0, 0),"fallback_style":"small_marker","fallback_color":Color(0.74, 0.84, 0.96, 0.95),"tags":["item"],"is_optional":true},
@@ -1862,6 +1868,68 @@ func resolve_visual_texture_asset(asset_id: String) -> Dictionary:
 		var message: String = "Texture asset resolved." if has_texture else "Texture missing; fallback should be used."
 		return {"ok": true, "asset_id": normalized_asset_id, "has_texture": has_texture, "texture_path": texture_path, "atlas_region": Rect2i(row.get("atlas_region", Rect2i(0, 0, 0, 0))), "fallback_style": String(row.get("fallback_style", "default")), "fallback_color": Color(row.get("fallback_color", Color(1, 1, 1, 1))), "message": message, "is_optional": bool(row.get("is_optional", true))}
 	return {"ok": false, "asset_id": normalized_asset_id, "has_texture": false, "texture_path": "", "atlas_region": Rect2i(0, 0, 0, 0), "fallback_style": "default", "fallback_color": Color(1, 1, 1, 1), "message": "Unknown visual texture asset id: %s" % normalized_asset_id}
+
+func get_visual_texture_asset_reference_diagnostics() -> Dictionary:
+	var unknown_references: Array[String] = []
+	var missing_optional: Array[String] = []
+	var missing_required: Array[String] = []
+	var seen_asset_ids: Dictionary = {}
+	for wall_row_variant in Array(get_map_constructor_wall_material_catalog().get("materials", [])):
+		var wall_row: Dictionary = Dictionary(wall_row_variant)
+		var wall_asset_id: String = String(wall_row.get("texture_asset_id", "")).strip_edges()
+		if wall_asset_id.is_empty():
+			continue
+		seen_asset_ids[wall_asset_id] = true
+		var wall_resolved: Dictionary = resolve_visual_texture_asset(wall_asset_id)
+		if not bool(wall_resolved.get("ok", false)):
+			unknown_references.append(wall_asset_id)
+			continue
+		if not bool(wall_resolved.get("has_texture", false)):
+			if bool(wall_resolved.get("is_optional", true)):
+				missing_optional.append(wall_asset_id)
+			else:
+				missing_required.append(wall_asset_id)
+	var known_door_asset_ids: Array[String] = ["door_state_generic"]
+	for door_asset_id in known_door_asset_ids:
+		var normalized_door_asset_id: String = door_asset_id.strip_edges()
+		if normalized_door_asset_id.is_empty() or seen_asset_ids.has(normalized_door_asset_id):
+			continue
+		seen_asset_ids[normalized_door_asset_id] = true
+		var door_resolved: Dictionary = resolve_visual_texture_asset(normalized_door_asset_id)
+		if not bool(door_resolved.get("ok", false)):
+			unknown_references.append(normalized_door_asset_id)
+			continue
+		if not bool(door_resolved.get("has_texture", false)):
+			if bool(door_resolved.get("is_optional", true)):
+				missing_optional.append(normalized_door_asset_id)
+			else:
+				missing_required.append(normalized_door_asset_id)
+	var known_terminal_asset_ids: Array[String] = ["terminal_state_generic"]
+	for terminal_asset_id in known_terminal_asset_ids:
+		var normalized_terminal_asset_id: String = terminal_asset_id.strip_edges()
+		if normalized_terminal_asset_id.is_empty() or seen_asset_ids.has(normalized_terminal_asset_id):
+			continue
+		seen_asset_ids[normalized_terminal_asset_id] = true
+		var terminal_resolved: Dictionary = resolve_visual_texture_asset(normalized_terminal_asset_id)
+		if not bool(terminal_resolved.get("ok", false)):
+			unknown_references.append(normalized_terminal_asset_id)
+			continue
+		if not bool(terminal_resolved.get("has_texture", false)):
+			if bool(terminal_resolved.get("is_optional", true)):
+				missing_optional.append(normalized_terminal_asset_id)
+			else:
+				missing_required.append(normalized_terminal_asset_id)
+	var ok: bool = unknown_references.is_empty() and missing_required.is_empty()
+	var message: String = "Visual asset references resolved."
+	if not ok:
+		message = "Visual asset references have unknown or required-missing entries."
+	return {
+		"ok": ok,
+		"unknown_references": unknown_references,
+		"missing_optional": missing_optional,
+		"missing_required": missing_required,
+		"message": message
+	}
 
 func _is_map_constructor_wall_cell(cell: Vector2i) -> bool:
 	if grid_manager == null:
@@ -10376,6 +10444,7 @@ func _build_visual_asset_summary(catalog: Dictionary) -> Dictionary:
 	var assets: Array = Array(catalog.get("assets", []))
 	var missing_optional_count: int = 0
 	var missing_required_count: int = 0
+	var unknown_reference_count: int = 0
 	var category_counts: Dictionary = {}
 	for row_variant in assets:
 		var row: Dictionary = Dictionary(row_variant)
@@ -10387,8 +10456,13 @@ func _build_visual_asset_summary(catalog: Dictionary) -> Dictionary:
 				missing_optional_count += 1
 			else:
 				missing_required_count += 1
+	var reference_diagnostics: Dictionary = get_visual_texture_asset_reference_diagnostics()
+	unknown_reference_count = Array(reference_diagnostics.get("unknown_references", [])).size()
+	missing_optional_count = maxi(missing_optional_count, Array(reference_diagnostics.get("missing_optional", [])).size())
+	missing_required_count = maxi(missing_required_count, Array(reference_diagnostics.get("missing_required", [])).size())
 	return {
 		"asset_count": assets.size(),
+		"unknown_reference_count": unknown_reference_count,
 		"missing_optional_count": missing_optional_count,
 		"missing_required_count": missing_required_count,
 		"fallback_count": missing_optional_count + missing_required_count,
