@@ -10017,6 +10017,10 @@ func _refresh_map_constructor_panels() -> void:
 		_clear_map_constructor_preview_cell()
 		_clear_map_constructor_wall_mounted_selection()
 		_clear_map_constructor_link_target()
+		_show_map_constructor_inspector(Vector2i(-1, -1))
+		map_constructor_patch_pending_apply = false
+		map_constructor_patch_preview.clear()
+		map_constructor_patch_parsed.clear()
 		if field_runtime != null and field_runtime.has_method("request_visual_refresh"):
 			field_runtime.call("request_visual_refresh")
 		_refresh_map_constructor_panels()
