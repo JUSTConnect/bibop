@@ -1150,6 +1150,41 @@ func _is_wall_or_boundary_cell(cell: Vector2i) -> bool:
 		return true
 	return int(grid_manager.call("get_tile", cell)) == GridManager.TILE_WALL
 
+func _get_map_constructor_wall_side_delta(side_id: String) -> Vector2i:
+	match side_id.to_lower().strip_edges():
+		"north":
+			return Vector2i(0, -1)
+		"east":
+			return Vector2i(1, 0)
+		"south":
+			return Vector2i(0, 1)
+		"west":
+			return Vector2i(-1, 0)
+		_:
+			return Vector2i.ZERO
+
+func _get_map_constructor_wall_side_label(side_id: String) -> String:
+	match side_id.to_lower().strip_edges():
+		"north":
+			return "North"
+		"east":
+			return "East"
+		"south":
+			return "South"
+		"west":
+			return "West"
+		_:
+			return side_id.capitalize()
+
+func _is_map_constructor_wall_cell(cell: Vector2i) -> bool:
+	if grid_manager == null:
+		return false
+	if not grid_manager.has_method("is_in_bounds") or not bool(grid_manager.call("is_in_bounds", cell)):
+		return false
+	if grid_manager.has_method("get_tile"):
+		return int(grid_manager.call("get_tile", cell)) == GridManager.TILE_WALL
+	return false
+
 func _resolve_wall_mounted_attachment(anchor_floor_cell: Vector2i, preferred_side: String = "") -> Dictionary:
 	if grid_manager == null:
 		return {"ok": false, "reason": "grid_unavailable", "message": "Blocked: grid unavailable."}
@@ -1191,16 +1226,16 @@ func can_place_map_constructor_prefab(prefab_id: String, cell: Vector2i, preferr
 		return result
 	var cell_state: Dictionary = get_runtime_cell_state(cell)
 	result["cell_state"] = cell_state
-	if not bool(cell_state.get("in_bounds", false)):
-		result["reason"] = "out_of_bounds"
-		result["message"] = "Blocked: out of bounds."
-		return result
-	if active_bipob_ref != null and Vector2i(active_bipob_ref.get("grid_position", Vector2i(-1, -1))) == cell:
-		result["reason"] = "occupied_by_bipob"
-		result["message"] = "Blocked: existing object."
-		return result
 	var prefab_is_item: bool = is_map_constructor_item_prefab(prefab_id)
 	var prefab_is_wall_mounted: bool = bool(MAP_CONSTRUCTOR_WALL_MOUNTED_PREFABS.get(prefab_id, false))
+	if not bool(cell_state.get("in_bounds", false)):
+		result["reason"] = "wall_mounted_anchor_out_of_bounds" if prefab_is_wall_mounted else "out_of_bounds"
+		result["message"] = "Cannot mount here: anchor floor cell is outside the map." if prefab_is_wall_mounted else "Blocked: out of bounds."
+		return result
+	if active_bipob_ref != null and Vector2i(active_bipob_ref.get("grid_position", Vector2i(-1, -1))) == cell:
+		result["reason"] = "blocked_by_bipob" if prefab_is_wall_mounted else "occupied_by_bipob"
+		result["message"] = "Cannot mount here: anchor cell is occupied by Bipob." if prefab_is_wall_mounted else "Blocked: existing object."
+		return result
 	var tile_type_value: int = int(cell_state.get("tile_type", -1))
 	var tile_is_wall: bool = tile_type_value == GridManager.TILE_WALL
 	var tile_is_door_or_gate: bool = tile_type_value == GridManager.TILE_DOOR or tile_type_value == GridManager.TILE_DIGITAL_DOOR or tile_type_value == GridManager.TILE_POWERED_GATE
@@ -1249,22 +1284,40 @@ func can_place_map_constructor_prefab(prefab_id: String, cell: Vector2i, preferr
 	if prefab_is_wall_mounted:
 		result["placement_mode"] = "wall_mounted"
 		result["anchor_floor_cell"] = _serialize_cell_key(cell)
-		var attachment_check: Dictionary = _resolve_wall_mounted_attachment(cell, preferred_wall_side)
-		result["available_wall_sides"] = Array(attachment_check.get("available_wall_sides", []))
 		result["attached_wall_cell"] = "-1,-1"
-		result["wall_side"] = String(attachment_check.get("wall_side", preferred_wall_side))
-		if not bool(attachment_check.get("ok", false)):
-			result["reason"] = String(attachment_check.get("reason", "no_adjacent_wall"))
-			result["message"] = String(attachment_check.get("message", "Blocked: no adjacent wall."))
+		var normalized_side: String = preferred_wall_side.to_lower().strip_edges()
+		if not normalized_side.is_empty() and _get_map_constructor_wall_side_delta(normalized_side) == Vector2i.ZERO:
+			result["reason"] = "wall_mounted_wrong_side"
+			result["message"] = "Cannot mount on %s: adjacent cell is not a wall." % _get_map_constructor_wall_side_label(preferred_wall_side)
 			return result
-		var attached_wall_cell: Vector2i = Vector2i(attachment_check.get("attached_wall_cell", Vector2i(-1, -1)))
-		if not _is_wall_or_boundary_cell(attached_wall_cell):
-			result["attached_wall_cell"] = _serialize_cell_key(attached_wall_cell)
-			result["reason"] = "invalid_wall_attachment"
-			result["message"] = "Blocked: attached wall cell is not wall/boundary."
+		var available_sides: Array[String] = []
+		for side_entry in MAP_CONSTRUCTOR_WALL_SIDE_DELTAS:
+			var side_id: String = String(side_entry.get("side", ""))
+			var wall_cell: Vector2i = cell + _get_map_constructor_wall_side_delta(side_id)
+			if _is_map_constructor_wall_cell(wall_cell):
+				available_sides.append(side_id)
+		result["available_wall_sides"] = available_sides
+		if available_sides.is_empty():
+			result["reason"] = "wall_mounted_no_wall"
+			result["message"] = "Cannot mount here: no adjacent wall around anchor cell."
 			return result
+		if normalized_side.is_empty():
+			normalized_side = available_sides[0]
+		if not available_sides.has(normalized_side):
+			result["wall_side"] = normalized_side
+			result["reason"] = "wall_mounted_wrong_side"
+			result["message"] = "Cannot mount on %s: adjacent cell is not a wall." % _get_map_constructor_wall_side_label(normalized_side)
+			return result
+		var attached_wall_cell: Vector2i = cell + _get_map_constructor_wall_side_delta(normalized_side)
 		result["attached_wall_cell"] = _serialize_cell_key(attached_wall_cell)
-		result["wall_side"] = String(attachment_check.get("wall_side", "north"))
+		result["wall_side"] = normalized_side
+		for object_data in mission_world_objects:
+			if String(object_data.get("placement_mode", "")) != "wall_mounted":
+				continue
+			if _deserialize_cell_variant(object_data.get("anchor_floor_cell", "")) == cell and String(object_data.get("wall_side", "")).to_lower() == normalized_side:
+				result["reason"] = "wall_mounted_side_occupied"
+				result["message"] = "Cannot mount on %s: wall side already has a mounted object." % _get_map_constructor_wall_side_label(normalized_side)
+				return result
 	if prefab_id != "powered_gate":
 		var tile_name: String = String(cell_state.get("tile_name", "")).to_lower()
 		if tile_name.find("exit") >= 0 or tile_name.find("extraction") >= 0:
@@ -1526,6 +1579,64 @@ func get_map_constructor_editable_entity_at_cell(cell: Vector2i) -> Dictionary:
 		return {"ok": true, "entity_kind": "item", "id": String(item_data.get("id", "")), "cell": cell, "data": item_data}
 	return {"ok": false, "reason": "empty_cell"}
 
+
+func get_map_constructor_wall_mounted_status(entity_kind: String, entity_id: String) -> Dictionary:
+	var entity: Dictionary = get_map_constructor_entity_by_id(entity_kind, entity_id)
+	if not bool(entity.get("ok", false)):
+		return {"ok": false, "reason": "missing_entity", "message": "Wall-mounted object not found."}
+	var data: Dictionary = Dictionary(entity.get("data", {}))
+	if String(data.get("placement_mode", "")) != "wall_mounted":
+		return {"ok": true, "reason": "not_wall_mounted", "message": "Not a wall-mounted object."}
+	var anchor: Vector2i = _deserialize_cell_variant(data.get("anchor_floor_cell", ""))
+	var attached: Vector2i = _deserialize_cell_variant(data.get("attached_wall_cell", ""))
+	var side: String = String(data.get("wall_side", "")).to_lower().strip_edges()
+	var available: Array[String] = []
+	for e in MAP_CONSTRUCTOR_WALL_SIDE_DELTAS:
+		var s: String = String(e.get("side", ""))
+		if _is_map_constructor_wall_cell(anchor + _get_map_constructor_wall_side_delta(s)):
+			available.append(s)
+	var base := {"ok": true, "reason": "ok", "message": "Wall-mounted object is valid.", "anchor_floor_cell": anchor, "attached_wall_cell": attached, "wall_side": side, "available_wall_sides": available}
+	if not _is_valid_grid_cell(anchor):
+		base["ok"]=false; base["reason"]="wall_mounted_broken_anchor"; base["message"]="Wall-mounted object has broken anchor metadata."; return base
+	if _get_map_constructor_wall_side_delta(side) == Vector2i.ZERO:
+		base["ok"]=false; base["reason"]="wall_mounted_wrong_side"; base["message"]="Cannot mount on %s: adjacent cell is not a wall." % _get_map_constructor_wall_side_label(side); return base
+	if anchor + _get_map_constructor_wall_side_delta(side) != attached:
+		base["ok"]=false; base["reason"]="wall_mounted_broken_anchor"; base["message"]="Wall-mounted object has broken anchor metadata."; return base
+	if not _is_map_constructor_wall_cell(attached):
+		base["ok"]=false; base["reason"]="wall_mounted_attached_wall_missing"; base["message"]="Attached wall was removed. Choose another side, move the object, or delete it."; return base
+	return base
+
+func set_map_constructor_wall_mounted_side(entity_kind: String, entity_id: String, new_wall_side: String) -> Dictionary:
+	var status: Dictionary = get_map_constructor_wall_mounted_status(entity_kind, entity_id)
+	if not bool(status.get("ok", false)) and String(status.get("reason", "")) != "wall_mounted_attached_wall_missing":
+		return status
+	var entity: Dictionary = get_map_constructor_entity_by_id(entity_kind, entity_id)
+	if not bool(entity.get("ok", false)):
+		return {"ok": false, "reason": "missing_entity", "message": "Wall-mounted object not found."}
+	var data: Dictionary = Dictionary(entity.get("data", {}))
+	if String(data.get("placement_mode", "")) != "wall_mounted" or not bool(data.get("created_by_map_constructor", false)):
+		return {"ok": false, "reason": "not_wall_mounted", "message": "Not a wall-mounted object."}
+	var side: String = new_wall_side.to_lower().strip_edges()
+	if _get_map_constructor_wall_side_delta(side) == Vector2i.ZERO:
+		return {"ok": false, "reason": "wall_mounted_wrong_side", "message": "Cannot mount on %s: adjacent cell is not a wall." % _get_map_constructor_wall_side_label(side)}
+	var anchor: Vector2i = _deserialize_cell_variant(data.get("anchor_floor_cell", ""))
+	var attached: Vector2i = anchor + _get_map_constructor_wall_side_delta(side)
+	if not _is_map_constructor_wall_cell(attached):
+		return {"ok": false, "reason": "wall_mounted_wrong_side", "message": "Cannot mount on %s: adjacent cell is not a wall." % _get_map_constructor_wall_side_label(side)}
+	for object_data in mission_world_objects:
+		if String(object_data.get("id", "")) == entity_id:
+			continue
+		if String(object_data.get("placement_mode", "")) != "wall_mounted":
+			continue
+		if _deserialize_cell_variant(object_data.get("anchor_floor_cell", "")) == anchor and String(object_data.get("wall_side", "")).to_lower() == side:
+			return {"ok": false, "reason": "wall_mounted_side_occupied", "message": "Cannot mount on %s: wall side already has a mounted object." % _get_map_constructor_wall_side_label(side)}
+	data["wall_side"] = side
+	data["attached_wall_cell"] = _serialize_cell_key(attached)
+	data["position"] = anchor
+	set_world_object_at_cell(anchor, data)
+	PowerSystemRef.recalculate_network(mission_world_objects, String(data.get("power_network_id", "")))
+	refresh_world_cooling_received()
+	return {"ok": true, "message": "Wall side changed to %s." % _get_map_constructor_wall_side_label(side), "object_id": entity_id, "wall_side": side, "attached_wall_cell": attached}
 
 func get_map_constructor_placed_object_rows() -> Array[Dictionary]:
 	var rows: Array[Dictionary] = []

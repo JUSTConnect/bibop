@@ -9002,6 +9002,20 @@ func _deactivate_map_constructor_mode() -> void:
 
 	_clear_map_constructor_preview_cell()
 
+func _clear_map_constructor_wall_mounted_selection() -> void:
+	if field_runtime == null:
+		return
+	var renderer: Node = field_runtime.get_node_or_null("RoomVisualRenderer")
+	if renderer != null and renderer.has_method("clear_selected_wall_mounted_object"):
+		renderer.call("clear_selected_wall_mounted_object")
+
+func _set_map_constructor_wall_mounted_selection(anchor_cell: Vector2i, attached_wall_cell: Vector2i, object_id: String) -> void:
+	if field_runtime == null:
+		return
+	var renderer: Node = field_runtime.get_node_or_null("RoomVisualRenderer")
+	if renderer != null and renderer.has_method("set_selected_wall_mounted_object"):
+		renderer.call("set_selected_wall_mounted_object", anchor_cell, attached_wall_cell, object_id)
+
 func _clear_map_constructor_preview_cell() -> void:
 	if field_runtime == null:
 		return
@@ -9555,7 +9569,8 @@ func _refresh_map_constructor_panels() -> void:
 		if bool(load_result.get("ok", false)):
 			pending_map_constructor_cell = Vector2i(-1, -1)
 			_clear_map_constructor_preview_cell()
-			_show_map_constructor_inspector(Vector2i(-1, -1))
+			_clear_map_constructor_wall_mounted_selection()
+		_show_map_constructor_inspector(Vector2i(-1, -1))
 		_refresh_map_constructor_panels()
 		if field_runtime != null and field_runtime.has_method("request_visual_refresh"):
 			field_runtime.call("request_visual_refresh")
@@ -9751,6 +9766,7 @@ func _show_map_constructor_inspector(cell: Vector2i, preferred_entity_kind: Stri
 			return
 		entity_info = mission_manager_runtime.call("get_map_constructor_editable_entity_at_cell", cell)
 	if not bool(entity_info.get("ok", false)):
+		_clear_map_constructor_wall_mounted_selection()
 		return
 	var entity_kind: String = String(entity_info.get("entity_kind", "world_object"))
 	var entity_id: String = String(entity_info.get("id", ""))
@@ -9775,14 +9791,39 @@ func _show_map_constructor_inspector(cell: Vector2i, preferred_entity_kind: Stri
 	]
 	v.add_child(header)
 	if String(entity_data.get("placement_mode", "")) == "wall_mounted":
-		var entity_wall_side: String = String(entity_data.get("wall_side", "")).to_lower()
+		var wm_status: Dictionary = mission_manager_runtime.call("get_map_constructor_wall_mounted_status", entity_kind, entity_id) if mission_manager_runtime.has_method("get_map_constructor_wall_mounted_status") else {}
+		var anchor_cell: Vector2i = Vector2i(wm_status.get("anchor_floor_cell", Vector2i(entity_info.get("cell", cell))))
+		var attached_wall_cell: Vector2i = Vector2i(wm_status.get("attached_wall_cell", Vector2i(-1, -1)))
+		var entity_wall_side: String = String(wm_status.get("wall_side", entity_data.get("wall_side", ""))).to_lower()
 		if ["north", "east", "south", "west"].has(entity_wall_side):
 			selected_map_constructor_wall_side = entity_wall_side
-		var inspector_side_label: Label = Label.new()
-		inspector_side_label.text = "wall_side: %s" % _get_map_constructor_wall_side_label(entity_wall_side)
-		v.add_child(inspector_side_label)
-		available_map_constructor_wall_sides = ["north", "east", "south", "west"]
+		available_map_constructor_wall_sides.clear()
+		for side_variant in Array(wm_status.get("available_wall_sides", ["north", "east", "south", "west"])):
+			available_map_constructor_wall_sides.append(String(side_variant))
+		if available_map_constructor_wall_sides.is_empty():
+			available_map_constructor_wall_sides = ["north", "east", "south", "west"]
+		_set_map_constructor_wall_mounted_selection(anchor_cell, attached_wall_cell, entity_id)
+		var wm_info: Label = Label.new()
+		wm_info.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+		wm_info.text = "Side: %s\nAnchor: %s\nAttached wall: %s\nStatus: %s" % [_get_map_constructor_wall_side_label(entity_wall_side), str(anchor_cell), str(attached_wall_cell), String(wm_status.get("message", ""))]
+		v.add_child(wm_info)
 		v.add_child(_create_map_constructor_wall_side_picker("wall_mounted"))
+		var apply_side_button: Button = Button.new()
+		apply_side_button.text = "Apply Side"
+		apply_side_button.disabled = not mission_manager_runtime.has_method("set_map_constructor_wall_mounted_side")
+		apply_side_button.pressed.connect(func() -> void:
+			if mission_manager_runtime == null or not mission_manager_runtime.has_method("set_map_constructor_wall_mounted_side"):
+				return
+			var apply_result: Dictionary = mission_manager_runtime.call("set_map_constructor_wall_mounted_side", entity_kind, entity_id, selected_map_constructor_wall_side)
+			show_hint(String(apply_result.get("message", "Wall side updated.")))
+			if field_runtime != null and field_runtime.has_method("request_visual_refresh"):
+				field_runtime.call("request_visual_refresh")
+			_refresh_map_constructor_panels()
+			_show_map_constructor_inspector(anchor_cell, entity_kind, entity_id)
+		)
+		v.add_child(apply_side_button)
+	else:
+		_clear_map_constructor_wall_mounted_selection()
 	if mission_manager_runtime.has_method("get_map_constructor_validation_overlay"):
 		var overlay_data: Dictionary = mission_manager_runtime.call("get_map_constructor_validation_overlay")
 		var object_rows: Dictionary = Dictionary(overlay_data.get("objects", {}))
@@ -9974,6 +10015,7 @@ func _show_map_constructor_inspector(cell: Vector2i, preferred_entity_kind: Stri
 		if field_runtime != null and field_runtime.has_method("request_visual_refresh"):
 			field_runtime.call("request_visual_refresh")
 		_refresh_map_constructor_panels()
+		_clear_map_constructor_wall_mounted_selection()
 		_show_map_constructor_inspector(Vector2i(-1, -1))
 	)
 	var target_row: HBoxContainer = HBoxContainer.new()
