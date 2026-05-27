@@ -402,12 +402,34 @@ func draw_iso_mouse_selection_overlay() -> void:
 				var next_index: int = (edge_index + 1) % wall_points.size()
 				draw_line(wall_points[edge_index], wall_points[next_index], Color(0.62, 0.86, 1.0, 1.0), 2.0)
 
-func get_iso_depth_key(cell: Vector2i) -> int:
-	return cell.x + cell.y
+const ISO_LAYER_BIAS_FLOOR: float = 0.0
+const ISO_LAYER_BIAS_ITEM: float = 0.1
+const ISO_LAYER_BIAS_DOOR: float = 0.2
+const ISO_LAYER_BIAS_WALL: float = 0.4
+const ISO_LAYER_BIAS_WALL_MOUNTED: float = 0.55
+const ISO_LAYER_BIAS_TERMINAL: float = 0.6
+const ISO_LAYER_BIAS_ACTOR: float = 0.8
+const ISO_LAYER_BIAS_OVERLAY: float = 1.0
+
+func get_iso_depth_key(cell: Vector2i, layer_bias: float = 0.0) -> float:
+	return float(cell.x + cell.y) + layer_bias
+
+func sort_iso_draw_entries(a: Dictionary, b: Dictionary) -> bool:
+	var cell_a: Vector2i = Vector2i(a.get("cell", Vector2i.ZERO))
+	var cell_b: Vector2i = Vector2i(b.get("cell", Vector2i.ZERO))
+	var bias_a: float = float(a.get("layer_bias", 0.0))
+	var bias_b: float = float(b.get("layer_bias", 0.0))
+	var depth_a: float = get_iso_depth_key(cell_a, bias_a)
+	var depth_b: float = get_iso_depth_key(cell_b, bias_b)
+	if is_equal_approx(depth_a, depth_b):
+		if cell_a.y == cell_b.y:
+			return cell_a.x < cell_b.x
+		return cell_a.y < cell_b.y
+	return depth_a < depth_b
 
 func sort_cells_by_iso_depth(a: Vector2i, b: Vector2i) -> bool:
-	var depth_a: int = get_iso_depth_key(a)
-	var depth_b: int = get_iso_depth_key(b)
+	var depth_a: float = get_iso_depth_key(a)
+	var depth_b: float = get_iso_depth_key(b)
 	if depth_a == depth_b:
 		if a.y == b.y:
 			return a.x < b.x
@@ -1803,6 +1825,27 @@ func get_wall_mounted_object_profile_key(cell: Vector2i) -> String:
 				return normalized
 	return ""
 
+func is_terminal_like_profile(profile_key: String) -> bool:
+	match profile_key:
+		"terminal", "airflow_terminal", "door_terminal", "platform_terminal", "cooling_terminal":
+			return true
+	return false
+
+func is_door_like_profile(profile_key: String) -> bool:
+	match profile_key:
+		"door", "digital_door", "powered_gate":
+			return true
+	return false
+
+func get_wall_mounted_attached_depth_cell(cell: Vector2i) -> Vector2i:
+	var metadata: Dictionary = get_wall_metadata_for_cell(cell)
+	if metadata.is_empty():
+		return cell
+	var attached_wall_cell: Vector2i = _try_parse_cell_variant(metadata.get("attached_wall_cell", Vector2i(-1, -1)), Vector2i(-1, -1))
+	if attached_wall_cell.x >= 0 and attached_wall_cell.y >= 0:
+		return attached_wall_cell
+	return cell
+
 func draw_iso_wall_terminal_panel(center: Vector2, profile: Dictionary, screen_tint: Color) -> void:
 	var base_color: Color = _get_color_from_dict(profile, "base", Color.WHITE)
 	var accent_color: Color = _get_color_from_dict(profile, "accent", Color.WHITE)
@@ -1991,8 +2034,8 @@ func draw_iso_object_marker(cell: Vector2i, tile_type: int) -> void:
 		draw_iso_object_small_marker(cell, profile, visual_center)
 
 func draw_iso_object_prototype() -> void:
-	# Visual-only procedural object prototype pass for interactive tile markers.
-	# Final object assets and real metadata-driven mapping will be implemented later.
+	# Render order contract for object-like visuals in isometric mode:
+	# floor items -> doors/gates -> wall-mounted devices -> terminals -> actor markers(overlays handled in _draw).
 	if _grid_manager == null:
 		return
 	var map_width: int = _grid_manager.get_map_width()
@@ -2000,18 +2043,45 @@ func draw_iso_object_prototype() -> void:
 	if map_width <= 0 or map_height <= 0:
 		return
 
-	var object_cells: Array[Vector2i] = []
+	var draw_entries: Array[Dictionary] = []
 	for y in range(map_height):
 		for x in range(map_width):
 			var cell: Vector2i = Vector2i(x, y)
 			var tile_type: int = _grid_manager.get_tile(cell)
-			if is_iso_object_tile(tile_type):
-				object_cells.append(cell)
+			if not is_iso_object_tile(tile_type):
+				continue
+			var profile_key: String = get_iso_object_profile_key_for_tile(tile_type)
+			var sort_cell: Vector2i = cell
+			var layer_name: String = "item"
+			var layer_bias: float = ISO_LAYER_BIAS_ITEM
+			var wall_mounted_profile_key: String = get_wall_mounted_object_profile_key(cell)
+			if not wall_mounted_profile_key.is_empty():
+				profile_key = wall_mounted_profile_key
+				layer_name = "wall_mounted"
+				layer_bias = ISO_LAYER_BIAS_WALL_MOUNTED
+				sort_cell = get_wall_mounted_attached_depth_cell(cell)
+			elif is_door_like_profile(profile_key):
+				layer_name = "door"
+				layer_bias = ISO_LAYER_BIAS_DOOR
+			elif is_terminal_like_profile(profile_key):
+				layer_name = "terminal"
+				layer_bias = ISO_LAYER_BIAS_TERMINAL
+			draw_entries.append({
+				"cell": sort_cell,
+				"layer": layer_name,
+				"layer_bias": layer_bias,
+				"kind": "world_object",
+				"payload": {"object_cell": cell, "tile_type": tile_type, "profile_key": profile_key}
+			})
 
-	object_cells.sort_custom(sort_cells_by_iso_depth)
-	for cell in object_cells:
-		var tile_type: int = _grid_manager.get_tile(cell)
-		draw_iso_object_marker(cell, tile_type)
+	draw_entries.sort_custom(sort_iso_draw_entries)
+	for entry in draw_entries:
+		var payload: Dictionary = Dictionary(entry.get("payload", {}))
+		var object_cell: Vector2i = Vector2i(payload.get("object_cell", Vector2i(-1, -1)))
+		if object_cell.x < 0 or object_cell.y < 0:
+			continue
+		var tile_type: int = int(payload.get("tile_type", _grid_manager.get_tile(object_cell)))
+		draw_iso_object_marker(object_cell, tile_type)
 
 
 func get_iso_fog_color_for_cell(cell: Vector2i) -> Color:
@@ -2107,16 +2177,22 @@ func _draw() -> void:
 	if debug_draw_marker:
 		draw_circle(Vector2.ZERO, 3.0, Color(0.8, 0.95, 1.0, 0.75))
 
+	# Isometric render pass order (compatibility-focused):
+	# 1) floor/base
+	# 2) wall faces/material accents
+	# 3) object layers (items, doors, wall-mounted, terminals; depth-sorted with layer bias)
+	# 4) constructor/selection overlays
+	# 5) fog/final overlay
 	if should_render_iso_floor_visuals():
 		draw_iso_floor_prototype()
-
-	draw_iso_mouse_selection_overlay()
 
 	if should_render_iso_wall_visuals():
 		draw_iso_wall_prototype()
 
 	if should_render_iso_object_visuals():
 		draw_iso_object_prototype()
+
+	draw_iso_mouse_selection_overlay()
 
 	if should_render_iso_fog_visuals():
 		draw_iso_fog_overlay()
