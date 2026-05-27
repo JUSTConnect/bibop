@@ -31,6 +31,8 @@ var _task_test_constructor_base_tiles: Dictionary = {}
 var _map_constructor_last_cleanup_snapshot: Dictionary = {}
 var _map_constructor_last_autofix_snapshot: Dictionary = {}
 var _map_constructor_last_patch_snapshot: Dictionary = {}
+var _map_constructor_change_history: Array[Dictionary] = []
+var _map_constructor_change_history_seq: int = 1
 var current_mission_id: String = ""
 var constructor_map_width: int = 16
 var constructor_map_height: int = 10
@@ -214,6 +216,59 @@ func _is_valid_grid_cell(cell: Vector2i) -> bool:
 
 func _is_task_test_constructor_context() -> bool:
 	return String(current_mission_id) == "mission_10"
+
+func _format_map_constructor_cell(cell: Vector2i) -> String:
+	return "(%d, %d)" % [cell.x, cell.y]
+
+func _record_map_constructor_change(action_type: String, payload: Dictionary = {}) -> void:
+	if not _is_task_test_constructor_context():
+		return
+	var action: String = action_type.strip_edges().to_lower()
+	if action.is_empty():
+		action = "unknown"
+	var entity_kind: String = String(payload.get("entity_kind", "")).strip_edges()
+	var entity_id: String = String(payload.get("entity_id", "")).strip_edges()
+	var object_type: String = String(payload.get("object_type", payload.get("prefab_id", ""))).strip_edges()
+	var cell: Vector2i = _map_constructor_cell_from_variant(payload.get("cell", Vector2i(-1, -1)))
+	var summary: String = String(payload.get("summary", "")).strip_edges()
+	if summary.is_empty():
+		summary = "Map constructor change: %s" % action
+	var details: Dictionary = Dictionary(payload.get("details", {})).duplicate(true)
+	var undo_hint: String = String(payload.get("undo_hint", "")).strip_edges()
+	var row: Dictionary = {
+		"seq": _map_constructor_change_history_seq,
+		"timestamp": Time.get_datetime_string_from_system(true, true),
+		"action_type": action,
+		"entity_kind": entity_kind,
+		"entity_id": entity_id,
+		"object_type": object_type,
+		"cell": cell,
+		"summary": summary,
+		"details": details,
+		"undo_hint": undo_hint
+	}
+	_map_constructor_change_history_seq += 1
+	_map_constructor_change_history.append(row)
+	while _map_constructor_change_history.size() > 200:
+		_map_constructor_change_history.remove_at(0)
+
+func get_map_constructor_change_history(limit: int = 50) -> Dictionary:
+	if not _is_task_test_constructor_context():
+		return {"ok": false, "message": "Change history is available only in TASK TEST constructor mode.", "history": [], "total_count": 0}
+	var total_count: int = _map_constructor_change_history.size()
+	var safe_limit: int = maxi(1, limit)
+	var start: int = maxi(0, total_count - safe_limit)
+	var rows: Array[Dictionary] = []
+	for i in range(start, total_count):
+		rows.append(Dictionary(_map_constructor_change_history[i]).duplicate(true))
+	return {"ok": true, "message": "Change history ready.", "history": rows, "total_count": total_count}
+
+func clear_map_constructor_change_history() -> Dictionary:
+	if not _is_task_test_constructor_context():
+		return {"ok": false, "message": "Change history clear is available only in TASK TEST constructor mode.", "cleared_count": 0}
+	var cleared_count: int = _map_constructor_change_history.size()
+	_map_constructor_change_history.clear()
+	return {"ok": true, "message": "Change history cleared.", "cleared_count": cleared_count}
 
 func _map_constructor_is_protected_id(entity_id: String) -> bool:
 	var normalized: String = entity_id.strip_edges().to_lower()
@@ -422,6 +477,8 @@ func apply_map_constructor_patch(patch: Dictionary, options: Dictionary = {}) ->
 	PowerSystemRef.recalculate_network(mission_world_objects, "task_test_power_main")
 	refresh_world_cooling_received()
 	var patch_id: String = String(_map_constructor_last_patch_snapshot.get("patch_id", ""))
+	var summary_data: Dictionary = Dictionary(preview.get("summary", {}))
+	_record_map_constructor_change("patch_apply", {"summary":"Applied patch: +%d / ~%d / -0" % [added_count, updated_count], "details":{"patch_id":patch_id, "added_count":added_count, "updated_count":updated_count, "summary":summary_data}, "undo_hint":"Use Rollback Last Patch."})
 	return {"ok": true, "message": "Patch applied.", "applied_count": added_count + updated_count, "added_count": added_count, "updated_count": updated_count, "deleted_count": 0, "warnings": warnings, "conflicts": Array(preview.get("conflicts", [])), "patch_id": patch_id}
 
 func rollback_last_map_constructor_patch() -> Dictionary:
@@ -433,6 +490,7 @@ func rollback_last_map_constructor_patch() -> Dictionary:
 	_map_constructor_last_patch_snapshot.clear()
 	PowerSystemRef.recalculate_network(mission_world_objects, "task_test_power_main")
 	refresh_world_cooling_received()
+	_record_map_constructor_change("patch_rollback", {"summary":"Rolled back last patch", "undo_hint":"Apply patch again if needed."})
 	return {"ok": true, "message": "Last patch rolled back."}
 
 func create_map_constructor_empty_map(width: int, height: int) -> Dictionary:
@@ -1563,9 +1621,11 @@ func place_map_constructor_prefab(prefab_id: String, cell: Vector2i, preferred_w
 		previous_tile_type = int(grid_manager.call("get_tile", cell))
 	if prefab_id == "floor":
 		grid_manager.call("set_tile", cell, GridManager.TILE_FLOOR)
+		_record_map_constructor_change("place", {"entity_kind":"tile", "object_type":"floor", "cell":cell, "summary":"Placed floor at %s" % _format_map_constructor_cell(cell), "undo_hint":"Use constructor cleanup/reset tools if needed."})
 		return result
 	if prefab_id == "stepped_floor":
 		grid_manager.call("set_tile", cell, GridManager.TILE_STEPPED_FLOOR)
+		_record_map_constructor_change("place", {"entity_kind":"tile", "object_type":"stepped_floor", "cell":cell, "summary":"Placed stepped_floor at %s" % _format_map_constructor_cell(cell), "undo_hint":"Use constructor cleanup/reset tools if needed."})
 		return result
 	if is_map_constructor_item_prefab(prefab_id):
 		var object_id: String = "mapedit_%s_%d" % [prefab_id, _map_constructor_runtime_object_seq]
@@ -1586,6 +1646,7 @@ func place_map_constructor_prefab(prefab_id: String, cell: Vector2i, preferred_w
 		PowerSystemRef.recalculate_network(mission_world_objects, "")
 		refresh_world_cooling_received()
 		result["object_id"] = object_id
+		_record_map_constructor_change("place", {"entity_kind":"item", "entity_id":object_id, "object_type":item_type, "cell":cell, "summary":"Placed %s at %s" % [item_type, _format_map_constructor_cell(cell)], "undo_hint":"Can undo by deleting item."})
 		return result
 	var placed_tile_type: int = previous_tile_type
 	if prefab_id.ends_with("_wall") or prefab_id == "outer_wall":
@@ -1628,6 +1689,7 @@ func place_map_constructor_prefab(prefab_id: String, cell: Vector2i, preferred_w
 	PowerSystemRef.recalculate_network(mission_world_objects, String(object_data.get("power_network_id", "")))
 	refresh_world_cooling_received()
 	result["object_id"] = object_id
+	_record_map_constructor_change("place", {"entity_kind":"world_object", "entity_id":object_id, "object_type":prefab_id, "cell":cell, "summary":"Placed %s at %s" % [prefab_id, _format_map_constructor_cell(cell)], "undo_hint":"Can undo by deleting object."})
 	return result
 
 
@@ -1647,6 +1709,7 @@ func _remove_map_constructor_entity_by_id(entity_kind: String, entity_id: String
 				mission_world_objects.erase(item_data)
 				PowerSystemRef.recalculate_network(mission_world_objects, "")
 				refresh_world_cooling_received()
+				_record_map_constructor_change("delete", {"entity_kind":"item", "entity_id":entity_id, "object_type":String(item_data.get("item_type", item_data.get("object_type", "item"))), "cell":cell, "summary":"Deleted item %s" % entity_id, "undo_hint":"Cannot directly undo; use cleanup/autofix/patch undo systems when applicable."})
 				return {"ok": true, "message": "Removed item.", "object_id": entity_id, "warnings": []}
 		return {"ok": false, "message": "Nothing to remove.", "object_id": "", "warnings": []}
 	var object_data: Dictionary = get_world_object_by_id(entity_id)
@@ -1664,6 +1727,7 @@ func _remove_map_constructor_entity_by_id(entity_kind: String, entity_id: String
 	remove_world_object_at_cell(object_cell)
 	PowerSystemRef.recalculate_network(mission_world_objects, removed_network_id)
 	refresh_world_cooling_received()
+	_record_map_constructor_change("delete", {"entity_kind":"world_object", "entity_id":entity_id, "object_type":String(object_data.get("object_type", "")), "cell":object_cell, "summary":"Deleted %s %s" % [String(object_data.get("object_type", "object")), entity_id], "undo_hint":"Cannot directly undo; use cleanup/autofix/patch undo systems when applicable."})
 	return {"ok": true, "message": "Removed object.", "object_id": entity_id, "warnings": []}
 
 func _clone_map_constructor_entity_data(source_data: Dictionary, target_cell: Vector2i, preferred_wall_side: String, assign_new_id: bool) -> Dictionary:
@@ -1696,6 +1760,7 @@ func move_map_constructor_entity_to_cell(entity_kind: String, entity_id: String,
 	if not bool(entity.get("ok", false)):
 		return {"ok": false, "message": "Move failed: entity not found."}
 	var data: Dictionary = Dictionary(entity.get("data", {}))
+	var source_cell: Vector2i = Vector2i(entity.get("cell", Vector2i(-1, -1)))
 	var prefab_id: String = String(data.get("map_constructor_prefab_id", data.get("object_type", "")))
 	var place_check: Dictionary = can_place_map_constructor_prefab(prefab_id, target_cell, preferred_wall_side)
 	if not bool(place_check.get("ok", false)):
@@ -1711,6 +1776,7 @@ func move_map_constructor_entity_to_cell(entity_kind: String, entity_id: String,
 		add_item_at_cell(target_cell, cloned_data)
 		PowerSystemRef.recalculate_network(mission_world_objects, "")
 		refresh_world_cooling_received()
+		_record_map_constructor_change("move", {"entity_kind":"item", "entity_id":String(cloned_data.get("id", "")), "object_type":String(cloned_data.get("item_type", cloned_data.get("object_type", "item"))), "cell":target_cell, "summary":"Moved object %s from %s to %s" % [String(cloned_data.get("id", "")), _format_map_constructor_cell(source_cell), _format_map_constructor_cell(target_cell)], "details":{"from_cell":source_cell, "to_cell":target_cell}, "undo_hint":"Move back manually."})
 		return {"ok": true, "message": "Moved object.", "object_id": String(cloned_data.get("id", ""))}
 	var previous_tile_type: int = GridManager.TILE_FLOOR
 	if grid_manager != null and grid_manager.has_method("get_tile"):
@@ -1721,6 +1787,7 @@ func move_map_constructor_entity_to_cell(entity_kind: String, entity_id: String,
 	set_world_object_at_cell(target_cell, cloned_data)
 	PowerSystemRef.recalculate_network(mission_world_objects, String(cloned_data.get("power_network_id", "")))
 	refresh_world_cooling_received()
+	_record_map_constructor_change("move", {"entity_kind":"world_object", "entity_id":String(cloned_data.get("id", "")), "object_type":String(cloned_data.get("object_type", "")), "cell":target_cell, "summary":"Moved object %s from %s to %s" % [String(cloned_data.get("id", "")), _format_map_constructor_cell(source_cell), _format_map_constructor_cell(target_cell)], "details":{"from_cell":source_cell, "to_cell":target_cell}, "undo_hint":"Move back manually."})
 	return {"ok": true, "message": "Moved object.", "object_id": String(cloned_data.get("id", ""))}
 
 func duplicate_map_constructor_entity_to_cell(entity_kind: String, entity_id: String, target_cell: Vector2i, preferred_wall_side: String = "") -> Dictionary:
@@ -1740,6 +1807,7 @@ func duplicate_map_constructor_entity_to_cell(entity_kind: String, entity_id: St
 		add_item_at_cell(target_cell, cloned_data)
 		PowerSystemRef.recalculate_network(mission_world_objects, "")
 		refresh_world_cooling_received()
+		_record_map_constructor_change("duplicate", {"entity_kind":"item", "entity_id":String(cloned_data.get("id", "")), "object_type":String(cloned_data.get("item_type", cloned_data.get("object_type", "item"))), "cell":target_cell, "summary":"Duplicated object %s to %s" % [entity_id, _format_map_constructor_cell(target_cell)], "details":{"source_entity_id":entity_id}, "undo_hint":"Can undo by deleting duplicate."})
 		return {"ok": true, "message": "Duplicated object.", "object_id": String(cloned_data.get("id", ""))}
 	var previous_tile_type: int = GridManager.TILE_FLOOR
 	if grid_manager != null and grid_manager.has_method("get_tile"):
@@ -1750,6 +1818,7 @@ func duplicate_map_constructor_entity_to_cell(entity_kind: String, entity_id: St
 	set_world_object_at_cell(target_cell, cloned_data)
 	PowerSystemRef.recalculate_network(mission_world_objects, String(cloned_data.get("power_network_id", "")))
 	refresh_world_cooling_received()
+	_record_map_constructor_change("duplicate", {"entity_kind":"world_object", "entity_id":String(cloned_data.get("id", "")), "object_type":String(cloned_data.get("object_type", "")), "cell":target_cell, "summary":"Duplicated object %s to %s" % [entity_id, _format_map_constructor_cell(target_cell)], "details":{"source_entity_id":entity_id}, "undo_hint":"Can undo by deleting duplicate."})
 	return {"ok": true, "message": "Duplicated object.", "object_id": String(cloned_data.get("id", ""))}
 
 func remove_map_constructor_object_at_cell(cell: Vector2i) -> Dictionary:
@@ -1860,6 +1929,7 @@ func set_map_constructor_wall_mounted_side(entity_kind: String, entity_id: Strin
 	set_world_object_at_cell(anchor, data)
 	PowerSystemRef.recalculate_network(mission_world_objects, String(data.get("power_network_id", "")))
 	refresh_world_cooling_received()
+	_record_map_constructor_change("side_change", {"entity_kind":"world_object", "entity_id":entity_id, "object_type":String(data.get("object_type", "")), "cell":anchor, "summary":"Changed wall side on %s to %s" % [entity_id, side], "undo_hint":"Can undo by switching side again."})
 	return {"ok": true, "message": "Wall side changed to %s." % _get_map_constructor_wall_side_label(side), "object_id": entity_id, "wall_side": side, "attached_wall_cell": attached}
 
 func get_map_constructor_placed_object_rows() -> Array[Dictionary]:
@@ -2037,6 +2107,7 @@ func apply_map_constructor_property_update(entity_kind: String, entity_id: Strin
 		result["message"] = String(converted.get("message", "Invalid value."))
 		return result
 	var new_value: Variant = converted.get("value")
+	var old_value: Variant = data.get(field_name)
 	var old_network_id: String = String(data.get("power_network_id", ""))
 	data[field_name] = new_value
 	if resolved_kind == "world_object":
@@ -2070,6 +2141,7 @@ func apply_map_constructor_property_update(entity_kind: String, entity_id: Strin
 	result["ok"] = true
 	result["value"] = new_value
 	result["message"] = "Updated %s." % field_name
+	_record_map_constructor_change("property_update", {"entity_kind":resolved_kind, "entity_id":entity_id, "object_type":String(data.get("object_type", data.get("item_type", ""))), "cell":Vector2i(entity_info.get("cell", Vector2i(-1, -1))), "summary":"Updated %s on %s" % [field_name, entity_id], "details":{"field":field_name, "old":old_value, "new":new_value}, "undo_hint":"Can undo by setting previous value manually."})
 	return result
 
 func _map_constructor_is_item_like_world_object(object_data: Dictionary) -> bool:
@@ -2217,6 +2289,7 @@ func apply_map_constructor_link_target(entity_kind: String, entity_id: String, f
 		result["ok"] = true
 		result["message"] = "Updated connected_device_ids."
 		result["target_id"] = target_id
+		_record_map_constructor_change("link_update", {"entity_kind":"world_object", "entity_id":entity_id, "object_type":String(data.get("object_type", "")), "cell":Vector2i(entity_info.get("cell", Vector2i(-1, -1))), "summary":"Updated connected_device_ids on %s" % entity_id, "details":{"field":"connected_device_ids","target_id":target_id}, "undo_hint":"Can undo by editing link field."})
 		return result
 	var applied_target: String = target_id
 	if target_id.is_empty() or target_id == "__none__":
@@ -2225,6 +2298,9 @@ func apply_map_constructor_link_target(entity_kind: String, entity_id: String, f
 	result["ok"] = bool(apply_result.get("ok", false))
 	result["message"] = String(apply_result.get("message", "Link update failed."))
 	result["target_id"] = applied_target
+	if bool(result.get("ok", false)):
+		var entity_after: Dictionary = get_map_constructor_entity_by_id(entity_kind, entity_id)
+		_record_map_constructor_change("link_update", {"entity_kind":String(entity_after.get("entity_kind", entity_kind)), "entity_id":entity_id, "object_type":String(Dictionary(entity_after.get("data", {})).get("object_type", Dictionary(entity_after.get("data", {})).get("item_type", ""))), "cell":Vector2i(entity_after.get("cell", Vector2i(-1, -1))), "summary":"Updated %s on %s" % [field_name, entity_id], "details":{"field":field_name, "target_id":applied_target}, "undo_hint":"Can undo by setting previous link target."})
 	return result
 
 func apply_map_constructor_state_preset(entity_kind: String, entity_id: String, preset: String) -> Dictionary:
@@ -2564,6 +2640,7 @@ func apply_map_constructor_cleanup(cleanup_type: String, options: Dictionary = {
 			update_world_object_by_id(String(row.get("id", "")), data)
 		PowerSystemRef.recalculate_network(mission_world_objects, "")
 		refresh_world_cooling_received()
+		_record_map_constructor_change("cleanup", {"entity_kind":"", "entity_id":"", "summary":"Applied cleanup: %d objects affected" % cleared, "details":{"cleanup_type":String(cleanup_type).to_lower(), "affected_count":cleared}, "undo_hint":"Use Undo Last Cleanup."})
 		return {"ok": true, "message": "Invalid references cleaned.", "deleted_count": cleared, "cleanup_id": String(_map_constructor_last_cleanup_snapshot.get("cleanup_id", "")), "warnings": []}
 	for row_variant in affected:
 		var row: Dictionary = Dictionary(row_variant)
@@ -2575,6 +2652,7 @@ func apply_map_constructor_cleanup(cleanup_type: String, options: Dictionary = {
 	var message: String = "Cleanup applied."
 	if String(cleanup_type).to_lower() == "reset_runtime_map":
 		message = "Runtime map reset cleared constructor-created edits. Full baseline reset is not available yet."
+	_record_map_constructor_change("reset" if String(cleanup_type).to_lower() == "reset_runtime_map" else "cleanup", {"entity_kind":"", "entity_id":"", "summary":"Applied cleanup: %d objects affected" % deleted_count if String(cleanup_type).to_lower() != "reset_runtime_map" else "Reset runtime map.", "details":{"cleanup_type":String(cleanup_type).to_lower(), "affected_count":deleted_count}, "undo_hint":"Use Undo Last Cleanup."})
 	return {"ok": true, "message": message, "deleted_count": deleted_count, "cleanup_id": String(_map_constructor_last_cleanup_snapshot.get("cleanup_id", "")), "warnings": Array(preview.get("warnings", []))}
 
 func undo_last_map_constructor_cleanup() -> Dictionary:
@@ -2586,6 +2664,7 @@ func undo_last_map_constructor_cleanup() -> Dictionary:
 	_map_constructor_last_cleanup_snapshot.clear()
 	PowerSystemRef.recalculate_network(mission_world_objects, "")
 	refresh_world_cooling_received()
+	_record_map_constructor_change("cleanup_undo", {"summary":"Undid last cleanup.", "undo_hint":"Redo cleanup manually if needed."})
 	return {"ok": true, "message": "Last cleanup undone."}
 func is_task_test_expected_invalid_object_id(object_id: String) -> bool:
 	match object_id:
@@ -3100,6 +3179,7 @@ func apply_map_constructor_autofix(fix_type: String, options: Dictionary = {}) -
 				update_world_object_by_id(String(row.get("entity_id", "")), d)
 	PowerSystemRef.recalculate_network(mission_world_objects, "")
 	refresh_world_cooling_received()
+	_record_map_constructor_change("autofix", {"summary":"Applied auto-fix: %d fields fixed" % fixes.size(), "details":{"fix_type":fix_type, "fixed_count":fixes.size()}, "undo_hint":"Use Undo Last Auto-fix."})
 	return {"ok": true, "message": "Auto-fix applied.", "fixed_count": fixes.size(), "fix_id": String(_map_constructor_last_autofix_snapshot.get("fix_id", "")), "warnings": Array(preview.get("warnings", []))}
 
 func undo_last_map_constructor_autofix() -> Dictionary:
@@ -3111,6 +3191,7 @@ func undo_last_map_constructor_autofix() -> Dictionary:
 	_map_constructor_last_autofix_snapshot.clear()
 	PowerSystemRef.recalculate_network(mission_world_objects, "")
 	refresh_world_cooling_received()
+	_record_map_constructor_change("autofix_undo", {"summary":"Undid last auto-fix.", "undo_hint":"Re-apply auto-fix manually if needed."})
 	return {"ok": true, "message": "Last auto-fix undone."}
 
 func get_map_constructor_issue_autofix_options(issue: Dictionary) -> Array[Dictionary]:
