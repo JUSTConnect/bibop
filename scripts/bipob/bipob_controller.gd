@@ -5404,9 +5404,9 @@ func get_module_description_for_id(module_id: String) -> String:
 		"processor_v1":
 			return "Internal processing module. Generates more heat under heavy load."
 		"processor_v2":
-			return "CPU V2 internal processing module. Higher hack performance with moderate heat."
+			return "Processor V2 internal processing module. Higher hack performance with moderate heat."
 		"processor_v3":
-			return "CPU V3 internal processing module. Maximum hack performance with high heat risk."
+			return "Processor V3 internal processing module. Maximum hack performance with high heat risk."
 		"memory_v1":
 			return "Stores short-term operational data and increases the number of available actions during a mission."
 		"memory_v2":
@@ -9252,13 +9252,11 @@ func preview_module_port_activity() -> Dictionary:
 	var power_total := 0
 	var internal_interface_count := 0
 	var external_interface_count := 0
-	var installation_order: Dictionary = {}
 	for i in range(installed_modules.size()):
 		var module: BipobModule = installed_modules[i]
 		if module == null:
 			continue
 		var id := String(module.id)
-		installation_order[id] = i
 		if id.begins_with("internal_interface_"):
 			internal_interface_count += 1
 			internal_total += _get_internal_interface_port_capacity(id)
@@ -9277,20 +9275,24 @@ func preview_module_port_activity() -> Dictionary:
 	var external_available: int = maxi(0, external_total - external_reserved)
 	var power_available: int = power_total
 
-	var ordered_ids: Array[String] = []
-	for module in installed_modules:
+	var ordered_modules: Array[Dictionary] = []
+	for i in range(installed_modules.size()):
+		var module: BipobModule = installed_modules[i]
 		if module == null:
 			continue
-		ordered_ids.append(String(module.id))
-	ordered_ids.sort_custom(func(a: String, b: String) -> bool:
-		var pa: int = _get_module_port_priority(a)
-		var pb: int = _get_module_port_priority(b)
+		ordered_modules.append({"id": String(module.id), "index": i})
+	ordered_modules.sort_custom(func(a: Dictionary, b: Dictionary) -> bool:
+		var module_id_a: String = String(a.get("id", ""))
+		var module_id_b: String = String(b.get("id", ""))
+		var pa: int = _get_module_port_priority(module_id_a)
+		var pb: int = _get_module_port_priority(module_id_b)
 		if pa != pb:
 			return pa < pb
-		return int(installation_order.get(a,9999)) < int(installation_order.get(b,9999))
+		return int(a.get("index", 9999)) < int(b.get("index", 9999))
 	)
 
-	for module_id in ordered_ids:
+	for ordered_module in ordered_modules:
+		var module_id: String = String(ordered_module.get("id", ""))
 		var state: Dictionary = {"id": module_id, "installed": true, "active": true, "inactive_reason": "ok", "port_priority": _get_module_port_priority(module_id), "internal_ports_used": 0, "external_ports_used": 0, "power_ports_used": 0}
 		if module_id.begins_with("internal_interface_"):
 			if internal_total <= 0:
