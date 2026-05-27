@@ -299,6 +299,11 @@ var map_constructor_geometry_height_text: String = "12"
 var map_constructor_marker_mode: String = ""
 var map_constructor_prefab_search_text: String = ""
 var map_constructor_prefab_category_filter: String = "All"
+var map_constructor_prefab_favorites: Dictionary = {}
+var map_constructor_prefab_recent_ids: Array[String] = []
+const MAP_CONSTRUCTOR_PREFAB_RECENT_LIMIT: int = 8
+var map_constructor_placed_search_text: String = ""
+
 const MAP_CONSTRUCTOR_PREFAB_FILTER_CATEGORIES: Array[String] = ["All", "Walls", "Doors", "Terminals", "Power", "Control", "Items", "Wall-mounted"]
 const MAP_CONSTRUCTOR_CONTROL_PREFAB_IDS: Array[String] = [
 	"control_terminal",
@@ -9170,6 +9175,7 @@ func _handle_map_constructor_left_click(cell: Vector2i) -> void:
 	var result: Dictionary = mission_manager_runtime.call("place_map_constructor_prefab", selected_map_constructor_prefab_id, cell, selected_map_constructor_wall_side)
 	show_hint(String(result.get("message", "Placement done.")))
 	if bool(result.get("ok", false)):
+		_mark_map_constructor_prefab_recent(selected_map_constructor_prefab_id)
 		pending_map_constructor_cell = Vector2i(-1, -1)
 		_clear_map_constructor_preview_cell()
 		if field_runtime != null and field_runtime.has_method("request_visual_refresh"):
@@ -9218,6 +9224,45 @@ func _get_map_constructor_prefab_group_name(entry: Dictionary) -> String:
 			return category_text
 	return ""
 
+
+func _mark_map_constructor_prefab_recent(prefab_id: String) -> void:
+	var normalized_id: String = prefab_id.strip_edges()
+	if normalized_id.is_empty():
+		return
+	map_constructor_prefab_recent_ids.erase(normalized_id)
+	map_constructor_prefab_recent_ids.push_front(normalized_id)
+	if map_constructor_prefab_recent_ids.size() > MAP_CONSTRUCTOR_PREFAB_RECENT_LIMIT:
+		map_constructor_prefab_recent_ids.resize(MAP_CONSTRUCTOR_PREFAB_RECENT_LIMIT)
+
+func _select_map_constructor_prefab(prefab_id: String) -> void:
+	selected_map_constructor_prefab_id = prefab_id
+	selected_map_constructor_wall_side = ""
+	available_map_constructor_wall_sides.clear()
+	pending_map_constructor_cell = Vector2i(-1, -1)
+	_clear_map_constructor_preview_cell()
+	_mark_map_constructor_prefab_recent(prefab_id)
+
+func _build_map_constructor_placed_object_rows() -> Array[Dictionary]:
+	if mission_manager_runtime == null or not mission_manager_runtime.has_method("get_map_constructor_placed_object_rows"):
+		return []
+	return mission_manager_runtime.call("get_map_constructor_placed_object_rows")
+
+func _map_constructor_placed_row_matches_search(row: Dictionary) -> bool:
+	var search_text: String = map_constructor_placed_search_text.strip_edges().to_lower()
+	if search_text.is_empty():
+		return true
+	var cell: Vector2i = Vector2i(row.get("cell", Vector2i(-1, -1)))
+	var anchor_cell: Vector2i = Vector2i(row.get("anchor_floor_cell", Vector2i(-1, -1)))
+	var haystack: String = "%s %s %s %s %s %d %d %d %d" % [
+		String(row.get("id", "")).to_lower(),
+		String(row.get("entity_kind", "")).to_lower(),
+		String(row.get("type_or_prefab", "")).to_lower(),
+		String(row.get("category_or_placement", "")).to_lower(),
+		String(row.get("wall_side", "")).to_lower(),
+		cell.x, cell.y, anchor_cell.x, anchor_cell.y
+	]
+	return haystack.find(search_text) >= 0
+
 func _refresh_map_constructor_panels() -> void:
 	if app_screen_mode != AppScreenMode.GAMEPLAY:
 		return
@@ -9262,6 +9307,9 @@ func _refresh_map_constructor_panels() -> void:
 	var catalog: Array[Dictionary] = []
 	if mission_manager_runtime != null and mission_manager_runtime.has_method("get_map_constructor_prefab_catalog"):
 		catalog = mission_manager_runtime.call("get_map_constructor_prefab_catalog")
+	var catalog_by_id: Dictionary = {}
+	for entry in catalog:
+		catalog_by_id[String(entry.get("id", ""))] = entry
 	var grouped_entries: Dictionary = {}
 	for group_name in MAP_CONSTRUCTOR_PREFAB_CATEGORY_GROUP_ORDER:
 		grouped_entries[group_name] = []
@@ -9275,6 +9323,44 @@ func _refresh_map_constructor_panels() -> void:
 		var group_entries: Array = grouped_entries[group_name]
 		group_entries.append(entry)
 		grouped_entries[group_name] = group_entries
+	var favorite_entries: Array[Dictionary] = []
+	for favorite_id_variant in map_constructor_prefab_favorites.keys():
+		var favorite_id: String = String(favorite_id_variant)
+		if not bool(map_constructor_prefab_favorites.get(favorite_id, false)) or not catalog_by_id.has(favorite_id):
+			continue
+		var favorite_entry: Dictionary = Dictionary(catalog_by_id[favorite_id])
+		if _map_constructor_prefab_matches_filters(favorite_entry):
+			favorite_entries.append(favorite_entry)
+	favorite_entries.sort_custom(func(a: Dictionary, b: Dictionary) -> bool:
+		return String(a.get("label", a.get("id", ""))) < String(b.get("label", b.get("id", "")) )
+	)
+	var recent_entries: Array[Dictionary] = []
+	for recent_id in map_constructor_prefab_recent_ids:
+		if not catalog_by_id.has(recent_id):
+			continue
+		var recent_entry: Dictionary = Dictionary(catalog_by_id[recent_id])
+		if _map_constructor_prefab_matches_filters(recent_entry):
+			recent_entries.append(recent_entry)
+	for section in [{"name":"Favorites","entries":favorite_entries},{"name":"Recent","entries":recent_entries}]:
+		var section_entries: Array = Array(section.get("entries", []))
+		if section_entries.is_empty():
+			continue
+		var section_header: Label = Label.new()
+		section_header.text = String(section.get("name", ""))
+		list.add_child(section_header)
+		for entry in section_entries:
+			var id: String = String(entry.get("id", ""))
+			var b := Button.new()
+			b.text = String(entry.get("label", id))
+			b.toggle_mode = true
+			b.button_pressed = id == selected_map_constructor_prefab_id
+			if b.button_pressed:
+				selected_visible = true
+			b.pressed.connect(func() -> void:
+				_select_map_constructor_prefab(id)
+				_refresh_map_constructor_panels()
+			)
+			list.add_child(b)
 	for group_name in MAP_CONSTRUCTOR_PREFAB_CATEGORY_GROUP_ORDER:
 		var entries: Array = grouped_entries[group_name]
 		if entries.is_empty():
@@ -9291,11 +9377,7 @@ func _refresh_map_constructor_panels() -> void:
 			if b.button_pressed:
 				selected_visible = true
 			b.pressed.connect(func() -> void:
-				selected_map_constructor_prefab_id = id
-				selected_map_constructor_wall_side = ""
-				available_map_constructor_wall_sides.clear()
-				pending_map_constructor_cell = Vector2i(-1, -1)
-				_clear_map_constructor_preview_cell()
+				_select_map_constructor_prefab(id)
 				_refresh_map_constructor_panels()
 			)
 			list.add_child(b)
@@ -9332,6 +9414,49 @@ func _refresh_map_constructor_panels() -> void:
 			if String(check.get("placement_mode", "")) == "wall_mounted":
 				placement_label.text += "\nWall side: %s (R to cycle)" % _get_map_constructor_wall_side_label(String(check.get("wall_side", selected_map_constructor_wall_side)))
 	list.add_child(placement_label)
+	var favorite_toggle: Button = Button.new()
+	var selected_is_favorite: bool = bool(map_constructor_prefab_favorites.get(selected_map_constructor_prefab_id, false))
+	favorite_toggle.text = "★ Unfavorite Selected" if selected_is_favorite else "☆ Favorite Selected"
+	favorite_toggle.disabled = selected_map_constructor_prefab_id.is_empty()
+	favorite_toggle.pressed.connect(func() -> void:
+		if selected_map_constructor_prefab_id.is_empty():
+			return
+		var favorite_now: bool = not bool(map_constructor_prefab_favorites.get(selected_map_constructor_prefab_id, false))
+		map_constructor_prefab_favorites[selected_map_constructor_prefab_id] = favorite_now
+		_refresh_map_constructor_panels()
+	)
+	list.add_child(favorite_toggle)
+	var placed_title: Label = Label.new()
+	placed_title.text = "Placed Objects"
+	list.add_child(placed_title)
+	var placed_search: LineEdit = LineEdit.new()
+	placed_search.placeholder_text = "Search placed objects..."
+	placed_search.text = map_constructor_placed_search_text
+	placed_search.text_changed.connect(func(new_text: String) -> void:
+		map_constructor_placed_search_text = new_text
+		_refresh_map_constructor_panels()
+	)
+	list.add_child(placed_search)
+	for row in _build_map_constructor_placed_object_rows():
+		if not _map_constructor_placed_row_matches_search(row):
+			continue
+		var row_cell: Vector2i = Vector2i(row.get("cell", Vector2i(-1, -1)))
+		var row_anchor_cell: Vector2i = Vector2i(row.get("anchor_floor_cell", row_cell))
+		var row_button: Button = Button.new()
+		var row_text: String = "%s | %s | c:%s | %s" % [String(row.get("id", "")), String(row.get("type_or_prefab", "")), str(row_cell), String(row.get("category_or_placement", ""))]
+		if String(row.get("placement_mode", "")) == "wall_mounted":
+			row_text += " | a:%s w:%s side:%s" % [str(row_anchor_cell), str(Vector2i(row.get("attached_wall_cell", Vector2i(-1, -1)))), String(row.get("wall_side", ""))]
+		row_button.text = row_text
+		row_button.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+		row_button.pressed.connect(func() -> void:
+			var inspect_cell: Vector2i = row_anchor_cell
+			if inspect_cell.x < 0 or inspect_cell.y < 0:
+				inspect_cell = row_cell
+			pending_map_constructor_cell = inspect_cell
+			_update_map_constructor_preview_for_cell(inspect_cell)
+			_show_map_constructor_inspector(inspect_cell, String(row.get("entity_kind", "")), String(row.get("id", "")))
+		)
+		list.add_child(row_button)
 	var audit_label: Label = Label.new()
 	audit_label.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 	audit_label.text = "Audit: unavailable"
@@ -9612,15 +9737,19 @@ func _refresh_map_constructor_panels() -> void:
 		runtime_hud_root.add_child(runtime_map_constructor_validation_overlay_control)
 		runtime_hud_root.move_child(runtime_map_constructor_validation_overlay_control, runtime_hud_root.get_child_count() - 1)
 
-func _show_map_constructor_inspector(cell: Vector2i) -> void:
+func _show_map_constructor_inspector(cell: Vector2i, preferred_entity_kind: String = "", preferred_entity_id: String = "") -> void:
 	if runtime_map_constructor_inspector_panel != null and is_instance_valid(runtime_map_constructor_inspector_panel):
 		runtime_map_constructor_inspector_panel.queue_free()
 	runtime_map_constructor_inspector_panel = null
 	if mission_manager_runtime == null:
 		return
-	if not mission_manager_runtime.has_method("get_map_constructor_editable_entity_at_cell"):
-		return
-	var entity_info: Dictionary = mission_manager_runtime.call("get_map_constructor_editable_entity_at_cell", cell)
+	var entity_info: Dictionary = {}
+	if not preferred_entity_id.is_empty() and mission_manager_runtime.has_method("get_map_constructor_entity_by_id"):
+		entity_info = mission_manager_runtime.call("get_map_constructor_entity_by_id", preferred_entity_kind, preferred_entity_id)
+	if entity_info.is_empty():
+		if not mission_manager_runtime.has_method("get_map_constructor_editable_entity_at_cell"):
+			return
+		entity_info = mission_manager_runtime.call("get_map_constructor_editable_entity_at_cell", cell)
 	if not bool(entity_info.get("ok", false)):
 		return
 	var entity_kind: String = String(entity_info.get("entity_kind", "world_object"))
