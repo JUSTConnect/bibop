@@ -28,7 +28,8 @@ var runtime_inventory_state := {
 }
 var _map_constructor_runtime_object_seq: int = 1
 var _task_test_constructor_base_tiles: Dictionary = {}
-const MAP_CONSTRUCTOR_PRESET_PATH: String = "user://task_test_constructor_preset.json"
+var current_mission_id: String = ""
+const MAP_CONSTRUCTOR_PRESET_DIR: String = "user://constructor_presets"
 const MAP_CONSTRUCTOR_SOLID_PREFABS: Array[String] = [
 	"outer_wall","brick_wall","concrete_wall","steel_wall","grate_wall",
 	"mechanical_door","digital_door","powered_gate"
@@ -54,6 +55,7 @@ func _ready() -> void:
 		_seed_debug_world_objects()
 
 func setup_world_objects_for_mission(mission_id: String) -> void:
+	current_mission_id = mission_id
 	mission_world_objects.clear()
 	world_objects_by_cell.clear()
 	cell_items.clear()
@@ -161,89 +163,144 @@ func _deserialize_cell_key(cell_key: String) -> Vector2i:
 		return Vector2i(-1, -1)
 	return Vector2i(int(parts[0]), int(parts[1]))
 
-func save_task_test_constructor_preset() -> Dictionary:
-	if grid_manager == null:
-		return {"ok": false, "message": "Preset save failed: grid manager unavailable."}
-	var preset: Dictionary = {}
+func _is_task_test_constructor_context() -> bool:
+	return String(current_mission_id) == "mission_10"
+
+func _sanitize_map_constructor_preset_name(raw_name: String) -> String:
+	var value: String = raw_name.strip_edges().to_lower().replace(" ", "_")
+	var result: String = ""
+	for i in range(value.length()):
+		var ch: String = value.substr(i, 1)
+		if ch.unicode_at(0) >= 97 and ch.unicode_at(0) <= 122:
+			result += ch
+		elif ch.unicode_at(0) >= 48 and ch.unicode_at(0) <= 57:
+			result += ch
+		elif ch == "_" or ch == "-":
+			result += ch
+	if result.is_empty():
+		return "preset"
+	return result
+
+func _get_map_constructor_preset_path(preset_name: String) -> String:
+	return "%s/%s.json" % [MAP_CONSTRUCTOR_PRESET_DIR, _sanitize_map_constructor_preset_name(preset_name)]
+
+func get_map_constructor_preset_data() -> Dictionary:
 	var world_objects_export: Array[Dictionary] = []
 	for object_data in mission_world_objects:
-		if object_data is Dictionary and String(Dictionary(object_data).get("object_group", "")) != "item":
+		if object_data is Dictionary:
 			world_objects_export.append(Dictionary(object_data).duplicate(true))
-	preset["mission_world_objects"] = world_objects_export
-	var cell_items_export: Dictionary = {}
+	var cell_items_export: Array[Dictionary] = []
 	for cell_variant in cell_items.keys():
 		var cell: Vector2i = Vector2i(cell_variant)
-		cell_items_export[_serialize_cell_key(cell)] = get_items_at_cell(cell)
-	preset["cell_items"] = cell_items_export
-	var modified_tiles: Dictionary = {}
-	if grid_manager.has_method("get_width") and grid_manager.has_method("get_height") and grid_manager.has_method("get_tile"):
-		var width: int = int(grid_manager.call("get_width"))
-		var height: int = int(grid_manager.call("get_height"))
-		for y in range(height):
-			for x in range(width):
-				var cell: Vector2i = Vector2i(x, y)
-				var cell_key: String = _serialize_cell_key(cell)
-				var tile_type: int = int(grid_manager.call("get_tile", cell))
-				var base_tile_type: int = int(_task_test_constructor_base_tiles.get(cell_key, tile_type))
-				if tile_type != base_tile_type:
-					modified_tiles[cell_key] = tile_type
-	preset["modified_grid_tiles"] = modified_tiles
-	var file := FileAccess.open(MAP_CONSTRUCTOR_PRESET_PATH, FileAccess.WRITE)
-	if file == null:
-		return {"ok": false, "message": "Preset save failed: cannot open file."}
-	file.store_string(JSON.stringify(preset, "\t"))
-	file.close()
-	return {"ok": true, "message": "TASK TEST preset saved.", "path": MAP_CONSTRUCTOR_PRESET_PATH}
+		cell_items_export.append({
+			"cell": cell,
+			"items": get_items_at_cell(cell)
+		})
+	return {
+		"version": 1,
+		"mission_id": String(current_mission_id),
+		"saved_at_unix": Time.get_unix_time_from_system(),
+		"world_objects": world_objects_export,
+		"cell_items": cell_items_export,
+		"grid_overrides": [],
+		"notes": "TASK TEST constructor preset"
+	}
 
-func load_task_test_constructor_preset() -> Dictionary:
-	if grid_manager == null:
-		return {"ok": false, "message": "Preset load failed: grid manager unavailable."}
-	if not FileAccess.file_exists(MAP_CONSTRUCTOR_PRESET_PATH):
-		return {"ok": false, "message": "Preset load failed: file not found."}
-	var file := FileAccess.open(MAP_CONSTRUCTOR_PRESET_PATH, FileAccess.READ)
+func save_map_constructor_preset(preset_name: String) -> Dictionary:
+	var sanitized_name: String = _sanitize_map_constructor_preset_name(preset_name)
+	var path: String = _get_map_constructor_preset_path(sanitized_name)
+	if not _is_task_test_constructor_context():
+		return {"ok": false, "message": "Preset save works only in TASK TEST constructor mode.", "path": path, "preset_name": sanitized_name}
+	var dir_result: Error = DirAccess.make_dir_recursive_absolute(MAP_CONSTRUCTOR_PRESET_DIR)
+	if dir_result != OK and dir_result != ERR_ALREADY_EXISTS:
+		return {"ok": false, "message": "Preset save failed: cannot create preset directory.", "path": path, "preset_name": sanitized_name}
+	var file: FileAccess = FileAccess.open(path, FileAccess.WRITE)
 	if file == null:
-		return {"ok": false, "message": "Preset load failed: cannot open file."}
+		return {"ok": false, "message": "Preset save failed: cannot open file.", "path": path, "preset_name": sanitized_name}
+	file.store_string(JSON.stringify(get_map_constructor_preset_data(), "\t"))
+	file.close()
+	return {"ok": true, "message": "Preset '%s' saved." % sanitized_name, "path": path, "preset_name": sanitized_name}
+
+func list_map_constructor_presets() -> Array[Dictionary]:
+	var presets: Array[Dictionary] = []
+	var dir: DirAccess = DirAccess.open(MAP_CONSTRUCTOR_PRESET_DIR)
+	if dir == null:
+		return presets
+	dir.list_dir_begin()
+	var file_name: String = dir.get_next()
+	while not file_name.is_empty():
+		if not dir.current_is_dir() and file_name.to_lower().ends_with(".json"):
+			var name: String = file_name.substr(0, file_name.length() - 5)
+			var full_path: String = "%s/%s" % [MAP_CONSTRUCTOR_PRESET_DIR, file_name]
+			presets.append({"name": name, "path": full_path, "modified_unix": int(FileAccess.get_modified_time(full_path))})
+		file_name = dir.get_next()
+	dir.list_dir_end()
+	presets.sort_custom(func(a: Dictionary, b: Dictionary) -> bool:
+		return String(a.get("name", "")) < String(b.get("name", ""))
+	)
+	return presets
+
+func load_map_constructor_preset(preset_name: String) -> Dictionary:
+	var sanitized_name: String = _sanitize_map_constructor_preset_name(preset_name)
+	var path: String = _get_map_constructor_preset_path(sanitized_name)
+	if not _is_task_test_constructor_context():
+		return {"ok": false, "message": "Preset load works only in TASK TEST constructor mode.", "preset_name": sanitized_name}
+	if not FileAccess.file_exists(path):
+		return {"ok": false, "message": "Preset load failed: file not found.", "preset_name": sanitized_name}
+	var file: FileAccess = FileAccess.open(path, FileAccess.READ)
+	if file == null:
+		return {"ok": false, "message": "Preset load failed: cannot open file.", "preset_name": sanitized_name}
 	var parse_result: Variant = JSON.parse_string(file.get_as_text())
 	file.close()
 	if not (parse_result is Dictionary):
-		return {"ok": false, "message": "Preset load failed: invalid JSON."}
+		return {"ok": false, "message": "Preset load failed: invalid JSON.", "preset_name": sanitized_name}
 	var preset: Dictionary = Dictionary(parse_result)
+	if int(preset.get("version", 0)) != 1:
+		return {"ok": false, "message": "Preset load failed: unsupported version.", "preset_name": sanitized_name}
+	if String(preset.get("mission_id", "")) != "mission_10":
+		return {"ok": false, "message": "Preset load failed: mission mismatch.", "preset_name": sanitized_name}
 	mission_world_objects.clear()
 	world_objects_by_cell.clear()
 	cell_items.clear()
-	for object_variant in Array(preset.get("mission_world_objects", [])):
-		if not (object_variant is Dictionary):
+	for object_variant in Array(preset.get("world_objects", [])):
+		if object_variant is Dictionary:
+			var object_data: Dictionary = Dictionary(object_variant).duplicate(true)
+			set_world_object_at_cell(Vector2i(object_data.get("position", Vector2i(-1, -1))), object_data)
+	for cell_entry_variant in Array(preset.get("cell_items", [])):
+		if not (cell_entry_variant is Dictionary):
 			continue
-		var object_data: Dictionary = Dictionary(object_variant).duplicate(true)
-		var cell: Vector2i = Vector2i(object_data.get("position", Vector2i(-1, -1)))
-		set_world_object_at_cell(cell, object_data)
-	var imported_items: Dictionary = Dictionary(preset.get("cell_items", {}))
-	for cell_key_variant in imported_items.keys():
-		var cell_key: String = String(cell_key_variant)
-		var cell: Vector2i = _deserialize_cell_key(cell_key)
-		if cell.x < 0 or cell.y < 0:
-			continue
-		for item_variant in Array(imported_items.get(cell_key_variant, [])):
+		var cell_entry: Dictionary = Dictionary(cell_entry_variant)
+		var cell: Vector2i = Vector2i(cell_entry.get("cell", Vector2i(-1, -1)))
+		for item_variant in Array(cell_entry.get("items", [])):
 			if item_variant is Dictionary:
 				add_item_at_cell(cell, Dictionary(item_variant).duplicate(true))
-	if grid_manager.has_method("get_width") and grid_manager.has_method("get_height") and grid_manager.has_method("set_tile"):
-		var width: int = int(grid_manager.call("get_width"))
-		var height: int = int(grid_manager.call("get_height"))
-		for y in range(height):
-			for x in range(width):
-				var cell: Vector2i = Vector2i(x, y)
-				var cell_key: String = _serialize_cell_key(cell)
-				var base_tile_type: int = int(_task_test_constructor_base_tiles.get(cell_key, GridManager.TILE_FLOOR))
-				grid_manager.call("set_tile", cell, base_tile_type)
-	var modified_tiles: Dictionary = Dictionary(preset.get("modified_grid_tiles", {}))
-	for cell_key_variant in modified_tiles.keys():
-		var cell: Vector2i = _deserialize_cell_key(String(cell_key_variant))
-		if cell.x < 0 or cell.y < 0:
+	PowerSystemRef.recalculate_network(mission_world_objects, "task_test_power_main")
+	var networks: Dictionary = {}
+	for object_data_variant in mission_world_objects:
+		if not (object_data_variant is Dictionary):
 			continue
-		grid_manager.call("set_tile", cell, int(modified_tiles.get(cell_key_variant, GridManager.TILE_FLOOR)))
-	PowerSystemRef.recalculate_network(mission_world_objects, "")
+		var network_id: String = String(Dictionary(object_data_variant).get("power_network_id", "")).strip_edges()
+		if not network_id.is_empty():
+			networks[network_id] = true
+	for network_id_variant in networks.keys():
+		PowerSystemRef.recalculate_network(mission_world_objects, String(network_id_variant))
 	refresh_world_cooling_received()
-	return {"ok": true, "message": "TASK TEST preset loaded.", "path": MAP_CONSTRUCTOR_PRESET_PATH}
+	return {"ok": true, "message": "Preset '%s' loaded." % sanitized_name, "preset_name": sanitized_name}
+
+func delete_map_constructor_preset(preset_name: String) -> Dictionary:
+	var sanitized_name: String = _sanitize_map_constructor_preset_name(preset_name)
+	var path: String = _get_map_constructor_preset_path(sanitized_name)
+	if not _is_task_test_constructor_context():
+		return {"ok": false, "message": "Preset delete works only in TASK TEST constructor mode.", "preset_name": sanitized_name}
+	if not FileAccess.file_exists(path):
+		return {"ok": false, "message": "Preset delete failed: file not found.", "preset_name": sanitized_name}
+	var dir: DirAccess = DirAccess.open(MAP_CONSTRUCTOR_PRESET_DIR)
+	if dir == null:
+		return {"ok": false, "message": "Preset delete failed: directory unavailable.", "preset_name": sanitized_name}
+	var err: Error = dir.remove("%s.json" % sanitized_name)
+	if err != OK:
+		return {"ok": false, "message": "Preset delete failed.", "preset_name": sanitized_name}
+	return {"ok": true, "message": "Preset '%s' deleted." % sanitized_name, "preset_name": sanitized_name}
 
 func build_task_test_mission_world_objects_for_validation() -> Dictionary:
 	var warnings: Array[String] = []
