@@ -450,16 +450,22 @@ func draw_map_constructor_visual_overlay_passes() -> void:
 	var links: Array = Array(map_constructor_overlay_data.get("links", []))
 	var power: Array = Array(map_constructor_overlay_data.get("power", []))
 	var multi_select: Array = Array(map_constructor_overlay_data.get("multi_select", []))
+	if hover.has("cell"):
+		var hover_cell: Vector2i = Vector2i(hover.get("cell", Vector2i(-1, -1)))
+		if hover_cell.x >= 0 and hover_cell.y >= 0:
+			var hover_poly: PackedVector2Array = get_iso_inset_diamond_points(hover_cell, iso_floor_visual_inset + 6.0)
+			for hover_edge_index in range(hover_poly.size()):
+				var hover_next_index: int = (hover_edge_index + 1) % hover_poly.size()
+				draw_line(hover_poly[hover_edge_index], hover_poly[hover_next_index], Color(0.72, 0.92, 1.0, 0.45), 1.2)
 	if bool(map_constructor_overlay_prefs.get("show_preview", true)):
-		if String(preview.get("mode", "")) == "destructive":
-			map_constructor_preview_is_blocked = false
+		var destructive: bool = String(preview.get("mode", "")) == "destructive"
+		var preview_blocked: bool = map_constructor_preview_is_blocked
 		if map_constructor_preview_cell.x >= 0 and map_constructor_preview_cell.y >= 0:
-			var destructive: bool = String(preview.get("mode", "")) == "destructive"
 			var p: PackedVector2Array = get_iso_inset_diamond_points(map_constructor_preview_cell, iso_floor_visual_inset + 3.0)
 			if p.size() >= 4:
 				var c: Color = Color(0.35, 1.0, 0.85, 0.16)
 				var s: Color = Color(0.45, 1.0, 0.92, 1.0)
-				if map_constructor_preview_is_blocked:
+				if preview_blocked:
 					c = Color(1.0, 0.35, 0.25, 0.2)
 					s = Color(1.0, 0.55, 0.3, 1.0)
 				elif destructive:
@@ -486,13 +492,14 @@ func draw_map_constructor_visual_overlay_passes() -> void:
 			if cell.x < 0 or cell.y < 0:
 				continue
 			var sev: String = String(issue.get("severity", "info"))
+			var expected_invalid: bool = bool(issue.get("expected_invalid", false)) or sev.to_lower() == "expected_invalid"
 			var mc: Color = Color(0.62, 0.8, 1.0, 0.95)
-			if sev == "error":
+			if expected_invalid:
+				mc = Color(0.74, 0.66, 0.86, 0.95)
+			elif sev == "error":
 				mc = Color(1.0, 0.3, 0.3, 0.95)
 			elif sev == "warning":
 				mc = Color(1.0, 0.74, 0.3, 0.95)
-			elif sev == "expected_invalid":
-				mc = Color(0.74, 0.66, 0.86, 0.95)
 			draw_circle(grid_to_iso(cell), 6.0, mc)
 	if bool(map_constructor_overlay_prefs.get("show_links", true)):
 		for link_variant in links:
