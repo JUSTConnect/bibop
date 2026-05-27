@@ -9024,6 +9024,32 @@ func _refresh_map_constructor_panels() -> void:
 		_refresh_map_constructor_panels()
 	)
 	list.add_child(refresh_audit_button)
+	var save_preset_button: Button = Button.new()
+	save_preset_button.text = "Save TASK TEST Preset"
+	save_preset_button.pressed.connect(func() -> void:
+		if mission_manager_runtime == null or not mission_manager_runtime.has_method("save_task_test_constructor_preset"):
+			show_hint("Preset save unavailable.")
+			return
+		var save_result: Dictionary = mission_manager_runtime.call("save_task_test_constructor_preset")
+		show_hint(String(save_result.get("message", "Preset save done.")))
+	)
+	list.add_child(save_preset_button)
+	var load_preset_button: Button = Button.new()
+	load_preset_button.text = "Load TASK TEST Preset"
+	load_preset_button.pressed.connect(func() -> void:
+		if mission_manager_runtime == null or not mission_manager_runtime.has_method("load_task_test_constructor_preset"):
+			show_hint("Preset load unavailable.")
+			return
+		var load_result: Dictionary = mission_manager_runtime.call("load_task_test_constructor_preset")
+		show_hint(String(load_result.get("message", "Preset load done.")))
+		if bool(load_result.get("ok", false)):
+			pending_map_constructor_cell = Vector2i(-1, -1)
+			_clear_map_constructor_preview_cell()
+			if field_runtime != null and field_runtime.has_method("request_visual_refresh"):
+				field_runtime.call("request_visual_refresh")
+		_refresh_map_constructor_panels()
+	)
+	list.add_child(load_preset_button)
 	runtime_hud_root.add_child(runtime_map_constructor_palette_panel)
 	if runtime_map_constructor_validation_overlay_control == null or not is_instance_valid(runtime_map_constructor_validation_overlay_control):
 		runtime_map_constructor_validation_overlay_control = ConstructorValidationOverlayControl.new(self)
