@@ -9826,11 +9826,16 @@ func apply_map_constructor_room_template(template_id: String, anchor_cell: Vecto
 	if not Array(template.get("tile_edits", [])).is_empty():
 		if grid_manager == null or not grid_manager.has_method("get_tile"):
 			return {"ok": false, "message": "Tile edits not applied: safe tile snapshot getter unavailable.", "warnings": ["Tile edits not applied: safe tile snapshot getter unavailable."]}
-		var preview_tile: Dictionary = preview_map_constructor_tile_edits(Array(template.get("tile_edits", [])), anchor_cell, options)
-		for affected_variant in Array(preview_tile.get("affected", [])):
-			var affected_row: Dictionary = Dictionary(affected_variant)
-			var cell: Vector2i = Vector2i(affected_row.get("cell", Vector2i(-1, -1)))
-			tile_snapshot.append({"cell": cell, "tile_id": int(grid_manager.call("get_tile", cell))})
+		var seen_cells: Dictionary = {}
+		for tile_edit_variant in Array(template.get("tile_edits", [])):
+			var tile_edit: Dictionary = Dictionary(tile_edit_variant)
+			var transformed_offset: Vector2i = _map_constructor_transform_template_offset(Vector2i(tile_edit.get("offset", Vector2i.ZERO)), options)
+			var target_cell: Vector2i = anchor_cell + transformed_offset
+			var cell_key: String = _serialize_cell_key(target_cell)
+			if seen_cells.has(cell_key):
+				continue
+			seen_cells[cell_key] = true
+			tile_snapshot.append({"cell": target_cell, "tile_id": int(grid_manager.call("get_tile", target_cell))})
 	_map_constructor_last_template_snapshot = {"mission_world_objects": mission_world_objects.duplicate(true), "cell_items": cell_items.duplicate(true), "world_objects_by_cell": world_objects_by_cell.duplicate(true), "tile_snapshot": tile_snapshot}
 	var result: Dictionary = _apply_map_constructor_entry_set(Array(template.get("entries", [])), anchor_cell, options)
 	if not bool(result.get("ok", false)):
@@ -9901,6 +9906,8 @@ func undo_last_map_constructor_room_template() -> Dictionary:
 				grid_manager.call("set_tile", Vector2i(snapshot_row.get("cell", Vector2i(-1, -1))), int(snapshot_row.get("tile_id", GridManager.TILE_FLOOR)))
 			if grid_manager.has_method("recalculate_visibility"):
 				grid_manager.call("recalculate_visibility")
+			if grid_manager.has_method("request_visual_refresh"):
+				grid_manager.call("request_visual_refresh")
 	_map_constructor_last_template_snapshot.clear()
 	_record_map_constructor_change("template_undo", {"summary":"Undid last template."})
 	if not warnings.is_empty():
