@@ -30,6 +30,7 @@ var _map_constructor_runtime_object_seq: int = 1
 var _task_test_constructor_base_tiles: Dictionary = {}
 var _map_constructor_last_cleanup_snapshot: Dictionary = {}
 var _map_constructor_last_autofix_snapshot: Dictionary = {}
+var _map_constructor_last_patch_snapshot: Dictionary = {}
 var current_mission_id: String = ""
 var constructor_map_width: int = 16
 var constructor_map_height: int = 10
@@ -38,6 +39,7 @@ var constructor_exit_marker: Dictionary = {}
 const MAP_CONSTRUCTOR_PRESET_DIR: String = "user://constructor_presets"
 
 const MAP_CONSTRUCTOR_MISSION_PATCH_DIR: String = "user://constructor_mission_patches"
+const MAP_CONSTRUCTOR_PATCH_SCHEMA_VERSION: int = 1
 
 const MAP_CONSTRUCTOR_WALL_SIDE_DELTAS: Array[Dictionary] = [
 	{"side":"north", "delta": Vector2i(0, -1)},
@@ -212,6 +214,160 @@ func _is_valid_grid_cell(cell: Vector2i) -> bool:
 
 func _is_task_test_constructor_context() -> bool:
 	return String(current_mission_id) == "mission_10"
+
+func _map_constructor_is_protected_id(entity_id: String) -> bool:
+	var normalized: String = entity_id.strip_edges().to_lower()
+	return normalized == "bipob" or normalized == "start_marker" or normalized == "exit_marker"
+
+func _map_constructor_cell_from_variant(cell_variant: Variant) -> Vector2i:
+	if cell_variant is Vector2i:
+		return Vector2i(cell_variant)
+	if cell_variant is Dictionary:
+		var cell_dict: Dictionary = cell_variant
+		if cell_dict.has("x") and cell_dict.has("y"):
+			return Vector2i(int(cell_dict.get("x", -1)), int(cell_dict.get("y", -1)))
+	if cell_variant is Array:
+		var arr: Array = cell_variant
+		if arr.size() >= 2:
+			return Vector2i(int(arr[0]), int(arr[1]))
+	if cell_variant is String:
+		var text: String = String(cell_variant).strip_edges()
+		if text.begins_with("(") and text.ends_with(")"):
+			var parts: PackedStringArray = text.substr(1, text.length() - 2).split(",")
+			if parts.size() == 2:
+				return Vector2i(int(parts[0].strip_edges()), int(parts[1].strip_edges()))
+	return Vector2i(-1, -1)
+
+func export_map_constructor_runtime_patch() -> Dictionary:
+	if not _is_task_test_constructor_context():
+		return {"ok": false, "message": "Runtime patch export works only in TASK TEST constructor mode.", "patch": {}, "json": "", "object_count": 0, "item_count": 0, "tile_edit_count": 0}
+	var patch: Dictionary = {"schema_version": MAP_CONSTRUCTOR_PATCH_SCHEMA_VERSION, "mission_id": "mission_10", "created_at_runtime": str(Time.get_unix_time_from_system()), "source": "task_test_map_constructor", "objects": [], "items": [], "tile_edits": [], "links": [], "metadata": {}}
+	for object_data in mission_world_objects:
+		if not bool(object_data.get("created_by_map_constructor", false)):
+			continue
+		var object_id: String = String(object_data.get("id", "")).strip_edges()
+		if object_id.is_empty() or _map_constructor_is_protected_id(object_id):
+			continue
+		var row: Dictionary = Dictionary(object_data).duplicate(true)
+		row["position"] = _serialize_cell_key(Vector2i(row.get("position", Vector2i(-1, -1))))
+		patch["objects"].append(row)
+	for cell_variant in cell_items.keys():
+		var cell: Vector2i = Vector2i(cell_variant)
+		for item_variant in Array(cell_items.get(cell_variant, [])):
+			if not (item_variant is Dictionary):
+				continue
+			var item: Dictionary = Dictionary(item_variant)
+			if not bool(item.get("created_by_map_constructor", false)):
+				continue
+			var item_id: String = String(item.get("id", "")).strip_edges()
+			if item_id.is_empty() or _map_constructor_is_protected_id(item_id):
+				continue
+			var item_row: Dictionary = item.duplicate(true)
+			item_row["cell"] = _serialize_cell_key(cell)
+			patch["items"].append(item_row)
+	var json_text: String = JSON.stringify(patch, "\t")
+	return {"ok": true, "message": "Runtime patch exported.", "patch": patch, "json": json_text, "object_count": Array(patch.get("objects", [])).size(), "item_count": Array(patch.get("items", [])).size(), "tile_edit_count": 0}
+
+func parse_map_constructor_patch_json(patch_json: String) -> Dictionary:
+	var parsed: Variant = JSON.parse_string(patch_json)
+	if not (parsed is Dictionary):
+		return {"ok": false, "message": "Invalid patch JSON.", "patch": {}, "warnings": []}
+	var patch: Dictionary = Dictionary(parsed).duplicate(true)
+	if int(patch.get("schema_version", 0)) != MAP_CONSTRUCTOR_PATCH_SCHEMA_VERSION:
+		return {"ok": false, "message": "Unsupported patch schema_version.", "patch": {}, "warnings": []}
+	if String(patch.get("mission_id", "")) != String(current_mission_id):
+		return {"ok": false, "message": "Patch mission_id mismatch.", "patch": {}, "warnings": []}
+	for row_variant in Array(patch.get("objects", [])):
+		if row_variant is Dictionary:
+			var row: Dictionary = row_variant
+			row["position"] = _map_constructor_cell_from_variant(row.get("position", Vector2i(-1, -1)))
+			row["anchor_floor_cell"] = _map_constructor_cell_from_variant(row.get("anchor_floor_cell", Vector2i(-1, -1)))
+			row["attached_wall_cell"] = _map_constructor_cell_from_variant(row.get("attached_wall_cell", Vector2i(-1, -1)))
+	for row_variant_item in Array(patch.get("items", [])):
+		if row_variant_item is Dictionary:
+			var row_item: Dictionary = row_variant_item
+			row_item["cell"] = _map_constructor_cell_from_variant(row_item.get("cell", Vector2i(-1, -1)))
+	return {"ok": true, "message": "Patch parsed.", "patch": patch, "warnings": []}
+
+func compare_map_constructor_patch(patch: Dictionary) -> Dictionary:
+	var diffs: Array[Dictionary] = []
+	var warnings: Array[String] = []
+	var conflicts: Array[Dictionary] = []
+	var will_add: int = 0
+	var will_update: int = 0
+	var unchanged: int = 0
+	for row_variant in Array(patch.get("objects", [])):
+		if not (row_variant is Dictionary):
+			continue
+		var row: Dictionary = Dictionary(row_variant)
+		var object_id: String = String(row.get("id", "")).strip_edges()
+		if object_id.is_empty() or _map_constructor_is_protected_id(object_id):
+			conflicts.append({"change_type":"conflict", "entity_kind":"world_object", "id":object_id, "message":"Missing/protected id."})
+			continue
+		var current_info: Dictionary = get_map_constructor_entity_by_id("world_object", object_id)
+		if not bool(current_info.get("ok", false)):
+			diffs.append({"change_type":"add", "entity_kind":"world_object", "id":object_id, "cell":row.get("position", Vector2i(-1, -1)), "field_changes":[], "message":"Will add object."})
+			will_add += 1
+		else:
+			var current: Dictionary = Dictionary(current_info.get("entity", {}))
+			if not bool(current.get("created_by_map_constructor", false)):
+				conflicts.append({"change_type":"conflict", "entity_kind":"world_object", "id":object_id, "message":"ID belongs to non-constructor object."})
+				continue
+			if current == row:
+				unchanged += 1
+				diffs.append({"change_type":"unchanged", "entity_kind":"world_object", "id":object_id, "cell":row.get("position", Vector2i(-1, -1)), "field_changes":[], "message":"No changes."})
+			else:
+				will_update += 1
+				diffs.append({"change_type":"update", "entity_kind":"world_object", "id":object_id, "cell":row.get("position", Vector2i(-1, -1)), "field_changes":[], "message":"Will update object."})
+	var summary: Dictionary = {"will_add": will_add, "will_update": will_update, "will_delete": 0, "unchanged": unchanged, "conflicts": conflicts.size(), "warnings": warnings.size()}
+	return {"ok": true, "message": "Patch compare complete.", "summary": summary, "diffs": diffs, "warnings": warnings, "conflicts": conflicts}
+
+func preview_apply_map_constructor_patch(patch: Dictionary) -> Dictionary:
+	var cmp: Dictionary = compare_map_constructor_patch(patch)
+	return {"ok": bool(cmp.get("ok", false)), "message": String(cmp.get("message", "")), "can_apply": Array(cmp.get("conflicts", [])).is_empty(), "diffs": Array(cmp.get("diffs", [])), "warnings": Array(cmp.get("warnings", [])), "conflicts": Array(cmp.get("conflicts", [])), "summary": Dictionary(cmp.get("summary", {}))}
+
+func apply_map_constructor_patch(patch: Dictionary, options: Dictionary = {}) -> Dictionary:
+	if not _is_task_test_constructor_context():
+		return {"ok": false, "message": "Patch apply works only in TASK TEST constructor mode.", "applied_count": 0, "added_count": 0, "updated_count": 0, "deleted_count": 0, "warnings": [], "conflicts": [], "patch_id": ""}
+	var preview: Dictionary = preview_apply_map_constructor_patch(patch)
+	if not bool(preview.get("ok", false)):
+		return {"ok": false, "message": String(preview.get("message", "Preview failed.")), "applied_count": 0, "added_count": 0, "updated_count": 0, "deleted_count": 0, "warnings": [], "conflicts": Array(preview.get("conflicts", [])), "patch_id": ""}
+	if not bool(options.get("allow_conflicts", false)) and not bool(preview.get("can_apply", false)):
+		return {"ok": false, "message": "Patch has conflicts.", "applied_count": 0, "added_count": 0, "updated_count": 0, "deleted_count": 0, "warnings": Array(preview.get("warnings", [])), "conflicts": Array(preview.get("conflicts", [])), "patch_id": ""}
+	_map_constructor_last_patch_snapshot = {"patch_id":"patch_%d" % int(Time.get_unix_time_from_system()), "mission_world_objects": mission_world_objects.duplicate(true), "cell_items": cell_items.duplicate(true), "world_objects_by_cell": world_objects_by_cell.duplicate(true)}
+	var added_count: int = 0
+	var updated_count: int = 0
+	for row_variant in Array(patch.get("objects", [])):
+		if not (row_variant is Dictionary):
+			continue
+		var row: Dictionary = Dictionary(row_variant).duplicate(true)
+		var object_id: String = String(row.get("id", ""))
+		if object_id.is_empty() or _map_constructor_is_protected_id(object_id):
+			continue
+		var pos: Vector2i = _map_constructor_cell_from_variant(row.get("position", Vector2i(-1, -1)))
+		row["position"] = pos
+		var existing: Dictionary = get_map_constructor_entity_by_id("world_object", object_id)
+		if bool(existing.get("ok", false)):
+			_remove_map_constructor_entity_by_id("world_object", object_id)
+			updated_count += 1
+		else:
+			added_count += 1
+		set_world_object_at_cell(pos, row)
+	PowerSystemRef.recalculate_network(mission_world_objects, "task_test_power_main")
+	refresh_world_cooling_received()
+	var patch_id: String = String(_map_constructor_last_patch_snapshot.get("patch_id", ""))
+	return {"ok": true, "message": "Patch applied.", "applied_count": added_count + updated_count, "added_count": added_count, "updated_count": updated_count, "deleted_count": 0, "warnings": Array(preview.get("warnings", [])), "conflicts": Array(preview.get("conflicts", [])), "patch_id": patch_id}
+
+func rollback_last_map_constructor_patch() -> Dictionary:
+	if _map_constructor_last_patch_snapshot.is_empty():
+		return {"ok": false, "message": "No patch to rollback."}
+	mission_world_objects = Array(_map_constructor_last_patch_snapshot.get("mission_world_objects", [])).duplicate(true)
+	cell_items = Dictionary(_map_constructor_last_patch_snapshot.get("cell_items", {})).duplicate(true)
+	world_objects_by_cell = Dictionary(_map_constructor_last_patch_snapshot.get("world_objects_by_cell", {})).duplicate(true)
+	_map_constructor_last_patch_snapshot.clear()
+	PowerSystemRef.recalculate_network(mission_world_objects, "task_test_power_main")
+	refresh_world_cooling_received()
+	return {"ok": true, "message": "Last patch rolled back."}
 
 func create_map_constructor_empty_map(width: int, height: int) -> Dictionary:
 	if not _is_task_test_constructor_context():
