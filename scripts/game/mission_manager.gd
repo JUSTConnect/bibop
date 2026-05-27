@@ -1101,6 +1101,211 @@ func apply_map_constructor_state_preset(entity_kind: String, entity_id: String, 
 	refresh_world_cooling_received()
 	return {"ok": true, "message": "Preset %s applied." % lower_preset, "entity_id": entity_id, "preset": lower_preset}
 
+
+func is_task_test_expected_invalid_object_id(object_id: String) -> bool:
+	match object_id:
+		"task_test_control_missing_source", "task_test_control_invalid_source", "task_test_powered_gate_unpowered", "task_test_platform_lift":
+			return true
+		_:
+			return false
+
+func get_map_constructor_object_dependency_status(object_data: Dictionary) -> Dictionary:
+	var messages: Array[String] = []
+	var link_targets: Array[Dictionary] = []
+	var severity: String = "none"
+	var object_id: String = String(object_data.get("id", "")).strip_edges()
+	var expected_invalid: bool = is_task_test_expected_invalid_object_id(object_id)
+	var object_ids: Dictionary = {}
+	var item_ids: Dictionary = {}
+	var power_source_network_ids: Dictionary = {}
+	for existing_object in mission_world_objects:
+		if typeof(existing_object) != TYPE_DICTIONARY:
+			continue
+		var existing_data: Dictionary = Dictionary(existing_object)
+		var existing_id: String = String(existing_data.get("id", "")).strip_edges()
+		if not existing_id.is_empty():
+			object_ids[existing_id] = true
+		var existing_type: String = String(existing_data.get("object_type", "")).to_lower()
+		if existing_type.begins_with("power_source"):
+			var existing_network_id: String = String(existing_data.get("power_network_id", "")).strip_edges()
+			if not existing_network_id.is_empty():
+				power_source_network_ids[existing_network_id] = true
+	for cell_variant in cell_items.keys():
+		for item_variant in Array(cell_items.get(cell_variant, [])):
+			if typeof(item_variant) != TYPE_DICTIONARY:
+				continue
+			var item_id: String = String(Dictionary(item_variant).get("id", "")).strip_edges()
+			if not item_id.is_empty():
+				item_ids[item_id] = true
+
+	for field_name in ["required_key_id", "linked_terminal_id", "target_door_id", "target_platform_id"]:
+		var ref_id: String = String(object_data.get(field_name, "")).strip_edges()
+		if ref_id.is_empty():
+			continue
+		var exists: bool = object_ids.has(ref_id) or (field_name == "required_key_id" and item_ids.has(ref_id))
+		if exists:
+			link_targets.append({"field": field_name, "target_id": ref_id, "target_cell": Vector2i(-1, -1), "status": "valid", "reason": "exists"})
+			if severity == "none":
+				severity = "valid"
+		else:
+			messages.append("%s points to missing id: %s" % [field_name, ref_id])
+			link_targets.append({"field": field_name, "target_id": ref_id, "target_cell": Vector2i(-1, -1), "status": "error", "reason": "missing"})
+			severity = "error"
+
+	var control_source_id: String = String(object_data.get("control_source_id", "")).strip_edges()
+	if not control_source_id.is_empty():
+		if object_ids.has(control_source_id):
+			link_targets.append({"field":"control_source_id","target_id":control_source_id,"target_cell":Vector2i(-1, -1),"status":"valid","reason":"exists"})
+			if severity == "none":
+				severity = "valid"
+		else:
+			if expected_invalid:
+				messages.append("control_source_id missing (expected test sample)")
+				link_targets.append({"field":"control_source_id","target_id":control_source_id,"target_cell":Vector2i(-1, -1),"status":"warning","reason":"expected_missing"})
+				if severity != "error":
+					severity = "warning"
+			else:
+				messages.append("control_source_id points to missing id: %s" % control_source_id)
+				link_targets.append({"field":"control_source_id","target_id":control_source_id,"target_cell":Vector2i(-1, -1),"status":"error","reason":"missing"})
+				severity = "error"
+
+	var requires_external_power: bool = bool(object_data.get("requires_external_power", false))
+	var power_network_id: String = String(object_data.get("power_network_id", "")).strip_edges()
+	if requires_external_power:
+		if power_network_id.is_empty():
+			if expected_invalid:
+				messages.append("power_network_id missing (expected test sample)")
+				if severity != "error":
+					severity = "warning"
+			else:
+				messages.append("requires_external_power=true but power_network_id is empty")
+				severity = "error"
+		elif power_source_network_ids.has(power_network_id):
+			link_targets.append({"field":"power_network_id","target_id":power_network_id,"target_cell":Vector2i(-1, -1),"status":"valid","reason":"network_found"})
+			if severity == "none":
+				severity = "valid"
+		else:
+			if expected_invalid:
+				messages.append("power_network_id %s has no source (expected test sample)" % power_network_id)
+				link_targets.append({"field":"power_network_id","target_id":power_network_id,"target_cell":Vector2i(-1, -1),"status":"warning","reason":"expected_missing_network"})
+				if severity != "error":
+					severity = "warning"
+			else:
+				messages.append("power_network_id %s has no power source" % power_network_id)
+				link_targets.append({"field":"power_network_id","target_id":power_network_id,"target_cell":Vector2i(-1, -1),"status":"error","reason":"missing_network"})
+				severity = "error"
+
+	for connected_id_variant in Array(object_data.get("connected_device_ids", [])):
+		var connected_id: String = String(connected_id_variant).strip_edges()
+		if connected_id.is_empty():
+			continue
+		if object_ids.has(connected_id):
+			link_targets.append({"field":"connected_device_ids","target_id":connected_id,"target_cell":Vector2i(-1, -1),"status":"valid","reason":"exists"})
+			if severity == "none":
+				severity = "valid"
+		else:
+			messages.append("connected_device_ids contains missing id: %s" % connected_id)
+			link_targets.append({"field":"connected_device_ids","target_id":connected_id,"target_cell":Vector2i(-1, -1),"status":"error","reason":"missing"})
+			severity = "error"
+
+	return {"severity": severity, "messages": messages, "link_targets": link_targets}
+
+
+func _map_constructor_merge_overlay_issue(overlay_objects: Dictionary, overlay_cells: Dictionary, object_id: String, severity: String, message: String) -> void:
+	if not overlay_objects.has(object_id):
+		return
+	var row: Dictionary = Dictionary(overlay_objects[object_id])
+	var messages: Array = Array(row.get("messages", []))
+	messages.append(message)
+	row["messages"] = messages
+	var previous_severity: String = String(row.get("severity", "none"))
+	if previous_severity != "error":
+		if severity == "error" or (severity == "warning" and previous_severity == "none"):
+			row["severity"] = severity
+	overlay_objects[object_id] = row
+	var object_cell: Vector2i = Vector2i(row.get("cell", Vector2i(-1, -1)))
+	if overlay_cells.has(object_cell):
+		var cell_row: Dictionary = Dictionary(overlay_cells[object_cell])
+		var cell_messages: Array = Array(cell_row.get("messages", []))
+		cell_messages.append(message)
+		cell_row["messages"] = cell_messages
+		var cell_prev_severity: String = String(cell_row.get("severity", "none"))
+		if cell_prev_severity != "error":
+			if severity == "error" or (severity == "warning" and cell_prev_severity == "none"):
+				cell_row["severity"] = severity
+		overlay_cells[object_cell] = cell_row
+
+func get_map_constructor_validation_overlay() -> Dictionary:
+	var overlay_cells: Dictionary = {}
+	var overlay_objects: Dictionary = {}
+	var summary: Dictionary = {"valid_count": 0, "warning_count": 0, "error_count": 0, "expected_warning_count": 0}
+	var audit: Dictionary = get_task_test_system_audit_report()
+	var object_index: Dictionary = {}
+	for object_data in mission_world_objects:
+		if typeof(object_data) != TYPE_DICTIONARY:
+			continue
+		var data: Dictionary = Dictionary(object_data)
+		var object_id: String = String(data.get("id", "")).strip_edges()
+		if object_id.is_empty():
+			continue
+		var object_cell: Vector2i = Vector2i(data.get("position", Vector2i(-1, -1)))
+		object_index[object_id] = object_cell
+		var dependency: Dictionary = get_map_constructor_object_dependency_status(data)
+		var object_severity: String = String(dependency.get("severity", "none"))
+		if object_severity == "valid":
+			summary["valid_count"] = int(summary.get("valid_count", 0)) + 1
+		elif object_severity == "warning":
+			summary["warning_count"] = int(summary.get("warning_count", 0)) + 1
+			if is_task_test_expected_invalid_object_id(object_id):
+				summary["expected_warning_count"] = int(summary.get("expected_warning_count", 0)) + 1
+		elif object_severity == "error":
+			summary["error_count"] = int(summary.get("error_count", 0)) + 1
+		var object_messages: Array[String] = []
+		for msg in Array(dependency.get("messages", [])):
+			object_messages.append(String(msg))
+		overlay_objects[object_id] = {"severity": object_severity, "cell": object_cell, "messages": object_messages, "link_targets": Array(dependency.get("link_targets", []))}
+		overlay_cells[object_cell] = {"severity": object_severity, "object_id": object_id, "messages": object_messages, "link_targets": Array(dependency.get("link_targets", []))}
+
+	for row_variant in Array(audit.get("invalid_links", [])):
+		var row_invalid: Dictionary = Dictionary(row_variant)
+		_map_constructor_merge_overlay_issue(overlay_objects, overlay_cells,String(row_invalid.get("object_id", "")), "error", "Invalid link: %s -> %s" % [String(row_invalid.get("field", "")), String(row_invalid.get("target_id", ""))])
+	for row_variant in Array(audit.get("expected_invalid_links", [])):
+		var row_expected: Dictionary = Dictionary(row_variant)
+		_map_constructor_merge_overlay_issue(overlay_objects, overlay_cells,String(row_expected.get("object_id", "")), "warning", "Expected invalid link: %s -> %s" % [String(row_expected.get("field", "")), String(row_expected.get("target_id", ""))])
+	for warning_variant in Array(audit.get("runtime_cell_warnings", [])):
+		var warning_text: String = String(warning_variant)
+		for object_id_variant in overlay_objects.keys():
+			var object_id_text: String = String(object_id_variant)
+			if warning_text.find(object_id_text) != -1:
+				_map_constructor_merge_overlay_issue(overlay_objects, overlay_cells,object_id_text, "error", warning_text)
+	for warning_variant in Array(audit.get("expected_runtime_warnings", [])):
+		var warning_text_expected: String = String(warning_variant)
+		for object_id_variant in overlay_objects.keys():
+			var object_id_text_expected: String = String(object_id_variant)
+			if warning_text_expected.find(object_id_text_expected) != -1:
+				_map_constructor_merge_overlay_issue(overlay_objects, overlay_cells,object_id_text_expected, "warning", warning_text_expected)
+	for warning_variant in Array(audit.get("duplicate_cell_warnings", [])):
+		var warning_text_dup: String = String(warning_variant)
+		for object_id_variant in overlay_objects.keys():
+			var object_id_text_dup: String = String(object_id_variant)
+			if warning_text_dup.find(object_id_text_dup) != -1:
+				_map_constructor_merge_overlay_issue(overlay_objects, overlay_cells,object_id_text_dup, "error", warning_text_dup)
+	for object_id_variant in Array(audit.get("objects_without_audit_tags", [])):
+		_map_constructor_merge_overlay_issue(overlay_objects, overlay_cells,String(object_id_variant), "warning", "Object has no TASK TEST audit tag.")
+
+	for object_id_key in overlay_objects.keys():
+		var object_row: Dictionary = Dictionary(overlay_objects[object_id_key])
+		var final_severity: String = String(object_row.get("severity", "none"))
+		if final_severity == "valid":
+			summary["valid_count"] = int(summary.get("valid_count", 0))
+		elif final_severity == "warning":
+			summary["warning_count"] = int(summary.get("warning_count", 0))
+		elif final_severity == "error":
+			summary["error_count"] = int(summary.get("error_count", 0))
+
+	var has_errors: bool = int(summary.get("error_count", 0)) > 0
+	return {"ok": not has_errors, "cells": overlay_cells, "objects": overlay_objects, "summary": summary}
+
 func get_map_constructor_audit_summary() -> Dictionary:
 	var audit: Dictionary = get_task_test_system_audit_report()
 	return {
