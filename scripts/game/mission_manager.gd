@@ -1085,7 +1085,7 @@ func build_task_test_mission_world_objects_for_validation() -> Dictionary:
 		{"type":"door_terminal","id":"task_test_terminal_main","pos":Vector2i(7, 8),"extra":{"state":"active","is_powered":true,"required_connector_level":1,"required_processor_level":1,"target_door_id":"task_test_door_terminal_locked"}},
 		{"type":"steel_door","id":"task_test_door_mechanical","pos":Vector2i(5, 1),"extra":{"state":"locked","is_locked":true,"lock_type":"mechanical_key","required_key_id":"task_test_item_mechanical_keycard"}},
 		{"type":"lifting_platform","id":"task_test_platform_lift","pos":Vector2i(8, 8),"extra":{"platform_id":"task_test_platform_lift","is_powered":false,"requires_external_power":true,"power_network_id":"task_test_power_missing"}},
-		{"type":"power_cable","id":"task_test_xray_route_marker","pos":Vector2i(9, 8),"extra":{"hidden":true,"visible_with_xray":true}},
+		{"type":"power_cable","id":"task_test_xray_route_marker","pos":Vector2i(9, 7),"extra":{"hidden":true,"visible_with_xray":true}},
 {"type":"energy_door","id":"task_test_extraction_door","pos":Vector2i(14, 7),"extra":{"state":"open","is_locked":false,"mission_exit":true,"extraction":true}}
 	]
 	for spec in specs:
