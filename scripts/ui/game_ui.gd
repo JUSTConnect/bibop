@@ -9623,7 +9623,7 @@ func _refresh_map_constructor_panels() -> void:
 			_refresh_map_constructor_panels()
 	)
 	list.add_child(category_option)
-	var role_option := OptionButton.new()
+	var role_option: OptionButton = OptionButton.new()
 	for role_name in MAP_CONSTRUCTOR_PREFAB_FILTER_ROLES:
 		role_option.add_item(role_name)
 	role_option.select(maxi(0, MAP_CONSTRUCTOR_PREFAB_FILTER_ROLES.find(map_constructor_prefab_role_filter)))
@@ -9632,7 +9632,7 @@ func _refresh_map_constructor_panels() -> void:
 			map_constructor_prefab_role_filter = MAP_CONSTRUCTOR_PREFAB_FILTER_ROLES[index]
 			_refresh_map_constructor_panels())
 	list.add_child(role_option)
-	var placement_option := OptionButton.new()
+	var placement_option: OptionButton = OptionButton.new()
 	for mode_name in MAP_CONSTRUCTOR_PREFAB_FILTER_PLACEMENT_MODES:
 		placement_option.add_item(mode_name)
 	placement_option.select(maxi(0, MAP_CONSTRUCTOR_PREFAB_FILTER_PLACEMENT_MODES.find(map_constructor_prefab_placement_filter)))
@@ -9641,13 +9641,13 @@ func _refresh_map_constructor_panels() -> void:
 			map_constructor_prefab_placement_filter = MAP_CONSTRUCTOR_PREFAB_FILTER_PLACEMENT_MODES[index]
 			_refresh_map_constructor_panels())
 	list.add_child(placement_option)
-	var show_diag := CheckBox.new(); show_diag.text = "Show Diagnostics"; show_diag.button_pressed = map_constructor_prefab_show_diagnostics
+	var show_diag: CheckBox = CheckBox.new(); show_diag.text = "Show Diagnostics"; show_diag.button_pressed = map_constructor_prefab_show_diagnostics
 	show_diag.toggled.connect(func(v: bool) -> void: map_constructor_prefab_show_diagnostics = v; _refresh_map_constructor_panels())
 	list.add_child(show_diag)
-	var show_invalid := CheckBox.new(); show_invalid.text = "Show Expected Invalid"; show_invalid.button_pressed = map_constructor_prefab_show_expected_invalid
+	var show_invalid: CheckBox = CheckBox.new(); show_invalid.text = "Show Expected Invalid"; show_invalid.button_pressed = map_constructor_prefab_show_expected_invalid
 	show_invalid.toggled.connect(func(v: bool) -> void: map_constructor_prefab_show_expected_invalid = v; _refresh_map_constructor_panels())
 	list.add_child(show_invalid)
-	var show_placeable := CheckBox.new(); show_placeable.text = "Show Only Placeable Here"; show_placeable.button_pressed = map_constructor_prefab_show_only_placeable_here
+	var show_placeable: CheckBox = CheckBox.new(); show_placeable.text = "Show Only Placeable Here"; show_placeable.button_pressed = map_constructor_prefab_show_only_placeable_here
 	show_placeable.toggled.connect(func(v: bool) -> void: map_constructor_prefab_show_only_placeable_here = v; _refresh_map_constructor_panels())
 	list.add_child(show_placeable)
 	var catalog: Array[Dictionary] = []
@@ -9708,7 +9708,7 @@ func _refresh_map_constructor_panels() -> void:
 		list.add_child(section_header)
 		for entry in section_entries:
 			var id: String = String(entry.get("id", ""))
-			var b := Button.new()
+			var b: Button = Button.new()
 			b.text = "%s [%s] — %s\n%s\nhint: %s\n%s | %s" % [String(entry.get("display_name", entry.get("label", id))), id, String(entry.get("category", "")), String(entry.get("description", "")), String(entry.get("placement_hint", "")), ", ".join(PackedStringArray(entry.get("tags", []))), ", ".join(PackedStringArray(entry.get("system_roles", [])))]
 			b.toggle_mode = true
 			b.button_pressed = id == selected_map_constructor_prefab_id
@@ -9728,7 +9728,7 @@ func _refresh_map_constructor_panels() -> void:
 		list.add_child(header)
 		for entry in entries:
 			var id: String = String(entry.get("id", ""))
-			var b := Button.new()
+			var b: Button = Button.new()
 			var warning_text: String = ""
 			if bool(entry.get("is_destructive", false)) or bool(entry.get("is_expected_invalid_tool", false)) or bool(entry.get("can_have_links", false)):
 				warning_text = " ⚠"

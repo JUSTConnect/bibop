@@ -1551,14 +1551,54 @@ func _get_map_constructor_prefab_metadata_catalog() -> Dictionary:
 	}
 	return metadata
 
-func get_map_constructor_prefab_metadata(prefab_id: String) -> Dictionary:
-	var catalog: Dictionary = _get_map_constructor_prefab_metadata_catalog()
+
+func _build_map_constructor_prefab_fallback_metadata(prefab_id: String, catalog_entry: Dictionary = {}) -> Dictionary:
 	var id: String = prefab_id.strip_edges()
-	if not catalog.has(id):
-		return {"ok": false, "prefab": {}, "message": "Unknown prefab id."}
-	var row: Dictionary = Dictionary(catalog[id]).duplicate(true)
-	row["id"] = id
-	return {"ok": true, "prefab": row, "message": "OK"}
+	var category: String = String(catalog_entry.get("category", catalog_entry.get("group", ""))).strip_edges()
+	if category.is_empty():
+		category = "Utility"
+	var placement_mode: String = String(catalog_entry.get("placement_mode", "")).strip_edges()
+	if placement_mode.is_empty():
+		placement_mode = "floor"
+	var display_name: String = String(catalog_entry.get("label", id)).strip_edges()
+	if display_name.is_empty():
+		display_name = id
+	var hint: String = String(catalog_entry.get("hint", "")).strip_edges()
+	var expected_invalid: bool = id.find("expected_invalid") >= 0 or category.to_lower().find("expected_invalid") >= 0
+	var requires_floor: bool = placement_mode != "tile"
+	var fallback_tags: Array[String] = [id, category, placement_mode]
+	return {
+		"id": id,
+		"display_name": display_name,
+		"category": category,
+		"subcategory": "",
+		"placement_mode": placement_mode,
+		"system_roles": [],
+		"tags": fallback_tags,
+		"description": "Constructor prefab.",
+		"placement_hint": hint,
+		"requires_wall": placement_mode == "wall_mounted",
+		"requires_floor": requires_floor,
+		"is_destructive": false,
+		"is_diagnostic": false,
+		"is_expected_invalid_tool": expected_invalid,
+		"can_have_power_network": false,
+		"can_have_links": false,
+		"default_state": {}
+	}
+
+func get_map_constructor_prefab_metadata(prefab_id: String) -> Dictionary:
+	var metadata_catalog: Dictionary = _get_map_constructor_prefab_metadata_catalog()
+	var id: String = prefab_id.strip_edges()
+	if metadata_catalog.has(id):
+		var explicit_row: Dictionary = Dictionary(metadata_catalog[id]).duplicate(true)
+		explicit_row["id"] = id
+		return {"ok": true, "prefab": explicit_row, "message": "OK"}
+	for entry in get_map_constructor_prefab_catalog():
+		var catalog_entry: Dictionary = Dictionary(entry)
+		if String(catalog_entry.get("id", "")).strip_edges() == id:
+			return {"ok": true, "prefab": _build_map_constructor_prefab_fallback_metadata(id, catalog_entry), "message": "OK"}
+	return {"ok": false, "prefab": {}, "message": "Unknown prefab id."}
 
 func get_map_constructor_prefab_palette_rows(options: Dictionary = {}) -> Dictionary:
 	var search: String = String(options.get("search", "")).strip_edges().to_lower()
@@ -1572,8 +1612,13 @@ func get_map_constructor_prefab_palette_rows(options: Dictionary = {}) -> Dictio
 	var rows: Array[Dictionary] = []
 	var categories: Array[String] = []
 	var roles: Array[String] = []
-	for prefab_id in _get_map_constructor_prefab_metadata_catalog().keys():
-		var meta: Dictionary = get_map_constructor_prefab_metadata(String(prefab_id)).get("prefab", {})
+	for entry in get_map_constructor_prefab_catalog():
+		var catalog_entry: Dictionary = Dictionary(entry)
+		var prefab_id: String = String(catalog_entry.get("id", "")).strip_edges()
+		if prefab_id.is_empty():
+			continue
+		var meta_result: Dictionary = get_map_constructor_prefab_metadata(prefab_id)
+		var meta: Dictionary = Dictionary(meta_result.get("prefab", {})).duplicate(true)
 		var category: String = String(meta.get("category", ""))
 		var placement_mode: String = String(meta.get("placement_mode", ""))
 		var role_values: Array[String] = []
