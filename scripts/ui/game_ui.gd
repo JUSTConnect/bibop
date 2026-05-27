@@ -283,6 +283,9 @@ var tasks_claim_button: Button
 var map_constructor_mode_active: bool = false
 var selected_map_constructor_prefab_id: String = ""
 var pending_map_constructor_cell: Vector2i = Vector2i(-1, -1)
+var map_constructor_picker_entity_kind: String = ""
+var map_constructor_picker_entity_id: String = ""
+var map_constructor_picker_field_name: String = ""
 var tasks_actions_row: HBoxContainer
 var tasks_dev_output_label: RichTextLabel
 var tasks_dev_output_scroll: ScrollContainer
@@ -8830,6 +8833,9 @@ func _deactivate_map_constructor_mode() -> void:
 	map_constructor_mode_active = false
 	selected_map_constructor_prefab_id = ""
 	pending_map_constructor_cell = Vector2i(-1, -1)
+	map_constructor_picker_entity_kind = ""
+	map_constructor_picker_entity_id = ""
+	map_constructor_picker_field_name = ""
 
 	if bipob != null:
 		bipob.map_constructor_input_blocked = false
@@ -9105,6 +9111,10 @@ func _show_map_constructor_inspector(cell: Vector2i) -> void:
 
 	if mission_manager_runtime.has_method("get_map_constructor_editable_fields_for_entity"):
 		var fields: Array[Dictionary] = mission_manager_runtime.call("get_map_constructor_editable_fields_for_entity", entity_id, entity_kind)
+		var dependency_fields: Array[String] = [
+			"required_key_id", "linked_terminal_id", "target_door_id", "target_platform_id",
+			"control_source_id", "connected_device_ids", "power_network_id"
+		]
 		for field_entry in fields:
 			var field_name: String = String(field_entry.get("name", ""))
 			var field_type: String = String(field_entry.get("type", "string"))
@@ -9154,7 +9164,75 @@ func _show_map_constructor_inspector(cell: Vector2i) -> void:
 					apply_button.emit_signal("pressed")
 				)
 				row.add_child(apply_button)
+				if dependency_fields.has(field_name):
+					var pick_button: Button = Button.new()
+					pick_button.text = "Pick"
+					pick_button.pressed.connect(func() -> void:
+						map_constructor_picker_entity_kind = entity_kind
+						map_constructor_picker_entity_id = entity_id
+						map_constructor_picker_field_name = field_name
+						_show_map_constructor_inspector(cell)
+					)
+					row.add_child(pick_button)
 			v.add_child(row)
+		if map_constructor_picker_entity_kind == entity_kind and map_constructor_picker_entity_id == entity_id and not map_constructor_picker_field_name.is_empty():
+			var picker_panel: VBoxContainer = VBoxContainer.new()
+			picker_panel.add_theme_constant_override("separation", 4)
+			var picker_title: Label = Label.new()
+			picker_title.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+			picker_title.text = "Pick target for %s" % map_constructor_picker_field_name
+			picker_panel.add_child(picker_title)
+			if mission_manager_runtime.has_method("get_map_constructor_link_targets_for_field"):
+				var target_result: Dictionary = mission_manager_runtime.call(
+					"get_map_constructor_link_targets_for_field",
+					entity_kind,
+					entity_id,
+					map_constructor_picker_field_name
+				)
+				for target_variant in Array(target_result.get("targets", [])):
+					var target: Dictionary = Dictionary(target_variant)
+					var target_id: String = String(target.get("id", ""))
+					var target_label: String = String(target.get("label", target_id))
+					var target_cell: Vector2i = Vector2i(target.get("cell", Vector2i(-1, -1)))
+					var status_text: String = String(target.get("status", "valid"))
+					var prefix: String = "[OK]"
+					if status_text == "warning":
+						prefix = "[WARN]"
+					elif status_text == "error":
+						prefix = "[ERR]"
+					var text: String = "%s %s" % [prefix, target_label]
+					if target_id == "__none__":
+						text = "%s <clear>" % prefix
+					elif String(target.get("kind", "")) != "power_network" and target_cell.x >= 0 and target_cell.y >= 0:
+						text = "%s @ (%d, %d)" % [text, target_cell.x, target_cell.y]
+					var target_button: Button = Button.new()
+					target_button.text = text
+					target_button.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+					target_button.pressed.connect(func() -> void:
+						if mission_manager_runtime == null or not mission_manager_runtime.has_method("apply_map_constructor_link_target"):
+							return
+						var apply_link_result: Dictionary = mission_manager_runtime.call(
+							"apply_map_constructor_link_target",
+							entity_kind,
+							entity_id,
+							map_constructor_picker_field_name,
+							target_id
+						)
+						show_hint(String(apply_link_result.get("message", "Link updated.")))
+						if field_runtime != null and field_runtime.has_method("request_visual_refresh"):
+							field_runtime.call("request_visual_refresh")
+						_refresh_map_constructor_panels()
+						_show_map_constructor_inspector(cell)
+					)
+					picker_panel.add_child(target_button)
+			var close_picker_button: Button = Button.new()
+			close_picker_button.text = "Close Picker"
+			close_picker_button.pressed.connect(func() -> void:
+				map_constructor_picker_field_name = ""
+				_show_map_constructor_inspector(cell)
+			)
+			picker_panel.add_child(close_picker_button)
+			v.add_child(picker_panel)
 	var del := Button.new()
 	del.text = "Delete"
 	var can_delete: bool = mission_manager_runtime.has_method("remove_map_constructor_object_at_cell")
