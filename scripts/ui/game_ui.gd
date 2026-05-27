@@ -45,6 +45,24 @@ class SelectedModuleMiniPreviewControl:
 		if ui_ref != null:
 			ui_ref._draw_selected_module_mini_preview(self, module_ref, preview_context)
 
+class ConstructorValidationOverlayControl:
+	extends Control
+	var ui_ref: GameUI
+
+	func _init(ui_owner: GameUI) -> void:
+		ui_ref = ui_owner
+		mouse_filter = Control.MOUSE_FILTER_IGNORE
+
+	func _ready() -> void:
+		set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
+
+	func _process(_delta: float) -> void:
+		queue_redraw()
+
+	func _draw() -> void:
+		if ui_ref != null:
+			ui_ref._draw_map_constructor_validation_overlay(self)
+
 var bipob: BipobController = null
 var field_runtime: GridManager = null
 const FIELD_SCENE_PATH: String = "res://scenes/field/Field.tscn"
@@ -129,6 +147,8 @@ var runtime_world_actions_no_actions_label: Label = null
 var runtime_world_actions_selected_button: Button = null
 var runtime_map_constructor_palette_panel: PanelContainer = null
 var runtime_map_constructor_inspector_panel: PanelContainer = null
+var runtime_map_constructor_validation_overlay_control: ConstructorValidationOverlayControl = null
+var map_constructor_validation_overlay_visible: bool = true
 var last_world_action_target_id: String = ""
 var last_world_action_actions_key: String = ""
 var last_world_action_selected: String = ""
@@ -8780,6 +8800,12 @@ func _unhandled_input(event: InputEvent) -> void:
 	if event is InputEventKey and event.pressed and not event.echo and event.keycode == KEY_M:
 		_toggle_map_constructor_mode()
 		return
+	if event is InputEventKey and event.pressed and not event.echo and event.keycode == KEY_V:
+		if map_constructor_mode_active:
+			map_constructor_validation_overlay_visible = not map_constructor_validation_overlay_visible
+			show_hint("Validation Overlay: %s" % ["ON" if map_constructor_validation_overlay_visible else "OFF"])
+			_refresh_map_constructor_panels()
+		return
 	if event is InputEventMouseButton:
 		_handle_runtime_gameplay_mouse_click(event)
 
@@ -8794,6 +8820,7 @@ func _toggle_map_constructor_mode() -> void:
 		show_hint("Map Constructor Mode Off")
 		return
 	map_constructor_mode_active = true
+	map_constructor_validation_overlay_visible = true
 	if bipob != null:
 		bipob.map_constructor_input_blocked = true
 	show_hint("Map Constructor Mode")
@@ -8814,6 +8841,9 @@ func _deactivate_map_constructor_mode() -> void:
 	if runtime_map_constructor_inspector_panel != null and is_instance_valid(runtime_map_constructor_inspector_panel):
 		runtime_map_constructor_inspector_panel.queue_free()
 	runtime_map_constructor_inspector_panel = null
+	if runtime_map_constructor_validation_overlay_control != null and is_instance_valid(runtime_map_constructor_validation_overlay_control):
+		runtime_map_constructor_validation_overlay_control.queue_free()
+	runtime_map_constructor_validation_overlay_control = null
 
 	_clear_map_constructor_preview_cell()
 
@@ -8961,6 +8991,27 @@ func _refresh_map_constructor_panels() -> void:
 			int(audit_summary.get("duplicate_cell_warnings_count", 0))
 		]
 	list.add_child(audit_label)
+	var overlay_summary_label: Label = Label.new()
+	overlay_summary_label.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	overlay_summary_label.text = "Validation: unavailable"
+	if mission_manager_runtime != null and mission_manager_runtime.has_method("get_map_constructor_validation_overlay"):
+		var overlay_data: Dictionary = mission_manager_runtime.call("get_map_constructor_validation_overlay")
+		var overlay_summary: Dictionary = Dictionary(overlay_data.get("summary", {}))
+		var error_count: int = int(overlay_summary.get("error_count", 0))
+		var warning_count: int = int(overlay_summary.get("warning_count", 0))
+		var valid_count: int = int(overlay_summary.get("valid_count", 0))
+		if error_count <= 0 and warning_count <= 0:
+			overlay_summary_label.text = "Validation: OK"
+		else:
+			overlay_summary_label.text = "Validation: errors=%d warnings=%d valid=%d" % [error_count, warning_count, valid_count]
+	list.add_child(overlay_summary_label)
+	var overlay_toggle_button: Button = Button.new()
+	overlay_toggle_button.text = "Validation Overlay: %s" % ["ON" if map_constructor_validation_overlay_visible else "OFF"]
+	overlay_toggle_button.pressed.connect(func() -> void:
+		map_constructor_validation_overlay_visible = not map_constructor_validation_overlay_visible
+		_refresh_map_constructor_panels()
+	)
+	list.add_child(overlay_toggle_button)
 	var refresh_audit_button: Button = Button.new()
 	refresh_audit_button.text = "Refresh Audit"
 	refresh_audit_button.pressed.connect(func() -> void:
@@ -8968,6 +9019,10 @@ func _refresh_map_constructor_panels() -> void:
 	)
 	list.add_child(refresh_audit_button)
 	runtime_hud_root.add_child(runtime_map_constructor_palette_panel)
+	if runtime_map_constructor_validation_overlay_control == null or not is_instance_valid(runtime_map_constructor_validation_overlay_control):
+		runtime_map_constructor_validation_overlay_control = ConstructorValidationOverlayControl.new(self)
+		runtime_hud_root.add_child(runtime_map_constructor_validation_overlay_control)
+		runtime_hud_root.move_child(runtime_map_constructor_validation_overlay_control, runtime_hud_root.get_child_count() - 1)
 
 func _show_map_constructor_inspector(cell: Vector2i) -> void:
 	if runtime_map_constructor_inspector_panel != null and is_instance_valid(runtime_map_constructor_inspector_panel):
@@ -9002,6 +9057,32 @@ func _show_map_constructor_inspector(cell: Vector2i) -> void:
 		str(Vector2i(entity_info.get("cell", cell)))
 	]
 	v.add_child(header)
+	if mission_manager_runtime.has_method("get_map_constructor_validation_overlay"):
+		var overlay_data: Dictionary = mission_manager_runtime.call("get_map_constructor_validation_overlay")
+		var object_rows: Dictionary = Dictionary(overlay_data.get("objects", {}))
+		if object_rows.has(entity_id):
+			var validation_row: Dictionary = Dictionary(object_rows[entity_id])
+			var severity_text: String = String(validation_row.get("severity", "none"))
+			var status_label: Label = Label.new()
+			status_label.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+			status_label.text = "Validation: %s" % [severity_text.capitalize()]
+			v.add_child(status_label)
+			var max_messages: int = 0
+			for message_variant in Array(validation_row.get("messages", [])):
+				if max_messages >= 5:
+					break
+				var message_label: Label = Label.new()
+				message_label.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+				message_label.text = "- %s" % String(message_variant)
+				v.add_child(message_label)
+				max_messages += 1
+			for link_variant in Array(validation_row.get("link_targets", [])):
+				var link_row: Dictionary = Dictionary(link_variant)
+				var link_field: String = String(link_row.get("field", ""))
+				if link_field in ["required_key_id", "power_network_id", "linked_terminal_id"]:
+					var link_label: Label = Label.new()
+					link_label.text = "%s -> %s" % [link_field, String(link_row.get("status", "none"))]
+					v.add_child(link_label)
 
 	var preset_row: HBoxContainer = HBoxContainer.new()
 	preset_row.add_theme_constant_override("separation", 4)
@@ -10894,3 +10975,36 @@ func _on_remove_selected_overlay_pressed() -> void:
 	if not removed:
 		show_hint("No overlay path selected.")
 	update_box_status()
+
+
+func _draw_map_constructor_validation_overlay(control: Control) -> void:
+	if not map_constructor_mode_active or not map_constructor_validation_overlay_visible:
+		return
+	if mission_manager_runtime == null or not mission_manager_runtime.has_method("get_map_constructor_validation_overlay"):
+		return
+	if field_runtime == null:
+		return
+	var renderer_node: Node = field_runtime.get_node_or_null("RoomVisualRenderer")
+	if renderer_node == null or not (renderer_node is RoomVisualRenderer):
+		return
+	var renderer: RoomVisualRenderer = renderer_node
+	var overlay: Dictionary = mission_manager_runtime.call("get_map_constructor_validation_overlay")
+	var cells: Dictionary = Dictionary(overlay.get("cells", {}))
+	for cell_variant in cells.keys():
+		var cell: Vector2i = Vector2i(cell_variant)
+		var row: Dictionary = Dictionary(cells[cell_variant])
+		var severity: String = String(row.get("severity", "none"))
+		if severity == "none":
+			continue
+		var color: Color = Color(0, 0, 0, 0)
+		if severity == "error":
+			color = Color(0.95, 0.2, 0.2, 0.35)
+		elif severity == "warning":
+			color = Color(0.95, 0.7, 0.2, 0.35)
+		elif severity == "valid":
+			color = Color(0.2, 0.9, 0.4, 0.30)
+		else:
+			continue
+		var world_center: Vector2 = renderer.to_global(renderer.grid_to_iso(cell))
+		control.draw_circle(world_center, 10.0, color)
+		control.draw_arc(world_center, 11.0, 0.0, TAU, 14, Color(color.r, color.g, color.b, 0.9), 2.0)
