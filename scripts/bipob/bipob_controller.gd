@@ -1236,9 +1236,14 @@ func start_mission(mission_index: int, save_snapshot: bool = true) -> void:
 	mission7_powered_gate_position = Vector2i(-1, -1)
 	mission7_cable_path.clear()
 	if grid_manager != null:
-		grid_manager.reset_mission_layout(current_mission_index)
+		var mission_id: String = "mission_%d" % current_mission_index
+		var used_catalog_layout := false
+		if current_mission_index == 10 and mission_manager != null and mission_manager.has_method("apply_catalog_mission_layout_to_grid"):
+			used_catalog_layout = bool(mission_manager.call("apply_catalog_mission_layout_to_grid", mission_id))
+		if not used_catalog_layout:
+			grid_manager.reset_mission_layout(current_mission_index)
 		if mission_manager != null:
-			mission_manager.setup_world_objects_for_mission("mission_%d" % current_mission_index)
+			mission_manager.setup_world_objects_for_mission(mission_id)
 			refresh_world_object_overlay()
 		if current_mission_index == 4:
 			setup_mission4_field_modules()
