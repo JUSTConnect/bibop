@@ -289,6 +289,26 @@ func parse_map_constructor_patch_json(patch_json: String) -> Dictionary:
 			row_item["cell"] = _map_constructor_cell_from_variant(row_item.get("cell", Vector2i(-1, -1)))
 	return {"ok": true, "message": "Patch parsed.", "patch": patch, "warnings": []}
 
+func _collect_map_constructor_patch_field_changes(current: Dictionary, incoming: Dictionary, entity_kind: String) -> Array[Dictionary]:
+	var fields: Array[String] = [
+		"object_type", "item_type", "object_group", "state", "position", "cell", "placement_mode", "wall_side",
+		"anchor_floor_cell", "attached_wall_cell", "power_network_id", "target_door_id", "target_platform_id",
+		"linked_terminal_id", "control_source_id", "connected_device_ids", "required_key_id", "map_constructor_prefab_id"
+	]
+	if entity_kind == "item":
+		fields.erase("position")
+	var changes: Array[Dictionary] = []
+	for field_name in fields:
+		var current_value: Variant = current.get(field_name, null)
+		var incoming_value: Variant = incoming.get(field_name, null)
+		if field_name == "position" or field_name == "cell" or field_name == "anchor_floor_cell" or field_name == "attached_wall_cell":
+			if _map_constructor_cell_from_variant(current_value) == _map_constructor_cell_from_variant(incoming_value):
+				continue
+		if current_value == incoming_value:
+			continue
+		changes.append({"field": field_name, "current": current_value, "incoming": incoming_value})
+	return changes
+
 func compare_map_constructor_patch(patch: Dictionary) -> Dictionary:
 	var diffs: Array[Dictionary] = []
 	var warnings: Array[String] = []
@@ -296,29 +316,44 @@ func compare_map_constructor_patch(patch: Dictionary) -> Dictionary:
 	var will_add: int = 0
 	var will_update: int = 0
 	var unchanged: int = 0
-	for row_variant in Array(patch.get("objects", [])):
-		if not (row_variant is Dictionary):
-			continue
-		var row: Dictionary = Dictionary(row_variant)
-		var object_id: String = String(row.get("id", "")).strip_edges()
-		if object_id.is_empty() or _map_constructor_is_protected_id(object_id):
-			conflicts.append({"change_type":"conflict", "entity_kind":"world_object", "id":object_id, "message":"Missing/protected id."})
-			continue
-		var current_info: Dictionary = get_map_constructor_entity_by_id("world_object", object_id)
-		if not bool(current_info.get("ok", false)):
-			diffs.append({"change_type":"add", "entity_kind":"world_object", "id":object_id, "cell":row.get("position", Vector2i(-1, -1)), "field_changes":[], "message":"Will add object."})
-			will_add += 1
-		else:
-			var current: Dictionary = Dictionary(current_info.get("entity", {}))
-			if not bool(current.get("created_by_map_constructor", false)):
-				conflicts.append({"change_type":"conflict", "entity_kind":"world_object", "id":object_id, "message":"ID belongs to non-constructor object."})
+	for entity_kind in ["world_object", "item"]:
+		var patch_rows: Array = Array(patch.get("objects" if entity_kind == "world_object" else "items", []))
+		for row_variant in patch_rows:
+			if not (row_variant is Dictionary):
 				continue
-			if current == row:
+			var row: Dictionary = Dictionary(row_variant)
+			var entity_id: String = String(row.get("id", "")).strip_edges()
+			if entity_kind == "world_object":
+				row["position"] = _map_constructor_cell_from_variant(row.get("position", Vector2i(-1, -1)))
+			else:
+				row["cell"] = _map_constructor_cell_from_variant(row.get("cell", Vector2i(-1, -1)))
+			if entity_id.is_empty() or _map_constructor_is_protected_id(entity_id):
+				conflicts.append({"change_type":"conflict", "entity_kind":entity_kind, "id":entity_id, "message":"Missing/protected id."})
+				continue
+			var current_info: Dictionary = get_map_constructor_entity_by_id(entity_kind, entity_id)
+			if not bool(current_info.get("ok", false)):
+				if entity_kind == "item":
+					var incoming_cell: Vector2i = _map_constructor_cell_from_variant(row.get("cell", Vector2i(-1, -1)))
+					if incoming_cell != Vector2i(-1, -1) and not Array(cell_items.get(incoming_cell, [])).is_empty():
+						warnings.append("Item id %s not found; cell %s already contains items." % [entity_id, _serialize_cell_key(incoming_cell)])
+				diffs.append({"change_type":"add", "entity_kind":entity_kind, "id":entity_id, "cell":row.get("position" if entity_kind == "world_object" else "cell", Vector2i(-1, -1)), "field_changes":[], "message":"Will add %s." % ("object" if entity_kind == "world_object" else "item")})
+				will_add += 1
+				continue
+			var current: Dictionary = Dictionary(current_info.get("data", {}))
+			if current.is_empty():
+				current = Dictionary(current_info.get("entity", {}))
+			if not bool(current.get("created_by_map_constructor", false)):
+				conflicts.append({"change_type":"conflict", "entity_kind":entity_kind, "id":entity_id, "message":"ID belongs to non-constructor %s." % ("object" if entity_kind == "world_object" else "item")})
+				continue
+			if entity_kind == "item":
+				current["cell"] = Vector2i(current_info.get("cell", Vector2i(-1, -1)))
+			var field_changes: Array[Dictionary] = _collect_map_constructor_patch_field_changes(current, row, entity_kind)
+			if field_changes.is_empty():
 				unchanged += 1
-				diffs.append({"change_type":"unchanged", "entity_kind":"world_object", "id":object_id, "cell":row.get("position", Vector2i(-1, -1)), "field_changes":[], "message":"No changes."})
+				diffs.append({"change_type":"unchanged", "entity_kind":entity_kind, "id":entity_id, "cell":row.get("position" if entity_kind == "world_object" else "cell", Vector2i(-1, -1)), "field_changes":[], "message":"No changes."})
 			else:
 				will_update += 1
-				diffs.append({"change_type":"update", "entity_kind":"world_object", "id":object_id, "cell":row.get("position", Vector2i(-1, -1)), "field_changes":[], "message":"Will update object."})
+				diffs.append({"change_type":"update", "entity_kind":entity_kind, "id":entity_id, "cell":row.get("position" if entity_kind == "world_object" else "cell", Vector2i(-1, -1)), "field_changes":field_changes, "message":"Will update %s." % ("object" if entity_kind == "world_object" else "item")})
 	var summary: Dictionary = {"will_add": will_add, "will_update": will_update, "will_delete": 0, "unchanged": unchanged, "conflicts": conflicts.size(), "warnings": warnings.size()}
 	return {"ok": true, "message": "Patch compare complete.", "summary": summary, "diffs": diffs, "warnings": warnings, "conflicts": conflicts}
 
@@ -332,31 +367,62 @@ func apply_map_constructor_patch(patch: Dictionary, options: Dictionary = {}) ->
 	var preview: Dictionary = preview_apply_map_constructor_patch(patch)
 	if not bool(preview.get("ok", false)):
 		return {"ok": false, "message": String(preview.get("message", "Preview failed.")), "applied_count": 0, "added_count": 0, "updated_count": 0, "deleted_count": 0, "warnings": [], "conflicts": Array(preview.get("conflicts", [])), "patch_id": ""}
+	var warnings: Array[String] = Array(preview.get("warnings", [])).duplicate()
 	if not bool(options.get("allow_conflicts", false)) and not bool(preview.get("can_apply", false)):
-		return {"ok": false, "message": "Patch has conflicts.", "applied_count": 0, "added_count": 0, "updated_count": 0, "deleted_count": 0, "warnings": Array(preview.get("warnings", [])), "conflicts": Array(preview.get("conflicts", [])), "patch_id": ""}
+		return {"ok": false, "message": "Patch has conflicts.", "applied_count": 0, "added_count": 0, "updated_count": 0, "deleted_count": 0, "warnings": warnings, "conflicts": Array(preview.get("conflicts", [])), "patch_id": ""}
 	_map_constructor_last_patch_snapshot = {"patch_id":"patch_%d" % int(Time.get_unix_time_from_system()), "mission_world_objects": mission_world_objects.duplicate(true), "cell_items": cell_items.duplicate(true), "world_objects_by_cell": world_objects_by_cell.duplicate(true)}
 	var added_count: int = 0
 	var updated_count: int = 0
-	for row_variant in Array(patch.get("objects", [])):
-		if not (row_variant is Dictionary):
+	var allow_adds: bool = bool(options.get("allow_adds", true))
+	var allow_updates: bool = bool(options.get("allow_updates", true))
+	for diff_variant in Array(preview.get("diffs", [])):
+		if not (diff_variant is Dictionary):
 			continue
-		var row: Dictionary = Dictionary(row_variant).duplicate(true)
-		var object_id: String = String(row.get("id", ""))
-		if object_id.is_empty() or _map_constructor_is_protected_id(object_id):
+		var diff: Dictionary = Dictionary(diff_variant)
+		var change_type: String = String(diff.get("change_type", ""))
+		if change_type == "add" and not allow_adds:
+			warnings.append("Skipped add for %s %s: allow_adds=false" % [String(diff.get("entity_kind", "entity")), String(diff.get("id", ""))])
 			continue
-		var pos: Vector2i = _map_constructor_cell_from_variant(row.get("position", Vector2i(-1, -1)))
-		row["position"] = pos
-		var existing: Dictionary = get_map_constructor_entity_by_id("world_object", object_id)
-		if bool(existing.get("ok", false)):
-			_remove_map_constructor_entity_by_id("world_object", object_id)
-			updated_count += 1
-		else:
-			added_count += 1
-		set_world_object_at_cell(pos, row)
+		if change_type == "update" and not allow_updates:
+			warnings.append("Skipped update for %s %s: allow_updates=false" % [String(diff.get("entity_kind", "entity")), String(diff.get("id", ""))])
+			continue
+		if change_type != "add" and change_type != "update":
+			continue
+		var entity_kind: String = String(diff.get("entity_kind", ""))
+		var entity_id: String = String(diff.get("id", "")).strip_edges()
+		if entity_id.is_empty() or _map_constructor_is_protected_id(entity_id):
+			continue
+		var source_rows: Array = Array(patch.get("objects" if entity_kind == "world_object" else "items", []))
+		var incoming_row: Dictionary = {}
+		for row_variant in source_rows:
+			if row_variant is Dictionary and String(Dictionary(row_variant).get("id", "")).strip_edges() == entity_id:
+				incoming_row = Dictionary(row_variant).duplicate(true)
+				break
+		if incoming_row.is_empty():
+			warnings.append("Skipped %s %s: source row missing." % [entity_kind, entity_id])
+			continue
+		if entity_kind == "world_object":
+			var pos: Vector2i = _map_constructor_cell_from_variant(incoming_row.get("position", Vector2i(-1, -1)))
+			incoming_row["position"] = pos
+			if change_type == "update":
+				_remove_map_constructor_entity_by_id("world_object", entity_id)
+				updated_count += 1
+			else:
+				added_count += 1
+			set_world_object_at_cell(pos, incoming_row)
+		elif entity_kind == "item":
+			var cell: Vector2i = _map_constructor_cell_from_variant(incoming_row.get("cell", Vector2i(-1, -1)))
+			if change_type == "update":
+				_remove_map_constructor_entity_by_id("item", entity_id)
+				updated_count += 1
+			else:
+				added_count += 1
+			incoming_row.erase("cell")
+			add_item_at_cell(cell, incoming_row)
 	PowerSystemRef.recalculate_network(mission_world_objects, "task_test_power_main")
 	refresh_world_cooling_received()
 	var patch_id: String = String(_map_constructor_last_patch_snapshot.get("patch_id", ""))
-	return {"ok": true, "message": "Patch applied.", "applied_count": added_count + updated_count, "added_count": added_count, "updated_count": updated_count, "deleted_count": 0, "warnings": Array(preview.get("warnings", [])), "conflicts": Array(preview.get("conflicts", [])), "patch_id": patch_id}
+	return {"ok": true, "message": "Patch applied.", "applied_count": added_count + updated_count, "added_count": added_count, "updated_count": updated_count, "deleted_count": 0, "warnings": warnings, "conflicts": Array(preview.get("conflicts", [])), "patch_id": patch_id}
 
 func rollback_last_map_constructor_patch() -> Dictionary:
 	if _map_constructor_last_patch_snapshot.is_empty():
