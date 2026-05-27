@@ -9657,7 +9657,7 @@ func _get_developer_validation_suite_text_internal(suite: String = "all", includ
 var _map_constructor_last_kit_snapshot: Dictionary = {}
 var _map_constructor_last_template_snapshot: Dictionary = {}
 
-func _map_constructor_filter_entry_rows(entries: Array, warnings: Array[String]) -> Array[Dictionary]:
+func _map_constructor_filter_entry_rows(entries: Array, warnings: Array[String], removed_missing_ids: Array[String]) -> Array[Dictionary]:
 	var filtered: Array[Dictionary] = []
 	var catalog_ids: Dictionary = {}
 	for catalog_row in get_map_constructor_prefab_catalog():
@@ -9666,11 +9666,13 @@ func _map_constructor_filter_entry_rows(entries: Array, warnings: Array[String])
 	for entry_variant in entries:
 		var entry: Dictionary = Dictionary(entry_variant)
 		var prefab_id: String = String(entry.get("prefab_id", "")).strip_edges()
-		var has_catalog: bool = catalog_ids.has(prefab_id)
-		if not has_catalog and not MAP_CONSTRUCTOR_PREFAB_METADATA.has(prefab_id):
-			warnings.append("Entry omitted: prefab '%s' not found in catalog/metadata." % prefab_id)
+		if not catalog_ids.has(prefab_id):
+			if not removed_missing_ids.has(prefab_id):
+				removed_missing_ids.append(prefab_id)
 			continue
 		filtered.append(entry)
+	if not removed_missing_ids.is_empty():
+		warnings.append("Removed missing prefab ids: %s" % ", ".join(removed_missing_ids))
 	return filtered
 
 func get_map_constructor_prefab_kits() -> Dictionary:
@@ -9690,7 +9692,8 @@ func get_map_constructor_prefab_kits() -> Dictionary:
 		var kit: Dictionary = Dictionary(kit_variant).duplicate(true)
 		var row_warnings: Array[String] = []
 		var entries: Array = Array(kit.get("entries", []))
-		kit["entries"] = _map_constructor_filter_entry_rows(entries, row_warnings)
+		var removed_missing_ids: Array[String] = []
+		kit["entries"] = _map_constructor_filter_entry_rows(entries, row_warnings, removed_missing_ids)
 		if not row_warnings.is_empty():
 			var existing_warning: String = String(kit.get("warning", "")).strip_edges()
 			var joined_warnings: String = "; ".join(row_warnings)
@@ -9758,7 +9761,18 @@ func get_map_constructor_room_templates() -> Dictionary:
 		{"id":"empty_test_chamber","display_name":"Empty Test Chamber","category":"test","description":"Open chamber with tile edits only.","size":Vector2i(4,4),"entries":[],"tile_edits":[{"offset":Vector2i(1,1),"tile_id":0}],"tags":["empty"],"default_options":{"rotation":0,"mirror_x":false,"mirror_y":false,"allow_overwrite":true}},
 		{"id":"wall_mounted_test_wall","display_name":"Wall-mounted Test Wall","category":"test","description":"Wall-mounted placement checks.","size":Vector2i(4,2),"entries":[{"prefab_id":"door_terminal","offset":Vector2i(1,0),"wall_side":"north","properties":{},"link_group":"wall"}],"tile_edits":[],"tags":["wall_mounted"],"default_options":{"rotation":0,"mirror_x":false,"mirror_y":false,"allow_overwrite":false}}
 	]
-	return {"ok":true,"templates":templates,"message":"OK"}
+	var filtered_templates: Array[Dictionary] = []
+	for template_variant in templates:
+		var template: Dictionary = Dictionary(template_variant).duplicate(true)
+		var template_warnings: Array[String] = []
+		var removed_missing_ids: Array[String] = []
+		template["entries"] = _map_constructor_filter_entry_rows(Array(template.get("entries", [])), template_warnings, removed_missing_ids)
+		if not template_warnings.is_empty():
+			template["warning"] = "; ".join(template_warnings)
+		if Array(template.get("entries", [])).is_empty() and Array(template.get("tile_edits", [])).is_empty():
+			continue
+		filtered_templates.append(template)
+	return {"ok":true,"templates":filtered_templates,"message":"OK"}
 
 func preview_map_constructor_room_template(template_id: String, anchor_cell: Vector2i, options: Dictionary = {}) -> Dictionary:
 	if not _is_task_test_constructor_context():
@@ -9880,8 +9894,8 @@ func get_map_constructor_production_pipeline_report(options: Dictionary = {}) ->
 	checks.append({"label":"design notes ok","status":"pass" if bool(notes.get("ok", false)) else "fail"})
 	checks.append({"label":"validation warnings","status":"warning" if warning_count > 0 else "pass"})
 	checks.append({"label":"readiness diagnostics","status":"info","message":"not checked"})
-	var blocked: bool = String(readiness.get("status", "")) == "blocked" or not bool(patch_export.get("ok", false)) or not bool(notes.get("ok", false)) or non_expected_errors > 0
-	var has_warnings: bool = warning_count > 0 or String(readiness.get("status", "")) == "playable_with_warnings"
+	var blocked: bool = String(readiness.get("status", "")) == "blocked" or not bool(readiness.get("ok", true)) or not bool(patch_export.get("ok", false)) or not bool(notes.get("ok", false)) or non_expected_errors > 0
+	var has_warnings: bool = warning_count > 0
 	var status: String = "blocked" if blocked else ("warning" if has_warnings else "ready")
 	return {"ok":true,"status":status,"message":"Manual promotion required. No mission files were modified.","checks":checks,"promotion_package":{"patch":Dictionary(patch_export.get("patch", {})),"design_notes":Dictionary(notes.get("notes", {})),"summary":{"readiness":String(readiness.get("status", "unknown"))},"manual_steps":["Review design notes","Review patch JSON","Promote manually in controlled pipeline"],"warnings":[]},"recommended_actions":[]}
 
