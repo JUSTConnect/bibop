@@ -36,6 +36,25 @@ var constructor_exit_marker: Dictionary = {}
 const MAP_CONSTRUCTOR_PRESET_DIR: String = "user://constructor_presets"
 
 const MAP_CONSTRUCTOR_MISSION_PATCH_DIR: String = "user://constructor_mission_patches"
+
+const MAP_CONSTRUCTOR_WALL_SIDE_DELTAS: Array[Dictionary] = [
+	{"side":"north", "delta": Vector2i(0, -1)},
+	{"side":"east", "delta": Vector2i(1, 0)},
+	{"side":"south", "delta": Vector2i(0, 1)},
+	{"side":"west", "delta": Vector2i(-1, 0)}
+]
+
+const MAP_CONSTRUCTOR_WALL_MOUNTED_PREFABS: Dictionary = {
+	"power_cable_reel": true,
+	"light_switch": true,
+	"circuit_breaker": true,
+	"fuse_box": true,
+	"door_terminal": true,
+	"platform_terminal": true,
+	"firewall": true,
+	"cooling_terminal": true
+}
+
 const MAP_CONSTRUCTOR_SOLID_PREFABS: Array[String] = [
 	"outer_wall","brick_wall","concrete_wall","steel_wall","grate_wall",
 	"mechanical_door","digital_door","powered_gate"
@@ -1051,8 +1070,8 @@ func get_map_constructor_prefab_catalog() -> Array[Dictionary]:
 		{"category":"Floors","id":"floor"},{"category":"Floors","id":"stepped_floor"},
 		{"category":"Walls","id":"outer_wall"},{"category":"Walls","id":"brick_wall"},{"category":"Walls","id":"concrete_wall"},{"category":"Walls","id":"steel_wall"},{"category":"Walls","id":"grate_wall"},
 		{"category":"Doors","id":"mechanical_door"},{"category":"Doors","id":"digital_door"},{"category":"Doors","id":"powered_gate"},
-		{"category":"Terminals","id":"information_terminal"},{"category":"Terminals","id":"control_terminal"},
-		{"category":"Power","id":"power_source_class_1"},{"category":"Power","id":"power_socket"},{"category":"Power","id":"power_cable"},{"category":"Power","id":"circuit_switch"},{"category":"Power","id":"fuse_box"},
+		{"category":"Terminals","id":"information_terminal"},{"category":"Terminals","id":"control_terminal"},{"category":"Terminals","id":"door_terminal"},{"category":"Terminals","id":"platform_terminal"},{"category":"Terminals","id":"cooling_terminal"},{"category":"Terminals","id":"firewall"},
+		{"category":"Power","id":"power_source_class_1"},{"category":"Power","id":"power_socket"},{"category":"Power","id":"power_cable"},{"category":"Power","id":"circuit_switch"},{"category":"Power","id":"circuit_breaker"},{"category":"Power","id":"light_switch"},{"category":"Power","id":"fuse_box"},{"category":"Power","id":"power_cable_reel"},
 		{"category":"Items","id":"mechanical_key"},{"category":"Items","id":"digital_key"},{"category":"Items","id":"access_code"}
 	]
 
@@ -1113,6 +1132,27 @@ func get_default_map_constructor_field_value(field_name: String, entity_kind: St
 		return ""
 	return null
 
+
+func _is_wall_or_boundary_cell(cell: Vector2i) -> bool:
+	if grid_manager == null or not grid_manager.has_method("get_tile"):
+		return false
+	if not _is_valid_grid_cell(cell):
+		return false
+	if grid_manager.has_method("is_boundary_cell") and bool(grid_manager.call("is_boundary_cell", cell)):
+		return true
+	return int(grid_manager.call("get_tile", cell)) == GridManager.TILE_WALL
+
+func _resolve_wall_mounted_attachment(anchor_floor_cell: Vector2i) -> Dictionary:
+	if grid_manager == null:
+		return {"ok": false, "reason": "grid_unavailable", "message": "Blocked: grid unavailable."}
+	for side_entry in MAP_CONSTRUCTOR_WALL_SIDE_DELTAS:
+		var side: String = String(side_entry.get("side", ""))
+		var delta: Vector2i = Vector2i(side_entry.get("delta", Vector2i.ZERO))
+		var wall_cell: Vector2i = anchor_floor_cell + delta
+		if _is_wall_or_boundary_cell(wall_cell):
+			return {"ok": true, "anchor_floor_cell": anchor_floor_cell, "attached_wall_cell": wall_cell, "wall_side": side}
+	return {"ok": false, "reason": "no_adjacent_wall", "message": "Blocked: no adjacent wall.", "anchor_floor_cell": anchor_floor_cell}
+
 func can_place_map_constructor_prefab(prefab_id: String, cell: Vector2i) -> Dictionary:
 	var result: Dictionary = {"ok": false, "reason": "unsupported_prefab", "message": "Blocked: unsupported prefab.", "cell_state": get_runtime_cell_state(cell)}
 	var is_supported: bool = false
@@ -1133,6 +1173,7 @@ func can_place_map_constructor_prefab(prefab_id: String, cell: Vector2i) -> Dict
 		result["message"] = "Blocked: existing object."
 		return result
 	var prefab_is_item: bool = is_map_constructor_item_prefab(prefab_id)
+	var prefab_is_wall_mounted: bool = bool(MAP_CONSTRUCTOR_WALL_MOUNTED_PREFABS.get(prefab_id, false))
 	var tile_type_value: int = int(cell_state.get("tile_type", -1))
 	var tile_is_wall: bool = tile_type_value == GridManager.TILE_WALL
 	var tile_is_door_or_gate: bool = tile_type_value == GridManager.TILE_DOOR or tile_type_value == GridManager.TILE_DIGITAL_DOOR or tile_type_value == GridManager.TILE_POWERED_GATE
@@ -1178,6 +1219,21 @@ func can_place_map_constructor_prefab(prefab_id: String, cell: Vector2i) -> Dict
 			result["reason"] = "exit_cell"
 			result["message"] = "Blocked: exit cell."
 			return result
+	if prefab_is_wall_mounted:
+		var attachment_check: Dictionary = _resolve_wall_mounted_attachment(cell)
+		if not bool(attachment_check.get("ok", false)):
+			result["reason"] = String(attachment_check.get("reason", "no_adjacent_wall"))
+			result["message"] = String(attachment_check.get("message", "Blocked: no adjacent wall."))
+			return result
+		var attached_wall_cell: Vector2i = Vector2i(attachment_check.get("attached_wall_cell", Vector2i(-1, -1)))
+		if not _is_wall_or_boundary_cell(attached_wall_cell):
+			result["reason"] = "invalid_wall_attachment"
+			result["message"] = "Blocked: attached wall cell is not wall/boundary."
+			return result
+		result["placement_mode"] = "wall_mounted"
+		result["anchor_floor_cell"] = _serialize_cell_key(cell)
+		result["attached_wall_cell"] = _serialize_cell_key(attached_wall_cell)
+		result["wall_side"] = String(attachment_check.get("wall_side", "north"))
 	if prefab_id != "powered_gate":
 		var tile_name: String = String(cell_state.get("tile_name", "")).to_lower()
 		if tile_name.find("exit") >= 0 or tile_name.find("extraction") >= 0:
@@ -1249,6 +1305,17 @@ func place_map_constructor_prefab(prefab_id: String, cell: Vector2i) -> Dictiona
 		"map_constructor_tile_type": placed_tile_type,
 		"map_constructor_previous_tile_type": previous_tile_type
 	}
+	if bool(MAP_CONSTRUCTOR_WALL_MOUNTED_PREFABS.get(prefab_id, false)):
+		var attachment: Dictionary = _resolve_wall_mounted_attachment(cell)
+		if not bool(attachment.get("ok", false)):
+			return {"ok": false, "reason": String(attachment.get("reason", "no_adjacent_wall")), "message": String(attachment.get("message", "Blocked: no adjacent wall.")), "object_id": "", "warnings": []}
+		var attached_wall_cell: Vector2i = Vector2i(attachment.get("attached_wall_cell", Vector2i(-1, -1)))
+		if not _is_wall_or_boundary_cell(attached_wall_cell):
+			return {"ok": false, "reason": "invalid_wall_attachment", "message": "Blocked: attached wall cell is not wall/boundary.", "object_id": "", "warnings": []}
+		object_data["placement_mode"] = "wall_mounted"
+		object_data["anchor_floor_cell"] = _serialize_cell_key(cell)
+		object_data["attached_wall_cell"] = _serialize_cell_key(attached_wall_cell)
+		object_data["wall_side"] = String(attachment.get("wall_side", "north"))
 	set_world_object_at_cell(cell, object_data)
 	PowerSystemRef.recalculate_network(mission_world_objects, String(object_data.get("power_network_id", "")))
 	refresh_world_cooling_received()
@@ -1861,6 +1928,28 @@ func get_map_constructor_validation_overlay() -> Dictionary:
 			object_messages.append(String(msg))
 		overlay_objects[object_id] = {"severity": object_severity, "cell": object_cell, "messages": object_messages, "link_targets": Array(dependency.get("link_targets", []))}
 		overlay_cells[object_cell] = {"severity": object_severity, "object_id": object_id, "messages": object_messages, "link_targets": Array(dependency.get("link_targets", []))}
+		if String(data.get("placement_mode", "")) == "wall_mounted":
+			var anchor_cell: Vector2i = _deserialize_cell_variant(data.get("anchor_floor_cell", data.get("position", "-1,-1")))
+			var attached_cell: Vector2i = _deserialize_cell_variant(data.get("attached_wall_cell", "-1,-1"))
+			var wall_side: String = String(data.get("wall_side", "")).to_lower()
+			var side_ok: bool = wall_side in ["north", "east", "south", "west"]
+			if not side_ok:
+				_map_constructor_merge_overlay_issue(overlay_objects, overlay_cells, object_id, "error", "Wall-mounted invalid wall_side.")
+			if not _is_valid_grid_cell(anchor_cell):
+				_map_constructor_merge_overlay_issue(overlay_objects, overlay_cells, object_id, "error", "Wall-mounted invalid anchor_floor_cell.")
+			if not _is_wall_or_boundary_cell(attached_cell):
+				_map_constructor_merge_overlay_issue(overlay_objects, overlay_cells, object_id, "error", "Wall-mounted attached_wall_cell is not wall/boundary.")
+			if _is_valid_grid_cell(anchor_cell) and _is_wall_or_boundary_cell(attached_cell):
+				if not (abs(anchor_cell.x - attached_cell.x) + abs(anchor_cell.y - attached_cell.y) == 1):
+					_map_constructor_merge_overlay_issue(overlay_objects, overlay_cells, object_id, "error", "Wall-mounted anchor and attached wall are not adjacent.")
+				var expected_side: String = ""
+				for side_entry in MAP_CONSTRUCTOR_WALL_SIDE_DELTAS:
+					var delta: Vector2i = Vector2i(side_entry.get("delta", Vector2i.ZERO))
+					if anchor_cell + delta == attached_cell:
+						expected_side = String(side_entry.get("side", ""))
+						break
+				if not expected_side.is_empty() and wall_side != expected_side:
+					_map_constructor_merge_overlay_issue(overlay_objects, overlay_cells, object_id, "error", "Wall-mounted wall_side does not match attached wall cell.")
 
 	for row_variant in Array(audit.get("invalid_links", [])):
 		var row_invalid: Dictionary = Dictionary(row_variant)
