@@ -312,6 +312,7 @@ var map_constructor_cleanup_preview: Dictionary = {}
 var map_constructor_cleanup_pending_apply_key: String = ""
 var map_constructor_autofix_preview: Dictionary = {}
 var map_constructor_autofix_pending_apply_key: String = ""
+var map_constructor_new_power_network_id: String = "mapedit_power_A"
 const MAP_CONSTRUCTOR_ISSUE_FILTER_OPTIONS: Array[String] = ["All", "Errors", "Warnings", "Info"]
 
 const MAP_CONSTRUCTOR_PREFAB_FILTER_CATEGORIES: Array[String] = ["All", "Walls", "Doors", "Terminals", "Power", "Control", "Items", "Wall-mounted"]
@@ -9649,25 +9650,27 @@ func _refresh_map_constructor_panels() -> void:
 		if mission_manager_runtime != null and mission_manager_runtime.has_method("get_map_constructor_issue_autofix_options"):
 			var fix_options: Array = mission_manager_runtime.call("get_map_constructor_issue_autofix_options", issue_row)
 			if not fix_options.is_empty():
-				var issue_fix_row := HBoxContainer.new()
-				var preview_btn := Button.new()
-				preview_btn.text = "Preview Fix"
-				var apply_btn := Button.new()
-				apply_btn.text = "Apply Fix"
-				var first_fix: Dictionary = Dictionary(fix_options[0])
-				var ftype: String = String(first_fix.get("fix_type", ""))
-				var foptions: Dictionary = Dictionary(first_fix.get("options", {}))
-				var fkey: String = "%s|%s" % [ftype, JSON.stringify(foptions)]
-				preview_btn.pressed.connect(func() -> void:
-					_apply_map_constructor_autofix_action(ftype, foptions, false)
-				)
-				apply_btn.disabled = map_constructor_autofix_pending_apply_key != fkey
-				apply_btn.pressed.connect(func() -> void:
-					_apply_map_constructor_autofix_action(ftype, foptions, true)
-				)
-				issue_fix_row.add_child(preview_btn)
-				issue_fix_row.add_child(apply_btn)
-				list.add_child(issue_fix_row)
+				for option_row in fix_options:
+					var fix_option: Dictionary = Dictionary(option_row)
+					var ftype: String = String(fix_option.get("fix_type", ""))
+					var foptions: Dictionary = Dictionary(fix_option.get("options", {}))
+					var flabel: String = String(fix_option.get("label", "Fix"))
+					var fkey: String = "%s|%s" % [ftype, JSON.stringify(foptions)]
+					var issue_fix_row: HBoxContainer = HBoxContainer.new()
+					var preview_btn: Button = Button.new()
+					preview_btn.text = "Preview: %s" % flabel
+					var apply_btn: Button = Button.new()
+					apply_btn.text = "Apply: %s" % flabel
+					preview_btn.pressed.connect(func() -> void:
+						_apply_map_constructor_autofix_action(ftype, foptions, false)
+					)
+					apply_btn.disabled = map_constructor_autofix_pending_apply_key != fkey
+					apply_btn.pressed.connect(func() -> void:
+						_apply_map_constructor_autofix_action(ftype, foptions, true)
+					)
+					issue_fix_row.add_child(preview_btn)
+					issue_fix_row.add_child(apply_btn)
+					list.add_child(issue_fix_row)
 	var audit_label: Label = Label.new()
 	audit_label.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 	audit_label.text = "Audit: unavailable"
@@ -9806,6 +9809,39 @@ func _refresh_map_constructor_panels() -> void:
 		action_row.add_child(preview_button)
 		action_row.add_child(apply_button)
 		list.add_child(action_row)
+	var power_network_id_edit: LineEdit = LineEdit.new()
+	power_network_id_edit.placeholder_text = "Power network id"
+	power_network_id_edit.text = map_constructor_new_power_network_id
+	power_network_id_edit.text_changed.connect(func(new_text: String) -> void:
+		map_constructor_new_power_network_id = new_text
+	)
+	list.add_child(power_network_id_edit)
+	var selected_object_id: String = selected_map_constructor_entity_id if selected_map_constructor_entity_kind == "world_object" else ""
+	var selected_object_hint: Label = Label.new()
+	selected_object_hint.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	selected_object_hint.text = "Select an object first." if selected_object_id.is_empty() else "Selected object: %s" % selected_object_id
+	list.add_child(selected_object_hint)
+	var power_assign_options: Dictionary = {"entity_kind":"world_object","entity_id":selected_object_id,"new_power_network_id":map_constructor_new_power_network_id.strip_edges()}
+	var power_assign_key: String = "assign_power_network|%s" % JSON.stringify(power_assign_options)
+	var power_assign_row: HBoxContainer = HBoxContainer.new()
+	var power_preview_button: Button = Button.new()
+	power_preview_button.text = "Preview Assign Power Network"
+	power_preview_button.disabled = selected_object_id.is_empty()
+	power_preview_button.pressed.connect(func() -> void:
+		if selected_object_id.is_empty():
+			show_hint("Select an object first.")
+			return
+		_apply_map_constructor_autofix_action("assign_power_network", power_assign_options, false)
+	)
+	var power_apply_button: Button = Button.new()
+	power_apply_button.text = "Apply Assign Power Network"
+	power_apply_button.disabled = map_constructor_autofix_pending_apply_key != power_assign_key or int(map_constructor_autofix_preview.get("affected_count", 0)) <= 0
+	power_apply_button.pressed.connect(func() -> void:
+		_apply_map_constructor_autofix_action("assign_power_network", power_assign_options, true)
+	)
+	power_assign_row.add_child(power_preview_button)
+	power_assign_row.add_child(power_apply_button)
+	list.add_child(power_assign_row)
 	var autofix_undo_button := Button.new()
 	autofix_undo_button.text = "Undo Last Auto-fix"
 	autofix_undo_button.pressed.connect(func() -> void:
