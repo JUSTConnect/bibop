@@ -300,6 +300,22 @@ var map_constructor_marker_mode: String = ""
 var map_constructor_prefab_search_text: String = ""
 var map_constructor_prefab_category_filter: String = "All"
 const MAP_CONSTRUCTOR_PREFAB_FILTER_CATEGORIES: Array[String] = ["All", "Walls", "Doors", "Terminals", "Power", "Control", "Items", "Wall-mounted"]
+const MAP_CONSTRUCTOR_CONTROL_PREFAB_IDS: Array[String] = [
+	"control_terminal",
+	"circuit_switch",
+	"circuit_breaker",
+	"light_switch",
+	"fuse_box",
+	"door_terminal",
+	"platform_terminal"
+]
+const MAP_CONSTRUCTOR_POWER_PREFAB_IDS: Array[String] = [
+	"power_source_class_1",
+	"power_socket",
+	"power_cable",
+	"power_cable_reel",
+	"powered_gate"
+]
 var edge_scroll_enabled: bool = true
 var edge_scroll_margin_px: float = 28.0
 var edge_scroll_speed: float = 540.0
@@ -9160,15 +9176,22 @@ func _map_constructor_prefab_matches_filters(entry: Dictionary) -> bool:
 		if placement_mode != "wall_mounted":
 			return false
 	elif map_constructor_prefab_category_filter != "All":
-		var category_match: bool = category_text == map_constructor_prefab_category_filter
-		if map_constructor_prefab_category_filter == "Control":
-			category_match = category_match or category_text == "Power"
+		var category_match: bool = _map_constructor_prefab_matches_category_filter(prefab_id, category_text, map_constructor_prefab_category_filter)
 		if not category_match:
 			return false
 	if search_text.is_empty():
 		return true
 	var haystack: String = "%s %s %s %s" % [prefab_id.to_lower(), label_text.to_lower(), category_text.to_lower(), placement_mode.to_lower()]
 	return haystack.find(search_text) >= 0
+
+func _map_constructor_prefab_matches_category_filter(prefab_id: String, category_text: String, category_filter: String) -> bool:
+	match category_filter:
+		"Control":
+			return MAP_CONSTRUCTOR_CONTROL_PREFAB_IDS.has(prefab_id)
+		"Power":
+			return MAP_CONSTRUCTOR_POWER_PREFAB_IDS.has(prefab_id)
+		_:
+			return category_text == category_filter
 
 func _refresh_map_constructor_panels() -> void:
 	if app_screen_mode != AppScreenMode.GAMEPLAY:
