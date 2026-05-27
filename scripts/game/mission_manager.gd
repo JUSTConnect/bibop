@@ -2504,7 +2504,8 @@ func get_map_constructor_validation_issues() -> Array[Dictionary]:
 			issues.append(_make_map_constructor_issue("obj_invalid_cell_%d" % index, "error", "Object position invalid or negative.", object_cell, source_name, entity_kind, object_id))
 		elif has_grid_bounds and not bool(grid_manager.call("is_in_bounds", object_cell)):
 			issues.append(_make_map_constructor_issue("obj_out_of_bounds_%d" % index, "error", "Object out of bounds.", object_cell, source_name, entity_kind, object_id))
-		if object_group != "item" and object_group != "visual":
+		var allow_overlap: bool = bool(data.get("allow_cell_overlap", false))
+		if not allow_overlap and object_group != "item" and object_group != "visual" and object_cell.x >= 0 and object_cell.y >= 0:
 			var occupancy_key: String = "%d,%d" % [object_cell.x, object_cell.y]
 			if seen_occupancy_cells.has(occupancy_key):
 				issues.append(_make_map_constructor_issue("obj_duplicate_cell_%s_%d" % [occupancy_key, index], "warning", "Duplicate non-overlap cell occupancy at %s." % occupancy_key, object_cell, source_name, entity_kind, object_id))
