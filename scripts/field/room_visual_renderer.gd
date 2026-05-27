@@ -1358,6 +1358,14 @@ func get_iso_object_visual_profiles() -> Dictionary:
 		"powered_gate": {"base": Color(0.17, 0.22, 0.3, 0.95), "accent": Color(0.43, 0.81, 0.94, 0.95), "outline": Color(0.1, 0.15, 0.2, 0.92), "label": "Powered Gate", "shape": "slab"},
 		"terminal": {"base": Color(0.14, 0.24, 0.29, 0.96), "accent": Color(0.34, 0.95, 1.0, 0.98), "outline": Color(0.07, 0.14, 0.18, 0.94), "label": "Terminal", "shape": "terminal_console"},
 		"airflow_terminal": {"base": Color(0.14, 0.22, 0.28, 0.96), "accent": Color(0.5, 0.88, 0.98, 0.98), "outline": Color(0.07, 0.13, 0.17, 0.94), "label": "Airflow Terminal", "shape": "terminal_console"},
+		"door_terminal": {"base": Color(0.15, 0.23, 0.28, 0.97), "accent": Color(0.4, 0.94, 1.0, 0.99), "outline": Color(0.08, 0.14, 0.18, 0.94), "label": "Door Terminal", "shape": "wall_terminal_panel"},
+		"platform_terminal": {"base": Color(0.16, 0.27, 0.24, 0.97), "accent": Color(0.48, 0.98, 0.78, 0.99), "outline": Color(0.08, 0.16, 0.14, 0.94), "label": "Platform Terminal", "shape": "wall_terminal_panel"},
+		"cooling_terminal": {"base": Color(0.14, 0.21, 0.29, 0.97), "accent": Color(0.58, 0.85, 1.0, 0.99), "outline": Color(0.08, 0.13, 0.18, 0.94), "label": "Cooling Terminal", "shape": "wall_terminal_panel"},
+		"firewall": {"base": Color(0.32, 0.16, 0.14, 0.97), "accent": Color(1.0, 0.54, 0.2, 0.99), "outline": Color(0.22, 0.1, 0.08, 0.94), "label": "Firewall", "shape": "wall_firewall_panel"},
+		"circuit_breaker": {"base": Color(0.22, 0.23, 0.24, 0.97), "accent": Color(0.95, 0.88, 0.52, 0.99), "outline": Color(0.13, 0.14, 0.15, 0.94), "label": "Circuit Breaker", "shape": "wall_breaker_box"},
+		"fuse_box": {"base": Color(0.2, 0.21, 0.24, 0.97), "accent": Color(0.72, 0.82, 0.92, 0.99), "outline": Color(0.12, 0.13, 0.16, 0.94), "label": "Fuse Box", "shape": "wall_fuse_box"},
+		"light_switch": {"base": Color(0.26, 0.25, 0.23, 0.97), "accent": Color(0.98, 0.94, 0.75, 0.99), "outline": Color(0.14, 0.13, 0.12, 0.94), "label": "Light Switch", "shape": "wall_light_switch"},
+		"power_cable_reel": {"base": Color(0.2, 0.2, 0.22, 0.97), "accent": Color(0.89, 0.76, 0.47, 0.99), "outline": Color(0.11, 0.11, 0.12, 0.94), "label": "Power Cable Reel", "shape": "wall_cable_reel"},
 		"exit": {"base": Color(0.14, 0.3, 0.21, 0.95), "accent": Color(0.48, 0.95, 0.69, 0.95), "outline": Color(0.07, 0.16, 0.11, 0.92), "label": "Exit", "shape": "slab"},
 		"key": {"base": Color(0.31, 0.26, 0.12, 0.95), "accent": Color(0.95, 0.83, 0.35, 0.95), "outline": Color(0.2, 0.16, 0.08, 0.92), "label": "Key", "shape": "small_marker"},
 		"component": {"base": Color(0.25, 0.25, 0.3, 0.95), "accent": Color(0.72, 0.72, 0.85, 0.95), "outline": Color(0.14, 0.14, 0.17, 0.92), "label": "Component", "shape": "pillar"},
@@ -1638,13 +1646,131 @@ func draw_iso_object_heat_marker(cell: Vector2i, profile: Dictionary, visual_cen
 	if debug_draw_iso_object_outlines:
 		draw_arc(center, radius, 0.0, PI * 2.0, 24, outline_color, 1.0)
 
+
+func get_wall_mounted_object_profile_key(cell: Vector2i) -> String:
+	var metadata: Dictionary = get_wall_metadata_for_cell(cell)
+	if metadata.is_empty():
+		return ""
+	if String(metadata.get("placement_mode", "")).to_lower().strip_edges() != "wall_mounted":
+		return ""
+	var candidates: Array[String] = [
+		String(metadata.get("visual_profile", "")),
+		String(metadata.get("object_type", "")),
+		String(metadata.get("catalog_id", "")),
+		String(metadata.get("type", "")),
+		String(metadata.get("id", ""))
+	]
+	for candidate in candidates:
+		var normalized: String = candidate.strip_edges().to_lower()
+		match normalized:
+			"door_terminal", "platform_terminal", "cooling_terminal", "firewall", "circuit_breaker", "fuse_box", "light_switch", "power_cable_reel":
+				return normalized
+	return ""
+
+func draw_iso_wall_terminal_panel(center: Vector2, profile: Dictionary, screen_tint: Color) -> void:
+	var base_color: Color = _get_color_from_dict(profile, "base", Color.WHITE)
+	var accent_color: Color = _get_color_from_dict(profile, "accent", Color.WHITE)
+	var outline_color: Color = _get_color_from_dict(profile, "outline", Color.WHITE)
+	var body: Rect2 = Rect2(center + Vector2(-8.0, -18.0), Vector2(16.0, 16.0))
+	var screen: Rect2 = Rect2(body.position + Vector2(2.0, 3.0), Vector2(body.size.x - 4.0, 6.0))
+	draw_rect(body, base_color, true)
+	draw_rect(screen, screen_tint, true)
+	draw_line(screen.position + Vector2(0.0, screen.size.y), screen.position + screen.size, accent_color, 1.2)
+	if debug_draw_iso_object_outlines:
+		draw_rect(body, outline_color, false, 1.0)
+		draw_rect(screen, outline_color, false, 1.0)
+
+func draw_iso_wall_breaker_box(center: Vector2, profile: Dictionary) -> void:
+	var base_color: Color = _get_color_from_dict(profile, "base", Color.WHITE)
+	var accent_color: Color = _get_color_from_dict(profile, "accent", Color.WHITE)
+	var outline_color: Color = _get_color_from_dict(profile, "outline", Color.WHITE)
+	var box: Rect2 = Rect2(center + Vector2(-7.0, -16.0), Vector2(14.0, 13.0))
+	draw_rect(box, base_color, true)
+	var lever_pivot: Vector2 = box.position + Vector2(box.size.x * 0.35, box.size.y * 0.45)
+	draw_circle(lever_pivot, 1.4, accent_color)
+	draw_line(lever_pivot, lever_pivot + Vector2(4.2, -3.4), accent_color, 2.0)
+	if debug_draw_iso_object_outlines:
+		draw_rect(box, outline_color, false, 1.0)
+
+func draw_iso_wall_fuse_box(center: Vector2, profile: Dictionary) -> void:
+	var base_color: Color = _get_color_from_dict(profile, "base", Color.WHITE)
+	var accent_color: Color = _get_color_from_dict(profile, "accent", Color.WHITE)
+	var outline_color: Color = _get_color_from_dict(profile, "outline", Color.WHITE)
+	var box: Rect2 = Rect2(center + Vector2(-8.0, -16.0), Vector2(16.0, 13.0))
+	draw_rect(box, base_color, true)
+	for slot_idx in range(3):
+		var slot_x: float = box.position.x + 3.0 + float(slot_idx) * 4.2
+		draw_rect(Rect2(Vector2(slot_x, box.position.y + 3.0), Vector2(2.6, 7.0)), accent_color.darkened(0.2), true)
+	if debug_draw_iso_object_outlines:
+		draw_rect(box, outline_color, false, 1.0)
+
+func draw_iso_wall_light_switch(center: Vector2, profile: Dictionary) -> void:
+	var base_color: Color = _get_color_from_dict(profile, "base", Color.WHITE)
+	var accent_color: Color = _get_color_from_dict(profile, "accent", Color.WHITE)
+	var outline_color: Color = _get_color_from_dict(profile, "outline", Color.WHITE)
+	var plate: Rect2 = Rect2(center + Vector2(-4.0, -12.0), Vector2(8.0, 10.0))
+	var switch_rect: Rect2 = Rect2(plate.position + Vector2(2.5, 2.2), Vector2(3.0, 4.6))
+	draw_rect(plate, base_color, true)
+	draw_rect(switch_rect, accent_color, true)
+	if debug_draw_iso_object_outlines:
+		draw_rect(plate, outline_color, false, 1.0)
+
+func draw_iso_wall_cable_reel(center: Vector2, profile: Dictionary) -> void:
+	var base_color: Color = _get_color_from_dict(profile, "base", Color.WHITE)
+	var accent_color: Color = _get_color_from_dict(profile, "accent", Color.WHITE)
+	var outline_color: Color = _get_color_from_dict(profile, "outline", Color.WHITE)
+	var reel_center: Vector2 = center + Vector2(0.0, -10.0)
+	draw_circle(reel_center, 6.0, base_color)
+	draw_arc(reel_center, 5.0, 0.0, PI * 1.75, 20, accent_color, 1.8)
+	draw_arc(reel_center, 3.0, 0.0, PI * 1.75, 20, accent_color, 1.5)
+	draw_circle(reel_center, 1.4, accent_color)
+	if debug_draw_iso_object_outlines:
+		draw_arc(reel_center, 6.0, 0.0, PI * 2.0, 24, outline_color, 1.0)
+
+func draw_wall_mounted_object_shape(cell: Vector2i, profile_key: String, profile: Dictionary, visual_center: Vector2) -> bool:
+	match profile_key:
+		"door_terminal":
+			draw_iso_wall_terminal_panel(visual_center, profile, Color(0.36, 0.95, 1.0, 0.98))
+			return true
+		"platform_terminal":
+			draw_iso_wall_terminal_panel(visual_center, profile, Color(0.48, 0.98, 0.8, 0.98))
+			return true
+		"cooling_terminal":
+			draw_iso_wall_terminal_panel(visual_center, profile, Color(0.63, 0.85, 1.0, 0.98))
+			return true
+		"firewall":
+			draw_iso_wall_terminal_panel(visual_center, profile, Color(1.0, 0.54, 0.2, 0.98))
+			var warning_top: Vector2 = visual_center + Vector2(0.0, -17.0)
+			draw_line(warning_top + Vector2(-5.0, 9.0), warning_top + Vector2(0.0, 0.0), Color(1.0, 0.84, 0.33, 0.95), 1.4)
+			draw_line(warning_top + Vector2(0.0, 0.0), warning_top + Vector2(5.0, 9.0), Color(1.0, 0.84, 0.33, 0.95), 1.4)
+			draw_line(warning_top + Vector2(5.0, 9.0), warning_top + Vector2(-5.0, 9.0), Color(1.0, 0.84, 0.33, 0.95), 1.4)
+			return true
+		"circuit_breaker":
+			draw_iso_wall_breaker_box(visual_center, profile)
+			return true
+		"fuse_box":
+			draw_iso_wall_fuse_box(visual_center, profile)
+			return true
+		"light_switch":
+			draw_iso_wall_light_switch(visual_center, profile)
+			return true
+		"power_cable_reel":
+			draw_iso_wall_cable_reel(visual_center, profile)
+			return true
+	return false
+
 func draw_iso_object_marker(cell: Vector2i, tile_type: int) -> void:
 	var visual_center: Vector2 = get_world_object_visual_position(cell)
 	var profile_key: String = get_iso_object_profile_key_for_tile(tile_type)
 	var object_asset_key: String = get_iso_object_asset_key_for_profile(profile_key)
 	if draw_iso_texture_asset(cell, object_asset_key, visual_center):
 		return
+	var wall_mounted_profile_key: String = get_wall_mounted_object_profile_key(cell)
+	if not wall_mounted_profile_key.is_empty():
+		profile_key = wall_mounted_profile_key
 	var profile: Dictionary = get_iso_object_profile(profile_key)
+	if draw_wall_mounted_object_shape(cell, profile_key, profile, visual_center):
+		return
 	var shape: String = str(profile.get("shape", "small_marker"))
 	var door_profile_key: String = get_iso_door_visual_profile_key_for_tile(tile_type)
 	if not door_profile_key.is_empty():
