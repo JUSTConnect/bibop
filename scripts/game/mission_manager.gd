@@ -28,6 +28,7 @@ var runtime_inventory_state := {
 }
 var _map_constructor_runtime_object_seq: int = 1
 var _task_test_constructor_base_tiles: Dictionary = {}
+var _map_constructor_last_cleanup_snapshot: Dictionary = {}
 var current_mission_id: String = ""
 var constructor_map_width: int = 16
 var constructor_map_height: int = 10
@@ -2229,6 +2230,135 @@ func validate_map_constructor_entity_links(entity_kind: String, entity_id: Strin
 		if not bool(get_map_constructor_entity_by_id("", tid).get("ok", false)):
 			warnings.append("Missing link target for %s: %s" % [key, tid]); missing.append(key)
 	return {"ok": missing.is_empty(), "warnings": warnings, "missing_links": missing, "linked_targets": linked}
+
+func _is_map_constructor_cleanup_protected_object(object_data: Dictionary) -> bool:
+	var object_id: String = String(object_data.get("id", "")).to_lower()
+	if object_id == "bipob" or object_id.find("bipob") >= 0:
+		return true
+	if object_id.find("start") >= 0 and object_id.find("marker") >= 0:
+		return true
+	if object_id.find("exit") >= 0 and object_id.find("marker") >= 0:
+		return true
+	return false
+
+func _build_map_constructor_cleanup_row(entity_kind: String, data: Dictionary, cell: Vector2i) -> Dictionary:
+	var object_id: String = String(data.get("id", ""))
+	return {"entity_kind": entity_kind, "id": object_id, "object_type": String(data.get("object_type", data.get("item_type", ""))), "object_group": String(data.get("object_group", "")), "category": String(data.get("category", "")), "type_group": get_map_constructor_entity_type_group(entity_kind, object_id), "cell": cell, "created_by_map_constructor": bool(data.get("created_by_map_constructor", false))}
+
+func get_map_constructor_cleanup_preview(cleanup_type: String, options: Dictionary = {}) -> Dictionary:
+	var lower_type: String = cleanup_type.strip_edges().to_lower()
+	if not _is_task_test_constructor_context():
+		return {"ok": false, "cleanup_type": lower_type, "message": "Cleanup tools work only in TASK TEST runtime.", "affected_count": 0, "affected_objects": [], "warnings": []}
+	var include_base: bool = bool(options.get("include_base_task_test_objects", false))
+	var include_constructor_created: bool = bool(options.get("include_constructor_created", true))
+	var rows: Array[Dictionary] = []
+	var warnings: Array[String] = []
+	for object_data in mission_world_objects:
+		if typeof(object_data) != TYPE_DICTIONARY:
+			continue
+		var data: Dictionary = Dictionary(object_data)
+		var created: bool = bool(data.get("created_by_map_constructor", false))
+		if include_constructor_created and not created and not include_base:
+			continue
+		if not include_constructor_created and created:
+			continue
+		if _is_map_constructor_cleanup_protected_object(data):
+			continue
+		var row := _build_map_constructor_cleanup_row("world_object", data, Vector2i(data.get("position", Vector2i(-1, -1))))
+		var add_row: bool = false
+		match lower_type:
+			"items":
+				add_row = row["type_group"] == "item" or _map_constructor_is_item_like_world_object(data)
+			"wall_mounted":
+				add_row = String(data.get("placement_mode", "")) == "wall_mounted"
+			"category":
+				add_row = String(row.get("category", "")).to_lower() == String(options.get("category", "")).to_lower()
+			"type_group":
+				add_row = String(row.get("type_group", "")) == String(options.get("type_group", "")).to_lower()
+			"all_constructor_objects", "reset_runtime_map":
+				add_row = created or include_base
+			"invalid_references":
+				var fields := ["target_door_id","target_platform_id","linked_terminal_id","control_source_id","required_key_id"]
+				for f in fields:
+					var tid: String = String(data.get(f, "")).strip_edges()
+					if tid.is_empty():
+						continue
+					if not bool(get_map_constructor_entity_by_id("", tid).get("ok", false)):
+						rows.append({"entity_kind":"world_object","id":String(data.get("id","")),"field_name":f,"invalid_value":tid,"cell":Vector2i(data.get("position", Vector2i(-1,-1))),"created_by_map_constructor":created})
+				for connected_id in Array(data.get("connected_device_ids", [])):
+					var cid: String = String(connected_id).strip_edges()
+					if cid.is_empty():
+						continue
+					if not bool(get_map_constructor_entity_by_id("", cid).get("ok", false)):
+						rows.append({"entity_kind":"world_object","id":String(data.get("id","")),"field_name":"connected_device_ids","invalid_value":cid,"cell":Vector2i(data.get("position", Vector2i(-1,-1))),"created_by_map_constructor":created})
+			_:
+				return {"ok": false, "cleanup_type": lower_type, "message": "Unsupported cleanup type.", "affected_count": 0, "affected_objects": [], "warnings": []}
+		if add_row:
+			rows.append(row)
+	for cell_variant in cell_items.keys():
+		var cell: Vector2i = Vector2i(cell_variant)
+		for item_variant in Array(cell_items.get(cell_variant, [])):
+			var item_data: Dictionary = Dictionary(item_variant)
+			var created_item: bool = bool(item_data.get("created_by_map_constructor", false))
+			if include_constructor_created and not created_item and not include_base:
+				continue
+			if not include_constructor_created and created_item:
+				continue
+			if lower_type in ["items", "all_constructor_objects", "reset_runtime_map"]:
+				rows.append(_build_map_constructor_cleanup_row("item", item_data, cell))
+	return {"ok": true, "cleanup_type": lower_type, "message": "Preview ready.", "affected_count": rows.size(), "affected_objects": rows, "warnings": warnings}
+
+func apply_map_constructor_cleanup(cleanup_type: String, options: Dictionary = {}) -> Dictionary:
+	var preview: Dictionary = get_map_constructor_cleanup_preview(cleanup_type, options)
+	if not bool(preview.get("ok", false)):
+		return {"ok": false, "message": String(preview.get("message", "Cleanup failed.")), "deleted_count": 0, "cleanup_id": "", "warnings": Array(preview.get("warnings", []))}
+	var affected: Array = Array(preview.get("affected_objects", []))
+	if affected.is_empty():
+		return {"ok": true, "message": "Nothing to clean up.", "deleted_count": 0, "cleanup_id": "", "warnings": Array(preview.get("warnings", []))}
+	_map_constructor_last_cleanup_snapshot = {"cleanup_id": "cleanup_%d" % Time.get_unix_time_from_system(), "mission_world_objects": mission_world_objects.duplicate(true), "cell_items": cell_items.duplicate(true), "world_objects_by_cell": world_objects_by_cell.duplicate(true)}
+	var deleted_count: int = 0
+	if String(cleanup_type).to_lower() == "invalid_references":
+		var cleared: int = 0
+		for row_variant in affected:
+			var row: Dictionary = Dictionary(row_variant)
+			var entity: Dictionary = get_map_constructor_entity_by_id(String(row.get("entity_kind", "world_object")), String(row.get("id", "")))
+			if not bool(entity.get("ok", false)):
+				continue
+			var data: Dictionary = Dictionary(entity.get("data", {}))
+			var field_name: String = String(row.get("field_name", ""))
+			if field_name == "connected_device_ids":
+				var filtered: Array[String] = []
+				for cid in Array(data.get("connected_device_ids", [])):
+					if bool(get_map_constructor_entity_by_id("", String(cid)).get("ok", false)):
+						filtered.append(String(cid))
+				data["connected_device_ids"] = filtered
+				cleared += 1
+			else:
+				data[field_name] = ""
+				cleared += 1
+			update_world_object_by_id(String(row.get("id", "")), data)
+		PowerSystemRef.recalculate_network(mission_world_objects, "")
+		refresh_world_cooling_received()
+		return {"ok": true, "message": "Invalid references cleaned.", "deleted_count": cleared, "cleanup_id": String(_map_constructor_last_cleanup_snapshot.get("cleanup_id", "")), "warnings": []}
+	for row_variant in affected:
+		var row: Dictionary = Dictionary(row_variant)
+		var remove_result: Dictionary = _remove_map_constructor_entity_by_id(String(row.get("entity_kind", "")), String(row.get("id", "")))
+		if bool(remove_result.get("ok", false)):
+			deleted_count += 1
+	PowerSystemRef.recalculate_network(mission_world_objects, "")
+	refresh_world_cooling_received()
+	return {"ok": true, "message": "Cleanup applied.", "deleted_count": deleted_count, "cleanup_id": String(_map_constructor_last_cleanup_snapshot.get("cleanup_id", "")), "warnings": Array(preview.get("warnings", []))}
+
+func undo_last_map_constructor_cleanup() -> Dictionary:
+	if _map_constructor_last_cleanup_snapshot.is_empty():
+		return {"ok": false, "message": "No cleanup to undo."}
+	mission_world_objects = Array(_map_constructor_last_cleanup_snapshot.get("mission_world_objects", [])).duplicate(true)
+	cell_items = Dictionary(_map_constructor_last_cleanup_snapshot.get("cell_items", {})).duplicate(true)
+	world_objects_by_cell = Dictionary(_map_constructor_last_cleanup_snapshot.get("world_objects_by_cell", {})).duplicate(true)
+	_map_constructor_last_cleanup_snapshot.clear()
+	PowerSystemRef.recalculate_network(mission_world_objects, "")
+	refresh_world_cooling_received()
+	return {"ok": true, "message": "Last cleanup undone."}
 func is_task_test_expected_invalid_object_id(object_id: String) -> bool:
 	match object_id:
 		"task_test_control_missing_source", "task_test_control_invalid_source", "task_test_powered_gate_unpowered", "task_test_platform_lift":
