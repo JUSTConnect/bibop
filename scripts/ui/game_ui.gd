@@ -318,6 +318,12 @@ var map_constructor_patch_preview: Dictionary = {}
 var map_constructor_patch_parsed: Dictionary = {}
 var map_constructor_patch_pending_apply: bool = false
 var map_constructor_change_history_filter: String = "All"
+var map_constructor_multi_selected_entities: Array[Dictionary] = []
+var map_constructor_batch_preview: Dictionary = {}
+var map_constructor_batch_pending_apply_operation: String = ""
+var map_constructor_batch_offset_x: int = 0
+var map_constructor_batch_offset_y: int = 0
+var map_constructor_batch_power_network_id: String = "mapedit_power_A"
 const MAP_CONSTRUCTOR_ISSUE_FILTER_OPTIONS: Array[String] = ["All", "Errors", "Warnings", "Info"]
 const MAP_CONSTRUCTOR_HISTORY_FILTER_OPTIONS: Array[String] = ["All", "Placement", "Edit", "Cleanup", "Auto-fix", "Patch", "Reset"]
 
@@ -9020,6 +9026,9 @@ func _deactivate_map_constructor_mode() -> void:
 	_clear_map_constructor_preview_cell()
 	_clear_map_constructor_wall_mounted_selection()
 	_clear_map_constructor_link_target()
+	map_constructor_multi_selected_entities.clear()
+	map_constructor_batch_preview.clear()
+	map_constructor_batch_pending_apply_operation = ""
 
 func _clear_map_constructor_wall_mounted_selection() -> void:
 	if field_runtime == null:
@@ -9418,6 +9427,33 @@ func _apply_map_constructor_autofix_action(fix_type: String, options: Dictionary
 	_refresh_map_constructor_panels()
 	if field_runtime != null and field_runtime.has_method("request_visual_refresh"):
 		field_runtime.call("request_visual_refresh")
+
+func _make_map_constructor_multi_row_from_current_selection() -> Dictionary:
+	if selected_map_constructor_entity_id.is_empty():
+		return {}
+	if mission_manager_runtime == null or not mission_manager_runtime.has_method("get_map_constructor_entity_by_id"):
+		return {}
+	var entity: Dictionary = mission_manager_runtime.call("get_map_constructor_entity_by_id", selected_map_constructor_entity_kind, selected_map_constructor_entity_id)
+	if not bool(entity.get("ok", false)):
+		return {}
+	var data: Dictionary = Dictionary(entity.get("data", {}))
+	return {"entity_kind":String(entity.get("entity_kind", selected_map_constructor_entity_kind)), "entity_id":String(entity.get("id", selected_map_constructor_entity_id)), "cell":Vector2i(entity.get("cell", Vector2i(-1, -1))), "object_type":String(data.get("object_type", data.get("item_type", ""))), "created_by_map_constructor":bool(data.get("created_by_map_constructor", false))}
+
+func _refresh_map_constructor_multi_selection_stale() -> void:
+	if mission_manager_runtime == null or not mission_manager_runtime.has_method("get_map_constructor_entity_by_id"):
+		map_constructor_multi_selected_entities.clear()
+		return
+	var fresh: Array[Dictionary] = []
+	var seen: Dictionary = {}
+	for row in map_constructor_multi_selected_entities:
+		var key: String = "%s|%s" % [String(row.get("entity_kind", "")), String(row.get("entity_id", ""))]
+		if seen.has(key):
+			continue
+		seen[key] = true
+		var entity: Dictionary = mission_manager_runtime.call("get_map_constructor_entity_by_id", String(row.get("entity_kind", "")), String(row.get("entity_id", "")))
+		if bool(entity.get("ok", false)):
+			fresh.append(_make_map_constructor_multi_row_from_current_selection() if String(entity.get("id", "")) == selected_map_constructor_entity_id else {"entity_kind":String(entity.get("entity_kind", "")), "entity_id":String(entity.get("id", "")), "cell":Vector2i(entity.get("cell", Vector2i(-1, -1))), "object_type":String(Dictionary(entity.get("data", {})).get("object_type", Dictionary(entity.get("data", {})).get("item_type", ""))), "created_by_map_constructor":bool(Dictionary(entity.get("data", {})).get("created_by_map_constructor", false))})
+	map_constructor_multi_selected_entities = fresh
 
 func _refresh_map_constructor_panels() -> void:
 	if app_screen_mode != AppScreenMode.GAMEPLAY:
@@ -9827,6 +9863,59 @@ func _refresh_map_constructor_panels() -> void:
 	var cleanup_title: Label = Label.new()
 	cleanup_title.text = "Cleanup Tools"
 	list.add_child(cleanup_title)
+	var multi_title: Label = Label.new()
+	multi_title.text = "Multi-select / Batch Tools"
+	list.add_child(multi_title)
+	_refresh_map_constructor_multi_selection_stale()
+	var selected_ids: Array[String] = []
+	for selected_row in map_constructor_multi_selected_entities:
+		selected_ids.append(String(selected_row.get("entity_id", "")))
+	var multi_info := Label.new()
+	multi_info.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	multi_info.text = "Selected: %d\n%s" % [map_constructor_multi_selected_entities.size(), ", ".join(selected_ids.slice(0, mini(10, selected_ids.size())))]
+	list.add_child(multi_info)
+	var select_actions := HBoxContainer.new()
+	var add_current := Button.new(); add_current.text = "Add Current Selection"
+	add_current.pressed.connect(func() -> void:
+		var row: Dictionary = _make_map_constructor_multi_row_from_current_selection()
+		if row.is_empty(): return
+		var key: String = "%s|%s" % [String(row.get("entity_kind", "")), String(row.get("entity_id", ""))]
+		for existing in map_constructor_multi_selected_entities:
+			if "%s|%s" % [String(existing.get("entity_kind", "")), String(existing.get("entity_id", ""))] == key: _refresh_map_constructor_panels(); return
+		map_constructor_multi_selected_entities.append(row); _refresh_map_constructor_panels()
+	)
+	var clear_multi := Button.new(); clear_multi.text = "Clear Multi-select"
+	clear_multi.pressed.connect(func() -> void: map_constructor_multi_selected_entities.clear(); map_constructor_batch_preview.clear(); map_constructor_batch_pending_apply_operation = ""; _refresh_map_constructor_panels())
+	select_actions.add_child(add_current); select_actions.add_child(clear_multi); list.add_child(select_actions)
+	var offset_row := HBoxContainer.new()
+	var ox := SpinBox.new(); ox.min_value = -100; ox.max_value = 100; ox.step = 1; ox.value = map_constructor_batch_offset_x; ox.value_changed.connect(func(v: float) -> void: map_constructor_batch_offset_x = int(v))
+	var oy := SpinBox.new(); oy.min_value = -100; oy.max_value = 100; oy.step = 1; oy.value = map_constructor_batch_offset_y; oy.value_changed.connect(func(v: float) -> void: map_constructor_batch_offset_y = int(v))
+	var pn := LineEdit.new(); pn.text = map_constructor_batch_power_network_id; pn.placeholder_text = "Power network id"; pn.text_changed.connect(func(t: String) -> void: map_constructor_batch_power_network_id = t)
+	offset_row.add_child(Label.new()); offset_row.get_child(0).set("text", "Offset X/Y:")
+	offset_row.add_child(ox); offset_row.add_child(oy); offset_row.add_child(pn); list.add_child(offset_row)
+	var batch_buttons := HBoxContainer.new()
+	for op in [{"label":"Preview Move","op":"move_selected"},{"label":"Apply Move","op":"move_selected","apply":true},{"label":"Preview Duplicate","op":"duplicate_selected"},{"label":"Apply Duplicate","op":"duplicate_selected","apply":true},{"label":"Preview Delete","op":"delete_selected"},{"label":"Apply Delete","op":"delete_selected","apply":true}]:
+		var b := Button.new(); b.text = String(op.get("label", ""))
+		var apply_mode: bool = bool(op.get("apply", false))
+		if apply_mode:
+			b.disabled = map_constructor_batch_pending_apply_operation != String(op.get("op", ""))
+		b.pressed.connect(func() -> void:
+			if mission_manager_runtime == null:
+				return
+			var options := {"offset":Vector2i(map_constructor_batch_offset_x, map_constructor_batch_offset_y), "power_network_id":map_constructor_batch_power_network_id}
+			if not apply_mode:
+				map_constructor_batch_preview = mission_manager_runtime.call("preview_map_constructor_batch_operation", String(op.get("op", "")), map_constructor_multi_selected_entities, options)
+				map_constructor_batch_pending_apply_operation = String(op.get("op", "")) if bool(map_constructor_batch_preview.get("can_apply", false)) else ""
+				show_hint(String(map_constructor_batch_preview.get("message", "Preview ready.")))
+			else:
+				var apply_result: Dictionary = mission_manager_runtime.call("apply_map_constructor_batch_operation", String(op.get("op", "")), map_constructor_multi_selected_entities, options)
+				show_hint(String(apply_result.get("message", "Batch applied.")))
+				map_constructor_batch_preview.clear()
+				map_constructor_batch_pending_apply_operation = ""
+			_refresh_map_constructor_panels()
+		)
+		batch_buttons.add_child(b)
+	list.add_child(batch_buttons)
 	var cleanup_actions: Array[Dictionary] = [
 		{"label":"Items","cleanup_type":"items","options":{}},
 		{"label":"Wall-mounted","cleanup_type":"wall_mounted","options":{}},

@@ -31,6 +31,7 @@ var _task_test_constructor_base_tiles: Dictionary = {}
 var _map_constructor_last_cleanup_snapshot: Dictionary = {}
 var _map_constructor_last_autofix_snapshot: Dictionary = {}
 var _map_constructor_last_patch_snapshot: Dictionary = {}
+var _map_constructor_last_batch_snapshot: Dictionary = {}
 var _map_constructor_change_history: Array[Dictionary] = []
 var _map_constructor_change_history_seq: int = 1
 var current_mission_id: String = ""
@@ -1820,6 +1821,112 @@ func duplicate_map_constructor_entity_to_cell(entity_kind: String, entity_id: St
 	refresh_world_cooling_received()
 	_record_map_constructor_change("duplicate", {"entity_kind":"world_object", "entity_id":String(cloned_data.get("id", "")), "object_type":String(cloned_data.get("object_type", "")), "cell":target_cell, "summary":"Duplicated object %s to %s" % [entity_id, _format_map_constructor_cell(target_cell)], "details":{"source_entity_id":entity_id}, "undo_hint":"Can undo by deleting duplicate."})
 	return {"ok": true, "message": "Duplicated object.", "object_id": String(cloned_data.get("id", ""))}
+
+func _normalize_map_constructor_batch_offset(options: Dictionary) -> Vector2i:
+	var offset_variant: Variant = options.get("offset", Vector2i.ZERO)
+	if offset_variant is Vector2i:
+		return Vector2i(offset_variant)
+	if offset_variant is Dictionary:
+		return Vector2i(int(offset_variant.get("x", 0)), int(offset_variant.get("y", 0)))
+	return Vector2i.ZERO
+
+func _is_map_constructor_batch_protected_entity(entity_id: String) -> bool:
+	return entity_id in ["bipob_start", "mission_exit", "constructor_start_marker", "constructor_exit_marker"]
+
+func preview_map_constructor_batch_operation(operation_type: String, entities: Array[Dictionary], options: Dictionary = {}) -> Dictionary:
+	if current_mission_id != "mission_10":
+		return {"ok": false, "operation_type": operation_type, "message": "Batch tools available only in TASK TEST.", "affected_count": 0, "affected": [], "warnings": [], "conflicts": [], "can_apply": false}
+	var op: String = operation_type.to_lower().strip_edges()
+	var include_non_constructor: bool = bool(options.get("include_non_constructor", false))
+	var offset: Vector2i = _normalize_map_constructor_batch_offset(options)
+	var warnings: Array[String] = []
+	var conflicts: Array[Dictionary] = []
+	var affected: Array[Dictionary] = []
+	var seen: Dictionary = {}
+	for row in entities:
+		var entity_kind: String = String(row.get("entity_kind", "")).to_lower()
+		var entity_id: String = String(row.get("entity_id", ""))
+		if entity_id.is_empty() or seen.has("%s|%s" % [entity_kind, entity_id]):
+			continue
+		seen["%s|%s" % [entity_kind, entity_id]] = true
+		if _is_map_constructor_batch_protected_entity(entity_id):
+			conflicts.append({"entity_id":entity_id, "reason":"protected_id"})
+			continue
+		var entity: Dictionary = get_map_constructor_entity_by_id(entity_kind, entity_id)
+		if not bool(entity.get("ok", false)):
+			warnings.append("Skipped stale entity %s." % entity_id)
+			continue
+		var data: Dictionary = Dictionary(entity.get("data", {}))
+		if not include_non_constructor and not bool(data.get("created_by_map_constructor", false)):
+			conflicts.append({"entity_id":entity_id, "reason":"non_constructor"})
+			continue
+		var from_cell: Vector2i = Vector2i(entity.get("cell", Vector2i(-1, -1)))
+		var to_cell: Vector2i = from_cell + offset
+		var op_row: Dictionary = {"entity_kind":entity_kind, "entity_id":entity_id, "object_type":String(data.get("object_type", data.get("item_type", ""))), "from_cell":from_cell, "to_cell":to_cell, "operation":"update", "field_changes":[], "message":"OK"}
+		if op == "delete_selected":
+			op_row["operation"] = "delete"
+		elif op == "assign_power_network":
+			op_row["operation"] = "update"
+			if entity_kind != "world_object":
+				warnings.append("Item %s skipped for power assignment." % entity_id)
+				continue
+			op_row["field_changes"] = [{"field":"power_network_id", "new":String(options.get("power_network_id", ""))}]
+		elif op == "clear_broken_references":
+			op_row["operation"] = "update"
+		elif op == "move_selected" or op == "duplicate_selected":
+			op_row["operation"] = "move" if op == "move_selected" else "duplicate"
+			var prefab_id: String = String(data.get("map_constructor_prefab_id", data.get("object_type", "")))
+			var check: Dictionary = can_place_map_constructor_prefab(prefab_id, to_cell, String(data.get("wall_side", "")))
+			if not bool(check.get("ok", false)):
+				conflicts.append({"entity_id":entity_id, "from_cell":from_cell, "to_cell":to_cell, "reason":String(check.get("reason", "blocked")), "message":String(check.get("message", "Blocked."))})
+				continue
+		else:
+			return {"ok": false, "operation_type": operation_type, "message": "Unsupported operation.", "affected_count": 0, "affected": [], "warnings": [], "conflicts": [], "can_apply": false}
+		affected.append(op_row)
+	var allow_partial: bool = bool(options.get("allow_partial", false))
+	var can_apply: bool = not affected.is_empty() and (conflicts.is_empty() or allow_partial)
+	return {"ok": true, "operation_type": op, "message": "Preview ready.", "affected_count": affected.size(), "affected": affected, "warnings": warnings, "conflicts": conflicts, "can_apply": can_apply}
+
+func apply_map_constructor_batch_operation(operation_type: String, entities: Array[Dictionary], options: Dictionary = {}) -> Dictionary:
+	var preview: Dictionary = preview_map_constructor_batch_operation(operation_type, entities, options)
+	if not bool(preview.get("ok", false)) or not bool(preview.get("can_apply", false)):
+		return {"ok": false, "message": String(preview.get("message", "Cannot apply.")), "applied_count": 0, "warnings": Array(preview.get("warnings", [])), "conflicts": Array(preview.get("conflicts", [])), "batch_id": ""}
+	_map_constructor_last_batch_snapshot = {"batch_id":"batch_%d" % int(Time.get_unix_time_from_system()), "mission_world_objects": mission_world_objects.duplicate(true), "cell_items": cell_items.duplicate(true), "world_objects_by_cell": world_objects_by_cell.duplicate(true)}
+	var applied_count: int = 0
+	for row_variant in Array(preview.get("affected", [])):
+		var row: Dictionary = Dictionary(row_variant)
+		var ek: String = String(row.get("entity_kind", ""))
+		var eid: String = String(row.get("entity_id", ""))
+		var to_cell: Vector2i = Vector2i(row.get("to_cell", Vector2i(-1, -1)))
+		match String(preview.get("operation_type", "")):
+			"delete_selected":
+				if bool(_remove_map_constructor_entity_by_id(ek, eid).get("ok", false)): applied_count += 1
+			"move_selected":
+				if bool(move_map_constructor_entity_to_cell(ek, eid, to_cell, "").get("ok", false)): applied_count += 1
+			"duplicate_selected":
+				if bool(duplicate_map_constructor_entity_to_cell(ek, eid, to_cell, "").get("ok", false)): applied_count += 1
+			"assign_power_network":
+				var update := update_map_constructor_entity_field(ek, eid, "power_network_id", String(options.get("power_network_id", "")))
+				if bool(update.get("ok", false)): applied_count += 1
+			"clear_broken_references":
+				var clean := apply_map_constructor_autofix("invalid_references", {"entity_kind":ek, "entity_id":eid})
+				if bool(clean.get("ok", false)): applied_count += 1
+	PowerSystemRef.recalculate_network(mission_world_objects, "")
+	refresh_world_cooling_received()
+	_record_map_constructor_change("batch", {"summary":"Batch %s: %d affected" % [String(preview.get("operation_type", "")), applied_count], "details":{"operation_type":String(preview.get("operation_type", "")), "affected_count":applied_count}, "undo_hint":"Use Undo Last Batch."})
+	return {"ok": true, "message": "Batch applied.", "applied_count": applied_count, "warnings": Array(preview.get("warnings", [])), "conflicts": Array(preview.get("conflicts", [])), "batch_id": String(_map_constructor_last_batch_snapshot.get("batch_id", ""))}
+
+func undo_last_map_constructor_batch_operation() -> Dictionary:
+	if _map_constructor_last_batch_snapshot.is_empty():
+		return {"ok": false, "message": "No batch operation to undo."}
+	mission_world_objects = Array(_map_constructor_last_batch_snapshot.get("mission_world_objects", [])).duplicate(true)
+	cell_items = Dictionary(_map_constructor_last_batch_snapshot.get("cell_items", {})).duplicate(true)
+	world_objects_by_cell = Dictionary(_map_constructor_last_batch_snapshot.get("world_objects_by_cell", {})).duplicate(true)
+	_map_constructor_last_batch_snapshot.clear()
+	PowerSystemRef.recalculate_network(mission_world_objects, "")
+	refresh_world_cooling_received()
+	_record_map_constructor_change("batch_undo", {"summary":"Undid last batch operation.", "undo_hint":"Re-apply batch manually if needed."})
+	return {"ok": true, "message": "Last batch operation undone."}
 
 func remove_map_constructor_object_at_cell(cell: Vector2i) -> Dictionary:
 	var entity: Dictionary = get_map_constructor_editable_entity_at_cell(cell)
