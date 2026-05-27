@@ -313,6 +313,10 @@ var map_constructor_cleanup_pending_apply_key: String = ""
 var map_constructor_autofix_preview: Dictionary = {}
 var map_constructor_autofix_pending_apply_key: String = ""
 var map_constructor_new_power_network_id: String = "mapedit_power_A"
+var map_constructor_patch_json_text: String = ""
+var map_constructor_patch_preview: Dictionary = {}
+var map_constructor_patch_parsed: Dictionary = {}
+var map_constructor_patch_pending_apply: bool = false
 const MAP_CONSTRUCTOR_ISSUE_FILTER_OPTIONS: Array[String] = ["All", "Errors", "Warnings", "Info"]
 
 const MAP_CONSTRUCTOR_PREFAB_FILTER_CATEGORIES: Array[String] = ["All", "Walls", "Doors", "Terminals", "Power", "Control", "Items", "Wall-mounted"]
@@ -9951,6 +9955,77 @@ func _refresh_map_constructor_panels() -> void:
 			lines.append(String(Dictionary(row).get("description", "")))
 		autofix_preview_label.text = "Auto-fix preview: %d affected\n%s" % [int(map_constructor_autofix_preview.get("affected_count", 0)), "\n".join(lines)]
 		list.add_child(autofix_preview_label)
+	var patch_title: Label = Label.new()
+	patch_title.text = "Patch Tools"
+	list.add_child(patch_title)
+	var patch_json_edit: TextEdit = TextEdit.new()
+	patch_json_edit.custom_minimum_size = Vector2(0, 160)
+	patch_json_edit.wrap_mode = TextEdit.LINE_WRAPPING_BOUNDARY
+	patch_json_edit.text = map_constructor_patch_json_text
+	patch_json_edit.text_changed.connect(func() -> void:
+		map_constructor_patch_json_text = patch_json_edit.text
+	)
+	list.add_child(patch_json_edit)
+	var patch_actions: HBoxContainer = HBoxContainer.new()
+	var export_patch_button: Button = Button.new()
+	export_patch_button.text = "Export Current Patch"
+	export_patch_button.pressed.connect(func() -> void:
+		if mission_manager_runtime == null or not mission_manager_runtime.has_method("export_map_constructor_runtime_patch"):
+			return
+		var export_res: Dictionary = mission_manager_runtime.call("export_map_constructor_runtime_patch")
+		map_constructor_patch_json_text = String(export_res.get("json", ""))
+		patch_json_edit.text = map_constructor_patch_json_text
+		show_hint(String(export_res.get("message", "Export done.")))
+		_refresh_map_constructor_panels()
+	)
+	var preview_patch_button: Button = Button.new()
+	preview_patch_button.text = "Parse/Preview Patch"
+	preview_patch_button.pressed.connect(func() -> void:
+		if mission_manager_runtime == null or not mission_manager_runtime.has_method("parse_map_constructor_patch_json"):
+			return
+		var parsed_res: Dictionary = mission_manager_runtime.call("parse_map_constructor_patch_json", map_constructor_patch_json_text)
+		map_constructor_patch_parsed = parsed_res
+		map_constructor_patch_preview.clear()
+		map_constructor_patch_pending_apply = false
+		if bool(parsed_res.get("ok", false)) and mission_manager_runtime.has_method("preview_apply_map_constructor_patch"):
+			var preview_res: Dictionary = mission_manager_runtime.call("preview_apply_map_constructor_patch", Dictionary(parsed_res.get("patch", {})))
+			map_constructor_patch_preview = preview_res
+			map_constructor_patch_pending_apply = bool(preview_res.get("ok", false)) and bool(preview_res.get("can_apply", false))
+		show_hint(String(parsed_res.get("message", "Patch parsed.")))
+		_refresh_map_constructor_panels()
+	)
+	var apply_patch_button: Button = Button.new()
+	apply_patch_button.text = "Apply Patch"
+	apply_patch_button.disabled = not map_constructor_patch_pending_apply
+	apply_patch_button.pressed.connect(func() -> void:
+		if mission_manager_runtime == null or not mission_manager_runtime.has_method("apply_map_constructor_patch"):
+			return
+		var apply_res: Dictionary = mission_manager_runtime.call("apply_map_constructor_patch", Dictionary(map_constructor_patch_parsed.get("patch", {})), {})
+		show_hint(String(apply_res.get("message", "Patch applied.")))
+		map_constructor_patch_pending_apply = false
+		if field_runtime != null and field_runtime.has_method("request_visual_refresh"):
+			field_runtime.call("request_visual_refresh")
+		_refresh_map_constructor_panels()
+	)
+	var rollback_patch_button: Button = Button.new()
+	rollback_patch_button.text = "Rollback Last Patch"
+	rollback_patch_button.pressed.connect(func() -> void:
+		if mission_manager_runtime == null or not mission_manager_runtime.has_method("rollback_last_map_constructor_patch"):
+			return
+		var rollback_res: Dictionary = mission_manager_runtime.call("rollback_last_map_constructor_patch")
+		show_hint(String(rollback_res.get("message", "Rollback done.")))
+		_clear_map_constructor_preview_cell()
+		_clear_map_constructor_wall_mounted_selection()
+		_clear_map_constructor_link_target()
+		if field_runtime != null and field_runtime.has_method("request_visual_refresh"):
+			field_runtime.call("request_visual_refresh")
+		_refresh_map_constructor_panels()
+	)
+	patch_actions.add_child(export_patch_button)
+	patch_actions.add_child(preview_patch_button)
+	patch_actions.add_child(apply_patch_button)
+	patch_actions.add_child(rollback_patch_button)
+	list.add_child(patch_actions)
 	var presets_title: Label = Label.new()
 	presets_title.text = "Constructor Presets"
 	list.add_child(presets_title)
