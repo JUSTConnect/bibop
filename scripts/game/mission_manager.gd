@@ -284,6 +284,22 @@ func _get_map_constructor_overview_tile_kind(tile_type: int) -> String:
 		return "blocked"
 	return "unknown"
 
+func _map_constructor_overview_object_matches_tags(object_data: Dictionary, tags: Array[String]) -> bool:
+	var values: Array[String] = [
+		String(object_data.get("object_group", "")).to_lower(),
+		String(object_data.get("category", "")).to_lower(),
+		String(object_data.get("object_type", "")).to_lower(),
+		String(object_data.get("map_constructor_prefab_id", "")).to_lower(),
+		String(object_data.get("prefab_id", "")).to_lower()
+	]
+	for value in values:
+		if value.is_empty():
+			continue
+		for tag in tags:
+			if value == tag or value.find(tag) >= 0:
+				return true
+	return false
+
 func get_map_constructor_overview_data(options: Dictionary = {}) -> Dictionary:
 	if not _is_task_test_constructor_context():
 		return {"ok": false, "message": "Overview is available only in TASK TEST constructor mode.", "map_size": Vector2i.ZERO, "cells": [], "markers": [], "summary": {}, "legend": []}
@@ -304,6 +320,9 @@ func get_map_constructor_overview_data(options: Dictionary = {}) -> Dictionary:
 	if not sid.is_empty():
 		selected_keys["%s|%s" % [skind, sid]] = true
 	var issues: Array[Dictionary] = get_map_constructor_validation_issues() if bool(options.get("include_validation", true)) else []
+	var include_power: bool = bool(options.get("include_power", true))
+	var include_items: bool = bool(options.get("include_items", true))
+	var include_wall_mounted: bool = bool(options.get("include_wall_mounted", true))
 	var issue_by_cell: Dictionary = {}
 	for iv in issues:
 		var issue: Dictionary = Dictionary(iv)
@@ -329,6 +348,7 @@ func get_map_constructor_overview_data(options: Dictionary = {}) -> Dictionary:
 			var has_wall_mounted: bool = false
 			var has_power: bool = false
 			var has_terminal: bool = false
+			var has_door: bool = false
 			var has_selected: bool = false
 			for ov in objects_here:
 				if not (ov is Dictionary):
@@ -338,10 +358,12 @@ func get_map_constructor_overview_data(options: Dictionary = {}) -> Dictionary:
 				if bool(od.get("is_wall_mounted", false)):
 					has_wall_mounted = true
 				var og: String = String(od.get("object_group", "")).to_lower()
-				if og == "power":
+				if og == "power" or _map_constructor_overview_object_matches_tags(od, ["power", "fuse", "breaker", "cable"]):
 					has_power = true
-				if og == "terminal":
+				if og == "terminal" or _map_constructor_overview_object_matches_tags(od, ["terminal", "console"]):
 					has_terminal = true
+				if og == "door" or _map_constructor_overview_object_matches_tags(od, ["door", "gate"]):
+					has_door = true
 				if selected_keys.has("world_object|%s" % oid):
 					has_selected = true
 					markers.append({"id":"selected_world_%s" % oid, "kind":"selected", "label":"Selected object", "cell":cell, "entity_kind":"world_object", "entity_id":oid, "status":"info", "message":"Selected object."})
@@ -367,14 +389,27 @@ func get_map_constructor_overview_data(options: Dictionary = {}) -> Dictionary:
 					has_expected_invalid = true
 					markers.append({"id":"expected_%s" % oid2, "kind":"expected_invalid", "label":"Expected invalid", "cell":cell, "entity_kind":"world_object", "entity_id":oid2, "status":"expected_invalid", "message":"Expected invalid object."})
 			var visible: bool = grid_manager.has_method("is_cell_visible") and bool(grid_manager.call("is_cell_visible", cell))
+			if not has_door:
+				var tile_kind: String = _get_map_constructor_overview_tile_kind(tile_type)
+				has_door = tile_kind == "door" or tile_kind == "gate"
 			visible_cells += 1 if visible else 0
 			var density: int = objects_here.size() + items_here.size()
-			cells.append({"cell":cell, "tile_type":tile_type, "tile_kind":_get_map_constructor_overview_tile_kind(tile_type), "visible":visible, "object_count":objects_here.size(), "item_count":items_here.size(), "has_world_object":objects_here.size() > 0, "has_item":items_here.size() > 0, "has_wall_mounted":has_wall_mounted, "has_validation_issue":has_error, "has_warning":has_warning, "has_expected_invalid":has_expected_invalid, "has_selected":has_selected, "density":density})
+			cells.append({"cell":cell, "tile_type":tile_type, "tile_kind":_get_map_constructor_overview_tile_kind(tile_type), "visible":visible, "object_count":objects_here.size(), "item_count":items_here.size(), "has_world_object":objects_here.size() > 0, "has_item":items_here.size() > 0, "has_wall_mounted":has_wall_mounted, "has_power":has_power, "has_terminal":has_terminal, "has_door":has_door, "has_validation_issue":has_error, "has_warning":has_warning, "has_expected_invalid":has_expected_invalid, "has_selected":has_selected, "density":density})
 			object_count += objects_here.size(); item_count += items_here.size()
-			if has_wall_mounted: wall_mounted_count += 1
+			if has_wall_mounted:
+				wall_mounted_count += 1
+				if include_wall_mounted:
+					markers.append({"id":"wall_mounted_%s" % cell_key, "kind":"wall_mounted", "label":"Wall-mounted", "cell":cell, "entity_kind":"", "entity_id":"", "status":"info", "message":"Wall-mounted object in cell."})
 			if has_selected: selected_count += 1
-			if has_power: markers.append({"id":"power_%s" % cell_key, "kind":"power", "label":"Power", "cell":cell, "entity_kind":"", "entity_id":"", "status":"info", "message":"Power object in cell."})
+			if objects_here.size() > 0:
+				markers.append({"id":"object_%s" % cell_key, "kind":"object", "label":"Object", "cell":cell, "entity_kind":"", "entity_id":"", "status":"info", "message":"Object in cell."})
+			if include_items and items_here.size() > 0:
+				markers.append({"id":"item_%s" % cell_key, "kind":"item", "label":"Item", "cell":cell, "entity_kind":"", "entity_id":"", "status":"info", "message":"Item in cell."})
+			if include_power and has_power:
+				markers.append({"id":"power_%s" % cell_key, "kind":"power", "label":"Power", "cell":cell, "entity_kind":"", "entity_id":"", "status":"info", "message":"Power object in cell."})
 			if has_terminal: markers.append({"id":"terminal_%s" % cell_key, "kind":"terminal", "label":"Terminal", "cell":cell, "entity_kind":"", "entity_id":"", "status":"info", "message":"Terminal in cell."})
+			if has_door:
+				markers.append({"id":"door_%s" % cell_key, "kind":"door", "label":"Door/Gate", "cell":cell, "entity_kind":"", "entity_id":"", "status":"info", "message":"Door or gate in cell."})
 	if bool(options.get("include_history", true)):
 		var history: Array = Array(get_map_constructor_change_history(int(options.get("max_history_markers", 20))).get("history", []))
 		for rowv in history:
