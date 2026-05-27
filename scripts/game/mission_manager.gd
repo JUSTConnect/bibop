@@ -8940,14 +8940,68 @@ func _get_mission10_layout_for_validation() -> Array:
 	temporary_grid.free()
 	return layout
 
+func _build_world_runtime_validation_fingerprint() -> Dictionary:
+	var object_ids: Array[String] = []
+	var object_cells: Array[String] = []
+	for obj_variant in mission_world_objects:
+		var obj: Dictionary = Dictionary(obj_variant)
+		object_ids.append(String(obj.get("id", "")))
+		object_cells.append("%s@%s" % [String(obj.get("id", "")), str(WorldObjectCatalogRef.to_world_cell(obj.get("position", Vector2i.ZERO), Vector2i.ZERO))])
+	object_ids.sort()
+	object_cells.sort()
+	var item_ids: Array[String] = []
+	var item_cells: Array[String] = []
+	for cell_variant in cell_items.keys():
+		var cell: Vector2i = Vector2i(cell_variant)
+		for item_variant in Array(cell_items[cell_variant]):
+			var item: Dictionary = Dictionary(item_variant)
+			item_ids.append(String(item.get("id", "")))
+			item_cells.append("%s@%s" % [String(item.get("id", "")), str(cell)])
+	item_ids.sort()
+	item_cells.sort()
+	return {
+		"mission_id": current_mission_id,
+		"object_ids": object_ids,
+		"item_ids": item_ids,
+		"world_objects_by_cell": str(world_objects_by_cell),
+		"cell_items": str(cell_items),
+		"object_cells": object_cells,
+		"item_cells": item_cells
+	}
+
+func _get_task_test_duplicate_cell_warnings(objects: Array[Dictionary], items_by_cell: Dictionary = {}) -> Array[String]:
+	var warnings: Array[String] = []
+	var occupied_cells: Dictionary = {}
+	for obj in objects:
+		var oid := String(obj.get("id", "")).strip_edges()
+		if not oid.begins_with("task_test_"):
+			continue
+		var cell: Vector2i = Vector2i(obj.get("position", Vector2i.ZERO))
+		if bool(obj.get("allow_cell_overlap", false)):
+			continue
+		if occupied_cells.has(cell):
+			warnings.append("duplicate_task_test_cell_%s_between_%s_and_%s" % [str(cell), String(occupied_cells[cell]), oid])
+		else:
+			occupied_cells[cell] = oid
+	for cell_variant in items_by_cell.keys():
+		var cell: Vector2i = Vector2i(cell_variant)
+		if not occupied_cells.has(cell):
+			continue
+		for item_variant in Array(items_by_cell[cell_variant]):
+			var item: Dictionary = Dictionary(item_variant)
+			var item_id: String = String(item.get("id", "")).strip_edges()
+			if item_id.begins_with("task_test_"):
+				warnings.append("duplicate_task_test_cell_%s_between_%s_and_%s" % [str(cell), String(occupied_cells[cell]), item_id])
+	return warnings
+
 func validate_task_test_mission_runtime() -> Array[String]:
 	var warnings: Array[String] = []
+	var runtime_before: Dictionary = _build_world_runtime_validation_fingerprint()
 	var built: Dictionary = build_task_test_mission_world_objects_for_validation()
 	warnings.append_array(Array(built.get("warnings", [])))
 	var task_objects: Array[Dictionary] = built.get("objects", [])
 	var task_items_by_cell: Dictionary = built.get("items_by_cell", {})
 	var task_ids := {}
-	var occupied_cells := {}
 	for obj in task_objects:
 		var oid := String(obj.get("id", "")).strip_edges()
 		if not oid.begins_with("task_test_"):
@@ -8959,10 +9013,7 @@ func validate_task_test_mission_runtime() -> Array[String]:
 			warnings.append("task_test_object_missing_type_%s" % oid)
 		if String(obj.get("object_group", "")).strip_edges() == "":
 			warnings.append("task_test_object_missing_group_%s" % oid)
-		var cell: Vector2i = Vector2i(obj.get("position", Vector2i.ZERO))
-		if not bool(obj.get("allow_cell_overlap", false)) and occupied_cells.has(cell):
-			warnings.append("duplicate_task_test_cell_%s_between_%s_and_%s" % [str(cell), String(occupied_cells[cell]), oid])
-		occupied_cells[cell] = oid
+	warnings.append_array(_get_task_test_duplicate_cell_warnings(task_objects, task_items_by_cell))
 	for required_id in ["task_test_extraction_door","task_test_source_class_1","task_test_radiator","task_test_terminal_main","task_test_door_mechanical","task_test_platform_lift","task_test_hidden_cable","task_test_item_repair_kit","task_test_cable_reel"]:
 		if not task_ids.has(required_id):
 			var exists_item := false
@@ -8992,6 +9043,14 @@ func validate_task_test_mission_runtime() -> Array[String]:
 	var xray_exists := task_ids.has("task_test_xray_route_marker")
 	if not xray_exists:
 		warnings.append("task_test_xray_route_marker_missing")
+	var xray_marker: Dictionary = {}
+	for obj in task_objects:
+		if String(obj.get("id", "")) == "task_test_xray_route_marker":
+			xray_marker = obj
+			break
+	if not xray_marker.is_empty() and not extraction.is_empty():
+		if Vector2i(xray_marker.get("position", Vector2i(-999, -999))) == Vector2i(extraction.get("position", Vector2i(-999, -999))):
+			warnings.append("task_test_xray_route_marker_overlaps_extraction_door")
 	var exit_cell := Vector2i(14, 7)
 	var extraction_cell := Vector2i(extraction.get("position", Vector2i(-999, -999)))
 	if extraction_cell != exit_cell and extraction_cell.distance_to(exit_cell) > 1.0:
@@ -9008,6 +9067,21 @@ func validate_task_test_mission_runtime() -> Array[String]:
 		warnings.append("task_test_layout_exit_tile_count_%d" % exit_tiles)
 	elif extraction_cell != layout_exit_cell and extraction_cell.distance_to(layout_exit_cell) > 1.0:
 		warnings.append("task_test_extraction_cell_not_matching_layout_exit")
+	var runtime_after: Dictionary = _build_world_runtime_validation_fingerprint()
+	if String(runtime_after.get("mission_id", "")) != String(runtime_before.get("mission_id", "")):
+		warnings.append("task_test_validation_mutated_mission_id")
+	if String(runtime_after.get("object_ids", "")) != String(runtime_before.get("object_ids", "")):
+		warnings.append("task_test_validation_mutated_object_ids")
+	if String(runtime_after.get("item_ids", "")) != String(runtime_before.get("item_ids", "")):
+		warnings.append("task_test_validation_mutated_item_ids")
+	if String(runtime_after.get("world_objects_by_cell", "")) != String(runtime_before.get("world_objects_by_cell", "")):
+		warnings.append("task_test_validation_mutated_world_objects_by_cell")
+	if String(runtime_after.get("cell_items", "")) != String(runtime_before.get("cell_items", "")):
+		warnings.append("task_test_validation_mutated_cell_items")
+	if String(runtime_after.get("object_cells", "")) != String(runtime_before.get("object_cells", "")):
+		warnings.append("task_test_validation_mutated_object_cells")
+	if String(runtime_after.get("item_cells", "")) != String(runtime_before.get("item_cells", "")):
+		warnings.append("task_test_validation_mutated_item_cells")
 	return warnings
 
 func get_task_test_required_system_coverage_spec() -> Dictionary:
