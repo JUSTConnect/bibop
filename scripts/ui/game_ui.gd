@@ -283,6 +283,8 @@ var tasks_claim_button: Button
 var map_constructor_mode_active: bool = false
 var selected_map_constructor_prefab_id: String = ""
 var pending_map_constructor_cell: Vector2i = Vector2i(-1, -1)
+var selected_map_constructor_wall_side: String = ""
+var available_map_constructor_wall_sides: Array[String] = []
 var map_constructor_picker_entity_kind: String = ""
 var map_constructor_picker_entity_id: String = ""
 var map_constructor_picker_field_name: String = ""
@@ -8821,6 +8823,11 @@ func _unhandled_input(event: InputEvent) -> void:
 			show_hint("Validation Overlay: %s" % ["ON" if map_constructor_validation_overlay_visible else "OFF"])
 			_refresh_map_constructor_panels()
 		return
+	if event is InputEventKey and event.pressed and not event.echo and event.keycode == KEY_R:
+		if map_constructor_mode_active:
+			_cycle_map_constructor_wall_side()
+			_refresh_map_constructor_panels()
+		return
 	if event is InputEventMouseButton:
 		_handle_runtime_gameplay_mouse_click(event)
 
@@ -8938,6 +8945,8 @@ func _deactivate_map_constructor_mode() -> void:
 	map_constructor_mode_active = false
 	selected_map_constructor_prefab_id = ""
 	pending_map_constructor_cell = Vector2i(-1, -1)
+	selected_map_constructor_wall_side = ""
+	available_map_constructor_wall_sides.clear()
 	map_constructor_picker_entity_kind = ""
 	map_constructor_picker_entity_id = ""
 	map_constructor_picker_field_name = ""
@@ -8965,6 +8974,36 @@ func _clear_map_constructor_preview_cell() -> void:
 	var renderer: Node = field_runtime.get_node_or_null("RoomVisualRenderer")
 	if renderer != null and renderer.has_method("set_map_constructor_preview_cell"):
 		renderer.call("set_map_constructor_preview_cell", Vector2i(-1, -1))
+
+func _update_map_constructor_preview_for_cell(cell: Vector2i) -> Dictionary:
+	if mission_manager_runtime == null or not mission_manager_runtime.has_method("can_place_map_constructor_prefab"):
+		return {}
+	var check: Dictionary = mission_manager_runtime.call("can_place_map_constructor_prefab", selected_map_constructor_prefab_id, cell, selected_map_constructor_wall_side)
+	available_map_constructor_wall_sides.clear()
+	for side_variant in Array(check.get("available_wall_sides", [])):
+		available_map_constructor_wall_sides.append(String(side_variant))
+	if selected_map_constructor_wall_side.is_empty() and not available_map_constructor_wall_sides.is_empty():
+		selected_map_constructor_wall_side = available_map_constructor_wall_sides[0]
+	if field_runtime != null:
+		var renderer: Node = field_runtime.get_node_or_null("RoomVisualRenderer")
+		if renderer != null and renderer.has_method("set_map_constructor_wall_mounted_preview") and String(check.get("placement_mode", "")) == "wall_mounted":
+			var attached_wall_cell: Vector2i = Vector2i(-1, -1)
+			if mission_manager_runtime.has_method("_deserialize_cell_key"):
+				attached_wall_cell = Vector2i(mission_manager_runtime.call("_deserialize_cell_key", String(check.get("attached_wall_cell", ""))))
+			renderer.call("set_map_constructor_wall_mounted_preview", cell, attached_wall_cell, String(check.get("wall_side", "")), not bool(check.get("ok", false)))
+	return check
+
+func _cycle_map_constructor_wall_side() -> void:
+	if available_map_constructor_wall_sides.size() <= 1:
+		show_hint("Wall side: no alternatives.")
+		return
+	var current_index: int = available_map_constructor_wall_sides.find(selected_map_constructor_wall_side)
+	if current_index < 0:
+		current_index = 0
+	selected_map_constructor_wall_side = String(available_map_constructor_wall_sides[(current_index + 1) % available_map_constructor_wall_sides.size()])
+	if pending_map_constructor_cell.x >= 0 and pending_map_constructor_cell.y >= 0:
+		_update_map_constructor_preview_for_cell(pending_map_constructor_cell)
+	show_hint("Wall side: %s" % selected_map_constructor_wall_side)
 
 func _handle_runtime_gameplay_mouse_click(event: InputEventMouseButton) -> bool:
 	if app_screen_mode != AppScreenMode.GAMEPLAY:
@@ -9028,14 +9067,16 @@ func _handle_map_constructor_left_click(cell: Vector2i) -> void:
 		pending_map_constructor_cell = cell
 		var preview_message: String = "Preview: %s at %s" % [selected_map_constructor_prefab_id, str(cell)]
 		if mission_manager_runtime != null and mission_manager_runtime.has_method("can_place_map_constructor_prefab"):
-			var preview_check: Dictionary = mission_manager_runtime.call("can_place_map_constructor_prefab", selected_map_constructor_prefab_id, cell)
+			var preview_check: Dictionary = _update_map_constructor_preview_for_cell(cell)
 			preview_message = String(preview_check.get("message", preview_message))
+			if String(preview_check.get("placement_mode", "")) == "wall_mounted":
+				preview_message += " Side: %s" % String(preview_check.get("wall_side", ""))
 		show_hint(preview_message)
 		_refresh_map_constructor_panels()
 		return
 	if mission_manager_runtime == null or not mission_manager_runtime.has_method("place_map_constructor_prefab"):
 		return
-	var result: Dictionary = mission_manager_runtime.call("place_map_constructor_prefab", selected_map_constructor_prefab_id, cell)
+	var result: Dictionary = mission_manager_runtime.call("place_map_constructor_prefab", selected_map_constructor_prefab_id, cell, selected_map_constructor_wall_side)
 	show_hint(String(result.get("message", "Placement done.")))
 	if bool(result.get("ok", false)):
 		pending_map_constructor_cell = Vector2i(-1, -1)
@@ -9071,6 +9112,8 @@ func _refresh_map_constructor_panels() -> void:
 			b.button_pressed = id == selected_map_constructor_prefab_id
 			b.pressed.connect(func() -> void:
 				selected_map_constructor_prefab_id = id
+				selected_map_constructor_wall_side = ""
+				available_map_constructor_wall_sides.clear()
 				pending_map_constructor_cell = Vector2i(-1, -1)
 				_clear_map_constructor_preview_cell()
 				_refresh_map_constructor_panels()
@@ -9081,7 +9124,7 @@ func _refresh_map_constructor_panels() -> void:
 	placement_label.text = "Placement: blocked: unsupported prefab"
 	if pending_map_constructor_cell.x >= 0 and pending_map_constructor_cell.y >= 0 and not selected_map_constructor_prefab_id.is_empty():
 		if mission_manager_runtime != null and mission_manager_runtime.has_method("can_place_map_constructor_prefab"):
-			var check: Dictionary = mission_manager_runtime.call("can_place_map_constructor_prefab", selected_map_constructor_prefab_id, pending_map_constructor_cell)
+			var check: Dictionary = _update_map_constructor_preview_for_cell(pending_map_constructor_cell)
 			var reason: String = String(check.get("reason", "unsupported_prefab"))
 			match reason:
 				"ok":
@@ -9098,6 +9141,8 @@ func _refresh_map_constructor_panels() -> void:
 					placement_label.text = "Placement: blocked: non-floor tile"
 				_:
 					placement_label.text = "Placement: blocked: unsupported prefab"
+			if String(check.get("placement_mode", "")) == "wall_mounted":
+				placement_label.text += "\nWall side: %s (R to cycle)" % String(check.get("wall_side", selected_map_constructor_wall_side))
 	list.add_child(placement_label)
 	var audit_label: Label = Label.new()
 	audit_label.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
