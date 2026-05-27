@@ -9522,7 +9522,7 @@ func _show_map_constructor_inspector(cell: Vector2i) -> void:
 	v.add_child(header)
 	if String(entity_data.get("placement_mode", "")) == "wall_mounted":
 		var entity_wall_side: String = String(entity_data.get("wall_side", "")).to_lower()
-		if selected_map_constructor_wall_side.is_empty() and not entity_wall_side.is_empty():
+		if ["north", "east", "south", "west"].has(entity_wall_side):
 			selected_map_constructor_wall_side = entity_wall_side
 		var inspector_side_label: Label = Label.new()
 		inspector_side_label.text = "wall_side: %s" % _get_map_constructor_wall_side_label(entity_wall_side)
