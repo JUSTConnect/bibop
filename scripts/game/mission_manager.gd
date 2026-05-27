@@ -9657,6 +9657,26 @@ func _get_developer_validation_suite_text_internal(suite: String = "all", includ
 var _map_constructor_last_kit_snapshot: Dictionary = {}
 var _map_constructor_last_template_snapshot: Dictionary = {}
 
+func _map_constructor_transform_template_offset(offset: Vector2i, options: Dictionary = {}) -> Vector2i:
+	var transformed: Vector2i = Vector2i(offset)
+	if bool(options.get("mirror_x", false)):
+		transformed.x = -transformed.x
+	if bool(options.get("mirror_y", false)):
+		transformed.y = -transformed.y
+	var rotation: int = int(options.get("rotation", 0))
+	match rotation:
+		0:
+			return transformed
+		90:
+			return Vector2i(-transformed.y, transformed.x)
+		180:
+			return Vector2i(-transformed.x, -transformed.y)
+		270:
+			return Vector2i(transformed.y, -transformed.x)
+		_:
+			push_warning("Map constructor template: unsupported rotation=%d; treated as 0." % rotation)
+			return transformed
+
 func _map_constructor_filter_entry_rows(entries: Array, warnings: Array[String], removed_missing_ids: Array[String]) -> Array[Dictionary]:
 	var filtered: Array[Dictionary] = []
 	var catalog_ids: Dictionary = {}
@@ -9802,7 +9822,16 @@ func apply_map_constructor_room_template(template_id: String, anchor_cell: Vecto
 			break
 	if template.is_empty():
 		return {"ok": false, "message": "Template not found."}
-	_map_constructor_last_template_snapshot = {"mission_world_objects": mission_world_objects.duplicate(true), "cell_items": cell_items.duplicate(true), "world_objects_by_cell": world_objects_by_cell.duplicate(true)}
+	var tile_snapshot: Array[Dictionary] = []
+	if not Array(template.get("tile_edits", [])).is_empty():
+		if grid_manager == null or not grid_manager.has_method("get_tile"):
+			return {"ok": false, "message": "Tile edits not applied: safe tile snapshot getter unavailable.", "warnings": ["Tile edits not applied: safe tile snapshot getter unavailable."]}
+		var preview_tile: Dictionary = preview_map_constructor_tile_edits(Array(template.get("tile_edits", [])), anchor_cell, options)
+		for affected_variant in Array(preview_tile.get("affected", [])):
+			var affected_row: Dictionary = Dictionary(affected_variant)
+			var cell: Vector2i = Vector2i(affected_row.get("cell", Vector2i(-1, -1)))
+			tile_snapshot.append({"cell": cell, "tile_id": int(grid_manager.call("get_tile", cell))})
+	_map_constructor_last_template_snapshot = {"mission_world_objects": mission_world_objects.duplicate(true), "cell_items": cell_items.duplicate(true), "world_objects_by_cell": world_objects_by_cell.duplicate(true), "tile_snapshot": tile_snapshot}
 	var result: Dictionary = _apply_map_constructor_entry_set(Array(template.get("entries", [])), anchor_cell, options)
 	if not bool(result.get("ok", false)):
 		return result
@@ -9820,10 +9849,14 @@ func preview_map_constructor_tile_edits(tile_edits: Array, anchor_cell: Vector2i
 	var allow_overwrite: bool = bool(options.get("allow_overwrite", false))
 	var affected: Array[Dictionary] = []
 	var conflicts: Array[Dictionary] = []
+	var warnings: Array[String] = []
+	var rotation: int = int(options.get("rotation", 0))
+	if rotation != 0 and rotation != 90 and rotation != 180 and rotation != 270:
+		warnings.append("Unsupported rotation=%d treated as 0." % rotation)
 	for tile_edit_variant in tile_edits:
 		var tile_edit: Dictionary = Dictionary(tile_edit_variant)
 		var offset: Vector2i = Vector2i(tile_edit.get("offset", Vector2i.ZERO))
-		var cell: Vector2i = anchor_cell + offset
+		var cell: Vector2i = anchor_cell + _map_constructor_transform_template_offset(offset, options)
 		var conflict_reason: String = ""
 		var object_here: Dictionary = Dictionary(world_objects_by_cell.get(cell, {}))
 		if not allow_overwrite and not object_here.is_empty():
@@ -9834,11 +9867,13 @@ func preview_map_constructor_tile_edits(tile_edits: Array, anchor_cell: Vector2i
 		if not conflict_reason.is_empty():
 			conflicts.append({"operation":"tile_edit","cell":cell,"reason":conflict_reason,"message":"Tile edit blocked at %s." % str(cell)})
 		affected.append({"operation":"tile_edit","cell":cell,"tile_id":int(tile_edit.get("tile_id", GridManager.TILE_FLOOR))})
-	return {"ok": true, "affected": affected, "warnings": [], "conflicts": conflicts, "can_apply": conflicts.is_empty() or allow_overwrite}
+	return {"ok": true, "affected": affected, "warnings": warnings, "conflicts": conflicts, "can_apply": conflicts.is_empty() or allow_overwrite}
 
 func apply_map_constructor_tile_edits(tile_edits: Array, anchor_cell: Vector2i, options: Dictionary = {}) -> Dictionary:
 	if grid_manager == null or not grid_manager.has_method("set_tile"):
-		return {"ok": false, "warnings": ["Tile edits not applied: safe tile helper unavailable."], "message": "Tile edits not applied: safe tile helper unavailable."}
+		return {"ok": false, "warnings": ["Tile edits not applied: safe tile setter unavailable."], "message": "Tile edits not applied: safe tile setter unavailable."}
+	if grid_manager == null or not grid_manager.has_method("get_tile"):
+		return {"ok": false, "warnings": ["Tile edits not applied: safe tile snapshot getter unavailable."], "message": "Tile edits not applied: safe tile snapshot getter unavailable."}
 	var preview: Dictionary = preview_map_constructor_tile_edits(tile_edits, anchor_cell, options)
 	if not bool(preview.get("can_apply", false)):
 		return {"ok": false, "warnings": [], "message": "Tile edits blocked by conflicts.", "conflicts": Array(preview.get("conflicts", []))}
@@ -9855,9 +9890,22 @@ func undo_last_map_constructor_room_template() -> Dictionary:
 	mission_world_objects = Array(_map_constructor_last_template_snapshot.get("mission_world_objects", [])).duplicate(true)
 	cell_items = Dictionary(_map_constructor_last_template_snapshot.get("cell_items", {})).duplicate(true)
 	world_objects_by_cell = Dictionary(_map_constructor_last_template_snapshot.get("world_objects_by_cell", {})).duplicate(true)
+	var warnings: Array[String] = []
+	var tile_snapshot: Array = Array(_map_constructor_last_template_snapshot.get("tile_snapshot", []))
+	if not tile_snapshot.is_empty():
+		if grid_manager == null or not grid_manager.has_method("set_tile"):
+			warnings.append("Template undo warning: tile snapshot exists but safe tile setter unavailable.")
+		else:
+			for snapshot_variant in tile_snapshot:
+				var snapshot_row: Dictionary = Dictionary(snapshot_variant)
+				grid_manager.call("set_tile", Vector2i(snapshot_row.get("cell", Vector2i(-1, -1))), int(snapshot_row.get("tile_id", GridManager.TILE_FLOOR)))
+			if grid_manager.has_method("recalculate_visibility"):
+				grid_manager.call("recalculate_visibility")
 	_map_constructor_last_template_snapshot.clear()
 	_record_map_constructor_change("template_undo", {"summary":"Undid last template."})
-	return {"ok":true,"message":"Template undo completed."}
+	if not warnings.is_empty():
+		return {"ok": false, "warnings": warnings, "message": "Template undo partial: tile restore unavailable."}
+	return {"ok":true,"warnings":[],"message":"Template undo completed."}
 
 func export_map_constructor_design_notes(options: Dictionary = {}) -> Dictionary:
 	if not _is_task_test_constructor_context():
@@ -9906,7 +9954,8 @@ func _preview_map_constructor_entry_set(entries: Array, anchor_cell: Vector2i, o
 	var allow_overwrite: bool = bool(options.get("allow_overwrite", false))
 	for entry_variant in entries:
 		var entry: Dictionary = Dictionary(entry_variant)
-		var cell: Vector2i = anchor_cell + Vector2i(entry.get("offset", Vector2i.ZERO))
+		var transformed_offset: Vector2i = _map_constructor_transform_template_offset(Vector2i(entry.get("offset", Vector2i.ZERO)), options)
+		var cell: Vector2i = anchor_cell + transformed_offset
 		var wall_side: String = String(entry.get("wall_side", ""))
 		if bool(MAP_CONSTRUCTOR_WALL_MOUNTED_PREFABS.get(String(entry.get("prefab_id", "")), false)) and wall_side.is_empty():
 			conflicts.append({"prefab_id":String(entry.get("prefab_id", "")), "cell": cell, "reason":"missing_wall_side", "message":"Wall-mounted prefab requires wall_side."})
@@ -9929,7 +9978,8 @@ func _apply_map_constructor_entry_set(entries: Array, anchor_cell: Vector2i, opt
 	var placed_count: int = 0
 	for entry_variant in entries:
 		var entry: Dictionary = Dictionary(entry_variant)
-		var cell: Vector2i = anchor_cell + Vector2i(entry.get("offset", Vector2i.ZERO))
+		var transformed_offset: Vector2i = _map_constructor_transform_template_offset(Vector2i(entry.get("offset", Vector2i.ZERO)), options)
+		var cell: Vector2i = anchor_cell + transformed_offset
 		var wall_side: String = String(entry.get("wall_side", ""))
 		var placed: Dictionary = place_map_constructor_prefab(String(entry.get("prefab_id", "")), cell, wall_side)
 		if bool(placed.get("ok", false)):
