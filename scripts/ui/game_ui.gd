@@ -3770,7 +3770,7 @@ func _create_external_flat_size_preview(module: BipobModule) -> Control:
 	var root := VBoxContainer.new()
 	root.add_theme_constant_override("separation", 2)
 	root.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-	var footprint_size := Vector2i(maxi(1, module.external_width), maxi(1, module.external_height))
+	var footprint_size: Vector2i = Vector2i(maxi(1, module.external_width), maxi(1, module.external_height))
 	var preview_columns: int = maxi(4, footprint_size.x)
 	var preview_rows: int = maxi(4, footprint_size.y)
 	var grid := GridContainer.new()
@@ -3811,7 +3811,7 @@ func _create_internal_footprint_size_preview(module: BipobModule, context: Strin
 		return panel
 
 	var internal_size: Vector3i = module.get_internal_size()
-	var footprint_size := Vector2i(maxi(1, internal_size.x), maxi(1, internal_size.y))
+	var footprint_size: Vector2i = Vector2i(maxi(1, internal_size.x), maxi(1, internal_size.y))
 	var preview_columns: int = maxi(4, footprint_size.x)
 	var preview_rows: int = maxi(4, footprint_size.y)
 	var grid := GridContainer.new()
@@ -6483,7 +6483,7 @@ func get_box_mission_menu_text() -> String:
 		content_lines.append("Warnings: none")
 	else:
 		content_lines.append("Warnings:")
-		var warning_limit := mini(2, warnings.size())
+		var warning_limit: int = mini(2, warnings.size())
 		for index in range(warning_limit):
 			content_lines.append("- %s" % str(warnings[index]))
 		if warnings.size() > warning_limit:
