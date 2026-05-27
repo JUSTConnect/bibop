@@ -5547,105 +5547,193 @@ func validate_task_test_mission_runtime() -> Array[String]:
 		warnings.append("task_test_extraction_cell_not_matching_layout_exit")
 	return warnings
 
-func get_task_test_system_coverage_report() -> Dictionary:
-	var report: Dictionary = {
-		"total_objects": 0,
-		"counts_by_object_type": {},
-		"counts_by_object_group": {},
-		"door_scenarios": {"total":0,"entries":[]},
-		"key_scenarios": {"total":0,"entries":[]},
-		"power_scenarios": {"total":0,"entries":[]},
-		"control_scenarios": {"total":0,"entries":[]},
-		"cooling_scenarios": {"total":0,"entries":[]},
-		"terminal_scenarios": {"total":0,"entries":[]},
-		"wall_material_scenarios": {"total":0,"entries":[]},
-		"scan_scenarios": {"total":0,"entries":[]}
+func get_task_test_required_system_coverage_spec() -> Dictionary:
+	return {
+		"movement": {"required":["runtime_door_passability_checks"],"optional":[],"intentionally_invalid":[]},
+		"doors": {"required":["open_mechanical_door","closed_mechanical_door","locked_mechanical_key_door","open_digital_door","locked_digital_key_door","terminal_locked_door","powered_gate","unpowered_gate","damaged_or_jammed_door"],"optional":[],"intentionally_invalid":[]},
+		"keys": {"required":["mechanical_key","digital_key_opened","digital_key_encrypted","digital_key_damaged"],"optional":["access_code"],"intentionally_invalid":[]},
+		"power": {"required":["power_source","power_socket","power_cable","power_cable_cut","hidden_power_cable","external_power_required"],"optional":[],"intentionally_invalid":["task_test_powered_gate_unpowered","task_test_platform_lift"]},
+		"control": {"required":["control_switch","control_terminal","external_control_required"],"optional":[],"intentionally_invalid":["task_test_control_missing_source","task_test_control_invalid_source"]},
+		"cooling": {"required":["cooling_device","heat_producer","overheated_device"],"optional":[],"intentionally_invalid":[]},
+		"terminals": {"required":["terminal_info","terminal_unpowered","terminal_damaged","terminal_encrypted","terminal_connector_gated","terminal_processor_gated"],"optional":[],"intentionally_invalid":[]},
+		"wall_materials": {"required":["wall_outer","wall_brick","wall_concrete","wall_steel","wall_reinforced","wall_grate","wall_damaged"],"optional":[],"intentionally_invalid":[]},
+		"scan_visibility": {"required":["scan_xray_hidden","scan_thermal_visible","scan_connector_gated","scan_processor_gated"],"optional":[],"intentionally_invalid":[]},
+		"items": {"required":["mechanical_key","digital_key_opened","digital_key_encrypted","digital_key_damaged"],"optional":["access_code","fuse","repair_kit"],"intentionally_invalid":[]},
+		"extraction": {"required":["extraction"],"optional":[],"intentionally_invalid":[]},
+		"runtime_cell_state": {"required":["door_open_passable","door_closed_not_passable"],"optional":[],"intentionally_invalid":[]},
+		"negative_samples": {"required":[],"optional":[],"intentionally_invalid":["task_test_control_missing_source","task_test_control_invalid_source","task_test_powered_gate_unpowered","task_test_platform_lift"]}
 	}
-	for object_data in mission_world_objects:
-		if typeof(object_data) != TYPE_DICTIONARY:
-			continue
-		report["total_objects"] = int(report.get("total_objects", 0)) + 1
-		var object_type: String = String(object_data.get("object_type", ""))
-		var object_group: String = String(object_data.get("object_group", ""))
-		var object_id: String = String(object_data.get("id", ""))
-		var counts_type: Dictionary = Dictionary(report.get("counts_by_object_type", {}))
-		counts_type[object_type] = int(counts_type.get(object_type, 0)) + 1
-		report["counts_by_object_type"] = counts_type
-		var counts_group: Dictionary = Dictionary(report.get("counts_by_object_group", {}))
-		counts_group[object_group] = int(counts_group.get(object_group, 0)) + 1
-		report["counts_by_object_group"] = counts_group
-		if object_group == "door":
-			var door_section: Dictionary = Dictionary(report.get("door_scenarios", {}))
-			var door_entries: Array = Array(door_section.get("entries", []))
-			door_entries.append(object_id)
-			door_section["entries"] = door_entries
-			door_section["total"] = door_entries.size()
-			report["door_scenarios"] = door_section
-		if String(object_data.get("required_key_id", "")) != "":
-			var key_section: Dictionary = Dictionary(report.get("key_scenarios", {}))
-			var key_entries: Array = Array(key_section.get("entries", []))
-			key_entries.append(object_id)
-			key_section["entries"] = key_entries
-			key_section["total"] = key_entries.size()
-			report["key_scenarios"] = key_section
-		if object_data.has("power_network_id"):
-			var power_section: Dictionary = Dictionary(report.get("power_scenarios", {}))
-			var power_entries: Array = Array(power_section.get("entries", []))
-			power_entries.append(object_id)
-			power_section["entries"] = power_entries
-			power_section["total"] = power_entries.size()
-			report["power_scenarios"] = power_section
-		if bool(object_data.get("requires_external_control", false)) or String(object_data.get("control_source_id", object_data.get("linked_terminal_id", ""))) != "":
-			var control_section: Dictionary = Dictionary(report.get("control_scenarios", {}))
-			var control_entries: Array = Array(control_section.get("entries", []))
-			control_entries.append(object_id)
-			control_section["entries"] = control_entries
-			control_section["total"] = control_entries.size()
-			report["control_scenarios"] = control_section
-		if object_group == "cooling" or object_data.has("cooling_device_type"):
-			var cool_section: Dictionary = Dictionary(report.get("cooling_scenarios", {}))
-			var cool_entries: Array = Array(cool_section.get("entries", []))
-			cool_entries.append(object_id)
-			cool_section["entries"] = cool_entries
-			cool_section["total"] = cool_entries.size()
-			report["cooling_scenarios"] = cool_section
-		if object_group == "terminal":
-			var terminal_section: Dictionary = Dictionary(report.get("terminal_scenarios", {}))
-			var terminal_entries: Array = Array(terminal_section.get("entries", []))
-			terminal_entries.append(object_id)
-			terminal_section["entries"] = terminal_entries
-			terminal_section["total"] = terminal_entries.size()
-			report["terminal_scenarios"] = terminal_section
-		if object_group == "wall":
-			var wall_section: Dictionary = Dictionary(report.get("wall_material_scenarios", {}))
-			var wall_entries: Array = Array(wall_section.get("entries", []))
-			wall_entries.append(object_id)
-			wall_section["entries"] = wall_entries
-			wall_section["total"] = wall_entries.size()
-			report["wall_material_scenarios"] = wall_section
-		if bool(object_data.get("hidden", false)) or bool(object_data.get("visible_with_xray", false)) or bool(object_data.get("visible_with_thermal", false)) or object_data.has("required_connector_level"):
-			var scan_section: Dictionary = Dictionary(report.get("scan_scenarios", {}))
-			var scan_entries: Array = Array(scan_section.get("entries", []))
-			scan_entries.append(object_id)
-			scan_section["entries"] = scan_entries
-			scan_section["total"] = scan_entries.size()
-			report["scan_scenarios"] = scan_section
-	return report
+
+func classify_task_test_object_for_audit(object_data: Dictionary) -> Array[String]:
+	var tags: Array[String] = []
+	var object_id: String = String(object_data.get("id", ""))
+	var group: String = String(object_data.get("object_group", ""))
+	var object_type: String = String(object_data.get("object_type", ""))
+	var state: String = String(object_data.get("state", "")).to_lower()
+	var lock_type: String = String(object_data.get("lock_type", "")).to_lower()
+	if group == "door":
+		if state == "open" or bool(object_data.get("is_open", false)): tags.append("door_open")
+		if state == "closed": tags.append("door_closed")
+		if lock_type == "mechanical_key": tags.append("door_locked_mechanical")
+		if lock_type == "digital_key": tags.append("door_locked_digital")
+		if lock_type == "terminal_lock": tags.append("door_terminal_locked")
+		if bool(object_data.get("requires_external_power", false)): tags.append("door_powered_gate")
+		if state == "unpowered" or not bool(object_data.get("is_powered", true)): tags.append("door_unpowered")
+		if state in ["damaged","jammed"] or bool(object_data.get("damaged", false)): tags.append("door_damaged")
+	if group == "item":
+		if object_type == "mechanical_keycard": tags.append("key_mechanical")
+		if object_type == "digital_key":
+			var dstate: String = String(object_data.get("digital_state", "")).to_lower()
+			if dstate == "opened": tags.append("key_digital_opened")
+			if dstate == "encrypted": tags.append("key_digital_encrypted")
+			if dstate == "damaged": tags.append("key_digital_damaged")
+	if object_type.begins_with("power_source"): tags.append("power_source")
+	if object_type == "power_socket": tags.append("power_socket")
+	if object_type == "power_cable":
+		tags.append("power_cable")
+		if state == "cut" or bool(object_data.get("damaged", false)): tags.append("power_cable_cut")
+		if bool(object_data.get("hidden", false)): tags.append("hidden_power_cable")
+	if bool(object_data.get("requires_external_power", false)): tags.append("external_power_required")
+	if object_type in ["circuit_switch","circuit_breaker"]: tags.append("control_switch")
+	if group == "terminal": tags.append("control_terminal")
+	if bool(object_data.get("requires_external_control", false)): tags.append("external_control_required")
+	if object_id == "task_test_control_missing_source": tags.append("control_missing_expected")
+	if object_id == "task_test_control_invalid_source": tags.append("control_invalid_expected")
+	if object_data.has("cooling_device_type"): tags.append("cooling_device")
+	if int(object_data.get("working_heat", 0)) > 0: tags.append("heat_producer")
+	if int(object_data.get("current_heat", 0)) >= int(object_data.get("overheat_threshold", 999999)): tags.append("overheated_device")
+	if group == "terminal":
+		if String(object_data.get("connection_type", "")) == "info": tags.append("terminal_info")
+		if state == "unpowered": tags.append("terminal_unpowered")
+		if state == "damaged": tags.append("terminal_damaged")
+		if bool(object_data.get("encrypts_data", false)): tags.append("terminal_encrypted")
+		if int(object_data.get("required_connector_level", 0)) > 0: tags.append("terminal_connector_gated")
+		if int(object_data.get("required_processor_level", 0)) > 0: tags.append("terminal_processor_gated")
+	var material: String = String(object_data.get("material", ""))
+	if material == "outer_wall": tags.append("wall_outer")
+	if material == "brick_wall": tags.append("wall_brick")
+	if material == "concrete_wall": tags.append("wall_concrete")
+	if material == "steel_wall": tags.append("wall_steel")
+	if material == "reinforced_steel_wall": tags.append("wall_reinforced")
+	if material == "grate_wall": tags.append("wall_grate")
+	if material == "damaged_wall": tags.append("wall_damaged")
+	if bool(object_data.get("hidden", false)) and bool(object_data.get("visible_with_xray", false)): tags.append("scan_xray_hidden")
+	if bool(object_data.get("visible_with_thermal", false)): tags.append("scan_thermal_visible")
+	if int(object_data.get("required_connector_level", 0)) > 0: tags.append("scan_connector_gated")
+	if int(object_data.get("required_processor_level", 0)) > 0: tags.append("scan_processor_gated")
+	if bool(object_data.get("mission_exit", false)) or bool(object_data.get("extraction", false)): tags.append("extraction")
+	return tags
 
 func get_task_test_system_coverage_report_text() -> String:
-	var report: Dictionary = get_task_test_system_coverage_report()
+	return get_task_test_system_audit_report_text()
+
+func get_task_test_system_coverage_report() -> Dictionary:
+	var audit: Dictionary = get_task_test_system_audit_report()
+	return {"total_objects": int(audit.get("summary", {}).get("total_objects", 0)), "coverage": Dictionary(audit.get("coverage", {}))}
+
+func get_task_test_system_audit_report() -> Dictionary:
+	var object_ids: Dictionary = {}
+	var item_ids: Dictionary = {}
+	var coverage_hits: Dictionary = {}
+	var valid_links: Array[Dictionary] = []
+	var invalid_links: Array[Dictionary] = []
+	var expected_invalid_links: Array[Dictionary] = []
+	var duplicate_cell_warnings: Array[String] = []
+	var objects_without_audit_tags: Array[String] = []
+	var notes: Array[String] = []
+	var occupied: Dictionary = {}
+	for object_data in mission_world_objects:
+		var object_id: String = String(object_data.get("id", ""))
+		object_ids[object_id] = true
+	for cell_variant in cell_items.keys():
+		for item_variant in Array(cell_items.get(cell_variant, [])):
+			var item_data: Dictionary = Dictionary(item_variant)
+			item_ids[String(item_data.get("id", ""))] = true
+	var expected_invalid_ids: Dictionary = {}
+	for entry_variant in Array(get_task_test_required_system_coverage_spec().get("negative_samples", {}).get("intentionally_invalid", [])):
+		expected_invalid_ids[String(entry_variant)] = true
+	for object_data in mission_world_objects:
+		var object_id: String = String(object_data.get("id", ""))
+		var tags: Array[String] = classify_task_test_object_for_audit(object_data)
+		if tags.is_empty():
+			objects_without_audit_tags.append(object_id)
+		for tag in tags:
+			coverage_hits[String(tag)] = true
+		var group: String = String(object_data.get("object_group", ""))
+		var cell: Vector2i = Vector2i(object_data.get("position", Vector2i.ZERO))
+		if group != "item":
+			if occupied.has(cell):
+				duplicate_cell_warnings.append("duplicate_world_object_cell_%s_%s_%s" % [str(cell), String(occupied[cell]), object_id])
+			else:
+				occupied[cell] = object_id
+		for field_name in ["power_network_id", "control_source_id", "linked_terminal_id", "controller_id", "target_door_id", "target_platform_id", "required_key_id"]:
+			var ref_id: String = String(object_data.get(field_name, "")).strip_edges()
+			if ref_id.is_empty():
+				continue
+			var exists: bool = object_ids.has(ref_id) or item_ids.has(ref_id) or field_name == "power_network_id"
+			var link_row: Dictionary = {"object_id": object_id, "field": field_name, "target_id": ref_id}
+			if exists:
+				valid_links.append(link_row)
+			elif expected_invalid_ids.has(object_id):
+				expected_invalid_links.append(link_row)
+			else:
+				invalid_links.append(link_row)
+		var ctrls: Array = Array(object_data.get("controls", []))
+		for ctrl_target in ctrls:
+			var ctrl_id: String = String(ctrl_target).strip_edges()
+			if ctrl_id.is_empty():
+				continue
+			var ctrl_row: Dictionary = {"object_id": object_id, "field": "controls", "target_id": ctrl_id}
+			if object_ids.has(ctrl_id):
+				valid_links.append(ctrl_row)
+			elif expected_invalid_ids.has(object_id):
+				expected_invalid_links.append(ctrl_row)
+			else:
+				invalid_links.append(ctrl_row)
+	var runtime_cell_warnings: Array[String] = validate_task_test_runtime_cell_states()
+	var spec: Dictionary = get_task_test_required_system_coverage_spec()
+	var coverage: Dictionary = {}
+	var missing_coverage: Array[String] = []
+	for section_name in spec.keys():
+		var section_spec: Dictionary = Dictionary(spec.get(section_name, {}))
+		var required_items: Array = Array(section_spec.get("required", []))
+		var covered: Array[String] = []
+		var missing: Array[String] = []
+		for req in required_items:
+			var req_key: String = String(req)
+			if coverage_hits.has(req_key):
+				covered.append(req_key)
+			else:
+				missing.append(req_key)
+				missing_coverage.append("%s:%s" % [String(section_name), req_key])
+		coverage[String(section_name)] = {"ok": missing.is_empty(), "covered": covered, "missing": missing, "object_ids": []}
+	var summary: Dictionary = {"total_objects": mission_world_objects.size(), "total_items": item_ids.size(), "missing_coverage_count": missing_coverage.size()}
+	var ok: bool = missing_coverage.is_empty() and invalid_links.is_empty() and runtime_cell_warnings.is_empty() and duplicate_cell_warnings.is_empty()
+	notes.append("Expected invalid links are represented explicitly and do not count as valid.")
+	return {"ok": ok, "summary": summary, "coverage": coverage, "missing_coverage": missing_coverage, "valid_links": valid_links, "invalid_links": invalid_links, "expected_invalid_links": expected_invalid_links, "runtime_cell_warnings": runtime_cell_warnings, "duplicate_cell_warnings": duplicate_cell_warnings, "objects_without_audit_tags": objects_without_audit_tags, "notes": notes}
+
+func get_task_test_system_audit_report_text() -> String:
+	var report: Dictionary = get_task_test_system_audit_report()
 	var lines: Array[String] = []
-	lines.append("TaskTestSystemCoverage: total_objects=%d" % int(report.get("total_objects", 0)))
-	lines.append("By type: %s" % JSON.stringify(report.get("counts_by_object_type", {})))
-	lines.append("By group: %s" % JSON.stringify(report.get("counts_by_object_group", {})))
-	lines.append("Door scenarios: %s" % JSON.stringify(report.get("door_scenarios", {})))
-	lines.append("Key scenarios: %s" % JSON.stringify(report.get("key_scenarios", {})))
-	lines.append("Power scenarios: %s" % JSON.stringify(report.get("power_scenarios", {})))
-	lines.append("Control scenarios: %s" % JSON.stringify(report.get("control_scenarios", {})))
-	lines.append("Cooling scenarios: %s" % JSON.stringify(report.get("cooling_scenarios", {})))
-	lines.append("Terminal scenarios: %s" % JSON.stringify(report.get("terminal_scenarios", {})))
-	lines.append("Wall material scenarios: %s" % JSON.stringify(report.get("wall_material_scenarios", {})))
-	lines.append("Scan scenarios: %s" % JSON.stringify(report.get("scan_scenarios", {})))
+	lines.append("TASK TEST SYSTEM AUDIT")
+	lines.append("OK: %s" % String(report.get("ok", false)))
+	lines.append("")
+	lines.append("Coverage:")
+	for section_name in ["doors","keys","power","control","cooling","terminals","wall_materials","scan_visibility","extraction"]:
+		var section: Dictionary = Dictionary(Dictionary(report.get("coverage", {})).get(section_name, {}))
+		lines.append("- %s: %s missing=%s" % [section_name.capitalize(), "OK" if bool(section.get("ok", false)) else "MISSING", JSON.stringify(section.get("missing", []))])
+	lines.append("Invalid links:")
+	for row in Array(report.get("invalid_links", [])):
+		lines.append("- %s" % JSON.stringify(row))
+	lines.append("Expected invalid samples:")
+	for row in Array(report.get("expected_invalid_links", [])):
+		lines.append("- %s" % JSON.stringify(row))
+	lines.append("Runtime cell warnings:")
+	for warning in Array(report.get("runtime_cell_warnings", [])):
+		lines.append("- %s" % String(warning))
+	lines.append("Objects without audit tags:")
+	for object_id in Array(report.get("objects_without_audit_tags", [])):
+		lines.append("- %s" % String(object_id))
 	return "\n".join(lines)
 
 func validate_task_test_runtime_cell_states() -> Array[String]:
@@ -5731,34 +5819,36 @@ func validate_task_test_runtime_cell_states() -> Array[String]:
 
 
 func validate_task_test_universal_systems_coverage() -> Array[String]:
+	return validate_task_test_system_audit()
+
+func validate_task_test_system_audit() -> Array[String]:
 	var warnings: Array[String] = []
-	var report: Dictionary = get_task_test_system_coverage_report()
-	var occupied_world_object_cells := {}
-	for object_data in mission_world_objects:
-		if typeof(object_data) != TYPE_DICTIONARY:
-			continue
-		if String(object_data.get("object_group", "")) == "item":
-			continue
-		var object_id := String(object_data.get("id", "")).strip_edges()
-		var object_cell := Vector2i(object_data.get("position", Vector2i.ZERO))
-		if occupied_world_object_cells.has(object_cell):
-			var other_id := String(occupied_world_object_cells[object_cell])
-			warnings.append("duplicate_world_object_cell_%s_%s_%s" % [str(object_cell), other_id, object_id])
-		else:
-			occupied_world_object_cells[object_cell] = object_id
-	for section_name in ["door_scenarios", "key_scenarios", "power_scenarios", "control_scenarios", "cooling_scenarios", "terminal_scenarios", "wall_material_scenarios", "scan_scenarios"]:
-		var section: Dictionary = Dictionary(report.get(section_name, {}))
-		if section.is_empty():
-			warnings.append("coverage_section_missing_%s" % section_name)
-			continue
-		if int(section.get("total", 0)) <= 0:
-			warnings.append("coverage_section_empty_%s" % section_name)
-	warnings.append_array(validate_task_test_runtime_cell_states())
+	var report: Dictionary = get_task_test_system_audit_report()
+	warnings.append_array(Array(report.get("missing_coverage", [])))
+	for row in Array(report.get("invalid_links", [])):
+		warnings.append("unexpected_invalid_link_%s" % JSON.stringify(row))
+	warnings.append_array(Array(report.get("runtime_cell_warnings", [])))
+	warnings.append_array(Array(report.get("duplicate_cell_warnings", [])))
+	var expected_neutral: Dictionary = {"task_test_scan_normal_visible":true}
+	for object_id in Array(report.get("objects_without_audit_tags", [])):
+		var tagless_id: String = String(object_id)
+		if not expected_neutral.has(tagless_id):
+			warnings.append("object_without_audit_tags_%s" % tagless_id)
 	return warnings
 
 func get_task_test_mission_validation_text() -> String:
-	var warnings := validate_task_test_mission_runtime()
-	return "TaskTestValidation: ok" if warnings.is_empty() else "TaskTestValidation:\n- " + "\n- ".join(warnings)
+	var warnings: Array[String] = validate_task_test_mission_runtime()
+	var base_text: String = "TaskTestValidation: ok"
+	if not warnings.is_empty():
+		base_text = "TaskTestValidation:\n- " + "\n- ".join(warnings)
+	var audit: Dictionary = get_task_test_system_audit_report()
+	var audit_summary: String = "Audit: ok=%s missing=%d invalid_links=%d runtime_warnings=%d" % [
+		String(audit.get("ok", false)),
+		Array(audit.get("missing_coverage", [])).size(),
+		Array(audit.get("invalid_links", [])).size(),
+		Array(audit.get("runtime_cell_warnings", [])).size()
+	]
+	return base_text + "\n" + audit_summary
 
 
 
