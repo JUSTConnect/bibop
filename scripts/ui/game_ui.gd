@@ -295,6 +295,9 @@ var map_constructor_selected_patch_name: String = ""
 var map_constructor_geometry_width_text: String = "20"
 var map_constructor_geometry_height_text: String = "12"
 var map_constructor_marker_mode: String = ""
+var edge_scroll_enabled: bool = true
+var edge_scroll_margin_px: float = 28.0
+var edge_scroll_speed: float = 540.0
 var tasks_actions_row: HBoxContainer
 var tasks_dev_output_label: RichTextLabel
 var tasks_dev_output_scroll: ScrollContainer
@@ -8820,6 +8823,99 @@ func _unhandled_input(event: InputEvent) -> void:
 		return
 	if event is InputEventMouseButton:
 		_handle_runtime_gameplay_mouse_click(event)
+
+func _process(delta: float) -> void:
+	_process_map_constructor_edge_scroll(delta)
+
+func _process_map_constructor_edge_scroll(delta: float) -> void:
+	if not edge_scroll_enabled or delta <= 0.0:
+		return
+	if not map_constructor_mode_active:
+		return
+	if app_screen_mode != AppScreenMode.GAMEPLAY:
+		return
+	if field_runtime == null or not is_instance_valid(field_runtime):
+		return
+	if _is_mouse_over_map_constructor_ui_panel():
+		return
+	var viewport: Viewport = get_viewport()
+	if viewport == null:
+		return
+	var viewport_size: Vector2 = viewport.get_visible_rect().size
+	if viewport_size.x <= 0.0 or viewport_size.y <= 0.0:
+		return
+	var mouse_pos: Vector2 = viewport.get_mouse_position()
+	var scroll_dir: Vector2 = Vector2.ZERO
+	if mouse_pos.x <= edge_scroll_margin_px:
+		scroll_dir.x -= 1.0
+	elif mouse_pos.x >= viewport_size.x - edge_scroll_margin_px:
+		scroll_dir.x += 1.0
+	if mouse_pos.y <= edge_scroll_margin_px:
+		scroll_dir.y -= 1.0
+	elif mouse_pos.y >= viewport_size.y - edge_scroll_margin_px:
+		scroll_dir.y += 1.0
+	if scroll_dir == Vector2.ZERO:
+		return
+	var field_node: Node2D = field_runtime as Node2D
+	if field_node == null:
+		return
+	var movement: Vector2 = scroll_dir.normalized() * edge_scroll_speed * delta
+	var unclamped_position: Vector2 = field_node.position + movement
+	field_node.position = _get_clamped_constructor_field_position(unclamped_position, viewport_size)
+
+func _is_mouse_over_map_constructor_ui_panel() -> bool:
+	var hovered: Control = get_viewport().gui_get_hovered_control()
+	if hovered == null:
+		return false
+	return _is_control_in_map_constructor_panel(hovered, runtime_map_constructor_palette_panel) or _is_control_in_map_constructor_panel(hovered, runtime_map_constructor_inspector_panel)
+
+func _is_control_in_map_constructor_panel(control: Control, panel: Control) -> bool:
+	if control == null or panel == null or not is_instance_valid(panel):
+		return false
+	return panel == control or panel.is_ancestor_of(control)
+
+func _get_clamped_constructor_field_position(unclamped_position: Vector2, viewport_size: Vector2) -> Vector2:
+	var renderer_node: Node = field_runtime.get_node_or_null("RoomVisualRenderer")
+	if renderer_node == null or not (renderer_node is RoomVisualRenderer):
+		return unclamped_position
+	var renderer: RoomVisualRenderer = renderer_node as RoomVisualRenderer
+	var map_width: int = field_runtime.get_map_width()
+	var map_height: int = field_runtime.get_map_height()
+	if map_width <= 0 or map_height <= 0:
+		return unclamped_position
+	var corners: Array[Vector2i] = [
+		Vector2i(0, 0),
+		Vector2i(map_width - 1, 0),
+		Vector2i(0, map_height - 1),
+		Vector2i(map_width - 1, map_height - 1)
+	]
+	var half_size: Vector2 = renderer.get_iso_tile_half_size()
+	var min_x: float = INF
+	var max_x: float = -INF
+	var min_y: float = INF
+	var max_y: float = -INF
+	for corner in corners:
+		var iso_center: Vector2 = renderer.grid_to_iso(corner)
+		min_x = minf(min_x, iso_center.x - half_size.x)
+		max_x = maxf(max_x, iso_center.x + half_size.x)
+		min_y = minf(min_y, iso_center.y - half_size.y - renderer.iso_wall_height)
+		max_y = maxf(max_y, iso_center.y + half_size.y)
+	var safe_margin: float = maxf(edge_scroll_margin_px, 0.0)
+	var min_field_x: float = safe_margin - max_x
+	var max_field_x: float = viewport_size.x - safe_margin - min_x
+	var min_field_y: float = safe_margin - max_y
+	var max_field_y: float = viewport_size.y - safe_margin - min_y
+	var clamped_x: float = unclamped_position.x
+	var clamped_y: float = unclamped_position.y
+	if min_field_x <= max_field_x:
+		clamped_x = clampf(unclamped_position.x, min_field_x, max_field_x)
+	else:
+		clamped_x = (min_field_x + max_field_x) * 0.5
+	if min_field_y <= max_field_y:
+		clamped_y = clampf(unclamped_position.y, min_field_y, max_field_y)
+	else:
+		clamped_y = (min_field_y + max_field_y) * 0.5
+	return Vector2(clamped_x, clamped_y)
 
 func _is_task_test_runtime_active() -> bool:
 	return app_screen_mode == AppScreenMode.GAMEPLAY and bipob != null and int(bipob.current_mission_index) == 10
