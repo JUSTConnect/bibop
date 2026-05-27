@@ -13574,13 +13574,101 @@ func _sync_map_constructor_overlay_visuals() -> void:
 		"hover": {"cell": pending_map_constructor_cell},
 		"preview": {"mode": "destructive" if not map_constructor_cleanup_preview.is_empty() else "place", "wall_side": selected_map_constructor_wall_side},
 		"validation": [],
-		"links": [],
-		"power": [],
+		"links": _build_map_constructor_overlay_links(),
+		"power": _build_map_constructor_overlay_power(),
 		"multi_select": map_constructor_multi_selected_entities
 	}
 	if mission_manager_runtime != null and mission_manager_runtime.has_method("get_map_constructor_validation_issues"):
 		overlay_data["validation"] = Array(mission_manager_runtime.call("get_map_constructor_validation_issues"))
 	renderer.set_map_constructor_overlay_data(overlay_data)
+
+func _build_map_constructor_overlay_links() -> Array[Dictionary]:
+	var result: Array[Dictionary] = []
+	var rows: Array[Dictionary] = _build_map_constructor_placed_object_rows()
+	if rows.is_empty():
+		return result
+	var id_to_cell: Dictionary = {}
+	for row in rows:
+		var row_id: String = String(row.get("id", "")).strip_edges()
+		if row_id.is_empty():
+			continue
+		id_to_cell[row_id] = Vector2i(row.get("cell", Vector2i(-1, -1)))
+	for row in rows:
+		var source_id: String = String(row.get("id", "")).strip_edges()
+		var source_cell: Vector2i = Vector2i(row.get("cell", Vector2i(-1, -1)))
+		if source_id.is_empty() or source_cell.x < 0 or source_cell.y < 0:
+			continue
+		for field_name in ["control_source_id", "linked_terminal_id", "controller_id", "target_door_id", "target_platform_id", "linked_object_id", "target_object_id"]:
+			var target_id: String = String(row.get(field_name, "")).strip_edges()
+			if target_id.is_empty():
+				continue
+			var target_cell: Vector2i = Vector2i(id_to_cell.get(target_id, Vector2i(-1, -1)))
+			var broken: bool = target_cell.x < 0 or target_cell.y < 0
+			var safe_target: Vector2i = target_cell
+			if broken:
+				safe_target = source_cell
+			result.append({
+				"from_cell": source_cell,
+				"to_cell": safe_target,
+				"broken": broken,
+				"kind": "link",
+				"source_id": source_id,
+				"target_id": target_id
+			})
+	return result
+
+func _build_map_constructor_overlay_power() -> Array[Dictionary]:
+	var result: Array[Dictionary] = []
+	var rows: Array[Dictionary] = _build_map_constructor_placed_object_rows()
+	if rows.is_empty():
+		return result
+	var network_nodes: Dictionary = {}
+	for row in rows:
+		var network_id: String = String(row.get("power_network_id", "")).strip_edges()
+		if network_id.is_empty():
+			continue
+		var row_cell: Vector2i = Vector2i(row.get("cell", Vector2i(-1, -1)))
+		if row_cell.x < 0 or row_cell.y < 0:
+			continue
+		if not network_nodes.has(network_id):
+			network_nodes[network_id] = []
+		var powered_flag: bool = bool(row.get("is_powered", row.get("powered", false)))
+		var requires_power: bool = bool(row.get("requires_power", false))
+		Array(network_nodes[network_id]).append({"id": String(row.get("id", "")), "cell": row_cell, "requires_power": requires_power, "powered": powered_flag})
+	for network_id_variant in network_nodes.keys():
+		var network_id_key: String = String(network_id_variant)
+		var nodes: Array = Array(network_nodes[network_id_variant])
+		if nodes.size() < 2:
+			continue
+		var selected_id: String = selected_map_constructor_entity_id.strip_edges()
+		var selected_cell: Vector2i = Vector2i(-1, -1)
+		var selected_is_in_network: bool = false
+		for node_variant in nodes:
+			var node: Dictionary = Dictionary(node_variant)
+			if String(node.get("id", "")) == selected_id:
+				selected_is_in_network = true
+				selected_cell = Vector2i(node.get("cell", Vector2i(-1, -1)))
+				break
+		if selected_is_in_network and selected_cell.x >= 0 and selected_cell.y >= 0:
+			for node_variant in nodes:
+				var node: Dictionary = Dictionary(node_variant)
+				var node_id: String = String(node.get("id", ""))
+				if node_id == selected_id:
+					continue
+				var to_cell: Vector2i = Vector2i(node.get("cell", Vector2i(-1, -1)))
+				if to_cell.x < 0 or to_cell.y < 0:
+					continue
+				result.append({"from_cell": selected_cell, "to_cell": to_cell, "network_id": network_id_key, "broken": false})
+		else:
+			for node_index in range(nodes.size() - 1):
+				var from_node: Dictionary = Dictionary(nodes[node_index])
+				var to_node: Dictionary = Dictionary(nodes[node_index + 1])
+				var from_cell: Vector2i = Vector2i(from_node.get("cell", Vector2i(-1, -1)))
+				var to_cell: Vector2i = Vector2i(to_node.get("cell", Vector2i(-1, -1)))
+				if from_cell.x < 0 or to_cell.x < 0:
+					continue
+				result.append({"from_cell": from_cell, "to_cell": to_cell, "network_id": network_id_key, "broken": false})
+	return result
 
 func _request_map_constructor_overlay_refresh() -> void:
 	_sync_map_constructor_overlay_visuals()
