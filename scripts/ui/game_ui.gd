@@ -8859,7 +8859,7 @@ func _process_map_constructor_edge_scroll(delta: float) -> void:
 	var field_node: Node2D = field_runtime as Node2D
 	if field_node == null:
 		return
-	var movement: Vector2 = scroll_dir.normalized() * edge_scroll_speed * delta
+	var movement: Vector2 = -scroll_dir.normalized() * edge_scroll_speed * delta
 	var unclamped_position: Vector2 = field_node.position + movement
 	field_node.position = _get_clamped_constructor_field_position(unclamped_position, viewport_size)
 
