@@ -310,6 +310,8 @@ var map_constructor_issue_filter: String = "All"
 var map_constructor_selected_issue_id: String = ""
 var map_constructor_cleanup_preview: Dictionary = {}
 var map_constructor_cleanup_pending_apply_key: String = ""
+var map_constructor_autofix_preview: Dictionary = {}
+var map_constructor_autofix_pending_apply_key: String = ""
 const MAP_CONSTRUCTOR_ISSUE_FILTER_OPTIONS: Array[String] = ["All", "Errors", "Warnings", "Info"]
 
 const MAP_CONSTRUCTOR_PREFAB_FILTER_CATEGORIES: Array[String] = ["All", "Walls", "Doors", "Terminals", "Power", "Control", "Items", "Wall-mounted"]
@@ -9351,6 +9353,27 @@ func _apply_map_constructor_cleanup_action(cleanup_type: String, options: Dictio
 	if field_runtime != null and field_runtime.has_method("request_visual_refresh"):
 		field_runtime.call("request_visual_refresh")
 
+func _apply_map_constructor_autofix_action(fix_type: String, options: Dictionary = {}, apply_now: bool = false) -> void:
+	if mission_manager_runtime == null:
+		return
+	if not apply_now:
+		map_constructor_autofix_preview = mission_manager_runtime.call("get_map_constructor_autofix_preview", fix_type, options)
+		map_constructor_autofix_pending_apply_key = "%s|%s" % [fix_type, JSON.stringify(options)]
+		show_hint(String(map_constructor_autofix_preview.get("message", "Auto-fix preview ready.")))
+		_refresh_map_constructor_panels()
+		return
+	var apply_result: Dictionary = mission_manager_runtime.call("apply_map_constructor_autofix", fix_type, options)
+	show_hint(String(apply_result.get("message", "Auto-fix applied.")))
+	map_constructor_autofix_pending_apply_key = ""
+	map_constructor_autofix_preview.clear()
+	_clear_map_constructor_preview_cell()
+	_clear_map_constructor_wall_mounted_selection()
+	_clear_map_constructor_link_target()
+	_show_map_constructor_inspector(Vector2i(-1, -1))
+	_refresh_map_constructor_panels()
+	if field_runtime != null and field_runtime.has_method("request_visual_refresh"):
+		field_runtime.call("request_visual_refresh")
+
 func _refresh_map_constructor_panels() -> void:
 	if app_screen_mode != AppScreenMode.GAMEPLAY:
 		return
@@ -9623,6 +9646,28 @@ func _refresh_map_constructor_panels() -> void:
 			_refresh_map_constructor_panels()
 		)
 		list.add_child(issue_button)
+		if mission_manager_runtime != null and mission_manager_runtime.has_method("get_map_constructor_issue_autofix_options"):
+			var fix_options: Array = mission_manager_runtime.call("get_map_constructor_issue_autofix_options", issue_row)
+			if not fix_options.is_empty():
+				var issue_fix_row := HBoxContainer.new()
+				var preview_btn := Button.new()
+				preview_btn.text = "Preview Fix"
+				var apply_btn := Button.new()
+				apply_btn.text = "Apply Fix"
+				var first_fix: Dictionary = Dictionary(fix_options[0])
+				var ftype: String = String(first_fix.get("fix_type", ""))
+				var foptions: Dictionary = Dictionary(first_fix.get("options", {}))
+				var fkey: String = "%s|%s" % [ftype, JSON.stringify(foptions)]
+				preview_btn.pressed.connect(func() -> void:
+					_apply_map_constructor_autofix_action(ftype, foptions, false)
+				)
+				apply_btn.disabled = map_constructor_autofix_pending_apply_key != fkey
+				apply_btn.pressed.connect(func() -> void:
+					_apply_map_constructor_autofix_action(ftype, foptions, true)
+				)
+				issue_fix_row.add_child(preview_btn)
+				issue_fix_row.add_child(apply_btn)
+				list.add_child(issue_fix_row)
 	var audit_label: Label = Label.new()
 	audit_label.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 	audit_label.text = "Audit: unavailable"
@@ -9736,6 +9781,48 @@ func _refresh_map_constructor_panels() -> void:
 			field_runtime.call("request_visual_refresh")
 	)
 	list.add_child(undo_button)
+	var autofix_title: Label = Label.new()
+	autofix_title.text = "Auto-fix Tools"
+	list.add_child(autofix_title)
+	var autofix_actions: Array[Dictionary] = [
+		{"label":"Broken References","fix_type":"clear_all_broken_references","options":{}},
+		{"label":"Wall-mounted Attachments","fix_type":"repair_all_wall_mounted_attachments","options":{}}
+	]
+	for action in autofix_actions:
+		var action_row: HBoxContainer = HBoxContainer.new()
+		var ftype: String = String(action.get("fix_type", ""))
+		var foptions: Dictionary = Dictionary(action.get("options", {}))
+		var preview_button := Button.new()
+		preview_button.text = "Preview %s" % String(action.get("label", ""))
+		preview_button.pressed.connect(func() -> void:
+			_apply_map_constructor_autofix_action(ftype, foptions, false)
+		)
+		var apply_button := Button.new()
+		apply_button.text = "Apply %s" % String(action.get("label", ""))
+		apply_button.disabled = map_constructor_autofix_pending_apply_key != "%s|%s" % [ftype, JSON.stringify(foptions)]
+		apply_button.pressed.connect(func() -> void:
+			_apply_map_constructor_autofix_action(ftype, foptions, true)
+		)
+		action_row.add_child(preview_button)
+		action_row.add_child(apply_button)
+		list.add_child(action_row)
+	var autofix_undo_button := Button.new()
+	autofix_undo_button.text = "Undo Last Auto-fix"
+	autofix_undo_button.pressed.connect(func() -> void:
+		if mission_manager_runtime == null or not mission_manager_runtime.has_method("undo_last_map_constructor_autofix"):
+			return
+		var undo_result: Dictionary = mission_manager_runtime.call("undo_last_map_constructor_autofix")
+		show_hint(String(undo_result.get("message", "Undo done.")))
+		map_constructor_autofix_pending_apply_key = ""
+		map_constructor_autofix_preview.clear()
+		_clear_map_constructor_preview_cell()
+		_clear_map_constructor_wall_mounted_selection()
+		_clear_map_constructor_link_target()
+		_refresh_map_constructor_panels()
+		if field_runtime != null and field_runtime.has_method("request_visual_refresh"):
+			field_runtime.call("request_visual_refresh")
+	)
+	list.add_child(autofix_undo_button)
 	if not map_constructor_cleanup_preview.is_empty():
 		var preview_label: Label = Label.new()
 		var affected_count: int = int(map_constructor_cleanup_preview.get("affected_count", 0))
@@ -9752,6 +9839,16 @@ func _refresh_map_constructor_panels() -> void:
 		preview_label.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 		preview_label.text = "Cleanup preview: %d affected\n%s" % [affected_count, preview_ids_text]
 		list.add_child(preview_label)
+	if not map_constructor_autofix_preview.is_empty():
+		var autofix_preview_label := Label.new()
+		autofix_preview_label.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+		var lines: Array[String] = []
+		for row in Array(map_constructor_autofix_preview.get("affected_fixes", [])):
+			if lines.size() >= 10:
+				break
+			lines.append(String(Dictionary(row).get("description", "")))
+		autofix_preview_label.text = "Auto-fix preview: %d affected\n%s" % [int(map_constructor_autofix_preview.get("affected_count", 0)), "\n".join(lines)]
+		list.add_child(autofix_preview_label)
 	var presets_title: Label = Label.new()
 	presets_title.text = "Constructor Presets"
 	list.add_child(presets_title)
