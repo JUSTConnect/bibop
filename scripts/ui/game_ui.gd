@@ -9369,18 +9369,53 @@ func _map_constructor_overview_symbol_for_cell(cell_row: Dictionary) -> String:
 		return "?"
 	if bool(cell_row.get("has_expected_invalid", false)):
 		return "X"
-	if bool(cell_row.get("has_wall_mounted", false)):
+	if map_constructor_overview_show_wall_mounted and bool(cell_row.get("has_wall_mounted", false)):
 		return "W"
-	if bool(cell_row.get("has_item", false)):
+	if map_constructor_overview_show_items and bool(cell_row.get("has_item", false)):
 		return "I"
-	var tile_kind: String = String(cell_row.get("tile_kind", "unknown"))
-	if tile_kind == "door" or tile_kind == "gate":
+	if map_constructor_overview_show_power and bool(cell_row.get("has_power", false)):
+		return "P"
+	if bool(cell_row.get("has_terminal", false)):
+		return "T"
+	if bool(cell_row.get("has_door", false)):
 		return "D"
+	var tile_kind: String = String(cell_row.get("tile_kind", "unknown"))
 	if tile_kind == "wall":
 		return "#"
 	if tile_kind == "floor":
 		return "."
 	return " "
+
+func _map_constructor_overview_marker_matches_filter(marker: Dictionary) -> bool:
+	var kind: String = String(marker.get("kind", ""))
+	var status: String = String(marker.get("status", ""))
+	match map_constructor_overview_filter:
+		"Issues":
+			return kind == "validation_issue" or kind == "warning"
+		"Errors":
+			return status == "error"
+		"Warnings":
+			return status == "warning"
+		"Expected Invalid":
+			return kind == "expected_invalid"
+		"Objects":
+			return kind == "object"
+		"Items":
+			return kind == "item"
+		"Power":
+			return kind == "power"
+		"Terminals":
+			return kind == "terminal"
+		"Doors":
+			return kind == "door"
+		"Wall-mounted":
+			return kind == "wall_mounted"
+		"History":
+			return kind == "history"
+		"Selected":
+			return kind == "selected"
+		_:
+			return true
 
 func _select_map_constructor_entity_from_browser(row: Dictionary) -> void:
 	var entity_kind: String = String(row.get("entity_kind", ""))
@@ -10396,9 +10431,53 @@ func _refresh_map_constructor_panels() -> void:
 			_refresh_map_constructor_panels()
 	)
 	list.add_child(overview_filter)
+	var overview_toggle_row_a: HBoxContainer = HBoxContainer.new()
+	var overview_show_issues: CheckButton = CheckButton.new()
+	overview_show_issues.text = "Show Issues"
+	overview_show_issues.button_pressed = map_constructor_overview_show_issues
+	overview_show_issues.toggled.connect(func(pressed: bool) -> void:
+		map_constructor_overview_show_issues = pressed
+		_refresh_map_constructor_panels()
+	)
+	overview_toggle_row_a.add_child(overview_show_issues)
+	var overview_show_power: CheckButton = CheckButton.new()
+	overview_show_power.text = "Show Power"
+	overview_show_power.button_pressed = map_constructor_overview_show_power
+	overview_show_power.toggled.connect(func(pressed: bool) -> void:
+		map_constructor_overview_show_power = pressed
+		_refresh_map_constructor_panels()
+	)
+	overview_toggle_row_a.add_child(overview_show_power)
+	var overview_show_items: CheckButton = CheckButton.new()
+	overview_show_items.text = "Show Items"
+	overview_show_items.button_pressed = map_constructor_overview_show_items
+	overview_show_items.toggled.connect(func(pressed: bool) -> void:
+		map_constructor_overview_show_items = pressed
+		_refresh_map_constructor_panels()
+	)
+	overview_toggle_row_a.add_child(overview_show_items)
+	list.add_child(overview_toggle_row_a)
+	var overview_toggle_row_b: HBoxContainer = HBoxContainer.new()
+	var overview_show_wall_mounted: CheckButton = CheckButton.new()
+	overview_show_wall_mounted.text = "Show Wall-mounted"
+	overview_show_wall_mounted.button_pressed = map_constructor_overview_show_wall_mounted
+	overview_show_wall_mounted.toggled.connect(func(pressed: bool) -> void:
+		map_constructor_overview_show_wall_mounted = pressed
+		_refresh_map_constructor_panels()
+	)
+	overview_toggle_row_b.add_child(overview_show_wall_mounted)
+	var overview_show_history: CheckButton = CheckButton.new()
+	overview_show_history.text = "Show History"
+	overview_show_history.button_pressed = map_constructor_overview_show_history
+	overview_show_history.toggled.connect(func(pressed: bool) -> void:
+		map_constructor_overview_show_history = pressed
+		_refresh_map_constructor_panels()
+	)
+	overview_toggle_row_b.add_child(overview_show_history)
+	list.add_child(overview_toggle_row_b)
 	var overview_data: Dictionary = {}
 	if mission_manager_runtime != null and mission_manager_runtime.has_method("get_map_constructor_overview_data"):
-		overview_data = mission_manager_runtime.call("get_map_constructor_overview_data", {"include_validation":map_constructor_overview_show_issues, "include_history":map_constructor_overview_show_history, "selected_entities":map_constructor_multi_selected_entities, "selected_entity_id":selected_map_constructor_entity_id, "selected_entity_kind":selected_map_constructor_entity_kind, "max_history_markers":20})
+		overview_data = mission_manager_runtime.call("get_map_constructor_overview_data", {"include_validation":map_constructor_overview_show_issues, "include_history":map_constructor_overview_show_history, "include_power":map_constructor_overview_show_power, "include_items":map_constructor_overview_show_items, "include_wall_mounted":map_constructor_overview_show_wall_mounted, "selected_entities":map_constructor_multi_selected_entities, "selected_entity_id":selected_map_constructor_entity_id, "selected_entity_kind":selected_map_constructor_entity_kind, "max_history_markers":20})
 	var ov_summary: Dictionary = Dictionary(overview_data.get("summary", {}))
 	var sum_label: Label = Label.new()
 	sum_label.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
@@ -10416,7 +10495,10 @@ func _refresh_map_constructor_panels() -> void:
 			if String(cfg.get("kind", "")) == "refresh":
 				_refresh_map_constructor_panels()
 				return
-			for marker_variant in Array(overview_data.get("markers", [])):
+			var marker_rows: Array = Array(overview_data.get("markers", []))
+			if String(cfg.get("kind", "")) == "history":
+				marker_rows.reverse()
+			for marker_variant in marker_rows:
 				var marker: Dictionary = Dictionary(marker_variant)
 				var mk: String = String(marker.get("kind", ""))
 				if String(cfg.get("kind", "")) == "selected" and mk != "selected":
@@ -10456,8 +10538,15 @@ func _refresh_map_constructor_panels() -> void:
 				cell_btn.custom_minimum_size = Vector2(18, 18)
 				var c: Vector2i = Vector2i(x, y)
 				cell_btn.pressed.connect(func() -> void:
+					var opened_entity: bool = false
+					if mission_manager_runtime != null and mission_manager_runtime.has_method("get_map_constructor_editable_entity_at_cell"):
+						var editable_res: Dictionary = mission_manager_runtime.call("get_map_constructor_editable_entity_at_cell", c)
+						if bool(editable_res.get("ok", false)):
+							_show_map_constructor_inspector(c, String(editable_res.get("entity_kind", "")), String(editable_res.get("entity_id", "")))
+							opened_entity = true
 					_focus_map_constructor_cell(c)
-					_show_map_constructor_inspector(c)
+					if not opened_entity:
+						_show_map_constructor_inspector(c)
 				)
 				row_box.add_child(cell_btn)
 			list.add_child(row_box)
@@ -10467,6 +10556,8 @@ func _refresh_map_constructor_panels() -> void:
 	var shown_markers: int = 0
 	for marker_variant in Array(overview_data.get("markers", [])):
 		var marker: Dictionary = Dictionary(marker_variant)
+		if not _map_constructor_overview_marker_matches_filter(marker):
+			continue
 		var line: HBoxContainer = HBoxContainer.new()
 		var lbl: Label = Label.new()
 		lbl.size_flags_horizontal = Control.SIZE_EXPAND_FILL
