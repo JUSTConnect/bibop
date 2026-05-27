@@ -9970,6 +9970,26 @@ func _set_map_constructor_link_target(cell: Vector2i, object_id: String) -> void
 	if renderer != null and renderer.has_method("set_map_constructor_link_target"):
 		renderer.call("set_map_constructor_link_target", cell, object_id)
 
+func _clear_map_constructor_link_target() -> void:
+	if field_runtime == null:
+		return
+	var renderer: Node = field_runtime.get_node_or_null("RoomVisualRenderer")
+	if renderer != null and renderer.has_method("clear_map_constructor_link_target"):
+		renderer.call("clear_map_constructor_link_target")
+
+func _map_constructor_issue_matches_filter(issue: Dictionary) -> bool:
+	var filter_name: String = map_constructor_issue_filter
+	if filter_name == "All":
+		return true
+	var severity: String = String(issue.get("severity", "info")).to_lower()
+	if filter_name == "Errors":
+		return severity == "error"
+	if filter_name == "Warnings":
+		return severity == "warning"
+	if filter_name == "Info":
+		return severity == "info"
+	return true
+
 func _focus_map_constructor_issue(issue: Dictionary) -> void:
 	var issue_cell: Vector2i = Vector2i(issue.get("cell", Vector2i(-1, -1)))
 	var entity_kind: String = String(issue.get("entity_kind", ""))
