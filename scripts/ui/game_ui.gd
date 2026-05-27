@@ -9701,12 +9701,23 @@ func _refresh_map_constructor_panels() -> void:
 		action_row.add_child(preview_button)
 		action_row.add_child(apply_button)
 		list.add_child(action_row)
-	var reset_button: Button = Button.new()
-	reset_button.text = "Reset Runtime Map"
-	reset_button.pressed.connect(func() -> void:
+	var reset_row: HBoxContainer = HBoxContainer.new()
+	reset_row.add_theme_constant_override("separation", 4)
+	var reset_preview_button: Button = Button.new()
+	reset_preview_button.text = "Preview Reset Runtime Map"
+	reset_preview_button.pressed.connect(func() -> void:
+		_apply_map_constructor_cleanup_action("reset_runtime_map", {}, false)
+	)
+	var reset_apply_button: Button = Button.new()
+	reset_apply_button.text = "Apply Reset Runtime Map"
+	var reset_apply_key: String = "reset_runtime_map|{}"
+	reset_apply_button.disabled = map_constructor_cleanup_pending_apply_key != reset_apply_key
+	reset_apply_button.pressed.connect(func() -> void:
 		_apply_map_constructor_cleanup_action("reset_runtime_map", {}, true)
 	)
-	list.add_child(reset_button)
+	reset_row.add_child(reset_preview_button)
+	reset_row.add_child(reset_apply_button)
+	list.add_child(reset_row)
 	var undo_button: Button = Button.new()
 	undo_button.text = "Undo Last Cleanup"
 	undo_button.pressed.connect(func() -> void:
@@ -9716,6 +9727,10 @@ func _refresh_map_constructor_panels() -> void:
 		show_hint(String(undo_result.get("message", "Undo done.")))
 		map_constructor_cleanup_pending_apply_key = ""
 		map_constructor_cleanup_preview.clear()
+		_clear_map_constructor_preview_cell()
+		_clear_map_constructor_wall_mounted_selection()
+		_clear_map_constructor_link_target()
+		_show_map_constructor_inspector(Vector2i(-1, -1))
 		_refresh_map_constructor_panels()
 		if field_runtime != null and field_runtime.has_method("request_visual_refresh"):
 			field_runtime.call("request_visual_refresh")

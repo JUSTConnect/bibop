@@ -2264,7 +2264,7 @@ func get_map_constructor_cleanup_preview(cleanup_type: String, options: Dictiona
 			continue
 		if _is_map_constructor_cleanup_protected_object(data):
 			continue
-		var row := _build_map_constructor_cleanup_row("world_object", data, Vector2i(data.get("position", Vector2i(-1, -1))))
+		var row: Dictionary = _build_map_constructor_cleanup_row("world_object", data, Vector2i(data.get("position", Vector2i(-1, -1))))
 		var add_row: bool = false
 		match lower_type:
 			"items":
@@ -2277,8 +2277,10 @@ func get_map_constructor_cleanup_preview(cleanup_type: String, options: Dictiona
 				add_row = String(row.get("type_group", "")) == String(options.get("type_group", "")).to_lower()
 			"all_constructor_objects", "reset_runtime_map":
 				add_row = created or include_base
+				if lower_type == "reset_runtime_map":
+					warnings.append("Full baseline reset is not available yet; constructor-created runtime edits will be cleared.")
 			"invalid_references":
-				var fields := ["target_door_id","target_platform_id","linked_terminal_id","control_source_id","required_key_id"]
+				var fields: Array[String] = ["target_door_id","target_platform_id","linked_terminal_id","control_source_id","required_key_id"]
 				for f in fields:
 					var tid: String = String(data.get(f, "")).strip_edges()
 					if tid.is_empty():
@@ -2347,7 +2349,10 @@ func apply_map_constructor_cleanup(cleanup_type: String, options: Dictionary = {
 			deleted_count += 1
 	PowerSystemRef.recalculate_network(mission_world_objects, "")
 	refresh_world_cooling_received()
-	return {"ok": true, "message": "Cleanup applied.", "deleted_count": deleted_count, "cleanup_id": String(_map_constructor_last_cleanup_snapshot.get("cleanup_id", "")), "warnings": Array(preview.get("warnings", []))}
+	var message: String = "Cleanup applied."
+	if String(cleanup_type).to_lower() == "reset_runtime_map":
+		message = "Runtime map reset cleared constructor-created edits. Full baseline reset is not available yet."
+	return {"ok": true, "message": message, "deleted_count": deleted_count, "cleanup_id": String(_map_constructor_last_cleanup_snapshot.get("cleanup_id", "")), "warnings": Array(preview.get("warnings", []))}
 
 func undo_last_map_constructor_cleanup() -> Dictionary:
 	if _map_constructor_last_cleanup_snapshot.is_empty():
