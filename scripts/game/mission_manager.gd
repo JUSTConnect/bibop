@@ -2769,7 +2769,7 @@ func get_map_constructor_autofix_preview(fix_type: String, options: Dictionary =
 			else:
 				warnings.append("Cannot repair wall-mounted attachment: no adjacent wall near anchor.")
 	elif lower_type == "assign_power_network":
-		var entity := get_map_constructor_entity_by_id(String(options.get("entity_kind", "world_object")), String(options.get("entity_id", "")))
+		var entity: Dictionary = get_map_constructor_entity_by_id(String(options.get("entity_kind", "world_object")), String(options.get("entity_id", "")))
 		if bool(entity.get("ok", false)):
 			var data: Dictionary = Dictionary(entity.get("data", {}))
 			var new_net: String = String(options.get("new_power_network_id", "")).strip_edges()
@@ -2785,7 +2785,7 @@ func get_map_constructor_autofix_preview(fix_type: String, options: Dictionary =
 			var new_network_id: String = String(options.get("new_power_network_id", "")).strip_edges()
 			for id_variant in selected_ids:
 				var object_id: String = String(id_variant)
-				var entity_info := get_map_constructor_entity_by_id("world_object", object_id)
+				var entity_info: Dictionary = get_map_constructor_entity_by_id("world_object", object_id)
 				if not bool(entity_info.get("ok", false)):
 					continue
 				var current_data: Dictionary = Dictionary(entity_info.get("data", {}))
@@ -2804,13 +2804,52 @@ func get_map_constructor_autofix_preview(fix_type: String, options: Dictionary =
 				for cell_variant in cell_items.keys():
 					for item_variant in Array(cell_items.get(cell_variant, [])):
 						var item: Dictionary = Dictionary(item_variant)
-						var item_type := String(item.get("item_type", item.get("object_type", ""))).to_lower()
+						var item_type: String = String(item.get("item_type", item.get("object_type", ""))).to_lower()
 						if item_type in ["mechanical_keycard", "digital_key", "access_code"]:
 							keys.append(String(item.get("id", "")))
 				if keys.size() == 1:
 					fixes.append({"entity_kind":entity_kind,"entity_id":entity_id,"field_name":"required_key_id","old_value":"","new_value":keys[0],"cell":Vector2i(entity_info.get("cell", Vector2i(-1,-1))),"description":"Set required_key_id on %s" % entity_id})
 				else:
 					warnings.append("Cannot safely set required_key_id: need exactly one matching key item.")
+	elif lower_type == "apply_issue_fix":
+		var issue_id: String = String(options.get("issue_id", "")).strip_edges()
+		if issue_id.is_empty():
+			warnings.append("Issue id is required.")
+		else:
+			var validation_issues: Array[Dictionary] = get_map_constructor_validation_issues()
+			var issue_match: Dictionary = {}
+			for issue_variant in validation_issues:
+				var issue_data: Dictionary = Dictionary(issue_variant)
+				if String(issue_data.get("id", "")).strip_edges() == issue_id:
+					issue_match = issue_data
+					break
+			if issue_match.is_empty():
+				warnings.append("Issue not found.")
+			else:
+				var issue_fix_options: Array[Dictionary] = get_map_constructor_issue_autofix_options(issue_match)
+				var safe_options: Array[Dictionary] = []
+				for option_variant in issue_fix_options:
+					var option_data: Dictionary = Dictionary(option_variant)
+					if String(option_data.get("danger_level", "")).to_lower() == "safe":
+						safe_options.append(option_data)
+				if safe_options.size() == 1:
+					var selected_fix: Dictionary = Dictionary(safe_options[0])
+					var nested_fix_type: String = String(selected_fix.get("fix_type", "")).strip_edges()
+					var nested_options: Dictionary = Dictionary(selected_fix.get("options", {}))
+					if nested_fix_type.is_empty():
+						warnings.append("No safe auto-fix available for this issue.")
+					else:
+						var nested_preview: Dictionary = get_map_constructor_autofix_preview(nested_fix_type, nested_options)
+						if bool(nested_preview.get("ok", false)):
+							fixes = Array(nested_preview.get("affected_fixes", []))
+							for nested_warning_variant in Array(nested_preview.get("warnings", [])):
+								warnings.append(String(nested_warning_variant))
+						else:
+							warnings.append(String(nested_preview.get("message", "No safe auto-fix available for this issue.")))
+				elif safe_options.size() > 1:
+					warnings.append("Multiple fixes available; choose a specific fix.")
+				else:
+					warnings.append("No safe auto-fix available for this issue.")
 	preview["ok"] = lower_type in ["clear_broken_reference","remove_invalid_reference","clear_all_broken_references","repair_wall_mounted_attachment","repair_all_wall_mounted_attachments","assign_power_network","create_power_network","fix_missing_required_id","apply_issue_fix"]
 	preview["affected_fixes"] = fixes
 	preview["affected_count"] = fixes.size()
@@ -2828,9 +2867,9 @@ func apply_map_constructor_autofix(fix_type: String, options: Dictionary = {}) -
 	_map_constructor_last_autofix_snapshot = {"fix_id":"autofix_%d" % Time.get_unix_time_from_system(), "mission_world_objects": mission_world_objects.duplicate(true), "cell_items": cell_items.duplicate(true), "world_objects_by_cell": world_objects_by_cell.duplicate(true)}
 	for row_variant in fixes:
 		var row: Dictionary = Dictionary(row_variant)
-		var apply_res := apply_map_constructor_property_update(String(row.get("entity_kind", "world_object")), String(row.get("entity_id", "")), String(row.get("field_name", "")), row.get("new_value"))
+		var apply_res: Dictionary = apply_map_constructor_property_update(String(row.get("entity_kind", "world_object")), String(row.get("entity_id", "")), String(row.get("field_name", "")), row.get("new_value"))
 		if not bool(apply_res.get("ok", false)) and String(row.get("field_name", "")) == "wall_attachment":
-			var entity := get_map_constructor_entity_by_id("world_object", String(row.get("entity_id", "")))
+			var entity: Dictionary = get_map_constructor_entity_by_id("world_object", String(row.get("entity_id", "")))
 			if bool(entity.get("ok", false)):
 				var d: Dictionary = Dictionary(entity.get("data", {}))
 				var wall_data: Dictionary = Dictionary(row.get("new_value", {}))
