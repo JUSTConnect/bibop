@@ -9001,6 +9001,7 @@ func _deactivate_map_constructor_mode() -> void:
 	runtime_map_constructor_validation_overlay_control = null
 
 	_clear_map_constructor_preview_cell()
+	_clear_map_constructor_wall_mounted_selection()
 
 func _clear_map_constructor_wall_mounted_selection() -> void:
 	if field_runtime == null:
