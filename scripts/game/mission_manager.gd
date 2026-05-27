@@ -206,6 +206,8 @@ func create_map_constructor_empty_map(width: int, height: int) -> Dictionary:
 		var grid_result: Dictionary = grid_manager.call("build_constructor_map", constructor_map_width, constructor_map_height)
 		constructor_map_width = int(grid_result.get("width", constructor_map_width))
 		constructor_map_height = int(grid_result.get("height", constructor_map_height))
+	if grid_manager != null and grid_manager.has_method("enforce_boundary_walls"):
+		grid_manager.call("enforce_boundary_walls")
 	if grid_manager != null and grid_manager.has_method("request_visual_refresh"):
 		grid_manager.call("request_visual_refresh")
 	return {"ok": true, "message": "Constructor map created.", "width": constructor_map_width, "height": constructor_map_height}
@@ -522,6 +524,8 @@ func load_map_constructor_preset(preset_name: String) -> Dictionary:
 			continue
 		if grid_manager != null and grid_manager.has_method("set_tile"):
 			grid_manager.call("set_tile", tile_cell, int(tile_row.get("tile_type", GridManager.TILE_FLOOR)))
+	if grid_manager != null and grid_manager.has_method("enforce_boundary_walls"):
+		grid_manager.call("enforce_boundary_walls")
 	var mission_markers: Dictionary = Dictionary(preset.get("mission_markers", {}))
 	constructor_start_marker = Dictionary(mission_markers.get("start", {})).duplicate(true)
 	constructor_exit_marker = Dictionary(mission_markers.get("exit", {})).duplicate(true)

@@ -366,6 +366,8 @@ func set_tile(grid_position: Vector2i, tile_type: int) -> void:
 	if not is_in_bounds(grid_position):
 		push_error("GridManager: cannot set tile outside map bounds: " + str(grid_position))
 		return
+	if is_boundary_cell(grid_position):
+		tile_type = TILE_WALL
 	
 	map_data[grid_position.y][grid_position.x] = tile_type
 	request_visual_refresh()
@@ -395,6 +397,15 @@ func build_constructor_map(width: int, height: int) -> Dictionary:
 	request_visual_refresh()
 	queue_redraw()
 	return {"ok": true, "message": "Constructor map created.", "width": safe_width, "height": safe_height}
+
+func enforce_boundary_walls() -> void:
+	for y in range(get_map_height()):
+		for x in range(get_map_width()):
+			var cell: Vector2i = Vector2i(x, y)
+			if not is_boundary_cell(cell):
+				continue
+			map_data[y][x] = TILE_WALL
+	request_visual_refresh()
 
 
 func set_fan_platform_marker(marker_position: Vector2i, direction_vector: Vector2i) -> void:
