@@ -3340,7 +3340,18 @@ func get_map_constructor_door_visual_state(object_id: String) -> Dictionary:
 		"broken":
 			tint = Color(0.7, 0.38, 0.34, 0.95)
 			accent = Color(0.95, 0.28, 0.22, 0.98)
-	return {"ok": true, "object_id": normalized_id, "state": state, "badges": badges, "tint": tint, "accent": accent, "texture_asset_id": "door_state_generic", "message": message}
+	var preset_override: Dictionary = Dictionary(map_constructor_door_visual_preset_overrides.get(normalized_id, {}))
+	var room_visual_preset_id: String = String(preset_override.get("preset_id", "")).strip_edges()
+	var room_visual_hint: String = String(preset_override.get("visual_hint", "")).strip_edges()
+	var created_by_room_visual_preset: bool = bool(preset_override.get("created_by_room_visual_preset", false))
+	if not room_visual_hint.is_empty():
+		if room_visual_hint == "hazard" or room_visual_hint == "power":
+			tint = _blend_color(tint, Color(0.95, 0.84, 0.38, 0.95), 0.18)
+			accent = _blend_color(accent, Color(0.44, 0.9, 1.0, 0.98), 0.16)
+		elif room_visual_hint == "cold" or room_visual_hint == "cooling":
+			tint = _blend_color(tint, Color(0.7, 0.88, 1.0, 0.94), 0.18)
+			accent = _blend_color(accent, Color(0.55, 0.96, 1.0, 0.98), 0.16)
+	return {"ok": true, "object_id": normalized_id, "state": state, "badges": badges, "tint": tint, "accent": accent, "texture_asset_id": "door_state_generic", "room_visual_preset_id": room_visual_preset_id, "room_visual_hint": room_visual_hint, "created_by_room_visual_preset": created_by_room_visual_preset, "message": message}
 
 func get_map_constructor_terminal_visual_state(object_id: String) -> Dictionary:
 	var normalized_id: String = object_id.strip_edges()
@@ -3415,7 +3426,18 @@ func get_map_constructor_terminal_visual_state(object_id: String) -> Dictionary:
 		"scanning":
 			tint = Color(0.7, 0.92, 1.0, 0.96)
 			accent = Color(0.39, 0.95, 1.0, 0.99)
-	return {"ok": true, "object_id": normalized_id, "terminal_type": terminal_type, "state": state, "badges": badges, "tint": tint, "accent": accent, "texture_asset_id": "terminal_state_generic", "message": "Terminal visual state resolved."}
+	var terminal_preset_override: Dictionary = Dictionary(map_constructor_terminal_visual_preset_overrides.get(normalized_id, {}))
+	var terminal_room_preset_id: String = String(terminal_preset_override.get("preset_id", "")).strip_edges()
+	var terminal_room_visual_hint: String = String(terminal_preset_override.get("visual_hint", "")).strip_edges()
+	var terminal_created_by_room_preset: bool = bool(terminal_preset_override.get("created_by_room_visual_preset", false))
+	if not terminal_room_visual_hint.is_empty():
+		if terminal_room_visual_hint == "hazard" or terminal_room_visual_hint == "power":
+			tint = _blend_color(tint, Color(0.98, 0.83, 0.34, 0.94), 0.16)
+			accent = _blend_color(accent, Color(0.44, 0.92, 1.0, 0.98), 0.14)
+		elif terminal_room_visual_hint == "cold" or terminal_room_visual_hint == "cooling":
+			tint = _blend_color(tint, Color(0.72, 0.9, 1.0, 0.94), 0.16)
+			accent = _blend_color(accent, Color(0.56, 0.98, 1.0, 0.98), 0.14)
+	return {"ok": true, "object_id": normalized_id, "terminal_type": terminal_type, "state": state, "badges": badges, "tint": tint, "accent": accent, "texture_asset_id": "terminal_state_generic", "room_visual_preset_id": terminal_room_preset_id, "room_visual_hint": terminal_room_visual_hint, "created_by_room_visual_preset": terminal_created_by_room_preset, "message": "Terminal visual state resolved."}
 
 func get_map_constructor_property_presets(entity_kind: String, entity_id: String) -> Array[Dictionary]:
 	var group: String = get_map_constructor_entity_type_group(entity_kind, entity_id)
@@ -10554,6 +10576,80 @@ func undo_last_map_constructor_room_template() -> Dictionary:
 	if not warnings.is_empty():
 		return {"ok": false, "warnings": warnings, "message": "Template undo partial: tile restore unavailable."}
 	return {"ok":true,"warnings":[],"message":"Template undo completed."}
+
+func get_room_visual_preset_summary() -> Dictionary:
+	var active_preset_lookup: Dictionary = {}
+	var wall_material_counts: Dictionary = {}
+	var door_visual_counts: Dictionary = {}
+	var terminal_visual_counts: Dictionary = {}
+	var affected_cell_lookup: Dictionary = {}
+	var wall_count: int = 0
+	for key_variant in _map_constructor_wall_material_overrides.keys():
+		var key: String = String(key_variant)
+		var row: Dictionary = Dictionary(_map_constructor_wall_material_overrides.get(key, {}))
+		if not bool(row.get("created_by_room_visual_preset", false)):
+			continue
+		wall_count += 1
+		var material_id: String = String(row.get("material_id", "")).strip_edges()
+		if material_id.is_empty():
+			material_id = "unknown"
+		wall_material_counts[material_id] = int(wall_material_counts.get(material_id, 0)) + 1
+		var preset_id: String = String(row.get("room_visual_preset_id", "")).strip_edges()
+		if not preset_id.is_empty():
+			active_preset_lookup[preset_id] = true
+		var cell: Vector2i = Vector2i(row.get("cell", Vector2i(-1, -1)))
+		if cell.x >= 0 and cell.y >= 0:
+			affected_cell_lookup[_serialize_cell_key(cell)] = cell
+	for object_id_variant in map_constructor_door_visual_preset_overrides.keys():
+		var object_id: String = String(object_id_variant)
+		var row_door: Dictionary = Dictionary(map_constructor_door_visual_preset_overrides.get(object_id, {}))
+		var hint: String = String(row_door.get("visual_hint", "")).strip_edges()
+		if hint.is_empty():
+			hint = "none"
+		door_visual_counts[hint] = int(door_visual_counts.get(hint, 0)) + 1
+		var preset_id_door: String = String(row_door.get("preset_id", "")).strip_edges()
+		if not preset_id_door.is_empty():
+			active_preset_lookup[preset_id_door] = true
+		var door_object: Dictionary = get_world_object_by_id(object_id)
+		var door_cell: Vector2i = Vector2i(door_object.get("position", Vector2i(-1, -1)))
+		if door_cell.x >= 0 and door_cell.y >= 0:
+			affected_cell_lookup[_serialize_cell_key(door_cell)] = door_cell
+	for terminal_id_variant in map_constructor_terminal_visual_preset_overrides.keys():
+		var terminal_id: String = String(terminal_id_variant)
+		var row_terminal: Dictionary = Dictionary(map_constructor_terminal_visual_preset_overrides.get(terminal_id, {}))
+		var terminal_hint: String = String(row_terminal.get("visual_hint", "")).strip_edges()
+		if terminal_hint.is_empty():
+			terminal_hint = "none"
+		terminal_visual_counts[terminal_hint] = int(terminal_visual_counts.get(terminal_hint, 0)) + 1
+		var preset_id_terminal: String = String(row_terminal.get("preset_id", "")).strip_edges()
+		if not preset_id_terminal.is_empty():
+			active_preset_lookup[preset_id_terminal] = true
+		var terminal_object: Dictionary = get_world_object_by_id(terminal_id)
+		var terminal_cell: Vector2i = Vector2i(terminal_object.get("position", Vector2i(-1, -1)))
+		if terminal_cell.x >= 0 and terminal_cell.y >= 0:
+			affected_cell_lookup[_serialize_cell_key(terminal_cell)] = terminal_cell
+	var active_preset_ids: Array[String] = []
+	for preset_id_variant in active_preset_lookup.keys():
+		active_preset_ids.append(String(preset_id_variant))
+	active_preset_ids.sort()
+	var affected_cells: Array = []
+	for cell_key_variant in affected_cell_lookup.keys():
+		affected_cells.append(Vector2i(affected_cell_lookup[cell_key_variant]))
+	affected_cells.sort_custom(func(a: Vector2i, b: Vector2i) -> bool:
+		if a.y == b.y:
+			return a.x < b.x
+		return a.y < b.y
+	)
+	return {
+		"active_preset_ids": active_preset_ids,
+		"wall_material_counts": wall_material_counts,
+		"door_visual_counts": door_visual_counts,
+		"terminal_visual_counts": terminal_visual_counts,
+		"preset_generated_wall_override_count": wall_count,
+		"preset_generated_door_override_count": map_constructor_door_visual_preset_overrides.size(),
+		"preset_generated_terminal_override_count": map_constructor_terminal_visual_preset_overrides.size(),
+		"affected_cells": affected_cells
+	}
 
 func export_map_constructor_design_notes(options: Dictionary = {}) -> Dictionary:
 	if not _is_task_test_constructor_context():
