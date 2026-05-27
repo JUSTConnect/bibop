@@ -10188,7 +10188,56 @@ func export_map_constructor_design_notes(options: Dictionary = {}) -> Dictionary
 		var row: Dictionary = Dictionary(row_variant)
 		var material_id: String = String(row.get("material_id", "unknown")).to_lower()
 		wall_counts[material_id] = int(wall_counts.get(material_id, 0)) + 1
-	var notes: Dictionary = {"schema_version":1,"source":"task_test_map_constructor","mission_id":"mission_10","generated_at_runtime":str(Time.get_unix_time_from_system()),"summary":{"object_count":mission_world_objects.size(),"wall_material_override_count":wall_overrides.size(),"wall_material_counts":wall_counts},"readiness":readiness,"validation":{"issues":validation},"objects":mission_world_objects.duplicate(true),"items":cell_items.values(),"tile_edits":Array(patch_export.get("patch", {}).get("tile_edits", [])),"links":Array(patch_export.get("patch", {}).get("links", [])),"patch":Dictionary(patch_export.get("patch", {})),"wall_material_overrides":wall_overrides,"history_summary":Array(get_map_constructor_change_history(20).get("history", [])),"overview_summary":Dictionary(get_map_constructor_overview_data().get("summary", {})),"recommended_next_steps":["Manual promotion required. No mission files were modified."]}
+	var door_visual_summary: Dictionary = {"counts_by_state": {}, "doors": []}
+	var terminal_visual_summary: Dictionary = {"counts_by_type": {}, "counts_by_state": {}, "terminals": []}
+	var door_rows: Array[Dictionary] = []
+	var terminal_rows: Array[Dictionary] = []
+	var visual_diagnostics: Array[Dictionary] = []
+	var object_ids: Dictionary = {}
+	for object_variant in mission_world_objects:
+		var object_data_indexed: Dictionary = Dictionary(object_variant)
+		var indexed_id: String = String(object_data_indexed.get("id", "")).strip_edges()
+		if not indexed_id.is_empty():
+			object_ids[indexed_id] = true
+	for object_variant in mission_world_objects:
+		var object_data: Dictionary = Dictionary(object_variant)
+		var object_id: String = String(object_data.get("id", "")).strip_edges()
+		if object_id.is_empty():
+			continue
+		var object_type: String = String(object_data.get("object_type", object_data.get("type", ""))).strip_edges()
+		var cell: Vector2i = Vector2i(object_data.get("position", Vector2i(-1, -1)))
+		var normalized_type: String = object_type.to_lower()
+		if normalized_type.find("door") >= 0 or normalized_type.find("gate") >= 0:
+			var door_visual: Dictionary = get_map_constructor_door_visual_state(object_id)
+			var door_state: String = String(door_visual.get("state", "unknown"))
+			var door_badges: Array[String] = []
+			for badge_variant in Array(door_visual.get("badges", [])):
+				door_badges.append(String(badge_variant))
+			var count_state: String = door_state.to_lower()
+			door_visual_summary["counts_by_state"][count_state] = int(door_visual_summary["counts_by_state"].get(count_state, 0)) + 1
+			door_rows.append({"object_id": object_id, "cell": cell, "object_type": object_type, "state": door_state, "badges": door_badges})
+			if count_state == "unknown":
+				visual_diagnostics.append(_make_map_constructor_issue("door_visual_unknown_%s" % object_id, "warning", "Door visual state unknown for %s." % object_id, cell, "world_object", "world_object", object_id, "Set valid door state metadata."))
+		if normalized_type.find("terminal") >= 0:
+			var terminal_visual: Dictionary = get_map_constructor_terminal_visual_state(object_id)
+			var terminal_type: String = String(terminal_visual.get("terminal_type", "unknown"))
+			var terminal_state: String = String(terminal_visual.get("state", "unknown"))
+			var terminal_badges: Array[String] = []
+			for terminal_badge_variant in Array(terminal_visual.get("badges", [])):
+				terminal_badges.append(String(terminal_badge_variant))
+			var count_type: String = terminal_type.to_lower()
+			var count_terminal_state: String = terminal_state.to_lower()
+			terminal_visual_summary["counts_by_type"][count_type] = int(terminal_visual_summary["counts_by_type"].get(count_type, 0)) + 1
+			terminal_visual_summary["counts_by_state"][count_terminal_state] = int(terminal_visual_summary["counts_by_state"].get(count_terminal_state, 0)) + 1
+			terminal_rows.append({"object_id": object_id, "cell": cell, "object_type": object_type, "terminal_type": terminal_type, "state": terminal_state, "badges": terminal_badges})
+			if count_type == "unknown":
+				visual_diagnostics.append(_make_map_constructor_issue("terminal_visual_type_unknown_%s" % object_id, "warning", "Terminal visual type unknown for %s." % object_id, cell, "world_object", "world_object", object_id, "Set valid terminal_type metadata."))
+			var linked_target_id: String = String(object_data.get("linked_object_id", object_data.get("target_object_id", ""))).strip_edges()
+			if not linked_target_id.is_empty() and not object_ids.has(linked_target_id):
+				visual_diagnostics.append(_make_map_constructor_issue("terminal_missing_link_target_%s" % object_id, "warning", "Terminal %s references missing linked target %s." % [object_id, linked_target_id], cell, "world_object", "world_object", object_id, "Fix linked target id or add the target object."))
+	door_visual_summary["doors"] = door_rows
+	terminal_visual_summary["terminals"] = terminal_rows
+	var notes: Dictionary = {"schema_version":1,"source":"task_test_map_constructor","mission_id":"mission_10","generated_at_runtime":str(Time.get_unix_time_from_system()),"summary":{"object_count":mission_world_objects.size(),"wall_material_override_count":wall_overrides.size(),"wall_material_counts":wall_counts},"readiness":readiness,"validation":{"issues":validation,"visual_diagnostics":visual_diagnostics},"objects":mission_world_objects.duplicate(true),"items":cell_items.values(),"tile_edits":Array(patch_export.get("patch", {}).get("tile_edits", [])),"links":Array(patch_export.get("patch", {}).get("links", [])),"patch":Dictionary(patch_export.get("patch", {})),"wall_material_overrides":wall_overrides,"door_visual_summary":door_visual_summary,"terminal_visual_summary":terminal_visual_summary,"history_summary":Array(get_map_constructor_change_history(20).get("history", [])),"overview_summary":Dictionary(get_map_constructor_overview_data().get("summary", {})),"recommended_next_steps":["Manual promotion required. No mission files were modified."]}
 	var text: String = "# Design Notes\nMission: mission_10\nReadiness: %s\nValidation issues: %d\nPatch summary: objects=%d items=%d tiles=%d\nManual promotion required. No mission files were modified." % [String(readiness.get("status", "unknown")), validation.size(), int(patch_export.get("object_count", 0)), int(patch_export.get("item_count", 0)), int(patch_export.get("tile_edit_count", 0))]
 	return {"ok":true,"message":"OK","notes":notes,"text":text}
 
@@ -10220,7 +10269,8 @@ func get_map_constructor_production_pipeline_report(options: Dictionary = {}) ->
 	var blocked: bool = String(readiness.get("status", "")) == "blocked" or not bool(readiness.get("ok", true)) or not bool(patch_export.get("ok", false)) or not bool(notes.get("ok", false)) or non_expected_errors > 0
 	var has_warnings: bool = warning_count > 0
 	var status: String = "blocked" if blocked else ("warning" if has_warnings else "ready")
-	return {"ok":true,"status":status,"message":"Manual promotion required. No mission files were modified.","checks":checks,"promotion_package":{"patch":Dictionary(patch_export.get("patch", {})),"design_notes":Dictionary(notes.get("notes", {})),"summary":{"readiness":String(readiness.get("status", "unknown")),"wall_material_overrides":Array(get_map_constructor_wall_material_overrides().get("overrides", []))},"manual_steps":["Review design notes","Review patch JSON","Promote manually in controlled pipeline"],"warnings":[]},"recommended_actions":[]}
+	var notes_payload: Dictionary = Dictionary(notes.get("notes", {}))
+	return {"ok":true,"status":status,"message":"Manual promotion required. No mission files were modified.","checks":checks,"promotion_package":{"patch":Dictionary(patch_export.get("patch", {})),"design_notes":notes_payload,"summary":{"readiness":String(readiness.get("status", "unknown")),"wall_material_overrides":Array(get_map_constructor_wall_material_overrides().get("overrides", [])),"door_visual_summary":Dictionary(notes_payload.get("door_visual_summary", {})),"terminal_visual_summary":Dictionary(notes_payload.get("terminal_visual_summary", {}))},"manual_steps":["Review design notes","Review patch JSON","Promote manually in controlled pipeline"],"warnings":[]},"recommended_actions":[]}
 
 func _preview_map_constructor_entry_set(entries: Array, anchor_cell: Vector2i, options: Dictionary = {}) -> Dictionary:
 	var conflicts: Array[Dictionary] = []
