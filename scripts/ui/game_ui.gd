@@ -444,6 +444,7 @@ func _ensure_gameplay_runtime_created() -> bool:
 	return true
 
 func _destroy_gameplay_runtime() -> void:
+	_deactivate_map_constructor_mode()
 	if bipob != null and is_instance_valid(bipob):
 		bipob.queue_free()
 	if field_runtime != null and is_instance_valid(field_runtime):
@@ -5277,6 +5278,7 @@ func _assert_single_active_major_screen() -> void:
 		push_warning("More than one major screen visible: %s" % ", ".join(visible_roots))
 
 func show_main_menu_screen() -> void:
+	_deactivate_map_constructor_mode()
 	app_screen_mode = AppScreenMode.MAIN_MENU
 	box_opened_from_center = false
 	_hide_runtime_mission_ui()
@@ -5288,6 +5290,7 @@ func show_main_menu_screen() -> void:
 	_assert_single_active_major_screen()
 
 func show_center_screen() -> void:
+	_deactivate_map_constructor_mode()
 	if not _ensure_gameplay_runtime_created():
 		show_hint("Gameplay runtime is unavailable.")
 		return
@@ -5476,6 +5479,7 @@ func _clear_children(root: Node) -> void:
 		child.queue_free()
 
 func show_mission_result_screen(success: bool, mission_index: int = -1) -> void:
+	_deactivate_map_constructor_mode()
 	app_screen_mode = AppScreenMode.MISSION_RESULT
 	_hide_runtime_mission_ui()
 	_hide_all_app_screens()
@@ -8747,6 +8751,7 @@ func _claim_mission_reward(mission_id: int) -> void:
 	_refresh_tasks_content()
 
 func _on_mission_result_restart_pressed() -> void:
+	_deactivate_map_constructor_mode()
 	if not _ensure_gameplay_runtime_created():
 		return
 	var restart_mission_id: int = tasks_selected_mission_id
@@ -8784,12 +8789,40 @@ func _is_task_test_runtime_active() -> bool:
 func _toggle_map_constructor_mode() -> void:
 	if not _is_task_test_runtime_active():
 		return
-	map_constructor_mode_active = not map_constructor_mode_active
-	pending_map_constructor_cell = Vector2i(-1, -1)
+	if map_constructor_mode_active:
+		_deactivate_map_constructor_mode()
+		show_hint("Map Constructor Mode Off")
+		return
+	map_constructor_mode_active = true
 	if bipob != null:
-		bipob.map_constructor_input_blocked = map_constructor_mode_active
-	show_hint("Map Constructor Mode" if map_constructor_mode_active else "Map Constructor Mode Off")
+		bipob.map_constructor_input_blocked = true
+	show_hint("Map Constructor Mode")
 	_refresh_map_constructor_panels()
+
+func _deactivate_map_constructor_mode() -> void:
+	map_constructor_mode_active = false
+	selected_map_constructor_prefab_id = ""
+	pending_map_constructor_cell = Vector2i(-1, -1)
+
+	if bipob != null:
+		bipob.map_constructor_input_blocked = false
+
+	if runtime_map_constructor_palette_panel != null and is_instance_valid(runtime_map_constructor_palette_panel):
+		runtime_map_constructor_palette_panel.queue_free()
+	runtime_map_constructor_palette_panel = null
+
+	if runtime_map_constructor_inspector_panel != null and is_instance_valid(runtime_map_constructor_inspector_panel):
+		runtime_map_constructor_inspector_panel.queue_free()
+	runtime_map_constructor_inspector_panel = null
+
+	_clear_map_constructor_preview_cell()
+
+func _clear_map_constructor_preview_cell() -> void:
+	if field_runtime == null:
+		return
+	var renderer: Node = field_runtime.get_node_or_null("RoomVisualRenderer")
+	if renderer != null and renderer.has_method("set_map_constructor_preview_cell"):
+		renderer.call("set_map_constructor_preview_cell", Vector2i(-1, -1))
 
 func _handle_runtime_gameplay_mouse_click(event: InputEventMouseButton) -> bool:
 	if app_screen_mode != AppScreenMode.GAMEPLAY:
@@ -8847,6 +8880,7 @@ func _handle_map_constructor_left_click(cell: Vector2i) -> void:
 	show_hint(String(result.get("message", "Placement done.")))
 	if bool(result.get("ok", false)):
 		pending_map_constructor_cell = Vector2i(-1, -1)
+		_clear_map_constructor_preview_cell()
 		if field_runtime != null and field_runtime.has_method("request_visual_refresh"):
 			field_runtime.call("request_visual_refresh")
 	_refresh_map_constructor_panels()
@@ -8878,6 +8912,8 @@ func _refresh_map_constructor_panels() -> void:
 			b.button_pressed = id == selected_map_constructor_prefab_id
 			b.pressed.connect(func() -> void:
 				selected_map_constructor_prefab_id = id
+				pending_map_constructor_cell = Vector2i(-1, -1)
+				_clear_map_constructor_preview_cell()
 				_refresh_map_constructor_panels()
 			)
 			list.add_child(b)
@@ -8886,6 +8922,11 @@ func _refresh_map_constructor_panels() -> void:
 func _show_map_constructor_inspector(cell: Vector2i) -> void:
 	if runtime_map_constructor_inspector_panel != null and is_instance_valid(runtime_map_constructor_inspector_panel):
 		runtime_map_constructor_inspector_panel.queue_free()
+	runtime_map_constructor_inspector_panel = null
+	if mission_manager_runtime == null:
+		return
+	if not mission_manager_runtime.has_method("get_world_object_at_cell"):
+		return
 	var object_data: Dictionary = mission_manager_runtime.call("get_world_object_at_cell", cell)
 	if object_data.is_empty():
 		return
@@ -8899,7 +8940,11 @@ func _show_map_constructor_inspector(cell: Vector2i) -> void:
 	(v.get_child(0) as Label).text = "ID: %s\nType: %s\nState: %s\nPos: %s" % [String(object_data.get("id","")), String(object_data.get("object_type","")), String(object_data.get("state","")), str(cell)]
 	var del := Button.new()
 	del.text = "Delete"
+	var can_delete: bool = mission_manager_runtime.has_method("remove_map_constructor_object_at_cell")
+	del.disabled = not can_delete
 	del.pressed.connect(func() -> void:
+		if mission_manager_runtime == null or not mission_manager_runtime.has_method("remove_map_constructor_object_at_cell"):
+			return
 		var result: Dictionary = mission_manager_runtime.call("remove_map_constructor_object_at_cell", cell)
 		show_hint(String(result.get("message", "")))
 		if field_runtime != null and field_runtime.has_method("request_visual_refresh"):
@@ -9135,6 +9180,8 @@ func _on_end_turn_pressed() -> void:
 func _on_restart_mission_button_pressed() -> void:
 	if bipob == null:
 		return
+
+	_deactivate_map_constructor_mode()
 
 	# Mission reset action: should not spend field action points or energy as button press.
 	bipob.restart_current_mission()

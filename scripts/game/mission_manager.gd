@@ -660,23 +660,41 @@ func place_map_constructor_prefab(prefab_id: String, cell: Vector2i) -> Dictiona
 	if not bool(check.get("ok", false)):
 		return check
 	var result := {"ok": true, "message": "Placed %s." % prefab_id, "object_id": "", "warnings": []}
+	var previous_tile_type: int = GridManager.TILE_FLOOR
+	if grid_manager != null and grid_manager.has_method("get_tile"):
+		previous_tile_type = int(grid_manager.call("get_tile", cell))
 	if prefab_id == "floor":
 		grid_manager.call("set_tile", cell, GridManager.TILE_FLOOR)
 		return result
 	if prefab_id == "stepped_floor":
 		grid_manager.call("set_tile", cell, GridManager.TILE_STEPPED_FLOOR)
 		return result
+	var placed_tile_type: int = previous_tile_type
 	if prefab_id.ends_with("_wall") or prefab_id == "outer_wall":
-		grid_manager.call("set_tile", cell, GridManager.TILE_WALL)
+		placed_tile_type = GridManager.TILE_WALL
+		grid_manager.call("set_tile", cell, placed_tile_type)
 	elif prefab_id == "mechanical_door":
-		grid_manager.call("set_tile", cell, GridManager.TILE_DOOR)
+		placed_tile_type = GridManager.TILE_DOOR
+		grid_manager.call("set_tile", cell, placed_tile_type)
 	elif prefab_id == "digital_door":
-		grid_manager.call("set_tile", cell, GridManager.TILE_DIGITAL_DOOR)
+		placed_tile_type = GridManager.TILE_DIGITAL_DOOR
+		grid_manager.call("set_tile", cell, placed_tile_type)
 	elif prefab_id == "powered_gate":
-		grid_manager.call("set_tile", cell, GridManager.TILE_POWERED_GATE)
+		placed_tile_type = GridManager.TILE_POWERED_GATE
+		grid_manager.call("set_tile", cell, placed_tile_type)
 	var object_id: String = "mapedit_%s_%d" % [prefab_id, _map_constructor_runtime_object_seq]
 	_map_constructor_runtime_object_seq += 1
-	var object_data: Dictionary = {"id": object_id, "object_type": prefab_id, "position": cell, "display_name": prefab_id.capitalize(), "state": "active"}
+	var object_data: Dictionary = {
+		"id": object_id,
+		"object_type": prefab_id,
+		"position": cell,
+		"display_name": prefab_id.capitalize(),
+		"state": "active",
+		"created_by_map_constructor": true,
+		"map_constructor_prefab_id": prefab_id,
+		"map_constructor_tile_type": placed_tile_type,
+		"map_constructor_previous_tile_type": previous_tile_type
+	}
 	set_world_object_at_cell(cell, object_data)
 	result["object_id"] = object_id
 	return result
@@ -686,6 +704,11 @@ func remove_map_constructor_object_at_cell(cell: Vector2i) -> Dictionary:
 	var existing: Dictionary = get_world_object_at_cell(cell)
 	if existing.is_empty():
 		return result
+	if bool(existing.get("created_by_map_constructor", false)) and grid_manager != null and grid_manager.has_method("set_tile"):
+		var restore_tile_type: int = GridManager.TILE_FLOOR
+		if existing.has("map_constructor_previous_tile_type"):
+			restore_tile_type = int(existing.get("map_constructor_previous_tile_type", GridManager.TILE_FLOOR))
+		grid_manager.call("set_tile", cell, restore_tile_type)
 	result["ok"] = true
 	result["object_id"] = String(existing.get("id", ""))
 	result["message"] = "Removed object."
