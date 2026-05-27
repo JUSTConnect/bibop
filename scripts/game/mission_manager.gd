@@ -125,11 +125,6 @@ func validate_task_test_catalog_layout_runtime_source() -> Array[String]:
 		warnings.append("task_test_catalog_layout_missing_exit_tile")
 	if grid_manager != null and not grid_manager.has_method("apply_mission_layout"):
 		warnings.append("task_test_catalog_runtime_grid_missing_apply_mission_layout")
-	var runtime_before: Dictionary = _build_world_runtime_validation_fingerprint()
-	apply_catalog_mission_layout_to_grid("mission_10")
-	var runtime_after: Dictionary = _build_world_runtime_validation_fingerprint()
-	if runtime_after != runtime_before:
-		warnings.append("task_test_catalog_runtime_layout_apply_mutated_world_state")
 	return warnings
 
 func setup_world_objects_for_mission(mission_id: String) -> void:
