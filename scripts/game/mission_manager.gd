@@ -1116,7 +1116,9 @@ func get_map_constructor_object_dependency_status(object_data: Dictionary) -> Di
 	var object_id: String = String(object_data.get("id", "")).strip_edges()
 	var expected_invalid: bool = is_task_test_expected_invalid_object_id(object_id)
 	var object_ids: Dictionary = {}
+	var object_id_to_cell: Dictionary = {}
 	var item_ids: Dictionary = {}
+	var item_id_to_cell: Dictionary = {}
 	var power_source_network_ids: Dictionary = {}
 	for existing_object in mission_world_objects:
 		if typeof(existing_object) != TYPE_DICTIONARY:
@@ -1125,6 +1127,7 @@ func get_map_constructor_object_dependency_status(object_data: Dictionary) -> Di
 		var existing_id: String = String(existing_data.get("id", "")).strip_edges()
 		if not existing_id.is_empty():
 			object_ids[existing_id] = true
+			object_id_to_cell[existing_id] = Vector2i(existing_data.get("position", Vector2i(-1, -1)))
 		var existing_type: String = String(existing_data.get("object_type", "")).to_lower()
 		if existing_type.begins_with("power_source"):
 			var existing_network_id: String = String(existing_data.get("power_network_id", "")).strip_edges()
@@ -1137,36 +1140,43 @@ func get_map_constructor_object_dependency_status(object_data: Dictionary) -> Di
 			var item_id: String = String(Dictionary(item_variant).get("id", "")).strip_edges()
 			if not item_id.is_empty():
 				item_ids[item_id] = true
+				item_id_to_cell[item_id] = Vector2i(cell_variant)
 
 	for field_name in ["required_key_id", "linked_terminal_id", "target_door_id", "target_platform_id"]:
 		var ref_id: String = String(object_data.get(field_name, "")).strip_edges()
 		if ref_id.is_empty():
 			continue
 		var exists: bool = object_ids.has(ref_id) or (field_name == "required_key_id" and item_ids.has(ref_id))
+		var ref_cell: Vector2i = Vector2i(-1, -1)
+		if field_name == "required_key_id" and item_id_to_cell.has(ref_id):
+			ref_cell = Vector2i(item_id_to_cell[ref_id])
+		elif object_id_to_cell.has(ref_id):
+			ref_cell = Vector2i(object_id_to_cell[ref_id])
 		if exists:
-			link_targets.append({"field": field_name, "target_id": ref_id, "target_cell": Vector2i(-1, -1), "status": "valid", "reason": "exists"})
+			link_targets.append({"field": field_name, "target_id": ref_id, "target_cell": ref_cell, "status": "valid", "reason": "exists"})
 			if severity == "none":
 				severity = "valid"
 		else:
 			messages.append("%s points to missing id: %s" % [field_name, ref_id])
-			link_targets.append({"field": field_name, "target_id": ref_id, "target_cell": Vector2i(-1, -1), "status": "error", "reason": "missing"})
+			link_targets.append({"field": field_name, "target_id": ref_id, "target_cell": ref_cell, "status": "error", "reason": "missing"})
 			severity = "error"
 
 	var control_source_id: String = String(object_data.get("control_source_id", "")).strip_edges()
 	if not control_source_id.is_empty():
+		var control_source_cell: Vector2i = Vector2i(object_id_to_cell.get(control_source_id, Vector2i(-1, -1)))
 		if object_ids.has(control_source_id):
-			link_targets.append({"field":"control_source_id","target_id":control_source_id,"target_cell":Vector2i(-1, -1),"status":"valid","reason":"exists"})
+			link_targets.append({"field":"control_source_id","target_id":control_source_id,"target_cell":control_source_cell,"status":"valid","reason":"exists"})
 			if severity == "none":
 				severity = "valid"
 		else:
 			if expected_invalid:
 				messages.append("control_source_id missing (expected test sample)")
-				link_targets.append({"field":"control_source_id","target_id":control_source_id,"target_cell":Vector2i(-1, -1),"status":"warning","reason":"expected_missing"})
+				link_targets.append({"field":"control_source_id","target_id":control_source_id,"target_cell":control_source_cell,"status":"warning","reason":"expected_missing"})
 				if severity != "error":
 					severity = "warning"
 			else:
 				messages.append("control_source_id points to missing id: %s" % control_source_id)
-				link_targets.append({"field":"control_source_id","target_id":control_source_id,"target_cell":Vector2i(-1, -1),"status":"error","reason":"missing"})
+				link_targets.append({"field":"control_source_id","target_id":control_source_id,"target_cell":control_source_cell,"status":"error","reason":"missing"})
 				severity = "error"
 
 	var requires_external_power: bool = bool(object_data.get("requires_external_power", false))
@@ -1199,13 +1209,14 @@ func get_map_constructor_object_dependency_status(object_data: Dictionary) -> Di
 		var connected_id: String = String(connected_id_variant).strip_edges()
 		if connected_id.is_empty():
 			continue
+		var connected_cell: Vector2i = Vector2i(object_id_to_cell.get(connected_id, Vector2i(-1, -1)))
 		if object_ids.has(connected_id):
-			link_targets.append({"field":"connected_device_ids","target_id":connected_id,"target_cell":Vector2i(-1, -1),"status":"valid","reason":"exists"})
+			link_targets.append({"field":"connected_device_ids","target_id":connected_id,"target_cell":connected_cell,"status":"valid","reason":"exists"})
 			if severity == "none":
 				severity = "valid"
 		else:
 			messages.append("connected_device_ids contains missing id: %s" % connected_id)
-			link_targets.append({"field":"connected_device_ids","target_id":connected_id,"target_cell":Vector2i(-1, -1),"status":"error","reason":"missing"})
+			link_targets.append({"field":"connected_device_ids","target_id":connected_id,"target_cell":connected_cell,"status":"error","reason":"missing"})
 			severity = "error"
 
 	return {"severity": severity, "messages": messages, "link_targets": link_targets}
@@ -1238,9 +1249,7 @@ func _map_constructor_merge_overlay_issue(overlay_objects: Dictionary, overlay_c
 func get_map_constructor_validation_overlay() -> Dictionary:
 	var overlay_cells: Dictionary = {}
 	var overlay_objects: Dictionary = {}
-	var summary: Dictionary = {"valid_count": 0, "warning_count": 0, "error_count": 0, "expected_warning_count": 0}
 	var audit: Dictionary = get_task_test_system_audit_report()
-	var object_index: Dictionary = {}
 	for object_data in mission_world_objects:
 		if typeof(object_data) != TYPE_DICTIONARY:
 			continue
@@ -1249,17 +1258,8 @@ func get_map_constructor_validation_overlay() -> Dictionary:
 		if object_id.is_empty():
 			continue
 		var object_cell: Vector2i = Vector2i(data.get("position", Vector2i(-1, -1)))
-		object_index[object_id] = object_cell
 		var dependency: Dictionary = get_map_constructor_object_dependency_status(data)
 		var object_severity: String = String(dependency.get("severity", "none"))
-		if object_severity == "valid":
-			summary["valid_count"] = int(summary.get("valid_count", 0)) + 1
-		elif object_severity == "warning":
-			summary["warning_count"] = int(summary.get("warning_count", 0)) + 1
-			if is_task_test_expected_invalid_object_id(object_id):
-				summary["expected_warning_count"] = int(summary.get("expected_warning_count", 0)) + 1
-		elif object_severity == "error":
-			summary["error_count"] = int(summary.get("error_count", 0)) + 1
 		var object_messages: Array[String] = []
 		for msg in Array(dependency.get("messages", [])):
 			object_messages.append(String(msg))
@@ -1293,17 +1293,27 @@ func get_map_constructor_validation_overlay() -> Dictionary:
 	for object_id_variant in Array(audit.get("objects_without_audit_tags", [])):
 		_map_constructor_merge_overlay_issue(overlay_objects, overlay_cells,String(object_id_variant), "warning", "Object has no TASK TEST audit tag.")
 
+	var summary: Dictionary = {"valid_count": 0, "warning_count": 0, "error_count": 0, "expected_warning_count": 0}
+	var has_error_severity: bool = false
 	for object_id_key in overlay_objects.keys():
 		var object_row: Dictionary = Dictionary(overlay_objects[object_id_key])
 		var final_severity: String = String(object_row.get("severity", "none"))
 		if final_severity == "valid":
-			summary["valid_count"] = int(summary.get("valid_count", 0))
+			summary["valid_count"] = int(summary.get("valid_count", 0)) + 1
 		elif final_severity == "warning":
-			summary["warning_count"] = int(summary.get("warning_count", 0))
+			summary["warning_count"] = int(summary.get("warning_count", 0)) + 1
+			if is_task_test_expected_invalid_object_id(String(object_id_key)):
+				summary["expected_warning_count"] = int(summary.get("expected_warning_count", 0)) + 1
 		elif final_severity == "error":
-			summary["error_count"] = int(summary.get("error_count", 0))
+			summary["error_count"] = int(summary.get("error_count", 0)) + 1
+			has_error_severity = true
 
-	var has_errors: bool = int(summary.get("error_count", 0)) > 0
+	for cell_row_variant in overlay_cells.values():
+		var cell_row: Dictionary = Dictionary(cell_row_variant)
+		if String(cell_row.get("severity", "none")) == "error":
+			has_error_severity = true
+			break
+	var has_errors: bool = int(summary.get("error_count", 0)) > 0 or has_error_severity
 	return {"ok": not has_errors, "cells": overlay_cells, "objects": overlay_objects, "summary": summary}
 
 func get_map_constructor_audit_summary() -> Dictionary:
