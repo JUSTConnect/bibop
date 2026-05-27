@@ -875,6 +875,11 @@ func get_map_constructor_editable_entity_at_cell(cell: Vector2i) -> Dictionary:
 	return {"ok": false, "reason": "empty_cell"}
 
 func get_map_constructor_entity_by_id(entity_kind: String, entity_id: String) -> Dictionary:
+	if entity_kind.is_empty():
+		var world_entity: Dictionary = get_map_constructor_entity_by_id("world_object", entity_id)
+		if bool(world_entity.get("ok", false)):
+			return world_entity
+		return get_map_constructor_entity_by_id("item", entity_id)
 	if entity_kind == "world_object":
 		var object_data: Dictionary = get_world_object_by_id(entity_id)
 		if object_data.is_empty():
@@ -1012,6 +1017,7 @@ func apply_map_constructor_state_preset(entity_kind: String, entity_id: String, 
 	match lower_preset:
 		"active":
 			updates.append({"field":"state", "value":"active"})
+			updates.append({"field":"damaged", "value":false})
 		"open":
 			updates.append({"field":"state", "value":"open"})
 			updates.append({"field":"is_open", "value":true})
