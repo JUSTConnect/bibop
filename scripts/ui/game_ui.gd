@@ -8940,6 +8940,8 @@ func _refresh_map_constructor_panels() -> void:
 					placement_label.text = "Placement: blocked: exit cell"
 				"wall_or_static":
 					placement_label.text = "Placement: blocked: wall/static obstacle"
+				"non_floor_tile":
+					placement_label.text = "Placement: blocked: non-floor tile"
 				_:
 					placement_label.text = "Placement: blocked: unsupported prefab"
 	list.add_child(placement_label)

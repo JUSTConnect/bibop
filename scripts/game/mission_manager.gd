@@ -637,6 +637,9 @@ func get_map_constructor_prefab_catalog() -> Array[Dictionary]:
 		{"category":"Items","id":"mechanical_key"},{"category":"Items","id":"digital_key"},{"category":"Items","id":"access_code"}
 	]
 
+func is_map_constructor_item_prefab(prefab_id: String) -> bool:
+	return prefab_id in ["mechanical_key", "digital_key", "access_code"]
+
 func can_place_map_constructor_prefab(prefab_id: String, cell: Vector2i) -> Dictionary:
 	var result: Dictionary = {"ok": false, "reason": "unsupported_prefab", "message": "Blocked: unsupported prefab.", "cell_state": get_runtime_cell_state(cell)}
 	var is_supported: bool = false
@@ -656,7 +659,37 @@ func can_place_map_constructor_prefab(prefab_id: String, cell: Vector2i) -> Dict
 		result["reason"] = "occupied_by_bipob"
 		result["message"] = "Blocked: existing object."
 		return result
-	var prefab_is_item: bool = prefab_id in ["mechanical_key", "digital_key", "access_code"]
+	var prefab_is_item: bool = is_map_constructor_item_prefab(prefab_id)
+	var tile_type_value: int = int(cell_state.get("tile_type", -1))
+	var tile_is_wall: bool = tile_type_value == GridManager.TILE_WALL
+	var tile_is_door_or_gate: bool = tile_type_value == GridManager.TILE_DOOR or tile_type_value == GridManager.TILE_DIGITAL_DOOR or tile_type_value == GridManager.TILE_POWERED_GATE
+	var tile_is_exit: bool = tile_type_value == GridManager.TILE_EXIT
+	var tile_is_floor_like: bool = tile_type_value == GridManager.TILE_FLOOR or tile_type_value == GridManager.TILE_STEPPED_FLOOR
+	var prefab_is_wall: bool = prefab_id.ends_with("_wall") or prefab_id == "outer_wall"
+	var prefab_is_door_or_gate: bool = prefab_id == "mechanical_door" or prefab_id == "digital_door" or prefab_id == "powered_gate"
+	var prefab_is_floor_replacement: bool = prefab_id == "floor" or prefab_id == "stepped_floor"
+	if tile_is_exit and prefab_id != "powered_gate":
+		result["reason"] = "exit_cell"
+		result["message"] = "Blocked: exit cell."
+		return result
+	var has_static_wall_or_blocked_tile: bool = tile_is_wall or (not bool(cell_state.get("static_walkable", true)) and not tile_is_door_or_gate and not tile_is_exit)
+	if has_static_wall_or_blocked_tile and not prefab_is_floor_replacement:
+		result["reason"] = "wall_or_static"
+		result["message"] = "Blocked: wall/static obstacle."
+		return result
+	if not tile_is_floor_like and not tile_is_exit:
+		if (prefab_is_item or MAP_CONSTRUCTOR_SOLID_PREFABS.has(prefab_id)) and not (prefab_is_wall or prefab_is_door_or_gate or prefab_is_floor_replacement):
+			result["reason"] = "non_floor_tile"
+			result["message"] = "Blocked: non-floor tile."
+			return result
+	if (prefab_is_wall or prefab_is_door_or_gate) and not tile_is_floor_like:
+		result["reason"] = "non_floor_tile"
+		result["message"] = "Blocked: non-floor tile."
+		return result
+	if prefab_is_floor_replacement and not (tile_is_wall or tile_is_door_or_gate or tile_is_floor_like):
+		result["reason"] = "non_floor_tile"
+		result["message"] = "Blocked: non-floor tile."
+		return result
 	var existing_object: Dictionary = get_world_object_at_cell(cell)
 	if not prefab_is_item and not existing_object.is_empty():
 		result["reason"] = "existing_object"
@@ -697,6 +730,26 @@ func place_map_constructor_prefab(prefab_id: String, cell: Vector2i) -> Dictiona
 	if prefab_id == "stepped_floor":
 		grid_manager.call("set_tile", cell, GridManager.TILE_STEPPED_FLOOR)
 		return result
+	if is_map_constructor_item_prefab(prefab_id):
+		var object_id: String = "mapedit_%s_%d" % [prefab_id, _map_constructor_runtime_object_seq]
+		_map_constructor_runtime_object_seq += 1
+		var item_type: String = prefab_id
+		if prefab_id == "mechanical_key":
+			item_type = "mechanical_keycard"
+		var item_data: Dictionary = {
+			"id": object_id,
+			"object_group": "item",
+			"object_type": "item",
+			"item_type": item_type,
+			"position": cell,
+			"created_by_map_constructor": true,
+			"map_constructor_prefab_id": prefab_id
+		}
+		add_item_at_cell(cell, item_data)
+		PowerSystemRef.recalculate_network(mission_world_objects, "")
+		refresh_world_cooling_received()
+		result["object_id"] = object_id
+		return result
 	var placed_tile_type: int = previous_tile_type
 	if prefab_id.ends_with("_wall") or prefab_id == "outer_wall":
 		placed_tile_type = GridManager.TILE_WALL
@@ -733,6 +786,19 @@ func remove_map_constructor_object_at_cell(cell: Vector2i) -> Dictionary:
 	var result: Dictionary = {"ok": false, "message": "Nothing to remove.", "object_id": "", "warnings": []}
 	var existing: Dictionary = get_world_object_at_cell(cell)
 	if existing.is_empty():
+		var items: Array[Dictionary] = get_items_at_cell(cell)
+		for index in range(items.size() - 1, -1, -1):
+			var item_data: Dictionary = items[index]
+			if bool(item_data.get("created_by_map_constructor", false)):
+				items.remove_at(index)
+				cell_items[cell] = items
+				mission_world_objects.erase(item_data)
+				result["ok"] = true
+				result["object_id"] = String(item_data.get("id", ""))
+				result["message"] = "Removed item."
+				PowerSystemRef.recalculate_network(mission_world_objects, "")
+				refresh_world_cooling_received()
+				return result
 		return result
 	var removed_network_id: String = String(existing.get("power_network_id", ""))
 	if bool(existing.get("created_by_map_constructor", false)) and grid_manager != null and grid_manager.has_method("set_tile"):
