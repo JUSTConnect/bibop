@@ -9528,6 +9528,15 @@ func _refresh_map_constructor_panels() -> void:
 			_refresh_map_constructor_panels()
 		)
 		list.add_child(row_button)
+	if not selected_row_exists:
+		_clear_map_constructor_browser_selection()
+	var browser_selection_label: Label = Label.new()
+	browser_selection_label.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	if selected_map_constructor_entity_id.is_empty() or selected_map_constructor_entity_kind.is_empty():
+		browser_selection_label.text = "Browser selection: none"
+	else:
+		browser_selection_label.text = "Browser selection: %s/%s @ %s" % [selected_map_constructor_entity_kind, selected_map_constructor_entity_id, str(selected_map_constructor_entity_cell)]
+	list.add_child(browser_selection_label)
 	var issues_title: Label = Label.new()
 	issues_title.text = "Validation Issues"
 	list.add_child(issues_title)
@@ -10200,13 +10209,37 @@ func _focus_map_constructor_issue(issue: Dictionary) -> void:
 		var entity_info: Dictionary = mission_manager_runtime.call("get_map_constructor_entity_by_id", entity_kind, entity_id)
 		if bool(entity_info.get("ok", false)):
 			target_cell = Vector2i(entity_info.get("cell", issue_cell))
-	if target_cell.x >= 0 and target_cell.y >= 0:
-		pending_map_constructor_cell = target_cell
-		_update_map_constructor_preview_for_cell(target_cell)
-	if not entity_kind.is_empty() and not entity_id.is_empty():
-		_show_map_constructor_inspector(target_cell, entity_kind, entity_id)
-	elif target_cell.x >= 0 and target_cell.y >= 0:
-		_show_map_constructor_inspector(target_cell)
+			if String(entity_info.get("placement_mode", "")).to_lower() == "wall_mounted":
+				var anchor_floor_cell: Vector2i = Vector2i(entity_info.get("anchor_floor_cell", Vector2i(-1, -1)))
+				if anchor_floor_cell.x >= 0 and anchor_floor_cell.y >= 0:
+					target_cell = anchor_floor_cell
+			selected_map_constructor_entity_kind = entity_kind
+			selected_map_constructor_entity_id = entity_id
+			selected_map_constructor_entity_cell = target_cell
+			if target_cell.x >= 0 and target_cell.y >= 0:
+				pending_map_constructor_cell = target_cell
+				_update_map_constructor_preview_for_cell(target_cell)
+				_show_map_constructor_inspector(target_cell, entity_kind, entity_id)
+				_focus_map_constructor_cell(target_cell)
+			elif issue_cell.x >= 0 and issue_cell.y >= 0:
+				pending_map_constructor_cell = issue_cell
+				_update_map_constructor_preview_for_cell(issue_cell)
+				_show_map_constructor_inspector(issue_cell, entity_kind, entity_id)
+				_focus_map_constructor_cell(issue_cell)
+			if field_runtime != null and field_runtime.has_method("request_visual_refresh"):
+				field_runtime.call("request_visual_refresh")
+		else:
+			_clear_map_constructor_browser_selection()
+			if issue_cell.x >= 0 and issue_cell.y >= 0:
+				pending_map_constructor_cell = issue_cell
+				_update_map_constructor_preview_for_cell(issue_cell)
+				_focus_map_constructor_cell(issue_cell)
+				_show_map_constructor_inspector(issue_cell)
+	elif issue_cell.x >= 0 and issue_cell.y >= 0:
+		pending_map_constructor_cell = issue_cell
+		_update_map_constructor_preview_for_cell(issue_cell)
+		_focus_map_constructor_cell(issue_cell)
+		_show_map_constructor_inspector(issue_cell)
 	show_hint(String(issue.get("message", "Validation issue selected.")))
 
 func _on_move_forward_pressed() -> void:
