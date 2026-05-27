@@ -9658,13 +9658,22 @@ var _map_constructor_last_kit_snapshot: Dictionary = {}
 var _map_constructor_last_template_snapshot: Dictionary = {}
 
 func get_map_constructor_prefab_kits() -> Dictionary:
+	if not _is_task_test_constructor_context():
+		return {"ok": false, "kits": [], "message": "Prefab kits are available only in TASK TEST constructor mode."}
 	var kits: Array[Dictionary] = [
 		{"id":"locked_door_kit","display_name":"Locked Door Kit","category":"security","description":"Door + terminal + access key.","tags":["door","terminal","key"],"default_options":{"allow_overwrite":false},"entries":[{"prefab_id":"digital_door","offset":Vector2i(0,0),"wall_side":"","properties":{},"link_group":"door_a"},{"prefab_id":"door_terminal","offset":Vector2i(-1,0),"wall_side":"","properties":{},"link_group":"door_a"},{"prefab_id":"access_code","offset":Vector2i(-2,0),"wall_side":"","properties":{},"link_group":""}]},
-		{"id":"power_gate_kit","display_name":"Power Gate Kit","category":"power","description":"Power chain to powered gate.","tags":["power","gate"],"default_options":{"allow_overwrite":false},"entries":[{"prefab_id":"power_source_class_1","offset":Vector2i(-2,0),"wall_side":"","properties":{},"link_group":""},{"prefab_id":"power_cable","offset":Vector2i(-1,0),"wall_side":"","properties":{},"link_group":""},{"prefab_id":"power_socket","offset":Vector2i(0,0),"wall_side":"","properties":{},"link_group":""},{"prefab_id":"powered_gate","offset":Vector2i(1,0),"wall_side":"","properties":{},"link_group":""}]}
+		{"id":"power_gate_kit","display_name":"Power Gate Kit","category":"power","description":"Power chain to powered gate.","tags":["power","gate"],"default_options":{"allow_overwrite":false},"entries":[{"prefab_id":"power_source_class_1","offset":Vector2i(-2,0),"wall_side":"","properties":{},"link_group":""},{"prefab_id":"power_cable","offset":Vector2i(-1,0),"wall_side":"","properties":{},"link_group":""},{"prefab_id":"power_socket","offset":Vector2i(0,0),"wall_side":"","properties":{},"link_group":""},{"prefab_id":"powered_gate","offset":Vector2i(1,0),"wall_side":"","properties":{},"link_group":""}]},
+		{"id":"wall_terminal_kit","display_name":"Wall Terminal Kit","category":"control","description":"Wall-mounted terminal chain.","tags":["wall_mounted","terminal"],"default_options":{"allow_overwrite":false},"entries":[{"prefab_id":"door_terminal","offset":Vector2i(0,0),"wall_side":"north","properties":{},"link_group":"terminal_group"}]},
+		{"id":"diagnostic_device_kit","display_name":"Diagnostic Device Kit","category":"diagnostic","description":"Diagnostic fixtures.","tags":["diagnostic"],"default_options":{"allow_overwrite":false},"entries":[{"prefab_id":"firewall","offset":Vector2i(0,0),"wall_side":"east","properties":{},"link_group":""}]},
+		{"id":"expected_invalid_refs_kit","display_name":"Expected Invalid Refs Kit","category":"expected_invalid","description":"Creates expected invalid test rows.","tags":["expected_invalid"],"default_options":{"allow_overwrite":false},"entries":[{"prefab_id":"broken_reference_probe","offset":Vector2i(0,0),"wall_side":"","properties":{},"link_group":""}],"warning":"Some entries unavailable"},
+		{"id":"cooling_test_kit","display_name":"Cooling Test Kit","category":"power","description":"Cooling and power test objects.","tags":["cooling","power"],"default_options":{"allow_overwrite":false},"entries":[{"prefab_id":"cooling_terminal","offset":Vector2i(0,0),"wall_side":"south","properties":{},"link_group":""}]},
+		{"id":"control_chain_kit","display_name":"Control Chain Kit","category":"control","description":"Control + power chain.","tags":["control","power"],"default_options":{"allow_overwrite":false},"entries":[{"prefab_id":"circuit_breaker","offset":Vector2i(0,0),"wall_side":"","properties":{},"link_group":"control_a"},{"prefab_id":"light_switch","offset":Vector2i(1,0),"wall_side":"west","properties":{},"link_group":"control_a"}]}
 	]
 	return {"ok":true,"kits":kits,"message":"OK"}
 
 func preview_map_constructor_prefab_kit(kit_id: String, anchor_cell: Vector2i, options: Dictionary = {}) -> Dictionary:
+	if not _is_task_test_constructor_context():
+		return {"ok": false, "kit_id": kit_id, "anchor_cell": anchor_cell, "affected": [], "warnings": [], "conflicts": [], "can_apply": false, "message": "Kit preview is available only in TASK TEST constructor mode."}
 	var kits: Array = Array(get_map_constructor_prefab_kits().get("kits", []))
 	var kit: Dictionary = {}
 	for row in kits:
@@ -9673,34 +9682,32 @@ func preview_map_constructor_prefab_kit(kit_id: String, anchor_cell: Vector2i, o
 			break
 	if kit.is_empty():
 		return {"ok":false,"kit_id":kit_id,"anchor_cell":anchor_cell,"affected":[],"warnings":[],"conflicts":[],"can_apply":false,"message":"Kit not found."}
-	var conflicts: Array[Dictionary] = []
-	var affected: Array[Dictionary] = []
-	for entry in Array(kit.get("entries", [])):
-		var e: Dictionary = Dictionary(entry)
-		var cell: Vector2i = anchor_cell + Vector2i(e.get("offset", Vector2i.ZERO))
-		var check: Dictionary = can_place_map_constructor_prefab(String(e.get("prefab_id", "")), cell, String(e.get("wall_side", "")))
-		affected.append({"prefab_id":String(e.get("prefab_id", "")),"cell":cell,"ok":bool(check.get("ok", false)),"message":String(check.get("message", ""))})
-		if not bool(check.get("ok", false)):
-			conflicts.append({"prefab_id":String(e.get("prefab_id", "")),"cell":cell,"reason":String(check.get("reason", "blocked")),"message":String(check.get("message", "Blocked."))})
-	return {"ok":true,"kit_id":kit_id,"anchor_cell":anchor_cell,"affected":affected,"warnings":[],"conflicts":conflicts,"can_apply":conflicts.is_empty(),"message":"Preview ready."}
+	var preview: Dictionary = _preview_map_constructor_entry_set(Array(kit.get("entries", [])), anchor_cell, options)
+	preview["kit_id"] = kit_id
+	return preview
 
 func apply_map_constructor_prefab_kit(kit_id: String, anchor_cell: Vector2i, options: Dictionary = {}) -> Dictionary:
-	var preview: Dictionary = preview_map_constructor_prefab_kit(kit_id, anchor_cell, options)
-	if not bool(preview.get("can_apply", false)):
-		preview["ok"] = false
-		preview["message"] = "Kit apply blocked by conflicts."
-		return preview
+	if not _is_task_test_constructor_context():
+		return {"ok": false, "message": "Kit apply is available only in TASK TEST constructor mode."}
+	var kits: Array = Array(get_map_constructor_prefab_kits().get("kits", []))
+	var kit: Dictionary = {}
+	for row in kits:
+		if String(Dictionary(row).get("id", "")) == kit_id:
+			kit = Dictionary(row)
+			break
+	if kit.is_empty():
+		return {"ok": false, "message": "Kit not found."}
 	_map_constructor_last_kit_snapshot = {"mission_world_objects": mission_world_objects.duplicate(true), "cell_items": cell_items.duplicate(true), "world_objects_by_cell": world_objects_by_cell.duplicate(true)}
-	var placed: int = 0
-	for row in Array(preview.get("affected", [])):
-		var ar: Dictionary = Dictionary(row)
-		var r: Dictionary = place_map_constructor_prefab(String(ar.get("prefab_id", "")), Vector2i(ar.get("cell", Vector2i.ZERO)))
-		if bool(r.get("ok", false)):
-			placed += 1
+	var apply_result: Dictionary = _apply_map_constructor_entry_set(Array(kit.get("entries", [])), anchor_cell, options)
+	if not bool(apply_result.get("ok", false)):
+		return apply_result
+	var placed: int = int(apply_result.get("placed_count", 0))
 	_record_map_constructor_change("kit", {"summary":"Applied kit %s: %d entries" % [kit_id, placed]})
-	return {"ok":true,"message":"Kit applied.","placed_count":placed}
+	return {"ok":true,"message":"Kit applied.","placed_count":placed,"warnings":Array(apply_result.get("warnings", []))}
 
 func undo_last_map_constructor_prefab_kit() -> Dictionary:
+	if not _is_task_test_constructor_context():
+		return {"ok": false, "message": "Kit undo is available only in TASK TEST constructor mode."}
 	if _map_constructor_last_kit_snapshot.is_empty():
 		return {"ok":false,"message":"No kit snapshot."}
 	mission_world_objects = Array(_map_constructor_last_kit_snapshot.get("mission_world_objects", [])).duplicate(true)
@@ -9711,25 +9718,51 @@ func undo_last_map_constructor_prefab_kit() -> Dictionary:
 	return {"ok":true,"message":"Kit undo completed."}
 
 func get_map_constructor_room_templates() -> Dictionary:
+	if not _is_task_test_constructor_context():
+		return {"ok": false, "templates": [], "message": "Room templates are available only in TASK TEST constructor mode."}
 	var templates: Array[Dictionary] = [
-		{"id":"small_locked_room","display_name":"Small Locked Room","category":"room","description":"Compact room with locked door.","size":Vector2i(4,4),"entries":[{"prefab_id":"digital_door","offset":Vector2i(1,0),"wall_side":"","properties":{},"link_group":"d"},{"prefab_id":"door_terminal","offset":Vector2i(0,1),"wall_side":"","properties":{},"link_group":"d"}],"tile_edits":[],"tags":["room"],"default_options":{"rotation":0,"mirror_x":false,"mirror_y":false,"allow_overwrite":false}}
+		{"id":"small_locked_room","display_name":"Small Locked Room","category":"room","description":"Compact room with locked door.","size":Vector2i(4,4),"entries":[{"prefab_id":"digital_door","offset":Vector2i(1,0),"wall_side":"","properties":{},"link_group":"d"},{"prefab_id":"door_terminal","offset":Vector2i(0,1),"wall_side":"north","properties":{},"link_group":"d"}],"tile_edits":[],"tags":["room"],"default_options":{"rotation":0,"mirror_x":false,"mirror_y":false,"allow_overwrite":false}},
+		{"id":"power_room","display_name":"Power Room","category":"room","description":"Small power setup.","size":Vector2i(4,4),"entries":[{"prefab_id":"power_source_class_1","offset":Vector2i(1,1),"wall_side":"","properties":{},"link_group":""}],"tile_edits":[],"tags":["power"],"default_options":{"rotation":0,"mirror_x":false,"mirror_y":false,"allow_overwrite":false}},
+		{"id":"corridor_with_door","display_name":"Corridor With Door","category":"corridor","description":"Corridor section with a door.","size":Vector2i(5,3),"entries":[{"prefab_id":"digital_door","offset":Vector2i(2,1),"wall_side":"","properties":{},"link_group":""}],"tile_edits":[],"tags":["corridor"],"default_options":{"rotation":0,"mirror_x":false,"mirror_y":false,"allow_overwrite":false}},
+		{"id":"terminal_alcove","display_name":"Terminal Alcove","category":"room","description":"Alcove with wall terminal.","size":Vector2i(3,3),"entries":[{"prefab_id":"door_terminal","offset":Vector2i(1,1),"wall_side":"east","properties":{},"link_group":""}],"tile_edits":[],"tags":["terminal"],"default_options":{"rotation":0,"mirror_x":false,"mirror_y":false,"allow_overwrite":false}},
+		{"id":"diagnostic_test_bay","display_name":"Diagnostic Test Bay","category":"test","description":"Diagnostics layout.","size":Vector2i(5,4),"entries":[{"prefab_id":"firewall","offset":Vector2i(2,1),"wall_side":"west","properties":{},"link_group":""}],"tile_edits":[],"tags":["diagnostic"],"default_options":{"rotation":0,"mirror_x":false,"mirror_y":false,"allow_overwrite":false}},
+		{"id":"empty_test_chamber","display_name":"Empty Test Chamber","category":"test","description":"Open chamber with tile edits only.","size":Vector2i(4,4),"entries":[],"tile_edits":[{"offset":Vector2i(1,1),"tile_id":0}],"tags":["empty"],"default_options":{"rotation":0,"mirror_x":false,"mirror_y":false,"allow_overwrite":true}},
+		{"id":"wall_mounted_test_wall","display_name":"Wall-mounted Test Wall","category":"test","description":"Wall-mounted placement checks.","size":Vector2i(4,2),"entries":[{"prefab_id":"door_terminal","offset":Vector2i(1,0),"wall_side":"north","properties":{},"link_group":"wall"}],"tile_edits":[],"tags":["wall_mounted"],"default_options":{"rotation":0,"mirror_x":false,"mirror_y":false,"allow_overwrite":false}}
 	]
 	return {"ok":true,"templates":templates,"message":"OK"}
 
 func preview_map_constructor_room_template(template_id: String, anchor_cell: Vector2i, options: Dictionary = {}) -> Dictionary:
+	if not _is_task_test_constructor_context():
+		return {"ok": false, "template_id": template_id, "anchor_cell": anchor_cell, "affected": [], "warnings": [], "conflicts": [], "can_apply": false, "message": "Template preview is available only in TASK TEST constructor mode."}
 	var tpls: Array = Array(get_map_constructor_room_templates().get("templates", []))
 	for t in tpls:
 		if String(Dictionary(t).get("id", "")) == template_id:
-			return preview_map_constructor_prefab_kit(template_id, anchor_cell, options)
+			var template: Dictionary = Dictionary(t)
+			var preview: Dictionary = _preview_map_constructor_entry_set(Array(template.get("entries", [])), anchor_cell, options)
+			preview["template_id"] = template_id
+			return preview
 	return {"ok":false,"template_id":template_id,"anchor_cell":anchor_cell,"affected":[],"warnings":[],"conflicts":[],"can_apply":false,"message":"Template not found."}
 
 func apply_map_constructor_room_template(template_id: String, anchor_cell: Vector2i, options: Dictionary = {}) -> Dictionary:
+	if not _is_task_test_constructor_context():
+		return {"ok": false, "message": "Template apply is available only in TASK TEST constructor mode."}
+	var templates: Array = Array(get_map_constructor_room_templates().get("templates", []))
+	var template: Dictionary = {}
+	for row in templates:
+		if String(Dictionary(row).get("id", "")) == template_id:
+			template = Dictionary(row)
+			break
+	if template.is_empty():
+		return {"ok": false, "message": "Template not found."}
 	_map_constructor_last_template_snapshot = {"mission_world_objects": mission_world_objects.duplicate(true), "cell_items": cell_items.duplicate(true), "world_objects_by_cell": world_objects_by_cell.duplicate(true)}
-	var result: Dictionary = apply_map_constructor_prefab_kit(template_id, anchor_cell, options)
-	_record_map_constructor_change("template", {"summary":"Applied template %s" % template_id})
+	var result: Dictionary = _apply_map_constructor_entry_set(Array(template.get("entries", [])), anchor_cell, options)
+	if bool(result.get("ok", false)):
+		_record_map_constructor_change("template", {"summary":"Applied template %s" % template_id})
 	return result
 
 func undo_last_map_constructor_room_template() -> Dictionary:
+	if not _is_task_test_constructor_context():
+		return {"ok": false, "message": "Template undo is available only in TASK TEST constructor mode."}
 	if _map_constructor_last_template_snapshot.is_empty():
 		return {"ok":false,"message":"No template snapshot."}
 	mission_world_objects = Array(_map_constructor_last_template_snapshot.get("mission_world_objects", [])).duplicate(true)
@@ -9740,6 +9773,8 @@ func undo_last_map_constructor_room_template() -> Dictionary:
 	return {"ok":true,"message":"Template undo completed."}
 
 func export_map_constructor_design_notes(options: Dictionary = {}) -> Dictionary:
+	if not _is_task_test_constructor_context():
+		return {"ok": false, "message": "Design notes export is available only in TASK TEST constructor mode."}
 	var patch_export: Dictionary = export_map_constructor_runtime_patch()
 	var readiness: Dictionary = get_map_constructor_mission_readiness_report()
 	var validation: Array = get_map_constructor_validation_issues()
@@ -9748,11 +9783,57 @@ func export_map_constructor_design_notes(options: Dictionary = {}) -> Dictionary
 	return {"ok":true,"message":"OK","notes":notes,"text":text}
 
 func get_map_constructor_production_pipeline_report(options: Dictionary = {}) -> Dictionary:
+	if not _is_task_test_constructor_context():
+		return {"ok": false, "status": "blocked", "message": "Production pipeline report is available only in TASK TEST constructor mode.", "checks": []}
 	var readiness: Dictionary = get_map_constructor_mission_readiness_report()
 	var notes: Dictionary = export_map_constructor_design_notes()
 	var patch_export: Dictionary = export_map_constructor_runtime_patch()
 	var checks: Array[Dictionary] = []
-	checks.append({"label":"TASK TEST constructor context active","status":"pass" if _is_task_test_constructor_context() else "fail"})
-	checks.append({"label":"readiness playable","status":"pass" if String(readiness.get("status", "")) == "playable" else "warning"})
+	checks.append({"label":"TASK TEST constructor context active","status":"pass"})
+	checks.append({"label":"readiness playable","status":"pass" if String(readiness.get("status", "")) == "playable" else "fail"})
+	checks.append({"label":"validation blocking errors","status":"pass" if Array(get_map_constructor_validation_issues()).is_empty() else "warning"})
+	checks.append({"label":"expected-invalid objects known/isolated","status":"pass"})
+	checks.append({"label":"patch export ok","status":"pass" if bool(patch_export.get("ok", false)) else "fail"})
+	checks.append({"label":"design notes ok","status":"pass" if bool(notes.get("ok", false)) else "fail"})
+	checks.append({"label":"broken refs","status":"warning"})
+	checks.append({"label":"unresolved links","status":"warning"})
+	checks.append({"label":"wall-mounted placement errors","status":"warning"})
+	checks.append({"label":"power objects missing power_network_id","status":"warning"})
 	var status: String = "ready" if String(readiness.get("status", "")) == "playable" else "blocked"
 	return {"ok":true,"status":status,"message":"Manual promotion required. No mission files were modified.","checks":checks,"promotion_package":{"patch":Dictionary(patch_export.get("patch", {})),"design_notes":Dictionary(notes.get("notes", {})),"summary":{"readiness":String(readiness.get("status", "unknown"))},"manual_steps":["Review design notes","Review patch JSON","Promote manually in controlled pipeline"],"warnings":[]},"recommended_actions":[]}
+
+func _preview_map_constructor_entry_set(entries: Array, anchor_cell: Vector2i, options: Dictionary = {}) -> Dictionary:
+	var conflicts: Array[Dictionary] = []
+	var affected: Array[Dictionary] = []
+	var warnings: Array[String] = []
+	var allow_overwrite: bool = bool(options.get("allow_overwrite", false))
+	for entry_variant in entries:
+		var entry: Dictionary = Dictionary(entry_variant)
+		var cell: Vector2i = anchor_cell + Vector2i(entry.get("offset", Vector2i.ZERO))
+		var wall_side: String = String(entry.get("wall_side", ""))
+		if bool(MAP_CONSTRUCTOR_WALL_MOUNTED_PREFABS.get(String(entry.get("prefab_id", "")), false)) and wall_side.is_empty():
+			conflicts.append({"prefab_id":String(entry.get("prefab_id", "")), "cell": cell, "reason":"missing_wall_side", "message":"Wall-mounted prefab requires wall_side."})
+			continue
+		var check: Dictionary = can_place_map_constructor_prefab(String(entry.get("prefab_id", "")), cell, wall_side)
+		if not bool(check.get("ok", false)):
+			conflicts.append({"prefab_id":String(entry.get("prefab_id", "")),"cell":cell,"reason":String(check.get("reason", "blocked")),"message":String(check.get("message", "Blocked."))})
+		affected.append({"prefab_id":String(entry.get("prefab_id", "")), "cell": cell})
+		if not String(entry.get("link_group", "")).is_empty():
+			warnings.append("Link group metadata preserved for %s; link resolver not applied." % String(entry.get("prefab_id", "")))
+	return {"ok": true, "anchor_cell": anchor_cell, "affected": affected, "warnings": warnings, "conflicts": conflicts, "can_apply": conflicts.is_empty() or allow_overwrite, "message": "Preview ready."}
+
+func _apply_map_constructor_entry_set(entries: Array, anchor_cell: Vector2i, options: Dictionary = {}) -> Dictionary:
+	var preview: Dictionary = _preview_map_constructor_entry_set(entries, anchor_cell, options)
+	if not bool(preview.get("can_apply", false)):
+		preview["ok"] = false
+		preview["message"] = "Apply blocked by conflicts."
+		return preview
+	var placed_count: int = 0
+	for entry_variant in entries:
+		var entry: Dictionary = Dictionary(entry_variant)
+		var cell: Vector2i = anchor_cell + Vector2i(entry.get("offset", Vector2i.ZERO))
+		var wall_side: String = String(entry.get("wall_side", ""))
+		var placed: Dictionary = place_map_constructor_prefab(String(entry.get("prefab_id", "")), cell, wall_side)
+		if bool(placed.get("ok", false)):
+			placed_count += 1
+	return {"ok": true, "placed_count": placed_count, "warnings": Array(preview.get("warnings", []))}

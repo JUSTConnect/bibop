@@ -330,6 +330,18 @@ var map_constructor_batch_pending_apply_key: String = ""
 var map_constructor_batch_offset_x: int = 0
 var map_constructor_batch_offset_y: int = 0
 var map_constructor_batch_power_network_id: String = "mapedit_power_A"
+var map_constructor_selected_kit_id: String = ""
+var map_constructor_selected_template_id: String = ""
+var map_constructor_template_rotation: int = 0
+var map_constructor_template_mirror_x: bool = false
+var map_constructor_template_mirror_y: bool = false
+var map_constructor_kit_preview: Dictionary = {}
+var map_constructor_template_preview: Dictionary = {}
+var map_constructor_kit_pending_apply_key: String = ""
+var map_constructor_template_pending_apply_key: String = ""
+var map_constructor_design_notes_text: String = ""
+var map_constructor_overlay_mode: String = "None"
+var map_constructor_pipeline_report: Dictionary = {}
 var map_constructor_overview_filter: String = "All"
 var map_constructor_overview_show_issues: bool = true
 var map_constructor_overview_show_power: bool = true
@@ -10023,6 +10035,77 @@ func _refresh_map_constructor_panels() -> void:
 		_refresh_map_constructor_panels()
 	)
 	list.add_child(overlay_toggle_button)
+	var constructor_sections_title: Label = Label.new()
+	constructor_sections_title.text = "Map Constructor Milestone Tools"
+	list.add_child(constructor_sections_title)
+	var quick_kits_button: Button = Button.new()
+	quick_kits_button.text = "Preview Kit"
+	quick_kits_button.pressed.connect(func() -> void:
+		if mission_manager_runtime == null or not mission_manager_runtime.has_method("preview_map_constructor_prefab_kit"):
+			return
+		var anchor_cell: Vector2i = pending_map_constructor_cell if pending_map_constructor_cell.x >= 0 else selected_map_constructor_entity_cell
+		map_constructor_kit_preview = mission_manager_runtime.call("preview_map_constructor_prefab_kit", map_constructor_selected_kit_id, anchor_cell, {"allow_overwrite": false})
+		map_constructor_kit_pending_apply_key = "%s|%s|%s" % [map_constructor_selected_kit_id, str(anchor_cell), JSON.stringify({"allow_overwrite": false})]
+		_refresh_map_constructor_panels()
+	)
+	list.add_child(quick_kits_button)
+	var apply_kit_button: Button = Button.new()
+	apply_kit_button.text = "Apply Kit"
+	apply_kit_button.disabled = map_constructor_kit_pending_apply_key.is_empty()
+	apply_kit_button.pressed.connect(func() -> void:
+		if mission_manager_runtime == null or not mission_manager_runtime.has_method("apply_map_constructor_prefab_kit"):
+			return
+		var anchor_cell: Vector2i = pending_map_constructor_cell if pending_map_constructor_cell.x >= 0 else selected_map_constructor_entity_cell
+		var result: Dictionary = mission_manager_runtime.call("apply_map_constructor_prefab_kit", map_constructor_selected_kit_id, anchor_cell, {"allow_overwrite": false})
+		show_hint(String(result.get("message", "Kit applied.")))
+	)
+	list.add_child(apply_kit_button)
+	var template_preview_button: Button = Button.new()
+	template_preview_button.text = "Preview Template"
+	template_preview_button.pressed.connect(func() -> void:
+		if mission_manager_runtime == null or not mission_manager_runtime.has_method("preview_map_constructor_room_template"):
+			return
+		var anchor_cell: Vector2i = pending_map_constructor_cell if pending_map_constructor_cell.x >= 0 else selected_map_constructor_entity_cell
+		var options: Dictionary = {"rotation": map_constructor_template_rotation, "mirror_x": map_constructor_template_mirror_x, "mirror_y": map_constructor_template_mirror_y, "allow_overwrite": false}
+		map_constructor_template_preview = mission_manager_runtime.call("preview_map_constructor_room_template", map_constructor_selected_template_id, anchor_cell, options)
+		map_constructor_template_pending_apply_key = "%s|%s|%s" % [map_constructor_selected_template_id, str(anchor_cell), JSON.stringify(options)]
+		_refresh_map_constructor_panels()
+	)
+	list.add_child(template_preview_button)
+	var overlay_mode_option: OptionButton = OptionButton.new()
+	for overlay_name in ["None", "Selection", "Multi-select", "Validation Issues", "Expected Invalid", "Power Network", "Links", "Wall-mounted Sides"]:
+		overlay_mode_option.add_item(overlay_name)
+	var overlay_idx: int = maxi(0, ["None", "Selection", "Multi-select", "Validation Issues", "Expected Invalid", "Power Network", "Links", "Wall-mounted Sides"].find(map_constructor_overlay_mode))
+	overlay_mode_option.select(overlay_idx)
+	overlay_mode_option.item_selected.connect(func(index: int) -> void:
+		map_constructor_overlay_mode = overlay_mode_option.get_item_text(index)
+		_request_map_constructor_overlay_refresh()
+		show_hint("Overlay data ready; renderer highlight not available.")
+	)
+	list.add_child(overlay_mode_option)
+	var notes_button: Button = Button.new()
+	notes_button.text = "Generate Design Notes"
+	notes_button.pressed.connect(func() -> void:
+		if mission_manager_runtime == null or not mission_manager_runtime.has_method("export_map_constructor_design_notes"):
+			return
+		var notes_res: Dictionary = mission_manager_runtime.call("export_map_constructor_design_notes", {})
+		map_constructor_design_notes_text = String(notes_res.get("text", ""))
+		_refresh_map_constructor_panels()
+	)
+	list.add_child(notes_button)
+	var notes_edit: TextEdit = TextEdit.new()
+	notes_edit.custom_minimum_size = Vector2(0, 120)
+	notes_edit.text = map_constructor_design_notes_text
+	list.add_child(notes_edit)
+	var pipeline_button: Button = Button.new()
+	pipeline_button.text = "Build Promotion Package"
+	pipeline_button.pressed.connect(func() -> void:
+		if mission_manager_runtime == null or not mission_manager_runtime.has_method("get_map_constructor_production_pipeline_report"):
+			return
+		map_constructor_pipeline_report = mission_manager_runtime.call("get_map_constructor_production_pipeline_report", {})
+		_refresh_map_constructor_panels()
+	)
+	list.add_child(pipeline_button)
 	var refresh_audit_button: Button = Button.new()
 	refresh_audit_button.text = "Refresh Audit"
 	refresh_audit_button.pressed.connect(func() -> void:
@@ -13098,3 +13181,7 @@ func _draw_map_constructor_validation_overlay(control: Control) -> void:
 		var world_center: Vector2 = renderer.to_global(renderer.grid_to_iso(cell))
 		control.draw_circle(world_center, 10.0, color)
 		control.draw_arc(world_center, 11.0, 0.0, TAU, 14, Color(color.r, color.g, color.b, 0.9), 2.0)
+
+func _request_map_constructor_overlay_refresh() -> void:
+	if field_runtime != null and field_runtime.has_method("request_visual_refresh"):
+		field_runtime.call("request_visual_refresh")
