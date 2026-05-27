@@ -308,6 +308,8 @@ const MAP_CONSTRUCTOR_PREFAB_RECENT_LIMIT: int = 8
 var map_constructor_placed_search_text: String = ""
 var map_constructor_issue_filter: String = "All"
 var map_constructor_selected_issue_id: String = ""
+var map_constructor_cleanup_preview: Dictionary = {}
+var map_constructor_cleanup_pending_apply_key: String = ""
 const MAP_CONSTRUCTOR_ISSUE_FILTER_OPTIONS: Array[String] = ["All", "Errors", "Warnings", "Info"]
 
 const MAP_CONSTRUCTOR_PREFAB_FILTER_CATEGORIES: Array[String] = ["All", "Walls", "Doors", "Terminals", "Power", "Control", "Items", "Wall-mounted"]
@@ -9328,6 +9330,27 @@ func _select_map_constructor_entity_from_browser(row: Dictionary) -> void:
 	if field_runtime != null and field_runtime.has_method("request_visual_refresh"):
 		field_runtime.call("request_visual_refresh")
 
+func _apply_map_constructor_cleanup_action(cleanup_type: String, options: Dictionary = {}, apply_now: bool = false) -> void:
+	if mission_manager_runtime == null:
+		return
+	if not apply_now:
+		map_constructor_cleanup_preview = mission_manager_runtime.call("get_map_constructor_cleanup_preview", cleanup_type, options)
+		map_constructor_cleanup_pending_apply_key = "%s|%s" % [cleanup_type, JSON.stringify(options)]
+		show_hint(String(map_constructor_cleanup_preview.get("message", "Preview ready.")))
+		_refresh_map_constructor_panels()
+		return
+	var apply_result: Dictionary = mission_manager_runtime.call("apply_map_constructor_cleanup", cleanup_type, options)
+	show_hint(String(apply_result.get("message", "Cleanup applied.")))
+	map_constructor_cleanup_pending_apply_key = ""
+	map_constructor_cleanup_preview.clear()
+	_clear_map_constructor_preview_cell()
+	_clear_map_constructor_wall_mounted_selection()
+	_clear_map_constructor_link_target()
+	_show_map_constructor_inspector(Vector2i(-1, -1))
+	_refresh_map_constructor_panels()
+	if field_runtime != null and field_runtime.has_method("request_visual_refresh"):
+		field_runtime.call("request_visual_refresh")
+
 func _refresh_map_constructor_panels() -> void:
 	if app_screen_mode != AppScreenMode.GAMEPLAY:
 		return
@@ -9643,6 +9666,77 @@ func _refresh_map_constructor_panels() -> void:
 		_refresh_map_constructor_panels()
 	)
 	list.add_child(refresh_audit_button)
+	var cleanup_title: Label = Label.new()
+	cleanup_title.text = "Cleanup Tools"
+	list.add_child(cleanup_title)
+	var cleanup_actions: Array[Dictionary] = [
+		{"label":"Items","cleanup_type":"items","options":{}},
+		{"label":"Wall-mounted","cleanup_type":"wall_mounted","options":{}},
+		{"label":"Doors","cleanup_type":"type_group","options":{"type_group":"door"}},
+		{"label":"Terminals","cleanup_type":"type_group","options":{"type_group":"terminal"}},
+		{"label":"Power","cleanup_type":"type_group","options":{"type_group":"power"}},
+		{"label":"Control","cleanup_type":"type_group","options":{"type_group":"control"}},
+		{"label":"Invalid References","cleanup_type":"invalid_references","options":{}},
+		{"label":"All Constructor Objects","cleanup_type":"all_constructor_objects","options":{}}
+	]
+	for action in cleanup_actions:
+		var action_row: HBoxContainer = HBoxContainer.new()
+		action_row.add_theme_constant_override("separation", 4)
+		var ctype: String = String(action.get("cleanup_type", ""))
+		var coptions: Dictionary = Dictionary(action.get("options", {}))
+		var preview_button: Button = Button.new()
+		preview_button.text = "Preview %s" % String(action.get("label", ""))
+		preview_button.pressed.connect(func() -> void:
+			_apply_map_constructor_cleanup_action(ctype, coptions, false)
+		)
+		var apply_button: Button = Button.new()
+		var apply_key: String = "%s|%s" % [ctype, JSON.stringify(coptions)]
+		apply_button.text = "Delete %s" % String(action.get("label", ""))
+		if ctype == "invalid_references":
+			apply_button.text = "Clean Invalid References"
+		apply_button.disabled = map_constructor_cleanup_pending_apply_key != apply_key
+		apply_button.pressed.connect(func() -> void:
+			_apply_map_constructor_cleanup_action(ctype, coptions, true)
+		)
+		action_row.add_child(preview_button)
+		action_row.add_child(apply_button)
+		list.add_child(action_row)
+	var reset_button: Button = Button.new()
+	reset_button.text = "Reset Runtime Map"
+	reset_button.pressed.connect(func() -> void:
+		_apply_map_constructor_cleanup_action("reset_runtime_map", {}, true)
+	)
+	list.add_child(reset_button)
+	var undo_button: Button = Button.new()
+	undo_button.text = "Undo Last Cleanup"
+	undo_button.pressed.connect(func() -> void:
+		if mission_manager_runtime == null or not mission_manager_runtime.has_method("undo_last_map_constructor_cleanup"):
+			return
+		var undo_result: Dictionary = mission_manager_runtime.call("undo_last_map_constructor_cleanup")
+		show_hint(String(undo_result.get("message", "Undo done.")))
+		map_constructor_cleanup_pending_apply_key = ""
+		map_constructor_cleanup_preview.clear()
+		_refresh_map_constructor_panels()
+		if field_runtime != null and field_runtime.has_method("request_visual_refresh"):
+			field_runtime.call("request_visual_refresh")
+	)
+	list.add_child(undo_button)
+	if not map_constructor_cleanup_preview.is_empty():
+		var preview_label: Label = Label.new()
+		var affected_count: int = int(map_constructor_cleanup_preview.get("affected_count", 0))
+		var preview_ids: Array[String] = []
+		for row in Array(map_constructor_cleanup_preview.get("affected_objects", [])):
+			if preview_ids.size() >= 10:
+				break
+			preview_ids.append(String(Dictionary(row).get("id", "")))
+		var preview_ids_text: String = ""
+		for i in range(preview_ids.size()):
+			if i > 0:
+				preview_ids_text += ", "
+			preview_ids_text += preview_ids[i]
+		preview_label.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+		preview_label.text = "Cleanup preview: %d affected\n%s" % [affected_count, preview_ids_text]
+		list.add_child(preview_label)
 	var presets_title: Label = Label.new()
 	presets_title.text = "Constructor Presets"
 	list.add_child(presets_title)
