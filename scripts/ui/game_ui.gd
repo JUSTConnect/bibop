@@ -10383,7 +10383,12 @@ func _refresh_map_constructor_panels() -> void:
 			return
 		var apply_preset_result: Dictionary = mission_manager_runtime.call("apply_room_visual_preset", selected_room_visual_preset_id, {"scope":"task_test_room", "include_walls":true, "include_doors":true, "include_terminals":true})
 		show_hint(String(apply_preset_result.get("message", "Preset applied.")))
+		if bool(apply_preset_result.get("ok", false)) and mission_manager_runtime.has_method("preview_room_visual_preset"):
+			room_visual_preset_preview = mission_manager_runtime.call("preview_room_visual_preset", selected_room_visual_preset_id, {"scope":"task_test_room", "include_walls":true, "include_doors":true, "include_terminals":true})
+		else:
+			room_visual_preset_preview.clear()
 		_refresh_map_constructor_panels()
+		_request_map_constructor_overlay_refresh()
 		if field_runtime != null and field_runtime.has_method("request_visual_refresh"):
 			field_runtime.call("request_visual_refresh")
 	)
@@ -10397,6 +10402,7 @@ func _refresh_map_constructor_panels() -> void:
 		show_hint(String(clear_preset_result.get("message", "Preset overrides cleared.")))
 		room_visual_preset_preview.clear()
 		_refresh_map_constructor_panels()
+		_request_map_constructor_overlay_refresh()
 		if field_runtime != null and field_runtime.has_method("request_visual_refresh"):
 			field_runtime.call("request_visual_refresh")
 	)
@@ -13677,6 +13683,12 @@ func _sync_map_constructor_overlay_visuals() -> void:
 		"power": _build_map_constructor_overlay_power(),
 		"multi_select": map_constructor_multi_selected_entities
 	}
+	if not room_visual_preset_preview.is_empty():
+		overlay_data["room_visual_preview"] = {
+			"walls": Array(room_visual_preset_preview.get("affected_walls", [])).duplicate(true),
+			"doors": Array(room_visual_preset_preview.get("affected_doors", [])).duplicate(true),
+			"terminals": Array(room_visual_preset_preview.get("affected_terminals", [])).duplicate(true)
+		}
 	if mission_manager_runtime != null and mission_manager_runtime.has_method("get_map_constructor_validation_issues"):
 		overlay_data["validation"] = Array(mission_manager_runtime.call("get_map_constructor_validation_issues"))
 	renderer.set_map_constructor_overlay_data(overlay_data)

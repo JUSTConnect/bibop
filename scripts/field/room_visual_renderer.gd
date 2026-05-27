@@ -450,6 +450,7 @@ func draw_map_constructor_visual_overlay_passes() -> void:
 	var links: Array = Array(map_constructor_overlay_data.get("links", []))
 	var power: Array = Array(map_constructor_overlay_data.get("power", []))
 	var multi_select: Array = Array(map_constructor_overlay_data.get("multi_select", []))
+	var room_visual_preview: Dictionary = Dictionary(map_constructor_overlay_data.get("room_visual_preview", {}))
 	if hover.has("cell"):
 		var hover_cell: Vector2i = Vector2i(hover.get("cell", Vector2i(-1, -1)))
 		if hover_cell.x >= 0 and hover_cell.y >= 0:
@@ -475,6 +476,30 @@ func draw_map_constructor_visual_overlay_passes() -> void:
 				for edge_index in range(p.size()):
 					var next_index: int = (edge_index + 1) % p.size()
 					draw_line(p[edge_index], p[next_index], s, 2.2)
+	if bool(map_constructor_overlay_prefs.get("show_preview", true)):
+		for wall_row_variant in Array(room_visual_preview.get("walls", [])):
+			var wall_row: Dictionary = Dictionary(wall_row_variant)
+			var wall_cell: Vector2i = Vector2i(wall_row.get("cell", Vector2i(-1, -1)))
+			if wall_cell.x < 0 or wall_cell.y < 0:
+				continue
+			var wall_poly: PackedVector2Array = get_iso_inset_diamond_points(wall_cell, iso_floor_visual_inset + 12.0)
+			for wall_edge_index in range(wall_poly.size()):
+				var wall_next_index: int = (wall_edge_index + 1) % wall_poly.size()
+				draw_line(wall_poly[wall_edge_index], wall_poly[wall_next_index], Color(0.95, 0.74, 0.28, 0.42), 1.5)
+			var wall_center: Vector2 = grid_to_iso(wall_cell)
+			draw_circle(wall_center + Vector2(0.0, -8.0), 2.1, Color(0.45, 0.9, 1.0, 0.76))
+		for door_row_variant in Array(room_visual_preview.get("doors", [])):
+			var door_row: Dictionary = Dictionary(door_row_variant)
+			var door_cell: Vector2i = Vector2i(door_row.get("cell", Vector2i(-1, -1)))
+			if door_cell.x < 0 or door_cell.y < 0:
+				continue
+			draw_circle(grid_to_iso(door_cell) + Vector2(-5.0, -9.0), 2.8, Color(1.0, 0.76, 0.28, 0.88))
+		for terminal_row_variant in Array(room_visual_preview.get("terminals", [])):
+			var terminal_row: Dictionary = Dictionary(terminal_row_variant)
+			var terminal_cell: Vector2i = Vector2i(terminal_row.get("cell", Vector2i(-1, -1)))
+			if terminal_cell.x < 0 or terminal_cell.y < 0:
+				continue
+			draw_circle(grid_to_iso(terminal_cell) + Vector2(5.0, -9.0), 2.8, Color(0.44, 0.9, 1.0, 0.88))
 	if bool(map_constructor_overlay_prefs.get("show_multi_select", true)):
 		for row_variant in multi_select:
 			var row: Dictionary = Dictionary(row_variant)
