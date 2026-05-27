@@ -2420,6 +2420,36 @@ func get_map_constructor_wall_material(cell: Vector2i, side: String) -> Dictiona
 		return {"ok": false, "message": "No wall material override.", "override": {}}
 	return {"ok": true, "message": "OK", "override": Dictionary(_map_constructor_wall_material_overrides.get(key, {})).duplicate(true)}
 
+func get_map_constructor_wall_material_for_wall_cell(wall_cell: Vector2i) -> Dictionary:
+	if not _is_task_test_constructor_context():
+		return {"ok": false, "message": "Wall material overrides are available only in TASK TEST constructor mode.", "override": {}, "material": {}}
+	var catalog_by_id: Dictionary = {}
+	var catalog: Dictionary = get_map_constructor_wall_material_catalog()
+	for row_variant in Array(catalog.get("materials", [])):
+		if not (row_variant is Dictionary):
+			continue
+		var row: Dictionary = Dictionary(row_variant)
+		var row_id: String = String(row.get("id", "")).to_lower().strip_edges()
+		if row_id.is_empty():
+			continue
+		catalog_by_id[row_id] = row
+	var side_order: Array[String] = ["north", "east", "south", "west"]
+	for side_id in side_order:
+		for key_variant in _map_constructor_wall_material_overrides.keys():
+			var entry: Dictionary = Dictionary(_map_constructor_wall_material_overrides.get(String(key_variant), {}))
+			var override_side: String = String(entry.get("side", "")).to_lower().strip_edges()
+			if override_side != side_id:
+				continue
+			var anchor_cell: Vector2i = _deserialize_cell_variant(entry.get("cell", Vector2i(-1, -1)))
+			var attached_wall_cell: Vector2i = anchor_cell + _get_map_constructor_wall_side_delta(override_side)
+			if attached_wall_cell != wall_cell:
+				continue
+			var material_id: String = String(entry.get("material_id", "")).to_lower().strip_edges()
+			if material_id.is_empty() or not catalog_by_id.has(material_id):
+				return {"ok": false, "message": "Unknown wall material id: %s" % material_id, "override": entry.duplicate(true), "material": {}}
+			return {"ok": true, "message": "OK", "override": entry.duplicate(true), "material": Dictionary(catalog_by_id.get(material_id, {})).duplicate(true)}
+	return {"ok": false, "message": "No wall material override.", "override": {}, "material": {}}
+
 func get_map_constructor_wall_material_overrides() -> Dictionary:
 	if not _is_task_test_constructor_context():
 		return {"ok": false, "message": "Wall material overrides are available only in TASK TEST constructor mode.", "overrides": []}
