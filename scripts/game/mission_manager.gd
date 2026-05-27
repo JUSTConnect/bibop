@@ -163,6 +163,26 @@ func _deserialize_cell_key(cell_key: String) -> Vector2i:
 		return Vector2i(-1, -1)
 	return Vector2i(int(parts[0]), int(parts[1]))
 
+func _deserialize_cell_variant(cell_value: Variant) -> Vector2i:
+	if cell_value is Vector2i:
+		return Vector2i(cell_value)
+	if cell_value is String:
+		return _deserialize_cell_key(String(cell_value))
+	if cell_value is Dictionary:
+		var cell_dict: Dictionary = Dictionary(cell_value)
+		if cell_dict.has("x") and cell_dict.has("y"):
+			return Vector2i(int(cell_dict.get("x", -1)), int(cell_dict.get("y", -1)))
+	return Vector2i(-1, -1)
+
+func _is_valid_grid_cell(cell: Vector2i) -> bool:
+	if cell.x < 0 or cell.y < 0:
+		return false
+	if grid_manager != null and grid_manager.has_method("get_width") and grid_manager.has_method("get_height"):
+		var width: int = int(grid_manager.call("get_width"))
+		var height: int = int(grid_manager.call("get_height"))
+		return cell.x < width and cell.y < height
+	return true
+
 func _is_task_test_constructor_context() -> bool:
 	return String(current_mission_id) == "mission_10"
 
@@ -188,12 +208,15 @@ func get_map_constructor_preset_data() -> Dictionary:
 	var world_objects_export: Array[Dictionary] = []
 	for object_data in mission_world_objects:
 		if object_data is Dictionary:
-			world_objects_export.append(Dictionary(object_data).duplicate(true))
+			var serialized_object: Dictionary = Dictionary(object_data).duplicate(true)
+			var object_cell: Vector2i = _deserialize_cell_variant(serialized_object.get("position", Vector2i(-1, -1)))
+			serialized_object["position"] = _serialize_cell_key(object_cell)
+			world_objects_export.append(serialized_object)
 	var cell_items_export: Array[Dictionary] = []
 	for cell_variant in cell_items.keys():
 		var cell: Vector2i = Vector2i(cell_variant)
 		cell_items_export.append({
-			"cell": cell,
+			"cell": _serialize_cell_key(cell),
 			"items": get_items_at_cell(cell)
 		})
 	return {
@@ -203,7 +226,8 @@ func get_map_constructor_preset_data() -> Dictionary:
 		"world_objects": world_objects_export,
 		"cell_items": cell_items_export,
 		"grid_overrides": [],
-		"notes": "TASK TEST constructor preset"
+		"notes": "TASK TEST constructor preset",
+		"warnings": []
 	}
 
 func save_map_constructor_preset(preset_name: String) -> Dictionary:
@@ -259,18 +283,30 @@ func load_map_constructor_preset(preset_name: String) -> Dictionary:
 		return {"ok": false, "message": "Preset load failed: unsupported version.", "preset_name": sanitized_name}
 	if String(preset.get("mission_id", "")) != "mission_10":
 		return {"ok": false, "message": "Preset load failed: mission mismatch.", "preset_name": sanitized_name}
+	var warnings: Array[String] = []
 	mission_world_objects.clear()
 	world_objects_by_cell.clear()
 	cell_items.clear()
 	for object_variant in Array(preset.get("world_objects", [])):
-		if object_variant is Dictionary:
-			var object_data: Dictionary = Dictionary(object_variant).duplicate(true)
-			set_world_object_at_cell(Vector2i(object_data.get("position", Vector2i(-1, -1))), object_data)
+		if not (object_variant is Dictionary):
+			continue
+		var object_data: Dictionary = Dictionary(object_variant).duplicate(true)
+		var object_id: String = String(object_data.get("id", "<unknown>"))
+		var object_cell: Vector2i = _deserialize_cell_variant(object_data.get("position", "-1,-1"))
+		if not _is_valid_grid_cell(object_cell):
+			warnings.append("Skipped world object %s: invalid cell '%s'." % [object_id, String(object_data.get("position", "-1,-1"))])
+			continue
+		object_data["position"] = object_cell
+		set_world_object_at_cell(object_cell, object_data)
 	for cell_entry_variant in Array(preset.get("cell_items", [])):
 		if not (cell_entry_variant is Dictionary):
 			continue
 		var cell_entry: Dictionary = Dictionary(cell_entry_variant)
-		var cell: Vector2i = Vector2i(cell_entry.get("cell", Vector2i(-1, -1)))
+		var cell_raw: Variant = cell_entry.get("cell", "-1,-1")
+		var cell: Vector2i = _deserialize_cell_variant(cell_raw)
+		if not _is_valid_grid_cell(cell):
+			warnings.append("Skipped cell items entry: invalid cell '%s'." % String(cell_raw))
+			continue
 		for item_variant in Array(cell_entry.get("items", [])):
 			if item_variant is Dictionary:
 				add_item_at_cell(cell, Dictionary(item_variant).duplicate(true))
@@ -285,7 +321,7 @@ func load_map_constructor_preset(preset_name: String) -> Dictionary:
 	for network_id_variant in networks.keys():
 		PowerSystemRef.recalculate_network(mission_world_objects, String(network_id_variant))
 	refresh_world_cooling_received()
-	return {"ok": true, "message": "Preset '%s' loaded." % sanitized_name, "preset_name": sanitized_name}
+	return {"ok": true, "message": "Preset '%s' loaded." % sanitized_name, "preset_name": sanitized_name, "warnings": warnings}
 
 func delete_map_constructor_preset(preset_name: String) -> Dictionary:
 	var sanitized_name: String = _sanitize_map_constructor_preset_name(preset_name)
