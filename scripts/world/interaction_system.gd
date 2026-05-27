@@ -116,7 +116,7 @@ static func apply_action(actor: Dictionary, module: Dictionary, target_object: D
 					return _result(false, "Item does not fit this device.")
 				var interface_field := "%s_connector_level" % connection_type
 				if int(actor.get(interface_field, actor.get("connector_level", 0))) < int(target_object.get("required_connector_level", 1)):
-					return _result(false, "Interface level too low.")
+					return _result(false, "Connector level too low.")
 				target_object["connected"] = true
 				return _result(true, "Terminal connected.")
 		"hack":
@@ -195,7 +195,7 @@ static func apply_action(actor: Dictionary, module: Dictionary, target_object: D
 				var connection_type := String(target_object.get("connection_type", "wired"))
 				var interface_key := "%s_connector_level" % connection_type
 				if int(actor.get(interface_key, 0)) < required_interface:
-					return _result(false, "Interface required.")
+					return _result(false, "Connector required.")
 				return _result(true, "Platform terminal activated.", [{"type":"activate_platform"}])
 		"pickup":
 			if group == "item":
@@ -243,7 +243,7 @@ static func _validate_door_class(actor: Dictionary, target_object: Dictionary) -
 	if int(actor.get("manipulator_level", 0)) < int(target_object.get("required_manipulator_level", 1)):
 		return _result(false, "Manipulator level too low.")
 	if target_object.get("material", "") == "electromagnetic" and int(actor.get("connector_level", 0)) < int(target_object.get("required_connector_level", 0)):
-		return _result(false, "Interface level too low.")
+		return _result(false, "Connector level too low.")
 	return _result(true, "OK")
 
 static func _validate_weight_class(actor: Dictionary, target_object: Dictionary) -> Dictionary:
