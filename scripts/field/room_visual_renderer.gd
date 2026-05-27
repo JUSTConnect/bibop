@@ -1155,10 +1155,17 @@ func draw_optional_visual_texture_asset(asset_id: String, cell: Vector2i, fallba
 	var loaded: Resource = load(texture_path)
 	if loaded == null or not (loaded is Texture2D):
 		return false
+	var texture: Texture2D = loaded as Texture2D
 	var center: Vector2 = grid_to_iso(cell)
 	if options.has("visual_center"):
 		center = Vector2(options.get("visual_center", center))
-	draw_texture(loaded as Texture2D, get_iso_texture_draw_position_from_center(center, loaded as Texture2D))
+	var atlas_region: Rect2i = Rect2i(resolved.get("atlas_region", Rect2i(0, 0, 0, 0)))
+	if atlas_region.size.x > 0 and atlas_region.size.y > 0:
+		var destination_size: Vector2 = Vector2(float(atlas_region.size.x), float(atlas_region.size.y))
+		var destination_position: Vector2 = center - Vector2(destination_size.x * 0.5, destination_size.y * 0.75)
+		draw_texture_rect_region(texture, Rect2(destination_position, destination_size), Rect2(atlas_region.position, atlas_region.size))
+		return true
+	draw_texture(texture, get_iso_texture_draw_position_from_center(center, texture))
 	return true
 
 func get_wall_prototype_colors(cell: Vector2i) -> Dictionary:
