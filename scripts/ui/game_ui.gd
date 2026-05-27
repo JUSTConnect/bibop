@@ -325,8 +325,15 @@ var map_constructor_batch_pending_apply_key: String = ""
 var map_constructor_batch_offset_x: int = 0
 var map_constructor_batch_offset_y: int = 0
 var map_constructor_batch_power_network_id: String = "mapedit_power_A"
+var map_constructor_overview_filter: String = "All"
+var map_constructor_overview_show_issues: bool = true
+var map_constructor_overview_show_power: bool = true
+var map_constructor_overview_show_items: bool = true
+var map_constructor_overview_show_wall_mounted: bool = true
+var map_constructor_overview_show_history: bool = true
 const MAP_CONSTRUCTOR_ISSUE_FILTER_OPTIONS: Array[String] = ["All", "Errors", "Warnings", "Info"]
 const MAP_CONSTRUCTOR_HISTORY_FILTER_OPTIONS: Array[String] = ["All", "Placement", "Edit", "Cleanup", "Auto-fix", "Patch", "Reset"]
+const MAP_CONSTRUCTOR_OVERVIEW_FILTER_OPTIONS: Array[String] = ["All", "Issues", "Errors", "Warnings", "Expected Invalid", "Objects", "Items", "Power", "Terminals", "Doors", "Wall-mounted", "History", "Selected"]
 
 const MAP_CONSTRUCTOR_PREFAB_FILTER_CATEGORIES: Array[String] = ["All", "Walls", "Doors", "Terminals", "Power", "Control", "Items", "Wall-mounted"]
 const MAP_CONSTRUCTOR_CONTROL_PREFAB_IDS: Array[String] = [
@@ -9353,6 +9360,28 @@ func _jump_to_map_constructor_history_row(row: Dictionary) -> void:
 		_show_map_constructor_inspector(cell)
 		_focus_map_constructor_cell(cell)
 
+func _map_constructor_overview_symbol_for_cell(cell_row: Dictionary) -> String:
+	if bool(cell_row.get("has_selected", false)):
+		return "*"
+	if bool(cell_row.get("has_validation_issue", false)):
+		return "!"
+	if bool(cell_row.get("has_warning", false)):
+		return "?"
+	if bool(cell_row.get("has_expected_invalid", false)):
+		return "X"
+	if bool(cell_row.get("has_wall_mounted", false)):
+		return "W"
+	if bool(cell_row.get("has_item", false)):
+		return "I"
+	var tile_kind: String = String(cell_row.get("tile_kind", "unknown"))
+	if tile_kind == "door" or tile_kind == "gate":
+		return "D"
+	if tile_kind == "wall":
+		return "#"
+	if tile_kind == "floor":
+		return "."
+	return " "
+
 func _select_map_constructor_entity_from_browser(row: Dictionary) -> void:
 	var entity_kind: String = String(row.get("entity_kind", ""))
 	var entity_id: String = String(row.get("id", ""))
@@ -10349,6 +10378,106 @@ func _refresh_map_constructor_panels() -> void:
 		list.add_child(history_row_line)
 		shown_count += 1
 		if shown_count >= 30:
+			break
+	var overview_title: Label = Label.new()
+	overview_title.text = "Minimap / Overview"
+	list.add_child(overview_title)
+	var overview_filter: OptionButton = OptionButton.new()
+	for opt in MAP_CONSTRUCTOR_OVERVIEW_FILTER_OPTIONS:
+		overview_filter.add_item(opt)
+	var overview_filter_idx: int = MAP_CONSTRUCTOR_OVERVIEW_FILTER_OPTIONS.find(map_constructor_overview_filter)
+	if overview_filter_idx < 0:
+		overview_filter_idx = 0
+		map_constructor_overview_filter = "All"
+	overview_filter.select(overview_filter_idx)
+	overview_filter.item_selected.connect(func(index: int) -> void:
+		if index >= 0 and index < MAP_CONSTRUCTOR_OVERVIEW_FILTER_OPTIONS.size():
+			map_constructor_overview_filter = MAP_CONSTRUCTOR_OVERVIEW_FILTER_OPTIONS[index]
+			_refresh_map_constructor_panels()
+	)
+	list.add_child(overview_filter)
+	var overview_data: Dictionary = {}
+	if mission_manager_runtime != null and mission_manager_runtime.has_method("get_map_constructor_overview_data"):
+		overview_data = mission_manager_runtime.call("get_map_constructor_overview_data", {"include_validation":map_constructor_overview_show_issues, "include_history":map_constructor_overview_show_history, "selected_entities":map_constructor_multi_selected_entities, "selected_entity_id":selected_map_constructor_entity_id, "selected_entity_kind":selected_map_constructor_entity_kind, "max_history_markers":20})
+	var ov_summary: Dictionary = Dictionary(overview_data.get("summary", {}))
+	var sum_label: Label = Label.new()
+	sum_label.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	sum_label.text = "size=%dx%d objects=%d items=%d issues=%d warnings=%d expected=%d" % [int(ov_summary.get("width", 0)), int(ov_summary.get("height", 0)), int(ov_summary.get("object_count", 0)), int(ov_summary.get("item_count", 0)), int(ov_summary.get("error_count", 0)), int(ov_summary.get("warning_count", 0)), int(ov_summary.get("expected_invalid_count", 0))]
+	list.add_child(sum_label)
+	var legend_label: Label = Label.new()
+	legend_label.text = ". floor # wall D door T terminal P power I item W wall-mounted ! error ? warning * selected X expected-invalid"
+	legend_label.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	list.add_child(legend_label)
+	var jump_row: HBoxContainer = HBoxContainer.new()
+	for cfg in [{"label":"Refresh Overview","kind":"refresh"},{"label":"Jump to Selected","kind":"selected"},{"label":"Jump to First Error","kind":"validation_issue"},{"label":"Jump to First Warning","kind":"warning"},{"label":"Jump to First Expected Invalid","kind":"expected_invalid"},{"label":"Jump to Last Change","kind":"history"}]:
+		var b: Button = Button.new()
+		b.text = String(cfg.get("label", "Jump"))
+		b.pressed.connect(func() -> void:
+			if String(cfg.get("kind", "")) == "refresh":
+				_refresh_map_constructor_panels()
+				return
+			for marker_variant in Array(overview_data.get("markers", [])):
+				var marker: Dictionary = Dictionary(marker_variant)
+				var mk: String = String(marker.get("kind", ""))
+				if String(cfg.get("kind", "")) == "selected" and mk != "selected":
+					continue
+				if String(cfg.get("kind", "")) != "selected" and mk != String(cfg.get("kind", "")):
+					continue
+				_jump_to_map_constructor_history_row(marker)
+				return
+		)
+		jump_row.add_child(b)
+	list.add_child(jump_row)
+	var map_size: Vector2i = Vector2i(overview_data.get("map_size", Vector2i.ZERO))
+	if map_size.x > 80 or map_size.y > 80:
+		var large_label: Label = Label.new()
+		large_label.text = "Map is large; showing marker overview only."
+		list.add_child(large_label)
+	else:
+		var rows: Dictionary = {}
+		for cell_variant in Array(overview_data.get("cells", [])):
+			var cell_row: Dictionary = Dictionary(cell_variant)
+			var cell: Vector2i = Vector2i(cell_row.get("cell", Vector2i(-1, -1)))
+			var y: int = cell.y
+			if not rows.has(y):
+				rows[y] = []
+			rows[y].append(cell_row)
+		for y in range(map_size.y):
+			var row_box: HBoxContainer = HBoxContainer.new()
+			for x in range(map_size.x):
+				var symbol: String = " "
+				for cell_row_variant in Array(rows.get(y, [])):
+					var cr: Dictionary = Dictionary(cell_row_variant)
+					if Vector2i(cr.get("cell", Vector2i(-1, -1))).x == x:
+						symbol = _map_constructor_overview_symbol_for_cell(cr)
+						break
+				var cell_btn: Button = Button.new()
+				cell_btn.text = symbol
+				cell_btn.custom_minimum_size = Vector2(18, 18)
+				var c: Vector2i = Vector2i(x, y)
+				cell_btn.pressed.connect(func() -> void:
+					_focus_map_constructor_cell(c)
+					_show_map_constructor_inspector(c)
+				)
+				row_box.add_child(cell_btn)
+			list.add_child(row_box)
+	var markers_title: Label = Label.new()
+	markers_title.text = "Overview Markers"
+	list.add_child(markers_title)
+	var shown_markers: int = 0
+	for marker_variant in Array(overview_data.get("markers", [])):
+		var marker: Dictionary = Dictionary(marker_variant)
+		var line: HBoxContainer = HBoxContainer.new()
+		var lbl: Label = Label.new()
+		lbl.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+		lbl.text = "%s | %s | %s | %s" % [String(marker.get("status", "info")), String(marker.get("kind", "")), String(marker.get("label", "")), str(marker.get("cell", Vector2i(-1, -1)))]
+		line.add_child(lbl)
+		var jump: Button = Button.new(); jump.text = "Jump"
+		jump.pressed.connect(func() -> void: _jump_to_map_constructor_history_row(marker))
+		line.add_child(jump)
+		list.add_child(line)
+		shown_markers += 1
+		if shown_markers >= 30:
 			break
 	var presets_title: Label = Label.new()
 	presets_title.text = "Constructor Presets"

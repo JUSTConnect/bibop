@@ -271,6 +271,124 @@ func clear_map_constructor_change_history() -> Dictionary:
 	_map_constructor_change_history.clear()
 	return {"ok": true, "message": "Change history cleared.", "cleared_count": cleared_count}
 
+func _get_map_constructor_overview_tile_kind(tile_type: int) -> String:
+	if tile_type == GridManager.TILE_FLOOR or tile_type == GridManager.TILE_STEPPED_FLOOR:
+		return "floor"
+	if tile_type == GridManager.TILE_WALL:
+		return "wall"
+	if tile_type == GridManager.TILE_DOOR or tile_type == GridManager.TILE_DIGITAL_DOOR:
+		return "door"
+	if tile_type == GridManager.TILE_POWERED_GATE:
+		return "gate"
+	if tile_type == GridManager.TILE_BLOCKED:
+		return "blocked"
+	return "unknown"
+
+func get_map_constructor_overview_data(options: Dictionary = {}) -> Dictionary:
+	if not _is_task_test_constructor_context():
+		return {"ok": false, "message": "Overview is available only in TASK TEST constructor mode.", "map_size": Vector2i.ZERO, "cells": [], "markers": [], "summary": {}, "legend": []}
+	if grid_manager == null or not grid_manager.has_method("get_width") or not grid_manager.has_method("get_height") or not grid_manager.has_method("get_tile"):
+		return {"ok": false, "message": "Grid unavailable.", "map_size": Vector2i.ZERO, "cells": [], "markers": [], "summary": {}, "legend": []}
+	var width: int = int(grid_manager.call("get_width"))
+	var height: int = int(grid_manager.call("get_height"))
+	var cells: Array[Dictionary] = []
+	var markers: Array[Dictionary] = []
+	var selected_keys: Dictionary = {}
+	for row_variant in Array(options.get("selected_entities", [])):
+		var row: Dictionary = Dictionary(row_variant)
+		var sk: String = "%s|%s" % [String(row.get("entity_kind", "")), String(row.get("entity_id", ""))]
+		if not sk.ends_with("|"):
+			selected_keys[sk] = true
+	var sid: String = String(options.get("selected_entity_id", ""))
+	var skind: String = String(options.get("selected_entity_kind", ""))
+	if not sid.is_empty():
+		selected_keys["%s|%s" % [skind, sid]] = true
+	var issues: Array[Dictionary] = get_map_constructor_validation_issues() if bool(options.get("include_validation", true)) else []
+	var issue_by_cell: Dictionary = {}
+	for iv in issues:
+		var issue: Dictionary = Dictionary(iv)
+		var c: Vector2i = Vector2i(issue.get("cell", Vector2i(-1, -1)))
+		var key: String = _serialize_cell_key(c)
+		if not issue_by_cell.has(key):
+			issue_by_cell[key] = []
+		issue_by_cell[key].append(issue)
+		var sev: String = String(issue.get("severity", "error"))
+		markers.append({"id":"issue_%s" % String(issue.get("id", key)), "kind":"warning" if sev == "warning" else "validation_issue", "label":String(issue.get("code", sev)), "cell":c, "entity_kind":String(issue.get("entity_kind", "")), "entity_id":String(issue.get("entity_id", "")), "status":"warning" if sev == "warning" else "error", "message":String(issue.get("message", ""))})
+	var object_count: int = 0
+	var item_count: int = 0
+	var wall_mounted_count: int = 0
+	var selected_count: int = 0
+	var visible_cells: int = 0
+	for y in range(height):
+		for x in range(width):
+			var cell: Vector2i = Vector2i(x, y)
+			var cell_key: String = _serialize_cell_key(cell)
+			var tile_type: int = int(grid_manager.call("get_tile", cell))
+			var objects_here: Array = Array(world_objects_by_cell.get(cell, []))
+			var items_here: Array = Array(cell_items.get(cell, []))
+			var has_wall_mounted: bool = false
+			var has_power: bool = false
+			var has_terminal: bool = false
+			var has_selected: bool = false
+			for ov in objects_here:
+				if not (ov is Dictionary):
+					continue
+				var od: Dictionary = Dictionary(ov)
+				var oid: String = String(od.get("id", ""))
+				if bool(od.get("is_wall_mounted", false)):
+					has_wall_mounted = true
+				var og: String = String(od.get("object_group", "")).to_lower()
+				if og == "power":
+					has_power = true
+				if og == "terminal":
+					has_terminal = true
+				if selected_keys.has("world_object|%s" % oid):
+					has_selected = true
+					markers.append({"id":"selected_world_%s" % oid, "kind":"selected", "label":"Selected object", "cell":cell, "entity_kind":"world_object", "entity_id":oid, "status":"info", "message":"Selected object."})
+			for it in items_here:
+				if not (it is Dictionary):
+					continue
+				var iid: String = String(Dictionary(it).get("id", ""))
+				if selected_keys.has("item|%s" % iid):
+					has_selected = true
+					markers.append({"id":"selected_item_%s" % iid, "kind":"selected", "label":"Selected item", "cell":cell, "entity_kind":"item", "entity_id":iid, "status":"info", "message":"Selected item."})
+			var cell_issues: Array = Array(issue_by_cell.get(cell_key, []))
+			var has_warning: bool = false
+			var has_error: bool = false
+			for iv in cell_issues:
+				var sev: String = String(Dictionary(iv).get("severity", "error"))
+				has_warning = has_warning or sev == "warning"
+				has_error = has_error or sev != "warning"
+			var has_expected_invalid: bool = false
+			for ov2 in objects_here:
+				var od2: Dictionary = Dictionary(ov2)
+				var oid2: String = String(od2.get("id", ""))
+				if not oid2.is_empty() and is_task_test_expected_invalid_object_id(oid2):
+					has_expected_invalid = true
+					markers.append({"id":"expected_%s" % oid2, "kind":"expected_invalid", "label":"Expected invalid", "cell":cell, "entity_kind":"world_object", "entity_id":oid2, "status":"expected_invalid", "message":"Expected invalid object."})
+			var visible: bool = grid_manager.has_method("is_cell_visible") and bool(grid_manager.call("is_cell_visible", cell))
+			visible_cells += 1 if visible else 0
+			var density: int = objects_here.size() + items_here.size()
+			cells.append({"cell":cell, "tile_type":tile_type, "tile_kind":_get_map_constructor_overview_tile_kind(tile_type), "visible":visible, "object_count":objects_here.size(), "item_count":items_here.size(), "has_world_object":objects_here.size() > 0, "has_item":items_here.size() > 0, "has_wall_mounted":has_wall_mounted, "has_validation_issue":has_error, "has_warning":has_warning, "has_expected_invalid":has_expected_invalid, "has_selected":has_selected, "density":density})
+			object_count += objects_here.size(); item_count += items_here.size()
+			if has_wall_mounted: wall_mounted_count += 1
+			if has_selected: selected_count += 1
+			if has_power: markers.append({"id":"power_%s" % cell_key, "kind":"power", "label":"Power", "cell":cell, "entity_kind":"", "entity_id":"", "status":"info", "message":"Power object in cell."})
+			if has_terminal: markers.append({"id":"terminal_%s" % cell_key, "kind":"terminal", "label":"Terminal", "cell":cell, "entity_kind":"", "entity_id":"", "status":"info", "message":"Terminal in cell."})
+	if bool(options.get("include_history", true)):
+		var history: Array = Array(get_map_constructor_change_history(int(options.get("max_history_markers", 20))).get("history", []))
+		for rowv in history:
+			var row: Dictionary = Dictionary(rowv)
+			var hcell: Vector2i = Vector2i(row.get("cell", Vector2i(-1, -1)))
+			if hcell.x >= 0 and hcell.y >= 0:
+				markers.append({"id":"history_%s" % String(row.get("seq", "")), "kind":"history", "label":String(row.get("action_type", "change")), "cell":hcell, "entity_kind":String(row.get("entity_kind", "")), "entity_id":String(row.get("entity_id", "")), "status":"info", "message":String(row.get("summary", ""))})
+	var readiness: Dictionary = get_map_constructor_mission_readiness_report()
+	var summary: Dictionary = {"width":width, "height":height, "visible_cells":visible_cells, "object_count":object_count, "item_count":item_count, "wall_mounted_count":wall_mounted_count, "validation_issue_count":issues.size(), "error_count":int(Dictionary(readiness.get("summary", {})).get("error_count", 0)), "warning_count":int(Dictionary(readiness.get("summary", {})).get("warning_count", 0)), "expected_invalid_count":0, "selected_count":selected_count}
+	for m in markers:
+		if String(Dictionary(m).get("kind", "")) == "expected_invalid":
+			summary["expected_invalid_count"] = int(summary.get("expected_invalid_count", 0)) + 1
+	return {"ok": true, "message": "Overview ready.", "map_size": Vector2i(width, height), "cells": cells, "markers": markers, "summary": summary, "legend": [{"symbol":".","kind":"floor"},{"symbol":"#","kind":"wall"},{"symbol":"D","kind":"door"},{"symbol":"T","kind":"terminal"},{"symbol":"P","kind":"power"},{"symbol":"I","kind":"item"},{"symbol":"W","kind":"wall_mounted"},{"symbol":"!","kind":"error"},{"symbol":"?","kind":"warning"},{"symbol":"*","kind":"selected"},{"symbol":"X","kind":"expected_invalid"}]}
+
 func _map_constructor_is_protected_id(entity_id: String) -> bool:
 	var normalized: String = entity_id.strip_edges().to_lower()
 	return normalized == "bipob" or normalized == "start_marker" or normalized == "exit_marker"
