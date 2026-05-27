@@ -9652,6 +9652,45 @@ func _show_map_constructor_inspector(cell: Vector2i) -> void:
 		_refresh_map_constructor_panels()
 		_show_map_constructor_inspector(Vector2i(-1, -1))
 	)
+	var target_row: HBoxContainer = HBoxContainer.new()
+	target_row.add_theme_constant_override("separation", 4)
+	var tx: LineEdit = LineEdit.new()
+	tx.placeholder_text = "target x"
+	tx.custom_minimum_size = Vector2(70, 0)
+	var ty: LineEdit = LineEdit.new()
+	ty.placeholder_text = "target y"
+	ty.custom_minimum_size = Vector2(70, 0)
+	target_row.add_child(tx)
+	target_row.add_child(ty)
+	var move_button: Button = Button.new()
+	move_button.text = "Move"
+	move_button.pressed.connect(func() -> void:
+		if mission_manager_runtime == null or not mission_manager_runtime.has_method("move_map_constructor_entity_to_cell"):
+			return
+		var target_cell: Vector2i = Vector2i(int(tx.text), int(ty.text))
+		var move_result: Dictionary = mission_manager_runtime.call("move_map_constructor_entity_to_cell", entity_kind, entity_id, target_cell, selected_map_constructor_wall_side)
+		show_hint(String(move_result.get("message", "Move done.")))
+		if field_runtime != null and field_runtime.has_method("request_visual_refresh"):
+			field_runtime.call("request_visual_refresh")
+		_refresh_map_constructor_panels()
+		_show_map_constructor_inspector(target_cell)
+	)
+	target_row.add_child(move_button)
+	var dup_button: Button = Button.new()
+	dup_button.text = "Duplicate"
+	dup_button.pressed.connect(func() -> void:
+		if mission_manager_runtime == null or not mission_manager_runtime.has_method("duplicate_map_constructor_entity_to_cell"):
+			return
+		var target_cell: Vector2i = Vector2i(int(tx.text), int(ty.text))
+		var dup_result: Dictionary = mission_manager_runtime.call("duplicate_map_constructor_entity_to_cell", entity_kind, entity_id, target_cell, selected_map_constructor_wall_side)
+		show_hint(String(dup_result.get("message", "Duplicate done.")))
+		if field_runtime != null and field_runtime.has_method("request_visual_refresh"):
+			field_runtime.call("request_visual_refresh")
+		_refresh_map_constructor_panels()
+		_show_map_constructor_inspector(target_cell)
+	)
+	target_row.add_child(dup_button)
+	v.add_child(target_row)
 	v.add_child(del)
 	runtime_map_constructor_inspector_panel = panel
 	runtime_hud_root.add_child(panel)

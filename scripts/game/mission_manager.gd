@@ -1345,37 +1345,77 @@ func place_map_constructor_prefab(prefab_id: String, cell: Vector2i, preferred_w
 	result["object_id"] = object_id
 	return result
 
-func remove_map_constructor_object_at_cell(cell: Vector2i) -> Dictionary:
-	var result: Dictionary = {"ok": false, "message": "Nothing to remove.", "object_id": "", "warnings": []}
-	var existing: Dictionary = get_world_object_at_cell(cell)
-	if existing.is_empty():
-		var items: Array[Dictionary] = get_items_at_cell(cell)
-		for index in range(items.size() - 1, -1, -1):
-			var item_data: Dictionary = items[index]
-			if bool(item_data.get("created_by_map_constructor", false)):
+
+func _remove_map_constructor_entity_by_id(entity_kind: String, entity_id: String) -> Dictionary:
+	if entity_kind == "item":
+		for cell_variant in cell_items.keys():
+			var cell: Vector2i = Vector2i(cell_variant)
+			var items: Array[Dictionary] = get_items_at_cell(cell)
+			for index in range(items.size() - 1, -1, -1):
+				var item_data: Dictionary = items[index]
+				if String(item_data.get("id", "")) != entity_id:
+					continue
+				if not bool(item_data.get("created_by_map_constructor", false)):
+					return {"ok": false, "message": "Cannot remove non-constructor item.", "object_id": entity_id, "warnings": []}
 				items.remove_at(index)
 				cell_items[cell] = items
 				mission_world_objects.erase(item_data)
-				result["ok"] = true
-				result["object_id"] = String(item_data.get("id", ""))
-				result["message"] = "Removed item."
 				PowerSystemRef.recalculate_network(mission_world_objects, "")
 				refresh_world_cooling_received()
-				return result
-		return result
-	var removed_network_id: String = String(existing.get("power_network_id", ""))
-	if bool(existing.get("created_by_map_constructor", false)) and grid_manager != null and grid_manager.has_method("set_tile"):
+				return {"ok": true, "message": "Removed item.", "object_id": entity_id, "warnings": []}
+		return {"ok": false, "message": "Nothing to remove.", "object_id": "", "warnings": []}
+	var object_data: Dictionary = get_world_object_by_id(entity_id)
+	if object_data.is_empty():
+		return {"ok": false, "message": "Nothing to remove.", "object_id": "", "warnings": []}
+	if not bool(object_data.get("created_by_map_constructor", false)):
+		return {"ok": false, "message": "Cannot remove non-constructor object.", "object_id": entity_id, "warnings": []}
+	var object_cell: Vector2i = Vector2i(object_data.get("position", Vector2i(-1, -1)))
+	var removed_network_id: String = String(object_data.get("power_network_id", ""))
+	if grid_manager != null and grid_manager.has_method("set_tile"):
 		var restore_tile_type: int = GridManager.TILE_FLOOR
-		if existing.has("map_constructor_previous_tile_type"):
-			restore_tile_type = int(existing.get("map_constructor_previous_tile_type", GridManager.TILE_FLOOR))
-		grid_manager.call("set_tile", cell, restore_tile_type)
-	result["ok"] = true
-	result["object_id"] = String(existing.get("id", ""))
-	result["message"] = "Removed object."
-	remove_world_object_at_cell(cell)
+		if object_data.has("map_constructor_previous_tile_type"):
+			restore_tile_type = int(object_data.get("map_constructor_previous_tile_type", GridManager.TILE_FLOOR))
+		grid_manager.call("set_tile", object_cell, restore_tile_type)
+	remove_world_object_at_cell(object_cell)
 	PowerSystemRef.recalculate_network(mission_world_objects, removed_network_id)
 	refresh_world_cooling_received()
-	return result
+	return {"ok": true, "message": "Removed object.", "object_id": entity_id, "warnings": []}
+
+func move_map_constructor_entity_to_cell(entity_kind: String, entity_id: String, target_cell: Vector2i, preferred_wall_side: String = "") -> Dictionary:
+	var entity: Dictionary = get_map_constructor_entity_by_id(entity_kind, entity_id)
+	if not bool(entity.get("ok", false)):
+		return {"ok": false, "message": "Move failed: entity not found."}
+	var data: Dictionary = Dictionary(entity.get("data", {}))
+	var prefab_id: String = String(data.get("map_constructor_prefab_id", data.get("object_type", "")))
+	var remove_result: Dictionary = _remove_map_constructor_entity_by_id(String(entity.get("entity_kind", entity_kind)), entity_id)
+	if not bool(remove_result.get("ok", false)):
+		return {"ok": false, "message": String(remove_result.get("message", "Move failed."))}
+	var place_result: Dictionary = place_map_constructor_prefab(prefab_id, target_cell, preferred_wall_side)
+	if bool(place_result.get("ok", false)):
+		return {"ok": true, "message": "Moved object.", "object_id": String(place_result.get("object_id", ""))}
+	var rollback_cell: Vector2i = Vector2i(entity.get("cell", Vector2i(-1, -1)))
+	place_map_constructor_prefab(prefab_id, rollback_cell, String(data.get("wall_side", "")))
+	return {"ok": false, "message": String(place_result.get("message", "Move failed."))}
+
+func duplicate_map_constructor_entity_to_cell(entity_kind: String, entity_id: String, target_cell: Vector2i, preferred_wall_side: String = "") -> Dictionary:
+	var entity: Dictionary = get_map_constructor_entity_by_id(entity_kind, entity_id)
+	if not bool(entity.get("ok", false)):
+		return {"ok": false, "message": "Duplicate failed: entity not found."}
+	var data: Dictionary = Dictionary(entity.get("data", {}))
+	var prefab_id: String = String(data.get("map_constructor_prefab_id", data.get("object_type", "")))
+	var side: String = preferred_wall_side
+	if side.strip_edges().is_empty() and String(data.get("placement_mode", "")) == "wall_mounted":
+		side = String(data.get("wall_side", ""))
+	var place_result: Dictionary = place_map_constructor_prefab(prefab_id, target_cell, side)
+	if not bool(place_result.get("ok", false)):
+		return {"ok": false, "message": String(place_result.get("message", "Duplicate failed."))}
+	return {"ok": true, "message": "Duplicated object.", "object_id": String(place_result.get("object_id", ""))}
+
+func remove_map_constructor_object_at_cell(cell: Vector2i) -> Dictionary:
+	var entity: Dictionary = get_map_constructor_editable_entity_at_cell(cell)
+	if not bool(entity.get("ok", false)):
+		return {"ok": false, "message": "Nothing to remove.", "object_id": "", "warnings": []}
+	return _remove_map_constructor_entity_by_id(String(entity.get("entity_kind", "")), String(entity.get("id", "")))
 
 func _get_map_constructor_wall_mounted_match_score(object_data: Dictionary, cell: Vector2i) -> int:
 	if String(object_data.get("placement_mode", "")) != "wall_mounted":
