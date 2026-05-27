@@ -638,28 +638,56 @@ func get_map_constructor_prefab_catalog() -> Array[Dictionary]:
 	]
 
 func can_place_map_constructor_prefab(prefab_id: String, cell: Vector2i) -> Dictionary:
-	var result := {"ok": false, "message": "Cannot place prefab.", "object_id": "", "warnings": []}
-	if grid_manager == null or not grid_manager.has_method("is_in_bounds") or not bool(grid_manager.call("is_in_bounds", cell)):
-		result["message"] = "Out of bounds."
+	var result: Dictionary = {"ok": false, "reason": "unsupported_prefab", "message": "Blocked: unsupported prefab.", "cell_state": get_runtime_cell_state(cell)}
+	var is_supported: bool = false
+	for entry in get_map_constructor_prefab_catalog():
+		if String(entry.get("id", "")) == prefab_id:
+			is_supported = true
+			break
+	if not is_supported:
+		return result
+	var cell_state: Dictionary = get_runtime_cell_state(cell)
+	result["cell_state"] = cell_state
+	if not bool(cell_state.get("in_bounds", false)):
+		result["reason"] = "out_of_bounds"
+		result["message"] = "Blocked: out of bounds."
 		return result
 	if active_bipob_ref != null and Vector2i(active_bipob_ref.get("grid_position", Vector2i(-1, -1))) == cell:
-		result["message"] = "Cannot place under Bipob."
+		result["reason"] = "occupied_by_bipob"
+		result["message"] = "Blocked: existing object."
 		return result
-	var existing: Dictionary = get_world_object_at_cell(cell)
-	if MAP_CONSTRUCTOR_SOLID_PREFABS.has(prefab_id) and not existing.is_empty():
-		var existing_type: String = String(existing.get("object_type", ""))
-		if MAP_CONSTRUCTOR_SOLID_PREFABS.has(existing_type):
-			result["message"] = "Cell already has solid object."
+	var prefab_is_item: bool = prefab_id in ["mechanical_key", "digital_key", "access_code"]
+	var existing_object: Dictionary = get_world_object_at_cell(cell)
+	if not prefab_is_item and not existing_object.is_empty():
+		result["reason"] = "existing_object"
+		result["message"] = "Blocked: existing object."
+		return result
+	if bool(cell_state.get("has_object", false)) and bool(cell_state.get("blocks_movement", false)) and MAP_CONSTRUCTOR_SOLID_PREFABS.has(prefab_id):
+		result["reason"] = "wall_or_static"
+		result["message"] = "Blocked: wall/static obstacle."
+		return result
+	if bool(cell_state.get("has_object", false)):
+		var existing_data: Dictionary = get_world_object_at_cell(cell)
+		if bool(existing_data.get("mission_exit", false)) or bool(existing_data.get("extraction", false)):
+			result["reason"] = "exit_cell"
+			result["message"] = "Blocked: exit cell."
+			return result
+	if prefab_id != "powered_gate":
+		var tile_name: String = String(cell_state.get("tile_name", "")).to_lower()
+		if tile_name.find("exit") >= 0 or tile_name.find("extraction") >= 0:
+			result["reason"] = "exit_cell"
+			result["message"] = "Blocked: exit cell."
 			return result
 	result["ok"] = true
-	result["message"] = "Placement possible."
+	result["reason"] = "ok"
+	result["message"] = "OK"
 	return result
 
 func place_map_constructor_prefab(prefab_id: String, cell: Vector2i) -> Dictionary:
-	var check := can_place_map_constructor_prefab(prefab_id, cell)
+	var check: Dictionary = can_place_map_constructor_prefab(prefab_id, cell)
 	if not bool(check.get("ok", false)):
 		return check
-	var result := {"ok": true, "message": "Placed %s." % prefab_id, "object_id": "", "warnings": []}
+	var result: Dictionary = {"ok": true, "message": "Placed %s." % prefab_id, "object_id": "", "warnings": []}
 	var previous_tile_type: int = GridManager.TILE_FLOOR
 	if grid_manager != null and grid_manager.has_method("get_tile"):
 		previous_tile_type = int(grid_manager.call("get_tile", cell))
@@ -696,14 +724,17 @@ func place_map_constructor_prefab(prefab_id: String, cell: Vector2i) -> Dictiona
 		"map_constructor_previous_tile_type": previous_tile_type
 	}
 	set_world_object_at_cell(cell, object_data)
+	PowerSystemRef.recalculate_network(mission_world_objects, String(object_data.get("power_network_id", "")))
+	refresh_world_cooling_received()
 	result["object_id"] = object_id
 	return result
 
 func remove_map_constructor_object_at_cell(cell: Vector2i) -> Dictionary:
-	var result := {"ok": false, "message": "Nothing to remove.", "object_id": "", "warnings": []}
+	var result: Dictionary = {"ok": false, "message": "Nothing to remove.", "object_id": "", "warnings": []}
 	var existing: Dictionary = get_world_object_at_cell(cell)
 	if existing.is_empty():
 		return result
+	var removed_network_id: String = String(existing.get("power_network_id", ""))
 	if bool(existing.get("created_by_map_constructor", false)) and grid_manager != null and grid_manager.has_method("set_tile"):
 		var restore_tile_type: int = GridManager.TILE_FLOOR
 		if existing.has("map_constructor_previous_tile_type"):
@@ -713,7 +744,34 @@ func remove_map_constructor_object_at_cell(cell: Vector2i) -> Dictionary:
 	result["object_id"] = String(existing.get("id", ""))
 	result["message"] = "Removed object."
 	remove_world_object_at_cell(cell)
+	PowerSystemRef.recalculate_network(mission_world_objects, removed_network_id)
+	refresh_world_cooling_received()
 	return result
+
+func get_map_constructor_audit_summary() -> Dictionary:
+	var audit: Dictionary = get_task_test_system_audit_report()
+	return {
+		"ok": bool(audit.get("ok", false)),
+		"missing_coverage_count": Array(audit.get("missing_coverage", [])).size(),
+		"invalid_links_count": Array(audit.get("invalid_links", [])).size(),
+		"expected_invalid_links_count": Array(audit.get("expected_invalid_links", [])).size(),
+		"runtime_warnings_count": Array(audit.get("runtime_cell_warnings", [])).size(),
+		"duplicate_cell_warnings_count": Array(audit.get("duplicate_cell_warnings", [])).size(),
+		"objects_without_tags_count": Array(audit.get("objects_without_audit_tags", [])).size()
+	}
+
+func get_map_constructor_audit_summary_text() -> String:
+	var summary: Dictionary = get_map_constructor_audit_summary()
+	var status: String = "WARN"
+	if bool(summary.get("ok", false)):
+		status = "OK"
+	return "Audit %s | missing=%d invalid=%d runtime=%d duplicates=%d" % [
+		status,
+		int(summary.get("missing_coverage_count", 0)),
+		int(summary.get("invalid_links_count", 0)),
+		int(summary.get("runtime_warnings_count", 0)),
+		int(summary.get("duplicate_cell_warnings_count", 0))
+	]
 
 func get_world_object_by_id(id: String) -> Dictionary:
 	for object_data in mission_world_objects:

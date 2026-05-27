@@ -8872,7 +8872,12 @@ func _handle_map_constructor_left_click(cell: Vector2i) -> void:
 		return
 	if pending_map_constructor_cell != cell:
 		pending_map_constructor_cell = cell
-		show_hint("Preview: %s at %s" % [selected_map_constructor_prefab_id, str(cell)])
+		var preview_message: String = "Preview: %s at %s" % [selected_map_constructor_prefab_id, str(cell)]
+		if mission_manager_runtime != null and mission_manager_runtime.has_method("can_place_map_constructor_prefab"):
+			var preview_check: Dictionary = mission_manager_runtime.call("can_place_map_constructor_prefab", selected_map_constructor_prefab_id, cell)
+			preview_message = String(preview_check.get("message", preview_message))
+		show_hint(preview_message)
+		_refresh_map_constructor_panels()
 		return
 	if mission_manager_runtime == null or not mission_manager_runtime.has_method("place_map_constructor_prefab"):
 		return
@@ -8917,6 +8922,49 @@ func _refresh_map_constructor_panels() -> void:
 				_refresh_map_constructor_panels()
 			)
 			list.add_child(b)
+	var placement_label: Label = Label.new()
+	placement_label.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	placement_label.text = "Placement: blocked: unsupported prefab"
+	if pending_map_constructor_cell.x >= 0 and pending_map_constructor_cell.y >= 0 and not selected_map_constructor_prefab_id.is_empty():
+		if mission_manager_runtime != null and mission_manager_runtime.has_method("can_place_map_constructor_prefab"):
+			var check: Dictionary = mission_manager_runtime.call("can_place_map_constructor_prefab", selected_map_constructor_prefab_id, pending_map_constructor_cell)
+			var reason: String = String(check.get("reason", "unsupported_prefab"))
+			match reason:
+				"ok":
+					placement_label.text = "Placement: OK"
+				"existing_object", "occupied_by_bipob":
+					placement_label.text = "Placement: blocked: existing object"
+				"out_of_bounds":
+					placement_label.text = "Placement: blocked: out of bounds"
+				"exit_cell":
+					placement_label.text = "Placement: blocked: exit cell"
+				"wall_or_static":
+					placement_label.text = "Placement: blocked: wall/static obstacle"
+				_:
+					placement_label.text = "Placement: blocked: unsupported prefab"
+	list.add_child(placement_label)
+	var audit_label: Label = Label.new()
+	audit_label.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	audit_label.text = "Audit: unavailable"
+	if mission_manager_runtime != null and mission_manager_runtime.has_method("get_map_constructor_audit_summary"):
+		var audit_summary: Dictionary = mission_manager_runtime.call("get_map_constructor_audit_summary")
+		var audit_status: String = "WARN"
+		if bool(audit_summary.get("ok", false)):
+			audit_status = "OK"
+		audit_label.text = "Audit: %s m=%d i=%d r=%d d=%d" % [
+			audit_status,
+			int(audit_summary.get("missing_coverage_count", 0)),
+			int(audit_summary.get("invalid_links_count", 0)),
+			int(audit_summary.get("runtime_warnings_count", 0)),
+			int(audit_summary.get("duplicate_cell_warnings_count", 0))
+		]
+	list.add_child(audit_label)
+	var refresh_audit_button: Button = Button.new()
+	refresh_audit_button.text = "Refresh Audit"
+	refresh_audit_button.pressed.connect(func() -> void:
+		_refresh_map_constructor_panels()
+	)
+	list.add_child(refresh_audit_button)
 	runtime_hud_root.add_child(runtime_map_constructor_palette_panel)
 
 func _show_map_constructor_inspector(cell: Vector2i) -> void:
