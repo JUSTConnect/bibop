@@ -343,6 +343,7 @@ var map_constructor_kit_preview_can_apply: bool = false
 var map_constructor_template_preview_can_apply: bool = false
 var map_constructor_design_notes_text: String = ""
 var map_constructor_overlay_mode: String = "None"
+var map_constructor_overlay_visibility: Dictionary = {"show_preview": true, "show_validation": true, "show_links": true, "show_power": true, "show_wall_side_arrows": true, "show_multi_select": true}
 var map_constructor_pipeline_report: Dictionary = {}
 var map_constructor_overview_filter: String = "All"
 var map_constructor_overview_show_issues: bool = true
@@ -9024,6 +9025,7 @@ func _toggle_map_constructor_mode() -> void:
 		return
 	map_constructor_mode_active = true
 	map_constructor_validation_overlay_visible = true
+	_request_map_constructor_overlay_refresh()
 	if bipob != null:
 		bipob.map_constructor_input_blocked = true
 	show_hint("Map Constructor Mode")
@@ -10037,6 +10039,35 @@ func _refresh_map_constructor_panels() -> void:
 		_refresh_map_constructor_panels()
 	)
 	list.add_child(overlay_toggle_button)
+	var overlay_section_title: Label = Label.new()
+	overlay_section_title.text = "Overlay"
+	list.add_child(overlay_section_title)
+	for row_variant in [
+		{"key":"show_preview", "label":"Show Placement Preview"},
+		{"key":"show_validation", "label":"Show Validation Markers"},
+		{"key":"show_links", "label":"Show Links"},
+		{"key":"show_power", "label":"Show Power Networks"},
+		{"key":"show_wall_side_arrows", "label":"Show Wall-side Arrows"},
+		{"key":"show_multi_select", "label":"Show Multi-select"}
+	]:
+		var row: Dictionary = Dictionary(row_variant)
+		var toggle: CheckBox = CheckBox.new()
+		toggle.text = String(row.get("label", ""))
+		var pref_key: String = String(row.get("key", ""))
+		toggle.button_pressed = bool(map_constructor_overlay_visibility.get(pref_key, true))
+		toggle.toggled.connect(func(enabled: bool) -> void:
+			map_constructor_overlay_visibility[pref_key] = enabled
+			_request_map_constructor_overlay_refresh()
+		)
+		list.add_child(toggle)
+	var reset_overlay_button: Button = Button.new()
+	reset_overlay_button.text = "Reset Overlay Visibility"
+	reset_overlay_button.pressed.connect(func() -> void:
+		map_constructor_overlay_visibility = {"show_preview": true, "show_validation": true, "show_links": true, "show_power": true, "show_wall_side_arrows": true, "show_multi_select": true}
+		_request_map_constructor_overlay_refresh()
+		_refresh_map_constructor_panels()
+	)
+	list.add_child(reset_overlay_button)
 	var constructor_sections_title: Label = Label.new()
 	constructor_sections_title.text = "Map Constructor Milestone Tools"
 	list.add_child(constructor_sections_title)
@@ -13529,6 +13560,29 @@ func _draw_map_constructor_validation_overlay(control: Control) -> void:
 		control.draw_circle(world_center, 10.0, color)
 		control.draw_arc(world_center, 11.0, 0.0, TAU, 14, Color(color.r, color.g, color.b, 0.9), 2.0)
 
+
+func _sync_map_constructor_overlay_visuals() -> void:
+	if field_runtime == null:
+		return
+	var renderer_node: Node = field_runtime.get_node_or_null("RoomVisualRenderer")
+	if renderer_node == null or not (renderer_node is RoomVisualRenderer):
+		return
+	var renderer: RoomVisualRenderer = renderer_node
+	renderer.set_map_constructor_overlay_preferences(map_constructor_overlay_visibility)
+	var overlay_data: Dictionary = {
+		"selected": {"cell": selected_map_constructor_entity_cell, "wall_side": selected_map_constructor_wall_side},
+		"hover": {"cell": pending_map_constructor_cell},
+		"preview": {"mode": "destructive" if not map_constructor_cleanup_preview.is_empty() else "place", "wall_side": selected_map_constructor_wall_side},
+		"validation": [],
+		"links": [],
+		"power": [],
+		"multi_select": map_constructor_multi_selected_entities
+	}
+	if mission_manager_runtime != null and mission_manager_runtime.has_method("get_map_constructor_validation_issues"):
+		overlay_data["validation"] = Array(mission_manager_runtime.call("get_map_constructor_validation_issues"))
+	renderer.set_map_constructor_overlay_data(overlay_data)
+
 func _request_map_constructor_overlay_refresh() -> void:
+	_sync_map_constructor_overlay_visuals()
 	if field_runtime != null and field_runtime.has_method("request_visual_refresh"):
 		field_runtime.call("request_visual_refresh")

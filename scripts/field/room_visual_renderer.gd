@@ -402,6 +402,122 @@ func draw_iso_mouse_selection_overlay() -> void:
 				var next_index: int = (edge_index + 1) % wall_points.size()
 				draw_line(wall_points[edge_index], wall_points[next_index], Color(0.62, 0.86, 1.0, 1.0), 2.0)
 
+
+var map_constructor_overlay_prefs: Dictionary = {
+	"show_preview": true,
+	"show_validation": true,
+	"show_links": true,
+	"show_power": true,
+	"show_wall_side_arrows": true,
+	"show_multi_select": true
+}
+var map_constructor_overlay_data: Dictionary = {}
+
+func set_map_constructor_overlay_preferences(prefs: Dictionary) -> void:
+	for key_variant in prefs.keys():
+		var key: String = String(key_variant)
+		if map_constructor_overlay_prefs.has(key):
+			map_constructor_overlay_prefs[key] = bool(prefs.get(key_variant, map_constructor_overlay_prefs[key]))
+	queue_redraw()
+
+func set_map_constructor_overlay_data(data: Dictionary) -> void:
+	map_constructor_overlay_data = data.duplicate(true)
+	queue_redraw()
+
+func _draw_wall_side_arrow(cell: Vector2i, wall_side: String, color: Color) -> void:
+	var center: Vector2 = grid_to_iso(cell)
+	var dir: Vector2 = Vector2(0.0, -1.0)
+	match wall_side:
+		"north":
+			dir = Vector2(0.0, -1.0)
+		"east":
+			dir = Vector2(1.0, 0.0)
+		"south":
+			dir = Vector2(0.0, 1.0)
+		"west":
+			dir = Vector2(-1.0, 0.0)
+		_:
+			dir = Vector2(0.0, -1.0)
+	var tip: Vector2 = center + dir * 16.0
+	draw_line(center, tip, color, 2.0)
+	draw_circle(tip, 3.0, color)
+
+func draw_map_constructor_visual_overlay_passes() -> void:
+	var selected: Dictionary = Dictionary(map_constructor_overlay_data.get("selected", {}))
+	var hover: Dictionary = Dictionary(map_constructor_overlay_data.get("hover", {}))
+	var preview: Dictionary = Dictionary(map_constructor_overlay_data.get("preview", {}))
+	var issues: Array = Array(map_constructor_overlay_data.get("validation", []))
+	var links: Array = Array(map_constructor_overlay_data.get("links", []))
+	var power: Array = Array(map_constructor_overlay_data.get("power", []))
+	var multi_select: Array = Array(map_constructor_overlay_data.get("multi_select", []))
+	if bool(map_constructor_overlay_prefs.get("show_preview", true)):
+		if String(preview.get("mode", "")) == "destructive":
+			map_constructor_preview_is_blocked = false
+		if map_constructor_preview_cell.x >= 0 and map_constructor_preview_cell.y >= 0:
+			var destructive: bool = String(preview.get("mode", "")) == "destructive"
+			var p: PackedVector2Array = get_iso_inset_diamond_points(map_constructor_preview_cell, iso_floor_visual_inset + 3.0)
+			if p.size() >= 4:
+				var c: Color = Color(0.35, 1.0, 0.85, 0.16)
+				var s: Color = Color(0.45, 1.0, 0.92, 1.0)
+				if map_constructor_preview_is_blocked:
+					c = Color(1.0, 0.35, 0.25, 0.2)
+					s = Color(1.0, 0.55, 0.3, 1.0)
+				elif destructive:
+					c = Color(1.0, 0.62, 0.22, 0.17)
+					s = Color(1.0, 0.7, 0.3, 1.0)
+				draw_colored_polygon(p, c)
+				for edge_index in range(p.size()):
+					var next_index: int = (edge_index + 1) % p.size()
+					draw_line(p[edge_index], p[next_index], s, 2.2)
+	if bool(map_constructor_overlay_prefs.get("show_multi_select", true)):
+		for row_variant in multi_select:
+			var row: Dictionary = Dictionary(row_variant)
+			var cell: Vector2i = Vector2i(row.get("cell", Vector2i(-1, -1)))
+			if cell.x < 0 or cell.y < 0:
+				continue
+			var mp: PackedVector2Array = get_iso_inset_diamond_points(cell, iso_floor_visual_inset + 10.0)
+			for edge_index in range(mp.size()):
+				var next_index: int = (edge_index + 1) % mp.size()
+				draw_line(mp[edge_index], mp[next_index], Color(0.75, 0.85, 1.0, 0.8), 1.4)
+	if bool(map_constructor_overlay_prefs.get("show_validation", true)):
+		for issue_variant in issues:
+			var issue: Dictionary = Dictionary(issue_variant)
+			var cell: Vector2i = Vector2i(issue.get("cell", Vector2i(-1, -1)))
+			if cell.x < 0 or cell.y < 0:
+				continue
+			var sev: String = String(issue.get("severity", "info"))
+			var mc: Color = Color(0.62, 0.8, 1.0, 0.95)
+			if sev == "error":
+				mc = Color(1.0, 0.3, 0.3, 0.95)
+			elif sev == "warning":
+				mc = Color(1.0, 0.74, 0.3, 0.95)
+			elif sev == "expected_invalid":
+				mc = Color(0.74, 0.66, 0.86, 0.95)
+			draw_circle(grid_to_iso(cell), 6.0, mc)
+	if bool(map_constructor_overlay_prefs.get("show_links", true)):
+		for link_variant in links:
+			var link: Dictionary = Dictionary(link_variant)
+			var from_cell: Vector2i = Vector2i(link.get("from_cell", Vector2i(-1, -1)))
+			var to_cell: Vector2i = Vector2i(link.get("to_cell", Vector2i(-1, -1)))
+			if from_cell.x < 0 or to_cell.x < 0:
+				continue
+			var lc: Color = Color(0.9, 0.58, 1.0, 0.85)
+			if bool(link.get("broken", false)):
+				lc = Color(1.0, 0.3, 0.3, 0.9)
+			draw_line(grid_to_iso(from_cell), grid_to_iso(to_cell), lc, 1.8)
+	if bool(map_constructor_overlay_prefs.get("show_power", true)):
+		for prow_variant in power:
+			var prow: Dictionary = Dictionary(prow_variant)
+			var f: Vector2i = Vector2i(prow.get("from_cell", Vector2i(-1, -1)))
+			var t: Vector2i = Vector2i(prow.get("to_cell", Vector2i(-1, -1)))
+			if f.x < 0 or t.x < 0:
+				continue
+			draw_line(grid_to_iso(f), grid_to_iso(t), Color(0.45, 0.9, 1.0, 0.65), 1.2)
+	if bool(map_constructor_overlay_prefs.get("show_wall_side_arrows", true)):
+		if String(preview.get("wall_side", "")) != "" and map_constructor_preview_cell.x >= 0:
+			_draw_wall_side_arrow(map_constructor_preview_cell, String(preview.get("wall_side", "")), Color(0.82, 0.95, 1.0, 1.0))
+		if String(selected.get("wall_side", "")) != "":
+			_draw_wall_side_arrow(Vector2i(selected.get("cell", Vector2i(-1, -1))), String(selected.get("wall_side", "")), Color(1.0, 0.88, 0.35, 1.0))
 const ISO_LAYER_BIAS_FLOOR: float = 0.0
 const ISO_LAYER_BIAS_ITEM: float = 0.1
 const ISO_LAYER_BIAS_DOOR: float = 0.2
@@ -2245,6 +2361,7 @@ func _draw() -> void:
 		draw_iso_geometry_prototype(include_walls, include_objects)
 
 	draw_iso_mouse_selection_overlay()
+	draw_map_constructor_visual_overlay_passes()
 
 	if should_render_iso_fog_visuals():
 		draw_iso_fog_overlay()
