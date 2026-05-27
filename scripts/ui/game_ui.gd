@@ -316,6 +316,16 @@ const MAP_CONSTRUCTOR_POWER_PREFAB_IDS: Array[String] = [
 	"power_cable_reel",
 	"powered_gate"
 ]
+const MAP_CONSTRUCTOR_PREFAB_CATEGORY_GROUP_ORDER: Array[String] = [
+	"Floors",
+	"Walls",
+	"Doors",
+	"Terminals",
+	"Power",
+	"Control",
+	"Items",
+	"Wall-mounted"
+]
 var edge_scroll_enabled: bool = true
 var edge_scroll_margin_px: float = 28.0
 var edge_scroll_speed: float = 540.0
@@ -9193,6 +9203,21 @@ func _map_constructor_prefab_matches_category_filter(prefab_id: String, category
 		_:
 			return category_text == category_filter
 
+func _get_map_constructor_prefab_group_name(entry: Dictionary) -> String:
+	var prefab_id: String = String(entry.get("id", ""))
+	var category_text: String = String(entry.get("category", ""))
+	var placement_mode: String = String(entry.get("placement_mode", ""))
+	if placement_mode == "wall_mounted":
+		return "Wall-mounted"
+	if MAP_CONSTRUCTOR_POWER_PREFAB_IDS.has(prefab_id):
+		return "Power"
+	if MAP_CONSTRUCTOR_CONTROL_PREFAB_IDS.has(prefab_id):
+		return "Control"
+	match category_text:
+		"Floors", "Walls", "Doors", "Terminals", "Items":
+			return category_text
+	return ""
+
 func _refresh_map_constructor_panels() -> void:
 	if app_screen_mode != AppScreenMode.GAMEPLAY:
 		return
@@ -9237,26 +9262,43 @@ func _refresh_map_constructor_panels() -> void:
 	var catalog: Array[Dictionary] = []
 	if mission_manager_runtime != null and mission_manager_runtime.has_method("get_map_constructor_prefab_catalog"):
 		catalog = mission_manager_runtime.call("get_map_constructor_prefab_catalog")
+	var grouped_entries: Dictionary = {}
+	for group_name in MAP_CONSTRUCTOR_PREFAB_CATEGORY_GROUP_ORDER:
+		grouped_entries[group_name] = []
 	var selected_visible: bool = false
 	for entry in catalog:
 		if not _map_constructor_prefab_matches_filters(entry):
 			continue
-		var id: String = String(entry.get("id", ""))
-		var b := Button.new()
-		b.text = "%s / %s" % [String(entry.get("category", "")), String(entry.get("label", id))]
-		b.toggle_mode = true
-		b.button_pressed = id == selected_map_constructor_prefab_id
-		if b.button_pressed:
-			selected_visible = true
-		b.pressed.connect(func() -> void:
-			selected_map_constructor_prefab_id = id
-			selected_map_constructor_wall_side = ""
-			available_map_constructor_wall_sides.clear()
-			pending_map_constructor_cell = Vector2i(-1, -1)
-			_clear_map_constructor_preview_cell()
-			_refresh_map_constructor_panels()
-		)
-		list.add_child(b)
+		var group_name: String = _get_map_constructor_prefab_group_name(entry)
+		if group_name.is_empty() or not grouped_entries.has(group_name):
+			continue
+		var group_entries: Array = grouped_entries[group_name]
+		group_entries.append(entry)
+		grouped_entries[group_name] = group_entries
+	for group_name in MAP_CONSTRUCTOR_PREFAB_CATEGORY_GROUP_ORDER:
+		var entries: Array = grouped_entries[group_name]
+		if entries.is_empty():
+			continue
+		var header := Label.new()
+		header.text = group_name
+		list.add_child(header)
+		for entry in entries:
+			var id: String = String(entry.get("id", ""))
+			var b := Button.new()
+			b.text = String(entry.get("label", id))
+			b.toggle_mode = true
+			b.button_pressed = id == selected_map_constructor_prefab_id
+			if b.button_pressed:
+				selected_visible = true
+			b.pressed.connect(func() -> void:
+				selected_map_constructor_prefab_id = id
+				selected_map_constructor_wall_side = ""
+				available_map_constructor_wall_sides.clear()
+				pending_map_constructor_cell = Vector2i(-1, -1)
+				_clear_map_constructor_preview_cell()
+				_refresh_map_constructor_panels()
+			)
+			list.add_child(b)
 	if not selected_visible and not selected_map_constructor_prefab_id.is_empty():
 		selected_map_constructor_prefab_id = ""
 		selected_map_constructor_wall_side = ""
