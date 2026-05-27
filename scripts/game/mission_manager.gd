@@ -2181,12 +2181,27 @@ func update_map_constructor_entity_properties(entity_kind: String, entity_id: St
 func get_map_constructor_link_candidates(entity_kind: String, entity_id: String, link_type: String) -> Array[Dictionary]:
 	var field_map := {"linked_door":"target_door_id","power_network":"power_network_id","control_source":"control_source_id","terminal_target":"target_door_id","platform_target":"target_platform_id"}
 	if not field_map.has(link_type): return []
+	var entity: Dictionary = get_map_constructor_entity_by_id(entity_kind, entity_id)
+	var current_value: String = ""
+	if bool(entity.get("ok", false)):
+		current_value = String(Dictionary(entity.get("data", {})).get(String(field_map[link_type]), "")).strip_edges()
 	var raw: Dictionary = get_map_constructor_link_targets_for_field(entity_kind, entity_id, String(field_map[link_type]))
 	var out: Array[Dictionary] = []
 	for t in Array(raw.get("targets", [])):
 		var td: Dictionary = Dictionary(t)
 		if String(td.get("id", "")) == "__none__": continue
-		out.append({"id":String(td.get("id","")),"label":String(td.get("label","")),"cell":Vector2i(td.get("cell",Vector2i(-1,-1))),"entity_kind":"world_object","object_type":String(td.get("kind","")),"current":false})
+		var id: String = String(td.get("id",""))
+		out.append({"id":id,"label":String(td.get("label","")),"cell":Vector2i(td.get("cell",Vector2i(-1,-1))),"entity_kind":"world_object","object_type":String(td.get("kind","")),"current":id == current_value})
+	if link_type == "power_network":
+		var known: Dictionary = {}
+		for entry in out:
+			known[String(Dictionary(entry).get("id", ""))] = true
+		for fallback_id in ["task_test_power_main","task_test_power_missing","mapedit_power_A","mapedit_power_B", current_value]:
+			var network_id: String = String(fallback_id).strip_edges()
+			if network_id.is_empty() or known.has(network_id):
+				continue
+			out.append({"id":network_id,"label":"Network: %s" % network_id,"cell":Vector2i(-1,-1),"entity_kind":"world_object","object_type":"power_network","current":network_id == current_value})
+			known[network_id] = true
 	return out
 
 func set_map_constructor_entity_link(entity_kind: String, entity_id: String, link_type: String, target_id: String) -> Dictionary:
