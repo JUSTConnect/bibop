@@ -2104,10 +2104,12 @@ func build_iso_object_draw_entries() -> Array[Dictionary]:
 			})
 	return draw_entries
 
-func build_iso_geometry_draw_entries() -> Array[Dictionary]:
+func build_iso_geometry_draw_entries(include_walls: bool, include_objects: bool) -> Array[Dictionary]:
 	var draw_entries: Array[Dictionary] = []
-	draw_entries.append_array(build_iso_wall_draw_entries())
-	draw_entries.append_array(build_iso_object_draw_entries())
+	if include_walls:
+		draw_entries.append_array(build_iso_wall_draw_entries())
+	if include_objects:
+		draw_entries.append_array(build_iso_object_draw_entries())
 	draw_entries.sort_custom(sort_iso_draw_entries)
 	return draw_entries
 
@@ -2127,11 +2129,11 @@ func draw_iso_draw_entry(entry: Dictionary) -> void:
 		var tile_type: int = int(payload.get("tile_type", _grid_manager.get_tile(object_cell)))
 		draw_iso_object_marker(object_cell, tile_type)
 
-func draw_iso_geometry_prototype() -> void:
+func draw_iso_geometry_prototype(include_walls: bool, include_objects: bool) -> void:
 	if _grid_manager == null:
 		return
 
-	var draw_entries: Array[Dictionary] = build_iso_geometry_draw_entries()
+	var draw_entries: Array[Dictionary] = build_iso_geometry_draw_entries(include_walls, include_objects)
 	for entry in draw_entries:
 		draw_iso_draw_entry(entry)
 
@@ -2237,8 +2239,10 @@ func _draw() -> void:
 	if should_render_iso_floor_visuals():
 		draw_iso_floor_prototype()
 
-	if should_render_iso_wall_visuals() or should_render_iso_object_visuals():
-		draw_iso_geometry_prototype()
+	var include_walls: bool = should_render_iso_wall_visuals()
+	var include_objects: bool = should_render_iso_object_visuals()
+	if include_walls or include_objects:
+		draw_iso_geometry_prototype(include_walls, include_objects)
 
 	draw_iso_mouse_selection_overlay()
 
