@@ -1003,13 +1003,52 @@ func get_wall_prototype_colors(cell: Vector2i) -> Dictionary:
 		left_color = left_color.lightened(0.05)
 		right_color = right_color.lightened(0.045)
 
-	return {
+	var colors: Dictionary = {
 		"top": top_color,
 		"left": left_color,
 		"right": right_color,
 		"outline": _get_color_from_dict(profile, "outline", Color(0.24, 0.31, 0.36, 0.9)),
 		"accent": _get_color_from_dict(profile, "accent", Color(0.29, 0.35, 0.4, 0.5))
 	}
+	var material_override: Dictionary = _get_wall_material_override_for_cell(cell)
+	if bool(material_override.get("ok", false)):
+		var material_row: Dictionary = Dictionary(material_override.get("material", {}))
+		var tint_color: Color = Color(material_row.get("fallback_color", Color(1, 1, 1, 1)))
+		var edge_color: Color = Color(material_row.get("edge_color", colors.get("outline", Color.WHITE)))
+		colors["top"] = _blend_color(Color(colors.get("top", Color.WHITE)), tint_color, 0.45)
+		colors["left"] = _blend_color(Color(colors.get("left", Color.WHITE)), tint_color.darkened(0.05), 0.5)
+		colors["right"] = _blend_color(Color(colors.get("right", Color.WHITE)), tint_color.darkened(0.1), 0.5)
+		colors["outline"] = _blend_color(Color(colors.get("outline", Color.WHITE)), edge_color, 0.72)
+		colors["accent"] = _blend_color(Color(colors.get("accent", Color.WHITE)), edge_color.lightened(0.12), 0.68)
+		colors["wall_material_style"] = String(material_row.get("style", "default"))
+	return colors
+
+func _blend_color(base_color: Color, tint_color: Color, amount: float) -> Color:
+	var safe_amount: float = clampf(amount, 0.0, 1.0)
+	return base_color.lerp(tint_color, safe_amount)
+
+func _get_wall_material_override_for_cell(cell: Vector2i) -> Dictionary:
+	var mission_manager: Node = get_mission_manager_ref()
+	if mission_manager == null or not mission_manager.has_method("get_map_constructor_wall_material"):
+		return {"ok": false}
+	var side_order: Array[String] = ["north", "east", "south", "west"]
+	var chosen_override: Dictionary = {}
+	for side_id in side_order:
+		var override_result: Dictionary = Dictionary(mission_manager.call("get_map_constructor_wall_material", cell, side_id))
+		if bool(override_result.get("ok", false)):
+			chosen_override = Dictionary(override_result.get("override", {}))
+			break
+	if chosen_override.is_empty():
+		return {"ok": false}
+	var material_id: String = String(chosen_override.get("material_id", "")).to_lower()
+	if material_id.is_empty() or not mission_manager.has_method("get_map_constructor_wall_material_catalog"):
+		return {"ok": false}
+	var catalog: Dictionary = Dictionary(mission_manager.call("get_map_constructor_wall_material_catalog"))
+	for material_variant in Array(catalog.get("materials", [])):
+		var material_row: Dictionary = Dictionary(material_variant)
+		if String(material_row.get("id", "")).to_lower() == material_id:
+			return {"ok": true, "override": chosen_override, "material": material_row}
+	return {"ok": false}
 
 func get_default_wall_visual_profile_key() -> String:
 	return "default_wall"

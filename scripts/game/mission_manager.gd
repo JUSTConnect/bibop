@@ -32,6 +32,7 @@ var _map_constructor_last_cleanup_snapshot: Dictionary = {}
 var _map_constructor_last_autofix_snapshot: Dictionary = {}
 var _map_constructor_last_patch_snapshot: Dictionary = {}
 var _map_constructor_last_batch_snapshot: Dictionary = {}
+var _map_constructor_wall_material_overrides: Dictionary = {}
 var _map_constructor_change_history: Array[Dictionary] = []
 var _map_constructor_change_history_seq: int = 1
 var current_mission_id: String = ""
@@ -91,6 +92,7 @@ func setup_world_objects_for_mission(mission_id: String) -> void:
 	mission_world_objects.clear()
 	world_objects_by_cell.clear()
 	cell_items.clear()
+	_map_constructor_wall_material_overrides.clear()
 	if mission_id == "mission_10":
 		_setup_task_test_mission_world()
 		return
@@ -1746,6 +1748,23 @@ func _get_map_constructor_wall_side_label(side_id: String) -> String:
 		_:
 			return side_id.capitalize()
 
+func _serialize_wall_material_override_key(cell: Vector2i, side: String) -> String:
+	var normalized_side: String = side.to_lower().strip_edges()
+	return "%s|%s" % [_serialize_cell_key(cell), normalized_side]
+
+func get_map_constructor_wall_material_catalog() -> Dictionary:
+	var materials: Array[Dictionary] = [
+		{"id":"default_metal","display_name":"Default Metal","description":"Baseline steel alloy wall finish.","tags":["default","metal"],"style":"default","fallback_color":Color(0.33, 0.37, 0.43, 0.98),"edge_color":Color(0.62, 0.67, 0.75, 1.0),"damage_level":0,"is_default":true},
+		{"id":"clean_lab","display_name":"Clean Lab","description":"Clean sterile laboratory paneling.","tags":["lab","clean"],"style":"clean","fallback_color":Color(0.66, 0.72, 0.76, 0.98),"edge_color":Color(0.86, 0.9, 0.94, 1.0),"damage_level":0,"is_default":false},
+		{"id":"dark_service","display_name":"Dark Service","description":"Low-light service tunnel plating.","tags":["service","dark"],"style":"dark","fallback_color":Color(0.18, 0.2, 0.24, 0.98),"edge_color":Color(0.32, 0.36, 0.41, 1.0),"damage_level":1,"is_default":false},
+		{"id":"orange_hazard","display_name":"Orange Hazard","description":"Hazard-striped industrial wall section.","tags":["hazard","orange"],"style":"hazard","fallback_color":Color(0.48, 0.31, 0.16, 0.98),"edge_color":Color(0.96, 0.57, 0.21, 1.0),"damage_level":1,"is_default":false},
+		{"id":"damaged_red","display_name":"Damaged Red","description":"Damaged emergency-painted wall.","tags":["damaged","red"],"style":"damaged","fallback_color":Color(0.42, 0.19, 0.2, 0.98),"edge_color":Color(0.84, 0.34, 0.37, 1.0),"damage_level":3,"is_default":false},
+		{"id":"reinforced","display_name":"Reinforced","description":"Reinforced heavy-duty support wall.","tags":["reinforced","security"],"style":"reinforced","fallback_color":Color(0.24, 0.27, 0.33, 0.98),"edge_color":Color(0.55, 0.61, 0.72, 1.0),"damage_level":0,"is_default":false},
+		{"id":"power_room","display_name":"Power Room","description":"Power distribution room insulation panels.","tags":["power","utility"],"style":"power","fallback_color":Color(0.28, 0.3, 0.21, 0.98),"edge_color":Color(0.71, 0.81, 0.34, 1.0),"damage_level":1,"is_default":false},
+		{"id":"diagnostic_blue","display_name":"Diagnostic Blue","description":"Diagnostic bay blue marker finish.","tags":["diagnostic","blue"],"style":"diagnostic","fallback_color":Color(0.21, 0.3, 0.49, 0.98),"edge_color":Color(0.44, 0.69, 0.97, 1.0),"damage_level":0,"is_default":false}
+	]
+	return {"ok": true, "materials": materials, "message": "Wall material catalog ready."}
+
 func _is_map_constructor_wall_cell(cell: Vector2i) -> bool:
 	if grid_manager == null:
 		return false
@@ -2358,6 +2377,56 @@ func set_map_constructor_wall_mounted_side(entity_kind: String, entity_id: Strin
 	refresh_world_cooling_received()
 	_record_map_constructor_change("side_change", {"entity_kind":"world_object", "entity_id":entity_id, "object_type":String(data.get("object_type", "")), "cell":anchor, "summary":"Changed wall side on %s to %s" % [entity_id, side], "undo_hint":"Can undo by switching side again."})
 	return {"ok": true, "message": "Wall side changed to %s." % _get_map_constructor_wall_side_label(side), "object_id": entity_id, "wall_side": side, "attached_wall_cell": attached}
+
+func set_map_constructor_wall_material(cell: Vector2i, side: String, material_id: String) -> Dictionary:
+	if not _is_task_test_constructor_context():
+		return {"ok": false, "message": "Wall material overrides are available only in TASK TEST constructor mode."}
+	var normalized_side: String = side.to_lower().strip_edges()
+	var normalized_material_id: String = material_id.to_lower().strip_edges()
+	if _get_map_constructor_wall_side_delta(normalized_side) == Vector2i.ZERO:
+		return {"ok": false, "message": "Invalid wall side."}
+	var attached_wall_cell: Vector2i = cell + _get_map_constructor_wall_side_delta(normalized_side)
+	if not _is_wall_or_boundary_cell(attached_wall_cell):
+		return {"ok": false, "message": "Selected side has no wall."}
+	var catalog: Dictionary = get_map_constructor_wall_material_catalog()
+	var known: bool = false
+	for row_variant in Array(catalog.get("materials", [])):
+		var row: Dictionary = Dictionary(row_variant)
+		if String(row.get("id", "")).to_lower() == normalized_material_id:
+			known = true
+			break
+	if not known:
+		return {"ok": false, "message": "Unknown wall material id: %s" % material_id}
+	var key: String = _serialize_wall_material_override_key(cell, normalized_side)
+	var entry: Dictionary = {"cell": cell, "side": normalized_side, "material_id": normalized_material_id}
+	_map_constructor_wall_material_overrides[key] = entry
+	_record_map_constructor_change("wall_material", {"cell":cell, "summary":"Set wall material %s at %s/%s" % [normalized_material_id, _format_map_constructor_cell(cell), normalized_side], "details":{"side":normalized_side, "material_id":normalized_material_id}})
+	return {"ok": true, "message": "Wall material applied.", "override": entry}
+
+func clear_map_constructor_wall_material(cell: Vector2i, side: String) -> Dictionary:
+	if not _is_task_test_constructor_context():
+		return {"ok": false, "message": "Wall material overrides are available only in TASK TEST constructor mode."}
+	var normalized_side: String = side.to_lower().strip_edges()
+	var key: String = _serialize_wall_material_override_key(cell, normalized_side)
+	if not _map_constructor_wall_material_overrides.has(key):
+		return {"ok": false, "message": "No wall material override to clear."}
+	_map_constructor_wall_material_overrides.erase(key)
+	_record_map_constructor_change("wall_material_clear", {"cell":cell, "summary":"Cleared wall material at %s/%s" % [_format_map_constructor_cell(cell), normalized_side], "details":{"side":normalized_side}})
+	return {"ok": true, "message": "Wall material override cleared."}
+
+func get_map_constructor_wall_material(cell: Vector2i, side: String) -> Dictionary:
+	var key: String = _serialize_wall_material_override_key(cell, side)
+	if not _map_constructor_wall_material_overrides.has(key):
+		return {"ok": false, "message": "No wall material override.", "override": {}}
+	return {"ok": true, "message": "OK", "override": Dictionary(_map_constructor_wall_material_overrides.get(key, {})).duplicate(true)}
+
+func get_map_constructor_wall_material_overrides() -> Dictionary:
+	if not _is_task_test_constructor_context():
+		return {"ok": false, "message": "Wall material overrides are available only in TASK TEST constructor mode.", "overrides": []}
+	var rows: Array[Dictionary] = []
+	for key_variant in _map_constructor_wall_material_overrides.keys():
+		rows.append(Dictionary(_map_constructor_wall_material_overrides.get(String(key_variant), {})).duplicate(true))
+	return {"ok": true, "message": "OK", "overrides": rows}
 
 func get_map_constructor_placed_object_rows() -> Array[Dictionary]:
 	var rows: Array[Dictionary] = []
@@ -3432,6 +3501,20 @@ func get_map_constructor_validation_issues() -> Array[Dictionary]:
 				seen_item_ids[item_id] = true
 			if item_cell.x < 0 or item_cell.y < 0:
 				issues.append(_make_map_constructor_issue("item_invalid_cell_%s" % item_id, "error", "Item cell invalid or negative.", item_cell, source_name, "item", item_id))
+	var catalog_ids: Dictionary = {}
+	for row_variant in Array(get_map_constructor_wall_material_catalog().get("materials", [])):
+		var row: Dictionary = Dictionary(row_variant)
+		catalog_ids[String(row.get("id", "")).to_lower()] = true
+	for key_variant in _map_constructor_wall_material_overrides.keys():
+		var override_row: Dictionary = Dictionary(_map_constructor_wall_material_overrides.get(String(key_variant), {}))
+		var override_cell: Vector2i = Vector2i(override_row.get("cell", Vector2i(-1, -1)))
+		var override_side: String = String(override_row.get("side", "")).to_lower().strip_edges()
+		var override_material_id: String = String(override_row.get("material_id", "")).to_lower().strip_edges()
+		if not catalog_ids.has(override_material_id):
+			issues.append(_make_map_constructor_issue("wall_material_unknown_%s" % String(key_variant), "warning", "Unknown wall material override id: %s." % override_material_id, override_cell, source_name, "wall_material", String(key_variant)))
+		var attached_wall_cell: Vector2i = override_cell + _get_map_constructor_wall_side_delta(override_side)
+		if _get_map_constructor_wall_side_delta(override_side) == Vector2i.ZERO or not _is_wall_or_boundary_cell(attached_wall_cell):
+			issues.append(_make_map_constructor_issue("wall_material_missing_wall_%s" % String(key_variant), "warning", "Wall material override points to a missing wall.", override_cell, source_name, "wall_material", String(key_variant)))
 	return issues
 
 func _map_constructor_collect_world_ids() -> Dictionary:
@@ -9920,7 +10003,13 @@ func export_map_constructor_design_notes(options: Dictionary = {}) -> Dictionary
 	var patch_export: Dictionary = export_map_constructor_runtime_patch()
 	var readiness: Dictionary = get_map_constructor_mission_readiness_report()
 	var validation: Array = get_map_constructor_validation_issues()
-	var notes: Dictionary = {"schema_version":1,"source":"task_test_map_constructor","mission_id":"mission_10","generated_at_runtime":str(Time.get_unix_time_from_system()),"summary":{"object_count":mission_world_objects.size()},"readiness":readiness,"validation":{"issues":validation},"objects":mission_world_objects.duplicate(true),"items":cell_items.values(),"tile_edits":Array(patch_export.get("patch", {}).get("tile_edits", [])),"links":Array(patch_export.get("patch", {}).get("links", [])),"patch":Dictionary(patch_export.get("patch", {})),"history_summary":Array(get_map_constructor_change_history(20).get("history", [])),"overview_summary":Dictionary(get_map_constructor_overview_data().get("summary", {})),"recommended_next_steps":["Manual promotion required. No mission files were modified."]}
+	var wall_overrides: Array = Array(get_map_constructor_wall_material_overrides().get("overrides", []))
+	var wall_counts: Dictionary = {}
+	for row_variant in wall_overrides:
+		var row: Dictionary = Dictionary(row_variant)
+		var material_id: String = String(row.get("material_id", "unknown")).to_lower()
+		wall_counts[material_id] = int(wall_counts.get(material_id, 0)) + 1
+	var notes: Dictionary = {"schema_version":1,"source":"task_test_map_constructor","mission_id":"mission_10","generated_at_runtime":str(Time.get_unix_time_from_system()),"summary":{"object_count":mission_world_objects.size(),"wall_material_override_count":wall_overrides.size(),"wall_material_counts":wall_counts},"readiness":readiness,"validation":{"issues":validation},"objects":mission_world_objects.duplicate(true),"items":cell_items.values(),"tile_edits":Array(patch_export.get("patch", {}).get("tile_edits", [])),"links":Array(patch_export.get("patch", {}).get("links", [])),"patch":Dictionary(patch_export.get("patch", {})),"wall_material_overrides":wall_overrides,"history_summary":Array(get_map_constructor_change_history(20).get("history", [])),"overview_summary":Dictionary(get_map_constructor_overview_data().get("summary", {})),"recommended_next_steps":["Manual promotion required. No mission files were modified."]}
 	var text: String = "# Design Notes\nMission: mission_10\nReadiness: %s\nValidation issues: %d\nPatch summary: objects=%d items=%d tiles=%d\nManual promotion required. No mission files were modified." % [String(readiness.get("status", "unknown")), validation.size(), int(patch_export.get("object_count", 0)), int(patch_export.get("item_count", 0)), int(patch_export.get("tile_edit_count", 0))]
 	return {"ok":true,"message":"OK","notes":notes,"text":text}
 
@@ -9952,7 +10041,7 @@ func get_map_constructor_production_pipeline_report(options: Dictionary = {}) ->
 	var blocked: bool = String(readiness.get("status", "")) == "blocked" or not bool(readiness.get("ok", true)) or not bool(patch_export.get("ok", false)) or not bool(notes.get("ok", false)) or non_expected_errors > 0
 	var has_warnings: bool = warning_count > 0
 	var status: String = "blocked" if blocked else ("warning" if has_warnings else "ready")
-	return {"ok":true,"status":status,"message":"Manual promotion required. No mission files were modified.","checks":checks,"promotion_package":{"patch":Dictionary(patch_export.get("patch", {})),"design_notes":Dictionary(notes.get("notes", {})),"summary":{"readiness":String(readiness.get("status", "unknown"))},"manual_steps":["Review design notes","Review patch JSON","Promote manually in controlled pipeline"],"warnings":[]},"recommended_actions":[]}
+	return {"ok":true,"status":status,"message":"Manual promotion required. No mission files were modified.","checks":checks,"promotion_package":{"patch":Dictionary(patch_export.get("patch", {})),"design_notes":Dictionary(notes.get("notes", {})),"summary":{"readiness":String(readiness.get("status", "unknown")),"wall_material_overrides":Array(get_map_constructor_wall_material_overrides().get("overrides", []))},"manual_steps":["Review design notes","Review patch JSON","Promote manually in controlled pipeline"],"warnings":[]},"recommended_actions":[]}
 
 func _preview_map_constructor_entry_set(entries: Array, anchor_cell: Vector2i, options: Dictionary = {}) -> Dictionary:
 	var conflicts: Array[Dictionary] = []
