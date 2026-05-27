@@ -1838,10 +1838,15 @@ func is_door_like_profile(profile_key: String) -> bool:
 	return false
 
 func get_wall_mounted_attached_depth_cell(cell: Vector2i) -> Vector2i:
-	var metadata: Dictionary = get_wall_metadata_for_cell(cell)
-	if metadata.is_empty():
+	var object_metadata: Dictionary = _get_iso_world_object_metadata_for_cell(cell)
+	var world_object_data: Dictionary = Dictionary(object_metadata.get("data", {}))
+	var attached_wall_cell: Vector2i = _try_parse_cell_variant(world_object_data.get("attached_wall_cell", Vector2i(-1, -1)), Vector2i(-1, -1))
+	if attached_wall_cell.x >= 0 and attached_wall_cell.y >= 0:
+		return attached_wall_cell
+	var wall_metadata: Dictionary = get_wall_metadata_for_cell(cell)
+	if wall_metadata.is_empty():
 		return cell
-	var attached_wall_cell: Vector2i = _try_parse_cell_variant(metadata.get("attached_wall_cell", Vector2i(-1, -1)), Vector2i(-1, -1))
+	attached_wall_cell = _try_parse_cell_variant(wall_metadata.get("attached_wall_cell", Vector2i(-1, -1)), Vector2i(-1, -1))
 	if attached_wall_cell.x >= 0 and attached_wall_cell.y >= 0:
 		return attached_wall_cell
 	return cell
@@ -2033,15 +2038,39 @@ func draw_iso_object_marker(cell: Vector2i, tile_type: int) -> void:
 	else:
 		draw_iso_object_small_marker(cell, profile, visual_center)
 
-func draw_iso_object_prototype() -> void:
-	# Render order contract for object-like visuals in isometric mode:
-	# floor items -> doors/gates -> wall-mounted devices -> terminals -> actor markers(overlays handled in _draw).
+func build_iso_wall_draw_entries() -> Array[Dictionary]:
 	if _grid_manager == null:
-		return
+		return []
 	var map_width: int = _grid_manager.get_map_width()
 	var map_height: int = _grid_manager.get_map_height()
 	if map_width <= 0 or map_height <= 0:
-		return
+		return []
+
+	var wall_entries: Array[Dictionary] = []
+	for y in range(map_height):
+		for x in range(map_width):
+			var cell: Vector2i = Vector2i(x, y)
+			var tile_type: int = _grid_manager.get_tile(cell)
+			if not is_wall_tile(tile_type):
+				continue
+			wall_entries.append({
+				"cell": cell,
+				"layer": "wall",
+				"layer_bias": ISO_LAYER_BIAS_WALL,
+				"kind": "wall",
+				"payload": {"tile_type": tile_type}
+			})
+	return wall_entries
+
+func build_iso_object_draw_entries() -> Array[Dictionary]:
+	# Render order contract for object-like visuals in isometric mode:
+	# floor items -> doors/gates -> wall-mounted devices -> terminals -> actor markers(overlays handled in _draw).
+	if _grid_manager == null:
+		return []
+	var map_width: int = _grid_manager.get_map_width()
+	var map_height: int = _grid_manager.get_map_height()
+	if map_width <= 0 or map_height <= 0:
+		return []
 
 	var draw_entries: Array[Dictionary] = []
 	for y in range(map_height):
@@ -2070,18 +2099,41 @@ func draw_iso_object_prototype() -> void:
 				"cell": sort_cell,
 				"layer": layer_name,
 				"layer_bias": layer_bias,
-				"kind": "world_object",
+				"kind": "object",
 				"payload": {"object_cell": cell, "tile_type": tile_type, "profile_key": profile_key}
 			})
+	return draw_entries
 
+func build_iso_geometry_draw_entries() -> Array[Dictionary]:
+	var draw_entries: Array[Dictionary] = []
+	draw_entries.append_array(build_iso_wall_draw_entries())
+	draw_entries.append_array(build_iso_object_draw_entries())
 	draw_entries.sort_custom(sort_iso_draw_entries)
-	for entry in draw_entries:
+	return draw_entries
+
+func draw_iso_draw_entry(entry: Dictionary) -> void:
+	var kind: String = String(entry.get("kind", ""))
+	if kind == "wall":
+		var cell: Vector2i = Vector2i(entry.get("cell", Vector2i(-1, -1)))
+		if cell.x < 0 or cell.y < 0:
+			return
+		draw_iso_wall_block(cell)
+		return
+	if kind == "object":
 		var payload: Dictionary = Dictionary(entry.get("payload", {}))
 		var object_cell: Vector2i = Vector2i(payload.get("object_cell", Vector2i(-1, -1)))
 		if object_cell.x < 0 or object_cell.y < 0:
-			continue
+			return
 		var tile_type: int = int(payload.get("tile_type", _grid_manager.get_tile(object_cell)))
 		draw_iso_object_marker(object_cell, tile_type)
+
+func draw_iso_geometry_prototype() -> void:
+	if _grid_manager == null:
+		return
+
+	var draw_entries: Array[Dictionary] = build_iso_geometry_draw_entries()
+	for entry in draw_entries:
+		draw_iso_draw_entry(entry)
 
 
 func get_iso_fog_color_for_cell(cell: Vector2i) -> Color:
@@ -2179,18 +2231,14 @@ func _draw() -> void:
 
 	# Isometric render pass order (compatibility-focused):
 	# 1) floor/base
-	# 2) wall faces/material accents
-	# 3) object layers (items, doors, wall-mounted, terminals; depth-sorted with layer bias)
-	# 4) constructor/selection overlays
-	# 5) fog/final overlay
+	# 2) unified walls+objects queue (depth-sorted with layer bias)
+	# 3) constructor/selection overlays
+	# 4) fog/final overlay
 	if should_render_iso_floor_visuals():
 		draw_iso_floor_prototype()
 
-	if should_render_iso_wall_visuals():
-		draw_iso_wall_prototype()
-
-	if should_render_iso_object_visuals():
-		draw_iso_object_prototype()
+	if should_render_iso_wall_visuals() or should_render_iso_object_visuals():
+		draw_iso_geometry_prototype()
 
 	draw_iso_mouse_selection_overlay()
 
