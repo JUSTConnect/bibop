@@ -1822,16 +1822,46 @@ func _serialize_wall_material_override_key(cell: Vector2i, side: String) -> Stri
 
 func get_map_constructor_wall_material_catalog() -> Dictionary:
 	var materials: Array[Dictionary] = [
-		{"id":"default_metal","display_name":"Default Metal","description":"Baseline steel alloy wall finish.","tags":["default","metal"],"style":"default","fallback_color":Color(0.33, 0.37, 0.43, 0.98),"edge_color":Color(0.62, 0.67, 0.75, 1.0),"damage_level":0,"is_default":true},
-		{"id":"clean_lab","display_name":"Clean Lab","description":"Clean sterile laboratory paneling.","tags":["lab","clean"],"style":"clean","fallback_color":Color(0.66, 0.72, 0.76, 0.98),"edge_color":Color(0.86, 0.9, 0.94, 1.0),"damage_level":0,"is_default":false},
-		{"id":"dark_service","display_name":"Dark Service","description":"Low-light service tunnel plating.","tags":["service","dark"],"style":"dark","fallback_color":Color(0.18, 0.2, 0.24, 0.98),"edge_color":Color(0.32, 0.36, 0.41, 1.0),"damage_level":1,"is_default":false},
-		{"id":"orange_hazard","display_name":"Orange Hazard","description":"Hazard-striped industrial wall section.","tags":["hazard","orange"],"style":"hazard","fallback_color":Color(0.48, 0.31, 0.16, 0.98),"edge_color":Color(0.96, 0.57, 0.21, 1.0),"damage_level":1,"is_default":false},
-		{"id":"damaged_red","display_name":"Damaged Red","description":"Damaged emergency-painted wall.","tags":["damaged","red"],"style":"damaged","fallback_color":Color(0.42, 0.19, 0.2, 0.98),"edge_color":Color(0.84, 0.34, 0.37, 1.0),"damage_level":3,"is_default":false},
-		{"id":"reinforced","display_name":"Reinforced","description":"Reinforced heavy-duty support wall.","tags":["reinforced","security"],"style":"reinforced","fallback_color":Color(0.24, 0.27, 0.33, 0.98),"edge_color":Color(0.55, 0.61, 0.72, 1.0),"damage_level":0,"is_default":false},
-		{"id":"power_room","display_name":"Power Room","description":"Power distribution room insulation panels.","tags":["power","utility"],"style":"power","fallback_color":Color(0.28, 0.3, 0.21, 0.98),"edge_color":Color(0.71, 0.81, 0.34, 1.0),"damage_level":1,"is_default":false},
-		{"id":"diagnostic_blue","display_name":"Diagnostic Blue","description":"Diagnostic bay blue marker finish.","tags":["diagnostic","blue"],"style":"diagnostic","fallback_color":Color(0.21, 0.3, 0.49, 0.98),"edge_color":Color(0.44, 0.69, 0.97, 1.0),"damage_level":0,"is_default":false}
+		{"id":"default_metal","display_name":"Default Metal","description":"Baseline steel alloy wall finish.","tags":["default","metal"],"style":"default","texture_asset_id":"wall_default_metal","fallback_color":Color(0.33, 0.37, 0.43, 0.98),"edge_color":Color(0.62, 0.67, 0.75, 1.0),"damage_level":0,"is_default":true},
+		{"id":"clean_lab","display_name":"Clean Lab","description":"Clean sterile laboratory paneling.","tags":["lab","clean"],"style":"clean","texture_asset_id":"wall_clean_lab","fallback_color":Color(0.66, 0.72, 0.76, 0.98),"edge_color":Color(0.86, 0.9, 0.94, 1.0),"damage_level":0,"is_default":false},
+		{"id":"dark_service","display_name":"Dark Service","description":"Low-light service tunnel plating.","tags":["service","dark"],"style":"dark","texture_asset_id":"wall_dark_service","fallback_color":Color(0.18, 0.2, 0.24, 0.98),"edge_color":Color(0.32, 0.36, 0.41, 1.0),"damage_level":1,"is_default":false},
+		{"id":"orange_hazard","display_name":"Orange Hazard","description":"Hazard-striped industrial wall section.","tags":["hazard","orange"],"style":"hazard","texture_asset_id":"wall_orange_hazard","fallback_color":Color(0.48, 0.31, 0.16, 0.98),"edge_color":Color(0.96, 0.57, 0.21, 1.0),"damage_level":1,"is_default":false},
+		{"id":"damaged_red","display_name":"Damaged Red","description":"Damaged emergency-painted wall.","tags":["damaged","red"],"style":"damaged","texture_asset_id":"wall_damaged_red","fallback_color":Color(0.42, 0.19, 0.2, 0.98),"edge_color":Color(0.84, 0.34, 0.37, 1.0),"damage_level":3,"is_default":false},
+		{"id":"reinforced","display_name":"Reinforced","description":"Reinforced heavy-duty support wall.","tags":["reinforced","security"],"style":"reinforced","texture_asset_id":"wall_reinforced","fallback_color":Color(0.24, 0.27, 0.33, 0.98),"edge_color":Color(0.55, 0.61, 0.72, 1.0),"damage_level":0,"is_default":false},
+		{"id":"power_room","display_name":"Power Room","description":"Power distribution room insulation panels.","tags":["power","utility"],"style":"power","texture_asset_id":"wall_power_room","fallback_color":Color(0.28, 0.3, 0.21, 0.98),"edge_color":Color(0.71, 0.81, 0.34, 1.0),"damage_level":1,"is_default":false},
+		{"id":"diagnostic_blue","display_name":"Diagnostic Blue","description":"Diagnostic bay blue marker finish.","tags":["diagnostic","blue"],"style":"diagnostic","texture_asset_id":"wall_diagnostic_blue","fallback_color":Color(0.21, 0.3, 0.49, 0.98),"edge_color":Color(0.44, 0.69, 0.97, 1.0),"damage_level":0,"is_default":false}
 	]
 	return {"ok": true, "materials": materials, "message": "Wall material catalog ready."}
+
+func get_visual_texture_asset_catalog() -> Dictionary:
+	var assets: Array[Dictionary] = [
+		{"id":"wall_default_metal","category":"wall","display_name":"Wall / Default Metal","description":"Default wall material texture slot.","texture_path":"","atlas_region":Rect2i(0, 0, 0, 0),"fallback_style":"default","fallback_color":Color(0.33, 0.37, 0.43, 0.98),"tags":["wall","default"],"is_optional":true},
+		{"id":"wall_clean_lab","category":"wall","display_name":"Wall / Clean Lab","description":"Clean lab wall texture slot.","texture_path":"","atlas_region":Rect2i(0, 0, 0, 0),"fallback_style":"clean","fallback_color":Color(0.66, 0.72, 0.76, 0.98),"tags":["wall","lab"],"is_optional":true},
+		{"id":"door_state_generic","category":"door","display_name":"Door / Generic","description":"Door visual state texture slot.","texture_path":"","atlas_region":Rect2i(0, 0, 0, 0),"fallback_style":"state_tint","fallback_color":Color(0.72, 0.78, 0.86, 0.95),"tags":["door","state"],"is_optional":true},
+		{"id":"terminal_state_generic","category":"terminal","display_name":"Terminal / Generic","description":"Terminal visual state texture slot.","texture_path":"","atlas_region":Rect2i(0, 0, 0, 0),"fallback_style":"state_tint","fallback_color":Color(0.78, 0.87, 0.96, 0.98),"tags":["terminal","state"],"is_optional":true},
+		{"id":"item_generic_marker","category":"item","display_name":"Item / Marker","description":"Generic item marker texture slot.","texture_path":"","atlas_region":Rect2i(0, 0, 0, 0),"fallback_style":"small_marker","fallback_color":Color(0.74, 0.84, 0.96, 0.95),"tags":["item"],"is_optional":true},
+		{"id":"overlay_constructor_debug","category":"overlay","display_name":"Overlay / Constructor","description":"Map constructor overlay slot.","texture_path":"","atlas_region":Rect2i(0, 0, 0, 0),"fallback_style":"wireframe","fallback_color":Color(0.44, 0.69, 0.97, 1.0),"tags":["overlay","debug"],"is_optional":true},
+		{"id":"floor_default","category":"floor","display_name":"Floor / Default","description":"Default floor texture slot.","texture_path":"","atlas_region":Rect2i(0, 0, 0, 0),"fallback_style":"diamond_fill","fallback_color":Color(0.13, 0.17, 0.2, 0.97),"tags":["floor"],"is_optional":true},
+		{"id":"diagnostic_missing_texture","category":"diagnostic","display_name":"Diagnostic / Missing Texture","description":"Diagnostic placeholder for missing visual texture.","texture_path":"","atlas_region":Rect2i(0, 0, 0, 0),"fallback_style":"warning_marker","fallback_color":Color(1.0, 0.79, 0.21, 0.98),"tags":["diagnostic","missing"],"is_optional":true}
+	]
+	return {"ok": true, "assets": assets, "message": "Visual texture asset catalog ready."}
+
+func resolve_visual_texture_asset(asset_id: String) -> Dictionary:
+	var normalized_asset_id: String = asset_id.strip_edges()
+	if normalized_asset_id.is_empty():
+		return {"ok": false, "asset_id": normalized_asset_id, "has_texture": false, "texture_path": "", "atlas_region": Rect2i(0, 0, 0, 0), "fallback_style": "default", "fallback_color": Color(1, 1, 1, 1), "message": "Asset id is empty."}
+	var catalog: Dictionary = get_visual_texture_asset_catalog()
+	for row_variant in Array(catalog.get("assets", [])):
+		var row: Dictionary = Dictionary(row_variant)
+		if String(row.get("id", "")) != normalized_asset_id:
+			continue
+		var texture_path: String = String(row.get("texture_path", "")).strip_edges()
+		var has_texture: bool = false
+		if not texture_path.is_empty():
+			has_texture = ResourceLoader.exists(texture_path, "Texture2D")
+		var message: String = "Texture asset resolved." if has_texture else "Texture missing; fallback should be used."
+		return {"ok": true, "asset_id": normalized_asset_id, "has_texture": has_texture, "texture_path": texture_path, "atlas_region": Rect2i(row.get("atlas_region", Rect2i(0, 0, 0, 0))), "fallback_style": String(row.get("fallback_style", "default")), "fallback_color": Color(row.get("fallback_color", Color(1, 1, 1, 1))), "message": message, "is_optional": bool(row.get("is_optional", true))}
+	return {"ok": false, "asset_id": normalized_asset_id, "has_texture": false, "texture_path": "", "atlas_region": Rect2i(0, 0, 0, 0), "fallback_style": "default", "fallback_color": Color(1, 1, 1, 1), "message": "Unknown visual texture asset id: %s" % normalized_asset_id}
 
 func _is_map_constructor_wall_cell(cell: Vector2i) -> bool:
 	if grid_manager == null:
@@ -3103,7 +3133,7 @@ func get_map_constructor_door_visual_state(object_id: String) -> Dictionary:
 		"broken":
 			tint = Color(0.7, 0.38, 0.34, 0.95)
 			accent = Color(0.95, 0.28, 0.22, 0.98)
-	return {"ok": true, "object_id": normalized_id, "state": state, "badges": badges, "tint": tint, "accent": accent, "message": message}
+	return {"ok": true, "object_id": normalized_id, "state": state, "badges": badges, "tint": tint, "accent": accent, "texture_asset_id": "door_state_generic", "message": message}
 
 func get_map_constructor_terminal_visual_state(object_id: String) -> Dictionary:
 	var normalized_id: String = object_id.strip_edges()
@@ -3178,7 +3208,7 @@ func get_map_constructor_terminal_visual_state(object_id: String) -> Dictionary:
 		"scanning":
 			tint = Color(0.7, 0.92, 1.0, 0.96)
 			accent = Color(0.39, 0.95, 1.0, 0.99)
-	return {"ok": true, "object_id": normalized_id, "terminal_type": terminal_type, "state": state, "badges": badges, "tint": tint, "accent": accent, "message": "Terminal visual state resolved."}
+	return {"ok": true, "object_id": normalized_id, "terminal_type": terminal_type, "state": state, "badges": badges, "tint": tint, "accent": accent, "texture_asset_id": "terminal_state_generic", "message": "Terminal visual state resolved."}
 
 func get_map_constructor_property_presets(entity_kind: String, entity_id: String) -> Array[Dictionary]:
 	var group: String = get_map_constructor_entity_type_group(entity_kind, entity_id)
@@ -10305,7 +10335,9 @@ func export_map_constructor_design_notes(options: Dictionary = {}) -> Dictionary
 				visual_diagnostics.append(_make_map_constructor_issue("terminal_missing_link_target_%s" % object_id, "warning", "Terminal %s references missing linked target %s." % [object_id, linked_target_id], cell, "world_object", "world_object", object_id, "Fix linked target id or add the target object."))
 	door_visual_summary["doors"] = door_rows
 	terminal_visual_summary["terminals"] = terminal_rows
-	var notes: Dictionary = {"schema_version":1,"source":"task_test_map_constructor","mission_id":"mission_10","generated_at_runtime":str(Time.get_unix_time_from_system()),"summary":{"object_count":mission_world_objects.size(),"wall_material_override_count":wall_overrides.size(),"wall_material_counts":wall_counts},"readiness":readiness,"validation":{"issues":validation,"visual_diagnostics":visual_diagnostics},"objects":mission_world_objects.duplicate(true),"items":cell_items.values(),"tile_edits":Array(patch_export.get("patch", {}).get("tile_edits", [])),"links":Array(patch_export.get("patch", {}).get("links", [])),"patch":Dictionary(patch_export.get("patch", {})),"wall_material_overrides":wall_overrides,"door_visual_summary":door_visual_summary,"terminal_visual_summary":terminal_visual_summary,"history_summary":Array(get_map_constructor_change_history(20).get("history", [])),"overview_summary":Dictionary(get_map_constructor_overview_data().get("summary", {})),"recommended_next_steps":["Manual promotion required. No mission files were modified."]}
+	var visual_catalog: Dictionary = get_visual_texture_asset_catalog()
+	var visual_summary: Dictionary = _build_visual_asset_summary(Dictionary(visual_catalog))
+	var notes: Dictionary = {"schema_version":1,"source":"task_test_map_constructor","mission_id":"mission_10","generated_at_runtime":str(Time.get_unix_time_from_system()),"summary":{"object_count":mission_world_objects.size(),"wall_material_override_count":wall_overrides.size(),"wall_material_counts":wall_counts},"visual_asset_summary":visual_summary,"readiness":readiness,"validation":{"issues":validation,"visual_diagnostics":visual_diagnostics},"objects":mission_world_objects.duplicate(true),"items":cell_items.values(),"tile_edits":Array(patch_export.get("patch", {}).get("tile_edits", [])),"links":Array(patch_export.get("patch", {}).get("links", [])),"patch":Dictionary(patch_export.get("patch", {})),"wall_material_overrides":wall_overrides,"door_visual_summary":door_visual_summary,"terminal_visual_summary":terminal_visual_summary,"history_summary":Array(get_map_constructor_change_history(20).get("history", [])),"overview_summary":Dictionary(get_map_constructor_overview_data().get("summary", {})),"recommended_next_steps":["Manual promotion required. No mission files were modified."]}
 	var text: String = "# Design Notes\nMission: mission_10\nReadiness: %s\nValidation issues: %d\nPatch summary: objects=%d items=%d tiles=%d\nManual promotion required. No mission files were modified." % [String(readiness.get("status", "unknown")), validation.size(), int(patch_export.get("object_count", 0)), int(patch_export.get("item_count", 0)), int(patch_export.get("tile_edit_count", 0))]
 	return {"ok":true,"message":"OK","notes":notes,"text":text}
 
@@ -10338,7 +10370,30 @@ func get_map_constructor_production_pipeline_report(options: Dictionary = {}) ->
 	var has_warnings: bool = warning_count > 0
 	var status: String = "blocked" if blocked else ("warning" if has_warnings else "ready")
 	var notes_payload: Dictionary = Dictionary(notes.get("notes", {}))
-	return {"ok":true,"status":status,"message":"Manual promotion required. No mission files were modified.","checks":checks,"promotion_package":{"patch":Dictionary(patch_export.get("patch", {})),"design_notes":notes_payload,"summary":{"readiness":String(readiness.get("status", "unknown")),"wall_material_overrides":Array(get_map_constructor_wall_material_overrides().get("overrides", [])),"door_visual_summary":Dictionary(notes_payload.get("door_visual_summary", {})),"terminal_visual_summary":Dictionary(notes_payload.get("terminal_visual_summary", {}))},"manual_steps":["Review design notes","Review patch JSON","Promote manually in controlled pipeline"],"warnings":[]},"recommended_actions":[]}
+	return {"ok":true,"status":status,"message":"Manual promotion required. No mission files were modified.","checks":checks,"promotion_package":{"patch":Dictionary(patch_export.get("patch", {})),"design_notes":notes_payload,"summary":{"readiness":String(readiness.get("status", "unknown")),"wall_material_overrides":Array(get_map_constructor_wall_material_overrides().get("overrides", [])),"door_visual_summary":Dictionary(notes_payload.get("door_visual_summary", {})),"terminal_visual_summary":Dictionary(notes_payload.get("terminal_visual_summary", {})),"visual_asset_summary":Dictionary(notes_payload.get("visual_asset_summary", {}))},"manual_steps":["Review design notes","Review patch JSON","Promote manually in controlled pipeline"],"warnings":[]},"recommended_actions":[]}
+
+func _build_visual_asset_summary(catalog: Dictionary) -> Dictionary:
+	var assets: Array = Array(catalog.get("assets", []))
+	var missing_optional_count: int = 0
+	var missing_required_count: int = 0
+	var category_counts: Dictionary = {}
+	for row_variant in assets:
+		var row: Dictionary = Dictionary(row_variant)
+		var category: String = String(row.get("category", "unknown"))
+		category_counts[category] = int(category_counts.get(category, 0)) + 1
+		var resolved: Dictionary = resolve_visual_texture_asset(String(row.get("id", "")))
+		if bool(resolved.get("ok", false)) and not bool(resolved.get("has_texture", false)):
+			if bool(row.get("is_optional", true)):
+				missing_optional_count += 1
+			else:
+				missing_required_count += 1
+	return {
+		"asset_count": assets.size(),
+		"missing_optional_count": missing_optional_count,
+		"missing_required_count": missing_required_count,
+		"fallback_count": missing_optional_count + missing_required_count,
+		"categories": category_counts
+	}
 
 func _preview_map_constructor_entry_set(entries: Array, anchor_cell: Vector2i, options: Dictionary = {}) -> Dictionary:
 	var conflicts: Array[Dictionary] = []

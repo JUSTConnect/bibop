@@ -1136,6 +1136,31 @@ func draw_iso_texture_asset(cell: Vector2i, asset_key: String, visual_center_ove
 	draw_texture(texture, draw_position)
 	return true
 
+func draw_optional_visual_texture_asset(asset_id: String, cell: Vector2i, fallback_callable_name: String = "", options: Dictionary = {}) -> bool:
+	var normalized_asset_id: String = asset_id.strip_edges()
+	if normalized_asset_id.is_empty():
+		return false
+	var mission_manager: Node = get_mission_manager_ref()
+	if mission_manager == null or not mission_manager.has_method("resolve_visual_texture_asset"):
+		return false
+	var resolved: Dictionary = Dictionary(mission_manager.call("resolve_visual_texture_asset", normalized_asset_id))
+	if not bool(resolved.get("ok", false)):
+		push_warning("[VisualAsset] unknown texture_asset_id: %s" % normalized_asset_id)
+		return false
+	if not bool(resolved.get("has_texture", false)):
+		return false
+	var texture_path: String = String(resolved.get("texture_path", "")).strip_edges()
+	if texture_path.is_empty():
+		return false
+	var loaded: Resource = load(texture_path)
+	if loaded == null or not (loaded is Texture2D):
+		return false
+	var center: Vector2 = grid_to_iso(cell)
+	if options.has("visual_center"):
+		center = Vector2(options.get("visual_center", center))
+	draw_texture(loaded as Texture2D, get_iso_texture_draw_position_from_center(center, loaded as Texture2D))
+	return true
+
 func get_wall_prototype_colors(cell: Vector2i) -> Dictionary:
 	var profile_key: String = get_wall_visual_profile_key_for_cell(cell)
 	var profile: Dictionary = get_wall_visual_profile(profile_key)
@@ -1485,6 +1510,10 @@ func draw_iso_wall_block(cell: Vector2i) -> void:
 	draw_line(accent_start, accent_end, accent_color, 1.2)
 
 	var wall_profile_key: String = get_wall_visual_profile_key_for_cell(cell)
+	var material_override: Dictionary = _get_wall_material_override_for_cell(cell)
+	if bool(material_override.get("ok", false)):
+		var material_row: Dictionary = Dictionary(material_override.get("material", {}))
+		draw_optional_visual_texture_asset(String(material_row.get("texture_asset_id", "")), cell, "draw_iso_wall_surface_accent")
 	draw_iso_wall_surface_accent(left_face, right_face, top_face, wall_profile_key, accent_color)
 
 func draw_iso_wall_surface_accent(
@@ -2120,6 +2149,10 @@ func draw_iso_object_marker(cell: Vector2i, tile_type: int) -> void:
 		profile["accent"] = Color(terminal_visual.get("accent", _get_color_from_dict(profile, "accent", Color.WHITE)))
 	var overlay_accent: Color = _get_color_from_dict(profile, "accent", Color(0.72, 0.78, 0.86, 0.95))
 	var used_texture_asset: bool = draw_iso_texture_asset(cell, object_asset_key, visual_center)
+	if not used_texture_asset and has_door_visual:
+		used_texture_asset = draw_optional_visual_texture_asset(String(door_visual.get("texture_asset_id", "")), cell, "draw_iso_object_marker", {"visual_center": visual_center})
+	if not used_texture_asset and has_terminal_visual:
+		used_texture_asset = draw_optional_visual_texture_asset(String(terminal_visual.get("texture_asset_id", "")), cell, "draw_iso_object_marker", {"visual_center": visual_center})
 	if used_texture_asset:
 		draw_circle(visual_center + Vector2(0.0, -iso_object_marker_height - 8.0), 2.4, overlay_accent)
 		draw_line(
