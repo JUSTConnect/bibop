@@ -2963,6 +2963,155 @@ func get_map_constructor_entity_type_group(entity_kind: String, entity_id: Strin
 	if entity_kind == "item" or _map_constructor_matches_any_token(join_text, ["mechanical_key","digital_key","access_code","fuse","cable","datafile"]): return "item"
 	return "generic"
 
+func get_map_constructor_door_visual_state(object_id: String) -> Dictionary:
+	var normalized_id: String = object_id.strip_edges()
+	var fallback: Dictionary = {"ok": false, "object_id": normalized_id, "state": "unknown", "badges": [], "tint": Color(1.0, 1.0, 1.0, 1.0), "accent": Color(0.72, 0.78, 0.86, 0.95), "message": "Object not found."}
+	if normalized_id.is_empty():
+		fallback["message"] = "Object id is empty."
+		return fallback
+	var object_data: Dictionary = get_world_object_by_id(normalized_id)
+	if object_data.is_empty():
+		return fallback
+	var object_type: String = String(object_data.get("object_type", "")).to_lower()
+	var object_group: String = String(object_data.get("object_group", "")).to_lower()
+	if not object_type.contains("door") and not object_type.contains("gate") and object_group != "door":
+		fallback["message"] = "Object is not a door or gate."
+		return fallback
+	var badges: Array[String] = []
+	var state: String = "closed"
+	var message: String = "Door visual state resolved."
+	var raw_state: String = String(object_data.get("state", "")).to_lower()
+	var is_open: bool = bool(object_data.get("is_open", object_data.get("open", object_data.get("opened", false))))
+	var has_key_req: bool = not String(object_data.get("required_key_id", object_data.get("required_key", object_data.get("access_code", "")))).strip_edges().is_empty()
+	var is_locked: bool = bool(object_data.get("is_locked", object_data.get("locked", false))) or has_key_req or String(object_data.get("lock_type", "")).strip_edges() != ""
+	var damage_level: int = int(object_data.get("damage_level", 0))
+	var is_broken: bool = bool(object_data.get("broken", false)) or bool(object_data.get("is_broken", false)) or bool(object_data.get("damaged", false)) or damage_level > 0 or raw_state in ["broken", "damaged", "jammed", "destroyed"]
+	var requires_power: bool = bool(object_data.get("requires_power", object_data.get("requires_external_power", false)))
+	var has_power_network: bool = not String(object_data.get("power_network_id", "")).strip_edges().is_empty()
+	var has_power_flag: bool = object_data.has("is_powered") or object_data.has("powered")
+	var is_powered: bool = bool(object_data.get("is_powered", object_data.get("powered", false)))
+	if is_broken:
+		state = "broken"
+		badges.append("broken")
+	elif is_open or raw_state == "open":
+		state = "open"
+		badges.append("open")
+	elif is_locked or raw_state == "locked":
+		state = "locked"
+		badges.append("locked")
+	elif has_power_flag or requires_power or has_power_network:
+		if is_powered:
+			state = "powered"
+			badges.append("powered")
+		else:
+			state = "unpowered"
+			badges.append("unpowered")
+	else:
+		state = "closed"
+	if requires_power:
+		badges.append("requires_power")
+	if has_power_network:
+		badges.append("power_network:%s" % String(object_data.get("power_network_id", "")))
+	var control_source_id: String = String(object_data.get("control_source_id", object_data.get("linked_terminal_id", object_data.get("controller_id", "")))).strip_edges()
+	if not control_source_id.is_empty():
+		badges.append("linked_control:%s" % control_source_id)
+	if state == "unknown":
+		message = "Door state is unknown."
+	var tint: Color = Color(1.0, 1.0, 1.0, 1.0)
+	var accent: Color = Color(0.72, 0.78, 0.86, 0.95)
+	match state:
+		"open":
+			tint = Color(0.86, 0.95, 1.0, 0.75)
+			accent = Color(0.58, 0.9, 0.98, 0.96)
+		"locked":
+			tint = Color(0.96, 0.88, 0.62, 0.96)
+			accent = Color(1.0, 0.78, 0.2, 0.98)
+		"powered":
+			tint = Color(0.76, 0.94, 1.0, 0.96)
+			accent = Color(0.36, 0.92, 1.0, 0.98)
+		"unpowered":
+			tint = Color(0.35, 0.38, 0.43, 0.9)
+			accent = Color(0.52, 0.58, 0.65, 0.92)
+		"broken":
+			tint = Color(0.7, 0.38, 0.34, 0.95)
+			accent = Color(0.95, 0.28, 0.22, 0.98)
+	return {"ok": true, "object_id": normalized_id, "state": state, "badges": badges, "tint": tint, "accent": accent, "message": message}
+
+func get_map_constructor_terminal_visual_state(object_id: String) -> Dictionary:
+	var normalized_id: String = object_id.strip_edges()
+	var fallback: Dictionary = {"ok": false, "object_id": normalized_id, "terminal_type": "unknown", "state": "unknown", "badges": [], "tint": Color(1.0, 1.0, 1.0, 1.0), "accent": Color(0.78, 0.87, 0.96, 0.98), "message": "Object not found."}
+	if normalized_id.is_empty():
+		fallback["message"] = "Object id is empty."
+		return fallback
+	var object_data: Dictionary = get_world_object_by_id(normalized_id)
+	if object_data.is_empty():
+		return fallback
+	var object_type: String = String(object_data.get("object_type", "")).to_lower()
+	var object_group: String = String(object_data.get("object_group", "")).to_lower()
+	if not object_type.contains("terminal") and not object_type.contains("device") and object_group != "terminal":
+		fallback["message"] = "Object is not terminal/device."
+		return fallback
+	var terminal_type: String = "generic_terminal"
+	if object_type.contains("door_terminal"):
+		terminal_type = "door_terminal"
+	elif object_type.contains("power"):
+		terminal_type = "power_terminal"
+	elif object_type.contains("diagnostic") or object_type.contains("scan"):
+		terminal_type = "diagnostic_terminal"
+	elif object_type.contains("control") or object_type.contains("switch") or object_type.contains("platform_terminal"):
+		terminal_type = "control_terminal"
+	elif object_type.contains("info") or object_type.contains("information"):
+		terminal_type = "information_terminal"
+	elif not object_type.contains("terminal"):
+		terminal_type = "unknown"
+	var raw_state: String = String(object_data.get("state", "idle")).to_lower()
+	var state: String = "idle"
+	var badges: Array[String] = []
+	var is_broken: bool = bool(object_data.get("broken", false)) or bool(object_data.get("is_broken", false)) or bool(object_data.get("damaged", false))
+	var has_error: bool = bool(object_data.get("error", false)) or bool(object_data.get("has_error", false)) or raw_state == "error"
+	var scanning: bool = bool(object_data.get("scanning", false)) or bool(object_data.get("diagnostic_in_progress", false)) or raw_state == "scanning"
+	var is_offline: bool = bool(object_data.get("offline", false)) or raw_state == "offline"
+	var enabled: bool = bool(object_data.get("enabled", object_data.get("is_enabled", true)))
+	var powered: bool = bool(object_data.get("is_powered", object_data.get("powered", true)))
+	if is_broken or raw_state == "broken":
+		state = "broken"
+	elif has_error:
+		state = "error"
+	elif scanning:
+		state = "scanning"
+	elif is_offline:
+		state = "offline"
+	elif not enabled or raw_state == "disabled":
+		state = "disabled"
+	elif raw_state in ["active", "enabled", "hacked"] or powered:
+		state = "active"
+	if not powered and state == "active":
+		state = "disabled"
+	if terminal_type != "unknown":
+		badges.append(terminal_type)
+	if not String(object_data.get("target_door_id", "")).strip_edges().is_empty():
+		badges.append("target_door:%s" % String(object_data.get("target_door_id", "")))
+	if not String(object_data.get("target_platform_id", "")).strip_edges().is_empty():
+		badges.append("target_platform:%s" % String(object_data.get("target_platform_id", "")))
+	var tint: Color = Color(1.0, 1.0, 1.0, 1.0)
+	var accent: Color = Color(0.78, 0.87, 0.96, 0.98)
+	match terminal_type:
+		"door_terminal": accent = Color(1.0, 0.8, 0.26, 0.99)
+		"power_terminal": accent = Color(0.45, 0.98, 0.78, 0.99)
+		"diagnostic_terminal": accent = Color(0.46, 0.92, 1.0, 0.99)
+		"control_terminal": accent = Color(0.78, 0.62, 1.0, 0.99)
+		"information_terminal": accent = Color(0.67, 0.86, 1.0, 0.99)
+	match state:
+		"disabled", "offline":
+			tint = Color(0.42, 0.45, 0.5, 0.9)
+		"error", "broken":
+			tint = Color(0.72, 0.36, 0.34, 0.95)
+			accent = Color(1.0, 0.29, 0.22, 0.99)
+		"scanning":
+			tint = Color(0.7, 0.92, 1.0, 0.96)
+			accent = Color(0.39, 0.95, 1.0, 0.99)
+	return {"ok": true, "object_id": normalized_id, "terminal_type": terminal_type, "state": state, "badges": badges, "tint": tint, "accent": accent, "message": "Terminal visual state resolved."}
+
 func get_map_constructor_property_presets(entity_kind: String, entity_id: String) -> Array[Dictionary]:
 	var group: String = get_map_constructor_entity_type_group(entity_kind, entity_id)
 	match group:

@@ -11513,6 +11513,51 @@ func _show_map_constructor_inspector(cell: Vector2i, preferred_entity_kind: Stri
 			if data.has("digital_payload_type") or String(data.get("item_type", "")).findn("digital") >= 0 or String(data.get("item_type", "")).findn("access_code") >= 0:
 				_add_text_property(section, "digital_payload_type", entity_kind, entity_id, "digital_payload_type", data.get("digital_payload_type", ""))
 		v.add_child(section)
+	if entity_kind == "world_object" and type_group == "door" and mission_manager_runtime.has_method("get_map_constructor_door_visual_state"):
+		var door_visual_section: VBoxContainer = _create_inspector_section("Door Visual State")
+		var door_visual: Dictionary = mission_manager_runtime.call("get_map_constructor_door_visual_state", entity_id)
+		var door_state_label: Label = Label.new()
+		door_state_label.text = "state: %s" % String(door_visual.get("state", "unknown"))
+		door_visual_section.add_child(door_state_label)
+		var door_badges_label: Label = Label.new()
+		door_badges_label.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+		door_badges_label.text = "badges: %s" % String(door_visual.get("badges", []))
+		door_visual_section.add_child(door_badges_label)
+		var door_message_label: Label = Label.new()
+		door_message_label.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+		door_message_label.text = String(door_visual.get("message", ""))
+		door_visual_section.add_child(door_message_label)
+		var door_refresh_button: Button = Button.new()
+		door_refresh_button.text = "Refresh Visual State"
+		door_refresh_button.pressed.connect(func() -> void:
+			_show_map_constructor_inspector(selected_map_constructor_entity_cell, selected_map_constructor_entity_kind, selected_map_constructor_entity_id)
+			if field_runtime != null and field_runtime.has_method("request_visual_refresh"):
+				field_runtime.call("request_visual_refresh")
+		)
+		door_visual_section.add_child(door_refresh_button)
+		v.add_child(door_visual_section)
+	if entity_kind == "world_object" and type_group == "terminal" and mission_manager_runtime.has_method("get_map_constructor_terminal_visual_state"):
+		var terminal_visual_section: VBoxContainer = _create_inspector_section("Terminal Visual State")
+		var terminal_visual: Dictionary = mission_manager_runtime.call("get_map_constructor_terminal_visual_state", entity_id)
+		var terminal_type_label: Label = Label.new()
+		terminal_type_label.text = "terminal_type: %s" % String(terminal_visual.get("terminal_type", "unknown"))
+		terminal_visual_section.add_child(terminal_type_label)
+		var terminal_state_label: Label = Label.new()
+		terminal_state_label.text = "state: %s" % String(terminal_visual.get("state", "unknown"))
+		terminal_visual_section.add_child(terminal_state_label)
+		var terminal_badges_label: Label = Label.new()
+		terminal_badges_label.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+		terminal_badges_label.text = "badges: %s" % String(terminal_visual.get("badges", []))
+		terminal_visual_section.add_child(terminal_badges_label)
+		var terminal_refresh_button: Button = Button.new()
+		terminal_refresh_button.text = "Refresh Visual State"
+		terminal_refresh_button.pressed.connect(func() -> void:
+			_show_map_constructor_inspector(selected_map_constructor_entity_cell, selected_map_constructor_entity_kind, selected_map_constructor_entity_id)
+			if field_runtime != null and field_runtime.has_method("request_visual_refresh"):
+				field_runtime.call("request_visual_refresh")
+		)
+		terminal_visual_section.add_child(terminal_refresh_button)
+		v.add_child(terminal_visual_section)
 	var control_visible: bool = type_group == "control" or data.has("control_source_id") or data.has("target_door_id") or data.has("target_platform_id")
 	if control_visible:
 		var control := _create_inspector_section("Control")
