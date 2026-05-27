@@ -283,6 +283,9 @@ var tasks_claim_button: Button
 var map_constructor_mode_active: bool = false
 var selected_map_constructor_prefab_id: String = ""
 var pending_map_constructor_cell: Vector2i = Vector2i(-1, -1)
+var selected_map_constructor_entity_kind: String = ""
+var selected_map_constructor_entity_id: String = ""
+var selected_map_constructor_entity_cell: Vector2i = Vector2i(-1, -1)
 var selected_map_constructor_wall_side: String = ""
 var available_map_constructor_wall_sides: Array[String] = []
 var map_constructor_picker_entity_kind: String = ""
@@ -9278,6 +9281,48 @@ func _map_constructor_placed_row_matches_search(row: Dictionary) -> bool:
 	]
 	return haystack.find(search_text) >= 0
 
+func _clear_map_constructor_browser_selection() -> void:
+	selected_map_constructor_entity_kind = ""
+	selected_map_constructor_entity_id = ""
+	selected_map_constructor_entity_cell = Vector2i(-1, -1)
+
+func _focus_map_constructor_cell(cell: Vector2i) -> void:
+	if cell.x < 0 or cell.y < 0:
+		return
+	show_hint("Selected object at (%d, %d)." % [cell.x, cell.y])
+
+func _select_map_constructor_entity_from_browser(row: Dictionary) -> void:
+	var entity_kind: String = String(row.get("entity_kind", ""))
+	var entity_id: String = String(row.get("id", ""))
+	var row_cell: Vector2i = Vector2i(row.get("cell", Vector2i(-1, -1)))
+	var row_anchor_floor_cell: Vector2i = Vector2i(row.get("anchor_floor_cell", Vector2i(-1, -1)))
+	var row_attached_wall_cell: Vector2i = Vector2i(row.get("attached_wall_cell", Vector2i(-1, -1)))
+	var row_placement_mode: String = String(row.get("placement_mode", ""))
+	var row_wall_side: String = String(row.get("wall_side", ""))
+	if mission_manager_runtime == null or not mission_manager_runtime.has_method("get_map_constructor_entity_by_id"):
+		return
+	var entity_info: Dictionary = mission_manager_runtime.call("get_map_constructor_entity_by_id", entity_kind, entity_id)
+	if not bool(entity_info.get("ok", false)):
+		_clear_map_constructor_browser_selection()
+		return
+	var focus_cell: Vector2i = row_cell
+	if row_placement_mode == "wall_mounted":
+		if row_anchor_floor_cell.x >= 0 and row_anchor_floor_cell.y >= 0:
+			focus_cell = row_anchor_floor_cell
+		elif row_attached_wall_cell.x >= 0 and row_attached_wall_cell.y >= 0 and not row_wall_side.is_empty():
+			focus_cell = row_cell
+	if focus_cell.x < 0 or focus_cell.y < 0:
+		focus_cell = row_cell
+	selected_map_constructor_entity_kind = entity_kind
+	selected_map_constructor_entity_id = entity_id
+	selected_map_constructor_entity_cell = focus_cell
+	pending_map_constructor_cell = focus_cell
+	_update_map_constructor_preview_for_cell(focus_cell)
+	_show_map_constructor_inspector(focus_cell, entity_kind, entity_id)
+	_focus_map_constructor_cell(focus_cell)
+	if field_runtime != null and field_runtime.has_method("request_visual_refresh"):
+		field_runtime.call("request_visual_refresh")
+
 func _refresh_map_constructor_panels() -> void:
 	if app_screen_mode != AppScreenMode.GAMEPLAY:
 		return
@@ -9452,26 +9497,43 @@ func _refresh_map_constructor_panels() -> void:
 		_refresh_map_constructor_panels()
 	)
 	list.add_child(placed_search)
-	for row in _build_map_constructor_placed_object_rows():
+	var placed_rows: Array[Dictionary] = _build_map_constructor_placed_object_rows()
+	var selected_row_exists: bool = selected_map_constructor_entity_id.is_empty()
+	for row in placed_rows:
+		var row_entity_id: String = String(row.get("id", ""))
+		var row_entity_kind: String = String(row.get("entity_kind", ""))
+		if row_entity_id == selected_map_constructor_entity_id and row_entity_kind == selected_map_constructor_entity_kind:
+			selected_row_exists = true
+	for row in placed_rows:
 		if not _map_constructor_placed_row_matches_search(row):
 			continue
 		var row_cell: Vector2i = Vector2i(row.get("cell", Vector2i(-1, -1)))
 		var row_anchor_cell: Vector2i = Vector2i(row.get("anchor_floor_cell", row_cell))
+		var row_entity_id: String = String(row.get("id", ""))
+		var row_entity_kind: String = String(row.get("entity_kind", ""))
+		var row_selected: bool = row_entity_id == selected_map_constructor_entity_id and row_entity_kind == selected_map_constructor_entity_kind
 		var row_button: Button = Button.new()
 		var row_text: String = "%s | %s | c:%s | %s" % [String(row.get("id", "")), String(row.get("type_or_prefab", "")), str(row_cell), String(row.get("category_or_placement", ""))]
 		if String(row.get("placement_mode", "")) == "wall_mounted":
 			row_text += " | a:%s w:%s side:%s" % [str(row_anchor_cell), str(Vector2i(row.get("attached_wall_cell", Vector2i(-1, -1)))), String(row.get("wall_side", ""))]
+		if row_selected:
+			row_text = "▶ " + row_text
 		row_button.text = row_text
 		row_button.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 		row_button.pressed.connect(func() -> void:
-			var inspect_cell: Vector2i = row_anchor_cell
-			if inspect_cell.x < 0 or inspect_cell.y < 0:
-				inspect_cell = row_cell
-			pending_map_constructor_cell = inspect_cell
-			_update_map_constructor_preview_for_cell(inspect_cell)
-			_show_map_constructor_inspector(inspect_cell, String(row.get("entity_kind", "")), String(row.get("id", "")))
+			_select_map_constructor_entity_from_browser(row)
+			_refresh_map_constructor_panels()
 		)
 		list.add_child(row_button)
+	if not selected_row_exists:
+		_clear_map_constructor_browser_selection()
+	var selected_debug_label: Label = Label.new()
+	selected_debug_label.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	if selected_map_constructor_entity_id.is_empty():
+		selected_debug_label.text = "Browser selection: none"
+	else:
+		selected_debug_label.text = "Browser selection: %s/%s @ %s" % [selected_map_constructor_entity_kind, selected_map_constructor_entity_id, str(selected_map_constructor_entity_cell)]
+	list.add_child(selected_debug_label)
 	var audit_label: Label = Label.new()
 	audit_label.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 	audit_label.text = "Audit: unavailable"
