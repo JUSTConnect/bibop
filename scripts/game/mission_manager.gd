@@ -2460,6 +2460,84 @@ func get_map_constructor_validation_overlay() -> Dictionary:
 		summary["exit_marker_error"] = String(exit_validation.get("message", "Exit marker error."))
 	return {"ok": not has_errors, "cells": overlay_cells, "objects": overlay_objects, "summary": summary}
 
+func _make_map_constructor_issue(issue_id: String, severity: String, message: String, cell: Vector2i, source: String, entity_kind: String = "", entity_id: String = "", fix_hint: String = "") -> Dictionary:
+	return {
+		"id": issue_id,
+		"severity": severity,
+		"message": message,
+		"cell": cell,
+		"entity_kind": entity_kind,
+		"entity_id": entity_id,
+		"source": source,
+		"fix_hint": fix_hint
+	}
+
+func get_map_constructor_validation_issues() -> Array[Dictionary]:
+	var issues: Array[Dictionary] = []
+	var source_name: String = "map_constructor_validation"
+	var seen_object_ids: Dictionary = {}
+	var seen_occupancy_cells: Dictionary = {}
+	var seen_item_ids: Dictionary = {}
+	var has_grid_bounds: bool = false
+	if grid_manager != null and grid_manager.has_method("is_in_bounds"):
+		has_grid_bounds = true
+	for index in range(mission_world_objects.size()):
+		var data: Dictionary = Dictionary(mission_world_objects[index])
+		var entity_kind: String = _map_constructor_entity_kind(data)
+		if entity_kind == "item":
+			continue
+		var object_id: String = String(data.get("id", "")).strip_edges()
+		var object_type: String = String(data.get("object_type", "")).strip_edges()
+		var object_group: String = String(data.get("object_group", "")).strip_edges()
+		var object_cell: Vector2i = _deserialize_cell_variant(data.get("position", Vector2i(-1, -1)))
+		if object_id.is_empty():
+			issues.append(_make_map_constructor_issue("obj_missing_id_%d" % index, "error", "Object missing id.", object_cell, source_name, entity_kind, "", "Set unique id."))
+		elif seen_object_ids.has(object_id):
+			issues.append(_make_map_constructor_issue("obj_duplicate_id_%s_%d" % [object_id, index], "error", "Duplicate object id: %s." % object_id, object_cell, source_name, entity_kind, object_id, "Use unique ids."))
+		else:
+			seen_object_ids[object_id] = true
+		if object_type.is_empty():
+			issues.append(_make_map_constructor_issue("obj_missing_type_%d" % index, "error", "Object missing object_type.", object_cell, source_name, entity_kind, object_id))
+		if object_group.is_empty():
+			issues.append(_make_map_constructor_issue("obj_missing_group_%d" % index, "error", "Object missing object_group.", object_cell, source_name, entity_kind, object_id))
+		if object_cell.x < 0 or object_cell.y < 0:
+			issues.append(_make_map_constructor_issue("obj_invalid_cell_%d" % index, "error", "Object position invalid or negative.", object_cell, source_name, entity_kind, object_id))
+		elif has_grid_bounds and not bool(grid_manager.call("is_in_bounds", object_cell)):
+			issues.append(_make_map_constructor_issue("obj_out_of_bounds_%d" % index, "error", "Object out of bounds.", object_cell, source_name, entity_kind, object_id))
+		if object_group != "item" and object_group != "visual":
+			var occupancy_key: String = "%d,%d" % [object_cell.x, object_cell.y]
+			if seen_occupancy_cells.has(occupancy_key):
+				issues.append(_make_map_constructor_issue("obj_duplicate_cell_%s_%d" % [occupancy_key, index], "warning", "Duplicate non-overlap cell occupancy at %s." % occupancy_key, object_cell, source_name, entity_kind, object_id))
+			else:
+				seen_occupancy_cells[occupancy_key] = object_id
+		if String(data.get("placement_mode", "")).to_lower() == "wall_mounted":
+			var anchor_floor_cell: Vector2i = _deserialize_cell_variant(data.get("anchor_floor_cell", Vector2i(-1, -1)))
+			var attached_wall_cell: Vector2i = _deserialize_cell_variant(data.get("attached_wall_cell", Vector2i(-1, -1)))
+			var wall_side: String = String(data.get("wall_side", "")).strip_edges().to_lower()
+			if anchor_floor_cell.x < 0 or anchor_floor_cell.y < 0:
+				issues.append(_make_map_constructor_issue("wm_missing_anchor_%d" % index, "error", "Wall-mounted object missing anchor_floor_cell.", object_cell, source_name, entity_kind, object_id))
+			if attached_wall_cell.x < 0 or attached_wall_cell.y < 0:
+				issues.append(_make_map_constructor_issue("wm_missing_attached_%d" % index, "error", "Wall-mounted object missing attached_wall_cell.", object_cell, source_name, entity_kind, object_id))
+			if wall_side.is_empty():
+				issues.append(_make_map_constructor_issue("wm_missing_side_%d" % index, "error", "Wall-mounted object missing wall_side.", object_cell, source_name, entity_kind, object_id))
+			if attached_wall_cell.x >= 0 and attached_wall_cell.y >= 0 and has_grid_bounds and not bool(grid_manager.call("is_in_bounds", attached_wall_cell)):
+				issues.append(_make_map_constructor_issue("wm_attached_oob_%d" % index, "error", "Wall-mounted attached wall cell out of bounds.", attached_wall_cell, source_name, entity_kind, object_id))
+	# validate explicit cell_items map
+	for cell_variant in cell_items.keys():
+		var item_cell: Vector2i = _deserialize_cell_variant(cell_variant)
+		for item_variant in Array(cell_items.get(cell_variant, [])):
+			var item_data: Dictionary = Dictionary(item_variant)
+			var item_id: String = String(item_data.get("id", "")).strip_edges()
+			if item_id.is_empty():
+				issues.append(_make_map_constructor_issue("item_missing_id_%d_%d" % [item_cell.x, item_cell.y], "error", "Item missing id.", item_cell, source_name, "item", ""))
+			elif seen_item_ids.has(item_id):
+				issues.append(_make_map_constructor_issue("item_duplicate_id_%s" % item_id, "warning", "Duplicate item id: %s." % item_id, item_cell, source_name, "item", item_id))
+			else:
+				seen_item_ids[item_id] = true
+			if item_cell.x < 0 or item_cell.y < 0:
+				issues.append(_make_map_constructor_issue("item_invalid_cell_%s" % item_id, "error", "Item cell invalid or negative.", item_cell, source_name, "item", item_id))
+	return issues
+
 func get_map_constructor_audit_summary() -> Dictionary:
 	var audit: Dictionary = get_task_test_system_audit_report()
 	return {

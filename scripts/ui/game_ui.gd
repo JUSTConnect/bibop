@@ -306,6 +306,9 @@ var map_constructor_prefab_favorites: Dictionary = {}
 var map_constructor_prefab_recent_ids: Array[String] = []
 const MAP_CONSTRUCTOR_PREFAB_RECENT_LIMIT: int = 8
 var map_constructor_placed_search_text: String = ""
+var map_constructor_issue_filter: String = "All"
+var map_constructor_selected_issue_id: String = ""
+const MAP_CONSTRUCTOR_ISSUE_FILTER_OPTIONS: Array[String] = ["All", "Errors", "Warnings", "Info"]
 
 const MAP_CONSTRUCTOR_PREFAB_FILTER_CATEGORIES: Array[String] = ["All", "Walls", "Doors", "Terminals", "Power", "Control", "Items", "Wall-mounted"]
 const MAP_CONSTRUCTOR_CONTROL_PREFAB_IDS: Array[String] = [
@@ -9527,15 +9530,67 @@ func _refresh_map_constructor_panels() -> void:
 			_refresh_map_constructor_panels()
 		)
 		list.add_child(row_button)
-	if not selected_row_exists:
-		_clear_map_constructor_browser_selection()
-	var selected_debug_label: Label = Label.new()
-	selected_debug_label.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
-	if selected_map_constructor_entity_id.is_empty():
-		selected_debug_label.text = "Browser selection: none"
-	else:
-		selected_debug_label.text = "Browser selection: %s/%s @ %s" % [selected_map_constructor_entity_kind, selected_map_constructor_entity_id, str(selected_map_constructor_entity_cell)]
-	list.add_child(selected_debug_label)
+	var issues_title: Label = Label.new()
+	issues_title.text = "Validation Issues"
+	list.add_child(issues_title)
+	var issues_filter_option: OptionButton = OptionButton.new()
+	for filter_name in MAP_CONSTRUCTOR_ISSUE_FILTER_OPTIONS:
+		issues_filter_option.add_item(filter_name)
+	var selected_filter_index: int = MAP_CONSTRUCTOR_ISSUE_FILTER_OPTIONS.find(map_constructor_issue_filter)
+	if selected_filter_index < 0:
+		selected_filter_index = 0
+		map_constructor_issue_filter = "All"
+	issues_filter_option.select(selected_filter_index)
+	issues_filter_option.item_selected.connect(func(index: int) -> void:
+		if index >= 0 and index < MAP_CONSTRUCTOR_ISSUE_FILTER_OPTIONS.size():
+			map_constructor_issue_filter = MAP_CONSTRUCTOR_ISSUE_FILTER_OPTIONS[index]
+			_refresh_map_constructor_panels()
+	)
+	list.add_child(issues_filter_option)
+	var constructor_issues: Array[Dictionary] = []
+	if mission_manager_runtime != null and mission_manager_runtime.has_method("get_map_constructor_validation_issues"):
+		constructor_issues = mission_manager_runtime.call("get_map_constructor_validation_issues")
+	var issue_errors: int = 0
+	var issue_warnings: int = 0
+	var issue_info: int = 0
+	var issue_id_exists: bool = false
+	for issue_row in constructor_issues:
+		var issue_severity: String = String(issue_row.get("severity", "info")).to_lower()
+		if issue_severity == "error":
+			issue_errors += 1
+		elif issue_severity == "warning":
+			issue_warnings += 1
+		else:
+			issue_info += 1
+		if String(issue_row.get("id", "")) == map_constructor_selected_issue_id:
+			issue_id_exists = true
+	if not issue_id_exists:
+		map_constructor_selected_issue_id = ""
+	var issue_counts_label: Label = Label.new()
+	issue_counts_label.text = "Errors: %d Warnings: %d Info: %d" % [issue_errors, issue_warnings, issue_info]
+	list.add_child(issue_counts_label)
+	for issue_row in constructor_issues:
+		if not _map_constructor_issue_matches_filter(issue_row):
+			continue
+		var issue_id: String = String(issue_row.get("id", ""))
+		var issue_severity: String = String(issue_row.get("severity", "info")).to_upper()
+		var issue_message: String = String(issue_row.get("message", "Validation issue"))
+		var issue_cell: Vector2i = Vector2i(issue_row.get("cell", Vector2i(-1, -1)))
+		var issue_entity_id: String = String(issue_row.get("entity_id", ""))
+		var issue_text: String = "%s%s: %s" % ["▶ " if issue_id == map_constructor_selected_issue_id else "", issue_severity, issue_message]
+		if not issue_entity_id.is_empty():
+			issue_text += " | id=%s" % issue_entity_id
+		if issue_cell.x >= 0 and issue_cell.y >= 0:
+			issue_text += " | c=%s" % str(issue_cell)
+		var issue_button: Button = Button.new()
+		issue_button.text = issue_text
+		issue_button.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+		issue_button.pressed.connect(func() -> void:
+			map_constructor_selected_issue_id = issue_id
+			_focus_map_constructor_issue(issue_row)
+			_refresh_map_constructor_panels()
+		)
+		list.add_child(issue_button)
 	var audit_label: Label = Label.new()
 	audit_label.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 	audit_label.text = "Audit: unavailable"
