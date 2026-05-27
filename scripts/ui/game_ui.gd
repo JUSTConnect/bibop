@@ -286,6 +286,9 @@ var pending_map_constructor_cell: Vector2i = Vector2i(-1, -1)
 var map_constructor_picker_entity_kind: String = ""
 var map_constructor_picker_entity_id: String = ""
 var map_constructor_picker_field_name: String = ""
+var map_constructor_preset_name: String = "preset"
+var map_constructor_preset_entries: Array[Dictionary] = []
+var map_constructor_selected_preset_name: String = ""
 var tasks_actions_row: HBoxContainer
 var tasks_dev_output_label: RichTextLabel
 var tasks_dev_output_scroll: ScrollContainer
@@ -9024,32 +9027,88 @@ func _refresh_map_constructor_panels() -> void:
 		_refresh_map_constructor_panels()
 	)
 	list.add_child(refresh_audit_button)
+	var presets_title: Label = Label.new()
+	presets_title.text = "Constructor Presets"
+	list.add_child(presets_title)
+	var preset_name_edit: LineEdit = LineEdit.new()
+	preset_name_edit.placeholder_text = "Preset name"
+	preset_name_edit.text = map_constructor_preset_name
+	preset_name_edit.text_changed.connect(func(new_text: String) -> void:
+		map_constructor_preset_name = new_text
+	)
+	list.add_child(preset_name_edit)
+	if mission_manager_runtime != null and mission_manager_runtime.has_method("list_map_constructor_presets"):
+		map_constructor_preset_entries = mission_manager_runtime.call("list_map_constructor_presets")
+	if map_constructor_selected_preset_name.is_empty() and not map_constructor_preset_entries.is_empty():
+		map_constructor_selected_preset_name = String(map_constructor_preset_entries[0].get("name", ""))
+	var preset_select: OptionButton = OptionButton.new()
+	for i in range(map_constructor_preset_entries.size()):
+		var entry: Dictionary = map_constructor_preset_entries[i]
+		var name: String = String(entry.get("name", ""))
+		preset_select.add_item(name)
+		if name == map_constructor_selected_preset_name:
+			preset_select.select(i)
+	preset_select.item_selected.connect(func(index: int) -> void:
+		if index >= 0 and index < map_constructor_preset_entries.size():
+			map_constructor_selected_preset_name = String(map_constructor_preset_entries[index].get("name", ""))
+	)
+	list.add_child(preset_select)
+	var preset_actions: HBoxContainer = HBoxContainer.new()
+	preset_actions.add_theme_constant_override("separation", 4)
+	list.add_child(preset_actions)
 	var save_preset_button: Button = Button.new()
-	save_preset_button.text = "Save TASK TEST Preset"
+	save_preset_button.text = "Save"
 	save_preset_button.pressed.connect(func() -> void:
-		if mission_manager_runtime == null or not mission_manager_runtime.has_method("save_task_test_constructor_preset"):
+		if not map_constructor_mode_active or mission_manager_runtime == null or not mission_manager_runtime.has_method("save_map_constructor_preset"):
 			show_hint("Preset save unavailable.")
 			return
-		var save_result: Dictionary = mission_manager_runtime.call("save_task_test_constructor_preset")
+		var save_result: Dictionary = mission_manager_runtime.call("save_map_constructor_preset", map_constructor_preset_name)
 		show_hint(String(save_result.get("message", "Preset save done.")))
+		map_constructor_selected_preset_name = String(save_result.get("preset_name", map_constructor_selected_preset_name))
+		_show_map_constructor_inspector(pending_map_constructor_cell)
+		_refresh_map_constructor_panels()
+		if field_runtime != null and field_runtime.has_method("request_visual_refresh"):
+			field_runtime.call("request_visual_refresh")
 	)
-	list.add_child(save_preset_button)
+	preset_actions.add_child(save_preset_button)
 	var load_preset_button: Button = Button.new()
-	load_preset_button.text = "Load TASK TEST Preset"
+	load_preset_button.text = "Load selected"
 	load_preset_button.pressed.connect(func() -> void:
-		if mission_manager_runtime == null or not mission_manager_runtime.has_method("load_task_test_constructor_preset"):
+		if not map_constructor_mode_active or map_constructor_selected_preset_name.is_empty() or mission_manager_runtime == null or not mission_manager_runtime.has_method("load_map_constructor_preset"):
 			show_hint("Preset load unavailable.")
 			return
-		var load_result: Dictionary = mission_manager_runtime.call("load_task_test_constructor_preset")
+		var load_result: Dictionary = mission_manager_runtime.call("load_map_constructor_preset", map_constructor_selected_preset_name)
 		show_hint(String(load_result.get("message", "Preset load done.")))
 		if bool(load_result.get("ok", false)):
 			pending_map_constructor_cell = Vector2i(-1, -1)
 			_clear_map_constructor_preview_cell()
-			if field_runtime != null and field_runtime.has_method("request_visual_refresh"):
-				field_runtime.call("request_visual_refresh")
+			_show_map_constructor_inspector(Vector2i(-1, -1))
+		_refresh_map_constructor_panels()
+		if field_runtime != null and field_runtime.has_method("request_visual_refresh"):
+			field_runtime.call("request_visual_refresh")
+	)
+	preset_actions.add_child(load_preset_button)
+	var delete_preset_button: Button = Button.new()
+	delete_preset_button.text = "Delete selected"
+	delete_preset_button.pressed.connect(func() -> void:
+		if not map_constructor_mode_active or map_constructor_selected_preset_name.is_empty() or mission_manager_runtime == null or not mission_manager_runtime.has_method("delete_map_constructor_preset"):
+			show_hint("Preset delete unavailable.")
+			return
+		var delete_result: Dictionary = mission_manager_runtime.call("delete_map_constructor_preset", map_constructor_selected_preset_name)
+		show_hint(String(delete_result.get("message", "Preset delete done.")))
+		map_constructor_selected_preset_name = ""
+		_show_map_constructor_inspector(pending_map_constructor_cell)
+		_refresh_map_constructor_panels()
+		if field_runtime != null and field_runtime.has_method("request_visual_refresh"):
+			field_runtime.call("request_visual_refresh")
+	)
+	preset_actions.add_child(delete_preset_button)
+	var refresh_preset_button: Button = Button.new()
+	refresh_preset_button.text = "Refresh list"
+	refresh_preset_button.pressed.connect(func() -> void:
 		_refresh_map_constructor_panels()
 	)
-	list.add_child(load_preset_button)
+	list.add_child(refresh_preset_button)
 	runtime_hud_root.add_child(runtime_map_constructor_palette_panel)
 	if runtime_map_constructor_validation_overlay_control == null or not is_instance_valid(runtime_map_constructor_validation_overlay_control):
 		runtime_map_constructor_validation_overlay_control = ConstructorValidationOverlayControl.new(self)
