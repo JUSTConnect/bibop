@@ -8302,9 +8302,18 @@ func refresh_world_object_overlay() -> void:
 	if mission_manager == null or grid_manager == null:
 		return
 	var markers := {}
-	for cell in mission_manager.world_objects_by_cell.keys():
-		var obj: Dictionary = mission_manager.world_objects_by_cell[cell]
-		if obj.get("state", "") in ["destroyed", "open", "inactive"]:
+	for cell_variant in mission_manager.world_objects_by_cell.keys():
+		var cell: Vector2i = Vector2i(cell_variant)
+		var obj: Dictionary = {}
+		if mission_manager.has_method("get_world_object_at_cell"):
+			obj = Dictionary(mission_manager.call("get_world_object_at_cell", cell))
+		else:
+			var raw_value: Variant = mission_manager.world_objects_by_cell.get(cell_variant, {})
+			if raw_value is Dictionary:
+				obj = Dictionary(raw_value)
+			elif raw_value is Array and not Array(raw_value).is_empty() and Array(raw_value)[0] is Dictionary:
+				obj = Dictionary(Array(raw_value)[0])
+		if obj.is_empty() or obj.get("state", "") in ["destroyed", "open", "inactive"]:
 			continue
 		markers[cell] = _get_world_marker(obj)
 	for cell in mission_manager.cell_items.keys():
