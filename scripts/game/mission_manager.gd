@@ -1011,6 +1011,161 @@ func apply_map_constructor_property_update(entity_kind: String, entity_id: Strin
 	result["message"] = "Updated %s." % field_name
 	return result
 
+func _map_constructor_is_item_like_world_object(object_data: Dictionary) -> bool:
+	var object_group: String = String(object_data.get("object_group", "")).to_lower()
+	var object_type: String = String(object_data.get("object_type", "")).to_lower()
+	return object_group == "item" or object_type.contains("key") or object_type.contains("access_code")
+
+func _map_constructor_make_link_target(target_id: String, label: String, target_kind: String, target_cell: Vector2i, status: String, reason: String) -> Dictionary:
+	return {"id": target_id, "label": label, "kind": target_kind, "cell": target_cell, "status": status, "reason": reason}
+
+func _map_constructor_add_none_target(targets: Array[Dictionary]) -> void:
+	targets.append(_map_constructor_make_link_target("__none__", "<clear>", "none", Vector2i(-1, -1), "warning", "clear_value"))
+
+func get_map_constructor_link_targets_for_field(entity_kind: String, entity_id: String, field_name: String) -> Dictionary:
+	var result: Dictionary = {"ok": false, "field_name": field_name, "targets": [], "message": "Unsupported field."}
+	var supported_fields: Array[String] = [
+		"required_key_id", "linked_terminal_id", "target_door_id", "target_platform_id",
+		"control_source_id", "connected_device_ids", "power_network_id"
+	]
+	if not supported_fields.has(field_name):
+		return result
+	var targets: Array[Dictionary] = []
+	var entity_info: Dictionary = get_map_constructor_entity_by_id(entity_kind, entity_id)
+	var current_cell: Vector2i = Vector2i(entity_info.get("cell", Vector2i(-1, -1)))
+	if field_name == "required_key_id":
+		var ranked_items: Array[Dictionary] = []
+		var other_items: Array[Dictionary] = []
+		for cell_variant in cell_items.keys():
+			var cell: Vector2i = Vector2i(cell_variant)
+			for item_variant in Array(cell_items.get(cell_variant, [])):
+				if typeof(item_variant) != TYPE_DICTIONARY:
+					continue
+				var item_data: Dictionary = Dictionary(item_variant)
+				var item_id: String = String(item_data.get("id", "")).strip_edges()
+				if item_id.is_empty():
+					continue
+				var item_type: String = String(item_data.get("item_type", item_data.get("object_type", ""))).to_lower()
+				var target: Dictionary = _map_constructor_make_link_target(item_id, item_id, "item", cell, "valid", "item")
+				if item_type in ["mechanical_keycard", "digital_key", "access_code"]:
+					ranked_items.append(target)
+				else:
+					other_items.append(target)
+		for object_data in mission_world_objects:
+			if typeof(object_data) != TYPE_DICTIONARY:
+				continue
+			var world_data: Dictionary = Dictionary(object_data)
+			if not _map_constructor_is_item_like_world_object(world_data):
+				continue
+			var world_id: String = String(world_data.get("id", "")).strip_edges()
+			if world_id.is_empty():
+				continue
+			var world_cell: Vector2i = Vector2i(world_data.get("position", Vector2i(-1, -1)))
+			targets.append(_map_constructor_make_link_target(world_id, world_id, "world_object", world_cell, "valid", "item_like_object"))
+		targets.append_array(ranked_items)
+		targets.append_array(other_items)
+	elif field_name == "linked_terminal_id":
+		for object_data in mission_world_objects:
+			var data: Dictionary = Dictionary(object_data)
+			var object_type: String = String(data.get("object_type", "")).to_lower()
+			var group_text: String = String(data.get("object_group", data.get("group", ""))).to_lower()
+			if object_type.contains("terminal") or group_text.contains("terminal"):
+				targets.append(_map_constructor_make_link_target(String(data.get("id", "")), String(data.get("id", "")), "world_object", Vector2i(data.get("position", Vector2i(-1, -1))), "valid", "terminal_candidate"))
+	elif field_name == "target_door_id":
+		for object_data in mission_world_objects:
+			var data_door: Dictionary = Dictionary(object_data)
+			var type_door: String = String(data_door.get("object_type", "")).to_lower()
+			var group_door: String = String(data_door.get("object_group", data_door.get("group", ""))).to_lower()
+			if type_door.contains("door") or type_door.contains("gate") or group_door.contains("door"):
+				targets.append(_map_constructor_make_link_target(String(data_door.get("id", "")), String(data_door.get("id", "")), "world_object", Vector2i(data_door.get("position", Vector2i(-1, -1))), "valid", "door_candidate"))
+	elif field_name == "target_platform_id":
+		for object_data in mission_world_objects:
+			var data_platform: Dictionary = Dictionary(object_data)
+			var type_platform: String = String(data_platform.get("object_type", "")).to_lower()
+			if type_platform.contains("platform") or data_platform.has("platform_id"):
+				targets.append(_map_constructor_make_link_target(String(data_platform.get("id", "")), String(data_platform.get("id", "")), "world_object", Vector2i(data_platform.get("position", Vector2i(-1, -1))), "valid", "platform_candidate"))
+	elif field_name == "control_source_id":
+		for object_data in mission_world_objects:
+			var data_control: Dictionary = Dictionary(object_data)
+			var control_id: String = String(data_control.get("id", ""))
+			var type_control: String = String(data_control.get("object_type", "")).to_lower()
+			if type_control.contains("switch") or type_control.contains("terminal") or type_control.contains("control") or control_id.contains("task_test_switch"):
+				targets.append(_map_constructor_make_link_target(control_id, control_id, "world_object", Vector2i(data_control.get("position", Vector2i(-1, -1))), "valid", "control_candidate"))
+	elif field_name == "connected_device_ids":
+		for object_data in mission_world_objects:
+			var data_connected: Dictionary = Dictionary(object_data)
+			var connected_id: String = String(data_connected.get("id", "")).strip_edges()
+			if connected_id.is_empty() or connected_id == entity_id:
+				continue
+			var group_connected: String = String(data_connected.get("object_group", "")).to_lower()
+			if group_connected == "item":
+				continue
+			targets.append(_map_constructor_make_link_target(connected_id, connected_id, "world_object", Vector2i(data_connected.get("position", Vector2i(-1, -1))), "valid", "device_candidate"))
+	elif field_name == "power_network_id":
+		var power_first: Array[Dictionary] = []
+		var others: Array[Dictionary] = []
+		var seen_networks: Dictionary = {}
+		for object_data in mission_world_objects:
+			var data_network: Dictionary = Dictionary(object_data)
+			var network_id: String = String(data_network.get("power_network_id", "")).strip_edges()
+			if network_id.is_empty() or seen_networks.has(network_id):
+				continue
+			seen_networks[network_id] = true
+			var entry: Dictionary = _map_constructor_make_link_target(network_id, network_id, "power_network", Vector2i(-1, -1), "valid", "network_id")
+			if String(data_network.get("object_type", "")).to_lower().begins_with("power_source"):
+				power_first.append(entry)
+			else:
+				others.append(entry)
+		targets.append_array(power_first)
+		targets.append_array(others)
+	_map_constructor_add_none_target(targets)
+	result["ok"] = true
+	result["targets"] = targets
+	result["message"] = "Targets ready for %s at %s." % [field_name, str(current_cell)]
+	return result
+
+func apply_map_constructor_link_target(entity_kind: String, entity_id: String, field_name: String, target_id: String) -> Dictionary:
+	var result: Dictionary = {"ok": false, "message": "Link update failed.", "entity_id": entity_id, "field_name": field_name, "target_id": target_id}
+	if field_name == "connected_device_ids":
+		var entity_info: Dictionary = get_map_constructor_entity_by_id(entity_kind, entity_id)
+		if not bool(entity_info.get("ok", false)):
+			result["message"] = "Entity not found."
+			return result
+		var data: Dictionary = Dictionary(entity_info.get("data", {}))
+		var old_network_id: String = String(data.get("power_network_id", ""))
+		var next_ids: Array[String] = []
+		if target_id.is_empty() or target_id == "__none__":
+			next_ids.clear()
+		else:
+			for value_variant in Array(data.get("connected_device_ids", [])):
+				var existing_id: String = String(value_variant).strip_edges()
+				if existing_id.is_empty() or next_ids.has(existing_id):
+					continue
+				next_ids.append(existing_id)
+			if not next_ids.has(target_id):
+				next_ids.append(target_id)
+		data["connected_device_ids"] = next_ids
+		if entity_kind == "world_object":
+			update_world_object_by_id(entity_id, data)
+		else:
+			result["message"] = "connected_device_ids supports world_object only."
+			return result
+		PowerSystemRef.recalculate_network(mission_world_objects, old_network_id)
+		PowerSystemRef.recalculate_network(mission_world_objects, String(data.get("power_network_id", "")))
+		refresh_world_cooling_received()
+		result["ok"] = true
+		result["message"] = "Updated connected_device_ids."
+		result["target_id"] = target_id
+		return result
+	var applied_target: String = target_id
+	if target_id.is_empty() or target_id == "__none__":
+		applied_target = ""
+	var apply_result: Dictionary = apply_map_constructor_property_update(entity_kind, entity_id, field_name, applied_target)
+	result["ok"] = bool(apply_result.get("ok", false))
+	result["message"] = String(apply_result.get("message", "Link update failed."))
+	result["target_id"] = applied_target
+	return result
+
 func apply_map_constructor_state_preset(entity_kind: String, entity_id: String, preset: String) -> Dictionary:
 	var lower_preset: String = preset.strip_edges().to_lower()
 	var updates: Array[Dictionary] = []
