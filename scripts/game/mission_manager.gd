@@ -5569,24 +5569,56 @@ func classify_task_test_object_for_audit(object_data: Dictionary) -> Array[Strin
 	var object_id: String = String(object_data.get("id", ""))
 	var group: String = String(object_data.get("object_group", ""))
 	var object_type: String = String(object_data.get("object_type", ""))
+	var item_type: String = String(object_data.get("item_type", object_type))
 	var state: String = String(object_data.get("state", "")).to_lower()
 	var lock_type: String = String(object_data.get("lock_type", "")).to_lower()
 	if group == "door":
-		if state == "open" or bool(object_data.get("is_open", false)): tags.append("door_open")
-		if state == "closed": tags.append("door_closed")
-		if lock_type == "mechanical_key": tags.append("door_locked_mechanical")
-		if lock_type == "digital_key": tags.append("door_locked_digital")
-		if lock_type == "terminal_lock": tags.append("door_terminal_locked")
-		if bool(object_data.get("requires_external_power", false)): tags.append("door_powered_gate")
-		if state == "unpowered" or not bool(object_data.get("is_powered", true)): tags.append("door_unpowered")
-		if state in ["damaged","jammed"] or bool(object_data.get("damaged", false)): tags.append("door_damaged")
+		var is_open := state == "open" or bool(object_data.get("is_open", false))
+		var is_closed := state == "closed"
+		var is_damaged_or_jammed := state in ["damaged", "jammed"] or bool(object_data.get("damaged", false))
+		if is_open:
+			tags.append("door_open")
+			if object_type in ["steel_door", "mechanical_door", "reinforced_steel_door", "grid_door"]:
+				tags.append("open_mechanical_door")
+			if object_type in ["energy_door", "digital_door"]:
+				tags.append("open_digital_door")
+		if is_closed:
+			tags.append("door_closed")
+			if object_type in ["steel_door", "mechanical_door", "reinforced_steel_door", "grid_door"]:
+				tags.append("closed_mechanical_door")
+		if lock_type == "mechanical_key":
+			tags.append("door_locked_mechanical")
+			tags.append("locked_mechanical_key_door")
+		if lock_type == "digital_key":
+			tags.append("door_locked_digital")
+			tags.append("locked_digital_key_door")
+		if lock_type == "terminal_lock":
+			tags.append("door_terminal_locked")
+			tags.append("terminal_locked_door")
+		if bool(object_data.get("requires_external_power", false)):
+			tags.append("door_powered_gate")
+			tags.append("powered_gate")
+		if state == "unpowered" or not bool(object_data.get("is_powered", true)):
+			tags.append("door_unpowered")
+			tags.append("unpowered_gate")
+		if is_damaged_or_jammed:
+			tags.append("door_damaged")
+			tags.append("damaged_or_jammed_door")
 	if group == "item":
-		if object_type == "mechanical_keycard": tags.append("key_mechanical")
-		if object_type == "digital_key":
+		if item_type == "mechanical_keycard":
+			tags.append("mechanical_key")
+			tags.append("key_mechanical")
+		if item_type == "digital_key":
 			var dstate: String = String(object_data.get("digital_state", "")).to_lower()
-			if dstate == "opened": tags.append("key_digital_opened")
-			if dstate == "encrypted": tags.append("key_digital_encrypted")
-			if dstate == "damaged": tags.append("key_digital_damaged")
+			if dstate == "opened":
+				tags.append("digital_key_opened")
+				tags.append("key_digital_opened")
+			if dstate == "encrypted":
+				tags.append("digital_key_encrypted")
+				tags.append("key_digital_encrypted")
+			if dstate == "damaged":
+				tags.append("digital_key_damaged")
+				tags.append("key_digital_damaged")
 	if object_type.begins_with("power_source"): tags.append("power_source")
 	if object_type == "power_socket": tags.append("power_socket")
 	if object_type == "power_cable":
@@ -5622,6 +5654,9 @@ func classify_task_test_object_for_audit(object_data: Dictionary) -> Array[Strin
 	if int(object_data.get("required_connector_level", 0)) > 0: tags.append("scan_connector_gated")
 	if int(object_data.get("required_processor_level", 0)) > 0: tags.append("scan_processor_gated")
 	if bool(object_data.get("mission_exit", false)) or bool(object_data.get("extraction", false)): tags.append("extraction")
+	if item_type == "access_code": tags.append("access_code")
+	if item_type == "fuse": tags.append("fuse")
+	if item_type == "repair_kit": tags.append("repair_kit")
 	return tags
 
 func get_task_test_system_coverage_report_text() -> String:
@@ -5655,12 +5690,24 @@ func get_task_test_system_audit_report() -> Dictionary:
 	for object_data in mission_world_objects:
 		var object_id: String = String(object_data.get("id", ""))
 		var tags: Array[String] = classify_task_test_object_for_audit(object_data)
+		var group: String = String(object_data.get("object_group", ""))
+		var cell: Vector2i = Vector2i(object_data.get("position", Vector2i.ZERO))
+		if group == "door":
+			var runtime_state: Dictionary = get_runtime_cell_state(cell)
+			var is_passable := bool(runtime_state.get("is_passable", false))
+			var state: String = String(object_data.get("state", "")).to_lower()
+			var lock_type: String = String(object_data.get("lock_type", "")).to_lower()
+			if (state == "open" or bool(object_data.get("is_open", false))) and is_passable:
+				tags.append("door_open_passable")
+			var closed_like := state in ["closed", "locked", "unpowered", "damaged", "jammed"] or bool(object_data.get("is_locked", false))
+			if lock_type in ["mechanical_key", "digital_key", "terminal_lock"]:
+				closed_like = true
+			if closed_like and not is_passable:
+				tags.append("door_closed_not_passable")
 		if tags.is_empty():
 			objects_without_audit_tags.append(object_id)
 		for tag in tags:
 			coverage_hits[String(tag)] = true
-		var group: String = String(object_data.get("object_group", ""))
-		var cell: Vector2i = Vector2i(object_data.get("position", Vector2i.ZERO))
 		if group != "item":
 			if occupied.has(cell):
 				duplicate_cell_warnings.append("duplicate_world_object_cell_%s_%s_%s" % [str(cell), String(occupied[cell]), object_id])
