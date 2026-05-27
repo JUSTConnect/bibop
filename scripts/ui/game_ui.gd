@@ -339,6 +339,8 @@ var map_constructor_kit_preview: Dictionary = {}
 var map_constructor_template_preview: Dictionary = {}
 var map_constructor_kit_pending_apply_key: String = ""
 var map_constructor_template_pending_apply_key: String = ""
+var map_constructor_kit_preview_can_apply: bool = false
+var map_constructor_template_preview_can_apply: bool = false
 var map_constructor_design_notes_text: String = ""
 var map_constructor_overlay_mode: String = "None"
 var map_constructor_pipeline_report: Dictionary = {}
@@ -10038,40 +10040,166 @@ func _refresh_map_constructor_panels() -> void:
 	var constructor_sections_title: Label = Label.new()
 	constructor_sections_title.text = "Map Constructor Milestone Tools"
 	list.add_child(constructor_sections_title)
+	var anchor_cell: Vector2i = pending_map_constructor_cell if pending_map_constructor_cell.x >= 0 else selected_map_constructor_entity_cell
+	var kit_options: Dictionary = {"allow_overwrite": false}
+	var template_options: Dictionary = {"rotation": map_constructor_template_rotation, "mirror_x": map_constructor_template_mirror_x, "mirror_y": map_constructor_template_mirror_y, "allow_overwrite": false}
+	var current_kit_key: String = "%s|%s|%s" % [map_constructor_selected_kit_id, str(anchor_cell), JSON.stringify(kit_options)]
+	var current_template_key: String = "%s|%s|%s" % [map_constructor_selected_template_id, str(anchor_cell), JSON.stringify(template_options)]
+	var kit_data: Dictionary = mission_manager_runtime.call("get_map_constructor_prefab_kits") if mission_manager_runtime != null and mission_manager_runtime.has_method("get_map_constructor_prefab_kits") else {}
+	var template_data: Dictionary = mission_manager_runtime.call("get_map_constructor_room_templates") if mission_manager_runtime != null and mission_manager_runtime.has_method("get_map_constructor_room_templates") else {}
+	var kit_rows: Array = Array(kit_data.get("kits", []))
+	var template_rows: Array = Array(template_data.get("templates", []))
+	if map_constructor_selected_kit_id.is_empty() and not kit_rows.is_empty():
+		map_constructor_selected_kit_id = String(Dictionary(kit_rows[0]).get("id", ""))
+	if map_constructor_selected_template_id.is_empty() and not template_rows.is_empty():
+		map_constructor_selected_template_id = String(Dictionary(template_rows[0]).get("id", ""))
+	if map_constructor_kit_pending_apply_key != current_kit_key:
+		map_constructor_kit_preview_can_apply = false
+	if map_constructor_template_pending_apply_key != current_template_key:
+		map_constructor_template_preview_can_apply = false
+	var kit_select: OptionButton = OptionButton.new()
+	for row_variant in kit_rows:
+		var row: Dictionary = Dictionary(row_variant)
+		kit_select.add_item(String(row.get("display_name", row.get("id", ""))))
+		kit_select.set_item_metadata(kit_select.item_count - 1, String(row.get("id", "")))
+	for idx in range(kit_select.item_count):
+		if String(kit_select.get_item_metadata(idx)) == map_constructor_selected_kit_id:
+			kit_select.select(idx)
+			break
+	kit_select.item_selected.connect(func(index: int) -> void:
+		map_constructor_selected_kit_id = String(kit_select.get_item_metadata(index))
+		map_constructor_kit_preview_can_apply = false
+		_refresh_map_constructor_panels()
+	)
+	list.add_child(kit_select)
+	var selected_kit_info: Label = Label.new()
+	selected_kit_info.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	for row_variant in kit_rows:
+		var row: Dictionary = Dictionary(row_variant)
+		if String(row.get("id", "")) == map_constructor_selected_kit_id:
+			selected_kit_info.text = "Kit: %s\n%s\nTags: %s" % [String(row.get("display_name", "")), String(row.get("description", "")), ", ".join(PackedStringArray(Array(row.get("tags", []))))]
+	list.add_child(selected_kit_info)
 	var quick_kits_button: Button = Button.new()
 	quick_kits_button.text = "Preview Kit"
 	quick_kits_button.pressed.connect(func() -> void:
 		if mission_manager_runtime == null or not mission_manager_runtime.has_method("preview_map_constructor_prefab_kit"):
 			return
-		var anchor_cell: Vector2i = pending_map_constructor_cell if pending_map_constructor_cell.x >= 0 else selected_map_constructor_entity_cell
-		map_constructor_kit_preview = mission_manager_runtime.call("preview_map_constructor_prefab_kit", map_constructor_selected_kit_id, anchor_cell, {"allow_overwrite": false})
-		map_constructor_kit_pending_apply_key = "%s|%s|%s" % [map_constructor_selected_kit_id, str(anchor_cell), JSON.stringify({"allow_overwrite": false})]
+		if map_constructor_selected_kit_id.is_empty():
+			return
+		map_constructor_kit_preview = mission_manager_runtime.call("preview_map_constructor_prefab_kit", map_constructor_selected_kit_id, anchor_cell, kit_options)
+		map_constructor_kit_pending_apply_key = "%s|%s|%s" % [map_constructor_selected_kit_id, str(anchor_cell), JSON.stringify(kit_options)]
+		map_constructor_kit_preview_can_apply = bool(map_constructor_kit_preview.get("can_apply", false))
 		_refresh_map_constructor_panels()
 	)
 	list.add_child(quick_kits_button)
 	var apply_kit_button: Button = Button.new()
 	apply_kit_button.text = "Apply Kit"
-	apply_kit_button.disabled = map_constructor_kit_pending_apply_key.is_empty()
+	apply_kit_button.disabled = map_constructor_selected_kit_id.is_empty() or not map_constructor_kit_preview_can_apply or map_constructor_kit_pending_apply_key != current_kit_key
 	apply_kit_button.pressed.connect(func() -> void:
 		if mission_manager_runtime == null or not mission_manager_runtime.has_method("apply_map_constructor_prefab_kit"):
 			return
-		var anchor_cell: Vector2i = pending_map_constructor_cell if pending_map_constructor_cell.x >= 0 else selected_map_constructor_entity_cell
-		var result: Dictionary = mission_manager_runtime.call("apply_map_constructor_prefab_kit", map_constructor_selected_kit_id, anchor_cell, {"allow_overwrite": false})
+		var result: Dictionary = mission_manager_runtime.call("apply_map_constructor_prefab_kit", map_constructor_selected_kit_id, anchor_cell, kit_options)
 		show_hint(String(result.get("message", "Kit applied.")))
+		_refresh_map_constructor_panels()
+		_refresh_map_constructor_browser()
+		if field_runtime != null and field_runtime.has_method("request_visual_refresh"):
+			field_runtime.call("request_visual_refresh")
 	)
 	list.add_child(apply_kit_button)
+	var undo_kit_button: Button = Button.new()
+	undo_kit_button.text = "Undo Last Kit"
+	undo_kit_button.pressed.connect(func() -> void:
+		if mission_manager_runtime == null or not mission_manager_runtime.has_method("undo_last_map_constructor_prefab_kit"):
+			return
+		var undo_result: Dictionary = mission_manager_runtime.call("undo_last_map_constructor_prefab_kit")
+		show_hint(String(undo_result.get("message", "Kit undo completed.")))
+		_refresh_map_constructor_panels()
+		_refresh_map_constructor_browser()
+		if field_runtime != null and field_runtime.has_method("request_visual_refresh"):
+			field_runtime.call("request_visual_refresh")
+	)
+	list.add_child(undo_kit_button)
+	var template_select: OptionButton = OptionButton.new()
+	for row_variant in template_rows:
+		var row: Dictionary = Dictionary(row_variant)
+		template_select.add_item(String(row.get("display_name", row.get("id", ""))))
+		template_select.set_item_metadata(template_select.item_count - 1, String(row.get("id", "")))
+	for idx in range(template_select.item_count):
+		if String(template_select.get_item_metadata(idx)) == map_constructor_selected_template_id:
+			template_select.select(idx)
+			break
+	template_select.item_selected.connect(func(index: int) -> void:
+		map_constructor_selected_template_id = String(template_select.get_item_metadata(index))
+		map_constructor_template_preview_can_apply = false
+		_refresh_map_constructor_panels()
+	)
+	list.add_child(template_select)
+	var template_info: Label = Label.new()
+	template_info.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	for row_variant in template_rows:
+		var row: Dictionary = Dictionary(row_variant)
+		if String(row.get("id", "")) == map_constructor_selected_template_id:
+			template_info.text = "Template: %s\n%s\nsize=%s\nTags: %s" % [String(row.get("display_name", "")), String(row.get("description", "")), str(row.get("size", Vector2i.ZERO)), ", ".join(PackedStringArray(Array(row.get("tags", []))))]
+	list.add_child(template_info)
 	var template_preview_button: Button = Button.new()
 	template_preview_button.text = "Preview Template"
 	template_preview_button.pressed.connect(func() -> void:
 		if mission_manager_runtime == null or not mission_manager_runtime.has_method("preview_map_constructor_room_template"):
 			return
-		var anchor_cell: Vector2i = pending_map_constructor_cell if pending_map_constructor_cell.x >= 0 else selected_map_constructor_entity_cell
-		var options: Dictionary = {"rotation": map_constructor_template_rotation, "mirror_x": map_constructor_template_mirror_x, "mirror_y": map_constructor_template_mirror_y, "allow_overwrite": false}
-		map_constructor_template_preview = mission_manager_runtime.call("preview_map_constructor_room_template", map_constructor_selected_template_id, anchor_cell, options)
-		map_constructor_template_pending_apply_key = "%s|%s|%s" % [map_constructor_selected_template_id, str(anchor_cell), JSON.stringify(options)]
+		if map_constructor_selected_template_id.is_empty():
+			return
+		map_constructor_template_preview = mission_manager_runtime.call("preview_map_constructor_room_template", map_constructor_selected_template_id, anchor_cell, template_options)
+		map_constructor_template_pending_apply_key = "%s|%s|%s" % [map_constructor_selected_template_id, str(anchor_cell), JSON.stringify(template_options)]
+		map_constructor_template_preview_can_apply = bool(map_constructor_template_preview.get("can_apply", false))
 		_refresh_map_constructor_panels()
 	)
 	list.add_child(template_preview_button)
+	var apply_template_button: Button = Button.new()
+	apply_template_button.text = "Apply Template"
+	apply_template_button.disabled = map_constructor_selected_template_id.is_empty() or not map_constructor_template_preview_can_apply or map_constructor_template_pending_apply_key != current_template_key
+	apply_template_button.pressed.connect(func() -> void:
+		if mission_manager_runtime == null or not mission_manager_runtime.has_method("apply_map_constructor_room_template"):
+			return
+		var apply_result: Dictionary = mission_manager_runtime.call("apply_map_constructor_room_template", map_constructor_selected_template_id, anchor_cell, template_options)
+		show_hint(String(apply_result.get("message", "Template applied.")))
+		_refresh_map_constructor_panels()
+		_refresh_map_constructor_browser()
+		if field_runtime != null and field_runtime.has_method("request_visual_refresh"):
+			field_runtime.call("request_visual_refresh")
+	)
+	list.add_child(apply_template_button)
+	var undo_template_button: Button = Button.new()
+	undo_template_button.text = "Undo Last Template"
+	undo_template_button.pressed.connect(func() -> void:
+		if mission_manager_runtime == null or not mission_manager_runtime.has_method("undo_last_map_constructor_room_template"):
+			return
+		var undo_result: Dictionary = mission_manager_runtime.call("undo_last_map_constructor_room_template")
+		show_hint(String(undo_result.get("message", "Template undo completed.")))
+		_refresh_map_constructor_panels()
+		_refresh_map_constructor_browser()
+		if field_runtime != null and field_runtime.has_method("request_visual_refresh"):
+			field_runtime.call("request_visual_refresh")
+	)
+	list.add_child(undo_template_button)
+	for preview_bundle in [{"title":"Kit Preview","data":map_constructor_kit_preview},{"title":"Template Preview","data":map_constructor_template_preview}]:
+		var preview_data: Dictionary = Dictionary(preview_bundle.get("data", {}))
+		if preview_data.is_empty():
+			continue
+		var summary_lines: Array[String] = []
+		var affected_rows: Array = Array(preview_data.get("affected", []))
+		var conflict_rows: Array = Array(preview_data.get("conflicts", []))
+		var warning_rows: Array = Array(preview_data.get("warnings", []))
+		summary_lines.append("%s: affected=%d conflicts=%d warnings=%d" % [String(preview_bundle.get("title", "")), affected_rows.size(), conflict_rows.size(), warning_rows.size()])
+		for index in range(mini(10, affected_rows.size())):
+			summary_lines.append("- affected: %s" % JSON.stringify(affected_rows[index]))
+		for index in range(mini(10, conflict_rows.size())):
+			summary_lines.append("- conflict: %s" % JSON.stringify(conflict_rows[index]))
+		for index in range(mini(10, warning_rows.size())):
+			summary_lines.append("- warning: %s" % String(warning_rows[index]))
+		var summary_label: Label = Label.new()
+		summary_label.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+		summary_label.text = "\n".join(summary_lines)
+		list.add_child(summary_label)
 	var overlay_mode_option: OptionButton = OptionButton.new()
 	for overlay_name in ["None", "Selection", "Multi-select", "Validation Issues", "Expected Invalid", "Power Network", "Links", "Wall-mounted Sides"]:
 		overlay_mode_option.add_item(overlay_name)
