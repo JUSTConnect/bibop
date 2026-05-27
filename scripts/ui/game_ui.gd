@@ -297,6 +297,9 @@ var map_constructor_selected_patch_name: String = ""
 var map_constructor_geometry_width_text: String = "20"
 var map_constructor_geometry_height_text: String = "12"
 var map_constructor_marker_mode: String = ""
+var map_constructor_prefab_search_text: String = ""
+var map_constructor_prefab_category_filter: String = "All"
+const MAP_CONSTRUCTOR_PREFAB_FILTER_CATEGORIES: Array[String] = ["All", "Walls", "Doors", "Terminals", "Power", "Control", "Items", "Wall-mounted"]
 var edge_scroll_enabled: bool = true
 var edge_scroll_margin_px: float = 28.0
 var edge_scroll_speed: float = 540.0
@@ -9147,6 +9150,26 @@ func _handle_map_constructor_left_click(cell: Vector2i) -> void:
 			field_runtime.call("request_visual_refresh")
 	_refresh_map_constructor_panels()
 
+func _map_constructor_prefab_matches_filters(entry: Dictionary) -> bool:
+	var search_text: String = map_constructor_prefab_search_text.strip_edges().to_lower()
+	var prefab_id: String = String(entry.get("id", ""))
+	var label_text: String = String(entry.get("label", ""))
+	var category_text: String = String(entry.get("category", ""))
+	var placement_mode: String = String(entry.get("placement_mode", ""))
+	if map_constructor_prefab_category_filter == "Wall-mounted":
+		if placement_mode != "wall_mounted":
+			return false
+	elif map_constructor_prefab_category_filter != "All":
+		var category_match: bool = category_text == map_constructor_prefab_category_filter
+		if map_constructor_prefab_category_filter == "Control":
+			category_match = category_match or category_text == "Power"
+		if not category_match:
+			return false
+	if search_text.is_empty():
+		return true
+	var haystack: String = "%s %s %s %s" % [prefab_id.to_lower(), label_text.to_lower(), category_text.to_lower(), placement_mode.to_lower()]
+	return haystack.find(search_text) >= 0
+
 func _refresh_map_constructor_panels() -> void:
 	if app_screen_mode != AppScreenMode.GAMEPLAY:
 		return
@@ -9164,30 +9187,67 @@ func _refresh_map_constructor_panels() -> void:
 	scroll.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
 	runtime_map_constructor_palette_panel.add_child(scroll)
 	var list := VBoxContainer.new()
+	list.add_theme_constant_override("separation", 6)
 	scroll.add_child(list)
+	var search_edit := LineEdit.new()
+	search_edit.placeholder_text = "Search prefab (id/name/category/placement)..."
+	search_edit.text = map_constructor_prefab_search_text
+	search_edit.text_changed.connect(func(new_text: String) -> void:
+		map_constructor_prefab_search_text = new_text
+		_refresh_map_constructor_panels()
+	)
+	list.add_child(search_edit)
+	var category_option := OptionButton.new()
+	for category_name in MAP_CONSTRUCTOR_PREFAB_FILTER_CATEGORIES:
+		category_option.add_item(category_name)
+	var selected_category_index: int = MAP_CONSTRUCTOR_PREFAB_FILTER_CATEGORIES.find(map_constructor_prefab_category_filter)
+	if selected_category_index < 0:
+		selected_category_index = 0
+		map_constructor_prefab_category_filter = MAP_CONSTRUCTOR_PREFAB_FILTER_CATEGORIES[0]
+	category_option.select(selected_category_index)
+	category_option.item_selected.connect(func(index: int) -> void:
+		if index >= 0 and index < MAP_CONSTRUCTOR_PREFAB_FILTER_CATEGORIES.size():
+			map_constructor_prefab_category_filter = MAP_CONSTRUCTOR_PREFAB_FILTER_CATEGORIES[index]
+			_refresh_map_constructor_panels()
+	)
+	list.add_child(category_option)
+	var catalog: Array[Dictionary] = []
 	if mission_manager_runtime != null and mission_manager_runtime.has_method("get_map_constructor_prefab_catalog"):
-		for entry in mission_manager_runtime.call("get_map_constructor_prefab_catalog"):
-			var id: String = String(entry.get("id", ""))
-			var b := Button.new()
-			b.text = "%s / %s" % [String(entry.get("category", "")), id]
-			b.toggle_mode = true
-			b.button_pressed = id == selected_map_constructor_prefab_id
-			b.pressed.connect(func() -> void:
-				selected_map_constructor_prefab_id = id
-				selected_map_constructor_wall_side = ""
-				available_map_constructor_wall_sides.clear()
-				pending_map_constructor_cell = Vector2i(-1, -1)
-				_clear_map_constructor_preview_cell()
-				_refresh_map_constructor_panels()
-			)
-			list.add_child(b)
+		catalog = mission_manager_runtime.call("get_map_constructor_prefab_catalog")
+	var selected_visible: bool = false
+	for entry in catalog:
+		if not _map_constructor_prefab_matches_filters(entry):
+			continue
+		var id: String = String(entry.get("id", ""))
+		var b := Button.new()
+		b.text = "%s / %s" % [String(entry.get("category", "")), String(entry.get("label", id))]
+		b.toggle_mode = true
+		b.button_pressed = id == selected_map_constructor_prefab_id
+		if b.button_pressed:
+			selected_visible = true
+		b.pressed.connect(func() -> void:
+			selected_map_constructor_prefab_id = id
+			selected_map_constructor_wall_side = ""
+			available_map_constructor_wall_sides.clear()
+			pending_map_constructor_cell = Vector2i(-1, -1)
+			_clear_map_constructor_preview_cell()
+			_refresh_map_constructor_panels()
+		)
+		list.add_child(b)
+	if not selected_visible and not selected_map_constructor_prefab_id.is_empty():
+		selected_map_constructor_prefab_id = ""
+		selected_map_constructor_wall_side = ""
+		available_map_constructor_wall_sides.clear()
+		pending_map_constructor_cell = Vector2i(-1, -1)
+		_clear_map_constructor_preview_cell()
 	var placement_label: Label = Label.new()
 	placement_label.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 	placement_label.text = "Placement: blocked: unsupported prefab"
 	if pending_map_constructor_cell.x >= 0 and pending_map_constructor_cell.y >= 0 and not selected_map_constructor_prefab_id.is_empty():
 		if mission_manager_runtime != null and mission_manager_runtime.has_method("can_place_map_constructor_prefab"):
 			var check: Dictionary = _update_map_constructor_preview_for_cell(pending_map_constructor_cell)
-			list.add_child(_create_map_constructor_wall_side_picker(String(check.get("placement_mode", ""))))
+			if selected_visible:
+				list.add_child(_create_map_constructor_wall_side_picker(String(check.get("placement_mode", ""))))
 			var reason: String = String(check.get("reason", "unsupported_prefab"))
 			match reason:
 				"ok":

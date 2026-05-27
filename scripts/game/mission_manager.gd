@@ -1066,7 +1066,7 @@ func remove_first_item_at_cell(cell: Vector2i) -> Dictionary:
 	return item
 
 func get_map_constructor_prefab_catalog() -> Array[Dictionary]:
-	return [
+	var entries: Array[Dictionary] = [
 		{"category":"Floors","id":"floor"},{"category":"Floors","id":"stepped_floor"},
 		{"category":"Walls","id":"outer_wall"},{"category":"Walls","id":"brick_wall"},{"category":"Walls","id":"concrete_wall"},{"category":"Walls","id":"steel_wall"},{"category":"Walls","id":"grate_wall"},
 		{"category":"Doors","id":"mechanical_door"},{"category":"Doors","id":"digital_door"},{"category":"Doors","id":"powered_gate"},
@@ -1074,6 +1074,14 @@ func get_map_constructor_prefab_catalog() -> Array[Dictionary]:
 		{"category":"Power","id":"power_source_class_1"},{"category":"Power","id":"power_socket"},{"category":"Power","id":"power_cable"},{"category":"Power","id":"circuit_switch"},{"category":"Power","id":"circuit_breaker"},{"category":"Power","id":"light_switch"},{"category":"Power","id":"fuse_box"},{"category":"Power","id":"power_cable_reel"},
 		{"category":"Items","id":"mechanical_key"},{"category":"Items","id":"digital_key"},{"category":"Items","id":"access_code"}
 	]
+	for i in range(entries.size()):
+		var entry: Dictionary = entries[i]
+		var prefab_id: String = String(entry.get("id", ""))
+		var object_template: Dictionary = WorldObjectCatalog.get_object_template(prefab_id)
+		entry["label"] = String(object_template.get("name", prefab_id.replace("_", " ").capitalize()))
+		entry["placement_mode"] = String(object_template.get("placement_mode", "floor"))
+		entries[i] = entry
+	return entries
 
 func is_map_constructor_item_prefab(prefab_id: String) -> bool:
 	return prefab_id in ["mechanical_key", "digital_key", "access_code"]
