@@ -10333,7 +10333,7 @@ func _refresh_map_constructor_panels() -> void:
 	overlay_mode_option.item_selected.connect(func(index: int) -> void:
 		map_constructor_overlay_mode = overlay_mode_option.get_item_text(index)
 		_request_map_constructor_overlay_refresh()
-		show_hint("Overlay data ready; renderer highlight not available.")
+		show_hint("Overlay data ready; renderer overlay refreshed.")
 	)
 	list.add_child(overlay_mode_option)
 	var notes_button: Button = Button.new()
@@ -10598,7 +10598,7 @@ func _refresh_map_constructor_panels() -> void:
 			preview_lines.append("conflict: %s" % JSON.stringify(conflict_rows[i]))
 		var preview_summary: Label = Label.new()
 		preview_summary.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
-			preview_summary.text = "\n".join(preview_lines)
+		preview_summary.text = "\n".join(preview_lines)
 		list.add_child(preview_summary)
 	var cleanup_actions: Array[Dictionary] = [
 		{"label":"Items","cleanup_type":"items","options":{}},

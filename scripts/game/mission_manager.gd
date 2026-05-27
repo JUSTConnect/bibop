@@ -2108,6 +2108,8 @@ func can_place_map_constructor_prefab(prefab_id: String, cell: Vector2i, preferr
 	return result
 
 func place_map_constructor_prefab(prefab_id: String, cell: Vector2i, preferred_wall_side: String = "") -> Dictionary:
+	if not _is_task_test_constructor_context():
+		return {"ok": false, "message": "Operation is available only in TASK TEST constructor mode."}
 	var check: Dictionary = can_place_map_constructor_prefab(prefab_id, cell, preferred_wall_side)
 	if not bool(check.get("ok", false)):
 		return check
@@ -2252,6 +2254,8 @@ func _clone_map_constructor_entity_data(source_data: Dictionary, target_cell: Ve
 	return {"ok": true, "data": clone_data}
 
 func move_map_constructor_entity_to_cell(entity_kind: String, entity_id: String, target_cell: Vector2i, preferred_wall_side: String = "") -> Dictionary:
+	if not _is_task_test_constructor_context():
+		return {"ok": false, "message": "Operation is available only in TASK TEST constructor mode."}
 	var entity: Dictionary = get_map_constructor_entity_by_id(entity_kind, entity_id)
 	if not bool(entity.get("ok", false)):
 		return {"ok": false, "message": "Move failed: entity not found."}
@@ -2287,6 +2291,8 @@ func move_map_constructor_entity_to_cell(entity_kind: String, entity_id: String,
 	return {"ok": true, "message": "Moved object.", "object_id": String(cloned_data.get("id", ""))}
 
 func duplicate_map_constructor_entity_to_cell(entity_kind: String, entity_id: String, target_cell: Vector2i, preferred_wall_side: String = "") -> Dictionary:
+	if not _is_task_test_constructor_context():
+		return {"ok": false, "message": "Operation is available only in TASK TEST constructor mode."}
 	var entity: Dictionary = get_map_constructor_entity_by_id(entity_kind, entity_id)
 	if not bool(entity.get("ok", false)):
 		return {"ok": false, "message": "Duplicate failed: entity not found."}
@@ -2383,6 +2389,8 @@ func preview_map_constructor_batch_operation(operation_type: String, entities: A
 	return {"ok": true, "operation_type": op, "message": "Preview ready.", "affected_count": affected.size(), "affected": affected, "warnings": warnings, "conflicts": conflicts, "can_apply": can_apply}
 
 func apply_map_constructor_batch_operation(operation_type: String, entities: Array[Dictionary], options: Dictionary = {}) -> Dictionary:
+	if not _is_task_test_constructor_context():
+		return {"ok": false, "message": "Operation is available only in TASK TEST constructor mode."}
 	var preview: Dictionary = preview_map_constructor_batch_operation(operation_type, entities, options)
 	if not bool(preview.get("ok", false)) or not bool(preview.get("can_apply", false)):
 		return {"ok": false, "message": String(preview.get("message", "Cannot apply.")), "applied_count": 0, "warnings": Array(preview.get("warnings", [])), "conflicts": Array(preview.get("conflicts", [])), "batch_id": ""}
@@ -2457,6 +2465,8 @@ func undo_last_map_constructor_batch_operation() -> Dictionary:
 	return {"ok": true, "message": "Last batch operation undone."}
 
 func remove_map_constructor_object_at_cell(cell: Vector2i) -> Dictionary:
+	if not _is_task_test_constructor_context():
+		return {"ok": false, "message": "Operation is available only in TASK TEST constructor mode."}
 	var entity: Dictionary = get_map_constructor_editable_entity_at_cell(cell)
 	if not bool(entity.get("ok", false)):
 		return {"ok": false, "message": "Nothing to remove.", "object_id": "", "warnings": []}
@@ -2830,6 +2840,8 @@ func _convert_map_constructor_field_value(field_name: String, raw_value: Variant
 	return {"ok": true, "value": String(raw_value)}
 
 func apply_map_constructor_property_update(entity_kind: String, entity_id: String, field_name: String, raw_value: Variant) -> Dictionary:
+	if not _is_task_test_constructor_context():
+		return {"ok": false, "message": "Operation is available only in TASK TEST constructor mode."}
 	var result: Dictionary = {"ok": false, "message": "Update failed.", "entity_id": entity_id, "field": field_name, "value": raw_value}
 	var schema: Dictionary = _get_map_constructor_editable_field_schema()
 	if not schema.has(field_name):
@@ -2930,7 +2942,7 @@ func preview_room_visual_preset(preset_id: String, options: Dictionary = {}) -> 
 			for x in range(width):
 				var cell: Vector2i = Vector2i(x, y)
 				var tile_type: int = int(grid_manager.call("get_tile", cell))
-				if tile_type != 1:
+				if tile_type != GridManager.TILE_WALL:
 					continue
 				for side_row in MAP_CONSTRUCTOR_WALL_SIDE_DELTAS:
 					var side: String = String(side_row.get("side", ""))
@@ -3115,6 +3127,8 @@ func get_map_constructor_link_targets_for_field(entity_kind: String, entity_id: 
 	return result
 
 func apply_map_constructor_link_target(entity_kind: String, entity_id: String, field_name: String, target_id: String) -> Dictionary:
+	if not _is_task_test_constructor_context():
+		return {"ok": false, "message": "Operation is available only in TASK TEST constructor mode."}
 	var result: Dictionary = {"ok": false, "message": "Link update failed.", "entity_id": entity_id, "field_name": field_name, "target_id": target_id}
 	if field_name == "connected_device_ids":
 		var entity_info: Dictionary = get_map_constructor_entity_by_id(entity_kind, entity_id)
@@ -3161,6 +3175,8 @@ func apply_map_constructor_link_target(entity_kind: String, entity_id: String, f
 	return result
 
 func apply_map_constructor_state_preset(entity_kind: String, entity_id: String, preset: String) -> Dictionary:
+	if not _is_task_test_constructor_context():
+		return {"ok": false, "message": "Operation is available only in TASK TEST constructor mode."}
 	var lower_preset: String = preset.strip_edges().to_lower()
 	var updates: Array[Dictionary] = []
 	match lower_preset:
@@ -3662,6 +3678,8 @@ func get_map_constructor_cleanup_preview(cleanup_type: String, options: Dictiona
 	return {"ok": true, "cleanup_type": lower_type, "message": "Preview ready.", "affected_count": rows.size(), "affected_objects": rows, "warnings": warnings}
 
 func apply_map_constructor_cleanup(cleanup_type: String, options: Dictionary = {}) -> Dictionary:
+	if not _is_task_test_constructor_context():
+		return {"ok": false, "message": "Operation is available only in TASK TEST constructor mode."}
 	var preview: Dictionary = get_map_constructor_cleanup_preview(cleanup_type, options)
 	if not bool(preview.get("ok", false)):
 		return {"ok": false, "message": String(preview.get("message", "Cleanup failed.")), "deleted_count": 0, "cleanup_id": "", "warnings": Array(preview.get("warnings", []))}
@@ -10748,7 +10766,7 @@ func export_map_constructor_design_notes(options: Dictionary = {}) -> Dictionary
 	terminal_visual_summary["terminals"] = terminal_rows
 	var visual_catalog: Dictionary = get_visual_texture_asset_catalog()
 	var visual_summary: Dictionary = _build_visual_asset_summary(Dictionary(visual_catalog))
-	var notes: Dictionary = {"schema_version":1,"source":"task_test_map_constructor","mission_id":"mission_10","generated_at_runtime":str(Time.get_unix_time_from_system()),"summary":{"object_count":mission_world_objects.size(),"wall_material_override_count":wall_overrides.size(),"wall_material_counts":wall_counts},"visual_asset_summary":visual_summary,"readiness":readiness,"validation":{"issues":validation,"visual_diagnostics":visual_diagnostics},"objects":mission_world_objects.duplicate(true),"items":cell_items.values(),"tile_edits":Array(patch_export.get("patch", {}).get("tile_edits", [])),"links":Array(patch_export.get("patch", {}).get("links", [])),"patch":Dictionary(patch_export.get("patch", {})),"wall_material_overrides":wall_overrides,"door_visual_summary":door_visual_summary,"terminal_visual_summary":terminal_visual_summary,"history_summary":Array(get_map_constructor_change_history(20).get("history", [])),"overview_summary":Dictionary(get_map_constructor_overview_data().get("summary", {})),"recommended_next_steps":["Manual promotion required. No mission files were modified."]}
+	var notes: Dictionary = {"schema_version":1,"source":"task_test_map_constructor","mission_id":"mission_10","generated_at_runtime":str(Time.get_unix_time_from_system()),"summary":{"object_count":mission_world_objects.size(),"wall_material_override_count":wall_overrides.size(),"wall_material_counts":wall_counts},"visual_asset_summary":visual_summary,"readiness":readiness,"validation":{"issues":validation,"visual_diagnostics":visual_diagnostics},"objects":mission_world_objects.duplicate(true),"items":cell_items.values(),"tile_edits":Array(patch_export.get("patch", {}).get("tile_edits", [])),"links":Array(patch_export.get("patch", {}).get("links", [])),"patch":Dictionary(patch_export.get("patch", {})),"wall_material_overrides":wall_overrides,"door_visual_summary":door_visual_summary,"terminal_visual_summary":terminal_visual_summary,"history_summary":Array(get_map_constructor_change_history(20).get("history", [])),"overview_summary":Dictionary(get_map_constructor_overview_data().get("summary", {})),"room_visual_preset_summary":get_room_visual_preset_summary(),"recommended_next_steps":["Manual promotion required. No mission files were modified."]}
 	var text: String = "# Design Notes\nMission: mission_10\nReadiness: %s\nValidation issues: %d\nPatch summary: objects=%d items=%d tiles=%d\nManual promotion required. No mission files were modified." % [String(readiness.get("status", "unknown")), validation.size(), int(patch_export.get("object_count", 0)), int(patch_export.get("item_count", 0)), int(patch_export.get("tile_edit_count", 0))]
 	return {"ok":true,"message":"OK","notes":notes,"text":text}
 
@@ -10781,7 +10799,7 @@ func get_map_constructor_production_pipeline_report(options: Dictionary = {}) ->
 	var has_warnings: bool = warning_count > 0
 	var status: String = "blocked" if blocked else ("warning" if has_warnings else "ready")
 	var notes_payload: Dictionary = Dictionary(notes.get("notes", {}))
-	return {"ok":true,"status":status,"message":"Manual promotion required. No mission files were modified.","checks":checks,"promotion_package":{"patch":Dictionary(patch_export.get("patch", {})),"design_notes":notes_payload,"summary":{"readiness":String(readiness.get("status", "unknown")),"wall_material_overrides":Array(get_map_constructor_wall_material_overrides().get("overrides", [])),"door_visual_summary":Dictionary(notes_payload.get("door_visual_summary", {})),"terminal_visual_summary":Dictionary(notes_payload.get("terminal_visual_summary", {})),"visual_asset_summary":Dictionary(notes_payload.get("visual_asset_summary", {}))},"manual_steps":["Review design notes","Review patch JSON","Promote manually in controlled pipeline"],"warnings":[]},"recommended_actions":[]}
+	return {"ok":true,"status":status,"message":"Manual promotion required. No mission files were modified.","checks":checks,"promotion_package":{"patch":Dictionary(patch_export.get("patch", {})),"design_notes":notes_payload,"summary":{"readiness":String(readiness.get("status", "unknown")),"wall_material_overrides":Array(get_map_constructor_wall_material_overrides().get("overrides", [])),"door_visual_summary":Dictionary(notes_payload.get("door_visual_summary", {})),"terminal_visual_summary":Dictionary(notes_payload.get("terminal_visual_summary", {})),"visual_asset_summary":Dictionary(notes_payload.get("visual_asset_summary", {})),"room_visual_preset_summary":Dictionary(notes_payload.get("room_visual_preset_summary", {}))},"manual_steps":["Review design notes","Review patch JSON","Promote manually in controlled pipeline"],"warnings":[]},"recommended_actions":[]}
 
 func _build_visual_asset_summary(catalog: Dictionary) -> Dictionary:
 	var assets: Array = Array(catalog.get("assets", []))
