@@ -686,6 +686,10 @@ func get_default_map_constructor_field_value(field_name: String, entity_kind: St
 			if data.has("item_type"):
 				return data.get("item_type")
 			return "item"
+	if normalized_field == "connected_device_ids":
+		if entity_kind == "item":
+			return null
+		return []
 	if normalized_field in ["state", "power_network_id", "required_key_id", "lock_type", "linked_terminal_id", "target_door_id", "target_platform_id", "control_source_id", "digital_state", "key_kind"]:
 		return ""
 	return null
@@ -899,7 +903,7 @@ func _get_map_constructor_editable_field_schema() -> Dictionary:
 	return {
 		"state":"string","power_network_id":"string","is_open":"bool","is_locked":"bool","is_powered":"bool",
 		"required_key_id":"string","lock_type":"string","linked_terminal_id":"string","required_connector_level":"int","required_processor_level":"int",
-		"control_source_id":"string","target_door_id":"string","target_platform_id":"string","requires_external_control":"bool","requires_terminal_enabled":"bool",
+		"control_source_id":"string","connected_device_ids":"array_string","target_door_id":"string","target_platform_id":"string","requires_external_control":"bool","requires_terminal_enabled":"bool",
 		"requires_external_power":"bool","current_heat":"int","working_heat":"int","overheat_threshold":"int",
 		"item_type":"string","digital_state":"string","key_kind":"string","damaged":"bool"
 	}
@@ -945,6 +949,24 @@ func _convert_map_constructor_field_value(field_name: String, raw_value: Variant
 		if not number_text.is_valid_int():
 			return {"ok": false, "message": "Invalid int for %s." % field_name}
 		return {"ok": true, "value": int(number_text)}
+	if target_type == "array_string":
+		var values: Array[String] = []
+		var seen: Dictionary = {}
+		if raw_value is Array:
+			for value_variant in Array(raw_value):
+				var entry: String = String(value_variant).strip_edges()
+				if entry.is_empty() or seen.has(entry):
+					continue
+				seen[entry] = true
+				values.append(entry)
+		else:
+			for value_text in String(raw_value).split(",", false):
+				var entry: String = String(value_text).strip_edges()
+				if entry.is_empty() or seen.has(entry):
+					continue
+				seen[entry] = true
+				values.append(entry)
+		return {"ok": true, "value": values}
 	return {"ok": true, "value": String(raw_value)}
 
 func apply_map_constructor_property_update(entity_kind: String, entity_id: String, field_name: String, raw_value: Variant) -> Dictionary:

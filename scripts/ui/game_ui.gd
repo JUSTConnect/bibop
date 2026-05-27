@@ -9146,7 +9146,16 @@ func _show_map_constructor_inspector(cell: Vector2i) -> void:
 			else:
 				var value_edit: LineEdit = LineEdit.new()
 				value_edit.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-				value_edit.text = String(field_value)
+				if field_type == "array_string" and field_value is Array:
+					var text_values: Array[String] = []
+					for entry_variant in Array(field_value):
+						var entry_text: String = String(entry_variant).strip_edges()
+						if entry_text.is_empty():
+							continue
+						text_values.append(entry_text)
+					value_edit.text = ", ".join(text_values)
+				else:
+					value_edit.text = String(field_value)
 				row.add_child(value_edit)
 				var apply_button: Button = Button.new()
 				apply_button.text = "Apply"
