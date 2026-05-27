@@ -1377,10 +1377,45 @@ func remove_map_constructor_object_at_cell(cell: Vector2i) -> Dictionary:
 	refresh_world_cooling_received()
 	return result
 
+func _get_map_constructor_wall_mounted_match_score(object_data: Dictionary, cell: Vector2i) -> int:
+	if String(object_data.get("placement_mode", "")) != "wall_mounted":
+		return -1
+	var object_cell: Vector2i = Vector2i(object_data.get("position", Vector2i(-1, -1)))
+	if object_cell == cell:
+		return 300
+	var anchor_cell: Vector2i = _deserialize_cell_variant(object_data.get("anchor_floor_cell", ""))
+	if anchor_cell == cell:
+		return 200
+	var attached_cell: Vector2i = _deserialize_cell_variant(object_data.get("attached_wall_cell", ""))
+	if attached_cell == cell:
+		return 100
+	return -1
+
+func _get_map_constructor_best_wall_mounted_entity_at_cell(cell: Vector2i) -> Dictionary:
+	var best_score: int = -1
+	var best_entity: Dictionary = {}
+	for object_data in mission_world_objects:
+		var score: int = _get_map_constructor_wall_mounted_match_score(object_data, cell)
+		if score > best_score:
+			best_score = score
+			best_entity = object_data
+	if best_score < 0 or best_entity.is_empty():
+		return {"ok": false, "reason": "not_found"}
+	return {
+		"ok": true,
+		"entity_kind": "world_object",
+		"id": String(best_entity.get("id", "")),
+		"cell": Vector2i(best_entity.get("position", cell)),
+		"data": best_entity
+	}
+
 func get_map_constructor_editable_entity_at_cell(cell: Vector2i) -> Dictionary:
 	var object_data: Dictionary = get_world_object_at_cell(cell)
 	if not object_data.is_empty():
 		return {"ok": true, "entity_kind": "world_object", "id": String(object_data.get("id", "")), "cell": cell, "data": object_data}
+	var wall_mounted_entity: Dictionary = _get_map_constructor_best_wall_mounted_entity_at_cell(cell)
+	if bool(wall_mounted_entity.get("ok", false)):
+		return wall_mounted_entity
 	var items: Array[Dictionary] = get_items_at_cell(cell)
 	if not items.is_empty():
 		var item_data: Dictionary = items[0]
