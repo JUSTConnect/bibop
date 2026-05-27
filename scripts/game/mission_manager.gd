@@ -1381,21 +1381,62 @@ func _remove_map_constructor_entity_by_id(entity_kind: String, entity_id: String
 	refresh_world_cooling_received()
 	return {"ok": true, "message": "Removed object.", "object_id": entity_id, "warnings": []}
 
+func _clone_map_constructor_entity_data(source_data: Dictionary, target_cell: Vector2i, preferred_wall_side: String, assign_new_id: bool) -> Dictionary:
+	var clone_data: Dictionary = Dictionary(source_data).duplicate(true)
+	if assign_new_id:
+		var prefab_id: String = String(clone_data.get("map_constructor_prefab_id", clone_data.get("object_type", "object")))
+		clone_data["id"] = "mapedit_%s_%d" % [prefab_id, _map_constructor_runtime_object_seq]
+		_map_constructor_runtime_object_seq += 1
+	clone_data.erase("position")
+	clone_data.erase("anchor_floor_cell")
+	clone_data.erase("attached_wall_cell")
+	clone_data.erase("wall_side")
+	clone_data.erase("map_constructor_previous_tile_type")
+	clone_data["position"] = target_cell
+	if String(clone_data.get("placement_mode", "")) == "wall_mounted":
+		var resolved_side: String = preferred_wall_side.strip_edges()
+		if resolved_side.is_empty():
+			resolved_side = String(source_data.get("wall_side", ""))
+		var attachment: Dictionary = _resolve_wall_mounted_attachment(target_cell, resolved_side)
+		if not bool(attachment.get("ok", false)):
+			return {"ok": false, "message": String(attachment.get("message", "Blocked: no adjacent wall."))}
+		clone_data["placement_mode"] = "wall_mounted"
+		clone_data["anchor_floor_cell"] = _serialize_cell_key(target_cell)
+		clone_data["attached_wall_cell"] = _serialize_cell_key(Vector2i(attachment.get("attached_wall_cell", Vector2i(-1, -1))))
+		clone_data["wall_side"] = String(attachment.get("wall_side", "north"))
+	return {"ok": true, "data": clone_data}
+
 func move_map_constructor_entity_to_cell(entity_kind: String, entity_id: String, target_cell: Vector2i, preferred_wall_side: String = "") -> Dictionary:
 	var entity: Dictionary = get_map_constructor_entity_by_id(entity_kind, entity_id)
 	if not bool(entity.get("ok", false)):
 		return {"ok": false, "message": "Move failed: entity not found."}
 	var data: Dictionary = Dictionary(entity.get("data", {}))
 	var prefab_id: String = String(data.get("map_constructor_prefab_id", data.get("object_type", "")))
+	var place_check: Dictionary = can_place_map_constructor_prefab(prefab_id, target_cell, preferred_wall_side)
+	if not bool(place_check.get("ok", false)):
+		return {"ok": false, "message": String(place_check.get("message", "Move failed."))}
+	var clone_result: Dictionary = _clone_map_constructor_entity_data(data, target_cell, preferred_wall_side, false)
+	if not bool(clone_result.get("ok", false)):
+		return {"ok": false, "message": String(clone_result.get("message", "Move failed."))}
+	var cloned_data: Dictionary = Dictionary(clone_result.get("data", {}))
 	var remove_result: Dictionary = _remove_map_constructor_entity_by_id(String(entity.get("entity_kind", entity_kind)), entity_id)
 	if not bool(remove_result.get("ok", false)):
 		return {"ok": false, "message": String(remove_result.get("message", "Move failed."))}
-	var place_result: Dictionary = place_map_constructor_prefab(prefab_id, target_cell, preferred_wall_side)
-	if bool(place_result.get("ok", false)):
-		return {"ok": true, "message": "Moved object.", "object_id": String(place_result.get("object_id", ""))}
-	var rollback_cell: Vector2i = Vector2i(entity.get("cell", Vector2i(-1, -1)))
-	place_map_constructor_prefab(prefab_id, rollback_cell, String(data.get("wall_side", "")))
-	return {"ok": false, "message": String(place_result.get("message", "Move failed."))}
+	if entity_kind == "item" or String(entity.get("entity_kind", entity_kind)) == "item":
+		add_item_at_cell(target_cell, cloned_data)
+		PowerSystemRef.recalculate_network(mission_world_objects, "")
+		refresh_world_cooling_received()
+		return {"ok": true, "message": "Moved object.", "object_id": String(cloned_data.get("id", ""))}
+	var previous_tile_type: int = GridManager.TILE_FLOOR
+	if grid_manager != null and grid_manager.has_method("get_tile"):
+		previous_tile_type = int(grid_manager.call("get_tile", target_cell))
+	cloned_data["map_constructor_previous_tile_type"] = previous_tile_type
+	if grid_manager != null and grid_manager.has_method("set_tile"):
+		grid_manager.call("set_tile", target_cell, int(cloned_data.get("map_constructor_tile_type", previous_tile_type)))
+	set_world_object_at_cell(target_cell, cloned_data)
+	PowerSystemRef.recalculate_network(mission_world_objects, String(cloned_data.get("power_network_id", "")))
+	refresh_world_cooling_received()
+	return {"ok": true, "message": "Moved object.", "object_id": String(cloned_data.get("id", ""))}
 
 func duplicate_map_constructor_entity_to_cell(entity_kind: String, entity_id: String, target_cell: Vector2i, preferred_wall_side: String = "") -> Dictionary:
 	var entity: Dictionary = get_map_constructor_entity_by_id(entity_kind, entity_id)
@@ -1403,13 +1444,28 @@ func duplicate_map_constructor_entity_to_cell(entity_kind: String, entity_id: St
 		return {"ok": false, "message": "Duplicate failed: entity not found."}
 	var data: Dictionary = Dictionary(entity.get("data", {}))
 	var prefab_id: String = String(data.get("map_constructor_prefab_id", data.get("object_type", "")))
-	var side: String = preferred_wall_side
-	if side.strip_edges().is_empty() and String(data.get("placement_mode", "")) == "wall_mounted":
-		side = String(data.get("wall_side", ""))
-	var place_result: Dictionary = place_map_constructor_prefab(prefab_id, target_cell, side)
-	if not bool(place_result.get("ok", false)):
-		return {"ok": false, "message": String(place_result.get("message", "Duplicate failed."))}
-	return {"ok": true, "message": "Duplicated object.", "object_id": String(place_result.get("object_id", ""))}
+	var place_check: Dictionary = can_place_map_constructor_prefab(prefab_id, target_cell, preferred_wall_side)
+	if not bool(place_check.get("ok", false)):
+		return {"ok": false, "message": String(place_check.get("message", "Duplicate failed."))}
+	var clone_result: Dictionary = _clone_map_constructor_entity_data(data, target_cell, preferred_wall_side, true)
+	if not bool(clone_result.get("ok", false)):
+		return {"ok": false, "message": String(clone_result.get("message", "Duplicate failed."))}
+	var cloned_data: Dictionary = Dictionary(clone_result.get("data", {}))
+	if entity_kind == "item" or String(entity.get("entity_kind", entity_kind)) == "item":
+		add_item_at_cell(target_cell, cloned_data)
+		PowerSystemRef.recalculate_network(mission_world_objects, "")
+		refresh_world_cooling_received()
+		return {"ok": true, "message": "Duplicated object.", "object_id": String(cloned_data.get("id", ""))}
+	var previous_tile_type: int = GridManager.TILE_FLOOR
+	if grid_manager != null and grid_manager.has_method("get_tile"):
+		previous_tile_type = int(grid_manager.call("get_tile", target_cell))
+	cloned_data["map_constructor_previous_tile_type"] = previous_tile_type
+	if grid_manager != null and grid_manager.has_method("set_tile"):
+		grid_manager.call("set_tile", target_cell, int(cloned_data.get("map_constructor_tile_type", previous_tile_type)))
+	set_world_object_at_cell(target_cell, cloned_data)
+	PowerSystemRef.recalculate_network(mission_world_objects, String(cloned_data.get("power_network_id", "")))
+	refresh_world_cooling_received()
+	return {"ok": true, "message": "Duplicated object.", "object_id": String(cloned_data.get("id", ""))}
 
 func remove_map_constructor_object_at_cell(cell: Vector2i) -> Dictionary:
 	var entity: Dictionary = get_map_constructor_editable_entity_at_cell(cell)
