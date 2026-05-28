@@ -19,7 +19,8 @@ class_name RoomVisualRenderer
 @export var show_asset_alignment_overlay: bool = false
 @export var show_door_opening_overlay: bool = false
 @export var use_iso_visual_preview_preset: bool = false
-@export var iso_visual_preview_includes_fog: bool = true
+@export var iso_visual_preview_includes_fog: bool = false
+@export var iso_fog_draw_cell_shapes: bool = false
 @export var iso_visual_preview_includes_asset_hooks: bool = false
 @export var iso_visual_preview_drives_bipob_visual_position: bool = true
 @export var debug_draw_iso_fog_outlines: bool = false
@@ -210,8 +211,24 @@ func should_render_iso_wall_visuals() -> bool:
 func should_render_iso_object_visuals() -> bool:
 	return (render_iso_object_prototype or use_iso_visual_preview_preset)
 
+func should_suppress_iso_fog_for_constructor() -> bool:
+	var mission_manager: Node = get_mission_manager_ref()
+	if mission_manager == null:
+		return false
+	if mission_manager.has_method("_is_task_test_constructor_context"):
+		return bool(mission_manager.call("_is_task_test_constructor_context"))
+	if mission_manager.has_method("get_current_mission_id"):
+		return String(mission_manager.call("get_current_mission_id")) == "mission_10"
+	return false
+
 func should_render_iso_fog_visuals() -> bool:
-	return (render_iso_fog_overlay or (use_iso_visual_preview_preset and iso_visual_preview_includes_fog))
+	var fog_requested: bool = render_iso_fog_overlay or (use_iso_visual_preview_preset and iso_visual_preview_includes_fog)
+	if should_suppress_iso_fog_for_constructor() and not render_iso_fog_overlay:
+		return false
+	return fog_requested
+
+func should_draw_iso_fog_cell_shapes() -> bool:
+	return should_render_iso_fog_visuals() and iso_fog_draw_cell_shapes
 
 func should_use_iso_placeholder_asset_preset() -> bool:
 	if not use_iso_placeholder_asset_preset:
@@ -237,6 +254,8 @@ func get_iso_visual_preview_state() -> Dictionary:
 		"wall": should_render_iso_wall_visuals(),
 		"objects": should_render_iso_object_visuals(),
 		"fog": should_render_iso_fog_visuals(),
+		"fog_cell_shapes": should_draw_iso_fog_cell_shapes(),
+		"constructor_fog_suppressed": should_suppress_iso_fog_for_constructor(),
 		"asset_hooks": should_use_iso_tile_asset_hook_visuals(),
 		"placeholder_assets": should_use_iso_placeholder_asset_preset(),
 		"placeholder_requires_preview": iso_placeholder_asset_preset_requires_preview,
@@ -1226,6 +1245,9 @@ func get_iso_visual_layer_debug_state() -> Dictionary:
 		"wall_enabled": should_render_iso_wall_visuals(),
 		"object_enabled": should_render_iso_object_visuals(),
 		"fog_enabled": should_render_iso_fog_visuals(),
+		"fog_overlay_will_draw": should_draw_iso_fog_cell_shapes(),
+		"fog_cell_shapes_enabled": iso_fog_draw_cell_shapes,
+		"constructor_fog_suppressed": should_suppress_iso_fog_for_constructor(),
 		"asset_hooks_enabled": should_use_iso_tile_asset_hook_visuals(),
 		"placeholder_assets_enabled": should_use_iso_placeholder_asset_preset(),
 		"preview_active": is_iso_visual_preview_active(),
@@ -1439,12 +1461,24 @@ func get_iso_visual_debug_report() -> Dictionary:
 		map_height = _grid_manager.get_map_height()
 		legacy_grid_should_draw = _grid_manager.should_draw_legacy_grid()
 	var iso_active: bool = is_iso_renderer_active()
+	var floor_enabled: bool = should_render_iso_floor_visuals()
+	var wall_enabled: bool = should_render_iso_wall_visuals()
+	var object_enabled: bool = should_render_iso_object_visuals()
+	var fog_enabled: bool = should_render_iso_fog_visuals()
+	var fog_overlay_will_draw: bool = should_draw_iso_fog_cell_shapes()
+	var constructor_fog_suppressed: bool = should_suppress_iso_fog_for_constructor()
+	var duplicate_overlay_risk: bool = is_iso_visual_preview_active() and (floor_enabled or wall_enabled or object_enabled) and fog_overlay_will_draw
 	return {
 		"single_render_path": not (legacy_grid_should_draw and iso_active),
 		"legacy_grid_should_draw": legacy_grid_should_draw,
 		"iso_renderer_active": iso_active,
 		"placeholder_assets_enabled": should_use_iso_placeholder_asset_preset(),
 		"procedural_wall_under_texture_enabled": false,
+		"fog_enabled": fog_enabled,
+		"fog_overlay_will_draw": fog_overlay_will_draw,
+		"fog_cell_shapes_enabled": iso_fog_draw_cell_shapes,
+		"constructor_fog_suppressed": constructor_fog_suppressed,
+		"duplicate_overlay_risk": duplicate_overlay_risk,
 		"layers": get_iso_visual_layer_debug_state(),
 		"preview": get_iso_visual_preview_state(),
 		"textures": get_iso_visual_texture_debug_state(),
@@ -1481,6 +1515,12 @@ func get_iso_visual_debug_report_text() -> String:
 	lines.append("- iso_renderer_active: %s" % str(report.get("iso_renderer_active", false)))
 	lines.append("- placeholder_assets_enabled: %s" % str(report.get("placeholder_assets_enabled", false)))
 	lines.append("- procedural_wall_under_texture_enabled: %s" % str(report.get("procedural_wall_under_texture_enabled", false)))
+	lines.append("Fog overlay diagnostics:")
+	lines.append("- fog_enabled: %s" % str(report.get("fog_enabled", false)))
+	lines.append("- fog_overlay_will_draw: %s" % str(report.get("fog_overlay_will_draw", false)))
+	lines.append("- fog_cell_shapes_enabled: %s" % str(report.get("fog_cell_shapes_enabled", false)))
+	lines.append("- constructor_fog_suppressed: %s" % str(report.get("constructor_fog_suppressed", false)))
+	lines.append("- duplicate_overlay_risk: %s" % str(report.get("duplicate_overlay_risk", false)))
 	lines.append("Layers:")
 	lines.append("- floor: %s" % str(layers.get("floor_enabled", false)))
 	lines.append("- wall: %s" % str(layers.get("wall_enabled", false)))
@@ -3379,6 +3419,8 @@ func draw_iso_fog_wall_overlay(cell: Vector2i) -> void:
 func draw_iso_fog_overlay() -> void:
 	# Visual-only fog overlay pass for isometric prototypes.
 	# GridManager visibility helpers are read here; gameplay fog logic is not modified.
+	if not iso_fog_draw_cell_shapes:
+		return
 	if _grid_manager == null:
 		return
 
