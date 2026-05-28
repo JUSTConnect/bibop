@@ -18,6 +18,8 @@ class_name RoomVisualRenderer
 @export var show_object_grounding_overlay: bool = false
 @export var show_asset_alignment_overlay: bool = false
 @export var show_door_opening_overlay: bool = false
+@export var show_wall_run_overlay: bool = false
+@export var show_floor_join_overlay: bool = false
 @export var use_iso_visual_preview_preset: bool = false
 @export var iso_visual_preview_includes_fog: bool = false
 @export var iso_fog_draw_cell_shapes: bool = false
@@ -69,6 +71,7 @@ class_name RoomVisualRenderer
 @export var iso_tile_height: float = 64.0
 @export var iso_wall_height: float = 56.0
 @export var iso_floor_visual_inset: float = 1.0
+@export var iso_wall_visual_inset: float = 8.0
 @export var iso_object_marker_height: float = 18.0
 @export var iso_origin: Vector2 = Vector2.ZERO
 
@@ -340,7 +343,37 @@ func get_iso_inset_diamond_points(cell: Vector2i, inset: float) -> PackedVector2
 	return inset_points
 
 func get_iso_wall_base_points(cell: Vector2i) -> PackedVector2Array:
-	return get_iso_diamond_points(cell)
+	var topology: Dictionary = get_wall_render_topology(cell)
+	return get_iso_wall_connected_base_points(cell, topology)
+
+func get_iso_wall_connected_base_points(cell: Vector2i, topology: Dictionary) -> PackedVector2Array:
+	# Visual-only wall footprint. Isolated walls stay tightened inside their cell,
+	# while connected edges expand to the true cell edge so adjacent wall cells join
+	# into a run without changing passability or GridManager data.
+	var full_points: PackedVector2Array = get_iso_diamond_points(cell)
+	var safe_inset: float = maxf(iso_wall_visual_inset, 0.0)
+	var tight_points: PackedVector2Array = get_iso_inset_diamond_points(cell, safe_inset)
+	if full_points.size() < 4 or tight_points.size() < 4:
+		return full_points
+
+	var result_points: PackedVector2Array = PackedVector2Array()
+	for point in tight_points:
+		result_points.append(point)
+
+	var neighbors: Dictionary = Dictionary(topology.get("neighbors", {}))
+	if bool(neighbors.get("north", false)):
+		result_points[3] = full_points[3]
+		result_points[0] = full_points[0]
+	if bool(neighbors.get("east", false)):
+		result_points[0] = full_points[0]
+		result_points[1] = full_points[1]
+	if bool(neighbors.get("south", false)):
+		result_points[1] = full_points[1]
+		result_points[2] = full_points[2]
+	if bool(neighbors.get("west", false)):
+		result_points[2] = full_points[2]
+		result_points[3] = full_points[3]
+	return result_points
 
 
 func is_point_inside_iso_diamond(point: Vector2, diamond_points: PackedVector2Array) -> bool:
@@ -1003,6 +1036,76 @@ func get_iso_floor_visual_profile_key_for_cell(cell: Vector2i) -> String:
 	if is_iso_passage_floor_cell(cell):
 		return "floor_passage"
 	return "floor_default"
+
+func get_iso_floor_material_family_for_cell(cell: Vector2i) -> String:
+	if _grid_manager == null or not is_cell_in_bounds(cell):
+		return "none"
+	var tile_type: int = _grid_manager.get_tile(cell)
+	if not is_floor_like_tile(tile_type):
+		return "none"
+	var profile_key: String = get_iso_floor_visual_profile_key_for_cell(cell)
+	if profile_key == "floor_doorway":
+		return "doorway"
+	if profile_key == "floor_wall_base":
+		return "wall_base"
+	return "connected_floor"
+
+func should_draw_floor_cell_border(cell: Vector2i) -> bool:
+	# Visual-only seam policy. Interior same-family floor cells suppress their
+	# strong diamond border so rooms read as one continuous surface. Boundary,
+	# wall, and doorway threshold edges retain local definition.
+	if _grid_manager == null or not is_cell_in_bounds(cell):
+		return false
+	var tile_type: int = _grid_manager.get_tile(cell)
+	if not is_floor_like_tile(tile_type):
+		return false
+	var family: String = get_iso_floor_material_family_for_cell(cell)
+	for side in WALL_SIDE_ORDER:
+		var neighbor: Vector2i = cell + _get_wall_side_delta(side)
+		if not is_cell_in_bounds(neighbor):
+			return true
+		var neighbor_tile: int = _grid_manager.get_tile(neighbor)
+		if not is_floor_like_tile(neighbor_tile):
+			return true
+		var neighbor_family: String = get_iso_floor_material_family_for_cell(neighbor)
+		if neighbor_family != family:
+			return true
+	return false
+
+func should_draw_floor_edge_border(cell: Vector2i, side: String) -> bool:
+	if _grid_manager == null or not is_cell_in_bounds(cell):
+		return false
+	var tile_type: int = _grid_manager.get_tile(cell)
+	if not is_floor_like_tile(tile_type):
+		return false
+	var neighbor: Vector2i = cell + _get_wall_side_delta(side)
+	if not is_cell_in_bounds(neighbor):
+		return true
+	var neighbor_tile: int = _grid_manager.get_tile(neighbor)
+	if not is_floor_like_tile(neighbor_tile):
+		return true
+	var family: String = get_iso_floor_material_family_for_cell(cell)
+	var neighbor_family: String = get_iso_floor_material_family_for_cell(neighbor)
+	return neighbor_family != family
+
+func get_iso_diamond_edge_points(points: PackedVector2Array, side: String) -> Array[Vector2]:
+	var edge_points: Array[Vector2] = []
+	if points.size() < 4:
+		return edge_points
+	match side:
+		"north":
+			edge_points.append(points[3])
+			edge_points.append(points[0])
+		"east":
+			edge_points.append(points[0])
+			edge_points.append(points[1])
+		"south":
+			edge_points.append(points[1])
+			edge_points.append(points[2])
+		"west":
+			edge_points.append(points[2])
+			edge_points.append(points[3])
+	return edge_points
 
 func get_iso_floor_visual_profile(profile_key: String) -> Dictionary:
 	var profiles: Dictionary = {
@@ -2193,47 +2296,104 @@ func is_wall_adjacent_to_door(cell: Vector2i) -> bool:
 			return true
 	return false
 
+func get_wall_render_topology(cell: Vector2i) -> Dictionary:
+	var neighbors: Dictionary = _get_wall_neighbor_mask(cell)
+	var visible_sides: Array[String] = get_visible_wall_sides(cell)
+	var cap_sides: Array[String] = []
+	var mountable_sides: Array[String] = []
+	if not _is_wall_in_bounds(cell) or not _is_wall_cell(cell):
+		return {
+			"cell": cell,
+			"neighbors": neighbors,
+			"run_x": false,
+			"run_y": false,
+			"shape": "unknown",
+			"visible_sides": visible_sides,
+			"cap_sides": cap_sides,
+			"mountable_sides": mountable_sides
+		}
+
+	var north: bool = bool(neighbors.get("north", false))
+	var east: bool = bool(neighbors.get("east", false))
+	var south: bool = bool(neighbors.get("south", false))
+	var west: bool = bool(neighbors.get("west", false))
+	var count: int = int(north) + int(east) + int(south) + int(west)
+	var run_x: bool = east and west
+	var run_y: bool = north and south
+	var shape: String = "isolated"
+
+	for side in WALL_SIDE_ORDER:
+		if not bool(neighbors.get(side, false)):
+			cap_sides.append(side)
+
+	for side in visible_sides:
+		var neighbor_cell: Vector2i = cell + _get_wall_side_delta(side)
+		if not _is_wall_in_bounds(neighbor_cell):
+			continue
+		var neighbor_tile: int = _grid_manager.get_tile(neighbor_cell)
+		if _is_wall_mount_neighbor_visible(neighbor_tile) and not _is_door_like_tile(neighbor_tile):
+			mountable_sides.append(side)
+
+	if count <= 0:
+		shape = "isolated"
+	elif count == 4:
+		shape = "cross"
+	elif count == 3:
+		shape = "t_junction"
+	elif count == 1:
+		if north:
+			shape = "end_cap_south"
+		elif east:
+			shape = "end_cap_west"
+		elif south:
+			shape = "end_cap_north"
+		else:
+			shape = "end_cap_east"
+	elif run_x:
+		shape = "straight_x"
+	elif run_y:
+		shape = "straight_y"
+	elif north and east:
+		if _is_wall_in_bounds(cell + Vector2i(1, -1)) and _is_wall_cell(cell + Vector2i(1, -1)):
+			shape = "inner_corner_ne"
+		else:
+			shape = "outer_corner_ne"
+	elif north and west:
+		if _is_wall_in_bounds(cell + Vector2i(-1, -1)) and _is_wall_cell(cell + Vector2i(-1, -1)):
+			shape = "inner_corner_nw"
+		else:
+			shape = "outer_corner_nw"
+	elif south and east:
+		if _is_wall_in_bounds(cell + Vector2i(1, 1)) and _is_wall_cell(cell + Vector2i(1, 1)):
+			shape = "inner_corner_se"
+		else:
+			shape = "outer_corner_se"
+	elif south and west:
+		if _is_wall_in_bounds(cell + Vector2i(-1, 1)) and _is_wall_cell(cell + Vector2i(-1, 1)):
+			shape = "inner_corner_sw"
+		else:
+			shape = "outer_corner_sw"
+
+	return {
+		"cell": cell,
+		"neighbors": neighbors,
+		"run_x": run_x,
+		"run_y": run_y,
+		"shape": shape,
+		"visible_sides": visible_sides,
+		"cap_sides": cap_sides,
+		"mountable_sides": mountable_sides
+	}
+
 func classify_wall_topology(cell: Vector2i) -> String:
 	if not _is_wall_in_bounds(cell) or not _is_wall_cell(cell):
 		return "unknown"
-	var n: Dictionary = _get_wall_neighbor_mask(cell)
-	var north: bool = bool(n.get("north", false))
-	var east: bool = bool(n.get("east", false))
-	var south: bool = bool(n.get("south", false))
-	var west: bool = bool(n.get("west", false))
-	var count: int = int(north) + int(east) + int(south) + int(west)
 	if is_outer_border_cell(cell):
 		return "boundary_wall"
 	if is_wall_adjacent_to_door(cell):
 		return "door_adjacent"
-	if count <= 0:
-		return "isolated"
-	if count == 4:
-		return "cross_junction"
-	if count == 3:
-		return "t_junction"
-	if count == 1:
-		if north:
-			return "cap_north"
-		if east:
-			return "cap_east"
-		if south:
-			return "cap_south"
-		return "cap_west"
-	if north and south:
-		return "vertical_run"
-	if east and west:
-		return "horizontal_run"
-	if north and east:
-		return "corner_ne"
-	if north and west:
-		return "corner_nw"
-	if south and east:
-		return "corner_se"
-	if south and west:
-		return "corner_sw"
-	push_warning("[IsoWallTopology] impossible_topology_at_%s" % str(cell))
-	return "isolated"
+	var topology: Dictionary = get_wall_render_topology(cell)
+	return String(topology.get("shape", "isolated"))
 
 func get_iso_architectural_wall_profile(topology: String, visual_material: Dictionary) -> Dictionary:
 	var fallback_colors: Dictionary = get_wall_prototype_colors(Vector2i.ZERO)
@@ -2241,8 +2401,7 @@ func get_iso_architectural_wall_profile(topology: String, visual_material: Dicti
 	var base_color: Color = Color(visual_material.get("fallback_color", fallback_colors.get("top", Color(0.2, 0.2, 0.24, 1.0))))
 	var edge_color: Color = Color(visual_material.get("edge_color", fallback_colors.get("outline", Color(0.3, 0.3, 0.35, 1.0))))
 	var safe_topology: String = topology if not topology.is_empty() else "isolated"
-	var corner: bool = safe_topology.begins_with("corner_")
-	var is_cap: bool = safe_topology.begins_with("cap_")
+	var corner: bool = safe_topology.contains("corner_")
 	return {
 		"base_color": base_color.darkened(0.2),
 		"side_color": base_color.darkened(0.33),
@@ -2250,7 +2409,7 @@ func get_iso_architectural_wall_profile(topology: String, visual_material: Dicti
 		"edge_color": edge_color,
 		"shadow_color": Color(0.03, 0.04, 0.05, 0.36),
 		"height_px": maxi(int(iso_wall_height), 18),
-		"cap_enabled": not is_cap,
+		"cap_enabled": true,
 		"corner_emphasis": 1.25 if corner else 1.0,
 		"damage_overlay_strength": 0.45 if material_id.find("damaged") >= 0 else 0.0,
 		"wall_mass_ratio": WALL_MASS_RATIO,
@@ -2265,7 +2424,8 @@ func get_iso_architectural_wall_profile(topology: String, visual_material: Dicti
 func draw_iso_wall_block(cell: Vector2i) -> void:
 	if should_skip_full_wall_for_door_opening(cell):
 		return
-	var base_points: PackedVector2Array = get_iso_wall_base_points(cell)
+	var render_topology: Dictionary = get_wall_render_topology(cell)
+	var base_points: PackedVector2Array = get_iso_wall_connected_base_points(cell, render_topology)
 	if base_points.size() < 4:
 		return
 	var top_points: PackedVector2Array = get_iso_wall_top_points(cell)
@@ -2284,7 +2444,9 @@ func draw_iso_wall_block(cell: Vector2i) -> void:
 	var floor_shadow: PackedVector2Array = PackedVector2Array([base_points[2], base_points[3], base_points[3] + Vector2(0.0, 8.0), base_points[2] + Vector2(0.0, 8.0)])
 	var accent_color: Color = _get_color_from_dict(colors, "accent", Color.WHITE)
 
-	if has_drawable_iso_wall_texture(material_override, material_row, wall_profile_key):
+	var render_shape: String = String(render_topology.get("shape", "isolated"))
+	var wall_has_run_connection: bool = bool(render_topology.get("run_x", false)) or bool(render_topology.get("run_y", false)) or render_shape.contains("corner_") or render_shape.begins_with("end_cap_")
+	if not wall_has_run_connection and has_drawable_iso_wall_texture(material_override, material_row, wall_profile_key):
 		draw_colored_polygon(floor_shadow, Color(arch.get("shadow_color", Color(0.0, 0.0, 0.0, 0.25))))
 		if draw_iso_wall_texture_for_cell(cell, material_override, material_row, wall_profile_key):
 			draw_iso_wall_debug_and_mount_overlays(cell, arch, topology)
@@ -2304,7 +2466,7 @@ func draw_iso_wall_block(cell: Vector2i) -> void:
 
 	draw_colored_polygon(left_face, left_color)
 	draw_colored_polygon(right_face, right_color)
-	if bool(arch.get("cap_enabled", true)) or topology.find("corner_") >= 0:
+	if bool(arch.get("cap_enabled", true)) or topology.find("corner_") >= 0 or topology.begins_with("straight_") or topology == "t_junction" or topology == "cross":
 		draw_colored_polygon(top_face, top_color)
 	draw_colored_polygon(floor_shadow, Color(arch.get("shadow_color", Color(0.0, 0.0, 0.0, 0.25))))
 
@@ -2434,7 +2596,11 @@ func draw_iso_floor_prototype() -> void:
 				continue
 
 			var floor_asset_key: String = get_iso_floor_asset_key_for_tile(tile_type)
-			var diamond_points: PackedVector2Array = get_iso_inset_diamond_points(cell, iso_floor_visual_inset)
+			var draw_cell_border: bool = should_draw_floor_cell_border(cell)
+			var floor_inset: float = 0.0
+			if draw_cell_border:
+				floor_inset = maxf(iso_floor_visual_inset * 0.35, 0.0)
+			var diamond_points: PackedVector2Array = get_iso_inset_diamond_points(cell, floor_inset)
 			var profile_key: String = get_iso_floor_visual_profile_key_for_cell(cell)
 			var profile: Dictionary = get_iso_floor_visual_profile(profile_key)
 			var fill_color: Color = _get_color_from_dict(profile, "fill", get_floor_prototype_color(tile_type, cell))
@@ -2445,33 +2611,37 @@ func draw_iso_floor_prototype() -> void:
 					var floor_material: Dictionary = Dictionary(floor_material_result.get("material", {}))
 					fill_color = Color(floor_material.get("fallback_color", fill_color))
 					var floor_texture_asset_id: String = String(floor_material.get("texture_asset_id", "")).strip_edges()
-					if not floor_texture_asset_id.is_empty():
+					if not floor_texture_asset_id.is_empty() and draw_cell_border:
 						var floor_asset_drawn: bool = draw_optional_visual_texture_asset(floor_texture_asset_id, cell, "", {"visual_center": grid_to_iso(cell)})
 						if floor_asset_drawn:
 							continue
-			if draw_iso_texture_asset(cell, floor_asset_key):
+			if draw_cell_border and draw_iso_texture_asset(cell, floor_asset_key):
 				continue
 			draw_colored_polygon(diamond_points, fill_color)
 			var outline_color: Color = _get_color_from_dict(profile, "outline", Color(0.21, 0.33, 0.39, 0.85))
 			var panel_color: Color = _get_color_from_dict(profile, "panel", Color(0.18, 0.2, 0.24, 0.4))
 			var seam_color: Color = _get_color_from_dict(profile, "seam", Color(0.36, 0.42, 0.48, 0.26))
-			if debug_draw_iso_cell_outlines:
-				for edge_index in range(diamond_points.size()):
-					var next_index: int = (edge_index + 1) % diamond_points.size()
-					draw_line(diamond_points[edge_index], diamond_points[next_index], outline_color, 1.0)
+			if debug_draw_iso_cell_outlines or draw_cell_border:
+				for side in WALL_SIDE_ORDER:
+					var edge_points: Array[Vector2] = get_iso_diamond_edge_points(diamond_points, side)
+					if edge_points.size() < 2:
+						continue
+					var should_draw_edge: bool = debug_draw_iso_cell_outlines or should_draw_floor_edge_border(cell, side)
+					if should_draw_edge:
+						draw_line(edge_points[0], edge_points[1], outline_color.darkened(0.12), 0.65)
 			if diamond_points.size() >= 4:
 				var panel_inset_points: PackedVector2Array = get_iso_inset_diamond_points(cell, iso_floor_visual_inset + 8.0)
 				if panel_inset_points.size() >= 4:
 					for edge_index in range(panel_inset_points.size()):
 						var next_index: int = (edge_index + 1) % panel_inset_points.size()
-						draw_line(panel_inset_points[edge_index], panel_inset_points[next_index], panel_color, 0.9)
+						draw_line(panel_inset_points[edge_index], panel_inset_points[next_index], panel_color, 0.45)
 				var seam_start: Vector2 = diamond_points[3].lerp(diamond_points[1], 0.35)
 				var seam_end: Vector2 = diamond_points[3].lerp(diamond_points[1], 0.65)
-				draw_line(seam_start, seam_end, seam_color, 1.2)
+				draw_line(seam_start, seam_end, seam_color.darkened(0.12), 0.65)
 				if profile_key == "floor_passage":
-					draw_line(diamond_points[0].lerp(diamond_points[2], 0.32), diamond_points[0].lerp(diamond_points[2], 0.68), seam_color.lightened(0.06), 1.4)
+					draw_line(diamond_points[0].lerp(diamond_points[2], 0.32), diamond_points[0].lerp(diamond_points[2], 0.68), seam_color.lightened(0.03), 0.8)
 				elif profile_key == "floor_doorway":
-					draw_line(diamond_points[0].lerp(diamond_points[2], 0.42), diamond_points[0].lerp(diamond_points[2], 0.58), seam_color, 2.0)
+					draw_line(diamond_points[0].lerp(diamond_points[2], 0.42), diamond_points[0].lerp(diamond_points[2], 0.58), seam_color, 1.4)
 
 func draw_iso_wall_prototype() -> void:
 	if _grid_manager == null:
@@ -3462,6 +3632,58 @@ func draw_wall_mount_zones_overlay() -> void:
 				var label: String = side.substr(0, 1).to_upper()
 				draw_string(ThemeDB.fallback_font, center + Vector2(3.0, -4.0), label, HORIZONTAL_ALIGNMENT_LEFT, 12.0, 10, Color(0.9, 0.98, 1.0, 0.9))
 
+func draw_wall_run_overlay() -> void:
+	if _grid_manager == null:
+		return
+	for y in range(_grid_manager.get_map_height()):
+		for x in range(_grid_manager.get_map_width()):
+			var cell: Vector2i = Vector2i(x, y)
+			if _grid_manager.get_tile(cell) != GridManager.TILE_WALL:
+				continue
+			var topology: Dictionary = get_wall_render_topology(cell)
+			var shape: String = String(topology.get("shape", "unknown"))
+			var center: Vector2 = grid_to_iso(cell) + Vector2(-28.0, -iso_wall_height - 10.0)
+			var label: String = shape
+			if bool(topology.get("run_x", false)):
+				label += " RX"
+			if bool(topology.get("run_y", false)):
+				label += " RY"
+			var cap_sides: Array = Array(topology.get("cap_sides", []))
+			if cap_sides.size() > 0 and shape.begins_with("end_cap_"):
+				label += " cap"
+			draw_string(ThemeDB.fallback_font, center, label, HORIZONTAL_ALIGNMENT_LEFT, 96.0, 8, Color(1.0, 0.92, 0.42, 0.95))
+			for side in WALL_SIDE_ORDER:
+				var edge_points: Array[Vector2] = get_iso_diamond_edge_points(get_iso_wall_connected_base_points(cell, topology), side)
+				if edge_points.size() < 2:
+					continue
+				var neighbors: Dictionary = Dictionary(topology.get("neighbors", {}))
+				var edge_color: Color = Color(0.25, 1.0, 0.78, 0.82)
+				if not bool(neighbors.get(side, false)):
+					edge_color = Color(1.0, 0.55, 0.2, 0.9)
+				draw_line(edge_points[0], edge_points[1], edge_color, 1.2)
+
+func draw_floor_join_overlay() -> void:
+	if _grid_manager == null:
+		return
+	for y in range(_grid_manager.get_map_height()):
+		for x in range(_grid_manager.get_map_width()):
+			var cell: Vector2i = Vector2i(x, y)
+			var tile_type: int = _grid_manager.get_tile(cell)
+			if not is_floor_like_tile(tile_type):
+				continue
+			var points: PackedVector2Array = get_iso_diamond_points(cell)
+			for side in WALL_SIDE_ORDER:
+				var edge_points: Array[Vector2] = get_iso_diamond_edge_points(points, side)
+				if edge_points.size() < 2:
+					continue
+				var shown: bool = should_draw_floor_edge_border(cell, side)
+				var edge_color: Color = Color(0.25, 0.9, 1.0, 0.35)
+				var edge_width: float = 0.65
+				if shown:
+					edge_color = Color(1.0, 0.82, 0.25, 0.92)
+					edge_width = 1.35
+				draw_line(edge_points[0], edge_points[1], edge_color, edge_width)
+
 func _draw() -> void:
 	if debug_draw_marker:
 		draw_circle(Vector2.ZERO, 3.0, Color(0.8, 0.95, 1.0, 0.75))
@@ -3480,6 +3702,10 @@ func _draw() -> void:
 		draw_iso_geometry_prototype(include_walls, include_objects)
 	if show_wall_mount_zones_overlay and include_walls:
 		draw_wall_mount_zones_overlay()
+	if show_wall_run_overlay and include_walls:
+		draw_wall_run_overlay()
+	if show_floor_join_overlay and should_render_iso_floor_visuals():
+		draw_floor_join_overlay()
 
 	draw_iso_mouse_selection_overlay()
 	draw_map_constructor_visual_overlay_passes()
