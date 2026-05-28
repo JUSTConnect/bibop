@@ -355,8 +355,6 @@ func _get_map_constructor_overview_tile_kind(tile_type: int) -> String:
 		return "door"
 	if tile_type == GridManager.TILE_POWERED_GATE:
 		return "gate"
-	if tile_type == GridManager.TILE_BLOCKED:
-		return "blocked"
 	return "unknown"
 
 func _map_constructor_overview_object_matches_tags(object_data: Dictionary, tags: Array[String]) -> bool:
@@ -1644,6 +1642,14 @@ func remove_first_item_at_cell(cell: Vector2i) -> Dictionary:
 	mission_world_objects.erase(item)
 	return item
 
+func _get_world_object_template(prefab_id: String) -> Dictionary:
+	var normalized_prefab_id: String = prefab_id.strip_edges()
+	if normalized_prefab_id.is_empty():
+		return {}
+	if WorldObjectCatalogRef.OBJECT_LIBRARY.has(normalized_prefab_id):
+		return Dictionary(WorldObjectCatalogRef.OBJECT_LIBRARY[normalized_prefab_id]).duplicate(true)
+	return {}
+
 func get_map_constructor_prefab_catalog() -> Array[Dictionary]:
 	var entries: Array[Dictionary] = [
 		{"category":"Floors","id":"floor"},{"category":"Floors","id":"stepped_floor"},
@@ -1656,7 +1662,7 @@ func get_map_constructor_prefab_catalog() -> Array[Dictionary]:
 	for i in range(entries.size()):
 		var entry: Dictionary = entries[i]
 		var prefab_id: String = String(entry.get("id", ""))
-		var object_template: Dictionary = WorldObjectCatalog.get_object_template(prefab_id)
+		var object_template: Dictionary = _get_world_object_template(prefab_id)
 		entry["label"] = String(object_template.get("name", prefab_id.replace("_", " ").capitalize()))
 		entry["placement_mode"] = String(object_template.get("placement_mode", "floor"))
 		entries[i] = entry
@@ -2117,7 +2123,12 @@ func can_place_map_constructor_prefab(prefab_id: String, cell: Vector2i, preferr
 		result["reason"] = "wall_mounted_anchor_out_of_bounds" if prefab_is_wall_mounted else "out_of_bounds"
 		result["message"] = "Cannot mount here: anchor floor cell is outside the map." if prefab_is_wall_mounted else "Blocked: out of bounds."
 		return result
-	if active_bipob_ref != null and Vector2i(active_bipob_ref.get("grid_position", Vector2i(-1, -1))) == cell:
+	var active_bipob_cell: Vector2i = Vector2i(-1, -1)
+	if active_bipob_ref != null:
+		var active_bipob_position_variant: Variant = active_bipob_ref.get("grid_position")
+		if active_bipob_position_variant is Vector2i or active_bipob_position_variant is Vector2:
+			active_bipob_cell = Vector2i(active_bipob_position_variant)
+	if active_bipob_cell == cell:
 		result["reason"] = "blocked_by_bipob" if prefab_is_wall_mounted else "occupied_by_bipob"
 		result["message"] = "Cannot mount here: anchor cell is occupied by Bipob." if prefab_is_wall_mounted else "Blocked: existing object."
 		return result
@@ -3622,6 +3633,10 @@ func get_map_constructor_door_visual_state(object_id: String) -> Dictionary:
 		room_visual_hint = normalized_room_visual_hint
 	return {"ok": true, "object_id": normalized_id, "state": state, "badges": badges, "tint": tint, "accent": accent, "texture_asset_id": "door_state_generic", "room_visual_preset_id": room_visual_preset_id, "room_visual_hint": room_visual_hint, "created_by_room_visual_preset": created_by_room_visual_preset, "message": message}
 
+func _blend_color(base_color: Color, overlay_color: Color, weight: float) -> Color:
+	var safe_weight: float = clampf(weight, 0.0, 1.0)
+	return base_color.lerp(overlay_color, safe_weight)
+
 func get_map_constructor_terminal_visual_state(object_id: String) -> Dictionary:
 	var normalized_id: String = object_id.strip_edges()
 	var fallback: Dictionary = {"ok": false, "object_id": normalized_id, "terminal_type": "unknown", "state": "unknown", "badges": [], "tint": Color(1.0, 1.0, 1.0, 1.0), "accent": Color(0.78, 0.87, 0.96, 0.98), "message": "Object not found."}
@@ -4303,7 +4318,7 @@ func get_map_constructor_validation_issues() -> Array[Dictionary]:
 	for cell_variant in cell_items.keys():
 		var item_cell: Vector2i = _deserialize_cell_variant(cell_variant)
 		if item_cell.x >= 0 and item_cell.y >= 0 and _is_map_constructor_wall_cell(item_cell):
-			issues.append(_make_map_constructor_issue("pickup_cell_item_on_wall_%d_%d" % [item_cell.x, item_cell.y], "warning", "Pickup object overlaps blocked wall cell.", item_cell, source_name, "item", "", "", true))
+			issues.append(_make_map_constructor_issue("pickup_cell_item_on_wall_%d_%d" % [item_cell.x, item_cell.y], "warning", "Pickup object overlaps blocked wall cell.", item_cell, source_name, "item", "", ""))
 		for item_variant in Array(cell_items.get(cell_variant, [])):
 			var item_data: Dictionary = Dictionary(item_variant)
 			var item_id: String = String(item_data.get("id", "")).strip_edges()
