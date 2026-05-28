@@ -2405,15 +2405,19 @@ func draw_wall_mounted_object_shape(cell: Vector2i, profile_key: String, profile
 			return true
 	return false
 
-func get_iso_object_grounding_profile(object_data: Dictionary) -> Dictionary:
+func get_iso_object_grounding_profile(object_data: Dictionary, fallback_cell: Vector2i = Vector2i(-1, -1)) -> Dictionary:
 	var object_id: String = String(object_data.get("id", "")).strip_edges()
 	var object_type: String = String(object_data.get("object_type", object_data.get("type", ""))).to_lower().strip_edges()
 	var placement_mode: String = String(object_data.get("placement_mode", "")).to_lower().strip_edges()
-	var anchor_cell: Vector2i = _try_parse_cell_variant(object_data.get("anchor_floor_cell", object_data.get("position", Vector2i(-1, -1))), Vector2i(-1, -1))
+	var anchor_cell: Vector2i = _try_parse_cell_variant(object_data.get("anchor_floor_cell", Vector2i(-1, -1)), Vector2i(-1, -1))
 	var attached_wall_cell: Vector2i = _try_parse_cell_variant(object_data.get("attached_wall_cell", Vector2i(-1, -1)), Vector2i(-1, -1))
 	var wall_side: String = String(object_data.get("wall_side", "")).to_lower().strip_edges()
 	if anchor_cell.x < 0 or anchor_cell.y < 0:
-		anchor_cell = _try_parse_cell_variant(object_data.get("position", Vector2i(0, 0)), Vector2i(0, 0))
+		anchor_cell = _try_parse_cell_variant(object_data.get("position", Vector2i(-1, -1)), Vector2i(-1, -1))
+	if anchor_cell.x < 0 or anchor_cell.y < 0:
+		anchor_cell = fallback_cell
+	if anchor_cell.x < 0 or anchor_cell.y < 0:
+		anchor_cell = Vector2i(0, 0)
 	var center: Vector2 = grid_to_iso(anchor_cell)
 	if placement_mode == "wall_mounted" and attached_wall_cell.x >= 0 and attached_wall_cell.y >= 0 and not wall_side.is_empty():
 		for zone_variant in get_wall_mounted_anchor_zones(attached_wall_cell):
@@ -2422,6 +2426,8 @@ func get_iso_object_grounding_profile(object_data: Dictionary) -> Dictionary:
 				center = Vector2(zone.get("mount_zone_center", center))
 				break
 	var grounding_type: String = "floor_standing"
+	if object_data.is_empty():
+		grounding_type = "unknown"
 	if placement_mode == "wall_mounted":
 		grounding_type = "wall_mounted"
 	elif object_type.contains("door") or object_type.contains("gate"):
@@ -2469,7 +2475,7 @@ func _draw_grounding_overlay(profile: Dictionary) -> void:
 
 func draw_iso_object_marker(cell: Vector2i, tile_type: int) -> void:
 	var object_meta: Dictionary = _get_iso_world_object_metadata_for_cell(cell)
-	var profile_data: Dictionary = get_iso_object_grounding_profile(Dictionary(object_meta.get("data", {})))
+	var profile_data: Dictionary = get_iso_object_grounding_profile(Dictionary(object_meta.get("data", {})), cell)
 	var visual_center: Vector2 = Vector2(profile_data.get("visual_center", get_world_object_visual_position(cell)))
 	var shadow_polygon: PackedVector2Array = PackedVector2Array(profile_data.get("shadow_polygon", PackedVector2Array()))
 	if shadow_polygon.size() >= 3:
