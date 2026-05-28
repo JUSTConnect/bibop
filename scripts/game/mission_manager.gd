@@ -450,6 +450,13 @@ func _map_constructor_overview_object_matches_tags(object_data: Dictionary, tags
 				return true
 	return false
 
+func _safe_array(value: Variant) -> Array:
+	var result: Array = []
+	if value is Array:
+		for item in value:
+			result.append(item)
+	return result
+
 func get_map_constructor_overview_data(options: Dictionary = {}) -> Dictionary:
 	if not _is_task_test_constructor_context():
 		return {"ok": false, "message": "Overview is available only in TASK TEST constructor mode.", "map_size": Vector2i.ZERO, "cells": [], "markers": [], "summary": {}, "legend": []}
@@ -460,7 +467,7 @@ func get_map_constructor_overview_data(options: Dictionary = {}) -> Dictionary:
 	var cells: Array[Dictionary] = []
 	var markers: Array[Dictionary] = []
 	var selected_keys: Dictionary = {}
-	for row_variant in Array(options.get("selected_entities", [])):
+	for row_variant in _safe_array(options.get("selected_entities", [])):
 		var row: Dictionary = Dictionary(row_variant)
 		var sk: String = "%s|%s" % [String(row.get("entity_kind", "")), String(row.get("entity_id", ""))]
 		if not sk.ends_with("|"):
@@ -493,8 +500,8 @@ func get_map_constructor_overview_data(options: Dictionary = {}) -> Dictionary:
 			var cell: Vector2i = Vector2i(x, y)
 			var cell_key: String = _serialize_cell_key(cell)
 			var tile_type: int = int(grid_manager.call("get_tile", cell))
-			var objects_here: Array = Array(world_objects_by_cell.get(cell, []))
-			var items_here: Array = Array(cell_items.get(cell, []))
+			var objects_here: Array = _safe_array(world_objects_by_cell.get(cell, []))
+			var items_here: Array = _safe_array(cell_items.get(cell, []))
 			var has_wall_mounted: bool = false
 			var has_power: bool = false
 			var has_terminal: bool = false
@@ -524,7 +531,7 @@ func get_map_constructor_overview_data(options: Dictionary = {}) -> Dictionary:
 				if selected_keys.has("item|%s" % iid):
 					has_selected = true
 					markers.append({"id":"selected_item_%s" % iid, "kind":"selected", "label":"Selected item", "cell":cell, "entity_kind":"item", "entity_id":iid, "status":"info", "message":"Selected item."})
-			var cell_issues: Array = Array(issue_by_cell.get(cell_key, []))
+			var cell_issues: Array = _safe_array(issue_by_cell.get(cell_key, []))
 			var has_warning: bool = false
 			var has_error: bool = false
 			for iv in cell_issues:
@@ -561,7 +568,7 @@ func get_map_constructor_overview_data(options: Dictionary = {}) -> Dictionary:
 			if has_door:
 				markers.append({"id":"door_%s" % cell_key, "kind":"door", "label":"Door/Gate", "cell":cell, "entity_kind":"", "entity_id":"", "status":"info", "message":"Door or gate in cell."})
 	if bool(options.get("include_history", true)):
-		var history: Array = Array(get_map_constructor_change_history(int(options.get("max_history_markers", 20))).get("history", []))
+		var history: Array = _safe_array(get_map_constructor_change_history(int(options.get("max_history_markers", 20))).get("history", []))
 		for rowv in history:
 			var row: Dictionary = Dictionary(rowv)
 			var hcell: Vector2i = Vector2i(row.get("cell", Vector2i(-1, -1)))
