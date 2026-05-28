@@ -10066,6 +10066,24 @@ func _add_map_constructor_section_header(parent: VBoxContainer, title: String) -
 	header_panel.add_child(title_label)
 	parent.add_child(header_panel)
 
+
+func _make_map_constructor_action_row() -> HFlowContainer:
+	var row: HFlowContainer = HFlowContainer.new()
+	row.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	row.add_theme_constant_override("h_separation", 4)
+	row.add_theme_constant_override("v_separation", 4)
+	return row
+
+func _make_map_constructor_action_button(label_text: String, tooltip: String = "") -> Button:
+	var button: Button = Button.new()
+	button.text = label_text
+	button.tooltip_text = tooltip if not tooltip.is_empty() else label_text
+	button.clip_text = true
+	button.text_overrun_behavior = TextServer.OVERRUN_TRIM_ELLIPSIS
+	button.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	button.custom_minimum_size = Vector2(120, 30)
+	return button
+
 func _add_map_constructor_tab_header(parent: VBoxContainer, available_width: float) -> void:
 	var tab_row: HBoxContainer = HBoxContainer.new()
 	tab_row.add_theme_constant_override("separation", 4)
@@ -10113,22 +10131,26 @@ func _refresh_map_constructor_panels() -> void:
 	runtime_map_constructor_palette_panel = PanelContainer.new()
 	runtime_map_constructor_palette_panel.z_index = Z_MAP_CONSTRUCTOR_UI
 	runtime_map_constructor_palette_panel.z_as_relative = false
+	runtime_map_constructor_palette_panel.clip_contents = true
 	var palette_rect: Rect2 = _get_map_constructor_palette_rect()
 	runtime_map_constructor_palette_panel.position = palette_rect.position
 	runtime_map_constructor_palette_panel.size = palette_rect.size
 	runtime_map_constructor_palette_panel.add_theme_stylebox_override("panel", _make_panel_style(UI_COLOR_PANEL, UI_COLOR_BORDER, 1, 8))
 	var palette_stack: VBoxContainer = VBoxContainer.new()
+	palette_stack.clip_contents = true
 	palette_stack.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
 	palette_stack.add_theme_constant_override("separation", 6)
 	runtime_map_constructor_palette_panel.add_child(palette_stack)
 	_add_map_constructor_tab_header(palette_stack, palette_rect.size.x)
 	var scroll := ScrollContainer.new()
+	scroll.clip_contents = true
 	scroll.horizontal_scroll_mode = ScrollContainer.SCROLL_MODE_DISABLED
 	scroll.vertical_scroll_mode = ScrollContainer.SCROLL_MODE_AUTO
 	scroll.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	scroll.size_flags_vertical = Control.SIZE_EXPAND_FILL
 	palette_stack.add_child(scroll)
 	var list := VBoxContainer.new()
+	list.clip_contents = true
 	list.add_theme_constant_override("separation", 6)
 	list.custom_minimum_size = Vector2(0.0, 0.0)
 	list.size_flags_horizontal = Control.SIZE_EXPAND_FILL
@@ -10437,9 +10459,8 @@ func _refresh_map_constructor_panels() -> void:
 				var issue_id: String = String(check.get("issue_id", ""))
 				if issue_id.is_empty():
 					continue
-				var action_row: HBoxContainer = HBoxContainer.new()
-				var jump_button: Button = Button.new()
-				jump_button.text = "Jump"
+				var action_row: HFlowContainer = _make_map_constructor_action_row()
+				var jump_button: Button = _make_map_constructor_action_button("Jump")
 				jump_button.pressed.connect(func() -> void:
 					_focus_map_constructor_readiness_issue_by_id(issue_id)
 				)
@@ -10528,11 +10549,9 @@ func _refresh_map_constructor_panels() -> void:
 						var foptions: Dictionary = Dictionary(fix_option.get("options", {}))
 						var flabel: String = String(fix_option.get("label", "Fix"))
 						var fkey: String = "%s|%s" % [ftype, JSON.stringify(foptions)]
-						var issue_fix_row: HBoxContainer = HBoxContainer.new()
-						var preview_btn: Button = Button.new()
-						preview_btn.text = "Preview: %s" % flabel
-						var apply_btn: Button = Button.new()
-						apply_btn.text = "Apply: %s" % flabel
+						var issue_fix_row: HFlowContainer = _make_map_constructor_action_row()
+						var preview_btn: Button = _make_map_constructor_action_button("Preview: %s" % flabel)
+						var apply_btn: Button = _make_map_constructor_action_button("Apply: %s" % flabel)
 						preview_btn.pressed.connect(func() -> void:
 							_apply_map_constructor_autofix_action(ftype, foptions, false)
 						)
@@ -10573,8 +10592,7 @@ func _refresh_map_constructor_panels() -> void:
 			else:
 				overlay_summary_label.text = "Validation: errors=%d warnings=%d valid=%d" % [error_count, warning_count, valid_count]
 		list.add_child(overlay_summary_label)
-		var overlay_toggle_button: Button = Button.new()
-		overlay_toggle_button.text = "Validation Overlay: %s" % ["ON" if map_constructor_validation_overlay_visible else "OFF"]
+		var overlay_toggle_button: Button = _make_map_constructor_action_button("Validation Overlay: %s" % ["ON" if map_constructor_validation_overlay_visible else "OFF"])
 		overlay_toggle_button.pressed.connect(func() -> void:
 			map_constructor_validation_overlay_visible = not map_constructor_validation_overlay_visible
 			_refresh_map_constructor_panels()
@@ -10601,8 +10619,7 @@ func _refresh_map_constructor_panels() -> void:
 				_request_map_constructor_overlay_refresh()
 			)
 			list.add_child(toggle)
-		var reset_overlay_button: Button = Button.new()
-		reset_overlay_button.text = "Reset Overlay Visibility"
+		var reset_overlay_button: Button = _make_map_constructor_action_button("Reset Overlay Visibility")
 		reset_overlay_button.pressed.connect(func() -> void:
 			map_constructor_overlay_visibility = {"show_preview": true, "show_validation": true, "show_links": true, "show_power": true, "show_wall_side_arrows": true, "show_multi_select": true}
 			_request_map_constructor_overlay_refresh()
@@ -10663,8 +10680,7 @@ func _refresh_map_constructor_panels() -> void:
 			if String(row.get("id", "")) == map_constructor_selected_kit_id:
 				selected_kit_info.text = "Kit: %s\n%s\nTags: %s\nWarnings: %s" % [String(row.get("display_name", "")), String(row.get("description", "")), ", ".join(PackedStringArray(Array(row.get("tags", [])))), String(row.get("warning", "none"))]
 		list.add_child(selected_kit_info)
-		var quick_kits_button: Button = Button.new()
-		quick_kits_button.text = "Preview Kit"
+		var quick_kits_button: Button = _make_map_constructor_action_button("Preview Kit")
 		quick_kits_button.pressed.connect(func() -> void:
 			if mission_manager_runtime == null or not mission_manager_runtime.has_method("preview_map_constructor_prefab_kit"):
 				return
@@ -10676,8 +10692,7 @@ func _refresh_map_constructor_panels() -> void:
 			_refresh_map_constructor_panels()
 		)
 		list.add_child(quick_kits_button)
-		var apply_kit_button: Button = Button.new()
-		apply_kit_button.text = "Apply Kit"
+		var apply_kit_button: Button = _make_map_constructor_action_button("Apply Kit")
 		apply_kit_button.disabled = map_constructor_selected_kit_id.is_empty() or not map_constructor_kit_preview_can_apply or map_constructor_kit_pending_apply_key != current_kit_key
 		apply_kit_button.pressed.connect(func() -> void:
 			if mission_manager_runtime == null or not mission_manager_runtime.has_method("apply_map_constructor_prefab_kit"):
@@ -10693,8 +10708,7 @@ func _refresh_map_constructor_panels() -> void:
 				field_runtime.call("request_visual_refresh")
 		)
 		list.add_child(apply_kit_button)
-		var undo_kit_button: Button = Button.new()
-		undo_kit_button.text = "Undo Last Kit"
+		var undo_kit_button: Button = _make_map_constructor_action_button("Undo Last Kit")
 		undo_kit_button.pressed.connect(func() -> void:
 			if mission_manager_runtime == null or not mission_manager_runtime.has_method("undo_last_map_constructor_prefab_kit"):
 				return
@@ -10732,7 +10746,7 @@ func _refresh_map_constructor_panels() -> void:
 			if String(row.get("id", "")) == map_constructor_selected_template_id:
 				template_info.text = "Template: %s\n%s\nsize=%s\nTags: %s\nWarnings: %s" % [String(row.get("display_name", "")), String(row.get("description", "")), str(row.get("size", Vector2i.ZERO)), ", ".join(PackedStringArray(Array(row.get("tags", [])))), String(row.get("warning", "none"))]
 		list.add_child(template_info)
-		var template_transform_row: HBoxContainer = HBoxContainer.new()
+		var template_transform_row: HFlowContainer = _make_map_constructor_action_row()
 		var rotation_label: Label = Label.new()
 		rotation_label.text = "Rotation"
 		template_transform_row.add_child(rotation_label)
@@ -10774,8 +10788,7 @@ func _refresh_map_constructor_panels() -> void:
 		)
 		template_transform_row.add_child(mirror_y_check)
 		list.add_child(template_transform_row)
-		var template_preview_button: Button = Button.new()
-		template_preview_button.text = "Preview Template"
+		var template_preview_button: Button = _make_map_constructor_action_button("Preview Template")
 		template_preview_button.pressed.connect(func() -> void:
 			if mission_manager_runtime == null or not mission_manager_runtime.has_method("preview_map_constructor_room_template"):
 				return
@@ -10787,8 +10800,7 @@ func _refresh_map_constructor_panels() -> void:
 			_refresh_map_constructor_panels()
 		)
 		list.add_child(template_preview_button)
-		var apply_template_button: Button = Button.new()
-		apply_template_button.text = "Apply Template"
+		var apply_template_button: Button = _make_map_constructor_action_button("Apply Template")
 		apply_template_button.disabled = map_constructor_selected_template_id.is_empty() or not map_constructor_template_preview_can_apply or map_constructor_template_pending_apply_key != current_template_key
 		apply_template_button.pressed.connect(func() -> void:
 			if mission_manager_runtime == null or not mission_manager_runtime.has_method("apply_map_constructor_room_template"):
@@ -10804,8 +10816,7 @@ func _refresh_map_constructor_panels() -> void:
 				field_runtime.call("request_visual_refresh")
 		)
 		list.add_child(apply_template_button)
-		var undo_template_button: Button = Button.new()
-		undo_template_button.text = "Undo Last Template"
+		var undo_template_button: Button = _make_map_constructor_action_button("Undo Last Template")
 		undo_template_button.pressed.connect(func() -> void:
 			if mission_manager_runtime == null or not mission_manager_runtime.has_method("undo_last_map_constructor_room_template"):
 				return
@@ -10879,8 +10890,7 @@ func _refresh_map_constructor_panels() -> void:
 			if String(preset_row.get("id", "")) == selected_room_visual_preset_id:
 				preset_info_label.text = String(preset_row.get("description", ""))
 		list.add_child(preset_info_label)
-		var preview_preset_button: Button = Button.new()
-		preview_preset_button.text = "Preview Preset"
+		var preview_preset_button: Button = _make_map_constructor_action_button("Preview Preset")
 		preview_preset_button.pressed.connect(func() -> void:
 			if mission_manager_runtime == null or not mission_manager_runtime.has_method("preview_room_visual_preset"):
 				return
@@ -10889,8 +10899,7 @@ func _refresh_map_constructor_panels() -> void:
 			_refresh_map_constructor_panels()
 		)
 		list.add_child(preview_preset_button)
-		var apply_preset_button: Button = Button.new()
-		apply_preset_button.text = "Apply Preset"
+		var apply_preset_button: Button = _make_map_constructor_action_button("Apply Preset")
 		apply_preset_button.pressed.connect(func() -> void:
 			if mission_manager_runtime == null or not mission_manager_runtime.has_method("apply_room_visual_preset"):
 				return
@@ -10906,8 +10915,7 @@ func _refresh_map_constructor_panels() -> void:
 				field_runtime.call("request_visual_refresh")
 		)
 		list.add_child(apply_preset_button)
-		var clear_preset_button: Button = Button.new()
-		clear_preset_button.text = "Clear Preset Overrides"
+		var clear_preset_button: Button = _make_map_constructor_action_button("Clear Preset Overrides")
 		clear_preset_button.pressed.connect(func() -> void:
 			if mission_manager_runtime == null or not mission_manager_runtime.has_method("clear_room_visual_preset_overrides"):
 				return
@@ -10926,8 +10934,7 @@ func _refresh_map_constructor_panels() -> void:
 			room_preview_label.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 			room_preview_label.text = "Preset Preview: walls=%d doors=%d terminals=%d can_apply=%s\n%s" % [int(room_preview_summary.get("affected_walls", 0)), int(room_preview_summary.get("affected_doors", 0)), int(room_preview_summary.get("affected_terminals", 0)), str(bool(room_visual_preset_preview.get("can_apply", false))), String(room_visual_preset_preview.get("message", ""))]
 			list.add_child(room_preview_label)
-		var room_design_notes_button: Button = Button.new()
-		room_design_notes_button.text = "Generate Design Notes"
+		var room_design_notes_button: Button = _make_map_constructor_action_button("Generate Design Notes")
 		room_design_notes_button.pressed.connect(func() -> void:
 			if mission_manager_runtime == null or not mission_manager_runtime.has_method("export_map_constructor_design_notes"):
 				return
@@ -10940,8 +10947,7 @@ func _refresh_map_constructor_panels() -> void:
 		notes_edit.custom_minimum_size = Vector2(0, 120)
 		notes_edit.text = map_constructor_design_notes_text
 		list.add_child(notes_edit)
-		var pipeline_button: Button = Button.new()
-		pipeline_button.text = "Build Promotion Package"
+		var pipeline_button: Button = _make_map_constructor_action_button("Build Promotion Package")
 		pipeline_button.pressed.connect(func() -> void:
 			if mission_manager_runtime == null or not mission_manager_runtime.has_method("get_map_constructor_production_pipeline_report"):
 				return
@@ -10949,8 +10955,7 @@ func _refresh_map_constructor_panels() -> void:
 			_refresh_map_constructor_panels()
 		)
 		list.add_child(pipeline_button)
-		var refresh_package_button: Button = Button.new()
-		refresh_package_button.text = "Refresh Package"
+		var refresh_package_button: Button = _make_map_constructor_action_button("Refresh Package")
 		refresh_package_button.pressed.connect(func() -> void:
 			if mission_manager_runtime == null or not mission_manager_runtime.has_method("get_map_constructor_production_pipeline_report"):
 				return
@@ -10984,8 +10989,7 @@ func _refresh_map_constructor_panels() -> void:
 			pipeline_label.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 			pipeline_label.text = "\n".join(pipeline_lines)
 			list.add_child(pipeline_label)
-		var refresh_audit_button: Button = Button.new()
-		refresh_audit_button.text = "Refresh Audit"
+		var refresh_audit_button: Button = _make_map_constructor_action_button("Refresh Audit")
 		refresh_audit_button.pressed.connect(func() -> void:
 			_refresh_map_constructor_panels()
 		)
@@ -11004,14 +11008,14 @@ func _refresh_map_constructor_panels() -> void:
 		multi_info.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 		multi_info.text = "Selected: %d\n%s" % [map_constructor_multi_selected_entities.size(), ", ".join(selected_ids.slice(0, mini(10, selected_ids.size())))]
 		list.add_child(multi_info)
-		var select_actions: HBoxContainer = HBoxContainer.new()
-		var add_current: Button = Button.new(); add_current.text = "Add Current Selection"
+		var select_actions: HFlowContainer = _make_map_constructor_action_row()
+		var add_current: Button = _make_map_constructor_action_button("Add Current Selection")
 		add_current.pressed.connect(func() -> void:
 			_add_map_constructor_multi_row_if_missing(_make_map_constructor_multi_row_from_current_selection())
 			_refresh_map_constructor_multi_selection_stale()
 			_refresh_map_constructor_panels()
 		)
-		var remove_current: Button = Button.new(); remove_current.text = "Remove Current Selection"
+		var remove_current: Button = _make_map_constructor_action_button("Remove Current Selection")
 		remove_current.pressed.connect(func() -> void:
 			var keep: Array[Dictionary] = []
 			for row in map_constructor_multi_selected_entities:
@@ -11022,28 +11026,27 @@ func _refresh_map_constructor_panels() -> void:
 			_refresh_map_constructor_multi_selection_stale()
 			_refresh_map_constructor_panels()
 		)
-		var clear_multi: Button = Button.new(); clear_multi.text = "Clear Multi-select"
+		var clear_multi: Button = _make_map_constructor_action_button("Clear Multi-select")
 		clear_multi.pressed.connect(func() -> void: map_constructor_multi_selected_entities.clear(); _clear_map_constructor_batch_preview_state(); _refresh_map_constructor_panels())
 		select_actions.add_child(add_current); select_actions.add_child(remove_current); select_actions.add_child(clear_multi); list.add_child(select_actions)
-		var quick_select: HBoxContainer = HBoxContainer.new()
+		var quick_select: HFlowContainer = _make_map_constructor_action_row()
 		for quick in [{"label":"All Constructor","mode":"all_constructor"},{"label":"All Items","mode":"items"},{"label":"Wall-mounted","mode":"wall_mounted"},{"label":"Doors","mode":"doors"},{"label":"Terminals","mode":"terminals"},{"label":"Power","mode":"power"},{"label":"Control","mode":"control"}]:
-			var select_button: Button = Button.new()
-			select_button.text = "Select %s" % String(quick.get("label", ""))
+			var select_button: Button = _make_map_constructor_action_button("Select %s" % String(quick.get("label", "")))
 			select_button.pressed.connect(func() -> void:
 				_add_map_constructor_multi_selection_by_filter(String(quick.get("mode", "")))
 				_refresh_map_constructor_panels()
 			)
 			quick_select.add_child(select_button)
 		list.add_child(quick_select)
-		var offset_row: HBoxContainer = HBoxContainer.new()
+		var offset_row: HFlowContainer = _make_map_constructor_action_row()
 		var ox: SpinBox = SpinBox.new(); ox.min_value = -100; ox.max_value = 100; ox.step = 1; ox.value = map_constructor_batch_offset_x; ox.value_changed.connect(func(v: float) -> void: map_constructor_batch_offset_x = int(v))
 		var oy: SpinBox = SpinBox.new(); oy.min_value = -100; oy.max_value = 100; oy.step = 1; oy.value = map_constructor_batch_offset_y; oy.value_changed.connect(func(v: float) -> void: map_constructor_batch_offset_y = int(v))
 		var pn: LineEdit = LineEdit.new(); pn.text = map_constructor_batch_power_network_id; pn.placeholder_text = "Power network id"; pn.text_changed.connect(func(t: String) -> void: map_constructor_batch_power_network_id = t)
 		offset_row.add_child(Label.new()); offset_row.get_child(0).set("text", "Offset X/Y:")
 		offset_row.add_child(ox); offset_row.add_child(oy); offset_row.add_child(pn); list.add_child(offset_row)
-		var batch_buttons: HBoxContainer = HBoxContainer.new()
+		var batch_buttons: HFlowContainer = _make_map_constructor_action_row()
 		for op in [{"label":"Preview Move","op":"move_selected"},{"label":"Apply Move","op":"move_selected","apply":true},{"label":"Preview Duplicate","op":"duplicate_selected"},{"label":"Apply Duplicate","op":"duplicate_selected","apply":true},{"label":"Preview Delete","op":"delete_selected"},{"label":"Apply Delete","op":"delete_selected","apply":true},{"label":"Preview Assign Power","op":"assign_power_network"},{"label":"Apply Assign Power","op":"assign_power_network","apply":true},{"label":"Preview Clear Broken Refs","op":"clear_broken_references"},{"label":"Apply Clear Broken Refs","op":"clear_broken_references","apply":true}]:
-			var b: Button = Button.new(); b.text = String(op.get("label", ""))
+			var b: Button = _make_map_constructor_action_button(String(op.get("label", "")))
 			var apply_mode: bool = bool(op.get("apply", false))
 			var current_key: String = _build_map_constructor_batch_operation_key(String(op.get("op", "")))
 			if apply_mode:
@@ -11077,8 +11080,7 @@ func _refresh_map_constructor_panels() -> void:
 			)
 			batch_buttons.add_child(b)
 		list.add_child(batch_buttons)
-		var undo_batch_button: Button = Button.new()
-		undo_batch_button.text = "Undo Last Batch"
+		var undo_batch_button: Button = _make_map_constructor_action_button("Undo Last Batch")
 		undo_batch_button.pressed.connect(func() -> void:
 			if mission_manager_runtime == null or not mission_manager_runtime.has_method("undo_last_map_constructor_batch_operation"):
 				return
@@ -11124,20 +11126,18 @@ func _refresh_map_constructor_panels() -> void:
 			{"label":"All Constructor Objects","cleanup_type":"all_constructor_objects","options":{}}
 		]
 		for action in cleanup_actions:
-			var action_row: HBoxContainer = HBoxContainer.new()
-			action_row.add_theme_constant_override("separation", 4)
+			var action_row: HFlowContainer = _make_map_constructor_action_row()
 			var ctype: String = String(action.get("cleanup_type", ""))
 			var coptions: Dictionary = Dictionary(action.get("options", {}))
-			var preview_button: Button = Button.new()
-			preview_button.text = "Preview %s" % String(action.get("label", ""))
+			var preview_button: Button = _make_map_constructor_action_button("Preview %s" % String(action.get("label", "")))
 			preview_button.pressed.connect(func() -> void:
 				_apply_map_constructor_cleanup_action(ctype, coptions, false)
 			)
-			var apply_button: Button = Button.new()
-			var apply_key: String = "%s|%s" % [ctype, JSON.stringify(coptions)]
-			apply_button.text = "Delete %s" % String(action.get("label", ""))
+			var apply_label: String = "Delete %s" % String(action.get("label", ""))
 			if ctype == "invalid_references":
-				apply_button.text = "Clean Invalid References"
+				apply_label = "Clean Invalid References"
+			var apply_button: Button = _make_map_constructor_action_button(apply_label)
+			var apply_key: String = "%s|%s" % [ctype, JSON.stringify(coptions)]
 			apply_button.disabled = map_constructor_cleanup_pending_apply_key != apply_key
 			apply_button.pressed.connect(func() -> void:
 				_apply_map_constructor_cleanup_action(ctype, coptions, true)
@@ -11145,15 +11145,12 @@ func _refresh_map_constructor_panels() -> void:
 			action_row.add_child(preview_button)
 			action_row.add_child(apply_button)
 			list.add_child(action_row)
-		var reset_row: HBoxContainer = HBoxContainer.new()
-		reset_row.add_theme_constant_override("separation", 4)
-		var reset_preview_button: Button = Button.new()
-		reset_preview_button.text = "Preview Reset Runtime Map"
+		var reset_row: HFlowContainer = _make_map_constructor_action_row()
+		var reset_preview_button: Button = _make_map_constructor_action_button("Preview Reset Runtime Map")
 		reset_preview_button.pressed.connect(func() -> void:
 			_apply_map_constructor_cleanup_action("reset_runtime_map", {}, false)
 		)
-		var reset_apply_button: Button = Button.new()
-		reset_apply_button.text = "Apply Reset Runtime Map"
+		var reset_apply_button: Button = _make_map_constructor_action_button("Apply Reset Runtime Map")
 		var reset_apply_key: String = "reset_runtime_map|{}"
 		reset_apply_button.disabled = map_constructor_cleanup_pending_apply_key != reset_apply_key
 		reset_apply_button.pressed.connect(func() -> void:
@@ -11162,8 +11159,7 @@ func _refresh_map_constructor_panels() -> void:
 		reset_row.add_child(reset_preview_button)
 		reset_row.add_child(reset_apply_button)
 		list.add_child(reset_row)
-		var undo_button: Button = Button.new()
-		undo_button.text = "Undo Last Cleanup"
+		var undo_button: Button = _make_map_constructor_action_button("Undo Last Cleanup")
 		undo_button.pressed.connect(func() -> void:
 			if mission_manager_runtime == null or not mission_manager_runtime.has_method("undo_last_map_constructor_cleanup"):
 				return
@@ -11188,16 +11184,14 @@ func _refresh_map_constructor_panels() -> void:
 			{"label":"Wall-mounted Attachments","fix_type":"repair_all_wall_mounted_attachments","options":{}}
 		]
 		for action in autofix_actions:
-			var action_row: HBoxContainer = HBoxContainer.new()
+			var action_row: HFlowContainer = _make_map_constructor_action_row()
 			var ftype: String = String(action.get("fix_type", ""))
 			var foptions: Dictionary = Dictionary(action.get("options", {}))
-			var preview_button := Button.new()
-			preview_button.text = "Preview %s" % String(action.get("label", ""))
+			var preview_button: Button = _make_map_constructor_action_button("Preview %s" % String(action.get("label", "")))
 			preview_button.pressed.connect(func() -> void:
 				_apply_map_constructor_autofix_action(ftype, foptions, false)
 			)
-			var apply_button := Button.new()
-			apply_button.text = "Apply %s" % String(action.get("label", ""))
+			var apply_button: Button = _make_map_constructor_action_button("Apply %s" % String(action.get("label", "")))
 			apply_button.disabled = map_constructor_autofix_pending_apply_key != "%s|%s" % [ftype, JSON.stringify(foptions)]
 			apply_button.pressed.connect(func() -> void:
 				_apply_map_constructor_autofix_action(ftype, foptions, true)
@@ -11219,9 +11213,8 @@ func _refresh_map_constructor_panels() -> void:
 		list.add_child(selected_object_hint)
 		var power_assign_options: Dictionary = {"entity_kind":"world_object","entity_id":selected_object_id,"new_power_network_id":map_constructor_new_power_network_id.strip_edges()}
 		var power_assign_key: String = "assign_power_network|%s" % JSON.stringify(power_assign_options)
-		var power_assign_row: HBoxContainer = HBoxContainer.new()
-		var power_preview_button: Button = Button.new()
-		power_preview_button.text = "Preview Assign Power Network"
+		var power_assign_row: HFlowContainer = _make_map_constructor_action_row()
+		var power_preview_button: Button = _make_map_constructor_action_button("Preview Assign Power Network")
 		power_preview_button.disabled = selected_object_id.is_empty()
 		power_preview_button.pressed.connect(func() -> void:
 			if selected_object_id.is_empty():
@@ -11229,8 +11222,7 @@ func _refresh_map_constructor_panels() -> void:
 				return
 			_apply_map_constructor_autofix_action("assign_power_network", power_assign_options, false)
 		)
-		var power_apply_button: Button = Button.new()
-		power_apply_button.text = "Apply Assign Power Network"
+		var power_apply_button: Button = _make_map_constructor_action_button("Apply Assign Power Network")
 		power_apply_button.disabled = map_constructor_autofix_pending_apply_key != power_assign_key or int(map_constructor_autofix_preview.get("affected_count", 0)) <= 0
 		power_apply_button.pressed.connect(func() -> void:
 			_apply_map_constructor_autofix_action("assign_power_network", power_assign_options, true)
@@ -11238,8 +11230,7 @@ func _refresh_map_constructor_panels() -> void:
 		power_assign_row.add_child(power_preview_button)
 		power_assign_row.add_child(power_apply_button)
 		list.add_child(power_assign_row)
-		var autofix_undo_button: Button = Button.new()
-		autofix_undo_button.text = "Undo Last Auto-fix"
+		var autofix_undo_button: Button = _make_map_constructor_action_button("Undo Last Auto-fix")
 		autofix_undo_button.pressed.connect(func() -> void:
 			if mission_manager_runtime == null or not mission_manager_runtime.has_method("undo_last_map_constructor_autofix"):
 				return
@@ -11292,9 +11283,8 @@ func _refresh_map_constructor_panels() -> void:
 			map_constructor_patch_json_text = patch_json_edit.text
 		)
 		list.add_child(patch_json_edit)
-		var patch_actions: HBoxContainer = HBoxContainer.new()
-		var export_patch_button: Button = Button.new()
-		export_patch_button.text = "Export Current Patch"
+		var patch_actions: HFlowContainer = _make_map_constructor_action_row()
+		var export_patch_button: Button = _make_map_constructor_action_button("Export Current Patch")
 		export_patch_button.pressed.connect(func() -> void:
 			if mission_manager_runtime == null or not mission_manager_runtime.has_method("export_map_constructor_runtime_patch"):
 				return
@@ -11304,8 +11294,7 @@ func _refresh_map_constructor_panels() -> void:
 			show_hint(String(export_res.get("message", "Export done.")))
 			_refresh_map_constructor_panels()
 		)
-		var preview_patch_button: Button = Button.new()
-		preview_patch_button.text = "Parse/Preview Patch"
+		var preview_patch_button: Button = _make_map_constructor_action_button("Parse/Preview Patch")
 		preview_patch_button.pressed.connect(func() -> void:
 			if mission_manager_runtime == null or not mission_manager_runtime.has_method("parse_map_constructor_patch_json"):
 				return
@@ -11320,8 +11309,7 @@ func _refresh_map_constructor_panels() -> void:
 			show_hint(String(parsed_res.get("message", "Patch parsed.")))
 			_refresh_map_constructor_panels()
 		)
-		var apply_patch_button: Button = Button.new()
-		apply_patch_button.text = "Apply Patch"
+		var apply_patch_button: Button = _make_map_constructor_action_button("Apply Patch")
 		apply_patch_button.disabled = not map_constructor_patch_pending_apply
 		apply_patch_button.pressed.connect(func() -> void:
 			if mission_manager_runtime == null or not mission_manager_runtime.has_method("apply_map_constructor_patch"):
@@ -11333,8 +11321,7 @@ func _refresh_map_constructor_panels() -> void:
 				field_runtime.call("request_visual_refresh")
 			_refresh_map_constructor_panels()
 		)
-		var rollback_patch_button: Button = Button.new()
-		rollback_patch_button.text = "Rollback Last Patch"
+		var rollback_patch_button: Button = _make_map_constructor_action_button("Rollback Last Patch")
 		rollback_patch_button.pressed.connect(func() -> void:
 			if mission_manager_runtime == null or not mission_manager_runtime.has_method("rollback_last_map_constructor_patch"):
 				return
@@ -11379,9 +11366,8 @@ func _refresh_map_constructor_panels() -> void:
 				_refresh_map_constructor_panels()
 		)
 		list.add_child(history_filter)
-		var history_buttons: HBoxContainer = HBoxContainer.new()
-		var history_clear_button: Button = Button.new()
-		history_clear_button.text = "Clear History"
+		var history_buttons: HFlowContainer = _make_map_constructor_action_row()
+		var history_clear_button: Button = _make_map_constructor_action_button("Clear History")
 		history_clear_button.pressed.connect(func() -> void:
 			if mission_manager_runtime == null or not mission_manager_runtime.has_method("clear_map_constructor_change_history"):
 				return
@@ -11389,8 +11375,7 @@ func _refresh_map_constructor_panels() -> void:
 			show_hint(String(clear_result.get("message", "History cleared.")))
 			_refresh_map_constructor_panels()
 		)
-		var history_refresh_button: Button = Button.new()
-		history_refresh_button.text = "Refresh History"
+		var history_refresh_button: Button = _make_map_constructor_action_button("Refresh History")
 		history_refresh_button.pressed.connect(func() -> void:
 			_refresh_map_constructor_panels()
 		)
@@ -11414,12 +11399,13 @@ func _refresh_map_constructor_panels() -> void:
 			var history_row_line: HBoxContainer = HBoxContainer.new()
 			var history_row_label: Label = Label.new()
 			history_row_label.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+			history_row_label.clip_text = true
+			history_row_label.text_overrun_behavior = TextServer.OVERRUN_TRIM_ELLIPSIS
 			history_row_label.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 			history_row_label.text = row_text
 			history_row_line.add_child(history_row_label)
 			if not row_entity_id.is_empty() or (row_cell.x >= 0 and row_cell.y >= 0):
-				var jump_btn: Button = Button.new()
-				jump_btn.text = "Jump"
+				var jump_btn: Button = _make_map_constructor_action_button("Jump")
 				jump_btn.pressed.connect(func() -> void:
 					_jump_to_map_constructor_history_row(row)
 				)
@@ -11445,7 +11431,7 @@ func _refresh_map_constructor_panels() -> void:
 				_refresh_map_constructor_panels()
 		)
 		list.add_child(overview_filter)
-		var overview_toggle_row_a: HBoxContainer = HBoxContainer.new()
+		var overview_toggle_row_a: HFlowContainer = _make_map_constructor_action_row()
 		var overview_show_issues: CheckButton = CheckButton.new()
 		overview_show_issues.text = "Show Issues"
 		overview_show_issues.button_pressed = map_constructor_overview_show_issues
@@ -11471,7 +11457,7 @@ func _refresh_map_constructor_panels() -> void:
 		)
 		overview_toggle_row_a.add_child(overview_show_items)
 		list.add_child(overview_toggle_row_a)
-		var overview_toggle_row_b: HBoxContainer = HBoxContainer.new()
+		var overview_toggle_row_b: HFlowContainer = _make_map_constructor_action_row()
 		var overview_show_wall_mounted: CheckButton = CheckButton.new()
 		overview_show_wall_mounted.text = "Show Wall-mounted"
 		overview_show_wall_mounted.button_pressed = map_constructor_overview_show_wall_mounted
@@ -11501,10 +11487,9 @@ func _refresh_map_constructor_panels() -> void:
 		legend_label.text = ". floor # wall D door T terminal P power I item W wall-mounted ! error ? warning * selected X expected-invalid"
 		legend_label.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 		list.add_child(legend_label)
-		var jump_row: HBoxContainer = HBoxContainer.new()
+		var jump_row: HFlowContainer = _make_map_constructor_action_row()
 		for cfg in [{"label":"Refresh Overview","kind":"refresh"},{"label":"Jump to Selected","kind":"selected"},{"label":"Jump to First Error","kind":"validation_issue"},{"label":"Jump to First Warning","kind":"warning"},{"label":"Jump to First Expected Invalid","kind":"expected_invalid"},{"label":"Jump to Last Change","kind":"history"}]:
-			var b: Button = Button.new()
-			b.text = String(cfg.get("label", "Jump"))
+			var b: Button = _make_map_constructor_action_button(String(cfg.get("label", "Jump")))
 			b.pressed.connect(func() -> void:
 				if String(cfg.get("kind", "")) == "refresh":
 					_refresh_map_constructor_panels()
@@ -11575,9 +11560,11 @@ func _refresh_map_constructor_panels() -> void:
 			var line: HBoxContainer = HBoxContainer.new()
 			var lbl: Label = Label.new()
 			lbl.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+			lbl.clip_text = true
+			lbl.text_overrun_behavior = TextServer.OVERRUN_TRIM_ELLIPSIS
 			lbl.text = "%s | %s | %s | %s" % [String(marker.get("status", "info")), String(marker.get("kind", "")), String(marker.get("label", "")), str(marker.get("cell", Vector2i(-1, -1)))]
 			line.add_child(lbl)
-			var jump: Button = Button.new(); jump.text = "Jump"
+			var jump: Button = _make_map_constructor_action_button("Jump")
 			jump.pressed.connect(func() -> void: _jump_to_map_constructor_history_row(marker))
 			line.add_child(jump)
 			list.add_child(line)
@@ -11608,11 +11595,9 @@ func _refresh_map_constructor_panels() -> void:
 				map_constructor_selected_preset_name = String(map_constructor_preset_entries[index].get("name", ""))
 		)
 		list.add_child(constructor_preset_select)
-		var preset_actions: HBoxContainer = HBoxContainer.new()
-		preset_actions.add_theme_constant_override("separation", 4)
+		var preset_actions: HFlowContainer = _make_map_constructor_action_row()
 		list.add_child(preset_actions)
-		var save_preset_button: Button = Button.new()
-		save_preset_button.text = "Save"
+		var save_preset_button: Button = _make_map_constructor_action_button("Save")
 		save_preset_button.pressed.connect(func() -> void:
 			if not map_constructor_mode_active or mission_manager_runtime == null or not mission_manager_runtime.has_method("save_map_constructor_preset"):
 				show_hint("Preset save unavailable.")
@@ -11626,8 +11611,7 @@ func _refresh_map_constructor_panels() -> void:
 				field_runtime.call("request_visual_refresh")
 		)
 		preset_actions.add_child(save_preset_button)
-		var load_preset_button: Button = Button.new()
-		load_preset_button.text = "Load selected"
+		var load_preset_button: Button = _make_map_constructor_action_button("Load selected")
 		load_preset_button.pressed.connect(func() -> void:
 			if not map_constructor_mode_active or map_constructor_selected_preset_name.is_empty() or mission_manager_runtime == null or not mission_manager_runtime.has_method("load_map_constructor_preset"):
 				show_hint("Preset load unavailable.")
@@ -11644,8 +11628,7 @@ func _refresh_map_constructor_panels() -> void:
 				field_runtime.call("request_visual_refresh")
 		)
 		preset_actions.add_child(load_preset_button)
-		var delete_preset_button: Button = Button.new()
-		delete_preset_button.text = "Delete selected"
+		var delete_preset_button: Button = _make_map_constructor_action_button("Delete selected")
 		delete_preset_button.pressed.connect(func() -> void:
 			if not map_constructor_mode_active or map_constructor_selected_preset_name.is_empty() or mission_manager_runtime == null or not mission_manager_runtime.has_method("delete_map_constructor_preset"):
 				show_hint("Preset delete unavailable.")
@@ -11659,8 +11642,7 @@ func _refresh_map_constructor_panels() -> void:
 				field_runtime.call("request_visual_refresh")
 		)
 		preset_actions.add_child(delete_preset_button)
-		var refresh_preset_button: Button = Button.new()
-		refresh_preset_button.text = "Refresh list"
+		var refresh_preset_button: Button = _make_map_constructor_action_button("Refresh list")
 		refresh_preset_button.pressed.connect(func() -> void:
 			_refresh_map_constructor_panels()
 		)
@@ -11690,11 +11672,9 @@ func _refresh_map_constructor_panels() -> void:
 				map_constructor_selected_patch_name = String(map_constructor_patch_entries[index].get("name", ""))
 		)
 		list.add_child(patch_select)
-		var mission_patch_actions: HBoxContainer = HBoxContainer.new()
-		mission_patch_actions.add_theme_constant_override("separation", 4)
+		var mission_patch_actions: HFlowContainer = _make_map_constructor_action_row()
 		list.add_child(mission_patch_actions)
-		var mission_patch_export_button: Button = Button.new()
-		mission_patch_export_button.text = "Export current"
+		var mission_patch_export_button: Button = _make_map_constructor_action_button("Export current")
 		mission_patch_export_button.pressed.connect(func() -> void:
 			if not map_constructor_mode_active or mission_manager_runtime == null or not mission_manager_runtime.has_method("export_map_constructor_mission_patch"):
 				show_hint("Mission patch export unavailable.")
@@ -11705,14 +11685,12 @@ func _refresh_map_constructor_panels() -> void:
 			_refresh_map_constructor_panels()
 		)
 		mission_patch_actions.add_child(mission_patch_export_button)
-		var refresh_patch_button: Button = Button.new()
-		refresh_patch_button.text = "Refresh patches"
+		var refresh_patch_button: Button = _make_map_constructor_action_button("Refresh patches")
 		refresh_patch_button.pressed.connect(func() -> void:
 			_refresh_map_constructor_panels()
 		)
 		mission_patch_actions.add_child(refresh_patch_button)
-		var delete_patch_button: Button = Button.new()
-		delete_patch_button.text = "Delete patch"
+		var delete_patch_button: Button = _make_map_constructor_action_button("Delete patch")
 		delete_patch_button.pressed.connect(func() -> void:
 			if not map_constructor_mode_active or map_constructor_selected_patch_name.is_empty() or mission_manager_runtime == null or not mission_manager_runtime.has_method("delete_map_constructor_mission_patch"):
 				show_hint("Mission patch delete unavailable.")
@@ -11724,8 +11702,7 @@ func _refresh_map_constructor_panels() -> void:
 		)
 		mission_patch_actions.add_child(delete_patch_button)
 		_add_map_constructor_section_header(list, "MAP GEOMETRY")
-		var geometry_size_row: HBoxContainer = HBoxContainer.new()
-		geometry_size_row.add_theme_constant_override("separation", 4)
+		var geometry_size_row: HFlowContainer = _make_map_constructor_action_row()
 		list.add_child(geometry_size_row)
 		var width_label: Label = Label.new()
 		width_label.text = "Width:"
@@ -11749,8 +11726,7 @@ func _refresh_map_constructor_panels() -> void:
 			map_constructor_geometry_height_text = new_text
 		)
 		geometry_size_row.add_child(height_edit)
-		var create_map_button: Button = Button.new()
-		create_map_button.text = "Apply Geometry"
+		var create_map_button: Button = _make_map_constructor_action_button("Apply Geometry")
 		create_map_button.pressed.connect(func() -> void:
 			if mission_manager_runtime == null or not mission_manager_runtime.has_method("create_map_constructor_empty_map"):
 				show_hint("Map create unavailable.")
@@ -11763,30 +11739,25 @@ func _refresh_map_constructor_panels() -> void:
 			_refresh_map_constructor_panels()
 		)
 		list.add_child(create_map_button)
-		var marker_button_row: HBoxContainer = HBoxContainer.new()
-		marker_button_row.add_theme_constant_override("separation", 4)
+		var marker_button_row: HFlowContainer = _make_map_constructor_action_row()
 		list.add_child(marker_button_row)
-		var set_start_button: Button = Button.new()
-		set_start_button.text = "Set Start"
+		var set_start_button: Button = _make_map_constructor_action_button("Set Start")
 		set_start_button.pressed.connect(func() -> void:
 			selected_map_constructor_prefab_id = ""
 			map_constructor_marker_mode = "start"
 			show_hint("Click boundary cell to set start marker.")
 		)
 		marker_button_row.add_child(set_start_button)
-		var set_exit_button: Button = Button.new()
-		set_exit_button.text = "Set Exit"
+		var set_exit_button: Button = _make_map_constructor_action_button("Set Exit")
 		set_exit_button.pressed.connect(func() -> void:
 			selected_map_constructor_prefab_id = ""
 			map_constructor_marker_mode = "exit"
 			show_hint("Click boundary cell to set exit marker.")
 		)
 		marker_button_row.add_child(set_exit_button)
-		var marker_clear_row: HBoxContainer = HBoxContainer.new()
-		marker_clear_row.add_theme_constant_override("separation", 4)
+		var marker_clear_row: HFlowContainer = _make_map_constructor_action_row()
 		list.add_child(marker_clear_row)
-		var clear_start_button: Button = Button.new()
-		clear_start_button.text = "Clear Start"
+		var clear_start_button: Button = _make_map_constructor_action_button("Clear Start")
 		clear_start_button.pressed.connect(func() -> void:
 			if mission_manager_runtime != null and mission_manager_runtime.has_method("clear_map_constructor_start_marker"):
 				var clear_start_result: Dictionary = mission_manager_runtime.call("clear_map_constructor_start_marker")
@@ -11794,8 +11765,7 @@ func _refresh_map_constructor_panels() -> void:
 				_refresh_map_constructor_panels()
 		)
 		marker_clear_row.add_child(clear_start_button)
-		var clear_exit_button: Button = Button.new()
-		clear_exit_button.text = "Clear Exit"
+		var clear_exit_button: Button = _make_map_constructor_action_button("Clear Exit")
 		clear_exit_button.pressed.connect(func() -> void:
 			if mission_manager_runtime != null and mission_manager_runtime.has_method("clear_map_constructor_exit_marker"):
 				var clear_exit_result: Dictionary = mission_manager_runtime.call("clear_map_constructor_exit_marker")
@@ -12461,15 +12431,15 @@ func _focus_map_constructor_readiness_issue_by_id(issue_id: String) -> void:
 		_refresh_map_constructor_panels()
 		return
 
-func _add_map_constructor_readiness_action_buttons(action_row: HBoxContainer, recommendation: Dictionary) -> void:
+func _add_map_constructor_readiness_action_buttons(action_row: HFlowContainer, recommendation: Dictionary) -> void:
 	var action_type: String = String(recommendation.get("action_type", "none"))
 	if action_type == "autofix":
 		var ftype: String = String(recommendation.get("fix_type", ""))
 		var foptions: Dictionary = Dictionary(recommendation.get("options", {}))
 		var fkey: String = "%s|%s" % [ftype, JSON.stringify(foptions)]
-		var preview_btn: Button = Button.new(); preview_btn.text = "Preview Fix"
+		var preview_btn: Button = _make_map_constructor_action_button("Preview Fix")
 		preview_btn.pressed.connect(func() -> void: _apply_map_constructor_autofix_action(ftype, foptions, false))
-		var apply_btn: Button = Button.new(); apply_btn.text = "Apply Fix"
+		var apply_btn: Button = _make_map_constructor_action_button("Apply Fix")
 		apply_btn.disabled = map_constructor_autofix_pending_apply_key != fkey
 		apply_btn.pressed.connect(func() -> void: _apply_map_constructor_autofix_action(ftype, foptions, true))
 		action_row.add_child(preview_btn); action_row.add_child(apply_btn)
@@ -12477,9 +12447,9 @@ func _add_map_constructor_readiness_action_buttons(action_row: HBoxContainer, re
 		var ctype: String = String(recommendation.get("cleanup_type", ""))
 		var coptions: Dictionary = Dictionary(recommendation.get("options", {}))
 		var ckey: String = "%s|%s" % [ctype, JSON.stringify(coptions)]
-		var preview_btn: Button = Button.new(); preview_btn.text = "Preview Cleanup"
+		var preview_btn: Button = _make_map_constructor_action_button("Preview Cleanup")
 		preview_btn.pressed.connect(func() -> void: _apply_map_constructor_cleanup_action(ctype, coptions, false))
-		var apply_btn: Button = Button.new(); apply_btn.text = "Apply Cleanup"
+		var apply_btn: Button = _make_map_constructor_action_button("Apply Cleanup")
 		apply_btn.disabled = map_constructor_cleanup_pending_apply_key != ckey
 		apply_btn.pressed.connect(func() -> void: _apply_map_constructor_cleanup_action(ctype, coptions, true))
 		action_row.add_child(preview_btn); action_row.add_child(apply_btn)
