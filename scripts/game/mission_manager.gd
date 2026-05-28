@@ -312,7 +312,7 @@ func setup_world_objects_for_mission(mission_id: String) -> void:
 func _setup_task_test_mission_world() -> void:
 	_capture_task_test_constructor_base_tiles()
 	var validation_data := build_task_test_mission_world_objects_for_validation()
-	var objects: Array[Dictionary] = validation_data.get("objects", [])
+	var objects: Array[Dictionary] = _safe_dictionary_array(validation_data.get("objects", []))
 	var items_by_cell: Dictionary = validation_data.get("items_by_cell", {})
 	for obj in objects:
 		set_world_object_at_cell(Vector2i(obj.get("position", Vector2i.ZERO)), obj)
@@ -472,6 +472,17 @@ func _safe_dictionary(value: Variant) -> Dictionary:
 		return result
 	return {}
 
+func _safe_dictionary_array(value: Variant, duplicate_rows: bool = false) -> Array[Dictionary]:
+	var rows: Array[Dictionary] = []
+	if not (value is Array):
+		return rows
+	for row_variant in value:
+		if not (row_variant is Dictionary):
+			continue
+		var row: Dictionary = _safe_dictionary(row_variant)
+		rows.append(row.duplicate(true) if duplicate_rows else row)
+	return rows
+
 func get_map_constructor_overview_data(options: Dictionary = {}) -> Dictionary:
 	if not _is_task_test_constructor_context():
 		return {"ok": false, "message": "Overview is available only in TASK TEST constructor mode.", "map_size": Vector2i.ZERO, "cells": [], "markers": [], "summary": {}, "legend": []}
@@ -491,7 +502,9 @@ func get_map_constructor_overview_data(options: Dictionary = {}) -> Dictionary:
 	var skind: String = str(options.get("selected_entity_kind", ""))
 	if not sid.is_empty():
 		selected_keys["%s|%s" % [skind, sid]] = true
-	var issues: Array[Dictionary] = get_map_constructor_validation_issues() if bool(options.get("include_validation", true)) else []
+	var issues: Array[Dictionary] = []
+	if bool(options.get("include_validation", true)):
+		issues = _safe_dictionary_array(get_map_constructor_validation_issues())
 	var include_power: bool = bool(options.get("include_power", true))
 	var include_items: bool = bool(options.get("include_items", true))
 	var include_wall_mounted: bool = bool(options.get("include_wall_mounted", true))
@@ -4781,7 +4794,8 @@ func get_map_constructor_autofix_preview(fix_type: String, options: Dictionary =
 		if issue_id.is_empty():
 			warnings.append("Issue id is required.")
 		else:
-			var validation_issues: Array[Dictionary] = get_map_constructor_validation_issues()
+			var validation_issues: Array[Dictionary] = []
+			validation_issues = _safe_dictionary_array(get_map_constructor_validation_issues())
 			var issue_match: Dictionary = {}
 			for issue_variant in validation_issues:
 				var issue_data: Dictionary = Dictionary(issue_variant)
@@ -4791,7 +4805,8 @@ func get_map_constructor_autofix_preview(fix_type: String, options: Dictionary =
 			if issue_match.is_empty():
 				warnings.append("Issue not found.")
 			else:
-				var issue_fix_options: Array[Dictionary] = get_map_constructor_issue_autofix_options(issue_match)
+				var issue_fix_options: Array[Dictionary] = []
+				issue_fix_options.append_array(get_map_constructor_issue_autofix_options(issue_match))
 				var safe_options: Array[Dictionary] = []
 				for option_variant in issue_fix_options:
 					var option_data: Dictionary = Dictionary(option_variant)
@@ -4931,7 +4946,8 @@ func get_map_constructor_mission_readiness_report() -> Dictionary:
 	var warnings: Array[Dictionary] = []
 	var expected_invalid: Array[Dictionary] = []
 	var recommended: Array[Dictionary] = []
-	var constructor_issues: Array[Dictionary] = get_map_constructor_validation_issues()
+	var constructor_issues: Array[Dictionary] = []
+	constructor_issues = _safe_dictionary_array(get_map_constructor_validation_issues())
 	for issue in constructor_issues:
 		var issue_row: Dictionary = Dictionary(issue)
 		var severity: String = String(issue_row.get("severity", "info")).to_lower()
@@ -4943,7 +4959,8 @@ func get_map_constructor_mission_readiness_report() -> Dictionary:
 		if severity == "error":
 			blocking.append(issue_row)
 			checks.append(_map_constructor_build_readiness_check(issue_row, "fail"))
-			var issue_fix_options: Array[Dictionary] = get_map_constructor_issue_autofix_options(issue_row)
+			var issue_fix_options: Array[Dictionary] = []
+			issue_fix_options.append_array(get_map_constructor_issue_autofix_options(issue_row))
 			for fix_opt in issue_fix_options:
 				var option: Dictionary = Dictionary(fix_opt)
 				recommended.append({"label": String(option.get("label", "Fix issue")), "action_type": "autofix", "fix_type": String(option.get("fix_type", "")), "cleanup_type": "", "options": Dictionary(option.get("options", {})), "target_issue_id": String(issue_row.get("id", ""))})
@@ -5897,7 +5914,7 @@ func execute_power_graph_apply_and_get_report_text(filter: String = "") -> Strin
 
 func preview_power_network_state_application(filter: String = "") -> Dictionary:
 	var collected := _collect_power_network_objects()
-	var power_objects: Array[Dictionary] = collected.get("objects", [])
+	var power_objects: Array[Dictionary] = _safe_dictionary_array(collected.get("objects", []))
 	var networks: Dictionary = collected.get("networks", {})
 	var sources_by_id: Dictionary = collected.get("sources_by_id", {})
 	var changes: Array[Dictionary] = []
@@ -6425,7 +6442,7 @@ func validate_power_network_runtime_state() -> Dictionary:
 	var warnings: Array[String] = []
 	var errors: Array[String] = []
 	var collected := _collect_power_network_objects()
-	var power_objects: Array[Dictionary] = collected.get("objects", [])
+	var power_objects: Array[Dictionary] = _safe_dictionary_array(collected.get("objects", []))
 	var networks: Dictionary = collected.get("networks", {})
 	var sources_by_id: Dictionary = collected.get("sources_by_id", {})
 	var source_ids := {}
@@ -9860,7 +9877,7 @@ func validate_task_test_mission_runtime() -> Array[String]:
 	var runtime_before: Dictionary = _build_world_runtime_validation_fingerprint()
 	var built: Dictionary = build_task_test_mission_world_objects_for_validation()
 	warnings.append_array(Array(built.get("warnings", [])))
-	var task_objects: Array[Dictionary] = built.get("objects", [])
+	var task_objects: Array[Dictionary] = _safe_dictionary_array(built.get("objects", []))
 	var task_items_by_cell: Dictionary = built.get("items_by_cell", {})
 	var task_ids := {}
 	for obj in task_objects:
