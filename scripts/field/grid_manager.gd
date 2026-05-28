@@ -30,7 +30,7 @@ const TILE_STEPPED_FLOOR := 24
 @export var cell_size: int = 64
 @export var fog_enabled: bool = true
 @export var reveal_radius: int = 1
-@export var debug_draw_legacy_grid: bool = true
+@export var debug_draw_legacy_grid: bool = false
 
 var debug_draw_undiscovered_hidden_nodes: bool = false
 var fan_platform_marker_position: Vector2i = Vector2i(-1, -1)
@@ -225,15 +225,46 @@ func reset_fog_of_war() -> void:
 	setup_fog_arrays()
 	request_visual_refresh()
 
-func _draw() -> void:
+func should_draw_legacy_grid() -> bool:
 	if not debug_draw_legacy_grid:
+		return false
+	var renderer: RoomVisualRenderer = get_room_visual_renderer_for_visual_mode()
+	if renderer != null and renderer.is_iso_renderer_active():
+		return false
+	return true
+
+func get_room_visual_renderer_for_visual_mode() -> RoomVisualRenderer:
+	var renderer_node: Node = room_visual_renderer
+	if renderer_node == null:
+		renderer_node = get_node_or_null("RoomVisualRenderer")
+	if renderer_node != null and renderer_node is RoomVisualRenderer:
+		return renderer_node as RoomVisualRenderer
+	return null
+
+func get_visual_render_mode_summary() -> Dictionary:
+	var renderer: RoomVisualRenderer = get_room_visual_renderer_for_visual_mode()
+	var renderer_found: bool = renderer != null
+	var renderer_active: bool = false
+	if renderer_found:
+		renderer_active = renderer.is_iso_renderer_active()
+	var legacy_will_draw: bool = should_draw_legacy_grid()
+	return {
+		"legacy_grid_debug_enabled": debug_draw_legacy_grid,
+		"legacy_grid_will_draw": legacy_will_draw,
+		"room_visual_renderer_found": renderer_found,
+		"iso_renderer_active": renderer_active,
+		"single_render_path_ok": not (legacy_will_draw and renderer_active)
+	}
+
+func _draw() -> void:
+	if not should_draw_legacy_grid():
 		return
 	for y in range(map_data.size()):
 		for x in range(map_data[y].size()):
-			var grid_position := Vector2i(x, y)
+			var grid_position: Vector2i = Vector2i(x, y)
 			var tile_type: int = map_data[y][x]
-			var cell_position := Vector2(x * cell_size, y * cell_size)
-			var rect := Rect2(cell_position, Vector2(cell_size, cell_size))
+			var cell_position: Vector2 = Vector2(x * cell_size, y * cell_size)
+			var rect: Rect2 = Rect2(cell_position, Vector2(cell_size, cell_size))
 			
 			var color: Color = tile_colors.get(tile_type, Color.MAGENTA)
 			if tile_type == TILE_HIDDEN_ROUTE_NODE and not is_hidden_route_node_discovered(grid_position):
@@ -243,15 +274,15 @@ func _draw() -> void:
 			if tile_type == TILE_AIRFLOW:
 				var floor_color: Color = tile_colors.get(TILE_FLOOR, Color(0.16, 0.16, 0.18))
 				draw_rect(rect, floor_color, true)
-				var strip_size := Vector2(cell_size * 0.52, cell_size * 0.12)
-				var strip_rect := Rect2(rect.get_center() - strip_size * 0.5, strip_size)
+				var strip_size: Vector2 = Vector2(cell_size * 0.52, cell_size * 0.12)
+				var strip_rect: Rect2 = Rect2(rect.get_center() - strip_size * 0.5, strip_size)
 				draw_rect(strip_rect, Color(0.56, 0.88, 1.0, 0.72), true)
 				draw_circle(rect.get_center(), cell_size * 0.12, Color(0.78, 0.95, 1.0, 0.85))
 			if tile_type == TILE_CABLE:
 				var cable_floor_color: Color = tile_colors.get(TILE_FLOOR, Color(0.16, 0.16, 0.18))
 				draw_rect(rect, cable_floor_color, true)
-				var cable_strip_size := Vector2(cell_size * 0.46, cell_size * 0.1)
-				var cable_strip_rect := Rect2(rect.get_center() - cable_strip_size * 0.5, cable_strip_size)
+				var cable_strip_size: Vector2 = Vector2(cell_size * 0.46, cell_size * 0.1)
+				var cable_strip_rect: Rect2 = Rect2(rect.get_center() - cable_strip_size * 0.5, cable_strip_size)
 				draw_rect(cable_strip_rect, Color(0.22, 0.88, 0.72, 0.92), true)
 				draw_circle(rect.get_center(), cell_size * 0.09, Color(0.38, 0.97, 0.84, 0.96))
 			draw_rect(rect, Color(0.35, 0.35, 0.38), false, 2.0)
@@ -260,11 +291,11 @@ func _draw() -> void:
 				draw_fan_platform_marker(rect)
 			if tile_type == TILE_HIDDEN_ROUTE_NODE:
 				if is_hidden_route_node_discovered(grid_position):
-					var discovered_marker_radius := cell_size * 0.15
+					var discovered_marker_radius: float = cell_size * 0.15
 					draw_circle(rect.get_center(), discovered_marker_radius, Color(0.45, 0.95, 1.0))
 				elif debug_draw_undiscovered_hidden_nodes:
-					var marker_size := cell_size * 0.14
-					var marker_rect := Rect2(rect.get_center() - Vector2(marker_size * 0.5, marker_size * 0.5), Vector2(marker_size, marker_size))
+					var marker_size: float = cell_size * 0.14
+					var marker_rect: Rect2 = Rect2(rect.get_center() - Vector2(marker_size * 0.5, marker_size * 0.5), Vector2(marker_size, marker_size))
 					draw_rect(marker_rect, Color(0.24, 0.08, 0.32, 0.95), false, 2.0)
 			
 			if fog_enabled:
@@ -278,9 +309,9 @@ func _draw_world_overlay_marker(rect: Rect2, marker: String) -> void:
 	var font: Font = ThemeDB.fallback_font
 	if font == null:
 		return
-	var font_size := 14
-	var text_size := font.get_string_size(marker, HORIZONTAL_ALIGNMENT_CENTER, -1, font_size)
-	var pos := rect.get_center() - text_size * 0.5 + Vector2(0, text_size.y * 0.35)
+	var font_size: int = 14
+	var text_size: Vector2 = font.get_string_size(marker, HORIZONTAL_ALIGNMENT_CENTER, -1, font_size)
+	var pos: Vector2 = rect.get_center() - text_size * 0.5 + Vector2(0, text_size.y * 0.35)
 	draw_string(font, pos, marker, HORIZONTAL_ALIGNMENT_LEFT, -1, font_size, Color(1.0, 0.95, 0.4))
 
 func set_world_overlay_markers(markers: Dictionary) -> void:
