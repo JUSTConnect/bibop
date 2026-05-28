@@ -16,6 +16,7 @@ class_name RoomVisualRenderer
 @export var show_wall_topology_overlay: bool = false
 @export var show_wall_mount_zones_overlay: bool = false
 @export var show_object_grounding_overlay: bool = false
+@export var show_asset_alignment_overlay: bool = false
 @export var use_iso_visual_preview_preset: bool = false
 @export var iso_visual_preview_includes_fog: bool = true
 @export var iso_visual_preview_includes_asset_hooks: bool = false
@@ -106,6 +107,42 @@ const ISO_PLACEHOLDER_ASSET_PATHS: Dictionary = {
 	"object_cable_reel": "res://assets/visual/isometric/placeholders/iso_object_cable_reel.svg",
 	"object_button": "res://assets/visual/isometric/placeholders/iso_object_button.svg",
 	"object_switch": "res://assets/visual/isometric/placeholders/iso_object_switch.svg"
+}
+
+
+const ISO_ASSET_ALIGNMENT_RULES: Dictionary = {
+	"floor_default": {"anchor": "center", "scale": 1.0, "offset": Vector2.ZERO, "expected_size": Vector2(128, 64), "layer_hint": "floor", "notes": "Default 128x64 floor diamond centered in the grid cell."},
+	"floor_stepped": {"anchor": "center", "scale": 1.0, "offset": Vector2.ZERO, "expected_size": Vector2(128, 64), "layer_hint": "floor", "notes": "Stepped 128x64 floor diamond centered in the grid cell."},
+	"floor_clean_lab": {"anchor": "center", "scale": 1.0, "offset": Vector2.ZERO, "expected_size": Vector2(128, 64), "layer_hint": "floor", "notes": "Clean lab 128x64 floor diamond centered in the grid cell."},
+	"floor_dark_service": {"anchor": "center", "scale": 1.0, "offset": Vector2.ZERO, "expected_size": Vector2(128, 64), "layer_hint": "floor", "notes": "Dark service 128x64 floor diamond centered in the grid cell."},
+	"floor_hazard": {"anchor": "center", "scale": 1.0, "offset": Vector2.ZERO, "expected_size": Vector2(128, 64), "layer_hint": "floor", "notes": "Hazard 128x64 floor diamond centered in the grid cell."},
+	"floor_power": {"anchor": "center", "scale": 1.0, "offset": Vector2.ZERO, "expected_size": Vector2(128, 64), "layer_hint": "floor", "notes": "Powered 128x64 floor diamond centered in the grid cell."},
+	"floor_damaged": {"anchor": "center", "scale": 1.0, "offset": Vector2.ZERO, "expected_size": Vector2(128, 64), "layer_hint": "floor", "notes": "Damaged 128x64 floor diamond centered in the grid cell."},
+	"floor_reinforced": {"anchor": "center", "scale": 1.0, "offset": Vector2.ZERO, "expected_size": Vector2(128, 64), "layer_hint": "floor", "notes": "Reinforced 128x64 floor diamond centered in the grid cell."},
+	"floor_diagnostic": {"anchor": "center", "scale": 1.0, "offset": Vector2.ZERO, "expected_size": Vector2(128, 64), "layer_hint": "floor", "notes": "Diagnostic 128x64 floor diamond centered in the grid cell."},
+	"floor_door_underlay": {"anchor": "center", "scale": 1.0, "offset": Vector2.ZERO, "expected_size": Vector2(128, 64), "layer_hint": "floor", "notes": "Door underlay remains centered under the wall opening."},
+	"wall_default": {"anchor": "wall_cell_base", "scale": 1.0, "offset": Vector2(0, -32), "expected_size": Vector2(128, 120), "layer_hint": "wall", "notes": "Wall canvas bottom-center aligns to the blocked wall cell base."},
+	"wall_outer": {"anchor": "wall_cell_base", "scale": 1.0, "offset": Vector2(0, -32), "expected_size": Vector2(128, 120), "layer_hint": "wall", "notes": "Outer wall canvas bottom-center aligns to the blocked wall cell base."},
+	"wall_brick": {"anchor": "wall_cell_base", "scale": 1.0, "offset": Vector2(0, -32), "expected_size": Vector2(128, 120), "layer_hint": "wall", "notes": "Brick wall canvas bottom-center aligns to the blocked wall cell base."},
+	"wall_concrete": {"anchor": "wall_cell_base", "scale": 1.0, "offset": Vector2(0, -32), "expected_size": Vector2(128, 120), "layer_hint": "wall", "notes": "Concrete wall canvas bottom-center aligns to the blocked wall cell base."},
+	"wall_grate": {"anchor": "wall_cell_base", "scale": 1.0, "offset": Vector2(0, -32), "expected_size": Vector2(128, 120), "layer_hint": "wall", "notes": "Grate wall canvas bottom-center aligns to the blocked wall cell base."},
+	"wall_damaged": {"anchor": "wall_cell_base", "scale": 1.0, "offset": Vector2(0, -32), "expected_size": Vector2(128, 120), "layer_hint": "wall", "notes": "Damaged wall canvas bottom-center aligns to the blocked wall cell base."},
+	"wall_steel": {"anchor": "wall_cell_base", "scale": 1.0, "offset": Vector2(0, -32), "expected_size": Vector2(128, 120), "layer_hint": "wall", "notes": "Steel wall canvas bottom-center aligns to the blocked wall cell base."},
+	"wall_energy": {"anchor": "wall_cell_base", "scale": 1.0, "offset": Vector2(0, -32), "expected_size": Vector2(128, 120), "layer_hint": "wall", "notes": "Energy wall canvas bottom-center aligns to the blocked wall cell base."},
+	"object_door": {"anchor": "door_insert_center", "scale": 0.9, "offset": Vector2(0, -20), "expected_size": Vector2(96, 96), "layer_hint": "object", "notes": "Door art centers inside the visual wall opening."},
+	"object_terminal": {"anchor": "wall_mount_center", "scale": 0.8, "offset": Vector2(0, -18), "expected_size": Vector2(96, 96), "layer_hint": "object", "notes": "Terminal art centers on the wall mount band."},
+	"object_key": {"anchor": "bottom_center", "scale": 0.55, "offset": Vector2(0, -6), "expected_size": Vector2(96, 96), "layer_hint": "object", "notes": "Key pickup uses a small bottom-centered floor footprint."},
+	"object_component": {"anchor": "bottom_center", "scale": 0.75, "offset": Vector2(0, -8), "expected_size": Vector2(96, 96), "layer_hint": "object", "notes": "Component prop uses a readable bottom-centered floor footprint."},
+	"object_socket": {"anchor": "wall_mount_center", "scale": 0.8, "offset": Vector2(0, -18), "expected_size": Vector2(96, 96), "layer_hint": "object", "notes": "Socket art centers on the wall mount band."},
+	"object_cable": {"anchor": "bottom_center", "scale": 0.75, "offset": Vector2(0, -8), "expected_size": Vector2(96, 96), "layer_hint": "object", "notes": "Cable-like prop uses a readable bottom-centered floor footprint."},
+	"object_generic": {"anchor": "bottom_center", "scale": 0.75, "offset": Vector2(0, -8), "expected_size": Vector2(96, 96), "layer_hint": "object", "notes": "Generic prop uses a readable bottom-centered floor footprint."},
+	"object_fuse": {"anchor": "bottom_center", "scale": 0.55, "offset": Vector2(0, -6), "expected_size": Vector2(96, 96), "layer_hint": "object", "notes": "Fuse pickup uses a small bottom-centered floor footprint."},
+	"object_repair_kit": {"anchor": "bottom_center", "scale": 0.55, "offset": Vector2(0, -6), "expected_size": Vector2(96, 96), "layer_hint": "object", "notes": "Repair kit pickup uses a small bottom-centered floor footprint."},
+	"object_keycard": {"anchor": "bottom_center", "scale": 0.55, "offset": Vector2(0, -6), "expected_size": Vector2(96, 96), "layer_hint": "object", "notes": "Keycard pickup uses a small bottom-centered floor footprint."},
+	"object_access_code": {"anchor": "bottom_center", "scale": 0.55, "offset": Vector2(0, -6), "expected_size": Vector2(96, 96), "layer_hint": "object", "notes": "Access-code pickup uses a small bottom-centered floor footprint."},
+	"object_cable_reel": {"anchor": "bottom_center", "scale": 0.75, "offset": Vector2(0, -8), "expected_size": Vector2(96, 96), "layer_hint": "object", "notes": "Cable reel prop uses a readable bottom-centered floor footprint."},
+	"object_button": {"anchor": "wall_mount_center", "scale": 0.8, "offset": Vector2(0, -18), "expected_size": Vector2(96, 96), "layer_hint": "object", "notes": "Button art centers on the wall mount band."},
+	"object_switch": {"anchor": "wall_mount_center", "scale": 0.8, "offset": Vector2(0, -18), "expected_size": Vector2(96, 96), "layer_hint": "object", "notes": "Switch art centers on the wall mount band."}
 }
 
 var _iso_placeholder_texture_cache: Dictionary = {}
@@ -1002,7 +1039,8 @@ func get_iso_visual_layer_debug_state() -> Dictionary:
 		"fog_outlines": debug_draw_iso_fog_outlines,
 		"cell_outlines": debug_draw_iso_cell_outlines,
 		"wall_outlines": debug_draw_iso_wall_outlines,
-		"object_outlines": debug_draw_iso_object_outlines
+		"object_outlines": debug_draw_iso_object_outlines,
+		"asset_alignment_overlay": show_asset_alignment_overlay
 	}
 
 func get_iso_visual_texture_debug_state() -> Dictionary:
@@ -1038,6 +1076,34 @@ func get_iso_visual_texture_debug_keys() -> Array[String]:
 		"object_door", "object_terminal", "object_key", "object_component", "object_socket", "object_cable", "object_generic",
 		"object_fuse", "object_repair_kit", "object_keycard", "object_access_code", "object_cable_reel", "object_button", "object_switch"
 	]
+
+
+func get_iso_asset_alignment_diagnostics() -> Dictionary:
+	var missing_alignment_rules: Array[String] = []
+	var unused_alignment_rules: Array[String] = []
+	var scale_overrides: Dictionary = {}
+	for asset_key_variant in ISO_PLACEHOLDER_ASSET_PATHS.keys():
+		var asset_key: String = String(asset_key_variant)
+		if not ISO_ASSET_ALIGNMENT_RULES.has(asset_key):
+			missing_alignment_rules.append(asset_key)
+	for rule_key_variant in ISO_ASSET_ALIGNMENT_RULES.keys():
+		var rule_key: String = String(rule_key_variant)
+		var rule: Dictionary = Dictionary(ISO_ASSET_ALIGNMENT_RULES.get(rule_key, {}))
+		if not ISO_PLACEHOLDER_ASSET_PATHS.has(rule_key):
+			unused_alignment_rules.append(rule_key)
+		var scale_value: float = float(rule.get("scale", 1.0))
+		if not is_equal_approx(scale_value, 1.0):
+			scale_overrides[rule_key] = scale_value
+	missing_alignment_rules.sort()
+	unused_alignment_rules.sort()
+	return {
+		"ok": missing_alignment_rules.is_empty(),
+		"missing_alignment_rules": missing_alignment_rules,
+		"unused_alignment_rules": unused_alignment_rules,
+		"asset_count": ISO_PLACEHOLDER_ASSET_PATHS.size(),
+		"rule_count": ISO_ASSET_ALIGNMENT_RULES.size(),
+		"scale_overrides": scale_overrides
+	}
 
 func _increment_iso_debug_count(counts: Dictionary, key: String) -> void:
 	if key.is_empty():
@@ -1179,6 +1245,7 @@ func get_iso_visual_debug_report() -> Dictionary:
 		"layers": get_iso_visual_layer_debug_state(),
 		"preview": get_iso_visual_preview_state(),
 		"textures": get_iso_visual_texture_debug_state(),
+		"asset_alignment": get_iso_asset_alignment_diagnostics(),
 		"cell_stats": get_iso_visual_cell_stats(),
 		"iso_settings": {
 			"tile_width": iso_tile_width,
@@ -1201,6 +1268,7 @@ func get_iso_visual_debug_report_text() -> String:
 	var preview: Dictionary = Dictionary(report.get("preview", {}))
 	var textures: Dictionary = Dictionary(report.get("textures", {}))
 	var cell_stats: Dictionary = Dictionary(report.get("cell_stats", {}))
+	var asset_alignment: Dictionary = Dictionary(report.get("asset_alignment", {}))
 	var grid: Dictionary = Dictionary(report.get("grid", {}))
 	var iso_settings: Dictionary = Dictionary(report.get("iso_settings", {}))
 	lines.append("IsoVisualDebugReport:")
@@ -1211,10 +1279,15 @@ func get_iso_visual_debug_report_text() -> String:
 	lines.append("- fog: %s" % str(layers.get("fog_enabled", false)))
 	lines.append("- asset_hooks: %s" % str(layers.get("asset_hooks_enabled", false)))
 	lines.append("- placeholder_assets: %s" % str(layers.get("placeholder_assets_enabled", false)))
+	lines.append("- asset_alignment_overlay: %s" % str(layers.get("asset_alignment_overlay", false)))
 	lines.append("Preview:")
 	lines.append("- active: %s" % str(preview.get("preview_active", false)))
 	lines.append("- includes_fog: %s" % str(iso_visual_preview_includes_fog))
 	lines.append("- includes_asset_hooks: %s" % str(iso_visual_preview_includes_asset_hooks))
+	lines.append("Asset alignment:")
+	lines.append("- ok: %s" % str(asset_alignment.get("ok", false)))
+	lines.append("- assets/rules: %s/%s" % [str(asset_alignment.get("asset_count", 0)), str(asset_alignment.get("rule_count", 0))])
+	lines.append("- missing_rules: %s" % str(asset_alignment.get("missing_alignment_rules", [])))
 	lines.append("Textures:")
 	for texture_key in get_iso_visual_texture_debug_keys():
 		var texture_entry: Dictionary = Dictionary(textures.get(texture_key, {}))
@@ -1245,6 +1318,9 @@ func validate_iso_visual_debug_report() -> Array[String]:
 		warnings.append("iso_object_marker_height_invalid")
 	if use_iso_placeholder_asset_preset and ISO_PLACEHOLDER_ASSET_PATHS.is_empty():
 		warnings.append("iso_placeholder_asset_paths_missing")
+	var alignment_diagnostics: Dictionary = get_iso_asset_alignment_diagnostics()
+	if not bool(alignment_diagnostics.get("ok", false)):
+		warnings.append("iso_asset_alignment_rules_missing")
 	if use_iso_placeholder_asset_preset and iso_placeholder_asset_preset_requires_preview and not is_iso_visual_preview_active():
 		warnings.append("iso_placeholder_preset_waiting_for_preview")
 	if use_iso_tile_asset_hooks and not should_use_iso_placeholder_asset_preset():
@@ -1273,24 +1349,93 @@ func _get_color_from_dict(data: Dictionary, key: String, fallback: Color) -> Col
 		return value
 	return fallback
 
+func get_iso_asset_alignment_rule(asset_key: String) -> Dictionary:
+	if ISO_ASSET_ALIGNMENT_RULES.has(asset_key):
+		return Dictionary(ISO_ASSET_ALIGNMENT_RULES.get(asset_key, {}))
+	if asset_key.begins_with("floor_"):
+		return {"anchor": "center", "scale": 1.0, "offset": Vector2.ZERO, "expected_size": Vector2(128, 64), "layer_hint": "floor", "notes": "Fallback floor alignment."}
+	if asset_key.begins_with("wall_"):
+		return {"anchor": "wall_cell_base", "scale": 1.0, "offset": Vector2(0, -32), "expected_size": Vector2(128, 120), "layer_hint": "wall", "notes": "Fallback wall alignment."}
+	if asset_key == "object_door":
+		return {"anchor": "door_insert_center", "scale": 0.9, "offset": Vector2(0, -20), "expected_size": Vector2(96, 96), "layer_hint": "object", "notes": "Fallback door alignment."}
+	if asset_key.begins_with("object_"):
+		return {"anchor": "bottom_center", "scale": 0.75, "offset": Vector2(0, -8), "expected_size": Vector2(96, 96), "layer_hint": "object", "notes": "Fallback object alignment."}
+	return {"anchor": "center", "scale": 1.0, "offset": Vector2.ZERO, "expected_size": Vector2(96, 96), "layer_hint": "unknown", "notes": "Fallback generic alignment."}
+
+func get_iso_asset_alignment_scale(asset_key: String) -> float:
+	var rule: Dictionary = get_iso_asset_alignment_rule(asset_key)
+	var scale_value: float = float(rule.get("scale", 1.0))
+	return maxf(scale_value, 0.01)
+
+func get_iso_asset_alignment_expected_size(asset_key: String) -> Vector2:
+	var rule: Dictionary = get_iso_asset_alignment_rule(asset_key)
+	return Vector2(rule.get("expected_size", Vector2(96, 96)))
+
+func get_iso_asset_alignment_anchor_offset(anchor: String, size: Vector2) -> Vector2:
+	match anchor:
+		"center", "wall_mount_center", "door_insert_center":
+			return Vector2(size.x * 0.5, size.y * 0.5)
+		"bottom_center", "wall_cell_base":
+			return Vector2(size.x * 0.5, size.y)
+		_:
+			return Vector2(size.x * 0.5, size.y * 0.5)
+
 func get_iso_texture_draw_position_from_center(center: Vector2, texture: Texture2D) -> Vector2:
 	var size: Vector2 = texture.get_size()
 	return center - Vector2(size.x * 0.5, size.y * 0.75)
 
+func get_iso_texture_draw_rect_for_asset_key_with_size(asset_key: String, center: Vector2, source_size: Vector2) -> Rect2:
+	var rule: Dictionary = get_iso_asset_alignment_rule(asset_key)
+	var anchor: String = String(rule.get("anchor", "center"))
+	var scale_value: float = get_iso_asset_alignment_scale(asset_key)
+	var destination_size: Vector2 = source_size * scale_value
+	var offset: Vector2 = Vector2(rule.get("offset", Vector2.ZERO))
+	var anchor_offset: Vector2 = get_iso_asset_alignment_anchor_offset(anchor, destination_size)
+	var destination_position: Vector2 = center - anchor_offset + offset
+	return Rect2(destination_position, destination_size)
+
+func get_iso_texture_draw_rect_for_asset_key(asset_key: String, center: Vector2, texture: Texture2D) -> Rect2:
+	return get_iso_texture_draw_rect_for_asset_key_with_size(asset_key, center, texture.get_size())
+
 func get_iso_texture_draw_position_for_asset_key(asset_key: String, center: Vector2, texture: Texture2D) -> Vector2:
-	var texture_size: Vector2 = texture.get_size()
-	if asset_key.begins_with("floor_"):
-		return center - Vector2(texture_size.x * 0.5, texture_size.y * 0.5)
-	if asset_key.begins_with("wall_"):
-		return center - Vector2(texture_size.x * 0.5, texture_size.y * 0.68)
-	if asset_key.begins_with("object_"):
-		return center - Vector2(texture_size.x * 0.5, texture_size.y * 0.76)
-	return get_iso_texture_draw_position_from_center(center, texture)
+	return get_iso_texture_draw_rect_for_asset_key(asset_key, center, texture).position
 
 func get_iso_texture_draw_position(cell: Vector2i, texture: Texture2D) -> Vector2:
-	# Future asset hook: this is a provisional bottom-center-ish alignment.
-	# Final art pivot and per-asset offset tuning will be handled in follow-up PRs.
 	return get_iso_texture_draw_position_from_center(grid_to_iso(cell), texture)
+
+func should_draw_iso_asset_with_rect(asset_key: String) -> bool:
+	var rule: Dictionary = get_iso_asset_alignment_rule(asset_key)
+	var scale_value: float = get_iso_asset_alignment_scale(asset_key)
+	var offset: Vector2 = Vector2(rule.get("offset", Vector2.ZERO))
+	var anchor: String = String(rule.get("anchor", "center"))
+	if not is_equal_approx(scale_value, 1.0):
+		return true
+	if offset != Vector2.ZERO:
+		return true
+	return anchor != "center"
+
+func draw_iso_asset_alignment_overlay(asset_key: String, anchor_position: Vector2, actual_rect: Rect2) -> void:
+	if not show_asset_alignment_overlay and not show_object_grounding_overlay:
+		return
+	var expected_size: Vector2 = get_iso_asset_alignment_expected_size(asset_key) * get_iso_asset_alignment_scale(asset_key)
+	var rule: Dictionary = get_iso_asset_alignment_rule(asset_key)
+	var expected_anchor_offset: Vector2 = get_iso_asset_alignment_anchor_offset(String(rule.get("anchor", "center")), expected_size)
+	var expected_rect: Rect2 = Rect2(anchor_position - expected_anchor_offset + Vector2(rule.get("offset", Vector2.ZERO)), expected_size)
+	draw_rect(expected_rect, Color(1.0, 0.78, 0.22, 0.18), true)
+	draw_rect(expected_rect, Color(1.0, 0.78, 0.22, 0.95), false, 1.0)
+	draw_rect(actual_rect, Color(0.2, 0.9, 1.0, 0.72), false, 1.0)
+	draw_line(anchor_position + Vector2(-4.0, 0.0), anchor_position + Vector2(4.0, 0.0), Color(1.0, 0.25, 0.25, 0.95), 1.5)
+	draw_line(anchor_position + Vector2(0.0, -4.0), anchor_position + Vector2(0.0, 4.0), Color(1.0, 0.25, 0.25, 0.95), 1.5)
+	draw_circle(anchor_position, 2.5, Color(1.0, 0.25, 0.25, 0.95))
+	draw_string(ThemeDB.fallback_font, expected_rect.position + Vector2(2.0, -3.0), asset_key, HORIZONTAL_ALIGNMENT_LEFT, maxf(expected_rect.size.x, 40.0), 9, Color(1.0, 0.95, 0.78, 0.95))
+
+func draw_iso_texture_with_alignment(texture: Texture2D, asset_key: String, center: Vector2) -> void:
+	var destination_rect: Rect2 = get_iso_texture_draw_rect_for_asset_key(asset_key, center, texture)
+	if should_draw_iso_asset_with_rect(asset_key):
+		draw_texture_rect(texture, destination_rect, false)
+	else:
+		draw_texture(texture, destination_rect.position)
+	draw_iso_asset_alignment_overlay(asset_key, center, destination_rect)
 
 func draw_iso_texture_asset(cell: Vector2i, asset_key: String, visual_center_override: Vector2 = Vector2.INF) -> bool:
 	# Asset hooks are optional. Procedural fallback remains the default path.
@@ -1304,8 +1449,7 @@ func draw_iso_texture_asset(cell: Vector2i, asset_key: String, visual_center_ove
 	var visual_center: Vector2 = grid_to_iso(cell)
 	if visual_center_override != Vector2.INF:
 		visual_center = visual_center_override
-	var draw_position: Vector2 = get_iso_texture_draw_position_for_asset_key(asset_key, visual_center, texture)
-	draw_texture(texture, draw_position)
+	draw_iso_texture_with_alignment(texture, asset_key, visual_center)
 	return true
 
 func draw_optional_visual_texture_asset(asset_id: String, cell: Vector2i, fallback_callable_name: String = "", options: Dictionary = {}) -> bool:
@@ -1331,13 +1475,15 @@ func draw_optional_visual_texture_asset(asset_id: String, cell: Vector2i, fallba
 	var center: Vector2 = grid_to_iso(cell)
 	if options.has("visual_center"):
 		center = Vector2(options.get("visual_center", center))
+	var alignment_asset_key: String = String(resolved.get("placeholder_asset_key", normalized_asset_id))
 	var atlas_region: Rect2i = Rect2i(resolved.get("atlas_region", Rect2i(0, 0, 0, 0)))
 	if atlas_region.size.x > 0 and atlas_region.size.y > 0:
-		var destination_size: Vector2 = Vector2(float(atlas_region.size.x), float(atlas_region.size.y))
-		var destination_position: Vector2 = center - Vector2(destination_size.x * 0.5, destination_size.y * 0.75)
-		draw_texture_rect_region(texture, Rect2(destination_position, destination_size), Rect2(atlas_region.position, atlas_region.size))
+		var atlas_size: Vector2 = Vector2(float(atlas_region.size.x), float(atlas_region.size.y))
+		var destination_rect: Rect2 = get_iso_texture_draw_rect_for_asset_key_with_size(alignment_asset_key, center, atlas_size)
+		draw_texture_rect_region(texture, destination_rect, Rect2(atlas_region.position, atlas_region.size))
+		draw_iso_asset_alignment_overlay(alignment_asset_key, center, destination_rect)
 		return true
-	draw_texture(texture, get_iso_texture_draw_position_for_asset_key(String(resolved.get("placeholder_asset_key", normalized_asset_id)), center, texture))
+	draw_iso_texture_with_alignment(texture, alignment_asset_key, center)
 	return true
 
 func get_wall_prototype_colors(cell: Vector2i) -> Dictionary:
