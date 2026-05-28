@@ -26,7 +26,7 @@ The renderer treats each asset key as having visual-only alignment metadata in `
 - **Floor assets** use the `center` anchor. A 128×64 SVG canvas should keep the 2:1 diamond centered so it remains inside the projected grid cell.
 - **Wall assets** use the `wall_cell_base` anchor. A 128×120 canvas should place the lower wall footprint at the bottom center; the renderer offsets it upward to sit on the blocked wall cell.
 - **Wall-mounted objects** such as terminals, buttons, switches, and sockets use `wall_mount_center`. A 96×96 canvas should keep the useful prop centered around the mount band, with transparent padding around it.
-- **Doors/gates** use `door_insert_center`. A 96×96 canvas should keep the door panel centered in the intended wall opening rather than on the floor diamond.
+- **Doors/gates** use `door_insert_center`. A 96×96 canvas should keep the door panel centered in the intended wall opening rather than on the floor diamond. Keep the visible panel centered in that 96×96 canvas; transparent padding above/below matters because the renderer aligns the full canvas, not the painted pixels. Door state overlays for locked, powered, unpowered, open, and damaged states are drawn by the renderer, so replacement art should not bake those gameplay-state badges into the placeholder itself.
 - **Pickups/items** such as keys, fuses, keycards, access codes, and repair kits use `bottom_center`. A 96×96 canvas should put the visual footprint at the bottom center so the item is small, readable, and grounded on the floor.
 - **Larger floor props** such as cable reels, components, and generic objects also use `bottom_center`, but with a larger renderer scale than pickups.
 
