@@ -391,6 +391,7 @@ const MAP_CONSTRUCTOR_PREFAB_CATEGORY_GROUP_ORDER: Array[String] = [
 var edge_scroll_enabled: bool = true
 var edge_scroll_margin_px: float = 28.0
 var edge_scroll_speed: float = 540.0
+var map_scroll_bounds_margin_px: float = 180.0
 var tasks_actions_row: HBoxContainer
 var tasks_dev_output_label: RichTextLabel
 var tasks_dev_output_scroll: ScrollContainer
@@ -8928,29 +8929,35 @@ func _process(delta: float) -> void:
 func _process_map_constructor_edge_scroll(delta: float) -> void:
 	if not edge_scroll_enabled or delta <= 0.0:
 		return
-	if not map_constructor_mode_active:
-		return
 	if app_screen_mode != AppScreenMode.GAMEPLAY:
 		return
-	if field_runtime == null or not is_instance_valid(field_runtime):
+	if not map_constructor_mode_active:
 		return
-	if _is_mouse_over_map_constructor_ui_panel():
+	if field_runtime == null or not is_instance_valid(field_runtime):
 		return
 	var viewport: Viewport = get_viewport()
 	if viewport == null:
 		return
-	var viewport_size: Vector2 = viewport.get_visible_rect().size
+	var window: Window = get_window()
+	if window != null and not window.has_focus():
+		return
+	var viewport_rect: Rect2 = viewport.get_visible_rect()
+	var viewport_size: Vector2 = viewport_rect.size
 	if viewport_size.x <= 0.0 or viewport_size.y <= 0.0:
 		return
 	var mouse_pos: Vector2 = viewport.get_mouse_position()
+	if not viewport_rect.has_point(mouse_pos):
+		return
+	if _is_mouse_over_map_constructor_ui_panel():
+		return
 	var scroll_dir: Vector2 = Vector2.ZERO
-	if mouse_pos.x <= edge_scroll_margin_px:
+	if mouse_pos.x <= viewport_rect.position.x + edge_scroll_margin_px:
 		scroll_dir.x -= 1.0
-	elif mouse_pos.x >= viewport_size.x - edge_scroll_margin_px:
+	elif mouse_pos.x >= viewport_rect.end.x - edge_scroll_margin_px:
 		scroll_dir.x += 1.0
-	if mouse_pos.y <= edge_scroll_margin_px:
+	if mouse_pos.y <= viewport_rect.position.y + edge_scroll_margin_px:
 		scroll_dir.y -= 1.0
-	elif mouse_pos.y >= viewport_size.y - edge_scroll_margin_px:
+	elif mouse_pos.y >= viewport_rect.end.y - edge_scroll_margin_px:
 		scroll_dir.y += 1.0
 	if scroll_dir == Vector2.ZERO:
 		return
@@ -8998,11 +9005,11 @@ func _get_clamped_constructor_field_position(unclamped_position: Vector2, viewpo
 		max_x = maxf(max_x, iso_center.x + half_size.x)
 		min_y = minf(min_y, iso_center.y - half_size.y - renderer.iso_wall_height)
 		max_y = maxf(max_y, iso_center.y + half_size.y)
-	var safe_margin: float = maxf(edge_scroll_margin_px, 0.0)
-	var min_field_x: float = safe_margin - max_x
-	var max_field_x: float = viewport_size.x - safe_margin - min_x
-	var min_field_y: float = safe_margin - max_y
-	var max_field_y: float = viewport_size.y - safe_margin - min_y
+	var bounds_margin: float = maxf(map_scroll_bounds_margin_px, 0.0)
+	var min_field_x: float = -bounds_margin - max_x
+	var max_field_x: float = viewport_size.x + bounds_margin - min_x
+	var min_field_y: float = -bounds_margin - max_y
+	var max_field_y: float = viewport_size.y + bounds_margin - min_y
 	var clamped_x: float = unclamped_position.x
 	var clamped_y: float = unclamped_position.y
 	if min_field_x <= max_field_x:
