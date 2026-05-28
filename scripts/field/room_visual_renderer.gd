@@ -15,6 +15,7 @@ class_name RoomVisualRenderer
 @export var iso_wall_cutaway_enabled: bool = true
 @export var show_wall_topology_overlay: bool = false
 @export var show_wall_mount_zones_overlay: bool = false
+@export var show_object_grounding_overlay: bool = false
 @export var use_iso_visual_preview_preset: bool = false
 @export var iso_visual_preview_includes_fog: bool = true
 @export var iso_visual_preview_includes_asset_hooks: bool = false
@@ -2404,9 +2405,78 @@ func draw_wall_mounted_object_shape(cell: Vector2i, profile_key: String, profile
 			return true
 	return false
 
+func get_iso_object_grounding_profile(object_data: Dictionary) -> Dictionary:
+	var object_id: String = String(object_data.get("id", "")).strip_edges()
+	var object_type: String = String(object_data.get("object_type", object_data.get("type", ""))).to_lower().strip_edges()
+	var placement_mode: String = String(object_data.get("placement_mode", "")).to_lower().strip_edges()
+	var anchor_cell: Vector2i = _try_parse_cell_variant(object_data.get("anchor_floor_cell", object_data.get("position", Vector2i(-1, -1))), Vector2i(-1, -1))
+	var attached_wall_cell: Vector2i = _try_parse_cell_variant(object_data.get("attached_wall_cell", Vector2i(-1, -1)), Vector2i(-1, -1))
+	var wall_side: String = String(object_data.get("wall_side", "")).to_lower().strip_edges()
+	if anchor_cell.x < 0 or anchor_cell.y < 0:
+		anchor_cell = _try_parse_cell_variant(object_data.get("position", Vector2i(0, 0)), Vector2i(0, 0))
+	var center: Vector2 = grid_to_iso(anchor_cell)
+	if placement_mode == "wall_mounted" and attached_wall_cell.x >= 0 and attached_wall_cell.y >= 0 and not wall_side.is_empty():
+		for zone_variant in get_wall_mounted_anchor_zones(attached_wall_cell):
+			var zone: Dictionary = Dictionary(zone_variant)
+			if String(zone.get("wall_side", "")) == wall_side and Vector2i(zone.get("anchor_floor_cell", Vector2i(-1, -1))) == anchor_cell:
+				center = Vector2(zone.get("mount_zone_center", center))
+				break
+	var grounding_type: String = "floor_standing"
+	if placement_mode == "wall_mounted":
+		grounding_type = "wall_mounted"
+	elif object_type.contains("door") or object_type.contains("gate"):
+		grounding_type = "door_insert"
+	elif object_type.contains("key") or object_type.contains("kit") or object_type.contains("card") or object_type.contains("code"):
+		grounding_type = "floor_pickup"
+	elif object_type.contains("cable"):
+		grounding_type = "cable_like"
+	var diamond: PackedVector2Array = get_iso_inset_diamond_points(anchor_cell, 20.0)
+	var footprint: PackedVector2Array = PackedVector2Array()
+	for point in diamond:
+		footprint.append(center + (point - grid_to_iso(anchor_cell)) * 0.35 + Vector2(0.0, -3.0))
+	var shadow: PackedVector2Array = PackedVector2Array()
+	for point in footprint:
+		shadow.append(point + Vector2(0.0, 3.0))
+	var scale: float = 1.0
+	if grounding_type == "floor_pickup":
+		scale = 0.65
+	return {
+		"object_id": object_id, "object_type": object_type, "placement_mode": placement_mode, "grounding_type": grounding_type,
+		"anchor_cell": anchor_cell, "attached_wall_cell": attached_wall_cell, "wall_side": wall_side,
+		"visual_center": center, "footprint_polygon": footprint, "shadow_polygon": shadow,
+		"base_color": Color(0.28, 0.31, 0.37, 0.55), "edge_color": Color(0.13, 0.15, 0.19, 0.72), "accent_color": Color(0.56, 0.81, 0.93, 0.95),
+		"height_px": 18, "scale": scale, "badge_enabled": true
+	}
+
+func _draw_grounding_overlay(profile: Dictionary) -> void:
+	var fp: PackedVector2Array = PackedVector2Array(profile.get("footprint_polygon", PackedVector2Array()))
+	if fp.size() >= 3:
+		draw_colored_polygon(fp, Color(0.28, 0.7, 0.95, 0.08))
+		for i in range(fp.size()):
+			var n: int = (i + 1) % fp.size()
+			draw_line(fp[i], fp[n], Color(0.28, 0.8, 1.0, 0.65), 1.0)
+	var center: Vector2 = Vector2(profile.get("visual_center", Vector2.ZERO))
+	draw_circle(center, 2.0, Color(0.96, 0.96, 0.2, 0.95))
+	var gt: String = String(profile.get("grounding_type", "unknown"))
+	var short: String = "UN"
+	match gt:
+		"floor_standing": short = "FS"
+		"wall_mounted": short = "WM"
+		"door_insert": short = "DR"
+		"floor_pickup": short = "IT"
+		"cable_like": short = "CB"
+	draw_string(ThemeDB.fallback_font, center + Vector2(4.0, -6.0), short, HORIZONTAL_ALIGNMENT_LEFT, 18.0, 10, Color(0.95, 1.0, 0.98, 0.95))
+
 func draw_iso_object_marker(cell: Vector2i, tile_type: int) -> void:
-	var visual_center: Vector2 = get_world_object_visual_position(cell)
 	var object_meta: Dictionary = _get_iso_world_object_metadata_for_cell(cell)
+	var profile_data: Dictionary = get_iso_object_grounding_profile(Dictionary(object_meta.get("data", {})))
+	var visual_center: Vector2 = Vector2(profile_data.get("visual_center", get_world_object_visual_position(cell)))
+	var shadow_polygon: PackedVector2Array = PackedVector2Array(profile_data.get("shadow_polygon", PackedVector2Array()))
+	if shadow_polygon.size() >= 3:
+		draw_colored_polygon(shadow_polygon, Color(0.03, 0.05, 0.08, 0.26))
+	var footprint_polygon: PackedVector2Array = PackedVector2Array(profile_data.get("footprint_polygon", PackedVector2Array()))
+	if footprint_polygon.size() >= 3:
+		draw_colored_polygon(footprint_polygon, Color(0.2, 0.24, 0.28, 0.2))
 	var object_id: String = String(object_meta.get("object_id", ""))
 	var profile_key: String = get_iso_object_profile_key_for_tile(tile_type)
 	var object_asset_key: String = get_iso_object_asset_key_for_profile(profile_key)
@@ -2478,6 +2548,8 @@ func draw_iso_object_marker(cell: Vector2i, tile_type: int) -> void:
 		draw_iso_object_heat_marker(cell, profile, visual_center)
 	else:
 		draw_iso_object_small_marker(cell, profile, visual_center)
+	if show_object_grounding_overlay:
+		_draw_grounding_overlay(profile_data)
 
 func build_iso_wall_draw_entries() -> Array[Dictionary]:
 	if _grid_manager == null:
