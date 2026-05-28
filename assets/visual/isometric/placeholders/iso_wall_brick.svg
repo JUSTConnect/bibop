@@ -1,20 +1,10 @@
-<svg width="128" height="120" viewBox="0 0 128 120" xmlns="http://www.w3.org/2000/svg">
-  <polygon points="64,14 114,40 64,66 14,40" fill="#8f4f3d"/>
-  <polygon points="14,40 64,66 64,106 14,80" fill="#6f382d"/>
-  <polygon points="114,40 64,66 64,106 114,80" fill="#5e2f26"/>
-  <polyline points="64,14 114,40 64,66 14,40 64,14" fill="none" stroke="#c88a70" stroke-width="1.4"/>
-  <g stroke="#d8b19d" stroke-width="1" opacity="0.75">
-    <line x1="20" y1="49" x2="62" y2="71"/>
-    <line x1="18" y1="59" x2="62" y2="82"/>
-    <line x1="16" y1="69" x2="62" y2="93"/>
-    <line x1="66" y1="71" x2="108" y2="49"/>
-    <line x1="66" y1="82" x2="110" y2="59"/>
-    <line x1="66" y1="93" x2="112" y2="69"/>
-  </g>
-  <g stroke="#b67b66" stroke-width="1" opacity="0.55">
-    <line x1="33" y1="56" x2="33" y2="87"/>
-    <line x1="48" y1="64" x2="48" y2="96"/>
-    <line x1="80" y1="96" x2="80" y2="64"/>
-    <line x1="95" y1="87" x2="95" y2="56"/>
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 128 120" width="128" height="120" fill="none">
+  <g stroke-linejoin="round" stroke-linecap="round">
+    <path d="M14 56 L64 80 L114 56 L114 30 L64 6 L14 30 Z" fill="#6d4f48" stroke="#1b2630" stroke-width="3"/>
+    <path d="M14 30 L64 54 L64 80 L14 56 Z" fill="#3c4d5b" opacity="0.75"/>
+    <path d="M114 30 L64 54 L64 80 L114 56 Z" fill="#2f3e4b" opacity="0.8"/>
+    <path d="M14 30 L64 6 L114 30 L64 54 Z" fill="#7f929f" opacity="0.55"/>
+    <path d="M64 54 L64 79" stroke="#1b2630" stroke-width="2" opacity="0.6"/>
+    <path d="M24 43 L61 61 M67 61 L105 43 M24 55 L61 73 M67 73 L105 55" stroke="#2a2222" stroke-width="2" opacity="0.7"/>
   </g>
 </svg>

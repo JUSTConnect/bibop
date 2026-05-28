@@ -1,6 +1,10 @@
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 128 64" width="128" height="64">
-  <polygon points="64,2 126,32 64,62 2,32" fill="#192029" stroke="#8793a1" stroke-width="2"/>
-  <polygon points="64,10 116,32 64,54 12,32" fill="#202a34" stroke="#2d3948" stroke-width="1.5"/>
-  <polygon points="64,20 94,32 64,44 34,32" fill="#2e3b4a" stroke="#9aa7b4" stroke-width="1.5"/>
-  <line x1="34" y1="32" x2="94" y2="32" stroke="#5e6b7a" stroke-width="1"/>
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 128 64" width="128" height="64" fill="none">
+  <g stroke-linejoin="round" stroke-linecap="round">
+    <path d="M64 4 L124 32 L64 60 L4 32 Z" fill="#627786" stroke="#1b2630" stroke-width="3"/>
+    <path d="M64 10 L112 32 L64 54 L16 32 Z" fill="#4d6070" opacity="0.35" stroke="#9fb0bd" stroke-width="1.5"/>
+    <path d="M28 32 L64 16 L100 32" stroke="#2d3a46" stroke-width="2" opacity="0.55"/>
+    <path d="M64 16 L64 52" stroke="#2d3a46" stroke-width="1.5" opacity="0.35"/>
+    <path d="M18 32 L64 11 L110 32" stroke="#b7c6cf" stroke-width="3" opacity="0.55"/>
+    <path d="M30 38 L64 22 L98 38" stroke="#263440" stroke-width="2" opacity="0.55"/>
+  </g>
 </svg>
