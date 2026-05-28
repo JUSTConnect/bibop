@@ -34,6 +34,7 @@ var _map_constructor_last_autofix_snapshot: Dictionary = {}
 var _map_constructor_last_patch_snapshot: Dictionary = {}
 var _map_constructor_last_batch_snapshot: Dictionary = {}
 var _map_constructor_wall_material_overrides: Dictionary = {}
+var _map_constructor_floor_material_overrides: Dictionary = {}
 var map_constructor_door_visual_preset_overrides: Dictionary = {}
 var map_constructor_terminal_visual_preset_overrides: Dictionary = {}
 var _map_constructor_change_history: Array[Dictionary] = []
@@ -153,6 +154,7 @@ func setup_world_objects_for_mission(mission_id: String) -> void:
 	world_objects_by_cell.clear()
 	cell_items.clear()
 	_map_constructor_wall_material_overrides.clear()
+	_map_constructor_floor_material_overrides.clear()
 	if mission_id == "mission_10":
 		_setup_task_test_mission_world()
 		return
@@ -1891,6 +1893,32 @@ func _serialize_wall_material_override_key(cell: Vector2i, side: String) -> Stri
 	var normalized_side: String = side.to_lower().strip_edges()
 	return "%s|%s" % [_serialize_cell_key(cell), normalized_side]
 
+func get_map_constructor_floor_material_catalog() -> Dictionary:
+	var materials: Array[Dictionary] = [
+		{"id":"default_floor","display_name":"Default Floor","description":"Baseline interior deck plating.","tags":["default","metal","floor"],"style":"default","texture_asset_id":"floor_default","fallback_color":Color(0.13, 0.17, 0.2, 0.97),"edge_color":Color(0.22, 0.28, 0.33, 0.95),"is_default":true},
+		{"id":"clean_lab_floor","display_name":"Clean Lab Floor","description":"Sterile polished lab flooring.","tags":["clean","lab"],"style":"clean","texture_asset_id":"floor_clean_lab","fallback_color":Color(0.18, 0.23, 0.26, 0.97),"edge_color":Color(0.32, 0.4, 0.44, 0.95)},
+		{"id":"dark_service_floor","display_name":"Dark Service Floor","description":"Low-light service corridor floor.","tags":["dark","service"],"style":"dark","texture_asset_id":"floor_dark_service","fallback_color":Color(0.1, 0.12, 0.15, 0.97),"edge_color":Color(0.22, 0.26, 0.31, 0.95)},
+		{"id":"hazard_floor","display_name":"Hazard Floor","description":"Hazard-striped utility floor.","tags":["hazard","striped","power"],"style":"hazard","texture_asset_id":"floor_hazard","fallback_color":Color(0.2, 0.16, 0.12, 0.97),"edge_color":Color(0.47, 0.35, 0.19, 0.95)},
+		{"id":"power_floor","display_name":"Power Floor","description":"Power distribution floor.","tags":["power","utility"],"style":"power","texture_asset_id":"floor_power","fallback_color":Color(0.16, 0.19, 0.13, 0.97),"edge_color":Color(0.36, 0.45, 0.2, 0.95)},
+		{"id":"damaged_floor","display_name":"Damaged Floor","description":"Damaged warning-painted floor.","tags":["damaged","red","warning"],"style":"damaged","texture_asset_id":"floor_damaged","fallback_color":Color(0.2, 0.12, 0.13, 0.97),"edge_color":Color(0.44, 0.25, 0.26, 0.95)},
+		{"id":"reinforced_floor","display_name":"Reinforced Floor","description":"Reinforced security floor plating.","tags":["reinforced","security"],"style":"reinforced","texture_asset_id":"floor_reinforced","fallback_color":Color(0.12, 0.15, 0.19, 0.97),"edge_color":Color(0.3, 0.36, 0.45, 0.95)},
+		{"id":"diagnostic_floor","display_name":"Diagnostic Floor","description":"Diagnostic bay floor markings.","tags":["diagnostic","blue"],"style":"diagnostic","texture_asset_id":"floor_diagnostic","fallback_color":Color(0.11, 0.16, 0.23, 0.97),"edge_color":Color(0.24, 0.38, 0.53, 0.95)}
+	]
+	return {"ok": true, "materials": materials, "message": "Floor material catalog ready."}
+
+func _is_known_map_constructor_floor_material_id(material_id: String) -> bool:
+	var normalized_id: String = material_id.to_lower().strip_edges()
+	if normalized_id.is_empty():
+		return false
+	for row_variant in Array(get_map_constructor_floor_material_catalog().get("materials", [])):
+		var row: Dictionary = Dictionary(row_variant)
+		if String(row.get("id", "")).to_lower().strip_edges() == normalized_id:
+			return true
+	return false
+
+func _is_floor_like_constructor_tile(tile_type: int) -> bool:
+	return tile_type == GridManager.TILE_FLOOR or tile_type == GridManager.TILE_STEPPED_FLOOR
+
 func get_map_constructor_wall_material_catalog() -> Dictionary:
 	var materials: Array[Dictionary] = [
 		{"id":"default_metal","display_name":"Default Metal","description":"Baseline steel alloy wall finish.","tags":["default","metal"],"style":"default","texture_asset_id":"wall_default_metal","fallback_color":Color(0.33, 0.37, 0.43, 0.98),"edge_color":Color(0.62, 0.67, 0.75, 1.0),"damage_level":0,"is_default":true},
@@ -1960,6 +1988,21 @@ func get_visual_texture_asset_reference_diagnostics() -> Dictionary:
 				missing_optional.append(wall_asset_id)
 			else:
 				missing_required.append(wall_asset_id)
+	for floor_row_variant in Array(get_map_constructor_floor_material_catalog().get("materials", [])):
+		var floor_row: Dictionary = Dictionary(floor_row_variant)
+		var floor_asset_id: String = String(floor_row.get("texture_asset_id", "")).strip_edges()
+		if floor_asset_id.is_empty():
+			continue
+		seen_asset_ids[floor_asset_id] = true
+		var floor_resolved: Dictionary = resolve_visual_texture_asset(floor_asset_id)
+		if not bool(floor_resolved.get("ok", false)):
+			unknown_references.append(floor_asset_id)
+			continue
+		if not bool(floor_resolved.get("has_texture", false)):
+			if bool(floor_resolved.get("is_optional", true)):
+				missing_optional.append(floor_asset_id)
+			else:
+				missing_required.append(floor_asset_id)
 	var known_door_asset_ids: Array[String] = ["door_state_generic"]
 	for door_asset_id in known_door_asset_ids:
 		var normalized_door_asset_id: String = door_asset_id.strip_edges()
