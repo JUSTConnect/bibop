@@ -9413,6 +9413,216 @@ func _select_map_constructor_prefab(prefab_id: String) -> void:
 	_clear_map_constructor_preview_cell()
 	_mark_map_constructor_prefab_recent(prefab_id)
 
+
+func _get_map_constructor_prefab_preview_kind(entry: Dictionary) -> String:
+	var prefab_id: String = String(entry.get("id", "")).to_lower()
+	var category_text: String = String(entry.get("category", "")).to_lower()
+	var placement_mode: String = String(entry.get("placement_mode", "")).to_lower()
+	var combined: String = "%s %s %s %s %s" % [prefab_id, category_text, placement_mode, " ".join(PackedStringArray(entry.get("tags", []))).to_lower(), " ".join(PackedStringArray(entry.get("system_roles", []))).to_lower()]
+	if placement_mode == "wall_mounted":
+		return "wall_mounted"
+	if combined.find("cool") >= 0:
+		return "cooling"
+	if combined.find("door") >= 0 or combined.find("gate") >= 0:
+		return "door"
+	if combined.find("terminal") >= 0 or combined.find("firewall") >= 0:
+		return "terminal"
+	if combined.find("power") >= 0 or combined.find("socket") >= 0 or combined.find("cable") >= 0 or combined.find("switch") >= 0 or combined.find("fuse") >= 0:
+		return "power"
+	if category_text == "item" or category_text == "items" or combined.find("key") >= 0 or combined.find("item") >= 0:
+		return "item"
+	if category_text == "structural" or combined.find("wall") >= 0 or combined.find("floor") >= 0 or combined.find("structural") >= 0:
+		return "structural"
+	if category_text == "diagnostic" or combined.find("diagnostic") >= 0:
+		return "diagnostic"
+	return "utility"
+
+func _get_map_constructor_prefab_preview_symbol(preview_kind: String) -> String:
+	match preview_kind:
+		"structural":
+			return "W"
+		"door":
+			return "D"
+		"terminal":
+			return "T"
+		"power":
+			return "P"
+		"item":
+			return "I"
+		"cooling":
+			return "C"
+		"wall_mounted":
+			return "M"
+		"diagnostic":
+			return "?"
+		_:
+			return "U"
+
+func _get_map_constructor_prefab_preview_color(preview_kind: String) -> Color:
+	match preview_kind:
+		"structural":
+			return Color(0.360, 0.410, 0.470, 1.0)
+		"door":
+			return Color(0.620, 0.430, 0.210, 1.0)
+		"terminal":
+			return Color(0.180, 0.520, 0.820, 1.0)
+		"power":
+			return Color(0.900, 0.720, 0.180, 1.0)
+		"item":
+			return Color(0.610, 0.780, 0.950, 1.0)
+		"cooling":
+			return Color(0.190, 0.730, 0.820, 1.0)
+		"wall_mounted":
+			return Color(0.520, 0.500, 0.760, 1.0)
+		"diagnostic":
+			return Color(0.960, 0.580, 0.170, 1.0)
+		_:
+			return Color(0.430, 0.560, 0.520, 1.0)
+
+func _format_map_constructor_prefab_placeability(entry: Dictionary) -> Dictionary:
+	if bool(entry.get("is_expected_invalid_tool", false)):
+		return {"text":"Expected invalid", "role":"warning"}
+	if entry.has("placeability"):
+		var placeability: Dictionary = Dictionary(entry.get("placeability", {}))
+		if bool(placeability.get("ok", false)):
+			return {"text":"Placeable", "role":"ok"}
+		var message: String = String(placeability.get("message", "Not placeable here."))
+		if message.strip_edges().is_empty():
+			message = "Not placeable here."
+		return {"text":"Not placeable here — %s" % message, "role":"danger"}
+	var placement_hint: String = String(entry.get("placement_hint", "")).strip_edges()
+	if placement_hint.is_empty():
+		placement_hint = "choose a target cell"
+	return {"text":"Placeable — %s" % placement_hint, "role":"info"}
+
+func _create_map_constructor_prefab_preview(entry: Dictionary) -> Control:
+	var preview_kind: String = _get_map_constructor_prefab_preview_kind(entry)
+	var preview_panel: PanelContainer = PanelContainer.new()
+	preview_panel.custom_minimum_size = Vector2(58, 58)
+	preview_panel.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	var preview_color: Color = _get_map_constructor_prefab_preview_color(preview_kind)
+	preview_panel.add_theme_stylebox_override("panel", _make_panel_style(preview_color.darkened(0.28), preview_color.lightened(0.20), 2, 8))
+	var symbol_label: Label = Label.new()
+	symbol_label.text = _get_map_constructor_prefab_preview_symbol(preview_kind)
+	symbol_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	symbol_label.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
+	symbol_label.add_theme_color_override("font_color", Color.WHITE)
+	symbol_label.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	preview_panel.add_child(symbol_label)
+	return preview_panel
+
+func _create_map_constructor_prefab_card(entry: Dictionary) -> Button:
+	var prefab_id: String = String(entry.get("id", ""))
+	var selected: bool = prefab_id == selected_map_constructor_prefab_id
+	var card: Button = Button.new()
+	card.toggle_mode = true
+	card.button_pressed = selected
+	card.text = ""
+	card.clip_text = true
+	card.custom_minimum_size = Vector2(0, 104)
+	card.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	var border_color: Color = UI_COLOR_SELECTED if selected else UI_COLOR_BORDER_DIM
+	var bg_color: Color = Color(0.105, 0.125, 0.155, 0.98) if selected else UI_COLOR_PANEL_DARK
+	card.add_theme_stylebox_override("normal", _make_panel_style(bg_color, border_color, 2 if selected else 1, 8))
+	card.add_theme_stylebox_override("hover", _make_panel_style(bg_color.lightened(0.08), UI_COLOR_ACCENT, 2, 8))
+	card.add_theme_stylebox_override("pressed", _make_panel_style(UI_COLOR_SELECTED.darkened(0.55), UI_COLOR_SELECTED, 2, 8))
+	card.add_theme_stylebox_override("focus", _make_panel_style(bg_color, UI_COLOR_SELECTED, 2, 8))
+
+	var row: HBoxContainer = HBoxContainer.new()
+	row.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
+	row.offset_left = 8
+	row.offset_right = -8
+	row.offset_top = 6
+	row.offset_bottom = -6
+	row.add_theme_constant_override("separation", 8)
+	row.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	card.add_child(row)
+	row.add_child(_create_map_constructor_prefab_preview(entry))
+
+	var text_stack: VBoxContainer = VBoxContainer.new()
+	text_stack.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	text_stack.add_theme_constant_override("separation", 3)
+	text_stack.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	row.add_child(text_stack)
+
+	var display_name: String = String(entry.get("display_name", entry.get("label", prefab_id)))
+	var title_label: Label = Label.new()
+	title_label.text = ("▶ " if selected else "") + display_name
+	title_label.clip_text = true
+	title_label.add_theme_color_override("font_color", UI_COLOR_SELECTED if selected else UI_COLOR_TEXT)
+	title_label.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	text_stack.add_child(title_label)
+
+	var category_text: String = String(entry.get("category", "Uncategorized"))
+	var placement_mode: String = String(entry.get("placement_mode", "unknown"))
+	var roles_text: String = ", ".join(PackedStringArray(entry.get("system_roles", [])))
+	if roles_text.is_empty():
+		roles_text = "no role"
+	var meta_label: Label = Label.new()
+	meta_label.text = "id: %s • %s • %s • %s" % [prefab_id, category_text, placement_mode, roles_text]
+	meta_label.clip_text = true
+	meta_label.add_theme_color_override("font_color", UI_COLOR_TEXT_DIM)
+	meta_label.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	text_stack.add_child(meta_label)
+
+	var description: String = String(entry.get("description", "")).strip_edges()
+	if description.is_empty():
+		description = String(entry.get("placement_hint", "No description available."))
+	var description_label: Label = Label.new()
+	description_label.text = description
+	description_label.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	description_label.add_theme_color_override("font_color", UI_COLOR_TEXT)
+	description_label.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	text_stack.add_child(description_label)
+
+	var status: Dictionary = _format_map_constructor_prefab_placeability(entry)
+	var status_label: Label = Label.new()
+	status_label.text = String(status.get("text", "Placeability unknown"))
+	status_label.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	match String(status.get("role", "neutral")):
+		"ok":
+			status_label.add_theme_color_override("font_color", UI_COLOR_OK)
+		"warning":
+			status_label.add_theme_color_override("font_color", UI_COLOR_WARNING)
+		"danger":
+			status_label.add_theme_color_override("font_color", UI_COLOR_DANGER)
+		"info":
+			status_label.add_theme_color_override("font_color", UI_COLOR_ACCENT)
+		_:
+			status_label.add_theme_color_override("font_color", UI_COLOR_TEXT_DIM)
+	status_label.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	text_stack.add_child(status_label)
+
+	if map_constructor_prefab_show_diagnostics:
+		var diagnostic_bits: Array[String] = []
+		if bool(entry.get("is_destructive", false)):
+			diagnostic_bits.append("destructive")
+		if bool(entry.get("can_have_links", false)):
+			diagnostic_bits.append("links")
+		if bool(entry.get("can_have_power_network", false)):
+			diagnostic_bits.append("power network")
+		if bool(entry.get("requires_wall", false)):
+			diagnostic_bits.append("requires wall")
+		if bool(entry.get("requires_floor", false)):
+			diagnostic_bits.append("requires floor")
+		if entry.has("placeability"):
+			var placeability: Dictionary = Dictionary(entry.get("placeability", {}))
+			var reason: String = String(placeability.get("reason", "")).strip_edges()
+			if not reason.is_empty() and reason != "ok":
+				diagnostic_bits.append(reason)
+		if not diagnostic_bits.is_empty():
+			var diagnostic_label: Label = Label.new()
+			diagnostic_label.text = "Diagnostics: %s" % ", ".join(diagnostic_bits)
+			diagnostic_label.clip_text = true
+			diagnostic_label.add_theme_color_override("font_color", UI_COLOR_TEXT_DIM)
+			diagnostic_label.mouse_filter = Control.MOUSE_FILTER_IGNORE
+			text_stack.add_child(diagnostic_label)
+	card.pressed.connect(func() -> void:
+		_select_map_constructor_prefab(prefab_id)
+		_refresh_map_constructor_panels()
+	)
+	return card
+
 func _build_map_constructor_placed_object_rows() -> Array[Dictionary]:
 	if mission_manager_runtime == null or not mission_manager_runtime.has_method("get_map_constructor_placed_object_rows"):
 		return []
@@ -9911,18 +10121,10 @@ func _refresh_map_constructor_panels() -> void:
 			section_header.text = String(section.get("name", ""))
 			list.add_child(section_header)
 			for entry in section_entries:
-				var id: String = String(entry.get("id", ""))
-				var b: Button = Button.new()
-				b.text = "%s [%s] — %s\n%s\nhint: %s\n%s | %s" % [String(entry.get("display_name", entry.get("label", id))), id, String(entry.get("category", "")), String(entry.get("description", "")), String(entry.get("placement_hint", "")), ", ".join(PackedStringArray(entry.get("tags", []))), ", ".join(PackedStringArray(entry.get("system_roles", [])))]
-				b.toggle_mode = true
-				b.button_pressed = id == selected_map_constructor_prefab_id
-				if b.button_pressed:
+				var card: Button = _create_map_constructor_prefab_card(entry)
+				if card.button_pressed:
 					selected_visible = true
-				b.pressed.connect(func() -> void:
-					_select_map_constructor_prefab(id)
-					_refresh_map_constructor_panels()
-				)
-				list.add_child(b)
+				list.add_child(card)
 		for group_name in MAP_CONSTRUCTOR_PREFAB_CATEGORY_GROUP_ORDER:
 			var entries: Array = grouped_entries[group_name]
 			if entries.is_empty():
@@ -9931,21 +10133,10 @@ func _refresh_map_constructor_panels() -> void:
 			header.text = group_name
 			list.add_child(header)
 			for entry in entries:
-				var id: String = String(entry.get("id", ""))
-				var b: Button = Button.new()
-				var warning_text: String = ""
-				if bool(entry.get("is_destructive", false)) or bool(entry.get("is_expected_invalid_tool", false)) or bool(entry.get("can_have_links", false)):
-					warning_text = " ⚠"
-				b.text = "%s%s [%s] — %s\n%s\nhint: %s\n%s | %s" % [String(entry.get("display_name", entry.get("label", id))), warning_text, id, String(entry.get("category", "")), String(entry.get("description", "")), String(entry.get("placement_hint", "")), ", ".join(PackedStringArray(entry.get("tags", []))), ", ".join(PackedStringArray(entry.get("system_roles", [])))]
-				b.toggle_mode = true
-				b.button_pressed = id == selected_map_constructor_prefab_id
-				if b.button_pressed:
+				var card: Button = _create_map_constructor_prefab_card(entry)
+				if card.button_pressed:
 					selected_visible = true
-				b.pressed.connect(func() -> void:
-					_select_map_constructor_prefab(id)
-					_refresh_map_constructor_panels()
-				)
-				list.add_child(b)
+				list.add_child(card)
 		if not selected_visible and not selected_map_constructor_prefab_id.is_empty():
 			selected_map_constructor_prefab_id = ""
 			selected_map_constructor_wall_side = ""
