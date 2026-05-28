@@ -13687,7 +13687,8 @@ func _sync_map_constructor_overlay_visuals() -> void:
 		overlay_data["room_visual_preview"] = {
 			"walls": Array(room_visual_preset_preview.get("affected_walls", [])).duplicate(true),
 			"doors": Array(room_visual_preset_preview.get("affected_doors", [])).duplicate(true),
-			"terminals": Array(room_visual_preset_preview.get("affected_terminals", [])).duplicate(true)
+			"terminals": Array(room_visual_preset_preview.get("affected_terminals", [])).duplicate(true),
+			"floors": Array(room_visual_preset_preview.get("affected_floors", [])).duplicate(true)
 		}
 	if mission_manager_runtime != null and mission_manager_runtime.has_method("get_map_constructor_validation_issues"):
 		overlay_data["validation"] = Array(mission_manager_runtime.call("get_map_constructor_validation_issues"))

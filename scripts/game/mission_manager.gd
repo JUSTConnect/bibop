@@ -1947,6 +1947,13 @@ func get_visual_texture_asset_catalog() -> Dictionary:
 		{"id":"item_generic_marker","category":"item","display_name":"Item / Marker","description":"Generic item marker texture slot.","texture_path":"","atlas_region":Rect2i(0, 0, 0, 0),"fallback_style":"small_marker","fallback_color":Color(0.74, 0.84, 0.96, 0.95),"tags":["item"],"is_optional":true},
 		{"id":"overlay_constructor_debug","category":"overlay","display_name":"Overlay / Constructor","description":"Map constructor overlay slot.","texture_path":"","atlas_region":Rect2i(0, 0, 0, 0),"fallback_style":"wireframe","fallback_color":Color(0.44, 0.69, 0.97, 1.0),"tags":["overlay","debug"],"is_optional":true},
 		{"id":"floor_default","category":"floor","display_name":"Floor / Default","description":"Default floor texture slot.","texture_path":"","atlas_region":Rect2i(0, 0, 0, 0),"fallback_style":"diamond_fill","fallback_color":Color(0.13, 0.17, 0.2, 0.97),"tags":["floor"],"is_optional":true},
+		{"id":"floor_clean_lab","category":"floor","display_name":"Floor / Clean Lab","description":"Clean lab floor texture slot.","texture_path":"","atlas_region":Rect2i(0, 0, 0, 0),"fallback_style":"clean","fallback_color":Color(0.18, 0.23, 0.26, 0.97),"tags":["floor","clean"],"is_optional":true},
+		{"id":"floor_dark_service","category":"floor","display_name":"Floor / Dark Service","description":"Dark service floor texture slot.","texture_path":"","atlas_region":Rect2i(0, 0, 0, 0),"fallback_style":"dark","fallback_color":Color(0.1, 0.12, 0.15, 0.97),"tags":["floor","dark"],"is_optional":true},
+		{"id":"floor_hazard","category":"floor","display_name":"Floor / Hazard","description":"Hazard floor texture slot.","texture_path":"","atlas_region":Rect2i(0, 0, 0, 0),"fallback_style":"hazard","fallback_color":Color(0.2, 0.16, 0.12, 0.97),"tags":["floor","hazard"],"is_optional":true},
+		{"id":"floor_power","category":"floor","display_name":"Floor / Power","description":"Power floor texture slot.","texture_path":"","atlas_region":Rect2i(0, 0, 0, 0),"fallback_style":"power","fallback_color":Color(0.16, 0.19, 0.13, 0.97),"tags":["floor","power"],"is_optional":true},
+		{"id":"floor_damaged","category":"floor","display_name":"Floor / Damaged","description":"Damaged floor texture slot.","texture_path":"","atlas_region":Rect2i(0, 0, 0, 0),"fallback_style":"damaged","fallback_color":Color(0.2, 0.12, 0.13, 0.97),"tags":["floor","damaged"],"is_optional":true},
+		{"id":"floor_reinforced","category":"floor","display_name":"Floor / Reinforced","description":"Reinforced floor texture slot.","texture_path":"","atlas_region":Rect2i(0, 0, 0, 0),"fallback_style":"reinforced","fallback_color":Color(0.12, 0.15, 0.19, 0.97),"tags":["floor","reinforced"],"is_optional":true},
+		{"id":"floor_diagnostic","category":"floor","display_name":"Floor / Diagnostic","description":"Diagnostic floor texture slot.","texture_path":"","atlas_region":Rect2i(0, 0, 0, 0),"fallback_style":"diagnostic","fallback_color":Color(0.11, 0.16, 0.23, 0.97),"tags":["floor","diagnostic"],"is_optional":true},
 		{"id":"diagnostic_missing_texture","category":"diagnostic","display_name":"Diagnostic / Missing Texture","description":"Diagnostic placeholder for missing visual texture.","texture_path":"","atlas_region":Rect2i(0, 0, 0, 0),"fallback_style":"warning_marker","fallback_color":Color(1.0, 0.79, 0.21, 0.98),"tags":["diagnostic","missing"],"is_optional":true}
 	]
 	return {"ok": true, "assets": assets, "message": "Visual texture asset catalog ready."}
@@ -2748,6 +2755,78 @@ func get_map_constructor_wall_material_overrides() -> Dictionary:
 		rows.append(Dictionary(_map_constructor_wall_material_overrides.get(String(key_variant), {})).duplicate(true))
 	return {"ok": true, "message": "OK", "overrides": rows}
 
+func set_map_constructor_floor_material(cell: Vector2i, material_id: String) -> Dictionary:
+	if not _is_task_test_constructor_context():
+		return {"ok": false, "message": "Floor material overrides are available only in TASK TEST constructor mode."}
+	if not _is_valid_grid_cell(cell):
+		return {"ok": false, "message": "Cell is out of bounds."}
+	var tile_type: int = int(grid_manager.call("get_tile", cell))
+	if not _is_floor_like_constructor_tile(tile_type):
+		return {"ok": false, "message": "Only floor cells can receive floor material overrides."}
+	var normalized_material_id: String = material_id.to_lower().strip_edges()
+	if not _is_known_map_constructor_floor_material_id(normalized_material_id):
+		return {"ok": false, "message": "Unknown floor material id: %s" % material_id}
+	var key: String = _serialize_cell_key(cell)
+	var entry: Dictionary = {"cell": cell, "material_id": normalized_material_id}
+	_map_constructor_floor_material_overrides[key] = entry
+	_record_map_constructor_change("floor_material", {"cell":cell, "summary":"Set floor material %s at %s" % [normalized_material_id, _format_map_constructor_cell(cell)], "details":{"material_id":normalized_material_id}})
+	return {"ok": true, "message": "Floor material applied.", "override": entry}
+
+func clear_map_constructor_floor_material(cell: Vector2i) -> Dictionary:
+	if not _is_task_test_constructor_context():
+		return {"ok": false, "message": "Floor material overrides are available only in TASK TEST constructor mode."}
+	var key: String = _serialize_cell_key(cell)
+	if not _map_constructor_floor_material_overrides.has(key):
+		return {"ok": false, "message": "No floor material override to clear."}
+	_map_constructor_floor_material_overrides.erase(key)
+	_record_map_constructor_change("floor_material_clear", {"cell":cell, "summary":"Cleared floor material at %s" % _format_map_constructor_cell(cell)})
+	return {"ok": true, "message": "Floor material override cleared."}
+
+func get_map_constructor_floor_material(cell: Vector2i) -> Dictionary:
+	var key: String = _serialize_cell_key(cell)
+	if not _map_constructor_floor_material_overrides.has(key):
+		return {"ok": false, "message": "No floor material override.", "override": {}}
+	return {"ok": true, "message": "OK", "override": Dictionary(_map_constructor_floor_material_overrides.get(key, {})).duplicate(true)}
+
+func get_map_constructor_floor_material_overrides() -> Dictionary:
+	if not _is_task_test_constructor_context():
+		return {"ok": false, "message": "Floor material overrides are available only in TASK TEST constructor mode.", "overrides": []}
+	var rows: Array[Dictionary] = []
+	for key_variant in _map_constructor_floor_material_overrides.keys():
+		rows.append(Dictionary(_map_constructor_floor_material_overrides.get(String(key_variant), {})).duplicate(true))
+	return {"ok": true, "message": "OK", "overrides": rows}
+
+func get_map_constructor_floor_material_for_cell(cell: Vector2i) -> Dictionary:
+	var override_row: Dictionary = Dictionary(get_map_constructor_floor_material(cell).get("override", {}))
+	if override_row.is_empty():
+		return {"ok": false, "message": "No floor material override.", "override": {}, "material": {}}
+	var material_id: String = String(override_row.get("material_id", "")).to_lower().strip_edges()
+	for row_variant in Array(get_map_constructor_floor_material_catalog().get("materials", [])):
+		var row: Dictionary = Dictionary(row_variant)
+		if String(row.get("id", "")).to_lower().strip_edges() == material_id:
+			return {"ok": true, "message": "OK", "override": override_row.duplicate(true), "material": row.duplicate(true)}
+	return {"ok": false, "message": "Unknown floor material id: %s" % material_id, "override": override_row.duplicate(true), "material": {}}
+
+func _resolve_floor_material_id_for_room_visual_preset(preset: Dictionary) -> String:
+	var floor_style: String = String(preset.get("floor_style", "")).to_lower().strip_edges()
+	match floor_style:
+		"polished":
+			return "clean_lab_floor"
+		"grit":
+			return "dark_service_floor"
+		"striped_hazard":
+			return "hazard_floor"
+		"damaged":
+			return "damaged_floor"
+		"service_grid":
+			return "diagnostic_floor"
+		"reinforced_plate":
+			return "reinforced_floor"
+		"mixed_grid":
+			return "default_floor"
+		_:
+			return "default_floor"
+
 func get_room_visual_preset_catalog() -> Dictionary:
 	var presets: Array[Dictionary] = [
 		{"id":"clean_lab","display_name":"Clean Lab","description":"Sterile lab look with neutral access cues.","wall_material_id":"clean_lab","door_visual_hint":"secure_clean","terminal_visual_hint":"diagnostic_clean","floor_style":"polished","overlay_tone":"cool_white","tags":["clean","lab"],"is_default":true},
@@ -3005,7 +3084,7 @@ func _map_constructor_is_item_like_world_object(object_data: Dictionary) -> bool
 
 func preview_room_visual_preset(preset_id: String, options: Dictionary = {}) -> Dictionary:
 	var scope: String = String(options.get("scope", "task_test_room")).strip_edges()
-	var result: Dictionary = {"ok": false, "preset_id": preset_id, "scope": scope, "affected_walls": [], "affected_doors": [], "affected_terminals": [], "summary": {}, "can_apply": false, "message": "Preview failed."}
+	var result: Dictionary = {"ok": false, "preset_id": preset_id, "scope": scope, "affected_walls": [], "affected_doors": [], "affected_terminals": [], "affected_floors": [], "summary": {}, "can_apply": false, "message": "Preview failed."}
 	if not _is_task_test_constructor_context():
 		result["message"] = "Room visual presets are available only in TASK TEST constructor mode."
 		return result
@@ -3023,9 +3102,12 @@ func preview_room_visual_preset(preset_id: String, options: Dictionary = {}) -> 
 	var include_walls: bool = bool(options.get("include_walls", true))
 	var include_doors: bool = bool(options.get("include_doors", true))
 	var include_terminals: bool = bool(options.get("include_terminals", true))
+	var include_floors: bool = bool(options.get("include_floors", true))
 	var walls: Array[Dictionary] = []
 	var doors: Array[Dictionary] = []
 	var terminals: Array[Dictionary] = []
+	var floors: Array[Dictionary] = []
+	var floor_material_id: String = _resolve_floor_material_id_for_room_visual_preset(preset)
 	if include_walls and grid_manager != null and grid_manager.has_method("get_width") and grid_manager.has_method("get_height") and grid_manager.has_method("get_tile"):
 		var width: int = int(grid_manager.call("get_width"))
 		var height: int = int(grid_manager.call("get_height"))
@@ -3043,6 +3125,9 @@ func preview_room_visual_preset(preset_id: String, options: Dictionary = {}) -> 
 						continue
 					var current_material_id: String = String(get_map_constructor_wall_material(floor_cell, side).get("override", {}).get("material_id", "default_metal"))
 					walls.append({"cell": floor_cell, "side": side, "current_material_id": current_material_id, "new_material_id": material_id})
+				if include_floors and _is_floor_like_constructor_tile(tile_type):
+					var current_floor_material_id: String = String(get_map_constructor_floor_material(cell).get("override", {}).get("material_id", "default_floor"))
+					floors.append({"cell": cell, "current_material_id": current_floor_material_id, "new_material_id": floor_material_id})
 	if include_doors or include_terminals:
 		for object_data in mission_world_objects:
 			var row: Dictionary = Dictionary(object_data)
@@ -3053,20 +3138,21 @@ func preview_room_visual_preset(preset_id: String, options: Dictionary = {}) -> 
 				doors.append({"object_id": object_id, "cell": object_cell, "current_visual_hint": String(Dictionary(map_constructor_door_visual_preset_overrides.get(object_id, {})).get("visual_hint", "")), "new_visual_hint": String(preset.get("door_visual_hint", ""))})
 			if include_terminals and (object_type.contains("terminal") or String(row.get("object_group", "")).to_lower() == "terminal"):
 				terminals.append({"object_id": object_id, "cell": object_cell, "current_visual_hint": String(Dictionary(map_constructor_terminal_visual_preset_overrides.get(object_id, {})).get("visual_hint", "")), "new_visual_hint": String(preset.get("terminal_visual_hint", ""))})
-	var can_apply: bool = _is_known_map_constructor_wall_material_id(material_id) and (not walls.is_empty() or not doors.is_empty() or not terminals.is_empty())
+	var can_apply: bool = _is_known_map_constructor_wall_material_id(material_id) and _is_known_map_constructor_floor_material_id(floor_material_id) and (not walls.is_empty() or not doors.is_empty() or not terminals.is_empty() or not floors.is_empty())
 	result["ok"] = true
 	result["affected_walls"] = walls
 	result["affected_doors"] = doors
 	result["affected_terminals"] = terminals
+	result["affected_floors"] = floors
 	result["can_apply"] = can_apply
-	result["summary"] = {"affected_walls": walls.size(), "affected_doors": doors.size(), "affected_terminals": terminals.size()}
+	result["summary"] = {"affected_walls": walls.size(), "affected_doors": doors.size(), "affected_terminals": terminals.size(), "affected_floors": floors.size()}
 	result["message"] = "Preview ready." if can_apply else "Preview has no applicable targets or preset wall material is unknown."
 	return result
 
 func apply_room_visual_preset(preset_id: String, options: Dictionary = {}) -> Dictionary:
 	var preview: Dictionary = preview_room_visual_preset(preset_id, options)
 	if not bool(preview.get("ok", false)) or not bool(preview.get("can_apply", false)):
-		return {"ok": false, "preset_id": preset_id, "applied_walls": 0, "applied_doors": 0, "applied_terminals": 0, "message": String(preview.get("message", "Cannot apply preset."))}
+		return {"ok": false, "preset_id": preset_id, "applied_walls": 0, "applied_doors": 0, "applied_terminals": 0, "applied_floors": 0, "message": String(preview.get("message", "Cannot apply preset."))}
 	var applied_walls: int = 0
 	for wall_row_variant in Array(preview.get("affected_walls", [])):
 		var wall_row: Dictionary = Dictionary(wall_row_variant)
@@ -3092,7 +3178,20 @@ func apply_room_visual_preset(preset_id: String, options: Dictionary = {}) -> Di
 			continue
 		map_constructor_terminal_visual_preset_overrides[terminal_object_id] = {"preset_id": String(preset_id).to_lower().strip_edges(), "visual_hint": String(terminal_row.get("new_visual_hint", "")), "created_by_room_visual_preset": true}
 		applied_terminals += 1
-	return {"ok": true, "preset_id": preset_id, "applied_walls": applied_walls, "applied_doors": applied_doors, "applied_terminals": applied_terminals, "message": "Room visual preset applied (runtime-only)."}
+	var applied_floors: int = 0
+	for floor_row_variant in Array(preview.get("affected_floors", [])):
+		var floor_row: Dictionary = Dictionary(floor_row_variant)
+		var floor_cell: Vector2i = Vector2i(floor_row.get("cell", Vector2i(-1, -1)))
+		var floor_material_id: String = String(floor_row.get("new_material_id", "default_floor"))
+		var floor_result: Dictionary = set_map_constructor_floor_material(floor_cell, floor_material_id)
+		if bool(floor_result.get("ok", false)):
+			var floor_key: String = _serialize_cell_key(floor_cell)
+			var floor_override: Dictionary = Dictionary(_map_constructor_floor_material_overrides.get(floor_key, {}))
+			floor_override["created_by_room_visual_preset"] = true
+			floor_override["room_visual_preset_id"] = String(preset_id).to_lower().strip_edges()
+			_map_constructor_floor_material_overrides[floor_key] = floor_override
+			applied_floors += 1
+	return {"ok": true, "preset_id": preset_id, "applied_walls": applied_walls, "applied_doors": applied_doors, "applied_terminals": applied_terminals, "applied_floors": applied_floors, "message": "Room visual preset applied (runtime-only)."}
 
 func clear_room_visual_preset_overrides(options: Dictionary = {}) -> Dictionary:
 	var cleared_walls: int = 0
@@ -3103,11 +3202,18 @@ func clear_room_visual_preset_overrides(options: Dictionary = {}) -> Dictionary:
 		if bool(row.get("created_by_room_visual_preset", false)):
 			_map_constructor_wall_material_overrides.erase(key)
 			cleared_walls += 1
+	var cleared_floors: int = 0
+	for floor_key_variant in _map_constructor_floor_material_overrides.keys():
+		var floor_key: String = String(floor_key_variant)
+		var floor_row: Dictionary = Dictionary(_map_constructor_floor_material_overrides.get(floor_key, {}))
+		if bool(floor_row.get("created_by_room_visual_preset", false)):
+			_map_constructor_floor_material_overrides.erase(floor_key)
+			cleared_floors += 1
 	var cleared_doors: int = map_constructor_door_visual_preset_overrides.size()
 	var cleared_terminals: int = map_constructor_terminal_visual_preset_overrides.size()
 	map_constructor_door_visual_preset_overrides.clear()
 	map_constructor_terminal_visual_preset_overrides.clear()
-	return {"ok": true, "cleared_walls": cleared_walls, "cleared_doors": cleared_doors, "cleared_terminals": cleared_terminals, "message": "Room visual preset overrides cleared."}
+	return {"ok": true, "cleared_walls": cleared_walls, "cleared_floors": cleared_floors, "cleared_doors": cleared_doors, "cleared_terminals": cleared_terminals, "message": "Room visual preset overrides cleared."}
 
 func _map_constructor_make_link_target(target_id: String, label: String, target_kind: String, target_cell: Vector2i, status: String, reason: String) -> Dictionary:
 	return {"id": target_id, "label": label, "kind": target_kind, "cell": target_cell, "status": status, "reason": reason}

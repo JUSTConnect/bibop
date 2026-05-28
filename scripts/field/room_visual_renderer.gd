@@ -500,6 +500,15 @@ func draw_map_constructor_visual_overlay_passes() -> void:
 			if terminal_cell.x < 0 or terminal_cell.y < 0:
 				continue
 			draw_circle(grid_to_iso(terminal_cell) + Vector2(5.0, -9.0), 2.8, Color(0.44, 0.9, 1.0, 0.88))
+		for floor_row_variant in Array(room_visual_preview.get("floors", [])):
+			var floor_row: Dictionary = Dictionary(floor_row_variant)
+			var floor_cell: Vector2i = Vector2i(floor_row.get("cell", Vector2i(-1, -1)))
+			if floor_cell.x < 0 or floor_cell.y < 0:
+				continue
+			var floor_poly: PackedVector2Array = get_iso_inset_diamond_points(floor_cell, iso_floor_visual_inset + 5.0)
+			for floor_edge_index in range(floor_poly.size()):
+				var floor_next_index: int = (floor_edge_index + 1) % floor_poly.size()
+				draw_line(floor_poly[floor_edge_index], floor_poly[floor_next_index], Color(0.56, 0.78, 0.96, 0.48), 1.15)
 	if bool(map_constructor_overlay_prefs.get("show_multi_select", true)):
 		for row_variant in multi_select:
 			var row: Dictionary = Dictionary(row_variant)
@@ -1648,6 +1657,17 @@ func draw_iso_floor_prototype() -> void:
 			var profile_key: String = get_iso_floor_visual_profile_key_for_cell(cell)
 			var profile: Dictionary = get_iso_floor_visual_profile(profile_key)
 			var fill_color: Color = _get_color_from_dict(profile, "fill", get_floor_prototype_color(tile_type, cell))
+			var mission_manager: Node = get_mission_manager_ref()
+			if mission_manager != null and mission_manager.has_method("get_map_constructor_floor_material_for_cell"):
+				var floor_material_result: Dictionary = Dictionary(mission_manager.call("get_map_constructor_floor_material_for_cell", cell))
+				if bool(floor_material_result.get("ok", false)):
+					var floor_material: Dictionary = Dictionary(floor_material_result.get("material", {}))
+					fill_color = Color(floor_material.get("fallback_color", fill_color))
+					var floor_texture_asset_id: String = String(floor_material.get("texture_asset_id", "")).strip_edges()
+					if not floor_texture_asset_id.is_empty():
+						var floor_asset_drawn: bool = draw_optional_visual_texture_asset(floor_texture_asset_id, cell, "", {"visual_center": grid_to_iso(cell)})
+						if floor_asset_drawn:
+							continue
 			draw_colored_polygon(diamond_points, fill_color)
 			var outline_color: Color = _get_color_from_dict(profile, "outline", Color(0.21, 0.33, 0.39, 0.85))
 			var panel_color: Color = _get_color_from_dict(profile, "panel", Color(0.18, 0.2, 0.24, 0.4))
