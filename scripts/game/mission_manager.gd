@@ -4302,6 +4302,8 @@ func get_map_constructor_validation_issues() -> Array[Dictionary]:
 	# validate explicit cell_items map
 	for cell_variant in cell_items.keys():
 		var item_cell: Vector2i = _deserialize_cell_variant(cell_variant)
+		if item_cell.x >= 0 and item_cell.y >= 0 and _is_map_constructor_wall_cell(item_cell):
+			issues.append(_make_map_constructor_issue("pickup_cell_item_on_wall_%d_%d" % [item_cell.x, item_cell.y], "warning", "Pickup object overlaps blocked wall cell.", item_cell, source_name, "item", "", "", true))
 		for item_variant in Array(cell_items.get(cell_variant, [])):
 			var item_data: Dictionary = Dictionary(item_variant)
 			var item_id: String = String(item_data.get("id", "")).strip_edges()
@@ -10980,13 +10982,14 @@ func get_room_visual_preset_summary() -> Dictionary:
 	}
 
 func get_map_constructor_object_grounding_summary() -> Dictionary:
-	var summary: Dictionary = {"object_count": 0, "floor_standing_count": 0, "wall_mounted_count": 0, "door_insert_count": 0, "floor_pickup_count": 0, "unknown_grounding_count": 0, "missing_anchor_count": 0, "missing_wall_mount_count": 0}
+	var summary: Dictionary = {"object_count": 0, "item_count": 0, "floor_standing_count": 0, "wall_mounted_count": 0, "door_insert_count": 0, "floor_pickup_count": 0, "unknown_grounding_count": 0, "missing_anchor_count": 0, "missing_wall_mount_count": 0}
 	for object_variant in mission_world_objects:
 		var data: Dictionary = Dictionary(object_variant)
-		if _map_constructor_entity_kind(data) == "item":
-			continue
 		summary["object_count"] = int(summary.get("object_count", 0)) + 1
 		var object_type: String = String(data.get("object_type", data.get("type", ""))).to_lower().strip_edges()
+		var entity_kind: String = String(_map_constructor_entity_kind(data)).to_lower().strip_edges()
+		if entity_kind == "item":
+			summary["item_count"] = int(summary.get("item_count", 0)) + 1
 		var placement_mode: String = String(data.get("placement_mode", "")).to_lower().strip_edges()
 		var anchor: Vector2i = _deserialize_cell_variant(data.get("anchor_floor_cell", data.get("position", Vector2i(-1, -1))))
 		if anchor.x < 0 or anchor.y < 0:
@@ -10998,7 +11001,7 @@ func get_map_constructor_object_grounding_summary() -> Dictionary:
 				summary["missing_wall_mount_count"] = int(summary.get("missing_wall_mount_count", 0)) + 1
 		elif object_type.contains("door") or object_type.contains("gate"):
 			summary["door_insert_count"] = int(summary.get("door_insert_count", 0)) + 1
-		elif object_type.contains("key") or object_type.contains("kit") or object_type.contains("card") or object_type.contains("code"):
+		elif entity_kind == "item" or object_type.contains("key") or object_type.contains("kit") or object_type.contains("card") or object_type.contains("code") or object_type.contains("fuse") or object_type.contains("item") or String(data.get("item_type", "")).strip_edges() != "":
 			summary["floor_pickup_count"] = int(summary.get("floor_pickup_count", 0)) + 1
 		else:
 			summary["floor_standing_count"] = int(summary.get("floor_standing_count", 0)) + 1
