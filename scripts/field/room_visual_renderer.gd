@@ -190,6 +190,19 @@ func grid_to_iso(cell: Vector2i) -> Vector2:
 	var iso_y: float = float(cell.x + cell.y) * half_size.y
 	return iso_origin + Vector2(iso_x, iso_y)
 
+func get_object_visual_center(cell: Vector2i, object_data: Dictionary = {}) -> Vector2:
+	# Visual-only helper for object overlay markers.
+	# Keeps object anchors deterministic and independent of gameplay systems.
+	var center: Vector2 = grid_to_iso(cell)
+	var object_type: String = String(object_data.get("type", "")).to_lower()
+	var object_kind: String = String(object_data.get("kind", "")).to_lower()
+	var object_visual_hint: String = String(object_data.get("visual_hint", "")).to_lower()
+	var object_id: String = String(object_data.get("id", "")).to_lower()
+	var hint_blob: String = "%s %s %s %s" % [object_type, object_kind, object_visual_hint, object_id]
+	if hint_blob.contains("wall") or hint_blob.contains("door") or hint_blob.contains("terminal"):
+		return center + Vector2(0.0, -6.0)
+	return center
+
 func iso_to_grid(iso_position: Vector2) -> Vector2i:
 	# Converts visual isometric position back to an approximate gameplay cell.
 	# This is intended for future selection/click helpers, not movement logic.
