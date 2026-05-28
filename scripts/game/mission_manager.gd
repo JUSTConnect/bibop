@@ -185,6 +185,13 @@ func get_mission_title(mission_id: String) -> String:
 	var catalog := MissionContentCatalogRef.new()
 	return catalog.get_mission_title(mission_id)
 
+func get_mission_display_name(mission_id: String) -> String:
+	var catalog := MissionContentCatalogRef.new()
+	return catalog.get_mission_display_name(mission_id)
+
+func get_current_mission_id() -> String:
+	return current_mission_id
+
 func get_mission_objective_hint(mission_id: String) -> String:
 	var catalog := MissionContentCatalogRef.new()
 	return catalog.get_mission_objective_hint(mission_id)

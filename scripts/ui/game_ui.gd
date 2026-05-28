@@ -4540,7 +4540,7 @@ func _apply_runtime_hud_layout() -> void:
 	mission_goal_value_label.clip_text = true
 	mission_goal_value_label.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
 	mission_goal_value_label.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-	mission_goal_value_label.text = "Mission 1: pick up the key, open the door, reach the exit."
+	mission_goal_value_label.text = _get_runtime_mission_objective_text()
 	objective_margin.add_child(mission_goal_value_label)
 
 	var right_x: float = viewport.x - sidebar_width - margin
@@ -4616,6 +4616,61 @@ func _apply_runtime_hud_layout() -> void:
 	root.add_child(world_actions_panel)
 	runtime_world_actions_panel = world_actions_panel
 	_refresh_map_constructor_panels()
+
+
+func _refresh_runtime_mission_objective_label() -> void:
+	if mission_goal_value_label != null:
+		mission_goal_value_label.text = _get_runtime_mission_objective_text()
+
+
+func _get_runtime_mission_objective_text() -> String:
+	var mission_index: int = _get_runtime_active_mission_index()
+	var mission_id: String = "mission_%d" % mission_index
+	var display_name: String = ""
+	var objective_hint: String = ""
+	if mission_manager_runtime != null and is_instance_valid(mission_manager_runtime):
+		if mission_manager_runtime.has_method("get_mission_display_name"):
+			display_name = String(mission_manager_runtime.call("get_mission_display_name", mission_id)).strip_edges()
+		elif mission_manager_runtime.has_method("get_mission_title"):
+			display_name = String(mission_manager_runtime.call("get_mission_title", mission_id)).strip_edges()
+		if mission_manager_runtime.has_method("get_mission_objective_hint"):
+			objective_hint = String(mission_manager_runtime.call("get_mission_objective_hint", mission_id)).strip_edges()
+	if not display_name.is_empty() and not objective_hint.is_empty() and not objective_hint.contains("legacy BipobController logic"):
+		return _validate_runtime_mission_objective_text(mission_index, "%s: %s" % [display_name, objective_hint])
+	if mission_index == 1:
+		return _validate_runtime_mission_objective_text(mission_index, "Mission 1: pick up the key, open the door, reach the exit.")
+	if mission_index == 10:
+		if not display_name.is_empty() and not objective_hint.is_empty():
+			return _validate_runtime_mission_objective_text(mission_index, "%s: %s" % [display_name, objective_hint])
+		return _validate_runtime_mission_objective_text(mission_index, "TASK TEST: Use this mission to validate mechanics and debug systems.")
+	return _validate_runtime_mission_objective_text(mission_index, "Mission %d: objective unavailable." % mission_index)
+
+
+func _get_runtime_active_mission_index() -> int:
+	if bipob != null:
+		return maxi(1, int(bipob.current_mission_index))
+	if mission_manager_runtime != null and is_instance_valid(mission_manager_runtime):
+		var mission_id: String = ""
+		if mission_manager_runtime.has_method("get_current_mission_id"):
+			mission_id = String(mission_manager_runtime.call("get_current_mission_id"))
+		elif _object_has_property(mission_manager_runtime, "current_mission_id"):
+			mission_id = String(mission_manager_runtime.get("current_mission_id"))
+		if mission_id.begins_with("mission_"):
+			var index_text: String = mission_id.trim_prefix("mission_")
+			if index_text.is_valid_int():
+				return maxi(1, index_text.to_int())
+		if mission_manager_runtime.has_method("get_current_mission_index"):
+			return maxi(1, int(mission_manager_runtime.call("get_current_mission_index")))
+	return maxi(1, int(tasks_selected_mission_id))
+
+
+func _validate_runtime_mission_objective_text(mission_index: int, objective_text: String) -> String:
+	if mission_index == 10:
+		if objective_text.contains("Mission 1"):
+			push_warning("Runtime HUD objective for mission_10 must not contain Mission 1.")
+		if not objective_text.contains("TASK TEST") and not objective_text.contains("validate mechanics"):
+			push_warning("Runtime HUD objective for mission_10 should mention TASK TEST or validate mechanics.")
+	return objective_text
 
 
 func _create_runtime_stats_strip() -> Control:
@@ -12173,6 +12228,7 @@ func update_status() -> void:
 		runtime_energy_label.text = _get_runtime_energy_text()
 	if runtime_actions_label != null:
 		runtime_actions_label.text = _get_runtime_actions_text()
+	_refresh_runtime_mission_objective_label()
 
 	var key_text := "no"
 	if bipob.has_key:
