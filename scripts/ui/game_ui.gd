@@ -4350,9 +4350,15 @@ func _get_runtime_bottom_panel_height() -> float:
 
 func _get_map_constructor_palette_rect() -> Rect2:
 	var margin: float = _get_runtime_margin()
-	var sidebar_width: float = _get_runtime_sidebar_width_adaptive()
 	var viewport: Vector2 = _get_viewport_size()
-	var right_x: float = viewport.x - sidebar_width - margin
+	var preferred_width: float = _get_runtime_sidebar_width_adaptive()
+	var available_width: float = maxf(viewport.x - margin * 2.0, 1.0)
+	var minimum_usable_width: float = minf(280.0, available_width)
+	var sidebar_width: float = clampf(preferred_width, minimum_usable_width, available_width)
+	var right_x: float = clampf(viewport.x - sidebar_width - margin, margin, maxf(margin, viewport.x - margin - sidebar_width))
+	if right_x + sidebar_width > viewport.x - margin:
+		right_x = maxf(margin, viewport.x - margin - sidebar_width)
+		sidebar_width = maxf(1.0, viewport.x - margin - right_x)
 
 	var storage_height: float = RUNTIME_STORAGE_PANEL_COLLAPSED_SIZE.y
 	if not runtime_storage_panel_collapsed:
@@ -4371,6 +4377,26 @@ func _get_map_constructor_palette_rect() -> Rect2:
 		height = available_height
 
 	return Rect2(Vector2(right_x, top_y), Vector2(sidebar_width, height))
+
+
+func _get_map_constructor_bottom_inspector_rect() -> Rect2:
+	var margin: float = _get_runtime_margin()
+	var viewport: Vector2 = _get_viewport_size()
+	var palette_rect: Rect2 = _get_map_constructor_palette_rect()
+	var height: float = clampf(_get_runtime_bottom_panel_height(), 150.0, 190.0)
+	var left: float = margin
+	var right: float = clampf(palette_rect.position.x - margin, left + 1.0, viewport.x - margin)
+	var bottom: float = viewport.y - margin
+	var top: float = maxf(margin, bottom - height)
+	return Rect2(Vector2(left, top), Vector2(maxf(right - left, 1.0), maxf(bottom - top, 1.0)))
+
+
+func _set_runtime_bottom_hud_visible(visible_state: bool) -> void:
+	if runtime_hud_root == null or not is_instance_valid(runtime_hud_root):
+		return
+	var bottom_left: Control = runtime_hud_root.get_node_or_null("RuntimeBottomLeft") as Control
+	if bottom_left != null:
+		bottom_left.visible = visible_state
 
 
 func _safe_reparent_control(control: Control, new_parent: Node) -> void:
@@ -9127,6 +9153,7 @@ func _toggle_map_constructor_mode() -> void:
 	if bipob != null:
 		bipob.map_constructor_input_blocked = true
 	show_hint("Map Constructor Mode")
+	_set_runtime_bottom_hud_visible(false)
 	_refresh_map_constructor_panels()
 
 func _deactivate_map_constructor_mode() -> void:
@@ -9153,6 +9180,7 @@ func _deactivate_map_constructor_mode() -> void:
 	if runtime_map_constructor_validation_overlay_control != null and is_instance_valid(runtime_map_constructor_validation_overlay_control):
 		runtime_map_constructor_validation_overlay_control.queue_free()
 	runtime_map_constructor_validation_overlay_control = null
+	_set_runtime_bottom_hud_visible(true)
 
 	_clear_map_constructor_preview_cell()
 	_clear_map_constructor_wall_mounted_selection()
@@ -10077,7 +10105,9 @@ func _refresh_map_constructor_panels() -> void:
 	if runtime_map_constructor_palette_panel != null and is_instance_valid(runtime_map_constructor_palette_panel):
 		runtime_map_constructor_palette_panel.queue_free()
 	if not map_constructor_mode_active:
+		_set_runtime_bottom_hud_visible(true)
 		return
+	_set_runtime_bottom_hud_visible(false)
 	if not ["map_settings", "objects", "warnings"].has(map_constructor_active_tab):
 		map_constructor_active_tab = "map_settings"
 	runtime_map_constructor_palette_panel = PanelContainer.new()
@@ -11970,6 +12000,11 @@ func _show_map_constructor_inspector(cell: Vector2i, preferred_entity_kind: Stri
 	if runtime_map_constructor_inspector_panel != null and is_instance_valid(runtime_map_constructor_inspector_panel):
 		runtime_map_constructor_inspector_panel.queue_free()
 	runtime_map_constructor_inspector_panel = null
+	if not map_constructor_mode_active:
+		_set_runtime_bottom_hud_visible(true)
+		return
+	_set_runtime_bottom_hud_visible(false)
+	_ensure_runtime_hud_root()
 	if mission_manager_runtime == null:
 		return
 	var entity_info: Dictionary = {}
@@ -11978,7 +12013,12 @@ func _show_map_constructor_inspector(cell: Vector2i, preferred_entity_kind: Stri
 	if entity_info.is_empty() and mission_manager_runtime.has_method("get_map_constructor_editable_entity_at_cell"):
 		entity_info = mission_manager_runtime.call("get_map_constructor_editable_entity_at_cell", cell)
 	if not bool(entity_info.get("ok", false)):
-		_clear_map_constructor_wall_mounted_selection(); _clear_map_constructor_link_target(); return
+		selected_map_constructor_entity_kind = ""
+		selected_map_constructor_entity_id = ""
+		selected_map_constructor_entity_cell = Vector2i(-1, -1)
+		_clear_map_constructor_wall_mounted_selection()
+		_clear_map_constructor_link_target()
+		return
 	var entity_kind: String = _safe_ui_string(entity_info.get("entity_kind", "world_object"), "world_object")
 	var entity_id: String = _safe_ui_string(entity_info.get("id", ""))
 	var data: Dictionary = {}
@@ -11989,12 +12029,44 @@ func _show_map_constructor_inspector(cell: Vector2i, preferred_entity_kind: Stri
 	selected_map_constructor_entity_id = entity_id
 	selected_map_constructor_entity_cell = Vector2i(entity_info.get("cell", cell))
 	var type_group: String = _safe_ui_string(mission_manager_runtime.call("get_map_constructor_entity_type_group", entity_kind, entity_id), "generic") if mission_manager_runtime.has_method("get_map_constructor_entity_type_group") else "generic"
-	var panel := PanelContainer.new(); panel.position = Vector2(20, 360); panel.size = Vector2(430, 460)
+	var panel := PanelContainer.new()
+	var inspector_rect: Rect2 = _get_map_constructor_bottom_inspector_rect()
+	panel.position = inspector_rect.position
+	panel.size = inspector_rect.size
+	panel.custom_minimum_size = inspector_rect.size
 	panel.z_index = Z_MAP_CONSTRUCTOR_UI
 	panel.z_as_relative = false
 	panel.add_theme_stylebox_override("panel", _make_panel_style(UI_COLOR_PANEL_DARK, UI_COLOR_BORDER, 1, 8))
-	var scroll := ScrollContainer.new(); scroll.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT); panel.add_child(scroll)
-	var v := VBoxContainer.new(); v.add_theme_constant_override("separation", 8); scroll.add_child(v)
+	var margin := MarginContainer.new()
+	margin.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
+	margin.add_theme_constant_override("margin_left", 10)
+	margin.add_theme_constant_override("margin_right", 10)
+	margin.add_theme_constant_override("margin_top", 8)
+	margin.add_theme_constant_override("margin_bottom", 8)
+	panel.add_child(margin)
+	var inspector_stack := VBoxContainer.new()
+	inspector_stack.add_theme_constant_override("separation", 6)
+	inspector_stack.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	inspector_stack.size_flags_vertical = Control.SIZE_EXPAND_FILL
+	margin.add_child(inspector_stack)
+	var header_label := Label.new()
+	header_label.text = "Selected %s: %s" % [entity_kind, entity_id]
+	header_label.clip_text = true
+	header_label.add_theme_color_override("font_color", UI_COLOR_ACCENT)
+	header_label.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	inspector_stack.add_child(header_label)
+	var scroll := ScrollContainer.new()
+	scroll.horizontal_scroll_mode = ScrollContainer.SCROLL_MODE_DISABLED
+	scroll.vertical_scroll_mode = ScrollContainer.SCROLL_MODE_AUTO
+	scroll.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	scroll.size_flags_vertical = Control.SIZE_EXPAND_FILL
+	inspector_stack.add_child(scroll)
+	var v := VBoxContainer.new()
+	v.add_theme_constant_override("separation", 8)
+	v.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	v.size_flags_vertical = Control.SIZE_SHRINK_BEGIN
+	v.custom_minimum_size = Vector2(maxf(inspector_rect.size.x - 36.0, 1.0), 0.0)
+	scroll.add_child(v)
 	var identity := _create_inspector_section("Identity")
 	var id_label := Label.new(); id_label.text = entity_id; identity.add_child(_create_property_row("ID", id_label))
 	var type_label := Label.new(); type_label.text = _safe_ui_string(data.get("object_type", data.get("item_type", "item")), "item"); identity.add_child(_create_property_row("Type", type_label))
