@@ -4346,22 +4346,22 @@ func _get_map_constructor_palette_rect() -> Rect2:
 	var margin: float = _get_runtime_margin()
 	var sidebar_width: float = _get_runtime_sidebar_width_adaptive()
 	var viewport: Vector2 = _get_viewport_size()
-	var palette_width: float = minf(sidebar_width, maxf(viewport.x - margin * 2.0, 160.0))
-	var right_x: float = maxf(margin, viewport.x - palette_width - margin)
-	var storage_height: float = RUNTIME_STORAGE_PANEL_COLLAPSED_SIZE.y if runtime_storage_panel_collapsed else RUNTIME_STORAGE_PANEL_EXPANDED_SIZE.y
+	var right_x: float = viewport.x - sidebar_width - margin
+
+	var storage_height: float = RUNTIME_STORAGE_PANEL_COLLAPSED_SIZE.y
+	if not runtime_storage_panel_collapsed:
+		storage_height = RUNTIME_STORAGE_PANEL_EXPANDED_SIZE.y
+
 	var storage_top: float = margin
 	if runtime_storage_panel != null and is_instance_valid(runtime_storage_panel):
 		storage_top = runtime_storage_panel.position.y
+
 	var top_y: float = storage_top + storage_height + 8.0
-	var mission_top_y: float = viewport.y - _get_runtime_bottom_panel_height() - margin
-	var bottom_y: float = mission_top_y - 8.0
-	var palette_height: float = maxf(bottom_y - top_y, 160.0)
-	if top_y + palette_height > bottom_y:
-		top_y = maxf(margin, bottom_y - palette_height)
-	var max_bottom: float = maxf(margin + 160.0, viewport.y - margin)
-	if top_y + palette_height > max_bottom:
-		palette_height = maxf(max_bottom - top_y, 160.0)
-	return Rect2(Vector2(right_x, top_y), Vector2(palette_width, palette_height))
+	var mission_panel_top_y: float = viewport.y - _get_runtime_bottom_panel_height() - margin
+	var bottom_y: float = mission_panel_top_y - 8.0
+	var height: float = maxf(bottom_y - top_y, 140.0)
+
+	return Rect2(Vector2(right_x, top_y), Vector2(sidebar_width, height))
 
 
 func _safe_reparent_control(control: Control, new_parent: Node) -> void:
@@ -9689,7 +9689,7 @@ func _add_map_constructor_multi_selection_by_filter(filter_mode: String) -> void
 func _refresh_map_constructor_panels() -> void:
 	if app_screen_mode != AppScreenMode.GAMEPLAY:
 		return
-	if runtime_hud_root == null:
+	if runtime_hud_root == null or not is_instance_valid(runtime_hud_root):
 		return
 	if runtime_map_constructor_palette_panel != null and is_instance_valid(runtime_map_constructor_palette_panel):
 		runtime_map_constructor_palette_panel.queue_free()
