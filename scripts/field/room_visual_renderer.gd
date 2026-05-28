@@ -12,6 +12,8 @@ class_name RoomVisualRenderer
 @export var render_iso_wall_prototype: bool = false
 @export var render_iso_object_prototype: bool = false
 @export var render_iso_fog_overlay: bool = false
+@export var iso_wall_cutaway_enabled: bool = true
+@export var show_wall_topology_overlay: bool = false
 @export var use_iso_visual_preview_preset: bool = false
 @export var iso_visual_preview_includes_fog: bool = true
 @export var iso_visual_preview_includes_asset_hooks: bool = false
@@ -92,6 +94,7 @@ var selected_wall_mounted_attached_wall_cell: Vector2i = Vector2i(-1, -1)
 var selected_wall_mounted_object_id: String = ""
 var map_constructor_link_target_cell: Vector2i = Vector2i(-1, -1)
 var map_constructor_link_target_object_id: String = ""
+var _wall_topology_cache: Dictionary = {}
 
 func set_grid_manager(grid: GridManager) -> void:
 	_grid_manager = grid
@@ -1510,6 +1513,103 @@ func get_iso_wall_top_points(cell: Vector2i) -> PackedVector2Array:
 		top_points.append(point + Vector2(0.0, -safe_wall_height))
 	return top_points
 
+func _is_wall_cell(cell: Vector2i) -> bool:
+	if _grid_manager == null:
+		return false
+	return _grid_manager.get_tile(cell) == GridManager.TILE_WALL
+
+func _is_wall_in_bounds(cell: Vector2i) -> bool:
+	if _grid_manager == null:
+		return false
+	return cell.x >= 0 and cell.y >= 0 and cell.x < _grid_manager.get_map_width() and cell.y < _grid_manager.get_map_height()
+
+func _get_wall_neighbor_mask(cell: Vector2i) -> Dictionary:
+	var mask: Dictionary = {"north": false, "east": false, "south": false, "west": false}
+	var deltas: Dictionary = {"north": Vector2i(0, -1), "east": Vector2i(1, 0), "south": Vector2i(0, 1), "west": Vector2i(-1, 0)}
+	for key_variant in deltas.keys():
+		var side: String = String(key_variant)
+		var neighbor: Vector2i = cell + Vector2i(deltas.get(key_variant, Vector2i.ZERO))
+		mask[side] = _is_wall_in_bounds(neighbor) and _is_wall_cell(neighbor)
+	return mask
+
+func _is_door_like_tile(tile_type: int) -> bool:
+	return tile_type == GridManager.TILE_DOOR or tile_type == GridManager.TILE_DIGITAL_DOOR or tile_type == GridManager.TILE_POWERED_GATE
+
+func is_wall_adjacent_to_door(cell: Vector2i) -> bool:
+	if _grid_manager == null:
+		return false
+	for delta in [Vector2i(0, -1), Vector2i(1, 0), Vector2i(0, 1), Vector2i(-1, 0)]:
+		var neighbor: Vector2i = cell + delta
+		if not _is_wall_in_bounds(neighbor):
+			continue
+		if _is_door_like_tile(_grid_manager.get_tile(neighbor)):
+			return true
+	return false
+
+func classify_wall_topology(cell: Vector2i) -> String:
+	if not _is_wall_in_bounds(cell) or not _is_wall_cell(cell):
+		return "unknown"
+	var n: Dictionary = _get_wall_neighbor_mask(cell)
+	var north: bool = bool(n.get("north", false))
+	var east: bool = bool(n.get("east", false))
+	var south: bool = bool(n.get("south", false))
+	var west: bool = bool(n.get("west", false))
+	var count: int = int(north) + int(east) + int(south) + int(west)
+	if is_outer_border_cell(cell):
+		return "boundary_wall"
+	if is_wall_adjacent_to_door(cell):
+		return "door_adjacent"
+	if count <= 0:
+		return "isolated"
+	if count == 4:
+		return "cross_junction"
+	if count == 3:
+		return "t_junction"
+	if count == 1:
+		if north:
+			return "cap_north"
+		if east:
+			return "cap_east"
+		if south:
+			return "cap_south"
+		return "cap_west"
+	if north and south:
+		return "vertical_run"
+	if east and west:
+		return "horizontal_run"
+	if north and east:
+		return "corner_ne"
+	if north and west:
+		return "corner_nw"
+	if south and east:
+		return "corner_se"
+	if south and west:
+		return "corner_sw"
+	push_warning("[IsoWallTopology] impossible_topology_at_%s" % str(cell))
+	return "isolated"
+
+func get_iso_architectural_wall_profile(topology: String, material: Dictionary) -> Dictionary:
+	var fallback_colors: Dictionary = get_wall_prototype_colors(Vector2i.ZERO)
+	var material_id: String = String(material.get("id", material.get("material_id", "default_wall"))).strip_edges()
+	var base_color: Color = Color(material.get("fallback_color", fallback_colors.get("top", Color(0.2, 0.2, 0.24, 1.0))))
+	var edge_color: Color = Color(material.get("edge_color", fallback_colors.get("outline", Color(0.3, 0.3, 0.35, 1.0))))
+	var safe_topology: String = topology if not topology.is_empty() else "isolated"
+	var corner: bool = safe_topology.begins_with("corner_")
+	var is_cap: bool = safe_topology.begins_with("cap_")
+	return {
+		"base_color": base_color.darkened(0.2),
+		"side_color": base_color.darkened(0.33),
+		"top_color": base_color.lightened(0.08),
+		"edge_color": edge_color,
+		"shadow_color": Color(0.03, 0.04, 0.05, 0.36),
+		"height_px": maxi(int(iso_wall_height), 18),
+		"cap_enabled": not is_cap,
+		"corner_emphasis": 1.25 if corner else 1.0,
+		"damage_overlay_strength": 0.45 if material_id.find("damaged") >= 0 else 0.0,
+		"material_id": material_id,
+		"topology": safe_topology
+	}
+
 func draw_iso_wall_block(cell: Vector2i) -> void:
 	var base_points: PackedVector2Array = get_iso_wall_base_points(cell)
 	if base_points.size() < 4:
@@ -1519,19 +1619,32 @@ func draw_iso_wall_block(cell: Vector2i) -> void:
 		return
 
 	var colors: Dictionary = get_wall_prototype_colors(cell)
+	var topology: String = classify_wall_topology(cell)
+	var material_override: Dictionary = _get_wall_material_override_for_cell(cell)
+	var material_row: Dictionary = Dictionary(material_override.get("material", {}))
+	var arch: Dictionary = get_iso_architectural_wall_profile(topology, material_row)
+	var alpha_mult: float = 1.0
+	if iso_wall_cutaway_enabled and is_wall_adjacent_to_door(cell):
+		alpha_mult = 0.65
 	var top_face: PackedVector2Array = PackedVector2Array([top_points[0], top_points[1], top_points[2], top_points[3]])
 	var left_face: PackedVector2Array = PackedVector2Array([top_points[3], top_points[2], base_points[2], base_points[3]])
 	var right_face: PackedVector2Array = PackedVector2Array([top_points[2], top_points[1], base_points[1], base_points[2]])
 
-	var left_color: Color = _get_color_from_dict(colors, "left", Color.WHITE)
-	var right_color: Color = _get_color_from_dict(colors, "right", Color.WHITE)
-	var top_color: Color = _get_color_from_dict(colors, "top", Color.WHITE)
-	var outline_color: Color = _get_color_from_dict(colors, "outline", Color.WHITE)
+	var left_color: Color = Color(arch.get("base_color", _get_color_from_dict(colors, "left", Color.WHITE)))
+	var right_color: Color = Color(arch.get("side_color", _get_color_from_dict(colors, "right", Color.WHITE)))
+	var top_color: Color = Color(arch.get("top_color", _get_color_from_dict(colors, "top", Color.WHITE)))
+	var outline_color: Color = Color(arch.get("edge_color", _get_color_from_dict(colors, "outline", Color.WHITE)))
 	var accent_color: Color = _get_color_from_dict(colors, "accent", Color.WHITE)
+	left_color.a *= alpha_mult
+	right_color.a *= alpha_mult
+	top_color.a *= alpha_mult
 
 	draw_colored_polygon(left_face, left_color)
 	draw_colored_polygon(right_face, right_color)
-	draw_colored_polygon(top_face, top_color)
+	if bool(arch.get("cap_enabled", true)) or topology.find("corner_") >= 0:
+		draw_colored_polygon(top_face, top_color)
+	var floor_shadow: PackedVector2Array = PackedVector2Array([base_points[2], base_points[3], base_points[3] + Vector2(0.0, 8.0), base_points[2] + Vector2(0.0, 8.0)])
+	draw_colored_polygon(floor_shadow, Color(arch.get("shadow_color", Color(0.0, 0.0, 0.0, 0.25))))
 
 	if debug_draw_iso_wall_outlines:
 		for edge_idx in range(top_face.size()):
@@ -1551,11 +1664,11 @@ func draw_iso_wall_block(cell: Vector2i) -> void:
 	draw_line(accent_start, accent_end, accent_color, 1.2)
 
 	var wall_profile_key: String = get_wall_visual_profile_key_for_cell(cell)
-	var material_override: Dictionary = _get_wall_material_override_for_cell(cell)
 	if bool(material_override.get("ok", false)):
-		var material_row: Dictionary = Dictionary(material_override.get("material", {}))
 		draw_optional_visual_texture_asset(String(material_row.get("texture_asset_id", "")), cell, "draw_iso_wall_surface_accent")
 	draw_iso_wall_surface_accent(left_face, right_face, top_face, wall_profile_key, accent_color)
+	if show_wall_topology_overlay:
+		draw_string(ThemeDB.fallback_font, grid_to_iso(cell) + Vector2(-20.0, -float(arch.get("height_px", 24)) - 4.0), topology, HORIZONTAL_ALIGNMENT_LEFT, 56.0, 9, Color(0.95, 0.96, 1.0, 0.9))
 
 func draw_iso_wall_surface_accent(
 	left_face: PackedVector2Array,
