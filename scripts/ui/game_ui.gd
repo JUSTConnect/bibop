@@ -10413,16 +10413,16 @@ func _refresh_map_constructor_panels() -> void:
 		room_preview_label.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 		room_preview_label.text = "Preset Preview: walls=%d doors=%d terminals=%d can_apply=%s\n%s" % [int(room_preview_summary.get("affected_walls", 0)), int(room_preview_summary.get("affected_doors", 0)), int(room_preview_summary.get("affected_terminals", 0)), str(bool(room_visual_preset_preview.get("can_apply", false))), String(room_visual_preset_preview.get("message", ""))]
 		list.add_child(room_preview_label)
-	var notes_button: Button = Button.new()
-	notes_button.text = "Generate Design Notes"
-	notes_button.pressed.connect(func() -> void:
+	var room_design_notes_button: Button = Button.new()
+	room_design_notes_button.text = "Generate Design Notes"
+	room_design_notes_button.pressed.connect(func() -> void:
 		if mission_manager_runtime == null or not mission_manager_runtime.has_method("export_map_constructor_design_notes"):
 			return
 		var notes_res: Dictionary = mission_manager_runtime.call("export_map_constructor_design_notes", {})
 		map_constructor_design_notes_text = String(notes_res.get("text", ""))
 		_refresh_map_constructor_panels()
 	)
-	list.add_child(notes_button)
+	list.add_child(room_design_notes_button)
 	var notes_edit: TextEdit = TextEdit.new()
 	notes_edit.custom_minimum_size = Vector2(0, 120)
 	notes_edit.text = map_constructor_design_notes_text
@@ -11085,18 +11085,18 @@ func _refresh_map_constructor_panels() -> void:
 		map_constructor_preset_entries = mission_manager_runtime.call("list_map_constructor_presets")
 	if map_constructor_selected_preset_name.is_empty() and not map_constructor_preset_entries.is_empty():
 		map_constructor_selected_preset_name = String(map_constructor_preset_entries[0].get("name", ""))
-	var preset_select: OptionButton = OptionButton.new()
+	var constructor_preset_select: OptionButton = OptionButton.new()
 	for i in range(map_constructor_preset_entries.size()):
 		var entry: Dictionary = map_constructor_preset_entries[i]
 		var name: String = String(entry.get("name", ""))
-		preset_select.add_item(name)
+		constructor_preset_select.add_item(name)
 		if name == map_constructor_selected_preset_name:
-			preset_select.select(i)
-	preset_select.item_selected.connect(func(index: int) -> void:
+			constructor_preset_select.select(i)
+	constructor_preset_select.item_selected.connect(func(index: int) -> void:
 		if index >= 0 and index < map_constructor_preset_entries.size():
 			map_constructor_selected_preset_name = String(map_constructor_preset_entries[index].get("name", ""))
 	)
-	list.add_child(preset_select)
+	list.add_child(constructor_preset_select)
 	var preset_actions: HBoxContainer = HBoxContainer.new()
 	preset_actions.add_theme_constant_override("separation", 4)
 	list.add_child(preset_actions)
@@ -11181,12 +11181,12 @@ func _refresh_map_constructor_panels() -> void:
 			map_constructor_selected_patch_name = String(map_constructor_patch_entries[index].get("name", ""))
 	)
 	list.add_child(patch_select)
-	var patch_actions: HBoxContainer = HBoxContainer.new()
-	patch_actions.add_theme_constant_override("separation", 4)
-	list.add_child(patch_actions)
-	var export_patch_button: Button = Button.new()
-	export_patch_button.text = "Export current"
-	export_patch_button.pressed.connect(func() -> void:
+	var mission_patch_actions: HBoxContainer = HBoxContainer.new()
+	mission_patch_actions.add_theme_constant_override("separation", 4)
+	list.add_child(mission_patch_actions)
+	var mission_patch_export_button: Button = Button.new()
+	mission_patch_export_button.text = "Export current"
+	mission_patch_export_button.pressed.connect(func() -> void:
 		if not map_constructor_mode_active or mission_manager_runtime == null or not mission_manager_runtime.has_method("export_map_constructor_mission_patch"):
 			show_hint("Mission patch export unavailable.")
 			return
@@ -11195,13 +11195,13 @@ func _refresh_map_constructor_panels() -> void:
 		map_constructor_selected_patch_name = String(export_result.get("patch_name", map_constructor_selected_patch_name))
 		_refresh_map_constructor_panels()
 	)
-	patch_actions.add_child(export_patch_button)
+	mission_patch_actions.add_child(mission_patch_export_button)
 	var refresh_patch_button: Button = Button.new()
 	refresh_patch_button.text = "Refresh patches"
 	refresh_patch_button.pressed.connect(func() -> void:
 		_refresh_map_constructor_panels()
 	)
-	patch_actions.add_child(refresh_patch_button)
+	mission_patch_actions.add_child(refresh_patch_button)
 	var delete_patch_button: Button = Button.new()
 	delete_patch_button.text = "Delete patch"
 	delete_patch_button.pressed.connect(func() -> void:
@@ -11213,7 +11213,7 @@ func _refresh_map_constructor_panels() -> void:
 		map_constructor_selected_patch_name = ""
 		_refresh_map_constructor_panels()
 	)
-	patch_actions.add_child(delete_patch_button)
+	mission_patch_actions.add_child(delete_patch_button)
 	var geometry_title: Label = Label.new()
 	geometry_title.text = "Map Geometry"
 	list.add_child(geometry_title)
