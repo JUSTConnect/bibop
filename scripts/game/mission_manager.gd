@@ -99,6 +99,26 @@ func get_mission_content_catalog_validation_text() -> String:
 	var catalog := MissionContentCatalogRef.new()
 	return catalog.get_mission_catalog_validation_text()
 
+func get_mission_definition(mission_id: String) -> Dictionary:
+	var catalog := MissionContentCatalogRef.new()
+	return catalog.get_mission_definition(mission_id)
+
+func get_mission_title(mission_id: String) -> String:
+	var catalog := MissionContentCatalogRef.new()
+	return catalog.get_mission_title(mission_id)
+
+func get_mission_objective_hint(mission_id: String) -> String:
+	var catalog := MissionContentCatalogRef.new()
+	return catalog.get_mission_objective_hint(mission_id)
+
+func get_mission_start_cell(mission_id: String) -> Vector2i:
+	var catalog := MissionContentCatalogRef.new()
+	return catalog.get_mission_start_cell(mission_id)
+
+func get_mission_exit_cells(mission_id: String) -> Array[Vector2i]:
+	var catalog := MissionContentCatalogRef.new()
+	return catalog.get_mission_exit_cells(mission_id)
+
 func apply_catalog_mission_layout_to_grid(mission_id: String) -> bool:
 	if grid_manager == null:
 		return false
