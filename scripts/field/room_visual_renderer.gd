@@ -14,6 +14,7 @@ class_name RoomVisualRenderer
 @export var render_iso_fog_overlay: bool = false
 @export var iso_wall_cutaway_enabled: bool = true
 @export var show_wall_topology_overlay: bool = false
+@export var show_wall_mount_zones_overlay: bool = false
 @export var use_iso_visual_preview_preset: bool = false
 @export var iso_visual_preview_includes_fog: bool = true
 @export var iso_visual_preview_includes_asset_hooks: bool = false
@@ -95,6 +96,9 @@ var selected_wall_mounted_object_id: String = ""
 var map_constructor_link_target_cell: Vector2i = Vector2i(-1, -1)
 var map_constructor_link_target_object_id: String = ""
 var _wall_topology_cache: Dictionary = {}
+const WALL_SIDE_ORDER: Array[String] = ["north", "east", "south", "west"]
+const WALL_MASS_RATIO: float = 0.7
+const WALL_MOUNT_BAND_RATIO: float = 0.3
 
 func set_grid_manager(grid: GridManager) -> void:
 	_grid_manager = grid
@@ -1535,6 +1539,85 @@ func _get_wall_neighbor_mask(cell: Vector2i) -> Dictionary:
 func _is_door_like_tile(tile_type: int) -> bool:
 	return tile_type == GridManager.TILE_DOOR or tile_type == GridManager.TILE_DIGITAL_DOOR or tile_type == GridManager.TILE_POWERED_GATE
 
+func _is_wall_mount_neighbor_visible(tile_type: int) -> bool:
+	return (
+		tile_type == GridManager.TILE_FLOOR
+		or tile_type == GridManager.TILE_STEPPED_FLOOR
+		or tile_type == GridManager.TILE_DOOR
+		or tile_type == GridManager.TILE_DIGITAL_DOOR
+		or tile_type == GridManager.TILE_POWERED_GATE
+	)
+
+func _get_wall_side_delta(side: String) -> Vector2i:
+	match side:
+		"north":
+			return Vector2i(0, -1)
+		"east":
+			return Vector2i(1, 0)
+		"south":
+			return Vector2i(0, 1)
+		"west":
+			return Vector2i(-1, 0)
+	return Vector2i.ZERO
+
+func get_visible_wall_sides(cell: Vector2i) -> Array[String]:
+	var sides: Array[String] = []
+	if _grid_manager == null or not _is_wall_in_bounds(cell):
+		return sides
+	if _grid_manager.get_tile(cell) != GridManager.TILE_WALL:
+		return sides
+	for side in WALL_SIDE_ORDER:
+		var delta: Vector2i = _get_wall_side_delta(side)
+		var neighbor: Vector2i = cell + delta
+		if not _is_wall_in_bounds(neighbor):
+			sides.append(side)
+			continue
+		var tile_type: int = _grid_manager.get_tile(neighbor)
+		if tile_type == GridManager.TILE_WALL:
+			continue
+		if _is_wall_mount_neighbor_visible(tile_type):
+			sides.append(side)
+	return sides
+
+func get_wall_mounted_anchor_zones(cell: Vector2i) -> Array[Dictionary]:
+	var zones: Array[Dictionary] = []
+	if _grid_manager == null or not _is_wall_in_bounds(cell):
+		return zones
+	if _grid_manager.get_tile(cell) != GridManager.TILE_WALL:
+		return zones
+	for side in get_visible_wall_sides(cell):
+		var delta: Vector2i = _get_wall_side_delta(side)
+		var neighbor: Vector2i = cell + delta
+		var mountable: bool = false
+		if _is_wall_in_bounds(neighbor):
+			var neighbor_tile: int = _grid_manager.get_tile(neighbor)
+			mountable = _is_wall_mount_neighbor_visible(neighbor_tile) and not _is_door_like_tile(neighbor_tile)
+		var wall_center: Vector2 = grid_to_iso(cell)
+		var half_size: Vector2 = get_iso_tile_half_size()
+		var axis: Vector2 = Vector2(float(delta.x) * half_size.x * 0.65, float(delta.y) * half_size.y * 0.65)
+		var center: Vector2 = wall_center + axis
+		var tangent: Vector2 = Vector2(-axis.y, axis.x).normalized() * 7.0
+		var normal: Vector2 = axis.normalized() * 5.0
+		var polygon: PackedVector2Array = PackedVector2Array([
+			center - tangent - normal,
+			center + tangent - normal,
+			center + tangent + normal,
+			center - tangent + normal
+		])
+		zones.append({
+			"attached_wall_cell": cell,
+			"anchor_floor_cell": neighbor,
+			"wall_side": side,
+			"visible": true,
+			"mountable": mountable,
+			"wall_mass_ratio": WALL_MASS_RATIO,
+			"mount_band_ratio": WALL_MOUNT_BAND_RATIO,
+			"mount_zone_center": center,
+			"mount_zone_polygon": polygon,
+			"interaction_cell": neighbor
+		})
+	return zones
+
 func is_wall_adjacent_to_door(cell: Vector2i) -> bool:
 	if _grid_manager == null:
 		return false
@@ -1606,6 +1689,11 @@ func get_iso_architectural_wall_profile(topology: String, material: Dictionary) 
 		"cap_enabled": not is_cap,
 		"corner_emphasis": 1.25 if corner else 1.0,
 		"damage_overlay_strength": 0.45 if material_id.find("damaged") >= 0 else 0.0,
+		"wall_mass_ratio": WALL_MASS_RATIO,
+		"mount_band_ratio": WALL_MOUNT_BAND_RATIO,
+		"mount_band_color": base_color.lightened(0.12),
+		"mount_band_edge_color": edge_color.lightened(0.12),
+		"mount_band_enabled": true,
 		"material_id": material_id,
 		"topology": safe_topology
 	}
@@ -1669,6 +1757,17 @@ func draw_iso_wall_block(cell: Vector2i) -> void:
 	draw_iso_wall_surface_accent(left_face, right_face, top_face, wall_profile_key, accent_color)
 	if show_wall_topology_overlay:
 		draw_string(ThemeDB.fallback_font, grid_to_iso(cell) + Vector2(-20.0, -float(arch.get("height_px", 24)) - 4.0), topology, HORIZONTAL_ALIGNMENT_LEFT, 56.0, 9, Color(0.95, 0.96, 1.0, 0.9))
+	var mount_zones: Array[Dictionary] = get_wall_mounted_anchor_zones(cell)
+	if bool(arch.get("mount_band_enabled", true)):
+		for zone_variant in mount_zones:
+			var zone: Dictionary = Dictionary(zone_variant)
+			if not bool(zone.get("mountable", false)):
+				continue
+			var mount_poly: PackedVector2Array = PackedVector2Array(zone.get("mount_zone_polygon", PackedVector2Array()))
+			if mount_poly.size() >= 3:
+				draw_colored_polygon(mount_poly, Color(arch.get("mount_band_color", Color(0.6, 0.62, 0.66, 0.35))))
+				if debug_draw_iso_wall_outlines:
+					draw_polyline(mount_poly, Color(arch.get("mount_band_edge_color", Color.WHITE)), 1.1, true)
 
 func draw_iso_wall_surface_accent(
 	left_face: PackedVector2Array,
@@ -1967,6 +2066,14 @@ func get_world_object_visual_position(cell: Vector2i) -> Vector2:
 		return base_center
 	if anchor_cell != cell:
 		return base_center
+	var mount_zones: Array[Dictionary] = get_wall_mounted_anchor_zones(attached_wall_cell)
+	for zone_variant in mount_zones:
+		var zone: Dictionary = Dictionary(zone_variant)
+		if String(zone.get("wall_side", "")) != wall_side:
+			continue
+		if Vector2i(zone.get("anchor_floor_cell", Vector2i(-1, -1))) != anchor_cell:
+			continue
+		return Vector2(zone.get("mount_zone_center", base_center))
 	return base_center + get_wall_mounted_visual_offset(metadata)
 
 func draw_iso_object_slab(cell: Vector2i, profile: Dictionary, visual_center_override: Vector2 = Vector2.INF) -> void:
@@ -2548,6 +2655,25 @@ func draw_iso_fog_overlay() -> void:
 			draw_iso_fog_wall_overlay(cell)
 		draw_iso_fog_cell_overlay(cell)
 
+func draw_wall_mount_zones_overlay() -> void:
+	if _grid_manager == null:
+		return
+	for y in range(_grid_manager.get_map_height()):
+		for x in range(_grid_manager.get_map_width()):
+			var wall_cell: Vector2i = Vector2i(x, y)
+			if _grid_manager.get_tile(wall_cell) != GridManager.TILE_WALL:
+				continue
+			var zones: Array[Dictionary] = get_wall_mounted_anchor_zones(wall_cell)
+			for zone_variant in zones:
+				var zone: Dictionary = Dictionary(zone_variant)
+				if not bool(zone.get("mountable", false)):
+					continue
+				var center: Vector2 = Vector2(zone.get("mount_zone_center", grid_to_iso(wall_cell)))
+				draw_circle(center, 2.8, Color(0.35, 0.98, 0.86, 0.95))
+				var side: String = String(zone.get("wall_side", ""))
+				var label: String = side.substr(0, 1).to_upper()
+				draw_string(ThemeDB.fallback_font, center + Vector2(3.0, -4.0), label, HORIZONTAL_ALIGNMENT_LEFT, 12.0, 10, Color(0.9, 0.98, 1.0, 0.9))
+
 func _draw() -> void:
 	if debug_draw_marker:
 		draw_circle(Vector2.ZERO, 3.0, Color(0.8, 0.95, 1.0, 0.75))
@@ -2564,6 +2690,8 @@ func _draw() -> void:
 	var include_objects: bool = should_render_iso_object_visuals()
 	if include_walls or include_objects:
 		draw_iso_geometry_prototype(include_walls, include_objects)
+	if show_wall_mount_zones_overlay and include_walls:
+		draw_wall_mount_zones_overlay()
 
 	draw_iso_mouse_selection_overlay()
 	draw_map_constructor_visual_overlay_passes()
