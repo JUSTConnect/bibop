@@ -1122,6 +1122,19 @@ func _setup_cycle_world_action_input() -> void:
 	InputMap.action_add_event("cycle_world_action", cycle_event)
 	# TODO: replace temporary debug action cycling key with final UI action panel.
 
+
+func _try_get_catalog_mission_title(mission_index: int) -> String:
+	if mission_manager == null or not mission_manager.has_method("get_mission_title"):
+		return ""
+	var mission_id: String = "mission_%d" % mission_index
+	return String(mission_manager.call("get_mission_title", mission_id)).strip_edges()
+
+func _try_get_catalog_mission_hint(mission_index: int) -> String:
+	if mission_manager == null or not mission_manager.has_method("get_mission_objective_hint"):
+		return ""
+	var mission_id: String = "mission_%d" % mission_index
+	return String(mission_manager.call("get_mission_objective_hint", mission_id)).strip_edges()
+
 func get_mission_name(mission_index: int) -> String:
 	match mission_index:
 		1:
@@ -1143,6 +1156,9 @@ func get_mission_name(mission_index: int) -> String:
 		9:
 			return "Mission 9 — Terrain Passage"
 		10:
+			var catalog_title: String = _try_get_catalog_mission_title(mission_index)
+			if not catalog_title.is_empty():
+				return catalog_title
 			return "TASK TEST"
 		_:
 			return "Unknown Mission"
@@ -1168,6 +1184,9 @@ func get_mission_goal_hint(mission_index: int) -> String:
 		9:
 			return get_mission9_context_hint()
 		10:
+			var catalog_hint: String = _try_get_catalog_mission_hint(mission_index)
+			if not catalog_hint.is_empty():
+				return catalog_hint
 			return "TASK TEST: validate power, cooling, cables, terminals, doors, platforms, scan/X-Ray, inventory/tools, and extraction."
 		_:
 			return "No mission goal available."
