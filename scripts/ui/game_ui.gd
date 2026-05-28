@@ -4342,6 +4342,28 @@ func _get_runtime_bottom_panel_height() -> float:
 	return 150.0
 
 
+func _get_map_constructor_palette_rect() -> Rect2:
+	var margin: float = _get_runtime_margin()
+	var sidebar_width: float = _get_runtime_sidebar_width_adaptive()
+	var viewport: Vector2 = _get_viewport_size()
+	var palette_width: float = minf(sidebar_width, maxf(viewport.x - margin * 2.0, 160.0))
+	var right_x: float = maxf(margin, viewport.x - palette_width - margin)
+	var storage_height: float = RUNTIME_STORAGE_PANEL_COLLAPSED_SIZE.y if runtime_storage_panel_collapsed else RUNTIME_STORAGE_PANEL_EXPANDED_SIZE.y
+	var storage_top: float = margin
+	if runtime_storage_panel != null and is_instance_valid(runtime_storage_panel):
+		storage_top = runtime_storage_panel.position.y
+	var top_y: float = storage_top + storage_height + 8.0
+	var mission_top_y: float = viewport.y - _get_runtime_bottom_panel_height() - margin
+	var bottom_y: float = mission_top_y - 8.0
+	var palette_height: float = maxf(bottom_y - top_y, 160.0)
+	if top_y + palette_height > bottom_y:
+		top_y = maxf(margin, bottom_y - palette_height)
+	var max_bottom: float = maxf(margin + 160.0, viewport.y - margin)
+	if top_y + palette_height > max_bottom:
+		palette_height = maxf(max_bottom - top_y, 160.0)
+	return Rect2(Vector2(right_x, top_y), Vector2(palette_width, palette_height))
+
+
 func _safe_reparent_control(control: Control, new_parent: Node) -> void:
 	if control == null or new_parent == null:
 		return
@@ -4978,6 +5000,8 @@ func _apply_runtime_storage_collapsed_state() -> void:
 
 	runtime_storage_panel.queue_sort()
 	runtime_storage_panel.queue_redraw()
+	if map_constructor_mode_active:
+		_refresh_map_constructor_panels()
 
 func _create_runtime_storage_dual_action_header(title: String, first_action_text: String, first_action_callable: Callable, second_action_text: String, second_action_callable: Callable) -> HBoxContainer:
 	var row := HBoxContainer.new()
@@ -9672,19 +9696,26 @@ func _refresh_map_constructor_panels() -> void:
 	if not map_constructor_mode_active:
 		return
 	runtime_map_constructor_palette_panel = PanelContainer.new()
-	var viewport_rect: Rect2 = get_viewport().get_visible_rect()
-	runtime_map_constructor_palette_panel.position = Vector2(viewport_rect.size.x - 260, 360)
-	runtime_map_constructor_palette_panel.size = Vector2(240, 300)
+	var palette_rect: Rect2 = _get_map_constructor_palette_rect()
+	runtime_map_constructor_palette_panel.position = palette_rect.position
+	runtime_map_constructor_palette_panel.size = palette_rect.size
 	runtime_map_constructor_palette_panel.add_theme_stylebox_override("panel", _make_panel_style(UI_COLOR_PANEL, UI_COLOR_BORDER, 1, 8))
 	var scroll := ScrollContainer.new()
 	scroll.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
+	scroll.horizontal_scroll_mode = ScrollContainer.SCROLL_MODE_DISABLED
+	scroll.vertical_scroll_mode = ScrollContainer.SCROLL_MODE_AUTO
+	scroll.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	scroll.size_flags_vertical = Control.SIZE_EXPAND_FILL
 	runtime_map_constructor_palette_panel.add_child(scroll)
 	var list := VBoxContainer.new()
 	list.add_theme_constant_override("separation", 6)
+	list.custom_minimum_size = Vector2(maxf(palette_rect.size.x - 28.0, 160.0), 0.0)
+	list.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	scroll.add_child(list)
 	var search_edit := LineEdit.new()
 	search_edit.placeholder_text = "Search prefab (id/name/category/placement)..."
 	search_edit.text = map_constructor_prefab_search_text
+	search_edit.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	search_edit.text_changed.connect(func(new_text: String) -> void:
 		map_constructor_prefab_search_text = new_text
 		_refresh_map_constructor_panels()
@@ -9698,6 +9729,7 @@ func _refresh_map_constructor_panels() -> void:
 		selected_category_index = 0
 		map_constructor_prefab_category_filter = MAP_CONSTRUCTOR_PREFAB_FILTER_CATEGORIES[0]
 	category_option.select(selected_category_index)
+	category_option.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	category_option.item_selected.connect(func(index: int) -> void:
 		if index >= 0 and index < MAP_CONSTRUCTOR_PREFAB_FILTER_CATEGORIES.size():
 			map_constructor_prefab_category_filter = MAP_CONSTRUCTOR_PREFAB_FILTER_CATEGORIES[index]
@@ -9708,6 +9740,7 @@ func _refresh_map_constructor_panels() -> void:
 	for role_name in MAP_CONSTRUCTOR_PREFAB_FILTER_ROLES:
 		role_option.add_item(role_name)
 	role_option.select(maxi(0, MAP_CONSTRUCTOR_PREFAB_FILTER_ROLES.find(map_constructor_prefab_role_filter)))
+	role_option.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	role_option.item_selected.connect(func(index: int) -> void:
 		if index >= 0 and index < MAP_CONSTRUCTOR_PREFAB_FILTER_ROLES.size():
 			map_constructor_prefab_role_filter = MAP_CONSTRUCTOR_PREFAB_FILTER_ROLES[index]
@@ -9717,18 +9750,19 @@ func _refresh_map_constructor_panels() -> void:
 	for mode_name in MAP_CONSTRUCTOR_PREFAB_FILTER_PLACEMENT_MODES:
 		placement_option.add_item(mode_name)
 	placement_option.select(maxi(0, MAP_CONSTRUCTOR_PREFAB_FILTER_PLACEMENT_MODES.find(map_constructor_prefab_placement_filter)))
+	placement_option.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	placement_option.item_selected.connect(func(index: int) -> void:
 		if index >= 0 and index < MAP_CONSTRUCTOR_PREFAB_FILTER_PLACEMENT_MODES.size():
 			map_constructor_prefab_placement_filter = MAP_CONSTRUCTOR_PREFAB_FILTER_PLACEMENT_MODES[index]
 			_refresh_map_constructor_panels())
 	list.add_child(placement_option)
-	var show_diag: CheckBox = CheckBox.new(); show_diag.text = "Show Diagnostics"; show_diag.button_pressed = map_constructor_prefab_show_diagnostics
+	var show_diag: CheckBox = CheckBox.new(); show_diag.text = "Show Diagnostics"; show_diag.button_pressed = map_constructor_prefab_show_diagnostics; show_diag.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 	show_diag.toggled.connect(func(v: bool) -> void: map_constructor_prefab_show_diagnostics = v; _refresh_map_constructor_panels())
 	list.add_child(show_diag)
-	var show_invalid: CheckBox = CheckBox.new(); show_invalid.text = "Show Expected Invalid"; show_invalid.button_pressed = map_constructor_prefab_show_expected_invalid
+	var show_invalid: CheckBox = CheckBox.new(); show_invalid.text = "Show Expected Invalid"; show_invalid.button_pressed = map_constructor_prefab_show_expected_invalid; show_invalid.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 	show_invalid.toggled.connect(func(v: bool) -> void: map_constructor_prefab_show_expected_invalid = v; _refresh_map_constructor_panels())
 	list.add_child(show_invalid)
-	var show_placeable: CheckBox = CheckBox.new(); show_placeable.text = "Show Only Placeable Here"; show_placeable.button_pressed = map_constructor_prefab_show_only_placeable_here
+	var show_placeable: CheckBox = CheckBox.new(); show_placeable.text = "Show Only Placeable Here"; show_placeable.button_pressed = map_constructor_prefab_show_only_placeable_here; show_placeable.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 	show_placeable.toggled.connect(func(v: bool) -> void: map_constructor_prefab_show_only_placeable_here = v; _refresh_map_constructor_panels())
 	list.add_child(show_placeable)
 	var catalog: Array[Dictionary] = []
