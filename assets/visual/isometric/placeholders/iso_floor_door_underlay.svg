@@ -1,6 +1,10 @@
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 128 64" width="128" height="64">
-  <polygon points="64,2 126,32 64,62 2,32" fill="#1a2028" stroke="#7f8a98" stroke-width="2"/>
-  <polygon points="64,10 116,32 64,54 12,32" fill="#232d38" stroke="#2f3b47" stroke-width="1.5"/>
-  <polyline points="28,32 46,24 64,32 82,24 100,32" fill="none" stroke="#d69b34" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
-  <line x1="64" y1="18" x2="64" y2="46" stroke="#e2b154" stroke-width="1.5"/>
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 128 64" width="128" height="64" fill="none">
+  <g stroke-linejoin="round" stroke-linecap="round">
+    <path d="M64 4 L124 32 L64 60 L4 32 Z" fill="#4e5660" stroke="#1b2630" stroke-width="3"/>
+    <path d="M64 10 L112 32 L64 54 L16 32 Z" fill="#4d6070" opacity="0.35" stroke="#9fb0bd" stroke-width="1.5"/>
+    <path d="M28 32 L64 16 L100 32" stroke="#2d3a46" stroke-width="2" opacity="0.55"/>
+    <path d="M64 16 L64 52" stroke="#2d3a46" stroke-width="1.5" opacity="0.35"/>
+    <path d="M30 32 L64 16 L98 32 L64 48 Z" fill="#2a333d" stroke="#f29d38" stroke-width="3" opacity="0.8"/>
+    <path d="M48 32 L80 32" stroke="#ffd766" stroke-width="3"/>
+  </g>
 </svg>

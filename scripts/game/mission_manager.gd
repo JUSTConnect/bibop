@@ -6,6 +6,83 @@ const InteractionSystemRef = preload("res://scripts/world/interaction_system.gd"
 const PowerSystemRef = preload("res://scripts/world/power_system.gd")
 const MissionContentCatalogRef = preload("res://scripts/game/mission_content_catalog.gd")
 
+const ISO_PLACEHOLDER_ASSET_PATHS: Dictionary = {
+	"floor_default": "res://assets/visual/isometric/placeholders/iso_floor_default.svg",
+	"floor_stepped": "res://assets/visual/isometric/placeholders/iso_floor_stepped.svg",
+	"floor_clean_lab": "res://assets/visual/isometric/placeholders/iso_floor_clean_lab.svg",
+	"floor_dark_service": "res://assets/visual/isometric/placeholders/iso_floor_dark_service.svg",
+	"floor_hazard": "res://assets/visual/isometric/placeholders/iso_floor_hazard.svg",
+	"floor_power": "res://assets/visual/isometric/placeholders/iso_floor_power.svg",
+	"floor_damaged": "res://assets/visual/isometric/placeholders/iso_floor_damaged.svg",
+	"floor_reinforced": "res://assets/visual/isometric/placeholders/iso_floor_reinforced.svg",
+	"floor_diagnostic": "res://assets/visual/isometric/placeholders/iso_floor_diagnostic.svg",
+	"floor_door_underlay": "res://assets/visual/isometric/placeholders/iso_floor_door_underlay.svg",
+	"wall_default": "res://assets/visual/isometric/placeholders/iso_wall_default.svg",
+	"wall_outer": "res://assets/visual/isometric/placeholders/iso_wall_outer.svg",
+	"wall_brick": "res://assets/visual/isometric/placeholders/iso_wall_brick.svg",
+	"wall_concrete": "res://assets/visual/isometric/placeholders/iso_wall_concrete.svg",
+	"wall_grate": "res://assets/visual/isometric/placeholders/iso_wall_grate.svg",
+	"wall_damaged": "res://assets/visual/isometric/placeholders/iso_wall_damaged.svg",
+	"wall_steel": "res://assets/visual/isometric/placeholders/iso_wall_steel.svg",
+	"wall_energy": "res://assets/visual/isometric/placeholders/iso_wall_energy.svg",
+	"object_door": "res://assets/visual/isometric/placeholders/iso_object_door.svg",
+	"object_terminal": "res://assets/visual/isometric/placeholders/iso_object_terminal.svg",
+	"object_key": "res://assets/visual/isometric/placeholders/iso_object_key.svg",
+	"object_component": "res://assets/visual/isometric/placeholders/iso_object_component.svg",
+	"object_socket": "res://assets/visual/isometric/placeholders/iso_object_socket.svg",
+	"object_cable": "res://assets/visual/isometric/placeholders/iso_object_cable.svg",
+	"object_generic": "res://assets/visual/isometric/placeholders/iso_object_generic.svg",
+	"object_fuse": "res://assets/visual/isometric/placeholders/iso_object_fuse.svg",
+	"object_repair_kit": "res://assets/visual/isometric/placeholders/iso_object_repair_kit.svg",
+	"object_keycard": "res://assets/visual/isometric/placeholders/iso_object_keycard.svg",
+	"object_access_code": "res://assets/visual/isometric/placeholders/iso_object_access_code.svg",
+	"object_cable_reel": "res://assets/visual/isometric/placeholders/iso_object_cable_reel.svg",
+	"object_button": "res://assets/visual/isometric/placeholders/iso_object_button.svg",
+	"object_switch": "res://assets/visual/isometric/placeholders/iso_object_switch.svg"
+}
+
+const VISUAL_TEXTURE_ASSET_ALIASES: Dictionary = {
+	"default_floor": "floor_default",
+	"clean_lab_floor": "floor_clean_lab",
+	"dark_service_floor": "floor_dark_service",
+	"hazard_floor": "floor_hazard",
+	"power_floor": "floor_power",
+	"damaged_floor": "floor_damaged",
+	"reinforced_floor": "floor_reinforced",
+	"diagnostic_floor": "floor_diagnostic",
+	"default_wall": "wall_default",
+	"wall_default_metal": "wall_default",
+	"wall_clean_lab": "wall_default",
+	"wall_dark_service": "wall_grate",
+	"wall_orange_hazard": "wall_damaged",
+	"wall_damaged_red": "wall_damaged",
+	"wall_reinforced": "wall_steel",
+	"wall_power_room": "wall_energy",
+	"wall_diagnostic_blue": "wall_energy",
+	"wall_concrete_default": "wall_concrete",
+	"industrial_panel": "wall_brick",
+	"wall_industrial_panel": "wall_brick",
+	"wall_service_vent": "wall_grate",
+	"wall_boundary": "wall_outer",
+	"outer": "wall_outer",
+	"boundary": "wall_outer",
+	"concrete": "wall_concrete",
+	"brick": "wall_brick",
+	"grate": "wall_grate",
+	"vent": "wall_grate",
+	"service": "wall_grate",
+	"steel": "wall_steel",
+	"reinforced": "wall_steel",
+	"damaged": "wall_damaged",
+	"red": "wall_damaged",
+	"broken": "wall_damaged",
+	"energy": "wall_energy",
+	"powered": "wall_energy",
+	"door_state_generic": "object_door",
+	"terminal_state_generic": "object_terminal",
+	"item_generic_marker": "object_generic"
+}
+
 var mission_world_objects: Array[Dictionary] = []
 var world_objects_by_cell: Dictionary = {}
 var cell_items: Dictionary = {}
@@ -1936,16 +2013,75 @@ func _is_wall_mount_neighbor_tile_type(tile_type: int) -> bool:
 
 func get_map_constructor_wall_material_catalog() -> Dictionary:
 	var materials: Array[Dictionary] = [
-		{"id":"default_metal","display_name":"Default Metal","description":"Baseline steel alloy wall finish.","tags":["default","metal"],"style":"default","texture_asset_id":"wall_default_metal","fallback_color":Color(0.33, 0.37, 0.43, 0.98),"edge_color":Color(0.62, 0.67, 0.75, 1.0),"damage_level":0,"is_default":true},
-		{"id":"clean_lab","display_name":"Clean Lab","description":"Clean sterile laboratory paneling.","tags":["lab","clean"],"style":"clean","texture_asset_id":"wall_clean_lab","fallback_color":Color(0.66, 0.72, 0.76, 0.98),"edge_color":Color(0.86, 0.9, 0.94, 1.0),"damage_level":0,"is_default":false},
-		{"id":"dark_service","display_name":"Dark Service","description":"Low-light service tunnel plating.","tags":["service","dark"],"style":"dark","texture_asset_id":"wall_dark_service","fallback_color":Color(0.18, 0.2, 0.24, 0.98),"edge_color":Color(0.32, 0.36, 0.41, 1.0),"damage_level":1,"is_default":false},
-		{"id":"orange_hazard","display_name":"Orange Hazard","description":"Hazard-striped industrial wall section.","tags":["hazard","orange"],"style":"hazard","texture_asset_id":"wall_orange_hazard","fallback_color":Color(0.48, 0.31, 0.16, 0.98),"edge_color":Color(0.96, 0.57, 0.21, 1.0),"damage_level":1,"is_default":false},
-		{"id":"damaged_red","display_name":"Damaged Red","description":"Damaged emergency-painted wall.","tags":["damaged","red"],"style":"damaged","texture_asset_id":"wall_damaged_red","fallback_color":Color(0.42, 0.19, 0.2, 0.98),"edge_color":Color(0.84, 0.34, 0.37, 1.0),"damage_level":3,"is_default":false},
-		{"id":"reinforced","display_name":"Reinforced","description":"Reinforced heavy-duty support wall.","tags":["reinforced","security"],"style":"reinforced","texture_asset_id":"wall_reinforced","fallback_color":Color(0.24, 0.27, 0.33, 0.98),"edge_color":Color(0.55, 0.61, 0.72, 1.0),"damage_level":0,"is_default":false},
-		{"id":"power_room","display_name":"Power Room","description":"Power distribution room insulation panels.","tags":["power","utility"],"style":"power","texture_asset_id":"wall_power_room","fallback_color":Color(0.28, 0.3, 0.21, 0.98),"edge_color":Color(0.71, 0.81, 0.34, 1.0),"damage_level":1,"is_default":false},
-		{"id":"diagnostic_blue","display_name":"Diagnostic Blue","description":"Diagnostic bay blue marker finish.","tags":["diagnostic","blue"],"style":"diagnostic","texture_asset_id":"wall_diagnostic_blue","fallback_color":Color(0.21, 0.3, 0.49, 0.98),"edge_color":Color(0.44, 0.69, 0.97, 1.0),"damage_level":0,"is_default":false}
+		{"id":"default_metal","display_name":"Default Metal","description":"Baseline steel alloy wall finish.","tags":["default","metal"],"style":"default","texture_asset_id":"wall_default","fallback_color":Color(0.33, 0.37, 0.43, 0.98),"edge_color":Color(0.62, 0.67, 0.75, 1.0),"damage_level":0,"is_default":true},
+		{"id":"clean_lab","display_name":"Clean Lab","description":"Clean sterile laboratory paneling.","tags":["lab","clean"],"style":"clean","texture_asset_id":"wall_default","fallback_color":Color(0.66, 0.72, 0.76, 0.98),"edge_color":Color(0.86, 0.9, 0.94, 1.0),"damage_level":0,"is_default":false},
+		{"id":"dark_service","display_name":"Dark Service","description":"Low-light service tunnel plating.","tags":["service","dark"],"style":"dark","texture_asset_id":"wall_grate","fallback_color":Color(0.18, 0.2, 0.24, 0.98),"edge_color":Color(0.32, 0.36, 0.41, 1.0),"damage_level":1,"is_default":false},
+		{"id":"orange_hazard","display_name":"Orange Hazard","description":"Hazard-striped industrial wall section.","tags":["hazard","orange"],"style":"hazard","texture_asset_id":"wall_damaged","fallback_color":Color(0.48, 0.31, 0.16, 0.98),"edge_color":Color(0.96, 0.57, 0.21, 1.0),"damage_level":1,"is_default":false},
+		{"id":"damaged_red","display_name":"Damaged Red","description":"Damaged emergency-painted wall.","tags":["damaged","red"],"style":"damaged","texture_asset_id":"wall_damaged","fallback_color":Color(0.42, 0.19, 0.2, 0.98),"edge_color":Color(0.84, 0.34, 0.37, 1.0),"damage_level":3,"is_default":false},
+		{"id":"reinforced","display_name":"Reinforced","description":"Reinforced heavy-duty support wall.","tags":["reinforced","security"],"style":"reinforced","texture_asset_id":"wall_steel","fallback_color":Color(0.24, 0.27, 0.33, 0.98),"edge_color":Color(0.55, 0.61, 0.72, 1.0),"damage_level":0,"is_default":false},
+		{"id":"power_room","display_name":"Power Room","description":"Power distribution room insulation panels.","tags":["power","utility"],"style":"power","texture_asset_id":"wall_energy","fallback_color":Color(0.28, 0.3, 0.21, 0.98),"edge_color":Color(0.71, 0.81, 0.34, 1.0),"damage_level":1,"is_default":false},
+		{"id":"diagnostic_blue","display_name":"Diagnostic Blue","description":"Diagnostic bay blue marker finish.","tags":["diagnostic","blue"],"style":"diagnostic","texture_asset_id":"wall_energy","fallback_color":Color(0.21, 0.3, 0.49, 0.98),"edge_color":Color(0.44, 0.69, 0.97, 1.0),"damage_level":0,"is_default":false}
 	]
 	return {"ok": true, "materials": materials, "message": "Wall material catalog ready."}
+
+func normalize_visual_texture_asset_id(asset_id: String) -> String:
+	var normalized_asset_id: String = asset_id.strip_edges()
+	if normalized_asset_id.is_empty():
+		return ""
+	if VISUAL_TEXTURE_ASSET_ALIASES.has(normalized_asset_id):
+		return String(VISUAL_TEXTURE_ASSET_ALIASES.get(normalized_asset_id, normalized_asset_id))
+	return normalized_asset_id
+
+func get_placeholder_asset_presence_report() -> Array[Dictionary]:
+	var report: Array[Dictionary] = []
+	var asset_keys: Array = ISO_PLACEHOLDER_ASSET_PATHS.keys()
+	asset_keys.sort()
+	for asset_key_variant in asset_keys:
+		var asset_key: String = String(asset_key_variant)
+		var placeholder_path: String = String(ISO_PLACEHOLDER_ASSET_PATHS.get(asset_key, ""))
+		var exists: bool = false
+		var loadable: bool = false
+		if not placeholder_path.is_empty():
+			exists = ResourceLoader.exists(placeholder_path)
+			if exists:
+				loadable = ResourceLoader.exists(placeholder_path, "Texture2D")
+		report.append({"asset_key": asset_key, "path": placeholder_path, "exists": exists, "loadable": loadable, "optional": true})
+	return report
+
+func _append_placeholder_visual_texture_assets(assets: Array[Dictionary]) -> void:
+	var existing_ids: Dictionary = {}
+	for row_variant in assets:
+		var row: Dictionary = Dictionary(row_variant)
+		existing_ids[String(row.get("id", ""))] = true
+	var asset_keys: Array = ISO_PLACEHOLDER_ASSET_PATHS.keys()
+	asset_keys.sort()
+	for asset_key_variant in asset_keys:
+		var asset_key: String = String(asset_key_variant)
+		if existing_ids.has(asset_key):
+			continue
+		var category: String = "placeholder"
+		if asset_key.begins_with("floor_"):
+			category = "floor"
+		elif asset_key.begins_with("wall_"):
+			category = "wall"
+		elif asset_key.begins_with("object_"):
+			category = "object"
+		assets.append({"id": asset_key, "category": category, "display_name": "Placeholder / %s" % asset_key.capitalize(), "description": "BIP-Visual-011 placeholder SVG asset.", "texture_path": String(ISO_PLACEHOLDER_ASSET_PATHS.get(asset_key, "")), "atlas_region": Rect2i(0, 0, 0, 0), "fallback_style": "placeholder", "fallback_color": Color(0.72, 0.82, 0.9, 0.95), "tags": ["placeholder", category], "is_optional": true, "placeholder_asset_key": asset_key})
+
+func _append_visual_texture_asset_alias_rows(assets: Array[Dictionary]) -> void:
+	var existing_ids: Dictionary = {}
+	for row_variant in assets:
+		var row: Dictionary = Dictionary(row_variant)
+		existing_ids[String(row.get("id", ""))] = true
+	var alias_ids: Array = VISUAL_TEXTURE_ASSET_ALIASES.keys()
+	alias_ids.sort()
+	for alias_id_variant in alias_ids:
+		var alias_id: String = String(alias_id_variant)
+		if existing_ids.has(alias_id):
+			continue
+		var placeholder_key: String = normalize_visual_texture_asset_id(alias_id)
+		var placeholder_path: String = String(ISO_PLACEHOLDER_ASSET_PATHS.get(placeholder_key, ""))
+		assets.append({"id": alias_id, "category": "alias", "display_name": "Alias / %s" % alias_id.capitalize(), "description": "Backward-compatible visual texture asset alias.", "texture_path": placeholder_path, "atlas_region": Rect2i(0, 0, 0, 0), "fallback_style": "alias", "fallback_color": Color(0.72, 0.82, 0.9, 0.95), "tags": ["alias", placeholder_key], "is_optional": true, "placeholder_asset_key": placeholder_key})
 
 func get_visual_texture_asset_catalog() -> Dictionary:
 	var assets: Array[Dictionary] = [
@@ -1971,24 +2107,31 @@ func get_visual_texture_asset_catalog() -> Dictionary:
 		{"id":"floor_diagnostic","category":"floor","display_name":"Floor / Diagnostic","description":"Diagnostic floor texture slot.","texture_path":"","atlas_region":Rect2i(0, 0, 0, 0),"fallback_style":"diagnostic","fallback_color":Color(0.11, 0.16, 0.23, 0.97),"tags":["floor","diagnostic"],"is_optional":true},
 		{"id":"diagnostic_missing_texture","category":"diagnostic","display_name":"Diagnostic / Missing Texture","description":"Diagnostic placeholder for missing visual texture.","texture_path":"","atlas_region":Rect2i(0, 0, 0, 0),"fallback_style":"warning_marker","fallback_color":Color(1.0, 0.79, 0.21, 0.98),"tags":["diagnostic","missing"],"is_optional":true}
 	]
-	return {"ok": true, "assets": assets, "message": "Visual texture asset catalog ready."}
+	_append_placeholder_visual_texture_assets(assets)
+	_append_visual_texture_asset_alias_rows(assets)
+	return {"ok": true, "assets": assets, "placeholder_assets": get_placeholder_asset_presence_report(), "message": "Visual texture asset catalog ready."}
 
 func resolve_visual_texture_asset(asset_id: String) -> Dictionary:
-	var normalized_asset_id: String = asset_id.strip_edges()
+	var requested_asset_id: String = asset_id.strip_edges()
+	var normalized_asset_id: String = normalize_visual_texture_asset_id(requested_asset_id)
 	if normalized_asset_id.is_empty():
-		return {"ok": false, "asset_id": normalized_asset_id, "has_texture": false, "texture_path": "", "atlas_region": Rect2i(0, 0, 0, 0), "fallback_style": "default", "fallback_color": Color(1, 1, 1, 1), "message": "Asset id is empty."}
+		return {"ok": false, "asset_id": normalized_asset_id, "requested_asset_id": requested_asset_id, "has_texture": false, "texture_path": "", "atlas_region": Rect2i(0, 0, 0, 0), "fallback_style": "default", "fallback_color": Color(1, 1, 1, 1), "message": "Asset id is empty."}
 	var catalog: Dictionary = get_visual_texture_asset_catalog()
 	for row_variant in Array(catalog.get("assets", [])):
 		var row: Dictionary = Dictionary(row_variant)
-		if String(row.get("id", "")) != normalized_asset_id:
+		if String(row.get("id", "")) != normalized_asset_id and String(row.get("id", "")) != requested_asset_id:
 			continue
 		var texture_path: String = String(row.get("texture_path", "")).strip_edges()
+		if texture_path.is_empty() and ISO_PLACEHOLDER_ASSET_PATHS.has(normalized_asset_id):
+			texture_path = String(ISO_PLACEHOLDER_ASSET_PATHS.get(normalized_asset_id, ""))
 		var has_texture: bool = false
 		if not texture_path.is_empty():
-			has_texture = ResourceLoader.exists(texture_path, "Texture2D")
-		var message: String = "Texture asset resolved." if has_texture else "Texture missing; fallback should be used."
-		return {"ok": true, "asset_id": normalized_asset_id, "has_texture": has_texture, "texture_path": texture_path, "atlas_region": Rect2i(row.get("atlas_region", Rect2i(0, 0, 0, 0))), "fallback_style": String(row.get("fallback_style", "default")), "fallback_color": Color(row.get("fallback_color", Color(1, 1, 1, 1))), "message": message, "is_optional": bool(row.get("is_optional", true))}
-	return {"ok": false, "asset_id": normalized_asset_id, "has_texture": false, "texture_path": "", "atlas_region": Rect2i(0, 0, 0, 0), "fallback_style": "default", "fallback_color": Color(1, 1, 1, 1), "message": "Unknown visual texture asset id: %s" % normalized_asset_id}
+			has_texture = ResourceLoader.exists(texture_path)
+		var message: String = "Texture missing; fallback should be used."
+		if has_texture:
+			message = "Texture asset resolved."
+		return {"ok": true, "asset_id": normalized_asset_id, "requested_asset_id": requested_asset_id, "has_texture": has_texture, "texture_path": texture_path, "atlas_region": Rect2i(row.get("atlas_region", Rect2i(0, 0, 0, 0))), "fallback_style": String(row.get("fallback_style", "default")), "fallback_color": Color(row.get("fallback_color", Color(1, 1, 1, 1))), "message": message, "is_optional": bool(row.get("is_optional", true)), "placeholder_asset_key": String(row.get("placeholder_asset_key", normalized_asset_id))}
+	return {"ok": false, "asset_id": normalized_asset_id, "requested_asset_id": requested_asset_id, "has_texture": false, "texture_path": "", "atlas_region": Rect2i(0, 0, 0, 0), "fallback_style": "default", "fallback_color": Color(1, 1, 1, 1), "message": "Unknown visual texture asset id: %s" % requested_asset_id}
 
 func get_visual_texture_asset_reference_diagnostics() -> Dictionary:
 	var unknown_references: Array[String] = []
@@ -2064,6 +2207,7 @@ func get_visual_texture_asset_reference_diagnostics() -> Dictionary:
 		"unknown_references": unknown_references,
 		"missing_optional": missing_optional,
 		"missing_required": missing_required,
+		"placeholder_assets": get_placeholder_asset_presence_report(),
 		"message": message
 	}
 
@@ -11265,7 +11409,8 @@ func _build_visual_asset_summary(catalog: Dictionary) -> Dictionary:
 		"missing_optional_count": missing_optional_count,
 		"missing_required_count": missing_required_count,
 		"fallback_count": missing_optional_count + missing_required_count,
-		"categories": category_counts
+		"categories": category_counts,
+		"placeholder_assets": Array(reference_diagnostics.get("placeholder_assets", []))
 	}
 
 func _preview_map_constructor_entry_set(entries: Array, anchor_cell: Vector2i, options: Dictionary = {}) -> Dictionary:

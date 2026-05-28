@@ -32,6 +32,13 @@ class_name RoomVisualRenderer
 @export var iso_placeholder_asset_preset_requires_preview: bool = true
 @export var iso_floor_default_texture: Texture2D = null
 @export var iso_floor_stepped_texture: Texture2D = null
+@export var iso_floor_clean_lab_texture: Texture2D = null
+@export var iso_floor_dark_service_texture: Texture2D = null
+@export var iso_floor_hazard_texture: Texture2D = null
+@export var iso_floor_power_texture: Texture2D = null
+@export var iso_floor_damaged_texture: Texture2D = null
+@export var iso_floor_reinforced_texture: Texture2D = null
+@export var iso_floor_diagnostic_texture: Texture2D = null
 @export var iso_floor_door_underlay_texture: Texture2D = null
 @export var iso_wall_default_texture: Texture2D = null
 @export var iso_wall_outer_texture: Texture2D = null
@@ -48,6 +55,13 @@ class_name RoomVisualRenderer
 @export var iso_object_socket_texture: Texture2D = null
 @export var iso_object_cable_texture: Texture2D = null
 @export var iso_object_generic_texture: Texture2D = null
+@export var iso_object_fuse_texture: Texture2D = null
+@export var iso_object_repair_kit_texture: Texture2D = null
+@export var iso_object_keycard_texture: Texture2D = null
+@export var iso_object_access_code_texture: Texture2D = null
+@export var iso_object_cable_reel_texture: Texture2D = null
+@export var iso_object_button_texture: Texture2D = null
+@export var iso_object_switch_texture: Texture2D = null
 @export var iso_tile_width: float = 128.0
 @export var iso_tile_height: float = 64.0
 @export var iso_wall_height: float = 56.0
@@ -62,6 +76,13 @@ class_name RoomVisualRenderer
 const ISO_PLACEHOLDER_ASSET_PATHS: Dictionary = {
 	"floor_default": "res://assets/visual/isometric/placeholders/iso_floor_default.svg",
 	"floor_stepped": "res://assets/visual/isometric/placeholders/iso_floor_stepped.svg",
+	"floor_clean_lab": "res://assets/visual/isometric/placeholders/iso_floor_clean_lab.svg",
+	"floor_dark_service": "res://assets/visual/isometric/placeholders/iso_floor_dark_service.svg",
+	"floor_hazard": "res://assets/visual/isometric/placeholders/iso_floor_hazard.svg",
+	"floor_power": "res://assets/visual/isometric/placeholders/iso_floor_power.svg",
+	"floor_damaged": "res://assets/visual/isometric/placeholders/iso_floor_damaged.svg",
+	"floor_reinforced": "res://assets/visual/isometric/placeholders/iso_floor_reinforced.svg",
+	"floor_diagnostic": "res://assets/visual/isometric/placeholders/iso_floor_diagnostic.svg",
 	"floor_door_underlay": "res://assets/visual/isometric/placeholders/iso_floor_door_underlay.svg",
 	"wall_default": "res://assets/visual/isometric/placeholders/iso_wall_default.svg",
 	"wall_outer": "res://assets/visual/isometric/placeholders/iso_wall_outer.svg",
@@ -77,7 +98,14 @@ const ISO_PLACEHOLDER_ASSET_PATHS: Dictionary = {
 	"object_component": "res://assets/visual/isometric/placeholders/iso_object_component.svg",
 	"object_socket": "res://assets/visual/isometric/placeholders/iso_object_socket.svg",
 	"object_cable": "res://assets/visual/isometric/placeholders/iso_object_cable.svg",
-	"object_generic": "res://assets/visual/isometric/placeholders/iso_object_generic.svg"
+	"object_generic": "res://assets/visual/isometric/placeholders/iso_object_generic.svg",
+	"object_fuse": "res://assets/visual/isometric/placeholders/iso_object_fuse.svg",
+	"object_repair_kit": "res://assets/visual/isometric/placeholders/iso_object_repair_kit.svg",
+	"object_keycard": "res://assets/visual/isometric/placeholders/iso_object_keycard.svg",
+	"object_access_code": "res://assets/visual/isometric/placeholders/iso_object_access_code.svg",
+	"object_cable_reel": "res://assets/visual/isometric/placeholders/iso_object_cable_reel.svg",
+	"object_button": "res://assets/visual/isometric/placeholders/iso_object_button.svg",
+	"object_switch": "res://assets/visual/isometric/placeholders/iso_object_switch.svg"
 }
 
 var _iso_placeholder_texture_cache: Dictionary = {}
@@ -785,14 +813,65 @@ func get_iso_object_asset_key_for_profile(profile_key: String) -> String:
 			return "object_terminal"
 		"key":
 			return "object_key"
+		"keycard", "digital_key":
+			return "object_keycard"
+		"fuse", "fuse_box":
+			return "object_fuse"
+		"repair_kit":
+			return "object_repair_kit"
+		"access_code", "datafile":
+			return "object_access_code"
 		"component":
 			return "object_component"
 		"socket":
 			return "object_socket"
-		"cable", "cable_reel":
+		"cable":
 			return "object_cable"
+		"cable_reel":
+			return "object_cable_reel"
+		"button", "platform_control", "fan_control", "fan_speed_control":
+			return "object_button"
+		"switch", "breaker", "circuit_breaker":
+			return "object_switch"
 		_:
 			return "object_generic"
+
+func get_iso_object_asset_key_for_object_data(object_data: Dictionary, fallback_profile_key: String) -> String:
+	var fallback_asset_key: String = get_iso_object_asset_key_for_profile(fallback_profile_key)
+	var type_value: String = String(object_data.get("object_type", object_data.get("type", ""))).to_lower().strip_edges()
+	var group_value: String = String(object_data.get("group", "")).to_lower().strip_edges()
+	var name_value: String = String(object_data.get("name", "")).to_lower().strip_edges()
+	var id_value: String = String(object_data.get("id", object_data.get("object_id", ""))).to_lower().strip_edges()
+	var blob: String = "%s %s %s %s %s" % [fallback_profile_key.to_lower(), type_value, group_value, name_value, id_value]
+	if blob.contains("door") or blob.contains("powered_gate"):
+		return "object_door"
+	if blob.contains("terminal") or blob.contains("console") or blob.contains("control_panel"):
+		return "object_terminal"
+	if blob.contains("keycard") or blob.contains("digital_key"):
+		return "object_keycard"
+	if blob.contains("key"):
+		return "object_key"
+	if blob.contains("fuse"):
+		return "object_fuse"
+	if blob.contains("repair_kit") or blob.contains("repair kit"):
+		return "object_repair_kit"
+	if blob.contains("access_code") or blob.contains("access code"):
+		return "object_access_code"
+	if blob.contains("component"):
+		return "object_component"
+	if blob.contains("socket"):
+		return "object_socket"
+	if blob.contains("cable_reel") or blob.contains("cable reel"):
+		return "object_cable_reel"
+	if blob.contains("cable"):
+		return "object_cable"
+	if blob.contains("button"):
+		return "object_button"
+	if blob.contains("switch") or blob.contains("breaker"):
+		return "object_switch"
+	if fallback_asset_key.is_empty():
+		return "object_generic"
+	return fallback_asset_key
 
 func get_iso_placeholder_asset_path(asset_key: String) -> String:
 	if asset_key == "":
@@ -833,6 +912,20 @@ func get_explicit_iso_texture_for_asset_key(asset_key: String) -> Texture2D:
 			return iso_floor_default_texture
 		"floor_stepped":
 			return iso_floor_stepped_texture
+		"floor_clean_lab":
+			return iso_floor_clean_lab_texture
+		"floor_dark_service":
+			return iso_floor_dark_service_texture
+		"floor_hazard":
+			return iso_floor_hazard_texture
+		"floor_power":
+			return iso_floor_power_texture
+		"floor_damaged":
+			return iso_floor_damaged_texture
+		"floor_reinforced":
+			return iso_floor_reinforced_texture
+		"floor_diagnostic":
+			return iso_floor_diagnostic_texture
 		"floor_door_underlay":
 			return iso_floor_door_underlay_texture
 		"wall_default":
@@ -865,6 +958,20 @@ func get_explicit_iso_texture_for_asset_key(asset_key: String) -> Texture2D:
 			return iso_object_cable_texture
 		"object_generic":
 			return iso_object_generic_texture
+		"object_fuse":
+			return iso_object_fuse_texture
+		"object_repair_kit":
+			return iso_object_repair_kit_texture
+		"object_keycard":
+			return iso_object_keycard_texture
+		"object_access_code":
+			return iso_object_access_code_texture
+		"object_cable_reel":
+			return iso_object_cable_reel_texture
+		"object_button":
+			return iso_object_button_texture
+		"object_switch":
+			return iso_object_switch_texture
 		_:
 			return null
 
@@ -926,10 +1033,10 @@ func get_iso_visual_texture_debug_state() -> Dictionary:
 
 func get_iso_visual_texture_debug_keys() -> Array[String]:
 	return [
-		"floor_default", "floor_stepped", "floor_door_underlay",
+		"floor_default", "floor_stepped", "floor_clean_lab", "floor_dark_service", "floor_hazard", "floor_power", "floor_damaged", "floor_reinforced", "floor_diagnostic", "floor_door_underlay",
 		"wall_default", "wall_outer", "wall_brick", "wall_concrete", "wall_grate", "wall_damaged", "wall_steel", "wall_energy",
-		"object_door", "object_terminal", "object_key", "object_component",
-		"object_socket", "object_cable", "object_generic"
+		"object_door", "object_terminal", "object_key", "object_component", "object_socket", "object_cable", "object_generic",
+		"object_fuse", "object_repair_kit", "object_keycard", "object_access_code", "object_cable_reel", "object_button", "object_switch"
 	]
 
 func _increment_iso_debug_count(counts: Dictionary, key: String) -> void:
@@ -1170,6 +1277,16 @@ func get_iso_texture_draw_position_from_center(center: Vector2, texture: Texture
 	var size: Vector2 = texture.get_size()
 	return center - Vector2(size.x * 0.5, size.y * 0.75)
 
+func get_iso_texture_draw_position_for_asset_key(asset_key: String, center: Vector2, texture: Texture2D) -> Vector2:
+	var texture_size: Vector2 = texture.get_size()
+	if asset_key.begins_with("floor_"):
+		return center - Vector2(texture_size.x * 0.5, texture_size.y * 0.5)
+	if asset_key.begins_with("wall_"):
+		return center - Vector2(texture_size.x * 0.5, texture_size.y * 0.68)
+	if asset_key.begins_with("object_"):
+		return center - Vector2(texture_size.x * 0.5, texture_size.y * 0.76)
+	return get_iso_texture_draw_position_from_center(center, texture)
+
 func get_iso_texture_draw_position(cell: Vector2i, texture: Texture2D) -> Vector2:
 	# Future asset hook: this is a provisional bottom-center-ish alignment.
 	# Final art pivot and per-asset offset tuning will be handled in follow-up PRs.
@@ -1187,7 +1304,7 @@ func draw_iso_texture_asset(cell: Vector2i, asset_key: String, visual_center_ove
 	var visual_center: Vector2 = grid_to_iso(cell)
 	if visual_center_override != Vector2.INF:
 		visual_center = visual_center_override
-	var draw_position: Vector2 = get_iso_texture_draw_position_from_center(visual_center, texture)
+	var draw_position: Vector2 = get_iso_texture_draw_position_for_asset_key(asset_key, visual_center, texture)
 	draw_texture(texture, draw_position)
 	return true
 
@@ -1220,7 +1337,7 @@ func draw_optional_visual_texture_asset(asset_id: String, cell: Vector2i, fallba
 		var destination_position: Vector2 = center - Vector2(destination_size.x * 0.5, destination_size.y * 0.75)
 		draw_texture_rect_region(texture, Rect2(destination_position, destination_size), Rect2(atlas_region.position, atlas_region.size))
 		return true
-	draw_texture(texture, get_iso_texture_draw_position_from_center(center, texture))
+	draw_texture(texture, get_iso_texture_draw_position_for_asset_key(String(resolved.get("placeholder_asset_key", normalized_asset_id)), center, texture))
 	return true
 
 func get_wall_prototype_colors(cell: Vector2i) -> Dictionary:
@@ -1766,9 +1883,13 @@ func draw_iso_wall_block(cell: Vector2i) -> void:
 	draw_line(accent_start, accent_end, accent_color, 1.2)
 
 	var wall_profile_key: String = get_wall_visual_profile_key_for_cell(cell)
+	var wall_texture_drawn: bool = false
 	if bool(material_override.get("ok", false)):
-		draw_optional_visual_texture_asset(String(material_row.get("texture_asset_id", "")), cell, "draw_iso_wall_surface_accent")
-	draw_iso_wall_surface_accent(left_face, right_face, top_face, wall_profile_key, accent_color)
+		wall_texture_drawn = draw_optional_visual_texture_asset(String(material_row.get("texture_asset_id", "")), cell, "draw_iso_wall_surface_accent")
+	if not wall_texture_drawn:
+		wall_texture_drawn = draw_iso_texture_asset(cell, get_iso_wall_asset_key_for_profile(wall_profile_key))
+	if not wall_texture_drawn:
+		draw_iso_wall_surface_accent(left_face, right_face, top_face, wall_profile_key, accent_color)
 	if show_wall_topology_overlay:
 		draw_string(ThemeDB.fallback_font, grid_to_iso(cell) + Vector2(-20.0, -float(arch.get("height_px", 24)) - 4.0), topology, HORIZONTAL_ALIGNMENT_LEFT, 56.0, 9, Color(0.95, 0.96, 1.0, 0.9))
 	var mount_zones: Array[Dictionary] = get_wall_mounted_anchor_zones(cell)
@@ -1875,10 +1996,6 @@ func draw_iso_floor_prototype() -> void:
 				continue
 
 			var floor_asset_key: String = get_iso_floor_asset_key_for_tile(tile_type)
-			var allow_floor_texture_preview: bool = not should_use_iso_placeholder_asset_preset()
-			if allow_floor_texture_preview and draw_iso_texture_asset(cell, floor_asset_key):
-				continue
-
 			var diamond_points: PackedVector2Array = get_iso_inset_diamond_points(cell, iso_floor_visual_inset)
 			var profile_key: String = get_iso_floor_visual_profile_key_for_cell(cell)
 			var profile: Dictionary = get_iso_floor_visual_profile(profile_key)
@@ -1894,6 +2011,8 @@ func draw_iso_floor_prototype() -> void:
 						var floor_asset_drawn: bool = draw_optional_visual_texture_asset(floor_texture_asset_id, cell, "", {"visual_center": grid_to_iso(cell)})
 						if floor_asset_drawn:
 							continue
+			if draw_iso_texture_asset(cell, floor_asset_key):
+				continue
 			draw_colored_polygon(diamond_points, fill_color)
 			var outline_color: Color = _get_color_from_dict(profile, "outline", Color(0.21, 0.33, 0.39, 0.85))
 			var panel_color: Color = _get_color_from_dict(profile, "panel", Color(0.18, 0.2, 0.24, 0.4))
@@ -2484,8 +2603,9 @@ func draw_iso_object_marker(cell: Vector2i, tile_type: int) -> void:
 	if footprint_polygon.size() >= 3:
 		draw_colored_polygon(footprint_polygon, Color(0.2, 0.24, 0.28, 0.2))
 	var object_id: String = String(object_meta.get("object_id", ""))
+	var object_data: Dictionary = Dictionary(object_meta.get("data", {}))
 	var profile_key: String = get_iso_object_profile_key_for_tile(tile_type)
-	var object_asset_key: String = get_iso_object_asset_key_for_profile(profile_key)
+	var object_asset_key: String = get_iso_object_asset_key_for_object_data(object_data, profile_key)
 	var mission_manager: Node = get_mission_manager_ref()
 	var has_door_visual: bool = false
 	var door_visual: Dictionary = {}
@@ -2501,6 +2621,7 @@ func draw_iso_object_marker(cell: Vector2i, tile_type: int) -> void:
 	var wall_mounted_profile_key: String = get_wall_mounted_object_profile_key(cell)
 	if not wall_mounted_profile_key.is_empty():
 		profile_key = wall_mounted_profile_key
+		object_asset_key = get_iso_object_asset_key_for_object_data(object_data, profile_key)
 	var profile: Dictionary = get_iso_object_profile(profile_key)
 	if has_door_visual:
 		profile["base"] = _blend_color(_get_color_from_dict(profile, "base", Color.WHITE), Color(door_visual.get("tint", Color.WHITE)), 0.45)
