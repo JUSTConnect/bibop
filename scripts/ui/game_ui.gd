@@ -285,6 +285,8 @@ var tasks_validation_label: Label
 var tasks_start_button: Button
 var tasks_claim_button: Button
 var map_constructor_mode_active: bool = false
+var map_constructor_active_tab: String = "map_settings"
+var map_constructor_tab_scroll_positions: Dictionary = {}
 var selected_map_constructor_prefab_id: String = ""
 var pending_map_constructor_cell: Vector2i = Vector2i(-1, -1)
 var selected_map_constructor_entity_kind: String = ""
@@ -9691,15 +9693,90 @@ func _add_map_constructor_multi_selection_by_filter(filter_mode: String) -> void
 			continue
 		_add_map_constructor_multi_row_if_missing({"entity_kind":entity_kind, "entity_id":String(row.get("id", "")), "cell":Vector2i(row.get("cell", Vector2i(-1, -1))), "object_type":type_or_prefab, "created_by_map_constructor":true})
 	_refresh_map_constructor_multi_selection_stale()
+
+func _remember_map_constructor_palette_scroll() -> void:
+	if runtime_map_constructor_palette_panel == null or not is_instance_valid(runtime_map_constructor_palette_panel):
+		return
+	var scroll: ScrollContainer = _find_map_constructor_palette_scroll(runtime_map_constructor_palette_panel)
+	if scroll == null:
+		return
+	map_constructor_tab_scroll_positions[map_constructor_active_tab] = scroll.scroll_vertical
+
+func _find_map_constructor_palette_scroll(root: Node) -> ScrollContainer:
+	if root == null:
+		return null
+	if root is ScrollContainer:
+		return root as ScrollContainer
+	for child in root.get_children():
+		var found: ScrollContainer = _find_map_constructor_palette_scroll(child)
+		if found != null:
+			return found
+	return null
+
+func _restore_map_constructor_palette_scroll_deferred(scroll: ScrollContainer, tab_name: String) -> void:
+	call_deferred("_restore_map_constructor_palette_scroll", scroll, tab_name)
+
+func _restore_map_constructor_palette_scroll(scroll: ScrollContainer, tab_name: String) -> void:
+	if scroll == null or not is_instance_valid(scroll):
+		return
+	scroll.scroll_vertical = int(map_constructor_tab_scroll_positions.get(tab_name, 0))
+
+func _set_map_constructor_active_tab(tab_name: String) -> void:
+	if not ["map_settings", "objects", "warnings"].has(tab_name):
+		return
+	if tab_name == map_constructor_active_tab:
+		return
+	_remember_map_constructor_palette_scroll()
+	map_constructor_active_tab = tab_name
+	_refresh_map_constructor_panels()
+
+
+func _add_map_constructor_section_header(parent: VBoxContainer, title: String) -> void:
+	var header_panel: PanelContainer = PanelContainer.new()
+	header_panel.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	header_panel.add_theme_stylebox_override("panel", _make_panel_style(UI_COLOR_PANEL_DARK, UI_COLOR_BORDER_DIM, 1, 6))
+	var title_label: Label = Label.new()
+	title_label.text = title
+	title_label.add_theme_color_override("font_color", UI_COLOR_ACCENT)
+	header_panel.add_child(title_label)
+	parent.add_child(header_panel)
+
+func _add_map_constructor_tab_header(parent: VBoxContainer) -> void:
+	var tab_row: HBoxContainer = HBoxContainer.new()
+	tab_row.add_theme_constant_override("separation", 4)
+	tab_row.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	parent.add_child(tab_row)
+	for tab_data in [
+		{"id":"map_settings", "label":"Map Settings"},
+		{"id":"objects", "label":"Objects"},
+		{"id":"warnings", "label":"Warnings"}
+	]:
+		var tab_id: String = String(tab_data.get("id", ""))
+		var tab_button: Button = Button.new()
+		tab_button.text = String(tab_data.get("label", tab_id))
+		tab_button.toggle_mode = true
+		tab_button.button_pressed = tab_id == map_constructor_active_tab
+		tab_button.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+		if tab_button.button_pressed:
+			tab_button.add_theme_stylebox_override("normal", _make_panel_style(UI_COLOR_PANEL_DARK, UI_COLOR_ACCENT, 2, 6))
+			tab_button.add_theme_stylebox_override("pressed", _make_panel_style(UI_COLOR_PANEL_DARK, UI_COLOR_ACCENT, 2, 6))
+		tab_button.pressed.connect(func() -> void:
+			_set_map_constructor_active_tab(tab_id)
+		)
+		tab_row.add_child(tab_button)
+
 func _refresh_map_constructor_panels() -> void:
 	if app_screen_mode != AppScreenMode.GAMEPLAY:
 		return
 	if runtime_hud_root == null or not is_instance_valid(runtime_hud_root):
 		return
+	_remember_map_constructor_palette_scroll()
 	if runtime_map_constructor_palette_panel != null and is_instance_valid(runtime_map_constructor_palette_panel):
 		runtime_map_constructor_palette_panel.queue_free()
 	if not map_constructor_mode_active:
 		return
+	if not ["map_settings", "objects", "warnings"].has(map_constructor_active_tab):
+		map_constructor_active_tab = "map_settings"
 	runtime_map_constructor_palette_panel = PanelContainer.new()
 	runtime_map_constructor_palette_panel.z_index = Z_MAP_CONSTRUCTOR_UI
 	runtime_map_constructor_palette_panel.z_as_relative = false
@@ -9707,1705 +9784,1713 @@ func _refresh_map_constructor_panels() -> void:
 	runtime_map_constructor_palette_panel.position = palette_rect.position
 	runtime_map_constructor_palette_panel.size = palette_rect.size
 	runtime_map_constructor_palette_panel.add_theme_stylebox_override("panel", _make_panel_style(UI_COLOR_PANEL, UI_COLOR_BORDER, 1, 8))
+	var palette_stack: VBoxContainer = VBoxContainer.new()
+	palette_stack.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
+	palette_stack.add_theme_constant_override("separation", 6)
+	runtime_map_constructor_palette_panel.add_child(palette_stack)
+	_add_map_constructor_tab_header(palette_stack)
 	var scroll := ScrollContainer.new()
-	scroll.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
 	scroll.horizontal_scroll_mode = ScrollContainer.SCROLL_MODE_DISABLED
 	scroll.vertical_scroll_mode = ScrollContainer.SCROLL_MODE_AUTO
 	scroll.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	scroll.size_flags_vertical = Control.SIZE_EXPAND_FILL
-	runtime_map_constructor_palette_panel.add_child(scroll)
+	palette_stack.add_child(scroll)
 	var list := VBoxContainer.new()
 	list.add_theme_constant_override("separation", 6)
 	list.custom_minimum_size = Vector2(maxf(palette_rect.size.x - 28.0, 160.0), 0.0)
 	list.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	scroll.add_child(list)
-	var search_edit := LineEdit.new()
-	search_edit.placeholder_text = "Search prefab (id/name/category/placement)..."
-	search_edit.text = map_constructor_prefab_search_text
-	search_edit.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-	search_edit.text_changed.connect(func(new_text: String) -> void:
-		map_constructor_prefab_search_text = new_text
-		_refresh_map_constructor_panels()
-	)
-	list.add_child(search_edit)
-	var category_option := OptionButton.new()
-	for category_name in MAP_CONSTRUCTOR_PREFAB_FILTER_CATEGORIES:
-		category_option.add_item(category_name)
-	var selected_category_index: int = MAP_CONSTRUCTOR_PREFAB_FILTER_CATEGORIES.find(map_constructor_prefab_category_filter)
-	if selected_category_index < 0:
-		selected_category_index = 0
-		map_constructor_prefab_category_filter = MAP_CONSTRUCTOR_PREFAB_FILTER_CATEGORIES[0]
-	category_option.select(selected_category_index)
-	category_option.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-	category_option.item_selected.connect(func(index: int) -> void:
-		if index >= 0 and index < MAP_CONSTRUCTOR_PREFAB_FILTER_CATEGORIES.size():
-			map_constructor_prefab_category_filter = MAP_CONSTRUCTOR_PREFAB_FILTER_CATEGORIES[index]
+	if map_constructor_active_tab == "objects":
+		var search_edit := LineEdit.new()
+		search_edit.placeholder_text = "Search prefab (id/name/category/placement)..."
+		search_edit.text = map_constructor_prefab_search_text
+		search_edit.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+		search_edit.text_changed.connect(func(new_text: String) -> void:
+			map_constructor_prefab_search_text = new_text
 			_refresh_map_constructor_panels()
-	)
-	list.add_child(category_option)
-	var role_option: OptionButton = OptionButton.new()
-	for role_name in MAP_CONSTRUCTOR_PREFAB_FILTER_ROLES:
-		role_option.add_item(role_name)
-	role_option.select(maxi(0, MAP_CONSTRUCTOR_PREFAB_FILTER_ROLES.find(map_constructor_prefab_role_filter)))
-	role_option.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-	role_option.item_selected.connect(func(index: int) -> void:
-		if index >= 0 and index < MAP_CONSTRUCTOR_PREFAB_FILTER_ROLES.size():
-			map_constructor_prefab_role_filter = MAP_CONSTRUCTOR_PREFAB_FILTER_ROLES[index]
-			_refresh_map_constructor_panels())
-	list.add_child(role_option)
-	var placement_option: OptionButton = OptionButton.new()
-	for mode_name in MAP_CONSTRUCTOR_PREFAB_FILTER_PLACEMENT_MODES:
-		placement_option.add_item(mode_name)
-	placement_option.select(maxi(0, MAP_CONSTRUCTOR_PREFAB_FILTER_PLACEMENT_MODES.find(map_constructor_prefab_placement_filter)))
-	placement_option.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-	placement_option.item_selected.connect(func(index: int) -> void:
-		if index >= 0 and index < MAP_CONSTRUCTOR_PREFAB_FILTER_PLACEMENT_MODES.size():
-			map_constructor_prefab_placement_filter = MAP_CONSTRUCTOR_PREFAB_FILTER_PLACEMENT_MODES[index]
-			_refresh_map_constructor_panels())
-	list.add_child(placement_option)
-	var show_diag: CheckBox = CheckBox.new(); show_diag.text = "Show Diagnostics"; show_diag.button_pressed = map_constructor_prefab_show_diagnostics; show_diag.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
-	show_diag.toggled.connect(func(v: bool) -> void: map_constructor_prefab_show_diagnostics = v; _refresh_map_constructor_panels())
-	list.add_child(show_diag)
-	var show_invalid: CheckBox = CheckBox.new(); show_invalid.text = "Show Expected Invalid"; show_invalid.button_pressed = map_constructor_prefab_show_expected_invalid; show_invalid.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
-	show_invalid.toggled.connect(func(v: bool) -> void: map_constructor_prefab_show_expected_invalid = v; _refresh_map_constructor_panels())
-	list.add_child(show_invalid)
-	var show_placeable: CheckBox = CheckBox.new(); show_placeable.text = "Show Only Placeable Here"; show_placeable.button_pressed = map_constructor_prefab_show_only_placeable_here; show_placeable.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
-	show_placeable.toggled.connect(func(v: bool) -> void: map_constructor_prefab_show_only_placeable_here = v; _refresh_map_constructor_panels())
-	list.add_child(show_placeable)
-	var catalog: Array[Dictionary] = []
-	if mission_manager_runtime != null and mission_manager_runtime.has_method("get_map_constructor_prefab_palette_rows"):
-		var palette_rows: Dictionary = mission_manager_runtime.call("get_map_constructor_prefab_palette_rows", {
-			"search": map_constructor_prefab_search_text,
-			"category": map_constructor_prefab_category_filter,
-			"role": map_constructor_prefab_role_filter,
-			"placement_mode": map_constructor_prefab_placement_filter,
-			"show_expected_invalid": map_constructor_prefab_show_expected_invalid,
-			"show_diagnostics": map_constructor_prefab_show_diagnostics,
-			"show_only_placeable_here": map_constructor_prefab_show_only_placeable_here,
-			"selected_cell": pending_map_constructor_cell
-		})
-		catalog = Array(palette_rows.get("rows", []))
-	var catalog_by_id: Dictionary = {}
-	for entry in catalog:
-		catalog_by_id[String(entry.get("id", ""))] = entry
-	var grouped_entries: Dictionary = {}
-	for group_name in MAP_CONSTRUCTOR_PREFAB_CATEGORY_GROUP_ORDER:
-		grouped_entries[group_name] = []
-	var selected_visible: bool = false
-	for entry in catalog:
-		if not _map_constructor_prefab_matches_filters(entry):
-			continue
-		var group_name: String = _get_map_constructor_prefab_group_name(entry)
-		if group_name.is_empty() or not grouped_entries.has(group_name):
-			group_name = "Utility"
-			if not grouped_entries.has(group_name):
-				grouped_entries[group_name] = []
-		var group_entries: Array = grouped_entries[group_name]
-		group_entries.append(entry)
-		grouped_entries[group_name] = group_entries
-	var favorite_entries: Array[Dictionary] = []
-	for favorite_id_variant in map_constructor_prefab_favorites.keys():
-		var favorite_id: String = String(favorite_id_variant)
-		if not bool(map_constructor_prefab_favorites.get(favorite_id, false)) or not catalog_by_id.has(favorite_id):
-			continue
-		var favorite_entry: Dictionary = Dictionary(catalog_by_id[favorite_id])
-		if _map_constructor_prefab_matches_filters(favorite_entry):
-			favorite_entries.append(favorite_entry)
-	favorite_entries.sort_custom(func(a: Dictionary, b: Dictionary) -> bool:
-		return String(a.get("label", a.get("id", ""))) < String(b.get("label", b.get("id", "")) )
-	)
-	var recent_entries: Array[Dictionary] = []
-	for recent_id in map_constructor_prefab_recent_ids:
-		if not catalog_by_id.has(recent_id):
-			continue
-		var recent_entry: Dictionary = Dictionary(catalog_by_id[recent_id])
-		if _map_constructor_prefab_matches_filters(recent_entry):
-			recent_entries.append(recent_entry)
-	for section in [{"name":"Favorites","entries":favorite_entries},{"name":"Recent","entries":recent_entries}]:
-		var section_entries: Array = Array(section.get("entries", []))
-		if section_entries.is_empty():
-			continue
-		var section_header: Label = Label.new()
-		section_header.text = String(section.get("name", ""))
-		list.add_child(section_header)
-		for entry in section_entries:
-			var id: String = String(entry.get("id", ""))
-			var b: Button = Button.new()
-			b.text = "%s [%s] — %s\n%s\nhint: %s\n%s | %s" % [String(entry.get("display_name", entry.get("label", id))), id, String(entry.get("category", "")), String(entry.get("description", "")), String(entry.get("placement_hint", "")), ", ".join(PackedStringArray(entry.get("tags", []))), ", ".join(PackedStringArray(entry.get("system_roles", [])))]
-			b.toggle_mode = true
-			b.button_pressed = id == selected_map_constructor_prefab_id
-			if b.button_pressed:
-				selected_visible = true
-			b.pressed.connect(func() -> void:
-				_select_map_constructor_prefab(id)
+		)
+		list.add_child(search_edit)
+		var category_option := OptionButton.new()
+		for category_name in MAP_CONSTRUCTOR_PREFAB_FILTER_CATEGORIES:
+			category_option.add_item(category_name)
+		var selected_category_index: int = MAP_CONSTRUCTOR_PREFAB_FILTER_CATEGORIES.find(map_constructor_prefab_category_filter)
+		if selected_category_index < 0:
+			selected_category_index = 0
+			map_constructor_prefab_category_filter = MAP_CONSTRUCTOR_PREFAB_FILTER_CATEGORIES[0]
+		category_option.select(selected_category_index)
+		category_option.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+		category_option.item_selected.connect(func(index: int) -> void:
+			if index >= 0 and index < MAP_CONSTRUCTOR_PREFAB_FILTER_CATEGORIES.size():
+				map_constructor_prefab_category_filter = MAP_CONSTRUCTOR_PREFAB_FILTER_CATEGORIES[index]
 				_refresh_map_constructor_panels()
-			)
-			list.add_child(b)
-	for group_name in MAP_CONSTRUCTOR_PREFAB_CATEGORY_GROUP_ORDER:
-		var entries: Array = grouped_entries[group_name]
-		if entries.is_empty():
-			continue
-		var header := Label.new()
-		header.text = group_name
-		list.add_child(header)
-		for entry in entries:
-			var id: String = String(entry.get("id", ""))
-			var b: Button = Button.new()
-			var warning_text: String = ""
-			if bool(entry.get("is_destructive", false)) or bool(entry.get("is_expected_invalid_tool", false)) or bool(entry.get("can_have_links", false)):
-				warning_text = " ⚠"
-			b.text = "%s%s [%s] — %s\n%s\nhint: %s\n%s | %s" % [String(entry.get("display_name", entry.get("label", id))), warning_text, id, String(entry.get("category", "")), String(entry.get("description", "")), String(entry.get("placement_hint", "")), ", ".join(PackedStringArray(entry.get("tags", []))), ", ".join(PackedStringArray(entry.get("system_roles", [])))]
-			b.toggle_mode = true
-			b.button_pressed = id == selected_map_constructor_prefab_id
-			if b.button_pressed:
-				selected_visible = true
-			b.pressed.connect(func() -> void:
-				_select_map_constructor_prefab(id)
-				_refresh_map_constructor_panels()
-			)
-			list.add_child(b)
-	if not selected_visible and not selected_map_constructor_prefab_id.is_empty():
-		selected_map_constructor_prefab_id = ""
-		selected_map_constructor_wall_side = ""
-		available_map_constructor_wall_sides.clear()
-		pending_map_constructor_cell = Vector2i(-1, -1)
-		_clear_map_constructor_preview_cell()
-	var placement_label: Label = Label.new()
-	placement_label.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
-	placement_label.text = "Placement: blocked: unsupported prefab"
-	if pending_map_constructor_cell.x >= 0 and pending_map_constructor_cell.y >= 0 and not selected_map_constructor_prefab_id.is_empty():
-		if mission_manager_runtime != null and mission_manager_runtime.has_method("can_place_map_constructor_prefab"):
-			var check: Dictionary = _update_map_constructor_preview_for_cell(pending_map_constructor_cell)
-			if selected_visible:
-				list.add_child(_create_map_constructor_wall_side_picker(String(check.get("placement_mode", ""))))
-			var reason: String = String(check.get("reason", "unsupported_prefab"))
-			match reason:
-				"ok":
-					placement_label.text = "Placement: OK"
-				"existing_object", "occupied_by_bipob":
-					placement_label.text = "Placement: blocked: existing object"
-				"out_of_bounds":
-					placement_label.text = "Placement: blocked: out of bounds"
-				"exit_cell":
-					placement_label.text = "Placement: blocked: exit cell"
-				"wall_or_static":
-					placement_label.text = "Placement: blocked: wall/static obstacle"
-				"non_floor_tile":
-					placement_label.text = "Placement: blocked: non-floor tile"
-				_:
-					placement_label.text = "Placement: blocked: unsupported prefab"
-			if String(check.get("placement_mode", "")) == "wall_mounted":
-				placement_label.text += "\nWall side: %s (R to cycle)" % _get_map_constructor_wall_side_label(String(check.get("wall_side", selected_map_constructor_wall_side)))
-	list.add_child(placement_label)
-	var favorite_toggle: Button = Button.new()
-	var selected_is_favorite: bool = bool(map_constructor_prefab_favorites.get(selected_map_constructor_prefab_id, false))
-	favorite_toggle.text = "★ Unfavorite Selected" if selected_is_favorite else "☆ Favorite Selected"
-	favorite_toggle.disabled = selected_map_constructor_prefab_id.is_empty()
-	favorite_toggle.pressed.connect(func() -> void:
-		if selected_map_constructor_prefab_id.is_empty():
-			return
-		var favorite_now: bool = not bool(map_constructor_prefab_favorites.get(selected_map_constructor_prefab_id, false))
-		map_constructor_prefab_favorites[selected_map_constructor_prefab_id] = favorite_now
-		_refresh_map_constructor_panels()
-	)
-	list.add_child(favorite_toggle)
-	var placed_title: Label = Label.new()
-	placed_title.text = "Placed Objects"
-	list.add_child(placed_title)
-	var placed_search: LineEdit = LineEdit.new()
-	placed_search.placeholder_text = "Search placed objects..."
-	placed_search.text = map_constructor_placed_search_text
-	placed_search.text_changed.connect(func(new_text: String) -> void:
-		map_constructor_placed_search_text = new_text
-		_refresh_map_constructor_panels()
-	)
-	list.add_child(placed_search)
-	var placed_rows: Array[Dictionary] = _build_map_constructor_placed_object_rows()
-	var selected_row_exists: bool = selected_map_constructor_entity_id.is_empty()
-	for row in placed_rows:
-		var row_entity_id: String = String(row.get("id", ""))
-		var row_entity_kind: String = String(row.get("entity_kind", ""))
-		if row_entity_id == selected_map_constructor_entity_id and row_entity_kind == selected_map_constructor_entity_kind:
-			selected_row_exists = true
-	for row in placed_rows:
-		if not _map_constructor_placed_row_matches_search(row):
-			continue
-		var row_cell: Vector2i = Vector2i(row.get("cell", Vector2i(-1, -1)))
-		var row_anchor_cell: Vector2i = Vector2i(row.get("anchor_floor_cell", row_cell))
-		var row_entity_id: String = String(row.get("id", ""))
-		var row_entity_kind: String = String(row.get("entity_kind", ""))
-		var row_selected: bool = row_entity_id == selected_map_constructor_entity_id and row_entity_kind == selected_map_constructor_entity_kind
-		var row_button: Button = Button.new()
-		var row_text: String = "%s | %s | c:%s | %s" % [String(row.get("id", "")), String(row.get("type_or_prefab", "")), str(row_cell), String(row.get("category_or_placement", ""))]
-		if String(row.get("placement_mode", "")) == "wall_mounted":
-			row_text += " | a:%s w:%s side:%s" % [str(row_anchor_cell), str(Vector2i(row.get("attached_wall_cell", Vector2i(-1, -1)))), String(row.get("wall_side", ""))]
-		if row_selected:
-			row_text = "▶ " + row_text
-		row_button.text = row_text
-		row_button.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
-		row_button.pressed.connect(func() -> void:
-			_select_map_constructor_entity_from_browser(row)
-			_refresh_map_constructor_panels()
 		)
-		list.add_child(row_button)
-	if not selected_row_exists:
-		_clear_map_constructor_browser_selection()
-	var browser_selection_label: Label = Label.new()
-	browser_selection_label.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
-	if selected_map_constructor_entity_id.is_empty() or selected_map_constructor_entity_kind.is_empty():
-		browser_selection_label.text = "Browser selection: none"
-	else:
-		browser_selection_label.text = "Browser selection: %s/%s @ %s" % [selected_map_constructor_entity_kind, selected_map_constructor_entity_id, str(selected_map_constructor_entity_cell)]
-	list.add_child(browser_selection_label)
-	var readiness_title: Label = Label.new()
-	readiness_title.text = "Mission Readiness"
-	list.add_child(readiness_title)
-	var visual_assets_title: Label = Label.new()
-	visual_assets_title.text = "Visual Assets"
-	list.add_child(visual_assets_title)
-	if mission_manager_runtime != null and mission_manager_runtime.has_method("get_visual_texture_asset_catalog"):
-		var visual_catalog: Dictionary = mission_manager_runtime.call("get_visual_texture_asset_catalog")
-		var visual_assets: Array = Array(visual_catalog.get("assets", []))
-		var missing_optional_count: int = 0
-		for row_variant in visual_assets:
-			var row: Dictionary = Dictionary(row_variant)
-			if mission_manager_runtime.has_method("resolve_visual_texture_asset"):
-				var resolved: Dictionary = mission_manager_runtime.call("resolve_visual_texture_asset", String(row.get("id", "")))
-				if bool(resolved.get("ok", false)) and not bool(resolved.get("has_texture", false)) and bool(row.get("is_optional", true)):
-					missing_optional_count += 1
-		var visual_summary_label: Label = Label.new()
-		visual_summary_label.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
-		visual_summary_label.text = "assets=%d missing_optional=%d" % [visual_assets.size(), missing_optional_count]
-		list.add_child(visual_summary_label)
-		var selected_texture_asset_id: String = ""
-		if not selected_map_constructor_entity_id.is_empty() and mission_manager_runtime.has_method("get_map_constructor_entity_by_id"):
-			var entity_data: Dictionary = mission_manager_runtime.call("get_map_constructor_entity_by_id", selected_map_constructor_entity_kind, selected_map_constructor_entity_id)
-			var selected_payload: Dictionary = Dictionary(entity_data.get("data", {}))
-			selected_texture_asset_id = String(selected_payload.get("texture_asset_id", ""))
-		var selected_asset_label: Label = Label.new()
-		selected_asset_label.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
-		selected_asset_label.text = "selected.texture_asset_id=%s" % (selected_texture_asset_id if not selected_texture_asset_id.is_empty() else "none")
-		list.add_child(selected_asset_label)
-	if mission_manager_runtime != null and mission_manager_runtime.has_method("get_map_constructor_mission_readiness_report"):
-		var readiness: Dictionary = mission_manager_runtime.call("get_map_constructor_mission_readiness_report")
-		var readiness_status: String = String(readiness.get("status", "unknown"))
-		var constructor_status_label: Label = Label.new()
-		constructor_status_label.text = "Mission Readiness: %s" % ["PLAYABLE" if readiness_status == "playable" else ("BLOCKED" if readiness_status == "blocked" else "WARNINGS")]
-		list.add_child(constructor_status_label)
-		var summary_label: Label = Label.new()
-		summary_label.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
-		summary_label.text = "blocking=%d warnings=%d expected-invalid=%d info=%d" % [int(readiness.get("blocking_count", 0)), int(readiness.get("warning_count", 0)), int(readiness.get("expected_invalid_count", 0)), int(readiness.get("info_count", 0))]
-		list.add_child(summary_label)
-		var action_by_issue: Dictionary = {}
-		for rec_variant in Array(readiness.get("recommended_actions", [])):
-			var rec: Dictionary = Dictionary(rec_variant)
-			var tid: String = String(rec.get("target_issue_id", ""))
-			if tid.is_empty() or action_by_issue.has(tid):
+		list.add_child(category_option)
+		var role_option: OptionButton = OptionButton.new()
+		for role_name in MAP_CONSTRUCTOR_PREFAB_FILTER_ROLES:
+			role_option.add_item(role_name)
+		role_option.select(maxi(0, MAP_CONSTRUCTOR_PREFAB_FILTER_ROLES.find(map_constructor_prefab_role_filter)))
+		role_option.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+		role_option.item_selected.connect(func(index: int) -> void:
+			if index >= 0 and index < MAP_CONSTRUCTOR_PREFAB_FILTER_ROLES.size():
+				map_constructor_prefab_role_filter = MAP_CONSTRUCTOR_PREFAB_FILTER_ROLES[index]
+				_refresh_map_constructor_panels())
+		list.add_child(role_option)
+		var placement_option: OptionButton = OptionButton.new()
+		for mode_name in MAP_CONSTRUCTOR_PREFAB_FILTER_PLACEMENT_MODES:
+			placement_option.add_item(mode_name)
+		placement_option.select(maxi(0, MAP_CONSTRUCTOR_PREFAB_FILTER_PLACEMENT_MODES.find(map_constructor_prefab_placement_filter)))
+		placement_option.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+		placement_option.item_selected.connect(func(index: int) -> void:
+			if index >= 0 and index < MAP_CONSTRUCTOR_PREFAB_FILTER_PLACEMENT_MODES.size():
+				map_constructor_prefab_placement_filter = MAP_CONSTRUCTOR_PREFAB_FILTER_PLACEMENT_MODES[index]
+				_refresh_map_constructor_panels())
+		list.add_child(placement_option)
+		var show_diag: CheckBox = CheckBox.new(); show_diag.text = "Show Diagnostics"; show_diag.button_pressed = map_constructor_prefab_show_diagnostics; show_diag.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+		show_diag.toggled.connect(func(v: bool) -> void: map_constructor_prefab_show_diagnostics = v; _refresh_map_constructor_panels())
+		list.add_child(show_diag)
+		var show_invalid: CheckBox = CheckBox.new(); show_invalid.text = "Show Expected Invalid"; show_invalid.button_pressed = map_constructor_prefab_show_expected_invalid; show_invalid.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+		show_invalid.toggled.connect(func(v: bool) -> void: map_constructor_prefab_show_expected_invalid = v; _refresh_map_constructor_panels())
+		list.add_child(show_invalid)
+		var show_placeable: CheckBox = CheckBox.new(); show_placeable.text = "Show Only Placeable Here"; show_placeable.button_pressed = map_constructor_prefab_show_only_placeable_here; show_placeable.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+		show_placeable.toggled.connect(func(v: bool) -> void: map_constructor_prefab_show_only_placeable_here = v; _refresh_map_constructor_panels())
+		list.add_child(show_placeable)
+		var catalog: Array[Dictionary] = []
+		if mission_manager_runtime != null and mission_manager_runtime.has_method("get_map_constructor_prefab_palette_rows"):
+			var palette_rows: Dictionary = mission_manager_runtime.call("get_map_constructor_prefab_palette_rows", {
+				"search": map_constructor_prefab_search_text,
+				"category": map_constructor_prefab_category_filter,
+				"role": map_constructor_prefab_role_filter,
+				"placement_mode": map_constructor_prefab_placement_filter,
+				"show_expected_invalid": map_constructor_prefab_show_expected_invalid,
+				"show_diagnostics": map_constructor_prefab_show_diagnostics,
+				"show_only_placeable_here": map_constructor_prefab_show_only_placeable_here,
+				"selected_cell": pending_map_constructor_cell
+			})
+			catalog = Array(palette_rows.get("rows", []))
+		var catalog_by_id: Dictionary = {}
+		for entry in catalog:
+			catalog_by_id[String(entry.get("id", ""))] = entry
+		var grouped_entries: Dictionary = {}
+		for group_name in MAP_CONSTRUCTOR_PREFAB_CATEGORY_GROUP_ORDER:
+			grouped_entries[group_name] = []
+		var selected_visible: bool = false
+		for entry in catalog:
+			if not _map_constructor_prefab_matches_filters(entry):
 				continue
-			action_by_issue[tid] = rec
-		for check_variant in Array(readiness.get("checks", [])):
-			var check: Dictionary = Dictionary(check_variant)
-			var check_status: String = String(check.get("status", "info"))
-			var icon: String = "ℹ"
-			if check_status == "pass":
-				icon = "✅"
-			elif check_status == "fail":
-				icon = "❌"
-			elif check_status == "warning":
-				icon = "⚠"
-			elif check_status == "expected_invalid":
-				icon = "🧪"
-			var check_label: Label = Label.new()
-			check_label.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
-			var line: String = "%s %s: %s (count=%d)" % [icon, String(check.get("label", "Check")), String(check.get("message", "")), int(check.get("count", 0))]
-			if not String(check.get("entity_id", "")).is_empty():
-				line += " | id=%s" % String(check.get("entity_id", ""))
-			var c: Vector2i = Vector2i(check.get("cell", Vector2i(-1, -1)))
-			if c.x >= 0 and c.y >= 0:
-				line += " | c=%s" % str(c)
-			check_label.text = line
-			list.add_child(check_label)
-			var issue_id: String = String(check.get("issue_id", ""))
-			if issue_id.is_empty():
+			var group_name: String = _get_map_constructor_prefab_group_name(entry)
+			if group_name.is_empty() or not grouped_entries.has(group_name):
+				group_name = "Utility"
+				if not grouped_entries.has(group_name):
+					grouped_entries[group_name] = []
+			var group_entries: Array = grouped_entries[group_name]
+			group_entries.append(entry)
+			grouped_entries[group_name] = group_entries
+		var favorite_entries: Array[Dictionary] = []
+		for favorite_id_variant in map_constructor_prefab_favorites.keys():
+			var favorite_id: String = String(favorite_id_variant)
+			if not bool(map_constructor_prefab_favorites.get(favorite_id, false)) or not catalog_by_id.has(favorite_id):
 				continue
-			var action_row: HBoxContainer = HBoxContainer.new()
-			var jump_button: Button = Button.new()
-			jump_button.text = "Jump"
-			jump_button.pressed.connect(func() -> void:
-				_focus_map_constructor_readiness_issue_by_id(issue_id)
-			)
-			action_row.add_child(jump_button)
-			if action_by_issue.has(issue_id):
-				var rec: Dictionary = Dictionary(action_by_issue[issue_id])
-				_add_map_constructor_readiness_action_buttons(action_row, rec)
-			list.add_child(action_row)
-		var expected_section: Label = Label.new()
-		expected_section.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
-		var expected_ids: Array[String] = []
-		for issue_variant in Array(readiness.get("expected_invalid_issues", [])):
-			if expected_ids.size() >= 10:
-				break
-			var issue_data: Dictionary = Dictionary(issue_variant)
-			expected_ids.append(String(issue_data.get("id", issue_data.get("entity_id", ""))))
-		expected_section.text = "Expected Invalid Cases (%d): %s\nThese are intentional TASK TEST broken cases and do not block readiness." % [int(readiness.get("expected_invalid_count", 0)), ", ".join(expected_ids)]
-		list.add_child(expected_section)
-	var issues_title: Label = Label.new()
-	issues_title.text = "Validation Issues"
-	list.add_child(issues_title)
-	var issues_filter_option: OptionButton = OptionButton.new()
-	for filter_name in MAP_CONSTRUCTOR_ISSUE_FILTER_OPTIONS:
-		issues_filter_option.add_item(filter_name)
-	var selected_filter_index: int = MAP_CONSTRUCTOR_ISSUE_FILTER_OPTIONS.find(map_constructor_issue_filter)
-	if selected_filter_index < 0:
-		selected_filter_index = 0
-		map_constructor_issue_filter = "All"
-	issues_filter_option.select(selected_filter_index)
-	issues_filter_option.item_selected.connect(func(index: int) -> void:
-		if index >= 0 and index < MAP_CONSTRUCTOR_ISSUE_FILTER_OPTIONS.size():
-			map_constructor_issue_filter = MAP_CONSTRUCTOR_ISSUE_FILTER_OPTIONS[index]
-			_refresh_map_constructor_panels()
-	)
-	list.add_child(issues_filter_option)
-	var constructor_issues: Array[Dictionary] = []
-	if mission_manager_runtime != null and mission_manager_runtime.has_method("get_map_constructor_validation_issues"):
-		constructor_issues = mission_manager_runtime.call("get_map_constructor_validation_issues")
-	var issue_errors: int = 0
-	var issue_warnings: int = 0
-	var issue_info: int = 0
-	var issue_id_exists: bool = false
-	for issue_row in constructor_issues:
-		var issue_severity: String = String(issue_row.get("severity", "info")).to_lower()
-		if issue_severity == "error":
-			issue_errors += 1
-		elif issue_severity == "warning":
-			issue_warnings += 1
-		else:
-			issue_info += 1
-		if String(issue_row.get("id", "")) == map_constructor_selected_issue_id:
-			issue_id_exists = true
-	if not issue_id_exists:
-		map_constructor_selected_issue_id = ""
-	var issue_counts_label: Label = Label.new()
-	issue_counts_label.text = "Errors: %d Warnings: %d Info: %d" % [issue_errors, issue_warnings, issue_info]
-	list.add_child(issue_counts_label)
-	for issue_row in constructor_issues:
-		if not _map_constructor_issue_matches_filter(issue_row):
-			continue
-		var issue_id: String = String(issue_row.get("id", ""))
-		var issue_severity: String = String(issue_row.get("severity", "info")).to_upper()
-		var issue_message: String = String(issue_row.get("message", "Validation issue"))
-		var issue_cell: Vector2i = Vector2i(issue_row.get("cell", Vector2i(-1, -1)))
-		var issue_entity_id: String = String(issue_row.get("entity_id", ""))
-		var issue_text: String = "%s%s: %s" % ["▶ " if issue_id == map_constructor_selected_issue_id else "", issue_severity, issue_message]
-		if not issue_entity_id.is_empty():
-			issue_text += " | id=%s" % issue_entity_id
-		if issue_cell.x >= 0 and issue_cell.y >= 0:
-			issue_text += " | c=%s" % str(issue_cell)
-		var issue_button: Button = Button.new()
-		issue_button.text = issue_text
-		issue_button.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
-		issue_button.pressed.connect(func() -> void:
-			map_constructor_selected_issue_id = issue_id
-			_focus_map_constructor_issue(issue_row)
-			_refresh_map_constructor_panels()
+			var favorite_entry: Dictionary = Dictionary(catalog_by_id[favorite_id])
+			if _map_constructor_prefab_matches_filters(favorite_entry):
+				favorite_entries.append(favorite_entry)
+		favorite_entries.sort_custom(func(a: Dictionary, b: Dictionary) -> bool:
+			return String(a.get("label", a.get("id", ""))) < String(b.get("label", b.get("id", "")) )
 		)
-		list.add_child(issue_button)
-		if mission_manager_runtime != null and mission_manager_runtime.has_method("get_map_constructor_issue_autofix_options"):
-			var fix_options: Array = mission_manager_runtime.call("get_map_constructor_issue_autofix_options", issue_row)
-			if not fix_options.is_empty():
-				for option_row in fix_options:
-					var fix_option: Dictionary = Dictionary(option_row)
-					var ftype: String = String(fix_option.get("fix_type", ""))
-					var foptions: Dictionary = Dictionary(fix_option.get("options", {}))
-					var flabel: String = String(fix_option.get("label", "Fix"))
-					var fkey: String = "%s|%s" % [ftype, JSON.stringify(foptions)]
-					var issue_fix_row: HBoxContainer = HBoxContainer.new()
-					var preview_btn: Button = Button.new()
-					preview_btn.text = "Preview: %s" % flabel
-					var apply_btn: Button = Button.new()
-					apply_btn.text = "Apply: %s" % flabel
-					preview_btn.pressed.connect(func() -> void:
-						_apply_map_constructor_autofix_action(ftype, foptions, false)
-					)
-					apply_btn.disabled = map_constructor_autofix_pending_apply_key != fkey
-					apply_btn.pressed.connect(func() -> void:
-						_apply_map_constructor_autofix_action(ftype, foptions, true)
-					)
-					issue_fix_row.add_child(preview_btn)
-					issue_fix_row.add_child(apply_btn)
-					list.add_child(issue_fix_row)
-	var audit_label: Label = Label.new()
-	audit_label.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
-	audit_label.text = "Audit: unavailable"
-	if mission_manager_runtime != null and mission_manager_runtime.has_method("get_map_constructor_audit_summary"):
-		var audit_summary: Dictionary = mission_manager_runtime.call("get_map_constructor_audit_summary")
-		var audit_status: String = "WARN"
-		if bool(audit_summary.get("ok", false)):
-			audit_status = "OK"
-		audit_label.text = "Audit: %s m=%d i=%d r=%d d=%d" % [
-			audit_status,
-			int(audit_summary.get("missing_coverage_count", 0)),
-			int(audit_summary.get("invalid_links_count", 0)),
-			int(audit_summary.get("runtime_warnings_count", 0)),
-			int(audit_summary.get("duplicate_cell_warnings_count", 0))
-		]
-	list.add_child(audit_label)
-	var overlay_summary_label: Label = Label.new()
-	overlay_summary_label.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
-	overlay_summary_label.text = "Validation: unavailable"
-	if mission_manager_runtime != null and mission_manager_runtime.has_method("get_map_constructor_validation_overlay"):
-		var overlay_data: Dictionary = mission_manager_runtime.call("get_map_constructor_validation_overlay")
-		var overlay_summary: Dictionary = Dictionary(overlay_data.get("summary", {}))
-		var error_count: int = int(overlay_summary.get("error_count", 0))
-		var warning_count: int = int(overlay_summary.get("warning_count", 0))
-		var valid_count: int = int(overlay_summary.get("valid_count", 0))
-		if error_count <= 0 and warning_count <= 0:
-			overlay_summary_label.text = "Validation: OK"
-		else:
-			overlay_summary_label.text = "Validation: errors=%d warnings=%d valid=%d" % [error_count, warning_count, valid_count]
-	list.add_child(overlay_summary_label)
-	var overlay_toggle_button: Button = Button.new()
-	overlay_toggle_button.text = "Validation Overlay: %s" % ["ON" if map_constructor_validation_overlay_visible else "OFF"]
-	overlay_toggle_button.pressed.connect(func() -> void:
-		map_constructor_validation_overlay_visible = not map_constructor_validation_overlay_visible
-		_refresh_map_constructor_panels()
-	)
-	list.add_child(overlay_toggle_button)
-	var overlay_section_title: Label = Label.new()
-	overlay_section_title.text = "Overlay"
-	list.add_child(overlay_section_title)
-	for row_variant in [
-		{"key":"show_preview", "label":"Show Placement Preview"},
-		{"key":"show_validation", "label":"Show Validation Markers"},
-		{"key":"show_links", "label":"Show Links"},
-		{"key":"show_power", "label":"Show Power Networks"},
-		{"key":"show_wall_side_arrows", "label":"Show Wall-side Arrows"},
-		{"key":"show_multi_select", "label":"Show Multi-select"}
-	]:
-		var row: Dictionary = Dictionary(row_variant)
-		var toggle: CheckBox = CheckBox.new()
-		toggle.text = String(row.get("label", ""))
-		var pref_key: String = String(row.get("key", ""))
-		toggle.button_pressed = bool(map_constructor_overlay_visibility.get(pref_key, true))
-		toggle.toggled.connect(func(enabled: bool) -> void:
-			map_constructor_overlay_visibility[pref_key] = enabled
-			_request_map_constructor_overlay_refresh()
-		)
-		list.add_child(toggle)
-	var reset_overlay_button: Button = Button.new()
-	reset_overlay_button.text = "Reset Overlay Visibility"
-	reset_overlay_button.pressed.connect(func() -> void:
-		map_constructor_overlay_visibility = {"show_preview": true, "show_validation": true, "show_links": true, "show_power": true, "show_wall_side_arrows": true, "show_multi_select": true}
-		_request_map_constructor_overlay_refresh()
-		_refresh_map_constructor_panels()
-	)
-	list.add_child(reset_overlay_button)
-	var constructor_sections_title: Label = Label.new()
-	constructor_sections_title.text = "Map Constructor Milestone Tools"
-	list.add_child(constructor_sections_title)
-	var anchor_cell: Vector2i = pending_map_constructor_cell if pending_map_constructor_cell.x >= 0 else selected_map_constructor_entity_cell
-	var kit_options: Dictionary = {"allow_overwrite": false}
-	var template_options: Dictionary = {"rotation": map_constructor_template_rotation, "mirror_x": map_constructor_template_mirror_x, "mirror_y": map_constructor_template_mirror_y, "allow_overwrite": false}
-	var current_kit_key: String = "%s|%s|%s" % [map_constructor_selected_kit_id, str(anchor_cell), JSON.stringify(kit_options)]
-	var current_template_key: String = "%s|%s|%s" % [map_constructor_selected_template_id, str(anchor_cell), JSON.stringify(template_options)]
-	var kit_data: Dictionary = mission_manager_runtime.call("get_map_constructor_prefab_kits") if mission_manager_runtime != null and mission_manager_runtime.has_method("get_map_constructor_prefab_kits") else {}
-	var template_data: Dictionary = mission_manager_runtime.call("get_map_constructor_room_templates") if mission_manager_runtime != null and mission_manager_runtime.has_method("get_map_constructor_room_templates") else {}
-	var kit_rows: Array = Array(kit_data.get("kits", []))
-	var template_rows: Array = Array(template_data.get("templates", []))
-	var selected_kit_exists: bool = false
-	for kit_row_variant in kit_rows:
-		if String(Dictionary(kit_row_variant).get("id", "")) == map_constructor_selected_kit_id:
-			selected_kit_exists = true
-			break
-	if (map_constructor_selected_kit_id.is_empty() or not selected_kit_exists) and not kit_rows.is_empty():
-		map_constructor_selected_kit_id = String(Dictionary(kit_rows[0]).get("id", ""))
-	var selected_template_exists: bool = false
-	for template_row_variant in template_rows:
-		if String(Dictionary(template_row_variant).get("id", "")) == map_constructor_selected_template_id:
-			selected_template_exists = true
-			break
-	if (map_constructor_selected_template_id.is_empty() or not selected_template_exists) and not template_rows.is_empty():
-		map_constructor_selected_template_id = String(Dictionary(template_rows[0]).get("id", ""))
-	if map_constructor_kit_pending_apply_key != current_kit_key:
-		map_constructor_kit_preview_can_apply = false
-	if map_constructor_template_pending_apply_key != current_template_key:
-		map_constructor_template_preview_can_apply = false
-	var kit_select: OptionButton = OptionButton.new()
-	for row_variant in kit_rows:
-		var row: Dictionary = Dictionary(row_variant)
-		kit_select.add_item(String(row.get("display_name", row.get("id", ""))))
-		kit_select.set_item_metadata(kit_select.item_count - 1, String(row.get("id", "")))
-	for idx in range(kit_select.item_count):
-		if String(kit_select.get_item_metadata(idx)) == map_constructor_selected_kit_id:
-			kit_select.select(idx)
-			break
-	kit_select.item_selected.connect(func(index: int) -> void:
-		map_constructor_selected_kit_id = String(kit_select.get_item_metadata(index))
-		map_constructor_kit_preview_can_apply = false
-		map_constructor_kit_pending_apply_key = ""
-		_refresh_map_constructor_panels()
-	)
-	list.add_child(kit_select)
-	var selected_kit_info: Label = Label.new()
-	selected_kit_info.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
-	for row_variant in kit_rows:
-		var row: Dictionary = Dictionary(row_variant)
-		if String(row.get("id", "")) == map_constructor_selected_kit_id:
-			selected_kit_info.text = "Kit: %s\n%s\nTags: %s\nWarnings: %s" % [String(row.get("display_name", "")), String(row.get("description", "")), ", ".join(PackedStringArray(Array(row.get("tags", [])))), String(row.get("warning", "none"))]
-	list.add_child(selected_kit_info)
-	var quick_kits_button: Button = Button.new()
-	quick_kits_button.text = "Preview Kit"
-	quick_kits_button.pressed.connect(func() -> void:
-		if mission_manager_runtime == null or not mission_manager_runtime.has_method("preview_map_constructor_prefab_kit"):
-			return
-		if map_constructor_selected_kit_id.is_empty():
-			return
-		map_constructor_kit_preview = mission_manager_runtime.call("preview_map_constructor_prefab_kit", map_constructor_selected_kit_id, anchor_cell, kit_options)
-		map_constructor_kit_preview_can_apply = bool(map_constructor_kit_preview.get("can_apply", false))
-		map_constructor_kit_pending_apply_key = "%s|%s|%s" % [map_constructor_selected_kit_id, str(anchor_cell), JSON.stringify(kit_options)] if map_constructor_kit_preview_can_apply else ""
-		_refresh_map_constructor_panels()
-	)
-	list.add_child(quick_kits_button)
-	var apply_kit_button: Button = Button.new()
-	apply_kit_button.text = "Apply Kit"
-	apply_kit_button.disabled = map_constructor_selected_kit_id.is_empty() or not map_constructor_kit_preview_can_apply or map_constructor_kit_pending_apply_key != current_kit_key
-	apply_kit_button.pressed.connect(func() -> void:
-		if mission_manager_runtime == null or not mission_manager_runtime.has_method("apply_map_constructor_prefab_kit"):
-			return
-		var result: Dictionary = mission_manager_runtime.call("apply_map_constructor_prefab_kit", map_constructor_selected_kit_id, anchor_cell, kit_options)
-		show_hint(String(result.get("message", "Kit applied.")))
-		map_constructor_kit_preview = {}
-		map_constructor_kit_preview_can_apply = false
-		map_constructor_kit_pending_apply_key = ""
-		_refresh_map_constructor_panels()
-		_refresh_map_constructor_browser()
-		if field_runtime != null and field_runtime.has_method("request_visual_refresh"):
-			field_runtime.call("request_visual_refresh")
-	)
-	list.add_child(apply_kit_button)
-	var undo_kit_button: Button = Button.new()
-	undo_kit_button.text = "Undo Last Kit"
-	undo_kit_button.pressed.connect(func() -> void:
-		if mission_manager_runtime == null or not mission_manager_runtime.has_method("undo_last_map_constructor_prefab_kit"):
-			return
-		var undo_result: Dictionary = mission_manager_runtime.call("undo_last_map_constructor_prefab_kit")
-		show_hint(String(undo_result.get("message", "Kit undo completed.")))
-		map_constructor_kit_preview = {}
-		map_constructor_kit_preview_can_apply = false
-		map_constructor_kit_pending_apply_key = ""
-		_refresh_map_constructor_panels()
-		_refresh_map_constructor_browser()
-		if field_runtime != null and field_runtime.has_method("request_visual_refresh"):
-			field_runtime.call("request_visual_refresh")
-	)
-	list.add_child(undo_kit_button)
-	var template_select: OptionButton = OptionButton.new()
-	for row_variant in template_rows:
-		var row: Dictionary = Dictionary(row_variant)
-		template_select.add_item(String(row.get("display_name", row.get("id", ""))))
-		template_select.set_item_metadata(template_select.item_count - 1, String(row.get("id", "")))
-	for idx in range(template_select.item_count):
-		if String(template_select.get_item_metadata(idx)) == map_constructor_selected_template_id:
-			template_select.select(idx)
-			break
-	template_select.item_selected.connect(func(index: int) -> void:
-		map_constructor_selected_template_id = String(template_select.get_item_metadata(index))
-		map_constructor_template_preview_can_apply = false
-		map_constructor_template_pending_apply_key = ""
-		_refresh_map_constructor_panels()
-	)
-	list.add_child(template_select)
-	var template_info: Label = Label.new()
-	template_info.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
-	for row_variant in template_rows:
-		var row: Dictionary = Dictionary(row_variant)
-		if String(row.get("id", "")) == map_constructor_selected_template_id:
-			template_info.text = "Template: %s\n%s\nsize=%s\nTags: %s\nWarnings: %s" % [String(row.get("display_name", "")), String(row.get("description", "")), str(row.get("size", Vector2i.ZERO)), ", ".join(PackedStringArray(Array(row.get("tags", [])))), String(row.get("warning", "none"))]
-	list.add_child(template_info)
-	var template_transform_row: HBoxContainer = HBoxContainer.new()
-	var rotation_label: Label = Label.new()
-	rotation_label.text = "Rotation"
-	template_transform_row.add_child(rotation_label)
-	var rotation_select: OptionButton = OptionButton.new()
-	for rotation_option in [0, 90, 180, 270]:
-		rotation_select.add_item("%d" % rotation_option)
-	for rotation_index in range(rotation_select.item_count):
-		if int(rotation_select.get_item_text(rotation_index)) == map_constructor_template_rotation:
-			rotation_select.select(rotation_index)
-			break
-	rotation_select.item_selected.connect(func(index: int) -> void:
-		map_constructor_template_rotation = int(rotation_select.get_item_text(index))
-		map_constructor_template_preview = {}
-		map_constructor_template_preview_can_apply = false
-		map_constructor_template_pending_apply_key = ""
-		_refresh_map_constructor_panels()
-	)
-	template_transform_row.add_child(rotation_select)
-	var mirror_x_check: CheckBox = CheckBox.new()
-	mirror_x_check.text = "Mirror X"
-	mirror_x_check.button_pressed = map_constructor_template_mirror_x
-	mirror_x_check.toggled.connect(func(enabled: bool) -> void:
-		map_constructor_template_mirror_x = enabled
-		map_constructor_template_preview = {}
-		map_constructor_template_preview_can_apply = false
-		map_constructor_template_pending_apply_key = ""
-		_refresh_map_constructor_panels()
-	)
-	template_transform_row.add_child(mirror_x_check)
-	var mirror_y_check: CheckBox = CheckBox.new()
-	mirror_y_check.text = "Mirror Y"
-	mirror_y_check.button_pressed = map_constructor_template_mirror_y
-	mirror_y_check.toggled.connect(func(enabled: bool) -> void:
-		map_constructor_template_mirror_y = enabled
-		map_constructor_template_preview = {}
-		map_constructor_template_preview_can_apply = false
-		map_constructor_template_pending_apply_key = ""
-		_refresh_map_constructor_panels()
-	)
-	template_transform_row.add_child(mirror_y_check)
-	list.add_child(template_transform_row)
-	var template_preview_button: Button = Button.new()
-	template_preview_button.text = "Preview Template"
-	template_preview_button.pressed.connect(func() -> void:
-		if mission_manager_runtime == null or not mission_manager_runtime.has_method("preview_map_constructor_room_template"):
-			return
-		if map_constructor_selected_template_id.is_empty():
-			return
-		map_constructor_template_preview = mission_manager_runtime.call("preview_map_constructor_room_template", map_constructor_selected_template_id, anchor_cell, template_options)
-		map_constructor_template_preview_can_apply = bool(map_constructor_template_preview.get("can_apply", false))
-		map_constructor_template_pending_apply_key = "%s|%s|%s" % [map_constructor_selected_template_id, str(anchor_cell), JSON.stringify(template_options)] if map_constructor_template_preview_can_apply else ""
-		_refresh_map_constructor_panels()
-	)
-	list.add_child(template_preview_button)
-	var apply_template_button: Button = Button.new()
-	apply_template_button.text = "Apply Template"
-	apply_template_button.disabled = map_constructor_selected_template_id.is_empty() or not map_constructor_template_preview_can_apply or map_constructor_template_pending_apply_key != current_template_key
-	apply_template_button.pressed.connect(func() -> void:
-		if mission_manager_runtime == null or not mission_manager_runtime.has_method("apply_map_constructor_room_template"):
-			return
-		var apply_result: Dictionary = mission_manager_runtime.call("apply_map_constructor_room_template", map_constructor_selected_template_id, anchor_cell, template_options)
-		show_hint(String(apply_result.get("message", "Template applied.")))
-		map_constructor_template_preview = {}
-		map_constructor_template_preview_can_apply = false
-		map_constructor_template_pending_apply_key = ""
-		_refresh_map_constructor_panels()
-		_refresh_map_constructor_browser()
-		if field_runtime != null and field_runtime.has_method("request_visual_refresh"):
-			field_runtime.call("request_visual_refresh")
-	)
-	list.add_child(apply_template_button)
-	var undo_template_button: Button = Button.new()
-	undo_template_button.text = "Undo Last Template"
-	undo_template_button.pressed.connect(func() -> void:
-		if mission_manager_runtime == null or not mission_manager_runtime.has_method("undo_last_map_constructor_room_template"):
-			return
-		var undo_result: Dictionary = mission_manager_runtime.call("undo_last_map_constructor_room_template")
-		show_hint(String(undo_result.get("message", "Template undo completed.")))
-		map_constructor_template_preview = {}
-		map_constructor_template_preview_can_apply = false
-		map_constructor_template_pending_apply_key = ""
-		_refresh_map_constructor_panels()
-		_refresh_map_constructor_browser()
-		if field_runtime != null and field_runtime.has_method("request_visual_refresh"):
-			field_runtime.call("request_visual_refresh")
-	)
-	list.add_child(undo_template_button)
-	for preview_bundle in [{"title":"Kit Preview","data":map_constructor_kit_preview},{"title":"Template Preview","data":map_constructor_template_preview}]:
-		var preview_data: Dictionary = Dictionary(preview_bundle.get("data", {}))
-		if preview_data.is_empty():
-			continue
-		var summary_lines: Array[String] = []
-		var affected_rows: Array = Array(preview_data.get("affected", []))
-		var conflict_rows: Array = Array(preview_data.get("conflicts", []))
-		var warning_rows: Array = Array(preview_data.get("warnings", []))
-		summary_lines.append("%s: affected=%d conflicts=%d warnings=%d" % [String(preview_bundle.get("title", "")), affected_rows.size(), conflict_rows.size(), warning_rows.size()])
-		for index in range(mini(10, affected_rows.size())):
-			summary_lines.append("- affected: %s" % JSON.stringify(affected_rows[index]))
-		for index in range(mini(10, conflict_rows.size())):
-			summary_lines.append("- conflict: %s" % JSON.stringify(conflict_rows[index]))
-		for index in range(mini(10, warning_rows.size())):
-			summary_lines.append("- warning: %s" % String(warning_rows[index]))
-		var summary_label: Label = Label.new()
-		summary_label.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
-		summary_label.text = "\n".join(summary_lines)
-		list.add_child(summary_label)
-	var overlay_mode_option: OptionButton = OptionButton.new()
-	for overlay_name in ["None", "Selection", "Multi-select", "Validation Issues", "Expected Invalid", "Power Network", "Links", "Wall-mounted Sides"]:
-		overlay_mode_option.add_item(overlay_name)
-	var overlay_idx: int = maxi(0, ["None", "Selection", "Multi-select", "Validation Issues", "Expected Invalid", "Power Network", "Links", "Wall-mounted Sides"].find(map_constructor_overlay_mode))
-	overlay_mode_option.select(overlay_idx)
-	overlay_mode_option.item_selected.connect(func(index: int) -> void:
-		map_constructor_overlay_mode = overlay_mode_option.get_item_text(index)
-		_request_map_constructor_overlay_refresh()
-		show_hint("Overlay data ready; renderer overlay refreshed.")
-	)
-	list.add_child(overlay_mode_option)
-	var room_preset_title: Label = Label.new()
-	room_preset_title.text = "Room Visual Presets"
-	list.add_child(room_preset_title)
-	var preset_catalog: Dictionary = mission_manager_runtime.call("get_room_visual_preset_catalog") if mission_manager_runtime != null and mission_manager_runtime.has_method("get_room_visual_preset_catalog") else {}
-	var preset_rows: Array = Array(preset_catalog.get("presets", []))
-	var preset_select: OptionButton = OptionButton.new()
-	for preset_row_variant in preset_rows:
-		var preset_row: Dictionary = Dictionary(preset_row_variant)
-		preset_select.add_item(String(preset_row.get("display_name", preset_row.get("id", ""))))
-		preset_select.set_item_metadata(preset_select.item_count - 1, String(preset_row.get("id", "")))
-	if selected_room_visual_preset_id.is_empty() and not preset_rows.is_empty():
-		selected_room_visual_preset_id = String(Dictionary(preset_rows[0]).get("id", ""))
-	for preset_index in range(preset_select.item_count):
-		if String(preset_select.get_item_metadata(preset_index)) == selected_room_visual_preset_id:
-			preset_select.select(preset_index)
-			break
-	preset_select.item_selected.connect(func(index: int) -> void:
-		selected_room_visual_preset_id = String(preset_select.get_item_metadata(index))
-		room_visual_preset_preview.clear()
-		_refresh_map_constructor_panels()
-	)
-	list.add_child(preset_select)
-	var preset_info_label: Label = Label.new()
-	preset_info_label.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
-	for preset_row_variant in preset_rows:
-		var preset_row: Dictionary = Dictionary(preset_row_variant)
-		if String(preset_row.get("id", "")) == selected_room_visual_preset_id:
-			preset_info_label.text = String(preset_row.get("description", ""))
-	list.add_child(preset_info_label)
-	var preview_preset_button: Button = Button.new()
-	preview_preset_button.text = "Preview Preset"
-	preview_preset_button.pressed.connect(func() -> void:
-		if mission_manager_runtime == null or not mission_manager_runtime.has_method("preview_room_visual_preset"):
-			return
-		room_visual_preset_preview = mission_manager_runtime.call("preview_room_visual_preset", selected_room_visual_preset_id, {"scope":"task_test_room", "include_walls":true, "include_doors":true, "include_terminals":true})
-		show_hint(String(room_visual_preset_preview.get("message", "Preview ready.")))
-		_refresh_map_constructor_panels()
-	)
-	list.add_child(preview_preset_button)
-	var apply_preset_button: Button = Button.new()
-	apply_preset_button.text = "Apply Preset"
-	apply_preset_button.pressed.connect(func() -> void:
-		if mission_manager_runtime == null or not mission_manager_runtime.has_method("apply_room_visual_preset"):
-			return
-		var apply_preset_result: Dictionary = mission_manager_runtime.call("apply_room_visual_preset", selected_room_visual_preset_id, {"scope":"task_test_room", "include_walls":true, "include_doors":true, "include_terminals":true})
-		show_hint(String(apply_preset_result.get("message", "Preset applied.")))
-		if bool(apply_preset_result.get("ok", false)) and mission_manager_runtime.has_method("preview_room_visual_preset"):
-			room_visual_preset_preview = mission_manager_runtime.call("preview_room_visual_preset", selected_room_visual_preset_id, {"scope":"task_test_room", "include_walls":true, "include_doors":true, "include_terminals":true})
-		else:
-			room_visual_preset_preview.clear()
-		_refresh_map_constructor_panels()
-		_request_map_constructor_overlay_refresh()
-		if field_runtime != null and field_runtime.has_method("request_visual_refresh"):
-			field_runtime.call("request_visual_refresh")
-	)
-	list.add_child(apply_preset_button)
-	var clear_preset_button: Button = Button.new()
-	clear_preset_button.text = "Clear Preset Overrides"
-	clear_preset_button.pressed.connect(func() -> void:
-		if mission_manager_runtime == null or not mission_manager_runtime.has_method("clear_room_visual_preset_overrides"):
-			return
-		var clear_preset_result: Dictionary = mission_manager_runtime.call("clear_room_visual_preset_overrides", {})
-		show_hint(String(clear_preset_result.get("message", "Preset overrides cleared.")))
-		room_visual_preset_preview.clear()
-		_refresh_map_constructor_panels()
-		_request_map_constructor_overlay_refresh()
-		if field_runtime != null and field_runtime.has_method("request_visual_refresh"):
-			field_runtime.call("request_visual_refresh")
-	)
-	list.add_child(clear_preset_button)
-	if not room_visual_preset_preview.is_empty():
-		var room_preview_summary: Dictionary = Dictionary(room_visual_preset_preview.get("summary", {}))
-		var room_preview_label: Label = Label.new()
-		room_preview_label.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
-		room_preview_label.text = "Preset Preview: walls=%d doors=%d terminals=%d can_apply=%s\n%s" % [int(room_preview_summary.get("affected_walls", 0)), int(room_preview_summary.get("affected_doors", 0)), int(room_preview_summary.get("affected_terminals", 0)), str(bool(room_visual_preset_preview.get("can_apply", false))), String(room_visual_preset_preview.get("message", ""))]
-		list.add_child(room_preview_label)
-	var room_design_notes_button: Button = Button.new()
-	room_design_notes_button.text = "Generate Design Notes"
-	room_design_notes_button.pressed.connect(func() -> void:
-		if mission_manager_runtime == null or not mission_manager_runtime.has_method("export_map_constructor_design_notes"):
-			return
-		var notes_res: Dictionary = mission_manager_runtime.call("export_map_constructor_design_notes", {})
-		map_constructor_design_notes_text = String(notes_res.get("text", ""))
-		_refresh_map_constructor_panels()
-	)
-	list.add_child(room_design_notes_button)
-	var notes_edit: TextEdit = TextEdit.new()
-	notes_edit.custom_minimum_size = Vector2(0, 120)
-	notes_edit.text = map_constructor_design_notes_text
-	list.add_child(notes_edit)
-	var pipeline_button: Button = Button.new()
-	pipeline_button.text = "Build Promotion Package"
-	pipeline_button.pressed.connect(func() -> void:
-		if mission_manager_runtime == null or not mission_manager_runtime.has_method("get_map_constructor_production_pipeline_report"):
-			return
-		map_constructor_pipeline_report = mission_manager_runtime.call("get_map_constructor_production_pipeline_report", {})
-		_refresh_map_constructor_panels()
-	)
-	list.add_child(pipeline_button)
-	var refresh_package_button: Button = Button.new()
-	refresh_package_button.text = "Refresh Package"
-	refresh_package_button.pressed.connect(func() -> void:
-		if mission_manager_runtime == null or not mission_manager_runtime.has_method("get_map_constructor_production_pipeline_report"):
-			return
-		map_constructor_pipeline_report = mission_manager_runtime.call("get_map_constructor_production_pipeline_report", {})
-		_refresh_map_constructor_panels()
-	)
-	list.add_child(refresh_package_button)
-	if not map_constructor_pipeline_report.is_empty():
-		var pipeline_status: String = String(map_constructor_pipeline_report.get("status", "unknown"))
-		var pipeline_message: String = String(map_constructor_pipeline_report.get("message", ""))
-		var pipeline_lines: Array[String] = ["Pipeline status: %s" % pipeline_status, pipeline_message]
-		var checks: Array = Array(map_constructor_pipeline_report.get("checks", []))
-		for check_index in range(mini(12, checks.size())):
-			var check_row: Dictionary = Dictionary(checks[check_index])
-			var check_line: String = "- %s [%s]" % [String(check_row.get("label", "")), String(check_row.get("status", ""))]
-			var check_message: String = String(check_row.get("message", "")).strip_edges()
-			if not check_message.is_empty():
-				check_line += " — %s" % check_message
-			pipeline_lines.append(check_line)
-		var promotion_package: Dictionary = Dictionary(map_constructor_pipeline_report.get("promotion_package", {}))
-		var package_warnings: Array = Array(promotion_package.get("warnings", []))
-		pipeline_lines.append("Warning summary: count=%d" % package_warnings.size())
-		for warning_index in range(mini(5, package_warnings.size())):
-			pipeline_lines.append("  • %s" % String(package_warnings[warning_index]))
-		var manual_steps: Array = Array(promotion_package.get("manual_steps", []))
-		if not manual_steps.is_empty():
-			pipeline_lines.append("Manual steps:")
-			for manual_step in manual_steps:
-				pipeline_lines.append("  - %s" % String(manual_step))
-		var pipeline_label: Label = Label.new()
-		pipeline_label.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
-		pipeline_label.text = "\n".join(pipeline_lines)
-		list.add_child(pipeline_label)
-	var refresh_audit_button: Button = Button.new()
-	refresh_audit_button.text = "Refresh Audit"
-	refresh_audit_button.pressed.connect(func() -> void:
-		_refresh_map_constructor_panels()
-	)
-	list.add_child(refresh_audit_button)
-	var cleanup_title: Label = Label.new()
-	cleanup_title.text = "Cleanup Tools"
-	list.add_child(cleanup_title)
-	var multi_title: Label = Label.new()
-	multi_title.text = "Multi-select / Batch Tools"
-	list.add_child(multi_title)
-	_refresh_map_constructor_multi_selection_stale()
-	var selected_ids: Array[String] = []
-	for selected_row in map_constructor_multi_selected_entities:
-		selected_ids.append(String(selected_row.get("entity_id", "")))
-	var multi_info: Label = Label.new()
-	multi_info.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
-	multi_info.text = "Selected: %d\n%s" % [map_constructor_multi_selected_entities.size(), ", ".join(selected_ids.slice(0, mini(10, selected_ids.size())))]
-	list.add_child(multi_info)
-	var select_actions: HBoxContainer = HBoxContainer.new()
-	var add_current: Button = Button.new(); add_current.text = "Add Current Selection"
-	add_current.pressed.connect(func() -> void:
-		_add_map_constructor_multi_row_if_missing(_make_map_constructor_multi_row_from_current_selection())
-		_refresh_map_constructor_multi_selection_stale()
-		_refresh_map_constructor_panels()
-	)
-	var remove_current: Button = Button.new(); remove_current.text = "Remove Current Selection"
-	remove_current.pressed.connect(func() -> void:
-		var keep: Array[Dictionary] = []
-		for row in map_constructor_multi_selected_entities:
-			if String(row.get("entity_kind", "")) == selected_map_constructor_entity_kind and String(row.get("entity_id", "")) == selected_map_constructor_entity_id:
+		var recent_entries: Array[Dictionary] = []
+		for recent_id in map_constructor_prefab_recent_ids:
+			if not catalog_by_id.has(recent_id):
 				continue
-			keep.append(row)
-		map_constructor_multi_selected_entities = keep
-		_refresh_map_constructor_multi_selection_stale()
-		_refresh_map_constructor_panels()
-	)
-	var clear_multi: Button = Button.new(); clear_multi.text = "Clear Multi-select"
-	clear_multi.pressed.connect(func() -> void: map_constructor_multi_selected_entities.clear(); _clear_map_constructor_batch_preview_state(); _refresh_map_constructor_panels())
-	select_actions.add_child(add_current); select_actions.add_child(remove_current); select_actions.add_child(clear_multi); list.add_child(select_actions)
-	var quick_select: HBoxContainer = HBoxContainer.new()
-	for quick in [{"label":"All Constructor","mode":"all_constructor"},{"label":"All Items","mode":"items"},{"label":"Wall-mounted","mode":"wall_mounted"},{"label":"Doors","mode":"doors"},{"label":"Terminals","mode":"terminals"},{"label":"Power","mode":"power"},{"label":"Control","mode":"control"}]:
-		var select_button: Button = Button.new()
-		select_button.text = "Select %s" % String(quick.get("label", ""))
-		select_button.pressed.connect(func() -> void:
-			_add_map_constructor_multi_selection_by_filter(String(quick.get("mode", "")))
-			_refresh_map_constructor_panels()
-		)
-		quick_select.add_child(select_button)
-	list.add_child(quick_select)
-	var offset_row: HBoxContainer = HBoxContainer.new()
-	var ox: SpinBox = SpinBox.new(); ox.min_value = -100; ox.max_value = 100; ox.step = 1; ox.value = map_constructor_batch_offset_x; ox.value_changed.connect(func(v: float) -> void: map_constructor_batch_offset_x = int(v))
-	var oy: SpinBox = SpinBox.new(); oy.min_value = -100; oy.max_value = 100; oy.step = 1; oy.value = map_constructor_batch_offset_y; oy.value_changed.connect(func(v: float) -> void: map_constructor_batch_offset_y = int(v))
-	var pn: LineEdit = LineEdit.new(); pn.text = map_constructor_batch_power_network_id; pn.placeholder_text = "Power network id"; pn.text_changed.connect(func(t: String) -> void: map_constructor_batch_power_network_id = t)
-	offset_row.add_child(Label.new()); offset_row.get_child(0).set("text", "Offset X/Y:")
-	offset_row.add_child(ox); offset_row.add_child(oy); offset_row.add_child(pn); list.add_child(offset_row)
-	var batch_buttons: HBoxContainer = HBoxContainer.new()
-	for op in [{"label":"Preview Move","op":"move_selected"},{"label":"Apply Move","op":"move_selected","apply":true},{"label":"Preview Duplicate","op":"duplicate_selected"},{"label":"Apply Duplicate","op":"duplicate_selected","apply":true},{"label":"Preview Delete","op":"delete_selected"},{"label":"Apply Delete","op":"delete_selected","apply":true},{"label":"Preview Assign Power","op":"assign_power_network"},{"label":"Apply Assign Power","op":"assign_power_network","apply":true},{"label":"Preview Clear Broken Refs","op":"clear_broken_references"},{"label":"Apply Clear Broken Refs","op":"clear_broken_references","apply":true}]:
-		var b: Button = Button.new(); b.text = String(op.get("label", ""))
-		var apply_mode: bool = bool(op.get("apply", false))
-		var current_key: String = _build_map_constructor_batch_operation_key(String(op.get("op", "")))
-		if apply_mode:
-			b.disabled = map_constructor_batch_pending_apply_operation != String(op.get("op", "")) or map_constructor_batch_pending_apply_key != current_key
-		b.pressed.connect(func() -> void:
-			if mission_manager_runtime == null:
-				return
-			var options: Dictionary = {"offset":Vector2i(map_constructor_batch_offset_x, map_constructor_batch_offset_y), "power_network_id":map_constructor_batch_power_network_id}
-			var op_name: String = String(op.get("op", ""))
-			if not apply_mode:
-				map_constructor_batch_preview = mission_manager_runtime.call("preview_map_constructor_batch_operation", op_name, map_constructor_multi_selected_entities, options)
-				if bool(map_constructor_batch_preview.get("can_apply", false)):
-					map_constructor_batch_pending_apply_operation = op_name
-					map_constructor_batch_pending_apply_key = _build_map_constructor_batch_operation_key(op_name)
-				else:
-					map_constructor_batch_pending_apply_operation = ""
-					map_constructor_batch_pending_apply_key = ""
-				show_hint(String(map_constructor_batch_preview.get("message", "Preview ready.")))
-			else:
-				var apply_result: Dictionary = mission_manager_runtime.call("apply_map_constructor_batch_operation", op_name, map_constructor_multi_selected_entities, options)
-				show_hint(String(apply_result.get("message", "Batch applied.")))
-				_refresh_map_constructor_multi_selection_stale()
-				if mission_manager_runtime != null and mission_manager_runtime.has_method("get_map_constructor_entity_by_id") and not selected_map_constructor_entity_id.is_empty():
-					var selected_entity: Dictionary = mission_manager_runtime.call("get_map_constructor_entity_by_id", selected_map_constructor_entity_kind, selected_map_constructor_entity_id)
-					if not bool(selected_entity.get("ok", false)):
-						_show_map_constructor_inspector(Vector2i(-1, -1))
-				_clear_map_constructor_batch_preview_state()
-				if field_runtime != null and field_runtime.has_method("request_visual_refresh"):
-					field_runtime.call("request_visual_refresh")
-			_refresh_map_constructor_panels()
-		)
-		batch_buttons.add_child(b)
-	list.add_child(batch_buttons)
-	var undo_batch_button: Button = Button.new()
-	undo_batch_button.text = "Undo Last Batch"
-	undo_batch_button.pressed.connect(func() -> void:
-		if mission_manager_runtime == null or not mission_manager_runtime.has_method("undo_last_map_constructor_batch_operation"):
-			return
-		var undo_result: Dictionary = mission_manager_runtime.call("undo_last_map_constructor_batch_operation")
-		show_hint(String(undo_result.get("message", "Undo done.")))
-		_refresh_map_constructor_multi_selection_stale()
-		if mission_manager_runtime != null and mission_manager_runtime.has_method("get_map_constructor_entity_by_id") and not selected_map_constructor_entity_id.is_empty():
-			var selected_entity: Dictionary = mission_manager_runtime.call("get_map_constructor_entity_by_id", selected_map_constructor_entity_kind, selected_map_constructor_entity_id)
-			if not bool(selected_entity.get("ok", false)):
-				_show_map_constructor_inspector(Vector2i(-1, -1))
-		_clear_map_constructor_batch_preview_state()
-		_refresh_map_constructor_panels()
-		if field_runtime != null and field_runtime.has_method("request_visual_refresh"):
-			field_runtime.call("request_visual_refresh")
-	)
-	list.add_child(undo_batch_button)
-	if not map_constructor_batch_preview.is_empty():
-		var preview_lines: Array[String] = []
-		preview_lines.append("Batch Preview: %s" % String(map_constructor_batch_preview.get("operation_type", "")))
-		preview_lines.append("affected=%d warnings=%d conflicts=%d" % [int(map_constructor_batch_preview.get("affected_count", 0)), Array(map_constructor_batch_preview.get("warnings", [])).size(), Array(map_constructor_batch_preview.get("conflicts", [])).size()])
-		var affected_rows: Array = Array(map_constructor_batch_preview.get("affected", []))
-		for i in range(mini(10, affected_rows.size())):
-			var affected_row: Dictionary = Dictionary(affected_rows[i])
-			preview_lines.append("- %s %s from=%s to=%s fields=%s" % [String(affected_row.get("entity_id", "")), String(affected_row.get("operation", "")), str(affected_row.get("from_cell", Vector2i(-1, -1))), str(affected_row.get("to_cell", Vector2i(-1, -1))), JSON.stringify(affected_row.get("field_changes", []))])
-		var warn_rows: Array = Array(map_constructor_batch_preview.get("warnings", []))
-		var conflict_rows: Array = Array(map_constructor_batch_preview.get("conflicts", []))
-		for i in range(mini(5, warn_rows.size())):
-			preview_lines.append("warning: %s" % String(warn_rows[i]))
-		for i in range(mini(5, conflict_rows.size())):
-			preview_lines.append("conflict: %s" % JSON.stringify(conflict_rows[i]))
-		var preview_summary: Label = Label.new()
-		preview_summary.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
-		preview_summary.text = "\n".join(preview_lines)
-		list.add_child(preview_summary)
-	var cleanup_actions: Array[Dictionary] = [
-		{"label":"Items","cleanup_type":"items","options":{}},
-		{"label":"Wall-mounted","cleanup_type":"wall_mounted","options":{}},
-		{"label":"Doors","cleanup_type":"type_group","options":{"type_group":"door"}},
-		{"label":"Terminals","cleanup_type":"type_group","options":{"type_group":"terminal"}},
-		{"label":"Power","cleanup_type":"type_group","options":{"type_group":"power"}},
-		{"label":"Control","cleanup_type":"type_group","options":{"type_group":"control"}},
-		{"label":"Invalid References","cleanup_type":"invalid_references","options":{}},
-		{"label":"All Constructor Objects","cleanup_type":"all_constructor_objects","options":{}}
-	]
-	for action in cleanup_actions:
-		var action_row: HBoxContainer = HBoxContainer.new()
-		action_row.add_theme_constant_override("separation", 4)
-		var ctype: String = String(action.get("cleanup_type", ""))
-		var coptions: Dictionary = Dictionary(action.get("options", {}))
-		var preview_button: Button = Button.new()
-		preview_button.text = "Preview %s" % String(action.get("label", ""))
-		preview_button.pressed.connect(func() -> void:
-			_apply_map_constructor_cleanup_action(ctype, coptions, false)
-		)
-		var apply_button: Button = Button.new()
-		var apply_key: String = "%s|%s" % [ctype, JSON.stringify(coptions)]
-		apply_button.text = "Delete %s" % String(action.get("label", ""))
-		if ctype == "invalid_references":
-			apply_button.text = "Clean Invalid References"
-		apply_button.disabled = map_constructor_cleanup_pending_apply_key != apply_key
-		apply_button.pressed.connect(func() -> void:
-			_apply_map_constructor_cleanup_action(ctype, coptions, true)
-		)
-		action_row.add_child(preview_button)
-		action_row.add_child(apply_button)
-		list.add_child(action_row)
-	var reset_row: HBoxContainer = HBoxContainer.new()
-	reset_row.add_theme_constant_override("separation", 4)
-	var reset_preview_button: Button = Button.new()
-	reset_preview_button.text = "Preview Reset Runtime Map"
-	reset_preview_button.pressed.connect(func() -> void:
-		_apply_map_constructor_cleanup_action("reset_runtime_map", {}, false)
-	)
-	var reset_apply_button: Button = Button.new()
-	reset_apply_button.text = "Apply Reset Runtime Map"
-	var reset_apply_key: String = "reset_runtime_map|{}"
-	reset_apply_button.disabled = map_constructor_cleanup_pending_apply_key != reset_apply_key
-	reset_apply_button.pressed.connect(func() -> void:
-		_apply_map_constructor_cleanup_action("reset_runtime_map", {}, true)
-	)
-	reset_row.add_child(reset_preview_button)
-	reset_row.add_child(reset_apply_button)
-	list.add_child(reset_row)
-	var undo_button: Button = Button.new()
-	undo_button.text = "Undo Last Cleanup"
-	undo_button.pressed.connect(func() -> void:
-		if mission_manager_runtime == null or not mission_manager_runtime.has_method("undo_last_map_constructor_cleanup"):
-			return
-		var undo_result: Dictionary = mission_manager_runtime.call("undo_last_map_constructor_cleanup")
-		show_hint(String(undo_result.get("message", "Undo done.")))
-		map_constructor_cleanup_pending_apply_key = ""
-		map_constructor_cleanup_preview.clear()
-		_clear_map_constructor_preview_cell()
-		_clear_map_constructor_wall_mounted_selection()
-		_clear_map_constructor_link_target()
-		_show_map_constructor_inspector(Vector2i(-1, -1))
-		_refresh_map_constructor_panels()
-		if field_runtime != null and field_runtime.has_method("request_visual_refresh"):
-			field_runtime.call("request_visual_refresh")
-	)
-	list.add_child(undo_button)
-	var autofix_title: Label = Label.new()
-	autofix_title.text = "Auto-fix Tools"
-	list.add_child(autofix_title)
-	var autofix_actions: Array[Dictionary] = [
-		{"label":"Broken References","fix_type":"clear_all_broken_references","options":{}},
-		{"label":"Wall-mounted Attachments","fix_type":"repair_all_wall_mounted_attachments","options":{}}
-	]
-	for action in autofix_actions:
-		var action_row: HBoxContainer = HBoxContainer.new()
-		var ftype: String = String(action.get("fix_type", ""))
-		var foptions: Dictionary = Dictionary(action.get("options", {}))
-		var preview_button := Button.new()
-		preview_button.text = "Preview %s" % String(action.get("label", ""))
-		preview_button.pressed.connect(func() -> void:
-			_apply_map_constructor_autofix_action(ftype, foptions, false)
-		)
-		var apply_button := Button.new()
-		apply_button.text = "Apply %s" % String(action.get("label", ""))
-		apply_button.disabled = map_constructor_autofix_pending_apply_key != "%s|%s" % [ftype, JSON.stringify(foptions)]
-		apply_button.pressed.connect(func() -> void:
-			_apply_map_constructor_autofix_action(ftype, foptions, true)
-		)
-		action_row.add_child(preview_button)
-		action_row.add_child(apply_button)
-		list.add_child(action_row)
-	var power_network_id_edit: LineEdit = LineEdit.new()
-	power_network_id_edit.placeholder_text = "Power network id"
-	power_network_id_edit.text = map_constructor_new_power_network_id
-	power_network_id_edit.text_changed.connect(func(new_text: String) -> void:
-		map_constructor_new_power_network_id = new_text
-	)
-	list.add_child(power_network_id_edit)
-	var selected_object_id: String = selected_map_constructor_entity_id if selected_map_constructor_entity_kind == "world_object" else ""
-	var selected_object_hint: Label = Label.new()
-	selected_object_hint.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
-	selected_object_hint.text = "Select an object first." if selected_object_id.is_empty() else "Selected object: %s" % selected_object_id
-	list.add_child(selected_object_hint)
-	var power_assign_options: Dictionary = {"entity_kind":"world_object","entity_id":selected_object_id,"new_power_network_id":map_constructor_new_power_network_id.strip_edges()}
-	var power_assign_key: String = "assign_power_network|%s" % JSON.stringify(power_assign_options)
-	var power_assign_row: HBoxContainer = HBoxContainer.new()
-	var power_preview_button: Button = Button.new()
-	power_preview_button.text = "Preview Assign Power Network"
-	power_preview_button.disabled = selected_object_id.is_empty()
-	power_preview_button.pressed.connect(func() -> void:
-		if selected_object_id.is_empty():
-			show_hint("Select an object first.")
-			return
-		_apply_map_constructor_autofix_action("assign_power_network", power_assign_options, false)
-	)
-	var power_apply_button: Button = Button.new()
-	power_apply_button.text = "Apply Assign Power Network"
-	power_apply_button.disabled = map_constructor_autofix_pending_apply_key != power_assign_key or int(map_constructor_autofix_preview.get("affected_count", 0)) <= 0
-	power_apply_button.pressed.connect(func() -> void:
-		_apply_map_constructor_autofix_action("assign_power_network", power_assign_options, true)
-	)
-	power_assign_row.add_child(power_preview_button)
-	power_assign_row.add_child(power_apply_button)
-	list.add_child(power_assign_row)
-	var autofix_undo_button: Button = Button.new()
-	autofix_undo_button.text = "Undo Last Auto-fix"
-	autofix_undo_button.pressed.connect(func() -> void:
-		if mission_manager_runtime == null or not mission_manager_runtime.has_method("undo_last_map_constructor_autofix"):
-			return
-		var undo_result: Dictionary = mission_manager_runtime.call("undo_last_map_constructor_autofix")
-		show_hint(String(undo_result.get("message", "Undo done.")))
-		map_constructor_autofix_pending_apply_key = ""
-		map_constructor_autofix_preview.clear()
-		_clear_map_constructor_preview_cell()
-		_clear_map_constructor_wall_mounted_selection()
-		_clear_map_constructor_link_target()
-		_refresh_map_constructor_panels()
-		if field_runtime != null and field_runtime.has_method("request_visual_refresh"):
-			field_runtime.call("request_visual_refresh")
-	)
-	list.add_child(autofix_undo_button)
-	if not map_constructor_cleanup_preview.is_empty():
-		var preview_label: Label = Label.new()
-		var affected_count: int = int(map_constructor_cleanup_preview.get("affected_count", 0))
-		var preview_ids: Array[String] = []
-		for row in Array(map_constructor_cleanup_preview.get("affected_objects", [])):
-			if preview_ids.size() >= 10:
-				break
-			preview_ids.append(String(Dictionary(row).get("id", "")))
-		var preview_ids_text: String = ""
-		for i in range(preview_ids.size()):
-			if i > 0:
-				preview_ids_text += ", "
-			preview_ids_text += preview_ids[i]
-		preview_label.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
-		preview_label.text = "Cleanup preview: %d affected\n%s" % [affected_count, preview_ids_text]
-		list.add_child(preview_label)
-	if not map_constructor_autofix_preview.is_empty():
-		var autofix_preview_label := Label.new()
-		autofix_preview_label.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
-		var lines: Array[String] = []
-		for row in Array(map_constructor_autofix_preview.get("affected_fixes", [])):
-			if lines.size() >= 10:
-				break
-			lines.append(String(Dictionary(row).get("description", "")))
-		autofix_preview_label.text = "Auto-fix preview: %d affected\n%s" % [int(map_constructor_autofix_preview.get("affected_count", 0)), "\n".join(lines)]
-		list.add_child(autofix_preview_label)
-	var patch_title: Label = Label.new()
-	patch_title.text = "Patch Tools"
-	list.add_child(patch_title)
-	var patch_json_edit: TextEdit = TextEdit.new()
-	patch_json_edit.custom_minimum_size = Vector2(0, 160)
-	patch_json_edit.wrap_mode = TextEdit.LINE_WRAPPING_BOUNDARY
-	patch_json_edit.text = map_constructor_patch_json_text
-	patch_json_edit.text_changed.connect(func() -> void:
-		map_constructor_patch_json_text = patch_json_edit.text
-	)
-	list.add_child(patch_json_edit)
-	var patch_actions: HBoxContainer = HBoxContainer.new()
-	var export_patch_button: Button = Button.new()
-	export_patch_button.text = "Export Current Patch"
-	export_patch_button.pressed.connect(func() -> void:
-		if mission_manager_runtime == null or not mission_manager_runtime.has_method("export_map_constructor_runtime_patch"):
-			return
-		var export_res: Dictionary = mission_manager_runtime.call("export_map_constructor_runtime_patch")
-		map_constructor_patch_json_text = String(export_res.get("json", ""))
-		patch_json_edit.text = map_constructor_patch_json_text
-		show_hint(String(export_res.get("message", "Export done.")))
-		_refresh_map_constructor_panels()
-	)
-	var preview_patch_button: Button = Button.new()
-	preview_patch_button.text = "Parse/Preview Patch"
-	preview_patch_button.pressed.connect(func() -> void:
-		if mission_manager_runtime == null or not mission_manager_runtime.has_method("parse_map_constructor_patch_json"):
-			return
-		var parsed_res: Dictionary = mission_manager_runtime.call("parse_map_constructor_patch_json", map_constructor_patch_json_text)
-		map_constructor_patch_parsed = parsed_res
-		map_constructor_patch_preview.clear()
-		map_constructor_patch_pending_apply = false
-		if bool(parsed_res.get("ok", false)) and mission_manager_runtime.has_method("preview_apply_map_constructor_patch"):
-			var preview_res: Dictionary = mission_manager_runtime.call("preview_apply_map_constructor_patch", Dictionary(parsed_res.get("patch", {})))
-			map_constructor_patch_preview = preview_res
-			map_constructor_patch_pending_apply = bool(preview_res.get("ok", false)) and bool(preview_res.get("can_apply", false))
-		show_hint(String(parsed_res.get("message", "Patch parsed.")))
-		_refresh_map_constructor_panels()
-	)
-	var apply_patch_button: Button = Button.new()
-	apply_patch_button.text = "Apply Patch"
-	apply_patch_button.disabled = not map_constructor_patch_pending_apply
-	apply_patch_button.pressed.connect(func() -> void:
-		if mission_manager_runtime == null or not mission_manager_runtime.has_method("apply_map_constructor_patch"):
-			return
-		var apply_res: Dictionary = mission_manager_runtime.call("apply_map_constructor_patch", Dictionary(map_constructor_patch_parsed.get("patch", {})), {})
-		show_hint(String(apply_res.get("message", "Patch applied.")))
-		map_constructor_patch_pending_apply = false
-		if field_runtime != null and field_runtime.has_method("request_visual_refresh"):
-			field_runtime.call("request_visual_refresh")
-		_refresh_map_constructor_panels()
-	)
-	var rollback_patch_button: Button = Button.new()
-	rollback_patch_button.text = "Rollback Last Patch"
-	rollback_patch_button.pressed.connect(func() -> void:
-		if mission_manager_runtime == null or not mission_manager_runtime.has_method("rollback_last_map_constructor_patch"):
-			return
-		var rollback_res: Dictionary = mission_manager_runtime.call("rollback_last_map_constructor_patch")
-		show_hint(String(rollback_res.get("message", "Rollback done.")))
-		_clear_map_constructor_preview_cell()
-		_clear_map_constructor_wall_mounted_selection()
-		_clear_map_constructor_link_target()
-		_show_map_constructor_inspector(Vector2i(-1, -1))
-		map_constructor_patch_pending_apply = false
-		map_constructor_patch_preview.clear()
-		map_constructor_patch_parsed.clear()
-		if field_runtime != null and field_runtime.has_method("request_visual_refresh"):
-			field_runtime.call("request_visual_refresh")
-		_refresh_map_constructor_panels()
-	)
-	patch_actions.add_child(export_patch_button)
-	patch_actions.add_child(preview_patch_button)
-	patch_actions.add_child(apply_patch_button)
-	patch_actions.add_child(rollback_patch_button)
-	list.add_child(patch_actions)
-	var history_title: Label = Label.new()
-	history_title.text = "Change History"
-	list.add_child(history_title)
-	var history_result: Dictionary = {}
-	if mission_manager_runtime != null and mission_manager_runtime.has_method("get_map_constructor_change_history"):
-		history_result = mission_manager_runtime.call("get_map_constructor_change_history", 200)
-	var history_total_label: Label = Label.new()
-	history_total_label.text = "Total: %d" % int(history_result.get("total_count", 0))
-	list.add_child(history_total_label)
-	var history_filter: OptionButton = OptionButton.new()
-	for opt in MAP_CONSTRUCTOR_HISTORY_FILTER_OPTIONS:
-		history_filter.add_item(opt)
-	var history_filter_index: int = MAP_CONSTRUCTOR_HISTORY_FILTER_OPTIONS.find(map_constructor_change_history_filter)
-	if history_filter_index < 0:
-		history_filter_index = 0
-		map_constructor_change_history_filter = "All"
-	history_filter.select(history_filter_index)
-	history_filter.item_selected.connect(func(index: int) -> void:
-		if index >= 0 and index < MAP_CONSTRUCTOR_HISTORY_FILTER_OPTIONS.size():
-			map_constructor_change_history_filter = MAP_CONSTRUCTOR_HISTORY_FILTER_OPTIONS[index]
-			_refresh_map_constructor_panels()
-	)
-	list.add_child(history_filter)
-	var history_buttons: HBoxContainer = HBoxContainer.new()
-	var history_clear_button: Button = Button.new()
-	history_clear_button.text = "Clear History"
-	history_clear_button.pressed.connect(func() -> void:
-		if mission_manager_runtime == null or not mission_manager_runtime.has_method("clear_map_constructor_change_history"):
-			return
-		var clear_result: Dictionary = mission_manager_runtime.call("clear_map_constructor_change_history")
-		show_hint(String(clear_result.get("message", "History cleared.")))
-		_refresh_map_constructor_panels()
-	)
-	var history_refresh_button: Button = Button.new()
-	history_refresh_button.text = "Refresh History"
-	history_refresh_button.pressed.connect(func() -> void:
-		_refresh_map_constructor_panels()
-	)
-	history_buttons.add_child(history_clear_button)
-	history_buttons.add_child(history_refresh_button)
-	list.add_child(history_buttons)
-	var history_rows: Array = Array(history_result.get("history", []))
-	var shown_count: int = 0
-	for i in range(history_rows.size() - 1, -1, -1):
-		var row: Dictionary = Dictionary(history_rows[i])
-		var action_type: String = String(row.get("action_type", "unknown"))
-		if not _map_constructor_history_matches_filter(action_type):
-			continue
-		var row_text: String = "#%d [%s] %s" % [int(row.get("seq", 0)), action_type, String(row.get("summary", ""))]
-		var row_entity_id: String = String(row.get("entity_id", ""))
-		if not row_entity_id.is_empty():
-			row_text += " | id=%s" % row_entity_id
-		var row_cell: Vector2i = Vector2i(row.get("cell", Vector2i(-1, -1)))
-		if row_cell.x >= 0 and row_cell.y >= 0:
-			row_text += " | c=(%d,%d)" % [row_cell.x, row_cell.y]
-		var history_row_line: HBoxContainer = HBoxContainer.new()
-		var history_row_label: Label = Label.new()
-		history_row_label.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
-		history_row_label.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-		history_row_label.text = row_text
-		history_row_line.add_child(history_row_label)
-		if not row_entity_id.is_empty() or (row_cell.x >= 0 and row_cell.y >= 0):
-			var jump_btn: Button = Button.new()
-			jump_btn.text = "Jump"
-			jump_btn.pressed.connect(func() -> void:
-				_jump_to_map_constructor_history_row(row)
-			)
-			history_row_line.add_child(jump_btn)
-		list.add_child(history_row_line)
-		shown_count += 1
-		if shown_count >= 30:
-			break
-	var overview_title: Label = Label.new()
-	overview_title.text = "Minimap / Overview"
-	list.add_child(overview_title)
-	var overview_filter: OptionButton = OptionButton.new()
-	for opt in MAP_CONSTRUCTOR_OVERVIEW_FILTER_OPTIONS:
-		overview_filter.add_item(opt)
-	var overview_filter_idx: int = MAP_CONSTRUCTOR_OVERVIEW_FILTER_OPTIONS.find(map_constructor_overview_filter)
-	if overview_filter_idx < 0:
-		overview_filter_idx = 0
-		map_constructor_overview_filter = "All"
-	overview_filter.select(overview_filter_idx)
-	overview_filter.item_selected.connect(func(index: int) -> void:
-		if index >= 0 and index < MAP_CONSTRUCTOR_OVERVIEW_FILTER_OPTIONS.size():
-			map_constructor_overview_filter = MAP_CONSTRUCTOR_OVERVIEW_FILTER_OPTIONS[index]
-			_refresh_map_constructor_panels()
-	)
-	list.add_child(overview_filter)
-	var overview_toggle_row_a: HBoxContainer = HBoxContainer.new()
-	var overview_show_issues: CheckButton = CheckButton.new()
-	overview_show_issues.text = "Show Issues"
-	overview_show_issues.button_pressed = map_constructor_overview_show_issues
-	overview_show_issues.toggled.connect(func(pressed: bool) -> void:
-		map_constructor_overview_show_issues = pressed
-		_refresh_map_constructor_panels()
-	)
-	overview_toggle_row_a.add_child(overview_show_issues)
-	var overview_show_power: CheckButton = CheckButton.new()
-	overview_show_power.text = "Show Power"
-	overview_show_power.button_pressed = map_constructor_overview_show_power
-	overview_show_power.toggled.connect(func(pressed: bool) -> void:
-		map_constructor_overview_show_power = pressed
-		_refresh_map_constructor_panels()
-	)
-	overview_toggle_row_a.add_child(overview_show_power)
-	var overview_show_items: CheckButton = CheckButton.new()
-	overview_show_items.text = "Show Items"
-	overview_show_items.button_pressed = map_constructor_overview_show_items
-	overview_show_items.toggled.connect(func(pressed: bool) -> void:
-		map_constructor_overview_show_items = pressed
-		_refresh_map_constructor_panels()
-	)
-	overview_toggle_row_a.add_child(overview_show_items)
-	list.add_child(overview_toggle_row_a)
-	var overview_toggle_row_b: HBoxContainer = HBoxContainer.new()
-	var overview_show_wall_mounted: CheckButton = CheckButton.new()
-	overview_show_wall_mounted.text = "Show Wall-mounted"
-	overview_show_wall_mounted.button_pressed = map_constructor_overview_show_wall_mounted
-	overview_show_wall_mounted.toggled.connect(func(pressed: bool) -> void:
-		map_constructor_overview_show_wall_mounted = pressed
-		_refresh_map_constructor_panels()
-	)
-	overview_toggle_row_b.add_child(overview_show_wall_mounted)
-	var overview_show_history: CheckButton = CheckButton.new()
-	overview_show_history.text = "Show History"
-	overview_show_history.button_pressed = map_constructor_overview_show_history
-	overview_show_history.toggled.connect(func(pressed: bool) -> void:
-		map_constructor_overview_show_history = pressed
-		_refresh_map_constructor_panels()
-	)
-	overview_toggle_row_b.add_child(overview_show_history)
-	list.add_child(overview_toggle_row_b)
-	var overview_data: Dictionary = {}
-	if mission_manager_runtime != null and mission_manager_runtime.has_method("get_map_constructor_overview_data"):
-		overview_data = mission_manager_runtime.call("get_map_constructor_overview_data", {"include_validation":map_constructor_overview_show_issues, "include_history":map_constructor_overview_show_history, "include_power":map_constructor_overview_show_power, "include_items":map_constructor_overview_show_items, "include_wall_mounted":map_constructor_overview_show_wall_mounted, "selected_entities":map_constructor_multi_selected_entities, "selected_entity_id":selected_map_constructor_entity_id, "selected_entity_kind":selected_map_constructor_entity_kind, "max_history_markers":20})
-	var ov_summary: Dictionary = Dictionary(overview_data.get("summary", {}))
-	var sum_label: Label = Label.new()
-	sum_label.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
-	sum_label.text = "size=%dx%d objects=%d items=%d issues=%d warnings=%d expected=%d" % [int(ov_summary.get("width", 0)), int(ov_summary.get("height", 0)), int(ov_summary.get("object_count", 0)), int(ov_summary.get("item_count", 0)), int(ov_summary.get("error_count", 0)), int(ov_summary.get("warning_count", 0)), int(ov_summary.get("expected_invalid_count", 0))]
-	list.add_child(sum_label)
-	var legend_label: Label = Label.new()
-	legend_label.text = ". floor # wall D door T terminal P power I item W wall-mounted ! error ? warning * selected X expected-invalid"
-	legend_label.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
-	list.add_child(legend_label)
-	var jump_row: HBoxContainer = HBoxContainer.new()
-	for cfg in [{"label":"Refresh Overview","kind":"refresh"},{"label":"Jump to Selected","kind":"selected"},{"label":"Jump to First Error","kind":"validation_issue"},{"label":"Jump to First Warning","kind":"warning"},{"label":"Jump to First Expected Invalid","kind":"expected_invalid"},{"label":"Jump to Last Change","kind":"history"}]:
-		var b: Button = Button.new()
-		b.text = String(cfg.get("label", "Jump"))
-		b.pressed.connect(func() -> void:
-			if String(cfg.get("kind", "")) == "refresh":
-				_refresh_map_constructor_panels()
-				return
-			var marker_rows: Array = Array(overview_data.get("markers", []))
-			if String(cfg.get("kind", "")) == "history":
-				marker_rows.reverse()
-			for marker_variant in marker_rows:
-				var marker: Dictionary = Dictionary(marker_variant)
-				var mk: String = String(marker.get("kind", ""))
-				if String(cfg.get("kind", "")) == "selected" and mk != "selected":
-					continue
-				if String(cfg.get("kind", "")) != "selected" and mk != String(cfg.get("kind", "")):
-					continue
-				_jump_to_map_constructor_history_row(marker)
-				return
-		)
-		jump_row.add_child(b)
-	list.add_child(jump_row)
-	var map_size: Vector2i = Vector2i(overview_data.get("map_size", Vector2i.ZERO))
-	if map_size.x > 80 or map_size.y > 80:
-		var large_label: Label = Label.new()
-		large_label.text = "Map is large; showing marker overview only."
-		list.add_child(large_label)
-	else:
-		var rows: Dictionary = {}
-		for cell_variant in Array(overview_data.get("cells", [])):
-			var cell_row: Dictionary = Dictionary(cell_variant)
-			var cell: Vector2i = Vector2i(cell_row.get("cell", Vector2i(-1, -1)))
-			var y: int = cell.y
-			if not rows.has(y):
-				rows[y] = []
-			rows[y].append(cell_row)
-		for y in range(map_size.y):
-			var row_box: HBoxContainer = HBoxContainer.new()
-			for x in range(map_size.x):
-				var symbol: String = " "
-				for cell_row_variant in Array(rows.get(y, [])):
-					var cr: Dictionary = Dictionary(cell_row_variant)
-					if Vector2i(cr.get("cell", Vector2i(-1, -1))).x == x:
-						symbol = _map_constructor_overview_symbol_for_cell(cr)
-						break
-				var cell_btn: Button = Button.new()
-				cell_btn.text = symbol
-				cell_btn.custom_minimum_size = Vector2(18, 18)
-				var c: Vector2i = Vector2i(x, y)
-				cell_btn.pressed.connect(func() -> void:
-					var opened_entity: bool = false
-					if mission_manager_runtime != null and mission_manager_runtime.has_method("get_map_constructor_editable_entity_at_cell"):
-						var editable_res: Dictionary = mission_manager_runtime.call("get_map_constructor_editable_entity_at_cell", c)
-						if bool(editable_res.get("ok", false)):
-							_show_map_constructor_inspector(c, String(editable_res.get("entity_kind", "")), String(editable_res.get("entity_id", "")))
-							opened_entity = true
-					_focus_map_constructor_cell(c)
-					if not opened_entity:
-						_show_map_constructor_inspector(c)
+			var recent_entry: Dictionary = Dictionary(catalog_by_id[recent_id])
+			if _map_constructor_prefab_matches_filters(recent_entry):
+				recent_entries.append(recent_entry)
+		for section in [{"name":"Favorites","entries":favorite_entries},{"name":"Recent","entries":recent_entries}]:
+			var section_entries: Array = Array(section.get("entries", []))
+			if section_entries.is_empty():
+				continue
+			var section_header: Label = Label.new()
+			section_header.text = String(section.get("name", ""))
+			list.add_child(section_header)
+			for entry in section_entries:
+				var id: String = String(entry.get("id", ""))
+				var b: Button = Button.new()
+				b.text = "%s [%s] — %s\n%s\nhint: %s\n%s | %s" % [String(entry.get("display_name", entry.get("label", id))), id, String(entry.get("category", "")), String(entry.get("description", "")), String(entry.get("placement_hint", "")), ", ".join(PackedStringArray(entry.get("tags", []))), ", ".join(PackedStringArray(entry.get("system_roles", [])))]
+				b.toggle_mode = true
+				b.button_pressed = id == selected_map_constructor_prefab_id
+				if b.button_pressed:
+					selected_visible = true
+				b.pressed.connect(func() -> void:
+					_select_map_constructor_prefab(id)
+					_refresh_map_constructor_panels()
 				)
-				row_box.add_child(cell_btn)
-			list.add_child(row_box)
-	var markers_title: Label = Label.new()
-	markers_title.text = "Overview Markers"
-	list.add_child(markers_title)
-	var shown_markers: int = 0
-	for marker_variant in Array(overview_data.get("markers", [])):
-		var marker: Dictionary = Dictionary(marker_variant)
-		if not _map_constructor_overview_marker_matches_filter(marker):
-			continue
-		var line: HBoxContainer = HBoxContainer.new()
-		var lbl: Label = Label.new()
-		lbl.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-		lbl.text = "%s | %s | %s | %s" % [String(marker.get("status", "info")), String(marker.get("kind", "")), String(marker.get("label", "")), str(marker.get("cell", Vector2i(-1, -1)))]
-		line.add_child(lbl)
-		var jump: Button = Button.new(); jump.text = "Jump"
-		jump.pressed.connect(func() -> void: _jump_to_map_constructor_history_row(marker))
-		line.add_child(jump)
-		list.add_child(line)
-		shown_markers += 1
-		if shown_markers >= 30:
-			break
-	var presets_title: Label = Label.new()
-	presets_title.text = "Constructor Presets"
-	list.add_child(presets_title)
-	var preset_name_edit: LineEdit = LineEdit.new()
-	preset_name_edit.placeholder_text = "Preset name"
-	preset_name_edit.text = map_constructor_preset_name
-	preset_name_edit.text_changed.connect(func(new_text: String) -> void:
-		map_constructor_preset_name = new_text
-	)
-	list.add_child(preset_name_edit)
-	if mission_manager_runtime != null and mission_manager_runtime.has_method("list_map_constructor_presets"):
-		map_constructor_preset_entries = mission_manager_runtime.call("list_map_constructor_presets")
-	if map_constructor_selected_preset_name.is_empty() and not map_constructor_preset_entries.is_empty():
-		map_constructor_selected_preset_name = String(map_constructor_preset_entries[0].get("name", ""))
-	var constructor_preset_select: OptionButton = OptionButton.new()
-	for i in range(map_constructor_preset_entries.size()):
-		var entry: Dictionary = map_constructor_preset_entries[i]
-		var preset_name: String = String(entry.get("name", ""))
-		constructor_preset_select.add_item(preset_name)
-		if preset_name == map_constructor_selected_preset_name:
-			constructor_preset_select.select(i)
-	constructor_preset_select.item_selected.connect(func(index: int) -> void:
-		if index >= 0 and index < map_constructor_preset_entries.size():
-			map_constructor_selected_preset_name = String(map_constructor_preset_entries[index].get("name", ""))
-	)
-	list.add_child(constructor_preset_select)
-	var preset_actions: HBoxContainer = HBoxContainer.new()
-	preset_actions.add_theme_constant_override("separation", 4)
-	list.add_child(preset_actions)
-	var save_preset_button: Button = Button.new()
-	save_preset_button.text = "Save"
-	save_preset_button.pressed.connect(func() -> void:
-		if not map_constructor_mode_active or mission_manager_runtime == null or not mission_manager_runtime.has_method("save_map_constructor_preset"):
-			show_hint("Preset save unavailable.")
-			return
-		var save_result: Dictionary = mission_manager_runtime.call("save_map_constructor_preset", map_constructor_preset_name)
-		show_hint(String(save_result.get("message", "Preset save done.")))
-		map_constructor_selected_preset_name = String(save_result.get("preset_name", map_constructor_selected_preset_name))
-		_show_map_constructor_inspector(pending_map_constructor_cell)
-		_refresh_map_constructor_panels()
-		if field_runtime != null and field_runtime.has_method("request_visual_refresh"):
-			field_runtime.call("request_visual_refresh")
-	)
-	preset_actions.add_child(save_preset_button)
-	var load_preset_button: Button = Button.new()
-	load_preset_button.text = "Load selected"
-	load_preset_button.pressed.connect(func() -> void:
-		if not map_constructor_mode_active or map_constructor_selected_preset_name.is_empty() or mission_manager_runtime == null or not mission_manager_runtime.has_method("load_map_constructor_preset"):
-			show_hint("Preset load unavailable.")
-			return
-		var load_result: Dictionary = mission_manager_runtime.call("load_map_constructor_preset", map_constructor_selected_preset_name)
-		show_hint(String(load_result.get("message", "Preset load done.")))
-		if bool(load_result.get("ok", false)):
+				list.add_child(b)
+		for group_name in MAP_CONSTRUCTOR_PREFAB_CATEGORY_GROUP_ORDER:
+			var entries: Array = grouped_entries[group_name]
+			if entries.is_empty():
+				continue
+			var header := Label.new()
+			header.text = group_name
+			list.add_child(header)
+			for entry in entries:
+				var id: String = String(entry.get("id", ""))
+				var b: Button = Button.new()
+				var warning_text: String = ""
+				if bool(entry.get("is_destructive", false)) or bool(entry.get("is_expected_invalid_tool", false)) or bool(entry.get("can_have_links", false)):
+					warning_text = " ⚠"
+				b.text = "%s%s [%s] — %s\n%s\nhint: %s\n%s | %s" % [String(entry.get("display_name", entry.get("label", id))), warning_text, id, String(entry.get("category", "")), String(entry.get("description", "")), String(entry.get("placement_hint", "")), ", ".join(PackedStringArray(entry.get("tags", []))), ", ".join(PackedStringArray(entry.get("system_roles", [])))]
+				b.toggle_mode = true
+				b.button_pressed = id == selected_map_constructor_prefab_id
+				if b.button_pressed:
+					selected_visible = true
+				b.pressed.connect(func() -> void:
+					_select_map_constructor_prefab(id)
+					_refresh_map_constructor_panels()
+				)
+				list.add_child(b)
+		if not selected_visible and not selected_map_constructor_prefab_id.is_empty():
+			selected_map_constructor_prefab_id = ""
+			selected_map_constructor_wall_side = ""
+			available_map_constructor_wall_sides.clear()
 			pending_map_constructor_cell = Vector2i(-1, -1)
 			_clear_map_constructor_preview_cell()
+		var placement_label: Label = Label.new()
+		placement_label.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+		placement_label.text = "Placement: blocked: unsupported prefab"
+		if pending_map_constructor_cell.x >= 0 and pending_map_constructor_cell.y >= 0 and not selected_map_constructor_prefab_id.is_empty():
+			if mission_manager_runtime != null and mission_manager_runtime.has_method("can_place_map_constructor_prefab"):
+				var check: Dictionary = _update_map_constructor_preview_for_cell(pending_map_constructor_cell)
+				if selected_visible:
+					list.add_child(_create_map_constructor_wall_side_picker(String(check.get("placement_mode", ""))))
+				var reason: String = String(check.get("reason", "unsupported_prefab"))
+				match reason:
+					"ok":
+						placement_label.text = "Placement: OK"
+					"existing_object", "occupied_by_bipob":
+						placement_label.text = "Placement: blocked: existing object"
+					"out_of_bounds":
+						placement_label.text = "Placement: blocked: out of bounds"
+					"exit_cell":
+						placement_label.text = "Placement: blocked: exit cell"
+					"wall_or_static":
+						placement_label.text = "Placement: blocked: wall/static obstacle"
+					"non_floor_tile":
+						placement_label.text = "Placement: blocked: non-floor tile"
+					_:
+						placement_label.text = "Placement: blocked: unsupported prefab"
+				if String(check.get("placement_mode", "")) == "wall_mounted":
+					placement_label.text += "\nWall side: %s (R to cycle)" % _get_map_constructor_wall_side_label(String(check.get("wall_side", selected_map_constructor_wall_side)))
+		list.add_child(placement_label)
+		var favorite_toggle: Button = Button.new()
+		var selected_is_favorite: bool = bool(map_constructor_prefab_favorites.get(selected_map_constructor_prefab_id, false))
+		favorite_toggle.text = "★ Unfavorite Selected" if selected_is_favorite else "☆ Favorite Selected"
+		favorite_toggle.disabled = selected_map_constructor_prefab_id.is_empty()
+		favorite_toggle.pressed.connect(func() -> void:
+			if selected_map_constructor_prefab_id.is_empty():
+				return
+			var favorite_now: bool = not bool(map_constructor_prefab_favorites.get(selected_map_constructor_prefab_id, false))
+			map_constructor_prefab_favorites[selected_map_constructor_prefab_id] = favorite_now
+			_refresh_map_constructor_panels()
+		)
+		list.add_child(favorite_toggle)
+		var placed_title: Label = Label.new()
+		placed_title.text = "Placed Objects"
+		list.add_child(placed_title)
+		var placed_search: LineEdit = LineEdit.new()
+		placed_search.placeholder_text = "Search placed objects..."
+		placed_search.text = map_constructor_placed_search_text
+		placed_search.text_changed.connect(func(new_text: String) -> void:
+			map_constructor_placed_search_text = new_text
+			_refresh_map_constructor_panels()
+		)
+		list.add_child(placed_search)
+		var placed_rows: Array[Dictionary] = _build_map_constructor_placed_object_rows()
+		var selected_row_exists: bool = selected_map_constructor_entity_id.is_empty()
+		for row in placed_rows:
+			var row_entity_id: String = String(row.get("id", ""))
+			var row_entity_kind: String = String(row.get("entity_kind", ""))
+			if row_entity_id == selected_map_constructor_entity_id and row_entity_kind == selected_map_constructor_entity_kind:
+				selected_row_exists = true
+		for row in placed_rows:
+			if not _map_constructor_placed_row_matches_search(row):
+				continue
+			var row_cell: Vector2i = Vector2i(row.get("cell", Vector2i(-1, -1)))
+			var row_anchor_cell: Vector2i = Vector2i(row.get("anchor_floor_cell", row_cell))
+			var row_entity_id: String = String(row.get("id", ""))
+			var row_entity_kind: String = String(row.get("entity_kind", ""))
+			var row_selected: bool = row_entity_id == selected_map_constructor_entity_id and row_entity_kind == selected_map_constructor_entity_kind
+			var row_button: Button = Button.new()
+			var row_text: String = "%s | %s | c:%s | %s" % [String(row.get("id", "")), String(row.get("type_or_prefab", "")), str(row_cell), String(row.get("category_or_placement", ""))]
+			if String(row.get("placement_mode", "")) == "wall_mounted":
+				row_text += " | a:%s w:%s side:%s" % [str(row_anchor_cell), str(Vector2i(row.get("attached_wall_cell", Vector2i(-1, -1)))), String(row.get("wall_side", ""))]
+			if row_selected:
+				row_text = "▶ " + row_text
+			row_button.text = row_text
+			row_button.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+			row_button.pressed.connect(func() -> void:
+				_select_map_constructor_entity_from_browser(row)
+				_refresh_map_constructor_panels()
+			)
+			list.add_child(row_button)
+		if not selected_row_exists:
+			_clear_map_constructor_browser_selection()
+		var browser_selection_label: Label = Label.new()
+		browser_selection_label.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+		if selected_map_constructor_entity_id.is_empty() or selected_map_constructor_entity_kind.is_empty():
+			browser_selection_label.text = "Browser selection: none"
+		else:
+			browser_selection_label.text = "Browser selection: %s/%s @ %s" % [selected_map_constructor_entity_kind, selected_map_constructor_entity_id, str(selected_map_constructor_entity_cell)]
+		list.add_child(browser_selection_label)
+	elif map_constructor_active_tab == "warnings":
+		var readiness_title: Label = Label.new()
+		readiness_title.text = "Mission Readiness"
+		list.add_child(readiness_title)
+		var visual_assets_title: Label = Label.new()
+		visual_assets_title.text = "Visual Assets"
+		list.add_child(visual_assets_title)
+		if mission_manager_runtime != null and mission_manager_runtime.has_method("get_visual_texture_asset_catalog"):
+			var visual_catalog: Dictionary = mission_manager_runtime.call("get_visual_texture_asset_catalog")
+			var visual_assets: Array = Array(visual_catalog.get("assets", []))
+			var missing_optional_count: int = 0
+			for row_variant in visual_assets:
+				var row: Dictionary = Dictionary(row_variant)
+				if mission_manager_runtime.has_method("resolve_visual_texture_asset"):
+					var resolved: Dictionary = mission_manager_runtime.call("resolve_visual_texture_asset", String(row.get("id", "")))
+					if bool(resolved.get("ok", false)) and not bool(resolved.get("has_texture", false)) and bool(row.get("is_optional", true)):
+						missing_optional_count += 1
+			var visual_summary_label: Label = Label.new()
+			visual_summary_label.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+			visual_summary_label.text = "assets=%d missing_optional=%d" % [visual_assets.size(), missing_optional_count]
+			list.add_child(visual_summary_label)
+			var selected_texture_asset_id: String = ""
+			if not selected_map_constructor_entity_id.is_empty() and mission_manager_runtime.has_method("get_map_constructor_entity_by_id"):
+				var entity_data: Dictionary = mission_manager_runtime.call("get_map_constructor_entity_by_id", selected_map_constructor_entity_kind, selected_map_constructor_entity_id)
+				var selected_payload: Dictionary = Dictionary(entity_data.get("data", {}))
+				selected_texture_asset_id = String(selected_payload.get("texture_asset_id", ""))
+			var selected_asset_label: Label = Label.new()
+			selected_asset_label.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+			selected_asset_label.text = "selected.texture_asset_id=%s" % (selected_texture_asset_id if not selected_texture_asset_id.is_empty() else "none")
+			list.add_child(selected_asset_label)
+		if mission_manager_runtime != null and mission_manager_runtime.has_method("get_map_constructor_mission_readiness_report"):
+			var readiness: Dictionary = mission_manager_runtime.call("get_map_constructor_mission_readiness_report")
+			var readiness_status: String = String(readiness.get("status", "unknown"))
+			var constructor_status_label: Label = Label.new()
+			constructor_status_label.text = "Mission Readiness: %s" % ["PLAYABLE" if readiness_status == "playable" else ("BLOCKED" if readiness_status == "blocked" else "WARNINGS")]
+			list.add_child(constructor_status_label)
+			var summary_label: Label = Label.new()
+			summary_label.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+			summary_label.text = "blocking=%d warnings=%d expected-invalid=%d info=%d" % [int(readiness.get("blocking_count", 0)), int(readiness.get("warning_count", 0)), int(readiness.get("expected_invalid_count", 0)), int(readiness.get("info_count", 0))]
+			list.add_child(summary_label)
+			var action_by_issue: Dictionary = {}
+			for rec_variant in Array(readiness.get("recommended_actions", [])):
+				var rec: Dictionary = Dictionary(rec_variant)
+				var tid: String = String(rec.get("target_issue_id", ""))
+				if tid.is_empty() or action_by_issue.has(tid):
+					continue
+				action_by_issue[tid] = rec
+			for check_variant in Array(readiness.get("checks", [])):
+				var check: Dictionary = Dictionary(check_variant)
+				var check_status: String = String(check.get("status", "info"))
+				var icon: String = "ℹ"
+				if check_status == "pass":
+					icon = "✅"
+				elif check_status == "fail":
+					icon = "❌"
+				elif check_status == "warning":
+					icon = "⚠"
+				elif check_status == "expected_invalid":
+					icon = "🧪"
+				var check_label: Label = Label.new()
+				check_label.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+				var line: String = "%s %s: %s (count=%d)" % [icon, String(check.get("label", "Check")), String(check.get("message", "")), int(check.get("count", 0))]
+				if not String(check.get("entity_id", "")).is_empty():
+					line += " | id=%s" % String(check.get("entity_id", ""))
+				var c: Vector2i = Vector2i(check.get("cell", Vector2i(-1, -1)))
+				if c.x >= 0 and c.y >= 0:
+					line += " | c=%s" % str(c)
+				check_label.text = line
+				list.add_child(check_label)
+				var issue_id: String = String(check.get("issue_id", ""))
+				if issue_id.is_empty():
+					continue
+				var action_row: HBoxContainer = HBoxContainer.new()
+				var jump_button: Button = Button.new()
+				jump_button.text = "Jump"
+				jump_button.pressed.connect(func() -> void:
+					_focus_map_constructor_readiness_issue_by_id(issue_id)
+				)
+				action_row.add_child(jump_button)
+				if action_by_issue.has(issue_id):
+					var rec: Dictionary = Dictionary(action_by_issue[issue_id])
+					_add_map_constructor_readiness_action_buttons(action_row, rec)
+				list.add_child(action_row)
+			var expected_section: Label = Label.new()
+			expected_section.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+			var expected_ids: Array[String] = []
+			for issue_variant in Array(readiness.get("expected_invalid_issues", [])):
+				if expected_ids.size() >= 10:
+					break
+				var issue_data: Dictionary = Dictionary(issue_variant)
+				expected_ids.append(String(issue_data.get("id", issue_data.get("entity_id", ""))))
+			expected_section.text = "Expected Invalid Cases (%d): %s\nThese are intentional TASK TEST broken cases and do not block readiness." % [int(readiness.get("expected_invalid_count", 0)), ", ".join(expected_ids)]
+			list.add_child(expected_section)
+		var issues_title: Label = Label.new()
+		issues_title.text = "Validation Issues"
+		list.add_child(issues_title)
+		var issues_filter_option: OptionButton = OptionButton.new()
+		for filter_name in MAP_CONSTRUCTOR_ISSUE_FILTER_OPTIONS:
+			issues_filter_option.add_item(filter_name)
+		var selected_filter_index: int = MAP_CONSTRUCTOR_ISSUE_FILTER_OPTIONS.find(map_constructor_issue_filter)
+		if selected_filter_index < 0:
+			selected_filter_index = 0
+			map_constructor_issue_filter = "All"
+		issues_filter_option.select(selected_filter_index)
+		issues_filter_option.item_selected.connect(func(index: int) -> void:
+			if index >= 0 and index < MAP_CONSTRUCTOR_ISSUE_FILTER_OPTIONS.size():
+				map_constructor_issue_filter = MAP_CONSTRUCTOR_ISSUE_FILTER_OPTIONS[index]
+				_refresh_map_constructor_panels()
+		)
+		list.add_child(issues_filter_option)
+		var constructor_issues: Array[Dictionary] = []
+		if mission_manager_runtime != null and mission_manager_runtime.has_method("get_map_constructor_validation_issues"):
+			constructor_issues = mission_manager_runtime.call("get_map_constructor_validation_issues")
+		var issue_errors: int = 0
+		var issue_warnings: int = 0
+		var issue_info: int = 0
+		var issue_id_exists: bool = false
+		for issue_row in constructor_issues:
+			var issue_severity: String = String(issue_row.get("severity", "info")).to_lower()
+			if issue_severity == "error":
+				issue_errors += 1
+			elif issue_severity == "warning":
+				issue_warnings += 1
+			else:
+				issue_info += 1
+			if String(issue_row.get("id", "")) == map_constructor_selected_issue_id:
+				issue_id_exists = true
+		if not issue_id_exists:
+			map_constructor_selected_issue_id = ""
+		var issue_counts_label: Label = Label.new()
+		issue_counts_label.text = "Errors: %d Warnings: %d Info: %d" % [issue_errors, issue_warnings, issue_info]
+		list.add_child(issue_counts_label)
+		for issue_row in constructor_issues:
+			if not _map_constructor_issue_matches_filter(issue_row):
+				continue
+			var issue_id: String = String(issue_row.get("id", ""))
+			var issue_severity: String = String(issue_row.get("severity", "info")).to_upper()
+			var issue_message: String = String(issue_row.get("message", "Validation issue"))
+			var issue_cell: Vector2i = Vector2i(issue_row.get("cell", Vector2i(-1, -1)))
+			var issue_entity_id: String = String(issue_row.get("entity_id", ""))
+			var issue_text: String = "%s%s: %s" % ["▶ " if issue_id == map_constructor_selected_issue_id else "", issue_severity, issue_message]
+			if not issue_entity_id.is_empty():
+				issue_text += " | id=%s" % issue_entity_id
+			if issue_cell.x >= 0 and issue_cell.y >= 0:
+				issue_text += " | c=%s" % str(issue_cell)
+			var issue_button: Button = Button.new()
+			issue_button.text = issue_text
+			issue_button.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+			issue_button.pressed.connect(func() -> void:
+				map_constructor_selected_issue_id = issue_id
+				_focus_map_constructor_issue(issue_row)
+				_refresh_map_constructor_panels()
+			)
+			list.add_child(issue_button)
+			if mission_manager_runtime != null and mission_manager_runtime.has_method("get_map_constructor_issue_autofix_options"):
+				var fix_options: Array = mission_manager_runtime.call("get_map_constructor_issue_autofix_options", issue_row)
+				if not fix_options.is_empty():
+					for option_row in fix_options:
+						var fix_option: Dictionary = Dictionary(option_row)
+						var ftype: String = String(fix_option.get("fix_type", ""))
+						var foptions: Dictionary = Dictionary(fix_option.get("options", {}))
+						var flabel: String = String(fix_option.get("label", "Fix"))
+						var fkey: String = "%s|%s" % [ftype, JSON.stringify(foptions)]
+						var issue_fix_row: HBoxContainer = HBoxContainer.new()
+						var preview_btn: Button = Button.new()
+						preview_btn.text = "Preview: %s" % flabel
+						var apply_btn: Button = Button.new()
+						apply_btn.text = "Apply: %s" % flabel
+						preview_btn.pressed.connect(func() -> void:
+							_apply_map_constructor_autofix_action(ftype, foptions, false)
+						)
+						apply_btn.disabled = map_constructor_autofix_pending_apply_key != fkey
+						apply_btn.pressed.connect(func() -> void:
+							_apply_map_constructor_autofix_action(ftype, foptions, true)
+						)
+						issue_fix_row.add_child(preview_btn)
+						issue_fix_row.add_child(apply_btn)
+						list.add_child(issue_fix_row)
+		var audit_label: Label = Label.new()
+		audit_label.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+		audit_label.text = "Audit: unavailable"
+		if mission_manager_runtime != null and mission_manager_runtime.has_method("get_map_constructor_audit_summary"):
+			var audit_summary: Dictionary = mission_manager_runtime.call("get_map_constructor_audit_summary")
+			var audit_status: String = "WARN"
+			if bool(audit_summary.get("ok", false)):
+				audit_status = "OK"
+			audit_label.text = "Audit: %s m=%d i=%d r=%d d=%d" % [
+				audit_status,
+				int(audit_summary.get("missing_coverage_count", 0)),
+				int(audit_summary.get("invalid_links_count", 0)),
+				int(audit_summary.get("runtime_warnings_count", 0)),
+				int(audit_summary.get("duplicate_cell_warnings_count", 0))
+			]
+		list.add_child(audit_label)
+		var overlay_summary_label: Label = Label.new()
+		overlay_summary_label.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+		overlay_summary_label.text = "Validation: unavailable"
+		if mission_manager_runtime != null and mission_manager_runtime.has_method("get_map_constructor_validation_overlay"):
+			var overlay_data: Dictionary = mission_manager_runtime.call("get_map_constructor_validation_overlay")
+			var overlay_summary: Dictionary = Dictionary(overlay_data.get("summary", {}))
+			var error_count: int = int(overlay_summary.get("error_count", 0))
+			var warning_count: int = int(overlay_summary.get("warning_count", 0))
+			var valid_count: int = int(overlay_summary.get("valid_count", 0))
+			if error_count <= 0 and warning_count <= 0:
+				overlay_summary_label.text = "Validation: OK"
+			else:
+				overlay_summary_label.text = "Validation: errors=%d warnings=%d valid=%d" % [error_count, warning_count, valid_count]
+		list.add_child(overlay_summary_label)
+		var overlay_toggle_button: Button = Button.new()
+		overlay_toggle_button.text = "Validation Overlay: %s" % ["ON" if map_constructor_validation_overlay_visible else "OFF"]
+		overlay_toggle_button.pressed.connect(func() -> void:
+			map_constructor_validation_overlay_visible = not map_constructor_validation_overlay_visible
+			_refresh_map_constructor_panels()
+		)
+		list.add_child(overlay_toggle_button)
+		var overlay_section_title: Label = Label.new()
+		overlay_section_title.text = "Overlay"
+		list.add_child(overlay_section_title)
+		for row_variant in [
+			{"key":"show_preview", "label":"Show Placement Preview"},
+			{"key":"show_validation", "label":"Show Validation Markers"},
+			{"key":"show_links", "label":"Show Links"},
+			{"key":"show_power", "label":"Show Power Networks"},
+			{"key":"show_wall_side_arrows", "label":"Show Wall-side Arrows"},
+			{"key":"show_multi_select", "label":"Show Multi-select"}
+		]:
+			var row: Dictionary = Dictionary(row_variant)
+			var toggle: CheckBox = CheckBox.new()
+			toggle.text = String(row.get("label", ""))
+			var pref_key: String = String(row.get("key", ""))
+			toggle.button_pressed = bool(map_constructor_overlay_visibility.get(pref_key, true))
+			toggle.toggled.connect(func(enabled: bool) -> void:
+				map_constructor_overlay_visibility[pref_key] = enabled
+				_request_map_constructor_overlay_refresh()
+			)
+			list.add_child(toggle)
+		var reset_overlay_button: Button = Button.new()
+		reset_overlay_button.text = "Reset Overlay Visibility"
+		reset_overlay_button.pressed.connect(func() -> void:
+			map_constructor_overlay_visibility = {"show_preview": true, "show_validation": true, "show_links": true, "show_power": true, "show_wall_side_arrows": true, "show_multi_select": true}
+			_request_map_constructor_overlay_refresh()
+			_refresh_map_constructor_panels()
+		)
+		list.add_child(reset_overlay_button)
+	elif map_constructor_active_tab == "map_settings":
+		var constructor_sections_title: Label = Label.new()
+		constructor_sections_title.text = "Map Constructor Milestone Tools"
+		list.add_child(constructor_sections_title)
+		var anchor_cell: Vector2i = pending_map_constructor_cell if pending_map_constructor_cell.x >= 0 else selected_map_constructor_entity_cell
+		var kit_options: Dictionary = {"allow_overwrite": false}
+		var template_options: Dictionary = {"rotation": map_constructor_template_rotation, "mirror_x": map_constructor_template_mirror_x, "mirror_y": map_constructor_template_mirror_y, "allow_overwrite": false}
+		var current_kit_key: String = "%s|%s|%s" % [map_constructor_selected_kit_id, str(anchor_cell), JSON.stringify(kit_options)]
+		var current_template_key: String = "%s|%s|%s" % [map_constructor_selected_template_id, str(anchor_cell), JSON.stringify(template_options)]
+		var kit_data: Dictionary = mission_manager_runtime.call("get_map_constructor_prefab_kits") if mission_manager_runtime != null and mission_manager_runtime.has_method("get_map_constructor_prefab_kits") else {}
+		var template_data: Dictionary = mission_manager_runtime.call("get_map_constructor_room_templates") if mission_manager_runtime != null and mission_manager_runtime.has_method("get_map_constructor_room_templates") else {}
+		var kit_rows: Array = Array(kit_data.get("kits", []))
+		var template_rows: Array = Array(template_data.get("templates", []))
+		var selected_kit_exists: bool = false
+		for kit_row_variant in kit_rows:
+			if String(Dictionary(kit_row_variant).get("id", "")) == map_constructor_selected_kit_id:
+				selected_kit_exists = true
+				break
+		if (map_constructor_selected_kit_id.is_empty() or not selected_kit_exists) and not kit_rows.is_empty():
+			map_constructor_selected_kit_id = String(Dictionary(kit_rows[0]).get("id", ""))
+		var selected_template_exists: bool = false
+		for template_row_variant in template_rows:
+			if String(Dictionary(template_row_variant).get("id", "")) == map_constructor_selected_template_id:
+				selected_template_exists = true
+				break
+		if (map_constructor_selected_template_id.is_empty() or not selected_template_exists) and not template_rows.is_empty():
+			map_constructor_selected_template_id = String(Dictionary(template_rows[0]).get("id", ""))
+		if map_constructor_kit_pending_apply_key != current_kit_key:
+			map_constructor_kit_preview_can_apply = false
+		if map_constructor_template_pending_apply_key != current_template_key:
+			map_constructor_template_preview_can_apply = false
+		var kit_select: OptionButton = OptionButton.new()
+		for row_variant in kit_rows:
+			var row: Dictionary = Dictionary(row_variant)
+			kit_select.add_item(String(row.get("display_name", row.get("id", ""))))
+			kit_select.set_item_metadata(kit_select.item_count - 1, String(row.get("id", "")))
+		for idx in range(kit_select.item_count):
+			if String(kit_select.get_item_metadata(idx)) == map_constructor_selected_kit_id:
+				kit_select.select(idx)
+				break
+		kit_select.item_selected.connect(func(index: int) -> void:
+			map_constructor_selected_kit_id = String(kit_select.get_item_metadata(index))
+			map_constructor_kit_preview_can_apply = false
+			map_constructor_kit_pending_apply_key = ""
+			_refresh_map_constructor_panels()
+		)
+		list.add_child(kit_select)
+		var selected_kit_info: Label = Label.new()
+		selected_kit_info.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+		for row_variant in kit_rows:
+			var row: Dictionary = Dictionary(row_variant)
+			if String(row.get("id", "")) == map_constructor_selected_kit_id:
+				selected_kit_info.text = "Kit: %s\n%s\nTags: %s\nWarnings: %s" % [String(row.get("display_name", "")), String(row.get("description", "")), ", ".join(PackedStringArray(Array(row.get("tags", [])))), String(row.get("warning", "none"))]
+		list.add_child(selected_kit_info)
+		var quick_kits_button: Button = Button.new()
+		quick_kits_button.text = "Preview Kit"
+		quick_kits_button.pressed.connect(func() -> void:
+			if mission_manager_runtime == null or not mission_manager_runtime.has_method("preview_map_constructor_prefab_kit"):
+				return
+			if map_constructor_selected_kit_id.is_empty():
+				return
+			map_constructor_kit_preview = mission_manager_runtime.call("preview_map_constructor_prefab_kit", map_constructor_selected_kit_id, anchor_cell, kit_options)
+			map_constructor_kit_preview_can_apply = bool(map_constructor_kit_preview.get("can_apply", false))
+			map_constructor_kit_pending_apply_key = "%s|%s|%s" % [map_constructor_selected_kit_id, str(anchor_cell), JSON.stringify(kit_options)] if map_constructor_kit_preview_can_apply else ""
+			_refresh_map_constructor_panels()
+		)
+		list.add_child(quick_kits_button)
+		var apply_kit_button: Button = Button.new()
+		apply_kit_button.text = "Apply Kit"
+		apply_kit_button.disabled = map_constructor_selected_kit_id.is_empty() or not map_constructor_kit_preview_can_apply or map_constructor_kit_pending_apply_key != current_kit_key
+		apply_kit_button.pressed.connect(func() -> void:
+			if mission_manager_runtime == null or not mission_manager_runtime.has_method("apply_map_constructor_prefab_kit"):
+				return
+			var result: Dictionary = mission_manager_runtime.call("apply_map_constructor_prefab_kit", map_constructor_selected_kit_id, anchor_cell, kit_options)
+			show_hint(String(result.get("message", "Kit applied.")))
+			map_constructor_kit_preview = {}
+			map_constructor_kit_preview_can_apply = false
+			map_constructor_kit_pending_apply_key = ""
+			_refresh_map_constructor_panels()
+			_refresh_map_constructor_browser()
+			if field_runtime != null and field_runtime.has_method("request_visual_refresh"):
+				field_runtime.call("request_visual_refresh")
+		)
+		list.add_child(apply_kit_button)
+		var undo_kit_button: Button = Button.new()
+		undo_kit_button.text = "Undo Last Kit"
+		undo_kit_button.pressed.connect(func() -> void:
+			if mission_manager_runtime == null or not mission_manager_runtime.has_method("undo_last_map_constructor_prefab_kit"):
+				return
+			var undo_result: Dictionary = mission_manager_runtime.call("undo_last_map_constructor_prefab_kit")
+			show_hint(String(undo_result.get("message", "Kit undo completed.")))
+			map_constructor_kit_preview = {}
+			map_constructor_kit_preview_can_apply = false
+			map_constructor_kit_pending_apply_key = ""
+			_refresh_map_constructor_panels()
+			_refresh_map_constructor_browser()
+			if field_runtime != null and field_runtime.has_method("request_visual_refresh"):
+				field_runtime.call("request_visual_refresh")
+		)
+		list.add_child(undo_kit_button)
+		var template_select: OptionButton = OptionButton.new()
+		for row_variant in template_rows:
+			var row: Dictionary = Dictionary(row_variant)
+			template_select.add_item(String(row.get("display_name", row.get("id", ""))))
+			template_select.set_item_metadata(template_select.item_count - 1, String(row.get("id", "")))
+		for idx in range(template_select.item_count):
+			if String(template_select.get_item_metadata(idx)) == map_constructor_selected_template_id:
+				template_select.select(idx)
+				break
+		template_select.item_selected.connect(func(index: int) -> void:
+			map_constructor_selected_template_id = String(template_select.get_item_metadata(index))
+			map_constructor_template_preview_can_apply = false
+			map_constructor_template_pending_apply_key = ""
+			_refresh_map_constructor_panels()
+		)
+		list.add_child(template_select)
+		var template_info: Label = Label.new()
+		template_info.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+		for row_variant in template_rows:
+			var row: Dictionary = Dictionary(row_variant)
+			if String(row.get("id", "")) == map_constructor_selected_template_id:
+				template_info.text = "Template: %s\n%s\nsize=%s\nTags: %s\nWarnings: %s" % [String(row.get("display_name", "")), String(row.get("description", "")), str(row.get("size", Vector2i.ZERO)), ", ".join(PackedStringArray(Array(row.get("tags", [])))), String(row.get("warning", "none"))]
+		list.add_child(template_info)
+		var template_transform_row: HBoxContainer = HBoxContainer.new()
+		var rotation_label: Label = Label.new()
+		rotation_label.text = "Rotation"
+		template_transform_row.add_child(rotation_label)
+		var rotation_select: OptionButton = OptionButton.new()
+		for rotation_option in [0, 90, 180, 270]:
+			rotation_select.add_item("%d" % rotation_option)
+		for rotation_index in range(rotation_select.item_count):
+			if int(rotation_select.get_item_text(rotation_index)) == map_constructor_template_rotation:
+				rotation_select.select(rotation_index)
+				break
+		rotation_select.item_selected.connect(func(index: int) -> void:
+			map_constructor_template_rotation = int(rotation_select.get_item_text(index))
+			map_constructor_template_preview = {}
+			map_constructor_template_preview_can_apply = false
+			map_constructor_template_pending_apply_key = ""
+			_refresh_map_constructor_panels()
+		)
+		template_transform_row.add_child(rotation_select)
+		var mirror_x_check: CheckBox = CheckBox.new()
+		mirror_x_check.text = "Mirror X"
+		mirror_x_check.button_pressed = map_constructor_template_mirror_x
+		mirror_x_check.toggled.connect(func(enabled: bool) -> void:
+			map_constructor_template_mirror_x = enabled
+			map_constructor_template_preview = {}
+			map_constructor_template_preview_can_apply = false
+			map_constructor_template_pending_apply_key = ""
+			_refresh_map_constructor_panels()
+		)
+		template_transform_row.add_child(mirror_x_check)
+		var mirror_y_check: CheckBox = CheckBox.new()
+		mirror_y_check.text = "Mirror Y"
+		mirror_y_check.button_pressed = map_constructor_template_mirror_y
+		mirror_y_check.toggled.connect(func(enabled: bool) -> void:
+			map_constructor_template_mirror_y = enabled
+			map_constructor_template_preview = {}
+			map_constructor_template_preview_can_apply = false
+			map_constructor_template_pending_apply_key = ""
+			_refresh_map_constructor_panels()
+		)
+		template_transform_row.add_child(mirror_y_check)
+		list.add_child(template_transform_row)
+		var template_preview_button: Button = Button.new()
+		template_preview_button.text = "Preview Template"
+		template_preview_button.pressed.connect(func() -> void:
+			if mission_manager_runtime == null or not mission_manager_runtime.has_method("preview_map_constructor_room_template"):
+				return
+			if map_constructor_selected_template_id.is_empty():
+				return
+			map_constructor_template_preview = mission_manager_runtime.call("preview_map_constructor_room_template", map_constructor_selected_template_id, anchor_cell, template_options)
+			map_constructor_template_preview_can_apply = bool(map_constructor_template_preview.get("can_apply", false))
+			map_constructor_template_pending_apply_key = "%s|%s|%s" % [map_constructor_selected_template_id, str(anchor_cell), JSON.stringify(template_options)] if map_constructor_template_preview_can_apply else ""
+			_refresh_map_constructor_panels()
+		)
+		list.add_child(template_preview_button)
+		var apply_template_button: Button = Button.new()
+		apply_template_button.text = "Apply Template"
+		apply_template_button.disabled = map_constructor_selected_template_id.is_empty() or not map_constructor_template_preview_can_apply or map_constructor_template_pending_apply_key != current_template_key
+		apply_template_button.pressed.connect(func() -> void:
+			if mission_manager_runtime == null or not mission_manager_runtime.has_method("apply_map_constructor_room_template"):
+				return
+			var apply_result: Dictionary = mission_manager_runtime.call("apply_map_constructor_room_template", map_constructor_selected_template_id, anchor_cell, template_options)
+			show_hint(String(apply_result.get("message", "Template applied.")))
+			map_constructor_template_preview = {}
+			map_constructor_template_preview_can_apply = false
+			map_constructor_template_pending_apply_key = ""
+			_refresh_map_constructor_panels()
+			_refresh_map_constructor_browser()
+			if field_runtime != null and field_runtime.has_method("request_visual_refresh"):
+				field_runtime.call("request_visual_refresh")
+		)
+		list.add_child(apply_template_button)
+		var undo_template_button: Button = Button.new()
+		undo_template_button.text = "Undo Last Template"
+		undo_template_button.pressed.connect(func() -> void:
+			if mission_manager_runtime == null or not mission_manager_runtime.has_method("undo_last_map_constructor_room_template"):
+				return
+			var undo_result: Dictionary = mission_manager_runtime.call("undo_last_map_constructor_room_template")
+			show_hint(String(undo_result.get("message", "Template undo completed.")))
+			map_constructor_template_preview = {}
+			map_constructor_template_preview_can_apply = false
+			map_constructor_template_pending_apply_key = ""
+			_refresh_map_constructor_panels()
+			_refresh_map_constructor_browser()
+			if field_runtime != null and field_runtime.has_method("request_visual_refresh"):
+				field_runtime.call("request_visual_refresh")
+		)
+		list.add_child(undo_template_button)
+		for preview_bundle in [{"title":"Kit Preview","data":map_constructor_kit_preview},{"title":"Template Preview","data":map_constructor_template_preview}]:
+			var preview_data: Dictionary = Dictionary(preview_bundle.get("data", {}))
+			if preview_data.is_empty():
+				continue
+			var summary_lines: Array[String] = []
+			var affected_rows: Array = Array(preview_data.get("affected", []))
+			var conflict_rows: Array = Array(preview_data.get("conflicts", []))
+			var warning_rows: Array = Array(preview_data.get("warnings", []))
+			summary_lines.append("%s: affected=%d conflicts=%d warnings=%d" % [String(preview_bundle.get("title", "")), affected_rows.size(), conflict_rows.size(), warning_rows.size()])
+			for index in range(mini(10, affected_rows.size())):
+				summary_lines.append("- affected: %s" % JSON.stringify(affected_rows[index]))
+			for index in range(mini(10, conflict_rows.size())):
+				summary_lines.append("- conflict: %s" % JSON.stringify(conflict_rows[index]))
+			for index in range(mini(10, warning_rows.size())):
+				summary_lines.append("- warning: %s" % String(warning_rows[index]))
+			var summary_label: Label = Label.new()
+			summary_label.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+			summary_label.text = "\n".join(summary_lines)
+			list.add_child(summary_label)
+		var overlay_mode_option: OptionButton = OptionButton.new()
+		for overlay_name in ["None", "Selection", "Multi-select", "Validation Issues", "Expected Invalid", "Power Network", "Links", "Wall-mounted Sides"]:
+			overlay_mode_option.add_item(overlay_name)
+		var overlay_idx: int = maxi(0, ["None", "Selection", "Multi-select", "Validation Issues", "Expected Invalid", "Power Network", "Links", "Wall-mounted Sides"].find(map_constructor_overlay_mode))
+		overlay_mode_option.select(overlay_idx)
+		overlay_mode_option.item_selected.connect(func(index: int) -> void:
+			map_constructor_overlay_mode = overlay_mode_option.get_item_text(index)
+			_request_map_constructor_overlay_refresh()
+			show_hint("Overlay data ready; renderer overlay refreshed.")
+		)
+		list.add_child(overlay_mode_option)
+		var room_preset_title: Label = Label.new()
+		room_preset_title.text = "Room Visual Presets"
+		list.add_child(room_preset_title)
+		var preset_catalog: Dictionary = mission_manager_runtime.call("get_room_visual_preset_catalog") if mission_manager_runtime != null and mission_manager_runtime.has_method("get_room_visual_preset_catalog") else {}
+		var preset_rows: Array = Array(preset_catalog.get("presets", []))
+		var preset_select: OptionButton = OptionButton.new()
+		for preset_row_variant in preset_rows:
+			var preset_row: Dictionary = Dictionary(preset_row_variant)
+			preset_select.add_item(String(preset_row.get("display_name", preset_row.get("id", ""))))
+			preset_select.set_item_metadata(preset_select.item_count - 1, String(preset_row.get("id", "")))
+		if selected_room_visual_preset_id.is_empty() and not preset_rows.is_empty():
+			selected_room_visual_preset_id = String(Dictionary(preset_rows[0]).get("id", ""))
+		for preset_index in range(preset_select.item_count):
+			if String(preset_select.get_item_metadata(preset_index)) == selected_room_visual_preset_id:
+				preset_select.select(preset_index)
+				break
+		preset_select.item_selected.connect(func(index: int) -> void:
+			selected_room_visual_preset_id = String(preset_select.get_item_metadata(index))
+			room_visual_preset_preview.clear()
+			_refresh_map_constructor_panels()
+		)
+		list.add_child(preset_select)
+		var preset_info_label: Label = Label.new()
+		preset_info_label.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+		for preset_row_variant in preset_rows:
+			var preset_row: Dictionary = Dictionary(preset_row_variant)
+			if String(preset_row.get("id", "")) == selected_room_visual_preset_id:
+				preset_info_label.text = String(preset_row.get("description", ""))
+		list.add_child(preset_info_label)
+		var preview_preset_button: Button = Button.new()
+		preview_preset_button.text = "Preview Preset"
+		preview_preset_button.pressed.connect(func() -> void:
+			if mission_manager_runtime == null or not mission_manager_runtime.has_method("preview_room_visual_preset"):
+				return
+			room_visual_preset_preview = mission_manager_runtime.call("preview_room_visual_preset", selected_room_visual_preset_id, {"scope":"task_test_room", "include_walls":true, "include_doors":true, "include_terminals":true})
+			show_hint(String(room_visual_preset_preview.get("message", "Preview ready.")))
+			_refresh_map_constructor_panels()
+		)
+		list.add_child(preview_preset_button)
+		var apply_preset_button: Button = Button.new()
+		apply_preset_button.text = "Apply Preset"
+		apply_preset_button.pressed.connect(func() -> void:
+			if mission_manager_runtime == null or not mission_manager_runtime.has_method("apply_room_visual_preset"):
+				return
+			var apply_preset_result: Dictionary = mission_manager_runtime.call("apply_room_visual_preset", selected_room_visual_preset_id, {"scope":"task_test_room", "include_walls":true, "include_doors":true, "include_terminals":true})
+			show_hint(String(apply_preset_result.get("message", "Preset applied.")))
+			if bool(apply_preset_result.get("ok", false)) and mission_manager_runtime.has_method("preview_room_visual_preset"):
+				room_visual_preset_preview = mission_manager_runtime.call("preview_room_visual_preset", selected_room_visual_preset_id, {"scope":"task_test_room", "include_walls":true, "include_doors":true, "include_terminals":true})
+			else:
+				room_visual_preset_preview.clear()
+			_refresh_map_constructor_panels()
+			_request_map_constructor_overlay_refresh()
+			if field_runtime != null and field_runtime.has_method("request_visual_refresh"):
+				field_runtime.call("request_visual_refresh")
+		)
+		list.add_child(apply_preset_button)
+		var clear_preset_button: Button = Button.new()
+		clear_preset_button.text = "Clear Preset Overrides"
+		clear_preset_button.pressed.connect(func() -> void:
+			if mission_manager_runtime == null or not mission_manager_runtime.has_method("clear_room_visual_preset_overrides"):
+				return
+			var clear_preset_result: Dictionary = mission_manager_runtime.call("clear_room_visual_preset_overrides", {})
+			show_hint(String(clear_preset_result.get("message", "Preset overrides cleared.")))
+			room_visual_preset_preview.clear()
+			_refresh_map_constructor_panels()
+			_request_map_constructor_overlay_refresh()
+			if field_runtime != null and field_runtime.has_method("request_visual_refresh"):
+				field_runtime.call("request_visual_refresh")
+		)
+		list.add_child(clear_preset_button)
+		if not room_visual_preset_preview.is_empty():
+			var room_preview_summary: Dictionary = Dictionary(room_visual_preset_preview.get("summary", {}))
+			var room_preview_label: Label = Label.new()
+			room_preview_label.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+			room_preview_label.text = "Preset Preview: walls=%d doors=%d terminals=%d can_apply=%s\n%s" % [int(room_preview_summary.get("affected_walls", 0)), int(room_preview_summary.get("affected_doors", 0)), int(room_preview_summary.get("affected_terminals", 0)), str(bool(room_visual_preset_preview.get("can_apply", false))), String(room_visual_preset_preview.get("message", ""))]
+			list.add_child(room_preview_label)
+		var room_design_notes_button: Button = Button.new()
+		room_design_notes_button.text = "Generate Design Notes"
+		room_design_notes_button.pressed.connect(func() -> void:
+			if mission_manager_runtime == null or not mission_manager_runtime.has_method("export_map_constructor_design_notes"):
+				return
+			var notes_res: Dictionary = mission_manager_runtime.call("export_map_constructor_design_notes", {})
+			map_constructor_design_notes_text = String(notes_res.get("text", ""))
+			_refresh_map_constructor_panels()
+		)
+		list.add_child(room_design_notes_button)
+		var notes_edit: TextEdit = TextEdit.new()
+		notes_edit.custom_minimum_size = Vector2(0, 120)
+		notes_edit.text = map_constructor_design_notes_text
+		list.add_child(notes_edit)
+		var pipeline_button: Button = Button.new()
+		pipeline_button.text = "Build Promotion Package"
+		pipeline_button.pressed.connect(func() -> void:
+			if mission_manager_runtime == null or not mission_manager_runtime.has_method("get_map_constructor_production_pipeline_report"):
+				return
+			map_constructor_pipeline_report = mission_manager_runtime.call("get_map_constructor_production_pipeline_report", {})
+			_refresh_map_constructor_panels()
+		)
+		list.add_child(pipeline_button)
+		var refresh_package_button: Button = Button.new()
+		refresh_package_button.text = "Refresh Package"
+		refresh_package_button.pressed.connect(func() -> void:
+			if mission_manager_runtime == null or not mission_manager_runtime.has_method("get_map_constructor_production_pipeline_report"):
+				return
+			map_constructor_pipeline_report = mission_manager_runtime.call("get_map_constructor_production_pipeline_report", {})
+			_refresh_map_constructor_panels()
+		)
+		list.add_child(refresh_package_button)
+		if not map_constructor_pipeline_report.is_empty():
+			var pipeline_status: String = String(map_constructor_pipeline_report.get("status", "unknown"))
+			var pipeline_message: String = String(map_constructor_pipeline_report.get("message", ""))
+			var pipeline_lines: Array[String] = ["Pipeline status: %s" % pipeline_status, pipeline_message]
+			var checks: Array = Array(map_constructor_pipeline_report.get("checks", []))
+			for check_index in range(mini(12, checks.size())):
+				var check_row: Dictionary = Dictionary(checks[check_index])
+				var check_line: String = "- %s [%s]" % [String(check_row.get("label", "")), String(check_row.get("status", ""))]
+				var check_message: String = String(check_row.get("message", "")).strip_edges()
+				if not check_message.is_empty():
+					check_line += " — %s" % check_message
+				pipeline_lines.append(check_line)
+			var promotion_package: Dictionary = Dictionary(map_constructor_pipeline_report.get("promotion_package", {}))
+			var package_warnings: Array = Array(promotion_package.get("warnings", []))
+			pipeline_lines.append("Warning summary: count=%d" % package_warnings.size())
+			for warning_index in range(mini(5, package_warnings.size())):
+				pipeline_lines.append("  • %s" % String(package_warnings[warning_index]))
+			var manual_steps: Array = Array(promotion_package.get("manual_steps", []))
+			if not manual_steps.is_empty():
+				pipeline_lines.append("Manual steps:")
+				for manual_step in manual_steps:
+					pipeline_lines.append("  - %s" % String(manual_step))
+			var pipeline_label: Label = Label.new()
+			pipeline_label.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+			pipeline_label.text = "\n".join(pipeline_lines)
+			list.add_child(pipeline_label)
+		var refresh_audit_button: Button = Button.new()
+		refresh_audit_button.text = "Refresh Audit"
+		refresh_audit_button.pressed.connect(func() -> void:
+			_refresh_map_constructor_panels()
+		)
+		list.add_child(refresh_audit_button)
+		var cleanup_title: Label = Label.new()
+		cleanup_title.text = "Cleanup Tools"
+		list.add_child(cleanup_title)
+		var multi_title: Label = Label.new()
+		multi_title.text = "Multi-select / Batch Tools"
+		list.add_child(multi_title)
+		_refresh_map_constructor_multi_selection_stale()
+		var selected_ids: Array[String] = []
+		for selected_row in map_constructor_multi_selected_entities:
+			selected_ids.append(String(selected_row.get("entity_id", "")))
+		var multi_info: Label = Label.new()
+		multi_info.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+		multi_info.text = "Selected: %d\n%s" % [map_constructor_multi_selected_entities.size(), ", ".join(selected_ids.slice(0, mini(10, selected_ids.size())))]
+		list.add_child(multi_info)
+		var select_actions: HBoxContainer = HBoxContainer.new()
+		var add_current: Button = Button.new(); add_current.text = "Add Current Selection"
+		add_current.pressed.connect(func() -> void:
+			_add_map_constructor_multi_row_if_missing(_make_map_constructor_multi_row_from_current_selection())
+			_refresh_map_constructor_multi_selection_stale()
+			_refresh_map_constructor_panels()
+		)
+		var remove_current: Button = Button.new(); remove_current.text = "Remove Current Selection"
+		remove_current.pressed.connect(func() -> void:
+			var keep: Array[Dictionary] = []
+			for row in map_constructor_multi_selected_entities:
+				if String(row.get("entity_kind", "")) == selected_map_constructor_entity_kind and String(row.get("entity_id", "")) == selected_map_constructor_entity_id:
+					continue
+				keep.append(row)
+			map_constructor_multi_selected_entities = keep
+			_refresh_map_constructor_multi_selection_stale()
+			_refresh_map_constructor_panels()
+		)
+		var clear_multi: Button = Button.new(); clear_multi.text = "Clear Multi-select"
+		clear_multi.pressed.connect(func() -> void: map_constructor_multi_selected_entities.clear(); _clear_map_constructor_batch_preview_state(); _refresh_map_constructor_panels())
+		select_actions.add_child(add_current); select_actions.add_child(remove_current); select_actions.add_child(clear_multi); list.add_child(select_actions)
+		var quick_select: HBoxContainer = HBoxContainer.new()
+		for quick in [{"label":"All Constructor","mode":"all_constructor"},{"label":"All Items","mode":"items"},{"label":"Wall-mounted","mode":"wall_mounted"},{"label":"Doors","mode":"doors"},{"label":"Terminals","mode":"terminals"},{"label":"Power","mode":"power"},{"label":"Control","mode":"control"}]:
+			var select_button: Button = Button.new()
+			select_button.text = "Select %s" % String(quick.get("label", ""))
+			select_button.pressed.connect(func() -> void:
+				_add_map_constructor_multi_selection_by_filter(String(quick.get("mode", "")))
+				_refresh_map_constructor_panels()
+			)
+			quick_select.add_child(select_button)
+		list.add_child(quick_select)
+		var offset_row: HBoxContainer = HBoxContainer.new()
+		var ox: SpinBox = SpinBox.new(); ox.min_value = -100; ox.max_value = 100; ox.step = 1; ox.value = map_constructor_batch_offset_x; ox.value_changed.connect(func(v: float) -> void: map_constructor_batch_offset_x = int(v))
+		var oy: SpinBox = SpinBox.new(); oy.min_value = -100; oy.max_value = 100; oy.step = 1; oy.value = map_constructor_batch_offset_y; oy.value_changed.connect(func(v: float) -> void: map_constructor_batch_offset_y = int(v))
+		var pn: LineEdit = LineEdit.new(); pn.text = map_constructor_batch_power_network_id; pn.placeholder_text = "Power network id"; pn.text_changed.connect(func(t: String) -> void: map_constructor_batch_power_network_id = t)
+		offset_row.add_child(Label.new()); offset_row.get_child(0).set("text", "Offset X/Y:")
+		offset_row.add_child(ox); offset_row.add_child(oy); offset_row.add_child(pn); list.add_child(offset_row)
+		var batch_buttons: HBoxContainer = HBoxContainer.new()
+		for op in [{"label":"Preview Move","op":"move_selected"},{"label":"Apply Move","op":"move_selected","apply":true},{"label":"Preview Duplicate","op":"duplicate_selected"},{"label":"Apply Duplicate","op":"duplicate_selected","apply":true},{"label":"Preview Delete","op":"delete_selected"},{"label":"Apply Delete","op":"delete_selected","apply":true},{"label":"Preview Assign Power","op":"assign_power_network"},{"label":"Apply Assign Power","op":"assign_power_network","apply":true},{"label":"Preview Clear Broken Refs","op":"clear_broken_references"},{"label":"Apply Clear Broken Refs","op":"clear_broken_references","apply":true}]:
+			var b: Button = Button.new(); b.text = String(op.get("label", ""))
+			var apply_mode: bool = bool(op.get("apply", false))
+			var current_key: String = _build_map_constructor_batch_operation_key(String(op.get("op", "")))
+			if apply_mode:
+				b.disabled = map_constructor_batch_pending_apply_operation != String(op.get("op", "")) or map_constructor_batch_pending_apply_key != current_key
+			b.pressed.connect(func() -> void:
+				if mission_manager_runtime == null:
+					return
+				var options: Dictionary = {"offset":Vector2i(map_constructor_batch_offset_x, map_constructor_batch_offset_y), "power_network_id":map_constructor_batch_power_network_id}
+				var op_name: String = String(op.get("op", ""))
+				if not apply_mode:
+					map_constructor_batch_preview = mission_manager_runtime.call("preview_map_constructor_batch_operation", op_name, map_constructor_multi_selected_entities, options)
+					if bool(map_constructor_batch_preview.get("can_apply", false)):
+						map_constructor_batch_pending_apply_operation = op_name
+						map_constructor_batch_pending_apply_key = _build_map_constructor_batch_operation_key(op_name)
+					else:
+						map_constructor_batch_pending_apply_operation = ""
+						map_constructor_batch_pending_apply_key = ""
+					show_hint(String(map_constructor_batch_preview.get("message", "Preview ready.")))
+				else:
+					var apply_result: Dictionary = mission_manager_runtime.call("apply_map_constructor_batch_operation", op_name, map_constructor_multi_selected_entities, options)
+					show_hint(String(apply_result.get("message", "Batch applied.")))
+					_refresh_map_constructor_multi_selection_stale()
+					if mission_manager_runtime != null and mission_manager_runtime.has_method("get_map_constructor_entity_by_id") and not selected_map_constructor_entity_id.is_empty():
+						var selected_entity: Dictionary = mission_manager_runtime.call("get_map_constructor_entity_by_id", selected_map_constructor_entity_kind, selected_map_constructor_entity_id)
+						if not bool(selected_entity.get("ok", false)):
+							_show_map_constructor_inspector(Vector2i(-1, -1))
+					_clear_map_constructor_batch_preview_state()
+					if field_runtime != null and field_runtime.has_method("request_visual_refresh"):
+						field_runtime.call("request_visual_refresh")
+				_refresh_map_constructor_panels()
+			)
+			batch_buttons.add_child(b)
+		list.add_child(batch_buttons)
+		var undo_batch_button: Button = Button.new()
+		undo_batch_button.text = "Undo Last Batch"
+		undo_batch_button.pressed.connect(func() -> void:
+			if mission_manager_runtime == null or not mission_manager_runtime.has_method("undo_last_map_constructor_batch_operation"):
+				return
+			var undo_result: Dictionary = mission_manager_runtime.call("undo_last_map_constructor_batch_operation")
+			show_hint(String(undo_result.get("message", "Undo done.")))
+			_refresh_map_constructor_multi_selection_stale()
+			if mission_manager_runtime != null and mission_manager_runtime.has_method("get_map_constructor_entity_by_id") and not selected_map_constructor_entity_id.is_empty():
+				var selected_entity: Dictionary = mission_manager_runtime.call("get_map_constructor_entity_by_id", selected_map_constructor_entity_kind, selected_map_constructor_entity_id)
+				if not bool(selected_entity.get("ok", false)):
+					_show_map_constructor_inspector(Vector2i(-1, -1))
+			_clear_map_constructor_batch_preview_state()
+			_refresh_map_constructor_panels()
+			if field_runtime != null and field_runtime.has_method("request_visual_refresh"):
+				field_runtime.call("request_visual_refresh")
+		)
+		list.add_child(undo_batch_button)
+		if not map_constructor_batch_preview.is_empty():
+			var preview_lines: Array[String] = []
+			preview_lines.append("Batch Preview: %s" % String(map_constructor_batch_preview.get("operation_type", "")))
+			preview_lines.append("affected=%d warnings=%d conflicts=%d" % [int(map_constructor_batch_preview.get("affected_count", 0)), Array(map_constructor_batch_preview.get("warnings", [])).size(), Array(map_constructor_batch_preview.get("conflicts", [])).size()])
+			var affected_rows: Array = Array(map_constructor_batch_preview.get("affected", []))
+			for i in range(mini(10, affected_rows.size())):
+				var affected_row: Dictionary = Dictionary(affected_rows[i])
+				preview_lines.append("- %s %s from=%s to=%s fields=%s" % [String(affected_row.get("entity_id", "")), String(affected_row.get("operation", "")), str(affected_row.get("from_cell", Vector2i(-1, -1))), str(affected_row.get("to_cell", Vector2i(-1, -1))), JSON.stringify(affected_row.get("field_changes", []))])
+			var warn_rows: Array = Array(map_constructor_batch_preview.get("warnings", []))
+			var conflict_rows: Array = Array(map_constructor_batch_preview.get("conflicts", []))
+			for i in range(mini(5, warn_rows.size())):
+				preview_lines.append("warning: %s" % String(warn_rows[i]))
+			for i in range(mini(5, conflict_rows.size())):
+				preview_lines.append("conflict: %s" % JSON.stringify(conflict_rows[i]))
+			var preview_summary: Label = Label.new()
+			preview_summary.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+			preview_summary.text = "\n".join(preview_lines)
+			list.add_child(preview_summary)
+		var cleanup_actions: Array[Dictionary] = [
+			{"label":"Items","cleanup_type":"items","options":{}},
+			{"label":"Wall-mounted","cleanup_type":"wall_mounted","options":{}},
+			{"label":"Doors","cleanup_type":"type_group","options":{"type_group":"door"}},
+			{"label":"Terminals","cleanup_type":"type_group","options":{"type_group":"terminal"}},
+			{"label":"Power","cleanup_type":"type_group","options":{"type_group":"power"}},
+			{"label":"Control","cleanup_type":"type_group","options":{"type_group":"control"}},
+			{"label":"Invalid References","cleanup_type":"invalid_references","options":{}},
+			{"label":"All Constructor Objects","cleanup_type":"all_constructor_objects","options":{}}
+		]
+		for action in cleanup_actions:
+			var action_row: HBoxContainer = HBoxContainer.new()
+			action_row.add_theme_constant_override("separation", 4)
+			var ctype: String = String(action.get("cleanup_type", ""))
+			var coptions: Dictionary = Dictionary(action.get("options", {}))
+			var preview_button: Button = Button.new()
+			preview_button.text = "Preview %s" % String(action.get("label", ""))
+			preview_button.pressed.connect(func() -> void:
+				_apply_map_constructor_cleanup_action(ctype, coptions, false)
+			)
+			var apply_button: Button = Button.new()
+			var apply_key: String = "%s|%s" % [ctype, JSON.stringify(coptions)]
+			apply_button.text = "Delete %s" % String(action.get("label", ""))
+			if ctype == "invalid_references":
+				apply_button.text = "Clean Invalid References"
+			apply_button.disabled = map_constructor_cleanup_pending_apply_key != apply_key
+			apply_button.pressed.connect(func() -> void:
+				_apply_map_constructor_cleanup_action(ctype, coptions, true)
+			)
+			action_row.add_child(preview_button)
+			action_row.add_child(apply_button)
+			list.add_child(action_row)
+		var reset_row: HBoxContainer = HBoxContainer.new()
+		reset_row.add_theme_constant_override("separation", 4)
+		var reset_preview_button: Button = Button.new()
+		reset_preview_button.text = "Preview Reset Runtime Map"
+		reset_preview_button.pressed.connect(func() -> void:
+			_apply_map_constructor_cleanup_action("reset_runtime_map", {}, false)
+		)
+		var reset_apply_button: Button = Button.new()
+		reset_apply_button.text = "Apply Reset Runtime Map"
+		var reset_apply_key: String = "reset_runtime_map|{}"
+		reset_apply_button.disabled = map_constructor_cleanup_pending_apply_key != reset_apply_key
+		reset_apply_button.pressed.connect(func() -> void:
+			_apply_map_constructor_cleanup_action("reset_runtime_map", {}, true)
+		)
+		reset_row.add_child(reset_preview_button)
+		reset_row.add_child(reset_apply_button)
+		list.add_child(reset_row)
+		var undo_button: Button = Button.new()
+		undo_button.text = "Undo Last Cleanup"
+		undo_button.pressed.connect(func() -> void:
+			if mission_manager_runtime == null or not mission_manager_runtime.has_method("undo_last_map_constructor_cleanup"):
+				return
+			var undo_result: Dictionary = mission_manager_runtime.call("undo_last_map_constructor_cleanup")
+			show_hint(String(undo_result.get("message", "Undo done.")))
+			map_constructor_cleanup_pending_apply_key = ""
+			map_constructor_cleanup_preview.clear()
+			_clear_map_constructor_preview_cell()
 			_clear_map_constructor_wall_mounted_selection()
-		_show_map_constructor_inspector(Vector2i(-1, -1))
-		_refresh_map_constructor_panels()
-		if field_runtime != null and field_runtime.has_method("request_visual_refresh"):
-			field_runtime.call("request_visual_refresh")
-	)
-	preset_actions.add_child(load_preset_button)
-	var delete_preset_button: Button = Button.new()
-	delete_preset_button.text = "Delete selected"
-	delete_preset_button.pressed.connect(func() -> void:
-		if not map_constructor_mode_active or map_constructor_selected_preset_name.is_empty() or mission_manager_runtime == null or not mission_manager_runtime.has_method("delete_map_constructor_preset"):
-			show_hint("Preset delete unavailable.")
-			return
-		var delete_result: Dictionary = mission_manager_runtime.call("delete_map_constructor_preset", map_constructor_selected_preset_name)
-		show_hint(String(delete_result.get("message", "Preset delete done.")))
-		map_constructor_selected_preset_name = ""
-		_show_map_constructor_inspector(pending_map_constructor_cell)
-		_refresh_map_constructor_panels()
-		if field_runtime != null and field_runtime.has_method("request_visual_refresh"):
-			field_runtime.call("request_visual_refresh")
-	)
-	preset_actions.add_child(delete_preset_button)
-	var refresh_preset_button: Button = Button.new()
-	refresh_preset_button.text = "Refresh list"
-	refresh_preset_button.pressed.connect(func() -> void:
-		_refresh_map_constructor_panels()
-	)
-	list.add_child(refresh_preset_button)
+			_clear_map_constructor_link_target()
+			_show_map_constructor_inspector(Vector2i(-1, -1))
+			_refresh_map_constructor_panels()
+			if field_runtime != null and field_runtime.has_method("request_visual_refresh"):
+				field_runtime.call("request_visual_refresh")
+		)
+		list.add_child(undo_button)
+		var autofix_title: Label = Label.new()
+		autofix_title.text = "Auto-fix Tools"
+		list.add_child(autofix_title)
+		var autofix_actions: Array[Dictionary] = [
+			{"label":"Broken References","fix_type":"clear_all_broken_references","options":{}},
+			{"label":"Wall-mounted Attachments","fix_type":"repair_all_wall_mounted_attachments","options":{}}
+		]
+		for action in autofix_actions:
+			var action_row: HBoxContainer = HBoxContainer.new()
+			var ftype: String = String(action.get("fix_type", ""))
+			var foptions: Dictionary = Dictionary(action.get("options", {}))
+			var preview_button := Button.new()
+			preview_button.text = "Preview %s" % String(action.get("label", ""))
+			preview_button.pressed.connect(func() -> void:
+				_apply_map_constructor_autofix_action(ftype, foptions, false)
+			)
+			var apply_button := Button.new()
+			apply_button.text = "Apply %s" % String(action.get("label", ""))
+			apply_button.disabled = map_constructor_autofix_pending_apply_key != "%s|%s" % [ftype, JSON.stringify(foptions)]
+			apply_button.pressed.connect(func() -> void:
+				_apply_map_constructor_autofix_action(ftype, foptions, true)
+			)
+			action_row.add_child(preview_button)
+			action_row.add_child(apply_button)
+			list.add_child(action_row)
+		var power_network_id_edit: LineEdit = LineEdit.new()
+		power_network_id_edit.placeholder_text = "Power network id"
+		power_network_id_edit.text = map_constructor_new_power_network_id
+		power_network_id_edit.text_changed.connect(func(new_text: String) -> void:
+			map_constructor_new_power_network_id = new_text
+		)
+		list.add_child(power_network_id_edit)
+		var selected_object_id: String = selected_map_constructor_entity_id if selected_map_constructor_entity_kind == "world_object" else ""
+		var selected_object_hint: Label = Label.new()
+		selected_object_hint.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+		selected_object_hint.text = "Select an object first." if selected_object_id.is_empty() else "Selected object: %s" % selected_object_id
+		list.add_child(selected_object_hint)
+		var power_assign_options: Dictionary = {"entity_kind":"world_object","entity_id":selected_object_id,"new_power_network_id":map_constructor_new_power_network_id.strip_edges()}
+		var power_assign_key: String = "assign_power_network|%s" % JSON.stringify(power_assign_options)
+		var power_assign_row: HBoxContainer = HBoxContainer.new()
+		var power_preview_button: Button = Button.new()
+		power_preview_button.text = "Preview Assign Power Network"
+		power_preview_button.disabled = selected_object_id.is_empty()
+		power_preview_button.pressed.connect(func() -> void:
+			if selected_object_id.is_empty():
+				show_hint("Select an object first.")
+				return
+			_apply_map_constructor_autofix_action("assign_power_network", power_assign_options, false)
+		)
+		var power_apply_button: Button = Button.new()
+		power_apply_button.text = "Apply Assign Power Network"
+		power_apply_button.disabled = map_constructor_autofix_pending_apply_key != power_assign_key or int(map_constructor_autofix_preview.get("affected_count", 0)) <= 0
+		power_apply_button.pressed.connect(func() -> void:
+			_apply_map_constructor_autofix_action("assign_power_network", power_assign_options, true)
+		)
+		power_assign_row.add_child(power_preview_button)
+		power_assign_row.add_child(power_apply_button)
+		list.add_child(power_assign_row)
+		var autofix_undo_button: Button = Button.new()
+		autofix_undo_button.text = "Undo Last Auto-fix"
+		autofix_undo_button.pressed.connect(func() -> void:
+			if mission_manager_runtime == null or not mission_manager_runtime.has_method("undo_last_map_constructor_autofix"):
+				return
+			var undo_result: Dictionary = mission_manager_runtime.call("undo_last_map_constructor_autofix")
+			show_hint(String(undo_result.get("message", "Undo done.")))
+			map_constructor_autofix_pending_apply_key = ""
+			map_constructor_autofix_preview.clear()
+			_clear_map_constructor_preview_cell()
+			_clear_map_constructor_wall_mounted_selection()
+			_clear_map_constructor_link_target()
+			_refresh_map_constructor_panels()
+			if field_runtime != null and field_runtime.has_method("request_visual_refresh"):
+				field_runtime.call("request_visual_refresh")
+		)
+		list.add_child(autofix_undo_button)
+		if not map_constructor_cleanup_preview.is_empty():
+			var preview_label: Label = Label.new()
+			var affected_count: int = int(map_constructor_cleanup_preview.get("affected_count", 0))
+			var preview_ids: Array[String] = []
+			for row in Array(map_constructor_cleanup_preview.get("affected_objects", [])):
+				if preview_ids.size() >= 10:
+					break
+				preview_ids.append(String(Dictionary(row).get("id", "")))
+			var preview_ids_text: String = ""
+			for i in range(preview_ids.size()):
+				if i > 0:
+					preview_ids_text += ", "
+				preview_ids_text += preview_ids[i]
+			preview_label.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+			preview_label.text = "Cleanup preview: %d affected\n%s" % [affected_count, preview_ids_text]
+			list.add_child(preview_label)
+		if not map_constructor_autofix_preview.is_empty():
+			var autofix_preview_label := Label.new()
+			autofix_preview_label.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+			var lines: Array[String] = []
+			for row in Array(map_constructor_autofix_preview.get("affected_fixes", [])):
+				if lines.size() >= 10:
+					break
+				lines.append(String(Dictionary(row).get("description", "")))
+			autofix_preview_label.text = "Auto-fix preview: %d affected\n%s" % [int(map_constructor_autofix_preview.get("affected_count", 0)), "\n".join(lines)]
+			list.add_child(autofix_preview_label)
+		var patch_title: Label = Label.new()
+		patch_title.text = "Patch Tools"
+		list.add_child(patch_title)
+		var patch_json_edit: TextEdit = TextEdit.new()
+		patch_json_edit.custom_minimum_size = Vector2(0, 160)
+		patch_json_edit.wrap_mode = TextEdit.LINE_WRAPPING_BOUNDARY
+		patch_json_edit.text = map_constructor_patch_json_text
+		patch_json_edit.text_changed.connect(func() -> void:
+			map_constructor_patch_json_text = patch_json_edit.text
+		)
+		list.add_child(patch_json_edit)
+		var patch_actions: HBoxContainer = HBoxContainer.new()
+		var export_patch_button: Button = Button.new()
+		export_patch_button.text = "Export Current Patch"
+		export_patch_button.pressed.connect(func() -> void:
+			if mission_manager_runtime == null or not mission_manager_runtime.has_method("export_map_constructor_runtime_patch"):
+				return
+			var export_res: Dictionary = mission_manager_runtime.call("export_map_constructor_runtime_patch")
+			map_constructor_patch_json_text = String(export_res.get("json", ""))
+			patch_json_edit.text = map_constructor_patch_json_text
+			show_hint(String(export_res.get("message", "Export done.")))
+			_refresh_map_constructor_panels()
+		)
+		var preview_patch_button: Button = Button.new()
+		preview_patch_button.text = "Parse/Preview Patch"
+		preview_patch_button.pressed.connect(func() -> void:
+			if mission_manager_runtime == null or not mission_manager_runtime.has_method("parse_map_constructor_patch_json"):
+				return
+			var parsed_res: Dictionary = mission_manager_runtime.call("parse_map_constructor_patch_json", map_constructor_patch_json_text)
+			map_constructor_patch_parsed = parsed_res
+			map_constructor_patch_preview.clear()
+			map_constructor_patch_pending_apply = false
+			if bool(parsed_res.get("ok", false)) and mission_manager_runtime.has_method("preview_apply_map_constructor_patch"):
+				var preview_res: Dictionary = mission_manager_runtime.call("preview_apply_map_constructor_patch", Dictionary(parsed_res.get("patch", {})))
+				map_constructor_patch_preview = preview_res
+				map_constructor_patch_pending_apply = bool(preview_res.get("ok", false)) and bool(preview_res.get("can_apply", false))
+			show_hint(String(parsed_res.get("message", "Patch parsed.")))
+			_refresh_map_constructor_panels()
+		)
+		var apply_patch_button: Button = Button.new()
+		apply_patch_button.text = "Apply Patch"
+		apply_patch_button.disabled = not map_constructor_patch_pending_apply
+		apply_patch_button.pressed.connect(func() -> void:
+			if mission_manager_runtime == null or not mission_manager_runtime.has_method("apply_map_constructor_patch"):
+				return
+			var apply_res: Dictionary = mission_manager_runtime.call("apply_map_constructor_patch", Dictionary(map_constructor_patch_parsed.get("patch", {})), {})
+			show_hint(String(apply_res.get("message", "Patch applied.")))
+			map_constructor_patch_pending_apply = false
+			if field_runtime != null and field_runtime.has_method("request_visual_refresh"):
+				field_runtime.call("request_visual_refresh")
+			_refresh_map_constructor_panels()
+		)
+		var rollback_patch_button: Button = Button.new()
+		rollback_patch_button.text = "Rollback Last Patch"
+		rollback_patch_button.pressed.connect(func() -> void:
+			if mission_manager_runtime == null or not mission_manager_runtime.has_method("rollback_last_map_constructor_patch"):
+				return
+			var rollback_res: Dictionary = mission_manager_runtime.call("rollback_last_map_constructor_patch")
+			show_hint(String(rollback_res.get("message", "Rollback done.")))
+			_clear_map_constructor_preview_cell()
+			_clear_map_constructor_wall_mounted_selection()
+			_clear_map_constructor_link_target()
+			_show_map_constructor_inspector(Vector2i(-1, -1))
+			map_constructor_patch_pending_apply = false
+			map_constructor_patch_preview.clear()
+			map_constructor_patch_parsed.clear()
+			if field_runtime != null and field_runtime.has_method("request_visual_refresh"):
+				field_runtime.call("request_visual_refresh")
+			_refresh_map_constructor_panels()
+		)
+		patch_actions.add_child(export_patch_button)
+		patch_actions.add_child(preview_patch_button)
+		patch_actions.add_child(apply_patch_button)
+		patch_actions.add_child(rollback_patch_button)
+		list.add_child(patch_actions)
+		var history_title: Label = Label.new()
+		history_title.text = "Change History"
+		list.add_child(history_title)
+		var history_result: Dictionary = {}
+		if mission_manager_runtime != null and mission_manager_runtime.has_method("get_map_constructor_change_history"):
+			history_result = mission_manager_runtime.call("get_map_constructor_change_history", 200)
+		var history_total_label: Label = Label.new()
+		history_total_label.text = "Total: %d" % int(history_result.get("total_count", 0))
+		list.add_child(history_total_label)
+		var history_filter: OptionButton = OptionButton.new()
+		for opt in MAP_CONSTRUCTOR_HISTORY_FILTER_OPTIONS:
+			history_filter.add_item(opt)
+		var history_filter_index: int = MAP_CONSTRUCTOR_HISTORY_FILTER_OPTIONS.find(map_constructor_change_history_filter)
+		if history_filter_index < 0:
+			history_filter_index = 0
+			map_constructor_change_history_filter = "All"
+		history_filter.select(history_filter_index)
+		history_filter.item_selected.connect(func(index: int) -> void:
+			if index >= 0 and index < MAP_CONSTRUCTOR_HISTORY_FILTER_OPTIONS.size():
+				map_constructor_change_history_filter = MAP_CONSTRUCTOR_HISTORY_FILTER_OPTIONS[index]
+				_refresh_map_constructor_panels()
+		)
+		list.add_child(history_filter)
+		var history_buttons: HBoxContainer = HBoxContainer.new()
+		var history_clear_button: Button = Button.new()
+		history_clear_button.text = "Clear History"
+		history_clear_button.pressed.connect(func() -> void:
+			if mission_manager_runtime == null or not mission_manager_runtime.has_method("clear_map_constructor_change_history"):
+				return
+			var clear_result: Dictionary = mission_manager_runtime.call("clear_map_constructor_change_history")
+			show_hint(String(clear_result.get("message", "History cleared.")))
+			_refresh_map_constructor_panels()
+		)
+		var history_refresh_button: Button = Button.new()
+		history_refresh_button.text = "Refresh History"
+		history_refresh_button.pressed.connect(func() -> void:
+			_refresh_map_constructor_panels()
+		)
+		history_buttons.add_child(history_clear_button)
+		history_buttons.add_child(history_refresh_button)
+		list.add_child(history_buttons)
+		var history_rows: Array = Array(history_result.get("history", []))
+		var shown_count: int = 0
+		for i in range(history_rows.size() - 1, -1, -1):
+			var row: Dictionary = Dictionary(history_rows[i])
+			var action_type: String = String(row.get("action_type", "unknown"))
+			if not _map_constructor_history_matches_filter(action_type):
+				continue
+			var row_text: String = "#%d [%s] %s" % [int(row.get("seq", 0)), action_type, String(row.get("summary", ""))]
+			var row_entity_id: String = String(row.get("entity_id", ""))
+			if not row_entity_id.is_empty():
+				row_text += " | id=%s" % row_entity_id
+			var row_cell: Vector2i = Vector2i(row.get("cell", Vector2i(-1, -1)))
+			if row_cell.x >= 0 and row_cell.y >= 0:
+				row_text += " | c=(%d,%d)" % [row_cell.x, row_cell.y]
+			var history_row_line: HBoxContainer = HBoxContainer.new()
+			var history_row_label: Label = Label.new()
+			history_row_label.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+			history_row_label.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+			history_row_label.text = row_text
+			history_row_line.add_child(history_row_label)
+			if not row_entity_id.is_empty() or (row_cell.x >= 0 and row_cell.y >= 0):
+				var jump_btn: Button = Button.new()
+				jump_btn.text = "Jump"
+				jump_btn.pressed.connect(func() -> void:
+					_jump_to_map_constructor_history_row(row)
+				)
+				history_row_line.add_child(jump_btn)
+			list.add_child(history_row_line)
+			shown_count += 1
+			if shown_count >= 30:
+				break
+		var overview_title: Label = Label.new()
+		overview_title.text = "Minimap / Overview"
+		list.add_child(overview_title)
+		var overview_filter: OptionButton = OptionButton.new()
+		for opt in MAP_CONSTRUCTOR_OVERVIEW_FILTER_OPTIONS:
+			overview_filter.add_item(opt)
+		var overview_filter_idx: int = MAP_CONSTRUCTOR_OVERVIEW_FILTER_OPTIONS.find(map_constructor_overview_filter)
+		if overview_filter_idx < 0:
+			overview_filter_idx = 0
+			map_constructor_overview_filter = "All"
+		overview_filter.select(overview_filter_idx)
+		overview_filter.item_selected.connect(func(index: int) -> void:
+			if index >= 0 and index < MAP_CONSTRUCTOR_OVERVIEW_FILTER_OPTIONS.size():
+				map_constructor_overview_filter = MAP_CONSTRUCTOR_OVERVIEW_FILTER_OPTIONS[index]
+				_refresh_map_constructor_panels()
+		)
+		list.add_child(overview_filter)
+		var overview_toggle_row_a: HBoxContainer = HBoxContainer.new()
+		var overview_show_issues: CheckButton = CheckButton.new()
+		overview_show_issues.text = "Show Issues"
+		overview_show_issues.button_pressed = map_constructor_overview_show_issues
+		overview_show_issues.toggled.connect(func(pressed: bool) -> void:
+			map_constructor_overview_show_issues = pressed
+			_refresh_map_constructor_panels()
+		)
+		overview_toggle_row_a.add_child(overview_show_issues)
+		var overview_show_power: CheckButton = CheckButton.new()
+		overview_show_power.text = "Show Power"
+		overview_show_power.button_pressed = map_constructor_overview_show_power
+		overview_show_power.toggled.connect(func(pressed: bool) -> void:
+			map_constructor_overview_show_power = pressed
+			_refresh_map_constructor_panels()
+		)
+		overview_toggle_row_a.add_child(overview_show_power)
+		var overview_show_items: CheckButton = CheckButton.new()
+		overview_show_items.text = "Show Items"
+		overview_show_items.button_pressed = map_constructor_overview_show_items
+		overview_show_items.toggled.connect(func(pressed: bool) -> void:
+			map_constructor_overview_show_items = pressed
+			_refresh_map_constructor_panels()
+		)
+		overview_toggle_row_a.add_child(overview_show_items)
+		list.add_child(overview_toggle_row_a)
+		var overview_toggle_row_b: HBoxContainer = HBoxContainer.new()
+		var overview_show_wall_mounted: CheckButton = CheckButton.new()
+		overview_show_wall_mounted.text = "Show Wall-mounted"
+		overview_show_wall_mounted.button_pressed = map_constructor_overview_show_wall_mounted
+		overview_show_wall_mounted.toggled.connect(func(pressed: bool) -> void:
+			map_constructor_overview_show_wall_mounted = pressed
+			_refresh_map_constructor_panels()
+		)
+		overview_toggle_row_b.add_child(overview_show_wall_mounted)
+		var overview_show_history: CheckButton = CheckButton.new()
+		overview_show_history.text = "Show History"
+		overview_show_history.button_pressed = map_constructor_overview_show_history
+		overview_show_history.toggled.connect(func(pressed: bool) -> void:
+			map_constructor_overview_show_history = pressed
+			_refresh_map_constructor_panels()
+		)
+		overview_toggle_row_b.add_child(overview_show_history)
+		list.add_child(overview_toggle_row_b)
+		var overview_data: Dictionary = {}
+		if mission_manager_runtime != null and mission_manager_runtime.has_method("get_map_constructor_overview_data"):
+			overview_data = mission_manager_runtime.call("get_map_constructor_overview_data", {"include_validation":map_constructor_overview_show_issues, "include_history":map_constructor_overview_show_history, "include_power":map_constructor_overview_show_power, "include_items":map_constructor_overview_show_items, "include_wall_mounted":map_constructor_overview_show_wall_mounted, "selected_entities":map_constructor_multi_selected_entities, "selected_entity_id":selected_map_constructor_entity_id, "selected_entity_kind":selected_map_constructor_entity_kind, "max_history_markers":20})
+		var ov_summary: Dictionary = Dictionary(overview_data.get("summary", {}))
+		var sum_label: Label = Label.new()
+		sum_label.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+		sum_label.text = "size=%dx%d objects=%d items=%d issues=%d warnings=%d expected=%d" % [int(ov_summary.get("width", 0)), int(ov_summary.get("height", 0)), int(ov_summary.get("object_count", 0)), int(ov_summary.get("item_count", 0)), int(ov_summary.get("error_count", 0)), int(ov_summary.get("warning_count", 0)), int(ov_summary.get("expected_invalid_count", 0))]
+		list.add_child(sum_label)
+		var legend_label: Label = Label.new()
+		legend_label.text = ". floor # wall D door T terminal P power I item W wall-mounted ! error ? warning * selected X expected-invalid"
+		legend_label.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+		list.add_child(legend_label)
+		var jump_row: HBoxContainer = HBoxContainer.new()
+		for cfg in [{"label":"Refresh Overview","kind":"refresh"},{"label":"Jump to Selected","kind":"selected"},{"label":"Jump to First Error","kind":"validation_issue"},{"label":"Jump to First Warning","kind":"warning"},{"label":"Jump to First Expected Invalid","kind":"expected_invalid"},{"label":"Jump to Last Change","kind":"history"}]:
+			var b: Button = Button.new()
+			b.text = String(cfg.get("label", "Jump"))
+			b.pressed.connect(func() -> void:
+				if String(cfg.get("kind", "")) == "refresh":
+					_refresh_map_constructor_panels()
+					return
+				var marker_rows: Array = Array(overview_data.get("markers", []))
+				if String(cfg.get("kind", "")) == "history":
+					marker_rows.reverse()
+				for marker_variant in marker_rows:
+					var marker: Dictionary = Dictionary(marker_variant)
+					var mk: String = String(marker.get("kind", ""))
+					if String(cfg.get("kind", "")) == "selected" and mk != "selected":
+						continue
+					if String(cfg.get("kind", "")) != "selected" and mk != String(cfg.get("kind", "")):
+						continue
+					_jump_to_map_constructor_history_row(marker)
+					return
+			)
+			jump_row.add_child(b)
+		list.add_child(jump_row)
+		var map_size: Vector2i = Vector2i(overview_data.get("map_size", Vector2i.ZERO))
+		if map_size.x > 80 or map_size.y > 80:
+			var large_label: Label = Label.new()
+			large_label.text = "Map is large; showing marker overview only."
+			list.add_child(large_label)
+		else:
+			var rows: Dictionary = {}
+			for cell_variant in Array(overview_data.get("cells", [])):
+				var cell_row: Dictionary = Dictionary(cell_variant)
+				var cell: Vector2i = Vector2i(cell_row.get("cell", Vector2i(-1, -1)))
+				var y: int = cell.y
+				if not rows.has(y):
+					rows[y] = []
+				rows[y].append(cell_row)
+			for y in range(map_size.y):
+				var row_box: HBoxContainer = HBoxContainer.new()
+				for x in range(map_size.x):
+					var symbol: String = " "
+					for cell_row_variant in Array(rows.get(y, [])):
+						var cr: Dictionary = Dictionary(cell_row_variant)
+						if Vector2i(cr.get("cell", Vector2i(-1, -1))).x == x:
+							symbol = _map_constructor_overview_symbol_for_cell(cr)
+							break
+					var cell_btn: Button = Button.new()
+					cell_btn.text = symbol
+					cell_btn.custom_minimum_size = Vector2(18, 18)
+					var c: Vector2i = Vector2i(x, y)
+					cell_btn.pressed.connect(func() -> void:
+						var opened_entity: bool = false
+						if mission_manager_runtime != null and mission_manager_runtime.has_method("get_map_constructor_editable_entity_at_cell"):
+							var editable_res: Dictionary = mission_manager_runtime.call("get_map_constructor_editable_entity_at_cell", c)
+							if bool(editable_res.get("ok", false)):
+								_show_map_constructor_inspector(c, String(editable_res.get("entity_kind", "")), String(editable_res.get("entity_id", "")))
+								opened_entity = true
+						_focus_map_constructor_cell(c)
+						if not opened_entity:
+							_show_map_constructor_inspector(c)
+					)
+					row_box.add_child(cell_btn)
+				list.add_child(row_box)
+		var markers_title: Label = Label.new()
+		markers_title.text = "Overview Markers"
+		list.add_child(markers_title)
+		var shown_markers: int = 0
+		for marker_variant in Array(overview_data.get("markers", [])):
+			var marker: Dictionary = Dictionary(marker_variant)
+			if not _map_constructor_overview_marker_matches_filter(marker):
+				continue
+			var line: HBoxContainer = HBoxContainer.new()
+			var lbl: Label = Label.new()
+			lbl.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+			lbl.text = "%s | %s | %s | %s" % [String(marker.get("status", "info")), String(marker.get("kind", "")), String(marker.get("label", "")), str(marker.get("cell", Vector2i(-1, -1)))]
+			line.add_child(lbl)
+			var jump: Button = Button.new(); jump.text = "Jump"
+			jump.pressed.connect(func() -> void: _jump_to_map_constructor_history_row(marker))
+			line.add_child(jump)
+			list.add_child(line)
+			shown_markers += 1
+			if shown_markers >= 30:
+				break
+		_add_map_constructor_section_header(list, "CONSTRUCTOR PRESETS")
+		var preset_name_edit: LineEdit = LineEdit.new()
+		preset_name_edit.placeholder_text = "Preset name"
+		preset_name_edit.text = map_constructor_preset_name
+		preset_name_edit.text_changed.connect(func(new_text: String) -> void:
+			map_constructor_preset_name = new_text
+		)
+		list.add_child(preset_name_edit)
+		if mission_manager_runtime != null and mission_manager_runtime.has_method("list_map_constructor_presets"):
+			map_constructor_preset_entries = mission_manager_runtime.call("list_map_constructor_presets")
+		if map_constructor_selected_preset_name.is_empty() and not map_constructor_preset_entries.is_empty():
+			map_constructor_selected_preset_name = String(map_constructor_preset_entries[0].get("name", ""))
+		var constructor_preset_select: OptionButton = OptionButton.new()
+		for i in range(map_constructor_preset_entries.size()):
+			var entry: Dictionary = map_constructor_preset_entries[i]
+			var preset_name: String = String(entry.get("name", ""))
+			constructor_preset_select.add_item(preset_name)
+			if preset_name == map_constructor_selected_preset_name:
+				constructor_preset_select.select(i)
+		constructor_preset_select.item_selected.connect(func(index: int) -> void:
+			if index >= 0 and index < map_constructor_preset_entries.size():
+				map_constructor_selected_preset_name = String(map_constructor_preset_entries[index].get("name", ""))
+		)
+		list.add_child(constructor_preset_select)
+		var preset_actions: HBoxContainer = HBoxContainer.new()
+		preset_actions.add_theme_constant_override("separation", 4)
+		list.add_child(preset_actions)
+		var save_preset_button: Button = Button.new()
+		save_preset_button.text = "Save"
+		save_preset_button.pressed.connect(func() -> void:
+			if not map_constructor_mode_active or mission_manager_runtime == null or not mission_manager_runtime.has_method("save_map_constructor_preset"):
+				show_hint("Preset save unavailable.")
+				return
+			var save_result: Dictionary = mission_manager_runtime.call("save_map_constructor_preset", map_constructor_preset_name)
+			show_hint(String(save_result.get("message", "Preset save done.")))
+			map_constructor_selected_preset_name = String(save_result.get("preset_name", map_constructor_selected_preset_name))
+			_show_map_constructor_inspector(pending_map_constructor_cell)
+			_refresh_map_constructor_panels()
+			if field_runtime != null and field_runtime.has_method("request_visual_refresh"):
+				field_runtime.call("request_visual_refresh")
+		)
+		preset_actions.add_child(save_preset_button)
+		var load_preset_button: Button = Button.new()
+		load_preset_button.text = "Load selected"
+		load_preset_button.pressed.connect(func() -> void:
+			if not map_constructor_mode_active or map_constructor_selected_preset_name.is_empty() or mission_manager_runtime == null or not mission_manager_runtime.has_method("load_map_constructor_preset"):
+				show_hint("Preset load unavailable.")
+				return
+			var load_result: Dictionary = mission_manager_runtime.call("load_map_constructor_preset", map_constructor_selected_preset_name)
+			show_hint(String(load_result.get("message", "Preset load done.")))
+			if bool(load_result.get("ok", false)):
+				pending_map_constructor_cell = Vector2i(-1, -1)
+				_clear_map_constructor_preview_cell()
+				_clear_map_constructor_wall_mounted_selection()
+			_show_map_constructor_inspector(Vector2i(-1, -1))
+			_refresh_map_constructor_panels()
+			if field_runtime != null and field_runtime.has_method("request_visual_refresh"):
+				field_runtime.call("request_visual_refresh")
+		)
+		preset_actions.add_child(load_preset_button)
+		var delete_preset_button: Button = Button.new()
+		delete_preset_button.text = "Delete selected"
+		delete_preset_button.pressed.connect(func() -> void:
+			if not map_constructor_mode_active or map_constructor_selected_preset_name.is_empty() or mission_manager_runtime == null or not mission_manager_runtime.has_method("delete_map_constructor_preset"):
+				show_hint("Preset delete unavailable.")
+				return
+			var delete_result: Dictionary = mission_manager_runtime.call("delete_map_constructor_preset", map_constructor_selected_preset_name)
+			show_hint(String(delete_result.get("message", "Preset delete done.")))
+			map_constructor_selected_preset_name = ""
+			_show_map_constructor_inspector(pending_map_constructor_cell)
+			_refresh_map_constructor_panels()
+			if field_runtime != null and field_runtime.has_method("request_visual_refresh"):
+				field_runtime.call("request_visual_refresh")
+		)
+		preset_actions.add_child(delete_preset_button)
+		var refresh_preset_button: Button = Button.new()
+		refresh_preset_button.text = "Refresh list"
+		refresh_preset_button.pressed.connect(func() -> void:
+			_refresh_map_constructor_panels()
+		)
+		list.add_child(refresh_preset_button)
 
-	var patch_export_title: Label = Label.new()
-	patch_export_title.text = "Mission Patch Export"
-	list.add_child(patch_export_title)
-	var patch_name_edit: LineEdit = LineEdit.new()
-	patch_name_edit.placeholder_text = "Patch name"
-	patch_name_edit.text = map_constructor_patch_name
-	patch_name_edit.text_changed.connect(func(new_text: String) -> void:
-		map_constructor_patch_name = new_text
-	)
-	list.add_child(patch_name_edit)
-	if mission_manager_runtime != null and mission_manager_runtime.has_method("list_map_constructor_mission_patches"):
-		map_constructor_patch_entries = mission_manager_runtime.call("list_map_constructor_mission_patches")
-	if map_constructor_selected_patch_name.is_empty() and not map_constructor_patch_entries.is_empty():
-		map_constructor_selected_patch_name = String(map_constructor_patch_entries[0].get("name", ""))
-	var patch_select: OptionButton = OptionButton.new()
-	for i in range(map_constructor_patch_entries.size()):
-		var patch_entry: Dictionary = map_constructor_patch_entries[i]
-		var patch_name_value: String = String(patch_entry.get("name", ""))
-		patch_select.add_item(patch_name_value)
-		if patch_name_value == map_constructor_selected_patch_name:
-			patch_select.select(i)
-	patch_select.item_selected.connect(func(index: int) -> void:
-		if index >= 0 and index < map_constructor_patch_entries.size():
-			map_constructor_selected_patch_name = String(map_constructor_patch_entries[index].get("name", ""))
-	)
-	list.add_child(patch_select)
-	var mission_patch_actions: HBoxContainer = HBoxContainer.new()
-	mission_patch_actions.add_theme_constant_override("separation", 4)
-	list.add_child(mission_patch_actions)
-	var mission_patch_export_button: Button = Button.new()
-	mission_patch_export_button.text = "Export current"
-	mission_patch_export_button.pressed.connect(func() -> void:
-		if not map_constructor_mode_active or mission_manager_runtime == null or not mission_manager_runtime.has_method("export_map_constructor_mission_patch"):
-			show_hint("Mission patch export unavailable.")
-			return
-		var export_result: Dictionary = mission_manager_runtime.call("export_map_constructor_mission_patch", map_constructor_patch_name)
-		show_hint(String(export_result.get("message", "Mission patch export done.")))
-		map_constructor_selected_patch_name = String(export_result.get("patch_name", map_constructor_selected_patch_name))
-		_refresh_map_constructor_panels()
-	)
-	mission_patch_actions.add_child(mission_patch_export_button)
-	var refresh_patch_button: Button = Button.new()
-	refresh_patch_button.text = "Refresh patches"
-	refresh_patch_button.pressed.connect(func() -> void:
-		_refresh_map_constructor_panels()
-	)
-	mission_patch_actions.add_child(refresh_patch_button)
-	var delete_patch_button: Button = Button.new()
-	delete_patch_button.text = "Delete patch"
-	delete_patch_button.pressed.connect(func() -> void:
-		if not map_constructor_mode_active or map_constructor_selected_patch_name.is_empty() or mission_manager_runtime == null or not mission_manager_runtime.has_method("delete_map_constructor_mission_patch"):
-			show_hint("Mission patch delete unavailable.")
-			return
-		var delete_patch_result: Dictionary = mission_manager_runtime.call("delete_map_constructor_mission_patch", map_constructor_selected_patch_name)
-		show_hint(String(delete_patch_result.get("message", "Mission patch delete done.")))
-		map_constructor_selected_patch_name = ""
-		_refresh_map_constructor_panels()
-	)
-	mission_patch_actions.add_child(delete_patch_button)
-	var geometry_title: Label = Label.new()
-	geometry_title.text = "Map Geometry"
-	list.add_child(geometry_title)
-	var geometry_size_row: HBoxContainer = HBoxContainer.new()
-	geometry_size_row.add_theme_constant_override("separation", 4)
-	list.add_child(geometry_size_row)
-	var width_edit: LineEdit = LineEdit.new()
-	width_edit.placeholder_text = "Width >= 6"
-	width_edit.text = map_constructor_geometry_width_text
-	width_edit.custom_minimum_size = Vector2(88, 0)
-	width_edit.text_changed.connect(func(new_text: String) -> void:
-		map_constructor_geometry_width_text = new_text
-	)
-	geometry_size_row.add_child(width_edit)
-	var height_edit: LineEdit = LineEdit.new()
-	height_edit.placeholder_text = "Height >= 6"
-	height_edit.text = map_constructor_geometry_height_text
-	height_edit.custom_minimum_size = Vector2(88, 0)
-	height_edit.text_changed.connect(func(new_text: String) -> void:
-		map_constructor_geometry_height_text = new_text
-	)
-	geometry_size_row.add_child(height_edit)
-	var create_map_button: Button = Button.new()
-	create_map_button.text = "Create Map"
-	create_map_button.pressed.connect(func() -> void:
-		if mission_manager_runtime == null or not mission_manager_runtime.has_method("create_map_constructor_empty_map"):
-			show_hint("Map create unavailable.")
-			return
-		var build_result: Dictionary = mission_manager_runtime.call("create_map_constructor_empty_map", int(map_constructor_geometry_width_text), int(map_constructor_geometry_height_text))
-		show_hint(String(build_result.get("message", "Map created.")))
-		selected_map_constructor_prefab_id = ""
-		map_constructor_marker_mode = ""
-		pending_map_constructor_cell = Vector2i(-1, -1)
-		_refresh_map_constructor_panels()
-	)
-	list.add_child(create_map_button)
-	var marker_button_row: HBoxContainer = HBoxContainer.new()
-	marker_button_row.add_theme_constant_override("separation", 4)
-	list.add_child(marker_button_row)
-	var set_start_button: Button = Button.new()
-	set_start_button.text = "Set Start"
-	set_start_button.pressed.connect(func() -> void:
-		selected_map_constructor_prefab_id = ""
-		map_constructor_marker_mode = "start"
-		show_hint("Click boundary cell to set start marker.")
-	)
-	marker_button_row.add_child(set_start_button)
-	var set_exit_button: Button = Button.new()
-	set_exit_button.text = "Set Exit"
-	set_exit_button.pressed.connect(func() -> void:
-		selected_map_constructor_prefab_id = ""
-		map_constructor_marker_mode = "exit"
-		show_hint("Click boundary cell to set exit marker.")
-	)
-	marker_button_row.add_child(set_exit_button)
-	var marker_clear_row: HBoxContainer = HBoxContainer.new()
-	marker_clear_row.add_theme_constant_override("separation", 4)
-	list.add_child(marker_clear_row)
-	var clear_start_button: Button = Button.new()
-	clear_start_button.text = "Clear Start"
-	clear_start_button.pressed.connect(func() -> void:
-		if mission_manager_runtime != null and mission_manager_runtime.has_method("clear_map_constructor_start_marker"):
-			var clear_start_result: Dictionary = mission_manager_runtime.call("clear_map_constructor_start_marker")
-			show_hint(String(clear_start_result.get("message", "Start marker cleared.")))
+		_add_map_constructor_section_header(list, "MISSION PATCH EXPORT")
+		var patch_name_edit: LineEdit = LineEdit.new()
+		patch_name_edit.placeholder_text = "Patch name"
+		patch_name_edit.text = map_constructor_patch_name
+		patch_name_edit.text_changed.connect(func(new_text: String) -> void:
+			map_constructor_patch_name = new_text
+		)
+		list.add_child(patch_name_edit)
+		if mission_manager_runtime != null and mission_manager_runtime.has_method("list_map_constructor_mission_patches"):
+			map_constructor_patch_entries = mission_manager_runtime.call("list_map_constructor_mission_patches")
+		if map_constructor_selected_patch_name.is_empty() and not map_constructor_patch_entries.is_empty():
+			map_constructor_selected_patch_name = String(map_constructor_patch_entries[0].get("name", ""))
+		var patch_select: OptionButton = OptionButton.new()
+		for i in range(map_constructor_patch_entries.size()):
+			var patch_entry: Dictionary = map_constructor_patch_entries[i]
+			var patch_name_value: String = String(patch_entry.get("name", ""))
+			patch_select.add_item(patch_name_value)
+			if patch_name_value == map_constructor_selected_patch_name:
+				patch_select.select(i)
+		patch_select.item_selected.connect(func(index: int) -> void:
+			if index >= 0 and index < map_constructor_patch_entries.size():
+				map_constructor_selected_patch_name = String(map_constructor_patch_entries[index].get("name", ""))
+		)
+		list.add_child(patch_select)
+		var mission_patch_actions: HBoxContainer = HBoxContainer.new()
+		mission_patch_actions.add_theme_constant_override("separation", 4)
+		list.add_child(mission_patch_actions)
+		var mission_patch_export_button: Button = Button.new()
+		mission_patch_export_button.text = "Export current"
+		mission_patch_export_button.pressed.connect(func() -> void:
+			if not map_constructor_mode_active or mission_manager_runtime == null or not mission_manager_runtime.has_method("export_map_constructor_mission_patch"):
+				show_hint("Mission patch export unavailable.")
+				return
+			var export_result: Dictionary = mission_manager_runtime.call("export_map_constructor_mission_patch", map_constructor_patch_name)
+			show_hint(String(export_result.get("message", "Mission patch export done.")))
+			map_constructor_selected_patch_name = String(export_result.get("patch_name", map_constructor_selected_patch_name))
 			_refresh_map_constructor_panels()
-	)
-	marker_clear_row.add_child(clear_start_button)
-	var clear_exit_button: Button = Button.new()
-	clear_exit_button.text = "Clear Exit"
-	clear_exit_button.pressed.connect(func() -> void:
-		if mission_manager_runtime != null and mission_manager_runtime.has_method("clear_map_constructor_exit_marker"):
-			var clear_exit_result: Dictionary = mission_manager_runtime.call("clear_map_constructor_exit_marker")
-			show_hint(String(clear_exit_result.get("message", "Exit marker cleared.")))
+		)
+		mission_patch_actions.add_child(mission_patch_export_button)
+		var refresh_patch_button: Button = Button.new()
+		refresh_patch_button.text = "Refresh patches"
+		refresh_patch_button.pressed.connect(func() -> void:
 			_refresh_map_constructor_panels()
-	)
-	marker_clear_row.add_child(clear_exit_button)
-	if mission_manager_runtime != null and mission_manager_runtime.has_method("get_map_constructor_mission_markers"):
-		var markers: Dictionary = mission_manager_runtime.call("get_map_constructor_mission_markers")
-		var marker_status_label: Label = Label.new()
-		var start_text: String = "-"
-		var exit_text: String = "-"
-		var start_marker: Dictionary = Dictionary(markers.get("start", {}))
-		var exit_marker: Dictionary = Dictionary(markers.get("exit", {}))
-		if not start_marker.is_empty():
-			start_text = String(start_marker.get("cell", "-"))
-		if not exit_marker.is_empty():
-			exit_text = String(exit_marker.get("cell", "-"))
-		marker_status_label.text = "Start: %s | Exit: %s" % [start_text, exit_text]
-		list.add_child(marker_status_label)
+		)
+		mission_patch_actions.add_child(refresh_patch_button)
+		var delete_patch_button: Button = Button.new()
+		delete_patch_button.text = "Delete patch"
+		delete_patch_button.pressed.connect(func() -> void:
+			if not map_constructor_mode_active or map_constructor_selected_patch_name.is_empty() or mission_manager_runtime == null or not mission_manager_runtime.has_method("delete_map_constructor_mission_patch"):
+				show_hint("Mission patch delete unavailable.")
+				return
+			var delete_patch_result: Dictionary = mission_manager_runtime.call("delete_map_constructor_mission_patch", map_constructor_selected_patch_name)
+			show_hint(String(delete_patch_result.get("message", "Mission patch delete done.")))
+			map_constructor_selected_patch_name = ""
+			_refresh_map_constructor_panels()
+		)
+		mission_patch_actions.add_child(delete_patch_button)
+		_add_map_constructor_section_header(list, "MAP GEOMETRY")
+		var geometry_size_row: HBoxContainer = HBoxContainer.new()
+		geometry_size_row.add_theme_constant_override("separation", 4)
+		list.add_child(geometry_size_row)
+		var width_label: Label = Label.new()
+		width_label.text = "Width:"
+		geometry_size_row.add_child(width_label)
+		var width_edit: LineEdit = LineEdit.new()
+		width_edit.placeholder_text = "Width >= 6"
+		width_edit.text = map_constructor_geometry_width_text
+		width_edit.custom_minimum_size = Vector2(88, 0)
+		width_edit.text_changed.connect(func(new_text: String) -> void:
+			map_constructor_geometry_width_text = new_text
+		)
+		geometry_size_row.add_child(width_edit)
+		var height_label: Label = Label.new()
+		height_label.text = "Height:"
+		geometry_size_row.add_child(height_label)
+		var height_edit: LineEdit = LineEdit.new()
+		height_edit.placeholder_text = "Height >= 6"
+		height_edit.text = map_constructor_geometry_height_text
+		height_edit.custom_minimum_size = Vector2(88, 0)
+		height_edit.text_changed.connect(func(new_text: String) -> void:
+			map_constructor_geometry_height_text = new_text
+		)
+		geometry_size_row.add_child(height_edit)
+		var create_map_button: Button = Button.new()
+		create_map_button.text = "Apply Geometry"
+		create_map_button.pressed.connect(func() -> void:
+			if mission_manager_runtime == null or not mission_manager_runtime.has_method("create_map_constructor_empty_map"):
+				show_hint("Map create unavailable.")
+				return
+			var build_result: Dictionary = mission_manager_runtime.call("create_map_constructor_empty_map", int(map_constructor_geometry_width_text), int(map_constructor_geometry_height_text))
+			show_hint(String(build_result.get("message", "Map created.")))
+			selected_map_constructor_prefab_id = ""
+			map_constructor_marker_mode = ""
+			pending_map_constructor_cell = Vector2i(-1, -1)
+			_refresh_map_constructor_panels()
+		)
+		list.add_child(create_map_button)
+		var marker_button_row: HBoxContainer = HBoxContainer.new()
+		marker_button_row.add_theme_constant_override("separation", 4)
+		list.add_child(marker_button_row)
+		var set_start_button: Button = Button.new()
+		set_start_button.text = "Set Start"
+		set_start_button.pressed.connect(func() -> void:
+			selected_map_constructor_prefab_id = ""
+			map_constructor_marker_mode = "start"
+			show_hint("Click boundary cell to set start marker.")
+		)
+		marker_button_row.add_child(set_start_button)
+		var set_exit_button: Button = Button.new()
+		set_exit_button.text = "Set Exit"
+		set_exit_button.pressed.connect(func() -> void:
+			selected_map_constructor_prefab_id = ""
+			map_constructor_marker_mode = "exit"
+			show_hint("Click boundary cell to set exit marker.")
+		)
+		marker_button_row.add_child(set_exit_button)
+		var marker_clear_row: HBoxContainer = HBoxContainer.new()
+		marker_clear_row.add_theme_constant_override("separation", 4)
+		list.add_child(marker_clear_row)
+		var clear_start_button: Button = Button.new()
+		clear_start_button.text = "Clear Start"
+		clear_start_button.pressed.connect(func() -> void:
+			if mission_manager_runtime != null and mission_manager_runtime.has_method("clear_map_constructor_start_marker"):
+				var clear_start_result: Dictionary = mission_manager_runtime.call("clear_map_constructor_start_marker")
+				show_hint(String(clear_start_result.get("message", "Start marker cleared.")))
+				_refresh_map_constructor_panels()
+		)
+		marker_clear_row.add_child(clear_start_button)
+		var clear_exit_button: Button = Button.new()
+		clear_exit_button.text = "Clear Exit"
+		clear_exit_button.pressed.connect(func() -> void:
+			if mission_manager_runtime != null and mission_manager_runtime.has_method("clear_map_constructor_exit_marker"):
+				var clear_exit_result: Dictionary = mission_manager_runtime.call("clear_map_constructor_exit_marker")
+				show_hint(String(clear_exit_result.get("message", "Exit marker cleared.")))
+				_refresh_map_constructor_panels()
+		)
+		marker_clear_row.add_child(clear_exit_button)
+		if mission_manager_runtime != null and mission_manager_runtime.has_method("get_map_constructor_mission_markers"):
+			var markers: Dictionary = mission_manager_runtime.call("get_map_constructor_mission_markers")
+			var marker_status_label: Label = Label.new()
+			var start_text: String = "-"
+			var exit_text: String = "-"
+			var start_marker: Dictionary = Dictionary(markers.get("start", {}))
+			var exit_marker: Dictionary = Dictionary(markers.get("exit", {}))
+			if not start_marker.is_empty():
+				start_text = str(start_marker.get("cell", "-"))
+			if not exit_marker.is_empty():
+				exit_text = str(exit_marker.get("cell", "-"))
+			marker_status_label.text = "Start: %s | Exit: %s" % [start_text, exit_text]
+			list.add_child(marker_status_label)
+	_restore_map_constructor_palette_scroll_deferred(scroll, map_constructor_active_tab)
 	if runtime_map_constructor_validation_overlay_control == null or not is_instance_valid(runtime_map_constructor_validation_overlay_control):
 		runtime_map_constructor_validation_overlay_control = ConstructorValidationOverlayControl.new(self)
 		runtime_map_constructor_validation_overlay_control.z_index = Z_RUNTIME_WORLD_OVERLAY
