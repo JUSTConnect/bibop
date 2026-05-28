@@ -11504,6 +11504,27 @@ func _show_map_constructor_inspector(cell: Vector2i, preferred_entity_kind: Stri
 	var placement := _create_inspector_section("Placement")
 	var cell_l:=Label.new(); cell_l.text = String(entity_info.get("cell", cell)); placement.add_child(_create_property_row("Cell", cell_l))
 	var pm_l:=Label.new(); pm_l.text = String(data.get("placement_mode", "floor")); placement.add_child(_create_property_row("Mode", pm_l))
+	var grounding_type: String = "floor_standing"
+	var object_type_lower: String = String(data.get("object_type", data.get("item_type", ""))).to_lower()
+	if String(data.get("placement_mode", "")).to_lower() == "wall_mounted":
+		grounding_type = "wall_mounted"
+	elif object_type_lower.contains("door") or object_type_lower.contains("gate"):
+		grounding_type = "door_insert"
+	elif object_type_lower.contains("key") or object_type_lower.contains("kit") or object_type_lower.contains("card") or object_type_lower.contains("code"):
+		grounding_type = "floor_pickup"
+	var anchor_cell: Vector2i = Vector2i(data.get("anchor_floor_cell", data.get("position", entity_info.get("cell", cell))))
+	var attached_wall_cell: Vector2i = Vector2i(data.get("attached_wall_cell", Vector2i(-1, -1)))
+	var wall_side_meta: String = String(data.get("wall_side", "")).strip_edges().to_lower()
+	var valid_grounding: bool = true
+	if grounding_type == "wall_mounted":
+		valid_grounding = attached_wall_cell.x >= 0 and attached_wall_cell.y >= 0 and not wall_side_meta.is_empty()
+	var g_l: Label = Label.new(); g_l.text = grounding_type; placement.add_child(_create_property_row("Grounding", g_l))
+	var a_l: Label = Label.new(); a_l.text = String(anchor_cell); placement.add_child(_create_property_row("Anchor", a_l))
+	if attached_wall_cell.x >= 0 and attached_wall_cell.y >= 0:
+		var aw_l: Label = Label.new(); aw_l.text = String(attached_wall_cell); placement.add_child(_create_property_row("Attached wall", aw_l))
+	if not wall_side_meta.is_empty():
+		var ws_l: Label = Label.new(); ws_l.text = wall_side_meta; placement.add_child(_create_property_row("Wall side", ws_l))
+	var vg_l: Label = Label.new(); vg_l.text = str(valid_grounding); placement.add_child(_create_property_row("Valid grounding", vg_l))
 	var move_row: HBoxContainer = HBoxContainer.new()
 	var move_x: SpinBox = SpinBox.new(); move_x.step = 1; move_x.min_value = -999; move_x.max_value = 999; move_x.value = float(selected_map_constructor_entity_cell.x)
 	var move_y: SpinBox = SpinBox.new(); move_y.step = 1; move_y.min_value = -999; move_y.max_value = 999; move_y.value = float(selected_map_constructor_entity_cell.y)

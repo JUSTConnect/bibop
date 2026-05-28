@@ -4290,6 +4290,15 @@ func get_map_constructor_validation_issues() -> Array[Dictionary]:
 						issues.append(_make_map_constructor_issue("wm_side_not_visible_%d" % index, "warning", "Wall-mounted wall_side has no visible/mountable zone.", object_cell, source_name, entity_kind, object_id))
 			elif String(data.get("placement_mode", "")).to_lower() == "wall_mounted":
 				issues.append(_make_map_constructor_issue("wm_floating_%d" % index, "warning", "Wall-mounted object is floating without complete wall attachment metadata.", object_cell, source_name, entity_kind, object_id))
+		var normalized_object_type: String = object_type.to_lower()
+		if String(data.get("placement_mode", "")).to_lower() != "wall_mounted" and not normalized_object_type.contains("door") and not normalized_object_type.contains("gate") and _is_map_constructor_wall_cell(object_cell):
+			issues.append(_make_map_constructor_issue("grounding_floor_on_wall_%d" % index, "warning", "Floor-standing object is placed on a wall cell.", object_cell, source_name, entity_kind, object_id))
+		if (normalized_object_type.contains("door") or normalized_object_type.contains("gate")) and grid_manager != null and grid_manager.has_method("get_tile") and _is_valid_grid_cell(object_cell):
+			var door_tile: int = int(grid_manager.call("get_tile", object_cell))
+			if door_tile != GridManager.TILE_DOOR and door_tile != GridManager.TILE_DIGITAL_DOOR and door_tile != GridManager.TILE_POWERED_GATE:
+				issues.append(_make_map_constructor_issue("door_grounding_mismatch_%d" % index, "warning", "Door/gate object is not on door/gate tile.", object_cell, source_name, entity_kind, object_id))
+		if (normalized_object_type.contains("key") or normalized_object_type.contains("kit") or normalized_object_type.contains("card") or normalized_object_type.contains("code")) and _is_map_constructor_wall_cell(object_cell):
+			issues.append(_make_map_constructor_issue("pickup_on_wall_%d" % index, "warning", "Pickup object overlaps blocked wall cell.", object_cell, source_name, entity_kind, object_id))
 	# validate explicit cell_items map
 	for cell_variant in cell_items.keys():
 		var item_cell: Vector2i = _deserialize_cell_variant(cell_variant)
@@ -10970,6 +10979,31 @@ func get_room_visual_preset_summary() -> Dictionary:
 		"affected_cells": affected_cells
 	}
 
+func get_map_constructor_object_grounding_summary() -> Dictionary:
+	var summary: Dictionary = {"object_count": 0, "floor_standing_count": 0, "wall_mounted_count": 0, "door_insert_count": 0, "floor_pickup_count": 0, "unknown_grounding_count": 0, "missing_anchor_count": 0, "missing_wall_mount_count": 0}
+	for object_variant in mission_world_objects:
+		var data: Dictionary = Dictionary(object_variant)
+		if _map_constructor_entity_kind(data) == "item":
+			continue
+		summary["object_count"] = int(summary.get("object_count", 0)) + 1
+		var object_type: String = String(data.get("object_type", data.get("type", ""))).to_lower().strip_edges()
+		var placement_mode: String = String(data.get("placement_mode", "")).to_lower().strip_edges()
+		var anchor: Vector2i = _deserialize_cell_variant(data.get("anchor_floor_cell", data.get("position", Vector2i(-1, -1))))
+		if anchor.x < 0 or anchor.y < 0:
+			summary["missing_anchor_count"] = int(summary.get("missing_anchor_count", 0)) + 1
+		if placement_mode == "wall_mounted":
+			summary["wall_mounted_count"] = int(summary.get("wall_mounted_count", 0)) + 1
+			var attached: Vector2i = _deserialize_cell_variant(data.get("attached_wall_cell", Vector2i(-1, -1)))
+			if attached.x < 0 or attached.y < 0 or String(data.get("wall_side", "")).strip_edges().is_empty():
+				summary["missing_wall_mount_count"] = int(summary.get("missing_wall_mount_count", 0)) + 1
+		elif object_type.contains("door") or object_type.contains("gate"):
+			summary["door_insert_count"] = int(summary.get("door_insert_count", 0)) + 1
+		elif object_type.contains("key") or object_type.contains("kit") or object_type.contains("card") or object_type.contains("code"):
+			summary["floor_pickup_count"] = int(summary.get("floor_pickup_count", 0)) + 1
+		else:
+			summary["floor_standing_count"] = int(summary.get("floor_standing_count", 0)) + 1
+	return summary
+
 func export_map_constructor_design_notes(options: Dictionary = {}) -> Dictionary:
 	if not _is_task_test_constructor_context():
 		return {"ok": false, "message": "Design notes export is available only in TASK TEST constructor mode."}
@@ -11037,7 +11071,7 @@ func export_map_constructor_design_notes(options: Dictionary = {}) -> Dictionary
 	terminal_visual_summary["terminals"] = terminal_rows
 	var visual_catalog: Dictionary = get_visual_texture_asset_catalog()
 	var visual_summary: Dictionary = _build_visual_asset_summary(Dictionary(visual_catalog))
-	var notes: Dictionary = {"schema_version":1,"source":"task_test_map_constructor","mission_id":"mission_10","generated_at_runtime":str(Time.get_unix_time_from_system()),"summary":{"object_count":mission_world_objects.size(),"wall_material_override_count":wall_overrides.size(),"wall_material_counts":wall_counts,"floor_material_override_count":floor_overrides.size(),"floor_material_summary":floor_summary,"wall_topology_summary":wall_topology_summary,"wall_mounted_anchor_zone_summary":wall_mounted_anchor_zone_summary},"visual_asset_summary":visual_summary,"readiness":readiness,"validation":{"issues":validation,"visual_diagnostics":visual_diagnostics},"objects":mission_world_objects.duplicate(true),"items":cell_items.values(),"tile_edits":Array(patch_export.get("patch", {}).get("tile_edits", [])),"links":Array(patch_export.get("patch", {}).get("links", [])),"patch":Dictionary(patch_export.get("patch", {})),"wall_material_overrides":wall_overrides,"floor_material_overrides":floor_overrides,"floor_material_summary":floor_summary,"wall_topology_summary":wall_topology_summary,"wall_mounted_anchor_zone_summary":wall_mounted_anchor_zone_summary,"door_visual_summary":door_visual_summary,"terminal_visual_summary":terminal_visual_summary,"history_summary":Array(get_map_constructor_change_history(20).get("history", [])),"overview_summary":Dictionary(get_map_constructor_overview_data().get("summary", {})),"room_visual_preset_summary":get_room_visual_preset_summary(),"recommended_next_steps":["Manual promotion required. No mission files were modified."]}
+	var notes: Dictionary = {"schema_version":1,"source":"task_test_map_constructor","mission_id":"mission_10","generated_at_runtime":str(Time.get_unix_time_from_system()),"summary":{"object_count":mission_world_objects.size(),"wall_material_override_count":wall_overrides.size(),"wall_material_counts":wall_counts,"floor_material_override_count":floor_overrides.size(),"floor_material_summary":floor_summary,"wall_topology_summary":wall_topology_summary,"wall_mounted_anchor_zone_summary":wall_mounted_anchor_zone_summary,"object_grounding_summary":get_map_constructor_object_grounding_summary()},"visual_asset_summary":visual_summary,"readiness":readiness,"validation":{"issues":validation,"visual_diagnostics":visual_diagnostics},"objects":mission_world_objects.duplicate(true),"items":cell_items.values(),"tile_edits":Array(patch_export.get("patch", {}).get("tile_edits", [])),"links":Array(patch_export.get("patch", {}).get("links", [])),"patch":Dictionary(patch_export.get("patch", {})),"wall_material_overrides":wall_overrides,"floor_material_overrides":floor_overrides,"floor_material_summary":floor_summary,"wall_topology_summary":wall_topology_summary,"wall_mounted_anchor_zone_summary":wall_mounted_anchor_zone_summary,"object_grounding_summary":get_map_constructor_object_grounding_summary(),"door_visual_summary":door_visual_summary,"terminal_visual_summary":terminal_visual_summary,"history_summary":Array(get_map_constructor_change_history(20).get("history", [])),"overview_summary":Dictionary(get_map_constructor_overview_data().get("summary", {})),"room_visual_preset_summary":get_room_visual_preset_summary(),"recommended_next_steps":["Manual promotion required. No mission files were modified."]}
 	var text: String = "# Design Notes\nMission: mission_10\nReadiness: %s\nValidation issues: %d\nPatch summary: objects=%d items=%d tiles=%d\nManual promotion required. No mission files were modified." % [String(readiness.get("status", "unknown")), validation.size(), int(patch_export.get("object_count", 0)), int(patch_export.get("item_count", 0)), int(patch_export.get("tile_edit_count", 0))]
 	return {"ok":true,"message":"OK","notes":notes,"text":text}
 
@@ -11070,7 +11104,7 @@ func get_map_constructor_production_pipeline_report(options: Dictionary = {}) ->
 	var has_warnings: bool = warning_count > 0
 	var status: String = "blocked" if blocked else ("warning" if has_warnings else "ready")
 	var notes_payload: Dictionary = Dictionary(notes.get("notes", {}))
-	return {"ok":true,"status":status,"message":"Manual promotion required. No mission files were modified.","checks":checks,"promotion_package":{"patch":Dictionary(patch_export.get("patch", {})),"design_notes":notes_payload,"summary":{"readiness":String(readiness.get("status", "unknown")),"wall_material_overrides":Array(get_map_constructor_wall_material_overrides().get("overrides", [])),"floor_material_summary":Dictionary(notes_payload.get("floor_material_summary", {})),"wall_topology_summary":Dictionary(notes_payload.get("wall_topology_summary", {})),"wall_mounted_anchor_zone_summary":Dictionary(notes_payload.get("wall_mounted_anchor_zone_summary", {})),"door_visual_summary":Dictionary(notes_payload.get("door_visual_summary", {})),"terminal_visual_summary":Dictionary(notes_payload.get("terminal_visual_summary", {})),"visual_asset_summary":Dictionary(notes_payload.get("visual_asset_summary", {})),"room_visual_preset_summary":Dictionary(notes_payload.get("room_visual_preset_summary", {}))},"manual_steps":["Review design notes","Review patch JSON","Promote manually in controlled pipeline"],"warnings":[]},"recommended_actions":[]}
+	return {"ok":true,"status":status,"message":"Manual promotion required. No mission files were modified.","checks":checks,"promotion_package":{"patch":Dictionary(patch_export.get("patch", {})),"design_notes":notes_payload,"summary":{"readiness":String(readiness.get("status", "unknown")),"wall_material_overrides":Array(get_map_constructor_wall_material_overrides().get("overrides", [])),"floor_material_summary":Dictionary(notes_payload.get("floor_material_summary", {})),"wall_topology_summary":Dictionary(notes_payload.get("wall_topology_summary", {})),"wall_mounted_anchor_zone_summary":Dictionary(notes_payload.get("wall_mounted_anchor_zone_summary", {})),"door_visual_summary":Dictionary(notes_payload.get("door_visual_summary", {})),"terminal_visual_summary":Dictionary(notes_payload.get("terminal_visual_summary", {})),"visual_asset_summary":Dictionary(notes_payload.get("visual_asset_summary", {})),"room_visual_preset_summary":Dictionary(notes_payload.get("room_visual_preset_summary", {})),"object_grounding_summary":Dictionary(notes_payload.get("object_grounding_summary", {}))},"manual_steps":["Review design notes","Review patch JSON","Promote manually in controlled pipeline"],"warnings":[]},"recommended_actions":[]}
 
 func get_map_constructor_wall_mounted_anchor_zone_summary() -> Dictionary:
 	var summary: Dictionary = {"wall_count": 0, "visible_side_count": 0, "mountable_zone_count": 0, "zones_by_side": {"north": 0, "east": 0, "south": 0, "west": 0}, "wall_mass_ratio": 0.7, "mount_band_ratio": 0.3, "wall_mounted_object_count": 0, "unanchored_wall_mounted_object_count": 0}
