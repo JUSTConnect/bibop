@@ -10956,6 +10956,7 @@ func export_map_constructor_design_notes(options: Dictionary = {}) -> Dictionary
 	var wall_overrides: Array = Array(get_map_constructor_wall_material_overrides().get("overrides", []))
 	var floor_overrides: Array = Array(get_map_constructor_floor_material_overrides().get("overrides", []))
 	var floor_summary: Dictionary = get_map_constructor_floor_material_summary()
+	var wall_topology_summary: Dictionary = get_map_constructor_wall_topology_summary()
 	var wall_counts: Dictionary = {}
 	for row_variant in wall_overrides:
 		var row: Dictionary = Dictionary(row_variant)
@@ -11012,7 +11013,7 @@ func export_map_constructor_design_notes(options: Dictionary = {}) -> Dictionary
 	terminal_visual_summary["terminals"] = terminal_rows
 	var visual_catalog: Dictionary = get_visual_texture_asset_catalog()
 	var visual_summary: Dictionary = _build_visual_asset_summary(Dictionary(visual_catalog))
-	var notes: Dictionary = {"schema_version":1,"source":"task_test_map_constructor","mission_id":"mission_10","generated_at_runtime":str(Time.get_unix_time_from_system()),"summary":{"object_count":mission_world_objects.size(),"wall_material_override_count":wall_overrides.size(),"wall_material_counts":wall_counts,"floor_material_override_count":floor_overrides.size(),"floor_material_summary":floor_summary},"visual_asset_summary":visual_summary,"readiness":readiness,"validation":{"issues":validation,"visual_diagnostics":visual_diagnostics},"objects":mission_world_objects.duplicate(true),"items":cell_items.values(),"tile_edits":Array(patch_export.get("patch", {}).get("tile_edits", [])),"links":Array(patch_export.get("patch", {}).get("links", [])),"patch":Dictionary(patch_export.get("patch", {})),"wall_material_overrides":wall_overrides,"floor_material_overrides":floor_overrides,"floor_material_summary":floor_summary,"door_visual_summary":door_visual_summary,"terminal_visual_summary":terminal_visual_summary,"history_summary":Array(get_map_constructor_change_history(20).get("history", [])),"overview_summary":Dictionary(get_map_constructor_overview_data().get("summary", {})),"room_visual_preset_summary":get_room_visual_preset_summary(),"recommended_next_steps":["Manual promotion required. No mission files were modified."]}
+	var notes: Dictionary = {"schema_version":1,"source":"task_test_map_constructor","mission_id":"mission_10","generated_at_runtime":str(Time.get_unix_time_from_system()),"summary":{"object_count":mission_world_objects.size(),"wall_material_override_count":wall_overrides.size(),"wall_material_counts":wall_counts,"floor_material_override_count":floor_overrides.size(),"floor_material_summary":floor_summary,"wall_topology_summary":wall_topology_summary},"visual_asset_summary":visual_summary,"readiness":readiness,"validation":{"issues":validation,"visual_diagnostics":visual_diagnostics},"objects":mission_world_objects.duplicate(true),"items":cell_items.values(),"tile_edits":Array(patch_export.get("patch", {}).get("tile_edits", [])),"links":Array(patch_export.get("patch", {}).get("links", [])),"patch":Dictionary(patch_export.get("patch", {})),"wall_material_overrides":wall_overrides,"floor_material_overrides":floor_overrides,"floor_material_summary":floor_summary,"wall_topology_summary":wall_topology_summary,"door_visual_summary":door_visual_summary,"terminal_visual_summary":terminal_visual_summary,"history_summary":Array(get_map_constructor_change_history(20).get("history", [])),"overview_summary":Dictionary(get_map_constructor_overview_data().get("summary", {})),"room_visual_preset_summary":get_room_visual_preset_summary(),"recommended_next_steps":["Manual promotion required. No mission files were modified."]}
 	var text: String = "# Design Notes\nMission: mission_10\nReadiness: %s\nValidation issues: %d\nPatch summary: objects=%d items=%d tiles=%d\nManual promotion required. No mission files were modified." % [String(readiness.get("status", "unknown")), validation.size(), int(patch_export.get("object_count", 0)), int(patch_export.get("item_count", 0)), int(patch_export.get("tile_edit_count", 0))]
 	return {"ok":true,"message":"OK","notes":notes,"text":text}
 
@@ -11045,7 +11046,82 @@ func get_map_constructor_production_pipeline_report(options: Dictionary = {}) ->
 	var has_warnings: bool = warning_count > 0
 	var status: String = "blocked" if blocked else ("warning" if has_warnings else "ready")
 	var notes_payload: Dictionary = Dictionary(notes.get("notes", {}))
-	return {"ok":true,"status":status,"message":"Manual promotion required. No mission files were modified.","checks":checks,"promotion_package":{"patch":Dictionary(patch_export.get("patch", {})),"design_notes":notes_payload,"summary":{"readiness":String(readiness.get("status", "unknown")),"wall_material_overrides":Array(get_map_constructor_wall_material_overrides().get("overrides", [])),"floor_material_summary":Dictionary(notes_payload.get("floor_material_summary", {})),"door_visual_summary":Dictionary(notes_payload.get("door_visual_summary", {})),"terminal_visual_summary":Dictionary(notes_payload.get("terminal_visual_summary", {})),"visual_asset_summary":Dictionary(notes_payload.get("visual_asset_summary", {})),"room_visual_preset_summary":Dictionary(notes_payload.get("room_visual_preset_summary", {}))},"manual_steps":["Review design notes","Review patch JSON","Promote manually in controlled pipeline"],"warnings":[]},"recommended_actions":[]}
+	return {"ok":true,"status":status,"message":"Manual promotion required. No mission files were modified.","checks":checks,"promotion_package":{"patch":Dictionary(patch_export.get("patch", {})),"design_notes":notes_payload,"summary":{"readiness":String(readiness.get("status", "unknown")),"wall_material_overrides":Array(get_map_constructor_wall_material_overrides().get("overrides", [])),"floor_material_summary":Dictionary(notes_payload.get("floor_material_summary", {})),"wall_topology_summary":Dictionary(notes_payload.get("wall_topology_summary", {})),"door_visual_summary":Dictionary(notes_payload.get("door_visual_summary", {})),"terminal_visual_summary":Dictionary(notes_payload.get("terminal_visual_summary", {})),"visual_asset_summary":Dictionary(notes_payload.get("visual_asset_summary", {})),"room_visual_preset_summary":Dictionary(notes_payload.get("room_visual_preset_summary", {}))},"manual_steps":["Review design notes","Review patch JSON","Promote manually in controlled pipeline"],"warnings":[]},"recommended_actions":[]}
+
+func get_map_constructor_wall_topology_summary() -> Dictionary:
+	var empty: Dictionary = {"wall_count": 0, "topology_counts": {}, "material_counts": {}, "door_adjacent_wall_count": 0, "boundary_wall_count": 0}
+	if grid_manager == null or not grid_manager.has_method("get_width") or not grid_manager.has_method("get_height") or not grid_manager.has_method("get_tile"):
+		return empty
+	var width: int = int(grid_manager.call("get_width"))
+	var height: int = int(grid_manager.call("get_height"))
+	if width <= 0 or height <= 0:
+		return empty
+	var topology_counts: Dictionary = {}
+	var material_counts: Dictionary = {}
+	var wall_count: int = 0
+	var door_adjacent_wall_count: int = 0
+	var boundary_wall_count: int = 0
+	for y in range(height):
+		for x in range(width):
+			var cell: Vector2i = Vector2i(x, y)
+			var tile_type: int = int(grid_manager.call("get_tile", cell))
+			if tile_type != GridManager.TILE_WALL:
+				continue
+			wall_count += 1
+			var material_row: Dictionary = Dictionary(get_map_constructor_wall_material_for_wall_cell(cell).get("material", {}))
+			var material_id: String = String(material_row.get("id", "default_wall")).strip_edges()
+			if material_id.is_empty():
+				material_id = "default_wall"
+			material_counts[material_id] = int(material_counts.get(material_id, 0)) + 1
+			var north: bool = y > 0 and int(grid_manager.call("get_tile", Vector2i(x, y - 1))) == GridManager.TILE_WALL
+			var east: bool = x < width - 1 and int(grid_manager.call("get_tile", Vector2i(x + 1, y))) == GridManager.TILE_WALL
+			var south: bool = y < height - 1 and int(grid_manager.call("get_tile", Vector2i(x, y + 1))) == GridManager.TILE_WALL
+			var west: bool = x > 0 and int(grid_manager.call("get_tile", Vector2i(x - 1, y))) == GridManager.TILE_WALL
+			var neighbor_count: int = int(north) + int(east) + int(south) + int(west)
+			var topology: String = "isolated"
+			if x <= 0 or y <= 0 or x >= width - 1 or y >= height - 1:
+				topology = "boundary_wall"
+				boundary_wall_count += 1
+			elif _is_map_constructor_wall_adjacent_to_door(cell, width, height):
+				topology = "door_adjacent"
+				door_adjacent_wall_count += 1
+			elif neighbor_count == 4:
+				topology = "cross_junction"
+			elif neighbor_count == 3:
+				topology = "t_junction"
+			elif neighbor_count == 2 and north and south:
+				topology = "vertical_run"
+			elif neighbor_count == 2 and east and west:
+				topology = "horizontal_run"
+			elif neighbor_count == 2 and north and east:
+				topology = "corner_ne"
+			elif neighbor_count == 2 and north and west:
+				topology = "corner_nw"
+			elif neighbor_count == 2 and south and east:
+				topology = "corner_se"
+			elif neighbor_count == 2 and south and west:
+				topology = "corner_sw"
+			elif neighbor_count == 1 and north:
+				topology = "cap_north"
+			elif neighbor_count == 1 and east:
+				topology = "cap_east"
+			elif neighbor_count == 1 and south:
+				topology = "cap_south"
+			elif neighbor_count == 1 and west:
+				topology = "cap_west"
+			topology_counts[topology] = int(topology_counts.get(topology, 0)) + 1
+	return {"wall_count": wall_count, "topology_counts": topology_counts, "material_counts": material_counts, "door_adjacent_wall_count": door_adjacent_wall_count, "boundary_wall_count": boundary_wall_count}
+
+func _is_map_constructor_wall_adjacent_to_door(cell: Vector2i, width: int, height: int) -> bool:
+	var directions: Array[Vector2i] = [Vector2i(0, -1), Vector2i(1, 0), Vector2i(0, 1), Vector2i(-1, 0)]
+	for delta in directions:
+		var neighbor: Vector2i = cell + delta
+		if neighbor.x < 0 or neighbor.y < 0 or neighbor.x >= width or neighbor.y >= height:
+			continue
+		var neighbor_tile: int = int(grid_manager.call("get_tile", neighbor))
+		if neighbor_tile == GridManager.TILE_DOOR or neighbor_tile == GridManager.TILE_DIGITAL_DOOR or neighbor_tile == GridManager.TILE_POWERED_GATE:
+			return true
+	return false
 
 func _build_visual_asset_summary(catalog: Dictionary) -> Dictionary:
 	var assets: Array = Array(catalog.get("assets", []))
