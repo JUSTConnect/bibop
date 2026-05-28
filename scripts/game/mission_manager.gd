@@ -457,6 +457,14 @@ func _safe_array(value: Variant) -> Array:
 			result.append(item)
 	return result
 
+func _safe_dictionary(value: Variant) -> Dictionary:
+	if value is Dictionary:
+		var result: Dictionary = {}
+		for key in value.keys():
+			result[key] = value[key]
+		return result
+	return {}
+
 func get_map_constructor_overview_data(options: Dictionary = {}) -> Dictionary:
 	if not _is_task_test_constructor_context():
 		return {"ok": false, "message": "Overview is available only in TASK TEST constructor mode.", "map_size": Vector2i.ZERO, "cells": [], "markers": [], "summary": {}, "legend": []}
@@ -468,7 +476,7 @@ func get_map_constructor_overview_data(options: Dictionary = {}) -> Dictionary:
 	var markers: Array[Dictionary] = []
 	var selected_keys: Dictionary = {}
 	for row_variant in _safe_array(options.get("selected_entities", [])):
-		var row: Dictionary = Dictionary(row_variant)
+		var row: Dictionary = _safe_dictionary(row_variant)
 		var sk: String = "%s|%s" % [String(row.get("entity_kind", "")), String(row.get("entity_id", ""))]
 		if not sk.ends_with("|"):
 			selected_keys[sk] = true
@@ -482,7 +490,7 @@ func get_map_constructor_overview_data(options: Dictionary = {}) -> Dictionary:
 	var include_wall_mounted: bool = bool(options.get("include_wall_mounted", true))
 	var issue_by_cell: Dictionary = {}
 	for iv in issues:
-		var issue: Dictionary = Dictionary(iv)
+		var issue: Dictionary = _safe_dictionary(iv)
 		var c: Vector2i = Vector2i(issue.get("cell", Vector2i(-1, -1)))
 		var key: String = _serialize_cell_key(c)
 		if not issue_by_cell.has(key):
@@ -510,7 +518,7 @@ func get_map_constructor_overview_data(options: Dictionary = {}) -> Dictionary:
 			for ov in objects_here:
 				if not (ov is Dictionary):
 					continue
-				var od: Dictionary = Dictionary(ov)
+				var od: Dictionary = _safe_dictionary(ov)
 				var oid: String = String(od.get("id", ""))
 				if bool(od.get("is_wall_mounted", false)):
 					has_wall_mounted = true
@@ -527,7 +535,8 @@ func get_map_constructor_overview_data(options: Dictionary = {}) -> Dictionary:
 			for it in items_here:
 				if not (it is Dictionary):
 					continue
-				var iid: String = String(Dictionary(it).get("id", ""))
+				var item_row: Dictionary = _safe_dictionary(it)
+				var iid: String = String(item_row.get("id", ""))
 				if selected_keys.has("item|%s" % iid):
 					has_selected = true
 					markers.append({"id":"selected_item_%s" % iid, "kind":"selected", "label":"Selected item", "cell":cell, "entity_kind":"item", "entity_id":iid, "status":"info", "message":"Selected item."})
@@ -535,12 +544,13 @@ func get_map_constructor_overview_data(options: Dictionary = {}) -> Dictionary:
 			var has_warning: bool = false
 			var has_error: bool = false
 			for iv in cell_issues:
-				var sev: String = String(Dictionary(iv).get("severity", "error"))
+				var issue_row: Dictionary = _safe_dictionary(iv)
+				var sev: String = String(issue_row.get("severity", "error"))
 				has_warning = has_warning or sev == "warning"
 				has_error = has_error or sev != "warning"
 			var has_expected_invalid: bool = false
 			for ov2 in objects_here:
-				var od2: Dictionary = Dictionary(ov2)
+				var od2: Dictionary = _safe_dictionary(ov2)
 				var oid2: String = String(od2.get("id", ""))
 				if not oid2.is_empty() and is_task_test_expected_invalid_object_id(oid2):
 					has_expected_invalid = true
@@ -570,14 +580,16 @@ func get_map_constructor_overview_data(options: Dictionary = {}) -> Dictionary:
 	if bool(options.get("include_history", true)):
 		var history: Array = _safe_array(get_map_constructor_change_history(int(options.get("max_history_markers", 20))).get("history", []))
 		for rowv in history:
-			var row: Dictionary = Dictionary(rowv)
+			var row: Dictionary = _safe_dictionary(rowv)
 			var hcell: Vector2i = Vector2i(row.get("cell", Vector2i(-1, -1)))
 			if hcell.x >= 0 and hcell.y >= 0:
 				markers.append({"id":"history_%s" % String(row.get("seq", "")), "kind":"history", "label":String(row.get("action_type", "change")), "cell":hcell, "entity_kind":String(row.get("entity_kind", "")), "entity_id":String(row.get("entity_id", "")), "status":"info", "message":String(row.get("summary", ""))})
 	var readiness: Dictionary = get_map_constructor_mission_readiness_report()
-	var summary: Dictionary = {"width":width, "height":height, "visible_cells":visible_cells, "object_count":object_count, "item_count":item_count, "wall_mounted_count":wall_mounted_count, "validation_issue_count":issues.size(), "error_count":int(Dictionary(readiness.get("summary", {})).get("error_count", 0)), "warning_count":int(Dictionary(readiness.get("summary", {})).get("warning_count", 0)), "expected_invalid_count":0, "selected_count":selected_count}
+	var readiness_summary: Dictionary = _safe_dictionary(readiness.get("summary", {}))
+	var summary: Dictionary = {"width":width, "height":height, "visible_cells":visible_cells, "object_count":object_count, "item_count":item_count, "wall_mounted_count":wall_mounted_count, "validation_issue_count":issues.size(), "error_count":int(readiness_summary.get("error_count", 0)), "warning_count":int(readiness_summary.get("warning_count", 0)), "expected_invalid_count":0, "selected_count":selected_count}
 	for m in markers:
-		if String(Dictionary(m).get("kind", "")) == "expected_invalid":
+		var marker_row: Dictionary = _safe_dictionary(m)
+		if String(marker_row.get("kind", "")) == "expected_invalid":
 			summary["expected_invalid_count"] = int(summary.get("expected_invalid_count", 0)) + 1
 	return {"ok": true, "message": "Overview ready.", "map_size": Vector2i(width, height), "cells": cells, "markers": markers, "summary": summary, "legend": [{"symbol":".","kind":"floor"},{"symbol":"#","kind":"wall"},{"symbol":"D","kind":"door"},{"symbol":"T","kind":"terminal"},{"symbol":"P","kind":"power"},{"symbol":"I","kind":"item"},{"symbol":"W","kind":"wall_mounted"},{"symbol":"!","kind":"error"},{"symbol":"?","kind":"warning"},{"symbol":"*","kind":"selected"},{"symbol":"X","kind":"expected_invalid"}]}
 
@@ -1293,10 +1305,10 @@ func validate_world_object_scenario() -> Array[String]:
 	var occupied_cells := {}
 	var turret_1: Dictionary = {}
 	for object_data in mission_world_objects:
-		var object_id := _wo_id(object_data)
-		if not object_id.is_empty():
-			ids[object_id] = true
-		if object_id == "turret_1":
+		var scanned_object_id := _wo_id(object_data)
+		if not scanned_object_id.is_empty():
+			ids[scanned_object_id] = true
+		if scanned_object_id == "turret_1":
 			turret_1 = object_data
 	for object_data in mission_world_objects:
 		var object_id := _wo_id(object_data)
@@ -3389,7 +3401,7 @@ func apply_room_visual_preset(preset_id: String, options: Dictionary = {}) -> Di
 			applied_floors += 1
 	return {"ok": true, "preset_id": preset_id, "applied_walls": applied_walls, "applied_doors": applied_doors, "applied_terminals": applied_terminals, "applied_floors": applied_floors, "message": "Room visual preset applied (runtime-only)."}
 
-func clear_room_visual_preset_overrides(options: Dictionary = {}) -> Dictionary:
+func clear_room_visual_preset_overrides(_options: Dictionary = {}) -> Dictionary:
 	var cleared_walls: int = 0
 	var wall_keys: Array = _map_constructor_wall_material_overrides.keys()
 	for key_variant in wall_keys:
@@ -11091,8 +11103,8 @@ func get_room_visual_preset_summary() -> Dictionary:
 		if cell.x >= 0 and cell.y >= 0:
 			affected_cell_lookup[_serialize_cell_key(cell)] = cell
 	for object_id_variant in map_constructor_door_visual_preset_overrides.keys():
-		var object_id: String = String(object_id_variant)
-		var row_door: Dictionary = Dictionary(map_constructor_door_visual_preset_overrides.get(object_id, {}))
+		var door_object_id: String = String(object_id_variant)
+		var row_door: Dictionary = Dictionary(map_constructor_door_visual_preset_overrides.get(door_object_id, {}))
 		var hint: String = String(row_door.get("visual_hint", "")).strip_edges()
 		if hint.is_empty():
 			hint = "none"
@@ -11100,7 +11112,7 @@ func get_room_visual_preset_summary() -> Dictionary:
 		var preset_id_door: String = String(row_door.get("preset_id", "")).strip_edges()
 		if not preset_id_door.is_empty():
 			active_preset_lookup[preset_id_door] = true
-		var door_object: Dictionary = get_world_object_by_id(object_id)
+		var door_object: Dictionary = get_world_object_by_id(door_object_id)
 		var door_cell: Vector2i = Vector2i(door_object.get("position", Vector2i(-1, -1)))
 		if door_cell.x >= 0 and door_cell.y >= 0:
 			affected_cell_lookup[_serialize_cell_key(door_cell)] = door_cell
@@ -11152,7 +11164,7 @@ func get_map_constructor_object_grounding_summary() -> Dictionary:
 	for object_variant in mission_world_objects:
 		var data: Dictionary = Dictionary(object_variant)
 		summary["object_count"] = int(summary.get("object_count", 0)) + 1
-		var object_type: String = String(data.get("object_type", data.get("type", ""))).to_lower().strip_edges()
+		var _object_type: String = String(data.get("object_type", data.get("type", ""))).to_lower().strip_edges()
 		var entity_kind: String = String(_map_constructor_entity_kind(data)).to_lower().strip_edges()
 		if entity_kind == "item":
 			summary["item_count"] = int(summary.get("item_count", 0)) + 1
@@ -11165,15 +11177,15 @@ func get_map_constructor_object_grounding_summary() -> Dictionary:
 			var attached: Vector2i = _deserialize_cell_variant(data.get("attached_wall_cell", Vector2i(-1, -1)))
 			if attached.x < 0 or attached.y < 0 or String(data.get("wall_side", "")).strip_edges().is_empty():
 				summary["missing_wall_mount_count"] = int(summary.get("missing_wall_mount_count", 0)) + 1
-		elif object_type.contains("door") or object_type.contains("gate"):
+		elif _object_type.contains("door") or _object_type.contains("gate"):
 			summary["door_insert_count"] = int(summary.get("door_insert_count", 0)) + 1
-		elif entity_kind == "item" or object_type.contains("key") or object_type.contains("kit") or object_type.contains("card") or object_type.contains("code") or object_type.contains("fuse") or object_type.contains("item") or String(data.get("item_type", "")).strip_edges() != "":
+		elif entity_kind == "item" or _object_type.contains("key") or _object_type.contains("kit") or _object_type.contains("card") or _object_type.contains("code") or _object_type.contains("fuse") or _object_type.contains("item") or String(data.get("item_type", "")).strip_edges() != "":
 			summary["floor_pickup_count"] = int(summary.get("floor_pickup_count", 0)) + 1
 		else:
 			summary["floor_standing_count"] = int(summary.get("floor_standing_count", 0)) + 1
 	return summary
 
-func export_map_constructor_design_notes(options: Dictionary = {}) -> Dictionary:
+func export_map_constructor_design_notes(_options: Dictionary = {}) -> Dictionary:
 	if not _is_task_test_constructor_context():
 		return {"ok": false, "message": "Design notes export is available only in TASK TEST constructor mode."}
 	var patch_export: Dictionary = export_map_constructor_runtime_patch()
@@ -11244,7 +11256,7 @@ func export_map_constructor_design_notes(options: Dictionary = {}) -> Dictionary
 	var text: String = "# Design Notes\nMission: mission_10\nReadiness: %s\nValidation issues: %d\nPatch summary: objects=%d items=%d tiles=%d\nManual promotion required. No mission files were modified." % [String(readiness.get("status", "unknown")), validation.size(), int(patch_export.get("object_count", 0)), int(patch_export.get("item_count", 0)), int(patch_export.get("tile_edit_count", 0))]
 	return {"ok":true,"message":"OK","notes":notes,"text":text}
 
-func get_map_constructor_production_pipeline_report(options: Dictionary = {}) -> Dictionary:
+func get_map_constructor_production_pipeline_report(_options: Dictionary = {}) -> Dictionary:
 	if not _is_task_test_constructor_context():
 		return {"ok": false, "status": "blocked", "message": "Production pipeline report is available only in TASK TEST constructor mode.", "checks": []}
 	var readiness: Dictionary = get_map_constructor_mission_readiness_report()

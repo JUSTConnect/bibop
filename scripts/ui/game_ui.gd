@@ -4682,16 +4682,16 @@ func _create_runtime_controls_panel() -> Control:
 	]
 
 	for hint_text in hint_entries:
-		var hint_label: Label = Label.new()
-		hint_label.text = hint_text
-		hint_label.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-		hint_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_LEFT
-		hint_label.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
-		hint_label.mouse_filter = Control.MOUSE_FILTER_IGNORE
-		hint_label.add_theme_color_override("font_color", UI_COLOR_TEXT)
-		hint_label.add_theme_color_override("font_outline_color", Color(0.0, 0.0, 0.0, 0.2))
-		hint_label.add_theme_constant_override("outline_size", 1)
-		grid.add_child(hint_label)
+		var local_hint_label: Label = Label.new()
+		local_hint_label.text = hint_text
+		local_hint_label.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+		local_hint_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_LEFT
+		local_hint_label.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
+		local_hint_label.mouse_filter = Control.MOUSE_FILTER_IGNORE
+		local_hint_label.add_theme_color_override("font_color", UI_COLOR_TEXT)
+		local_hint_label.add_theme_color_override("font_outline_color", Color(0.0, 0.0, 0.0, 0.2))
+		local_hint_label.add_theme_constant_override("outline_size", 1)
+		grid.add_child(local_hint_label)
 
 	return panel
 
@@ -9886,9 +9886,9 @@ func _refresh_map_constructor_panels() -> void:
 	if mission_manager_runtime != null and mission_manager_runtime.has_method("get_map_constructor_mission_readiness_report"):
 		var readiness: Dictionary = mission_manager_runtime.call("get_map_constructor_mission_readiness_report")
 		var readiness_status: String = String(readiness.get("status", "unknown"))
-		var status_label: Label = Label.new()
-		status_label.text = "Mission Readiness: %s" % ["PLAYABLE" if readiness_status == "playable" else ("BLOCKED" if readiness_status == "blocked" else "WARNINGS")]
-		list.add_child(status_label)
+		var constructor_status_label: Label = Label.new()
+		constructor_status_label.text = "Mission Readiness: %s" % ["PLAYABLE" if readiness_status == "playable" else ("BLOCKED" if readiness_status == "blocked" else "WARNINGS")]
+		list.add_child(constructor_status_label)
 		var summary_label: Label = Label.new()
 		summary_label.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 		summary_label.text = "blocking=%d warnings=%d expected-invalid=%d info=%d" % [int(readiness.get("blocking_count", 0)), int(readiness.get("warning_count", 0)), int(readiness.get("expected_invalid_count", 0)), int(readiness.get("info_count", 0))]
@@ -10337,7 +10337,7 @@ func _refresh_map_constructor_panels() -> void:
 		show_hint("Overlay data ready; renderer overlay refreshed.")
 	)
 	list.add_child(overlay_mode_option)
-	var notes_button: Button = Button.new()
+	var _notes_button: Button = Button.new()
 	var room_preset_title: Label = Label.new()
 	room_preset_title.text = "Room Visual Presets"
 	list.add_child(room_preset_title)
@@ -11089,9 +11089,9 @@ func _refresh_map_constructor_panels() -> void:
 	var constructor_preset_select: OptionButton = OptionButton.new()
 	for i in range(map_constructor_preset_entries.size()):
 		var entry: Dictionary = map_constructor_preset_entries[i]
-		var name: String = String(entry.get("name", ""))
-		constructor_preset_select.add_item(name)
-		if name == map_constructor_selected_preset_name:
+		var preset_name: String = String(entry.get("name", ""))
+		constructor_preset_select.add_item(preset_name)
+		if preset_name == map_constructor_selected_preset_name:
 			constructor_preset_select.select(i)
 	constructor_preset_select.item_selected.connect(func(index: int) -> void:
 		if index >= 0 and index < map_constructor_preset_entries.size():
