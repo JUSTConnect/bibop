@@ -125,6 +125,10 @@ var runtime_storage_panel: PanelContainer
 var runtime_storage_panel_collapsed: bool = false
 var runtime_storage_panel_body: Control = null
 var runtime_storage_collapse_button: Button = null
+const Z_RUNTIME_WORLD_OVERLAY: int = 20
+const Z_RUNTIME_HUD: int = 50
+const Z_MAP_CONSTRUCTOR_UI: int = 90
+const Z_RUNTIME_MODAL: int = 120
 const RUNTIME_STORAGE_PANEL_EXPANDED_SIZE: Vector2 = Vector2(380, 330)
 const RUNTIME_STORAGE_PANEL_COLLAPSED_SIZE: Vector2 = Vector2(380, 48)
 var runtime_manipulator_content_label: Label
@@ -4427,7 +4431,8 @@ func _ensure_runtime_hud_root() -> Control:
 	runtime_hud_root.name = "RuntimeHudRoot"
 	runtime_hud_root.set_anchors_preset(Control.PRESET_FULL_RECT)
 	runtime_hud_root.mouse_filter = Control.MOUSE_FILTER_IGNORE
-	runtime_hud_root.z_index = 50
+	runtime_hud_root.z_index = Z_RUNTIME_HUD
+	runtime_hud_root.z_as_relative = false
 	add_child(runtime_hud_root)
 	return runtime_hud_root
 
@@ -9696,6 +9701,8 @@ func _refresh_map_constructor_panels() -> void:
 	if not map_constructor_mode_active:
 		return
 	runtime_map_constructor_palette_panel = PanelContainer.new()
+	runtime_map_constructor_palette_panel.z_index = Z_MAP_CONSTRUCTOR_UI
+	runtime_map_constructor_palette_panel.z_as_relative = false
 	var palette_rect: Rect2 = _get_map_constructor_palette_rect()
 	runtime_map_constructor_palette_panel.position = palette_rect.position
 	runtime_map_constructor_palette_panel.size = palette_rect.size
@@ -11399,11 +11406,13 @@ func _refresh_map_constructor_panels() -> void:
 			exit_text = String(exit_marker.get("cell", "-"))
 		marker_status_label.text = "Start: %s | Exit: %s" % [start_text, exit_text]
 		list.add_child(marker_status_label)
-	runtime_hud_root.add_child(runtime_map_constructor_palette_panel)
 	if runtime_map_constructor_validation_overlay_control == null or not is_instance_valid(runtime_map_constructor_validation_overlay_control):
 		runtime_map_constructor_validation_overlay_control = ConstructorValidationOverlayControl.new(self)
+		runtime_map_constructor_validation_overlay_control.z_index = Z_RUNTIME_WORLD_OVERLAY
+		runtime_map_constructor_validation_overlay_control.z_as_relative = false
 		runtime_hud_root.add_child(runtime_map_constructor_validation_overlay_control)
-		runtime_hud_root.move_child(runtime_map_constructor_validation_overlay_control, runtime_hud_root.get_child_count() - 1)
+	runtime_hud_root.add_child(runtime_map_constructor_palette_panel)
+	runtime_hud_root.move_child(runtime_map_constructor_palette_panel, runtime_hud_root.get_child_count() - 1)
 
 
 func _safe_ui_string(value: Variant, fallback: String = "") -> String:
@@ -11600,6 +11609,8 @@ func _show_map_constructor_inspector(cell: Vector2i, preferred_entity_kind: Stri
 	selected_map_constructor_entity_cell = Vector2i(entity_info.get("cell", cell))
 	var type_group: String = _safe_ui_string(mission_manager_runtime.call("get_map_constructor_entity_type_group", entity_kind, entity_id), "generic") if mission_manager_runtime.has_method("get_map_constructor_entity_type_group") else "generic"
 	var panel := PanelContainer.new(); panel.position = Vector2(20, 360); panel.size = Vector2(430, 460)
+	panel.z_index = Z_MAP_CONSTRUCTOR_UI
+	panel.z_as_relative = false
 	panel.add_theme_stylebox_override("panel", _make_panel_style(UI_COLOR_PANEL_DARK, UI_COLOR_BORDER, 1, 8))
 	var scroll := ScrollContainer.new(); scroll.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT); panel.add_child(scroll)
 	var v := VBoxContainer.new(); v.add_theme_constant_override("separation", 8); scroll.add_child(v)
@@ -11902,6 +11913,7 @@ func _show_map_constructor_inspector(cell: Vector2i, preferred_entity_kind: Stri
 	v.add_child(validation)
 	runtime_map_constructor_inspector_panel = panel
 	runtime_hud_root.add_child(panel)
+	runtime_hud_root.move_child(panel, runtime_hud_root.get_child_count() - 1)
 
 func _resolve_wall_material_target_for_selection(entity_info: Dictionary, data: Dictionary, fallback_cell: Vector2i) -> Dictionary:
 	if _safe_ui_string(data.get("placement_mode", "")) == "wall_mounted":
