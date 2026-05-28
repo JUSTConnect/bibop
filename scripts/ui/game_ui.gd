@@ -11505,8 +11505,8 @@ func _add_link_picker(section: VBoxContainer, entity_kind: String, entity_id: St
 	var field_map := {"linked_door":"target_door_id","power_network":"power_network_id","control_source":"control_source_id","terminal_target":"target_door_id","platform_target":"target_platform_id"}
 	if not field_map.has(link_type):
 		return
-	var field_name: String = String(field_map[link_type])
-	var current_target: String = String(data.get(field_name, "")).strip_edges()
+	var field_name: String = _safe_ui_string(field_map[link_type])
+	var current_target: String = _safe_ui_string(data.get(field_name, "")).strip_edges()
 	var title_label: Label = Label.new(); title_label.text = title
 	section.add_child(title_label)
 	var current_label: Label = Label.new(); current_label.text = "Current: %s" % (current_target if not current_target.is_empty() else "(none)")
@@ -11514,16 +11514,16 @@ func _add_link_picker(section: VBoxContainer, entity_kind: String, entity_id: St
 	if mission_manager_runtime.has_method("get_map_constructor_link_candidates"):
 		for candidate in Array(mission_manager_runtime.call("get_map_constructor_link_candidates", entity_kind, entity_id, link_type)):
 			var c: Dictionary = Dictionary(candidate)
-			var cid: String = String(c.get("id", ""))
+			var cid: String = _safe_ui_string(c.get("id", ""))
 			var prefix: String = "✓ " if bool(c.get("current", false)) or cid == current_target else ""
-			var label_text: String = "%s%s [%s] %s" % [prefix, cid, String(c.get("object_type", "obj")), String(c.get("cell", ""))]
+			var label_text: String = "%s%s [%s] %s" % [prefix, cid, _safe_ui_string(c.get("object_type", "obj")), _safe_ui_string(c.get("cell", ""))]
 			var button: Button = Button.new(); button.text = label_text
 			button.pressed.connect(func() -> void:
 				var result: Dictionary = mission_manager_runtime.call("set_map_constructor_entity_link", entity_kind, entity_id, link_type, cid)
-				show_hint(String(result.get("message", "Link updated.")))
+				show_hint(_safe_ui_string(result.get("message", "Link updated."), "Link updated."))
 				var target_cell: Vector2i = Vector2i(result.get("target_cell", Vector2i(-1, -1)))
 				if target_cell.x >= 0 and target_cell.y >= 0:
-					_set_map_constructor_link_target(target_cell, String(result.get("target_id", cid)))
+					_set_map_constructor_link_target(target_cell, _safe_ui_string(result.get("target_id", cid), cid))
 				_refresh_map_constructor_panels()
 				if field_runtime != null and field_runtime.has_method("request_visual_refresh"):
 					field_runtime.call("request_visual_refresh")
@@ -11540,7 +11540,7 @@ func _add_link_picker(section: VBoxContainer, entity_kind: String, entity_id: St
 			var candidates: Array = Array(mission_manager_runtime.call("get_map_constructor_link_candidates", entity_kind, entity_id, link_type))
 			for candidate_variant in candidates:
 				var candidate: Dictionary = Dictionary(candidate_variant)
-				if String(candidate.get("id", "")) != current_target:
+				if _safe_ui_string(candidate.get("id", "")) != current_target:
 					continue
 				var candidate_cell: Vector2i = Vector2i(candidate.get("cell", Vector2i(-1, -1)))
 				if candidate_cell.x < 0 or candidate_cell.y < 0:
@@ -11558,7 +11558,7 @@ func _add_link_picker(section: VBoxContainer, entity_kind: String, entity_id: St
 	var clear_button: Button = Button.new(); clear_button.text = "Clear Link"
 	clear_button.pressed.connect(func() -> void:
 		var result: Dictionary = mission_manager_runtime.call("set_map_constructor_entity_link", entity_kind, entity_id, link_type, "")
-		show_hint(String(result.get("message", "Link cleared.")))
+		show_hint(_safe_ui_string(result.get("message", "Link cleared."), "Link cleared."))
 		_clear_map_constructor_link_target()
 		_refresh_map_constructor_panels()
 		_show_map_constructor_inspector(selected_map_constructor_entity_cell, selected_map_constructor_entity_kind, selected_map_constructor_entity_id)

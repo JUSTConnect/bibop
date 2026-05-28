@@ -162,7 +162,6 @@ var selected_wall_mounted_attached_wall_cell: Vector2i = Vector2i(-1, -1)
 var selected_wall_mounted_object_id: String = ""
 var map_constructor_link_target_cell: Vector2i = Vector2i(-1, -1)
 var map_constructor_link_target_object_id: String = ""
-var _wall_topology_cache: Dictionary = {}
 const WALL_SIDE_ORDER: Array[String] = ["north", "east", "south", "west"]
 const WALL_MASS_RATIO: float = 0.7
 const WALL_MOUNT_BAND_RATIO: float = 0.3
@@ -1665,7 +1664,7 @@ func draw_iso_texture_asset(cell: Vector2i, asset_key: String, visual_center_ove
 	draw_iso_texture_with_alignment(texture, asset_key, visual_center)
 	return true
 
-func draw_optional_visual_texture_asset(asset_id: String, cell: Vector2i, fallback_callable_name: String = "", options: Dictionary = {}) -> bool:
+func draw_optional_visual_texture_asset(asset_id: String, cell: Vector2i, _fallback_callable_name: String = "", options: Dictionary = {}) -> bool:
 	var normalized_asset_id: String = asset_id.strip_edges()
 	if normalized_asset_id.is_empty():
 		return false
@@ -2196,11 +2195,11 @@ func classify_wall_topology(cell: Vector2i) -> String:
 	push_warning("[IsoWallTopology] impossible_topology_at_%s" % str(cell))
 	return "isolated"
 
-func get_iso_architectural_wall_profile(topology: String, material: Dictionary) -> Dictionary:
+func get_iso_architectural_wall_profile(topology: String, visual_material: Dictionary) -> Dictionary:
 	var fallback_colors: Dictionary = get_wall_prototype_colors(Vector2i.ZERO)
-	var material_id: String = String(material.get("id", material.get("material_id", "default_wall"))).strip_edges()
-	var base_color: Color = Color(material.get("fallback_color", fallback_colors.get("top", Color(0.2, 0.2, 0.24, 1.0))))
-	var edge_color: Color = Color(material.get("edge_color", fallback_colors.get("outline", Color(0.3, 0.3, 0.35, 1.0))))
+	var material_id: String = String(visual_material.get("id", visual_material.get("material_id", "default_wall"))).strip_edges()
+	var base_color: Color = Color(visual_material.get("fallback_color", fallback_colors.get("top", Color(0.2, 0.2, 0.24, 1.0))))
+	var edge_color: Color = Color(visual_material.get("edge_color", fallback_colors.get("outline", Color(0.3, 0.3, 0.35, 1.0))))
 	var safe_topology: String = topology if not topology.is_empty() else "isolated"
 	var corner: bool = safe_topology.begins_with("corner_")
 	var is_cap: bool = safe_topology.begins_with("cap_")
@@ -2895,7 +2894,7 @@ func draw_iso_wall_cable_reel(center: Vector2, profile: Dictionary) -> void:
 	if debug_draw_iso_object_outlines:
 		draw_arc(reel_center, 6.0, 0.0, PI * 2.0, 24, outline_color, 1.0)
 
-func draw_wall_mounted_object_shape(cell: Vector2i, profile_key: String, profile: Dictionary, visual_center: Vector2) -> bool:
+func draw_wall_mounted_object_shape(_cell: Vector2i, profile_key: String, profile: Dictionary, visual_center: Vector2) -> bool:
 	match profile_key:
 		"door_terminal":
 			draw_iso_wall_door_terminal(visual_center, profile)
@@ -2961,15 +2960,15 @@ func get_iso_object_grounding_profile(object_data: Dictionary, fallback_cell: Ve
 	var shadow: PackedVector2Array = PackedVector2Array()
 	for point in footprint:
 		shadow.append(point + Vector2(0.0, 3.0))
-	var scale: float = 1.0
+	var shape_scale: float = 1.0
 	if grounding_type == "floor_pickup":
-		scale = 0.65
+		shape_scale = 0.65
 	return {
 		"object_id": object_id, "object_type": object_type, "placement_mode": placement_mode, "grounding_type": grounding_type,
 		"anchor_cell": anchor_cell, "attached_wall_cell": attached_wall_cell, "wall_side": wall_side,
 		"visual_center": center, "footprint_polygon": footprint, "shadow_polygon": shadow,
 		"base_color": Color(0.28, 0.31, 0.37, 0.55), "edge_color": Color(0.13, 0.15, 0.19, 0.72), "accent_color": Color(0.56, 0.81, 0.93, 0.95),
-		"height_px": 18, "scale": scale, "badge_enabled": true
+		"height_px": 18, "scale": shape_scale, "badge_enabled": true
 	}
 
 func _draw_grounding_overlay(profile: Dictionary) -> void:
@@ -2996,7 +2995,7 @@ func _get_door_axis_vectors(orientation: String) -> Dictionary:
 		return {"along": Vector2(0.78, 0.39).normalized(), "up": Vector2(0.0, -1.0)}
 	return {"along": Vector2(0.78, -0.39).normalized(), "up": Vector2(0.0, -1.0)}
 
-func draw_iso_door_insert(cell: Vector2i, tile_type: int, object_data: Dictionary = {}) -> void:
+func draw_iso_door_insert(cell: Vector2i, _tile_type: int, object_data: Dictionary = {}) -> void:
 	var context: Dictionary = get_door_opening_context(cell)
 	if not bool(context.get("ok", false)):
 		return
