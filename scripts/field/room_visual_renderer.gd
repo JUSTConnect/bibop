@@ -329,7 +329,7 @@ func is_point_inside_iso_diamond(point: Vector2, diamond_points: PackedVector2Ar
 		return false
 	if Geometry2D.is_point_in_polygon(point, diamond_points):
 		return true
-	var sign: int = 0
+	var direction_sign: int = 0
 	for idx in range(diamond_points.size()):
 		var next_idx: int = (idx + 1) % diamond_points.size()
 		var edge: Vector2 = diamond_points[next_idx] - diamond_points[idx]
@@ -338,9 +338,9 @@ func is_point_inside_iso_diamond(point: Vector2, diamond_points: PackedVector2Ar
 		if is_zero_approx(cross):
 			continue
 		var current_sign: int = 1 if cross > 0.0 else -1
-		if sign == 0:
-			sign = current_sign
-		elif sign != current_sign:
+		if direction_sign == 0:
+			direction_sign = current_sign
+		elif direction_sign != current_sign:
 			return false
 	return true
 

@@ -438,7 +438,6 @@ func build_constructor_map(width: int, height: int) -> Dictionary:
 	for y in range(safe_height):
 		var row: Array = []
 		for x in range(safe_width):
-			var cell: Vector2i = Vector2i(x, y)
 			if x == 0 or y == 0 or x == safe_width - 1 or y == safe_height - 1:
 				row.append(TILE_WALL)
 			else:

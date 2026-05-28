@@ -10433,7 +10433,6 @@ func _refresh_map_constructor_panels() -> void:
 		show_hint("Overlay data ready; renderer overlay refreshed.")
 	)
 	list.add_child(overlay_mode_option)
-	var _notes_button: Button = Button.new()
 	var room_preset_title: Label = Label.new()
 	room_preset_title.text = "Room Visual Presets"
 	list.add_child(room_preset_title)
