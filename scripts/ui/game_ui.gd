@@ -70,12 +70,12 @@ const BIPOB_SCENE_PATH: String = "res://scenes/bipob/Bipob.tscn"
 const MISSION_MANAGER_SCRIPT_PATH: String = "res://scripts/game/mission_manager.gd"
 
 @onready var mission_label: Label = $MissionLabel
-@onready var status_label: Label = $StatusLabel
+@onready var hud_status_label: Label = $StatusLabel
 @onready var hint_label: Label = $HintLabel
 @onready var command_panel: PanelContainer = $CommandPanel
 @onready var box_screen: Control = $BoxScreen
 
-var diagnostic_label: Label
+var hud_diagnostic_label: Label
 var runtime_mission_field_host: Control
 var mission_manager_runtime: Node = null
 var runtime_hud_root: Control = null
@@ -1797,12 +1797,12 @@ func _apply_constructor_ui_skin() -> void:
 	if box_content_label != null:
 		box_content_label.add_theme_color_override("font_color", UI_COLOR_TEXT)
 		box_content_label.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
-	if status_label != null:
-		_apply_label_style(status_label)
+	if hud_status_label != null:
+		_apply_label_style(hud_status_label)
 	if hint_label != null:
 		_apply_label_style(hint_label, true)
-	if diagnostic_label != null:
-		_apply_label_style(diagnostic_label, true)
+	if hud_diagnostic_label != null:
+		_apply_label_style(hud_diagnostic_label, true)
 	for tab_button in [external_tab_button, internal_tab_button, bipob_alpha_button, bipob_beta_button, box_back_button]:
 		if tab_button != null:
 			_apply_button_style(tab_button)
@@ -4365,7 +4365,10 @@ func _get_map_constructor_palette_rect() -> Rect2:
 	var top_y: float = storage_top + storage_height + 8.0
 	var mission_panel_top_y: float = viewport.y - _get_runtime_bottom_panel_height() - margin
 	var bottom_y: float = mission_panel_top_y - 8.0
-	var height: float = maxf(bottom_y - top_y, 140.0)
+	var available_height: float = bottom_y - top_y
+	var height: float = clampf(available_height, 72.0, maxf(72.0, viewport.y - margin * 2.0))
+	if top_y + height > bottom_y and available_height > 0.0:
+		height = available_height
 
 	return Rect2(Vector2(right_x, top_y), Vector2(sidebar_width, height))
 
@@ -4537,12 +4540,12 @@ func _apply_runtime_hud_layout() -> void:
 	for child in root.get_children():
 		child.queue_free()
 
-	if status_label != null:
-		status_label.visible = false
+	if hud_status_label != null:
+		hud_status_label.visible = false
 	if hint_label != null:
 		hint_label.visible = false
-	if diagnostic_label != null:
-		diagnostic_label.visible = false
+	if hud_diagnostic_label != null:
+		hud_diagnostic_label.visible = false
 
 	var margin: float = _get_runtime_margin()
 	var top_panel_height: float = _get_runtime_top_panel_height()
@@ -5088,12 +5091,12 @@ func _ready() -> void:
 	if hint_label != null:
 		hint_label.text = "Mission 1: pick up the key, open the door, reach the exit."
 
-	diagnostic_label = Label.new()
-	diagnostic_label.name = "DiagnosticLabel"
-	diagnostic_label.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
-	diagnostic_label.custom_minimum_size = Vector2(700, 140)
-	diagnostic_label.text = "Diagnostic: none"
-	add_child(diagnostic_label)
+	hud_diagnostic_label = Label.new()
+	hud_diagnostic_label.name = "DiagnosticLabel"
+	hud_diagnostic_label.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	hud_diagnostic_label.custom_minimum_size = Vector2(700, 140)
+	hud_diagnostic_label.text = "Diagnostic: none"
+	add_child(hud_diagnostic_label)
 
 	if box_screen != null:
 		box_screen.visible = false
@@ -5333,9 +5336,9 @@ func _hide_runtime_mission_ui() -> void:
 	if mission_label != null:
 		mission_label.visible = false
 		mission_label.text = ""
-	if status_label != null:
-		status_label.visible = false
-		status_label.text = ""
+	if hud_status_label != null:
+		hud_status_label.visible = false
+		hud_status_label.text = ""
 	if hint_label != null:
 		hint_label.visible = false
 		hint_label.text = ""
@@ -5355,12 +5358,12 @@ func _set_gameplay_visible(visible_state: bool) -> void:
 		runtime_hud_root.visible = visible_state
 	if mission_label != null:
 		mission_label.visible = false
-	if status_label != null:
-		status_label.visible = false
+	if hud_status_label != null:
+		hud_status_label.visible = false
 	if hint_label != null:
 		hint_label.visible = false
-	if diagnostic_label != null:
-		diagnostic_label.visible = false
+	if hud_diagnostic_label != null:
+		hud_diagnostic_label.visible = false
 	if _has_gameplay_runtime():
 		field_runtime.visible = visible_state
 		bipob.visible = visible_state
@@ -9658,23 +9661,23 @@ func _create_map_constructor_prefab_card(entry: Dictionary) -> Button:
 	text_stack.add_child(description_label)
 
 	var status: Dictionary = _format_map_constructor_prefab_placeability(entry)
-	var status_label: Label = Label.new()
-	status_label.text = _safe_ui_string(status.get("text", "Placeability unknown"), "Placeability unknown")
-	status_label.clip_text = true
-	status_label.text_overrun_behavior = TextServer.OVERRUN_TRIM_ELLIPSIS
+	var prefab_status_label: Label = Label.new()
+	prefab_status_label.text = _safe_ui_string(status.get("text", "Placeability unknown"), "Placeability unknown")
+	prefab_status_label.clip_text = true
+	prefab_status_label.text_overrun_behavior = TextServer.OVERRUN_TRIM_ELLIPSIS
 	match _safe_ui_string(status.get("role", "neutral"), "neutral"):
 		"ok":
-			status_label.add_theme_color_override("font_color", UI_COLOR_OK)
+			prefab_status_label.add_theme_color_override("font_color", UI_COLOR_OK)
 		"warning":
-			status_label.add_theme_color_override("font_color", UI_COLOR_WARNING)
+			prefab_status_label.add_theme_color_override("font_color", UI_COLOR_WARNING)
 		"danger":
-			status_label.add_theme_color_override("font_color", UI_COLOR_DANGER)
+			prefab_status_label.add_theme_color_override("font_color", UI_COLOR_DANGER)
 		"info":
-			status_label.add_theme_color_override("font_color", UI_COLOR_ACCENT)
+			prefab_status_label.add_theme_color_override("font_color", UI_COLOR_ACCENT)
 		_:
-			status_label.add_theme_color_override("font_color", UI_COLOR_TEXT_DIM)
-	status_label.mouse_filter = Control.MOUSE_FILTER_IGNORE
-	text_stack.add_child(status_label)
+			prefab_status_label.add_theme_color_override("font_color", UI_COLOR_TEXT_DIM)
+	prefab_status_label.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	text_stack.add_child(prefab_status_label)
 
 	if map_constructor_prefab_show_diagnostics:
 		var diagnostic_bits: Array[String] = []
@@ -9694,13 +9697,13 @@ func _create_map_constructor_prefab_card(entry: Dictionary) -> Button:
 			if not reason.is_empty() and reason != "ok":
 				diagnostic_bits.append(reason)
 		if not diagnostic_bits.is_empty():
-			var diagnostic_label: Label = Label.new()
-			diagnostic_label.text = "Diagnostics: %s" % ", ".join(diagnostic_bits)
-			diagnostic_label.clip_text = true
-			diagnostic_label.text_overrun_behavior = TextServer.OVERRUN_TRIM_ELLIPSIS
-			diagnostic_label.add_theme_color_override("font_color", UI_COLOR_TEXT_DIM)
-			diagnostic_label.mouse_filter = Control.MOUSE_FILTER_IGNORE
-			text_stack.add_child(diagnostic_label)
+			var prefab_diagnostic_label: Label = Label.new()
+			prefab_diagnostic_label.text = "Diagnostics: %s" % ", ".join(diagnostic_bits)
+			prefab_diagnostic_label.clip_text = true
+			prefab_diagnostic_label.text_overrun_behavior = TextServer.OVERRUN_TRIM_ELLIPSIS
+			prefab_diagnostic_label.add_theme_color_override("font_color", UI_COLOR_TEXT_DIM)
+			prefab_diagnostic_label.mouse_filter = Control.MOUSE_FILTER_IGNORE
+			text_stack.add_child(prefab_diagnostic_label)
 	card.pressed.connect(func() -> void:
 		_select_map_constructor_prefab(prefab_id)
 		_refresh_map_constructor_panels()
@@ -10035,25 +10038,31 @@ func _add_map_constructor_section_header(parent: VBoxContainer, title: String) -
 	header_panel.add_child(title_label)
 	parent.add_child(header_panel)
 
-func _add_map_constructor_tab_header(parent: VBoxContainer) -> void:
+func _add_map_constructor_tab_header(parent: VBoxContainer, available_width: float) -> void:
 	var tab_row: HBoxContainer = HBoxContainer.new()
 	tab_row.add_theme_constant_override("separation", 4)
 	tab_row.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	parent.add_child(tab_row)
+	var use_short_labels: bool = available_width <= 320.0
 	for tab_data in [
-		{"id":"map_settings", "label":"Map Settings"},
-		{"id":"objects", "label":"Objects"},
-		{"id":"warnings", "label":"Warnings"}
+		{"id":"map_settings", "label":"Map Settings", "short_label":"Settings", "tooltip":"Map Settings: geometry, markers, presets, templates, cleanup, patches, and overview tools."},
+		{"id":"objects", "label":"Objects", "short_label":"Objects", "tooltip":"Objects: search and place prefab object cards, then inspect placed objects."},
+		{"id":"warnings", "label":"Warnings", "short_label":"Warnings", "tooltip":"Warnings: mission readiness, validation issues, and recommended fixes."}
 	]:
 		var tab_id: String = String(tab_data.get("id", ""))
 		var tab_button: Button = Button.new()
-		tab_button.text = String(tab_data.get("label", tab_id))
+		tab_button.text = String(tab_data.get("short_label" if use_short_labels else "label", tab_id))
+		tab_button.tooltip_text = String(tab_data.get("tooltip", tab_data.get("label", tab_id)))
+		tab_button.clip_text = true
 		tab_button.toggle_mode = true
 		tab_button.button_pressed = tab_id == map_constructor_active_tab
 		tab_button.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 		if tab_button.button_pressed:
 			tab_button.add_theme_stylebox_override("normal", _make_panel_style(UI_COLOR_PANEL_DARK, UI_COLOR_ACCENT, 2, 6))
 			tab_button.add_theme_stylebox_override("pressed", _make_panel_style(UI_COLOR_PANEL_DARK, UI_COLOR_ACCENT, 2, 6))
+			tab_button.add_theme_color_override("font_color", UI_COLOR_ACCENT)
+		else:
+			tab_button.add_theme_stylebox_override("normal", _make_panel_style(UI_COLOR_PANEL_DARK, UI_COLOR_BORDER_DIM, 1, 6))
 		tab_button.pressed.connect(func() -> void:
 			_set_map_constructor_active_tab(tab_id)
 		)
@@ -10082,7 +10091,7 @@ func _refresh_map_constructor_panels() -> void:
 	palette_stack.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
 	palette_stack.add_theme_constant_override("separation", 6)
 	runtime_map_constructor_palette_panel.add_child(palette_stack)
-	_add_map_constructor_tab_header(palette_stack)
+	_add_map_constructor_tab_header(palette_stack, palette_rect.size.x)
 	var scroll := ScrollContainer.new()
 	scroll.horizontal_scroll_mode = ScrollContainer.SCROLL_MODE_DISABLED
 	scroll.vertical_scroll_mode = ScrollContainer.SCROLL_MODE_AUTO
@@ -10091,8 +10100,9 @@ func _refresh_map_constructor_panels() -> void:
 	palette_stack.add_child(scroll)
 	var list := VBoxContainer.new()
 	list.add_theme_constant_override("separation", 6)
-	list.custom_minimum_size = Vector2(maxf(palette_rect.size.x - 28.0, 160.0), 0.0)
+	list.custom_minimum_size = Vector2(0.0, 0.0)
 	list.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	list.size_flags_vertical = Control.SIZE_SHRINK_BEGIN
 	scroll.add_child(list)
 	if map_constructor_active_tab == "objects":
 		var search_edit := LineEdit.new()
@@ -10160,7 +10170,9 @@ func _refresh_map_constructor_panels() -> void:
 				"show_only_placeable_here": map_constructor_prefab_show_only_placeable_here,
 				"selected_cell": pending_map_constructor_cell
 			})
-			catalog = Array(palette_rows.get("rows", []))
+			for row_variant in Array(palette_rows.get("rows", [])):
+				if row_variant is Dictionary:
+					catalog.append((row_variant as Dictionary).duplicate(true))
 		var catalog_by_id: Dictionary = {}
 		for entry in catalog:
 			catalog_by_id[_safe_ui_string(entry.get("id", ""))] = entry
@@ -10197,6 +10209,7 @@ func _refresh_map_constructor_panels() -> void:
 			var recent_entry: Dictionary = Dictionary(catalog_by_id[recent_id])
 			if _map_constructor_prefab_matches_filters(recent_entry):
 				recent_entries.append(recent_entry)
+		var visible_prefab_card_count: int = 0
 		for section in [{"name":"Favorites","entries":favorite_entries},{"name":"Recent","entries":recent_entries}]:
 			var section_entries: Array = Array(section.get("entries", []))
 			if section_entries.is_empty():
@@ -10208,6 +10221,7 @@ func _refresh_map_constructor_panels() -> void:
 				var card: Button = _create_map_constructor_prefab_card(entry)
 				if card.button_pressed:
 					selected_visible = true
+				visible_prefab_card_count += 1
 				list.add_child(card)
 		for group_name in MAP_CONSTRUCTOR_PREFAB_CATEGORY_GROUP_ORDER:
 			var entries: Array = grouped_entries[group_name]
@@ -10220,7 +10234,14 @@ func _refresh_map_constructor_panels() -> void:
 				var card: Button = _create_map_constructor_prefab_card(entry)
 				if card.button_pressed:
 					selected_visible = true
+				visible_prefab_card_count += 1
 				list.add_child(card)
+		if visible_prefab_card_count <= 0:
+			var empty_prefab_label: Label = Label.new()
+			empty_prefab_label.text = "No objects match the current filters. Clear search/filters to show all objects."
+			empty_prefab_label.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+			empty_prefab_label.add_theme_color_override("font_color", UI_COLOR_WARNING)
+			list.add_child(empty_prefab_label)
 		if not selected_visible and not selected_map_constructor_prefab_id.is_empty():
 			selected_map_constructor_prefab_id = ""
 			selected_map_constructor_wall_side = ""
@@ -12670,10 +12691,10 @@ func update_status() -> void:
 	if bipob.stored_physical_module != null:
 		storage_text = bipob.get_module_display_name(bipob.stored_physical_module)
 
-	if status_label == null:
+	if hud_status_label == null:
 		return
 
-	status_label.text = "Energy: %d / %d | Actions: %d / %d | Key: %s | Info-Key: %s | Hand: %s | Storage: %s" % [
+	hud_status_label.text = "Energy: %d / %d | Actions: %d / %d | Key: %s | Info-Key: %s | Hand: %s | Storage: %s" % [
 		bipob.energy,
 		bipob.max_energy,
 		bipob.actions_left,
@@ -12683,7 +12704,7 @@ func update_status() -> void:
 		held_text,
 		storage_text
 	]
-	status_label.text += " | Carry: %d / %d" % [
+	hud_status_label.text += " | Carry: %d / %d" % [
 		bipob.get_carried_physical_count(),
 		bipob.physical_carry_capacity
 	]
@@ -12698,13 +12719,13 @@ func update_status() -> void:
 			digital_storage_short_text = full_storage_text.trim_prefix("Digital storage:\n- ").replace("\n- ", ", ")
 		elif not full_storage_text.is_empty():
 			digital_storage_short_text = full_storage_text
-	status_label.text += " | Data: %s" % digital_storage_short_text
+	hud_status_label.text += " | Data: %s" % digital_storage_short_text
 	if bipob.has_method("get_mission8_airflow_status_text"):
 		var mission8_status := str(bipob.get_mission8_airflow_status_text())
 		if not mission8_status.is_empty():
-			status_label.text += " | %s" % mission8_status
+			hud_status_label.text += " | %s" % mission8_status
 	if bipob.current_mission_index == 7 and bipob.has_method("get_mission7_cable_status_text"):
-		status_label.text += " | %s" % str(bipob.get_mission7_cable_status_text())
+		hud_status_label.text += " | %s" % str(bipob.get_mission7_cable_status_text())
 	_refresh_runtime_storage_panel()
 	if bipob.has_method("refresh_world_action_panel"):
 		bipob.refresh_world_action_panel()
@@ -12714,12 +12735,12 @@ func update_diagnostic_status() -> void:
 	if bipob == null:
 		return
 
-	if diagnostic_label == null:
+	if hud_diagnostic_label == null:
 		return
 
 	var result = bipob.last_diagnostic_result
 	if result == null:
-		diagnostic_label.text = "Diagnostic: none"
+		hud_diagnostic_label.text = "Diagnostic: none"
 		return
 
 	var device_name: String = str(result.device_name)
@@ -12748,7 +12769,7 @@ func update_diagnostic_status() -> void:
 	if estimated_risk.is_empty():
 		estimated_risk = "n/a"
 
-	diagnostic_label.text = "Diagnostic:\nDevice: %s\nStatus: %s\nAction: %s\nReason: %s\nRecommendation: %s\nRisk: %s" % [
+	hud_diagnostic_label.text = "Diagnostic:\nDevice: %s\nStatus: %s\nAction: %s\nReason: %s\nRecommendation: %s\nRisk: %s" % [
 		device_name,
 		status_text,
 		supported_action,
