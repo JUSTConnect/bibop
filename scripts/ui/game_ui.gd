@@ -11520,9 +11520,9 @@ func _show_map_constructor_inspector(cell: Vector2i, preferred_entity_kind: Stri
 	if grounding_type == "wall_mounted":
 		valid_grounding = attached_wall_cell.x >= 0 and attached_wall_cell.y >= 0 and not wall_side_meta.is_empty()
 	var g_l: Label = Label.new(); g_l.text = grounding_type; placement.add_child(_create_property_row("Grounding", g_l))
-	var a_l: Label = Label.new(); a_l.text = String(anchor_cell); placement.add_child(_create_property_row("Anchor", a_l))
+	var a_l: Label = Label.new(); a_l.text = str(anchor_cell); placement.add_child(_create_property_row("Anchor", a_l))
 	if attached_wall_cell.x >= 0 and attached_wall_cell.y >= 0:
-		var aw_l: Label = Label.new(); aw_l.text = String(attached_wall_cell); placement.add_child(_create_property_row("Attached wall", aw_l))
+		var aw_l: Label = Label.new(); aw_l.text = str(attached_wall_cell); placement.add_child(_create_property_row("Attached wall", aw_l))
 	if not wall_side_meta.is_empty():
 		var ws_l: Label = Label.new(); ws_l.text = wall_side_meta; placement.add_child(_create_property_row("Wall side", ws_l))
 	var vg_l: Label = Label.new(); vg_l.text = str(valid_grounding); placement.add_child(_create_property_row("Valid grounding", vg_l))
