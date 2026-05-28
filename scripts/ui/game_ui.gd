@@ -9610,7 +9610,8 @@ func _refresh_map_constructor_panels() -> void:
 	if not map_constructor_mode_active:
 		return
 	runtime_map_constructor_palette_panel = PanelContainer.new()
-	runtime_map_constructor_palette_panel.position = Vector2(get_viewport_rect().size.x - 260, 360)
+	var viewport_rect: Rect2 = get_viewport().get_visible_rect()
+	runtime_map_constructor_palette_panel.position = Vector2(viewport_rect.size.x - 260, 360)
 	runtime_map_constructor_palette_panel.size = Vector2(240, 300)
 	runtime_map_constructor_palette_panel.add_theme_stylebox_override("panel", _make_panel_style(UI_COLOR_PANEL, UI_COLOR_BORDER, 1, 8))
 	var scroll := ScrollContainer.new()
@@ -11575,7 +11576,7 @@ func _show_map_constructor_inspector(cell: Vector2i, preferred_entity_kind: Stri
 					break
 		)
 		wall_section.add_child(_create_property_row("Target", Label.new()))
-		var target_label: Label = Label.new(); target_label.text = "%s / %s" % [String(wall_cell), wall_side]
+		var target_label: Label = Label.new(); target_label.text = "%s / %s" % [str(wall_cell), wall_side]
 		wall_section.add_child(target_label)
 		wall_section.add_child(_create_property_row("Material", material_option))
 		wall_section.add_child(description_label)
@@ -11608,7 +11609,7 @@ func _show_map_constructor_inspector(cell: Vector2i, preferred_entity_kind: Stri
 	if floor_target_cell.x < 0 or floor_target_cell.y < 0:
 		floor_target_cell = selected_map_constructor_entity_cell
 	var floor_target_label: Label = Label.new()
-	floor_target_label.text = String(floor_target_cell)
+	floor_target_label.text = str(floor_target_cell)
 	floor_section.add_child(_create_property_row("Target", floor_target_label))
 	if floor_target_cell.x >= 0 and floor_target_cell.y >= 0 and mission_manager_runtime.has_method("get_map_constructor_floor_material_catalog"):
 		var floor_catalog: Dictionary = mission_manager_runtime.call("get_map_constructor_floor_material_catalog")
@@ -13842,6 +13843,10 @@ func _build_map_constructor_overlay_power() -> Array[Dictionary]:
 					continue
 				result.append({"from_cell": from_cell, "to_cell": to_cell, "network_id": network_id_key, "broken": false})
 	return result
+
+func _refresh_map_constructor_browser() -> void:
+	_refresh_map_constructor_panels()
+	_request_map_constructor_overlay_refresh()
 
 func _request_map_constructor_overlay_refresh() -> void:
 	_sync_map_constructor_overlay_visuals()
