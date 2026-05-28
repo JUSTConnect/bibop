@@ -975,9 +975,9 @@ func list_map_constructor_mission_patches() -> Array[Dictionary]:
 	var file_name: String = dir.get_next()
 	while not file_name.is_empty():
 		if not dir.current_is_dir() and file_name.to_lower().ends_with(".json"):
-			var name: String = file_name.substr(0, file_name.length() - 5)
+			var patch_entry_name: String = file_name.substr(0, file_name.length() - 5)
 			var full_path: String = "%s/%s" % [MAP_CONSTRUCTOR_MISSION_PATCH_DIR, file_name]
-			patches.append({"name": name, "path": full_path, "modified_unix": int(FileAccess.get_modified_time(full_path))})
+			patches.append({"name": patch_entry_name, "path": full_path, "modified_unix": int(FileAccess.get_modified_time(full_path))})
 		file_name = dir.get_next()
 	dir.list_dir_end()
 	patches.sort_custom(func(a: Dictionary, b: Dictionary) -> bool:
@@ -1085,9 +1085,9 @@ func list_map_constructor_presets() -> Array[Dictionary]:
 	var file_name: String = dir.get_next()
 	while not file_name.is_empty():
 		if not dir.current_is_dir() and file_name.to_lower().ends_with(".json"):
-			var name: String = file_name.substr(0, file_name.length() - 5)
+			var preset_entry_name: String = file_name.substr(0, file_name.length() - 5)
 			var full_path: String = "%s/%s" % [MAP_CONSTRUCTOR_PRESET_DIR, file_name]
-			presets.append({"name": name, "path": full_path, "modified_unix": int(FileAccess.get_modified_time(full_path))})
+			presets.append({"name": preset_entry_name, "path": full_path, "modified_unix": int(FileAccess.get_modified_time(full_path))})
 		file_name = dir.get_next()
 	dir.list_dir_end()
 	presets.sort_custom(func(a: Dictionary, b: Dictionary) -> bool:
@@ -1297,9 +1297,9 @@ func build_task_test_mission_world_objects_for_validation() -> Dictionary:
 		var cell: Vector2i = Vector2i(item_spec.get("cell", Vector2i.ZERO))
 		if not items_by_cell.has(cell):
 			items_by_cell[cell] = []
-		var cell_items: Array = Array(items_by_cell[cell])
-		cell_items.append(item)
-		items_by_cell[cell] = cell_items
+		var local_cell_items: Array = Array(items_by_cell[cell])
+		local_cell_items.append(item)
+		items_by_cell[cell] = local_cell_items
 	return {"objects": objects, "items_by_cell": items_by_cell, "warnings": warnings}
 
 func set_grid_manager_ref(value: Node) -> void:
@@ -2414,13 +2414,13 @@ func place_map_constructor_prefab(prefab_id: String, cell: Vector2i, preferred_w
 		_record_map_constructor_change("place", {"entity_kind":"tile", "object_type":"stepped_floor", "cell":cell, "summary":"Placed stepped_floor at %s" % _format_map_constructor_cell(cell), "undo_hint":"Use constructor cleanup/reset tools if needed."})
 		return result
 	if is_map_constructor_item_prefab(prefab_id):
-		var object_id: String = "mapedit_%s_%d" % [prefab_id, _map_constructor_runtime_object_seq]
+		var item_object_id: String = "mapedit_%s_%d" % [prefab_id, _map_constructor_runtime_object_seq]
 		_map_constructor_runtime_object_seq += 1
 		var item_type: String = prefab_id
 		if prefab_id == "mechanical_key":
 			item_type = "mechanical_keycard"
 		var item_data: Dictionary = {
-			"id": object_id,
+			"id": item_object_id,
 			"object_group": "item",
 			"object_type": "item",
 			"item_type": item_type,
@@ -2431,8 +2431,8 @@ func place_map_constructor_prefab(prefab_id: String, cell: Vector2i, preferred_w
 		add_item_at_cell(cell, item_data)
 		PowerSystemRef.recalculate_network(mission_world_objects, "")
 		refresh_world_cooling_received()
-		result["object_id"] = object_id
-		_record_map_constructor_change("place", {"entity_kind":"item", "entity_id":object_id, "object_type":item_type, "cell":cell, "summary":"Placed %s at %s" % [item_type, _format_map_constructor_cell(cell)], "undo_hint":"Can undo by deleting item."})
+		result["object_id"] = item_object_id
+		_record_map_constructor_change("place", {"entity_kind":"item", "entity_id":item_object_id, "object_type":item_type, "cell":cell, "summary":"Placed %s at %s" % [item_type, _format_map_constructor_cell(cell)], "undo_hint":"Can undo by deleting item."})
 		return result
 	var placed_tile_type: int = previous_tile_type
 	if prefab_id.ends_with("_wall") or prefab_id == "outer_wall":
@@ -10228,7 +10228,7 @@ func validate_task_test_runtime_cell_states() -> Array[String]:
 		if typeof(object_data) != TYPE_DICTIONARY:
 			continue
 		var object_id: String = String(object_data.get("id", ""))
-		var object_type: String = String(object_data.get("object_type", "")).to_lower()
+		var _object_type: String = String(object_data.get("object_type", "")).to_lower()
 		var cell: Vector2i = Vector2i(object_data.get("position", Vector2i.ZERO))
 		var runtime_state: Dictionary = get_runtime_cell_state(cell)
 		if not bool(runtime_state.get("has_object", false)):

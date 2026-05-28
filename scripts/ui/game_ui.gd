@@ -11406,6 +11406,12 @@ func _refresh_map_constructor_panels() -> void:
 		runtime_hud_root.add_child(runtime_map_constructor_validation_overlay_control)
 		runtime_hud_root.move_child(runtime_map_constructor_validation_overlay_control, runtime_hud_root.get_child_count() - 1)
 
+
+func _safe_ui_string(value: Variant, fallback: String = "") -> String:
+	if value == null:
+		return fallback
+	return str(value)
+
 func _create_inspector_section(title: String) -> VBoxContainer:
 	var section: VBoxContainer = VBoxContainer.new()
 	section.add_theme_constant_override("separation", 4)
@@ -11426,13 +11432,13 @@ func _create_property_row(label_text: String, control: Control) -> HBoxContainer
 
 func _add_text_property(section: VBoxContainer, label: String, entity_kind: String, entity_id: String, field_name: String, current_value: Variant) -> void:
 	var line_edit: LineEdit = LineEdit.new()
-	line_edit.text = String(current_value)
+	line_edit.text = _safe_ui_string(current_value)
 	line_edit.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	var apply_text_update := func() -> void:
 		if mission_manager_runtime == null or not mission_manager_runtime.has_method("update_map_constructor_entity_properties"):
 			return
 		var result: Dictionary = mission_manager_runtime.call("update_map_constructor_entity_properties", entity_kind, entity_id, {field_name: line_edit.text})
-		show_hint(String(result.get("message", "Updated.")))
+		show_hint(_safe_ui_string(result.get("message", "Updated."), "Updated."))
 		_refresh_map_constructor_panels()
 		if field_runtime != null and field_runtime.has_method("request_visual_refresh"):
 			field_runtime.call("request_visual_refresh")
@@ -11458,7 +11464,7 @@ func _add_bool_property(section: VBoxContainer, label: String, entity_kind: Stri
 		if mission_manager_runtime == null or not mission_manager_runtime.has_method("update_map_constructor_entity_properties"):
 			return
 		var result: Dictionary = mission_manager_runtime.call("update_map_constructor_entity_properties", entity_kind, entity_id, {field_name: pressed})
-		show_hint(String(result.get("message", "Updated.")))
+		show_hint(_safe_ui_string(result.get("message", "Updated."), "Updated."))
 		_refresh_map_constructor_panels()
 		if field_runtime != null and field_runtime.has_method("request_visual_refresh"):
 			field_runtime.call("request_visual_refresh")
@@ -11492,7 +11498,10 @@ func _add_link_picker(section: VBoxContainer, entity_kind: String, entity_id: St
 	var entity_info: Dictionary = mission_manager_runtime.call("get_map_constructor_entity_by_id", entity_kind, entity_id)
 	if not bool(entity_info.get("ok", false)):
 		return
-	var data: Dictionary = Dictionary(entity_info.get("data", {}))
+	var data: Dictionary = {}
+	var data_variant: Variant = entity_info.get("data", {})
+	if data_variant is Dictionary:
+		data = data_variant.duplicate(true)
 	var field_map := {"linked_door":"target_door_id","power_network":"power_network_id","control_source":"control_source_id","terminal_target":"target_door_id","platform_target":"target_platform_id"}
 	if not field_map.has(link_type):
 		return
@@ -11581,29 +11590,32 @@ func _show_map_constructor_inspector(cell: Vector2i, preferred_entity_kind: Stri
 		entity_info = mission_manager_runtime.call("get_map_constructor_editable_entity_at_cell", cell)
 	if not bool(entity_info.get("ok", false)):
 		_clear_map_constructor_wall_mounted_selection(); _clear_map_constructor_link_target(); return
-	var entity_kind: String = String(entity_info.get("entity_kind", "world_object"))
-	var entity_id: String = String(entity_info.get("id", ""))
-	var data: Dictionary = Dictionary(entity_info.get("data", {}))
+	var entity_kind: String = _safe_ui_string(entity_info.get("entity_kind", "world_object"), "world_object")
+	var entity_id: String = _safe_ui_string(entity_info.get("id", ""))
+	var data: Dictionary = {}
+	var data_variant: Variant = entity_info.get("data", {})
+	if data_variant is Dictionary:
+		data = data_variant.duplicate(true)
 	selected_map_constructor_entity_kind = entity_kind
 	selected_map_constructor_entity_id = entity_id
 	selected_map_constructor_entity_cell = Vector2i(entity_info.get("cell", cell))
-	var type_group: String = String(mission_manager_runtime.call("get_map_constructor_entity_type_group", entity_kind, entity_id)) if mission_manager_runtime.has_method("get_map_constructor_entity_type_group") else "generic"
+	var type_group: String = _safe_ui_string(mission_manager_runtime.call("get_map_constructor_entity_type_group", entity_kind, entity_id), "generic") if mission_manager_runtime.has_method("get_map_constructor_entity_type_group") else "generic"
 	var panel := PanelContainer.new(); panel.position = Vector2(20, 360); panel.size = Vector2(430, 460)
 	panel.add_theme_stylebox_override("panel", _make_panel_style(UI_COLOR_PANEL_DARK, UI_COLOR_BORDER, 1, 8))
 	var scroll := ScrollContainer.new(); scroll.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT); panel.add_child(scroll)
 	var v := VBoxContainer.new(); v.add_theme_constant_override("separation", 8); scroll.add_child(v)
 	var identity := _create_inspector_section("Identity")
 	var id_label := Label.new(); id_label.text = entity_id; identity.add_child(_create_property_row("ID", id_label))
-	var type_label := Label.new(); type_label.text = String(data.get("object_type", data.get("item_type", "item"))); identity.add_child(_create_property_row("Type", type_label))
+	var type_label := Label.new(); type_label.text = _safe_ui_string(data.get("object_type", data.get("item_type", "item")), "item"); identity.add_child(_create_property_row("Type", type_label))
 	_add_text_property(identity, "display_name", entity_kind, entity_id, "display_name", data.get("display_name", ""))
 	_add_text_property(identity, "state", entity_kind, entity_id, "state", data.get("state", ""))
 	v.add_child(identity)
 	var placement := _create_inspector_section("Placement")
-	var cell_l:=Label.new(); cell_l.text = String(entity_info.get("cell", cell)); placement.add_child(_create_property_row("Cell", cell_l))
-	var pm_l:=Label.new(); pm_l.text = String(data.get("placement_mode", "floor")); placement.add_child(_create_property_row("Mode", pm_l))
+	var cell_l:=Label.new(); cell_l.text = _safe_ui_string(entity_info.get("cell", cell), str(cell)); placement.add_child(_create_property_row("Cell", cell_l))
+	var pm_l:=Label.new(); pm_l.text = _safe_ui_string(data.get("placement_mode", "floor"), "floor"); placement.add_child(_create_property_row("Mode", pm_l))
 	var grounding_type: String = "floor_standing"
-	var object_type_lower: String = String(data.get("object_type", data.get("item_type", ""))).to_lower()
-	if String(data.get("placement_mode", "")).to_lower() == "wall_mounted":
+	var object_type_lower: String = _safe_ui_string(data.get("object_type", data.get("item_type", ""))).to_lower()
+	if _safe_ui_string(data.get("placement_mode", "")).to_lower() == "wall_mounted":
 		grounding_type = "wall_mounted"
 	elif object_type_lower.contains("door") or object_type_lower.contains("gate"):
 		grounding_type = "door_insert"
@@ -11611,7 +11623,7 @@ func _show_map_constructor_inspector(cell: Vector2i, preferred_entity_kind: Stri
 		grounding_type = "floor_pickup"
 	var anchor_cell: Vector2i = Vector2i(data.get("anchor_floor_cell", data.get("position", entity_info.get("cell", cell))))
 	var attached_wall_cell: Vector2i = Vector2i(data.get("attached_wall_cell", Vector2i(-1, -1)))
-	var wall_side_meta: String = String(data.get("wall_side", "")).strip_edges().to_lower()
+	var wall_side_meta: String = _safe_ui_string(data.get("wall_side", "")).strip_edges().to_lower()
 	var valid_grounding: bool = true
 	if grounding_type == "wall_mounted":
 		valid_grounding = attached_wall_cell.x >= 0 and attached_wall_cell.y >= 0 and not wall_side_meta.is_empty()
@@ -11629,7 +11641,7 @@ func _show_map_constructor_inspector(cell: Vector2i, preferred_entity_kind: Stri
 	move_button.pressed.connect(func() -> void:
 		if mission_manager_runtime != null and mission_manager_runtime.has_method("move_map_constructor_entity_to_cell"):
 			var r: Dictionary = mission_manager_runtime.call("move_map_constructor_entity_to_cell", entity_kind, entity_id, Vector2i(int(move_x.value), int(move_y.value)))
-			show_hint(String(r.get("message", "Move complete.")))
+			show_hint(_safe_ui_string(r.get("message", "Move complete."), "Move complete."))
 			_refresh_map_constructor_panels()
 			if field_runtime != null and field_runtime.has_method("request_visual_refresh"): field_runtime.call("request_visual_refresh")
 			_show_map_constructor_inspector(Vector2i(r.get("cell", Vector2i(int(move_x.value), int(move_y.value)))), entity_kind, entity_id)
@@ -11640,10 +11652,10 @@ func _show_map_constructor_inspector(cell: Vector2i, preferred_entity_kind: Stri
 	dup_button.pressed.connect(func() -> void:
 		if mission_manager_runtime != null and mission_manager_runtime.has_method("duplicate_map_constructor_entity_to_cell"):
 			var r: Dictionary = mission_manager_runtime.call("duplicate_map_constructor_entity_to_cell", entity_kind, entity_id, Vector2i(int(move_x.value), int(move_y.value)))
-			show_hint(String(r.get("message", "Duplicate complete.")))
+			show_hint(_safe_ui_string(r.get("message", "Duplicate complete."), "Duplicate complete."))
 			_refresh_map_constructor_panels()
 			if field_runtime != null and field_runtime.has_method("request_visual_refresh"): field_runtime.call("request_visual_refresh")
-			var nid: String = String(r.get("entity_id", ""))
+			var nid: String = _safe_ui_string(r.get("entity_id", ""))
 			if not nid.is_empty():
 				_show_map_constructor_inspector(Vector2i(r.get("cell", Vector2i(int(move_x.value), int(move_y.value)))), entity_kind, nid)
 	)
@@ -11652,7 +11664,7 @@ func _show_map_constructor_inspector(cell: Vector2i, preferred_entity_kind: Stri
 	del.pressed.connect(func() -> void:
 		if mission_manager_runtime != null and mission_manager_runtime.has_method("remove_map_constructor_object_at_cell"):
 			var r: Dictionary = mission_manager_runtime.call("remove_map_constructor_object_at_cell", Vector2i(entity_info.get("cell", cell)))
-			show_hint(String(r.get("message", "Deleted.")))
+			show_hint(_safe_ui_string(r.get("message", "Deleted."), "Deleted."))
 			_refresh_map_constructor_panels()
 			if field_runtime != null and field_runtime.has_method("request_visual_refresh"): field_runtime.call("request_visual_refresh")
 			_show_map_constructor_inspector(Vector2i(-1, -1))
@@ -11664,32 +11676,32 @@ func _show_map_constructor_inspector(cell: Vector2i, preferred_entity_kind: Stri
 	var wall_section: VBoxContainer = _create_inspector_section("Wall Material")
 	if bool(wall_target.get("ok", false)):
 		var wall_cell: Vector2i = Vector2i(wall_target.get("cell", Vector2i(-1, -1)))
-		var wall_side: String = String(wall_target.get("side", ""))
+		var wall_side: String = _safe_ui_string(wall_target.get("side", ""))
 		var catalog_result: Dictionary = mission_manager_runtime.call("get_map_constructor_wall_material_catalog")
 		var material_option: OptionButton = OptionButton.new()
 		var material_rows: Array = Array(catalog_result.get("materials", []))
 		var selected_material_id: String = ""
 		if mission_manager_runtime.has_method("get_map_constructor_wall_material"):
 			var current_override: Dictionary = mission_manager_runtime.call("get_map_constructor_wall_material", wall_cell, wall_side)
-			selected_material_id = String(Dictionary(current_override.get("override", {})).get("material_id", ""))
+			selected_material_id = _safe_ui_string(Dictionary(current_override.get("override", {})).get("material_id", ""))
 		var description_label: Label = Label.new()
 		for row_variant in material_rows:
 			var material_row: Dictionary = Dictionary(row_variant)
-			var material_id: String = String(material_row.get("id", ""))
-			material_option.add_item(String(material_row.get("display_name", material_id)))
+			var material_id: String = _safe_ui_string(material_row.get("id", ""))
+			material_option.add_item(_safe_ui_string(material_row.get("display_name", material_id), material_id))
 			var added_index: int = material_option.item_count - 1
 			material_option.set_item_metadata(added_index, material_id)
 			if selected_material_id == material_id:
 				material_option.select(added_index)
-				description_label.text = String(material_row.get("description", ""))
+				description_label.text = _safe_ui_string(material_row.get("description", ""))
 		if material_option.item_count > 0 and material_option.selected < 0:
 			material_option.select(0)
 		material_option.item_selected.connect(func(_idx: int) -> void:
-			var current_id: String = String(material_option.get_selected_metadata())
+			var current_id: String = _safe_ui_string(material_option.get_selected_metadata())
 			for row_variant_inner in material_rows:
 				var material_row_inner: Dictionary = Dictionary(row_variant_inner)
-				if String(material_row_inner.get("id", "")) == current_id:
-					description_label.text = String(material_row_inner.get("description", ""))
+				if _safe_ui_string(material_row_inner.get("id", "")) == current_id:
+					description_label.text = _safe_ui_string(material_row_inner.get("description", ""))
 					break
 		)
 		wall_section.add_child(_create_property_row("Target", Label.new()))
@@ -11699,9 +11711,9 @@ func _show_map_constructor_inspector(cell: Vector2i, preferred_entity_kind: Stri
 		wall_section.add_child(description_label)
 		var apply_material: Button = Button.new(); apply_material.text = "Apply Wall Material"
 		apply_material.pressed.connect(func() -> void:
-			var mat_id: String = String(material_option.get_selected_metadata())
+			var mat_id: String = _safe_ui_string(material_option.get_selected_metadata())
 			var apply_result: Dictionary = mission_manager_runtime.call("set_map_constructor_wall_material", wall_cell, wall_side, mat_id)
-			show_hint(String(apply_result.get("message", "Wall material updated.")))
+			show_hint(_safe_ui_string(apply_result.get("message", "Wall material updated."), "Wall material updated."))
 			_refresh_map_constructor_panels()
 			if field_runtime != null and field_runtime.has_method("request_visual_refresh"): field_runtime.call("request_visual_refresh")
 			_show_map_constructor_inspector(selected_map_constructor_entity_cell, selected_map_constructor_entity_kind, selected_map_constructor_entity_id)
@@ -11709,7 +11721,7 @@ func _show_map_constructor_inspector(cell: Vector2i, preferred_entity_kind: Stri
 		var clear_material: Button = Button.new(); clear_material.text = "Clear Wall Material"
 		clear_material.pressed.connect(func() -> void:
 			var clear_result: Dictionary = mission_manager_runtime.call("clear_map_constructor_wall_material", wall_cell, wall_side)
-			show_hint(String(clear_result.get("message", "Wall material cleared.")))
+			show_hint(_safe_ui_string(clear_result.get("message", "Wall material cleared."), "Wall material cleared."))
 			_refresh_map_constructor_panels()
 			if field_runtime != null and field_runtime.has_method("request_visual_refresh"): field_runtime.call("request_visual_refresh")
 			_show_map_constructor_inspector(selected_map_constructor_entity_cell, selected_map_constructor_entity_kind, selected_map_constructor_entity_id)
@@ -11736,33 +11748,33 @@ func _show_map_constructor_inspector(cell: Vector2i, preferred_entity_kind: Stri
 		var selected_floor_material_id: String = ""
 		if mission_manager_runtime.has_method("get_map_constructor_floor_material"):
 			var current_floor_override: Dictionary = mission_manager_runtime.call("get_map_constructor_floor_material", floor_target_cell)
-			selected_floor_material_id = String(Dictionary(current_floor_override.get("override", {})).get("material_id", ""))
+			selected_floor_material_id = _safe_ui_string(Dictionary(current_floor_override.get("override", {})).get("material_id", ""))
 		for floor_row_variant in floor_rows:
 			var floor_row: Dictionary = Dictionary(floor_row_variant)
-			var floor_material_id: String = String(floor_row.get("id", ""))
-			floor_material_option.add_item(String(floor_row.get("display_name", floor_material_id)))
+			var floor_material_id: String = _safe_ui_string(floor_row.get("id", ""))
+			floor_material_option.add_item(_safe_ui_string(floor_row.get("display_name", floor_material_id), floor_material_id))
 			var floor_added_index: int = floor_material_option.item_count - 1
 			floor_material_option.set_item_metadata(floor_added_index, floor_material_id)
 			if selected_floor_material_id == floor_material_id:
 				floor_material_option.select(floor_added_index)
-				floor_summary_label.text = String(floor_row.get("description", ""))
+				floor_summary_label.text = _safe_ui_string(floor_row.get("description", ""))
 		if floor_material_option.item_count > 0 and floor_material_option.selected < 0:
 			floor_material_option.select(0)
 		floor_material_option.item_selected.connect(func(_idx: int) -> void:
-			var current_floor_id: String = String(floor_material_option.get_selected_metadata())
+			var current_floor_id: String = _safe_ui_string(floor_material_option.get_selected_metadata())
 			for floor_row_inner_variant in floor_rows:
 				var floor_row_inner: Dictionary = Dictionary(floor_row_inner_variant)
-				if String(floor_row_inner.get("id", "")) == current_floor_id:
-					floor_summary_label.text = String(floor_row_inner.get("description", ""))
+				if _safe_ui_string(floor_row_inner.get("id", "")) == current_floor_id:
+					floor_summary_label.text = _safe_ui_string(floor_row_inner.get("description", ""))
 					break
 		)
 		floor_section.add_child(_create_property_row("Material", floor_material_option))
 		floor_section.add_child(floor_summary_label)
 		var apply_floor_button: Button = Button.new(); apply_floor_button.text = "Apply Floor Material"
 		apply_floor_button.pressed.connect(func() -> void:
-			var floor_material_id_apply: String = String(floor_material_option.get_selected_metadata())
+			var floor_material_id_apply: String = _safe_ui_string(floor_material_option.get_selected_metadata())
 			var floor_apply_result: Dictionary = mission_manager_runtime.call("set_map_constructor_floor_material", floor_target_cell, floor_material_id_apply)
-			show_hint(String(floor_apply_result.get("message", "Floor material updated.")))
+			show_hint(_safe_ui_string(floor_apply_result.get("message", "Floor material updated."), "Floor material updated."))
 			_refresh_map_constructor_panels()
 			if field_runtime != null and field_runtime.has_method("request_visual_refresh"): field_runtime.call("request_visual_refresh")
 			_show_map_constructor_inspector(selected_map_constructor_entity_cell, selected_map_constructor_entity_kind, selected_map_constructor_entity_id)
@@ -11770,7 +11782,7 @@ func _show_map_constructor_inspector(cell: Vector2i, preferred_entity_kind: Stri
 		var clear_floor_button: Button = Button.new(); clear_floor_button.text = "Clear Floor Material"
 		clear_floor_button.pressed.connect(func() -> void:
 			var floor_clear_result: Dictionary = mission_manager_runtime.call("clear_map_constructor_floor_material", floor_target_cell)
-			show_hint(String(floor_clear_result.get("message", "Floor material cleared.")))
+			show_hint(_safe_ui_string(floor_clear_result.get("message", "Floor material cleared."), "Floor material cleared."))
 			_refresh_map_constructor_panels()
 			if field_runtime != null and field_runtime.has_method("request_visual_refresh"): field_runtime.call("request_visual_refresh")
 			_show_map_constructor_inspector(selected_map_constructor_entity_cell, selected_map_constructor_entity_kind, selected_map_constructor_entity_id)
@@ -11782,21 +11794,21 @@ func _show_map_constructor_inspector(cell: Vector2i, preferred_entity_kind: Stri
 		floor_missing_label.text = "Select or hover a valid cell to edit floor materials."
 		floor_section.add_child(floor_missing_label)
 	v.add_child(floor_section)
-	if String(data.get("placement_mode", "")) == "wall_mounted" and mission_manager_runtime.has_method("get_map_constructor_wall_mounted_status"):
+	if _safe_ui_string(data.get("placement_mode", "")) == "wall_mounted" and mission_manager_runtime.has_method("get_map_constructor_wall_mounted_status"):
 		var wm: Dictionary = mission_manager_runtime.call("get_map_constructor_wall_mounted_status", entity_kind, entity_id)
 		_set_map_constructor_wall_mounted_selection(Vector2i(wm.get("anchor_floor_cell", Vector2i(-1,-1))), Vector2i(wm.get("attached_wall_cell", Vector2i(-1,-1))), entity_id)
 		var anchor_label: Label = Label.new()
-		anchor_label.text = String(wm.get("anchor_floor_cell", Vector2i(-1, -1)))
+		anchor_label.text = _safe_ui_string(wm.get("anchor_floor_cell", Vector2i(-1, -1)), str(Vector2i(-1, -1)))
 		placement.add_child(_create_property_row("anchor_floor_cell", anchor_label))
 		var attached_label: Label = Label.new()
-		attached_label.text = String(wm.get("attached_wall_cell", Vector2i(-1, -1)))
+		attached_label.text = _safe_ui_string(wm.get("attached_wall_cell", Vector2i(-1, -1)), str(Vector2i(-1, -1)))
 		placement.add_child(_create_property_row("attached_wall_cell", attached_label))
 		var wall_side_picker: Control = _create_map_constructor_wall_side_picker("wall_mounted")
 		placement.add_child(_create_property_row("wall_side", wall_side_picker))
 		var apply_side: Button = Button.new(); apply_side.text = "Apply Side"
 		apply_side.pressed.connect(func() -> void:
 			var rr: Dictionary = mission_manager_runtime.call("set_map_constructor_wall_mounted_side", entity_kind, entity_id, selected_map_constructor_wall_side)
-			show_hint(String(rr.get("message", "Updated side.")))
+			show_hint(_safe_ui_string(rr.get("message", "Updated side."), "Updated side."))
 			_refresh_map_constructor_panels()
 			if field_runtime != null and field_runtime.has_method("request_visual_refresh"): field_runtime.call("request_visual_refresh")
 			_show_map_constructor_inspector(selected_map_constructor_entity_cell, selected_map_constructor_entity_kind, selected_map_constructor_entity_id)
@@ -11823,24 +11835,24 @@ func _show_map_constructor_inspector(cell: Vector2i, preferred_entity_kind: Stri
 			_add_link_picker(section, entity_kind, entity_id, "power_network", "Power Network")
 		if type_group == "item":
 			_add_text_property(section, "item_type", entity_kind, entity_id, "item_type", data.get("item_type", ""))
-			if data.has("key_type") or String(data.get("item_type", "")).findn("key") >= 0:
+			if data.has("key_type") or _safe_ui_string(data.get("item_type", "")).findn("key") >= 0:
 				_add_text_property(section, "key_type", entity_kind, entity_id, "key_type", data.get("key_type", ""))
-			if data.has("digital_payload_type") or String(data.get("item_type", "")).findn("digital") >= 0 or String(data.get("item_type", "")).findn("access_code") >= 0:
+			if data.has("digital_payload_type") or _safe_ui_string(data.get("item_type", "")).findn("digital") >= 0 or _safe_ui_string(data.get("item_type", "")).findn("access_code") >= 0:
 				_add_text_property(section, "digital_payload_type", entity_kind, entity_id, "digital_payload_type", data.get("digital_payload_type", ""))
 		v.add_child(section)
 	if entity_kind == "world_object" and type_group == "door" and mission_manager_runtime.has_method("get_map_constructor_door_visual_state"):
 		var door_visual_section: VBoxContainer = _create_inspector_section("Door Visual State")
 		var door_visual: Dictionary = mission_manager_runtime.call("get_map_constructor_door_visual_state", entity_id)
 		var door_state_label: Label = Label.new()
-		door_state_label.text = "state: %s" % String(door_visual.get("state", "unknown"))
+		door_state_label.text = "state: %s" % _safe_ui_string(door_visual.get("state", "unknown"), "unknown")
 		door_visual_section.add_child(door_state_label)
 		var door_badges_label: Label = Label.new()
 		door_badges_label.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
-		door_badges_label.text = "badges: %s" % String(door_visual.get("badges", []))
+		door_badges_label.text = "badges: %s" % _safe_ui_string(door_visual.get("badges", []))
 		door_visual_section.add_child(door_badges_label)
 		var door_message_label: Label = Label.new()
 		door_message_label.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
-		door_message_label.text = String(door_visual.get("message", ""))
+		door_message_label.text = _safe_ui_string(door_visual.get("message", ""))
 		door_visual_section.add_child(door_message_label)
 		var door_refresh_button: Button = Button.new()
 		door_refresh_button.text = "Refresh Visual State"
@@ -11855,14 +11867,14 @@ func _show_map_constructor_inspector(cell: Vector2i, preferred_entity_kind: Stri
 		var terminal_visual_section: VBoxContainer = _create_inspector_section("Terminal Visual State")
 		var terminal_visual: Dictionary = mission_manager_runtime.call("get_map_constructor_terminal_visual_state", entity_id)
 		var terminal_type_label: Label = Label.new()
-		terminal_type_label.text = "terminal_type: %s" % String(terminal_visual.get("terminal_type", "unknown"))
+		terminal_type_label.text = "terminal_type: %s" % _safe_ui_string(terminal_visual.get("terminal_type", "unknown"), "unknown")
 		terminal_visual_section.add_child(terminal_type_label)
 		var terminal_state_label: Label = Label.new()
-		terminal_state_label.text = "state: %s" % String(terminal_visual.get("state", "unknown"))
+		terminal_state_label.text = "state: %s" % _safe_ui_string(terminal_visual.get("state", "unknown"), "unknown")
 		terminal_visual_section.add_child(terminal_state_label)
 		var terminal_badges_label: Label = Label.new()
 		terminal_badges_label.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
-		terminal_badges_label.text = "badges: %s" % String(terminal_visual.get("badges", []))
+		terminal_badges_label.text = "badges: %s" % _safe_ui_string(terminal_visual.get("badges", []))
 		terminal_visual_section.add_child(terminal_badges_label)
 		var terminal_refresh_button: Button = Button.new()
 		terminal_refresh_button.text = "Refresh Visual State"
@@ -11885,15 +11897,15 @@ func _show_map_constructor_inspector(cell: Vector2i, preferred_entity_kind: Stri
 	var validation := _create_inspector_section("Validation")
 	if mission_manager_runtime.has_method("validate_map_constructor_entity_links"):
 		var vr: Dictionary = mission_manager_runtime.call("validate_map_constructor_entity_links", entity_kind, entity_id)
-		var warn_label: Label = Label.new(); warn_label.text = "warnings: %s" % String(vr.get("warnings", [])); validation.add_child(warn_label)
-		var miss_label: Label = Label.new(); miss_label.text = "missing_links: %s" % String(vr.get("missing_links", [])); validation.add_child(miss_label)
-		var link_label: Label = Label.new(); link_label.text = "linked_targets: %s" % String(vr.get("linked_targets", [])); validation.add_child(link_label)
+		var warn_label: Label = Label.new(); warn_label.text = "warnings: %s" % _safe_ui_string(vr.get("warnings", [])); validation.add_child(warn_label)
+		var miss_label: Label = Label.new(); miss_label.text = "missing_links: %s" % _safe_ui_string(vr.get("missing_links", [])); validation.add_child(miss_label)
+		var link_label: Label = Label.new(); link_label.text = "linked_targets: %s" % _safe_ui_string(vr.get("linked_targets", [])); validation.add_child(link_label)
 	v.add_child(validation)
 	runtime_map_constructor_inspector_panel = panel
 	runtime_hud_root.add_child(panel)
 
 func _resolve_wall_material_target_for_selection(entity_info: Dictionary, data: Dictionary, fallback_cell: Vector2i) -> Dictionary:
-	if String(data.get("placement_mode", "")) == "wall_mounted":
+	if _safe_ui_string(data.get("placement_mode", "")) == "wall_mounted":
 		var anchor_cell: Vector2i = Vector2i(data.get("anchor_floor_cell", Vector2i(-1, -1)))
 		var side: String = String(data.get("wall_side", "")).to_lower().strip_edges()
 		if anchor_cell.x >= 0 and anchor_cell.y >= 0 and not side.is_empty():
