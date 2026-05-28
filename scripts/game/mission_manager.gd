@@ -2760,6 +2760,10 @@ func set_map_constructor_floor_material(cell: Vector2i, material_id: String) -> 
 		return {"ok": false, "message": "Floor material overrides are available only in TASK TEST constructor mode."}
 	if not _is_valid_grid_cell(cell):
 		return {"ok": false, "message": "Cell is out of bounds."}
+	if grid_manager == null:
+		return {"ok": false, "message": "Grid manager unavailable."}
+	if not grid_manager.has_method("get_tile"):
+		return {"ok": false, "message": "Grid manager missing get_tile."}
 	var tile_type: int = int(grid_manager.call("get_tile", cell))
 	if not _is_floor_like_constructor_tile(tile_type):
 		return {"ok": false, "message": "Only floor cells can receive floor material overrides."}
@@ -2806,6 +2810,28 @@ func get_map_constructor_floor_material_for_cell(cell: Vector2i) -> Dictionary:
 		if String(row.get("id", "")).to_lower().strip_edges() == material_id:
 			return {"ok": true, "message": "OK", "override": override_row.duplicate(true), "material": row.duplicate(true)}
 	return {"ok": false, "message": "Unknown floor material id: %s" % material_id, "override": override_row.duplicate(true), "material": {}}
+
+func get_map_constructor_floor_material_summary() -> Dictionary:
+	var material_counts: Dictionary = {}
+	var affected_cells: Array[Vector2i] = []
+	var preset_generated_floor_override_count: int = 0
+	for key_variant in _map_constructor_floor_material_overrides.keys():
+		var row: Dictionary = Dictionary(_map_constructor_floor_material_overrides.get(String(key_variant), {}))
+		var material_id: String = String(row.get("material_id", "unknown")).to_lower().strip_edges()
+		if material_id.is_empty():
+			material_id = "unknown"
+		material_counts[material_id] = int(material_counts.get(material_id, 0)) + 1
+		if bool(row.get("created_by_room_visual_preset", false)):
+			preset_generated_floor_override_count += 1
+		var floor_cell: Vector2i = Vector2i(row.get("cell", _deserialize_cell_key(String(key_variant))))
+		if floor_cell.x >= 0 and floor_cell.y >= 0:
+			affected_cells.append(floor_cell)
+	affected_cells.sort_custom(func(a: Vector2i, b: Vector2i) -> bool:
+		if a.y == b.y:
+			return a.x < b.x
+		return a.y < b.y
+	)
+	return {"override_count": _map_constructor_floor_material_overrides.size(), "material_counts": material_counts, "preset_generated_floor_override_count": preset_generated_floor_override_count, "affected_cells": affected_cells}
 
 func _resolve_floor_material_id_for_room_visual_preset(preset: Dictionary) -> String:
 	var floor_style: String = String(preset.get("floor_style", "")).to_lower().strip_edges()
@@ -3108,26 +3134,25 @@ func preview_room_visual_preset(preset_id: String, options: Dictionary = {}) -> 
 	var terminals: Array[Dictionary] = []
 	var floors: Array[Dictionary] = []
 	var floor_material_id: String = _resolve_floor_material_id_for_room_visual_preset(preset)
-	if include_walls and grid_manager != null and grid_manager.has_method("get_width") and grid_manager.has_method("get_height") and grid_manager.has_method("get_tile"):
+	if grid_manager != null and grid_manager.has_method("get_width") and grid_manager.has_method("get_height") and grid_manager.has_method("get_tile"):
 		var width: int = int(grid_manager.call("get_width"))
 		var height: int = int(grid_manager.call("get_height"))
 		for y in range(height):
 			for x in range(width):
 				var cell: Vector2i = Vector2i(x, y)
 				var tile_type: int = int(grid_manager.call("get_tile", cell))
-				if tile_type != GridManager.TILE_WALL:
-					continue
-				for side_row in MAP_CONSTRUCTOR_WALL_SIDE_DELTAS:
-					var side: String = String(side_row.get("side", ""))
-					var delta: Vector2i = Vector2i(side_row.get("delta", Vector2i.ZERO))
-					var floor_cell: Vector2i = cell - delta
-					if not _is_valid_grid_cell(floor_cell):
-						continue
-					var current_material_id: String = String(get_map_constructor_wall_material(floor_cell, side).get("override", {}).get("material_id", "default_metal"))
-					walls.append({"cell": floor_cell, "side": side, "current_material_id": current_material_id, "new_material_id": material_id})
 				if include_floors and _is_floor_like_constructor_tile(tile_type):
 					var current_floor_material_id: String = String(get_map_constructor_floor_material(cell).get("override", {}).get("material_id", "default_floor"))
 					floors.append({"cell": cell, "current_material_id": current_floor_material_id, "new_material_id": floor_material_id})
+				if include_walls and tile_type == GridManager.TILE_WALL:
+					for side_row in MAP_CONSTRUCTOR_WALL_SIDE_DELTAS:
+						var side: String = String(side_row.get("side", ""))
+						var delta: Vector2i = Vector2i(side_row.get("delta", Vector2i.ZERO))
+						var floor_cell: Vector2i = cell - delta
+						if not _is_valid_grid_cell(floor_cell):
+							continue
+						var current_material_id: String = String(get_map_constructor_wall_material(floor_cell, side).get("override", {}).get("material_id", "default_metal"))
+						walls.append({"cell": floor_cell, "side": side, "current_material_id": current_material_id, "new_material_id": material_id})
 	if include_doors or include_terminals:
 		for object_data in mission_world_objects:
 			var row: Dictionary = Dictionary(object_data)
@@ -4270,6 +4295,20 @@ func get_map_constructor_validation_issues() -> Array[Dictionary]:
 		var attached_wall_cell: Vector2i = override_cell + _get_map_constructor_wall_side_delta(override_side)
 		if _get_map_constructor_wall_side_delta(override_side) == Vector2i.ZERO or not _is_wall_or_boundary_cell(attached_wall_cell):
 			issues.append(_make_map_constructor_issue("wall_material_missing_wall_%s" % String(key_variant), "warning", "Wall material override points to a missing wall.", override_cell, source_name, "wall_material", String(key_variant)))
+	var floor_catalog_ids: Dictionary = {}
+	for floor_row_variant in Array(get_map_constructor_floor_material_catalog().get("materials", [])):
+		var floor_row: Dictionary = Dictionary(floor_row_variant)
+		floor_catalog_ids[String(floor_row.get("id", "")).to_lower()] = true
+	for floor_key_variant in _map_constructor_floor_material_overrides.keys():
+		var floor_override: Dictionary = Dictionary(_map_constructor_floor_material_overrides.get(String(floor_key_variant), {}))
+		var floor_cell: Vector2i = Vector2i(floor_override.get("cell", _deserialize_cell_key(String(floor_key_variant))))
+		var floor_material_id: String = String(floor_override.get("material_id", "")).to_lower().strip_edges()
+		if floor_material_id.is_empty() or not floor_catalog_ids.has(floor_material_id):
+			issues.append(_make_map_constructor_issue("floor_material_unknown_%s" % String(floor_key_variant), "warning", "Unknown floor material override id: %s." % floor_material_id, floor_cell, source_name, "floor_material", String(floor_key_variant)))
+		if grid_manager != null and grid_manager.has_method("get_tile") and _is_valid_grid_cell(floor_cell):
+			var floor_tile_type: int = int(grid_manager.call("get_tile", floor_cell))
+			if floor_tile_type != GridManager.TILE_FLOOR and floor_tile_type != GridManager.TILE_STEPPED_FLOOR:
+				issues.append(_make_map_constructor_issue("floor_material_non_floor_%s" % String(floor_key_variant), "warning", "Floor material override points to non-floor cell.", floor_cell, source_name, "floor_material", String(floor_key_variant)))
 	return issues
 
 func _map_constructor_collect_world_ids() -> Dictionary:
@@ -10833,6 +10872,8 @@ func get_room_visual_preset_summary() -> Dictionary:
 	var terminal_visual_counts: Dictionary = {}
 	var affected_cell_lookup: Dictionary = {}
 	var wall_count: int = 0
+	var floor_summary: Dictionary = get_map_constructor_floor_material_summary()
+	var floor_material_counts: Dictionary = Dictionary(floor_summary.get("material_counts", {}))
 	for key_variant in _map_constructor_wall_material_overrides.keys():
 		var key: String = String(key_variant)
 		var row: Dictionary = Dictionary(_map_constructor_wall_material_overrides.get(key, {}))
@@ -10877,6 +10918,10 @@ func get_room_visual_preset_summary() -> Dictionary:
 		var terminal_cell: Vector2i = Vector2i(terminal_object.get("position", Vector2i(-1, -1)))
 		if terminal_cell.x >= 0 and terminal_cell.y >= 0:
 			affected_cell_lookup[_serialize_cell_key(terminal_cell)] = terminal_cell
+	for floor_cell_variant in Array(floor_summary.get("affected_cells", [])):
+		var floor_cell: Vector2i = Vector2i(floor_cell_variant)
+		if floor_cell.x >= 0 and floor_cell.y >= 0:
+			affected_cell_lookup[_serialize_cell_key(floor_cell)] = floor_cell
 	var active_preset_ids: Array[String] = []
 	for preset_id_variant in active_preset_lookup.keys():
 		active_preset_ids.append(String(preset_id_variant))
@@ -10892,9 +10937,11 @@ func get_room_visual_preset_summary() -> Dictionary:
 	return {
 		"active_preset_ids": active_preset_ids,
 		"wall_material_counts": wall_material_counts,
+		"floor_material_counts": floor_material_counts,
 		"door_visual_counts": door_visual_counts,
 		"terminal_visual_counts": terminal_visual_counts,
 		"preset_generated_wall_override_count": wall_count,
+		"preset_generated_floor_override_count": int(floor_summary.get("preset_generated_floor_override_count", 0)),
 		"preset_generated_door_override_count": map_constructor_door_visual_preset_overrides.size(),
 		"preset_generated_terminal_override_count": map_constructor_terminal_visual_preset_overrides.size(),
 		"affected_cells": affected_cells
@@ -10907,6 +10954,8 @@ func export_map_constructor_design_notes(options: Dictionary = {}) -> Dictionary
 	var readiness: Dictionary = get_map_constructor_mission_readiness_report()
 	var validation: Array = get_map_constructor_validation_issues()
 	var wall_overrides: Array = Array(get_map_constructor_wall_material_overrides().get("overrides", []))
+	var floor_overrides: Array = Array(get_map_constructor_floor_material_overrides().get("overrides", []))
+	var floor_summary: Dictionary = get_map_constructor_floor_material_summary()
 	var wall_counts: Dictionary = {}
 	for row_variant in wall_overrides:
 		var row: Dictionary = Dictionary(row_variant)
@@ -10963,7 +11012,7 @@ func export_map_constructor_design_notes(options: Dictionary = {}) -> Dictionary
 	terminal_visual_summary["terminals"] = terminal_rows
 	var visual_catalog: Dictionary = get_visual_texture_asset_catalog()
 	var visual_summary: Dictionary = _build_visual_asset_summary(Dictionary(visual_catalog))
-	var notes: Dictionary = {"schema_version":1,"source":"task_test_map_constructor","mission_id":"mission_10","generated_at_runtime":str(Time.get_unix_time_from_system()),"summary":{"object_count":mission_world_objects.size(),"wall_material_override_count":wall_overrides.size(),"wall_material_counts":wall_counts},"visual_asset_summary":visual_summary,"readiness":readiness,"validation":{"issues":validation,"visual_diagnostics":visual_diagnostics},"objects":mission_world_objects.duplicate(true),"items":cell_items.values(),"tile_edits":Array(patch_export.get("patch", {}).get("tile_edits", [])),"links":Array(patch_export.get("patch", {}).get("links", [])),"patch":Dictionary(patch_export.get("patch", {})),"wall_material_overrides":wall_overrides,"door_visual_summary":door_visual_summary,"terminal_visual_summary":terminal_visual_summary,"history_summary":Array(get_map_constructor_change_history(20).get("history", [])),"overview_summary":Dictionary(get_map_constructor_overview_data().get("summary", {})),"room_visual_preset_summary":get_room_visual_preset_summary(),"recommended_next_steps":["Manual promotion required. No mission files were modified."]}
+	var notes: Dictionary = {"schema_version":1,"source":"task_test_map_constructor","mission_id":"mission_10","generated_at_runtime":str(Time.get_unix_time_from_system()),"summary":{"object_count":mission_world_objects.size(),"wall_material_override_count":wall_overrides.size(),"wall_material_counts":wall_counts,"floor_material_override_count":floor_overrides.size(),"floor_material_summary":floor_summary},"visual_asset_summary":visual_summary,"readiness":readiness,"validation":{"issues":validation,"visual_diagnostics":visual_diagnostics},"objects":mission_world_objects.duplicate(true),"items":cell_items.values(),"tile_edits":Array(patch_export.get("patch", {}).get("tile_edits", [])),"links":Array(patch_export.get("patch", {}).get("links", [])),"patch":Dictionary(patch_export.get("patch", {})),"wall_material_overrides":wall_overrides,"floor_material_overrides":floor_overrides,"floor_material_summary":floor_summary,"door_visual_summary":door_visual_summary,"terminal_visual_summary":terminal_visual_summary,"history_summary":Array(get_map_constructor_change_history(20).get("history", [])),"overview_summary":Dictionary(get_map_constructor_overview_data().get("summary", {})),"room_visual_preset_summary":get_room_visual_preset_summary(),"recommended_next_steps":["Manual promotion required. No mission files were modified."]}
 	var text: String = "# Design Notes\nMission: mission_10\nReadiness: %s\nValidation issues: %d\nPatch summary: objects=%d items=%d tiles=%d\nManual promotion required. No mission files were modified." % [String(readiness.get("status", "unknown")), validation.size(), int(patch_export.get("object_count", 0)), int(patch_export.get("item_count", 0)), int(patch_export.get("tile_edit_count", 0))]
 	return {"ok":true,"message":"OK","notes":notes,"text":text}
 
@@ -10996,7 +11045,7 @@ func get_map_constructor_production_pipeline_report(options: Dictionary = {}) ->
 	var has_warnings: bool = warning_count > 0
 	var status: String = "blocked" if blocked else ("warning" if has_warnings else "ready")
 	var notes_payload: Dictionary = Dictionary(notes.get("notes", {}))
-	return {"ok":true,"status":status,"message":"Manual promotion required. No mission files were modified.","checks":checks,"promotion_package":{"patch":Dictionary(patch_export.get("patch", {})),"design_notes":notes_payload,"summary":{"readiness":String(readiness.get("status", "unknown")),"wall_material_overrides":Array(get_map_constructor_wall_material_overrides().get("overrides", [])),"door_visual_summary":Dictionary(notes_payload.get("door_visual_summary", {})),"terminal_visual_summary":Dictionary(notes_payload.get("terminal_visual_summary", {})),"visual_asset_summary":Dictionary(notes_payload.get("visual_asset_summary", {})),"room_visual_preset_summary":Dictionary(notes_payload.get("room_visual_preset_summary", {}))},"manual_steps":["Review design notes","Review patch JSON","Promote manually in controlled pipeline"],"warnings":[]},"recommended_actions":[]}
+	return {"ok":true,"status":status,"message":"Manual promotion required. No mission files were modified.","checks":checks,"promotion_package":{"patch":Dictionary(patch_export.get("patch", {})),"design_notes":notes_payload,"summary":{"readiness":String(readiness.get("status", "unknown")),"wall_material_overrides":Array(get_map_constructor_wall_material_overrides().get("overrides", [])),"floor_material_summary":Dictionary(notes_payload.get("floor_material_summary", {})),"door_visual_summary":Dictionary(notes_payload.get("door_visual_summary", {})),"terminal_visual_summary":Dictionary(notes_payload.get("terminal_visual_summary", {})),"visual_asset_summary":Dictionary(notes_payload.get("visual_asset_summary", {})),"room_visual_preset_summary":Dictionary(notes_payload.get("room_visual_preset_summary", {}))},"manual_steps":["Review design notes","Review patch JSON","Promote manually in controlled pipeline"],"warnings":[]},"recommended_actions":[]}
 
 func _build_visual_asset_summary(catalog: Dictionary) -> Dictionary:
 	var assets: Array = Array(catalog.get("assets", []))
