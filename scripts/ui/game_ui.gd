@@ -11603,6 +11603,67 @@ func _show_map_constructor_inspector(cell: Vector2i, preferred_entity_kind: Stri
 		missing_label.text = "Select a wall side or wall-mounted anchor to edit wall material."
 		wall_section.add_child(missing_label)
 	v.add_child(wall_section)
+	var floor_section: VBoxContainer = _create_inspector_section("Floor Materials")
+	var floor_target_cell: Vector2i = pending_map_constructor_cell
+	if floor_target_cell.x < 0 or floor_target_cell.y < 0:
+		floor_target_cell = selected_map_constructor_entity_cell
+	var floor_target_label: Label = Label.new()
+	floor_target_label.text = String(floor_target_cell)
+	floor_section.add_child(_create_property_row("Target", floor_target_label))
+	if floor_target_cell.x >= 0 and floor_target_cell.y >= 0 and mission_manager_runtime.has_method("get_map_constructor_floor_material_catalog"):
+		var floor_catalog: Dictionary = mission_manager_runtime.call("get_map_constructor_floor_material_catalog")
+		var floor_rows: Array = Array(floor_catalog.get("materials", []))
+		var floor_material_option: OptionButton = OptionButton.new()
+		var floor_summary_label: Label = Label.new()
+		var selected_floor_material_id: String = ""
+		if mission_manager_runtime.has_method("get_map_constructor_floor_material"):
+			var current_floor_override: Dictionary = mission_manager_runtime.call("get_map_constructor_floor_material", floor_target_cell)
+			selected_floor_material_id = String(Dictionary(current_floor_override.get("override", {})).get("material_id", ""))
+		for floor_row_variant in floor_rows:
+			var floor_row: Dictionary = Dictionary(floor_row_variant)
+			var floor_material_id: String = String(floor_row.get("id", ""))
+			floor_material_option.add_item(String(floor_row.get("display_name", floor_material_id)))
+			var floor_added_index: int = floor_material_option.item_count - 1
+			floor_material_option.set_item_metadata(floor_added_index, floor_material_id)
+			if selected_floor_material_id == floor_material_id:
+				floor_material_option.select(floor_added_index)
+				floor_summary_label.text = String(floor_row.get("description", ""))
+		if floor_material_option.item_count > 0 and floor_material_option.selected < 0:
+			floor_material_option.select(0)
+		floor_material_option.item_selected.connect(func(_idx: int) -> void:
+			var current_floor_id: String = String(floor_material_option.get_selected_metadata())
+			for floor_row_inner_variant in floor_rows:
+				var floor_row_inner: Dictionary = Dictionary(floor_row_inner_variant)
+				if String(floor_row_inner.get("id", "")) == current_floor_id:
+					floor_summary_label.text = String(floor_row_inner.get("description", ""))
+					break
+		)
+		floor_section.add_child(_create_property_row("Material", floor_material_option))
+		floor_section.add_child(floor_summary_label)
+		var apply_floor_button: Button = Button.new(); apply_floor_button.text = "Apply Floor Material"
+		apply_floor_button.pressed.connect(func() -> void:
+			var floor_material_id_apply: String = String(floor_material_option.get_selected_metadata())
+			var floor_apply_result: Dictionary = mission_manager_runtime.call("set_map_constructor_floor_material", floor_target_cell, floor_material_id_apply)
+			show_hint(String(floor_apply_result.get("message", "Floor material updated.")))
+			_refresh_map_constructor_panels()
+			if field_runtime != null and field_runtime.has_method("request_visual_refresh"): field_runtime.call("request_visual_refresh")
+			_show_map_constructor_inspector(selected_map_constructor_entity_cell, selected_map_constructor_entity_kind, selected_map_constructor_entity_id)
+		)
+		var clear_floor_button: Button = Button.new(); clear_floor_button.text = "Clear Floor Material"
+		clear_floor_button.pressed.connect(func() -> void:
+			var floor_clear_result: Dictionary = mission_manager_runtime.call("clear_map_constructor_floor_material", floor_target_cell)
+			show_hint(String(floor_clear_result.get("message", "Floor material cleared.")))
+			_refresh_map_constructor_panels()
+			if field_runtime != null and field_runtime.has_method("request_visual_refresh"): field_runtime.call("request_visual_refresh")
+			_show_map_constructor_inspector(selected_map_constructor_entity_cell, selected_map_constructor_entity_kind, selected_map_constructor_entity_id)
+		)
+		floor_section.add_child(apply_floor_button)
+		floor_section.add_child(clear_floor_button)
+	else:
+		var floor_missing_label: Label = Label.new()
+		floor_missing_label.text = "Select or hover a valid cell to edit floor materials."
+		floor_section.add_child(floor_missing_label)
+	v.add_child(floor_section)
 	if String(data.get("placement_mode", "")) == "wall_mounted" and mission_manager_runtime.has_method("get_map_constructor_wall_mounted_status"):
 		var wm: Dictionary = mission_manager_runtime.call("get_map_constructor_wall_mounted_status", entity_kind, entity_id)
 		_set_map_constructor_wall_mounted_selection(Vector2i(wm.get("anchor_floor_cell", Vector2i(-1,-1))), Vector2i(wm.get("attached_wall_cell", Vector2i(-1,-1))), entity_id)
