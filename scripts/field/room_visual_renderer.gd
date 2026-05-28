@@ -26,9 +26,9 @@ class_name RoomVisualRenderer
 @export var iso_fog_unexplored_alpha: float = 0.42
 @export var iso_fog_explored_alpha: float = 0.18
 @export var iso_fog_visible_alpha: float = 0.0
-@export var debug_draw_iso_cell_outlines: bool = true
-@export var debug_draw_iso_wall_outlines: bool = true
-@export var debug_draw_iso_object_outlines: bool = true
+@export var debug_draw_iso_cell_outlines: bool = false
+@export var debug_draw_iso_wall_outlines: bool = false
+@export var debug_draw_iso_object_outlines: bool = false
 @export var use_iso_tile_asset_hooks: bool = false
 @export var use_iso_placeholder_asset_preset: bool = false
 @export var iso_placeholder_asset_preset_requires_preview: bool = true
@@ -192,6 +192,15 @@ func rebuild_visuals() -> void:
 
 func is_iso_visual_preview_active() -> bool:
 	return use_iso_visual_preview_preset
+
+func is_iso_renderer_active() -> bool:
+	return (
+		use_iso_visual_preview_preset
+		or render_iso_floor_prototype
+		or render_iso_wall_prototype
+		or render_iso_object_prototype
+		or use_iso_placeholder_asset_preset
+	)
 
 func should_render_iso_floor_visuals() -> bool:
 	return (render_iso_floor_prototype or use_iso_visual_preview_preset)
@@ -1425,10 +1434,18 @@ func get_iso_visual_debug_report() -> Dictionary:
 	var has_grid_manager: bool = _grid_manager != null
 	var map_width: int = 0
 	var map_height: int = 0
+	var legacy_grid_should_draw: bool = false
 	if has_grid_manager:
 		map_width = _grid_manager.get_map_width()
 		map_height = _grid_manager.get_map_height()
+		legacy_grid_should_draw = _grid_manager.should_draw_legacy_grid()
+	var iso_active: bool = is_iso_renderer_active()
 	return {
+		"single_render_path": not (legacy_grid_should_draw and iso_active),
+		"legacy_grid_should_draw": legacy_grid_should_draw,
+		"iso_renderer_active": iso_active,
+		"placeholder_assets_enabled": should_use_iso_placeholder_asset_preset(),
+		"procedural_wall_under_texture_enabled": false,
 		"layers": get_iso_visual_layer_debug_state(),
 		"preview": get_iso_visual_preview_state(),
 		"textures": get_iso_visual_texture_debug_state(),
@@ -1459,6 +1476,12 @@ func get_iso_visual_debug_report_text() -> String:
 	var grid: Dictionary = Dictionary(report.get("grid", {}))
 	var iso_settings: Dictionary = Dictionary(report.get("iso_settings", {}))
 	lines.append("IsoVisualDebugReport:")
+	lines.append("Single render path:")
+	lines.append("- ok: %s" % str(report.get("single_render_path", false)))
+	lines.append("- legacy_grid_should_draw: %s" % str(report.get("legacy_grid_should_draw", false)))
+	lines.append("- iso_renderer_active: %s" % str(report.get("iso_renderer_active", false)))
+	lines.append("- placeholder_assets_enabled: %s" % str(report.get("placeholder_assets_enabled", false)))
+	lines.append("- procedural_wall_under_texture_enabled: %s" % str(report.get("procedural_wall_under_texture_enabled", false)))
 	lines.append("Layers:")
 	lines.append("- floor: %s" % str(layers.get("floor_enabled", false)))
 	lines.append("- wall: %s" % str(layers.get("wall_enabled", false)))
@@ -1510,6 +1533,9 @@ func validate_iso_visual_debug_report() -> Array[String]:
 		warnings.append("iso_asset_alignment_rules_missing")
 	if use_iso_placeholder_asset_preset and iso_placeholder_asset_preset_requires_preview and not is_iso_visual_preview_active():
 		warnings.append("iso_placeholder_preset_waiting_for_preview")
+	var debug_report: Dictionary = get_iso_visual_debug_report()
+	if not bool(debug_report.get("single_render_path", true)):
+		warnings.append("single_render_path_duplicate_risk")
 	if use_iso_tile_asset_hooks and not should_use_iso_placeholder_asset_preset():
 		var texture_keys: Array[String] = get_iso_visual_texture_debug_keys()
 		var has_explicit_texture: bool = false
@@ -1672,6 +1698,41 @@ func draw_optional_visual_texture_asset(asset_id: String, cell: Vector2i, fallba
 		return true
 	draw_iso_texture_with_alignment(texture, alignment_asset_key, center)
 	return true
+
+func can_draw_optional_visual_texture_asset(asset_id: String) -> bool:
+	var normalized_asset_id: String = asset_id.strip_edges()
+	if normalized_asset_id.is_empty():
+		return false
+	var mission_manager: Node = get_mission_manager_ref()
+	if mission_manager == null or not mission_manager.has_method("resolve_visual_texture_asset"):
+		return false
+	var resolved: Dictionary = Dictionary(mission_manager.call("resolve_visual_texture_asset", normalized_asset_id))
+	if not bool(resolved.get("ok", false)):
+		return false
+	if not bool(resolved.get("has_texture", false)):
+		return false
+	var texture_path: String = String(resolved.get("texture_path", "")).strip_edges()
+	if texture_path.is_empty():
+		return false
+	var loaded: Resource = load(texture_path)
+	return loaded != null and (loaded is Texture2D)
+
+func has_drawable_iso_wall_texture(material_override: Dictionary, material_row: Dictionary, wall_profile_key: String) -> bool:
+	if bool(material_override.get("ok", false)):
+		if can_draw_optional_visual_texture_asset(String(material_row.get("texture_asset_id", ""))):
+			return true
+	var wall_asset_key: String = get_iso_wall_asset_key_for_profile(wall_profile_key)
+	if wall_asset_key.is_empty():
+		return false
+	if not should_use_iso_tile_asset_hook_visuals():
+		return false
+	return get_iso_texture_for_asset_key(wall_asset_key) != null
+
+func draw_iso_wall_texture_for_cell(cell: Vector2i, material_override: Dictionary, material_row: Dictionary, wall_profile_key: String) -> bool:
+	if bool(material_override.get("ok", false)):
+		if draw_optional_visual_texture_asset(String(material_row.get("texture_asset_id", "")), cell, "draw_iso_wall_surface_accent"):
+			return true
+	return draw_iso_texture_asset(cell, get_iso_wall_asset_key_for_profile(wall_profile_key))
 
 func get_wall_prototype_colors(cell: Vector2i) -> Dictionary:
 	var profile_key: String = get_wall_visual_profile_key_for_cell(cell)
@@ -2177,18 +2238,27 @@ func draw_iso_wall_block(cell: Vector2i) -> void:
 	var material_override: Dictionary = _get_wall_material_override_for_cell(cell)
 	var material_row: Dictionary = Dictionary(material_override.get("material", {}))
 	var arch: Dictionary = get_iso_architectural_wall_profile(topology, material_row)
-	var alpha_mult: float = 1.0
-	if iso_wall_cutaway_enabled and is_wall_adjacent_to_door(cell):
-		alpha_mult = 0.65
+	var wall_profile_key: String = get_wall_visual_profile_key_for_cell(cell)
 	var top_face: PackedVector2Array = PackedVector2Array([top_points[0], top_points[1], top_points[2], top_points[3]])
 	var left_face: PackedVector2Array = PackedVector2Array([top_points[3], top_points[2], base_points[2], base_points[3]])
 	var right_face: PackedVector2Array = PackedVector2Array([top_points[2], top_points[1], base_points[1], base_points[2]])
+	var floor_shadow: PackedVector2Array = PackedVector2Array([base_points[2], base_points[3], base_points[3] + Vector2(0.0, 8.0), base_points[2] + Vector2(0.0, 8.0)])
+	var accent_color: Color = _get_color_from_dict(colors, "accent", Color.WHITE)
+
+	if has_drawable_iso_wall_texture(material_override, material_row, wall_profile_key):
+		draw_colored_polygon(floor_shadow, Color(arch.get("shadow_color", Color(0.0, 0.0, 0.0, 0.25))))
+		if draw_iso_wall_texture_for_cell(cell, material_override, material_row, wall_profile_key):
+			draw_iso_wall_debug_and_mount_overlays(cell, arch, topology)
+			return
+
+	var alpha_mult: float = 1.0
+	if iso_wall_cutaway_enabled and is_wall_adjacent_to_door(cell):
+		alpha_mult = 0.65
 
 	var left_color: Color = Color(arch.get("base_color", _get_color_from_dict(colors, "left", Color.WHITE)))
 	var right_color: Color = Color(arch.get("side_color", _get_color_from_dict(colors, "right", Color.WHITE)))
 	var top_color: Color = Color(arch.get("top_color", _get_color_from_dict(colors, "top", Color.WHITE)))
 	var outline_color: Color = Color(arch.get("edge_color", _get_color_from_dict(colors, "outline", Color.WHITE)))
-	var accent_color: Color = _get_color_from_dict(colors, "accent", Color.WHITE)
 	left_color.a *= alpha_mult
 	right_color.a *= alpha_mult
 	top_color.a *= alpha_mult
@@ -2197,34 +2267,28 @@ func draw_iso_wall_block(cell: Vector2i) -> void:
 	draw_colored_polygon(right_face, right_color)
 	if bool(arch.get("cap_enabled", true)) or topology.find("corner_") >= 0:
 		draw_colored_polygon(top_face, top_color)
-	var floor_shadow: PackedVector2Array = PackedVector2Array([base_points[2], base_points[3], base_points[3] + Vector2(0.0, 8.0), base_points[2] + Vector2(0.0, 8.0)])
 	draw_colored_polygon(floor_shadow, Color(arch.get("shadow_color", Color(0.0, 0.0, 0.0, 0.25))))
 
 	if debug_draw_iso_wall_outlines:
-		for edge_idx in range(top_face.size()):
-			var top_next_idx: int = (edge_idx + 1) % top_face.size()
-			draw_line(top_face[edge_idx], top_face[top_next_idx], outline_color, 1.0)
+		for top_edge_idx in range(top_face.size()):
+			var top_next_idx: int = (top_edge_idx + 1) % top_face.size()
+			draw_line(top_face[top_edge_idx], top_face[top_next_idx], outline_color, 1.0)
 
-		for edge_idx in range(left_face.size()):
-			var left_next_idx: int = (edge_idx + 1) % left_face.size()
-			draw_line(left_face[edge_idx], left_face[left_next_idx], outline_color, 1.0)
+		for left_edge_idx in range(left_face.size()):
+			var left_next_idx: int = (left_edge_idx + 1) % left_face.size()
+			draw_line(left_face[left_edge_idx], left_face[left_next_idx], outline_color, 1.0)
 
-		for edge_idx in range(right_face.size()):
-			var right_next_idx: int = (edge_idx + 1) % right_face.size()
-			draw_line(right_face[edge_idx], right_face[right_next_idx], outline_color, 1.0)
+		for right_edge_idx in range(right_face.size()):
+			var right_next_idx: int = (right_edge_idx + 1) % right_face.size()
+			draw_line(right_face[right_edge_idx], right_face[right_next_idx], outline_color, 1.0)
 
 	var accent_start: Vector2 = top_points[3].lerp(top_points[0], 0.4)
 	var accent_end: Vector2 = top_points[0].lerp(top_points[1], 0.45)
 	draw_line(accent_start, accent_end, accent_color, 1.2)
+	draw_iso_wall_surface_accent(left_face, right_face, top_face, wall_profile_key, accent_color)
+	draw_iso_wall_debug_and_mount_overlays(cell, arch, topology)
 
-	var wall_profile_key: String = get_wall_visual_profile_key_for_cell(cell)
-	var wall_texture_drawn: bool = false
-	if bool(material_override.get("ok", false)):
-		wall_texture_drawn = draw_optional_visual_texture_asset(String(material_row.get("texture_asset_id", "")), cell, "draw_iso_wall_surface_accent")
-	if not wall_texture_drawn:
-		wall_texture_drawn = draw_iso_texture_asset(cell, get_iso_wall_asset_key_for_profile(wall_profile_key))
-	if not wall_texture_drawn:
-		draw_iso_wall_surface_accent(left_face, right_face, top_face, wall_profile_key, accent_color)
+func draw_iso_wall_debug_and_mount_overlays(cell: Vector2i, arch: Dictionary, topology: String) -> void:
 	if show_wall_topology_overlay:
 		draw_string(ThemeDB.fallback_font, grid_to_iso(cell) + Vector2(-20.0, -float(arch.get("height_px", 24)) - 4.0), topology, HORIZONTAL_ALIGNMENT_LEFT, 56.0, 9, Color(0.95, 0.96, 1.0, 0.9))
 	var mount_zones: Array[Dictionary] = get_wall_mounted_anchor_zones(cell)
