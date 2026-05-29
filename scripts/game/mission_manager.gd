@@ -2016,16 +2016,52 @@ func _serialize_wall_material_override_key(cell: Vector2i, side: String) -> Stri
 	return "%s|%s" % [_serialize_cell_key(cell), normalized_side]
 
 func get_map_constructor_floor_material_catalog() -> Dictionary:
-	var materials: Array[Dictionary] = [
-		{"id":"default_floor","display_name":"Default Floor","description":"Baseline interior deck plating.","tags":["default","metal","floor"],"style":"default","texture_asset_id":"floor_default","fallback_color":Color(0.13, 0.17, 0.2, 0.97),"edge_color":Color(0.22, 0.28, 0.33, 0.95),"is_default":true},
-		{"id":"clean_lab_floor","display_name":"Clean Lab Floor","description":"Sterile polished lab flooring.","tags":["clean","lab"],"style":"clean","texture_asset_id":"floor_clean_lab","fallback_color":Color(0.18, 0.23, 0.26, 0.97),"edge_color":Color(0.32, 0.4, 0.44, 0.95)},
-		{"id":"dark_service_floor","display_name":"Dark Service Floor","description":"Low-light service corridor floor.","tags":["dark","service"],"style":"dark","texture_asset_id":"floor_dark_service","fallback_color":Color(0.1, 0.12, 0.15, 0.97),"edge_color":Color(0.22, 0.26, 0.31, 0.95)},
-		{"id":"hazard_floor","display_name":"Hazard Floor","description":"Hazard-striped utility floor.","tags":["hazard","striped","power"],"style":"hazard","texture_asset_id":"floor_hazard","fallback_color":Color(0.2, 0.16, 0.12, 0.97),"edge_color":Color(0.47, 0.35, 0.19, 0.95)},
-		{"id":"power_floor","display_name":"Power Floor","description":"Power distribution floor.","tags":["power","utility"],"style":"power","texture_asset_id":"floor_power","fallback_color":Color(0.16, 0.19, 0.13, 0.97),"edge_color":Color(0.36, 0.45, 0.2, 0.95)},
-		{"id":"damaged_floor","display_name":"Damaged Floor","description":"Damaged warning-painted floor.","tags":["damaged","red","warning"],"style":"damaged","texture_asset_id":"floor_damaged","fallback_color":Color(0.2, 0.12, 0.13, 0.97),"edge_color":Color(0.44, 0.25, 0.26, 0.95)},
-		{"id":"reinforced_floor","display_name":"Reinforced Floor","description":"Reinforced security floor plating.","tags":["reinforced","security"],"style":"reinforced","texture_asset_id":"floor_reinforced","fallback_color":Color(0.12, 0.15, 0.19, 0.97),"edge_color":Color(0.3, 0.36, 0.45, 0.95)},
-		{"id":"diagnostic_floor","display_name":"Diagnostic Floor","description":"Diagnostic bay floor markings.","tags":["diagnostic","blue"],"style":"diagnostic","texture_asset_id":"floor_diagnostic","fallback_color":Color(0.11, 0.16, 0.23, 0.97),"edge_color":Color(0.24, 0.38, 0.53, 0.95)}
+	var materials: Array[Dictionary] = []
+	var base_colors: Dictionary = {
+		"steel": {"fallback": Color(0.13, 0.17, 0.2, 0.97), "edge": Color(0.22, 0.28, 0.33, 0.95), "texture":"floor_default", "name":"Steel"},
+		"concrete": {"fallback": Color(0.16, 0.16, 0.15, 0.97), "edge": Color(0.30, 0.30, 0.28, 0.95), "texture":"floor_dark_service", "name":"Concrete"},
+		"grate": {"fallback": Color(0.11, 0.16, 0.18, 0.97), "edge": Color(0.22, 0.38, 0.42, 0.95), "texture":"floor_diagnostic", "name":"Grate"}
+	}
+	var coatings: Array[Dictionary] = [
+		{"id":"default", "name":"Default", "texture_suffix":"", "color_shift":Color(1.0, 1.0, 1.0, 1.0), "description":"clean surface"},
+		{"id":"destroyed", "name":"Destroyed", "texture":"floor_damaged", "color_shift":Color(1.18, 0.75, 0.75, 1.0), "description":"broken and damaged surface"},
+		{"id":"dirty", "name":"Dirty", "texture":"floor_dark_service", "color_shift":Color(0.74, 0.70, 0.62, 1.0), "description":"dirty worn surface"},
+		{"id":"water", "name":"Water", "texture":"floor_clean_lab", "color_shift":Color(0.72, 0.90, 1.18, 1.0), "description":"wet water-covered surface"},
+		{"id":"oil", "name":"Oil", "texture":"floor_hazard", "color_shift":Color(0.62, 0.56, 0.42, 1.0), "description":"slippery oily surface"}
 	]
+	for material_id_variant in ["steel", "concrete", "grate"]:
+		var material_id: String = String(material_id_variant)
+		var base: Dictionary = Dictionary(base_colors.get(material_id, {}))
+		for coating in coatings:
+			var coating_id: String = String(coating.get("id", "default"))
+			var visual_id: String = "%s_%s" % [material_id, coating_id]
+			var shift: Color = Color(coating.get("color_shift", Color.WHITE))
+			var fallback: Color = Color(base.get("fallback", Color(0.13, 0.17, 0.2, 0.97)))
+			var edge: Color = Color(base.get("edge", Color(0.22, 0.28, 0.33, 0.95)))
+			materials.append({
+				"id": visual_id,
+				"display_name": "%s / %s" % [String(base.get("name", material_id.capitalize())), String(coating.get("name", coating_id.capitalize()))],
+				"description": "%s floor with %s." % [String(base.get("name", material_id.capitalize())), String(coating.get("description", coating_id))],
+				"material": material_id,
+				"coating": coating_id,
+				"tags": [material_id, coating_id, "floor"],
+				"style": visual_id,
+				"texture_asset_id": String(coating.get("texture", base.get("texture", "floor_default"))),
+				"fallback_color": Color(fallback.r * shift.r, fallback.g * shift.g, fallback.b * shift.b, fallback.a),
+				"edge_color": edge,
+				"is_default": visual_id == "steel_default"
+			})
+	# Legacy ids stay valid for older constructor patches and room visual preset code.
+	materials.append_array([
+		{"id":"default_floor","display_name":"Default Floor (legacy)","description":"Legacy baseline interior deck plating.","tags":["default","metal","floor","legacy"],"style":"default","texture_asset_id":"floor_default","fallback_color":Color(0.13, 0.17, 0.2, 0.97),"edge_color":Color(0.22, 0.28, 0.33, 0.95),"is_legacy":true},
+		{"id":"clean_lab_floor","display_name":"Clean Lab Floor (legacy)","description":"Legacy sterile polished lab flooring.","tags":["clean","lab","legacy"],"style":"clean","texture_asset_id":"floor_clean_lab","fallback_color":Color(0.18, 0.23, 0.26, 0.97),"edge_color":Color(0.32, 0.4, 0.44, 0.95),"is_legacy":true},
+		{"id":"dark_service_floor","display_name":"Dark Service Floor (legacy)","description":"Legacy low-light service corridor floor.","tags":["dark","service","legacy"],"style":"dark","texture_asset_id":"floor_dark_service","fallback_color":Color(0.1, 0.12, 0.15, 0.97),"edge_color":Color(0.22, 0.26, 0.31, 0.95),"is_legacy":true},
+		{"id":"hazard_floor","display_name":"Hazard Floor (legacy)","description":"Legacy hazard-striped utility floor.","tags":["hazard","striped","power","legacy"],"style":"hazard","texture_asset_id":"floor_hazard","fallback_color":Color(0.2, 0.16, 0.12, 0.97),"edge_color":Color(0.47, 0.35, 0.19, 0.95),"is_legacy":true},
+		{"id":"power_floor","display_name":"Power Floor (legacy)","description":"Legacy power distribution floor.","tags":["power","utility","legacy"],"style":"power","texture_asset_id":"floor_power","fallback_color":Color(0.16, 0.19, 0.13, 0.97),"edge_color":Color(0.36, 0.45, 0.2, 0.95),"is_legacy":true},
+		{"id":"damaged_floor","display_name":"Damaged Floor (legacy)","description":"Legacy damaged warning-painted floor.","tags":["damaged","red","warning","legacy"],"style":"damaged","texture_asset_id":"floor_damaged","fallback_color":Color(0.2, 0.12, 0.13, 0.97),"edge_color":Color(0.44, 0.25, 0.26, 0.95),"is_legacy":true},
+		{"id":"reinforced_floor","display_name":"Reinforced Floor (legacy)","description":"Legacy reinforced security floor plating.","tags":["reinforced","security","legacy"],"style":"reinforced","texture_asset_id":"floor_reinforced","fallback_color":Color(0.12, 0.15, 0.19, 0.97),"edge_color":Color(0.3, 0.36, 0.45, 0.95),"is_legacy":true},
+		{"id":"diagnostic_floor","display_name":"Diagnostic Floor (legacy)","description":"Legacy diagnostic bay floor markings.","tags":["diagnostic","blue","legacy"],"style":"diagnostic","texture_asset_id":"floor_diagnostic","fallback_color":Color(0.11, 0.16, 0.23, 0.97),"edge_color":Color(0.24, 0.38, 0.53, 0.95),"is_legacy":true}
+	])
 	return {"ok": true, "materials": materials, "message": "Floor material catalog ready."}
 
 func _is_known_map_constructor_floor_material_id(material_id: String) -> bool:
@@ -2408,7 +2444,7 @@ func can_place_map_constructor_prefab(prefab_id: String, cell: Vector2i, preferr
 	result["message"] = "OK"
 	return result
 
-func place_map_constructor_prefab(prefab_id: String, cell: Vector2i, preferred_wall_side: String = "") -> Dictionary:
+func place_map_constructor_prefab(prefab_id: String, cell: Vector2i, preferred_wall_side: String = "", rotation_degrees: int = 0) -> Dictionary:
 	if not _is_task_test_constructor_context():
 		return {"ok": false, "message": "Operation is available only in TASK TEST constructor mode."}
 	var check: Dictionary = can_place_map_constructor_prefab(prefab_id, cell, preferred_wall_side)
@@ -2441,10 +2477,12 @@ func place_map_constructor_prefab(prefab_id: String, cell: Vector2i, preferred_w
 			"created_by_map_constructor": true,
 			"map_constructor_prefab_id": prefab_id
 		}
+		item_data["map_constructor_rotation_degrees"] = posmod(rotation_degrees, 360)
 		add_item_at_cell(cell, item_data)
 		PowerSystemRef.recalculate_network(mission_world_objects, "")
 		refresh_world_cooling_received()
 		result["object_id"] = item_object_id
+		result["is_item"] = true
 		_record_map_constructor_change("place", {"entity_kind":"item", "entity_id":item_object_id, "object_type":item_type, "cell":cell, "summary":"Placed %s at %s" % [item_type, _format_map_constructor_cell(cell)], "undo_hint":"Can undo by deleting item."})
 		return result
 	var placed_tile_type: int = previous_tile_type
@@ -2471,7 +2509,8 @@ func place_map_constructor_prefab(prefab_id: String, cell: Vector2i, preferred_w
 		"created_by_map_constructor": true,
 		"map_constructor_prefab_id": prefab_id,
 		"map_constructor_tile_type": placed_tile_type,
-		"map_constructor_previous_tile_type": previous_tile_type
+		"map_constructor_previous_tile_type": previous_tile_type,
+		"map_constructor_rotation_degrees": posmod(rotation_degrees, 360)
 	}
 	if bool(MAP_CONSTRUCTOR_WALL_MOUNTED_PREFABS.get(prefab_id, false)):
 		var attachment: Dictionary = _resolve_wall_mounted_attachment(cell, preferred_wall_side)
