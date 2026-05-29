@@ -223,6 +223,8 @@ var selected_external_side: String = ""
 var selected_external_cell: Vector2i = Vector2i.ZERO
 var internal_view_mode: String = "modules"
 var module_icon_texture_cache: Dictionary = {}
+var module_type_icon_texture_cache: Dictionary = {}
+var module_type_icon_atlas_region_cache: Dictionary = {}
 var constructor_reference_text: String = ""
 
 enum AppScreenMode {
@@ -425,12 +427,21 @@ const UI_COLOR_WARNING: Color = Color(0.950, 0.640, 0.230, 1.0)
 const UI_COLOR_DANGER: Color = Color(0.950, 0.250, 0.250, 1.0)
 const UI_COLOR_DISABLED: Color = Color(0.250, 0.280, 0.320, 1.0)
 
-const STORAGE_CARD_MIN_SIZE: Vector2 = Vector2(84, 56)
+const STORAGE_CARD_MIN_SIZE: Vector2 = Vector2(110, 74)
 const MENU_TOP_BUTTON_HEIGHT := 56
 const BOX_TOP_BUTTON_HEIGHT := 56.0
 const MENU_BACK_BUTTON_SIZE: Vector2 = Vector2(120, 56)
 const REPAIR_BIPOB_CARD_SIZE: Vector2 = Vector2(120, 56)
 const STORAGE_CARD_ICON_SIZE: Vector2 = Vector2(26, 26)
+const MODULE_TYPE_ICON_BASE_PATH: String = "res://assets/visual/isometric/icons/modules/base_icon_inext.webp"
+const MODULE_TYPE_ICON_ATLAS_PATH: String = "res://assets/visual/isometric/icons/modules/icon_inext.webp"
+const MODULE_TYPE_ICON_FRAME_SIZE: Vector2i = Vector2i(64, 64)
+const MODULE_TYPE_ICON_TILE_SIZE: Vector2 = Vector2(32, 32)
+const MODULE_TYPE_ICON_TILE_PADDING: float = 5.0
+const MODULE_TYPE_ICON_OVERLAY_COLOR: Color = Color(0, 0, 0, 1)
+const MODULE_VERSION_COLOR_V1: Color = Color("#78C850")
+const MODULE_VERSION_COLOR_V2: Color = Color("#4DB6FF")
+const MODULE_VERSION_COLOR_V3: Color = Color("#B56CFF")
 const SELECTED_MODULE_ICON_SIZE: Vector2 = Vector2(68, 64)
 const SELECTED_MODULE_PREVIEW_CELL_SIZE: Vector2 = Vector2(18, 18)
 const SELECTED_MODULE_PREVIEW_GAP: int = 3
@@ -1204,6 +1215,193 @@ func _create_constructor_warning_readiness_panel() -> Control:
 	panel.add_child(root)
 	return panel
 
+
+func _load_cached_module_type_icon_texture(path: String) -> Texture2D:
+	if module_type_icon_texture_cache.has(path):
+		return module_type_icon_texture_cache[path]
+	if not ResourceLoader.exists(path):
+		module_type_icon_texture_cache[path] = null
+		return null
+	var texture: Texture2D = load(path) as Texture2D
+	module_type_icon_texture_cache[path] = texture
+	return texture
+
+
+func _has_module_type_icon_assets() -> bool:
+	return _load_cached_module_type_icon_texture(MODULE_TYPE_ICON_BASE_PATH) != null and _load_cached_module_type_icon_texture(MODULE_TYPE_ICON_ATLAS_PATH) != null
+
+
+func get_icon_rect(row: int, col: int) -> Rect2i:
+	return Rect2i(
+		(col - 1) * MODULE_TYPE_ICON_FRAME_SIZE.x,
+		(row - 1) * MODULE_TYPE_ICON_FRAME_SIZE.y,
+		MODULE_TYPE_ICON_FRAME_SIZE.x,
+		MODULE_TYPE_ICON_FRAME_SIZE.y
+	)
+
+
+func _get_module_type_icon_atlas_texture(row: int, col: int) -> AtlasTexture:
+	var atlas: Texture2D = _load_cached_module_type_icon_texture(MODULE_TYPE_ICON_ATLAS_PATH)
+	if atlas == null:
+		return null
+	var cache_key: String = "%d:%d" % [row, col]
+	if module_type_icon_atlas_region_cache.has(cache_key):
+		return module_type_icon_atlas_region_cache[cache_key]
+	var region_texture: AtlasTexture = AtlasTexture.new()
+	region_texture.atlas = atlas
+	region_texture.region = get_icon_rect(row, col)
+	module_type_icon_atlas_region_cache[cache_key] = region_texture
+	return region_texture
+
+
+func _get_module_version_badge_color(module: BipobModule) -> Color:
+	if module == null:
+		return MODULE_VERSION_COLOR_V1
+	var version_number: int = int(module.module_version)
+	if version_number <= 0:
+		var version_text: String = String(module.version).strip_edges().to_lower()
+		version_text = version_text.replace("v", "")
+		version_number = int(version_text) if version_text.is_valid_int() else 1
+	match clampi(version_number, 1, 3):
+		1:
+			return MODULE_VERSION_COLOR_V1
+		2:
+			return MODULE_VERSION_COLOR_V2
+		3:
+			return MODULE_VERSION_COLOR_V3
+		_:
+			return MODULE_VERSION_COLOR_V1
+
+
+func _module_search_text(module: BipobModule) -> String:
+	if module == null:
+		return ""
+	var parts: Array[String] = []
+	parts.append(String(module.id))
+	parts.append(String(module.module_id))
+	parts.append(String(module.display_name))
+	parts.append(String(module.category))
+	parts.append(String(module.placement_type))
+	parts.append(String(module.internal_role))
+	parts.append(String(module.internal_family))
+	parts.append(String(module.interface_role))
+	parts.append(String(module.movement_type))
+	parts.append(String(module.tool_action))
+	parts.append(String(module.connection_type))
+	parts.append(String(module.defense_type))
+	parts.append(String(module.scan_type))
+	var tags_variant: Variant = module.get("tags")
+	if tags_variant is Array:
+		for tag in Array(tags_variant):
+			parts.append(String(tag))
+	return " ".join(parts).to_lower()
+
+
+func _module_text_has_any(text: String, needles: Array) -> bool:
+	for needle in needles:
+		if text.contains(needle):
+			return true
+	return false
+
+
+func _is_module_icon_internal(module: BipobModule) -> bool:
+	if module == null:
+		return false
+	if bipob != null and bipob.has_method("is_internal_module") and bipob.is_internal_module(module):
+		return true
+	var placement_text: String = String(module.placement_type).to_lower()
+	var internal_role_text: String = String(module.internal_role).to_lower()
+	return placement_text.contains("internal") or (not internal_role_text.is_empty() and internal_role_text != "none")
+
+
+func _get_module_type_icon_atlas_cell(module: BipobModule) -> Vector2i:
+	var search_text: String = _module_search_text(module)
+	var is_internal_icon: bool = _is_module_icon_internal(module)
+	if is_internal_icon:
+		if _module_text_has_any(search_text, ["cooling", "cooler", "fan", "radiator"]):
+			return Vector2i(3, 1)
+		if _module_text_has_any(search_text, ["processor", "cpu"]):
+			return Vector2i(3, 2)
+		if _module_text_has_any(search_text, ["interface", "usb", "port", "network", "connector", "socket", "link"]):
+			return Vector2i(3, 4)
+		if _module_text_has_any(search_text, ["storage", "drive", "disk", "database", "hard_drive", "hdd", "ssd"]):
+			return Vector2i(3, 5)
+		if _module_text_has_any(search_text, ["ram", "memory"]):
+			return Vector2i(4, 1)
+		if _module_text_has_any(search_text, ["power", "battery", "energy"]):
+			return Vector2i(4, 2)
+		if _module_text_has_any(search_text, ["gpu", "graphics"]):
+			return Vector2i(4, 3)
+		if _module_text_has_any(search_text, ["unknown", "unk"]):
+			return Vector2i(4, 4)
+		return Vector2i(3, 3)
+
+	if _module_text_has_any(search_text, ["sensor", "visor", "scanner", "radar", "xray", "motion_detector", "detector"]):
+		return Vector2i(1, 1)
+	if _module_text_has_any(search_text, ["manipulator", "arm", "tentacle", "claw", "magnetic"]):
+		return Vector2i(1, 2)
+	if _module_text_has_any(search_text, ["wheel", "leg", "track", "movement", "gear"]):
+		return Vector2i(1, 3)
+	if _module_text_has_any(search_text, ["armor", "armour", "shield", "defence", "defense"]):
+		return Vector2i(1, 4)
+	if _module_text_has_any(search_text, ["weapon", "laser", "missile", "gun", "shock"]):
+		return Vector2i(1, 5)
+	if _module_text_has_any(search_text, ["tool", "repair", "wrench", "torch", "cutter", "saw", "hammer", "welder"]):
+		return Vector2i(2, 2)
+	if _module_text_has_any(search_text, ["connector", "socket", "cable", "link", "interface"]):
+		return Vector2i(2, 3)
+	if _module_text_has_any(search_text, ["unknown", "unk"]):
+		return Vector2i(2, 4)
+	return Vector2i(2, 1)
+
+
+func _create_texture_layer(texture: Texture2D, tint: Color) -> TextureRect:
+	var texture_rect: TextureRect = TextureRect.new()
+	texture_rect.texture = texture
+	texture_rect.modulate = tint
+	texture_rect.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	texture_rect.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
+	texture_rect.stretch_mode = TextureRect.STRETCH_SCALE
+	texture_rect.set_anchors_preset(Control.PRESET_FULL_RECT)
+	return texture_rect
+
+
+func create_module_type_icon(module: BipobModule, display_size: Vector2 = MODULE_TYPE_ICON_TILE_SIZE) -> Control:
+	var base_texture: Texture2D = _load_cached_module_type_icon_texture(MODULE_TYPE_ICON_BASE_PATH)
+	var atlas_texture: Texture2D = _load_cached_module_type_icon_texture(MODULE_TYPE_ICON_ATLAS_PATH)
+	if base_texture == null or atlas_texture == null:
+		return null
+	var container: Control = Control.new()
+	container.custom_minimum_size = display_size
+	container.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	container.clip_contents = false
+	container.add_child(_create_texture_layer(base_texture, _get_module_version_badge_color(module)))
+	var border_texture: AtlasTexture = _get_module_type_icon_atlas_texture(4, 5)
+	if border_texture == null:
+		return null
+	container.add_child(_create_texture_layer(border_texture, MODULE_TYPE_ICON_OVERLAY_COLOR))
+	var icon_cell: Vector2i = _get_module_type_icon_atlas_cell(module)
+	var icon_texture: AtlasTexture = _get_module_type_icon_atlas_texture(icon_cell.x, icon_cell.y)
+	if icon_texture == null:
+		return null
+	container.add_child(_create_texture_layer(icon_texture, MODULE_TYPE_ICON_OVERLAY_COLOR))
+	return container
+
+
+func _anchor_module_type_icon_bottom_right(icon: Control, display_size: Vector2, padding: float) -> void:
+	if icon == null:
+		return
+	icon.anchor_left = 1.0
+	icon.anchor_top = 1.0
+	icon.anchor_right = 1.0
+	icon.anchor_bottom = 1.0
+	icon.offset_left = -display_size.x - padding
+	icon.offset_top = -display_size.y - padding
+	icon.offset_right = -padding
+	icon.offset_bottom = -padding
+	icon.mouse_filter = Control.MOUSE_FILTER_IGNORE
+
+
 func _load_module_icon_texture(module: BipobModule) -> Texture2D:
 	if module == null:
 		return null
@@ -1222,6 +1420,10 @@ func _load_module_icon_texture(module: BipobModule) -> Texture2D:
 	return texture
 
 func _create_module_icon_control(module: BipobModule, size: Vector2 = Vector2(44, 44)) -> Control:
+	var type_icon: Control = create_module_type_icon(module, size)
+	if type_icon != null:
+		return type_icon
+
 	var panel: PanelContainer = PanelContainer.new()
 	panel.custom_minimum_size = size
 
@@ -1506,9 +1708,11 @@ func _create_storage_module_card(module: BipobModule, storage_index: int, select
 	var top_row: HBoxContainer = HBoxContainer.new()
 	top_row.mouse_filter = Control.MOUSE_FILTER_IGNORE
 
-	var icon: Control = _create_module_icon_control(module, STORAGE_CARD_ICON_SIZE)
-	icon.mouse_filter = Control.MOUSE_FILTER_IGNORE
-	top_row.add_child(icon)
+	var has_composed_icon: bool = _has_module_type_icon_assets()
+	if not has_composed_icon:
+		var icon: Control = _create_module_icon_control(module, STORAGE_CARD_ICON_SIZE)
+		icon.mouse_filter = Control.MOUSE_FILTER_IGNORE
+		top_row.add_child(icon)
 
 	var title_box: VBoxContainer = VBoxContainer.new()
 	title_box.mouse_filter = Control.MOUSE_FILTER_IGNORE
@@ -1525,7 +1729,10 @@ func _create_storage_module_card(module: BipobModule, storage_index: int, select
 	var label_text: String = "MOD"
 	if bipob.has_method("get_module_visual_short_label"):
 		label_text = bipob.get_module_visual_short_label(module)
-	meta_label.text = "UNK\nTBD" if _is_module_unknown(module) else "%s\n%s" % [label_text, _get_module_card_size_text(module)]
+	if has_composed_icon:
+		meta_label.text = "UNK\nTBD" if _is_module_unknown(module) else _get_module_card_size_text(module)
+	else:
+		meta_label.text = "UNK\nTBD" if _is_module_unknown(module) else "%s\n%s" % [label_text, _get_module_card_size_text(module)]
 	meta_label.add_theme_color_override("font_color", UI_COLOR_TEXT_DIM)
 	meta_label.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 	meta_label.clip_text = true
@@ -1536,6 +1743,11 @@ func _create_storage_module_card(module: BipobModule, storage_index: int, select
 	root.add_child(top_row)
 
 	button.add_child(root)
+	if has_composed_icon:
+		var overlay_icon: Control = create_module_type_icon(module, MODULE_TYPE_ICON_TILE_SIZE)
+		if overlay_icon != null:
+			_anchor_module_type_icon_bottom_right(overlay_icon, MODULE_TYPE_ICON_TILE_SIZE, MODULE_TYPE_ICON_TILE_PADDING)
+			button.add_child(overlay_icon)
 	_add_hover_scale_feedback(button)
 	if selected:
 		_apply_selected_pulse(button)
