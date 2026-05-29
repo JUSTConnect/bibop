@@ -598,6 +598,15 @@ func draw_map_constructor_visual_overlay_passes() -> void:
 	var power: Array = Array(map_constructor_overlay_data.get("power", []))
 	var multi_select: Array = Array(map_constructor_overlay_data.get("multi_select", []))
 	var room_visual_preview: Dictionary = Dictionary(map_constructor_overlay_data.get("room_visual_preview", {}))
+	if selected.has("cell"):
+		var selected_cell: Vector2i = Vector2i(selected.get("cell", Vector2i(-1, -1)))
+		if selected_cell.x >= 0 and selected_cell.y >= 0:
+			var selected_poly: PackedVector2Array = get_iso_inset_diamond_points(selected_cell, iso_floor_visual_inset + 1.5)
+			if selected_poly.size() >= 4:
+				draw_colored_polygon(selected_poly, Color(1.0, 0.92, 0.24, 0.11))
+				for selected_edge_index in range(selected_poly.size()):
+					var selected_next_index: int = (selected_edge_index + 1) % selected_poly.size()
+					draw_line(selected_poly[selected_edge_index], selected_poly[selected_next_index], Color(1.0, 0.92, 0.24, 0.95), 2.4)
 	if hover.has("cell"):
 		var hover_cell: Vector2i = Vector2i(hover.get("cell", Vector2i(-1, -1)))
 		if hover_cell.x >= 0 and hover_cell.y >= 0:

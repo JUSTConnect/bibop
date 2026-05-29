@@ -152,6 +152,7 @@ var runtime_world_actions_selected_button: Button = null
 var runtime_map_constructor_palette_panel: PanelContainer = null
 var runtime_map_constructor_inspector_panel: PanelContainer = null
 var runtime_map_constructor_validation_overlay_control: ConstructorValidationOverlayControl = null
+var runtime_map_constructor_place_confirm_panel: PanelContainer = null
 var map_constructor_validation_overlay_visible: bool = true
 var last_world_action_target_id: String = ""
 var last_world_action_actions_key: String = ""
@@ -289,6 +290,9 @@ var map_constructor_active_tab: String = "map_settings"
 var map_constructor_tab_scroll_positions: Dictionary = {}
 var selected_map_constructor_prefab_id: String = ""
 var pending_map_constructor_cell: Vector2i = Vector2i(-1, -1)
+var map_constructor_pending_place_prefab_id: String = ""
+var map_constructor_pending_place_cell: Vector2i = Vector2i(-1, -1)
+var map_constructor_pending_place_rotation: int = 0
 var selected_map_constructor_entity_kind: String = ""
 var selected_map_constructor_entity_id: String = ""
 var selected_map_constructor_entity_cell: Vector2i = Vector2i(-1, -1)
@@ -9087,7 +9091,7 @@ func _is_mouse_over_map_constructor_ui_panel() -> bool:
 	var hovered: Control = get_viewport().gui_get_hovered_control()
 	if hovered == null:
 		return false
-	return _is_control_in_map_constructor_panel(hovered, runtime_map_constructor_palette_panel) or _is_control_in_map_constructor_panel(hovered, runtime_map_constructor_inspector_panel)
+	return _is_control_in_map_constructor_panel(hovered, runtime_map_constructor_palette_panel) or _is_control_in_map_constructor_panel(hovered, runtime_map_constructor_inspector_panel) or _is_control_in_map_constructor_panel(hovered, runtime_map_constructor_place_confirm_panel)
 
 func _is_control_in_map_constructor_panel(control: Control, panel: Control) -> bool:
 	if control == null or panel == null or not is_instance_valid(panel):
@@ -9182,6 +9186,7 @@ func _deactivate_map_constructor_mode() -> void:
 	runtime_map_constructor_validation_overlay_control = null
 	_set_runtime_bottom_hud_visible(true)
 
+	_clear_map_constructor_pending_placement()
 	_clear_map_constructor_preview_cell()
 	_clear_map_constructor_wall_mounted_selection()
 	_clear_map_constructor_link_target()
@@ -9308,6 +9313,11 @@ func _handle_runtime_gameplay_mouse_click(event: InputEventMouseButton) -> bool:
 		return false
 	if event.button_index != MOUSE_BUTTON_LEFT and event.button_index != MOUSE_BUTTON_RIGHT:
 		return false
+	if event.button_index == MOUSE_BUTTON_RIGHT and map_constructor_mode_active:
+		_clear_all_map_constructor_selection_state()
+		_refresh_map_constructor_panels()
+		_request_map_constructor_overlay_refresh()
+		return true
 	var hovered_control: Control = get_viewport().gui_get_hovered_control()
 	if hovered_control != null:
 		return false
@@ -9328,14 +9338,16 @@ func _handle_runtime_gameplay_mouse_click(event: InputEventMouseButton) -> bool:
 			bipob.handle_grid_cell_left_click(cell)
 	else:
 		if map_constructor_mode_active:
-			_show_map_constructor_inspector(cell)
+			_clear_all_map_constructor_selection_state()
+			_refresh_map_constructor_panels()
+			_request_map_constructor_overlay_refresh()
 		else:
 			bipob.handle_grid_cell_right_click(cell)
 	var action_cell: Vector2i = Vector2i(-1, -1)
 	if bipob.grid_position.distance_to(cell) <= 1:
 		action_cell = cell
 	renderer.set_iso_mouse_selection_visuals(bipob.selected_grid_cell, bipob.selected_route_cells, action_cell)
-	if map_constructor_mode_active:
+	if map_constructor_mode_active and map_constructor_pending_place_cell.x < 0:
 		renderer.set_map_constructor_preview_cell(pending_map_constructor_cell)
 	update_status()
 	update_diagnostic_status()
@@ -9357,30 +9369,158 @@ func _handle_map_constructor_left_click(cell: Vector2i) -> void:
 			map_constructor_marker_mode = ""
 			_refresh_map_constructor_panels()
 			return
-		show_hint("Select prefab in constructor palette.")
-		return
-	if pending_map_constructor_cell != cell:
-		pending_map_constructor_cell = cell
-		var preview_message: String = "Preview: %s at %s" % [selected_map_constructor_prefab_id, str(cell)]
-		if mission_manager_runtime != null and mission_manager_runtime.has_method("can_place_map_constructor_prefab"):
-			var preview_check: Dictionary = _update_map_constructor_preview_for_cell(cell)
-			preview_message = String(preview_check.get("message", preview_message))
-			if String(preview_check.get("placement_mode", "")) == "wall_mounted":
-				preview_message += " Side: %s" % String(preview_check.get("wall_side", ""))
-		show_hint(preview_message)
+		_clear_map_constructor_pending_placement()
+		_show_map_constructor_inspector(cell)
 		_refresh_map_constructor_panels()
+		_request_map_constructor_overlay_refresh()
+		return
+	_start_map_constructor_pending_placement(selected_map_constructor_prefab_id, cell)
+
+func _clear_map_constructor_pending_placement() -> void:
+	map_constructor_pending_place_prefab_id = ""
+	map_constructor_pending_place_cell = Vector2i(-1, -1)
+	map_constructor_pending_place_rotation = 0
+	if runtime_map_constructor_place_confirm_panel != null and is_instance_valid(runtime_map_constructor_place_confirm_panel):
+		runtime_map_constructor_place_confirm_panel.queue_free()
+	runtime_map_constructor_place_confirm_panel = null
+
+func _start_map_constructor_pending_placement(prefab_id: String, cell: Vector2i) -> void:
+	map_constructor_pending_place_prefab_id = prefab_id
+	map_constructor_pending_place_cell = cell
+	map_constructor_pending_place_rotation = 0
+	pending_map_constructor_cell = cell
+	var preview_check: Dictionary = _update_map_constructor_preview_for_cell(cell)
+	var preview_message: String = String(preview_check.get("message", "Preview: %s at %s" % [prefab_id, str(cell)]))
+	if String(preview_check.get("placement_mode", "")) == "wall_mounted":
+		preview_message += " Side: %s" % String(preview_check.get("wall_side", ""))
+	show_hint(preview_message)
+	_show_map_constructor_place_confirm_panel()
+	_refresh_map_constructor_panels()
+	_request_map_constructor_overlay_refresh()
+
+func _rotate_map_constructor_pending_placement(clockwise: bool) -> void:
+	if map_constructor_pending_place_cell.x < 0 or map_constructor_pending_place_prefab_id.is_empty():
+		return
+	map_constructor_pending_place_rotation = posmod(map_constructor_pending_place_rotation + (90 if clockwise else -90), 360)
+	_update_map_constructor_preview_for_cell(map_constructor_pending_place_cell)
+	_show_map_constructor_place_confirm_panel()
+	show_hint("Preview rotation: %d°" % map_constructor_pending_place_rotation)
+	_request_map_constructor_overlay_refresh()
+
+func _confirm_map_constructor_pending_placement() -> void:
+	if map_constructor_pending_place_prefab_id.is_empty() or map_constructor_pending_place_cell.x < 0:
 		return
 	if mission_manager_runtime == null or not mission_manager_runtime.has_method("place_map_constructor_prefab"):
 		return
-	var result: Dictionary = mission_manager_runtime.call("place_map_constructor_prefab", selected_map_constructor_prefab_id, cell, selected_map_constructor_wall_side)
+	var prefab_id: String = map_constructor_pending_place_prefab_id
+	var place_cell: Vector2i = map_constructor_pending_place_cell
+	var rotation: int = map_constructor_pending_place_rotation
+	var result: Dictionary = mission_manager_runtime.call("place_map_constructor_prefab", prefab_id, place_cell, selected_map_constructor_wall_side, rotation)
 	show_hint(String(result.get("message", "Placement done.")))
 	if bool(result.get("ok", false)):
-		_mark_map_constructor_prefab_recent(selected_map_constructor_prefab_id)
+		_mark_map_constructor_prefab_recent(prefab_id)
+		_clear_map_constructor_pending_placement()
 		pending_map_constructor_cell = Vector2i(-1, -1)
 		_clear_map_constructor_preview_cell()
 		if field_runtime != null and field_runtime.has_method("request_visual_refresh"):
 			field_runtime.call("request_visual_refresh")
+		var object_id: String = String(result.get("object_id", ""))
+		if not object_id.is_empty():
+			var entity_kind: String = "item" if bool(result.get("is_item", false)) else "world_object"
+			_show_map_constructor_inspector(place_cell, entity_kind, object_id)
 	_refresh_map_constructor_panels()
+	_request_map_constructor_overlay_refresh()
+
+func _cancel_map_constructor_pending_placement() -> void:
+	_clear_map_constructor_pending_placement()
+	pending_map_constructor_cell = Vector2i(-1, -1)
+	_clear_map_constructor_preview_cell()
+	_refresh_map_constructor_panels()
+	_request_map_constructor_overlay_refresh()
+	show_hint("Placement cancelled.")
+
+func _show_map_constructor_place_confirm_panel() -> void:
+	if runtime_hud_root == null or not is_instance_valid(runtime_hud_root):
+		_ensure_runtime_hud_root()
+	if runtime_map_constructor_place_confirm_panel != null and is_instance_valid(runtime_map_constructor_place_confirm_panel):
+		runtime_map_constructor_place_confirm_panel.queue_free()
+	runtime_map_constructor_place_confirm_panel = null
+	if map_constructor_pending_place_cell.x < 0 or map_constructor_pending_place_prefab_id.is_empty() or field_runtime == null:
+		return
+	var renderer_node: Node = field_runtime.get_node_or_null("RoomVisualRenderer")
+	if renderer_node == null or not (renderer_node is RoomVisualRenderer):
+		return
+	var renderer: RoomVisualRenderer = renderer_node
+	var panel := PanelContainer.new()
+	panel.z_index = Z_MAP_CONSTRUCTOR_UI + 4
+	panel.z_as_relative = false
+	panel.mouse_filter = Control.MOUSE_FILTER_PASS
+	panel.add_theme_stylebox_override("panel", _make_panel_style(UI_COLOR_PANEL_DARK, UI_COLOR_ACCENT, 1, 8))
+	var row := HBoxContainer.new()
+	row.add_theme_constant_override("separation", 4)
+	row.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	panel.add_child(row)
+	for spec in [
+		{"label":"↺ Left", "tip":"Rotate preview counter-clockwise", "action":"left"},
+		{"label":"↻ Right", "tip":"Rotate preview clockwise", "action":"right"},
+		{"label":"Place", "tip":"Confirm placement", "action":"place"},
+		{"label":"Cancel", "tip":"Cancel pending placement", "action":"cancel"}
+	]:
+		var button := Button.new()
+		button.text = String(spec.get("label", ""))
+		button.tooltip_text = String(spec.get("tip", ""))
+		button.mouse_filter = Control.MOUSE_FILTER_STOP
+		var action_id: String = String(spec.get("action", ""))
+		button.pressed.connect(func() -> void:
+			match action_id:
+				"left":
+					_rotate_map_constructor_pending_placement(false)
+				"right":
+					_rotate_map_constructor_pending_placement(true)
+				"place":
+					_confirm_map_constructor_pending_placement()
+				"cancel":
+					_cancel_map_constructor_pending_placement()
+		)
+		row.add_child(button)
+	runtime_hud_root.add_child(panel)
+	runtime_map_constructor_place_confirm_panel = panel
+	var world_pos: Vector2 = renderer.to_global(renderer.grid_to_iso(map_constructor_pending_place_cell)) + Vector2(-120.0, 38.0)
+	var viewport_size: Vector2 = get_viewport_rect().size
+	panel.reset_size()
+	var panel_size: Vector2 = panel.get_combined_minimum_size()
+	panel.position = Vector2(clampf(world_pos.x, 8.0, maxf(8.0, viewport_size.x - panel_size.x - 8.0)), clampf(world_pos.y, 8.0, maxf(8.0, viewport_size.y - panel_size.y - 8.0)))
+
+func _clear_all_map_constructor_selection_state() -> void:
+	selected_map_constructor_prefab_id = ""
+	selected_map_constructor_entity_kind = ""
+	selected_map_constructor_entity_id = ""
+	selected_map_constructor_entity_cell = Vector2i(-1, -1)
+	pending_map_constructor_cell = Vector2i(-1, -1)
+	selected_map_constructor_wall_side = ""
+	available_map_constructor_wall_sides.clear()
+	map_constructor_picker_entity_kind = ""
+	map_constructor_picker_entity_id = ""
+	map_constructor_picker_field_name = ""
+	map_constructor_marker_mode = ""
+	map_constructor_selected_issue_id = ""
+	map_constructor_cleanup_preview.clear()
+	map_constructor_cleanup_pending_apply_key = ""
+	map_constructor_autofix_preview.clear()
+	map_constructor_autofix_pending_apply_key = ""
+	map_constructor_batch_preview.clear()
+	map_constructor_batch_pending_apply_operation = ""
+	map_constructor_batch_pending_apply_key = ""
+	map_constructor_multi_selected_entities.clear()
+	_clear_map_constructor_pending_placement()
+	_clear_map_constructor_preview_cell()
+	_clear_map_constructor_wall_mounted_selection()
+	_clear_map_constructor_link_target()
+	_clear_map_constructor_browser_selection()
+	_clear_map_constructor_batch_preview_state()
+	if runtime_map_constructor_inspector_panel != null and is_instance_valid(runtime_map_constructor_inspector_panel):
+		runtime_map_constructor_inspector_panel.queue_free()
+	runtime_map_constructor_inspector_panel = null
 
 func _map_constructor_prefab_matches_filters(entry: Dictionary) -> bool:
 	var search_text: String = map_constructor_prefab_search_text.strip_edges().to_lower()
@@ -9441,6 +9581,7 @@ func _select_map_constructor_prefab(prefab_id: String) -> void:
 	selected_map_constructor_wall_side = ""
 	available_map_constructor_wall_sides.clear()
 	pending_map_constructor_cell = Vector2i(-1, -1)
+	_clear_map_constructor_pending_placement()
 	_clear_map_constructor_preview_cell()
 	_mark_map_constructor_prefab_recent(prefab_id)
 
@@ -9577,7 +9718,9 @@ func _create_map_constructor_prefab_preview(entry: Dictionary) -> Control:
 	var preview_kind: String = _get_map_constructor_prefab_preview_kind(entry)
 	var placement_mode: String = _safe_ui_string(entry.get("placement_mode", "unknown"), "unknown")
 	var preview_panel: PanelContainer = PanelContainer.new()
-	preview_panel.custom_minimum_size = Vector2(64, 78)
+	preview_panel.custom_minimum_size = Vector2(56, 64)
+	preview_panel.size_flags_horizontal = Control.SIZE_SHRINK_BEGIN
+	preview_panel.size_flags_vertical = Control.SIZE_SHRINK_CENTER
 	preview_panel.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	var preview_color: Color = _get_map_constructor_prefab_preview_color(preview_kind)
 	preview_panel.add_theme_stylebox_override("panel", _make_panel_style(preview_color.darkened(0.28), preview_color.lightened(0.20), 2, 8))
@@ -9627,7 +9770,7 @@ func _create_map_constructor_prefab_card(entry: Dictionary) -> Button:
 	card.button_pressed = selected
 	card.text = ""
 	card.clip_text = true
-	card.custom_minimum_size = Vector2(0, 136)
+	card.custom_minimum_size = Vector2(0, 132)
 	card.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	card.size_flags_vertical = Control.SIZE_SHRINK_BEGIN
 	var border_color: Color = UI_COLOR_SELECTED if selected else UI_COLOR_BORDER_DIM
@@ -9650,13 +9793,16 @@ func _create_map_constructor_prefab_card(entry: Dictionary) -> Button:
 
 	var text_stack: VBoxContainer = VBoxContainer.new()
 	text_stack.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-	text_stack.add_theme_constant_override("separation", 3)
+	text_stack.size_flags_vertical = Control.SIZE_EXPAND_FILL
+	text_stack.clip_contents = true
+	text_stack.add_theme_constant_override("separation", 2)
 	text_stack.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	row.add_child(text_stack)
 
 	var display_name: String = _safe_ui_string(entry.get("display_name", entry.get("label", prefab_id)), prefab_id)
 	var title_label: Label = Label.new()
 	title_label.text = ("▶ " if selected else "") + display_name
+	title_label.tooltip_text = display_name
 	title_label.clip_text = true
 	title_label.text_overrun_behavior = TextServer.OVERRUN_TRIM_ELLIPSIS
 	title_label.add_theme_color_override("font_color", UI_COLOR_SELECTED if selected else UI_COLOR_TEXT)
@@ -9670,6 +9816,7 @@ func _create_map_constructor_prefab_card(entry: Dictionary) -> Button:
 		roles_text = "no role"
 	var meta_label: Label = Label.new()
 	meta_label.text = "id: %s • %s • %s • %s" % [prefab_id, category_text, placement_mode, roles_text]
+	meta_label.tooltip_text = meta_label.text
 	meta_label.clip_text = true
 	meta_label.text_overrun_behavior = TextServer.OVERRUN_TRIM_ELLIPSIS
 	meta_label.add_theme_color_override("font_color", UI_COLOR_TEXT_DIM)
@@ -9681,6 +9828,8 @@ func _create_map_constructor_prefab_card(entry: Dictionary) -> Button:
 		description = _safe_ui_string(entry.get("placement_hint", "No description available."), "No description available.")
 	var description_label: Label = Label.new()
 	description_label.text = description
+	description_label.tooltip_text = description
+	description_label.clip_text = true
 	description_label.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 	description_label.max_lines_visible = 2
 	description_label.text_overrun_behavior = TextServer.OVERRUN_TRIM_ELLIPSIS
@@ -9691,6 +9840,7 @@ func _create_map_constructor_prefab_card(entry: Dictionary) -> Button:
 	var status: Dictionary = _format_map_constructor_prefab_placeability(entry)
 	var prefab_status_label: Label = Label.new()
 	prefab_status_label.text = _safe_ui_string(status.get("text", "Placeability unknown"), "Placeability unknown")
+	prefab_status_label.tooltip_text = prefab_status_label.text
 	prefab_status_label.clip_text = true
 	prefab_status_label.text_overrun_behavior = TextServer.OVERRUN_TRIM_ELLIPSIS
 	match _safe_ui_string(status.get("role", "neutral"), "neutral"):
@@ -9727,6 +9877,8 @@ func _create_map_constructor_prefab_card(entry: Dictionary) -> Button:
 		if not diagnostic_bits.is_empty():
 			var prefab_diagnostic_label: Label = Label.new()
 			prefab_diagnostic_label.text = "Diagnostics: %s" % ", ".join(diagnostic_bits)
+			prefab_diagnostic_label.tooltip_text = prefab_diagnostic_label.text
+			prefab_diagnostic_label.max_lines_visible = 1
 			prefab_diagnostic_label.clip_text = true
 			prefab_diagnostic_label.text_overrun_behavior = TextServer.OVERRUN_TRIM_ELLIPSIS
 			prefab_diagnostic_label.add_theme_color_override("font_color", UI_COLOR_TEXT_DIM)
@@ -9890,8 +10042,9 @@ func _select_map_constructor_entity_from_browser(row: Dictionary) -> void:
 	selected_map_constructor_entity_kind = entity_kind
 	selected_map_constructor_entity_id = entity_id
 	selected_map_constructor_entity_cell = focus_cell
-	pending_map_constructor_cell = focus_cell
-	_update_map_constructor_preview_for_cell(focus_cell)
+	pending_map_constructor_cell = Vector2i(-1, -1)
+	_clear_map_constructor_pending_placement()
+	_clear_map_constructor_preview_cell()
 	_show_map_constructor_inspector(focus_cell, entity_kind, entity_id)
 	_focus_map_constructor_cell(focus_cell)
 	if field_runtime != null and field_runtime.has_method("request_visual_refresh"):
@@ -11801,6 +11954,57 @@ func _safe_ui_string(value: Variant, fallback: String = "") -> String:
 		return fallback
 	return str(value)
 
+
+
+func _compose_map_constructor_floor_visual_id(material_id: String, coating_id: String) -> String:
+	var material: String = material_id.to_lower().strip_edges()
+	var coating: String = coating_id.to_lower().strip_edges()
+	if material.is_empty():
+		material = "steel"
+	if coating.is_empty():
+		coating = "default"
+	return "%s_%s" % [material, coating]
+
+func _parse_map_constructor_floor_visual_id(visual_id: String) -> Dictionary:
+	var normalized: String = visual_id.to_lower().strip_edges()
+	var legacy: Dictionary = {
+		"default_floor":"steel_default",
+		"clean_lab_floor":"steel_default",
+		"dark_service_floor":"concrete_dirty",
+		"hazard_floor":"steel_oil",
+		"power_floor":"grate_default",
+		"damaged_floor":"concrete_destroyed",
+		"reinforced_floor":"steel_default",
+		"diagnostic_floor":"grate_default"
+	}
+	if legacy.has(normalized):
+		normalized = String(legacy[normalized])
+	var parts: PackedStringArray = normalized.split("_", false)
+	if parts.size() >= 2:
+		return {"material": String(parts[0]), "coating": String(parts[1])}
+	return {"material":"steel", "coating":"default"}
+
+func _create_map_constructor_description_block(data: Dictionary, entity_kind: String, entity_id: String) -> Control:
+	var description_text: String = _safe_ui_string(data.get("description", data.get("long_description", data.get("placement_hint", "")))).strip_edges()
+	if description_text.is_empty():
+		description_text = _safe_ui_string(data.get("display_name", data.get("object_type", data.get("item_type", entity_id))), entity_id)
+	var section: VBoxContainer = _create_inspector_section("Description")
+	var desc_scroll := ScrollContainer.new()
+	desc_scroll.horizontal_scroll_mode = ScrollContainer.SCROLL_MODE_DISABLED
+	desc_scroll.vertical_scroll_mode = ScrollContainer.SCROLL_MODE_AUTO
+	desc_scroll.custom_minimum_size = Vector2(0.0, 96.0)
+	desc_scroll.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	desc_scroll.size_flags_vertical = Control.SIZE_SHRINK_BEGIN
+	var desc_label := Label.new()
+	desc_label.text = description_text
+	desc_label.tooltip_text = description_text
+	desc_label.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	desc_label.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	desc_label.size_flags_vertical = Control.SIZE_SHRINK_BEGIN
+	desc_scroll.add_child(desc_label)
+	section.add_child(desc_scroll)
+	return section
+
 func _create_inspector_section(title: String) -> VBoxContainer:
 	var section: VBoxContainer = VBoxContainer.new()
 	section.add_theme_constant_override("separation", 4)
@@ -12043,6 +12247,7 @@ func _show_map_constructor_inspector(cell: Vector2i, preferred_entity_kind: Stri
 	_add_text_property(identity, "display_name", entity_kind, entity_id, "display_name", data.get("display_name", ""))
 	_add_text_property(identity, "state", entity_kind, entity_id, "state", data.get("state", ""))
 	v.add_child(identity)
+	v.add_child(_create_map_constructor_description_block(data, entity_kind, entity_id))
 	var placement := _create_inspector_section("Placement")
 	var cell_l:=Label.new(); cell_l.text = _safe_ui_string(entity_info.get("cell", cell), str(cell)); placement.add_child(_create_property_row("Cell", cell_l))
 	var pm_l:=Label.new(); pm_l.text = _safe_ui_string(data.get("placement_mode", "floor"), "floor"); placement.add_child(_create_property_row("Mode", pm_l))
@@ -12173,39 +12378,60 @@ func _show_map_constructor_inspector(cell: Vector2i, preferred_entity_kind: Stri
 	var floor_target_label: Label = Label.new()
 	floor_target_label.text = str(floor_target_cell)
 	floor_section.add_child(_create_property_row("Target", floor_target_label))
-	if floor_target_cell.x >= 0 and floor_target_cell.y >= 0 and mission_manager_runtime.has_method("get_map_constructor_floor_material_catalog"):
-		var floor_catalog: Dictionary = mission_manager_runtime.call("get_map_constructor_floor_material_catalog")
-		var floor_rows: Array = Array(floor_catalog.get("materials", []))
-		var floor_material_option: OptionButton = OptionButton.new()
-		var floor_summary_label: Label = Label.new()
-		var selected_floor_material_id: String = ""
-		if mission_manager_runtime.has_method("get_map_constructor_floor_material"):
+	if floor_target_cell.x >= 0 and floor_target_cell.y >= 0:
+		var floor_materials: Array[Dictionary] = [
+			{"id":"steel", "label":"Сталь"},
+			{"id":"concrete", "label":"Бетон"},
+			{"id":"grate", "label":"Решетка"}
+		]
+		var floor_coatings: Array[Dictionary] = [
+			{"id":"default", "label":"Дефолт"},
+			{"id":"destroyed", "label":"Разрушен"},
+			{"id":"dirty", "label":"Грязь"},
+			{"id":"water", "label":"Вода"},
+			{"id":"oil", "label":"Масло"}
+		]
+		var selected_floor_material_id: String = "steel_default"
+		if mission_manager_runtime != null and mission_manager_runtime.has_method("get_map_constructor_floor_material"):
 			var current_floor_override: Dictionary = mission_manager_runtime.call("get_map_constructor_floor_material", floor_target_cell)
-			selected_floor_material_id = _safe_ui_string(Dictionary(current_floor_override.get("override", {})).get("material_id", ""))
-		for floor_row_variant in floor_rows:
-			var floor_row: Dictionary = Dictionary(floor_row_variant)
-			var floor_material_id: String = _safe_ui_string(floor_row.get("id", ""))
-			floor_material_option.add_item(_safe_ui_string(floor_row.get("display_name", floor_material_id), floor_material_id))
-			var floor_added_index: int = floor_material_option.item_count - 1
-			floor_material_option.set_item_metadata(floor_added_index, floor_material_id)
-			if selected_floor_material_id == floor_material_id:
-				floor_material_option.select(floor_added_index)
-				floor_summary_label.text = _safe_ui_string(floor_row.get("description", ""))
-		if floor_material_option.item_count > 0 and floor_material_option.selected < 0:
+			selected_floor_material_id = _safe_ui_string(Dictionary(current_floor_override.get("override", {})).get("material_id", "steel_default"), "steel_default")
+		var parsed_floor: Dictionary = _parse_map_constructor_floor_visual_id(selected_floor_material_id)
+		var floor_material_option: OptionButton = OptionButton.new()
+		var floor_coating_option: OptionButton = OptionButton.new()
+		for floor_material in floor_materials:
+			floor_material_option.add_item(String(floor_material.get("label", "")))
+			floor_material_option.set_item_metadata(floor_material_option.item_count - 1, String(floor_material.get("id", "steel")))
+			if String(floor_material.get("id", "steel")) == String(parsed_floor.get("material", "steel")):
+				floor_material_option.select(floor_material_option.item_count - 1)
+		for floor_coating in floor_coatings:
+			floor_coating_option.add_item(String(floor_coating.get("label", "")))
+			floor_coating_option.set_item_metadata(floor_coating_option.item_count - 1, String(floor_coating.get("id", "default")))
+			if String(floor_coating.get("id", "default")) == String(parsed_floor.get("coating", "default")):
+				floor_coating_option.select(floor_coating_option.item_count - 1)
+		if floor_material_option.selected < 0:
 			floor_material_option.select(0)
-		floor_material_option.item_selected.connect(func(_idx: int) -> void:
-			var current_floor_id: String = _safe_ui_string(floor_material_option.get_selected_metadata())
-			for floor_row_inner_variant in floor_rows:
-				var floor_row_inner: Dictionary = Dictionary(floor_row_inner_variant)
-				if _safe_ui_string(floor_row_inner.get("id", "")) == current_floor_id:
-					floor_summary_label.text = _safe_ui_string(floor_row_inner.get("description", ""))
-					break
-		)
-		floor_section.add_child(_create_property_row("Material", floor_material_option))
+		if floor_coating_option.selected < 0:
+			floor_coating_option.select(0)
+		var floor_row := HBoxContainer.new()
+		floor_row.add_theme_constant_override("separation", 6)
+		floor_material_option.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+		floor_coating_option.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+		floor_row.add_child(_create_property_row("Материал", floor_material_option))
+		floor_row.add_child(_create_property_row("Покрытие", floor_coating_option))
+		floor_section.add_child(floor_row)
+		var floor_summary_label: Label = Label.new()
+		floor_summary_label.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+		floor_summary_label.text = "Floor visual id: %s" % _compose_map_constructor_floor_visual_id(String(floor_material_option.get_selected_metadata()), String(floor_coating_option.get_selected_metadata()))
+		var update_floor_summary := func(_idx: int = 0) -> void:
+			floor_summary_label.text = "Floor visual id: %s" % _compose_map_constructor_floor_visual_id(String(floor_material_option.get_selected_metadata()), String(floor_coating_option.get_selected_metadata()))
+		floor_material_option.item_selected.connect(update_floor_summary)
+		floor_coating_option.item_selected.connect(update_floor_summary)
 		floor_section.add_child(floor_summary_label)
 		var apply_floor_button: Button = Button.new(); apply_floor_button.text = "Apply Floor Material"
 		apply_floor_button.pressed.connect(func() -> void:
-			var floor_material_id_apply: String = _safe_ui_string(floor_material_option.get_selected_metadata())
+			if mission_manager_runtime == null or not mission_manager_runtime.has_method("set_map_constructor_floor_material"):
+				return
+			var floor_material_id_apply: String = _compose_map_constructor_floor_visual_id(String(floor_material_option.get_selected_metadata()), String(floor_coating_option.get_selected_metadata()))
 			var floor_apply_result: Dictionary = mission_manager_runtime.call("set_map_constructor_floor_material", floor_target_cell, floor_material_id_apply)
 			show_hint(_safe_ui_string(floor_apply_result.get("message", "Floor material updated."), "Floor material updated."))
 			_refresh_map_constructor_panels()
@@ -12214,6 +12440,8 @@ func _show_map_constructor_inspector(cell: Vector2i, preferred_entity_kind: Stri
 		)
 		var clear_floor_button: Button = Button.new(); clear_floor_button.text = "Clear Floor Material"
 		clear_floor_button.pressed.connect(func() -> void:
+			if mission_manager_runtime == null or not mission_manager_runtime.has_method("clear_map_constructor_floor_material"):
+				return
 			var floor_clear_result: Dictionary = mission_manager_runtime.call("clear_map_constructor_floor_material", floor_target_cell)
 			show_hint(_safe_ui_string(floor_clear_result.get("message", "Floor material cleared."), "Floor material cleared."))
 			_refresh_map_constructor_panels()
