@@ -9807,7 +9807,7 @@ func _show_map_constructor_place_confirm_panel() -> void:
 	runtime_hud_root.add_child(panel)
 	runtime_map_constructor_place_confirm_panel = panel
 	var world_pos: Vector2 = renderer.to_global(renderer.grid_to_iso(map_constructor_pending_place_cell)) + Vector2(-120.0, 38.0)
-	var viewport_size: Vector2 = get_viewport_rect().size
+	var viewport_size: Vector2 = get_viewport().get_visible_rect().size
 	panel.reset_size()
 	var panel_size: Vector2 = panel.get_combined_minimum_size()
 	panel.position = Vector2(clampf(world_pos.x, 8.0, maxf(8.0, viewport_size.x - panel_size.x - 8.0)), clampf(world_pos.y, 8.0, maxf(8.0, viewport_size.y - panel_size.y - 8.0)))
