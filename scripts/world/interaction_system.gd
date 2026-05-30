@@ -57,8 +57,17 @@ static func apply_action(actor: Dictionary, module: Dictionary, target_object: D
 				return door_gate
 			var required_key_id: String = String(target_object.get("required_key_id", "")).strip_edges()
 			var has_required_key := not required_key_id.is_empty() and Array(actor.get("collected_key_ids", [])).has(required_key_id)
+			if String(target_object.get("access_type", target_object.get("lock_type", ""))).strip_edges().to_lower() in ["terminal_access"]:
+				return _result(false, "Door is controlled by linked terminal.")
 			if not required_key_id.is_empty() and not has_required_key:
 				return _result(false, "No matching key.")
+			if required_key_id.is_empty() and String(target_object.get("access_type", target_object.get("lock_type", ""))).strip_edges().to_lower() in ["none", "no_key", ""]:
+				target_object["state"] = "closed"
+				target_object["is_locked"] = false
+				target_object["locked"] = false
+				target_object["is_open"] = false
+				target_object["blocks_movement"] = true
+				return _result(true, "Door unlocked.", [{"type":"door_unlocked"},{"type":"set_state","state":"closed"},{"type":"set_blocks_movement","value":true},{"type":"set_bool","field":"is_locked","value":false},{"type":"set_bool","field":"locked","value":false},{"type":"set_bool","field":"is_open","value":false}])
 			if module_id in ["mechanical_keycard", "digital_key_opened"]:
 				target_object["state"] = "closed"
 				target_object["is_locked"] = false
@@ -264,6 +273,10 @@ static func apply_action(actor: Dictionary, module: Dictionary, target_object: D
 	return _result(false, "No available action for this object.")
 
 static func _validate_door_class(actor: Dictionary, target_object: Dictionary) -> Dictionary:
+	if String(target_object.get("control_mode", "internal")).strip_edges().to_lower() == "external":
+		return _result(false, "Door is controlled by linked terminal.")
+	if String(target_object.get("power_mode", "internal")).strip_edges().to_lower() == "external" and not bool(target_object.get("is_powered", true)):
+		return _result(false, "Door is unpowered.")
 	if int(actor.get("manipulator_level", 0)) < int(target_object.get("required_manipulator_level", 1)):
 		return _result(false, "Manipulator level too low.")
 	if target_object.get("material", "") == "electromagnetic" and int(actor.get("connector_level", 0)) < int(target_object.get("required_connector_level", 0)):
