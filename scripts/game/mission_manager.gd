@@ -466,10 +466,7 @@ func _safe_array(value: Variant) -> Array:
 
 func _safe_dictionary(value: Variant) -> Dictionary:
 	if value is Dictionary:
-		var result: Dictionary = {}
-		for key in value.keys():
-			result[key] = value[key]
-		return result
+		return value.duplicate(true)
 	return {}
 
 func _safe_dictionary_array(value: Variant, duplicate_rows: bool = false) -> Array[Dictionary]:
@@ -654,7 +651,7 @@ func export_map_constructor_runtime_patch() -> Dictionary:
 		for item_variant in Array(cell_items.get(cell_variant, [])):
 			if not (item_variant is Dictionary):
 				continue
-			var item: Dictionary = Dictionary(item_variant)
+			var item: Dictionary = _safe_dictionary(item_variant)
 			if not bool(item.get("created_by_map_constructor", false)):
 				continue
 			var item_id: String = String(item.get("id", "")).strip_edges()
@@ -1146,7 +1143,7 @@ func load_map_constructor_preset(preset_name: String) -> Dictionary:
 	for object_variant in Array(preset.get("world_objects", [])):
 		if not (object_variant is Dictionary):
 			continue
-		var object_data: Dictionary = Dictionary(object_variant).duplicate(true)
+		var object_data: Dictionary = _safe_dictionary(object_variant).duplicate(true)
 		var object_id: String = String(object_data.get("id", "<unknown>"))
 		var object_cell: Vector2i = _deserialize_cell_variant(object_data.get("position", "-1,-1"))
 		if not _is_valid_grid_cell(object_cell):
@@ -1165,7 +1162,7 @@ func load_map_constructor_preset(preset_name: String) -> Dictionary:
 			continue
 		for item_variant in Array(cell_entry.get("items", [])):
 			if item_variant is Dictionary:
-				add_item_at_cell(cell, Dictionary(item_variant).duplicate(true))
+				add_item_at_cell(cell, _safe_dictionary(item_variant).duplicate(true))
 	var loaded_grid_tiles: Array = Array(preset.get("grid_tiles", []))
 	for tile_variant in loaded_grid_tiles:
 		if not (tile_variant is Dictionary):
@@ -1746,7 +1743,7 @@ func get_items_at_cell(cell: Vector2i) -> Array[Dictionary]:
 	var raw_items: Array = Array(cell_items.get(cell, []))
 	for item_variant in raw_items:
 		if item_variant is Dictionary:
-			result.append(Dictionary(item_variant))
+			result.append(_safe_dictionary(item_variant))
 	return result
 
 func add_item_at_cell(cell: Vector2i, item_data: Dictionary) -> void:
@@ -2610,7 +2607,7 @@ func move_map_constructor_entity_to_cell(entity_kind: String, entity_id: String,
 	var entity: Dictionary = get_map_constructor_entity_by_id(entity_kind, entity_id)
 	if not bool(entity.get("ok", false)):
 		return {"ok": false, "message": "Move failed: entity not found."}
-	var data: Dictionary = Dictionary(entity.get("data", {}))
+	var data: Dictionary = _safe_dictionary(entity.get("data", {}))
 	var source_cell: Vector2i = Vector2i(entity.get("cell", Vector2i(-1, -1)))
 	var prefab_id: String = String(data.get("map_constructor_prefab_id", data.get("object_type", "")))
 	var place_check: Dictionary = can_place_map_constructor_prefab(prefab_id, target_cell, preferred_wall_side)
@@ -2647,7 +2644,7 @@ func duplicate_map_constructor_entity_to_cell(entity_kind: String, entity_id: St
 	var entity: Dictionary = get_map_constructor_entity_by_id(entity_kind, entity_id)
 	if not bool(entity.get("ok", false)):
 		return {"ok": false, "message": "Duplicate failed: entity not found."}
-	var data: Dictionary = Dictionary(entity.get("data", {}))
+	var data: Dictionary = _safe_dictionary(entity.get("data", {}))
 	var prefab_id: String = String(data.get("map_constructor_prefab_id", data.get("object_type", "")))
 	var place_check: Dictionary = can_place_map_constructor_prefab(prefab_id, target_cell, preferred_wall_side)
 	if not bool(place_check.get("ok", false)):
@@ -2708,7 +2705,7 @@ func preview_map_constructor_batch_operation(operation_type: String, entities: A
 		if not bool(entity.get("ok", false)):
 			warnings.append("Skipped stale entity %s." % entity_id)
 			continue
-		var data: Dictionary = Dictionary(entity.get("data", {}))
+		var data: Dictionary = _safe_dictionary(entity.get("data", {}))
 		if not include_non_constructor and not bool(data.get("created_by_map_constructor", false)):
 			conflicts.append({"entity_id":entity_id, "reason":"non_constructor"})
 			continue
@@ -2771,7 +2768,7 @@ func apply_map_constructor_batch_operation(operation_type: String, entities: Arr
 				var entity_info: Dictionary = get_map_constructor_entity_by_id(ek, eid)
 				if not bool(entity_info.get("ok", false)):
 					continue
-				var data: Dictionary = Dictionary(entity_info.get("data", {}))
+				var data: Dictionary = _safe_dictionary(entity_info.get("data", {}))
 				var cleared_any: bool = false
 				for ref_field in ["target_door_id", "target_platform_id", "linked_terminal_id", "control_source_id", "required_key_id"]:
 					var ref_id: String = String(data.get(ref_field, "")).strip_edges()
@@ -2873,7 +2870,7 @@ func get_map_constructor_wall_mounted_status(entity_kind: String, entity_id: Str
 	var entity: Dictionary = get_map_constructor_entity_by_id(entity_kind, entity_id)
 	if not bool(entity.get("ok", false)):
 		return {"ok": false, "reason": "missing_entity", "message": "Wall-mounted object not found."}
-	var data: Dictionary = Dictionary(entity.get("data", {}))
+	var data: Dictionary = _safe_dictionary(entity.get("data", {}))
 	if String(data.get("placement_mode", "")) != "wall_mounted":
 		return {"ok": true, "reason": "not_wall_mounted", "message": "Not a wall-mounted object."}
 	var anchor: Vector2i = _deserialize_cell_variant(data.get("anchor_floor_cell", ""))
@@ -2902,7 +2899,7 @@ func set_map_constructor_wall_mounted_side(entity_kind: String, entity_id: Strin
 	var entity: Dictionary = get_map_constructor_entity_by_id(entity_kind, entity_id)
 	if not bool(entity.get("ok", false)):
 		return {"ok": false, "reason": "missing_entity", "message": "Wall-mounted object not found."}
-	var data: Dictionary = Dictionary(entity.get("data", {}))
+	var data: Dictionary = _safe_dictionary(entity.get("data", {}))
 	if String(data.get("placement_mode", "")) != "wall_mounted" or not bool(data.get("created_by_map_constructor", false)):
 		return {"ok": false, "reason": "not_wall_mounted", "message": "Not a wall-mounted object."}
 	var side: String = new_wall_side.to_lower().strip_edges()
@@ -3167,7 +3164,7 @@ func get_map_constructor_placed_object_rows() -> Array[Dictionary]:
 		for item_variant in Array(cell_items.get(cell_variant, [])):
 			if typeof(item_variant) != TYPE_DICTIONARY:
 				continue
-			var item_data: Dictionary = Dictionary(item_variant)
+			var item_data: Dictionary = _safe_dictionary(item_variant)
 			rows.append({
 				"entity_kind": "item",
 				"id": String(item_data.get("id", "")),
@@ -3243,7 +3240,7 @@ func get_map_constructor_editable_fields_for_entity(entity_id: String, entity_ki
 	var entity_info: Dictionary = get_map_constructor_entity_by_id(resolved_kind, entity_id)
 	if not bool(entity_info.get("ok", false)):
 		return fields
-	var data: Dictionary = Dictionary(entity_info.get("data", {}))
+	var data: Dictionary = _safe_dictionary(entity_info.get("data", {}))
 	var schema: Dictionary = _get_map_constructor_editable_field_schema()
 	for field_name_variant in schema.keys():
 		var field_name: String = String(field_name_variant)
@@ -3311,7 +3308,7 @@ func apply_map_constructor_property_update(entity_kind: String, entity_id: Strin
 	if not bool(entity_info.get("ok", false)):
 		result["message"] = "Entity not found."
 		return result
-	var data: Dictionary = Dictionary(entity_info.get("data", {}))
+	var data: Dictionary = _safe_dictionary(entity_info.get("data", {}))
 	if not data.has(field_name):
 		var default_value: Variant = get_default_map_constructor_field_value(field_name, resolved_kind, data)
 		if default_value == null:
@@ -3503,14 +3500,52 @@ func _map_constructor_make_link_target(target_id: String, label: String, target_
 func _map_constructor_add_none_target(targets: Array[Dictionary]) -> void:
 	targets.append(_map_constructor_make_link_target("__none__", "<clear>", "none", Vector2i(-1, -1), "warning", "clear_value"))
 
+func _map_constructor_token_is_key(value: String) -> bool:
+	var token: String = value.strip_edges().to_lower()
+	return token == "key" or token.begins_with("key_") or token.ends_with("_key") or token.contains("_key_") or token == "access_key" or token == "physical_key" or token == "digital_key"
+
+func _map_constructor_metadata_says_key(data: Dictionary) -> bool:
+	for field_name in ["prefab", "prefab_id", "category", "item_category", "metadata_category", "object_group", "item_group", "kind", "role"]:
+		if _map_constructor_token_is_key(String(data.get(field_name, ""))):
+			return true
+	return false
+
 func _map_constructor_is_door_data(data: Dictionary) -> bool:
-	var text: String = "%s %s %s" % [String(data.get("object_type", "")), String(data.get("object_group", data.get("group", ""))), String(data.get("id", ""))]
-	text = text.to_lower()
-	return text.contains("door") or text.contains("gate")
+	for field_name in ["object_type", "category", "object_group", "group", "prefab", "prefab_id", "metadata_category", "kind", "role"]:
+		var token: String = String(data.get(field_name, "")).strip_edges().to_lower()
+		if token in ["door", "gate", "locked_door", "mechanical_door", "digital_door", "powered_gate", "security_door", "blast_door", "airlock_door"]:
+			return true
+		if token.begins_with("door_") or token.ends_with("_door") or token.contains("_door_") or token.begins_with("gate_") or token.ends_with("_gate") or token.contains("_gate_"):
+			return true
+	var id_token: String = String(data.get("id", "")).strip_edges().to_lower()
+	return id_token.contains("door") or id_token.contains("gate")
 
 func _map_constructor_is_key_data(data: Dictionary) -> bool:
-	var text: String = "%s %s %s %s" % [String(data.get("item_type", "")), String(data.get("object_type", "")), String(data.get("key_type", data.get("key_kind", ""))), String(data.get("id", ""))]
-	return text.to_lower().contains("key")
+	if String(data.get("item_type", "")).strip_edges().to_lower() == "key":
+		return true
+	if not String(data.get("key_type", "")).strip_edges().is_empty() or not String(data.get("key_kind", "")).strip_edges().is_empty():
+		return true
+	if _map_constructor_metadata_says_key(data):
+		return true
+	var id_token: String = String(data.get("id", "")).strip_edges().to_lower()
+	return _map_constructor_token_is_key(id_token)
+
+func find_map_constructor_key_item_by_id(key_id: String) -> Dictionary:
+	var normalized_key_id: String = key_id.strip_edges()
+	if normalized_key_id.is_empty():
+		return {"ok": false, "reason": "empty_id", "entity_kind": "item", "id": normalized_key_id}
+	for cell_variant in cell_items.keys():
+		var cell: Vector2i = _deserialize_cell_variant(cell_variant)
+		for item_variant in Array(cell_items.get(cell_variant, [])):
+			var item_data: Dictionary = _safe_dictionary(item_variant)
+			if item_data.is_empty():
+				continue
+			if String(item_data.get("id", "")).strip_edges() != normalized_key_id:
+				continue
+			if not _map_constructor_is_key_data(item_data):
+				return {"ok": false, "reason": "not_key", "entity_kind": "item", "id": normalized_key_id, "cell": cell, "data": item_data}
+			return {"ok": true, "entity_kind": "item", "id": normalized_key_id, "cell": cell, "data": item_data}
+	return {"ok": false, "reason": "not_found", "entity_kind": "item", "id": normalized_key_id}
 
 func _map_constructor_get_linked_key_for_door(door_id: String) -> String:
 	var normalized_door_id: String = door_id.strip_edges()
@@ -3518,15 +3553,15 @@ func _map_constructor_get_linked_key_for_door(door_id: String) -> String:
 		return ""
 	var door_entity: Dictionary = get_map_constructor_entity_by_id("world_object", normalized_door_id)
 	if bool(door_entity.get("ok", false)):
-		var door_data: Dictionary = Dictionary(door_entity.get("data", {}))
+		var door_data: Dictionary = _safe_dictionary(door_entity.get("data", {}))
 		var required_key_id: String = String(door_data.get("required_key_id", "")).strip_edges()
-		if not required_key_id.is_empty():
+		if not required_key_id.is_empty() and bool(find_map_constructor_key_item_by_id(required_key_id).get("ok", false)):
 			return required_key_id
 	for cell_variant in cell_items.keys():
 		for item_variant in Array(cell_items.get(cell_variant, [])):
-			if not (item_variant is Dictionary):
+			var item_data: Dictionary = _safe_dictionary(item_variant)
+			if item_data.is_empty() or not _map_constructor_is_key_data(item_data):
 				continue
-			var item_data: Dictionary = Dictionary(item_variant)
 			if String(item_data.get("linked_door_id", "")).strip_edges() == normalized_door_id:
 				return String(item_data.get("id", "")).strip_edges()
 	return ""
@@ -3542,7 +3577,7 @@ func get_map_constructor_key_door_link_candidates(entity_kind: String, entity_id
 	var entity: Dictionary = get_map_constructor_entity_by_id(entity_kind, entity_id)
 	if not bool(entity.get("ok", false)):
 		return {"ok": false, "doors": [], "message": "Key item not found."}
-	var data: Dictionary = Dictionary(entity.get("data", {}))
+	var data: Dictionary = _safe_dictionary(entity.get("data", {}))
 	if not _map_constructor_is_key_data(data):
 		return {"ok": false, "doors": [], "message": "Selected item is not a key."}
 	var current_door_id: String = String(data.get("linked_door_id", "")).strip_edges()
@@ -3552,7 +3587,7 @@ func get_map_constructor_key_door_link_candidates(entity_kind: String, entity_id
 	for object_variant in mission_world_objects:
 		if not (object_variant is Dictionary):
 			continue
-		var door_data: Dictionary = Dictionary(object_variant)
+		var door_data: Dictionary = _safe_dictionary(object_variant)
 		if not _map_constructor_is_door_data(door_data):
 			continue
 		all_door_count += 1
@@ -3593,20 +3628,22 @@ func get_map_constructor_link_targets_for_field(entity_kind: String, entity_id: 
 			for item_variant in Array(cell_items.get(cell_variant, [])):
 				if typeof(item_variant) != TYPE_DICTIONARY:
 					continue
-				var item_data: Dictionary = Dictionary(item_variant)
+				var item_data: Dictionary = _safe_dictionary(item_variant)
 				var item_id: String = String(item_data.get("id", "")).strip_edges()
 				if item_id.is_empty():
 					continue
+				if not _map_constructor_is_key_data(item_data):
+					continue
 				var item_type: String = String(item_data.get("item_type", item_data.get("object_type", ""))).to_lower()
-				var target: Dictionary = _map_constructor_make_link_target(item_id, item_id, "item", cell, "valid", "item")
-				if item_type in ["mechanical_keycard", "digital_key", "access_code"]:
+				var target: Dictionary = _map_constructor_make_link_target(item_id, item_id, "item", cell, "valid", "key_item")
+				if item_type in ["key", "mechanical_keycard", "digital_key", "access_code"] or not String(item_data.get("key_type", item_data.get("key_kind", ""))).strip_edges().is_empty():
 					ranked_items.append(target)
 				else:
 					other_items.append(target)
 		for object_data in mission_world_objects:
 			if typeof(object_data) != TYPE_DICTIONARY:
 				continue
-			var world_data: Dictionary = Dictionary(object_data)
+			var world_data: Dictionary = _safe_dictionary(object_data)
 			if not _map_constructor_is_item_like_world_object(world_data):
 				continue
 			var world_id: String = String(world_data.get("id", "")).strip_edges()
@@ -3618,34 +3655,32 @@ func get_map_constructor_link_targets_for_field(entity_kind: String, entity_id: 
 		targets.append_array(other_items)
 	elif field_name == "linked_terminal_id":
 		for object_data in mission_world_objects:
-			var data: Dictionary = Dictionary(object_data)
+			var data: Dictionary = _safe_dictionary(object_data)
 			var object_type: String = String(data.get("object_type", "")).to_lower()
 			var group_text: String = String(data.get("object_group", data.get("group", ""))).to_lower()
 			if object_type.contains("terminal") or group_text.contains("terminal"):
 				targets.append(_map_constructor_make_link_target(String(data.get("id", "")), String(data.get("id", "")), "world_object", Vector2i(data.get("position", Vector2i(-1, -1))), "valid", "terminal_candidate"))
 	elif field_name == "target_door_id":
 		for object_data in mission_world_objects:
-			var data_door: Dictionary = Dictionary(object_data)
-			var type_door: String = String(data_door.get("object_type", "")).to_lower()
-			var group_door: String = String(data_door.get("object_group", data_door.get("group", ""))).to_lower()
-			if type_door.contains("door") or type_door.contains("gate") or group_door.contains("door"):
+			var data_door: Dictionary = _safe_dictionary(object_data)
+			if _map_constructor_is_door_data(data_door):
 				targets.append(_map_constructor_make_link_target(String(data_door.get("id", "")), String(data_door.get("id", "")), "world_object", Vector2i(data_door.get("position", Vector2i(-1, -1))), "valid", "door_candidate"))
 	elif field_name == "target_platform_id":
 		for object_data in mission_world_objects:
-			var data_platform: Dictionary = Dictionary(object_data)
+			var data_platform: Dictionary = _safe_dictionary(object_data)
 			var type_platform: String = String(data_platform.get("object_type", "")).to_lower()
 			if type_platform.contains("platform") or data_platform.has("platform_id"):
 				targets.append(_map_constructor_make_link_target(String(data_platform.get("id", "")), String(data_platform.get("id", "")), "world_object", Vector2i(data_platform.get("position", Vector2i(-1, -1))), "valid", "platform_candidate"))
 	elif field_name == "control_source_id":
 		for object_data in mission_world_objects:
-			var data_control: Dictionary = Dictionary(object_data)
+			var data_control: Dictionary = _safe_dictionary(object_data)
 			var control_id: String = String(data_control.get("id", ""))
 			var type_control: String = String(data_control.get("object_type", "")).to_lower()
 			if type_control.contains("switch") or type_control.contains("terminal") or type_control.contains("control") or control_id.contains("task_test_switch"):
 				targets.append(_map_constructor_make_link_target(control_id, control_id, "world_object", Vector2i(data_control.get("position", Vector2i(-1, -1))), "valid", "control_candidate"))
 	elif field_name == "connected_device_ids":
 		for object_data in mission_world_objects:
-			var data_connected: Dictionary = Dictionary(object_data)
+			var data_connected: Dictionary = _safe_dictionary(object_data)
 			var connected_id: String = String(data_connected.get("id", "")).strip_edges()
 			if connected_id.is_empty() or connected_id == entity_id:
 				continue
@@ -3658,7 +3693,7 @@ func get_map_constructor_link_targets_for_field(entity_kind: String, entity_id: 
 		var others: Array[Dictionary] = []
 		var seen_networks: Dictionary = {}
 		for object_data in mission_world_objects:
-			var data_network: Dictionary = Dictionary(object_data)
+			var data_network: Dictionary = _safe_dictionary(object_data)
 			var network_id: String = String(data_network.get("power_network_id", "")).strip_edges()
 			if network_id.is_empty() or seen_networks.has(network_id):
 				continue
@@ -3685,7 +3720,7 @@ func apply_map_constructor_link_target(entity_kind: String, entity_id: String, f
 		if not bool(entity_info.get("ok", false)):
 			result["message"] = "Entity not found."
 			return result
-		var data: Dictionary = Dictionary(entity_info.get("data", {}))
+		var data: Dictionary = _safe_dictionary(entity_info.get("data", {}))
 		var old_network_id: String = String(data.get("power_network_id", ""))
 		var next_ids: Array[String] = []
 		if target_id.is_empty() or target_id == "__none__":
@@ -3721,7 +3756,8 @@ func apply_map_constructor_link_target(entity_kind: String, entity_id: String, f
 	result["target_id"] = applied_target
 	if bool(result.get("ok", false)):
 		var entity_after: Dictionary = get_map_constructor_entity_by_id(entity_kind, entity_id)
-		_record_map_constructor_change("link_update", {"entity_kind":String(entity_after.get("entity_kind", entity_kind)), "entity_id":entity_id, "object_type":String(Dictionary(entity_after.get("data", {})).get("object_type", Dictionary(entity_after.get("data", {})).get("item_type", ""))), "cell":Vector2i(entity_after.get("cell", Vector2i(-1, -1))), "summary":"Updated %s on %s" % [field_name, entity_id], "details":{"field":field_name, "target_id":applied_target}, "undo_hint":"Can undo by setting previous link target."})
+		var entity_after_data: Dictionary = _safe_dictionary(entity_after.get("data", {}))
+		_record_map_constructor_change("link_update", {"entity_kind":String(entity_after.get("entity_kind", entity_kind)), "entity_id":entity_id, "object_type":String(entity_after_data.get("object_type", entity_after_data.get("item_type", ""))), "cell":Vector2i(entity_after.get("cell", Vector2i(-1, -1))), "summary":"Updated %s on %s" % [field_name, entity_id], "details":{"field":field_name, "target_id":applied_target}, "undo_hint":"Can undo by setting previous link target."})
 	return result
 
 func apply_map_constructor_state_preset(entity_kind: String, entity_id: String, preset: String) -> Dictionary:
@@ -3766,7 +3802,7 @@ func apply_map_constructor_state_preset(entity_kind: String, entity_id: String, 
 	var entity_info: Dictionary = get_map_constructor_entity_by_id(resolved_kind, entity_id)
 	if not bool(entity_info.get("ok", false)):
 		return {"ok": false, "message": "Entity not found.", "entity_id": entity_id, "preset": preset}
-	var data: Dictionary = Dictionary(entity_info.get("data", {}))
+	var data: Dictionary = _safe_dictionary(entity_info.get("data", {}))
 	var schema: Dictionary = _get_map_constructor_editable_field_schema()
 	var converted_updates: Array[Dictionary] = []
 	for update_entry in updates:
@@ -3829,7 +3865,7 @@ func get_map_constructor_entity_type_group(entity_kind: String, entity_id: Strin
 	var entity: Dictionary = get_map_constructor_entity_by_id(entity_kind, entity_id)
 	if not bool(entity.get("ok", false)):
 		return "generic"
-	var data: Dictionary = Dictionary(entity.get("data", {}))
+	var data: Dictionary = _safe_dictionary(entity.get("data", {}))
 	var object_type: String = String(data.get("object_type", data.get("item_type", ""))).to_lower()
 	var object_group: String = String(data.get("object_group", data.get("group", ""))).to_lower()
 	var category: String = String(data.get("category", "")).to_lower()
@@ -4082,7 +4118,7 @@ func apply_map_constructor_property_preset(entity_kind: String, entity_id: Strin
 	var apply: Dictionary = update_map_constructor_entity_properties(entity_kind, entity_id, updates)
 	if group == "terminal" and preset_id == "linked":
 		var e: Dictionary = get_map_constructor_entity_by_id(entity_kind, entity_id)
-		var d: Dictionary = Dictionary(e.get("data", {}))
+		var d: Dictionary = _safe_dictionary(e.get("data", {}))
 		if String(d.get("target_door_id", "")).is_empty() and String(d.get("target_platform_id", "")).is_empty() and String(d.get("linked_terminal_id", "")).is_empty():
 			warning = "Terminal is active but no linked target selected."
 	return {"ok": bool(apply.get("ok", false)), "message": warning if not warning.is_empty() else String(apply.get("message", "Preset applied.")), "entity_kind": entity_kind, "entity_id": entity_id}
@@ -4106,7 +4142,7 @@ func get_map_constructor_link_candidates(entity_kind: String, entity_id: String,
 	var entity: Dictionary = get_map_constructor_entity_by_id(entity_kind, entity_id)
 	var current_value: String = ""
 	if bool(entity.get("ok", false)):
-		current_value = String(Dictionary(entity.get("data", {})).get(String(field_map[link_type]), "")).strip_edges()
+		current_value = String(_safe_dictionary(entity.get("data", {})).get(String(field_map[link_type]), "")).strip_edges()
 	var raw: Dictionary = get_map_constructor_link_targets_for_field(entity_kind, entity_id, String(field_map[link_type]))
 	var out: Array[Dictionary] = []
 	for t in Array(raw.get("targets", [])):
@@ -4130,10 +4166,10 @@ func _set_map_constructor_key_door_link(entity_kind: String, key_id: String, doo
 	var key_entity: Dictionary = get_map_constructor_entity_by_id(entity_kind, key_id)
 	if not bool(key_entity.get("ok", false)):
 		return {"ok": false, "message": "Key item not found.", "target_id": door_id}
-	var old_door_id: String = String(Dictionary(key_entity.get("data", {})).get("linked_door_id", "")).strip_edges()
+	var old_door_id: String = String(_safe_dictionary(key_entity.get("data", {})).get("linked_door_id", "")).strip_edges()
 	if not old_door_id.is_empty() and old_door_id != door_id:
 		var old_door: Dictionary = get_map_constructor_entity_by_id("world_object", old_door_id)
-		if bool(old_door.get("ok", false)) and String(Dictionary(old_door.get("data", {})).get("required_key_id", "")).strip_edges() == key_id:
+		if bool(old_door.get("ok", false)) and String(_safe_dictionary(old_door.get("data", {})).get("required_key_id", "")).strip_edges() == key_id:
 			apply_map_constructor_property_update("world_object", old_door_id, "required_key_id", "")
 	var normalized_door_id: String = door_id.strip_edges()
 	if not normalized_door_id.is_empty():
@@ -4165,6 +4201,15 @@ func set_map_constructor_entity_link(entity_kind: String, entity_id: String, lin
 	if bool(target_entity.get("ok", false)): target_cell = Vector2i(target_entity.get("cell", Vector2i(-1, -1)))
 	return {"ok":bool(apply.get("ok",false)),"message":String(apply.get("message","Link updated.")),"target_cell":target_cell,"target_id":target_id}
 
+
+func _map_constructor_link_target_exists_for_field(field_name: String, target_id: String) -> bool:
+	var normalized_target_id: String = target_id.strip_edges()
+	if normalized_target_id.is_empty():
+		return false
+	if field_name == "required_key_id":
+		return bool(find_map_constructor_key_item_by_id(normalized_target_id).get("ok", false))
+	return bool(get_map_constructor_entity_by_id("world_object", normalized_target_id).get("ok", false))
+
 func validate_map_constructor_entity_links(entity_kind: String, entity_id: String) -> Dictionary:
 	var warnings: Array[String] = []
 	var missing: Array[String] = []
@@ -4172,13 +4217,13 @@ func validate_map_constructor_entity_links(entity_kind: String, entity_id: Strin
 	var entity: Dictionary = get_map_constructor_entity_by_id(entity_kind, entity_id)
 	if not bool(entity.get("ok", false)):
 		return {"ok": false, "warnings": ["Entity not found."], "missing_links": [], "linked_targets": []}
-	var data: Dictionary = Dictionary(entity.get("data", {}))
+	var data: Dictionary = _safe_dictionary(entity.get("data", {}))
 	for key in ["target_door_id","linked_terminal_id","control_source_id","required_key_id","linked_door_id"]:
 		var tid: String = String(data.get(key, "")).strip_edges()
 		if tid.is_empty():
 			continue
 		linked.append(tid)
-		if not bool(get_map_constructor_entity_by_id("", tid).get("ok", false)):
+		if not _map_constructor_link_target_exists_for_field(key, tid):
 			warnings.append("Missing link target for %s: %s" % [key, tid]); missing.append(key)
 	return {"ok": missing.is_empty(), "warnings": warnings, "missing_links": missing, "linked_targets": linked}
 
@@ -4207,7 +4252,7 @@ func get_map_constructor_cleanup_preview(cleanup_type: String, options: Dictiona
 	for object_data in mission_world_objects:
 		if typeof(object_data) != TYPE_DICTIONARY:
 			continue
-		var data: Dictionary = Dictionary(object_data)
+		var data: Dictionary = _safe_dictionary(object_data)
 		var created: bool = bool(data.get("created_by_map_constructor", false))
 		if include_constructor_created and not created and not include_base:
 			continue
@@ -4236,13 +4281,13 @@ func get_map_constructor_cleanup_preview(cleanup_type: String, options: Dictiona
 					var tid: String = String(data.get(f, "")).strip_edges()
 					if tid.is_empty():
 						continue
-					if not bool(get_map_constructor_entity_by_id("", tid).get("ok", false)):
+					if not _map_constructor_link_target_exists_for_field(f, tid):
 						rows.append({"entity_kind":"world_object","id":String(data.get("id","")),"field_name":f,"invalid_value":tid,"cell":Vector2i(data.get("position", Vector2i(-1,-1))),"created_by_map_constructor":created})
 				for connected_id in Array(data.get("connected_device_ids", [])):
 					var cid: String = String(connected_id).strip_edges()
 					if cid.is_empty():
 						continue
-					if not bool(get_map_constructor_entity_by_id("", cid).get("ok", false)):
+					if not _map_constructor_link_target_exists_for_field("connected_device_ids", cid):
 						rows.append({"entity_kind":"world_object","id":String(data.get("id","")),"field_name":"connected_device_ids","invalid_value":cid,"cell":Vector2i(data.get("position", Vector2i(-1,-1))),"created_by_map_constructor":created})
 			_:
 				return {"ok": false, "cleanup_type": lower_type, "message": "Unsupported cleanup type.", "affected_count": 0, "affected_objects": [], "warnings": []}
@@ -4251,7 +4296,7 @@ func get_map_constructor_cleanup_preview(cleanup_type: String, options: Dictiona
 	for cell_variant in cell_items.keys():
 		var cell: Vector2i = Vector2i(cell_variant)
 		for item_variant in Array(cell_items.get(cell_variant, [])):
-			var item_data: Dictionary = Dictionary(item_variant)
+			var item_data: Dictionary = _safe_dictionary(item_variant)
 			var created_item: bool = bool(item_data.get("created_by_map_constructor", false))
 			if include_constructor_created and not created_item and not include_base:
 				continue
@@ -4279,12 +4324,12 @@ func apply_map_constructor_cleanup(cleanup_type: String, options: Dictionary = {
 			var entity: Dictionary = get_map_constructor_entity_by_id(String(row.get("entity_kind", "world_object")), String(row.get("id", "")))
 			if not bool(entity.get("ok", false)):
 				continue
-			var data: Dictionary = Dictionary(entity.get("data", {}))
+			var data: Dictionary = _safe_dictionary(entity.get("data", {}))
 			var field_name: String = String(row.get("field_name", ""))
 			if field_name == "connected_device_ids":
 				var filtered: Array[String] = []
 				for cid in Array(data.get("connected_device_ids", [])):
-					if bool(get_map_constructor_entity_by_id("", String(cid)).get("ok", false)):
+					if _map_constructor_link_target_exists_for_field("connected_device_ids", String(cid)):
 						filtered.append(String(cid))
 				data["connected_device_ids"] = filtered
 				cleared += 1
@@ -4355,7 +4400,7 @@ func get_map_constructor_object_dependency_status(object_data: Dictionary) -> Di
 		for item_variant in Array(cell_items.get(cell_variant, [])):
 			if typeof(item_variant) != TYPE_DICTIONARY:
 				continue
-			var item_id: String = String(Dictionary(item_variant).get("id", "")).strip_edges()
+			var item_id: String = String(_safe_dictionary(item_variant).get("id", "")).strip_edges()
 			if not item_id.is_empty():
 				item_ids[item_id] = true
 				item_id_to_cell[item_id] = Vector2i(cell_variant)
@@ -4471,7 +4516,7 @@ func get_map_constructor_validation_overlay() -> Dictionary:
 	for object_data in mission_world_objects:
 		if typeof(object_data) != TYPE_DICTIONARY:
 			continue
-		var data: Dictionary = Dictionary(object_data)
+		var data: Dictionary = _safe_dictionary(object_data)
 		var object_id: String = String(data.get("id", "")).strip_edges()
 		if object_id.is_empty():
 			continue
@@ -4589,7 +4634,7 @@ func _is_map_constructor_door_like_tile_type(tile_type: int) -> bool:
 
 func _get_map_constructor_door_object_for_cell(cell: Vector2i) -> Dictionary:
 	for object_variant in mission_world_objects:
-		var object_data: Dictionary = Dictionary(object_variant)
+		var object_data: Dictionary = _safe_dictionary(object_variant)
 		var object_type: String = String(object_data.get("object_type", object_data.get("type", ""))).to_lower()
 		var object_group: String = str(object_data.get("object_group", "")).to_lower()
 		if not object_type.contains("door") and not object_type.contains("gate") and object_group != "door":
@@ -4753,7 +4798,7 @@ func get_map_constructor_validation_issues() -> Array[Dictionary]:
 		if item_cell.x >= 0 and item_cell.y >= 0 and _is_map_constructor_wall_cell(item_cell):
 			issues.append(_make_map_constructor_issue("pickup_cell_item_on_wall_%d_%d" % [item_cell.x, item_cell.y], "warning", "Pickup object overlaps blocked wall cell.", item_cell, source_name, "item", "", ""))
 		for item_variant in Array(cell_items.get(cell_variant, [])):
-			var item_data: Dictionary = Dictionary(item_variant)
+			var item_data: Dictionary = _safe_dictionary(item_variant)
 			var item_id: String = String(item_data.get("id", "")).strip_edges()
 			if item_id.is_empty():
 				issues.append(_make_map_constructor_issue("item_missing_id_%d_%d" % [item_cell.x, item_cell.y], "error", "Item missing id.", item_cell, source_name, "item", ""))
@@ -4806,10 +4851,8 @@ func get_map_constructor_validation_issues() -> Array[Dictionary]:
 				elif bool(opening_probe.get("ambiguous", false)):
 					issues.append(_make_map_constructor_issue("door_opening_ambiguous_%d_%d" % [door_cell.x, door_cell.y], "warning", "Door/gate tile has ambiguous wall support and may render with fallback orientation.", door_cell, source_name, "door_opening", "", "Prefer opposite wall cells on one axis."))
 	for door_object_variant in mission_world_objects:
-		var door_object_data: Dictionary = Dictionary(door_object_variant)
-		var door_object_type: String = String(door_object_data.get("object_type", door_object_data.get("type", ""))).to_lower()
-		var door_object_group: String = String(door_object_data.get("object_group", "")).to_lower()
-		if not door_object_type.contains("door") and not door_object_type.contains("gate") and door_object_group != "door":
+		var door_object_data: Dictionary = _safe_dictionary(door_object_variant)
+		if door_object_data.is_empty() or not _map_constructor_is_door_data(door_object_data):
 			continue
 		var door_object_id: String = String(door_object_data.get("id", "")).strip_edges()
 		var door_object_cell: Vector2i = _deserialize_cell_variant(door_object_data.get("position", Vector2i(-1, -1)))
@@ -4827,7 +4870,7 @@ func get_map_constructor_validation_issues() -> Array[Dictionary]:
 		for item_variant in Array(cell_items.get(cell_variant, [])):
 			if not (item_variant is Dictionary):
 				continue
-			var key_data: Dictionary = Dictionary(item_variant)
+			var key_data: Dictionary = _safe_dictionary(item_variant)
 			if not _map_constructor_is_key_data(key_data):
 				continue
 			var key_id: String = String(key_data.get("id", "")).strip_edges()
@@ -4843,7 +4886,7 @@ func get_map_constructor_validation_issues() -> Array[Dictionary]:
 	for door_variant in mission_world_objects:
 		if not (door_variant is Dictionary):
 			continue
-		var door_data_for_link: Dictionary = Dictionary(door_variant)
+		var door_data_for_link: Dictionary = _safe_dictionary(door_variant)
 		if not _map_constructor_is_door_data(door_data_for_link):
 			continue
 		var door_id_for_link: String = String(door_data_for_link.get("id", "")).strip_edges()
@@ -4853,7 +4896,7 @@ func get_map_constructor_validation_issues() -> Array[Dictionary]:
 		var door_requires_key: bool = lock_type.contains("key") or not required_key_id.is_empty()
 		if door_requires_key and required_key_id.is_empty():
 			issues.append(_make_map_constructor_issue("door_missing_key_%s" % door_id_for_link, "warning", "Door requires a key but no key is linked.", door_cell_for_link, source_name, "world_object", door_id_for_link, "Link a compatible key."))
-		elif not required_key_id.is_empty() and not bool(get_map_constructor_entity_by_id("", required_key_id).get("ok", false)):
+		elif not required_key_id.is_empty() and not bool(find_map_constructor_key_item_by_id(required_key_id).get("ok", false)):
 			issues.append(_make_map_constructor_issue("door_linked_key_missing_%s" % door_id_for_link, "error", "Linked key not found.", door_cell_for_link, source_name, "world_object", door_id_for_link, "Relink or clear required_key_id."))
 	for door_id_variant in key_link_counts_by_door.keys():
 		var linked_keys: Array = Array(key_link_counts_by_door.get(door_id_variant, []))
@@ -4878,7 +4921,7 @@ func _map_constructor_collect_item_ids() -> Dictionary:
 		for item_variant in Array(cell_items.get(cell_variant, [])):
 			if typeof(item_variant) != TYPE_DICTIONARY:
 				continue
-			var item_id: String = String(Dictionary(item_variant).get("id", "")).strip_edges()
+			var item_id: String = String(_safe_dictionary(item_variant).get("id", "")).strip_edges()
 			if not item_id.is_empty():
 				ids[item_id] = true
 	return ids
@@ -4896,7 +4939,7 @@ func get_map_constructor_autofix_preview(fix_type: String, options: Dictionary =
 	if lower_type in ["clear_broken_reference", "remove_invalid_reference", "clear_all_broken_references"]:
 		var target_fields: Array[String] = ["target_door_id","target_platform_id","linked_terminal_id","control_source_id","required_key_id","connected_device_ids"]
 		for object_data in mission_world_objects:
-			var data: Dictionary = Dictionary(object_data)
+			var data: Dictionary = _safe_dictionary(object_data)
 			var object_id: String = String(data.get("id", ""))
 			if lower_type != "clear_all_broken_references":
 				if object_id != String(options.get("entity_id", "")) or String(options.get("entity_kind", "world_object")) != "world_object":
@@ -4925,7 +4968,7 @@ func get_map_constructor_autofix_preview(fix_type: String, options: Dictionary =
 						fixes.append({"entity_kind":"world_object","entity_id":object_id,"field_name":field_name,"old_value":ref_id,"new_value":"","cell":Vector2i(data.get("position", Vector2i(-1,-1))),"description":"Clear broken %s on %s" % [field_name, object_id]})
 	elif lower_type in ["repair_wall_mounted_attachment", "repair_all_wall_mounted_attachments"]:
 		for object_data in mission_world_objects:
-			var data: Dictionary = Dictionary(object_data)
+			var data: Dictionary = _safe_dictionary(object_data)
 			if String(data.get("placement_mode", "")) != "wall_mounted":
 				continue
 			if lower_type == "repair_wall_mounted_attachment" and String(data.get("id", "")) != String(options.get("entity_id", "")):
@@ -4943,7 +4986,7 @@ func get_map_constructor_autofix_preview(fix_type: String, options: Dictionary =
 	elif lower_type == "assign_power_network":
 		var entity: Dictionary = get_map_constructor_entity_by_id(String(options.get("entity_kind", "world_object")), String(options.get("entity_id", "")))
 		if bool(entity.get("ok", false)):
-			var data: Dictionary = Dictionary(entity.get("data", {}))
+			var data: Dictionary = _safe_dictionary(entity.get("data", {}))
 			var new_net: String = String(options.get("new_power_network_id", "")).strip_edges()
 			if new_net.is_empty():
 				warnings.append("New power network id is required.")
@@ -4970,12 +5013,12 @@ func get_map_constructor_autofix_preview(fix_type: String, options: Dictionary =
 		var field_name: String = String(options.get("field_name", "id"))
 		var entity_info: Dictionary = get_map_constructor_entity_by_id(entity_kind, entity_id)
 		if bool(entity_info.get("ok", false)):
-			var data: Dictionary = Dictionary(entity_info.get("data", {}))
+			var data: Dictionary = _safe_dictionary(entity_info.get("data", {}))
 			if field_name == "required_key_id" and String(data.get("required_key_id", "")).is_empty():
 				var keys: Array[String] = []
 				for cell_variant in cell_items.keys():
 					for item_variant in Array(cell_items.get(cell_variant, [])):
-						var item: Dictionary = Dictionary(item_variant)
+						var item: Dictionary = _safe_dictionary(item_variant)
 						var item_type: String = String(item.get("item_type", item.get("object_type", ""))).to_lower()
 						if item_type in ["mechanical_keycard", "digital_key", "access_code"]:
 							keys.append(String(item.get("id", "")))
@@ -5045,7 +5088,7 @@ func apply_map_constructor_autofix(fix_type: String, options: Dictionary = {}) -
 		if not bool(apply_res.get("ok", false)) and String(row.get("field_name", "")) == "wall_attachment":
 			var entity: Dictionary = get_map_constructor_entity_by_id("world_object", str(row.get("entity_id", "")))
 			if bool(entity.get("ok", false)):
-				var d: Dictionary = Dictionary(entity.get("data", {}))
+				var d: Dictionary = _safe_dictionary(entity.get("data", {}))
 				var wall_data: Dictionary = Dictionary(row.get("new_value", {}))
 				d["wall_side"] = String(wall_data.get("wall_side", d.get("wall_side", "")))
 				d["attached_wall_cell"] = Vector2i(wall_data.get("attached_wall_cell", d.get("attached_wall_cell", Vector2i(-1,-1))))
@@ -7858,7 +7901,7 @@ func get_world_cell_debug_info(cell: Vector2i) -> Dictionary:
 		for item_variant in items:
 			if typeof(item_variant) != TYPE_DICTIONARY:
 				continue
-			var item_data := Dictionary(item_variant)
+			var item_data := _safe_dictionary(item_variant)
 			item_ids.append(String(item_data.get("id", "")))
 			item_types.append(String(item_data.get("object_type", "")))
 		info["item_ids"] = item_ids
@@ -10026,7 +10069,7 @@ func _build_world_runtime_validation_fingerprint() -> Dictionary:
 	for cell_variant in cell_items.keys():
 		var cell: Vector2i = Vector2i(cell_variant)
 		for item_variant in Array(cell_items[cell_variant]):
-			var item: Dictionary = Dictionary(item_variant)
+			var item: Dictionary = _safe_dictionary(item_variant)
 			item_ids.append(String(item.get("id", "")))
 			item_cells.append("%s@%s" % [String(item.get("id", "")), str(cell)])
 	item_ids.sort()
@@ -10060,7 +10103,7 @@ func _get_task_test_duplicate_cell_warnings(objects: Array[Dictionary], items_by
 		if not occupied_cells.has(cell):
 			continue
 		for item_variant in Array(items_by_cell[cell_variant]):
-			var item: Dictionary = Dictionary(item_variant)
+			var item: Dictionary = _safe_dictionary(item_variant)
 			var item_id: String = String(item.get("id", "")).strip_edges()
 			if item_id.begins_with("task_test_"):
 				warnings.append("duplicate_task_test_cell_%s_between_%s_and_%s" % [str(cell), String(occupied_cells[cell]), item_id])
@@ -10291,7 +10334,7 @@ func get_task_test_system_audit_report() -> Dictionary:
 		object_ids[object_id] = true
 	for cell_variant in cell_items.keys():
 		for item_variant in Array(cell_items.get(cell_variant, [])):
-			var item_data: Dictionary = Dictionary(item_variant)
+			var item_data: Dictionary = _safe_dictionary(item_variant)
 			item_ids[String(item_data.get("id", ""))] = true
 	var spec: Dictionary = get_task_test_required_system_coverage_spec()
 	var expected_invalid_ids: Dictionary = {}
@@ -10434,7 +10477,7 @@ func validate_task_test_runtime_cell_states() -> Array[String]:
 		for item_variant in Array(cell_items.get(cell_variant, [])):
 			if typeof(item_variant) != TYPE_DICTIONARY:
 				continue
-			task_item_ids.append(String(Dictionary(item_variant).get("id", "")))
+			task_item_ids.append(String(_safe_dictionary(item_variant).get("id", "")))
 	for object_data in mission_world_objects:
 		if typeof(object_data) != TYPE_DICTIONARY:
 			continue
@@ -11505,7 +11548,7 @@ func get_room_visual_preset_summary() -> Dictionary:
 func get_map_constructor_object_grounding_summary() -> Dictionary:
 	var summary: Dictionary = {"object_count": 0, "item_count": 0, "floor_standing_count": 0, "wall_mounted_count": 0, "door_insert_count": 0, "floor_pickup_count": 0, "unknown_grounding_count": 0, "missing_anchor_count": 0, "missing_wall_mount_count": 0}
 	for object_variant in mission_world_objects:
-		var data: Dictionary = Dictionary(object_variant)
+		var data: Dictionary = _safe_dictionary(object_variant)
 		summary["object_count"] = int(summary.get("object_count", 0)) + 1
 		var _object_type: String = String(data.get("object_type", data.get("type", ""))).to_lower().strip_edges()
 		var entity_kind: String = String(_map_constructor_entity_kind(data)).to_lower().strip_edges()
@@ -11552,12 +11595,12 @@ func export_map_constructor_design_notes(_options: Dictionary = {}) -> Dictionar
 	var visual_diagnostics: Array[Dictionary] = []
 	var object_ids: Dictionary = {}
 	for object_variant in mission_world_objects:
-		var object_data_indexed: Dictionary = Dictionary(object_variant)
+		var object_data_indexed: Dictionary = _safe_dictionary(object_variant)
 		var indexed_id: String = String(object_data_indexed.get("id", "")).strip_edges()
 		if not indexed_id.is_empty():
 			object_ids[indexed_id] = true
 	for object_variant in mission_world_objects:
-		var object_data: Dictionary = Dictionary(object_variant)
+		var object_data: Dictionary = _safe_dictionary(object_variant)
 		var object_id: String = String(object_data.get("id", "")).strip_edges()
 		if object_id.is_empty():
 			continue
@@ -11663,7 +11706,7 @@ func get_map_constructor_wall_mounted_anchor_zone_summary() -> Dictionary:
 					by_side[side] = int(by_side.get(side, 0)) + 1
 					summary["zones_by_side"] = by_side
 	for object_data in mission_world_objects:
-		var data: Dictionary = Dictionary(object_data)
+		var data: Dictionary = _safe_dictionary(object_data)
 		if String(data.get("placement_mode", "")).to_lower().strip_edges() != "wall_mounted":
 			continue
 		summary["wall_mounted_object_count"] = int(summary.get("wall_mounted_object_count", 0)) + 1
