@@ -441,8 +441,8 @@ const STORAGE_CARD_ICON_SIZE: Vector2 = Vector2(26, 26)
 const MODULE_TYPE_ICON_BASE_PATH: String = "res://assets/visual/isometric/icons/modules/base_icon_inext.webp"
 const MODULE_TYPE_ICON_ATLAS_PATH: String = "res://assets/visual/isometric/icons/modules/icon_inext.webp"
 const MODULE_TYPE_ICON_FRAME_SIZE: Vector2i = Vector2i(64, 64)
-const MODULE_TYPE_ICON_TILE_SIZE: Vector2 = Vector2(64, 64)
-const MODULE_TYPE_ICON_PREVIEW_BADGE_SIZE: Vector2 = Vector2(40, 40)
+const MODULE_TYPE_ICON_TILE_SIZE: Vector2 = Vector2(48, 48)
+const MODULE_TYPE_ICON_PREVIEW_BADGE_SIZE: Vector2 = Vector2(48, 48)
 const MODULE_TYPE_ICON_TILE_PADDING: float = 5.0
 const MODULE_TYPE_ICON_OVERLAY_COLOR: Color = Color(0, 0, 0, 1)
 const MODULE_VERSION_COLOR_V1: Color = Color("#78C850")
@@ -1422,6 +1422,16 @@ func _build_module_icon_badge(module: BipobModule, display_size: Vector2 = MODUL
 	return create_module_type_icon(module, display_size)
 
 
+func _apply_broken_overlay_to_module_tile(tile: Control, module: BipobModule) -> void:
+	if tile == null or not _is_module_broken(module):
+		return
+	var overlay: ColorRect = ColorRect.new()
+	overlay.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	overlay.color = Color(0.85, 0.05, 0.05, 0.42)
+	overlay.set_anchors_preset(Control.PRESET_FULL_RECT)
+	tile.add_child(overlay)
+
+
 func _apply_module_icon_badge_to_tile(tile: Control, module: BipobModule) -> void:
 	if tile == null or not _has_module_type_icon_assets():
 		return
@@ -1804,6 +1814,7 @@ func _create_storage_module_card(module: BipobModule, storage_index: int, select
 	root.add_child(top_row)
 
 	button.add_child(root)
+	_apply_broken_overlay_to_module_tile(button, module)
 	if has_composed_icon:
 		_apply_module_icon_badge_to_tile(button, module)
 	_add_hover_scale_feedback(button)
@@ -4138,25 +4149,42 @@ func _create_external_flat_size_preview(module: BipobModule) -> Control:
 	var panel := PanelContainer.new()
 	panel.custom_minimum_size = Vector2(84, 64)
 	panel.add_theme_stylebox_override("panel", _make_panel_style(UI_COLOR_PANEL_DARK, UI_COLOR_BORDER_DIM, 1, 4))
-	var root := VBoxContainer.new()
-	root.add_theme_constant_override("separation", 2)
-	root.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	var preview_root := Control.new()
+	preview_root.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	preview_root.set_anchors_preset(Control.PRESET_FULL_RECT)
+
+	var preview_texture: Texture2D = _load_module_icon_texture(module)
+	if preview_texture != null:
+		var texture_rect := TextureRect.new()
+		texture_rect.texture = preview_texture
+		texture_rect.expand_mode = TextureRect.EXPAND_FIT_WIDTH_PROPORTIONAL
+		texture_rect.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_CENTERED
+		texture_rect.mouse_filter = Control.MOUSE_FILTER_IGNORE
+		texture_rect.set_anchors_preset(Control.PRESET_FULL_RECT)
+		preview_root.add_child(texture_rect)
+	else:
+		var preview_label := Label.new()
+		preview_label.text = bipob.get_module_visual_short_label(module) if bipob != null and bipob.has_method("get_module_visual_short_label") else "MOD"
+		preview_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+		preview_label.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
+		preview_label.mouse_filter = Control.MOUSE_FILTER_IGNORE
+		preview_label.set_anchors_preset(Control.PRESET_FULL_RECT)
+		_apply_label_style(preview_label, false, true)
+		preview_root.add_child(preview_label)
+
 	var footprint_size: Vector2i = Vector2i(maxi(1, module.external_width), maxi(1, module.external_height))
-	var preview_columns: int = maxi(4, footprint_size.x)
-	var preview_rows: int = maxi(4, footprint_size.y)
-	var grid := GridContainer.new()
-	grid.columns = preview_columns
-	grid.add_theme_constant_override("h_separation", 2)
-	grid.add_theme_constant_override("v_separation", 2)
-	for y in range(preview_rows):
-		for x in range(preview_columns):
-			var c := ColorRect.new()
-			c.custom_minimum_size = SELECTED_MODULE_PREVIEW_CELL_SIZE
-			var is_filled: bool = x < footprint_size.x and y < footprint_size.y
-			c.color = Color(0.35, 0.75, 0.95, 0.45) if is_filled else Color(0.2, 0.24, 0.3, 0.35)
-			grid.add_child(c)
-	root.add_child(grid)
-	panel.add_child(root)
+	var size_label := Label.new()
+	size_label.text = "%dx%d" % [footprint_size.x, footprint_size.y]
+	size_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_LEFT
+	size_label.vertical_alignment = VERTICAL_ALIGNMENT_BOTTOM
+	size_label.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	size_label.set_anchors_preset(Control.PRESET_FULL_RECT)
+	size_label.offset_left = 5.0
+	size_label.offset_bottom = -3.0
+	_apply_label_style(size_label, true, false)
+	preview_root.add_child(size_label)
+
+	panel.add_child(preview_root)
 	return panel
 
 
@@ -4368,6 +4396,17 @@ func _get_module_characteristics_lines(module: BipobModule, context: String = ""
 func _get_internal_characteristics_lines(module: BipobModule) -> Array:
 	return GameUITextHelpersRef.get_internal_characteristics_lines(module)
 
+func _get_module_version_display_text(module: BipobModule) -> String:
+	var version_number: int = _get_module_icon_version_number(module)
+	if version_number > 0:
+		return "V%d" % version_number
+	if module != null:
+		var version_text: String = String(module.version).strip_edges()
+		if not version_text.is_empty():
+			return version_text
+	return "Unknown"
+
+
 func _create_selected_module_info_panel(module: BipobModule, context: String) -> Control:
 	var panel := PanelContainer.new()
 	_apply_panel_style(panel)
@@ -4405,7 +4444,7 @@ func _create_selected_module_info_panel(module: BipobModule, context: String) ->
 	left.add_child(previews)
 	var name_label := Label.new(); name_label.text = _get_module_title_for_selected_info(module); _apply_label_style(name_label); left.add_child(name_label)
 	var type_label := Label.new(); type_label.text = "Type: %s" % _get_module_type_text(module); _apply_label_style(type_label, true, false); left.add_child(type_label)
-	var version_label := Label.new(); version_label.text = "Version: V%d" % maxi(1, int(module.module_version)); _apply_label_style(version_label, true, false); left.add_child(version_label)
+	var version_label := Label.new(); version_label.text = "Version: %s" % _get_module_version_display_text(module); _apply_label_style(version_label, true, false); left.add_child(version_label)
 	var install_text := _get_module_install_text(module)
 	if not install_text.is_empty():
 		var install_label := Label.new(); install_label.text = install_text; install_label.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART; _apply_label_style(install_label, true, false); left.add_child(install_label)

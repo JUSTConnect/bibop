@@ -4507,6 +4507,8 @@ func create_external_module_by_id(module_id: String) -> BipobModule:
 	var metadata: Dictionary = EXTERNAL_MODULE_CATALOG.get(normalized_id, {})
 	if metadata.is_empty():
 		return null
+	module.module_version = get_module_version_for_module_id(normalized_id)
+	module.version = "V%d" % module.module_version
 	module.display_name = String(metadata.get("name", module_id))
 	module.category = String(metadata.get("cat", "Other"))
 	module.description = String(metadata.get("desc", ""))
@@ -5539,11 +5541,17 @@ func add_internal_mvp_modules_to_box() -> void:
 		box_storage.append(module)
 
 func create_visor_v2_module() -> BipobModule:
-	var module := BipobModule.new()
+	var module: BipobModule = create_external_module_by_id("visor_v2")
+	if module != null:
+		return module
+	module = BipobModule.new()
 	module.id = "visor_v2"
+	module.module_id = "visor_v2"
 	module.display_name = "Visor V2"
 	module.placement_type = "external"
-	module.category = "vision"
+	module.category = "Sensors"
+	module.version = "V2"
+	module.module_version = 2
 	module.internal_role = "none"
 	module.description = "Improved external vision module with wider scan shape."
 	module.granted_commands = ["vision"]
