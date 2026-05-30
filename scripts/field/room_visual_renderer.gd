@@ -21,6 +21,9 @@ class_name RoomVisualRenderer
 @export var show_wall_run_overlay: bool = false
 @export var show_floor_join_overlay: bool = false
 @export var use_procedural_floor_debug_tiles: bool = false
+@export var debug_floor_tile_bounds: bool = false
+@export var use_iso_floor_atlas_textures: bool = false
+@export var allow_legacy_floor_texture_assets: bool = false
 @export var use_iso_visual_preview_preset: bool = false
 @export var iso_visual_preview_includes_fog: bool = false
 @export var iso_fog_draw_cell_shapes: bool = false
@@ -36,7 +39,7 @@ class_name RoomVisualRenderer
 @export var use_iso_tile_asset_hooks: bool = false
 @export var use_iso_placeholder_asset_preset: bool = false
 @export var iso_placeholder_asset_preset_requires_preview: bool = true
-@export var iso_floor_atlas_texture: Texture2D = preload("res://assets/visual/isometric/floor/floor.webp")
+@export var iso_floor_atlas_texture: Texture2D = null
 @export var iso_floor_default_texture: Texture2D = null
 @export var iso_floor_stepped_texture: Texture2D = null
 @export var iso_floor_clean_lab_texture: Texture2D = null
@@ -72,7 +75,7 @@ class_name RoomVisualRenderer
 @export var iso_tile_width: float = 128.0
 @export var iso_tile_height: float = 64.0
 @export var iso_wall_height: float = 56.0
-@export var iso_floor_projection_pitch_correction_degrees: float = 10.0
+@export var iso_floor_projection_pitch_correction_degrees: float = 0.0
 @export var iso_floor_visual_inset: float = 1.0
 @export var iso_wall_visual_inset: float = 8.0
 @export var iso_object_marker_height: float = 18.0
@@ -2737,28 +2740,67 @@ func draw_floor_seamless_underlay(cell: Vector2i, fill_color: Color) -> void:
 	var underlay_points: PackedVector2Array = get_iso_diamond_points_with_overlap(cell, ISO_FLOOR_UNDERLAY_OVERLAP)
 	draw_colored_polygon(underlay_points, fill_color)
 
-func draw_procedural_floor_debug_tile(cell: Vector2i, fill_color: Color) -> void:
-	# Diagnostic floor renderer: uses only vector geometry with the same
-	# grid_to_iso projection as atlas floors. If this stitches cleanly while
-	# atlas tiles do not, the issue is source art/sampling rather than placement.
+func draw_procedural_floor_tile(cell: Vector2i, fill_color: Color, profile: Dictionary, draw_edge_borders: bool) -> void:
+	# Standard floor path: one full-size procedural diamond per logical cell.
+	# This deliberately avoids PNG/atlas padding, crop boxes, texture anchors, and
+	# per-material footprints so adjacent cells cover the whole isometric grid.
 	var diamond_points: PackedVector2Array = get_iso_diamond_points(cell)
 	if diamond_points.size() < 4:
 		return
-	var base_color: Color = Color(fill_color.r, fill_color.g, fill_color.b, maxf(fill_color.a, 0.92))
-	var outline_color: Color = Color(0.48, 0.68, 0.78, 0.72)
-	var inner_color: Color = Color(0.72, 0.88, 0.95, 0.20)
+	var base_color: Color = Color(fill_color.r, fill_color.g, fill_color.b, maxf(fill_color.a, 0.98))
 	draw_colored_polygon(diamond_points, base_color)
-	for edge_index in range(diamond_points.size()):
-		var next_index: int = (edge_index + 1) % diamond_points.size()
-		draw_line(diamond_points[edge_index], diamond_points[next_index], outline_color, 1.0)
-	var center_point: Vector2 = grid_to_iso(cell)
-	draw_line(diamond_points[0].lerp(center_point, 0.18), diamond_points[2].lerp(center_point, 0.18), inner_color, 0.55)
-	draw_line(diamond_points[3].lerp(center_point, 0.18), diamond_points[1].lerp(center_point, 0.18), inner_color, 0.55)
-	var panel_points: PackedVector2Array = get_iso_inset_diamond_points(cell, iso_floor_visual_inset + 10.0)
+	var panel_color: Color = _get_color_from_dict(profile, "panel", Color(0.18, 0.2, 0.24, 0.26))
+	var seam_color: Color = _get_color_from_dict(profile, "seam", Color(0.36, 0.42, 0.48, 0.24))
+	var panel_points: PackedVector2Array = get_iso_inset_diamond_points(cell, iso_floor_visual_inset + 8.0)
 	if panel_points.size() >= 4:
 		for panel_edge_index in range(panel_points.size()):
 			var panel_next_index: int = (panel_edge_index + 1) % panel_points.size()
-			draw_line(panel_points[panel_edge_index], panel_points[panel_next_index], inner_color.lightened(0.1), 0.45)
+			draw_line(panel_points[panel_edge_index], panel_points[panel_next_index], panel_color, 0.45)
+	var center_point: Vector2 = grid_to_iso(cell)
+	draw_line(diamond_points[3].lerp(center_point, 0.2), diamond_points[1].lerp(center_point, 0.2), seam_color, 0.55)
+	if draw_edge_borders or debug_draw_iso_cell_outlines:
+		var outline_color: Color = _get_color_from_dict(profile, "outline", Color(0.21, 0.33, 0.39, 0.72))
+		for side in WALL_SIDE_ORDER:
+			var edge_points: Array[Vector2] = get_iso_diamond_edge_points(diamond_points, side)
+			if edge_points.size() < 2:
+				continue
+			if debug_draw_iso_cell_outlines or should_draw_floor_edge_border(cell, side):
+				draw_line(edge_points[0], edge_points[1], outline_color, 0.65)
+	if debug_floor_tile_bounds:
+		draw_floor_tile_bounds_debug(cell)
+
+func draw_procedural_floor_debug_tile(cell: Vector2i, fill_color: Color) -> void:
+	# Diagnostic floor renderer: uses only vector geometry with the same
+	# grid_to_iso projection as floor placement. If this stitches cleanly while
+	# an atlas does not, the issue is source art/sampling rather than placement.
+	var profile: Dictionary = {
+		"outline": Color(0.0, 1.0, 1.0, 0.95),
+		"panel": Color(1.0, 1.0, 0.0, 0.38),
+		"seam": Color(1.0, 0.0, 1.0, 0.55)
+	}
+	draw_procedural_floor_tile(cell, fill_color.lightened(0.1), profile, true)
+	if not debug_floor_tile_bounds:
+		draw_floor_tile_bounds_debug(cell)
+
+func draw_floor_tile_bounds_debug(cell: Vector2i) -> void:
+	var diamond_points: PackedVector2Array = get_iso_diamond_points(cell)
+	if diamond_points.size() < 4:
+		return
+	var center_point: Vector2 = grid_to_iso(cell)
+	var half_size: Vector2 = get_iso_tile_half_size()
+	var destination_rect: Rect2 = Rect2(center_point - half_size, half_size * 2.0)
+	var corner_color: Color = Color(1.0, 0.2, 0.2, 0.95)
+	var axis_color: Color = Color(1.0, 0.92, 0.18, 0.82)
+	var rect_color: Color = Color(0.2, 1.0, 0.45, 0.5)
+	for edge_index in range(diamond_points.size()):
+		var next_index: int = (edge_index + 1) % diamond_points.size()
+		draw_line(diamond_points[edge_index], diamond_points[next_index], Color(0.0, 0.95, 1.0, 0.95), 1.5)
+		draw_circle(diamond_points[edge_index], 2.4, corner_color)
+	draw_rect(destination_rect, rect_color, false, 1.0)
+	draw_line(center_point + Vector2(-half_size.x, 0.0), center_point + Vector2(half_size.x, 0.0), axis_color, 0.7)
+	draw_line(center_point + Vector2(0.0, -half_size.y), center_point + Vector2(0.0, half_size.y), axis_color, 0.7)
+	draw_circle(center_point, 2.6, Color(1.0, 1.0, 1.0, 0.95))
+	draw_string(ThemeDB.fallback_font, center_point + Vector2(4.0, -4.0), "%d,%d" % [cell.x, cell.y], HORIZONTAL_ALIGNMENT_LEFT, -1.0, 10, Color(1.0, 1.0, 1.0, 0.9))
 
 func get_floor_atlas_inner_overlay_points() -> PackedVector2Array:
 	var destination_rect: Rect2 = get_floor_atlas_destination_rect()
@@ -2881,40 +2923,30 @@ func draw_iso_floor_prototype() -> void:
 			if use_procedural_floor_debug_tiles:
 				draw_procedural_floor_debug_tile(cell, fill_color)
 				continue
-			# Floor atlas states are the primary renderer.  Draw a seamless base first
-			# so transparent atlas margins and sub-pixel sampling never expose gaps.
-			draw_floor_seamless_underlay(cell, fill_color)
-			# Map Constructor texture hooks remain a fallback for older material rows or
-			# if the atlas is absent.
-			if draw_iso_floor_atlas_for_cell(cell):
-				continue
-			if not floor_texture_asset_id.is_empty() and draw_cell_border:
-				var floor_asset_drawn: bool = draw_optional_visual_texture_asset(floor_texture_asset_id, cell, "", {"visual_center": grid_to_iso(cell)})
-				if floor_asset_drawn:
+			# Default to the procedural renderer so every material/coating shares the
+			# exact same full-cell footprint and center anchor. The old floor atlas and
+			# legacy texture hooks are opt-in only until their padding/footprints are
+			# normalized to this geometry.
+			if use_iso_floor_atlas_textures:
+				draw_floor_seamless_underlay(cell, fill_color)
+				if draw_iso_floor_atlas_for_cell(cell):
+					if debug_floor_tile_bounds:
+						draw_floor_tile_bounds_debug(cell)
 					continue
-			if draw_cell_border and draw_iso_texture_asset(cell, floor_asset_key):
-				continue
-			draw_colored_polygon(diamond_points, fill_color)
-			var outline_color: Color = _get_color_from_dict(profile, "outline", Color(0.21, 0.33, 0.39, 0.85))
-			var panel_color: Color = _get_color_from_dict(profile, "panel", Color(0.18, 0.2, 0.24, 0.4))
-			var seam_color: Color = _get_color_from_dict(profile, "seam", Color(0.36, 0.42, 0.48, 0.26))
-			if debug_draw_iso_cell_outlines or draw_cell_border:
-				for side in WALL_SIDE_ORDER:
-					var edge_points: Array[Vector2] = get_iso_diamond_edge_points(diamond_points, side)
-					if edge_points.size() < 2:
+			if allow_legacy_floor_texture_assets:
+				if not floor_texture_asset_id.is_empty() and draw_cell_border:
+					var floor_asset_drawn: bool = draw_optional_visual_texture_asset(floor_texture_asset_id, cell, "", {"visual_center": grid_to_iso(cell)})
+					if floor_asset_drawn:
+						if debug_floor_tile_bounds:
+							draw_floor_tile_bounds_debug(cell)
 						continue
-					var should_draw_edge: bool = debug_draw_iso_cell_outlines or should_draw_floor_edge_border(cell, side)
-					if should_draw_edge:
-						draw_line(edge_points[0], edge_points[1], outline_color.darkened(0.12), 0.65)
+				if draw_cell_border and draw_iso_texture_asset(cell, floor_asset_key):
+					if debug_floor_tile_bounds:
+						draw_floor_tile_bounds_debug(cell)
+					continue
+			draw_procedural_floor_tile(cell, fill_color, profile, draw_cell_border)
 			if diamond_points.size() >= 4:
-				var panel_inset_points: PackedVector2Array = get_iso_inset_diamond_points(cell, iso_floor_visual_inset + 8.0)
-				if panel_inset_points.size() >= 4:
-					for edge_index in range(panel_inset_points.size()):
-						var next_index: int = (edge_index + 1) % panel_inset_points.size()
-						draw_line(panel_inset_points[edge_index], panel_inset_points[next_index], panel_color, 0.45)
-				var seam_start: Vector2 = diamond_points[3].lerp(diamond_points[1], 0.35)
-				var seam_end: Vector2 = diamond_points[3].lerp(diamond_points[1], 0.65)
-				draw_line(seam_start, seam_end, seam_color.darkened(0.12), 0.65)
+				var seam_color: Color = _get_color_from_dict(profile, "seam", Color(0.36, 0.42, 0.48, 0.26))
 				if profile_key == "floor_passage":
 					draw_line(diamond_points[0].lerp(diamond_points[2], 0.32), diamond_points[0].lerp(diamond_points[2], 0.68), seam_color.lightened(0.03), 0.8)
 				elif profile_key == "floor_doorway":
