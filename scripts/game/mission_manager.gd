@@ -3095,6 +3095,67 @@ func get_map_constructor_wall_material_overrides() -> Dictionary:
 		rows.append(Dictionary(_map_constructor_wall_material_overrides.get(String(key_variant), {})).duplicate(true))
 	return {"ok": true, "message": "OK", "overrides": rows}
 
+func _get_map_constructor_floor_visual_state_for_material_id(material_id: String) -> Dictionary:
+	var normalized_material_id: String = material_id.to_lower().strip_edges()
+	var parsed: PackedStringArray = normalized_material_id.split("_", false)
+	var material: String = parsed[0] if parsed.size() >= 1 else "steel"
+	var coating: String = parsed[1] if parsed.size() >= 2 else "default"
+	var legacy_map: Dictionary = {
+		"default_floor": "steel_default",
+		"clean_lab_floor": "steel_default",
+		"dark_service_floor": "concrete_dirty",
+		"hazard_floor": "steel_oil",
+		"power_floor": "grate_default",
+		"damaged_floor": "concrete_destroyed",
+		"reinforced_floor": "steel_default",
+		"diagnostic_floor": "grate_default"
+	}
+	if legacy_map.has(normalized_material_id):
+		return _get_map_constructor_floor_visual_state_for_material_id(String(legacy_map[normalized_material_id]))
+	var family: String = GridManager.FLOOR_FAMILY_METAL
+	match material:
+		"concrete":
+			family = GridManager.FLOOR_FAMILY_CONCRETE
+		"grate":
+			family = GridManager.FLOOR_FAMILY_GRATE
+		_:
+			family = GridManager.FLOOR_FAMILY_METAL
+	var wear: String = GridManager.FLOOR_WEAR_NONE
+	var base_variant: int = -1
+	var overlay_variant: int = -1
+	var mirror_h: bool = false
+	var mirror_v: bool = false
+	match coating:
+		"destroyed":
+			wear = GridManager.FLOOR_WEAR_HEAVY
+			overlay_variant = 1
+		"dirty":
+			wear = GridManager.FLOOR_WEAR_LIGHT
+			overlay_variant = 1
+		"water":
+			wear = GridManager.FLOOR_WEAR_LIGHT
+			overlay_variant = 3
+			mirror_h = true
+		"oil":
+			wear = GridManager.FLOOR_WEAR_LIGHT
+			overlay_variant = 5
+			mirror_v = true
+		_:
+			wear = GridManager.FLOOR_WEAR_NONE
+	if family == GridManager.FLOOR_FAMILY_GRATE and coating != "default":
+		base_variant = maxi(1, overlay_variant)
+	return {"family": family, "wear": wear, "base_variant": base_variant, "overlay_variant": overlay_variant, "mirror_h": mirror_h, "mirror_v": mirror_v}
+
+func _sync_map_constructor_floor_visual_state(cell: Vector2i, material_id: String) -> void:
+	if grid_manager == null or not grid_manager.has_method("set_floor_visual_state"):
+		return
+	grid_manager.call("set_floor_visual_state", cell, _get_map_constructor_floor_visual_state_for_material_id(material_id))
+
+func _clear_map_constructor_floor_visual_state(cell: Vector2i) -> void:
+	if grid_manager == null or not grid_manager.has_method("clear_floor_visual_state"):
+		return
+	grid_manager.call("clear_floor_visual_state", cell)
+
 func set_map_constructor_floor_material(cell: Vector2i, material_id: String) -> Dictionary:
 	if not _is_task_test_constructor_context():
 		return {"ok": false, "message": "Floor material overrides are available only in TASK TEST constructor mode."}
@@ -3113,6 +3174,7 @@ func set_map_constructor_floor_material(cell: Vector2i, material_id: String) -> 
 	var key: String = _serialize_cell_key(cell)
 	var entry: Dictionary = {"cell": cell, "material_id": normalized_material_id}
 	_map_constructor_floor_material_overrides[key] = entry
+	_sync_map_constructor_floor_visual_state(cell, normalized_material_id)
 	_record_map_constructor_change("floor_material", {"cell":cell, "summary":"Set floor material %s at %s" % [normalized_material_id, _format_map_constructor_cell(cell)], "details":{"material_id":normalized_material_id}})
 	return {"ok": true, "message": "Floor material applied.", "override": entry}
 
@@ -3123,6 +3185,7 @@ func clear_map_constructor_floor_material(cell: Vector2i) -> Dictionary:
 	if not _map_constructor_floor_material_overrides.has(key):
 		return {"ok": false, "message": "No floor material override to clear."}
 	_map_constructor_floor_material_overrides.erase(key)
+	_clear_map_constructor_floor_visual_state(cell)
 	_record_map_constructor_change("floor_material_clear", {"cell":cell, "summary":"Cleared floor material at %s" % _format_map_constructor_cell(cell)})
 	return {"ok": true, "message": "Floor material override cleared."}
 
@@ -3577,6 +3640,7 @@ func clear_room_visual_preset_overrides(_options: Dictionary = {}) -> Dictionary
 		var floor_row: Dictionary = Dictionary(_map_constructor_floor_material_overrides.get(floor_key, {}))
 		if bool(floor_row.get("created_by_room_visual_preset", false)):
 			_map_constructor_floor_material_overrides.erase(floor_key)
+			_clear_map_constructor_floor_visual_state(_deserialize_cell_key(floor_key))
 			cleared_floors += 1
 	var cleared_doors: int = map_constructor_door_visual_preset_overrides.size()
 	var cleared_terminals: int = map_constructor_terminal_visual_preset_overrides.size()

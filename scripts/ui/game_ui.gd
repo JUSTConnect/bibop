@@ -12624,6 +12624,69 @@ func _add_door_linked_key_section(parent: VBoxContainer, entity_id: String, data
 		section.add_child(jump_button)
 	parent.add_child(section)
 
+func _add_door_required_key_picker(parent: VBoxContainer, entity_kind: String, entity_id: String, data: Dictionary) -> void:
+	if mission_manager_runtime == null or not mission_manager_runtime.has_method("get_map_constructor_link_targets_for_field"):
+		return
+	var section := _create_inspector_section("Key Binding")
+	var current_key_id: String = _safe_ui_string(data.get("required_key_id", "")).strip_edges()
+	var option := OptionButton.new()
+	option.add_item("(no key)")
+	option.set_item_metadata(0, {"id":"", "entity_kind":"item"})
+	if current_key_id.is_empty():
+		option.select(0)
+	var raw_candidates: Dictionary = _safe_ui_dictionary(mission_manager_runtime.call("get_map_constructor_link_targets_for_field", entity_kind, entity_id, "required_key_id"))
+	for candidate_variant in Array(raw_candidates.get("targets", [])):
+		var candidate: Dictionary = _safe_ui_dictionary(candidate_variant)
+		var candidate_id: String = _safe_ui_string(candidate.get("id", "")).strip_edges()
+		if candidate_id.is_empty() or candidate_id == "__none__":
+			continue
+		var candidate_kind: String = _safe_ui_string(candidate.get("kind", "item"), "item")
+		option.add_item(_safe_ui_string(candidate.get("label", candidate_id), candidate_id))
+		var option_index: int = option.item_count - 1
+		option.set_item_metadata(option_index, {"id": candidate_id, "entity_kind": candidate_kind})
+		if candidate_id == current_key_id:
+			option.select(option_index)
+	section.add_child(_create_property_row("Required key", option))
+	var actions := HFlowContainer.new()
+	var apply_button := Button.new()
+	apply_button.text = "Bind Selected Key"
+	apply_button.pressed.connect(func() -> void:
+		var selected: Dictionary = _safe_ui_dictionary(option.get_selected_metadata())
+		var selected_key_id: String = _safe_ui_string(selected.get("id", "")).strip_edges()
+		if not current_key_id.is_empty() and current_key_id != selected_key_id and mission_manager_runtime.has_method("set_map_constructor_entity_link"):
+			mission_manager_runtime.call("set_map_constructor_entity_link", "item", current_key_id, "key_door", "")
+		if selected_key_id.is_empty():
+			if mission_manager_runtime.has_method("set_map_constructor_entity_link") and not current_key_id.is_empty():
+				var clear_result: Dictionary = mission_manager_runtime.call("set_map_constructor_entity_link", "item", current_key_id, "key_door", "")
+				show_hint(_safe_ui_string(clear_result.get("message", "Key binding cleared."), "Key binding cleared."))
+			else:
+				show_hint("No key selected.")
+		else:
+			var selected_kind: String = _safe_ui_string(selected.get("entity_kind", "item"), "item")
+			var result: Dictionary = mission_manager_runtime.call("set_map_constructor_entity_link", selected_kind, selected_key_id, "key_door", entity_id)
+			show_hint(_safe_ui_string(result.get("message", "Key binding updated."), "Key binding updated."))
+		_refresh_map_constructor_panels()
+		if field_runtime != null and field_runtime.has_method("request_visual_refresh"):
+			field_runtime.call("request_visual_refresh")
+		_show_map_constructor_inspector(selected_map_constructor_entity_cell, selected_map_constructor_entity_kind, selected_map_constructor_entity_id)
+	)
+	actions.add_child(apply_button)
+	if not current_key_id.is_empty():
+		var clear_button := Button.new()
+		clear_button.text = "Clear Key Binding"
+		clear_button.pressed.connect(func() -> void:
+			var clear_result: Dictionary = mission_manager_runtime.call("set_map_constructor_entity_link", "item", current_key_id, "key_door", "")
+			show_hint(_safe_ui_string(clear_result.get("message", "Key binding cleared."), "Key binding cleared."))
+			_clear_map_constructor_link_target()
+			_refresh_map_constructor_panels()
+			if field_runtime != null and field_runtime.has_method("request_visual_refresh"):
+				field_runtime.call("request_visual_refresh")
+			_show_map_constructor_inspector(selected_map_constructor_entity_cell, selected_map_constructor_entity_kind, selected_map_constructor_entity_id)
+		)
+		actions.add_child(clear_button)
+	section.add_child(actions)
+	parent.add_child(section)
+
 func _show_map_constructor_inspector(cell: Vector2i, preferred_entity_kind: String = "", preferred_entity_id: String = "") -> void:
 	var previous_entity_kind: String = selected_map_constructor_entity_kind
 	var previous_entity_id: String = selected_map_constructor_entity_id
@@ -12949,6 +13012,7 @@ func _show_map_constructor_inspector(cell: Vector2i, preferred_entity_kind: Stri
 		if type_group == "door":
 			_add_text_property(section, "lock_type", entity_kind, entity_id, "lock_type", data.get("lock_type", ""))
 			_add_text_property(section, "required_key_id", entity_kind, entity_id, "required_key_id", data.get("required_key_id", ""))
+			_add_door_required_key_picker(section, entity_kind, entity_id, data)
 			_add_bool_property(section, "is_open", entity_kind, entity_id, "is_open", data.get("is_open", false))
 			_add_bool_property(section, "is_locked", entity_kind, entity_id, "is_locked", data.get("is_locked", false))
 			_add_bool_property(section, "damaged", entity_kind, entity_id, "damaged", data.get("damaged", false))
