@@ -6978,6 +6978,7 @@ func get_facing_world_action_target() -> Dictionary:
 func get_world_action_display_label(action_id: String, object_data: Dictionary) -> String:
 	match action_id:
 		"open": return "Open"
+		"close": return "Close"
 		"unlock": return "Unlock"
 		"input_password": return "Input Password"
 		"cut": return "Cut"
@@ -7875,8 +7876,10 @@ func get_available_world_actions(world_object: Dictionary, target_position: Vect
 			actions.append("force_open")
 		if state == "locked":
 			actions.append("unlock")
-		if state == "closed" and has_manipulator_arm():
+		if state in ["locked", "closed"] and has_manipulator_arm():
 			actions.append("open")
+		if state == "open" and has_manipulator_arm():
+			actions.append("close")
 		if has_plasma_cutter() and String(world_object.get("material", "")) in ["steel", "reinforced_steel"]:
 			actions.append("cut")
 		if has_sledgehammer() and String(world_object.get("material", "")) in ["steel", "reinforced_steel"]:
@@ -7950,7 +7953,7 @@ func _module_dict(module_id: String) -> Dictionary:
 func get_world_action_module(action_id: String, world_object: Dictionary) -> Dictionary:
 	var connection_type := String(world_object.get("connection_type", "wired"))
 	match action_id:
-		"open", "switch", "pickup", "activate_platform":
+		"open", "close", "switch", "pickup", "activate_platform":
 			if action_id == "open":
 				var arm_level := get_installed_manipulator_arm_level()
 				return _module_dict("manipulator_arm_v%d" % arm_level if arm_level > 0 else "")
@@ -8100,11 +8103,16 @@ func interact() -> void:
 					var item_family := String(item.get("item_family", infer_digital_item_family(item_type)))
 					digital_world_records[item_family] = {"item_family": item_family, "item_type": item_type, "digital_state": digital_state}
 					hint_requested.emit("Pickup digital: item stored.")
-				elif can_use_physical_hand():
-					buffer_item = item
-					hint_requested.emit("Picked up %s" % String(item.get("display_name", "item")))
 				else:
-					hint_requested.emit("Manipulator is occupied.")
+					var physical_item_type := String(item.get("item_type", item.get("object_type", ""))).to_lower()
+					var key_kind := String(item.get("key_kind", "")).strip_edges()
+					if not key_kind.is_empty() or physical_item_type.contains("key") or physical_item_type == "access_code":
+						hint_requested.emit("Picked up %s" % String(item.get("display_name", "key")))
+					elif can_use_physical_hand():
+						buffer_item = item
+						hint_requested.emit("Picked up %s" % String(item.get("display_name", "item")))
+					else:
+						hint_requested.emit("Manipulator is occupied.")
 				clear_selected_world_action_if_invalid({}, item_cell)
 				emit_facing_world_object_hint()
 				refresh_world_action_panel()
@@ -8267,6 +8275,10 @@ func _apply_world_object_effects(effects: Array, world_object: Dictionary, targe
 			world_object["state"] = effect.get("state", world_object.get("state", ""))
 		elif effect_type == "set_blocks_movement":
 			world_object["blocks_movement"] = effect.get("value", world_object.get("blocks_movement", false))
+		elif effect_type == "set_bool":
+			var field_name := String(effect.get("field", "")).strip_edges()
+			if not field_name.is_empty():
+				world_object[field_name] = bool(effect.get("value", false))
 		elif effect_type == "power_recalc_needed":
 			var network_id := String(world_object.get("power_network_id", ""))
 			if not network_id.is_empty():

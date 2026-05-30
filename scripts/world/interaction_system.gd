@@ -2,7 +2,7 @@ extends RefCounted
 class_name InteractionSystem
 const WorldObjectCatalogRef = preload("res://scripts/world/world_object_catalog.gd")
 
-const SUPPORTED_ACTIONS := ["open","unlock","input_password","cut","impact","force_open","connect","scan","hack","drain_energy","pickup","use_item","insert_fuse","repair","push","pull","switch","disable","enable","attack","stun","repair_ally"]
+const SUPPORTED_ACTIONS := ["open","close","unlock","input_password","cut","impact","force_open","connect","scan","hack","drain_energy","pickup","use_item","insert_fuse","repair","push","pull","switch","disable","enable","attack","stun","repair_ally"]
 
 static func can_apply_action(actor: Dictionary, _module: Dictionary, target_object: Dictionary, action_type: String) -> Dictionary:
 	if action_type not in SUPPORTED_ACTIONS:
@@ -25,15 +25,30 @@ static func apply_action(actor: Dictionary, module: Dictionary, target_object: D
 		"open":
 			if group == "door":
 				if target_object.get("state", "") == "locked":
-					return _result(false, "Door is locked.")
+					return _result(false, "Door is locked. Key required.")
 				var gate: Dictionary = _validate_door_class(actor, target_object)
 				if not gate.success:
 					return gate
 				if target_object.get("state", "") != "closed":
 					return _result(false, "Door cannot be opened.")
 				target_object["state"] = "open"
+				target_object["is_open"] = true
+				target_object["is_locked"] = false
+				target_object["locked"] = false
 				target_object["blocks_movement"] = false
-				return _result(true, "Door opened.", [{"type":"door_opened"},{"type":"set_state","state":"open"},{"type":"set_blocks_movement","value":false}])
+				return _result(true, "Door opened.", [{"type":"door_opened"},{"type":"set_state","state":"open"},{"type":"set_blocks_movement","value":false},{"type":"set_bool","field":"is_open","value":true},{"type":"set_bool","field":"is_locked","value":false},{"type":"set_bool","field":"locked","value":false}])
+		"close":
+			if group != "door":
+				return _result(false, "Cannot close this object.")
+			var close_gate: Dictionary = _validate_door_class(actor, target_object)
+			if not close_gate.success:
+				return close_gate
+			if target_object.get("state", "") != "open":
+				return _result(false, "Door is not open.")
+			target_object["state"] = "closed"
+			target_object["is_open"] = false
+			target_object["blocks_movement"] = true
+			return _result(true, "Door closed.", [{"type":"set_state","state":"closed"},{"type":"set_blocks_movement","value":true},{"type":"set_bool","field":"is_open","value":false}])
 		"unlock":
 			if group != "door":
 				return _result(false, "Cannot unlock this object.")
@@ -42,10 +57,14 @@ static func apply_action(actor: Dictionary, module: Dictionary, target_object: D
 				return door_gate
 			var required_key_id: String = String(target_object.get("required_key_id", "")).strip_edges()
 			if not required_key_id.is_empty() and not Array(actor.get("collected_key_ids", [])).has(required_key_id):
-				return _result(false, "Requires Mechanical Key")
+				return _result(false, "No matching key.")
 			if module_id in ["mechanical_keycard", "digital_key_opened"]:
 				target_object["state"] = "closed"
-				return _result(true, "Door unlocked.", [{"type":"door_unlocked"},{"type":"set_state","state":"closed"}])
+				target_object["is_locked"] = false
+				target_object["locked"] = false
+				target_object["is_open"] = false
+				target_object["blocks_movement"] = true
+				return _result(true, "Door unlocked.", [{"type":"door_unlocked"},{"type":"set_state","state":"closed"},{"type":"set_blocks_movement","value":true},{"type":"set_bool","field":"is_locked","value":false},{"type":"set_bool","field":"locked","value":false},{"type":"set_bool","field":"is_open","value":false}])
 			if module_id == "digital_key_encrypted":
 				return _result(false, "File rejected: encrypted.")
 			if module_id == "digital_key_damaged":

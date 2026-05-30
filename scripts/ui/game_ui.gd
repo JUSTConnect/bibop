@@ -83,6 +83,17 @@ var runtime_bipob_switcher_panel: PanelContainer = null
 var runtime_selected_mission_bipob_index: int = 0
 var runtime_mission_bipob_cards: Array[Button] = []
 
+var runtime_interaction_mode_active: bool = false
+var runtime_interaction_actions_row: HBoxContainer = null
+var runtime_base_controls_grid: GridContainer = null
+var runtime_action_button: Button = null
+var runtime_end_turn_button: Button = null
+var runtime_notification_label: Label = null
+var runtime_notification_panel: PanelContainer = null
+var runtime_notification_timer: float = 0.0
+var runtime_notification_role: String = "neutral"
+var runtime_interaction_actions_signature: String = ""
+
 @onready var box_status_label: Label = $BoxScreen/PanelContainer/VBoxContainer/StatusLabel
 @onready var box_module_label: Label = $BoxScreen/PanelContainer/VBoxContainer/ModuleLabel
 @onready var installed_modules_label: Label = $BoxScreen/PanelContainer/VBoxContainer/InstalledModulesLabel
@@ -4969,12 +4980,19 @@ func _apply_runtime_hud_layout() -> void:
 	var stats_height: float = 34.0
 	var bottom_y: float = viewport.y - bottom_area_height - margin
 
+	var top_row := HBoxContainer.new()
+	top_row.name = "RuntimeTopNotificationRow"
+	top_row.position = Vector2(margin, margin)
+	top_row.size = Vector2(maxf(viewport.x - sidebar_width - margin * 3.0, 200.0), top_panel_height)
+	top_row.add_theme_constant_override("separation", 8)
+	root.add_child(top_row)
+
 	var objective_panel := PanelContainer.new()
 	objective_panel.name = "ObjectivePanel"
-	objective_panel.position = Vector2(margin, margin)
-	objective_panel.size = Vector2(maxf(viewport.x - sidebar_width - margin * 3.0, 200.0), top_panel_height)
+	objective_panel.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	objective_panel.custom_minimum_size = Vector2(220, top_panel_height)
 	objective_panel.add_theme_stylebox_override("panel", _make_panel_style(UI_COLOR_PANEL_DARK, UI_COLOR_BORDER, 1, 8))
-	root.add_child(objective_panel)
+	top_row.add_child(objective_panel)
 	var objective_margin := MarginContainer.new()
 	objective_margin.add_theme_constant_override("margin_left", 10)
 	objective_margin.add_theme_constant_override("margin_right", 10)
@@ -4989,6 +5007,26 @@ func _apply_runtime_hud_layout() -> void:
 	mission_goal_value_label.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	mission_goal_value_label.text = _get_runtime_mission_objective_text()
 	objective_margin.add_child(mission_goal_value_label)
+
+	runtime_notification_panel = PanelContainer.new()
+	runtime_notification_panel.name = "RuntimeNotificationPanel"
+	runtime_notification_panel.custom_minimum_size = Vector2(300, top_panel_height)
+	runtime_notification_panel.add_theme_stylebox_override("panel", _make_panel_style(UI_COLOR_PANEL_DARK, UI_COLOR_BORDER_DIM, 1, 8))
+	top_row.add_child(runtime_notification_panel)
+	var notification_margin := MarginContainer.new()
+	notification_margin.add_theme_constant_override("margin_left", 10)
+	notification_margin.add_theme_constant_override("margin_right", 10)
+	notification_margin.add_theme_constant_override("margin_top", 6)
+	notification_margin.add_theme_constant_override("margin_bottom", 6)
+	runtime_notification_panel.add_child(notification_margin)
+	runtime_notification_label = Label.new()
+	runtime_notification_label.name = "RuntimeNotificationLabel"
+	runtime_notification_label.text = ""
+	runtime_notification_label.clip_text = true
+	runtime_notification_label.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
+	runtime_notification_label.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	runtime_notification_label.add_theme_color_override("font_color", UI_COLOR_TEXT_DIM)
+	notification_margin.add_child(runtime_notification_label)
 
 	var right_x: float = viewport.x - sidebar_width - margin
 	var switcher_height: float = 0.0
@@ -5172,26 +5210,29 @@ func _create_runtime_controls_panel() -> Control:
 	root.add_theme_constant_override("separation", 6)
 	margin.add_child(root)
 
+	runtime_interaction_actions_row = HBoxContainer.new()
+	runtime_interaction_actions_row.name = "RuntimeInteractionActionRow"
+	runtime_interaction_actions_row.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	runtime_interaction_actions_row.add_theme_constant_override("separation", 8)
+	runtime_interaction_actions_row.visible = false
+	root.add_child(runtime_interaction_actions_row)
+
 	var grid := GridContainer.new()
+	grid.name = "RuntimeBaseControlRow"
 	grid.columns = 4
 	grid.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	grid.add_theme_constant_override("h_separation", 8)
 	grid.add_theme_constant_override("v_separation", 4)
 	root.add_child(grid)
+	runtime_base_controls_grid = grid
 
 	grid.add_child(_create_runtime_control_button("Turn Left", Callable(self, "_on_turn_left_pressed")))
 	grid.add_child(_create_runtime_control_button("Turn Right", Callable(self, "_on_turn_right_pressed")))
-	grid.add_child(_create_runtime_control_button("Action", Callable(self, "_on_interact_pressed"), "primary"))
-	grid.add_child(_create_runtime_control_button("End Turn", Callable(self, "_on_end_turn_pressed"), "reference"))
-
-	var help_label := Label.new()
-	help_label.text = "WASD/arrows: pan map. LMB: select/move. RMB: cancel/inspect."
-	help_label.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-	help_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_LEFT
-	help_label.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
-	help_label.mouse_filter = Control.MOUSE_FILTER_IGNORE
-	help_label.add_theme_color_override("font_color", UI_COLOR_TEXT_DIM)
-	root.add_child(help_label)
+	runtime_action_button = _create_runtime_control_button("Action", Callable(self, "_on_interact_pressed"), "primary")
+	grid.add_child(runtime_action_button)
+	runtime_end_turn_button = _create_runtime_control_button("End Turn", Callable(self, "_on_end_turn_pressed"), "reference")
+	grid.add_child(runtime_end_turn_button)
+	_refresh_runtime_interaction_controls()
 
 	return panel
 
@@ -5507,9 +5548,16 @@ func _create_storage_slot(text: String, enabled: bool, min_size: Vector2 = Vecto
 
 func _create_storage_key_slot(enabled: bool) -> Control:
 	var key_slot := PanelContainer.new()
-	key_slot.custom_minimum_size = Vector2(24, 24)
+	key_slot.custom_minimum_size = Vector2(42, 24)
 	key_slot.add_theme_stylebox_override("panel", _make_panel_style(Color(0.090, 0.110, 0.145, 1.0), UI_COLOR_BORDER_DIM, 1, 4))
 	key_slot.modulate = Color.WHITE if enabled else UI_COLOR_DISABLED
+	var label := Label.new()
+	label.name = "KeySlotLabel"
+	label.text = "-"
+	label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	label.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
+	label.clip_text = true
+	key_slot.add_child(label)
 	return key_slot
 
 func _ready() -> void:
@@ -8009,6 +8057,7 @@ func _on_remove_external_module_pressed() -> void:
 func show_hint(message: String) -> void:
 	if hint_label != null:
 		hint_label.text = message
+	_show_runtime_notification(message)
 
 
 func _on_constructor_dashboard_button_pressed() -> void:
@@ -9454,6 +9503,67 @@ func _unhandled_input(event: InputEvent) -> void:
 func _process(delta: float) -> void:
 	_update_map_keyboard_pan(delta)
 	_process_map_constructor_edge_scroll(delta)
+	_process_runtime_interaction_feedback(delta)
+
+
+func _process_runtime_interaction_feedback(delta: float) -> void:
+	if app_screen_mode != AppScreenMode.GAMEPLAY:
+		return
+	if runtime_notification_timer > 0.0:
+		runtime_notification_timer = maxf(0.0, runtime_notification_timer - delta)
+		if runtime_notification_label != null:
+			var pulse := 0.70 + 0.30 * abs(sin(Time.get_ticks_msec() / 180.0))
+			runtime_notification_label.modulate = Color(1, 1, 1, pulse)
+	elif runtime_notification_label != null and not runtime_notification_label.text.is_empty():
+		runtime_notification_label.text = ""
+		runtime_notification_label.modulate = Color.WHITE
+	if bipob == null:
+		return
+	_refresh_runtime_interaction_controls()
+	var target_data := _get_runtime_interaction_target_data()
+	var target_object: Dictionary = Dictionary(target_data.get("target_object", {}))
+	var actions: Array = Array(target_data.get("actions", []))
+	var has_interactable := not target_object.is_empty() and not actions.is_empty()
+	var has_actions_left := int(bipob.actions_left) > 0
+	var manipulator_blocked := has_interactable and _is_runtime_interaction_manipulator_blocked(target_object, actions)
+	var pulse_alpha := 0.72 + 0.28 * abs(sin(Time.get_ticks_msec() / 170.0))
+	if runtime_action_button != null:
+		if manipulator_blocked:
+			runtime_action_button.modulate = Color(1.0, 0.38, 0.38, 1.0)
+		elif has_interactable and has_actions_left and not runtime_interaction_mode_active:
+			runtime_action_button.modulate = Color(1.0, 1.0, 1.0, pulse_alpha)
+		else:
+			runtime_action_button.modulate = Color.WHITE
+	if runtime_end_turn_button != null:
+		if bipob != null and int(bipob.actions_left) <= 0:
+			runtime_end_turn_button.modulate = Color(1.0, 1.0, 1.0, pulse_alpha)
+		else:
+			runtime_end_turn_button.modulate = Color.WHITE
+
+func _get_runtime_notification_role(message: String) -> String:
+	var lower := message.to_lower()
+	for token in ["required", "locked", "no ", "cannot", "failed", "missing", "not enough", "blocked", "rejected", "occupied"]:
+		if lower.find(token) != -1:
+			return "danger"
+	for token in ["collected", "unlocked", "opened", "closed", "complete", "success", "stored", "picked up"]:
+		if lower.find(token) != -1:
+			return "ok"
+	return "info"
+
+func _show_runtime_notification(message: String) -> void:
+	if runtime_notification_label == null:
+		return
+	runtime_notification_role = _get_runtime_notification_role(message)
+	runtime_notification_timer = 7.0
+	runtime_notification_label.text = message
+	var color := UI_COLOR_ACCENT
+	if runtime_notification_role == "ok":
+		color = UI_COLOR_OK
+	elif runtime_notification_role == "danger":
+		color = UI_COLOR_DANGER
+	runtime_notification_label.add_theme_color_override("font_color", color)
+	if runtime_notification_panel != null:
+		runtime_notification_panel.add_theme_stylebox_override("panel", _make_panel_style(UI_COLOR_PANEL_DARK, color, 1, 8))
 
 func _process_map_constructor_edge_scroll(delta: float) -> void:
 	if not edge_scroll_enabled or delta <= 0.0:
@@ -13425,8 +13535,101 @@ func _on_turn_right_pressed() -> void:
 	bipob.turn_right()
 	update_status()
 
+
+func _get_runtime_interaction_target_data() -> Dictionary:
+	if bipob == null or not bipob.has_method("get_facing_world_action_target"):
+		return {"target_object": {}, "actions": []}
+	return Dictionary(bipob.call("get_facing_world_action_target"))
+
+func _runtime_action_requires_manipulator(action_id: String, target_object: Dictionary) -> bool:
+	if action_id == "pickup" and String(target_object.get("item_form", "physical")) == "digital":
+		return false
+	return action_id in ["pickup", "open", "close", "unlock", "switch", "force_open", "push", "pull", "insert_fuse", "repair", "cut", "impact"]
+
+func _is_runtime_interaction_manipulator_blocked(target_object: Dictionary, actions: Array) -> bool:
+	if bipob == null or not bipob.has_method("can_use_physical_hand"):
+		return false
+	if bool(bipob.call("can_use_physical_hand")):
+		return false
+	for action_variant in actions:
+		if _runtime_action_requires_manipulator(String(action_variant), target_object):
+			return true
+	return false
+
+func _refresh_runtime_interaction_controls() -> void:
+	if runtime_action_button == null or runtime_end_turn_button == null:
+		return
+	var target_data := _get_runtime_interaction_target_data()
+	var target_object: Dictionary = Dictionary(target_data.get("target_object", {}))
+	var actions: Array = Array(target_data.get("actions", []))
+	var has_interactable := not target_object.is_empty() and not actions.is_empty()
+	var has_actions_left := bipob != null and int(bipob.actions_left) > 0
+	var manipulator_blocked := has_interactable and _is_runtime_interaction_manipulator_blocked(target_object, actions)
+	if runtime_interaction_mode_active and (not has_interactable or not has_actions_left):
+		runtime_interaction_mode_active = false
+	if runtime_action_button != null:
+		runtime_action_button.text = "Cancel" if runtime_interaction_mode_active else "Action"
+		_apply_action_button_style(runtime_action_button, "danger" if manipulator_blocked else "primary", true)
+	if runtime_end_turn_button != null:
+		_apply_action_button_style(runtime_end_turn_button, "reference", true)
+	if runtime_interaction_actions_row == null:
+		return
+	var action_id_texts: Array[String] = []
+	for signature_action_variant in actions:
+		action_id_texts.append(String(signature_action_variant))
+	var next_signature := "%s|%s" % [str(runtime_interaction_mode_active), "|".join(action_id_texts)]
+	if next_signature == runtime_interaction_actions_signature:
+		runtime_interaction_actions_row.visible = runtime_interaction_mode_active
+		return
+	runtime_interaction_actions_signature = next_signature
+	for child in runtime_interaction_actions_row.get_children():
+		child.queue_free()
+	runtime_interaction_actions_row.visible = runtime_interaction_mode_active
+	if not runtime_interaction_mode_active:
+		return
+	for action_variant in actions:
+		var action_id := String(action_variant)
+		var button := _create_runtime_control_button(bipob.get_world_action_display_label(action_id, target_object), Callable(self, "_on_runtime_interaction_action_pressed").bind(action_id), "primary")
+		button.custom_minimum_size = Vector2(96, 30)
+		runtime_interaction_actions_row.add_child(button)
+	var cancel_button := _create_runtime_control_button("Cancel", Callable(self, "_exit_runtime_interaction_mode"), "danger")
+	cancel_button.custom_minimum_size = Vector2(96, 30)
+	runtime_interaction_actions_row.add_child(cancel_button)
+
+func _enter_runtime_interaction_mode() -> void:
+	runtime_interaction_mode_active = true
+	_refresh_runtime_interaction_controls()
+
+func _exit_runtime_interaction_mode() -> void:
+	runtime_interaction_mode_active = false
+	_refresh_runtime_interaction_controls()
+
+func _on_runtime_interaction_action_pressed(action_id: String) -> void:
+	if bipob == null:
+		return
+	bipob.set_selected_world_action(action_id)
+	bipob.interact()
+	_exit_runtime_interaction_mode()
+	update_status()
+
 func _on_interact_pressed() -> void:
 	if map_constructor_mode_active or bipob == null:
+		return
+	if runtime_interaction_mode_active:
+		_exit_runtime_interaction_mode()
+		return
+	var target_data := _get_runtime_interaction_target_data()
+	var target_object: Dictionary = Dictionary(target_data.get("target_object", {}))
+	var actions: Array = Array(target_data.get("actions", []))
+	if int(bipob.actions_left) <= 0:
+		show_hint("No actions left. End turn.")
+		return
+	if not target_object.is_empty() and not actions.is_empty():
+		if _is_runtime_interaction_manipulator_blocked(target_object, actions):
+			show_hint("Free manipulator required.")
+			_refresh_runtime_interaction_controls()
+			return
+		_enter_runtime_interaction_mode()
 		return
 	bipob.interact()
 	update_status()
@@ -13459,79 +13662,10 @@ func _get_runtime_world_action_target_id(target_object: Dictionary, fallback_nam
 
 	return fallback_name
 
-func _on_world_action_panel_requested(target_object: Dictionary, actions: Array, selected_action: String) -> void:
-	if runtime_world_actions_panel == null:
-		return
-	if app_screen_mode != AppScreenMode.GAMEPLAY:
+func _on_world_action_panel_requested(_target_object: Dictionary, _actions: Array, _selected_action: String) -> void:
+	_refresh_runtime_interaction_controls()
+	if runtime_world_actions_panel != null:
 		runtime_world_actions_panel.visible = false
-		return
-	if target_object.is_empty():
-		runtime_world_actions_panel.visible = false
-		return
-	runtime_world_actions_panel.visible = true
-	var scan_level := int(target_object.get("scan_level", 0))
-	var object_group: String = str(target_object.get("object_group", "object"))
-	var generic := object_group.capitalize()
-	if object_group == "threat" and scan_level <= 0:
-		generic = "Unknown movement"
-	var object_name: String = generic
-	if scan_level > 0:
-		object_name = str(target_object.get("display_name", generic))
-	runtime_world_actions_target_label.text = object_name
-	runtime_world_actions_state_label.text = "State: %s" % str(target_object.get("state", "unknown"))
-	if object_group == "threat":
-		runtime_world_actions_behavior_label.visible = true
-		runtime_world_actions_behavior_label.text = "Behavior: %s" % str(target_object.get("behavior_state", "idle"))
-	else:
-		runtime_world_actions_behavior_label.visible = false
-	var action_ids: Array[String] = []
-	for action_variant in actions:
-		var action_id: String = str(action_variant)
-		if action_id.is_empty():
-			continue
-		action_ids.append(action_id)
-	var target_id: String = _get_runtime_world_action_target_id(target_object, object_name)
-	var actions_key := "|".join(action_ids)
-	var state_key: String = "%s|%s|%s" % [
-		str(target_object.get("state", "")),
-		str(target_object.get("behavior_state", "")),
-		str(target_object.get("scan_level", 0))
-	]
-	var only_selection_change: bool = target_id == last_world_action_target_id and actions_key == last_world_action_actions_key and state_key == last_world_action_state_key
-	if only_selection_change and runtime_world_actions_list.get_child_count() > 0:
-		for child_node in runtime_world_actions_list.get_children():
-			if child_node is Button:
-				var btn: Button = child_node
-				btn.button_pressed = str(btn.get_meta("action_id", "")) == selected_action
-		last_world_action_selected = selected_action
-		return
-	for child in runtime_world_actions_list.get_children():
-		child.queue_free()
-	runtime_world_actions_selected_button = null
-	if action_ids.is_empty():
-		var empty_label := Label.new()
-		empty_label.text = "No available actions"
-		runtime_world_actions_list.add_child(empty_label)
-		return
-	var added: Dictionary = {}
-	for action_id in action_ids:
-		if added.has(action_id):
-			continue
-		added[action_id] = true
-		var action_button := Button.new()
-		action_button.text = bipob.get_world_action_display_label(action_id, target_object)
-		action_button.toggle_mode = true
-		action_button.button_pressed = action_id == selected_action
-		action_button.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-		action_button.set_meta("action_id", action_id)
-		action_button.pressed.connect(_on_world_action_button_pressed.bind(action_id))
-		runtime_world_actions_list.add_child(action_button)
-		if action_button.button_pressed:
-			runtime_world_actions_selected_button = action_button
-	last_world_action_target_id = target_id
-	last_world_action_actions_key = actions_key
-	last_world_action_selected = selected_action
-	last_world_action_state_key = state_key
 
 func _on_drop_item_button_pressed() -> void:
 	bipob.drop_held_item()
@@ -13567,6 +13701,18 @@ func _refresh_runtime_storage_panel() -> void:
 			var take_button := runtime_pocket_take_buttons[i]
 			take_button.disabled = not enabled
 			take_button.visible = enabled
+	var inventory_state: Dictionary = bipob.get_inventory_state() if bipob.has_method("get_inventory_state") else {}
+	var collected_key_ids: Array = Array(inventory_state.get("collected_key_ids", []))
+	if collected_key_ids.is_empty() and bool(bipob.has_key):
+		collected_key_ids.append("physical_key")
+	for key_index in range(runtime_key_slots.size()):
+		var key_slot: Control = runtime_key_slots[key_index]
+		var key_label := key_slot.get_node_or_null("KeySlotLabel") as Label
+		var has_key_slot := key_index < collected_key_ids.size()
+		key_slot.modulate = Color.WHITE if has_key_slot else UI_COLOR_DISABLED
+		if key_label != null:
+			var key_id := String(collected_key_ids[key_index]) if has_key_slot else ""
+			key_label.text = _get_runtime_key_display_text(key_id) if has_key_slot else "-"
 	var digital_available: int = 1
 	runtime_digital_store_title_label.text = "STORE %d/%d" % [digital_available, runtime_digital_slots.size()]
 	for i in range(runtime_digital_slots.size()):
@@ -13582,6 +13728,22 @@ func _refresh_runtime_storage_panel() -> void:
 	if runtime_buffer_content_label != null:
 		runtime_buffer_content_label.text = "Empty"
 	_apply_runtime_storage_collapsed_state()
+
+
+func _get_runtime_key_display_text(key_id: String) -> String:
+	var text := key_id.strip_edges()
+	if text.is_empty():
+		return "-"
+	if text == "physical_key":
+		return "Key"
+	text = text.replace("task_test_item_", "")
+	text = text.replace("mechanical_keycard", "Key")
+	text = text.replace("mechanical_key", "Key")
+	text = text.replace("digital_key", "D-Key")
+	text = text.replace("_", " ").strip_edges()
+	if text.length() > 12:
+		text = text.substr(0, 12)
+	return text.capitalize()
 
 func _on_storage_take_pressed() -> void:
 	bipob.move_pocket_to_manipulator(selected_pocket_slot)
@@ -13716,6 +13878,7 @@ func update_status() -> void:
 	if bipob.current_mission_index == 7 and bipob.has_method("get_mission7_cable_status_text"):
 		hud_status_label.text += " | %s" % str(bipob.get_mission7_cable_status_text())
 	_refresh_runtime_storage_panel()
+	_refresh_runtime_interaction_controls()
 	if bipob.has_method("refresh_world_action_panel"):
 		bipob.refresh_world_action_panel()
 
