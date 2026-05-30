@@ -404,6 +404,7 @@ const MAP_CONSTRUCTOR_PREFAB_CATEGORY_GROUP_ORDER: Array[String] = [
 var edge_scroll_enabled: bool = true
 var edge_scroll_margin_px: float = 28.0
 var edge_scroll_speed: float = 540.0
+var map_camera_scroll_speed: float = 600.0
 var map_scroll_bounds_margin_px: float = 180.0
 var tasks_actions_row: HBoxContainer
 var tasks_dev_output_label: RichTextLabel
@@ -5174,10 +5175,10 @@ func _create_runtime_controls_panel() -> Control:
 	margin.add_child(grid)
 
 	var hint_entries: Array[String] = [
-		"Forward [W]",
-		"Backward [S]",
-		"Turn Left [A]",
-		"Turn Right [D]",
+		"Mouse: move robot",
+		"WASD / arrows: pan map",
+		"LMB: select route / move",
+		"RMB: inspect / context",
 		"Action [E]",
 		"End Turn [Space]"
 	]
@@ -5541,12 +5542,16 @@ func _ready() -> void:
 
 	if move_forward_button != null:
 		move_forward_button.focus_mode = Control.FOCUS_NONE
+		move_forward_button.text = "Forward"
 	if move_backward_button != null:
 		move_backward_button.focus_mode = Control.FOCUS_NONE
+		move_backward_button.text = "Backward"
 	if turn_left_button != null:
 		turn_left_button.focus_mode = Control.FOCUS_NONE
+		turn_left_button.text = "Turn Left"
 	if turn_right_button != null:
 		turn_right_button.focus_mode = Control.FOCUS_NONE
+		turn_right_button.text = "Turn Right"
 	if interact_button != null:
 		interact_button.focus_mode = Control.FOCUS_NONE
 	if end_turn_button != null:
@@ -9435,6 +9440,7 @@ func _unhandled_input(event: InputEvent) -> void:
 		_handle_runtime_gameplay_mouse_click(event)
 
 func _process(delta: float) -> void:
+	_update_map_keyboard_pan(delta)
 	_process_map_constructor_edge_scroll(delta)
 
 func _process_map_constructor_edge_scroll(delta: float) -> void:
@@ -9472,12 +9478,76 @@ func _process_map_constructor_edge_scroll(delta: float) -> void:
 		scroll_dir.y += 1.0
 	if scroll_dir == Vector2.ZERO:
 		return
+	_pan_runtime_map(scroll_dir.normalized(), edge_scroll_speed * delta)
+
+func _update_map_keyboard_pan(delta: float) -> void:
+	if delta <= 0.0:
+		return
+	if app_screen_mode != AppScreenMode.GAMEPLAY:
+		return
+	if field_runtime == null or not is_instance_valid(field_runtime):
+		return
+	var window: Window = get_window()
+	if window != null and not window.has_focus():
+		return
+	if _is_text_input_focused() or _is_blocking_modal_open():
+		return
+	var direction: Vector2 = Vector2.ZERO
+	if Input.is_key_pressed(KEY_LEFT) or Input.is_key_pressed(KEY_A):
+		direction.x -= 1.0
+	if Input.is_key_pressed(KEY_RIGHT) or Input.is_key_pressed(KEY_D):
+		direction.x += 1.0
+	if Input.is_key_pressed(KEY_UP) or Input.is_key_pressed(KEY_W):
+		direction.y -= 1.0
+	if Input.is_key_pressed(KEY_DOWN) or Input.is_key_pressed(KEY_S):
+		direction.y += 1.0
+	if direction == Vector2.ZERO:
+		return
+	_pan_runtime_map(direction.normalized(), map_camera_scroll_speed * delta)
+
+func _pan_runtime_map(camera_direction: Vector2, distance: float) -> void:
+	if camera_direction == Vector2.ZERO or distance <= 0.0:
+		return
+	if field_runtime == null or not is_instance_valid(field_runtime):
+		return
 	var field_node: Node2D = field_runtime as Node2D
 	if field_node == null:
 		return
-	var movement: Vector2 = -scroll_dir.normalized() * edge_scroll_speed * delta
+	var viewport: Viewport = get_viewport()
+	if viewport == null:
+		return
+	var viewport_size: Vector2 = viewport.get_visible_rect().size
+	var movement: Vector2 = -camera_direction * distance
 	var unclamped_position: Vector2 = field_node.position + movement
-	field_node.position = _get_clamped_constructor_field_position(unclamped_position, viewport_size)
+	field_node.position = _get_clamped_runtime_field_position(unclamped_position, viewport_size)
+
+func _is_text_input_focused() -> bool:
+	var viewport: Viewport = get_viewport()
+	if viewport == null:
+		return false
+	var focused: Control = viewport.gui_get_focus_owner()
+	return focused is LineEdit or focused is TextEdit
+
+func _is_blocking_modal_open() -> bool:
+	var viewport: Viewport = get_viewport()
+	if viewport == null:
+		return false
+	for child in viewport.get_children():
+		if child is Window and child != get_window() and (child as Window).visible:
+			return true
+	return _has_visible_blocking_modal_child(self)
+
+func _has_visible_blocking_modal_child(node: Node) -> bool:
+	if node == null:
+		return false
+	for child in node.get_children():
+		if child is Popup and (child as Popup).visible:
+			return true
+		if child is Window and child != get_window() and (child as Window).visible:
+			return true
+		if _has_visible_blocking_modal_child(child):
+			return true
+	return false
 
 func _is_mouse_over_map_constructor_ui_panel() -> bool:
 	var hovered: Control = get_viewport().gui_get_hovered_control()
@@ -9490,7 +9560,7 @@ func _is_control_in_map_constructor_panel(control: Control, panel: Control) -> b
 		return false
 	return panel == control or panel.is_ancestor_of(control)
 
-func _get_clamped_constructor_field_position(unclamped_position: Vector2, viewport_size: Vector2) -> Vector2:
+func _get_clamped_runtime_field_position(unclamped_position: Vector2, viewport_size: Vector2) -> Vector2:
 	var renderer_node: Node = field_runtime.get_node_or_null("RoomVisualRenderer")
 	if renderer_node == null or not (renderer_node is RoomVisualRenderer):
 		return unclamped_position
@@ -10664,6 +10734,15 @@ func _add_map_constructor_tab_header(parent: VBoxContainer, available_width: flo
 		)
 		tab_row.add_child(tab_button)
 
+
+func _add_map_constructor_controls_hint(parent: VBoxContainer) -> void:
+	var hint_label: Label = Label.new()
+	hint_label.text = "LMB — select/place/preview   RMB — clear selection   WASD / arrows — pan map"
+	hint_label.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	hint_label.add_theme_color_override("font_color", UI_COLOR_TEXT_MUTED)
+	hint_label.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	parent.add_child(hint_label)
+
 func _refresh_map_constructor_panels() -> void:
 	if app_screen_mode != AppScreenMode.GAMEPLAY:
 		return
@@ -10692,6 +10771,7 @@ func _refresh_map_constructor_panels() -> void:
 	palette_stack.add_theme_constant_override("separation", 6)
 	runtime_map_constructor_palette_panel.add_child(palette_stack)
 	_add_map_constructor_tab_header(palette_stack, palette_rect.size.x)
+	_add_map_constructor_controls_hint(palette_stack)
 	var scroll := ScrollContainer.new()
 	scroll.clip_contents = true
 	scroll.horizontal_scroll_mode = ScrollContainer.SCROLL_MODE_DISABLED

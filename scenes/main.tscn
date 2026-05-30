@@ -23,7 +23,7 @@ text = "Energy: -- / -- | Actions: -- / -- | Key: no"
 [node name="HintLabel" type="Label" parent="UI" unique_id=924982796]
 offset_right = 40.0
 offset_bottom = 23.0
-text = "Use W/A/S/D to move. E = Action. Space = End Turn."
+text = "Mouse = Move robot. WASD / arrows = Pan map. E = Action. Space = End Turn."
 
 [node name="CommandPanel" type="PanelContainer" parent="UI" unique_id=59024119]
 anchors_preset = 1
@@ -40,19 +40,19 @@ layout_mode = 2
 
 [node name="MoveForwardButton" type="Button" parent="UI/CommandPanel/CommandList" unique_id=1630635101]
 layout_mode = 2
-text = "Forward [W]"
+text = "Forward"
 
 [node name="MoveBackwardButton" type="Button" parent="UI/CommandPanel/CommandList" unique_id=1405726949]
 layout_mode = 2
-text = "Backward [S]"
+text = "Backward"
 
 [node name="TurnLeftButton" type="Button" parent="UI/CommandPanel/CommandList" unique_id=1382376185]
 layout_mode = 2
-text = "Turn Left [A]"
+text = "Turn Left"
 
 [node name="TurnRightButton" type="Button" parent="UI/CommandPanel/CommandList" unique_id=2080515778]
 layout_mode = 2
-text = "Turn Right [D]"
+text = "Turn Right"
 
 [node name="InteractButton" type="Button" parent="UI/CommandPanel/CommandList" unique_id=1060530431]
 layout_mode = 2
