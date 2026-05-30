@@ -6368,7 +6368,7 @@ func execute_next_mouse_route_step() -> void:
 		return
 
 	spend_action(1, 0)
-	register_successful_movement_cells(1, get_surface_id_for_position(next_cell))
+	register_successful_movement_cells(1, get_surface_id_for_position(next_cell), next_cell)
 	pending_mouse_route_cells.remove_at(0)
 	selected_route_cells.clear()
 	for route_cell in pending_mouse_route_cells:
@@ -6405,7 +6405,7 @@ func move_forward() -> void:
 	
 	if try_move_to(target_position):
 		spend_action(1, 0)
-		register_successful_movement_cells(1, get_surface_id_for_position(target_position))
+		register_successful_movement_cells(1, get_surface_id_for_position(target_position), target_position)
 
 func move_backward() -> void:
 	if not require_command("move_backward", "Missing module: Wheels V1 required."):
@@ -6417,7 +6417,7 @@ func move_backward() -> void:
 	
 	if try_move_to(target_position):
 		spend_action(1, 0)
-		register_successful_movement_cells(1, get_surface_id_for_position(target_position))
+		register_successful_movement_cells(1, get_surface_id_for_position(target_position), target_position)
 
 func turn_left() -> void:
 	if not require_command("turn_left", "Missing module: Wheels V1 required."):
@@ -6671,7 +6671,7 @@ func can_gear_move_on_surface(gear: BipobModule, surface_id: String) -> bool:
 		return true
 	return surface_id == "flat"
 
-func get_effective_gear_speed_for_surface(gear: BipobModule, surface_id: String) -> int:
+func get_effective_gear_speed_for_surface(gear: BipobModule, surface_id: String, terrain_modifier: int = 0) -> int:
 	if gear == null:
 		return 1
 	var speed := maxi(1, gear.gear_speed)
@@ -6681,15 +6681,24 @@ func get_effective_gear_speed_for_surface(gear: BipobModule, surface_id: String)
 		speed -= 1
 	elif surface_id == "water":
 		speed -= 2
+	speed += terrain_modifier
 	return maxi(1, speed)
 
-func register_successful_movement_cells(cell_count: int, surface_id: String) -> void:
+func get_floor_movement_modifier_for_position(cell_position: Vector2i, gear: BipobModule) -> int:
+	if grid_manager == null:
+		return 0
+	if not grid_manager.has_method("get_floor_movement_modifier_for_gear"):
+		return 0
+	return int(grid_manager.call("get_floor_movement_modifier_for_gear", cell_position, gear))
+
+func register_successful_movement_cells(cell_count: int, surface_id: String, cell_position: Vector2i = Vector2i(-1, -1)) -> void:
 	if cell_count <= 0:
 		return
 	var gear := get_active_gear_module()
 	if gear == null:
 		return
-	var effective_speed: int = get_effective_gear_speed_for_surface(gear, surface_id)
+	var terrain_modifier: int = get_floor_movement_modifier_for_position(cell_position, gear)
+	var effective_speed: int = get_effective_gear_speed_for_surface(gear, surface_id, terrain_modifier)
 	movement_cells_since_energy_spend += cell_count
 	var spend_intervals: int = floori(float(movement_cells_since_energy_spend) / float(effective_speed))
 	if spend_intervals <= 0:
