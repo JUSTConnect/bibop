@@ -8232,7 +8232,11 @@ func interact() -> void:
 				refresh_world_action_panel()
 				spend_action(1, 1)
 				_register_successful_paid_player_action(true)
-				hint_requested.emit("%s (%s): %s | Action: %s" % [world_object.get("display_name", "Object"), world_object.get("state", "unknown"), String(action_result.get("message", "Action complete.")), action_id])
+				var action_message := String(action_result.get("message", "Action complete."))
+				if String(world_object.get("object_group", "")) == "door" and action_id in ["open", "close", "unlock"]:
+					hint_requested.emit(action_message)
+				else:
+					hint_requested.emit("%s (%s): %s | Action: %s" % [world_object.get("display_name", "Object"), world_object.get("state", "unknown"), action_message, action_id])
 			else:
 				hint_requested.emit(String(action_result.get("message", "Action failed.")))
 			status_changed.emit()
@@ -8271,8 +8275,14 @@ func _apply_world_object_effects(effects: Array, world_object: Dictionary, targe
 		if not (effect is Dictionary):
 			continue
 		var effect_type := String(effect.get("type", ""))
-		if effect_type == "state_set":
-			world_object["state"] = effect.get("state", world_object.get("state", ""))
+		if effect_type == "set_state" or effect_type == "state_set":
+			var next_state := String(effect.get("state", world_object.get("state", "")))
+			if next_state == "stunned":
+				if not world_object.has("state_before_stun"):
+					world_object["state_before_stun"] = world_object.get("state", "active")
+				if not world_object.has("behavior_before_stun"):
+					world_object["behavior_before_stun"] = world_object.get("behavior_state", "idle")
+			world_object["state"] = next_state
 		elif effect_type == "set_blocks_movement":
 			world_object["blocks_movement"] = effect.get("value", world_object.get("blocks_movement", false))
 		elif effect_type == "set_bool":
@@ -8298,14 +8308,6 @@ func _apply_world_object_effects(effects: Array, world_object: Dictionary, targe
 					var drop := WorldObjectCatalog.create_world_object(String(drop_id), "%s_drop_%s" % [String(world_object.get("id", "threat")), String(drop_id)])
 					if not drop.is_empty():
 						mission_manager.add_item_at_cell(target_position, drop)
-		elif effect_type == "set_state":
-			var next_state := String(effect.get("state", world_object.get("state", "")))
-			if next_state == "stunned":
-				if not world_object.has("state_before_stun"):
-					world_object["state_before_stun"] = world_object.get("state", "active")
-				if not world_object.has("behavior_before_stun"):
-					world_object["behavior_before_stun"] = world_object.get("behavior_state", "idle")
-			world_object["state"] = next_state
 		elif effect_type == "set_behavior_state":
 			world_object["behavior_state"] = effect.get("behavior_state", world_object.get("behavior_state", "idle"))
 		elif effect_type == "set_stunned_turns":
