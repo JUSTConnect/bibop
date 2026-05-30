@@ -71,6 +71,7 @@ class_name RoomVisualRenderer
 @export var iso_tile_width: float = 128.0
 @export var iso_tile_height: float = 64.0
 @export var iso_wall_height: float = 56.0
+@export var iso_floor_projection_pitch_correction_degrees: float = 10.0
 @export var iso_floor_visual_inset: float = 1.0
 @export var iso_wall_visual_inset: float = 8.0
 @export var iso_object_marker_height: float = 18.0
@@ -120,6 +121,9 @@ const ISO_FLOOR_ATLAS_COLUMNS: int = 6
 const ISO_FLOOR_ATLAS_ROWS: int = 7
 const ISO_FLOOR_ATLAS_BASE_VARIANTS: int = 6
 const ISO_FLOOR_ATLAS_HEAVY_METAL_VARIANTS: int = 4
+const ISO_FLOOR_ATLAS_SOURCE_EDGE_PADDING: float = 2.0
+const ISO_FLOOR_ATLAS_SCREEN_OVERLAP: float = 1.5
+const ISO_FLOOR_UNDERLAY_OVERLAP: float = 0.75
 # The source atlas is 7524x8778, giving 1254x1254 frames in a 6x7 grid.
 # Each frame is a high-resolution render of one isometric floor cell and is
 # intentionally downsampled into the current iso_tile_width x iso_tile_height.
@@ -193,6 +197,9 @@ func set_grid_manager(grid: GridManager) -> void:
 	request_rebuild()
 
 func initialize_from_grid(grid: GridManager) -> void:
+	# Atlas floor tiles are downsampled heavily, so nearest sampling avoids
+	# bright sub-pixel bleed from neighboring atlas frames and transparent edges.
+	texture_filter = CanvasItem.TEXTURE_FILTER_NEAREST
 	set_grid_manager(grid)
 
 func request_rebuild() -> void:
@@ -300,7 +307,20 @@ func get_iso_tile_half_size() -> Vector2:
 	# Visual safety clamp to avoid invalid projection values.
 	var safe_width: float = maxf(iso_tile_width, 1.0)
 	var safe_height: float = maxf(iso_tile_height, 1.0)
-	return Vector2(safe_width * 0.5, safe_height * 0.5)
+	var half_width: float = safe_width * 0.5
+	var half_height: float = safe_height * 0.5
+	if absf(iso_floor_projection_pitch_correction_degrees) <= 0.001:
+		return Vector2(half_width, half_height)
+	# Correct the projection in angle space instead of applying a fixed pixel
+	# offset.  This raises the top point and lowers the bottom point by roughly
+	# the requested pitch while keeping the horizontal tile width unchanged.
+	var base_angle: float = atan2(half_height, half_width)
+	var corrected_angle: float = clampf(
+		base_angle + deg_to_rad(iso_floor_projection_pitch_correction_degrees),
+		deg_to_rad(8.0),
+		deg_to_rad(60.0)
+	)
+	return Vector2(half_width, tan(corrected_angle) * half_width)
 
 func grid_to_iso(cell: Vector2i) -> Vector2:
 	# Converts gameplay grid coordinates (Vector2i) into visual isometric space.
@@ -2662,6 +2682,40 @@ func get_floor_atlas_variant_for_cell(cell: Vector2i, requested_variant: int, ma
 		return clampi(requested_variant, 1, max_variants)
 	return ((cell.x * 17 + cell.y * 31 + salt) % max_variants) + 1
 
+func get_floor_atlas_safe_source_rect(source_rect: Rect2) -> Rect2:
+	var padding: float = minf(
+		ISO_FLOOR_ATLAS_SOURCE_EDGE_PADDING,
+		minf(source_rect.size.x, source_rect.size.y) * 0.25
+	)
+	if padding <= 0.0:
+		return source_rect
+	return Rect2(source_rect.position + Vector2(padding, padding), source_rect.size - Vector2(padding * 2.0, padding * 2.0))
+
+func get_floor_atlas_destination_rect() -> Rect2:
+	var half_size: Vector2 = get_iso_tile_half_size()
+	var destination_size: Vector2 = half_size * 2.0 + Vector2(ISO_FLOOR_ATLAS_SCREEN_OVERLAP * 2.0, ISO_FLOOR_ATLAS_SCREEN_OVERLAP * 2.0)
+	return Rect2(destination_size * -0.5, destination_size)
+
+func get_iso_diamond_points_with_overlap(cell: Vector2i, overlap: float) -> PackedVector2Array:
+	if overlap <= 0.0:
+		return get_iso_diamond_points(cell)
+	var center_point: Vector2 = grid_to_iso(cell)
+	var points: PackedVector2Array = PackedVector2Array()
+	for point in get_iso_diamond_points(cell):
+		var away_from_center: Vector2 = point - center_point
+		if away_from_center.length() <= 0.0001:
+			points.append(point)
+		else:
+			points.append(point + away_from_center.normalized() * overlap)
+	return points
+
+func draw_floor_seamless_underlay(cell: Vector2i, fill_color: Color) -> void:
+	# Draw a tiny overlapping solid diamond below the atlas art.  This masks
+	# transparent atlas margins and sub-pixel rasterization holes while preserving
+	# the atlas details drawn above it.
+	var underlay_points: PackedVector2Array = get_iso_diamond_points_with_overlap(cell, ISO_FLOOR_UNDERLAY_OVERLAP)
+	draw_colored_polygon(underlay_points, fill_color)
+
 func draw_floor_atlas_layer(cell: Vector2i, atlas_key: String, requested_variant: int, mirror_h: bool, mirror_v: bool) -> bool:
 	if iso_floor_atlas_texture == null:
 		return false
@@ -2677,14 +2731,14 @@ func draw_floor_atlas_layer(cell: Vector2i, atlas_key: String, requested_variant
 	if source_rect.size.x <= 0.0 or source_rect.size.y <= 0.0:
 		return false
 	var center: Vector2 = grid_to_iso(cell)
-	# Each 1254x1254 atlas frame represents one floor cell.  Keep a shared
-	# center pivot and draw size for base, overlays, and mirrored variants so
-	# neighboring cells align without seams or visual jumping.
-	var destination_size: Vector2 = Vector2(iso_tile_width, iso_tile_height)
-	var destination_rect: Rect2 = Rect2(destination_size * -0.5, destination_size)
+	# Sample slightly inside each high-resolution atlas frame to avoid bleeding
+	# bright pixels from neighboring frames, then overdraw by a pixel on screen to
+	# cover fractional-pixel cracks between adjacent projected cells.
+	var safe_source_rect: Rect2 = get_floor_atlas_safe_source_rect(source_rect)
+	var destination_rect: Rect2 = get_floor_atlas_destination_rect()
 	var scale: Vector2 = Vector2(-1.0 if mirror_h else 1.0, -1.0 if mirror_v else 1.0)
-	draw_set_transform(center, 0.0, scale)
-	draw_texture_rect_region(iso_floor_atlas_texture, destination_rect, source_rect)
+	draw_set_transform(center.round(), 0.0, scale)
+	draw_texture_rect_region(iso_floor_atlas_texture, destination_rect, safe_source_rect, Color.WHITE, false, true)
 	draw_set_transform(Vector2.ZERO, 0.0, Vector2.ONE)
 	return true
 
@@ -2738,8 +2792,11 @@ func draw_iso_floor_prototype() -> void:
 					var floor_material: Dictionary = _safe_variant_dictionary(floor_material_result.get("material", {}))
 					fill_color = Color(floor_material.get("fallback_color", fill_color))
 					floor_texture_asset_id = String(floor_material.get("texture_asset_id", "")).strip_edges()
-			# Floor atlas states are the primary renderer.  Map Constructor texture
-			# hooks remain a fallback for older material rows or if the atlas is absent.
+			# Floor atlas states are the primary renderer.  Draw a seamless base first
+			# so transparent atlas margins and sub-pixel sampling never expose gaps.
+			draw_floor_seamless_underlay(cell, fill_color)
+			# Map Constructor texture hooks remain a fallback for older material rows or
+			# if the atlas is absent.
 			if draw_iso_floor_atlas_for_cell(cell):
 				continue
 			if not floor_texture_asset_id.is_empty() and draw_cell_border:
