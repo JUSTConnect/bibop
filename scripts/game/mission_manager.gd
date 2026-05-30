@@ -1873,12 +1873,47 @@ func _remove_world_item_record(item_id: String) -> void:
 		if String(object_data.get("id", "")) == item_id:
 			mission_world_objects.remove_at(index)
 
+func _remove_world_item_from_lookup_tables(item_id: String, item_data: Dictionary = {}) -> void:
+	var normalized_id: String = item_id.strip_edges()
+	if normalized_id.is_empty():
+		return
+	for cell_variant in cell_items.keys():
+		var original_items: Array = Array(cell_items.get(cell_variant, []))
+		var remaining_items: Array[Dictionary] = []
+		var removed := false
+		for item_variant in original_items:
+			if item_variant is Dictionary and String(Dictionary(item_variant).get("id", "")).strip_edges() == normalized_id:
+				removed = true
+				continue
+			if item_variant is Dictionary:
+				remaining_items.append(Dictionary(item_variant))
+		if removed:
+			if remaining_items.is_empty():
+				cell_items.erase(cell_variant)
+			else:
+				cell_items[cell_variant] = remaining_items
+			break
+	var item_cell := WorldObjectCatalogRef.to_world_cell(item_data.get("position", Vector2i(-1, -1)), Vector2i(-1, -1))
+	for cell_variant in world_objects_by_cell.keys():
+		var object_variant: Variant = world_objects_by_cell.get(cell_variant)
+		if object_variant is Dictionary and String(Dictionary(object_variant).get("id", "")).strip_edges() == normalized_id:
+			world_objects_by_cell.erase(cell_variant)
+			break
+	if item_cell != Vector2i(-1, -1):
+		var item_cell_object_variant: Variant = world_objects_by_cell.get(item_cell)
+		if item_cell_object_variant is Dictionary and String(Dictionary(item_cell_object_variant).get("id", "")).strip_edges() == normalized_id:
+			world_objects_by_cell.erase(item_cell)
+	_remove_world_item_record(normalized_id)
+
 func remove_first_item_at_cell(cell: Vector2i) -> Dictionary:
 	var items: Array[Dictionary] = get_items_at_cell(cell)
 	if items.is_empty():
 		return {}
 	var item: Dictionary = items.pop_front()
-	cell_items[cell] = items
+	if items.is_empty():
+		cell_items.erase(cell)
+	else:
+		cell_items[cell] = items
 	_remove_world_item_record(String(item.get("id", "")))
 	return item
 
@@ -8539,31 +8574,93 @@ func check_world_object_requirements(object_id: String, action: String = "") -> 
 	return {"allowed": reasons.size() == 1 and reasons[0] == "ok", "object_id": object_id, "action": action, "requirements": requirements, "capabilities": capabilities, "reasons": reasons}
 
 func can_pickup_world_item(item_id: String) -> Dictionary:
-	var item := get_world_object_by_id(item_id)
+	var normalized_id: String = item_id.strip_edges()
+	var item := get_world_object_by_id(normalized_id)
 	if item.is_empty():
-		return {"success": false, "reasons": ["item_missing"], "item_id": item_id}
+		item = get_cell_item_by_id(normalized_id)
+	if item.is_empty():
+		return {"success": false, "reasons": ["item_missing"], "item_id": normalized_id}
 	if not bool(item.get("can_pickup", true)):
-		return {"success": false, "reasons": ["item_does_not_fit"], "item_id": item_id}
-	return {"success": true, "reasons": ["ok"], "item_id": item_id}
+		return {"success": false, "reasons": ["item_does_not_fit"], "item_id": normalized_id}
+	if String(item.get("item_form", "physical")) == "digital" and not bool(item.get("can_place_in_digital_buffer", true)):
+		return {"success": false, "reasons": ["item_does_not_fit"], "item_id": normalized_id}
+	return {"success": true, "reasons": ["ok"], "item_id": normalized_id}
+
+func _get_world_item_runtime_map() -> Dictionary:
+	var runtime_map: Dictionary = Dictionary(runtime_inventory_state.get("world_item_runtime", {}))
+	runtime_inventory_state["world_item_runtime"] = runtime_map
+	return runtime_map
+
+func _find_linked_door_id_for_key(item_id: String) -> String:
+	var normalized_id: String = item_id.strip_edges()
+	if normalized_id.is_empty():
+		return ""
+	for object_data in mission_world_objects:
+		if String(object_data.get("required_key_id", "")).strip_edges() == normalized_id:
+			return String(object_data.get("id", "")).strip_edges()
+	return ""
+
+func _build_picked_up_world_item_runtime(item_data: Dictionary) -> Dictionary:
+	var item_id: String = String(item_data.get("id", "")).strip_edges()
+	var snapshot := {
+		"picked_up": true,
+		"in_inventory": true,
+		"carried_by": "bipob",
+		"item_data": item_data.duplicate(true),
+		"key_kind": String(item_data.get("key_kind", "")).strip_edges(),
+		"key_type": String(item_data.get("key_type", item_data.get("item_type", ""))).strip_edges(),
+		"linked_door_id": String(item_data.get("linked_door_id", item_data.get("door_id", ""))).strip_edges()
+	}
+	if String(snapshot.get("linked_door_id", "")).is_empty():
+		snapshot["linked_door_id"] = _find_linked_door_id_for_key(item_id)
+	return snapshot
+
+func _get_runtime_item_data_snapshot(item_id: String) -> Dictionary:
+	var runtime_map := _get_world_item_runtime_map()
+	var item_runtime: Dictionary = Dictionary(runtime_map.get(item_id.strip_edges(), {}))
+	var item_data: Dictionary = Dictionary(item_runtime.get("item_data", {}))
+	if item_data.is_empty() and not item_runtime.is_empty():
+		item_data = item_runtime.duplicate(true)
+	return item_data
 
 func pickup_world_item(item_id: String) -> Dictionary:
-	var gate := can_pickup_world_item(item_id)
+	var normalized_id: String = item_id.strip_edges()
+	var gate := can_pickup_world_item(normalized_id)
 	if not bool(gate.get("success", false)):
 		return gate
-	var item := get_world_object_by_id(item_id)
+	var item := get_world_object_by_id(normalized_id)
+	if item.is_empty():
+		item = get_cell_item_by_id(normalized_id)
+	if item.is_empty():
+		return {"success": false, "reasons": ["item_missing"], "item_id": normalized_id}
 	var storage_type := String(item.get("storage_type", "pocket"))
 	if String(item.get("item_form", "physical")) == "digital":
-		return place_item_in_digital_buffer(item_id)
-	if storage_type == "manipulator_hold":
-		return hold_item_in_manipulator(item_id)
-	var pocket: Array = runtime_inventory_state.get("pocket_items", [])
-	if not pocket.has(item_id):
-		pocket.append(item_id)
-	runtime_inventory_state["pocket_items"] = pocket
-	if String(item.get("key_kind", "")).strip_edges() != "" or String(item.get("item_type", "")).contains("key"):
-		mark_key_collected(item_id)
-	runtime_inventory_state["world_item_runtime"][item_id] = {"picked_up": true, "in_inventory": true, "carried_by": "bipob"}
-	return {"success": true, "reasons": ["ok"], "item_id": item_id}
+		var digital_buffer: Array = runtime_inventory_state.get("digital_buffer", [])
+		if not digital_buffer.has(normalized_id):
+			digital_buffer.append(normalized_id)
+		runtime_inventory_state["digital_buffer"] = digital_buffer
+	elif storage_type == "manipulator_hold":
+		var hold_gate := can_hold_item_in_manipulator(normalized_id)
+		if not bool(hold_gate.get("success", false)):
+			return hold_gate
+		runtime_inventory_state["manipulator_hold"] = normalized_id
+	else:
+		var pocket: Array = runtime_inventory_state.get("pocket_items", [])
+		if not pocket.has(normalized_id):
+			pocket.append(normalized_id)
+		runtime_inventory_state["pocket_items"] = pocket
+	var item_type := String(item.get("item_type", "")).strip_edges()
+	var linked_door_id := String(item.get("linked_door_id", item.get("door_id", ""))).strip_edges()
+	if linked_door_id.is_empty():
+		linked_door_id = _find_linked_door_id_for_key(normalized_id)
+	if String(item.get("key_kind", "")).strip_edges() != "" or item_type.contains("key") or item_type == "access_code" or not linked_door_id.is_empty():
+		mark_key_collected(normalized_id)
+	var runtime_map := _get_world_item_runtime_map()
+	runtime_map[normalized_id] = _build_picked_up_world_item_runtime(item)
+	runtime_inventory_state["world_item_runtime"] = runtime_map
+	_remove_world_item_from_lookup_tables(normalized_id, item)
+	refresh_world_cooling_received()
+	return {"success": true, "reasons": ["ok"], "item_id": normalized_id}
 
 func can_drop_inventory_item(item_id: String) -> Dictionary:
 	var inv := get_inventory_state()
@@ -10068,27 +10165,40 @@ func get_door_access_state(door_id: String) -> Dictionary:
 	return {"door_id":door_id, "can_open":reasons.has("ok"), "can_unlock":is_locked, "is_locked":is_locked, "is_open":is_open, "is_powered":powered, "reasons":reasons, "lock_type":lock_type, "door_class":int(door.get("door_class", 1))}
 
 func can_use_access_item_on_door(item_id: String, door_id: String) -> Dictionary:
-	var door := get_world_object_by_id(door_id)
-	var item := get_world_object_by_id(item_id)
-	if item.is_empty(): return {"success":false, "item_id":item_id, "door_id":door_id, "reasons":["item_missing"]}
-	if door.is_empty(): return {"success":false, "item_id":item_id, "door_id":door_id, "reasons":["door_missing"]}
+	var normalized_item_id: String = item_id.strip_edges()
+	var normalized_door_id: String = door_id.strip_edges()
+	var door := get_world_object_by_id(normalized_door_id)
+	if door.is_empty():
+		return {"success":false, "item_id":normalized_item_id, "door_id":normalized_door_id, "reasons":["door_missing"]}
 	var required_key_id := String(door.get("required_key_id", "")).strip_edges()
-	if not required_key_id.is_empty() and item_id != required_key_id:
-		return {"success":false, "item_id":item_id, "door_id":door_id, "reasons":["wrong_key_id"]}
+	if not required_key_id.is_empty() and normalized_item_id != required_key_id:
+		return {"success":false, "item_id":normalized_item_id, "door_id":normalized_door_id, "reasons":["wrong_key_id"]}
+	var item := get_world_object_by_id(normalized_item_id)
+	if item.is_empty():
+		item = _get_runtime_item_data_snapshot(normalized_item_id)
+	var has_collected_item := has_collected_key(normalized_item_id)
+	if item.is_empty() and not has_collected_item:
+		return {"success":false, "item_id":normalized_item_id, "door_id":normalized_door_id, "reasons":["item_missing"]}
 	var lock_type := String(door.get("lock_type", "none"))
 	var digital_state := String(item.get("digital_state", ""))
-	if item_id.find("damaged") != -1 or digital_state == "damaged": return {"success":false, "item_id":item_id, "door_id":door_id, "reasons":["digital_key_damaged"]}
-	if item_id.find("encrypted") != -1 or digital_state == "encrypted": return {"success":false, "item_id":item_id, "door_id":door_id, "reasons":["digital_key_encrypted"]}
-	if lock_type == "mechanical_key" and String(item.get("key_kind", "")) != "mechanical": return {"success":false, "item_id":item_id, "door_id":door_id, "reasons":["wrong_key_type"]}
-	return {"success":true, "item_id":item_id, "door_id":door_id, "reasons":["ok"]}
+	if normalized_item_id.find("damaged") != -1 or digital_state == "damaged":
+		return {"success":false, "item_id":normalized_item_id, "door_id":normalized_door_id, "reasons":["digital_key_damaged"]}
+	if normalized_item_id.find("encrypted") != -1 or digital_state == "encrypted":
+		return {"success":false, "item_id":normalized_item_id, "door_id":normalized_door_id, "reasons":["digital_key_encrypted"]}
+	var key_kind := String(item.get("key_kind", "")).strip_edges()
+	if lock_type == "mechanical_key" and not key_kind.is_empty() and key_kind != "mechanical":
+		return {"success":false, "item_id":normalized_item_id, "door_id":normalized_door_id, "reasons":["wrong_key_type"]}
+	return {"success":true, "item_id":normalized_item_id, "door_id":normalized_door_id, "reasons":["ok"]}
 
 func use_access_item_on_door(item_id: String, door_id: String) -> Dictionary:
-	var gate := can_use_access_item_on_door(item_id, door_id)
-	var door := get_world_object_by_id(door_id)
+	var normalized_item_id: String = item_id.strip_edges()
+	var normalized_door_id: String = door_id.strip_edges()
+	var gate := can_use_access_item_on_door(normalized_item_id, normalized_door_id)
+	var door := get_world_object_by_id(normalized_door_id)
 	var before := String(door.get("state", "")) if not door.is_empty() else ""
-	if not bool(gate.get("success", false)): return {"success":false, "item_id":item_id, "door_id":door_id, "reasons":gate.get("reasons", []), "door_state_before":before, "door_state_after":before, "consumed":false}
+	if not bool(gate.get("success", false)): return {"success":false, "item_id":normalized_item_id, "door_id":normalized_door_id, "reasons":gate.get("reasons", []), "door_state_before":before, "door_state_after":before, "consumed":false}
 	door["state"] = "open"; door["is_open"] = true; door["is_locked"] = false; door["locked"] = false; door["blocks_movement"] = false
-	return {"success":true, "item_id":item_id, "door_id":door_id, "reasons":["ok"], "door_state_before":before, "door_state_after":"open", "consumed":false}
+	return {"success":true, "item_id":normalized_item_id, "door_id":normalized_door_id, "reasons":["ok"], "door_state_before":before, "door_state_after":"open", "consumed":false}
 
 func use_inventory_item_on_world_object(item_id: String, target_id: String, action: String = "") -> Dictionary:
 	var out := {"success": false, "item_id": item_id, "target_id": target_id, "action": action, "reasons": [], "consumed": false, "target_state_before": "", "target_state_after": "", "side_effects": {}}
@@ -10161,6 +10271,7 @@ func validate_terminal_and_door_runtime() -> Array[String]:
 	var warnings: Array[String] = []
 	var base_size := mission_world_objects.size()
 	var world_snapshot := get_world_object_runtime_state()
+	var inventory_snapshot := runtime_inventory_state.duplicate(true)
 	var temp_ids: Array[String] = []
 	var terminal_id := "temp_validation_terminal"
 	var linked_door_id := "temp_validation_door_linked"
@@ -10170,7 +10281,7 @@ func validate_terminal_and_door_runtime() -> Array[String]:
 	var terminal := {"id": terminal_id, "object_group": "terminal", "object_type": "terminal", "position": Vector2i(100, 100), "state": "active", "is_powered": true, "required_connector_level": 0, "required_processor_level": 0, "target_door_id": linked_door_id}
 	var linked_door := {"id": linked_door_id, "object_group": "door", "object_type": "door", "position": Vector2i(101, 100), "state": "closed", "is_locked": true, "lock_type": "terminal_lock", "is_powered": true}
 	var unlinked_door := {"id": unlinked_door_id, "object_group": "door", "object_type": "door", "position": Vector2i(102, 100), "state": "closed", "is_locked": true, "lock_type": "terminal_lock", "is_powered": true}
-	var mechanical_door := {"id": mechanical_door_id, "object_group": "door", "object_type": "door", "position": Vector2i(103, 100), "state": "closed", "is_locked": true, "lock_type": "mechanical_key", "is_powered": true}
+	var mechanical_door := {"id": mechanical_door_id, "object_group": "door", "object_type": "door", "position": Vector2i(103, 100), "state": "closed", "is_locked": true, "lock_type": "mechanical_key", "required_key_id": "temp_validation_mechanical_key", "is_powered": true}
 	var digital_door := {"id": digital_door_id, "object_group": "door", "object_type": "door", "position": Vector2i(104, 100), "state": "closed", "is_locked": true, "lock_type": "access_code", "is_powered": true}
 	for obj in [terminal, linked_door, unlinked_door, mechanical_door, digital_door]:
 		mission_world_objects.append(obj)
@@ -10212,6 +10323,15 @@ func validate_terminal_and_door_runtime() -> Array[String]:
 	for key_obj in [mechanical_key, wrong_key, damaged_key, encrypted_key, good_digital]:
 		mission_world_objects.append(key_obj); world_objects_by_cell[Vector2i(key_obj.get("position", Vector2i(-1, -1)))] = key_obj; temp_ids.append(String(key_obj.get("id", "")))
 	if not bool(can_use_access_item_on_door(mechanical_key["id"], mechanical_door_id).get("success", false)): warnings.append("mechanical_key_gate_failed")
+	if not bool(pickup_world_item(mechanical_key["id"]).get("success", false)): warnings.append("mechanical_key_pickup_failed")
+	if not get_world_object_by_id(mechanical_key["id"]).is_empty(): warnings.append("picked_up_key_world_copy_remains")
+	var key_runtime: Dictionary = Dictionary(Dictionary(runtime_inventory_state.get("world_item_runtime", {})).get(mechanical_key["id"], {}))
+	if not bool(key_runtime.get("picked_up", false)) or Dictionary(key_runtime.get("item_data", {})).is_empty(): warnings.append("picked_up_key_runtime_snapshot_missing")
+	if not bool(can_use_access_item_on_door(mechanical_key["id"], mechanical_door_id).get("success", false)): warnings.append("collected_key_gate_failed")
+	if not bool(use_access_item_on_door(mechanical_key["id"], mechanical_door_id).get("success", false)): warnings.append("collected_key_open_failed")
+	mechanical_door["state"] = "closed"; mechanical_door["is_open"] = false; mechanical_door["is_locked"] = true; mechanical_door["locked"] = true; mechanical_door["blocks_movement"] = true
+	mark_key_collected(wrong_key["id"])
+	if not Array(can_use_access_item_on_door(wrong_key["id"], mechanical_door_id).get("reasons", [])).has("wrong_key_id"): warnings.append("wrong_collected_key_id_reason_missing")
 	var wrong_before := str(get_world_object_runtime_state().get(mechanical_door_id, {}))
 	if bool(use_access_item_on_door(wrong_key["id"], mechanical_door_id).get("success", false)): warnings.append("wrong_key_should_fail")
 	if str(get_world_object_runtime_state().get(mechanical_door_id, {})) != wrong_before: warnings.append("wrong_key_mutated_door")
@@ -10230,6 +10350,7 @@ func validate_terminal_and_door_runtime() -> Array[String]:
 			world_objects_by_cell.erase(WorldObjectCatalogRef.to_world_cell(mission_world_objects[i].get("position", Vector2i(-1, -1)), Vector2i(-1, -1)))
 			mission_world_objects.remove_at(i)
 	apply_world_object_runtime_state(world_snapshot)
+	runtime_inventory_state = inventory_snapshot.duplicate(true)
 	if mission_world_objects.size() != base_size:
 		warnings.append("terminal_door_cleanup_world_size_changed")
 	return warnings
@@ -10326,6 +10447,15 @@ func validate_inventory_tools_modules_runtime() -> Array[String]:
 	if not bool(pickup_world_item("temp_item_physical").get("success", false)): warnings.append("physical_pickup_failed")
 	if not bool(pickup_world_item("temp_item_digital").get("success", false)): warnings.append("digital_pickup_allowed_failed")
 	if bool(pickup_world_item("temp_item_digital_blocked").get("success", false)): warnings.append("digital_pickup_block_missing")
+	var stacked_cell := Vector2i(124, 100)
+	var stacked_first := {"id":"temp_item_stacked_first", "object_group":"item", "object_type":"item", "position":stacked_cell, "item_type":"scrap", "item_form":"physical", "can_pickup":true}
+	var stacked_second := {"id":"temp_item_stacked_second", "object_group":"item", "object_type":"item", "position":stacked_cell, "item_type":"mechanical_key", "key_kind":"mechanical", "item_form":"physical", "can_pickup":true}
+	add_item_at_cell(stacked_cell, stacked_first); add_item_at_cell(stacked_cell, stacked_second); temp_ids.append("temp_item_stacked_first"); temp_ids.append("temp_item_stacked_second")
+	if not bool(pickup_world_item("temp_item_stacked_second").get("success", false)): warnings.append("stacked_second_pickup_failed")
+	var stacked_remaining := get_items_at_cell(stacked_cell)
+	if stacked_remaining.size() != 1 or String(Dictionary(stacked_remaining[0]).get("id", "")) != "temp_item_stacked_first": warnings.append("stacked_pickup_removed_wrong_item")
+	if not get_world_object_by_id("temp_item_stacked_second").is_empty(): warnings.append("stacked_pickup_world_copy_remains")
+	cell_items.erase(stacked_cell)
 	runtime_inventory_state["manipulator_hold"] = "occupied_slot"
 	if bool(hold_item_in_manipulator("temp_item_physical").get("success", false)): warnings.append("manipulator_single_item_gate_missing")
 	runtime_inventory_state["manipulator_hold"] = ""
