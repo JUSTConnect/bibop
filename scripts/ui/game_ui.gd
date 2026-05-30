@@ -6771,7 +6771,7 @@ func get_external_module_marker(module: BipobModule) -> String:
 			return "L"
 		"tracks_v1":
 			return "T"
-		"visor_v1", "visor_v2":
+		"visor_v1", "visor_v2", "visor_v3":
 			return "V"
 		"manipulator_v1":
 			return "M"
