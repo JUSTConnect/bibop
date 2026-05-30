@@ -7848,6 +7848,23 @@ func get_heavy_claw_move_destination(object_cell: Vector2i, actor_cell: Vector2i
 		return Vector2i(-1, -1)
 	return Vector2i(-1, -1)
 
+func has_collected_runtime_key(key_id: String) -> bool:
+	if key_id.strip_edges().is_empty() or mission_manager == null or not mission_manager.has_method("has_collected_key"):
+		return false
+	return bool(mission_manager.call("has_collected_key", key_id))
+
+func has_access_for_door(world_object: Dictionary) -> bool:
+	var required_key_id: String = String(world_object.get("required_key_id", "")).strip_edges()
+	if not required_key_id.is_empty() and has_collected_runtime_key(required_key_id):
+		return true
+	return has_key or has_held_world_item("mechanical_keycard") or has_digital_world_item("digital_key")
+
+func get_collected_runtime_key_ids() -> Array:
+	if mission_manager == null or not mission_manager.has_method("get_inventory_state"):
+		return []
+	var inventory: Dictionary = Dictionary(mission_manager.call("get_inventory_state"))
+	return Array(inventory.get("collected_key_ids", []))
+
 func get_available_world_actions(world_object: Dictionary, target_position: Vector2i) -> Array[String]:
 	var actions: Array[String] = []
 	var group := String(world_object.get("object_group", ""))
@@ -7856,7 +7873,7 @@ func get_available_world_actions(world_object: Dictionary, target_position: Vect
 	if group == "door":
 		if state in ["damaged", "half_open", "jammed"] and has_heavy_claw():
 			actions.append("force_open")
-		if state == "locked" and (has_key or has_held_world_item("mechanical_keycard") or has_digital_world_item("digital_key")):
+		if state == "locked":
 			actions.append("unlock")
 		if state == "closed" and has_manipulator_arm():
 			actions.append("open")
@@ -7940,6 +7957,9 @@ func get_world_action_module(action_id: String, world_object: Dictionary) -> Dic
 			var manipulator := get_best_manipulator_for_interaction()
 			return _module_dict(manipulator.id if manipulator != null else "")
 		"unlock":
+			var required_key_id: String = String(world_object.get("required_key_id", "")).strip_edges()
+			if not required_key_id.is_empty() and has_collected_runtime_key(required_key_id):
+				return _module_dict("mechanical_keycard")
 			if has_key or has_held_world_item("mechanical_keycard"):
 				return _module_dict("mechanical_keycard")
 			if has_digital_world_item("digital_key", "opened"):
@@ -8054,33 +8074,39 @@ func interact() -> void:
 	
 	var active_manipulator: BipobModule = get_best_manipulator_for_interaction(target_position)
 	if mission_manager != null:
-		var cell_items: Array = mission_manager.get_items_at_cell(target_position)
-		if not cell_items.is_empty():
+		var item_cells: Array[Vector2i] = [grid_position]
+		if target_position != grid_position:
+			item_cells.append(target_position)
+		for item_cell in item_cells:
+			var cell_items: Array = mission_manager.get_items_at_cell(item_cell)
+			if cell_items.is_empty():
+				continue
 			var item: Dictionary = Dictionary(cell_items[0])
 			var is_digital_item := String(item.get("item_form", "physical")) == "digital"
 			var item_actor := {"manipulator_occupied": not is_digital_item and not can_use_physical_hand()}
 			var item_result: Dictionary = Dictionary(InteractionSystemRef.apply_action(item_actor, {"id": active_manipulator.id if active_manipulator != null else ""}, item, "pickup"))
 			if bool(item_result.get("success", false)):
+				var item_id: String = String(item.get("id", ""))
+				if mission_manager.has_method("pickup_world_item"):
+					mission_manager.call("pickup_world_item", item_id)
+				if String(item.get("key_kind", "")).strip_edges() != "" and mission_manager.has_method("mark_key_collected"):
+					mission_manager.call("mark_key_collected", item_id)
+				mission_manager.remove_first_item_at_cell(item_cell)
 				if is_digital_item:
-					mission_manager.remove_first_item_at_cell(target_position)
-					store_digital_record(String(item.get("id", "item_record")), String(item.get("display_name", "Item")), "Recovered digital world item.")
+					store_digital_record(item_id if not item_id.is_empty() else "item_record", String(item.get("display_name", "Item")), "Recovered digital world item.")
 					var item_type := String(item.get("item_type", item.get("id", "")))
 					var digital_state := String(item.get("digital_state", item.get("state", "opened")))
 					var item_family := String(item.get("item_family", infer_digital_item_family(item_type)))
 					digital_world_records[item_family] = {"item_family": item_family, "item_type": item_type, "digital_state": digital_state}
-					clear_selected_world_action_if_invalid({}, target_position)
-					emit_facing_world_object_hint()
-					refresh_world_action_panel()
 					hint_requested.emit("Pickup digital: item stored.")
 				elif can_use_physical_hand():
-					mission_manager.remove_first_item_at_cell(target_position)
 					buffer_item = item
-					clear_selected_world_action_if_invalid({}, target_position)
-					emit_facing_world_object_hint()
-					refresh_world_action_panel()
-					hint_requested.emit("Pickup: item held.")
+					hint_requested.emit("Picked up %s" % String(item.get("display_name", "item")))
 				else:
 					hint_requested.emit("Manipulator is occupied.")
+				clear_selected_world_action_if_invalid({}, item_cell)
+				emit_facing_world_object_hint()
+				refresh_world_action_panel()
 			else:
 				hint_requested.emit(String(item_result.get("message", "Pickup failed.")))
 			status_changed.emit()
@@ -8111,7 +8137,8 @@ func interact() -> void:
 				"facing_direction": get_direction_vector(direction),
 				"target_position": target_position,
 				"actor_position": grid_position,
-				"platform_switch_access": mission_manager.can_bipob_access_platform_switch(target_platform, grid_position, get_direction_id(direction))
+				"platform_switch_access": mission_manager.can_bipob_access_platform_switch(target_platform, grid_position, get_direction_id(direction)),
+				"collected_key_ids": get_collected_runtime_key_ids()
 			}
 			var action_id := get_world_object_action_for_context(world_object, active_manipulator, target_position)
 			var _available_actions := get_available_world_actions(world_object, target_position)
