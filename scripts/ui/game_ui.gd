@@ -15409,12 +15409,20 @@ func _module_matches_external_group(module: BipobModule, group: String) -> bool:
 	return false
 
 func _is_ready_module(module: BipobModule) -> bool:
-	return module != null and not bipob.is_module_broken(module) and not bipob.is_module_unknown(module)
+	if bipob == null or not is_instance_valid(bipob):
+		return false
+	if module == null:
+		return false
+	if bipob.has_method("is_module_broken") and bipob.is_module_broken(module):
+		return false
+	if bipob.has_method("is_module_unknown") and bipob.is_module_unknown(module):
+		return false
+	return true
 
 func _is_internal_interface_module(module: BipobModule) -> bool:
 	if module == null:
 		return false
-	if not bipob.is_internal_module(module):
+	if bipob == null or not is_instance_valid(bipob) or not bipob.has_method("is_internal_module") or not bipob.is_internal_module(module):
 		return false
 	var id: String = String(module.id).to_lower()
 	var module_name: String = String(module.get_display_name()).to_lower()
@@ -15424,7 +15432,7 @@ func _is_internal_interface_module(module: BipobModule) -> bool:
 func _is_external_interface_module(module: BipobModule) -> bool:
 	if module == null:
 		return false
-	if not bipob.is_internal_module(module):
+	if bipob == null or not is_instance_valid(bipob) or not bipob.has_method("is_internal_module") or not bipob.is_internal_module(module):
 		return false
 	var id: String = String(module.id).to_lower()
 	var module_name: String = String(module.get_display_name()).to_lower()
@@ -15436,7 +15444,7 @@ func _is_external_interface_module(module: BipobModule) -> bool:
 func _is_power_block_module(module: BipobModule) -> bool:
 	if module == null:
 		return false
-	if not bipob.is_internal_module(module):
+	if bipob == null or not is_instance_valid(bipob) or not bipob.has_method("is_internal_module") or not bipob.is_internal_module(module):
 		return false
 	var id: String = String(module.id).to_lower()
 	var module_name: String = String(module.get_display_name()).to_lower()
@@ -15447,54 +15455,18 @@ func _has_installed_internal_group(group_id: String) -> bool:
 	for module in _get_internal_installed_modules():
 		if module == null:
 			continue
-		match group_id:
-			"power_block":
-				if _is_power_block_module(module):
-					return true
-			"internal_interface":
-				if _is_internal_interface_module(module):
-					return true
-			"external_interface":
-				if _is_external_interface_module(module):
-					return true
-			_:
-				if _normalize_text(String(module.internal_family)) == group_id:
-					return true
+		if _module_matches_internal_auto_group(module, group_id):
+			return true
 	return false
 
 func _find_available_internal_module_by_group(group_id: String) -> BipobModule:
+	if bipob == null or not is_instance_valid(bipob) or not bipob.has_method("is_internal_module"):
+		return null
 	for module in bipob.box_storage:
 		if not _is_ready_module(module) or not bipob.is_internal_module(module):
 			continue
-		match group_id:
-			"power_block":
-				if _is_power_block_module(module):
-					return module
-			"internal_interface":
-				if _is_internal_interface_module(module):
-					return module
-			"external_interface":
-				if _is_external_interface_module(module):
-					return module
-			_:
-				var family: String = _normalize_text(String(module.internal_family))
-				var display_name: String = _normalize_text(module.get_display_name())
-				if group_id == "storage" and (family == "storage" or display_name.contains("hard drive")):
-					return module
-				if group_id == "processor" and family in ["cpu","processor"]:
-					return module
-				if group_id == "memory" and family in ["ram","memory"]:
-					return module
-				if group_id == "gpu" and family == "gpu":
-					return module
-				if group_id == "cooler" and (family == "cooler" or display_name.contains("cooler")):
-					return module
-				if group_id == "radiator" and (family == "radiator" or display_name.contains("radiator")):
-					return module
-				if group_id == "charger" and (family == "charger" or display_name.contains("charger") or module.id == "charger_v1"):
-					return module
-				if group_id == "battery" and (family == "battery" or String(module.id).begins_with("battery_")):
-					return module
+		if _module_matches_internal_auto_group(module, group_id):
+			return module
 	return null
 
 func _try_place_internal_module_for_group(group_id: String, warn_name: String = "") -> bool:
@@ -15502,6 +15474,10 @@ func _try_place_internal_module_for_group(group_id: String, warn_name: String = 
 	if module == null:
 		return false
 	var size: Vector3i = _get_internal_preview_volume_size()
+	if size.x <= 0 or size.y <= 0 or size.z <= 0:
+		if not warn_name.is_empty():
+			show_hint("Auto-configuration failed: invalid internal volume for %s" % warn_name)
+		return false
 	for z in range(size.z):
 		for y in range(size.y):
 			for x in range(size.x):
@@ -15509,18 +15485,21 @@ func _try_place_internal_module_for_group(group_id: String, warn_name: String = 
 				if bipob.place_internal_module(module, pos, 0) or bipob.place_internal_module(module, pos, 1):
 					return true
 	if not warn_name.is_empty():
-		show_hint("Auto Configure: no valid space for %s" % warn_name)
+		show_hint("Auto-configuration failed: no valid space for %s" % warn_name)
 	return false
 
 func _on_auto_configure_pressed() -> void:
+	if bipob == null or not is_instance_valid(bipob):
+		_report_auto_configuration_failure("no active Bipob selected")
+		return
 	if _is_constructor_internal_mode():
 		_auto_configure_internal()
 	else:
 		_auto_configure_external()
 	update_box_status()
 
-func _auto_configure_internal() -> void:
-	var target_groups: Array[Dictionary] = [
+func _get_internal_auto_config_targets() -> Array[Dictionary]:
+	return [
 		{"id":"battery","count":2,"label":"Battery"},
 		{"id":"power_block","count":1,"label":"Power Block"},
 		{"id":"processor","count":1,"label":"Processor"},
@@ -15533,18 +15512,269 @@ func _auto_configure_internal() -> void:
 		{"id":"radiator","count":1,"label":"Radiator"},
 		{"id":"charger","count":1,"label":"Charger"}
 	]
-	for target in target_groups:
-		var group_id: String = String(target.get("id", ""))
-		var target_count: int = int(target.get("count", 1))
+
+func _report_auto_configuration_failure(reason: String) -> void:
+	var safe_reason: String = reason.strip_edges()
+	if safe_reason.is_empty():
+		safe_reason = "unknown reason"
+	var message: String = "Auto-configuration failed: %s" % safe_reason
+	print("_auto_configure_internal: " + message)
+	show_hint(message)
+
+func _report_auto_configuration_success() -> void:
+	print("_auto_configure_internal: Auto-configuration applied.")
+	show_hint("Auto-configuration applied.")
+
+func _module_matches_internal_auto_group(module: BipobModule, group_id: String) -> bool:
+	if module == null:
+		return false
+	var normalized_group: String = _normalize_text(group_id)
+	var module_id: String = _normalize_text(String(module.id))
+	var family: String = _normalize_text(String(module.internal_family))
+	var display_name: String = _normalize_text(module.get_display_name())
+	match normalized_group:
+		"power_block":
+			return module_id.contains("power_block") or display_name.contains("power block") or family in ["power_block", "power block", "power"]
+		"internal_interface":
+			return module_id.contains("internal_interface") or display_name.contains("internal interface") or family in ["internal_interface", "internal interface"]
+		"external_interface":
+			if display_name.contains("wired interface") or display_name.contains("optical interface") or display_name.contains("wireless interface"):
+				return false
+			return module_id.contains("external_interface") or display_name.contains("external interface") or family in ["external_interface", "external interface"]
+		"storage":
+			return family == "storage" or display_name.contains("hard drive")
+		"processor":
+			return family in ["cpu", "processor"]
+		"memory":
+			return family in ["ram", "memory"]
+		"gpu":
+			return family == "gpu"
+		"cooler":
+			return family == "cooler" or display_name.contains("cooler")
+		"radiator":
+			return family == "radiator" or display_name.contains("radiator")
+		"charger":
+			return family == "charger" or display_name.contains("charger") or module_id == "charger_v1"
+		"battery":
+			return family == "battery" or module_id.begins_with("battery_")
+		_:
+			return family == normalized_group
+
+func _internal_auto_group_count(modules: Array[BipobModule], group_id: String) -> int:
+	var total: int = 0
+	for module in modules:
+		if module != null and _module_matches_internal_auto_group(module, group_id):
+			total += 1
+	return total
+
+func _get_internal_auto_module_size(module: BipobModule, rotation_index: int) -> Vector3i:
+	if module == null:
+		return Vector3i.ZERO
+	var base_size := Vector3i(maxi(int(module.size_x), 1), maxi(int(module.size_y), 1), maxi(int(module.size_z), 1))
+	match posmod(rotation_index, 3):
+		1:
+			return Vector3i(base_size.z, base_size.y, base_size.x)
+		2:
+			return Vector3i(base_size.x, base_size.z, base_size.y)
+		_:
+			return base_size
+
+func _get_internal_auto_module_cells(module: BipobModule, origin: Vector3i, rotation_index: int) -> Array[Vector3i]:
+	var cells: Array[Vector3i] = []
+	var module_size: Vector3i = _get_internal_auto_module_size(module, rotation_index)
+	if module_size.x <= 0 or module_size.y <= 0 or module_size.z <= 0:
+		return cells
+	for z in range(module_size.z):
+		for y in range(module_size.y):
+			for x in range(module_size.x):
+				cells.append(origin + Vector3i(x, y, z))
+	return cells
+
+func _is_internal_auto_cell_in_bounds(cell: Vector3i, volume_size: Vector3i) -> bool:
+	return (
+		cell.x >= 0 and cell.y >= 0 and cell.z >= 0
+		and cell.x < volume_size.x and cell.y < volume_size.y and cell.z < volume_size.z
+	)
+
+func _can_place_internal_auto_module(module: BipobModule, origin: Vector3i, rotation_index: int, volume_size: Vector3i, occupancy: Dictionary) -> bool:
+	var cells: Array[Vector3i] = _get_internal_auto_module_cells(module, origin, rotation_index)
+	if cells.is_empty():
+		return false
+	for cell in cells:
+		if not _is_internal_auto_cell_in_bounds(cell, volume_size):
+			return false
+		var key: String = "%d:%d:%d" % [cell.x, cell.y, cell.z]
+		if occupancy.has(key):
+			return false
+	return true
+
+func _reserve_internal_auto_module(module: BipobModule, origin: Vector3i, rotation_index: int, occupancy: Dictionary) -> void:
+	for cell in _get_internal_auto_module_cells(module, origin, rotation_index):
+		var key: String = "%d:%d:%d" % [cell.x, cell.y, cell.z]
+		occupancy[key] = module
+
+func _build_internal_auto_occupancy(volume_size: Vector3i) -> Dictionary:
+	var occupancy: Dictionary = {}
+	if bipob == null or not is_instance_valid(bipob):
+		return occupancy
+	for record_variant in bipob.placed_internal_modules:
+		if typeof(record_variant) != TYPE_DICTIONARY:
+			continue
+		var record: Dictionary = record_variant
+		var module: BipobModule = record.get("module", null)
+		if module == null:
+			continue
+		var origin: Vector3i = record.get("origin", Vector3i.ZERO)
+		var rotation_index: int = int(record.get("rotation", 0))
+		for cell in _get_internal_auto_module_cells(module, origin, rotation_index):
+			if not _is_internal_auto_cell_in_bounds(cell, volume_size):
+				continue
+			var key: String = "%d:%d:%d" % [cell.x, cell.y, cell.z]
+			occupancy[key] = module
+	return occupancy
+
+func _find_internal_auto_candidate(group_id: String, available_modules: Array[BipobModule], used_modules: Array[BipobModule]) -> BipobModule:
+	if bipob == null or not is_instance_valid(bipob) or not bipob.has_method("is_internal_module"):
+		return null
+	for module in available_modules:
+		if module == null or used_modules.has(module):
+			continue
+		if not _is_ready_module(module):
+			continue
+		if not bipob.is_internal_module(module):
+			continue
+		if _module_matches_internal_auto_group(module, group_id):
+			return module
+	return null
+
+func _find_internal_auto_placement(module: BipobModule, volume_size: Vector3i, occupancy: Dictionary) -> Dictionary:
+	if module == null:
+		return {}
+	var rotations: Array[int] = [0, 1]
+	if bool(module.internal_rotatable):
+		rotations = [0, 1, 2]
+	for z in range(volume_size.z):
+		for y in range(volume_size.y):
+			for x in range(volume_size.x):
+				var origin := Vector3i(x, y, z)
+				for rotation_index in rotations:
+					if _can_place_internal_auto_module(module, origin, rotation_index, volume_size, occupancy):
+						return {"origin": origin, "rotation": rotation_index}
+	return {}
+
+func _validate_internal_auto_configuration_plan() -> Dictionary:
+	if bipob == null or not is_instance_valid(bipob):
+		return {"ok": false, "reason": "no active Bipob selected"}
+	for method_name in ["is_internal_module", "can_place_internal_module", "place_internal_module"]:
+		if not bipob.has_method(method_name):
+			return {"ok": false, "reason": "Bipob is missing %s()" % method_name}
+	var volume_size: Vector3i = _get_internal_preview_volume_size()
+	if volume_size.x <= 0 or volume_size.y <= 0 or volume_size.z <= 0:
+		return {"ok": false, "reason": "invalid internal volume"}
+	var installed_modules: Array[BipobModule] = _get_internal_installed_modules()
+	var available_modules: Array[BipobModule] = []
+	for module in bipob.box_storage:
+		if module == null:
+			continue
+		if not _is_ready_module(module):
+			continue
+		if not bipob.is_internal_module(module):
+			continue
+		available_modules.append(module)
+	var occupancy: Dictionary = _build_internal_auto_occupancy(volume_size)
+	var used_modules: Array[BipobModule] = []
+	var planned_modules: Array[BipobModule] = installed_modules.duplicate()
+	var plan: Array[Dictionary] = []
+	for target in _get_internal_auto_config_targets():
+		var group_id: String = String(target.get("id", "")).strip_edges()
+		var target_count: int = maxi(int(target.get("count", 1)), 0)
 		var label: String = String(target.get("label", group_id))
-		while true:
-			if group_id == "battery":
-				if _count_internal_family("battery") >= target_count:
-					break
-			elif _has_installed_internal_group(group_id):
-				break
-			if not _try_place_internal_module_for_group(group_id, label):
-				break
+		if group_id.is_empty():
+			return {"ok": false, "reason": "internal auto-config target has no group id"}
+		var current_count: int = _internal_auto_group_count(planned_modules, group_id)
+		while current_count < target_count:
+			var candidate: BipobModule = _find_internal_auto_candidate(group_id, available_modules, used_modules)
+			if candidate == null:
+				return {"ok": false, "reason": "missing %s in Box Storage" % label}
+			var module_id: String = String(candidate.id).strip_edges()
+			if module_id.is_empty():
+				return {"ok": false, "reason": "%s module has no module id" % label}
+			if used_modules.has(candidate) or installed_modules.has(candidate):
+				return {"ok": false, "reason": "duplicate %s module selection" % label}
+			if not bipob.is_internal_module(candidate):
+				return {"ok": false, "reason": "%s is not an internal module" % candidate.get_display_name()}
+			if not _module_matches_internal_auto_group(candidate, group_id):
+				return {"ok": false, "reason": "%s does not match %s" % [candidate.get_display_name(), label]}
+			var placement: Dictionary = _find_internal_auto_placement(candidate, volume_size, occupancy)
+			if placement.is_empty():
+				return {"ok": false, "reason": "no valid internal slot for %s" % label}
+			var origin: Vector3i = placement.get("origin", Vector3i.ZERO)
+			var rotation_index: int = int(placement.get("rotation", 0))
+			if not _can_place_internal_auto_module(candidate, origin, rotation_index, volume_size, occupancy):
+				return {"ok": false, "reason": "invalid planned slot for %s" % label}
+			_reserve_internal_auto_module(candidate, origin, rotation_index, occupancy)
+			used_modules.append(candidate)
+			planned_modules.append(candidate)
+			plan.append({"module": candidate, "origin": origin, "rotation": rotation_index, "label": label})
+			current_count += 1
+	return {"ok": true, "plan": plan}
+
+func _create_internal_auto_config_snapshot() -> Dictionary:
+	if bipob == null or not is_instance_valid(bipob):
+		return {}
+	return {
+		"box_storage": bipob.box_storage.duplicate(),
+		"placed_internal_modules": bipob.placed_internal_modules.duplicate(true),
+		"internal_modules_by_cell": bipob.internal_modules_by_cell.duplicate(true)
+	}
+
+func _restore_internal_auto_config_snapshot(snapshot: Dictionary) -> void:
+	if bipob == null or not is_instance_valid(bipob) or snapshot.is_empty():
+		return
+	bipob.box_storage.clear()
+	for module in snapshot.get("box_storage", []):
+		bipob.box_storage.append(module)
+	bipob.placed_internal_modules.clear()
+	for record in snapshot.get("placed_internal_modules", []):
+		if typeof(record) == TYPE_DICTIONARY:
+			bipob.placed_internal_modules.append(record)
+	bipob.internal_modules_by_cell.clear()
+	var saved_cells: Dictionary = snapshot.get("internal_modules_by_cell", {})
+	for key in saved_cells.keys():
+		bipob.internal_modules_by_cell[key] = saved_cells[key]
+	if bipob.has_signal("status_changed"):
+		bipob.status_changed.emit()
+
+func _auto_configure_internal() -> void:
+	var validation: Dictionary = _validate_internal_auto_configuration_plan()
+	if not bool(validation.get("ok", false)):
+		_report_auto_configuration_failure(String(validation.get("reason", "unknown reason")))
+		return
+	var plan: Array[Dictionary] = []
+	var plan_variant: Variant = validation.get("plan", [])
+	if typeof(plan_variant) == TYPE_ARRAY:
+		for step_variant in plan_variant:
+			if typeof(step_variant) == TYPE_DICTIONARY:
+				plan.append(step_variant)
+	var snapshot: Dictionary = _create_internal_auto_config_snapshot()
+	for step in plan:
+		var module: BipobModule = step.get("module", null)
+		var label: String = String(step.get("label", "module"))
+		var origin: Vector3i = step.get("origin", Vector3i.ZERO)
+		var rotation_index: int = int(step.get("rotation", 0))
+		if module == null:
+			_restore_internal_auto_config_snapshot(snapshot)
+			_report_auto_configuration_failure("planned %s module was missing before apply" % label)
+			return
+		if not bipob.can_place_internal_module(module, origin, rotation_index):
+			_restore_internal_auto_config_snapshot(snapshot)
+			_report_auto_configuration_failure("planned slot for %s became invalid" % label)
+			return
+		if not bipob.place_internal_module(module, origin, rotation_index):
+			_restore_internal_auto_config_snapshot(snapshot)
+			_report_auto_configuration_failure("could not apply %s" % label)
+			return
+	_report_auto_configuration_success()
 
 func _auto_configure_external() -> void:
 	_place_external_group_if_missing("gear", ["bottom"])
