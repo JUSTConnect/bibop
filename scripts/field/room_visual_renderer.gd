@@ -121,9 +121,15 @@ const ISO_FLOOR_ATLAS_COLUMNS: int = 6
 const ISO_FLOOR_ATLAS_ROWS: int = 7
 const ISO_FLOOR_ATLAS_BASE_VARIANTS: int = 6
 const ISO_FLOOR_ATLAS_HEAVY_METAL_VARIANTS: int = 4
-const ISO_FLOOR_ATLAS_SOURCE_EDGE_PADDING: float = 2.0
+const ISO_FLOOR_ATLAS_SOURCE_EDGE_PADDING: float = 3.0
 const ISO_FLOOR_ATLAS_SCREEN_OVERLAP: float = 1.5
-const ISO_FLOOR_UNDERLAY_OVERLAP: float = 0.75
+const ISO_FLOOR_UNDERLAY_OVERLAP: float = 1.25
+const ISO_FLOOR_OVERLAY_INNER_INSET: float = 12.0
+const ISO_FLOOR_SEAM_SAFE_BASE_VARIANTS: Dictionary = {
+	"grate_base": [1],
+	"metal_base": [1],
+	"concrete_base": [1],
+}
 # The source atlas is 7524x8778, giving 1254x1254 frames in a 6x7 grid.
 # Each frame is a high-resolution render of one isometric floor cell and is
 # intentionally downsampled into the current iso_tile_width x iso_tile_height.
@@ -2682,6 +2688,20 @@ func get_floor_atlas_variant_for_cell(cell: Vector2i, requested_variant: int, ma
 		return clampi(requested_variant, 1, max_variants)
 	return ((cell.x * 17 + cell.y * 31 + salt) % max_variants) + 1
 
+func get_floor_atlas_seam_safe_variant(cell: Vector2i, atlas_key: String, requested_variant: int, max_variants: int, salt: int = 0) -> int:
+	# Base rows in the current atlas contain visible perimeter differences between
+	# variants.  Keep each floor family on a fixed seam-safe subset so every tile
+	# in the family shares the same silhouette, frame thickness, and edge lighting.
+	if ISO_FLOOR_SEAM_SAFE_BASE_VARIANTS.has(atlas_key):
+		var safe_variants: Array = Array(ISO_FLOOR_SEAM_SAFE_BASE_VARIANTS.get(atlas_key, []))
+		if safe_variants.is_empty():
+			return 1
+		var safe_index: int = 0
+		if requested_variant < 1 and safe_variants.size() > 1:
+			safe_index = (cell.x * 17 + cell.y * 31 + salt) % safe_variants.size()
+		return clampi(int(safe_variants[safe_index]), 1, max_variants)
+	return get_floor_atlas_variant_for_cell(cell, requested_variant, max_variants, salt)
+
 func get_floor_atlas_safe_source_rect(source_rect: Rect2) -> Rect2:
 	var padding: float = minf(
 		ISO_FLOOR_ATLAS_SOURCE_EDGE_PADDING,
@@ -2716,6 +2736,42 @@ func draw_floor_seamless_underlay(cell: Vector2i, fill_color: Color) -> void:
 	var underlay_points: PackedVector2Array = get_iso_diamond_points_with_overlap(cell, ISO_FLOOR_UNDERLAY_OVERLAP)
 	draw_colored_polygon(underlay_points, fill_color)
 
+func get_floor_atlas_inner_overlay_points() -> PackedVector2Array:
+	var destination_rect: Rect2 = get_floor_atlas_destination_rect()
+	var inset: float = minf(ISO_FLOOR_OVERLAY_INNER_INSET, minf(destination_rect.size.x, destination_rect.size.y) * 0.35)
+	return PackedVector2Array([
+		Vector2(destination_rect.position.x + destination_rect.size.x * 0.5, destination_rect.position.y + inset),
+		Vector2(destination_rect.end.x - inset, destination_rect.position.y + destination_rect.size.y * 0.5),
+		Vector2(destination_rect.position.x + destination_rect.size.x * 0.5, destination_rect.end.y - inset),
+		Vector2(destination_rect.position.x + inset, destination_rect.position.y + destination_rect.size.y * 0.5),
+	])
+
+func get_floor_atlas_uvs_for_destination_points(points: PackedVector2Array, destination_rect: Rect2, source_rect: Rect2) -> PackedVector2Array:
+	var uvs: PackedVector2Array = PackedVector2Array()
+	if destination_rect.size.x <= 0.0 or destination_rect.size.y <= 0.0:
+		return uvs
+	for point in points:
+		var normalized_point: Vector2 = Vector2(
+			(point.x - destination_rect.position.x) / destination_rect.size.x,
+			(point.y - destination_rect.position.y) / destination_rect.size.y
+		)
+		uvs.append(source_rect.position + Vector2(normalized_point.x * source_rect.size.x, normalized_point.y * source_rect.size.y))
+	return uvs
+
+func draw_floor_atlas_overlay_layer(cell: Vector2i, source_rect: Rect2) -> void:
+	# Wear/damage rows are detail overlays only.  Clip them to an inset diamond so
+	# scratches and damage cannot rewrite the shared perimeter or create edge seams.
+	var center: Vector2 = grid_to_iso(cell)
+	var safe_source_rect: Rect2 = get_floor_atlas_safe_source_rect(source_rect)
+	var destination_rect: Rect2 = get_floor_atlas_destination_rect()
+	var overlay_points: PackedVector2Array = get_floor_atlas_inner_overlay_points()
+	var overlay_uvs: PackedVector2Array = get_floor_atlas_uvs_for_destination_points(overlay_points, destination_rect, safe_source_rect)
+	if overlay_points.size() < 4 or overlay_uvs.size() != overlay_points.size():
+		return
+	draw_set_transform(center.round(), 0.0, Vector2.ONE)
+	draw_polygon(overlay_points, PackedColorArray([Color.WHITE, Color.WHITE, Color.WHITE, Color.WHITE]), overlay_uvs, iso_floor_atlas_texture)
+	draw_set_transform(Vector2.ZERO, 0.0, Vector2.ONE)
+
 func draw_floor_atlas_layer(cell: Vector2i, atlas_key: String, requested_variant: int, mirror_h: bool, mirror_v: bool) -> bool:
 	if iso_floor_atlas_texture == null:
 		return false
@@ -2726,17 +2782,23 @@ func draw_floor_atlas_layer(cell: Vector2i, atlas_key: String, requested_variant
 		return false
 	var row: int = int(layout.get("row", 1))
 	var variant_count: int = int(layout.get("variants", ISO_FLOOR_ATLAS_BASE_VARIANTS))
-	var variant: int = get_floor_atlas_variant_for_cell(cell, requested_variant, variant_count, row * 13)
+	var is_overlay: bool = bool(layout.get("overlay", false))
+	var variant: int = get_floor_atlas_seam_safe_variant(cell, atlas_key, requested_variant, variant_count, row * 13)
 	var source_rect: Rect2 = get_floor_atlas_region(row, variant)
 	if source_rect.size.x <= 0.0 or source_rect.size.y <= 0.0:
 		return false
+	if is_overlay:
+		draw_floor_atlas_overlay_layer(cell, source_rect)
+		return true
 	var center: Vector2 = grid_to_iso(cell)
 	# Sample slightly inside each high-resolution atlas frame to avoid bleeding
 	# bright pixels from neighboring frames, then overdraw by a pixel on screen to
 	# cover fractional-pixel cracks between adjacent projected cells.
 	var safe_source_rect: Rect2 = get_floor_atlas_safe_source_rect(source_rect)
 	var destination_rect: Rect2 = get_floor_atlas_destination_rect()
-	var scale: Vector2 = Vector2(-1.0 if mirror_h else 1.0, -1.0 if mirror_v else 1.0)
+	var safe_mirror_h: bool = false if ISO_FLOOR_SEAM_SAFE_BASE_VARIANTS.has(atlas_key) else mirror_h
+	var safe_mirror_v: bool = false if ISO_FLOOR_SEAM_SAFE_BASE_VARIANTS.has(atlas_key) else mirror_v
+	var scale: Vector2 = Vector2(-1.0 if safe_mirror_h else 1.0, -1.0 if safe_mirror_v else 1.0)
 	draw_set_transform(center.round(), 0.0, scale)
 	draw_texture_rect_region(iso_floor_atlas_texture, destination_rect, safe_source_rect, Color.WHITE, false, true)
 	draw_set_transform(Vector2.ZERO, 0.0, Vector2.ONE)

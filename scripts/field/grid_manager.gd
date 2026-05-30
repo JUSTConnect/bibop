@@ -394,11 +394,11 @@ func normalize_floor_wear(wear: String) -> String:
 		return FLOOR_WEAR_HEAVY
 	return FLOOR_WEAR_NONE
 
-func get_default_floor_visual_state(cell: Vector2i = Vector2i(-1, -1)) -> Dictionary:
-	var base_variant: int = -1
-	if is_in_bounds(cell):
-		base_variant = ((cell.x * 3 + cell.y * 5) % 6) + 1
-	return make_floor_visual_state(FLOOR_FAMILY_METAL, FLOOR_WEAR_NONE, base_variant)
+func get_default_floor_visual_state(_cell: Vector2i = Vector2i(-1, -1)) -> Dictionary:
+	# Keep the default floor base fixed until all atlas base variants have matching
+	# perimeter geometry.  Variation should come from interior-only overlays so
+	# neighboring floor cells stitch as one coherent surface.
+	return make_floor_visual_state(FLOOR_FAMILY_METAL, FLOOR_WEAR_NONE, 1)
 
 func _safe_floor_visual_state_dictionary(value: Variant) -> Dictionary:
 	if value is Dictionary:
