@@ -1887,9 +1887,6 @@ func get_map_constructor_prefab_palette_rows(options: Dictionary = {}) -> Dictio
 		var prefab_id: String = String(catalog_entry.get("id", "")).strip_edges()
 		if prefab_id.is_empty():
 			continue
-		for link_field in ["control_source_id", "linked_terminal_id", "controller_id", "target_door_id", "target_platform_id", "linked_object_id", "target_object_id", "required_key_id"]:
-			if object_data.has(link_field):
-				row[link_field] = object_data.get(link_field, "")
 		var meta_result: Dictionary = get_map_constructor_prefab_metadata(prefab_id)
 		var meta: Dictionary = Dictionary(meta_result.get("prefab", {})).duplicate(true)
 		var category: String = String(meta.get("category", ""))
