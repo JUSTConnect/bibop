@@ -8087,11 +8087,12 @@ func interact() -> void:
 			var item_result: Dictionary = Dictionary(InteractionSystemRef.apply_action(item_actor, {"id": active_manipulator.id if active_manipulator != null else ""}, item, "pickup"))
 			if bool(item_result.get("success", false)):
 				var item_id: String = String(item.get("id", ""))
+				var pickup_result := {"success": true, "reasons": ["ok"], "item_id": item_id}
 				if mission_manager.has_method("pickup_world_item"):
-					mission_manager.call("pickup_world_item", item_id)
-				if String(item.get("key_kind", "")).strip_edges() != "" and mission_manager.has_method("mark_key_collected"):
-					mission_manager.call("mark_key_collected", item_id)
-				mission_manager.remove_first_item_at_cell(item_cell)
+					pickup_result = Dictionary(mission_manager.call("pickup_world_item", item_id))
+				if not bool(pickup_result.get("success", false)):
+					hint_requested.emit("Cannot pick up item: %s" % ", ".join(Array(pickup_result.get("reasons", []))))
+					return
 				if is_digital_item:
 					store_digital_record(item_id if not item_id.is_empty() else "item_record", String(item.get("display_name", "Item")), "Recovered digital world item.")
 					var item_type := String(item.get("item_type", item.get("id", "")))
