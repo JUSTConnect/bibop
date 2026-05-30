@@ -2130,7 +2130,7 @@ func get_default_map_constructor_field_value(field_name: String, entity_kind: St
 		if entity_kind == "item":
 			return null
 		return []
-	if normalized_field in ["state", "power_network_id", "required_key_id", "lock_type", "linked_terminal_id", "target_door_id", "target_platform_id", "control_source_id", "digital_state", "key_kind", "key_type", "display_name", "description", "custom_description", "linked_door_id"]:
+	if normalized_field in ["state", "power_network_id", "required_key_id", "lock_type", "linked_terminal_id", "target_door_id", "target_platform_id", "control_source_id", "digital_state", "key_kind", "key_type", "display_name", "description", "custom_description", "linked_door_id", "power_mode", "power_source_id", "control_mode", "control_terminal_id", "access_type", "access_terminal_id", "access_code_value", "stored_key_ids"]:
 		return ""
 	return null
 
@@ -2698,6 +2698,7 @@ func place_map_constructor_prefab(prefab_id: String, cell: Vector2i, preferred_w
 		object_data["anchor_floor_cell"] = _serialize_cell_key(cell)
 		object_data["attached_wall_cell"] = _serialize_cell_key(attached_wall_cell)
 		object_data["wall_side"] = String(attachment.get("wall_side", "north"))
+	object_data = _normalize_map_constructor_active_object_fields(object_data)
 	set_world_object_at_cell(cell, object_data)
 	PowerSystemRef.recalculate_network(mission_world_objects, String(object_data.get("power_network_id", "")))
 	refresh_world_cooling_received()
@@ -3438,7 +3439,7 @@ func get_map_constructor_entity_by_id(entity_kind: String, entity_id: String) ->
 		var object_data: Dictionary = get_world_object_by_id(entity_id)
 		if object_data.is_empty():
 			return {"ok": false, "reason": "not_found", "entity_kind": entity_kind, "id": entity_id}
-		return {"ok": true, "entity_kind": entity_kind, "id": entity_id, "cell": Vector2i(object_data.get("position", Vector2i(-1, -1))), "data": object_data}
+		return {"ok": true, "entity_kind": entity_kind, "id": entity_id, "cell": Vector2i(object_data.get("position", Vector2i(-1, -1))), "data": _normalize_map_constructor_active_object_fields(object_data)}
 	if entity_kind == "item":
 		for cell_variant in cell_items.keys():
 			var cell: Vector2i = Vector2i(cell_variant)
@@ -3455,7 +3456,8 @@ func _get_map_constructor_editable_field_schema() -> Dictionary:
 		"required_key_id":"string","lock_type":"string","linked_terminal_id":"string","required_connector_level":"int","required_processor_level":"int",
 		"control_source_id":"string","connected_device_ids":"array_string","target_door_id":"string","target_platform_id":"string","requires_external_control":"bool","requires_terminal_enabled":"bool",
 		"requires_external_power":"bool","current_heat":"int","working_heat":"int","overheat_threshold":"int",
-		"item_type":"string","digital_state":"string","key_kind":"string","key_type":"string","display_name":"string","description":"string","custom_description":"string","linked_door_id":"string","damaged":"bool"
+		"item_type":"string","digital_state":"string","key_kind":"string","key_type":"string","display_name":"string","description":"string","custom_description":"string","linked_door_id":"string","damaged":"bool",
+		"power_mode":"string","power_source_id":"string","control_mode":"string","control_terminal_id":"string","access_type":"string","access_terminal_id":"string","access_code_value":"string","stored_key_ids":"array_string"
 	}
 
 func get_map_constructor_editable_fields_for_entity(entity_id: String, entity_kind: String = "") -> Array[Dictionary]:
@@ -3554,6 +3556,7 @@ func apply_map_constructor_property_update(entity_kind: String, entity_id: Strin
 	var old_network_id: String = String(data.get("power_network_id", ""))
 	data[field_name] = new_value
 	if resolved_kind == "world_object":
+		data = _normalize_map_constructor_active_object_fields(data)
 		update_world_object_by_id(entity_id, data)
 	elif resolved_kind == "item":
 		var found_item: bool = false
@@ -3577,7 +3580,7 @@ func apply_map_constructor_property_update(entity_kind: String, entity_id: Strin
 	else:
 		result["message"] = "Unsupported entity kind."
 		return result
-	var needs_power_refresh: bool = field_name == "power_network_id" or field_name in ["is_powered", "requires_external_power", "current_heat", "working_heat", "overheat_threshold"]
+	var needs_power_refresh: bool = field_name == "power_network_id" or field_name in ["is_powered", "requires_external_power", "power_mode", "power_source_id", "current_heat", "working_heat", "overheat_threshold"]
 	if needs_power_refresh:
 		PowerSystemRef.recalculate_network(mission_world_objects, old_network_id)
 		PowerSystemRef.recalculate_network(mission_world_objects, String(data.get("power_network_id", "")))
@@ -3882,7 +3885,7 @@ func get_map_constructor_link_targets_for_field(entity_kind: String, entity_id: 
 	var result: Dictionary = {"ok": false, "field_name": field_name, "targets": [], "message": "Unsupported field."}
 	var supported_fields: Array[String] = [
 		"required_key_id", "linked_terminal_id", "target_door_id", "target_platform_id",
-		"control_source_id", "connected_device_ids", "power_network_id"
+		"control_source_id", "connected_device_ids", "power_network_id", "power_source_id", "control_terminal_id", "access_terminal_id"
 	]
 	if not supported_fields.has(field_name):
 		return result
@@ -3939,7 +3942,7 @@ func get_map_constructor_link_targets_for_field(entity_kind: String, entity_id: 
 		)
 		targets.append_array(ranked_items)
 		targets.append_array(other_items)
-	elif field_name == "linked_terminal_id":
+	elif field_name == "linked_terminal_id" or field_name == "control_terminal_id" or field_name == "access_terminal_id":
 		for object_data in mission_world_objects:
 			var data: Dictionary = _safe_dictionary(object_data)
 			var object_type: String = String(data.get("object_type", "")).to_lower()
@@ -3974,6 +3977,15 @@ func get_map_constructor_link_targets_for_field(entity_kind: String, entity_id: 
 			if group_connected == "item":
 				continue
 			targets.append(_map_constructor_make_link_target(connected_id, connected_id, "world_object", Vector2i(data_connected.get("position", Vector2i(-1, -1))), "valid", "device_candidate"))
+	elif field_name == "power_source_id":
+		for object_data in mission_world_objects:
+			var source_data: Dictionary = _safe_dictionary(object_data)
+			var source_id: String = String(source_data.get("id", "")).strip_edges()
+			var source_type: String = String(source_data.get("object_type", "")).to_lower()
+			var source_group: String = String(source_data.get("object_group", "")).to_lower()
+			if source_id.is_empty() or (not source_type.contains("power_source") and source_group != "power"):
+				continue
+			targets.append(_map_constructor_make_link_target(source_id, source_id, "world_object", Vector2i(source_data.get("position", Vector2i(-1, -1))), "valid", "power_source"))
 	elif field_name == "power_network_id":
 		var power_first: Array[Dictionary] = []
 		var others: Array[Dictionary] = []
@@ -4129,7 +4141,7 @@ func apply_map_constructor_state_preset(entity_kind: String, entity_id: String, 
 	var needs_power_refresh: bool = false
 	for converted_entry in converted_updates:
 		var changed_field: String = String(converted_entry.get("field", ""))
-		if changed_field == "power_network_id" or changed_field in ["is_powered", "requires_external_power", "current_heat", "working_heat", "overheat_threshold"]:
+		if changed_field == "power_network_id" or changed_field in ["is_powered", "requires_external_power", "power_mode", "power_source_id", "current_heat", "working_heat", "overheat_threshold"]:
 			needs_power_refresh = true
 			break
 	if needs_power_refresh:
@@ -4423,7 +4435,7 @@ func update_map_constructor_entity_properties(entity_kind: String, entity_id: St
 	return {"ok": true, "message": "Updated properties.", "warnings": warnings}
 
 func get_map_constructor_link_candidates(entity_kind: String, entity_id: String, link_type: String) -> Array[Dictionary]:
-	var field_map := {"linked_door":"target_door_id","power_network":"power_network_id","control_source":"control_source_id","terminal_target":"target_door_id","platform_target":"target_platform_id"}
+	var field_map := {"linked_door":"target_door_id","power_network":"power_network_id","control_source":"control_source_id","terminal_target":"target_door_id","platform_target":"target_platform_id","power_source":"power_source_id","control_terminal":"control_terminal_id","access_terminal":"access_terminal_id"}
 	if not field_map.has(link_type): return []
 	var entity: Dictionary = get_map_constructor_entity_by_id(entity_kind, entity_id)
 	var current_value: String = ""
@@ -4479,7 +4491,7 @@ func _set_map_constructor_key_door_link(entity_kind: String, key_id: String, doo
 	return {"ok": true, "message": "Door link updated.", "target_cell": target_cell, "target_id": normalized_door_id}
 
 func set_map_constructor_entity_link(entity_kind: String, entity_id: String, link_type: String, target_id: String) -> Dictionary:
-	var field_map := {"linked_door":"target_door_id","power_network":"power_network_id","control_source":"control_source_id","terminal_target":"target_door_id","platform_target":"target_platform_id","key_door":"linked_door_id"}
+	var field_map := {"linked_door":"target_door_id","power_network":"power_network_id","control_source":"control_source_id","terminal_target":"target_door_id","platform_target":"target_platform_id","power_source":"power_source_id","control_terminal":"control_terminal_id","access_terminal":"access_terminal_id","key_door":"linked_door_id"}
 	if not field_map.has(link_type): return {"ok":false,"message":"Unsupported link type.","target_id":target_id}
 	if link_type == "key_door":
 		return _set_map_constructor_key_door_link(entity_kind, entity_id, target_id)
@@ -4496,24 +4508,189 @@ func _map_constructor_link_target_exists_for_field(field_name: String, target_id
 		return false
 	if field_name == "required_key_id":
 		return bool(find_map_constructor_key_item_by_id(normalized_target_id).get("ok", false))
+	if field_name in ["power_source_id", "power_network_id"]:
+		if bool(get_map_constructor_entity_by_id("world_object", normalized_target_id).get("ok", false)):
+			return true
+		for object_data in mission_world_objects:
+			if String(Dictionary(object_data).get("power_network_id", "")).strip_edges() == normalized_target_id:
+				return true
+		return false
 	return bool(get_map_constructor_entity_by_id("world_object", normalized_target_id).get("ok", false))
+
+
+func _normalize_map_constructor_access_type(raw_value: Variant, fallback_value: String = "") -> String:
+	var text: String = String(raw_value).strip_edges().to_lower()
+	if text in ["mechanical", "mechanical_key", "key", "mechanical_keycard"]:
+		return "mechanical_key"
+	if text in ["digital", "digital_key"]:
+		return "digital_key"
+	if text in ["password", "code", "access_code"]:
+		return "access_code"
+	if text in ["terminal", "terminal_access"]:
+		return "terminal_access"
+	if text in ["none", "no_key", ""]:
+		return fallback_value if not fallback_value.is_empty() else "none"
+	return text
+
+func _default_map_constructor_access_type_for_object(object_data: Dictionary) -> String:
+	var classifier: String = "%s %s %s" % [String(object_data.get("object_type", "")).to_lower(), String(object_data.get("map_constructor_prefab_id", "")).to_lower(), String(object_data.get("display_name", "")).to_lower()]
+	if classifier.contains("powered_gate") or classifier.contains("gate"):
+		return "none"
+	if classifier.contains("digital") or String(object_data.get("lock_type", "")).to_lower() in ["digital_key", "password", "access_code"]:
+		return "digital_key"
+	return "mechanical_key"
+
+func _normalize_map_constructor_active_object_fields(object_data: Dictionary) -> Dictionary:
+	var data: Dictionary = object_data.duplicate(true)
+	var classifier: String = "%s %s %s %s" % [String(data.get("object_group", "")).to_lower(), String(data.get("object_type", "")).to_lower(), String(data.get("map_constructor_prefab_id", "")).to_lower(), String(data.get("id", "")).to_lower()]
+	var type_group: String = "generic"
+	if _map_constructor_is_door_data(data):
+		type_group = "door"
+	elif classifier.contains("terminal"):
+		type_group = "terminal"
+	elif classifier.contains("power") or classifier.contains("switch") or classifier.contains("control"):
+		type_group = "power"
+	if not (type_group in ["door", "terminal", "power", "control"]):
+		return data
+	# Normalized constructor/runtime link fields. Old maps may only have lock_type,
+	# required_key_id, linked_terminal_id, control_source_id, power_network_id, or
+	# requires_external_power; keep those compatible and mirror them into explicit
+	# power/control/access fields used by the inspector.
+	var prefab_id: String = String(data.get("map_constructor_prefab_id", data.get("object_type", ""))).to_lower()
+	var default_power_mode: String = "external" if prefab_id == "powered_gate" or bool(data.get("requires_external_power", false)) else "internal"
+	var power_mode: String = String(data.get("power_mode", default_power_mode)).strip_edges().to_lower()
+	if power_mode in ["external_power", "external power"]:
+		power_mode = "external"
+	if not (power_mode in ["internal", "external"]):
+		power_mode = default_power_mode
+	data["power_mode"] = power_mode
+	data["requires_external_power"] = power_mode == "external"
+	if not data.has("power_source_id"):
+		data["power_source_id"] = String(data.get("connected_power_source_id", data.get("power_network_id", ""))).strip_edges()
+	var control_mode: String = String(data.get("control_mode", "external" if bool(data.get("requires_external_control", false)) else "internal")).strip_edges().to_lower()
+	if control_mode in ["external_control", "external control"]:
+		control_mode = "external"
+	if not (control_mode in ["internal", "external"]):
+		control_mode = "internal"
+	data["control_mode"] = control_mode
+	data["requires_external_control"] = control_mode == "external"
+	var terminal_id: String = String(data.get("control_terminal_id", data.get("linked_terminal_id", data.get("control_source_id", "")))).strip_edges()
+	data["control_terminal_id"] = terminal_id
+	if control_mode == "external":
+		data["linked_terminal_id"] = terminal_id
+		data["control_source_id"] = terminal_id
+	if type_group == "door":
+		var default_access: String = _default_map_constructor_access_type_for_object(data)
+		var access_type: String = _normalize_map_constructor_access_type(data.get("access_type", data.get("lock_type", "")), default_access)
+		data["access_type"] = access_type
+		if access_type == "none":
+			data["required_key_id"] = ""
+			data["lock_type"] = ""
+		elif access_type == "terminal_access":
+			data["required_key_id"] = ""
+			data["lock_type"] = "terminal_access"
+			if String(data.get("access_terminal_id", "")).strip_edges().is_empty():
+				data["access_terminal_id"] = terminal_id
+			if control_mode == "external" and not terminal_id.is_empty():
+				data["access_terminal_id"] = terminal_id
+		else:
+			data["lock_type"] = access_type
+			if access_type == "access_code" and String(data.get("access_code_value", "")).strip_edges().is_empty():
+				var seed: int = abs(hash(String(data.get("id", "access_code")))) % 10000
+				data["access_code_value"] = "%04d" % seed
+	return data
+
+func _map_constructor_make_validation_link(label: String, target_id: String, target_kind: String, field_name: String) -> Dictionary:
+	var cell: Vector2i = Vector2i(-1, -1)
+	if target_kind == "item":
+		var key_entity: Dictionary = find_map_constructor_key_item_by_id(target_id)
+		if bool(key_entity.get("ok", false)):
+			cell = Vector2i(key_entity.get("cell", Vector2i(-1, -1)))
+	else:
+		var target_entity: Dictionary = get_map_constructor_entity_by_id("world_object", target_id)
+		if bool(target_entity.get("ok", false)):
+			cell = Vector2i(target_entity.get("cell", Vector2i(-1, -1)))
+	return {"label": label, "target_id": target_id, "target_kind": target_kind, "field_name": field_name, "cell": cell}
+
+func _map_constructor_terminal_stores_key(terminal_id: String, key_id: String) -> bool:
+	if terminal_id.strip_edges().is_empty() or key_id.strip_edges().is_empty():
+		return false
+	var terminal: Dictionary = get_world_object_by_id(terminal_id)
+	if terminal.is_empty():
+		return false
+	for field_name in ["stored_key_ids", "stored_access_ids", "stored_item_ids", "digital_key_ids", "access_code_ids"]:
+		if Array(terminal.get(field_name, [])).has(key_id):
+			return true
+	return String(terminal.get("stored_key_id", terminal.get("access_key_id", ""))).strip_edges() == key_id
 
 func validate_map_constructor_entity_links(entity_kind: String, entity_id: String) -> Dictionary:
 	var warnings: Array[String] = []
 	var missing: Array[String] = []
-	var linked: Array[String] = []
+	var linked: Array[Dictionary] = []
 	var entity: Dictionary = get_map_constructor_entity_by_id(entity_kind, entity_id)
 	if not bool(entity.get("ok", false)):
-		return {"ok": false, "warnings": ["Entity not found."], "missing_links": [], "linked_targets": []}
+		return {"ok": false, "warnings": ["Entity not found."], "missing_links": [], "linked_targets": [], "linked": [], "missing": []}
 	var data: Dictionary = _safe_dictionary(entity.get("data", {}))
-	for key in ["target_door_id","linked_terminal_id","control_source_id","required_key_id","linked_door_id"]:
+	if entity_kind == "world_object":
+		data = _normalize_map_constructor_active_object_fields(data)
+	var type_group: String = get_map_constructor_entity_type_group(entity_kind, entity_id)
+	var power_mode: String = String(data.get("power_mode", "internal")).strip_edges().to_lower()
+	if power_mode == "external":
+		var power_source_id: String = String(data.get("power_source_id", data.get("power_network_id", ""))).strip_edges()
+		if power_source_id.is_empty():
+			missing.append("external power selected but no power source linked")
+		else:
+			linked.append(_map_constructor_make_validation_link("linked power source", power_source_id, "world_object", "power_source_id"))
+			if not _map_constructor_link_target_exists_for_field("power_source_id", power_source_id):
+				warnings.append("linked power source is missing/off/unpowered: %s" % power_source_id)
+			warnings.append("external power source is logically linked; verify physical wire/cable path exists")
+	var control_mode: String = String(data.get("control_mode", "internal")).strip_edges().to_lower()
+	if control_mode == "external":
+		var control_terminal_id: String = String(data.get("control_terminal_id", data.get("linked_terminal_id", ""))).strip_edges()
+		if control_terminal_id.is_empty():
+			missing.append("external control selected but no terminal linked")
+		else:
+			linked.append(_map_constructor_make_validation_link("linked control terminal", control_terminal_id, "world_object", "control_terminal_id"))
+			var terminal_data: Dictionary = get_world_object_by_id(control_terminal_id)
+			if terminal_data.is_empty():
+				warnings.append("external control terminal linked but missing: %s" % control_terminal_id)
+			elif not _is_terminal_powered_for_interaction(terminal_data):
+				warnings.append("external control terminal linked but terminal cannot currently operate due to power/connection issues")
+	if type_group == "door":
+		var access_type: String = String(data.get("access_type", _normalize_map_constructor_access_type(data.get("lock_type", ""), _default_map_constructor_access_type_for_object(data)))).strip_edges().to_lower()
+		var required_key_id: String = String(data.get("required_key_id", "")).strip_edges()
+		var access_terminal_id: String = String(data.get("access_terminal_id", "")).strip_edges()
+		if access_type == "mechanical_key":
+			if required_key_id.is_empty():
+				missing.append("mechanical key selected but no physical key linked")
+			else:
+				linked.append(_map_constructor_make_validation_link("linked key/access item", required_key_id, "item", "required_key_id"))
+				if not bool(find_map_constructor_key_item_by_id(required_key_id).get("ok", false)):
+					missing.append("mechanical key selected but linked key is missing")
+		elif access_type in ["digital_key", "access_code"]:
+			if required_key_id.is_empty():
+				missing.append("%s selected but no key/access item linked" % access_type)
+			else:
+				linked.append(_map_constructor_make_validation_link("linked key/access item", required_key_id, "item", "required_key_id"))
+			if access_terminal_id.is_empty():
+				missing.append("digital key/access code selected but no terminal storage linked")
+			else:
+				linked.append(_map_constructor_make_validation_link("linked information/access terminal", access_terminal_id, "world_object", "access_terminal_id"))
+				if not _map_constructor_terminal_stores_key(access_terminal_id, required_key_id):
+					warnings.append("selected door has digital key/access code linked, but that key/code is not stored in the selected information terminal")
+		elif access_type == "terminal_access":
+			if access_terminal_id.is_empty():
+				missing.append("terminal access selected but no terminal linked")
+			else:
+				linked.append(_map_constructor_make_validation_link("linked information/access terminal", access_terminal_id, "world_object", "access_terminal_id"))
+	for key in ["target_door_id", "linked_terminal_id", "control_source_id", "linked_door_id"]:
 		var tid: String = String(data.get(key, "")).strip_edges()
 		if tid.is_empty():
 			continue
-		linked.append(tid)
+		linked.append(_map_constructor_make_validation_link(key, tid, "world_object", key))
 		if not _map_constructor_link_target_exists_for_field(key, tid):
-			warnings.append("Missing link target for %s: %s" % [key, tid]); missing.append(key)
-	return {"ok": missing.is_empty(), "warnings": warnings, "missing_links": missing, "linked_targets": linked}
+			warnings.append("Missing link target for %s: %s" % [key, tid])
+	return {"ok": missing.is_empty(), "warnings": warnings, "missing_links": missing, "linked_targets": linked, "linked": linked, "missing": missing}
 
 func _is_map_constructor_cleanup_protected_object(object_data: Dictionary) -> bool:
 	var object_id: String = String(object_data.get("id", "")).to_lower()

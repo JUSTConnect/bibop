@@ -163,6 +163,8 @@ var runtime_world_actions_selected_button: Button = null
 var runtime_map_constructor_palette_panel: PanelContainer = null
 var runtime_map_constructor_inspector_panel: PanelContainer = null
 var runtime_map_constructor_inspector_scroll: ScrollContainer = null
+var runtime_object_info_panel: PanelContainer = null
+var runtime_object_info_cell: Vector2i = Vector2i(-1, -1)
 var runtime_map_constructor_validation_overlay_control: ConstructorValidationOverlayControl = null
 var runtime_map_constructor_place_confirm_panel: PanelContainer = null
 var map_constructor_validation_overlay_visible: bool = true
@@ -9941,6 +9943,70 @@ func _cycle_map_constructor_wall_side() -> void:
 		_update_map_constructor_preview_for_cell(pending_map_constructor_cell)
 	show_hint("Wall side: %s" % selected_map_constructor_wall_side)
 
+
+func _hide_runtime_object_info_hud() -> void:
+	if runtime_object_info_panel != null and is_instance_valid(runtime_object_info_panel):
+		runtime_object_info_panel.queue_free()
+	runtime_object_info_panel = null
+	runtime_object_info_cell = Vector2i(-1, -1)
+
+func _show_runtime_object_info_hud(cell: Vector2i) -> void:
+	_hide_runtime_object_info_hud()
+	if runtime_hud_root == null or field_runtime == null or bipob == null or mission_manager_runtime == null:
+		return
+	var object_data: Dictionary = Dictionary(mission_manager_runtime.call("get_world_object_at_cell", cell)) if mission_manager_runtime.has_method("get_world_object_at_cell") else {}
+	if object_data.is_empty() and mission_manager_runtime.has_method("get_items_at_cell"):
+		var items: Array = Array(mission_manager_runtime.call("get_items_at_cell", cell))
+		if not items.is_empty():
+			object_data = Dictionary(items[0])
+	if object_data.is_empty():
+		return
+	var scan_level: int = int(object_data.get("scan_level", 0))
+	var group: String = _safe_ui_string(object_data.get("object_group", "object"), "object")
+	var lines: Array[String] = []
+	var title: String = group.capitalize() if scan_level <= 0 else _safe_ui_string(object_data.get("display_name", group.capitalize()), group.capitalize())
+	lines.append(title)
+	if scan_level >= 1:
+		lines.append("Type: %s" % _safe_ui_string(object_data.get("object_type", group), group))
+		lines.append("Group: %s" % group)
+	if scan_level >= 2:
+		if object_data.has("state"):
+			lines.append("State: %s" % _safe_ui_string(object_data.get("state", "unknown"), "unknown"))
+		if object_data.has("is_powered"):
+			lines.append("Powered: %s" % ("yes" if bool(object_data.get("is_powered", false)) else "no"))
+	if scan_level >= 3:
+		for field_name in ["power_mode", "control_mode", "access_type", "lock_type", "required_key_id", "power_source_id", "control_terminal_id", "access_terminal_id"]:
+			var value: String = _safe_ui_string(object_data.get(field_name, "")).strip_edges()
+			if not value.is_empty():
+				lines.append("%s: %s" % [field_name, value])
+	var panel := PanelContainer.new()
+	panel.z_index = Z_RUNTIME_HUD + 8
+	panel.z_as_relative = false
+	panel.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	panel.add_theme_stylebox_override("panel", _make_panel_style(UI_COLOR_PANEL_DARK, UI_COLOR_ACCENT, 1, 8))
+	var margin := MarginContainer.new()
+	margin.add_theme_constant_override("margin_left", 8)
+	margin.add_theme_constant_override("margin_right", 8)
+	margin.add_theme_constant_override("margin_top", 6)
+	margin.add_theme_constant_override("margin_bottom", 6)
+	var label := Label.new()
+	label.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	label.text = "\n".join(lines)
+	label.custom_minimum_size = Vector2(180, 0)
+	margin.add_child(label)
+	panel.add_child(margin)
+	runtime_hud_root.add_child(panel)
+	runtime_object_info_panel = panel
+	runtime_object_info_cell = cell
+	var renderer_node: Node = field_runtime.get_node_or_null("RoomVisualRenderer")
+	if renderer_node != null and renderer_node is RoomVisualRenderer:
+		var renderer: RoomVisualRenderer = renderer_node
+		var world_pos: Vector2 = renderer.to_global(renderer.grid_to_iso(cell)) + Vector2(44.0, -18.0)
+		var viewport_size: Vector2 = get_viewport().get_visible_rect().size
+		panel.reset_size()
+		var panel_size: Vector2 = panel.get_combined_minimum_size()
+		panel.position = Vector2(clampf(world_pos.x, 8.0, maxf(8.0, viewport_size.x - panel_size.x - 8.0)), clampf(world_pos.y, 8.0, maxf(8.0, viewport_size.y - panel_size.y - 8.0)))
+
 func _handle_runtime_gameplay_mouse_click(event: InputEventMouseButton) -> bool:
 	if app_screen_mode != AppScreenMode.GAMEPLAY:
 		return false
@@ -9967,6 +10033,7 @@ func _handle_runtime_gameplay_mouse_click(event: InputEventMouseButton) -> bool:
 	if cell.x < 0 or cell.y < 0:
 		return false
 	if event.button_index == MOUSE_BUTTON_LEFT:
+		_hide_runtime_object_info_hud()
 		if map_constructor_mode_active:
 			_handle_map_constructor_left_click(cell)
 		else:
@@ -9978,6 +10045,7 @@ func _handle_runtime_gameplay_mouse_click(event: InputEventMouseButton) -> bool:
 			_request_map_constructor_overlay_refresh()
 		else:
 			bipob.handle_grid_cell_right_click(cell)
+			_show_runtime_object_info_hud(cell)
 	var action_cell: Vector2i = Vector2i(-1, -1)
 	if event.button_index == MOUSE_BUTTON_LEFT and bipob.grid_position.distance_to(cell) <= 1:
 		action_cell = cell
@@ -12749,7 +12817,7 @@ func _add_link_picker(section: VBoxContainer, entity_kind: String, entity_id: St
 	var data_variant: Variant = entity_info.get("data", {})
 	if data_variant is Dictionary:
 		data = data_variant.duplicate(true)
-	var field_map := {"linked_door":"target_door_id","power_network":"power_network_id","control_source":"control_source_id","terminal_target":"target_door_id","platform_target":"target_platform_id"}
+	var field_map := {"linked_door":"target_door_id","power_network":"power_network_id","control_source":"control_source_id","terminal_target":"target_door_id","platform_target":"target_platform_id","power_source":"power_source_id","control_terminal":"control_terminal_id","access_terminal":"access_terminal_id"}
 	if not field_map.has(link_type):
 		return
 	var field_name: String = _safe_ui_string(field_map[link_type])
@@ -12824,6 +12892,98 @@ func _add_link_picker(section: VBoxContainer, entity_kind: String, entity_id: St
 	actions.add_child(jump_button)
 	section.add_child(actions)
 
+
+
+func _apply_map_constructor_property_updates(entity_kind: String, entity_id: String, updates: Dictionary, fallback_message: String = "Updated.") -> void:
+	if mission_manager_runtime == null or not mission_manager_runtime.has_method("update_map_constructor_entity_properties"):
+		return
+	var result: Dictionary = mission_manager_runtime.call("update_map_constructor_entity_properties", entity_kind, entity_id, updates)
+	show_hint(_safe_ui_string(result.get("message", fallback_message), fallback_message))
+	_refresh_map_constructor_panels()
+	if field_runtime != null and field_runtime.has_method("request_visual_refresh"):
+		field_runtime.call("request_visual_refresh")
+	_show_map_constructor_inspector(selected_map_constructor_entity_cell, selected_map_constructor_entity_kind, selected_map_constructor_entity_id)
+
+func _add_enum_property(section: VBoxContainer, label: String, entity_kind: String, entity_id: String, field_name: String, current_value: Variant, options: Array[Dictionary]) -> void:
+	var option: OptionButton = OptionButton.new()
+	var current_text: String = _safe_ui_string(current_value).strip_edges().to_lower()
+	var selected_index: int = -1
+	for option_variant in options:
+		var row: Dictionary = Dictionary(option_variant)
+		var value: String = _safe_ui_string(row.get("value", "")).strip_edges()
+		option.add_item(_safe_ui_string(row.get("label", value), value))
+		var index: int = option.item_count - 1
+		option.set_item_metadata(index, value)
+		if value == current_text:
+			selected_index = index
+	if selected_index >= 0:
+		option.select(selected_index)
+	option.item_selected.connect(func(index: int) -> void:
+		_apply_map_constructor_property_updates(entity_kind, entity_id, {field_name: _safe_ui_string(option.get_item_metadata(index))})
+	)
+	section.add_child(_create_property_row(label, option))
+
+func _add_map_constructor_active_settings(parent: VBoxContainer, entity_kind: String, entity_id: String, data: Dictionary, type_group: String) -> void:
+	if not (type_group in ["door", "terminal", "power", "control"]):
+		return
+	var section := _create_inspector_section("Active Object Settings")
+	var power_mode: String = _safe_ui_string(data.get("power_mode", "external" if bool(data.get("requires_external_power", false)) else "internal")).to_lower()
+	_add_enum_property(section, "Power type", entity_kind, entity_id, "power_mode", power_mode, [{"label":"Internal", "value":"internal"}, {"label":"External", "value":"external"}])
+	if power_mode == "external":
+		_add_link_picker(section, entity_kind, entity_id, "power_source", "Power Source Binding")
+	var control_mode: String = _safe_ui_string(data.get("control_mode", "external" if bool(data.get("requires_external_control", false)) else "internal")).to_lower()
+	_add_enum_property(section, "Control type", entity_kind, entity_id, "control_mode", control_mode, [{"label":"Internal", "value":"internal"}, {"label":"External", "value":"external"}])
+	if control_mode == "external":
+		_add_link_picker(section, entity_kind, entity_id, "control_terminal", "Control Terminal Binding")
+	if type_group == "door":
+		var state_note: Label = Label.new()
+		state_note.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+		state_note.text = "Door states: Open, Closed, Locked, Jammed (stored as open/closed/locked/jammed)."
+		section.add_child(state_note)
+		_add_enum_property(section, "Door state", entity_kind, entity_id, "state", data.get("state", "closed"), [{"label":"Open", "value":"open"}, {"label":"Closed", "value":"closed"}, {"label":"Locked", "value":"locked"}, {"label":"Jammed", "value":"jammed"}])
+		var access_type: String = _safe_ui_string(data.get("access_type", data.get("lock_type", "none"))).to_lower()
+		_add_enum_property(section, "Key/access type", entity_kind, entity_id, "access_type", access_type, [{"label":"Mechanical key", "value":"mechanical_key"}, {"label":"Digital key", "value":"digital_key"}, {"label":"Access code", "value":"access_code"}, {"label":"Terminal access", "value":"terminal_access"}, {"label":"No key", "value":"none"}])
+		if access_type in ["mechanical_key", "digital_key", "access_code"]:
+			_add_door_required_key_picker(section, entity_kind, entity_id, data)
+		if access_type in ["digital_key", "access_code"]:
+			if access_type == "access_code":
+				var code_label: Label = Label.new()
+				code_label.text = _safe_ui_string(data.get("access_code_value", "(auto-generated on save)"), "(auto-generated on save)")
+				section.add_child(_create_property_row("Access code", code_label))
+			_add_link_picker(section, entity_kind, entity_id, "access_terminal", "Information/access Terminal Storage")
+		if access_type == "terminal_access":
+			_add_link_picker(section, entity_kind, entity_id, "access_terminal", "Terminal Access Binding")
+	parent.add_child(section)
+
+func _add_validation_entries(section: VBoxContainer, title: String, entries: Array) -> void:
+	var title_label: Label = Label.new()
+	title_label.text = title
+	section.add_child(title_label)
+	if entries.is_empty():
+		var none_label: Label = Label.new()
+		none_label.text = "(none)"
+		section.add_child(none_label)
+		return
+	for entry_variant in entries:
+		if entry_variant is Dictionary:
+			var entry: Dictionary = Dictionary(entry_variant)
+			var target_id: String = _safe_ui_string(entry.get("target_id", entry.get("id", "")))
+			var label_text: String = "%s: %s" % [_safe_ui_string(entry.get("label", entry.get("field_name", "link"))), target_id]
+			var button: Button = Button.new()
+			button.text = label_text
+			button.pressed.connect(func() -> void:
+				var target_kind: String = _safe_ui_string(entry.get("target_kind", "world_object"), "world_object")
+				var target_cell: Vector2i = Vector2i(entry.get("cell", Vector2i(-1, -1)))
+				if target_cell.x >= 0 and target_cell.y >= 0:
+					_focus_map_constructor_cell(target_cell)
+				_show_map_constructor_inspector(target_cell, target_kind, target_id)
+			)
+			section.add_child(button)
+		else:
+			var label: Label = Label.new()
+			label.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+			label.text = _safe_ui_string(entry_variant)
+			section.add_child(label)
 
 func _safe_ui_dictionary(value: Variant) -> Dictionary:
 	if value is Dictionary:
@@ -13099,6 +13259,7 @@ func _show_map_constructor_inspector(cell: Vector2i, preferred_entity_kind: Stri
 		_add_key_door_link_section(v, entity_kind, entity_id, data)
 	if type_group == "door":
 		_add_door_linked_key_section(v, entity_id, data)
+	_add_map_constructor_active_settings(v, entity_kind, entity_id, data, type_group)
 	var placement := _create_inspector_section("Placement")
 	var cell_l:=Label.new(); cell_l.text = _safe_ui_string(entity_info.get("cell", cell), str(cell)); placement.add_child(_create_property_row("Cell", cell_l))
 	var pm_l:=Label.new(); pm_l.text = _safe_ui_string(data.get("placement_mode", "floor"), "floor"); placement.add_child(_create_property_row("Mode", pm_l))
@@ -13411,9 +13572,9 @@ func _show_map_constructor_inspector(cell: Vector2i, preferred_entity_kind: Stri
 	var validation := _create_inspector_section("Validation")
 	if mission_manager_runtime.has_method("validate_map_constructor_entity_links"):
 		var vr: Dictionary = mission_manager_runtime.call("validate_map_constructor_entity_links", entity_kind, entity_id)
-		var warn_label: Label = Label.new(); warn_label.text = "warnings: %s" % _safe_ui_string(vr.get("warnings", [])); validation.add_child(warn_label)
-		var miss_label: Label = Label.new(); miss_label.text = "missing_links: %s" % _safe_ui_string(vr.get("missing_links", [])); validation.add_child(miss_label)
-		var link_label: Label = Label.new(); link_label.text = "linked_targets: %s" % _safe_ui_string(vr.get("linked_targets", [])); validation.add_child(link_label)
+		_add_validation_entries(validation, "Linked", Array(vr.get("linked_targets", [])))
+		_add_validation_entries(validation, "Missing", Array(vr.get("missing_links", [])))
+		_add_validation_entries(validation, "Warnings", Array(vr.get("warnings", [])))
 	v.add_child(validation)
 	runtime_map_constructor_inspector_panel = panel
 	if preserve_scroll_after_rebuild:

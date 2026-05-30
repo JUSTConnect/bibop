@@ -6395,8 +6395,6 @@ func handle_grid_cell_right_click(cell: Vector2i) -> void:
 	clear_selected_route()
 	refresh_world_action_panel()
 	status_changed.emit()
-	if cell.x >= -1:
-		hint_requested.emit("Selection cleared.")
 
 func execute_selected_mouse_route() -> void:
 	start_selected_mouse_route_execution()
@@ -6893,73 +6891,10 @@ func get_visual_position_debug_text() -> String:
 	]
 
 func emit_facing_world_object_hint() -> void:
-	if mission_manager == null:
-		return
-	var facing := get_facing_device_position()
-	var object_data: Dictionary = Dictionary(mission_manager.get_world_object_at_cell(facing))
-	if object_data.is_empty():
-		var items: Array = mission_manager.get_items_at_cell(facing)
-		if items.is_empty():
-			return
-		object_data = Dictionary(items[0])
-	var scan_level := int(object_data.get("scan_level", 0))
-	var generic := String(object_data.get("object_group", "Object")).capitalize()
-	if String(object_data.get("object_group", "")) == "threat" and scan_level <= 0:
-		generic = "Unknown movement"
-	var display_name: String = generic if scan_level <= 0 else String(object_data.get("display_name", generic))
-	var details: Array[String] = []
-	details.append("State: %s" % String(object_data.get("state", "unknown")))
-	if object_data.has("is_powered"):
-		details.append("Powered: %s" % ("Yes" if bool(object_data.get("is_powered", false)) else "No"))
-	if String(object_data.get("object_type", "")).begins_with("power_source"):
-		var load_value := int(object_data.get("source_load", 0))
-		var capacity_value := int(object_data.get("source_capacity", int(object_data.get("allowed_socket_connections", 1))))
-		details.append("Load: %d / %d" % [load_value, maxi(1, capacity_value)])
-		if bool(object_data.get("source_overloaded", false)):
-			details.append("Status: overloaded")
-		if String(object_data.get("state", "")).to_lower() == "overheated":
-			details.append("Status: overheated")
-			details.append("Reason: source overloaded")
-	var power_reason := String(object_data.get("power_unavailable_reason", object_data.get("reason", ""))).strip_edges().to_lower()
-	if power_reason == "blocked_by_gate":
-		details.append("Reason: blocked by gate")
-	elif power_reason == "no_powered_source":
-		details.append("Reason: no powered source")
-	if object_data.has("current_heat") and object_data.has("overheat_threshold"):
-		var threshold := int(object_data.get("overheat_threshold", 0))
-		if threshold > 0:
-			details.append("Heat: %d / %d" % [int(object_data.get("current_heat", 0)), threshold])
-	if String(object_data.get("object_group", "")) == "threat":
-		details.append("Behavior: %s" % String(object_data.get("behavior_state", "idle")))
-		if String(object_data.get("object_type", "")) == "turret":
-			details.append("Attack Range: %d" % int(object_data.get("attack_range", 0)))
-			if String(object_data.get("behavior_state", "")) == "alert":
-				details.append("Target: Bipop")
-	if scan_level >= 2 and bool(object_data.get("revealed_hidden_content", false)):
-		details.append("Hidden: %s" % ", ".join(Array(object_data.get("hidden_content", []))))
-	var actions := get_available_world_actions(object_data, facing)
-	var display_actions: Array[String] = []
-	for action_id in actions:
-		if action_id == "pickup" and String(object_data.get("item_form", "physical")) == "digital":
-			display_actions.append("pickup digital")
-		else:
-			display_actions.append(action_id)
-	var action_text := "No available action for this object."
-	if not actions.is_empty():
-		if not selected_world_action.is_empty() and actions.has(selected_world_action):
-			var selected_display := "pickup digital" if selected_world_action == "pickup" and String(object_data.get("item_form", "physical")) == "digital" else selected_world_action
-			action_text = "Selected: %s" % selected_display
-		else:
-			action_text = "Action: %s" % display_actions[0]
-		if actions.size() > 1:
-			action_text += " | Available: %s" % ", ".join(display_actions)
-	if not actions.is_empty():
-		var selected_label := "None"
-		if not selected_world_action.is_empty() and actions.has(selected_world_action):
-			selected_label = get_world_action_display_label(selected_world_action, object_data)
-		hint_requested.emit("Facing: %s | Selected: %s" % [display_name, selected_label])
-		return
-	hint_requested.emit("%s | %s | %s" % [display_name, " ; ".join(details), action_text])
+	# Passive facing/proximity details are shown by the RMB object info HUD and
+	# compact action row. Do not emit top notifications here; those are reserved
+	# for explicit action results/errors.
+	return
 
 func get_facing_world_action_target() -> Dictionary:
 	var target_position := get_facing_device_position()
@@ -7855,10 +7790,11 @@ func has_collected_runtime_key(key_id: String) -> bool:
 	return bool(mission_manager.call("has_collected_key", key_id))
 
 func has_access_for_door(world_object: Dictionary) -> bool:
+	var access_type: String = String(world_object.get("access_type", world_object.get("lock_type", ""))).strip_edges().to_lower()
 	var required_key_id: String = String(world_object.get("required_key_id", "")).strip_edges()
-	if not required_key_id.is_empty() and has_collected_runtime_key(required_key_id):
+	if access_type in ["none", "no_key"] or required_key_id.is_empty():
 		return true
-	return has_key or has_held_world_item("mechanical_keycard") or has_digital_world_item("digital_key")
+	return has_collected_runtime_key(required_key_id)
 
 func get_collected_runtime_key_ids() -> Array:
 	if mission_manager == null or not mission_manager.has_method("get_inventory_state"):
@@ -7872,6 +7808,12 @@ func get_available_world_actions(world_object: Dictionary, target_position: Vect
 	var state := String(world_object.get("state", ""))
 	var _items_here: Array[Dictionary] = mission_manager.get_items_at_cell(target_position) if mission_manager != null else []
 	if group == "door":
+		if String(world_object.get("control_mode", "internal")).strip_edges().to_lower() == "external":
+			if state in ["damaged", "half_open", "jammed"] and has_heavy_claw():
+				actions.append("force_open")
+			return actions
+		if String(world_object.get("power_mode", "internal")).strip_edges().to_lower() == "external" and not bool(world_object.get("is_powered", true)) and state != "open":
+			return actions
 		if state in ["damaged", "half_open", "jammed"] and has_heavy_claw():
 			actions.append("force_open")
 		if state == "locked":
