@@ -2491,13 +2491,12 @@ func draw_iso_wall_block(cell: Vector2i) -> void:
 	var floor_shadow: PackedVector2Array = PackedVector2Array([base_points[2], base_points[3], base_points[3] + Vector2(0.0, 8.0), base_points[2] + Vector2(0.0, 8.0)])
 	var accent_color: Color = _get_color_from_dict(colors, "accent", Color.WHITE)
 
-	var render_shape: String = String(render_topology.get("shape", "isolated"))
-	var wall_has_run_connection: bool = bool(render_topology.get("run_x", false)) or bool(render_topology.get("run_y", false)) or render_shape.contains("corner_") or render_shape.begins_with("end_cap_")
-	if not wall_has_run_connection and has_drawable_iso_wall_texture(material_override, material_row, wall_profile_key):
-		draw_colored_polygon(floor_shadow, Color(arch.get("shadow_color", Color(0.0, 0.0, 0.0, 0.25))))
-		if draw_iso_wall_texture_for_cell(cell, material_override, material_row, wall_profile_key):
-			draw_iso_wall_debug_and_mount_overlays(cell, arch, topology)
-			return
+	# Standalone walls must stay on the same procedural architectural wall path as
+	# connected runs. Full-cell wall texture assets are legacy placeholders whose
+	# bottom-center alignment makes isolated constructor walls read as hovering
+	# object blocks. Material rows still tint the procedural wall profile below,
+	# so isolated walls retain the selected wall material without using an object
+	# style texture fallback.
 
 	var alpha_mult: float = 1.0
 	if iso_wall_cutaway_enabled and is_wall_adjacent_to_door(cell):
