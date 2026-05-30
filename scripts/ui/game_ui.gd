@@ -10424,7 +10424,7 @@ func _make_map_constructor_multi_row_from_current_selection() -> Dictionary:
 	var entity: Dictionary = mission_manager_runtime.call("get_map_constructor_entity_by_id", selected_map_constructor_entity_kind, selected_map_constructor_entity_id)
 	if not bool(entity.get("ok", false)):
 		return {}
-	var data: Dictionary = Dictionary(entity.get("data", {}))
+	var data: Dictionary = _safe_ui_dictionary(entity.get("data", {}))
 	return {"entity_kind":String(entity.get("entity_kind", selected_map_constructor_entity_kind)), "entity_id":String(entity.get("id", selected_map_constructor_entity_id)), "cell":Vector2i(entity.get("cell", Vector2i(-1, -1))), "object_type":String(data.get("object_type", data.get("item_type", ""))), "created_by_map_constructor":bool(data.get("created_by_map_constructor", false))}
 
 func _refresh_map_constructor_multi_selection_stale() -> void:
@@ -10440,7 +10440,11 @@ func _refresh_map_constructor_multi_selection_stale() -> void:
 		seen[key] = true
 		var entity: Dictionary = mission_manager_runtime.call("get_map_constructor_entity_by_id", String(row.get("entity_kind", "")), String(row.get("entity_id", "")))
 		if bool(entity.get("ok", false)):
-			fresh.append(_make_map_constructor_multi_row_from_current_selection() if String(entity.get("id", "")) == selected_map_constructor_entity_id else {"entity_kind":String(entity.get("entity_kind", "")), "entity_id":String(entity.get("id", "")), "cell":Vector2i(entity.get("cell", Vector2i(-1, -1))), "object_type":String(Dictionary(entity.get("data", {})).get("object_type", Dictionary(entity.get("data", {})).get("item_type", ""))), "created_by_map_constructor":bool(Dictionary(entity.get("data", {})).get("created_by_map_constructor", false))})
+			if String(entity.get("id", "")) == selected_map_constructor_entity_id:
+				fresh.append(_make_map_constructor_multi_row_from_current_selection())
+			else:
+				var entity_data: Dictionary = _safe_ui_dictionary(entity.get("data", {}))
+				fresh.append({"entity_kind":String(entity.get("entity_kind", "")), "entity_id":String(entity.get("id", "")), "cell":Vector2i(entity.get("cell", Vector2i(-1, -1))), "object_type":String(entity_data.get("object_type", entity_data.get("item_type", ""))), "created_by_map_constructor":bool(entity_data.get("created_by_map_constructor", false))})
 	map_constructor_multi_selected_entities = fresh
 
 
@@ -12499,6 +12503,22 @@ func _add_link_picker(section: VBoxContainer, entity_kind: String, entity_id: St
 	actions.add_child(jump_button)
 	section.add_child(actions)
 
+
+func _safe_ui_dictionary(value: Variant) -> Dictionary:
+	if value is Dictionary:
+		return value.duplicate(true)
+	return {}
+
+func _get_map_constructor_key_entity_by_id(key_id: String) -> Dictionary:
+	var normalized_key_id: String = key_id.strip_edges()
+	if normalized_key_id.is_empty() or mission_manager_runtime == null:
+		return {}
+	if mission_manager_runtime.has_method("find_map_constructor_key_item_by_id"):
+		return _safe_ui_dictionary(mission_manager_runtime.call("find_map_constructor_key_item_by_id", normalized_key_id))
+	if mission_manager_runtime.has_method("get_map_constructor_entity_by_id"):
+		return _safe_ui_dictionary(mission_manager_runtime.call("get_map_constructor_entity_by_id", "item", normalized_key_id))
+	return {}
+
 func _restore_map_constructor_inspector_scroll_deferred(scroll: ScrollContainer, scroll_value: int) -> void:
 	if scroll == null or not is_instance_valid(scroll):
 		return
@@ -12507,8 +12527,18 @@ func _restore_map_constructor_inspector_scroll_deferred(scroll: ScrollContainer,
 		scroll.scroll_vertical = scroll_value
 
 func _is_map_constructor_key_item(data: Dictionary, type_group: String) -> bool:
-	var join_text: String = "%s %s %s %s" % [_safe_ui_string(data.get("item_type", "")), _safe_ui_string(data.get("object_type", "")), _safe_ui_string(data.get("key_type", data.get("key_kind", ""))), type_group]
-	return type_group == "item" and join_text.to_lower().find("key") >= 0
+	if type_group != "item":
+		return false
+	if _safe_ui_string(data.get("item_type", "")).strip_edges().to_lower() == "key":
+		return true
+	if not _safe_ui_string(data.get("key_type", "")).strip_edges().is_empty() or not _safe_ui_string(data.get("key_kind", "")).strip_edges().is_empty():
+		return true
+	for field_name in ["prefab", "prefab_id", "category", "item_category", "metadata_category", "object_group", "item_group", "kind", "role"]:
+		var token: String = _safe_ui_string(data.get(field_name, "")).strip_edges().to_lower()
+		if token == "key" or token.begins_with("key_") or token.ends_with("_key") or token.contains("_key_"):
+			return true
+	var id_token: String = _safe_ui_string(data.get("id", "")).strip_edges().to_lower()
+	return id_token == "key" or id_token.begins_with("key_") or id_token.ends_with("_key") or id_token.contains("_key_")
 
 func _add_key_door_link_section(parent: VBoxContainer, entity_kind: String, entity_id: String, data: Dictionary) -> void:
 	if mission_manager_runtime == null or not mission_manager_runtime.has_method("get_map_constructor_key_door_link_candidates"):
@@ -12519,7 +12549,7 @@ func _add_key_door_link_section(parent: VBoxContainer, entity_kind: String, enti
 	current_label.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 	current_label.text = "Unlocks Door: %s" % (current_id if not current_id.is_empty() else "(none)")
 	section.add_child(current_label)
-	var candidates: Dictionary = mission_manager_runtime.call("get_map_constructor_key_door_link_candidates", entity_kind, entity_id)
+	var candidates: Dictionary = _safe_ui_dictionary(mission_manager_runtime.call("get_map_constructor_key_door_link_candidates", entity_kind, entity_id))
 	var doors: Array = Array(candidates.get("doors", []))
 	if doors.is_empty():
 		var none_label := Label.new()
@@ -12529,7 +12559,7 @@ func _add_key_door_link_section(parent: VBoxContainer, entity_kind: String, enti
 	else:
 		var option := OptionButton.new()
 		for door_variant in doors:
-			var door: Dictionary = Dictionary(door_variant)
+			var door: Dictionary = _safe_ui_dictionary(door_variant)
 			option.add_item(_safe_ui_string(door.get("label", door.get("id", "Door"))))
 			var option_index: int = option.item_count - 1
 			var door_id: String = _safe_ui_string(door.get("id", ""))
@@ -12574,15 +12604,18 @@ func _add_door_linked_key_section(parent: VBoxContainer, entity_id: String, data
 	if key_id.is_empty():
 		label.text = "No key linked."
 	else:
-		var key_entity: Dictionary = mission_manager_runtime.call("get_map_constructor_entity_by_id", "", key_id) if mission_manager_runtime != null and mission_manager_runtime.has_method("get_map_constructor_entity_by_id") else {}
-		var key_data: Dictionary = Dictionary(key_entity.get("data", {}))
-		label.text = "%s — %s at %s" % [_safe_ui_string(key_data.get("display_name", key_id), key_id), key_id, str(Vector2i(key_entity.get("cell", Vector2i(-1, -1))))]
+		var key_entity: Dictionary = _get_map_constructor_key_entity_by_id(key_id)
+		var key_data: Dictionary = _safe_ui_dictionary(key_entity.get("data", {}))
+		if bool(key_entity.get("ok", false)):
+			label.text = "%s — %s at %s" % [_safe_ui_string(key_data.get("display_name", key_id), key_id), key_id, str(Vector2i(key_entity.get("cell", Vector2i(-1, -1))))]
+		else:
+			label.text = "Linked key missing: %s" % key_id
 	section.add_child(label)
 	if not key_id.is_empty():
 		var jump_button := Button.new()
 		jump_button.text = "Jump/Select Key"
 		jump_button.pressed.connect(func() -> void:
-			var key_entity: Dictionary = mission_manager_runtime.call("get_map_constructor_entity_by_id", "", key_id)
+			var key_entity: Dictionary = _get_map_constructor_key_entity_by_id(key_id)
 			if bool(key_entity.get("ok", false)):
 				var key_cell: Vector2i = Vector2i(key_entity.get("cell", Vector2i(-1, -1)))
 				_focus_map_constructor_cell(key_cell)
