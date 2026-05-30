@@ -663,6 +663,14 @@ func export_map_constructor_runtime_patch() -> Dictionary:
 			var item_row: Dictionary = item.duplicate(true)
 			item_row["cell"] = _serialize_cell_key(cell)
 			patch["items"].append(item_row)
+	for link_object_variant in mission_world_objects:
+		if not (link_object_variant is Dictionary):
+			continue
+		var door_data: Dictionary = Dictionary(link_object_variant)
+		var door_id: String = String(door_data.get("id", "")).strip_edges()
+		var key_id: String = String(door_data.get("required_key_id", "")).strip_edges()
+		if not door_id.is_empty() and not key_id.is_empty():
+			patch["links"].append({"type":"key_door", "key_id":key_id, "door_id":door_id, "source_id":key_id, "target_id":door_id})
 	var json_text: String = JSON.stringify(patch, "\t")
 	return {"ok": true, "message": "Runtime patch exported.", "patch": patch, "json": json_text, "object_count": Array(patch.get("objects", [])).size(), "item_count": Array(patch.get("items", [])).size(), "tile_edit_count": 0}
 
@@ -1882,6 +1890,9 @@ func get_map_constructor_prefab_palette_rows(options: Dictionary = {}) -> Dictio
 		var prefab_id: String = String(catalog_entry.get("id", "")).strip_edges()
 		if prefab_id.is_empty():
 			continue
+		for link_field in ["control_source_id", "linked_terminal_id", "controller_id", "target_door_id", "target_platform_id", "linked_object_id", "target_object_id", "required_key_id"]:
+			if object_data.has(link_field):
+				row[link_field] = object_data.get(link_field, "")
 		var meta_result: Dictionary = get_map_constructor_prefab_metadata(prefab_id)
 		var meta: Dictionary = Dictionary(meta_result.get("prefab", {})).duplicate(true)
 		var category: String = String(meta.get("category", ""))
@@ -3136,6 +3147,9 @@ func get_map_constructor_placed_object_rows() -> Array[Dictionary]:
 			"attached_wall_cell": Vector2i(-1, -1),
 			"wall_side": String(object_data.get("wall_side", ""))
 		}
+		for link_field in ["control_source_id", "linked_terminal_id", "controller_id", "target_door_id", "target_platform_id", "linked_object_id", "target_object_id", "required_key_id"]:
+			if object_data.has(link_field):
+				row[link_field] = object_data.get(link_field, "")
 		var meta_result: Dictionary = get_map_constructor_prefab_metadata(prefab_id)
 		if bool(meta_result.get("ok", false)):
 			var prefab_meta: Dictionary = Dictionary(meta_result.get("prefab", {}))
@@ -3163,7 +3177,8 @@ func get_map_constructor_placed_object_rows() -> Array[Dictionary]:
 				"category_or_placement": "item",
 				"placement_mode": "item",
 				"attached_wall_cell": Vector2i(-1, -1),
-				"wall_side": ""
+				"wall_side": "",
+				"linked_door_id": String(item_data.get("linked_door_id", ""))
 			})
 			var meta_item: Dictionary = get_map_constructor_prefab_metadata(String(item_data.get("map_constructor_prefab_id", "")))
 			if bool(meta_item.get("ok", false)):
@@ -3213,7 +3228,7 @@ func _get_map_constructor_editable_field_schema() -> Dictionary:
 		"required_key_id":"string","lock_type":"string","linked_terminal_id":"string","required_connector_level":"int","required_processor_level":"int",
 		"control_source_id":"string","connected_device_ids":"array_string","target_door_id":"string","target_platform_id":"string","requires_external_control":"bool","requires_terminal_enabled":"bool",
 		"requires_external_power":"bool","current_heat":"int","working_heat":"int","overheat_threshold":"int",
-		"item_type":"string","digital_state":"string","key_kind":"string","damaged":"bool"
+		"item_type":"string","digital_state":"string","key_kind":"string","key_type":"string","display_name":"string","description":"string","custom_description":"string","linked_door_id":"string","damaged":"bool"
 	}
 
 func get_map_constructor_editable_fields_for_entity(entity_id: String, entity_kind: String = "") -> Array[Dictionary]:
@@ -3487,6 +3502,77 @@ func _map_constructor_make_link_target(target_id: String, label: String, target_
 
 func _map_constructor_add_none_target(targets: Array[Dictionary]) -> void:
 	targets.append(_map_constructor_make_link_target("__none__", "<clear>", "none", Vector2i(-1, -1), "warning", "clear_value"))
+
+func _map_constructor_is_door_data(data: Dictionary) -> bool:
+	var text: String = "%s %s %s" % [String(data.get("object_type", "")), String(data.get("object_group", data.get("group", ""))), String(data.get("id", ""))]
+	text = text.to_lower()
+	return text.contains("door") or text.contains("gate")
+
+func _map_constructor_is_key_data(data: Dictionary) -> bool:
+	var text: String = "%s %s %s %s" % [String(data.get("item_type", "")), String(data.get("object_type", "")), String(data.get("key_type", data.get("key_kind", ""))), String(data.get("id", ""))]
+	return text.to_lower().contains("key")
+
+func _map_constructor_get_linked_key_for_door(door_id: String) -> String:
+	var normalized_door_id: String = door_id.strip_edges()
+	if normalized_door_id.is_empty():
+		return ""
+	var door_entity: Dictionary = get_map_constructor_entity_by_id("world_object", normalized_door_id)
+	if bool(door_entity.get("ok", false)):
+		var door_data: Dictionary = Dictionary(door_entity.get("data", {}))
+		var required_key_id: String = String(door_data.get("required_key_id", "")).strip_edges()
+		if not required_key_id.is_empty():
+			return required_key_id
+	for cell_variant in cell_items.keys():
+		for item_variant in Array(cell_items.get(cell_variant, [])):
+			if not (item_variant is Dictionary):
+				continue
+			var item_data: Dictionary = Dictionary(item_variant)
+			if String(item_data.get("linked_door_id", "")).strip_edges() == normalized_door_id:
+				return String(item_data.get("id", "")).strip_edges()
+	return ""
+
+func _map_constructor_format_door_link_label(door_data: Dictionary, door_cell: Vector2i) -> String:
+	var door_id: String = String(door_data.get("id", "")).strip_edges()
+	var display_name: String = String(door_data.get("display_name", door_data.get("name", ""))).strip_edges()
+	if display_name.is_empty():
+		display_name = "Door"
+	return "%s — %s at (%d, %d)" % [display_name, door_id, door_cell.x, door_cell.y]
+
+func get_map_constructor_key_door_link_candidates(entity_kind: String, entity_id: String) -> Dictionary:
+	var entity: Dictionary = get_map_constructor_entity_by_id(entity_kind, entity_id)
+	if not bool(entity.get("ok", false)):
+		return {"ok": false, "doors": [], "message": "Key item not found."}
+	var data: Dictionary = Dictionary(entity.get("data", {}))
+	if not _map_constructor_is_key_data(data):
+		return {"ok": false, "doors": [], "message": "Selected item is not a key."}
+	var current_door_id: String = String(data.get("linked_door_id", "")).strip_edges()
+	var key_kind: String = String(data.get("key_type", data.get("key_kind", data.get("item_type", "")))).strip_edges().to_lower()
+	var all_door_count: int = 0
+	var doors: Array[Dictionary] = []
+	for object_variant in mission_world_objects:
+		if not (object_variant is Dictionary):
+			continue
+		var door_data: Dictionary = Dictionary(object_variant)
+		if not _map_constructor_is_door_data(door_data):
+			continue
+		all_door_count += 1
+		var door_id: String = String(door_data.get("id", "")).strip_edges()
+		if door_id.is_empty():
+			continue
+		var lock_type: String = String(door_data.get("lock_type", "")).strip_edges().to_lower()
+		if not key_kind.is_empty() and not lock_type.is_empty() and lock_type != "none" and not lock_type.contains(key_kind) and not key_kind.contains(lock_type):
+			continue
+		var linked_key_id: String = _map_constructor_get_linked_key_for_door(door_id)
+		if not linked_key_id.is_empty() and linked_key_id != entity_id and door_id != current_door_id:
+			continue
+		var door_cell: Vector2i = Vector2i(door_data.get("position", Vector2i(-1, -1)))
+		doors.append({"id": door_id, "label": _map_constructor_format_door_link_label(door_data, door_cell), "cell": door_cell, "current": door_id == current_door_id})
+	var message: String = "Door candidates ready."
+	if all_door_count <= 0:
+		message = "No compatible doors placed on the map."
+	elif doors.is_empty():
+		message = "No unlinked compatible doors available."
+	return {"ok": true, "doors": doors, "message": message, "current_door_id": current_door_id}
 
 func get_map_constructor_link_targets_for_field(entity_kind: String, entity_id: String, field_name: String) -> Dictionary:
 	var result: Dictionary = {"ok": false, "field_name": field_name, "targets": [], "message": "Unsupported field."}
@@ -4040,9 +4126,39 @@ func get_map_constructor_link_candidates(entity_kind: String, entity_id: String,
 			known[network_id] = true
 	return out
 
+func _set_map_constructor_key_door_link(entity_kind: String, key_id: String, door_id: String) -> Dictionary:
+	var key_entity: Dictionary = get_map_constructor_entity_by_id(entity_kind, key_id)
+	if not bool(key_entity.get("ok", false)):
+		return {"ok": false, "message": "Key item not found.", "target_id": door_id}
+	var old_door_id: String = String(Dictionary(key_entity.get("data", {})).get("linked_door_id", "")).strip_edges()
+	if not old_door_id.is_empty() and old_door_id != door_id:
+		var old_door: Dictionary = get_map_constructor_entity_by_id("world_object", old_door_id)
+		if bool(old_door.get("ok", false)) and String(Dictionary(old_door.get("data", {})).get("required_key_id", "")).strip_edges() == key_id:
+			apply_map_constructor_property_update("world_object", old_door_id, "required_key_id", "")
+	var normalized_door_id: String = door_id.strip_edges()
+	if not normalized_door_id.is_empty():
+		var door_entity: Dictionary = get_map_constructor_entity_by_id("world_object", normalized_door_id)
+		if not bool(door_entity.get("ok", false)):
+			return {"ok": false, "message": "Linked door not found.", "target_id": normalized_door_id}
+		var existing_key: String = _map_constructor_get_linked_key_for_door(normalized_door_id)
+		if not existing_key.is_empty() and existing_key != key_id:
+			return {"ok": false, "message": "Door already has a linked key.", "target_id": normalized_door_id}
+	var key_apply: Dictionary = apply_map_constructor_property_update(String(key_entity.get("entity_kind", entity_kind)), key_id, "linked_door_id", normalized_door_id)
+	if not bool(key_apply.get("ok", false)):
+		return key_apply
+	if not normalized_door_id.is_empty():
+		apply_map_constructor_property_update("world_object", normalized_door_id, "required_key_id", key_id)
+	var target_cell: Vector2i = Vector2i(-1, -1)
+	var target_entity: Dictionary = get_map_constructor_entity_by_id("world_object", normalized_door_id)
+	if bool(target_entity.get("ok", false)):
+		target_cell = Vector2i(target_entity.get("cell", Vector2i(-1, -1)))
+	return {"ok": true, "message": "Door link updated.", "target_cell": target_cell, "target_id": normalized_door_id}
+
 func set_map_constructor_entity_link(entity_kind: String, entity_id: String, link_type: String, target_id: String) -> Dictionary:
-	var field_map := {"linked_door":"target_door_id","power_network":"power_network_id","control_source":"control_source_id","terminal_target":"target_door_id","platform_target":"target_platform_id"}
+	var field_map := {"linked_door":"target_door_id","power_network":"power_network_id","control_source":"control_source_id","terminal_target":"target_door_id","platform_target":"target_platform_id","key_door":"linked_door_id"}
 	if not field_map.has(link_type): return {"ok":false,"message":"Unsupported link type.","target_id":target_id}
+	if link_type == "key_door":
+		return _set_map_constructor_key_door_link(entity_kind, entity_id, target_id)
 	var apply: Dictionary = apply_map_constructor_link_target(entity_kind, entity_id, String(field_map[link_type]), target_id)
 	var target_cell: Vector2i = Vector2i(-1, -1)
 	var target_entity: Dictionary = get_map_constructor_entity_by_id("world_object", target_id)
@@ -4057,7 +4173,7 @@ func validate_map_constructor_entity_links(entity_kind: String, entity_id: Strin
 	if not bool(entity.get("ok", false)):
 		return {"ok": false, "warnings": ["Entity not found."], "missing_links": [], "linked_targets": []}
 	var data: Dictionary = Dictionary(entity.get("data", {}))
-	for key in ["target_door_id","linked_terminal_id","control_source_id","required_key_id"]:
+	for key in ["target_door_id","linked_terminal_id","control_source_id","required_key_id","linked_door_id"]:
 		var tid: String = String(data.get(key, "")).strip_edges()
 		if tid.is_empty():
 			continue
@@ -4705,6 +4821,45 @@ func get_map_constructor_validation_issues() -> Array[Dictionary]:
 				var has_power_metadata: bool = door_object_data.has("is_powered") or door_object_data.has("powered") or door_object_data.has("requires_power") or door_object_data.has("requires_external_power") or not String(door_object_data.get("power_network_id", "")).strip_edges().is_empty()
 				if not has_power_metadata:
 					issues.append(_make_map_constructor_issue("powered_gate_missing_power_metadata_%s" % door_object_id, "warning", "Powered gate has no power metadata for visual state diagnostics.", door_object_cell, source_name, "world_object", door_object_id, "Add optional power metadata if this gate should show powered/unpowered state."))
+	var key_link_counts_by_door: Dictionary = {}
+	for cell_variant in cell_items.keys():
+		var key_cell: Vector2i = _deserialize_cell_variant(cell_variant)
+		for item_variant in Array(cell_items.get(cell_variant, [])):
+			if not (item_variant is Dictionary):
+				continue
+			var key_data: Dictionary = Dictionary(item_variant)
+			if not _map_constructor_is_key_data(key_data):
+				continue
+			var key_id: String = String(key_data.get("id", "")).strip_edges()
+			var linked_door_id: String = String(key_data.get("linked_door_id", "")).strip_edges()
+			if linked_door_id.is_empty():
+				issues.append(_make_map_constructor_issue("key_missing_door_%s" % key_id, "warning", "Key is not linked to any door.", key_cell, source_name, "item", key_id, "Link this key to an installed door."))
+			else:
+				if not bool(get_map_constructor_entity_by_id("world_object", linked_door_id).get("ok", false)):
+					issues.append(_make_map_constructor_issue("key_linked_door_missing_%s" % key_id, "error", "Linked door not found.", key_cell, source_name, "item", key_id, "Relink or clear linked_door_id."))
+				if not key_link_counts_by_door.has(linked_door_id):
+					key_link_counts_by_door[linked_door_id] = []
+				key_link_counts_by_door[linked_door_id].append(key_id)
+	for door_variant in mission_world_objects:
+		if not (door_variant is Dictionary):
+			continue
+		var door_data_for_link: Dictionary = Dictionary(door_variant)
+		if not _map_constructor_is_door_data(door_data_for_link):
+			continue
+		var door_id_for_link: String = String(door_data_for_link.get("id", "")).strip_edges()
+		var door_cell_for_link: Vector2i = _deserialize_cell_variant(door_data_for_link.get("position", Vector2i(-1, -1)))
+		var required_key_id: String = String(door_data_for_link.get("required_key_id", "")).strip_edges()
+		var lock_type: String = String(door_data_for_link.get("lock_type", "")).strip_edges().to_lower()
+		var door_requires_key: bool = lock_type.contains("key") or not required_key_id.is_empty()
+		if door_requires_key and required_key_id.is_empty():
+			issues.append(_make_map_constructor_issue("door_missing_key_%s" % door_id_for_link, "warning", "Door requires a key but no key is linked.", door_cell_for_link, source_name, "world_object", door_id_for_link, "Link a compatible key."))
+		elif not required_key_id.is_empty() and not bool(get_map_constructor_entity_by_id("", required_key_id).get("ok", false)):
+			issues.append(_make_map_constructor_issue("door_linked_key_missing_%s" % door_id_for_link, "error", "Linked key not found.", door_cell_for_link, source_name, "world_object", door_id_for_link, "Relink or clear required_key_id."))
+	for door_id_variant in key_link_counts_by_door.keys():
+		var linked_keys: Array = Array(key_link_counts_by_door.get(door_id_variant, []))
+		if linked_keys.size() > 1:
+			var door_entity_for_duplicate: Dictionary = get_map_constructor_entity_by_id("world_object", String(door_id_variant))
+			issues.append(_make_map_constructor_issue("door_duplicate_key_links_%s" % String(door_id_variant), "error", "Multiple keys link to the same door.", Vector2i(door_entity_for_duplicate.get("cell", Vector2i(-1, -1))), source_name, "world_object", String(door_id_variant), "Keep one key-door link."))
 	return issues
 
 func _map_constructor_collect_world_ids() -> Dictionary:
