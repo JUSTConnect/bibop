@@ -5027,6 +5027,7 @@ func _apply_runtime_hud_layout() -> void:
 	runtime_notification_label.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	runtime_notification_label.add_theme_color_override("font_color", UI_COLOR_TEXT_DIM)
 	notification_margin.add_child(runtime_notification_label)
+	_refresh_runtime_notification_fallback()
 
 	var right_x: float = viewport.x - sidebar_width - margin
 	var switcher_height: float = 0.0
@@ -5106,6 +5107,35 @@ func _apply_runtime_hud_layout() -> void:
 func _refresh_runtime_mission_objective_label() -> void:
 	if mission_goal_value_label != null:
 		mission_goal_value_label.text = _get_runtime_mission_objective_text()
+	if runtime_notification_timer <= 0.0:
+		_refresh_runtime_notification_fallback()
+
+
+func _get_runtime_secondary_objective_text() -> String:
+	if bipob != null and bipob.has_method("get_current_mission_goal_hint"):
+		var bipob_hint: String = String(bipob.call("get_current_mission_goal_hint")).strip_edges()
+		if not bipob_hint.is_empty():
+			return bipob_hint
+	var mission_index: int = _get_runtime_active_mission_index()
+	var mission_id: String = "mission_%d" % mission_index
+	if mission_manager_runtime != null and is_instance_valid(mission_manager_runtime) and mission_manager_runtime.has_method("get_mission_objective_hint"):
+		var objective_hint: String = String(mission_manager_runtime.call("get_mission_objective_hint", mission_id)).strip_edges()
+		if not objective_hint.is_empty() and not objective_hint.contains("legacy BipobController logic"):
+			return objective_hint
+	return ""
+
+
+func _refresh_runtime_notification_fallback() -> void:
+	if runtime_notification_label == null:
+		return
+	runtime_notification_timer = 0.0
+	runtime_notification_role = "neutral"
+	runtime_notification_label.modulate = Color.WHITE
+	var secondary_text := _get_runtime_secondary_objective_text()
+	runtime_notification_label.text = secondary_text
+	runtime_notification_label.add_theme_color_override("font_color", UI_COLOR_TEXT_DIM)
+	if runtime_notification_panel != null:
+		runtime_notification_panel.add_theme_stylebox_override("panel", _make_panel_style(UI_COLOR_PANEL_DARK, UI_COLOR_BORDER_DIM, 1, 8))
 
 
 func _get_runtime_mission_objective_text() -> String:
@@ -9514,9 +9544,8 @@ func _process_runtime_interaction_feedback(delta: float) -> void:
 		if runtime_notification_label != null:
 			var pulse := 0.70 + 0.30 * abs(sin(Time.get_ticks_msec() / 180.0))
 			runtime_notification_label.modulate = Color(1, 1, 1, pulse)
-	elif runtime_notification_label != null and not runtime_notification_label.text.is_empty():
-		runtime_notification_label.text = ""
-		runtime_notification_label.modulate = Color.WHITE
+	elif runtime_notification_label != null:
+		_refresh_runtime_notification_fallback()
 	if bipob == null:
 		return
 	_refresh_runtime_interaction_controls()
@@ -13702,9 +13731,7 @@ func _refresh_runtime_storage_panel() -> void:
 			take_button.disabled = not enabled
 			take_button.visible = enabled
 	var inventory_state: Dictionary = bipob.get_inventory_state() if bipob.has_method("get_inventory_state") else {}
-	var collected_key_ids: Array = Array(inventory_state.get("collected_key_ids", []))
-	if collected_key_ids.is_empty() and bool(bipob.has_key):
-		collected_key_ids.append("physical_key")
+	var collected_key_ids: Array = _get_runtime_display_key_ids(inventory_state)
 	for key_index in range(runtime_key_slots.size()):
 		var key_slot: Control = runtime_key_slots[key_index]
 		var key_label := key_slot.get_node_or_null("KeySlotLabel") as Label
@@ -13712,7 +13739,7 @@ func _refresh_runtime_storage_panel() -> void:
 		key_slot.modulate = Color.WHITE if has_key_slot else UI_COLOR_DISABLED
 		if key_label != null:
 			var key_id := String(collected_key_ids[key_index]) if has_key_slot else ""
-			key_label.text = _get_runtime_key_display_text(key_id) if has_key_slot else "-"
+			key_label.text = _get_runtime_key_display_text(key_id, inventory_state) if has_key_slot else "-"
 	var digital_available: int = 1
 	runtime_digital_store_title_label.text = "STORE %d/%d" % [digital_available, runtime_digital_slots.size()]
 	for i in range(runtime_digital_slots.size()):
@@ -13730,20 +13757,41 @@ func _refresh_runtime_storage_panel() -> void:
 	_apply_runtime_storage_collapsed_state()
 
 
-func _get_runtime_key_display_text(key_id: String) -> String:
+func _get_runtime_display_key_ids(inventory_state: Dictionary) -> Array:
+	var display_key_ids: Array = []
+	var seen: Dictionary = {}
+	var runtime_map: Dictionary = Dictionary(inventory_state.get("world_item_runtime", {}))
+	var raw_collected_key_ids: Array = Array(inventory_state.get("collected_key_ids", []))
+	for key_value in raw_collected_key_ids:
+		var key_id: String = String(key_value).strip_edges()
+		if key_id.is_empty() or seen.has(key_id):
+			continue
+		var item_runtime: Dictionary = Dictionary(runtime_map.get(key_id, {}))
+		if not item_runtime.is_empty() and not bool(item_runtime.get("in_inventory", true)):
+			continue
+		seen[key_id] = true
+		display_key_ids.append(key_id)
+	if raw_collected_key_ids.is_empty() and display_key_ids.is_empty() and bool(bipob.has_key):
+		display_key_ids.append("physical_key")
+	return display_key_ids
+
+
+func _get_runtime_key_display_text(key_id: String, inventory_state: Dictionary = {}) -> String:
 	var text := key_id.strip_edges()
 	if text.is_empty():
 		return "-"
+	var runtime_map: Dictionary = Dictionary(inventory_state.get("world_item_runtime", {}))
+	var item_runtime: Dictionary = Dictionary(runtime_map.get(text, {}))
+	var item_data: Dictionary = Dictionary(item_runtime.get("item_data", {}))
+	var display_name: String = String(item_data.get("display_name", "")).strip_edges()
+	if not display_name.is_empty():
+		return display_name
+	var item_data_id: String = String(item_data.get("id", "")).strip_edges()
+	if not item_data_id.is_empty():
+		return item_data_id
 	if text == "physical_key":
 		return "Key"
-	text = text.replace("task_test_item_", "")
-	text = text.replace("mechanical_keycard", "Key")
-	text = text.replace("mechanical_key", "Key")
-	text = text.replace("digital_key", "D-Key")
-	text = text.replace("_", " ").strip_edges()
-	if text.length() > 12:
-		text = text.substr(0, 12)
-	return text.capitalize()
+	return text
 
 func _on_storage_take_pressed() -> void:
 	bipob.move_pocket_to_manipulator(selected_pocket_slot)

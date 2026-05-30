@@ -56,7 +56,8 @@ static func apply_action(actor: Dictionary, module: Dictionary, target_object: D
 			if not door_gate.success:
 				return door_gate
 			var required_key_id: String = String(target_object.get("required_key_id", "")).strip_edges()
-			if not required_key_id.is_empty() and not Array(actor.get("collected_key_ids", [])).has(required_key_id):
+			var has_required_key := not required_key_id.is_empty() and Array(actor.get("collected_key_ids", [])).has(required_key_id)
+			if not required_key_id.is_empty() and not has_required_key:
 				return _result(false, "No matching key.")
 			if module_id in ["mechanical_keycard", "digital_key_opened"]:
 				target_object["state"] = "closed"
@@ -64,7 +65,8 @@ static func apply_action(actor: Dictionary, module: Dictionary, target_object: D
 				target_object["locked"] = false
 				target_object["is_open"] = false
 				target_object["blocks_movement"] = true
-				return _result(true, "Door unlocked.", [{"type":"door_unlocked"},{"type":"set_state","state":"closed"},{"type":"set_blocks_movement","value":true},{"type":"set_bool","field":"is_locked","value":false},{"type":"set_bool","field":"locked","value":false},{"type":"set_bool","field":"is_open","value":false}])
+				var unlock_message := "Door unlocked with key." if has_required_key else "Door unlocked."
+				return _result(true, unlock_message, [{"type":"door_unlocked"},{"type":"set_state","state":"closed"},{"type":"set_blocks_movement","value":true},{"type":"set_bool","field":"is_locked","value":false},{"type":"set_bool","field":"locked","value":false},{"type":"set_bool","field":"is_open","value":false}])
 			if module_id == "digital_key_encrypted":
 				return _result(false, "File rejected: encrypted.")
 			if module_id == "digital_key_damaged":
