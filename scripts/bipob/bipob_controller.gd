@@ -6005,15 +6005,7 @@ func _unhandled_input(event: InputEvent) -> void:
 	if map_constructor_input_blocked:
 		return
 	
-	if event.is_action_pressed("move_forward"):
-		move_forward()
-	elif event.is_action_pressed("move_backward"):
-		move_backward()
-	elif event.is_action_pressed("turn_left"):
-		turn_left()
-	elif event.is_action_pressed("turn_right"):
-		turn_right()
-	elif event.is_action_pressed("end_turn"):
+	if event.is_action_pressed("end_turn"):
 		end_turn()
 	elif event.is_action_pressed("interact"):
 		interact()
