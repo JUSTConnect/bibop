@@ -13754,12 +13754,11 @@ func _refresh_runtime_interaction_controls() -> void:
 	var actions: Array = Array(target_data.get("actions", []))
 	var has_interactable := not target_object.is_empty() and not actions.is_empty()
 	var has_actions_left := bipob != null and int(bipob.actions_left) > 0
-	var manipulator_blocked := has_interactable and _is_runtime_interaction_manipulator_blocked(target_object, actions)
 	if runtime_interaction_mode_active and (not has_interactable or not has_actions_left):
 		runtime_interaction_mode_active = false
 	if runtime_action_button != null:
 		runtime_action_button.text = "Cancel" if runtime_interaction_mode_active else "Action"
-		_apply_action_button_style(runtime_action_button, "danger" if manipulator_blocked else "primary", true)
+		_apply_action_button_style(runtime_action_button, "danger" if runtime_interaction_mode_active else "primary", true)
 	if runtime_end_turn_button != null:
 		_apply_action_button_style(runtime_end_turn_button, "reference", true)
 	if runtime_interaction_actions_row == null:
@@ -13777,14 +13776,23 @@ func _refresh_runtime_interaction_controls() -> void:
 	runtime_interaction_actions_row.visible = runtime_interaction_mode_active
 	if not runtime_interaction_mode_active:
 		return
+	for leading_column_index in range(2):
+		var leading_spacer := Control.new()
+		leading_spacer.name = "RuntimeInteractionActionSpacer%d" % (leading_column_index + 1)
+		leading_spacer.custom_minimum_size = runtime_action_button.custom_minimum_size
+		leading_spacer.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+		runtime_interaction_actions_row.add_child(leading_spacer)
 	for action_variant in actions:
 		var action_id := String(action_variant)
 		var button := _create_runtime_control_button(bipob.get_world_action_display_label(action_id, target_object), Callable(self, "_on_runtime_interaction_action_pressed").bind(action_id), "primary")
-		button.custom_minimum_size = Vector2(96, 30)
+		button.custom_minimum_size = runtime_action_button.custom_minimum_size
 		runtime_interaction_actions_row.add_child(button)
-	var cancel_button := _create_runtime_control_button("Cancel", Callable(self, "_exit_runtime_interaction_mode"), "danger")
-	cancel_button.custom_minimum_size = Vector2(96, 30)
-	runtime_interaction_actions_row.add_child(cancel_button)
+	for trailing_column_index in range(max(0, 2 - actions.size())):
+		var trailing_spacer := Control.new()
+		trailing_spacer.name = "RuntimeInteractionActionTrailingSpacer%d" % (trailing_column_index + 1)
+		trailing_spacer.custom_minimum_size = runtime_action_button.custom_minimum_size
+		trailing_spacer.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+		runtime_interaction_actions_row.add_child(trailing_spacer)
 
 func _enter_runtime_interaction_mode() -> void:
 	runtime_interaction_mode_active = true
