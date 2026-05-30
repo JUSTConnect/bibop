@@ -10739,7 +10739,7 @@ func _add_map_constructor_controls_hint(parent: VBoxContainer) -> void:
 	var hint_label: Label = Label.new()
 	hint_label.text = "LMB — select/place/preview   RMB — clear selection   WASD / arrows — pan map"
 	hint_label.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
-	hint_label.add_theme_color_override("font_color", UI_COLOR_TEXT_MUTED)
+	hint_label.add_theme_color_override("font_color", UI_COLOR_TEXT_DIM)
 	hint_label.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	parent.add_child(hint_label)
 
