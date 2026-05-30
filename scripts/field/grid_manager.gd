@@ -400,6 +400,11 @@ func get_default_floor_visual_state(cell: Vector2i = Vector2i(-1, -1)) -> Dictio
 		base_variant = ((cell.x * 3 + cell.y * 5) % 6) + 1
 	return make_floor_visual_state(FLOOR_FAMILY_METAL, FLOOR_WEAR_NONE, base_variant)
 
+func _safe_floor_visual_state_dictionary(value: Variant) -> Dictionary:
+	if value is Dictionary:
+		return Dictionary(value).duplicate(true)
+	return {}
+
 func set_floor_visual_state(cell: Vector2i, state: Dictionary) -> void:
 	if not is_in_bounds(cell):
 		push_error("GridManager: cannot set floor state outside map bounds: " + str(cell))
@@ -423,8 +428,39 @@ func get_floor_visual_state(cell: Vector2i) -> Dictionary:
 		return make_floor_visual_state(FLOOR_FAMILY_METAL)
 	var key: String = _get_floor_state_key(cell)
 	if floor_visual_states.has(key):
-		return Dictionary(floor_visual_states.get(key, {}))
+		return _safe_floor_visual_state_dictionary(floor_visual_states.get(key, {}))
 	return get_default_floor_visual_state(cell)
+
+func get_floor_visual_state_overrides() -> Array[Dictionary]:
+	var rows: Array[Dictionary] = []
+	var keys: Array = floor_visual_states.keys()
+	keys.sort()
+	for key_variant in keys:
+		var key: String = String(key_variant)
+		var parts: PackedStringArray = key.split(",")
+		if parts.size() != 2:
+			continue
+		var cell: Vector2i = Vector2i(int(parts[0]), int(parts[1]))
+		if not is_in_bounds(cell):
+			continue
+		var state: Dictionary = _safe_floor_visual_state_dictionary(floor_visual_states.get(key, {}))
+		if state.is_empty():
+			continue
+		var row: Dictionary = make_floor_visual_state(
+			String(state.get("family", FLOOR_FAMILY_METAL)),
+			String(state.get("wear", FLOOR_WEAR_NONE)),
+			int(state.get("base_variant", -1)),
+			int(state.get("overlay_variant", -1)),
+			bool(state.get("mirror_h", false)),
+			bool(state.get("mirror_v", false))
+		)
+		row["cell"] = cell
+		rows.append(row)
+	return rows
+
+func clear_floor_visual_states() -> void:
+	floor_visual_states.clear()
+	request_visual_refresh()
 
 func get_floor_family_for_cell(cell: Vector2i) -> String:
 	return String(get_floor_visual_state(cell).get("family", FLOOR_FAMILY_METAL))
@@ -435,6 +471,22 @@ func get_floor_wear_for_cell(cell: Vector2i) -> String:
 func is_wheeled_gear_module(gear: BipobModule) -> bool:
 	if gear == null:
 		return false
+	var movement_type: String = String(gear.movement_type).strip_edges().to_lower()
+	if movement_type in ["wheel", "wheels", "wheeled"]:
+		return true
+	if not movement_type.is_empty() and movement_type in ["leg", "legs", "tracked", "track", "tracks", "hover", "walker"]:
+		return false
+	var terrain_type: String = String(gear.terrain_type).strip_edges().to_lower()
+	if terrain_type in ["wheel", "wheels", "wheeled"]:
+		return true
+	var tags_variant: Variant = gear.get("tags")
+	if tags_variant is Array:
+		for tag_variant in Array(tags_variant):
+			var tag: String = String(tag_variant).strip_edges().to_lower()
+			if tag in ["wheel", "wheels", "wheeled", "wheeled_gear", "wheeled_chassis"]:
+				return true
+			if tag in ["leg", "legs", "tracked", "tracks", "hover"]:
+				return false
 	var identifiers: Array = [gear.id, gear.module_id, gear.display_name, gear.get_display_name()]
 	for identifier in identifiers:
 		if String(identifier).to_lower().contains("wheel"):

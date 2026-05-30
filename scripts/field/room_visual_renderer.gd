@@ -120,6 +120,9 @@ const ISO_FLOOR_ATLAS_COLUMNS: int = 6
 const ISO_FLOOR_ATLAS_ROWS: int = 7
 const ISO_FLOOR_ATLAS_BASE_VARIANTS: int = 6
 const ISO_FLOOR_ATLAS_HEAVY_METAL_VARIANTS: int = 4
+# The source atlas is 7524x8778, giving 1254x1254 frames in a 6x7 grid.
+# Each frame is a high-resolution render of one isometric floor cell and is
+# intentionally downsampled into the current iso_tile_width x iso_tile_height.
 const ISO_FLOOR_ATLAS_LAYOUT: Dictionary = {
 	"grate_base": {"row": 1, "variants": 6, "overlay": false},
 	"metal_base": {"row": 2, "variants": 6, "overlay": false},
@@ -2601,6 +2604,12 @@ func draw_iso_wall_grate_accent(left_face: PackedVector2Array, right_face: Packe
 		draw_line(left_face[0].lerp(left_face[1], column), left_face[3].lerp(left_face[2], column), bar_color, 1.7)
 		draw_line(right_face[0].lerp(right_face[1], column), right_face[3].lerp(right_face[2], column), bar_color, 1.7)
 
+func _safe_variant_dictionary(value: Variant, duplicate: bool = false) -> Dictionary:
+	if value is Dictionary:
+		var dictionary: Dictionary = Dictionary(value)
+		return dictionary.duplicate(true) if duplicate else dictionary
+	return {}
+
 func get_floor_atlas_cell_size() -> Vector2:
 	if iso_floor_atlas_texture == null:
 		return Vector2.ZERO
@@ -2618,9 +2627,11 @@ func get_floor_atlas_region(row: int, position: int) -> Rect2:
 	return Rect2(Vector2(float(safe_position - 1) * cell_size.x, float(safe_row - 1) * cell_size.y), cell_size)
 
 func get_floor_state_for_cell(cell: Vector2i) -> Dictionary:
+	var fallback: Dictionary = {"family": "metal", "wear": "none", "base_variant": -1, "overlay_variant": -1, "mirror_h": false, "mirror_v": false}
 	if _grid_manager == null or not _grid_manager.has_method("get_floor_visual_state"):
-		return {"family": "metal", "wear": "none", "base_variant": -1, "overlay_variant": -1, "mirror_h": false, "mirror_v": false}
-	return Dictionary(_grid_manager.call("get_floor_visual_state", cell))
+		return fallback
+	var state: Dictionary = _safe_variant_dictionary(_grid_manager.call("get_floor_visual_state", cell), true)
+	return state if not state.is_empty() else fallback
 
 func get_floor_base_atlas_key(family: String) -> String:
 	match family:
@@ -2656,7 +2667,9 @@ func draw_floor_atlas_layer(cell: Vector2i, atlas_key: String, requested_variant
 		return false
 	if not ISO_FLOOR_ATLAS_LAYOUT.has(atlas_key):
 		return false
-	var layout: Dictionary = Dictionary(ISO_FLOOR_ATLAS_LAYOUT.get(atlas_key, {}))
+	var layout: Dictionary = _safe_variant_dictionary(ISO_FLOOR_ATLAS_LAYOUT.get(atlas_key, {}))
+	if layout.is_empty():
+		return false
 	var row: int = int(layout.get("row", 1))
 	var variant_count: int = int(layout.get("variants", ISO_FLOOR_ATLAS_BASE_VARIANTS))
 	var variant: int = get_floor_atlas_variant_for_cell(cell, requested_variant, variant_count, row * 13)
@@ -2664,6 +2677,9 @@ func draw_floor_atlas_layer(cell: Vector2i, atlas_key: String, requested_variant
 	if source_rect.size.x <= 0.0 or source_rect.size.y <= 0.0:
 		return false
 	var center: Vector2 = grid_to_iso(cell)
+	# Each 1254x1254 atlas frame represents one floor cell.  Keep a shared
+	# center pivot and draw size for base, overlays, and mirrored variants so
+	# neighboring cells align without seams or visual jumping.
 	var destination_size: Vector2 = Vector2(iso_tile_width, iso_tile_height)
 	var destination_rect: Rect2 = Rect2(destination_size * -0.5, destination_size)
 	var scale: Vector2 = Vector2(-1.0 if mirror_h else 1.0, -1.0 if mirror_v else 1.0)
@@ -2715,18 +2731,21 @@ func draw_iso_floor_prototype() -> void:
 			var profile: Dictionary = get_iso_floor_visual_profile(profile_key)
 			var fill_color: Color = _get_color_from_dict(profile, "fill", get_floor_prototype_color(tile_type, cell))
 			var mission_manager: Node = get_mission_manager_ref()
+			var floor_texture_asset_id: String = ""
 			if mission_manager != null and mission_manager.has_method("get_map_constructor_floor_material_for_cell"):
-				var floor_material_result: Dictionary = Dictionary(mission_manager.call("get_map_constructor_floor_material_for_cell", cell))
+				var floor_material_result: Dictionary = _safe_variant_dictionary(mission_manager.call("get_map_constructor_floor_material_for_cell", cell))
 				if bool(floor_material_result.get("ok", false)):
-					var floor_material: Dictionary = Dictionary(floor_material_result.get("material", {}))
+					var floor_material: Dictionary = _safe_variant_dictionary(floor_material_result.get("material", {}))
 					fill_color = Color(floor_material.get("fallback_color", fill_color))
-					var floor_texture_asset_id: String = String(floor_material.get("texture_asset_id", "")).strip_edges()
-					if not floor_texture_asset_id.is_empty() and draw_cell_border:
-						var floor_asset_drawn: bool = draw_optional_visual_texture_asset(floor_texture_asset_id, cell, "", {"visual_center": grid_to_iso(cell)})
-						if floor_asset_drawn:
-							continue
+					floor_texture_asset_id = String(floor_material.get("texture_asset_id", "")).strip_edges()
+			# Floor atlas states are the primary renderer.  Map Constructor texture
+			# hooks remain a fallback for older material rows or if the atlas is absent.
 			if draw_iso_floor_atlas_for_cell(cell):
 				continue
+			if not floor_texture_asset_id.is_empty() and draw_cell_border:
+				var floor_asset_drawn: bool = draw_optional_visual_texture_asset(floor_texture_asset_id, cell, "", {"visual_center": grid_to_iso(cell)})
+				if floor_asset_drawn:
+					continue
 			if draw_cell_border and draw_iso_texture_asset(cell, floor_asset_key):
 				continue
 			draw_colored_polygon(diamond_points, fill_color)

@@ -239,6 +239,8 @@ func setup_world_objects_for_mission(mission_id: String) -> void:
 	cell_items.clear()
 	_map_constructor_wall_material_overrides.clear()
 	_map_constructor_floor_material_overrides.clear()
+	if grid_manager != null and grid_manager.has_method("clear_floor_visual_states"):
+		grid_manager.call("clear_floor_visual_states")
 	if mission_id == "mission_10":
 		_setup_task_test_mission_world()
 		return
@@ -480,6 +482,44 @@ func _safe_dictionary_array(value: Variant, duplicate_rows: bool = false) -> Arr
 		rows.append(row.duplicate(true) if duplicate_rows else row)
 	return rows
 
+func _normalize_map_constructor_floor_visual_state_row(row: Dictionary) -> Dictionary:
+	var cell: Vector2i = _map_constructor_cell_from_variant(row.get("cell", Vector2i(-1, -1)))
+	return {
+		"cell": cell,
+		"family": String(row.get("family", GridManager.FLOOR_FAMILY_METAL)).strip_edges().to_lower(),
+		"wear": String(row.get("wear", GridManager.FLOOR_WEAR_NONE)).strip_edges().to_lower(),
+		"base_variant": int(row.get("base_variant", -1)),
+		"overlay_variant": int(row.get("overlay_variant", -1)),
+		"mirror_h": bool(row.get("mirror_h", false)),
+		"mirror_v": bool(row.get("mirror_v", false)),
+	}
+
+func _serialize_map_constructor_floor_visual_state_row(row: Dictionary) -> Dictionary:
+	var normalized: Dictionary = _normalize_map_constructor_floor_visual_state_row(row)
+	var serialized: Dictionary = normalized.duplicate(true)
+	serialized["cell"] = _serialize_cell_key(Vector2i(normalized.get("cell", Vector2i(-1, -1))))
+	return serialized
+
+func _get_map_constructor_floor_visual_state_rows() -> Array[Dictionary]:
+	var rows: Array[Dictionary] = []
+	if grid_manager == null or not grid_manager.has_method("get_floor_visual_state_overrides"):
+		return rows
+	for row_variant in Array(grid_manager.call("get_floor_visual_state_overrides")):
+		if not (row_variant is Dictionary):
+			continue
+		rows.append(_serialize_map_constructor_floor_visual_state_row(_safe_dictionary(row_variant)))
+	return rows
+
+func _apply_map_constructor_floor_visual_state_row(row: Dictionary) -> bool:
+	if grid_manager == null or not grid_manager.has_method("set_floor_visual_state"):
+		return false
+	var normalized: Dictionary = _normalize_map_constructor_floor_visual_state_row(row)
+	var cell: Vector2i = Vector2i(normalized.get("cell", Vector2i(-1, -1)))
+	if not _is_valid_grid_cell(cell):
+		return false
+	grid_manager.call("set_floor_visual_state", cell, normalized)
+	return true
+
 func get_map_constructor_overview_data(options: Dictionary = {}) -> Dictionary:
 	if not _is_task_test_constructor_context():
 		return {"ok": false, "message": "Overview is available only in TASK TEST constructor mode.", "map_size": Vector2i.ZERO, "cells": [], "markers": [], "summary": {}, "legend": []}
@@ -628,15 +668,16 @@ func _map_constructor_cell_from_variant(cell_variant: Variant) -> Vector2i:
 	if cell_variant is String:
 		var text: String = String(cell_variant).strip_edges()
 		if text.begins_with("(") and text.ends_with(")"):
-			var parts: PackedStringArray = text.substr(1, text.length() - 2).split(",")
-			if parts.size() == 2:
-				return Vector2i(int(parts[0].strip_edges()), int(parts[1].strip_edges()))
+			text = text.substr(1, text.length() - 2)
+		var parts: PackedStringArray = text.split(",")
+		if parts.size() == 2:
+			return Vector2i(int(parts[0].strip_edges()), int(parts[1].strip_edges()))
 	return Vector2i(-1, -1)
 
 func export_map_constructor_runtime_patch() -> Dictionary:
 	if not _is_task_test_constructor_context():
 		return {"ok": false, "message": "Runtime patch export works only in TASK TEST constructor mode.", "patch": {}, "json": "", "object_count": 0, "item_count": 0, "tile_edit_count": 0}
-	var patch: Dictionary = {"schema_version": MAP_CONSTRUCTOR_PATCH_SCHEMA_VERSION, "mission_id": "mission_10", "created_at_runtime": str(Time.get_unix_time_from_system()), "source": "task_test_map_constructor", "objects": [], "items": [], "tile_edits": [], "links": [], "metadata": {}}
+	var patch: Dictionary = {"schema_version": MAP_CONSTRUCTOR_PATCH_SCHEMA_VERSION, "mission_id": "mission_10", "created_at_runtime": str(Time.get_unix_time_from_system()), "source": "task_test_map_constructor", "objects": [], "items": [], "tile_edits": [], "floor_visual_states": [], "links": [], "metadata": {}}
 	for object_data in mission_world_objects:
 		if not bool(object_data.get("created_by_map_constructor", false)):
 			continue
@@ -660,6 +701,7 @@ func export_map_constructor_runtime_patch() -> Dictionary:
 			var item_row: Dictionary = item.duplicate(true)
 			item_row["cell"] = _serialize_cell_key(cell)
 			patch["items"].append(item_row)
+	patch["floor_visual_states"] = _get_map_constructor_floor_visual_state_rows()
 	for link_object_variant in mission_world_objects:
 		if not (link_object_variant is Dictionary):
 			continue
@@ -690,6 +732,10 @@ func parse_map_constructor_patch_json(patch_json: String) -> Dictionary:
 		if row_variant_item is Dictionary:
 			var row_item: Dictionary = row_variant_item
 			row_item["cell"] = _map_constructor_cell_from_variant(row_item.get("cell", Vector2i(-1, -1)))
+	for floor_state_variant in Array(patch.get("floor_visual_states", [])):
+		if floor_state_variant is Dictionary:
+			var floor_state_row: Dictionary = floor_state_variant
+			floor_state_row["cell"] = _map_constructor_cell_from_variant(floor_state_row.get("cell", Vector2i(-1, -1)))
 	return {"ok": true, "message": "Patch parsed.", "patch": patch, "warnings": []}
 
 func _collect_map_constructor_patch_field_changes(current: Dictionary, incoming: Dictionary, entity_kind: String) -> Array[Dictionary]:
@@ -757,6 +803,27 @@ func compare_map_constructor_patch(patch: Dictionary) -> Dictionary:
 			else:
 				will_update += 1
 				diffs.append({"change_type":"update", "entity_kind":entity_kind, "id":entity_id, "cell":row.get("position" if entity_kind == "world_object" else "cell", Vector2i(-1, -1)), "field_changes":field_changes, "message":"Will update %s." % ("object" if entity_kind == "world_object" else "item")})
+	for floor_state_variant in Array(patch.get("floor_visual_states", [])):
+		if not (floor_state_variant is Dictionary):
+			continue
+		var floor_state_row: Dictionary = _normalize_map_constructor_floor_visual_state_row(_safe_dictionary(floor_state_variant))
+		var floor_cell: Vector2i = Vector2i(floor_state_row.get("cell", Vector2i(-1, -1)))
+		if not _is_valid_grid_cell(floor_cell):
+			conflicts.append({"change_type":"conflict", "entity_kind":"floor_visual_state", "id":_serialize_cell_key(floor_cell), "message":"Invalid floor visual state cell."})
+			continue
+		var current_floor_state: Dictionary = {}
+		if grid_manager != null and grid_manager.has_method("get_floor_visual_state"):
+			current_floor_state = _safe_dictionary(grid_manager.call("get_floor_visual_state", floor_cell))
+		var floor_changes: Array[Dictionary] = []
+		for field_name in ["family", "wear", "base_variant", "overlay_variant", "mirror_h", "mirror_v"]:
+			if current_floor_state.get(field_name, null) != floor_state_row.get(field_name, null):
+				floor_changes.append({"field": field_name, "current": current_floor_state.get(field_name, null), "incoming": floor_state_row.get(field_name, null)})
+		if floor_changes.is_empty():
+			unchanged += 1
+			diffs.append({"change_type":"unchanged", "entity_kind":"floor_visual_state", "id":_serialize_cell_key(floor_cell), "cell":floor_cell, "field_changes":[], "message":"No floor visual changes."})
+		else:
+			will_update += 1
+			diffs.append({"change_type":"update", "entity_kind":"floor_visual_state", "id":_serialize_cell_key(floor_cell), "cell":floor_cell, "field_changes":floor_changes, "message":"Will update floor visual state."})
 	var summary: Dictionary = {"will_add": will_add, "will_update": will_update, "will_delete": 0, "unchanged": unchanged, "conflicts": conflicts.size(), "warnings": warnings.size()}
 	return {"ok": true, "message": "Patch compare complete.", "summary": summary, "diffs": diffs, "warnings": warnings, "conflicts": conflicts}
 
@@ -773,7 +840,7 @@ func apply_map_constructor_patch(patch: Dictionary, options: Dictionary = {}) ->
 	var warnings: Array[String] = Array(preview.get("warnings", [])).duplicate()
 	if not bool(options.get("allow_conflicts", false)) and not bool(preview.get("can_apply", false)):
 		return {"ok": false, "message": "Patch has conflicts.", "applied_count": 0, "added_count": 0, "updated_count": 0, "deleted_count": 0, "warnings": warnings, "conflicts": Array(preview.get("conflicts", [])), "patch_id": ""}
-	_map_constructor_last_patch_snapshot = {"patch_id":"patch_%d" % int(Time.get_unix_time_from_system()), "mission_world_objects": mission_world_objects.duplicate(true), "cell_items": cell_items.duplicate(true), "world_objects_by_cell": world_objects_by_cell.duplicate(true)}
+	_map_constructor_last_patch_snapshot = {"patch_id":"patch_%d" % int(Time.get_unix_time_from_system()), "mission_world_objects": mission_world_objects.duplicate(true), "cell_items": cell_items.duplicate(true), "world_objects_by_cell": world_objects_by_cell.duplicate(true), "floor_visual_states": _get_map_constructor_floor_visual_state_rows()}
 	var added_count: int = 0
 	var updated_count: int = 0
 	var allow_adds: bool = bool(options.get("allow_adds", true))
@@ -793,6 +860,18 @@ func apply_map_constructor_patch(patch: Dictionary, options: Dictionary = {}) ->
 			continue
 		var entity_kind: String = String(diff.get("entity_kind", ""))
 		var entity_id: String = String(diff.get("id", "")).strip_edges()
+		if entity_kind == "floor_visual_state":
+			var target_cell: Vector2i = _map_constructor_cell_from_variant(diff.get("cell", Vector2i(-1, -1)))
+			var applied_floor_state: bool = false
+			for floor_state_variant in Array(patch.get("floor_visual_states", [])):
+				if floor_state_variant is Dictionary and _map_constructor_cell_from_variant(Dictionary(floor_state_variant).get("cell", Vector2i(-1, -1))) == target_cell:
+					applied_floor_state = _apply_map_constructor_floor_visual_state_row(_safe_dictionary(floor_state_variant))
+					break
+			if applied_floor_state:
+				updated_count += 1
+			else:
+				warnings.append("Skipped floor visual state at %s." % _serialize_cell_key(target_cell))
+			continue
 		if entity_id.is_empty() or _map_constructor_is_protected_id(entity_id):
 			continue
 		var source_rows: Array = Array(patch.get("objects" if entity_kind == "world_object" else "items", []))
@@ -835,6 +914,11 @@ func rollback_last_map_constructor_patch() -> Dictionary:
 	mission_world_objects = Array(_map_constructor_last_patch_snapshot.get("mission_world_objects", [])).duplicate(true)
 	cell_items = Dictionary(_map_constructor_last_patch_snapshot.get("cell_items", {})).duplicate(true)
 	world_objects_by_cell = Dictionary(_map_constructor_last_patch_snapshot.get("world_objects_by_cell", {})).duplicate(true)
+	if grid_manager != null and grid_manager.has_method("clear_floor_visual_states"):
+		grid_manager.call("clear_floor_visual_states")
+	for floor_state_variant in Array(_map_constructor_last_patch_snapshot.get("floor_visual_states", [])):
+		if floor_state_variant is Dictionary:
+			_apply_map_constructor_floor_visual_state_row(_safe_dictionary(floor_state_variant))
 	_map_constructor_last_patch_snapshot.clear()
 	PowerSystemRef.recalculate_network(mission_world_objects, "task_test_power_main")
 	refresh_world_cooling_received()
@@ -851,6 +935,8 @@ func create_map_constructor_empty_map(width: int, height: int) -> Dictionary:
 	cell_items.clear()
 	constructor_start_marker.clear()
 	constructor_exit_marker.clear()
+	if grid_manager != null and grid_manager.has_method("clear_floor_visual_states"):
+		grid_manager.call("clear_floor_visual_states")
 	if grid_manager != null and grid_manager.has_method("build_constructor_map"):
 		var grid_result: Dictionary = grid_manager.call("build_constructor_map", constructor_map_width, constructor_map_height)
 		constructor_map_width = int(grid_result.get("width", constructor_map_width))
@@ -958,6 +1044,7 @@ func get_map_constructor_mission_patch_data(patch_name: String = "") -> Dictiona
 		"mission_markers": Dictionary(preset_data.get("mission_markers", {})).duplicate(true),
 		"grid_tiles": Array(preset_data.get("grid_tiles", [])).duplicate(true),
 		"grid_overrides": Array(preset_data.get("grid_overrides", [])),
+		"floor_visual_states": Array(preset_data.get("floor_visual_states", [])),
 		"validation": validation,
 		"notes": "TASK TEST constructor mission patch export"
 	}
@@ -1056,6 +1143,7 @@ func get_map_constructor_preset_data() -> Dictionary:
 		"mission_markers": get_map_constructor_mission_markers(),
 		"grid_tiles": grid_tiles,
 		"grid_overrides": grid_overrides,
+		"floor_visual_states": _get_map_constructor_floor_visual_state_rows(),
 		"notes": "TASK TEST constructor preset",
 		"warnings": []
 	}
@@ -1173,6 +1261,11 @@ func load_map_constructor_preset(preset_name: String) -> Dictionary:
 			continue
 		if grid_manager != null and grid_manager.has_method("set_tile"):
 			grid_manager.call("set_tile", tile_cell, int(tile_row.get("tile_type", GridManager.TILE_FLOOR)))
+	for floor_state_variant in Array(preset.get("floor_visual_states", [])):
+		if not (floor_state_variant is Dictionary):
+			continue
+		if not _apply_map_constructor_floor_visual_state_row(_safe_dictionary(floor_state_variant)):
+			warnings.append("Skipped floor visual state: invalid row.")
 	if grid_manager != null and grid_manager.has_method("enforce_boundary_walls"):
 		grid_manager.call("enforce_boundary_walls")
 	var mission_markers: Dictionary = Dictionary(preset.get("mission_markers", {}))
