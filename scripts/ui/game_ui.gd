@@ -1554,6 +1554,8 @@ func _get_selected_box_storage_module() -> BipobModule:
 		return null
 	if selected_constructor_module != null:
 		return selected_constructor_module
+	if selected_module_source != "storage":
+		return null
 	if selected_box_storage_index < 0:
 		return null
 	if selected_box_storage_index >= bipob.box_storage.size():
@@ -2459,7 +2461,7 @@ func get_filtered_grouped_module_ids() -> Array[String]:
 
 func get_selected_grouped_module_id() -> String:
 	var ids: Array[String] = get_filtered_grouped_module_ids()
-	if ids.is_empty():
+	if ids.is_empty() or selected_grouped_module_index < 0:
 		return ""
 	selected_grouped_module_index = clampi(selected_grouped_module_index, 0, ids.size() - 1)
 	return ids[selected_grouped_module_index]
@@ -2474,13 +2476,58 @@ func sync_selected_box_storage_index_from_grouped_selection() -> void:
 	var module_id: String = get_selected_grouped_module_id()
 	if module_id.is_empty():
 		selected_box_storage_index = -1
+		selected_constructor_module = null
+		selected_module_source = "none"
+		selected_install_record = {}
 		return
 	for i in range(bipob.box_storage.size()):
 		var module: BipobModule = bipob.box_storage[i]
 		if module != null and module.id == module_id:
 			selected_box_storage_index = i
+			selected_constructor_module = module
+			selected_module_source = "storage"
+			selected_install_record = {}
 			return
 	selected_box_storage_index = -1
+	selected_constructor_module = bipob.get_first_module_by_id(module_id)
+	selected_module_source = "none"
+	selected_install_record = {}
+
+
+func _clear_box_module_selection() -> void:
+	selected_box_storage_index = -1
+	selected_filtered_box_index = 0
+	selected_grouped_module_index = -1
+	selected_constructor_module = null
+	selected_module_source = "none"
+	selected_install_record = {}
+	selected_external_side = ""
+	selected_external_cell = Vector2i.ZERO
+
+
+func _is_selected_box_module_valid_for_current_context() -> bool:
+	if bipob == null or selected_constructor_module == null:
+		return false
+	if selected_module_source == "storage":
+		if selected_box_storage_index < 0 or selected_box_storage_index >= bipob.box_storage.size():
+			return false
+		if bipob.box_storage[selected_box_storage_index] != selected_constructor_module:
+			return false
+		if not _is_module_visible_in_current_constructor_mode(selected_constructor_module):
+			return false
+		if not module_matches_constructor_filter(selected_constructor_module, get_current_constructor_filter()):
+			return false
+		return true
+	if selected_module_source == "installed_internal":
+		return box_menu_mode == BoxMenuMode.INTERNAL and bipob.is_internal_module(selected_constructor_module)
+	if selected_module_source == "installed_external":
+		return box_menu_mode == BoxMenuMode.EXTERNAL and bipob.is_external_module(selected_constructor_module)
+	return false
+
+
+func _clear_box_module_selection_if_invalid_for_current_context() -> void:
+	if not _is_selected_box_module_valid_for_current_context():
+		_clear_box_module_selection()
 
 
 func _on_storage_module_card_pressed(storage_index: int) -> void:
@@ -2983,9 +3030,6 @@ func _set_external_cell_label(cell: Button, text_value: String, cell_size: Vecto
 
 func _get_selected_external_candidate_module() -> BipobModule:
 	var selected_module: BipobModule = selected_constructor_module if selected_module_source == "storage" else null
-
-	if selected_module == null and selected_box_storage_index >= 0 and selected_box_storage_index < bipob.box_storage.size():
-		selected_module = bipob.box_storage[selected_box_storage_index]
 
 	if selected_module != null and bipob.is_external_module(selected_module):
 		return selected_module
@@ -4767,6 +4811,7 @@ func _set_active_mission_bipob(index: int) -> void:
 	if clamped_index == runtime_selected_mission_bipob_index and bipob != null:
 		return
 	runtime_selected_mission_bipob_index = clamped_index
+	_clear_box_module_selection()
 	var selected_data: Dictionary = mission_bipobs[clamped_index]
 	var profile_id: String = str(selected_data.get("id", "")).strip_edges()
 	if not profile_id.is_empty() and profile_id != active_bipob_profile_id:
@@ -6446,7 +6491,7 @@ func _on_install_module_button_pressed() -> void:
 func clamp_box_selection_indexes() -> void:
 	if bipob == null:
 		selected_installed_module_index = 0
-		selected_box_storage_index = 0
+		_clear_box_module_selection()
 		return
 
 	if bipob.installed_modules.is_empty():
@@ -6454,19 +6499,24 @@ func clamp_box_selection_indexes() -> void:
 	else:
 		selected_installed_module_index = clampi(selected_installed_module_index, 0, bipob.installed_modules.size() - 1)
 
-	if bipob.box_storage.is_empty():
-		selected_box_storage_index = 0
-	else:
-		selected_box_storage_index = clampi(selected_box_storage_index, 0, bipob.box_storage.size() - 1)
 	var filtered_indices: Array[int] = get_current_filtered_box_storage_indices()
-	if filtered_indices.is_empty():
+	if selected_module_source == "none":
+		selected_box_storage_index = -1
 		selected_filtered_box_index = 0
+		return
+	if bipob.box_storage.is_empty():
+		selected_box_storage_index = -1
+		selected_filtered_box_index = 0
+	elif selected_module_source == "storage":
+		if selected_box_storage_index < 0 or selected_box_storage_index >= bipob.box_storage.size():
+			_clear_box_module_selection()
+			return
+		if filtered_indices.is_empty() or not (selected_box_storage_index in filtered_indices):
+			_clear_box_module_selection()
+			return
+		selected_filtered_box_index = filtered_indices.find(selected_box_storage_index)
 	else:
-		if selected_box_storage_index in filtered_indices:
-			selected_filtered_box_index = filtered_indices.find(selected_box_storage_index)
-		else:
-			selected_filtered_box_index = clampi(selected_filtered_box_index, 0, filtered_indices.size() - 1)
-			selected_box_storage_index = filtered_indices[selected_filtered_box_index]
+		selected_filtered_box_index = 0
 
 func _on_prev_installed_pressed() -> void:
 	if bipob == null:
@@ -6511,7 +6561,7 @@ func _on_prev_box_pressed() -> void:
 	if grouped_ids.is_empty():
 		show_hint("No module matches current filter.")
 		return
-	selected_grouped_module_index = posmod(selected_grouped_module_index - 1, grouped_ids.size())
+	selected_grouped_module_index = grouped_ids.size() - 1 if selected_grouped_module_index < 0 else posmod(selected_grouped_module_index - 1, grouped_ids.size())
 	sync_selected_box_storage_index_from_grouped_selection()
 	clamp_box_selection_indexes()
 	update_box_status()
@@ -6523,7 +6573,7 @@ func _on_next_box_pressed() -> void:
 	if grouped_ids.is_empty():
 		show_hint("No module matches current filter.")
 		return
-	selected_grouped_module_index = posmod(selected_grouped_module_index + 1, grouped_ids.size())
+	selected_grouped_module_index = 0 if selected_grouped_module_index < 0 else posmod(selected_grouped_module_index + 1, grouped_ids.size())
 	sync_selected_box_storage_index_from_grouped_selection()
 	clamp_box_selection_indexes()
 	update_box_status()
@@ -6827,6 +6877,7 @@ func update_box_status() -> void:
 	if bipob == null:
 		return
 	_ensure_action_panel_scrollable()
+	_clear_box_module_selection_if_invalid_for_current_context()
 
 	clamp_box_selection_indexes()
 	update_diagnostic_status()
@@ -7518,6 +7569,7 @@ func _load_bipob_profile(profile_id: String) -> void:
 func _switch_active_bipob(profile_id: String) -> void:
 	if profile_id == active_bipob_profile_id:
 		return
+	_clear_box_module_selection()
 	_save_active_bipob_profile()
 	_load_bipob_profile(profile_id)
 	update_box_status()
@@ -7552,20 +7604,22 @@ func set_box_menu_mode_modules() -> void:
 	set_box_menu_mode_external()
 
 func set_box_menu_mode_external() -> void:
+	if box_menu_mode == BoxMenuMode.EXTERNAL:
+		return
+	_clear_box_module_selection()
 	box_menu_mode = BoxMenuMode.EXTERNAL
-	selected_grouped_module_index = 0
-	sync_selected_box_storage_index_from_grouped_selection()
 	clamp_external_selection()
 	update_box_status()
 	rebuild_box_action_buttons()
 
 
 func set_box_menu_mode_internal() -> void:
+	if box_menu_mode == BoxMenuMode.INTERNAL:
+		return
+	_clear_box_module_selection()
 	box_menu_mode = BoxMenuMode.INTERNAL
 	if get_current_constructor_filter() in ["gear", "visor_radar", "tool", "manipulator", "armor", "weapon"]:
 		internal_filter_index = CONSTRUCTOR_FILTERS.find("all")
-	selected_grouped_module_index = 0
-	sync_selected_box_storage_index_from_grouped_selection()
 	_clamp_internal_selection()
 	update_box_status()
 	rebuild_box_action_buttons()
@@ -13337,12 +13391,6 @@ func _get_internal_view_legend_text() -> String:
 func _get_selected_internal_candidate_module() -> BipobModule:
 	var module: BipobModule = selected_constructor_module if selected_module_source == "storage" else null
 	if module == null:
-		if selected_box_storage_index < 0:
-			return null
-		if selected_box_storage_index >= bipob.box_storage.size():
-			return null
-		module = bipob.box_storage[selected_box_storage_index]
-	if module == null:
 		return null
 	if bipob.is_internal_module(module):
 		return module
@@ -14326,9 +14374,7 @@ func _on_prev_constructor_filter_pressed() -> void:
 	if filter_index < 0:
 		filter_index = CONSTRUCTOR_FILTERS.size() - 1
 	_set_active_filter_index(filter_index)
-	clamp_box_selection_indexes()
-	selected_grouped_module_index = clampi(selected_grouped_module_index, 0, maxi(get_filtered_grouped_module_ids().size() - 1, 0))
-	sync_selected_box_storage_index_from_grouped_selection()
+	_clear_box_module_selection_if_invalid_for_current_context()
 	update_box_status()
 
 func _on_next_constructor_filter_pressed() -> void:
@@ -14336,9 +14382,7 @@ func _on_next_constructor_filter_pressed() -> void:
 	if filter_index >= CONSTRUCTOR_FILTERS.size():
 		filter_index = 0
 	_set_active_filter_index(filter_index)
-	clamp_box_selection_indexes()
-	selected_grouped_module_index = clampi(selected_grouped_module_index, 0, maxi(get_filtered_grouped_module_ids().size() - 1, 0))
-	sync_selected_box_storage_index_from_grouped_selection()
+	_clear_box_module_selection_if_invalid_for_current_context()
 	update_box_status()
 
 func _on_internal_x_minus_pressed() -> void: _move_internal_cursor(-1, 0, 0)
