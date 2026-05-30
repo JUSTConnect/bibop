@@ -6391,8 +6391,12 @@ func execute_next_mouse_route_step() -> void:
 	execute_next_mouse_route_step()
 
 func handle_grid_cell_right_click(cell: Vector2i) -> void:
+	selected_grid_cell = Vector2i(-1, -1)
+	clear_selected_route()
+	refresh_world_action_panel()
+	status_changed.emit()
 	if cell.x >= -1:
-		hint_requested.emit("Right click actions are not enabled yet.")
+		hint_requested.emit("Selection cleared.")
 
 func execute_selected_mouse_route() -> void:
 	start_selected_mouse_route_execution()

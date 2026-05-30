@@ -5167,35 +5167,46 @@ func _create_runtime_controls_panel() -> Control:
 	margin.add_theme_constant_override("margin_bottom", 6)
 	panel.add_child(margin)
 
+	var root := VBoxContainer.new()
+	root.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	root.add_theme_constant_override("separation", 6)
+	margin.add_child(root)
+
 	var grid := GridContainer.new()
-	grid.columns = 3
+	grid.columns = 4
 	grid.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-	grid.add_theme_constant_override("h_separation", 12)
+	grid.add_theme_constant_override("h_separation", 8)
 	grid.add_theme_constant_override("v_separation", 4)
-	margin.add_child(grid)
+	root.add_child(grid)
 
-	var hint_entries: Array[String] = [
-		"Mouse: move robot",
-		"WASD / arrows: pan map",
-		"LMB: select route / move",
-		"RMB: inspect / context",
-		"Action [E]",
-		"End Turn [Space]"
-	]
+	grid.add_child(_create_runtime_control_button("Turn Left", Callable(self, "_on_turn_left_pressed")))
+	grid.add_child(_create_runtime_control_button("Turn Right", Callable(self, "_on_turn_right_pressed")))
+	grid.add_child(_create_runtime_control_button("Action", Callable(self, "_on_interact_pressed"), "primary"))
+	grid.add_child(_create_runtime_control_button("End Turn", Callable(self, "_on_end_turn_pressed"), "reference"))
 
-	for hint_text in hint_entries:
-		var local_hint_label: Label = Label.new()
-		local_hint_label.text = hint_text
-		local_hint_label.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-		local_hint_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_LEFT
-		local_hint_label.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
-		local_hint_label.mouse_filter = Control.MOUSE_FILTER_IGNORE
-		local_hint_label.add_theme_color_override("font_color", UI_COLOR_TEXT)
-		local_hint_label.add_theme_color_override("font_outline_color", Color(0.0, 0.0, 0.0, 0.2))
-		local_hint_label.add_theme_constant_override("outline_size", 1)
-		grid.add_child(local_hint_label)
+	var help_label := Label.new()
+	help_label.text = "WASD/arrows: pan map. LMB: select/move. RMB: cancel/inspect."
+	help_label.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	help_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_LEFT
+	help_label.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	help_label.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	help_label.add_theme_color_override("font_color", UI_COLOR_TEXT_DIM)
+	root.add_child(help_label)
 
 	return panel
+
+
+func _create_runtime_control_button(label_text: String, action_callable: Callable, role: String = "normal") -> Button:
+	var button := Button.new()
+	button.text = label_text
+	button.focus_mode = Control.FOCUS_NONE
+	button.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	button.size_flags_vertical = Control.SIZE_EXPAND_FILL
+	_apply_action_button_style(button, role, action_callable.is_valid())
+	button.disabled = not action_callable.is_valid()
+	if action_callable.is_valid():
+		button.pressed.connect(action_callable)
+	return button
 
 
 func _get_runtime_energy_text() -> String:
@@ -9437,7 +9448,8 @@ func _unhandled_input(event: InputEvent) -> void:
 			_refresh_map_constructor_panels()
 		return
 	if event is InputEventMouseButton:
-		_handle_runtime_gameplay_mouse_click(event)
+		if _handle_runtime_gameplay_mouse_click(event):
+			get_viewport().set_input_as_handled()
 
 func _process(delta: float) -> void:
 	_update_map_keyboard_pan(delta)
@@ -9520,6 +9532,27 @@ func _pan_runtime_map(camera_direction: Vector2, distance: float) -> void:
 	var movement: Vector2 = -camera_direction * distance
 	var unclamped_position: Vector2 = field_node.position + movement
 	field_node.position = _get_clamped_runtime_field_position(unclamped_position, viewport_size)
+	_sync_bipob_visual_to_runtime_map_position()
+
+func _sync_bipob_visual_to_runtime_map_position() -> void:
+	if bipob == null or field_runtime == null:
+		return
+	if not is_instance_valid(bipob) or not is_instance_valid(field_runtime):
+		return
+	if not bipob.has_method("get_visual_world_position_for_grid_cell"):
+		return
+	var use_iso_visual_position: bool = false
+	if bipob.has_method("should_use_isometric_visual_position"):
+		use_iso_visual_position = bool(bipob.call("should_use_isometric_visual_position"))
+	var visual_position_variant: Variant = bipob.call("get_visual_world_position_for_grid_cell", bipob.grid_position)
+	if not (visual_position_variant is Vector2):
+		return
+	var visual_position: Vector2 = visual_position_variant
+	if use_iso_visual_position:
+		bipob.position = visual_position
+		bipob.z_index = bipob.grid_position.x + bipob.grid_position.y + 10
+	else:
+		bipob.global_position = field_runtime.global_position + visual_position
 
 func _is_text_input_focused() -> bool:
 	var viewport: Viewport = get_viewport()
@@ -9807,7 +9840,7 @@ func _handle_runtime_gameplay_mouse_click(event: InputEventMouseButton) -> bool:
 		else:
 			bipob.handle_grid_cell_right_click(cell)
 	var action_cell: Vector2i = Vector2i(-1, -1)
-	if bipob.grid_position.distance_to(cell) <= 1:
+	if event.button_index == MOUSE_BUTTON_LEFT and bipob.grid_position.distance_to(cell) <= 1:
 		action_cell = cell
 	renderer.set_iso_mouse_selection_visuals(bipob.selected_grid_cell, bipob.selected_route_cells, action_cell)
 	if map_constructor_mode_active and map_constructor_pending_place_cell.x < 0:
@@ -13381,19 +13414,19 @@ func _on_move_backward_pressed() -> void:
 	update_status()
 
 func _on_turn_left_pressed() -> void:
-	if map_constructor_mode_active:
+	if map_constructor_mode_active or bipob == null:
 		return
 	bipob.turn_left()
 	update_status()
 
 func _on_turn_right_pressed() -> void:
-	if map_constructor_mode_active:
+	if map_constructor_mode_active or bipob == null:
 		return
 	bipob.turn_right()
 	update_status()
 
 func _on_interact_pressed() -> void:
-	if map_constructor_mode_active:
+	if map_constructor_mode_active or bipob == null:
 		return
 	bipob.interact()
 	update_status()
@@ -13585,7 +13618,7 @@ func _on_hack_device_button_pressed() -> void:
 	update_box_status()
 
 func _on_end_turn_pressed() -> void:
-	if map_constructor_mode_active:
+	if map_constructor_mode_active or bipob == null:
 		return
 	bipob.end_turn()
 	update_status()
