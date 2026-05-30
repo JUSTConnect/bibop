@@ -43,8 +43,8 @@ const EXTERNAL_MODULE_CATALOG: Dictionary = {
 "jumper_v1":{"name":"Jumper V1","cat":"Gear","size":Vector2i(3,3),"sides":[EXTERNAL_SIDE_BOTTOM],"desc":"A movement system based on jumping, allowing you to traverse gaps, obstacles, traps, and difficult terrain. Requires a Motor Controller.","energy":3,"terrain":"Any surface","movement":"Jump","speed":6,"ignore_debuff":true,"special":"ignore debuff"},
 "hover_pad_v1":{"name":"Air Cushion V1","cat":"Gear","size":Vector2i(3,3),"sides":[EXTERNAL_SIDE_BOTTOM],"desc":"Hover movement system that provides high mobility over difficult surfaces, but requires increased energy consumption. Requires a Motor Controller.","energy":3,"terrain":"Any surface","movement":"Levitate","speed":5,"ignore_debuff":true,"special":"ignore debuff"},
 "visor_v1":{"name":"Visor V1","cat":"Sensors","size":Vector2i(3,1),"sides":[EXTERNAL_SIDE_TOP],"desc":"Basic visual sensor module for standard object detection, navigation, and direct line-of-sight observation.","energy":0,"direction":"Front","scan":2,"visibility":15},
-"visor_v2":{"name":"Visor V2","cat":"Sensors","size":Vector2i(3,1),"sides":[EXTERNAL_SIDE_TOP],"desc":"Basic visual sensor module for standard object detection, navigation, and direct line-of-sight observation.","energy":0,"direction":"Front","scan":3,"visibility":30},
-"visor_v3":{"name":"Visor V3","cat":"Sensors","size":Vector2i(3,1),"sides":[EXTERNAL_SIDE_TOP],"desc":"Basic visual sensor module for standard object detection, navigation, and direct line-of-sight observation.","energy":0,"direction":"Front","scan":5,"visibility":60},
+"visor_v2":{"name":"Visor V2","cat":"Sensors","size":Vector2i(3,1),"sides":[EXTERNAL_SIDE_TOP],"desc":"Improved visual sensor module with stronger object detection, navigation support, and direct line-of-sight observation.","energy":0,"direction":"Front","scan":3,"visibility":30},
+"visor_v3":{"name":"Visor V3","cat":"Sensors","size":Vector2i(3,1),"sides":[EXTERNAL_SIDE_TOP],"desc":"Advanced visual sensor module with the strongest visor detection, long-range navigation support, and enhanced direct line-of-sight observation.","energy":1,"direction":"Front","scan":5,"visibility":60},
 "thermal_visor_v1":{"name":"Thermal Visor V1","cat":"Sensors","size":Vector2i(3,1),"sides":[EXTERNAL_SIDE_TOP],"desc":"Heat-detection sensor that reveals active devices, hot zones, recently used systems, and heat-emitting targets.","energy":1,"direction":"Front","scan":5,"visibility":30,"special":"thermal objects"},
 "radar_v1":{"name":"Radar V1","cat":"Sensors","size":Vector2i(2,2),"sides":[EXTERNAL_SIDE_TOP],"desc":"Detects movement and objects across the entire open area of the level, providing only approximate location data.","energy":2,"direction":"Front","scan":8,"visibility":90,"special":"approximate position"},
 "xray_v1":{"name":"X-Ray V1","cat":"Sensors","size":Vector2i(2,2),"sides":[EXTERNAL_SIDE_TOP],"desc":"Deep scanning through walls and obstacles, revealing hidden objects, internal structures, cables, locks, containers, and concealed mechanisms.","energy":2,"direction":"Front","scan":5,"visibility":30,"special":"hidden/internal object"},
@@ -791,7 +791,7 @@ func get_module_category(module: BipobModule) -> String:
 	match module.id:
 		"wheels_v1", "legs_v1", "tracks_v1":
 			return "locomotion"
-		"visor_v1", "visor_v2":
+		"visor_v1", "visor_v2", "visor_v3":
 			return "vision"
 		"manipulator_v1":
 			return "utility"
@@ -5229,7 +5229,7 @@ func apply_damage_metadata(module: BipobModule) -> void:
 		"processor_v1":
 			module.repair_complexity = 3
 			module.repair_category = "electronics"
-		"memory_v1", "memory_v2", "memory_v3", "hard_drive_v1", "hard_drive_v2", "hard_drive_v3", "visor_v1", "visor_v2":
+		"memory_v1", "memory_v2", "memory_v3", "hard_drive_v1", "hard_drive_v2", "hard_drive_v3", "visor_v1", "visor_v2", "visor_v3":
 			module.repair_complexity = 2
 			module.repair_category = "electronics"
 		"power_block_v1", "power_block_v2", "power_block_v3", "charger_v1":
@@ -5419,6 +5419,8 @@ func get_module_description_for_id(module_id: String) -> String:
 			return "External vision module."
 		"visor_v2":
 			return "Improved external vision module with wider scan shape."
+		"visor_v3":
+			return "Advanced external vision module with the strongest visor scan shape."
 		"manipulator_v1":
 			return "External manipulation module for physical interactions."
 		"interface_v1":
