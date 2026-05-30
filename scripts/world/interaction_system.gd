@@ -40,6 +40,9 @@ static func apply_action(actor: Dictionary, module: Dictionary, target_object: D
 			var door_gate: Dictionary = _validate_door_class(actor, target_object)
 			if not door_gate.success:
 				return door_gate
+			var required_key_id: String = String(target_object.get("required_key_id", "")).strip_edges()
+			if not required_key_id.is_empty() and not Array(actor.get("collected_key_ids", [])).has(required_key_id):
+				return _result(false, "Requires Mechanical Key")
 			if module_id in ["mechanical_keycard", "digital_key_opened"]:
 				target_object["state"] = "closed"
 				return _result(true, "Door unlocked.", [{"type":"door_unlocked"},{"type":"set_state","state":"closed"}])

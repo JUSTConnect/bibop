@@ -1247,6 +1247,25 @@ func get_iso_object_asset_key_for_profile(profile_key: String) -> String:
 		_:
 			return "object_generic"
 
+func get_iso_object_profile_key_for_object_data(object_data: Dictionary, fallback_profile_key: String = "generic_object") -> String:
+	var type_value: String = String(object_data.get("object_type", object_data.get("item_type", object_data.get("type", "")))).to_lower().strip_edges()
+	var prefab_value: String = String(object_data.get("map_constructor_prefab_id", "")).to_lower().strip_edges()
+	var key_kind: String = String(object_data.get("key_kind", object_data.get("key_type", ""))).to_lower().strip_edges()
+	var blob: String = "%s %s %s" % [type_value, prefab_value, key_kind]
+	if blob.contains("digital_key") or blob.contains("keycard"):
+		return "keycard"
+	if blob.contains("key"):
+		return "key"
+	if blob.contains("fuse"):
+		return "fuse"
+	if blob.contains("repair_kit"):
+		return "repair_kit"
+	if blob.contains("access_code") or blob.contains("code"):
+		return "access_code"
+	if fallback_profile_key.strip_edges().is_empty():
+		return "generic_object"
+	return fallback_profile_key
+
 func get_iso_object_asset_key_for_object_data(object_data: Dictionary, fallback_profile_key: String) -> String:
 	var fallback_asset_key: String = get_iso_object_asset_key_for_profile(fallback_profile_key)
 	var type_value: String = String(object_data.get("object_type", object_data.get("type", ""))).to_lower().strip_edges()
@@ -3642,9 +3661,11 @@ func draw_door_opening_overlay_for_context(context: Dictionary) -> void:
 		draw_circle(grid_to_iso(wall_cell) + Vector2(0.0, -iso_wall_height * 0.35), 3.0, Color(0.95, 0.74, 0.28, 0.95))
 	draw_string(ThemeDB.fallback_font, insert_center + Vector2(5.0, -7.0), String(context.get("orientation", "unknown")), HORIZONTAL_ALIGNMENT_LEFT, 64.0, 9, Color(0.95, 1.0, 1.0, 0.95))
 
-func draw_iso_object_marker(cell: Vector2i, tile_type: int) -> void:
+func draw_iso_object_marker(cell: Vector2i, tile_type: int, override_object_data: Dictionary = {}) -> void:
 	var object_meta: Dictionary = _get_iso_world_object_metadata_for_cell(cell)
-	if is_door_like_tile(tile_type):
+	if not override_object_data.is_empty():
+		object_meta = {"ok": true, "object_id": String(override_object_data.get("id", "")), "object_type": String(override_object_data.get("object_type", override_object_data.get("item_type", ""))), "data": override_object_data}
+	if is_door_like_tile(tile_type) and override_object_data.is_empty():
 		draw_iso_door_insert(cell, tile_type, Dictionary(object_meta.get("data", {})))
 		return
 	var profile_data: Dictionary = get_iso_object_grounding_profile(Dictionary(object_meta.get("data", {})), cell)
@@ -3658,6 +3679,8 @@ func draw_iso_object_marker(cell: Vector2i, tile_type: int) -> void:
 	var object_id: String = String(object_meta.get("object_id", ""))
 	var object_data: Dictionary = Dictionary(object_meta.get("data", {}))
 	var profile_key: String = get_iso_object_profile_key_for_tile(tile_type)
+	if not override_object_data.is_empty() or profile_key.is_empty():
+		profile_key = get_iso_object_profile_key_for_object_data(object_data, profile_key)
 	var object_asset_key: String = get_iso_object_asset_key_for_object_data(object_data, profile_key)
 	var mission_manager: Node = get_mission_manager_ref()
 	var has_door_visual: bool = false
@@ -3755,6 +3778,19 @@ func build_iso_wall_draw_entries() -> Array[Dictionary]:
 			})
 	return wall_entries
 
+func _get_runtime_items_for_cell(cell: Vector2i) -> Array[Dictionary]:
+	var result: Array[Dictionary] = []
+	var mission_manager: Node = get_mission_manager_ref()
+	if mission_manager == null or not mission_manager.has_method("get_items_at_cell"):
+		return result
+	var items_variant: Variant = mission_manager.call("get_items_at_cell", cell)
+	if not (items_variant is Array):
+		return result
+	for item_variant in Array(items_variant):
+		if item_variant is Dictionary:
+			result.append(Dictionary(item_variant))
+	return result
+
 func build_iso_object_draw_entries() -> Array[Dictionary]:
 	# Render order contract for object-like visuals in isometric mode:
 	# floor items -> doors/gates -> wall-mounted devices -> terminals -> actor markers(overlays handled in _draw).
@@ -3770,6 +3806,16 @@ func build_iso_object_draw_entries() -> Array[Dictionary]:
 		for x in range(map_width):
 			var cell: Vector2i = Vector2i(x, y)
 			var tile_type: int = _grid_manager.get_tile(cell)
+			var runtime_items: Array[Dictionary] = _get_runtime_items_for_cell(cell)
+			for item_index in range(runtime_items.size()):
+				var item_data: Dictionary = runtime_items[item_index]
+				draw_entries.append({
+					"cell": cell,
+					"layer": "item",
+					"layer_bias": ISO_LAYER_BIAS_ITEM + float(item_index) * 0.01,
+					"kind": "object",
+					"payload": {"object_cell": cell, "tile_type": tile_type, "profile_key": get_iso_object_profile_key_for_object_data(item_data, "key"), "object_data": item_data}
+				})
 			if not is_iso_object_tile(tile_type):
 				continue
 			var profile_key: String = get_iso_object_profile_key_for_tile(tile_type)
@@ -3820,7 +3866,7 @@ func draw_iso_draw_entry(entry: Dictionary) -> void:
 		if object_cell.x < 0 or object_cell.y < 0:
 			return
 		var tile_type: int = int(payload.get("tile_type", _grid_manager.get_tile(object_cell)))
-		draw_iso_object_marker(object_cell, tile_type)
+		draw_iso_object_marker(object_cell, tile_type, Dictionary(payload.get("object_data", {})))
 
 func draw_iso_geometry_prototype(include_walls: bool, include_objects: bool) -> void:
 	if _grid_manager == null:

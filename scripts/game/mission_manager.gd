@@ -102,6 +102,7 @@ var runtime_inventory_state := {
 	"box_storage": [],
 	"item_amounts": {},
 	"consumed_item_ids": [],
+	"collected_key_ids": [],
 	"world_item_runtime": {}
 }
 var _map_constructor_runtime_object_seq: int = 1
@@ -1841,11 +1842,36 @@ func get_items_at_cell(cell: Vector2i) -> Array[Dictionary]:
 
 func add_item_at_cell(cell: Vector2i, item_data: Dictionary) -> void:
 	item_data["position"] = cell
+	if not item_data.has("object_group"):
+		item_data["object_group"] = "item"
+	if not item_data.has("object_type"):
+		item_data["object_type"] = "item"
+	if not item_data.has("can_pickup"):
+		item_data["can_pickup"] = true
 	var items: Array[Dictionary] = get_items_at_cell(cell)
 	items.append(item_data)
 	cell_items[cell] = items
-	if not mission_world_objects.has(item_data):
-		mission_world_objects.append(item_data)
+	_sync_world_item_record(item_data)
+
+func _sync_world_item_record(item_data: Dictionary) -> void:
+	var item_id: String = String(item_data.get("id", "")).strip_edges()
+	if item_id.is_empty():
+		return
+	for index in range(mission_world_objects.size()):
+		var object_data: Dictionary = mission_world_objects[index]
+		if String(object_data.get("id", "")) != item_id:
+			continue
+		mission_world_objects[index] = item_data
+		return
+	mission_world_objects.append(item_data)
+
+func _remove_world_item_record(item_id: String) -> void:
+	if item_id.strip_edges().is_empty():
+		return
+	for index in range(mission_world_objects.size() - 1, -1, -1):
+		var object_data: Dictionary = mission_world_objects[index]
+		if String(object_data.get("id", "")) == item_id:
+			mission_world_objects.remove_at(index)
 
 func remove_first_item_at_cell(cell: Vector2i) -> Dictionary:
 	var items: Array[Dictionary] = get_items_at_cell(cell)
@@ -1853,7 +1879,7 @@ func remove_first_item_at_cell(cell: Vector2i) -> Dictionary:
 		return {}
 	var item: Dictionary = items.pop_front()
 	cell_items[cell] = items
-	mission_world_objects.erase(item)
+	_remove_world_item_record(String(item.get("id", "")))
 	return item
 
 func _get_world_object_template(prefab_id: String) -> Dictionary:
@@ -2566,15 +2592,31 @@ func place_map_constructor_prefab(prefab_id: String, cell: Vector2i, preferred_w
 		var item_type: String = prefab_id
 		if prefab_id == "mechanical_key":
 			item_type = "mechanical_keycard"
+		var item_display_name: String = "Mechanical Key" if prefab_id == "mechanical_key" else prefab_id.capitalize()
+		var item_description: String = "Physical key item for locks." if prefab_id == "mechanical_key" else "Pickup item."
+		var item_form: String = "digital" if prefab_id in ["digital_key", "access_code"] else "physical"
+		var key_kind: String = "access_code"
+		if prefab_id == "mechanical_key":
+			key_kind = "mechanical"
+		elif prefab_id == "digital_key":
+			key_kind = "digital"
 		var item_data: Dictionary = {
 			"id": item_object_id,
 			"object_group": "item",
 			"object_type": "item",
 			"item_type": item_type,
+			"display_name": item_display_name,
+			"description": item_description,
+			"item_form": item_form,
+			"storage_type": "pocket",
+			"can_pickup": true,
+			"interactable": true,
+			"key_kind": key_kind,
+			"key_type": prefab_id,
 			"position": cell,
 			"created_by_map_constructor": true,
 			"map_constructor_prefab_id": prefab_id
-		}
+			}
 		item_data["map_constructor_rotation_degrees"] = posmod(rotation_degrees, 360)
 		add_item_at_cell(cell, item_data)
 		PowerSystemRef.recalculate_network(mission_world_objects, "")
@@ -3489,6 +3531,7 @@ func apply_map_constructor_property_update(entity_kind: String, entity_id: Strin
 					continue
 				items[index] = data
 				cell_items[cell] = items
+				_sync_world_item_record(data)
 				found_item = true
 				break
 			if found_item:
@@ -3504,6 +3547,28 @@ func apply_map_constructor_property_update(entity_kind: String, entity_id: Strin
 		PowerSystemRef.recalculate_network(mission_world_objects, old_network_id)
 		PowerSystemRef.recalculate_network(mission_world_objects, String(data.get("power_network_id", "")))
 	refresh_world_cooling_received()
+	if field_name == "linked_door_id" and resolved_kind == "item":
+		var door_id: String = String(new_value).strip_edges()
+		if not door_id.is_empty():
+			var linked_door: Dictionary = get_world_object_by_id(door_id)
+			if not linked_door.is_empty():
+				linked_door["required_key_id"] = entity_id
+				update_world_object_by_id(door_id, linked_door)
+	elif field_name == "required_key_id" and resolved_kind == "world_object":
+		var key_id: String = String(new_value).strip_edges()
+		if not key_id.is_empty():
+			var linked_key: Dictionary = get_cell_item_by_id(key_id)
+			if not linked_key.is_empty():
+				linked_key["linked_door_id"] = entity_id
+				_sync_world_item_record(linked_key)
+				for cell_variant in cell_items.keys():
+					var cell: Vector2i = Vector2i(cell_variant)
+					var items: Array[Dictionary] = get_items_at_cell(cell)
+					for item_index in range(items.size()):
+						if String(items[item_index].get("id", "")) == key_id:
+							items[item_index] = linked_key
+							cell_items[cell] = items
+							break
 	result["ok"] = true
 	result["value"] = new_value
 	result["message"] = "Updated %s." % field_name
@@ -4996,6 +5061,34 @@ func get_map_constructor_validation_issues() -> Array[Dictionary]:
 				seen_item_ids[item_id] = true
 			if item_cell.x < 0 or item_cell.y < 0:
 				issues.append(_make_map_constructor_issue("item_invalid_cell_%s" % item_id, "error", "Item cell invalid or negative.", item_cell, source_name, "item", item_id))
+	for item_id_variant in seen_item_ids.keys():
+		var item_id_for_link: String = String(item_id_variant)
+		var item_for_link: Dictionary = get_cell_item_by_id(item_id_for_link)
+		var linked_door_id: String = String(item_for_link.get("linked_door_id", "")).strip_edges()
+		if linked_door_id.is_empty():
+			continue
+		var linked_door: Dictionary = get_world_object_by_id(linked_door_id)
+		var item_cell_for_link: Vector2i = _get_world_object_cell_from_data(item_for_link)
+		if linked_door.is_empty():
+			issues.append(_make_map_constructor_issue("key_link_missing_door_%s" % item_id_for_link, "error", "Key is linked to a missing door: %s." % linked_door_id, item_cell_for_link, source_name, "item", item_id_for_link))
+		elif String(linked_door.get("required_key_id", "")).strip_edges() != item_id_for_link:
+			issues.append(_make_map_constructor_issue("key_link_one_way_%s" % item_id_for_link, "warning", "Key-door link is not two-way at runtime.", item_cell_for_link, source_name, "item", item_id_for_link))
+		if not bool(item_for_link.get("can_pickup", true)):
+			issues.append(_make_map_constructor_issue("key_not_pickup_capable_%s" % item_id_for_link, "error", "Linked key is not pickup-capable at runtime.", item_cell_for_link, source_name, "item", item_id_for_link))
+	for object_id_variant in seen_object_ids.keys():
+		var door_id_for_link: String = String(object_id_variant)
+		var door_for_link: Dictionary = get_world_object_by_id(door_id_for_link)
+		var required_key_id: String = String(door_for_link.get("required_key_id", "")).strip_edges()
+		if required_key_id.is_empty():
+			continue
+		var door_cell_for_link: Vector2i = _get_world_object_cell_from_data(door_for_link)
+		var required_key: Dictionary = get_cell_item_by_id(required_key_id)
+		if required_key.is_empty():
+			issues.append(_make_map_constructor_issue("door_required_key_missing_%s" % door_id_for_link, "error", "Door requires a missing key: %s." % required_key_id, door_cell_for_link, source_name, "world_object", door_id_for_link))
+		elif String(required_key.get("linked_door_id", "")).strip_edges() != door_id_for_link:
+			issues.append(_make_map_constructor_issue("door_key_one_way_%s" % door_id_for_link, "warning", "Door required_key_id is not mirrored by key linked_door_id.", door_cell_for_link, source_name, "world_object", door_id_for_link))
+		elif not bool(required_key.get("can_pickup", true)):
+			issues.append(_make_map_constructor_issue("door_key_not_pickup_%s" % door_id_for_link, "error", "Door requires a key that cannot be picked up at runtime.", door_cell_for_link, source_name, "world_object", door_id_for_link))
 	var catalog_ids: Dictionary = {}
 	for row_variant in Array(get_map_constructor_wall_material_catalog().get("materials", [])):
 		var row: Dictionary = Dictionary(row_variant)
@@ -5462,6 +5555,16 @@ func get_world_object_by_id(id: String) -> Dictionary:
 	for object_data in mission_world_objects:
 		if String(object_data.get("id", "")) == id:
 			return object_data
+	return {}
+
+func get_cell_item_by_id(id: String) -> Dictionary:
+	var normalized_id: String = id.strip_edges()
+	if normalized_id.is_empty():
+		return {}
+	for cell_variant in cell_items.keys():
+		for item_variant in Array(cell_items.get(cell_variant, [])):
+			if item_variant is Dictionary and String(Dictionary(item_variant).get("id", "")) == normalized_id:
+				return Dictionary(item_variant)
 	return {}
 
 func update_world_object_by_id(id: String, data: Dictionary) -> void:
@@ -8318,6 +8421,18 @@ func get_world_object_runtime_state() -> Dictionary:
 func get_inventory_state() -> Dictionary:
 	return runtime_inventory_state.duplicate(true)
 
+func mark_key_collected(key_id: String) -> void:
+	var normalized_id: String = key_id.strip_edges()
+	if normalized_id.is_empty():
+		return
+	var collected: Array = Array(runtime_inventory_state.get("collected_key_ids", []))
+	if not collected.has(normalized_id):
+		collected.append(normalized_id)
+	runtime_inventory_state["collected_key_ids"] = collected
+
+func has_collected_key(key_id: String) -> bool:
+	return Array(runtime_inventory_state.get("collected_key_ids", [])).has(key_id.strip_edges())
+
 func get_actor_capability_levels() -> Dictionary:
 	var defaults := {
 		"manipulator_level": 0,
@@ -8442,8 +8557,11 @@ func pickup_world_item(item_id: String) -> Dictionary:
 	if storage_type == "manipulator_hold":
 		return hold_item_in_manipulator(item_id)
 	var pocket: Array = runtime_inventory_state.get("pocket_items", [])
-	pocket.append(item_id)
+	if not pocket.has(item_id):
+		pocket.append(item_id)
 	runtime_inventory_state["pocket_items"] = pocket
+	if String(item.get("key_kind", "")).strip_edges() != "" or String(item.get("item_type", "")).contains("key"):
+		mark_key_collected(item_id)
 	runtime_inventory_state["world_item_runtime"][item_id] = {"picked_up": true, "in_inventory": true, "carried_by": "bipob"}
 	return {"success": true, "reasons": ["ok"], "item_id": item_id}
 
@@ -9954,6 +10072,9 @@ func can_use_access_item_on_door(item_id: String, door_id: String) -> Dictionary
 	var item := get_world_object_by_id(item_id)
 	if item.is_empty(): return {"success":false, "item_id":item_id, "door_id":door_id, "reasons":["item_missing"]}
 	if door.is_empty(): return {"success":false, "item_id":item_id, "door_id":door_id, "reasons":["door_missing"]}
+	var required_key_id := String(door.get("required_key_id", "")).strip_edges()
+	if not required_key_id.is_empty() and item_id != required_key_id:
+		return {"success":false, "item_id":item_id, "door_id":door_id, "reasons":["wrong_key_id"]}
 	var lock_type := String(door.get("lock_type", "none"))
 	var digital_state := String(item.get("digital_state", ""))
 	if item_id.find("damaged") != -1 or digital_state == "damaged": return {"success":false, "item_id":item_id, "door_id":door_id, "reasons":["digital_key_damaged"]}
