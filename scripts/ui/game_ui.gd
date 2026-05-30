@@ -9542,7 +9542,7 @@ func _process_runtime_interaction_feedback(delta: float) -> void:
 	if runtime_notification_timer > 0.0:
 		runtime_notification_timer = maxf(0.0, runtime_notification_timer - delta)
 		if runtime_notification_label != null:
-			var pulse := 0.70 + 0.30 * abs(sin(Time.get_ticks_msec() / 180.0))
+			var pulse: float = 0.70 + 0.30 * abs(sin(float(Time.get_ticks_msec()) / 180.0))
 			runtime_notification_label.modulate = Color(1, 1, 1, pulse)
 	elif runtime_notification_label != null:
 		_refresh_runtime_notification_fallback()
@@ -9555,7 +9555,7 @@ func _process_runtime_interaction_feedback(delta: float) -> void:
 	var has_interactable := not target_object.is_empty() and not actions.is_empty()
 	var has_actions_left := int(bipob.actions_left) > 0
 	var manipulator_blocked := has_interactable and _is_runtime_interaction_manipulator_blocked(target_object, actions)
-	var pulse_alpha := 0.72 + 0.28 * abs(sin(Time.get_ticks_msec() / 170.0))
+	var pulse_alpha: float = 0.72 + 0.28 * abs(sin(float(Time.get_ticks_msec()) / 170.0))
 	if runtime_action_button != null:
 		if manipulator_blocked:
 			runtime_action_button.modulate = Color(1.0, 0.38, 0.38, 1.0)
