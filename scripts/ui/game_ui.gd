@@ -450,6 +450,8 @@ const MODULE_VERSION_COLOR_V2: Color = Color("#4DB6FF")
 const MODULE_VERSION_COLOR_V3: Color = Color("#B56CFF")
 const MODULE_VERSION_COLOR_UNKNOWN: Color = Color("#E84B4B")
 const SELECTED_MODULE_ICON_SIZE: Vector2 = Vector2(68, 64)
+const SELECTED_MODULE_VISUAL_PREVIEW_SIZE: Vector2 = Vector2(96, 72)
+const SELECTED_MODULE_FOOTPRINT_PREVIEW_SIZE: Vector2 = Vector2(84, 64)
 const SELECTED_MODULE_PREVIEW_CELL_SIZE: Vector2 = Vector2(18, 18)
 const SELECTED_MODULE_PREVIEW_GAP: int = 3
 const EXTERNAL_SLOT_CELL_SIZE: Vector2 = Vector2(22, 22)
@@ -4140,14 +4142,12 @@ func _get_selected_module_for_context(_context: String) -> BipobModule:
 
 
 func _create_selected_module_size_preview(module: BipobModule, context: String) -> Control:
-	if context == "internal" or (module != null and module.placement_type.begins_with("internal")):
-		return _create_internal_footprint_size_preview(module, context)
-	return _create_external_flat_size_preview(module)
+	return _create_selected_module_footprint_preview(module, context)
 
 
-func _create_external_flat_size_preview(module: BipobModule) -> Control:
+func _create_selected_module_visual_preview(module: BipobModule, _context: String) -> Control:
 	var panel := PanelContainer.new()
-	panel.custom_minimum_size = Vector2(84, 64)
+	panel.custom_minimum_size = SELECTED_MODULE_VISUAL_PREVIEW_SIZE
 	panel.add_theme_stylebox_override("panel", _make_panel_style(UI_COLOR_PANEL_DARK, UI_COLOR_BORDER_DIM, 1, 4))
 	var preview_root := Control.new()
 	preview_root.mouse_filter = Control.MOUSE_FILTER_IGNORE
@@ -4172,19 +4172,49 @@ func _create_external_flat_size_preview(module: BipobModule) -> Control:
 		_apply_label_style(preview_label, false, true)
 		preview_root.add_child(preview_label)
 
+	panel.add_child(preview_root)
+	return panel
+
+
+func _create_selected_module_footprint_preview(module: BipobModule, context: String) -> Control:
+	if context == "internal" or (module != null and module.placement_type.begins_with("internal")):
+		return _create_internal_footprint_size_preview(module, context)
+	return _create_external_flat_size_preview(module)
+
+
+func _create_external_flat_size_preview(module: BipobModule) -> Control:
+	var panel := PanelContainer.new()
+	panel.custom_minimum_size = SELECTED_MODULE_FOOTPRINT_PREVIEW_SIZE
+	panel.add_theme_stylebox_override("panel", _make_panel_style(UI_COLOR_PANEL_DARK, UI_COLOR_BORDER_DIM, 1, 4))
+	var root := VBoxContainer.new()
+	root.add_theme_constant_override("separation", 2)
+	root.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	root.alignment = BoxContainer.ALIGNMENT_CENTER
+	if module == null:
+		panel.add_child(root)
+		return panel
+
 	var footprint_size: Vector2i = Vector2i(maxi(1, module.external_width), maxi(1, module.external_height))
+	var preview_columns: int = maxi(1, footprint_size.x)
+	var preview_rows: int = maxi(1, footprint_size.y)
+	var grid := GridContainer.new()
+	grid.columns = preview_columns
+	grid.add_theme_constant_override("h_separation", 2)
+	grid.add_theme_constant_override("v_separation", 2)
+	grid.size_flags_horizontal = Control.SIZE_SHRINK_CENTER
+	for y in range(preview_rows):
+		for x in range(preview_columns):
+			var cell := ColorRect.new()
+			cell.custom_minimum_size = SELECTED_MODULE_PREVIEW_CELL_SIZE
+			cell.color = Color(0.35, 0.75, 0.95, 0.55)
+			grid.add_child(cell)
+	root.add_child(grid)
 	var size_label := Label.new()
 	size_label.text = "%dx%d" % [footprint_size.x, footprint_size.y]
-	size_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_LEFT
-	size_label.vertical_alignment = VERTICAL_ALIGNMENT_BOTTOM
-	size_label.mouse_filter = Control.MOUSE_FILTER_IGNORE
-	size_label.set_anchors_preset(Control.PRESET_FULL_RECT)
-	size_label.offset_left = 5.0
-	size_label.offset_bottom = -3.0
+	size_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	_apply_label_style(size_label, true, false)
-	preview_root.add_child(size_label)
-
-	panel.add_child(preview_root)
+	root.add_child(size_label)
+	panel.add_child(root)
 	return panel
 
 
@@ -4440,7 +4470,8 @@ func _create_selected_module_info_panel(module: BipobModule, context: String) ->
 	left.add_theme_constant_override("separation", 4)
 	var previews := HBoxContainer.new()
 	previews.add_theme_constant_override("separation", 6)
-	previews.add_child(_apply_module_icon_badge_to_preview_block(_create_selected_module_size_preview(module, context), module))
+	previews.add_child(_apply_module_icon_badge_to_preview_block(_create_selected_module_visual_preview(module, context), module))
+	previews.add_child(_create_selected_module_footprint_preview(module, context))
 	left.add_child(previews)
 	var name_label := Label.new(); name_label.text = _get_module_title_for_selected_info(module); _apply_label_style(name_label); left.add_child(name_label)
 	var type_label := Label.new(); type_label.text = "Type: %s" % _get_module_type_text(module); _apply_label_style(type_label, true, false); left.add_child(type_label)
