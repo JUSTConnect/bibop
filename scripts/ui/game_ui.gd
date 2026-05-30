@@ -440,12 +440,14 @@ const STORAGE_CARD_ICON_SIZE: Vector2 = Vector2(26, 26)
 const MODULE_TYPE_ICON_BASE_PATH: String = "res://assets/visual/isometric/icons/modules/base_icon_inext.webp"
 const MODULE_TYPE_ICON_ATLAS_PATH: String = "res://assets/visual/isometric/icons/modules/icon_inext.webp"
 const MODULE_TYPE_ICON_FRAME_SIZE: Vector2i = Vector2i(64, 64)
-const MODULE_TYPE_ICON_TILE_SIZE: Vector2 = Vector2(32, 32)
+const MODULE_TYPE_ICON_TILE_SIZE: Vector2 = Vector2(64, 64)
+const MODULE_TYPE_ICON_PREVIEW_BADGE_SIZE: Vector2 = Vector2(40, 40)
 const MODULE_TYPE_ICON_TILE_PADDING: float = 5.0
 const MODULE_TYPE_ICON_OVERLAY_COLOR: Color = Color(0, 0, 0, 1)
 const MODULE_VERSION_COLOR_V1: Color = Color("#78C850")
 const MODULE_VERSION_COLOR_V2: Color = Color("#4DB6FF")
 const MODULE_VERSION_COLOR_V3: Color = Color("#B56CFF")
+const MODULE_VERSION_COLOR_UNKNOWN: Color = Color("#E84B4B")
 const SELECTED_MODULE_ICON_SIZE: Vector2 = Vector2(68, 64)
 const SELECTED_MODULE_PREVIEW_CELL_SIZE: Vector2 = Vector2(18, 18)
 const SELECTED_MODULE_PREVIEW_GAP: int = 3
@@ -1258,15 +1260,22 @@ func _get_module_type_icon_atlas_texture(row: int, col: int) -> AtlasTexture:
 	return region_texture
 
 
-func _get_module_version_badge_color(module: BipobModule) -> Color:
+func _get_module_icon_version_number(module: BipobModule) -> int:
 	if module == null:
-		return MODULE_VERSION_COLOR_V1
+		return 0
 	var version_number: int = int(module.module_version)
-	if version_number <= 0:
-		var version_text: String = String(module.version).strip_edges().to_lower()
-		version_text = version_text.replace("v", "")
-		version_number = int(version_text) if version_text.is_valid_int() else 1
-	match clampi(version_number, 1, 3):
+	if version_number > 0:
+		return version_number
+	var version_text: String = String(module.version).strip_edges().to_lower()
+	version_text = version_text.replace("version", "")
+	version_text = version_text.replace("v", "")
+	return int(version_text) if version_text.is_valid_int() else 0
+
+
+func _get_module_icon_background_color(module: BipobModule) -> Color:
+	if module == null or _is_module_unknown(module):
+		return MODULE_VERSION_COLOR_UNKNOWN
+	match _get_module_icon_version_number(module):
 		1:
 			return MODULE_VERSION_COLOR_V1
 		2:
@@ -1274,7 +1283,7 @@ func _get_module_version_badge_color(module: BipobModule) -> Color:
 		3:
 			return MODULE_VERSION_COLOR_V3
 		_:
-			return MODULE_VERSION_COLOR_V1
+			return MODULE_VERSION_COLOR_UNKNOWN
 
 
 func _module_search_text(module: BipobModule) -> String:
@@ -1321,6 +1330,8 @@ func _is_module_icon_internal(module: BipobModule) -> bool:
 func _get_module_type_icon_atlas_cell(module: BipobModule) -> Vector2i:
 	var search_text: String = _module_search_text(module)
 	var is_internal_icon: bool = _is_module_icon_internal(module)
+	if _is_module_unknown(module):
+		return Vector2i(4, 4) if is_internal_icon else Vector2i(2, 4)
 	if is_internal_icon:
 		if _module_text_has_any(search_text, ["cooling", "cooler", "fan", "radiator"]):
 			return Vector2i(3, 1)
@@ -1379,7 +1390,7 @@ func create_module_type_icon(module: BipobModule, display_size: Vector2 = MODULE
 	container.custom_minimum_size = display_size
 	container.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	container.clip_contents = false
-	container.add_child(_create_texture_layer(base_texture, _get_module_version_badge_color(module)))
+	container.add_child(_create_texture_layer(base_texture, _get_module_icon_background_color(module)))
 	var border_texture: AtlasTexture = _get_module_type_icon_atlas_texture(4, 5)
 	if border_texture == null:
 		return null
@@ -1404,6 +1415,49 @@ func _anchor_module_type_icon_bottom_right(icon: Control, display_size: Vector2,
 	icon.offset_right = -padding
 	icon.offset_bottom = -padding
 	icon.mouse_filter = Control.MOUSE_FILTER_IGNORE
+
+
+func _build_module_icon_badge(module: BipobModule, display_size: Vector2 = MODULE_TYPE_ICON_TILE_SIZE) -> Control:
+	return create_module_type_icon(module, display_size)
+
+
+func _apply_module_icon_badge_to_tile(tile: Control, module: BipobModule) -> void:
+	if tile == null or not _has_module_type_icon_assets():
+		return
+	var overlay_icon: Control = _build_module_icon_badge(module, MODULE_TYPE_ICON_TILE_SIZE)
+	if overlay_icon == null:
+		return
+	_anchor_module_type_icon_bottom_right(overlay_icon, MODULE_TYPE_ICON_TILE_SIZE, MODULE_TYPE_ICON_TILE_PADDING)
+	tile.add_child(overlay_icon)
+
+
+func _apply_module_icon_badge_to_preview_block(preview_block: Control, module: BipobModule, display_size: Vector2 = MODULE_TYPE_ICON_PREVIEW_BADGE_SIZE) -> Control:
+	if preview_block == null or not _has_module_type_icon_assets():
+		return preview_block
+	var badge: Control = _build_module_icon_badge(module, display_size)
+	if badge == null:
+		return preview_block
+	var wrapper: Control = Control.new()
+	wrapper.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	wrapper.clip_contents = false
+	var preview_min_size: Vector2 = preview_block.custom_minimum_size
+	if preview_min_size == Vector2.ZERO:
+		preview_min_size = preview_block.get_combined_minimum_size()
+	if preview_min_size == Vector2.ZERO:
+		preview_min_size = display_size + Vector2(MODULE_TYPE_ICON_TILE_PADDING * 2.0, MODULE_TYPE_ICON_TILE_PADDING * 2.0)
+	wrapper.custom_minimum_size = preview_min_size
+	wrapper.size_flags_horizontal = preview_block.size_flags_horizontal
+	wrapper.size_flags_vertical = preview_block.size_flags_vertical
+	preview_block.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	preview_block.set_anchors_preset(Control.PRESET_FULL_RECT)
+	preview_block.offset_left = 0.0
+	preview_block.offset_top = 0.0
+	preview_block.offset_right = 0.0
+	preview_block.offset_bottom = 0.0
+	wrapper.add_child(preview_block)
+	_anchor_module_type_icon_bottom_right(badge, display_size, MODULE_TYPE_ICON_TILE_PADDING)
+	wrapper.add_child(badge)
+	return wrapper
 
 
 func _load_module_icon_texture(module: BipobModule) -> Texture2D:
@@ -1748,10 +1802,7 @@ func _create_storage_module_card(module: BipobModule, storage_index: int, select
 
 	button.add_child(root)
 	if has_composed_icon:
-		var overlay_icon: Control = create_module_type_icon(module, MODULE_TYPE_ICON_TILE_SIZE)
-		if overlay_icon != null:
-			_anchor_module_type_icon_bottom_right(overlay_icon, MODULE_TYPE_ICON_TILE_SIZE, MODULE_TYPE_ICON_TILE_PADDING)
-			button.add_child(overlay_icon)
+		_apply_module_icon_badge_to_tile(button, module)
 	_add_hover_scale_feedback(button)
 	if selected:
 		_apply_selected_pulse(button)
@@ -2759,8 +2810,9 @@ func _create_selected_module_detail_card() -> Control:
 		return panel
 	var header_row: HBoxContainer = HBoxContainer.new()
 	header_row.add_theme_constant_override("separation", 8)
-	var icon: Control = _create_module_icon_control(module, SELECTED_MODULE_ICON_SIZE)
-	header_row.add_child(icon)
+	var icon: Control = _build_module_icon_badge(module, MODULE_TYPE_ICON_PREVIEW_BADGE_SIZE)
+	if icon != null:
+		header_row.add_child(icon)
 	var name_box: VBoxContainer = VBoxContainer.new()
 	var name_label: Label = Label.new()
 	name_label.text = bipob.get_module_display_name(module)
@@ -2777,11 +2829,11 @@ func _create_selected_module_detail_card() -> Control:
 	header_row.add_child(name_box)
 	root.add_child(header_row)
 	if bipob.is_external_module(module):
-		root.add_child(_create_external_footprint_preview(module))
+		root.add_child(_apply_module_icon_badge_to_preview_block(_create_external_footprint_preview(module), module))
 	elif bipob.is_internal_module(module):
-		root.add_child(_create_internal_volume_preview(module))
+		root.add_child(_apply_module_icon_badge_to_preview_block(_create_internal_volume_preview(module), module))
 	elif bipob.is_internal_overlay_module(module):
-		root.add_child(_create_overlay_module_preview(module))
+		root.add_child(_apply_module_icon_badge_to_preview_block(_create_overlay_module_preview(module), module))
 	var stats_panel: PanelContainer = PanelContainer.new()
 	_apply_dark_panel_style(stats_panel)
 	var stats_box: VBoxContainer = VBoxContainer.new()
@@ -4293,6 +4345,10 @@ func _create_selected_module_info_panel(module: BipobModule, context: String) ->
 		unknown_label.set_anchors_preset(Control.PRESET_FULL_RECT)
 		_apply_label_style(unknown_label, false, true)
 		panel.add_child(unknown_label)
+		var unknown_badge: Control = _build_module_icon_badge(module, MODULE_TYPE_ICON_PREVIEW_BADGE_SIZE)
+		if unknown_badge != null:
+			_anchor_module_type_icon_bottom_right(unknown_badge, MODULE_TYPE_ICON_PREVIEW_BADGE_SIZE, MODULE_TYPE_ICON_TILE_PADDING)
+			panel.add_child(unknown_badge)
 		return panel
 	var left := VBoxContainer.new()
 	left.custom_minimum_size = Vector2(192, 0)
@@ -4300,8 +4356,7 @@ func _create_selected_module_info_panel(module: BipobModule, context: String) ->
 	left.add_theme_constant_override("separation", 4)
 	var previews := HBoxContainer.new()
 	previews.add_theme_constant_override("separation", 6)
-	previews.add_child(_create_module_icon_control(module, SELECTED_MODULE_ICON_SIZE))
-	previews.add_child(_create_selected_module_size_preview(module, context))
+	previews.add_child(_apply_module_icon_badge_to_preview_block(_create_selected_module_size_preview(module, context), module))
 	left.add_child(previews)
 	var name_label := Label.new(); name_label.text = _get_module_title_for_selected_info(module); _apply_label_style(name_label); left.add_child(name_label)
 	var type_label := Label.new(); type_label.text = "Type: %s" % _get_module_type_text(module); _apply_label_style(type_label, true, false); left.add_child(type_label)
