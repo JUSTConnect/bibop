@@ -35,6 +35,7 @@ class_name RoomVisualRenderer
 @export var use_iso_tile_asset_hooks: bool = false
 @export var use_iso_placeholder_asset_preset: bool = false
 @export var iso_placeholder_asset_preset_requires_preview: bool = true
+@export var iso_floor_atlas_texture: Texture2D = preload("res://assets/visual/isometric/floor/floor.webp")
 @export var iso_floor_default_texture: Texture2D = null
 @export var iso_floor_stepped_texture: Texture2D = null
 @export var iso_floor_clean_lab_texture: Texture2D = null
@@ -114,6 +115,20 @@ const ISO_PLACEHOLDER_ASSET_PATHS: Dictionary = {
 	"object_switch": "res://assets/visual/isometric/placeholders/iso_object_switch.svg"
 }
 
+
+const ISO_FLOOR_ATLAS_COLUMNS: int = 6
+const ISO_FLOOR_ATLAS_ROWS: int = 7
+const ISO_FLOOR_ATLAS_BASE_VARIANTS: int = 6
+const ISO_FLOOR_ATLAS_HEAVY_METAL_VARIANTS: int = 4
+const ISO_FLOOR_ATLAS_LAYOUT: Dictionary = {
+	"grate_base": {"row": 1, "variants": 6, "overlay": false},
+	"metal_base": {"row": 2, "variants": 6, "overlay": false},
+	"metal_light_wear": {"row": 3, "variants": 6, "overlay": true},
+	"metal_heavy_damage": {"row": 4, "variants": ISO_FLOOR_ATLAS_HEAVY_METAL_VARIANTS, "overlay": true},
+	"concrete_base": {"row": 5, "variants": 6, "overlay": false},
+	"concrete_light_wear": {"row": 6, "variants": 6, "overlay": true},
+	"concrete_heavy_damage": {"row": 7, "variants": 6, "overlay": true},
+}
 
 const ISO_ASSET_ALIGNMENT_RULES: Dictionary = {
 	"floor_default": {"anchor": "center", "scale": 1.0, "offset": Vector2.ZERO, "expected_size": Vector2(128, 64), "layer_hint": "floor", "notes": "Default 128x64 floor diamond centered in the grid cell."},
@@ -2586,6 +2601,92 @@ func draw_iso_wall_grate_accent(left_face: PackedVector2Array, right_face: Packe
 		draw_line(left_face[0].lerp(left_face[1], column), left_face[3].lerp(left_face[2], column), bar_color, 1.7)
 		draw_line(right_face[0].lerp(right_face[1], column), right_face[3].lerp(right_face[2], column), bar_color, 1.7)
 
+func get_floor_atlas_cell_size() -> Vector2:
+	if iso_floor_atlas_texture == null:
+		return Vector2.ZERO
+	return Vector2(
+		float(iso_floor_atlas_texture.get_width()) / float(ISO_FLOOR_ATLAS_COLUMNS),
+		float(iso_floor_atlas_texture.get_height()) / float(ISO_FLOOR_ATLAS_ROWS)
+	)
+
+func get_floor_atlas_region(row: int, position: int) -> Rect2:
+	var cell_size: Vector2 = get_floor_atlas_cell_size()
+	if cell_size.x <= 0.0 or cell_size.y <= 0.0:
+		return Rect2()
+	var safe_row: int = clampi(row, 1, ISO_FLOOR_ATLAS_ROWS)
+	var safe_position: int = clampi(position, 1, ISO_FLOOR_ATLAS_COLUMNS)
+	return Rect2(Vector2(float(safe_position - 1) * cell_size.x, float(safe_row - 1) * cell_size.y), cell_size)
+
+func get_floor_state_for_cell(cell: Vector2i) -> Dictionary:
+	if _grid_manager == null or not _grid_manager.has_method("get_floor_visual_state"):
+		return {"family": "metal", "wear": "none", "base_variant": -1, "overlay_variant": -1, "mirror_h": false, "mirror_v": false}
+	return Dictionary(_grid_manager.call("get_floor_visual_state", cell))
+
+func get_floor_base_atlas_key(family: String) -> String:
+	match family:
+		"grate":
+			return "grate_base"
+		"concrete":
+			return "concrete_base"
+		_:
+			return "metal_base"
+
+func get_floor_overlay_atlas_key(family: String, wear: String) -> String:
+	if wear == "light_wear":
+		if family == "concrete":
+			return "concrete_light_wear"
+		if family == "metal":
+			return "metal_light_wear"
+	elif wear == "heavy_damage":
+		if family == "concrete":
+			return "concrete_heavy_damage"
+		if family == "metal":
+			return "metal_heavy_damage"
+	return ""
+
+func get_floor_atlas_variant_for_cell(cell: Vector2i, requested_variant: int, max_variants: int, salt: int = 0) -> int:
+	if max_variants <= 0:
+		return 1
+	if requested_variant >= 1:
+		return clampi(requested_variant, 1, max_variants)
+	return ((cell.x * 17 + cell.y * 31 + salt) % max_variants) + 1
+
+func draw_floor_atlas_layer(cell: Vector2i, atlas_key: String, requested_variant: int, mirror_h: bool, mirror_v: bool) -> bool:
+	if iso_floor_atlas_texture == null:
+		return false
+	if not ISO_FLOOR_ATLAS_LAYOUT.has(atlas_key):
+		return false
+	var layout: Dictionary = Dictionary(ISO_FLOOR_ATLAS_LAYOUT.get(atlas_key, {}))
+	var row: int = int(layout.get("row", 1))
+	var variant_count: int = int(layout.get("variants", ISO_FLOOR_ATLAS_BASE_VARIANTS))
+	var variant: int = get_floor_atlas_variant_for_cell(cell, requested_variant, variant_count, row * 13)
+	var source_rect: Rect2 = get_floor_atlas_region(row, variant)
+	if source_rect.size.x <= 0.0 or source_rect.size.y <= 0.0:
+		return false
+	var center: Vector2 = grid_to_iso(cell)
+	var destination_size: Vector2 = Vector2(iso_tile_width, iso_tile_height)
+	var destination_rect: Rect2 = Rect2(destination_size * -0.5, destination_size)
+	var scale: Vector2 = Vector2(-1.0 if mirror_h else 1.0, -1.0 if mirror_v else 1.0)
+	draw_set_transform(center, 0.0, scale)
+	draw_texture_rect_region(iso_floor_atlas_texture, destination_rect, source_rect)
+	draw_set_transform(Vector2.ZERO, 0.0, Vector2.ONE)
+	return true
+
+func draw_iso_floor_atlas_for_cell(cell: Vector2i) -> bool:
+	if iso_floor_atlas_texture == null:
+		return false
+	var state: Dictionary = get_floor_state_for_cell(cell)
+	var family: String = String(state.get("family", "metal"))
+	var wear: String = String(state.get("wear", "none"))
+	var mirror_h: bool = bool(state.get("mirror_h", false))
+	var mirror_v: bool = bool(state.get("mirror_v", false))
+	var base_key: String = get_floor_base_atlas_key(family)
+	var base_drawn: bool = draw_floor_atlas_layer(cell, base_key, int(state.get("base_variant", -1)), mirror_h, mirror_v)
+	var overlay_key: String = get_floor_overlay_atlas_key(family, wear)
+	if not overlay_key.is_empty():
+		draw_floor_atlas_layer(cell, overlay_key, int(state.get("overlay_variant", -1)), mirror_h, mirror_v)
+	return base_drawn
+
 func draw_iso_floor_prototype() -> void:
 	# Procedural prototype floor renderer for early isometric look exploration.
 	# Gameplay remains square-grid based in GridManager; this is visual-only.
@@ -2624,6 +2725,8 @@ func draw_iso_floor_prototype() -> void:
 						var floor_asset_drawn: bool = draw_optional_visual_texture_asset(floor_texture_asset_id, cell, "", {"visual_center": grid_to_iso(cell)})
 						if floor_asset_drawn:
 							continue
+			if draw_iso_floor_atlas_for_cell(cell):
+				continue
 			if draw_cell_border and draw_iso_texture_asset(cell, floor_asset_key):
 				continue
 			draw_colored_polygon(diamond_points, fill_color)

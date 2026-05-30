@@ -27,6 +27,14 @@ const TILE_POWERED_GATE := 22
 const TILE_CABLE := 23
 const TILE_STEPPED_FLOOR := 24
 
+const FLOOR_FAMILY_GRATE := "grate"
+const FLOOR_FAMILY_METAL := "metal"
+const FLOOR_FAMILY_CONCRETE := "concrete"
+const FLOOR_WEAR_NONE := "none"
+const FLOOR_WEAR_LIGHT := "light_wear"
+const FLOOR_WEAR_HEAVY := "heavy_damage"
+const FLOOR_HEAVY_DAMAGE_WHEELED_MOVE_MODIFIER := -1
+
 @export var cell_size: int = 64
 @export var fog_enabled: bool = true
 @export var reveal_radius: int = 1
@@ -40,6 +48,7 @@ var visible_cells: Array = []
 var explored_cells: Array = []
 var discovered_hidden_route_nodes: Dictionary = {}
 var world_overlay_markers: Dictionary = {}
+var floor_visual_states: Dictionary = {}
 
 var map_data: Array = [
 	[1, 1, 1, 1, 1, 1, 1, 1],
@@ -355,6 +364,92 @@ func get_tile(grid_position: Vector2i) -> int:
 		return TILE_WALL
 	
 	return map_data[grid_position.y][grid_position.x]
+
+func _get_floor_state_key(cell: Vector2i) -> String:
+	return "%d,%d" % [cell.x, cell.y]
+
+func make_floor_visual_state(family: String, wear: String = FLOOR_WEAR_NONE, base_variant: int = -1, overlay_variant: int = -1, mirror_h: bool = false, mirror_v: bool = false) -> Dictionary:
+	return {
+		"family": normalize_floor_family(family),
+		"wear": normalize_floor_wear(wear),
+		"base_variant": base_variant,
+		"overlay_variant": overlay_variant,
+		"mirror_h": mirror_h,
+		"mirror_v": mirror_v,
+	}
+
+func normalize_floor_family(family: String) -> String:
+	var normalized_family: String = family.strip_edges().to_lower()
+	if normalized_family == FLOOR_FAMILY_GRATE:
+		return FLOOR_FAMILY_GRATE
+	if normalized_family == FLOOR_FAMILY_CONCRETE:
+		return FLOOR_FAMILY_CONCRETE
+	return FLOOR_FAMILY_METAL
+
+func normalize_floor_wear(wear: String) -> String:
+	var normalized_wear: String = wear.strip_edges().to_lower()
+	if normalized_wear == FLOOR_WEAR_LIGHT:
+		return FLOOR_WEAR_LIGHT
+	if normalized_wear == FLOOR_WEAR_HEAVY:
+		return FLOOR_WEAR_HEAVY
+	return FLOOR_WEAR_NONE
+
+func get_default_floor_visual_state(cell: Vector2i = Vector2i(-1, -1)) -> Dictionary:
+	var base_variant: int = -1
+	if is_in_bounds(cell):
+		base_variant = ((cell.x * 3 + cell.y * 5) % 6) + 1
+	return make_floor_visual_state(FLOOR_FAMILY_METAL, FLOOR_WEAR_NONE, base_variant)
+
+func set_floor_visual_state(cell: Vector2i, state: Dictionary) -> void:
+	if not is_in_bounds(cell):
+		push_error("GridManager: cannot set floor state outside map bounds: " + str(cell))
+		return
+	floor_visual_states[_get_floor_state_key(cell)] = make_floor_visual_state(
+		String(state.get("family", FLOOR_FAMILY_METAL)),
+		String(state.get("wear", FLOOR_WEAR_NONE)),
+		int(state.get("base_variant", -1)),
+		int(state.get("overlay_variant", -1)),
+		bool(state.get("mirror_h", false)),
+		bool(state.get("mirror_v", false))
+	)
+	request_visual_refresh()
+
+func clear_floor_visual_state(cell: Vector2i) -> void:
+	floor_visual_states.erase(_get_floor_state_key(cell))
+	request_visual_refresh()
+
+func get_floor_visual_state(cell: Vector2i) -> Dictionary:
+	if not is_in_bounds(cell):
+		return make_floor_visual_state(FLOOR_FAMILY_METAL)
+	var key: String = _get_floor_state_key(cell)
+	if floor_visual_states.has(key):
+		return Dictionary(floor_visual_states.get(key, {}))
+	return get_default_floor_visual_state(cell)
+
+func get_floor_family_for_cell(cell: Vector2i) -> String:
+	return String(get_floor_visual_state(cell).get("family", FLOOR_FAMILY_METAL))
+
+func get_floor_wear_for_cell(cell: Vector2i) -> String:
+	return String(get_floor_visual_state(cell).get("wear", FLOOR_WEAR_NONE))
+
+func is_wheeled_gear_module(gear: BipobModule) -> bool:
+	if gear == null:
+		return false
+	var identifiers: Array = [gear.id, gear.module_id, gear.display_name, gear.get_display_name()]
+	for identifier in identifiers:
+		if String(identifier).to_lower().contains("wheel"):
+			return true
+	return false
+
+func get_floor_movement_modifier_for_gear(cell: Vector2i, gear: BipobModule) -> int:
+	if get_floor_wear_for_cell(cell) != FLOOR_WEAR_HEAVY:
+		return 0
+	var family: String = get_floor_family_for_cell(cell)
+	if family != FLOOR_FAMILY_METAL and family != FLOOR_FAMILY_CONCRETE:
+		return 0
+	if not is_wheeled_gear_module(gear):
+		return 0
+	return FLOOR_HEAVY_DAMAGE_WHEELED_MOVE_MODIFIER
 
 func is_walkable(grid_position: Vector2i) -> bool:
 	var tile_type := get_tile(grid_position)
