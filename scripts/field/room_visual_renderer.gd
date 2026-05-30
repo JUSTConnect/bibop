@@ -20,6 +20,7 @@ class_name RoomVisualRenderer
 @export var show_door_opening_overlay: bool = false
 @export var show_wall_run_overlay: bool = false
 @export var show_floor_join_overlay: bool = false
+@export var use_procedural_floor_debug_tiles: bool = false
 @export var use_iso_visual_preview_preset: bool = false
 @export var iso_visual_preview_includes_fog: bool = false
 @export var iso_fog_draw_cell_shapes: bool = false
@@ -2441,8 +2442,9 @@ func get_wall_render_topology(cell: Vector2i) -> Dictionary:
 func classify_wall_topology(cell: Vector2i) -> String:
 	if not _is_wall_in_bounds(cell) or not _is_wall_cell(cell):
 		return "unknown"
-	if is_outer_border_cell(cell):
-		return "boundary_wall"
+	# Border walls must use the same topology-derived geometry as interior walls.
+	# Treating every outer-border cell as a special boundary shape made edge
+	# segments render with a different profile than matching center-map walls.
 	if is_wall_adjacent_to_door(cell):
 		return "door_adjacent"
 	var topology: Dictionary = get_wall_render_topology(cell)
@@ -2735,6 +2737,29 @@ func draw_floor_seamless_underlay(cell: Vector2i, fill_color: Color) -> void:
 	var underlay_points: PackedVector2Array = get_iso_diamond_points_with_overlap(cell, ISO_FLOOR_UNDERLAY_OVERLAP)
 	draw_colored_polygon(underlay_points, fill_color)
 
+func draw_procedural_floor_debug_tile(cell: Vector2i, fill_color: Color) -> void:
+	# Diagnostic floor renderer: uses only vector geometry with the same
+	# grid_to_iso projection as atlas floors. If this stitches cleanly while
+	# atlas tiles do not, the issue is source art/sampling rather than placement.
+	var diamond_points: PackedVector2Array = get_iso_diamond_points(cell)
+	if diamond_points.size() < 4:
+		return
+	var base_color: Color = Color(fill_color.r, fill_color.g, fill_color.b, maxf(fill_color.a, 0.92))
+	var outline_color: Color = Color(0.48, 0.68, 0.78, 0.72)
+	var inner_color: Color = Color(0.72, 0.88, 0.95, 0.20)
+	draw_colored_polygon(diamond_points, base_color)
+	for edge_index in range(diamond_points.size()):
+		var next_index: int = (edge_index + 1) % diamond_points.size()
+		draw_line(diamond_points[edge_index], diamond_points[next_index], outline_color, 1.0)
+	var center_point: Vector2 = grid_to_iso(cell)
+	draw_line(diamond_points[0].lerp(center_point, 0.18), diamond_points[2].lerp(center_point, 0.18), inner_color, 0.55)
+	draw_line(diamond_points[3].lerp(center_point, 0.18), diamond_points[1].lerp(center_point, 0.18), inner_color, 0.55)
+	var panel_points: PackedVector2Array = get_iso_inset_diamond_points(cell, iso_floor_visual_inset + 10.0)
+	if panel_points.size() >= 4:
+		for panel_edge_index in range(panel_points.size()):
+			var panel_next_index: int = (panel_edge_index + 1) % panel_points.size()
+			draw_line(panel_points[panel_edge_index], panel_points[panel_next_index], inner_color.lightened(0.1), 0.45)
+
 func get_floor_atlas_inner_overlay_points() -> PackedVector2Array:
 	var destination_rect: Rect2 = get_floor_atlas_destination_rect()
 	var inset: float = minf(ISO_FLOOR_OVERLAY_INNER_INSET, minf(destination_rect.size.x, destination_rect.size.y) * 0.35)
@@ -2853,6 +2878,9 @@ func draw_iso_floor_prototype() -> void:
 					var floor_material: Dictionary = _safe_variant_dictionary(floor_material_result.get("material", {}))
 					fill_color = Color(floor_material.get("fallback_color", fill_color))
 					floor_texture_asset_id = String(floor_material.get("texture_asset_id", "")).strip_edges()
+			if use_procedural_floor_debug_tiles:
+				draw_procedural_floor_debug_tile(cell, fill_color)
+				continue
 			# Floor atlas states are the primary renderer.  Draw a seamless base first
 			# so transparent atlas margins and sub-pixel sampling never expose gaps.
 			draw_floor_seamless_underlay(cell, fill_color)

@@ -4769,7 +4769,7 @@ func _get_map_constructor_bottom_inspector_rect() -> Rect2:
 	var margin: float = _get_runtime_margin()
 	var viewport: Vector2 = _get_viewport_size()
 	var palette_rect: Rect2 = _get_map_constructor_palette_rect()
-	var height: float = clampf(_get_runtime_bottom_panel_height(), 150.0, 190.0)
+	var height: float = clampf(_get_runtime_bottom_panel_height() + 90.0, 230.0, 290.0)
 	var left: float = margin
 	var right: float = clampf(palette_rect.position.x - margin, left + 1.0, viewport.x - margin)
 	var bottom: float = viewport.y - margin
@@ -10441,8 +10441,7 @@ func _select_map_constructor_entity_from_browser(row: Dictionary) -> void:
 	_clear_map_constructor_preview_cell()
 	_show_map_constructor_inspector(focus_cell, entity_kind, entity_id)
 	_focus_map_constructor_cell(focus_cell)
-	if field_runtime != null and field_runtime.has_method("request_visual_refresh"):
-		field_runtime.call("request_visual_refresh")
+	_request_map_constructor_overlay_refresh()
 
 func _apply_map_constructor_cleanup_action(cleanup_type: String, options: Dictionary = {}, apply_now: bool = false) -> void:
 	if mission_manager_runtime == null:
@@ -13169,6 +13168,9 @@ func _show_map_constructor_inspector(cell: Vector2i, preferred_entity_kind: Stri
 		_restore_map_constructor_inspector_scroll_deferred(scroll, preserve_scroll_value)
 	runtime_hud_root.add_child(panel)
 	runtime_hud_root.move_child(panel, runtime_hud_root.get_child_count() - 1)
+	_sync_map_constructor_overlay_visuals()
+	if field_runtime != null and field_runtime.has_method("request_visual_refresh"):
+		field_runtime.call("request_visual_refresh")
 
 func _resolve_wall_material_target_for_selection(entity_info: Dictionary, data: Dictionary, fallback_cell: Vector2i) -> Dictionary:
 	if _safe_ui_string(data.get("placement_mode", "")) == "wall_mounted":

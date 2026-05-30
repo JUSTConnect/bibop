@@ -2069,7 +2069,7 @@ func get_default_map_constructor_field_value(field_name: String, entity_kind: St
 		if entity_kind == "item":
 			return null
 		return []
-	if normalized_field in ["state", "power_network_id", "required_key_id", "lock_type", "linked_terminal_id", "target_door_id", "target_platform_id", "control_source_id", "digital_state", "key_kind"]:
+	if normalized_field in ["state", "power_network_id", "required_key_id", "lock_type", "linked_terminal_id", "target_door_id", "target_platform_id", "control_source_id", "digital_state", "key_kind", "key_type", "display_name", "description", "custom_description", "linked_door_id"]:
 		return ""
 	return null
 
@@ -3699,6 +3699,15 @@ func find_map_constructor_key_item_by_id(key_id: String) -> Dictionary:
 			if not _map_constructor_is_key_data(item_data):
 				return {"ok": false, "reason": "not_key", "entity_kind": "item", "id": normalized_key_id, "cell": cell, "data": item_data}
 			return {"ok": true, "entity_kind": "item", "id": normalized_key_id, "cell": cell, "data": item_data}
+	for object_variant in mission_world_objects:
+		var world_data: Dictionary = _safe_dictionary(object_variant)
+		if world_data.is_empty():
+			continue
+		if String(world_data.get("id", "")).strip_edges() != normalized_key_id:
+			continue
+		if not _map_constructor_is_item_like_world_object(world_data) or not _map_constructor_is_key_data(world_data):
+			return {"ok": false, "reason": "not_key", "entity_kind": "world_object", "id": normalized_key_id, "cell": Vector2i(world_data.get("position", Vector2i(-1, -1))), "data": world_data}
+		return {"ok": true, "entity_kind": "world_object", "id": normalized_key_id, "cell": Vector2i(world_data.get("position", Vector2i(-1, -1))), "data": world_data}
 	return {"ok": false, "reason": "not_found", "entity_kind": "item", "id": normalized_key_id}
 
 func _map_constructor_get_linked_key_for_door(door_id: String) -> String:
@@ -3718,6 +3727,12 @@ func _map_constructor_get_linked_key_for_door(door_id: String) -> String:
 				continue
 			if String(item_data.get("linked_door_id", "")).strip_edges() == normalized_door_id:
 				return String(item_data.get("id", "")).strip_edges()
+	for object_variant in mission_world_objects:
+		var world_data: Dictionary = _safe_dictionary(object_variant)
+		if world_data.is_empty() or not _map_constructor_is_item_like_world_object(world_data) or not _map_constructor_is_key_data(world_data):
+			continue
+		if String(world_data.get("linked_door_id", "")).strip_edges() == normalized_door_id:
+			return String(world_data.get("id", "")).strip_edges()
 	return ""
 
 func _map_constructor_format_door_link_label(door_data: Dictionary, door_cell: Vector2i) -> String:
@@ -3777,6 +3792,7 @@ func get_map_constructor_link_targets_for_field(entity_kind: String, entity_id: 
 	if field_name == "required_key_id":
 		var ranked_items: Array[Dictionary] = []
 		var other_items: Array[Dictionary] = []
+		var seen_key_ids: Dictionary = {}
 		for cell_variant in cell_items.keys():
 			var cell: Vector2i = Vector2i(cell_variant)
 			for item_variant in Array(cell_items.get(cell_variant, [])):
@@ -3784,10 +3800,11 @@ func get_map_constructor_link_targets_for_field(entity_kind: String, entity_id: 
 					continue
 				var item_data: Dictionary = _safe_dictionary(item_variant)
 				var item_id: String = String(item_data.get("id", "")).strip_edges()
-				if item_id.is_empty():
+				if item_id.is_empty() or seen_key_ids.has(item_id):
 					continue
 				if not _map_constructor_is_key_data(item_data):
 					continue
+				seen_key_ids[item_id] = true
 				var item_type: String = String(item_data.get("item_type", item_data.get("object_type", ""))).to_lower()
 				var target: Dictionary = _map_constructor_make_link_target(item_id, item_id, "item", cell, "valid", "key_item")
 				if item_type in ["key", "mechanical_keycard", "digital_key", "access_code"] or not String(item_data.get("key_type", item_data.get("key_kind", ""))).strip_edges().is_empty():
@@ -3801,10 +3818,25 @@ func get_map_constructor_link_targets_for_field(entity_kind: String, entity_id: 
 			if not _map_constructor_is_item_like_world_object(world_data):
 				continue
 			var world_id: String = String(world_data.get("id", "")).strip_edges()
-			if world_id.is_empty():
+			if world_id.is_empty() or seen_key_ids.has(world_id):
 				continue
+			seen_key_ids[world_id] = true
 			var world_cell: Vector2i = Vector2i(world_data.get("position", Vector2i(-1, -1)))
 			targets.append(_map_constructor_make_link_target(world_id, world_id, "world_object", world_cell, "valid", "item_like_object"))
+		ranked_items.sort_custom(func(a: Dictionary, b: Dictionary) -> bool:
+			var ac: Vector2i = Vector2i(a.get("cell", Vector2i.ZERO))
+			var bc: Vector2i = Vector2i(b.get("cell", Vector2i.ZERO))
+			var al: String = "%s|%04d|%04d|%s" % [String(a.get("label", "")), ac.y, ac.x, String(a.get("id", ""))]
+			var bl: String = "%s|%04d|%04d|%s" % [String(b.get("label", "")), bc.y, bc.x, String(b.get("id", ""))]
+			return al < bl
+		)
+		other_items.sort_custom(func(a: Dictionary, b: Dictionary) -> bool:
+			var ac: Vector2i = Vector2i(a.get("cell", Vector2i.ZERO))
+			var bc: Vector2i = Vector2i(b.get("cell", Vector2i.ZERO))
+			var al: String = "%s|%04d|%04d|%s" % [String(a.get("label", "")), ac.y, ac.x, String(a.get("id", ""))]
+			var bl: String = "%s|%04d|%04d|%s" % [String(b.get("label", "")), bc.y, bc.x, String(b.get("id", ""))]
+			return al < bl
+		)
 		targets.append_array(ranked_items)
 		targets.append_array(other_items)
 	elif field_name == "linked_terminal_id":
@@ -4318,6 +4350,8 @@ func get_map_constructor_link_candidates(entity_kind: String, entity_id: String,
 
 func _set_map_constructor_key_door_link(entity_kind: String, key_id: String, door_id: String) -> Dictionary:
 	var key_entity: Dictionary = get_map_constructor_entity_by_id(entity_kind, key_id)
+	if not bool(key_entity.get("ok", false)):
+		key_entity = find_map_constructor_key_item_by_id(key_id)
 	if not bool(key_entity.get("ok", false)):
 		return {"ok": false, "message": "Key item not found.", "target_id": door_id}
 	var old_door_id: String = String(_safe_dictionary(key_entity.get("data", {})).get("linked_door_id", "")).strip_edges()
