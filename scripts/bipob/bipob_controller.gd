@@ -6927,6 +6927,16 @@ func get_world_action_display_label(action_id: String, object_data: Dictionary) 
 		"pickup": return "Pickup Digital" if String(object_data.get("item_form", "physical")) == "digital" else "Pickup"
 		"use_item": return "Use Item"
 		"insert_fuse": return "Insert Fuse"
+		"remove_fuse": return "Remove Fuse"
+		"plug_in": return "Plug In"
+		"plug_out": return "Plug Out"
+		"take_end_1": return "Take End 1"
+		"take_end_2": return "Take End 2"
+		"connect_wire_end": return "Connect Wire End"
+		"disconnect_power_wire": return "Disconnect Power Wire"
+		"circuit_1": return "Circuit 1"
+		"circuit_2": return "Circuit 2"
+		"circuit_3": return "Circuit 3"
 		"repair": return "Repair"
 		"push": return "Push"
 		"pull": return "Pull"
@@ -7803,6 +7813,17 @@ func get_collected_runtime_key_ids() -> Array:
 	var inventory: Dictionary = Dictionary(mission_manager.call("get_inventory_state"))
 	return Array(inventory.get("collected_key_ids", []))
 
+
+func _has_manipulator_cable_end() -> bool:
+	var buffer_type: String = String(buffer_item.get("item_type", buffer_item.get("id", ""))).strip_edges().to_lower()
+	if buffer_type.find("cable_end") >= 0 or buffer_type.find("wire_end") >= 0:
+		return true
+	if mission_manager == null or not mission_manager.has_method("get_inventory_state"):
+		return false
+	var inventory: Dictionary = Dictionary(mission_manager.call("get_inventory_state"))
+	var held_id: String = String(inventory.get("manipulator_hold", "")).strip_edges().to_lower()
+	return held_id.find("cable_end") >= 0 or held_id.find("wire_end") >= 0
+
 func get_available_world_actions(world_object: Dictionary, target_position: Vector2i) -> Array[String]:
 	var actions: Array[String] = []
 	var group := String(world_object.get("object_group", ""))
@@ -7828,6 +7849,8 @@ func get_available_world_actions(world_object: Dictionary, target_position: Vect
 			return actions
 		var power_mode: String = String(world_object.get("power_mode", "internal")).strip_edges().to_lower()
 		if power_mode in ["external", "external_power", "external power"] and not bool(world_object.get("is_powered", true)) and state != "open":
+			if state == "locked":
+				actions.append("unlock")
 			return actions
 		if state in ["damaged", "half_open", "jammed"] and has_heavy_claw():
 			actions.append("force_open")
@@ -7842,6 +7865,10 @@ func get_available_world_actions(world_object: Dictionary, target_position: Vect
 		if has_sledgehammer() and String(world_object.get("material", "")) in ["steel", "reinforced_steel"]:
 			actions.append("impact")
 	elif group == "terminal":
+		if bool(world_object.get("cable_power_connected", false)):
+			actions.append("disconnect_power_wire")
+		elif _has_manipulator_cable_end():
+			actions.append("connect_wire_end")
 		if get_installed_connector_level(String(world_object.get("connection_type", "wired"))) > 0:
 			if not bool(world_object.get("connected", false)):
 				actions.append("connect")
@@ -7865,15 +7892,32 @@ func get_available_world_actions(world_object: Dictionary, target_position: Vect
 	elif String(world_object.get("object_type", "")) == "power_cable":
 		if has_plasma_cutter():
 			actions.append("cut")
-		if has_repair_tool() and state == "damaged":
+		if state in ["damaged", "broken"]:
 			actions.append("repair")
-	elif String(world_object.get("object_type", "")) in ["circuit_breaker", "light_switch", "circuit_switch"]:
+			if _has_manipulator_cable_end():
+				actions.append("connect_wire_end")
+	elif String(world_object.get("object_type", "")) == "circuit_switch":
+		for circuit_index in range(1, 4):
+			var circuit_target: String = String(world_object.get("output_%d_wire_id" % circuit_index, world_object.get("output_%d_direction" % circuit_index, ""))).strip_edges().to_lower()
+			if not circuit_target.is_empty() and circuit_target != "none":
+				actions.append("circuit_%d" % circuit_index)
+	elif String(world_object.get("object_type", "")) in ["circuit_breaker", "power_breaker", "power_knife_switch", "light_switch"]:
 		actions.append("switch")
 	elif String(world_object.get("object_type", "")).begins_with("fuse_box"):
-		if has_held_world_item("fuse"):
+		if bool(world_object.get("fuse_installed", state == "installed")):
+			actions.append("remove_fuse")
+		else:
 			actions.append("insert_fuse")
-		if has_repair_tool() and state == "damaged":
+		if state == "damaged" or state == "broken":
 			actions.append("repair")
+	elif String(world_object.get("object_type", "")) in ["power_socket", "outlet"]:
+		if bool(world_object.get("plugged", false)):
+			actions.append("plug_out")
+		else:
+			actions.append("plug_in")
+	elif String(world_object.get("object_type", "")) == "power_cable_reel":
+		actions.append("take_end_1")
+		actions.append("take_end_2")
 	elif group == "physical_object":
 		if has_magnetic_manipulator() and (bool(world_object.get("magnetic", false)) or Array(world_object.get("material_tags", [])).has("metal")):
 			actions.append("pull")
@@ -7980,7 +8024,11 @@ func get_world_action_module(action_id: String, world_object: Dictionary) -> Dic
 		"force_open", "push":
 			return _module_dict("manipulator_heavy_claw_v1" if has_module_id("manipulator_heavy_claw_v1") else "")
 		"repair":
-			return _module_dict("repair_v1" if has_module_id("repair_v1") else "")
+			if has_module_id("repair_v1"):
+				return _module_dict("repair_v1")
+			if has_held_world_item("repair_kit"):
+				return _module_dict("repair_kit")
+			return _module_dict("")
 		"pull":
 			if bool(world_object.get("magnetic", false)) or String(world_object.get("pull_mode", "")) == "magnetic":
 				return _module_dict("magnetic_manipulator_v1" if has_module_id("magnetic_manipulator_v1") else "")
@@ -7991,6 +8039,8 @@ func get_world_action_module(action_id: String, world_object: Dictionary) -> Dic
 			return _module_dict("storage_buffer")
 		"insert_fuse":
 			return _module_dict("fuse" if has_held_world_item("fuse") else "")
+		"remove_fuse", "plug_in", "plug_out", "take_end_1", "take_end_2", "connect_wire_end", "disconnect_power_wire", "circuit_1", "circuit_2", "circuit_3":
+			return _module_dict("manipulator_arm_v1" if has_manipulator_arm() else "")
 	return _module_dict("")
 
 func interact() -> void:
@@ -8138,6 +8188,10 @@ func interact() -> void:
 					hint_requested.emit("Platform is unpowered.")
 					status_changed.emit()
 					return
+			if action_id == "plug_in" and not _has_manipulator_cable_end():
+				hint_requested.emit("Cable reel wire end not found.")
+				status_changed.emit()
+				return
 			if action_id.is_empty():
 				if WorldObjectCatalog.can_world_object_be_moved_by_heavy_claw(world_object) and not has_heavy_claw_capability():
 					hint_requested.emit("Heavy Claw required.")
@@ -8176,9 +8230,11 @@ func interact() -> void:
 					status_changed.emit()
 					return
 				if action_id == "insert_fuse" and not consume_held_world_item_if_type("fuse"):
-					hint_requested.emit("Fuse required.")
+					hint_requested.emit("Manipulator does not contain a fuse.")
 					status_changed.emit()
 					return
+				if action_id == "repair" and String(module.get("id", "")) == "repair_kit":
+					consume_held_world_item_if_type("repair_kit")
 				var moved := _apply_world_object_effects(action_result.get("effects", []), world_object, target_position, actor)
 				if not moved:
 					mission_manager.set_world_object_at_cell(target_position, world_object)
@@ -8300,6 +8356,15 @@ func _apply_world_object_effects(effects: Array, world_object: Dictionary, targe
 			world_object["drain_energy_pool"] = maxi(0, int(world_object.get("drain_energy_pool", 0)) - drained)
 			world_object["drained_this_turn"] = true
 			energy = mini(max_energy, energy + drained)
+		elif effect_type == "grant_item":
+			var grant_item_type: String = String(effect.get("item_type", "")).strip_edges()
+			if grant_item_type == "fuse" and can_use_physical_hand():
+				buffer_item = {"id":"runtime_fuse", "item_type":"fuse", "display_name":"Fuse", "item_form":"physical"}
+		elif effect_type == "take_cable_end":
+			var end_index: int = int(effect.get("end_index", 1))
+			if can_use_physical_hand():
+				var cable_end_id: String = "%s_cable_end_%d" % [String(world_object.get("id", "reel")), end_index]
+				buffer_item = {"id":cable_end_id, "item_type":"cable_end", "display_name":"Cable End %d" % end_index, "item_form":"physical", "reel_id":String(world_object.get("id", "")), "end_index":end_index}
 		elif effect_type == "activate_platform":
 			if String(world_object.get("object_group", "")) == "terminal" and String(world_object.get("terminal_type", "")) == "platform":
 				var target_platform_id := String(world_object.get("target_platform_id", ""))

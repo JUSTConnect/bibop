@@ -136,6 +136,7 @@ const MAP_CONSTRUCTOR_WALL_SIDE_DELTAS: Array[Dictionary] = [
 
 const MAP_CONSTRUCTOR_WALL_MOUNTED_PREFABS: Dictionary = {
 	"power_cable_reel": true,
+	"light": true,
 	"light_switch": true,
 	"circuit_breaker": true,
 	"fuse_box": true,
@@ -1932,7 +1933,7 @@ func get_map_constructor_prefab_catalog() -> Array[Dictionary]:
 		{"category":"Walls","id":"outer_wall"},{"category":"Walls","id":"brick_wall"},{"category":"Walls","id":"concrete_wall"},{"category":"Walls","id":"steel_wall"},{"category":"Walls","id":"grate_wall"},
 		{"category":"Doors","id":"mechanical_door"},{"category":"Doors","id":"digital_door"},{"category":"Doors","id":"powered_gate"},
 		{"category":"Terminals","id":"information_terminal"},{"category":"Terminals","id":"control_terminal"},{"category":"Terminals","id":"door_terminal"},{"category":"Terminals","id":"platform_terminal"},{"category":"Terminals","id":"cooling_terminal"},{"category":"Terminals","id":"firewall"},
-		{"category":"Power","id":"power_source_class_1"},{"category":"Power","id":"power_socket"},{"category":"Power","id":"power_cable"},{"category":"Power","id":"circuit_switch"},{"category":"Power","id":"circuit_breaker"},{"category":"Power","id":"light_switch"},{"category":"Power","id":"fuse_box"},{"category":"Power","id":"power_cable_reel"},
+		{"category":"Power","id":"power_source_class_1"},{"category":"Power","id":"power_source_class_2"},{"category":"Power","id":"power_source_class_3"},{"category":"Power","id":"power_socket"},{"category":"Power","id":"power_cable"},{"category":"Power","id":"circuit_switch"},{"category":"Power","id":"circuit_breaker"},{"category":"Power","id":"light"},{"category":"Power","id":"light_switch"},{"category":"Power","id":"fuse_box"},{"category":"Power","id":"power_cable_reel"},
 		{"category":"Items","id":"mechanical_key"},{"category":"Items","id":"digital_key"},{"category":"Items","id":"access_code"}
 	]
 	for i in range(entries.size()):
@@ -1962,11 +1963,14 @@ func _get_map_constructor_prefab_metadata_catalog() -> Dictionary:
 		"platform_terminal": {"display_name":"Platform Terminal","category":"Terminal","subcategory":"Platform","placement_mode":"wall_mounted","system_roles":["terminal_interaction","signal_control"],"tags":["terminal","platform","wall"],"description":"Wall terminal for platform control.","placement_hint":"Requires a valid adjacent wall side.","requires_wall":true,"requires_floor":true,"is_destructive":false,"is_diagnostic":false,"is_expected_invalid_tool":false,"can_have_power_network":true,"can_have_links":true,"default_state":{}},
 		"cooling_terminal": {"display_name":"Cooling Terminal","category":"Terminal","subcategory":"Cooling","placement_mode":"wall_mounted","system_roles":["terminal_interaction","signal_control"],"tags":["terminal","cooling","wall"],"description":"Wall terminal for cooling subsystem.","placement_hint":"Requires a valid adjacent wall side.","requires_wall":true,"requires_floor":true,"is_destructive":false,"is_diagnostic":false,"is_expected_invalid_tool":false,"can_have_power_network":true,"can_have_links":true,"default_state":{}},
 		"firewall": {"display_name":"Firewall Node","category":"Wall-mounted","subcategory":"Security","placement_mode":"wall_mounted","system_roles":["signal_control"],"tags":["firewall","security","wall"],"description":"Wall-mounted digital security node.","placement_hint":"Requires a valid adjacent wall side.","requires_wall":true,"requires_floor":true,"is_destructive":false,"is_diagnostic":false,"is_expected_invalid_tool":false,"can_have_power_network":true,"can_have_links":true,"default_state":{}},
-		"power_source_class_1": {"display_name":"Power Source C1","category":"Power","subcategory":"Source","placement_mode":"object","system_roles":["power_source","power_network"],"tags":["power","source","generator"],"description":"Primary local power source.","placement_hint":"Set power_network_id in inspector after placement.","requires_wall":false,"requires_floor":true,"is_destructive":false,"is_diagnostic":false,"is_expected_invalid_tool":false,"can_have_power_network":true,"can_have_links":false,"default_state":{"is_powered":true}},
+		"power_source_class_1": {"display_name":"Power Source C1","category":"Power","subcategory":"Source","placement_mode":"object","system_roles":["power_source","power_network"],"tags":["power","source","generator"],"description":"Primary local power source.","placement_hint":"Set power_network_id in inspector after placement.","requires_wall":false,"requires_floor":true,"is_destructive":false,"is_diagnostic":false,"is_expected_invalid_tool":false,"can_have_power_network":true,"can_have_links":false,"default_state":{"state":"on","power_mode":"internal","control_mode":"internal","is_powered":true,"power_source_class":1,"outlet_capacity":4}},
+		"power_source_class_2": {"display_name":"Power Source C2","category":"Power","subcategory":"Source","placement_mode":"object","system_roles":["power_source","power_network"],"tags":["power","source","generator"],"description":"Class 2 power source.","placement_hint":"Place beside wires/outlets.","requires_wall":false,"requires_floor":true,"is_destructive":false,"is_diagnostic":false,"is_expected_invalid_tool":false,"can_have_power_network":true,"can_have_links":false,"default_state":{"state":"on","power_mode":"internal","control_mode":"internal","is_powered":true,"power_source_class":2,"outlet_capacity":5}},
+		"power_source_class_3": {"display_name":"Power Source C3","category":"Power","subcategory":"Source","placement_mode":"object","system_roles":["power_source","power_network"],"tags":["power","source","generator"],"description":"Class 3 power source.","placement_hint":"Place beside wires/outlets.","requires_wall":false,"requires_floor":true,"is_destructive":false,"is_diagnostic":false,"is_expected_invalid_tool":false,"can_have_power_network":true,"can_have_links":false,"default_state":{"state":"on","power_mode":"internal","control_mode":"internal","is_powered":true,"power_source_class":3,"outlet_capacity":6}},
 		"power_socket": {"display_name":"Power Socket","category":"Power","subcategory":"Connector","placement_mode":"object","system_roles":["power_network","power_consumer"],"tags":["power","socket","connector"],"description":"Power connector point for devices.","placement_hint":"Set power_network_id in inspector after placement.","requires_wall":false,"requires_floor":true,"is_destructive":false,"is_diagnostic":false,"is_expected_invalid_tool":false,"can_have_power_network":true,"can_have_links":false,"default_state":{}},
 		"power_cable": {"display_name":"Power Cable","category":"Power","subcategory":"Network","placement_mode":"object","system_roles":["power_network"],"tags":["power","cable","network"],"description":"Cable segment for power routing.","placement_hint":"Set power_network_id in inspector after placement.","requires_wall":false,"requires_floor":true,"is_destructive":false,"is_diagnostic":false,"is_expected_invalid_tool":false,"can_have_power_network":true,"can_have_links":false,"default_state":{}},
 		"circuit_switch": {"display_name":"Circuit Switch","category":"Control","subcategory":"Power","placement_mode":"object","system_roles":["signal_control","power_network"],"tags":["switch","circuit","control"],"description":"Switch controlling power state.","placement_hint":"Configure links in inspector after placement.","requires_wall":false,"requires_floor":true,"is_destructive":false,"is_diagnostic":false,"is_expected_invalid_tool":false,"can_have_power_network":true,"can_have_links":true,"default_state":{}},
 		"circuit_breaker": {"display_name":"Circuit Breaker","category":"Power","subcategory":"Protection","placement_mode":"wall_mounted","system_roles":["power_network","signal_control"],"tags":["breaker","power","wall"],"description":"Wall-mounted power safety breaker.","placement_hint":"Requires a valid adjacent wall side.","requires_wall":true,"requires_floor":true,"is_destructive":false,"is_diagnostic":false,"is_expected_invalid_tool":false,"can_have_power_network":true,"can_have_links":true,"default_state":{}},
+		"light": {"display_name":"Light","category":"Power","subcategory":"Lighting","placement_mode":"wall_mounted","system_roles":["lighting","power_consumer"],"tags":["light","lighting","wall"],"description":"Wall light linked logically to a power source.","placement_hint":"Can be wall-mounted or placed stationary.","requires_wall":true,"requires_floor":true,"is_destructive":false,"is_diagnostic":false,"is_expected_invalid_tool":false,"can_have_power_network":true,"can_have_links":true,"default_state":{"brightness":"1.0","color":"#ffffff"}},
 		"light_switch": {"display_name":"Light Switch","category":"Control","subcategory":"Lighting","placement_mode":"wall_mounted","system_roles":["signal_control","power_consumer"],"tags":["switch","light","wall"],"description":"Wall-mounted switch for lights/devices.","placement_hint":"Requires a valid adjacent wall side.","requires_wall":true,"requires_floor":true,"is_destructive":false,"is_diagnostic":false,"is_expected_invalid_tool":false,"can_have_power_network":true,"can_have_links":true,"default_state":{}},
 		"fuse_box": {"display_name":"Fuse Box","category":"Power","subcategory":"Protection","placement_mode":"wall_mounted","system_roles":["power_network","power_consumer"],"tags":["fuse","power","wall"],"description":"Wall-mounted fuse control box.","placement_hint":"Requires a valid adjacent wall side.","requires_wall":true,"requires_floor":true,"is_destructive":false,"is_diagnostic":false,"is_expected_invalid_tool":false,"can_have_power_network":true,"can_have_links":true,"default_state":{}},
 		"power_cable_reel": {"display_name":"Cable Reel","category":"Utility","subcategory":"Power Utility","placement_mode":"wall_mounted","system_roles":["power_network"],"tags":["cable","reel","wall","utility"],"description":"Wall-mounted cable utility node.","placement_hint":"Requires a valid adjacent wall side.","requires_wall":true,"requires_floor":true,"is_destructive":false,"is_diagnostic":false,"is_expected_invalid_tool":false,"can_have_power_network":true,"can_have_links":false,"default_state":{}},
@@ -2134,7 +2138,7 @@ func get_default_map_constructor_field_value(field_name: String, entity_kind: St
 		if entity_kind == "item":
 			return null
 		return []
-	if normalized_field in ["state", "power_network_id", "required_key_id", "lock_type", "linked_terminal_id", "target_door_id", "target_platform_id", "control_source_id", "digital_state", "key_kind", "key_type", "display_name", "description", "custom_description", "linked_door_id", "power_mode", "power_source_id", "control_mode", "control_terminal_id", "access_type", "access_terminal_id", "access_code_value", "stored_key_ids"]:
+	if normalized_field in ["state", "power_network_id", "required_key_id", "lock_type", "linked_terminal_id", "target_door_id", "target_platform_id", "control_source_id", "digital_state", "key_kind", "key_type", "display_name", "description", "custom_description", "linked_door_id", "power_mode", "power_source_id", "control_mode", "control_terminal_id", "access_type", "access_terminal_id", "access_code_value", "stored_key_ids", "route_surface", "physical_connection_source_id", "input_wire_id", "input_direction", "output_1_wire_id", "output_2_wire_id", "output_3_wire_id", "output_1_direction", "output_2_direction", "output_3_direction", "brightness", "color"]:
 		return ""
 	return null
 
@@ -2488,7 +2492,7 @@ func _resolve_wall_mounted_attachment(anchor_floor_cell: Vector2i, preferred_sid
 		"available_wall_sides": available_sides
 	}
 
-func can_place_map_constructor_prefab(prefab_id: String, cell: Vector2i, preferred_wall_side: String = "") -> Dictionary:
+func can_place_map_constructor_prefab(prefab_id: String, cell: Vector2i, preferred_wall_side: String = "", placement_mode_override: String = "") -> Dictionary:
 	var result: Dictionary = {"ok": false, "reason": "unsupported_prefab", "message": "Blocked: unsupported prefab.", "cell_state": get_runtime_cell_state(cell)}
 	var is_supported: bool = false
 	for entry in get_map_constructor_prefab_catalog():
@@ -2500,7 +2504,12 @@ func can_place_map_constructor_prefab(prefab_id: String, cell: Vector2i, preferr
 	var cell_state: Dictionary = get_runtime_cell_state(cell)
 	result["cell_state"] = cell_state
 	var prefab_is_item: bool = is_map_constructor_item_prefab(prefab_id)
+	var requested_mounting_mode: String = placement_mode_override.strip_edges().to_lower()
 	var prefab_is_wall_mounted: bool = bool(MAP_CONSTRUCTOR_WALL_MOUNTED_PREFABS.get(prefab_id, false))
+	if requested_mounting_mode == "wall_mounted":
+		prefab_is_wall_mounted = true
+	elif requested_mounting_mode == "stationary":
+		prefab_is_wall_mounted = false
 	if not bool(cell_state.get("in_bounds", false)):
 		result["reason"] = "wall_mounted_anchor_out_of_bounds" if prefab_is_wall_mounted else "out_of_bounds"
 		result["message"] = "Cannot mount here: anchor floor cell is outside the map." if prefab_is_wall_mounted else "Blocked: out of bounds."
@@ -2607,10 +2616,10 @@ func can_place_map_constructor_prefab(prefab_id: String, cell: Vector2i, preferr
 	result["message"] = "OK"
 	return result
 
-func place_map_constructor_prefab(prefab_id: String, cell: Vector2i, preferred_wall_side: String = "", rotation_degrees: int = 0) -> Dictionary:
+func place_map_constructor_prefab(prefab_id: String, cell: Vector2i, preferred_wall_side: String = "", rotation_degrees: int = 0, placement_mode_override: String = "") -> Dictionary:
 	if not _is_task_test_constructor_context():
 		return {"ok": false, "message": "Operation is available only in TASK TEST constructor mode."}
-	var check: Dictionary = can_place_map_constructor_prefab(prefab_id, cell, preferred_wall_side)
+	var check: Dictionary = can_place_map_constructor_prefab(prefab_id, cell, preferred_wall_side, placement_mode_override)
 	if not bool(check.get("ok", false)):
 		return check
 	var result: Dictionary = {"ok": true, "message": "Placed %s." % prefab_id, "object_id": "", "warnings": []}
@@ -2691,7 +2700,13 @@ func place_map_constructor_prefab(prefab_id: String, cell: Vector2i, preferred_w
 		"map_constructor_previous_tile_type": previous_tile_type,
 		"map_constructor_rotation_degrees": posmod(rotation_degrees, 360)
 	}
-	if bool(MAP_CONSTRUCTOR_WALL_MOUNTED_PREFABS.get(prefab_id, false)):
+	var prefab_meta_result: Dictionary = get_map_constructor_prefab_metadata(prefab_id)
+	if bool(prefab_meta_result.get("ok", false)):
+		var prefab_meta: Dictionary = Dictionary(prefab_meta_result.get("prefab", {}))
+		var prefab_defaults: Dictionary = Dictionary(prefab_meta.get("default_state", {}))
+		for default_key in prefab_defaults.keys():
+			object_data[String(default_key)] = prefab_defaults[default_key]
+	if String(check.get("placement_mode", "")) == "wall_mounted":
 		var attachment: Dictionary = _resolve_wall_mounted_attachment(cell, preferred_wall_side)
 		if not bool(attachment.get("ok", false)):
 			return {"ok": false, "reason": String(attachment.get("reason", "no_adjacent_wall")), "message": String(attachment.get("message", "Blocked: no adjacent wall.")), "object_id": "", "warnings": []}
@@ -3456,12 +3471,12 @@ func get_map_constructor_entity_by_id(entity_kind: String, entity_id: String) ->
 
 func _get_map_constructor_editable_field_schema() -> Dictionary:
 	return {
-		"state":"string","power_network_id":"string","is_open":"bool","is_closed":"bool","is_locked":"bool","blocks_movement":"bool","is_powered":"bool",
+		"state":"string","power_network_id":"string","is_open":"bool","is_closed":"bool","is_locked":"bool","blocks_movement":"bool","is_powered":"bool","is_hidden":"bool","fuse_installed":"bool","plugged":"bool",
 		"required_key_id":"string","lock_type":"string","linked_terminal_id":"string","required_connector_level":"int","required_processor_level":"int",
 		"control_source_id":"string","connected_device_ids":"array_string","target_door_id":"string","target_platform_id":"string","requires_external_control":"bool","requires_terminal_enabled":"bool",
-		"requires_external_power":"bool","current_heat":"int","working_heat":"int","overheat_threshold":"int",
+		"requires_external_power":"bool","current_heat":"int","working_heat":"int","overheat_threshold":"int","power_source_class":"int","source_class":"int","outlet_capacity":"int","active_output_index":"int",
 		"item_type":"string","digital_state":"string","key_kind":"string","key_type":"string","display_name":"string","description":"string","custom_description":"string","linked_door_id":"string","damaged":"bool",
-		"power_mode":"string","power_source_id":"string","control_mode":"string","control_terminal_id":"string","access_type":"string","access_terminal_id":"string","access_code_value":"string","stored_key_ids":"array_string"
+		"power_mode":"string","power_source_id":"string","control_mode":"string","control_terminal_id":"string","access_type":"string","access_terminal_id":"string","access_code_value":"string","stored_key_ids":"array_string","route_surface":"string","physical_connection_source_id":"string","input_wire_id":"string","input_direction":"string","output_1_wire_id":"string","output_2_wire_id":"string","output_3_wire_id":"string","output_1_direction":"string","output_2_direction":"string","output_3_direction":"string","brightness":"string","color":"string"
 	}
 
 func get_map_constructor_editable_fields_for_entity(entity_id: String, entity_kind: String = "") -> Array[Dictionary]:
@@ -4671,6 +4686,44 @@ func _normalize_map_constructor_active_object_fields(object_data: Dictionary) ->
 	data["requires_external_power"] = power_mode == "external"
 	if not data.has("power_source_id"):
 		data["power_source_id"] = String(data.get("connected_power_source_id", data.get("power_network_id", ""))).strip_edges()
+	var object_type_normalized: String = String(data.get("object_type", prefab_id)).strip_edges().to_lower()
+	if object_type_normalized in ["power_source", "power_source_class_1", "power_source_class_2", "power_source_class_3"]:
+		var source_state: String = String(data.get("state", "on")).strip_edges().to_lower()
+		if source_state.is_empty():
+			source_state = "on"
+		if source_state == "active":
+			source_state = "on"
+		if not (source_state in ["on", "off", "damaged", "broken"]):
+			source_state = "on"
+		var source_class: int = int(data.get("power_source_class", data.get("source_class", 1)))
+		if object_type_normalized.ends_with("class_2"):
+			source_class = 2
+		elif object_type_normalized.ends_with("class_3"):
+			source_class = 3
+		source_class = clampi(source_class, 1, 3)
+		data["state"] = source_state
+		data["power_mode"] = "internal"
+		data["control_mode"] = "internal"
+		data["requires_external_power"] = false
+		data["requires_external_control"] = false
+		data["is_powered"] = source_state == "on"
+		data["damaged"] = source_state == "damaged"
+		data["broken"] = source_state == "broken"
+		data["power_source_class"] = source_class
+		data["source_class"] = source_class
+		data["outlet_capacity"] = source_class + 3
+	if object_type_normalized == "power_cable":
+		data["state"] = String(data.get("state", "ok")).strip_edges().to_lower()
+		if data["state"] == "active":
+			data["state"] = "ok"
+		if not (String(data["state"]) in ["ok", "damaged", "broken"]):
+			data["state"] = "ok"
+		if not data.has("route_surface"):
+			data["route_surface"] = "floor"
+		if not data.has("is_hidden"):
+			data["is_hidden"] = bool(data.get("hidden", false))
+		if not data.has("physical_connection_source_id"):
+			data["physical_connection_source_id"] = String(data.get("power_source_id", "")).strip_edges()
 	var control_mode: String = String(data.get("control_mode", "external" if bool(data.get("requires_external_control", false)) else "internal")).strip_edges().to_lower()
 	if control_mode in ["external_control", "external control"]:
 		control_mode = "external"
@@ -4760,6 +4813,37 @@ func validate_map_constructor_entity_links(entity_kind: String, entity_id: Strin
 	if entity_kind == "world_object":
 		data = _normalize_map_constructor_active_object_fields(data)
 	var type_group: String = get_map_constructor_entity_type_group(entity_kind, entity_id)
+	var normalized_object_type_for_validation: String = String(data.get("object_type", "")).strip_edges().to_lower()
+	if normalized_object_type_for_validation in ["power_source", "power_source_class_1", "power_source_class_2", "power_source_class_3"]:
+		var source_id: String = String(data.get("id", entity_id)).strip_edges()
+		linked.append({"label":"Lighting", "target_id":"section", "target_kind":"world_object", "field_name":"power_source_id", "location":"summary"})
+		linked.append({"label":"Outlets", "target_id":"section", "target_kind":"world_object", "field_name":"power_source_id", "location":"summary"})
+		linked.append({"label":"Wires / physical circuit", "target_id":"section", "target_kind":"world_object", "field_name":"power_source_id", "location":"summary"})
+		var outlet_count: int = 0
+		var linked_wire_count: int = 0
+		var linked_light_count: int = 0
+		for object_data in mission_world_objects:
+			var linked_source: String = String(object_data.get("power_source_id", object_data.get("connected_power_source_id", object_data.get("power_network_id", "")))).strip_edges()
+			if linked_source != source_id:
+				continue
+			var linked_type: String = String(object_data.get("object_type", "")).strip_edges().to_lower()
+			if linked_type == "light":
+				linked_light_count += 1
+			elif linked_type in ["power_socket", "outlet"]:
+				outlet_count += 1
+			elif linked_type == "power_cable":
+				linked_wire_count += 1
+		var source_class: int = clampi(int(data.get("power_source_class", data.get("source_class", 1))), 1, 3)
+		var outlet_capacity: int = source_class + 3
+		if outlet_count > outlet_capacity:
+			warnings.append("Warnings: outlet capacity exceeded (%d/%d)." % [outlet_count, outlet_capacity])
+		if linked_wire_count <= 0:
+			warnings.append("Warnings: no linked/adjacent wires found for physical circuit.")
+		var source_state: String = String(data.get("state", "on")).strip_edges().to_lower()
+		if source_state in ["off", "damaged", "broken"]:
+			warnings.append("Warnings: linked source is %s and will not provide power." % source_state)
+		if linked_light_count <= 0:
+			warnings.append("Lighting: no lights linked to this source.")
 	var power_mode: String = String(data.get("power_mode", "internal")).strip_edges().to_lower()
 	if power_mode == "external":
 		var power_source_id: String = String(data.get("power_source_id", data.get("power_network_id", ""))).strip_edges()
@@ -4782,6 +4866,30 @@ func validate_map_constructor_entity_links(entity_kind: String, entity_id: Strin
 				warnings.append("external control terminal linked but missing: %s" % control_terminal_id)
 			elif not _is_terminal_powered_for_interaction(terminal_data):
 				warnings.append("external control terminal linked but terminal cannot currently operate due to power/connection issues")
+	if normalized_object_type_for_validation == "circuit_switch":
+		var has_input: bool = not String(data.get("input_wire_id", data.get("input_direction", ""))).strip_edges().is_empty()
+		if not has_input:
+			warnings.append("Circuit switch has no input/source wire.")
+		var output_count: int = 0
+		for output_index in range(1, 4):
+			var output_value: String = String(data.get("output_%d_wire_id" % output_index, data.get("output_%d_direction" % output_index, ""))).strip_edges().to_lower()
+			if not output_value.is_empty() and output_value != "none":
+				output_count += 1
+		if output_count <= 0:
+			warnings.append("Circuit switch has no output wires.")
+		if int(data.get("active_output_index", 1)) > output_count and output_count > 0:
+			warnings.append("Circuit switch active output points to a missing/none output.")
+	if normalized_object_type_for_validation.begins_with("fuse_box"):
+		if not bool(data.get("fuse_installed", String(data.get("state", "")) == "installed")):
+			warnings.append("Fuse block has no fuse installed; circuit is open.")
+		if String(data.get("power_source_id", data.get("power_network_id", ""))).strip_edges().is_empty():
+			warnings.append("Fuse block linked source missing.")
+	if normalized_object_type_for_validation in ["circuit_breaker", "power_breaker", "power_knife_switch"]:
+		if String(data.get("power_source_id", data.get("power_network_id", ""))).strip_edges().is_empty():
+			warnings.append("Power breaker linked source missing.")
+	if normalized_object_type_for_validation == "light_switch":
+		if String(data.get("power_source_id", data.get("power_network_id", ""))).strip_edges().is_empty():
+			warnings.append("Light switch source missing.")
 	if type_group == "door":
 		var access_type: String = String(data.get("access_type", _normalize_map_constructor_access_type(data.get("lock_type", ""), _default_map_constructor_access_type_for_object(data)))).strip_edges().to_lower()
 		var required_key_id: String = String(data.get("required_key_id", "")).strip_edges()
@@ -6639,7 +6747,7 @@ func preview_power_graph_state_application(filter: String = "") -> Dictionary:
 		"warnings": warnings,
 		"source_load_report": source_load_report
 	}
-	warnings.append("Power graph MVP uses network-level gate blocking; adjacency traversal not available yet.")
+	warnings.append("Power graph combines physical 4-neighbor recalculation with legacy network-level gate blocking.")
 	for network_id_variant in networks.keys():
 		var network_id := String(network_id_variant)
 		if not resolved_filter.is_empty() and network_id != resolved_filter:
@@ -7144,6 +7252,7 @@ func execute_power_source_recovery_apply(filter: String = "") -> Dictionary:
 	return {"recovery": recovery, "apply": apply}
 
 func apply_power_network_after_explicit_power_event(reason: String = "", filter: String = "") -> Dictionary:
+	PowerSystemRef.recalculate_network(mission_world_objects, filter)
 	var report := apply_power_graph_state_from_preview(filter)
 	return {
 		"event_reason": reason,
