@@ -97,10 +97,12 @@ static func _refresh_key_mini_hud(ui, bipob) -> void:
 		var tooltip_text: String = "Empty key slot"
 		if index < key_ids.size():
 			var key_id: String = String(key_ids[index]).strip_edges()
-			key_text = "K"
 			tooltip_text = key_id
 			if ui.has_method("_get_runtime_key_display_text"):
 				tooltip_text = ui._get_runtime_key_display_text(key_id, inventory_state)
+			key_text = tooltip_text.left(10)
+			if key_text.is_empty():
+				key_text = "K"
 		key_slot.set("text", key_text)
 		key_slot.tooltip_text = tooltip_text
 
