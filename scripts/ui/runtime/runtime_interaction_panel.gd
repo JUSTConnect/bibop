@@ -72,7 +72,7 @@ static func refresh_controls(ui) -> void:
 		var action_label: String = action_id.capitalize()
 		if ui.bipob != null and ui.bipob.has_method("get_world_action_display_label"):
 			action_label = String(ui.bipob.call("get_world_action_display_label", action_id, target_object))
-		var button := ui._create_runtime_control_button(action_label, Callable(ui, "_on_runtime_interaction_action_pressed").bind(action_id), "primary")
+		var button :Button = ui._create_runtime_control_button(action_label, Callable(ui, "_on_runtime_interaction_action_pressed").bind(action_id), "primary")
 		button.custom_minimum_size = ui.runtime_action_button.custom_minimum_size
 		ui._apply_selected_pulse(button)
 		ui.runtime_interaction_actions_row.add_child(button)
