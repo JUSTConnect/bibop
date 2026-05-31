@@ -6384,6 +6384,11 @@ func validate_power_network_runtime_state() -> Dictionary:
 			var physical_source_id: String = String(object_data.get("physical_connection_source_id", "")).strip_edges()
 			if physical_source_id != logical_source_id:
 				warnings.append("Power object %s is linked to source %s but has no physical wire path." % [object_id, logical_source_id])
+		if validation_type.begins_with("fuse_box") or validation_type == "fuse_block":
+			var fuse_cell: Vector2i = _deserialize_cell_variant(object_data.get("position", Vector2i(-1, -1)))
+			var connected_wire_count: int = _count_adjacent_power_wires(fuse_cell, object_id)
+			if connected_wire_count > 2:
+				warnings.append("Fuse block %s has more than 2 adjacent/connected wires (%d)." % [object_id, connected_wire_count])
 	for network_id in networks.keys():
 		var objects: Array = networks[network_id]
 		var has_source := false
