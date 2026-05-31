@@ -3,8 +3,33 @@ class_name MapConstructorValidationService
 
 var manager: Variant
 
+const MAP_CONSTRUCTOR_WALL_SIDE_DELTAS: Array[Dictionary] = [
+	{"side":"north", "delta": Vector2i(0, -1)},
+	{"side":"east", "delta": Vector2i(1, 0)},
+	{"side":"south", "delta": Vector2i(0, 1)},
+	{"side":"west", "delta": Vector2i(-1, 0)}
+]
+
 func _init(manager_ref: Node) -> void:
 	manager = manager_ref
+
+func _get_manager_dictionary_property(property_name: String) -> Variant:
+	if manager == null or not is_instance_valid(manager):
+		return null
+	for property_data in manager.get_property_list():
+		if String(property_data.get("name", "")) != property_name:
+			continue
+		var property_value: Variant = manager.get(property_name)
+		if typeof(property_value) == TYPE_DICTIONARY:
+			return property_value
+		return null
+	return null
+
+func _get_constructor_start_marker() -> Variant:
+	return _get_manager_dictionary_property("constructor_start_marker")
+
+func _get_constructor_exit_marker() -> Variant:
+	return _get_manager_dictionary_property("constructor_exit_marker")
 
 func _map_constructor_make_validation_link(label: String, target_id: String, target_kind: String, field_name: String) -> Dictionary:
 	var cell: Vector2i = Vector2i(-1, -1)
@@ -465,8 +490,14 @@ func get_map_constructor_validation_overlay() -> Dictionary:
 			has_error_severity = true
 			break
 	var has_errors: bool = int(summary.get("error_count", 0)) > 0 or has_error_severity
-	var start_validation: Dictionary = manager._validate_constructor_marker(constructor_start_marker, "start")
-	var exit_validation: Dictionary = manager._validate_constructor_marker(constructor_exit_marker, "exit")
+	var start_marker: Variant = _get_constructor_start_marker()
+	var exit_marker: Variant = _get_constructor_exit_marker()
+	var start_validation: Dictionary = {"ok": false, "message": "Start marker missing."}
+	var exit_validation: Dictionary = {"ok": false, "message": "Exit marker missing."}
+	if typeof(start_marker) == TYPE_DICTIONARY:
+		start_validation = manager._validate_constructor_marker(start_marker, "start")
+	if typeof(exit_marker) == TYPE_DICTIONARY:
+		exit_validation = manager._validate_constructor_marker(exit_marker, "exit")
 	if not bool(start_validation.get("ok", false)):
 		summary["error_count"] = int(summary.get("error_count", 0)) + 1
 		has_errors = true
