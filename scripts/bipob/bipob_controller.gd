@@ -8440,19 +8440,37 @@ func _apply_world_object_effects(effects: Array, world_object: Dictionary, targe
 			if mission_manager != null and mission_manager.has_method("disconnect_cable_from_target") and not reel_id_disconnect.is_empty():
 				mission_manager.call("disconnect_cable_from_target", reel_id_disconnect, String(world_object.get("id", "")), end_index_disconnect)
 		elif effect_type == "toggle_linked_lights":
-			if mission_manager != null and mission_manager.has_method("toggle_light_switch_links"):
-				mission_manager.call("toggle_light_switch_links", String(world_object.get("id", "")), bool(effect.get("is_on", false)))
+			if mission_manager == null or not mission_manager.has_method("toggle_light_switch_links"):
+				hint_requested.emit("Light switch links are unavailable.")
+			else:
+				var light_switch_result_variant: Variant = mission_manager.call("toggle_light_switch_links", String(world_object.get("id", "")), bool(effect.get("is_on", false)))
+				if light_switch_result_variant is Dictionary:
+					var light_switch_result: Dictionary = light_switch_result_variant
+					var light_switch_warnings_variant: Variant = light_switch_result.get("warnings", [])
+					var has_light_switch_warnings: bool = light_switch_warnings_variant is Array and not light_switch_warnings_variant.is_empty()
+					if not bool(light_switch_result.get("success", false)) or has_light_switch_warnings:
+						hint_requested.emit(String(light_switch_result.get("message", "Light switch link failed.")))
+				else:
+					hint_requested.emit("Light switch link failed.")
 		elif effect_type == "activate_platform":
-			if String(world_object.get("object_group", "")) == "terminal" and String(world_object.get("terminal_type", "")) == "platform":
+			if mission_manager == null or not mission_manager.has_method("activate_platform_by_id"):
+				hint_requested.emit("Platform control is unavailable.")
+			elif String(world_object.get("object_group", "")) == "terminal" and String(world_object.get("terminal_type", "")) == "platform":
 				var target_platform_id := String(world_object.get("target_platform_id", ""))
 				if target_platform_id.is_empty():
 					hint_requested.emit("Platform terminal target is missing.")
 				else:
-					var platform_result: Dictionary = Dictionary(mission_manager.activate_platform_by_id(target_platform_id, "terminal"))
-					hint_requested.emit(String(platform_result.get("message", "Platform action.")))
+					var platform_result_variant: Variant = mission_manager.call("activate_platform_by_id", target_platform_id, "terminal")
+					if platform_result_variant is Dictionary:
+						hint_requested.emit(String(platform_result_variant.get("message", "Platform action.")))
+					else:
+						hint_requested.emit("Platform control failed.")
 			elif String(world_object.get("object_group", "")) == "platform":
-				var platform_result_direct: Dictionary = Dictionary(mission_manager.activate_platform_by_id(String(world_object.get("platform_id", "")), "local_switch"))
-				hint_requested.emit(String(platform_result_direct.get("message", "Platform action.")))
+				var platform_result_direct_variant: Variant = mission_manager.call("activate_platform_by_id", String(world_object.get("platform_id", "")), "local_switch")
+				if platform_result_direct_variant is Dictionary:
+					hint_requested.emit(String(platform_result_direct_variant.get("message", "Platform action.")))
+				else:
+					hint_requested.emit("Platform control failed.")
 		elif effect_type == "object_move":
 			var move_dir := Vector2i(effect.get("direction", actor.get("facing_direction", Vector2i.ZERO)))
 			if move_dir == Vector2i.ZERO and effect.has("dx"):
@@ -8479,29 +8497,59 @@ func _apply_world_object_effects(effects: Array, world_object: Dictionary, targe
 
 func _apply_terminal_controls(terminal: Dictionary) -> Array[String]:
 	var messages: Array[String] = []
-	var controls: Array = terminal.get("controls", [])
+	if mission_manager == null or not mission_manager.has_method("get_world_object_by_id") or not mission_manager.has_method("update_world_object_by_id"):
+		messages.append("Terminal control service is unavailable.")
+		return messages
+	var controls_variant: Variant = terminal.get("controls", [])
+	if not (controls_variant is Array):
+		messages.append("Terminal linked device data is invalid.")
+		return messages
+	var controls: Array = controls_variant
 	if controls.is_empty():
 		messages.append("Terminal hacked. No linked devices.")
 		return messages
-	for controlled_id in controls:
-		var controlled: Dictionary = Dictionary(mission_manager.get_world_object_by_id(String(controlled_id)))
+	for controlled_id_variant in controls:
+		var controlled_id: String = String(controlled_id_variant).strip_edges()
+		if controlled_id.is_empty():
+			messages.append("Terminal hacked. Linked device id is missing.")
+			continue
+		var controlled_variant: Variant = mission_manager.call("get_world_object_by_id", controlled_id)
+		if not (controlled_variant is Dictionary):
+			messages.append("Terminal hacked. Linked device data is invalid: %s." % controlled_id)
+			continue
+		var controlled: Dictionary = controlled_variant
 		if controlled.is_empty():
-			messages.append("Terminal hacked. Linked device not found: %s." % String(controlled_id))
+			messages.append("Terminal hacked. Linked device not found: %s." % controlled_id)
+			continue
+		var controlled_state: String = String(controlled.get("state", "")).strip_edges().to_lower()
+		if controlled_state in ["damaged", "broken", "destroyed"] or bool(controlled.get("damaged", false)) or bool(controlled.get("broken", false)) or bool(controlled.get("destroyed", false)):
+			messages.append("Terminal hacked. Linked device is damaged: %s." % controlled_id)
+			continue
+		if controlled.has("is_powered") and not bool(controlled.get("is_powered", true)):
+			messages.append("Terminal hacked. Linked device is unpowered: %s." % controlled_id)
 			continue
 		var terminal_type := String(terminal.get("object_type", ""))
+		var control_applied: bool = false
 		if terminal_type == "door_terminal" and String(controlled.get("object_group", "")) == "door":
 			controlled["state"] = "open"
 			controlled["blocks_movement"] = false
-			messages.append("Terminal control applied: %s opened." % String(controlled_id))
+			messages.append("Terminal control applied: %s opened." % controlled_id)
+			control_applied = true
 		elif terminal_type == "turret_terminal" and String(controlled.get("object_type", "")) == "turret":
 			controlled["state"] = "disabled"
-			messages.append("Terminal control applied: %s disabled." % String(controlled_id))
+			messages.append("Terminal control applied: %s disabled." % controlled_id)
+			control_applied = true
 		elif terminal_type == "cooling_terminal":
 			controlled["state"] = "unpowered" if String(controlled.get("state", "active")) == "active" else "active"
-			messages.append("Terminal control applied: %s toggled." % String(controlled_id))
+			messages.append("Terminal control applied: %s toggled." % controlled_id)
+			control_applied = true
 		elif terminal_type == "information_terminal":
 			hint_requested.emit("Information downloaded.")
-		mission_manager.update_world_object_by_id(String(controlled_id), controlled)
+			control_applied = true
+		else:
+			messages.append("Terminal hacked. Linked device is incompatible: %s." % controlled_id)
+		if control_applied:
+			mission_manager.call("update_world_object_by_id", controlled_id, controlled)
 	return messages
 
 func refresh_world_object_overlay() -> void:

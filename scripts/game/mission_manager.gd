@@ -4443,28 +4443,78 @@ func _count_lights_linked_to_source(source_id: String) -> int:
 func _count_adjacent_power_wires(cell: Vector2i, target_id: String = "") -> int:
 	return _ensure_map_constructor_validation_service()._count_adjacent_power_wires(cell, target_id)
 
+func _append_light_switch_target_id(target_ids: Array[String], raw_target_id: Variant) -> void:
+	var target_id: String = String(raw_target_id).strip_edges()
+	if not target_id.is_empty() and not target_ids.has(target_id):
+		target_ids.append(target_id)
+
 func toggle_light_switch_links(light_switch_id: String, switch_is_on: bool) -> Dictionary:
-	var switch_object: Dictionary = get_world_object_by_id(light_switch_id.strip_edges())
+	var normalized_switch_id: String = light_switch_id.strip_edges()
+	var switch_object: Dictionary = get_world_object_by_id(normalized_switch_id)
 	if switch_object.is_empty():
-		return {"success": false, "updated": 0, "reason": "switch_missing"}
+		return {"success": false, "updated": 0, "reason": "switch_missing", "message": "Light switch is missing."}
 	switch_object["state"] = "switch_on" if switch_is_on else "switch_off"
 	switch_object["is_on"] = switch_is_on
 	var source_id: String = String(switch_object.get("power_source_id", switch_object.get("power_network_id", ""))).strip_edges()
-	if source_id.is_empty():
-		return {"success": false, "updated": 0, "reason": "source_missing"}
-	var updated: int = 0
-	for object_data in mission_world_objects:
-		if String(object_data.get("object_type", "")).strip_edges().to_lower() != "light":
+	var explicit_target_ids: Array[String] = []
+	for field_name in ["target_light_id", "linked_light_id", "target_object_id", "linked_object_id"]:
+		_append_light_switch_target_id(explicit_target_ids, switch_object.get(field_name, ""))
+	for field_name in ["target_light_ids", "linked_light_ids", "controlled_object_ids", "controls"]:
+		var raw_target_ids: Variant = switch_object.get(field_name, [])
+		if raw_target_ids is Array:
+			for raw_target_id in raw_target_ids:
+				_append_light_switch_target_id(explicit_target_ids, raw_target_id)
+	var linked_lights: Array[Dictionary] = []
+	var linked_light_ids: Array[String] = []
+	var warnings: Array[String] = []
+	for target_id in explicit_target_ids:
+		var linked_object: Dictionary = get_world_object_by_id(target_id)
+		if linked_object.is_empty():
+			warnings.append("Linked light not found: %s." % target_id)
 			continue
-		var linked_source: String = String(object_data.get("power_source_id", object_data.get("power_network_id", ""))).strip_edges()
-		if linked_source != source_id:
+		linked_light_ids.append(target_id)
+		if String(linked_object.get("object_type", "")).strip_edges().to_lower() != "light":
+			warnings.append("Linked light target is invalid: %s." % target_id)
 			continue
-		object_data["light_switch_off"] = not switch_is_on
+		var linked_state: String = String(linked_object.get("state", "")).strip_edges().to_lower()
+		if linked_state in ["damaged", "broken", "destroyed"] or bool(linked_object.get("damaged", false)) or bool(linked_object.get("broken", false)) or bool(linked_object.get("destroyed", false)):
+			warnings.append("Linked light is damaged: %s." % target_id)
+			continue
+		linked_lights.append(linked_object)
+	if not source_id.is_empty():
+		for object_data in mission_world_objects:
+			if String(object_data.get("object_type", "")).strip_edges().to_lower() != "light":
+				continue
+			var linked_source: String = String(object_data.get("power_source_id", object_data.get("power_network_id", ""))).strip_edges()
+			var object_id: String = String(object_data.get("id", "")).strip_edges()
+			if linked_source != source_id or linked_light_ids.has(object_id):
+				continue
+			linked_light_ids.append(object_id)
+			var linked_state: String = String(object_data.get("state", "")).strip_edges().to_lower()
+			if linked_state in ["damaged", "broken", "destroyed"] or bool(object_data.get("damaged", false)) or bool(object_data.get("broken", false)) or bool(object_data.get("destroyed", false)):
+				warnings.append("Linked light is damaged: %s." % object_id)
+				continue
+			linked_lights.append(object_data)
+	for linked_light in linked_lights:
+		linked_light["light_switch_off"] = not switch_is_on
 		if not switch_is_on:
-			object_data["is_powered"] = false
-		updated += 1
-	PowerSystemRef.recalculate_network(mission_world_objects, source_id)
-	return {"success": true, "updated": updated, "reason": "ok", "source_id": source_id}
+			linked_light["is_powered"] = false
+	if not source_id.is_empty():
+		PowerSystemRef.recalculate_network(mission_world_objects, source_id)
+	if switch_is_on:
+		for linked_light in linked_lights:
+			if not bool(linked_light.get("is_powered", false)):
+				warnings.append("Linked light is unpowered: %s." % String(linked_light.get("id", "")))
+	if linked_lights.is_empty():
+		var reason: String = "source_missing" if source_id.is_empty() else "linked_light_missing"
+		var message: String = "Light switch source is missing." if source_id.is_empty() else "Light switch has no linked lights."
+		if not warnings.is_empty():
+			message = " ".join(warnings)
+		return {"success": false, "updated": 0, "reason": reason, "source_id": source_id, "warnings": warnings, "message": message}
+	var message: String = "Linked lights toggled."
+	if not warnings.is_empty():
+		message += " " + " ".join(warnings)
+	return {"success": true, "updated": linked_lights.size(), "reason": "ok", "source_id": source_id, "warnings": warnings, "message": message}
 
 func validate_map_constructor_entity_links(entity_kind: String, entity_id: String) -> Dictionary:
 	return _ensure_map_constructor_validation_service().validate_map_constructor_entity_links(entity_kind, entity_id)
@@ -9502,31 +9552,51 @@ func get_terminal_control_targets(terminal_id: String) -> Array[Dictionary]:
 	for key in ["target_door_id","target_platform_id","target_object_id","linked_object_id"]:
 		var tid := String(terminal.get(key, "")).strip_edges()
 		if tid != "": out.append({"target_id":tid, "source":key})
-	for tidv in Array(terminal.get("controlled_object_ids", [])):
-		var tid := String(tidv).strip_edges()
-		if tid != "": out.append({"target_id":tid, "source":"controlled_object_ids"})
+	for key in ["controlled_object_ids", "controls"]:
+		var target_ids_variant: Variant = terminal.get(key, [])
+		if not (target_ids_variant is Array):
+			continue
+		for tidv in target_ids_variant:
+			var tid := String(tidv).strip_edges()
+			if tid != "": out.append({"target_id":tid, "source":key})
 	return out
 
 func execute_terminal_control_action(terminal_id: String, target_id: String = "", action: String = "") -> Dictionary:
 	var avail := get_terminal_action_availability(terminal_id, action)
 	if not bool(avail.get("available", false)): return {"success":false, "terminal_id":terminal_id, "target_id":target_id, "action":action, "reasons":avail.get("reasons", [])}
+	var normalized_target_id: String = target_id.strip_edges()
+	var target_actions: Array[String] = ["open_door", "close_door", "unlock_door", "lock_door", "activate_platform", "toggle_platform", "rotate_platform"]
+	var global_actions: Array[String] = ["enable_cooling", "reset_source_overheat"]
+	if not action in target_actions and not action in global_actions:
+		return {"success":false, "terminal_id":terminal_id, "target_id":normalized_target_id, "action":action, "reasons":["action_invalid"]}
 	var targets := get_terminal_control_targets(terminal_id)
-	var allowed := target_id.strip_edges().is_empty()
-	for t in targets:
-		if String(t.get("target_id", "")) == target_id: allowed = true
-	if not allowed: return {"success":false, "terminal_id":terminal_id, "target_id":target_id, "action":action, "reasons":["target_invalid"]}
-	var target := get_world_object_by_id(target_id) if target_id != "" else {}
-	if action == "open_door" and not target.is_empty(): target["state"] = "open"; target["is_open"] = true; target["is_locked"] = false; target["locked"] = false; target["blocks_movement"] = false
-	elif action == "close_door" and not target.is_empty(): target["state"] = "closed"; target["is_open"] = false; target["blocks_movement"] = true
-	elif action == "unlock_door" and not target.is_empty(): target["is_locked"] = false; target["locked"] = false
-	elif action == "lock_door" and not target.is_empty(): target["is_locked"] = true; target["locked"] = true
-	elif action in ["activate_platform","toggle_platform","rotate_platform"] and not target.is_empty():
-		activate_platform_by_id(String(target.get("platform_id", target_id)), "terminal")
+	var allowed: bool = normalized_target_id.is_empty() and action in global_actions
+	for target_link in targets:
+		if String(target_link.get("target_id", "")) == normalized_target_id: allowed = true
+	if not allowed: return {"success":false, "terminal_id":terminal_id, "target_id":normalized_target_id, "action":action, "reasons":["target_invalid"]}
+	var target := get_world_object_by_id(normalized_target_id) if not normalized_target_id.is_empty() else {}
+	if action in target_actions and target.is_empty():
+		return {"success":false, "terminal_id":terminal_id, "target_id":normalized_target_id, "action":action, "reasons":["target_missing"]}
+	var target_state: String = String(target.get("state", "")).strip_edges().to_lower()
+	if action in target_actions and (target_state in ["damaged", "broken", "destroyed"] or bool(target.get("damaged", false)) or bool(target.get("broken", false)) or bool(target.get("destroyed", false))):
+		return {"success":false, "terminal_id":terminal_id, "target_id":normalized_target_id, "action":action, "reasons":["target_damaged"]}
+	if action in target_actions and target.has("is_powered") and not bool(target.get("is_powered", true)):
+		return {"success":false, "terminal_id":terminal_id, "target_id":normalized_target_id, "action":action, "reasons":["target_unpowered"]}
+	if action in ["open_door", "close_door", "unlock_door", "lock_door"] and String(target.get("object_group", "")) != "door":
+		return {"success":false, "terminal_id":terminal_id, "target_id":normalized_target_id, "action":action, "reasons":["target_invalid"]}
+	if action == "open_door": target["state"] = "open"; target["is_open"] = true; target["is_locked"] = false; target["locked"] = false; target["blocks_movement"] = false
+	elif action == "close_door": target["state"] = "closed"; target["is_open"] = false; target["blocks_movement"] = true
+	elif action == "unlock_door": target["is_locked"] = false; target["locked"] = false
+	elif action == "lock_door": target["is_locked"] = true; target["locked"] = true
+	elif action in ["activate_platform","toggle_platform","rotate_platform"]:
+		var platform_result: Dictionary = activate_platform_by_id(String(target.get("platform_id", normalized_target_id)), "terminal")
+		if not bool(platform_result.get("success", false)):
+			return {"success":false, "terminal_id":terminal_id, "target_id":normalized_target_id, "action":action, "reasons":[String(platform_result.get("reason", "platform_unavailable"))]}
 	elif action == "enable_cooling":
 		apply_cooling_application()
 	elif action == "reset_source_overheat":
 		execute_power_source_recovery_apply()
-	return {"success":true, "terminal_id":terminal_id, "target_id":target_id, "action":action, "reasons":["ok"]}
+	return {"success":true, "terminal_id":terminal_id, "target_id":normalized_target_id, "action":action, "reasons":["ok"]}
 
 func get_door_access_state(door_id: String) -> Dictionary:
 	var door := get_world_object_by_id(door_id)
