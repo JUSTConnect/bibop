@@ -3,6 +3,9 @@ class_name RuntimeStoragePanel
 
 const PANEL_SIZE: Vector2 = Vector2(380, 190)
 const FLYOUT_SIZE: Vector2 = Vector2(240, 118)
+const MANIPULATOR_CELL_SIZE: float = 54.0
+const POCKET_FLYOUT_CELL_HEIGHT: float = 52.0
+const ACTIVE_FRAME_PADDING: float = 3.0
 const MIN_VISIBLE_MANIPULATOR_SLOTS: int = 3
 const MIN_VISIBLE_KEY_SLOTS: int = 3
 const MIN_VISIBLE_POCKET_SLOTS: int = 2
@@ -59,8 +62,9 @@ static func refresh(ui) -> void:
 		_refresh_empty_state(ui)
 		return
 	var manipulator_items: Array = bipob.get_manipulator_items()
-	if ui.runtime_manipulator_content_label != null and is_instance_valid(ui.runtime_manipulator_content_label):
-		ui.runtime_manipulator_content_label.text = _get_module_name(bipob, manipulator_items[0]) if not manipulator_items.is_empty() and manipulator_items[0] != null else "Empty"
+	for index in range(ui.runtime_manipulator_slots.size()):
+		var manipulator_item: Variant = manipulator_items[index] if index < manipulator_items.size() else null
+		ui.runtime_manipulator_slots[index].text = _get_module_name(bipob, manipulator_item)
 	_refresh_key_mini_hud(ui, bipob)
 
 	var pocket_items: Array = bipob.get_pocket_items()
@@ -129,27 +133,34 @@ static func _build_manipulator_area(ui) -> PanelContainer:
 	var root: VBoxContainer = VBoxContainer.new()
 	root.add_theme_constant_override("separation", 4)
 	panel_margin.add_child(root)
-	var preview_row: HBoxContainer = HBoxContainer.new()
-	preview_row.add_theme_constant_override("separation", 4)
-	root.add_child(preview_row)
+	var manipulator_columns: HBoxContainer = HBoxContainer.new()
+	manipulator_columns.add_theme_constant_override("separation", 4)
+	root.add_child(manipulator_columns)
 	for index in range(MANIPULATOR_VISIBLE_SLOTS):
+		var column: VBoxContainer = VBoxContainer.new()
+		column.add_theme_constant_override("separation", 2)
+		column.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+		manipulator_columns.add_child(column)
 		var preview: Button = Button.new()
 		preview.text = "Empty"
 		preview.focus_mode = Control.FOCUS_NONE
-		preview.custom_minimum_size = Vector2(0, 42)
-		preview.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-		preview.pressed.connect(func() -> void: _on_manipulator_preview_pressed(ui))
-		preview_row.add_child(preview)
+		preview.clip_text = true
+		preview.custom_minimum_size = Vector2(MANIPULATOR_CELL_SIZE, MANIPULATOR_CELL_SIZE)
+		preview.size_flags_horizontal = Control.SIZE_SHRINK_CENTER
+		preview.pressed.connect(_on_manipulator_preview_pressed.bind(ui, index))
+		column.add_child(preview)
+		ui.runtime_manipulator_slots.append(preview)
 		if index == 0:
 			ui.runtime_manipulator_content_label = preview
-	var drop_button: Button = Button.new()
-	drop_button.text = "Drop"
-	drop_button.tooltip_text = "Drop held manipulator item"
-	drop_button.focus_mode = Control.FOCUS_NONE
-	drop_button.custom_minimum_size = Vector2(0, STANDARD_ROW_HEIGHT)
-	drop_button.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-	drop_button.pressed.connect(func() -> void: _on_drop_pressed(ui))
-	root.add_child(drop_button)
+		var drop_button: Button = Button.new()
+		drop_button.text = "Drop"
+		drop_button.tooltip_text = "Drop held manipulator item"
+		drop_button.focus_mode = Control.FOCUS_NONE
+		drop_button.custom_minimum_size = Vector2(0, STANDARD_ROW_HEIGHT)
+		drop_button.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+		drop_button.pressed.connect(_on_drop_pressed.bind(ui, index))
+		column.add_child(drop_button)
+		preview.set_meta("drop_button", drop_button)
 	var keys_strip: HBoxContainer = HBoxContainer.new()
 	keys_strip.add_theme_constant_override("separation", 4)
 	root.add_child(keys_strip)
@@ -203,17 +214,19 @@ static func _build_flyout(ui, hud_root: Control, margin: float, node_name: Strin
 			slot_count = max(1, bipob.get_available_digital_storage_slots())
 	var preferred_width: float = maxf(FLYOUT_SIZE.x, float(slot_count * 104 + maxi(slot_count - 1, 0) * 4 + 12))
 	var flyout_width: float = _get_safe_width(hud_root, preferred_width, margin)
+	if is_pocket:
+		flyout_width = MANIPULATOR_CELL_SIZE + 12.0
 	var available_cells_width: float = maxf(flyout_width - 12.0 - float(maxi(slot_count - 1, 0) * 4), 1.0)
 	var cell_width: float = available_cells_width / float(maxi(slot_count, 1))
+	if is_pocket:
+		cell_width = MANIPULATOR_CELL_SIZE
 	var panel: PanelContainer = PanelContainer.new()
 	panel.name = node_name
 	panel.anchor_left = 1.0
 	panel.anchor_right = 1.0
 	panel.anchor_top = 1.0
 	panel.anchor_bottom = 1.0
-	var viewport_width: float = _get_viewport_width(ui)
-	var safe_flyout_width: float = minf(FLYOUT_SIZE.x, maxf(viewport_width - margin * 2.0, 1.0))
-	panel.offset_left = -safe_flyout_width - margin
+	panel.offset_left = -flyout_width - margin
 	panel.offset_right = -margin
 	panel.offset_top = -PANEL_SIZE.y - FLYOUT_SIZE.y - 6.0
 	panel.offset_bottom = -PANEL_SIZE.y - 6.0
@@ -243,14 +256,19 @@ static func _build_flyout(ui, hud_root: Control, margin: float, node_name: Strin
 	collapse.focus_mode = Control.FOCUS_NONE
 	collapse.pressed.connect(func() -> void: close_flyouts(ui))
 	header.add_child(collapse)
-	var cells: HBoxContainer = HBoxContainer.new()
+	var cells: Container
+	if is_pocket:
+		cells = VBoxContainer.new()
+	else:
+		cells = HBoxContainer.new()
 	cells.add_theme_constant_override("separation", 4)
 	root.add_child(cells)
 	for index in range(slot_count):
 		var cell: Button = Button.new()
 		cell.text = "Empty"
 		cell.focus_mode = Control.FOCUS_NONE
-		cell.custom_minimum_size = Vector2(cell_width, 52)
+		cell.clip_text = true
+		cell.custom_minimum_size = Vector2(cell_width, POCKET_FLYOUT_CELL_HEIGHT)
 		if is_pocket:
 			cell.pressed.connect(_on_pocket_slot_pressed.bind(ui, index))
 			ui.runtime_pocket_slots.append(cell)
@@ -258,14 +276,25 @@ static func _build_flyout(ui, hud_root: Control, margin: float, node_name: Strin
 			cell.pressed.connect(_on_storage_slot_pressed.bind(ui, index))
 			ui.runtime_digital_slots.append(cell)
 		cells.add_child(cell)
+	if is_pocket:
+		var active_frame: PanelContainer = PanelContainer.new()
+		active_frame.name = "RuntimePocketActiveColumnFrame"
+		active_frame.mouse_filter = Control.MOUSE_FILTER_IGNORE
+		active_frame.visible = false
+		active_frame.z_index = ui.Z_RUNTIME_MODAL + 1
+		active_frame.add_theme_stylebox_override("panel", ui._make_panel_style(Color(0, 0, 0, 0), ui.UI_COLOR_ACCENT, 2, 8))
+		hud_root.add_child(active_frame)
+		panel.set_meta("active_frame", active_frame)
+		panel.set_meta("hud_root", hud_root)
 	return panel
 
 
-static func _on_manipulator_preview_pressed(ui) -> void:
+static func _on_manipulator_preview_pressed(ui, manipulator_index: int) -> void:
+	ui.selected_manipulator_slot = manipulator_index
 	var manipulator_items: Array = ui.bipob.get_manipulator_items()
-	if not manipulator_items.is_empty() and manipulator_items[0] != null:
+	if manipulator_index < manipulator_items.size() and manipulator_items[manipulator_index] != null:
 		ui._on_storage_store_pressed()
-	_open_flyout(ui, "pocket")
+	_open_flyout(ui, "pocket", manipulator_index)
 
 
 static func _on_buffer_preview_pressed(ui) -> void:
@@ -288,17 +317,20 @@ static func _on_storage_slot_pressed(ui, slot_index: int) -> void:
 	refresh(ui)
 
 
-static func _on_drop_pressed(ui) -> void:
+static func _on_drop_pressed(ui, manipulator_index: int) -> void:
+	ui.selected_manipulator_slot = manipulator_index
 	ui._on_drop_item_button_pressed()
 	refresh(ui)
 
 
-static func _open_flyout(ui, flyout_id: String) -> void:
+static func _open_flyout(ui, flyout_id: String, manipulator_index: int = -1) -> void:
 	close_flyouts(ui)
 	refresh(ui)
 	if flyout_id == "pocket":
 		if ui.runtime_pocket_flyout != null and is_instance_valid(ui.runtime_pocket_flyout):
 			ui.runtime_pocket_flyout.visible = true
+			_align_pocket_flyout(ui, manipulator_index)
+			_align_pocket_flyout.bind(ui, manipulator_index).call_deferred()
 		return
 	if ui.runtime_storage_flyout != null and is_instance_valid(ui.runtime_storage_flyout):
 		ui.runtime_storage_flyout.visible = true
@@ -307,8 +339,45 @@ static func _open_flyout(ui, flyout_id: String) -> void:
 static func close_flyouts(ui) -> void:
 	if ui.runtime_pocket_flyout != null and is_instance_valid(ui.runtime_pocket_flyout):
 		ui.runtime_pocket_flyout.visible = false
+		var active_frame: Variant = ui.runtime_pocket_flyout.get_meta("active_frame", null)
+		if active_frame != null and is_instance_valid(active_frame):
+			active_frame.visible = false
 	if ui.runtime_storage_flyout != null and is_instance_valid(ui.runtime_storage_flyout):
 		ui.runtime_storage_flyout.visible = false
+
+
+static func _align_pocket_flyout(ui, manipulator_index: int) -> void:
+	if ui == null or manipulator_index < 0 or manipulator_index >= ui.runtime_manipulator_slots.size():
+		return
+	var flyout: PanelContainer = ui.runtime_pocket_flyout
+	if flyout == null or not is_instance_valid(flyout) or not flyout.visible:
+		return
+	var slot: Button = ui.runtime_manipulator_slots[manipulator_index]
+	if slot == null or not is_instance_valid(slot):
+		return
+	var drop_button: Variant = slot.get_meta("drop_button", null)
+	if drop_button == null or not is_instance_valid(drop_button):
+		return
+	var hud_root: Variant = flyout.get_meta("hud_root", null)
+	var active_frame: Variant = flyout.get_meta("active_frame", null)
+	if hud_root == null or not is_instance_valid(hud_root) or active_frame == null or not is_instance_valid(active_frame):
+		return
+	var hud_origin: Vector2 = hud_root.global_position
+	var slot_rect: Rect2 = slot.get_global_rect()
+	var drop_rect: Rect2 = drop_button.get_global_rect()
+	var flyout_height: float = flyout.get_combined_minimum_size().y
+	var flyout_width: float = maxf(slot_rect.size.x, flyout.get_combined_minimum_size().x)
+	var flyout_left: float = slot_rect.get_center().x - hud_origin.x - flyout_width * 0.5
+	var flyout_position: Vector2 = Vector2(flyout_left, slot_rect.position.y - hud_origin.y - flyout_height)
+	flyout.set_anchors_preset(Control.PRESET_TOP_LEFT)
+	flyout.position = flyout_position
+	flyout.size = Vector2(flyout_width, flyout_height)
+	var column_left: float = minf(flyout_position.x, drop_rect.position.x - hud_origin.x)
+	var column_right: float = maxf(flyout_position.x + flyout_width, drop_rect.end.x - hud_origin.x)
+	active_frame.set_anchors_preset(Control.PRESET_TOP_LEFT)
+	active_frame.position = Vector2(column_left - ACTIVE_FRAME_PADDING, flyout_position.y - ACTIVE_FRAME_PADDING)
+	active_frame.size = Vector2(column_right - column_left + ACTIVE_FRAME_PADDING * 2.0, drop_rect.end.y - hud_origin.y - flyout_position.y + ACTIVE_FRAME_PADDING)
+	active_frame.visible = true
 
 
 static func _show_hint(ui, message: String) -> void:
