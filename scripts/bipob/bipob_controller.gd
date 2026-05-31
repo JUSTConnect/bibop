@@ -7805,22 +7805,26 @@ func get_collected_runtime_key_ids() -> Array:
 func get_available_world_actions(world_object: Dictionary, target_position: Vector2i) -> Array[String]:
 	var actions: Array[String] = []
 	var group := String(world_object.get("object_group", ""))
+	if group == "door":
+		world_object = WorldObjectCatalog.normalize_door_state_fields(world_object)
 	var state := String(world_object.get("state", ""))
 	var _items_here: Array[Dictionary] = mission_manager.get_items_at_cell(target_position) if mission_manager != null else []
 	if group == "door":
-		if String(world_object.get("control_mode", "internal")).strip_edges().to_lower() == "external":
+		var control_mode: String = String(world_object.get("control_mode", "internal")).strip_edges().to_lower()
+		if control_mode in ["external", "external_control", "external control"]:
 			if state in ["damaged", "half_open", "jammed"] and has_heavy_claw():
 				actions.append("force_open")
 			return actions
-		if String(world_object.get("power_mode", "internal")).strip_edges().to_lower() == "external" and not bool(world_object.get("is_powered", true)) and state != "open":
+		var power_mode: String = String(world_object.get("power_mode", "internal")).strip_edges().to_lower()
+		if power_mode in ["external", "external_power", "external power"] and not bool(world_object.get("is_powered", true)) and state != "open":
 			return actions
 		if state in ["damaged", "half_open", "jammed"] and has_heavy_claw():
 			actions.append("force_open")
 		if state == "locked":
 			actions.append("unlock")
-		if state in ["locked", "closed"] and has_manipulator_arm():
+		if state in ["locked", "closed"]:
 			actions.append("open")
-		if state == "open" and has_manipulator_arm():
+		if state == "open":
 			actions.append("close")
 		if has_plasma_cutter() and String(world_object.get("material", "")) in ["steel", "reinforced_steel"]:
 			actions.append("cut")
@@ -8231,6 +8235,8 @@ func _apply_world_object_effects(effects: Array, world_object: Dictionary, targe
 			var field_name := String(effect.get("field", "")).strip_edges()
 			if not field_name.is_empty():
 				world_object[field_name] = bool(effect.get("value", false))
+		elif effect_type == "normalize_door_state":
+			world_object = WorldObjectCatalog.normalize_door_state_fields(world_object)
 		elif effect_type == "power_recalc_needed":
 			var network_id := String(world_object.get("power_network_id", ""))
 			if not network_id.is_empty():

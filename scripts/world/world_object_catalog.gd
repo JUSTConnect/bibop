@@ -92,6 +92,38 @@ static func _safe_non_negative_int(value: Variant, fallback: int = 0) -> int:
 		return maxi(0, int(float(text)))
 	return fallback
 
+
+static func normalize_door_state_fields(object_data: Dictionary) -> Dictionary:
+	if object_data.is_empty():
+		return object_data
+	var group_text := _safe_string(object_data.get("object_group", object_data.get("group", ""))).strip_edges().to_lower()
+	var type_text := _safe_string(object_data.get("object_type", "")).strip_edges().to_lower()
+	if group_text != "door" and not type_text.contains("door") and not type_text.contains("gate"):
+		return object_data
+	var state := _safe_string(object_data.get("state", "closed"), "closed").strip_edges().to_lower()
+	if state == "opened":
+		state = "open"
+	if state == "":
+		state = "closed"
+	var damaged_flag := bool(object_data.get("damaged", false)) or bool(object_data.get("broken", false)) or bool(object_data.get("destroyed", false)) or state in ["damaged", "broken", "destroyed"]
+	if bool(object_data.get("is_open", false)) and not damaged_flag and state not in ["locked", "jammed"]:
+		state = "open"
+	if bool(object_data.get("is_locked", object_data.get("locked", false))) and not damaged_flag and state != "open":
+		state = "locked"
+	var destroyed := bool(object_data.get("destroyed", false)) or state == "destroyed"
+	var open_state := state == "open"
+	var closed_state := state in ["closed", "locked", "jammed", "unpowered"] and not destroyed
+	var locked_state := state == "locked" or (bool(object_data.get("locked", false)) and not open_state and not destroyed)
+	object_data["state"] = state
+	object_data["is_open"] = open_state
+	object_data["is_closed"] = closed_state
+	object_data["is_locked"] = locked_state
+	object_data["locked"] = locked_state
+	object_data["damaged"] = damaged_flag
+	if not object_data.has("blocks_movement_override"):
+		object_data["blocks_movement"] = closed_state and not destroyed
+	return object_data
+
 static func create_world_object(object_type: String, id_override: String = "") -> Dictionary:
 	if not OBJECT_LIBRARY.has(object_type):
 		return {}
@@ -111,6 +143,7 @@ static func create_world_object(object_type: String, id_override: String = "") -
 	if data.get("invulnerable_while_powered", false) and data.get("is_powered", true):
 		data["invulnerable"] = true
 	data = update_world_object_heat_state(data)
+	data = normalize_door_state_fields(data)
 	return data
 
 static func get_world_object_working_heat(object_data: Dictionary) -> int:

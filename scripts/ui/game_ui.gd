@@ -2,6 +2,7 @@ extends CanvasLayer
 class_name GameUI
 
 const GameUITextHelpersRef = preload("res://scripts/ui/game_ui_text_helpers.gd")
+const WorldObjectCatalogRef = preload("res://scripts/world/world_object_catalog.gd")
 
 
 class InternalIsoPreviewControl:
@@ -9950,6 +9951,97 @@ func _hide_runtime_object_info_hud() -> void:
 	runtime_object_info_panel = null
 	runtime_object_info_cell = Vector2i(-1, -1)
 
+func _format_runtime_info_token(value: Variant, fallback: String = "") -> String:
+	var text: String = _safe_ui_string(value, fallback).strip_edges()
+	if text.is_empty():
+		return fallback
+	text = text.replace("_", " ").replace("-", " ")
+	var words: PackedStringArray = text.split(" ", false)
+	for i in range(words.size()):
+		words[i] = String(words[i]).capitalize()
+	return " ".join(words)
+
+func _join_runtime_info_values(values: Array, separator: String = ", ") -> String:
+	var parts := PackedStringArray()
+	for value in values:
+		var text: String = _safe_ui_string(value).strip_edges()
+		if not text.is_empty():
+			parts.append(text)
+	return separator.join(parts)
+
+func _get_runtime_door_type_label(world_object: Dictionary) -> String:
+	var explicit_name: String = _safe_ui_string(world_object.get("display_name", world_object.get("name", ""))).strip_edges()
+	if not explicit_name.is_empty() and explicit_name.to_lower() != "object":
+		return explicit_name
+	for field_name in ["door_type", "object_type", "map_constructor_prefab_id", "material"]:
+		var value: String = _safe_ui_string(world_object.get(field_name, "")).strip_edges()
+		if value.is_empty() or value.to_lower() == "door":
+			continue
+		var label: String = _format_runtime_info_token(value)
+		if not label.to_lower().contains("door") and not label.to_lower().contains("gate"):
+			label = "%s Door" % label
+		return label
+	return "Door"
+
+func _door_info_is_known(world_object: Dictionary) -> bool:
+	if int(world_object.get("scan_level", 0)) >= 1:
+		return true
+	for field_name in ["scanned", "known", "identified", "inspected"]:
+		if bool(world_object.get(field_name, false)):
+			return true
+	return false
+
+func _get_runtime_object_info_lines(world_object: Dictionary) -> Array[String]:
+	var data: Dictionary = world_object.duplicate(true)
+	if String(data.get("object_group", "")).strip_edges().to_lower() == "door":
+		data = WorldObjectCatalogRef.normalize_door_state_fields(data)
+	var group: String = _safe_ui_string(data.get("object_group", "object"), "object").strip_edges().to_lower()
+	var lines: Array[String] = []
+	if group == "door":
+		lines.append("Door")
+		var door_type_label: String = _get_runtime_door_type_label(data)
+		if door_type_label != "Door":
+			lines.append(door_type_label)
+		var material: String = _safe_ui_string(data.get("material", data.get("door_material", ""))).strip_edges()
+		if material.is_empty() and data.has("material_tags"):
+			material = _join_runtime_info_values(Array(data.get("material_tags", [])))
+		if not material.is_empty():
+			lines.append("Material: %s" % _format_runtime_info_token(material))
+		if _door_info_is_known(data):
+			var power_mode: String = _safe_ui_string(data.get("power_type", data.get("power_mode", ""))).strip_edges()
+			if not power_mode.is_empty():
+				lines.append("Power: %s" % _format_runtime_info_token(power_mode))
+			var control_mode: String = _safe_ui_string(data.get("control_type", data.get("control_mode", ""))).strip_edges()
+			if not control_mode.is_empty():
+				lines.append("Control: %s" % _format_runtime_info_token(control_mode))
+			var access_type: String = _safe_ui_string(data.get("access_type", data.get("lock_type", ""))).strip_edges()
+			if access_type.is_empty():
+				access_type = "none"
+			lines.append("Access: %s" % _format_runtime_info_token(access_type if access_type != "none" else "No key"))
+			var state_bits: Array[String] = []
+			var state_text: String = _safe_ui_string(data.get("state", "")).strip_edges()
+			if not state_text.is_empty():
+				state_bits.append(_format_runtime_info_token(state_text))
+			if bool(data.get("is_locked", false)) and not state_bits.has("Locked"):
+				state_bits.append("Locked")
+			if bool(data.get("damaged", false)) and not state_bits.has("Damaged"):
+				state_bits.append("Damaged")
+			if not state_bits.is_empty():
+				lines.append("State: %s" % ", ".join(state_bits))
+		return lines
+	var scan_level: int = int(data.get("scan_level", 0))
+	var title: String = group.capitalize() if scan_level <= 0 else _safe_ui_string(data.get("display_name", group.capitalize()), group.capitalize())
+	lines.append(title)
+	if scan_level >= 1:
+		lines.append("Type: %s" % _safe_ui_string(data.get("object_type", group), group))
+		lines.append("Group: %s" % group)
+	if scan_level >= 2:
+		if data.has("state"):
+			lines.append("State: %s" % _safe_ui_string(data.get("state", "unknown"), "unknown"))
+		if data.has("is_powered"):
+			lines.append("Powered: %s" % ("yes" if bool(data.get("is_powered", false)) else "no"))
+	return lines
+
 func _show_runtime_object_info_hud(cell: Vector2i) -> void:
 	_hide_runtime_object_info_hud()
 	if runtime_hud_root == null or field_runtime == null or bipob == null or mission_manager_runtime == null:
@@ -9961,24 +10053,9 @@ func _show_runtime_object_info_hud(cell: Vector2i) -> void:
 			object_data = Dictionary(items[0])
 	if object_data.is_empty():
 		return
-	var scan_level: int = int(object_data.get("scan_level", 0))
-	var group: String = _safe_ui_string(object_data.get("object_group", "object"), "object")
-	var lines: Array[String] = []
-	var title: String = group.capitalize() if scan_level <= 0 else _safe_ui_string(object_data.get("display_name", group.capitalize()), group.capitalize())
-	lines.append(title)
-	if scan_level >= 1:
-		lines.append("Type: %s" % _safe_ui_string(object_data.get("object_type", group), group))
-		lines.append("Group: %s" % group)
-	if scan_level >= 2:
-		if object_data.has("state"):
-			lines.append("State: %s" % _safe_ui_string(object_data.get("state", "unknown"), "unknown"))
-		if object_data.has("is_powered"):
-			lines.append("Powered: %s" % ("yes" if bool(object_data.get("is_powered", false)) else "no"))
-	if scan_level >= 3:
-		for field_name in ["power_mode", "control_mode", "access_type", "lock_type", "required_key_id", "power_source_id", "control_terminal_id", "access_terminal_id"]:
-			var value: String = _safe_ui_string(object_data.get(field_name, "")).strip_edges()
-			if not value.is_empty():
-				lines.append("%s: %s" % [field_name, value])
+	var lines: Array[String] = _get_runtime_object_info_lines(object_data)
+	if lines.is_empty():
+		return
 	var panel := PanelContainer.new()
 	panel.z_index = Z_RUNTIME_HUD + 8
 	panel.z_as_relative = false
@@ -12971,6 +13048,8 @@ func _add_validation_entries(section: VBoxContainer, title: String, entries: Arr
 			var label_text: String = "%s: %s" % [_safe_ui_string(entry.get("label", entry.get("field_name", "link"))), target_id]
 			var button: Button = Button.new()
 			button.text = label_text
+			var entry_location: String = _safe_ui_string(entry.get("location", "map"), "map")
+			button.disabled = entry_location != "map" and Vector2i(entry.get("cell", Vector2i(-1, -1))).x < 0
 			button.pressed.connect(func() -> void:
 				var target_kind: String = _safe_ui_string(entry.get("target_kind", "world_object"), "world_object")
 				var target_cell: Vector2i = Vector2i(entry.get("cell", Vector2i(-1, -1)))
@@ -13115,6 +13194,7 @@ func _add_door_required_key_picker(parent: VBoxContainer, entity_kind: String, e
 	option.set_item_metadata(0, {"id":"", "entity_kind":"item"})
 	if current_key_id.is_empty():
 		option.select(0)
+	var current_key_found: bool = current_key_id.is_empty()
 	var raw_candidates: Dictionary = _safe_ui_dictionary(mission_manager_runtime.call("get_map_constructor_link_targets_for_field", entity_kind, entity_id, "required_key_id"))
 	for candidate_variant in Array(raw_candidates.get("targets", [])):
 		var candidate: Dictionary = _safe_ui_dictionary(candidate_variant)
@@ -13126,7 +13206,15 @@ func _add_door_required_key_picker(parent: VBoxContainer, entity_kind: String, e
 		var option_index: int = option.item_count - 1
 		option.set_item_metadata(option_index, {"id": candidate_id, "entity_kind": candidate_kind})
 		if candidate_id == current_key_id:
+			current_key_found = true
 			option.select(option_index)
+	if not current_key_found:
+		var current_key_entity: Dictionary = _get_map_constructor_key_entity_by_id(current_key_id)
+		var current_key_label: String = _safe_ui_string(current_key_entity.get("label", current_key_id), current_key_id)
+		option.add_item(current_key_label)
+		var current_option_index: int = option.item_count - 1
+		option.set_item_metadata(current_option_index, {"id": current_key_id, "entity_kind": _safe_ui_string(current_key_entity.get("entity_kind", "item"), "item")})
+		option.select(current_option_index)
 	section.add_child(_create_property_row("Required key", option))
 	var actions := HFlowContainer.new()
 	var apply_button := Button.new()
@@ -13488,16 +13576,9 @@ func _show_map_constructor_inspector(cell: Vector2i, preferred_entity_kind: Stri
 			_show_map_constructor_inspector(selected_map_constructor_entity_cell, selected_map_constructor_entity_kind, selected_map_constructor_entity_id)
 		)
 		placement.add_child(apply_side)
-	if type_group in ["door","terminal","power","item"]:
+	if type_group in ["terminal","power","item"]:
 		var section := _create_inspector_section(type_group.capitalize())
 		_add_preset_buttons(section, entity_kind, entity_id)
-		if type_group == "door":
-			_add_text_property(section, "lock_type", entity_kind, entity_id, "lock_type", data.get("lock_type", ""))
-			_add_text_property(section, "required_key_id", entity_kind, entity_id, "required_key_id", data.get("required_key_id", ""))
-			_add_door_required_key_picker(section, entity_kind, entity_id, data)
-			_add_bool_property(section, "is_open", entity_kind, entity_id, "is_open", data.get("is_open", false))
-			_add_bool_property(section, "is_locked", entity_kind, entity_id, "is_locked", data.get("is_locked", false))
-			_add_bool_property(section, "damaged", entity_kind, entity_id, "damaged", data.get("damaged", false))
 		if type_group == "terminal":
 			_add_bool_property(section, "damaged", entity_kind, entity_id, "damaged", data.get("damaged", false))
 			_add_bool_property(section, "encrypted", entity_kind, entity_id, "encrypted", data.get("encrypted", false))

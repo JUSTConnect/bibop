@@ -19,12 +19,14 @@ static func apply_action(actor: Dictionary, module: Dictionary, target_object: D
 	var can := can_apply_action(actor, module, target_object, action_type)
 	if not can.success:
 		return can
+	if String(target_object.get("object_group", "")) == "door":
+		target_object = WorldObjectCatalogRef.normalize_door_state_fields(target_object)
 	var group: String = String(target_object.get("object_group", ""))
 	var module_id: String = String(module.get("id", ""))
 	match action_type:
 		"open":
 			if group == "door":
-				if target_object.get("state", "") == "locked":
+				if target_object.get("state", "") == "locked" or bool(target_object.get("is_locked", false)):
 					return _result(false, "Door is locked. Key required.")
 				var gate: Dictionary = _validate_door_class(actor, target_object)
 				if not gate.success:
@@ -35,8 +37,10 @@ static func apply_action(actor: Dictionary, module: Dictionary, target_object: D
 				target_object["is_open"] = true
 				target_object["is_locked"] = false
 				target_object["locked"] = false
+				target_object["is_closed"] = false
 				target_object["blocks_movement"] = false
-				return _result(true, "Door opened.", [{"type":"door_opened"},{"type":"set_state","state":"open"},{"type":"set_blocks_movement","value":false},{"type":"set_bool","field":"is_open","value":true},{"type":"set_bool","field":"is_locked","value":false},{"type":"set_bool","field":"locked","value":false}])
+				target_object = WorldObjectCatalogRef.normalize_door_state_fields(target_object)
+				return _result(true, "Door opened.", [{"type":"door_opened"},{"type":"set_state","state":"open"},{"type":"set_bool","field":"is_open","value":true},{"type":"set_bool","field":"is_closed","value":false},{"type":"set_bool","field":"is_locked","value":false},{"type":"set_bool","field":"locked","value":false},{"type":"normalize_door_state"}])
 		"close":
 			if group != "door":
 				return _result(false, "Cannot close this object.")
@@ -47,8 +51,10 @@ static func apply_action(actor: Dictionary, module: Dictionary, target_object: D
 				return _result(false, "Door is not open.")
 			target_object["state"] = "closed"
 			target_object["is_open"] = false
+			target_object["is_closed"] = true
 			target_object["blocks_movement"] = true
-			return _result(true, "Door closed.", [{"type":"set_state","state":"closed"},{"type":"set_blocks_movement","value":true},{"type":"set_bool","field":"is_open","value":false}])
+			target_object = WorldObjectCatalogRef.normalize_door_state_fields(target_object)
+			return _result(true, "Door closed.", [{"type":"set_state","state":"closed"},{"type":"set_bool","field":"is_open","value":false},{"type":"set_bool","field":"is_closed","value":true},{"type":"set_bool","field":"is_locked","value":false},{"type":"set_bool","field":"locked","value":false},{"type":"normalize_door_state"}])
 		"unlock":
 			if group != "door":
 				return _result(false, "Cannot unlock this object.")
@@ -66,16 +72,20 @@ static func apply_action(actor: Dictionary, module: Dictionary, target_object: D
 				target_object["is_locked"] = false
 				target_object["locked"] = false
 				target_object["is_open"] = false
+				target_object["is_closed"] = true
 				target_object["blocks_movement"] = true
-				return _result(true, "Door unlocked.", [{"type":"door_unlocked"},{"type":"set_state","state":"closed"},{"type":"set_blocks_movement","value":true},{"type":"set_bool","field":"is_locked","value":false},{"type":"set_bool","field":"locked","value":false},{"type":"set_bool","field":"is_open","value":false}])
+				target_object = WorldObjectCatalogRef.normalize_door_state_fields(target_object)
+				return _result(true, "Door unlocked.", [{"type":"door_unlocked"},{"type":"set_state","state":"closed"},{"type":"set_bool","field":"is_open","value":false},{"type":"set_bool","field":"is_closed","value":true},{"type":"set_bool","field":"is_locked","value":false},{"type":"set_bool","field":"locked","value":false},{"type":"normalize_door_state"}])
 			if module_id in ["mechanical_keycard", "digital_key_opened"]:
 				target_object["state"] = "closed"
 				target_object["is_locked"] = false
 				target_object["locked"] = false
 				target_object["is_open"] = false
+				target_object["is_closed"] = true
 				target_object["blocks_movement"] = true
+				target_object = WorldObjectCatalogRef.normalize_door_state_fields(target_object)
 				var unlock_message := "Door unlocked with key." if has_required_key else "Door unlocked."
-				return _result(true, unlock_message, [{"type":"door_unlocked"},{"type":"set_state","state":"closed"},{"type":"set_blocks_movement","value":true},{"type":"set_bool","field":"is_locked","value":false},{"type":"set_bool","field":"locked","value":false},{"type":"set_bool","field":"is_open","value":false}])
+				return _result(true, unlock_message, [{"type":"door_unlocked"},{"type":"set_state","state":"closed"},{"type":"set_bool","field":"is_open","value":false},{"type":"set_bool","field":"is_closed","value":true},{"type":"set_bool","field":"is_locked","value":false},{"type":"set_bool","field":"locked","value":false},{"type":"normalize_door_state"}])
 			if module_id == "digital_key_encrypted":
 				return _result(false, "File rejected: encrypted.")
 			if module_id == "digital_key_damaged":
@@ -273,9 +283,11 @@ static func apply_action(actor: Dictionary, module: Dictionary, target_object: D
 	return _result(false, "No available action for this object.")
 
 static func _validate_door_class(actor: Dictionary, target_object: Dictionary) -> Dictionary:
-	if String(target_object.get("control_mode", "internal")).strip_edges().to_lower() == "external":
+	var control_mode := String(target_object.get("control_mode", "internal")).strip_edges().to_lower()
+	if control_mode in ["external", "external_control", "external control"]:
 		return _result(false, "Door is controlled by linked terminal.")
-	if String(target_object.get("power_mode", "internal")).strip_edges().to_lower() == "external" and not bool(target_object.get("is_powered", true)):
+	var power_mode := String(target_object.get("power_mode", "internal")).strip_edges().to_lower()
+	if power_mode in ["external", "external_power", "external power"] and not bool(target_object.get("is_powered", true)):
 		return _result(false, "Door is unpowered.")
 	if int(actor.get("manipulator_level", 0)) < int(target_object.get("required_manipulator_level", 1)):
 		return _result(false, "Manipulator level too low.")
