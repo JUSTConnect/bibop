@@ -265,14 +265,15 @@ static func apply_action(actor: Dictionary, module: Dictionary, target_object: D
 			var repair_state: String = String(target_object.get("state", "")).strip_edges().to_lower()
 			var repair_object_type: String = String(target_object.get("object_type", "")).strip_edges().to_lower()
 			var is_power_cable: bool = repair_object_type == "power_cable" or repair_object_type == "power_cable_reel"
-			var can_repair_broken: bool = is_power_cable
-			if repair_state != "damaged" and not (can_repair_broken and repair_state == "broken"):
+			var cable_needs_repair: bool = is_power_cable and (repair_state in ["cut", "damaged", "broken"] or bool(target_object.get("cut", false)) or bool(target_object.get("damaged", false)) or bool(target_object.get("broken", false)))
+			if repair_state != "damaged" and not cable_needs_repair:
 				return _result(false, "Object is not damaged.")
 			var repaired_state: String = "ok" if is_power_cable else "active"
 			target_object["state"] = repaired_state
 			target_object["damaged"] = false
 			target_object["broken"] = false
-			var effects: Array = [{"type":"set_state","state":repaired_state},{"type":"set_bool","field":"damaged","value":false},{"type":"set_bool","field":"broken","value":false}]
+			target_object["cut"] = false
+			var effects: Array = [{"type":"set_state","state":repaired_state},{"type":"set_bool","field":"damaged","value":false},{"type":"set_bool","field":"broken","value":false},{"type":"set_bool","field":"cut","value":false}]
 			if is_power_cable:
 				effects.append({"type":"repair_power_cable"})
 			var object_group: String = String(target_object.get("object_group", ""))
@@ -281,7 +282,7 @@ static func apply_action(actor: Dictionary, module: Dictionary, target_object: D
 			return _result(true, "Object repaired.", effects)
 		"switch":
 			var state: String = String(target_object.get("state", "switch_off"))
-			if state.strip_edges().to_lower() in ["damaged", "broken", "destroyed"] or bool(target_object.get("damaged", false)) or bool(target_object.get("broken", false)):
+			if state.strip_edges().to_lower() in ["cut", "damaged", "broken", "destroyed"] or bool(target_object.get("cut", false)) or bool(target_object.get("damaged", false)) or bool(target_object.get("broken", false)):
 				return _result(false, "Switch is damaged.")
 			var next_state: String = "switch_on" if state in ["switch_off", "off", "open"] else "switch_off"
 			var is_on: bool = next_state == "switch_on"
@@ -301,6 +302,8 @@ static func apply_action(actor: Dictionary, module: Dictionary, target_object: D
 			target_object["active_output_index"] = output_index
 			return _result(true, "Circuit %d selected." % output_index, [{"type":"set_int","field":"active_output_index","value":output_index},{"type":"power_recalc_needed"}])
 		"plug_in":
+			if _is_cable_unavailable(target_object):
+				return _result(false, "Cable must be repaired first.")
 			target_object["plugged"] = true
 			return _result(true, "Wire connected.", [{"type":"set_bool","field":"plugged","value":true},{"type":"connect_cable_end_to_target","wire_side":0},{"type":"power_recalc_needed"}])
 		"plug_out":
@@ -316,6 +319,8 @@ static func apply_action(actor: Dictionary, module: Dictionary, target_object: D
 			target_object["end_%d_target_id" % end_index] = ""
 			return _result(true, "Cable end %d taken." % end_index, [{"type":"set_state","state":String(target_object.get("state", "disconnected"))},{"type":"take_cable_end","reel_id":String(target_object.get("id", "")),"end_index":end_index}])
 		"connect_wire_end", "connect_wire_1", "connect_wire_2":
+			if _is_cable_unavailable(target_object):
+				return _result(false, "Cable must be repaired first.")
 			var wire_side: int = 0
 			if action_type == "connect_wire_1":
 				wire_side = 1
@@ -391,6 +396,10 @@ static func apply_action(actor: Dictionary, module: Dictionary, target_object: D
 		"repair_ally":
 			return _result(false, "No ally repair target.")
 	return _result(false, "No available action for this object.")
+
+static func _is_cable_unavailable(target_object: Dictionary) -> bool:
+	var state: String = String(target_object.get("state", "")).strip_edges().to_lower()
+	return state in ["cut", "damaged", "broken", "destroyed"] or bool(target_object.get("cut", false)) or bool(target_object.get("damaged", false)) or bool(target_object.get("broken", false))
 
 static func _validate_door_class(actor: Dictionary, target_object: Dictionary) -> Dictionary:
 	var control_mode := String(target_object.get("control_mode", "internal")).strip_edges().to_lower()

@@ -81,11 +81,16 @@ static func _is_source_on(source: Dictionary) -> bool:
 
 static func _is_segment_blocked(obj: Dictionary) -> bool:
 	var state: String = _normalize_type(obj.get("state", "ok"))
-	if state in ["damaged", "broken", "destroyed"]:
+	if state in ["cut", "damaged", "broken", "destroyed"]:
 		return true
-	if bool(obj.get("damaged", false)) or bool(obj.get("broken", false)):
+	if bool(obj.get("cut", false)) or bool(obj.get("damaged", false)) or bool(obj.get("broken", false)):
 		return true
 	var object_type: String = _normalize_type(obj.get("object_type", ""))
+	if object_type == "power_cable":
+		if obj.has("connected_side") and not bool(obj.get("connected_side", false)):
+			return true
+		if obj.has("connected") and not bool(obj.get("connected", false)):
+			return true
 	if object_type in ["fuse_box", "fuse_box_empty", "fuse_block"]:
 		return not (bool(obj.get("fuse_installed", false)) or state in ["installed", "ok", "active"] or object_type == "fuse_box_installed")
 	if object_type in ["circuit_breaker", "power_breaker", "power_knife_switch"]:
