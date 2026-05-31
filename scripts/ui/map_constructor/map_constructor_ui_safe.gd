@@ -10,13 +10,13 @@ static func safe_string(value: Variant, fallback: String = "") -> String:
 
 static func safe_dictionary(value: Variant) -> Dictionary:
 	if value is Dictionary:
-		return value
+		return value.duplicate(true)
 	return {}
 
 
 static func safe_array(value: Variant) -> Array:
 	if value is Array:
-		return value
+		return value.duplicate(true)
 	if value is PackedByteArray or value is PackedInt32Array or value is PackedInt64Array or value is PackedFloat32Array or value is PackedFloat64Array or value is PackedStringArray or value is PackedVector2Array or value is PackedVector3Array or value is PackedColorArray or value is PackedVector4Array:
 		return Array(value)
 	return []
