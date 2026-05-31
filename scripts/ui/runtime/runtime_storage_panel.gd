@@ -4,6 +4,9 @@ class_name RuntimeStoragePanel
 const PANEL_SIZE: Vector2 = Vector2(380, 190)
 const FLYOUT_SIZE: Vector2 = Vector2(240, 118)
 const MIN_VISIBLE_POCKET_SLOTS: int = 2
+const MANIPULATOR_VISIBLE_SLOTS: int = 3
+const KEY_MINI_HUD_SLOTS: int = 3
+const STANDARD_ROW_HEIGHT: float = 28.0
 
 
 static func build(ui, hud_root: Control, margin: float) -> PanelContainer:
@@ -14,10 +17,13 @@ static func build(ui, hud_root: Control, margin: float) -> PanelContainer:
 	panel.anchor_right = 1.0
 	panel.anchor_top = 1.0
 	panel.anchor_bottom = 1.0
-	panel.offset_left = -PANEL_SIZE.x - margin
+	var viewport_width: float = _get_viewport_width(ui)
+	var safe_panel_width: float = minf(PANEL_SIZE.x, maxf(viewport_width - margin * 2.0, 1.0))
+	panel.offset_left = -safe_panel_width - margin
 	panel.offset_right = -margin
 	panel.offset_top = -PANEL_SIZE.y
 	panel.offset_bottom = 0.0
+	panel.grow_horizontal = Control.GROW_DIRECTION_BEGIN
 	panel.add_theme_stylebox_override("panel", ui._make_panel_style(ui.UI_COLOR_PANEL, ui.UI_COLOR_BORDER, 1, 8))
 	hud_root.add_child(panel)
 
@@ -50,9 +56,7 @@ static func refresh(ui) -> void:
 	var manipulator_items: Array = bipob.get_manipulator_items()
 	if ui.runtime_manipulator_content_label != null and is_instance_valid(ui.runtime_manipulator_content_label):
 		ui.runtime_manipulator_content_label.text = _get_module_name(bipob, manipulator_items[0]) if not manipulator_items.is_empty() and manipulator_items[0] != null else "Empty"
-	if ui.runtime_key_summary_label != null and is_instance_valid(ui.runtime_key_summary_label):
-		var key_count: int = bipob.get_key_count() if bipob.has_method("get_key_count") else 0
-		ui.runtime_key_summary_label.text = "Keys: empty" if key_count <= 0 else "Keys: %d" % key_count
+	_refresh_key_mini_hud(ui, bipob)
 
 	var pocket_items: Array = bipob.get_pocket_items()
 	var available_pocket_slots: int = bipob.get_available_pocket_slots()
@@ -62,11 +66,46 @@ static func refresh(ui) -> void:
 
 	var buffer_item: Variant = bipob.get_buffer_item()
 	if ui.runtime_buffer_content_label != null and is_instance_valid(ui.runtime_buffer_content_label):
-		ui.runtime_buffer_content_label.text = _get_record_name(buffer_item, "Buffer empty")
+		ui.runtime_buffer_content_label.text = _get_record_name(buffer_item, "Empty")
 	var digital_items: Array = bipob.get_digital_storage_items()
 	for index in range(ui.runtime_digital_slots.size()):
 		var digital_item: Variant = digital_items[index] if index < digital_items.size() else null
 		ui.runtime_digital_slots[index].text = _get_record_name(digital_item, "Empty")
+
+
+static func _refresh_key_mini_hud(ui, bipob) -> void:
+	var inventory_state: Dictionary = {}
+	if bipob.has_method("get_inventory_state"):
+		var raw_inventory_state: Variant = bipob.call("get_inventory_state")
+		if typeof(raw_inventory_state) == TYPE_DICTIONARY:
+			inventory_state = raw_inventory_state
+	var key_ids: Array = []
+	if ui.has_method("_get_runtime_display_key_ids"):
+		key_ids = ui._get_runtime_display_key_ids(inventory_state)
+	elif bipob.has_method("get_key_count") and int(bipob.call("get_key_count")) > 0:
+		key_ids.append("physical_key")
+	for index in range(ui.runtime_key_slots.size()):
+		var key_slot: Control = ui.runtime_key_slots[index]
+		if key_slot == null or not is_instance_valid(key_slot):
+			continue
+		var key_text: String = "·"
+		var tooltip_text: String = "Empty key slot"
+		if index < key_ids.size():
+			var key_id: String = String(key_ids[index]).strip_edges()
+			key_text = "K"
+			tooltip_text = key_id
+			if ui.has_method("_get_runtime_key_display_text"):
+				tooltip_text = ui._get_runtime_key_display_text(key_id, inventory_state)
+		key_slot.set("text", key_text)
+		key_slot.tooltip_text = tooltip_text
+
+
+static func _get_viewport_width(ui) -> float:
+	if ui != null and ui.has_method("_get_viewport_size"):
+		var viewport_size: Variant = ui._get_viewport_size()
+		if typeof(viewport_size) == TYPE_VECTOR2:
+			return maxf(viewport_size.x, 1.0)
+	return PANEL_SIZE.x + 24.0
 
 
 static func _build_manipulator_area(ui) -> PanelContainer:
@@ -86,25 +125,36 @@ static func _build_manipulator_area(ui) -> PanelContainer:
 	var preview_row: HBoxContainer = HBoxContainer.new()
 	preview_row.add_theme_constant_override("separation", 4)
 	root.add_child(preview_row)
-	var preview: Button = Button.new()
-	preview.text = "Empty"
-	preview.focus_mode = Control.FOCUS_NONE
-	preview.custom_minimum_size = Vector2(0, 54)
-	preview.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-	preview.pressed.connect(func() -> void: _on_manipulator_preview_pressed(ui))
-	preview_row.add_child(preview)
-	ui.runtime_manipulator_content_label = preview
+	for index in range(MANIPULATOR_VISIBLE_SLOTS):
+		var preview: Button = Button.new()
+		preview.text = "Empty"
+		preview.focus_mode = Control.FOCUS_NONE
+		preview.custom_minimum_size = Vector2(0, 42)
+		preview.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+		preview.pressed.connect(func() -> void: _on_manipulator_preview_pressed(ui))
+		preview_row.add_child(preview)
+		if index == 0:
+			ui.runtime_manipulator_content_label = preview
 	var drop_button: Button = Button.new()
 	drop_button.text = "Drop"
 	drop_button.tooltip_text = "Drop held manipulator item"
 	drop_button.focus_mode = Control.FOCUS_NONE
+	drop_button.custom_minimum_size = Vector2(0, STANDARD_ROW_HEIGHT)
+	drop_button.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	drop_button.pressed.connect(func() -> void: _on_drop_pressed(ui))
-	preview_row.add_child(drop_button)
-	var keys: Label = Label.new()
-	keys.text = "Keys: empty"
-	keys.add_theme_color_override("font_color", ui.UI_COLOR_TEXT_DIM)
-	root.add_child(keys)
-	ui.runtime_key_summary_label = keys
+	root.add_child(drop_button)
+	var keys_strip: HBoxContainer = HBoxContainer.new()
+	keys_strip.add_theme_constant_override("separation", 4)
+	root.add_child(keys_strip)
+	for index in range(KEY_MINI_HUD_SLOTS):
+		var key_slot: Label = Label.new()
+		key_slot.text = "·"
+		key_slot.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+		key_slot.custom_minimum_size = Vector2(24, 16)
+		key_slot.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+		key_slot.add_theme_color_override("font_color", ui.UI_COLOR_TEXT_DIM)
+		keys_strip.add_child(key_slot)
+		ui.runtime_key_slots.append(key_slot)
 	return panel
 
 
@@ -122,7 +172,7 @@ static func _build_buffer_area(ui) -> PanelContainer:
 	root.add_theme_constant_override("separation", 4)
 	panel_margin.add_child(root)
 	var preview: Button = Button.new()
-	preview.text = "Buffer empty"
+	preview.text = "Empty"
 	preview.focus_mode = Control.FOCUS_NONE
 	preview.custom_minimum_size = Vector2(0, 54)
 	preview.size_flags_horizontal = Control.SIZE_EXPAND_FILL
@@ -139,10 +189,13 @@ static func _build_flyout(ui, hud_root: Control, margin: float, node_name: Strin
 	panel.anchor_right = 1.0
 	panel.anchor_top = 1.0
 	panel.anchor_bottom = 1.0
-	panel.offset_left = -FLYOUT_SIZE.x - margin
+	var viewport_width: float = _get_viewport_width(ui)
+	var safe_flyout_width: float = minf(FLYOUT_SIZE.x, maxf(viewport_width - margin * 2.0, 1.0))
+	panel.offset_left = -safe_flyout_width - margin
 	panel.offset_right = -margin
 	panel.offset_top = -PANEL_SIZE.y - FLYOUT_SIZE.y - 6.0
 	panel.offset_bottom = -PANEL_SIZE.y - 6.0
+	panel.grow_horizontal = Control.GROW_DIRECTION_BEGIN
 	panel.visible = false
 	panel.z_index = ui.Z_RUNTIME_MODAL
 	panel.add_theme_stylebox_override("panel", ui._make_panel_style(ui.UI_COLOR_PANEL, ui.UI_COLOR_ACCENT, 1, 8))

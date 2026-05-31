@@ -4964,6 +4964,11 @@ func _apply_runtime_hud_layout() -> void:
 	root.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	for child in root.get_children():
 		child.queue_free()
+	runtime_energy_label = null
+	runtime_actions_label = null
+	mission_goal_value_label = null
+	runtime_notification_label = null
+	runtime_notification_panel = null
 
 	if hud_status_label != null:
 		hud_status_label.visible = false
@@ -5081,11 +5086,14 @@ func _apply_runtime_hud_layout() -> void:
 	world_actions_panel.offset_bottom = wa_top + available_wa_height
 	root.add_child(world_actions_panel)
 	runtime_world_actions_panel = world_actions_panel
+	_refresh_runtime_mission_objective_label()
 	_refresh_map_constructor_panels()
 
 
 func _refresh_runtime_mission_objective_label() -> void:
-	if mission_goal_value_label != null:
+	if runtime_actions_label != null and is_instance_valid(runtime_actions_label):
+		runtime_actions_label.text = _get_runtime_actions_text()
+	if mission_goal_value_label != null and is_instance_valid(mission_goal_value_label):
 		mission_goal_value_label.text = _get_runtime_mission_objective_text()
 	if runtime_notification_timer <= 0.0:
 		_refresh_runtime_notification_fallback()
@@ -5102,7 +5110,7 @@ func _get_runtime_secondary_objective_text() -> String:
 		var objective_hint: String = String(mission_manager_runtime.call("get_mission_objective_hint", mission_id)).strip_edges()
 		if not objective_hint.is_empty() and not objective_hint.contains("legacy BipobController logic"):
 			return objective_hint
-	return ""
+	return "No additional target."
 
 
 func _refresh_runtime_notification_fallback() -> void:
