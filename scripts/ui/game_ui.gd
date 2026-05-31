@@ -3,6 +3,9 @@ class_name GameUI
 
 const GameUITextHelpersRef = preload("res://scripts/ui/game_ui_text_helpers.gd")
 const WorldObjectCatalogRef = preload("res://scripts/world/world_object_catalog.gd")
+const RuntimeMissionMenuRef = preload("res://scripts/ui/runtime/runtime_mission_menu.gd")
+const RuntimeStoragePanelRef = preload("res://scripts/ui/runtime/runtime_storage_panel.gd")
+const RuntimeBipobSwitcherRef = preload("res://scripts/ui/runtime/runtime_bipob_switcher.gd")
 
 
 class InternalIsoPreviewControl:
@@ -81,6 +84,10 @@ var runtime_mission_field_host: Control
 var mission_manager_runtime: Node = null
 var runtime_hud_root: Control = null
 var runtime_bipob_switcher_panel: PanelContainer = null
+var runtime_menu_button: Button = null
+var runtime_menu_overlay: Control = null
+var runtime_pocket_flyout: PanelContainer = null
+var runtime_storage_flyout: PanelContainer = null
 var runtime_selected_mission_bipob_index: int = 0
 var runtime_mission_bipob_cards: Array[Button] = []
 
@@ -141,14 +148,14 @@ const Z_RUNTIME_WORLD_OVERLAY: int = 20
 const Z_RUNTIME_HUD: int = 50
 const Z_MAP_CONSTRUCTOR_UI: int = 90
 const Z_RUNTIME_MODAL: int = 120
-const RUNTIME_STORAGE_PANEL_EXPANDED_SIZE: Vector2 = Vector2(380, 330)
+const RUNTIME_STORAGE_PANEL_EXPANDED_SIZE: Vector2 = Vector2(380, 190)
 const RUNTIME_STORAGE_PANEL_COLLAPSED_SIZE: Vector2 = Vector2(380, 48)
-var runtime_manipulator_content_label: Label
+var runtime_manipulator_content_label: Button
 var runtime_pocket_slots: Array[Button] = []
 var runtime_digital_slots: Array[Button] = []
 var runtime_pocket_take_buttons: Array[Button] = []
 var runtime_digital_load_buttons: Array[Button] = []
-var runtime_buffer_content_label: Label
+var runtime_buffer_content_label: Button
 var runtime_pocket_title_label: Label
 var runtime_digital_title_label: Label
 var runtime_digital_store_title_label: Label
@@ -4757,7 +4764,7 @@ func _get_runtime_margin() -> float:
 
 
 func _get_runtime_top_panel_height() -> float:
-	return 48.0
+	return 68.0
 
 
 func _get_runtime_bottom_panel_height() -> float:
@@ -4776,15 +4783,9 @@ func _get_map_constructor_palette_rect() -> Rect2:
 		right_x = maxf(margin, viewport.x - margin - sidebar_width)
 		sidebar_width = maxf(1.0, viewport.x - margin - right_x)
 
-	var storage_height: float = RUNTIME_STORAGE_PANEL_COLLAPSED_SIZE.y
-	if not runtime_storage_panel_collapsed:
-		storage_height = RUNTIME_STORAGE_PANEL_EXPANDED_SIZE.y
-
-	var storage_top: float = margin
-	if runtime_storage_panel != null and is_instance_valid(runtime_storage_panel):
-		storage_top = runtime_storage_panel.position.y
-
-	var top_y: float = storage_top + storage_height + 8.0
+	# The runtime Things | Storage preview is bottom-right now, so constructor
+	# palettes can continue to use the top-right space without overlap.
+	var top_y: float = margin
 	var mission_panel_top_y: float = viewport.y - _get_runtime_bottom_panel_height() - margin
 	var bottom_y: float = mission_panel_top_y - 8.0
 	var available_height: float = bottom_y - top_y
@@ -4931,49 +4932,13 @@ func _on_bipob_switch_card_pressed(index: int) -> void:
 
 
 func _update_runtime_bipob_switch_card_styles() -> void:
-	for i in range(runtime_mission_bipob_cards.size()):
-		var card: Button = runtime_mission_bipob_cards[i]
-		if card == null:
-			continue
-		var is_active: bool = i == runtime_selected_mission_bipob_index
-		card.button_pressed = is_active
-		card.modulate = Color(1, 1, 1, 1) if is_active else Color(0.78, 0.82, 0.88, 1.0)
+	RuntimeBipobSwitcherRef.refresh(self)
 
 
 func _create_bipob_switcher_panel() -> PanelContainer:
-	var panel := PanelContainer.new()
-	panel.name = "RuntimeBipobSwitcher"
-	panel.add_theme_stylebox_override("panel", _make_panel_style(UI_COLOR_PANEL, UI_COLOR_BORDER, 1, 8))
-	var margin := MarginContainer.new()
-	margin.add_theme_constant_override("margin_left", 8)
-	margin.add_theme_constant_override("margin_top", 8)
-	margin.add_theme_constant_override("margin_right", 8)
-	margin.add_theme_constant_override("margin_bottom", 8)
-	panel.add_child(margin)
-	var root := VBoxContainer.new()
-	root.add_theme_constant_override("separation", 4)
-	margin.add_child(root)
-	var title := Label.new()
-	title.text = "BIPOB"
-	root.add_child(title)
-	var row := HBoxContainer.new()
-	row.add_theme_constant_override("separation", 4)
-	root.add_child(row)
-	runtime_mission_bipob_cards.clear()
-	var mission_bipobs: Array[Dictionary] = _get_mission_bipobs()
-	for i in range(mission_bipobs.size()):
-		var bipob_data: Dictionary = mission_bipobs[i]
-		var button := Button.new()
-		button.toggle_mode = true
-		button.focus_mode = Control.FOCUS_NONE
-		button.custom_minimum_size = Vector2(72, 28)
-		button.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-		button.text = _get_mission_bipob_display_name(bipob_data, i)
-		button.pressed.connect(_on_bipob_switch_card_pressed.bind(i))
-		runtime_mission_bipob_cards.append(button)
-		row.add_child(button)
-	_update_runtime_bipob_switch_card_styles()
-	return panel
+	var margin: float = _get_runtime_margin()
+	var top_offset: float = margin + RuntimeMissionMenuRef.MENU_BUTTON_SIZE.y + 6.0
+	return RuntimeBipobSwitcherRef.build(self, runtime_hud_root, margin, top_offset)
 
 
 func _apply_runtime_hud_layout() -> void:
@@ -5019,7 +4984,7 @@ func _apply_runtime_hud_layout() -> void:
 	objective_panel.add_child(objective_margin)
 	mission_goal_value_label = Label.new()
 	mission_goal_value_label.name = "RuntimeObjectiveLabel"
-	mission_goal_value_label.autowrap_mode = TextServer.AUTOWRAP_OFF
+	mission_goal_value_label.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 	mission_goal_value_label.clip_text = true
 	mission_goal_value_label.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
 	mission_goal_value_label.size_flags_horizontal = Control.SIZE_EXPAND_FILL
@@ -5040,6 +5005,7 @@ func _apply_runtime_hud_layout() -> void:
 	runtime_notification_label = Label.new()
 	runtime_notification_label.name = "RuntimeNotificationLabel"
 	runtime_notification_label.text = ""
+	runtime_notification_label.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 	runtime_notification_label.clip_text = true
 	runtime_notification_label.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
 	runtime_notification_label.size_flags_horizontal = Control.SIZE_EXPAND_FILL
@@ -5047,27 +5013,10 @@ func _apply_runtime_hud_layout() -> void:
 	notification_margin.add_child(runtime_notification_label)
 	_refresh_runtime_notification_fallback()
 
-	var right_x: float = viewport.x - sidebar_width - margin
-	var switcher_height: float = 0.0
-	if _has_multiple_mission_bipobs():
-		runtime_bipob_switcher_panel = _create_bipob_switcher_panel()
-		runtime_bipob_switcher_panel.position = Vector2(right_x, margin)
-		runtime_bipob_switcher_panel.size = Vector2(sidebar_width, 76)
-		switcher_height = runtime_bipob_switcher_panel.size.y + 6.0
-		root.add_child(runtime_bipob_switcher_panel)
-	else:
-		runtime_bipob_switcher_panel = null
+	var menu_height: float = RuntimeMissionMenuRef.build(self, root, margin)
+	runtime_bipob_switcher_panel = RuntimeBipobSwitcherRef.build(self, root, margin, margin + menu_height + 6.0)
 
-	runtime_storage_panel = _create_runtime_storage_panel()
-	runtime_storage_panel.anchor_left = 1.0
-	runtime_storage_panel.anchor_right = 1.0
-	runtime_storage_panel.anchor_top = 0.0
-	runtime_storage_panel.anchor_bottom = 0.0
-	runtime_storage_panel.offset_left = -RUNTIME_STORAGE_PANEL_EXPANDED_SIZE.x - margin
-	runtime_storage_panel.offset_right = -margin
-	runtime_storage_panel.offset_top = margin + switcher_height
-	runtime_storage_panel.offset_bottom = runtime_storage_panel.offset_top + RUNTIME_STORAGE_PANEL_EXPANDED_SIZE.y
-	root.add_child(runtime_storage_panel)
+	runtime_storage_panel = RuntimeStoragePanelRef.build(self, root, margin)
 
 	var mission_field_panel := Control.new()
 	mission_field_panel.name = "MissionFieldPanel"
@@ -5100,12 +5049,8 @@ func _apply_runtime_hud_layout() -> void:
 	controls_panel.add_theme_stylebox_override("panel", _make_panel_style(UI_COLOR_PANEL, UI_COLOR_BORDER, 1, 8))
 	bottom_left_vbox.add_child(controls_panel)
 
-	var mission_panel: PanelContainer = _create_runtime_mission_panel()
-	mission_panel.position = Vector2(right_x, bottom_y)
-	mission_panel.size = Vector2(sidebar_width, bottom_area_height)
-	root.add_child(mission_panel)
 	var world_actions_panel: PanelContainer = _create_runtime_world_actions_panel()
-	var wa_top: float = margin + switcher_height + top_panel_height + 8.0
+	var wa_top: float = margin + top_panel_height + 8.0
 	var mission_reserved: float = bottom_area_height + 8.0
 	var available_wa_height: float = maxf((viewport.y - margin) - wa_top - mission_reserved, 92.0)
 	var wa_left: float = margin
@@ -5392,93 +5337,7 @@ func _create_runtime_world_actions_panel() -> PanelContainer:
 	return panel
 
 func _create_runtime_storage_panel() -> PanelContainer:
-	var panel := PanelContainer.new()
-	panel.name = "StoragePanel"
-	panel.add_theme_stylebox_override("panel", _make_panel_style(UI_COLOR_PANEL, UI_COLOR_BORDER, 1, 8))
-	var margin := MarginContainer.new()
-	margin.add_theme_constant_override("margin_left", 8)
-	margin.add_theme_constant_override("margin_top", 8)
-	margin.add_theme_constant_override("margin_right", 8)
-	margin.add_theme_constant_override("margin_bottom", 8)
-	panel.add_child(margin)
-	var root := VBoxContainer.new()
-	root.add_theme_constant_override("separation", 4)
-	margin.add_child(root)
-	var storage_header := HBoxContainer.new()
-	storage_header.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-	storage_header.add_theme_constant_override("separation", 4)
-	root.add_child(storage_header)
-	var things_title := Label.new()
-	things_title.text = "THINGS"
-	things_title.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-	storage_header.add_child(things_title)
-	runtime_storage_collapse_button = Button.new()
-	runtime_storage_collapse_button.custom_minimum_size = Vector2(28, 28)
-	runtime_storage_collapse_button.focus_mode = Control.FOCUS_NONE
-	runtime_storage_collapse_button.pressed.connect(_on_runtime_storage_collapse_pressed)
-	storage_header.add_child(runtime_storage_collapse_button)
-	runtime_storage_panel_body = VBoxContainer.new()
-	runtime_storage_panel_body.add_theme_constant_override("separation", 4)
-	root.add_child(runtime_storage_panel_body)
-	runtime_pocket_slots.clear()
-	runtime_digital_slots.clear()
-	runtime_pocket_take_buttons.clear()
-	runtime_digital_load_buttons.clear()
-	runtime_key_slots.clear()
-	runtime_storage_panel_body.add_child(_create_runtime_storage_dual_action_header("MANIPULATOR", "DROP", Callable(self, "_on_storage_store_pressed"), "POCKET", Callable(self, "_on_storage_take_pressed")))
-	runtime_manipulator_content_label = Label.new()
-	runtime_manipulator_content_label.text = "Empty"
-	runtime_storage_panel_body.add_child(runtime_manipulator_content_label)
-	runtime_pocket_title_label = Label.new()
-	runtime_pocket_title_label.text = "POCKET 1/4"
-	runtime_storage_panel_body.add_child(runtime_pocket_title_label)
-	var pocket_row := HBoxContainer.new()
-	pocket_row.add_theme_constant_override("separation", 4)
-	runtime_storage_panel_body.add_child(pocket_row)
-	for i in range(4):
-		var col := VBoxContainer.new()
-		col.add_theme_constant_override("separation", 2)
-		var b := _create_storage_slot("Empty", i == 0, Vector2(46, 26))
-		b.pressed.connect(func() -> void: selected_pocket_slot = i; _refresh_runtime_storage_panel())
-		col.add_child(b)
-		runtime_pocket_slots.append(b)
-		var take_button := _create_runtime_slot_action_button("TAKE", Callable(self, "_on_storage_take_slot_pressed").bind(i))
-		col.add_child(take_button)
-		runtime_pocket_take_buttons.append(take_button)
-		pocket_row.add_child(col)
-	var keys_row := HBoxContainer.new()
-	keys_row.add_theme_constant_override("separation", 4)
-	runtime_storage_panel_body.add_child(keys_row)
-	for i in range(6):
-		var key_slot := _create_storage_key_slot(true)
-		keys_row.add_child(key_slot)
-		runtime_key_slots.append(key_slot)
-	runtime_digital_title_label = Label.new()
-	runtime_digital_title_label.text = "BUFFER"
-	runtime_storage_panel_body.add_child(_create_runtime_storage_section_header("", "STORE", Callable(self, "_on_storage_data_store_pressed"), runtime_digital_title_label))
-	runtime_buffer_content_label = Label.new()
-	runtime_buffer_content_label.text = "Empty"
-	runtime_storage_panel_body.add_child(runtime_buffer_content_label)
-	runtime_digital_store_title_label = Label.new()
-	runtime_digital_store_title_label.text = "STORE 1/4"
-	runtime_storage_panel_body.add_child(runtime_digital_store_title_label)
-	var digital_row := HBoxContainer.new()
-	digital_row.add_theme_constant_override("separation", 4)
-	runtime_storage_panel_body.add_child(digital_row)
-	for i in range(4):
-		var col := VBoxContainer.new()
-		col.add_theme_constant_override("separation", 2)
-		var b := _create_storage_slot("Empty", i == 0, Vector2(46, 26))
-		b.pressed.connect(func() -> void: selected_digital_slot = i; _refresh_runtime_storage_panel())
-		col.add_child(b)
-		runtime_digital_slots.append(b)
-		var load_button := _create_runtime_slot_action_button("LOAD", Callable(self, "_on_storage_load_slot_pressed").bind(i))
-		col.add_child(load_button)
-		runtime_digital_load_buttons.append(load_button)
-		digital_row.add_child(col)
-	_refresh_runtime_storage_panel()
-	_apply_runtime_storage_collapsed_state()
-	return panel
+	return RuntimeStoragePanelRef.build(self, runtime_hud_root, _get_runtime_margin())
 
 
 func _on_runtime_storage_collapse_pressed() -> void:
@@ -12753,51 +12612,7 @@ func _on_rotate_storage_button_pressed() -> void:
 	update_box_status()
 
 func _refresh_runtime_storage_panel() -> void:
-	if bipob == null or runtime_storage_panel == null:
-		return
-	var man_items: Array = bipob.get_manipulator_items()
-	var manipulator_item = man_items[0] if not man_items.is_empty() else null
-	if runtime_manipulator_content_label != null:
-		runtime_manipulator_content_label.text = bipob.get_module_display_name(manipulator_item) if manipulator_item != null else "Empty"
-	var available_pocket: int = int(bipob.get_available_pocket_slots())
-	runtime_pocket_title_label.text = "POCKET %d/%d" % [available_pocket, bipob.get_max_pocket_slots()]
-	var pocket_items: Array = bipob.get_pocket_items()
-	for i in range(runtime_pocket_slots.size()):
-		var slot := runtime_pocket_slots[i]
-		var enabled: bool = i < available_pocket
-		slot.disabled = not enabled
-		slot.modulate = Color.WHITE if enabled else UI_COLOR_DISABLED
-		var item = pocket_items[i] if i < pocket_items.size() else null
-		slot.text = bipob.get_module_display_name(item) if item != null else "Empty"
-		if i < runtime_pocket_take_buttons.size():
-			var take_button := runtime_pocket_take_buttons[i]
-			take_button.disabled = not enabled
-			take_button.visible = enabled
-	var inventory_state: Dictionary = bipob.get_inventory_state() if bipob.has_method("get_inventory_state") else {}
-	var collected_key_ids: Array = _get_runtime_display_key_ids(inventory_state)
-	for key_index in range(runtime_key_slots.size()):
-		var key_slot: Control = runtime_key_slots[key_index]
-		var key_label := key_slot.get_node_or_null("KeySlotLabel") as Label
-		var has_key_slot := key_index < collected_key_ids.size()
-		key_slot.modulate = Color.WHITE if has_key_slot else UI_COLOR_DISABLED
-		if key_label != null:
-			var key_id := String(collected_key_ids[key_index]) if has_key_slot else ""
-			key_label.text = _get_runtime_key_display_text(key_id, inventory_state) if has_key_slot else "-"
-	var digital_available: int = 1
-	runtime_digital_store_title_label.text = "STORE %d/%d" % [digital_available, runtime_digital_slots.size()]
-	for i in range(runtime_digital_slots.size()):
-		var dslot := runtime_digital_slots[i]
-		var denabled: bool = i < digital_available
-		dslot.disabled = not denabled
-		dslot.modulate = Color.WHITE if denabled else UI_COLOR_DISABLED
-		dslot.text = "Empty"
-		if i < runtime_digital_load_buttons.size():
-			var load_button := runtime_digital_load_buttons[i]
-			load_button.disabled = not denabled
-			load_button.visible = denabled
-	if runtime_buffer_content_label != null:
-		runtime_buffer_content_label.text = "Empty"
-	_apply_runtime_storage_collapsed_state()
+	RuntimeStoragePanelRef.refresh(self)
 
 
 func _get_runtime_display_key_ids(inventory_state: Dictionary) -> Array:
