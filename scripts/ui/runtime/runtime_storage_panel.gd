@@ -30,9 +30,6 @@ static func build(ui, hud_root: Control, margin: float) -> PanelContainer:
 	var root: VBoxContainer = VBoxContainer.new()
 	root.add_theme_constant_override("separation", 6)
 	panel_margin.add_child(root)
-	var title: Label = Label.new()
-	title.text = "Things | Storage"
-	root.add_child(title)
 	var columns: HBoxContainer = HBoxContainer.new()
 	columns.add_theme_constant_override("separation", 8)
 	columns.size_flags_vertical = Control.SIZE_EXPAND_FILL
@@ -86,9 +83,6 @@ static func _build_manipulator_area(ui) -> PanelContainer:
 	var root: VBoxContainer = VBoxContainer.new()
 	root.add_theme_constant_override("separation", 4)
 	panel_margin.add_child(root)
-	var title: Label = Label.new()
-	title.text = "Things / Manipulator"
-	root.add_child(title)
 	var preview_row: HBoxContainer = HBoxContainer.new()
 	preview_row.add_theme_constant_override("separation", 4)
 	root.add_child(preview_row)
@@ -127,10 +121,6 @@ static func _build_buffer_area(ui) -> PanelContainer:
 	var root: VBoxContainer = VBoxContainer.new()
 	root.add_theme_constant_override("separation", 4)
 	panel_margin.add_child(root)
-	var title: Label = Label.new()
-	title.text = "Storage / Buffer"
-	title.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
-	root.add_child(title)
 	var preview: Button = Button.new()
 	preview.text = "Buffer empty"
 	preview.focus_mode = Control.FOCUS_NONE
