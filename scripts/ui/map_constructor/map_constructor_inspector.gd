@@ -126,43 +126,19 @@ static func show_for_selection(ui: Variant, cell: Vector2i, preferred_entity_kin
 	var move_button: Button = Button.new(); move_button.text = "Move"
 	move_button.pressed.connect(func() -> void:
 		var target_cell: Vector2i = Vector2i(int(move_x.value), int(move_y.value))
-		if target_cell.x < 0 or target_cell.y < 0:
-			ui.show_hint("Move target must be a valid map cell.")
-			return
-		if ui.mission_manager_runtime != null and ui.mission_manager_runtime.has_method("move_map_constructor_entity_to_cell"):
-			var r: Dictionary = ui.mission_manager_runtime.call("move_map_constructor_entity_to_cell", entity_kind, entity_id, target_cell)
-			ui.show_hint(ui._safe_ui_string(r.get("message", "Move complete."), "Move complete."))
-			ui._refresh_map_constructor_panels()
-			if ui.field_runtime != null and ui.field_runtime.has_method("request_visual_refresh"): ui.field_runtime.call("request_visual_refresh")
-			ui._show_map_constructor_inspector(ui._safe_ui_vector2i(r.get("cell", Vector2i(int(move_x.value), int(move_y.value)))), entity_kind, entity_id)
+		MapConstructorActions.move_entity_to_cell(ui, entity_kind, entity_id, target_cell)
 	)
 	move_row.add_child(move_x); move_row.add_child(move_y); move_row.add_child(move_button)
 	placement.add_child(move_row)
 	var dup_button: Button = Button.new(); dup_button.text = "Duplicate to X/Y"
 	dup_button.pressed.connect(func() -> void:
 		var duplicate_cell: Vector2i = Vector2i(int(move_x.value), int(move_y.value))
-		if duplicate_cell.x < 0 or duplicate_cell.y < 0:
-			ui.show_hint("Duplicate target must be a valid map cell.")
-			return
-		if ui.mission_manager_runtime != null and ui.mission_manager_runtime.has_method("duplicate_map_constructor_entity_to_cell"):
-			var r: Dictionary = ui.mission_manager_runtime.call("duplicate_map_constructor_entity_to_cell", entity_kind, entity_id, duplicate_cell)
-			ui.show_hint(ui._safe_ui_string(r.get("message", "Duplicate complete."), "Duplicate complete."))
-			ui._refresh_map_constructor_panels()
-			if ui.field_runtime != null and ui.field_runtime.has_method("request_visual_refresh"): ui.field_runtime.call("request_visual_refresh")
-			var nid: String = ui._safe_ui_string(r.get("entity_id", ""))
-			if not nid.is_empty():
-				ui._show_map_constructor_inspector(ui._safe_ui_vector2i(r.get("cell", Vector2i(int(move_x.value), int(move_y.value)))), entity_kind, nid)
+		MapConstructorActions.duplicate_entity_to_cell(ui, entity_kind, entity_id, duplicate_cell)
 	)
 	placement.add_child(dup_button)
 	var del: Button = Button.new(); del.text = "Delete"
 	del.pressed.connect(func() -> void:
-		if ui.mission_manager_runtime != null and ui.mission_manager_runtime.has_method("remove_map_constructor_object_at_cell"):
-			var r: Dictionary = ui.mission_manager_runtime.call("remove_map_constructor_object_at_cell", ui._safe_ui_vector2i(entity_info.get("cell", cell)))
-			ui.show_hint(ui._safe_ui_string(r.get("message", "Deleted."), "Deleted."))
-			ui._refresh_map_constructor_panels()
-			if ui.field_runtime != null and ui.field_runtime.has_method("request_visual_refresh"): ui.field_runtime.call("request_visual_refresh")
-			ui._show_map_constructor_inspector(Vector2i(-1, -1))
-			ui._clear_map_constructor_link_target()
+		MapConstructorActions.delete_entity_at_cell(ui, ui._safe_ui_vector2i(entity_info.get("cell", cell)))
 	)
 	placement.add_child(del)
 	v.add_child(placement)

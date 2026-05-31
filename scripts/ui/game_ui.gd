@@ -10634,7 +10634,7 @@ func _confirm_map_constructor_pending_placement() -> void:
 	var prefab_id: String = map_constructor_pending_place_prefab_id
 	var place_cell: Vector2i = map_constructor_pending_place_cell
 	var rotation: int = map_constructor_pending_place_rotation
-	var result: Dictionary = mission_manager_runtime.call("place_map_constructor_prefab", prefab_id, place_cell, selected_map_constructor_wall_side, rotation, selected_map_constructor_mounting_mode)
+	var result: Dictionary = MapConstructorActions.apply_prefab_placement(self, prefab_id, place_cell, {"wall_side": selected_map_constructor_wall_side, "rotation": rotation, "mounting_mode": selected_map_constructor_mounting_mode})
 	show_hint(String(result.get("message", "Placement done.")))
 	if bool(result.get("ok", false)):
 		_mark_map_constructor_prefab_recent(prefab_id)
