@@ -6922,6 +6922,7 @@ func get_world_action_display_label(action_id: String, object_data: Dictionary) 
 		"connect": return "Connect"
 		"scan": return "Scan"
 		"hack": return "Hack"
+		"download": return "Download"
 		"drain_energy": return "Drain Energy"
 		"pickup": return "Pickup Digital" if String(object_data.get("item_form", "physical")) == "digital" else "Pickup"
 		"use_item": return "Use Item"
@@ -7808,6 +7809,15 @@ func get_available_world_actions(world_object: Dictionary, target_position: Vect
 	var state := String(world_object.get("state", ""))
 	var _items_here: Array[Dictionary] = mission_manager.get_items_at_cell(target_position) if mission_manager != null else []
 	if group == "door":
+		var access_type: String = String(world_object.get("access_type", world_object.get("lock_type", ""))).strip_edges().to_lower()
+		var is_digital_door: bool = access_type in ["digital_key", "access_code", "terminal_access"] or bool(world_object.get("is_digital_device", false))
+		if is_digital_door and get_installed_connector_level(String(world_object.get("connection_type", "wired"))) > 0:
+			if not bool(world_object.get("connected", false)):
+				actions.append("connect")
+			elif int(world_object.get("scan_level", 0)) < 2:
+				actions.append("scan")
+			elif state != "hacked" and get_installed_processor_level() >= int(world_object.get("required_processor_level", 1)):
+				actions.append("hack")
 		if String(world_object.get("control_mode", "internal")).strip_edges().to_lower() == "external":
 			if state in ["damaged", "half_open", "jammed"] and has_heavy_claw():
 				actions.append("force_open")
@@ -7818,21 +7828,26 @@ func get_available_world_actions(world_object: Dictionary, target_position: Vect
 			actions.append("force_open")
 		if state == "locked":
 			actions.append("unlock")
-		if state in ["locked", "closed"] and has_manipulator_arm():
+		elif state == "closed" and has_manipulator_arm():
 			actions.append("open")
-		if state == "open" and has_manipulator_arm():
+		elif state == "open" and has_manipulator_arm():
 			actions.append("close")
 		if has_plasma_cutter() and String(world_object.get("material", "")) in ["steel", "reinforced_steel"]:
 			actions.append("cut")
 		if has_sledgehammer() and String(world_object.get("material", "")) in ["steel", "reinforced_steel"]:
 			actions.append("impact")
 	elif group == "terminal":
-		if bool(world_object.get("connected", false)) and get_installed_processor_level() > 0:
-			actions.append("hack")
+		if get_installed_connector_level(String(world_object.get("connection_type", "wired"))) > 0:
+			if not bool(world_object.get("connected", false)):
+				actions.append("connect")
+			elif int(world_object.get("scan_level", 0)) < 2:
+				actions.append("scan")
+			elif String(world_object.get("state", "")) != "hacked" and get_installed_processor_level() > 0:
+				actions.append("hack")
+			elif _world_object_has_download_payload(world_object):
+				actions.append("download")
 		if String(world_object.get("terminal_type", "")) == "platform" and get_installed_connector_level(String(world_object.get("connection_type", "wired"))) > 0:
 			actions.append("activate_platform")
-		if get_installed_connector_level(String(world_object.get("connection_type", "wired"))) > 0:
-			actions.append("connect")
 		if has_repair_tool() and state == "damaged":
 			actions.append("repair")
 	elif group == "wall":
@@ -7889,6 +7904,14 @@ func get_available_world_actions(world_object: Dictionary, target_position: Vect
 		actions.append("pickup")
 	return actions
 
+func _world_object_has_download_payload(world_object: Dictionary) -> bool:
+	if not String(world_object.get("stored_key_id", world_object.get("access_key_id", world_object.get("download_record_id", "")))).strip_edges().is_empty():
+		return true
+	for field_name in ["stored_key_ids", "stored_access_ids", "stored_item_ids", "digital_key_ids", "access_code_ids"]:
+		if not Array(world_object.get(field_name, [])).is_empty():
+			return true
+	return false
+
 func _module_dict(module_id: String) -> Dictionary:
 	return {"id": module_id}
 
@@ -7917,6 +7940,8 @@ func get_world_action_module(action_id: String, world_object: Dictionary) -> Dic
 		"connect":
 			var level := get_installed_connector_level(connection_type)
 			return _module_dict("%s_connector_v%d" % [connection_type, level] if level > 0 else "")
+		"scan":
+			return get_world_action_module("connect", world_object)
 		"hack":
 			if String(world_object.get("object_group", "")) == "threat":
 				if has_module_id("wired_connector_v1"):
@@ -7954,6 +7979,8 @@ func get_world_action_module(action_id: String, world_object: Dictionary) -> Dic
 			if bool(world_object.get("magnetic", false)) or String(world_object.get("pull_mode", "")) == "magnetic":
 				return _module_dict("magnetic_manipulator_v1" if has_module_id("magnetic_manipulator_v1") else "")
 			return _module_dict("manipulator_heavy_claw_v1" if has_module_id("manipulator_heavy_claw_v1") else "")
+		"download":
+			return _module_dict("storage_buffer")
 		"insert_fuse":
 			return _module_dict("fuse" if has_held_world_item("fuse") else "")
 	return _module_dict("")
@@ -7965,20 +7992,20 @@ func interact() -> void:
 	var target_tile := grid_manager.get_tile(target_position)
 
 	# Legacy interact must not process digital devices.
-	if target_tile == GridManager.TILE_TERMINAL:
+	if target_tile == GridManager.TILE_TERMINAL and selected_world_action.is_empty():
 		hint_requested.emit("Terminal is a digital device. Use Scan Device first, then Hack Device.")
 		status_changed.emit()
 		return
 
-	if target_tile == GridManager.TILE_DIGITAL_DOOR:
+	if target_tile == GridManager.TILE_DIGITAL_DOOR and selected_world_action.is_empty():
 		hint_requested.emit("Digital door cannot be opened with Interact. Use Scan Device, then Hack Device.")
 		status_changed.emit()
 		return
-	if target_tile == GridManager.TILE_HOT_NODE:
+	if target_tile == GridManager.TILE_HOT_NODE and selected_world_action.is_empty():
 		hint_requested.emit("Hot Node is a digital device. Use Scan Device, then Hack Device.")
 		status_changed.emit()
 		return
-	if target_tile == GridManager.TILE_AIRFLOW_TERMINAL:
+	if target_tile == GridManager.TILE_AIRFLOW_TERMINAL and selected_world_action.is_empty():
 		hint_requested.emit("Airflow Terminal is a digital device. Use Scan Device, then Hack Device.")
 		status_changed.emit()
 		return
@@ -8231,6 +8258,12 @@ func _apply_world_object_effects(effects: Array, world_object: Dictionary, targe
 			var field_name := String(effect.get("field", "")).strip_edges()
 			if not field_name.is_empty():
 				world_object[field_name] = bool(effect.get("value", false))
+		elif effect_type == "set_int":
+			var int_field_name := String(effect.get("field", "")).strip_edges()
+			if not int_field_name.is_empty():
+				world_object[int_field_name] = int(effect.get("value", 0))
+		elif effect_type == "store_digital_record":
+			store_digital_record(String(effect.get("record_id", "")), String(effect.get("display_name", effect.get("record_id", "Data"))), String(effect.get("description", "Downloaded data.")))
 		elif effect_type == "power_recalc_needed":
 			var network_id := String(world_object.get("power_network_id", ""))
 			if not network_id.is_empty():
