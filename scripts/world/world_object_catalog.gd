@@ -36,10 +36,10 @@ const OBJECT_LIBRARY := {
 	"light": {"group":"power","name":"Light","placement_mode":"wall_mounted","state":"active","durability":6,"brightness":1.0,"color":"#ffffff","power_source_id":"","is_powered":false},
 	"light_switch": {"group":"power","name":"Light Switch","placement_mode":"wall_mounted","state":"switch_off","durability":6,"can_be_switched":true,"power_source_id":""},
 	"power_socket": {"group":"power","name":"Power Socket","state":"disconnected","durability":8,"can_connect_cable":true},
-	"power_cable_reel": {"group":"item","name":"Power Cable Reel","placement_mode":"wall_mounted","state":"disconnected","item_form":"physical","storage_type":"pocket","can_connect_socket":true,"max_cable_length":5,"end_1_state":"on_reel","end_2_state":"on_reel"},
-	"power_source_class_1": {"group":"power","name":"Power Source C1","state":"on","power_mode":"internal","control_mode":"internal","is_powered":true,"durability":30,"power_source_class":1,"drain_pool":60,"working_heat":1,"current_heat":1,"overheat_threshold":3,"heat_from_connections":0,"cooling_received":0,"overheated_state_before":"","allowed_socket_connections":1,"connected_device_ids":[]},
-	"power_source_class_2": {"group":"power","name":"Power Source C2","state":"on","power_mode":"internal","control_mode":"internal","is_powered":true,"durability":30,"power_source_class":2,"drain_pool":120,"working_heat":2,"current_heat":2,"overheat_threshold":3,"heat_from_connections":0,"cooling_received":0,"overheated_state_before":"","allowed_socket_connections":2,"connected_device_ids":[]},
-	"power_source_class_3": {"group":"power","name":"Power Source C3","state":"on","power_mode":"internal","control_mode":"internal","is_powered":true,"durability":30,"power_source_class":3,"drain_pool":240,"working_heat":3,"current_heat":3,"overheat_threshold":3,"heat_from_connections":0,"cooling_received":0,"overheated_state_before":"","allowed_socket_connections":3,"connected_device_ids":[]},
+	"power_cable_reel": {"group":"item","name":"Power Cable Reel","placement_mode":"wall_mounted","state":"disconnected","item_form":"physical","storage_type":"pocket","can_connect_socket":true,"max_cable_length":5,"end_1_state":"on_reel","end_2_state":"on_reel","end_1_target_id":"","end_2_target_id":""},
+	"power_source_class_1": {"group":"power","name":"Power Source C1","state":"on","power_mode":"internal","control_mode":"internal","is_powered":true,"durability":30,"power_source_class":1,"outlet_capacity":4,"drain_pool":60,"working_heat":1,"current_heat":1,"overheat_threshold":3,"heat_from_connections":0,"cooling_received":0,"overheated_state_before":"","allowed_socket_connections":1,"connected_device_ids":[]},
+	"power_source_class_2": {"group":"power","name":"Power Source C2","state":"on","power_mode":"internal","control_mode":"internal","is_powered":true,"durability":30,"power_source_class":2,"outlet_capacity":5,"drain_pool":120,"working_heat":2,"current_heat":2,"overheat_threshold":3,"heat_from_connections":0,"cooling_received":0,"overheated_state_before":"","allowed_socket_connections":2,"connected_device_ids":[]},
+	"power_source_class_3": {"group":"power","name":"Power Source C3","state":"on","power_mode":"internal","control_mode":"internal","is_powered":true,"durability":30,"power_source_class":3,"outlet_capacity":6,"drain_pool":240,"working_heat":3,"current_heat":3,"overheat_threshold":3,"heat_from_connections":0,"cooling_received":0,"overheated_state_before":"","allowed_socket_connections":3,"connected_device_ids":[]},
 	"external_radiator": {"group":"cooling","name":"External Radiator","state":"active","cooling_device_type":"radiator","cooling_output":1,"movable":true,"heavy_claw_movable":true,"material":"metal","blocks_movement":true,"blocks_vision":false,"durability":20},
 	"external_air_cooler": {"group":"cooling","name":"External Air Cooler","state":"active","cooling_device_type":"air_cooler","cooling_output":2,"directed_airflow":true,"facing_dir":"right","movable":true,"heavy_claw_movable":true,"material":"metal","blocks_movement":true,"blocks_vision":false,"durability":20},
 	"metal_cooling_block": {"group":"physical","name":"Metal Cooling Block","state":"active","material":"metal","cooling_amplifier":true,"movable":true,"heavy_claw_movable":true,"blocks_movement":true,"blocks_vision":false,"durability":30},
@@ -399,13 +399,21 @@ static func get_power_source_active_socket_connection_count(source_data: Diction
 	return Array(source_data.get("connected_device_ids", [])).size()
 
 static func can_power_source_accept_connection(source_data: Dictionary) -> bool:
-	var allowed := maxi(0, int(source_data.get("allowed_socket_connections", 0)))
-	if allowed <= 0:
-		return true
+	var source_class: int = int(source_data.get("power_source_class", source_data.get("source_class", 1)))
+	var object_type: String = String(source_data.get("object_type", "")).strip_edges().to_lower()
+	if object_type.ends_with("class_2"):
+		source_class = 2
+	elif object_type.ends_with("class_3"):
+		source_class = 3
+	source_class = clampi(source_class, 1, 3)
+	var allowed: int = maxi(1, int(source_data.get("outlet_capacity", source_class + 3)))
 	return get_power_source_active_socket_connection_count(source_data) < allowed
 
 static func add_power_source_socket_connection(source_data: Dictionary, device_id: String) -> Dictionary:
-	var ids: Array = Array(source_data.get("connected_device_ids", []))
+	var ids: Array = []
+	var raw_ids: Variant = source_data.get("connected_device_ids", [])
+	if raw_ids is Array:
+		ids = Array(raw_ids)
 	if not ids.has(device_id):
 		if can_power_source_accept_connection(source_data):
 			ids.append(device_id)
@@ -414,7 +422,10 @@ static func add_power_source_socket_connection(source_data: Dictionary, device_i
 	return update_world_object_heat_state(source_data)
 
 static func remove_power_source_socket_connection(source_data: Dictionary, device_id: String) -> Dictionary:
-	var ids: Array = Array(source_data.get("connected_device_ids", []))
+	var ids: Array = []
+	var raw_ids: Variant = source_data.get("connected_device_ids", [])
+	if raw_ids is Array:
+		ids = Array(raw_ids)
 	if ids.has(device_id):
 		ids.erase(device_id)
 	source_data["connected_device_ids"] = ids

@@ -4724,6 +4724,16 @@ func _normalize_map_constructor_active_object_fields(object_data: Dictionary) ->
 			data["is_hidden"] = bool(data.get("hidden", false))
 		if not data.has("physical_connection_source_id"):
 			data["physical_connection_source_id"] = String(data.get("power_source_id", "")).strip_edges()
+	if object_type_normalized == "power_cable_reel":
+		for end_index in range(1, 3):
+			var end_state_key: String = "end_%d_state" % end_index
+			var end_target_key: String = "end_%d_target_id" % end_index
+			var end_state: String = String(data.get(end_state_key, "on_reel")).strip_edges().to_lower()
+			if not (end_state in ["on_reel", "held", "connected", "disconnected"]):
+				end_state = "on_reel"
+			data[end_state_key] = end_state
+			if not data.has(end_target_key):
+				data[end_target_key] = ""
 	var control_mode: String = String(data.get("control_mode", "external" if bool(data.get("requires_external_control", false)) else "internal")).strip_edges().to_lower()
 	if control_mode in ["external_control", "external control"]:
 		control_mode = "external"
@@ -4802,6 +4812,55 @@ func _map_constructor_terminal_stores_key(terminal_id: String, key_id: String) -
 			return true
 	return false
 
+
+func _count_lights_linked_to_source(source_id: String) -> int:
+	var normalized_source_id: String = source_id.strip_edges()
+	if normalized_source_id.is_empty():
+		return 0
+	var count: int = 0
+	for object_data in mission_world_objects:
+		if String(object_data.get("object_type", "")).strip_edges().to_lower() != "light":
+			continue
+		var linked_source: String = String(object_data.get("power_source_id", object_data.get("power_network_id", ""))).strip_edges()
+		if linked_source == normalized_source_id:
+			count += 1
+	return count
+
+func _count_adjacent_power_wires(cell: Vector2i) -> int:
+	if cell.x < 0 or cell.y < 0:
+		return 0
+	var count: int = 0
+	for delta in [Vector2i.UP, Vector2i.DOWN, Vector2i.LEFT, Vector2i.RIGHT]:
+		var neighbor: Dictionary = get_world_object_at_cell(cell + delta)
+		if neighbor.is_empty():
+			continue
+		if String(neighbor.get("object_type", "")).strip_edges().to_lower() == "power_cable":
+			count += 1
+	return count
+
+func toggle_light_switch_links(light_switch_id: String, switch_is_on: bool) -> Dictionary:
+	var switch_object: Dictionary = get_world_object_by_id(light_switch_id.strip_edges())
+	if switch_object.is_empty():
+		return {"success": false, "updated": 0, "reason": "switch_missing"}
+	switch_object["state"] = "switch_on" if switch_is_on else "switch_off"
+	switch_object["is_on"] = switch_is_on
+	var source_id: String = String(switch_object.get("power_source_id", switch_object.get("power_network_id", ""))).strip_edges()
+	if source_id.is_empty():
+		return {"success": false, "updated": 0, "reason": "source_missing"}
+	var updated: int = 0
+	for object_data in mission_world_objects:
+		if String(object_data.get("object_type", "")).strip_edges().to_lower() != "light":
+			continue
+		var linked_source: String = String(object_data.get("power_source_id", object_data.get("power_network_id", ""))).strip_edges()
+		if linked_source != source_id:
+			continue
+		object_data["light_switch_off"] = not switch_is_on
+		if not switch_is_on:
+			object_data["is_powered"] = false
+		updated += 1
+	PowerSystemRef.recalculate_network(mission_world_objects, source_id)
+	return {"success": true, "updated": updated, "reason": "ok", "source_id": source_id}
+
 func validate_map_constructor_entity_links(entity_kind: String, entity_id: String) -> Dictionary:
 	var warnings: Array[String] = []
 	var missing: Array[String] = []
@@ -4877,19 +4936,31 @@ func validate_map_constructor_entity_links(entity_kind: String, entity_id: Strin
 				output_count += 1
 		if output_count <= 0:
 			warnings.append("Circuit switch has no output wires.")
-		if int(data.get("active_output_index", 1)) > output_count and output_count > 0:
-			warnings.append("Circuit switch active output points to a missing/none output.")
-	if normalized_object_type_for_validation.begins_with("fuse_box"):
+		var active_output_index: int = int(data.get("active_output_index", 0))
+		if output_count > 0:
+			var active_output_value: String = ""
+			if active_output_index >= 1 and active_output_index <= 3:
+				active_output_value = String(data.get("output_%d_wire_id" % active_output_index, data.get("output_%d_direction" % active_output_index, ""))).strip_edges().to_lower()
+			if active_output_value.is_empty() or active_output_value == "none":
+				warnings.append("Circuit switch active output points to a missing/none output.")
+	if normalized_object_type_for_validation.begins_with("fuse_box") or normalized_object_type_for_validation == "fuse_block":
 		if not bool(data.get("fuse_installed", String(data.get("state", "")) == "installed")):
 			warnings.append("Fuse block has no fuse installed; circuit is open.")
 		if String(data.get("power_source_id", data.get("power_network_id", ""))).strip_edges().is_empty():
 			warnings.append("Fuse block linked source missing.")
+		var fuse_cell: Vector2i = _deserialize_cell_variant(data.get("position", Vector2i(-1, -1)))
+		var adjacent_wires: int = _count_adjacent_power_wires(fuse_cell)
+		if adjacent_wires > 2:
+			warnings.append("Fuse block has more than 2 adjacent/connected wires (%d)." % adjacent_wires)
 	if normalized_object_type_for_validation in ["circuit_breaker", "power_breaker", "power_knife_switch"]:
 		if String(data.get("power_source_id", data.get("power_network_id", ""))).strip_edges().is_empty():
 			warnings.append("Power breaker linked source missing.")
 	if normalized_object_type_for_validation == "light_switch":
-		if String(data.get("power_source_id", data.get("power_network_id", ""))).strip_edges().is_empty():
+		var light_switch_source_id: String = String(data.get("power_source_id", data.get("power_network_id", ""))).strip_edges()
+		if light_switch_source_id.is_empty():
 			warnings.append("Light switch source missing.")
+		elif _count_lights_linked_to_source(light_switch_source_id) <= 0:
+			warnings.append("Light switch has no lights linked to its source.")
 	if type_group == "door":
 		var access_type: String = String(data.get("access_type", _normalize_map_constructor_access_type(data.get("lock_type", ""), _default_map_constructor_access_type_for_object(data)))).strip_edges().to_lower()
 		var required_key_id: String = String(data.get("required_key_id", "")).strip_edges()
@@ -6603,27 +6674,17 @@ func _is_power_load_consumer_object(object_data: Dictionary) -> bool:
 	return false
 
 func _get_power_source_capacity_for_load(source: Dictionary) -> int:
-	if source.has("source_capacity"):
-		return maxi(1, int(source.get("source_capacity", 1)))
-	if source.has("allowed_socket_connections"):
-		return maxi(1, int(source.get("allowed_socket_connections", 1)))
-	if source.has("allowed_connections"):
-		return maxi(1, int(source.get("allowed_connections", 1)))
-	if source.has("source_class"):
-		var source_class := int(source.get("source_class", 1))
-		return maxi(1, mini(3, source_class))
-	var object_type := String(source.get("object_type", "")).strip_edges().to_lower()
-	if object_type == "power_source_class_1":
-		return 1
-	if object_type == "power_source_class_2":
-		return 2
-	if object_type == "power_source_class_3":
-		return 3
-	if object_type.find("class_2") != -1:
-		return 2
-	if object_type.find("class_3") != -1:
-		return 3
-	return 1
+	var source_class: int = int(source.get("power_source_class", source.get("source_class", 1)))
+	var object_type: String = String(source.get("object_type", "")).strip_edges().to_lower()
+	if object_type == "power_source_class_2" or object_type.find("class_2") != -1:
+		source_class = 2
+	elif object_type == "power_source_class_3" or object_type.find("class_3") != -1:
+		source_class = 3
+	source_class = clampi(source_class, 1, 3)
+	var canonical_capacity: int = source_class + 3
+	if source.has("outlet_capacity"):
+		return maxi(1, int(source.get("outlet_capacity", canonical_capacity)))
+	return canonical_capacity
 
 func preview_power_source_load_heat_for_network(filter: String = "") -> Dictionary:
 	var collected := _collect_power_network_objects()
@@ -6677,6 +6738,7 @@ func preview_power_source_load_heat_for_network(filter: String = "") -> Dictiona
 	return report
 
 func update_power_source_load_heat_for_network(filter: String = "") -> Dictionary:
+	PowerSystemRef.recalculate_network(mission_world_objects, filter)
 	var collected := _collect_power_network_objects()
 	var networks: Dictionary = collected.get("networks", {})
 	var resolved_filter := _resolve_power_graph_filter_to_network_id(filter.strip_edges())
@@ -6725,6 +6787,7 @@ func update_power_source_load_heat_for_network(filter: String = "") -> Dictionar
 	return report
 
 func preview_power_graph_state_application(filter: String = "") -> Dictionary:
+	PowerSystemRef.recalculate_network(mission_world_objects, filter)
 	var collected := _collect_power_network_objects()
 	var networks: Dictionary = collected.get("networks", {})
 	var filter_text := filter.strip_edges()
@@ -6798,12 +6861,15 @@ func preview_power_graph_state_application(filter: String = "") -> Dictionary:
 			elif not has_available_source:
 				preview_is_powered = false
 				reason = "no_powered_source"
+			elif bool(object_data.get("is_powered", false)):
+				preview_is_powered = true
+				reason = "physical_power_reachable"
 			elif network_open_gate:
 				preview_is_powered = false
 				reason = "blocked_by_gate"
 			else:
-				preview_is_powered = true
-				reason = "graph_powered_source_reachable"
+				preview_is_powered = false
+				reason = "no_physical_power_path"
 			if preview_is_powered:
 				reachable.append(object_id)
 			if preview_is_powered == current_is_powered:
@@ -7117,11 +7183,12 @@ func can_connect_cable_reel_to_target(cable_reel: Dictionary, target: Dictionary
 		return path_report
 	return {"valid": true, "reason": "ok", "length": int(path_report.get("length", 0)), "max_length": int(path_report.get("max_length", 0)), "path_cells": path_report.get("path_cells", [])}
 
-func connect_cable_reel_to_target(cable_reel_id: String, target_id: String) -> Dictionary:
+func connect_cable_reel_to_target(cable_reel_id: String, target_id: String, end_index: int = 1) -> Dictionary:
 	var cable_reel := get_world_object_by_id(cable_reel_id.strip_edges())
 	var target := get_world_object_by_id(target_id.strip_edges())
 	if cable_reel.is_empty() or target.is_empty():
 		return {"success": false, "reason": "target_not_connectable"}
+	var safe_end_index: int = clampi(end_index, 1, 2)
 	var can_connect := can_connect_cable_reel_to_target(cable_reel, target)
 	if not bool(can_connect.get("valid", false)):
 		return {"success": false, "reason": String(can_connect.get("reason", "target_not_connectable")), "path": can_connect}
@@ -7129,23 +7196,37 @@ func connect_cable_reel_to_target(cable_reel_id: String, target_id: String) -> D
 	cable_reel["disconnected"] = false
 	cable_reel["cut"] = false
 	cable_reel["state"] = "connected"
+	cable_reel["end_%d_state" % safe_end_index] = "connected"
+	cable_reel["end_%d_target_id" % safe_end_index] = String(target.get("id", ""))
 	cable_reel["cable_endpoint_a_id"] = String(cable_reel.get("id", ""))
 	cable_reel["cable_endpoint_b_id"] = String(target.get("id", ""))
 	cable_reel["cable_path_cells"] = can_connect.get("path_cells", [])
 	cable_reel["cable_length"] = int(can_connect.get("length", 0))
 	cable_reel["cable_max_length"] = int(can_connect.get("max_length", 0))
 	var report := _apply_graph_power_after_world_object_power_change(cable_reel, "cable_connected")
-	return {"success": true, "reason": "ok", "apply": report, "path": can_connect}
+	return {"success": true, "reason": "ok", "apply": report, "path": can_connect, "reel_id": String(cable_reel.get("id", "")), "end_index": safe_end_index, "target_id": String(target.get("id", ""))}
 
-func disconnect_cable_from_target(cable_id_or_reel_id: String, target_id: String = "") -> Dictionary:
+func disconnect_cable_from_target(cable_id_or_reel_id: String, target_id: String = "", end_index: int = 0) -> Dictionary:
 	var cable := get_world_object_by_id(cable_id_or_reel_id.strip_edges())
 	if cable.is_empty():
 		return {"success": false, "reason": "target_not_connectable"}
-	if not target_id.strip_edges().is_empty() and String(cable.get("cable_endpoint_b_id", "")) != target_id.strip_edges():
+	var normalized_target_id: String = target_id.strip_edges()
+	var disconnected_any: bool = false
+	for candidate_end in range(1, 3):
+		if end_index > 0 and candidate_end != end_index:
+			continue
+		var target_key: String = "end_%d_target_id" % candidate_end
+		if not normalized_target_id.is_empty() and String(cable.get(target_key, cable.get("cable_endpoint_b_id", ""))).strip_edges() != normalized_target_id:
+			continue
+		cable["end_%d_state" % candidate_end] = "disconnected"
+		cable[target_key] = ""
+		disconnected_any = true
+	if not disconnected_any and not normalized_target_id.is_empty() and String(cable.get("cable_endpoint_b_id", "")) != normalized_target_id:
 		return {"success": false, "reason": "target_not_connectable"}
 	cable["connected"] = false
 	cable["disconnected"] = true
 	cable["state"] = "disconnected"
+	cable["cable_endpoint_b_id"] = ""
 	var report := _apply_graph_power_after_world_object_power_change(cable, "cable_disconnected")
 	return {"success": true, "reason": "ok", "apply": report}
 
@@ -7164,13 +7245,14 @@ func repair_power_cable(cable_id: String) -> Dictionary:
 	var cable := get_world_object_by_id(cable_id.strip_edges())
 	if cable.is_empty():
 		return {"success": false, "reason": "target_not_connectable"}
-	if not bool(cable.get("cut", false)) and not bool(cable.get("damaged", false)):
+	if not bool(cable.get("cut", false)) and not bool(cable.get("damaged", false)) and not bool(cable.get("broken", false)) and not (String(cable.get("state", "")).strip_edges().to_lower() in ["damaged", "broken"]):
 		return {"success": false, "reason": "ok"}
 	cable["cut"] = false
 	cable["damaged"] = false
+	cable["broken"] = false
 	cable["connected"] = false
 	cable["disconnected"] = true
-	cable["state"] = "repaired"
+	cable["state"] = "ok"
 	var report := _apply_graph_power_after_world_object_power_change(cable, "cable_repaired")
 	return {"success": true, "reason": "cable_repaired", "apply": report}
 
@@ -7470,6 +7552,12 @@ func validate_power_network_runtime_state() -> Dictionary:
 		var linked_source_id := String(object_data.get("connected_power_source_id", "")).strip_edges()
 		if not linked_source_id.is_empty() and not source_ids.has(linked_source_id):
 			warnings.append("Power object %s connected_power_source_id points to missing source %s." % [object_id, linked_source_id])
+		var logical_source_id: String = String(object_data.get("power_source_id", object_data.get("power_network_id", ""))).strip_edges()
+		var validation_type: String = String(object_data.get("object_type", "")).strip_edges().to_lower()
+		if not logical_source_id.is_empty() and source_ids.has(logical_source_id) and validation_type != "light" and not _is_power_source_object(object_data):
+			var physical_source_id: String = String(object_data.get("physical_connection_source_id", "")).strip_edges()
+			if physical_source_id != logical_source_id:
+				warnings.append("Power object %s is linked to source %s but has no physical wire path." % [object_id, logical_source_id])
 	for network_id in networks.keys():
 		var objects: Array = networks[network_id]
 		var has_source := false
@@ -7713,7 +7801,7 @@ func validate_power_network_debug_scenario() -> Array[String]:
 	temp_objects.append(_build_power_network_debug_object("power_debug_platform_damaged_source", "power_source", "power_debug_platform_damaged", {"is_powered": true}))
 	temp_objects.append(_build_power_network_debug_object("power_debug_platform_damaged_switch", "circuit_switch", "power_debug_platform_damaged", {"state": "switch_off"}))
 	temp_objects.append(_build_power_network_debug_object("power_debug_platform_damaged_platform", "lifting_platform", "power_debug_platform_damaged", {"is_powered": true, "state": "damaged", "height_level": 2, "damaged": true}))
-	temp_objects.append(_build_power_network_debug_object("power_debug_source_load_ok", "power_source_class_2", "power_debug_source_load_ok", {"is_powered": true, "state": "active", "source_capacity": 2, "current_heat": 0, "overheat_threshold": 10}))
+	temp_objects.append(_build_power_network_debug_object("power_debug_source_load_ok", "power_source_class_2", "power_debug_source_load_ok", {"is_powered": true, "state": "active", "outlet_capacity": 2, "current_heat": 0, "overheat_threshold": 10}))
 	temp_objects.append(_build_power_network_debug_object("power_debug_source_load_ok_terminal", "information_terminal", "power_debug_source_load_ok", {"is_powered": false, "state": "unpowered"}))
 	temp_objects.append(_build_power_network_debug_object("power_debug_source_load_ok_door", "energy_door", "power_debug_source_load_ok", {"is_powered": false, "state": "unpowered"}))
 	temp_objects.append(_build_power_network_debug_object("power_debug_source_fallback_class2_source", "power_source_class_2", "power_debug_source_fallback_class2", {"is_powered": true, "state": "active", "current_heat": 0, "overheat_threshold": 10}))
@@ -7723,10 +7811,10 @@ func validate_power_network_debug_scenario() -> Array[String]:
 	temp_objects.append(_build_power_network_debug_object("power_debug_source_fallback_class3_terminal_a", "information_terminal", "power_debug_source_fallback_class3", {"is_powered": false, "state": "unpowered"}))
 	temp_objects.append(_build_power_network_debug_object("power_debug_source_fallback_class3_terminal_b", "information_terminal", "power_debug_source_fallback_class3", {"is_powered": false, "state": "unpowered"}))
 	temp_objects.append(_build_power_network_debug_object("power_debug_source_fallback_class3_terminal_c", "information_terminal", "power_debug_source_fallback_class3", {"is_powered": false, "state": "unpowered"}))
-	temp_objects.append(_build_power_network_debug_object("power_debug_source_overloaded_source", "power_source_class_1", "power_debug_source_overloaded", {"is_powered": true, "state": "active", "source_capacity": 1, "current_heat": 0, "overheat_threshold": 10}))
+	temp_objects.append(_build_power_network_debug_object("power_debug_source_overloaded_source", "power_source_class_1", "power_debug_source_overloaded", {"is_powered": true, "state": "active", "outlet_capacity": 1, "current_heat": 0, "overheat_threshold": 10}))
 	temp_objects.append(_build_power_network_debug_object("power_debug_source_overloaded_terminal", "information_terminal", "power_debug_source_overloaded", {"is_powered": false, "state": "unpowered"}))
 	temp_objects.append(_build_power_network_debug_object("power_debug_source_overloaded_platform", "lifting_platform", "power_debug_source_overloaded", {"is_powered": false, "state": "unpowered"}))
-	temp_objects.append(_build_power_network_debug_object("power_debug_source_overheat_shutdown_source", "power_source_class_1", "power_debug_source_overheat_shutdown", {"is_powered": true, "state": "active", "source_capacity": 1, "current_heat": 0, "overheat_threshold": 2, "working_heat": 1}))
+	temp_objects.append(_build_power_network_debug_object("power_debug_source_overheat_shutdown_source", "power_source_class_1", "power_debug_source_overheat_shutdown", {"is_powered": true, "state": "active", "outlet_capacity": 1, "current_heat": 0, "overheat_threshold": 2, "working_heat": 1}))
 	temp_objects.append(_build_power_network_debug_object("power_debug_source_overheat_shutdown_terminal", "information_terminal", "power_debug_source_overheat_shutdown", {"is_powered": true, "state": "active"}))
 	temp_objects.append(_build_power_network_debug_object("power_debug_source_overheat_shutdown_platform", "lifting_platform", "power_debug_source_overheat_shutdown", {"is_powered": true, "state": "active"}))
 	for object_data in temp_objects:
@@ -8178,14 +8266,14 @@ func validate_power_network_debug_scenario() -> Array[String]:
 		if typeof(source_variant) != TYPE_DICTIONARY:
 			continue
 		var source_entry: Dictionary = source_variant
-		if String(source_entry.get("object_id", "")) == "power_debug_source_fallback_class2_source" and int(source_entry.get("source_capacity", -1)) == 2:
+		if String(source_entry.get("object_id", "")) == "power_debug_source_fallback_class2_source" and int(source_entry.get("source_capacity", -1)) == 5:
 			fallback_class2_preview_capacity_ok = true
 			break
 	if not fallback_class2_preview_capacity_ok:
-		warnings.append("Source fallback class2 preview regression: expected source_capacity=2 from object_type fallback.")
+		warnings.append("Source fallback class2 preview regression: expected source_capacity=5 from object_type fallback.")
 	apply_power_graph_state_from_preview("power_debug_source_fallback_class2")
-	if int(fallback_class2_source.get("source_capacity", -1)) != 2:
-		warnings.append("Source fallback class2 apply regression: expected source_capacity=2.")
+	if int(fallback_class2_source.get("source_capacity", -1)) != 5:
+		warnings.append("Source fallback class2 apply regression: expected source_capacity=5.")
 	var fallback_class3_source := get_world_object_by_id("power_debug_source_fallback_class3_source")
 	var fallback_class3_preview := preview_power_graph_state_application("power_debug_source_fallback_class3")
 	if int(fallback_class3_source.get("source_capacity", -1)) != -1:
@@ -8196,14 +8284,14 @@ func validate_power_network_debug_scenario() -> Array[String]:
 		if typeof(source_variant) != TYPE_DICTIONARY:
 			continue
 		var source_entry: Dictionary = source_variant
-		if String(source_entry.get("object_id", "")) == "power_debug_source_fallback_class3_source" and int(source_entry.get("source_capacity", -1)) == 3:
+		if String(source_entry.get("object_id", "")) == "power_debug_source_fallback_class3_source" and int(source_entry.get("source_capacity", -1)) == 6:
 			fallback_class3_preview_capacity_ok = true
 			break
 	if not fallback_class3_preview_capacity_ok:
-		warnings.append("Source fallback class3 preview regression: expected source_capacity=3 from object_type fallback.")
+		warnings.append("Source fallback class3 preview regression: expected source_capacity=6 from object_type fallback.")
 	apply_power_graph_state_from_preview("power_debug_source_fallback_class3")
-	if int(fallback_class3_source.get("source_capacity", -1)) != 3:
-		warnings.append("Source fallback class3 apply regression: expected source_capacity=3.")
+	if int(fallback_class3_source.get("source_capacity", -1)) != 6:
+		warnings.append("Source fallback class3 apply regression: expected source_capacity=6.")
 	var overloaded_source := get_world_object_by_id("power_debug_source_overloaded_source")
 	apply_power_graph_state_from_preview("power_debug_source_overloaded")
 	if int(overloaded_source.get("source_load", 0)) <= int(overloaded_source.get("source_capacity", 0)) or not bool(overloaded_source.get("source_overloaded", false)) or int(overloaded_source.get("heat_from_connections", 0)) <= 0:

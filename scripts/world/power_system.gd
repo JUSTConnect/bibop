@@ -57,7 +57,10 @@ static func _get_power_source_capacity_for_load(source: Dictionary) -> int:
 	elif object_type.ends_with("class_3"):
 		source_class = 3
 	source_class = clampi(source_class, 1, 3)
-	return source_class + 3
+	var canonical_capacity: int = source_class + 3
+	if source.has("outlet_capacity"):
+		return maxi(1, int(source.get("outlet_capacity", canonical_capacity)))
+	return canonical_capacity
 
 static func _is_power_consumer_object(obj: Dictionary) -> bool:
 	if _is_power_source_object(obj):
@@ -104,6 +107,46 @@ static func _cell_from_obj(obj: Dictionary) -> Vector2i:
 		return Vector2i(int(Array(position_value)[0]), int(Array(position_value)[1]))
 	return Vector2i(-1, -1)
 
+
+static func _direction_to_delta(direction: String) -> Vector2i:
+	match direction.strip_edges().to_lower():
+		"north", "up":
+			return Vector2i.UP
+		"south", "down":
+			return Vector2i.DOWN
+		"west", "left":
+			return Vector2i.LEFT
+		"east", "right":
+			return Vector2i.RIGHT
+	return Vector2i.ZERO
+
+static func _resolve_switch_connection_cell(switch_obj: Dictionary, field_prefix: String, switch_cell: Vector2i, object_by_id: Dictionary) -> Vector2i:
+	var wire_id: String = String(switch_obj.get("%s_wire_id" % field_prefix, "")).strip_edges()
+	if not wire_id.is_empty() and object_by_id.has(wire_id):
+		var wire_obj: Dictionary = Dictionary(object_by_id.get(wire_id, {}))
+		return _cell_from_obj(wire_obj)
+	var direction: String = String(switch_obj.get("%s_direction" % field_prefix, "")).strip_edges()
+	var delta: Vector2i = _direction_to_delta(direction)
+	if delta != Vector2i.ZERO:
+		return switch_cell + delta
+	return Vector2i(-1, -1)
+
+static func _get_circuit_switch_next_cells(switch_obj: Dictionary, switch_cell: Vector2i, entered_from_cell: Vector2i, object_by_id: Dictionary) -> Array[Vector2i]:
+	var next_cells: Array[Vector2i] = []
+	var input_cell: Vector2i = _resolve_switch_connection_cell(switch_obj, "input", switch_cell, object_by_id)
+	if input_cell.x < 0 or input_cell.y < 0:
+		return next_cells
+	if entered_from_cell != input_cell:
+		return next_cells
+	var active_output_index: int = int(switch_obj.get("active_output_index", 0))
+	if active_output_index < 1 or active_output_index > 3:
+		return next_cells
+	var output_cell: Vector2i = _resolve_switch_connection_cell(switch_obj, "output_%d" % active_output_index, switch_cell, object_by_id)
+	if output_cell.x < 0 or output_cell.y < 0:
+		return next_cells
+	next_cells.append(output_cell)
+	return next_cells
+
 static func _apply_powered_state(obj: Dictionary, powered: bool) -> void:
 	if _is_power_source_object(obj):
 		obj["is_powered"] = _is_source_on(obj)
@@ -146,6 +189,7 @@ static func recalculate_network(objects: Array[Dictionary], network_id: String) 
 		if network_id.is_empty() or String(obj.get("power_network_id", "")) == network_id or String(obj.get("power_source_id", "")) == network_id:
 			if not _is_power_source_object(obj):
 				_apply_powered_state(obj, false)
+				obj["physical_connection_source_id"] = ""
 		WorldObjectCatalogRef.update_world_object_heat_state(obj)
 	var directions: Array[Vector2i] = [Vector2i.UP, Vector2i.DOWN, Vector2i.LEFT, Vector2i.RIGHT]
 	var traversal_cap: int = maxi(64, objects.size() * 8)
@@ -159,21 +203,25 @@ static func recalculate_network(objects: Array[Dictionary], network_id: String) 
 		source["is_powered"] = source_on
 		source["power_mode"] = "internal"
 		source["control_mode"] = "internal"
+		source["power_source_class"] = clampi(int(source.get("power_source_class", source.get("source_class", 1))), 1, 3)
 		source["outlet_capacity"] = _get_power_source_capacity_for_load(source)
 		if not source_on:
 			continue
 		var source_cell: Vector2i = _cell_from_obj(source)
-		var queue: Array[Vector2i] = []
-		var visited_cells: Dictionary = {}
+		var queue: Array[Dictionary] = []
+		var visited_edges: Dictionary = {}
 		for delta in directions:
-			queue.append(source_cell + delta)
+			queue.append({"cell": source_cell + delta, "from_cell": source_cell})
 		var steps: int = 0
 		while not queue.is_empty() and steps < traversal_cap:
 			steps += 1
-			var current_cell: Vector2i = queue.pop_front()
-			if visited_cells.has(current_cell):
+			var entry: Dictionary = Dictionary(queue.pop_front())
+			var current_cell: Vector2i = Vector2i(entry.get("cell", Vector2i(-1, -1)))
+			var from_cell: Vector2i = Vector2i(entry.get("from_cell", Vector2i(-1, -1)))
+			var edge_key: String = "%d,%d<-%d,%d" % [current_cell.x, current_cell.y, from_cell.x, from_cell.y]
+			if visited_edges.has(edge_key):
 				continue
-			visited_cells[current_cell] = true
+			visited_edges[edge_key] = true
 			if not object_by_cell.has(current_cell):
 				continue
 			var current_obj: Dictionary = Dictionary(object_by_cell[current_cell])
@@ -184,8 +232,17 @@ static func recalculate_network(objects: Array[Dictionary], network_id: String) 
 			current_obj["power_source_id"] = source_id
 			current_obj["physical_connection_source_id"] = source_id
 			_apply_powered_state(current_obj, true)
-			for delta in directions:
-				queue.append(current_cell + delta)
+			var current_type: String = _normalize_type(current_obj.get("object_type", ""))
+			var next_cells: Array[Vector2i] = []
+			if current_type == "circuit_switch":
+				next_cells = _get_circuit_switch_next_cells(current_obj, current_cell, from_cell, object_by_id)
+			else:
+				for delta in directions:
+					var next_cell: Vector2i = current_cell + delta
+					if next_cell != from_cell:
+						next_cells.append(next_cell)
+			for next_cell in next_cells:
+				queue.append({"cell": next_cell, "from_cell": current_cell})
 		# Lighting may be direct logical links without physical wires.
 		for obj in objects:
 			var obj_type: String = _normalize_type(obj.get("object_type", ""))
@@ -194,7 +251,7 @@ static func recalculate_network(objects: Array[Dictionary], network_id: String) 
 		var outlet_count: int = 0
 		for obj in objects:
 			var obj_type_count: String = _normalize_type(obj.get("object_type", ""))
-			if obj_type_count in ["power_socket", "outlet"] and String(obj.get("power_source_id", "")).strip_edges() == source_id:
+			if obj_type_count in ["power_socket", "outlet"] and String(obj.get("power_source_id", obj.get("connected_power_source_id", ""))).strip_edges() == source_id:
 				outlet_count += 1
 		source["source_load"] = outlet_count
 		source["source_capacity"] = int(source.get("outlet_capacity", _get_power_source_capacity_for_load(source)))
