@@ -4,7 +4,7 @@ const WorldObjectCatalogRef = preload("res://scripts/world/world_object_catalog.
 
 const SUPPORTED_ACTIONS := ["open","close","unlock","input_password","cut","impact","force_open","connect","scan","hack","download","drain_energy","pickup","use_item","insert_fuse","repair","push","pull","switch","disable","enable","attack","stun","repair_ally"]
 
-static func can_apply_action(actor: Dictionary, _module: Dictionary, target_object: Dictionary, action_type: String) -> Dictionary:
+static func can_apply_action(actor: Dictionary, module: Dictionary, target_object: Dictionary, action_type: String) -> Dictionary:
 	if action_type not in SUPPORTED_ACTIONS:
 		return _result(false, "Action not supported.")
 	if target_object.is_empty():
@@ -13,6 +13,20 @@ static func can_apply_action(actor: Dictionary, _module: Dictionary, target_obje
 		return _result(false, "Manipulator is occupied.")
 	if action_type == "hack" and actor.get("processor_level", 0) < target_object.get("required_processor_level", 1):
 		return _result(false, "Hacking impossible")
+	if action_type == "download":
+		if String(module.get("id", "")) != "storage_buffer":
+			return _result(false, "Storage buffer required.")
+		if String(target_object.get("state", "")) != "hacked" and not bool(target_object.get("download_unlocked", false)):
+			return _result(false, "Hack device first.")
+		var record_id: String = String(target_object.get("stored_key_id", target_object.get("access_key_id", target_object.get("download_record_id", "")))).strip_edges()
+		if record_id.is_empty():
+			for field_name in ["stored_key_ids", "stored_access_ids", "stored_item_ids", "digital_key_ids", "access_code_ids"]:
+				var stored_ids_value: Variant = target_object.get(field_name, [])
+				if stored_ids_value is Array and not Array(stored_ids_value).is_empty():
+					record_id = String(Array(stored_ids_value)[0]).strip_edges()
+					break
+		if record_id.is_empty():
+			return _result(false, "No downloadable key or data found.")
 	return _result(true, "Action possible.")
 
 static func apply_action(actor: Dictionary, module: Dictionary, target_object: Dictionary, action_type: String) -> Dictionary:
@@ -178,20 +192,27 @@ static func apply_action(actor: Dictionary, module: Dictionary, target_object: D
 				var hack_heat: int = maxi(0, int(target_object.get("hack_heat", 1)))
 				if WorldObjectCatalogRef.would_world_object_overheat_with_temporary_heat(target_object, hack_heat):
 					return _result(false, "Terminal overheated. Hack failed.", [{"type":"terminal_overheated","heat_breakdown":WorldObjectCatalogRef.get_world_object_heat_breakdown(target_object, hack_heat)}])
+			if group == "door":
+				target_object["state"] = "closed"
+				target_object["is_locked"] = false
+				target_object["locked"] = false
+				target_object["is_open"] = false
+				target_object["is_closed"] = true
+				target_object["blocks_movement"] = true
+				target_object["download_unlocked"] = true
+				return _result(true, "Door hack successful. Door unlocked.", [{"type":"set_state","state":"closed"},{"type":"set_bool","field":"is_locked","value":false},{"type":"set_bool","field":"locked","value":false},{"type":"set_bool","field":"is_open","value":false},{"type":"set_bool","field":"is_closed","value":true},{"type":"set_blocks_movement","value":true},{"type":"set_bool","field":"download_unlocked","value":true}])
 			target_object["state"] = "hacked"
 			if group == "threat":
 				return _result(true, "Hack successful.", [{"type":"set_state","state":"hacked"},{"type":"set_behavior_state","behavior_state":"idle"}])
 			return _result(true, "Hack successful.", [{"type":"terminal_hacked"},{"type":"apply_terminal_controls"},{"type":"set_state","state":"hacked"}])
 		"download":
-			if String(target_object.get("state", "")) != "hacked" and not bool(target_object.get("download_unlocked", false)):
-				return _result(false, "Hack device first.")
 			var record_id: String = String(target_object.get("stored_key_id", target_object.get("access_key_id", target_object.get("download_record_id", "")))).strip_edges()
 			if record_id.is_empty():
-				var stored_ids: Array = Array(target_object.get("stored_key_ids", target_object.get("stored_access_ids", target_object.get("stored_item_ids", []))))
-				if not stored_ids.is_empty():
-					record_id = String(stored_ids[0]).strip_edges()
-			if record_id.is_empty():
-				return _result(false, "No downloadable key or data found.")
+				for field_name in ["stored_key_ids", "stored_access_ids", "stored_item_ids", "digital_key_ids", "access_code_ids"]:
+					var stored_ids_value: Variant = target_object.get(field_name, [])
+					if stored_ids_value is Array and not Array(stored_ids_value).is_empty():
+						record_id = String(Array(stored_ids_value)[0]).strip_edges()
+						break
 			var record_name: String = String(target_object.get("download_display_name", record_id)).strip_edges()
 			return _result(true, "Downloaded %s." % record_name, [{"type":"store_digital_record","record_id":record_id,"display_name":record_name,"description":"Downloaded from %s" % String(target_object.get("display_name", target_object.get("id", "device")))}])
 		"push", "pull":
