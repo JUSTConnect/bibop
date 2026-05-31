@@ -63,7 +63,7 @@ static func build(ui, hud_root: Control, margin: float) -> float:
 
 	_add_action_button(actions, "Continue", func() -> void: close_overlay(ui))
 	_add_action_button(actions, "Restart mission", func() -> void: _call_game_ui_action(ui, "_on_restart_mission_button_pressed", "Restart mission is unavailable."))
-	_add_action_button(actions, "Back to Center", func() -> void: _call_game_ui_action(ui, "_on_runtime_return_to_center_pressed", "Back to Center is unavailable."))
+	_add_action_button(actions, "Back to Center", func() -> void: _call_game_ui_action(ui, "_on_return_to_box_button_pressed", "Back to Center is unavailable."))
 	_add_action_button(actions, "Save", func() -> void: _show_hint(ui, "Save is not implemented yet."))
 	_add_action_button(actions, "Load", func() -> void: _show_hint(ui, "Load is not implemented yet."))
 	_add_action_button(actions, "Settings", func() -> void: _show_hint(ui, "Settings are not implemented yet."))
