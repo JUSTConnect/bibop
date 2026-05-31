@@ -4937,12 +4937,10 @@ func _select_runtime_mission_bipob(index: int) -> void:
 		_update_runtime_bipob_switch_card_styles()
 		show_hint("Active Bipob: %s" % _get_mission_bipob_display_name(mission_bipobs[index], index))
 		return
-	runtime_selected_mission_bipob_index = index
-	update_status()
+	_set_active_mission_bipob(index)
 	update_diagnostic_status()
 	_refresh_runtime_storage_panel()
 	_refresh_runtime_interaction_controls()
-	_update_runtime_bipob_switch_card_styles()
 	show_hint("Active Bipob: %s" % _get_mission_bipob_display_name(mission_bipobs[index], index))
 
 
