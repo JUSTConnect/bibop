@@ -1934,10 +1934,22 @@ func _apply_selected_pulse(control: Control) -> void:
 	control.modulate.a = UI_ANIM_PULSE_ALPHA_HIGH
 	var tween: Tween = _create_ui_tween(control)
 	if tween == null:
+		control.remove_meta("selected_pulse_active")
 		return
+	control.set_meta("selected_pulse_tween", tween)
 	tween.set_loops()
 	tween.tween_property(control, "modulate:a", UI_ANIM_PULSE_ALPHA_LOW, UI_ANIM_MEDIUM)
 	tween.tween_property(control, "modulate:a", UI_ANIM_PULSE_ALPHA_HIGH, UI_ANIM_MEDIUM)
+
+func _clear_selected_pulse(control: Control) -> void:
+	if control == null or not is_instance_valid(control):
+		return
+	var pulse_tween: Variant = control.get_meta("selected_pulse_tween", null)
+	if pulse_tween is Tween:
+		pulse_tween.kill()
+	control.remove_meta("selected_pulse_tween")
+	control.remove_meta("selected_pulse_active")
+	control.modulate = Color.WHITE
 
 func _apply_invalid_preview_blink(control: Control) -> void:
 	if control == null:
@@ -9973,7 +9985,7 @@ func _process_runtime_interaction_feedback(delta: float) -> void:
 		elif has_interactable and has_actions_left and not runtime_interaction_mode_active:
 			runtime_action_button.modulate = Color(1.0, 1.0, 1.0, pulse_alpha)
 		else:
-			runtime_action_button.modulate = Color.WHITE
+			_clear_selected_pulse(runtime_action_button)
 	if runtime_end_turn_button != null:
 		if bipob != null and int(bipob.actions_left) <= 0:
 			runtime_end_turn_button.modulate = Color(1.0, 1.0, 1.0, pulse_alpha)
@@ -12631,6 +12643,13 @@ func _is_runtime_interaction_manipulator_blocked(target_object: Dictionary, acti
 
 func _refresh_runtime_interaction_controls() -> void:
 	RuntimeInteractionPanel.refresh_controls(self)
+	if runtime_action_button == null or runtime_interaction_mode_active:
+		return
+	var target_data: Dictionary = _get_runtime_interaction_target_data()
+	var target_object: Dictionary = _safe_ui_dictionary(target_data.get("target_object", {}))
+	var actions: Array = _safe_ui_array(target_data.get("actions", []))
+	if target_object.is_empty() or actions.is_empty():
+		_clear_selected_pulse(runtime_action_button)
 
 func _enter_runtime_interaction_mode() -> void:
 	RuntimeInteractionPanel.enter_mode(self)
@@ -12833,6 +12852,10 @@ func update_status() -> void:
 	if bipob.stored_physical_module != null:
 		storage_text = bipob.get_module_display_name(bipob.stored_physical_module)
 
+	# Keep runtime panels synchronized even when the legacy status label is absent.
+	_refresh_runtime_storage_panel()
+	_refresh_runtime_interaction_controls()
+
 	if hud_status_label == null:
 		return
 
@@ -12868,8 +12891,6 @@ func update_status() -> void:
 			hud_status_label.text += " | %s" % mission8_status
 	if bipob.current_mission_index == 7 and bipob.has_method("get_mission7_cable_status_text"):
 		hud_status_label.text += " | %s" % str(bipob.get_mission7_cable_status_text())
-	_refresh_runtime_storage_panel()
-	_refresh_runtime_interaction_controls()
 	if bipob.has_method("refresh_world_action_panel"):
 		bipob.refresh_world_action_panel()
 

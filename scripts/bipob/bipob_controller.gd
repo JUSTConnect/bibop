@@ -8176,6 +8176,7 @@ func interact() -> void:
 					else:
 						hint_requested.emit("Manipulator is occupied.")
 				clear_selected_world_action_if_invalid({}, item_cell)
+				update_threat_detection_preview()
 				emit_facing_world_object_hint()
 				refresh_world_action_panel()
 			else:
