@@ -4826,16 +4826,35 @@ func _count_lights_linked_to_source(source_id: String) -> int:
 			count += 1
 	return count
 
-func _count_adjacent_power_wires(cell: Vector2i) -> int:
+func _count_adjacent_power_wires(cell: Vector2i, target_id: String = "") -> int:
 	if cell.x < 0 or cell.y < 0:
 		return 0
+	var counted_ids: Dictionary = {}
 	var count: int = 0
 	for delta in [Vector2i.UP, Vector2i.DOWN, Vector2i.LEFT, Vector2i.RIGHT]:
 		var neighbor: Dictionary = get_world_object_at_cell(cell + delta)
 		if neighbor.is_empty():
 			continue
-		if String(neighbor.get("object_type", "")).strip_edges().to_lower() == "power_cable":
-			count += 1
+		var neighbor_type: String = String(neighbor.get("object_type", "")).strip_edges().to_lower()
+		if neighbor_type == "power_cable" or neighbor_type == "power_cable_reel":
+			var neighbor_id: String = String(neighbor.get("id", "cell_%s" % str(cell + delta))).strip_edges()
+			if not counted_ids.has(neighbor_id):
+				counted_ids[neighbor_id] = true
+				count += 1
+	var normalized_target_id: String = target_id.strip_edges()
+	if not normalized_target_id.is_empty():
+		for object_data in mission_world_objects:
+			var object_type: String = String(object_data.get("object_type", "")).strip_edges().to_lower()
+			if object_type != "power_cable" and object_type != "power_cable_reel":
+				continue
+			var object_id: String = String(object_data.get("id", "")).strip_edges()
+			if counted_ids.has(object_id):
+				continue
+			for end_index in range(1, 3):
+				if String(object_data.get("end_%d_target_id" % end_index, "")).strip_edges() == normalized_target_id:
+					counted_ids[object_id] = true
+					count += 1
+					break
 	return count
 
 func toggle_light_switch_links(light_switch_id: String, switch_is_on: bool) -> Dictionary:
@@ -4949,7 +4968,7 @@ func validate_map_constructor_entity_links(entity_kind: String, entity_id: Strin
 		if String(data.get("power_source_id", data.get("power_network_id", ""))).strip_edges().is_empty():
 			warnings.append("Fuse block linked source missing.")
 		var fuse_cell: Vector2i = _deserialize_cell_variant(data.get("position", Vector2i(-1, -1)))
-		var adjacent_wires: int = _count_adjacent_power_wires(fuse_cell)
+		var adjacent_wires: int = _count_adjacent_power_wires(fuse_cell, String(data.get("id", entity_id)))
 		if adjacent_wires > 2:
 			warnings.append("Fuse block has more than 2 adjacent/connected wires (%d)." % adjacent_wires)
 	if normalized_object_type_for_validation in ["circuit_breaker", "power_breaker", "power_knife_switch"]:
@@ -7198,6 +7217,8 @@ func connect_cable_reel_to_target(cable_reel_id: String, target_id: String, end_
 	cable_reel["state"] = "connected"
 	cable_reel["end_%d_state" % safe_end_index] = "connected"
 	cable_reel["end_%d_target_id" % safe_end_index] = String(target.get("id", ""))
+	cable_reel["end_%d_path_cells" % safe_end_index] = can_connect.get("path_cells", [])
+	cable_reel["end_%d_cable_length" % safe_end_index] = int(can_connect.get("length", 0))
 	cable_reel["cable_endpoint_a_id"] = String(cable_reel.get("id", ""))
 	cable_reel["cable_endpoint_b_id"] = String(target.get("id", ""))
 	cable_reel["cable_path_cells"] = can_connect.get("path_cells", [])
@@ -7223,10 +7244,17 @@ func disconnect_cable_from_target(cable_id_or_reel_id: String, target_id: String
 		disconnected_any = true
 	if not disconnected_any and not normalized_target_id.is_empty() and String(cable.get("cable_endpoint_b_id", "")) != normalized_target_id:
 		return {"success": false, "reason": "target_not_connectable"}
-	cable["connected"] = false
-	cable["disconnected"] = true
-	cable["state"] = "disconnected"
-	cable["cable_endpoint_b_id"] = ""
+	var still_connected: bool = false
+	var first_connected_target_id: String = ""
+	for connected_end in range(1, 3):
+		if String(cable.get("end_%d_state" % connected_end, "")).strip_edges().to_lower() == "connected" and not String(cable.get("end_%d_target_id" % connected_end, "")).strip_edges().is_empty():
+			still_connected = true
+			if first_connected_target_id.is_empty():
+				first_connected_target_id = String(cable.get("end_%d_target_id" % connected_end, "")).strip_edges()
+	cable["connected"] = still_connected
+	cable["disconnected"] = not still_connected
+	cable["state"] = "connected" if still_connected else "disconnected"
+	cable["cable_endpoint_b_id"] = first_connected_target_id
 	var report := _apply_graph_power_after_world_object_power_change(cable, "cable_disconnected")
 	return {"success": true, "reason": "ok", "apply": report}
 
@@ -7250,6 +7278,9 @@ func repair_power_cable(cable_id: String) -> Dictionary:
 	cable["cut"] = false
 	cable["damaged"] = false
 	cable["broken"] = false
+	for repaired_end in range(1, 3):
+		if String(cable.get("end_%d_target_id" % repaired_end, "")).strip_edges().is_empty():
+			cable["end_%d_state" % repaired_end] = "on_reel"
 	cable["connected"] = false
 	cable["disconnected"] = true
 	cable["state"] = "ok"

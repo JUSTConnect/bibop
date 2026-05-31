@@ -263,7 +263,8 @@ static func apply_action(actor: Dictionary, module: Dictionary, target_object: D
 			if module_id != "repair_v1" and module_id != "repair_kit":
 				return _result(false, "Repair module or repair kit not found.")
 			var repair_state: String = String(target_object.get("state", "")).strip_edges().to_lower()
-			var is_power_cable: bool = String(target_object.get("object_type", "")).strip_edges().to_lower() == "power_cable"
+			var repair_object_type: String = String(target_object.get("object_type", "")).strip_edges().to_lower()
+			var is_power_cable: bool = repair_object_type == "power_cable" or repair_object_type == "power_cable_reel"
 			var can_repair_broken: bool = is_power_cable
 			if repair_state != "damaged" and not (can_repair_broken and repair_state == "broken"):
 				return _result(false, "Object is not damaged.")
