@@ -2,7 +2,7 @@ extends RefCounted
 class_name InteractionSystem
 const WorldObjectCatalogRef = preload("res://scripts/world/world_object_catalog.gd")
 
-const SUPPORTED_ACTIONS := ["open","close","unlock","input_password","cut","impact","force_open","connect","scan","hack","download","drain_energy","pickup","use_item","insert_fuse","repair","push","pull","switch","disable","enable","attack","stun","repair_ally"]
+const SUPPORTED_ACTIONS := ["open","close","unlock","input_password","cut","impact","force_open","connect","scan","hack","download","drain_energy","pickup","use_item","insert_fuse","remove_fuse","repair","plug_in","plug_out","take_end_1","take_end_2","connect_wire_end","disconnect_power_wire","circuit_1","circuit_2","circuit_3","push","pull","switch","disable","enable","attack","stun","repair_ally"]
 
 static func can_apply_action(actor: Dictionary, module: Dictionary, target_object: Dictionary, action_type: String) -> Dictionary:
 	if action_type not in SUPPORTED_ACTIONS:
@@ -71,6 +71,11 @@ static func apply_action(actor: Dictionary, module: Dictionary, target_object: D
 		"unlock":
 			if group != "door":
 				return _result(false, "Cannot unlock this object.")
+			var unlock_power_mode: String = String(target_object.get("power_mode", "internal")).strip_edges().to_lower()
+			if unlock_power_mode in ["external", "external_power", "external power"] and bool(target_object.get("is_powered", false)):
+				return _result(false, "Door is connected to power source.")
+			elif unlock_power_mode in ["external", "external_power", "external power"]:
+				target_object["power_mode"] = "internal"
 			var door_gate: Dictionary = _validate_door_class(actor, target_object)
 			if not door_gate.success:
 				return door_gate
@@ -237,26 +242,64 @@ static func apply_action(actor: Dictionary, module: Dictionary, target_object: D
 				direction = -facing
 			return _result(true, "Object moved.", [{"type":"object_move","mode":action_type,"direction":direction,"dx":direction.x,"dy":direction.y}])
 		"insert_fuse":
+			if not String(target_object.get("object_type", "")).begins_with("fuse_box") and String(target_object.get("object_type", "")) != "fuse_block":
+				return _result(false, "Cannot insert fuse here.")
+			if bool(target_object.get("fuse_installed", false)) or String(target_object.get("state", "")) == "installed":
+				return _result(false, "Fuse already installed.")
 			if module_id != "fuse":
-				return _result(false, "Fuse required.")
+				return _result(false, "Manipulator does not contain a fuse.")
 			target_object["state"] = "installed"
-			return _result(true, "Fuse installed.", [{"type":"set_state","state":"installed"},{"type":"power_recalc_needed"}])
+			target_object["fuse_installed"] = true
+			return _result(true, "Fuse installed.", [{"type":"set_state","state":"installed"},{"type":"set_bool","field":"fuse_installed","value":true},{"type":"power_recalc_needed"}])
+		"remove_fuse":
+			if not String(target_object.get("object_type", "")).begins_with("fuse_box") and String(target_object.get("object_type", "")) != "fuse_block":
+				return _result(false, "Cannot remove fuse here.")
+			if not bool(target_object.get("fuse_installed", String(target_object.get("state", "")) == "installed")):
+				return _result(false, "No fuse installed.")
+			target_object["state"] = "empty"
+			target_object["fuse_installed"] = false
+			return _result(true, "Fuse removed.", [{"type":"set_state","state":"empty"},{"type":"set_bool","field":"fuse_installed","value":false},{"type":"grant_item","item_type":"fuse"},{"type":"power_recalc_needed"}])
 		"repair":
-			if module_id != "repair_v1":
-				return _result(false, "Repair tool required.")
+			if module_id != "repair_v1" and module_id != "repair_kit":
+				return _result(false, "Repair module or repair kit not found.")
 			if String(target_object.get("state", "")) != "damaged":
 				return _result(false, "Object is not damaged.")
 			target_object["state"] = "active"
-			var effects: Array = [{"type":"set_state","state":"active"}]
+			var effects: Array = [{"type":"set_state","state":"ok" if String(target_object.get("object_type", "")) == "power_cable" else "active"},{"type":"set_bool","field":"damaged","value":false},{"type":"set_bool","field":"broken","value":false}]
 			var object_group: String = String(target_object.get("object_group", ""))
 			if target_object.has("power_network_id") or object_group in ["power", "terminal"]:
 				effects.append({"type":"power_recalc_needed"})
 			return _result(true, "Object repaired.", effects)
 		"switch":
 			var state: String = String(target_object.get("state", "switch_off"))
-			var next_state: String = "switch_on" if state == "switch_off" else "switch_off"
+			var next_state: String = "switch_on" if state in ["switch_off", "off", "open"] else "switch_off"
 			target_object["state"] = next_state
-			return _result(true, "Switch toggled.", [{"type":"set_state","state":next_state},{"type":"power_recalc_needed"}])
+			target_object["is_on"] = next_state == "switch_on"
+			return _result(true, "Switch toggled.", [{"type":"set_state","state":next_state},{"type":"set_bool","field":"is_on","value":next_state == "switch_on"},{"type":"power_recalc_needed"}])
+		"circuit_1", "circuit_2", "circuit_3":
+			if String(target_object.get("object_type", "")) != "circuit_switch":
+				return _result(false, "Circuit output unavailable.")
+			var output_index: int = int(action_type.replace("circuit_", ""))
+			if String(target_object.get("output_%d_wire_id" % output_index, target_object.get("output_%d_direction" % output_index, "none"))).strip_edges().to_lower() in ["", "none"]:
+				return _result(false, "Circuit output unavailable.")
+			target_object["active_output_index"] = output_index
+			return _result(true, "Circuit %d selected." % output_index, [{"type":"set_int","field":"active_output_index","value":output_index},{"type":"power_recalc_needed"}])
+		"plug_in":
+			target_object["plugged"] = true
+			return _result(true, "Wire connected.", [{"type":"set_bool","field":"plugged","value":true},{"type":"power_recalc_needed"}])
+		"plug_out":
+			target_object["plugged"] = false
+			target_object.erase("plugged_cable_end")
+			return _result(true, "Wire disconnected.", [{"type":"set_bool","field":"plugged","value":false},{"type":"power_recalc_needed"}])
+		"take_end_1", "take_end_2":
+			var end_index: String = "1" if action_type == "take_end_1" else "2"
+			return _result(true, "Cable end %s taken." % end_index, [{"type":"take_cable_end","end_index":int(end_index)}])
+		"connect_wire_end":
+			target_object["cable_power_connected"] = true
+			return _result(true, "Wire connected.", [{"type":"set_bool","field":"cable_power_connected","value":true},{"type":"power_recalc_needed"}])
+		"disconnect_power_wire":
+			target_object["cable_power_connected"] = false
+			return _result(true, "Power wire disconnected.", [{"type":"set_bool","field":"cable_power_connected","value":false},{"type":"power_recalc_needed"}])
 
 		"activate_platform", "switch_platform":
 			if group == "platform":

@@ -314,6 +314,7 @@ var selected_map_constructor_entity_kind: String = ""
 var selected_map_constructor_entity_id: String = ""
 var selected_map_constructor_entity_cell: Vector2i = Vector2i(-1, -1)
 var selected_map_constructor_wall_side: String = ""
+var selected_map_constructor_mounting_mode: String = "stationary"
 var available_map_constructor_wall_sides: Array[String] = []
 var map_constructor_picker_entity_kind: String = ""
 var map_constructor_picker_entity_id: String = ""
@@ -9807,6 +9808,7 @@ func _deactivate_map_constructor_mode() -> void:
 	selected_map_constructor_prefab_id = ""
 	pending_map_constructor_cell = Vector2i(-1, -1)
 	selected_map_constructor_wall_side = ""
+	selected_map_constructor_mounting_mode = "stationary"
 	available_map_constructor_wall_sides.clear()
 	map_constructor_picker_entity_kind = ""
 	map_constructor_picker_entity_id = ""
@@ -9860,7 +9862,7 @@ func _clear_map_constructor_preview_cell() -> void:
 func _update_map_constructor_preview_for_cell(cell: Vector2i) -> Dictionary:
 	if mission_manager_runtime == null or not mission_manager_runtime.has_method("can_place_map_constructor_prefab"):
 		return {}
-	var check: Dictionary = mission_manager_runtime.call("can_place_map_constructor_prefab", selected_map_constructor_prefab_id, cell, selected_map_constructor_wall_side)
+	var check: Dictionary = mission_manager_runtime.call("can_place_map_constructor_prefab", selected_map_constructor_prefab_id, cell, selected_map_constructor_wall_side, selected_map_constructor_mounting_mode)
 	available_map_constructor_wall_sides.clear()
 	for side_variant in Array(check.get("available_wall_sides", [])):
 		available_map_constructor_wall_sides.append(String(side_variant))
@@ -10180,7 +10182,7 @@ func _confirm_map_constructor_pending_placement() -> void:
 	var prefab_id: String = map_constructor_pending_place_prefab_id
 	var place_cell: Vector2i = map_constructor_pending_place_cell
 	var rotation: int = map_constructor_pending_place_rotation
-	var result: Dictionary = mission_manager_runtime.call("place_map_constructor_prefab", prefab_id, place_cell, selected_map_constructor_wall_side, rotation)
+	var result: Dictionary = mission_manager_runtime.call("place_map_constructor_prefab", prefab_id, place_cell, selected_map_constructor_wall_side, rotation, selected_map_constructor_mounting_mode)
 	show_hint(String(result.get("message", "Placement done.")))
 	if bool(result.get("ok", false)):
 		_mark_map_constructor_prefab_recent(prefab_id)
@@ -10345,6 +10347,7 @@ func _mark_map_constructor_prefab_recent(prefab_id: String) -> void:
 func _select_map_constructor_prefab(prefab_id: String) -> void:
 	selected_map_constructor_prefab_id = prefab_id
 	selected_map_constructor_wall_side = ""
+	selected_map_constructor_mounting_mode = "wall_mounted" if prefab_id == "light" else "stationary"
 	available_map_constructor_wall_sides.clear()
 	pending_map_constructor_cell = Vector2i(-1, -1)
 	_clear_map_constructor_pending_placement()
@@ -11073,7 +11076,8 @@ func _refresh_map_constructor_panels() -> void:
 	palette_stack.add_theme_constant_override("separation", 6)
 	runtime_map_constructor_palette_panel.add_child(palette_stack)
 	_add_map_constructor_tab_header(palette_stack, palette_rect.size.x)
-	_add_map_constructor_controls_hint(palette_stack)
+	if map_constructor_active_tab != "objects":
+		_add_map_constructor_controls_hint(palette_stack)
 	var scroll := ScrollContainer.new()
 	scroll.clip_contents = true
 	scroll.horizontal_scroll_mode = ScrollContainer.SCROLL_MODE_DISABLED
@@ -11142,6 +11146,29 @@ func _refresh_map_constructor_panels() -> void:
 		var show_placeable: CheckBox = CheckBox.new(); show_placeable.text = "Show Only Placeable Here"; show_placeable.button_pressed = map_constructor_prefab_show_only_placeable_here; show_placeable.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 		show_placeable.toggled.connect(func(v: bool) -> void: map_constructor_prefab_show_only_placeable_here = v; _refresh_map_constructor_panels())
 		list.add_child(show_placeable)
+
+		if not selected_map_constructor_prefab_id.is_empty():
+			var mount_row: HBoxContainer = HBoxContainer.new()
+			mount_row.add_theme_constant_override("separation", 4)
+			var mount_label: Label = Label.new()
+			mount_label.text = "Mount:"
+			mount_row.add_child(mount_label)
+			for mode_id in ["stationary", "wall_mounted"]:
+				var mode_button: Button = Button.new()
+				mode_button.text = "Stationary" if mode_id == "stationary" else "Wall-mounted"
+				mode_button.toggle_mode = true
+				mode_button.button_pressed = selected_map_constructor_mounting_mode == mode_id
+				mode_button.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+				mode_button.pressed.connect(func() -> void:
+					selected_map_constructor_mounting_mode = mode_id
+					if selected_map_constructor_mounting_mode == "stationary":
+						selected_map_constructor_wall_side = ""
+					if pending_map_constructor_cell.x >= 0 and pending_map_constructor_cell.y >= 0:
+						_update_map_constructor_preview_for_cell(pending_map_constructor_cell)
+					_refresh_map_constructor_panels()
+				)
+				mount_row.add_child(mode_button)
+			list.add_child(mount_row)
 		var catalog: Array[Dictionary] = []
 		if mission_manager_runtime != null and mission_manager_runtime.has_method("get_map_constructor_prefab_palette_rows"):
 			var palette_rows: Dictionary = mission_manager_runtime.call("get_map_constructor_prefab_palette_rows", {
@@ -11234,7 +11261,7 @@ func _refresh_map_constructor_panels() -> void:
 			_clear_map_constructor_preview_cell()
 		var placement_label: Label = Label.new()
 		placement_label.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
-		placement_label.text = "Placement: blocked: unsupported prefab"
+		placement_label.text = "Placement: blocked: unsupported prefab (mode: %s)" % selected_map_constructor_mounting_mode
 		if pending_map_constructor_cell.x >= 0 and pending_map_constructor_cell.y >= 0 and not selected_map_constructor_prefab_id.is_empty():
 			if mission_manager_runtime != null and mission_manager_runtime.has_method("can_place_map_constructor_prefab"):
 				var check: Dictionary = _update_map_constructor_preview_for_cell(pending_map_constructor_cell)
@@ -11243,7 +11270,7 @@ func _refresh_map_constructor_panels() -> void:
 				var reason: String = String(check.get("reason", "unsupported_prefab"))
 				match reason:
 					"ok":
-						placement_label.text = "Placement: OK"
+						placement_label.text = "Placement: OK (mode: %s)" % selected_map_constructor_mounting_mode
 					"existing_object", "occupied_by_bipob":
 						placement_label.text = "Placement: blocked: existing object"
 					"out_of_bounds":
@@ -13579,9 +13606,21 @@ func _show_map_constructor_inspector(cell: Vector2i, preferred_entity_kind: Stri
 			_add_link_picker(section, entity_kind, entity_id, "linked_door", "Linked Door")
 			_add_link_picker(section, entity_kind, entity_id, "terminal_target", "Terminal Target")
 		if type_group == "power":
+			var power_object_type: String = _safe_ui_string(data.get("object_type", "")).to_lower()
+			if power_object_type.begins_with("power_source"):
+				_add_enum_property(section, "Source state", entity_kind, entity_id, "state", data.get("state", "on"), [{"label":"On", "value":"on"}, {"label":"Off", "value":"off"}, {"label":"Damaged", "value":"damaged"}, {"label":"Broken", "value":"broken"}])
+				_add_enum_property(section, "Source class", entity_kind, entity_id, "power_source_class", data.get("power_source_class", 1), [{"label":"Class 1 (4 outlets)", "value":"1"}, {"label":"Class 2 (5 outlets)", "value":"2"}, {"label":"Class 3 (6 outlets)", "value":"3"}])
+			elif power_object_type == "power_cable":
+				_add_enum_property(section, "Wire state", entity_kind, entity_id, "state", data.get("state", "ok"), [{"label":"OK", "value":"ok"}, {"label":"Damaged", "value":"damaged"}, {"label":"Broken", "value":"broken"}])
+				_add_bool_property(section, "Hidden installation", entity_kind, entity_id, "is_hidden", data.get("is_hidden", false))
+				_add_enum_property(section, "Route surface", entity_kind, entity_id, "route_surface", data.get("route_surface", "floor"), [{"label":"Floor", "value":"floor"}, {"label":"Wall", "value":"wall"}])
+			elif power_object_type == "light":
+				_add_text_property(section, "Brightness", entity_kind, entity_id, "brightness", data.get("brightness", "1.0"))
+				_add_text_property(section, "Color", entity_kind, entity_id, "color", data.get("color", "#ffffff"))
 			_add_bool_property(section, "is_powered", entity_kind, entity_id, "is_powered", data.get("is_powered", false))
 			_add_bool_property(section, "damaged", entity_kind, entity_id, "damaged", data.get("damaged", false))
 			_add_bool_property(section, "broken", entity_kind, entity_id, "broken", data.get("broken", false))
+			_add_link_picker(section, entity_kind, entity_id, "power_source", "Linked Power Source")
 			_add_link_picker(section, entity_kind, entity_id, "power_network", "Power Network")
 		if type_group == "item":
 			var item_type_label := Label.new()
