@@ -9302,6 +9302,42 @@ func get_buffer_item() -> Variant:
 		return null
 	return buffer_item
 
+func move_digital_storage_to_buffer(storage_index: int) -> bool:
+	if not buffer_item.is_empty():
+		hint_requested.emit("Digital buffer is occupied.")
+		return false
+	var storage_keys: Array = digital_storage.keys()
+	if storage_index < 0 or storage_index >= storage_keys.size():
+		hint_requested.emit("Storage slot is empty.")
+		return false
+	var record_id: Variant = storage_keys[storage_index]
+	var record_data: Variant = digital_storage.get(record_id, {})
+	if typeof(record_data) != TYPE_DICTIONARY:
+		hint_requested.emit("Storage slot is unavailable.")
+		return false
+	buffer_item = record_data.duplicate(true)
+	digital_storage.erase(record_id)
+	hint_requested.emit("Loaded into digital buffer: %s." % String(buffer_item.get("display_name", buffer_item.get("id", "record"))))
+	status_changed.emit()
+	return true
+
+func move_buffer_to_digital_storage() -> bool:
+	if buffer_item.is_empty():
+		hint_requested.emit("Buffer is empty.")
+		return false
+	if digital_storage.size() >= get_available_digital_storage_slots():
+		hint_requested.emit("No free digital storage slot.")
+		return false
+	var record_id: String = String(buffer_item.get("id", "")).strip_edges()
+	if record_id.is_empty():
+		hint_requested.emit("Buffered record is unavailable.")
+		return false
+	digital_storage[record_id] = buffer_item.duplicate(true)
+	buffer_item.clear()
+	hint_requested.emit("Stored buffered digital record.")
+	status_changed.emit()
+	return true
+
 func move_pocket_to_manipulator(pocket_index: int) -> bool:
 	if pocket_index < 0 or pocket_index >= get_available_pocket_slots():
 		return false
