@@ -12154,7 +12154,7 @@ func _refresh_map_constructor_panels() -> void:
 		for row_variant in kit_rows:
 			var row: Dictionary = _safe_ui_dictionary(row_variant)
 			if String(row.get("id", "")) == map_constructor_selected_kit_id:
-				selected_kit_info.text = "Kit: %s\n%s\nTags: %s\nWarnings: %s" % [String(row.get("display_name", "")), String(row.get("description", "")), ", ".join(PackedString_safe_ui_array(_safe_ui_array(row.get("tags", [])))), String(row.get("warning", "none"))]
+				selected_kit_info.text = "Kit: %s\n%s\nTags: %s\nWarnings: %s" % [String(row.get("display_name", "")), String(row.get("description", "")), ", ".join(PackedStringArray(_safe_ui_array(row.get("tags", [])))), String(row.get("warning", "none"))]
 		list.add_child(selected_kit_info)
 		var quick_kits_button: Button = _make_map_constructor_action_button("Preview Kit")
 		quick_kits_button.pressed.connect(func() -> void:
@@ -12220,7 +12220,7 @@ func _refresh_map_constructor_panels() -> void:
 		for row_variant in template_rows:
 			var row: Dictionary = _safe_ui_dictionary(row_variant)
 			if String(row.get("id", "")) == map_constructor_selected_template_id:
-				template_info.text = "Template: %s\n%s\nsize=%s\nTags: %s\nWarnings: %s" % [String(row.get("display_name", "")), String(row.get("description", "")), str(row.get("size", Vector2i.ZERO)), ", ".join(PackedString_safe_ui_array(_safe_ui_array(row.get("tags", [])))), String(row.get("warning", "none"))]
+				template_info.text = "Template: %s\n%s\nsize=%s\nTags: %s\nWarnings: %s" % [String(row.get("display_name", "")), String(row.get("description", "")), str(row.get("size", Vector2i.ZERO)), ", ".join(PackedStringArray(_safe_ui_array(row.get("tags", [])))), String(row.get("warning", "none"))]
 		list.add_child(template_info)
 		var template_transform_row: HFlowContainer = _make_map_constructor_action_row()
 		var rotation_label: Label = Label.new()
@@ -13633,20 +13633,6 @@ func _add_validation_entries(section: VBoxContainer, title: String, entries: Arr
 			label.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 			label.text = _safe_ui_string(entry_variant)
 			section.add_child(label)
-
-# -----------------------------------------------------------------------------
-# Map Constructor inspector: safe UI helpers (continued)
-# -----------------------------------------------------------------------------
-
-func _safe_ui_dictionary(value: Variant) -> Dictionary:
-	if value is Dictionary:
-		return value.duplicate(true)
-	return {}
-
-func _safe_ui_array(value: Variant) -> Array:
-	if value is Array:
-		return value.duplicate(true)
-	return []
 
 func _get_map_constructor_key_entity_by_id(key_id: String) -> Dictionary:
 	var normalized_key_id: String = key_id.strip_edges()
