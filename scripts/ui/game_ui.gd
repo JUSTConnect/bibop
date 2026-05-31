@@ -10405,123 +10405,25 @@ func _cycle_map_constructor_wall_side() -> void:
 
 
 func _hide_runtime_object_info_hud() -> void:
-	if runtime_object_info_panel != null and is_instance_valid(runtime_object_info_panel):
-		runtime_object_info_panel.queue_free()
-	runtime_object_info_panel = null
-	runtime_object_info_cell = Vector2i(-1, -1)
+	RuntimeHud.hide_object_info(self)
+
+func _clear_runtime_object_info_hud() -> void:
+	RuntimeHud.clear_object_info(self)
 
 func _runtime_object_info_value(object_data: Dictionary, keys: Array[String], fallback: String = "") -> String:
-	for key in keys:
-		var value: String = _safe_ui_string(object_data.get(key, "")).strip_edges()
-		if not value.is_empty():
-			return value
-	return fallback
+	return RuntimeObjectHud.info_value(self, object_data, keys, fallback)
 
 func _runtime_object_info_type_label(object_data: Dictionary) -> String:
-	var group: String = _safe_ui_string(object_data.get("object_group", "object"), "object").to_lower()
-	var object_type: String = _safe_ui_string(object_data.get("object_type", group), group).to_lower()
-	if group == "door" or object_type.contains("door") or object_type.contains("gate"):
-		return "Door"
-	if group == "terminal" or object_type.contains("terminal"):
-		return "Terminal"
-	if object_type.contains("cable"):
-		return "Cable"
-	if object_type.contains("switch"):
-		return "Switch"
-	return group.capitalize()
+	return RuntimeObjectHud.info_type_label(self, object_data)
 
 func _runtime_door_type_label(object_data: Dictionary) -> String:
-	var object_type: String = _safe_ui_string(object_data.get("object_type", "door")).to_lower()
-	var access_type: String = _safe_ui_string(object_data.get("access_type", object_data.get("lock_type", ""))).to_lower()
-	if object_type.contains("gate"):
-		return "Powered gate"
-	if access_type in ["digital", "digital_key", "access_code", "terminal_access"] or object_type.contains("digital") or bool(object_data.get("is_digital_device", false)):
-		return "Digital"
-	return "Mechanical"
+	return RuntimeObjectHud.door_type_label(self, object_data)
 
 func _runtime_access_type_label(value: String) -> String:
-	match value.strip_edges().to_lower():
-		"mechanical", "mechanical_key", "key", "mechanical_keycard":
-			return "Mechanical key"
-		"digital", "digital_key":
-			return "Digital key"
-		"password", "code", "access_code":
-			return "Access code"
-		"terminal", "terminal_access":
-			return "Terminal access"
-		"none", "no_key", "":
-			return "No key"
-	return value.capitalize()
+	return RuntimeObjectHud.access_type_label(value)
 
 func _show_runtime_object_info_hud(cell: Vector2i) -> void:
-	_hide_runtime_object_info_hud()
-	if runtime_hud_root == null or field_runtime == null or bipob == null or mission_manager_runtime == null:
-		return
-	var object_data: Dictionary = Dictionary(mission_manager_runtime.call("get_world_object_at_cell", cell)) if mission_manager_runtime.has_method("get_world_object_at_cell") else {}
-	if object_data.is_empty() and mission_manager_runtime.has_method("get_items_at_cell"):
-		var items: Array = Array(mission_manager_runtime.call("get_items_at_cell", cell))
-		if not items.is_empty():
-			object_data = Dictionary(items[0])
-	if object_data.is_empty():
-		return
-	var scan_level: int = int(object_data.get("scan_level", 0))
-	var known_details: bool = scan_level >= 1 or bool(object_data.get("scanned", false)) or bool(object_data.get("visible", false))
-	var lines: Array[String] = []
-	lines.append("Object type: %s" % _runtime_object_info_type_label(object_data))
-	if _runtime_object_info_type_label(object_data) == "Door":
-		lines.append("Door type: %s" % _runtime_door_type_label(object_data))
-	var material: String = _runtime_object_info_value(object_data, ["material", "wall_material", "floor_material"], "unknown")
-	if known_details or material != "unknown":
-		lines.append("Material: %s" % material)
-	if known_details:
-		var power_text: String = _runtime_object_info_value(object_data, ["power_mode", "power_type"], "internal")
-		var power_source: String = _runtime_object_info_value(object_data, ["power_source_id", "power_network_id"])
-		if power_text == "external" and not power_source.is_empty():
-			power_text = "%s (%s)" % [power_text, power_source]
-		lines.append("Power type: %s" % power_text)
-		var control_text: String = _runtime_object_info_value(object_data, ["control_mode", "control_type"], "internal")
-		var control_source: String = _runtime_object_info_value(object_data, ["control_terminal_id", "linked_terminal_id", "control_source_id"])
-		if control_text == "external" and not control_source.is_empty():
-			control_text = "%s (%s)" % [control_text, control_source]
-		lines.append("Control type: %s" % control_text)
-		if _runtime_object_info_type_label(object_data) == "Door":
-			lines.append("Access type: %s" % _runtime_access_type_label(_runtime_object_info_value(object_data, ["access_type", "lock_type"], "none")))
-		elif _runtime_object_info_type_label(object_data) == "Terminal":
-			lines.append("Device version: %s" % _runtime_object_info_value(object_data, ["device_version", "terminal_version", "version"], "v1"))
-			lines.append("Connection type: %s" % _runtime_object_info_value(object_data, ["connection_type"], "wired"))
-			var stored: Array[String] = []
-			for field_name in ["stored_key_ids", "stored_access_ids", "stored_item_ids", "digital_key_ids", "access_code_ids"]:
-				for value_variant in Array(object_data.get(field_name, [])):
-					stored.append(String(value_variant))
-			if not _safe_ui_string(object_data.get("stored_key_id", object_data.get("access_key_id", ""))).strip_edges().is_empty():
-				stored.append(_safe_ui_string(object_data.get("stored_key_id", object_data.get("access_key_id", ""))))
-			lines.append("Stored keys/access: %s" % (", ".join(stored) if not stored.is_empty() else "none"))
-	elif lines.size() <= 2:
-		lines.append("Details unknown. Scan or reveal this object for more information.")
-	var panel := PanelContainer.new()
-	panel.z_index = Z_RUNTIME_HUD + 8
-	panel.z_as_relative = false
-	panel.mouse_filter = Control.MOUSE_FILTER_IGNORE
-	panel.modulate.a = 0.88
-	panel.add_theme_stylebox_override("panel", _make_panel_style(UI_COLOR_PANEL_DARK, UI_COLOR_ACCENT, 1, 8))
-	var margin := MarginContainer.new()
-	margin.add_theme_constant_override("margin_left", 8)
-	margin.add_theme_constant_override("margin_right", 8)
-	margin.add_theme_constant_override("margin_top", 6)
-	margin.add_theme_constant_override("margin_bottom", 6)
-	var label := Label.new()
-	label.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
-	label.text = "\n".join(lines)
-	label.custom_minimum_size = Vector2(220, 0)
-	margin.add_child(label)
-	panel.add_child(margin)
-	runtime_hud_root.add_child(panel)
-	runtime_object_info_panel = panel
-	runtime_object_info_cell = cell
-	var viewport_size: Vector2 = get_viewport().get_visible_rect().size
-	panel.reset_size()
-	var panel_size: Vector2 = panel.get_combined_minimum_size()
-	panel.position = Vector2(maxf(8.0, viewport_size.x - panel_size.x - 16.0), 72.0)
+	RuntimeHud.show_object_info(self, cell)
 
 func _handle_runtime_gameplay_mouse_click(event: InputEventMouseButton) -> bool:
 	if app_screen_mode != AppScreenMode.GAMEPLAY:
@@ -12828,126 +12730,34 @@ func _on_turn_right_pressed() -> void:
 
 
 func _get_runtime_interaction_target_data() -> Dictionary:
-	if bipob == null or not bipob.has_method("get_facing_world_action_target"):
-		return {"target_object": {}, "actions": []}
-	return Dictionary(bipob.call("get_facing_world_action_target"))
+	return RuntimeInteractionPanel.get_target_data(self)
 
 func _runtime_action_requires_manipulator(action_id: String, target_object: Dictionary) -> bool:
-	if action_id == "pickup" and String(target_object.get("item_form", "physical")) == "digital":
-		return false
-	return action_id in ["pickup", "open", "close", "unlock", "switch", "force_open", "push", "pull", "insert_fuse", "repair", "cut", "impact", "take_end_1", "take_end_2", "plug_in", "plug_out", "connect_wire_end", "connect_wire_1", "connect_wire_2", "disconnect_power_wire", "disconnect_wire_1", "disconnect_wire_2"]
+	return RuntimeInteractionPanel.action_requires_manipulator(action_id, target_object)
 
 func _is_runtime_interaction_manipulator_blocked(target_object: Dictionary, actions: Array) -> bool:
-	if bipob == null or not bipob.has_method("can_use_physical_hand"):
-		return false
-	if bool(bipob.call("can_use_physical_hand")):
-		return false
-	for action_variant in actions:
-		if _runtime_action_requires_manipulator(String(action_variant), target_object):
-			return true
-	return false
+	return RuntimeInteractionPanel.is_manipulator_blocked(self, target_object, actions)
 
 func _refresh_runtime_interaction_controls() -> void:
-	if runtime_action_button == null or runtime_end_turn_button == null:
-		return
-	var target_data := _get_runtime_interaction_target_data()
-	var target_object: Dictionary = Dictionary(target_data.get("target_object", {}))
-	var actions: Array = Array(target_data.get("actions", []))
-	var has_interactable := not target_object.is_empty() and not actions.is_empty()
-	if has_interactable and not runtime_interaction_mode_active and runtime_action_button != null:
-		_apply_selected_pulse(runtime_action_button)
-	var has_actions_left := bipob != null and int(bipob.actions_left) > 0
-	if runtime_interaction_mode_active and (not has_interactable or not has_actions_left):
-		runtime_interaction_mode_active = false
-	if runtime_action_button != null:
-		runtime_action_button.text = "Cancel" if runtime_interaction_mode_active else "Action"
-		_apply_action_button_style(runtime_action_button, "danger" if runtime_interaction_mode_active else "primary", true)
-		if runtime_interaction_mode_active:
-			_apply_selected_pulse(runtime_action_button)
-	if runtime_end_turn_button != null:
-		_apply_action_button_style(runtime_end_turn_button, "reference", true)
-	if runtime_interaction_actions_row == null:
-		return
-	var action_id_texts: Array[String] = []
-	for signature_action_variant in actions:
-		action_id_texts.append(String(signature_action_variant))
-	var next_signature := "%s|%s" % [str(runtime_interaction_mode_active), "|".join(action_id_texts)]
-	if next_signature == runtime_interaction_actions_signature:
-		runtime_interaction_actions_row.visible = runtime_interaction_mode_active
-		return
-	runtime_interaction_actions_signature = next_signature
-	for child in runtime_interaction_actions_row.get_children():
-		child.queue_free()
-	runtime_interaction_actions_row.visible = runtime_interaction_mode_active
-	if not runtime_interaction_mode_active:
-		return
-	for leading_column_index in range(2):
-		var leading_spacer := Control.new()
-		leading_spacer.name = "RuntimeInteractionActionSpacer%d" % (leading_column_index + 1)
-		leading_spacer.custom_minimum_size = runtime_action_button.custom_minimum_size
-		leading_spacer.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-		runtime_interaction_actions_row.add_child(leading_spacer)
-	for action_variant in actions:
-		var action_id := String(action_variant)
-		var button := _create_runtime_control_button(bipob.get_world_action_display_label(action_id, target_object), Callable(self, "_on_runtime_interaction_action_pressed").bind(action_id), "primary")
-		button.custom_minimum_size = runtime_action_button.custom_minimum_size
-		_apply_selected_pulse(button)
-		runtime_interaction_actions_row.add_child(button)
-	for trailing_column_index in range(max(0, 2 - actions.size())):
-		var trailing_spacer := Control.new()
-		trailing_spacer.name = "RuntimeInteractionActionTrailingSpacer%d" % (trailing_column_index + 1)
-		trailing_spacer.custom_minimum_size = runtime_action_button.custom_minimum_size
-		trailing_spacer.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-		runtime_interaction_actions_row.add_child(trailing_spacer)
+	RuntimeInteractionPanel.refresh_controls(self)
 
 func _enter_runtime_interaction_mode() -> void:
-	runtime_interaction_mode_active = true
-	_refresh_runtime_interaction_controls()
+	RuntimeInteractionPanel.enter_mode(self)
 
 func _exit_runtime_interaction_mode() -> void:
-	runtime_interaction_mode_active = false
-	_refresh_runtime_interaction_controls()
+	RuntimeInteractionPanel.exit_mode(self)
 
 func _on_runtime_interaction_action_pressed(action_id: String) -> void:
-	if bipob == null:
-		return
-	bipob.set_selected_world_action(action_id)
-	bipob.interact()
-	_exit_runtime_interaction_mode()
-	update_status()
+	RuntimeInteractionPanel.press_action(self, action_id)
 
 func _on_interact_pressed() -> void:
-	if map_constructor_mode_active or bipob == null:
-		return
-	if runtime_interaction_mode_active:
-		_exit_runtime_interaction_mode()
-		return
-	var target_data := _get_runtime_interaction_target_data()
-	var target_object: Dictionary = Dictionary(target_data.get("target_object", {}))
-	var actions: Array = Array(target_data.get("actions", []))
-	if int(bipob.actions_left) <= 0:
-		show_hint("No actions left. End turn.")
-		return
-	if not target_object.is_empty() and not actions.is_empty():
-		if _is_runtime_interaction_manipulator_blocked(target_object, actions):
-			show_hint("Free manipulator required.")
-			_refresh_runtime_interaction_controls()
-			return
-		_enter_runtime_interaction_mode()
-		return
-	bipob.interact()
-	update_status()
+	RuntimeInteractionPanel.press_interact(self)
 
 func _on_use_selected_world_action_pressed() -> void:
-	if bipob == null:
-		return
-	bipob.interact()
-	update_status()
+	RuntimeInteractionPanel.use_selected_world_action(self)
 
 func _on_world_action_button_pressed(action_id: String) -> void:
-	if bipob == null:
-		return
-	bipob.set_selected_world_action(action_id)
+	RuntimeInteractionPanel.select_world_action(self, action_id)
 
 func _get_runtime_world_action_target_id(target_object: Dictionary, fallback_name: String) -> String:
 	var raw_id: Variant = target_object.get("id", "")
