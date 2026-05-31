@@ -166,24 +166,12 @@ static func add_floor_coverage_section(ui: Variant, parent: VBoxContainer) -> vo
 		floor_section.add_child(floor_summary_label)
 		var apply_floor_button: Button = Button.new(); apply_floor_button.text = "Apply Floor Material"
 		apply_floor_button.pressed.connect(func() -> void:
-			if ui.mission_manager_runtime == null or not ui.mission_manager_runtime.has_method("set_map_constructor_floor_material"):
-				return
 			var floor_material_id_apply: String = compose_floor_visual_id(String(floor_material_option.get_selected_metadata()), String(floor_coating_option.get_selected_metadata()))
-			var floor_apply_result: Dictionary = ui._safe_ui_dictionary(ui.mission_manager_runtime.call("set_map_constructor_floor_material", floor_target_cell, floor_material_id_apply))
-			ui.show_hint(ui._safe_ui_string(floor_apply_result.get("message", "Floor material updated."), "Floor material updated."))
-			ui._refresh_map_constructor_panels()
-			if ui.field_runtime != null and ui.field_runtime.has_method("request_visual_refresh"): ui.field_runtime.call("request_visual_refresh")
-			ui._show_map_constructor_inspector(ui.selected_map_constructor_entity_cell, ui.selected_map_constructor_entity_kind, ui.selected_map_constructor_entity_id)
+			MapConstructorActions.apply_floor_material(ui, floor_target_cell, floor_material_id_apply)
 		)
 		var clear_floor_button: Button = Button.new(); clear_floor_button.text = "Clear Floor Material"
 		clear_floor_button.pressed.connect(func() -> void:
-			if ui.mission_manager_runtime == null or not ui.mission_manager_runtime.has_method("clear_map_constructor_floor_material"):
-				return
-			var floor_clear_result: Dictionary = ui._safe_ui_dictionary(ui.mission_manager_runtime.call("clear_map_constructor_floor_material", floor_target_cell))
-			ui.show_hint(ui._safe_ui_string(floor_clear_result.get("message", "Floor material cleared."), "Floor material cleared."))
-			ui._refresh_map_constructor_panels()
-			if ui.field_runtime != null and ui.field_runtime.has_method("request_visual_refresh"): ui.field_runtime.call("request_visual_refresh")
-			ui._show_map_constructor_inspector(ui.selected_map_constructor_entity_cell, ui.selected_map_constructor_entity_kind, ui.selected_map_constructor_entity_id)
+			MapConstructorActions.clear_floor_material(ui, floor_target_cell)
 		)
 		floor_section.add_child(apply_floor_button)
 		floor_section.add_child(clear_floor_button)
@@ -237,26 +225,12 @@ static func add_wall_coverage_section(ui: Variant, parent: VBoxContainer, entity
 			wall_section.add_child(description_label)
 			var apply_material: Button = Button.new(); apply_material.text = "Apply Wall Material"
 			apply_material.pressed.connect(func() -> void:
-				if ui.mission_manager_runtime == null or not ui.mission_manager_runtime.has_method("set_map_constructor_wall_material"):
-					ui.show_hint("Wall material action unavailable.")
-					return
 				var mat_id: String = ui._safe_ui_string(material_option.get_selected_metadata())
-				var apply_result: Dictionary = ui._safe_ui_dictionary(ui.mission_manager_runtime.call("set_map_constructor_wall_material", wall_cell, wall_side, mat_id))
-				ui.show_hint(ui._safe_ui_string(apply_result.get("message", "Wall material updated."), "Wall material updated."))
-				ui._refresh_map_constructor_panels()
-				if ui.field_runtime != null and ui.field_runtime.has_method("request_visual_refresh"): ui.field_runtime.call("request_visual_refresh")
-				ui._show_map_constructor_inspector(ui.selected_map_constructor_entity_cell, ui.selected_map_constructor_entity_kind, ui.selected_map_constructor_entity_id)
+				MapConstructorActions.apply_wall_material(ui, wall_cell, wall_side, mat_id)
 			)
 			var clear_material: Button = Button.new(); clear_material.text = "Clear Wall Material"
 			clear_material.pressed.connect(func() -> void:
-				if ui.mission_manager_runtime == null or not ui.mission_manager_runtime.has_method("clear_map_constructor_wall_material"):
-					ui.show_hint("Wall material action unavailable.")
-					return
-				var clear_result: Dictionary = ui._safe_ui_dictionary(ui.mission_manager_runtime.call("clear_map_constructor_wall_material", wall_cell, wall_side))
-				ui.show_hint(ui._safe_ui_string(clear_result.get("message", "Wall material cleared."), "Wall material cleared."))
-				ui._refresh_map_constructor_panels()
-				if ui.field_runtime != null and ui.field_runtime.has_method("request_visual_refresh"): ui.field_runtime.call("request_visual_refresh")
-				ui._show_map_constructor_inspector(ui.selected_map_constructor_entity_cell, ui.selected_map_constructor_entity_kind, ui.selected_map_constructor_entity_id)
+				MapConstructorActions.clear_wall_material(ui, wall_cell, wall_side)
 			)
 			wall_section.add_child(apply_material)
 			wall_section.add_child(clear_material)
@@ -280,18 +254,7 @@ static func add_wall_coverage_section(ui: Variant, parent: VBoxContainer, entity
 		deferred_wall_section.add_child(ui._create_property_row("wall_side", wall_side_picker))
 		var apply_side: Button = Button.new(); apply_side.text = "Apply Side"
 		apply_side.pressed.connect(func() -> void:
-			var selected_side: String = normalize_wall_side(ui.selected_map_constructor_wall_side)
-			if selected_side.is_empty():
-				ui.show_hint("Select a valid wall side before applying.")
-				return
-			if ui.mission_manager_runtime == null or not ui.mission_manager_runtime.has_method("set_map_constructor_wall_mounted_side"):
-				ui.show_hint("Wall-mounted side action unavailable.")
-				return
-			var rr: Dictionary = ui._safe_ui_dictionary(ui.mission_manager_runtime.call("set_map_constructor_wall_mounted_side", entity_kind, entity_id, selected_side))
-			ui.show_hint(ui._safe_ui_string(rr.get("message", "Updated side."), "Updated side."))
-			ui._refresh_map_constructor_panels()
-			if ui.field_runtime != null and ui.field_runtime.has_method("request_visual_refresh"): ui.field_runtime.call("request_visual_refresh")
-			ui._show_map_constructor_inspector(ui.selected_map_constructor_entity_cell, ui.selected_map_constructor_entity_kind, ui.selected_map_constructor_entity_id)
+			MapConstructorActions.apply_wall_mounted_side(ui, entity_kind, entity_id, ui.selected_map_constructor_wall_side)
 		)
 		deferred_wall_section.add_child(apply_side)
 	if deferred_wall_section != null:
