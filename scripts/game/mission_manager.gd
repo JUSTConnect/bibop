@@ -2101,6 +2101,9 @@ func get_default_map_constructor_field_value(field_name: String, entity_kind: St
 	match normalized_field:
 		"is_open":
 			return false
+		"is_closed":
+			var state_text: String = String(data.get("state", "closed")).strip_edges().to_lower()
+			return state_text in ["closed", "locked", "jammed", "damaged", ""]
 		"is_locked":
 			return false
 		"is_powered":
@@ -3453,7 +3456,7 @@ func get_map_constructor_entity_by_id(entity_kind: String, entity_id: String) ->
 
 func _get_map_constructor_editable_field_schema() -> Dictionary:
 	return {
-		"state":"string","power_network_id":"string","is_open":"bool","is_closed":"bool","is_locked":"bool","is_powered":"bool",
+		"state":"string","power_network_id":"string","is_open":"bool","is_closed":"bool","is_locked":"bool","blocks_movement":"bool","is_powered":"bool",
 		"required_key_id":"string","lock_type":"string","linked_terminal_id":"string","required_connector_level":"int","required_processor_level":"int",
 		"control_source_id":"string","connected_device_ids":"array_string","target_door_id":"string","target_platform_id":"string","requires_external_control":"bool","requires_terminal_enabled":"bool",
 		"requires_external_power":"bool","current_heat":"int","working_heat":"int","overheat_threshold":"int",
@@ -3592,6 +3595,19 @@ func apply_map_constructor_property_update(entity_kind: String, entity_id: Strin
 		PowerSystemRef.recalculate_network(mission_world_objects, old_network_id)
 		PowerSystemRef.recalculate_network(mission_world_objects, String(data.get("power_network_id", "")))
 	refresh_world_cooling_received()
+	if resolved_kind == "world_object" and field_name in ["power_source_id", "control_terminal_id", "access_terminal_id"]:
+		var linked_id: String = String(new_value).strip_edges()
+		if not linked_id.is_empty():
+			var linked_object: Dictionary = get_world_object_by_id(linked_id)
+			if not linked_object.is_empty():
+				var backlink_field: String = "powered_device_ids" if field_name == "power_source_id" else "controlled_device_ids"
+				if field_name == "access_terminal_id":
+					backlink_field = "stored_access_target_ids"
+				var backlink_ids: Array = Array(linked_object.get(backlink_field, []))
+				if not backlink_ids.has(entity_id):
+					backlink_ids.append(entity_id)
+				linked_object[backlink_field] = backlink_ids
+				update_world_object_by_id(linked_id, linked_object)
 	if field_name == "linked_door_id" and resolved_kind == "item":
 		var door_id: String = String(new_value).strip_edges()
 		if not door_id.is_empty():
@@ -3818,36 +3834,19 @@ func resolve_world_item_reference(item_id: String) -> Dictionary:
 		var world_data: Dictionary = _safe_dictionary(object_variant)
 		if String(world_data.get("id", "")).strip_edges() != normalized_id:
 			continue
-		if _map_constructor_is_item_like_world_object(world_data) or _map_constructor_is_key_data(world_data):
-			var world_cell: Vector2i = WorldObjectCatalogRef.to_world_cell(world_data.get("position", Vector2i(-1, -1)), Vector2i(-1, -1))
-			return {"exists": true, "ok": true, "location": "map", "entity_kind": "world_object", "id": normalized_id, "cell": world_cell, "item_data": world_data, "data": world_data, "label": _format_world_item_reference_label(world_data, normalized_id, "map")}
-	var runtime_map: Dictionary = Dictionary(runtime_inventory_state.get("world_item_runtime", {}))
-	var runtime: Dictionary = Dictionary(runtime_map.get(normalized_id, {}))
-	if not runtime.is_empty() and bool(runtime.get("in_inventory", runtime.get("picked_up", false))):
-		var runtime_item: Dictionary = Dictionary(runtime.get("item_data", {}))
-		if runtime_item.is_empty():
-			runtime_item = runtime.duplicate(true)
-		return {"exists": true, "ok": true, "location": "inventory", "entity_kind": "inventory", "id": normalized_id, "cell": Vector2i(-1, -1), "item_data": runtime_item, "data": runtime_item, "label": _format_world_item_reference_label(runtime_item, normalized_id, "inventory")}
-	if Array(runtime_inventory_state.get("collected_key_ids", [])).has(normalized_id):
-		return {"exists": true, "ok": true, "location": "inventory", "entity_kind": "inventory", "id": normalized_id, "cell": Vector2i(-1, -1), "item_data": {}, "data": {}, "label": "%s (in inventory)" % normalized_id}
-	for terminal_variant in mission_world_objects:
-		var terminal: Dictionary = _safe_dictionary(terminal_variant)
-		if not _map_constructor_terminal_stores_key(String(terminal.get("id", "")), normalized_id):
+		if String(world_data.get("id", "")).strip_edges() != normalized_key_id:
 			continue
-		return {"exists": true, "ok": true, "location": "terminal", "entity_kind": "world_object", "id": normalized_id, "cell": WorldObjectCatalogRef.to_world_cell(terminal.get("position", Vector2i(-1, -1)), Vector2i(-1, -1)), "item_data": {}, "data": {}, "label": "%s (in terminal)" % normalized_id}
-	return {"exists": false, "ok": false, "location": "missing", "entity_kind": "item", "id": normalized_id, "cell": Vector2i(-1, -1), "item_data": {}, "data": {}, "label": normalized_id}
-
-func find_map_constructor_key_item_by_id(key_id: String) -> Dictionary:
-	var normalized_key_id: String = key_id.strip_edges()
-	if normalized_key_id.is_empty():
-		return {"ok": false, "reason": "empty_id", "entity_kind": "item", "id": normalized_key_id}
-	var resolved: Dictionary = resolve_world_item_reference(normalized_key_id)
-	if bool(resolved.get("ok", false)):
-		var item_data: Dictionary = _safe_dictionary(resolved.get("item_data", resolved.get("data", {})))
-		if not item_data.is_empty() and not _map_constructor_is_key_data(item_data):
-			return {"ok": false, "reason": "not_key", "entity_kind": String(resolved.get("entity_kind", "item")), "id": normalized_key_id, "cell": Vector2i(resolved.get("cell", Vector2i(-1, -1))), "data": item_data, "location": String(resolved.get("location", "map")), "label": String(resolved.get("label", normalized_key_id))}
-		return {"ok": true, "entity_kind": String(resolved.get("entity_kind", "item")), "id": normalized_key_id, "cell": Vector2i(resolved.get("cell", Vector2i(-1, -1))), "data": item_data, "location": String(resolved.get("location", "map")), "label": String(resolved.get("label", normalized_key_id))}
-	return {"ok": false, "reason": "not_found", "entity_kind": "item", "id": normalized_key_id, "location": "missing"}
+		if not _map_constructor_is_item_like_world_object(world_data) or not _map_constructor_is_key_data(world_data):
+			return {"ok": false, "reason": "not_key", "entity_kind": "world_object", "id": normalized_key_id, "cell": Vector2i(world_data.get("position", Vector2i(-1, -1))), "data": world_data}
+		return {"ok": true, "entity_kind": "world_object", "id": normalized_key_id, "cell": Vector2i(world_data.get("position", Vector2i(-1, -1))), "data": world_data}
+	var runtime_map: Dictionary = Dictionary(runtime_inventory_state.get("world_item_runtime", {}))
+	var runtime_entry: Dictionary = Dictionary(runtime_map.get(normalized_key_id, {}))
+	var runtime_item_data: Dictionary = Dictionary(runtime_entry.get("item_data", runtime_entry))
+	if not runtime_item_data.is_empty() and _map_constructor_is_key_data(runtime_item_data):
+		return {"ok": true, "entity_kind": "item", "id": normalized_key_id, "cell": Vector2i(runtime_item_data.get("position", Vector2i(-1, -1))), "data": runtime_item_data, "runtime_inventory": true}
+	if has_collected_key(normalized_key_id):
+		return {"ok": true, "entity_kind": "item", "id": normalized_key_id, "cell": Vector2i(-1, -1), "data": {"id": normalized_key_id, "item_type": "collected_key", "key_kind": "runtime_inventory"}, "runtime_inventory": true}
+	return {"ok": false, "reason": "not_found", "entity_kind": "item", "id": normalized_key_id}
 
 func _map_constructor_get_linked_key_for_door(door_id: String) -> String:
 	var normalized_door_id: String = door_id.strip_edges()
@@ -3962,6 +3961,12 @@ func get_map_constructor_link_targets_for_field(entity_kind: String, entity_id: 
 			seen_key_ids[world_id] = true
 			var world_cell: Vector2i = Vector2i(world_data.get("position", Vector2i(-1, -1)))
 			targets.append(_map_constructor_make_link_target(world_id, world_id, "world_object", world_cell, "valid", "item_like_object"))
+		for collected_key_variant in Array(runtime_inventory_state.get("collected_key_ids", [])):
+			var collected_key_id: String = String(collected_key_variant).strip_edges()
+			if collected_key_id.is_empty() or seen_key_ids.has(collected_key_id):
+				continue
+			seen_key_ids[collected_key_id] = true
+			ranked_items.append(_map_constructor_make_link_target(collected_key_id, "%s (inventory)" % collected_key_id, "item", Vector2i(-1, -1), "valid", "runtime_inventory_key"))
 		ranked_items.sort_custom(func(a: Dictionary, b: Dictionary) -> bool:
 			var ac: Vector2i = Vector2i(a.get("cell", Vector2i.ZERO))
 			var bc: Vector2i = Vector2i(b.get("cell", Vector2i.ZERO))
@@ -4609,7 +4614,9 @@ func _normalize_map_constructor_active_object_fields(object_data: Dictionary) ->
 	var power_mode: String = String(data.get("power_mode", default_power_mode)).strip_edges().to_lower()
 	if power_mode in ["external_power", "external power"]:
 		power_mode = "external"
-	if not (power_mode in ["internal", "external"]):
+	if power_mode in ["none", "non", "no", ""]:
+		power_mode = "none"
+	if not (power_mode in ["internal", "external", "none"]):
 		power_mode = default_power_mode
 	data["power_mode"] = power_mode
 	data["requires_external_power"] = power_mode == "external"
@@ -4618,7 +4625,9 @@ func _normalize_map_constructor_active_object_fields(object_data: Dictionary) ->
 	var control_mode: String = String(data.get("control_mode", "external" if bool(data.get("requires_external_control", false)) else "internal")).strip_edges().to_lower()
 	if control_mode in ["external_control", "external control"]:
 		control_mode = "external"
-	if not (control_mode in ["internal", "external"]):
+	if control_mode in ["none", "non", "no", ""]:
+		control_mode = "none"
+	if not (control_mode in ["internal", "external", "none"]):
 		control_mode = "internal"
 	data["control_mode"] = control_mode
 	data["requires_external_control"] = control_mode == "external"
@@ -4628,7 +4637,15 @@ func _normalize_map_constructor_active_object_fields(object_data: Dictionary) ->
 		data["linked_terminal_id"] = terminal_id
 		data["control_source_id"] = terminal_id
 	if type_group == "door":
-		data = WorldObjectCatalogRef.normalize_door_state_fields(data)
+		var door_state: String = String(data.get("state", "closed")).strip_edges().to_lower()
+		if not (door_state in ["open", "closed", "locked", "jammed", "damaged"]):
+			door_state = "closed"
+		data["state"] = door_state
+		data["is_open"] = door_state == "open"
+		data["is_closed"] = door_state in ["closed", "locked", "jammed", "damaged"]
+		data["is_locked"] = door_state == "locked"
+		data["damaged"] = bool(data.get("damaged", false)) or door_state == "damaged"
+		data["blocks_movement"] = door_state != "open"
 		var default_access: String = _default_map_constructor_access_type_for_object(data)
 		var access_type: String = _normalize_map_constructor_access_type(data.get("access_type", data.get("lock_type", "")), default_access)
 		data["access_type"] = access_type

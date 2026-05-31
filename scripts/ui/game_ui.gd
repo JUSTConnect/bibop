@@ -1910,6 +1910,9 @@ func _apply_selected_pulse(control: Control) -> void:
 		return
 	if not is_instance_valid(control):
 		return
+	if control.has_meta("selected_pulse_active"):
+		return
+	control.set_meta("selected_pulse_active", true)
 	control.modulate.a = UI_ANIM_PULSE_ALPHA_HIGH
 	var tween: Tween = _create_ui_tween(control)
 	if tween == null:
@@ -9556,6 +9559,8 @@ func _process_runtime_interaction_feedback(delta: float) -> void:
 	var target_object: Dictionary = Dictionary(target_data.get("target_object", {}))
 	var actions: Array = Array(target_data.get("actions", []))
 	var has_interactable := not target_object.is_empty() and not actions.is_empty()
+	if has_interactable and not runtime_interaction_mode_active and runtime_action_button != null:
+		_apply_selected_pulse(runtime_action_button)
 	var has_actions_left := int(bipob.actions_left) > 0
 	var manipulator_blocked := has_interactable and _is_runtime_interaction_manipulator_blocked(target_object, actions)
 	var pulse_alpha: float = 0.72 + 0.28 * abs(sin(float(Time.get_ticks_msec()) / 170.0))
@@ -9951,96 +9956,48 @@ func _hide_runtime_object_info_hud() -> void:
 	runtime_object_info_panel = null
 	runtime_object_info_cell = Vector2i(-1, -1)
 
-func _format_runtime_info_token(value: Variant, fallback: String = "") -> String:
-	var text: String = _safe_ui_string(value, fallback).strip_edges()
-	if text.is_empty():
-		return fallback
-	text = text.replace("_", " ").replace("-", " ")
-	var words: PackedStringArray = text.split(" ", false)
-	for i in range(words.size()):
-		words[i] = String(words[i]).capitalize()
-	return " ".join(words)
+func _runtime_object_info_value(object_data: Dictionary, keys: Array[String], fallback: String = "") -> String:
+	for key in keys:
+		var value: String = _safe_ui_string(object_data.get(key, "")).strip_edges()
+		if not value.is_empty():
+			return value
+	return fallback
 
-func _join_runtime_info_values(values: Array, separator: String = ", ") -> String:
-	var parts := PackedStringArray()
-	for value in values:
-		var text: String = _safe_ui_string(value).strip_edges()
-		if not text.is_empty():
-			parts.append(text)
-	return separator.join(parts)
+func _runtime_object_info_type_label(object_data: Dictionary) -> String:
+	var group: String = _safe_ui_string(object_data.get("object_group", "object"), "object").to_lower()
+	var object_type: String = _safe_ui_string(object_data.get("object_type", group), group).to_lower()
+	if group == "door" or object_type.contains("door") or object_type.contains("gate"):
+		return "Door"
+	if group == "terminal" or object_type.contains("terminal"):
+		return "Terminal"
+	if object_type.contains("cable"):
+		return "Cable"
+	if object_type.contains("switch"):
+		return "Switch"
+	return group.capitalize()
 
-func _get_runtime_door_type_label(world_object: Dictionary) -> String:
-	var explicit_name: String = _safe_ui_string(world_object.get("display_name", world_object.get("name", ""))).strip_edges()
-	if not explicit_name.is_empty() and explicit_name.to_lower() != "object":
-		return explicit_name
-	for field_name in ["door_type", "object_type", "map_constructor_prefab_id", "material"]:
-		var value: String = _safe_ui_string(world_object.get(field_name, "")).strip_edges()
-		if value.is_empty() or value.to_lower() == "door":
-			continue
-		var label: String = _format_runtime_info_token(value)
-		if not label.to_lower().contains("door") and not label.to_lower().contains("gate"):
-			label = "%s Door" % label
-		return label
-	return "Door"
+func _runtime_door_type_label(object_data: Dictionary) -> String:
+	var object_type: String = _safe_ui_string(object_data.get("object_type", "door")).to_lower()
+	var access_type: String = _safe_ui_string(object_data.get("access_type", object_data.get("lock_type", ""))).to_lower()
+	if object_type.contains("gate"):
+		return "Powered gate"
+	if access_type in ["digital", "digital_key", "access_code", "terminal_access"] or object_type.contains("digital") or bool(object_data.get("is_digital_device", false)):
+		return "Digital"
+	return "Mechanical"
 
-func _door_info_is_known(world_object: Dictionary) -> bool:
-	if int(world_object.get("scan_level", 0)) >= 1:
-		return true
-	for field_name in ["scanned", "known", "identified", "inspected"]:
-		if bool(world_object.get(field_name, false)):
-			return true
-	return false
-
-func _get_runtime_object_info_lines(world_object: Dictionary) -> Array[String]:
-	var data: Dictionary = world_object.duplicate(true)
-	if String(data.get("object_group", "")).strip_edges().to_lower() == "door":
-		data = WorldObjectCatalogRef.normalize_door_state_fields(data)
-	var group: String = _safe_ui_string(data.get("object_group", "object"), "object").strip_edges().to_lower()
-	var lines: Array[String] = []
-	if group == "door":
-		lines.append("Door")
-		var door_type_label: String = _get_runtime_door_type_label(data)
-		if door_type_label != "Door":
-			lines.append(door_type_label)
-		var material: String = _safe_ui_string(data.get("material", data.get("door_material", ""))).strip_edges()
-		if material.is_empty() and data.has("material_tags"):
-			material = _join_runtime_info_values(Array(data.get("material_tags", [])))
-		if not material.is_empty():
-			lines.append("Material: %s" % _format_runtime_info_token(material))
-		if _door_info_is_known(data):
-			var power_mode: String = _safe_ui_string(data.get("power_type", data.get("power_mode", ""))).strip_edges()
-			if not power_mode.is_empty():
-				lines.append("Power: %s" % _format_runtime_info_token(power_mode))
-			var control_mode: String = _safe_ui_string(data.get("control_type", data.get("control_mode", ""))).strip_edges()
-			if not control_mode.is_empty():
-				lines.append("Control: %s" % _format_runtime_info_token(control_mode))
-			var access_type: String = _safe_ui_string(data.get("access_type", data.get("lock_type", ""))).strip_edges()
-			if access_type.is_empty():
-				access_type = "none"
-			lines.append("Access: %s" % _format_runtime_info_token(access_type if access_type != "none" else "No key"))
-			var state_bits: Array[String] = []
-			var state_text: String = _safe_ui_string(data.get("state", "")).strip_edges()
-			if not state_text.is_empty():
-				state_bits.append(_format_runtime_info_token(state_text))
-			if bool(data.get("is_locked", false)) and not state_bits.has("Locked"):
-				state_bits.append("Locked")
-			if bool(data.get("damaged", false)) and not state_bits.has("Damaged"):
-				state_bits.append("Damaged")
-			if not state_bits.is_empty():
-				lines.append("State: %s" % ", ".join(state_bits))
-		return lines
-	var scan_level: int = int(data.get("scan_level", 0))
-	var title: String = group.capitalize() if scan_level <= 0 else _safe_ui_string(data.get("display_name", group.capitalize()), group.capitalize())
-	lines.append(title)
-	if scan_level >= 1:
-		lines.append("Type: %s" % _safe_ui_string(data.get("object_type", group), group))
-		lines.append("Group: %s" % group)
-	if scan_level >= 2:
-		if data.has("state"):
-			lines.append("State: %s" % _safe_ui_string(data.get("state", "unknown"), "unknown"))
-		if data.has("is_powered"):
-			lines.append("Powered: %s" % ("yes" if bool(data.get("is_powered", false)) else "no"))
-	return lines
+func _runtime_access_type_label(value: String) -> String:
+	match value.strip_edges().to_lower():
+		"mechanical", "mechanical_key", "key", "mechanical_keycard":
+			return "Mechanical key"
+		"digital", "digital_key":
+			return "Digital key"
+		"password", "code", "access_code":
+			return "Access code"
+		"terminal", "terminal_access":
+			return "Terminal access"
+		"none", "no_key", "":
+			return "No key"
+	return value.capitalize()
 
 func _show_runtime_object_info_hud(cell: Vector2i) -> void:
 	_hide_runtime_object_info_hud()
@@ -10053,13 +10010,45 @@ func _show_runtime_object_info_hud(cell: Vector2i) -> void:
 			object_data = Dictionary(items[0])
 	if object_data.is_empty():
 		return
-	var lines: Array[String] = _get_runtime_object_info_lines(object_data)
-	if lines.is_empty():
-		return
+	var scan_level: int = int(object_data.get("scan_level", 0))
+	var known_details: bool = scan_level >= 1 or bool(object_data.get("scanned", false)) or bool(object_data.get("visible", false))
+	var lines: Array[String] = []
+	lines.append("Object type: %s" % _runtime_object_info_type_label(object_data))
+	if _runtime_object_info_type_label(object_data) == "Door":
+		lines.append("Door type: %s" % _runtime_door_type_label(object_data))
+	var material: String = _runtime_object_info_value(object_data, ["material", "wall_material", "floor_material"], "unknown")
+	if known_details or material != "unknown":
+		lines.append("Material: %s" % material)
+	if known_details:
+		var power_text: String = _runtime_object_info_value(object_data, ["power_mode", "power_type"], "internal")
+		var power_source: String = _runtime_object_info_value(object_data, ["power_source_id", "power_network_id"])
+		if power_text == "external" and not power_source.is_empty():
+			power_text = "%s (%s)" % [power_text, power_source]
+		lines.append("Power type: %s" % power_text)
+		var control_text: String = _runtime_object_info_value(object_data, ["control_mode", "control_type"], "internal")
+		var control_source: String = _runtime_object_info_value(object_data, ["control_terminal_id", "linked_terminal_id", "control_source_id"])
+		if control_text == "external" and not control_source.is_empty():
+			control_text = "%s (%s)" % [control_text, control_source]
+		lines.append("Control type: %s" % control_text)
+		if _runtime_object_info_type_label(object_data) == "Door":
+			lines.append("Access type: %s" % _runtime_access_type_label(_runtime_object_info_value(object_data, ["access_type", "lock_type"], "none")))
+		elif _runtime_object_info_type_label(object_data) == "Terminal":
+			lines.append("Device version: %s" % _runtime_object_info_value(object_data, ["device_version", "terminal_version", "version"], "v1"))
+			lines.append("Connection type: %s" % _runtime_object_info_value(object_data, ["connection_type"], "wired"))
+			var stored: Array[String] = []
+			for field_name in ["stored_key_ids", "stored_access_ids", "stored_item_ids", "digital_key_ids", "access_code_ids"]:
+				for value_variant in Array(object_data.get(field_name, [])):
+					stored.append(String(value_variant))
+			if not _safe_ui_string(object_data.get("stored_key_id", object_data.get("access_key_id", ""))).strip_edges().is_empty():
+				stored.append(_safe_ui_string(object_data.get("stored_key_id", object_data.get("access_key_id", ""))))
+			lines.append("Stored keys/access: %s" % (", ".join(stored) if not stored.is_empty() else "none"))
+	elif lines.size() <= 2:
+		lines.append("Details unknown. Scan or reveal this object for more information.")
 	var panel := PanelContainer.new()
 	panel.z_index = Z_RUNTIME_HUD + 8
 	panel.z_as_relative = false
 	panel.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	panel.modulate.a = 0.88
 	panel.add_theme_stylebox_override("panel", _make_panel_style(UI_COLOR_PANEL_DARK, UI_COLOR_ACCENT, 1, 8))
 	var margin := MarginContainer.new()
 	margin.add_theme_constant_override("margin_left", 8)
@@ -10069,20 +10058,16 @@ func _show_runtime_object_info_hud(cell: Vector2i) -> void:
 	var label := Label.new()
 	label.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 	label.text = "\n".join(lines)
-	label.custom_minimum_size = Vector2(180, 0)
+	label.custom_minimum_size = Vector2(220, 0)
 	margin.add_child(label)
 	panel.add_child(margin)
 	runtime_hud_root.add_child(panel)
 	runtime_object_info_panel = panel
 	runtime_object_info_cell = cell
-	var renderer_node: Node = field_runtime.get_node_or_null("RoomVisualRenderer")
-	if renderer_node != null and renderer_node is RoomVisualRenderer:
-		var renderer: RoomVisualRenderer = renderer_node
-		var world_pos: Vector2 = renderer.to_global(renderer.grid_to_iso(cell)) + Vector2(44.0, -18.0)
-		var viewport_size: Vector2 = get_viewport().get_visible_rect().size
-		panel.reset_size()
-		var panel_size: Vector2 = panel.get_combined_minimum_size()
-		panel.position = Vector2(clampf(world_pos.x, 8.0, maxf(8.0, viewport_size.x - panel_size.x - 8.0)), clampf(world_pos.y, 8.0, maxf(8.0, viewport_size.y - panel_size.y - 8.0)))
+	var viewport_size: Vector2 = get_viewport().get_visible_rect().size
+	panel.reset_size()
+	var panel_size: Vector2 = panel.get_combined_minimum_size()
+	panel.position = Vector2(maxf(8.0, viewport_size.x - panel_size.x - 16.0), 72.0)
 
 func _handle_runtime_gameplay_mouse_click(event: InputEventMouseButton) -> bool:
 	if app_screen_mode != AppScreenMode.GAMEPLAY:
@@ -13005,19 +12990,28 @@ func _add_map_constructor_active_settings(parent: VBoxContainer, entity_kind: St
 		return
 	var section := _create_inspector_section("Active Object Settings")
 	var power_mode: String = _safe_ui_string(data.get("power_mode", "external" if bool(data.get("requires_external_power", false)) else "internal")).to_lower()
-	_add_enum_property(section, "Power type", entity_kind, entity_id, "power_mode", power_mode, [{"label":"Internal", "value":"internal"}, {"label":"External", "value":"external"}])
+	var power_options: Array[Dictionary] = [{"label":"Internal", "value":"internal"}, {"label":"External", "value":"external"}]
+	if type_group in ["power", "control"]:
+		power_options.push_front({"label":"Non", "value":"none"})
+	_add_enum_property(section, "Power type", entity_kind, entity_id, "power_mode", power_mode, power_options)
 	if power_mode == "external":
 		_add_link_picker(section, entity_kind, entity_id, "power_source", "Power Source Binding")
 	var control_mode: String = _safe_ui_string(data.get("control_mode", "external" if bool(data.get("requires_external_control", false)) else "internal")).to_lower()
-	_add_enum_property(section, "Control type", entity_kind, entity_id, "control_mode", control_mode, [{"label":"Internal", "value":"internal"}, {"label":"External", "value":"external"}])
+	var control_options: Array[Dictionary] = [{"label":"Internal", "value":"internal"}, {"label":"External", "value":"external"}]
+	if type_group in ["power", "control"]:
+		control_options.push_front({"label":"Non", "value":"none"})
+	_add_enum_property(section, "Control type", entity_kind, entity_id, "control_mode", control_mode, control_options)
 	if control_mode == "external":
 		_add_link_picker(section, entity_kind, entity_id, "control_terminal", "Control Terminal Binding")
 	if type_group == "door":
 		var state_note: Label = Label.new()
 		state_note.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
-		state_note.text = "Door states: Open, Closed, Locked, Jammed (stored as open/closed/locked/jammed)."
+		state_note.text = "Door states: Open, Closed, Locked, Jammed, Damaged (stored as open/closed/locked/jammed/damaged)."
 		section.add_child(state_note)
-		_add_enum_property(section, "Door state", entity_kind, entity_id, "state", data.get("state", "closed"), [{"label":"Open", "value":"open"}, {"label":"Closed", "value":"closed"}, {"label":"Locked", "value":"locked"}, {"label":"Jammed", "value":"jammed"}])
+		_add_enum_property(section, "Door state", entity_kind, entity_id, "state", data.get("state", "closed"), [{"label":"Open", "value":"open"}, {"label":"Closed", "value":"closed"}, {"label":"Locked", "value":"locked"}, {"label":"Jammed", "value":"jammed"}, {"label":"Damaged", "value":"damaged"}])
+		var is_closed_label := Label.new()
+		is_closed_label.text = str(bool(data.get("is_closed", String(data.get("state", "closed")) in ["closed", "locked", "jammed", "damaged"])))
+		section.add_child(_create_property_row("is_closed", is_closed_label))
 		var access_type: String = _safe_ui_string(data.get("access_type", data.get("lock_type", "none"))).to_lower()
 		_add_enum_property(section, "Key/access type", entity_kind, entity_id, "access_type", access_type, [{"label":"Mechanical key", "value":"mechanical_key"}, {"label":"Digital key", "value":"digital_key"}, {"label":"Access code", "value":"access_code"}, {"label":"Terminal access", "value":"terminal_access"}, {"label":"No key", "value":"none"}])
 		if access_type in ["mechanical_key", "digital_key", "access_code"]:
@@ -13834,12 +13828,16 @@ func _refresh_runtime_interaction_controls() -> void:
 	var target_object: Dictionary = Dictionary(target_data.get("target_object", {}))
 	var actions: Array = Array(target_data.get("actions", []))
 	var has_interactable := not target_object.is_empty() and not actions.is_empty()
+	if has_interactable and not runtime_interaction_mode_active and runtime_action_button != null:
+		_apply_selected_pulse(runtime_action_button)
 	var has_actions_left := bipob != null and int(bipob.actions_left) > 0
 	if runtime_interaction_mode_active and (not has_interactable or not has_actions_left):
 		runtime_interaction_mode_active = false
 	if runtime_action_button != null:
 		runtime_action_button.text = "Cancel" if runtime_interaction_mode_active else "Action"
 		_apply_action_button_style(runtime_action_button, "danger" if runtime_interaction_mode_active else "primary", true)
+		if runtime_interaction_mode_active:
+			_apply_selected_pulse(runtime_action_button)
 	if runtime_end_turn_button != null:
 		_apply_action_button_style(runtime_end_turn_button, "reference", true)
 	if runtime_interaction_actions_row == null:
@@ -13867,6 +13865,7 @@ func _refresh_runtime_interaction_controls() -> void:
 		var action_id := String(action_variant)
 		var button := _create_runtime_control_button(bipob.get_world_action_display_label(action_id, target_object), Callable(self, "_on_runtime_interaction_action_pressed").bind(action_id), "primary")
 		button.custom_minimum_size = runtime_action_button.custom_minimum_size
+		_apply_selected_pulse(button)
 		runtime_interaction_actions_row.add_child(button)
 	for trailing_column_index in range(max(0, 2 - actions.size())):
 		var trailing_spacer := Control.new()
