@@ -256,6 +256,7 @@ enum AppScreenMode {
 	SHOP_PLACEHOLDER,
 	RESEARCH_PLACEHOLDER,
 	REPAIR_PLACEHOLDER,
+	PROGRAMMER_MENU,
 	CHARGING_MENU
 }
 
@@ -298,6 +299,12 @@ var tasks_report_label: Label
 var tasks_bipob_buttons_row: HBoxContainer
 var charging_menu_root: Control = null
 var box_menu_root: Control = null
+var programmer_menu_root: Control = null
+var programmer_message_label: Label = null
+var programmer_pending_files: Array[Dictionary] = []
+var programmer_completed_files: Array[Dictionary] = []
+var programmer_pending_bipobs: Array[Dictionary] = []
+var programmer_reprogrammed_bipobs: Array[Dictionary] = []
 var charging_active_tab: String = "supercharger"
 var tasks_validation_label: Label
 var tasks_start_button: Button
@@ -5839,6 +5846,8 @@ func _hide_all_app_screens() -> void:
 		mission_result_root.visible = false
 	if charging_menu_root != null:
 		charging_menu_root.visible = false
+	if programmer_menu_root != null:
+		programmer_menu_root.visible = false
 	if box_menu_root != null:
 		box_menu_root.visible = false
 	if box_screen != null:
@@ -5905,7 +5914,7 @@ func _get_menu_content_max_height() -> float:
 
 func get_ui_layout_audit_report() -> String:
 	var vp := _get_viewport_size()
-	var roots := {"main": main_menu_root, "center": center_menu_root, "tasks": tasks_menu_root, "box": box_menu_root, "charging": charging_menu_root, "repair": repair_menu_root, "hud": runtime_hud_root}
+	var roots := {"main": main_menu_root, "center": center_menu_root, "tasks": tasks_menu_root, "box": box_menu_root, "charging": charging_menu_root, "repair": repair_menu_root, "programmer": programmer_menu_root, "hud": runtime_hud_root}
 	var is_visible_flag := 0
 	var lines: Array[String] = ["UI Audit", "screen=%s" % str(app_screen_mode), "small_viewport=%s" % str(_is_small_viewport()), "viewport=%.0fx%.0f" % [vp.x, vp.y]]
 	for k in roots.keys():
@@ -5950,6 +5959,10 @@ func get_full_menu_ui_smoke_check_text() -> String:
 		"  - Empty state shown once",
 		"  - Damaged rows scroll",
 		"  - Repair buttons reachable",
+		"- Programmer",
+		"  - Back visible",
+		"  - File and bipob rows scroll",
+		"  - Completed rows move to the bottom",
 		"- Gameplay HUD",
 		"- World Action Panel",
 		"- Mission Result",
@@ -5972,6 +5985,8 @@ func navigate_to_screen(target_screen: AppScreenMode, payload: Dictionary = {}) 
 			show_charging_menu()
 		AppScreenMode.REPAIR_PLACEHOLDER:
 			show_repair_menu()
+		AppScreenMode.PROGRAMMER_MENU:
+			show_programmer_menu()
 		AppScreenMode.GAMEPLAY:
 			start_gameplay_from_center()
 		AppScreenMode.MISSION_RESULT:
@@ -5997,6 +6012,7 @@ func _assert_single_active_major_screen() -> void:
 		"MissionResult": mission_result_root,
 		"ChargingMenu": charging_menu_root,
 		"RepairMenu": repair_menu_root,
+		"ProgrammerMenu": programmer_menu_root,
 		"BoxMenu": box_menu_root,
 		"LegacyBoxScreen": box_screen,
 		"RuntimeHUD": runtime_hud_root
@@ -8337,6 +8353,7 @@ func _build_center_menu_layout() -> void:
 	bottom_grid.add_child(_create_menu_button("Зарядка", Callable(self, "_on_center_charge_pressed"), Vector2(150, 54)))
 	bottom_grid.add_child(_create_menu_button("Исследования", Callable(self, "_on_center_research_pressed"), Vector2(150, 54)))
 	bottom_grid.add_child(_create_menu_button("Ремонт", Callable(self, "_on_center_repair_pressed"), Vector2(150, 54)))
+	bottom_grid.add_child(_create_menu_button("Programmer", Callable(self, "_on_center_programmer_pressed"), Vector2(150, 54)))
 
 func _build_tasks_menu_layout() -> void:
 	if tasks_menu_root == null:
@@ -8809,6 +8826,8 @@ func _on_center_research_pressed() -> void:
 	navigate_to_screen(AppScreenMode.RESEARCH_PLACEHOLDER)
 func _on_center_repair_pressed() -> void:
 	navigate_to_screen(AppScreenMode.REPAIR_PLACEHOLDER)
+func _on_center_programmer_pressed() -> void:
+	navigate_to_screen(AppScreenMode.PROGRAMMER_MENU)
 func _on_center_shop_pressed() -> void:
 	navigate_to_screen(AppScreenMode.SHOP_PLACEHOLDER)
 func _on_center_settings_pressed() -> void:
@@ -9168,6 +9187,477 @@ func can_charge_bipob(bipob_data: Dictionary) -> bool:
 	if not bipob_has_charger(bipob_data):
 		return false
 	return get_bipob_current_energy(bipob_data) < get_bipob_max_energy(bipob_data)
+
+func show_programmer_menu() -> void:
+	if not _ensure_gameplay_runtime_created():
+		show_hint("Gameplay runtime is unavailable.")
+		return
+	app_screen_mode = AppScreenMode.PROGRAMMER_MENU
+	_hide_all_app_screens()
+	if programmer_menu_root != null and is_instance_valid(programmer_menu_root):
+		programmer_menu_root.queue_free()
+	programmer_menu_root = _build_fullscreen_root("ProgrammerMenuRoot")
+	add_child(programmer_menu_root)
+	var margin: MarginContainer = MarginContainer.new()
+	margin.set_anchors_preset(Control.PRESET_FULL_RECT)
+	var safe_margin: int = int(_get_safe_margin())
+	margin.add_theme_constant_override("margin_left", safe_margin)
+	margin.add_theme_constant_override("margin_right", safe_margin)
+	margin.add_theme_constant_override("margin_top", safe_margin)
+	margin.add_theme_constant_override("margin_bottom", safe_margin)
+	programmer_menu_root.add_child(margin)
+	var panel: PanelContainer = PanelContainer.new()
+	_apply_panel_style(panel, true)
+	margin.add_child(panel)
+	var root: VBoxContainer = VBoxContainer.new()
+	root.add_theme_constant_override("separation", 10)
+	panel.add_child(root)
+	var top_row: HBoxContainer = HBoxContainer.new()
+	top_row.add_theme_constant_override("separation", 8)
+	root.add_child(top_row)
+	var title: Label = Label.new()
+	title.text = "Programmer"
+	_apply_label_style(title, false, true)
+	top_row.add_child(title)
+	var top_spacer: Control = Control.new()
+	top_spacer.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	top_row.add_child(top_spacer)
+	top_row.add_child(_create_menu_button("Back", Callable(self, "_on_programmer_back_pressed"), Vector2(120, MENU_TOP_BUTTON_HEIGHT)))
+	programmer_message_label = Label.new()
+	programmer_message_label.text = "Decrypt/recover files and reprogram found or damaged bipobs."
+	programmer_message_label.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	_apply_label_style(programmer_message_label, true, false)
+	root.add_child(programmer_message_label)
+	var scroll: ScrollContainer = ScrollContainer.new()
+	scroll.name = "ProgrammerScroll"
+	scroll.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	scroll.size_flags_vertical = Control.SIZE_EXPAND_FILL
+	scroll.horizontal_scroll_mode = ScrollContainer.SCROLL_MODE_DISABLED
+	root.add_child(scroll)
+	var rows_vbox: VBoxContainer = VBoxContainer.new()
+	rows_vbox.name = "ProgrammerRowsVBox"
+	rows_vbox.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	rows_vbox.add_theme_constant_override("separation", 10)
+	scroll.add_child(rows_vbox)
+	_refresh_programmer_menu()
+	_assert_single_active_major_screen()
+
+func _refresh_programmer_menu() -> void:
+	if programmer_menu_root == null or not is_instance_valid(programmer_menu_root):
+		return
+	_sync_programmer_runtime_lists()
+	var rows_vbox: VBoxContainer = programmer_menu_root.find_child("ProgrammerRowsVBox", true, false)
+	if rows_vbox == null:
+		return
+	var old_children: Array = rows_vbox.get_children().duplicate()
+	for child_variant in old_children:
+		var child: Node = child_variant
+		if child != null and is_instance_valid(child):
+			child.queue_free()
+	rows_vbox.add_child(_create_programmer_section_header("Files for decryption or recovery"))
+	if programmer_pending_files.is_empty() and programmer_completed_files.is_empty():
+		rows_vbox.add_child(_create_programmer_empty_label("No files in inventory or on the field."))
+	else:
+		for file_record in programmer_pending_files:
+			rows_vbox.add_child(_create_programmer_file_row(file_record, false))
+		for file_record in programmer_completed_files:
+			rows_vbox.add_child(_create_programmer_file_row(file_record, true))
+	rows_vbox.add_child(_create_programmer_section_header("Damaged / found bipobs"))
+	if programmer_pending_bipobs.is_empty() and programmer_reprogrammed_bipobs.is_empty():
+		rows_vbox.add_child(_create_programmer_empty_label("No damaged or found bipobs available."))
+	else:
+		for bipob_record in programmer_pending_bipobs:
+			rows_vbox.add_child(_create_programmer_bipob_row(bipob_record, false))
+		for bipob_record in programmer_reprogrammed_bipobs:
+			rows_vbox.add_child(_create_programmer_bipob_row(bipob_record, true))
+
+func _sync_programmer_runtime_lists() -> void:
+	var pending_file_by_id: Dictionary = _programmer_dictionary_by_id(programmer_pending_files)
+	var completed_file_by_id: Dictionary = _programmer_dictionary_by_id(programmer_completed_files)
+	for source_file in _get_programmer_source_files():
+		var file_id: String = String(source_file.get("id", "")).strip_edges()
+		if file_id.is_empty():
+			continue
+		var state: String = String(source_file.get("state", source_file.get("digital_state", "encrypted"))).strip_edges().to_lower()
+		if completed_file_by_id.has(file_id):
+			completed_file_by_id[file_id] = _merge_programmer_record(Dictionary(completed_file_by_id[file_id]), source_file)
+		elif ["decrypted", "recovered", "opened", "complete", "completed"].has(state):
+			completed_file_by_id[file_id] = source_file
+		elif not pending_file_by_id.has(file_id):
+			pending_file_by_id[file_id] = source_file
+		else:
+			pending_file_by_id[file_id] = _merge_programmer_record(Dictionary(pending_file_by_id[file_id]), source_file)
+	programmer_pending_files = _programmer_sorted_records(pending_file_by_id)
+	programmer_completed_files = _programmer_sorted_records(completed_file_by_id)
+	var pending_bipob_by_id: Dictionary = _programmer_dictionary_by_id(programmer_pending_bipobs)
+	var completed_bipob_by_id: Dictionary = _programmer_dictionary_by_id(programmer_reprogrammed_bipobs)
+	for source_bipob in _get_programmer_source_bipobs():
+		var bipob_id: String = String(source_bipob.get("id", source_bipob.get("profile_id", ""))).strip_edges()
+		if bipob_id.is_empty():
+			continue
+		source_bipob["id"] = bipob_id
+		if completed_bipob_by_id.has(bipob_id):
+			completed_bipob_by_id[bipob_id] = _merge_programmer_record(Dictionary(completed_bipob_by_id[bipob_id]), source_bipob)
+		elif not pending_bipob_by_id.has(bipob_id):
+			pending_bipob_by_id[bipob_id] = source_bipob
+		else:
+			pending_bipob_by_id[bipob_id] = _merge_programmer_record(Dictionary(pending_bipob_by_id[bipob_id]), source_bipob)
+	programmer_pending_bipobs = _programmer_sorted_records(pending_bipob_by_id)
+	programmer_reprogrammed_bipobs = _programmer_sorted_records(completed_bipob_by_id)
+
+func _get_programmer_source_files() -> Array[Dictionary]:
+	var records: Array[Dictionary] = []
+	var seen: Dictionary = {}
+	if bipob != null:
+		if _object_has_property(bipob, "digital_world_records"):
+			var digital_records: Dictionary = Dictionary(bipob.get("digital_world_records"))
+			for key_variant in digital_records.keys():
+				var record: Dictionary = _programmer_as_dictionary(digital_records.get(key_variant, {}))
+				record["id"] = String(record.get("id", key_variant)).strip_edges()
+				_append_programmer_file_if_relevant(records, seen, record, "bipob")
+		if bipob.has_method("get_digital_storage_items"):
+			for item_variant in Array(bipob.call("get_digital_storage_items")):
+				_append_programmer_file_if_relevant(records, seen, _programmer_as_dictionary(item_variant), "storage")
+	if mission_manager_runtime != null and mission_manager_runtime.has_method("get_inventory_state"):
+		var inv: Dictionary = Dictionary(mission_manager_runtime.call("get_inventory_state"))
+		for item_id_variant in Array(inv.get("digital_buffer", [])):
+			var item_id: String = String(item_id_variant).strip_edges()
+			if item_id.is_empty():
+				continue
+			var runtime_map: Dictionary = Dictionary(inv.get("world_item_runtime", {}))
+			var runtime_entry: Dictionary = _programmer_as_dictionary(runtime_map.get(item_id, {}))
+			var item_data: Dictionary = _programmer_as_dictionary(runtime_entry.get("item_data", runtime_entry))
+			item_data["id"] = item_id
+			_append_programmer_file_if_relevant(records, seen, item_data, "inventory")
+		var runtime_items: Dictionary = Dictionary(inv.get("world_item_runtime", {}))
+		for runtime_key_variant in runtime_items.keys():
+			var runtime_record: Dictionary = _programmer_as_dictionary(runtime_items.get(runtime_key_variant, {}))
+			var runtime_item_data: Dictionary = _programmer_as_dictionary(runtime_record.get("item_data", runtime_record))
+			runtime_item_data["id"] = String(runtime_item_data.get("id", runtime_key_variant)).strip_edges()
+			_append_programmer_file_if_relevant(records, seen, runtime_item_data, "inventory")
+	if mission_manager_runtime != null and _object_has_property(mission_manager_runtime, "mission_world_objects"):
+		for object_variant in Array(mission_manager_runtime.get("mission_world_objects")):
+			_append_programmer_file_if_relevant(records, seen, _programmer_as_dictionary(object_variant), "field")
+	if mission_manager_runtime != null and _object_has_property(mission_manager_runtime, "cell_items"):
+		var cell_items_map: Dictionary = Dictionary(mission_manager_runtime.get("cell_items"))
+		for cell_variant in cell_items_map.keys():
+			for item_variant in Array(cell_items_map.get(cell_variant, [])):
+				_append_programmer_file_if_relevant(records, seen, _programmer_as_dictionary(item_variant), "field")
+	return records
+
+func _append_programmer_file_if_relevant(records: Array[Dictionary], seen: Dictionary, data: Dictionary, source: String) -> void:
+	if data.is_empty():
+		return
+	var file_id: String = String(data.get("id", data.get("record_id", ""))).strip_edges()
+	if file_id.is_empty():
+		return
+	var combined_text: String = (file_id + " " + String(data.get("display_name", data.get("name", ""))) + " " + String(data.get("item_type", data.get("object_type", ""))) + " " + String(data.get("item_family", ""))).to_lower()
+	var state: String = String(data.get("digital_state", data.get("state", ""))).strip_edges().to_lower()
+	var is_file: bool = combined_text.contains("file") or combined_text.contains("data") or combined_text.contains("record") or combined_text.contains("digital")
+	var needs_programmer: bool = ["encrypted", "corrupted", "damaged", "recover", "recovery", "lost"].has(state) or combined_text.contains("encrypted") or combined_text.contains("corrupt")
+	var is_completed: bool = ["decrypted", "recovered", "opened", "complete", "completed"].has(state)
+	if not is_file and not needs_programmer and not is_completed:
+		return
+	if seen.has(file_id):
+		return
+	seen[file_id] = true
+	var record: Dictionary = data.duplicate(true)
+	record["id"] = file_id
+	record["source"] = source
+	if String(record.get("display_name", "")).strip_edges().is_empty():
+		record["display_name"] = file_id.capitalize()
+	if state.is_empty():
+		record["state"] = "encrypted" if needs_programmer else "opened"
+	else:
+		record["state"] = state
+	record["action"] = "Decrypt"
+	if ["corrupted", "damaged", "recover", "recovery", "lost"].has(String(record.get("state", "")).to_lower()):
+		record["action"] = "Recover"
+	records.append(record)
+
+func _get_programmer_source_bipobs() -> Array[Dictionary]:
+	var records: Array[Dictionary] = []
+	var seen: Dictionary = {}
+	if bipob != null and bipob.has_method("get_damaged_bipobs_for_repair"):
+		for row_variant in Array(bipob.call("get_damaged_bipobs_for_repair")):
+			var row: Dictionary = _programmer_as_dictionary(row_variant)
+			var row_id: String = String(row.get("profile_id", row.get("id", ""))).strip_edges()
+			if row_id.is_empty() or seen.has(row_id):
+				continue
+			seen[row_id] = true
+			row["id"] = row_id
+			row["type"] = String(row.get("name", "Bipob"))
+			records.append(row)
+	if mission_manager_runtime != null and _object_has_property(mission_manager_runtime, "mission_world_objects"):
+		for object_variant in Array(mission_manager_runtime.get("mission_world_objects")):
+			var object_data: Dictionary = _programmer_as_dictionary(object_variant)
+			var object_id: String = String(object_data.get("id", "")).strip_edges()
+			if object_id.is_empty() or seen.has(object_id):
+				continue
+			var text: String = (object_id + " " + String(object_data.get("display_name", object_data.get("name", ""))) + " " + String(object_data.get("object_type", object_data.get("item_type", "")))).to_lower()
+			var state: String = String(object_data.get("state", object_data.get("status", ""))).to_lower()
+			if not text.contains("bipob") and not text.contains("bipop"):
+				continue
+			if not ["damaged", "broken", "found", "disabled", "corrupted", ""].has(state):
+				continue
+			seen[object_id] = true
+			object_data["id"] = object_id
+			object_data["type"] = String(object_data.get("display_name", object_data.get("name", "Found Bipob")))
+			records.append(object_data)
+	return records
+
+func _create_programmer_section_header(text: String) -> Control:
+	var label: Label = Label.new()
+	label.text = text
+	_apply_label_style(label, false, true)
+	return label
+
+func _create_programmer_empty_label(text: String) -> Control:
+	var label: Label = Label.new()
+	label.text = text
+	label.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	_apply_label_style(label, true, false)
+	return label
+
+func _create_programmer_file_row(file_record: Dictionary, completed: bool) -> Control:
+	var panel: PanelContainer = PanelContainer.new()
+	_apply_panel_style(panel)
+	panel.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	var row: BoxContainer = null
+	if _is_small_viewport():
+		row = VBoxContainer.new()
+	else:
+		row = HBoxContainer.new()
+	row.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	row.add_theme_constant_override("separation", 8)
+	panel.add_child(row)
+	row.add_child(_create_programmer_icon_card("FILE", String(file_record.get("display_name", file_record.get("id", "File")))))
+	var info: VBoxContainer = VBoxContainer.new()
+	info.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	var title: Label = Label.new()
+	title.text = String(file_record.get("display_name", file_record.get("id", "File")))
+	title.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	_apply_label_style(title)
+	info.add_child(title)
+	var details: Label = Label.new()
+	details.text = "State: %s | Cost: %d energy | Time: %s" % [String(file_record.get("state", "encrypted")), _get_programmer_file_cost(file_record), String(file_record.get("time", "1 turn"))]
+	details.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	_apply_label_style(details, true, false)
+	info.add_child(details)
+	row.add_child(info)
+	var button_text: String = String(file_record.get("action", "Decrypt"))
+	var callback: Callable = Callable(self, "_on_programmer_file_action_pressed").bind(String(file_record.get("id", "")))
+	if completed:
+		button_text = "Move to Storage"
+		callback = Callable(self, "_on_programmer_move_file_pressed").bind(String(file_record.get("id", "")))
+	var action_button: Button = _create_menu_button(button_text, callback, Vector2(160, 38), "primary")
+	row.add_child(action_button)
+	return panel
+
+func _create_programmer_bipob_row(bipob_record: Dictionary, completed: bool) -> Control:
+	var panel: PanelContainer = PanelContainer.new()
+	_apply_panel_style(panel)
+	panel.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	var row: BoxContainer = null
+	if _is_small_viewport():
+		row = VBoxContainer.new()
+	else:
+		row = HBoxContainer.new()
+	row.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	row.add_theme_constant_override("separation", 8)
+	panel.add_child(row)
+	row.add_child(_create_programmer_icon_card("BIPOB", String(bipob_record.get("type", bipob_record.get("name", "Bipob")))))
+	var info: VBoxContainer = VBoxContainer.new()
+	info.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	var title: Label = Label.new()
+	title.text = String(bipob_record.get("type", bipob_record.get("name", "Bipob")))
+	title.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	_apply_label_style(title)
+	info.add_child(title)
+	var details: Label = Label.new()
+	details.text = "Cost: %d energy | Time: %s" % [_get_programmer_bipob_cost(bipob_record), String(bipob_record.get("time", "1 turn"))]
+	details.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	_apply_label_style(details, true, false)
+	info.add_child(details)
+	row.add_child(info)
+	var button_text: String = "Reprogram"
+	var callback: Callable = Callable(self, "_on_programmer_bipob_action_pressed").bind(String(bipob_record.get("id", "")))
+	if completed:
+		button_text = "Take to Box"
+		callback = Callable(self, "_on_programmer_take_bipob_pressed").bind(String(bipob_record.get("id", "")))
+	var action_button: Button = _create_menu_button(button_text, callback, Vector2(150, 38), "primary")
+	row.add_child(action_button)
+	return panel
+
+func _create_programmer_icon_card(kind: String, label_text: String) -> Control:
+	var card: Button = Button.new()
+	card.disabled = true
+	card.focus_mode = Control.FOCUS_NONE
+	card.custom_minimum_size = Vector2(110, 54)
+	card.text = "%s\n%s" % [kind, label_text.left(14)]
+	_apply_action_button_style(card, "normal", true)
+	return card
+
+func _on_programmer_file_action_pressed(file_id: String) -> void:
+	var index: int = _programmer_find_record_index(programmer_pending_files, file_id)
+	if index < 0:
+		_set_programmer_message("File is no longer available.")
+		_refresh_programmer_menu()
+		return
+	if not _has_programmer_module():
+		_set_programmer_message("Programmer module missing. Install an Encryption Module or processor before working on files.")
+		return
+	var record: Dictionary = programmer_pending_files[index]
+	if not _consume_programmer_energy(_get_programmer_file_cost(record)):
+		_set_programmer_message("Not enough energy for %s." % String(record.get("action", "Decrypt")).to_lower())
+		return
+	programmer_pending_files.remove_at(index)
+	record["state"] = "decrypted"
+	if String(record.get("action", "Decrypt")) == "Recover":
+		record["state"] = "recovered"
+	programmer_completed_files.append(record)
+	_set_programmer_message("%s complete: %s." % [String(record.get("action", "Decrypt")), String(record.get("display_name", file_id))])
+	update_box_status()
+	_refresh_programmer_menu()
+
+func _on_programmer_move_file_pressed(file_id: String) -> void:
+	var index: int = _programmer_find_record_index(programmer_completed_files, file_id)
+	if index < 0:
+		_set_programmer_message("Completed file is no longer available.")
+		_refresh_programmer_menu()
+		return
+	var record: Dictionary = programmer_completed_files[index]
+	if bipob == null or not bipob.has_method("store_digital_record"):
+		_set_programmer_message("Digital storage is unavailable; file remains completed here.")
+		return
+	bipob.call("store_digital_record", file_id, String(record.get("display_name", file_id)), "Recovered by Programmer menu.")
+	programmer_completed_files.remove_at(index)
+	_set_programmer_message("Moved to storage: %s." % String(record.get("display_name", file_id)))
+	update_box_status()
+	_refresh_programmer_menu()
+
+func _on_programmer_bipob_action_pressed(bipob_id: String) -> void:
+	var index: int = _programmer_find_record_index(programmer_pending_bipobs, bipob_id)
+	if index < 0:
+		_set_programmer_message("Bipob is no longer available.")
+		_refresh_programmer_menu()
+		return
+	if not _has_programmer_module():
+		_set_programmer_message("Programmer module missing. Install an Encryption Module or processor before reprogramming.")
+		return
+	var record: Dictionary = programmer_pending_bipobs[index]
+	if not _consume_programmer_energy(_get_programmer_bipob_cost(record)):
+		_set_programmer_message("Not enough energy to reprogram bipob.")
+		return
+	programmer_pending_bipobs.remove_at(index)
+	record["state"] = "reprogrammed"
+	programmer_reprogrammed_bipobs.append(record)
+	_set_programmer_message("Reprogrammed: %s." % String(record.get("type", record.get("name", bipob_id))))
+	update_box_status()
+	_refresh_programmer_menu()
+
+func _on_programmer_take_bipob_pressed(bipob_id: String) -> void:
+	var index: int = _programmer_find_record_index(programmer_reprogrammed_bipobs, bipob_id)
+	if index < 0:
+		_set_programmer_message("Reprogrammed bipob is no longer available.")
+		_refresh_programmer_menu()
+		return
+	var record: Dictionary = programmer_reprogrammed_bipobs[index]
+	_programmer_add_bipob_to_box(record)
+	programmer_reprogrammed_bipobs.remove_at(index)
+	_set_programmer_message("Moved to Box: %s." % String(record.get("type", record.get("name", bipob_id))))
+	update_box_status()
+	_refresh_programmer_menu()
+
+func _programmer_add_bipob_to_box(record: Dictionary) -> void:
+	var bipob_id: String = String(record.get("profile_id", record.get("id", ""))).strip_edges()
+	if bipob_id.is_empty():
+		bipob_id = "found_bipob_%d" % tasks_available_bipobs.size()
+	for existing in tasks_available_bipobs:
+		if String(existing.get("id", "")).strip_edges() == bipob_id:
+			return
+	tasks_available_bipobs.append({"id": bipob_id, "name": String(record.get("type", record.get("name", "Bipob")))})
+
+func _on_programmer_back_pressed() -> void:
+	if programmer_menu_root != null and is_instance_valid(programmer_menu_root):
+		programmer_menu_root.queue_free()
+		programmer_menu_root = null
+	show_center_screen()
+
+func _has_programmer_module() -> bool:
+	if bipob == null:
+		return false
+	for module_id in ["encryption_module_v1", "processor_v1", "processor_v2", "cpu_v1", "gpu_v1"]:
+		if bipob.has_method("has_module_id_anywhere") and bool(bipob.call("has_module_id_anywhere", module_id)):
+			return true
+		if bipob.has_method("has_installed_external_module_id") and bool(bipob.call("has_installed_external_module_id", module_id)):
+			return true
+	return false
+
+func _consume_programmer_energy(cost: int) -> bool:
+	var safe_cost: int = maxi(0, cost)
+	if safe_cost <= 0:
+		return true
+	if bipob == null or not _object_has_property(bipob, "energy"):
+		return true
+	var current_energy: int = int(bipob.get("energy"))
+	if current_energy < safe_cost:
+		return false
+	bipob.set("energy", current_energy - safe_cost)
+	if bipob.has_signal("status_changed"):
+		bipob.emit_signal("status_changed")
+	return true
+
+func _get_programmer_file_cost(file_record: Dictionary) -> int:
+	return maxi(0, _safe_int(file_record.get("programmer_cost", file_record.get("cost", 1)), 1))
+
+func _get_programmer_bipob_cost(bipob_record: Dictionary) -> int:
+	return maxi(0, _safe_int(bipob_record.get("programmer_cost", bipob_record.get("cost", 2)), 2))
+
+func _set_programmer_message(message: String) -> void:
+	if programmer_message_label != null and is_instance_valid(programmer_message_label):
+		programmer_message_label.text = message
+
+func _programmer_as_dictionary(value: Variant) -> Dictionary:
+	if typeof(value) == TYPE_DICTIONARY:
+		return Dictionary(value).duplicate(true)
+	return {}
+
+func _merge_programmer_record(existing: Dictionary, incoming: Dictionary) -> Dictionary:
+	var merged: Dictionary = existing.duplicate(true)
+	for key_variant in incoming.keys():
+		if not merged.has(key_variant) or String(merged.get(key_variant, "")).is_empty():
+			merged[key_variant] = incoming[key_variant]
+	return merged
+
+func _programmer_dictionary_by_id(records: Array[Dictionary]) -> Dictionary:
+	var result: Dictionary = {}
+	for record in records:
+		var record_id: String = String(record.get("id", record.get("profile_id", ""))).strip_edges()
+		if not record_id.is_empty():
+			result[record_id] = record
+	return result
+
+func _programmer_sorted_records(record_map: Dictionary) -> Array[Dictionary]:
+	var keys: Array = record_map.keys()
+	keys.sort()
+	var result: Array[Dictionary] = []
+	for key_variant in keys:
+		var record: Dictionary = _programmer_as_dictionary(record_map.get(key_variant, {}))
+		if not record.is_empty():
+			result.append(record)
+	return result
+
+func _programmer_find_record_index(records: Array[Dictionary], record_id: String) -> int:
+	var normalized_id: String = record_id.strip_edges()
+	if normalized_id.is_empty():
+		return -1
+	for index in range(records.size()):
+		var record: Dictionary = records[index]
+		if String(record.get("id", record.get("profile_id", ""))).strip_edges() == normalized_id:
+			return index
+	return -1
+
 
 func show_repair_menu() -> void:
 	if not _ensure_gameplay_runtime_created():
