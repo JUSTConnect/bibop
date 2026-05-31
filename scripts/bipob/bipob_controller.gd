@@ -7806,6 +7806,8 @@ func get_collected_runtime_key_ids() -> Array:
 func get_available_world_actions(world_object: Dictionary, target_position: Vector2i) -> Array[String]:
 	var actions: Array[String] = []
 	var group := String(world_object.get("object_group", ""))
+	if group == "door":
+		world_object = WorldObjectCatalog.normalize_door_state_fields(world_object)
 	var state := String(world_object.get("state", ""))
 	var _items_here: Array[Dictionary] = mission_manager.get_items_at_cell(target_position) if mission_manager != null else []
 	if group == "door":
@@ -7822,7 +7824,8 @@ func get_available_world_actions(world_object: Dictionary, target_position: Vect
 			if state in ["damaged", "half_open", "jammed"] and has_heavy_claw():
 				actions.append("force_open")
 			return actions
-		if String(world_object.get("power_mode", "internal")).strip_edges().to_lower() == "external" and not bool(world_object.get("is_powered", true)) and state != "open":
+		var power_mode: String = String(world_object.get("power_mode", "internal")).strip_edges().to_lower()
+		if power_mode in ["external", "external_power", "external power"] and not bool(world_object.get("is_powered", true)) and state != "open":
 			return actions
 		if state in ["damaged", "half_open", "jammed"] and has_heavy_claw():
 			actions.append("force_open")

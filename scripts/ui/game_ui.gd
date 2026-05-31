@@ -2,6 +2,7 @@ extends CanvasLayer
 class_name GameUI
 
 const GameUITextHelpersRef = preload("res://scripts/ui/game_ui_text_helpers.gd")
+const WorldObjectCatalogRef = preload("res://scripts/world/world_object_catalog.gd")
 
 
 class InternalIsoPreviewControl:
@@ -13041,6 +13042,8 @@ func _add_validation_entries(section: VBoxContainer, title: String, entries: Arr
 			var label_text: String = "%s: %s" % [_safe_ui_string(entry.get("label", entry.get("field_name", "link"))), target_id]
 			var button: Button = Button.new()
 			button.text = label_text
+			var entry_location: String = _safe_ui_string(entry.get("location", "map"), "map")
+			button.disabled = entry_location != "map" and Vector2i(entry.get("cell", Vector2i(-1, -1))).x < 0
 			button.pressed.connect(func() -> void:
 				var target_kind: String = _safe_ui_string(entry.get("target_kind", "world_object"), "world_object")
 				var target_cell: Vector2i = Vector2i(entry.get("cell", Vector2i(-1, -1)))
@@ -13185,6 +13188,7 @@ func _add_door_required_key_picker(parent: VBoxContainer, entity_kind: String, e
 	option.set_item_metadata(0, {"id":"", "entity_kind":"item"})
 	if current_key_id.is_empty():
 		option.select(0)
+	var current_key_found: bool = current_key_id.is_empty()
 	var raw_candidates: Dictionary = _safe_ui_dictionary(mission_manager_runtime.call("get_map_constructor_link_targets_for_field", entity_kind, entity_id, "required_key_id"))
 	for candidate_variant in Array(raw_candidates.get("targets", [])):
 		var candidate: Dictionary = _safe_ui_dictionary(candidate_variant)
@@ -13196,7 +13200,15 @@ func _add_door_required_key_picker(parent: VBoxContainer, entity_kind: String, e
 		var option_index: int = option.item_count - 1
 		option.set_item_metadata(option_index, {"id": candidate_id, "entity_kind": candidate_kind})
 		if candidate_id == current_key_id:
+			current_key_found = true
 			option.select(option_index)
+	if not current_key_found:
+		var current_key_entity: Dictionary = _get_map_constructor_key_entity_by_id(current_key_id)
+		var current_key_label: String = _safe_ui_string(current_key_entity.get("label", current_key_id), current_key_id)
+		option.add_item(current_key_label)
+		var current_option_index: int = option.item_count - 1
+		option.set_item_metadata(current_option_index, {"id": current_key_id, "entity_kind": _safe_ui_string(current_key_entity.get("entity_kind", "item"), "item")})
+		option.select(current_option_index)
 	section.add_child(_create_property_row("Required key", option))
 	var actions := HFlowContainer.new()
 	var apply_button := Button.new()
