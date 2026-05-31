@@ -5144,16 +5144,7 @@ func _get_runtime_secondary_objective_text() -> String:
 
 
 func _refresh_runtime_notification_fallback() -> void:
-	if runtime_notification_label == null:
-		return
-	runtime_notification_timer = 0.0
-	runtime_notification_role = "neutral"
-	runtime_notification_label.modulate = Color.WHITE
-	var secondary_text := _get_runtime_secondary_objective_text()
-	runtime_notification_label.text = secondary_text
-	runtime_notification_label.add_theme_color_override("font_color", UI_COLOR_TEXT_DIM)
-	if runtime_notification_panel != null:
-		runtime_notification_panel.add_theme_stylebox_override("panel", _make_panel_style(UI_COLOR_PANEL_DARK, UI_COLOR_BORDER_DIM, 1, 8))
+	RuntimeNotifications.refresh_runtime_notification_fallback(self)
 
 
 func _get_runtime_mission_objective_text() -> String:
@@ -8112,9 +8103,7 @@ func _on_remove_external_module_pressed() -> void:
 		update_box_status()
 
 func show_hint(message: String) -> void:
-	if hint_label != null:
-		hint_label.text = message
-	_show_runtime_notification(message)
+	RuntimeNotifications.show_hint(self, message)
 
 
 func _on_constructor_dashboard_button_pressed() -> void:
@@ -10040,13 +10029,7 @@ func _process(delta: float) -> void:
 func _process_runtime_interaction_feedback(delta: float) -> void:
 	if app_screen_mode != AppScreenMode.GAMEPLAY:
 		return
-	if runtime_notification_timer > 0.0:
-		runtime_notification_timer = maxf(0.0, runtime_notification_timer - delta)
-		if runtime_notification_label != null:
-			var pulse: float = 0.70 + 0.30 * abs(sin(float(Time.get_ticks_msec()) / 180.0))
-			runtime_notification_label.modulate = Color(1, 1, 1, pulse)
-	elif runtime_notification_label != null:
-		_refresh_runtime_notification_fallback()
+	RuntimeNotifications.process_runtime_notification_timer(self, delta)
 	if bipob == null:
 		return
 	_refresh_runtime_interaction_controls()
@@ -10071,31 +10054,6 @@ func _process_runtime_interaction_feedback(delta: float) -> void:
 			runtime_end_turn_button.modulate = Color(1.0, 1.0, 1.0, pulse_alpha)
 		else:
 			runtime_end_turn_button.modulate = Color.WHITE
-
-func _get_runtime_notification_role(message: String) -> String:
-	var lower := message.to_lower()
-	for token in ["required", "locked", "no ", "cannot", "failed", "missing", "not enough", "blocked", "rejected", "occupied"]:
-		if lower.find(token) != -1:
-			return "danger"
-	for token in ["collected", "unlocked", "opened", "closed", "complete", "success", "stored", "picked up"]:
-		if lower.find(token) != -1:
-			return "ok"
-	return "info"
-
-func _show_runtime_notification(message: String) -> void:
-	if runtime_notification_label == null:
-		return
-	runtime_notification_role = _get_runtime_notification_role(message)
-	runtime_notification_timer = 7.0
-	runtime_notification_label.text = message
-	var color := UI_COLOR_ACCENT
-	if runtime_notification_role == "ok":
-		color = UI_COLOR_OK
-	elif runtime_notification_role == "danger":
-		color = UI_COLOR_DANGER
-	runtime_notification_label.add_theme_color_override("font_color", color)
-	if runtime_notification_panel != null:
-		runtime_notification_panel.add_theme_stylebox_override("panel", _make_panel_style(UI_COLOR_PANEL_DARK, color, 1, 8))
 
 # -----------------------------------------------------------------------------
 # Map Constructor root
