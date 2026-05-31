@@ -13412,36 +13412,7 @@ func _add_map_constructor_active_settings(parent: VBoxContainer, entity_kind: St
 # -----------------------------------------------------------------------------
 
 func _add_validation_entries(section: VBoxContainer, title: String, entries: Array) -> void:
-	var title_label: Label = Label.new()
-	title_label.text = title
-	section.add_child(title_label)
-	if entries.is_empty():
-		var none_label: Label = Label.new()
-		none_label.text = "(none)"
-		section.add_child(none_label)
-		return
-	for entry_variant in entries:
-		if entry_variant is Dictionary:
-			var entry: Dictionary = _safe_ui_dictionary(entry_variant)
-			var target_id: String = _safe_ui_string(entry.get("target_id", entry.get("id", "")))
-			var label_text: String = "%s: %s" % [_safe_ui_string(entry.get("label", entry.get("field_name", "link"))), target_id]
-			var button: Button = Button.new()
-			button.text = label_text
-			var entry_location: String = _safe_ui_string(entry.get("location", "map"), "map")
-			button.disabled = entry_location != "map" and _safe_ui_vector2i(entry.get("cell", Vector2i(-1, -1))).x < 0
-			button.pressed.connect(func() -> void:
-				var target_kind: String = _safe_ui_string(entry.get("target_kind", "world_object"), "world_object")
-				var target_cell: Vector2i = _safe_ui_vector2i(entry.get("cell", Vector2i(-1, -1)))
-				if target_cell.x >= 0 and target_cell.y >= 0:
-					_focus_map_constructor_cell(target_cell)
-				_show_map_constructor_inspector(target_cell, target_kind, target_id)
-			)
-			section.add_child(button)
-		else:
-			var label: Label = Label.new()
-			label.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
-			label.text = _safe_ui_string(entry_variant)
-			section.add_child(label)
+	MapConstructorValidationView.add_validation_entries(self, section, title, entries)
 
 func _get_map_constructor_key_entity_by_id(key_id: String) -> Dictionary:
 	return MapConstructorLinkControls.get_map_constructor_key_entity_by_id(self, key_id)
@@ -13678,11 +13649,10 @@ func _show_map_constructor_inspector(cell: Vector2i, preferred_entity_kind: Stri
 	var validation_result: Dictionary = {}
 	if mission_manager_runtime != null and mission_manager_runtime.has_method("validate_map_constructor_entity_links"):
 		validation_result = _safe_ui_dictionary(mission_manager_runtime.call("validate_map_constructor_entity_links", entity_kind, entity_id))
-		_add_validation_entries(link_section, "Linked", _safe_ui_array(validation_result.get("linked_targets", [])))
+		MapConstructorValidationView.add_linked_targets(self, link_section, validation_result)
 	v.add_child(link_section)
 	var warning_section: VBoxContainer = _create_inspector_section("6. Warnings")
-	_add_validation_entries(warning_section, "Missing", _safe_ui_array(validation_result.get("missing_links", [])))
-	_add_validation_entries(warning_section, "Warnings", _safe_ui_array(validation_result.get("warnings", [])))
+	MapConstructorValidationView.add_warning_entries(self, warning_section, validation_result)
 	v.add_child(warning_section)
 	var deferred_wall_section: VBoxContainer = null
 	# Floor/wall controls are kept inline for the audit baseline; extract later.
