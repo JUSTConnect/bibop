@@ -63,9 +63,20 @@ static func build(ui, cell: Vector2i) -> void:
 	var known_details: bool = scan_level >= 1 or bool(object_data.get("scanned", false)) or bool(object_data.get("visible", false))
 	var lines: Array[String] = []
 	var type_label: String = info_type_label(ui, object_data)
-	lines.append("Object type: %s" % type_label)
+	var object_type: String = info_value(ui, object_data, ["object_type"], type_label.to_snake_case())
+	lines.append("Object type: %s" % object_type)
+	for class_field in ["object_class", "terminal_class", "power_source_class", "category"]:
+		if object_data.has(class_field):
+			lines.append("%s: %s" % [class_field.capitalize(), info_value(ui, object_data, [class_field])])
 	if type_label == "Door":
 		lines.append("Door type: %s" % door_type_label(ui, object_data))
+		if object_data.has("door_class"):
+			lines.append("Door class: %s" % info_value(ui, object_data, ["door_class"]))
+		if object_data.has("required_manipulator_level"):
+			lines.append("Required manipulator level: %s" % info_value(ui, object_data, ["required_manipulator_level"]))
+		var interface_level: String = info_value(ui, object_data, ["required_interface_level_if_energy", "required_connector_level"])
+		if not interface_level.is_empty() and int(interface_level) > 0:
+			lines.append("Required interface level: %s" % interface_level)
 	var material: String = info_value(ui, object_data, ["material", "wall_material", "floor_material"], "unknown")
 	if known_details or material != "unknown":
 		lines.append("Material: %s" % material)
@@ -106,9 +117,11 @@ static func build(ui, cell: Vector2i) -> void:
 	margin.add_theme_constant_override("margin_top", 6)
 	margin.add_theme_constant_override("margin_bottom", 6)
 	var label := Label.new()
-	label.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	label.autowrap_mode = TextServer.AUTOWRAP_OFF
+	label.clip_text = true
+	label.text_overrun_behavior = TextServer.OVERRUN_TRIM_ELLIPSIS
 	label.text = "\n".join(lines)
-	label.custom_minimum_size = Vector2(220, 0)
+	label.custom_minimum_size = Vector2(320, 0)
 	margin.add_child(label)
 	panel.add_child(margin)
 	ui.runtime_hud_root.add_child(panel)

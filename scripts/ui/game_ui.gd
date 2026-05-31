@@ -12368,7 +12368,15 @@ func _create_inspector_section(title: String) -> VBoxContainer:
 	return MapConstructorPropertyControls.create_inspector_section(title)
 
 func _create_property_row(label_text: String, control: Control) -> HBoxContainer:
-	return MapConstructorPropertyControls.create_property_row(label_text, control)
+	var row: HBoxContainer = MapConstructorPropertyControls.create_property_row(label_text, control)
+	row.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	control.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	if control is Label:
+		var value_label: Label = control
+		value_label.autowrap_mode = TextServer.AUTOWRAP_OFF
+		value_label.clip_text = true
+		value_label.text_overrun_behavior = TextServer.OVERRUN_TRIM_ELLIPSIS
+	return row
 
 func _add_text_property(section: VBoxContainer, label: String, entity_kind: String, entity_id: String, field_name: String, current_value: Variant) -> void:
 	MapConstructorPropertyControls.add_text_property(self, section, label, entity_kind, entity_id, field_name, current_value)
