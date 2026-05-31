@@ -10347,7 +10347,23 @@ func _mark_map_constructor_prefab_recent(prefab_id: String) -> void:
 func _select_map_constructor_prefab(prefab_id: String) -> void:
 	selected_map_constructor_prefab_id = prefab_id
 	selected_map_constructor_wall_side = ""
-	selected_map_constructor_mounting_mode = "wall_mounted" if prefab_id == "light" else "stationary"
+	selected_map_constructor_mounting_mode = "stationary"
+	if mission_manager_runtime != null and mission_manager_runtime.has_method("get_map_constructor_prefab_metadata"):
+		var metadata_result: Dictionary = Dictionary(mission_manager_runtime.call("get_map_constructor_prefab_metadata", prefab_id))
+		var metadata: Dictionary = Dictionary(metadata_result.get("prefab", {}))
+		if _safe_ui_string(metadata.get("placement_mode", "")).to_lower() == "wall_mounted":
+			selected_map_constructor_mounting_mode = "wall_mounted"
+	elif mission_manager_runtime != null and mission_manager_runtime.has_method("get_map_constructor_prefab_catalog"):
+		var catalog_entries: Array = Array(mission_manager_runtime.call("get_map_constructor_prefab_catalog"))
+		for entry_variant in catalog_entries:
+			if not (entry_variant is Dictionary):
+				continue
+			var entry: Dictionary = Dictionary(entry_variant)
+			if _safe_ui_string(entry.get("id", "")) != prefab_id:
+				continue
+			if _safe_ui_string(entry.get("placement_mode", "")).to_lower() == "wall_mounted":
+				selected_map_constructor_mounting_mode = "wall_mounted"
+			break
 	available_map_constructor_wall_sides.clear()
 	pending_map_constructor_cell = Vector2i(-1, -1)
 	_clear_map_constructor_pending_placement()
@@ -13848,7 +13864,7 @@ func _get_runtime_interaction_target_data() -> Dictionary:
 func _runtime_action_requires_manipulator(action_id: String, target_object: Dictionary) -> bool:
 	if action_id == "pickup" and String(target_object.get("item_form", "physical")) == "digital":
 		return false
-	return action_id in ["pickup", "open", "close", "unlock", "switch", "force_open", "push", "pull", "insert_fuse", "repair", "cut", "impact"]
+	return action_id in ["pickup", "open", "close", "unlock", "switch", "force_open", "push", "pull", "insert_fuse", "repair", "cut", "impact", "take_end_1", "take_end_2", "plug_in", "plug_out", "connect_wire_end", "connect_wire_1", "connect_wire_2", "disconnect_power_wire", "disconnect_wire_1", "disconnect_wire_2"]
 
 func _is_runtime_interaction_manipulator_blocked(target_object: Dictionary, actions: Array) -> bool:
 	if bipob == null or not bipob.has_method("can_use_physical_hand"):
