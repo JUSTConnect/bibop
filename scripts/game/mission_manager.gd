@@ -4337,6 +4337,8 @@ func _normalize_map_constructor_active_object_fields(object_data: Dictionary) ->
 		power_mode = default_power_mode
 	data["power_mode"] = power_mode
 	data["requires_external_power"] = power_mode == "external"
+	if not data.has("power_network_id"):
+		data["power_network_id"] = String(data.get("network_id", data.get("connected_power_source_id", ""))).strip_edges()
 	if not data.has("power_source_id"):
 		data["power_source_id"] = String(data.get("connected_power_source_id", data.get("power_network_id", ""))).strip_edges()
 	var object_type_normalized: String = String(data.get("object_type", prefab_id)).strip_edges().to_lower()
@@ -4365,31 +4367,109 @@ func _normalize_map_constructor_active_object_fields(object_data: Dictionary) ->
 		data["power_source_class"] = source_class
 		data["source_class"] = source_class
 		data["outlet_capacity"] = source_class + 3
+	if type_group == "terminal" and not data.has("is_powered"):
+		data["is_powered"] = true
+	if object_type_normalized in ["power_cable", "power_socket", "circuit_breaker", "circuit_switch", "fuse_box", "fuse_box_installed", "fuse_box_empty", "light", "light_switch"]:
+		if not data.has("is_powered"):
+			data["is_powered"] = false
+		if not data.has("physical_connection_source_id"):
+			data["physical_connection_source_id"] = String(data.get("power_source_id", "")).strip_edges()
+		if not data.has("damaged"):
+			data["damaged"] = false
+		if not data.has("broken"):
+			data["broken"] = false
 	if object_type_normalized == "power_cable":
 		data["state"] = String(data.get("state", "ok")).strip_edges().to_lower()
 		if data["state"] == "active":
 			data["state"] = "ok"
-		if not (String(data["state"]) in ["ok", "damaged", "broken"]):
+		if not (String(data["state"]) in ["ok", "cut", "damaged", "broken"]):
 			data["state"] = "ok"
+		if not data.has("connected"):
+			data["connected"] = true
+		if not data.has("disconnected"):
+			data["disconnected"] = not bool(data.get("connected", true))
+		if not data.has("connected_side"):
+			data["connected_side"] = bool(data.get("connected", true))
+		if not data.has("cut"):
+			data["cut"] = false
 		if not data.has("route_surface"):
 			data["route_surface"] = "floor"
 		if not data.has("is_hidden"):
 			data["is_hidden"] = bool(data.get("hidden", false))
-		if not data.has("physical_connection_source_id"):
-			data["physical_connection_source_id"] = String(data.get("power_source_id", "")).strip_edges()
+		if not data.has("cable_path_cells"):
+			data["cable_path_cells"] = []
+		if not data.has("cable_length"):
+			data["cable_length"] = 0
+	if object_type_normalized in ["circuit_breaker", "circuit_switch", "light_switch"]:
+		var switch_default_state: String = "switch_on" if object_type_normalized == "circuit_breaker" else "switch_off"
+		if String(data.get("state", "active")).strip_edges().to_lower() == "active":
+			data["state"] = switch_default_state
+		if not data.has("is_on"):
+			data["is_on"] = String(data.get("state", switch_default_state)).strip_edges().to_lower() == "switch_on"
+	if object_type_normalized in ["fuse_box", "fuse_box_installed", "fuse_box_empty"]:
+		var fuse_installed_default: bool = object_type_normalized != "fuse_box_empty"
+		if String(data.get("state", "active")).strip_edges().to_lower() == "active":
+			data["state"] = "installed" if fuse_installed_default else "empty"
+		if not data.has("requires_fuse"):
+			data["requires_fuse"] = true
+		if not data.has("fuse_installed"):
+			data["fuse_installed"] = fuse_installed_default
+	if object_type_normalized == "power_socket":
+		if String(data.get("state", "active")).strip_edges().to_lower() == "active":
+			data["state"] = "disconnected"
+		if not data.has("connected"):
+			data["connected"] = false
+		if not data.has("disconnected"):
+			data["disconnected"] = not bool(data.get("connected", false))
+		if not data.has("connected_side"):
+			data["connected_side"] = bool(data.get("connected", false))
 	if object_type_normalized == "power_cable_reel":
+		if String(data.get("state", "active")).strip_edges().to_lower() == "active":
+			data["state"] = "disconnected"
+		var legacy_reel_target_id: String = String(data.get("cable_endpoint_b_id", "")).strip_edges()
+		var has_explicit_reel_ends: bool = data.has("end_1_state") or data.has("end_1_target_id") or data.has("end_2_state") or data.has("end_2_target_id")
+		if not has_explicit_reel_ends and bool(data.get("connected", false)) and not legacy_reel_target_id.is_empty():
+			data["end_1_state"] = "connected"
+			data["end_1_target_id"] = legacy_reel_target_id
+			var legacy_reel_path: Variant = data.get("cable_path_cells", [])
+			data["end_1_path_cells"] = legacy_reel_path.duplicate(true) if legacy_reel_path is Array else []
+			data["end_1_cable_length"] = maxi(0, int(data.get("cable_length", 0)))
+		if not data.has("cut"):
+			data["cut"] = false
+		if not data.has("damaged"):
+			data["damaged"] = false
+		if not data.has("broken"):
+			data["broken"] = false
 		for end_index in range(1, 3):
 			var end_state_key: String = "end_%d_state" % end_index
 			var end_target_key: String = "end_%d_target_id" % end_index
+			var end_path_key: String = "end_%d_path_cells" % end_index
+			var end_length_key: String = "end_%d_cable_length" % end_index
 			var end_state: String = String(data.get(end_state_key, "on_reel")).strip_edges().to_lower()
 			if not (end_state in ["on_reel", "held", "connected", "disconnected"]):
 				end_state = "on_reel"
 			data[end_state_key] = end_state
 			data[end_target_key] = String(data.get(end_target_key, "")).strip_edges()
+			if not data.has(end_path_key):
+				data[end_path_key] = []
+			if not data.has(end_length_key):
+				data[end_length_key] = 0
 			if not data.has("connected_side_%d" % end_index):
-				data["connected_side_%d" % end_index] = false
+				data["connected_side_%d" % end_index] = end_state == "connected" and not String(data.get(end_target_key, "")).is_empty()
+		if not data.has("connected"):
+			data["connected"] = bool(data.get("connected_side_1", false)) or bool(data.get("connected_side_2", false))
+		if not data.has("disconnected"):
+			data["disconnected"] = not bool(data.get("connected", false))
 		if not data.has("connected_side"):
-			data["connected_side"] = false
+			data["connected_side"] = bool(data.get("connected", false))
+		if not data.has("cable_endpoint_a_id"):
+			data["cable_endpoint_a_id"] = ""
+		if not data.has("cable_endpoint_b_id"):
+			data["cable_endpoint_b_id"] = ""
+		if not data.has("cable_path_cells"):
+			data["cable_path_cells"] = []
+		if not data.has("cable_length"):
+			data["cable_length"] = 0
 	var control_mode: String = String(data.get("control_mode", "external" if bool(data.get("requires_external_control", false)) else "internal")).strip_edges().to_lower()
 	if control_mode in ["external_control", "external control"]:
 		control_mode = "external"
@@ -4401,6 +4481,8 @@ func _normalize_map_constructor_active_object_fields(object_data: Dictionary) ->
 	data["requires_external_control"] = control_mode == "external"
 	var terminal_id: String = String(data.get("control_terminal_id", data.get("linked_terminal_id", data.get("control_source_id", "")))).strip_edges()
 	data["control_terminal_id"] = terminal_id
+	if not data.has("linked_terminal_id"):
+		data["linked_terminal_id"] = terminal_id
 	if control_mode == "external":
 		data["linked_terminal_id"] = terminal_id
 		data["control_source_id"] = terminal_id
