@@ -4739,6 +4739,10 @@ func get_module_details_text(module: BipobModule) -> String:
 
 
 
+# -----------------------------------------------------------------------------
+# Runtime HUD
+# -----------------------------------------------------------------------------
+
 func _get_runtime_sidebar_width() -> float:
 	var viewport_width: float = _get_viewport_width()
 	if viewport_width <= 1100.0:
@@ -10093,6 +10097,10 @@ func _show_runtime_notification(message: String) -> void:
 	if runtime_notification_panel != null:
 		runtime_notification_panel.add_theme_stylebox_override("panel", _make_panel_style(UI_COLOR_PANEL_DARK, color, 1, 8))
 
+# -----------------------------------------------------------------------------
+# Map Constructor root
+# -----------------------------------------------------------------------------
+
 func _process_map_constructor_edge_scroll(delta: float) -> void:
 	if not edge_scroll_enabled or delta <= 0.0:
 		return
@@ -13264,12 +13272,20 @@ func _refresh_map_constructor_panels() -> void:
 	runtime_hud_root.move_child(runtime_map_constructor_palette_panel, runtime_hud_root.get_child_count() - 1)
 
 
+# -----------------------------------------------------------------------------
+# Map Constructor inspector: safe UI helpers
+# -----------------------------------------------------------------------------
+
 func _safe_ui_string(value: Variant, fallback: String = "") -> String:
 	if value == null:
 		return fallback
 	return str(value)
 
 
+
+# -----------------------------------------------------------------------------
+# Map Constructor inspector: floor/wall controls
+# -----------------------------------------------------------------------------
 
 func _compose_map_constructor_floor_visual_id(material_id: String, coating_id: String) -> String:
 	var material: String = material_id.to_lower().strip_edges()
@@ -13298,6 +13314,10 @@ func _parse_map_constructor_floor_visual_id(visual_id: String) -> Dictionary:
 	if parts.size() >= 2:
 		return {"material": String(parts[0]), "coating": String(parts[1])}
 	return {"material":"steel", "coating":"default"}
+
+# -----------------------------------------------------------------------------
+# Map Constructor inspector: property controls
+# -----------------------------------------------------------------------------
 
 func _add_map_constructor_description_editor(section: VBoxContainer, data: Dictionary, entity_kind: String, entity_id: String) -> void:
 	var description_text: String = _safe_ui_string(data.get("description", data.get("custom_description", ""))).strip_edges()
@@ -13410,6 +13430,10 @@ func _add_preset_buttons(section: VBoxContainer, entity_kind: String, entity_id:
 		row.add_child(button)
 	if row.get_child_count() > 0:
 		section.add_child(row)
+
+# -----------------------------------------------------------------------------
+# Map Constructor inspector: link controls
+# -----------------------------------------------------------------------------
 
 func _add_link_picker(section: VBoxContainer, entity_kind: String, entity_id: String, link_type: String, title: String) -> void:
 	if mission_manager_runtime == null or not mission_manager_runtime.has_method("get_map_constructor_entity_by_id"):
@@ -13567,6 +13591,10 @@ func _add_map_constructor_active_settings(parent: VBoxContainer, entity_kind: St
 		if access_type == "terminal_access":
 			_add_link_picker(section, entity_kind, entity_id, "access_terminal", "Terminal Access Binding")
 
+# -----------------------------------------------------------------------------
+# Map Constructor inspector: validation display
+# -----------------------------------------------------------------------------
+
 func _add_validation_entries(section: VBoxContainer, title: String, entries: Array) -> void:
 	var title_label: Label = Label.new()
 	title_label.text = title
@@ -13598,6 +13626,10 @@ func _add_validation_entries(section: VBoxContainer, title: String, entries: Arr
 			label.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 			label.text = _safe_ui_string(entry_variant)
 			section.add_child(label)
+
+# -----------------------------------------------------------------------------
+# Map Constructor inspector: safe UI helpers (continued)
+# -----------------------------------------------------------------------------
 
 func _safe_ui_dictionary(value: Variant) -> Dictionary:
 	if value is Dictionary:
@@ -13795,6 +13827,10 @@ func _add_door_required_key_picker(parent: VBoxContainer, entity_kind: String, e
 		actions.add_child(clear_button)
 	section.add_child(actions)
 	parent.add_child(section)
+
+# -----------------------------------------------------------------------------
+# Map Constructor inspector root
+# -----------------------------------------------------------------------------
 
 func _show_map_constructor_inspector(cell: Vector2i, preferred_entity_kind: String = "", preferred_entity_id: String = "") -> void:
 	var previous_entity_kind: String = selected_map_constructor_entity_kind
@@ -14024,6 +14060,7 @@ func _show_map_constructor_inspector(cell: Vector2i, preferred_entity_kind: Stri
 	_add_validation_entries(warning_section, "Warnings", _safe_ui_array(validation_result.get("warnings", [])))
 	v.add_child(warning_section)
 	var deferred_wall_section: VBoxContainer = null
+	# Floor/wall controls are kept inline for the audit baseline; extract later.
 	var floor_section: VBoxContainer = _create_inspector_section("7. Floor Coverage")
 	var floor_target_cell: Vector2i = pending_map_constructor_cell
 	if floor_target_cell.x < 0 or floor_target_cell.y < 0:
