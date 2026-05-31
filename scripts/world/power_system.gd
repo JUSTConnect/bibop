@@ -30,6 +30,7 @@ const POWER_TRAVERSAL_TYPES := {
 	"fuse_box": true,
 	"fuse_box_installed": true,
 	"fuse_box_empty": true,
+	"fuse_block": true,
 	"light_switch": true
 }
 
@@ -66,7 +67,7 @@ static func _is_power_consumer_object(obj: Dictionary) -> bool:
 	if _is_power_source_object(obj):
 		return false
 	var object_type: String = _normalize_type(obj.get("object_type", ""))
-	if object_type in ["power_cable", "circuit_switch", "circuit_breaker", "power_breaker", "power_knife_switch", "fuse_box", "fuse_box_empty", "fuse_box_installed", "light_switch"]:
+	if object_type in ["power_cable", "circuit_switch", "circuit_breaker", "power_breaker", "power_knife_switch", "fuse_box", "fuse_box_empty", "fuse_box_installed", "fuse_block", "light_switch"]:
 		return false
 	if _is_state_driven_powered_object(obj):
 		return true
@@ -123,13 +124,23 @@ static func _direction_to_delta(direction: String) -> Vector2i:
 static func _resolve_switch_connection_cell(switch_obj: Dictionary, field_prefix: String, switch_cell: Vector2i, object_by_id: Dictionary) -> Vector2i:
 	var wire_id: String = String(switch_obj.get("%s_wire_id" % field_prefix, "")).strip_edges()
 	if not wire_id.is_empty() and object_by_id.has(wire_id):
-		var wire_obj: Dictionary = Dictionary(object_by_id.get(wire_id, {}))
-		return _cell_from_obj(wire_obj)
+		var wire_value: Variant = object_by_id.get(wire_id, {})
+		if wire_value is Dictionary:
+			return _cell_from_obj(wire_value)
 	var direction: String = String(switch_obj.get("%s_direction" % field_prefix, "")).strip_edges()
 	var delta: Vector2i = _direction_to_delta(direction)
 	if delta != Vector2i.ZERO:
 		return switch_cell + delta
 	return Vector2i(-1, -1)
+
+static func _has_circuit_switch_routing_metadata(switch_obj: Dictionary) -> bool:
+	if switch_obj.has("active_output_index") or switch_obj.has("input_wire_id") or switch_obj.has("input_direction"):
+		return true
+	for output_index in range(1, 4):
+		if switch_obj.has("output_%d_wire_id" % output_index) or switch_obj.has("output_%d_direction" % output_index):
+			return true
+	return false
+
 
 static func _get_circuit_switch_next_cells(switch_obj: Dictionary, switch_cell: Vector2i, entered_from_cell: Vector2i, object_by_id: Dictionary) -> Array[Vector2i]:
 	var next_cells: Array[Vector2i] = []
@@ -234,7 +245,7 @@ static func recalculate_network(objects: Array[Dictionary], network_id: String) 
 			_apply_powered_state(current_obj, true)
 			var current_type: String = _normalize_type(current_obj.get("object_type", ""))
 			var next_cells: Array[Vector2i] = []
-			if current_type == "circuit_switch":
+			if current_type == "circuit_switch" and _has_circuit_switch_routing_metadata(current_obj):
 				next_cells = _get_circuit_switch_next_cells(current_obj, current_cell, from_cell, object_by_id)
 			else:
 				for delta in directions:
