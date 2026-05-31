@@ -10362,7 +10362,7 @@ func _update_map_constructor_preview_for_cell(cell: Vector2i) -> Dictionary:
 		return {}
 	var check: Dictionary = mission_manager_runtime.call("can_place_map_constructor_prefab", selected_map_constructor_prefab_id, cell, selected_map_constructor_wall_side, selected_map_constructor_mounting_mode)
 	available_map_constructor_wall_sides.clear()
-	for side_variant in Array(check.get("available_wall_sides", [])):
+	for side_variant in _safe_ui_array(check.get("available_wall_sides", [])):
 		available_map_constructor_wall_sides.append(String(side_variant))
 	if selected_map_constructor_wall_side.is_empty() and not available_map_constructor_wall_sides.is_empty():
 		selected_map_constructor_wall_side = available_map_constructor_wall_sides[0]
@@ -10376,7 +10376,7 @@ func _update_map_constructor_preview_for_cell(cell: Vector2i) -> Dictionary:
 		if renderer != null and renderer.has_method("set_map_constructor_wall_mounted_preview") and String(check.get("placement_mode", "")) == "wall_mounted":
 			var attached_wall_cell: Vector2i = Vector2i(-1, -1)
 			if mission_manager_runtime.has_method("_deserialize_cell_key"):
-				attached_wall_cell = Vector2i(mission_manager_runtime.call("_deserialize_cell_key", String(check.get("attached_wall_cell", ""))))
+				attached_wall_cell = _safe_ui_vector2i(mission_manager_runtime.call("_deserialize_cell_key", String(check.get("attached_wall_cell", ""))))
 			renderer.call("set_map_constructor_wall_mounted_preview", cell, attached_wall_cell, String(check.get("wall_side", "")), not bool(check.get("ok", false)))
 		elif renderer != null and renderer.has_method("set_map_constructor_preview_cell"):
 			renderer.call("set_map_constructor_preview_cell", cell)
@@ -11185,8 +11185,8 @@ func _map_constructor_placed_row_matches_search(row: Dictionary) -> bool:
 	var search_text: String = map_constructor_placed_search_text.strip_edges().to_lower()
 	if search_text.is_empty():
 		return true
-	var cell: Vector2i = Vector2i(row.get("cell", Vector2i(-1, -1)))
-	var anchor_cell: Vector2i = Vector2i(row.get("anchor_floor_cell", Vector2i(-1, -1)))
+	var cell: Vector2i = _safe_ui_vector2i(row.get("cell", Vector2i(-1, -1)))
+	var anchor_cell: Vector2i = _safe_ui_vector2i(row.get("anchor_floor_cell", Vector2i(-1, -1)))
 	var haystack: String = "%s %s %s %s %s %d %d %d %d" % [
 		String(row.get("id", "")).to_lower(),
 		String(row.get("entity_kind", "")).to_lower(),
@@ -11230,17 +11230,17 @@ func _jump_to_map_constructor_history_row(row: Dictionary) -> void:
 	if not entity_id.is_empty() and mission_manager_runtime != null and mission_manager_runtime.has_method("get_map_constructor_entity_by_id"):
 		var world_entity: Dictionary = mission_manager_runtime.call("get_map_constructor_entity_by_id", "world_object", entity_id)
 		if bool(world_entity.get("ok", false)):
-			var world_cell: Vector2i = Vector2i(world_entity.get("cell", Vector2i(-1, -1)))
+			var world_cell: Vector2i = _safe_ui_vector2i(world_entity.get("cell", Vector2i(-1, -1)))
 			_show_map_constructor_inspector(world_cell, "world_object", entity_id)
 			_focus_map_constructor_cell(world_cell)
 			return
 		var item_entity: Dictionary = mission_manager_runtime.call("get_map_constructor_entity_by_id", "item", entity_id)
 		if bool(item_entity.get("ok", false)):
-			var item_cell: Vector2i = Vector2i(item_entity.get("cell", Vector2i(-1, -1)))
+			var item_cell: Vector2i = _safe_ui_vector2i(item_entity.get("cell", Vector2i(-1, -1)))
 			_show_map_constructor_inspector(item_cell, "item", entity_id)
 			_focus_map_constructor_cell(item_cell)
 			return
-	var cell: Vector2i = Vector2i(row.get("cell", Vector2i(-1, -1)))
+	var cell: Vector2i = _safe_ui_vector2i(row.get("cell", Vector2i(-1, -1)))
 	if cell.x >= 0 and cell.y >= 0:
 		_show_map_constructor_inspector(cell)
 		_focus_map_constructor_cell(cell)
@@ -11305,9 +11305,9 @@ func _map_constructor_overview_marker_matches_filter(marker: Dictionary) -> bool
 func _select_map_constructor_entity_from_browser(row: Dictionary) -> void:
 	var entity_kind: String = String(row.get("entity_kind", ""))
 	var entity_id: String = String(row.get("id", ""))
-	var row_cell: Vector2i = Vector2i(row.get("cell", Vector2i(-1, -1)))
-	var row_anchor_floor_cell: Vector2i = Vector2i(row.get("anchor_floor_cell", Vector2i(-1, -1)))
-	var row_attached_wall_cell: Vector2i = Vector2i(row.get("attached_wall_cell", Vector2i(-1, -1)))
+	var row_cell: Vector2i = _safe_ui_vector2i(row.get("cell", Vector2i(-1, -1)))
+	var row_anchor_floor_cell: Vector2i = _safe_ui_vector2i(row.get("anchor_floor_cell", Vector2i(-1, -1)))
+	var row_attached_wall_cell: Vector2i = _safe_ui_vector2i(row.get("attached_wall_cell", Vector2i(-1, -1)))
 	var row_placement_mode: String = String(row.get("placement_mode", ""))
 	var row_wall_side: String = String(row.get("wall_side", ""))
 	if mission_manager_runtime == null or not mission_manager_runtime.has_method("get_map_constructor_entity_by_id"):
@@ -11386,7 +11386,7 @@ func _make_map_constructor_multi_row_from_current_selection() -> Dictionary:
 	if not bool(entity.get("ok", false)):
 		return {}
 	var data: Dictionary = _safe_ui_dictionary(entity.get("data", {}))
-	return {"entity_kind":String(entity.get("entity_kind", selected_map_constructor_entity_kind)), "entity_id":String(entity.get("id", selected_map_constructor_entity_id)), "cell":Vector2i(entity.get("cell", Vector2i(-1, -1))), "object_type":String(data.get("object_type", data.get("item_type", ""))), "created_by_map_constructor":bool(data.get("created_by_map_constructor", false))}
+	return {"entity_kind":String(entity.get("entity_kind", selected_map_constructor_entity_kind)), "entity_id":String(entity.get("id", selected_map_constructor_entity_id)), "cell":_safe_ui_vector2i(entity.get("cell", Vector2i(-1, -1))), "object_type":String(data.get("object_type", data.get("item_type", ""))), "created_by_map_constructor":bool(data.get("created_by_map_constructor", false))}
 
 func _refresh_map_constructor_multi_selection_stale() -> void:
 	if mission_manager_runtime == null or not mission_manager_runtime.has_method("get_map_constructor_entity_by_id"):
@@ -11405,7 +11405,7 @@ func _refresh_map_constructor_multi_selection_stale() -> void:
 				fresh.append(_make_map_constructor_multi_row_from_current_selection())
 			else:
 				var entity_data: Dictionary = _safe_ui_dictionary(entity.get("data", {}))
-				fresh.append({"entity_kind":String(entity.get("entity_kind", "")), "entity_id":String(entity.get("id", "")), "cell":Vector2i(entity.get("cell", Vector2i(-1, -1))), "object_type":String(entity_data.get("object_type", entity_data.get("item_type", ""))), "created_by_map_constructor":bool(entity_data.get("created_by_map_constructor", false))})
+				fresh.append({"entity_kind":String(entity.get("entity_kind", "")), "entity_id":String(entity.get("id", "")), "cell":_safe_ui_vector2i(entity.get("cell", Vector2i(-1, -1))), "object_type":String(entity_data.get("object_type", entity_data.get("item_type", ""))), "created_by_map_constructor":bool(entity_data.get("created_by_map_constructor", false))})
 	map_constructor_multi_selected_entities = fresh
 
 
@@ -11458,7 +11458,7 @@ func _add_map_constructor_multi_selection_by_filter(filter_mode: String) -> void
 				allow = MAP_CONSTRUCTOR_CONTROL_PREFAB_IDS.has(type_or_prefab) or category == "control"
 		if not allow:
 			continue
-		_add_map_constructor_multi_row_if_missing({"entity_kind":entity_kind, "entity_id":String(row.get("id", "")), "cell":Vector2i(row.get("cell", Vector2i(-1, -1))), "object_type":type_or_prefab, "created_by_map_constructor":true})
+		_add_map_constructor_multi_row_if_missing({"entity_kind":entity_kind, "entity_id":String(row.get("id", "")), "cell":_safe_ui_vector2i(row.get("cell", Vector2i(-1, -1))), "object_type":type_or_prefab, "created_by_map_constructor":true})
 	_refresh_map_constructor_multi_selection_stale()
 
 func _remember_map_constructor_palette_scroll() -> void:
@@ -11698,7 +11698,7 @@ func _refresh_map_constructor_panels() -> void:
 				"show_only_placeable_here": map_constructor_prefab_show_only_placeable_here,
 				"selected_cell": pending_map_constructor_cell
 			})
-			for row_variant in Array(palette_rows.get("rows", [])):
+			for row_variant in _safe_ui_array(palette_rows.get("rows", [])):
 				if row_variant is Dictionary:
 					catalog.append((row_variant as Dictionary).duplicate(true))
 		var catalog_by_id: Dictionary = {}
@@ -11724,7 +11724,7 @@ func _refresh_map_constructor_panels() -> void:
 			var favorite_id: String = String(favorite_id_variant)
 			if not bool(map_constructor_prefab_favorites.get(favorite_id, false)) or not catalog_by_id.has(favorite_id):
 				continue
-			var favorite_entry: Dictionary = Dictionary(catalog_by_id[favorite_id])
+			var favorite_entry: Dictionary = _safe_ui_dictionary(catalog_by_id[favorite_id])
 			if _map_constructor_prefab_matches_filters(favorite_entry):
 				favorite_entries.append(favorite_entry)
 		favorite_entries.sort_custom(func(a: Dictionary, b: Dictionary) -> bool:
@@ -11734,12 +11734,12 @@ func _refresh_map_constructor_panels() -> void:
 		for recent_id in map_constructor_prefab_recent_ids:
 			if not catalog_by_id.has(recent_id):
 				continue
-			var recent_entry: Dictionary = Dictionary(catalog_by_id[recent_id])
+			var recent_entry: Dictionary = _safe_ui_dictionary(catalog_by_id[recent_id])
 			if _map_constructor_prefab_matches_filters(recent_entry):
 				recent_entries.append(recent_entry)
 		var visible_prefab_card_count: int = 0
 		for section in [{"name":"Favorites","entries":favorite_entries},{"name":"Recent","entries":recent_entries}]:
-			var section_entries: Array = Array(section.get("entries", []))
+			var section_entries: Array = _safe_ui_array(section.get("entries", []))
 			if section_entries.is_empty():
 				continue
 			var section_header: Label = Label.new()
@@ -11836,15 +11836,15 @@ func _refresh_map_constructor_panels() -> void:
 		for row in placed_rows:
 			if not _map_constructor_placed_row_matches_search(row):
 				continue
-			var row_cell: Vector2i = Vector2i(row.get("cell", Vector2i(-1, -1)))
-			var row_anchor_cell: Vector2i = Vector2i(row.get("anchor_floor_cell", row_cell))
+			var row_cell: Vector2i = _safe_ui_vector2i(row.get("cell", Vector2i(-1, -1)))
+			var row_anchor_cell: Vector2i = _safe_ui_vector2i(row.get("anchor_floor_cell", row_cell))
 			var row_entity_id: String = String(row.get("id", ""))
 			var row_entity_kind: String = String(row.get("entity_kind", ""))
 			var row_selected: bool = row_entity_id == selected_map_constructor_entity_id and row_entity_kind == selected_map_constructor_entity_kind
 			var row_button: Button = Button.new()
 			var row_text: String = "%s | %s | c:%s | %s" % [String(row.get("id", "")), String(row.get("type_or_prefab", "")), str(row_cell), String(row.get("category_or_placement", ""))]
 			if String(row.get("placement_mode", "")) == "wall_mounted":
-				row_text += " | a:%s w:%s side:%s" % [str(row_anchor_cell), str(Vector2i(row.get("attached_wall_cell", Vector2i(-1, -1)))), String(row.get("wall_side", ""))]
+				row_text += " | a:%s w:%s side:%s" % [str(row_anchor_cell), str(_safe_ui_vector2i(row.get("attached_wall_cell", Vector2i(-1, -1)))), String(row.get("wall_side", ""))]
 			if row_selected:
 				row_text = "▶ " + row_text
 			row_button.text = row_text
@@ -11872,7 +11872,7 @@ func _refresh_map_constructor_panels() -> void:
 		list.add_child(visual_assets_title)
 		if mission_manager_runtime != null and mission_manager_runtime.has_method("get_visual_texture_asset_catalog"):
 			var visual_catalog: Dictionary = mission_manager_runtime.call("get_visual_texture_asset_catalog")
-			var visual_assets: Array = Array(visual_catalog.get("assets", []))
+			var visual_assets: Array = _safe_ui_array(visual_catalog.get("assets", []))
 			var missing_optional_count: int = 0
 			for row_variant in visual_assets:
 				var row: Dictionary = _safe_ui_dictionary(row_variant)
@@ -11887,7 +11887,7 @@ func _refresh_map_constructor_panels() -> void:
 			var selected_texture_asset_id: String = ""
 			if not selected_map_constructor_entity_id.is_empty() and mission_manager_runtime.has_method("get_map_constructor_entity_by_id"):
 				var entity_data: Dictionary = mission_manager_runtime.call("get_map_constructor_entity_by_id", selected_map_constructor_entity_kind, selected_map_constructor_entity_id)
-				var selected_payload: Dictionary = Dictionary(entity_data.get("data", {}))
+				var selected_payload: Dictionary = _safe_ui_dictionary(entity_data.get("data", {}))
 				selected_texture_asset_id = String(selected_payload.get("texture_asset_id", ""))
 			var selected_asset_label: Label = Label.new()
 			selected_asset_label.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
@@ -11904,14 +11904,14 @@ func _refresh_map_constructor_panels() -> void:
 			summary_label.text = "blocking=%d warnings=%d expected-invalid=%d info=%d" % [int(readiness.get("blocking_count", 0)), int(readiness.get("warning_count", 0)), int(readiness.get("expected_invalid_count", 0)), int(readiness.get("info_count", 0))]
 			list.add_child(summary_label)
 			var action_by_issue: Dictionary = {}
-			for rec_variant in Array(readiness.get("recommended_actions", [])):
-				var rec: Dictionary = Dictionary(rec_variant)
+			for rec_variant in _safe_ui_array(readiness.get("recommended_actions", [])):
+				var rec: Dictionary = _safe_ui_dictionary(rec_variant)
 				var tid: String = String(rec.get("target_issue_id", ""))
 				if tid.is_empty() or action_by_issue.has(tid):
 					continue
 				action_by_issue[tid] = rec
-			for check_variant in Array(readiness.get("checks", [])):
-				var check: Dictionary = Dictionary(check_variant)
+			for check_variant in _safe_ui_array(readiness.get("checks", [])):
+				var check: Dictionary = _safe_ui_dictionary(check_variant)
 				var check_status: String = String(check.get("status", "info"))
 				var icon: String = "ℹ"
 				if check_status == "pass":
@@ -11927,7 +11927,7 @@ func _refresh_map_constructor_panels() -> void:
 				var line: String = "%s %s: %s (count=%d)" % [icon, String(check.get("label", "Check")), String(check.get("message", "")), int(check.get("count", 0))]
 				if not String(check.get("entity_id", "")).is_empty():
 					line += " | id=%s" % String(check.get("entity_id", ""))
-				var c: Vector2i = Vector2i(check.get("cell", Vector2i(-1, -1)))
+				var c: Vector2i = _safe_ui_vector2i(check.get("cell", Vector2i(-1, -1)))
 				if c.x >= 0 and c.y >= 0:
 					line += " | c=%s" % str(c)
 				check_label.text = line
@@ -11942,16 +11942,16 @@ func _refresh_map_constructor_panels() -> void:
 				)
 				action_row.add_child(jump_button)
 				if action_by_issue.has(issue_id):
-					var rec: Dictionary = Dictionary(action_by_issue[issue_id])
+					var rec: Dictionary = _safe_ui_dictionary(action_by_issue[issue_id])
 					_add_map_constructor_readiness_action_buttons(action_row, rec)
 				list.add_child(action_row)
 			var expected_section: Label = Label.new()
 			expected_section.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 			var expected_ids: Array[String] = []
-			for issue_variant in Array(readiness.get("expected_invalid_issues", [])):
+			for issue_variant in _safe_ui_array(readiness.get("expected_invalid_issues", [])):
 				if expected_ids.size() >= 10:
 					break
-				var issue_data: Dictionary = Dictionary(issue_variant)
+				var issue_data: Dictionary = _safe_ui_dictionary(issue_variant)
 				expected_ids.append(String(issue_data.get("id", issue_data.get("entity_id", ""))))
 			expected_section.text = "Expected Invalid Cases (%d): %s\nThese are intentional TASK TEST broken cases and do not block readiness." % [int(readiness.get("expected_invalid_count", 0)), ", ".join(expected_ids)]
 			list.add_child(expected_section)
@@ -12000,7 +12000,7 @@ func _refresh_map_constructor_panels() -> void:
 			var issue_id: String = String(issue_row.get("id", ""))
 			var issue_severity: String = String(issue_row.get("severity", "info")).to_upper()
 			var issue_message: String = String(issue_row.get("message", "Validation issue"))
-			var issue_cell: Vector2i = Vector2i(issue_row.get("cell", Vector2i(-1, -1)))
+			var issue_cell: Vector2i = _safe_ui_vector2i(issue_row.get("cell", Vector2i(-1, -1)))
 			var issue_entity_id: String = String(issue_row.get("entity_id", ""))
 			var issue_text: String = "%s%s: %s" % ["▶ " if issue_id == map_constructor_selected_issue_id else "", issue_severity, issue_message]
 			if not issue_entity_id.is_empty():
@@ -12020,9 +12020,9 @@ func _refresh_map_constructor_panels() -> void:
 				var fix_options: Array = mission_manager_runtime.call("get_map_constructor_issue_autofix_options", issue_row)
 				if not fix_options.is_empty():
 					for option_row in fix_options:
-						var fix_option: Dictionary = Dictionary(option_row)
+						var fix_option: Dictionary = _safe_ui_dictionary(option_row)
 						var ftype: String = String(fix_option.get("fix_type", ""))
-						var foptions: Dictionary = Dictionary(fix_option.get("options", {}))
+						var foptions: Dictionary = _safe_ui_dictionary(fix_option.get("options", {}))
 						var flabel: String = String(fix_option.get("label", "Fix"))
 						var fkey: String = "%s|%s" % [ftype, JSON.stringify(foptions)]
 						var issue_fix_row: HFlowContainer = _make_map_constructor_action_row()
@@ -12059,7 +12059,7 @@ func _refresh_map_constructor_panels() -> void:
 		overlay_summary_label.text = "Validation: unavailable"
 		if mission_manager_runtime != null and mission_manager_runtime.has_method("get_map_constructor_validation_overlay"):
 			var overlay_data: Dictionary = mission_manager_runtime.call("get_map_constructor_validation_overlay")
-			var overlay_summary: Dictionary = Dictionary(overlay_data.get("summary", {}))
+			var overlay_summary: Dictionary = _safe_ui_dictionary(overlay_data.get("summary", {}))
 			var error_count: int = int(overlay_summary.get("error_count", 0))
 			var warning_count: int = int(overlay_summary.get("warning_count", 0))
 			var valid_count: int = int(overlay_summary.get("valid_count", 0))
@@ -12113,22 +12113,22 @@ func _refresh_map_constructor_panels() -> void:
 		var current_template_key: String = "%s|%s|%s" % [map_constructor_selected_template_id, str(anchor_cell), JSON.stringify(template_options)]
 		var kit_data: Dictionary = mission_manager_runtime.call("get_map_constructor_prefab_kits") if mission_manager_runtime != null and mission_manager_runtime.has_method("get_map_constructor_prefab_kits") else {}
 		var template_data: Dictionary = mission_manager_runtime.call("get_map_constructor_room_templates") if mission_manager_runtime != null and mission_manager_runtime.has_method("get_map_constructor_room_templates") else {}
-		var kit_rows: Array = Array(kit_data.get("kits", []))
-		var template_rows: Array = Array(template_data.get("templates", []))
+		var kit_rows: Array = _safe_ui_array(kit_data.get("kits", []))
+		var template_rows: Array = _safe_ui_array(template_data.get("templates", []))
 		var selected_kit_exists: bool = false
 		for kit_row_variant in kit_rows:
-			if String(Dictionary(kit_row_variant).get("id", "")) == map_constructor_selected_kit_id:
+			if String(_safe_ui_dictionary(kit_row_variant).get("id", "")) == map_constructor_selected_kit_id:
 				selected_kit_exists = true
 				break
 		if (map_constructor_selected_kit_id.is_empty() or not selected_kit_exists) and not kit_rows.is_empty():
-			map_constructor_selected_kit_id = String(Dictionary(kit_rows[0]).get("id", ""))
+			map_constructor_selected_kit_id = String(_safe_ui_dictionary(kit_rows[0]).get("id", ""))
 		var selected_template_exists: bool = false
 		for template_row_variant in template_rows:
-			if String(Dictionary(template_row_variant).get("id", "")) == map_constructor_selected_template_id:
+			if String(_safe_ui_dictionary(template_row_variant).get("id", "")) == map_constructor_selected_template_id:
 				selected_template_exists = true
 				break
 		if (map_constructor_selected_template_id.is_empty() or not selected_template_exists) and not template_rows.is_empty():
-			map_constructor_selected_template_id = String(Dictionary(template_rows[0]).get("id", ""))
+			map_constructor_selected_template_id = String(_safe_ui_dictionary(template_rows[0]).get("id", ""))
 		if map_constructor_kit_pending_apply_key != current_kit_key:
 			map_constructor_kit_preview_can_apply = false
 		if map_constructor_template_pending_apply_key != current_template_key:
@@ -12154,7 +12154,7 @@ func _refresh_map_constructor_panels() -> void:
 		for row_variant in kit_rows:
 			var row: Dictionary = _safe_ui_dictionary(row_variant)
 			if String(row.get("id", "")) == map_constructor_selected_kit_id:
-				selected_kit_info.text = "Kit: %s\n%s\nTags: %s\nWarnings: %s" % [String(row.get("display_name", "")), String(row.get("description", "")), ", ".join(PackedStringArray(Array(row.get("tags", [])))), String(row.get("warning", "none"))]
+				selected_kit_info.text = "Kit: %s\n%s\nTags: %s\nWarnings: %s" % [String(row.get("display_name", "")), String(row.get("description", "")), ", ".join(PackedString_safe_ui_array(_safe_ui_array(row.get("tags", [])))), String(row.get("warning", "none"))]
 		list.add_child(selected_kit_info)
 		var quick_kits_button: Button = _make_map_constructor_action_button("Preview Kit")
 		quick_kits_button.pressed.connect(func() -> void:
@@ -12220,7 +12220,7 @@ func _refresh_map_constructor_panels() -> void:
 		for row_variant in template_rows:
 			var row: Dictionary = _safe_ui_dictionary(row_variant)
 			if String(row.get("id", "")) == map_constructor_selected_template_id:
-				template_info.text = "Template: %s\n%s\nsize=%s\nTags: %s\nWarnings: %s" % [String(row.get("display_name", "")), String(row.get("description", "")), str(row.get("size", Vector2i.ZERO)), ", ".join(PackedStringArray(Array(row.get("tags", [])))), String(row.get("warning", "none"))]
+				template_info.text = "Template: %s\n%s\nsize=%s\nTags: %s\nWarnings: %s" % [String(row.get("display_name", "")), String(row.get("description", "")), str(row.get("size", Vector2i.ZERO)), ", ".join(PackedString_safe_ui_array(_safe_ui_array(row.get("tags", [])))), String(row.get("warning", "none"))]
 		list.add_child(template_info)
 		var template_transform_row: HFlowContainer = _make_map_constructor_action_row()
 		var rotation_label: Label = Label.new()
@@ -12308,13 +12308,13 @@ func _refresh_map_constructor_panels() -> void:
 		)
 		list.add_child(undo_template_button)
 		for preview_bundle in [{"title":"Kit Preview","data":map_constructor_kit_preview},{"title":"Template Preview","data":map_constructor_template_preview}]:
-			var preview_data: Dictionary = Dictionary(preview_bundle.get("data", {}))
+			var preview_data: Dictionary = _safe_ui_dictionary(preview_bundle.get("data", {}))
 			if preview_data.is_empty():
 				continue
 			var summary_lines: Array[String] = []
-			var affected_rows: Array = Array(preview_data.get("affected", []))
-			var conflict_rows: Array = Array(preview_data.get("conflicts", []))
-			var warning_rows: Array = Array(preview_data.get("warnings", []))
+			var affected_rows: Array = _safe_ui_array(preview_data.get("affected", []))
+			var conflict_rows: Array = _safe_ui_array(preview_data.get("conflicts", []))
+			var warning_rows: Array = _safe_ui_array(preview_data.get("warnings", []))
 			summary_lines.append("%s: affected=%d conflicts=%d warnings=%d" % [String(preview_bundle.get("title", "")), affected_rows.size(), conflict_rows.size(), warning_rows.size()])
 			for index in range(mini(10, affected_rows.size())):
 				summary_lines.append("- affected: %s" % JSON.stringify(affected_rows[index]))
@@ -12341,14 +12341,14 @@ func _refresh_map_constructor_panels() -> void:
 		room_preset_title.text = "Room Visual Presets"
 		list.add_child(room_preset_title)
 		var preset_catalog: Dictionary = mission_manager_runtime.call("get_room_visual_preset_catalog") if mission_manager_runtime != null and mission_manager_runtime.has_method("get_room_visual_preset_catalog") else {}
-		var preset_rows: Array = Array(preset_catalog.get("presets", []))
+		var preset_rows: Array = _safe_ui_array(preset_catalog.get("presets", []))
 		var preset_select: OptionButton = OptionButton.new()
 		for preset_row_variant in preset_rows:
-			var preset_row: Dictionary = Dictionary(preset_row_variant)
+			var preset_row: Dictionary = _safe_ui_dictionary(preset_row_variant)
 			preset_select.add_item(String(preset_row.get("display_name", preset_row.get("id", ""))))
 			preset_select.set_item_metadata(preset_select.item_count - 1, String(preset_row.get("id", "")))
 		if selected_room_visual_preset_id.is_empty() and not preset_rows.is_empty():
-			selected_room_visual_preset_id = String(Dictionary(preset_rows[0]).get("id", ""))
+			selected_room_visual_preset_id = String(_safe_ui_dictionary(preset_rows[0]).get("id", ""))
 		for preset_index in range(preset_select.item_count):
 			if String(preset_select.get_item_metadata(preset_index)) == selected_room_visual_preset_id:
 				preset_select.select(preset_index)
@@ -12362,7 +12362,7 @@ func _refresh_map_constructor_panels() -> void:
 		var preset_info_label: Label = Label.new()
 		preset_info_label.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 		for preset_row_variant in preset_rows:
-			var preset_row: Dictionary = Dictionary(preset_row_variant)
+			var preset_row: Dictionary = _safe_ui_dictionary(preset_row_variant)
 			if String(preset_row.get("id", "")) == selected_room_visual_preset_id:
 				preset_info_label.text = String(preset_row.get("description", ""))
 		list.add_child(preset_info_label)
@@ -12405,7 +12405,7 @@ func _refresh_map_constructor_panels() -> void:
 		)
 		list.add_child(clear_preset_button)
 		if not room_visual_preset_preview.is_empty():
-			var room_preview_summary: Dictionary = Dictionary(room_visual_preset_preview.get("summary", {}))
+			var room_preview_summary: Dictionary = _safe_ui_dictionary(room_visual_preset_preview.get("summary", {}))
 			var room_preview_label: Label = Label.new()
 			room_preview_label.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 			room_preview_label.text = "Preset Preview: walls=%d doors=%d terminals=%d can_apply=%s\n%s" % [int(room_preview_summary.get("affected_walls", 0)), int(room_preview_summary.get("affected_doors", 0)), int(room_preview_summary.get("affected_terminals", 0)), str(bool(room_visual_preset_preview.get("can_apply", false))), String(room_visual_preset_preview.get("message", ""))]
@@ -12443,20 +12443,20 @@ func _refresh_map_constructor_panels() -> void:
 			var pipeline_status: String = String(map_constructor_pipeline_report.get("status", "unknown"))
 			var pipeline_message: String = String(map_constructor_pipeline_report.get("message", ""))
 			var pipeline_lines: Array[String] = ["Pipeline status: %s" % pipeline_status, pipeline_message]
-			var checks: Array = Array(map_constructor_pipeline_report.get("checks", []))
+			var checks: Array = _safe_ui_array(map_constructor_pipeline_report.get("checks", []))
 			for check_index in range(mini(12, checks.size())):
-				var check_row: Dictionary = Dictionary(checks[check_index])
+				var check_row: Dictionary = _safe_ui_dictionary(checks[check_index])
 				var check_line: String = "- %s [%s]" % [String(check_row.get("label", "")), String(check_row.get("status", ""))]
 				var check_message: String = String(check_row.get("message", "")).strip_edges()
 				if not check_message.is_empty():
 					check_line += " — %s" % check_message
 				pipeline_lines.append(check_line)
-			var promotion_package: Dictionary = Dictionary(map_constructor_pipeline_report.get("promotion_package", {}))
-			var package_warnings: Array = Array(promotion_package.get("warnings", []))
+			var promotion_package: Dictionary = _safe_ui_dictionary(map_constructor_pipeline_report.get("promotion_package", {}))
+			var package_warnings: Array = _safe_ui_array(promotion_package.get("warnings", []))
 			pipeline_lines.append("Warning summary: count=%d" % package_warnings.size())
 			for warning_index in range(mini(5, package_warnings.size())):
 				pipeline_lines.append("  • %s" % String(package_warnings[warning_index]))
-			var manual_steps: Array = Array(promotion_package.get("manual_steps", []))
+			var manual_steps: Array = _safe_ui_array(promotion_package.get("manual_steps", []))
 			if not manual_steps.is_empty():
 				pipeline_lines.append("Manual steps:")
 				for manual_step in manual_steps:
@@ -12576,13 +12576,13 @@ func _refresh_map_constructor_panels() -> void:
 		if not map_constructor_batch_preview.is_empty():
 			var preview_lines: Array[String] = []
 			preview_lines.append("Batch Preview: %s" % String(map_constructor_batch_preview.get("operation_type", "")))
-			preview_lines.append("affected=%d warnings=%d conflicts=%d" % [int(map_constructor_batch_preview.get("affected_count", 0)), Array(map_constructor_batch_preview.get("warnings", [])).size(), Array(map_constructor_batch_preview.get("conflicts", [])).size()])
-			var affected_rows: Array = Array(map_constructor_batch_preview.get("affected", []))
+			preview_lines.append("affected=%d warnings=%d conflicts=%d" % [int(map_constructor_batch_preview.get("affected_count", 0)), _safe_ui_array(map_constructor_batch_preview.get("warnings", [])).size(), _safe_ui_array(map_constructor_batch_preview.get("conflicts", [])).size()])
+			var affected_rows: Array = _safe_ui_array(map_constructor_batch_preview.get("affected", []))
 			for i in range(mini(10, affected_rows.size())):
-				var affected_row: Dictionary = Dictionary(affected_rows[i])
+				var affected_row: Dictionary = _safe_ui_dictionary(affected_rows[i])
 				preview_lines.append("- %s %s from=%s to=%s fields=%s" % [String(affected_row.get("entity_id", "")), String(affected_row.get("operation", "")), str(affected_row.get("from_cell", Vector2i(-1, -1))), str(affected_row.get("to_cell", Vector2i(-1, -1))), JSON.stringify(affected_row.get("field_changes", []))])
-			var warn_rows: Array = Array(map_constructor_batch_preview.get("warnings", []))
-			var conflict_rows: Array = Array(map_constructor_batch_preview.get("conflicts", []))
+			var warn_rows: Array = _safe_ui_array(map_constructor_batch_preview.get("warnings", []))
+			var conflict_rows: Array = _safe_ui_array(map_constructor_batch_preview.get("conflicts", []))
 			for i in range(mini(5, warn_rows.size())):
 				preview_lines.append("warning: %s" % String(warn_rows[i]))
 			for i in range(mini(5, conflict_rows.size())):
@@ -12604,7 +12604,7 @@ func _refresh_map_constructor_panels() -> void:
 		for action in cleanup_actions:
 			var action_row: HFlowContainer = _make_map_constructor_action_row()
 			var ctype: String = String(action.get("cleanup_type", ""))
-			var coptions: Dictionary = Dictionary(action.get("options", {}))
+			var coptions: Dictionary = _safe_ui_dictionary(action.get("options", {}))
 			var preview_button: Button = _make_map_constructor_action_button("Preview %s" % String(action.get("label", "")))
 			preview_button.pressed.connect(func() -> void:
 				_apply_map_constructor_cleanup_action(ctype, coptions, false)
@@ -12662,7 +12662,7 @@ func _refresh_map_constructor_panels() -> void:
 		for action in autofix_actions:
 			var action_row: HFlowContainer = _make_map_constructor_action_row()
 			var ftype: String = String(action.get("fix_type", ""))
-			var foptions: Dictionary = Dictionary(action.get("options", {}))
+			var foptions: Dictionary = _safe_ui_dictionary(action.get("options", {}))
 			var preview_button: Button = _make_map_constructor_action_button("Preview %s" % String(action.get("label", "")))
 			preview_button.pressed.connect(func() -> void:
 				_apply_map_constructor_autofix_action(ftype, foptions, false)
@@ -12726,10 +12726,10 @@ func _refresh_map_constructor_panels() -> void:
 			var preview_label: Label = Label.new()
 			var affected_count: int = int(map_constructor_cleanup_preview.get("affected_count", 0))
 			var preview_ids: Array[String] = []
-			for row in Array(map_constructor_cleanup_preview.get("affected_objects", [])):
+			for row in _safe_ui_array(map_constructor_cleanup_preview.get("affected_objects", [])):
 				if preview_ids.size() >= 10:
 					break
-				preview_ids.append(String(Dictionary(row).get("id", "")))
+				preview_ids.append(String(_safe_ui_dictionary(row).get("id", "")))
 			var preview_ids_text: String = ""
 			for i in range(preview_ids.size()):
 				if i > 0:
@@ -12742,10 +12742,10 @@ func _refresh_map_constructor_panels() -> void:
 			var autofix_preview_label := Label.new()
 			autofix_preview_label.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 			var lines: Array[String] = []
-			for row in Array(map_constructor_autofix_preview.get("affected_fixes", [])):
+			for row in _safe_ui_array(map_constructor_autofix_preview.get("affected_fixes", [])):
 				if lines.size() >= 10:
 					break
-				lines.append(String(Dictionary(row).get("description", "")))
+				lines.append(String(_safe_ui_dictionary(row).get("description", "")))
 			autofix_preview_label.text = "Auto-fix preview: %d affected\n%s" % [int(map_constructor_autofix_preview.get("affected_count", 0)), "\n".join(lines)]
 			list.add_child(autofix_preview_label)
 		var patch_title: Label = Label.new()
@@ -12779,7 +12779,7 @@ func _refresh_map_constructor_panels() -> void:
 			map_constructor_patch_preview.clear()
 			map_constructor_patch_pending_apply = false
 			if bool(parsed_res.get("ok", false)) and mission_manager_runtime.has_method("preview_apply_map_constructor_patch"):
-				var preview_res: Dictionary = mission_manager_runtime.call("preview_apply_map_constructor_patch", Dictionary(parsed_res.get("patch", {})))
+				var preview_res: Dictionary = mission_manager_runtime.call("preview_apply_map_constructor_patch", _safe_ui_dictionary(parsed_res.get("patch", {})))
 				map_constructor_patch_preview = preview_res
 				map_constructor_patch_pending_apply = bool(preview_res.get("ok", false)) and bool(preview_res.get("can_apply", false))
 			show_hint(String(parsed_res.get("message", "Patch parsed.")))
@@ -12790,7 +12790,7 @@ func _refresh_map_constructor_panels() -> void:
 		apply_patch_button.pressed.connect(func() -> void:
 			if mission_manager_runtime == null or not mission_manager_runtime.has_method("apply_map_constructor_patch"):
 				return
-			var apply_res: Dictionary = mission_manager_runtime.call("apply_map_constructor_patch", Dictionary(map_constructor_patch_parsed.get("patch", {})), {})
+			var apply_res: Dictionary = mission_manager_runtime.call("apply_map_constructor_patch", _safe_ui_dictionary(map_constructor_patch_parsed.get("patch", {})), {})
 			show_hint(String(apply_res.get("message", "Patch applied.")))
 			map_constructor_patch_pending_apply = false
 			if field_runtime != null and field_runtime.has_method("request_visual_refresh"):
@@ -12858,10 +12858,10 @@ func _refresh_map_constructor_panels() -> void:
 		history_buttons.add_child(history_clear_button)
 		history_buttons.add_child(history_refresh_button)
 		list.add_child(history_buttons)
-		var history_rows: Array = Array(history_result.get("history", []))
+		var history_rows: Array = _safe_ui_array(history_result.get("history", []))
 		var shown_count: int = 0
 		for i in range(history_rows.size() - 1, -1, -1):
-			var row: Dictionary = Dictionary(history_rows[i])
+			var row: Dictionary = _safe_ui_dictionary(history_rows[i])
 			var action_type: String = String(row.get("action_type", "unknown"))
 			if not _map_constructor_history_matches_filter(action_type):
 				continue
@@ -12869,7 +12869,7 @@ func _refresh_map_constructor_panels() -> void:
 			var row_entity_id: String = String(row.get("entity_id", ""))
 			if not row_entity_id.is_empty():
 				row_text += " | id=%s" % row_entity_id
-			var row_cell: Vector2i = Vector2i(row.get("cell", Vector2i(-1, -1)))
+			var row_cell: Vector2i = _safe_ui_vector2i(row.get("cell", Vector2i(-1, -1)))
 			if row_cell.x >= 0 and row_cell.y >= 0:
 				row_text += " | c=(%d,%d)" % [row_cell.x, row_cell.y]
 			var history_row_line: HBoxContainer = HBoxContainer.new()
@@ -12954,7 +12954,7 @@ func _refresh_map_constructor_panels() -> void:
 		var overview_data: Dictionary = {}
 		if mission_manager_runtime != null and mission_manager_runtime.has_method("get_map_constructor_overview_data"):
 			overview_data = mission_manager_runtime.call("get_map_constructor_overview_data", {"include_validation":map_constructor_overview_show_issues, "include_history":map_constructor_overview_show_history, "include_power":map_constructor_overview_show_power, "include_items":map_constructor_overview_show_items, "include_wall_mounted":map_constructor_overview_show_wall_mounted, "selected_entities":map_constructor_multi_selected_entities, "selected_entity_id":selected_map_constructor_entity_id, "selected_entity_kind":selected_map_constructor_entity_kind, "max_history_markers":20})
-		var ov_summary: Dictionary = Dictionary(overview_data.get("summary", {}))
+		var ov_summary: Dictionary = _safe_ui_dictionary(overview_data.get("summary", {}))
 		var sum_label: Label = Label.new()
 		sum_label.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 		sum_label.text = "size=%dx%d objects=%d items=%d issues=%d warnings=%d expected=%d" % [int(ov_summary.get("width", 0)), int(ov_summary.get("height", 0)), int(ov_summary.get("object_count", 0)), int(ov_summary.get("item_count", 0)), int(ov_summary.get("error_count", 0)), int(ov_summary.get("warning_count", 0)), int(ov_summary.get("expected_invalid_count", 0))]
@@ -12970,11 +12970,11 @@ func _refresh_map_constructor_panels() -> void:
 				if String(cfg.get("kind", "")) == "refresh":
 					_refresh_map_constructor_panels()
 					return
-				var marker_rows: Array = Array(overview_data.get("markers", []))
+				var marker_rows: Array = _safe_ui_array(overview_data.get("markers", []))
 				if String(cfg.get("kind", "")) == "history":
 					marker_rows.reverse()
 				for marker_variant in marker_rows:
-					var marker: Dictionary = Dictionary(marker_variant)
+					var marker: Dictionary = _safe_ui_dictionary(marker_variant)
 					var mk: String = String(marker.get("kind", ""))
 					if String(cfg.get("kind", "")) == "selected" and mk != "selected":
 						continue
@@ -12985,16 +12985,16 @@ func _refresh_map_constructor_panels() -> void:
 			)
 			jump_row.add_child(b)
 		list.add_child(jump_row)
-		var map_size: Vector2i = Vector2i(overview_data.get("map_size", Vector2i.ZERO))
+		var map_size: Vector2i = _safe_ui_vector2i(overview_data.get("map_size", Vector2i.ZERO))
 		if map_size.x > 80 or map_size.y > 80:
 			var large_label: Label = Label.new()
 			large_label.text = "Map is large; showing marker overview only."
 			list.add_child(large_label)
 		else:
 			var rows: Dictionary = {}
-			for cell_variant in Array(overview_data.get("cells", [])):
-				var cell_row: Dictionary = Dictionary(cell_variant)
-				var cell: Vector2i = Vector2i(cell_row.get("cell", Vector2i(-1, -1)))
+			for cell_variant in _safe_ui_array(overview_data.get("cells", [])):
+				var cell_row: Dictionary = _safe_ui_dictionary(cell_variant)
+				var cell: Vector2i = _safe_ui_vector2i(cell_row.get("cell", Vector2i(-1, -1)))
 				var y: int = cell.y
 				if not rows.has(y):
 					rows[y] = []
@@ -13003,9 +13003,9 @@ func _refresh_map_constructor_panels() -> void:
 				var row_box: HBoxContainer = HBoxContainer.new()
 				for x in range(map_size.x):
 					var symbol: String = " "
-					for cell_row_variant in Array(rows.get(y, [])):
-						var cr: Dictionary = Dictionary(cell_row_variant)
-						if Vector2i(cr.get("cell", Vector2i(-1, -1))).x == x:
+					for cell_row_variant in _safe_ui_array(rows.get(y, [])):
+						var cr: Dictionary = _safe_ui_dictionary(cell_row_variant)
+						if _safe_ui_vector2i(cr.get("cell", Vector2i(-1, -1))).x == x:
 							symbol = _map_constructor_overview_symbol_for_cell(cr)
 							break
 					var cell_btn: Button = Button.new()
@@ -13029,8 +13029,8 @@ func _refresh_map_constructor_panels() -> void:
 		markers_title.text = "Overview Markers"
 		list.add_child(markers_title)
 		var shown_markers: int = 0
-		for marker_variant in Array(overview_data.get("markers", [])):
-			var marker: Dictionary = Dictionary(marker_variant)
+		for marker_variant in _safe_ui_array(overview_data.get("markers", [])):
+			var marker: Dictionary = _safe_ui_dictionary(marker_variant)
 			if not _map_constructor_overview_marker_matches_filter(marker):
 				continue
 			var line: HBoxContainer = HBoxContainer.new()
@@ -13254,8 +13254,8 @@ func _refresh_map_constructor_panels() -> void:
 			var marker_status_label: Label = Label.new()
 			var start_text: String = "-"
 			var exit_text: String = "-"
-			var start_marker: Dictionary = Dictionary(markers.get("start", {}))
-			var exit_marker: Dictionary = Dictionary(markers.get("exit", {}))
+			var start_marker: Dictionary = _safe_ui_dictionary(markers.get("start", {}))
+			var exit_marker: Dictionary = _safe_ui_dictionary(markers.get("exit", {}))
 			if not start_marker.is_empty():
 				start_text = str(start_marker.get("cell", "-"))
 			if not exit_marker.is_empty():
@@ -13277,9 +13277,16 @@ func _refresh_map_constructor_panels() -> void:
 # -----------------------------------------------------------------------------
 
 func _safe_ui_string(value: Variant, fallback: String = "") -> String:
-	if value == null:
-		return fallback
-	return str(value)
+	return MapConstructorUiSafe.safe_string(value, fallback)
+
+func _safe_ui_dictionary(value: Variant) -> Dictionary:
+	return MapConstructorUiSafe.safe_dictionary(value)
+
+func _safe_ui_array(value: Variant) -> Array:
+	return MapConstructorUiSafe.safe_array(value)
+
+func _safe_ui_vector2i(value: Variant, fallback: Vector2i = Vector2i(-1, -1)) -> Vector2i:
+	return MapConstructorUiSafe.safe_vector2i(value, fallback)
 
 
 
@@ -13455,8 +13462,8 @@ func _add_link_picker(section: VBoxContainer, entity_kind: String, entity_id: St
 	var current_label: Label = Label.new(); current_label.text = "Current: %s" % (current_target if not current_target.is_empty() else "(none)")
 	section.add_child(current_label)
 	if mission_manager_runtime.has_method("get_map_constructor_link_candidates"):
-		for candidate in Array(mission_manager_runtime.call("get_map_constructor_link_candidates", entity_kind, entity_id, link_type)):
-			var c: Dictionary = Dictionary(candidate)
+		for candidate in _safe_ui_array(mission_manager_runtime.call("get_map_constructor_link_candidates", entity_kind, entity_id, link_type)):
+			var c: Dictionary = _safe_ui_dictionary(candidate)
 			var cid: String = _safe_ui_string(c.get("id", ""))
 			var prefix: String = "✓ " if bool(c.get("current", false)) or cid == current_target else ""
 			var label_text: String = "%s%s [%s] %s" % [prefix, cid, _safe_ui_string(c.get("object_type", "obj")), _safe_ui_string(c.get("cell", ""))]
@@ -13464,7 +13471,7 @@ func _add_link_picker(section: VBoxContainer, entity_kind: String, entity_id: St
 			button.pressed.connect(func() -> void:
 				var result: Dictionary = mission_manager_runtime.call("set_map_constructor_entity_link", entity_kind, entity_id, link_type, cid)
 				show_hint(_safe_ui_string(result.get("message", "Link updated."), "Link updated."))
-				var target_cell: Vector2i = Vector2i(result.get("target_cell", Vector2i(-1, -1)))
+				var target_cell: Vector2i = _safe_ui_vector2i(result.get("target_cell", Vector2i(-1, -1)))
 				if target_cell.x >= 0 and target_cell.y >= 0:
 					_set_map_constructor_link_target(target_cell, _safe_ui_string(result.get("target_id", cid), cid))
 				_refresh_map_constructor_panels()
@@ -13480,12 +13487,12 @@ func _add_link_picker(section: VBoxContainer, entity_kind: String, entity_id: St
 			show_hint("No linked target.")
 			return
 		if link_type == "power_network" and mission_manager_runtime.has_method("get_map_constructor_link_candidates"):
-			var candidates: Array = Array(mission_manager_runtime.call("get_map_constructor_link_candidates", entity_kind, entity_id, link_type))
+			var candidates: Array = _safe_ui_array(mission_manager_runtime.call("get_map_constructor_link_candidates", entity_kind, entity_id, link_type))
 			for candidate_variant in candidates:
-				var candidate: Dictionary = Dictionary(candidate_variant)
+				var candidate: Dictionary = _safe_ui_dictionary(candidate_variant)
 				if _safe_ui_string(candidate.get("id", "")) != current_target:
 					continue
-				var candidate_cell: Vector2i = Vector2i(candidate.get("cell", Vector2i(-1, -1)))
+				var candidate_cell: Vector2i = _safe_ui_vector2i(candidate.get("cell", Vector2i(-1, -1)))
 				if candidate_cell.x < 0 or candidate_cell.y < 0:
 					show_hint("Power network has no single map target.")
 					return
@@ -13493,7 +13500,7 @@ func _add_link_picker(section: VBoxContainer, entity_kind: String, entity_id: St
 		if mission_manager_runtime.has_method("get_map_constructor_entity_by_id"):
 			var target_entity: Dictionary = mission_manager_runtime.call("get_map_constructor_entity_by_id", "world_object", current_target)
 			if bool(target_entity.get("ok", false)):
-				_set_map_constructor_link_target(Vector2i(target_entity.get("cell", Vector2i(-1, -1))), current_target)
+				_set_map_constructor_link_target(_safe_ui_vector2i(target_entity.get("cell", Vector2i(-1, -1))), current_target)
 			elif link_type == "power_network":
 				show_hint("Power network has no single map target.")
 	)
@@ -13513,7 +13520,7 @@ func _add_link_picker(section: VBoxContainer, entity_kind: String, entity_id: St
 			return
 		var target_entity: Dictionary = mission_manager_runtime.call("get_map_constructor_entity_by_id", "world_object", current_target)
 		if bool(target_entity.get("ok", false)):
-			var target_cell: Vector2i = Vector2i(target_entity.get("cell", Vector2i(-1, -1)))
+			var target_cell: Vector2i = _safe_ui_vector2i(target_entity.get("cell", Vector2i(-1, -1)))
 			_focus_map_constructor_cell(target_cell)
 			_show_map_constructor_inspector(target_cell, "world_object", current_target)
 	)
@@ -13537,7 +13544,7 @@ func _add_enum_property(section: VBoxContainer, label: String, entity_kind: Stri
 	var current_text: String = _safe_ui_string(current_value).strip_edges().to_lower()
 	var selected_index: int = -1
 	for option_variant in options:
-		var row: Dictionary = Dictionary(option_variant)
+		var row: Dictionary = _safe_ui_dictionary(option_variant)
 		var value: String = _safe_ui_string(row.get("value", "")).strip_edges()
 		option.add_item(_safe_ui_string(row.get("label", value), value))
 		var index: int = option.item_count - 1
@@ -13612,10 +13619,10 @@ func _add_validation_entries(section: VBoxContainer, title: String, entries: Arr
 			var button: Button = Button.new()
 			button.text = label_text
 			var entry_location: String = _safe_ui_string(entry.get("location", "map"), "map")
-			button.disabled = entry_location != "map" and Vector2i(entry.get("cell", Vector2i(-1, -1))).x < 0
+			button.disabled = entry_location != "map" and _safe_ui_vector2i(entry.get("cell", Vector2i(-1, -1))).x < 0
 			button.pressed.connect(func() -> void:
 				var target_kind: String = _safe_ui_string(entry.get("target_kind", "world_object"), "world_object")
-				var target_cell: Vector2i = Vector2i(entry.get("cell", Vector2i(-1, -1)))
+				var target_cell: Vector2i = _safe_ui_vector2i(entry.get("cell", Vector2i(-1, -1)))
 				if target_cell.x >= 0 and target_cell.y >= 0:
 					_focus_map_constructor_cell(target_cell)
 				_show_map_constructor_inspector(target_cell, target_kind, target_id)
@@ -13682,7 +13689,7 @@ func _add_key_door_link_section(parent: VBoxContainer, entity_kind: String, enti
 	current_label.text = "Unlocks Door: %s" % (current_id if not current_id.is_empty() else "(none)")
 	section.add_child(current_label)
 	var candidates: Dictionary = _safe_ui_dictionary(mission_manager_runtime.call("get_map_constructor_key_door_link_candidates", entity_kind, entity_id))
-	var doors: Array = Array(candidates.get("doors", []))
+	var doors: Array = _safe_ui_array(candidates.get("doors", []))
 	if doors.is_empty():
 		var none_label := Label.new()
 		none_label.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
@@ -13739,7 +13746,7 @@ func _add_door_linked_key_section(parent: VBoxContainer, entity_id: String, data
 		var key_entity: Dictionary = _get_map_constructor_key_entity_by_id(key_id)
 		var key_data: Dictionary = _safe_ui_dictionary(key_entity.get("data", {}))
 		if bool(key_entity.get("ok", false)):
-			label.text = "%s — %s at %s" % [_safe_ui_string(key_data.get("display_name", key_id), key_id), key_id, str(Vector2i(key_entity.get("cell", Vector2i(-1, -1))))]
+			label.text = "%s — %s at %s" % [_safe_ui_string(key_data.get("display_name", key_id), key_id), key_id, str(_safe_ui_vector2i(key_entity.get("cell", Vector2i(-1, -1))))]
 		else:
 			label.text = "Linked key missing: %s" % key_id
 	section.add_child(label)
@@ -13749,7 +13756,7 @@ func _add_door_linked_key_section(parent: VBoxContainer, entity_id: String, data
 		jump_button.pressed.connect(func() -> void:
 			var key_entity: Dictionary = _get_map_constructor_key_entity_by_id(key_id)
 			if bool(key_entity.get("ok", false)):
-				var key_cell: Vector2i = Vector2i(key_entity.get("cell", Vector2i(-1, -1)))
+				var key_cell: Vector2i = _safe_ui_vector2i(key_entity.get("cell", Vector2i(-1, -1)))
 				_focus_map_constructor_cell(key_cell)
 				_show_map_constructor_inspector(key_cell, _safe_ui_string(key_entity.get("entity_kind", "item"), "item"), key_id)
 		)
@@ -13768,7 +13775,7 @@ func _add_door_required_key_picker(parent: VBoxContainer, entity_kind: String, e
 		option.select(0)
 	var current_key_found: bool = current_key_id.is_empty()
 	var raw_candidates: Dictionary = _safe_ui_dictionary(mission_manager_runtime.call("get_map_constructor_link_targets_for_field", entity_kind, entity_id, "required_key_id"))
-	for candidate_variant in Array(raw_candidates.get("targets", [])):
+	for candidate_variant in _safe_ui_array(raw_candidates.get("targets", [])):
 		var candidate: Dictionary = _safe_ui_dictionary(candidate_variant)
 		var candidate_id: String = _safe_ui_string(candidate.get("id", "")).strip_edges()
 		if candidate_id.is_empty() or candidate_id == "__none__":
@@ -13869,7 +13876,7 @@ func _show_map_constructor_inspector(cell: Vector2i, preferred_entity_kind: Stri
 		data = data_variant.duplicate(true)
 	selected_map_constructor_entity_kind = entity_kind
 	selected_map_constructor_entity_id = entity_id
-	selected_map_constructor_entity_cell = Vector2i(entity_info.get("cell", cell))
+	selected_map_constructor_entity_cell = _safe_ui_vector2i(entity_info.get("cell", cell))
 	var type_group: String = _safe_ui_string(mission_manager_runtime.call("get_map_constructor_entity_type_group", entity_kind, entity_id), "generic") if mission_manager_runtime.has_method("get_map_constructor_entity_type_group") else "generic"
 	var preserve_scroll_after_rebuild: bool = previous_entity_kind == entity_kind and previous_entity_id == entity_id
 	var panel := PanelContainer.new()
@@ -13965,7 +13972,7 @@ func _show_map_constructor_inspector(cell: Vector2i, preferred_entity_kind: Stri
 			show_hint(_safe_ui_string(r.get("message", "Move complete."), "Move complete."))
 			_refresh_map_constructor_panels()
 			if field_runtime != null and field_runtime.has_method("request_visual_refresh"): field_runtime.call("request_visual_refresh")
-			_show_map_constructor_inspector(Vector2i(r.get("cell", Vector2i(int(move_x.value), int(move_y.value)))), entity_kind, entity_id)
+			_show_map_constructor_inspector(_safe_ui_vector2i(r.get("cell", Vector2i(int(move_x.value), int(move_y.value)))), entity_kind, entity_id)
 	)
 	move_row.add_child(move_x); move_row.add_child(move_y); move_row.add_child(move_button)
 	placement.add_child(move_row)
@@ -13982,13 +13989,13 @@ func _show_map_constructor_inspector(cell: Vector2i, preferred_entity_kind: Stri
 			if field_runtime != null and field_runtime.has_method("request_visual_refresh"): field_runtime.call("request_visual_refresh")
 			var nid: String = _safe_ui_string(r.get("entity_id", ""))
 			if not nid.is_empty():
-				_show_map_constructor_inspector(Vector2i(r.get("cell", Vector2i(int(move_x.value), int(move_y.value)))), entity_kind, nid)
+				_show_map_constructor_inspector(_safe_ui_vector2i(r.get("cell", Vector2i(int(move_x.value), int(move_y.value)))), entity_kind, nid)
 	)
 	placement.add_child(dup_button)
 	var del: Button = Button.new(); del.text = "Delete"
 	del.pressed.connect(func() -> void:
 		if mission_manager_runtime != null and mission_manager_runtime.has_method("remove_map_constructor_object_at_cell"):
-			var r: Dictionary = mission_manager_runtime.call("remove_map_constructor_object_at_cell", Vector2i(entity_info.get("cell", cell)))
+			var r: Dictionary = mission_manager_runtime.call("remove_map_constructor_object_at_cell", _safe_ui_vector2i(entity_info.get("cell", cell)))
 			show_hint(_safe_ui_string(r.get("message", "Deleted."), "Deleted."))
 			_refresh_map_constructor_panels()
 			if field_runtime != null and field_runtime.has_method("request_visual_refresh"): field_runtime.call("request_visual_refresh")
@@ -14149,7 +14156,7 @@ func _show_map_constructor_inspector(cell: Vector2i, preferred_entity_kind: Stri
 	if type_group != "item" and (type_group == "wall" or _safe_ui_string(data.get("placement_mode", "")) == "wall_mounted" or not selected_map_constructor_wall_side.is_empty()):
 		var wall_section: VBoxContainer = _create_inspector_section("8. Wall Coverage")
 		if bool(wall_target.get("ok", false)):
-			var wall_cell: Vector2i = Vector2i(wall_target.get("cell", Vector2i(-1, -1)))
+			var wall_cell: Vector2i = _safe_ui_vector2i(wall_target.get("cell", Vector2i(-1, -1)))
 			var wall_side: String = _safe_ui_string(wall_target.get("side", ""))
 			var catalog_result: Dictionary = {"materials": []}
 			if mission_manager_runtime != null and mission_manager_runtime.has_method("get_map_constructor_wall_material_catalog"):
@@ -14219,7 +14226,7 @@ func _show_map_constructor_inspector(cell: Vector2i, preferred_entity_kind: Stri
 		if deferred_wall_section == null:
 			deferred_wall_section = _create_inspector_section("8. Wall Coverage")
 		var wm: Dictionary = _safe_ui_dictionary(mission_manager_runtime.call("get_map_constructor_wall_mounted_status", entity_kind, entity_id))
-		_set_map_constructor_wall_mounted_selection(Vector2i(wm.get("anchor_floor_cell", Vector2i(-1,-1))), Vector2i(wm.get("attached_wall_cell", Vector2i(-1,-1))), entity_id)
+		_set_map_constructor_wall_mounted_selection(_safe_ui_vector2i(wm.get("anchor_floor_cell", Vector2i(-1,-1))), _safe_ui_vector2i(wm.get("attached_wall_cell", Vector2i(-1,-1))), entity_id)
 		var anchor_label: Label = Label.new()
 		anchor_label.text = _safe_ui_string(wm.get("anchor_floor_cell", Vector2i(-1, -1)), str(Vector2i(-1, -1)))
 		deferred_wall_section.add_child(_create_property_row("anchor_floor_cell", anchor_label))
@@ -14256,12 +14263,12 @@ func _show_map_constructor_inspector(cell: Vector2i, preferred_entity_kind: Stri
 
 func _resolve_wall_material_target_for_selection(entity_info: Dictionary, data: Dictionary, fallback_cell: Vector2i) -> Dictionary:
 	if _safe_ui_string(data.get("placement_mode", "")) == "wall_mounted":
-		var anchor_cell: Vector2i = Vector2i(data.get("anchor_floor_cell", Vector2i(-1, -1)))
+		var anchor_cell: Vector2i = _safe_ui_vector2i(data.get("anchor_floor_cell", Vector2i(-1, -1)))
 		var side: String = String(data.get("wall_side", "")).to_lower().strip_edges()
 		if anchor_cell.x >= 0 and anchor_cell.y >= 0 and not side.is_empty():
 			return {"ok": true, "cell": anchor_cell, "side": side}
 	if not selected_map_constructor_wall_side.is_empty():
-		var selected_cell: Vector2i = Vector2i(entity_info.get("cell", fallback_cell))
+		var selected_cell: Vector2i = _safe_ui_vector2i(entity_info.get("cell", fallback_cell))
 		if selected_cell.x >= 0 and selected_cell.y >= 0:
 			return {"ok": true, "cell": selected_cell, "side": selected_map_constructor_wall_side}
 	return {"ok": false}
@@ -14293,16 +14300,16 @@ func _map_constructor_issue_matches_filter(issue: Dictionary) -> bool:
 	return true
 
 func _focus_map_constructor_issue(issue: Dictionary) -> void:
-	var issue_cell: Vector2i = Vector2i(issue.get("cell", Vector2i(-1, -1)))
+	var issue_cell: Vector2i = _safe_ui_vector2i(issue.get("cell", Vector2i(-1, -1)))
 	var entity_kind: String = String(issue.get("entity_kind", ""))
 	var entity_id: String = String(issue.get("entity_id", ""))
 	var target_cell: Vector2i = issue_cell
 	if mission_manager_runtime != null and not entity_kind.is_empty() and not entity_id.is_empty() and mission_manager_runtime.has_method("get_map_constructor_entity_by_id"):
 		var entity_info: Dictionary = mission_manager_runtime.call("get_map_constructor_entity_by_id", entity_kind, entity_id)
 		if bool(entity_info.get("ok", false)):
-			target_cell = Vector2i(entity_info.get("cell", issue_cell))
+			target_cell = _safe_ui_vector2i(entity_info.get("cell", issue_cell))
 			if String(entity_info.get("placement_mode", "")).to_lower() == "wall_mounted":
-				var anchor_floor_cell: Vector2i = Vector2i(entity_info.get("anchor_floor_cell", Vector2i(-1, -1)))
+				var anchor_floor_cell: Vector2i = _safe_ui_vector2i(entity_info.get("anchor_floor_cell", Vector2i(-1, -1)))
 				if anchor_floor_cell.x >= 0 and anchor_floor_cell.y >= 0:
 					target_cell = anchor_floor_cell
 			selected_map_constructor_entity_kind = entity_kind
@@ -14339,7 +14346,7 @@ func _focus_map_constructor_readiness_issue_by_id(issue_id: String) -> void:
 		return
 	var constructor_issues: Array = mission_manager_runtime.call("get_map_constructor_validation_issues")
 	for issue_variant in constructor_issues:
-		var issue: Dictionary = Dictionary(issue_variant)
+		var issue: Dictionary = _safe_ui_dictionary(issue_variant)
 		if String(issue.get("id", "")) != issue_id:
 			continue
 		map_constructor_selected_issue_id = issue_id
@@ -14351,7 +14358,7 @@ func _add_map_constructor_readiness_action_buttons(action_row: HFlowContainer, r
 	var action_type: String = String(recommendation.get("action_type", "none"))
 	if action_type == "autofix":
 		var ftype: String = String(recommendation.get("fix_type", ""))
-		var foptions: Dictionary = Dictionary(recommendation.get("options", {}))
+		var foptions: Dictionary = _safe_ui_dictionary(recommendation.get("options", {}))
 		var fkey: String = "%s|%s" % [ftype, JSON.stringify(foptions)]
 		var preview_btn: Button = _make_map_constructor_action_button("Preview Fix")
 		preview_btn.pressed.connect(func() -> void: _apply_map_constructor_autofix_action(ftype, foptions, false))
@@ -14361,7 +14368,7 @@ func _add_map_constructor_readiness_action_buttons(action_row: HFlowContainer, r
 		action_row.add_child(preview_btn); action_row.add_child(apply_btn)
 	elif action_type == "cleanup":
 		var ctype: String = String(recommendation.get("cleanup_type", ""))
-		var coptions: Dictionary = Dictionary(recommendation.get("options", {}))
+		var coptions: Dictionary = _safe_ui_dictionary(recommendation.get("options", {}))
 		var ckey: String = "%s|%s" % [ctype, JSON.stringify(coptions)]
 		var preview_btn: Button = _make_map_constructor_action_button("Preview Cleanup")
 		preview_btn.pressed.connect(func() -> void: _apply_map_constructor_cleanup_action(ctype, coptions, false))
@@ -16492,10 +16499,10 @@ func _draw_map_constructor_validation_overlay(control: Control) -> void:
 		return
 	var renderer: RoomVisualRenderer = renderer_node
 	var overlay: Dictionary = mission_manager_runtime.call("get_map_constructor_validation_overlay")
-	var cells: Dictionary = Dictionary(overlay.get("cells", {}))
+	var cells: Dictionary = _safe_ui_dictionary(overlay.get("cells", {}))
 	for cell_variant in cells.keys():
-		var cell: Vector2i = Vector2i(cell_variant)
-		var row: Dictionary = Dictionary(cells[cell_variant])
+		var cell: Vector2i = _safe_ui_vector2i(cell_variant)
+		var row: Dictionary = _safe_ui_dictionary(cells[cell_variant])
 		var severity: String = String(row.get("severity", "none"))
 		if severity == "none":
 			continue
@@ -16532,13 +16539,13 @@ func _sync_map_constructor_overlay_visuals() -> void:
 	}
 	if not room_visual_preset_preview.is_empty():
 		overlay_data["room_visual_preview"] = {
-			"walls": Array(room_visual_preset_preview.get("affected_walls", [])).duplicate(true),
-			"doors": Array(room_visual_preset_preview.get("affected_doors", [])).duplicate(true),
-			"terminals": Array(room_visual_preset_preview.get("affected_terminals", [])).duplicate(true),
-			"floors": Array(room_visual_preset_preview.get("affected_floors", [])).duplicate(true)
+			"walls": _safe_ui_array(room_visual_preset_preview.get("affected_walls", [])).duplicate(true),
+			"doors": _safe_ui_array(room_visual_preset_preview.get("affected_doors", [])).duplicate(true),
+			"terminals": _safe_ui_array(room_visual_preset_preview.get("affected_terminals", [])).duplicate(true),
+			"floors": _safe_ui_array(room_visual_preset_preview.get("affected_floors", [])).duplicate(true)
 		}
 	if mission_manager_runtime != null and mission_manager_runtime.has_method("get_map_constructor_validation_issues"):
-		overlay_data["validation"] = Array(mission_manager_runtime.call("get_map_constructor_validation_issues"))
+		overlay_data["validation"] = _safe_ui_array(mission_manager_runtime.call("get_map_constructor_validation_issues"))
 	renderer.set_map_constructor_overlay_data(overlay_data)
 
 func _build_map_constructor_overlay_links() -> Array[Dictionary]:
@@ -16551,17 +16558,17 @@ func _build_map_constructor_overlay_links() -> Array[Dictionary]:
 		var row_id: String = String(row.get("id", "")).strip_edges()
 		if row_id.is_empty():
 			continue
-		id_to_cell[row_id] = Vector2i(row.get("cell", Vector2i(-1, -1)))
+		id_to_cell[row_id] = _safe_ui_vector2i(row.get("cell", Vector2i(-1, -1)))
 	for row in rows:
 		var source_id: String = String(row.get("id", "")).strip_edges()
-		var source_cell: Vector2i = Vector2i(row.get("cell", Vector2i(-1, -1)))
+		var source_cell: Vector2i = _safe_ui_vector2i(row.get("cell", Vector2i(-1, -1)))
 		if source_id.is_empty() or source_cell.x < 0 or source_cell.y < 0:
 			continue
 		for field_name in ["control_source_id", "linked_terminal_id", "controller_id", "target_door_id", "target_platform_id", "linked_object_id", "target_object_id", "linked_door_id", "required_key_id"]:
 			var target_id: String = String(row.get(field_name, "")).strip_edges()
 			if target_id.is_empty():
 				continue
-			var target_cell: Vector2i = Vector2i(id_to_cell.get(target_id, Vector2i(-1, -1)))
+			var target_cell: Vector2i = _safe_ui_vector2i(id_to_cell.get(target_id, Vector2i(-1, -1)))
 			var broken: bool = target_cell.x < 0 or target_cell.y < 0
 			var safe_target: Vector2i = target_cell
 			if broken:
@@ -16586,44 +16593,44 @@ func _build_map_constructor_overlay_power() -> Array[Dictionary]:
 		var network_id: String = String(row.get("power_network_id", "")).strip_edges()
 		if network_id.is_empty():
 			continue
-		var row_cell: Vector2i = Vector2i(row.get("cell", Vector2i(-1, -1)))
+		var row_cell: Vector2i = _safe_ui_vector2i(row.get("cell", Vector2i(-1, -1)))
 		if row_cell.x < 0 or row_cell.y < 0:
 			continue
 		if not network_nodes.has(network_id):
 			network_nodes[network_id] = []
 		var powered_flag: bool = bool(row.get("is_powered", row.get("powered", false)))
 		var requires_power: bool = bool(row.get("requires_power", false))
-		Array(network_nodes[network_id]).append({"id": String(row.get("id", "")), "cell": row_cell, "requires_power": requires_power, "powered": powered_flag})
+		_safe_ui_array(network_nodes[network_id]).append({"id": String(row.get("id", "")), "cell": row_cell, "requires_power": requires_power, "powered": powered_flag})
 	for network_id_variant in network_nodes.keys():
 		var network_id_key: String = String(network_id_variant)
-		var nodes: Array = Array(network_nodes[network_id_variant])
+		var nodes: Array = _safe_ui_array(network_nodes[network_id_variant])
 		if nodes.size() < 2:
 			continue
 		var selected_id: String = selected_map_constructor_entity_id.strip_edges()
 		var selected_cell: Vector2i = Vector2i(-1, -1)
 		var selected_is_in_network: bool = false
 		for node_variant in nodes:
-			var node: Dictionary = Dictionary(node_variant)
+			var node: Dictionary = _safe_ui_dictionary(node_variant)
 			if String(node.get("id", "")) == selected_id:
 				selected_is_in_network = true
-				selected_cell = Vector2i(node.get("cell", Vector2i(-1, -1)))
+				selected_cell = _safe_ui_vector2i(node.get("cell", Vector2i(-1, -1)))
 				break
 		if selected_is_in_network and selected_cell.x >= 0 and selected_cell.y >= 0:
 			for node_variant in nodes:
-				var node: Dictionary = Dictionary(node_variant)
+				var node: Dictionary = _safe_ui_dictionary(node_variant)
 				var node_id: String = String(node.get("id", ""))
 				if node_id == selected_id:
 					continue
-				var to_cell: Vector2i = Vector2i(node.get("cell", Vector2i(-1, -1)))
+				var to_cell: Vector2i = _safe_ui_vector2i(node.get("cell", Vector2i(-1, -1)))
 				if to_cell.x < 0 or to_cell.y < 0:
 					continue
 				result.append({"from_cell": selected_cell, "to_cell": to_cell, "network_id": network_id_key, "broken": false})
 		else:
 			for node_index in range(nodes.size() - 1):
-				var from_node: Dictionary = Dictionary(nodes[node_index])
-				var to_node: Dictionary = Dictionary(nodes[node_index + 1])
-				var from_cell: Vector2i = Vector2i(from_node.get("cell", Vector2i(-1, -1)))
-				var to_cell: Vector2i = Vector2i(to_node.get("cell", Vector2i(-1, -1)))
+				var from_node: Dictionary = _safe_ui_dictionary(nodes[node_index])
+				var to_node: Dictionary = _safe_ui_dictionary(nodes[node_index + 1])
+				var from_cell: Vector2i = _safe_ui_vector2i(from_node.get("cell", Vector2i(-1, -1)))
+				var to_cell: Vector2i = _safe_ui_vector2i(to_node.get("cell", Vector2i(-1, -1)))
 				if from_cell.x < 0 or to_cell.x < 0:
 					continue
 				result.append({"from_cell": from_cell, "to_cell": to_cell, "network_id": network_id_key, "broken": false})
