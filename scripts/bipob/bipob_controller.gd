@@ -7818,8 +7818,10 @@ func get_available_world_actions(world_object: Dictionary, target_position: Vect
 				actions.append("connect")
 			elif int(world_object.get("scan_level", 0)) < 2:
 				actions.append("scan")
-			elif state != "hacked" and get_installed_processor_level() >= int(world_object.get("required_processor_level", 1)):
-				actions.append("hack")
+			else:
+				var needs_digital_unlock: bool = state == "locked" or bool(world_object.get("is_locked", false)) or bool(world_object.get("locked", false))
+				if needs_digital_unlock and get_installed_processor_level() >= int(world_object.get("required_processor_level", 1)):
+					actions.append("hack")
 		if String(world_object.get("control_mode", "internal")).strip_edges().to_lower() == "external":
 			if state in ["damaged", "half_open", "jammed"] and has_heavy_claw():
 				actions.append("force_open")
@@ -7911,7 +7913,8 @@ func _world_object_has_download_payload(world_object: Dictionary) -> bool:
 	if not String(world_object.get("stored_key_id", world_object.get("access_key_id", world_object.get("download_record_id", "")))).strip_edges().is_empty():
 		return true
 	for field_name in ["stored_key_ids", "stored_access_ids", "stored_item_ids", "digital_key_ids", "access_code_ids"]:
-		if not Array(world_object.get(field_name, [])).is_empty():
+		var stored_ids_value: Variant = world_object.get(field_name, [])
+		if stored_ids_value is Array and not Array(stored_ids_value).is_empty():
 			return true
 	return false
 
@@ -7983,6 +7986,8 @@ func get_world_action_module(action_id: String, world_object: Dictionary) -> Dic
 				return _module_dict("magnetic_manipulator_v1" if has_module_id("magnetic_manipulator_v1") else "")
 			return _module_dict("manipulator_heavy_claw_v1" if has_module_id("manipulator_heavy_claw_v1") else "")
 		"download":
+			# storage_buffer is a virtual runtime capability backed by digital_storage slots, not an installable module id.
+			# InteractionSystem still gates downloads by hacked/unlocked state and by actual payload presence.
 			return _module_dict("storage_buffer")
 		"insert_fuse":
 			return _module_dict("fuse" if has_held_world_item("fuse") else "")

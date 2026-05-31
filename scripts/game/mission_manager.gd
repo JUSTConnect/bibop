@@ -3822,31 +3822,80 @@ func _format_world_item_reference_label(item_data: Dictionary, fallback_id: Stri
 
 func resolve_world_item_reference(item_id: String) -> Dictionary:
 	var normalized_id: String = item_id.strip_edges()
+	var missing_result: Dictionary = {"exists": false, "ok": false, "location": "missing", "entity_kind": "item", "id": normalized_id, "cell": Vector2i(-1, -1), "item_data": {}, "data": {}, "label": _format_world_item_reference_label({}, normalized_id, "missing")}
 	if normalized_id.is_empty():
-		return {"exists": false, "ok": false, "location": "missing", "id": normalized_id, "item_data": {}, "label": ""}
+		missing_result["label"] = ""
+		return missing_result
+
 	for cell_variant in cell_items.keys():
 		var cell: Vector2i = _deserialize_cell_variant(cell_variant)
-		for item_variant in Array(cell_items.get(cell_variant, [])):
+		for item_variant in _safe_array(cell_items.get(cell_variant, [])):
 			var item_data: Dictionary = _safe_dictionary(item_variant)
 			if String(item_data.get("id", "")).strip_edges() == normalized_id:
 				return {"exists": true, "ok": true, "location": "map", "entity_kind": "item", "id": normalized_id, "cell": cell, "item_data": item_data, "data": item_data, "label": _format_world_item_reference_label(item_data, normalized_id, "map")}
+
 	for object_variant in mission_world_objects:
 		var world_data: Dictionary = _safe_dictionary(object_variant)
 		if String(world_data.get("id", "")).strip_edges() != normalized_id:
 			continue
-		if String(world_data.get("id", "")).strip_edges() != normalized_key_id:
+		if _map_constructor_is_item_like_world_object(world_data):
+			var world_cell: Vector2i = _deserialize_cell_variant(world_data.get("position", Vector2i(-1, -1)))
+			return {"exists": true, "ok": true, "location": "map", "entity_kind": "world_object", "id": normalized_id, "cell": world_cell, "item_data": world_data, "data": world_data, "label": _format_world_item_reference_label(world_data, normalized_id, "map")}
+		return {"exists": true, "ok": false, "reason": "not_item", "location": "map", "entity_kind": "world_object", "id": normalized_id, "cell": _deserialize_cell_variant(world_data.get("position", Vector2i(-1, -1))), "item_data": world_data, "data": world_data, "label": _format_world_item_reference_label(world_data, normalized_id, "map")}
+
+	var runtime_map: Dictionary = _safe_dictionary(runtime_inventory_state.get("world_item_runtime", {}))
+	var runtime_entry: Dictionary = _safe_dictionary(runtime_map.get(normalized_id, {}))
+	var runtime_item_data: Dictionary = _safe_dictionary(runtime_entry.get("item_data", runtime_entry))
+	if not runtime_item_data.is_empty():
+		var runtime_location: String = String(runtime_entry.get("location", runtime_item_data.get("location", "inventory"))).strip_edges().to_lower()
+		if runtime_location.is_empty() or runtime_location == "picked_up":
+			runtime_location = "inventory"
+		if runtime_location != "terminal":
+			runtime_location = "inventory"
+		return {"exists": true, "ok": true, "location": runtime_location, "entity_kind": "item", "id": normalized_id, "cell": _deserialize_cell_variant(runtime_item_data.get("position", Vector2i(-1, -1))), "item_data": runtime_item_data, "data": runtime_item_data, "label": _format_world_item_reference_label(runtime_item_data, normalized_id, runtime_location)}
+
+	if has_collected_key(normalized_id):
+		var collected_data: Dictionary = {"id": normalized_id, "item_type": "collected_key", "key_kind": "runtime_inventory"}
+		return {"exists": true, "ok": true, "location": "inventory", "entity_kind": "item", "id": normalized_id, "cell": Vector2i(-1, -1), "item_data": collected_data, "data": collected_data, "label": _format_world_item_reference_label(collected_data, normalized_id, "inventory")}
+
+	for terminal_variant in mission_world_objects:
+		var terminal_data: Dictionary = _safe_dictionary(terminal_variant)
+		var object_group: String = String(terminal_data.get("object_group", "")).strip_edges().to_lower()
+		var object_type: String = String(terminal_data.get("object_type", "")).strip_edges().to_lower()
+		if object_group != "terminal" and not object_type.contains("terminal"):
 			continue
-		if not _map_constructor_is_item_like_world_object(world_data) or not _map_constructor_is_key_data(world_data):
-			return {"ok": false, "reason": "not_key", "entity_kind": "world_object", "id": normalized_key_id, "cell": Vector2i(world_data.get("position", Vector2i(-1, -1))), "data": world_data}
-		return {"ok": true, "entity_kind": "world_object", "id": normalized_key_id, "cell": Vector2i(world_data.get("position", Vector2i(-1, -1))), "data": world_data}
-	var runtime_map: Dictionary = Dictionary(runtime_inventory_state.get("world_item_runtime", {}))
-	var runtime_entry: Dictionary = Dictionary(runtime_map.get(normalized_key_id, {}))
-	var runtime_item_data: Dictionary = Dictionary(runtime_entry.get("item_data", runtime_entry))
-	if not runtime_item_data.is_empty() and _map_constructor_is_key_data(runtime_item_data):
-		return {"ok": true, "entity_kind": "item", "id": normalized_key_id, "cell": Vector2i(runtime_item_data.get("position", Vector2i(-1, -1))), "data": runtime_item_data, "runtime_inventory": true}
-	if has_collected_key(normalized_key_id):
-		return {"ok": true, "entity_kind": "item", "id": normalized_key_id, "cell": Vector2i(-1, -1), "data": {"id": normalized_key_id, "item_type": "collected_key", "key_kind": "runtime_inventory"}, "runtime_inventory": true}
-	return {"ok": false, "reason": "not_found", "entity_kind": "item", "id": normalized_key_id}
+		var terminal_has_id: bool = false
+		for field_name in ["stored_key_ids", "stored_access_ids", "stored_item_ids", "digital_key_ids", "access_code_ids"]:
+			if _safe_array(terminal_data.get(field_name, [])).has(normalized_id):
+				terminal_has_id = true
+				break
+		if not terminal_has_id:
+			for field_name in ["stored_key_id", "access_key_id", "download_record_id"]:
+				if String(terminal_data.get(field_name, "")).strip_edges() == normalized_id:
+					terminal_has_id = true
+					break
+		if terminal_has_id:
+			var terminal_item_data: Dictionary = {"id": normalized_id, "item_type": "terminal_stored_key", "key_kind": "digital", "terminal_id": String(terminal_data.get("id", "")).strip_edges()}
+			return {"exists": true, "ok": true, "location": "terminal", "entity_kind": "item", "id": normalized_id, "cell": _deserialize_cell_variant(terminal_data.get("position", Vector2i(-1, -1))), "item_data": terminal_item_data, "data": terminal_item_data, "label": _format_world_item_reference_label(terminal_item_data, normalized_id, "terminal")}
+
+	return missing_result
+
+func find_map_constructor_key_item_by_id(key_id: String) -> Dictionary:
+	var resolved: Dictionary = resolve_world_item_reference(key_id)
+	if not bool(resolved.get("ok", false)):
+		if bool(resolved.get("exists", false)):
+			var existing_not_key: Dictionary = resolved.duplicate(true)
+			existing_not_key["ok"] = false
+			existing_not_key["reason"] = "not_key"
+			return existing_not_key
+		return resolved
+	var item_data: Dictionary = _safe_dictionary(resolved.get("item_data", resolved.get("data", {})))
+	if not _map_constructor_is_key_data(item_data):
+		var not_key_result: Dictionary = resolved.duplicate(true)
+		not_key_result["ok"] = false
+		not_key_result["reason"] = "not_key"
+		return not_key_result
+	return resolved
 
 func _map_constructor_get_linked_key_for_door(door_id: String) -> String:
 	var normalized_door_id: String = door_id.strip_edges()
@@ -3859,7 +3908,7 @@ func _map_constructor_get_linked_key_for_door(door_id: String) -> String:
 		if not required_key_id.is_empty() and bool(find_map_constructor_key_item_by_id(required_key_id).get("ok", false)):
 			return required_key_id
 	for cell_variant in cell_items.keys():
-		for item_variant in Array(cell_items.get(cell_variant, [])):
+		for item_variant in _safe_array(cell_items.get(cell_variant, [])):
 			var item_data: Dictionary = _safe_dictionary(item_variant)
 			if item_data.is_empty() or not _map_constructor_is_key_data(item_data):
 				continue
@@ -4685,15 +4734,20 @@ func _map_constructor_make_validation_link(label: String, target_id: String, tar
 	return {"label": display_label, "target_id": target_id, "target_kind": target_kind, "field_name": field_name, "cell": cell, "location": location}
 
 func _map_constructor_terminal_stores_key(terminal_id: String, key_id: String) -> bool:
-	if terminal_id.strip_edges().is_empty() or key_id.strip_edges().is_empty():
+	var normalized_terminal_id: String = terminal_id.strip_edges()
+	var normalized_key_id: String = key_id.strip_edges()
+	if normalized_terminal_id.is_empty() or normalized_key_id.is_empty():
 		return false
-	var terminal: Dictionary = get_world_object_by_id(terminal_id)
+	var terminal: Dictionary = get_world_object_by_id(normalized_terminal_id)
 	if terminal.is_empty():
 		return false
 	for field_name in ["stored_key_ids", "stored_access_ids", "stored_item_ids", "digital_key_ids", "access_code_ids"]:
-		if Array(terminal.get(field_name, [])).has(key_id):
+		if _safe_array(terminal.get(field_name, [])).has(normalized_key_id):
 			return true
-	return String(terminal.get("stored_key_id", terminal.get("access_key_id", ""))).strip_edges() == key_id
+	for field_name in ["stored_key_id", "access_key_id", "download_record_id"]:
+		if String(terminal.get(field_name, "")).strip_edges() == normalized_key_id:
+			return true
+	return false
 
 func validate_map_constructor_entity_links(entity_kind: String, entity_id: String) -> Dictionary:
 	var warnings: Array[String] = []
@@ -4744,21 +4798,28 @@ func validate_map_constructor_entity_links(entity_kind: String, entity_id: Strin
 				else:
 					missing.append("mechanical key selected but linked key is missing")
 		elif access_type in ["digital_key", "access_code"]:
+			var access_key_resolved: Dictionary = {}
 			if required_key_id.is_empty():
 				missing.append("%s selected but no key/access item linked" % access_type)
 			else:
-				var access_key_resolved: Dictionary = find_map_constructor_key_item_by_id(required_key_id)
+				access_key_resolved = find_map_constructor_key_item_by_id(required_key_id)
 				if bool(access_key_resolved.get("ok", false)):
 					linked.append(_map_constructor_make_validation_link("linked key/access item", required_key_id, "item", "required_key_id"))
-					if String(access_key_resolved.get("location", "map")) == "inventory":
+					var key_location: String = String(access_key_resolved.get("location", "map"))
+					if key_location == "inventory":
 						warnings.append("linked key/access item is currently in player inventory")
 				else:
 					missing.append("%s selected but linked key/access item is missing" % access_type)
 			if access_terminal_id.is_empty():
-				missing.append("digital key/access code selected but no terminal storage linked")
+				if String(access_key_resolved.get("location", "")) == "terminal":
+					warnings.append("linked key/access item is stored in a terminal; select that terminal if this door requires explicit storage binding")
+				elif not required_key_id.is_empty():
+					warnings.append("digital key/access code selected but no terminal storage linked")
+				else:
+					missing.append("digital key/access code selected but no terminal storage linked")
 			else:
 				linked.append(_map_constructor_make_validation_link("linked information/access terminal", access_terminal_id, "world_object", "access_terminal_id"))
-				if not _map_constructor_terminal_stores_key(access_terminal_id, required_key_id):
+				if not required_key_id.is_empty() and not _map_constructor_terminal_stores_key(access_terminal_id, required_key_id):
 					warnings.append("selected door has digital key/access code linked, but that key/code is not stored in the selected information terminal")
 		elif access_type == "terminal_access":
 			if access_terminal_id.is_empty():
