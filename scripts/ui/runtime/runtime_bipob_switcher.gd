@@ -57,16 +57,28 @@ static func build(ui, hud_root: Control, margin: float, top_offset: float) -> Pa
 
 
 static func refresh(ui) -> void:
+	if ui == null:
+		return
+	var mission_bipobs: Array[Dictionary] = ui._get_mission_bipobs()
 	for index in range(ui.runtime_mission_bipob_cards.size()):
 		var card: Button = ui.runtime_mission_bipob_cards[index]
 		if card == null or not is_instance_valid(card):
 			continue
 		var is_active: bool = index == ui.runtime_selected_mission_bipob_index
+		if index < mission_bipobs.size():
+			card.text = ui._get_mission_bipob_display_name(mission_bipobs[index], index)
+		else:
+			card.text = "Bipob %d" % (index + 1)
+		card.tooltip_text = "Active Bipob" if is_active else "Select Bipob"
 		card.button_pressed = is_active
 		card.modulate = Color(1, 1, 1, 1) if is_active else Color(0.78, 0.82, 0.88, 1.0)
 
 
-static func _on_card_pressed(ui, _index: int) -> void:
+static func _on_card_pressed(ui, index: int) -> void:
+	if ui == null:
+		return
+	if ui.has_method("_select_runtime_mission_bipob"):
+		ui.call("_select_runtime_mission_bipob", index)
+	elif ui.has_method("show_hint"):
+		ui.call("show_hint", "Bipob switching is unavailable.")
 	refresh(ui)
-	if ui != null and ui.has_method("show_hint"):
-		ui.call("show_hint", "Bipob switching will be implemented later.")

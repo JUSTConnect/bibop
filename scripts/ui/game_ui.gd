@@ -4928,8 +4928,26 @@ func _refresh_active_mission_bipob_hud() -> void:
 	_update_runtime_bipob_switch_card_styles()
 
 
+func _select_runtime_mission_bipob(index: int) -> void:
+	var mission_bipobs: Array[Dictionary] = _get_mission_bipobs()
+	if index < 0 or index >= mission_bipobs.size():
+		_update_runtime_bipob_switch_card_styles()
+		return
+	if index == runtime_selected_mission_bipob_index:
+		_update_runtime_bipob_switch_card_styles()
+		show_hint("Active Bipob: %s" % _get_mission_bipob_display_name(mission_bipobs[index], index))
+		return
+	runtime_selected_mission_bipob_index = index
+	update_status()
+	update_diagnostic_status()
+	_refresh_runtime_storage_panel()
+	_refresh_runtime_interaction_controls()
+	_update_runtime_bipob_switch_card_styles()
+	show_hint("Active Bipob: %s" % _get_mission_bipob_display_name(mission_bipobs[index], index))
+
+
 func _on_bipob_switch_card_pressed(index: int) -> void:
-	_set_active_mission_bipob(index)
+	_select_runtime_mission_bipob(index)
 
 
 func _update_runtime_bipob_switch_card_styles() -> void:
