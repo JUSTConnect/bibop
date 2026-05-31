@@ -9144,10 +9144,10 @@ func _sync_programmer_runtime_lists() -> void:
 	var pending_file_by_id: Dictionary = _programmer_dictionary_by_id(programmer_pending_files)
 	var completed_file_by_id: Dictionary = _programmer_dictionary_by_id(programmer_completed_files)
 	for source_file in _get_programmer_source_files():
-		var file_id: String = String(source_file.get("id", "")).strip_edges()
+		var file_id: String = _programmer_safe_string(source_file.get("id", "")).strip_edges()
 		if file_id.is_empty():
 			continue
-		var state: String = String(source_file.get("state", source_file.get("digital_state", "encrypted"))).strip_edges().to_lower()
+		var state: String = _programmer_safe_string(source_file.get("state", source_file.get("digital_state", "encrypted"))).strip_edges().to_lower()
 		if completed_file_by_id.has(file_id):
 			completed_file_by_id[file_id] = _merge_programmer_record(Dictionary(completed_file_by_id[file_id]), source_file)
 		elif ["decrypted", "recovered", "opened", "complete", "completed"].has(state):
@@ -9161,7 +9161,7 @@ func _sync_programmer_runtime_lists() -> void:
 	var pending_bipob_by_id: Dictionary = _programmer_dictionary_by_id(programmer_pending_bipobs)
 	var completed_bipob_by_id: Dictionary = _programmer_dictionary_by_id(programmer_reprogrammed_bipobs)
 	for source_bipob in _get_programmer_source_bipobs():
-		var bipob_id: String = String(source_bipob.get("id", source_bipob.get("profile_id", ""))).strip_edges()
+		var bipob_id: String = _programmer_safe_string(source_bipob.get("id", source_bipob.get("profile_id", ""))).strip_edges()
 		if bipob_id.is_empty():
 			continue
 		source_bipob["id"] = bipob_id
@@ -9182,7 +9182,7 @@ func _get_programmer_source_files() -> Array[Dictionary]:
 			var digital_records: Dictionary = Dictionary(bipob.get("digital_world_records"))
 			for key_variant in digital_records.keys():
 				var record: Dictionary = _programmer_as_dictionary(digital_records.get(key_variant, {}))
-				record["id"] = String(record.get("id", key_variant)).strip_edges()
+				record["id"] = _programmer_safe_string(record.get("id", key_variant)).strip_edges()
 				_append_programmer_file_if_relevant(records, seen, record, "bipob")
 		if bipob.has_method("get_digital_storage_items"):
 			for item_variant in Array(bipob.call("get_digital_storage_items")):
@@ -9190,7 +9190,7 @@ func _get_programmer_source_files() -> Array[Dictionary]:
 	if mission_manager_runtime != null and mission_manager_runtime.has_method("get_inventory_state"):
 		var inv: Dictionary = Dictionary(mission_manager_runtime.call("get_inventory_state"))
 		for item_id_variant in Array(inv.get("digital_buffer", [])):
-			var item_id: String = String(item_id_variant).strip_edges()
+			var item_id: String = _programmer_safe_string(item_id_variant).strip_edges()
 			if item_id.is_empty():
 				continue
 			var runtime_map: Dictionary = Dictionary(inv.get("world_item_runtime", {}))
@@ -9202,7 +9202,7 @@ func _get_programmer_source_files() -> Array[Dictionary]:
 		for runtime_key_variant in runtime_items.keys():
 			var runtime_record: Dictionary = _programmer_as_dictionary(runtime_items.get(runtime_key_variant, {}))
 			var runtime_item_data: Dictionary = _programmer_as_dictionary(runtime_record.get("item_data", runtime_record))
-			runtime_item_data["id"] = String(runtime_item_data.get("id", runtime_key_variant)).strip_edges()
+			runtime_item_data["id"] = _programmer_safe_string(runtime_item_data.get("id", runtime_key_variant)).strip_edges()
 			_append_programmer_file_if_relevant(records, seen, runtime_item_data, "inventory")
 	if mission_manager_runtime != null and _object_has_property(mission_manager_runtime, "mission_world_objects"):
 		for object_variant in Array(mission_manager_runtime.get("mission_world_objects")):
@@ -9217,11 +9217,11 @@ func _get_programmer_source_files() -> Array[Dictionary]:
 func _append_programmer_file_if_relevant(records: Array[Dictionary], seen: Dictionary, data: Dictionary, source: String) -> void:
 	if data.is_empty():
 		return
-	var file_id: String = String(data.get("id", data.get("record_id", ""))).strip_edges()
+	var file_id: String = _programmer_safe_string(data.get("id", data.get("record_id", ""))).strip_edges()
 	if file_id.is_empty():
 		return
-	var combined_text: String = (file_id + " " + String(data.get("display_name", data.get("name", ""))) + " " + String(data.get("item_type", data.get("object_type", ""))) + " " + String(data.get("item_family", ""))).to_lower()
-	var state: String = String(data.get("digital_state", data.get("state", ""))).strip_edges().to_lower()
+	var combined_text: String = (file_id + " " + _programmer_safe_string(data.get("display_name", data.get("name", ""))) + " " + _programmer_safe_string(data.get("item_type", data.get("object_type", ""))) + " " + _programmer_safe_string(data.get("item_family", ""))).to_lower()
+	var state: String = _programmer_safe_string(data.get("digital_state", data.get("state", ""))).strip_edges().to_lower()
 	var is_file: bool = combined_text.contains("file") or combined_text.contains("data") or combined_text.contains("record") or combined_text.contains("digital")
 	var needs_programmer: bool = ["encrypted", "corrupted", "damaged", "recover", "recovery", "lost"].has(state) or combined_text.contains("encrypted") or combined_text.contains("corrupt")
 	var is_completed: bool = ["decrypted", "recovered", "opened", "complete", "completed"].has(state)
@@ -9233,14 +9233,14 @@ func _append_programmer_file_if_relevant(records: Array[Dictionary], seen: Dicti
 	var record: Dictionary = data.duplicate(true)
 	record["id"] = file_id
 	record["source"] = source
-	if String(record.get("display_name", "")).strip_edges().is_empty():
+	if _programmer_safe_string(record.get("display_name", "")).strip_edges().is_empty():
 		record["display_name"] = file_id.capitalize()
 	if state.is_empty():
 		record["state"] = "encrypted" if needs_programmer else "opened"
 	else:
 		record["state"] = state
 	record["action"] = "Decrypt"
-	if ["corrupted", "damaged", "recover", "recovery", "lost"].has(String(record.get("state", "")).to_lower()):
+	if ["corrupted", "damaged", "recover", "recovery", "lost"].has(_programmer_safe_string(record.get("state", "")).to_lower()):
 		record["action"] = "Recover"
 	records.append(record)
 
@@ -9250,28 +9250,28 @@ func _get_programmer_source_bipobs() -> Array[Dictionary]:
 	if bipob != null and bipob.has_method("get_damaged_bipobs_for_repair"):
 		for row_variant in Array(bipob.call("get_damaged_bipobs_for_repair")):
 			var row: Dictionary = _programmer_as_dictionary(row_variant)
-			var row_id: String = String(row.get("profile_id", row.get("id", ""))).strip_edges()
+			var row_id: String = _programmer_safe_string(row.get("profile_id", row.get("id", ""))).strip_edges()
 			if row_id.is_empty() or seen.has(row_id):
 				continue
 			seen[row_id] = true
 			row["id"] = row_id
-			row["type"] = String(row.get("name", "Bipob"))
+			row["type"] = _programmer_safe_string(row.get("name", "Bipob"))
 			records.append(row)
 	if mission_manager_runtime != null and _object_has_property(mission_manager_runtime, "mission_world_objects"):
 		for object_variant in Array(mission_manager_runtime.get("mission_world_objects")):
 			var object_data: Dictionary = _programmer_as_dictionary(object_variant)
-			var object_id: String = String(object_data.get("id", "")).strip_edges()
+			var object_id: String = _programmer_safe_string(object_data.get("id", "")).strip_edges()
 			if object_id.is_empty() or seen.has(object_id):
 				continue
-			var text: String = (object_id + " " + String(object_data.get("display_name", object_data.get("name", ""))) + " " + String(object_data.get("object_type", object_data.get("item_type", "")))).to_lower()
-			var state: String = String(object_data.get("state", object_data.get("status", ""))).to_lower()
+			var text: String = (object_id + " " + _programmer_safe_string(object_data.get("display_name", object_data.get("name", ""))) + " " + _programmer_safe_string(object_data.get("object_type", object_data.get("item_type", "")))).to_lower()
+			var state: String = _programmer_safe_string(object_data.get("state", object_data.get("status", ""))).to_lower()
 			if not text.contains("bipob") and not text.contains("bipop"):
 				continue
 			if not ["damaged", "broken", "found", "disabled", "corrupted", ""].has(state):
 				continue
 			seen[object_id] = true
 			object_data["id"] = object_id
-			object_data["type"] = String(object_data.get("display_name", object_data.get("name", "Found Bipob")))
+			object_data["type"] = _programmer_safe_string(object_data.get("display_name", object_data.get("name", "Found Bipob")))
 			records.append(object_data)
 	return records
 
@@ -9300,25 +9300,25 @@ func _create_programmer_file_row(file_record: Dictionary, completed: bool) -> Co
 	row.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	row.add_theme_constant_override("separation", 8)
 	panel.add_child(row)
-	row.add_child(_create_programmer_icon_card("FILE", String(file_record.get("display_name", file_record.get("id", "File")))))
+	row.add_child(_create_programmer_icon_card("FILE", _programmer_safe_string(file_record.get("display_name", file_record.get("id", "File")))))
 	var info: VBoxContainer = VBoxContainer.new()
 	info.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	var title: Label = Label.new()
-	title.text = String(file_record.get("display_name", file_record.get("id", "File")))
+	title.text = _programmer_safe_string(file_record.get("display_name", file_record.get("id", "File")))
 	title.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 	_apply_label_style(title)
 	info.add_child(title)
 	var details: Label = Label.new()
-	details.text = "State: %s | Cost: %d energy | Time: %s" % [String(file_record.get("state", "encrypted")), _get_programmer_file_cost(file_record), String(file_record.get("time", "1 turn"))]
+	details.text = "State: %s | Cost: %d energy | Time: %s" % [_programmer_safe_string(file_record.get("state", "encrypted")), _get_programmer_file_cost(file_record), _programmer_safe_string(file_record.get("time", "1 turn"))]
 	details.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 	_apply_label_style(details, true, false)
 	info.add_child(details)
 	row.add_child(info)
-	var button_text: String = String(file_record.get("action", "Decrypt"))
-	var callback: Callable = Callable(self, "_on_programmer_file_action_pressed").bind(String(file_record.get("id", "")))
+	var button_text: String = _programmer_safe_string(file_record.get("action", "Decrypt"))
+	var callback: Callable = Callable(self, "_on_programmer_file_action_pressed").bind(_programmer_safe_string(file_record.get("id", "")))
 	if completed:
 		button_text = "Move to Storage"
-		callback = Callable(self, "_on_programmer_move_file_pressed").bind(String(file_record.get("id", "")))
+		callback = Callable(self, "_on_programmer_move_file_pressed").bind(_programmer_safe_string(file_record.get("id", "")))
 	var action_button: Button = _create_menu_button(button_text, callback, Vector2(160, 38), "primary")
 	row.add_child(action_button)
 	return panel
@@ -9335,25 +9335,25 @@ func _create_programmer_bipob_row(bipob_record: Dictionary, completed: bool) -> 
 	row.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	row.add_theme_constant_override("separation", 8)
 	panel.add_child(row)
-	row.add_child(_create_programmer_icon_card("BIPOB", String(bipob_record.get("type", bipob_record.get("name", "Bipob")))))
+	row.add_child(_create_programmer_icon_card("BIPOB", _programmer_safe_string(bipob_record.get("type", bipob_record.get("name", "Bipob")))))
 	var info: VBoxContainer = VBoxContainer.new()
 	info.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	var title: Label = Label.new()
-	title.text = String(bipob_record.get("type", bipob_record.get("name", "Bipob")))
+	title.text = _programmer_safe_string(bipob_record.get("type", bipob_record.get("name", "Bipob")))
 	title.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 	_apply_label_style(title)
 	info.add_child(title)
 	var details: Label = Label.new()
-	details.text = "Cost: %d energy | Time: %s" % [_get_programmer_bipob_cost(bipob_record), String(bipob_record.get("time", "1 turn"))]
+	details.text = "Cost: %d energy | Time: %s" % [_get_programmer_bipob_cost(bipob_record), _programmer_safe_string(bipob_record.get("time", "1 turn"))]
 	details.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 	_apply_label_style(details, true, false)
 	info.add_child(details)
 	row.add_child(info)
 	var button_text: String = "Reprogram"
-	var callback: Callable = Callable(self, "_on_programmer_bipob_action_pressed").bind(String(bipob_record.get("id", "")))
+	var callback: Callable = Callable(self, "_on_programmer_bipob_action_pressed").bind(_programmer_safe_string(bipob_record.get("id", "")))
 	if completed:
 		button_text = "Take to Box"
-		callback = Callable(self, "_on_programmer_take_bipob_pressed").bind(String(bipob_record.get("id", "")))
+		callback = Callable(self, "_on_programmer_take_bipob_pressed").bind(_programmer_safe_string(bipob_record.get("id", "")))
 	var action_button: Button = _create_menu_button(button_text, callback, Vector2(150, 38), "primary")
 	row.add_child(action_button)
 	return panel
@@ -9378,14 +9378,14 @@ func _on_programmer_file_action_pressed(file_id: String) -> void:
 		return
 	var record: Dictionary = programmer_pending_files[index]
 	if not _consume_programmer_energy(_get_programmer_file_cost(record)):
-		_set_programmer_message("Not enough energy for %s." % String(record.get("action", "Decrypt")).to_lower())
+		_set_programmer_message("Not enough energy for %s." % _programmer_safe_string(record.get("action", "Decrypt")).to_lower())
 		return
 	programmer_pending_files.remove_at(index)
 	record["state"] = "decrypted"
-	if String(record.get("action", "Decrypt")) == "Recover":
+	if _programmer_safe_string(record.get("action", "Decrypt")) == "Recover":
 		record["state"] = "recovered"
 	programmer_completed_files.append(record)
-	_set_programmer_message("%s complete: %s." % [String(record.get("action", "Decrypt")), String(record.get("display_name", file_id))])
+	_set_programmer_message("%s complete: %s." % [_programmer_safe_string(record.get("action", "Decrypt")), _programmer_safe_string(record.get("display_name", file_id))])
 	update_box_status()
 	_refresh_programmer_menu()
 
@@ -9399,9 +9399,9 @@ func _on_programmer_move_file_pressed(file_id: String) -> void:
 	if bipob == null or not bipob.has_method("store_digital_record"):
 		_set_programmer_message("Digital storage is unavailable; file remains completed here.")
 		return
-	bipob.call("store_digital_record", file_id, String(record.get("display_name", file_id)), "Recovered by Programmer menu.")
+	bipob.call("store_digital_record", file_id, _programmer_safe_string(record.get("display_name", file_id)), "Recovered by Programmer menu.")
 	programmer_completed_files.remove_at(index)
-	_set_programmer_message("Moved to storage: %s." % String(record.get("display_name", file_id)))
+	_set_programmer_message("Moved to storage: %s." % _programmer_safe_string(record.get("display_name", file_id)))
 	update_box_status()
 	_refresh_programmer_menu()
 
@@ -9421,7 +9421,7 @@ func _on_programmer_bipob_action_pressed(bipob_id: String) -> void:
 	programmer_pending_bipobs.remove_at(index)
 	record["state"] = "reprogrammed"
 	programmer_reprogrammed_bipobs.append(record)
-	_set_programmer_message("Reprogrammed: %s." % String(record.get("type", record.get("name", bipob_id))))
+	_set_programmer_message("Reprogrammed: %s." % _programmer_safe_string(record.get("type", record.get("name", bipob_id))))
 	update_box_status()
 	_refresh_programmer_menu()
 
@@ -9434,18 +9434,18 @@ func _on_programmer_take_bipob_pressed(bipob_id: String) -> void:
 	var record: Dictionary = programmer_reprogrammed_bipobs[index]
 	_programmer_add_bipob_to_box(record)
 	programmer_reprogrammed_bipobs.remove_at(index)
-	_set_programmer_message("Moved to Box: %s." % String(record.get("type", record.get("name", bipob_id))))
+	_set_programmer_message("Moved to Box: %s." % _programmer_safe_string(record.get("type", record.get("name", bipob_id))))
 	update_box_status()
 	_refresh_programmer_menu()
 
 func _programmer_add_bipob_to_box(record: Dictionary) -> void:
-	var bipob_id: String = String(record.get("profile_id", record.get("id", ""))).strip_edges()
+	var bipob_id: String = _programmer_safe_string(record.get("profile_id", record.get("id", ""))).strip_edges()
 	if bipob_id.is_empty():
 		bipob_id = "found_bipob_%d" % tasks_available_bipobs.size()
 	for existing in tasks_available_bipobs:
-		if String(existing.get("id", "")).strip_edges() == bipob_id:
+		if _programmer_safe_string(existing.get("id", "")).strip_edges() == bipob_id:
 			return
-	tasks_available_bipobs.append({"id": bipob_id, "name": String(record.get("type", record.get("name", "Bipob")))})
+	tasks_available_bipobs.append({"id": bipob_id, "name": _programmer_safe_string(record.get("type", record.get("name", "Bipob")))})
 
 func _on_programmer_back_pressed() -> void:
 	if programmer_menu_root != null and is_instance_valid(programmer_menu_root):
@@ -9487,6 +9487,37 @@ func _set_programmer_message(message: String) -> void:
 	if programmer_message_label != null and is_instance_valid(programmer_message_label):
 		programmer_message_label.text = message
 
+func _programmer_safe_string(value: Variant) -> String:
+	return _programmer_safe_string_with_depth(value, 0)
+
+func _programmer_safe_string_with_depth(value: Variant, depth: int) -> String:
+	if value == null or depth > 2:
+		return ""
+	var value_type: int = typeof(value)
+	if value_type == TYPE_STRING:
+		var string_value: String = value
+		return string_value
+	if value_type in [TYPE_INT, TYPE_FLOAT, TYPE_BOOL, TYPE_STRING_NAME, TYPE_NODE_PATH]:
+		return str(value)
+	if value_type == TYPE_DICTIONARY:
+		var dictionary_value: Dictionary = value
+		for dictionary_field_name: String in ["id", "profile_id", "name", "display_name"]:
+			if dictionary_value.has(dictionary_field_name):
+				var dictionary_text: String = _programmer_safe_string_with_depth(dictionary_value.get(dictionary_field_name), depth + 1)
+				if not dictionary_text.is_empty():
+					return dictionary_text
+		return ""
+	if value_type == TYPE_OBJECT:
+		var object_value: Object = value
+		if object_value == null or not is_instance_valid(object_value):
+			return ""
+		for object_field_name: String in ["id", "profile_id", "name", "display_name"]:
+			if _object_has_property(object_value, object_field_name):
+				var object_text: String = _programmer_safe_string_with_depth(object_value.get(object_field_name), depth + 1)
+				if not object_text.is_empty():
+					return object_text
+	return ""
+
 func _programmer_as_dictionary(value: Variant) -> Dictionary:
 	if typeof(value) == TYPE_DICTIONARY:
 		return Dictionary(value).duplicate(true)
@@ -9495,14 +9526,14 @@ func _programmer_as_dictionary(value: Variant) -> Dictionary:
 func _merge_programmer_record(existing: Dictionary, incoming: Dictionary) -> Dictionary:
 	var merged: Dictionary = existing.duplicate(true)
 	for key_variant in incoming.keys():
-		if not merged.has(key_variant) or String(merged.get(key_variant, "")).is_empty():
+		if not merged.has(key_variant) or _programmer_safe_string(merged.get(key_variant, "")).is_empty():
 			merged[key_variant] = incoming[key_variant]
 	return merged
 
 func _programmer_dictionary_by_id(records: Array[Dictionary]) -> Dictionary:
 	var result: Dictionary = {}
 	for record in records:
-		var record_id: String = String(record.get("id", record.get("profile_id", ""))).strip_edges()
+		var record_id: String = _programmer_safe_string(record.get("id", record.get("profile_id", ""))).strip_edges()
 		if not record_id.is_empty():
 			result[record_id] = record
 	return result
@@ -9523,7 +9554,7 @@ func _programmer_find_record_index(records: Array[Dictionary], record_id: String
 		return -1
 	for index in range(records.size()):
 		var record: Dictionary = records[index]
-		if String(record.get("id", record.get("profile_id", ""))).strip_edges() == normalized_id:
+		if _programmer_safe_string(record.get("id", record.get("profile_id", ""))).strip_edges() == normalized_id:
 			return index
 	return -1
 
