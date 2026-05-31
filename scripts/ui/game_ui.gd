@@ -156,6 +156,7 @@ var runtime_digital_slots: Array[Button] = []
 var runtime_pocket_take_buttons: Array[Button] = []
 var runtime_digital_load_buttons: Array[Button] = []
 var runtime_buffer_content_label: Button
+var runtime_key_summary_label: Label
 var runtime_pocket_title_label: Label
 var runtime_digital_title_label: Label
 var runtime_digital_store_title_label: Label
@@ -12599,6 +12600,13 @@ func _on_world_action_panel_requested(_target_object: Dictionary, _actions: Arra
 		runtime_world_actions_panel.visible = false
 
 func _on_drop_item_button_pressed() -> void:
+	if bipob == null or not bipob.has_method("drop_held_item"):
+		show_hint("Drop action is unavailable.")
+		return
+	var manipulator_items: Array = bipob.get_manipulator_items()
+	if manipulator_items.is_empty() or manipulator_items[0] == null:
+		show_hint("Manipulator is empty.")
+		return
 	bipob.drop_held_item()
 	update_status()
 	update_diagnostic_status()
@@ -12664,14 +12672,16 @@ func _on_storage_store_pressed() -> void:
 	update_status()
 
 func _on_storage_load_pressed() -> void:
-	show_hint("No digital data selected.")
+	bipob.move_digital_storage_to_buffer(selected_digital_slot)
+	update_status()
 
 func _on_storage_load_slot_pressed(slot_index: int) -> void:
 	selected_digital_slot = slot_index
 	_on_storage_load_pressed()
 
 func _on_storage_data_store_pressed() -> void:
-	show_hint("Buffer is empty.")
+	bipob.move_buffer_to_digital_storage()
+	update_status()
 
 func _on_scan_device_button_pressed() -> void:
 	bipob.scan_device()
