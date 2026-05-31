@@ -403,7 +403,9 @@ static func _is_cable_unavailable(target_object: Dictionary) -> bool:
 
 static func _validate_door_class(actor: Dictionary, target_object: Dictionary) -> Dictionary:
 	var control_mode := String(target_object.get("control_mode", "internal")).strip_edges().to_lower()
-	if control_mode in ["external", "external_control", "external control"]:
+	var linked_terminal_id: String = String(target_object.get("control_terminal_id", target_object.get("linked_terminal_id", ""))).strip_edges()
+	var requires_external_control: bool = bool(target_object.get("requires_external_control", false)) or not linked_terminal_id.is_empty()
+	if control_mode in ["external", "external_control", "external control"] and requires_external_control:
 		return _result(false, "Door is controlled by linked terminal.")
 	var power_mode := String(target_object.get("power_mode", "internal")).strip_edges().to_lower()
 	if power_mode in ["external", "external_power", "external power"] and not bool(target_object.get("is_powered", true)):

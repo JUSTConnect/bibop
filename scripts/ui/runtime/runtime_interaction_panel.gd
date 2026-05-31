@@ -34,6 +34,8 @@ static func refresh_controls(ui) -> void:
 	var has_interactable: bool = not target_object.is_empty() and not actions.is_empty()
 	if has_interactable and not ui.runtime_interaction_mode_active and ui.runtime_action_button != null:
 		ui._apply_selected_pulse(ui.runtime_action_button)
+	elif not has_interactable and ui.runtime_action_button != null:
+		ui._clear_selected_pulse(ui.runtime_action_button)
 	var has_actions_left: bool = ui.bipob != null and int(ui.bipob.actions_left) > 0
 	if ui.runtime_interaction_mode_active and (not has_interactable or not has_actions_left):
 		ui.runtime_interaction_mode_active = false
