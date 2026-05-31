@@ -151,6 +151,7 @@ const Z_RUNTIME_MODAL: int = 120
 const RUNTIME_STORAGE_PANEL_EXPANDED_SIZE: Vector2 = Vector2(380, 190)
 const RUNTIME_STORAGE_PANEL_COLLAPSED_SIZE: Vector2 = Vector2(380, 48)
 var runtime_manipulator_content_label: Button
+var runtime_manipulator_slots: Array[Button] = []
 var runtime_pocket_slots: Array[Button] = []
 var runtime_digital_slots: Array[Button] = []
 var runtime_pocket_take_buttons: Array[Button] = []
@@ -162,6 +163,7 @@ var runtime_digital_title_label: Label
 var runtime_digital_store_title_label: Label
 var runtime_energy_label: Label
 var runtime_actions_label: Label
+var runtime_info_actions_label: Label
 var runtime_world_actions_panel: PanelContainer = null
 var runtime_world_actions_target_label: Label = null
 var runtime_world_actions_state_label: Label = null
@@ -5004,6 +5006,14 @@ func _apply_runtime_hud_layout() -> void:
 	objective_margin.add_theme_constant_override("margin_top", 6)
 	objective_margin.add_theme_constant_override("margin_bottom", 6)
 	objective_panel.add_child(objective_margin)
+	var objective_lines: VBoxContainer = VBoxContainer.new()
+	objective_lines.add_theme_constant_override("separation", 2)
+	objective_margin.add_child(objective_lines)
+	runtime_info_actions_label = Label.new()
+	runtime_info_actions_label.name = "RuntimeInfoActionsLabel"
+	runtime_info_actions_label.text = _get_runtime_actions_text()
+	runtime_info_actions_label.add_theme_color_override("font_color", UI_COLOR_TEXT_DIM)
+	objective_lines.add_child(runtime_info_actions_label)
 	mission_goal_value_label = Label.new()
 	mission_goal_value_label.name = "RuntimeObjectiveLabel"
 	mission_goal_value_label.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
@@ -5011,7 +5021,7 @@ func _apply_runtime_hud_layout() -> void:
 	mission_goal_value_label.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
 	mission_goal_value_label.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	mission_goal_value_label.text = _get_runtime_mission_objective_text()
-	objective_margin.add_child(mission_goal_value_label)
+	objective_lines.add_child(mission_goal_value_label)
 
 	runtime_notification_panel = PanelContainer.new()
 	runtime_notification_panel.name = "RuntimeNotificationPanel"
@@ -12793,8 +12803,10 @@ func update_status() -> void:
 
 	if runtime_energy_label != null:
 		runtime_energy_label.text = _get_runtime_energy_text()
-	if runtime_actions_label != null:
+	if runtime_actions_label != null and is_instance_valid(runtime_actions_label):
 		runtime_actions_label.text = _get_runtime_actions_text()
+	if runtime_info_actions_label != null and is_instance_valid(runtime_info_actions_label):
+		runtime_info_actions_label.text = _get_runtime_actions_text()
 	_refresh_runtime_mission_objective_label()
 
 	var key_text := "no"

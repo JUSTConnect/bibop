@@ -3,6 +3,8 @@ class_name RuntimeStoragePanel
 
 const PANEL_SIZE: Vector2 = Vector2(380, 190)
 const FLYOUT_SIZE: Vector2 = Vector2(240, 118)
+const MIN_VISIBLE_MANIPULATOR_SLOTS: int = 3
+const MIN_VISIBLE_KEY_SLOTS: int = 3
 const MIN_VISIBLE_POCKET_SLOTS: int = 2
 const MANIPULATOR_VISIBLE_SLOTS: int = 3
 const KEY_MINI_HUD_SLOTS: int = 3
@@ -50,8 +52,11 @@ static func build(ui, hud_root: Control, margin: float) -> PanelContainer:
 
 
 static func refresh(ui) -> void:
+	if ui == null:
+		return
 	var bipob = ui.bipob
-	if bipob == null:
+	if bipob == null or not is_instance_valid(bipob):
+		_refresh_empty_state(ui)
 		return
 	var manipulator_items: Array = bipob.get_manipulator_items()
 	if ui.runtime_manipulator_content_label != null and is_instance_valid(ui.runtime_manipulator_content_label):
@@ -62,7 +67,7 @@ static func refresh(ui) -> void:
 	var available_pocket_slots: int = bipob.get_available_pocket_slots()
 	for index in range(ui.runtime_pocket_slots.size()):
 		var pocket_item: Variant = pocket_items[index] if index < available_pocket_slots and index < pocket_items.size() else null
-		ui.runtime_pocket_slots[index].text = _get_module_name(bipob, pocket_item) if pocket_item != null else "Empty"
+		ui.runtime_pocket_slots[index].text = _get_module_name(bipob, pocket_item)
 
 	var buffer_item: Variant = bipob.get_buffer_item()
 	if ui.runtime_buffer_content_label != null and is_instance_valid(ui.runtime_buffer_content_label):
@@ -183,6 +188,21 @@ static func _build_buffer_area(ui) -> PanelContainer:
 
 
 static func _build_flyout(ui, hud_root: Control, margin: float, node_name: String, title_text: String, is_pocket: bool) -> PanelContainer:
+	var slot_count: int = 1
+	if is_pocket:
+		slot_count = MIN_VISIBLE_POCKET_SLOTS
+	var bipob: Variant = null
+	if ui != null:
+		bipob = ui.bipob
+	if bipob != null and is_instance_valid(bipob):
+		if is_pocket:
+			slot_count = max(MIN_VISIBLE_POCKET_SLOTS, bipob.get_available_pocket_slots())
+		else:
+			slot_count = max(1, bipob.get_available_digital_storage_slots())
+	var preferred_width: float = maxf(FLYOUT_SIZE.x, float(slot_count * 104 + maxi(slot_count - 1, 0) * 4 + 12))
+	var flyout_width: float = _get_safe_width(hud_root, preferred_width, margin)
+	var available_cells_width: float = maxf(flyout_width - 12.0 - float(maxi(slot_count - 1, 0) * 4), 1.0)
+	var cell_width: float = available_cells_width / float(maxi(slot_count, 1))
 	var panel: PanelContainer = PanelContainer.new()
 	panel.name = node_name
 	panel.anchor_left = 1.0
@@ -224,22 +244,11 @@ static func _build_flyout(ui, hud_root: Control, margin: float, node_name: Strin
 	var cells: HBoxContainer = HBoxContainer.new()
 	cells.add_theme_constant_override("separation", 4)
 	root.add_child(cells)
-	var slot_count: int = 1
-	if is_pocket:
-		slot_count = MIN_VISIBLE_POCKET_SLOTS
-	var bipob: Variant = null
-	if ui != null:
-		bipob = ui.bipob
-	if bipob != null and is_instance_valid(bipob):
-		if is_pocket:
-			slot_count = max(MIN_VISIBLE_POCKET_SLOTS, bipob.get_available_pocket_slots())
-		else:
-			slot_count = max(1, bipob.get_available_digital_storage_slots())
 	for index in range(slot_count):
 		var cell: Button = Button.new()
 		cell.text = "Empty"
 		cell.focus_mode = Control.FOCUS_NONE
-		cell.custom_minimum_size = Vector2(104, 52)
+		cell.custom_minimum_size = Vector2(cell_width, 52)
 		if is_pocket:
 			cell.pressed.connect(_on_pocket_slot_pressed.bind(ui, index))
 			ui.runtime_pocket_slots.append(cell)
@@ -305,6 +314,47 @@ static func _show_hint(ui, message: String) -> void:
 		ui.call("show_hint", message)
 
 
+static func _get_safe_width(hud_root: Control, preferred_width: float, margin: float) -> float:
+	var viewport_width: float = preferred_width + margin * 2.0
+	if hud_root != null and is_instance_valid(hud_root):
+		viewport_width = hud_root.get_viewport_rect().size.x
+	return minf(preferred_width, maxf(viewport_width - margin * 2.0, 1.0))
+
+
+static func _get_collected_key_ids(bipob) -> Array:
+	if bipob.has_method("get_collected_runtime_key_ids"):
+		var collected_value: Variant = bipob.call("get_collected_runtime_key_ids")
+		if collected_value is Array:
+			return collected_value
+	var key_count: int = bipob.get_key_count() if bipob.has_method("get_key_count") else 0
+	var fallback_ids: Array = []
+	for _index in range(key_count):
+		fallback_ids.append("physical_key")
+	return fallback_ids
+
+
+static func _get_key_slot_text(ui, key_value: Variant) -> String:
+	var key_id: String = String(key_value).strip_edges()
+	if key_id.is_empty():
+		return "—"
+	if ui != null and ui.has_method("_get_runtime_key_display_text"):
+		var display_text: String = String(ui.call("_get_runtime_key_display_text", key_id)).strip_edges()
+		if not display_text.is_empty():
+			return display_text.left(8)
+	return key_id.left(8)
+
+
+static func _refresh_empty_state(ui) -> void:
+	for slot in ui.runtime_manipulator_slots:
+		if slot != null and is_instance_valid(slot):
+			slot.text = "Empty"
+	for slot in ui.runtime_key_slots:
+		if slot != null and is_instance_valid(slot):
+			slot.text = "—"
+	if ui.runtime_buffer_content_label != null and is_instance_valid(ui.runtime_buffer_content_label):
+		ui.runtime_buffer_content_label.text = "Empty"
+
+
 static func _get_module_name(bipob, item: Variant) -> String:
 	if item == null:
 		return "Empty"
@@ -322,6 +372,7 @@ static func _get_record_name(item: Variant, empty_text: String) -> String:
 static func _reset_ui_refs(ui) -> void:
 	ui.runtime_storage_panel_body = null
 	ui.runtime_storage_collapse_button = null
+	ui.runtime_manipulator_slots.clear()
 	ui.runtime_pocket_slots.clear()
 	ui.runtime_digital_slots.clear()
 	ui.runtime_pocket_take_buttons.clear()
