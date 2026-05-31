@@ -16,8 +16,8 @@ static func build(ui, hud_root: Control, margin: float) -> PanelContainer:
 	panel.anchor_bottom = 1.0
 	panel.offset_left = -PANEL_SIZE.x - margin
 	panel.offset_right = -margin
-	panel.offset_top = -PANEL_SIZE.y - margin
-	panel.offset_bottom = -margin
+	panel.offset_top = -PANEL_SIZE.y
+	panel.offset_bottom = 0.0
 	panel.add_theme_stylebox_override("panel", ui._make_panel_style(ui.UI_COLOR_PANEL, ui.UI_COLOR_BORDER, 1, 8))
 	hud_root.add_child(panel)
 
@@ -151,8 +151,8 @@ static func _build_flyout(ui, hud_root: Control, margin: float, node_name: Strin
 	panel.anchor_bottom = 1.0
 	panel.offset_left = -FLYOUT_SIZE.x - margin
 	panel.offset_right = -margin
-	panel.offset_top = -PANEL_SIZE.y - FLYOUT_SIZE.y - margin - 6.0
-	panel.offset_bottom = -PANEL_SIZE.y - margin - 6.0
+	panel.offset_top = -PANEL_SIZE.y - FLYOUT_SIZE.y - 6.0
+	panel.offset_bottom = -PANEL_SIZE.y - 6.0
 	panel.visible = false
 	panel.z_index = ui.Z_RUNTIME_MODAL
 	panel.add_theme_stylebox_override("panel", ui._make_panel_style(ui.UI_COLOR_PANEL, ui.UI_COLOR_ACCENT, 1, 8))
