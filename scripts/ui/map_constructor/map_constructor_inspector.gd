@@ -80,7 +80,7 @@ static func show_for_selection(ui: Variant, cell: Vector2i, preferred_entity_kin
 	v.size_flags_vertical = Control.SIZE_SHRINK_BEGIN
 	v.custom_minimum_size = Vector2(maxf(inspector_rect.size.x - 36.0, 1.0), 0.0)
 	scroll.add_child(v)
-	var identity := ui._create_inspector_section("1. Object Identity")
+	var identity: VBoxContainer = ui._create_inspector_section("1. Object Identity")
 	var id_label: Label = Label.new(); id_label.text = entity_id; identity.add_child(ui._create_property_row("ID", id_label))
 	ui._add_text_property(identity, "Name", entity_kind, entity_id, "display_name", data.get("display_name", ""))
 	ui._add_map_constructor_description_editor(identity, data, entity_kind, entity_id)
@@ -117,7 +117,7 @@ static func show_for_selection(ui: Variant, cell: Vector2i, preferred_entity_kin
 		terminal_visual_label.text = "type=%s, state=%s, badges=%s" % [ui._safe_ui_string(terminal_visual.get("terminal_type", "unknown"), "unknown"), ui._safe_ui_string(terminal_visual.get("state", "unknown"), "unknown"), ui._safe_ui_string(terminal_visual.get("badges", []))]
 		current_status.add_child(ui._create_property_row("Terminal visual", terminal_visual_label))
 	v.add_child(current_status)
-	var placement := ui._create_inspector_section("3. Placement")
+	var placement: VBoxContainer = ui._create_inspector_section("3. Placement")
 	var cell_l:=Label.new(); cell_l.text = ui._safe_ui_string(entity_info.get("cell", cell), str(cell)); placement.add_child(ui._create_property_row("Cell", cell_l))
 	var pm_l:=Label.new(); pm_l.text = ui._safe_ui_string(data.get("placement_mode", "floor"), "floor"); placement.add_child(ui._create_property_row("Mode", pm_l))
 	var move_row: HBoxContainer = HBoxContainer.new()
