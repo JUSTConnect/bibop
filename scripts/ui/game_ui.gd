@@ -16586,7 +16586,9 @@ func _build_map_constructor_overlay_power() -> Array[Dictionary]:
 			network_nodes[network_id] = []
 		var powered_flag: bool = bool(row.get("is_powered", row.get("powered", false)))
 		var requires_power: bool = bool(row.get("requires_power", false))
-		_safe_ui_array(network_nodes[network_id]).append({"id": String(row.get("id", "")), "cell": row_cell, "requires_power": requires_power, "powered": powered_flag})
+		var nodes_for_network: Array = network_nodes.get(network_id, [])
+		nodes_for_network.append({"id": String(row.get("id", "")), "cell": row_cell, "requires_power": requires_power, "powered": powered_flag})
+		network_nodes[network_id] = nodes_for_network
 	for network_id_variant in network_nodes.keys():
 		var network_id_key: String = String(network_id_variant)
 		var nodes: Array = _safe_ui_array(network_nodes[network_id_variant])
