@@ -9302,6 +9302,25 @@ func get_buffer_item() -> Variant:
 		return null
 	return buffer_item
 
+func _is_digital_storage_item(item: Dictionary, allow_untyped_storage_record: bool = false) -> bool:
+	var item_form: String = String(item.get("item_form", "")).strip_edges().to_lower()
+	var item_type: String = String(item.get("item_type", item.get("id", ""))).strip_edges().to_lower()
+	if item_form == "physical" or item_type in ["fuse", "repair_kit", "cable_end"] or item_type.contains("cable_end") or item_type.contains("wire_end"):
+		return false
+	for metadata_key in item.keys():
+		var metadata_name: String = String(metadata_key).strip_edges().to_lower()
+		if metadata_name in ["reel_id", "end_index"] or metadata_name.contains("cable") or metadata_name.contains("wire"):
+			return false
+	if item_form == "digital":
+		return true
+	if not item_form.is_empty():
+		return false
+	for field_name in ["item_type", "item_family", "digital_payload_type", "id"]:
+		var digital_type: String = String(item.get(field_name, "")).strip_edges().to_lower()
+		if digital_type.contains("route_data") or digital_type.contains("info_key") or digital_type.contains("data_file") or digital_type.contains("digital_key") or digital_type.contains("access_code"):
+			return true
+	return allow_untyped_storage_record
+
 func move_digital_storage_to_buffer(storage_index: int) -> bool:
 	if not buffer_item.is_empty():
 		hint_requested.emit("Digital buffer is occupied.")
@@ -9312,10 +9331,11 @@ func move_digital_storage_to_buffer(storage_index: int) -> bool:
 		return false
 	var record_id: Variant = storage_keys[storage_index]
 	var record_data: Variant = digital_storage.get(record_id, {})
-	if typeof(record_data) != TYPE_DICTIONARY:
+	if typeof(record_data) != TYPE_DICTIONARY or not _is_digital_storage_item(record_data, true):
 		hint_requested.emit("Storage slot is unavailable.")
 		return false
 	buffer_item = record_data.duplicate(true)
+	buffer_item["item_form"] = "digital"
 	digital_storage.erase(record_id)
 	hint_requested.emit("Loaded into digital buffer: %s." % String(buffer_item.get("display_name", buffer_item.get("id", "record"))))
 	status_changed.emit()
@@ -9324,6 +9344,9 @@ func move_digital_storage_to_buffer(storage_index: int) -> bool:
 func move_buffer_to_digital_storage() -> bool:
 	if buffer_item.is_empty():
 		hint_requested.emit("Buffer is empty.")
+		return false
+	if not _is_digital_storage_item(buffer_item):
+		hint_requested.emit("This item cannot be stored in digital storage.")
 		return false
 	if digital_storage.size() >= get_available_digital_storage_slots():
 		hint_requested.emit("No free digital storage slot.")
