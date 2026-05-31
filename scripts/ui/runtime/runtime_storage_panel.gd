@@ -7,10 +7,10 @@ const MANIPULATOR_CELL_SIZE: float = 54.0
 const POCKET_FLYOUT_CELL_HEIGHT: float = 52.0
 const ACTIVE_FRAME_PADDING: float = 3.0
 const MIN_VISIBLE_MANIPULATOR_SLOTS: int = 3
-const MIN_VISIBLE_KEY_SLOTS: int = 3
+const MIN_VISIBLE_KEY_SLOTS: int = 6
 const MIN_VISIBLE_POCKET_SLOTS: int = 2
 const MANIPULATOR_VISIBLE_SLOTS: int = 3
-const KEY_MINI_HUD_SLOTS: int = 3
+const KEY_MINI_HUD_SLOTS: int = 6
 const STANDARD_ROW_HEIGHT: float = 28.0
 
 
@@ -26,8 +26,8 @@ static func build(ui, hud_root: Control, margin: float) -> PanelContainer:
 	var safe_panel_width: float = minf(PANEL_SIZE.x, maxf(viewport_width - margin * 2.0, 1.0))
 	panel.offset_left = -safe_panel_width - margin
 	panel.offset_right = -margin
-	panel.offset_top = -PANEL_SIZE.y
-	panel.offset_bottom = 0.0
+	panel.offset_top = -PANEL_SIZE.y - margin
+	panel.offset_bottom = -margin
 	panel.grow_horizontal = Control.GROW_DIRECTION_BEGIN
 	panel.add_theme_stylebox_override("panel", ui._make_panel_style(ui.UI_COLOR_PANEL, ui.UI_COLOR_BORDER, 1, 8))
 	hud_root.add_child(panel)
@@ -161,9 +161,19 @@ static func _build_manipulator_area(ui) -> PanelContainer:
 		drop_button.pressed.connect(_on_drop_pressed.bind(ui, index))
 		column.add_child(drop_button)
 		preview.set_meta("drop_button", drop_button)
+	var keys_panel: PanelContainer = PanelContainer.new()
+	keys_panel.name = "RuntimeKeysStripPanel"
+	keys_panel.add_theme_stylebox_override("panel", ui._make_panel_style(ui.UI_COLOR_PANEL, ui.UI_COLOR_BORDER_DIM, 1, 4))
+	root.add_child(keys_panel)
+	var keys_margin: MarginContainer = MarginContainer.new()
+	keys_margin.add_theme_constant_override("margin_left", 4)
+	keys_margin.add_theme_constant_override("margin_top", 2)
+	keys_margin.add_theme_constant_override("margin_right", 4)
+	keys_margin.add_theme_constant_override("margin_bottom", 2)
+	keys_panel.add_child(keys_margin)
 	var keys_strip: HBoxContainer = HBoxContainer.new()
-	keys_strip.add_theme_constant_override("separation", 4)
-	root.add_child(keys_strip)
+	keys_strip.add_theme_constant_override("separation", 3)
+	keys_margin.add_child(keys_strip)
 	for index in range(KEY_MINI_HUD_SLOTS):
 		var key_slot: Label = Label.new()
 		key_slot.text = "·"

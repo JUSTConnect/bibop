@@ -4980,6 +4980,7 @@ func _apply_runtime_hud_layout() -> void:
 		child.queue_free()
 	runtime_energy_label = null
 	runtime_actions_label = null
+	runtime_info_actions_label = null
 	mission_goal_value_label = null
 	runtime_notification_label = null
 	runtime_notification_panel = null
@@ -5018,7 +5019,11 @@ func _apply_runtime_hud_layout() -> void:
 	objective_margin.add_theme_constant_override("margin_top", 6)
 	objective_margin.add_theme_constant_override("margin_bottom", 6)
 	objective_panel.add_child(objective_margin)
+	objective_margin.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	objective_margin.size_flags_vertical = Control.SIZE_EXPAND_FILL
 	var objective_lines: VBoxContainer = VBoxContainer.new()
+	objective_lines.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	objective_lines.size_flags_vertical = Control.SIZE_EXPAND_FILL
 	objective_lines.add_theme_constant_override("separation", 2)
 	objective_margin.add_child(objective_lines)
 	runtime_info_actions_label = Label.new()
@@ -5032,6 +5037,7 @@ func _apply_runtime_hud_layout() -> void:
 	mission_goal_value_label.clip_text = true
 	mission_goal_value_label.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
 	mission_goal_value_label.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	mission_goal_value_label.size_flags_vertical = Control.SIZE_EXPAND_FILL
 	mission_goal_value_label.text = _get_runtime_mission_objective_text()
 	objective_lines.add_child(mission_goal_value_label)
 
@@ -5046,6 +5052,8 @@ func _apply_runtime_hud_layout() -> void:
 	notification_margin.add_theme_constant_override("margin_top", 6)
 	notification_margin.add_theme_constant_override("margin_bottom", 6)
 	runtime_notification_panel.add_child(notification_margin)
+	notification_margin.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	notification_margin.size_flags_vertical = Control.SIZE_EXPAND_FILL
 	runtime_notification_label = Label.new()
 	runtime_notification_label.name = "RuntimeNotificationLabel"
 	runtime_notification_label.text = ""
@@ -5053,6 +5061,7 @@ func _apply_runtime_hud_layout() -> void:
 	runtime_notification_label.clip_text = true
 	runtime_notification_label.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
 	runtime_notification_label.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	runtime_notification_label.size_flags_vertical = Control.SIZE_EXPAND_FILL
 	runtime_notification_label.add_theme_color_override("font_color", UI_COLOR_TEXT_DIM)
 	notification_margin.add_child(runtime_notification_label)
 	_refresh_runtime_notification_fallback()
@@ -5113,8 +5122,11 @@ func _apply_runtime_hud_layout() -> void:
 
 
 func _refresh_runtime_mission_objective_label() -> void:
+	var actions_text: String = _get_runtime_actions_text()
 	if runtime_actions_label != null and is_instance_valid(runtime_actions_label):
-		runtime_actions_label.text = _get_runtime_actions_text()
+		runtime_actions_label.text = actions_text
+	if runtime_info_actions_label != null and is_instance_valid(runtime_info_actions_label):
+		runtime_info_actions_label.text = actions_text
 	if mission_goal_value_label != null and is_instance_valid(mission_goal_value_label):
 		mission_goal_value_label.text = _get_runtime_mission_objective_text()
 	if runtime_notification_timer <= 0.0:
