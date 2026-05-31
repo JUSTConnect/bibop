@@ -281,6 +281,8 @@ static func apply_action(actor: Dictionary, module: Dictionary, target_object: D
 			return _result(true, "Object repaired.", effects)
 		"switch":
 			var state: String = String(target_object.get("state", "switch_off"))
+			if state.strip_edges().to_lower() in ["damaged", "broken", "destroyed"] or bool(target_object.get("damaged", false)) or bool(target_object.get("broken", false)):
+				return _result(false, "Switch is damaged.")
 			var next_state: String = "switch_on" if state in ["switch_off", "off", "open"] else "switch_off"
 			var is_on: bool = next_state == "switch_on"
 			target_object["state"] = next_state
