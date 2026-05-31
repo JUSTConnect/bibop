@@ -273,6 +273,8 @@ static func apply_action(actor: Dictionary, module: Dictionary, target_object: D
 			target_object["damaged"] = false
 			target_object["broken"] = false
 			var effects: Array = [{"type":"set_state","state":repaired_state},{"type":"set_bool","field":"damaged","value":false},{"type":"set_bool","field":"broken","value":false}]
+			if is_power_cable:
+				effects.append({"type":"repair_power_cable"})
 			var object_group: String = String(target_object.get("object_group", ""))
 			if is_power_cable or target_object.has("power_network_id") or object_group in ["power", "terminal"]:
 				effects.append({"type":"power_recalc_needed"})

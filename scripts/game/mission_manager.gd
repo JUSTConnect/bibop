@@ -7202,34 +7202,63 @@ func can_connect_cable_reel_to_target(cable_reel: Dictionary, target: Dictionary
 		return path_report
 	return {"valid": true, "reason": "ok", "length": int(path_report.get("length", 0)), "max_length": int(path_report.get("max_length", 0)), "path_cells": path_report.get("path_cells", [])}
 
+func _normalize_power_cable_reel_state(cable: Dictionary) -> void:
+	if cable.is_empty():
+		return
+	var first_connected_target_id: String = ""
+	var first_connected_path_cells: Array = []
+	var first_connected_length: int = 0
+	for end_index in range(1, 3):
+		var state_key: String = "end_%d_state" % end_index
+		var target_key: String = "end_%d_target_id" % end_index
+		var path_key: String = "end_%d_path_cells" % end_index
+		var length_key: String = "end_%d_cable_length" % end_index
+		var end_state: String = String(cable.get(state_key, "")).strip_edges().to_lower()
+		var end_target_id: String = String(cable.get(target_key, "")).strip_edges()
+		var end_is_connected: bool = end_state == "connected" and not end_target_id.is_empty()
+		if end_is_connected:
+			cable[target_key] = end_target_id
+			if first_connected_target_id.is_empty():
+				first_connected_target_id = end_target_id
+				var path_variant: Variant = cable.get(path_key, [])
+				first_connected_path_cells = Array(path_variant) if path_variant is Array else []
+				first_connected_length = maxi(0, int(cable.get(length_key, first_connected_path_cells.size())))
+			continue
+		cable[target_key] = ""
+		cable[path_key] = []
+		cable[length_key] = 0
+		if end_state.is_empty():
+			cable[state_key] = "on_reel"
+	cable["connected"] = not first_connected_target_id.is_empty()
+	cable["disconnected"] = first_connected_target_id.is_empty()
+	cable["cable_endpoint_b_id"] = first_connected_target_id
+	cable["cable_path_cells"] = first_connected_path_cells
+	cable["cable_length"] = first_connected_length
+
 func connect_cable_reel_to_target(cable_reel_id: String, target_id: String, end_index: int = 1) -> Dictionary:
 	var cable_reel := get_world_object_by_id(cable_reel_id.strip_edges())
 	var target := get_world_object_by_id(target_id.strip_edges())
-	if cable_reel.is_empty() or target.is_empty():
+	if cable_reel.is_empty() or target.is_empty() or end_index < 1 or end_index > 2:
 		return {"success": false, "reason": "target_not_connectable"}
-	var safe_end_index: int = clampi(end_index, 1, 2)
+	var safe_end_index: int = end_index
 	var can_connect := can_connect_cable_reel_to_target(cable_reel, target)
 	if not bool(can_connect.get("valid", false)):
 		return {"success": false, "reason": String(can_connect.get("reason", "target_not_connectable")), "path": can_connect}
-	cable_reel["connected"] = true
-	cable_reel["disconnected"] = false
 	cable_reel["cut"] = false
 	cable_reel["state"] = "connected"
 	cable_reel["end_%d_state" % safe_end_index] = "connected"
-	cable_reel["end_%d_target_id" % safe_end_index] = String(target.get("id", ""))
+	cable_reel["end_%d_target_id" % safe_end_index] = String(target.get("id", "")).strip_edges()
 	cable_reel["end_%d_path_cells" % safe_end_index] = can_connect.get("path_cells", [])
 	cable_reel["end_%d_cable_length" % safe_end_index] = int(can_connect.get("length", 0))
 	cable_reel["cable_endpoint_a_id"] = String(cable_reel.get("id", ""))
-	cable_reel["cable_endpoint_b_id"] = String(target.get("id", ""))
-	cable_reel["cable_path_cells"] = can_connect.get("path_cells", [])
-	cable_reel["cable_length"] = int(can_connect.get("length", 0))
 	cable_reel["cable_max_length"] = int(can_connect.get("max_length", 0))
+	_normalize_power_cable_reel_state(cable_reel)
 	var report := _apply_graph_power_after_world_object_power_change(cable_reel, "cable_connected")
 	return {"success": true, "reason": "ok", "apply": report, "path": can_connect, "reel_id": String(cable_reel.get("id", "")), "end_index": safe_end_index, "target_id": String(target.get("id", ""))}
 
 func disconnect_cable_from_target(cable_id_or_reel_id: String, target_id: String = "", end_index: int = 0) -> Dictionary:
 	var cable := get_world_object_by_id(cable_id_or_reel_id.strip_edges())
-	if cable.is_empty():
+	if cable.is_empty() or end_index < 0 or end_index > 2:
 		return {"success": false, "reason": "target_not_connectable"}
 	var normalized_target_id: String = target_id.strip_edges()
 	var disconnected_any: bool = false
@@ -7242,19 +7271,10 @@ func disconnect_cable_from_target(cable_id_or_reel_id: String, target_id: String
 		cable["end_%d_state" % candidate_end] = "disconnected"
 		cable[target_key] = ""
 		disconnected_any = true
-	if not disconnected_any and not normalized_target_id.is_empty() and String(cable.get("cable_endpoint_b_id", "")) != normalized_target_id:
+	if not disconnected_any and not normalized_target_id.is_empty() and String(cable.get("cable_endpoint_b_id", "")).strip_edges() != normalized_target_id:
 		return {"success": false, "reason": "target_not_connectable"}
-	var still_connected: bool = false
-	var first_connected_target_id: String = ""
-	for connected_end in range(1, 3):
-		if String(cable.get("end_%d_state" % connected_end, "")).strip_edges().to_lower() == "connected" and not String(cable.get("end_%d_target_id" % connected_end, "")).strip_edges().is_empty():
-			still_connected = true
-			if first_connected_target_id.is_empty():
-				first_connected_target_id = String(cable.get("end_%d_target_id" % connected_end, "")).strip_edges()
-	cable["connected"] = still_connected
-	cable["disconnected"] = not still_connected
-	cable["state"] = "connected" if still_connected else "disconnected"
-	cable["cable_endpoint_b_id"] = first_connected_target_id
+	_normalize_power_cable_reel_state(cable)
+	cable["state"] = "connected" if bool(cable.get("connected", false)) else "disconnected"
 	var report := _apply_graph_power_after_world_object_power_change(cable, "cable_disconnected")
 	return {"success": true, "reason": "ok", "apply": report}
 
@@ -7269,11 +7289,11 @@ func cut_power_cable(cable_id: String) -> Dictionary:
 	var report := _apply_graph_power_after_world_object_power_change(cable, "cable_cut")
 	return {"success": true, "reason": "cable_cut", "apply": report}
 
-func repair_power_cable(cable_id: String) -> Dictionary:
+func repair_power_cable(cable_id: String, normalize_repaired: bool = false) -> Dictionary:
 	var cable := get_world_object_by_id(cable_id.strip_edges())
 	if cable.is_empty():
 		return {"success": false, "reason": "target_not_connectable"}
-	if not bool(cable.get("cut", false)) and not bool(cable.get("damaged", false)) and not bool(cable.get("broken", false)) and not (String(cable.get("state", "")).strip_edges().to_lower() in ["damaged", "broken"]):
+	if not normalize_repaired and not bool(cable.get("cut", false)) and not bool(cable.get("damaged", false)) and not bool(cable.get("broken", false)) and not (String(cable.get("state", "")).strip_edges().to_lower() in ["damaged", "broken"]):
 		return {"success": false, "reason": "ok"}
 	cable["cut"] = false
 	cable["damaged"] = false
@@ -7281,9 +7301,8 @@ func repair_power_cable(cable_id: String) -> Dictionary:
 	for repaired_end in range(1, 3):
 		if String(cable.get("end_%d_target_id" % repaired_end, "")).strip_edges().is_empty():
 			cable["end_%d_state" % repaired_end] = "on_reel"
-	cable["connected"] = false
-	cable["disconnected"] = true
-	cable["state"] = "ok"
+	_normalize_power_cable_reel_state(cable)
+	cable["state"] = "connected" if bool(cable.get("connected", false)) else "ok"
 	var report := _apply_graph_power_after_world_object_power_change(cable, "cable_repaired")
 	return {"success": true, "reason": "cable_repaired", "apply": report}
 
@@ -8550,8 +8569,36 @@ func validate_cooling_runtime() -> Array[String]:
 		warnings.append("Cooling preview regression: read-only preview produced unstable results.")
 	return warnings
 
-func validate_cooling_and_cable_runtime() -> Array[String]:
+func validate_power_cable_reel_normalization() -> Array[String]:
 	var warnings: Array[String] = []
+	var no_connected_ends: Dictionary = {"state":"broken", "cut":true, "damaged":true, "broken":true}
+	no_connected_ends["cut"] = false
+	no_connected_ends["damaged"] = false
+	no_connected_ends["broken"] = false
+	_normalize_power_cable_reel_state(no_connected_ends)
+	if bool(no_connected_ends.get("connected", true)) or not bool(no_connected_ends.get("disconnected", false)) or String(no_connected_ends.get("end_1_state", "")) != "on_reel" or String(no_connected_ends.get("end_2_state", "")) != "on_reel":
+		warnings.append("Cable reel normalization regression: repaired reel without connected ends is inconsistent.")
+	var one_connected_end: Dictionary = {"state":"broken", "end_1_state":"connected", "end_1_target_id":"socket_a", "end_1_path_cells":[Vector2i(1, 0)], "end_1_cable_length":1, "end_2_state":"on_reel", "end_2_target_id":""}
+	_normalize_power_cable_reel_state(one_connected_end)
+	if not bool(one_connected_end.get("connected", false)) or bool(one_connected_end.get("disconnected", true)) or String(one_connected_end.get("cable_endpoint_b_id", "")) != "socket_a" or int(one_connected_end.get("end_1_cable_length", 0)) != 1:
+		warnings.append("Cable reel normalization regression: repaired reel lost its connected end.")
+	var disconnect_one_end: Dictionary = {"end_1_state":"disconnected", "end_1_target_id":"", "end_1_path_cells":[Vector2i(1, 0)], "end_1_cable_length":1, "end_2_state":"connected", "end_2_target_id":"socket_b", "end_2_path_cells":[Vector2i(0, 1)], "end_2_cable_length":1}
+	_normalize_power_cable_reel_state(disconnect_one_end)
+	if not bool(disconnect_one_end.get("connected", false)) or String(disconnect_one_end.get("cable_endpoint_b_id", "")) != "socket_b" or not Array(disconnect_one_end.get("end_1_path_cells", [])).is_empty() or int(disconnect_one_end.get("end_1_cable_length", -1)) != 0:
+		warnings.append("Cable reel normalization regression: disconnecting one end did not preserve the other end.")
+	disconnect_one_end["end_2_state"] = "disconnected"
+	disconnect_one_end["end_2_target_id"] = ""
+	_normalize_power_cable_reel_state(disconnect_one_end)
+	if bool(disconnect_one_end.get("connected", true)) or not bool(disconnect_one_end.get("disconnected", false)) or not String(disconnect_one_end.get("cable_endpoint_b_id", "missing")).is_empty():
+		warnings.append("Cable reel normalization regression: disconnecting both ends left aggregate connection state.")
+	var old_cable: Dictionary = {"id":"old_cable", "connected":true, "disconnected":false, "cable_endpoint_b_id":"legacy_socket"}
+	_normalize_power_cable_reel_state(old_cable)
+	if bool(old_cable.get("connected", true)) or not bool(old_cable.get("disconnected", false)) or String(old_cable.get("end_1_state", "")) != "on_reel" or String(old_cable.get("end_2_state", "")) != "on_reel":
+		warnings.append("Cable reel normalization regression: old cable map compatibility failed.")
+	return warnings
+
+func validate_cooling_and_cable_runtime() -> Array[String]:
+	var warnings: Array[String] = validate_power_cable_reel_normalization()
 	var snapshot := get_world_object_runtime_state()
 	var source := {"id":"temp_cooling_source", "object_group":"power", "object_type":"power_source", "position":Vector2i(130, 100), "is_powered":true, "state":"active"}
 	var radiator := {"id":"temp_cooling_radiator", "object_group":"cooling", "object_type":"cooling_radiator", "position":Vector2i(131, 100), "cooling_device_type":"radiator", "cooling_output":2, "state":"active", "is_powered":true}
@@ -10775,16 +10822,18 @@ func use_inventory_item_on_world_object(item_id: String, target_id: String, acti
 		if bool(target.get("destroyed", false)) or String(target.get("state", "")) == "destroyed":
 			out["reasons"] = ["target_destroyed"]
 			return out
-		if not (bool(target.get("damaged", false)) or bool(target.get("broken", false)) or String(target.get("state", "")) in ["damaged", "broken"]):
+		var target_object_type: String = String(target.get("object_type", "")).strip_edges().to_lower()
+		var target_is_power_cable: bool = target_object_type in ["power_cable", "power_cable_reel"]
+		if not (bool(target.get("damaged", false)) or bool(target.get("broken", false)) or bool(target.get("cut", false)) or String(target.get("state", "")) in ["damaged", "broken", "cut"]):
 			out["reasons"] = ["already_repaired"]
 			return out
-		target["damaged"] = false
-		target["broken"] = false
-		if String(target.get("state", "")) in ["damaged", "broken"]:
-			target["state"] = "active"
-		if String(target.get("object_type", "")) == "power_cable":
-			target["disconnected"] = true
-			target["connected"] = false
+		if target_is_power_cable:
+			out["side_effects"] = repair_power_cable(String(target.get("id", "")))
+		else:
+			target["damaged"] = false
+			target["broken"] = false
+			if String(target.get("state", "")) in ["damaged", "broken"]:
+				target["state"] = "active"
 		out["success"] = true
 		out["consumed"] = bool(item.get("consumable", true))
 		out["reasons"] = ["ok"]

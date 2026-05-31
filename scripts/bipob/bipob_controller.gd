@@ -8367,6 +8367,10 @@ func _apply_world_object_effects(effects: Array, world_object: Dictionary, targe
 			var network_id := String(world_object.get("power_network_id", ""))
 			if not network_id.is_empty():
 				PowerSystemRef.recalculate_network(mission_manager.mission_world_objects, network_id)
+		elif effect_type == "repair_power_cable":
+			var cable_id: String = String(world_object.get("id", "")).strip_edges()
+			if mission_manager != null and mission_manager.has_method("repair_power_cable") and not cable_id.is_empty():
+				mission_manager.call("repair_power_cable", cable_id, true)
 		elif effect_type == "apply_terminal_controls":
 			var control_messages := _apply_terminal_controls(world_object)
 			if not control_messages.is_empty():
