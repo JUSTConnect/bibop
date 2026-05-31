@@ -6410,6 +6410,7 @@ func move_forward() -> void:
 	if try_move_to(target_position):
 		spend_action(1, 0)
 		register_successful_movement_cells(1, get_surface_id_for_position(target_position), target_position)
+		refresh_world_action_panel()
 
 func move_backward() -> void:
 	if not require_command("move_backward", "Missing module: Wheels V1 required."):
@@ -6422,6 +6423,7 @@ func move_backward() -> void:
 	if try_move_to(target_position):
 		spend_action(1, 0)
 		register_successful_movement_cells(1, get_surface_id_for_position(target_position), target_position)
+		refresh_world_action_panel()
 
 func turn_left() -> void:
 	if not require_command("turn_left", "Missing module: Wheels V1 required."):
@@ -6434,6 +6436,7 @@ func turn_left() -> void:
 	update_vision()
 	update_threat_detection_preview()
 	spend_action(1, 0)
+	refresh_world_action_panel()
 
 func turn_right() -> void:
 	if not require_command("turn_right", "Missing module: Wheels V1 required."):
@@ -6446,6 +6449,7 @@ func turn_right() -> void:
 	update_vision()
 	update_threat_detection_preview()
 	spend_action(1, 0)
+	refresh_world_action_panel()
 
 func end_turn() -> void:
 	if mission_manager != null:
@@ -7869,7 +7873,10 @@ func get_available_world_actions(world_object: Dictionary, target_position: Vect
 				var needs_digital_unlock: bool = state == "locked" or bool(world_object.get("is_locked", false)) or bool(world_object.get("locked", false))
 				if needs_digital_unlock and get_installed_processor_level() >= int(world_object.get("required_processor_level", 1)):
 					actions.append("hack")
-		if String(world_object.get("control_mode", "internal")).strip_edges().to_lower() == "external":
+		var control_mode: String = String(world_object.get("control_mode", "internal")).strip_edges().to_lower()
+		var linked_terminal_id: String = String(world_object.get("control_terminal_id", world_object.get("linked_terminal_id", ""))).strip_edges()
+		var requires_external_control: bool = bool(world_object.get("requires_external_control", false)) or not linked_terminal_id.is_empty()
+		if control_mode in ["external", "external_control", "external control"] and requires_external_control:
 			if state in ["damaged", "half_open", "jammed"] and has_heavy_claw():
 				actions.append("force_open")
 			return actions

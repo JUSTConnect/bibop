@@ -1944,11 +1944,13 @@ func _apply_selected_pulse(control: Control) -> void:
 func _clear_selected_pulse(control: Control) -> void:
 	if control == null or not is_instance_valid(control):
 		return
-	var pulse_tween: Variant = control.get_meta("selected_pulse_tween", null)
-	if pulse_tween is Tween:
-		pulse_tween.kill()
-	control.remove_meta("selected_pulse_tween")
-	control.remove_meta("selected_pulse_active")
+	if control.has_meta("selected_pulse_tween"):
+		var pulse_tween: Variant = control.get_meta("selected_pulse_tween")
+		if pulse_tween is Tween and is_instance_valid(pulse_tween):
+			pulse_tween.kill()
+		control.remove_meta("selected_pulse_tween")
+	if control.has_meta("selected_pulse_active"):
+		control.remove_meta("selected_pulse_active")
 	control.modulate = Color.WHITE
 
 func _apply_invalid_preview_blink(control: Control) -> void:
