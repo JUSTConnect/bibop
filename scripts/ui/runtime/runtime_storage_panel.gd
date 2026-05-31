@@ -181,7 +181,17 @@ static func _build_flyout(ui, hud_root: Control, margin: float, node_name: Strin
 	var cells: HBoxContainer = HBoxContainer.new()
 	cells.add_theme_constant_override("separation", 4)
 	root.add_child(cells)
-	var slot_count: int = max(MIN_VISIBLE_POCKET_SLOTS, ui.bipob.get_available_pocket_slots()) if is_pocket else max(1, ui.bipob.get_available_digital_storage_slots())
+	var slot_count: int = 1
+	if is_pocket:
+		slot_count = MIN_VISIBLE_POCKET_SLOTS
+	var bipob: Variant = null
+	if ui != null:
+		bipob = ui.bipob
+	if bipob != null and is_instance_valid(bipob):
+		if is_pocket:
+			slot_count = max(MIN_VISIBLE_POCKET_SLOTS, bipob.get_available_pocket_slots())
+		else:
+			slot_count = max(1, bipob.get_available_digital_storage_slots())
 	for index in range(slot_count):
 		var cell: Button = Button.new()
 		cell.text = "Empty"
