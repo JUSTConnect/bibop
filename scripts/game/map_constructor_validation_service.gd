@@ -840,10 +840,15 @@ func get_map_constructor_validation_issues() -> Array[Dictionary]:
 	if manager.grid_manager != null and manager.grid_manager.has_method("is_in_bounds"):
 		has_grid_bounds = true
 	var palette_ids: Dictionary = {}
+	var utility_palette_counts: Dictionary = {}
 	var explicit_prefab_metadata: Dictionary = manager._get_map_constructor_prefab_metadata_catalog()
 	for palette_entry in manager.get_map_constructor_prefab_catalog():
 		var palette_prefab_id: String = _safe_string(palette_entry.get("id", "")).strip_edges().to_lower()
 		palette_ids[palette_prefab_id] = true
+		if WorldObjectCatalogRef.UTILITY_ITEM_ARCHETYPE_IDS.has(palette_prefab_id):
+			utility_palette_counts[palette_prefab_id] = int(utility_palette_counts.get(palette_prefab_id, 0)) + 1
+			if _safe_string(palette_entry.get("archetype_id", "")).strip_edges().to_lower() != palette_prefab_id:
+				issues.append(_make_map_constructor_issue("palette_utility_not_archetype_%s" % palette_prefab_id, "error", "Utility palette row is not archetype-backed: %s." % palette_prefab_id, Vector2i(-1, -1), source_name, "palette", palette_prefab_id, "Expose the dedicated utility archetype row, not the raw OBJECT_LIBRARY item row."))
 		if WorldObjectCatalogRef.is_legacy_prefab_alias(palette_prefab_id):
 			issues.append(_make_map_constructor_issue("palette_legacy_alias_%s" % palette_prefab_id, "error", "Map Constructor palette exposes legacy alias: %s." % palette_prefab_id, Vector2i(-1, -1), source_name, "palette", palette_prefab_id, "Expose its canonical WorldObjectCatalog type instead."))
 		var canonical_palette_prefab_id: String = _safe_string(palette_entry.get("canonical_object_type", WorldObjectCatalogRef.canonical_object_type(palette_prefab_id))).strip_edges().to_lower()
@@ -862,6 +867,20 @@ func get_map_constructor_validation_issues() -> Array[Dictionary]:
 				for required_door_field in ["door_type", "material", "access_type", "door_class"]:
 					if _safe_string(normalized_palette_object.get(required_door_field, "")).strip_edges().is_empty():
 						issues.append(_make_map_constructor_issue("palette_door_missing_%s_%s" % [required_door_field, palette_prefab_id], "error", "Door palette prefab is missing %s after normalization: %s." % [required_door_field, palette_prefab_id], Vector2i(-1, -1), source_name, "palette", palette_prefab_id, "Complete the canonical door preset contract."))
+	for utility_archetype_id in WorldObjectCatalogRef.UTILITY_ITEM_ARCHETYPE_IDS:
+		if not WorldObjectCatalogRef.OBJECT_LIBRARY.has(utility_archetype_id):
+			continue
+		var utility_palette_count: int = int(utility_palette_counts.get(utility_archetype_id, 0))
+		if utility_palette_count != 1:
+			issues.append(_make_map_constructor_issue("palette_utility_count_%s" % utility_archetype_id, "error", "Utility archetype must appear exactly once in the Map Constructor palette: %s (found %d)." % [utility_archetype_id, utility_palette_count], Vector2i(-1, -1), source_name, "palette", utility_archetype_id, "Expose one dedicated utility archetype row."))
+		var utility_palette_object: Dictionary = WorldObjectCatalogRef.create_world_object(utility_archetype_id, "validation_palette_utility_%s" % utility_archetype_id)
+		for contract_warning in WorldObjectCatalogRef.validate_archetype_object(utility_palette_object):
+			issues.append(_make_map_constructor_issue("palette_utility_contract_%s_%s" % [utility_archetype_id, contract_warning], "error", "Utility palette archetype contract violation: %s." % contract_warning, Vector2i(-1, -1), source_name, "palette", utility_archetype_id, "Normalize utility placement through the dedicated WorldObjectCatalog archetype."))
+	for library_object_type_variant in WorldObjectCatalogRef.OBJECT_LIBRARY.keys():
+		var library_object_type: String = _safe_string(library_object_type_variant).strip_edges().to_lower()
+		var library_definition: Dictionary = Dictionary(WorldObjectCatalogRef.OBJECT_LIBRARY[library_object_type])
+		if _safe_string(library_definition.get("group", "")).strip_edges().to_lower() == "item" and palette_ids.has(library_object_type) and WorldObjectCatalogRef.get_archetype_definition(library_object_type).is_empty():
+			issues.append(_make_map_constructor_issue("palette_raw_item_row_%s" % library_object_type, "error", "Map Constructor palette exposes raw OBJECT_LIBRARY item row: %s." % library_object_type, Vector2i(-1, -1), source_name, "palette", library_object_type, "Expose a dedicated archetype row or keep the raw item hidden."))
 	for catalog_row in WorldObjectCatalogRef.get_constructor_palette_rows():
 		var catalog_prefab_id: String = _safe_string(catalog_row.get("prefab_id", "")).strip_edges().to_lower()
 		if not palette_ids.has(catalog_prefab_id):
@@ -898,6 +917,13 @@ func get_map_constructor_validation_issues() -> Array[Dictionary]:
 			issues.append(_make_map_constructor_issue("obj_lock_without_access_%s" % object_id, "error", "Legacy lock_type is present without canonical access_type.", object_cell, source_name, entity_kind, object_id, "Populate canonical access_type while retaining lock_type only as compatibility metadata."))
 		if object_group == "door" and WorldObjectCatalogRef.is_material_named_door_object_type(object_type) and _safe_string(data.get("door_type", "")).strip_edges().is_empty():
 			issues.append(_make_map_constructor_issue("obj_material_door_missing_mechanism_%s" % object_id, "error", "Material-named door is missing canonical door_type mechanism.", object_cell, source_name, entity_kind, object_id, "Populate canonical door_type."))
+		if bool(data.get("created_by_map_constructor", false)) and WorldObjectCatalogRef.UTILITY_ITEM_ARCHETYPE_IDS.has(object_type):
+			var runtime_utility_archetype_id: String = _safe_string(data.get("archetype_id", "")).strip_edges().to_lower()
+			if runtime_utility_archetype_id != object_type:
+				issues.append(_make_map_constructor_issue("obj_utility_missing_archetype_%s" % object_id, "error", "Constructor utility item is missing its dedicated archetype_id: %s." % object_type, object_cell, source_name, entity_kind, object_id, "Create utility placement through WorldObjectCatalog.create_world_object."))
+			else:
+				for contract_warning in WorldObjectCatalogRef.validate_archetype_object(data):
+					issues.append(_make_map_constructor_issue("obj_utility_archetype_%s_%s" % [object_id, contract_warning], "error", "Utility item archetype contract violation: %s." % contract_warning, object_cell, source_name, entity_kind, object_id, "Normalize utility placement through WorldObjectCatalog archetype creation."))
 		if object_group == "door":
 			var raw_door_type: String = _safe_string(data.get("door_type", "")).strip_edges().to_lower()
 			if raw_door_type not in WorldObjectCatalogRef.DOOR_TYPES:

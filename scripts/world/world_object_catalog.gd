@@ -173,6 +173,8 @@ const LEGACY_TERMINAL_ALIAS_CONFIGS: Dictionary = {
 	"turret_terminal": {"terminal_type":"control", "controlled_target_type":"device"}
 }
 
+const UTILITY_ITEM_ARCHETYPE_IDS: Array[String] = ["power_cable_reel", "fuse", "repair_kit", "reinforcement", "module_external", "module_internal"]
+
 const DOOR_MATERIAL_BY_OBJECT_TYPE: Dictionary = {
 	"steel_door": DOOR_MATERIAL_STEEL,
 	"reinforced_steel_door": DOOR_MATERIAL_REINFORCED_STEEL,
@@ -253,6 +255,30 @@ const ARCHETYPE_REGISTRY: Dictionary = {
 			{"field":"payload_id", "type":"string", "default":""},
 			{"field":"access_code", "type":"string", "default":""}
 		]
+	},
+	"power_cable_reel": {
+		"archetype_id":"power_cable_reel", "object_group":"item", "object_type":"power_cable_reel", "palette_label":"Power Cable Reel",
+		"placement_mode":"wall_mounted", "display_name_template":"Power Cable Reel", "configurable":false, "property_schema":[]
+	},
+	"fuse": {
+		"archetype_id":"fuse", "object_group":"item", "object_type":"fuse", "palette_label":"Fuse",
+		"placement_mode":"item", "display_name_template":"Fuse", "configurable":false, "property_schema":[]
+	},
+	"repair_kit": {
+		"archetype_id":"repair_kit", "object_group":"item", "object_type":"repair_kit", "palette_label":"Repair Kit",
+		"placement_mode":"item", "display_name_template":"Repair Kit", "configurable":false, "property_schema":[]
+	},
+	"reinforcement": {
+		"archetype_id":"reinforcement", "object_group":"item", "object_type":"reinforcement", "palette_label":"Reinforcement Kit",
+		"placement_mode":"item", "display_name_template":"Reinforcement Kit", "configurable":false, "property_schema":[]
+	},
+	"module_external": {
+		"archetype_id":"module_external", "object_group":"item", "object_type":"module_external", "palette_label":"External Module",
+		"placement_mode":"item", "display_name_template":"External Module", "configurable":false, "property_schema":[]
+	},
+	"module_internal": {
+		"archetype_id":"module_internal", "object_group":"item", "object_type":"module_internal", "palette_label":"Internal Module",
+		"placement_mode":"item", "display_name_template":"Internal Module", "configurable":false, "property_schema":[]
 	},
 	"floor": {
 		"archetype_id":"floor", "object_group":"floor", "object_type":"floor", "palette_label":"Floor",
@@ -821,6 +847,25 @@ static func validate_archetype_object(object_data: Dictionary) -> Array[String]:
 			for label_variant in labels.values():
 				if _contains_cyrillic(label_variant):
 					warnings.append("terminal_schema_contains_localized_label")
+	if UTILITY_ITEM_ARCHETYPE_IDS.has(archetype_id):
+		var expected_utility_type: String = _normalized_contract_token(get_archetype_definition(archetype_id).get("object_type", archetype_id))
+		if _normalized_contract_token(object_data.get("object_group", "")) != "item":
+			warnings.append("utility_object_group_not_item")
+		if _normalized_contract_token(object_data.get("object_type", "")) != expected_utility_type:
+			warnings.append("utility_object_type_not_runtime_compatible")
+		if String(object_data.get("display_name", "")) != generate_display_name(object_data):
+			warnings.append("utility_display_name_not_generated")
+		if _contains_cyrillic(object_data.get("display_name", "")):
+			warnings.append("utility_display_name_contains_localized_text")
+		if archetype_id == "power_cable_reel":
+			for cable_field in ["max_cable_length", "cable_path_cells", "cable_length", "cable_endpoint_a_id", "cable_endpoint_b_id", "connected", "disconnected", "end_1_target_id", "end_2_target_id"]:
+				if not object_data.has(cable_field):
+					warnings.append("power_cable_reel_missing_%s" % cable_field)
+		elif archetype_id == "fuse":
+			if not object_data.has("consumable") or not object_data.has("fits_targets"):
+				warnings.append("fuse_missing_runtime_storage_fields")
+			if _normalized_contract_token(object_data.get("item_class", "")) in [ITEM_CLASS_KEY_CARD, ITEM_CLASS_DIGITAL_KEY, ITEM_CLASS_ACCESS_CODE]:
+				warnings.append("fuse_uses_access_item_class")
 	if archetype_id == "door":
 		var state: String = String(object_data.get("state", ""))
 		var expected_open: bool = state == "open"

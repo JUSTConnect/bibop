@@ -2713,7 +2713,10 @@ func get_map_constructor_prefab_palette_rows(options: Dictionary = {}) -> Dictio
 
 func is_map_constructor_item_prefab(prefab_id: String) -> bool:
 	var normalized_prefab_id: String = prefab_id.strip_edges().to_lower()
-	return normalized_prefab_id == "item" or WorldObjectCatalogRef.LEGACY_ITEM_ALIAS_CONFIGS.has(normalized_prefab_id)
+	if normalized_prefab_id == "item" or WorldObjectCatalogRef.LEGACY_ITEM_ALIAS_CONFIGS.has(normalized_prefab_id):
+		return true
+	var archetype_definition: Dictionary = WorldObjectCatalogRef.get_archetype_definition(normalized_prefab_id)
+	return String(archetype_definition.get("object_group", "")) == "item" and String(archetype_definition.get("placement_mode", "")) == "item"
 
 func _map_constructor_entity_kind(object_data: Dictionary) -> String:
 	var object_group: String = str(object_data.get("object_group", "")).to_lower()
