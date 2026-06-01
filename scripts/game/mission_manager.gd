@@ -8143,8 +8143,13 @@ func can_pickup_world_item(item_id: String) -> Dictionary:
 		return {"success": false, "reasons": ["item_missing"], "item_id": normalized_id}
 	if not bool(item.get("can_pickup", true)):
 		return {"success": false, "reasons": ["item_does_not_fit"], "item_id": normalized_id}
-	if String(item.get("item_form", "physical")) == "digital" and not bool(item.get("can_place_in_digital_buffer", true)):
-		return {"success": false, "reasons": ["item_does_not_fit"], "item_id": normalized_id}
+	if String(item.get("item_form", "physical")) == "digital":
+		if not bool(item.get("can_place_in_digital_buffer", true)):
+			return {"success": false, "reasons": ["item_does_not_fit"], "item_id": normalized_id}
+	else:
+		var hold_gate := can_hold_item_in_manipulator(normalized_id)
+		if not bool(hold_gate.get("success", false)):
+			return {"success": false, "reasons": ["manipulator_occupied"], "message": "Free the manipulator to pick up this item.", "item_id": normalized_id}
 	return {"success": true, "reasons": ["ok"], "item_id": normalized_id}
 
 func _get_world_item_runtime_map() -> Dictionary:
@@ -8194,22 +8199,13 @@ func pickup_world_item(item_id: String) -> Dictionary:
 		item = get_cell_item_by_id(normalized_id)
 	if item.is_empty():
 		return {"success": false, "reasons": ["item_missing"], "item_id": normalized_id}
-	var storage_type := String(item.get("storage_type", "pocket"))
 	if String(item.get("item_form", "physical")) == "digital":
 		var digital_buffer: Array = runtime_inventory_state.get("digital_buffer", [])
 		if not digital_buffer.has(normalized_id):
 			digital_buffer.append(normalized_id)
 		runtime_inventory_state["digital_buffer"] = digital_buffer
-	elif storage_type == "manipulator_hold":
-		var hold_gate := can_hold_item_in_manipulator(normalized_id)
-		if not bool(hold_gate.get("success", false)):
-			return hold_gate
-		runtime_inventory_state["manipulator_hold"] = normalized_id
 	else:
-		var pocket: Array = runtime_inventory_state.get("pocket_items", [])
-		if not pocket.has(normalized_id):
-			pocket.append(normalized_id)
-		runtime_inventory_state["pocket_items"] = pocket
+		runtime_inventory_state["manipulator_hold"] = normalized_id
 	var item_type := String(item.get("item_type", "")).strip_edges()
 	var linked_door_id := String(item.get("linked_door_id", item.get("door_id", ""))).strip_edges()
 	if linked_door_id.is_empty():
@@ -10040,6 +10036,10 @@ func validate_inventory_tools_modules_runtime() -> Array[String]:
 	for obj in [physical_item, digital_item, digital_blocked]:
 		mission_world_objects.append(obj); world_objects_by_cell[Vector2i(obj.get("position", Vector2i(-1, -1)))] = obj; temp_ids.append(String(obj.get("id", "")))
 	if not bool(pickup_world_item("temp_item_physical").get("success", false)): warnings.append("physical_pickup_failed")
+	if String(runtime_inventory_state.get("manipulator_hold", "")) != "temp_item_physical": warnings.append("physical_pickup_not_routed_to_manipulator")
+	if Array(runtime_inventory_state.get("pocket_items", [])).has("temp_item_physical"): warnings.append("physical_pickup_routed_to_pocket")
+	if Array(runtime_inventory_state.get("digital_buffer", [])).has("temp_item_physical"): warnings.append("physical_pickup_routed_to_digital_buffer")
+	runtime_inventory_state["manipulator_hold"] = ""
 	if not bool(pickup_world_item("temp_item_digital").get("success", false)): warnings.append("digital_pickup_allowed_failed")
 	if bool(pickup_world_item("temp_item_digital_blocked").get("success", false)): warnings.append("digital_pickup_block_missing")
 	var stacked_cell := Vector2i(124, 100)
@@ -10047,6 +10047,9 @@ func validate_inventory_tools_modules_runtime() -> Array[String]:
 	var stacked_second := {"id":"temp_item_stacked_second", "object_group":"item", "object_type":"item", "position":stacked_cell, "item_type":"mechanical_key", "key_kind":"mechanical", "item_form":"physical", "can_pickup":true}
 	add_item_at_cell(stacked_cell, stacked_first); add_item_at_cell(stacked_cell, stacked_second); temp_ids.append("temp_item_stacked_first"); temp_ids.append("temp_item_stacked_second")
 	if not bool(pickup_world_item("temp_item_stacked_second").get("success", false)): warnings.append("stacked_second_pickup_failed")
+	var blocked_physical_pickup := pickup_world_item("temp_item_stacked_first")
+	if bool(blocked_physical_pickup.get("success", false)): warnings.append("occupied_manipulator_pickup_gate_missing")
+	if String(blocked_physical_pickup.get("message", "")) != "Free the manipulator to pick up this item.": warnings.append("occupied_manipulator_pickup_message_missing")
 	var stacked_remaining := get_items_at_cell(stacked_cell)
 	if stacked_remaining.size() != 1 or String(Dictionary(stacked_remaining[0]).get("id", "")) != "temp_item_stacked_first": warnings.append("stacked_pickup_removed_wrong_item")
 	if not get_world_object_by_id("temp_item_stacked_second").is_empty(): warnings.append("stacked_pickup_world_copy_remains")

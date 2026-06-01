@@ -10,7 +10,7 @@ static func can_apply_action(actor: Dictionary, module: Dictionary, target_objec
 	if target_object.is_empty():
 		return _result(false, "No target object.")
 	if action_type == "pickup" and actor.get("manipulator_occupied", false):
-		return _result(false, "Manipulator is occupied.")
+		return _result(false, "Free the manipulator to pick up this item.")
 	if action_type == "hack" and actor.get("processor_level", 0) < target_object.get("required_processor_level", 1):
 		return _result(false, "Hacking impossible")
 	if action_type == "download":
