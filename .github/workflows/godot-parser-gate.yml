@@ -34,7 +34,7 @@ jobs:
 
       - name: Godot import smoke
         run: |
-          godot --headless --path . --quit
+          godot --headless --path . --import
 
       - name: GDScript parser/load gate
         run: |
