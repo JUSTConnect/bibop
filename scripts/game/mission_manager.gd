@@ -329,6 +329,272 @@ func validate_architecture_contracts() -> Dictionary:
 		summary = "Architecture contracts passed with %d informational warning(s)." % warnings.size()
 	return {"ok": report_ok, "summary": summary, "sections": sections, "warnings": warnings, "error_count": 0, "warning_count": warnings.size()}
 
+func build_architecture_stabilization_final_report() -> Dictionary:
+	var validation_read_only_section: Dictionary = _build_final_validation_read_only_section()
+	var architecture_snapshot: Dictionary = validate_architecture_contracts()
+	var architecture_sections: Dictionary = _index_architecture_validation_sections(architecture_snapshot)
+	var sections: Array[Dictionary] = []
+	sections.append(_make_final_verification_section("syntax_gate_reference", "Syntax Gate Reference", [], ["Run git diff --check, python tools/check_gdscript_safety_patterns.py, python tools/check_map_constructor_sections.py, and godot --headless --path . --quit when the Godot CLI is available."]))
+	sections.append(_build_final_object_registry_section(architecture_sections))
+	sections.append(_build_final_constructor_prefabs_section(architecture_sections))
+	sections.append(_build_final_reused_section("task_test_objects", "TASK TEST Objects", architecture_sections, "task_test_objects"))
+	sections.append(_build_final_door_contract_section(architecture_sections))
+	sections.append(_build_final_inventory_contract_section(architecture_sections))
+	sections.append(_build_final_runtime_action_contract_section(architecture_sections))
+	sections.append(_build_final_mission_goal_binding_section(architecture_sections))
+	sections.append(validation_read_only_section)
+	sections.append(_build_final_legacy_boundary_section(architecture_sections))
+	sections.append(_build_final_ui_backend_consistency_section())
+	var manual_smoke_checklist: Array[String] = _get_architecture_stabilization_manual_smoke_checklist()
+	sections.append(_make_final_verification_section("final_smoke_checklist", "Final Smoke Checklist", [], ["Manual Godot runtime smoke checklist emitted with %d step(s)." % manual_smoke_checklist.size()]))
+	var error_count: int = 0
+	var warning_count: int = 0
+	for section in sections:
+		error_count += Array(section.get("errors", [])).size()
+		warning_count += Array(section.get("warnings", [])).size()
+	var report_ok: bool = error_count == 0
+	var summary: String = "Architecture stabilization checks passed."
+	if not report_ok:
+		summary = "Architecture stabilization checks found %d error(s) and %d warning(s)." % [error_count, warning_count]
+	elif warning_count > 0:
+		summary = "Architecture stabilization checks passed with %d informational warning(s)." % warning_count
+	return {
+		"ok": report_ok,
+		"summary": summary,
+		"sections": sections,
+		"error_count": error_count,
+		"warning_count": warning_count,
+		"manual_smoke_checklist": manual_smoke_checklist,
+		"checks": {
+			"syntax_gate": ["git diff --check", "python tools/check_gdscript_safety_patterns.py", "python tools/check_map_constructor_sections.py", "godot --headless --path . --quit"],
+			"contract_validation": [String(architecture_snapshot.get("summary", "Architecture contract validation unavailable."))],
+			"runtime_smoke": manual_smoke_checklist.duplicate()
+		}
+	}
+
+func _index_architecture_validation_sections(report: Dictionary) -> Dictionary:
+	var indexed_sections: Dictionary = {}
+	for section_variant in Array(report.get("sections", [])):
+		if typeof(section_variant) != TYPE_DICTIONARY:
+			continue
+		var section: Dictionary = section_variant
+		indexed_sections[String(section.get("id", ""))] = section
+	return indexed_sections
+
+func _make_final_verification_section(section_id: String, title: String, errors: Array, warnings: Array = []) -> Dictionary:
+	var copied_errors: Array[String] = []
+	var copied_warnings: Array[String] = []
+	for error_variant in errors:
+		copied_errors.append(String(error_variant))
+	for warning_variant in warnings:
+		copied_warnings.append(String(warning_variant))
+	return {"id": section_id, "title": title, "ok": copied_errors.is_empty(), "errors": copied_errors, "warnings": copied_warnings}
+
+func _build_final_reused_section(section_id: String, title: String, architecture_sections: Dictionary, source_section_id: String) -> Dictionary:
+	var source_variant: Variant = architecture_sections.get(source_section_id, {})
+	if typeof(source_variant) != TYPE_DICTIONARY:
+		return _make_final_verification_section(section_id, title, ["missing_reused_validation_section_%s" % source_section_id])
+	var source: Dictionary = source_variant
+	var source_warnings: Array = source.get("warnings", [])
+	if bool(source.get("ok", false)):
+		return _make_final_verification_section(section_id, title, [], source_warnings)
+	return _make_final_verification_section(section_id, title, source_warnings)
+
+func _build_final_object_registry_section(architecture_sections: Dictionary) -> Dictionary:
+	var errors: Array[String] = []
+	var registry_section: Dictionary = _build_final_reused_section("object_registry", "Object Registry", architecture_sections, "object_registry")
+	for error_variant in Array(registry_section.get("errors", [])):
+		errors.append(String(error_variant))
+	for object_variant in mission_world_objects:
+		if typeof(object_variant) != TYPE_DICTIONARY:
+			errors.append("runtime_world_object_not_dictionary")
+			continue
+		var object_data: Dictionary = object_variant
+		var object_id: String = String(object_data.get("id", "")).strip_edges()
+		var object_type: String = String(object_data.get("object_type", "")).strip_edges().to_lower()
+		var object_group: String = String(object_data.get("object_group", "")).strip_edges().to_lower()
+		if object_id.is_empty():
+			errors.append("runtime_world_object_missing_id")
+		if object_type.is_empty() or not WorldObjectCatalogRef.OBJECT_LIBRARY.has(object_type):
+			errors.append("runtime_world_object_unknown_object_type_%s_%s" % [object_id, object_type])
+		if WorldObjectCatalogRef.is_legacy_prefab_alias(object_type):
+			errors.append("runtime_world_object_legacy_object_type_%s_%s" % [object_id, object_type])
+		if object_group.is_empty():
+			errors.append("runtime_world_object_missing_object_group_%s" % object_id)
+	return _make_final_verification_section("object_registry", "Object Registry", errors, Array(registry_section.get("warnings", [])))
+
+func _build_final_constructor_prefabs_section(architecture_sections: Dictionary) -> Dictionary:
+	return _build_final_reused_section("constructor_prefabs", "Constructor Prefabs", architecture_sections, "constructor_palette")
+
+func _build_final_door_contract_section(architecture_sections: Dictionary) -> Dictionary:
+	var reused_section: Dictionary = _build_final_reused_section("door_contract", "Door Contract", architecture_sections, "door_contract")
+	var errors: Array[String] = []
+	var warnings: Array[String] = []
+	for error_variant in Array(reused_section.get("errors", [])):
+		errors.append(String(error_variant))
+	for warning_variant in Array(reused_section.get("warnings", [])):
+		warnings.append(String(warning_variant))
+	var door_count: int = 0
+	for object_variant in mission_world_objects:
+		if typeof(object_variant) != TYPE_DICTIONARY:
+			continue
+		var door: Dictionary = object_variant
+		if String(door.get("object_group", "")).strip_edges().to_lower() != "door":
+			continue
+		door_count += 1
+		var door_id: String = String(door.get("id", "unnamed_door"))
+		var door_type: String = String(door.get("door_type", "")).strip_edges().to_lower()
+		var material: String = String(door.get("material", "")).strip_edges().to_lower()
+		var access_type: String = String(door.get("access_type", "")).strip_edges().to_lower()
+		if door_type not in WorldObjectCatalogRef.DOOR_TYPES:
+			errors.append("door_type_unknown_%s_%s" % [door_id, door_type])
+		if material not in WorldObjectCatalogRef.DOOR_MATERIALS:
+			errors.append("door_material_unknown_%s_%s" % [door_id, material])
+		if access_type not in WorldObjectCatalogRef.ACCESS_TYPES:
+			errors.append("door_access_type_unknown_%s_%s" % [door_id, access_type])
+		if not door.has("state") or String(door.get("state", "")).strip_edges().is_empty():
+			errors.append("door_missing_state_%s" % door_id)
+		if access_type == WorldObjectCatalogRef.ACCESS_TYPE_NO_KEY and not String(door.get("required_key_id", "")).strip_edges().is_empty():
+			errors.append("no_key_door_requires_key_%s" % door_id)
+		if door_type == WorldObjectCatalogRef.DOOR_TYPE_POWERED:
+			var power_behavior: String = String(door.get("power_behavior", "")).strip_edges().to_lower()
+			if power_behavior not in [WorldObjectCatalogRef.POWER_BEHAVIOR_NONE, WorldObjectCatalogRef.POWER_BEHAVIOR_OPENS_WHEN_UNPOWERED]:
+				errors.append("powered_door_power_behavior_unknown_%s_%s" % [door_id, power_behavior])
+		if material == door_type:
+			errors.append("door_material_used_as_door_type_%s_%s" % [door_id, material])
+	if door_count == 0:
+		warnings.append("current_mission_has_no_doors")
+	return _make_final_verification_section("door_contract", "Door Contract", errors, warnings)
+
+func _build_final_inventory_contract_section(architecture_sections: Dictionary) -> Dictionary:
+	var reused_section: Dictionary = _build_final_reused_section("inventory_contract", "Inventory Contract", architecture_sections, "inventory_storage")
+	var errors: Array = Array(reused_section.get("errors", [])).duplicate()
+	var warnings: Array = Array(reused_section.get("warnings", [])).duplicate()
+	if active_bipob_ref != null and is_instance_valid(active_bipob_ref) and active_bipob_ref.has_method("get_available_manipulator_slots") and active_bipob_ref.has_method("get_runtime_manipulator_items"):
+		var slot_count: int = int(active_bipob_ref.call("get_available_manipulator_slots"))
+		var items_variant: Variant = active_bipob_ref.call("get_runtime_manipulator_items")
+		if typeof(items_variant) != TYPE_ARRAY:
+			errors.append("runtime_manipulator_items_not_array")
+		elif Array(items_variant).size() != slot_count:
+			errors.append("runtime_manipulator_slot_count_mismatch_%d_%d" % [Array(items_variant).size(), slot_count])
+	else:
+		warnings.append("runtime_manipulator_slot_count_unavailable")
+	return _make_final_verification_section("inventory_contract", "Inventory Contract", errors, warnings)
+
+func _build_final_runtime_action_contract_section(architecture_sections: Dictionary) -> Dictionary:
+	var reused_section: Dictionary = _build_final_reused_section("runtime_action_contract", "Runtime Action Contract", architecture_sections, "runtime_action_view_model")
+	var errors: Array = Array(reused_section.get("errors", [])).duplicate()
+	var warnings: Array = Array(reused_section.get("warnings", [])).duplicate()
+	for source_section_id in ["device_diagnostics", "device_interaction_flow", "device_interaction_state_flow"]:
+		var diagnostics_section: Dictionary = _build_final_reused_section("runtime_action_contract", "Runtime Action Contract", architecture_sections, source_section_id)
+		for error_variant in Array(diagnostics_section.get("errors", [])):
+			errors.append("%s:%s" % [source_section_id, String(error_variant)])
+		for warning_variant in Array(diagnostics_section.get("warnings", [])):
+			warnings.append("%s:%s" % [source_section_id, String(warning_variant)])
+	if active_bipob_ref == null or not is_instance_valid(active_bipob_ref) or not active_bipob_ref.has_method("get_facing_world_action_target"):
+		warnings.append("runtime_action_target_unavailable")
+		return _make_final_verification_section("runtime_action_contract", "Runtime Action Contract", errors, warnings)
+	var facing_variant: Variant = active_bipob_ref.call("get_facing_world_action_target")
+	if typeof(facing_variant) != TYPE_DICTIONARY:
+		errors.append("runtime_action_target_not_dictionary")
+		return _make_final_verification_section("runtime_action_contract", "Runtime Action Contract", errors, warnings)
+	var facing: Dictionary = facing_variant
+	var target_variant: Variant = facing.get("target_object", {})
+	var selected_action: String = String(active_bipob_ref.get("selected_world_action")).strip_edges()
+	if typeof(target_variant) != TYPE_DICTIONARY or target_variant.is_empty():
+		if not selected_action.is_empty():
+			errors.append("stale_selected_world_action_without_target_%s" % selected_action)
+		warnings.append("runtime_target_missing_or_empty")
+		return _make_final_verification_section("runtime_action_contract", "Runtime Action Contract", errors, warnings)
+	var target: Dictionary = target_variant
+	var normalized_target: Dictionary = WorldObjectCatalogRef.normalize_world_object_contract(target)
+	var view_model_variant: Variant = facing.get("action_view_model", {})
+	if typeof(view_model_variant) != TYPE_DICTIONARY:
+		errors.append("runtime_action_view_model_missing")
+	else:
+		var view_model: Dictionary = view_model_variant
+		var model_target_variant: Variant = view_model.get("target", {})
+		if typeof(model_target_variant) != TYPE_DICTIONARY:
+			errors.append("runtime_action_view_model_target_missing")
+		elif String(Dictionary(model_target_variant).get("object_type", "")) != String(normalized_target.get("object_type", "")):
+			errors.append("runtime_action_view_model_target_not_normalized_%s" % String(target.get("id", "unnamed_target")))
+	return _make_final_verification_section("runtime_action_contract", "Runtime Action Contract", errors, warnings)
+
+func _build_final_mission_goal_binding_section(architecture_sections: Dictionary) -> Dictionary:
+	var reused_section: Dictionary = _build_final_reused_section("mission_goal_binding", "Mission Goal Binding", architecture_sections, "mission_objective")
+	var errors: Array = Array(reused_section.get("errors", [])).duplicate()
+	var warnings: Array = Array(reused_section.get("warnings", [])).duplicate()
+	var view_model: Dictionary = get_current_mission_objective_view_model()
+	if view_model.is_empty():
+		errors.append("active_mission_objective_view_model_missing")
+	else:
+		var goal_text: String = String(view_model.get("goal_text", "")).strip_edges()
+		var objective_hint: String = String(view_model.get("objective_hint", "")).strip_edges()
+		if goal_text.is_empty() and objective_hint.is_empty():
+			errors.append("active_mission_objective_text_missing")
+		if not current_mission_id.is_empty():
+			var catalog_goal_text: String = get_mission_goal_text(current_mission_id).strip_edges()
+			if not catalog_goal_text.is_empty() and goal_text != catalog_goal_text:
+				errors.append("active_mission_goal_not_bound_to_catalog_%s" % current_mission_id)
+	return _make_final_verification_section("mission_goal_binding", "Mission Goal Binding", errors, warnings)
+
+func _build_final_validation_read_only_section() -> Dictionary:
+	var errors: Array[String] = []
+	var world_objects_snapshot: String = var_to_str(mission_world_objects)
+	var inventory_snapshot: String = var_to_str(runtime_inventory_state)
+	validate_architecture_contracts()
+	if world_objects_snapshot != var_to_str(mission_world_objects):
+		errors.append("validation_mutated_runtime_state:mission_world_objects")
+	if inventory_snapshot != var_to_str(runtime_inventory_state):
+		errors.append("validation_mutated_runtime_state:runtime_inventory_state")
+	return _make_final_verification_section("validation_read_only", "Validation Read-only", errors)
+
+func _build_final_legacy_boundary_section(architecture_sections: Dictionary) -> Dictionary:
+	var reused_section: Dictionary = _build_final_reused_section("legacy_boundary", "Legacy Boundary", architecture_sections, "legacy_boundary")
+	var errors: Array = Array(reused_section.get("errors", [])).duplicate()
+	var warnings: Array = Array(reused_section.get("warnings", [])).duplicate()
+	for legacy_key_type in ["mechanical_key", "mechanical_keycard", "keycard"]:
+		if WorldObjectCatalogRef.normalize_key_item_type(legacy_key_type) != WorldObjectCatalogRef.KEY_ITEM_TYPE_KEY_CARD:
+			errors.append("legacy_key_type_does_not_normalize_to_key_card_%s" % legacy_key_type)
+	return _make_final_verification_section("legacy_boundary", "Legacy Boundary", errors, warnings)
+
+func _build_final_ui_backend_consistency_section() -> Dictionary:
+	var errors: Array[String] = []
+	var warnings: Array[String] = []
+	if not has_method("get_current_mission_objective_view_model"):
+		errors.append("mission_goal_ui_backend_helper_missing")
+	if not has_method("get_inventory_state"):
+		errors.append("inventory_ui_backend_helper_missing")
+	if active_bipob_ref == null or not is_instance_valid(active_bipob_ref):
+		warnings.append("active_bipob_ui_backend_unavailable")
+	elif not active_bipob_ref.has_method("get_runtime_manipulator_items") or not active_bipob_ref.has_method("get_available_manipulator_slots"):
+		errors.append("manipulator_ui_backend_helper_missing")
+	return _make_final_verification_section("ui_backend_consistency", "UI Backend Consistency", errors, warnings)
+
+func _get_architecture_stabilization_manual_smoke_checklist() -> Array[String]:
+	return [
+		"Start TASK TEST.",
+		"Output does not spam errors.",
+		"GOAL panel shows mission objective.",
+		"Empty cell in front of Bipob has no Action pulse.",
+		"Fuse pickup goes to manipulator.",
+		"Fuse moves manipulator ↔ pocket.",
+		"Key-card pickup goes to keychain and displays as K.",
+		"Key-card does not occupy manipulator.",
+		"Mechanical no_key door opens/closes.",
+		"Mechanical key_card door opens with key-card and free manipulator.",
+		"Mechanical key_card door does not open when manipulator occupied.",
+		"Digital door opens through digital_key/access_code/terminal depending on setup.",
+		"Powered door follows power_behavior.",
+		"Map Constructor palette contains door presets.",
+		"Placed constructor door works like TASK TEST door.",
+		"Preset save/load does not create unknown object_type.",
+		"Runtime storage rejects physical item in digital storage.",
+		"Manipulator UI shows only real manipulator slots.",
+		"Key strip shows compact K/empty cells.",
+		"No stale selected pulse after pickup/action/move/turn."
+	]
+
 func get_architecture_contract_validation_text() -> String:
 	var report: Dictionary = validate_architecture_contracts()
 	var lines: Array[String] = ["Architecture Contract Validation:", String(report.get("summary", ""))]
@@ -401,7 +667,10 @@ func _validate_task_test_object_contracts() -> Array[String]:
 			warnings.append("task_test_object_not_dictionary")
 			continue
 		var object_data: Dictionary = object_variant
-		var object_id: String = String(object_data.get("id", "unnamed_object"))
+		var object_id: String = String(object_data.get("id", "")).strip_edges()
+		if object_id.is_empty():
+			warnings.append("task_test_object_missing_id")
+			object_id = "unnamed_object"
 		var object_type: String = String(object_data.get("object_type", ""))
 		if not WorldObjectCatalogRef.OBJECT_LIBRARY.has(object_type):
 			warnings.append("task_test_object_unknown_catalog_type_%s_%s" % [object_id, object_type])
