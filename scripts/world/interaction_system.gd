@@ -9,8 +9,8 @@ static func can_apply_action(actor: Dictionary, module: Dictionary, target_objec
 		return _result(false, "Action not supported.")
 	if target_object.is_empty():
 		return _result(false, "No target object.")
-	if action_type == "pickup" and actor.get("manipulator_occupied", false):
-		return _result(false, "Free the manipulator to pick up this item.")
+	if action_type == "pickup" and actor.get("manipulator_occupied", false) and not _is_keycard_item(target_object):
+		return _result(false, "Free manipulator required.")
 	if action_type == "hack" and actor.get("processor_level", 0) < target_object.get("required_processor_level", 1):
 		return _result(false, "Hacking impossible")
 	if action_type == "download":
@@ -81,6 +81,9 @@ static func apply_action(actor: Dictionary, module: Dictionary, target_object: D
 				return door_gate
 			var required_key_id: String = String(target_object.get("required_key_id", "")).strip_edges()
 			var has_required_key := not required_key_id.is_empty() and Array(actor.get("collected_key_ids", [])).has(required_key_id)
+			var access_type: String = String(target_object.get("access_type", target_object.get("lock_type", ""))).strip_edges().to_lower()
+			if access_type in ["mechanical_key", "mechanical_keycard", "key_card", "keycard", "mechanical key-card"] and bool(actor.get("manipulator_occupied", false)):
+				return _result(false, "Free manipulator required.")
 			if String(target_object.get("access_type", target_object.get("lock_type", ""))).strip_edges().to_lower() in ["terminal_access"]:
 				return _result(false, "Door is controlled by linked terminal.")
 			if not required_key_id.is_empty() and not has_required_key:
@@ -427,3 +430,10 @@ static func _validate_weight_class(actor: Dictionary, target_object: Dictionary)
 
 static func _result(success: bool, message: String, effects: Array = []) -> Dictionary:
 	return {"success": success, "message": message, "effects": effects}
+
+
+static func _is_keycard_item(item_data: Dictionary) -> bool:
+	var item_type: String = String(item_data.get("item_type", item_data.get("object_type", ""))).strip_edges().to_lower()
+	item_type = item_type.replace(" ", "_").replace("-", "_")
+	var key_kind: String = String(item_data.get("key_kind", "")).strip_edges().to_lower()
+	return key_kind == "mechanical" or item_type in ["mechanical_key", "mechanical_keycard", "key_card", "keycard"]
