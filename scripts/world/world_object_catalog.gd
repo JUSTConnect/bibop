@@ -126,15 +126,15 @@ const DOOR_MATERIAL_BY_OBJECT_TYPE: Dictionary = {
 # power_source, item, wall, cooling_device, data_device) without adding palette variants.
 const ARCHETYPE_REGISTRY: Dictionary = {
 	"external_wall": {
-		"archetype_id":"external_wall", "object_group":"wall", "object_type":"external_wall", "palette_label":"External Wall", "palette_label_ru":"Стена внешняя",
+		"archetype_id":"external_wall", "object_group":"wall", "object_type":"external_wall", "palette_label":"External Wall",
 		"display_name_template":"External Wall", "material":"external_structural", "is_destructible":false, "supports_embedded_objects":true, "supports_cables":true, "configurable":false, "blocks_movement":true, "blocks_vision":true,
 		"property_schema":[]
 	},
 	"wall": {
-		"archetype_id":"wall", "object_group":"wall", "object_type":"wall", "palette_label":"Wall", "palette_label_ru":"Стена",
+		"archetype_id":"wall", "object_group":"wall", "object_type":"wall", "palette_label":"Wall",
 		"display_name_template":"{material_label} Wall", "is_destructible":true, "supports_embedded_objects":true, "supports_cables":true, "configurable":true, "blocks_movement":true, "blocks_vision":true,
 		"property_schema":[
-			{"field":"material", "type":"enum", "values":["brick", "concrete", "steel", "reinforced_steel", "titanium", "grate", "electromagnetic"], "default":"brick", "labels_ru":{"brick":"Кирпичная стена", "concrete":"Бетонная стена", "steel":"Стальная стена", "reinforced_steel":"Стена из усиленной стали", "titanium":"Титановая стена", "grate":"Стена из решётки", "electromagnetic":"Электромагнитная стена"}}
+			{"field":"material", "type":"enum", "values":["brick", "concrete", "steel", "reinforced_steel", "titanium", "grate", "electromagnetic"], "default":"brick", "labels":{"brick":"Brick", "concrete":"Concrete", "steel":"Steel", "reinforced_steel":"Reinforced Steel", "titanium":"Titanium", "grate":"Grate", "electromagnetic":"Electromagnetic"}}
 		]
 	},
 	"door": {
@@ -160,13 +160,13 @@ const ARCHETYPE_REGISTRY: Dictionary = {
 		]
 	},
 	"floor": {
-		"archetype_id":"floor", "object_group":"floor", "object_type":"floor", "palette_label":"Floor / Пол",
+		"archetype_id":"floor", "object_group":"floor", "object_type":"floor", "palette_label":"Floor",
 		"placement_mode":"object", "display_name_template":"{material_label} Floor",
 		"blocks_movement":false, "blocks_vision":false, "configurable":true, "replaces_tile_with":"floor",
 		"property_schema":[
-			{"field":"material", "type":"enum", "values":["steel", "concrete", "grate"], "default":"steel", "labels":{"steel":"Steel / Стальной", "concrete":"Concrete / Бетонный", "grate":"Grate / Решётка"}},
-			{"field":"covering", "type":"enum", "values":["default", "dirt", "water", "debris", "oil"], "default":"default", "labels":{"default":"Default / Базовое покрытие", "dirt":"Dirt / Грязь", "water":"Water / Вода", "debris":"Debris / Обломки", "oil":"Oil / Масло"}},
-			{"field":"visual_style", "type":"enum", "values":["default", "permission"], "default":"default", "labels":{"default":"Default / Обычный", "permission":"Permission Tile / Тайл разрешения"}},
+			{"field":"material", "type":"enum", "values":["steel", "concrete", "grate"], "default":"steel", "labels":{"steel":"Steel", "concrete":"Concrete", "grate":"Grate"}},
+			{"field":"covering", "type":"enum", "values":["default", "dirt", "water", "debris", "oil"], "default":"default", "labels":{"default":"Default", "dirt":"Dirt", "water":"Water", "debris":"Debris", "oil":"Oil"}},
+			{"field":"visual_style", "type":"enum", "values":["default", "permission"], "default":"default", "labels":{"default":"Default", "permission":"Permission Tile"}},
 			{"field":"state", "type":"enum", "values":["normal", "damaged"], "default":"normal"},
 			{"field":"allowed_states", "type":"enum_array", "values":["normal", "damaged"], "default":["normal", "damaged"]}
 		]
@@ -263,7 +263,7 @@ static func get_constructor_palette_rows() -> Array[Dictionary]:
 	for archetype_id_variant in ARCHETYPE_REGISTRY.keys():
 		var archetype_id: String = String(archetype_id_variant)
 		var definition: Dictionary = ARCHETYPE_REGISTRY[archetype_id]
-		rows.append({"id":archetype_id, "prefab_id":archetype_id, "archetype_id":archetype_id, "canonical_object_type":String(definition.get("object_type", archetype_id)), "display_name":String(definition.get("palette_label", archetype_id.capitalize())), "label":String(definition.get("palette_label", archetype_id.capitalize())), "label_ru":String(definition.get("palette_label_ru", "")), "category":String(definition.get("object_group", "Objects")).capitalize(), "object_group":String(definition.get("object_group", "physical_object")), "placement_mode":String(definition.get("placement_mode", "object")), "blocks_movement":bool(definition.get("blocks_movement", true)), "is_alias":false})
+		rows.append({"id":archetype_id, "prefab_id":archetype_id, "archetype_id":archetype_id, "canonical_object_type":String(definition.get("object_type", archetype_id)), "display_name":String(definition.get("palette_label", archetype_id.capitalize())), "label":String(definition.get("palette_label", archetype_id.capitalize())), "category":String(definition.get("object_group", "Objects")).capitalize(), "object_group":String(definition.get("object_group", "physical_object")), "placement_mode":String(definition.get("placement_mode", "object")), "blocks_movement":bool(definition.get("blocks_movement", true)), "is_alias":false})
 	for object_type_variant in OBJECT_LIBRARY.keys():
 		var object_type: String = String(object_type_variant)
 		var definition: Dictionary = OBJECT_LIBRARY[object_type]
@@ -742,16 +742,6 @@ static func generate_display_name(object_data: Dictionary) -> String:
 		var field_name: String = String(field.get("field", ""))
 		template = template.replace("{%s_label}" % field_name, _label_for_id(object_data.get(field_name, field.get("default", ""))))
 	return template
-
-static func generate_localized_display_name(object_data: Dictionary, locale: String = "en") -> String:
-	if get_archetype_id_for_object(object_data) != "floor" or not locale.to_lower().begins_with("ru"):
-		return generate_display_name(object_data)
-	match _normalized_contract_token(object_data.get("material", "steel")):
-		"concrete":
-			return "Бетонный пол"
-		"grate":
-			return "Пол из решётки"
-	return "Стальной пол"
 
 static func normalize_archetype_object(object_data: Dictionary) -> Dictionary:
 	var data: Dictionary = object_data.duplicate(true)

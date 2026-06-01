@@ -7,6 +7,23 @@ import sys
 
 INSPECTOR_PATH = Path("scripts/ui/map_constructor/map_constructor_inspector.gd")
 COVERAGE_PATH = Path("scripts/ui/map_constructor/map_constructor_floor_wall_controls.gd")
+GAME_FACING_LABEL_PATHS = [
+    Path("scripts/world"),
+    Path("scripts/game"),
+    Path("scripts/ui"),
+]
+FORBIDDEN_GAME_FACING_LABEL_MARKERS = [
+    "Floor /",
+    "/ Пол",
+    "Стена",
+    "Дверь",
+    "Терминал",
+    "Стальной",
+    "Базовое покрытие",
+    "labels_ru",
+    "palette_label_ru",
+    "display_name_ru",
+]
 EXPECTED_SECTIONS = [
     "1. Object Identity",
     "2. Current Status",
@@ -64,6 +81,19 @@ def main() -> int:
     print("OK: Map Constructor inspector sections are present in the expected order:")
     for section in EXPECTED_SECTIONS:
         print(f"  - {section}")
+
+    forbidden_matches = []
+    for root in GAME_FACING_LABEL_PATHS:
+        for path in root.rglob("*.gd"):
+            source = read_source(path)
+            for line_number, line in enumerate(source.splitlines(), start=1):
+                for marker in FORBIDDEN_GAME_FACING_LABEL_MARKERS:
+                    if marker in line:
+                        forbidden_matches.append(f"{path}:{line_number}: contains {marker!r}")
+    if forbidden_matches:
+        return fail("game-facing scripts contain forbidden Russian or mixed labels:\n  " + "\n  ".join(forbidden_matches))
+
+    print("OK: Game-facing scripts contain no forbidden Russian or mixed archetype label markers.")
     return 0
 
 
