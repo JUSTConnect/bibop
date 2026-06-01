@@ -12669,8 +12669,8 @@ func _refresh_runtime_interaction_controls() -> void:
 			var flow_state: String = String(state_flow.get("state", ""))
 			if bool(state_flow.get("is_applicable", false)) and flow_state in ["unknown", "scanned", "blocked", "executed_unavailable"]:
 				has_available_action = false
-				action_label = String(state_flow.get("message", action_label))
-				disabled_reason = action_label
+				disabled_reason = _format_runtime_display_text(state_flow.get("message", action_label))
+				action_label = _format_runtime_short_message(disabled_reason, String(state_flow.get("next_step_label", "")))
 	runtime_action_button.text = action_label
 	runtime_action_button.tooltip_text = disabled_reason if not has_available_action else ""
 	runtime_action_button.disabled = target_object.is_empty() or not has_available_action
@@ -12963,91 +12963,191 @@ func update_status() -> void:
 		bipob.refresh_world_action_panel()
 
 
+func _format_runtime_display_text(value: Variant) -> String:
+	if value == null or typeof(value) in [TYPE_DICTIONARY, TYPE_ARRAY]:
+		return ""
+	var text: String = String(value).strip_edges()
+	text = text.replace("Interface", "Connector")
+	text = text.replace("interface", "connector")
+	text = text.replace("CPU", "Processor")
+	text = text.replace("cpu", "processor")
+	text = text.replace("mechanical key", "Key-card")
+	return text
+
+func _format_runtime_short_message(message: String, fallback_label: String = "") -> String:
+	var full_message: String = _format_runtime_display_text(message).strip_edges()
+	var normalized: String = full_message.to_lower()
+	if normalized.find("scan") >= 0 and normalized.find("first") >= 0:
+		return "Scan first"
+	if normalized.find("key-card") >= 0:
+		return "Key-card required"
+	if normalized.find("free manipulator") >= 0:
+		return "Free manipulator"
+	if normalized.find("cut power") >= 0 or normalized.find("power must be cut") >= 0:
+		return "Cut power"
+	for capability_name in ["Connector", "Processor", "Manipulator"]:
+		var capability_prefix: String = "%s level " % capability_name
+		var prefix_index: int = full_message.findn(capability_prefix)
+		if prefix_index >= 0:
+			var level_text: String = full_message.substr(prefix_index + capability_prefix.length()).get_slice(" ", 0).trim_suffix(".")
+			if not level_text.is_empty():
+				return "%s Lv. %s" % [capability_name, level_text]
+	var short_fallback: String = _format_runtime_display_text(fallback_label).strip_edges()
+	if not short_fallback.is_empty():
+		return short_fallback
+	return full_message.trim_suffix(".")
+
+func _format_runtime_requirement_label(requirement_key: String, requirement_value: Variant) -> String:
+	match requirement_key:
+		"connector_level": return "Connector Lv. %d" % int(requirement_value)
+		"processor_level": return "Processor Lv. %d" % int(requirement_value)
+		"manipulator_level": return "Manipulator Lv. %d" % int(requirement_value)
+		"scan_level": return "Scan Lv. %d" % int(requirement_value)
+		"power_required": return "Power required"
+		"power_must_be_cut": return "Power must be cut"
+		"free_manipulator_required": return "Free manipulator required"
+		"key_card_required": return "Key-card required"
+		"digital_key_required": return "Digital key required"
+		"access_code_required": return "Access code required"
+		"terminal_required": return "Linked terminal required"
+		"fuse_required": return "Fuse required"
+		"cable_connection_required": return "Cable connection required"
+		"repair_required": return "Repair required"
+		"required_key_id": return "Key-card: %s" % _format_runtime_display_text(requirement_value)
+	var readable_key: String = _format_runtime_display_text(requirement_key.replace("_", " ")).capitalize()
+	if typeof(requirement_value) == TYPE_BOOL:
+		return readable_key
+	return "%s: %s" % [readable_key, _format_runtime_display_text(requirement_value)]
+
+func _format_runtime_requirements(requirements: Dictionary) -> Array[String]:
+	var lines: Array[String] = []
+	for requirement_key_variant in requirements.keys():
+		var requirement_key: String = String(requirement_key_variant)
+		var requirement_value: Variant = requirements.get(requirement_key_variant)
+		if requirement_value == null:
+			continue
+		if typeof(requirement_value) == TYPE_BOOL and not bool(requirement_value):
+			continue
+		if typeof(requirement_value) == TYPE_INT and int(requirement_value) <= 0:
+			continue
+		if typeof(requirement_value) == TYPE_FLOAT and float(requirement_value) <= 0.0:
+			continue
+		if typeof(requirement_value) == TYPE_STRING and String(requirement_value).strip_edges().is_empty():
+			continue
+		lines.append(_format_runtime_requirement_label(requirement_key, requirement_value))
+	return lines
+
+func _format_runtime_missing(missing: Array) -> Array[String]:
+	var lines: Array[String] = []
+	for missing_variant in missing:
+		if typeof(missing_variant) != TYPE_DICTIONARY:
+			continue
+		var missing_item: Dictionary = missing_variant
+		var label: String = _format_runtime_display_text(missing_item.get("label", "Requirement missing"))
+		if not label.is_empty():
+			lines.append(label.trim_suffix("."))
+	return lines
+
+func _format_runtime_actions(actions: Array, include_reasons: bool) -> Array[String]:
+	var lines: Array[String] = []
+	for action_variant in actions:
+		if typeof(action_variant) != TYPE_DICTIONARY:
+			continue
+		var action: Dictionary = action_variant
+		var label: String = _format_runtime_display_text(action.get("label", action.get("id", "Action")))
+		var reason: String = _format_runtime_display_text(action.get("reason", action.get("disabled_reason", "")))
+		if label.is_empty():
+			continue
+		if include_reasons and not reason.is_empty():
+			lines.append("%s — %s" % [label, reason.trim_suffix(".")])
+		else:
+			lines.append(label)
+	return lines
+
+func _append_runtime_diagnostic_section(lines: Array[String], title: String, items: Array[String], item_prefix: String = "") -> void:
+	if items.is_empty():
+		return
+	lines.append("")
+	lines.append("%s:" % title)
+	for item in items:
+		lines.append("- %s%s" % [item_prefix, item])
+
+func _format_runtime_diagnostic_text(diagnostic: Dictionary, state_flow: Dictionary) -> String:
+	if diagnostic.is_empty():
+		return "Diagnostic: none"
+	var lines: Array[String] = ["Diagnostic:"]
+	var target_name: String = _format_runtime_display_text(diagnostic.get("target_name", "Unknown object"))
+	lines.append("Target: %s" % target_name)
+	var type_parts: Array[String] = []
+	for type_key in ["target_group", "target_type"]:
+		var type_text: String = _format_runtime_display_text(diagnostic.get(type_key, ""))
+		if not type_text.is_empty() and not type_parts.has(type_text):
+			type_parts.append(type_text)
+	if not type_parts.is_empty():
+		lines.append("Type: %s" % " / ".join(type_parts))
+	var state_parts: Array[String] = []
+	for state_key in ["state", "power_state"]:
+		var state_text: String = _format_runtime_display_text(diagnostic.get(state_key, ""))
+		if not state_text.is_empty() and not state_parts.has(state_text):
+			state_parts.append(state_text)
+	if not state_parts.is_empty():
+		lines.append("State: %s" % " / ".join(state_parts))
+	var is_applicable: bool = bool(state_flow.get("is_applicable", false))
+	if not is_applicable:
+		return "\n".join(lines)
+	var next_message: String = _format_runtime_display_text(state_flow.get("message", ""))
+	if not next_message.is_empty():
+		lines.append("Next: %s" % next_message)
+	var requirements_variant: Variant = diagnostic.get("requirements", {})
+	if typeof(requirements_variant) == TYPE_DICTIONARY:
+		_append_runtime_diagnostic_section(lines, "Requirements", _format_runtime_requirements(requirements_variant))
+	var missing_variant: Variant = diagnostic.get("missing", [])
+	if typeof(missing_variant) == TYPE_ARRAY:
+		_append_runtime_diagnostic_section(lines, "Missing", _format_runtime_missing(missing_variant))
+	var available_actions_variant: Variant = diagnostic.get("available_actions", [])
+	if typeof(available_actions_variant) == TYPE_ARRAY:
+		_append_runtime_diagnostic_section(lines, "Actions", _format_runtime_actions(available_actions_variant, false), "Available: ")
+	var blocked_actions_variant: Variant = diagnostic.get("blocked_actions", [])
+	if typeof(blocked_actions_variant) == TYPE_ARRAY:
+		_append_runtime_diagnostic_section(lines, "Blocked", _format_runtime_actions(blocked_actions_variant, true))
+	var summary: String = _format_runtime_display_text(diagnostic.get("summary", ""))
+	if not summary.is_empty():
+		lines.append("")
+		lines.append("Summary: %s" % summary)
+	return "\n".join(lines)
+
 func update_diagnostic_status() -> void:
-	if bipob == null:
+	if bipob == null or hud_diagnostic_label == null:
 		return
-
-	if hud_diagnostic_label == null:
-		return
-
 	if bipob.has_method("get_facing_device_diagnostic_result"):
 		var runtime_diagnostic_variant: Variant = bipob.call("get_facing_device_diagnostic_result")
-		var runtime_diagnostic: Dictionary = Dictionary(runtime_diagnostic_variant) if typeof(runtime_diagnostic_variant) == TYPE_DICTIONARY else {}
-		if not runtime_diagnostic.is_empty():
-			var state_flow_message: String = ""
-			if bipob.has_method("get_facing_device_interaction_state_flow"):
-				var state_flow_variant: Variant = bipob.call("get_facing_device_interaction_state_flow")
-				if typeof(state_flow_variant) == TYPE_DICTIONARY:
-					state_flow_message = String(Dictionary(state_flow_variant).get("message", ""))
-			var missing_labels: Array[String] = []
-			for missing_variant in Array(runtime_diagnostic.get("missing", [])):
-				if typeof(missing_variant) == TYPE_DICTIONARY:
-					missing_labels.append(String(Dictionary(missing_variant).get("label", "Requirement missing")))
-			var available_labels: Array[String] = []
-			for action_variant in Array(runtime_diagnostic.get("available_actions", [])):
-				if typeof(action_variant) == TYPE_DICTIONARY:
-					available_labels.append(String(Dictionary(action_variant).get("label", Dictionary(action_variant).get("id", "Action"))))
-			var blocked_labels: Array[String] = []
-			for action_variant in Array(runtime_diagnostic.get("blocked_actions", [])):
-				if typeof(action_variant) == TYPE_DICTIONARY:
-					var action: Dictionary = action_variant
-					blocked_labels.append("%s (%s)" % [String(action.get("label", action.get("id", "Action"))), String(action.get("reason", "blocked"))])
-			hud_diagnostic_label.text = "Diagnostic:\nDevice: %s\nType: %s / %s / %s / %s\nState: %s / %s\nRequirements: %s\nMissing: %s\nAvailable: %s\nBlocked: %s\nSummary: %s\nNext step: %s" % [
-				String(runtime_diagnostic.get("target_name", "Unknown device")),
-				String(runtime_diagnostic.get("target_type", "unknown")),
-				String(runtime_diagnostic.get("door_type", "n/a")),
-				String(runtime_diagnostic.get("material", "n/a")),
-				String(runtime_diagnostic.get("access_type", "n/a")),
-				String(runtime_diagnostic.get("state", "unknown")),
-				String(runtime_diagnostic.get("power_state", "unknown")),
-				JSON.stringify(runtime_diagnostic.get("requirements", {})),
-				", ".join(missing_labels) if not missing_labels.is_empty() else "none",
-				", ".join(available_labels) if not available_labels.is_empty() else "none",
-				", ".join(blocked_labels) if not blocked_labels.is_empty() else "none",
-				String(runtime_diagnostic.get("summary", "")),
-				state_flow_message
-			]
-			return
-
+		if typeof(runtime_diagnostic_variant) == TYPE_DICTIONARY:
+			var runtime_diagnostic: Dictionary = runtime_diagnostic_variant
+			if not runtime_diagnostic.is_empty():
+				var state_flow: Dictionary = {}
+				if bipob.has_method("get_facing_device_interaction_state_flow"):
+					var state_flow_variant: Variant = bipob.call("get_facing_device_interaction_state_flow")
+					if typeof(state_flow_variant) == TYPE_DICTIONARY:
+						state_flow = state_flow_variant
+				hud_diagnostic_label.text = _format_runtime_diagnostic_text(runtime_diagnostic, state_flow)
+				return
 	var result = bipob.last_diagnostic_result
 	if result == null:
 		hud_diagnostic_label.text = "Diagnostic: none"
 		return
-
 	var device_name: String = str(result.device_name)
-
-	if device_name.is_empty():
-		device_name = "unknown"
-
+	if device_name.is_empty(): device_name = "unknown"
 	var status_text: String = str(result.get_status_text())
-
-	if status_text.is_empty():
-		status_text = "UNKNOWN"
-
+	if status_text.is_empty(): status_text = "UNKNOWN"
 	var supported_action: String = str(result.supported_action)
-	if supported_action.is_empty():
-		supported_action = "none"
-
-	var reason: String = str(result.reason)
-	if reason.is_empty():
-		reason = "n/a"
-
-	var recommendation: String = str(result.recommendation)
-	if recommendation.is_empty():
-		recommendation = "n/a"
-
+	if supported_action.is_empty(): supported_action = "none"
+	var reason: String = _format_runtime_display_text(result.reason)
+	if reason.is_empty(): reason = "n/a"
+	var recommendation: String = _format_runtime_display_text(result.recommendation)
+	if recommendation.is_empty(): recommendation = "n/a"
 	var estimated_risk: String = str(result.estimated_risk)
-	if estimated_risk.is_empty():
-		estimated_risk = "n/a"
-
-	hud_diagnostic_label.text = "Diagnostic:\nDevice: %s\nStatus: %s\nAction: %s\nReason: %s\nRecommendation: %s\nRisk: %s" % [
-		device_name,
-		status_text,
-		supported_action,
-		reason,
-		recommendation,
-		estimated_risk
-	]
+	if estimated_risk.is_empty(): estimated_risk = "n/a"
+	hud_diagnostic_label.text = "Diagnostic:\nDevice: %s\nStatus: %s\nAction: %s\nReason: %s\nRecommendation: %s\nRisk: %s" % [device_name, status_text, supported_action, reason, recommendation, estimated_risk]
 
 
 func _section_title(title: String) -> String:
