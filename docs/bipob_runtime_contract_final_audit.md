@@ -143,12 +143,14 @@ Current static coverage of the section 7.2 checklist:
 - **Evidence:** `MissionManager.get_current_mission_objective_view_model()` reads catalog goal/hint data. `GameUI._get_runtime_mission_objective_view_model()` delegates to MissionManager and `_get_runtime_mission_objective_text()` renders that ViewModel. The required placeholder search did not find `Use this mission to validate`. `RuntimeStoragePanel.refresh()` reads backend inventory state. Manual visual verification is still required for slot/key/digital presentation.
 - **Required follow-up PR:** smoke GOAL and storage HUD. Add only targeted binding fixes if a mismatch is reproduced.
 
-### F-11 — One Russian-facing UI label remains
+### F-11 — Game-facing Cyrillic UI labels removed
 
 - **Severity:** medium
 - **Status:** resolved
-- **Evidence:** the audited center-menu repair action now uses the English-only `"Repair"` label. The required targeted Cyrillic search no longer finds a matching game-facing label.
+- **Evidence:** the audited UI labels now use English-only text, including the center-menu `"Repair"`, `"Charge"`, and `"Research"` actions. The broad required Cyrillic search is clean across `scripts/world`, `scripts/game`, and `scripts/ui`.
 - **Required follow-up PR:** none.
+
+- **Runtime HUD refresh note:** `RuntimeHud.refresh_object_info_position()` exists after the focused fix and safely reapplies object-info anchoring while the panel remains visible.
 
 ### F-12 — Validation is broad but should not be overstated
 
@@ -254,7 +256,7 @@ Static result:
 - The runtime object info card now projects its selected cell through the world renderer, offsets beside the object, clamps to viewport bounds, and falls back to the prior safe HUD position when projection is unavailable. Placement remains **NEEDS RUNTIME SMOKE**.
 - Runtime storage HUD reads backend inventory state.
 - The exact manipulator/key/digital visual contract still needs smoke testing.
-- One Russian-facing label remains in `GameUI` and must be removed in a focused cleanup.
+- The broad required Cyrillic search is clean across `scripts/world`, `scripts/game`, and `scripts/ui`.
 
 ### H. Validation — PARTIAL
 

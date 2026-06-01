@@ -117,16 +117,16 @@ static func add_floor_coverage_section(ui: Variant, parent: VBoxContainer) -> vo
 	floor_section.add_child(ui._create_property_row("Target", floor_target_label))
 	if floor_target_cell.x >= 0 and floor_target_cell.y >= 0:
 		var floor_materials: Array[Dictionary] = [
-			{"id":"steel", "label":"Сталь"},
-			{"id":"concrete", "label":"Бетон"},
-			{"id":"grate", "label":"Решетка"}
+			{"id":"steel", "label":"Steel"},
+			{"id":"concrete", "label":"Concrete"},
+			{"id":"grate", "label":"Grate"}
 		]
 		var floor_coatings: Array[Dictionary] = [
-			{"id":"default", "label":"Дефолт"},
-			{"id":"destroyed", "label":"Разрушен"},
-			{"id":"dirty", "label":"Грязь"},
-			{"id":"water", "label":"Вода"},
-			{"id":"oil", "label":"Масло"}
+			{"id":"default", "label":"Default"},
+			{"id":"destroyed", "label":"Destroyed"},
+			{"id":"dirty", "label":"Dirt"},
+			{"id":"water", "label":"Water"},
+			{"id":"oil", "label":"Oil"}
 		]
 		var selected_floor_material_id: String = "steel_default"
 		if ui.mission_manager_runtime != null and ui.mission_manager_runtime.has_method("get_map_constructor_floor_material"):
@@ -153,8 +153,8 @@ static func add_floor_coverage_section(ui: Variant, parent: VBoxContainer) -> vo
 		floor_row.add_theme_constant_override("separation", 6)
 		floor_material_option.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 		floor_coating_option.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-		floor_row.add_child(ui._create_property_row("Материал", floor_material_option))
-		floor_row.add_child(ui._create_property_row("Покрытие", floor_coating_option))
+		floor_row.add_child(ui._create_property_row("Material", floor_material_option))
+		floor_row.add_child(ui._create_property_row("Coating", floor_coating_option))
 		floor_section.add_child(floor_row)
 		var floor_summary_label: Label = Label.new()
 		floor_summary_label.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
