@@ -753,7 +753,8 @@ func get_map_constructor_validation_issues() -> Array[Dictionary]:
 			issues.append(_make_map_constructor_issue("obj_legacy_alias_%s" % object_id, "error", "Legacy alias object_type was not normalized: %s." % object_type, object_cell, source_name, entity_kind, object_id, "Normalize saved constructor data through WorldObjectCatalog."))
 		elif bool(data.get("created_by_map_constructor", false)) and not WorldObjectCatalogRef.OBJECT_LIBRARY.has(object_type):
 			issues.append(_make_map_constructor_issue("obj_unknown_constructor_type_%s" % object_id, "error", "Constructor object_type is not in WorldObjectCatalog: %s." % object_type, object_cell, source_name, entity_kind, object_id, "Use a canonical WorldObjectCatalog runtime object type."))
-		if _safe_string(data.get("access_type", "")).strip_edges().to_lower() == "none":
+		var raw_access_type: String = _safe_string(data.get("access_type", "")).strip_edges().to_lower()
+		if raw_access_type == "none":
 			issues.append(_make_map_constructor_issue("obj_legacy_access_none_%s" % object_id, "error", "Legacy access_type=none must be normalized to no_key.", object_cell, source_name, entity_kind, object_id, "Normalize access_type through WorldObjectCatalog."))
 		elif not raw_access_type.is_empty():
 			var normalized_access_type: String = WorldObjectCatalogRef.normalize_access_type(raw_access_type)
