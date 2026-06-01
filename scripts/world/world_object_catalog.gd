@@ -456,6 +456,10 @@ static func normalize_door_state_fields(object_data: Dictionary) -> Dictionary:
 	object_data["damaged"] = damaged_flag
 	if not object_data.has("blocks_movement_override"):
 		object_data["blocks_movement"] = closed_state and not destroyed
+	if not object_data.has("blocks_vision_override"):
+		if not object_data.has("blocks_vision_when_closed"):
+			object_data["blocks_vision_when_closed"] = bool(object_data.get("blocks_vision", false))
+		object_data["blocks_vision"] = closed_state and not destroyed and bool(object_data.get("blocks_vision_when_closed", false))
 	return object_data
 
 static func create_world_object(object_type: String, id_override: String = "") -> Dictionary:
