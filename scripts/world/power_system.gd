@@ -229,6 +229,12 @@ static func recalculate_network(objects: Array[Dictionary], network_id: String) 
 				_apply_powered_state(obj, false)
 				obj["physical_connection_source_id"] = ""
 		WorldObjectCatalogRef.update_world_object_heat_state(obj)
+	# main_power_net is the explicit virtual-network exception. Every other
+	# source-owned network must earn physical provenance through traversal.
+	if network_id == "main_power_net":
+		for virtual_obj in objects:
+			if String(virtual_obj.get("power_network_id", "")).strip_edges() == "main_power_net" and not _is_power_source_object(virtual_obj):
+				_apply_powered_state(virtual_obj, true)
 	var directions: Array[Vector2i] = [Vector2i.UP, Vector2i.DOWN, Vector2i.LEFT, Vector2i.RIGHT]
 	var traversal_cap: int = maxi(64, objects.size() * 8)
 	for source in objects:

@@ -5130,7 +5130,9 @@ func _normalize_map_constructor_active_object_fields(object_data: Dictionary) ->
 		if not data.has("is_powered"):
 			data["is_powered"] = false
 		if not data.has("physical_connection_source_id"):
-			data["physical_connection_source_id"] = String(data.get("power_source_id", "")).strip_edges()
+			# Physical provenance is traversal-owned. A logical source/network link
+			# must not masquerade as a placed cable route.
+			data["physical_connection_source_id"] = ""
 		if not data.has("damaged"):
 			data["damaged"] = false
 		if not data.has("broken"):
@@ -5227,8 +5229,8 @@ func _normalize_map_constructor_active_object_fields(object_data: Dictionary) ->
 			data["cable_path_cells"] = []
 		if not data.has("cable_length"):
 			data["cable_length"] = 0
-	var control_mode: String = String(data.get("control_mode", "external" if bool(data.get("requires_external_control", false)) else "internal")).strip_edges().to_lower()
-	if control_mode in ["external_control", "external control"]:
+	var control_mode: String = String(data.get("control_type", data.get("control_mode", "external" if bool(data.get("requires_external_control", false)) else "internal"))).strip_edges().to_lower()
+	if control_mode in ["external_control", "external control", "terminal"]:
 		control_mode = "external"
 	if control_mode in ["none", "non", "no", ""]:
 		control_mode = "none"
@@ -5244,6 +5246,7 @@ func _normalize_map_constructor_active_object_fields(object_data: Dictionary) ->
 		data["linked_terminal_id"] = terminal_id
 		data["control_source_id"] = terminal_id
 	if type_group == "door":
+		data["control_type"] = control_mode if control_mode in ["internal", "external"] else "internal"
 		var door_state: String = String(data.get("state", "closed")).strip_edges().to_lower()
 		if not (door_state in ["open", "closed", "locked", "jammed", "damaged"]):
 			door_state = "closed"
@@ -7324,6 +7327,8 @@ func validate_power_network_runtime_state() -> Dictionary:
 		var state_text := String(object_data.get("state", "")).strip_edges().to_lower()
 		var damaged_or_broken := bool(object_data.get("damaged", false)) or bool(object_data.get("broken", false))
 		if _is_power_source_object(object_data):
+			if not bool(object_data.get("blocks_movement", false)):
+				warnings.append("Power source %s must block movement." % object_id)
 			if threshold > 0 and current_heat >= threshold and state_text != "overheated":
 				warnings.append("Power source %s current_heat >= overheat_threshold but state is not overheated." % object_id)
 			if threshold > 0 and state_text == "overheated" and current_heat < threshold and not damaged_or_broken:
@@ -11133,6 +11138,14 @@ func execute_terminal_control_action(terminal_id: String, target_id: String = ""
 		return {"success":false, "terminal_id":terminal_id, "target_id":normalized_target_id, "action":action, "reasons":["target_unpowered"]}
 	if action in ["open_door", "close_door", "unlock_door", "lock_door"] and String(target.get("object_group", "")) != "door":
 		return {"success":false, "terminal_id":terminal_id, "target_id":normalized_target_id, "action":action, "reasons":["target_invalid"]}
+	var door_control_type: String = String(target.get("control_type", target.get("control_mode", "internal"))).strip_edges().to_lower()
+	var door_access_type: String = WorldObjectCatalogRef.normalize_access_type(target.get("access_type", "no_key"))
+	if action in ["open_door", "close_door"] and door_control_type != "external":
+		return {"success":false, "terminal_id":terminal_id, "target_id":normalized_target_id, "action":action, "reasons":["door_uses_internal_control"]}
+	if action == "unlock_door" and door_access_type != WorldObjectCatalogRef.ACCESS_TYPE_TERMINAL:
+		return {"success":false, "terminal_id":terminal_id, "target_id":normalized_target_id, "action":action, "reasons":["door_requires_credential"]}
+	if action == "open_door" and bool(target.get("is_locked", false)):
+		return {"success":false, "terminal_id":terminal_id, "target_id":normalized_target_id, "action":action, "reasons":["locked"]}
 	if action == "open_door": target["state"] = "open"
 	elif action == "close_door": target["state"] = "closed"
 	elif action == "unlock_door": target["state"] = "closed"

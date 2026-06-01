@@ -921,6 +921,9 @@ func get_map_constructor_validation_issues() -> Array[Dictionary]:
 			issues.append(_make_map_constructor_issue("obj_lock_without_access_%s" % object_id, "error", "Legacy lock_type is present without canonical access_type.", object_cell, source_name, entity_kind, object_id, "Populate canonical access_type while retaining lock_type only as compatibility metadata."))
 		var normalized_power_mode: String = _safe_string(data.get("power_type", data.get("power_mode", "internal"))).strip_edges().to_lower().trim_suffix("_power")
 		var normalized_control_mode: String = _safe_string(data.get("control_type", data.get("control_mode", "internal"))).strip_edges().to_lower().trim_suffix("_control")
+		if normalized_control_mode == "terminal":
+			issues.append(_make_map_constructor_issue("door_legacy_terminal_control_%s" % object_id, "error", "Legacy Door control_type=terminal must normalize to external.", object_cell, source_name, entity_kind, object_id, "Reload or resave the map to normalize Control Type to External."))
+			normalized_control_mode = "external"
 		var power_source_id: String = _safe_string(data.get("power_source_id", data.get("connected_power_source_id", data.get("physical_connection_source_id", "")))).strip_edges()
 		var power_network_id: String = _safe_string(data.get("power_network_id", "")).strip_edges()
 		if normalized_power_mode == "external":
@@ -930,6 +933,8 @@ func get_map_constructor_validation_issues() -> Array[Dictionary]:
 				issues.append(_make_map_constructor_issue("external_power_missing_network_%s" % object_id, "warning", "External-power object is missing a Power Network binding.", object_cell, source_name, entity_kind, object_id, "Bind main_power_net or a source-owned network."))
 		elif normalized_power_mode == "internal" and (_safe_string(data.get("state", data.get("status", ""))).strip_edges().to_lower() == "unpowered" or _safe_string(data.get("status", "")).strip_edges().to_lower() == "unpowered"):
 			issues.append(_make_map_constructor_issue("internal_power_unpowered_%s" % object_id, "warning", "Internal-power object is authored as unpowered.", object_cell, source_name, entity_kind, object_id, "Use an active internal state or switch Power Type to External."))
+		if object_type.to_lower().begins_with("power_source") and not bool(data.get("blocks_movement", false)):
+			issues.append(_make_map_constructor_issue("power_source_not_blocking_%s" % object_id, "warning", "Power Source must block movement.", object_cell, source_name, entity_kind, object_id, "Normalize the Power Source object."))
 		if object_type.to_lower().begins_with("power_source") and not power_source_id.is_empty():
 			var linked_source: Dictionary = manager.get_world_object_by_id(power_source_id)
 			if not linked_source.is_empty() and _safe_string(linked_source.get("object_type", "")).strip_edges().to_lower().begins_with("power_source"):
@@ -941,6 +946,8 @@ func get_map_constructor_validation_issues() -> Array[Dictionary]:
 			elif normalized_control_mode == "internal" and not linked_terminal_id.is_empty():
 				issues.append(_make_map_constructor_issue("door_internal_control_has_terminal_%s" % object_id, "warning", "Internal-control door incorrectly retains a Linked Terminal.", object_cell, source_name, entity_kind, object_id, "Clear the terminal link or switch Control Type to External."))
 		if object_group == "terminal":
+			if not bool(data.get("blocks_movement", false)):
+				issues.append(_make_map_constructor_issue("terminal_not_blocking_%s" % object_id, "warning", "Terminal must block movement.", object_cell, source_name, entity_kind, object_id, "Normalize the Terminal object."))
 			for linked_door_id_variant in Array(data.get("linked_door_ids", [])):
 				var linked_door_id: String = _safe_string(linked_door_id_variant).strip_edges()
 				var linked_door: Dictionary = manager.get_world_object_by_id(linked_door_id)

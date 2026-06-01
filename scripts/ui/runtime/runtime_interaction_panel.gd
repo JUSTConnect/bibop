@@ -82,7 +82,8 @@ static func refresh_controls(ui) -> void:
 	var action_id_texts: Array[String] = []
 	for signature_action_variant in physical_actions:
 		action_id_texts.append(String(signature_action_variant))
-	var next_signature: String = "%s|%s" % [str(ui.runtime_interaction_mode_active), "|".join(action_id_texts)]
+	var access_code_entry: String = String(target_object.get("access_code_entry", ""))
+	var next_signature: String = "%s|%s|%s" % [str(ui.runtime_interaction_mode_active), "|".join(action_id_texts), access_code_entry]
 	if next_signature == ui.runtime_interaction_actions_signature:
 		ui.runtime_interaction_actions_row.visible = ui.runtime_interaction_mode_active
 		return
@@ -92,6 +93,12 @@ static func refresh_controls(ui) -> void:
 	ui.runtime_interaction_actions_row.visible = ui.runtime_interaction_mode_active
 	if not ui.runtime_interaction_mode_active:
 		return
+	if String(target_object.get("access_type", "")) == "access_code" and bool(target_object.get("connected", false)):
+		var keypad_display := Label.new()
+		keypad_display.name = "RuntimeAccessCodeDisplay"
+		keypad_display.text = "Code: %s" % (access_code_entry + "_".repeat(maxi(0, 4 - access_code_entry.length())))
+		keypad_display.tooltip_text = "Enter four digits, then press Input."
+		ui.runtime_interaction_actions_row.add_child(keypad_display)
 	for leading_column_index in range(2):
 		var leading_spacer := Control.new()
 		leading_spacer.name = "RuntimeInteractionActionSpacer%d" % (leading_column_index + 1)
