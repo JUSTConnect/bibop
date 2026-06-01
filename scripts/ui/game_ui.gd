@@ -5135,69 +5135,62 @@ func _refresh_runtime_mission_objective_label() -> void:
 
 
 func _get_runtime_secondary_objective_text() -> String:
-	if bipob != null and bipob.has_method("get_current_mission_goal_hint"):
-		var bipob_hint: String = String(bipob.call("get_current_mission_goal_hint")).strip_edges()
-		if not bipob_hint.is_empty():
-			return bipob_hint
-	var mission_index: int = _get_runtime_active_mission_index()
-	var mission_id: String = "mission_%d" % mission_index
-	if mission_manager_runtime != null and is_instance_valid(mission_manager_runtime) and mission_manager_runtime.has_method("get_mission_objective_hint"):
-		var objective_hint: String = String(mission_manager_runtime.call("get_mission_objective_hint", mission_id)).strip_edges()
-		if not objective_hint.is_empty() and not objective_hint.contains("legacy BipobController logic"):
-			return objective_hint
-	return "No additional target."
+	var view_model: Dictionary = _get_runtime_mission_objective_view_model()
+	var objective_hint: String = String(view_model.get("objective_hint", "")).strip_edges()
+	if not objective_hint.is_empty() and not objective_hint.contains("legacy BipobController logic"):
+		return objective_hint
+	return String(view_model.get("goal_text", "Objective unavailable.")).strip_edges()
 
 
 func _refresh_runtime_notification_fallback() -> void:
 	RuntimeNotifications.refresh_runtime_notification_fallback(self)
 
 
+func _get_runtime_mission_objective_view_model() -> Dictionary:
+	if mission_manager_runtime != null and is_instance_valid(mission_manager_runtime) and mission_manager_runtime.has_method("get_current_mission_objective_view_model"):
+		var view_model_variant: Variant = mission_manager_runtime.call("get_current_mission_objective_view_model")
+		if view_model_variant is Dictionary:
+			return view_model_variant
+	return {
+		"mission_id": "",
+		"title": "",
+		"goal_title": "Goal",
+		"goal_text": "No mission selected.",
+		"objective_hint": "",
+		"progress_text": "",
+		"status": "active",
+		"is_completed": false,
+		"is_failed": false,
+		"steps": []
+	}
+
+
 func _get_runtime_mission_objective_text() -> String:
-	var mission_index: int = _get_runtime_active_mission_index()
-	var mission_id: String = "mission_%d" % mission_index
-	var display_name: String = ""
-	var objective_hint: String = ""
-	if mission_manager_runtime != null and is_instance_valid(mission_manager_runtime):
-		if mission_manager_runtime.has_method("get_mission_display_name"):
-			display_name = String(mission_manager_runtime.call("get_mission_display_name", mission_id)).strip_edges()
-		elif mission_manager_runtime.has_method("get_mission_title"):
-			display_name = String(mission_manager_runtime.call("get_mission_title", mission_id)).strip_edges()
-		if mission_manager_runtime.has_method("get_mission_objective_hint"):
-			objective_hint = String(mission_manager_runtime.call("get_mission_objective_hint", mission_id)).strip_edges()
-	if not objective_hint.is_empty() and not objective_hint.contains("legacy BipobController logic"):
-		return "%s: %s" % [display_name, objective_hint] if not display_name.is_empty() else objective_hint
-	if bipob != null and bipob.has_method("get_current_mission_goal_hint"):
-		var bipob_goal_hint: String = String(bipob.call("get_current_mission_goal_hint")).strip_edges()
-		if not bipob_goal_hint.is_empty():
-			return bipob_goal_hint
-	return "No goal"
-
-
-func _get_runtime_active_mission_index() -> int:
-	if bipob != null:
-		return maxi(1, int(bipob.current_mission_index))
-	if mission_manager_runtime != null and is_instance_valid(mission_manager_runtime):
-		var mission_id: String = ""
-		if mission_manager_runtime.has_method("get_current_mission_id"):
-			mission_id = String(mission_manager_runtime.call("get_current_mission_id"))
-		elif _object_has_property(mission_manager_runtime, "current_mission_id"):
-			mission_id = String(mission_manager_runtime.get("current_mission_id"))
-		if mission_id.begins_with("mission_"):
-			var index_text: String = mission_id.trim_prefix("mission_")
-			if index_text.is_valid_int():
-				return maxi(1, index_text.to_int())
-		if mission_manager_runtime.has_method("get_current_mission_index"):
-			return maxi(1, int(mission_manager_runtime.call("get_current_mission_index")))
-	return maxi(1, int(tasks_selected_mission_id))
-
-
-func _validate_runtime_mission_objective_text(mission_index: int, objective_text: String) -> String:
-	if mission_index == 10:
-		if objective_text.contains("Mission 1"):
-			push_warning("Runtime HUD objective for mission_10 must not contain Mission 1.")
-		if not objective_text.contains("TASK TEST") and not objective_text.contains("validate mechanics"):
-			push_warning("Runtime HUD objective for mission_10 should mention TASK TEST or validate mechanics.")
-	return objective_text
+	var view_model: Dictionary = _get_runtime_mission_objective_view_model()
+	var lines: Array[String] = []
+	var title: String = String(view_model.get("title", "")).strip_edges()
+	var goal_text: String = String(view_model.get("goal_text", "Objective unavailable.")).strip_edges()
+	var progress_text: String = String(view_model.get("progress_text", "")).strip_edges()
+	var status: String = String(view_model.get("status", "active")).strip_edges()
+	if not title.is_empty():
+		lines.append(title)
+	lines.append(goal_text if not goal_text.is_empty() else "Objective unavailable.")
+	if not progress_text.is_empty():
+		lines.append(progress_text)
+	var steps_variant: Variant = view_model.get("steps", [])
+	if steps_variant is Array:
+		for step_variant in steps_variant:
+			if not (step_variant is Dictionary):
+				continue
+			var step: Dictionary = step_variant
+			var step_label: String = String(step.get("label", "")).strip_edges()
+			if not step_label.is_empty():
+				lines.append("- %s" % step_label)
+	if status == "completed":
+		lines.append("Status: Completed")
+	elif status == "failed":
+		lines.append("Status: Failed")
+	return "\n".join(lines)
 
 
 func _create_runtime_stats_strip() -> Control:
@@ -6938,10 +6931,12 @@ func _on_start_mission_button_pressed() -> void:
 
 func _on_mission_completed() -> void:
 	should_advance_mission_on_start = true
+	_refresh_runtime_mission_objective_label()
 	show_mission_result_screen(true)
 
 func _on_mission_failed() -> void:
 	should_advance_mission_on_start = false
+	_refresh_runtime_mission_objective_label()
 	show_mission_result_screen(false)
 
 func _on_returned_to_box() -> void:
@@ -10205,6 +10200,7 @@ func _toggle_map_constructor_mode() -> void:
 		bipob.map_constructor_input_blocked = true
 	show_hint("Map Constructor Mode")
 	_set_runtime_bottom_hud_visible(false)
+	_refresh_runtime_mission_objective_label()
 	_refresh_map_constructor_panels()
 
 func _deactivate_map_constructor_mode() -> void:
@@ -10241,6 +10237,7 @@ func _deactivate_map_constructor_mode() -> void:
 	_clear_map_constructor_link_target()
 	map_constructor_multi_selected_entities.clear()
 	_clear_map_constructor_batch_preview_state()
+	_refresh_runtime_mission_objective_label()
 
 func _clear_map_constructor_wall_mounted_selection() -> void:
 	if field_runtime == null:

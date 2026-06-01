@@ -110,7 +110,8 @@ const _MISSION_DEFINITIONS: Dictionary = {
 		"title": "TASK TEST",
 		"display_name": "TASK TEST",
 		"short_description": "Universal mechanics validation sandbox.",
-		"objective_hint": "Use this mission to validate mechanics and debug systems.",
+		"goal_text": "Validate runtime interaction, storage, doors, terminals, power and constructor systems.",
+		"objective_hint": "Use this mission to test all core systems without adding new mission content.",
 		"start_cell": Vector2i(1, 1),
 		"exit_cells": [Vector2i(14, 7)],
 		"role": "systems_testbed",
@@ -152,6 +153,9 @@ func get_mission_title(mission_id: String) -> String:
 
 func get_mission_display_name(mission_id: String) -> String:
 	return String(get_mission_definition(mission_id).get("display_name", "")).strip_edges()
+
+func get_mission_goal_text(mission_id: String) -> String:
+	return String(get_mission_definition(mission_id).get("goal_text", "")).strip_edges()
 
 func get_mission_objective_hint(mission_id: String) -> String:
 	return String(get_mission_definition(mission_id).get("objective_hint", "")).strip_edges()
@@ -269,6 +273,8 @@ func validate_mission_catalog() -> Array[String]:
 			warnings.append("Mission mission_10 display_name must be TASK TEST.")
 		if String(mission_10.get("role", "")) != "systems_testbed":
 			warnings.append("Mission mission_10 role must be systems_testbed.")
+		if String(mission_10.get("goal_text", "")).strip_edges() == "":
+			warnings.append("Mission mission_10 goal_text must not be empty.")
 		if String(mission_10.get("objective_hint", "")).strip_edges() == "":
 			warnings.append("Mission mission_10 objective_hint must not be empty.")
 		if String(mission_10.get("migration_status", "")) != "task_test_layout_catalogued":
