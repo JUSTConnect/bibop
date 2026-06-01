@@ -1934,22 +1934,30 @@ func _get_world_object_template(prefab_id: String) -> Dictionary:
 	return {}
 
 func get_map_constructor_prefab_catalog() -> Array[Dictionary]:
+	# Tiles and compatibility item shortcuts remain constructor-only entries. All
+	# world-object rows come from WorldObjectCatalog so authoring cannot drift.
 	var entries: Array[Dictionary] = [
 		{"category":"Floors","id":"floor"},{"category":"Floors","id":"stepped_floor"},
-		{"category":"Walls","id":"outer_wall"},{"category":"Walls","id":"brick_wall"},{"category":"Walls","id":"concrete_wall"},{"category":"Walls","id":"steel_wall"},{"category":"Walls","id":"grate_wall"},
-		{"category":"Terminals","id":"information_terminal"},{"category":"Terminals","id":"control_terminal"},{"category":"Terminals","id":"door_terminal"},{"category":"Terminals","id":"platform_terminal"},{"category":"Terminals","id":"cooling_terminal"},{"category":"Terminals","id":"firewall"},
-		{"category":"Power","id":"power_source_class_1"},{"category":"Power","id":"power_source_class_2"},{"category":"Power","id":"power_source_class_3"},{"category":"Power","id":"power_socket"},{"category":"Power","id":"power_cable"},{"category":"Power","id":"circuit_switch"},{"category":"Power","id":"circuit_breaker"},{"category":"Power","id":"light"},{"category":"Power","id":"light_switch"},{"category":"Power","id":"fuse_box"},{"category":"Power","id":"power_cable_reel"},
 		{"category":"Items","id":"mechanical_key"},{"category":"Items","id":"digital_key"},{"category":"Items","id":"access_code"}
 	]
-	for door_type in WorldObjectCatalogRef.get_constructor_placeable_door_types():
-		entries.append({"category":"Doors", "id":door_type})
-	for i in range(entries.size()):
-		var entry: Dictionary = entries[i]
+	var seen_prefab_ids: Dictionary = {}
+	for entry in entries:
+		seen_prefab_ids[String(entry.get("id", ""))] = true
+	for row in WorldObjectCatalogRef.get_constructor_palette_rows():
+		var prefab_id: String = String(row.get("prefab_id", ""))
+		if prefab_id.is_empty() or seen_prefab_ids.has(prefab_id):
+			continue
+		var catalog_row: Dictionary = row.duplicate(true)
+		catalog_row["id"] = prefab_id
+		entries.append(catalog_row)
+		seen_prefab_ids[prefab_id] = true
+	for index in range(entries.size()):
+		var entry: Dictionary = entries[index]
 		var prefab_id: String = String(entry.get("id", ""))
 		var object_template: Dictionary = _get_world_object_template(prefab_id)
-		entry["label"] = String(object_template.get("name", prefab_id.replace("_", " ").capitalize()))
-		entry["placement_mode"] = String(object_template.get("placement_mode", "floor"))
-		entries[i] = entry
+		entry["label"] = String(entry.get("display_name", object_template.get("name", prefab_id.replace("_", " ").capitalize())))
+		entry["placement_mode"] = String(entry.get("placement_mode", object_template.get("placement_mode", "floor")))
+		entries[index] = entry
 	return entries
 
 func _get_map_constructor_prefab_metadata_catalog() -> Dictionary:
@@ -2025,7 +2033,17 @@ func _build_map_constructor_prefab_fallback_metadata(prefab_id: String, catalog_
 		"is_expected_invalid_tool": expected_invalid,
 		"can_have_power_network": false,
 		"can_have_links": false,
-		"default_state": {}
+		"default_state": catalog_entry.get("default_state", {}),
+		"canonical_object_type": String(catalog_entry.get("canonical_object_type", id)),
+		"object_group": String(catalog_entry.get("object_group", "")),
+		"is_alias": bool(catalog_entry.get("is_alias", false)),
+		"alias_source_id": String(catalog_entry.get("alias_source_id", "")),
+		"door_type": String(catalog_entry.get("door_type", "")),
+		"material": String(catalog_entry.get("material", "")),
+		"access_type": String(catalog_entry.get("access_type", "")),
+		"door_class": catalog_entry.get("door_class", ""),
+		"power_behavior": String(catalog_entry.get("power_behavior", "")),
+		"blocks_movement": bool(catalog_entry.get("blocks_movement", false))
 	}
 
 func get_map_constructor_prefab_metadata(prefab_id: String) -> Dictionary:
@@ -2520,7 +2538,9 @@ func can_place_map_constructor_prefab(prefab_id: String, cell: Vector2i, preferr
 	result["cell_state"] = cell_state
 	var prefab_is_item: bool = is_map_constructor_item_prefab(prefab_id)
 	var requested_mounting_mode: String = placement_mode_override.strip_edges().to_lower()
-	var prefab_is_wall_mounted: bool = bool(MAP_CONSTRUCTOR_WALL_MOUNTED_PREFABS.get(prefab_id, false))
+	var prefab_metadata: Dictionary = get_map_constructor_prefab_metadata(prefab_id)
+	var prefab_metadata_row: Dictionary = _safe_dictionary(prefab_metadata.get("prefab", {}))
+	var prefab_is_wall_mounted: bool = String(prefab_metadata_row.get("placement_mode", "")) == "wall_mounted" or bool(MAP_CONSTRUCTOR_WALL_MOUNTED_PREFABS.get(prefab_id, false))
 	if requested_mounting_mode == "wall_mounted":
 		prefab_is_wall_mounted = true
 	elif requested_mounting_mode == "stationary":

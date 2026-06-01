@@ -67,18 +67,20 @@ func place_map_constructor_prefab(prefab_id: String, cell: Vector2i, preferred_w
 		manager._record_map_constructor_change("place", {"entity_kind":"item", "entity_id":item_object_id, "object_type":item_type, "cell":cell, "summary":"Placed %s at %s" % [item_type, manager._format_map_constructor_cell(cell)], "undo_hint":"Can undo by deleting item."})
 		return result
 	var canonical_prefab_id: String = WorldObjectCatalogRef.canonical_object_type(prefab_id)
+	var constructor_prefab_defaults: Dictionary = WorldObjectCatalogRef.get_prefab_alias_defaults(prefab_id)
+	var requested_door_type: String = String(constructor_prefab_defaults.get("door_type", ""))
 	var placed_tile_type: int = previous_tile_type
 	if prefab_id.ends_with("_wall") or prefab_id == "outer_wall":
 		placed_tile_type = GridManager.TILE_WALL
 		manager.grid_manager.call("set_tile", cell, placed_tile_type)
+	elif requested_door_type == WorldObjectCatalogRef.DOOR_TYPE_POWERED:
+		placed_tile_type = GridManager.TILE_POWERED_GATE
+		manager.grid_manager.call("set_tile", cell, placed_tile_type)
 	elif canonical_prefab_id in ["steel_door", "reinforced_steel_door", "titanium_door", "grid_door"]:
 		placed_tile_type = GridManager.TILE_DOOR
 		manager.grid_manager.call("set_tile", cell, placed_tile_type)
-	elif canonical_prefab_id == "energy_door" and prefab_id != "powered_gate":
+	elif canonical_prefab_id == "energy_door":
 		placed_tile_type = GridManager.TILE_DIGITAL_DOOR
-		manager.grid_manager.call("set_tile", cell, placed_tile_type)
-	elif prefab_id == "powered_gate":
-		placed_tile_type = GridManager.TILE_POWERED_GATE
 		manager.grid_manager.call("set_tile", cell, placed_tile_type)
 	var object_id: String = "mapedit_%s_%d" % [prefab_id, manager._map_constructor_runtime_object_seq]
 	manager._map_constructor_runtime_object_seq += 1
@@ -98,6 +100,8 @@ func place_map_constructor_prefab(prefab_id: String, cell: Vector2i, preferred_w
 		for default_key in prefab_defaults.keys():
 			object_data[String(default_key)] = prefab_defaults[default_key]
 	object_data = WorldObjectCatalogRef.apply_prefab_alias_defaults(canonical_prefab_id, prefab_id, object_data)
+	object_data = WorldObjectCatalogRef.normalize_world_object_contract(object_data)
+	object_data = WorldObjectCatalogRef.normalize_door_state_fields(object_data)
 	if String(check.get("placement_mode", "")) == "wall_mounted":
 		var attachment: Dictionary = manager._resolve_wall_mounted_attachment(cell, preferred_wall_side)
 		if not bool(attachment.get("ok", false)):
@@ -110,6 +114,8 @@ func place_map_constructor_prefab(prefab_id: String, cell: Vector2i, preferred_w
 		object_data["attached_wall_cell"] = manager._serialize_cell_key(attached_wall_cell)
 		object_data["wall_side"] = String(attachment.get("wall_side", "north"))
 	object_data = manager._normalize_map_constructor_active_object_fields(object_data)
+	object_data = WorldObjectCatalogRef.normalize_world_object_contract(object_data)
+	object_data = WorldObjectCatalogRef.normalize_door_state_fields(object_data)
 	manager.set_world_object_at_cell(cell, object_data)
 	PowerSystemRef.recalculate_network(manager.mission_world_objects, String(object_data.get("power_network_id", "")))
 	manager.refresh_world_cooling_received()
