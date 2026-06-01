@@ -11,7 +11,18 @@ const MIN_VISIBLE_KEY_SLOTS: int = 6
 const MIN_VISIBLE_POCKET_SLOTS: int = 2
 const MANIPULATOR_VISIBLE_SLOTS: int = 3
 const KEY_MINI_HUD_SLOTS: int = 6
+const KEY_MINI_HUD_CELL_SIZE: Vector2 = Vector2(20, 16)
+const BOTTOM_PANEL_GAP: float = 8.0
 const STANDARD_ROW_HEIGHT: float = 28.0
+
+
+static func get_panel_width(ui, margin: float) -> float:
+	var viewport_width: float = _get_viewport_width(ui)
+	return minf(PANEL_SIZE.x, maxf(viewport_width - margin * 2.0, 1.0))
+
+
+static func get_reserved_bottom_width(ui, margin: float) -> float:
+	return get_panel_width(ui, margin) + BOTTOM_PANEL_GAP
 
 
 static func build(ui, hud_root: Control, margin: float) -> PanelContainer:
@@ -22,8 +33,7 @@ static func build(ui, hud_root: Control, margin: float) -> PanelContainer:
 	panel.anchor_right = 1.0
 	panel.anchor_top = 1.0
 	panel.anchor_bottom = 1.0
-	var viewport_width: float = _get_viewport_width(ui)
-	var safe_panel_width: float = minf(PANEL_SIZE.x, maxf(viewport_width - margin * 2.0, 1.0))
+	var safe_panel_width: float = get_panel_width(ui, margin)
 	panel.offset_left = -safe_panel_width - margin
 	panel.offset_right = -margin
 	panel.offset_top = -PANEL_SIZE.y - margin
@@ -107,9 +117,9 @@ static func _refresh_key_mini_hud(ui, bipob) -> void:
 			tooltip_text = key_id
 			if ui.has_method("_get_runtime_key_display_text"):
 				tooltip_text = ui._get_runtime_key_display_text(key_id, inventory_state)
-			key_text = tooltip_text.left(10)
-			if key_text.is_empty():
-				key_text = "K"
+			# Keep the strip layout stable: every collected access card, including
+			# compatibility ids for old mechanical keys, uses one compact glyph.
+			key_text = "K"
 		key_slot.set("text", key_text)
 		key_slot.tooltip_text = tooltip_text
 
@@ -182,8 +192,9 @@ static func _build_manipulator_area(ui) -> PanelContainer:
 		var key_slot: Label = Label.new()
 		key_slot.text = "·"
 		key_slot.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
-		key_slot.custom_minimum_size = Vector2(24, 16)
-		key_slot.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+		key_slot.clip_text = true
+		key_slot.custom_minimum_size = KEY_MINI_HUD_CELL_SIZE
+		key_slot.size_flags_horizontal = Control.SIZE_SHRINK_CENTER
 		key_slot.add_theme_color_override("font_color", ui.UI_COLOR_TEXT_DIM)
 		keys_strip.add_child(key_slot)
 		ui.runtime_key_slots.append(key_slot)

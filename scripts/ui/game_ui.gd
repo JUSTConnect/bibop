@@ -5029,8 +5029,8 @@ func _apply_runtime_hud_layout() -> void:
 	objective_lines.add_theme_constant_override("separation", 2)
 	objective_margin.add_child(objective_lines)
 	runtime_info_actions_label = Label.new()
-	runtime_info_actions_label.name = "RuntimeInfoActionsLabel"
-	runtime_info_actions_label.text = _get_runtime_actions_text()
+	runtime_info_actions_label.name = "RuntimeObjectiveHeadingLabel"
+	runtime_info_actions_label.text = "GOAL"
 	runtime_info_actions_label.add_theme_color_override("font_color", UI_COLOR_TEXT_DIM)
 	objective_lines.add_child(runtime_info_actions_label)
 	mission_goal_value_label = Label.new()
@@ -5091,7 +5091,8 @@ func _apply_runtime_hud_layout() -> void:
 	var bottom_left_vbox := VBoxContainer.new()
 	bottom_left_vbox.name = "RuntimeBottomLeft"
 	bottom_left_vbox.position = Vector2(margin, bottom_y)
-	bottom_left_vbox.size = Vector2(maxf(viewport.x - sidebar_width - margin * 3.0, 200.0), bottom_area_height)
+	var reserved_storage_width: float = RuntimeStoragePanelRef.get_reserved_bottom_width(self, margin)
+	bottom_left_vbox.size = Vector2(maxf(viewport.x - reserved_storage_width - margin * 2.0, 1.0), bottom_area_height)
 	bottom_left_vbox.add_theme_constant_override("separation", 4)
 	root.add_child(bottom_left_vbox)
 
@@ -5127,8 +5128,6 @@ func _refresh_runtime_mission_objective_label() -> void:
 	var actions_text: String = _get_runtime_actions_text()
 	if runtime_actions_label != null and is_instance_valid(runtime_actions_label):
 		runtime_actions_label.text = actions_text
-	if runtime_info_actions_label != null and is_instance_valid(runtime_info_actions_label):
-		runtime_info_actions_label.text = actions_text
 	if mission_goal_value_label != null and is_instance_valid(mission_goal_value_label):
 		mission_goal_value_label.text = _get_runtime_mission_objective_text()
 	if runtime_notification_timer <= 0.0:
@@ -5168,7 +5167,7 @@ func _get_runtime_mission_objective_text() -> String:
 	if not display_name.is_empty() and not objective_hint.is_empty() and not objective_hint.contains("legacy BipobController logic"):
 		return _validate_runtime_mission_objective_text(mission_index, "%s: %s" % [display_name, objective_hint])
 	if mission_index == 1:
-		return _validate_runtime_mission_objective_text(mission_index, "Mission 1: pick up the key, open the door, reach the exit.")
+		return _validate_runtime_mission_objective_text(mission_index, "Mission 1: pick up the key-card, open the door, reach the exit.")
 	if mission_index == 10:
 		if not display_name.is_empty() and not objective_hint.is_empty():
 			return _validate_runtime_mission_objective_text(mission_index, "%s: %s" % [display_name, objective_hint])
@@ -5521,7 +5520,7 @@ func _create_storage_key_slot(enabled: bool) -> Control:
 
 func _ready() -> void:
 	if hint_label != null:
-		hint_label.text = "Mission 1: pick up the key, open the door, reach the exit."
+		hint_label.text = "Mission 1: pick up the key-card, open the door, reach the exit."
 
 	hud_diagnostic_label = Label.new()
 	hud_diagnostic_label.name = "DiagnosticLabel"
@@ -12846,8 +12845,6 @@ func update_status() -> void:
 		runtime_energy_label.text = _get_runtime_energy_text()
 	if runtime_actions_label != null and is_instance_valid(runtime_actions_label):
 		runtime_actions_label.text = _get_runtime_actions_text()
-	if runtime_info_actions_label != null and is_instance_valid(runtime_info_actions_label):
-		runtime_info_actions_label.text = _get_runtime_actions_text()
 	_refresh_runtime_mission_objective_label()
 
 	var key_text := "no"
