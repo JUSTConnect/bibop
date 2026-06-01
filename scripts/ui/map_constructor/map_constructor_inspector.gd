@@ -144,7 +144,8 @@ static func show_for_selection(ui: Variant, cell: Vector2i, preferred_entity_kin
 	v.add_child(placement)
 	var configurable: VBoxContainer = ui._create_inspector_section("4. Configurable Parameters")
 	var object_is_configurable: bool = bool(data.get("configurable", true))
-	if object_is_configurable:
+	var object_archetype_id: String = ui._safe_ui_string(data.get("archetype_id", "")).strip_edges()
+	if object_is_configurable and object_archetype_id.is_empty():
 		ui._add_preset_buttons(configurable, entity_kind, entity_id)
 	var rendered_archetype_schema: bool = ui._add_archetype_schema_properties(configurable, entity_kind, entity_id, data) if object_is_configurable else false
 	if object_is_configurable and not rendered_archetype_schema:
