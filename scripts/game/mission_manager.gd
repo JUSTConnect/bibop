@@ -101,6 +101,7 @@ var runtime_inventory_state := {
 	"pocket_items": [],
 	"manipulator_hold": "",
 	"digital_buffer": [],
+	"digital_storage": [],
 	"box_storage": [],
 	"item_amounts": {},
 	"consumed_item_ids": [],
@@ -8079,51 +8080,189 @@ func _get_runtime_inventory_item_id(item_variant: Variant) -> String:
 		return String(item_data.get("id", item_data.get("item_id", ""))).strip_edges()
 	return ""
 
-func get_manipulator_held_item_id() -> String:
+func get_manipulator_item_id() -> String:
 	return _get_runtime_inventory_item_id(runtime_inventory_state.get("manipulator_hold", ""))
 
-func get_manipulator_held_item_data() -> Dictionary:
+func get_manipulator_held_item_id() -> String:
+	return get_manipulator_item_id()
+
+func get_manipulator_item_data() -> Dictionary:
 	var held_variant: Variant = runtime_inventory_state.get("manipulator_hold", "")
 	var held_id: String = _get_runtime_inventory_item_id(held_variant)
 	if held_id.is_empty():
 		return {}
-	var item_data: Dictionary = Dictionary(held_variant).duplicate(true) if held_variant is Dictionary else _get_runtime_item_data_snapshot(held_id)
+	var item_data: Dictionary = {}
+	if held_variant is Dictionary:
+		item_data = Dictionary(held_variant).duplicate(true)
+	else:
+		item_data = _get_runtime_item_data_snapshot(held_id)
 	if item_data.is_empty():
 		item_data = {"id": held_id}
-	elif String(item_data.get("id", "")).strip_edges().is_empty():
+	elif _get_runtime_inventory_item_id(item_data).is_empty():
 		item_data["id"] = held_id
 	return item_data
 
-func clear_manipulator_held_item() -> void:
+func get_manipulator_held_item_data() -> Dictionary:
+	return get_manipulator_item_data()
+
+func clear_manipulator() -> void:
 	runtime_inventory_state["manipulator_hold"] = ""
 
-func set_manipulator_held_item(item_variant: Variant) -> void:
+func clear_manipulator_held_item() -> void:
+	clear_manipulator()
+
+func set_manipulator_item(item_variant: Variant) -> bool:
 	var held_id: String = _get_runtime_inventory_item_id(item_variant)
+	if held_id.is_empty():
+		clear_manipulator()
+		return true
+	var item_data: Dictionary = Dictionary(item_variant).duplicate(true) if item_variant is Dictionary else _get_known_inventory_item_data(held_id)
+	var storage_class: String = WorldObjectCatalogRef.get_item_storage_class(item_data)
+	if storage_class in [WorldObjectCatalogRef.ITEM_STORAGE_CLASS_KEY_CARD, WorldObjectCatalogRef.ITEM_STORAGE_CLASS_DIGITAL]:
+		return false
 	runtime_inventory_state["manipulator_hold"] = held_id
-	if held_id.is_empty() or not (item_variant is Dictionary):
-		return
-	var runtime_map := _get_world_item_runtime_map()
+	if item_data.is_empty():
+		return true
+	var runtime_map: Dictionary = _get_world_item_runtime_map()
 	var item_runtime: Dictionary = Dictionary(runtime_map.get(held_id, {})).duplicate(true)
-	item_runtime["item_data"] = Dictionary(item_variant).duplicate(true)
+	item_runtime["item_data"] = item_data
 	runtime_map[held_id] = item_runtime
 	runtime_inventory_state["world_item_runtime"] = runtime_map
+	return true
 
-func get_inventory_state() -> Dictionary:
-	var snapshot: Dictionary = runtime_inventory_state.duplicate(true)
-	snapshot["manipulator_hold"] = get_manipulator_held_item_id()
-	return snapshot
+func set_manipulator_held_item(item_variant: Variant) -> void:
+	set_manipulator_item(item_variant)
 
-func mark_key_collected(key_id: String) -> void:
-	var normalized_id: String = key_id.strip_edges()
+func get_pocket_items() -> Array:
+	return Array(runtime_inventory_state.get("pocket_items", [])).duplicate(true)
+
+func set_pocket_item(index: int, item_variant: Variant) -> bool:
+	if index < 0:
+		return false
+	var item_id: String = _get_runtime_inventory_item_id(item_variant)
+	var item_data: Dictionary = Dictionary(item_variant).duplicate(true) if item_variant is Dictionary else _get_known_inventory_item_data(item_id)
+	var storage_class: String = WorldObjectCatalogRef.get_item_storage_class(item_data)
+	if not item_id.is_empty() and storage_class in [WorldObjectCatalogRef.ITEM_STORAGE_CLASS_KEY_CARD, WorldObjectCatalogRef.ITEM_STORAGE_CLASS_DIGITAL]:
+		return false
+	var pocket: Array = get_pocket_items()
+	if index >= pocket.size():
+		pocket.resize(index + 1)
+	pocket[index] = item_id
+	runtime_inventory_state["pocket_items"] = pocket
+	return true
+
+func get_keychain_ids() -> Array:
+	return Array(runtime_inventory_state.get("collected_key_ids", [])).duplicate()
+
+func add_keycard_to_keychain(item_id: String) -> void:
+	var normalized_id: String = item_id.strip_edges()
 	if normalized_id.is_empty():
 		return
-	var collected: Array = Array(runtime_inventory_state.get("collected_key_ids", []))
+	var collected: Array = get_keychain_ids()
 	if not collected.has(normalized_id):
 		collected.append(normalized_id)
 	runtime_inventory_state["collected_key_ids"] = collected
 
+func has_keycard_access(item_id_or_required_key_id: String) -> bool:
+	var normalized_id: String = item_id_or_required_key_id.strip_edges()
+	if not normalized_id.is_empty() and get_keychain_ids().has(normalized_id):
+		return true
+	if WorldObjectCatalogRef.normalize_item_type(normalized_id) != WorldObjectCatalogRef.ITEM_STORAGE_CLASS_KEY_CARD:
+		return false
+	for key_variant in get_keychain_ids():
+		var key_id: String = _get_runtime_inventory_item_id(key_variant)
+		var key_data: Dictionary = _get_runtime_item_data_snapshot(key_id)
+		if WorldObjectCatalogRef.is_key_card_item(key_data) or WorldObjectCatalogRef.normalize_item_type(key_id) == WorldObjectCatalogRef.ITEM_STORAGE_CLASS_KEY_CARD:
+			return true
+	return false
+
+func get_digital_buffer_items() -> Array:
+	return Array(runtime_inventory_state.get("digital_buffer", [])).duplicate(true)
+
+func get_digital_storage_items() -> Array:
+	return Array(runtime_inventory_state.get("digital_storage", [])).duplicate(true)
+
+func move_runtime_digital_buffer_to_storage(item_id: String) -> void:
+	var normalized_id: String = item_id.strip_edges()
+	if normalized_id.is_empty():
+		return
+	var buffer_items: Array = get_digital_buffer_items()
+	buffer_items.erase(normalized_id)
+	runtime_inventory_state["digital_buffer"] = buffer_items
+	var storage_items: Array = get_digital_storage_items()
+	if not storage_items.has(normalized_id):
+		storage_items.append(normalized_id)
+	runtime_inventory_state["digital_storage"] = storage_items
+
+func move_runtime_digital_storage_to_buffer(item_id: String) -> void:
+	var normalized_id: String = item_id.strip_edges()
+	if normalized_id.is_empty():
+		return
+	var storage_items: Array = get_digital_storage_items()
+	storage_items.erase(normalized_id)
+	runtime_inventory_state["digital_storage"] = storage_items
+	var buffer_items: Array = get_digital_buffer_items()
+	if not buffer_items.has(normalized_id):
+		buffer_items.append(normalized_id)
+	runtime_inventory_state["digital_buffer"] = buffer_items
+
+func swap_runtime_digital_buffer_and_storage(buffer_item_id: String, storage_item_id: String) -> void:
+	move_runtime_digital_buffer_to_storage(buffer_item_id)
+	move_runtime_digital_storage_to_buffer(storage_item_id)
+
+func validate_runtime_inventory_storage_contract() -> Array[String]:
+	var warnings: Array[String] = []
+	var stored_ids: Dictionary = {}
+	var held_id: String = get_manipulator_item_id()
+	if not held_id.is_empty():
+		_validate_runtime_inventory_storage_item(held_id, "manipulator", WorldObjectCatalogRef.ITEM_STORAGE_CLASS_PHYSICAL, stored_ids, warnings)
+	for pocket_variant in get_pocket_items():
+		var pocket_id: String = _get_runtime_inventory_item_id(pocket_variant)
+		if not pocket_id.is_empty():
+			_validate_runtime_inventory_storage_item(pocket_id, "pocket", WorldObjectCatalogRef.ITEM_STORAGE_CLASS_PHYSICAL, stored_ids, warnings)
+	for key_variant in get_keychain_ids():
+		var key_id: String = _get_runtime_inventory_item_id(key_variant)
+		if not key_id.is_empty():
+			_validate_runtime_inventory_storage_item(key_id, "keychain", WorldObjectCatalogRef.ITEM_STORAGE_CLASS_KEY_CARD, stored_ids, warnings)
+	for buffer_variant in get_digital_buffer_items():
+		var buffer_id: String = _get_runtime_inventory_item_id(buffer_variant)
+		if not buffer_id.is_empty():
+			_validate_runtime_inventory_storage_item(buffer_id, "digital_buffer", WorldObjectCatalogRef.ITEM_STORAGE_CLASS_DIGITAL, stored_ids, warnings)
+	for storage_variant in get_digital_storage_items():
+		var storage_id: String = _get_runtime_inventory_item_id(storage_variant)
+		if not storage_id.is_empty():
+			_validate_runtime_inventory_storage_item(storage_id, "digital_storage", WorldObjectCatalogRef.ITEM_STORAGE_CLASS_DIGITAL, stored_ids, warnings)
+	for cell_variant in cell_items.keys():
+		for world_item_variant in Array(cell_items.get(cell_variant, [])):
+			var world_item_id: String = _get_runtime_inventory_item_id(world_item_variant)
+			if not world_item_id.is_empty() and stored_ids.has(world_item_id):
+				warnings.append("world_item_also_stored_%s" % world_item_id)
+	return warnings
+
+func _validate_runtime_inventory_storage_item(item_id: String, storage_name: String, expected_class: String, stored_ids: Dictionary, warnings: Array[String]) -> void:
+	if stored_ids.has(item_id):
+		warnings.append("inventory_item_duplicated_%s_%s_%s" % [item_id, String(stored_ids[item_id]), storage_name])
+	else:
+		stored_ids[item_id] = storage_name
+	var item_data: Dictionary = _get_known_inventory_item_data(item_id)
+	var storage_class: String = WorldObjectCatalogRef.get_item_storage_class(item_data)
+	if storage_class != expected_class:
+		warnings.append("inventory_storage_class_mismatch_%s_%s_%s" % [storage_name, item_id, storage_class])
+
+func get_inventory_state() -> Dictionary:
+	var snapshot: Dictionary = runtime_inventory_state.duplicate(true)
+	snapshot["manipulator_hold"] = get_manipulator_item_id()
+	snapshot["pocket_items"] = get_pocket_items()
+	snapshot["collected_key_ids"] = get_keychain_ids()
+	snapshot["digital_buffer"] = get_digital_buffer_items()
+	snapshot["digital_storage"] = get_digital_storage_items()
+	return snapshot
+
+func mark_key_collected(key_id: String) -> void:
+	add_keycard_to_keychain(key_id)
+
 func has_collected_key(key_id: String) -> bool:
-	return Array(runtime_inventory_state.get("collected_key_ids", [])).has(key_id.strip_edges())
+	return has_keycard_access(key_id)
 
 func get_actor_capability_levels() -> Dictionary:
 	var defaults := {
@@ -8231,10 +8370,7 @@ func check_world_object_requirements(object_id: String, action: String = "") -> 
 	return {"allowed": reasons.size() == 1 and reasons[0] == "ok", "object_id": object_id, "action": action, "requirements": requirements, "capabilities": capabilities, "reasons": reasons}
 
 func _is_keycard_item(item_data: Dictionary) -> bool:
-	var item_type: String = String(item_data.get("item_type", item_data.get("object_type", ""))).strip_edges().to_lower()
-	item_type = item_type.replace(" ", "_").replace("-", "_")
-	var key_kind: String = String(item_data.get("key_kind", "")).strip_edges().to_lower()
-	return key_kind == "mechanical" or item_type in ["mechanical_key", "mechanical_keycard", "key_card", "keycard"]
+	return WorldObjectCatalogRef.is_key_card_item(item_data)
 
 func can_pickup_world_item(item_id: String) -> Dictionary:
 	var normalized_id: String = item_id.strip_edges()
@@ -8245,10 +8381,13 @@ func can_pickup_world_item(item_id: String) -> Dictionary:
 		return {"success": false, "reasons": ["item_missing"], "item_id": normalized_id}
 	if not bool(item.get("can_pickup", true)):
 		return {"success": false, "reasons": ["item_does_not_fit"], "item_id": normalized_id}
-	if String(item.get("item_form", "physical")) == "digital":
-		if not bool(item.get("can_place_in_digital_buffer", true)):
-			return {"success": false, "reasons": ["item_does_not_fit"], "item_id": normalized_id}
-	elif not _is_keycard_item(item):
+	var storage_class: String = WorldObjectCatalogRef.get_item_storage_class(item)
+	if storage_class == WorldObjectCatalogRef.ITEM_STORAGE_CLASS_DIGITAL:
+		if not bool(item.get("can_place_in_digital_buffer", true)) and String(item.get("storage_type", "")) != "digital_storage":
+			return {"success": false, "reasons": ["digital_storage_full"], "message": "No free digital storage slot.", "item_id": normalized_id}
+		if not get_digital_buffer_items().is_empty():
+			return {"success": false, "reasons": ["digital_buffer_full"], "message": "No free digital buffer slot.", "item_id": normalized_id}
+	elif storage_class != WorldObjectCatalogRef.ITEM_STORAGE_CLASS_KEY_CARD:
 		var hold_gate := can_hold_item_in_manipulator(normalized_id)
 		if not bool(hold_gate.get("success", false)):
 			return {"success": false, "reasons": ["manipulator_occupied"], "message": "Free manipulator required.", "item_id": normalized_id}
@@ -8291,6 +8430,16 @@ func _get_runtime_item_data_snapshot(item_id: String) -> Dictionary:
 		item_data = item_runtime.duplicate(true)
 	return item_data
 
+func _get_known_inventory_item_data(item_id: String) -> Dictionary:
+	var normalized_id: String = item_id.strip_edges()
+	var item_data: Dictionary = _get_runtime_item_data_snapshot(normalized_id)
+	if not item_data.is_empty():
+		return item_data
+	item_data = get_world_object_by_id(normalized_id)
+	if item_data.is_empty():
+		item_data = get_cell_item_by_id(normalized_id)
+	return item_data
+
 func pickup_world_item(item_id: String) -> Dictionary:
 	var normalized_id: String = item_id.strip_edges()
 	var gate := can_pickup_world_item(normalized_id)
@@ -8301,27 +8450,23 @@ func pickup_world_item(item_id: String) -> Dictionary:
 		item = get_cell_item_by_id(normalized_id)
 	if item.is_empty():
 		return {"success": false, "reasons": ["item_missing"], "item_id": normalized_id}
-	if String(item.get("item_form", "physical")) == "digital":
-		var digital_buffer: Array = runtime_inventory_state.get("digital_buffer", [])
+	var storage_class: String = WorldObjectCatalogRef.get_item_storage_class(item)
+	if storage_class == WorldObjectCatalogRef.ITEM_STORAGE_CLASS_DIGITAL:
+		var digital_buffer: Array = get_digital_buffer_items()
 		if not digital_buffer.has(normalized_id):
 			digital_buffer.append(normalized_id)
 		runtime_inventory_state["digital_buffer"] = digital_buffer
-	elif _is_keycard_item(item):
-		mark_key_collected(normalized_id)
+	elif storage_class == WorldObjectCatalogRef.ITEM_STORAGE_CLASS_KEY_CARD:
+		add_keycard_to_keychain(normalized_id)
 	else:
-		set_manipulator_held_item(normalized_id)
-	var item_type := String(item.get("item_type", "")).strip_edges()
-	var linked_door_id := String(item.get("linked_door_id", item.get("door_id", ""))).strip_edges()
-	if linked_door_id.is_empty():
-		linked_door_id = _find_linked_door_id_for_key(normalized_id)
-	if String(item.get("key_kind", "")).strip_edges() != "" or item_type.contains("key") or item_type == "access_code" or not linked_door_id.is_empty():
-		mark_key_collected(normalized_id)
+		set_manipulator_item(item)
 	var runtime_map := _get_world_item_runtime_map()
 	runtime_map[normalized_id] = _build_picked_up_world_item_runtime(item)
 	runtime_inventory_state["world_item_runtime"] = runtime_map
 	_remove_world_item_from_lookup_tables(normalized_id, item)
 	refresh_world_cooling_received()
-	return {"success": true, "reasons": ["ok"], "item_id": normalized_id}
+	var message: String = "Key-card collected." if storage_class == WorldObjectCatalogRef.ITEM_STORAGE_CLASS_KEY_CARD else "Item collected."
+	return {"success": true, "reasons": ["ok"], "message": message, "item_id": normalized_id}
 
 
 func move_runtime_manipulator_to_pocket(pocket_index: int, pocket_capacity: int) -> Dictionary:
@@ -8332,11 +8477,11 @@ func move_runtime_manipulator_to_pocket(pocket_index: int, pocket_capacity: int)
 		return {"ok": false, "message": "Pocket slot is unavailable."}
 	var pocket: Array = Array(runtime_inventory_state.get("pocket_items", []))
 	pocket.resize(pocket_capacity)
-	if not String(pocket[pocket_index]).strip_edges().is_empty():
+	if not _get_runtime_inventory_item_id(pocket[pocket_index]).is_empty():
 		return {"ok": false, "message": "Pocket slot is occupied."}
-	pocket[pocket_index] = held_id
-	runtime_inventory_state["pocket_items"] = pocket
-	clear_manipulator_held_item()
+	if not set_pocket_item(pocket_index, get_manipulator_item_data()):
+		return {"ok": false, "message": "Only physical items can be stored in pockets."}
+	clear_manipulator()
 	return {"ok": true, "message": "Stored manipulator item in pocket."}
 
 func move_or_swap_runtime_pocket_slot_with_manipulator(pocket_index: int, pocket_capacity: int) -> Dictionary:
@@ -8344,13 +8489,20 @@ func move_or_swap_runtime_pocket_slot_with_manipulator(pocket_index: int, pocket
 		return {"ok": false, "message": "Pocket slot is unavailable."}
 	var pocket: Array = Array(runtime_inventory_state.get("pocket_items", []))
 	pocket.resize(pocket_capacity)
-	var pocket_id: String = String(pocket[pocket_index]).strip_edges()
-	var held_id: String = get_manipulator_held_item_id()
+	var pocket_id: String = _get_runtime_inventory_item_id(pocket[pocket_index])
+	var pocket_data: Dictionary = _get_runtime_item_data_snapshot(pocket_id)
+	var held_id: String = get_manipulator_item_id()
+	var held_data: Dictionary = get_manipulator_item_data()
 	if pocket_id.is_empty() and held_id.is_empty():
 		return {"ok": false, "message": "Pocket slot is empty."}
-	pocket[pocket_index] = held_id
-	runtime_inventory_state["pocket_items"] = pocket
-	set_manipulator_held_item(pocket_id)
+	if not pocket_id.is_empty() and not WorldObjectCatalogRef.is_physical_inventory_item(pocket_data):
+		return {"ok": false, "message": "Only physical items can move to the manipulator."}
+	if not set_pocket_item(pocket_index, held_data):
+		return {"ok": false, "message": "Only physical items can be stored in pockets."}
+	if not set_manipulator_item(pocket_data if not pocket_id.is_empty() else ""):
+		set_pocket_item(pocket_index, pocket_data)
+		set_manipulator_item(held_data)
+		return {"ok": false, "message": "Only physical items can move to the manipulator."}
 	return {"ok": true, "message": "Moved or swapped pocket and manipulator items."}
 
 func can_drop_inventory_item(item_id: String) -> Dictionary:
@@ -8396,6 +8548,10 @@ func get_manipulator_items() -> Array:
 	return [get_manipulator_held_item_data()]
 
 func can_hold_item_in_manipulator(item_id: String) -> Dictionary:
+	var item_data: Dictionary = _get_runtime_item_data_snapshot(item_id)
+	var storage_class: String = WorldObjectCatalogRef.get_item_storage_class(item_data)
+	if storage_class in [WorldObjectCatalogRef.ITEM_STORAGE_CLASS_KEY_CARD, WorldObjectCatalogRef.ITEM_STORAGE_CLASS_DIGITAL]:
+		return {"success": false, "item_id": item_id, "reasons": ["item_does_not_fit"]}
 	if not get_manipulator_items().is_empty():
 		return {"success": false, "item_id": item_id, "reasons": ["item_does_not_fit"]}
 	return {"success": true, "item_id": item_id, "reasons": ["ok"]}
@@ -8408,10 +8564,12 @@ func hold_item_in_manipulator(item_id: String) -> Dictionary:
 	return {"success": true, "item_id": item_id, "reasons": ["ok"]}
 
 func can_place_item_in_digital_buffer(item_id: String) -> Dictionary:
-	var item := get_world_object_by_id(item_id)
+	var item: Dictionary = get_world_object_by_id(item_id)
+	if item.is_empty():
+		item = _get_runtime_item_data_snapshot(item_id)
 	if item.is_empty():
 		return {"success": false, "item_id": item_id, "reasons": ["item_missing"]}
-	if not bool(item.get("can_place_in_digital_buffer", false)):
+	if not WorldObjectCatalogRef.is_digital_inventory_item(item) or not bool(item.get("can_place_in_digital_buffer", false)):
 		return {"success": false, "item_id": item_id, "reasons": ["item_does_not_fit"]}
 	return {"success": true, "item_id": item_id, "reasons": ["ok"]}
 

@@ -21,6 +21,11 @@ const ACCESS_TYPE_ACCESS_CODE := "access_code"
 const ACCESS_TYPE_TERMINAL := "terminal"
 const ACCESS_TYPES: Array[String] = [ACCESS_TYPE_NO_KEY, ACCESS_TYPE_KEY_CARD, ACCESS_TYPE_DIGITAL_KEY, ACCESS_TYPE_ACCESS_CODE, ACCESS_TYPE_TERMINAL]
 const KEY_ITEM_TYPE_KEY_CARD := "key_card"
+const ITEM_STORAGE_CLASS_PHYSICAL := "physical"
+const ITEM_STORAGE_CLASS_KEY_CARD := "key_card"
+const ITEM_STORAGE_CLASS_DIGITAL := "digital"
+const ITEM_STORAGE_CLASS_UNKNOWN := "unknown"
+const DIGITAL_ITEM_TYPE_ALIASES: Array[String] = ["digital_key", "access_code", "data_file", "info_key", "record"]
 const POWER_BEHAVIOR_NONE := "none"
 const POWER_BEHAVIOR_OPENS_WHEN_UNPOWERED := "opens_when_unpowered"
 
@@ -278,6 +283,41 @@ static func normalize_key_item_type(value: Variant) -> String:
 	if item_type in ["mechanical_key", "mechanical_keycard", "keycard", "key_card"]:
 		return KEY_ITEM_TYPE_KEY_CARD
 	return item_type
+
+static func normalize_item_type(value: Variant) -> String:
+	return normalize_key_item_type(value)
+
+static func normalize_item_form(value: Variant) -> String:
+	var item_form: String = _normalized_contract_token(value)
+	if item_form in [ITEM_STORAGE_CLASS_PHYSICAL, ITEM_STORAGE_CLASS_DIGITAL]:
+		return item_form
+	return ""
+
+static func get_item_storage_class(item_data: Dictionary) -> String:
+	var item_type: String = normalize_item_type(item_data.get("item_type", item_data.get("object_type", "")))
+	var item_family: String = normalize_item_type(item_data.get("item_family", ""))
+	var storage_type: String = _normalized_contract_token(item_data.get("storage_type", ""))
+	var item_form: String = normalize_item_form(item_data.get("item_form", ""))
+	var key_kind: String = _normalized_contract_token(item_data.get("key_kind", ""))
+	if item_type == ITEM_STORAGE_CLASS_KEY_CARD or key_kind == "mechanical":
+		return ITEM_STORAGE_CLASS_KEY_CARD
+	if item_form == ITEM_STORAGE_CLASS_DIGITAL or storage_type in ["digital_buffer", "digital_storage"]:
+		return ITEM_STORAGE_CLASS_DIGITAL
+	for digital_alias in DIGITAL_ITEM_TYPE_ALIASES:
+		if item_type == digital_alias or item_family == digital_alias or item_type.begins_with("%s_" % digital_alias):
+			return ITEM_STORAGE_CLASS_DIGITAL
+	if item_form == ITEM_STORAGE_CLASS_PHYSICAL or storage_type in ["manipulator", "pocket", "box", "box_storage"]:
+		return ITEM_STORAGE_CLASS_PHYSICAL
+	return ITEM_STORAGE_CLASS_UNKNOWN
+
+static func is_physical_inventory_item(item_data: Dictionary) -> bool:
+	return get_item_storage_class(item_data) == ITEM_STORAGE_CLASS_PHYSICAL
+
+static func is_key_card_item(item_data: Dictionary) -> bool:
+	return get_item_storage_class(item_data) == ITEM_STORAGE_CLASS_KEY_CARD
+
+static func is_digital_inventory_item(item_data: Dictionary) -> bool:
+	return get_item_storage_class(item_data) == ITEM_STORAGE_CLASS_DIGITAL
 
 static func _legacy_lock_type_for_access_type(access_type: String) -> String:
 	match access_type:

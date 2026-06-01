@@ -64,6 +64,14 @@ static func build(ui, hud_root: Control, margin: float) -> PanelContainer:
 	return panel
 
 
+static func _get_inventory_item_id(value: Variant) -> String:
+	if value is String or value is StringName:
+		return String(value).strip_edges()
+	if value is Dictionary:
+		return String(Dictionary(value).get("id", Dictionary(value).get("item_id", ""))).strip_edges()
+	return ""
+
+
 static func refresh(ui) -> void:
 	if ui == null:
 		return
@@ -73,7 +81,7 @@ static func refresh(ui) -> void:
 		return
 	var inventory_state: Dictionary = bipob.get_inventory_state() if bipob.has_method("get_inventory_state") else {}
 	var manipulator_items: Array = bipob.get_manipulator_items()
-	var held_world_item_id: String = String(inventory_state.get("manipulator_hold", "")).strip_edges()
+	var held_world_item_id: String = _get_inventory_item_id(inventory_state.get("manipulator_hold", ""))
 	for index in range(ui.runtime_manipulator_slots.size()):
 		var manipulator_item: Variant = manipulator_items[index] if index < manipulator_items.size() else null
 		ui.runtime_manipulator_slots[index].text = _get_module_name(bipob, manipulator_item)
@@ -87,8 +95,10 @@ static func refresh(ui) -> void:
 	for index in range(ui.runtime_pocket_slots.size()):
 		var pocket_item: Variant = pocket_items[index] if index < available_pocket_slots and index < pocket_items.size() else null
 		ui.runtime_pocket_slots[index].text = _get_module_name(bipob, pocket_item)
-		if index < runtime_pocket_items.size() and not String(runtime_pocket_items[index]).strip_edges().is_empty():
-			ui.runtime_pocket_slots[index].text = _get_runtime_inventory_item_name(inventory_state, String(runtime_pocket_items[index]))
+		if index < runtime_pocket_items.size():
+			var runtime_pocket_item_id: String = _get_inventory_item_id(runtime_pocket_items[index])
+			if not runtime_pocket_item_id.is_empty():
+				ui.runtime_pocket_slots[index].text = _get_runtime_inventory_item_name(inventory_state, runtime_pocket_item_id)
 
 	var buffer_item: Variant = bipob.get_buffer_item()
 	if ui.runtime_buffer_content_label != null and is_instance_valid(ui.runtime_buffer_content_label):
@@ -491,7 +501,7 @@ static func _get_collected_key_ids(bipob) -> Array:
 
 
 static func _get_key_slot_text(ui, key_value: Variant) -> String:
-	var key_id: String = String(key_value).strip_edges()
+	var key_id: String = _get_inventory_item_id(key_value)
 	if key_id.is_empty():
 		return "—"
 	if ui != null and ui.has_method("_get_runtime_key_display_text"):
