@@ -93,19 +93,22 @@ func validate_constructor_palette_contract() -> Array[String]:
 		"door":"constructor_palette_requires_exactly_one_door",
 		"floor":"constructor_palette_requires_exactly_one_floor",
 		"external_wall":"constructor_palette_requires_exactly_one_external_wall",
-		"wall":"constructor_palette_requires_exactly_one_wall"
+		"wall":"constructor_palette_requires_exactly_one_wall",
+		"terminal":"constructor_palette_requires_exactly_one_terminal"
 	}
 	for required_archetype in required_archetype_warning_ids:
 		if int(archetype_counts.get(required_archetype, 0)) != 1:
 			warnings.append(required_archetype_warning_ids[required_archetype])
 	if not archetype_counts.has("door"):
 		warnings.append("constructor_palette_missing_door_archetype")
-	if not visible_archetypes.has("terminal"):
+	if not archetype_counts.has("terminal"):
 		warnings.append("constructor_palette_missing_terminal_archetype")
 	if WorldObjectCatalogRef.get_archetype_property_schema("terminal").is_empty():
 		warnings.append("terminal_archetype_missing_property_schema")
 	if visible_wall_prefabs != ["external_wall", "wall"] and visible_wall_prefabs != ["wall", "external_wall"]:
 		warnings.append("constructor_palette_wall_entries_must_be_exactly_external_wall_and_wall")
+	if visible_floor_prefabs != ["floor"]:
+		warnings.append("constructor_palette_floor_entries_must_be_exactly_floor")
 	var external_wall: Dictionary = WorldObjectCatalogRef.create_world_object("external_wall", "validation_external_wall")
 	if bool(external_wall.get("configurable", true)):
 		warnings.append("external_wall_must_not_be_configurable")
