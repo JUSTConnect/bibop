@@ -5164,15 +5164,13 @@ func _get_runtime_mission_objective_text() -> String:
 			display_name = String(mission_manager_runtime.call("get_mission_title", mission_id)).strip_edges()
 		if mission_manager_runtime.has_method("get_mission_objective_hint"):
 			objective_hint = String(mission_manager_runtime.call("get_mission_objective_hint", mission_id)).strip_edges()
-	if not display_name.is_empty() and not objective_hint.is_empty() and not objective_hint.contains("legacy BipobController logic"):
-		return _validate_runtime_mission_objective_text(mission_index, "%s: %s" % [display_name, objective_hint])
-	if mission_index == 1:
-		return _validate_runtime_mission_objective_text(mission_index, "Mission 1: pick up the key-card, open the door, reach the exit.")
-	if mission_index == 10:
-		if not display_name.is_empty() and not objective_hint.is_empty():
-			return _validate_runtime_mission_objective_text(mission_index, "%s: %s" % [display_name, objective_hint])
-		return _validate_runtime_mission_objective_text(mission_index, "TASK TEST: Use this mission to validate mechanics and debug systems.")
-	return _validate_runtime_mission_objective_text(mission_index, "Mission %d: objective unavailable." % mission_index)
+	if not objective_hint.is_empty() and not objective_hint.contains("legacy BipobController logic"):
+		return "%s: %s" % [display_name, objective_hint] if not display_name.is_empty() else objective_hint
+	if bipob != null and bipob.has_method("get_current_mission_goal_hint"):
+		var bipob_goal_hint: String = String(bipob.call("get_current_mission_goal_hint")).strip_edges()
+		if not bipob_goal_hint.is_empty():
+			return bipob_goal_hint
+	return "No goal"
 
 
 func _get_runtime_active_mission_index() -> int:
@@ -12708,8 +12706,11 @@ func _on_drop_item_button_pressed() -> void:
 	if bipob == null or not bipob.has_method("drop_held_item"):
 		show_hint("Drop action is unavailable.")
 		return
-	var manipulator_items: Array = bipob.get_manipulator_items()
-	if manipulator_items.is_empty() or manipulator_items[0] == null:
+	var manipulator_items: Array = bipob.get_runtime_manipulator_items()
+	if selected_manipulator_slot < 0 or selected_manipulator_slot >= bipob.get_available_manipulator_slots():
+		show_hint("Manipulator slot is inactive.")
+		return
+	if selected_manipulator_slot >= manipulator_items.size() or manipulator_items[selected_manipulator_slot] == null:
 		show_hint("Manipulator is empty.")
 		return
 	bipob.drop_held_item()

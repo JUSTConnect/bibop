@@ -8286,8 +8286,19 @@ func drop_inventory_item(item_id: String, target_cell: Vector2i = Vector2i(-1, -
 	runtime_inventory_state["world_item_runtime"] = runtime_map
 	return {"success": true, "item_id": item_id, "target_cell": target_cell, "reasons": ["ok"]}
 
+func get_manipulator_items() -> Array:
+	var held_item_id: String = String(runtime_inventory_state.get("manipulator_hold", "")).strip_edges()
+	if held_item_id.is_empty():
+		return []
+	var item_data: Dictionary = _get_runtime_item_data_snapshot(held_item_id)
+	if item_data.is_empty():
+		item_data = {"id": held_item_id}
+	elif String(item_data.get("id", "")).strip_edges().is_empty():
+		item_data["id"] = held_item_id
+	return [item_data]
+
 func can_hold_item_in_manipulator(item_id: String) -> Dictionary:
-	if String(runtime_inventory_state.get("manipulator_hold", "")) != "":
+	if not get_manipulator_items().is_empty():
 		return {"success": false, "item_id": item_id, "reasons": ["item_does_not_fit"]}
 	return {"success": true, "item_id": item_id, "reasons": ["ok"]}
 

@@ -526,6 +526,8 @@ static func _get_runtime_inventory_item_name(inventory_state: Dictionary, item_i
 static func _get_module_name(bipob, item: Variant) -> String:
 	if item == null:
 		return "Empty"
+	if typeof(item) == TYPE_DICTIONARY:
+		return _get_record_name(item, "Item")
 	return bipob.get_module_display_name(item)
 
 
