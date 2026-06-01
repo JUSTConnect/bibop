@@ -166,7 +166,7 @@ static func add_key_door_link_section(ui: Variant, parent: VBoxContainer, entity
 		section.add_child(unlink_button)
 	parent.add_child(section)
 
-static func add_door_linked_key_section(ui: Variant, parent: VBoxContainer, entity_id: String, data: Dictionary) -> void:
+static func add_door_linked_key_section(ui: Variant, parent: VBoxContainer, _entity_id: String, data: Dictionary) -> void:
 	var section: VBoxContainer = ui._create_inspector_section("Linked Key")
 	var key_id: String = ui._safe_ui_string(data.get("required_key_id", "")).strip_edges()
 	var label: Label = Label.new()
