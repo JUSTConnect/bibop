@@ -308,6 +308,7 @@ func validate_architecture_contracts() -> Dictionary:
 	sections.append(_make_architecture_validation_section("task_test_objects", "TASK TEST Objects", _validate_task_test_object_contracts()))
 	sections.append(_make_architecture_validation_section("inventory_storage", "Inventory Storage", validate_runtime_inventory_storage_contract()))
 	sections.append(_validate_runtime_action_view_model_section())
+	sections.append(_validate_device_diagnostics_section())
 	sections.append(_make_architecture_validation_section("mission_objective", "Mission Objective", _validate_architecture_mission_objective_contract()))
 	var warnings: Array[String] = []
 	var contract_breaking_count: int = 0
@@ -454,6 +455,45 @@ func _validate_runtime_action_view_model_section() -> Dictionary:
 	if String(target.get("object_group", "")) == "door" and Array(view_model.get("actions", [])).is_empty() and String(view_model.get("disabled_reason", "")).strip_edges().is_empty():
 		warnings.append("canonical_door_has_no_action_or_reason_%s" % String(target.get("id", "unnamed_door")))
 	return _make_architecture_validation_section("runtime_action_view_model", "Runtime Action ViewModel", warnings)
+
+func _validate_device_diagnostics_section() -> Dictionary:
+	if active_bipob_ref == null or not is_instance_valid(active_bipob_ref) or not active_bipob_ref.has_method("get_facing_world_action_target"):
+		return _make_architecture_validation_section("device_diagnostics", "Device Diagnostics", ["diagnostic_target_missing_or_empty"], false)
+	var facing_result_variant: Variant = active_bipob_ref.call("get_facing_world_action_target")
+	if typeof(facing_result_variant) != TYPE_DICTIONARY:
+		return _make_architecture_validation_section("device_diagnostics", "Device Diagnostics", ["diagnostic_target_missing_or_empty"], false)
+	var facing_result: Dictionary = facing_result_variant
+	var target_variant: Variant = facing_result.get("target_object", {})
+	if typeof(target_variant) != TYPE_DICTIONARY or Dictionary(target_variant).is_empty():
+		return _make_architecture_validation_section("device_diagnostics", "Device Diagnostics", ["diagnostic_target_missing_or_empty"], false)
+	var target: Dictionary = Dictionary(target_variant)
+	var target_snapshot: String = var_to_str(target)
+	var target_cell: Vector2i = WorldObjectCatalogRef.to_world_cell(facing_result.get("target_position", Vector2i(-1, -1)), Vector2i(-1, -1))
+	var diagnostic: Dictionary = build_device_diagnostic_result(target, target_cell)
+	var warnings: Array[String] = []
+	for required_field in ["ok", "target_id", "target_name", "target_group", "target_type", "target_cell", "is_scanned", "state", "requirements", "capabilities", "missing", "available_actions", "blocked_actions", "summary", "warnings"]:
+		if not diagnostic.has(required_field):
+			warnings.append("diagnostic_result_missing_%s" % required_field)
+	var requirements_variant: Variant = diagnostic.get("requirements", {})
+	if typeof(requirements_variant) != TYPE_DICTIONARY:
+		warnings.append("diagnostic_requirements_not_dictionary")
+	else:
+		var requirements: Dictionary = requirements_variant
+		for obsolete_key in ["interface_level", "cpu_level", "required_interface_level", "required_cpu_level"]:
+			if requirements.has(obsolete_key):
+				warnings.append("diagnostic_obsolete_requirement_key_%s" % obsolete_key)
+	for missing_variant in Array(diagnostic.get("missing", [])):
+		if typeof(missing_variant) != TYPE_DICTIONARY:
+			warnings.append("diagnostic_missing_requirement_not_dictionary")
+			continue
+		var missing_item: Dictionary = missing_variant
+		if String(missing_item.get("id", "")).strip_edges().is_empty() or String(missing_item.get("label", "")).strip_edges().is_empty():
+			warnings.append("diagnostic_missing_requirement_unstable")
+	if String(diagnostic.get("summary", "")).strip_edges().is_empty():
+		warnings.append("diagnostic_summary_missing")
+	if target_snapshot != var_to_str(target):
+		warnings.append("diagnostic_builder_mutated_target")
+	return _make_architecture_validation_section("device_diagnostics", "Device Diagnostics", warnings)
 
 func _validate_architecture_mission_objective_contract() -> Array[String]:
 	var warnings: Array[String] = validate_current_mission_objective_view_model()
@@ -8558,6 +8598,165 @@ func get_actor_capability_levels() -> Dictionary:
 	defaults["connector_level"] = connector_level
 	defaults["processor_level"] = processor_level
 	return defaults
+
+func _diagnostic_has_inventory_item(item_id: String, inventory_ids: Array) -> bool:
+	var normalized_id: String = item_id.strip_edges()
+	if normalized_id.is_empty():
+		return not inventory_ids.is_empty()
+	return inventory_ids.has(normalized_id)
+
+func _build_device_diagnostic_capabilities(actor: Dictionary = {}) -> Dictionary:
+	var capabilities: Dictionary = get_actor_capability_levels().duplicate(true)
+	var key_card_ids: Array = get_keychain_ids()
+	var digital_ids: Array = get_digital_buffer_items() + get_digital_storage_items()
+	capabilities["has_free_manipulator"] = get_manipulator_item_id().is_empty()
+	capabilities["has_power"] = String(capabilities.get("power_class", "none")) != "none"
+	capabilities["has_power_state_knowledge"] = true
+	capabilities["key_card_ids"] = key_card_ids.duplicate()
+	capabilities["digital_item_ids"] = digital_ids.duplicate()
+	capabilities["has_key_card"] = not key_card_ids.is_empty()
+	capabilities["has_digital_key"] = false
+	capabilities["has_access_code"] = false
+	for item_variant in digital_ids:
+		var item_id: String = _get_runtime_inventory_item_id(item_variant)
+		var item_data: Dictionary = _get_runtime_item_data_snapshot(item_id)
+		var item_type: String = String(item_data.get("item_type", item_data.get("object_type", item_id))).strip_edges().to_lower()
+		if item_type.contains("digital_key") or item_id.to_lower().contains("digital_key"):
+			capabilities["has_digital_key"] = true
+		if item_type.contains("access_code") or item_id.to_lower().contains("access_code"):
+			capabilities["has_access_code"] = true
+	for actor_key_variant in actor.keys():
+		capabilities[String(actor_key_variant)] = actor[actor_key_variant]
+	return capabilities
+
+func _append_device_diagnostic_missing(missing: Array[Dictionary], id: String, label: String, required: Variant = true, current: Variant = false) -> void:
+	missing.append({"id": id, "label": label, "required": required, "current": current})
+
+func _get_device_diagnostic_requirements(target: Dictionary) -> Dictionary:
+	var access_type: String = WorldObjectCatalogRef.normalize_access_type(target.get("access_type", target.get("lock_type", "")))
+	var power_behavior: String = String(target.get("power_behavior", "")).strip_edges().to_lower()
+	var required_key_id: String = String(target.get("required_key_id", target.get("required_key", ""))).strip_edges()
+	var requires_fuse: bool = bool(target.get("fuse_required", target.get("requires_fuse", false))) or not String(target.get("required_fuse_id", "")).strip_edges().is_empty()
+	var requires_cable: bool = bool(target.get("cable_connection_required", target.get("requires_cable_connection", false)))
+	var requires_repair: bool = bool(target.get("repair_required", target.get("requires_repair", false)))
+	return {
+		"scan_level": maxi(0, int(target.get("required_scan_level", 0))),
+		"manipulator_level": maxi(0, int(target.get("required_manipulator_level", 0))),
+		"connector_level": maxi(0, int(target.get("required_connector_level", target.get("required_interface_level", 0)))),
+		"processor_level": maxi(0, int(target.get("required_processor_level", target.get("required_cpu_level", 0)))),
+		"free_manipulator_required": bool(target.get("free_manipulator_required", false)) or access_type == WorldObjectCatalogRef.ACCESS_TYPE_KEY_CARD,
+		"required_key_id": required_key_id,
+		"key_card_required": access_type == WorldObjectCatalogRef.ACCESS_TYPE_KEY_CARD,
+		"digital_key_required": access_type == WorldObjectCatalogRef.ACCESS_TYPE_DIGITAL_KEY,
+		"access_code_required": access_type == WorldObjectCatalogRef.ACCESS_TYPE_ACCESS_CODE or access_type == "password",
+		"terminal_required": access_type == WorldObjectCatalogRef.ACCESS_TYPE_TERMINAL or access_type == "terminal_lock",
+		"power_required": bool(target.get("power_required", false)) or (not String(target.get("power_network_id", "")).strip_edges().is_empty() and power_behavior != WorldObjectCatalogRef.POWER_BEHAVIOR_OPENS_WHEN_UNPOWERED),
+		"power_must_be_cut": power_behavior == WorldObjectCatalogRef.POWER_BEHAVIOR_OPENS_WHEN_UNPOWERED,
+		"fuse_required": requires_fuse,
+		"cable_connection_required": requires_cable,
+		"repair_required": requires_repair
+	}
+
+func _get_device_diagnostic_missing(requirements: Dictionary, capabilities: Dictionary, target: Dictionary, scan_level: int) -> Array[Dictionary]:
+	var missing: Array[Dictionary] = []
+	var required_scan_level: int = int(requirements.get("scan_level", 0))
+	if scan_level < required_scan_level:
+		_append_device_diagnostic_missing(missing, "scan_level_required", "Scan level %d required" % required_scan_level, required_scan_level, scan_level)
+	for capability_name in ["connector", "processor", "manipulator"]:
+		var required_level: int = int(requirements.get("%s_level" % capability_name, 0))
+		var current_level: int = int(capabilities.get("%s_level" % capability_name, 0))
+		if current_level < required_level:
+			_append_device_diagnostic_missing(missing, "%s_level_required" % capability_name, "%s level %d required" % [capability_name.capitalize(), required_level], required_level, current_level)
+	if bool(requirements.get("free_manipulator_required", false)) and not bool(capabilities.get("has_free_manipulator", false)):
+		_append_device_diagnostic_missing(missing, "free_manipulator_required", "Free manipulator required")
+	var required_key_id: String = String(requirements.get("required_key_id", "")).strip_edges()
+	var digital_ids: Array = Array(capabilities.get("digital_item_ids", []))
+	var has_required_key_card: bool = _diagnostic_has_inventory_item(required_key_id, Array(capabilities.get("key_card_ids", []))) if not required_key_id.is_empty() else bool(capabilities.get("has_key_card", false))
+	if bool(requirements.get("key_card_required", false)) and not has_required_key_card:
+		_append_device_diagnostic_missing(missing, "key_card_required", "Key-card required", required_key_id, capabilities.get("key_card_ids", []))
+	var has_required_digital_key: bool = _diagnostic_has_inventory_item(required_key_id, digital_ids) if not required_key_id.is_empty() else bool(capabilities.get("has_digital_key", false))
+	if bool(requirements.get("digital_key_required", false)) and not has_required_digital_key:
+		_append_device_diagnostic_missing(missing, "digital_key_required", "Digital key required", required_key_id, digital_ids)
+	var has_required_access_code: bool = _diagnostic_has_inventory_item(required_key_id, digital_ids) if not required_key_id.is_empty() else bool(capabilities.get("has_access_code", false))
+	if bool(requirements.get("access_code_required", false)) and not has_required_access_code:
+		_append_device_diagnostic_missing(missing, "access_code_required", "Access code required", required_key_id, digital_ids)
+	if bool(requirements.get("terminal_required", false)) and String(target.get("control_terminal_id", target.get("linked_terminal_id", ""))).strip_edges().is_empty():
+		_append_device_diagnostic_missing(missing, "terminal_required", "Linked terminal required")
+	var is_powered: bool = bool(target.get("is_powered", true))
+	if bool(requirements.get("power_required", false)) and not is_powered:
+		_append_device_diagnostic_missing(missing, "power_required", "Power required")
+	if bool(requirements.get("power_must_be_cut", false)) and is_powered:
+		_append_device_diagnostic_missing(missing, "power_must_be_cut", "Power must be cut")
+	if bool(requirements.get("fuse_required", false)) and not bool(target.get("has_fuse", target.get("fuse_inserted", false))):
+		_append_device_diagnostic_missing(missing, "fuse_required", "Fuse required")
+	if bool(requirements.get("cable_connection_required", false)) and not bool(target.get("connected", target.get("is_connected", false))):
+		_append_device_diagnostic_missing(missing, "cable_connection_required", "Cable connection required")
+	if bool(requirements.get("repair_required", false)):
+		_append_device_diagnostic_missing(missing, "repair_required", "Repair required")
+	return missing
+
+func build_device_diagnostic_result(target_object: Dictionary, target_cell: Vector2i, actor: Dictionary = {}) -> Dictionary:
+	var normalized_target: Dictionary = WorldObjectCatalogRef.normalize_world_object_contract(target_object)
+	if String(normalized_target.get("object_group", "")) == "door":
+		normalized_target = WorldObjectCatalogRef.normalize_door_contract(normalized_target)
+		normalized_target = WorldObjectCatalogRef.normalize_door_state_fields(normalized_target)
+	var scan_level: int = maxi(0, int(normalized_target.get("scan_level", 0)))
+	var requirements: Dictionary = _get_device_diagnostic_requirements(normalized_target)
+	var capabilities: Dictionary = _build_device_diagnostic_capabilities(actor)
+	var missing: Array[Dictionary] = _get_device_diagnostic_missing(requirements, capabilities, normalized_target, scan_level)
+	var available_actions: Array[Dictionary] = []
+	var blocked_actions: Array[Dictionary] = []
+	if active_bipob_ref != null and is_instance_valid(active_bipob_ref) and active_bipob_ref.has_method("build_runtime_action_view_model"):
+		var view_model_variant: Variant = active_bipob_ref.call("build_runtime_action_view_model", normalized_target, target_cell)
+		if typeof(view_model_variant) == TYPE_DICTIONARY:
+			for descriptor_variant in Array(Dictionary(view_model_variant).get("actions", [])):
+				if typeof(descriptor_variant) != TYPE_DICTIONARY:
+					continue
+				var descriptor: Dictionary = Dictionary(descriptor_variant).duplicate(true)
+				if bool(descriptor.get("enabled", false)):
+					available_actions.append(descriptor)
+				else:
+					blocked_actions.append(descriptor)
+	var summary: String = "Device ready."
+	if normalized_target.is_empty():
+		summary = "No device detected."
+	elif not missing.is_empty():
+		var missing_labels: Array[String] = []
+		for missing_item in missing:
+			missing_labels.append(String(missing_item.get("label", "Requirement missing")))
+		summary = "Device blocked: %s." % ", ".join(missing_labels)
+	elif available_actions.is_empty() and not blocked_actions.is_empty():
+		summary = "Device scanned; runtime actions are blocked."
+	return {
+		"ok": not normalized_target.is_empty(),
+		"target_id": String(normalized_target.get("id", "")),
+		"target_name": String(normalized_target.get("display_name", normalized_target.get("name", normalized_target.get("object_type", "Unknown device")))),
+		"target_group": String(normalized_target.get("object_group", "")),
+		"target_type": String(normalized_target.get("object_type", "")),
+		"target_cell": target_cell,
+		"scan_level": scan_level,
+		"required_scan_level": int(requirements.get("scan_level", 0)),
+		"is_scanned": scan_level > 0,
+		"is_known": bool(normalized_target.get("discovered", normalized_target.get("revealed", scan_level > 0))),
+		"state": String(normalized_target.get("state", "unknown")),
+		"power_state": "powered" if bool(normalized_target.get("is_powered", true)) else "unpowered",
+		"door_type": String(normalized_target.get("door_type", "")),
+		"material": String(normalized_target.get("material", "")),
+		"access_type": String(normalized_target.get("access_type", "")),
+		"requirements": requirements,
+		"capabilities": capabilities,
+		"missing": missing,
+		"available_actions": available_actions,
+		"blocked_actions": blocked_actions,
+		"summary": summary,
+		"warnings": []
+	}
+
+func get_runtime_device_diagnostic(target_id: String) -> Dictionary:
+	var target: Dictionary = get_world_object_by_id(target_id)
+	if target.is_empty():
+		return build_device_diagnostic_result({}, Vector2i(-1, -1))
+	return build_device_diagnostic_result(target, _get_world_object_cell_from_data(target))
 
 func check_world_object_requirements(object_id: String, action: String = "") -> Dictionary:
 	var object_data := get_world_object_by_id(object_id)

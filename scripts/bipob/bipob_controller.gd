@@ -6912,6 +6912,16 @@ func get_facing_world_action_target() -> Dictionary:
 	var view_model: Dictionary = build_runtime_action_view_model(target_object, target_position)
 	return {"target_position": target_position, "target_object": view_model.get("target", {}), "actions": view_model.get("available_action_ids", []), "action_view_model": view_model}
 
+func get_facing_device_diagnostic_result() -> Dictionary:
+	if mission_manager == null or not mission_manager.has_method("build_device_diagnostic_result"):
+		return {}
+	var target_cell: Vector2i = get_facing_device_position()
+	var target_variant: Variant = mission_manager.get_world_object_at_cell(target_cell)
+	if typeof(target_variant) != TYPE_DICTIONARY or Dictionary(target_variant).is_empty():
+		return {}
+	var diagnostic_variant: Variant = mission_manager.call("build_device_diagnostic_result", Dictionary(target_variant), target_cell)
+	return Dictionary(diagnostic_variant) if typeof(diagnostic_variant) == TYPE_DICTIONARY else {}
+
 func _build_runtime_action_actor(target_object: Dictionary, target_position: Vector2i) -> Dictionary:
 	return {
 		"manipulator_level": get_installed_manipulator_arm_level(),
@@ -7438,6 +7448,9 @@ func scan_device() -> void:
 			var scan_text := ScanSystemRef.get_scan_display_text(world_object, scan_type)
 			if String(world_object.get("object_group", "")) == "platform" and mission_manager.has_method("get_platform_state_summary"):
 				scan_text += "\n" + String(mission_manager.call("get_platform_state_summary", world_object))
+			var diagnostic: Dictionary = get_facing_device_diagnostic_result()
+			if not diagnostic.is_empty():
+				scan_text += "\n" + String(diagnostic.get("summary", ""))
 			hint_requested.emit("Scan: %s" % scan_text)
 			clear_selected_world_action_if_invalid(world_object, facing_cell)
 			emit_facing_world_object_hint()
