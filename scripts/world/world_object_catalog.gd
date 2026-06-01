@@ -29,10 +29,23 @@ const DIGITAL_ITEM_TYPE_ALIASES: Array[String] = ["digital_key", "access_code", 
 const POWER_BEHAVIOR_NONE := "none"
 const POWER_BEHAVIOR_OPENS_WHEN_UNPOWERED := "opens_when_unpowered"
 
+const FLOOR_MATERIALS: Array[String] = ["steel", "concrete", "grate"]
+const FLOOR_COVERINGS: Array[String] = ["default", "dirt", "water", "debris", "oil"]
+const FLOOR_VISUAL_STYLES: Array[String] = ["default", "permission"]
+const FLOOR_STATES: Array[String] = ["normal", "damaged"]
+
 const PREFAB_ALIASES: Dictionary = {
 	"mechanical_door": "steel_door",
 	"digital_door": "energy_door",
-	"powered_gate": "energy_door"
+	"powered_gate": "energy_door",
+	"steel_floor": "floor",
+	"concrete_floor": "floor",
+	"grate_floor": "floor",
+	"permission_floor": "floor",
+	"water_floor": "floor",
+	"oil_floor": "floor",
+	"dirty_floor": "floor",
+	"debris_floor": "floor"
 }
 
 const LEGACY_SOURCE_METADATA_FIELDS: Array[String] = ["legacy_prefab_id", "map_constructor_prefab_id", "legacy_object_type", "source_prefab_id"]
@@ -40,7 +53,15 @@ const LEGACY_SOURCE_METADATA_FIELDS: Array[String] = ["legacy_prefab_id", "map_c
 const PREFAB_ALIAS_DEFAULTS: Dictionary = {
 	"mechanical_door": {"object_group":"door", "door_type":DOOR_TYPE_MECHANICAL, "access_type":ACCESS_TYPE_KEY_CARD},
 	"digital_door": {"object_group":"door", "door_type":DOOR_TYPE_DIGITAL, "access_type":ACCESS_TYPE_DIGITAL_KEY},
-	"powered_gate": {"object_group":"door", "door_type":DOOR_TYPE_POWERED, "access_type":ACCESS_TYPE_NO_KEY, "power_behavior":POWER_BEHAVIOR_OPENS_WHEN_UNPOWERED, "requires_external_power":true, "power_mode":"external_power"}
+	"powered_gate": {"object_group":"door", "door_type":DOOR_TYPE_POWERED, "access_type":ACCESS_TYPE_NO_KEY, "power_behavior":POWER_BEHAVIOR_OPENS_WHEN_UNPOWERED, "requires_external_power":true, "power_mode":"external_power"},
+	"steel_floor": {"object_group":"floor", "material":"steel"},
+	"concrete_floor": {"object_group":"floor", "material":"concrete"},
+	"grate_floor": {"object_group":"floor", "material":"grate"},
+	"permission_floor": {"object_group":"floor", "visual_style":"permission"},
+	"water_floor": {"object_group":"floor", "covering":"water"},
+	"oil_floor": {"object_group":"floor", "covering":"oil"},
+	"dirty_floor": {"object_group":"floor", "covering":"dirt"},
+	"debris_floor": {"object_group":"floor", "covering":"debris"}
 }
 
 # Hidden compatibility mappings for loading old constructor/runtime data only.
@@ -137,10 +158,23 @@ const ARCHETYPE_REGISTRY: Dictionary = {
 			{"field":"required_connector_level", "type":"int", "default":0},
 			{"field":"required_processor_level", "type":"int", "default":0}
 		]
+	},
+	"floor": {
+		"archetype_id":"floor", "object_group":"floor", "object_type":"floor", "palette_label":"Floor / Пол",
+		"placement_mode":"object", "display_name_template":"{material_label} Floor",
+		"blocks_movement":false, "blocks_vision":false, "configurable":true, "replaces_tile_with":"floor",
+		"property_schema":[
+			{"field":"material", "type":"enum", "values":["steel", "concrete", "grate"], "default":"steel", "labels":{"steel":"Steel / Стальной", "concrete":"Concrete / Бетонный", "grate":"Grate / Решётка"}},
+			{"field":"covering", "type":"enum", "values":["default", "dirt", "water", "debris", "oil"], "default":"default", "labels":{"default":"Default / Базовое покрытие", "dirt":"Dirt / Грязь", "water":"Water / Вода", "debris":"Debris / Обломки", "oil":"Oil / Масло"}},
+			{"field":"visual_style", "type":"enum", "values":["default", "permission"], "default":"default", "labels":{"default":"Default / Обычный", "permission":"Permission Tile / Тайл разрешения"}},
+			{"field":"state", "type":"enum", "values":["normal", "damaged"], "default":"normal"},
+			{"field":"allowed_states", "type":"enum_array", "values":["normal", "damaged"], "default":["normal", "damaged"]}
+		]
 	}
 }
 
 const LEGACY_DOOR_IDS: Array[String] = ["steel_door", "reinforced_steel_door", "titanium_door", "energy_door", "grid_door", "mechanical_door", "digital_door", "powered_gate", "digital_steel_door", "digital_titanium_door", "mechanical_titanium_door"]
+const LEGACY_FLOOR_IDS: Array[String] = ["steel_floor", "concrete_floor", "grate_floor", "permission_floor", "water_floor", "oil_floor", "dirty_floor", "debris_floor"]
 
 static func canonical_prefab_id(prefab_id: String) -> String:
 	var normalized_type: String = prefab_id.strip_edges().to_lower()
@@ -160,7 +194,8 @@ static func is_legacy_prefab_alias(value: String) -> bool:
 	return PREFAB_ALIASES.has(normalized_value) or LEGACY_WALL_ALIAS_CONFIGS.has(normalized_value)
 
 static func is_legacy_door_object_type(value: String) -> bool:
-	return is_legacy_prefab_alias(value)
+	var normalized_value: String = value.strip_edges().to_lower()
+	return LEGACY_DOOR_IDS.has(normalized_value) or LEGACY_DOOR_ALIAS_CONFIGS.has(normalized_value)
 
 static func is_material_named_door_object_type(value: String) -> bool:
 	return DOOR_MATERIAL_BY_OBJECT_TYPE.has(value.strip_edges().to_lower())
@@ -192,6 +227,12 @@ static func canonicalize_legacy_object_data(object_data: Dictionary) -> Dictiona
 		data = mark_legacy_source(data, original_object_type)
 		data["legacy_object_type"] = original_object_type
 		data["object_type"] = canonical_prefab_id(original_object_type)
+		for key_variant in get_prefab_alias_defaults(original_object_type).keys():
+			var key: String = String(key_variant)
+			if not data.has(key):
+				data[key] = get_prefab_alias_defaults(original_object_type)[key]
+		if data["object_type"] == "floor":
+			data["archetype_id"] = "floor"
 	elif is_legacy_prefab_alias(source_id):
 		data = mark_legacy_source(data, source_id)
 	if data.has("access_type") or data.has("lock_type"):
@@ -558,6 +599,8 @@ static func validate_archetype_object(object_data: Dictionary) -> Array[String]:
 					warnings.append("object_invalid_enum_array_%s" % field_name)
 	if object_data.has("allowed_states") and not Array(object_data.get("allowed_states", [])).has(object_data.get("state")):
 		warnings.append("object_state_not_allowed")
+	if archetype_id == "floor" and String(object_data.get("display_name", "")) != generate_display_name(object_data):
+		warnings.append("floor_display_name_not_generated_from_material")
 	if archetype_id == "door":
 		var state: String = String(object_data.get("state", ""))
 		if bool(object_data.get("is_open", false)) != (state == "open") or bool(object_data.get("is_locked", false)) != (state == "locked"):
@@ -569,15 +612,16 @@ static func validate_object_registry_contract() -> Array[String]:
 	for alias_variant in PREFAB_ALIASES.keys():
 		var alias_id: String = String(alias_variant)
 		var target_id: String = canonical_prefab_id(alias_id)
-		if not OBJECT_LIBRARY.has(target_id):
+		if not OBJECT_LIBRARY.has(target_id) and not ARCHETYPE_REGISTRY.has(target_id):
 			warnings.append("prefab_alias_target_missing_%s_%s" % [alias_id, target_id])
 			continue
 		var alias_data: Dictionary = create_world_object(alias_id, "validation_%s" % alias_id)
-		if alias_data.is_empty() or not OBJECT_LIBRARY.has(String(alias_data.get("object_type", ""))):
+		if alias_data.is_empty() or (not OBJECT_LIBRARY.has(String(alias_data.get("object_type", ""))) and not ARCHETYPE_REGISTRY.has(String(alias_data.get("archetype_id", "")))):
 			warnings.append("prefab_alias_creates_unknown_runtime_object_%s" % alias_id)
-		for required_field in ["door_type", "material", "access_type", "door_class"]:
-			if not alias_data.has(required_field) or _normalized_contract_token(alias_data.get(required_field, "")).is_empty():
-				warnings.append("prefab_alias_missing_%s_%s" % [required_field, alias_id])
+		if target_id != "floor":
+			for required_field in ["door_type", "material", "access_type", "door_class"]:
+				if not alias_data.has(required_field) or _normalized_contract_token(alias_data.get(required_field, "")).is_empty():
+					warnings.append("prefab_alias_missing_%s_%s" % [required_field, alias_id])
 	for object_type_variant in OBJECT_LIBRARY.keys():
 		var object_type: String = String(object_type_variant)
 		var definition: Dictionary = OBJECT_LIBRARY[object_type]
@@ -699,6 +743,16 @@ static func generate_display_name(object_data: Dictionary) -> String:
 		template = template.replace("{%s_label}" % field_name, _label_for_id(object_data.get(field_name, field.get("default", ""))))
 	return template
 
+static func generate_localized_display_name(object_data: Dictionary, locale: String = "en") -> String:
+	if get_archetype_id_for_object(object_data) != "floor" or not locale.to_lower().begins_with("ru"):
+		return generate_display_name(object_data)
+	match _normalized_contract_token(object_data.get("material", "steel")):
+		"concrete":
+			return "Бетонный пол"
+		"grate":
+			return "Пол из решётки"
+	return "Стальной пол"
+
 static func normalize_archetype_object(object_data: Dictionary) -> Dictionary:
 	var data: Dictionary = object_data.duplicate(true)
 	var archetype_id: String = get_archetype_id_for_object(data)
@@ -736,6 +790,9 @@ static func create_archetype_object(archetype_id: String, id_override: String = 
 
 static func _create_library_object(object_type: String, id_override: String = "") -> Dictionary:
 	var canonical_type: String = canonical_object_type(object_type)
+	if ARCHETYPE_REGISTRY.has(canonical_type):
+		var archetype_data: Dictionary = create_archetype_object(canonical_type, id_override, get_prefab_alias_defaults(object_type))
+		return mark_legacy_source(archetype_data, object_type) if is_legacy_prefab_alias(object_type) else archetype_data
 	if not OBJECT_LIBRARY.has(canonical_type):
 		return {}
 	var def: Dictionary = OBJECT_LIBRARY[canonical_type]

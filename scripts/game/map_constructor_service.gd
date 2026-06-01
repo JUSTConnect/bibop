@@ -19,10 +19,6 @@ func place_map_constructor_prefab(prefab_id: String, cell: Vector2i, preferred_w
 	var previous_tile_type: int = GridManager.TILE_FLOOR
 	if manager.grid_manager != null and manager.grid_manager.has_method("get_tile"):
 		previous_tile_type = int(manager.grid_manager.call("get_tile", cell))
-	if prefab_id == "floor":
-		manager.grid_manager.call("set_tile", cell, GridManager.TILE_FLOOR)
-		manager._record_map_constructor_change("place", {"entity_kind":"tile", "object_type":"floor", "cell":cell, "summary":"Placed floor at %s" % manager._format_map_constructor_cell(cell), "undo_hint":"Use constructor cleanup/reset tools if needed."})
-		return result
 	if prefab_id == "stepped_floor":
 		manager.grid_manager.call("set_tile", cell, GridManager.TILE_STEPPED_FLOOR)
 		manager._record_map_constructor_change("place", {"entity_kind":"tile", "object_type":"stepped_floor", "cell":cell, "summary":"Placed stepped_floor at %s" % manager._format_map_constructor_cell(cell), "undo_hint":"Use constructor cleanup/reset tools if needed."})

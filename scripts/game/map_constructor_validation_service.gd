@@ -114,6 +114,15 @@ func validate_constructor_palette_contract() -> Array[String]:
 	if not WorldObjectCatalogRef.get_wall_material_quick_presets().is_empty():
 		warnings.append("wall_material_quick_presets_forbidden")
 	if manager != null and is_instance_valid(manager):
+		var floor_palette_count: int = 0
+		for palette_row in manager.get_map_constructor_prefab_catalog():
+			var palette_id: String = _safe_string(palette_row.get("id", "")).strip_edges().to_lower()
+			if palette_id == "floor":
+				floor_palette_count += 1
+			elif palette_id == "stepped_floor" or WorldObjectCatalogRef.LEGACY_FLOOR_IDS.has(palette_id):
+				warnings.append("constructor_palette_exposes_floor_variant_%s" % palette_id)
+		if floor_palette_count != 1:
+			warnings.append("constructor_palette_expected_one_floor_row_got_%d" % floor_palette_count)
 		for object_variant in manager.mission_world_objects:
 			if typeof(object_variant) != TYPE_DICTIONARY:
 				continue
@@ -745,12 +754,13 @@ func get_map_constructor_validation_issues() -> Array[Dictionary]:
 			issues.append(_make_map_constructor_issue("palette_legacy_alias_%s" % palette_prefab_id, "error", "Map Constructor palette exposes legacy alias: %s." % palette_prefab_id, Vector2i(-1, -1), source_name, "palette", palette_prefab_id, "Expose its canonical WorldObjectCatalog type instead."))
 		var canonical_palette_prefab_id: String = _safe_string(palette_entry.get("canonical_object_type", WorldObjectCatalogRef.canonical_object_type(palette_prefab_id))).strip_edges().to_lower()
 		var is_constructor_only_prefab: bool = explicit_prefab_metadata.has(palette_prefab_id) and not palette_entry.has("canonical_object_type")
-		if not WorldObjectCatalogRef.OBJECT_LIBRARY.has(canonical_palette_prefab_id) and not is_constructor_only_prefab:
+		var is_archetype_prefab: bool = not WorldObjectCatalogRef.get_archetype_definition(palette_prefab_id).is_empty()
+		if not WorldObjectCatalogRef.OBJECT_LIBRARY.has(canonical_palette_prefab_id) and not is_archetype_prefab and not is_constructor_only_prefab:
 			issues.append(_make_map_constructor_issue("palette_unknown_prefab_%s" % palette_prefab_id, "error", "Map Constructor palette prefab has no canonical WorldObjectCatalog runtime type: %s." % palette_prefab_id, Vector2i(-1, -1), source_name, "palette", palette_prefab_id, "Add a canonical catalog object or keep this as an explicit constructor-only tile/item shortcut."))
-		if WorldObjectCatalogRef.OBJECT_LIBRARY.has(canonical_palette_prefab_id):
+		if WorldObjectCatalogRef.OBJECT_LIBRARY.has(canonical_palette_prefab_id) or is_archetype_prefab:
 			var normalized_palette_object: Dictionary = WorldObjectCatalogRef.create_world_object(palette_prefab_id, "validation_palette_%s" % palette_prefab_id)
 			var runtime_object_type: String = _safe_string(normalized_palette_object.get("object_type", "")).strip_edges().to_lower()
-			if not WorldObjectCatalogRef.OBJECT_LIBRARY.has(runtime_object_type):
+			if not WorldObjectCatalogRef.OBJECT_LIBRARY.has(runtime_object_type) and not is_archetype_prefab:
 				issues.append(_make_map_constructor_issue("palette_unknown_runtime_type_%s" % palette_prefab_id, "error", "Map Constructor palette prefab would create unknown runtime object_type: %s." % runtime_object_type, Vector2i(-1, -1), source_name, "palette", palette_prefab_id, "Normalize placement through WorldObjectCatalog."))
 			if WorldObjectCatalogRef.is_legacy_prefab_alias(runtime_object_type):
 				issues.append(_make_map_constructor_issue("palette_runtime_legacy_alias_%s" % palette_prefab_id, "error", "Map Constructor palette prefab normalizes to legacy runtime object_type: %s." % runtime_object_type, Vector2i(-1, -1), source_name, "palette", palette_prefab_id, "Store legacy ids only as map_constructor_prefab_id metadata."))
