@@ -7809,6 +7809,8 @@ func has_collected_runtime_key(key_id: String) -> bool:
 	return bool(mission_manager.call("has_collected_key", key_id))
 
 func has_collected_mechanical_keycard() -> bool:
+	if mission_manager != null and mission_manager.has_method("has_keycard_access"):
+		return bool(mission_manager.call("has_keycard_access", "key_card"))
 	if mission_manager == null or not mission_manager.has_method("get_inventory_state"):
 		return false
 	var inventory: Dictionary = mission_manager.call("get_inventory_state")
@@ -7846,7 +7848,7 @@ func _get_held_cable_end_metadata() -> Dictionary:
 	if mission_manager == null or not mission_manager.has_method("get_inventory_state"):
 		return {"held": false, "reel_id": "", "end_index": 0}
 	var inventory: Dictionary = Dictionary(mission_manager.call("get_inventory_state"))
-	var held_id: String = String(inventory.get("manipulator_hold", "")).strip_edges()
+	var held_id: String = _runtime_inventory_value_id(inventory.get("manipulator_hold", ""))
 	var held_id_lower: String = held_id.to_lower()
 	if held_id_lower.find("cable_end") >= 0 or held_id_lower.find("wire_end") >= 0:
 		return {"held": true, "reel_id": String(inventory.get("held_cable_reel_id", "")), "end_index": int(inventory.get("held_cable_end_index", 0)), "held_id": held_id}
@@ -8175,8 +8177,10 @@ func interact() -> void:
 			if cell_items.is_empty():
 				continue
 			var item: Dictionary = Dictionary(cell_items[0])
-			var is_digital_item := String(item.get("item_form", "physical")) == "digital"
-			var item_actor := {"manipulator_occupied": not is_digital_item and not can_use_physical_hand()}
+			var storage_class: String = WorldObjectCatalog.get_item_storage_class(item)
+			var is_digital_item: bool = storage_class == WorldObjectCatalog.ITEM_STORAGE_CLASS_DIGITAL
+			var requires_free_manipulator: bool = storage_class == WorldObjectCatalog.ITEM_STORAGE_CLASS_PHYSICAL
+			var item_actor := {"manipulator_occupied": requires_free_manipulator and not can_use_physical_hand()}
 			var item_result: Dictionary = Dictionary(InteractionSystemRef.apply_action(item_actor, {"id": active_manipulator.id if active_manipulator != null else ""}, item, "pickup"))
 			if bool(item_result.get("success", false)):
 				var item_id: String = String(item.get("id", ""))
@@ -8187,17 +8191,17 @@ func interact() -> void:
 					hint_requested.emit(String(pickup_result.get("message", "Cannot pick up item: %s" % ", ".join(Array(pickup_result.get("reasons", []))))))
 					return
 				if is_digital_item:
-					store_digital_record(item_id if not item_id.is_empty() else "item_record", String(item.get("display_name", "Item")), "Recovered digital world item.")
+					buffer_item = item.duplicate(true)
+					buffer_item["item_form"] = "digital"
 					var item_type := String(item.get("item_type", item.get("id", "")))
 					var digital_state := String(item.get("digital_state", item.get("state", "opened")))
 					var item_family := String(item.get("item_family", infer_digital_item_family(item_type)))
 					digital_world_records[item_family] = {"item_family": item_family, "item_type": item_type, "digital_state": digital_state}
 					hint_requested.emit("Pickup digital: item stored.")
 				else:
-					var physical_item_type := String(item.get("item_type", item.get("object_type", ""))).to_lower()
-					var key_kind := String(item.get("key_kind", "")).strip_edges()
-					if not key_kind.is_empty() or physical_item_type.contains("key") or physical_item_type == "access_code":
-						hint_requested.emit("Picked up %s" % String(item.get("display_name", "key")))
+					var pickup_message: String = String(pickup_result.get("message", ""))
+					if not pickup_message.is_empty():
+						hint_requested.emit(pickup_message)
 					else:
 						hint_requested.emit("Picked up %s" % String(item.get("display_name", "item")))
 				clear_selected_world_action_if_invalid({}, item_cell)
@@ -8251,6 +8255,10 @@ func interact() -> void:
 					return
 			if action_id in ["plug_in", "connect_wire_end", "connect_wire_1", "connect_wire_2"] and not _has_manipulator_cable_end():
 				hint_requested.emit("Cable reel wire end not found.")
+				status_changed.emit()
+				return
+			if action_id == "unlock" and WorldObjectCatalog.normalize_access_type(world_object.get("access_type", world_object.get("lock_type", ""))) == WorldObjectCatalog.ACCESS_TYPE_KEY_CARD and not can_use_physical_hand():
+				hint_requested.emit("Free manipulator required.")
 				status_changed.emit()
 				return
 			if action_id.is_empty():
@@ -9067,7 +9075,7 @@ func can_use_physical_hand() -> bool:
 		return false
 	if mission_manager != null and mission_manager.has_method("get_inventory_state"):
 		var inventory: Dictionary = Dictionary(mission_manager.call("get_inventory_state"))
-		if not String(inventory.get("manipulator_hold", "")).strip_edges().is_empty():
+		if not _runtime_inventory_value_id(inventory.get("manipulator_hold", "")).is_empty():
 			return false
 	return true
 
@@ -9082,7 +9090,7 @@ func has_held_world_item(item_type: String) -> bool:
 	if mission_manager == null or not mission_manager.has_method("get_inventory_state"):
 		return false
 	var inventory: Dictionary = Dictionary(mission_manager.call("get_inventory_state"))
-	var held_id: String = String(inventory.get("manipulator_hold", "")).strip_edges()
+	var held_id: String = _runtime_inventory_value_id(inventory.get("manipulator_hold", ""))
 	if held_id.is_empty():
 		return false
 	var runtime_map: Dictionary = Dictionary(inventory.get("world_item_runtime", {}))
@@ -9097,15 +9105,9 @@ func consume_held_world_item_if_type(item_type: String) -> bool:
 	buffer_item.clear()
 	if mission_manager != null and mission_manager.has_method("get_inventory_state"):
 		var inventory: Dictionary = Dictionary(mission_manager.call("get_inventory_state"))
-		var held_id: String = String(inventory.get("manipulator_hold", "")).strip_edges()
-		if not held_id.is_empty():
-			if mission_manager.has_method("drop_inventory_item"):
-				mission_manager.call("drop_inventory_item", held_id, Vector2i(-1, -1))
-			inventory["manipulator_hold"] = ""
-			var consumed_ids: Array = Array(inventory.get("consumed_item_ids", []))
-			if not consumed_ids.has(held_id):
-				consumed_ids.append(held_id)
-			inventory["consumed_item_ids"] = consumed_ids
+		var held_id: String = _runtime_inventory_value_id(inventory.get("manipulator_hold", ""))
+		if not held_id.is_empty() and mission_manager.has_method("clear_manipulator"):
+			mission_manager.call("clear_manipulator")
 	return true
 
 func infer_digital_item_family(item_type: String) -> String:
@@ -9231,7 +9233,7 @@ func drop_held_item() -> void:
 
 	if mission_manager != null and mission_manager.has_method("get_inventory_state"):
 		var inventory: Dictionary = Dictionary(mission_manager.call("get_inventory_state"))
-		var held_world_item_id: String = String(inventory.get("manipulator_hold", "")).strip_edges()
+		var held_world_item_id: String = _runtime_inventory_value_id(inventory.get("manipulator_hold", ""))
 		if not held_world_item_id.is_empty():
 			var target_cell: Vector2i = _get_runtime_inventory_drop_cell()
 			if target_cell == Vector2i(-1, -1):
@@ -9367,14 +9369,24 @@ func get_runtime_manipulator_items() -> Array:
 			runtime_items.append(manipulator_items[index])
 	return runtime_items
 
+func _runtime_inventory_value_id(value: Variant) -> String:
+	if value is String or value is StringName:
+		return String(value).strip_edges()
+	if value is Dictionary:
+		return String(Dictionary(value).get("id", Dictionary(value).get("item_id", ""))).strip_edges()
+	return ""
+
 func _get_held_runtime_world_item_id() -> String:
 	if mission_manager == null or not mission_manager.has_method("get_inventory_state"):
 		return ""
 	var inventory_variant: Variant = mission_manager.call("get_inventory_state")
 	if typeof(inventory_variant) != TYPE_DICTIONARY:
 		return ""
+	if mission_manager.has_method("get_manipulator_item_id"):
+		return String(mission_manager.call("get_manipulator_item_id"))
 	var inventory: Dictionary = inventory_variant
-	return String(inventory.get("manipulator_hold", "")).strip_edges()
+	var held_value: Variant = inventory.get("manipulator_hold", "")
+	return String(held_value).strip_edges() if held_value is String or held_value is StringName else ""
 
 func get_available_pocket_slots() -> int:
 	return clampi(available_pocket_slots, 0, get_max_pocket_slots())
@@ -9406,6 +9418,11 @@ func get_buffer_item() -> Variant:
 	return buffer_item
 
 func _is_digital_storage_item(item: Dictionary, allow_untyped_storage_record: bool = false) -> bool:
+	var storage_class: String = WorldObjectCatalog.get_item_storage_class(item)
+	if storage_class in [WorldObjectCatalog.ITEM_STORAGE_CLASS_PHYSICAL, WorldObjectCatalog.ITEM_STORAGE_CLASS_KEY_CARD]:
+		return false
+	if storage_class == WorldObjectCatalog.ITEM_STORAGE_CLASS_DIGITAL:
+		return true
 	var item_form: String = String(item.get("item_form", "")).strip_edges().to_lower()
 	var item_type: String = String(item.get("item_type", item.get("id", ""))).strip_edges().to_lower()
 	if item_form == "physical" or item_type in ["fuse", "repair_kit", "cable_end"] or item_type.contains("cable_end") or item_type.contains("wire_end"):
@@ -9438,6 +9455,8 @@ func move_buffer_to_first_free_storage() -> Dictionary:
 		return {"ok": false, "message": "Storage already contains this record."}
 	digital_storage[record_id] = buffer_item.duplicate(true)
 	buffer_item.clear()
+	if mission_manager != null and mission_manager.has_method("move_runtime_digital_buffer_to_storage"):
+		mission_manager.call("move_runtime_digital_buffer_to_storage", record_id)
 	status_changed.emit()
 	return {"ok": true, "message": "Stored buffered digital record."}
 
@@ -9460,6 +9479,8 @@ func move_or_swap_storage_slot_with_buffer(storage_index: int) -> Dictionary:
 		buffer_item = stored_record.duplicate(true)
 		buffer_item["item_form"] = "digital"
 		digital_storage.erase(stored_record_id)
+		if mission_manager != null and mission_manager.has_method("move_runtime_digital_storage_to_buffer"):
+			mission_manager.call("move_runtime_digital_storage_to_buffer", String(stored_record_id))
 		status_changed.emit()
 		return {"ok": true, "message": "Loaded storage record into buffer."}
 	if not _is_digital_storage_item(buffer_item):
@@ -9474,16 +9495,18 @@ func move_or_swap_storage_slot_with_buffer(storage_index: int) -> Dictionary:
 	digital_storage[buffered_record_id] = buffered_record
 	buffer_item = stored_record.duplicate(true)
 	buffer_item["item_form"] = "digital"
+	if mission_manager != null and mission_manager.has_method("swap_runtime_digital_buffer_and_storage"):
+		mission_manager.call("swap_runtime_digital_buffer_and_storage", buffered_record_id, String(stored_record_id))
 	status_changed.emit()
 	return {"ok": true, "message": "Swapped buffer and storage records."}
 
 func move_manipulator_to_first_free_pocket(manipulator_index: int) -> Dictionary:
 	if manipulator_index == 0 and mission_manager != null and mission_manager.has_method("get_inventory_state"):
 		var inventory: Dictionary = Dictionary(mission_manager.call("get_inventory_state"))
-		if not String(inventory.get("manipulator_hold", "")).strip_edges().is_empty():
+		if not _runtime_inventory_value_id(inventory.get("manipulator_hold", "")).is_empty():
 			var runtime_pocket: Array = Array(inventory.get("pocket_items", []))
 			for pocket_index in range(get_available_pocket_slots()):
-				if pocket_index >= runtime_pocket.size() or String(runtime_pocket[pocket_index]).strip_edges().is_empty():
+				if pocket_index >= runtime_pocket.size() or _runtime_inventory_value_id(runtime_pocket[pocket_index]).is_empty():
 					var result: Dictionary = Dictionary(mission_manager.call("move_runtime_manipulator_to_pocket", pocket_index, get_available_pocket_slots()))
 					status_changed.emit()
 					return result
@@ -9505,8 +9528,8 @@ func move_or_swap_pocket_slot_with_manipulator(pocket_index: int, manipulator_in
 	if manipulator_index == 0 and mission_manager != null and mission_manager.has_method("get_inventory_state"):
 		var inventory: Dictionary = Dictionary(mission_manager.call("get_inventory_state"))
 		var runtime_pocket: Array = Array(inventory.get("pocket_items", []))
-		var runtime_pocket_id: String = String(runtime_pocket[pocket_index]).strip_edges() if pocket_index >= 0 and pocket_index < runtime_pocket.size() else ""
-		if not String(inventory.get("manipulator_hold", "")).strip_edges().is_empty() or not runtime_pocket_id.is_empty():
+		var runtime_pocket_id: String = _runtime_inventory_value_id(runtime_pocket[pocket_index]) if pocket_index >= 0 and pocket_index < runtime_pocket.size() else ""
+		if not _runtime_inventory_value_id(inventory.get("manipulator_hold", "")).is_empty() or not runtime_pocket_id.is_empty():
 			var result: Dictionary = Dictionary(mission_manager.call("move_or_swap_runtime_pocket_slot_with_manipulator", pocket_index, get_available_pocket_slots()))
 			status_changed.emit()
 			return result
@@ -9540,6 +9563,8 @@ func move_digital_storage_to_buffer(storage_index: int) -> bool:
 	buffer_item = record_data.duplicate(true)
 	buffer_item["item_form"] = "digital"
 	digital_storage.erase(record_id)
+	if mission_manager != null and mission_manager.has_method("move_runtime_digital_storage_to_buffer"):
+		mission_manager.call("move_runtime_digital_storage_to_buffer", String(record_id))
 	hint_requested.emit("Loaded into digital buffer: %s." % String(buffer_item.get("display_name", buffer_item.get("id", "record"))))
 	status_changed.emit()
 	return true
@@ -9560,6 +9585,8 @@ func move_buffer_to_digital_storage() -> bool:
 		return false
 	digital_storage[record_id] = buffer_item.duplicate(true)
 	buffer_item.clear()
+	if mission_manager != null and mission_manager.has_method("move_runtime_digital_buffer_to_storage"):
+		mission_manager.call("move_runtime_digital_buffer_to_storage", record_id)
 	hint_requested.emit("Stored buffered digital record.")
 	status_changed.emit()
 	return true
