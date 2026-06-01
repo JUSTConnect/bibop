@@ -180,9 +180,10 @@ static func add_archetype_schema_properties(ui: Variant, section: VBoxContainer,
 		var current_value: Variant = data.get(field_name, row.get("default"))
 		if field_type == "enum":
 			var options: Array[Dictionary] = []
+			var labels: Dictionary = MapConstructorUiSafe.safe_dictionary(row.get("labels", {}))
 			for value_variant in MapConstructorUiSafe.safe_array(row.get("values", [])):
 				var value: String = MapConstructorUiSafe.safe_string(value_variant)
-				options.append({"label":value.replace("_", " ").capitalize(), "value":value})
+				options.append({"label":MapConstructorUiSafe.safe_string(labels.get(value, value.replace("_", " ").capitalize())), "value":value})
 			add_enum_property(ui, section, field_name.replace("_", " ").capitalize(), entity_kind, entity_id, field_name, current_value, options)
 		elif field_type == "enum_array":
 			add_enum_array_property(ui, section, field_name.replace("_", " ").capitalize(), entity_kind, entity_id, field_name, current_value, MapConstructorUiSafe.safe_array(row.get("values", [])))

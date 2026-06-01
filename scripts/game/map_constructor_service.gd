@@ -19,10 +19,6 @@ func place_map_constructor_prefab(prefab_id: String, cell: Vector2i, preferred_w
 	var previous_tile_type: int = GridManager.TILE_FLOOR
 	if manager.grid_manager != null and manager.grid_manager.has_method("get_tile"):
 		previous_tile_type = int(manager.grid_manager.call("get_tile", cell))
-	if prefab_id == "floor":
-		manager.grid_manager.call("set_tile", cell, GridManager.TILE_FLOOR)
-		manager._record_map_constructor_change("place", {"entity_kind":"tile", "object_type":"floor", "cell":cell, "summary":"Placed floor at %s" % manager._format_map_constructor_cell(cell), "undo_hint":"Use constructor cleanup/reset tools if needed."})
-		return result
 	if prefab_id == "stepped_floor":
 		manager.grid_manager.call("set_tile", cell, GridManager.TILE_STEPPED_FLOOR)
 		manager._record_map_constructor_change("place", {"entity_kind":"tile", "object_type":"stepped_floor", "cell":cell, "summary":"Placed stepped_floor at %s" % manager._format_map_constructor_cell(cell), "undo_hint":"Use constructor cleanup/reset tools if needed."})
@@ -73,7 +69,10 @@ func place_map_constructor_prefab(prefab_id: String, cell: Vector2i, preferred_w
 	var requested_object_group: String = String(constructor_preview.get("object_group", ""))
 	var requested_material: String = String(constructor_preview.get("material", ""))
 	var placed_tile_type: int = previous_tile_type
-	if prefab_id.ends_with("_wall") or prefab_id == "outer_wall":
+	if String(constructor_preview.get("replaces_tile_with", "")) == "floor":
+		placed_tile_type = GridManager.TILE_FLOOR
+		manager.grid_manager.call("set_tile", cell, placed_tile_type)
+	elif prefab_id.ends_with("_wall") or prefab_id == "outer_wall":
 		placed_tile_type = GridManager.TILE_WALL
 		manager.grid_manager.call("set_tile", cell, placed_tile_type)
 	elif requested_door_type == WorldObjectCatalogRef.DOOR_TYPE_POWERED:
