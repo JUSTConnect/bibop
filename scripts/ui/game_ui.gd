@@ -12948,6 +12948,39 @@ func update_diagnostic_status() -> void:
 	if hud_diagnostic_label == null:
 		return
 
+	if bipob.has_method("get_facing_device_diagnostic_result"):
+		var runtime_diagnostic_variant: Variant = bipob.call("get_facing_device_diagnostic_result")
+		var runtime_diagnostic: Dictionary = Dictionary(runtime_diagnostic_variant) if typeof(runtime_diagnostic_variant) == TYPE_DICTIONARY else {}
+		if not runtime_diagnostic.is_empty():
+			var missing_labels: Array[String] = []
+			for missing_variant in Array(runtime_diagnostic.get("missing", [])):
+				if typeof(missing_variant) == TYPE_DICTIONARY:
+					missing_labels.append(String(Dictionary(missing_variant).get("label", "Requirement missing")))
+			var available_labels: Array[String] = []
+			for action_variant in Array(runtime_diagnostic.get("available_actions", [])):
+				if typeof(action_variant) == TYPE_DICTIONARY:
+					available_labels.append(String(Dictionary(action_variant).get("label", Dictionary(action_variant).get("id", "Action"))))
+			var blocked_labels: Array[String] = []
+			for action_variant in Array(runtime_diagnostic.get("blocked_actions", [])):
+				if typeof(action_variant) == TYPE_DICTIONARY:
+					var action: Dictionary = action_variant
+					blocked_labels.append("%s (%s)" % [String(action.get("label", action.get("id", "Action"))), String(action.get("reason", "blocked"))])
+			hud_diagnostic_label.text = "Diagnostic:\nDevice: %s\nType: %s / %s / %s / %s\nState: %s / %s\nRequirements: %s\nMissing: %s\nAvailable: %s\nBlocked: %s\nSummary: %s" % [
+				String(runtime_diagnostic.get("target_name", "Unknown device")),
+				String(runtime_diagnostic.get("target_type", "unknown")),
+				String(runtime_diagnostic.get("door_type", "n/a")),
+				String(runtime_diagnostic.get("material", "n/a")),
+				String(runtime_diagnostic.get("access_type", "n/a")),
+				String(runtime_diagnostic.get("state", "unknown")),
+				String(runtime_diagnostic.get("power_state", "unknown")),
+				JSON.stringify(runtime_diagnostic.get("requirements", {})),
+				", ".join(missing_labels) if not missing_labels.is_empty() else "none",
+				", ".join(available_labels) if not available_labels.is_empty() else "none",
+				", ".join(blocked_labels) if not blocked_labels.is_empty() else "none",
+				String(runtime_diagnostic.get("summary", ""))
+			]
+			return
+
 	var result = bipob.last_diagnostic_result
 	if result == null:
 		hud_diagnostic_label.text = "Diagnostic: none"
