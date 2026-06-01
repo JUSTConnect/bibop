@@ -11,7 +11,7 @@ static func add_link_picker(ui: Variant, section: VBoxContainer, entity_kind: St
 	var data_variant: Variant = entity_info.get("data", {})
 	if data_variant is Dictionary:
 		data = data_variant.duplicate(true)
-	var field_map: Dictionary = {"linked_door":"target_door_id","power_network":"power_network_id","control_source":"control_source_id","terminal_target":"target_door_id","platform_target":"target_platform_id","power_source":"power_source_id","control_terminal":"control_terminal_id","access_terminal":"access_terminal_id"}
+	var field_map: Dictionary = {"linked_terminal":"linked_terminal_id","linked_door":"target_door_id","power_network":"power_network_id","control_source":"control_source_id","terminal_target":"target_door_id","platform_target":"target_platform_id","power_source":"power_source_id","control_terminal":"control_terminal_id","access_terminal":"access_terminal_id"}
 	if not field_map.has(link_type):
 		return
 	var field_name: String = ui._safe_ui_string(field_map[link_type])
@@ -271,13 +271,17 @@ static func add_map_constructor_object_link_sections(ui: Variant, link_section: 
 		add_key_door_link_section(ui, link_section, entity_kind, entity_id, data)
 	if type_group == "door":
 		add_door_linked_key_section(ui, link_section, entity_id, data)
+		add_link_picker(ui, link_section, entity_kind, entity_id, "linked_terminal", "Linked Terminal")
 	if type_group == "terminal":
-		add_link_picker(ui, link_section, entity_kind, entity_id, "linked_door", "Linked Door")
-		add_link_picker(ui, link_section, entity_kind, entity_id, "terminal_target", "Terminal Target")
+		var controlled_target_type: String = ui._safe_ui_string(data.get("controlled_target_type", "none")).to_lower()
+		if controlled_target_type == "door":
+			add_link_picker(ui, link_section, entity_kind, entity_id, "linked_door", "Linked Door")
+		elif controlled_target_type == "platform":
+			add_link_picker(ui, link_section, entity_kind, entity_id, "platform_target", "Platform Target")
 	if type_group == "power":
 		add_link_picker(ui, link_section, entity_kind, entity_id, "power_source", "Linked Power Source")
 		add_link_picker(ui, link_section, entity_kind, entity_id, "power_network", "Power Network")
-	var control_visible: bool = type_group == "control" or data.has("control_source_id") or data.has("target_door_id") or data.has("target_platform_id")
+	var control_visible: bool = type_group == "control"
 	if control_visible:
 		add_link_picker(ui, link_section, entity_kind, entity_id, "control_source", "Control Source")
 		add_link_picker(ui, link_section, entity_kind, entity_id, "linked_door", "Linked Door")

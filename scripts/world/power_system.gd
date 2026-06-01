@@ -165,6 +165,9 @@ static func _get_circuit_switch_next_cells(switch_obj: Dictionary, switch_cell: 
 	return next_cells
 
 static func _apply_powered_state(obj: Dictionary, powered: bool) -> void:
+	var power_mode: String = String(obj.get("power_type", obj.get("power_mode", "external"))).trim_suffix("_power")
+	if power_mode == "internal":
+		powered = true
 	if _is_power_source_object(obj):
 		obj["is_powered"] = _is_source_on(obj)
 		return

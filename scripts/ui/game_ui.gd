@@ -176,6 +176,7 @@ var runtime_world_actions_selected_button: Button = null
 var runtime_map_constructor_palette_panel: PanelContainer = null
 var runtime_map_constructor_inspector_panel: PanelContainer = null
 var runtime_map_constructor_inspector_scroll: ScrollContainer = null
+var map_constructor_inspector_expanded: bool = false
 var runtime_object_info_panel: PanelContainer = null
 var runtime_object_info_cell: Vector2i = Vector2i(-1, -1)
 var runtime_map_constructor_validation_overlay_control: ConstructorValidationOverlayControl = null
@@ -4803,7 +4804,7 @@ func _get_map_constructor_palette_rect() -> Rect2:
 	# palettes can continue to use the top-right space without overlap.
 	var top_y: float = margin
 	var mission_panel_top_y: float = viewport.y - _get_runtime_bottom_panel_height() - margin
-	var bottom_y: float = mission_panel_top_y - 8.0
+	var bottom_y: float = viewport.y - margin if map_constructor_mode_active else mission_panel_top_y - 8.0
 	var available_height: float = bottom_y - top_y
 	var height: float = clampf(available_height, 72.0, maxf(72.0, viewport.y - margin * 2.0))
 	if top_y + height > bottom_y and available_height > 0.0:
@@ -4816,7 +4817,8 @@ func _get_map_constructor_bottom_inspector_rect() -> Rect2:
 	var margin: float = _get_runtime_margin()
 	var viewport: Vector2 = _get_viewport_size()
 	var palette_rect: Rect2 = _get_map_constructor_palette_rect()
-	var height: float = clampf(_get_runtime_bottom_panel_height() + 90.0, 230.0, 290.0)
+	var base_height: float = clampf(_get_runtime_bottom_panel_height() + 90.0, 230.0, 290.0)
+	var height: float = base_height * 2.0 if map_constructor_inspector_expanded else base_height
 	var left: float = margin
 	var right: float = clampf(palette_rect.position.x - margin, left + 1.0, viewport.x - margin)
 	var bottom: float = viewport.y - margin
@@ -4830,6 +4832,15 @@ func _set_runtime_bottom_hud_visible(visible_state: bool) -> void:
 	var bottom_left: Control = runtime_hud_root.get_node_or_null("RuntimeBottomLeft") as Control
 	if bottom_left != null:
 		bottom_left.visible = visible_state
+	if runtime_storage_panel != null and is_instance_valid(runtime_storage_panel):
+		runtime_storage_panel.visible = visible_state
+	if not visible_state and runtime_storage_flyout != null and is_instance_valid(runtime_storage_flyout):
+		runtime_storage_flyout.visible = false
+
+
+func _toggle_map_constructor_inspector_expanded() -> void:
+	map_constructor_inspector_expanded = not map_constructor_inspector_expanded
+	_show_map_constructor_inspector(selected_map_constructor_entity_cell, selected_map_constructor_entity_kind, selected_map_constructor_entity_id)
 
 
 func _safe_reparent_control(control: Control, new_parent: Node) -> void:
@@ -12964,12 +12975,12 @@ func _format_runtime_short_message(message: String, fallback_label: String = "")
 	if normalized.find("cut power") >= 0 or normalized.find("power must be cut") >= 0:
 		return "Cut power"
 	for capability_name in ["Connector", "Processor", "Manipulator"]:
-		var capability_prefix: String = "%s level " % capability_name
+		var capability_prefix: String = "%s Version " % capability_name
 		var prefix_index: int = full_message.findn(capability_prefix)
 		if prefix_index >= 0:
 			var level_text: String = full_message.substr(prefix_index + capability_prefix.length()).get_slice(" ", 0).trim_suffix(".")
 			if not level_text.is_empty():
-				return "%s Lv. %s" % [capability_name, level_text]
+				return "%s Version %s" % [capability_name, level_text]
 	var short_fallback: String = _format_runtime_display_text(fallback_label).strip_edges()
 	if not short_fallback.is_empty():
 		return short_fallback
@@ -12979,7 +12990,7 @@ func _format_runtime_requirement_label(requirement_key: String, requirement_valu
 	match requirement_key:
 		"connector_level": return "Connector Lv. %d" % int(requirement_value)
 		"processor_level": return "Processor Lv. %d" % int(requirement_value)
-		"manipulator_level": return "Manipulator Lv. %d" % int(requirement_value)
+		"manipulator_level": return "Manipulator Version %d" % int(requirement_value)
 		"scan_level": return "Scan Lv. %d" % int(requirement_value)
 		"power_required": return "Power required"
 		"power_must_be_cut": return "Power must be cut"

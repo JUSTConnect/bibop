@@ -2453,9 +2453,20 @@ func set_world_object_at_cell(cell: Vector2i, object_data: Dictionary) -> void:
 		return
 	object_data = WorldObjectCatalogRef.normalize_door_state_fields(WorldObjectCatalogRef.normalize_world_object_contract(object_data))
 	object_data["position"] = cell
+	var incoming_group: String = String(object_data.get("object_group", "")).to_lower()
+	var incoming_id: String = String(object_data.get("id", ""))
+	for index in range(mission_world_objects.size() - 1, -1, -1):
+		var existing: Dictionary = mission_world_objects[index]
+		var existing_group: String = String(existing.get("object_group", "")).to_lower()
+		var same_id: bool = not incoming_id.is_empty() and String(existing.get("id", "")) == incoming_id
+		var conflicting_primary: bool = incoming_group in ["door", "terminal"] and existing_group in ["door", "terminal"] and _get_world_object_cell_from_data(existing) == cell
+		if same_id or conflicting_primary:
+			var existing_cell: Vector2i = _get_world_object_cell_from_data(existing)
+			if existing_cell != cell and String(Dictionary(world_objects_by_cell.get(existing_cell, {})).get("id", "")) == String(existing.get("id", "")):
+				world_objects_by_cell.erase(existing_cell)
+			mission_world_objects.remove_at(index)
 	world_objects_by_cell[cell] = object_data
-	if not mission_world_objects.has(object_data):
-		mission_world_objects.append(object_data)
+	mission_world_objects.append(object_data)
 	refresh_world_cooling_received()
 
 func remove_world_object_at_cell(cell: Vector2i) -> void:
@@ -4844,7 +4855,7 @@ func update_map_constructor_entity_properties(entity_kind: String, entity_id: St
 	return {"ok": true, "message": "Updated properties.", "warnings": warnings}
 
 func get_map_constructor_link_candidates(entity_kind: String, entity_id: String, link_type: String) -> Array[Dictionary]:
-	var field_map := {"linked_door":"target_door_id","power_network":"power_network_id","control_source":"control_source_id","terminal_target":"target_door_id","platform_target":"target_platform_id","power_source":"power_source_id","control_terminal":"control_terminal_id","access_terminal":"access_terminal_id"}
+	var field_map := {"linked_terminal":"linked_terminal_id","linked_door":"target_door_id","power_network":"power_network_id","control_source":"control_source_id","terminal_target":"target_door_id","platform_target":"target_platform_id","power_source":"power_source_id","control_terminal":"control_terminal_id","access_terminal":"access_terminal_id"}
 	if not field_map.has(link_type): return []
 	var entity: Dictionary = get_map_constructor_entity_by_id(entity_kind, entity_id)
 	var current_value: String = ""
@@ -4912,7 +4923,7 @@ func _set_map_constructor_key_door_link(entity_kind: String, key_id: String, doo
 	return {"ok": true, "message": "Door link updated.", "target_cell": target_cell, "target_id": normalized_door_id}
 
 func set_map_constructor_entity_link(entity_kind: String, entity_id: String, link_type: String, target_id: String) -> Dictionary:
-	var field_map := {"linked_door":"target_door_id","power_network":"power_network_id","control_source":"control_source_id","terminal_target":"target_door_id","platform_target":"target_platform_id","power_source":"power_source_id","control_terminal":"control_terminal_id","access_terminal":"access_terminal_id","key_door":"linked_door_id"}
+	var field_map := {"linked_terminal":"linked_terminal_id","linked_door":"target_door_id","power_network":"power_network_id","control_source":"control_source_id","terminal_target":"target_door_id","platform_target":"target_platform_id","power_source":"power_source_id","control_terminal":"control_terminal_id","access_terminal":"access_terminal_id","key_door":"linked_door_id"}
 	if not field_map.has(link_type): return {"ok":false,"message":"Unsupported link type.","target_id":target_id}
 	if link_type == "key_door":
 		return _set_map_constructor_key_door_link(entity_kind, entity_id, target_id)
@@ -8762,6 +8773,23 @@ func add_keycard_to_keychain(item_id: String) -> void:
 		collected.append(normalized_id)
 	runtime_inventory_state["collected_key_ids"] = collected
 
+func remove_keycard_if_no_locked_door_requires(item_id: String) -> bool:
+	var normalized_id: String = item_id.strip_edges()
+	if normalized_id.is_empty():
+		return false
+	for object_variant in mission_world_objects:
+		var object_data: Dictionary = Dictionary(object_variant)
+		if String(object_data.get("object_group", "")) != "door":
+			continue
+		if String(object_data.get("required_key_id", "")).strip_edges() == normalized_id and bool(object_data.get("is_locked", object_data.get("locked", false))):
+			return false
+	var collected: Array = get_keychain_ids()
+	if not collected.has(normalized_id):
+		return false
+	collected.erase(normalized_id)
+	runtime_inventory_state["collected_key_ids"] = collected
+	return true
+
 func has_keycard_access(item_id_or_required_key_id: String) -> bool:
 	var normalized_id: String = item_id_or_required_key_id.strip_edges()
 	if not normalized_id.is_empty() and get_keychain_ids().has(normalized_id):
@@ -9008,7 +9036,7 @@ func _get_device_diagnostic_missing(requirements: Dictionary, capabilities: Dict
 		var required_level: int = int(requirements.get("%s_level" % capability_name, 0))
 		var current_level: int = int(capabilities.get("%s_level" % capability_name, 0))
 		if current_level < required_level:
-			_append_device_diagnostic_missing(missing, "%s_level_required" % capability_name, "%s level %d required" % [capability_name.capitalize(), required_level], required_level, current_level)
+			_append_device_diagnostic_missing(missing, "%s_level_required" % capability_name, "%s Version %d required" % [capability_name.capitalize(), required_level], required_level, current_level)
 	if bool(requirements.get("free_manipulator_required", false)) and not bool(capabilities.get("has_free_manipulator", false)):
 		_append_device_diagnostic_missing(missing, "free_manipulator_required", "Free manipulator required")
 	var required_key_id: String = String(requirements.get("required_key_id", "")).strip_edges()
@@ -9111,9 +9139,9 @@ func _get_device_interaction_blocked_message(reason: String, missing_item: Dicti
 	match reason:
 		"key_card_required": return "Key-card required."
 		"free_manipulator_required": return "Free manipulator required."
-		"connector_level_required": return "Connector level %d required." % required_level
-		"processor_level_required": return "Processor level %d required." % required_level
-		"manipulator_level_required": return "Manipulator level %d required." % required_level
+		"connector_level_required": return "Connector Version %d required." % required_level
+		"processor_level_required": return "Processor Version %d required." % required_level
+		"manipulator_level_required": return "Manipulator Version %d required." % required_level
 		"power_required", "unpowered": return "Power required."
 		"power_must_be_cut": return "Cut power to open this device."
 		"terminal_required", "terminal_control_required": return "Use linked terminal."

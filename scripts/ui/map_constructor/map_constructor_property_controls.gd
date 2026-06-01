@@ -78,7 +78,11 @@ static func add_text_property(ui: Variant, section: VBoxContainer, label: String
 static func add_bool_property(ui: Variant, section: VBoxContainer, label: String, entity_kind: String, entity_id: String, field_name: String, current_value: Variant) -> void:
 	var check: CheckBox = CheckBox.new()
 	check.button_pressed = bool(current_value)
+	check.text = "☑ Enabled" if check.button_pressed else "☐ Disabled"
+	check.add_theme_color_override("font_color", ui.UI_COLOR_ACCENT)
+	check.add_theme_color_override("font_pressed_color", ui.UI_COLOR_OK)
 	check.toggled.connect(func(pressed: bool) -> void:
+		check.text = "☑ Enabled" if pressed else "☐ Disabled"
 		if ui.mission_manager_runtime == null or not ui.mission_manager_runtime.has_method("update_map_constructor_entity_properties"):
 			return
 		var result: Dictionary = ui.mission_manager_runtime.call("update_map_constructor_entity_properties", entity_kind, entity_id, {field_name: pressed})
@@ -169,6 +173,12 @@ static func add_enum_array_property(ui: Variant, section: VBoxContainer, label: 
 	)
 	section.add_child(create_property_row(label, menu))
 
+static func get_display_label(field_name: String) -> String:
+	var label: String = field_name.replace("_", " ").capitalize()
+	if field_name in ["required_manipulator_level", "required_connector_level", "required_processor_level"]:
+		label = label.replace(" Level", " Version")
+	return label
+
 static func add_archetype_schema_properties(ui: Variant, section: VBoxContainer, entity_kind: String, entity_id: String, data: Dictionary) -> bool:
 	if ui.mission_manager_runtime == null or not ui.mission_manager_runtime.has_method("get_map_constructor_archetype_property_schema"):
 		return false
@@ -184,13 +194,13 @@ static func add_archetype_schema_properties(ui: Variant, section: VBoxContainer,
 			for value_variant in MapConstructorUiSafe.safe_array(row.get("values", [])):
 				var value: String = MapConstructorUiSafe.safe_string(value_variant)
 				options.append({"label":MapConstructorUiSafe.safe_string(labels.get(value, value.replace("_", " ").capitalize())), "value":value})
-			add_enum_property(ui, section, field_name.replace("_", " ").capitalize(), entity_kind, entity_id, field_name, current_value, options)
+			add_enum_property(ui, section, get_display_label(field_name), entity_kind, entity_id, field_name, current_value, options)
 		elif field_type == "enum_array":
-			add_enum_array_property(ui, section, field_name.replace("_", " ").capitalize(), entity_kind, entity_id, field_name, current_value, MapConstructorUiSafe.safe_array(row.get("values", [])))
+			add_enum_array_property(ui, section, get_display_label(field_name), entity_kind, entity_id, field_name, current_value, MapConstructorUiSafe.safe_array(row.get("values", [])))
 		elif field_type == "bool":
-			add_bool_property(ui, section, field_name.replace("_", " ").capitalize(), entity_kind, entity_id, field_name, current_value)
+			add_bool_property(ui, section, get_display_label(field_name), entity_kind, entity_id, field_name, current_value)
 		elif field_type == "int":
-			add_int_property(ui, section, field_name.replace("_", " ").capitalize(), entity_kind, entity_id, field_name, current_value)
+			add_int_property(ui, section, get_display_label(field_name), entity_kind, entity_id, field_name, current_value)
 		else:
-			add_text_property(ui, section, field_name.replace("_", " ").capitalize(), entity_kind, entity_id, field_name, current_value)
+			add_text_property(ui, section, get_display_label(field_name), entity_kind, entity_id, field_name, current_value)
 	return not schema_rows.is_empty()
