@@ -7926,17 +7926,17 @@ func has_collected_mechanical_keycard() -> bool:
 		var key_id: String = String(key_value).strip_edges()
 		var item_runtime: Dictionary = runtime_map.get(key_id, {})
 		var item_data: Dictionary = item_runtime.get("item_data", {})
-		var item_type: String = String(item_data.get("item_type", item_data.get("object_type", key_id))).strip_edges().to_lower()
-		var key_kind: String = String(item_data.get("key_kind", item_runtime.get("key_kind", ""))).strip_edges().to_lower()
-		if key_kind == "mechanical" or item_type in ["mechanical_keycard", "mechanical_key", "key_card", "keycard"]:
+		if not item_data.has("key_kind") and item_runtime.has("key_kind"):
+			item_data["key_kind"] = item_runtime.get("key_kind", "")
+		if WorldObjectCatalog.is_key_card_item(item_data):
 			return true
 	return false
 
 
 func has_access_for_door(world_object: Dictionary) -> bool:
-	var access_type: String = String(world_object.get("access_type", world_object.get("lock_type", ""))).strip_edges().to_lower()
+	var access_type: String = WorldObjectCatalog.normalize_access_type(world_object.get("access_type", world_object.get("lock_type", "")))
 	var required_key_id: String = String(world_object.get("required_key_id", "")).strip_edges()
-	if access_type in ["none", "no_key"] or required_key_id.is_empty():
+	if access_type == WorldObjectCatalog.ACCESS_TYPE_NO_KEY or required_key_id.is_empty():
 		return true
 	return has_collected_runtime_key(required_key_id)
 

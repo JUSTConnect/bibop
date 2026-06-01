@@ -68,7 +68,10 @@ func place_map_constructor_prefab(prefab_id: String, cell: Vector2i, preferred_w
 		return result
 	var canonical_prefab_id: String = WorldObjectCatalogRef.canonical_object_type(prefab_id)
 	var constructor_prefab_defaults: Dictionary = WorldObjectCatalogRef.get_prefab_alias_defaults(prefab_id)
-	var requested_door_type: String = String(constructor_prefab_defaults.get("door_type", ""))
+	var constructor_preview: Dictionary = WorldObjectCatalogRef.create_world_object(prefab_id, "constructor_preview")
+	var requested_door_type: String = String(constructor_preview.get("door_type", constructor_prefab_defaults.get("door_type", "")))
+	var requested_object_group: String = String(constructor_preview.get("object_group", ""))
+	var requested_material: String = String(constructor_preview.get("material", ""))
 	var placed_tile_type: int = previous_tile_type
 	if prefab_id.ends_with("_wall") or prefab_id == "outer_wall":
 		placed_tile_type = GridManager.TILE_WALL
@@ -76,11 +79,11 @@ func place_map_constructor_prefab(prefab_id: String, cell: Vector2i, preferred_w
 	elif requested_door_type == WorldObjectCatalogRef.DOOR_TYPE_POWERED:
 		placed_tile_type = GridManager.TILE_POWERED_GATE
 		manager.grid_manager.call("set_tile", cell, placed_tile_type)
-	elif canonical_prefab_id in ["steel_door", "reinforced_steel_door", "titanium_door", "grid_door"]:
-		placed_tile_type = GridManager.TILE_DOOR
-		manager.grid_manager.call("set_tile", cell, placed_tile_type)
-	elif canonical_prefab_id == "energy_door":
+	elif requested_object_group == "door" and requested_material == WorldObjectCatalogRef.DOOR_MATERIAL_ENERGY:
 		placed_tile_type = GridManager.TILE_DIGITAL_DOOR
+		manager.grid_manager.call("set_tile", cell, placed_tile_type)
+	elif requested_object_group == "door":
+		placed_tile_type = GridManager.TILE_DOOR
 		manager.grid_manager.call("set_tile", cell, placed_tile_type)
 	var object_id: String = "mapedit_%s_%d" % [prefab_id, manager._map_constructor_runtime_object_seq]
 	manager._map_constructor_runtime_object_seq += 1

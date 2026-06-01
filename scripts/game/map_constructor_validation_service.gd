@@ -34,6 +34,8 @@ func validate_constructor_palette_contract() -> Array[String]:
 		var runtime_type: String = String(object_data.get("object_type", "")).strip_edges()
 		if WorldObjectCatalogRef.is_legacy_prefab_alias(runtime_type):
 			warnings.append("constructor_palette_legacy_runtime_object_type_%s_%s" % [prefab_id, runtime_type])
+		if not WorldObjectCatalogRef.OBJECT_LIBRARY.has(runtime_type):
+			warnings.append("constructor_palette_unknown_runtime_object_type_%s_%s" % [prefab_id, runtime_type])
 		if String(row.get("object_group", "")) == "door":
 			for required_field in ["door_type", "material", "access_type"]:
 				if String(row.get(required_field, "")).strip_edges().is_empty():
@@ -49,8 +51,13 @@ func validate_constructor_palette_contract() -> Array[String]:
 				continue
 			var object_data: Dictionary = object_variant
 			var runtime_type: String = String(object_data.get("object_type", "")).strip_edges()
+			var object_id: String = String(object_data.get("id", ""))
 			if WorldObjectCatalogRef.is_legacy_prefab_alias(runtime_type):
-				warnings.append("constructor_runtime_legacy_object_type_%s_%s" % [String(object_data.get("id", "")), runtime_type])
+				warnings.append("constructor_runtime_legacy_object_type_%s_%s" % [object_id, runtime_type])
+			if String(object_data.get("access_type", "")).strip_edges().to_lower() == "none":
+				warnings.append("constructor_runtime_legacy_access_type_none_%s" % object_id)
+			if object_data.has("lock_type") and not object_data.has("access_type"):
+				warnings.append("constructor_runtime_lock_type_without_access_type_%s" % object_id)
 	return warnings
 
 func _get_manager_dictionary_property(property_name: String) -> Variant:
@@ -711,6 +718,12 @@ func get_map_constructor_validation_issues() -> Array[Dictionary]:
 			issues.append(_make_map_constructor_issue("obj_legacy_alias_%s" % object_id, "error", "Legacy alias object_type was not normalized: %s." % object_type, object_cell, source_name, entity_kind, object_id, "Normalize saved constructor data through WorldObjectCatalog."))
 		elif bool(data.get("created_by_map_constructor", false)) and not WorldObjectCatalogRef.OBJECT_LIBRARY.has(object_type):
 			issues.append(_make_map_constructor_issue("obj_unknown_constructor_type_%s" % object_id, "error", "Constructor object_type is not in WorldObjectCatalog: %s." % object_type, object_cell, source_name, entity_kind, object_id, "Use a canonical WorldObjectCatalog runtime object type."))
+		if String(data.get("access_type", "")).strip_edges().to_lower() == "none":
+			issues.append(_make_map_constructor_issue("obj_legacy_access_none_%s" % object_id, "error", "Legacy access_type=none must be normalized to no_key.", object_cell, source_name, entity_kind, object_id, "Normalize access_type through WorldObjectCatalog."))
+		if data.has("lock_type") and not data.has("access_type"):
+			issues.append(_make_map_constructor_issue("obj_lock_without_access_%s" % object_id, "error", "Legacy lock_type is present without canonical access_type.", object_cell, source_name, entity_kind, object_id, "Populate canonical access_type while retaining lock_type only as compatibility metadata."))
+		if object_group == "door" and WorldObjectCatalogRef.is_material_named_door_object_type(object_type) and String(data.get("door_type", "")).strip_edges().is_empty():
+			issues.append(_make_map_constructor_issue("obj_material_door_missing_mechanism_%s" % object_id, "error", "Material-named door is missing canonical door_type mechanism.", object_cell, source_name, entity_kind, object_id, "Populate canonical door_type."))
 		if object_group.is_empty():
 			issues.append(_make_map_constructor_issue("obj_missing_group_%d" % index, "error", "Object missing object_group.", object_cell, source_name, entity_kind, object_id))
 		if object_cell.x < 0 or object_cell.y < 0:
