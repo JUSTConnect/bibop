@@ -6901,18 +6901,120 @@ func emit_facing_world_object_hint() -> void:
 	return
 
 func get_facing_world_action_target() -> Dictionary:
-	var target_position := get_facing_device_position()
+	var target_position: Vector2i = get_facing_device_position()
 	var target_object: Dictionary = {}
-	var actions: Array[String] = []
 	if mission_manager != null:
 		target_object = Dictionary(mission_manager.get_world_object_at_cell(target_position))
 		if target_object.is_empty():
 			var items: Array = mission_manager.get_items_at_cell(target_position)
 			if not items.is_empty():
 				target_object = Dictionary(items[0])
-		if not target_object.is_empty():
-			actions = get_available_world_actions(target_object, target_position)
-	return {"target_position": target_position, "target_object": target_object, "actions": actions}
+	var view_model: Dictionary = build_runtime_action_view_model(target_object, target_position)
+	return {"target_position": target_position, "target_object": view_model.get("target", {}), "actions": view_model.get("available_action_ids", []), "action_view_model": view_model}
+
+func _build_runtime_action_actor(target_object: Dictionary, target_position: Vector2i) -> Dictionary:
+	return {
+		"manipulator_level": get_installed_manipulator_arm_level(),
+		"heavy_claw_level": get_installed_heavy_claw_level(),
+		"connector_level": maxi(get_installed_connector_level("wired"), get_installed_connector_level("optical")),
+		"wired_connector_level": get_installed_connector_level("wired"),
+		"optical_connector_level": get_installed_connector_level("optical"),
+		"wireless_connector_level": get_installed_connector_level("wireless"),
+		"high_bandwidth_connector_level": get_installed_connector_level("high_bandwidth"),
+		"processor_level": get_installed_processor_level(),
+		"firewall_module_v1": has_module_id("firewall_module_v1"),
+		"power_class": get_bipob_power_class(),
+		"manipulator_occupied": not can_use_physical_hand(),
+		"pocket_full": get_available_pocket_slots() <= 0,
+		"range_to_target": 1,
+		"is_straight_line": true,
+		"magnetic_path_blocked": false,
+		"target_is_grate": target_object.get("object_type", "") == "grate_wall",
+		"facing_direction": get_direction_vector(direction),
+		"target_position": target_position,
+		"actor_position": grid_position,
+		"collected_key_ids": get_collected_runtime_key_ids()
+	}
+
+func _runtime_action_requires_free_manipulator(action_id: String, target_object: Dictionary) -> bool:
+	if action_id == "pickup":
+		return WorldObjectCatalog.get_item_storage_class(target_object) == WorldObjectCatalog.ITEM_STORAGE_CLASS_PHYSICAL
+	return action_id in ["open", "close", "unlock", "switch", "force_open", "push", "pull", "insert_fuse", "repair", "cut", "impact", "take_end_1", "take_end_2", "plug_in", "plug_out", "connect_wire_end", "connect_wire_1", "connect_wire_2", "disconnect_power_wire", "disconnect_wire_1", "disconnect_wire_2"]
+
+func _runtime_action_disabled_label(action_id: String, reason: String, target_object: Dictionary) -> String:
+	match reason:
+		"key_card_required": return "Key-card required"
+		"free_manipulator_required": return "Free manipulator required"
+		"power_must_be_cut": return "Cut power to open"
+		"terminal_control_required": return "Use linked terminal"
+		"digital_access_required": return "Digital access required"
+		"unpowered": return "Unpowered"
+	return get_world_action_display_label(action_id, target_object)
+
+func build_runtime_action_view_model(target_object: Dictionary, target_position: Vector2i) -> Dictionary:
+	var normalized_target: Dictionary = WorldObjectCatalog.normalize_world_object_contract(target_object)
+	if String(normalized_target.get("object_group", "")) == "door":
+		normalized_target = WorldObjectCatalog.normalize_door_contract(normalized_target)
+		normalized_target = WorldObjectCatalog.normalize_door_state_fields(normalized_target)
+	var action_ids: Array[String] = get_available_world_actions(normalized_target, target_position) if not normalized_target.is_empty() else []
+	var group: String = String(normalized_target.get("object_group", ""))
+	var state: String = String(normalized_target.get("state", ""))
+	if group == "door":
+		var expected_door_action: String = ""
+		if state == "open": expected_door_action = "close"
+		elif state == "closed": expected_door_action = "open"
+		elif state == "locked": expected_door_action = "unlock"
+		if not expected_door_action.is_empty() and not action_ids.has(expected_door_action):
+			action_ids.push_front(expected_door_action)
+	var actor: Dictionary = _build_runtime_action_actor(normalized_target, target_position)
+	var descriptors: Array[Dictionary] = []
+	var available_action_ids: Array[String] = []
+	var target_id: String = String(normalized_target.get("id", ""))
+	var target_type: String = String(normalized_target.get("object_type", group))
+	for action_id in action_ids:
+		var module: Dictionary = get_world_action_module(action_id, normalized_target)
+		var gate: Dictionary = InteractionSystemRef.can_apply_action(actor, module, normalized_target, action_id)
+		var enabled: bool = bool(gate.get("success", false))
+		var reason: String = String(gate.get("reason", "ok" if enabled else "action_unavailable"))
+		var requires_free_manipulator: bool = _runtime_action_requires_free_manipulator(action_id, normalized_target)
+		if enabled and requires_free_manipulator and not can_use_physical_hand():
+			enabled = false
+			reason = "free_manipulator_required"
+		if enabled and group == "terminal" and action_id in ["hack", "activate_platform"] and not _is_terminal_powered_for_interaction(normalized_target):
+			enabled = false
+			reason = "unpowered"
+		var label: String = get_world_action_display_label(action_id, normalized_target) if enabled else _runtime_action_disabled_label(action_id, reason, normalized_target)
+		descriptors.append({"id":action_id, "label":label, "enabled":enabled, "reason":reason, "target_id":target_id, "target_type":target_type, "target_cell":target_position, "source":"world_object", "priority":100, "requires_free_manipulator":requires_free_manipulator})
+		if enabled:
+			available_action_ids.append(action_id)
+	var primary: Dictionary = {}
+	for descriptor in descriptors:
+		if bool(descriptor.get("enabled", false)):
+			primary = descriptor
+			break
+	if primary.is_empty() and not descriptors.is_empty():
+		primary = descriptors[0]
+	var disabled_reason: String = String(primary.get("reason", "target_missing" if normalized_target.is_empty() else "no_available_action"))
+	return {"target":normalized_target, "actions":descriptors, "available_action_ids":available_action_ids, "primary_action_id":String(primary.get("id", "")), "primary_action_label":String(primary.get("label", "Action")), "has_available_action":not available_action_ids.is_empty(), "disabled_reason":disabled_reason}
+
+func validate_runtime_action_view_model(view_model: Dictionary) -> Array[String]:
+	var warnings: Array[String] = []
+	var actions: Array = view_model.get("actions", [])
+	var action_ids: Array[String] = []
+	for action_variant in actions:
+		if not action_variant is Dictionary:
+			warnings.append("Action descriptor is not a dictionary.")
+			continue
+		var action: Dictionary = action_variant
+		for required_field in ["id", "label", "enabled", "reason"]:
+			if not action.has(required_field): warnings.append("Action descriptor missing %s." % required_field)
+		var action_id: String = String(action.get("id", ""))
+		if action_id.is_empty(): warnings.append("Action descriptor has no executable id.")
+		else: action_ids.append(action_id)
+		if not bool(action.get("enabled", false)) and String(action.get("reason", "")).is_empty(): warnings.append("Disabled action %s has no reason." % action_id)
+	var primary_action_id: String = String(view_model.get("primary_action_id", ""))
+	if not primary_action_id.is_empty() and not action_ids.has(primary_action_id): warnings.append("Primary action is absent from actions.")
+	return warnings
 
 func get_world_action_display_label(action_id: String, object_data: Dictionary) -> String:
 	match action_id:
@@ -7731,7 +7833,9 @@ func cycle_selected_world_action() -> void:
 	var actions: Array[String] = target_data.get("actions", [])
 	if actions.is_empty():
 		selected_world_action = ""
-		hint_requested.emit("No available action for this object.")
+		var view_model: Dictionary = Dictionary(target_data.get("action_view_model", {}))
+		var unavailable_label: String = String(view_model.get("primary_action_label", ""))
+		hint_requested.emit(unavailable_label if not unavailable_label.is_empty() and unavailable_label != "Action" else "No available action for this object.")
 		refresh_world_action_panel()
 		status_changed.emit()
 		return
@@ -7748,12 +7852,14 @@ func clear_selected_world_action_if_invalid(target_object: Dictionary, target_po
 	if target_object.is_empty():
 		selected_world_action = ""
 		return
-	var actions := get_available_world_actions(target_object, target_position)
+	var view_model: Dictionary = build_runtime_action_view_model(target_object, target_position)
+	var actions: Array = Array(view_model.get("available_action_ids", []))
 	if actions.is_empty() or not actions.has(selected_world_action):
 		selected_world_action = ""
 
 func get_world_object_action_for_context(world_object: Dictionary, _active_module: BipobModule, target_position: Vector2i) -> String:
-	var actions := get_available_world_actions(world_object, target_position)
+	var view_model: Dictionary = build_runtime_action_view_model(world_object, target_position)
+	var actions: Array = Array(view_model.get("available_action_ids", []))
 	if not selected_world_action.is_empty() and actions.has(selected_world_action):
 		return selected_world_action
 	if actions.is_empty():
@@ -8181,7 +8287,7 @@ func interact() -> void:
 			var is_digital_item: bool = storage_class == WorldObjectCatalog.ITEM_STORAGE_CLASS_DIGITAL
 			var requires_free_manipulator: bool = storage_class == WorldObjectCatalog.ITEM_STORAGE_CLASS_PHYSICAL
 			var item_actor := {"manipulator_occupied": requires_free_manipulator and not can_use_physical_hand()}
-			var item_result: Dictionary = Dictionary(InteractionSystemRef.apply_action(item_actor, {"id": active_manipulator.id if active_manipulator != null else ""}, item, "pickup"))
+			var item_result: Dictionary = InteractionSystemRef.normalize_action_result(Dictionary(InteractionSystemRef.apply_action(item_actor, {"id": active_manipulator.id if active_manipulator != null else ""}, item, "pickup")), item, "pickup")
 			if bool(item_result.get("success", false)):
 				var item_id: String = String(item.get("id", ""))
 				var pickup_result := {"success": true, "reasons": ["ok"], "item_id": item_id}
@@ -8262,13 +8368,17 @@ func interact() -> void:
 				status_changed.emit()
 				return
 			if action_id.is_empty():
+				var unavailable_view_model: Dictionary = build_runtime_action_view_model(world_object, target_position)
+				var unavailable_label: String = String(unavailable_view_model.get("primary_action_label", ""))
 				if WorldObjectCatalog.can_world_object_be_moved_by_heavy_claw(world_object) and not has_heavy_claw_capability():
 					hint_requested.emit("Heavy Claw required.")
+				elif not unavailable_label.is_empty() and unavailable_label != "Action":
+					hint_requested.emit(unavailable_label)
 				else:
 					hint_requested.emit("No available action for this object.")
 				status_changed.emit()
 				return
-			var action_result: Dictionary = Dictionary(InteractionSystemRef.apply_action(actor, module, world_object, action_id))
+			var action_result: Dictionary = InteractionSystemRef.normalize_action_result(Dictionary(InteractionSystemRef.apply_action(actor, module, world_object, action_id)), world_object, action_id)
 			if bool(action_result.get("success", false)):
 				if not can_spend_action(1, 1):
 					hint_requested.emit("Not enough action/energy.")

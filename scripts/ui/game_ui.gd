@@ -12646,6 +12646,10 @@ func _on_turn_right_pressed() -> void:
 func _get_runtime_interaction_target_data() -> Dictionary:
 	return RuntimeInteractionPanel.get_target_data(self)
 
+func _get_runtime_action_view_model() -> Dictionary:
+	var target_data: Dictionary = _get_runtime_interaction_target_data()
+	return _safe_ui_dictionary(target_data.get("action_view_model", {}))
+
 func _runtime_action_requires_manipulator(action_id: String, target_object: Dictionary) -> bool:
 	return RuntimeInteractionPanel.action_requires_manipulator(action_id, target_object)
 
@@ -12656,10 +12660,14 @@ func _refresh_runtime_interaction_controls() -> void:
 	RuntimeInteractionPanel.refresh_controls(self)
 	if runtime_action_button == null or runtime_interaction_mode_active:
 		return
-	var target_data: Dictionary = _get_runtime_interaction_target_data()
-	var target_object: Dictionary = _safe_ui_dictionary(target_data.get("target_object", {}))
-	var actions: Array = _safe_ui_array(target_data.get("actions", []))
-	if target_object.is_empty() or actions.is_empty():
+	var view_model: Dictionary = _get_runtime_action_view_model()
+	var target_object: Dictionary = _safe_ui_dictionary(view_model.get("target", {}))
+	var has_available_action: bool = bool(view_model.get("has_available_action", false))
+	runtime_action_button.text = String(view_model.get("primary_action_label", "Action"))
+	runtime_action_button.tooltip_text = String(view_model.get("disabled_reason", "")) if not has_available_action else ""
+	runtime_action_button.disabled = target_object.is_empty() or not has_available_action
+	_apply_action_button_style(runtime_action_button, "primary" if has_available_action else "disabled", has_available_action)
+	if runtime_action_button.disabled:
 		_clear_selected_pulse(runtime_action_button)
 
 func _enter_runtime_interaction_mode() -> void:
@@ -12672,6 +12680,12 @@ func _on_runtime_interaction_action_pressed(action_id: String) -> void:
 	RuntimeInteractionPanel.press_action(self, action_id)
 
 func _on_interact_pressed() -> void:
+	var view_model: Dictionary = _get_runtime_action_view_model()
+	var target_object: Dictionary = _safe_ui_dictionary(view_model.get("target", {}))
+	if not target_object.is_empty() and not bool(view_model.get("has_available_action", false)):
+		show_hint(String(view_model.get("primary_action_label", "No available action for this object.")))
+		_refresh_runtime_interaction_controls()
+		return
 	RuntimeInteractionPanel.press_interact(self)
 
 func _on_use_selected_world_action_pressed() -> void:

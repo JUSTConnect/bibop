@@ -6,9 +6,38 @@ const SUPPORTED_ACTIONS := ["open","close","unlock","input_password","cut","impa
 
 static func can_apply_action(actor: Dictionary, module: Dictionary, target_object: Dictionary, action_type: String) -> Dictionary:
 	if action_type not in SUPPORTED_ACTIONS:
-		return _result(false, "Action not supported.")
+		return _result(false, "Action not supported.", [], "unsupported_action")
 	if target_object.is_empty():
-		return _result(false, "No target object.")
+		return _result(false, "No target object.", [], "target_missing")
+	if _is_door_object(target_object):
+		target_object = _normalize_runtime_door_data(target_object)
+		if action_type in ["open", "close"]:
+			var door_gate: Dictionary = _validate_door_class(actor, target_object)
+			if not bool(door_gate.get("success", false)):
+				return door_gate
+		if action_type == "unlock":
+			var unlock_power_mode: String = String(target_object.get("power_mode", "internal")).strip_edges().to_lower()
+			if unlock_power_mode in ["external", "external_power", "external power"] and bool(target_object.get("is_powered", false)):
+				return _result(false, "Door opens when power is cut.", [], "power_must_be_cut")
+			if _door_requires_terminal(target_object):
+				return _result(false, "Door is controlled by linked terminal.", [], "terminal_control_required")
+			var required_key_id: String = String(target_object.get("required_key_id", "")).strip_edges()
+			var has_required_key: bool = not required_key_id.is_empty() and Array(actor.get("collected_key_ids", [])).has(required_key_id)
+			if not required_key_id.is_empty() and not has_required_key:
+				return _result(false, "Key-card required.", [], "key_card_required")
+			if _door_requires_key_card(target_object) and String(module.get("id", "")).is_empty():
+				return _result(false, "Key-card required.", [], "key_card_required")
+			var access_type: String = _get_door_access_type(target_object)
+			if access_type not in [WorldObjectCatalogRef.ACCESS_TYPE_NO_KEY, WorldObjectCatalogRef.ACCESS_TYPE_KEY_CARD] and String(module.get("id", "")).is_empty():
+				return _result(false, "Digital access required.", [], "digital_access_required")
+			if _door_requires_key_card(target_object) and bool(actor.get("manipulator_occupied", false)):
+				return _result(false, "Free manipulator required.", [], "free_manipulator_required")
+			var unlock_target: Dictionary = target_object.duplicate(true)
+			if unlock_power_mode in ["external", "external_power", "external power"]:
+				unlock_target["power_mode"] = "internal"
+			var unlock_gate: Dictionary = _validate_door_class(actor, unlock_target)
+			if not bool(unlock_gate.get("success", false)):
+				return unlock_gate
 	if action_type == "pickup" and actor.get("manipulator_occupied", false) and not _is_keycard_item(target_object):
 		return _result(false, "Free manipulator required.")
 	if action_type == "hack" and actor.get("processor_level", 0) < target_object.get("required_processor_level", 1):
@@ -449,8 +478,42 @@ static func _validate_weight_class(actor: Dictionary, target_object: Dictionary)
 		return _result(false, "Object is too heavy.")
 	return _result(true, "OK")
 
-static func _result(success: bool, message: String, effects: Array = []) -> Dictionary:
-	return {"success": success, "message": message, "effects": effects}
+static func normalize_action_result(result: Dictionary, target_object: Dictionary, action_id: String) -> Dictionary:
+	var normalized: Dictionary = result.duplicate(true)
+	normalized["success"] = bool(result.get("success", false))
+	normalized["message"] = String(result.get("message", ""))
+	normalized["reason"] = String(result.get("reason", "ok" if bool(normalized["success"]) else "action_unavailable"))
+	normalized["target_id"] = String(target_object.get("id", ""))
+	normalized["action_id"] = action_id
+	var effects_value: Variant = result.get("effects", [])
+	normalized["state_changed"] = effects_value is Array and not effects_value.is_empty()
+	return normalized
+
+static func _reason_from_message(message: String, success: bool) -> String:
+	if success:
+		return "ok"
+	var normalized_message: String = message.strip_edges().to_lower()
+	if normalized_message.find("free manipulator") >= 0:
+		return "free_manipulator_required"
+	if normalized_message.find("key-card") >= 0 or normalized_message.find("matching key") >= 0 or normalized_message.find("key required") >= 0:
+		return "key_card_required"
+	if normalized_message.find("power source") >= 0:
+		return "power_must_be_cut"
+	if normalized_message.find("unpowered") >= 0:
+		return "unpowered"
+	if normalized_message.find("linked terminal") >= 0:
+		return "terminal_control_required"
+	if normalized_message.find("storage buffer") >= 0:
+		return "storage_buffer_required"
+	if normalized_message.find("hack device first") >= 0:
+		return "hack_required"
+	if normalized_message.find("no target") >= 0:
+		return "target_missing"
+	return "action_unavailable"
+
+static func _result(success: bool, message: String, effects: Array = [], reason: String = "") -> Dictionary:
+	var normalized_reason: String = reason if not reason.is_empty() else _reason_from_message(message, success)
+	return {"success": success, "message": message, "reason": normalized_reason, "effects": effects}
 
 
 static func _is_keycard_item(item_data: Dictionary) -> bool:
