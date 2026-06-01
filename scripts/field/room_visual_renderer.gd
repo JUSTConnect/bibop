@@ -2667,10 +2667,10 @@ func draw_iso_wall_grate_accent(left_face: PackedVector2Array, right_face: Packe
 		draw_line(left_face[0].lerp(left_face[1], column), left_face[3].lerp(left_face[2], column), bar_color, 1.7)
 		draw_line(right_face[0].lerp(right_face[1], column), right_face[3].lerp(right_face[2], column), bar_color, 1.7)
 
-func _safe_variant_dictionary(value: Variant, duplicate: bool = false) -> Dictionary:
+func _safe_variant_dictionary(value: Variant, should_duplicate: bool = false) -> Dictionary:
 	if value is Dictionary:
 		var dictionary: Dictionary = Dictionary(value)
-		return dictionary.duplicate(true) if duplicate else dictionary
+		return dictionary.duplicate(true) if should_duplicate else dictionary
 	return {}
 
 func get_floor_atlas_cell_size() -> Vector2:
@@ -2681,12 +2681,12 @@ func get_floor_atlas_cell_size() -> Vector2:
 		float(iso_floor_atlas_texture.get_height()) / float(ISO_FLOOR_ATLAS_ROWS)
 	)
 
-func get_floor_atlas_region(row: int, position: int) -> Rect2:
+func get_floor_atlas_region(row: int, atlas_position: int) -> Rect2:
 	var cell_size: Vector2 = get_floor_atlas_cell_size()
 	if cell_size.x <= 0.0 or cell_size.y <= 0.0:
 		return Rect2()
 	var safe_row: int = clampi(row, 1, ISO_FLOOR_ATLAS_ROWS)
-	var safe_position: int = clampi(position, 1, ISO_FLOOR_ATLAS_COLUMNS)
+	var safe_position: int = clampi(atlas_position, 1, ISO_FLOOR_ATLAS_COLUMNS)
 	return Rect2(Vector2(float(safe_position - 1) * cell_size.x, float(safe_row - 1) * cell_size.y), cell_size)
 
 func get_floor_state_for_cell(cell: Vector2i) -> Dictionary:
@@ -2897,8 +2897,8 @@ func draw_floor_atlas_layer(cell: Vector2i, atlas_key: String, requested_variant
 	var destination_rect: Rect2 = get_floor_atlas_destination_rect()
 	var safe_mirror_h: bool = false if ISO_FLOOR_SEAM_SAFE_BASE_VARIANTS.has(atlas_key) else mirror_h
 	var safe_mirror_v: bool = false if ISO_FLOOR_SEAM_SAFE_BASE_VARIANTS.has(atlas_key) else mirror_v
-	var scale: Vector2 = Vector2(-1.0 if safe_mirror_h else 1.0, -1.0 if safe_mirror_v else 1.0)
-	draw_set_transform(center.round(), 0.0, scale)
+	var visual_scale: Vector2 = Vector2(-1.0 if safe_mirror_h else 1.0, -1.0 if safe_mirror_v else 1.0)
+	draw_set_transform(center.round(), 0.0, visual_scale)
 	draw_texture_rect_region(iso_floor_atlas_texture, destination_rect, safe_source_rect, Color.WHITE, false, true)
 	draw_set_transform(Vector2.ZERO, 0.0, Vector2.ONE)
 	return true

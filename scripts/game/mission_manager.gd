@@ -109,6 +109,8 @@ var runtime_inventory_state := {
 	"collected_key_ids": [],
 	"world_item_runtime": {}
 }
+# Accessed by MapConstructorService when allocating runtime-only constructor IDs.
+@warning_ignore("unused_private_class_variable")
 var _map_constructor_runtime_object_seq: int = 1
 var map_constructor_service: MapConstructorService = null
 var map_constructor_validation_service: MapConstructorValidationService = null
@@ -5133,7 +5135,9 @@ func _normalize_map_constructor_active_object_fields(object_data: Dictionary) ->
 		if not data.has("is_powered"):
 			data["is_powered"] = false
 		if not data.has("physical_connection_source_id"):
-			data["physical_connection_source_id"] = String(data.get("power_source_id", "")).strip_edges()
+			# Physical provenance is traversal-owned. A logical source/network link
+			# must not masquerade as a placed cable route.
+			data["physical_connection_source_id"] = ""
 		if not data.has("damaged"):
 			data["damaged"] = false
 		if not data.has("broken"):
@@ -5230,8 +5234,8 @@ func _normalize_map_constructor_active_object_fields(object_data: Dictionary) ->
 			data["cable_path_cells"] = []
 		if not data.has("cable_length"):
 			data["cable_length"] = 0
-	var control_mode: String = String(data.get("control_mode", "external" if bool(data.get("requires_external_control", false)) else "internal")).strip_edges().to_lower()
-	if control_mode in ["external_control", "external control"]:
+	var control_mode: String = String(data.get("control_type", data.get("control_mode", "external" if bool(data.get("requires_external_control", false)) else "internal"))).strip_edges().to_lower()
+	if control_mode in ["external_control", "external control", "terminal"]:
 		control_mode = "external"
 	if control_mode in ["none", "non", "no", ""]:
 		control_mode = "none"
@@ -5247,6 +5251,7 @@ func _normalize_map_constructor_active_object_fields(object_data: Dictionary) ->
 		data["linked_terminal_id"] = terminal_id
 		data["control_source_id"] = terminal_id
 	if type_group == "door":
+		data["control_type"] = control_mode if control_mode in ["internal", "external"] else "internal"
 		var door_state: String = String(data.get("state", "closed")).strip_edges().to_lower()
 		if not (door_state in ["open", "closed", "locked", "jammed", "damaged"]):
 			door_state = "closed"
@@ -5270,8 +5275,8 @@ func _normalize_map_constructor_active_object_fields(object_data: Dictionary) ->
 		else:
 			data["lock_type"] = "mechanical_key" if access_type == WorldObjectCatalogRef.ACCESS_TYPE_KEY_CARD else access_type
 			if access_type == WorldObjectCatalogRef.ACCESS_TYPE_ACCESS_CODE and String(data.get("access_code_value", "")).strip_edges().is_empty():
-				var seed: int = abs(hash(String(data.get("id", "access_code")))) % 10000
-				data["access_code_value"] = "%04d" % seed
+				var seed_value: int = abs(hash(String(data.get("id", "access_code")))) % 10000
+				data["access_code_value"] = "%04d" % seed_value
 	return WorldObjectCatalogRef.normalize_door_state_fields(data)
 
 func _map_constructor_make_validation_link(label: String, target_id: String, target_kind: String, field_name: String) -> Dictionary:
@@ -5350,10 +5355,10 @@ func toggle_light_switch_links(light_switch_id: String, switch_is_on: bool) -> D
 				warnings.append("Linked light is unpowered: %s." % String(linked_light.get("id", "")))
 	if linked_lights.is_empty():
 		var reason: String = "source_missing" if source_id.is_empty() else "linked_light_missing"
-		var message: String = "Light switch source is missing." if source_id.is_empty() else "Light switch has no linked lights."
+		var local_message: String = "Light switch source is missing." if source_id.is_empty() else "Light switch has no linked lights."
 		if not warnings.is_empty():
-			message = " ".join(warnings)
-		return {"success": false, "updated": 0, "reason": reason, "source_id": source_id, "warnings": warnings, "message": message}
+			local_message = " ".join(warnings)
+		return {"success": false, "updated": 0, "reason": reason, "source_id": source_id, "warnings": warnings, "message": local_message}
 	var message: String = "Linked lights toggled."
 	if not warnings.is_empty():
 		message += " " + " ".join(warnings)
@@ -7327,6 +7332,8 @@ func validate_power_network_runtime_state() -> Dictionary:
 		var state_text := String(object_data.get("state", "")).strip_edges().to_lower()
 		var damaged_or_broken := bool(object_data.get("damaged", false)) or bool(object_data.get("broken", false))
 		if _is_power_source_object(object_data):
+			if not bool(object_data.get("blocks_movement", false)):
+				warnings.append("Power source %s must block movement." % object_id)
 			if threshold > 0 and current_heat >= threshold and state_text != "overheated":
 				warnings.append("Power source %s current_heat >= overheat_threshold but state is not overheated." % object_id)
 			if threshold > 0 and state_text == "overheated" and current_heat < threshold and not damaged_or_broken:
@@ -10317,7 +10324,11 @@ func get_platform_occupant_summary(platform: Dictionary) -> String:
 	if platform_id.is_empty():
 		platform_id = "-"
 	var cells_count := Array(platform.get("platform_cells", [])).size()
-	var occupants := get_platform_occupants(platform_id) if platform_id != "-" else {"world_objects": [], "items": [], "bipobs": []}
+	var occupants: Dictionary
+	if platform_id != "-":
+		occupants = get_platform_occupants(platform_id)
+	else:
+		occupants = {"world_objects": [], "items": [], "bipobs": []}
 	var world_objects: Array = Array(occupants.get("world_objects", []))
 	var items_count := Array(occupants.get("items", [])).size()
 	var bipobs_count := Array(occupants.get("bipobs", [])).size()
@@ -11132,6 +11143,14 @@ func execute_terminal_control_action(terminal_id: String, target_id: String = ""
 		return {"success":false, "terminal_id":terminal_id, "target_id":normalized_target_id, "action":action, "reasons":["target_unpowered"]}
 	if action in ["open_door", "close_door", "unlock_door", "lock_door"] and String(target.get("object_group", "")) != "door":
 		return {"success":false, "terminal_id":terminal_id, "target_id":normalized_target_id, "action":action, "reasons":["target_invalid"]}
+	var door_control_type: String = String(target.get("control_type", target.get("control_mode", "internal"))).strip_edges().to_lower()
+	var door_access_type: String = WorldObjectCatalogRef.normalize_access_type(target.get("access_type", "no_key"))
+	if action in ["open_door", "close_door"] and door_control_type != "external":
+		return {"success":false, "terminal_id":terminal_id, "target_id":normalized_target_id, "action":action, "reasons":["door_uses_internal_control"]}
+	if action == "unlock_door" and door_access_type != WorldObjectCatalogRef.ACCESS_TYPE_TERMINAL:
+		return {"success":false, "terminal_id":terminal_id, "target_id":normalized_target_id, "action":action, "reasons":["door_requires_credential"]}
+	if action == "open_door" and bool(target.get("is_locked", false)):
+		return {"success":false, "terminal_id":terminal_id, "target_id":normalized_target_id, "action":action, "reasons":["locked"]}
 	if action == "open_door": target["state"] = "open"
 	elif action == "close_door": target["state"] = "closed"
 	elif action == "unlock_door": target["state"] = "closed"
@@ -12635,7 +12654,11 @@ func _run_developer_validation_suite_internal(suite: String = "all", include_no_
 	var suites: Array[String] = ["power", "cooling_cable", "terminal_door", "platform_scan_visibility", "inventory_tools_modules", "persistence", "task_test", "module_ports", "connector_processor_migration", "systems_audit"]
 	if include_no_mutation:
 		suites.append("no_mutation")
-	var selected: Array = suites if suite == "all" else [suite]
+	var selected: Array[String]
+	if suite == "all":
+		selected = suites
+	else:
+		selected = [suite]
 	var warnings_by_suite: Dictionary = {}
 	var suites_run := 0
 	for suite_id in selected:

@@ -2,7 +2,7 @@ extends RefCounted
 class_name InteractionSystem
 const WorldObjectCatalogRef = preload("res://scripts/world/world_object_catalog.gd")
 
-const SUPPORTED_ACTIONS := ["open","close","unlock","input_password","cut","impact","force_open","connect","scan","hack","download","drain_energy","pickup","use_item","insert_fuse","remove_fuse","repair","plug_in","plug_out","take_end_1","take_end_2","connect_wire_end","connect_wire_1","connect_wire_2","disconnect_power_wire","disconnect_wire_1","disconnect_wire_2","circuit_1","circuit_2","circuit_3","push","pull","switch","disable","enable","attack","stun","repair_ally"]
+const SUPPORTED_ACTIONS := ["open","close","unlock","input_password","apply_digital_key","access_code_0","access_code_1","access_code_2","access_code_3","access_code_4","access_code_5","access_code_6","access_code_7","access_code_8","access_code_9","cut","impact","force_open","connect","scan","hack","download","drain_energy","pickup","use_item","insert_fuse","remove_fuse","repair","plug_in","plug_out","take_end_1","take_end_2","connect_wire_end","connect_wire_1","connect_wire_2","disconnect_power_wire","disconnect_wire_1","disconnect_wire_2","circuit_1","circuit_2","circuit_3","open_door","close_door","unlock_door","push","pull","switch","disable","enable","attack","stun","repair_ally"]
 
 static func can_apply_action(actor: Dictionary, module: Dictionary, target_object: Dictionary, action_type: String) -> Dictionary:
 	if action_type not in SUPPORTED_ACTIONS:
@@ -20,7 +20,9 @@ static func can_apply_action(actor: Dictionary, module: Dictionary, target_objec
 			if unlock_power_mode in ["external", "external_power", "external power"] and bool(target_object.get("is_powered", false)):
 				return _result(false, "Door opens when power is cut.", [], "power_must_be_cut")
 			if _door_requires_terminal(target_object):
-				return _result(false, "Door is controlled by linked terminal.", [], "terminal_control_required")
+				return _result(false, "Use linked terminal.", [], "terminal_control_required")
+			if _get_door_access_type(target_object) in [WorldObjectCatalogRef.ACCESS_TYPE_DIGITAL_KEY, WorldObjectCatalogRef.ACCESS_TYPE_ACCESS_CODE]:
+				return _result(false, "Use Connector for digital access.", [], "digital_access_required")
 			var required_key_id: String = String(target_object.get("required_key_id", "")).strip_edges()
 			var has_required_key: bool = not required_key_id.is_empty() and Array(actor.get("collected_key_ids", [])).has(required_key_id)
 			if not required_key_id.is_empty() and not has_required_key:
@@ -38,7 +40,7 @@ static func can_apply_action(actor: Dictionary, module: Dictionary, target_objec
 			var unlock_gate: Dictionary = _validate_door_class(actor, unlock_target)
 			if not bool(unlock_gate.get("success", false)):
 				return unlock_gate
-	if action_type == "connect":
+	if action_type == "connect" or action_type == "apply_digital_key" or action_type == "input_password" or action_type.begins_with("access_code_"):
 		if not bool(target_object.get("has_connector_jack", false)):
 			return _result(false, "Connector jack unavailable.", [], "connector_jack_required")
 		var connection_type: String = String(target_object.get("connection_type", "wired"))
@@ -129,13 +131,33 @@ static func apply_action(actor: Dictionary, module: Dictionary, target_object: D
 				return _result(false, "File rejected: encrypted.")
 			if module_id == "digital_key_damaged":
 				return _result(false, "File rejected: damaged.")
+		"apply_digital_key":
+			if group != "door" or _get_door_access_type(target_object) != WorldObjectCatalogRef.ACCESS_TYPE_DIGITAL_KEY:
+				return _result(false, "Digital-key lock not present.")
+			if not bool(target_object.get("connected", false)):
+				return _result(false, "Connect to door first.")
+			if module_id != "digital_key_opened":
+				return _result(false, "Matching Digital Key required.")
+			return _result(true, "Digital Key accepted. Door unlocked.", [{"type":"set_state","state":"closed"}])
 		"input_password":
 			if _get_door_access_type(target_object) != WorldObjectCatalogRef.ACCESS_TYPE_ACCESS_CODE:
-				return _result(false, "Password lock not present.")
-			if module.get("input_password", "") == target_object.get("password", "") and module.get("input_password", "") != "":
-				target_object["state"] = "closed"
-				return _result(true, "Password accepted.")
-			return _result(false, "Password rejected.")
+				return _result(false, "Access-code lock not present.")
+			if not bool(target_object.get("connected", false)):
+				return _result(false, "Connect to door first.")
+			var entered_code: String = String(target_object.get("access_code_entry", ""))
+			var expected_code: String = String(target_object.get("access_code_value", target_object.get("password", "")))
+			if entered_code.length() == 4 and entered_code == expected_code:
+				return _result(true, "Access Code accepted. Door unlocked.", [{"type":"set_state","state":"closed"},{"type":"set_string","field":"access_code_entry","value":""}])
+			return _result(false, "Access Code rejected.")
+		"access_code_0", "access_code_1", "access_code_2", "access_code_3", "access_code_4", "access_code_5", "access_code_6", "access_code_7", "access_code_8", "access_code_9":
+			if group != "door" or _get_door_access_type(target_object) != WorldObjectCatalogRef.ACCESS_TYPE_ACCESS_CODE:
+				return _result(false, "Access-code lock not present.")
+			if not bool(target_object.get("connected", false)):
+				return _result(false, "Connect to door first.")
+			var entry: String = String(target_object.get("access_code_entry", ""))
+			if entry.length() >= 4:
+				return _result(false, "Access Code already has four digits.")
+			return _result(true, "Access Code digit entered.", [{"type":"set_string","field":"access_code_entry","value":entry + action_type.trim_prefix("access_code_")}])
 		"cut":
 			if target_object.get("object_type", "") == "power_cable":
 				target_object["state"] = "damaged"
@@ -455,11 +477,9 @@ static func _door_requires_terminal(object_data: Dictionary) -> bool:
 	return _get_door_access_type(object_data) == WorldObjectCatalogRef.ACCESS_TYPE_TERMINAL
 
 static func _validate_door_class(actor: Dictionary, target_object: Dictionary) -> Dictionary:
-	var control_mode := String(target_object.get("control_mode", "internal")).strip_edges().to_lower()
-	var linked_terminal_id: String = String(target_object.get("control_terminal_id", target_object.get("linked_terminal_id", ""))).strip_edges()
-	var requires_external_control: bool = bool(target_object.get("requires_external_control", false)) or not linked_terminal_id.is_empty()
-	if control_mode in ["external", "external_control", "external control"] and requires_external_control:
-		return _result(false, "Door is controlled by linked terminal.")
+	var control_mode := String(target_object.get("control_type", target_object.get("control_mode", "internal"))).strip_edges().to_lower()
+	if control_mode in ["external", "external_control", "external control", "terminal"]:
+		return _result(false, "Use linked terminal.", [], "terminal_control_required")
 	var power_mode := String(target_object.get("power_mode", "internal")).strip_edges().to_lower()
 	if power_mode in ["external", "external_power", "external power"] and not bool(target_object.get("is_powered", true)):
 		return _result(false, "Door is unpowered.")

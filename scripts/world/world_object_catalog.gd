@@ -49,7 +49,7 @@ const POWER_BEHAVIOR_OPENS_WHEN_UNPOWERED := "opens_when_unpowered"
 const POWER_BEHAVIOR_REQUIRES_POWER_TO_OPEN := "requires_power_to_open"
 const POWER_BEHAVIORS: Array[String] = [POWER_BEHAVIOR_NONE, POWER_BEHAVIOR_OPENS_WHEN_UNPOWERED, POWER_BEHAVIOR_REQUIRES_POWER_TO_OPEN]
 const DOOR_POWER_TYPES: Array[String] = ["internal", "external", "none"]
-const DOOR_CONTROL_TYPES: Array[String] = ["internal", "external", "terminal"]
+const DOOR_CONTROL_TYPES: Array[String] = ["internal", "external"]
 const DOOR_STATES: Array[String] = ["closed", "open", "damaged", "jammed", "locked", "unpowered"]
 
 const FLOOR_MATERIALS: Array[String] = ["steel", "concrete", "grate"]
@@ -208,7 +208,7 @@ const ARCHETYPE_REGISTRY: Dictionary = {
 			{"field":"access_type", "type":"enum", "values":["no_key", "key_card", "digital_key", "access_code", "terminal"], "default":"key_card"},
 			{"field":"door_class", "type":"enum", "values":[1, 2, 3], "default":1},
 			{"field":"power_type", "type":"enum", "values":["internal", "external", "none"], "default":"internal"},
-			{"field":"control_type", "type":"enum", "values":["internal", "external", "terminal"], "default":"internal"},
+			{"field":"control_type", "type":"enum", "values":["internal", "external"], "default":"internal", "labels":{"internal":"Internal", "external":"External"}},
 			{"field":"power_behavior", "type":"enum", "values":["none", "opens_when_unpowered", "requires_power_to_open"], "default":"none"},
 			{"field":"state", "type":"enum", "values":["closed", "open", "damaged", "jammed", "locked", "unpowered"], "default":"closed"},
 			{"field":"allowed_states", "type":"enum_array", "values":["closed", "open", "damaged", "jammed", "locked", "unpowered"], "default":["closed", "open", "damaged", "jammed", "locked", "unpowered"]},
@@ -753,7 +753,13 @@ static func normalize_door_contract(object_data: Dictionary) -> Dictionary:
 	var power_type: String = _normalized_contract_token(data.get("power_type", data.get("power_mode", "internal"))).trim_suffix("_power")
 	data["power_type"] = power_type if power_type in DOOR_POWER_TYPES else "internal"
 	var control_type: String = _normalized_contract_token(data.get("control_type", data.get("control_mode", "internal"))).trim_suffix("_control")
+	# Historic maps serialized terminal as a Door control type. Terminal is an
+	# external controller, not a third control mode, so preserve compatibility
+	# while emitting only the canonical two-value contract.
+	if control_type == "terminal":
+		control_type = "external"
 	data["control_type"] = control_type if control_type in DOOR_CONTROL_TYPES else "internal"
+	data["control_mode"] = data["control_type"]
 	data["has_connector_jack"] = _safe_bool_like(data.get("has_connector_jack", false), false)
 	if not data.has("allowed_states"):
 		data["allowed_states"] = DOOR_STATES.duplicate()
@@ -786,7 +792,9 @@ static func normalize_terminal_contract(object_data: Dictionary) -> Dictionary:
 	data["power_mode"] = String(data.get("power_type", data.get("power_mode", "internal"))).trim_suffix("_power")
 	data["control_mode"] = String(data.get("control_type", data.get("control_mode", "internal"))).trim_suffix("_control")
 	data["has_connector_jack"] = _safe_bool_like(data.get("has_connector_jack", true), true)
-	data["blocks_movement"] = _safe_bool_like(data.get("blocks_movement", true), true)
+	data["blocks_movement"] = true
+	data["blocks_vision"] = _safe_bool_like(data.get("blocks_vision", false), false)
+	data["can_interact"] = true
 	if String(data.get("power_mode", "internal")) == "internal" and String(data.get("status", "active")) == "unpowered":
 		data["status"] = "active"
 		data["state"] = "active"
@@ -810,6 +818,11 @@ static func normalize_world_object_contract(object_data: Dictionary) -> Dictiona
 	data = normalize_archetype_object(data)
 	data = normalize_terminal_contract(data)
 	data = normalize_item_contract(data)
+	var normalized_object_type: String = _normalized_contract_token(data.get("object_type", ""))
+	if normalized_object_type in ["power_source", "power_source_class_1", "power_source_class_2", "power_source_class_3"]:
+		data["blocks_movement"] = true
+		data["blocks_vision"] = _safe_bool_like(data.get("blocks_vision", false), false)
+		data["can_interact"] = true
 	return data
 
 static func _contains_cyrillic(value: Variant) -> bool:
@@ -878,6 +891,8 @@ static func validate_archetype_object(object_data: Dictionary) -> Array[String]:
 			for label_variant in labels.values():
 				if _contains_cyrillic(label_variant):
 					warnings.append("terminal_schema_contains_localized_label")
+		if not bool(object_data.get("blocks_movement", false)):
+			warnings.append("terminal_must_block_movement")
 	if UTILITY_ITEM_ARCHETYPE_IDS.has(archetype_id):
 		var expected_utility_type: String = _normalized_contract_token(get_archetype_definition(archetype_id).get("object_type", archetype_id))
 		if _normalized_contract_token(object_data.get("object_group", "")) != "item":
@@ -907,6 +922,13 @@ static func validate_archetype_object(object_data: Dictionary) -> Array[String]:
 			warnings.append("door_object_type_not_canonical")
 		if _normalized_contract_token(object_data.get("object_group", "")) != "door":
 			warnings.append("door_object_group_not_canonical")
+		if _normalized_contract_token(object_data.get("control_type", "internal")) == "terminal":
+			warnings.append("door_legacy_terminal_control_type_must_normalize_external")
+		if _normalized_contract_token(object_data.get("control_type", "internal")) not in DOOR_CONTROL_TYPES:
+			warnings.append("door_invalid_control_type")
+		var door_access_type: String = normalize_access_type(object_data.get("access_type", ACCESS_TYPE_NO_KEY))
+		if door_access_type in [ACCESS_TYPE_DIGITAL_KEY, ACCESS_TYPE_ACCESS_CODE] and not bool(object_data.get("has_connector_jack", false)):
+			warnings.append("door_connector_jack_required_for_%s" % door_access_type)
 		if String(object_data.get("display_name", "")) != generate_display_name(object_data):
 			warnings.append("door_display_name_not_generated_from_properties")
 		if is_legacy_door_object_type(_normalized_contract_token(object_data.get("object_type", ""))):
