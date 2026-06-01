@@ -6390,7 +6390,7 @@ func execute_next_mouse_route_step() -> void:
 	await get_tree().create_timer(0.1).timeout
 	execute_next_mouse_route_step()
 
-func handle_grid_cell_right_click(cell: Vector2i) -> void:
+func handle_grid_cell_right_click(_cell: Vector2i) -> void:
 	selected_grid_cell = Vector2i(-1, -1)
 	clear_selected_route()
 	refresh_world_action_panel()
