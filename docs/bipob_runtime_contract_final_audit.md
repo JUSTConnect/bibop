@@ -368,17 +368,11 @@ The current code has implemented the main catalog/archetype foundation, canonica
 
 The following remain manual smoke checks because this headless code pass does not exercise the interactive Map Editor UI: Cable inspector selector layout and label; source-owned network choices; external binding visibility toggles; Door ↔ Terminal link/clear behavior; Power Source, Circuit Switch, and Light Switch Action behavior; dropped item pickup; and the existing Action/Connect separation.
 
-## PR-P final Door / Terminal / Power interaction rules — NEEDS RUNTIME SMOKE
+## TASK TEST core modules and world readability follow-up
 
-Static contract update:
-
-- Door `control_type` is now strictly `internal` or `external`. Historic serialized `control_type=terminal` values normalize to `external`; Terminal is no longer exposed as a third Door control mode.
-- Door `access_type` remains independent: `no_key`, `key_card`, `terminal`, `digital_key`, and `access_code`. Terminal unlock is not treated as external Open/Close control, and external Open/Close control is not treated as a Terminal unlock credential.
-- Direct Door Open/Close is local only for `control_type=internal`. External Doors report the linked-terminal path instead of opening directly.
-- Digital Key and Access Code unlock paths require the explicit Connector route. Access Code connection exposes the ten keypad digits plus `Input`, validates the entered four-digit value, and does not fake success.
-- Terminal and Power Source runtime objects normalize to `blocks_movement=true`; both remain interactable objects rather than passable floor content.
-- Fresh Bipob setup installs baseline Manipulator and Connector modules even when optional debug equipment switches are disabled.
-- Circuit Switch runtime actions expose exactly the explicit `Circuit 1`, `Circuit 2`, and `Circuit 3` positions; selecting a position keeps the existing `active_output_index` and power-recalculation flow.
-- Physical cable provenance is traversal-owned. Logical source binding no longer pre-populates `physical_connection_source_id`. `main_power_net` remains the explicit virtual-network exception.
-
-Manual smoke remains required for the Editor dropdown, legacy-map load normalization, mixed Door access/control combinations, keypad layout near the Door, Terminal/Power Source collision, fresh-Bipob capability HUD, all three Circuit Switch buttons, placed-cable Door power, missing-route warning behavior, and `main_power_net` virtual power.
+- Fresh `TASK TEST` startup seeds the runtime sandbox with Connector, Manipulator Arm V1, and Manipulator Heavy Claw V1. The sandbox also installs the minimal internal interface, power block, and external interface chain needed for the Connector to remain active. Other missions keep their existing defaults.
+- The runtime control menu exposes a dedicated `Heavy Claw` button. It is enabled only when the facing runtime object advertises the Heavy Claw movement contract and the `push` action is available. The implemented movement mode is one-cell push into a free valid cell; pull/drag remains an explicit follow-up and is not claimed as complete.
+- Crates and barrels use the same minimal movement contract as existing movable cooling objects: `movable = true`, `heavy_claw_movable = true`, `heavy_claw_mode = "push"`, and `blocks_movement = true`.
+- The isometric renderer now reads real runtime world-object dictionaries for floor-cell overlays and draws simple distinguishable procedural silhouettes for doors, terminals, power sources, switches, crates, barrels, and other important objects without replacing gameplay lookup.
+- Visible power cables render as a red floor stripe, including `cable_path_cells` segments. Cable dictionaries marked with `hidden_installation`, `concealed`, `hidden_cable`, or legacy `hidden` suppress that stripe while preserving cable gameplay behavior.
+- Runtime smoke remains required for TASK TEST module presence, Heavy Claw button highlighting, successful one-cell crate/barrel push, object silhouette readability, and visible-versus-hidden cable rendering because the final presentation state is not fully statically provable.

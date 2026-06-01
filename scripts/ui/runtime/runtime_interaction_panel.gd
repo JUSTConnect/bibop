@@ -12,21 +12,33 @@ static func is_connector_action(action_id: String) -> bool:
 	return action_id == "connect"
 
 
+static func is_heavy_claw_action(action_id: String) -> bool:
+	return action_id == "push"
+
+
 static func get_physical_actions(actions: Array) -> Array[String]:
 	var physical_actions: Array[String] = []
 	for action_variant in actions:
 		var action_id: String = String(action_variant)
-		if not action_id.is_empty() and not is_connector_action(action_id):
+		if not action_id.is_empty() and not is_connector_action(action_id) and not is_heavy_claw_action(action_id):
 			physical_actions.append(action_id)
 	return physical_actions
 
 
-static func get_connect_descriptor(target_data: Dictionary) -> Dictionary:
+static func get_action_descriptor(target_data: Dictionary, action_id: String) -> Dictionary:
 	var view_model: Dictionary = Dictionary(target_data.get("action_view_model", {}))
 	for descriptor_variant in Array(view_model.get("actions", [])):
-		if descriptor_variant is Dictionary and String(Dictionary(descriptor_variant).get("id", "")) == "connect":
+		if descriptor_variant is Dictionary and String(Dictionary(descriptor_variant).get("id", "")) == action_id:
 			return Dictionary(descriptor_variant)
 	return {}
+
+
+static func get_connect_descriptor(target_data: Dictionary) -> Dictionary:
+	return get_action_descriptor(target_data, "connect")
+
+
+static func get_heavy_claw_descriptor(target_data: Dictionary) -> Dictionary:
+	return get_action_descriptor(target_data, "push")
 
 
 static func action_requires_manipulator(action_id: String, target_object: Dictionary) -> bool:
@@ -54,6 +66,7 @@ static func refresh_controls(ui) -> void:
 	var actions: Array = ui._safe_ui_array(target_data.get("actions", []))
 	var physical_actions: Array[String] = get_physical_actions(actions)
 	var connect_descriptor: Dictionary = get_connect_descriptor(target_data)
+	var heavy_claw_descriptor: Dictionary = get_heavy_claw_descriptor(target_data)
 	var has_interactable: bool = not target_object.is_empty() and not physical_actions.is_empty()
 	if has_interactable and not ui.runtime_interaction_mode_active and ui.runtime_action_button != null:
 		ui._apply_selected_pulse(ui.runtime_action_button)
@@ -75,6 +88,12 @@ static func refresh_controls(ui) -> void:
 		ui.runtime_connect_button.disabled = not connect_enabled
 		ui.runtime_connect_button.tooltip_text = "" if connect_enabled else String(connect_descriptor.get("label", "Connector jack unavailable."))
 		ui._apply_action_button_style(ui.runtime_connect_button, "primary" if connect_enabled else "disabled", connect_enabled)
+	if ui.runtime_heavy_claw_button != null:
+		var heavy_claw_enabled: bool = not heavy_claw_descriptor.is_empty() and bool(heavy_claw_descriptor.get("enabled", false)) and has_actions_left
+		ui.runtime_heavy_claw_button.text = "Heavy Claw"
+		ui.runtime_heavy_claw_button.disabled = not heavy_claw_enabled
+		ui.runtime_heavy_claw_button.tooltip_text = "" if heavy_claw_enabled else String(heavy_claw_descriptor.get("label", "No heavy object in front."))
+		ui._apply_action_button_style(ui.runtime_heavy_claw_button, "primary" if heavy_claw_enabled else "disabled", heavy_claw_enabled)
 	if ui.runtime_end_turn_button != null:
 		ui._apply_action_button_style(ui.runtime_end_turn_button, "reference", true)
 	if ui.runtime_interaction_actions_row == null:
@@ -180,6 +199,20 @@ static func press_connect(ui) -> void:
 		refresh_controls(ui)
 		return
 	press_action(ui, "connect")
+
+
+static func press_heavy_claw(ui) -> void:
+	if ui.map_constructor_mode_active or ui.bipob == null:
+		return
+	if int(ui.bipob.actions_left) <= 0:
+		ui.show_hint("No actions left. End turn.")
+		return
+	var descriptor: Dictionary = get_heavy_claw_descriptor(get_target_data(ui))
+	if descriptor.is_empty() or not bool(descriptor.get("enabled", false)):
+		ui.show_hint(String(descriptor.get("label", "No heavy object in front.")))
+		refresh_controls(ui)
+		return
+	press_action(ui, "push")
 
 
 static func use_selected_world_action(ui) -> void:

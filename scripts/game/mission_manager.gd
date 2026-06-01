@@ -2079,6 +2079,11 @@ func validate_world_object_scenario() -> Array[String]:
 			var network_id := String(object_data.get("power_network_id", ""))
 			if network_id.is_empty():
 				warnings.append("Object %s has empty power network id." % object_id)
+		if bool(object_data.get("heavy_claw_movable", false)):
+			if not bool(object_data.get("blocks_movement", false)):
+				warnings.append("Heavy Claw object %s must block movement." % object_id)
+			if not WorldObjectCatalogRef.can_world_object_be_moved_by_heavy_claw(object_data):
+				warnings.append("Heavy Claw object %s has an unsupported movable contract." % object_id)
 	for required_id in ["steel_door_1", "door_terminal_1", "turret_1"]:
 		if not ids.has(required_id):
 			warnings.append("Required scenario id missing: %s." % required_id)
