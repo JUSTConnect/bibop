@@ -146,10 +146,7 @@ const MAP_CONSTRUCTOR_WALL_MOUNTED_PREFABS: Dictionary = {
 	"light_switch": true,
 	"circuit_breaker": true,
 	"fuse_box": true,
-	"door_terminal": true,
-	"platform_terminal": true,
-	"firewall": true,
-	"cooling_terminal": true
+	"firewall": true
 }
 
 # Compatibility-only inventory of historic constructor solids. Runtime placement
@@ -1938,7 +1935,7 @@ func build_task_test_mission_world_objects_for_validation() -> Dictionary:
 		{"type":"energy_door","id":"task_test_door_locked_digital","pos":Vector2i(9, 1),"extra":{"state":"locked","is_locked":true,"lock_type":"digital_key","required_key_id":"task_test_item_digital_key_encrypted","power_network_id":"task_test_power_main"}},
 		# Terminal-controlled doors
 		{"type":"reinforced_steel_door","id":"task_test_door_terminal_locked","pos":Vector2i(11, 1),"extra":{"state":"locked","is_locked":true,"lock_type":"terminal_lock","linked_terminal_id":"task_test_terminal_basic_door"}},
-		{"type":"door_terminal","id":"task_test_terminal_basic_door","pos":Vector2i(12, 1),"extra":{"state":"active","is_powered":true,"target_door_id":"task_test_door_terminal_locked"}},
+		{"type":"terminal","id":"task_test_terminal_basic_door","pos":Vector2i(12, 1),"extra":{"terminal_type":"control","controlled_target_type":"door","state":"active","is_powered":true,"target_door_id":"task_test_door_terminal_locked"}},
 		# Powered gates
 		{"type":"energy_door","id":"task_test_powered_gate_main","pos":Vector2i(2, 3),"extra":{"state":"closed","is_open":false,"is_locked":false,"requires_external_power":true,"power_network_id":"task_test_power_main"}},
 		{"type":"energy_door","id":"task_test_powered_gate_unpowered","pos":Vector2i(3, 3),"extra":{"state":"unpowered","is_open":false,"is_locked":true,"requires_external_power":true,"is_powered":false,"power_network_id":"task_test_power_missing"}},
@@ -1960,12 +1957,12 @@ func build_task_test_mission_world_objects_for_validation() -> Dictionary:
 		{"type":"external_radiator","id":"task_test_radiator","pos":Vector2i(2, 5),"extra":{"cooling_device_type":"radiator","cooling_output":3}},
 		{"type":"external_air_cooler","id":"task_test_air_cooler","pos":Vector2i(3, 5),"extra":{"cooling_device_type":"air_cooler","cooling_output":2,"directed_airflow":true,"facing_dir":"right"}},
 		{"type":"metal_cooling_block","id":"task_test_cooling_block","pos":Vector2i(4, 5),"extra":{"cooling_device_type":"block","cooling_output":1}},
-		{"type":"door_terminal","id":"task_test_terminal_heat_device","pos":Vector2i(5, 5),"extra":{"state":"active","is_powered":true,"working_heat":4,"current_heat":6,"overheat_threshold":9,"cooling_received":1,"overheated_state_before":false}},
-		{"type":"door_terminal","id":"task_test_terminal_overheated","pos":Vector2i(6, 5),"extra":{"state":"overheated","is_powered":true,"working_heat":3,"current_heat":7,"overheat_threshold":5,"cooling_received":0,"overheated_state_before":true}},
+		{"type":"terminal","id":"task_test_terminal_heat_device","pos":Vector2i(5, 5),"extra":{"state":"active","is_powered":true,"working_heat":4,"current_heat":6,"overheat_threshold":9,"cooling_received":1,"overheated_state_before":false}},
+		{"type":"terminal","id":"task_test_terminal_overheated","pos":Vector2i(6, 5),"extra":{"status":"active","state":"active","is_powered":true,"working_heat":3,"current_heat":7,"overheat_threshold":5,"cooling_received":0,"overheated_state_before":true}},
 		# Control network
 		{"type":"steel_door","id":"task_test_control_switch_door","pos":Vector2i(8, 5),"extra":{"state":"closed","control_type":"switch","control_source_id":"task_test_switch","requires_external_control":true}},
 		{"type":"lifting_platform","id":"task_test_control_terminal_platform","pos":Vector2i(9, 5),"extra":{"platform_id":"task_test_control_terminal_platform","control_type":"terminal","linked_terminal_id":"task_test_terminal_control","requires_external_control":true,"requires_terminal_enabled":true}},
-		{"type":"door_terminal","id":"task_test_terminal_control","pos":Vector2i(10, 5),"extra":{"state":"active","is_powered":true,"target_platform_id":"task_test_control_terminal_platform"}},
+		{"type":"terminal","id":"task_test_terminal_control","pos":Vector2i(10, 5),"extra":{"terminal_type":"control","controlled_target_type":"platform","linked_platform_ids":["task_test_control_terminal_platform"],"state":"active","is_powered":true,"target_platform_id":"task_test_control_terminal_platform"}},
 		{"type":"rotating_platform","id":"task_test_control_missing_source","pos":Vector2i(11, 5),"extra":{"platform_id":"task_test_control_missing_source","requires_external_control":true}},
 		{"type":"rotating_platform","id":"task_test_control_invalid_source","pos":Vector2i(12, 5),"extra":{"platform_id":"task_test_control_invalid_source","requires_external_control":true,"control_source_id":"task_test_missing_controller"}},
 		{"type":"rotating_platform","id":"task_test_control_valid_source","pos":Vector2i(13, 5),"extra":{"platform_id":"task_test_control_valid_source","requires_external_control":true,"control_source_id":"task_test_switch"}},
@@ -1979,19 +1976,19 @@ func build_task_test_mission_world_objects_for_validation() -> Dictionary:
 		{"type":"damaged_wall","id":"task_test_damaged_wall_sample","pos":Vector2i(8, 7),"extra":{"material":"concrete","durability":2,"blocks_movement":true,"blocks_vision":false,"destructible":true,"hidden_content":"wiring_fragment"}},
 		# Scan visibility samples
 		{"type":"power_cable","id":"task_test_scan_hidden_object","pos":Vector2i(10, 7),"extra":{"hidden":true,"visible_with_xray":true,"scan_level":1}},
-		{"type":"door_terminal","id":"task_test_scan_thermal_object","pos":Vector2i(11, 7),"extra":{"visible_with_thermal":true,"current_heat":5,"working_heat":2}},
-		{"type":"door_terminal","id":"task_test_scan_connector_gated","pos":Vector2i(12, 7),"extra":{"required_connector_level":2,"state":"active","is_powered":true}},
-		{"type":"door_terminal","id":"task_test_scan_processor_gated","pos":Vector2i(13, 7),"extra":{"required_processor_level":2,"state":"active","is_powered":true}},
+		{"type":"terminal","id":"task_test_scan_thermal_object","pos":Vector2i(11, 7),"extra":{"visible_with_thermal":true,"current_heat":5,"working_heat":2}},
+		{"type":"terminal","id":"task_test_scan_connector_gated","pos":Vector2i(12, 7),"extra":{"required_connector_level":2,"state":"active","is_powered":true}},
+		{"type":"terminal","id":"task_test_scan_processor_gated","pos":Vector2i(13, 7),"extra":{"required_processor_level":2,"state":"active","is_powered":true}},
 		{"type":"light","id":"task_test_scan_normal_visible","pos":Vector2i(14, 8),"extra":{"hidden":false}},
 		# Terminals coverage + extraction
-		{"type":"door_terminal","id":"task_test_terminal_info","pos":Vector2i(1, 8),"extra":{"connection_type":"info","state":"active","is_powered":true}},
-		{"type":"door_terminal","id":"task_test_terminal_unpowered","pos":Vector2i(2, 8),"extra":{"state":"unpowered","is_powered":false}},
-		{"type":"door_terminal","id":"task_test_terminal_damaged","pos":Vector2i(3, 8),"extra":{"state":"damaged","damaged":true,"is_powered":false}},
-		{"type":"door_terminal","id":"task_test_terminal_encrypted","pos":Vector2i(4, 8),"extra":{"state":"active","is_powered":true,"encrypts_data":true,"drain_pool":2}},
-		{"type":"door_terminal","id":"task_test_terminal_connector_gate","pos":Vector2i(5, 8),"extra":{"state":"active","is_powered":true,"required_connector_level":1}},
-		{"type":"door_terminal","id":"task_test_terminal_processor_gate","pos":Vector2i(6, 8),"extra":{"state":"active","is_powered":true,"required_processor_level":1}},
+		{"type":"terminal","id":"task_test_terminal_info","pos":Vector2i(1, 8),"extra":{"terminal_type":"information","controlled_target_type":"none","connection_type":"info","state":"active","is_powered":true}},
+		{"type":"terminal","id":"task_test_terminal_unpowered","pos":Vector2i(2, 8),"extra":{"status":"unpowered","state":"unpowered","is_powered":false}},
+		{"type":"terminal","id":"task_test_terminal_damaged","pos":Vector2i(3, 8),"extra":{"status":"damaged","state":"damaged","damaged":true,"is_powered":false}},
+		{"type":"terminal","id":"task_test_terminal_encrypted","pos":Vector2i(4, 8),"extra":{"state":"active","is_powered":true,"encrypts_data":true,"drain_pool":2}},
+		{"type":"terminal","id":"task_test_terminal_connector_gate","pos":Vector2i(5, 8),"extra":{"state":"active","is_powered":true,"required_connector_level":1}},
+		{"type":"terminal","id":"task_test_terminal_processor_gate","pos":Vector2i(6, 8),"extra":{"state":"active","is_powered":true,"required_processor_level":1}},
 		
-		{"type":"door_terminal","id":"task_test_terminal_main","pos":Vector2i(7, 8),"extra":{"state":"active","is_powered":true,"required_connector_level":1,"required_processor_level":1,"target_door_id":"task_test_door_terminal_locked"}},
+		{"type":"terminal","id":"task_test_terminal_main","pos":Vector2i(7, 8),"extra":{"terminal_type":"control","controlled_target_type":"door","state":"active","is_powered":true,"required_connector_level":1,"required_processor_level":1,"target_door_id":"task_test_door_terminal_locked"}},
 		{"type":"steel_door","id":"task_test_door_mechanical","pos":Vector2i(5, 1),"extra":{"state":"locked","is_locked":true,"lock_type":"mechanical_key","required_key_id":"task_test_item_mechanical_keycard"}},
 		{"type":"lifting_platform","id":"task_test_platform_lift","pos":Vector2i(8, 8),"extra":{"platform_id":"task_test_platform_lift","is_powered":false,"requires_external_power":true,"power_network_id":"task_test_power_missing"}},
 		{"type":"power_cable","id":"task_test_xray_route_marker","pos":Vector2i(9, 7),"extra":{"hidden":true,"visible_with_xray":true}},
@@ -2163,20 +2160,20 @@ func _place_debug_world_object(object_type: String, object_id: String, cell: Vec
 	return object_data
 
 func seed_world_cooling_debug_scenario(origin: Vector2i = Vector2i(8, 8)) -> void:
-	_place_debug_world_object("information_terminal", "terminal_c2_radiator", origin + Vector2i(0, 0), {"terminal_class": 2, "working_heat": 2, "current_heat": 2, "overheat_threshold": 3, "hack_heat": 1})
+	_place_debug_world_object("terminal", "terminal_c2_radiator", origin + Vector2i(0, 0), {"terminal_class": 2, "working_heat": 2, "current_heat": 2, "overheat_threshold": 3, "hack_heat": 1})
 	_place_debug_world_object("external_radiator", "cooling_radiator_a", origin + Vector2i(1, 0))
-	_place_debug_world_object("information_terminal", "terminal_c2_radiator_metal", origin + Vector2i(0, 2), {"terminal_class": 2, "working_heat": 2, "current_heat": 2, "overheat_threshold": 3, "hack_heat": 1})
+	_place_debug_world_object("terminal", "terminal_c2_radiator_metal", origin + Vector2i(0, 2), {"terminal_class": 2, "working_heat": 2, "current_heat": 2, "overheat_threshold": 3, "hack_heat": 1})
 	_place_debug_world_object("external_radiator", "cooling_radiator_b", origin + Vector2i(1, 2))
 	_place_debug_world_object("metal_cooling_block", "cooling_metal_block_b", origin + Vector2i(2, 2))
-	_place_debug_world_object("information_terminal", "terminal_c2_air", origin + Vector2i(0, 4), {"terminal_class": 2, "working_heat": 2, "current_heat": 2, "overheat_threshold": 3, "hack_heat": 1})
+	_place_debug_world_object("terminal", "terminal_c2_air", origin + Vector2i(0, 4), {"terminal_class": 2, "working_heat": 2, "current_heat": 2, "overheat_threshold": 3, "hack_heat": 1})
 	_place_debug_world_object("external_air_cooler", "cooling_air_direct_c", origin + Vector2i(-1, 4), {"facing_dir": "right"})
-	_place_debug_world_object("information_terminal", "terminal_c2_water", origin + Vector2i(0, 6), {"terminal_class": 2, "working_heat": 2, "current_heat": 2, "overheat_threshold": 3, "hack_heat": 1})
+	_place_debug_world_object("terminal", "terminal_c2_water", origin + Vector2i(0, 6), {"terminal_class": 2, "working_heat": 2, "current_heat": 2, "overheat_threshold": 3, "hack_heat": 1})
 	_place_debug_world_object("external_water_pipe", "cooling_water_d", origin + Vector2i(1, 6))
-	_place_debug_world_object("information_terminal", "terminal_c2_duct", origin + Vector2i(3, 8), {"terminal_class": 2, "working_heat": 2, "current_heat": 2, "overheat_threshold": 3, "hack_heat": 1})
+	_place_debug_world_object("terminal", "terminal_c2_duct", origin + Vector2i(3, 8), {"terminal_class": 2, "working_heat": 2, "current_heat": 2, "overheat_threshold": 3, "hack_heat": 1})
 	_place_debug_world_object("external_air_cooler", "cooling_air_duct_e", origin + Vector2i(0, 8), {"facing_dir": "right"})
 	_place_debug_world_object("external_air_duct", "cooling_air_duct_e1", origin + Vector2i(1, 8))
 	_place_debug_world_object("external_air_duct", "cooling_air_duct_e2", origin + Vector2i(2, 8))
-	_place_debug_world_object("information_terminal", "terminal_c2_air_water", origin + Vector2i(0, 10), {"terminal_class": 2, "working_heat": 2, "current_heat": 2, "overheat_threshold": 3, "hack_heat": 1})
+	_place_debug_world_object("terminal", "terminal_c2_air_water", origin + Vector2i(0, 10), {"terminal_class": 2, "working_heat": 2, "current_heat": 2, "overheat_threshold": 3, "hack_heat": 1})
 	_place_debug_world_object("external_air_cooler", "cooling_air_combo_f", origin + Vector2i(-1, 10), {"facing_dir": "right"})
 	_place_debug_world_object("external_water_pipe", "cooling_water_combo_f", origin + Vector2i(0, 11))
 	_place_debug_world_object("power_source_class_3", "power_source_c3_cooled", origin + Vector2i(0, 12), {"working_heat": 3, "current_heat": 3, "overheat_threshold": 3, "state": "active"})
@@ -2583,11 +2580,7 @@ func _get_map_constructor_prefab_metadata_catalog() -> Dictionary:
 		"external_wall": {"display_name":"External Wall","category":"Structural","subcategory":"Wall","placement_mode":"object","system_roles":["blocking"],"tags":["wall","solid","boundary","fixed_archetype"],"description":"Fixed external structural wall. Gameplay parameters are not editable.","placement_hint":"Place the fixed external wall archetype.","requires_wall":false,"requires_floor":true,"is_destructive":false,"is_diagnostic":false,"is_expected_invalid_tool":false,"can_have_power_network":false,"can_have_links":false,"default_state":{}},
 		"wall": {"display_name":"Wall","category":"Structural","subcategory":"Wall","placement_mode":"object","system_roles":["blocking"],"tags":["wall","obstacle","configurable","archetype"],"description":"Configurable internal wall. Choose material in the inspector.","placement_hint":"Place Wall, then configure its canonical material property.","requires_wall":false,"requires_floor":true,"is_destructive":false,"is_diagnostic":false,"is_expected_invalid_tool":false,"can_have_power_network":false,"can_have_links":false,"default_state":{}},
 		"door": {"display_name":"Door","category":"Door","subcategory":"Configurable","placement_mode":"object","system_roles":["navigation","access_control"],"tags":["door","configurable","archetype"],"description":"Configurable door archetype. Choose material, access, power, control, and state properties in the inspector.","placement_hint":"Place the base Door, then configure properties.","requires_wall":false,"requires_floor":true,"is_destructive":false,"is_diagnostic":false,"is_expected_invalid_tool":false,"can_have_power_network":true,"can_have_links":true,"default_state":{}},
-		"information_terminal": {"display_name":"Information Terminal","category":"Terminal","subcategory":"Info","placement_mode":"object","system_roles":["terminal_interaction"],"tags":["terminal","info","device"],"description":"Read-only terminal for mission text/data.","placement_hint":"Place on floor near navigation paths.","requires_wall":false,"requires_floor":true,"is_destructive":false,"is_diagnostic":false,"is_expected_invalid_tool":false,"can_have_power_network":true,"can_have_links":false,"default_state":{}},
-		"control_terminal": {"display_name":"Control Terminal","category":"Control","subcategory":"Terminal","placement_mode":"object","system_roles":["terminal_interaction","signal_control"],"tags":["terminal","control","link"],"description":"Terminal used to send control signals.","placement_hint":"Configure target links in inspector.","requires_wall":false,"requires_floor":true,"is_destructive":false,"is_diagnostic":false,"is_expected_invalid_tool":false,"can_have_power_network":true,"can_have_links":true,"default_state":{}},
-		"door_terminal": {"display_name":"Door Terminal","category":"Terminal","subcategory":"Door","placement_mode":"wall_mounted","system_roles":["terminal_interaction","access_control","signal_control"],"tags":["terminal","door","wall"],"description":"Wall terminal for door control.","placement_hint":"Requires a valid adjacent wall side.","requires_wall":true,"requires_floor":true,"is_destructive":false,"is_diagnostic":false,"is_expected_invalid_tool":false,"can_have_power_network":true,"can_have_links":true,"default_state":{}},
-		"platform_terminal": {"display_name":"Platform Terminal","category":"Terminal","subcategory":"Platform","placement_mode":"wall_mounted","system_roles":["terminal_interaction","signal_control"],"tags":["terminal","platform","wall"],"description":"Wall terminal for platform control.","placement_hint":"Requires a valid adjacent wall side.","requires_wall":true,"requires_floor":true,"is_destructive":false,"is_diagnostic":false,"is_expected_invalid_tool":false,"can_have_power_network":true,"can_have_links":true,"default_state":{}},
-		"cooling_terminal": {"display_name":"Cooling Terminal","category":"Terminal","subcategory":"Cooling","placement_mode":"wall_mounted","system_roles":["terminal_interaction","signal_control"],"tags":["terminal","cooling","wall"],"description":"Wall terminal for cooling subsystem.","placement_hint":"Requires a valid adjacent wall side.","requires_wall":true,"requires_floor":true,"is_destructive":false,"is_diagnostic":false,"is_expected_invalid_tool":false,"can_have_power_network":true,"can_have_links":true,"default_state":{}},
+		"terminal": {"display_name":"Terminal","category":"Terminal","subcategory":"Configurable","placement_mode":"object","system_roles":["terminal_interaction","signal_control"],"tags":["terminal","configurable","archetype"],"description":"Configurable terminal archetype. Choose role, target, class, power, control, status, and links in the inspector.","placement_hint":"Place the base Terminal, then configure properties.","requires_wall":false,"requires_floor":true,"is_destructive":false,"is_diagnostic":false,"is_expected_invalid_tool":false,"can_have_power_network":true,"can_have_links":true,"default_state":{}},
 		"firewall": {"display_name":"Firewall Node","category":"Wall-mounted","subcategory":"Security","placement_mode":"wall_mounted","system_roles":["signal_control"],"tags":["firewall","security","wall"],"description":"Wall-mounted digital security node.","placement_hint":"Requires a valid adjacent wall side.","requires_wall":true,"requires_floor":true,"is_destructive":false,"is_diagnostic":false,"is_expected_invalid_tool":false,"can_have_power_network":true,"can_have_links":true,"default_state":{}},
 		"power_source_class_1": {"display_name":"Power Source C1","category":"Power","subcategory":"Source","placement_mode":"object","system_roles":["power_source","power_network"],"tags":["power","source","generator"],"description":"Primary local power source.","placement_hint":"Set power_network_id in inspector after placement.","requires_wall":false,"requires_floor":true,"is_destructive":false,"is_diagnostic":false,"is_expected_invalid_tool":false,"can_have_power_network":true,"can_have_links":false,"default_state":{"state":"on","power_mode":"internal","control_mode":"internal","is_powered":true,"power_source_class":1,"outlet_capacity":4}},
 		"power_source_class_2": {"display_name":"Power Source C2","category":"Power","subcategory":"Source","placement_mode":"object","system_roles":["power_source","power_network"],"tags":["power","source","generator"],"description":"Class 2 power source.","placement_hint":"Place beside wires/outlets.","requires_wall":false,"requires_floor":true,"is_destructive":false,"is_diagnostic":false,"is_expected_invalid_tool":false,"can_have_power_network":true,"can_have_links":false,"default_state":{"state":"on","power_mode":"internal","control_mode":"internal","is_powered":true,"power_source_class":2,"outlet_capacity":5}},
@@ -3875,6 +3868,7 @@ func _get_map_constructor_editable_field_schema() -> Dictionary:
 		"state":"string","power_network_id":"string","is_open":"bool","is_closed":"bool","is_locked":"bool","blocks_movement":"bool","is_powered":"bool","is_hidden":"bool","fuse_installed":"bool","plugged":"bool",
 		"required_key_id":"string","required_terminal_id":"string","required_access_code_id":"string","required_digital_key_id":"string","lock_type":"string","linked_terminal_id":"string","required_manipulator_level":"int","required_connector_level":"int","required_processor_level":"int",
 		"door_type":"string","material":"string","covering":"string","visual_style":"string","door_class":"int","power_type":"string","control_type":"string","power_behavior":"string","allowed_states":"array_string",
+		"terminal_type":"string","controlled_target_type":"string","terminal_class":"int","status":"string","allowed_statuses":"array_string","linked_object_ids":"array_string","linked_door_ids":"array_string","linked_cooling_ids":"array_string","linked_platform_ids":"array_string","linked_power_ids":"array_string","linked_lighting_ids":"array_string","chain_input_ids":"array_string","chain_output_ids":"array_string",
 		"control_source_id":"string","connected_device_ids":"array_string","target_door_id":"string","target_platform_id":"string","requires_external_control":"bool","requires_terminal_enabled":"bool",
 		"requires_external_power":"bool","current_heat":"int","working_heat":"int","overheat_threshold":"int","power_source_class":"int","source_class":"int","outlet_capacity":"int","active_output_index":"int",
 		"item_type":"string","digital_state":"string","key_kind":"string","key_type":"string","display_name":"string","description":"string","custom_description":"string","linked_door_id":"string","damaged":"bool",
@@ -4704,20 +4698,14 @@ func get_map_constructor_terminal_visual_state(object_id: String) -> Dictionary:
 	if not object_type.contains("terminal") and not object_type.contains("device") and object_group != "terminal":
 		fallback["message"] = "Object is not terminal/device."
 		return fallback
-	var terminal_type: String = "generic_terminal"
-	if object_type.contains("door_terminal"):
-		terminal_type = "door_terminal"
-	elif object_type.contains("power"):
-		terminal_type = "power_terminal"
-	elif object_type.contains("diagnostic") or object_type.contains("scan"):
-		terminal_type = "diagnostic_terminal"
-	elif object_type.contains("control") or object_type.contains("switch") or object_type.contains("platform_terminal"):
-		terminal_type = "control_terminal"
-	elif object_type.contains("info") or object_type.contains("information"):
+	var terminal_type: String = "unknown"
+	var normalized_terminal_type: String = String(object_data.get("terminal_type", "")).to_lower()
+	var controlled_target_type: String = String(object_data.get("controlled_target_type", "none")).to_lower()
+	if normalized_terminal_type == "information":
 		terminal_type = "information_terminal"
-	elif not object_type.contains("terminal"):
-		terminal_type = "unknown"
-	var raw_state: String = String(object_data.get("state", "idle")).to_lower()
+	elif normalized_terminal_type == "control":
+		terminal_type = "%s_terminal" % controlled_target_type if controlled_target_type != "none" else "control_terminal"
+	var raw_state: String = String(object_data.get("status", object_data.get("state", "idle"))).to_lower()
 	var state: String = "idle"
 	var badges: Array[String] = []
 	var is_broken: bool = bool(object_data.get("broken", false)) or bool(object_data.get("is_broken", false)) or bool(object_data.get("damaged", false))
@@ -4753,7 +4741,7 @@ func get_map_constructor_terminal_visual_state(object_id: String) -> Dictionary:
 		"power_terminal": accent = Color(0.45, 0.98, 0.78, 0.99)
 		"diagnostic_terminal": accent = Color(0.46, 0.92, 1.0, 0.99)
 		"control_terminal": accent = Color(0.78, 0.62, 1.0, 0.99)
-		"information_terminal": accent = Color(0.67, 0.86, 1.0, 0.99)
+		"terminal": accent = Color(0.67, 0.86, 1.0, 0.99)
 	match state:
 		"disabled", "offline":
 			tint = Color(0.42, 0.45, 0.5, 0.9)
@@ -4789,6 +4777,10 @@ func get_map_constructor_terminal_visual_state(object_id: String) -> Dictionary:
 	return {"ok": true, "object_id": normalized_id, "terminal_type": terminal_type, "state": state, "badges": badges, "tint": tint, "accent": accent, "texture_asset_id": "terminal_state_generic", "room_visual_preset_id": terminal_room_preset_id, "room_visual_hint": terminal_room_visual_hint, "created_by_room_visual_preset": terminal_created_by_room_preset, "message": "Terminal visual state resolved."}
 
 func get_map_constructor_property_presets(entity_kind: String, entity_id: String) -> Array[Dictionary]:
+	var entity_info: Dictionary = get_map_constructor_entity_by_id(entity_kind, entity_id)
+	var data: Dictionary = _safe_dictionary(entity_info.get("data", {}))
+	if not String(data.get("archetype_id", "")).strip_edges().is_empty():
+		return []
 	var group: String = get_map_constructor_entity_type_group(entity_kind, entity_id)
 	match group:
 		"door": return [{"id":"open","label":"Open","group":"Door","description":"Door is open and unlocked."},{"id":"closed","label":"Closed","group":"Door","description":"Door is closed and unlocked."},{"id":"locked","label":"Locked","group":"Door","description":"Door is closed and locked."},{"id":"jammed","label":"Jammed","group":"Door","description":"Door is jammed/damaged."}]
@@ -6044,7 +6036,7 @@ func _is_terminal_object(object_data: Dictionary) -> bool:
 	var object_type := _normalize_power_consumer_text(object_data.get("object_type", ""))
 	if object_group == "terminal":
 		return true
-	return object_type in ["terminal", "door_terminal", "information_terminal", "info_terminal", "cooling_terminal", "platform_terminal", "elevator_terminal", "turret_terminal", "security_terminal"]
+	return object_type in ["terminal", "door_terminal", "info_terminal", "cooling_terminal", "platform_terminal", "elevator_terminal", "turret_terminal", "security_terminal"]
 
 func _is_terminal_powered_for_interaction(object_data: Dictionary) -> bool:
 	var state := _normalize_power_consumer_text(object_data.get("state", ""))
@@ -6252,7 +6244,7 @@ func _is_power_load_consumer_object(object_data: Dictionary) -> bool:
 	var object_group := _normalize_power_gate_text(object_data.get("object_group", ""))
 	if bool(object_data.get("consumes_power", false)):
 		return true
-	if object_group == "terminal" or object_type in ["terminal", "door_terminal", "information_terminal"]:
+	if object_group == "terminal" or object_type in ["terminal", "door_terminal"]:
 		return true
 	if object_group == "door" and String(object_data.get("material", "")).strip_edges().to_lower() == WorldObjectCatalogRef.DOOR_MATERIAL_ENERGY:
 		return true
@@ -7446,12 +7438,12 @@ func validate_power_network_debug_scenario() -> Array[String]:
 	temp_objects.append(_build_power_network_debug_object("power_debug_graph_damaged_consumer", "power_socket", "power_debug_graph_damaged_consumer", {"is_powered": false, "state": "damaged"}))
 	temp_objects.append(_build_power_network_debug_object("power_debug_terminal_powered_source", "power_source", "power_debug_terminal_powered", {"is_powered": true}))
 	temp_objects.append(_build_power_network_debug_object("power_debug_terminal_powered_switch", "circuit_switch", "power_debug_terminal_powered", {"state": "switch_on"}))
-	temp_objects.append(_build_power_network_debug_object("power_debug_terminal_powered_terminal", "information_terminal", "power_debug_terminal_powered", {"is_powered": false, "state": "unpowered"}))
+	temp_objects.append(_build_power_network_debug_object("power_debug_terminal_powered_terminal", "terminal", "power_debug_terminal_powered", {"is_powered": false, "state": "unpowered"}))
 	temp_objects.append(_build_power_network_debug_object("power_debug_terminal_blocked_source", "power_source", "power_debug_terminal_blocked", {"is_powered": true}))
 	temp_objects.append(_build_power_network_debug_object("power_debug_terminal_blocked_switch", "circuit_switch", "power_debug_terminal_blocked", {"state": "switch_off"}))
-	temp_objects.append(_build_power_network_debug_object("power_debug_terminal_blocked_terminal", "information_terminal", "power_debug_terminal_blocked", {"is_powered": true, "state": "active"}))
+	temp_objects.append(_build_power_network_debug_object("power_debug_terminal_blocked_terminal", "terminal", "power_debug_terminal_blocked", {"is_powered": true, "state": "active"}))
 	temp_objects.append(_build_power_network_debug_object("power_debug_terminal_damaged_source", "power_source", "power_debug_terminal_damaged", {"is_powered": true}))
-	temp_objects.append(_build_power_network_debug_object("power_debug_terminal_damaged_terminal", "information_terminal", "power_debug_terminal_damaged", {"is_powered": false, "state": "damaged"}))
+	temp_objects.append(_build_power_network_debug_object("power_debug_terminal_damaged_terminal", "terminal", "power_debug_terminal_damaged", {"is_powered": false, "state": "damaged"}))
 	temp_objects.append(_build_power_network_debug_object("power_debug_energy_door_blocked_source", "power_source", "power_debug_energy_door_blocked", {"is_powered": true}))
 	temp_objects.append(_build_power_network_debug_object("power_debug_energy_door_blocked_switch", "circuit_switch", "power_debug_energy_door_blocked", {"state": "switch_off"}))
 	temp_objects.append(_build_power_network_debug_object("power_debug_energy_door_blocked_door", "energy_door", "power_debug_energy_door_blocked", {"is_powered": true, "state": "closed"}))
@@ -7468,20 +7460,20 @@ func validate_power_network_debug_scenario() -> Array[String]:
 	temp_objects.append(_build_power_network_debug_object("power_debug_platform_damaged_switch", "circuit_switch", "power_debug_platform_damaged", {"state": "switch_off"}))
 	temp_objects.append(_build_power_network_debug_object("power_debug_platform_damaged_platform", "lifting_platform", "power_debug_platform_damaged", {"is_powered": true, "state": "damaged", "height_level": 2, "damaged": true}))
 	temp_objects.append(_build_power_network_debug_object("power_debug_source_load_ok", "power_source_class_2", "power_debug_source_load_ok", {"is_powered": true, "state": "active", "outlet_capacity": 2, "current_heat": 0, "overheat_threshold": 10}))
-	temp_objects.append(_build_power_network_debug_object("power_debug_source_load_ok_terminal", "information_terminal", "power_debug_source_load_ok", {"is_powered": false, "state": "unpowered"}))
+	temp_objects.append(_build_power_network_debug_object("power_debug_source_load_ok_terminal", "terminal", "power_debug_source_load_ok", {"is_powered": false, "state": "unpowered"}))
 	temp_objects.append(_build_power_network_debug_object("power_debug_source_load_ok_door", "energy_door", "power_debug_source_load_ok", {"is_powered": false, "state": "unpowered"}))
 	temp_objects.append(_build_power_network_debug_object("power_debug_source_fallback_class2_source", "power_source_class_2", "power_debug_source_fallback_class2", {"is_powered": true, "state": "active", "current_heat": 0, "overheat_threshold": 10}))
-	temp_objects.append(_build_power_network_debug_object("power_debug_source_fallback_class2_terminal_a", "information_terminal", "power_debug_source_fallback_class2", {"is_powered": false, "state": "unpowered"}))
-	temp_objects.append(_build_power_network_debug_object("power_debug_source_fallback_class2_terminal_b", "information_terminal", "power_debug_source_fallback_class2", {"is_powered": false, "state": "unpowered"}))
+	temp_objects.append(_build_power_network_debug_object("power_debug_source_fallback_class2_terminal_a", "terminal", "power_debug_source_fallback_class2", {"is_powered": false, "state": "unpowered"}))
+	temp_objects.append(_build_power_network_debug_object("power_debug_source_fallback_class2_terminal_b", "terminal", "power_debug_source_fallback_class2", {"is_powered": false, "state": "unpowered"}))
 	temp_objects.append(_build_power_network_debug_object("power_debug_source_fallback_class3_source", "power_source_class_3", "power_debug_source_fallback_class3", {"is_powered": true, "state": "active", "current_heat": 0, "overheat_threshold": 10}))
-	temp_objects.append(_build_power_network_debug_object("power_debug_source_fallback_class3_terminal_a", "information_terminal", "power_debug_source_fallback_class3", {"is_powered": false, "state": "unpowered"}))
-	temp_objects.append(_build_power_network_debug_object("power_debug_source_fallback_class3_terminal_b", "information_terminal", "power_debug_source_fallback_class3", {"is_powered": false, "state": "unpowered"}))
-	temp_objects.append(_build_power_network_debug_object("power_debug_source_fallback_class3_terminal_c", "information_terminal", "power_debug_source_fallback_class3", {"is_powered": false, "state": "unpowered"}))
+	temp_objects.append(_build_power_network_debug_object("power_debug_source_fallback_class3_terminal_a", "terminal", "power_debug_source_fallback_class3", {"is_powered": false, "state": "unpowered"}))
+	temp_objects.append(_build_power_network_debug_object("power_debug_source_fallback_class3_terminal_b", "terminal", "power_debug_source_fallback_class3", {"is_powered": false, "state": "unpowered"}))
+	temp_objects.append(_build_power_network_debug_object("power_debug_source_fallback_class3_terminal_c", "terminal", "power_debug_source_fallback_class3", {"is_powered": false, "state": "unpowered"}))
 	temp_objects.append(_build_power_network_debug_object("power_debug_source_overloaded_source", "power_source_class_1", "power_debug_source_overloaded", {"is_powered": true, "state": "active", "outlet_capacity": 1, "current_heat": 0, "overheat_threshold": 10}))
-	temp_objects.append(_build_power_network_debug_object("power_debug_source_overloaded_terminal", "information_terminal", "power_debug_source_overloaded", {"is_powered": false, "state": "unpowered"}))
+	temp_objects.append(_build_power_network_debug_object("power_debug_source_overloaded_terminal", "terminal", "power_debug_source_overloaded", {"is_powered": false, "state": "unpowered"}))
 	temp_objects.append(_build_power_network_debug_object("power_debug_source_overloaded_platform", "lifting_platform", "power_debug_source_overloaded", {"is_powered": false, "state": "unpowered"}))
 	temp_objects.append(_build_power_network_debug_object("power_debug_source_overheat_shutdown_source", "power_source_class_1", "power_debug_source_overheat_shutdown", {"is_powered": true, "state": "active", "outlet_capacity": 1, "current_heat": 0, "overheat_threshold": 2, "working_heat": 1}))
-	temp_objects.append(_build_power_network_debug_object("power_debug_source_overheat_shutdown_terminal", "information_terminal", "power_debug_source_overheat_shutdown", {"is_powered": true, "state": "active"}))
+	temp_objects.append(_build_power_network_debug_object("power_debug_source_overheat_shutdown_terminal", "terminal", "power_debug_source_overheat_shutdown", {"is_powered": true, "state": "active"}))
 	temp_objects.append(_build_power_network_debug_object("power_debug_source_overheat_shutdown_platform", "lifting_platform", "power_debug_source_overheat_shutdown", {"is_powered": true, "state": "active"}))
 	for object_data in temp_objects:
 		mission_world_objects.append(object_data)
@@ -8080,13 +8072,13 @@ func validate_full_power_system_runtime() -> Array[String]:
 	var temp_objects: Array[Dictionary] = []
 	var cleanup_ids: Array[String] = []
 	temp_objects.append(_build_power_network_debug_object("power_debug_source_recovery_source", "power_source_class_1", "power_debug_source_recovery", {"state": "overheated", "is_powered": false, "overheated_state_before": "active", "current_heat": 4, "working_heat": 1, "heat_from_connections": 2, "cooling_received": 5, "overheat_threshold": 4}))
-	temp_objects.append(_build_power_network_debug_object("power_debug_source_recovery_terminal", "information_terminal", "power_debug_source_recovery", {"is_powered": false, "state": "unpowered"}))
+	temp_objects.append(_build_power_network_debug_object("power_debug_source_recovery_terminal", "terminal", "power_debug_source_recovery", {"is_powered": false, "state": "unpowered"}))
 	temp_objects.append(_build_power_network_debug_object("power_debug_source_recovery_door", "energy_door", "power_debug_source_recovery", {"is_powered": false, "state": "unpowered"}))
 	temp_objects.append(_build_power_network_debug_object("power_debug_source_recovery_platform", "lifting_platform", "power_debug_source_recovery", {"is_powered": false, "state": "unpowered", "height_level": 1}))
 	temp_objects.append(_build_power_network_debug_object("power_debug_source_recovery_damaged_source", "power_source_class_1", "power_debug_source_recovery_damaged", {"state": "overheated", "is_powered": false, "overheated_state_before": "damaged", "current_heat": 4, "working_heat": 1, "cooling_received": 6, "overheat_threshold": 4}))
-	temp_objects.append(_build_power_network_debug_object("power_debug_source_recovery_damaged_terminal", "information_terminal", "power_debug_source_recovery_damaged", {"is_powered": false, "state": "unpowered"}))
+	temp_objects.append(_build_power_network_debug_object("power_debug_source_recovery_damaged_terminal", "terminal", "power_debug_source_recovery_damaged", {"is_powered": false, "state": "unpowered"}))
 	temp_objects.append(_build_power_network_debug_object("power_debug_source_recovery_broken_source", "power_source_class_1", "power_debug_source_recovery_broken", {"state": "overheated", "is_powered": false, "broken": true, "overheated_state_before": "active", "current_heat": 4, "working_heat": 1, "cooling_received": 6, "overheat_threshold": 4}))
-	temp_objects.append(_build_power_network_debug_object("power_debug_source_recovery_broken_terminal", "information_terminal", "power_debug_source_recovery_broken", {"is_powered": false, "state": "unpowered"}))
+	temp_objects.append(_build_power_network_debug_object("power_debug_source_recovery_broken_terminal", "terminal", "power_debug_source_recovery_broken", {"is_powered": false, "state": "unpowered"}))
 	for object_data in temp_objects:
 		mission_world_objects.append(object_data)
 		cleanup_ids.append(String(object_data.get("id", "")))
@@ -8135,7 +8127,7 @@ func validate_full_power_system_runtime() -> Array[String]:
 		var snap: Dictionary = report_snapshot[object_id]
 		if String(obj.get("state", "")) != String(snap.get("state", "")) or bool(obj.get("is_powered", false)) != bool(snap.get("is_powered", false)) or String(obj.get("power_unavailable_reason", "")) != String(snap.get("power_unavailable_reason", "")) or bool(obj.get("connected", false)) != bool(snap.get("connected", false)):
 			warnings.append("power_debug_source_recovery: full debug report mutated runtime state for %s." % String(object_id))
-	var runtime_object := _build_power_network_debug_object("power_debug_runtime_save_fields", "information_terminal", "power_debug_runtime_save")
+	var runtime_object := _build_power_network_debug_object("power_debug_runtime_save_fields", "terminal", "power_debug_runtime_save")
 	runtime_object["state"] = "unpowered"
 	runtime_object["is_powered"] = false
 	runtime_object["current_heat"] = 3
@@ -10242,7 +10234,7 @@ func validate_platform_runtime_state() -> Dictionary:
 		if group == "platform":
 			platforms.append(object_data)
 			continue
-		if String(object_data.get("object_type", "")) == "platform_terminal":
+		if String(object_data.get("object_group", "")) == "terminal" and String(object_data.get("controlled_target_type", "")) == "platform":
 			terminals.append(object_data)
 	for platform in platforms:
 		var object_id := String(platform.get("id", ""))
@@ -10331,7 +10323,7 @@ func validate_platform_runtime_state() -> Dictionary:
 				if linked_terminal.is_empty():
 					errors.append("Platform %s linked terminal %s is missing." % [platform_id, linked_terminal_id])
 				else:
-					if String(linked_terminal.get("terminal_type", "")) != "platform":
+					if String(linked_terminal.get("controlled_target_type", "")) != "platform":
 						errors.append("Platform %s linked terminal %s has invalid terminal_type." % [platform_id, linked_terminal_id])
 					if String(linked_terminal.get("target_platform_id", "")) != platform_id:
 						errors.append("Platform %s linked terminal %s targets %s." % [platform_id, linked_terminal_id, String(linked_terminal.get("target_platform_id", ""))])
@@ -10459,7 +10451,7 @@ func get_platform_runtime_table_text(filter: String = "") -> String:
 	for object_data in mission_world_objects:
 		if String(object_data.get("object_group", "")) == "platform":
 			platforms.append(object_data)
-		elif String(object_data.get("object_type", "")) == "platform_terminal":
+		elif String(object_data.get("object_group", "")) == "terminal" and String(object_data.get("controlled_target_type", "")) == "platform":
 			terminals.append(object_data)
 	platforms.sort_custom(func(a: Dictionary, b: Dictionary) -> bool:
 		var a_key := "%s|%s" % [String(a.get("platform_id", "")), String(a.get("id", ""))]
@@ -10533,7 +10525,7 @@ func get_platform_runtime_table_text(filter: String = "") -> String:
 func seed_platform_debug_scenario(origin: Vector2i = Vector2i(10, 2)) -> void:
 	_place_debug_world_object("rotating_platform", "rotating_platform_debug", origin, {"platform_id":"platform_rot_a","platform_cells":[[origin.x, origin.y],[origin.x+1, origin.y]],"control_type":"external","linked_terminal_id":"platform_terminal_debug","requires_terminal_enabled":true})
 	_place_debug_world_object("lifting_platform", "lifting_platform_debug", origin + Vector2i(0, 3), {"platform_id":"platform_lift_a","platform_cells":[[origin.x, origin.y+3]],"control_type":"internal","local_switch_cell":[origin.x-1, origin.y+3],"height_level":0,"min_height_level":0,"max_height_level":1})
-	_place_debug_world_object("platform_terminal", "platform_terminal_debug", origin + Vector2i(-2, 0), {"target_platform_id":"platform_rot_a","platform_control_enabled":true})
+	_place_debug_world_object("terminal", "platform_terminal_debug", origin + Vector2i(-2, 0), {"terminal_type":"control","controlled_target_type":"platform","linked_platform_ids":["platform_rot_a"],"target_platform_id":"platform_rot_a","platform_control_enabled":true})
 	_place_debug_world_object("external_air_cooler", "platform_air_cooler_debug", origin, {"facing_dir":"right"})
 
 func _snapshot_platform_debug_fields(object_data: Dictionary, fields: Array[String]) -> Dictionary:
@@ -12585,12 +12577,12 @@ func get_map_constructor_prefab_kits() -> Dictionary:
 	if not _is_task_test_constructor_context():
 		return {"ok": false, "kits": [], "message": "Prefab kits are available only in TASK TEST constructor mode."}
 	var kits: Array[Dictionary] = [
-		{"id":"locked_door_kit","display_name":"Locked Door Kit","category":"security","description":"Door + terminal + access key.","tags":["door","terminal","key"],"default_options":{"allow_overwrite":false},"entries":[{"prefab_id":"door","offset":Vector2i(0,0),"wall_side":"","properties":{"door_type":"digital","material":"energy","access_type":"access_code"},"link_group":"door_a"},{"prefab_id":"door_terminal","offset":Vector2i(-1,0),"wall_side":"","properties":{},"link_group":"door_a"},{"prefab_id":"access_code","offset":Vector2i(-2,0),"wall_side":"","properties":{},"link_group":""}]},
+		{"id":"locked_door_kit","display_name":"Locked Door Kit","category":"security","description":"Door + terminal + access key.","tags":["door","terminal","key"],"default_options":{"allow_overwrite":false},"entries":[{"prefab_id":"door","offset":Vector2i(0,0),"wall_side":"","properties":{"door_type":"digital","material":"energy","access_type":"access_code"},"link_group":"door_a"},{"prefab_id":"terminal","offset":Vector2i(-1,0),"wall_side":"","properties":{"terminal_type":"control","controlled_target_type":"door"},"link_group":"door_a"},{"prefab_id":"access_code","offset":Vector2i(-2,0),"wall_side":"","properties":{},"link_group":""}]},
 		{"id":"power_gate_kit","display_name":"Power Gate Kit","category":"power","description":"Power chain to powered gate.","tags":["power","gate"],"default_options":{"allow_overwrite":false},"entries":[{"prefab_id":"power_source_class_1","offset":Vector2i(-2,0),"wall_side":"","properties":{},"link_group":""},{"prefab_id":"power_cable","offset":Vector2i(-1,0),"wall_side":"","properties":{},"link_group":""},{"prefab_id":"power_socket","offset":Vector2i(0,0),"wall_side":"","properties":{},"link_group":""},{"prefab_id":"door","offset":Vector2i(1,0),"wall_side":"","properties":{"door_type":"powered","material":"energy","access_type":"no_key","power_type":"external"},"link_group":""}]},
-		{"id":"wall_terminal_kit","display_name":"Wall Terminal Kit","category":"control","description":"Wall-mounted terminal chain.","tags":["wall_mounted","terminal"],"default_options":{"allow_overwrite":false},"entries":[{"prefab_id":"door_terminal","offset":Vector2i(0,0),"wall_side":"north","properties":{},"link_group":"terminal_group"}]},
+		{"id":"wall_terminal_kit","display_name":"Wall Terminal Kit","category":"control","description":"Wall-mounted terminal chain.","tags":["wall_mounted","terminal"],"default_options":{"allow_overwrite":false},"entries":[{"prefab_id":"terminal","offset":Vector2i(0,0),"wall_side":"north","properties":{"terminal_type":"control","controlled_target_type":"door"},"link_group":"terminal_group"}]},
 		{"id":"diagnostic_device_kit","display_name":"Diagnostic Device Kit","category":"diagnostic","description":"Diagnostic fixtures.","tags":["diagnostic"],"default_options":{"allow_overwrite":false},"entries":[{"prefab_id":"firewall","offset":Vector2i(0,0),"wall_side":"east","properties":{},"link_group":""}]},
 		{"id":"expected_invalid_refs_kit","display_name":"Expected Invalid Refs Kit","category":"expected_invalid","description":"Creates expected invalid test rows.","tags":["expected_invalid"],"default_options":{"allow_overwrite":false},"entries":[{"prefab_id":"broken_reference_probe","offset":Vector2i(0,0),"wall_side":"","properties":{},"link_group":""}],"warning":"Some entries unavailable"},
-		{"id":"cooling_test_kit","display_name":"Cooling Test Kit","category":"power","description":"Cooling and power test objects.","tags":["cooling","power"],"default_options":{"allow_overwrite":false},"entries":[{"prefab_id":"cooling_terminal","offset":Vector2i(0,0),"wall_side":"south","properties":{},"link_group":""}]},
+		{"id":"cooling_test_kit","display_name":"Cooling Test Kit","category":"power","description":"Cooling and power test objects.","tags":["cooling","power"],"default_options":{"allow_overwrite":false},"entries":[{"prefab_id":"terminal","offset":Vector2i(0,0),"wall_side":"south","properties":{"terminal_type":"control","controlled_target_type":"cooling"},"link_group":""}]},
 		{"id":"control_chain_kit","display_name":"Control Chain Kit","category":"control","description":"Control + power chain.","tags":["control","power"],"default_options":{"allow_overwrite":false},"entries":[{"prefab_id":"circuit_breaker","offset":Vector2i(0,0),"wall_side":"","properties":{},"link_group":"control_a"},{"prefab_id":"light_switch","offset":Vector2i(1,0),"wall_side":"west","properties":{},"link_group":"control_a"}]}
 	]
 	var filtered_kits: Array[Dictionary] = []
@@ -12659,13 +12651,13 @@ func get_map_constructor_room_templates() -> Dictionary:
 	if not _is_task_test_constructor_context():
 		return {"ok": false, "templates": [], "message": "Room templates are available only in TASK TEST constructor mode."}
 	var templates: Array[Dictionary] = [
-		{"id":"small_locked_room","display_name":"Small Locked Room","category":"room","description":"Compact room with locked door.","size":Vector2i(4,4),"entries":[{"prefab_id":"door","offset":Vector2i(1,0),"wall_side":"","properties":{"door_type":"digital","material":"energy","access_type":"terminal","state":"locked"},"link_group":"d"},{"prefab_id":"door_terminal","offset":Vector2i(0,1),"wall_side":"north","properties":{},"link_group":"d"}],"tile_edits":[],"tags":["room"],"default_options":{"rotation":0,"mirror_x":false,"mirror_y":false,"allow_overwrite":false}},
+		{"id":"small_locked_room","display_name":"Small Locked Room","category":"room","description":"Compact room with locked door.","size":Vector2i(4,4),"entries":[{"prefab_id":"door","offset":Vector2i(1,0),"wall_side":"","properties":{"door_type":"digital","material":"energy","access_type":"terminal","state":"locked"},"link_group":"d"},{"prefab_id":"terminal","offset":Vector2i(0,1),"wall_side":"north","properties":{"terminal_type":"control","controlled_target_type":"door"},"link_group":"d"}],"tile_edits":[],"tags":["room"],"default_options":{"rotation":0,"mirror_x":false,"mirror_y":false,"allow_overwrite":false}},
 		{"id":"power_room","display_name":"Power Room","category":"room","description":"Small power setup.","size":Vector2i(4,4),"entries":[{"prefab_id":"power_source_class_1","offset":Vector2i(1,1),"wall_side":"","properties":{},"link_group":""}],"tile_edits":[],"tags":["power"],"default_options":{"rotation":0,"mirror_x":false,"mirror_y":false,"allow_overwrite":false}},
 		{"id":"corridor_with_door","display_name":"Corridor With Door","category":"corridor","description":"Corridor section with a door.","size":Vector2i(5,3),"entries":[{"prefab_id":"door","offset":Vector2i(2,1),"wall_side":"","properties":{"door_type":"digital","material":"energy"},"link_group":""}],"tile_edits":[],"tags":["corridor"],"default_options":{"rotation":0,"mirror_x":false,"mirror_y":false,"allow_overwrite":false}},
-		{"id":"terminal_alcove","display_name":"Terminal Alcove","category":"room","description":"Alcove with wall terminal.","size":Vector2i(3,3),"entries":[{"prefab_id":"door_terminal","offset":Vector2i(1,1),"wall_side":"east","properties":{},"link_group":""}],"tile_edits":[],"tags":["terminal"],"default_options":{"rotation":0,"mirror_x":false,"mirror_y":false,"allow_overwrite":false}},
+		{"id":"terminal_alcove","display_name":"Terminal Alcove","category":"room","description":"Alcove with wall terminal.","size":Vector2i(3,3),"entries":[{"prefab_id":"terminal","offset":Vector2i(1,1),"wall_side":"east","properties":{"terminal_type":"information","controlled_target_type":"none"},"link_group":""}],"tile_edits":[],"tags":["terminal"],"default_options":{"rotation":0,"mirror_x":false,"mirror_y":false,"allow_overwrite":false}},
 		{"id":"diagnostic_test_bay","display_name":"Diagnostic Test Bay","category":"test","description":"Diagnostics layout.","size":Vector2i(5,4),"entries":[{"prefab_id":"firewall","offset":Vector2i(2,1),"wall_side":"west","properties":{},"link_group":""}],"tile_edits":[],"tags":["diagnostic"],"default_options":{"rotation":0,"mirror_x":false,"mirror_y":false,"allow_overwrite":false}},
 		{"id":"empty_test_chamber","display_name":"Empty Test Chamber","category":"test","description":"Open chamber with tile edits only.","size":Vector2i(4,4),"entries":[],"tile_edits":[{"offset":Vector2i(1,1),"tile_id":0}],"tags":["empty"],"default_options":{"rotation":0,"mirror_x":false,"mirror_y":false,"allow_overwrite":true}},
-		{"id":"wall_mounted_test_wall","display_name":"Wall-mounted Test Wall","category":"test","description":"Wall-mounted placement checks.","size":Vector2i(4,2),"entries":[{"prefab_id":"door_terminal","offset":Vector2i(1,0),"wall_side":"north","properties":{},"link_group":"wall"}],"tile_edits":[],"tags":["wall_mounted"],"default_options":{"rotation":0,"mirror_x":false,"mirror_y":false,"allow_overwrite":false}}
+		{"id":"wall_mounted_test_wall","display_name":"Wall-mounted Test Wall","category":"test","description":"Wall-mounted placement checks.","size":Vector2i(4,2),"entries":[{"prefab_id":"terminal","offset":Vector2i(1,0),"wall_side":"north","properties":{"terminal_type":"control","controlled_target_type":"door"},"link_group":"wall"}],"tile_edits":[],"tags":["wall_mounted"],"default_options":{"rotation":0,"mirror_x":false,"mirror_y":false,"allow_overwrite":false}}
 	]
 	var filtered_templates: Array[Dictionary] = []
 	for template_variant in templates:

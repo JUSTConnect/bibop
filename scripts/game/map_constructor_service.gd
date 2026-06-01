@@ -320,6 +320,8 @@ func apply_map_constructor_property_update(entity_kind: String, entity_id: Strin
 	var old_value: Variant = data.get(field_name)
 	var old_network_id: String = String(data.get("power_network_id", ""))
 	data[field_name] = new_value
+	if field_name == "status" and String(data.get("archetype_id", "")) == "terminal":
+		data["state"] = new_value
 	if resolved_kind == "world_object":
 		data = WorldObjectCatalogRef.normalize_door_state_fields(WorldObjectCatalogRef.normalize_world_object_contract(data))
 		data = manager._normalize_map_constructor_active_object_fields(data)
