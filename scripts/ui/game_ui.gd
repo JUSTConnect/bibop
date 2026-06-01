@@ -12662,13 +12662,14 @@ func _refresh_runtime_interaction_controls() -> void:
 	var has_available_action: bool = bool(view_model.get("has_available_action", false))
 	var action_label: String = String(view_model.get("primary_action_label", "Action"))
 	var disabled_reason: String = String(view_model.get("disabled_reason", ""))
-	if not target_object.is_empty() and bipob != null and bipob.has_method("get_facing_device_interaction_preflight"):
-		var preflight_variant: Variant = bipob.call("get_facing_device_interaction_preflight", String(view_model.get("primary_action_id", "")))
-		if typeof(preflight_variant) == TYPE_DICTIONARY:
-			var preflight: Dictionary = preflight_variant
-			if not bool(preflight.get("preflight_ok", false)):
+	if not target_object.is_empty() and bipob != null and bipob.has_method("get_facing_device_interaction_state_flow"):
+		var state_flow_variant: Variant = bipob.call("get_facing_device_interaction_state_flow", String(view_model.get("primary_action_id", "")))
+		if typeof(state_flow_variant) == TYPE_DICTIONARY:
+			var state_flow: Dictionary = state_flow_variant
+			var flow_state: String = String(state_flow.get("state", ""))
+			if bool(state_flow.get("is_applicable", false)) and flow_state in ["unknown", "scanned", "blocked", "executed_unavailable"]:
 				has_available_action = false
-				action_label = String(preflight.get("message", action_label))
+				action_label = String(state_flow.get("message", action_label))
 				disabled_reason = action_label
 	runtime_action_button.text = action_label
 	runtime_action_button.tooltip_text = disabled_reason if not has_available_action else ""
@@ -12689,17 +12690,21 @@ func _on_runtime_interaction_action_pressed(action_id: String) -> void:
 func _on_interact_pressed() -> void:
 	var view_model: Dictionary = _get_runtime_action_view_model()
 	var target_object: Dictionary = _safe_ui_dictionary(view_model.get("target", {}))
-	if not target_object.is_empty() and not bool(view_model.get("has_available_action", false)):
+	if not target_object.is_empty():
 		var blocked_message: String = String(view_model.get("primary_action_label", "No available action for this object."))
-		if bipob != null and bipob.has_method("get_facing_device_interaction_preflight"):
-			var preflight_variant: Variant = bipob.call("get_facing_device_interaction_preflight", String(view_model.get("primary_action_id", "")))
-			if typeof(preflight_variant) == TYPE_DICTIONARY:
-				var preflight: Dictionary = preflight_variant
-				if not bool(preflight.get("preflight_ok", false)):
-					blocked_message = String(preflight.get("message", blocked_message))
-		show_hint(blocked_message)
-		_refresh_runtime_interaction_controls()
-		return
+		var state_flow_blocks_action: bool = false
+		if bipob != null and bipob.has_method("get_facing_device_interaction_state_flow"):
+			var state_flow_variant: Variant = bipob.call("get_facing_device_interaction_state_flow", String(view_model.get("primary_action_id", "")))
+			if typeof(state_flow_variant) == TYPE_DICTIONARY:
+				var state_flow: Dictionary = state_flow_variant
+				var flow_state: String = String(state_flow.get("state", ""))
+				state_flow_blocks_action = bool(state_flow.get("is_applicable", false)) and flow_state in ["unknown", "scanned", "blocked", "executed_unavailable"]
+				if state_flow_blocks_action:
+					blocked_message = String(state_flow.get("message", blocked_message))
+		if state_flow_blocks_action or not bool(view_model.get("has_available_action", false)):
+			show_hint(blocked_message)
+			_refresh_runtime_interaction_controls()
+			return
 	RuntimeInteractionPanel.press_interact(self)
 
 func _on_use_selected_world_action_pressed() -> void:
@@ -12969,6 +12974,11 @@ func update_diagnostic_status() -> void:
 		var runtime_diagnostic_variant: Variant = bipob.call("get_facing_device_diagnostic_result")
 		var runtime_diagnostic: Dictionary = Dictionary(runtime_diagnostic_variant) if typeof(runtime_diagnostic_variant) == TYPE_DICTIONARY else {}
 		if not runtime_diagnostic.is_empty():
+			var state_flow_message: String = ""
+			if bipob.has_method("get_facing_device_interaction_state_flow"):
+				var state_flow_variant: Variant = bipob.call("get_facing_device_interaction_state_flow")
+				if typeof(state_flow_variant) == TYPE_DICTIONARY:
+					state_flow_message = String(Dictionary(state_flow_variant).get("message", ""))
 			var missing_labels: Array[String] = []
 			for missing_variant in Array(runtime_diagnostic.get("missing", [])):
 				if typeof(missing_variant) == TYPE_DICTIONARY:
@@ -12982,7 +12992,7 @@ func update_diagnostic_status() -> void:
 				if typeof(action_variant) == TYPE_DICTIONARY:
 					var action: Dictionary = action_variant
 					blocked_labels.append("%s (%s)" % [String(action.get("label", action.get("id", "Action"))), String(action.get("reason", "blocked"))])
-			hud_diagnostic_label.text = "Diagnostic:\nDevice: %s\nType: %s / %s / %s / %s\nState: %s / %s\nRequirements: %s\nMissing: %s\nAvailable: %s\nBlocked: %s\nSummary: %s" % [
+			hud_diagnostic_label.text = "Diagnostic:\nDevice: %s\nType: %s / %s / %s / %s\nState: %s / %s\nRequirements: %s\nMissing: %s\nAvailable: %s\nBlocked: %s\nSummary: %s\nNext step: %s" % [
 				String(runtime_diagnostic.get("target_name", "Unknown device")),
 				String(runtime_diagnostic.get("target_type", "unknown")),
 				String(runtime_diagnostic.get("door_type", "n/a")),
@@ -12994,7 +13004,8 @@ func update_diagnostic_status() -> void:
 				", ".join(missing_labels) if not missing_labels.is_empty() else "none",
 				", ".join(available_labels) if not available_labels.is_empty() else "none",
 				", ".join(blocked_labels) if not blocked_labels.is_empty() else "none",
-				String(runtime_diagnostic.get("summary", ""))
+				String(runtime_diagnostic.get("summary", "")),
+				state_flow_message
 			]
 			return
 

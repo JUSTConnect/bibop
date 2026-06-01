@@ -6955,6 +6955,24 @@ func get_facing_device_interaction_preflight(action_id: String = "") -> Dictiona
 	var preflight_variant: Variant = mission_manager.call("build_device_interaction_preflight", target_object, target_cell, resolved_action_id, actor)
 	return Dictionary(preflight_variant) if typeof(preflight_variant) == TYPE_DICTIONARY else {}
 
+func get_facing_device_interaction_state_flow(action_id: String = "") -> Dictionary:
+	if mission_manager == null or not mission_manager.has_method("build_device_interaction_state_flow"):
+		return {}
+	var target_data: Dictionary = get_facing_world_action_target()
+	var target_variant: Variant = target_data.get("target_object", {})
+	if typeof(target_variant) != TYPE_DICTIONARY:
+		return {}
+	var target_object: Dictionary = target_variant
+	var target_cell: Vector2i = Vector2i(target_data.get("target_position", get_facing_device_position()))
+	var resolved_action_id: String = action_id
+	if resolved_action_id.is_empty():
+		var view_model_variant: Variant = target_data.get("action_view_model", {})
+		if typeof(view_model_variant) == TYPE_DICTIONARY:
+			resolved_action_id = String(Dictionary(view_model_variant).get("primary_action_id", ""))
+	var actor: Dictionary = _build_runtime_action_actor(target_object, target_cell)
+	var flow_variant: Variant = mission_manager.call("build_device_interaction_state_flow", target_object, target_cell, resolved_action_id, actor)
+	return Dictionary(flow_variant) if typeof(flow_variant) == TYPE_DICTIONARY else {}
+
 func _build_runtime_action_actor(target_object: Dictionary, target_position: Vector2i) -> Dictionary:
 	return {
 		"manipulator_level": get_installed_manipulator_arm_level(),
@@ -7484,6 +7502,11 @@ func scan_device() -> void:
 			var diagnostic: Dictionary = get_facing_device_diagnostic_result()
 			if not diagnostic.is_empty():
 				scan_text += "\n" + String(diagnostic.get("summary", ""))
+			var state_flow: Dictionary = get_facing_device_interaction_state_flow()
+			if not state_flow.is_empty():
+				var flow_message: String = String(state_flow.get("message", "")).strip_edges()
+				if not flow_message.is_empty():
+					scan_text += "\nNext step: %s" % flow_message
 			hint_requested.emit("Scan: %s" % scan_text)
 			clear_selected_world_action_if_invalid(world_object, facing_cell)
 			emit_facing_world_object_hint()
