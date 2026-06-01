@@ -33,8 +33,8 @@ static func apply_action(actor: Dictionary, module: Dictionary, target_object: D
 	var can := can_apply_action(actor, module, target_object, action_type)
 	if not can.success:
 		return can
-	if String(target_object.get("object_group", "")) == "door":
-		target_object = WorldObjectCatalogRef.normalize_door_state_fields(target_object)
+	if _is_door_object(target_object):
+		target_object = _normalize_runtime_door_data(target_object)
 	var group: String = String(target_object.get("object_group", ""))
 	var module_id: String = String(module.get("id", ""))
 	match action_type:
@@ -54,7 +54,8 @@ static func apply_action(actor: Dictionary, module: Dictionary, target_object: D
 				target_object["locked"] = false
 				target_object["is_closed"] = false
 				target_object["blocks_movement"] = false
-				return _result(true, "Door opened.", [{"type":"door_opened"},{"type":"set_state","state":"open"},{"type":"set_blocks_movement","value":false},{"type":"set_bool","field":"is_open","value":true},{"type":"set_bool","field":"is_closed","value":false},{"type":"set_bool","field":"is_locked","value":false},{"type":"set_bool","field":"locked","value":false}])
+				target_object = WorldObjectCatalogRef.normalize_door_state_fields(target_object)
+				return _result(true, "Door opened.", [{"type":"door_opened"},{"type":"set_state","state":"open"},{"type":"set_blocks_movement","value":false},{"type":"set_bool","field":"blocks_vision_when_closed","value":bool(target_object.get("blocks_vision_when_closed", false))},{"type":"set_bool","field":"blocks_vision","value":bool(target_object.get("blocks_vision", false))},{"type":"set_bool","field":"is_open","value":true},{"type":"set_bool","field":"is_closed","value":false},{"type":"set_bool","field":"is_locked","value":false},{"type":"set_bool","field":"locked","value":false}])
 		"close":
 			if group != "door":
 				return _result(false, "Cannot close this object.")
@@ -67,7 +68,8 @@ static func apply_action(actor: Dictionary, module: Dictionary, target_object: D
 			target_object["is_open"] = false
 			target_object["is_closed"] = true
 			target_object["blocks_movement"] = true
-			return _result(true, "Door closed.", [{"type":"set_state","state":"closed"},{"type":"set_blocks_movement","value":true},{"type":"set_bool","field":"is_open","value":false},{"type":"set_bool","field":"is_closed","value":true}])
+			target_object = WorldObjectCatalogRef.normalize_door_state_fields(target_object)
+			return _result(true, "Door closed.", [{"type":"set_state","state":"closed"},{"type":"set_blocks_movement","value":true},{"type":"set_bool","field":"blocks_vision_when_closed","value":bool(target_object.get("blocks_vision_when_closed", false))},{"type":"set_bool","field":"blocks_vision","value":bool(target_object.get("blocks_vision", false))},{"type":"set_bool","field":"is_open","value":false},{"type":"set_bool","field":"is_closed","value":true}])
 		"unlock":
 			if group != "door":
 				return _result(false, "Cannot unlock this object.")
@@ -81,14 +83,14 @@ static func apply_action(actor: Dictionary, module: Dictionary, target_object: D
 				return door_gate
 			var required_key_id: String = String(target_object.get("required_key_id", "")).strip_edges()
 			var has_required_key := not required_key_id.is_empty() and Array(actor.get("collected_key_ids", [])).has(required_key_id)
-			var access_type: String = String(target_object.get("access_type", target_object.get("lock_type", ""))).strip_edges().to_lower()
-			if access_type in ["mechanical_key", "mechanical_keycard", "key_card", "keycard", "mechanical key-card"] and bool(actor.get("manipulator_occupied", false)):
+			var access_type: String = _get_door_access_type(target_object)
+			if _door_requires_key_card(target_object) and bool(actor.get("manipulator_occupied", false)):
 				return _result(false, "Free manipulator required.")
-			if String(target_object.get("access_type", target_object.get("lock_type", ""))).strip_edges().to_lower() in ["terminal_access"]:
+			if _door_requires_terminal(target_object):
 				return _result(false, "Door is controlled by linked terminal.")
 			if not required_key_id.is_empty() and not has_required_key:
 				return _result(false, "No matching key.")
-			if required_key_id.is_empty() and String(target_object.get("access_type", target_object.get("lock_type", ""))).strip_edges().to_lower() in ["none", "no_key", ""]:
+			if required_key_id.is_empty() and access_type == WorldObjectCatalogRef.ACCESS_TYPE_NO_KEY:
 				target_object["state"] = "closed"
 				target_object["is_locked"] = false
 				target_object["locked"] = false
@@ -403,6 +405,25 @@ static func apply_action(actor: Dictionary, module: Dictionary, target_object: D
 static func _is_cable_unavailable(target_object: Dictionary) -> bool:
 	var state: String = String(target_object.get("state", "")).strip_edges().to_lower()
 	return state in ["cut", "damaged", "broken", "destroyed"] or bool(target_object.get("cut", false)) or bool(target_object.get("damaged", false)) or bool(target_object.get("broken", false))
+
+
+static func _normalize_runtime_door_data(object_data: Dictionary) -> Dictionary:
+	var data: Dictionary = WorldObjectCatalogRef.normalize_world_object_contract(object_data)
+	data = WorldObjectCatalogRef.normalize_door_contract(data)
+	return WorldObjectCatalogRef.normalize_door_state_fields(data)
+
+static func _is_door_object(object_data: Dictionary) -> bool:
+	var data: Dictionary = WorldObjectCatalogRef.normalize_world_object_contract(object_data)
+	return String(data.get("object_group", "")) == "door"
+
+static func _get_door_access_type(object_data: Dictionary) -> String:
+	return WorldObjectCatalogRef.normalize_access_type(object_data.get("access_type", object_data.get("lock_type", "")))
+
+static func _door_requires_key_card(object_data: Dictionary) -> bool:
+	return _get_door_access_type(object_data) == WorldObjectCatalogRef.ACCESS_TYPE_KEY_CARD
+
+static func _door_requires_terminal(object_data: Dictionary) -> bool:
+	return _get_door_access_type(object_data) == WorldObjectCatalogRef.ACCESS_TYPE_TERMINAL
 
 static func _validate_door_class(actor: Dictionary, target_object: Dictionary) -> Dictionary:
 	var control_mode := String(target_object.get("control_mode", "internal")).strip_edges().to_lower()

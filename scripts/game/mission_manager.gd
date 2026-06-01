@@ -5456,9 +5456,12 @@ func _is_terminal_powered_for_interaction(object_data: Dictionary) -> bool:
 	return true
 
 func _is_power_reactive_door_object(object_data: Dictionary) -> bool:
-	var object_group := _normalize_power_consumer_text(object_data.get("object_group", ""))
-	var object_type := _normalize_power_consumer_text(object_data.get("object_type", ""))
-	var material := _normalize_power_consumer_text(object_data.get("material", ""))
+	var normalized_door: Dictionary = _normalize_runtime_door_data(object_data)
+	var object_group := _normalize_power_consumer_text(normalized_door.get("object_group", ""))
+	var object_type := _normalize_power_consumer_text(normalized_door.get("object_type", ""))
+	var material := _normalize_power_consumer_text(normalized_door.get("material", ""))
+	if object_group == "door" and _door_is_powered_mechanism(normalized_door):
+		return true
 	if object_type in ["energy_door", "grid_door", "power_door", "electromagnetic_door"]:
 		return true
 	if object_group == "door" and (material in ["electromagnetic", "energy", "grid"] or object_type.find("electromagnetic") != -1 or object_type.find("energy") != -1 or object_type.find("grid") != -1):
@@ -5509,20 +5512,42 @@ func update_power_door_state_from_is_powered(object_data: Dictionary) -> Diction
 	if state in ["damaged", "broken", "destroyed", "sealed"] or bool(object_data.get("damaged", false)) or bool(object_data.get("broken", false)):
 		report["reason"] = "door_blocked_state"
 		return report
+	var normalized_door: Dictionary = _normalize_runtime_door_data(object_data)
+	var opens_when_unpowered: bool = String(normalized_door.get("power_behavior", "")) == WorldObjectCatalogRef.POWER_BEHAVIOR_OPENS_WHEN_UNPOWERED
 	if not bool(object_data.get("is_powered", false)):
+		if opens_when_unpowered:
+			object_data["state"] = "open"
+			object_data["is_open"] = true
+			object_data["is_locked"] = false
+			object_data["locked"] = false
+			WorldObjectCatalogRef.normalize_door_state_fields(object_data)
+			report["changed"] = previous_state != "open"
+			report["new_state"] = "open"
+			report["reason"] = "door_opened_without_power"
+			return report
 		if not state in ["unpowered", "disabled", "damaged", "broken", "destroyed", "sealed"]:
 			object_data["powered_state_before_unpowered"] = previous_state
 		if state != "unpowered":
 			object_data["state"] = "unpowered"
+			WorldObjectCatalogRef.normalize_door_state_fields(object_data)
 			report["changed"] = true
 			report["new_state"] = "unpowered"
-		report["reason"] = "door_unpowered"
+			report["reason"] = "door_unpowered"
+		return report
+	if opens_when_unpowered and state == "open":
+		object_data["state"] = "closed"
+		object_data["is_open"] = false
+		WorldObjectCatalogRef.normalize_door_state_fields(object_data)
+		report["changed"] = true
+		report["new_state"] = "closed"
+		report["reason"] = "door_closed_with_power"
 		return report
 	if state in ["unpowered", "disabled"]:
 		var restore_state := _normalize_power_consumer_text(object_data.get("powered_state_before_unpowered", ""))
 		if restore_state in ["", "unpowered", "disabled", "damaged", "broken", "destroyed", "sealed"]:
 			restore_state = "closed"
 		object_data["state"] = restore_state
+		WorldObjectCatalogRef.normalize_door_state_fields(object_data)
 		report["changed"] = true
 		report["new_state"] = restore_state
 		report["reason"] = "door_power_restored"
@@ -9851,7 +9876,9 @@ func execute_terminal_control_action(terminal_id: String, target_id: String = ""
 	if action == "open_door": target["state"] = "open"; target["is_open"] = true; target["is_locked"] = false; target["locked"] = false; target["blocks_movement"] = false
 	elif action == "close_door": target["state"] = "closed"; target["is_open"] = false; target["blocks_movement"] = true
 	elif action == "unlock_door": target["is_locked"] = false; target["locked"] = false
-	elif action == "lock_door": target["is_locked"] = true; target["locked"] = true
+	elif action == "lock_door": target["state"] = "locked"; target["is_locked"] = true; target["locked"] = true
+	if action in ["open_door", "close_door", "unlock_door", "lock_door"]:
+		WorldObjectCatalogRef.normalize_door_state_fields(target)
 	elif action in ["activate_platform","toggle_platform","rotate_platform"]:
 		var platform_result: Dictionary = activate_platform_by_id(String(target.get("platform_id", normalized_target_id)), "terminal")
 		if not bool(platform_result.get("success", false)):
@@ -9862,26 +9889,44 @@ func execute_terminal_control_action(terminal_id: String, target_id: String = ""
 		execute_power_source_recovery_apply()
 	return {"success":true, "terminal_id":terminal_id, "target_id":normalized_target_id, "action":action, "reasons":["ok"]}
 
+func _normalize_runtime_door_data(object_data: Dictionary) -> Dictionary:
+	var data: Dictionary = WorldObjectCatalogRef.normalize_world_object_contract(object_data)
+	data = WorldObjectCatalogRef.normalize_door_contract(data)
+	return WorldObjectCatalogRef.normalize_door_state_fields(data)
+
+func _get_door_access_type(object_data: Dictionary) -> String:
+	return WorldObjectCatalogRef.normalize_access_type(object_data.get("access_type", object_data.get("lock_type", "")))
+
+func _get_door_type(object_data: Dictionary) -> String:
+	return String(_normalize_runtime_door_data(object_data).get("door_type", ""))
+
+func _door_is_powered_mechanism(object_data: Dictionary) -> bool:
+	return _get_door_type(object_data) == WorldObjectCatalogRef.DOOR_TYPE_POWERED
+
 func get_door_access_state(door_id: String) -> Dictionary:
-	var door := get_world_object_by_id(door_id)
-	if door.is_empty(): return {"door_id":door_id, "can_open":false, "can_unlock":false, "is_locked":true, "is_open":false, "is_powered":false, "reasons":["door_missing"], "lock_type":"", "door_class":0}
-	var lock_type := String(door.get("lock_type", "none"))
-	var is_locked := bool(door.get("is_locked", door.get("locked", lock_type != "none")))
-	var is_open := String(door.get("state", "closed")) == "open"
-	var powered := bool(door.get("is_powered", true))
+	var door: Dictionary = get_world_object_by_id(door_id)
+	if door.is_empty():
+		return {"door_id":door_id, "can_open":false, "can_unlock":false, "is_locked":true, "is_open":false, "is_powered":false, "reasons":["door_missing"], "lock_type":"", "access_type":"", "door_type":"", "door_class":0}
+	var normalized_door: Dictionary = _normalize_runtime_door_data(door)
+	var access_type: String = _get_door_access_type(normalized_door)
+	var lock_type: String = String(normalized_door.get("lock_type", "none"))
+	var is_locked: bool = bool(normalized_door.get("is_locked", false))
+	var is_open: bool = bool(normalized_door.get("is_open", false))
+	var powered: bool = bool(normalized_door.get("is_powered", true))
 	var reasons: Array[String] = []
-	if String(door.get("state", "")).to_lower() == "destroyed": reasons.append("door_destroyed")
+	if String(normalized_door.get("state", "")).to_lower() == "destroyed": reasons.append("door_destroyed")
 	elif is_locked: reasons.append("locked")
 	else: reasons.append("ok")
-	return {"door_id":door_id, "can_open":reasons.has("ok"), "can_unlock":is_locked, "is_locked":is_locked, "is_open":is_open, "is_powered":powered, "reasons":reasons, "lock_type":lock_type, "door_class":int(door.get("door_class", 1))}
+	return {"door_id":door_id, "can_open":reasons.has("ok"), "can_unlock":is_locked, "is_locked":is_locked, "is_open":is_open, "is_powered":powered, "reasons":reasons, "lock_type":lock_type, "access_type":access_type, "door_type":String(normalized_door.get("door_type", "")), "door_class":int(normalized_door.get("door_class", 1))}
 
 func can_use_access_item_on_door(item_id: String, door_id: String) -> Dictionary:
 	var normalized_item_id: String = item_id.strip_edges()
 	var normalized_door_id: String = door_id.strip_edges()
-	var door := get_world_object_by_id(normalized_door_id)
+	var door: Dictionary = get_world_object_by_id(normalized_door_id)
 	if door.is_empty():
 		return {"success":false, "item_id":normalized_item_id, "door_id":normalized_door_id, "reasons":["door_missing"]}
-	var required_key_id := String(door.get("required_key_id", "")).strip_edges()
+	var normalized_door: Dictionary = _normalize_runtime_door_data(door)
+	var required_key_id := String(normalized_door.get("required_key_id", "")).strip_edges()
 	if not required_key_id.is_empty() and normalized_item_id != required_key_id:
 		return {"success":false, "item_id":normalized_item_id, "door_id":normalized_door_id, "reasons":["wrong_key_id"]}
 	var item := get_world_object_by_id(normalized_item_id)
@@ -9890,7 +9935,7 @@ func can_use_access_item_on_door(item_id: String, door_id: String) -> Dictionary
 	var has_collected_item := has_collected_key(normalized_item_id)
 	if item.is_empty() and not has_collected_item:
 		return {"success":false, "item_id":normalized_item_id, "door_id":normalized_door_id, "reasons":["item_missing"]}
-	var lock_type := String(door.get("lock_type", "none"))
+	var lock_type := String(normalized_door.get("lock_type", "none"))
 	var digital_state := String(item.get("digital_state", ""))
 	if normalized_item_id.find("damaged") != -1 or digital_state == "damaged":
 		return {"success":false, "item_id":normalized_item_id, "door_id":normalized_door_id, "reasons":["digital_key_damaged"]}
@@ -9909,7 +9954,8 @@ func use_access_item_on_door(item_id: String, door_id: String) -> Dictionary:
 	var before := String(door.get("state", "")) if not door.is_empty() else ""
 	if not bool(gate.get("success", false)): return {"success":false, "item_id":normalized_item_id, "door_id":normalized_door_id, "reasons":gate.get("reasons", []), "door_state_before":before, "door_state_after":before, "consumed":false}
 	door["state"] = "open"; door["is_open"] = true; door["is_locked"] = false; door["locked"] = false; door["blocks_movement"] = false
-	return {"success":true, "item_id":normalized_item_id, "door_id":normalized_door_id, "reasons":["ok"], "door_state_before":before, "door_state_after":"open", "consumed":false}
+	WorldObjectCatalogRef.normalize_door_state_fields(door)
+	return {"success":true, "item_id":normalized_item_id, "door_id":normalized_door_id, "reasons":["ok"], "door_state_before":before, "door_state_after":String(door.get("state", "open")), "consumed":false}
 
 func use_inventory_item_on_world_object(item_id: String, target_id: String, action: String = "") -> Dictionary:
 	var out := {"success": false, "item_id": item_id, "target_id": target_id, "action": action, "reasons": [], "consumed": false, "target_state_before": "", "target_state_after": "", "side_effects": {}}

@@ -7873,14 +7873,15 @@ func return_held_cable_end_to_reel() -> Dictionary:
 
 func get_available_world_actions(world_object: Dictionary, target_position: Vector2i) -> Array[String]:
 	var actions: Array[String] = []
-	var group := String(world_object.get("object_group", ""))
-	if group == "door":
-		world_object = WorldObjectCatalog.normalize_door_state_fields(world_object)
-	var state := String(world_object.get("state", ""))
+	var normalized_world_object: Dictionary = WorldObjectCatalog.normalize_world_object_contract(world_object)
+	if String(normalized_world_object.get("object_group", "")) == "door":
+		world_object = WorldObjectCatalog.normalize_door_state_fields(normalized_world_object)
+	var group: String = String(world_object.get("object_group", ""))
+	var state: String = String(world_object.get("state", ""))
 	var _items_here: Array[Dictionary] = mission_manager.get_items_at_cell(target_position) if mission_manager != null else []
 	if group == "door":
-		var access_type: String = String(world_object.get("access_type", world_object.get("lock_type", ""))).strip_edges().to_lower()
-		var is_digital_door: bool = access_type in ["digital_key", "access_code", "terminal_access"] or bool(world_object.get("is_digital_device", false))
+		var access_type: String = WorldObjectCatalog.normalize_access_type(world_object.get("access_type", world_object.get("lock_type", "")))
+		var is_digital_door: bool = access_type in ["digital_key", "access_code", "terminal"] or bool(world_object.get("is_digital_device", false))
 		if is_digital_door and get_installed_connector_level(String(world_object.get("connection_type", "wired"))) > 0:
 			if not bool(world_object.get("connected", false)):
 				actions.append("connect")
