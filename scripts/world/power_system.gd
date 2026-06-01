@@ -6,7 +6,6 @@ const STATE_DRIVEN_POWER_TYPES := {
 	"turret": true,
 	"light": true,
 	"energy_wall": true,
-	"energy_door": true,
 	"cooling_block": true,
 	"alarm": true,
 	"camera": true,
@@ -39,6 +38,8 @@ static func _is_state_driven_powered_object(obj: Dictionary) -> bool:
 	var object_group: String = String(obj.get("object_group", ""))
 	if object_group == "terminal":
 		return true
+	if object_group == "door":
+		return String(obj.get("material", "")) == WorldObjectCatalogRef.DOOR_MATERIAL_ENERGY or String(obj.get("power_behavior", "none")) != WorldObjectCatalogRef.POWER_BEHAVIOR_NONE or bool(obj.get("requires_external_power", false))
 	if object_group == "threat" and object_type == "turret":
 		return true
 	return bool(STATE_DRIVEN_POWER_TYPES.get(object_type, false))
@@ -189,7 +190,7 @@ static func _apply_powered_state(obj: Dictionary, powered: bool) -> void:
 			obj.erase("state_before_unpowered")
 		if object_group == "terminal":
 			obj["status"] = String(obj.get("state", "active"))
-	if object_group == "door" and object_type in ["energy_door", "powered_gate"]:
+	if object_group == "door" and String(obj.get("power_behavior", "none")) == WorldObjectCatalogRef.POWER_BEHAVIOR_OPENS_WHEN_UNPOWERED:
 		obj["state"] = "open" if not powered else String(obj.get("state", "closed"))
 		WorldObjectCatalogRef.normalize_door_state_fields(obj)
 	elif object_type == "energy_wall":
