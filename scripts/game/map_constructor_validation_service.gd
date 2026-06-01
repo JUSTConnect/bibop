@@ -14,12 +14,61 @@ const MAP_CONSTRUCTOR_WALL_SIDE_DELTAS: Array[Dictionary] = [
 func _init(manager_ref: Node) -> void:
 	manager = manager_ref
 
+func _safe_string(value: Variant, fallback: String = "") -> String:
+	if value == null:
+		return fallback
+	return str(value).strip_edges()
+
+func _map_constructor_token_is_key(value: Variant) -> bool:
+	var token: String = _safe_string(value).to_lower()
+	return token == "key" or token.begins_with("key_") or token.ends_with("_key") or token.contains("_key_") or token == "access_key" or token == "physical_key" or token == "digital_key"
+
+func _map_constructor_metadata_says_key(data: Dictionary) -> bool:
+	for field_name in ["prefab", "prefab_id", "category", "item_category", "metadata_category", "object_group", "item_group", "kind", "role"]:
+		if _map_constructor_token_is_key(data.get(field_name, "")):
+			return true
+	return false
+
+func _map_constructor_entity_kind(data: Dictionary) -> String:
+	var object_group: String = _safe_string(data.get("object_group", "")).to_lower()
+	var object_type: String = _safe_string(data.get("object_type", "")).to_lower()
+	var prefab_id: String = _safe_string(data.get("map_constructor_prefab_id", object_type)).to_lower()
+	var classifier: String = "%s|%s|%s" % [object_group, object_type, prefab_id]
+	if "door" in classifier or "gate" in classifier:
+		return "door"
+	if "terminal" in classifier:
+		return "terminal"
+	if "power" in classifier or "socket" in classifier or "cable" in classifier or "switch" in classifier or "fuse" in classifier or "cool" in classifier or "control" in classifier:
+		return "power_control_cooling"
+	if object_group == "item" or object_type == "item" or manager.is_map_constructor_item_prefab(prefab_id):
+		return "item"
+	return "generic"
+
+func _is_map_constructor_door_data(data: Dictionary) -> bool:
+	for field_name in ["object_type", "category", "object_group", "group", "prefab", "prefab_id", "metadata_category", "kind", "role"]:
+		var token: String = _safe_string(data.get(field_name, "")).to_lower()
+		if token in ["door", "gate", "locked_door", "mechanical_door", "digital_door", "powered_gate", "security_door", "blast_door", "airlock_door"]:
+			return true
+		if token.begins_with("door_") or token.ends_with("_door") or token.contains("_door_") or token.begins_with("gate_") or token.ends_with("_gate") or token.contains("_gate_"):
+			return true
+	var id_token: String = _safe_string(data.get("id", "")).to_lower()
+	return id_token.contains("door") or id_token.contains("gate")
+
+func _is_map_constructor_key_data(data: Dictionary) -> bool:
+	if _safe_string(data.get("item_type", "")).to_lower() == "key":
+		return true
+	if not _safe_string(data.get("key_type", "")).is_empty() or not _safe_string(data.get("key_kind", "")).is_empty():
+		return true
+	if _map_constructor_metadata_says_key(data):
+		return true
+	return _map_constructor_token_is_key(data.get("id", ""))
+
 func validate_constructor_palette_contract() -> Array[String]:
 	var warnings: Array[String] = []
 	var palette_runtime_types: Dictionary = {}
 	for row in WorldObjectCatalogRef.get_constructor_palette_rows():
-		var prefab_id: String = String(row.get("prefab_id", row.get("id", ""))).strip_edges()
-		var canonical_type: String = String(row.get("canonical_object_type", "")).strip_edges()
+		var prefab_id: String = _safe_string(row.get("prefab_id", row.get("id", ""))).strip_edges()
+		var canonical_type: String = _safe_string(row.get("canonical_object_type", "")).strip_edges()
 		if prefab_id.is_empty():
 			warnings.append("constructor_palette_row_missing_prefab_id")
 			continue
@@ -31,17 +80,17 @@ func validate_constructor_palette_contract() -> Array[String]:
 		if object_data.is_empty():
 			warnings.append("constructor_palette_prefab_creates_empty_object_%s" % prefab_id)
 			continue
-		var runtime_type: String = String(object_data.get("object_type", "")).strip_edges()
+		var runtime_type: String = _safe_string(object_data.get("object_type", "")).strip_edges()
 		if WorldObjectCatalogRef.is_legacy_prefab_alias(runtime_type):
 			warnings.append("constructor_palette_legacy_runtime_object_type_%s_%s" % [prefab_id, runtime_type])
 		if not WorldObjectCatalogRef.OBJECT_LIBRARY.has(runtime_type):
 			warnings.append("constructor_palette_unknown_runtime_object_type_%s_%s" % [prefab_id, runtime_type])
-		if String(row.get("object_group", "")) == "door":
+		if _safe_string(row.get("object_group", "")) == "door":
 			for required_field in ["door_type", "material", "access_type"]:
-				if String(row.get(required_field, "")).strip_edges().is_empty():
+				if _safe_string(row.get(required_field, "")).strip_edges().is_empty():
 					warnings.append("constructor_palette_door_missing_%s_%s" % [required_field, prefab_id])
 	for object_type_variant in WorldObjectCatalogRef.OBJECT_LIBRARY.keys():
-		var object_type: String = String(object_type_variant)
+		var object_type: String = _safe_string(object_type_variant)
 		var definition: Dictionary = WorldObjectCatalogRef.OBJECT_LIBRARY[object_type]
 		if bool(definition.get("placeable_in_constructor", true)) and not palette_runtime_types.has(object_type):
 			warnings.append("constructor_palette_missing_placeable_object_%s" % object_type)
@@ -50,11 +99,11 @@ func validate_constructor_palette_contract() -> Array[String]:
 			if typeof(object_variant) != TYPE_DICTIONARY:
 				continue
 			var object_data: Dictionary = object_variant
-			var runtime_type: String = String(object_data.get("object_type", "")).strip_edges()
-			var object_id: String = String(object_data.get("id", ""))
+			var runtime_type: String = _safe_string(object_data.get("object_type", "")).strip_edges()
+			var object_id: String = _safe_string(object_data.get("id", ""))
 			if WorldObjectCatalogRef.is_legacy_prefab_alias(runtime_type):
 				warnings.append("constructor_runtime_legacy_object_type_%s_%s" % [object_id, runtime_type])
-			if String(object_data.get("access_type", "")).strip_edges().to_lower() == "none":
+			if _safe_string(object_data.get("access_type", "")).strip_edges().to_lower() == "none":
 				warnings.append("constructor_runtime_legacy_access_type_none_%s" % object_id)
 			if object_data.has("lock_type") and not object_data.has("access_type"):
 				warnings.append("constructor_runtime_lock_type_without_access_type_%s" % object_id)
@@ -64,7 +113,7 @@ func _get_manager_dictionary_property(property_name: String) -> Variant:
 	if manager == null or not is_instance_valid(manager):
 		return null
 	for property_data in manager.get_property_list():
-		if String(property_data.get("name", "")) != property_name:
+		if _safe_string(property_data.get("name", "")) != property_name:
 			continue
 		var property_value: Variant = manager.get(property_name)
 		if typeof(property_value) == TYPE_DICTIONARY:
@@ -86,8 +135,8 @@ func _map_constructor_make_validation_link(label: String, target_id: String, tar
 		var key_entity: Dictionary = manager.find_map_constructor_key_item_by_id(target_id)
 		if bool(key_entity.get("ok", false)):
 			cell = Vector2i(key_entity.get("cell", Vector2i(-1, -1)))
-			location = String(key_entity.get("location", "map"))
-			var key_label: String = String(key_entity.get("label", "")).strip_edges()
+			location = _safe_string(key_entity.get("location", "map"))
+			var key_label: String = _safe_string(key_entity.get("label", "")).strip_edges()
 			if not key_label.is_empty():
 				display_label = "%s: %s" % [label, key_label]
 	else:
@@ -108,7 +157,7 @@ func _map_constructor_terminal_stores_key(terminal_id: String, key_id: String) -
 		if manager._safe_array(terminal.get(field_name, [])).has(normalized_key_id):
 			return true
 	for field_name in ["stored_key_id", "access_key_id", "download_record_id"]:
-		if String(terminal.get(field_name, "")).strip_edges() == normalized_key_id:
+		if _safe_string(terminal.get(field_name, "")).strip_edges() == normalized_key_id:
 			return true
 	return false
 
@@ -119,9 +168,9 @@ func _count_lights_linked_to_source(source_id: String) -> int:
 		return 0
 	var count: int = 0
 	for object_data in manager.mission_world_objects:
-		if String(object_data.get("object_type", "")).strip_edges().to_lower() != "light":
+		if _safe_string(object_data.get("object_type", "")).strip_edges().to_lower() != "light":
 			continue
-		var linked_source: String = String(object_data.get("power_source_id", object_data.get("power_network_id", ""))).strip_edges()
+		var linked_source: String = _safe_string(object_data.get("power_source_id", object_data.get("power_network_id", ""))).strip_edges()
 		if linked_source == normalized_source_id:
 			count += 1
 	return count
@@ -135,23 +184,23 @@ func _count_adjacent_power_wires(cell: Vector2i, target_id: String = "") -> int:
 		var neighbor: Dictionary = manager.get_world_object_at_cell(cell + delta)
 		if neighbor.is_empty():
 			continue
-		var neighbor_type: String = String(neighbor.get("object_type", "")).strip_edges().to_lower()
+		var neighbor_type: String = _safe_string(neighbor.get("object_type", "")).strip_edges().to_lower()
 		if neighbor_type == "power_cable" or neighbor_type == "power_cable_reel":
-			var neighbor_id: String = String(neighbor.get("id", "cell_%s" % str(cell + delta))).strip_edges()
+			var neighbor_id: String = _safe_string(neighbor.get("id", "cell_%s" % str(cell + delta))).strip_edges()
 			if not counted_ids.has(neighbor_id):
 				counted_ids[neighbor_id] = true
 				count += 1
 	var normalized_target_id: String = target_id.strip_edges()
 	if not normalized_target_id.is_empty():
 		for object_data in manager.mission_world_objects:
-			var object_type: String = String(object_data.get("object_type", "")).strip_edges().to_lower()
+			var object_type: String = _safe_string(object_data.get("object_type", "")).strip_edges().to_lower()
 			if object_type != "power_cable" and object_type != "power_cable_reel":
 				continue
-			var object_id: String = String(object_data.get("id", "")).strip_edges()
+			var object_id: String = _safe_string(object_data.get("id", "")).strip_edges()
 			if counted_ids.has(object_id):
 				continue
 			for end_index in range(1, 3):
-				if String(object_data.get("end_%d_target_id" % end_index, "")).strip_edges() == normalized_target_id:
+				if _safe_string(object_data.get("end_%d_target_id" % end_index, "")).strip_edges() == normalized_target_id:
 					counted_ids[object_id] = true
 					count += 1
 					break
@@ -168,9 +217,9 @@ func validate_map_constructor_entity_links(entity_kind: String, entity_id: Strin
 	if entity_kind == "world_object":
 		data = manager._normalize_map_constructor_active_object_fields(data)
 	var type_group: String = manager.get_map_constructor_entity_type_group(entity_kind, entity_id)
-	var normalized_object_type_for_validation: String = String(data.get("object_type", "")).strip_edges().to_lower()
+	var normalized_object_type_for_validation: String = _safe_string(data.get("object_type", "")).strip_edges().to_lower()
 	if normalized_object_type_for_validation in ["power_source", "power_source_class_1", "power_source_class_2", "power_source_class_3"]:
-		var source_id: String = String(data.get("id", entity_id)).strip_edges()
+		var source_id: String = _safe_string(data.get("id", entity_id)).strip_edges()
 		linked.append({"label":"Lighting", "target_id":"section", "target_kind":"world_object", "field_name":"power_source_id", "location":"summary"})
 		linked.append({"label":"Outlets", "target_id":"section", "target_kind":"world_object", "field_name":"power_source_id", "location":"summary"})
 		linked.append({"label":"Wires / physical circuit", "target_id":"section", "target_kind":"world_object", "field_name":"power_source_id", "location":"summary"})
@@ -178,10 +227,10 @@ func validate_map_constructor_entity_links(entity_kind: String, entity_id: Strin
 		var linked_wire_count: int = 0
 		var linked_light_count: int = 0
 		for object_data in manager.mission_world_objects:
-			var linked_source: String = String(object_data.get("power_source_id", object_data.get("connected_power_source_id", object_data.get("power_network_id", "")))).strip_edges()
+			var linked_source: String = _safe_string(object_data.get("power_source_id", object_data.get("connected_power_source_id", object_data.get("power_network_id", "")))).strip_edges()
 			if linked_source != source_id:
 				continue
-			var linked_type: String = String(object_data.get("object_type", "")).strip_edges().to_lower()
+			var linked_type: String = _safe_string(object_data.get("object_type", "")).strip_edges().to_lower()
 			if linked_type == "light":
 				linked_light_count += 1
 			elif linked_type in ["power_socket", "outlet"]:
@@ -194,14 +243,14 @@ func validate_map_constructor_entity_links(entity_kind: String, entity_id: Strin
 			warnings.append("Warnings: outlet capacity exceeded (%d/%d)." % [outlet_count, outlet_capacity])
 		if linked_wire_count <= 0:
 			warnings.append("Warnings: no linked/adjacent wires found for physical circuit.")
-		var source_state: String = String(data.get("state", "on")).strip_edges().to_lower()
+		var source_state: String = _safe_string(data.get("state", "on")).strip_edges().to_lower()
 		if source_state in ["off", "damaged", "broken"]:
 			warnings.append("Warnings: linked source is %s and will not provide power." % source_state)
 		if linked_light_count <= 0:
 			warnings.append("Lighting: no lights linked to this source.")
-	var power_mode: String = String(data.get("power_mode", "internal")).strip_edges().to_lower()
+	var power_mode: String = _safe_string(data.get("power_mode", "internal")).strip_edges().to_lower()
 	if power_mode == "external":
-		var power_source_id: String = String(data.get("power_source_id", data.get("power_network_id", ""))).strip_edges()
+		var power_source_id: String = _safe_string(data.get("power_source_id", data.get("power_network_id", ""))).strip_edges()
 		if power_source_id.is_empty():
 			missing.append("external power selected but no power source linked")
 		else:
@@ -209,9 +258,9 @@ func validate_map_constructor_entity_links(entity_kind: String, entity_id: Strin
 			if not manager._map_constructor_link_target_exists_for_field("power_source_id", power_source_id):
 				warnings.append("linked power source is missing/off/unpowered: %s" % power_source_id)
 			warnings.append("external power source is logically linked; verify physical wire/cable path exists")
-	var control_mode: String = String(data.get("control_mode", "internal")).strip_edges().to_lower()
+	var control_mode: String = _safe_string(data.get("control_mode", "internal")).strip_edges().to_lower()
 	if control_mode == "external":
-		var control_terminal_id: String = String(data.get("control_terminal_id", data.get("linked_terminal_id", ""))).strip_edges()
+		var control_terminal_id: String = _safe_string(data.get("control_terminal_id", data.get("linked_terminal_id", ""))).strip_edges()
 		if control_terminal_id.is_empty():
 			missing.append("external control selected but no terminal linked")
 		else:
@@ -222,12 +271,12 @@ func validate_map_constructor_entity_links(entity_kind: String, entity_id: Strin
 			elif not manager._is_terminal_powered_for_interaction(terminal_data):
 				warnings.append("external control terminal linked but terminal cannot currently operate due to power/connection issues")
 	if normalized_object_type_for_validation == "circuit_switch":
-		var has_input: bool = not String(data.get("input_wire_id", data.get("input_direction", ""))).strip_edges().is_empty()
+		var has_input: bool = not _safe_string(data.get("input_wire_id", data.get("input_direction", ""))).strip_edges().is_empty()
 		if not has_input:
 			warnings.append("Circuit switch has no input/source wire.")
 		var output_count: int = 0
 		for output_index in range(1, 4):
-			var output_value: String = String(data.get("output_%d_wire_id" % output_index, data.get("output_%d_direction" % output_index, ""))).strip_edges().to_lower()
+			var output_value: String = _safe_string(data.get("output_%d_wire_id" % output_index, data.get("output_%d_direction" % output_index, ""))).strip_edges().to_lower()
 			if not output_value.is_empty() and output_value != "none":
 				output_count += 1
 		if output_count <= 0:
@@ -236,31 +285,31 @@ func validate_map_constructor_entity_links(entity_kind: String, entity_id: Strin
 		if output_count > 0:
 			var active_output_value: String = ""
 			if active_output_index >= 1 and active_output_index <= 3:
-				active_output_value = String(data.get("output_%d_wire_id" % active_output_index, data.get("output_%d_direction" % active_output_index, ""))).strip_edges().to_lower()
+				active_output_value = _safe_string(data.get("output_%d_wire_id" % active_output_index, data.get("output_%d_direction" % active_output_index, ""))).strip_edges().to_lower()
 			if active_output_value.is_empty() or active_output_value == "none":
 				warnings.append("Circuit switch active output points to a missing/none output.")
 	if normalized_object_type_for_validation.begins_with("fuse_box") or normalized_object_type_for_validation == "fuse_block":
-		if not bool(data.get("fuse_installed", String(data.get("state", "")) == "installed")):
+		if not bool(data.get("fuse_installed", _safe_string(data.get("state", "")) == "installed")):
 			warnings.append("Fuse block has no fuse installed; circuit is open.")
-		if String(data.get("power_source_id", data.get("power_network_id", ""))).strip_edges().is_empty():
+		if _safe_string(data.get("power_source_id", data.get("power_network_id", ""))).strip_edges().is_empty():
 			warnings.append("Fuse block linked source missing.")
 		var fuse_cell: Vector2i = manager._deserialize_cell_variant(data.get("position", Vector2i(-1, -1)))
-		var adjacent_wires: int = _count_adjacent_power_wires(fuse_cell, String(data.get("id", entity_id)))
+		var adjacent_wires: int = _count_adjacent_power_wires(fuse_cell, _safe_string(data.get("id", entity_id)))
 		if adjacent_wires > 2:
 			warnings.append("Fuse block has more than 2 adjacent/connected wires (%d)." % adjacent_wires)
 	if normalized_object_type_for_validation in ["circuit_breaker", "power_breaker", "power_knife_switch"]:
-		if String(data.get("power_source_id", data.get("power_network_id", ""))).strip_edges().is_empty():
+		if _safe_string(data.get("power_source_id", data.get("power_network_id", ""))).strip_edges().is_empty():
 			warnings.append("Power breaker linked source missing.")
 	if normalized_object_type_for_validation == "light_switch":
-		var light_switch_source_id: String = String(data.get("power_source_id", data.get("power_network_id", ""))).strip_edges()
+		var light_switch_source_id: String = _safe_string(data.get("power_source_id", data.get("power_network_id", ""))).strip_edges()
 		if light_switch_source_id.is_empty():
 			warnings.append("Light switch source missing.")
 		elif _count_lights_linked_to_source(light_switch_source_id) <= 0:
 			warnings.append("Light switch has no lights linked to its source.")
 	if type_group == "door":
-		var access_type: String = String(data.get("access_type", manager._normalize_map_constructor_access_type(data.get("lock_type", ""), manager._default_map_constructor_access_type_for_object(data)))).strip_edges().to_lower()
-		var required_key_id: String = String(data.get("required_key_id", "")).strip_edges()
-		var access_terminal_id: String = String(data.get("access_terminal_id", "")).strip_edges()
+		var access_type: String = _safe_string(data.get("access_type", manager._normalize_map_constructor_access_type(data.get("lock_type", ""), manager._default_map_constructor_access_type_for_object(data)))).strip_edges().to_lower()
+		var required_key_id: String = _safe_string(data.get("required_key_id", "")).strip_edges()
+		var access_terminal_id: String = _safe_string(data.get("access_terminal_id", "")).strip_edges()
 		if access_type == "mechanical_key":
 			if required_key_id.is_empty():
 				missing.append("mechanical key selected but no physical key linked")
@@ -268,7 +317,7 @@ func validate_map_constructor_entity_links(entity_kind: String, entity_id: Strin
 				var mechanical_key_resolved: Dictionary = manager.find_map_constructor_key_item_by_id(required_key_id)
 				if bool(mechanical_key_resolved.get("ok", false)):
 					linked.append(_map_constructor_make_validation_link("linked key/access item", required_key_id, "item", "required_key_id"))
-					if String(mechanical_key_resolved.get("location", "map")) == "inventory":
+					if _safe_string(mechanical_key_resolved.get("location", "map")) == "inventory":
 						warnings.append("linked key is currently in player inventory")
 				else:
 					missing.append("mechanical key selected but linked key is missing")
@@ -280,13 +329,13 @@ func validate_map_constructor_entity_links(entity_kind: String, entity_id: Strin
 				access_key_resolved = manager.find_map_constructor_key_item_by_id(required_key_id)
 				if bool(access_key_resolved.get("ok", false)):
 					linked.append(_map_constructor_make_validation_link("linked key/access item", required_key_id, "item", "required_key_id"))
-					var key_location: String = String(access_key_resolved.get("location", "map"))
+					var key_location: String = _safe_string(access_key_resolved.get("location", "map"))
 					if key_location == "inventory":
 						warnings.append("linked key/access item is currently in player inventory")
 				else:
 					missing.append("%s selected but linked key/access item is missing" % access_type)
 			if access_terminal_id.is_empty():
-				if String(access_key_resolved.get("location", "")) == "terminal":
+				if _safe_string(access_key_resolved.get("location", "")) == "terminal":
 					warnings.append("linked key/access item is stored in a terminal; select that terminal if this door requires explicit storage binding")
 				elif not required_key_id.is_empty():
 					warnings.append("digital key/access code selected but no terminal storage linked")
@@ -302,7 +351,7 @@ func validate_map_constructor_entity_links(entity_kind: String, entity_id: Strin
 			else:
 				linked.append(_map_constructor_make_validation_link("linked information/access terminal", access_terminal_id, "world_object", "access_terminal_id"))
 	for key in ["target_door_id", "linked_terminal_id", "control_source_id", "linked_door_id"]:
-		var tid: String = String(data.get(key, "")).strip_edges()
+		var tid: String = _safe_string(data.get(key, "")).strip_edges()
 		if tid.is_empty():
 			continue
 		linked.append(_map_constructor_make_validation_link(key, tid, "world_object", key))
@@ -314,7 +363,7 @@ func get_map_constructor_object_dependency_status(object_data: Dictionary) -> Di
 	var messages: Array[String] = []
 	var link_targets: Array[Dictionary] = []
 	var severity: String = "none"
-	var object_id: String = String(object_data.get("id", "")).strip_edges()
+	var object_id: String = _safe_string(object_data.get("id", "")).strip_edges()
 	var expected_invalid: bool = manager.is_task_test_expected_invalid_object_id(object_id)
 	var object_ids: Dictionary = {}
 	var object_id_to_cell: Dictionary = {}
@@ -325,26 +374,26 @@ func get_map_constructor_object_dependency_status(object_data: Dictionary) -> Di
 		if typeof(existing_object) != TYPE_DICTIONARY:
 			continue
 		var existing_data: Dictionary = manager._safe_dictionary(existing_object)
-		var existing_id: String = String(existing_data.get("id", "")).strip_edges()
+		var existing_id: String = _safe_string(existing_data.get("id", "")).strip_edges()
 		if not existing_id.is_empty():
 			object_ids[existing_id] = true
 			object_id_to_cell[existing_id] = Vector2i(existing_data.get("position", Vector2i(-1, -1)))
-		var existing_type: String = String(existing_data.get("object_type", "")).to_lower()
+		var existing_type: String = _safe_string(existing_data.get("object_type", "")).to_lower()
 		if existing_type.begins_with("power_source"):
-			var existing_network_id: String = String(existing_data.get("power_network_id", "")).strip_edges()
+			var existing_network_id: String = _safe_string(existing_data.get("power_network_id", "")).strip_edges()
 			if not existing_network_id.is_empty():
 				power_source_network_ids[existing_network_id] = true
 	for cell_variant in manager.cell_items.keys():
 		for item_variant in manager._safe_array(manager.cell_items.get(cell_variant, [])):
 			if typeof(item_variant) != TYPE_DICTIONARY:
 				continue
-			var item_id: String = String(manager._safe_dictionary(item_variant).get("id", "")).strip_edges()
+			var item_id: String = _safe_string(manager._safe_dictionary(item_variant).get("id", "")).strip_edges()
 			if not item_id.is_empty():
 				item_ids[item_id] = true
 				item_id_to_cell[item_id] = Vector2i(cell_variant)
 
 	for field_name in ["required_key_id", "linked_terminal_id", "target_door_id", "target_platform_id"]:
-		var ref_id: String = String(object_data.get(field_name, "")).strip_edges()
+		var ref_id: String = _safe_string(object_data.get(field_name, "")).strip_edges()
 		if ref_id.is_empty():
 			continue
 		var exists: bool = object_ids.has(ref_id) or (field_name == "required_key_id" and item_ids.has(ref_id))
@@ -362,7 +411,7 @@ func get_map_constructor_object_dependency_status(object_data: Dictionary) -> Di
 			link_targets.append({"field": field_name, "target_id": ref_id, "target_cell": ref_cell, "status": "error", "reason": "missing"})
 			severity = "error"
 
-	var control_source_id: String = String(object_data.get("control_source_id", "")).strip_edges()
+	var control_source_id: String = _safe_string(object_data.get("control_source_id", "")).strip_edges()
 	if not control_source_id.is_empty():
 		var control_source_cell: Vector2i = Vector2i(object_id_to_cell.get(control_source_id, Vector2i(-1, -1)))
 		if object_ids.has(control_source_id):
@@ -381,7 +430,7 @@ func get_map_constructor_object_dependency_status(object_data: Dictionary) -> Di
 				severity = "error"
 
 	var requires_external_power: bool = bool(object_data.get("requires_external_power", false))
-	var power_network_id: String = String(object_data.get("power_network_id", "")).strip_edges()
+	var power_network_id: String = _safe_string(object_data.get("power_network_id", "")).strip_edges()
 	if requires_external_power:
 		if power_network_id.is_empty():
 			if expected_invalid:
@@ -407,7 +456,7 @@ func get_map_constructor_object_dependency_status(object_data: Dictionary) -> Di
 				severity = "error"
 
 	for connected_id_variant in manager._safe_array(object_data.get("connected_device_ids", [])):
-		var connected_id: String = String(connected_id_variant).strip_edges()
+		var connected_id: String = _safe_string(connected_id_variant).strip_edges()
 		if connected_id.is_empty():
 			continue
 		var connected_cell: Vector2i = Vector2i(object_id_to_cell.get(connected_id, Vector2i(-1, -1)))
@@ -430,7 +479,7 @@ func _map_constructor_merge_overlay_issue(overlay_objects: Dictionary, overlay_c
 	var messages: Array = manager._safe_array(row.get("messages", []))
 	messages.append(message)
 	row["messages"] = messages
-	var previous_severity: String = String(row.get("severity", "none"))
+	var previous_severity: String = _safe_string(row.get("severity", "none"))
 	if previous_severity != "error":
 		if severity == "error" or (severity == "warning" and previous_severity == "none"):
 			row["severity"] = severity
@@ -441,7 +490,7 @@ func _map_constructor_merge_overlay_issue(overlay_objects: Dictionary, overlay_c
 		var cell_messages: Array = manager._safe_array(cell_row.get("messages", []))
 		cell_messages.append(message)
 		cell_row["messages"] = cell_messages
-		var cell_prev_severity: String = String(cell_row.get("severity", "none"))
+		var cell_prev_severity: String = _safe_string(cell_row.get("severity", "none"))
 		if cell_prev_severity != "error":
 			if severity == "error" or (severity == "warning" and cell_prev_severity == "none"):
 				cell_row["severity"] = severity
@@ -455,21 +504,21 @@ func get_map_constructor_validation_overlay() -> Dictionary:
 		if typeof(object_data) != TYPE_DICTIONARY:
 			continue
 		var data: Dictionary = manager._safe_dictionary(object_data)
-		var object_id: String = String(data.get("id", "")).strip_edges()
+		var object_id: String = _safe_string(data.get("id", "")).strip_edges()
 		if object_id.is_empty():
 			continue
 		var object_cell: Vector2i = Vector2i(data.get("position", Vector2i(-1, -1)))
 		var dependency: Dictionary = get_map_constructor_object_dependency_status(data)
-		var object_severity: String = String(dependency.get("severity", "none"))
+		var object_severity: String = _safe_string(dependency.get("severity", "none"))
 		var object_messages: Array[String] = []
 		for msg in manager._safe_array(dependency.get("messages", [])):
-			object_messages.append(String(msg))
+			object_messages.append(_safe_string(msg))
 		overlay_objects[object_id] = {"severity": object_severity, "cell": object_cell, "messages": object_messages, "link_targets": manager._safe_array(dependency.get("link_targets", []))}
 		overlay_cells[object_cell] = {"severity": object_severity, "object_id": object_id, "messages": object_messages, "link_targets": manager._safe_array(dependency.get("link_targets", []))}
-		if String(data.get("placement_mode", "")) == "wall_mounted":
+		if _safe_string(data.get("placement_mode", "")) == "wall_mounted":
 			var anchor_cell: Vector2i = manager._deserialize_cell_variant(data.get("anchor_floor_cell", data.get("position", "-1,-1")))
 			var attached_cell: Vector2i = manager._deserialize_cell_variant(data.get("attached_wall_cell", "-1,-1"))
-			var wall_side: String = String(data.get("wall_side", "")).to_lower()
+			var wall_side: String = _safe_string(data.get("wall_side", "")).to_lower()
 			var side_ok: bool = wall_side in ["north", "east", "south", "west"]
 			if not side_ok:
 				_map_constructor_merge_overlay_issue(overlay_objects, overlay_cells, object_id, "error", "Wall-mounted invalid wall_side.")
@@ -484,48 +533,48 @@ func get_map_constructor_validation_overlay() -> Dictionary:
 				for side_entry in MAP_CONSTRUCTOR_WALL_SIDE_DELTAS:
 					var delta: Vector2i = Vector2i(side_entry.get("delta", Vector2i.ZERO))
 					if anchor_cell + delta == attached_cell:
-						expected_side = String(side_entry.get("side", ""))
+						expected_side = _safe_string(side_entry.get("side", ""))
 						break
 				if not expected_side.is_empty() and wall_side != expected_side:
 					_map_constructor_merge_overlay_issue(overlay_objects, overlay_cells, object_id, "error", "Wall-mounted wall_side does not match attached wall cell.")
 
 	for row_variant in manager._safe_array(audit.get("invalid_links", [])):
 		var row_invalid: Dictionary = manager._safe_dictionary(row_variant)
-		_map_constructor_merge_overlay_issue(overlay_objects, overlay_cells,String(row_invalid.get("object_id", "")), "error", "Invalid link: %s -> %s" % [String(row_invalid.get("field", "")), String(row_invalid.get("target_id", ""))])
+		_map_constructor_merge_overlay_issue(overlay_objects, overlay_cells,_safe_string(row_invalid.get("object_id", "")), "error", "Invalid link: %s -> %s" % [_safe_string(row_invalid.get("field", "")), _safe_string(row_invalid.get("target_id", ""))])
 	for row_variant in manager._safe_array(audit.get("expected_invalid_links", [])):
 		var row_expected: Dictionary = manager._safe_dictionary(row_variant)
-		_map_constructor_merge_overlay_issue(overlay_objects, overlay_cells,String(row_expected.get("object_id", "")), "warning", "Expected invalid link: %s -> %s" % [String(row_expected.get("field", "")), String(row_expected.get("target_id", ""))])
+		_map_constructor_merge_overlay_issue(overlay_objects, overlay_cells,_safe_string(row_expected.get("object_id", "")), "warning", "Expected invalid link: %s -> %s" % [_safe_string(row_expected.get("field", "")), _safe_string(row_expected.get("target_id", ""))])
 	for warning_variant in manager._safe_array(audit.get("runtime_cell_warnings", [])):
-		var warning_text: String = String(warning_variant)
+		var warning_text: String = _safe_string(warning_variant)
 		for object_id_variant in overlay_objects.keys():
-			var object_id_text: String = String(object_id_variant)
+			var object_id_text: String = _safe_string(object_id_variant)
 			if warning_text.find(object_id_text) != -1:
 				_map_constructor_merge_overlay_issue(overlay_objects, overlay_cells,object_id_text, "error", warning_text)
 	for warning_variant in manager._safe_array(audit.get("expected_runtime_warnings", [])):
-		var warning_text_expected: String = String(warning_variant)
+		var warning_text_expected: String = _safe_string(warning_variant)
 		for object_id_variant in overlay_objects.keys():
-			var object_id_text_expected: String = String(object_id_variant)
+			var object_id_text_expected: String = _safe_string(object_id_variant)
 			if warning_text_expected.find(object_id_text_expected) != -1:
 				_map_constructor_merge_overlay_issue(overlay_objects, overlay_cells,object_id_text_expected, "warning", warning_text_expected)
 	for warning_variant in manager._safe_array(audit.get("duplicate_cell_warnings", [])):
-		var warning_text_dup: String = String(warning_variant)
+		var warning_text_dup: String = _safe_string(warning_variant)
 		for object_id_variant in overlay_objects.keys():
-			var object_id_text_dup: String = String(object_id_variant)
+			var object_id_text_dup: String = _safe_string(object_id_variant)
 			if warning_text_dup.find(object_id_text_dup) != -1:
 				_map_constructor_merge_overlay_issue(overlay_objects, overlay_cells,object_id_text_dup, "error", warning_text_dup)
 	for object_id_variant in manager._safe_array(audit.get("objects_without_audit_tags", [])):
-		_map_constructor_merge_overlay_issue(overlay_objects, overlay_cells,String(object_id_variant), "warning", "Object has no TASK TEST audit tag.")
+		_map_constructor_merge_overlay_issue(overlay_objects, overlay_cells,_safe_string(object_id_variant), "warning", "Object has no TASK TEST audit tag.")
 
 	var summary: Dictionary = {"valid_count": 0, "warning_count": 0, "error_count": 0, "expected_warning_count": 0}
 	var has_error_severity: bool = false
 	for object_id_key in overlay_objects.keys():
 		var object_row: Dictionary = manager._safe_dictionary(overlay_objects[object_id_key])
-		var final_severity: String = String(object_row.get("severity", "none"))
+		var final_severity: String = _safe_string(object_row.get("severity", "none"))
 		if final_severity == "valid":
 			summary["valid_count"] = int(summary.get("valid_count", 0)) + 1
 		elif final_severity == "warning":
 			summary["warning_count"] = int(summary.get("warning_count", 0)) + 1
-			if manager.is_task_test_expected_invalid_object_id(String(object_id_key)):
+			if manager.is_task_test_expected_invalid_object_id(_safe_string(object_id_key)):
 				summary["expected_warning_count"] = int(summary.get("expected_warning_count", 0)) + 1
 		elif final_severity == "error":
 			summary["error_count"] = int(summary.get("error_count", 0)) + 1
@@ -533,7 +582,7 @@ func get_map_constructor_validation_overlay() -> Dictionary:
 
 	for cell_row_variant in overlay_cells.values():
 		var cell_row: Dictionary = manager._safe_dictionary(cell_row_variant)
-		if String(cell_row.get("severity", "none")) == "error":
+		if _safe_string(cell_row.get("severity", "none")) == "error":
 			has_error_severity = true
 			break
 	var has_errors: bool = int(summary.get("error_count", 0)) > 0 or has_error_severity
@@ -548,11 +597,11 @@ func get_map_constructor_validation_overlay() -> Dictionary:
 	if not bool(start_validation.get("ok", false)):
 		summary["error_count"] = int(summary.get("error_count", 0)) + 1
 		has_errors = true
-		summary["start_marker_error"] = String(start_validation.get("message", "Start marker error."))
+		summary["start_marker_error"] = _safe_string(start_validation.get("message", "Start marker error."))
 	if not bool(exit_validation.get("ok", false)):
 		summary["error_count"] = int(summary.get("error_count", 0)) + 1
 		has_errors = true
-		summary["exit_marker_error"] = String(exit_validation.get("message", "Exit marker error."))
+		summary["exit_marker_error"] = _safe_string(exit_validation.get("message", "Exit marker error."))
 	return {"ok": not has_errors, "cells": overlay_cells, "objects": overlay_objects, "summary": summary}
 
 func _make_map_constructor_issue(issue_id: String, severity: String, message: String, cell: Vector2i, source: String, entity_kind: String = "", entity_id: String = "", fix_hint: String = "") -> Dictionary:
@@ -579,7 +628,7 @@ func _is_map_constructor_door_like_tile_type(tile_type: int) -> bool:
 func _get_map_constructor_door_object_for_cell(cell: Vector2i) -> Dictionary:
 	for object_variant in manager.mission_world_objects:
 		var object_data: Dictionary = manager._safe_dictionary(object_variant)
-		var object_type: String = String(object_data.get("object_type", object_data.get("type", ""))).to_lower()
+		var object_type: String = _safe_string(object_data.get("object_type", object_data.get("type", ""))).to_lower()
 		var object_group: String = str(object_data.get("object_group", "")).to_lower()
 		if not object_type.contains("door") and not object_type.contains("gate") and object_group != "door":
 			continue
@@ -651,9 +700,9 @@ func get_map_constructor_door_opening_summary() -> Dictionary:
 			var object_data: Dictionary = _get_map_constructor_door_object_for_cell(cell)
 			if object_data.is_empty():
 				continue
-			var object_id: String = String(object_data.get("id", "")).strip_edges()
+			var object_id: String = _safe_string(object_data.get("id", "")).strip_edges()
 			var door_visual: Dictionary = manager.get_map_constructor_door_visual_state(object_id)
-			var door_state: String = String(door_visual.get("state", object_data.get("state", "closed"))).to_lower()
+			var door_state: String = _safe_string(door_visual.get("state", object_data.get("state", "closed"))).to_lower()
 			if door_state == "locked" or bool(object_data.get("is_locked", object_data.get("locked", false))):
 				summary["locked_count"] = int(summary.get("locked_count", 0)) + 1
 			if door_state == "broken" or door_state == "damaged" or bool(object_data.get("damaged", object_data.get("broken", false))):
@@ -674,37 +723,37 @@ func get_map_constructor_validation_issues() -> Array[Dictionary]:
 	var palette_ids: Dictionary = {}
 	var explicit_prefab_metadata: Dictionary = manager._get_map_constructor_prefab_metadata_catalog()
 	for palette_entry in manager.get_map_constructor_prefab_catalog():
-		var palette_prefab_id: String = String(palette_entry.get("id", "")).strip_edges().to_lower()
+		var palette_prefab_id: String = _safe_string(palette_entry.get("id", "")).strip_edges().to_lower()
 		palette_ids[palette_prefab_id] = true
 		if WorldObjectCatalogRef.is_legacy_prefab_alias(palette_prefab_id):
 			issues.append(_make_map_constructor_issue("palette_legacy_alias_%s" % palette_prefab_id, "error", "Map Constructor palette exposes legacy alias: %s." % palette_prefab_id, Vector2i(-1, -1), source_name, "palette", palette_prefab_id, "Expose its canonical WorldObjectCatalog type instead."))
-		var canonical_palette_prefab_id: String = String(palette_entry.get("canonical_object_type", WorldObjectCatalogRef.canonical_object_type(palette_prefab_id))).strip_edges().to_lower()
+		var canonical_palette_prefab_id: String = _safe_string(palette_entry.get("canonical_object_type", WorldObjectCatalogRef.canonical_object_type(palette_prefab_id))).strip_edges().to_lower()
 		var is_constructor_only_prefab: bool = explicit_prefab_metadata.has(palette_prefab_id) and not palette_entry.has("canonical_object_type")
 		if not WorldObjectCatalogRef.OBJECT_LIBRARY.has(canonical_palette_prefab_id) and not is_constructor_only_prefab:
 			issues.append(_make_map_constructor_issue("palette_unknown_prefab_%s" % palette_prefab_id, "error", "Map Constructor palette prefab has no canonical WorldObjectCatalog runtime type: %s." % palette_prefab_id, Vector2i(-1, -1), source_name, "palette", palette_prefab_id, "Add a canonical catalog object or keep this as an explicit constructor-only tile/item shortcut."))
 		if WorldObjectCatalogRef.OBJECT_LIBRARY.has(canonical_palette_prefab_id):
 			var normalized_palette_object: Dictionary = WorldObjectCatalogRef.create_world_object(palette_prefab_id, "validation_palette_%s" % palette_prefab_id)
-			var runtime_object_type: String = String(normalized_palette_object.get("object_type", "")).strip_edges().to_lower()
+			var runtime_object_type: String = _safe_string(normalized_palette_object.get("object_type", "")).strip_edges().to_lower()
 			if not WorldObjectCatalogRef.OBJECT_LIBRARY.has(runtime_object_type):
 				issues.append(_make_map_constructor_issue("palette_unknown_runtime_type_%s" % palette_prefab_id, "error", "Map Constructor palette prefab would create unknown runtime object_type: %s." % runtime_object_type, Vector2i(-1, -1), source_name, "palette", palette_prefab_id, "Normalize placement through WorldObjectCatalog."))
 			if WorldObjectCatalogRef.is_legacy_prefab_alias(runtime_object_type):
 				issues.append(_make_map_constructor_issue("palette_runtime_legacy_alias_%s" % palette_prefab_id, "error", "Map Constructor palette prefab normalizes to legacy runtime object_type: %s." % runtime_object_type, Vector2i(-1, -1), source_name, "palette", palette_prefab_id, "Store legacy ids only as map_constructor_prefab_id metadata."))
-			if String(normalized_palette_object.get("object_group", "")) == "door":
+			if _safe_string(normalized_palette_object.get("object_group", "")) == "door":
 				for required_door_field in ["door_type", "material", "access_type", "door_class"]:
-					if String(normalized_palette_object.get(required_door_field, "")).strip_edges().is_empty():
+					if _safe_string(normalized_palette_object.get(required_door_field, "")).strip_edges().is_empty():
 						issues.append(_make_map_constructor_issue("palette_door_missing_%s_%s" % [required_door_field, palette_prefab_id], "error", "Door palette prefab is missing %s after normalization: %s." % [required_door_field, palette_prefab_id], Vector2i(-1, -1), source_name, "palette", palette_prefab_id, "Complete the canonical door preset contract."))
 	for catalog_row in WorldObjectCatalogRef.get_constructor_palette_rows():
-		var catalog_prefab_id: String = String(catalog_row.get("prefab_id", "")).strip_edges().to_lower()
+		var catalog_prefab_id: String = _safe_string(catalog_row.get("prefab_id", "")).strip_edges().to_lower()
 		if not palette_ids.has(catalog_prefab_id):
 			issues.append(_make_map_constructor_issue("palette_missing_catalog_object_%s" % catalog_prefab_id, "error", "Constructor-placeable catalog object missing from Map Constructor palette: %s." % catalog_prefab_id, Vector2i(-1, -1), source_name, "palette", catalog_prefab_id, "Generate object palette rows from WorldObjectCatalog."))
 	for index in range(manager.mission_world_objects.size()):
 		var data: Dictionary = manager._safe_dictionary(manager.mission_world_objects[index])
-		var entity_kind: String = manager._map_constructor_entity_kind(data)
+		var entity_kind: String = _map_constructor_entity_kind(data)
 		if entity_kind == "item":
 			continue
-		var object_id: String = String(data.get("id", "")).strip_edges()
-		var object_type: String = String(data.get("object_type", "")).strip_edges()
-		var object_group: String = String(data.get("object_group", "")).strip_edges()
+		var object_id: String = _safe_string(data.get("id", "")).strip_edges()
+		var object_type: String = _safe_string(data.get("object_type", "")).strip_edges()
+		var object_group: String = _safe_string(data.get("object_group", "")).strip_edges()
 		var object_cell: Vector2i = manager._deserialize_cell_variant(data.get("position", Vector2i(-1, -1)))
 		if object_id.is_empty():
 			issues.append(_make_map_constructor_issue("obj_missing_id_%d" % index, "error", "Object missing id.", object_cell, source_name, entity_kind, "", "Set unique id."))
@@ -718,11 +767,11 @@ func get_map_constructor_validation_issues() -> Array[Dictionary]:
 			issues.append(_make_map_constructor_issue("obj_legacy_alias_%s" % object_id, "error", "Legacy alias object_type was not normalized: %s." % object_type, object_cell, source_name, entity_kind, object_id, "Normalize saved constructor data through WorldObjectCatalog."))
 		elif bool(data.get("created_by_map_constructor", false)) and not WorldObjectCatalogRef.OBJECT_LIBRARY.has(object_type):
 			issues.append(_make_map_constructor_issue("obj_unknown_constructor_type_%s" % object_id, "error", "Constructor object_type is not in WorldObjectCatalog: %s." % object_type, object_cell, source_name, entity_kind, object_id, "Use a canonical WorldObjectCatalog runtime object type."))
-		if String(data.get("access_type", "")).strip_edges().to_lower() == "none":
+		if _safe_string(data.get("access_type", "")).strip_edges().to_lower() == "none":
 			issues.append(_make_map_constructor_issue("obj_legacy_access_none_%s" % object_id, "error", "Legacy access_type=none must be normalized to no_key.", object_cell, source_name, entity_kind, object_id, "Normalize access_type through WorldObjectCatalog."))
 		if data.has("lock_type") and not data.has("access_type"):
 			issues.append(_make_map_constructor_issue("obj_lock_without_access_%s" % object_id, "error", "Legacy lock_type is present without canonical access_type.", object_cell, source_name, entity_kind, object_id, "Populate canonical access_type while retaining lock_type only as compatibility metadata."))
-		if object_group == "door" and WorldObjectCatalogRef.is_material_named_door_object_type(object_type) and String(data.get("door_type", "")).strip_edges().is_empty():
+		if object_group == "door" and WorldObjectCatalogRef.is_material_named_door_object_type(object_type) and _safe_string(data.get("door_type", "")).strip_edges().is_empty():
 			issues.append(_make_map_constructor_issue("obj_material_door_missing_mechanism_%s" % object_id, "error", "Material-named door is missing canonical door_type mechanism.", object_cell, source_name, entity_kind, object_id, "Populate canonical door_type."))
 		if object_group.is_empty():
 			issues.append(_make_map_constructor_issue("obj_missing_group_%d" % index, "error", "Object missing object_group.", object_cell, source_name, entity_kind, object_id))
@@ -737,10 +786,10 @@ func get_map_constructor_validation_issues() -> Array[Dictionary]:
 				issues.append(_make_map_constructor_issue("obj_duplicate_cell_%s_%d" % [occupancy_key, index], "warning", "Duplicate non-overlap cell occupancy at %s." % occupancy_key, object_cell, source_name, entity_kind, object_id))
 			else:
 				seen_occupancy_cells[occupancy_key] = object_id
-		if String(data.get("placement_mode", "")).to_lower() == "wall_mounted":
+		if _safe_string(data.get("placement_mode", "")).to_lower() == "wall_mounted":
 			var anchor_floor_cell: Vector2i = manager._deserialize_cell_variant(data.get("anchor_floor_cell", Vector2i(-1, -1)))
 			var attached_wall_cell: Vector2i = manager._deserialize_cell_variant(data.get("attached_wall_cell", Vector2i(-1, -1)))
-			var wall_side: String = String(data.get("wall_side", "")).strip_edges().to_lower()
+			var wall_side: String = _safe_string(data.get("wall_side", "")).strip_edges().to_lower()
 			if anchor_floor_cell.x < 0 or anchor_floor_cell.y < 0:
 				issues.append(_make_map_constructor_issue("wm_missing_anchor_%d" % index, "error", "Wall-mounted object missing anchor_floor_cell.", object_cell, source_name, entity_kind, object_id))
 			if attached_wall_cell.x < 0 or attached_wall_cell.y < 0:
@@ -761,10 +810,10 @@ func get_map_constructor_validation_issues() -> Array[Dictionary]:
 					var neighbor_tile: int = int(manager.grid_manager.call("get_tile", expected_anchor))
 					if not manager._is_wall_mount_neighbor_tile_type(neighbor_tile) or neighbor_tile == GridManager.TILE_WALL:
 						issues.append(_make_map_constructor_issue("wm_side_not_visible_%d" % index, "warning", "Wall-mounted wall_side has no visible/mountable zone.", object_cell, source_name, entity_kind, object_id))
-			elif String(data.get("placement_mode", "")).to_lower() == "wall_mounted":
+			elif _safe_string(data.get("placement_mode", "")).to_lower() == "wall_mounted":
 				issues.append(_make_map_constructor_issue("wm_floating_%d" % index, "warning", "Wall-mounted object is floating without complete wall attachment metadata.", object_cell, source_name, entity_kind, object_id))
 		var normalized_object_type: String = object_type.to_lower()
-		if String(data.get("placement_mode", "")).to_lower() != "wall_mounted" and not normalized_object_type.contains("door") and not normalized_object_type.contains("gate") and manager._is_map_constructor_wall_cell(object_cell):
+		if _safe_string(data.get("placement_mode", "")).to_lower() != "wall_mounted" and not normalized_object_type.contains("door") and not normalized_object_type.contains("gate") and manager._is_map_constructor_wall_cell(object_cell):
 			issues.append(_make_map_constructor_issue("grounding_floor_on_wall_%d" % index, "warning", "Floor-standing object is placed on a wall cell.", object_cell, source_name, entity_kind, object_id))
 		if (normalized_object_type.contains("door") or normalized_object_type.contains("gate")) and manager.grid_manager != null and manager.grid_manager.has_method("get_tile") and manager._is_valid_grid_cell(object_cell):
 			var door_tile: int = int(manager.grid_manager.call("get_tile", object_cell))
@@ -779,7 +828,7 @@ func get_map_constructor_validation_issues() -> Array[Dictionary]:
 			issues.append(_make_map_constructor_issue("pickup_cell_item_on_wall_%d_%d" % [item_cell.x, item_cell.y], "warning", "Pickup object overlaps blocked wall cell.", item_cell, source_name, "item", "", ""))
 		for item_variant in manager._safe_array(manager.cell_items.get(cell_variant, [])):
 			var item_data: Dictionary = manager._safe_dictionary(item_variant)
-			var item_id: String = String(item_data.get("id", "")).strip_edges()
+			var item_id: String = _safe_string(item_data.get("id", "")).strip_edges()
 			if item_id.is_empty():
 				issues.append(_make_map_constructor_issue("item_missing_id_%d_%d" % [item_cell.x, item_cell.y], "error", "Item missing id.", item_cell, source_name, "item", ""))
 			elif seen_item_ids.has(item_id):
@@ -789,61 +838,61 @@ func get_map_constructor_validation_issues() -> Array[Dictionary]:
 			if item_cell.x < 0 or item_cell.y < 0:
 				issues.append(_make_map_constructor_issue("item_invalid_cell_%s" % item_id, "error", "Item cell invalid or negative.", item_cell, source_name, "item", item_id))
 	for item_id_variant in seen_item_ids.keys():
-		var item_id_for_link: String = String(item_id_variant)
+		var item_id_for_link: String = _safe_string(item_id_variant)
 		var item_for_link: Dictionary = manager.get_cell_item_by_id(item_id_for_link)
-		var linked_door_id: String = String(item_for_link.get("linked_door_id", "")).strip_edges()
+		var linked_door_id: String = _safe_string(item_for_link.get("linked_door_id", "")).strip_edges()
 		if linked_door_id.is_empty():
 			continue
 		var linked_door: Dictionary = manager.get_world_object_by_id(linked_door_id)
 		var item_cell_for_link: Vector2i = manager._get_world_object_cell_from_data(item_for_link)
 		if linked_door.is_empty():
 			issues.append(_make_map_constructor_issue("key_link_missing_door_%s" % item_id_for_link, "error", "Key is linked to a missing door: %s." % linked_door_id, item_cell_for_link, source_name, "item", item_id_for_link))
-		elif String(linked_door.get("required_key_id", "")).strip_edges() != item_id_for_link:
+		elif _safe_string(linked_door.get("required_key_id", "")).strip_edges() != item_id_for_link:
 			issues.append(_make_map_constructor_issue("key_link_one_way_%s" % item_id_for_link, "warning", "Key-door link is not two-way at runtime.", item_cell_for_link, source_name, "item", item_id_for_link))
 		if not bool(item_for_link.get("can_pickup", true)):
 			issues.append(_make_map_constructor_issue("key_not_pickup_capable_%s" % item_id_for_link, "error", "Linked key is not pickup-capable at runtime.", item_cell_for_link, source_name, "item", item_id_for_link))
 	for object_id_variant in seen_object_ids.keys():
-		var door_id_for_link: String = String(object_id_variant)
+		var door_id_for_link: String = _safe_string(object_id_variant)
 		var door_for_link: Dictionary = manager.get_world_object_by_id(door_id_for_link)
-		var required_key_id: String = String(door_for_link.get("required_key_id", "")).strip_edges()
+		var required_key_id: String = _safe_string(door_for_link.get("required_key_id", "")).strip_edges()
 		if required_key_id.is_empty():
 			continue
 		var door_cell_for_link: Vector2i = manager._get_world_object_cell_from_data(door_for_link)
 		var required_key: Dictionary = manager.get_cell_item_by_id(required_key_id)
 		if required_key.is_empty():
 			issues.append(_make_map_constructor_issue("door_required_key_missing_%s" % door_id_for_link, "error", "Door requires a missing key: %s." % required_key_id, door_cell_for_link, source_name, "world_object", door_id_for_link))
-		elif String(required_key.get("linked_door_id", "")).strip_edges() != door_id_for_link:
+		elif _safe_string(required_key.get("linked_door_id", "")).strip_edges() != door_id_for_link:
 			issues.append(_make_map_constructor_issue("door_key_one_way_%s" % door_id_for_link, "warning", "Door required_key_id is not mirrored by key linked_door_id.", door_cell_for_link, source_name, "world_object", door_id_for_link))
 		elif not bool(required_key.get("can_pickup", true)):
 			issues.append(_make_map_constructor_issue("door_key_not_pickup_%s" % door_id_for_link, "error", "Door requires a key that cannot be picked up at runtime.", door_cell_for_link, source_name, "world_object", door_id_for_link))
 	var catalog_ids: Dictionary = {}
 	for row_variant in manager._safe_array(manager.get_map_constructor_wall_material_catalog().get("materials", [])):
 		var row: Dictionary = manager._safe_dictionary(row_variant)
-		catalog_ids[String(row.get("id", "")).to_lower()] = true
+		catalog_ids[_safe_string(row.get("id", "")).to_lower()] = true
 	for key_variant in manager._map_constructor_wall_material_overrides.keys():
-		var override_row: Dictionary = manager._safe_dictionary(manager._map_constructor_wall_material_overrides.get(String(key_variant), {}))
+		var override_row: Dictionary = manager._safe_dictionary(manager._map_constructor_wall_material_overrides.get(_safe_string(key_variant), {}))
 		var override_cell: Vector2i = Vector2i(override_row.get("cell", Vector2i(-1, -1)))
-		var override_side: String = String(override_row.get("side", "")).to_lower().strip_edges()
-		var override_material_id: String = String(override_row.get("material_id", "")).to_lower().strip_edges()
+		var override_side: String = _safe_string(override_row.get("side", "")).to_lower().strip_edges()
+		var override_material_id: String = _safe_string(override_row.get("material_id", "")).to_lower().strip_edges()
 		if not catalog_ids.has(override_material_id):
-			issues.append(_make_map_constructor_issue("wall_material_unknown_%s" % String(key_variant), "warning", "Unknown wall material override id: %s." % override_material_id, override_cell, source_name, "wall_material", String(key_variant)))
+			issues.append(_make_map_constructor_issue("wall_material_unknown_%s" % _safe_string(key_variant), "warning", "Unknown wall material override id: %s." % override_material_id, override_cell, source_name, "wall_material", _safe_string(key_variant)))
 		var attached_wall_cell: Vector2i = override_cell + manager._get_map_constructor_wall_side_delta(override_side)
 		if manager._get_map_constructor_wall_side_delta(override_side) == Vector2i.ZERO or not manager._is_wall_or_boundary_cell(attached_wall_cell):
-			issues.append(_make_map_constructor_issue("wall_material_missing_wall_%s" % String(key_variant), "warning", "Wall material override points to a missing wall.", override_cell, source_name, "wall_material", String(key_variant)))
+			issues.append(_make_map_constructor_issue("wall_material_missing_wall_%s" % _safe_string(key_variant), "warning", "Wall material override points to a missing wall.", override_cell, source_name, "wall_material", _safe_string(key_variant)))
 	var floor_catalog_ids: Dictionary = {}
 	for floor_row_variant in manager._safe_array(manager.get_map_constructor_floor_material_catalog().get("materials", [])):
 		var floor_row: Dictionary = manager._safe_dictionary(floor_row_variant)
-		floor_catalog_ids[String(floor_row.get("id", "")).to_lower()] = true
+		floor_catalog_ids[_safe_string(floor_row.get("id", "")).to_lower()] = true
 	for floor_key_variant in manager._map_constructor_floor_material_overrides.keys():
-		var floor_override: Dictionary = manager._safe_dictionary(manager._map_constructor_floor_material_overrides.get(String(floor_key_variant), {}))
-		var floor_cell: Vector2i = Vector2i(floor_override.get("cell", manager._deserialize_cell_key(String(floor_key_variant))))
-		var floor_material_id: String = String(floor_override.get("material_id", "")).to_lower().strip_edges()
+		var floor_override: Dictionary = manager._safe_dictionary(manager._map_constructor_floor_material_overrides.get(_safe_string(floor_key_variant), {}))
+		var floor_cell: Vector2i = Vector2i(floor_override.get("cell", manager._deserialize_cell_key(_safe_string(floor_key_variant))))
+		var floor_material_id: String = _safe_string(floor_override.get("material_id", "")).to_lower().strip_edges()
 		if floor_material_id.is_empty() or not floor_catalog_ids.has(floor_material_id):
-			issues.append(_make_map_constructor_issue("floor_material_unknown_%s" % String(floor_key_variant), "warning", "Unknown floor material override id: %s." % floor_material_id, floor_cell, source_name, "floor_material", String(floor_key_variant)))
+			issues.append(_make_map_constructor_issue("floor_material_unknown_%s" % _safe_string(floor_key_variant), "warning", "Unknown floor material override id: %s." % floor_material_id, floor_cell, source_name, "floor_material", _safe_string(floor_key_variant)))
 		if manager.grid_manager != null and manager.grid_manager.has_method("get_tile") and manager._is_valid_grid_cell(floor_cell):
 			var floor_tile_type: int = int(manager.grid_manager.call("get_tile", floor_cell))
 			if floor_tile_type != GridManager.TILE_FLOOR and floor_tile_type != GridManager.TILE_STEPPED_FLOOR:
-				issues.append(_make_map_constructor_issue("floor_material_non_floor_%s" % String(floor_key_variant), "warning", "Floor material override points to non-floor cell.", floor_cell, source_name, "floor_material", String(floor_key_variant)))
+				issues.append(_make_map_constructor_issue("floor_material_non_floor_%s" % _safe_string(floor_key_variant), "warning", "Floor material override points to non-floor cell.", floor_cell, source_name, "floor_material", _safe_string(floor_key_variant)))
 	if manager.grid_manager != null and manager.grid_manager.has_method("get_tile") and manager.grid_manager.has_method("get_map_width") and manager.grid_manager.has_method("get_map_height"):
 		var grid_width: int = int(manager.grid_manager.call("get_map_width"))
 		var grid_height: int = int(manager.grid_manager.call("get_map_height"))
@@ -860,16 +909,16 @@ func get_map_constructor_validation_issues() -> Array[Dictionary]:
 					issues.append(_make_map_constructor_issue("door_opening_ambiguous_%d_%d" % [door_cell.x, door_cell.y], "warning", "Door/gate tile has ambiguous wall support and may render with fallback orientation.", door_cell, source_name, "door_opening", "", "Prefer opposite wall cells on one axis."))
 	for door_object_variant in manager.mission_world_objects:
 		var door_object_data: Dictionary = manager._safe_dictionary(door_object_variant)
-		if door_object_data.is_empty() or not manager._map_constructor_is_door_data(door_object_data):
+		if door_object_data.is_empty() or not _is_map_constructor_door_data(door_object_data):
 			continue
-		var door_object_id: String = String(door_object_data.get("id", "")).strip_edges()
+		var door_object_id: String = _safe_string(door_object_data.get("id", "")).strip_edges()
 		var door_object_cell: Vector2i = manager._deserialize_cell_variant(door_object_data.get("position", Vector2i(-1, -1)))
 		if manager.grid_manager != null and manager.grid_manager.has_method("get_tile") and manager._is_valid_grid_cell(door_object_cell):
 			var door_object_tile: int = int(manager.grid_manager.call("get_tile", door_object_cell))
 			if not _is_map_constructor_door_like_tile_type(door_object_tile):
 				issues.append(_make_map_constructor_issue("door_metadata_not_on_door_tile_%s" % door_object_id, "warning", "Door/gate object metadata is not on a door/gate tile.", door_object_cell, source_name, "world_object", door_object_id, "Move metadata onto matching door/gate tile."))
 			elif door_object_tile == GridManager.TILE_POWERED_GATE:
-				var has_power_metadata: bool = door_object_data.has("is_powered") or door_object_data.has("powered") or door_object_data.has("requires_power") or door_object_data.has("requires_external_power") or not String(door_object_data.get("power_network_id", "")).strip_edges().is_empty()
+				var has_power_metadata: bool = door_object_data.has("is_powered") or door_object_data.has("powered") or door_object_data.has("requires_power") or door_object_data.has("requires_external_power") or not _safe_string(door_object_data.get("power_network_id", "")).strip_edges().is_empty()
 				if not has_power_metadata:
 					issues.append(_make_map_constructor_issue("powered_gate_missing_power_metadata_%s" % door_object_id, "warning", "Powered gate has no power metadata for visual state diagnostics.", door_object_cell, source_name, "world_object", door_object_id, "Add optional power metadata if this gate should show powered/unpowered state."))
 	var key_link_counts_by_door: Dictionary = {}
@@ -879,10 +928,10 @@ func get_map_constructor_validation_issues() -> Array[Dictionary]:
 			if not (item_variant is Dictionary):
 				continue
 			var key_data: Dictionary = manager._safe_dictionary(item_variant)
-			if not manager._map_constructor_is_key_data(key_data):
+			if not _is_map_constructor_key_data(key_data):
 				continue
-			var key_id: String = String(key_data.get("id", "")).strip_edges()
-			var linked_door_id: String = String(key_data.get("linked_door_id", "")).strip_edges()
+			var key_id: String = _safe_string(key_data.get("id", "")).strip_edges()
+			var linked_door_id: String = _safe_string(key_data.get("linked_door_id", "")).strip_edges()
 			if linked_door_id.is_empty():
 				issues.append(_make_map_constructor_issue("key_missing_door_%s" % key_id, "warning", "Key is not linked to any door.", key_cell, source_name, "item", key_id, "Link this key to an installed door."))
 			else:
@@ -895,12 +944,12 @@ func get_map_constructor_validation_issues() -> Array[Dictionary]:
 		if not (door_variant is Dictionary):
 			continue
 		var door_data_for_link: Dictionary = manager._safe_dictionary(door_variant)
-		if not manager._map_constructor_is_door_data(door_data_for_link):
+		if not _is_map_constructor_door_data(door_data_for_link):
 			continue
-		var door_id_for_link: String = String(door_data_for_link.get("id", "")).strip_edges()
+		var door_id_for_link: String = _safe_string(door_data_for_link.get("id", "")).strip_edges()
 		var door_cell_for_link: Vector2i = manager._deserialize_cell_variant(door_data_for_link.get("position", Vector2i(-1, -1)))
-		var required_key_id: String = String(door_data_for_link.get("required_key_id", "")).strip_edges()
-		var lock_type: String = String(door_data_for_link.get("lock_type", "")).strip_edges().to_lower()
+		var required_key_id: String = _safe_string(door_data_for_link.get("required_key_id", "")).strip_edges()
+		var lock_type: String = _safe_string(door_data_for_link.get("lock_type", "")).strip_edges().to_lower()
 		var door_requires_key: bool = lock_type.contains("key") or not required_key_id.is_empty()
 		if door_requires_key and required_key_id.is_empty():
 			issues.append(_make_map_constructor_issue("door_missing_key_%s" % door_id_for_link, "warning", "Door requires a key but no key is linked.", door_cell_for_link, source_name, "world_object", door_id_for_link, "Link a compatible key."))
@@ -909,8 +958,8 @@ func get_map_constructor_validation_issues() -> Array[Dictionary]:
 	for door_id_variant in key_link_counts_by_door.keys():
 		var linked_keys: Array = manager._safe_array(key_link_counts_by_door.get(door_id_variant, []))
 		if linked_keys.size() > 1:
-			var door_entity_for_duplicate: Dictionary = manager.get_map_constructor_entity_by_id("world_object", String(door_id_variant))
-			issues.append(_make_map_constructor_issue("door_duplicate_key_links_%s" % String(door_id_variant), "error", "Multiple keys link to the same door.", Vector2i(door_entity_for_duplicate.get("cell", Vector2i(-1, -1))), source_name, "world_object", String(door_id_variant), "Keep one key-door link."))
+			var door_entity_for_duplicate: Dictionary = manager.get_map_constructor_entity_by_id("world_object", _safe_string(door_id_variant))
+			issues.append(_make_map_constructor_issue("door_duplicate_key_links_%s" % _safe_string(door_id_variant), "error", "Multiple keys link to the same door.", Vector2i(door_entity_for_duplicate.get("cell", Vector2i(-1, -1))), source_name, "world_object", _safe_string(door_id_variant), "Keep one key-door link."))
 	return issues
 
 func _map_constructor_issue_is_expected_invalid(issue: Dictionary) -> bool:
@@ -921,7 +970,7 @@ func _map_constructor_issue_is_expected_invalid(issue: Dictionary) -> bool:
 
 func _map_constructor_build_readiness_check(issue: Dictionary, status: String) -> Dictionary:
 	var count: int = 1
-	var issue_id: String = String(issue.get("id", ""))
+	var issue_id: String = _safe_string(issue.get("id", ""))
 	var label: String = "Validation check"
 	if issue_id.find("wm_") == 0:
 		label = "Wall-mounted attachment"
@@ -971,7 +1020,7 @@ func get_map_constructor_mission_readiness_report() -> Dictionary:
 	constructor_issues = manager._safe_dictionary_array(get_map_constructor_validation_issues())
 	for issue in constructor_issues:
 		var issue_row: Dictionary = manager._safe_dictionary(issue)
-		var severity: String = String(issue_row.get("severity", "info")).to_lower()
+		var severity: String = _safe_string(issue_row.get("severity", "info")).to_lower()
 		var expected: bool = _map_constructor_issue_is_expected_invalid(issue_row)
 		if expected:
 			expected_invalid.append(issue_row)
@@ -984,15 +1033,15 @@ func get_map_constructor_mission_readiness_report() -> Dictionary:
 			issue_fix_options.append_array(manager.get_map_constructor_issue_autofix_options(issue_row))
 			for fix_opt in issue_fix_options:
 				var option: Dictionary = manager._safe_dictionary(fix_opt)
-				recommended.append({"label": String(option.get("label", "Fix issue")), "action_type": "autofix", "fix_type": String(option.get("fix_type", "")), "cleanup_type": "", "options": manager._safe_dictionary(option.get("options", {})), "target_issue_id": String(issue_row.get("id", ""))})
-			var message_text: String = String(issue_row.get("message", "")).to_lower()
+				recommended.append({"label": _safe_string(option.get("label", "Fix issue")), "action_type": "autofix", "fix_type": _safe_string(option.get("fix_type", "")), "cleanup_type": "", "options": manager._safe_dictionary(option.get("options", {})), "target_issue_id": _safe_string(issue_row.get("id", ""))})
+			var message_text: String = _safe_string(issue_row.get("message", "")).to_lower()
 			if message_text.find("missing") >= 0:
-				recommended.append({"label":"Clean invalid references", "action_type":"cleanup", "fix_type":"", "cleanup_type":"invalid_references", "options":{}, "target_issue_id":String(issue_row.get("id", ""))})
+				recommended.append({"label":"Clean invalid references", "action_type":"cleanup", "fix_type":"", "cleanup_type":"invalid_references", "options":{}, "target_issue_id":_safe_string(issue_row.get("id", ""))})
 			if message_text.find("broken") >= 0 or message_text.find("missing") >= 0:
-				recommended.append({"label":"Fix broken references", "action_type":"autofix", "fix_type":"clear_all_broken_references", "cleanup_type":"", "options":{}, "target_issue_id":String(issue_row.get("id", ""))})
-			if String(issue_row.get("id", "")).begins_with("wm_"):
-				recommended.append({"label":"Repair wall-mounted attachments", "action_type":"autofix", "fix_type":"repair_all_wall_mounted_attachments", "cleanup_type":"", "options":{}, "target_issue_id":String(issue_row.get("id", ""))})
-			recommended.append({"label":"Jump to issue", "action_type":"jump", "fix_type":"", "cleanup_type":"", "options":{}, "target_issue_id":String(issue_row.get("id", ""))})
+				recommended.append({"label":"Fix broken references", "action_type":"autofix", "fix_type":"clear_all_broken_references", "cleanup_type":"", "options":{}, "target_issue_id":_safe_string(issue_row.get("id", ""))})
+			if _safe_string(issue_row.get("id", "")).begins_with("wm_"):
+				recommended.append({"label":"Repair wall-mounted attachments", "action_type":"autofix", "fix_type":"repair_all_wall_mounted_attachments", "cleanup_type":"", "options":{}, "target_issue_id":_safe_string(issue_row.get("id", ""))})
+			recommended.append({"label":"Jump to issue", "action_type":"jump", "fix_type":"", "cleanup_type":"", "options":{}, "target_issue_id":_safe_string(issue_row.get("id", ""))})
 		elif severity == "warning":
 			warnings.append(issue_row)
 			checks.append(_map_constructor_build_readiness_check(issue_row, "warning"))
@@ -1003,8 +1052,8 @@ func get_map_constructor_mission_readiness_report() -> Dictionary:
 	var task_audit: Dictionary = manager.get_task_test_system_audit_report()
 	var runtime_warnings: Array = manager._safe_array(task_audit.get("runtime_cell_warnings", []))
 	for rw in runtime_warnings:
-		warnings.append({"id":"runtime_warning_%d" % warnings.size(), "severity":"warning", "message":String(rw)})
-		checks.append({"id":"runtime_warning_%d" % warnings.size(),"label":"Runtime warning","status":"warning","message":String(rw),"count":1,"entity_kind":"","entity_id":"","cell":Vector2i(-1,-1),"issue_id":""})
+		warnings.append({"id":"runtime_warning_%d" % warnings.size(), "severity":"warning", "message":_safe_string(rw)})
+		checks.append({"id":"runtime_warning_%d" % warnings.size(),"label":"Runtime warning","status":"warning","message":_safe_string(rw),"count":1,"entity_kind":"","entity_id":"","cell":Vector2i(-1,-1),"issue_id":""})
 	var blocking_count: int = blocking.size()
 	var warning_count: int = warnings.size()
 	var expected_count: int = expected_invalid.size()
