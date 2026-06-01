@@ -170,9 +170,9 @@ static func _apply_powered_state(obj: Dictionary, powered: bool) -> void:
 		return
 	obj["is_powered"] = powered
 	var object_type: String = _normalize_type(obj.get("object_type", ""))
+	var object_group: String = String(obj.get("object_group", ""))
 	if _is_state_driven_powered_object(obj):
 		var current_state: String = _normalize_type(obj.get("state", ""))
-		var object_group: String = String(obj.get("object_group", ""))
 		if not powered:
 			if current_state != "unpowered" and not bool(NON_RESTORABLE_STATES.get(current_state, false)):
 				obj["state_before_unpowered"] = current_state
