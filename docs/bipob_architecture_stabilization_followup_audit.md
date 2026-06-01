@@ -4,11 +4,11 @@
 
 Цель документа — держать единый audit/checklist для следующих PR, чтобы не возвращаться к palette variant explosion, hardcoded fixes и непроверенным syntax regressions.
 
-Последнее обновление: после проверки Fix PR-A–F.
+Последнее обновление: после проверки PR-G.
 
 ---
 
-## 1. Текущий статус PR-A–F
+## 1. Текущий статус PR-A–G
 
 ```text
 #750 Fix PR-A — English-only game UI labels
@@ -17,34 +17,38 @@
 #9fa4b6e Fix PR-D — Hide quick preset buttons for archetypes
 #dfefe52 PR-E — Add Godot parser gate script
 #752 PR-F — Add Terminal as configurable archetype
-#5f3e171 Emergency fix — provide visible_archetypes helper for terminal validation reference
+#753 Fix PR-G0 — Cleanup Terminal palette validation shim
+#754 PR-G — Route Item/Key/Digital placement through archetype catalog
 ```
 
 ### 1.1 Что сейчас считается закрытым
 
 ```text
-- Door, Floor, External Wall, Wall and Terminal are now represented as base archetype rows.
+- Door, Floor, External Wall, Wall, Terminal and Item are now represented as base archetype rows.
 - Floor placement branch was restored before Wall placement branch.
 - Quick preset buttons are hidden for objects with non-empty archetype_id.
 - English-only game-facing label rule was applied to catalog/schema/palette metadata.
 - tools/ci/parse_all_gd.gd exists and can load scripts through ResourceLoader.
 - Terminal archetype exists with terminal_type, controlled_target_type, terminal_class, power_type, control_type, status, allowed_statuses and linked_* fields.
+- The temporary visible_archetypes.gd shim was removed by PR-G0; Terminal palette validation now uses archetype_counts.
+- Item/key/digital placement now routes through WorldObjectCatalog and normalize_item_contract.
+- Legacy item ids mechanical_key/mechanical_keycard/keycard/key_card/digital_key/access_code/data_file are hidden compatibility aliases, not user-facing palette rows.
 ```
 
 ### 1.2 Что сейчас не считается полностью закрытым
 
 ```text
 - Godot parser gate was added, but it is not yet proven as mandatory CI/review gate.
-- PR-F was merged after static/manual checks, but parser-level verification still must be run locally.
-- Terminal validation was patched by emergency compatibility helper `visible_archetypes.gd`.
-- The helper is acceptable as a temporary parser unblocker, but the correct cleanup is to remove that helper and use archetype_counts directly.
-- Item/key/digital placement is not yet migrated to the global archetype/catalog contract.
+- PR-F and PR-G were reviewed statically; parser-level verification must still be run locally.
+- Terminal links/status/action availability need gameplay smoke testing.
+- Item pickup/inventory/storage flow needs gameplay smoke testing after the one-Item-row migration.
+- Fuse, Repair Kit, Reinforcement and modules are no longer emitted as generic item OBJECT_LIBRARY palette rows; if they must remain placeable, they need their own archetype/catalog contract later.
 - Door runtime object_type is still transitional.
 ```
 
 ---
 
-## 2. Review result по Fix PR-A–F
+## 2. Review result по PR-A–G
 
 ### 2.1 PR-A — English-only game UI labels
 
@@ -88,25 +92,19 @@ Acceptance:
 
 ### 2.3 PR-C — Stronger archetype palette validation
 
-Status: mostly accepted, but follow-up required after Terminal merge.
+Status: accepted after PR-G0 cleanup.
 
 Implemented intent:
 
 ```text
-- Catalog-level validation now counts required archetypes through archetype_counts.
+- Catalog-level validation counts required archetypes through archetype_counts.
 - Door/Floor/External Wall/Wall required-row checks moved out of manager-only context.
 - Floor schema validation moved out of manager-only context.
+- Terminal check was later corrected to use archetype_counts.
+- Item check was added by PR-G.
 ```
 
-Follow-up required:
-
-```text
-- Terminal must be added to required_archetype_warning_ids directly.
-- Replace temporary visible_archetypes.has("terminal") lookup with archetype_counts.has("terminal").
-- Restore explicit floor row check if it is removed by later PRs.
-```
-
-Correct target:
+Current target contract:
 
 ```gdscript
 var required_archetype_warning_ids: Dictionary = {
@@ -114,18 +112,9 @@ var required_archetype_warning_ids: Dictionary = {
 	"floor":"constructor_palette_requires_exactly_one_floor",
 	"external_wall":"constructor_palette_requires_exactly_one_external_wall",
 	"wall":"constructor_palette_requires_exactly_one_wall",
-	"terminal":"constructor_palette_requires_exactly_one_terminal"
+	"terminal":"constructor_palette_requires_exactly_one_terminal",
+	"item":"constructor_palette_requires_exactly_one_item"
 }
-
-if not archetype_counts.has("terminal"):
-	warnings.append("constructor_palette_missing_terminal_archetype")
-```
-
-Temporary state currently present:
-
-```text
-scripts/game/visible_archetypes.gd exists only to unblock the current reference.
-This is a compatibility shim, not the desired long-term architecture.
 ```
 
 ### 2.4 PR-D — Hide quick preset buttons for archetypes
@@ -143,7 +132,7 @@ if object_is_configurable and object_archetype_id.is_empty():
 Acceptance:
 
 ```text
-- Door/Floor/Wall/Terminal must use property schema only.
+- Door/Floor/Wall/Terminal/Item must use property schema only.
 - Legacy quick presets must not appear for archetype objects.
 ```
 
@@ -172,7 +161,7 @@ If Godot is unavailable, reviewer status must say: Static review only. Godot par
 
 ### 2.6 PR-F — Terminal as configurable archetype
 
-Status: partially accepted, requires cleanup.
+Status: accepted by static review; parser/runtime smoke still required.
 
 Implemented:
 
@@ -184,45 +173,70 @@ Implemented:
 - Constructor palette should expose one Terminal row, not terminal variants.
 ```
 
-Risks / cleanup:
+Remaining risks:
 
 ```text
-- PR-F introduced reference to visible_archetypes after PR-C replaced visible_archetypes with archetype_counts.
-- Emergency helper visible_archetypes.gd was added to unblock that reference.
-- Correct fix is still needed: use archetype_counts for terminal checks and remove helper.
 - Parser gate must be run locally against current main.
 - Terminal links/status/action availability need gameplay smoke testing.
 ```
 
+### 2.7 PR-G0 — Cleanup Terminal palette validation shim
+
+Status: accepted.
+
+Implemented:
+
+```text
+- Removed temporary scripts/game/visible_archetypes.gd.
+- Replaced visible_archetypes.has("terminal") with archetype_counts.has("terminal").
+- Added terminal to required_archetype_warning_ids.
+- Kept visible_floor_prefabs == ["floor"] check.
+```
+
+### 2.8 PR-G — Item/key/digital placement through catalog/archetype registry
+
+Status: accepted by static review; parser/runtime smoke still required.
+
+Implemented:
+
+```text
+- Added Item archetype with item_class/storage_route/state/allowed_states/linked_door_id/payload/access_code fields.
+- Added canonical item classes: physical_item, key_card, digital_key, access_code, data_file.
+- Added canonical storage routes: pocket, keychain, digital_buffer, digital_storage.
+- Added legacy item alias mapping for mechanical_key, mechanical_keycard, keycard, key_card, digital_key, access_code, data_file.
+- Map Constructor item placement now uses WorldObjectCatalog.create_world_object/create_archetype_object and normalize_item_contract.
+- add_item_at_cell normalizes item data before storing it in cell_items and mission_world_objects.
+- TASK TEST key/digital items now use Item archetype + item_class overrides.
+- Item validation checks generated display_name, storage routing, and legacy key values.
+```
+
+Important caveat:
+
+```text
+- get_constructor_palette_rows now skips all OBJECT_LIBRARY rows with group == item.
+- This matches the one-Item-row direction.
+- But Fuse, Repair Kit, Reinforcement, modules and similar utility items will need their own archetype/catalog contract if they should remain placeable in Map Constructor.
+```
+
+Manual smoke required:
+
+```text
+- Palette shows Item once.
+- Item inspector renders item_class and storage_route.
+- item_class=key_card creates Key Card and keychain storage.
+- item_class=digital_key creates Digital Key and digital_storage.
+- item_class=access_code creates Access Code and digital_storage.
+- item_class=data_file creates Data File and digital_storage.
+- physical_item creates Physical Item and pocket storage.
+- Legacy mechanical_key/mechanical_keycard/keycard load/create paths normalize to key_card.
+- Item pickup/collection does not regress inventory routing.
+```
+
 ---
 
-## 3. Current blockers and next required PRs
+## 3. Current blockers and next required validation
 
-### Blocker 1 — Replace emergency visible_archetypes helper with real validation cleanup
-
-Current emergency helper:
-
-```text
-scripts/game/visible_archetypes.gd
-```
-
-Why it exists:
-
-```text
-PR-F used visible_archetypes.has("terminal") in MapConstructorValidationService after PR-C removed visible_archetypes from that function.
-```
-
-Target cleanup PR:
-
-```text
-- Replace visible_archetypes.has("terminal") with archetype_counts.has("terminal").
-- Add terminal to required_archetype_warning_ids.
-- Restore/keep visible_floor_prefabs == ["floor"] check.
-- Delete scripts/game/visible_archetypes.gd.
-- Run parse_all_gd.gd.
-```
-
-### Blocker 2 — Parser gate must be proven locally
+### Blocker 1 — Parser gate must be proven locally
 
 Run:
 
@@ -240,12 +254,12 @@ Until this runs successfully:
 Static review only. Godot parser gate was not executed.
 ```
 
-### Blocker 3 — Terminal smoke tests
+### Blocker 2 — Terminal smoke tests
 
 Manual checks:
 
 ```text
-- Palette shows exactly: Door, Floor, External Wall, Wall, Terminal.
+- Palette shows exactly: Door, Floor, External Wall, Wall, Terminal, Item plus any non-migrated non-item objects still intentionally exposed.
 - Palette does not show Information Terminal, Control Terminal, Door Control Terminal, Cooling Control Terminal, Platform Control Terminal.
 - Placing Terminal creates archetype_id=terminal, object_group=terminal, object_type=terminal.
 - Information terminal display_name = Information Terminal.
@@ -254,6 +268,21 @@ Manual checks:
 - status and allowed_statuses stay synchronized.
 - linked_* fields validate missing/wrong target ids without crashing.
 - No quick preset buttons are shown for Terminal.
+```
+
+### Blocker 3 — Item/key/digital smoke tests
+
+Manual checks:
+
+```text
+- Palette shows exactly one Item row.
+- Palette does not show Key Card, Digital Key, Access Code, Data File, Physical Item as separate rows.
+- Item property schema is editable through inspector.
+- Key Card routes to keychain and is usable for key-card doors.
+- Digital Key/Access Code/Data File route to digital storage and are not physical pocket/manipulator items.
+- Physical Item routes to pocket.
+- linked_door_id validates invalid/stale links without crash.
+- Item pickup/collection still works with normalized item data.
 ```
 
 ---
@@ -296,6 +325,7 @@ Runtime values всегда canonical English ids:
 door_type = mechanical | digital | powered
 material = steel | reinforced_steel | titanium | brick | concrete | grate
 access_type = no_key | key_card | digital_key | access_code | terminal
+item_class = physical_item | key_card | digital_key | access_code | data_file
 state/status = active | damaged | unpowered | closed | open | locked | etc.
 ```
 
@@ -390,6 +420,11 @@ Water Floor
 Door Control Terminal
 Class 2 Door Terminal
 Damaged Control Terminal
+Key Card
+Digital Key
+Access Code
+Data File
+Physical Item
 ```
 
 Вместо этого:
@@ -400,9 +435,9 @@ Floor → material/covering/visual_style/state/allowed_states
 External Wall → fixed non-configurable archetype
 Wall → material
 Terminal → terminal_type/controlled_target_type/class/power/control/status/links
+Item → item_class/storage_route/state/linked_door_id/payload
 Power Source → source_type/output/network/state
 Platform → platform_type/timer/trigger/state
-Item → item_class/storage_route/state
 ```
 
 Все пути создания объектов обязаны проходить через один pipeline:
@@ -550,27 +585,58 @@ Important:
 - Existing turret/threat ids remain compatibility-only if present.
 ```
 
+### 8.6 Item
+
+Palette:
+
+```text
+Item
+```
+
+Schema:
+
+```text
+item_class: physical_item | key_card | digital_key | access_code | data_file
+storage_route: pocket | keychain | digital_buffer | digital_storage
+state: available | collected | disabled
+allowed_states: available/collected/disabled
+linked_door_id: String
+payload_id: String
+access_code: String
+```
+
+Canonical routing:
+
+```text
+physical_item -> item_form=physical, storage_route=pocket, storage_type=pocket, display_name=Physical Item
+key_card -> item_form=physical, storage_route=keychain, storage_type=keychain, key_type=key_card, display_name=Key Card
+digital_key -> item_form=digital, storage_route=digital_storage, storage_type=digital_storage, key_type=digital_key, display_name=Digital Key
+access_code -> item_form=digital, storage_route=digital_storage, storage_type=digital_storage, key_type=access_code, display_name=Access Code
+data_file -> item_form=digital, storage_route=digital_storage, storage_type=digital_storage, display_name=Data File
+```
+
+Hidden compatibility aliases:
+
+```text
+mechanical_key -> key_card
+mechanical_keycard -> key_card
+keycard -> key_card
+key_card -> key_card
+digital_key -> digital_key
+access_code -> access_code
+data_file -> data_file
+```
+
+Important caveat:
+
+```text
+Fuse, Repair Kit, Reinforcement and modules are not covered by the Item archetype contract yet.
+They should not reappear as raw item palette rows; add dedicated archetype support if they must be placeable.
+```
+
 ---
 
 ## 9. Next PR order
-
-### Fix PR-G0 — Cleanup Terminal palette validation shim
-
-```text
-- Replace visible_archetypes.has("terminal") with archetype_counts.has("terminal").
-- Add terminal to required_archetype_warning_ids.
-- Delete scripts/game/visible_archetypes.gd.
-- Run parse_all_gd.gd.
-```
-
-### PR-G — Item/key/digital placement through catalog/archetype registry
-
-```text
-- mechanical_key/mechanical_keycard/keycard normalize to key_card.
-- key_card placement creates keychain route.
-- digital_key/access_code/data_file use digital storage contract.
-- physical items remain physical.
-```
 
 ### PR-H — Door runtime object_type finalization
 
@@ -578,6 +644,23 @@ Important:
 - Either object_type=door becomes safe canonical runtime type,
   or compatibility object_type is explicitly hidden behind archetype_id=door.
 - No user-facing material-named door object types.
+- Door display_name must be generated from properties only.
+- Door action/diagnostics/validation should read the normalized Door contract.
+```
+
+### PR-I — Utility item archetypes if needed
+
+```text
+- Decide whether Fuse, Repair Kit, Reinforcement, modules, cable reel-like items should be placeable.
+- If yes, add dedicated archetype/catalog contracts instead of restoring raw OBJECT_LIBRARY item rows.
+- Preserve pickup/inventory behavior.
+```
+
+### PR-J — Enforce Godot parser gate in CI/review flow
+
+```text
+- Add real CI/action or project command wrapper for parse_all_gd.gd.
+- Make parser gate visible and mandatory for code PRs.
 ```
 
 ---
@@ -620,6 +703,8 @@ rg "digital_.*door|mechanical_.*door|titanium_.*door|steel_.*door" scripts/world
 rg "Steel Floor|Concrete Floor|Grate Floor|Dirty Floor|Water Floor|Oil Floor|Permission Floor" scripts/world scripts/game scripts/ui
 rg "Brick Wall|Concrete Wall|Reinforced Steel Wall|Titanium Wall|Grate Wall|Electromagnetic Wall" scripts/world scripts/game scripts/ui
 rg "Information Terminal|Control Terminal|Door Control Terminal|Cooling Control Terminal|Platform Control Terminal" scripts/world scripts/game scripts/ui
+rg "Key Card|Digital Key|Access Code|Data File|Physical Item" scripts/world scripts/game scripts/ui
+rg "mechanical_key|mechanical_keycard|keycard" scripts/world scripts/game scripts/ui
 rg "archetype_id" scripts/world scripts/game scripts/ui
 rg "property_schema" scripts/world scripts/game scripts/ui
 rg "allowed_states|allowed_statuses" scripts/world scripts/game scripts/ui
@@ -628,18 +713,22 @@ rg "allowed_states|allowed_statuses" scripts/world scripts/game scripts/ui
 Manual smoke checks:
 
 ```text
-- Palette shows Door, Floor, External Wall, Wall, Terminal.
+- Palette shows Door, Floor, External Wall, Wall, Terminal, Item.
 - Palette does not show generated variant names as separate entries.
 - Game UI labels are English only.
 - Door variants are configured only through Door properties.
 - Floor variants are configured only through Floor properties.
 - Wall material is configured only through Wall properties.
 - Terminal variants are configured only through Terminal properties.
+- Item variants are configured only through Item properties.
 - External Wall has no material selector and no preset buttons.
 - Display name updates from properties.
 - Floor placement still produces walkable floor tile.
 - Wall placement still produces wall tile.
 - Terminal placement produces normalized runtime object and does not crash validation.
+- Item placement produces normalized runtime item and does not crash validation.
+- Key Card pickup/usage works for key-card doors.
+- Digital Key/Access Code route to digital storage.
 ```
 
 ---
@@ -663,4 +752,4 @@ Do not reopen this as an active blocker unless the same pattern reappears.
 
 ### Emergency update note
 
-During the manual fix after PR-F review, there was an accidental truncated update attempt to `scripts/game/map_constructor_validation_service.gd`. It was immediately restored through commit `e23cf6cc0dc0901435900a8add3e866a7b5e244a`, then an emergency helper commit `5f3e171c46e81b758c23ea4f5592cd7dcfccb063` was added. The helper must be removed by Fix PR-G0.
+During the manual fix after PR-F review, there was an accidental truncated update attempt to `scripts/game/map_constructor_validation_service.gd`. It was immediately restored through commit `e23cf6cc0dc0901435900a8add3e866a7b5e244a`, then an emergency helper commit `5f3e171c46e81b758c23ea4f5592cd7dcfccb063` was added. PR-G0 later removed the helper and replaced the validation check with archetype_counts.
