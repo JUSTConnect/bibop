@@ -12660,8 +12660,18 @@ func _refresh_runtime_interaction_controls() -> void:
 	var view_model: Dictionary = _get_runtime_action_view_model()
 	var target_object: Dictionary = _safe_ui_dictionary(view_model.get("target", {}))
 	var has_available_action: bool = bool(view_model.get("has_available_action", false))
-	runtime_action_button.text = String(view_model.get("primary_action_label", "Action"))
-	runtime_action_button.tooltip_text = String(view_model.get("disabled_reason", "")) if not has_available_action else ""
+	var action_label: String = String(view_model.get("primary_action_label", "Action"))
+	var disabled_reason: String = String(view_model.get("disabled_reason", ""))
+	if not target_object.is_empty() and bipob != null and bipob.has_method("get_facing_device_interaction_preflight"):
+		var preflight_variant: Variant = bipob.call("get_facing_device_interaction_preflight", String(view_model.get("primary_action_id", "")))
+		if typeof(preflight_variant) == TYPE_DICTIONARY:
+			var preflight: Dictionary = preflight_variant
+			if not bool(preflight.get("preflight_ok", false)):
+				has_available_action = false
+				action_label = String(preflight.get("message", action_label))
+				disabled_reason = action_label
+	runtime_action_button.text = action_label
+	runtime_action_button.tooltip_text = disabled_reason if not has_available_action else ""
 	runtime_action_button.disabled = target_object.is_empty() or not has_available_action
 	_apply_action_button_style(runtime_action_button, "primary" if has_available_action else "disabled", has_available_action)
 	if runtime_action_button.disabled:
@@ -12680,7 +12690,14 @@ func _on_interact_pressed() -> void:
 	var view_model: Dictionary = _get_runtime_action_view_model()
 	var target_object: Dictionary = _safe_ui_dictionary(view_model.get("target", {}))
 	if not target_object.is_empty() and not bool(view_model.get("has_available_action", false)):
-		show_hint(String(view_model.get("primary_action_label", "No available action for this object.")))
+		var blocked_message: String = String(view_model.get("primary_action_label", "No available action for this object."))
+		if bipob != null and bipob.has_method("get_facing_device_interaction_preflight"):
+			var preflight_variant: Variant = bipob.call("get_facing_device_interaction_preflight", String(view_model.get("primary_action_id", "")))
+			if typeof(preflight_variant) == TYPE_DICTIONARY:
+				var preflight: Dictionary = preflight_variant
+				if not bool(preflight.get("preflight_ok", false)):
+					blocked_message = String(preflight.get("message", blocked_message))
+		show_hint(blocked_message)
 		_refresh_runtime_interaction_controls()
 		return
 	RuntimeInteractionPanel.press_interact(self)

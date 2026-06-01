@@ -309,6 +309,7 @@ func validate_architecture_contracts() -> Dictionary:
 	sections.append(_make_architecture_validation_section("inventory_storage", "Inventory Storage", validate_runtime_inventory_storage_contract()))
 	sections.append(_validate_runtime_action_view_model_section())
 	sections.append(_validate_device_diagnostics_section())
+	sections.append(_validate_device_interaction_flow_section())
 	sections.append(_make_architecture_validation_section("mission_objective", "Mission Objective", _validate_architecture_mission_objective_contract()))
 	var warnings: Array[String] = []
 	var contract_breaking_count: int = 0
@@ -494,6 +495,42 @@ func _validate_device_diagnostics_section() -> Dictionary:
 	if target_snapshot != var_to_str(target):
 		warnings.append("diagnostic_builder_mutated_target")
 	return _make_architecture_validation_section("device_diagnostics", "Device Diagnostics", warnings)
+
+func _validate_device_interaction_flow_section() -> Dictionary:
+	if active_bipob_ref == null or not is_instance_valid(active_bipob_ref) or not active_bipob_ref.has_method("get_facing_world_action_target"):
+		return _make_architecture_validation_section("device_interaction_flow", "Device Interaction Flow", ["device_interaction_target_missing_or_empty"], false)
+	var facing_result_variant: Variant = active_bipob_ref.call("get_facing_world_action_target")
+	if typeof(facing_result_variant) != TYPE_DICTIONARY:
+		return _make_architecture_validation_section("device_interaction_flow", "Device Interaction Flow", ["device_interaction_target_missing_or_empty"], false)
+	var facing_result: Dictionary = facing_result_variant
+	var target_variant: Variant = facing_result.get("target_object", {})
+	if typeof(target_variant) != TYPE_DICTIONARY or Dictionary(target_variant).is_empty():
+		return _make_architecture_validation_section("device_interaction_flow", "Device Interaction Flow", ["device_interaction_target_missing_or_empty"], false)
+	var target: Dictionary = Dictionary(target_variant)
+	var target_snapshot: String = var_to_str(target)
+	var target_cell: Vector2i = WorldObjectCatalogRef.to_world_cell(facing_result.get("target_position", Vector2i(-1, -1)), Vector2i(-1, -1))
+	var view_model_variant: Variant = facing_result.get("action_view_model", {})
+	var primary_action_id: String = ""
+	if typeof(view_model_variant) == TYPE_DICTIONARY:
+		primary_action_id = String(Dictionary(view_model_variant).get("primary_action_id", ""))
+	var preflight: Dictionary = build_device_interaction_preflight(target, target_cell, primary_action_id)
+	var warnings: Array[String] = []
+	for required_field in ["success", "action_id", "target_id", "target_name", "diagnostic", "preflight_ok", "blocked_reason", "message", "state_changed"]:
+		if not preflight.has(required_field):
+			warnings.append("device_interaction_preflight_missing_%s" % required_field)
+	if target_snapshot != var_to_str(target):
+		warnings.append("device_interaction_preflight_mutated_target")
+	if not primary_action_id.is_empty() and String(preflight.get("action_id", "")) != primary_action_id:
+		warnings.append("device_interaction_primary_action_preflight_missing")
+	if not bool(preflight.get("preflight_ok", false)):
+		if String(preflight.get("blocked_reason", "")).strip_edges().is_empty():
+			warnings.append("device_interaction_blocked_reason_missing")
+		if String(preflight.get("message", "")).strip_edges().is_empty():
+			warnings.append("device_interaction_blocked_message_missing")
+	var message: String = String(preflight.get("message", ""))
+	if message.find("Interface") >= 0 or message.find("CPU") >= 0:
+		warnings.append("device_interaction_obsolete_label_in_message")
+	return _make_architecture_validation_section("device_interaction_flow", "Device Interaction Flow", warnings)
 
 func _validate_architecture_mission_objective_contract() -> Array[String]:
 	var warnings: Array[String] = validate_current_mission_objective_view_model()
@@ -8751,6 +8788,88 @@ func build_device_diagnostic_result(target_object: Dictionary, target_cell: Vect
 		"summary": summary,
 		"warnings": []
 	}
+
+func _get_device_interaction_blocking_ids(action_id: String) -> Array[String]:
+	match action_id:
+		"scan":
+			return []
+		"open", "unlock":
+			return ["key_card_required", "digital_key_required", "access_code_required", "terminal_required", "free_manipulator_required", "power_must_be_cut", "connector_level_required", "manipulator_level_required"]
+		"connect", "hack", "download", "control", "activate_platform":
+			return ["connector_level_required", "processor_level_required", "power_required", "digital_access_required", "hack_required"]
+		"repair", "insert_fuse", "plug_in", "plug_out", "take_end_1", "take_end_2", "connect_wire_end", "connect_wire_1", "connect_wire_2", "disconnect_power_wire", "disconnect_wire_1", "disconnect_wire_2":
+			return ["free_manipulator_required", "manipulator_level_required", "fuse_required", "cable_connection_required", "repair_required"]
+	return []
+
+func _get_device_interaction_blocked_message(reason: String, missing_item: Dictionary = {}) -> String:
+	var required_level: int = int(missing_item.get("required", 0))
+	match reason:
+		"key_card_required": return "Key-card required."
+		"free_manipulator_required": return "Free manipulator required."
+		"connector_level_required": return "Connector level %d required." % required_level
+		"processor_level_required": return "Processor level %d required." % required_level
+		"manipulator_level_required": return "Manipulator level %d required." % required_level
+		"power_required", "unpowered": return "Power required."
+		"power_must_be_cut": return "Cut power to open this device."
+		"terminal_required", "terminal_control_required": return "Use linked terminal."
+		"digital_key_required": return "Digital key required."
+		"digital_access_required": return "Digital access required."
+		"access_code_required": return "Access code required."
+		"fuse_required": return "Fuse required."
+		"cable_connection_required": return "Cable connection required."
+		"repair_required": return "Repair required."
+		"hack_required": return "Hack device first."
+		"storage_buffer_required": return "Storage buffer required."
+		"target_missing": return "No device detected."
+	return "Action unavailable."
+
+func build_device_interaction_preflight(target_object: Dictionary, target_cell: Vector2i, action_id: String, actor: Dictionary = {}) -> Dictionary:
+	var target_snapshot: Dictionary = target_object.duplicate(true)
+	var diagnostic: Dictionary = build_device_diagnostic_result(target_snapshot, target_cell, actor)
+	var target_id: String = String(diagnostic.get("target_id", target_snapshot.get("id", "")))
+	var target_name: String = String(diagnostic.get("target_name", target_snapshot.get("display_name", target_snapshot.get("name", "Unknown device"))))
+	var result: Dictionary = {
+		"success": true,
+		"action_id": action_id,
+		"target_id": target_id,
+		"target_name": target_name,
+		"diagnostic": diagnostic.duplicate(true),
+		"preflight_ok": true,
+		"blocked_reason": "",
+		"message": "Device ready.",
+		"state_changed": false
+	}
+	if target_snapshot.is_empty():
+		result["success"] = false
+		result["preflight_ok"] = false
+		result["blocked_reason"] = "target_missing"
+		result["message"] = _get_device_interaction_blocked_message("target_missing")
+		return result
+	var blocking_ids: Array[String] = _get_device_interaction_blocking_ids(action_id)
+	for missing_variant in Array(diagnostic.get("missing", [])):
+		if typeof(missing_variant) != TYPE_DICTIONARY:
+			continue
+		var missing_item: Dictionary = missing_variant
+		var missing_id: String = String(missing_item.get("id", ""))
+		if blocking_ids.has(missing_id):
+			result["success"] = false
+			result["preflight_ok"] = false
+			result["blocked_reason"] = missing_id
+			result["message"] = _get_device_interaction_blocked_message(missing_id, missing_item)
+			return result
+	for descriptor_variant in Array(diagnostic.get("blocked_actions", [])):
+		if typeof(descriptor_variant) != TYPE_DICTIONARY:
+			continue
+		var descriptor: Dictionary = descriptor_variant
+		if String(descriptor.get("id", "")) != action_id:
+			continue
+		var descriptor_reason: String = String(descriptor.get("reason", "action_unavailable"))
+		result["success"] = false
+		result["preflight_ok"] = false
+		result["blocked_reason"] = descriptor_reason
+		result["message"] = _get_device_interaction_blocked_message(descriptor_reason)
+		return result
+	return result
 
 func get_runtime_device_diagnostic(target_id: String) -> Dictionary:
 	var target: Dictionary = get_world_object_by_id(target_id)
