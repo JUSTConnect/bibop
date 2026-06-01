@@ -8254,7 +8254,7 @@ func _build_center_menu_layout() -> void:
 	bottom_grid.add_child(_create_menu_button("Shop", Callable(self, "_on_center_shop_pressed"), Vector2(150, 54)))
 	bottom_grid.add_child(_create_menu_button("Зарядка", Callable(self, "_on_center_charge_pressed"), Vector2(150, 54)))
 	bottom_grid.add_child(_create_menu_button("Исследования", Callable(self, "_on_center_research_pressed"), Vector2(150, 54)))
-	bottom_grid.add_child(_create_menu_button("Ремонт", Callable(self, "_on_center_repair_pressed"), Vector2(150, 54)))
+	bottom_grid.add_child(_create_menu_button("Repair", Callable(self, "_on_center_repair_pressed"), Vector2(150, 54)))
 	bottom_grid.add_child(_create_menu_button("Programmer", Callable(self, "_on_center_programmer_pressed"), Vector2(150, 54)))
 
 func _build_tasks_menu_layout() -> void:

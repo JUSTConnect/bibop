@@ -49,7 +49,7 @@ Current static coverage of the section 7.2 checklist:
 | object registry validation | DONE | `WorldObjectCatalog.validate_object_registry_contract()`; `MissionManager._build_final_object_registry_section()` | The catalog validates Door aliases and palette exposure. The final report rejects unknown runtime `object_type` and leaked legacy aliases. |
 | constructor prefab validation | DONE | `MapConstructorValidationService.validate_constructor_palette_contract()`; `MapConstructorValidationService.get_map_constructor_validation_issues()` | Palette rows are regenerated from the catalog and checked against catalog-creatable objects. Raw `OBJECT_LIBRARY` item rows are rejected if exposed directly. |
 | TASK TEST object validation | DONE | `MissionManager._validate_task_test_object_contracts()`; `MissionManager.build_task_test_mission_world_objects_for_validation()` | TASK TEST validation builds a detached snapshot from catalog constructors and validates Door/item fields without mutating active state. Gameplay still needs smoke testing. |
-| door contract validation | PARTIAL | `WorldObjectCatalog.validate_archetype_object()`; `MissionManager._validate_current_door_contracts()`; `MissionManager._build_final_door_contract_section()` | Canonical fields, generated labels, state flags, aliases, invalid access types, and `no_key` drift are checked. Explicit runtime semantics for the declared `requires_power_to_open` mode remain incomplete. |
+| door contract validation | DONE for static validation; NEEDS RUNTIME SMOKE | `WorldObjectCatalog.validate_archetype_object()`; `MissionManager._validate_current_door_contracts()`; `MissionManager._build_final_door_contract_section()`; `MapConstructorValidationService.get_map_constructor_validation_issues()` | Canonical fields, generated labels, state flags, aliases, invalid access types, `no_key` drift, and all declared powered-Door behaviors are checked. Manual powered-Door smoke remains required. |
 | inventory contract validation | PARTIAL | `MissionManager.validate_runtime_inventory_storage_contract()`; `MissionManager._validate_runtime_inventory_storage_item()` | Storage-class mismatches and duplicate storage are checked. The backend uses singular `manipulator_hold`, `pocket_items`, and `collected_key_ids` rather than the planned slot-named state model. |
 | runtime action validation | NEEDS RUNTIME SMOKE | `BipobController.build_runtime_action_view_model()`; `InteractionSystem.can_apply_action()`; `MissionManager._validate_runtime_action_view_model_section()` | Static action truth flows from normalized targets. Pulse clearing and post-action refresh must be exercised manually. |
 | mission goal binding validation | DONE | `MissionManager.get_current_mission_objective_view_model()`; `MissionManager._build_final_mission_goal_binding_section()`; `GameUI._get_runtime_mission_objective_text()` | The GOAL panel reads the active mission ViewModel/catalog objective. No TASK TEST placeholder string was found by the required search. |
@@ -59,15 +59,15 @@ Current static coverage of the section 7.2 checklist:
 
 | Plan section | Status | Code evidence | Remaining work |
 | --- | --- | --- | --- |
-| Door contract | NEEDS RUNTIME SMOKE | `WorldObjectCatalog.ARCHETYPE_REGISTRY["door"]`, `normalize_door_contract()`, `normalize_door_state_fields()`, `generate_display_name()`, `InteractionSystem._normalize_runtime_door_data()`, `MissionManager.update_power_door_state_from_is_powered()` | Smoke mechanical, key-card, digital, terminal, and powered Door variants. Add an explicit fix-only decision and runtime branch for declared `requires_power_to_open`. |
+| Door contract | NEEDS RUNTIME SMOKE | `WorldObjectCatalog.ARCHETYPE_REGISTRY["door"]`, `normalize_door_contract()`, `normalize_door_state_fields()`, `generate_display_name()`, `InteractionSystem._normalize_runtime_door_data()`, `MissionManager.update_power_door_state_from_is_powered()`, `PowerSystem._apply_powered_state()` | Smoke mechanical, key-card, digital, terminal, and powered Door variants. The declared `requires_power_to_open` branch is implemented statically but still needs manual runtime smoke. |
 | Key-card contract | NEEDS RUNTIME SMOKE | `WorldObjectCatalog.LEGACY_ITEM_ALIAS_CONFIGS`, `normalize_item_contract()`, `get_item_storage_class()`, `MissionManager.pickup_world_item()`, `add_keycard_to_keychain()`, `set_manipulator_item()`, `set_pocket_item()` | Smoke pickup, key indicator, free-manipulator Door gating, and absence from manipulator/pockets. |
 | Inventory storage contract | PARTIAL | `MissionManager.get_inventory_state()`, `validate_runtime_inventory_storage_contract()`, `RuntimeStoragePanel.refresh()` | Backend zones exist, but planned names/shapes are not fully realized: singular `manipulator_hold`, `pocket_items`, `collected_key_ids`, `digital_buffer`, and `digital_storage` are exposed. UI uses fixed/minimum visible cells in places. |
 | Map Constructor catalog contract | DONE | `WorldObjectCatalog.get_constructor_palette_rows()`, `MapConstructorValidationService.validate_constructor_palette_contract()`, `MapConstructorValidationService.get_map_constructor_validation_issues()` | Runtime palette visual smoke remains required. |
 | Placement normalization | DONE | `MapConstructorService.place_map_constructor_prefab()`, `WorldObjectCatalog.create_world_object()`, `create_archetype_object()`, `MissionManager.add_item_at_cell()` | Smoke placed Door/item behavior and save/load restoration. |
 | TASK TEST alignment | NEEDS RUNTIME SMOKE | `MissionManager.build_task_test_mission_world_objects_for_validation()`, `_validate_task_test_object_contracts()`, `_build_final_validation_read_only_section()` | Static creation uses catalog constructors; run the full TASK TEST smoke list. |
 | Runtime action contract | NEEDS RUNTIME SMOKE | `BipobController.build_runtime_action_view_model()`, `get_available_world_actions()`, `clear_selected_world_action_if_invalid()`, `RuntimeInteractionPanel.get_target_data()`, `refresh_controls()` | Verify empty-cell behavior and stale action pulse clearing after pickup/action/move/turn. |
-| HUD / GOAL binding | PARTIAL | `MissionManager.get_current_mission_objective_view_model()`, `GameUI._get_runtime_mission_objective_view_model()`, `_get_runtime_mission_objective_text()`, `RuntimeStoragePanel.refresh()` | GOAL binding is implemented. Inventory HUD still needs visual/runtime verification, and `GameUI` still contains one Russian-facing `"Ремонт"` label. |
-| Validation gate | PARTIAL | `MissionManager.validate_architecture_contracts()`, `build_architecture_stabilization_final_report()`, `WorldObjectCatalog.validate_archetype_object()`, `MapConstructorValidationService.get_map_constructor_validation_issues()` | Broad checks exist. Add focused fix-only coverage for the `requires_power_to_open` decision and strengthen UI checks if the UI storage model is normalized later. |
+| HUD / GOAL binding | PARTIAL | `MissionManager.get_current_mission_objective_view_model()`, `GameUI._get_runtime_mission_objective_view_model()`, `_get_runtime_mission_objective_text()`, `RuntimeStoragePanel.refresh()` | GOAL binding is implemented. Inventory HUD still needs visual/runtime verification. The audited Repair label is now English-only. |
+| Validation gate | PARTIAL | `MissionManager.validate_architecture_contracts()`, `build_architecture_stabilization_final_report()`, `WorldObjectCatalog.validate_archetype_object()`, `MapConstructorValidationService.get_map_constructor_validation_issues()` | Broad checks exist, including focused `requires_power_to_open` coverage. Strengthen UI checks only if the UI storage model is normalized later. |
 | Legacy compatibility boundary | PARTIAL | `WorldObjectCatalog.LEGACY_DOOR_ALIAS_CONFIGS`, `LEGACY_ITEM_ALIAS_CONFIGS`, `canonicalize_legacy_object_data()`, `MissionManager._validate_legacy_compatibility_boundary()` | Catalog/runtime Door and item inputs normalize correctly. Legacy names still appear in compatibility, visuals, debug labels, and older command vocabulary; review each remaining occurrence before cleanup. |
 | Parser/CI gate | DONE | `.github/workflows/godot-parser-gate.yml` | Workflow is mandatory on `pull_request` and pushes to `main`; local diff/Python checks pass in this audit. The local container does not provide the `godot` executable, so the Godot import/parser commands remain CI/environment verification items. |
 
@@ -83,9 +83,9 @@ Current static coverage of the section 7.2 checklist:
 ### F-02 — Declared powered-Door behavior is broader than explicit runtime handling
 
 - **Severity:** high
-- **Status:** partial
-- **Evidence:** the catalog declares `none`, `opens_when_unpowered`, and `requires_power_to_open` in `WorldObjectCatalog.POWER_BEHAVIORS` and the Door schema. `MissionManager.update_power_door_state_from_is_powered()` contains a clear explicit branch for `opens_when_unpowered` and general unpowered-state handling, while repository search finds no explicit runtime reference to `POWER_BEHAVIOR_REQUIRES_POWER_TO_OPEN` outside its declaration/schema. Current Door validators also explicitly accept only `none` and `opens_when_unpowered` for powered Doors.
-- **Required follow-up PR:** add a narrow powered-Door contract PR that decides whether `requires_power_to_open` is supported. If supported, add an explicit runtime branch and validation coverage; if not supported, remove it from the schema/constants. Do not silently widen validation before runtime semantics are defined.
+- **Status:** resolved; needs runtime smoke
+- **Evidence:** the catalog declares `none`, `opens_when_unpowered`, and `requires_power_to_open` in `WorldObjectCatalog.POWER_BEHAVIORS` and the Door schema. `MissionManager.update_power_door_state_from_is_powered()` and `PowerSystem._apply_powered_state()` now handle `requires_power_to_open` explicitly: an unpowered Door becomes blocking `unpowered` unless it is damaged, broken, destroyed, or jammed; restoring power restores the prior state or falls back to `closed` without auto-opening. The existing `opens_when_unpowered` behavior remains unchanged. Door validators accept all declared behaviors and reject unknown values, and detached TASK TEST validation includes a `requires_power_to_open` Door sample.
+- **Required follow-up PR:** none for static behavior or validation. Manually smoke `requires_power_to_open` power loss and restoration.
 
 ### F-03 — Key Card is canonical and routes to keychain
 
@@ -146,9 +146,9 @@ Current static coverage of the section 7.2 checklist:
 ### F-11 — One Russian-facing UI label remains
 
 - **Severity:** medium
-- **Status:** open
-- **Evidence:** the required Cyrillic search finds one game UI occurrence: `scripts/ui/game_ui.gd` contains `_create_menu_button("Ремонт", ...)`. This violates the English-only game-facing label contract.
-- **Required follow-up PR:** replace the label with the correct English UI label in a focused English-only cleanup PR and rerun the Cyrillic search.
+- **Status:** resolved
+- **Evidence:** the audited center-menu repair action now uses the English-only `"Repair"` label. The required targeted Cyrillic search no longer finds a matching game-facing label.
+- **Required follow-up PR:** none.
 
 ### F-12 — Validation is broad but should not be overstated
 
@@ -263,7 +263,7 @@ Static result:
 | UI manipulator slot count mismatch | PARTIAL | `_build_final_inventory_contract_section()` compares Bipob runtime manipulator item array length with backend slot count; complete widget-to-backend visual validation is not present. |
 | GOAL hardcode / missing mission objective binding | DONE for backend binding; PARTIAL for broad text lint | `_build_final_mission_goal_binding_section()` checks active catalog binding. Required search finds no TASK TEST placeholder but does find one unrelated Russian label. |
 
-No new validation code was added in this audit: the remaining gaps require either a runtime behavior decision (`requires_power_to_open`) or a focused UI/runtime follow-up, not a report-only guard that could misrepresent supported behavior.
+Focused validation now accepts each declared powered-Door behavior, rejects unknown `power_behavior` values, and requires detached TASK TEST coverage for `requires_power_to_open`. Runtime smoke is still required before visual or interaction behavior can be considered verified.
 
 ### I. Parser/CI gate — DONE
 
@@ -290,31 +290,22 @@ The requested searches were executed against current code. Match counts include 
 | `rg "Use this mission to validate\|GOAL\|goal\|objective" scripts` | 214 matching lines. No `Use this mission to validate` placeholder occurrence was found; catalog/ViewModel GOAL binding paths are present. |
 | `rg "selected.*pulse\|action.*pulse\|available.*actions\|get_available_actions" scripts` | 39 matching lines. UI pulse helpers, normalized action calculation, and final smoke checklist references are present. |
 | `rg "mission_world_objects\\.append\|mission_world_objects\\.erase\|cell_items\\[\|world_objects_by_cell\\[" scripts/game/map_constructor_validation_service.gd` | 0 matching lines. The validation service does not directly mutate active mission collections. |
-| `rg "labels_ru\|palette_label_ru\|display_name_ru\|Дверь\|Предохранитель\|Ремонт\|Модуль\|Ключ" scripts/world scripts/game scripts/ui` | 1 matching line: `scripts/ui/game_ui.gd` contains `"Ремонт"`. |
+| `rg "labels_ru\|palette_label_ru\|display_name_ru\|Дверь\|Предохранитель\|Ремонт\|Модуль\|Ключ" scripts/world scripts/game scripts/ui` | 0 matching lines. |
 
 ## Remaining risks
 
-1. **Powered Door contract drift:** `requires_power_to_open` is exposed by the archetype schema without a named runtime branch or matching validation acceptance.
-2. **Runtime behavior not manually verified:** parser/load checks do not prove interaction, HUD, pulse, save/load, or palette behavior.
-3. **Inventory model naming/shape drift:** the backend separation exists but differs from the planned generalized slot-shaped state model.
-4. **UI visual contract not fully validated:** backend helpers exist, but exact rendered manipulator/key/digital cells require smoke testing.
-5. **English-only UI violation:** one Russian-facing Repair label remains.
-6. **Legacy vocabulary remains outside catalog aliases:** occurrences in visuals, debug labels, compatibility helpers, and older commands must be reviewed before deletion; bulk replacement would be unsafe.
+1. **Runtime behavior not manually verified:** parser/load checks do not prove interaction, HUD, pulse, save/load, palette behavior, or the new `requires_power_to_open` Door branch.
+2. **Inventory model naming/shape drift:** the backend separation exists but differs from the planned generalized slot-shaped state model.
+3. **UI visual contract not fully validated:** backend helpers exist, but exact rendered manipulator/key/digital cells require smoke testing.
+4. **Legacy vocabulary remains outside catalog aliases:** occurrences in visuals, debug labels, compatibility helpers, and older commands must be reviewed before deletion; bulk replacement would be unsafe.
 
 ## Next fix-only PR list
 
-1. **Powered Door `requires_power_to_open` contract decision**
-   - Decide whether the mode is supported.
-   - If supported, add explicit runtime behavior, TASK TEST coverage, and focused validation.
-   - If unsupported, remove it from schema/constants.
-2. **English-only Repair label cleanup**
-   - Replace the remaining `"Ремонт"` UI label with the correct English label.
-   - Rerun the required Cyrillic search.
-3. **Runtime smoke regression fixes only if reproduced**
+1. **Runtime smoke regression fixes only if reproduced**
    - Fix stale action pulse, GOAL display, storage HUD, constructor placement, or save/load issues only when a smoke step fails.
-4. **Inventory state naming/model decision**
+2. **Inventory state naming/model decision**
    - Either formalize the singular-manipulator MVP contract or implement a narrow slot-model normalization if multi-slot physical runtime storage is required now.
-5. **Legacy occurrence cleanup review**
+3. **Legacy occurrence cleanup review**
    - Classify remaining legacy strings as required compatibility, visual/debug vocabulary, or removable stale gameplay assumptions before editing.
 
 ## Runtime smoke checklist
@@ -344,4 +335,4 @@ The section 7.3 manual test list is updated to current archetype names and curre
 
 ## Final audit conclusion
 
-The current code has implemented the main catalog/archetype foundation, canonical Door and item normalization, constructor palette generation, placement normalization, TASK TEST detached validation, objective ViewModel binding, and mandatory parser/CI gate. Stabilization is **not yet fully complete**: runtime smoke is still required, the inventory model remains partially aligned with the plan, the declared `requires_power_to_open` Door behavior needs a focused decision/fix, and one Russian-facing Repair UI label remains open.
+The current code has implemented the main catalog/archetype foundation, canonical Door and item normalization, constructor palette generation, placement normalization, TASK TEST detached validation, objective ViewModel binding, mandatory parser/CI gate, explicit `requires_power_to_open` Door behavior, and the audited English Repair label cleanup. Stabilization is **not yet fully complete**: runtime smoke is still required, including manual `requires_power_to_open` smoke, and the inventory model remains partially aligned with the plan.
