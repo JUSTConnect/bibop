@@ -6919,8 +6919,41 @@ func get_facing_device_diagnostic_result() -> Dictionary:
 	var target_variant: Variant = mission_manager.get_world_object_at_cell(target_cell)
 	if typeof(target_variant) != TYPE_DICTIONARY or Dictionary(target_variant).is_empty():
 		return {}
-	var diagnostic_variant: Variant = mission_manager.call("build_device_diagnostic_result", Dictionary(target_variant), target_cell)
-	return Dictionary(diagnostic_variant) if typeof(diagnostic_variant) == TYPE_DICTIONARY else {}
+	var target_object: Dictionary = Dictionary(target_variant)
+	var diagnostic_variant: Variant = mission_manager.call("build_device_diagnostic_result", target_object, target_cell)
+	if typeof(diagnostic_variant) != TYPE_DICTIONARY:
+		return {}
+	var diagnostic: Dictionary = diagnostic_variant
+	if mission_manager.has_method("build_device_interaction_preflight"):
+		var view_model: Dictionary = build_runtime_action_view_model(target_object, target_cell)
+		var primary_action_id: String = String(view_model.get("primary_action_id", ""))
+		if not primary_action_id.is_empty():
+			var actor: Dictionary = _build_runtime_action_actor(target_object, target_cell)
+			var preflight_variant: Variant = mission_manager.call("build_device_interaction_preflight", target_object, target_cell, primary_action_id, actor)
+			if typeof(preflight_variant) == TYPE_DICTIONARY:
+				var preflight: Dictionary = preflight_variant
+				diagnostic["interaction_preflight"] = preflight.duplicate(true)
+				if not bool(preflight.get("preflight_ok", false)):
+					diagnostic["summary"] = "Device blocked: %s" % String(preflight.get("message", "Action unavailable."))
+	return diagnostic
+
+func get_facing_device_interaction_preflight(action_id: String = "") -> Dictionary:
+	if mission_manager == null or not mission_manager.has_method("build_device_interaction_preflight"):
+		return {}
+	var target_data: Dictionary = get_facing_world_action_target()
+	var target_variant: Variant = target_data.get("target_object", {})
+	if typeof(target_variant) != TYPE_DICTIONARY:
+		return {}
+	var target_object: Dictionary = target_variant
+	var target_cell: Vector2i = Vector2i(target_data.get("target_position", get_facing_device_position()))
+	var resolved_action_id: String = action_id
+	if resolved_action_id.is_empty():
+		var view_model_variant: Variant = target_data.get("action_view_model", {})
+		if typeof(view_model_variant) == TYPE_DICTIONARY:
+			resolved_action_id = String(Dictionary(view_model_variant).get("primary_action_id", ""))
+	var actor: Dictionary = _build_runtime_action_actor(target_object, target_cell)
+	var preflight_variant: Variant = mission_manager.call("build_device_interaction_preflight", target_object, target_cell, resolved_action_id, actor)
+	return Dictionary(preflight_variant) if typeof(preflight_variant) == TYPE_DICTIONARY else {}
 
 func _build_runtime_action_actor(target_object: Dictionary, target_position: Vector2i) -> Dictionary:
 	return {
@@ -8391,6 +8424,14 @@ func interact() -> void:
 					hint_requested.emit("No available action for this object.")
 				status_changed.emit()
 				return
+			if mission_manager.has_method("build_device_interaction_preflight"):
+				var preflight_variant: Variant = mission_manager.call("build_device_interaction_preflight", world_object, target_position, action_id, actor)
+				if typeof(preflight_variant) == TYPE_DICTIONARY:
+					var preflight: Dictionary = preflight_variant
+					if not bool(preflight.get("preflight_ok", false)):
+						hint_requested.emit(String(preflight.get("message", "Action unavailable.")))
+						status_changed.emit()
+						return
 			var action_result: Dictionary = InteractionSystemRef.normalize_action_result(Dictionary(InteractionSystemRef.apply_action(actor, module, world_object, action_id)), world_object, action_id)
 			if bool(action_result.get("success", false)):
 				if not can_spend_action(1, 1):
