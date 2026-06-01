@@ -406,13 +406,11 @@ const MAP_CONSTRUCTOR_PREFAB_FILTER_CATEGORIES: Array[String] = ["All", "Structu
 const MAP_CONSTRUCTOR_PREFAB_FILTER_ROLES: Array[String] = ["All", "navigation", "blocking", "access_control", "power_source", "power_consumer", "power_network", "signal_control", "terminal_interaction", "key_item", "diagnostics", "readiness_test", "expected_invalid_test"]
 const MAP_CONSTRUCTOR_PREFAB_FILTER_PLACEMENT_MODES: Array[String] = ["All", "tile", "object", "item", "wall_mounted"]
 const MAP_CONSTRUCTOR_CONTROL_PREFAB_IDS: Array[String] = [
-	"control_terminal",
+	"terminal",
 	"circuit_switch",
 	"circuit_breaker",
 	"light_switch",
-	"fuse_box",
-	"door_terminal",
-	"platform_terminal"
+	"fuse_box"
 ]
 const MAP_CONSTRUCTOR_POWER_PREFAB_IDS: Array[String] = [
 	"power_source_class_1",

@@ -74,7 +74,7 @@ func validate_constructor_palette_contract() -> Array[String]:
 		if prefab_id.is_empty():
 			warnings.append("constructor_palette_row_missing_prefab_id")
 			continue
-		if WorldObjectCatalogRef.LEGACY_DOOR_IDS.has(prefab_id) or WorldObjectCatalogRef.LEGACY_FLOOR_IDS.has(prefab_id) or WorldObjectCatalogRef.is_constructor_door_preset(prefab_id) or WorldObjectCatalogRef.LEGACY_WALL_ALIAS_CONFIGS.has(prefab_id):
+		if WorldObjectCatalogRef.LEGACY_DOOR_IDS.has(prefab_id) or WorldObjectCatalogRef.is_constructor_door_preset(prefab_id) or WorldObjectCatalogRef.LEGACY_WALL_ALIAS_CONFIGS.has(prefab_id) or WorldObjectCatalogRef.LEGACY_TERMINAL_ALIAS_CONFIGS.has(prefab_id):
 			warnings.append("constructor_palette_exposes_legacy_alias_%s" % prefab_id)
 		if archetype_id == "floor" or prefab_id == "floor":
 			visible_floor_prefabs.append(prefab_id)
@@ -100,8 +100,10 @@ func validate_constructor_palette_contract() -> Array[String]:
 			warnings.append(required_archetype_warning_ids[required_archetype])
 	if not archetype_counts.has("door"):
 		warnings.append("constructor_palette_missing_door_archetype")
-	if visible_floor_prefabs != ["floor"]:
-		warnings.append("constructor_palette_floor_entries_must_be_exactly_floor")
+	if not visible_archetypes.has("terminal"):
+		warnings.append("constructor_palette_missing_terminal_archetype")
+	if WorldObjectCatalogRef.get_archetype_property_schema("terminal").is_empty():
+		warnings.append("terminal_archetype_missing_property_schema")
 	if visible_wall_prefabs != ["external_wall", "wall"] and visible_wall_prefabs != ["wall", "external_wall"]:
 		warnings.append("constructor_palette_wall_entries_must_be_exactly_external_wall_and_wall")
 	var external_wall: Dictionary = WorldObjectCatalogRef.create_world_object("external_wall", "validation_external_wall")
@@ -154,14 +156,21 @@ func validate_constructor_palette_contract() -> Array[String]:
 			warnings.append("floor_display_name_not_generated_%s" % material)
 	if manager != null and is_instance_valid(manager):
 		var floor_palette_count: int = 0
+		var terminal_palette_count: int = 0
 		for palette_row in manager.get_map_constructor_prefab_catalog():
 			var palette_id: String = _safe_string(palette_row.get("id", "")).strip_edges().to_lower()
 			if palette_id == "floor":
 				floor_palette_count += 1
+			elif palette_id == "terminal":
+				terminal_palette_count += 1
+			elif WorldObjectCatalogRef.LEGACY_TERMINAL_ALIAS_CONFIGS.has(palette_id):
+				warnings.append("constructor_palette_exposes_terminal_variant_%s" % palette_id)
 			elif palette_id == "stepped_floor" or WorldObjectCatalogRef.LEGACY_FLOOR_IDS.has(palette_id):
 				warnings.append("constructor_palette_exposes_floor_variant_%s" % palette_id)
 		if floor_palette_count != 1:
 			warnings.append("constructor_palette_expected_one_floor_row_got_%d" % floor_palette_count)
+		if terminal_palette_count != 1:
+			warnings.append("constructor_palette_expected_one_terminal_row_got_%d" % terminal_palette_count)
 		for object_variant in manager.mission_world_objects:
 			if typeof(object_variant) != TYPE_DICTIONARY:
 				continue
@@ -474,6 +483,39 @@ func get_map_constructor_object_dependency_status(object_data: Dictionary) -> Di
 			messages.append("%s points to missing id: %s" % [field_name, ref_id])
 			link_targets.append({"field": field_name, "target_id": ref_id, "target_cell": ref_cell, "status": "error", "reason": "missing"})
 			severity = "error"
+
+	var controlled_target_type: String = _safe_string(object_data.get("controlled_target_type", "none")).to_lower()
+	for schema_variant in WorldObjectCatalogRef.get_archetype_property_schema(_safe_string(object_data.get("archetype_id", ""))):
+		var schema_field: Dictionary = Dictionary(schema_variant)
+		if _safe_string(schema_field.get("type", "")) != "object_ref_array":
+			continue
+		var field_name: String = _safe_string(schema_field.get("field", ""))
+		var target_group: String = _safe_string(schema_field.get("target_group", "")).to_lower()
+		for target_variant in manager._safe_array(object_data.get(field_name, [])):
+			var target_id: String = _safe_string(target_variant).strip_edges()
+			if target_id.is_empty():
+				continue
+			var target_cell: Vector2i = Vector2i(object_id_to_cell.get(target_id, Vector2i(-1, -1)))
+			if not object_ids.has(target_id):
+				messages.append("%s contains missing id: %s" % [field_name, target_id])
+				link_targets.append({"field":field_name,"target_id":target_id,"target_cell":target_cell,"status":"error","reason":"missing"})
+				severity = "error"
+				continue
+			var target_data: Dictionary = manager.get_world_object_by_id(target_id)
+			if not target_group.is_empty() and _safe_string(target_data.get("object_group", "")).to_lower() != target_group:
+				messages.append("%s target %s must belong to group %s" % [field_name, target_id, target_group])
+				link_targets.append({"field":field_name,"target_id":target_id,"target_cell":target_cell,"status":"error","reason":"wrong_group"})
+				severity = "error"
+				continue
+			link_targets.append({"field":field_name,"target_id":target_id,"target_cell":target_cell,"status":"valid","reason":"exists"})
+			if severity == "none":
+				severity = "valid"
+	if controlled_target_type in ["door", "cooling", "platform", "power", "lighting"]:
+		var expected_link_field: String = "linked_%s_ids" % controlled_target_type
+		for typed_link_field in ["linked_door_ids", "linked_cooling_ids", "linked_platform_ids", "linked_power_ids", "linked_lighting_ids"]:
+			if typed_link_field != expected_link_field and not manager._safe_array(object_data.get(typed_link_field, [])).is_empty():
+				messages.append("%s does not match controlled_target_type %s" % [typed_link_field, controlled_target_type])
+				severity = "error"
 
 	var control_source_id: String = _safe_string(object_data.get("control_source_id", "")).strip_edges()
 	if not control_source_id.is_empty():

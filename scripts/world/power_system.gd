@@ -187,6 +187,8 @@ static func _apply_powered_state(obj: Dictionary, powered: bool) -> void:
 			if not (object_group == "threat" and object_type == "turret" and restored_state in ["destroyed", "hacked", "disabled"]):
 				obj["state"] = restored_state
 			obj.erase("state_before_unpowered")
+		if object_group == "terminal":
+			obj["status"] = String(obj.get("state", "active"))
 	if object_group == "door" and object_type in ["energy_door", "powered_gate"]:
 		obj["state"] = "open" if not powered else String(obj.get("state", "closed"))
 		WorldObjectCatalogRef.normalize_door_state_fields(obj)

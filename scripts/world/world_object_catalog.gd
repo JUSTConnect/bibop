@@ -114,6 +114,30 @@ const LEGACY_WALL_ALIAS_CONFIGS: Dictionary = {
 	"damaged_wall": {"object_type":"wall", "material":WALL_MATERIAL_CONCRETE, "damaged":true}
 }
 
+const TERMINAL_TYPES: Array[String] = ["information", "control"]
+const TERMINAL_CONTROLLED_TARGET_TYPES: Array[String] = ["none", "door", "cooling", "platform", "power", "lighting", "device"]
+const TERMINAL_CLASSES: Array[int] = [1, 2, 3]
+const TERMINAL_POWER_TYPES: Array[String] = ["internal", "external"]
+const TERMINAL_CONTROL_TYPES: Array[String] = ["internal", "external"]
+const TERMINAL_STATUSES: Array[String] = ["active", "damaged", "unpowered", "locked", "disabled", "error"]
+
+# Hidden compatibility mappings for historic terminal ids. Constructor palettes,
+# searches, kits, and templates must expose only the configurable terminal archetype.
+const LEGACY_TERMINAL_ALIAS_CONFIGS: Dictionary = {
+	"information_terminal": {"terminal_type":"information", "controlled_target_type":"none"},
+	"control_terminal": {"terminal_type":"control", "controlled_target_type":"none"},
+	"door_terminal": {"terminal_type":"control", "controlled_target_type":"door"},
+	"door_control_terminal": {"terminal_type":"control", "controlled_target_type":"door"},
+	"cooling_terminal": {"terminal_type":"control", "controlled_target_type":"cooling"},
+	"platform_terminal": {"terminal_type":"control", "controlled_target_type":"platform"},
+	"power_terminal": {"terminal_type":"control", "controlled_target_type":"power"},
+	"terminal_class_1": {"terminal_class":1},
+	"terminal_class_2": {"terminal_class":2},
+	"terminal_class_3": {"terminal_class":3},
+	"elevator_terminal": {"terminal_type":"control", "controlled_target_type":"platform"},
+	"turret_terminal": {"terminal_type":"control", "controlled_target_type":"device"}
+}
+
 const DOOR_MATERIAL_BY_OBJECT_TYPE: Dictionary = {
 	"steel_door": DOOR_MATERIAL_STEEL,
 	"reinforced_steel_door": DOOR_MATERIAL_REINFORCED_STEEL,
@@ -159,6 +183,27 @@ const ARCHETYPE_REGISTRY: Dictionary = {
 			{"field":"required_processor_level", "type":"int", "default":0}
 		]
 	},
+	"terminal": {
+		"archetype_id":"terminal", "object_group":"terminal", "object_type":"terminal", "palette_label":"Terminal",
+		"configurable":true,
+		"property_schema":[
+			{"field":"terminal_type", "type":"enum", "values":["information", "control"], "default":"information", "labels":{"information":"Information", "control":"Control"}},
+			{"field":"controlled_target_type", "type":"enum", "values":["none", "door", "cooling", "platform", "power", "lighting", "device"], "default":"none", "labels":{"none":"None", "door":"Door", "cooling":"Cooling", "platform":"Platform", "power":"Power", "lighting":"Lighting", "device":"Device"}},
+			{"field":"terminal_class", "type":"enum", "values":[1, 2, 3], "default":1, "labels":{"1":"Class 1", "2":"Class 2", "3":"Class 3"}},
+			{"field":"power_type", "type":"enum", "values":["internal", "external"], "default":"internal", "labels":{"internal":"Internal", "external":"External"}},
+			{"field":"control_type", "type":"enum", "values":["internal", "external"], "default":"internal", "labels":{"internal":"Internal", "external":"External"}},
+			{"field":"status", "type":"enum", "values":["active", "damaged", "unpowered", "locked", "disabled", "error"], "default":"active", "labels":{"active":"Active", "damaged":"Damaged", "unpowered":"Unpowered", "locked":"Locked", "disabled":"Disabled", "error":"Error"}},
+			{"field":"allowed_statuses", "type":"enum_array", "values":["active", "damaged", "unpowered", "locked", "disabled", "error"], "default":["active", "damaged", "unpowered"]},
+			{"field":"linked_object_ids", "type":"object_ref_array", "default":[]},
+			{"field":"linked_door_ids", "type":"object_ref_array", "target_group":"door", "default":[]},
+			{"field":"linked_cooling_ids", "type":"object_ref_array", "target_group":"cooling", "default":[]},
+			{"field":"linked_platform_ids", "type":"object_ref_array", "target_group":"platform", "default":[]},
+			{"field":"linked_power_ids", "type":"object_ref_array", "target_group":"power", "default":[]},
+			{"field":"linked_lighting_ids", "type":"object_ref_array", "target_group":"lighting", "default":[]},
+			{"field":"chain_input_ids", "type":"object_ref_array", "default":[]},
+			{"field":"chain_output_ids", "type":"object_ref_array", "default":[]}
+		]
+	},
 	"floor": {
 		"archetype_id":"floor", "object_group":"floor", "object_type":"floor", "palette_label":"Floor",
 		"placement_mode":"object", "display_name_template":"{material_label} Floor",
@@ -180,9 +225,9 @@ static func canonical_prefab_id(prefab_id: String) -> String:
 	var normalized_type: String = prefab_id.strip_edges().to_lower()
 	if PREFAB_ALIASES.has(normalized_type):
 		return String(PREFAB_ALIASES[normalized_type])
-	var preset_variant: Variant = LEGACY_DOOR_ALIAS_CONFIGS.get(normalized_type, LEGACY_WALL_ALIAS_CONFIGS.get(normalized_type, {}))
+	var preset_variant: Variant = LEGACY_DOOR_ALIAS_CONFIGS.get(normalized_type, LEGACY_WALL_ALIAS_CONFIGS.get(normalized_type, LEGACY_TERMINAL_ALIAS_CONFIGS.get(normalized_type, {})))
 	if preset_variant is Dictionary:
-		return String(preset_variant.get("object_type", normalized_type))
+		return String(preset_variant.get("object_type", "terminal" if LEGACY_TERMINAL_ALIAS_CONFIGS.has(normalized_type) else normalized_type))
 	return normalized_type
 
 # Compatibility name retained for existing constructor and runtime callers.
@@ -191,7 +236,7 @@ static func canonical_object_type(object_type: String) -> String:
 
 static func is_legacy_prefab_alias(value: String) -> bool:
 	var normalized_value: String = value.strip_edges().to_lower()
-	return PREFAB_ALIASES.has(normalized_value) or LEGACY_WALL_ALIAS_CONFIGS.has(normalized_value)
+	return PREFAB_ALIASES.has(normalized_value) or LEGACY_WALL_ALIAS_CONFIGS.has(normalized_value) or LEGACY_TERMINAL_ALIAS_CONFIGS.has(normalized_value)
 
 static func is_legacy_door_object_type(value: String) -> bool:
 	var normalized_value: String = value.strip_edges().to_lower()
@@ -244,7 +289,7 @@ static func get_prefab_alias_defaults(prefab_id: String) -> Dictionary:
 	var raw_defaults: Variant = PREFAB_ALIAS_DEFAULTS.get(normalized_prefab_id, {})
 	if raw_defaults is Dictionary and not raw_defaults.is_empty():
 		return raw_defaults.duplicate(true)
-	var preset_variant: Variant = LEGACY_DOOR_ALIAS_CONFIGS.get(normalized_prefab_id, LEGACY_WALL_ALIAS_CONFIGS.get(normalized_prefab_id, {}))
+	var preset_variant: Variant = LEGACY_DOOR_ALIAS_CONFIGS.get(normalized_prefab_id, LEGACY_WALL_ALIAS_CONFIGS.get(normalized_prefab_id, LEGACY_TERMINAL_ALIAS_CONFIGS.get(normalized_prefab_id, {})))
 	if preset_variant is Dictionary:
 		var preset_defaults: Dictionary = preset_variant.duplicate(true)
 		preset_defaults.erase("object_type")
@@ -267,7 +312,7 @@ static func get_constructor_palette_rows() -> Array[Dictionary]:
 	for object_type_variant in OBJECT_LIBRARY.keys():
 		var object_type: String = String(object_type_variant)
 		var definition: Dictionary = OBJECT_LIBRARY[object_type]
-		if ARCHETYPE_REGISTRY.has(object_type) or not bool(definition.get("placeable_in_constructor", true)) or String(definition.get("group", "")) == "door":
+		if ARCHETYPE_REGISTRY.has(object_type) or not bool(definition.get("placeable_in_constructor", true)) or String(definition.get("group", "")) in ["door", "terminal"]:
 			continue
 		rows.append(_build_constructor_palette_row(object_type, object_type, definition, false))
 	rows.sort_custom(func(a: Dictionary, b: Dictionary) -> bool: return String(a.get("display_name", "")) < String(b.get("display_name", "")))
@@ -329,19 +374,14 @@ static func apply_prefab_alias_defaults(canonical_type: String, original_type: S
 	return normalize_world_object_contract(data)
 
 const OBJECT_LIBRARY := {
+	"terminal": {"group":"terminal","name":"Information Terminal","state":"active","status":"active","is_powered":true,"power_mode":"internal","control_mode":"internal","requires_external_control":false,"control_terminal_id":"","linked_terminal_id":"","connection_type":"wired","terminal_class":1,"required_connector_level":1,"required_processor_level":1,"encrypts_data":false,"drain_pool":10,"durability":10,"working_heat":1,"current_heat":1,"overheat_threshold":3,"heat_from_connections":0,"cooling_received":0,"hack_heat":1,"overheated_state_before":"","placeable_in_constructor":false},
 	"steel_door": {"group":"door","name":"Steel Door","door_type":"mechanical","material":"steel","access_type":"key_card","power_behavior":"none","durability":30,"state":"closed","blocks_movement":true,"blocks_vision":true,"door_class":1,"lock_type":"mechanical_key","required_manipulator_level":1,"required_connector_level":0,"power_mode":"external_power","control_mode":"external_control"},
 	"reinforced_steel_door": {"group":"door","name":"Reinforced Steel Door","door_type":"digital","material":"reinforced_steel","access_type":"terminal","power_behavior":"none","durability":40,"state":"closed","blocks_movement":true,"blocks_vision":true,"door_class":2,"lock_type":"terminal_lock","required_manipulator_level":2,"required_connector_level":0,"power_mode":"external_power","control_mode":"external_control"},
 	"titanium_door": {"group":"door","name":"Titanium Door","door_type":"digital","material":"titanium","access_type":"access_code","power_behavior":"none","durability":100,"state":"closed","blocks_movement":true,"blocks_vision":true,"door_class":3,"lock_type":"password","required_manipulator_level":3,"required_connector_level":0},
 	"energy_door": {"group":"door","name":"Energy Door","door_type":"digital","material":"energy","access_type":"digital_key","power_behavior":"none","durability":1,"state":"closed","blocks_movement":true,"blocks_vision":false,"door_class":1,"lock_type":"digital_key","required_manipulator_level":1,"required_connector_level":1,"invulnerable_while_powered":true,"power_mode":"external_power","control_mode":"external_control"},
 	"grid_door": {"group":"door","name":"Grid Door","door_type":"mechanical","material":"steel","access_type":"no_key","power_behavior":"none","durability":15,"state":"closed","blocks_movement":true,"blocks_vision":false,"door_class":1,"lock_type":"none","required_manipulator_level":1,"required_connector_level":0},
-	"door_terminal": {"group":"terminal","name":"Door Terminal","placement_mode":"wall_mounted","state":"active","is_powered":true,"power_mode":"internal_power","control_mode":"internal_control","requires_external_control":false,"control_terminal_id":"","linked_terminal_id":"","connection_type":"wired","terminal_class":1,"required_connector_level":1,"required_processor_level":1,"encrypts_data":false,"drain_pool":10,"durability":10,"working_heat":1,"current_heat":1,"overheat_threshold":3,"heat_from_connections":0,"cooling_received":0,"hack_heat":1,"overheated_state_before":""},
-	"elevator_terminal": {"group":"terminal","name":"Elevator Terminal","connection_type":"high_bandwidth","terminal_class":2,"required_connector_level":2,"required_processor_level":2,"encrypts_data":true,"drain_pool":20,"durability":10,"working_heat":2,"current_heat":2,"overheat_threshold":3,"heat_from_connections":0,"cooling_received":0,"hack_heat":1,"overheated_state_before":""},
-	"information_terminal": {"group":"terminal","name":"Information Terminal","connection_type":"optical","terminal_class":2,"required_connector_level":2,"required_processor_level":2,"encrypts_data":true,"drain_pool":20,"durability":10,"working_heat":2,"current_heat":2,"overheat_threshold":3,"heat_from_connections":0,"cooling_received":0,"hack_heat":1,"overheated_state_before":""},
-	"turret_terminal": {"group":"terminal","name":"Turret Terminal","connection_type":"wireless","terminal_class":3,"required_connector_level":3,"required_processor_level":3,"can_attack":true,"encrypts_data":true,"drain_pool":30,"durability":10,"working_heat":2,"current_heat":2,"overheat_threshold":3,"heat_from_connections":0,"cooling_received":0,"hack_heat":2,"overheated_state_before":""},
-	"platform_terminal": {"group":"terminal","name":"Platform Terminal","placement_mode":"wall_mounted","terminal_type":"platform","connection_type":"wired","required_connector_level":1,"target_platform_id":"","state":"active","is_powered":true,"power_mode":"internal_power","power_type":"internal","control_mode":"internal_control","control_type":"internal","requires_external_control":false,"control_terminal_id":"","linked_terminal_id":"","damageable":true,"destructible":false,"platform_control_enabled":true,"platform_remote_control":true,"durability":12},
 	"rotating_platform": {"group":"platform","name":"Rotating Platform","platform_type":"rotating","platform_id":"","platform_cells":[],"state":"active","is_powered":true,"power_type":"internal","control_type":"internal","requires_terminal_enabled":false,"linked_terminal_id":"","local_switch_cell":[0,0],"local_switch_facing_dir":"up","non_destructible":true,"destructible":false,"movable":false,"heavy_claw_movable":false,"activation_mode":"instant","timer_turns":0,"timer_remaining_turns":0,"period_turns":0,"periodic_active":false,"permanent_state":false,"pending_activation":false,"rotation_direction":"clockwise"},
 	"lifting_platform": {"group":"platform","name":"Lifting Platform","platform_type":"lifting","platform_id":"","platform_cells":[],"state":"active","is_powered":true,"power_type":"internal","control_type":"internal","requires_terminal_enabled":false,"linked_terminal_id":"","local_switch_cell":[0,0],"local_switch_facing_dir":"up","non_destructible":true,"destructible":false,"movable":false,"heavy_claw_movable":false,"height_level":0,"min_height_level":0,"max_height_level":1,"activation_mode":"instant","timer_turns":0,"timer_remaining_turns":0,"period_turns":0,"periodic_active":false,"permanent_state":false,"pending_activation":false},
-	"cooling_terminal": {"group":"terminal","name":"Cooling Terminal","placement_mode":"wall_mounted","state":"active","is_powered":true,"power_mode":"internal_power","control_mode":"internal_control","requires_external_control":false,"control_terminal_id":"","linked_terminal_id":"","connection_type":"wired","terminal_class":1,"required_connector_level":1,"required_processor_level":1,"encrypts_data":false,"drain_pool":10,"durability":10,"working_heat":1,"current_heat":1,"overheat_threshold":3,"heat_from_connections":0,"cooling_received":0,"hack_heat":1,"overheated_state_before":""},
 	"firewall": {"group":"terminal","name":"Firewall","placement_mode":"wall_mounted","state":"active","required_connector_level":1,"required_processor_level":1,"durability":10},
 	"external_wall": {"group":"wall","name":"External Wall","material":"external_structural","is_destructible":false,"supports_embedded_objects":true,"supports_cables":true,"configurable":false,"indestructible":true,"blocks_movement":true,"blocks_vision":true},
 	"wall": {"group":"wall","name":"Brick Wall","material":"brick","is_destructible":true,"supports_embedded_objects":true,"supports_cables":true,"configurable":true,"durability":10,"blocks_movement":true,"blocks_vision":true},
@@ -559,6 +599,28 @@ static func normalize_door_contract(object_data: Dictionary) -> Dictionary:
 		data["locked"] = false
 	return data
 
+static func normalize_terminal_contract(object_data: Dictionary) -> Dictionary:
+	var data: Dictionary = object_data.duplicate(true)
+	var archetype_id: String = get_archetype_id_for_object(data)
+	var object_group: String = _normalized_contract_token(data.get("object_group", data.get("group", "")))
+	var object_type: String = _normalized_contract_token(data.get("object_type", ""))
+	if archetype_id != "terminal" and object_group != "terminal" and not object_type.contains("terminal"):
+		return data
+	data["archetype_id"] = "terminal"
+	data["object_group"] = "terminal"
+	data["object_type"] = "terminal"
+	if not data.has("status"):
+		data["status"] = _normalized_contract_token(data.get("state", "active"))
+	elif data.has("state") and String(data.get("state", "active")) != String(data.get("status", "active")):
+		data["status"] = _normalized_contract_token(data.get("state", "active"))
+	if not data.has("allowed_statuses"):
+		data["allowed_statuses"] = ["active", "damaged", "unpowered"]
+	data["state"] = String(data.get("status", "active"))
+	data["is_powered"] = String(data.get("status", "active")) != "unpowered"
+	data["power_mode"] = String(data.get("power_type", data.get("power_mode", "internal"))).trim_suffix("_power")
+	data["control_mode"] = String(data.get("control_type", data.get("control_mode", "internal"))).trim_suffix("_control")
+	return data
+
 static func normalize_world_object_contract(object_data: Dictionary) -> Dictionary:
 	var data: Dictionary = canonicalize_legacy_object_data(object_data)
 	if data.is_empty():
@@ -571,8 +633,18 @@ static func normalize_world_object_contract(object_data: Dictionary) -> Dictiona
 		data["map_constructor_prefab_id"] = prefab_id
 	data["object_type"] = canonical_type
 	data = normalize_door_contract(data)
+	data = normalize_terminal_contract(data)
 	data = normalize_archetype_object(data)
+	data = normalize_terminal_contract(data)
 	return data
+
+static func _contains_cyrillic(value: Variant) -> bool:
+	var text: String = String(value)
+	for index in range(text.length()):
+		var codepoint: int = text.unicode_at(index)
+		if codepoint >= 0x0400 and codepoint <= 0x04ff:
+			return true
+	return false
 
 static func validate_archetype_object(object_data: Dictionary) -> Array[String]:
 	var warnings: Array[String] = []
@@ -599,8 +671,20 @@ static func validate_archetype_object(object_data: Dictionary) -> Array[String]:
 					warnings.append("object_invalid_enum_array_%s" % field_name)
 	if object_data.has("allowed_states") and not Array(object_data.get("allowed_states", [])).has(object_data.get("state")):
 		warnings.append("object_state_not_allowed")
+	if object_data.has("allowed_statuses") and not Array(object_data.get("allowed_statuses", [])).has(object_data.get("status")):
+		warnings.append("object_status_not_allowed")
 	if archetype_id == "floor" and String(object_data.get("display_name", "")) != generate_display_name(object_data):
 		warnings.append("floor_display_name_not_generated_from_material")
+	if archetype_id == "terminal":
+		if String(object_data.get("display_name", "")) != generate_display_name(object_data):
+			warnings.append("terminal_display_name_not_generated_from_properties")
+		if _contains_cyrillic(object_data.get("display_name", "")):
+			warnings.append("terminal_display_name_contains_localized_text")
+		for schema_variant in get_archetype_property_schema("terminal"):
+			var labels: Dictionary = Dictionary(schema_variant).get("labels", {})
+			for label_variant in labels.values():
+				if _contains_cyrillic(label_variant):
+					warnings.append("terminal_schema_contains_localized_label")
 	if archetype_id == "door":
 		var state: String = String(object_data.get("state", ""))
 		if bool(object_data.get("is_open", false)) != (state == "open") or bool(object_data.get("is_locked", false)) != (state == "locked"):
@@ -735,6 +819,13 @@ static func _label_for_id(value: Variant) -> String:
 
 static func generate_display_name(object_data: Dictionary) -> String:
 	var archetype_id: String = get_archetype_id_for_object(object_data)
+	if archetype_id == "terminal":
+		if _normalized_contract_token(object_data.get("terminal_type", "information")) != "control":
+			return "Information Terminal"
+		var target_type: String = _normalized_contract_token(object_data.get("controlled_target_type", "none"))
+		if target_type == "none":
+			return "Control Terminal"
+		return "%s Control Terminal" % _label_for_id(target_type)
 	var definition: Dictionary = get_archetype_definition(archetype_id)
 	var template: String = String(definition.get("display_name_template", object_data.get("display_name", archetype_id.capitalize())))
 	for field_variant in get_archetype_property_schema(archetype_id):
@@ -751,6 +842,7 @@ static func normalize_archetype_object(object_data: Dictionary) -> Dictionary:
 	var definition: Dictionary = get_archetype_definition(archetype_id)
 	data["archetype_id"] = archetype_id
 	data["object_group"] = String(definition.get("object_group", archetype_id))
+	data["object_type"] = String(definition.get("object_type", archetype_id))
 	for fixed_field in ["material", "is_destructible", "supports_embedded_objects", "supports_cables", "configurable", "blocks_movement", "blocks_vision"]:
 		if definition.has(fixed_field) and (archetype_id == "external_wall" or not data.has(fixed_field)):
 			data[fixed_field] = definition[fixed_field]
@@ -763,6 +855,8 @@ static func normalize_archetype_object(object_data: Dictionary) -> Dictionary:
 	if archetype_id == "door":
 		data["power_mode"] = String(data.get("power_type", data.get("power_mode", "internal")))
 		data["control_mode"] = String(data.get("control_type", data.get("control_mode", "internal")))
+	elif archetype_id == "terminal":
+		data = normalize_terminal_contract(data)
 	data["display_name"] = generate_display_name(data)
 	data["normalized_by_archetype_catalog"] = true
 	return data
@@ -776,11 +870,13 @@ static func create_archetype_object(archetype_id: String, id_override: String = 
 	data["archetype_id"] = archetype_id
 	for key_variant in overrides.keys():
 		data[String(key_variant)] = overrides[key_variant]
+	if archetype_id == "terminal" and overrides.has("status"):
+		data["state"] = overrides["status"]
 	return normalize_door_state_fields(normalize_world_object_contract(normalize_archetype_object(data)))
 
 static func _create_library_object(object_type: String, id_override: String = "") -> Dictionary:
 	var canonical_type: String = canonical_object_type(object_type)
-	if ARCHETYPE_REGISTRY.has(canonical_type):
+	if ARCHETYPE_REGISTRY.has(canonical_type) and object_type != canonical_type:
 		var archetype_data: Dictionary = create_archetype_object(canonical_type, id_override, get_prefab_alias_defaults(object_type))
 		return mark_legacy_source(archetype_data, object_type) if is_legacy_prefab_alias(object_type) else archetype_data
 	if not OBJECT_LIBRARY.has(canonical_type):
