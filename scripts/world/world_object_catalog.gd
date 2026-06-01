@@ -3,18 +3,64 @@ class_name WorldObjectCatalog
 
 const WorldObjectDataRef = preload("res://scripts/world/world_object_data.gd")
 
+const DOOR_TYPE_MECHANICAL := "mechanical"
+const DOOR_TYPE_DIGITAL := "digital"
+const DOOR_TYPE_POWERED := "powered"
+const DOOR_TYPES: Array[String] = [DOOR_TYPE_MECHANICAL, DOOR_TYPE_DIGITAL, DOOR_TYPE_POWERED]
+
+const DOOR_MATERIAL_STEEL := "steel"
+const DOOR_MATERIAL_REINFORCED_STEEL := "reinforced_steel"
+const DOOR_MATERIAL_TITANIUM := "titanium"
+const DOOR_MATERIAL_ENERGY := "energy"
+const DOOR_MATERIALS: Array[String] = [DOOR_MATERIAL_STEEL, DOOR_MATERIAL_REINFORCED_STEEL, DOOR_MATERIAL_TITANIUM, DOOR_MATERIAL_ENERGY]
+
+const ACCESS_TYPE_NO_KEY := "no_key"
+const ACCESS_TYPE_KEY_CARD := "key_card"
+const ACCESS_TYPE_DIGITAL_KEY := "digital_key"
+const ACCESS_TYPE_ACCESS_CODE := "access_code"
+const ACCESS_TYPE_TERMINAL := "terminal"
+const ACCESS_TYPES: Array[String] = [ACCESS_TYPE_NO_KEY, ACCESS_TYPE_KEY_CARD, ACCESS_TYPE_DIGITAL_KEY, ACCESS_TYPE_ACCESS_CODE, ACCESS_TYPE_TERMINAL]
+const KEY_ITEM_TYPE_KEY_CARD := "key_card"
+const POWER_BEHAVIOR_NONE := "none"
+const POWER_BEHAVIOR_OPENS_WHEN_UNPOWERED := "opens_when_unpowered"
+
 const PREFAB_ALIASES: Dictionary = {
 	"mechanical_door": "steel_door",
 	"digital_door": "energy_door",
 	"powered_gate": "energy_door"
 }
 
-static func canonical_object_type(object_type: String) -> String:
-	var normalized_type: String = object_type.strip_edges().to_lower()
+const PREFAB_ALIAS_DEFAULTS: Dictionary = {
+	"mechanical_door": {"object_group":"door", "door_type":DOOR_TYPE_MECHANICAL, "access_type":ACCESS_TYPE_KEY_CARD},
+	"digital_door": {"object_group":"door", "door_type":DOOR_TYPE_DIGITAL, "access_type":ACCESS_TYPE_DIGITAL_KEY},
+	"powered_gate": {"object_group":"door", "door_type":DOOR_TYPE_POWERED, "access_type":ACCESS_TYPE_NO_KEY, "power_behavior":POWER_BEHAVIOR_OPENS_WHEN_UNPOWERED}
+}
+
+const DOOR_MATERIAL_BY_OBJECT_TYPE: Dictionary = {
+	"steel_door": DOOR_MATERIAL_STEEL,
+	"reinforced_steel_door": DOOR_MATERIAL_REINFORCED_STEEL,
+	"titanium_door": DOOR_MATERIAL_TITANIUM,
+	"energy_door": DOOR_MATERIAL_ENERGY,
+	"grid_door": DOOR_MATERIAL_STEEL
+}
+
+static func canonical_prefab_id(prefab_id: String) -> String:
+	var normalized_type: String = prefab_id.strip_edges().to_lower()
 	return String(PREFAB_ALIASES.get(normalized_type, normalized_type))
+
+# Compatibility name retained for existing constructor and runtime callers.
+static func canonical_object_type(object_type: String) -> String:
+	return canonical_prefab_id(object_type)
 
 static func is_legacy_prefab_alias(object_type: String) -> bool:
 	return PREFAB_ALIASES.has(object_type.strip_edges().to_lower())
+
+static func get_prefab_alias_defaults(prefab_id: String) -> Dictionary:
+	var normalized_prefab_id: String = prefab_id.strip_edges().to_lower()
+	var raw_defaults: Variant = PREFAB_ALIAS_DEFAULTS.get(normalized_prefab_id, {})
+	if raw_defaults is Dictionary:
+		return raw_defaults.duplicate(true)
+	return {}
 
 static func get_constructor_placeable_door_types() -> Array[String]:
 	var door_types: Array[String] = []
@@ -31,32 +77,24 @@ static func apply_prefab_alias_defaults(canonical_type: String, original_type: S
 	var normalized_original_type: String = original_type.strip_edges().to_lower()
 	data["object_type"] = canonical_type
 	if not PREFAB_ALIASES.has(normalized_original_type):
-		return data
+		return normalize_world_object_contract(data)
 	data["map_constructor_prefab_id"] = normalized_original_type
-	if normalized_original_type == "mechanical_door":
-		data["object_group"] = "door"
-		if not data.has("access_type"):
-			data["access_type"] = "mechanical_key"
-		if not data.has("lock_type"):
-			data["lock_type"] = "mechanical_key"
-	elif normalized_original_type == "digital_door":
-		data["object_group"] = "door"
-		if not data.has("access_type"):
-			data["access_type"] = "digital_key"
-		if not data.has("lock_type"):
-			data["lock_type"] = "digital_key"
-	elif normalized_original_type == "powered_gate":
-		data["object_group"] = "door"
+	var defaults: Dictionary = get_prefab_alias_defaults(normalized_original_type)
+	for key_variant in defaults.keys():
+		var key: String = String(key_variant)
+		if not data.has(key):
+			data[key] = defaults[key]
+	if normalized_original_type == "powered_gate":
 		data["requires_external_power"] = bool(data.get("requires_external_power", true))
 		data["power_mode"] = String(data.get("power_mode", "external_power"))
-	return data
+	return normalize_world_object_contract(data)
 
 const OBJECT_LIBRARY := {
-	"steel_door": {"group":"door","name":"Steel Door","material":"steel","durability":30,"state":"closed","blocks_movement":true,"blocks_vision":true,"door_class":1,"lock_type":"mechanical_key","required_manipulator_level":1,"required_connector_level":0,"power_mode":"external_power","control_mode":"external_control"},
-	"reinforced_steel_door": {"group":"door","name":"Reinforced Steel Door","material":"reinforced_steel","durability":40,"state":"closed","blocks_movement":true,"blocks_vision":true,"door_class":2,"lock_type":"terminal_lock","required_manipulator_level":2,"required_connector_level":0,"power_mode":"external_power","control_mode":"external_control"},
-	"titanium_door": {"group":"door","name":"Titanium Door","material":"titanium","durability":100,"state":"closed","blocks_movement":true,"blocks_vision":true,"door_class":3,"lock_type":"password","required_manipulator_level":3,"required_connector_level":0},
-	"energy_door": {"group":"door","name":"Energy Door","material":"electromagnetic","durability":1,"state":"closed","blocks_movement":true,"blocks_vision":false,"door_class":1,"lock_type":"digital_key","required_manipulator_level":1,"required_connector_level":1,"invulnerable_while_powered":true,"power_mode":"external_power","control_mode":"external_control"},
-	"grid_door": {"group":"door","name":"Grid Door","material":"steel","durability":15,"state":"closed","blocks_movement":true,"blocks_vision":false,"door_class":1,"lock_type":"none","required_manipulator_level":1,"required_connector_level":0},
+	"steel_door": {"group":"door","name":"Steel Door","door_type":"mechanical","material":"steel","access_type":"key_card","power_behavior":"none","durability":30,"state":"closed","blocks_movement":true,"blocks_vision":true,"door_class":1,"lock_type":"mechanical_key","required_manipulator_level":1,"required_connector_level":0,"power_mode":"external_power","control_mode":"external_control"},
+	"reinforced_steel_door": {"group":"door","name":"Reinforced Steel Door","door_type":"digital","material":"reinforced_steel","access_type":"terminal","power_behavior":"none","durability":40,"state":"closed","blocks_movement":true,"blocks_vision":true,"door_class":2,"lock_type":"terminal_lock","required_manipulator_level":2,"required_connector_level":0,"power_mode":"external_power","control_mode":"external_control"},
+	"titanium_door": {"group":"door","name":"Titanium Door","door_type":"digital","material":"titanium","access_type":"access_code","power_behavior":"none","durability":100,"state":"closed","blocks_movement":true,"blocks_vision":true,"door_class":3,"lock_type":"password","required_manipulator_level":3,"required_connector_level":0},
+	"energy_door": {"group":"door","name":"Energy Door","door_type":"digital","material":"energy","access_type":"digital_key","power_behavior":"none","durability":1,"state":"closed","blocks_movement":true,"blocks_vision":false,"door_class":1,"lock_type":"digital_key","required_manipulator_level":1,"required_connector_level":1,"invulnerable_while_powered":true,"power_mode":"external_power","control_mode":"external_control"},
+	"grid_door": {"group":"door","name":"Grid Door","door_type":"mechanical","material":"steel","access_type":"no_key","power_behavior":"none","durability":15,"state":"closed","blocks_movement":true,"blocks_vision":false,"door_class":1,"lock_type":"none","required_manipulator_level":1,"required_connector_level":0},
 	"door_terminal": {"group":"terminal","name":"Door Terminal","placement_mode":"wall_mounted","state":"active","is_powered":true,"power_mode":"internal_power","control_mode":"internal_control","requires_external_control":false,"control_terminal_id":"","linked_terminal_id":"","connection_type":"wired","terminal_class":1,"required_connector_level":1,"required_processor_level":1,"encrypts_data":false,"drain_pool":10,"durability":10,"working_heat":1,"current_heat":1,"overheat_threshold":3,"heat_from_connections":0,"cooling_received":0,"hack_heat":1,"overheated_state_before":""},
 	"elevator_terminal": {"group":"terminal","name":"Elevator Terminal","connection_type":"high_bandwidth","terminal_class":2,"required_connector_level":2,"required_processor_level":2,"encrypts_data":true,"drain_pool":20,"durability":10,"working_heat":2,"current_heat":2,"overheat_threshold":3,"heat_from_connections":0,"cooling_received":0,"hack_heat":1,"overheated_state_before":""},
 	"information_terminal": {"group":"terminal","name":"Information Terminal","connection_type":"optical","terminal_class":2,"required_connector_level":2,"required_processor_level":2,"encrypts_data":true,"drain_pool":20,"durability":10,"working_heat":2,"current_heat":2,"overheat_threshold":3,"heat_from_connections":0,"cooling_received":0,"hack_heat":1,"overheated_state_before":""},
@@ -141,6 +179,169 @@ static func _safe_non_negative_int(value: Variant, fallback: int = 0) -> int:
 	return fallback
 
 
+static func _normalized_contract_token(value: Variant) -> String:
+	return _safe_string(value).strip_edges().to_lower().replace("-", "_").replace(" ", "_")
+
+static func normalize_access_type(value: Variant) -> String:
+	var access_type: String = _normalized_contract_token(value)
+	match access_type:
+		"", "none", "no_key":
+			return ACCESS_TYPE_NO_KEY
+		"mechanical_key", "mechanical_keycard", "keycard", "key_card":
+			return ACCESS_TYPE_KEY_CARD
+		"digital_key":
+			return ACCESS_TYPE_DIGITAL_KEY
+		"terminal_lock", "terminal":
+			return ACCESS_TYPE_TERMINAL
+		"password", "code", "access_code":
+			return ACCESS_TYPE_ACCESS_CODE
+	return access_type
+
+static func normalize_key_item_type(value: Variant) -> String:
+	var item_type: String = _normalized_contract_token(value)
+	if item_type in ["mechanical_key", "mechanical_keycard", "keycard", "key_card"]:
+		return KEY_ITEM_TYPE_KEY_CARD
+	return item_type
+
+static func _legacy_lock_type_for_access_type(access_type: String) -> String:
+	match access_type:
+		ACCESS_TYPE_NO_KEY:
+			return "none"
+		ACCESS_TYPE_KEY_CARD:
+			return "mechanical_key"
+		ACCESS_TYPE_DIGITAL_KEY:
+			return "digital_key"
+		ACCESS_TYPE_ACCESS_CODE:
+			return "password"
+		ACCESS_TYPE_TERMINAL:
+			return "terminal_lock"
+	return access_type
+
+static func _normalize_door_material(value: Variant, object_type: String) -> String:
+	var material: String = _normalized_contract_token(value)
+	if material == "electromagnetic":
+		material = DOOR_MATERIAL_ENERGY
+	if material in DOOR_MATERIALS:
+		return material
+	return String(DOOR_MATERIAL_BY_OBJECT_TYPE.get(object_type, DOOR_MATERIAL_STEEL))
+
+static func _normalize_door_type(value: Variant) -> String:
+	var door_type: String = _normalized_contract_token(value)
+	if door_type in DOOR_TYPES:
+		return door_type
+	return ""
+
+static func normalize_door_contract(object_data: Dictionary) -> Dictionary:
+	var data: Dictionary = object_data.duplicate(true)
+	if data.is_empty():
+		return data
+	var object_type: String = _normalized_contract_token(data.get("object_type", ""))
+	var prefab_id: String = _normalized_contract_token(data.get("map_constructor_prefab_id", object_type))
+	var defaults: Dictionary = get_prefab_alias_defaults(prefab_id)
+	for key_variant in defaults.keys():
+		var key: String = String(key_variant)
+		if not data.has(key):
+			data[key] = defaults[key]
+	var group_text: String = _normalized_contract_token(data.get("object_group", data.get("group", "")))
+	if group_text != "door" and not object_type.contains("door") and not object_type.contains("gate") and defaults.is_empty():
+		return data
+	data["object_group"] = "door"
+	var raw_access_type: Variant = data.get("access_type", data.get("lock_type", ACCESS_TYPE_NO_KEY))
+	var access_type: String = normalize_access_type(raw_access_type)
+	data["access_type"] = access_type
+	data["lock_type"] = _legacy_lock_type_for_access_type(access_type)
+	var power_behavior: String = _normalized_contract_token(data.get("power_behavior", POWER_BEHAVIOR_NONE))
+	var door_type: String = _normalize_door_type(data.get("door_type", ""))
+	if door_type.is_empty():
+		if prefab_id == "mechanical_door":
+			door_type = DOOR_TYPE_MECHANICAL
+		elif prefab_id == "digital_door":
+			door_type = DOOR_TYPE_DIGITAL
+		elif prefab_id == "powered_gate":
+			door_type = DOOR_TYPE_POWERED
+		elif access_type == ACCESS_TYPE_KEY_CARD:
+			door_type = DOOR_TYPE_MECHANICAL
+		elif access_type in [ACCESS_TYPE_DIGITAL_KEY, ACCESS_TYPE_ACCESS_CODE, ACCESS_TYPE_TERMINAL]:
+			door_type = DOOR_TYPE_DIGITAL
+		elif power_behavior == POWER_BEHAVIOR_OPENS_WHEN_UNPOWERED:
+			door_type = DOOR_TYPE_POWERED
+		else:
+			door_type = DOOR_TYPE_MECHANICAL
+	data["door_type"] = door_type
+	if door_type == DOOR_TYPE_POWERED and power_behavior == POWER_BEHAVIOR_NONE:
+		power_behavior = POWER_BEHAVIOR_OPENS_WHEN_UNPOWERED
+	elif door_type != DOOR_TYPE_POWERED:
+		power_behavior = POWER_BEHAVIOR_NONE
+	data["power_behavior"] = power_behavior
+	data["material"] = _normalize_door_material(data.get("material", ""), object_type)
+	data["door_class"] = clampi(int(data.get("door_class", 1)), 1, 3)
+	if access_type == ACCESS_TYPE_NO_KEY:
+		data["required_key_id"] = ""
+		if _normalized_contract_token(data.get("state", "closed")) == "locked":
+			data["state"] = "closed"
+		data["is_locked"] = false
+		data["locked"] = false
+	return data
+
+static func normalize_world_object_contract(object_data: Dictionary) -> Dictionary:
+	var data: Dictionary = object_data.duplicate(true)
+	if data.is_empty():
+		return data
+	var object_type: String = _normalized_contract_token(data.get("object_type", ""))
+	var prefab_id: String = _normalized_contract_token(data.get("map_constructor_prefab_id", object_type))
+	var canonical_type: String = canonical_prefab_id(object_type)
+	if PREFAB_ALIASES.has(prefab_id):
+		canonical_type = canonical_prefab_id(prefab_id)
+		data["map_constructor_prefab_id"] = prefab_id
+	data["object_type"] = canonical_type
+	data = normalize_door_contract(data)
+	return data
+
+static func validate_object_registry_contract() -> Array[String]:
+	var warnings: Array[String] = []
+	for alias_variant in PREFAB_ALIASES.keys():
+		var alias_id: String = String(alias_variant)
+		var target_id: String = canonical_prefab_id(alias_id)
+		if not OBJECT_LIBRARY.has(target_id):
+			warnings.append("prefab_alias_target_missing_%s_%s" % [alias_id, target_id])
+			continue
+		var alias_data: Dictionary = create_world_object(alias_id, "validation_%s" % alias_id)
+		if alias_data.is_empty() or not OBJECT_LIBRARY.has(String(alias_data.get("object_type", ""))):
+			warnings.append("prefab_alias_creates_unknown_runtime_object_%s" % alias_id)
+		for required_field in ["door_type", "material", "access_type", "door_class"]:
+			if not alias_data.has(required_field) or _normalized_contract_token(alias_data.get(required_field, "")).is_empty():
+				warnings.append("prefab_alias_missing_%s_%s" % [required_field, alias_id])
+	for object_type_variant in OBJECT_LIBRARY.keys():
+		var object_type: String = String(object_type_variant)
+		var definition: Dictionary = OBJECT_LIBRARY[object_type]
+		if _normalized_contract_token(definition.get("group", "")) != "door":
+			continue
+		var data: Dictionary = create_world_object(object_type, "validation_%s" % object_type)
+		for required_field in ["door_type", "material", "access_type"]:
+			if _normalized_contract_token(data.get(required_field, "")).is_empty():
+				warnings.append("door_missing_%s_%s" % [required_field, object_type])
+		if DOOR_MATERIAL_BY_OBJECT_TYPE.has(object_type) and _normalized_contract_token(data.get("material", "")).is_empty():
+			warnings.append("material_like_door_missing_material_%s" % object_type)
+		var access_type: String = _normalized_contract_token(data.get("access_type", ""))
+		if access_type not in ACCESS_TYPES:
+			warnings.append("door_access_type_unknown_%s_%s" % [object_type, access_type])
+		var raw_lock_type: String = _normalized_contract_token(definition.get("lock_type", ""))
+		if raw_lock_type.contains("mechanical") and normalize_access_type(raw_lock_type) != ACCESS_TYPE_KEY_CARD:
+			warnings.append("door_unknown_mechanical_key_naming_%s_%s" % [object_type, raw_lock_type])
+		var raw_access_type: String = normalize_access_type(definition.get("access_type", raw_lock_type))
+		var raw_required_key_id: String = _safe_string(definition.get("required_key_id", ""))
+		if raw_access_type == ACCESS_TYPE_NO_KEY and not raw_required_key_id.is_empty():
+			warnings.append("no_key_door_requires_key_%s" % object_type)
+			if bool(definition.get("is_locked", definition.get("locked", false))) or _normalized_contract_token(definition.get("state", "")) == "locked":
+				warnings.append("no_key_door_locked_by_key_requirement_%s" % object_type)
+		if access_type == ACCESS_TYPE_NO_KEY:
+			if not _safe_string(data.get("required_key_id", "")).is_empty():
+				warnings.append("normalized_no_key_door_requires_key_%s" % object_type)
+			if bool(data.get("is_locked", false)):
+				warnings.append("normalized_no_key_door_remains_locked_%s" % object_type)
+	return warnings
+
+
 static func normalize_door_state_fields(object_data: Dictionary) -> Dictionary:
 	if object_data.is_empty():
 		return object_data
@@ -150,12 +351,12 @@ static func normalize_door_state_fields(object_data: Dictionary) -> Dictionary:
 		return object_data
 	var access_type := _safe_string(object_data.get("access_type", object_data.get("lock_type", ""))).strip_edges().to_lower()
 	if access_type in ["no_key", "no key", "none"]:
-		access_type = "none"
+		access_type = ACCESS_TYPE_NO_KEY
 		object_data["access_type"] = access_type
-		object_data["lock_type"] = access_type
+		object_data["lock_type"] = "none"
 		object_data["required_key_id"] = ""
 	var state := _safe_string(object_data.get("state", "closed"), "closed").strip_edges().to_lower()
-	if access_type == "none" and state == "locked":
+	if access_type == ACCESS_TYPE_NO_KEY and state == "locked":
 		state = "closed"
 		object_data["is_locked"] = false
 		object_data["locked"] = false
@@ -202,6 +403,10 @@ static func create_world_object(object_type: String, id_override: String = "") -
 	if data.get("invulnerable_while_powered", false) and data.get("is_powered", true):
 		data["invulnerable"] = true
 	data = apply_prefab_alias_defaults(canonical_type, object_type, data)
+	var alias_defaults: Dictionary = get_prefab_alias_defaults(object_type)
+	for key_variant in alias_defaults.keys():
+		data[String(key_variant)] = alias_defaults[key_variant]
+	data = normalize_world_object_contract(data)
 	data = update_world_object_heat_state(data)
 	data = normalize_door_state_fields(data)
 	return data
