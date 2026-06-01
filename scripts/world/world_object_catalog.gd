@@ -718,7 +718,7 @@ static func normalize_door_contract(object_data: Dictionary) -> Dictionary:
 			door_type = DOOR_TYPE_MECHANICAL
 		elif access_type in [ACCESS_TYPE_DIGITAL_KEY, ACCESS_TYPE_ACCESS_CODE, ACCESS_TYPE_TERMINAL]:
 			door_type = DOOR_TYPE_DIGITAL
-		elif power_behavior == POWER_BEHAVIOR_OPENS_WHEN_UNPOWERED:
+		elif power_behavior != POWER_BEHAVIOR_NONE:
 			door_type = DOOR_TYPE_POWERED
 		else:
 			door_type = DOOR_TYPE_MECHANICAL

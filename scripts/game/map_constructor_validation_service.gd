@@ -928,6 +928,9 @@ func get_map_constructor_validation_issues() -> Array[Dictionary]:
 			var raw_door_type: String = _safe_string(data.get("door_type", "")).strip_edges().to_lower()
 			if raw_door_type not in WorldObjectCatalogRef.DOOR_TYPES:
 				issues.append(_make_map_constructor_issue("obj_invalid_door_type_%s" % object_id, "error", "Door door_type is not canonical: %s." % raw_door_type, object_cell, source_name, entity_kind, object_id, "Use mechanical, digital, or powered."))
+			var raw_power_behavior: String = _safe_string(data.get("power_behavior", "")).strip_edges().to_lower()
+			if not raw_power_behavior.is_empty() and raw_power_behavior not in WorldObjectCatalogRef.POWER_BEHAVIORS:
+				issues.append(_make_map_constructor_issue("obj_invalid_door_power_behavior_%s" % object_id, "error", "Door power_behavior is not canonical: %s." % raw_power_behavior, object_cell, source_name, entity_kind, object_id, "Use none, opens_when_unpowered, or requires_power_to_open."))
 			for contract_warning in WorldObjectCatalogRef.validate_archetype_object(data):
 				issues.append(_make_map_constructor_issue("obj_archetype_%s_%s" % [object_id, contract_warning], "error", "Door archetype contract violation: %s." % contract_warning, object_cell, source_name, entity_kind, object_id, "Normalize through WorldObjectCatalog archetype creation and schema validation."))
 		if object_group.is_empty():

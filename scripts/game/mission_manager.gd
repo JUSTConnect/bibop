@@ -455,7 +455,7 @@ func _build_final_door_contract_section(architecture_sections: Dictionary) -> Di
 			errors.append("no_key_door_requires_key_%s" % door_id)
 		if door_type == WorldObjectCatalogRef.DOOR_TYPE_POWERED:
 			var power_behavior: String = String(door.get("power_behavior", "")).strip_edges().to_lower()
-			if power_behavior not in [WorldObjectCatalogRef.POWER_BEHAVIOR_NONE, WorldObjectCatalogRef.POWER_BEHAVIOR_OPENS_WHEN_UNPOWERED]:
+			if power_behavior not in WorldObjectCatalogRef.POWER_BEHAVIORS:
 				errors.append("powered_door_power_behavior_unknown_%s_%s" % [door_id, power_behavior])
 		if material == door_type:
 			errors.append("door_material_used_as_door_type_%s_%s" % [door_id, material])
@@ -628,7 +628,7 @@ func _validate_current_door_contracts() -> Array[String]:
 			warnings.append("no_key_door_requires_key_%s" % object_id)
 		if String(object_data.get("door_type", "")).strip_edges().to_lower() == WorldObjectCatalogRef.DOOR_TYPE_POWERED:
 			var power_behavior: String = String(object_data.get("power_behavior", "")).strip_edges().to_lower()
-			if power_behavior not in [WorldObjectCatalogRef.POWER_BEHAVIOR_NONE, WorldObjectCatalogRef.POWER_BEHAVIOR_OPENS_WHEN_UNPOWERED]:
+			if power_behavior not in WorldObjectCatalogRef.POWER_BEHAVIORS:
 				warnings.append("powered_door_power_behavior_unknown_%s_%s" % [object_id, power_behavior])
 	return warnings
 
@@ -657,6 +657,7 @@ func _validate_legacy_compatibility_boundary() -> Array[String]:
 func _validate_task_test_object_contracts() -> Array[String]:
 	var warnings: Array[String] = validate_task_test_catalog_layout_runtime_source()
 	var task_test_snapshot: Dictionary = build_task_test_mission_world_objects_for_validation()
+	var has_requires_power_to_open_door: bool = false
 	for build_warning_variant in Array(task_test_snapshot.get("warnings", [])):
 		warnings.append(String(build_warning_variant))
 	for object_variant in Array(task_test_snapshot.get("objects", [])):
@@ -673,9 +674,16 @@ func _validate_task_test_object_contracts() -> Array[String]:
 			warnings.append("task_test_object_unknown_catalog_type_%s_%s" % [object_id, object_type])
 		if String(object_data.get("object_group", "")) == "door":
 			var normalized_door: Dictionary = WorldObjectCatalogRef.normalize_door_contract(object_data)
+			var power_behavior: String = String(normalized_door.get("power_behavior", "")).strip_edges().to_lower()
+			if power_behavior == WorldObjectCatalogRef.POWER_BEHAVIOR_REQUIRES_POWER_TO_OPEN:
+				has_requires_power_to_open_door = true
+			elif power_behavior not in WorldObjectCatalogRef.POWER_BEHAVIORS:
+				warnings.append("task_test_door_power_behavior_unknown_%s_%s" % [object_id, power_behavior])
 			for required_field in ["door_type", "material", "access_type", "door_class", "state", "is_open", "is_locked", "blocks_movement"]:
 				if not normalized_door.has(required_field) or String(normalized_door.get(required_field, "")).strip_edges().is_empty():
 					warnings.append("task_test_door_missing_%s_%s" % [required_field, object_id])
+	if not has_requires_power_to_open_door:
+		warnings.append("task_test_requires_power_to_open_door_missing")
 	var items_by_cell: Dictionary = task_test_snapshot.get("items_by_cell", {})
 	for cell_variant in items_by_cell.keys():
 		for item_variant in Array(items_by_cell.get(cell_variant, [])):
@@ -1939,6 +1947,7 @@ func build_task_test_mission_world_objects_for_validation() -> Dictionary:
 		# Powered gates
 		{"type":"door","id":"task_test_powered_gate_main","pos":Vector2i(2, 3),"extra":{"door_type":"powered","material":"energy","access_type":"no_key","power_behavior":"opens_when_unpowered","power_type":"external","state":"closed","requires_external_power":true,"power_network_id":"task_test_power_main"}},
 		{"type":"door","id":"task_test_powered_gate_unpowered","pos":Vector2i(3, 3),"extra":{"door_type":"powered","material":"energy","access_type":"no_key","power_behavior":"opens_when_unpowered","power_type":"external","state":"unpowered","requires_external_power":true,"is_powered":false,"power_network_id":"task_test_power_missing"}},
+		{"type":"door","id":"task_test_power_required_door","pos":Vector2i(4, 3),"extra":{"door_type":"powered","material":"energy","access_type":"no_key","power_behavior":"requires_power_to_open","power_type":"external","state":"unpowered","requires_external_power":true,"is_powered":false,"power_network_id":"task_test_power_missing"}},
 		# Power network
 		{"type":"power_source_class_1","id":"task_test_source_class_1","pos":Vector2i(5, 3),"extra":{"power_network_id":"task_test_power_main","connected_device_ids":["task_test_powered_gate_main"]}},
 		{"type":"power_source_class_2","id":"task_test_source_class_2","pos":Vector2i(6, 3),"extra":{"power_network_id":"task_test_power_main","connected_device_ids":["task_test_terminal_basic_door"],"current_heat":2,"working_heat":3,"overheat_threshold":6}},
@@ -6103,6 +6112,7 @@ func update_power_door_state_from_is_powered(object_data: Dictionary) -> Diction
 		return report
 	var normalized_door: Dictionary = _normalize_runtime_door_data(object_data)
 	var opens_when_unpowered: bool = String(normalized_door.get("power_behavior", "")) == WorldObjectCatalogRef.POWER_BEHAVIOR_OPENS_WHEN_UNPOWERED
+	var requires_power_to_open: bool = String(normalized_door.get("power_behavior", "")) == WorldObjectCatalogRef.POWER_BEHAVIOR_REQUIRES_POWER_TO_OPEN
 	if not bool(object_data.get("is_powered", false)):
 		if opens_when_unpowered:
 			object_data["state"] = "open"
@@ -6110,6 +6120,9 @@ func update_power_door_state_from_is_powered(object_data: Dictionary) -> Diction
 			report["changed"] = previous_state != "open"
 			report["new_state"] = "open"
 			report["reason"] = "door_opened_without_power"
+			return report
+		if requires_power_to_open and state == "jammed":
+			report["reason"] = "door_blocked_state"
 			return report
 		if not state in ["unpowered", "disabled", "damaged", "broken", "destroyed", "sealed"]:
 			object_data["powered_state_before_unpowered"] = previous_state

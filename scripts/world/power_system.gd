@@ -171,6 +171,21 @@ static func _apply_powered_state(obj: Dictionary, powered: bool) -> void:
 	obj["is_powered"] = powered
 	var object_type: String = _normalize_type(obj.get("object_type", ""))
 	var object_group: String = String(obj.get("object_group", ""))
+	var power_behavior: String = String(obj.get("power_behavior", WorldObjectCatalogRef.POWER_BEHAVIOR_NONE))
+	if object_group == "door" and power_behavior == WorldObjectCatalogRef.POWER_BEHAVIOR_REQUIRES_POWER_TO_OPEN:
+		var door_state: String = _normalize_type(obj.get("state", ""))
+		if not powered:
+			if door_state != "unpowered" and door_state != "jammed" and not bool(NON_RESTORABLE_STATES.get(door_state, false)):
+				obj["state_before_unpowered"] = door_state
+				obj["state"] = "unpowered"
+		elif door_state == "unpowered":
+			var restored_door_state: String = String(obj.get("state_before_unpowered", "closed"))
+			if restored_door_state.is_empty() or restored_door_state in ["unpowered", "damaged", "broken", "destroyed", "jammed"]:
+				restored_door_state = "closed"
+			obj["state"] = restored_door_state
+			obj.erase("state_before_unpowered")
+		WorldObjectCatalogRef.normalize_door_state_fields(obj)
+		return
 	if _is_state_driven_powered_object(obj):
 		var current_state: String = _normalize_type(obj.get("state", ""))
 		if not powered:
