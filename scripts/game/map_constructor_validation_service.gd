@@ -14,6 +14,45 @@ const MAP_CONSTRUCTOR_WALL_SIDE_DELTAS: Array[Dictionary] = [
 func _init(manager_ref: Node) -> void:
 	manager = manager_ref
 
+func validate_constructor_palette_contract() -> Array[String]:
+	var warnings: Array[String] = []
+	var palette_runtime_types: Dictionary = {}
+	for row in WorldObjectCatalogRef.get_constructor_palette_rows():
+		var prefab_id: String = String(row.get("prefab_id", row.get("id", ""))).strip_edges()
+		var canonical_type: String = String(row.get("canonical_object_type", "")).strip_edges()
+		if prefab_id.is_empty():
+			warnings.append("constructor_palette_row_missing_prefab_id")
+			continue
+		if canonical_type.is_empty() or not WorldObjectCatalogRef.OBJECT_LIBRARY.has(canonical_type):
+			warnings.append("constructor_palette_unknown_canonical_object_%s_%s" % [prefab_id, canonical_type])
+			continue
+		palette_runtime_types[canonical_type] = true
+		var object_data: Dictionary = WorldObjectCatalogRef.create_world_object(prefab_id, "validation_%s" % prefab_id)
+		if object_data.is_empty():
+			warnings.append("constructor_palette_prefab_creates_empty_object_%s" % prefab_id)
+			continue
+		var runtime_type: String = String(object_data.get("object_type", "")).strip_edges()
+		if WorldObjectCatalogRef.is_legacy_prefab_alias(runtime_type):
+			warnings.append("constructor_palette_legacy_runtime_object_type_%s_%s" % [prefab_id, runtime_type])
+		if String(row.get("object_group", "")) == "door":
+			for required_field in ["door_type", "material", "access_type"]:
+				if String(row.get(required_field, "")).strip_edges().is_empty():
+					warnings.append("constructor_palette_door_missing_%s_%s" % [required_field, prefab_id])
+	for object_type_variant in WorldObjectCatalogRef.OBJECT_LIBRARY.keys():
+		var object_type: String = String(object_type_variant)
+		var definition: Dictionary = WorldObjectCatalogRef.OBJECT_LIBRARY[object_type]
+		if bool(definition.get("placeable_in_constructor", true)) and not palette_runtime_types.has(object_type):
+			warnings.append("constructor_palette_missing_placeable_object_%s" % object_type)
+	if manager != null and is_instance_valid(manager):
+		for object_variant in manager.mission_world_objects:
+			if typeof(object_variant) != TYPE_DICTIONARY:
+				continue
+			var object_data: Dictionary = object_variant
+			var runtime_type: String = String(object_data.get("object_type", "")).strip_edges()
+			if WorldObjectCatalogRef.is_legacy_prefab_alias(runtime_type):
+				warnings.append("constructor_runtime_legacy_object_type_%s_%s" % [String(object_data.get("id", "")), runtime_type])
+	return warnings
+
 func _get_manager_dictionary_property(property_name: String) -> Variant:
 	if manager == null or not is_instance_valid(manager):
 		return null
