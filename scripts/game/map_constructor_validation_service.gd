@@ -65,48 +65,34 @@ func _is_map_constructor_key_data(data: Dictionary) -> bool:
 
 func validate_constructor_palette_contract() -> Array[String]:
 	var warnings: Array[String] = []
-	var palette_runtime_types: Dictionary = {}
+	var visible_archetypes: Dictionary = {}
 	for row in WorldObjectCatalogRef.get_constructor_palette_rows():
 		var prefab_id: String = _safe_string(row.get("prefab_id", row.get("id", ""))).strip_edges()
-		var canonical_type: String = _safe_string(row.get("canonical_object_type", "")).strip_edges()
+		var archetype_id: String = _safe_string(row.get("archetype_id", "")).strip_edges()
 		if prefab_id.is_empty():
 			warnings.append("constructor_palette_row_missing_prefab_id")
 			continue
-		if canonical_type.is_empty() or not WorldObjectCatalogRef.OBJECT_LIBRARY.has(canonical_type):
-			warnings.append("constructor_palette_unknown_canonical_object_%s_%s" % [prefab_id, canonical_type])
-			continue
-		palette_runtime_types[canonical_type] = true
+		if WorldObjectCatalogRef.LEGACY_DOOR_IDS.has(prefab_id) or WorldObjectCatalogRef.is_constructor_door_preset(prefab_id):
+			warnings.append("constructor_palette_exposes_legacy_alias_%s" % prefab_id)
+		if not archetype_id.is_empty():
+			if visible_archetypes.has(archetype_id):
+				warnings.append("constructor_palette_duplicate_archetype_%s" % archetype_id)
+			visible_archetypes[archetype_id] = true
 		var object_data: Dictionary = WorldObjectCatalogRef.create_world_object(prefab_id, "validation_%s" % prefab_id)
 		if object_data.is_empty():
 			warnings.append("constructor_palette_prefab_creates_empty_object_%s" % prefab_id)
-			continue
-		var runtime_type: String = _safe_string(object_data.get("object_type", "")).strip_edges()
-		if WorldObjectCatalogRef.is_legacy_prefab_alias(runtime_type):
-			warnings.append("constructor_palette_legacy_runtime_object_type_%s_%s" % [prefab_id, runtime_type])
-		if not WorldObjectCatalogRef.OBJECT_LIBRARY.has(runtime_type):
-			warnings.append("constructor_palette_unknown_runtime_object_type_%s_%s" % [prefab_id, runtime_type])
-		if _safe_string(row.get("object_group", "")) == "door":
-			for required_field in ["door_type", "material", "access_type"]:
-				if _safe_string(row.get(required_field, "")).strip_edges().is_empty():
-					warnings.append("constructor_palette_door_missing_%s_%s" % [required_field, prefab_id])
-	for object_type_variant in WorldObjectCatalogRef.OBJECT_LIBRARY.keys():
-		var object_type: String = _safe_string(object_type_variant)
-		var definition: Dictionary = WorldObjectCatalogRef.OBJECT_LIBRARY[object_type]
-		if bool(definition.get("placeable_in_constructor", true)) and not palette_runtime_types.has(object_type):
-			warnings.append("constructor_palette_missing_placeable_object_%s" % object_type)
+	if not visible_archetypes.has("door"):
+		warnings.append("constructor_palette_missing_door_archetype")
 	if manager != null and is_instance_valid(manager):
 		for object_variant in manager.mission_world_objects:
 			if typeof(object_variant) != TYPE_DICTIONARY:
 				continue
 			var object_data: Dictionary = object_variant
-			var runtime_type: String = _safe_string(object_data.get("object_type", "")).strip_edges()
+			if String(object_data.get("object_group", "")) != "door":
+				continue
 			var object_id: String = _safe_string(object_data.get("id", ""))
-			if WorldObjectCatalogRef.is_legacy_prefab_alias(runtime_type):
-				warnings.append("constructor_runtime_legacy_object_type_%s_%s" % [object_id, runtime_type])
-			if _safe_string(object_data.get("access_type", "")).strip_edges().to_lower() == "none":
-				warnings.append("constructor_runtime_legacy_access_type_none_%s" % object_id)
-			if object_data.has("lock_type") and not object_data.has("access_type"):
-				warnings.append("constructor_runtime_lock_type_without_access_type_%s" % object_id)
+			for contract_warning in WorldObjectCatalogRef.validate_archetype_object(object_data):
+				warnings.append("constructor_runtime_%s_%s" % [object_id, contract_warning])
 	return warnings
 
 func _get_manager_dictionary_property(property_name: String) -> Variant:
@@ -776,12 +762,11 @@ func get_map_constructor_validation_issues() -> Array[Dictionary]:
 				issues.append(_make_map_constructor_issue("obj_invalid_access_type_%s" % object_id, "error", "Object access_type is not canonical: %s." % raw_access_type, object_cell, source_name, entity_kind, object_id, "Use no_key, key_card, digital_key, access_code, or terminal."))
 		if data.has("lock_type") and not data.has("access_type"):
 			issues.append(_make_map_constructor_issue("obj_lock_without_access_%s" % object_id, "error", "Legacy lock_type is present without canonical access_type.", object_cell, source_name, entity_kind, object_id, "Populate canonical access_type while retaining lock_type only as compatibility metadata."))
+		if object_group == "door" and WorldObjectCatalogRef.is_material_named_door_object_type(object_type) and _safe_string(data.get("door_type", "")).strip_edges().is_empty():
+			issues.append(_make_map_constructor_issue("obj_material_door_missing_mechanism_%s" % object_id, "error", "Material-named door is missing canonical door_type mechanism.", object_cell, source_name, entity_kind, object_id, "Populate canonical door_type."))
 		if object_group == "door":
-			var door_type: String = _safe_string(data.get("door_type", "")).strip_edges().to_lower()
-			if WorldObjectCatalogRef.is_material_named_door_object_type(object_type) and door_type.is_empty():
-				issues.append(_make_map_constructor_issue("obj_material_door_missing_mechanism_%s" % object_id, "error", "Material-named door is missing canonical door_type mechanism.", object_cell, source_name, entity_kind, object_id, "Populate canonical door_type."))
-			elif not door_type.is_empty() and not door_type in WorldObjectCatalogRef.DOOR_TYPES:
-				issues.append(_make_map_constructor_issue("obj_invalid_door_type_%s" % object_id, "error", "Door door_type is not canonical: %s." % door_type, object_cell, source_name, entity_kind, object_id, "Use mechanical, digital, or powered."))
+			for contract_warning in WorldObjectCatalogRef.validate_archetype_object(data):
+				issues.append(_make_map_constructor_issue("obj_archetype_%s_%s" % [object_id, contract_warning], "error", "Door archetype contract violation: %s." % contract_warning, object_cell, source_name, entity_kind, object_id, "Normalize through WorldObjectCatalog archetype creation and schema validation."))
 		if object_group.is_empty():
 			issues.append(_make_map_constructor_issue("obj_missing_group_%d" % index, "error", "Object missing object_group.", object_cell, source_name, entity_kind, object_id))
 		if object_cell.x < 0 or object_cell.y < 0:

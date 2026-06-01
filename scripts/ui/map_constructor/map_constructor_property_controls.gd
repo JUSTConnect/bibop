@@ -133,3 +133,63 @@ static func add_enum_property(ui: Variant, section: VBoxContainer, label: String
 		ui._apply_map_constructor_property_updates(entity_kind, entity_id, {field_name: MapConstructorUiSafe.safe_string(option.get_item_metadata(index))})
 	)
 	section.add_child(create_property_row(label, option))
+
+
+static func add_int_property(ui: Variant, section: VBoxContainer, label: String, entity_kind: String, entity_id: String, field_name: String, current_value: Variant) -> void:
+	var spin: SpinBox = SpinBox.new()
+	spin.step = 1
+	spin.min_value = 0
+	spin.max_value = 999999
+	spin.value = float(current_value)
+	spin.value_changed.connect(func(value: float) -> void:
+		ui._apply_map_constructor_property_updates(entity_kind, entity_id, {field_name:int(value)})
+	)
+	section.add_child(create_property_row(label, spin))
+
+static func add_enum_array_property(ui: Variant, section: VBoxContainer, label: String, entity_kind: String, entity_id: String, field_name: String, current_value: Variant, values: Array) -> void:
+	var menu: MenuButton = MenuButton.new()
+	var selected_values: Array = MapConstructorUiSafe.safe_array(current_value).duplicate()
+	menu.text = ", ".join(selected_values)
+	var popup: PopupMenu = menu.get_popup()
+	for value_variant in values:
+		var value: String = MapConstructorUiSafe.safe_string(value_variant)
+		popup.add_check_item(value.replace("_", " ").capitalize())
+		var index: int = popup.item_count - 1
+		popup.set_item_metadata(index, value)
+		popup.set_item_checked(index, selected_values.has(value))
+	popup.id_pressed.connect(func(index: int) -> void:
+		var value: String = MapConstructorUiSafe.safe_string(popup.get_item_metadata(index))
+		if selected_values.has(value):
+			selected_values.erase(value)
+		else:
+			selected_values.append(value)
+		popup.set_item_checked(index, selected_values.has(value))
+		menu.text = ", ".join(selected_values)
+		ui._apply_map_constructor_property_updates(entity_kind, entity_id, {field_name:selected_values.duplicate()})
+	)
+	section.add_child(create_property_row(label, menu))
+
+static func add_archetype_schema_properties(ui: Variant, section: VBoxContainer, entity_kind: String, entity_id: String, data: Dictionary) -> bool:
+	if ui.mission_manager_runtime == null or not ui.mission_manager_runtime.has_method("get_map_constructor_archetype_property_schema"):
+		return false
+	var schema_rows: Array = MapConstructorUiSafe.safe_array(ui.mission_manager_runtime.call("get_map_constructor_archetype_property_schema", entity_kind, entity_id))
+	for row_variant in schema_rows:
+		var row: Dictionary = MapConstructorUiSafe.safe_dictionary(row_variant)
+		var field_name: String = MapConstructorUiSafe.safe_string(row.get("field", ""))
+		var field_type: String = MapConstructorUiSafe.safe_string(row.get("type", "string"))
+		var current_value: Variant = data.get(field_name, row.get("default"))
+		if field_type == "enum":
+			var options: Array[Dictionary] = []
+			for value_variant in MapConstructorUiSafe.safe_array(row.get("values", [])):
+				var value: String = MapConstructorUiSafe.safe_string(value_variant)
+				options.append({"label":value.replace("_", " ").capitalize(), "value":value})
+			add_enum_property(ui, section, field_name.replace("_", " ").capitalize(), entity_kind, entity_id, field_name, current_value, options)
+		elif field_type == "enum_array":
+			add_enum_array_property(ui, section, field_name.replace("_", " ").capitalize(), entity_kind, entity_id, field_name, current_value, MapConstructorUiSafe.safe_array(row.get("values", [])))
+		elif field_type == "bool":
+			add_bool_property(ui, section, field_name.replace("_", " ").capitalize(), entity_kind, entity_id, field_name, current_value)
+		elif field_type == "int":
+			add_int_property(ui, section, field_name.replace("_", " ").capitalize(), entity_kind, entity_id, field_name, current_value)
+		else:
+			add_text_property(ui, section, field_name.replace("_", " ").capitalize(), entity_kind, entity_id, field_name, current_value)
+	return not schema_rows.is_empty()
