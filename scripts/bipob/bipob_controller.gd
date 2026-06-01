@@ -7017,7 +7017,14 @@ func build_runtime_action_view_model(target_object: Dictionary, target_position:
 	if String(normalized_target.get("object_group", "")) == "door":
 		normalized_target = WorldObjectCatalog.normalize_door_contract(normalized_target)
 		normalized_target = WorldObjectCatalog.normalize_door_state_fields(normalized_target)
-	var action_ids: Array[String] = get_available_world_actions(normalized_target, target_position) if not normalized_target.is_empty() else []
+	var raw_action_ids: Array = []
+	if not normalized_target.is_empty():
+		raw_action_ids = get_available_world_actions(normalized_target, target_position)
+	var action_ids: Array[String] = []
+	for action_id_variant in raw_action_ids:
+		var action_id: String = String(action_id_variant)
+		if not action_id.is_empty():
+			action_ids.append(action_id)
 	var group: String = String(normalized_target.get("object_group", ""))
 	var state: String = String(normalized_target.get("state", ""))
 	if group == "door":
