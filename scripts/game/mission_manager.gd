@@ -8773,7 +8773,7 @@ func add_keycard_to_keychain(item_id: String) -> void:
 		collected.append(normalized_id)
 	runtime_inventory_state["collected_key_ids"] = collected
 
-func remove_keycard_if_no_locked_door_requires(item_id: String) -> bool:
+func remove_keycard_if_no_door_references(item_id: String) -> bool:
 	var normalized_id: String = item_id.strip_edges()
 	if normalized_id.is_empty():
 		return false
@@ -8781,7 +8781,11 @@ func remove_keycard_if_no_locked_door_requires(item_id: String) -> bool:
 		var object_data: Dictionary = Dictionary(object_variant)
 		if String(object_data.get("object_group", "")) != "door":
 			continue
-		if String(object_data.get("required_key_id", "")).strip_edges() == normalized_id and bool(object_data.get("is_locked", object_data.get("locked", false))):
+		# Door.required_key_id is the canonical key-card link. Keep the legacy
+		# required_key compatibility field reference-sensitive as well.
+		var required_key_id: String = String(object_data.get("required_key_id", "")).strip_edges()
+		var legacy_required_key: String = String(object_data.get("required_key", "")).strip_edges()
+		if required_key_id == normalized_id or legacy_required_key == normalized_id:
 			return false
 	var collected: Array = get_keychain_ids()
 	if not collected.has(normalized_id):

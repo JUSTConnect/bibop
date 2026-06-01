@@ -8514,8 +8514,8 @@ func interact() -> void:
 				var moved := _apply_world_object_effects(action_result.get("effects", []), world_object, target_position, actor)
 				if not moved:
 					mission_manager.set_world_object_at_cell(target_position, world_object)
-				if action_id == "unlock" and String(world_object.get("object_group", "")) == "door" and WorldObjectCatalog.normalize_access_type(world_object.get("access_type", world_object.get("lock_type", ""))) == WorldObjectCatalog.ACCESS_TYPE_KEY_CARD and mission_manager.has_method("remove_keycard_if_no_locked_door_requires"):
-					mission_manager.call("remove_keycard_if_no_locked_door_requires", String(world_object.get("required_key_id", "")))
+				if action_id == "unlock" and String(world_object.get("object_group", "")) == "door" and WorldObjectCatalog.normalize_access_type(world_object.get("access_type", world_object.get("lock_type", ""))) == WorldObjectCatalog.ACCESS_TYPE_KEY_CARD and mission_manager.has_method("remove_keycard_if_no_door_references"):
+					mission_manager.call("remove_keycard_if_no_door_references", String(world_object.get("required_key_id", "")))
 				if action_id == "switch":
 					var object_type := String(world_object.get("object_type", "")).strip_edges().to_lower()
 					object_type = object_type.replace(" ", "_").replace("-", "_")
