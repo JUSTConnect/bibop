@@ -1,6 +1,7 @@
 extends RefCounted
 class_name MapConstructorValidationService
 
+const WorldObjectCatalogRef = preload("res://scripts/world/world_object_catalog.gd")
 var manager: Variant
 
 const MAP_CONSTRUCTOR_WALL_SIDE_DELTAS: Array[Dictionary] = [
@@ -624,6 +625,19 @@ func get_map_constructor_validation_issues() -> Array[Dictionary]:
 	var has_grid_bounds: bool = false
 	if manager.grid_manager != null and manager.grid_manager.has_method("is_in_bounds"):
 		has_grid_bounds = true
+	var palette_ids: Dictionary = {}
+	var explicit_prefab_metadata: Dictionary = manager._get_map_constructor_prefab_metadata_catalog()
+	for palette_entry in manager.get_map_constructor_prefab_catalog():
+		var palette_prefab_id: String = String(palette_entry.get("id", "")).strip_edges().to_lower()
+		palette_ids[palette_prefab_id] = true
+		if WorldObjectCatalogRef.is_legacy_prefab_alias(palette_prefab_id):
+			issues.append(_make_map_constructor_issue("palette_legacy_alias_%s" % palette_prefab_id, "error", "Map Constructor palette exposes legacy alias: %s." % palette_prefab_id, Vector2i(-1, -1), source_name, "palette", palette_prefab_id, "Expose its canonical WorldObjectCatalog type instead."))
+		var canonical_palette_prefab_id: String = WorldObjectCatalogRef.canonical_object_type(palette_prefab_id)
+		if not WorldObjectCatalogRef.OBJECT_LIBRARY.has(canonical_palette_prefab_id) and not explicit_prefab_metadata.has(palette_prefab_id):
+			issues.append(_make_map_constructor_issue("palette_unknown_prefab_%s" % palette_prefab_id, "error", "Map Constructor palette prefab is not in WorldObjectCatalog or explicit constructor metadata: %s." % palette_prefab_id, Vector2i(-1, -1), source_name, "palette", palette_prefab_id, "Add a canonical catalog object or explicit custom prefab metadata."))
+	for canonical_door_type in WorldObjectCatalogRef.get_constructor_placeable_door_types():
+		if not palette_ids.has(canonical_door_type):
+			issues.append(_make_map_constructor_issue("palette_missing_catalog_door_%s" % canonical_door_type, "error", "Canonical door missing from Map Constructor palette: %s." % canonical_door_type, Vector2i(-1, -1), source_name, "palette", canonical_door_type, "Generate door palette rows from WorldObjectCatalog."))
 	for index in range(manager.mission_world_objects.size()):
 		var data: Dictionary = manager._safe_dictionary(manager.mission_world_objects[index])
 		var entity_kind: String = manager._map_constructor_entity_kind(data)
@@ -641,6 +655,10 @@ func get_map_constructor_validation_issues() -> Array[Dictionary]:
 			seen_object_ids[object_id] = true
 		if object_type.is_empty():
 			issues.append(_make_map_constructor_issue("obj_missing_type_%d" % index, "error", "Object missing object_type.", object_cell, source_name, entity_kind, object_id))
+		elif WorldObjectCatalogRef.is_legacy_prefab_alias(object_type):
+			issues.append(_make_map_constructor_issue("obj_legacy_alias_%s" % object_id, "error", "Legacy alias object_type was not normalized: %s." % object_type, object_cell, source_name, entity_kind, object_id, "Normalize saved constructor data through WorldObjectCatalog."))
+		elif bool(data.get("created_by_map_constructor", false)) and not WorldObjectCatalogRef.OBJECT_LIBRARY.has(object_type) and not bool(manager.get_map_constructor_prefab_metadata(String(data.get("map_constructor_prefab_id", object_type))).get("ok", false)):
+			issues.append(_make_map_constructor_issue("obj_unknown_constructor_type_%s" % object_id, "error", "Constructor object_type is not in WorldObjectCatalog or explicit constructor metadata: %s." % object_type, object_cell, source_name, entity_kind, object_id, "Use a canonical WorldObjectCatalog object type or explicit custom prefab metadata."))
 		if object_group.is_empty():
 			issues.append(_make_map_constructor_issue("obj_missing_group_%d" % index, "error", "Object missing object_group.", object_cell, source_name, entity_kind, object_id))
 		if object_cell.x < 0 or object_cell.y < 0:

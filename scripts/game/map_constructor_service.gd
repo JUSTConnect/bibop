@@ -1,6 +1,7 @@
 extends RefCounted
 class_name MapConstructorService
 
+const WorldObjectCatalogRef = preload("res://scripts/world/world_object_catalog.gd")
 const PowerSystemRef = preload("res://scripts/world/power_system.gd")
 
 var manager: Variant
@@ -65,14 +66,15 @@ func place_map_constructor_prefab(prefab_id: String, cell: Vector2i, preferred_w
 		result["is_item"] = true
 		manager._record_map_constructor_change("place", {"entity_kind":"item", "entity_id":item_object_id, "object_type":item_type, "cell":cell, "summary":"Placed %s at %s" % [item_type, manager._format_map_constructor_cell(cell)], "undo_hint":"Can undo by deleting item."})
 		return result
+	var canonical_prefab_id: String = WorldObjectCatalogRef.canonical_object_type(prefab_id)
 	var placed_tile_type: int = previous_tile_type
 	if prefab_id.ends_with("_wall") or prefab_id == "outer_wall":
 		placed_tile_type = GridManager.TILE_WALL
 		manager.grid_manager.call("set_tile", cell, placed_tile_type)
-	elif prefab_id == "mechanical_door":
+	elif canonical_prefab_id in ["steel_door", "reinforced_steel_door", "titanium_door", "grid_door"]:
 		placed_tile_type = GridManager.TILE_DOOR
 		manager.grid_manager.call("set_tile", cell, placed_tile_type)
-	elif prefab_id == "digital_door":
+	elif canonical_prefab_id == "energy_door" and prefab_id != "powered_gate":
 		placed_tile_type = GridManager.TILE_DIGITAL_DOOR
 		manager.grid_manager.call("set_tile", cell, placed_tile_type)
 	elif prefab_id == "powered_gate":
@@ -80,24 +82,22 @@ func place_map_constructor_prefab(prefab_id: String, cell: Vector2i, preferred_w
 		manager.grid_manager.call("set_tile", cell, placed_tile_type)
 	var object_id: String = "mapedit_%s_%d" % [prefab_id, manager._map_constructor_runtime_object_seq]
 	manager._map_constructor_runtime_object_seq += 1
-	var object_data: Dictionary = {
-		"id": object_id,
-		"object_type": prefab_id,
-		"position": cell,
-		"display_name": prefab_id.capitalize(),
-		"state": "active",
-		"created_by_map_constructor": true,
-		"map_constructor_prefab_id": prefab_id,
-		"map_constructor_tile_type": placed_tile_type,
-		"map_constructor_previous_tile_type": previous_tile_type,
-		"map_constructor_rotation_degrees": posmod(rotation_degrees, 360)
-	}
+	var object_data: Dictionary = WorldObjectCatalogRef.create_world_object(prefab_id, object_id)
+	if object_data.is_empty():
+		object_data = {"id": object_id, "object_type": canonical_prefab_id, "display_name": prefab_id.capitalize(), "state": "active"}
+	object_data["position"] = cell
+	object_data["created_by_map_constructor"] = true
+	object_data["map_constructor_prefab_id"] = prefab_id
+	object_data["map_constructor_tile_type"] = placed_tile_type
+	object_data["map_constructor_previous_tile_type"] = previous_tile_type
+	object_data["map_constructor_rotation_degrees"] = posmod(rotation_degrees, 360)
 	var prefab_meta_result: Dictionary = manager.get_map_constructor_prefab_metadata(prefab_id)
 	if bool(prefab_meta_result.get("ok", false)):
 		var prefab_meta: Dictionary = manager._safe_dictionary(prefab_meta_result.get("prefab", {}))
 		var prefab_defaults: Dictionary = manager._safe_dictionary(prefab_meta.get("default_state", {}))
 		for default_key in prefab_defaults.keys():
 			object_data[String(default_key)] = prefab_defaults[default_key]
+	object_data = WorldObjectCatalogRef.apply_prefab_alias_defaults(canonical_prefab_id, prefab_id, object_data)
 	if String(check.get("placement_mode", "")) == "wall_mounted":
 		var attachment: Dictionary = manager._resolve_wall_mounted_attachment(cell, preferred_wall_side)
 		if not bool(attachment.get("ok", false)):
@@ -114,7 +114,7 @@ func place_map_constructor_prefab(prefab_id: String, cell: Vector2i, preferred_w
 	PowerSystemRef.recalculate_network(manager.mission_world_objects, String(object_data.get("power_network_id", "")))
 	manager.refresh_world_cooling_received()
 	result["object_id"] = object_id
-	manager._record_map_constructor_change("place", {"entity_kind":"world_object", "entity_id":object_id, "object_type":prefab_id, "cell":cell, "summary":"Placed %s at %s" % [prefab_id, manager._format_map_constructor_cell(cell)], "undo_hint":"Can undo by deleting object."})
+	manager._record_map_constructor_change("place", {"entity_kind":"world_object", "entity_id":object_id, "object_type":canonical_prefab_id, "cell":cell, "summary":"Placed %s at %s" % [prefab_id, manager._format_map_constructor_cell(cell)], "undo_hint":"Can undo by deleting object."})
 	return result
 
 func _remove_map_constructor_entity_by_id(entity_kind: String, entity_id: String) -> Dictionary:

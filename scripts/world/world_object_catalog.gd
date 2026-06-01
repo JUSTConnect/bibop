@@ -3,6 +3,54 @@ class_name WorldObjectCatalog
 
 const WorldObjectDataRef = preload("res://scripts/world/world_object_data.gd")
 
+const PREFAB_ALIASES: Dictionary = {
+	"mechanical_door": "steel_door",
+	"digital_door": "energy_door",
+	"powered_gate": "energy_door"
+}
+
+static func canonical_object_type(object_type: String) -> String:
+	var normalized_type: String = object_type.strip_edges().to_lower()
+	return String(PREFAB_ALIASES.get(normalized_type, normalized_type))
+
+static func is_legacy_prefab_alias(object_type: String) -> bool:
+	return PREFAB_ALIASES.has(object_type.strip_edges().to_lower())
+
+static func get_constructor_placeable_door_types() -> Array[String]:
+	var door_types: Array[String] = []
+	for object_type_variant in OBJECT_LIBRARY.keys():
+		var object_type: String = String(object_type_variant)
+		var definition: Dictionary = OBJECT_LIBRARY[object_type]
+		if String(definition.get("group", "")) == "door":
+			door_types.append(object_type)
+	door_types.sort()
+	return door_types
+
+static func apply_prefab_alias_defaults(canonical_type: String, original_type: String, object_data: Dictionary) -> Dictionary:
+	var data: Dictionary = object_data.duplicate(true)
+	var normalized_original_type: String = original_type.strip_edges().to_lower()
+	data["object_type"] = canonical_type
+	if not PREFAB_ALIASES.has(normalized_original_type):
+		return data
+	data["map_constructor_prefab_id"] = normalized_original_type
+	if normalized_original_type == "mechanical_door":
+		data["object_group"] = "door"
+		if not data.has("access_type"):
+			data["access_type"] = "mechanical_key"
+		if not data.has("lock_type"):
+			data["lock_type"] = "mechanical_key"
+	elif normalized_original_type == "digital_door":
+		data["object_group"] = "door"
+		if not data.has("access_type"):
+			data["access_type"] = "digital_key"
+		if not data.has("lock_type"):
+			data["lock_type"] = "digital_key"
+	elif normalized_original_type == "powered_gate":
+		data["object_group"] = "door"
+		data["requires_external_power"] = bool(data.get("requires_external_power", true))
+		data["power_mode"] = String(data.get("power_mode", "external_power"))
+	return data
+
 const OBJECT_LIBRARY := {
 	"steel_door": {"group":"door","name":"Steel Door","material":"steel","durability":30,"state":"closed","blocks_movement":true,"blocks_vision":true,"door_class":1,"lock_type":"mechanical_key","required_manipulator_level":1,"required_connector_level":0,"power_mode":"external_power","control_mode":"external_control"},
 	"reinforced_steel_door": {"group":"door","name":"Reinforced Steel Door","material":"reinforced_steel","durability":40,"state":"closed","blocks_movement":true,"blocks_vision":true,"door_class":2,"lock_type":"terminal_lock","required_manipulator_level":2,"required_connector_level":0,"power_mode":"external_power","control_mode":"external_control"},
@@ -135,11 +183,12 @@ static func normalize_door_state_fields(object_data: Dictionary) -> Dictionary:
 	return object_data
 
 static func create_world_object(object_type: String, id_override: String = "") -> Dictionary:
-	if not OBJECT_LIBRARY.has(object_type):
+	var canonical_type: String = canonical_object_type(object_type)
+	if not OBJECT_LIBRARY.has(canonical_type):
 		return {}
-	var def: Dictionary = OBJECT_LIBRARY[object_type]
-	var object_id := id_override if id_override != "" else "%s_%s" % [object_type, str(Time.get_unix_time_from_system())]
-	var data := WorldObjectDataRef.create_base(object_id, def.get("name", object_type), def.get("group", "physical_object"), object_type)
+	var def: Dictionary = OBJECT_LIBRARY[canonical_type]
+	var object_id := id_override if id_override != "" else "%s_%s" % [canonical_type, str(Time.get_unix_time_from_system())]
+	var data := WorldObjectDataRef.create_base(object_id, def.get("name", canonical_type), def.get("group", "physical_object"), canonical_type)
 	for key in def.keys():
 		if key == "name" or key == "group":
 			continue
@@ -152,6 +201,7 @@ static func create_world_object(object_type: String, id_override: String = "") -
 		data["invulnerable"] = true
 	if data.get("invulnerable_while_powered", false) and data.get("is_powered", true):
 		data["invulnerable"] = true
+	data = apply_prefab_alias_defaults(canonical_type, object_type, data)
 	data = update_world_object_heat_state(data)
 	data = normalize_door_state_fields(data)
 	return data

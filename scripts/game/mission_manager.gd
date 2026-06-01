@@ -152,6 +152,7 @@ const MAP_CONSTRUCTOR_WALL_MOUNTED_PREFABS: Dictionary = {
 
 const MAP_CONSTRUCTOR_SOLID_PREFABS: Array[String] = [
 	"outer_wall","brick_wall","concrete_wall","steel_wall","grate_wall",
+	"steel_door","reinforced_steel_door","titanium_door","energy_door","grid_door",
 	"mechanical_door","digital_door","powered_gate"
 ]
 
@@ -1927,19 +1928,21 @@ func _get_world_object_template(prefab_id: String) -> Dictionary:
 	var normalized_prefab_id: String = prefab_id.strip_edges()
 	if normalized_prefab_id.is_empty():
 		return {}
-	if WorldObjectCatalogRef.OBJECT_LIBRARY.has(normalized_prefab_id):
-		return Dictionary(WorldObjectCatalogRef.OBJECT_LIBRARY[normalized_prefab_id]).duplicate(true)
+	var canonical_prefab_id: String = WorldObjectCatalogRef.canonical_object_type(normalized_prefab_id)
+	if WorldObjectCatalogRef.OBJECT_LIBRARY.has(canonical_prefab_id):
+		return Dictionary(WorldObjectCatalogRef.OBJECT_LIBRARY[canonical_prefab_id]).duplicate(true)
 	return {}
 
 func get_map_constructor_prefab_catalog() -> Array[Dictionary]:
 	var entries: Array[Dictionary] = [
 		{"category":"Floors","id":"floor"},{"category":"Floors","id":"stepped_floor"},
 		{"category":"Walls","id":"outer_wall"},{"category":"Walls","id":"brick_wall"},{"category":"Walls","id":"concrete_wall"},{"category":"Walls","id":"steel_wall"},{"category":"Walls","id":"grate_wall"},
-		{"category":"Doors","id":"mechanical_door"},{"category":"Doors","id":"digital_door"},{"category":"Doors","id":"powered_gate"},
 		{"category":"Terminals","id":"information_terminal"},{"category":"Terminals","id":"control_terminal"},{"category":"Terminals","id":"door_terminal"},{"category":"Terminals","id":"platform_terminal"},{"category":"Terminals","id":"cooling_terminal"},{"category":"Terminals","id":"firewall"},
 		{"category":"Power","id":"power_source_class_1"},{"category":"Power","id":"power_source_class_2"},{"category":"Power","id":"power_source_class_3"},{"category":"Power","id":"power_socket"},{"category":"Power","id":"power_cable"},{"category":"Power","id":"circuit_switch"},{"category":"Power","id":"circuit_breaker"},{"category":"Power","id":"light"},{"category":"Power","id":"light_switch"},{"category":"Power","id":"fuse_box"},{"category":"Power","id":"power_cable_reel"},
 		{"category":"Items","id":"mechanical_key"},{"category":"Items","id":"digital_key"},{"category":"Items","id":"access_code"}
 	]
+	for door_type in WorldObjectCatalogRef.get_constructor_placeable_door_types():
+		entries.append({"category":"Doors", "id":door_type})
 	for i in range(entries.size()):
 		var entry: Dictionary = entries[i]
 		var prefab_id: String = String(entry.get("id", ""))
@@ -1958,6 +1961,11 @@ func _get_map_constructor_prefab_metadata_catalog() -> Dictionary:
 		"concrete_wall": {"display_name":"Concrete Wall","category":"Structural","subcategory":"Wall","placement_mode":"object","system_roles":["blocking"],"tags":["wall","concrete","obstacle"],"description":"Concrete obstacle wall object.","placement_hint":"Requires a floor cell.","requires_wall":false,"requires_floor":true,"is_destructive":true,"is_diagnostic":false,"is_expected_invalid_tool":false,"can_have_power_network":false,"can_have_links":false,"default_state":{}},
 		"steel_wall": {"display_name":"Steel Wall","category":"Structural","subcategory":"Wall","placement_mode":"object","system_roles":["blocking"],"tags":["wall","steel","obstacle"],"description":"Durable steel wall object.","placement_hint":"Requires a floor cell.","requires_wall":false,"requires_floor":true,"is_destructive":true,"is_diagnostic":false,"is_expected_invalid_tool":false,"can_have_power_network":false,"can_have_links":false,"default_state":{}},
 		"grate_wall": {"display_name":"Grate Wall","category":"Structural","subcategory":"Wall","placement_mode":"object","system_roles":["blocking"],"tags":["wall","grate","obstacle"],"description":"Grated wall obstacle.","placement_hint":"Requires a floor cell.","requires_wall":false,"requires_floor":true,"is_destructive":true,"is_diagnostic":false,"is_expected_invalid_tool":false,"can_have_power_network":false,"can_have_links":false,"default_state":{}},
+		"steel_door": {"display_name":"Steel Door","category":"Door","subcategory":"Mechanical","placement_mode":"object","system_roles":["navigation","access_control"],"tags":["door","steel","mechanical"],"description":"Canonical steel door with configurable access.","placement_hint":"Place on floor path segments.","requires_wall":false,"requires_floor":true,"is_destructive":false,"is_diagnostic":false,"is_expected_invalid_tool":false,"can_have_power_network":false,"can_have_links":true,"default_state":{"state":"closed"}},
+		"reinforced_steel_door": {"display_name":"Reinforced Steel Door","category":"Door","subcategory":"Mechanical","placement_mode":"object","system_roles":["navigation","access_control"],"tags":["door","steel","reinforced"],"description":"Canonical reinforced steel door.","placement_hint":"Place on floor path segments.","requires_wall":false,"requires_floor":true,"is_destructive":false,"is_diagnostic":false,"is_expected_invalid_tool":false,"can_have_power_network":false,"can_have_links":true,"default_state":{"state":"closed"}},
+		"titanium_door": {"display_name":"Titanium Door","category":"Door","subcategory":"Mechanical","placement_mode":"object","system_roles":["navigation","access_control"],"tags":["door","titanium"],"description":"Canonical high-class titanium door.","placement_hint":"Place on floor path segments.","requires_wall":false,"requires_floor":true,"is_destructive":false,"is_diagnostic":false,"is_expected_invalid_tool":false,"can_have_power_network":false,"can_have_links":true,"default_state":{"state":"closed"}},
+		"energy_door": {"display_name":"Energy Door","category":"Door","subcategory":"Digital","placement_mode":"object","system_roles":["navigation","access_control","signal_control"],"tags":["door","energy","digital"],"description":"Canonical electromagnetic door with digital access.","placement_hint":"Usually paired with control or door terminals.","requires_wall":false,"requires_floor":true,"is_destructive":false,"is_diagnostic":false,"is_expected_invalid_tool":false,"can_have_power_network":true,"can_have_links":true,"default_state":{"state":"locked"}},
+		"grid_door": {"display_name":"Grid Door","category":"Door","subcategory":"Gate","placement_mode":"object","system_roles":["navigation","access_control"],"tags":["door","grid","gate"],"description":"Canonical lightweight grid door.","placement_hint":"Place on floor path segments.","requires_wall":false,"requires_floor":true,"is_destructive":false,"is_diagnostic":false,"is_expected_invalid_tool":false,"can_have_power_network":false,"can_have_links":true,"default_state":{"state":"closed"}},
 		"mechanical_door": {"display_name":"Mechanical Door","category":"Door","subcategory":"Mechanical","placement_mode":"object","system_roles":["navigation","access_control"],"tags":["door","mechanical","locked"],"description":"Door that may require physical access.","placement_hint":"Place on floor path segments.","requires_wall":false,"requires_floor":true,"is_destructive":false,"is_diagnostic":false,"is_expected_invalid_tool":false,"can_have_power_network":false,"can_have_links":true,"default_state":{"state":"closed"}},
 		"digital_door": {"display_name":"Digital Door","category":"Door","subcategory":"Digital","placement_mode":"object","system_roles":["navigation","access_control","signal_control"],"tags":["door","digital","control"],"description":"Digitally controlled access door.","placement_hint":"Usually paired with control or door terminals.","requires_wall":false,"requires_floor":true,"is_destructive":false,"is_diagnostic":false,"is_expected_invalid_tool":false,"can_have_power_network":true,"can_have_links":true,"default_state":{"state":"locked"}},
 		"powered_gate": {"display_name":"Powered Gate","category":"Door","subcategory":"Gate","placement_mode":"object","system_roles":["navigation","access_control","power_consumer"],"tags":["gate","powered","access"],"description":"Power-driven gate for controlled routes.","placement_hint":"Set power network and controls after placement.","requires_wall":false,"requires_floor":true,"is_destructive":false,"is_diagnostic":false,"is_expected_invalid_tool":false,"can_have_power_network":true,"can_have_links":true,"default_state":{"state":"locked"}},
@@ -2503,6 +2511,9 @@ func can_place_map_constructor_prefab(prefab_id: String, cell: Vector2i, preferr
 		if String(entry.get("id", "")) == prefab_id:
 			is_supported = true
 			break
+	var canonical_prefab_id: String = WorldObjectCatalogRef.canonical_object_type(prefab_id)
+	if not is_supported and WorldObjectCatalogRef.is_legacy_prefab_alias(prefab_id):
+		is_supported = WorldObjectCatalogRef.OBJECT_LIBRARY.has(canonical_prefab_id)
 	if not is_supported:
 		return result
 	var cell_state: Dictionary = get_runtime_cell_state(cell)
@@ -2533,7 +2544,8 @@ func can_place_map_constructor_prefab(prefab_id: String, cell: Vector2i, preferr
 	var tile_is_exit: bool = tile_type_value == GridManager.TILE_EXIT
 	var tile_is_floor_like: bool = tile_type_value == GridManager.TILE_FLOOR or tile_type_value == GridManager.TILE_STEPPED_FLOOR
 	var prefab_is_wall: bool = prefab_id.ends_with("_wall") or prefab_id == "outer_wall"
-	var prefab_is_door_or_gate: bool = prefab_id == "mechanical_door" or prefab_id == "digital_door" or prefab_id == "powered_gate"
+	var canonical_prefab_template: Dictionary = _get_world_object_template(canonical_prefab_id)
+	var prefab_is_door_or_gate: bool = String(canonical_prefab_template.get("group", "")) == "door"
 	var prefab_is_floor_replacement: bool = prefab_id == "floor" or prefab_id == "stepped_floor"
 	if tile_is_exit and prefab_id != "powered_gate":
 		result["reason"] = "exit_cell"
@@ -10318,13 +10330,13 @@ func classify_task_test_object_for_audit(object_data: Dictionary) -> Array[Strin
 		var is_damaged_or_jammed := state in ["damaged", "jammed"] or bool(object_data.get("damaged", false))
 		if is_open:
 			tags.append("door_open")
-			if object_type in ["steel_door", "mechanical_door", "reinforced_steel_door", "grid_door"]:
+			if object_type in ["steel_door", "reinforced_steel_door", "titanium_door", "grid_door"]:
 				tags.append("open_mechanical_door")
-			if object_type in ["energy_door", "digital_door"]:
+			if object_type == "energy_door":
 				tags.append("open_digital_door")
 		if is_closed:
 			tags.append("door_closed")
-			if object_type in ["steel_door", "mechanical_door", "reinforced_steel_door", "grid_door"]:
+			if object_type in ["steel_door", "reinforced_steel_door", "titanium_door", "grid_door"]:
 				tags.append("closed_mechanical_door")
 		if lock_type == "mechanical_key":
 			tags.append("door_locked_mechanical")
@@ -11323,7 +11335,8 @@ func _map_constructor_filter_entry_rows(entries: Array, warnings: Array[String],
 	for entry_variant in entries:
 		var entry: Dictionary = Dictionary(entry_variant)
 		var prefab_id: String = String(entry.get("prefab_id", "")).strip_edges()
-		if not catalog_ids.has(prefab_id):
+		var canonical_prefab_id: String = WorldObjectCatalogRef.canonical_object_type(prefab_id)
+		if not catalog_ids.has(prefab_id) and not catalog_ids.has(canonical_prefab_id):
 			if not removed_missing_ids.has(prefab_id):
 				removed_missing_ids.append(prefab_id)
 			continue
@@ -11336,7 +11349,7 @@ func get_map_constructor_prefab_kits() -> Dictionary:
 	if not _is_task_test_constructor_context():
 		return {"ok": false, "kits": [], "message": "Prefab kits are available only in TASK TEST constructor mode."}
 	var kits: Array[Dictionary] = [
-		{"id":"locked_door_kit","display_name":"Locked Door Kit","category":"security","description":"Door + terminal + access key.","tags":["door","terminal","key"],"default_options":{"allow_overwrite":false},"entries":[{"prefab_id":"digital_door","offset":Vector2i(0,0),"wall_side":"","properties":{},"link_group":"door_a"},{"prefab_id":"door_terminal","offset":Vector2i(-1,0),"wall_side":"","properties":{},"link_group":"door_a"},{"prefab_id":"access_code","offset":Vector2i(-2,0),"wall_side":"","properties":{},"link_group":""}]},
+		{"id":"locked_door_kit","display_name":"Locked Door Kit","category":"security","description":"Door + terminal + access key.","tags":["door","terminal","key"],"default_options":{"allow_overwrite":false},"entries":[{"prefab_id":"energy_door","offset":Vector2i(0,0),"wall_side":"","properties":{},"link_group":"door_a"},{"prefab_id":"door_terminal","offset":Vector2i(-1,0),"wall_side":"","properties":{},"link_group":"door_a"},{"prefab_id":"access_code","offset":Vector2i(-2,0),"wall_side":"","properties":{},"link_group":""}]},
 		{"id":"power_gate_kit","display_name":"Power Gate Kit","category":"power","description":"Power chain to powered gate.","tags":["power","gate"],"default_options":{"allow_overwrite":false},"entries":[{"prefab_id":"power_source_class_1","offset":Vector2i(-2,0),"wall_side":"","properties":{},"link_group":""},{"prefab_id":"power_cable","offset":Vector2i(-1,0),"wall_side":"","properties":{},"link_group":""},{"prefab_id":"power_socket","offset":Vector2i(0,0),"wall_side":"","properties":{},"link_group":""},{"prefab_id":"powered_gate","offset":Vector2i(1,0),"wall_side":"","properties":{},"link_group":""}]},
 		{"id":"wall_terminal_kit","display_name":"Wall Terminal Kit","category":"control","description":"Wall-mounted terminal chain.","tags":["wall_mounted","terminal"],"default_options":{"allow_overwrite":false},"entries":[{"prefab_id":"door_terminal","offset":Vector2i(0,0),"wall_side":"north","properties":{},"link_group":"terminal_group"}]},
 		{"id":"diagnostic_device_kit","display_name":"Diagnostic Device Kit","category":"diagnostic","description":"Diagnostic fixtures.","tags":["diagnostic"],"default_options":{"allow_overwrite":false},"entries":[{"prefab_id":"firewall","offset":Vector2i(0,0),"wall_side":"east","properties":{},"link_group":""}]},
@@ -11410,9 +11423,9 @@ func get_map_constructor_room_templates() -> Dictionary:
 	if not _is_task_test_constructor_context():
 		return {"ok": false, "templates": [], "message": "Room templates are available only in TASK TEST constructor mode."}
 	var templates: Array[Dictionary] = [
-		{"id":"small_locked_room","display_name":"Small Locked Room","category":"room","description":"Compact room with locked door.","size":Vector2i(4,4),"entries":[{"prefab_id":"digital_door","offset":Vector2i(1,0),"wall_side":"","properties":{},"link_group":"d"},{"prefab_id":"door_terminal","offset":Vector2i(0,1),"wall_side":"north","properties":{},"link_group":"d"}],"tile_edits":[],"tags":["room"],"default_options":{"rotation":0,"mirror_x":false,"mirror_y":false,"allow_overwrite":false}},
+		{"id":"small_locked_room","display_name":"Small Locked Room","category":"room","description":"Compact room with locked door.","size":Vector2i(4,4),"entries":[{"prefab_id":"energy_door","offset":Vector2i(1,0),"wall_side":"","properties":{},"link_group":"d"},{"prefab_id":"door_terminal","offset":Vector2i(0,1),"wall_side":"north","properties":{},"link_group":"d"}],"tile_edits":[],"tags":["room"],"default_options":{"rotation":0,"mirror_x":false,"mirror_y":false,"allow_overwrite":false}},
 		{"id":"power_room","display_name":"Power Room","category":"room","description":"Small power setup.","size":Vector2i(4,4),"entries":[{"prefab_id":"power_source_class_1","offset":Vector2i(1,1),"wall_side":"","properties":{},"link_group":""}],"tile_edits":[],"tags":["power"],"default_options":{"rotation":0,"mirror_x":false,"mirror_y":false,"allow_overwrite":false}},
-		{"id":"corridor_with_door","display_name":"Corridor With Door","category":"corridor","description":"Corridor section with a door.","size":Vector2i(5,3),"entries":[{"prefab_id":"digital_door","offset":Vector2i(2,1),"wall_side":"","properties":{},"link_group":""}],"tile_edits":[],"tags":["corridor"],"default_options":{"rotation":0,"mirror_x":false,"mirror_y":false,"allow_overwrite":false}},
+		{"id":"corridor_with_door","display_name":"Corridor With Door","category":"corridor","description":"Corridor section with a door.","size":Vector2i(5,3),"entries":[{"prefab_id":"energy_door","offset":Vector2i(2,1),"wall_side":"","properties":{},"link_group":""}],"tile_edits":[],"tags":["corridor"],"default_options":{"rotation":0,"mirror_x":false,"mirror_y":false,"allow_overwrite":false}},
 		{"id":"terminal_alcove","display_name":"Terminal Alcove","category":"room","description":"Alcove with wall terminal.","size":Vector2i(3,3),"entries":[{"prefab_id":"door_terminal","offset":Vector2i(1,1),"wall_side":"east","properties":{},"link_group":""}],"tile_edits":[],"tags":["terminal"],"default_options":{"rotation":0,"mirror_x":false,"mirror_y":false,"allow_overwrite":false}},
 		{"id":"diagnostic_test_bay","display_name":"Diagnostic Test Bay","category":"test","description":"Diagnostics layout.","size":Vector2i(5,4),"entries":[{"prefab_id":"firewall","offset":Vector2i(2,1),"wall_side":"west","properties":{},"link_group":""}],"tile_edits":[],"tags":["diagnostic"],"default_options":{"rotation":0,"mirror_x":false,"mirror_y":false,"allow_overwrite":false}},
 		{"id":"empty_test_chamber","display_name":"Empty Test Chamber","category":"test","description":"Open chamber with tile edits only.","size":Vector2i(4,4),"entries":[],"tile_edits":[{"offset":Vector2i(1,1),"tile_id":0}],"tags":["empty"],"default_options":{"rotation":0,"mirror_x":false,"mirror_y":false,"allow_overwrite":true}},
