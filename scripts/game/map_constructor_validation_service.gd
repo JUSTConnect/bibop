@@ -321,7 +321,7 @@ func validate_map_constructor_entity_links(entity_kind: String, entity_id: Strin
 						warnings.append("linked key is currently in player inventory")
 				else:
 					missing.append("mechanical key selected but linked key is missing")
-		elif access_type in ["digital_key", "access_code"]:
+		elif access_type in [WorldObjectCatalogRef.ACCESS_TYPE_DIGITAL_KEY, WorldObjectCatalogRef.ACCESS_TYPE_ACCESS_CODE]:
 			var access_key_resolved: Dictionary = {}
 			if required_key_id.is_empty():
 				missing.append("%s selected but no key/access item linked" % access_type)
@@ -345,7 +345,7 @@ func validate_map_constructor_entity_links(entity_kind: String, entity_id: Strin
 				linked.append(_map_constructor_make_validation_link("linked information/access terminal", access_terminal_id, "world_object", "access_terminal_id"))
 				if not required_key_id.is_empty() and not _map_constructor_terminal_stores_key(access_terminal_id, required_key_id):
 					warnings.append("selected door has digital key/access code linked, but that key/code is not stored in the selected information terminal")
-		elif access_type == "terminal_access":
+		elif access_type == WorldObjectCatalogRef.ACCESS_TYPE_TERMINAL:
 			if access_terminal_id.is_empty():
 				missing.append("terminal access selected but no terminal linked")
 			else:
@@ -769,6 +769,10 @@ func get_map_constructor_validation_issues() -> Array[Dictionary]:
 			issues.append(_make_map_constructor_issue("obj_unknown_constructor_type_%s" % object_id, "error", "Constructor object_type is not in WorldObjectCatalog: %s." % object_type, object_cell, source_name, entity_kind, object_id, "Use a canonical WorldObjectCatalog runtime object type."))
 		if _safe_string(data.get("access_type", "")).strip_edges().to_lower() == "none":
 			issues.append(_make_map_constructor_issue("obj_legacy_access_none_%s" % object_id, "error", "Legacy access_type=none must be normalized to no_key.", object_cell, source_name, entity_kind, object_id, "Normalize access_type through WorldObjectCatalog."))
+		elif not raw_access_type.is_empty():
+			var normalized_access_type: String = WorldObjectCatalogRef.normalize_access_type(raw_access_type)
+			if normalized_access_type != raw_access_type or not normalized_access_type in WorldObjectCatalogRef.ACCESS_TYPES:
+				issues.append(_make_map_constructor_issue("obj_invalid_access_type_%s" % object_id, "error", "Object access_type is not canonical: %s." % raw_access_type, object_cell, source_name, entity_kind, object_id, "Use no_key, key_card, digital_key, access_code, or terminal."))
 		if data.has("lock_type") and not data.has("access_type"):
 			issues.append(_make_map_constructor_issue("obj_lock_without_access_%s" % object_id, "error", "Legacy lock_type is present without canonical access_type.", object_cell, source_name, entity_kind, object_id, "Populate canonical access_type while retaining lock_type only as compatibility metadata."))
 		if object_group == "door" and WorldObjectCatalogRef.is_material_named_door_object_type(object_type) and _safe_string(data.get("door_type", "")).strip_edges().is_empty():
