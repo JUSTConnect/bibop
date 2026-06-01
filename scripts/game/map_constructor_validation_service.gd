@@ -68,6 +68,7 @@ func validate_constructor_palette_contract() -> Array[String]:
 	var archetype_counts: Dictionary = {}
 	var visible_wall_prefabs: Array[String] = []
 	var visible_floor_prefabs: Array[String] = []
+	var visible_item_prefabs: Array[String] = []
 	for row in WorldObjectCatalogRef.get_constructor_palette_rows():
 		var prefab_id: String = _safe_string(row.get("prefab_id", row.get("id", ""))).strip_edges()
 		var archetype_id: String = _safe_string(row.get("archetype_id", "")).strip_edges()
@@ -78,6 +79,10 @@ func validate_constructor_palette_contract() -> Array[String]:
 			warnings.append("constructor_palette_exposes_legacy_alias_%s" % prefab_id)
 		if archetype_id == "floor" or prefab_id == "floor":
 			visible_floor_prefabs.append(prefab_id)
+		if archetype_id == "item" or prefab_id == "item":
+			visible_item_prefabs.append(prefab_id)
+		if WorldObjectCatalogRef.LEGACY_ITEM_ALIAS_CONFIGS.has(prefab_id):
+			warnings.append("constructor_palette_exposes_item_alias_%s" % prefab_id)
 		if prefab_id == "stepped_floor" or WorldObjectCatalogRef.LEGACY_FLOOR_IDS.has(prefab_id):
 			warnings.append("constructor_palette_exposes_floor_variant_%s" % prefab_id)
 		if _safe_string(row.get("object_group", "")) == "wall":
@@ -94,7 +99,8 @@ func validate_constructor_palette_contract() -> Array[String]:
 		"floor":"constructor_palette_requires_exactly_one_floor",
 		"external_wall":"constructor_palette_requires_exactly_one_external_wall",
 		"wall":"constructor_palette_requires_exactly_one_wall",
-		"terminal":"constructor_palette_requires_exactly_one_terminal"
+		"terminal":"constructor_palette_requires_exactly_one_terminal",
+		"item":"constructor_palette_requires_exactly_one_item"
 	}
 	for required_archetype in required_archetype_warning_ids:
 		if int(archetype_counts.get(required_archetype, 0)) != 1:
@@ -109,6 +115,10 @@ func validate_constructor_palette_contract() -> Array[String]:
 		warnings.append("constructor_palette_wall_entries_must_be_exactly_external_wall_and_wall")
 	if visible_floor_prefabs != ["floor"]:
 		warnings.append("constructor_palette_floor_entries_must_be_exactly_floor")
+	if visible_item_prefabs != ["item"]:
+		warnings.append("constructor_palette_item_entries_must_be_exactly_item")
+	if WorldObjectCatalogRef.get_archetype_property_schema("item").is_empty():
+		warnings.append("item_archetype_missing_property_schema")
 	var external_wall: Dictionary = WorldObjectCatalogRef.create_world_object("external_wall", "validation_external_wall")
 	if bool(external_wall.get("configurable", true)):
 		warnings.append("external_wall_must_not_be_configurable")
@@ -955,6 +965,13 @@ func get_map_constructor_validation_issues() -> Array[Dictionary]:
 				seen_item_ids[item_id] = true
 			if item_cell.x < 0 or item_cell.y < 0:
 				issues.append(_make_map_constructor_issue("item_invalid_cell_%s" % item_id, "error", "Item cell invalid or negative.", item_cell, source_name, "item", item_id))
+			var normalized_item: Dictionary = WorldObjectCatalogRef.normalize_item_contract(WorldObjectCatalogRef.normalize_archetype_object(WorldObjectCatalogRef.normalize_world_object_contract(item_data)))
+			if _safe_string(item_data.get("archetype_id", "")) == "item" or _safe_string(normalized_item.get("archetype_id", "")) == "item":
+				for contract_warning in WorldObjectCatalogRef.validate_archetype_object(item_data):
+					issues.append(_make_map_constructor_issue("item_contract_%s_%s" % [item_id, contract_warning], "error", "Item archetype contract violation: %s." % contract_warning, item_cell, source_name, "item", item_id, "Normalize through the Item archetype catalog contract."))
+				for canonical_field in ["item_class", "item_form", "storage_route", "storage_type", "item_type", "display_name"]:
+					if item_data.get(canonical_field) != normalized_item.get(canonical_field):
+						issues.append(_make_map_constructor_issue("item_not_normalized_%s_%s" % [item_id, canonical_field], "error", "Item field is not normalized: %s." % canonical_field, item_cell, source_name, "item", item_id, "Re-save the item through the Item archetype catalog contract."))
 	for item_id_variant in seen_item_ids.keys():
 		var item_id_for_link: String = _safe_string(item_id_variant)
 		var item_for_link: Dictionary = manager.get_cell_item_by_id(item_id_for_link)

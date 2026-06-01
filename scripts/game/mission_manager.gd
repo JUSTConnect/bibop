@@ -2008,11 +2008,11 @@ func build_task_test_mission_world_objects_for_validation() -> Dictionary:
 
 	var items_by_cell: Dictionary = {}
 	var key_specs: Array[Dictionary] = [
-		{"type":"mechanical_keycard","id":"task_test_item_mechanical_keycard","cell":Vector2i(1, 1),"extra":{}},
-		{"type":"digital_key","id":"task_test_item_digital_key_opened","cell":Vector2i(1, 3),"extra":{"digital_state":"opened"}},
-		{"type":"digital_key","id":"task_test_item_digital_key_encrypted","cell":Vector2i(1, 5),"extra":{"digital_state":"encrypted"}},
-		{"type":"digital_key","id":"task_test_item_digital_key_damaged","cell":Vector2i(1, 6),"extra":{"digital_state":"damaged"}},
-		{"type":"access_code","id":"task_test_item_access_code","cell":Vector2i(1, 7),"extra":{}},
+		{"type":"item","id":"task_test_item_mechanical_keycard","cell":Vector2i(1, 1),"extra":{"item_class":"key_card"}},
+		{"type":"item","id":"task_test_item_digital_key_opened","cell":Vector2i(1, 3),"extra":{"item_class":"digital_key","digital_state":"opened"}},
+		{"type":"item","id":"task_test_item_digital_key_encrypted","cell":Vector2i(1, 5),"extra":{"item_class":"digital_key","digital_state":"encrypted"}},
+		{"type":"item","id":"task_test_item_digital_key_damaged","cell":Vector2i(1, 6),"extra":{"item_class":"digital_key","digital_state":"damaged"}},
+		{"type":"item","id":"task_test_item_access_code","cell":Vector2i(1, 7),"extra":{"item_class":"access_code"}},
 		{"type":"fuse","id":"task_test_item_fuse","cell":Vector2i(1, 2),"extra":{}},
 		{"type":"power_cable_reel","id":"task_test_cable_reel","cell":Vector2i(2, 2),"extra":{}},
 		{"type":"repair_kit","id":"task_test_item_repair_kit","cell":Vector2i(2, 6),"extra":{}}
@@ -2026,6 +2026,7 @@ func build_task_test_mission_world_objects_for_validation() -> Dictionary:
 		for item_key_variant in extra_item.keys():
 			var item_key: String = String(item_key_variant)
 			item[item_key] = extra_item[item_key_variant]
+		item = WorldObjectCatalogRef.normalize_item_contract(WorldObjectCatalogRef.normalize_archetype_object(WorldObjectCatalogRef.normalize_world_object_contract(item)))
 		var cell: Vector2i = Vector2i(item_spec.get("cell", Vector2i.ZERO))
 		if not items_by_cell.has(cell):
 			items_by_cell[cell] = []
@@ -2462,6 +2463,7 @@ func get_items_at_cell(cell: Vector2i) -> Array[Dictionary]:
 	return result
 
 func add_item_at_cell(cell: Vector2i, item_data: Dictionary) -> void:
+	item_data = WorldObjectCatalogRef.normalize_item_contract(WorldObjectCatalogRef.normalize_world_object_contract(item_data))
 	item_data["position"] = cell
 	if not item_data.has("object_group"):
 		item_data["object_group"] = "item"
@@ -2548,11 +2550,9 @@ func _get_world_object_template(prefab_id: String) -> Dictionary:
 	return {}
 
 func get_map_constructor_prefab_catalog() -> Array[Dictionary]:
-	# Compatibility item shortcuts remain constructor-only entries. All world-object
-	# rows, including Floor, come from WorldObjectCatalog so authoring cannot drift.
-	var entries: Array[Dictionary] = [
-		{"category":"Items","id":"mechanical_key"},{"category":"Items","id":"digital_key"},{"category":"Items","id":"access_code"}
-	]
+	# Palette rows come from WorldObjectCatalog so authoring cannot drift.
+	# Legacy item shortcuts remain hidden load/import aliases only.
+	var entries: Array[Dictionary] = []
 	var seen_prefab_ids: Dictionary = {}
 	for entry in entries:
 		seen_prefab_ids[String(entry.get("id", ""))] = true
@@ -2581,6 +2581,7 @@ func _get_map_constructor_prefab_metadata_catalog() -> Dictionary:
 		"wall": {"display_name":"Wall","category":"Structural","subcategory":"Wall","placement_mode":"object","system_roles":["blocking"],"tags":["wall","obstacle","configurable","archetype"],"description":"Configurable internal wall. Choose material in the inspector.","placement_hint":"Place Wall, then configure its canonical material property.","requires_wall":false,"requires_floor":true,"is_destructive":false,"is_diagnostic":false,"is_expected_invalid_tool":false,"can_have_power_network":false,"can_have_links":false,"default_state":{}},
 		"door": {"display_name":"Door","category":"Door","subcategory":"Configurable","placement_mode":"object","system_roles":["navigation","access_control"],"tags":["door","configurable","archetype"],"description":"Configurable door archetype. Choose material, access, power, control, and state properties in the inspector.","placement_hint":"Place the base Door, then configure properties.","requires_wall":false,"requires_floor":true,"is_destructive":false,"is_diagnostic":false,"is_expected_invalid_tool":false,"can_have_power_network":true,"can_have_links":true,"default_state":{}},
 		"terminal": {"display_name":"Terminal","category":"Terminal","subcategory":"Configurable","placement_mode":"object","system_roles":["terminal_interaction","signal_control"],"tags":["terminal","configurable","archetype"],"description":"Configurable terminal archetype. Choose role, target, class, power, control, status, and links in the inspector.","placement_hint":"Place the base Terminal, then configure properties.","requires_wall":false,"requires_floor":true,"is_destructive":false,"is_diagnostic":false,"is_expected_invalid_tool":false,"can_have_power_network":true,"can_have_links":true,"default_state":{}},
+		"item": {"display_name":"Item","category":"Item","subcategory":"Configurable","placement_mode":"item","system_roles":["item"],"tags":["item","configurable","archetype"],"description":"Configurable Item archetype. Choose item class, storage route, state, and optional door link in the inspector.","placement_hint":"Place the base Item, then configure properties.","requires_wall":false,"requires_floor":true,"is_destructive":false,"is_diagnostic":false,"is_expected_invalid_tool":false,"can_have_power_network":false,"can_have_links":true,"default_state":{}},
 		"firewall": {"display_name":"Firewall Node","category":"Wall-mounted","subcategory":"Security","placement_mode":"wall_mounted","system_roles":["signal_control"],"tags":["firewall","security","wall"],"description":"Wall-mounted digital security node.","placement_hint":"Requires a valid adjacent wall side.","requires_wall":true,"requires_floor":true,"is_destructive":false,"is_diagnostic":false,"is_expected_invalid_tool":false,"can_have_power_network":true,"can_have_links":true,"default_state":{}},
 		"power_source_class_1": {"display_name":"Power Source C1","category":"Power","subcategory":"Source","placement_mode":"object","system_roles":["power_source","power_network"],"tags":["power","source","generator"],"description":"Primary local power source.","placement_hint":"Set power_network_id in inspector after placement.","requires_wall":false,"requires_floor":true,"is_destructive":false,"is_diagnostic":false,"is_expected_invalid_tool":false,"can_have_power_network":true,"can_have_links":false,"default_state":{"state":"on","power_mode":"internal","control_mode":"internal","is_powered":true,"power_source_class":1,"outlet_capacity":4}},
 		"power_source_class_2": {"display_name":"Power Source C2","category":"Power","subcategory":"Source","placement_mode":"object","system_roles":["power_source","power_network"],"tags":["power","source","generator"],"description":"Class 2 power source.","placement_hint":"Place beside wires/outlets.","requires_wall":false,"requires_floor":true,"is_destructive":false,"is_diagnostic":false,"is_expected_invalid_tool":false,"can_have_power_network":true,"can_have_links":false,"default_state":{"state":"on","power_mode":"internal","control_mode":"internal","is_powered":true,"power_source_class":2,"outlet_capacity":5}},
@@ -2593,9 +2594,6 @@ func _get_map_constructor_prefab_metadata_catalog() -> Dictionary:
 		"light_switch": {"display_name":"Light Switch","category":"Control","subcategory":"Lighting","placement_mode":"wall_mounted","system_roles":["signal_control","power_consumer"],"tags":["switch","light","wall"],"description":"Wall-mounted switch for lights/devices.","placement_hint":"Requires a valid adjacent wall side.","requires_wall":true,"requires_floor":true,"is_destructive":false,"is_diagnostic":false,"is_expected_invalid_tool":false,"can_have_power_network":true,"can_have_links":true,"default_state":{}},
 		"fuse_box": {"display_name":"Fuse Box","category":"Power","subcategory":"Protection","placement_mode":"wall_mounted","system_roles":["power_network","power_consumer"],"tags":["fuse","power","wall"],"description":"Wall-mounted fuse control box.","placement_hint":"Requires a valid adjacent wall side.","requires_wall":true,"requires_floor":true,"is_destructive":false,"is_diagnostic":false,"is_expected_invalid_tool":false,"can_have_power_network":true,"can_have_links":true,"default_state":{}},
 		"power_cable_reel": {"display_name":"Cable Reel","category":"Utility","subcategory":"Power Utility","placement_mode":"wall_mounted","system_roles":["power_network"],"tags":["cable","reel","wall","utility"],"description":"Wall-mounted cable utility node.","placement_hint":"Requires a valid adjacent wall side.","requires_wall":true,"requires_floor":true,"is_destructive":false,"is_diagnostic":false,"is_expected_invalid_tool":false,"can_have_power_network":true,"can_have_links":false,"default_state":{}},
-		"mechanical_key": {"display_name":"Key-Card","category":"Item","subcategory":"Access","placement_mode":"item","system_roles":["key_item","access_control"],"tags":["item","key","mechanical"],"description":"Physical key-card item for mechanical locks.","placement_hint":"Place on floor as pick-up item.","requires_wall":false,"requires_floor":true,"is_destructive":false,"is_diagnostic":false,"is_expected_invalid_tool":false,"can_have_power_network":false,"can_have_links":false,"default_state":{"item_type":"mechanical_keycard","key_kind":"mechanical"}},
-		"digital_key": {"display_name":"Digital Key","category":"Item","subcategory":"Access","placement_mode":"item","system_roles":["key_item","access_control"],"tags":["item","key","digital"],"description":"Digital key credential item.","placement_hint":"Place on floor as pick-up item.","requires_wall":false,"requires_floor":true,"is_destructive":false,"is_diagnostic":false,"is_expected_invalid_tool":false,"can_have_power_network":false,"can_have_links":false,"default_state":{"item_type":"digital_key"}},
-		"access_code": {"display_name":"Access Code","category":"Item","subcategory":"Credential","placement_mode":"item","system_roles":["key_item","access_control"],"tags":["item","code","credential"],"description":"Code item used for access checks.","placement_hint":"Place on floor as pick-up item.","requires_wall":false,"requires_floor":true,"is_destructive":false,"is_diagnostic":false,"is_expected_invalid_tool":false,"can_have_power_network":false,"can_have_links":false,"default_state":{"item_type":"access_code"}}
 	}
 	return metadata
 
@@ -2712,7 +2710,8 @@ func get_map_constructor_prefab_palette_rows(options: Dictionary = {}) -> Dictio
 	return {"ok": true, "rows": rows, "categories": categories, "roles": roles, "message": "OK"}
 
 func is_map_constructor_item_prefab(prefab_id: String) -> bool:
-	return prefab_id in ["mechanical_key", "digital_key", "access_code"]
+	var normalized_prefab_id: String = prefab_id.strip_edges().to_lower()
+	return normalized_prefab_id == "item" or WorldObjectCatalogRef.LEGACY_ITEM_ALIAS_CONFIGS.has(normalized_prefab_id)
 
 func _map_constructor_entity_kind(object_data: Dictionary) -> String:
 	var object_group: String = str(object_data.get("object_group", "")).to_lower()
@@ -3871,7 +3870,7 @@ func _get_map_constructor_editable_field_schema() -> Dictionary:
 		"terminal_type":"string","controlled_target_type":"string","terminal_class":"int","status":"string","allowed_statuses":"array_string","linked_object_ids":"array_string","linked_door_ids":"array_string","linked_cooling_ids":"array_string","linked_platform_ids":"array_string","linked_power_ids":"array_string","linked_lighting_ids":"array_string","chain_input_ids":"array_string","chain_output_ids":"array_string",
 		"control_source_id":"string","connected_device_ids":"array_string","target_door_id":"string","target_platform_id":"string","requires_external_control":"bool","requires_terminal_enabled":"bool",
 		"requires_external_power":"bool","current_heat":"int","working_heat":"int","overheat_threshold":"int","power_source_class":"int","source_class":"int","outlet_capacity":"int","active_output_index":"int",
-		"item_type":"string","digital_state":"string","key_kind":"string","key_type":"string","display_name":"string","description":"string","custom_description":"string","linked_door_id":"string","damaged":"bool",
+		"item_class":"string","storage_route":"string","item_type":"string","digital_state":"string","key_kind":"string","key_type":"string","display_name":"string","description":"string","custom_description":"string","linked_door_id":"string","payload_id":"string","access_code":"string","damaged":"bool",
 		"power_mode":"string","power_source_id":"string","control_mode":"string","control_terminal_id":"string","access_type":"string","access_terminal_id":"string","access_code_value":"string","stored_key_ids":"array_string","route_surface":"string","physical_connection_source_id":"string","input_wire_id":"string","input_direction":"string","output_1_wire_id":"string","output_2_wire_id":"string","output_3_wire_id":"string","output_1_direction":"string","output_2_direction":"string","output_3_direction":"string","brightness":"string","color":"string"
 	}
 
@@ -4786,7 +4785,6 @@ func get_map_constructor_property_presets(entity_kind: String, entity_id: String
 		"door": return [{"id":"open","label":"Open","group":"Door","description":"Door is open and unlocked."},{"id":"closed","label":"Closed","group":"Door","description":"Door is closed and unlocked."},{"id":"locked","label":"Locked","group":"Door","description":"Door is closed and locked."},{"id":"jammed","label":"Jammed","group":"Door","description":"Door is jammed/damaged."}]
 		"terminal": return [{"id":"linked","label":"Linked","group":"Terminal","description":"Terminal set active."},{"id":"unlinked","label":"Unlinked","group":"Terminal","description":"Clears linked targets."},{"id":"damaged","label":"Damaged","group":"Terminal","description":"Marks terminal damaged."},{"id":"encrypted","label":"Encrypted","group":"Terminal","description":"Marks terminal encrypted."}]
 		"power": return [{"id":"powered","label":"Powered","group":"Power","description":"Active powered state."},{"id":"unpowered","label":"Unpowered","group":"Power","description":"Unpowered state."},{"id":"broken","label":"Broken","group":"Power","description":"Broken/damaged state."}]
-		"item": return [{"id":"mechanical_key","label":"Key-Card","group":"Item","description":"Set item subtype to mechanical key-card."},{"id":"digital_key","label":"Digital Key","group":"Item","description":"Set item subtype to digital key."},{"id":"access_code","label":"Access Code","group":"Item","description":"Set item subtype to access code."},{"id":"fuse","label":"Fuse","group":"Item","description":"Set item subtype to fuse."},{"id":"cable","label":"Cable","group":"Item","description":"Set item subtype to cable."}]
 	return []
 
 func apply_map_constructor_property_preset(entity_kind: String, entity_id: String, preset_id: String) -> Dictionary:
@@ -4808,12 +4806,6 @@ func apply_map_constructor_property_preset(entity_kind: String, entity_id: Strin
 			if preset_id == "powered": updates={"state":"active","is_powered":true,"damaged":false,"broken":false}
 			elif preset_id == "unpowered": updates={"state":"unpowered","is_powered":false}
 			elif preset_id == "broken": updates={"state":"broken","damaged":true,"broken":true}
-		"item":
-			if preset_id == "mechanical_key": updates={"item_type":"mechanical_keycard","object_type":"mechanical_keycard","key_type":"mechanical","key_kind":"mechanical","display_name":"Key-Card"}
-			elif preset_id == "digital_key": updates={"item_type":"digital_key","object_type":"digital_key","key_type":"digital"}
-			elif preset_id == "access_code": updates={"item_type":"access_code","object_type":"access_code","digital_payload_type":"access_code"}
-			elif preset_id == "fuse": updates={"item_type":"fuse","object_type":"fuse"}
-			elif preset_id == "cable": updates={"item_type":"power_cable","object_type":"power_cable"}
 	if updates.is_empty():
 		return {"ok": false, "message": "Unsupported preset.", "entity_kind": entity_kind, "entity_id": entity_id}
 	var apply: Dictionary = update_map_constructor_entity_properties(entity_kind, entity_id, updates)
@@ -12577,7 +12569,7 @@ func get_map_constructor_prefab_kits() -> Dictionary:
 	if not _is_task_test_constructor_context():
 		return {"ok": false, "kits": [], "message": "Prefab kits are available only in TASK TEST constructor mode."}
 	var kits: Array[Dictionary] = [
-		{"id":"locked_door_kit","display_name":"Locked Door Kit","category":"security","description":"Door + terminal + access key.","tags":["door","terminal","key"],"default_options":{"allow_overwrite":false},"entries":[{"prefab_id":"door","offset":Vector2i(0,0),"wall_side":"","properties":{"door_type":"digital","material":"energy","access_type":"access_code"},"link_group":"door_a"},{"prefab_id":"terminal","offset":Vector2i(-1,0),"wall_side":"","properties":{"terminal_type":"control","controlled_target_type":"door"},"link_group":"door_a"},{"prefab_id":"access_code","offset":Vector2i(-2,0),"wall_side":"","properties":{},"link_group":""}]},
+		{"id":"locked_door_kit","display_name":"Locked Door Kit","category":"security","description":"Door + terminal + access key.","tags":["door","terminal","key"],"default_options":{"allow_overwrite":false},"entries":[{"prefab_id":"door","offset":Vector2i(0,0),"wall_side":"","properties":{"door_type":"digital","material":"energy","access_type":"access_code"},"link_group":"door_a"},{"prefab_id":"terminal","offset":Vector2i(-1,0),"wall_side":"","properties":{"terminal_type":"control","controlled_target_type":"door"},"link_group":"door_a"},{"prefab_id":"item","offset":Vector2i(-2,0),"wall_side":"","properties":{"item_class":"access_code"},"link_group":""}]},
 		{"id":"power_gate_kit","display_name":"Power Gate Kit","category":"power","description":"Power chain to powered gate.","tags":["power","gate"],"default_options":{"allow_overwrite":false},"entries":[{"prefab_id":"power_source_class_1","offset":Vector2i(-2,0),"wall_side":"","properties":{},"link_group":""},{"prefab_id":"power_cable","offset":Vector2i(-1,0),"wall_side":"","properties":{},"link_group":""},{"prefab_id":"power_socket","offset":Vector2i(0,0),"wall_side":"","properties":{},"link_group":""},{"prefab_id":"door","offset":Vector2i(1,0),"wall_side":"","properties":{"door_type":"powered","material":"energy","access_type":"no_key","power_type":"external"},"link_group":""}]},
 		{"id":"wall_terminal_kit","display_name":"Wall Terminal Kit","category":"control","description":"Wall-mounted terminal chain.","tags":["wall_mounted","terminal"],"default_options":{"allow_overwrite":false},"entries":[{"prefab_id":"terminal","offset":Vector2i(0,0),"wall_side":"north","properties":{"terminal_type":"control","controlled_target_type":"door"},"link_group":"terminal_group"}]},
 		{"id":"diagnostic_device_kit","display_name":"Diagnostic Device Kit","category":"diagnostic","description":"Diagnostic fixtures.","tags":["diagnostic"],"default_options":{"allow_overwrite":false},"entries":[{"prefab_id":"firewall","offset":Vector2i(0,0),"wall_side":"east","properties":{},"link_group":""}]},
