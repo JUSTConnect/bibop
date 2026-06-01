@@ -4,11 +4,11 @@
 
 Цель документа — держать единый audit/checklist для следующих PR, чтобы не возвращаться к palette variant explosion, hardcoded fixes и непроверенным syntax regressions.
 
-Последнее обновление: после проверки PR-G.
+Последнее обновление: после проверки PR-H.
 
 ---
 
-## 1. Текущий статус PR-A–G
+## 1. Текущий статус PR-A–H
 
 ```text
 #750 Fix PR-A — English-only game UI labels
@@ -19,6 +19,7 @@
 #752 PR-F — Add Terminal as configurable archetype
 #753 Fix PR-G0 — Cleanup Terminal palette validation shim
 #754 PR-G — Route Item/Key/Digital placement through archetype catalog
+#755 PR-H — Canonicalize Door runtime identity to object_type="door"
 ```
 
 ### 1.1 Что сейчас считается закрытым
@@ -33,22 +34,24 @@
 - The temporary visible_archetypes.gd shim was removed by PR-G0; Terminal palette validation now uses archetype_counts.
 - Item/key/digital placement now routes through WorldObjectCatalog and normalize_item_contract.
 - Legacy item ids mechanical_key/mechanical_keycard/keycard/key_card/digital_key/access_code/data_file are hidden compatibility aliases, not user-facing palette rows.
+- Door runtime identity is canonical: archetype_id=door, object_group=door, object_type=door.
+- Legacy door ids are hidden compatibility inputs and normalize to canonical Door data.
 ```
 
 ### 1.2 Что сейчас не считается полностью закрытым
 
 ```text
 - Godot parser gate was added, but it is not yet proven as mandatory CI/review gate.
-- PR-F and PR-G were reviewed statically; parser-level verification must still be run locally.
+- PR-F, PR-G and PR-H were reviewed statically; parser-level verification must still be run locally.
 - Terminal links/status/action availability need gameplay smoke testing.
 - Item pickup/inventory/storage flow needs gameplay smoke testing after the one-Item-row migration.
+- Door/key/power/control interactions need gameplay smoke testing after object_type="door" finalization.
 - Fuse, Repair Kit, Reinforcement and modules are no longer emitted as generic item OBJECT_LIBRARY palette rows; if they must remain placeable, they need their own archetype/catalog contract later.
-- Door runtime object_type is still transitional.
 ```
 
 ---
 
-## 2. Review result по PR-A–G
+## 2. Review result по PR-A–H
 
 ### 2.1 PR-A — English-only game UI labels
 
@@ -232,6 +235,45 @@ Manual smoke required:
 - Item pickup/collection does not regress inventory routing.
 ```
 
+### 2.9 PR-H — Door runtime object_type finalization
+
+Status: accepted by static review; parser/runtime smoke still required.
+
+Implemented:
+
+```text
+- Door archetype now has object_type="door".
+- Door runtime contract is canonicalized to archetype_id=door, object_group=door, object_type=door.
+- Legacy material/type door ids remain hidden compatibility inputs.
+- Legacy door aliases normalize to canonical Door data.
+- Door display_name is generated from material + door_type.
+- TASK TEST door entries were migrated from steel_door/energy_door/etc. to type="door" plus property overrides.
+- Power/control/interaction logic was adjusted to read normalized Door properties instead of material-named runtime object_type where needed.
+- Validation catches non-canonical Door object_type/object_group, generated display name drift, derived state flag drift, and no_key locked/key drift.
+```
+
+Important caveat:
+
+```text
+- Old door definitions still exist in OBJECT_LIBRARY as non-placeable compatibility entries.
+- This is acceptable only as hidden compatibility data.
+- New gameplay code should not branch on steel_door/reinforced_steel_door/titanium_door/energy_door/powered_gate as canonical identity.
+```
+
+Manual smoke required:
+
+```text
+- Palette shows Door once.
+- Placing Door creates object_type=door.
+- Door properties update generated display_name.
+- Legacy steel_door/titanium_door/energy_door/powered_gate load paths normalize to object_type=door.
+- Key Card doors still require/find key_card items.
+- Digital Key and Access Code doors still route through digital item/storage rules.
+- Terminal-controlled doors still work through terminal links.
+- Powered doors/gates still react correctly to power loss according to power_behavior.
+- Door state derived flags remain synchronized after open/close/locked/damaged/unpowered transitions.
+```
+
 ---
 
 ## 3. Current blockers and next required validation
@@ -283,6 +325,22 @@ Manual checks:
 - Physical Item routes to pocket.
 - linked_door_id validates invalid/stale links without crash.
 - Item pickup/collection still works with normalized item data.
+```
+
+### Blocker 4 — Door smoke tests
+
+Manual checks:
+
+```text
+- Palette shows exactly one Door row.
+- Palette does not show Steel Door, Reinforced Steel Door, Titanium Door, Energy Door, Powered Gate or any material/type Door variants.
+- Door property schema is editable through inspector.
+- Placing Door creates archetype_id=door, object_group=door, object_type=door.
+- Door display_name updates from material + door_type.
+- Key-card, digital-key, access-code and terminal doors still work.
+- no_key doors do not keep required_key_id or locked state.
+- Powered doors/gates still update state through power_behavior.
+- Grid-door legacy behavior, if loaded from old data, remains compatibility-only through legacy source metadata.
 ```
 
 ---
@@ -464,6 +522,14 @@ Palette:
 Door
 ```
 
+Canonical runtime:
+
+```text
+archetype_id = door
+object_group = door
+object_type = door
+```
+
 Schema:
 
 ```text
@@ -476,6 +542,48 @@ control_type: internal | external | terminal
 power_behavior: none | opens_when_unpowered | requires_power_to_open
 state: closed | open | damaged | jammed | locked | unpowered
 allowed_states: closed/open/damaged/jammed/locked/unpowered
+```
+
+Display name examples:
+
+```text
+Steel Mechanical Door
+Reinforced Steel Mechanical Door
+Titanium Mechanical Door
+Energy Digital Door
+Steel Powered Door
+```
+
+Hidden compatibility aliases:
+
+```text
+steel_door
+reinforced_steel_door
+titanium_door
+energy_door
+grid_door
+mechanical_door
+digital_door
+powered_gate
+mechanical_steel_door
+mechanical_reinforced_steel_door
+mechanical_titanium_door
+mechanical_energy_door
+digital_steel_door
+digital_reinforced_steel_door
+digital_titanium_door
+digital_energy_door
+powered_steel_door
+powered_reinforced_steel_door
+powered_titanium_door
+powered_energy_door
+```
+
+Important:
+
+```text
+These legacy ids may exist only as hidden load/import compatibility data.
+They must not be canonical runtime object_type values after normalization.
 ```
 
 ### 8.2 Floor
@@ -638,16 +746,6 @@ They should not reappear as raw item palette rows; add dedicated archetype suppo
 
 ## 9. Next PR order
 
-### PR-H — Door runtime object_type finalization
-
-```text
-- Either object_type=door becomes safe canonical runtime type,
-  or compatibility object_type is explicitly hidden behind archetype_id=door.
-- No user-facing material-named door object types.
-- Door display_name must be generated from properties only.
-- Door action/diagnostics/validation should read the normalized Door contract.
-```
-
 ### PR-I — Utility item archetypes if needed
 
 ```text
@@ -661,6 +759,15 @@ They should not reappear as raw item palette rows; add dedicated archetype suppo
 ```text
 - Add real CI/action or project command wrapper for parse_all_gd.gd.
 - Make parser gate visible and mandatory for code PRs.
+```
+
+### PR-K — Runtime smoke validation pass
+
+```text
+- Run local Godot parser gate.
+- Smoke test Map Constructor palette and property panels.
+- Smoke test Door/Terminal/Item runtime interactions.
+- Record results in this audit or a dedicated smoke report.
 ```
 
 ---
@@ -699,7 +806,7 @@ Configurable-object checks:
 
 ```bash
 rg "Floor /|/ Пол|Стена|Дверь|Терминал|labels_ru|palette_label_ru|display_name_ru" scripts/world scripts/game scripts/ui
-rg "digital_.*door|mechanical_.*door|titanium_.*door|steel_.*door" scripts/world scripts/game scripts/ui
+rg "object_type.*steel_door|object_type.*reinforced_steel_door|object_type.*titanium_door|object_type.*energy_door|object_type.*powered_gate" scripts/world scripts/game scripts/ui
 rg "Steel Floor|Concrete Floor|Grate Floor|Dirty Floor|Water Floor|Oil Floor|Permission Floor" scripts/world scripts/game scripts/ui
 rg "Brick Wall|Concrete Wall|Reinforced Steel Wall|Titanium Wall|Grate Wall|Electromagnetic Wall" scripts/world scripts/game scripts/ui
 rg "Information Terminal|Control Terminal|Door Control Terminal|Cooling Control Terminal|Platform Control Terminal" scripts/world scripts/game scripts/ui
@@ -725,10 +832,12 @@ Manual smoke checks:
 - Display name updates from properties.
 - Floor placement still produces walkable floor tile.
 - Wall placement still produces wall tile.
+- Door placement produces object_type=door.
 - Terminal placement produces normalized runtime object and does not crash validation.
 - Item placement produces normalized runtime item and does not crash validation.
 - Key Card pickup/usage works for key-card doors.
 - Digital Key/Access Code route to digital storage.
+- Powered Door power behavior works after power changes.
 ```
 
 ---
