@@ -33,7 +33,24 @@ const PREFAB_ALIASES: Dictionary = {
 const PREFAB_ALIAS_DEFAULTS: Dictionary = {
 	"mechanical_door": {"object_group":"door", "door_type":DOOR_TYPE_MECHANICAL, "access_type":ACCESS_TYPE_KEY_CARD},
 	"digital_door": {"object_group":"door", "door_type":DOOR_TYPE_DIGITAL, "access_type":ACCESS_TYPE_DIGITAL_KEY},
-	"powered_gate": {"object_group":"door", "door_type":DOOR_TYPE_POWERED, "access_type":ACCESS_TYPE_NO_KEY, "power_behavior":POWER_BEHAVIOR_OPENS_WHEN_UNPOWERED}
+	"powered_gate": {"object_group":"door", "door_type":DOOR_TYPE_POWERED, "access_type":ACCESS_TYPE_NO_KEY, "power_behavior":POWER_BEHAVIOR_OPENS_WHEN_UNPOWERED, "requires_external_power":true, "power_mode":"external_power"}
+}
+
+# Constructor presets are authoring choices only. Their runtime object_type always
+# resolves to one of the canonical material-derived door objects in OBJECT_LIBRARY.
+const CONSTRUCTOR_DOOR_PRESETS: Dictionary = {
+	"mechanical_steel_door": {"object_type":"steel_door", "display_name":"Mechanical Steel Door", "door_type":DOOR_TYPE_MECHANICAL, "material":DOOR_MATERIAL_STEEL, "access_type":ACCESS_TYPE_KEY_CARD, "power_behavior":POWER_BEHAVIOR_NONE},
+	"mechanical_reinforced_steel_door": {"object_type":"reinforced_steel_door", "display_name":"Mechanical Reinforced Steel Door", "door_type":DOOR_TYPE_MECHANICAL, "material":DOOR_MATERIAL_REINFORCED_STEEL, "access_type":ACCESS_TYPE_KEY_CARD, "power_behavior":POWER_BEHAVIOR_NONE},
+	"mechanical_titanium_door": {"object_type":"titanium_door", "display_name":"Mechanical Titanium Door", "door_type":DOOR_TYPE_MECHANICAL, "material":DOOR_MATERIAL_TITANIUM, "access_type":ACCESS_TYPE_KEY_CARD, "power_behavior":POWER_BEHAVIOR_NONE},
+	"mechanical_energy_door": {"object_type":"energy_door", "display_name":"Mechanical Energy Door", "door_type":DOOR_TYPE_MECHANICAL, "material":DOOR_MATERIAL_ENERGY, "access_type":ACCESS_TYPE_KEY_CARD, "power_behavior":POWER_BEHAVIOR_NONE},
+	"digital_steel_door": {"object_type":"steel_door", "display_name":"Digital Steel Door", "door_type":DOOR_TYPE_DIGITAL, "material":DOOR_MATERIAL_STEEL, "access_type":ACCESS_TYPE_DIGITAL_KEY, "power_behavior":POWER_BEHAVIOR_NONE},
+	"digital_reinforced_steel_door": {"object_type":"reinforced_steel_door", "display_name":"Digital Reinforced Steel Door", "door_type":DOOR_TYPE_DIGITAL, "material":DOOR_MATERIAL_REINFORCED_STEEL, "access_type":ACCESS_TYPE_DIGITAL_KEY, "power_behavior":POWER_BEHAVIOR_NONE},
+	"digital_titanium_door": {"object_type":"titanium_door", "display_name":"Digital Titanium Door", "door_type":DOOR_TYPE_DIGITAL, "material":DOOR_MATERIAL_TITANIUM, "access_type":ACCESS_TYPE_DIGITAL_KEY, "power_behavior":POWER_BEHAVIOR_NONE},
+	"digital_energy_door": {"object_type":"energy_door", "display_name":"Digital Energy Door", "door_type":DOOR_TYPE_DIGITAL, "material":DOOR_MATERIAL_ENERGY, "access_type":ACCESS_TYPE_DIGITAL_KEY, "power_behavior":POWER_BEHAVIOR_NONE},
+	"powered_steel_door": {"object_type":"steel_door", "display_name":"Powered Steel Door", "door_type":DOOR_TYPE_POWERED, "material":DOOR_MATERIAL_STEEL, "access_type":ACCESS_TYPE_NO_KEY, "power_behavior":POWER_BEHAVIOR_OPENS_WHEN_UNPOWERED, "requires_external_power":true, "power_mode":"external_power"},
+	"powered_reinforced_steel_door": {"object_type":"reinforced_steel_door", "display_name":"Powered Reinforced Steel Door", "door_type":DOOR_TYPE_POWERED, "material":DOOR_MATERIAL_REINFORCED_STEEL, "access_type":ACCESS_TYPE_NO_KEY, "power_behavior":POWER_BEHAVIOR_OPENS_WHEN_UNPOWERED, "requires_external_power":true, "power_mode":"external_power"},
+	"powered_titanium_door": {"object_type":"titanium_door", "display_name":"Powered Titanium Door", "door_type":DOOR_TYPE_POWERED, "material":DOOR_MATERIAL_TITANIUM, "access_type":ACCESS_TYPE_NO_KEY, "power_behavior":POWER_BEHAVIOR_OPENS_WHEN_UNPOWERED, "requires_external_power":true, "power_mode":"external_power"},
+	"powered_energy_door": {"object_type":"energy_door", "display_name":"Powered Energy Door", "door_type":DOOR_TYPE_POWERED, "material":DOOR_MATERIAL_ENERGY, "access_type":ACCESS_TYPE_NO_KEY, "power_behavior":POWER_BEHAVIOR_OPENS_WHEN_UNPOWERED, "requires_external_power":true, "power_mode":"external_power"}
 }
 
 const DOOR_MATERIAL_BY_OBJECT_TYPE: Dictionary = {
@@ -46,7 +63,12 @@ const DOOR_MATERIAL_BY_OBJECT_TYPE: Dictionary = {
 
 static func canonical_prefab_id(prefab_id: String) -> String:
 	var normalized_type: String = prefab_id.strip_edges().to_lower()
-	return String(PREFAB_ALIASES.get(normalized_type, normalized_type))
+	if PREFAB_ALIASES.has(normalized_type):
+		return String(PREFAB_ALIASES[normalized_type])
+	var preset_variant: Variant = CONSTRUCTOR_DOOR_PRESETS.get(normalized_type, {})
+	if preset_variant is Dictionary:
+		return String(preset_variant.get("object_type", normalized_type))
+	return normalized_type
 
 # Compatibility name retained for existing constructor and runtime callers.
 static func canonical_object_type(object_type: String) -> String:
@@ -58,16 +80,70 @@ static func is_legacy_prefab_alias(object_type: String) -> bool:
 static func get_prefab_alias_defaults(prefab_id: String) -> Dictionary:
 	var normalized_prefab_id: String = prefab_id.strip_edges().to_lower()
 	var raw_defaults: Variant = PREFAB_ALIAS_DEFAULTS.get(normalized_prefab_id, {})
-	if raw_defaults is Dictionary:
+	if raw_defaults is Dictionary and not raw_defaults.is_empty():
 		return raw_defaults.duplicate(true)
+	var preset_variant: Variant = CONSTRUCTOR_DOOR_PRESETS.get(normalized_prefab_id, {})
+	if preset_variant is Dictionary:
+		var preset_defaults: Dictionary = preset_variant.duplicate(true)
+		preset_defaults.erase("object_type")
+		preset_defaults.erase("display_name")
+		return preset_defaults
 	return {}
+
+static func is_constructor_door_preset(prefab_id: String) -> bool:
+	return CONSTRUCTOR_DOOR_PRESETS.has(prefab_id.strip_edges().to_lower())
+
+static func get_constructor_palette_rows() -> Array[Dictionary]:
+	var rows: Array[Dictionary] = []
+	for object_type_variant in OBJECT_LIBRARY.keys():
+		var object_type: String = String(object_type_variant)
+		var definition: Dictionary = OBJECT_LIBRARY[object_type]
+		if not bool(definition.get("placeable_in_constructor", true)):
+			continue
+		rows.append(_build_constructor_palette_row(object_type, object_type, definition, false))
+	for preset_id_variant in CONSTRUCTOR_DOOR_PRESETS.keys():
+		var preset_id: String = String(preset_id_variant)
+		var canonical_type: String = canonical_prefab_id(preset_id)
+		if not OBJECT_LIBRARY.has(canonical_type):
+			continue
+		var preset_definition: Dictionary = OBJECT_LIBRARY[canonical_type].duplicate(true)
+		var preset_defaults: Dictionary = get_prefab_alias_defaults(preset_id)
+		for key_variant in preset_defaults.keys():
+			preset_definition[String(key_variant)] = preset_defaults[key_variant]
+		var preset_row: Dictionary = CONSTRUCTOR_DOOR_PRESETS[preset_id]
+		preset_definition["name"] = String(preset_row.get("display_name", preset_id.capitalize()))
+		rows.append(_build_constructor_palette_row(preset_id, canonical_type, preset_definition, true))
+	rows.sort_custom(func(a: Dictionary, b: Dictionary) -> bool: return String(a.get("display_name", "")) < String(b.get("display_name", "")))
+	return rows
+
+static func _build_constructor_palette_row(prefab_id: String, canonical_type: String, definition: Dictionary, is_alias: bool) -> Dictionary:
+	var object_group: String = String(definition.get("group", definition.get("object_group", "physical_object")))
+	var category: String = String(definition.get("constructor_category", object_group.capitalize()))
+	var placement_mode: String = String(definition.get("placement_mode", "object"))
+	var row: Dictionary = {
+		"id": prefab_id,
+		"prefab_id": prefab_id,
+		"canonical_object_type": canonical_type,
+		"display_name": String(definition.get("name", prefab_id.capitalize())),
+		"label": String(definition.get("name", prefab_id.capitalize())),
+		"category": category,
+		"object_group": object_group,
+		"placement_mode": placement_mode,
+		"blocks_movement": bool(definition.get("blocks_movement", false)),
+		"is_alias": is_alias,
+		"alias_source_id": prefab_id if is_alias else ""
+	}
+	if object_group == "door":
+		for field_name in ["door_type", "material", "access_type", "door_class", "power_behavior"]:
+			row[field_name] = definition.get(field_name, "")
+	return row
 
 static func get_constructor_placeable_door_types() -> Array[String]:
 	var door_types: Array[String] = []
 	for object_type_variant in OBJECT_LIBRARY.keys():
 		var object_type: String = String(object_type_variant)
 		var definition: Dictionary = OBJECT_LIBRARY[object_type]
-		if String(definition.get("group", "")) == "door":
+		if String(definition.get("group", "")) == "door" and bool(definition.get("placeable_in_constructor", true)):
 			door_types.append(object_type)
 	door_types.sort()
 	return door_types
@@ -76,10 +152,10 @@ static func apply_prefab_alias_defaults(canonical_type: String, original_type: S
 	var data: Dictionary = object_data.duplicate(true)
 	var normalized_original_type: String = original_type.strip_edges().to_lower()
 	data["object_type"] = canonical_type
-	if not PREFAB_ALIASES.has(normalized_original_type):
+	var defaults: Dictionary = get_prefab_alias_defaults(normalized_original_type)
+	if defaults.is_empty():
 		return normalize_world_object_contract(data)
 	data["map_constructor_prefab_id"] = normalized_original_type
-	var defaults: Dictionary = get_prefab_alias_defaults(normalized_original_type)
 	for key_variant in defaults.keys():
 		var key: String = String(key_variant)
 		if not data.has(key):
