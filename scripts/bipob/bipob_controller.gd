@@ -1166,7 +1166,7 @@ func get_mission_name(mission_index: int) -> String:
 func get_mission_goal_hint(mission_index: int) -> String:
 	match mission_index:
 		1:
-			return "Mission 1: pick up the physical key with Interact, open the door, then reach the exit."
+			return "Mission 1: pick up the key-card with Interact, open the door, then reach the exit."
 		2:
 			return "Mission 2: face the terminal, use Scan Device, then use Hack Device."
 		3:
@@ -7265,8 +7265,8 @@ func open_door(door_position: Vector2i, manipulator_module: BipobModule = null) 
 	if not require_command("open_physical_door", "Missing module: Manipulator V1 required."):
 		return
 	if not has_key:
-		print("Door is locked. Physical key required.")
-		hint_requested.emit("Physical door locked. Find the physical key first.")
+		print("Door is locked. Key-card required.")
+		hint_requested.emit("Physical door locked. Find the key-card first.")
 		return
 	
 	if not can_spend_action(1, 0):
@@ -7808,6 +7808,23 @@ func has_collected_runtime_key(key_id: String) -> bool:
 		return false
 	return bool(mission_manager.call("has_collected_key", key_id))
 
+func has_collected_mechanical_keycard() -> bool:
+	if mission_manager == null or not mission_manager.has_method("get_inventory_state"):
+		return false
+	var inventory: Dictionary = mission_manager.call("get_inventory_state")
+	var runtime_map: Dictionary = inventory.get("world_item_runtime", {})
+	var collected_key_ids: Array = inventory.get("collected_key_ids", [])
+	for key_value in collected_key_ids:
+		var key_id: String = String(key_value).strip_edges()
+		var item_runtime: Dictionary = runtime_map.get(key_id, {})
+		var item_data: Dictionary = item_runtime.get("item_data", {})
+		var item_type: String = String(item_data.get("item_type", item_data.get("object_type", key_id))).strip_edges().to_lower()
+		var key_kind: String = String(item_data.get("key_kind", item_runtime.get("key_kind", ""))).strip_edges().to_lower()
+		if key_kind == "mechanical" or item_type in ["mechanical_keycard", "mechanical_key", "key_card", "keycard"]:
+			return true
+	return false
+
+
 func has_access_for_door(world_object: Dictionary) -> bool:
 	var access_type: String = String(world_object.get("access_type", world_object.get("lock_type", ""))).strip_edges().to_lower()
 	var required_key_id: String = String(world_object.get("required_key_id", "")).strip_edges()
@@ -7876,7 +7893,10 @@ func get_available_world_actions(world_object: Dictionary, target_position: Vect
 		var control_mode: String = String(world_object.get("control_mode", "internal")).strip_edges().to_lower()
 		var linked_terminal_id: String = String(world_object.get("control_terminal_id", world_object.get("linked_terminal_id", ""))).strip_edges()
 		var requires_external_control: bool = bool(world_object.get("requires_external_control", false)) or not linked_terminal_id.is_empty()
-		if control_mode in ["external", "external_control", "external control"] and requires_external_control:
+		var has_linked_external_controller: bool = requires_external_control and not linked_terminal_id.is_empty()
+		# A stale external-control default without an actual terminal link must not
+		# suppress local mechanical open/close actions. Linked doors remain remote.
+		if control_mode in ["external", "external_control", "external control"] and has_linked_external_controller:
 			if state in ["damaged", "half_open", "jammed"] and has_heavy_claw():
 				actions.append("force_open")
 			return actions
@@ -8020,7 +8040,7 @@ func get_world_action_module(action_id: String, world_object: Dictionary) -> Dic
 			var required_key_id: String = String(world_object.get("required_key_id", "")).strip_edges()
 			if not required_key_id.is_empty() and has_collected_runtime_key(required_key_id):
 				return _module_dict("mechanical_keycard")
-			if has_key or has_held_world_item("mechanical_keycard"):
+			if has_key or has_collected_mechanical_keycard() or has_held_world_item("mechanical_keycard"):
 				return _module_dict("mechanical_keycard")
 			if has_digital_world_item("digital_key", "opened"):
 				return _module_dict("digital_key_opened")
@@ -9268,8 +9288,8 @@ func pick_up_key(key_position: Vector2i, manipulator_module: BipobModule = null)
 	has_key = true
 	grid_manager.set_tile(key_position, GridManager.TILE_FLOOR)
 	spend_action(1, 0)
-	print("Picked up physical key.")
-	hint_requested.emit("Physical key collected. Use Interact on the physical door.")
+	print("Picked up key-card.")
+	hint_requested.emit("Key-card collected. Use Interact on the physical door.")
 	print_status()
 
 func get_available_manipulator_slots() -> int:

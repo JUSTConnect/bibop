@@ -1978,7 +1978,7 @@ func _get_map_constructor_prefab_metadata_catalog() -> Dictionary:
 		"light_switch": {"display_name":"Light Switch","category":"Control","subcategory":"Lighting","placement_mode":"wall_mounted","system_roles":["signal_control","power_consumer"],"tags":["switch","light","wall"],"description":"Wall-mounted switch for lights/devices.","placement_hint":"Requires a valid adjacent wall side.","requires_wall":true,"requires_floor":true,"is_destructive":false,"is_diagnostic":false,"is_expected_invalid_tool":false,"can_have_power_network":true,"can_have_links":true,"default_state":{}},
 		"fuse_box": {"display_name":"Fuse Box","category":"Power","subcategory":"Protection","placement_mode":"wall_mounted","system_roles":["power_network","power_consumer"],"tags":["fuse","power","wall"],"description":"Wall-mounted fuse control box.","placement_hint":"Requires a valid adjacent wall side.","requires_wall":true,"requires_floor":true,"is_destructive":false,"is_diagnostic":false,"is_expected_invalid_tool":false,"can_have_power_network":true,"can_have_links":true,"default_state":{}},
 		"power_cable_reel": {"display_name":"Cable Reel","category":"Utility","subcategory":"Power Utility","placement_mode":"wall_mounted","system_roles":["power_network"],"tags":["cable","reel","wall","utility"],"description":"Wall-mounted cable utility node.","placement_hint":"Requires a valid adjacent wall side.","requires_wall":true,"requires_floor":true,"is_destructive":false,"is_diagnostic":false,"is_expected_invalid_tool":false,"can_have_power_network":true,"can_have_links":false,"default_state":{}},
-		"mechanical_key": {"display_name":"Mechanical Key","category":"Item","subcategory":"Access","placement_mode":"item","system_roles":["key_item","access_control"],"tags":["item","key","mechanical"],"description":"Physical key item for locks.","placement_hint":"Place on floor as pick-up item.","requires_wall":false,"requires_floor":true,"is_destructive":false,"is_diagnostic":false,"is_expected_invalid_tool":false,"can_have_power_network":false,"can_have_links":false,"default_state":{"item_type":"key"}},
+		"mechanical_key": {"display_name":"Key-Card","category":"Item","subcategory":"Access","placement_mode":"item","system_roles":["key_item","access_control"],"tags":["item","key","mechanical"],"description":"Physical key-card item for mechanical locks.","placement_hint":"Place on floor as pick-up item.","requires_wall":false,"requires_floor":true,"is_destructive":false,"is_diagnostic":false,"is_expected_invalid_tool":false,"can_have_power_network":false,"can_have_links":false,"default_state":{"item_type":"mechanical_keycard","key_kind":"mechanical"}},
 		"digital_key": {"display_name":"Digital Key","category":"Item","subcategory":"Access","placement_mode":"item","system_roles":["key_item","access_control"],"tags":["item","key","digital"],"description":"Digital key credential item.","placement_hint":"Place on floor as pick-up item.","requires_wall":false,"requires_floor":true,"is_destructive":false,"is_diagnostic":false,"is_expected_invalid_tool":false,"can_have_power_network":false,"can_have_links":false,"default_state":{"item_type":"digital_key"}},
 		"access_code": {"display_name":"Access Code","category":"Item","subcategory":"Credential","placement_mode":"item","system_roles":["key_item","access_control"],"tags":["item","code","credential"],"description":"Code item used for access checks.","placement_hint":"Place on floor as pick-up item.","requires_wall":false,"requires_floor":true,"is_destructive":false,"is_diagnostic":false,"is_expected_invalid_tool":false,"can_have_power_network":false,"can_have_links":false,"default_state":{"item_type":"access_code"}}
 	}
@@ -4145,7 +4145,7 @@ func get_map_constructor_property_presets(entity_kind: String, entity_id: String
 		"door": return [{"id":"open","label":"Open","group":"Door","description":"Door is open and unlocked."},{"id":"closed","label":"Closed","group":"Door","description":"Door is closed and unlocked."},{"id":"locked","label":"Locked","group":"Door","description":"Door is closed and locked."},{"id":"jammed","label":"Jammed","group":"Door","description":"Door is jammed/damaged."}]
 		"terminal": return [{"id":"linked","label":"Linked","group":"Terminal","description":"Terminal set active."},{"id":"unlinked","label":"Unlinked","group":"Terminal","description":"Clears linked targets."},{"id":"damaged","label":"Damaged","group":"Terminal","description":"Marks terminal damaged."},{"id":"encrypted","label":"Encrypted","group":"Terminal","description":"Marks terminal encrypted."}]
 		"power": return [{"id":"powered","label":"Powered","group":"Power","description":"Active powered state."},{"id":"unpowered","label":"Unpowered","group":"Power","description":"Unpowered state."},{"id":"broken","label":"Broken","group":"Power","description":"Broken/damaged state."}]
-		"item": return [{"id":"mechanical_key","label":"Mechanical Key","group":"Item","description":"Set item subtype to mechanical key."},{"id":"digital_key","label":"Digital Key","group":"Item","description":"Set item subtype to digital key."},{"id":"access_code","label":"Access Code","group":"Item","description":"Set item subtype to access code."},{"id":"fuse","label":"Fuse","group":"Item","description":"Set item subtype to fuse."},{"id":"cable","label":"Cable","group":"Item","description":"Set item subtype to cable."}]
+		"item": return [{"id":"mechanical_key","label":"Key-Card","group":"Item","description":"Set item subtype to mechanical key-card."},{"id":"digital_key","label":"Digital Key","group":"Item","description":"Set item subtype to digital key."},{"id":"access_code","label":"Access Code","group":"Item","description":"Set item subtype to access code."},{"id":"fuse","label":"Fuse","group":"Item","description":"Set item subtype to fuse."},{"id":"cable","label":"Cable","group":"Item","description":"Set item subtype to cable."}]
 	return []
 
 func apply_map_constructor_property_preset(entity_kind: String, entity_id: String, preset_id: String) -> Dictionary:
@@ -4168,7 +4168,7 @@ func apply_map_constructor_property_preset(entity_kind: String, entity_id: Strin
 			elif preset_id == "unpowered": updates={"state":"unpowered","is_powered":false}
 			elif preset_id == "broken": updates={"state":"broken","damaged":true,"broken":true}
 		"item":
-			if preset_id == "mechanical_key": updates={"item_type":"mechanical_key","object_type":"mechanical_key","key_type":"mechanical"}
+			if preset_id == "mechanical_key": updates={"item_type":"mechanical_keycard","object_type":"mechanical_keycard","key_type":"mechanical","key_kind":"mechanical","display_name":"Key-Card"}
 			elif preset_id == "digital_key": updates={"item_type":"digital_key","object_type":"digital_key","key_type":"digital"}
 			elif preset_id == "access_code": updates={"item_type":"access_code","object_type":"access_code","digital_payload_type":"access_code"}
 			elif preset_id == "fuse": updates={"item_type":"fuse","object_type":"fuse"}
@@ -4302,7 +4302,9 @@ func _normalize_map_constructor_access_type(raw_value: Variant, fallback_value: 
 		return "access_code"
 	if text in ["terminal", "terminal_access"]:
 		return "terminal_access"
-	if text in ["none", "no_key", ""]:
+	if text in ["none", "no_key", "no key"]:
+		return "none"
+	if text.is_empty():
 		return fallback_value if not fallback_value.is_empty() else "none"
 	return text
 
@@ -4501,7 +4503,12 @@ func _normalize_map_constructor_active_object_fields(object_data: Dictionary) ->
 		data["access_type"] = access_type
 		if access_type == "none":
 			data["required_key_id"] = ""
-			data["lock_type"] = ""
+			data["lock_type"] = "none"
+			if String(data.get("state", "closed")) == "locked":
+				data["state"] = "closed"
+				data["is_closed"] = true
+			data["is_locked"] = false
+			data["locked"] = false
 		elif access_type == "terminal_access":
 			data["required_key_id"] = ""
 			data["lock_type"] = "terminal_access"

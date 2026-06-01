@@ -47,7 +47,7 @@ const OBJECT_LIBRARY := {
 	"external_air_duct": {"group":"cooling","name":"External Air Duct","state":"active","cooling_device_type":"air_duct","carries_airflow":true,"passive_cooling":true,"movable":false,"material":"metal","blocks_movement":false,"blocks_vision":false,"durability":12},
 	"module_external": {"group":"item","name":"Module External","item_form":"physical","storage_type":"pocket","can_place_in_digital_buffer":false,"consumable":false,"fits_targets":[]},
 	"module_internal": {"group":"item","name":"Module Internal","item_form":"physical","storage_type":"pocket","can_place_in_digital_buffer":false,"consumable":false,"fits_targets":[]},
-	"mechanical_keycard": {"group":"item","name":"Mechanical KeyCard","item_form":"physical","storage_type":"pocket","can_place_in_digital_buffer":false,"consumable":false,"fits_targets":["door"],"key_kind":"mechanical"},
+	"mechanical_keycard": {"group":"item","name":"Key-Card","item_form":"physical","storage_type":"pocket","can_place_in_digital_buffer":false,"consumable":false,"fits_targets":["door"],"key_kind":"mechanical"},
 	"fuse": {"group":"item","name":"Fuse","item_form":"physical","storage_type":"manipulator_hold","can_place_in_digital_buffer":false,"consumable":true,"fits_targets":["fuse_box","fuse_box_empty"]},
 	"repair_kit": {"group":"item","name":"Repair Kit","item_form":"physical","storage_type":"manipulator_hold","can_place_in_digital_buffer":false,"consumable":true,"fits_targets":["door","terminal","power"]},
 	"reinforcement": {"group":"item","name":"Reinforcement","item_form":"physical","storage_type":"manipulator_hold","can_place_in_digital_buffer":false,"consumable":true,"fits_targets":["door"],"damage":2},
@@ -100,7 +100,17 @@ static func normalize_door_state_fields(object_data: Dictionary) -> Dictionary:
 	var type_text := _safe_string(object_data.get("object_type", "")).strip_edges().to_lower()
 	if group_text != "door" and not type_text.contains("door") and not type_text.contains("gate"):
 		return object_data
+	var access_type := _safe_string(object_data.get("access_type", object_data.get("lock_type", ""))).strip_edges().to_lower()
+	if access_type in ["no_key", "no key", "none"]:
+		access_type = "none"
+		object_data["access_type"] = access_type
+		object_data["lock_type"] = access_type
+		object_data["required_key_id"] = ""
 	var state := _safe_string(object_data.get("state", "closed"), "closed").strip_edges().to_lower()
+	if access_type == "none" and state == "locked":
+		state = "closed"
+		object_data["is_locked"] = false
+		object_data["locked"] = false
 	if state == "opened":
 		state = "open"
 	if state == "":
