@@ -200,9 +200,65 @@ func get_mission_display_name(mission_id: String) -> String:
 func get_current_mission_id() -> String:
 	return current_mission_id
 
+func get_mission_goal_text(mission_id: String) -> String:
+	var catalog := MissionContentCatalogRef.new()
+	return catalog.get_mission_goal_text(mission_id)
+
 func get_mission_objective_hint(mission_id: String) -> String:
 	var catalog := MissionContentCatalogRef.new()
 	return catalog.get_mission_objective_hint(mission_id)
+
+func get_current_mission_objective_view_model() -> Dictionary:
+	return get_mission_objective_view_model()
+
+func get_mission_objective_view_model(mission_id: String = "") -> Dictionary:
+	var resolved_mission_id: String = mission_id.strip_edges()
+	if resolved_mission_id.is_empty():
+		resolved_mission_id = current_mission_id.strip_edges()
+	if resolved_mission_id.is_empty():
+		return _make_mission_objective_view_model("", "", "No mission selected.", "")
+	var catalog := MissionContentCatalogRef.new()
+	if not catalog.has_mission(resolved_mission_id):
+		return _make_mission_objective_view_model(resolved_mission_id, "Unknown mission", "Objective unavailable.", "")
+	var title: String = catalog.get_mission_display_name(resolved_mission_id)
+	if title.is_empty():
+		title = catalog.get_mission_title(resolved_mission_id)
+	if title.is_empty():
+		title = "Unknown mission"
+	var goal_text: String = catalog.get_mission_goal_text(resolved_mission_id)
+	var objective_hint: String = catalog.get_mission_objective_hint(resolved_mission_id)
+	if goal_text.is_empty() and not objective_hint.contains("legacy BipobController logic"):
+		goal_text = objective_hint
+	if goal_text.is_empty():
+		goal_text = "Objective unavailable."
+	return _make_mission_objective_view_model(resolved_mission_id, title, goal_text, objective_hint)
+
+func validate_current_mission_objective_view_model() -> Array[String]:
+	var warnings: Array[String] = []
+	var view_model: Dictionary = get_current_mission_objective_view_model()
+	for required_field in ["mission_id", "title", "goal_text", "objective_hint", "progress_text", "status", "is_completed", "is_failed", "steps"]:
+		if not view_model.has(required_field):
+			warnings.append("Mission objective ViewModel is missing '%s'." % required_field)
+	if not current_mission_id.is_empty():
+		if String(view_model.get("title", "")).strip_edges().is_empty():
+			warnings.append("Active mission objective ViewModel title must not be empty.")
+		if String(view_model.get("goal_text", "")).strip_edges().is_empty() and String(view_model.get("objective_hint", "")).strip_edges().is_empty():
+			warnings.append("Active mission objective ViewModel must provide goal_text or objective_hint.")
+	return warnings
+
+func _make_mission_objective_view_model(mission_id: String, title: String, goal_text: String, objective_hint: String) -> Dictionary:
+	return {
+		"mission_id": mission_id,
+		"title": title,
+		"goal_title": "Goal",
+		"goal_text": goal_text,
+		"objective_hint": objective_hint,
+		"progress_text": "",
+		"status": "active",
+		"is_completed": false,
+		"is_failed": false,
+		"steps": []
+	}
 
 func get_mission_start_cell(mission_id: String) -> Vector2i:
 	var catalog := MissionContentCatalogRef.new()
