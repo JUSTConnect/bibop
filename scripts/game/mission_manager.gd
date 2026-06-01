@@ -151,6 +151,8 @@ const MAP_CONSTRUCTOR_WALL_MOUNTED_PREFABS: Dictionary = {
 	"cooling_terminal": true
 }
 
+# Compatibility-only inventory of historic constructor solids. Runtime placement
+# resolves solidity through WorldObjectCatalogRef.is_constructor_solid_prefab().
 const MAP_CONSTRUCTOR_SOLID_PREFABS: Array[String] = [
 	"outer_wall","brick_wall","concrete_wall","steel_wall","grate_wall",
 	"steel_door","reinforced_steel_door","titanium_door","energy_door","grid_door",
@@ -300,6 +302,7 @@ func validate_architecture_contracts() -> Dictionary:
 	var sections: Array[Dictionary] = []
 	sections.append(_make_architecture_validation_section("object_registry", "Object Registry", WorldObjectCatalogRef.validate_object_registry_contract()))
 	sections.append(_make_architecture_validation_section("door_contract", "Door Contract", _validate_current_door_contracts()))
+	sections.append(_make_architecture_validation_section("legacy_boundary", "Legacy Compatibility Boundary", _validate_legacy_compatibility_boundary()))
 	var constructor_validation_service: MapConstructorValidationService = MapConstructorValidationServiceRef.new(self)
 	sections.append(_make_architecture_validation_section("constructor_palette", "Constructor Palette", constructor_validation_service.validate_constructor_palette_contract()))
 	sections.append(_make_architecture_validation_section("task_test_objects", "TASK TEST Objects", _validate_task_test_object_contracts()))
@@ -360,6 +363,28 @@ func _validate_current_door_contracts() -> Array[String]:
 			var power_behavior: String = String(object_data.get("power_behavior", "")).strip_edges().to_lower()
 			if power_behavior not in [WorldObjectCatalogRef.POWER_BEHAVIOR_NONE, WorldObjectCatalogRef.POWER_BEHAVIOR_OPENS_WHEN_UNPOWERED]:
 				warnings.append("powered_door_power_behavior_unknown_%s_%s" % [object_id, power_behavior])
+	return warnings
+
+func _validate_legacy_compatibility_boundary() -> Array[String]:
+	var warnings: Array[String] = []
+	for object_data in mission_world_objects:
+		var object_id: String = String(object_data.get("id", "unnamed_object"))
+		var object_type: String = String(object_data.get("object_type", "")).strip_edges().to_lower()
+		if WorldObjectCatalogRef.is_legacy_door_object_type(object_type):
+			warnings.append("legacy_runtime_object_type_%s_%s" % [object_id, object_type])
+		if String(object_data.get("access_type", "")).strip_edges().to_lower() == "none":
+			warnings.append("legacy_access_type_none_%s" % object_id)
+		if object_data.has("lock_type") and not object_data.has("access_type"):
+			warnings.append("legacy_lock_type_without_access_type_%s" % object_id)
+		if String(object_data.get("object_group", "")).strip_edges().to_lower() == "door" and WorldObjectCatalogRef.is_material_named_door_object_type(object_type) and String(object_data.get("door_type", "")).strip_edges().is_empty():
+			warnings.append("material_named_door_missing_mechanism_%s_%s" % [object_id, object_type])
+		for field_variant in object_data.keys():
+			var field_name: String = String(field_variant)
+			if field_name in WorldObjectCatalogRef.LEGACY_SOURCE_METADATA_FIELDS:
+				continue
+			var field_value: Variant = object_data.get(field_variant)
+			if field_value is String and WorldObjectCatalogRef.is_legacy_prefab_alias(String(field_value)) and field_name != "object_type":
+				warnings.append("legacy_prefab_id_outside_metadata_%s_%s_%s" % [object_id, field_name, String(field_value)])
 	return warnings
 
 func _validate_task_test_object_contracts() -> Array[String]:
@@ -2793,7 +2818,7 @@ func can_place_map_constructor_prefab(prefab_id: String, cell: Vector2i, preferr
 		result["reason"] = "existing_object"
 		result["message"] = "Blocked: existing object."
 		return result
-	if bool(cell_state.get("has_object", false)) and bool(cell_state.get("blocks_movement", false)) and MAP_CONSTRUCTOR_SOLID_PREFABS.has(prefab_id):
+	if bool(cell_state.get("has_object", false)) and bool(cell_state.get("blocks_movement", false)) and WorldObjectCatalogRef.is_constructor_solid_prefab(prefab_id):
 		result["reason"] = "wall_or_static"
 		result["message"] = "Blocked: wall/static obstacle."
 		return result
@@ -3849,8 +3874,9 @@ func get_map_constructor_key_door_link_candidates(entity_kind: String, entity_id
 		var door_id: String = String(door_data.get("id", "")).strip_edges()
 		if door_id.is_empty():
 			continue
-		var lock_type: String = String(door_data.get("lock_type", "")).strip_edges().to_lower()
-		if not key_kind.is_empty() and not lock_type.is_empty() and lock_type != "none" and not lock_type.contains(key_kind) and not key_kind.contains(lock_type):
+		var access_type: String = WorldObjectCatalogRef.normalize_access_type(door_data.get("access_type", door_data.get("lock_type", "")))
+		var key_access_type: String = WorldObjectCatalogRef.normalize_access_type(key_kind)
+		if not key_kind.is_empty() and access_type != WorldObjectCatalogRef.ACCESS_TYPE_NO_KEY and access_type != key_access_type:
 			continue
 		var linked_key_id: String = _map_constructor_get_linked_key_for_door(door_id)
 		if not linked_key_id.is_empty() and linked_key_id != entity_id and door_id != current_door_id:
@@ -4524,28 +4550,19 @@ func _map_constructor_link_target_exists_for_field(field_name: String, target_id
 
 
 func _normalize_map_constructor_access_type(raw_value: Variant, fallback_value: String = "") -> String:
-	var text: String = String(raw_value).strip_edges().to_lower()
-	if text in ["mechanical", "mechanical_key", "key", "mechanical_keycard"]:
-		return "mechanical_key"
-	if text in ["digital", "digital_key"]:
-		return "digital_key"
-	if text in ["password", "code", "access_code"]:
-		return "access_code"
-	if text in ["terminal", "terminal_access"]:
-		return "terminal_access"
-	if text in ["none", "no_key", "no key"]:
-		return "none"
-	if text.is_empty():
-		return fallback_value if not fallback_value.is_empty() else "none"
-	return text
+	var normalized_access_type: String = WorldObjectCatalogRef.normalize_access_type(raw_value)
+	if String(raw_value).strip_edges().is_empty() and not fallback_value.is_empty():
+		return WorldObjectCatalogRef.normalize_access_type(fallback_value)
+	return normalized_access_type
 
 func _default_map_constructor_access_type_for_object(object_data: Dictionary) -> String:
 	var classifier: String = "%s %s %s" % [String(object_data.get("object_type", "")).to_lower(), String(object_data.get("map_constructor_prefab_id", "")).to_lower(), String(object_data.get("display_name", "")).to_lower()]
 	if classifier.contains("powered_gate") or classifier.contains("gate"):
-		return "none"
-	if classifier.contains("digital") or String(object_data.get("lock_type", "")).to_lower() in ["digital_key", "password", "access_code"]:
-		return "digital_key"
-	return "mechanical_key"
+		return WorldObjectCatalogRef.ACCESS_TYPE_NO_KEY
+	var access_type: String = WorldObjectCatalogRef.normalize_access_type(object_data.get("access_type", object_data.get("lock_type", "")))
+	if classifier.contains("digital") or access_type in [WorldObjectCatalogRef.ACCESS_TYPE_DIGITAL_KEY, WorldObjectCatalogRef.ACCESS_TYPE_ACCESS_CODE, WorldObjectCatalogRef.ACCESS_TYPE_TERMINAL]:
+		return WorldObjectCatalogRef.ACCESS_TYPE_DIGITAL_KEY
+	return WorldObjectCatalogRef.ACCESS_TYPE_KEY_CARD
 
 func _normalize_map_constructor_active_object_fields(object_data: Dictionary) -> Dictionary:
 	var data: Dictionary = object_data.duplicate(true)
@@ -4732,7 +4749,7 @@ func _normalize_map_constructor_active_object_fields(object_data: Dictionary) ->
 		var default_access: String = _default_map_constructor_access_type_for_object(data)
 		var access_type: String = _normalize_map_constructor_access_type(data.get("access_type", data.get("lock_type", "")), default_access)
 		data["access_type"] = access_type
-		if access_type == "none":
+		if access_type == WorldObjectCatalogRef.ACCESS_TYPE_NO_KEY:
 			data["required_key_id"] = ""
 			data["lock_type"] = "none"
 			if String(data.get("state", "closed")) == "locked":
@@ -4740,16 +4757,16 @@ func _normalize_map_constructor_active_object_fields(object_data: Dictionary) ->
 				data["is_closed"] = true
 			data["is_locked"] = false
 			data["locked"] = false
-		elif access_type == "terminal_access":
+		elif access_type == WorldObjectCatalogRef.ACCESS_TYPE_TERMINAL:
 			data["required_key_id"] = ""
-			data["lock_type"] = "terminal_access"
+			data["lock_type"] = "terminal_lock"
 			if String(data.get("access_terminal_id", "")).strip_edges().is_empty():
 				data["access_terminal_id"] = terminal_id
 			if control_mode == "external" and not terminal_id.is_empty():
 				data["access_terminal_id"] = terminal_id
 		else:
-			data["lock_type"] = access_type
-			if access_type == "access_code" and String(data.get("access_code_value", "")).strip_edges().is_empty():
+			data["lock_type"] = "mechanical_key" if access_type == WorldObjectCatalogRef.ACCESS_TYPE_KEY_CARD else access_type
+			if access_type == WorldObjectCatalogRef.ACCESS_TYPE_ACCESS_CODE and String(data.get("access_code_value", "")).strip_edges().is_empty():
 				var seed: int = abs(hash(String(data.get("id", "access_code")))) % 10000
 				data["access_code_value"] = "%04d" % seed
 	return data
@@ -5128,8 +5145,8 @@ func get_map_constructor_autofix_preview(fix_type: String, options: Dictionary =
 				for cell_variant in cell_items.keys():
 					for item_variant in Array(cell_items.get(cell_variant, [])):
 						var item: Dictionary = _safe_dictionary(item_variant)
-						var item_type: String = String(item.get("item_type", item.get("object_type", ""))).to_lower()
-						if item_type in ["mechanical_keycard", "digital_key", "access_code"]:
+						var storage_class: String = WorldObjectCatalogRef.get_item_storage_class(item)
+						if storage_class in [WorldObjectCatalogRef.ITEM_STORAGE_CLASS_KEY_CARD, WorldObjectCatalogRef.ITEM_STORAGE_CLASS_DIGITAL]:
 							keys.append(String(item.get("id", "")))
 				if keys.size() == 1:
 					fixes.append({"entity_kind":entity_kind,"entity_id":entity_id,"field_name":"required_key_id","old_value":"","new_value":keys[0],"cell":Vector2i(entity_info.get("cell", Vector2i(-1,-1))),"description":"Set required_key_id on %s" % entity_id})
@@ -5661,9 +5678,9 @@ func _is_power_reactive_door_object(object_data: Dictionary) -> bool:
 	var material := _normalize_power_consumer_text(normalized_door.get("material", ""))
 	if object_group == "door" and _door_is_powered_mechanism(normalized_door):
 		return true
-	if object_type in ["energy_door", "grid_door", "power_door", "electromagnetic_door"]:
+	if object_type in ["grid_door", "power_door", "electromagnetic_door"]:
 		return true
-	if object_group == "door" and (material in ["electromagnetic", "energy", "grid"] or object_type.find("electromagnetic") != -1 or object_type.find("energy") != -1 or object_type.find("grid") != -1):
+	if object_group == "door" and (material in ["electromagnetic", "energy", "grid"] or object_type.find("electromagnetic") != -1 or object_type.find("grid") != -1):
 		return true
 	return false
 
@@ -5856,7 +5873,9 @@ func _is_power_load_consumer_object(object_data: Dictionary) -> bool:
 		return true
 	if object_group == "terminal" or object_type in ["terminal", "door_terminal", "information_terminal"]:
 		return true
-	if object_type in ["energy_door", "energy_wall", "electromagnetic_door", "electromagnetic_wall", "grid_door", "grid_wall"]:
+	if object_group == "door" and String(object_data.get("material", "")).strip_edges().to_lower() == WorldObjectCatalogRef.DOOR_MATERIAL_ENERGY:
+		return true
+	if object_type in ["energy_wall", "electromagnetic_door", "electromagnetic_wall", "grid_door", "grid_wall"]:
 		return true
 	if object_type in ["platform", "lifting_platform", "rotating_platform", "lift"]:
 		return true
@@ -10291,14 +10310,14 @@ func can_use_access_item_on_door(item_id: String, door_id: String) -> Dictionary
 	var has_collected_item := has_collected_key(normalized_item_id)
 	if item.is_empty() and not has_collected_item:
 		return {"success":false, "item_id":normalized_item_id, "door_id":normalized_door_id, "reasons":["item_missing"]}
-	var lock_type := String(normalized_door.get("lock_type", "none"))
+	var access_type: String = _get_door_access_type(normalized_door)
 	var digital_state := String(item.get("digital_state", ""))
 	if normalized_item_id.find("damaged") != -1 or digital_state == "damaged":
 		return {"success":false, "item_id":normalized_item_id, "door_id":normalized_door_id, "reasons":["digital_key_damaged"]}
 	if normalized_item_id.find("encrypted") != -1 or digital_state == "encrypted":
 		return {"success":false, "item_id":normalized_item_id, "door_id":normalized_door_id, "reasons":["digital_key_encrypted"]}
 	var key_kind := String(item.get("key_kind", "")).strip_edges()
-	if lock_type == "mechanical_key" and not key_kind.is_empty() and key_kind != "mechanical":
+	if access_type == WorldObjectCatalogRef.ACCESS_TYPE_KEY_CARD and not key_kind.is_empty() and WorldObjectCatalogRef.normalize_key_item_type(item.get("item_type", key_kind)) != WorldObjectCatalogRef.KEY_ITEM_TYPE_KEY_CARD:
 		return {"success":false, "item_id":normalized_item_id, "door_id":normalized_door_id, "reasons":["wrong_key_type"]}
 	return {"success":true, "item_id":normalized_item_id, "door_id":normalized_door_id, "reasons":["ok"]}
 
@@ -10359,7 +10378,7 @@ func use_inventory_item_on_world_object(item_id: String, target_id: String, acti
 		out["success"] = bool(report.get("success", false))
 		out["reasons"] = report.get("reasons", ["cable_connect_failed"])
 		out["side_effects"] = report
-	elif item_type in ["mechanical_keycard", "digital_key", "access_code"]:
+	elif WorldObjectCatalogRef.is_key_card_item(item) or WorldObjectCatalogRef.is_digital_inventory_item(item):
 		var access_report := use_access_item_on_door(item_id, target_id)
 		out["success"] = bool(access_report.get("success", false))
 		out["reasons"] = access_report.get("reasons", ["access_denied"])
@@ -10798,28 +10817,28 @@ func classify_task_test_object_for_audit(object_data: Dictionary) -> Array[Strin
 	var object_type: String = String(object_data.get("object_type", ""))
 	var item_type: String = String(object_data.get("item_type", object_type))
 	var state: String = String(object_data.get("state", "")).to_lower()
-	var lock_type: String = String(object_data.get("lock_type", "")).to_lower()
+	var access_type: String = WorldObjectCatalogRef.normalize_access_type(object_data.get("access_type", object_data.get("lock_type", "")))
 	if group == "door":
 		var is_open := state == "open" or bool(object_data.get("is_open", false))
 		var is_closed := state == "closed"
 		var is_damaged_or_jammed := state in ["damaged", "jammed"] or bool(object_data.get("damaged", false))
 		if is_open:
 			tags.append("door_open")
-			if object_type in ["steel_door", "reinforced_steel_door", "titanium_door", "grid_door"]:
+			if String(object_data.get("door_type", "")) == WorldObjectCatalogRef.DOOR_TYPE_MECHANICAL:
 				tags.append("open_mechanical_door")
-			if object_type == "energy_door":
+			if String(object_data.get("door_type", "")) == WorldObjectCatalogRef.DOOR_TYPE_DIGITAL:
 				tags.append("open_digital_door")
 		if is_closed:
 			tags.append("door_closed")
-			if object_type in ["steel_door", "reinforced_steel_door", "titanium_door", "grid_door"]:
+			if String(object_data.get("door_type", "")) == WorldObjectCatalogRef.DOOR_TYPE_MECHANICAL:
 				tags.append("closed_mechanical_door")
-		if lock_type == "mechanical_key":
+		if access_type == WorldObjectCatalogRef.ACCESS_TYPE_KEY_CARD:
 			tags.append("door_locked_mechanical")
 			tags.append("locked_mechanical_key_door")
-		if lock_type == "digital_key":
+		if access_type == WorldObjectCatalogRef.ACCESS_TYPE_DIGITAL_KEY:
 			tags.append("door_locked_digital")
 			tags.append("locked_digital_key_door")
-		if lock_type == "terminal_lock":
+		if access_type == WorldObjectCatalogRef.ACCESS_TYPE_TERMINAL:
 			tags.append("door_terminal_locked")
 			tags.append("terminal_locked_door")
 		if bool(object_data.get("requires_external_power", false)):
@@ -10832,7 +10851,7 @@ func classify_task_test_object_for_audit(object_data: Dictionary) -> Array[Strin
 			tags.append("door_damaged")
 			tags.append("damaged_or_jammed_door")
 	if group == "item":
-		if item_type == "mechanical_keycard":
+		if WorldObjectCatalogRef.is_key_card_item(object_data):
 			tags.append("mechanical_key")
 			tags.append("key_mechanical")
 		if item_type == "digital_key":
@@ -10926,12 +10945,12 @@ func get_task_test_system_audit_report() -> Dictionary:
 			var runtime_state: Dictionary = get_runtime_cell_state(cell)
 			var is_passable := bool(runtime_state.get("is_passable", false))
 			var state: String = String(object_data.get("state", "")).to_lower()
-			var lock_type: String = String(object_data.get("lock_type", "")).to_lower()
+			var access_type: String = WorldObjectCatalogRef.normalize_access_type(object_data.get("access_type", object_data.get("lock_type", "")))
 			if (state == "open" or bool(object_data.get("is_open", false))) and is_passable:
 				tags.append("door_open_passable")
 				has_open_passable_door = true
 			var closed_like := state in ["closed", "locked", "unpowered", "damaged", "jammed"] or bool(object_data.get("is_locked", false))
-			if lock_type in ["mechanical_key", "digital_key", "terminal_lock"]:
+			if access_type != WorldObjectCatalogRef.ACCESS_TYPE_NO_KEY:
 				closed_like = true
 			if closed_like and not is_passable:
 				tags.append("door_closed_not_passable")
@@ -11104,7 +11123,8 @@ func validate_task_test_runtime_cell_states() -> Array[String]:
 		var linked_terminal_id: String = String(object_data.get("linked_terminal_id", "")).strip_edges()
 		if not linked_terminal_id.is_empty() and not object_ids.has(linked_terminal_id):
 			warnings.append("linked_terminal_missing_%s_%s" % [object_id, linked_terminal_id])
-		if (bool(object_data.get("requires_key", false)) or String(object_data.get("lock_type", "")) == "mechanical_key" or String(object_data.get("lock_type", "")) == "digital_key") and String(object_data.get("required_key_id", "")).is_empty():
+		var access_type: String = WorldObjectCatalogRef.normalize_access_type(object_data.get("access_type", object_data.get("lock_type", "")))
+		if (bool(object_data.get("requires_key", false)) or access_type in [WorldObjectCatalogRef.ACCESS_TYPE_KEY_CARD, WorldObjectCatalogRef.ACCESS_TYPE_DIGITAL_KEY]) and String(object_data.get("required_key_id", "")).is_empty():
 			warnings.append("key_locked_door_missing_required_key_%s" % object_id)
 		var required_key_id: String = String(object_data.get("required_key_id", ""))
 		if not required_key_id.is_empty() and not task_item_ids.has(required_key_id):

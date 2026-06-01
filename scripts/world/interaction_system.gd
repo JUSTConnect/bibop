@@ -142,7 +142,7 @@ static func apply_action(actor: Dictionary, module: Dictionary, target_object: D
 			if module_id == "digital_key_damaged":
 				return _result(false, "File rejected: damaged.")
 		"input_password":
-			if target_object.get("lock_type", "") != "password":
+			if _get_door_access_type(target_object) != WorldObjectCatalogRef.ACCESS_TYPE_ACCESS_CODE:
 				return _result(false, "Password lock not present.")
 			if module.get("input_password", "") == target_object.get("password", "") and module.get("input_password", "") != "":
 				target_object["state"] = "closed"
@@ -154,7 +154,7 @@ static func apply_action(actor: Dictionary, module: Dictionary, target_object: D
 				target_object["is_powered"] = false
 				return _result(true, "Cable cut.", [{"type":"power_recalc_needed"},{"type":"set_state","state":"damaged"}])
 			if group == "door" and module_id == "plasma_cutter_v1":
-				if target_object.get("object_type", "") == "energy_door" and target_object.get("is_powered", true):
+				if target_object.get("material", "") == WorldObjectCatalogRef.DOOR_MATERIAL_ENERGY and target_object.get("is_powered", true):
 					return _result(false, "Plasma cutter has no effect.")
 				if target_object.get("material", "") in ["steel", "reinforced_steel"]:
 					target_object["state"] = "damaged"
@@ -167,22 +167,22 @@ static func apply_action(actor: Dictionary, module: Dictionary, target_object: D
 			if module_id == "sledgehammer_v1" and group == "door":
 				var hits: int = int(target_object.get("impact_hits", 0)) + 1
 				target_object["impact_hits"] = hits
-				match target_object.get("object_type", ""):
-					"grid_door":
-						if hits >= 2:
-							target_object["state"] = "destroyed"
-							target_object["blocks_movement"] = false
-							return _result(true, "Grid door destroyed.", [{"type":"set_state","state":"destroyed"},{"type":"set_blocks_movement","value":false}])
-					"steel_door":
-						if hits >= 2:
-							target_object["state"] = "damaged"
-							return _result(true, "Steel door damaged.")
-					"reinforced_steel_door":
-						if hits >= 3:
-							target_object["state"] = "damaged"
-							return _result(true, "Reinforced steel door damaged.")
-					"titanium_door":
-						return _result(false, "Impact ineffective.")
+				var material: String = String(target_object.get("material", ""))
+				if String(target_object.get("object_type", "")) == "grid_door":
+					if hits >= 2:
+						target_object["state"] = "destroyed"
+						target_object["blocks_movement"] = false
+						return _result(true, "Grid door destroyed.", [{"type":"set_state","state":"destroyed"},{"type":"set_blocks_movement","value":false}])
+				elif material == WorldObjectCatalogRef.DOOR_MATERIAL_STEEL:
+					if hits >= 2:
+						target_object["state"] = "damaged"
+						return _result(true, "Steel door damaged.")
+				elif material == WorldObjectCatalogRef.DOOR_MATERIAL_REINFORCED_STEEL:
+					if hits >= 3:
+						target_object["state"] = "damaged"
+						return _result(true, "Reinforced steel door damaged.")
+				elif material == WorldObjectCatalogRef.DOOR_MATERIAL_TITANIUM:
+					return _result(false, "Impact ineffective.")
 				return _result(true, "Impact applied.")
 			if module_id == "sledgehammer_v1" and group == "wall":
 				if String(target_object.get("state", "")) == "damaged":
@@ -517,7 +517,4 @@ static func _result(success: bool, message: String, effects: Array = [], reason:
 
 
 static func _is_keycard_item(item_data: Dictionary) -> bool:
-	var item_type: String = String(item_data.get("item_type", item_data.get("object_type", ""))).strip_edges().to_lower()
-	item_type = item_type.replace(" ", "_").replace("-", "_")
-	var key_kind: String = String(item_data.get("key_kind", "")).strip_edges().to_lower()
-	return key_kind == "mechanical" or item_type in ["mechanical_key", "mechanical_keycard", "key_card", "keycard"]
+	return WorldObjectCatalogRef.is_key_card_item(item_data)

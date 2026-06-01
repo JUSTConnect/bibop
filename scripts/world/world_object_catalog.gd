@@ -35,6 +35,8 @@ const PREFAB_ALIASES: Dictionary = {
 	"powered_gate": "energy_door"
 }
 
+const LEGACY_SOURCE_METADATA_FIELDS: Array[String] = ["legacy_prefab_id", "map_constructor_prefab_id", "legacy_object_type", "source_prefab_id"]
+
 const PREFAB_ALIAS_DEFAULTS: Dictionary = {
 	"mechanical_door": {"object_group":"door", "door_type":DOOR_TYPE_MECHANICAL, "access_type":ACCESS_TYPE_KEY_CARD},
 	"digital_door": {"object_group":"door", "door_type":DOOR_TYPE_DIGITAL, "access_type":ACCESS_TYPE_DIGITAL_KEY},
@@ -79,8 +81,47 @@ static func canonical_prefab_id(prefab_id: String) -> String:
 static func canonical_object_type(object_type: String) -> String:
 	return canonical_prefab_id(object_type)
 
-static func is_legacy_prefab_alias(object_type: String) -> bool:
-	return PREFAB_ALIASES.has(object_type.strip_edges().to_lower())
+static func is_legacy_prefab_alias(value: String) -> bool:
+	return PREFAB_ALIASES.has(value.strip_edges().to_lower())
+
+static func is_legacy_door_object_type(value: String) -> bool:
+	return is_legacy_prefab_alias(value)
+
+static func is_material_named_door_object_type(value: String) -> bool:
+	return DOOR_MATERIAL_BY_OBJECT_TYPE.has(value.strip_edges().to_lower())
+
+static func get_legacy_source_id(object_data: Dictionary) -> String:
+	for field_name in LEGACY_SOURCE_METADATA_FIELDS:
+		var source_id: String = _normalized_contract_token(object_data.get(field_name, ""))
+		if not source_id.is_empty():
+			return source_id
+	return ""
+
+static func mark_legacy_source(object_data: Dictionary, source_id: String) -> Dictionary:
+	var data: Dictionary = object_data.duplicate(true)
+	var normalized_source_id: String = _normalized_contract_token(source_id)
+	if normalized_source_id.is_empty():
+		return data
+	data["source_prefab_id"] = normalized_source_id
+	if is_legacy_prefab_alias(normalized_source_id):
+		data["legacy_prefab_id"] = normalized_source_id
+	return data
+
+static func canonicalize_legacy_object_data(object_data: Dictionary) -> Dictionary:
+	var data: Dictionary = object_data.duplicate(true)
+	if data.is_empty():
+		return data
+	var original_object_type: String = _normalized_contract_token(data.get("object_type", ""))
+	var source_id: String = _normalized_contract_token(data.get("map_constructor_prefab_id", original_object_type))
+	if is_legacy_prefab_alias(original_object_type):
+		data = mark_legacy_source(data, original_object_type)
+		data["legacy_object_type"] = original_object_type
+		data["object_type"] = canonical_prefab_id(original_object_type)
+	elif is_legacy_prefab_alias(source_id):
+		data = mark_legacy_source(data, source_id)
+	if data.has("access_type") or data.has("lock_type"):
+		data["access_type"] = normalize_access_type(data.get("access_type", data.get("lock_type", ACCESS_TYPE_NO_KEY)))
+	return data
 
 static func get_prefab_alias_defaults(prefab_id: String) -> Dictionary:
 	var normalized_prefab_id: String = prefab_id.strip_edges().to_lower()
@@ -143,6 +184,10 @@ static func _build_constructor_palette_row(prefab_id: String, canonical_type: St
 			row[field_name] = definition.get(field_name, "")
 	return row
 
+static func is_constructor_solid_prefab(prefab_id: String) -> bool:
+	var object_data: Dictionary = create_world_object(prefab_id, "constructor_solid_preview")
+	return not object_data.is_empty() and bool(object_data.get("blocks_movement", false))
+
 static func get_constructor_placeable_door_types() -> Array[String]:
 	var door_types: Array[String] = []
 	for object_type_variant in OBJECT_LIBRARY.keys():
@@ -157,6 +202,8 @@ static func apply_prefab_alias_defaults(canonical_type: String, original_type: S
 	var data: Dictionary = object_data.duplicate(true)
 	var normalized_original_type: String = original_type.strip_edges().to_lower()
 	data["object_type"] = canonical_type
+	if is_legacy_prefab_alias(normalized_original_type):
+		data = mark_legacy_source(data, normalized_original_type)
 	var defaults: Dictionary = get_prefab_alias_defaults(normalized_original_type)
 	if defaults.is_empty():
 		return normalize_world_object_contract(data)
@@ -268,11 +315,11 @@ static func normalize_access_type(value: Variant) -> String:
 	match access_type:
 		"", "none", "no_key":
 			return ACCESS_TYPE_NO_KEY
-		"mechanical_key", "mechanical_keycard", "keycard", "key_card":
+		"mechanical", "mechanical_key", "mechanical_keycard", "keycard", "key_card":
 			return ACCESS_TYPE_KEY_CARD
-		"digital_key":
+		"digital", "digital_key":
 			return ACCESS_TYPE_DIGITAL_KEY
-		"terminal_lock", "terminal":
+		"terminal_access", "terminal_lock", "terminal":
 			return ACCESS_TYPE_TERMINAL
 		"password", "code", "access_code":
 			return ACCESS_TYPE_ACCESS_CODE
@@ -400,7 +447,7 @@ static func normalize_door_contract(object_data: Dictionary) -> Dictionary:
 	return data
 
 static func normalize_world_object_contract(object_data: Dictionary) -> Dictionary:
-	var data: Dictionary = object_data.duplicate(true)
+	var data: Dictionary = canonicalize_legacy_object_data(object_data)
 	if data.is_empty():
 		return data
 	var object_type: String = _normalized_contract_token(data.get("object_type", ""))
