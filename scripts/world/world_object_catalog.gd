@@ -1018,7 +1018,14 @@ static func get_archetype_definition(archetype_id: String) -> Dictionary:
 	return definition.duplicate(true) if definition is Dictionary else {}
 
 static func get_archetype_property_schema(archetype_id: String) -> Array[Dictionary]:
-	return Array(get_archetype_definition(archetype_id).get("property_schema", [])).duplicate(true)
+	var result: Array[Dictionary] = []
+	var definition: Dictionary = get_archetype_definition(archetype_id)
+	var raw_schema: Variant = definition.get("property_schema", [])
+	if raw_schema is Array:
+		for entry_variant in raw_schema:
+			if entry_variant is Dictionary:
+				result.append(Dictionary(entry_variant).duplicate(true))
+	return result
 
 static func get_archetype_id_for_object(object_data: Dictionary) -> String:
 	var explicit_id: String = _normalized_contract_token(object_data.get("archetype_id", ""))
