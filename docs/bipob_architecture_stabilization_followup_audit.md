@@ -29,6 +29,7 @@
 - Door contract пока смешивает material-named object_type и canonical door fields.
 - Validation местами мутирует live runtime state.
 - MissionManager остаётся God-object и содержит слишком много систем одновременно.
+- Палитра Map Constructor допускает комбинаторный взрыв вариантов одного объекта.
 ```
 
 ---
@@ -158,7 +159,7 @@ access_type = no_key / key_card / digital_key / access_code / terminal
 
 Нужно выбрать один финальный contract.
 
-Если `steel_door` остаётся runtime object_type, это нужно явно признать в плане и validation. Если нет — `steel_door` должен быть только alias/editor preset.
+`steel_door`, `titanium_door`, `energy_door`, `mechanical_door`, `digital_door`, `powered_gate` и любые их комбинации не должны быть пользовательскими объектами палитры. Если они нужны для старых данных, они остаются только скрытыми compatibility aliases на входе normalization/load/import.
 
 ---
 
@@ -312,7 +313,340 @@ PowerRuntimeService / CoolingRuntimeService
 
 ---
 
-## 7. Обновлённый порядок доработок
+## 7. Глобальный configurable-object contract
+
+Это должно быть системное изменение для всей игры, а не door-only или wall-only hardcode.
+
+Общее правило:
+
+```text
+Map Constructor palette = базовые archetypes.
+Property panel = настраиваемые параметры archetype.
+Runtime = normalized canonical object data.
+HUD/actions/validation/save/load/TASK TEST = читают тот же normalized contract.
+```
+
+Запрещено создавать пользовательские объекты палитры как комбинации параметров:
+
+```text
+Digital Steel Door
+Titanium Mechanical Door
+Brick Wall
+Concrete Wall
+Reinforced Steel Wall
+Damaged Steel Wall
+Locked Titanium Door
+```
+
+Вместо этого:
+
+```text
+Door → door_type/material/access_type/power/control/state/allowed_states
+Wall → material
+External Wall → fixed non-configurable archetype
+Terminal → terminal_kind/interface/required_level/state
+Power Source → source_type/output/network/state
+Platform → platform_type/timer/trigger/state
+Item → item_class/storage_route/state
+```
+
+Каждый archetype должен иметь:
+
+```text
+- archetype_id
+- object_group
+- canonical object_type или compatibility runtime object_type
+- property_schema
+- default_data
+- display_name_template или display_name generator
+- validation rules
+- state sync rules
+- compatibility aliases, если нужны для старых данных
+```
+
+Все пути создания объектов обязаны проходить через один normalization pipeline:
+
+```text
+Catalog/archetype definition
+→ default data
+→ property overrides
+→ normalized runtime object
+→ derived state flags
+→ validation
+```
+
+Это распространяется на:
+
+```text
+- Map Constructor placement;
+- property edits;
+- prefab kit application;
+- room template application;
+- patch import;
+- TASK TEST construction;
+- saved data loading;
+- runtime spawning, если он появится позже.
+```
+
+Палитра редактора карты должна генерироваться из archetype registry. UI не должен иметь собственную истину о списке объектов.
+
+Property panel должен быть schema-driven. Он должен читать property_schema archetype и рендерить поля:
+
+```text
+- enum selector;
+- enum array selector;
+- bool toggle;
+- int field;
+- string/id field;
+- object reference selector;
+- read-only generated display name.
+```
+
+Runtime values всегда canonical English ids. Русские названия — только display labels.
+
+---
+
+## 8. Door archetype как первый configurable-object consumer
+
+Палитра должна показывать один объект:
+
+```text
+Door / Дверь
+```
+
+Не показывать:
+
+```text
+Steel Door
+Titanium Door
+Digital Door
+Digital Steel Door
+Digital Titanium Door
+Mechanical Titanium Door
+Energy Door
+Powered Gate
+```
+
+Не добавлять quick presets.
+
+Legacy door ids разрешены только как скрытые compatibility aliases для load/import/normalization. Они не должны быть видны в:
+
+```text
+- primary Map Constructor palette;
+- quick presets;
+- prefab kits как selectable variants;
+- room templates как selectable variants;
+- editor search results;
+- user-facing object list.
+```
+
+Door property_schema:
+
+```text
+door_type: mechanical | digital | powered
+material: steel | reinforced_steel | titanium | energy
+access_type: no_key | key_card | digital_key | access_code | terminal
+door_class: 1 | 2 | 3
+power_type: internal | external | none
+control_type: internal | external | terminal
+power_behavior: none | opens_when_unpowered | requires_power_to_open
+state: closed | open | damaged | jammed | locked | unpowered
+allowed_states: closed/open/damaged/jammed/locked/unpowered
+required_key_id
+required_terminal_id
+required_access_code_id
+required_digital_key_id
+required_manipulator_level
+required_connector_level
+required_processor_level
+```
+
+Current state должен храниться в одном поле:
+
+```text
+state = closed
+```
+
+Возможные состояния:
+
+```text
+allowed_states = [closed, open, damaged]
+```
+
+Не использовать `is_close`, `is_open`, `is_damage` как source of truth. Derived flags допустимы только как совместимость и должны синхронизироваться из `state` одним helper-ом.
+
+Display name генерируется из config:
+
+```text
+material = titanium
+door_type = mechanical
+→ Titanium Mechanical Door / Титановая механическая дверь
+```
+
+---
+
+## 9. Wall archetype requirements
+
+Палитра Map Constructor должна содержать ровно два wall entries:
+
+```text
+External Wall / Стена внешняя
+Wall / Стена
+```
+
+### 9.1 External Wall / Стена внешняя
+
+Это отдельный фиксированный archetype, а не вариант обычной стены.
+
+Runtime canonical data:
+
+```gdscript
+{
+	"archetype_id": "external_wall",
+	"object_group": "wall",
+	"object_type": "external_wall",
+	"display_name": "External Wall",
+	"material": "external_structural",
+	"is_destructible": false,
+	"supports_embedded_objects": true,
+	"supports_cables": true,
+	"configurable": false,
+	"blocks_movement": true,
+	"blocks_vision": true
+}
+```
+
+Правила:
+
+```text
+- не имеет обычных editable gameplay parameters;
+- не разрушается;
+- в неё можно устанавливать встраиваемые объекты;
+- через неё/внутри неё можно прокладывать кабели;
+- не имеет material variants;
+- не появляется как quick preset;
+- не создаётся как Wall + material.
+```
+
+### 9.2 Wall / Стена
+
+Это обычная внутренняя стена с configurable material.
+
+Runtime canonical data:
+
+```gdscript
+{
+	"archetype_id": "wall",
+	"object_group": "wall",
+	"object_type": "wall",
+	"material": "brick",
+	"display_name": "Brick Wall",
+	"is_destructible": true,
+	"supports_embedded_objects": true,
+	"supports_cables": true,
+	"blocks_movement": true,
+	"blocks_vision": true
+}
+```
+
+Editable fields:
+
+```text
+material
+```
+
+Allowed wall materials:
+
+```text
+brick
+concrete
+steel
+reinforced_steel
+titanium
+grate
+electromagnetic
+```
+
+Default:
+
+```text
+material = brick
+```
+
+Display name генерируется из material:
+
+```text
+brick → Brick Wall / Кирпичная стена
+concrete → Concrete Wall / Бетонная стена
+steel → Steel Wall / Стальная стена
+reinforced_steel → Reinforced Steel Wall / Стена из усиленной стали
+titanium → Titanium Wall / Титановая стена
+grate → Grate Wall / Стена из решётки
+electromagnetic → Electromagnetic Wall / Электромагнитная стена
+```
+
+Запрещено показывать в палитре отдельные варианты:
+
+```text
+Brick Wall
+Concrete Wall
+Steel Wall
+Reinforced Steel Wall
+Titanium Wall
+Grate Wall
+Electromagnetic Wall
+```
+
+Различные пресеты стен не нужны.
+
+---
+
+## 10. Global palette validation
+
+Validation должна проверять не только двери, а весь системный contract палитры.
+
+Обязательные проверки:
+
+```text
+- palette генерируется из archetype registry;
+- в палитре нет variant explosion для одного archetype;
+- в палитре нет legacy aliases;
+- quick presets не используются как способ обхода archetype/property model;
+- object creation path не bypass-ит archetype normalization;
+- property panel использует schema selected archetype;
+- display_name генерируется, а не хранится как набор статических вариантов;
+- runtime values canonical English ids;
+- localized labels display-only;
+- TASK TEST object reproducible through Map Constructor archetype + properties.
+```
+
+Door-specific checks:
+
+```text
+- exactly one user-facing Door entry;
+- no Digital Steel Door / Titanium Mechanical Door / Energy Door entries;
+- no door quick presets;
+- legacy door ids hidden and load-only;
+- placed Door has door_type/material/access_type/state/allowed_states.
+```
+
+Wall-specific checks:
+
+```text
+- exactly one External Wall entry;
+- exactly one Wall entry;
+- no material wall variants in palette;
+- External Wall configurable=false;
+- External Wall is_destructible=false;
+- External Wall supports embedded objects and cables;
+- Wall has material field;
+- Wall material value is canonical;
+- Wall display_name generated from material.
+```
+
+---
+
+## 11. Обновлённый порядок доработок
 
 ### Fix PR-0 — Parser/runtime blocker after PR-1
 
@@ -323,6 +657,7 @@ PowerRuntimeService / CoolingRuntimeService
 ```text
 - убрать undefined variable raw_access_type;
 - восстановить canonical access_type validation;
+- восстановить invalid door_type validation;
 - не возвращать String(...) на dynamic Variant;
 - не расширять scope;
 - не менять project.godot;
@@ -344,7 +679,47 @@ Acceptance:
 - нет undefined variables.
 ```
 
-### PR-2 — Constructor item placement через WorldObjectCatalog
+### PR-2 — Global configurable object archetype foundation
+
+Acceptance:
+
+```text
+- есть reusable archetype registry / schema layer;
+- palette может строиться из archetypes;
+- property schema поддерживает enum/enum_array/bool/int/string/id fields;
+- display name может генерироваться из property values;
+- object creation может идти через archetype default + overrides + normalization;
+- implementation не является door-only hardcode.
+```
+
+### PR-3 — Door as configurable archetype
+
+Acceptance:
+
+```text
+- palette показывает один Door;
+- нет door quick presets;
+- legacy door ids hidden load-only aliases;
+- door_type/material/access_type/power/control/state/allowed_states редактируются как properties;
+- display_name генерируется;
+- TASK TEST создаёт configured Door через тот же path.
+```
+
+### PR-4 — Wall archetypes: External Wall and Wall
+
+Acceptance:
+
+```text
+- palette показывает External Wall / Стена внешняя;
+- palette показывает Wall / Стена;
+- нет material wall presets;
+- External Wall fixed/configurable=false/non-destructible;
+- Wall has material property;
+- Wall display_name generated from material;
+- embedded objects/cables compatibility captured in contract.
+```
+
+### PR-5 — Constructor item placement через WorldObjectCatalog/archetype registry
 
 Acceptance:
 
@@ -355,7 +730,7 @@ Acceptance:
 - fuse/repair_kit/cable_reel остаются physical.
 ```
 
-### PR-3 — Key-card runtime/catalog alignment
+### PR-6 — Key-card runtime/catalog alignment
 
 Acceptance:
 
@@ -366,7 +741,7 @@ Acceptance:
 - HUD key strip читает keychain.
 ```
 
-### PR-4 — Validation read-only guard
+### PR-7 — Validation read-only guard
 
 Acceptance:
 
@@ -376,7 +751,7 @@ Acceptance:
 - есть validation, которая сравнивает state before/after для read-only helpers.
 ```
 
-### PR-5 — Scoped power/cooling recalculation
+### PR-8 — Scoped power/cooling recalculation
 
 Acceptance:
 
@@ -386,17 +761,19 @@ Acceptance:
 - cooling edits пересчитывают только affected cooling/heat scope.
 ```
 
-### PR-6 — Door runtime object_type decision
+### PR-9 — Door runtime object_type finalization
 
 Acceptance:
 
 ```text
-- либо material-named door object_type официально признан canonical и validation обновлена;
-- либо steel_door/titanium_door/energy_door вынесены в aliases/presets;
+- либо object_type=door безопасно используется как canonical runtime object type;
+- либо временный compatibility runtime object_type скрыт за archetype_id=door;
+- steel_door/titanium_door/energy_door не являются user-facing objects;
+- old door ids остаются только hidden load/import aliases;
 - door_type/material/access_type больше не конфликтуют.
 ```
 
-### PR-7 — MissionManager split
+### PR-10 — MissionManager split
 
 Acceptance:
 
@@ -409,7 +786,7 @@ Acceptance:
 
 ---
 
-## 8. PR review checklist
+## 12. PR review checklist
 
 Каждый PR проверять так:
 
@@ -445,9 +822,31 @@ rg "grid_manager\.call\(\"set_tile\"|set_tile\(" scripts/game/map_constructor_va
 - Проверить, что door_type validation не была случайно удалена.
 ```
 
+Для configurable-object PR дополнительно:
+
+```bash
+rg "digital_.*door|mechanical_.*door|titanium_.*door|steel_.*door" scripts/world scripts/game scripts/ui
+rg "Brick Wall|Concrete Wall|Steel Wall|Reinforced Steel Wall|Titanium Wall|Grate Wall|Electromagnetic Wall" scripts/world scripts/game scripts/ui
+rg "archetype_id" scripts/world scripts/game scripts/ui
+rg "property_schema" scripts/world scripts/game scripts/ui
+rg "allowed_states" scripts/world scripts/game scripts/ui
+```
+
+Проверить вручную:
+
+```text
+- Map Constructor palette показывает Door, External Wall, Wall.
+- Map Constructor palette не показывает door variants.
+- Map Constructor palette не показывает wall material variants.
+- Door variants создаются только настройками Door.
+- Wall material создаётся только настройкой Wall.
+- External Wall не имеет material selector.
+- Display name меняется после изменения properties.
+```
+
 ---
 
-## 9. Review первого PR
+## 13. Review первого PR
 
 Проверен PR `#745 — Fix Map Constructor validation safe Variant conversion`.
 
