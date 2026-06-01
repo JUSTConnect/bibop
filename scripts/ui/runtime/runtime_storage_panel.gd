@@ -71,10 +71,17 @@ static func refresh(ui) -> void:
 	if bipob == null or not is_instance_valid(bipob):
 		_refresh_empty_state(ui)
 		return
-	var manipulator_items: Array = bipob.get_manipulator_items()
+	var manipulator_items: Array = bipob.get_runtime_manipulator_items()
+	var available_manipulator_slots: int = bipob.get_available_manipulator_slots()
 	for index in range(ui.runtime_manipulator_slots.size()):
-		var manipulator_item: Variant = manipulator_items[index] if index < manipulator_items.size() else null
-		ui.runtime_manipulator_slots[index].text = _get_module_name(bipob, manipulator_item)
+		var slot: Button = ui.runtime_manipulator_slots[index]
+		var slot_is_active: bool = index < available_manipulator_slots
+		var manipulator_item: Variant = manipulator_items[index] if slot_is_active and index < manipulator_items.size() else null
+		slot.text = _get_module_name(bipob, manipulator_item) if slot_is_active else "Future"
+		slot.disabled = not slot_is_active
+		var drop_button: Variant = slot.get_meta("drop_button", null)
+		if drop_button != null and is_instance_valid(drop_button):
+			drop_button.disabled = not slot_is_active or manipulator_item == null
 	_refresh_key_mini_hud(ui, bipob)
 
 	var pocket_items: Array = bipob.get_pocket_items()
@@ -511,6 +518,8 @@ static func _refresh_empty_state(ui) -> void:
 static func _get_module_name(bipob, item: Variant) -> String:
 	if item == null:
 		return "Empty"
+	if typeof(item) == TYPE_DICTIONARY:
+		return _get_record_name(item, "Item")
 	return bipob.get_module_display_name(item)
 
 
