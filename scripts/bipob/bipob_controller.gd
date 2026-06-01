@@ -9352,6 +9352,88 @@ func _is_digital_storage_item(item: Dictionary, allow_untyped_storage_record: bo
 			return true
 	return allow_untyped_storage_record
 
+func move_buffer_to_first_free_storage() -> Dictionary:
+	if buffer_item.is_empty():
+		return {"ok": false, "message": "Buffer is empty."}
+	if not _is_digital_storage_item(buffer_item):
+		return {"ok": false, "message": "This item cannot be stored in digital storage."}
+	if digital_storage.size() >= get_available_digital_storage_slots():
+		return {"ok": false, "message": "No free storage slot."}
+	var record_id: String = String(buffer_item.get("id", "")).strip_edges()
+	if record_id.is_empty():
+		return {"ok": false, "message": "Buffered record is unavailable."}
+	if digital_storage.has(record_id):
+		return {"ok": false, "message": "Storage already contains this record."}
+	digital_storage[record_id] = buffer_item.duplicate(true)
+	buffer_item.clear()
+	status_changed.emit()
+	return {"ok": true, "message": "Stored buffered digital record."}
+
+func move_or_swap_storage_slot_with_buffer(storage_index: int) -> Dictionary:
+	if storage_index < 0 or storage_index >= get_available_digital_storage_slots():
+		return {"ok": false, "message": "Storage slot is unavailable."}
+	var storage_keys: Array = digital_storage.keys()
+	if storage_index >= storage_keys.size():
+		if buffer_item.is_empty():
+			return {"ok": false, "message": "Storage slot is empty."}
+		return move_buffer_to_first_free_storage()
+	var stored_record_id: Variant = storage_keys[storage_index]
+	var stored_record_value: Variant = digital_storage.get(stored_record_id, {})
+	if typeof(stored_record_value) != TYPE_DICTIONARY:
+		return {"ok": false, "message": "Storage slot is unavailable."}
+	var stored_record: Dictionary = stored_record_value
+	if not _is_digital_storage_item(stored_record, true):
+		return {"ok": false, "message": "Storage slot is unavailable."}
+	if buffer_item.is_empty():
+		buffer_item = stored_record.duplicate(true)
+		buffer_item["item_form"] = "digital"
+		digital_storage.erase(stored_record_id)
+		status_changed.emit()
+		return {"ok": true, "message": "Loaded storage record into buffer."}
+	if not _is_digital_storage_item(buffer_item):
+		return {"ok": false, "message": "This item cannot be stored in digital storage."}
+	var buffered_record_id: String = String(buffer_item.get("id", "")).strip_edges()
+	if buffered_record_id.is_empty():
+		return {"ok": false, "message": "Buffered record is unavailable."}
+	if buffered_record_id != String(stored_record_id) and digital_storage.has(buffered_record_id):
+		return {"ok": false, "message": "Storage already contains this record."}
+	var buffered_record: Dictionary = buffer_item.duplicate(true)
+	digital_storage.erase(stored_record_id)
+	digital_storage[buffered_record_id] = buffered_record
+	buffer_item = stored_record.duplicate(true)
+	buffer_item["item_form"] = "digital"
+	status_changed.emit()
+	return {"ok": true, "message": "Swapped buffer and storage records."}
+
+func move_manipulator_to_first_free_pocket(manipulator_index: int) -> Dictionary:
+	if manipulator_index < 0 or manipulator_index >= get_available_manipulator_slots():
+		return {"ok": false, "message": "Manipulator slot is unavailable."}
+	if manipulator_items[manipulator_index] == null:
+		return {"ok": false, "message": "Manipulator is empty."}
+	var free_index: int = _get_first_free_pocket_index()
+	if free_index == -1:
+		return {"ok": false, "message": "No free pocket slot."}
+	pocket_items[free_index] = manipulator_items[manipulator_index]
+	manipulator_items[manipulator_index] = null
+	_sync_legacy_physical_slots()
+	status_changed.emit()
+	return {"ok": true, "message": "Stored manipulator item in pocket."}
+
+func move_or_swap_pocket_slot_with_manipulator(pocket_index: int, manipulator_index: int) -> Dictionary:
+	if pocket_index < 0 or pocket_index >= get_available_pocket_slots():
+		return {"ok": false, "message": "Pocket slot is unavailable."}
+	if manipulator_index < 0 or manipulator_index >= get_available_manipulator_slots():
+		return {"ok": false, "message": "Manipulator slot is unavailable."}
+	var pocket_item: BipobModule = pocket_items[pocket_index]
+	var manipulator_item: BipobModule = manipulator_items[manipulator_index]
+	if pocket_item == null and manipulator_item == null:
+		return {"ok": false, "message": "Pocket slot is empty."}
+	pocket_items[pocket_index] = manipulator_item
+	manipulator_items[manipulator_index] = pocket_item
+	_sync_legacy_physical_slots()
+	status_changed.emit()
+	return {"ok": true, "message": "Moved or swapped pocket and manipulator items."}
+
 func move_digital_storage_to_buffer(storage_index: int) -> bool:
 	if not buffer_item.is_empty():
 		hint_requested.emit("Digital buffer is occupied.")

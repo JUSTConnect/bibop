@@ -312,31 +312,52 @@ static func _build_flyout(ui, hud_root: Control, margin: float, node_name: Strin
 
 
 static func _on_manipulator_preview_pressed(ui, manipulator_index: int) -> void:
+	if ui == null or ui.bipob == null or not is_instance_valid(ui.bipob):
+		return
 	ui.selected_manipulator_slot = manipulator_index
-	var manipulator_items: Array = ui.bipob.get_manipulator_items()
-	if manipulator_index < manipulator_items.size() and manipulator_items[manipulator_index] != null:
-		ui._on_storage_store_pressed()
-	_open_flyout(ui, "pocket", manipulator_index)
+	if not _is_pocket_flyout_open_for(ui, manipulator_index):
+		_open_flyout(ui, "pocket", manipulator_index)
+		return
+	var result: Dictionary = ui._move_runtime_manipulator_to_first_free_pocket()
+	if bool(result.get("ok", false)):
+		refresh(ui)
 
 
 static func _on_buffer_preview_pressed(ui) -> void:
-	if ui.bipob.get_buffer_item() != null:
-		ui._on_storage_data_store_pressed()
-	_open_flyout(ui, "storage")
+	if ui == null or ui.bipob == null or not is_instance_valid(ui.bipob):
+		return
+	if not _is_storage_flyout_open(ui):
+		_open_flyout(ui, "storage")
+		return
+	var result: Dictionary = ui._move_runtime_buffer_to_first_free_storage()
+	if bool(result.get("ok", false)):
+		refresh(ui)
 
 
 static func _on_pocket_slot_pressed(ui, slot_index: int) -> void:
-	var pocket_items: Array = ui.bipob.get_pocket_items()
-	if slot_index < 0 or slot_index >= ui.bipob.get_available_pocket_slots() or slot_index >= pocket_items.size() or pocket_items[slot_index] == null:
-		_show_hint(ui, "Pocket is empty.")
+	if ui == null or ui.bipob == null or not is_instance_valid(ui.bipob):
 		return
-	ui._on_storage_take_slot_pressed(slot_index)
-	refresh(ui)
+	var result: Dictionary = ui._move_or_swap_runtime_pocket_slot(slot_index)
+	if bool(result.get("ok", false)):
+		refresh(ui)
 
 
 static func _on_storage_slot_pressed(ui, slot_index: int) -> void:
-	ui._on_storage_load_slot_pressed(slot_index)
-	refresh(ui)
+	if ui == null or ui.bipob == null or not is_instance_valid(ui.bipob):
+		return
+	var result: Dictionary = ui._move_or_swap_runtime_storage_slot(slot_index)
+	if bool(result.get("ok", false)):
+		refresh(ui)
+
+
+static func _is_pocket_flyout_open_for(ui, manipulator_index: int) -> bool:
+	if ui.runtime_pocket_flyout == null or not is_instance_valid(ui.runtime_pocket_flyout):
+		return false
+	return ui.runtime_pocket_flyout.visible and int(ui.runtime_pocket_flyout.get_meta("active_manipulator_index", -1)) == manipulator_index
+
+
+static func _is_storage_flyout_open(ui) -> bool:
+	return ui.runtime_storage_flyout != null and is_instance_valid(ui.runtime_storage_flyout) and ui.runtime_storage_flyout.visible
 
 
 static func _on_drop_pressed(ui, manipulator_index: int) -> void:
@@ -350,6 +371,7 @@ static func _open_flyout(ui, flyout_id: String, manipulator_index: int = -1) -> 
 	refresh(ui)
 	if flyout_id == "pocket":
 		if ui.runtime_pocket_flyout != null and is_instance_valid(ui.runtime_pocket_flyout):
+			ui.runtime_pocket_flyout.set_meta("active_manipulator_index", manipulator_index)
 			ui.runtime_pocket_flyout.visible = true
 			_align_pocket_flyout(ui, manipulator_index)
 			_align_pocket_flyout.bind(ui, manipulator_index).call_deferred()

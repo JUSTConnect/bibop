@@ -12788,6 +12788,29 @@ func _on_storage_data_store_pressed() -> void:
 	bipob.move_buffer_to_digital_storage()
 	update_status()
 
+func _move_runtime_manipulator_to_first_free_pocket() -> Dictionary:
+	return _apply_runtime_storage_result(bipob.move_manipulator_to_first_free_pocket(selected_manipulator_slot))
+
+func _move_or_swap_runtime_pocket_slot(slot_index: int) -> Dictionary:
+	selected_pocket_slot = slot_index
+	return _apply_runtime_storage_result(bipob.move_or_swap_pocket_slot_with_manipulator(slot_index, selected_manipulator_slot))
+
+func _move_runtime_buffer_to_first_free_storage() -> Dictionary:
+	return _apply_runtime_storage_result(bipob.move_buffer_to_first_free_storage())
+
+func _move_or_swap_runtime_storage_slot(slot_index: int) -> Dictionary:
+	selected_digital_slot = slot_index
+	return _apply_runtime_storage_result(bipob.move_or_swap_storage_slot_with_buffer(slot_index))
+
+func _apply_runtime_storage_result(result: Dictionary) -> Dictionary:
+	if bool(result.get("ok", false)):
+		update_status()
+		return result
+	var message: String = String(result.get("message", "Storage action is unavailable."))
+	if not message.is_empty():
+		show_hint(message)
+	return result
+
 func _on_scan_device_button_pressed() -> void:
 	bipob.scan_device()
 	update_status()
