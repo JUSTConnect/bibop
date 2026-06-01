@@ -86,6 +86,7 @@ var runtime_hud_root: Control = null
 var runtime_bipob_switcher_panel: PanelContainer = null
 var runtime_menu_button: Button = null
 var runtime_menu_overlay: Control = null
+var center_menu_overlay: Control = null
 var runtime_pocket_flyout: PanelContainer = null
 var runtime_storage_flyout: PanelContainer = null
 var runtime_selected_mission_bipob_index: int = 0
@@ -8235,8 +8236,7 @@ func _build_center_menu_layout() -> void:
 	top_row.add_child(top_spacer)
 	var top_right := VBoxContainer.new()
 	top_right.add_theme_constant_override("separation", 8)
-	top_right.add_child(_create_menu_button("Exit to Main Menu", Callable(self, "_on_center_main_menu_pressed"), Vector2(220, 36)))
-	top_right.add_child(_create_menu_button("Settings", Callable(self, "_on_center_settings_pressed"), Vector2(190, 36)))
+	top_right.add_child(_create_menu_button("Menu", Callable(self, "_on_center_menu_pressed"), Vector2(220, 36)))
 	top_row.add_child(top_right)
 
 	var middle_row := HBoxContainer.new()
@@ -8259,6 +8259,8 @@ func _build_center_menu_layout() -> void:
 	bottom_grid.add_child(_create_menu_button("Research", Callable(self, "_on_center_research_pressed"), Vector2(150, 54)))
 	bottom_grid.add_child(_create_menu_button("Repair", Callable(self, "_on_center_repair_pressed"), Vector2(150, 54)))
 	bottom_grid.add_child(_create_menu_button("Programmer", Callable(self, "_on_center_programmer_pressed"), Vector2(150, 54)))
+
+	center_menu_overlay = RuntimeMissionMenuRef.build_overlay(self, center_menu_root, 24.0, false)
 
 func _build_tasks_menu_layout() -> void:
 	if tasks_menu_root == null:
@@ -8737,6 +8739,8 @@ func _on_center_shop_pressed() -> void:
 	navigate_to_screen(AppScreenMode.SHOP_PLACEHOLDER)
 func _on_center_settings_pressed() -> void:
 	navigate_to_screen(AppScreenMode.SETTINGS_PLACEHOLDER)
+func _on_center_menu_pressed() -> void:
+	_show_game_menu(false)
 func _on_center_main_menu_pressed() -> void:
 	navigate_to_screen(AppScreenMode.MAIN_MENU)
 
@@ -12850,6 +12854,10 @@ func _on_restart_mission_button_pressed() -> void:
 	update_status()
 	update_diagnostic_status()
 	update_box_status()
+
+func _show_game_menu(show_to_center_menu: bool = true) -> void:
+	var overlay_root: Control = runtime_menu_overlay if show_to_center_menu else center_menu_overlay
+	RuntimeMissionMenuRef.open_overlay(overlay_root)
 
 func _on_return_to_box_button_pressed() -> void:
 	show_center_screen()
