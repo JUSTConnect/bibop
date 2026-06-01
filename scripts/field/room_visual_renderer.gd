@@ -1262,6 +1262,20 @@ func get_iso_object_profile_key_for_object_data(object_data: Dictionary, fallbac
 		return "repair_kit"
 	if blob.contains("access_code") or blob.contains("code"):
 		return "access_code"
+	if blob.contains("power_cable") or blob.contains("cable") or blob.contains("wire"):
+		return "cable"
+	if blob.contains("power_source"):
+		return "power_source"
+	if blob.contains("circuit_switch") or blob.contains("light_switch") or blob.contains("breaker") or blob.contains("switch"):
+		return "switch"
+	if blob.contains("door") or blob.contains("powered_gate"):
+		return "door"
+	if blob.contains("terminal"):
+		return "terminal"
+	if blob.contains("barrel"):
+		return "barrel"
+	if blob.contains("crate") or blob.contains("box"):
+		return "crate"
 	if fallback_profile_key.strip_edges().is_empty():
 		return "generic_object"
 	return fallback_profile_key
@@ -3022,7 +3036,10 @@ func get_iso_object_visual_profiles() -> Dictionary:
 		"airflow": {"base": Color(0.15, 0.21, 0.26, 0.95), "accent": Color(0.67, 0.89, 0.97, 0.95), "outline": Color(0.09, 0.13, 0.17, 0.92), "label": "Airflow", "shape": "line"},
 		"cable_reel": {"base": Color(0.2, 0.2, 0.22, 0.95), "accent": Color(0.74, 0.7, 0.62, 0.95), "outline": Color(0.11, 0.11, 0.12, 0.92), "label": "Cable Reel", "shape": "small_marker"},
 		"socket": {"base": Color(0.22, 0.22, 0.25, 0.95), "accent": Color(0.78, 0.85, 0.95, 0.95), "outline": Color(0.12, 0.12, 0.15, 0.92), "label": "Socket", "shape": "small_marker"},
-		"cable": {"base": Color(0.16, 0.17, 0.19, 0.95), "accent": Color(0.89, 0.87, 0.73, 0.95), "outline": Color(0.09, 0.1, 0.12, 0.92), "label": "Cable", "shape": "line"},
+		"power_source": {"base": Color(0.25, 0.28, 0.2, 0.97), "accent": Color(0.95, 0.88, 0.34, 0.99), "outline": Color(0.14, 0.16, 0.1, 0.94), "label": "Power Source", "shape": "slab"},
+		"crate": {"base": Color(0.35, 0.23, 0.13, 0.97), "accent": Color(0.86, 0.62, 0.3, 0.99), "outline": Color(0.2, 0.12, 0.07, 0.94), "label": "Crate", "shape": "slab"},
+		"barrel": {"base": Color(0.2, 0.3, 0.34, 0.97), "accent": Color(0.57, 0.84, 0.92, 0.99), "outline": Color(0.1, 0.16, 0.19, 0.94), "label": "Barrel", "shape": "pillar"},
+		"cable": {"base": Color(0.36, 0.04, 0.04, 0.95), "accent": Color(0.98, 0.12, 0.12, 0.99), "outline": Color(0.18, 0.02, 0.02, 0.92), "label": "Cable", "shape": "line"},
 		"generic_object": {"base": Color(0.24, 0.24, 0.28, 0.95), "accent": Color(0.78, 0.8, 0.9, 0.95), "outline": Color(0.14, 0.14, 0.17, 0.92), "label": "Generic Object", "shape": "small_marker"}
 	}
 
@@ -3791,16 +3808,51 @@ func _get_runtime_items_for_cell(cell: Vector2i) -> Array[Dictionary]:
 			result.append(Dictionary(item_variant))
 	return result
 
+func _is_hidden_cable_visual(object_data: Dictionary) -> bool:
+	var object_type: String = String(object_data.get("object_type", "")).to_lower()
+	if not object_type.contains("cable") and not object_type.contains("wire"):
+		return false
+	return bool(object_data.get("hidden_installation", object_data.get("concealed", object_data.get("hidden_cable", object_data.get("hidden", false)))))
+
+func _get_runtime_world_objects_for_iso_render() -> Array[Dictionary]:
+	var result: Array[Dictionary] = []
+	var mission_manager: Node = get_mission_manager_ref()
+	if mission_manager == null:
+		return result
+	for object_variant in Array(mission_manager.get("mission_world_objects")):
+		if not (object_variant is Dictionary):
+			continue
+		var object_data: Dictionary = Dictionary(object_variant)
+		if _is_hidden_cable_visual(object_data):
+			continue
+		result.append(object_data)
+		if String(object_data.get("object_type", "")).to_lower().contains("cable"):
+			for path_cell_variant in Array(object_data.get("cable_path_cells", [])):
+				var path_cell: Vector2i = _try_parse_cell_variant(path_cell_variant)
+				if path_cell.x < 0 or path_cell.y < 0 or path_cell == _try_parse_cell_variant(object_data.get("position", Vector2i(-1, -1))):
+					continue
+				var path_segment: Dictionary = object_data.duplicate(true)
+				path_segment["position"] = path_cell
+				result.append(path_segment)
+	return result
+
 func build_iso_object_draw_entries() -> Array[Dictionary]:
-	# Render order contract for object-like visuals in isometric mode:
-	# floor items -> doors/gates -> wall-mounted devices -> terminals -> actor markers(overlays handled in _draw).
+	# Runtime objects are rendered from their real dictionaries so visuals and
+	# interaction lookup stay aligned even when an object occupies a floor tile.
 	if _grid_manager == null:
 		return []
 	var map_width: int = _grid_manager.get_map_width()
 	var map_height: int = _grid_manager.get_map_height()
 	if map_width <= 0 or map_height <= 0:
 		return []
-
+	var runtime_objects_by_cell: Dictionary = {}
+	for object_data in _get_runtime_world_objects_for_iso_render():
+		var object_cell: Vector2i = _try_parse_cell_variant(object_data.get("position", Vector2i(-1, -1)))
+		if object_cell.x < 0 or object_cell.y < 0:
+			continue
+		var cell_objects: Array = Array(runtime_objects_by_cell.get(object_cell, []))
+		cell_objects.append(object_data)
+		runtime_objects_by_cell[object_cell] = cell_objects
 	var draw_entries: Array[Dictionary] = []
 	for y in range(map_height):
 		for x in range(map_width):
@@ -3809,38 +3861,18 @@ func build_iso_object_draw_entries() -> Array[Dictionary]:
 			var runtime_items: Array[Dictionary] = _get_runtime_items_for_cell(cell)
 			for item_index in range(runtime_items.size()):
 				var item_data: Dictionary = runtime_items[item_index]
-				draw_entries.append({
-					"cell": cell,
-					"layer": "item",
-					"layer_bias": ISO_LAYER_BIAS_ITEM + float(item_index) * 0.01,
-					"kind": "object",
-					"payload": {"object_cell": cell, "tile_type": tile_type, "profile_key": get_iso_object_profile_key_for_object_data(item_data, "key"), "object_data": item_data}
-				})
-			if not is_iso_object_tile(tile_type):
+				draw_entries.append({"cell":cell, "layer":"item", "layer_bias":ISO_LAYER_BIAS_ITEM + float(item_index) * 0.01, "kind":"object", "payload":{"object_cell":cell, "tile_type":tile_type, "profile_key":get_iso_object_profile_key_for_object_data(item_data, "key"), "object_data":item_data}})
+			var runtime_objects: Array = Array(runtime_objects_by_cell.get(cell, []))
+			for object_index in range(runtime_objects.size()):
+				var object_data: Dictionary = Dictionary(runtime_objects[object_index])
+				var profile_key: String = get_iso_object_profile_key_for_object_data(object_data, "generic_object")
+				var layer_name: String = "terminal" if is_terminal_like_profile(profile_key) else "item"
+				var layer_bias: float = ISO_LAYER_BIAS_TERMINAL if layer_name == "terminal" else ISO_LAYER_BIAS_ITEM
+				draw_entries.append({"cell":cell, "layer":layer_name, "layer_bias":layer_bias + float(object_index) * 0.01, "kind":"object", "payload":{"object_cell":cell, "tile_type":tile_type, "profile_key":profile_key, "object_data":object_data}})
+			if not runtime_objects.is_empty() or not is_iso_object_tile(tile_type):
 				continue
 			var profile_key: String = get_iso_object_profile_key_for_tile(tile_type)
-			var sort_cell: Vector2i = cell
-			var layer_name: String = "item"
-			var layer_bias: float = ISO_LAYER_BIAS_ITEM
-			var wall_mounted_profile_key: String = get_wall_mounted_object_profile_key(cell)
-			if not wall_mounted_profile_key.is_empty():
-				profile_key = wall_mounted_profile_key
-				layer_name = "wall_mounted"
-				layer_bias = ISO_LAYER_BIAS_WALL_MOUNTED
-				sort_cell = get_wall_mounted_attached_depth_cell(cell)
-			elif is_door_like_profile(profile_key):
-				layer_name = "door"
-				layer_bias = ISO_LAYER_BIAS_DOOR
-			elif is_terminal_like_profile(profile_key):
-				layer_name = "terminal"
-				layer_bias = ISO_LAYER_BIAS_TERMINAL
-			draw_entries.append({
-				"cell": sort_cell,
-				"layer": layer_name,
-				"layer_bias": layer_bias,
-				"kind": "object",
-				"payload": {"object_cell": cell, "tile_type": tile_type, "profile_key": profile_key}
-			})
+			draw_entries.append({"cell":cell, "layer":"item", "layer_bias":ISO_LAYER_BIAS_ITEM, "kind":"object", "payload":{"object_cell":cell, "tile_type":tile_type, "profile_key":profile_key}})
 	return draw_entries
 
 func build_iso_geometry_draw_entries(include_walls: bool, include_objects: bool) -> Array[Dictionary]:

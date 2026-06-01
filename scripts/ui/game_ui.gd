@@ -97,6 +97,7 @@ var runtime_interaction_actions_row: HBoxContainer = null
 var runtime_base_controls_grid: GridContainer = null
 var runtime_action_button: Button = null
 var runtime_connect_button: Button = null
+var runtime_heavy_claw_button: Button = null
 var runtime_end_turn_button: Button = null
 var runtime_notification_label: Label = null
 var runtime_notification_panel: PanelContainer = null
@@ -5277,6 +5278,8 @@ func _create_runtime_controls_panel() -> Control:
 	grid.add_child(runtime_action_button)
 	runtime_connect_button = _create_runtime_control_button("Connect", Callable(self, "_on_connect_pressed"), "primary")
 	grid.add_child(runtime_connect_button)
+	runtime_heavy_claw_button = _create_runtime_control_button("Heavy Claw", Callable(self, "_on_heavy_claw_pressed"), "primary")
+	grid.add_child(runtime_heavy_claw_button)
 	runtime_end_turn_button = _create_runtime_control_button("End Turn", Callable(self, "_on_end_turn_pressed"), "reference")
 	grid.add_child(runtime_end_turn_button)
 	_refresh_runtime_interaction_controls()
@@ -12691,6 +12694,9 @@ func _on_interact_pressed() -> void:
 
 func _on_connect_pressed() -> void:
 	RuntimeInteractionPanel.press_connect(self)
+
+func _on_heavy_claw_pressed() -> void:
+	RuntimeInteractionPanel.press_heavy_claw(self)
 
 func _on_use_selected_world_action_pressed() -> void:
 	RuntimeInteractionPanel.use_selected_world_action(self)

@@ -49,7 +49,7 @@ const EXTERNAL_MODULE_CATALOG: Dictionary = {
 "radar_v1":{"name":"Radar V1","cat":"Sensors","size":Vector2i(2,2),"sides":[EXTERNAL_SIDE_TOP],"desc":"Detects movement and objects across the entire open area of the level, providing only approximate location data.","energy":2,"direction":"Front","scan":8,"visibility":90,"special":"approximate position"},
 "xray_v1":{"name":"X-Ray V1","cat":"Sensors","size":Vector2i(2,2),"sides":[EXTERNAL_SIDE_TOP],"desc":"Deep scanning through walls and obstacles, revealing hidden objects, internal structures, cables, locks, containers, and concealed mechanisms.","energy":2,"direction":"Front","scan":5,"visibility":30,"special":"hidden/internal object"},
 "manipulator_arm_v1":{"name":"Manipulator Arm V1","cat":"Manipulator","size":Vector2i(2,2),"sides":[EXTERNAL_SIDE_LEFT,EXTERNAL_SIDE_RIGHT,EXTERNAL_SIDE_FRONT],"desc":"Basic external arm for grabbing, pressing buttons, and interacting with devices directly in front.","energy":1,"reach":1,"direction":"front","carry":"normal"},"manipulator_heavy_claw_v1":{"name":"Manipulator Heavy Claw V1","cat":"Manipulator","size":Vector2i(3,2),"sides":[EXTERNAL_SIDE_LEFT,EXTERNAL_SIDE_RIGHT],"desc":"Heavy-duty gripping module for moving heavy objects, holding doors, breaking weak obstacles, and performing force-based interactions.","energy":2,"reach":4,"direction":"front","carry":"Heavy"},"magnetic_manipulator_v1":{"name":"Magnetic Manipulator V1","cat":"Manipulator","size":Vector2i(3,2),"sides":[EXTERNAL_SIDE_LEFT,EXTERNAL_SIDE_RIGHT,EXTERNAL_SIDE_FRONT],"desc":"Magnetic gripping module that can attract and move metal objects from a distance without direct physical contact.","energy":2,"reach":4,"direction":"front","carry":"Heavy","special":"metal objects"},"tentacle_manipulator_v1":{"name":"Tentacle Manipulator V1","cat":"Manipulator","size":Vector2i(2,2),"sides":[EXTERNAL_SIDE_LEFT,EXTERNAL_SIDE_RIGHT,EXTERNAL_SIDE_FRONT],"desc":"Flexible manipulator that can interact with objects at an angle and reach targets that are not directly in area front.","energy":1,"reach":1,"direction":"side/front","carry":"normal"},"telescopic_arm_v1":{"name":"Telescopic Arm V1","cat":"Manipulator","size":Vector2i(2,2),"sides":[EXTERNAL_SIDE_LEFT,EXTERNAL_SIDE_RIGHT,EXTERNAL_SIDE_FRONT],"desc":"Extendable manipulator that allows the robot to interact with objects away.","energy":1,"reach":2,"direction":"front","carry":"normal"},
-"high_bandwidth_connector_v1":{"name":"High-Bandwidth Connector","cat":"Interface","size":Vector2i(1,2),"sides":[EXTERNAL_SIDE_LEFT,EXTERNAL_SIDE_RIGHT,EXTERNAL_SIDE_FRONT],"desc":"High-capacity external data channel for demanding modules such as radar, X-Ray systems, heavy sensors, turrets, and advanced tools.","energy":3,"connection":"high-bandwidth","connection_range":"contact","special":"heavy modules"},"external_interface_connector_v1":{"name":"External Interface Connector","cat":"Interface","size":Vector2i(1,1),"sides":[EXTERNAL_SIDE_LEFT,EXTERNAL_SIDE_RIGHT,EXTERNAL_SIDE_FRONT],"desc":"Basic physical connector for linking external body modules to the robot’s internal control and power systems.","energy":1,"connection":"physical","connection_range":"contact"},"optical_connector_v1":{"name":"Optical Connector","cat":"Interface","size":Vector2i(1,1),"sides":[EXTERNAL_SIDE_LEFT,EXTERNAL_SIDE_RIGHT,EXTERNAL_SIDE_FRONT],"desc":"Fast optical communication channel with reduced interference, designed for sensors, cameras, and precision data transfer.","energy":1,"connection":"optical","connection_range":"contact","special":"reduced interference"},"wireless_connector_v1":{"name":"Wireless Connector","cat":"Interface","size":Vector2i(1,1),"sides":[EXTERNAL_SIDE_LEFT,EXTERNAL_SIDE_RIGHT,EXTERNAL_SIDE_FRONT],"desc":"Wireless connection module that allows nearby devices and external systems to exchange data without direct physical contact, but remains vulnerable to jamming.","energy":2,"connection":"wireless","connection_range":"3","special":"vulnerable to jamming"},
+"wired_connector_v1":{"name":"Wired Connector","cat":"Interface","size":Vector2i(1,1),"sides":[EXTERNAL_SIDE_LEFT,EXTERNAL_SIDE_RIGHT,EXTERNAL_SIDE_FRONT],"desc":"Basic wired connector for direct device links.","energy":1,"connection":"wired","connection_range":"contact"},"high_bandwidth_connector_v1":{"name":"High-Bandwidth Connector","cat":"Interface","size":Vector2i(1,2),"sides":[EXTERNAL_SIDE_LEFT,EXTERNAL_SIDE_RIGHT,EXTERNAL_SIDE_FRONT],"desc":"High-capacity external data channel for demanding modules such as radar, X-Ray systems, heavy sensors, turrets, and advanced tools.","energy":3,"connection":"high-bandwidth","connection_range":"contact","special":"heavy modules"},"external_interface_connector_v1":{"name":"External Interface Connector","cat":"Interface","size":Vector2i(1,1),"sides":[EXTERNAL_SIDE_LEFT,EXTERNAL_SIDE_RIGHT,EXTERNAL_SIDE_FRONT],"desc":"Basic physical connector for linking external body modules to the robot’s internal control and power systems.","energy":1,"connection":"physical","connection_range":"contact"},"optical_connector_v1":{"name":"Optical Connector","cat":"Interface","size":Vector2i(1,1),"sides":[EXTERNAL_SIDE_LEFT,EXTERNAL_SIDE_RIGHT,EXTERNAL_SIDE_FRONT],"desc":"Fast optical communication channel with reduced interference, designed for sensors, cameras, and precision data transfer.","energy":1,"connection":"optical","connection_range":"contact","special":"reduced interference"},"wireless_connector_v1":{"name":"Wireless Connector","cat":"Interface","size":Vector2i(1,1),"sides":[EXTERNAL_SIDE_LEFT,EXTERNAL_SIDE_RIGHT,EXTERNAL_SIDE_FRONT],"desc":"Wireless connection module that allows nearby devices and external systems to exchange data without direct physical contact, but remains vulnerable to jamming.","energy":2,"connection":"wireless","connection_range":"3","special":"vulnerable to jamming"},
 "welder_v1":{"name":"Welder V1","cat":"Tools","size":Vector2i(2,2),"sides":[EXTERNAL_SIDE_LEFT,EXTERNAL_SIDE_RIGHT,EXTERNAL_SIDE_FRONT],"desc":"External welding tool for sealing doors, repairing metal surfaces, reinforcing damaged structures, and creating temporary welded connections.","energy":1,"range_value":1,"direction":"Front","tool_action":"weld"},
 "repair_v1":{"name":"Repair V1","cat":"Tools","size":Vector2i(2,2),"sides":[EXTERNAL_SIDE_LEFT,EXTERNAL_SIDE_RIGHT,EXTERNAL_SIDE_FRONT],"desc":"Field repair module for restoring damaged robot modules, fixing mission equipment, and performing basic mechanical recovery tasks.","energy":1,"range_value":1,"direction":"Front","tool_action":"repair"},
 "plasma_cutter_v1":{"name":"Plasma Cutter V1","cat":"Tools","size":Vector2i(3,2),"sides":[EXTERNAL_SIDE_LEFT,EXTERNAL_SIDE_RIGHT],"desc":"High-energy cutting tool for opening metal doors, cutting grates, removing armor plates, and breaking through heavy obstacles.","energy":2,"range_value":1,"direction":"Front","tool_action":"cut","special":"opens blocked paths"},
@@ -1234,6 +1234,8 @@ func get_current_mission_goal_hint() -> String:
 func start_mission(mission_index: int, save_snapshot: bool = true) -> void:
 	# Box preparation flow: mission start resets turn actions, but does not spend resources.
 	current_mission_index = clampi(mission_index, 1, max_mission_index)
+	if current_mission_index == 10:
+		ensure_task_test_default_modules()
 	mission_finished = false
 	turns_used = 0
 	actions_left = actions_per_turn
@@ -4548,7 +4550,7 @@ func create_external_module_by_id(module_id: String) -> BipobModule:
 	module.action_text = String(metadata.get("action", ""))
 	if module.id in ["manipulator_arm_v1", "manipulator_heavy_claw_v1", "magnetic_manipulator_v1", "tentacle_manipulator_v1", "telescopic_arm_v1"]:
 		module.granted_commands = ["interact_key", "open_physical_door"]
-	if module.id in ["external_interface_connector_v1", "high_bandwidth_connector_v1", "optical_connector_v1", "wireless_connector_v1"]:
+	if module.id in ["external_interface_connector_v1", "wired_connector_v1", "high_bandwidth_connector_v1", "optical_connector_v1", "wireless_connector_v1"]:
 		module.granted_commands = ["read_terminal", "open_digital_door"]
 	if module.id == "wheels_v1":
 		module.granted_commands = ["move_forward", "move_backward", "turn_left", "turn_right"]
@@ -4618,6 +4620,21 @@ func ensure_external_constructor_modules_in_box_storage() -> void:
 		var module: BipobModule = create_external_module_by_id(module_id)
 		if module != null:
 			box_storage.append(module)
+
+func _install_module_if_missing(module: BipobModule) -> void:
+	if module == null or has_module_id(module.id):
+		return
+	install_module(module)
+
+func ensure_task_test_default_modules() -> void:
+	# TASK TEST is a runtime sandbox: seed the core physical capabilities and
+	# the minimal internal port chain required to keep its connector active.
+	_install_module_if_missing(create_internal_module("internal_interface_v1", "Internal Interface V1", Vector3i(1, 1, 1)))
+	_install_module_if_missing(create_internal_module("power_block_v1", "Power Block V1", Vector3i(2, 2, 1)))
+	_install_module_if_missing(create_internal_module("external_interface_v1", "External Interface V1", Vector3i(2, 2, 1)))
+	_install_module_if_missing(create_external_module_by_id("wired_connector_v1"))
+	_install_module_if_missing(create_external_module_by_id("manipulator_v1"))
+	_install_module_if_missing(create_external_module_by_id("manipulator_heavy_claw_v1"))
 
 func create_default_modules() -> void:
 	installed_modules.clear()
@@ -8189,7 +8206,7 @@ func get_available_world_actions(world_object: Dictionary, target_position: Vect
 	elif group == "physical_object":
 		if has_magnetic_manipulator() and (bool(world_object.get("magnetic", false)) or Array(world_object.get("material_tags", [])).has("metal")):
 			actions.append("pull")
-		if has_heavy_claw_capability() and not actions.has("push"):
+		if WorldObjectCatalog.can_world_object_be_moved_by_heavy_claw(world_object) and has_heavy_claw_capability() and not actions.has("push"):
 			actions.append("push")
 		if has_sledgehammer():
 			actions.append("impact")

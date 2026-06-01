@@ -367,3 +367,12 @@ The current code has implemented the main catalog/archetype foundation, canonica
 ### Manual smoke items still open
 
 The following remain manual smoke checks because this headless code pass does not exercise the interactive Map Editor UI: Cable inspector selector layout and label; source-owned network choices; external binding visibility toggles; Door ↔ Terminal link/clear behavior; Power Source, Circuit Switch, and Light Switch Action behavior; dropped item pickup; and the existing Action/Connect separation.
+
+## TASK TEST core modules and world readability follow-up
+
+- Fresh `TASK TEST` startup seeds the runtime sandbox with Connector, Manipulator Arm V1, and Manipulator Heavy Claw V1. The sandbox also installs the minimal internal interface, power block, and external interface chain needed for the Connector to remain active. Other missions keep their existing defaults.
+- The runtime control menu exposes a dedicated `Heavy Claw` button. It is enabled only when the facing runtime object advertises the Heavy Claw movement contract and the `push` action is available. The implemented movement mode is one-cell push into a free valid cell; pull/drag remains an explicit follow-up and is not claimed as complete.
+- Crates and barrels use the same minimal movement contract as existing movable cooling objects: `movable = true`, `heavy_claw_movable = true`, `heavy_claw_mode = "push"`, and `blocks_movement = true`.
+- The isometric renderer now reads real runtime world-object dictionaries for floor-cell overlays and draws simple distinguishable procedural silhouettes for doors, terminals, power sources, switches, crates, barrels, and other important objects without replacing gameplay lookup.
+- Visible power cables render as a red floor stripe, including `cable_path_cells` segments. Cable dictionaries marked with `hidden_installation`, `concealed`, `hidden_cable`, or legacy `hidden` suppress that stripe while preserving cable gameplay behavior.
+- Runtime smoke remains required for TASK TEST module presence, Heavy Claw button highlighting, successful one-cell crate/barrel push, object silhouette readability, and visible-versus-hidden cable rendering because the final presentation state is not fully statically provable.
