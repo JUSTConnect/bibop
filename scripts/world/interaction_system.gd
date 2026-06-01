@@ -44,7 +44,7 @@ static func can_apply_action(actor: Dictionary, module: Dictionary, target_objec
 		var connection_type: String = String(target_object.get("connection_type", "wired"))
 		var interface_field := "%s_connector_level" % connection_type
 		if String(module.get("id", "")).is_empty() or int(actor.get(interface_field, actor.get("connector_level", 0))) < int(target_object.get("required_connector_level", 1)):
-			return _result(false, "Connector level too low.", [], "connector_level_too_low")
+			return _result(false, "Connector Version too low.", [], "connector_level_too_low")
 	if action_type == "pickup" and actor.get("manipulator_occupied", false) and not _is_keycard_item(target_object):
 		return _result(false, "Free manipulator required.")
 	if action_type == "hack" and actor.get("processor_level", 0) < target_object.get("required_processor_level", 1):
@@ -194,7 +194,7 @@ static func apply_action(actor: Dictionary, module: Dictionary, target_object: D
 					return _result(false, "Item does not fit this device.")
 				var interface_field := "%s_connector_level" % connection_type
 				if int(actor.get(interface_field, actor.get("connector_level", 0))) < int(target_object.get("required_connector_level", 1)):
-					return _result(false, "Connector level too low.")
+					return _result(false, "Connector Version too low.")
 				target_object["connected"] = true
 				return _result(true, "Device connected.", [{"type":"set_bool","field":"connected","value":true}])
 		"scan":
@@ -444,9 +444,9 @@ static func _validate_door_class(actor: Dictionary, target_object: Dictionary) -
 	if power_mode in ["external", "external_power", "external power"] and not bool(target_object.get("is_powered", true)):
 		return _result(false, "Door is unpowered.")
 	if int(actor.get("manipulator_level", 0)) < int(target_object.get("required_manipulator_level", 1)):
-		return _result(false, "Manipulator level too low.")
+		return _result(false, "Manipulator Version too low.")
 	if target_object.get("material", "") == "electromagnetic" and int(actor.get("connector_level", 0)) < int(target_object.get("required_connector_level", 0)):
-		return _result(false, "Connector level too low.")
+		return _result(false, "Connector Version too low.")
 	return _result(true, "OK")
 
 static func _validate_weight_class(actor: Dictionary, target_object: Dictionary) -> Dictionary:

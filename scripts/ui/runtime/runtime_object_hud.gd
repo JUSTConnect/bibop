@@ -105,10 +105,10 @@ static func build(ui, cell: Vector2i) -> void:
 		if object_data.has("door_class"):
 			lines.append("Door class: %s" % info_value(ui, object_data, ["door_class"]))
 		if object_data.has("required_manipulator_level"):
-			lines.append("Required manipulator level: %s" % info_value(ui, object_data, ["required_manipulator_level"]))
+			lines.append("Required Manipulator Version: %s" % info_value(ui, object_data, ["required_manipulator_level"]))
 		var interface_level: String = info_value(ui, object_data, ["required_interface_level_if_energy", "required_connector_level"])
 		if not interface_level.is_empty() and int(interface_level) > 0:
-			lines.append("Required interface level: %s" % interface_level)
+			lines.append("Required Connector Version: %s" % interface_level)
 	var material: String = info_value(ui, object_data, ["material", "wall_material", "floor_material"], "unknown")
 	if known_details or material != "unknown":
 		lines.append("Material: %s" % material)

@@ -264,6 +264,45 @@ func get_map_constructor_entity_by_id(entity_kind: String, entity_id: String) ->
 		return {"ok": false, "reason": "not_found", "entity_kind": entity_kind, "id": entity_id}
 	return {"ok": false, "reason": "unsupported_entity_kind", "entity_kind": entity_kind, "id": entity_id}
 
+func _sync_terminal_door_link(entity_id: String, data: Dictionary, field_name: String, old_value: Variant, new_value: Variant) -> void:
+	if field_name not in ["target_door_id", "linked_terminal_id", "required_terminal_id", "control_terminal_id"]:
+		return
+	var old_id: String = String(old_value).strip_edges()
+	var new_id: String = String(new_value).strip_edges()
+	var group: String = String(data.get("object_group", "")).strip_edges().to_lower()
+	if group == "terminal" and field_name == "target_door_id":
+		for door_id in [old_id, new_id]:
+			if door_id.is_empty():
+				continue
+			var door: Dictionary = manager.get_world_object_by_id(door_id)
+			if door.is_empty():
+				continue
+			if door_id == new_id:
+				door["linked_terminal_id"] = entity_id
+			elif String(door.get("linked_terminal_id", "")) == entity_id:
+				door["linked_terminal_id"] = ""
+			manager.update_world_object_by_id(door_id, door)
+	elif group == "door" and field_name in ["linked_terminal_id", "required_terminal_id", "control_terminal_id"]:
+		for terminal_id in [old_id, new_id]:
+			if terminal_id.is_empty():
+				continue
+			var terminal: Dictionary = manager.get_world_object_by_id(terminal_id)
+			if terminal.is_empty():
+				continue
+			if terminal_id == new_id:
+				terminal["target_door_id"] = entity_id
+				var linked_ids: Array = manager._safe_array(terminal.get("linked_door_ids", []))
+				if not linked_ids.has(entity_id):
+					linked_ids.append(entity_id)
+				terminal["linked_door_ids"] = linked_ids
+			else:
+				if String(terminal.get("target_door_id", "")) == entity_id:
+					terminal["target_door_id"] = ""
+				var linked_ids: Array = manager._safe_array(terminal.get("linked_door_ids", []))
+				linked_ids.erase(entity_id)
+				terminal["linked_door_ids"] = linked_ids
+			manager.update_world_object_by_id(terminal_id, terminal)
+
 func apply_map_constructor_property_update(entity_kind: String, entity_id: String, field_name: String, raw_value: Variant) -> Dictionary:
 	if not manager._is_task_test_constructor_context():
 		return {"ok": false, "message": "Operation is available only in TASK TEST constructor mode."}
@@ -298,6 +337,14 @@ func apply_map_constructor_property_update(entity_kind: String, entity_id: Strin
 	var old_value: Variant = data.get(field_name)
 	var old_network_id: String = String(data.get("power_network_id", ""))
 	data[field_name] = new_value
+	if resolved_kind == "world_object" and field_name == "access_type" and WorldObjectCatalogRef.normalize_access_type(new_value) == WorldObjectCatalogRef.ACCESS_TYPE_KEY_CARD and String(data.get("state", "closed")) not in ["damaged", "broken", "destroyed", "jammed"]:
+		data["state"] = "locked"
+		data["is_locked"] = true
+		data["is_closed"] = true
+		data["is_open"] = false
+		data["blocks_movement"] = true
+	if resolved_kind == "world_object" and field_name == "door_class" and int(new_value) == 1:
+		data["required_manipulator_level"] = 1
 	if field_name == "status" and String(data.get("archetype_id", "")) == "terminal":
 		data["state"] = new_value
 	if resolved_kind == "world_object":
@@ -332,6 +379,8 @@ func apply_map_constructor_property_update(entity_kind: String, entity_id: Strin
 		PowerSystemRef.recalculate_network(manager.mission_world_objects, old_network_id)
 		PowerSystemRef.recalculate_network(manager.mission_world_objects, String(data.get("power_network_id", "")))
 	manager.refresh_world_cooling_received()
+	if resolved_kind == "world_object":
+		_sync_terminal_door_link(entity_id, data, field_name, old_value, new_value)
 	if resolved_kind == "world_object" and field_name in ["power_source_id", "control_terminal_id", "access_terminal_id"]:
 		var linked_id: String = String(new_value).strip_edges()
 		if not linked_id.is_empty():

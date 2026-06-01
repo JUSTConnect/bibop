@@ -33,12 +33,12 @@ static func refresh_runtime_notification_fallback(ui) -> void:
 
 static func get_runtime_notification_role(message: String) -> String:
 	var lower: String = message.to_lower()
-	for token in ["required", "locked", "no ", "cannot", "failed", "missing", "not enough", "blocked", "rejected", "occupied"]:
-		if lower.find(token) != -1:
-			return "danger"
 	for token in ["collected", "unlocked", "opened", "closed", "complete", "success", "stored", "picked up"]:
 		if lower.find(token) != -1:
 			return "ok"
+	for token in ["required", "locked", "no ", "cannot", "failed", "missing", "not enough", "blocked", "rejected", "occupied"]:
+		if lower.find(token) != -1:
+			return "danger"
 	return "info"
 
 

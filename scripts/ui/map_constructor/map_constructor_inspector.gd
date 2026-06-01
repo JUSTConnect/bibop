@@ -61,12 +61,20 @@ static func show_for_selection(ui: Variant, cell: Vector2i, preferred_entity_kin
 	inspector_stack.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	inspector_stack.size_flags_vertical = Control.SIZE_EXPAND_FILL
 	margin.add_child(inspector_stack)
+	var header_row := HBoxContainer.new()
+	header_row.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	var header_label := Label.new()
 	header_label.text = "Selected %s: %s" % [entity_kind, ui._safe_ui_string(data.get("display_name", entity_id), entity_id)]
 	header_label.clip_text = true
 	header_label.add_theme_color_override("font_color", ui.UI_COLOR_ACCENT)
 	header_label.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-	inspector_stack.add_child(header_label)
+	header_row.add_child(header_label)
+	var expand_button := Button.new()
+	expand_button.text = "▲" if ui.map_constructor_inspector_expanded else "▼"
+	expand_button.tooltip_text = "Collapse inspector" if ui.map_constructor_inspector_expanded else "Expand inspector"
+	expand_button.pressed.connect(ui._toggle_map_constructor_inspector_expanded)
+	header_row.add_child(expand_button)
+	inspector_stack.add_child(header_row)
 	var scroll := ScrollContainer.new()
 	scroll.horizontal_scroll_mode = ScrollContainer.SCROLL_MODE_DISABLED
 	scroll.vertical_scroll_mode = ScrollContainer.SCROLL_MODE_AUTO

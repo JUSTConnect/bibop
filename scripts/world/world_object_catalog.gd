@@ -748,6 +748,8 @@ static func normalize_door_contract(object_data: Dictionary) -> Dictionary:
 	data["power_behavior"] = power_behavior
 	data["material"] = _normalize_door_material(data.get("material", ""), object_type)
 	data["door_class"] = clampi(int(data.get("door_class", 1)), 1, 3)
+	if int(data["door_class"]) == 1:
+		data["required_manipulator_level"] = 1
 	var power_type: String = _normalized_contract_token(data.get("power_type", data.get("power_mode", "internal"))).trim_suffix("_power")
 	data["power_type"] = power_type if power_type in DOOR_POWER_TYPES else "internal"
 	var control_type: String = _normalized_contract_token(data.get("control_type", data.get("control_mode", "internal"))).trim_suffix("_control")
@@ -784,6 +786,11 @@ static func normalize_terminal_contract(object_data: Dictionary) -> Dictionary:
 	data["power_mode"] = String(data.get("power_type", data.get("power_mode", "internal"))).trim_suffix("_power")
 	data["control_mode"] = String(data.get("control_type", data.get("control_mode", "internal"))).trim_suffix("_control")
 	data["has_connector_jack"] = _safe_bool_like(data.get("has_connector_jack", true), true)
+	data["blocks_movement"] = _safe_bool_like(data.get("blocks_movement", true), true)
+	if String(data.get("power_mode", "internal")) == "internal" and String(data.get("status", "active")) == "unpowered":
+		data["status"] = "active"
+		data["state"] = "active"
+		data["is_powered"] = true
 	return data
 
 static func normalize_world_object_contract(object_data: Dictionary) -> Dictionary:
@@ -999,6 +1006,9 @@ static func normalize_door_state_fields(object_data: Dictionary) -> Dictionary:
 	object_data["access_type"] = access_type
 	object_data["lock_type"] = _legacy_lock_type_for_access_type(access_type)
 	var state := _safe_string(object_data.get("state", "closed"), "closed").strip_edges().to_lower()
+	var power_type: String = _normalized_contract_token(object_data.get("power_type", object_data.get("power_mode", "internal"))).trim_suffix("_power")
+	if power_type == "internal" and state == "unpowered":
+		state = "closed"
 	if not object_data.has("allowed_states"):
 		object_data["allowed_states"] = DOOR_STATES.duplicate()
 	if access_type == ACCESS_TYPE_NO_KEY:
