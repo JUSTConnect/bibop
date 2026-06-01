@@ -7463,6 +7463,24 @@ func open_digital_door(door_position: Vector2i) -> void:
 	status_changed.emit()
 
 
+func _format_scan_device_hint(diagnostic: Dictionary, state_flow: Dictionary, fallback_target: Dictionary) -> String:
+	var target_name: String = String(diagnostic.get("target_name", fallback_target.get("display_name", fallback_target.get("name", fallback_target.get("object_type", "Unknown object"))))).strip_edges()
+	if target_name.is_empty():
+		target_name = "Unknown object"
+	var lines: Array[String] = ["Scan: %s" % target_name]
+	var state_parts: Array[String] = []
+	for state_key in ["state", "power_state"]:
+		var state_text: String = String(diagnostic.get(state_key, "")).strip_edges()
+		if not state_text.is_empty() and not state_parts.has(state_text):
+			state_parts.append(state_text)
+	if not state_parts.is_empty():
+		lines.append("State: %s" % " / ".join(state_parts))
+	if bool(state_flow.get("is_applicable", false)):
+		var next_message: String = String(state_flow.get("message", "")).strip_edges()
+		if not next_message.is_empty():
+			lines.append("Next: %s" % next_message)
+	return "\n".join(lines)
+
 func scan_device() -> void:
 	if mission_finished:
 		return
@@ -7496,18 +7514,9 @@ func scan_device() -> void:
 			mission_manager.set_world_object_at_cell(facing_cell, world_object)
 			refresh_world_object_overlay()
 			update_threat_detection_preview()
-			var scan_text := ScanSystemRef.get_scan_display_text(world_object, scan_type)
-			if String(world_object.get("object_group", "")) == "platform" and mission_manager.has_method("get_platform_state_summary"):
-				scan_text += "\n" + String(mission_manager.call("get_platform_state_summary", world_object))
 			var diagnostic: Dictionary = get_facing_device_diagnostic_result()
-			if not diagnostic.is_empty():
-				scan_text += "\n" + String(diagnostic.get("summary", ""))
 			var state_flow: Dictionary = get_facing_device_interaction_state_flow()
-			if not state_flow.is_empty():
-				var flow_message: String = String(state_flow.get("message", "")).strip_edges()
-				if not flow_message.is_empty():
-					scan_text += "\nNext step: %s" % flow_message
-			hint_requested.emit("Scan: %s" % scan_text)
+			hint_requested.emit(_format_scan_device_hint(diagnostic, state_flow, world_object))
 			clear_selected_world_action_if_invalid(world_object, facing_cell)
 			emit_facing_world_object_hint()
 			refresh_world_action_panel()
