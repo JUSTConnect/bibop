@@ -73,7 +73,7 @@ func place_map_constructor_prefab(prefab_id: String, cell: Vector2i, preferred_w
 	var requested_object_group: String = String(constructor_preview.get("object_group", ""))
 	var requested_material: String = String(constructor_preview.get("material", ""))
 	var placed_tile_type: int = previous_tile_type
-	if prefab_id.ends_with("_wall") or prefab_id == "outer_wall":
+	if requested_object_group == "wall":
 		placed_tile_type = GridManager.TILE_WALL
 		manager.grid_manager.call("set_tile", cell, placed_tile_type)
 	elif requested_door_type == WorldObjectCatalogRef.DOOR_TYPE_POWERED:

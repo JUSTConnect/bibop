@@ -60,6 +60,39 @@ const LEGACY_DOOR_ALIAS_CONFIGS: Dictionary = {
 	"powered_energy_door": {"object_type":"energy_door", "door_type":DOOR_TYPE_POWERED, "material":DOOR_MATERIAL_ENERGY, "access_type":ACCESS_TYPE_NO_KEY, "power_behavior":POWER_BEHAVIOR_OPENS_WHEN_UNPOWERED, "requires_external_power":true, "power_mode":"external_power"}
 }
 
+const WALL_MATERIAL_BRICK := "brick"
+const WALL_MATERIAL_CONCRETE := "concrete"
+const WALL_MATERIAL_STEEL := "steel"
+const WALL_MATERIAL_REINFORCED_STEEL := "reinforced_steel"
+const WALL_MATERIAL_TITANIUM := "titanium"
+const WALL_MATERIAL_GRATE := "grate"
+const WALL_MATERIAL_ELECTROMAGNETIC := "electromagnetic"
+const WALL_MATERIALS: Array[String] = [WALL_MATERIAL_BRICK, WALL_MATERIAL_CONCRETE, WALL_MATERIAL_STEEL, WALL_MATERIAL_REINFORCED_STEEL, WALL_MATERIAL_TITANIUM, WALL_MATERIAL_GRATE, WALL_MATERIAL_ELECTROMAGNETIC]
+const WALL_DISPLAY_NAMES: Dictionary = {
+	WALL_MATERIAL_BRICK: "Brick Wall",
+	WALL_MATERIAL_CONCRETE: "Concrete Wall",
+	WALL_MATERIAL_STEEL: "Steel Wall",
+	WALL_MATERIAL_REINFORCED_STEEL: "Reinforced Steel Wall",
+	WALL_MATERIAL_TITANIUM: "Titanium Wall",
+	WALL_MATERIAL_GRATE: "Grate Wall",
+	WALL_MATERIAL_ELECTROMAGNETIC: "Electromagnetic Wall"
+}
+
+# Hidden compatibility mappings for historic wall ids. Constructor palettes must
+# expose only external_wall and wall; old ids normalize while loading legacy data.
+const LEGACY_WALL_ALIAS_CONFIGS: Dictionary = {
+	"outer_wall": {"object_type":"external_wall"},
+	"brick_wall": {"object_type":"wall", "material":WALL_MATERIAL_BRICK},
+	"concrete_wall": {"object_type":"wall", "material":WALL_MATERIAL_CONCRETE},
+	"steel_wall": {"object_type":"wall", "material":WALL_MATERIAL_STEEL},
+	"reinforced_steel_wall": {"object_type":"wall", "material":WALL_MATERIAL_REINFORCED_STEEL},
+	"titanium_wall": {"object_type":"wall", "material":WALL_MATERIAL_TITANIUM},
+	"grate_wall": {"object_type":"wall", "material":WALL_MATERIAL_GRATE},
+	"electromagnetic_wall": {"object_type":"wall", "material":WALL_MATERIAL_ELECTROMAGNETIC},
+	"energy_wall": {"object_type":"wall", "material":WALL_MATERIAL_ELECTROMAGNETIC},
+	"damaged_wall": {"object_type":"wall", "material":WALL_MATERIAL_CONCRETE, "damaged":true}
+}
+
 const DOOR_MATERIAL_BY_OBJECT_TYPE: Dictionary = {
 	"steel_door": DOOR_MATERIAL_STEEL,
 	"reinforced_steel_door": DOOR_MATERIAL_REINFORCED_STEEL,
@@ -71,6 +104,18 @@ const DOOR_MATERIAL_BY_OBJECT_TYPE: Dictionary = {
 # Global authoring contract. Add the next migrations here (terminal, platform,
 # power_source, item, wall, cooling_device, data_device) without adding palette variants.
 const ARCHETYPE_REGISTRY: Dictionary = {
+	"external_wall": {
+		"archetype_id":"external_wall", "object_group":"wall", "object_type":"external_wall", "palette_label":"External Wall", "palette_label_ru":"Стена внешняя",
+		"display_name_template":"External Wall", "material":"external_structural", "is_destructible":false, "supports_embedded_objects":true, "supports_cables":true, "configurable":false, "blocks_movement":true, "blocks_vision":true,
+		"property_schema":[]
+	},
+	"wall": {
+		"archetype_id":"wall", "object_group":"wall", "object_type":"wall", "palette_label":"Wall", "palette_label_ru":"Стена",
+		"display_name_template":"{material_label} Wall", "is_destructible":true, "supports_embedded_objects":true, "supports_cables":true, "configurable":true, "blocks_movement":true, "blocks_vision":true,
+		"property_schema":[
+			{"field":"material", "type":"enum", "values":["brick", "concrete", "steel", "reinforced_steel", "titanium", "grate", "electromagnetic"], "default":"brick", "labels_ru":{"brick":"Кирпичная стена", "concrete":"Бетонная стена", "steel":"Стальная стена", "reinforced_steel":"Стена из усиленной стали", "titanium":"Титановая стена", "grate":"Стена из решётки", "electromagnetic":"Электромагнитная стена"}}
+		]
+	},
 	"door": {
 		"archetype_id":"door", "object_group":"door", "object_type":"steel_door", "palette_label":"Door",
 		"display_name_template":"{material_label} {door_type_label} Door",
@@ -101,7 +146,7 @@ static func canonical_prefab_id(prefab_id: String) -> String:
 	var normalized_type: String = prefab_id.strip_edges().to_lower()
 	if PREFAB_ALIASES.has(normalized_type):
 		return String(PREFAB_ALIASES[normalized_type])
-	var preset_variant: Variant = LEGACY_DOOR_ALIAS_CONFIGS.get(normalized_type, {})
+	var preset_variant: Variant = LEGACY_DOOR_ALIAS_CONFIGS.get(normalized_type, LEGACY_WALL_ALIAS_CONFIGS.get(normalized_type, {}))
 	if preset_variant is Dictionary:
 		return String(preset_variant.get("object_type", normalized_type))
 	return normalized_type
@@ -111,7 +156,8 @@ static func canonical_object_type(object_type: String) -> String:
 	return canonical_prefab_id(object_type)
 
 static func is_legacy_prefab_alias(value: String) -> bool:
-	return PREFAB_ALIASES.has(value.strip_edges().to_lower())
+	var normalized_value: String = value.strip_edges().to_lower()
+	return PREFAB_ALIASES.has(normalized_value) or LEGACY_WALL_ALIAS_CONFIGS.has(normalized_value)
 
 static func is_legacy_door_object_type(value: String) -> bool:
 	return is_legacy_prefab_alias(value)
@@ -157,7 +203,7 @@ static func get_prefab_alias_defaults(prefab_id: String) -> Dictionary:
 	var raw_defaults: Variant = PREFAB_ALIAS_DEFAULTS.get(normalized_prefab_id, {})
 	if raw_defaults is Dictionary and not raw_defaults.is_empty():
 		return raw_defaults.duplicate(true)
-	var preset_variant: Variant = LEGACY_DOOR_ALIAS_CONFIGS.get(normalized_prefab_id, {})
+	var preset_variant: Variant = LEGACY_DOOR_ALIAS_CONFIGS.get(normalized_prefab_id, LEGACY_WALL_ALIAS_CONFIGS.get(normalized_prefab_id, {}))
 	if preset_variant is Dictionary:
 		var preset_defaults: Dictionary = preset_variant.duplicate(true)
 		preset_defaults.erase("object_type")
@@ -168,16 +214,19 @@ static func get_prefab_alias_defaults(prefab_id: String) -> Dictionary:
 static func is_constructor_door_preset(prefab_id: String) -> bool:
 	return LEGACY_DOOR_ALIAS_CONFIGS.has(prefab_id.strip_edges().to_lower())
 
+static func get_wall_material_quick_presets() -> Array[Dictionary]:
+	return []
+
 static func get_constructor_palette_rows() -> Array[Dictionary]:
 	var rows: Array[Dictionary] = []
 	for archetype_id_variant in ARCHETYPE_REGISTRY.keys():
 		var archetype_id: String = String(archetype_id_variant)
 		var definition: Dictionary = ARCHETYPE_REGISTRY[archetype_id]
-		rows.append({"id":archetype_id, "prefab_id":archetype_id, "archetype_id":archetype_id, "canonical_object_type":String(definition.get("object_type", archetype_id)), "display_name":String(definition.get("palette_label", archetype_id.capitalize())), "label":String(definition.get("palette_label", archetype_id.capitalize())), "category":String(definition.get("object_group", "Objects")).capitalize(), "object_group":String(definition.get("object_group", "physical_object")), "placement_mode":String(definition.get("placement_mode", "object")), "blocks_movement":true, "is_alias":false})
+		rows.append({"id":archetype_id, "prefab_id":archetype_id, "archetype_id":archetype_id, "canonical_object_type":String(definition.get("object_type", archetype_id)), "display_name":String(definition.get("palette_label", archetype_id.capitalize())), "label":String(definition.get("palette_label", archetype_id.capitalize())), "label_ru":String(definition.get("palette_label_ru", "")), "category":String(definition.get("object_group", "Objects")).capitalize(), "object_group":String(definition.get("object_group", "physical_object")), "placement_mode":String(definition.get("placement_mode", "object")), "blocks_movement":bool(definition.get("blocks_movement", true)), "is_alias":false})
 	for object_type_variant in OBJECT_LIBRARY.keys():
 		var object_type: String = String(object_type_variant)
 		var definition: Dictionary = OBJECT_LIBRARY[object_type]
-		if not bool(definition.get("placeable_in_constructor", true)) or String(definition.get("group", "")) == "door":
+		if ARCHETYPE_REGISTRY.has(object_type) or not bool(definition.get("placeable_in_constructor", true)) or String(definition.get("group", "")) == "door":
 			continue
 		rows.append(_build_constructor_palette_row(object_type, object_type, definition, false))
 	rows.sort_custom(func(a: Dictionary, b: Dictionary) -> bool: return String(a.get("display_name", "")) < String(b.get("display_name", "")))
@@ -253,15 +302,17 @@ const OBJECT_LIBRARY := {
 	"lifting_platform": {"group":"platform","name":"Lifting Platform","platform_type":"lifting","platform_id":"","platform_cells":[],"state":"active","is_powered":true,"power_type":"internal","control_type":"internal","requires_terminal_enabled":false,"linked_terminal_id":"","local_switch_cell":[0,0],"local_switch_facing_dir":"up","non_destructible":true,"destructible":false,"movable":false,"heavy_claw_movable":false,"height_level":0,"min_height_level":0,"max_height_level":1,"activation_mode":"instant","timer_turns":0,"timer_remaining_turns":0,"period_turns":0,"periodic_active":false,"permanent_state":false,"pending_activation":false},
 	"cooling_terminal": {"group":"terminal","name":"Cooling Terminal","placement_mode":"wall_mounted","state":"active","is_powered":true,"power_mode":"internal_power","control_mode":"internal_control","requires_external_control":false,"control_terminal_id":"","linked_terminal_id":"","connection_type":"wired","terminal_class":1,"required_connector_level":1,"required_processor_level":1,"encrypts_data":false,"drain_pool":10,"durability":10,"working_heat":1,"current_heat":1,"overheat_threshold":3,"heat_from_connections":0,"cooling_received":0,"hack_heat":1,"overheated_state_before":""},
 	"firewall": {"group":"terminal","name":"Firewall","placement_mode":"wall_mounted","state":"active","required_connector_level":1,"required_processor_level":1,"durability":10},
-	"outer_wall": {"group":"wall","name":"Outer Wall","material":"steel","durability":9999,"indestructible":true,"blocks_movement":true,"blocks_vision":true},
-	"grate_wall": {"group":"wall","name":"Grate Wall","material":"steel","durability":15,"blocks_movement":true,"blocks_vision":false},
-	"damaged_wall": {"group":"wall","name":"Damaged Wall","material":"concrete","durability":3,"blocks_movement":true,"blocks_vision":false,"hidden_content":["secret_passage"]},
-	"brick_wall": {"group":"wall","name":"Brick Wall","material":"brick","durability":10,"blocks_movement":true,"blocks_vision":true},
-	"concrete_wall": {"group":"wall","name":"Concrete Wall","material":"concrete","durability":20,"blocks_movement":true,"blocks_vision":true},
-	"steel_wall": {"group":"wall","name":"Steel Wall","material":"steel","durability":30,"blocks_movement":true,"blocks_vision":true},
-	"reinforced_steel_wall": {"group":"wall","name":"Reinforced Steel Wall","material":"reinforced_steel","durability":40,"blocks_movement":true,"blocks_vision":true},
-	"titanium_wall": {"group":"wall","name":"Titanium Wall","material":"titanium","durability":100,"blocks_movement":true,"blocks_vision":true},
-	"energy_wall": {"group":"wall","name":"Energy Wall","material":"energy_flow","durability":1,"blocks_movement":true,"blocks_vision":false,"invulnerable_while_powered":true,"power_mode":"external_power"},
+	"external_wall": {"group":"wall","name":"External Wall","material":"external_structural","is_destructible":false,"supports_embedded_objects":true,"supports_cables":true,"configurable":false,"indestructible":true,"blocks_movement":true,"blocks_vision":true},
+	"wall": {"group":"wall","name":"Brick Wall","material":"brick","is_destructible":true,"supports_embedded_objects":true,"supports_cables":true,"configurable":true,"durability":10,"blocks_movement":true,"blocks_vision":true},
+	"outer_wall": {"group":"wall","name":"Outer Wall","material":"steel","durability":9999,"indestructible":true,"blocks_movement":true,"blocks_vision":true,"placeable_in_constructor":false},
+	"grate_wall": {"group":"wall","name":"Grate Wall","material":"steel","durability":15,"blocks_movement":true,"blocks_vision":false,"placeable_in_constructor":false},
+	"damaged_wall": {"group":"wall","name":"Damaged Wall","material":"concrete","durability":3,"blocks_movement":true,"blocks_vision":false,"hidden_content":["secret_passage"],"placeable_in_constructor":false},
+	"brick_wall": {"group":"wall","name":"Brick Wall","material":"brick","durability":10,"blocks_movement":true,"blocks_vision":true,"placeable_in_constructor":false},
+	"concrete_wall": {"group":"wall","name":"Concrete Wall","material":"concrete","durability":20,"blocks_movement":true,"blocks_vision":true,"placeable_in_constructor":false},
+	"steel_wall": {"group":"wall","name":"Steel Wall","material":"steel","durability":30,"blocks_movement":true,"blocks_vision":true,"placeable_in_constructor":false},
+	"reinforced_steel_wall": {"group":"wall","name":"Reinforced Steel Wall","material":"reinforced_steel","durability":40,"blocks_movement":true,"blocks_vision":true,"placeable_in_constructor":false},
+	"titanium_wall": {"group":"wall","name":"Titanium Wall","material":"titanium","durability":100,"blocks_movement":true,"blocks_vision":true,"placeable_in_constructor":false},
+	"energy_wall": {"group":"wall","name":"Energy Wall","material":"energy_flow","durability":1,"blocks_movement":true,"blocks_vision":false,"invulnerable_while_powered":true,"power_mode":"external_power","placeable_in_constructor":false},
 	"power_cable": {"group":"power","name":"Power Cable","state":"ok","durability":5,"power_mode":"external_power","control_mode":"internal_control","is_powered":false,"power_network_id":"","power_source_id":"","physical_connection_source_id":"","connected":true,"disconnected":false,"connected_side":true,"cut":false,"damaged":false,"broken":false,"is_hidden":false,"route_surface":"floor","cable_path_cells":[],"cable_length":0},
 	"circuit_breaker": {"group":"power","name":"Circuit Breaker","placement_mode":"wall_mounted","state":"switch_on","durability":8,"power_mode":"external_power","control_mode":"internal_control","requires_external_control":false,"control_terminal_id":"","linked_terminal_id":"","is_powered":false,"is_on":true,"power_network_id":"","power_source_id":"","physical_connection_source_id":"","damaged":false,"broken":false},
 	"circuit_switch": {"group":"power","name":"Circuit Switch","state":"switch_off","durability":8,"power_mode":"external_power","control_mode":"internal_control","requires_external_control":false,"control_terminal_id":"","linked_terminal_id":"","is_powered":false,"power_network_id":"","power_source_id":"","physical_connection_source_id":"","damaged":false,"broken":false,"input_wire_id":"","output_1_wire_id":"","output_2_wire_id":"","output_3_wire_id":"","active_output_index":1},
@@ -474,7 +525,7 @@ static func normalize_world_object_contract(object_data: Dictionary) -> Dictiona
 	var object_type: String = _normalized_contract_token(data.get("object_type", ""))
 	var prefab_id: String = _normalized_contract_token(data.get("map_constructor_prefab_id", object_type))
 	var canonical_type: String = canonical_prefab_id(object_type)
-	if PREFAB_ALIASES.has(prefab_id):
+	if is_legacy_prefab_alias(prefab_id):
 		canonical_type = canonical_prefab_id(prefab_id)
 		data["map_constructor_prefab_id"] = prefab_id
 	data["object_type"] = canonical_type
@@ -616,6 +667,9 @@ static func get_archetype_id_for_object(object_data: Dictionary) -> String:
 	var explicit_id: String = _normalized_contract_token(object_data.get("archetype_id", ""))
 	if ARCHETYPE_REGISTRY.has(explicit_id):
 		return explicit_id
+	var object_type: String = _normalized_contract_token(object_data.get("object_type", ""))
+	if ARCHETYPE_REGISTRY.has(object_type):
+		return object_type
 	var group_id: String = _normalized_contract_token(object_data.get("object_group", object_data.get("group", "")))
 	if ARCHETYPE_REGISTRY.has(group_id):
 		return group_id
@@ -627,6 +681,10 @@ static func _schema_defaults(archetype_id: String) -> Dictionary:
 		var field: Dictionary = field_variant
 		defaults[String(field.get("field", ""))] = field.get("default")
 	return defaults
+
+static func _normalize_wall_material(value: Variant) -> String:
+	var material: String = _normalized_contract_token(value)
+	return material if WALL_MATERIALS.has(material) else WALL_MATERIAL_BRICK
 
 static func _label_for_id(value: Variant) -> String:
 	return _normalized_contract_token(value).replace("_", " ").capitalize()
@@ -649,10 +707,15 @@ static func normalize_archetype_object(object_data: Dictionary) -> Dictionary:
 	var definition: Dictionary = get_archetype_definition(archetype_id)
 	data["archetype_id"] = archetype_id
 	data["object_group"] = String(definition.get("object_group", archetype_id))
+	for fixed_field in ["material", "is_destructible", "supports_embedded_objects", "supports_cables", "configurable", "blocks_movement", "blocks_vision"]:
+		if definition.has(fixed_field) and (archetype_id == "external_wall" or not data.has(fixed_field)):
+			data[fixed_field] = definition[fixed_field]
 	for key_variant in _schema_defaults(archetype_id).keys():
 		var key: String = String(key_variant)
 		if not data.has(key):
 			data[key] = _schema_defaults(archetype_id)[key]
+	if archetype_id == "wall":
+		data["material"] = _normalize_wall_material(data.get("material", WALL_MATERIAL_BRICK))
 	if archetype_id == "door":
 		data["power_mode"] = String(data.get("power_type", data.get("power_mode", "internal")))
 		data["control_mode"] = String(data.get("control_type", data.get("control_mode", "internal")))
@@ -665,15 +728,13 @@ static func create_archetype_object(archetype_id: String, id_override: String = 
 	if definition.is_empty():
 		return {}
 	var runtime_type: String = String(definition.get("object_type", archetype_id))
-	var data: Dictionary = create_world_object(runtime_type, id_override)
+	var data: Dictionary = _create_library_object(runtime_type, id_override) if runtime_type == archetype_id else create_world_object(runtime_type, id_override)
 	data["archetype_id"] = archetype_id
 	for key_variant in overrides.keys():
 		data[String(key_variant)] = overrides[key_variant]
 	return normalize_door_state_fields(normalize_world_object_contract(normalize_archetype_object(data)))
 
-static func create_world_object(object_type: String, id_override: String = "") -> Dictionary:
-	if ARCHETYPE_REGISTRY.has(_normalized_contract_token(object_type)):
-		return create_archetype_object(_normalized_contract_token(object_type), id_override)
+static func _create_library_object(object_type: String, id_override: String = "") -> Dictionary:
 	var canonical_type: String = canonical_object_type(object_type)
 	if not OBJECT_LIBRARY.has(canonical_type):
 		return {}
@@ -698,8 +759,12 @@ static func create_world_object(object_type: String, id_override: String = "") -
 		data[String(key_variant)] = alias_defaults[key_variant]
 	data = normalize_world_object_contract(data)
 	data = update_world_object_heat_state(data)
-	data = normalize_door_state_fields(data)
-	return data
+	return normalize_door_state_fields(data)
+
+static func create_world_object(object_type: String, id_override: String = "") -> Dictionary:
+	if ARCHETYPE_REGISTRY.has(_normalized_contract_token(object_type)):
+		return create_archetype_object(_normalized_contract_token(object_type), id_override)
+	return _create_library_object(object_type, id_override)
 
 static func get_world_object_working_heat(object_data: Dictionary) -> int:
 	return _safe_non_negative_int(object_data.get("working_heat", 0))

@@ -143,13 +143,15 @@ static func show_for_selection(ui: Variant, cell: Vector2i, preferred_entity_kin
 	placement.add_child(del)
 	v.add_child(placement)
 	var configurable: VBoxContainer = ui._create_inspector_section("4. Configurable Parameters")
-	ui._add_preset_buttons(configurable, entity_kind, entity_id)
-	var rendered_archetype_schema: bool = ui._add_archetype_schema_properties(configurable, entity_kind, entity_id, data)
-	if not rendered_archetype_schema:
+	var object_is_configurable: bool = bool(data.get("configurable", true))
+	if object_is_configurable:
+		ui._add_preset_buttons(configurable, entity_kind, entity_id)
+	var rendered_archetype_schema: bool = ui._add_archetype_schema_properties(configurable, entity_kind, entity_id, data) if object_is_configurable else false
+	if object_is_configurable and not rendered_archetype_schema:
 		ui._add_map_constructor_active_settings(configurable, entity_kind, entity_id, data, type_group)
 	if type_group == "control" or data.has("requires_external_control"):
 		ui._add_bool_property(configurable, "requires_external_control", entity_kind, entity_id, "requires_external_control", data.get("requires_external_control", false))
-	if data.has("state") and not (type_group == "door" or (type_group == "power" and ui._safe_ui_string(data.get("object_type", "")).to_lower().begins_with("power_source"))):
+	if object_is_configurable and data.has("state") and not (type_group == "door" or (type_group == "power" and ui._safe_ui_string(data.get("object_type", "")).to_lower().begins_with("power_source"))):
 		ui._add_text_property(configurable, "Editable state override", entity_kind, entity_id, "state", data.get("state", ""))
 	if type_group == "terminal":
 		ui._add_bool_property(configurable, "damaged", entity_kind, entity_id, "damaged", data.get("damaged", false))
