@@ -321,13 +321,8 @@ func apply_map_constructor_property_update(entity_kind: String, entity_id: Strin
 	var old_value: Variant = data.get(field_name)
 	var old_network_id: String = String(data.get("power_network_id", ""))
 	data[field_name] = new_value
-	if resolved_kind == "world_object" and field_name == "state" and manager._map_constructor_is_door_data(data):
-		var door_state_update: String = String(new_value).strip_edges().to_lower()
-		data["is_open"] = door_state_update == "open"
-		data["is_closed"] = door_state_update in ["closed", "locked", "jammed"]
-		data["is_locked"] = door_state_update == "locked"
-		data["locked"] = door_state_update == "locked"
 	if resolved_kind == "world_object":
+		data = WorldObjectCatalogRef.normalize_door_state_fields(WorldObjectCatalogRef.normalize_world_object_contract(data))
 		data = manager._normalize_map_constructor_active_object_fields(data)
 		manager.update_world_object_by_id(entity_id, data)
 	elif resolved_kind == "item":

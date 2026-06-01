@@ -75,3 +75,11 @@ UI helpers must call the `MissionManager` facade instead of accessing `MapConstr
 - Do old maps continue loading without an unplanned migration?
 - Are UI presentation changes isolated from runtime behavior?
 - Do the local static checks pass?
+
+## Configurable object archetype contract
+
+Map Constructor authoring follows a global catalog contract: the palette exposes a base archetype, the inspector renders the archetype property schema, and runtime creation normalizes defaults plus overrides into canonical object data. Door is the first migrated consumer: the palette exposes one `door` row and legacy material/type ids remain load-only compatibility aliases.
+
+Door state uses `state` and `allowed_states` as its source of truth. Compatibility flags such as `is_open`, `is_locked`, and `blocks_movement` are derived by the catalog state synchronizer. Canonical ids remain English runtime values; generated display names are presentation-only labels.
+
+Next archetypes to migrate through the same registry, without variant palette rows: `terminal`, `platform`, `power_source`, `power_cable`, `switch`, `item`, `wall`, `floor_tile`, `cooling_device`, and `data_device`.

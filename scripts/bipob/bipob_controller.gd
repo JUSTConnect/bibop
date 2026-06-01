@@ -8589,10 +8589,11 @@ func _apply_world_object_effects(effects: Array, world_object: Dictionary, targe
 					world_object["behavior_before_stun"] = world_object.get("behavior_state", "idle")
 			world_object["state"] = next_state
 		elif effect_type == "set_blocks_movement":
-			world_object["blocks_movement"] = effect.get("value", world_object.get("blocks_movement", false))
+			if String(world_object.get("object_group", "")) != "door":
+				world_object["blocks_movement"] = effect.get("value", world_object.get("blocks_movement", false))
 		elif effect_type == "set_bool":
 			var field_name := String(effect.get("field", "")).strip_edges()
-			if not field_name.is_empty():
+			if not field_name.is_empty() and not (String(world_object.get("object_group", "")) == "door" and field_name in ["is_open", "is_closed", "is_locked", "locked", "blocks_movement"]):
 				world_object[field_name] = bool(effect.get("value", false))
 		elif effect_type == "set_int":
 			var int_field_name := String(effect.get("field", "")).strip_edges()
@@ -8728,7 +8729,9 @@ func _apply_world_object_effects(effects: Array, world_object: Dictionary, targe
 					mission_manager.call("refresh_world_object_platform_height_state", world_object)
 				mission_manager.set_world_object_at_cell(destination, world_object)
 				object_moved = true
-	if world_object.get("state", "") in ["open", "destroyed", "inactive", "unpowered", "disabled"]:
+	if String(world_object.get("object_group", "")) == "door":
+		WorldObjectCatalog.normalize_door_state_fields(world_object)
+	elif world_object.get("state", "") in ["open", "destroyed", "inactive", "unpowered", "disabled"]:
 		world_object["blocks_movement"] = false
 	return object_moved
 
@@ -8769,7 +8772,7 @@ func _apply_terminal_controls(terminal: Dictionary) -> Array[String]:
 		var control_applied: bool = false
 		if terminal_type == "door_terminal" and String(controlled.get("object_group", "")) == "door":
 			controlled["state"] = "open"
-			controlled["blocks_movement"] = false
+			WorldObjectCatalog.normalize_door_state_fields(controlled)
 			messages.append("Terminal control applied: %s opened." % controlled_id)
 			control_applied = true
 		elif terminal_type == "turret_terminal" and String(controlled.get("object_type", "")) == "turret":

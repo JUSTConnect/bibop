@@ -187,10 +187,11 @@ static func _apply_powered_state(obj: Dictionary, powered: bool) -> void:
 			if not (object_group == "threat" and object_type == "turret" and restored_state in ["destroyed", "hacked", "disabled"]):
 				obj["state"] = restored_state
 			obj.erase("state_before_unpowered")
-	if object_type in ["energy_door", "energy_wall", "powered_gate"] and not powered:
-		obj["blocks_movement"] = false
-	elif object_type in ["energy_door", "energy_wall", "powered_gate"] and powered and obj.get("state", "") not in ["open", "inactive", "destroyed"]:
-		obj["blocks_movement"] = true
+	if object_group == "door" and object_type in ["energy_door", "powered_gate"]:
+		obj["state"] = "open" if not powered else String(obj.get("state", "closed"))
+		WorldObjectCatalogRef.normalize_door_state_fields(obj)
+	elif object_type == "energy_wall":
+		obj["blocks_movement"] = powered and obj.get("state", "") not in ["open", "inactive", "destroyed"]
 
 static func recalculate_network(objects: Array[Dictionary], network_id: String) -> Array[Dictionary]:
 	var object_by_cell: Dictionary = {}

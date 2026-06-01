@@ -12406,6 +12406,9 @@ func _add_text_property(section: VBoxContainer, label: String, entity_kind: Stri
 func _add_bool_property(section: VBoxContainer, label: String, entity_kind: String, entity_id: String, field_name: String, current_value: Variant) -> void:
 	MapConstructorPropertyControls.add_bool_property(self, section, label, entity_kind, entity_id, field_name, current_value)
 
+func _add_archetype_schema_properties(section: VBoxContainer, entity_kind: String, entity_id: String, data: Dictionary) -> bool:
+	return MapConstructorPropertyControls.add_archetype_schema_properties(self, section, entity_kind, entity_id, data)
+
 func _add_preset_buttons(section: VBoxContainer, entity_kind: String, entity_id: String) -> void:
 	MapConstructorPropertyControls.add_preset_buttons(self, section, entity_kind, entity_id)
 

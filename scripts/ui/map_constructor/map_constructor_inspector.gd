@@ -144,7 +144,9 @@ static func show_for_selection(ui: Variant, cell: Vector2i, preferred_entity_kin
 	v.add_child(placement)
 	var configurable: VBoxContainer = ui._create_inspector_section("4. Configurable Parameters")
 	ui._add_preset_buttons(configurable, entity_kind, entity_id)
-	ui._add_map_constructor_active_settings(configurable, entity_kind, entity_id, data, type_group)
+	var rendered_archetype_schema: bool = ui._add_archetype_schema_properties(configurable, entity_kind, entity_id, data)
+	if not rendered_archetype_schema:
+		ui._add_map_constructor_active_settings(configurable, entity_kind, entity_id, data, type_group)
 	if type_group == "control" or data.has("requires_external_control"):
 		ui._add_bool_property(configurable, "requires_external_control", entity_kind, entity_id, "requires_external_control", data.get("requires_external_control", false))
 	if data.has("state") and not (type_group == "door" or (type_group == "power" and ui._safe_ui_string(data.get("object_type", "")).to_lower().begins_with("power_source"))):

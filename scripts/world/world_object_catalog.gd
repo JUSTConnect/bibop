@@ -43,21 +43,21 @@ const PREFAB_ALIAS_DEFAULTS: Dictionary = {
 	"powered_gate": {"object_group":"door", "door_type":DOOR_TYPE_POWERED, "access_type":ACCESS_TYPE_NO_KEY, "power_behavior":POWER_BEHAVIOR_OPENS_WHEN_UNPOWERED, "requires_external_power":true, "power_mode":"external_power"}
 }
 
-# Constructor presets are authoring choices only. Their runtime object_type always
-# resolves to one of the canonical material-derived door objects in OBJECT_LIBRARY.
-const CONSTRUCTOR_DOOR_PRESETS: Dictionary = {
-	"mechanical_steel_door": {"object_type":"steel_door", "display_name":"Mechanical Steel Door", "door_type":DOOR_TYPE_MECHANICAL, "material":DOOR_MATERIAL_STEEL, "access_type":ACCESS_TYPE_KEY_CARD, "power_behavior":POWER_BEHAVIOR_NONE},
-	"mechanical_reinforced_steel_door": {"object_type":"reinforced_steel_door", "display_name":"Mechanical Reinforced Steel Door", "door_type":DOOR_TYPE_MECHANICAL, "material":DOOR_MATERIAL_REINFORCED_STEEL, "access_type":ACCESS_TYPE_KEY_CARD, "power_behavior":POWER_BEHAVIOR_NONE},
-	"mechanical_titanium_door": {"object_type":"titanium_door", "display_name":"Mechanical Titanium Door", "door_type":DOOR_TYPE_MECHANICAL, "material":DOOR_MATERIAL_TITANIUM, "access_type":ACCESS_TYPE_KEY_CARD, "power_behavior":POWER_BEHAVIOR_NONE},
-	"mechanical_energy_door": {"object_type":"energy_door", "display_name":"Mechanical Energy Door", "door_type":DOOR_TYPE_MECHANICAL, "material":DOOR_MATERIAL_ENERGY, "access_type":ACCESS_TYPE_KEY_CARD, "power_behavior":POWER_BEHAVIOR_NONE},
-	"digital_steel_door": {"object_type":"steel_door", "display_name":"Digital Steel Door", "door_type":DOOR_TYPE_DIGITAL, "material":DOOR_MATERIAL_STEEL, "access_type":ACCESS_TYPE_DIGITAL_KEY, "power_behavior":POWER_BEHAVIOR_NONE},
-	"digital_reinforced_steel_door": {"object_type":"reinforced_steel_door", "display_name":"Digital Reinforced Steel Door", "door_type":DOOR_TYPE_DIGITAL, "material":DOOR_MATERIAL_REINFORCED_STEEL, "access_type":ACCESS_TYPE_DIGITAL_KEY, "power_behavior":POWER_BEHAVIOR_NONE},
-	"digital_titanium_door": {"object_type":"titanium_door", "display_name":"Digital Titanium Door", "door_type":DOOR_TYPE_DIGITAL, "material":DOOR_MATERIAL_TITANIUM, "access_type":ACCESS_TYPE_DIGITAL_KEY, "power_behavior":POWER_BEHAVIOR_NONE},
-	"digital_energy_door": {"object_type":"energy_door", "display_name":"Digital Energy Door", "door_type":DOOR_TYPE_DIGITAL, "material":DOOR_MATERIAL_ENERGY, "access_type":ACCESS_TYPE_DIGITAL_KEY, "power_behavior":POWER_BEHAVIOR_NONE},
-	"powered_steel_door": {"object_type":"steel_door", "display_name":"Powered Steel Door", "door_type":DOOR_TYPE_POWERED, "material":DOOR_MATERIAL_STEEL, "access_type":ACCESS_TYPE_NO_KEY, "power_behavior":POWER_BEHAVIOR_OPENS_WHEN_UNPOWERED, "requires_external_power":true, "power_mode":"external_power"},
-	"powered_reinforced_steel_door": {"object_type":"reinforced_steel_door", "display_name":"Powered Reinforced Steel Door", "door_type":DOOR_TYPE_POWERED, "material":DOOR_MATERIAL_REINFORCED_STEEL, "access_type":ACCESS_TYPE_NO_KEY, "power_behavior":POWER_BEHAVIOR_OPENS_WHEN_UNPOWERED, "requires_external_power":true, "power_mode":"external_power"},
-	"powered_titanium_door": {"object_type":"titanium_door", "display_name":"Powered Titanium Door", "door_type":DOOR_TYPE_POWERED, "material":DOOR_MATERIAL_TITANIUM, "access_type":ACCESS_TYPE_NO_KEY, "power_behavior":POWER_BEHAVIOR_OPENS_WHEN_UNPOWERED, "requires_external_power":true, "power_mode":"external_power"},
-	"powered_energy_door": {"object_type":"energy_door", "display_name":"Powered Energy Door", "door_type":DOOR_TYPE_POWERED, "material":DOOR_MATERIAL_ENERGY, "access_type":ACCESS_TYPE_NO_KEY, "power_behavior":POWER_BEHAVIOR_OPENS_WHEN_UNPOWERED, "requires_external_power":true, "power_mode":"external_power"}
+# Hidden compatibility mappings for loading old constructor/runtime data only.
+# These aliases must never be emitted as user-facing palette entries or presets.
+const LEGACY_DOOR_ALIAS_CONFIGS: Dictionary = {
+	"mechanical_steel_door": {"object_type":"steel_door", "door_type":DOOR_TYPE_MECHANICAL, "material":DOOR_MATERIAL_STEEL, "access_type":ACCESS_TYPE_KEY_CARD, "power_behavior":POWER_BEHAVIOR_NONE},
+	"mechanical_reinforced_steel_door": {"object_type":"reinforced_steel_door", "door_type":DOOR_TYPE_MECHANICAL, "material":DOOR_MATERIAL_REINFORCED_STEEL, "access_type":ACCESS_TYPE_KEY_CARD, "power_behavior":POWER_BEHAVIOR_NONE},
+	"mechanical_titanium_door": {"object_type":"titanium_door", "door_type":DOOR_TYPE_MECHANICAL, "material":DOOR_MATERIAL_TITANIUM, "access_type":ACCESS_TYPE_KEY_CARD, "power_behavior":POWER_BEHAVIOR_NONE},
+	"mechanical_energy_door": {"object_type":"energy_door", "door_type":DOOR_TYPE_MECHANICAL, "material":DOOR_MATERIAL_ENERGY, "access_type":ACCESS_TYPE_KEY_CARD, "power_behavior":POWER_BEHAVIOR_NONE},
+	"digital_steel_door": {"object_type":"steel_door", "door_type":DOOR_TYPE_DIGITAL, "material":DOOR_MATERIAL_STEEL, "access_type":ACCESS_TYPE_DIGITAL_KEY, "power_behavior":POWER_BEHAVIOR_NONE},
+	"digital_reinforced_steel_door": {"object_type":"reinforced_steel_door", "door_type":DOOR_TYPE_DIGITAL, "material":DOOR_MATERIAL_REINFORCED_STEEL, "access_type":ACCESS_TYPE_DIGITAL_KEY, "power_behavior":POWER_BEHAVIOR_NONE},
+	"digital_titanium_door": {"object_type":"titanium_door", "door_type":DOOR_TYPE_DIGITAL, "material":DOOR_MATERIAL_TITANIUM, "access_type":ACCESS_TYPE_DIGITAL_KEY, "power_behavior":POWER_BEHAVIOR_NONE},
+	"digital_energy_door": {"object_type":"energy_door", "door_type":DOOR_TYPE_DIGITAL, "material":DOOR_MATERIAL_ENERGY, "access_type":ACCESS_TYPE_DIGITAL_KEY, "power_behavior":POWER_BEHAVIOR_NONE},
+	"powered_steel_door": {"object_type":"steel_door", "door_type":DOOR_TYPE_POWERED, "material":DOOR_MATERIAL_STEEL, "access_type":ACCESS_TYPE_NO_KEY, "power_behavior":POWER_BEHAVIOR_OPENS_WHEN_UNPOWERED, "requires_external_power":true, "power_mode":"external_power"},
+	"powered_reinforced_steel_door": {"object_type":"reinforced_steel_door", "door_type":DOOR_TYPE_POWERED, "material":DOOR_MATERIAL_REINFORCED_STEEL, "access_type":ACCESS_TYPE_NO_KEY, "power_behavior":POWER_BEHAVIOR_OPENS_WHEN_UNPOWERED, "requires_external_power":true, "power_mode":"external_power"},
+	"powered_titanium_door": {"object_type":"titanium_door", "door_type":DOOR_TYPE_POWERED, "material":DOOR_MATERIAL_TITANIUM, "access_type":ACCESS_TYPE_NO_KEY, "power_behavior":POWER_BEHAVIOR_OPENS_WHEN_UNPOWERED, "requires_external_power":true, "power_mode":"external_power"},
+	"powered_energy_door": {"object_type":"energy_door", "door_type":DOOR_TYPE_POWERED, "material":DOOR_MATERIAL_ENERGY, "access_type":ACCESS_TYPE_NO_KEY, "power_behavior":POWER_BEHAVIOR_OPENS_WHEN_UNPOWERED, "requires_external_power":true, "power_mode":"external_power"}
 }
 
 const DOOR_MATERIAL_BY_OBJECT_TYPE: Dictionary = {
@@ -68,11 +68,40 @@ const DOOR_MATERIAL_BY_OBJECT_TYPE: Dictionary = {
 	"grid_door": DOOR_MATERIAL_STEEL
 }
 
+# Global authoring contract. Add the next migrations here (terminal, platform,
+# power_source, item, wall, cooling_device, data_device) without adding palette variants.
+const ARCHETYPE_REGISTRY: Dictionary = {
+	"door": {
+		"archetype_id":"door", "object_group":"door", "object_type":"steel_door", "palette_label":"Door",
+		"display_name_template":"{material_label} {door_type_label} Door",
+		"property_schema":[
+			{"field":"door_type", "type":"enum", "values":["mechanical", "digital", "powered"], "default":"mechanical"},
+			{"field":"material", "type":"enum", "values":["steel", "reinforced_steel", "titanium", "energy"], "default":"steel"},
+			{"field":"access_type", "type":"enum", "values":["no_key", "key_card", "digital_key", "access_code", "terminal"], "default":"no_key"},
+			{"field":"door_class", "type":"int", "default":1},
+			{"field":"power_type", "type":"enum", "values":["internal", "external", "none"], "default":"internal"},
+			{"field":"control_type", "type":"enum", "values":["internal", "external", "none"], "default":"internal"},
+			{"field":"power_behavior", "type":"enum", "values":["none", "opens_when_unpowered"], "default":"none"},
+			{"field":"state", "type":"enum", "values":["closed", "open", "damaged", "jammed", "locked", "unpowered"], "default":"closed"},
+			{"field":"allowed_states", "type":"enum_array", "values":["closed", "open", "damaged", "jammed", "locked", "unpowered"], "default":["closed", "open", "damaged"]},
+			{"field":"required_key_id", "type":"string", "default":""},
+			{"field":"required_terminal_id", "type":"string", "default":""},
+			{"field":"required_access_code_id", "type":"string", "default":""},
+			{"field":"required_digital_key_id", "type":"string", "default":""},
+			{"field":"required_manipulator_level", "type":"int", "default":0},
+			{"field":"required_connector_level", "type":"int", "default":0},
+			{"field":"required_processor_level", "type":"int", "default":0}
+		]
+	}
+}
+
+const LEGACY_DOOR_IDS: Array[String] = ["steel_door", "reinforced_steel_door", "titanium_door", "energy_door", "grid_door", "mechanical_door", "digital_door", "powered_gate", "digital_steel_door", "digital_titanium_door", "mechanical_titanium_door"]
+
 static func canonical_prefab_id(prefab_id: String) -> String:
 	var normalized_type: String = prefab_id.strip_edges().to_lower()
 	if PREFAB_ALIASES.has(normalized_type):
 		return String(PREFAB_ALIASES[normalized_type])
-	var preset_variant: Variant = CONSTRUCTOR_DOOR_PRESETS.get(normalized_type, {})
+	var preset_variant: Variant = LEGACY_DOOR_ALIAS_CONFIGS.get(normalized_type, {})
 	if preset_variant is Dictionary:
 		return String(preset_variant.get("object_type", normalized_type))
 	return normalized_type
@@ -128,7 +157,7 @@ static func get_prefab_alias_defaults(prefab_id: String) -> Dictionary:
 	var raw_defaults: Variant = PREFAB_ALIAS_DEFAULTS.get(normalized_prefab_id, {})
 	if raw_defaults is Dictionary and not raw_defaults.is_empty():
 		return raw_defaults.duplicate(true)
-	var preset_variant: Variant = CONSTRUCTOR_DOOR_PRESETS.get(normalized_prefab_id, {})
+	var preset_variant: Variant = LEGACY_DOOR_ALIAS_CONFIGS.get(normalized_prefab_id, {})
 	if preset_variant is Dictionary:
 		var preset_defaults: Dictionary = preset_variant.duplicate(true)
 		preset_defaults.erase("object_type")
@@ -137,28 +166,20 @@ static func get_prefab_alias_defaults(prefab_id: String) -> Dictionary:
 	return {}
 
 static func is_constructor_door_preset(prefab_id: String) -> bool:
-	return CONSTRUCTOR_DOOR_PRESETS.has(prefab_id.strip_edges().to_lower())
+	return LEGACY_DOOR_ALIAS_CONFIGS.has(prefab_id.strip_edges().to_lower())
 
 static func get_constructor_palette_rows() -> Array[Dictionary]:
 	var rows: Array[Dictionary] = []
+	for archetype_id_variant in ARCHETYPE_REGISTRY.keys():
+		var archetype_id: String = String(archetype_id_variant)
+		var definition: Dictionary = ARCHETYPE_REGISTRY[archetype_id]
+		rows.append({"id":archetype_id, "prefab_id":archetype_id, "archetype_id":archetype_id, "canonical_object_type":String(definition.get("object_type", archetype_id)), "display_name":String(definition.get("palette_label", archetype_id.capitalize())), "label":String(definition.get("palette_label", archetype_id.capitalize())), "category":String(definition.get("object_group", "Objects")).capitalize(), "object_group":String(definition.get("object_group", "physical_object")), "placement_mode":String(definition.get("placement_mode", "object")), "blocks_movement":true, "is_alias":false})
 	for object_type_variant in OBJECT_LIBRARY.keys():
 		var object_type: String = String(object_type_variant)
 		var definition: Dictionary = OBJECT_LIBRARY[object_type]
-		if not bool(definition.get("placeable_in_constructor", true)):
+		if not bool(definition.get("placeable_in_constructor", true)) or String(definition.get("group", "")) == "door":
 			continue
 		rows.append(_build_constructor_palette_row(object_type, object_type, definition, false))
-	for preset_id_variant in CONSTRUCTOR_DOOR_PRESETS.keys():
-		var preset_id: String = String(preset_id_variant)
-		var canonical_type: String = canonical_prefab_id(preset_id)
-		if not OBJECT_LIBRARY.has(canonical_type):
-			continue
-		var preset_definition: Dictionary = OBJECT_LIBRARY[canonical_type].duplicate(true)
-		var preset_defaults: Dictionary = get_prefab_alias_defaults(preset_id)
-		for key_variant in preset_defaults.keys():
-			preset_definition[String(key_variant)] = preset_defaults[key_variant]
-		var preset_row: Dictionary = CONSTRUCTOR_DOOR_PRESETS[preset_id]
-		preset_definition["name"] = String(preset_row.get("display_name", preset_id.capitalize()))
-		rows.append(_build_constructor_palette_row(preset_id, canonical_type, preset_definition, true))
 	rows.sort_custom(func(a: Dictionary, b: Dictionary) -> bool: return String(a.get("display_name", "")) < String(b.get("display_name", "")))
 	return rows
 
@@ -458,7 +479,39 @@ static func normalize_world_object_contract(object_data: Dictionary) -> Dictiona
 		data["map_constructor_prefab_id"] = prefab_id
 	data["object_type"] = canonical_type
 	data = normalize_door_contract(data)
+	data = normalize_archetype_object(data)
 	return data
+
+static func validate_archetype_object(object_data: Dictionary) -> Array[String]:
+	var warnings: Array[String] = []
+	var archetype_id: String = get_archetype_id_for_object(object_data)
+	if _normalized_contract_token(object_data.get("archetype_id", "")).is_empty():
+		warnings.append("object_missing_archetype_id")
+	if archetype_id.is_empty():
+		return warnings
+	if not bool(object_data.get("normalized_by_archetype_catalog", false)):
+		warnings.append("object_bypassed_archetype_normalization")
+	for field_variant in get_archetype_property_schema(archetype_id):
+		var field: Dictionary = field_variant
+		var field_name: String = String(field.get("field", ""))
+		if not object_data.has(field_name):
+			warnings.append("object_missing_schema_field_%s" % field_name)
+			continue
+		var field_type: String = String(field.get("type", ""))
+		var allowed: Array = Array(field.get("values", []))
+		if field_type == "enum" and not allowed.has(object_data.get(field_name)):
+			warnings.append("object_invalid_enum_%s" % field_name)
+		elif field_type == "enum_array":
+			for value_variant in Array(object_data.get(field_name, [])):
+				if not allowed.has(value_variant):
+					warnings.append("object_invalid_enum_array_%s" % field_name)
+	if object_data.has("allowed_states") and not Array(object_data.get("allowed_states", [])).has(object_data.get("state")):
+		warnings.append("object_state_not_allowed")
+	if archetype_id == "door":
+		var state: String = String(object_data.get("state", ""))
+		if bool(object_data.get("is_open", false)) != (state == "open") or bool(object_data.get("is_locked", false)) != (state == "locked"):
+			warnings.append("object_derived_state_flags_out_of_sync")
+	return warnings
 
 static func validate_object_registry_contract() -> Array[String]:
 	var warnings: Array[String] = []
@@ -516,6 +569,8 @@ static func normalize_door_state_fields(object_data: Dictionary) -> Dictionary:
 	object_data["access_type"] = access_type
 	object_data["lock_type"] = _legacy_lock_type_for_access_type(access_type)
 	var state := _safe_string(object_data.get("state", "closed"), "closed").strip_edges().to_lower()
+	if not object_data.has("allowed_states"):
+		object_data["allowed_states"] = ["closed", "open", "damaged"]
 	if access_type == ACCESS_TYPE_NO_KEY:
 		object_data["required_key_id"] = ""
 		object_data["is_locked"] = false
@@ -527,10 +582,11 @@ static func normalize_door_state_fields(object_data: Dictionary) -> Dictionary:
 	if state == "":
 		state = "closed"
 	var damaged_flag := bool(object_data.get("damaged", false)) or bool(object_data.get("broken", false)) or bool(object_data.get("destroyed", false)) or state in ["damaged", "broken", "destroyed"]
-	if bool(object_data.get("is_open", false)) and not damaged_flag and state not in ["locked", "jammed"]:
-		state = "open"
-	if bool(object_data.get("is_locked", object_data.get("locked", false))) and not damaged_flag and state != "open":
-		state = "locked"
+	if not bool(object_data.get("normalized_by_archetype_catalog", false)):
+		if bool(object_data.get("is_open", false)) and not damaged_flag and state not in ["locked", "jammed"]:
+			state = "open"
+		if bool(object_data.get("is_locked", object_data.get("locked", false))) and not damaged_flag and state != "open":
+			state = "locked"
 	var destroyed := bool(object_data.get("destroyed", false)) or state == "destroyed"
 	var open_state := state == "open"
 	var closed_state := state in ["closed", "locked", "jammed", "unpowered"] and not destroyed
@@ -549,7 +605,75 @@ static func normalize_door_state_fields(object_data: Dictionary) -> Dictionary:
 		object_data["blocks_vision"] = closed_state and not destroyed and bool(object_data.get("blocks_vision_when_closed", false))
 	return object_data
 
+static func get_archetype_definition(archetype_id: String) -> Dictionary:
+	var definition: Variant = ARCHETYPE_REGISTRY.get(_normalized_contract_token(archetype_id), {})
+	return definition.duplicate(true) if definition is Dictionary else {}
+
+static func get_archetype_property_schema(archetype_id: String) -> Array[Dictionary]:
+	return Array(get_archetype_definition(archetype_id).get("property_schema", [])).duplicate(true)
+
+static func get_archetype_id_for_object(object_data: Dictionary) -> String:
+	var explicit_id: String = _normalized_contract_token(object_data.get("archetype_id", ""))
+	if ARCHETYPE_REGISTRY.has(explicit_id):
+		return explicit_id
+	var group_id: String = _normalized_contract_token(object_data.get("object_group", object_data.get("group", "")))
+	if ARCHETYPE_REGISTRY.has(group_id):
+		return group_id
+	return ""
+
+static func _schema_defaults(archetype_id: String) -> Dictionary:
+	var defaults: Dictionary = {}
+	for field_variant in get_archetype_property_schema(archetype_id):
+		var field: Dictionary = field_variant
+		defaults[String(field.get("field", ""))] = field.get("default")
+	return defaults
+
+static func _label_for_id(value: Variant) -> String:
+	return _normalized_contract_token(value).replace("_", " ").capitalize()
+
+static func generate_display_name(object_data: Dictionary) -> String:
+	var archetype_id: String = get_archetype_id_for_object(object_data)
+	var definition: Dictionary = get_archetype_definition(archetype_id)
+	var template: String = String(definition.get("display_name_template", object_data.get("display_name", archetype_id.capitalize())))
+	for field_variant in get_archetype_property_schema(archetype_id):
+		var field: Dictionary = field_variant
+		var field_name: String = String(field.get("field", ""))
+		template = template.replace("{%s_label}" % field_name, _label_for_id(object_data.get(field_name, field.get("default", ""))))
+	return template
+
+static func normalize_archetype_object(object_data: Dictionary) -> Dictionary:
+	var data: Dictionary = object_data.duplicate(true)
+	var archetype_id: String = get_archetype_id_for_object(data)
+	if archetype_id.is_empty():
+		return data
+	var definition: Dictionary = get_archetype_definition(archetype_id)
+	data["archetype_id"] = archetype_id
+	data["object_group"] = String(definition.get("object_group", archetype_id))
+	for key_variant in _schema_defaults(archetype_id).keys():
+		var key: String = String(key_variant)
+		if not data.has(key):
+			data[key] = _schema_defaults(archetype_id)[key]
+	if archetype_id == "door":
+		data["power_mode"] = String(data.get("power_type", data.get("power_mode", "internal")))
+		data["control_mode"] = String(data.get("control_type", data.get("control_mode", "internal")))
+	data["display_name"] = generate_display_name(data)
+	data["normalized_by_archetype_catalog"] = true
+	return data
+
+static func create_archetype_object(archetype_id: String, id_override: String = "", overrides: Dictionary = {}) -> Dictionary:
+	var definition: Dictionary = get_archetype_definition(archetype_id)
+	if definition.is_empty():
+		return {}
+	var runtime_type: String = String(definition.get("object_type", archetype_id))
+	var data: Dictionary = create_world_object(runtime_type, id_override)
+	data["archetype_id"] = archetype_id
+	for key_variant in overrides.keys():
+		data[String(key_variant)] = overrides[key_variant]
+	return normalize_door_state_fields(normalize_world_object_contract(normalize_archetype_object(data)))
+
 static func create_world_object(object_type: String, id_override: String = "") -> Dictionary:
+	if ARCHETYPE_REGISTRY.has(_normalized_contract_token(object_type)):
+		return create_archetype_object(_normalized_contract_token(object_type), id_override)
 	var canonical_type: String = canonical_object_type(object_type)
 	if not OBJECT_LIBRARY.has(canonical_type):
 		return {}
@@ -865,8 +989,8 @@ static func remove_power_source_socket_connection(source_data: Dictionary, devic
 
 static func create_test_set() -> Array[Dictionary]:
 	return [
-		create_world_object("steel_door", "door_a1"),
-		create_world_object("energy_door", "door_e1"),
+		create_archetype_object("door", "door_a1", {"material":"steel", "door_type":"mechanical"}),
+		create_archetype_object("door", "door_e1", {"material":"energy", "door_type":"digital"}),
 		create_world_object("door_terminal", "terminal_t1"),
 		create_world_object("brick_wall", "wall_b1"),
 		create_world_object("damaged_wall", "wall_d1"),
