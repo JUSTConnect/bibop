@@ -4,68 +4,70 @@
 
 Цель документа — держать единый audit/checklist для следующих PR, чтобы не возвращаться к palette variant explosion, hardcoded fixes и непроверенным syntax regressions.
 
----
-
-## 1. Актуальный статус после последних PR
-
-### 1.1 Уже реализовано / частично реализовано
-
-```text
-#745 Fix Map Constructor validation safe Variant conversion
-#746 Fix raw_access_type blocker and restore door_type validation
-#747 Add global archetype registry and migrate Door to schema-driven Map Constructor
-#748 Add Floor archetype to global archetype registry and Map Constructor pipeline
-#749 Introduce Wall archetype: External Wall + Wall
-```
-
-Текущий положительный сдвиг:
-
-```text
-- Map Constructor validation больше не должен падать на raw access_type/digital_key из-за unsafe String(value).
-- raw_access_type blocker исправлен.
-- door_type validation восстановлена.
-- Появился global ARCHETYPE_REGISTRY / archetype-property-schema foundation.
-- Door стал schema-driven archetype вместо набора user-facing door variants.
-- Floor добавлен как archetype с material/covering/visual_style/state/allowed_states.
-- Wall разделён на External Wall и Wall.
-- Legacy door/floor/wall ids начали переноситься в hidden compatibility aliases.
-```
-
-### 1.2 Что ещё не завершено
-
-```text
-- Terminal ещё не мигрирован в один Terminal archetype.
-- Item/key/digital placement всё ещё требует отдельного прохода через catalog/archetype contract.
-- Door runtime object_type ещё не финализирован: Door уже archetype, но runtime может временно использовать material-named object_type.
-- MissionManager всё ещё содержит слишком много constructor/runtime/validation/debug responsibilities.
-- Godot parser-level gate пока не является обязательным CI-условием для каждого PR.
-```
+Последнее обновление: после проверки Fix PR-A–F.
 
 ---
 
-## 2. Новые blocking issues после PR #747–#749
+## 1. Текущий статус PR-A–F
 
-### 2.1 Floor placement regression после Wall PR
-
-PR #748 сделал Floor object archetype и добавил placement branch через metadata:
-
-```gdscript
-if String(constructor_preview.get("replaces_tile_with", "")) == "floor":
-	placed_tile_type = GridManager.TILE_FLOOR
-	manager.grid_manager.call("set_tile", cell, placed_tile_type)
+```text
+#750 Fix PR-A — English-only game UI labels
+#18d3fbd Fix PR-B — Restore Floor placement metadata branch
+#751 Fix PR-C — Strengthen archetype palette validation without manager context
+#9fa4b6e Fix PR-D — Hide quick preset buttons for archetypes
+#dfefe52 PR-E — Add Godot parser gate script
+#752 PR-F — Add Terminal as configurable archetype
+#5f3e171 Emergency fix — provide visible_archetypes helper for terminal validation reference
 ```
 
-После PR #749 эта ветка была заменена на wall-only branch:
+### 1.1 Что сейчас считается закрытым
 
-```gdscript
-if requested_object_group == "wall":
-	placed_tile_type = GridManager.TILE_WALL
-	manager.grid_manager.call("set_tile", cell, placed_tile_type)
+```text
+- Door, Floor, External Wall, Wall and Terminal are now represented as base archetype rows.
+- Floor placement branch was restored before Wall placement branch.
+- Quick preset buttons are hidden for objects with non-empty archetype_id.
+- English-only game-facing label rule was applied to catalog/schema/palette metadata.
+- tools/ci/parse_all_gd.gd exists and can load scripts through ResourceLoader.
+- Terminal archetype exists with terminal_type, controlled_target_type, terminal_class, power_type, control_type, status, allowed_statuses and linked_* fields.
 ```
 
-Это потенциально ломает Floor placement: configurable Floor может перестать восстанавливать/ставить `GridManager.TILE_FLOOR`.
+### 1.2 Что сейчас не считается полностью закрытым
 
-Ожидаемый fix-only PR:
+```text
+- Godot parser gate was added, but it is not yet proven as mandatory CI/review gate.
+- PR-F was merged after static/manual checks, but parser-level verification still must be run locally.
+- Terminal validation was patched by emergency compatibility helper `visible_archetypes.gd`.
+- The helper is acceptable as a temporary parser unblocker, but the correct cleanup is to remove that helper and use archetype_counts directly.
+- Item/key/digital placement is not yet migrated to the global archetype/catalog contract.
+- Door runtime object_type is still transitional.
+```
+
+---
+
+## 2. Review result по Fix PR-A–F
+
+### 2.1 PR-A — English-only game UI labels
+
+Status: accepted with caveat.
+
+```text
+- Russian/mixed labels were removed from game-facing catalog/schema/palette metadata.
+- Forbidden fields such as labels_ru, palette_label_ru and display_name_ru should no longer appear in scripts/world, scripts/game, scripts/ui.
+- Godot CLI was not run in Codex environment.
+```
+
+Contract remains active:
+
+```text
+All in-game user-facing labels must be English only.
+Russian text is allowed in docs/discussion only.
+```
+
+### 2.2 PR-B — Restore Floor placement metadata branch
+
+Status: accepted.
+
+Required placement priority is restored:
 
 ```gdscript
 if String(constructor_preview.get("replaces_tile_with", "")) == "floor":
@@ -79,96 +81,184 @@ elif requested_object_group == "wall":
 Acceptance:
 
 ```text
-- Placing Floor still creates/keeps walkable TILE_FLOOR.
-- Placing Wall / External Wall creates TILE_WALL.
-- Door placement behavior is unchanged.
-- No broad refactor.
+- Floor archetype should set/restore GridManager.TILE_FLOOR.
+- Wall and External Wall should still set GridManager.TILE_WALL.
+- Door placement branch remains after floor/wall checks.
 ```
 
-### 2.2 Floor palette validation was weakened
+### 2.3 PR-C — Stronger archetype palette validation
 
-`validate_constructor_palette_contract()` должен проверять обязательные archetypes независимо от `manager != null`.
+Status: mostly accepted, but follow-up required after Terminal merge.
 
-Обязательные top-level checks:
+Implemented intent:
 
 ```text
-- visible_archetypes.has("door")
-- visible_archetypes.has("floor")
-- visible_archetypes.has("external_wall")
-- visible_archetypes.has("wall")
+- Catalog-level validation now counts required archetypes through archetype_counts.
+- Door/Floor/External Wall/Wall required-row checks moved out of manager-only context.
+- Floor schema validation moved out of manager-only context.
 ```
 
-Manager-context checks могут дополнять это runtime проверками, но отсутствие manager не должно выключать базовую contract validation.
-
-### 2.3 Quick presets must not appear for configurable archetypes
-
-Configurable archetypes не должны получать quick preset buttons.
-
-Запрещено:
+Follow-up required:
 
 ```text
-Door quick presets
-Wall material quick presets
-Floor material/covering quick presets
-Terminal quick presets
+- Terminal must be added to required_archetype_warning_ids directly.
+- Replace temporary visible_archetypes.has("terminal") lookup with archetype_counts.has("terminal").
+- Restore explicit floor row check if it is removed by later PRs.
 ```
 
-Property schema — единственный пользовательский способ менять варианты.
-
-UI rule:
+Correct target:
 
 ```gdscript
-if not _safe_string(data.get("archetype_id", "")).is_empty():
-	# do not render preset buttons
+var required_archetype_warning_ids: Dictionary = {
+	"door":"constructor_palette_requires_exactly_one_door",
+	"floor":"constructor_palette_requires_exactly_one_floor",
+	"external_wall":"constructor_palette_requires_exactly_one_external_wall",
+	"wall":"constructor_palette_requires_exactly_one_wall",
+	"terminal":"constructor_palette_requires_exactly_one_terminal"
+}
+
+if not archetype_counts.has("terminal"):
+	warnings.append("constructor_palette_missing_terminal_archetype")
 ```
 
-Или эквивалентное schema-driven правило:
+Temporary state currently present:
 
 ```text
-archetype objects use property panel only; legacy quick presets are hidden.
+scripts/game/visible_archetypes.gd exists only to unblock the current reference.
+This is a compatibility shim, not the desired long-term architecture.
 ```
 
-### 2.4 UI labels language regression
+### 2.4 PR-D — Hide quick preset buttons for archetypes
 
-В игре все user-facing labels должны быть только на английском.
+Status: accepted.
 
-Недопустимые игровые значения/лейблы:
+Current rule:
 
-```text
-Floor / Пол
-External Wall / Стена внешняя
-Wall / Стена
-Стальной пол
-Стена из усиленной стали
-labels_ru
-palette_label_ru
-display_name_ru
-"Steel / Стальной"
-"Default / Базовое покрытие"
-```
-
-Разрешено в документации/обсуждении на русском, но не в runtime/game UI/code metadata.
-
-Ожидаемый fix-only PR:
-
-```text
-Normalize Map Constructor archetype UI labels to English-only
+```gdscript
+var object_archetype_id: String = ui._safe_ui_string(data.get("archetype_id", "")).strip_edges()
+if object_is_configurable and object_archetype_id.is_empty():
+	ui._add_preset_buttons(configurable, entity_kind, entity_id)
 ```
 
 Acceptance:
 
 ```text
-- palette_label values are English only: Door, Floor, External Wall, Wall, Terminal.
-- display_name values are English only.
-- property labels are English only.
-- no labels_ru / palette_label_ru / display_name_ru in game runtime catalogs.
-- no mixed labels like "Floor / Пол" or "Steel / Стальной".
-- runtime values stay canonical English ids.
+- Door/Floor/Wall/Terminal must use property schema only.
+- Legacy quick presets must not appear for archetype objects.
+```
+
+### 2.5 PR-E — Godot parser gate
+
+Status: added, not yet enforced.
+
+File:
+
+```text
+tools/ci/parse_all_gd.gd
+```
+
+Required command:
+
+```bash
+godot --headless --path . --script res://tools/ci/parse_all_gd.gd
+```
+
+Required policy:
+
+```text
+No code PR is fully verified unless this parser/load gate was actually run.
+If Godot is unavailable, reviewer status must say: Static review only. Godot parser gate was not executed.
+```
+
+### 2.6 PR-F — Terminal as configurable archetype
+
+Status: partially accepted, requires cleanup.
+
+Implemented:
+
+```text
+- Terminal archetype exists.
+- Terminal property schema exists.
+- Terminal generated display name is based on terminal_type + controlled_target_type.
+- Legacy terminal aliases exist as compatibility mappings.
+- Constructor palette should expose one Terminal row, not terminal variants.
+```
+
+Risks / cleanup:
+
+```text
+- PR-F introduced reference to visible_archetypes after PR-C replaced visible_archetypes with archetype_counts.
+- Emergency helper visible_archetypes.gd was added to unblock that reference.
+- Correct fix is still needed: use archetype_counts for terminal checks and remove helper.
+- Parser gate must be run locally against current main.
+- Terminal links/status/action availability need gameplay smoke testing.
 ```
 
 ---
 
-## 3. UI language contract
+## 3. Current blockers and next required PRs
+
+### Blocker 1 — Replace emergency visible_archetypes helper with real validation cleanup
+
+Current emergency helper:
+
+```text
+scripts/game/visible_archetypes.gd
+```
+
+Why it exists:
+
+```text
+PR-F used visible_archetypes.has("terminal") in MapConstructorValidationService after PR-C removed visible_archetypes from that function.
+```
+
+Target cleanup PR:
+
+```text
+- Replace visible_archetypes.has("terminal") with archetype_counts.has("terminal").
+- Add terminal to required_archetype_warning_ids.
+- Restore/keep visible_floor_prefabs == ["floor"] check.
+- Delete scripts/game/visible_archetypes.gd.
+- Run parse_all_gd.gd.
+```
+
+### Blocker 2 — Parser gate must be proven locally
+
+Run:
+
+```bash
+git diff --check
+python tools/check_gdscript_safety_patterns.py
+python tools/check_map_constructor_sections.py
+godot --headless --path . --quit
+godot --headless --path . --script res://tools/ci/parse_all_gd.gd
+```
+
+Until this runs successfully:
+
+```text
+Static review only. Godot parser gate was not executed.
+```
+
+### Blocker 3 — Terminal smoke tests
+
+Manual checks:
+
+```text
+- Palette shows exactly: Door, Floor, External Wall, Wall, Terminal.
+- Palette does not show Information Terminal, Control Terminal, Door Control Terminal, Cooling Control Terminal, Platform Control Terminal.
+- Placing Terminal creates archetype_id=terminal, object_group=terminal, object_type=terminal.
+- Information terminal display_name = Information Terminal.
+- control + none display_name = Control Terminal.
+- control + door display_name = Door Control Terminal.
+- status and allowed_statuses stay synchronized.
+- linked_* fields validate missing/wrong target ids without crashing.
+- No quick preset buttons are shown for Terminal.
+```
+
+---
+
+## 4. UI language contract
 
 Этот контракт обязателен для всей игры.
 
@@ -213,7 +303,7 @@ state/status = active | damaged | unpowered | closed | open | locked | etc.
 
 ---
 
-## 4. Syntax/parser verification gate
+## 5. Syntax/parser verification gate
 
 Больше нельзя считать PR полностью проверенным только по grep/static review.
 
@@ -224,15 +314,8 @@ git diff --check
 python tools/check_gdscript_safety_patterns.py
 python tools/check_map_constructor_sections.py
 godot --headless --path . --quit
-```
-
-Но `godot --headless --path . --quit` может не загрузить каждый script. Нужен отдельный parser gate:
-
-```bash
 godot --headless --path . --script res://tools/ci/parse_all_gd.gd
 ```
-
-Если такого script ещё нет, его нужно добавить отдельным PR.
 
 `parse_all_gd.gd` должен:
 
@@ -253,17 +336,9 @@ Syntax verified = Godot parser/load gate реально запускался.
 Godot unavailable = PR is not fully verified.
 ```
 
-Если Godot недоступен у Codex, PR body должен явно писать:
-
-```text
-Godot parser validation was not executed.
-```
-
-И следующий reviewer обязан считать это risk, а не success.
-
 ---
 
-## 5. Validation read-only contract
+## 6. Validation read-only contract
 
 Validation helpers не должны менять live state.
 
@@ -288,25 +363,9 @@ active_bipob_ref.installed_modules = ...
 - validation builder, который возвращает test data, но не применяет её к runtime.
 ```
 
-Особенно проверять:
-
-```text
-- scan/xray validation;
-- inventory/tools/modules validation;
-- module port validation;
-- platform timer validation;
-- task test validation;
-- map constructor readiness report;
-- archetype/palette validation.
-```
-
 ---
 
-## 6. Global configurable-object contract
-
-Это системное изменение для всей игры, а не door-only / floor-only / wall-only hardcode.
-
-Общее правило:
+## 7. Global configurable-object contract
 
 ```text
 Map Constructor palette = base archetypes.
@@ -346,20 +405,6 @@ Platform → platform_type/timer/trigger/state
 Item → item_class/storage_route/state
 ```
 
-Каждый archetype должен иметь:
-
-```text
-- archetype_id
-- object_group
-- canonical object_type или explicit compatibility runtime object_type
-- property_schema
-- default data
-- display_name generator/template
-- validation rules
-- state/status sync rules
-- hidden compatibility aliases, если нужны для старых данных
-```
-
 Все пути создания объектов обязаны проходить через один pipeline:
 
 ```text
@@ -372,42 +417,16 @@ Catalog/archetype definition
 → validation
 ```
 
-Это распространяется на:
-
-```text
-- Map Constructor placement;
-- property edits;
-- prefab kit application;
-- room template application;
-- patch import;
-- TASK TEST construction;
-- saved data loading;
-- runtime spawning, если он появится позже.
-```
-
 ---
 
-## 7. Archetype-specific current contracts
+## 8. Archetype-specific current contracts
 
-### 7.1 Door
+### 8.1 Door
 
 Palette:
 
 ```text
 Door
-```
-
-Not palette entries:
-
-```text
-Steel Door
-Titanium Door
-Digital Door
-Digital Steel Door
-Digital Titanium Door
-Mechanical Titanium Door
-Energy Door
-Powered Gate
 ```
 
 Schema:
@@ -422,42 +441,14 @@ control_type: internal | external | terminal
 power_behavior: none | opens_when_unpowered | requires_power_to_open
 state: closed | open | damaged | jammed | locked | unpowered
 allowed_states: closed/open/damaged/jammed/locked/unpowered
-required_key_id
-required_terminal_id
-required_access_code_id
-required_digital_key_id
-required_manipulator_level
-required_connector_level
-required_processor_level
 ```
 
-Display name examples:
-
-```text
-Titanium Mechanical Door
-Reinforced Steel Digital Door
-Energy Powered Door
-```
-
-### 7.2 Floor
+### 8.2 Floor
 
 Palette:
 
 ```text
 Floor
-```
-
-Not palette entries:
-
-```text
-Steel Floor
-Concrete Floor
-Grate Floor
-Dirty Floor
-Water Floor
-Debris Floor
-Oil Floor
-Permission Floor
 ```
 
 Schema:
@@ -478,9 +469,7 @@ Concrete Floor
 Grate Floor
 ```
 
-Covering and visual_style are metadata for now unless gameplay systems already consume them.
-
-### 7.3 External Wall
+### 8.3 External Wall
 
 Palette:
 
@@ -499,9 +488,7 @@ blocks_movement = true
 blocks_vision = true
 ```
 
-No material selector. No quick presets.
-
-### 7.4 Wall
+### 8.4 Wall
 
 Palette:
 
@@ -515,58 +502,17 @@ Schema:
 material: brick | concrete | steel | reinforced_steel | titanium | grate | electromagnetic
 ```
 
-Display name examples:
+Display name examples are generated only, not separate palette objects.
 
-```text
-Brick Wall
-Concrete Wall
-Steel Wall
-Reinforced Steel Wall
-Titanium Wall
-Grate Wall
-Electromagnetic Wall
-```
+### 8.5 Terminal
 
-Not palette entries:
-
-```text
-Brick Wall
-Concrete Wall
-Steel Wall
-Reinforced Steel Wall
-Titanium Wall
-Grate Wall
-Electromagnetic Wall
-```
-
-These names are generated display names only, not separate palette objects.
-
-### 7.5 Terminal
-
-Terminal requirements are documented, but implementation is still pending.
-
-Palette target:
+Palette:
 
 ```text
 Terminal
 ```
 
-Not palette entries:
-
-```text
-Information Terminal
-Control Terminal
-Door Control Terminal
-Cooling Control Terminal
-Platform Control Terminal
-Class 1 Terminal
-Class 2 Terminal
-Class 3 Terminal
-Damaged Terminal
-Unpowered Terminal
-```
-
-Schema target:
+Schema:
 
 ```text
 terminal_type: information | control
@@ -606,91 +552,15 @@ Important:
 
 ---
 
-## 8. Global palette validation
+## 9. Next PR order
 
-Validation должна проверять весь system contract.
-
-Required checks:
+### Fix PR-G0 — Cleanup Terminal palette validation shim
 
 ```text
-- palette generated from archetype registry;
-- no variant explosion for one archetype;
-- no legacy aliases in user-facing palette;
-- no quick presets for configurable archetypes;
-- object creation path does not bypass archetype normalization;
-- property panel uses selected archetype schema;
-- display_name generated from properties;
-- runtime values are canonical English ids;
-- no Russian/mixed labels in game UI metadata;
-- TASK TEST object is reproducible through archetype + properties;
-- validation works without manager context for catalog/palette basics;
-- validation with manager context checks runtime objects/links.
-```
-
-Specific checks:
-
-```text
-Door: exactly one Door, no door variants, no door presets.
-Floor: exactly one Floor, no material/covering/permission variants.
-Wall: exactly one External Wall and one Wall, no material variants.
-Terminal: exactly one Terminal once migrated, no information/control/target/class/status variants.
-```
-
----
-
-## 9. Updated PR order
-
-### Fix PR-A — English-only game UI labels
-
-```text
-- Remove Russian/mixed labels from runtime/game catalog metadata.
-- Replace Floor / Пол with Floor.
-- Replace External Wall / Стена внешняя with External Wall.
-- Replace Wall / Стена with Wall.
-- Replace Steel / Стальной with Steel, etc.
-- Remove labels_ru / palette_label_ru / display_name_ru from game-facing data.
-- Keep docs Russian where useful, but do not copy Russian labels into game code.
-```
-
-### Fix PR-B — Restore Floor placement metadata branch
-
-```text
-- Restore replaces_tile_with == floor branch before wall branch.
-- Verify placing Floor sets/keeps GridManager.TILE_FLOOR.
-- Verify placing Wall/External Wall sets GridManager.TILE_WALL.
-```
-
-### Fix PR-C — Strengthen archetype palette validation
-
-```text
-- Top-level validation requires door/floor/external_wall/wall.
-- Validation does not depend on manager != null for catalog/palette basics.
-- Add Terminal requirement once Terminal PR lands.
-```
-
-### Fix PR-D — Hide quick preset buttons for archetypes
-
-```text
-- Door/Floor/Wall/Terminal use property schema only.
-- No preset buttons for non-empty archetype_id.
-- Existing legacy presets, if any, are not user-facing.
-```
-
-### PR-E — Add Godot parser gate
-
-```text
-- Add tools/ci/parse_all_gd.gd or equivalent.
-- CI/dev command loads all scripts and fails on parser errors.
-- Update PR checklist to require parser gate for code PRs.
-```
-
-### PR-F — Terminal as configurable archetype
-
-```text
-- One Terminal palette row.
-- terminal_type/controlled_target_type/class/power/control/status/links through schema.
-- Existing terminal variants hidden as compatibility aliases only.
-- Runtime diagnostics/action availability read normalized terminal contract.
+- Replace visible_archetypes.has("terminal") with archetype_counts.has("terminal").
+- Add terminal to required_archetype_warning_ids.
+- Delete scripts/game/visible_archetypes.gd.
+- Run parse_all_gd.gd.
 ```
 
 ### PR-G — Item/key/digital placement through catalog/archetype registry
@@ -739,6 +609,7 @@ rg "mission_world_objects\.(append|erase|clear)" scripts/game/map_constructor_va
 rg "world_objects_by_cell\[" scripts/game/map_constructor_validation_service.gd
 rg "cell_items\[" scripts/game/map_constructor_validation_service.gd
 rg "grid_manager\.call\(\"set_tile\"|set_tile\(" scripts/game/map_constructor_validation_service.gd
+rg "visible_archetypes" scripts/game scripts/world scripts/ui
 ```
 
 Configurable-object checks:
@@ -757,21 +628,25 @@ rg "allowed_states|allowed_statuses" scripts/world scripts/game scripts/ui
 Manual smoke checks:
 
 ```text
-- Palette shows Door, Floor, External Wall, Wall.
+- Palette shows Door, Floor, External Wall, Wall, Terminal.
 - Palette does not show generated variant names as separate entries.
 - Game UI labels are English only.
 - Door variants are configured only through Door properties.
 - Floor variants are configured only through Floor properties.
 - Wall material is configured only through Wall properties.
+- Terminal variants are configured only through Terminal properties.
 - External Wall has no material selector and no preset buttons.
 - Display name updates from properties.
 - Floor placement still produces walkable floor tile.
 - Wall placement still produces wall tile.
+- Terminal placement produces normalized runtime object and does not crash validation.
 ```
 
 ---
 
-## 11. Historical note: PR #745 review is closed by PR #746
+## 11. Historical notes
+
+### PR #745 review is closed by PR #746
 
 PR #745 introduced the original safe Variant conversion fix but left `raw_access_type` undefined and weakened `door_type` validation.
 
@@ -785,3 +660,7 @@ PR #746 fixed this by:
 ```
 
 Do not reopen this as an active blocker unless the same pattern reappears.
+
+### Emergency update note
+
+During the manual fix after PR-F review, there was an accidental truncated update attempt to `scripts/game/map_constructor_validation_service.gd`. It was immediately restored through commit `e23cf6cc0dc0901435900a8add3e866a7b5e244a`, then an emergency helper commit `5f3e171c46e81b758c23ea4f5592cd7dcfccb063` was added. The helper must be removed by Fix PR-G0.
