@@ -9049,7 +9049,14 @@ func place_debug_mission4_field_modules() -> void:
 	place_debug_field_module_if_valid(Vector2i(4, 3), "GPU V1", Callable(self, "place_gpu_v1_field_module"))
 
 func get_carried_physical_count() -> int:
-	return get_manipulator_items().size() + get_pocket_items().size()
+	var carried_count: int = 0
+	for manipulator_item in get_runtime_manipulator_items():
+		if manipulator_item != null:
+			carried_count += 1
+	for pocket_item in get_pocket_items():
+		if pocket_item != null:
+			carried_count += 1
+	return carried_count
 
 func is_hand_occupied() -> bool:
 	return _get_first_free_manipulator_index() == -1
@@ -9198,6 +9205,25 @@ func drop_held_item() -> void:
 		release_mission7_cable_end()
 		return
 
+	var held_world_item_id: String = _get_held_runtime_world_item_id()
+	if not held_world_item_id.is_empty():
+		var world_target_position: Vector2i = grid_position + get_direction_vector(direction)
+		if not grid_manager.is_in_bounds(world_target_position) or grid_manager.get_tile(world_target_position) != GridManager.TILE_FLOOR:
+			hint_requested.emit("Cannot drop item here. Face an empty floor cell.")
+			status_changed.emit()
+			return
+		if not can_spend_action(1, 1):
+			return
+		var drop_result: Dictionary = drop_inventory_item(held_world_item_id, world_target_position)
+		if not bool(drop_result.get("success", false)):
+			hint_requested.emit("Cannot drop item.")
+			status_changed.emit()
+			return
+		spend_action(1, 1)
+		hint_requested.emit("Dropped: %s." % held_world_item_id)
+		status_changed.emit()
+		return
+
 	var active_index := _get_first_occupied_manipulator_index()
 	if active_index == -1:
 		hint_requested.emit("Hand is empty. Nothing to drop.")
@@ -9303,6 +9329,26 @@ func get_max_manipulator_slots() -> int:
 
 func get_manipulator_items() -> Array:
 	return manipulator_items.duplicate()
+
+func get_runtime_manipulator_items() -> Array:
+	var runtime_items: Array = []
+	if mission_manager != null and mission_manager.has_method("get_manipulator_items"):
+		var runtime_items_variant: Variant = mission_manager.call("get_manipulator_items")
+		if typeof(runtime_items_variant) == TYPE_ARRAY:
+			runtime_items = runtime_items_variant
+	if runtime_items.is_empty():
+		for index in range(get_available_manipulator_slots()):
+			runtime_items.append(manipulator_items[index])
+	return runtime_items
+
+func _get_held_runtime_world_item_id() -> String:
+	if mission_manager == null or not mission_manager.has_method("get_inventory_state"):
+		return ""
+	var inventory_variant: Variant = mission_manager.call("get_inventory_state")
+	if typeof(inventory_variant) != TYPE_DICTIONARY:
+		return ""
+	var inventory: Dictionary = inventory_variant
+	return String(inventory.get("manipulator_hold", "")).strip_edges()
 
 func get_available_pocket_slots() -> int:
 	return clampi(available_pocket_slots, 0, get_max_pocket_slots())
