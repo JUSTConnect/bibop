@@ -4979,12 +4979,8 @@ func get_map_constructor_link_candidates(entity_kind: String, entity_id: String,
 		var known: Dictionary = {}
 		for entry in out:
 			known[String(Dictionary(entry).get("id", ""))] = true
-		for fallback_id in ["task_test_power_main","task_test_power_missing","mapedit_power_A","mapedit_power_B", current_value]:
-			var network_id: String = String(fallback_id).strip_edges()
-			if network_id.is_empty() or known.has(network_id):
-				continue
-			out.append({"id":network_id,"label":"Network: %s" % network_id,"cell":Vector2i(-1,-1),"entity_kind":"world_object","object_type":"power_network","current":network_id == current_value})
-			known[network_id] = true
+		if not current_value.is_empty() and not known.has(current_value):
+			out.append({"id":current_value,"label":"Network: %s" % current_value,"cell":Vector2i(-1,-1),"entity_kind":"world_object","object_type":"power_network","current":true})
 	return out
 
 func _set_map_constructor_key_door_link(entity_kind: String, key_id: String, door_id: String) -> Dictionary:
