@@ -8118,6 +8118,8 @@ func get_available_world_actions(world_object: Dictionary, target_position: Vect
 		var control_mode: String = String(world_object.get("control_type", world_object.get("control_mode", "internal"))).strip_edges().to_lower()
 		# Control and access are orthogonal: external always means remote Open/Close.
 		if control_mode in ["external", "external_control", "external control", "terminal"]:
+			if state == "locked" and access_type in [WorldObjectCatalog.ACCESS_TYPE_NO_KEY, WorldObjectCatalog.ACCESS_TYPE_KEY_CARD]:
+				actions.append("unlock")
 			if state in ["damaged", "half_open", "jammed"] and has_heavy_claw():
 				actions.append("force_open")
 			return actions
