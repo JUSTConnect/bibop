@@ -160,7 +160,9 @@ static func show_for_selection(ui: Variant, cell: Vector2i, preferred_entity_kin
 		ui._add_map_constructor_active_settings(configurable, entity_kind, entity_id, data, type_group)
 	if type_group == "control" or data.has("requires_external_control"):
 		ui._add_bool_property(configurable, "requires_external_control", entity_kind, entity_id, "requires_external_control", data.get("requires_external_control", false))
-	if object_is_configurable and data.has("state") and not (type_group == "door" or (type_group == "power" and ui._safe_ui_string(data.get("object_type", "")).to_lower().begins_with("power_source"))):
+	var inspector_object_type: String = ui._safe_ui_string(data.get("object_type", "")).to_lower()
+	var uses_dedicated_power_state_selector: bool = type_group == "power" and (inspector_object_type.begins_with("power_source") or inspector_object_type in ["power_cable", "power_cable_reel"])
+	if object_is_configurable and data.has("state") and not (type_group == "door" or uses_dedicated_power_state_selector):
 		ui._add_text_property(configurable, "Editable state override", entity_kind, entity_id, "state", data.get("state", ""))
 	if type_group == "terminal":
 		ui._add_bool_property(configurable, "damaged", entity_kind, entity_id, "damaged", data.get("damaged", false))
@@ -173,7 +175,7 @@ static func show_for_selection(ui: Variant, cell: Vector2i, preferred_entity_kin
 			var source_class_options: Array[Dictionary] = [{"label":"Class 1 (4 outlets)", "value":"1"}, {"label":"Class 2 (5 outlets)", "value":"2"}, {"label":"Class 3 (6 outlets)", "value":"3"}]
 			ui._add_enum_property(configurable, "Source class", entity_kind, entity_id, "power_source_class", data.get("power_source_class", 1), source_class_options)
 		elif power_object_type == "power_cable" or power_object_type == "power_cable_reel":
-			var wire_state_options: Array[Dictionary] = [{"label":"OK", "value":"ok"}, {"label":"Damaged", "value":"damaged"}, {"label":"Broken", "value":"broken"}]
+			var wire_state_options: Array[Dictionary] = [{"label":"Powered", "value":"ok"}, {"label":"Cut", "value":"cut"}, {"label":"Damaged", "value":"damaged"}, {"label":"Broken", "value":"broken"}]
 			ui._add_enum_property(configurable, "Wire state", entity_kind, entity_id, "state", data.get("state", "ok"), wire_state_options)
 			ui._add_bool_property(configurable, "Hidden installation", entity_kind, entity_id, "is_hidden", data.get("is_hidden", false))
 			var route_surface_options: Array[Dictionary] = [{"label":"Floor", "value":"floor"}, {"label":"Wall", "value":"wall"}]

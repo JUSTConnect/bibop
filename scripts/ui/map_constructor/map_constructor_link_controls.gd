@@ -271,16 +271,21 @@ static func add_map_constructor_object_link_sections(ui: Variant, link_section: 
 		add_key_door_link_section(ui, link_section, entity_kind, entity_id, data)
 	if type_group == "door":
 		add_door_linked_key_section(ui, link_section, entity_id, data)
-		add_link_picker(ui, link_section, entity_kind, entity_id, "linked_terminal", "Linked Terminal")
+		var door_control_type: String = ui._safe_ui_string(data.get("control_type", data.get("control_mode", "internal"))).strip_edges().to_lower()
+		if door_control_type in ["external", "terminal", "external_control", "external control"]:
+			add_link_picker(ui, link_section, entity_kind, entity_id, "linked_terminal", "Linked Terminal")
 	if type_group == "terminal":
 		var controlled_target_type: String = ui._safe_ui_string(data.get("controlled_target_type", "none")).to_lower()
 		if controlled_target_type == "door":
 			add_link_picker(ui, link_section, entity_kind, entity_id, "linked_door", "Linked Door")
 		elif controlled_target_type == "platform":
 			add_link_picker(ui, link_section, entity_kind, entity_id, "platform_target", "Platform Target")
-	if type_group == "power":
-		add_link_picker(ui, link_section, entity_kind, entity_id, "power_source", "Linked Power Source")
+	var object_type: String = ui._safe_ui_string(data.get("object_type", "")).strip_edges().to_lower()
+	var power_type: String = ui._safe_ui_string(data.get("power_type", data.get("power_mode", "internal"))).strip_edges().to_lower().trim_suffix("_power")
+	var is_power_source: bool = object_type.begins_with("power_source")
+	if power_type == "external" and not is_power_source:
 		add_link_picker(ui, link_section, entity_kind, entity_id, "power_network", "Power Network")
+		add_link_picker(ui, link_section, entity_kind, entity_id, "power_source", "Power Source Binding")
 	var control_visible: bool = type_group == "control"
 	if control_visible:
 		add_link_picker(ui, link_section, entity_kind, entity_id, "control_source", "Control Source")

@@ -6907,6 +6907,10 @@ func get_facing_world_action_target() -> Dictionary:
 		target_object = Dictionary(mission_manager.get_world_object_at_cell(target_position))
 		if target_object.is_empty():
 			var items: Array = mission_manager.get_items_at_cell(target_position)
+			if items.is_empty() and target_position != grid_position:
+				items = mission_manager.get_items_at_cell(grid_position)
+				if not items.is_empty():
+					target_position = grid_position
 			if not items.is_empty():
 				target_object = Dictionary(items[0])
 	var view_model: Dictionary = build_runtime_action_view_model(target_object, target_position)
@@ -8155,10 +8159,14 @@ func get_available_world_actions(world_object: Dictionary, target_position: Vect
 				else:
 					actions.append("disconnect_wire_2")
 	elif String(world_object.get("object_type", "")) == "circuit_switch":
+		actions.append("switch")
 		for circuit_index in range(1, 4):
 			var circuit_target: String = String(world_object.get("output_%d_wire_id" % circuit_index, world_object.get("output_%d_direction" % circuit_index, ""))).strip_edges().to_lower()
 			if not circuit_target.is_empty() and circuit_target != "none":
 				actions.append("circuit_%d" % circuit_index)
+	elif String(world_object.get("object_type", "")).begins_with("power_source"):
+		if bool(world_object.get("switchable", world_object.get("can_toggle", true))):
+			actions.append("switch")
 	elif String(world_object.get("object_type", "")) in ["circuit_breaker", "power_breaker", "power_knife_switch", "light_switch"]:
 		actions.append("switch")
 	elif String(world_object.get("object_type", "")).begins_with("fuse_box"):

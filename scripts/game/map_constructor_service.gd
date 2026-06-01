@@ -146,6 +146,8 @@ func _clone_map_constructor_entity_data(source_data: Dictionary, target_cell: Ve
 		var prefab_id: String = String(clone_data.get("map_constructor_prefab_id", clone_data.get("object_type", "object")))
 		clone_data["id"] = "mapedit_%s_%d" % [prefab_id, manager._map_constructor_runtime_object_seq]
 		manager._map_constructor_runtime_object_seq += 1
+		if String(clone_data.get("object_type", "")).strip_edges().to_lower().begins_with("power_source"):
+			clone_data["power_network_id"] = "%s_net" % String(clone_data.get("id", "power_source"))
 	clone_data.erase("position")
 	clone_data.erase("anchor_floor_cell")
 	clone_data.erase("attached_wall_cell")

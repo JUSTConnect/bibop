@@ -2487,9 +2487,10 @@ func get_items_at_cell(cell: Vector2i) -> Array[Dictionary]:
 func add_item_at_cell(cell: Vector2i, item_data: Dictionary) -> void:
 	item_data = WorldObjectCatalogRef.normalize_item_contract(WorldObjectCatalogRef.normalize_world_object_contract(item_data))
 	item_data["position"] = cell
-	if not item_data.has("object_group"):
-		item_data["object_group"] = "item"
-	if not item_data.has("object_type"):
+	# cell_items is the authoritative pickup lookup. A dropped inventory snapshot
+	# must remain an item even if old save data carried a stale world-object group.
+	item_data["object_group"] = "item"
+	if String(item_data.get("object_type", "")).strip_edges().is_empty():
 		item_data["object_type"] = "item"
 	if not item_data.has("can_pickup"):
 		item_data["can_pickup"] = true
@@ -4377,7 +4378,7 @@ func get_map_constructor_link_targets_for_field(entity_kind: String, entity_id: 
 	elif field_name == "target_door_id":
 		for object_data in mission_world_objects:
 			var data_door: Dictionary = _safe_dictionary(object_data)
-			if _map_constructor_is_door_data(data_door):
+			if _map_constructor_is_door_data(data_door) and _map_constructor_door_uses_external_terminal_control(data_door):
 				targets.append(_map_constructor_make_link_target(String(data_door.get("id", "")), String(data_door.get("id", "")), "world_object", Vector2i(data_door.get("position", Vector2i(-1, -1))), "valid", "door_candidate"))
 	elif field_name == "target_platform_id":
 		for object_data in mission_world_objects:
@@ -4407,32 +4408,133 @@ func get_map_constructor_link_targets_for_field(entity_kind: String, entity_id: 
 			var source_data: Dictionary = _safe_dictionary(object_data)
 			var source_id: String = String(source_data.get("id", "")).strip_edges()
 			var source_type: String = String(source_data.get("object_type", "")).to_lower()
-			var source_group: String = String(source_data.get("object_group", "")).to_lower()
-			if source_id.is_empty() or (not source_type.contains("power_source") and source_group != "power"):
+			if source_id.is_empty() or source_id == entity_id or not source_type.begins_with("power_source"):
 				continue
 			targets.append(_map_constructor_make_link_target(source_id, source_id, "world_object", Vector2i(source_data.get("position", Vector2i(-1, -1))), "valid", "power_source"))
 	elif field_name == "power_network_id":
-		var power_first: Array[Dictionary] = []
-		var others: Array[Dictionary] = []
-		var seen_networks: Dictionary = {}
-		for object_data in mission_world_objects:
-			var data_network: Dictionary = _safe_dictionary(object_data)
-			var network_id: String = String(data_network.get("power_network_id", "")).strip_edges()
-			if network_id.is_empty() or seen_networks.has(network_id):
-				continue
-			seen_networks[network_id] = true
-			var entry: Dictionary = _map_constructor_make_link_target(network_id, network_id, "power_network", Vector2i(-1, -1), "valid", "network_id")
-			if String(data_network.get("object_type", "")).to_lower().begins_with("power_source"):
-				power_first.append(entry)
-			else:
-				others.append(entry)
-		targets.append_array(power_first)
-		targets.append_array(others)
+		targets.append_array(get_power_network_options())
 	_map_constructor_add_none_target(targets)
 	result["ok"] = true
 	result["targets"] = targets
 	result["message"] = "Targets ready for %s at %s." % [field_name, str(current_cell)]
 	return result
+
+func get_power_source_network_id(source_obj: Dictionary) -> String:
+	var existing_network_id: String = String(source_obj.get("power_network_id", "")).strip_edges()
+	if not existing_network_id.is_empty():
+		return existing_network_id
+	var source_id: String = String(source_obj.get("id", "power_source")).strip_edges()
+	return "%s_net" % source_id if not source_id.is_empty() else "power_source_net"
+
+func ensure_power_source_network_id(source_obj: Dictionary) -> String:
+	var network_id: String = get_power_source_network_id(source_obj)
+	if String(source_obj.get("power_network_id", "")).strip_edges().is_empty():
+		source_obj["power_network_id"] = network_id
+	return network_id
+
+func get_power_network_options() -> Array[Dictionary]:
+	var options: Array[Dictionary] = []
+	var seen_networks: Dictionary = {}
+	var main_network_id: String = "main_power_net"
+	seen_networks[main_network_id] = true
+	options.append(_map_constructor_make_link_target(main_network_id, main_network_id, "power_network", Vector2i(-1, -1), "valid", "virtual_network"))
+	for object_data in mission_world_objects:
+		var source_data: Dictionary = _safe_dictionary(object_data)
+		if not String(source_data.get("object_type", "")).strip_edges().to_lower().begins_with("power_source"):
+			continue
+		var network_id: String = get_power_source_network_id(source_data)
+		if network_id.is_empty() or seen_networks.has(network_id):
+			continue
+		seen_networks[network_id] = true
+		options.append(_map_constructor_make_link_target(network_id, network_id, "power_network", Vector2i(-1, -1), "valid", "source_owned_network"))
+	# Retain legacy network ids only when existing objects still use them.
+	for object_data in mission_world_objects:
+		var legacy_network_id: String = String(Dictionary(object_data).get("power_network_id", "")).strip_edges()
+		if legacy_network_id.is_empty() or seen_networks.has(legacy_network_id):
+			continue
+		seen_networks[legacy_network_id] = true
+		options.append(_map_constructor_make_link_target(legacy_network_id, legacy_network_id, "power_network", Vector2i(-1, -1), "valid", "legacy_network"))
+	return options
+
+func _map_constructor_door_uses_external_terminal_control(door_data: Dictionary) -> bool:
+	var control_type: String = String(door_data.get("control_type", door_data.get("control_mode", "internal"))).strip_edges().to_lower()
+	return control_type in ["external", "terminal", "external_control", "external control"]
+
+func _map_constructor_set_terminal_door_link(terminal_id: String, door_id: String) -> Dictionary:
+	var terminal_data: Dictionary = get_world_object_by_id(terminal_id)
+	if terminal_data.is_empty():
+		return {"ok": false, "message": "Linked terminal not found."}
+	if not door_id.is_empty():
+		var requested_door: Dictionary = get_world_object_by_id(door_id)
+		if requested_door.is_empty():
+			return {"ok": false, "message": "Linked door not found."}
+		if not _map_constructor_door_uses_external_terminal_control(requested_door):
+			return {"ok": false, "message": "Door must use external terminal control before linking."}
+	var old_door_ids: Array[String] = []
+	for old_id_variant in Array(terminal_data.get("linked_door_ids", [])):
+		var old_id: String = String(old_id_variant).strip_edges()
+		if not old_id.is_empty() and not old_door_ids.has(old_id):
+			old_door_ids.append(old_id)
+	var old_target_door_id: String = String(terminal_data.get("target_door_id", "")).strip_edges()
+	if not old_target_door_id.is_empty() and not old_door_ids.has(old_target_door_id):
+		old_door_ids.append(old_target_door_id)
+	for old_door_id in old_door_ids:
+		if old_door_id == door_id:
+			continue
+		var old_door: Dictionary = get_world_object_by_id(old_door_id)
+		if old_door.is_empty():
+			continue
+		if String(old_door.get("control_terminal_id", old_door.get("linked_terminal_id", ""))).strip_edges() == terminal_id:
+			old_door["linked_terminal_id"] = ""
+			old_door["required_terminal_id"] = ""
+			old_door["control_terminal_id"] = ""
+			old_door["control_source_id"] = ""
+			update_world_object_by_id(old_door_id, old_door)
+	terminal_data["target_door_id"] = door_id
+	terminal_data["linked_door_ids"] = [] if door_id.is_empty() else [door_id]
+	update_world_object_by_id(terminal_id, terminal_data)
+	if door_id.is_empty():
+		return {"ok": true, "message": "Door link cleared."}
+	var door_data: Dictionary = get_world_object_by_id(door_id)
+	if door_data.is_empty():
+		return {"ok": false, "message": "Linked door not found."}
+	var previous_terminal_id: String = String(door_data.get("control_terminal_id", door_data.get("linked_terminal_id", ""))).strip_edges()
+	if not previous_terminal_id.is_empty() and previous_terminal_id != terminal_id:
+		var previous_terminal: Dictionary = get_world_object_by_id(previous_terminal_id)
+		if not previous_terminal.is_empty():
+			previous_terminal["target_door_id"] = "" if String(previous_terminal.get("target_door_id", "")) == door_id else previous_terminal.get("target_door_id", "")
+			var previous_door_ids: Array = Array(previous_terminal.get("linked_door_ids", [])).duplicate()
+			previous_door_ids.erase(door_id)
+			previous_terminal["linked_door_ids"] = previous_door_ids
+			update_world_object_by_id(previous_terminal_id, previous_terminal)
+	door_data["linked_terminal_id"] = terminal_id
+	door_data["required_terminal_id"] = terminal_id
+	door_data["control_terminal_id"] = terminal_id
+	door_data["control_source_id"] = terminal_id
+	update_world_object_by_id(door_id, door_data)
+	return {"ok": true, "message": "Terminal and door link updated."}
+
+func _map_constructor_sync_terminal_door_link(entity_id: String, field_name: String, target_id: String) -> Dictionary:
+	if field_name == "target_door_id":
+		return _map_constructor_set_terminal_door_link(entity_id, target_id)
+	if not (field_name in ["linked_terminal_id", "control_terminal_id"]):
+		return {"ok": true}
+	var door_data: Dictionary = get_world_object_by_id(entity_id)
+	if door_data.is_empty() or not _map_constructor_is_door_data(door_data):
+		return {"ok": true}
+	if not target_id.is_empty() and not _map_constructor_door_uses_external_terminal_control(door_data):
+		return {"ok": false, "message": "Door must use external terminal control before linking."}
+	var old_terminal_id: String = String(door_data.get("control_terminal_id", door_data.get("linked_terminal_id", ""))).strip_edges()
+	if not old_terminal_id.is_empty() and old_terminal_id != target_id:
+		_map_constructor_set_terminal_door_link(old_terminal_id, "")
+	if target_id.is_empty():
+		door_data["linked_terminal_id"] = ""
+		door_data["required_terminal_id"] = ""
+		door_data["control_terminal_id"] = ""
+		door_data["control_source_id"] = ""
+		update_world_object_by_id(entity_id, door_data)
+		return {"ok": true, "message": "Terminal link cleared."}
+	return _map_constructor_set_terminal_door_link(target_id, entity_id)
 
 func apply_map_constructor_link_target(entity_kind: String, entity_id: String, field_name: String, target_id: String) -> Dictionary:
 	if not _is_task_test_constructor_context():
@@ -4473,6 +4575,11 @@ func apply_map_constructor_link_target(entity_kind: String, entity_id: String, f
 	var applied_target: String = target_id
 	if target_id.is_empty() or target_id == "__none__":
 		applied_target = ""
+	if entity_kind == "world_object" and field_name in ["target_door_id", "linked_terminal_id", "control_terminal_id"]:
+		var sync_result: Dictionary = _map_constructor_sync_terminal_door_link(entity_id, field_name, applied_target)
+		if not bool(sync_result.get("ok", false)):
+			result["message"] = String(sync_result.get("message", "Link update failed."))
+			return result
 	var apply_result: Dictionary = apply_map_constructor_property_update(entity_kind, entity_id, field_name, applied_target)
 	result["ok"] = bool(apply_result.get("ok", false))
 	result["message"] = String(apply_result.get("message", "Link update failed."))
@@ -4994,6 +5101,7 @@ func _normalize_map_constructor_active_object_fields(object_data: Dictionary) ->
 		data["power_source_id"] = String(data.get("connected_power_source_id", data.get("power_network_id", ""))).strip_edges()
 	var object_type_normalized: String = String(data.get("object_type", prefab_id)).strip_edges().to_lower()
 	if object_type_normalized in ["power_source", "power_source_class_1", "power_source_class_2", "power_source_class_3"]:
+		ensure_power_source_network_id(data)
 		var source_state: String = String(data.get("state", "on")).strip_edges().to_lower()
 		if source_state.is_empty():
 			source_state = "on"
@@ -9524,6 +9632,7 @@ func drop_inventory_item(item_id: String, target_cell: Vector2i = Vector2i(-1, -
 		dropped_item_data = {"id": item_id}
 	dropped_item_data["id"] = item_id
 	add_item_at_cell(target_cell, dropped_item_data)
+	dropped_runtime["item_data"] = get_cell_item_by_id(item_id).duplicate(true)
 	runtime_map[item_id] = dropped_runtime
 	runtime_inventory_state["world_item_runtime"] = runtime_map
 	return {"success": true, "item_id": item_id, "target_cell": target_cell, "reasons": ["ok"]}
