@@ -2442,7 +2442,7 @@ func get_runtime_cell_block_reason(cell: Vector2i) -> String:
 func set_world_object_at_cell(cell: Vector2i, object_data: Dictionary) -> void:
 	if object_data.is_empty():
 		return
-	object_data = WorldObjectCatalogRef.normalize_door_state_fields(object_data)
+	object_data = WorldObjectCatalogRef.normalize_door_state_fields(WorldObjectCatalogRef.normalize_world_object_contract(object_data))
 	object_data["position"] = cell
 	world_objects_by_cell[cell] = object_data
 	if not mission_world_objects.has(object_data):
@@ -2551,10 +2551,9 @@ func _get_world_object_template(prefab_id: String) -> Dictionary:
 	return {}
 
 func get_map_constructor_prefab_catalog() -> Array[Dictionary]:
-	# Tiles and compatibility item shortcuts remain constructor-only entries. All
-	# world-object rows come from WorldObjectCatalog so authoring cannot drift.
+	# Compatibility item shortcuts remain constructor-only entries. All world-object
+	# rows, including Floor, come from WorldObjectCatalog so authoring cannot drift.
 	var entries: Array[Dictionary] = [
-		{"category":"Floors","id":"floor"},{"category":"Floors","id":"stepped_floor"},
 		{"category":"Items","id":"mechanical_key"},{"category":"Items","id":"digital_key"},{"category":"Items","id":"access_code"}
 	]
 	var seen_prefab_ids: Dictionary = {}
@@ -2579,7 +2578,7 @@ func get_map_constructor_prefab_catalog() -> Array[Dictionary]:
 
 func _get_map_constructor_prefab_metadata_catalog() -> Dictionary:
 	var metadata: Dictionary = {
-		"floor": {"display_name":"Floor Tile","category":"Structural","subcategory":"Floor","placement_mode":"tile","system_roles":["navigation"],"tags":["floor","walkable","structural"],"description":"Basic walkable floor tile.","placement_hint":"Use to restore walkable space.","requires_wall":false,"requires_floor":false,"is_destructive":false,"is_diagnostic":false,"is_expected_invalid_tool":false,"can_have_power_network":false,"can_have_links":false,"default_state":{}},
+		"floor": {"display_name":"Floor / Пол","category":"Structural","subcategory":"Configurable Floor","placement_mode":"object","system_roles":["navigation"],"tags":["floor","walkable","structural","configurable","archetype"],"description":"Configurable Floor archetype. Choose material, covering, visual style, and state properties in the inspector.","placement_hint":"Place the base Floor, then configure properties.","requires_wall":false,"requires_floor":false,"is_destructive":false,"is_diagnostic":false,"is_expected_invalid_tool":false,"can_have_power_network":false,"can_have_links":false,"default_state":{}},
 		"stepped_floor": {"display_name":"Stepped Floor","category":"Structural","subcategory":"Floor","placement_mode":"tile","system_roles":["navigation"],"tags":["floor","walkable","elevation"],"description":"Walkable stepped floor tile.","placement_hint":"Use for alternate floor visuals.","requires_wall":false,"requires_floor":false,"is_destructive":false,"is_diagnostic":false,"is_expected_invalid_tool":false,"can_have_power_network":false,"can_have_links":false,"default_state":{}},
 		"outer_wall": {"display_name":"Outer Wall","category":"Structural","subcategory":"Wall","placement_mode":"tile","system_roles":["blocking"],"tags":["wall","solid","boundary"],"description":"Solid wall that blocks movement and vision.","placement_hint":"Place on floor to create barriers.","requires_wall":false,"requires_floor":true,"is_destructive":true,"is_diagnostic":false,"is_expected_invalid_tool":false,"can_have_power_network":false,"can_have_links":false,"default_state":{}},
 		"brick_wall": {"display_name":"Brick Wall","category":"Structural","subcategory":"Wall","placement_mode":"object","system_roles":["blocking"],"tags":["wall","brick","obstacle"],"description":"Brick obstacle wall object.","placement_hint":"Requires a floor cell.","requires_wall":false,"requires_floor":true,"is_destructive":true,"is_diagnostic":false,"is_expected_invalid_tool":false,"can_have_power_network":false,"can_have_links":false,"default_state":{}},
@@ -3878,7 +3877,7 @@ func _get_map_constructor_editable_field_schema() -> Dictionary:
 	return {
 		"state":"string","power_network_id":"string","is_open":"bool","is_closed":"bool","is_locked":"bool","blocks_movement":"bool","is_powered":"bool","is_hidden":"bool","fuse_installed":"bool","plugged":"bool",
 		"required_key_id":"string","required_terminal_id":"string","required_access_code_id":"string","required_digital_key_id":"string","lock_type":"string","linked_terminal_id":"string","required_manipulator_level":"int","required_connector_level":"int","required_processor_level":"int",
-		"door_type":"string","material":"string","door_class":"int","power_type":"string","control_type":"string","power_behavior":"string","allowed_states":"array_string",
+		"door_type":"string","material":"string","covering":"string","visual_style":"string","door_class":"int","power_type":"string","control_type":"string","power_behavior":"string","allowed_states":"array_string",
 		"control_source_id":"string","connected_device_ids":"array_string","target_door_id":"string","target_platform_id":"string","requires_external_control":"bool","requires_terminal_enabled":"bool",
 		"requires_external_power":"bool","current_heat":"int","working_heat":"int","overheat_threshold":"int","power_source_class":"int","source_class":"int","outlet_capacity":"int","active_output_index":"int",
 		"item_type":"string","digital_state":"string","key_kind":"string","key_type":"string","display_name":"string","description":"string","custom_description":"string","linked_door_id":"string","damaged":"bool",
