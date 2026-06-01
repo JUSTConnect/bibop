@@ -349,17 +349,16 @@ static func normalize_door_state_fields(object_data: Dictionary) -> Dictionary:
 	var type_text := _safe_string(object_data.get("object_type", "")).strip_edges().to_lower()
 	if group_text != "door" and not type_text.contains("door") and not type_text.contains("gate"):
 		return object_data
-	var access_type := _safe_string(object_data.get("access_type", object_data.get("lock_type", ""))).strip_edges().to_lower()
-	if access_type in ["no_key", "no key", "none"]:
-		access_type = ACCESS_TYPE_NO_KEY
-		object_data["access_type"] = access_type
-		object_data["lock_type"] = "none"
-		object_data["required_key_id"] = ""
+	var access_type: String = normalize_access_type(object_data.get("access_type", object_data.get("lock_type", ACCESS_TYPE_NO_KEY)))
+	object_data["access_type"] = access_type
+	object_data["lock_type"] = _legacy_lock_type_for_access_type(access_type)
 	var state := _safe_string(object_data.get("state", "closed"), "closed").strip_edges().to_lower()
-	if access_type == ACCESS_TYPE_NO_KEY and state == "locked":
-		state = "closed"
+	if access_type == ACCESS_TYPE_NO_KEY:
+		object_data["required_key_id"] = ""
 		object_data["is_locked"] = false
 		object_data["locked"] = false
+		if state == "locked":
+			state = "closed"
 	if state == "opened":
 		state = "open"
 	if state == "":
