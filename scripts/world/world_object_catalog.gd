@@ -26,6 +26,24 @@ const ITEM_STORAGE_CLASS_KEY_CARD := "key_card"
 const ITEM_STORAGE_CLASS_DIGITAL := "digital"
 const ITEM_STORAGE_CLASS_UNKNOWN := "unknown"
 const DIGITAL_ITEM_TYPE_ALIASES: Array[String] = ["digital_key", "access_code", "data_file", "info_key", "record"]
+const ITEM_CLASS_PHYSICAL_ITEM := "physical_item"
+const ITEM_CLASS_KEY_CARD := "key_card"
+const ITEM_CLASS_DIGITAL_KEY := "digital_key"
+const ITEM_CLASS_ACCESS_CODE := "access_code"
+const ITEM_CLASS_DATA_FILE := "data_file"
+const ITEM_CLASSES: Array[String] = [ITEM_CLASS_PHYSICAL_ITEM, ITEM_CLASS_KEY_CARD, ITEM_CLASS_DIGITAL_KEY, ITEM_CLASS_ACCESS_CODE, ITEM_CLASS_DATA_FILE]
+const ITEM_STORAGE_ROUTE_POCKET := "pocket"
+const ITEM_STORAGE_ROUTE_KEYCHAIN := "keychain"
+const ITEM_STORAGE_ROUTE_DIGITAL_BUFFER := "digital_buffer"
+const ITEM_STORAGE_ROUTE_DIGITAL_STORAGE := "digital_storage"
+const ITEM_STORAGE_ROUTES: Array[String] = [ITEM_STORAGE_ROUTE_POCKET, ITEM_STORAGE_ROUTE_KEYCHAIN, ITEM_STORAGE_ROUTE_DIGITAL_BUFFER, ITEM_STORAGE_ROUTE_DIGITAL_STORAGE]
+const ITEM_DISPLAY_NAMES: Dictionary = {
+	ITEM_CLASS_PHYSICAL_ITEM:"Physical Item",
+	ITEM_CLASS_KEY_CARD:"Key Card",
+	ITEM_CLASS_DIGITAL_KEY:"Digital Key",
+	ITEM_CLASS_ACCESS_CODE:"Access Code",
+	ITEM_CLASS_DATA_FILE:"Data File"
+}
 const POWER_BEHAVIOR_NONE := "none"
 const POWER_BEHAVIOR_OPENS_WHEN_UNPOWERED := "opens_when_unpowered"
 
@@ -66,6 +84,16 @@ const PREFAB_ALIAS_DEFAULTS: Dictionary = {
 
 # Hidden compatibility mappings for loading old constructor/runtime data only.
 # These aliases must never be emitted as user-facing palette entries or presets.
+const LEGACY_ITEM_ALIAS_CONFIGS: Dictionary = {
+	"mechanical_key": {"object_type":"item", "item_class":ITEM_CLASS_KEY_CARD},
+	"mechanical_keycard": {"object_type":"item", "item_class":ITEM_CLASS_KEY_CARD},
+	"keycard": {"object_type":"item", "item_class":ITEM_CLASS_KEY_CARD},
+	"key_card": {"object_type":"item", "item_class":ITEM_CLASS_KEY_CARD},
+	"digital_key": {"object_type":"item", "item_class":ITEM_CLASS_DIGITAL_KEY},
+	"access_code": {"object_type":"item", "item_class":ITEM_CLASS_ACCESS_CODE},
+	"data_file": {"object_type":"item", "item_class":ITEM_CLASS_DATA_FILE}
+}
+
 const LEGACY_DOOR_ALIAS_CONFIGS: Dictionary = {
 	"mechanical_steel_door": {"object_type":"steel_door", "door_type":DOOR_TYPE_MECHANICAL, "material":DOOR_MATERIAL_STEEL, "access_type":ACCESS_TYPE_KEY_CARD, "power_behavior":POWER_BEHAVIOR_NONE},
 	"mechanical_reinforced_steel_door": {"object_type":"reinforced_steel_door", "door_type":DOOR_TYPE_MECHANICAL, "material":DOOR_MATERIAL_REINFORCED_STEEL, "access_type":ACCESS_TYPE_KEY_CARD, "power_behavior":POWER_BEHAVIOR_NONE},
@@ -204,6 +232,20 @@ const ARCHETYPE_REGISTRY: Dictionary = {
 			{"field":"chain_output_ids", "type":"object_ref_array", "default":[]}
 		]
 	},
+	"item": {
+		"archetype_id":"item", "object_group":"item", "object_type":"item", "palette_label":"Item",
+		"placement_mode":"item", "display_name_template":"{item_class_label}",
+		"item_form":"physical", "storage_route":"pocket", "storage_type":"pocket", "item_type":"physical_item", "can_pickup":true, "interactable":true, "configurable":true, "state":"available", "allowed_states":["available", "collected", "disabled"],
+		"property_schema":[
+			{"field":"item_class", "type":"enum", "values":["physical_item", "key_card", "digital_key", "access_code", "data_file"], "default":"physical_item", "labels":{"physical_item":"Physical Item", "key_card":"Key Card", "digital_key":"Digital Key", "access_code":"Access Code", "data_file":"Data File"}},
+			{"field":"storage_route", "type":"enum", "values":["pocket", "keychain", "digital_buffer", "digital_storage"], "default":"pocket", "labels":{"pocket":"Pocket", "keychain":"Keychain", "digital_buffer":"Digital Buffer", "digital_storage":"Digital Storage"}},
+			{"field":"state", "type":"enum", "values":["available", "collected", "disabled"], "default":"available"},
+			{"field":"allowed_states", "type":"enum_array", "values":["available", "collected", "disabled"], "default":["available", "collected", "disabled"]},
+			{"field":"linked_door_id", "type":"object_ref", "target_group":"door", "default":""},
+			{"field":"payload_id", "type":"string", "default":""},
+			{"field":"access_code", "type":"string", "default":""}
+		]
+	},
 	"floor": {
 		"archetype_id":"floor", "object_group":"floor", "object_type":"floor", "palette_label":"Floor",
 		"placement_mode":"object", "display_name_template":"{material_label} Floor",
@@ -225,7 +267,7 @@ static func canonical_prefab_id(prefab_id: String) -> String:
 	var normalized_type: String = prefab_id.strip_edges().to_lower()
 	if PREFAB_ALIASES.has(normalized_type):
 		return String(PREFAB_ALIASES[normalized_type])
-	var preset_variant: Variant = LEGACY_DOOR_ALIAS_CONFIGS.get(normalized_type, LEGACY_WALL_ALIAS_CONFIGS.get(normalized_type, LEGACY_TERMINAL_ALIAS_CONFIGS.get(normalized_type, {})))
+	var preset_variant: Variant = LEGACY_ITEM_ALIAS_CONFIGS.get(normalized_type, LEGACY_DOOR_ALIAS_CONFIGS.get(normalized_type, LEGACY_WALL_ALIAS_CONFIGS.get(normalized_type, LEGACY_TERMINAL_ALIAS_CONFIGS.get(normalized_type, {}))))
 	if preset_variant is Dictionary:
 		return String(preset_variant.get("object_type", "terminal" if LEGACY_TERMINAL_ALIAS_CONFIGS.has(normalized_type) else normalized_type))
 	return normalized_type
@@ -236,7 +278,7 @@ static func canonical_object_type(object_type: String) -> String:
 
 static func is_legacy_prefab_alias(value: String) -> bool:
 	var normalized_value: String = value.strip_edges().to_lower()
-	return PREFAB_ALIASES.has(normalized_value) or LEGACY_WALL_ALIAS_CONFIGS.has(normalized_value) or LEGACY_TERMINAL_ALIAS_CONFIGS.has(normalized_value)
+	return PREFAB_ALIASES.has(normalized_value) or LEGACY_ITEM_ALIAS_CONFIGS.has(normalized_value) or LEGACY_WALL_ALIAS_CONFIGS.has(normalized_value) or LEGACY_TERMINAL_ALIAS_CONFIGS.has(normalized_value)
 
 static func is_legacy_door_object_type(value: String) -> bool:
 	var normalized_value: String = value.strip_edges().to_lower()
@@ -276,8 +318,8 @@ static func canonicalize_legacy_object_data(object_data: Dictionary) -> Dictiona
 			var key: String = String(key_variant)
 			if not data.has(key):
 				data[key] = get_prefab_alias_defaults(original_object_type)[key]
-		if data["object_type"] == "floor":
-			data["archetype_id"] = "floor"
+		if data["object_type"] in ["floor", "item"]:
+			data["archetype_id"] = data["object_type"]
 	elif is_legacy_prefab_alias(source_id):
 		data = mark_legacy_source(data, source_id)
 	if data.has("access_type") or data.has("lock_type"):
@@ -289,7 +331,7 @@ static func get_prefab_alias_defaults(prefab_id: String) -> Dictionary:
 	var raw_defaults: Variant = PREFAB_ALIAS_DEFAULTS.get(normalized_prefab_id, {})
 	if raw_defaults is Dictionary and not raw_defaults.is_empty():
 		return raw_defaults.duplicate(true)
-	var preset_variant: Variant = LEGACY_DOOR_ALIAS_CONFIGS.get(normalized_prefab_id, LEGACY_WALL_ALIAS_CONFIGS.get(normalized_prefab_id, LEGACY_TERMINAL_ALIAS_CONFIGS.get(normalized_prefab_id, {})))
+	var preset_variant: Variant = LEGACY_ITEM_ALIAS_CONFIGS.get(normalized_prefab_id, LEGACY_DOOR_ALIAS_CONFIGS.get(normalized_prefab_id, LEGACY_WALL_ALIAS_CONFIGS.get(normalized_prefab_id, LEGACY_TERMINAL_ALIAS_CONFIGS.get(normalized_prefab_id, {}))))
 	if preset_variant is Dictionary:
 		var preset_defaults: Dictionary = preset_variant.duplicate(true)
 		preset_defaults.erase("object_type")
@@ -312,7 +354,7 @@ static func get_constructor_palette_rows() -> Array[Dictionary]:
 	for object_type_variant in OBJECT_LIBRARY.keys():
 		var object_type: String = String(object_type_variant)
 		var definition: Dictionary = OBJECT_LIBRARY[object_type]
-		if ARCHETYPE_REGISTRY.has(object_type) or not bool(definition.get("placeable_in_constructor", true)) or String(definition.get("group", "")) in ["door", "terminal"]:
+		if ARCHETYPE_REGISTRY.has(object_type) or not bool(definition.get("placeable_in_constructor", true)) or String(definition.get("group", "")) in ["door", "terminal", "item"]:
 			continue
 		rows.append(_build_constructor_palette_row(object_type, object_type, definition, false))
 	rows.sort_custom(func(a: Dictionary, b: Dictionary) -> bool: return String(a.get("display_name", "")) < String(b.get("display_name", "")))
@@ -414,7 +456,6 @@ const OBJECT_LIBRARY := {
 	"external_air_duct": {"group":"cooling","name":"External Air Duct","state":"active","cooling_device_type":"air_duct","carries_airflow":true,"passive_cooling":true,"movable":false,"material":"metal","blocks_movement":false,"blocks_vision":false,"durability":12},
 	"module_external": {"group":"item","name":"Module External","item_form":"physical","storage_type":"pocket","can_place_in_digital_buffer":false,"consumable":false,"fits_targets":[]},
 	"module_internal": {"group":"item","name":"Module Internal","item_form":"physical","storage_type":"pocket","can_place_in_digital_buffer":false,"consumable":false,"fits_targets":[]},
-	"mechanical_keycard": {"group":"item","name":"Key-Card","item_form":"physical","storage_type":"pocket","can_place_in_digital_buffer":false,"consumable":false,"fits_targets":["door"],"key_kind":"mechanical"},
 	"fuse": {"group":"item","name":"Fuse","item_form":"physical","storage_type":"manipulator_hold","can_place_in_digital_buffer":false,"consumable":true,"fits_targets":["fuse_box","fuse_box_empty"]},
 	"repair_kit": {"group":"item","name":"Repair Kit","item_form":"physical","storage_type":"manipulator_hold","can_place_in_digital_buffer":false,"consumable":true,"fits_targets":["door","terminal","power"]},
 	"reinforcement": {"group":"item","name":"Reinforcement","item_form":"physical","storage_type":"manipulator_hold","can_place_in_digital_buffer":false,"consumable":true,"fits_targets":["door"],"damage":2},
@@ -492,6 +533,66 @@ static func normalize_item_form(value: Variant) -> String:
 	if item_form in [ITEM_STORAGE_CLASS_PHYSICAL, ITEM_STORAGE_CLASS_DIGITAL]:
 		return item_form
 	return ""
+
+static func normalize_item_class(value: Variant) -> String:
+	var item_class: String = normalize_item_type(value)
+	if item_class in ITEM_CLASSES:
+		return item_class
+	return ITEM_CLASS_PHYSICAL_ITEM
+
+static func normalize_item_contract(item_data: Dictionary) -> Dictionary:
+	var data: Dictionary = item_data.duplicate(true)
+	var source_type: String = _normalized_contract_token(data.get("item_class", data.get("item_type", data.get("object_type", ""))))
+	var is_catalog_item: bool = _normalized_contract_token(data.get("archetype_id", "")) == "item" or _normalized_contract_token(data.get("object_type", "")) == "item" or LEGACY_ITEM_ALIAS_CONFIGS.has(source_type)
+	if not is_catalog_item:
+		return data
+	var item_class: String = normalize_item_class(source_type)
+	data["archetype_id"] = "item"
+	data["object_group"] = "item"
+	data["object_type"] = "item"
+	data["item_class"] = item_class
+	data["item_type"] = item_class
+	data["can_pickup"] = bool(data.get("can_pickup", true))
+	data["interactable"] = bool(data.get("interactable", true))
+	data["configurable"] = bool(data.get("configurable", true))
+	data["state"] = _normalized_contract_token(data.get("state", "available"))
+	if not data["state"] in ["available", "collected", "disabled"]:
+		data["state"] = "available"
+	if not data.has("allowed_states"):
+		data["allowed_states"] = ["available", "collected", "disabled"]
+	match item_class:
+		ITEM_CLASS_KEY_CARD:
+			data["item_form"] = "physical"
+			data["storage_route"] = ITEM_STORAGE_ROUTE_KEYCHAIN
+			data["storage_type"] = ITEM_STORAGE_ROUTE_KEYCHAIN
+			data["key_kind"] = ITEM_CLASS_KEY_CARD
+			data["key_type"] = ITEM_CLASS_KEY_CARD
+		ITEM_CLASS_DIGITAL_KEY:
+			data["item_form"] = "digital"
+			data["storage_route"] = ITEM_STORAGE_ROUTE_DIGITAL_STORAGE
+			data["storage_type"] = ITEM_STORAGE_ROUTE_DIGITAL_STORAGE
+			data["key_kind"] = "digital"
+			data["key_type"] = ITEM_CLASS_DIGITAL_KEY
+		ITEM_CLASS_ACCESS_CODE:
+			data["item_form"] = "digital"
+			data["storage_route"] = ITEM_STORAGE_ROUTE_DIGITAL_STORAGE
+			data["storage_type"] = ITEM_STORAGE_ROUTE_DIGITAL_STORAGE
+			data["key_kind"] = ITEM_CLASS_ACCESS_CODE
+			data["key_type"] = ITEM_CLASS_ACCESS_CODE
+		ITEM_CLASS_DATA_FILE:
+			data["item_form"] = "digital"
+			data["storage_route"] = ITEM_STORAGE_ROUTE_DIGITAL_STORAGE
+			data["storage_type"] = ITEM_STORAGE_ROUTE_DIGITAL_STORAGE
+			data.erase("key_kind")
+			data.erase("key_type")
+		_:
+			data["item_form"] = "physical"
+			data["storage_route"] = ITEM_STORAGE_ROUTE_POCKET
+			data["storage_type"] = ITEM_STORAGE_ROUTE_POCKET
+			data.erase("key_kind")
+			data.erase("key_type")
+	data["display_name"] = String(ITEM_DISPLAY_NAMES[item_class])
+	return data
 
 static func get_item_storage_class(item_data: Dictionary) -> String:
 	var item_type: String = normalize_item_type(item_data.get("item_type", item_data.get("object_type", "")))
@@ -634,8 +735,10 @@ static func normalize_world_object_contract(object_data: Dictionary) -> Dictiona
 	data["object_type"] = canonical_type
 	data = normalize_door_contract(data)
 	data = normalize_terminal_contract(data)
+	data = normalize_item_contract(data)
 	data = normalize_archetype_object(data)
 	data = normalize_terminal_contract(data)
+	data = normalize_item_contract(data)
 	return data
 
 static func _contains_cyrillic(value: Variant) -> bool:
@@ -673,6 +776,23 @@ static func validate_archetype_object(object_data: Dictionary) -> Array[String]:
 		warnings.append("object_state_not_allowed")
 	if object_data.has("allowed_statuses") and not Array(object_data.get("allowed_statuses", [])).has(object_data.get("status")):
 		warnings.append("object_status_not_allowed")
+	if archetype_id == "item":
+		var item_class: String = _normalized_contract_token(object_data.get("item_class", ""))
+		if not ITEM_CLASSES.has(item_class):
+			warnings.append("item_invalid_item_class")
+		if String(object_data.get("display_name", "")) != generate_display_name(object_data):
+			warnings.append("item_display_name_not_generated_from_item_class")
+		var storage_route: String = _normalized_contract_token(object_data.get("storage_route", ""))
+		var storage_type: String = _normalized_contract_token(object_data.get("storage_type", ""))
+		if item_class == ITEM_CLASS_KEY_CARD and (storage_route != ITEM_STORAGE_ROUTE_KEYCHAIN or storage_type != ITEM_STORAGE_ROUTE_KEYCHAIN):
+			warnings.append("item_key_card_storage_must_be_keychain")
+		elif item_class in [ITEM_CLASS_DIGITAL_KEY, ITEM_CLASS_ACCESS_CODE, ITEM_CLASS_DATA_FILE] and (storage_route != ITEM_STORAGE_ROUTE_DIGITAL_STORAGE or storage_type != ITEM_STORAGE_ROUTE_DIGITAL_STORAGE):
+			warnings.append("item_digital_storage_must_be_digital_storage")
+		elif item_class == ITEM_CLASS_PHYSICAL_ITEM and (storage_route != ITEM_STORAGE_ROUTE_POCKET or storage_type != ITEM_STORAGE_ROUTE_POCKET):
+			warnings.append("item_physical_storage_must_be_pocket")
+		for key_field in ["item_type", "key_type", "key_kind"]:
+			if _normalized_contract_token(object_data.get(key_field, "")) in ["mechanical_key", "mechanical_keycard", "keycard"]:
+				warnings.append("item_legacy_key_value_remains_%s" % key_field)
 	if archetype_id == "floor" and String(object_data.get("display_name", "")) != generate_display_name(object_data):
 		warnings.append("floor_display_name_not_generated_from_material")
 	if archetype_id == "terminal":
@@ -799,7 +919,7 @@ static func get_archetype_id_for_object(object_data: Dictionary) -> String:
 	if ARCHETYPE_REGISTRY.has(object_type):
 		return object_type
 	var group_id: String = _normalized_contract_token(object_data.get("object_group", object_data.get("group", "")))
-	if ARCHETYPE_REGISTRY.has(group_id):
+	if ARCHETYPE_REGISTRY.has(group_id) and group_id != "item":
 		return group_id
 	return ""
 
@@ -819,6 +939,8 @@ static func _label_for_id(value: Variant) -> String:
 
 static func generate_display_name(object_data: Dictionary) -> String:
 	var archetype_id: String = get_archetype_id_for_object(object_data)
+	if archetype_id == "item":
+		return String(ITEM_DISPLAY_NAMES.get(normalize_item_class(object_data.get("item_class", "physical_item")), "Physical Item"))
 	if archetype_id == "terminal":
 		if _normalized_contract_token(object_data.get("terminal_type", "information")) != "control":
 			return "Information Terminal"
@@ -857,6 +979,8 @@ static func normalize_archetype_object(object_data: Dictionary) -> Dictionary:
 		data["control_mode"] = String(data.get("control_type", data.get("control_mode", "internal")))
 	elif archetype_id == "terminal":
 		data = normalize_terminal_contract(data)
+	elif archetype_id == "item":
+		data = normalize_item_contract(data)
 	data["display_name"] = generate_display_name(data)
 	data["normalized_by_archetype_catalog"] = true
 	return data
@@ -867,6 +991,9 @@ static func create_archetype_object(archetype_id: String, id_override: String = 
 		return {}
 	var runtime_type: String = String(definition.get("object_type", archetype_id))
 	var data: Dictionary = _create_library_object(runtime_type, id_override) if runtime_type == archetype_id else create_world_object(runtime_type, id_override)
+	if data.is_empty():
+		var object_id: String = id_override if not id_override.is_empty() else "%s_%s" % [archetype_id, str(Time.get_unix_time_from_system())]
+		data = WorldObjectDataRef.create_base(object_id, String(definition.get("palette_label", archetype_id.capitalize())), String(definition.get("object_group", archetype_id)), runtime_type)
 	data["archetype_id"] = archetype_id
 	for key_variant in overrides.keys():
 		data[String(key_variant)] = overrides[key_variant]

@@ -26,41 +26,19 @@ func place_map_constructor_prefab(prefab_id: String, cell: Vector2i, preferred_w
 	if manager.is_map_constructor_item_prefab(prefab_id):
 		var item_object_id: String = "mapedit_%s_%d" % [prefab_id, manager._map_constructor_runtime_object_seq]
 		manager._map_constructor_runtime_object_seq += 1
-		var item_type: String = prefab_id
-		if prefab_id == "mechanical_key":
-			item_type = "mechanical_keycard"
-		var item_display_name: String = "Mechanical Key" if prefab_id == "mechanical_key" else prefab_id.capitalize()
-		var item_description: String = "Physical key item for locks." if prefab_id == "mechanical_key" else "Pickup item."
-		var item_form: String = "digital" if prefab_id in ["digital_key", "access_code"] else "physical"
-		var key_kind: String = "access_code"
-		if prefab_id == "mechanical_key":
-			key_kind = "mechanical"
-		elif prefab_id == "digital_key":
-			key_kind = "digital"
-		var item_data: Dictionary = {
-			"id": item_object_id,
-			"object_group": "item",
-			"object_type": "item",
-			"item_type": item_type,
-			"display_name": item_display_name,
-			"description": item_description,
-			"item_form": item_form,
-			"storage_type": "pocket",
-			"can_pickup": true,
-			"interactable": true,
-			"key_kind": key_kind,
-			"key_type": prefab_id,
-			"position": cell,
-			"created_by_map_constructor": true,
-			"map_constructor_prefab_id": prefab_id
-			}
+		var item_data: Dictionary = WorldObjectCatalogRef.create_world_object(prefab_id, item_object_id)
+		if item_data.is_empty():
+			return {"ok": false, "message": "Unknown item archetype.", "object_id": "", "warnings": []}
+		item_data["position"] = cell
+		item_data["created_by_map_constructor"] = true
 		item_data["map_constructor_rotation_degrees"] = posmod(rotation_degrees, 360)
+		item_data = WorldObjectCatalogRef.normalize_item_contract(WorldObjectCatalogRef.normalize_archetype_object(WorldObjectCatalogRef.normalize_world_object_contract(item_data)))
 		manager.add_item_at_cell(cell, item_data)
 		PowerSystemRef.recalculate_network(manager.mission_world_objects, "")
 		manager.refresh_world_cooling_received()
 		result["object_id"] = item_object_id
 		result["is_item"] = true
-		manager._record_map_constructor_change("place", {"entity_kind":"item", "entity_id":item_object_id, "object_type":item_type, "cell":cell, "summary":"Placed %s at %s" % [item_type, manager._format_map_constructor_cell(cell)], "undo_hint":"Can undo by deleting item."})
+		manager._record_map_constructor_change("place", {"entity_kind":"item", "entity_id":item_object_id, "object_type":String(item_data.get("item_type", "item")), "cell":cell, "summary":"Placed %s at %s" % [String(item_data.get("display_name", "Item")), manager._format_map_constructor_cell(cell)], "undo_hint":"Can undo by deleting item."})
 		return result
 	var canonical_prefab_id: String = WorldObjectCatalogRef.canonical_object_type(prefab_id)
 	var constructor_prefab_defaults: Dictionary = WorldObjectCatalogRef.get_prefab_alias_defaults(prefab_id)
@@ -327,6 +305,7 @@ func apply_map_constructor_property_update(entity_kind: String, entity_id: Strin
 		data = manager._normalize_map_constructor_active_object_fields(data)
 		manager.update_world_object_by_id(entity_id, data)
 	elif resolved_kind == "item":
+		data = WorldObjectCatalogRef.normalize_item_contract(WorldObjectCatalogRef.normalize_archetype_object(WorldObjectCatalogRef.normalize_world_object_contract(data)))
 		var found_item: bool = false
 		for cell_variant in manager.cell_items.keys():
 			var cell: Vector2i = Vector2i(cell_variant)
