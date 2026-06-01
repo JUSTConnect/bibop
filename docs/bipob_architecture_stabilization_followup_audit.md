@@ -4,11 +4,11 @@
 
 Цель документа — держать единый audit/checklist для следующих PR, чтобы не возвращаться к palette variant explosion, hardcoded fixes и непроверенным syntax regressions.
 
-Последнее обновление: после проверки PR-H.
+Последнее обновление: после проверки PR-J1.
 
 ---
 
-## 1. Текущий статус PR-A–H
+## 1. Текущий статус PR-A–J1
 
 ```text
 #750 Fix PR-A — English-only game UI labels
@@ -20,6 +20,8 @@
 #753 Fix PR-G0 — Cleanup Terminal palette validation shim
 #754 PR-G — Route Item/Key/Digital placement through archetype catalog
 #755 PR-H — Canonicalize Door runtime identity to object_type="door"
+#756 PR-J — Enforce Godot parser gate in CI/review flow
+#757 Fix PR-J1 — Fix Godot parser gate CI failure
 ```
 
 ### 1.1 Что сейчас считается закрытым
@@ -29,29 +31,27 @@
 - Floor placement branch was restored before Wall placement branch.
 - Quick preset buttons are hidden for objects with non-empty archetype_id.
 - English-only game-facing label rule was applied to catalog/schema/palette metadata.
-- tools/ci/parse_all_gd.gd exists and can load scripts through ResourceLoader.
 - Terminal archetype exists with terminal_type, controlled_target_type, terminal_class, power_type, control_type, status, allowed_statuses and linked_* fields.
 - The temporary visible_archetypes.gd shim was removed by PR-G0; Terminal palette validation now uses archetype_counts.
 - Item/key/digital placement now routes through WorldObjectCatalog and normalize_item_contract.
 - Legacy item ids mechanical_key/mechanical_keycard/keycard/key_card/digital_key/access_code/data_file are hidden compatibility aliases, not user-facing palette rows.
 - Door runtime identity is canonical: archetype_id=door, object_group=door, object_type=door.
 - Legacy door ids are hidden compatibility inputs and normalize to canonical Door data.
+- Godot Parser Gate is CI-enforced and currently green.
 ```
 
 ### 1.2 Что сейчас не считается полностью закрытым
 
 ```text
-- Godot parser/load gate is CI-enforced for pull requests and pushes to main through `.github/workflows/godot-parser-gate.yml`.
-- PR-F, PR-G and PR-H were reviewed statically before CI enforcement; gameplay/runtime smoke verification is still separate and must be run locally.
 - Terminal links/status/action availability need gameplay smoke testing.
 - Item pickup/inventory/storage flow needs gameplay smoke testing after the one-Item-row migration.
 - Door/key/power/control interactions need gameplay smoke testing after object_type="door" finalization.
-- Fuse, Repair Kit, Reinforcement and modules are no longer emitted as generic item OBJECT_LIBRARY palette rows; if they must remain placeable, they need their own archetype/catalog contract later.
+- Fuse, Repair Kit, Reinforcement, Power Cable Reel and modules are no longer emitted as generic item OBJECT_LIBRARY palette rows; if they must remain placeable, they need their own archetype/catalog contracts.
 ```
 
 ---
 
-## 2. Review result по PR-A–H
+## 2. Review result по PR-A–J1
 
 ### 2.1 PR-A — English-only game UI labels
 
@@ -74,7 +74,7 @@ Russian text is allowed in docs/discussion only.
 
 Status: accepted.
 
-Required placement priority is restored:
+Required placement priority:
 
 ```gdscript
 if String(constructor_preview.get("replaces_tile_with", "")) == "floor":
@@ -85,19 +85,9 @@ elif requested_object_group == "wall":
 	manager.grid_manager.call("set_tile", cell, placed_tile_type)
 ```
 
-Acceptance:
-
-```text
-- Floor archetype should set/restore GridManager.TILE_FLOOR.
-- Wall and External Wall should still set GridManager.TILE_WALL.
-- Door placement branch remains after floor/wall checks.
-```
-
 ### 2.3 PR-C — Stronger archetype palette validation
 
 Status: accepted after PR-G0 cleanup.
-
-Implemented intent:
 
 ```text
 - Catalog-level validation counts required archetypes through archetype_counts.
@@ -124,35 +114,33 @@ var required_archetype_warning_ids: Dictionary = {
 
 Status: accepted.
 
-Current rule:
-
 ```gdscript
 var object_archetype_id: String = ui._safe_ui_string(data.get("archetype_id", "")).strip_edges()
 if object_is_configurable and object_archetype_id.is_empty():
 	ui._add_preset_buttons(configurable, entity_kind, entity_id)
 ```
 
-Acceptance:
+### 2.5 PR-E / PR-J / PR-J1 — Godot parser gate
 
-```text
-- Door/Floor/Wall/Terminal/Item must use property schema only.
-- Legacy quick presets must not appear for archetype objects.
-```
+Status: accepted and CI-enforced.
 
-### 2.5 PR-E — Godot parser gate
-
-Status: CI-enforced for pull requests and pushes to main.
-
-File:
+Files:
 
 ```text
 tools/ci/parse_all_gd.gd
+.github/workflows/godot-parser-gate.yml
 ```
 
-CI workflow:
+Workflow behavior:
 
 ```text
-.github/workflows/godot-parser-gate.yml
+- Runs on pull_request.
+- Runs on push to main.
+- Installs Python.
+- Installs pinned Godot 4.6.3 through chickensoft-games/setup-godot@v2.
+- Runs static checks.
+- Runs Godot import smoke with --import.
+- Runs GDScript parser/load gate.
 ```
 
 Exact CI command list:
@@ -161,22 +149,20 @@ Exact CI command list:
 git diff --check
 python tools/check_gdscript_safety_patterns.py
 python tools/check_map_constructor_sections.py
-godot --headless --path . --quit
+godot --headless --path . --import
 godot --headless --path . --script res://tools/ci/parse_all_gd.gd
 ```
 
 Required policy:
 
 ```text
-No code PR is fully verified unless this parser/load gate was actually run.
-If Godot is unavailable, reviewer status must say: Static review only. Godot parser gate was not executed.
+No code PR is fully verified unless this parser/load gate ran successfully in CI or locally.
+Gameplay/runtime smoke tests remain separate from parser/load validation.
 ```
 
 ### 2.6 PR-F — Terminal as configurable archetype
 
-Status: accepted by static review; parser/runtime smoke still required.
-
-Implemented:
+Status: accepted by static review; runtime smoke still required.
 
 ```text
 - Terminal archetype exists.
@@ -186,18 +172,9 @@ Implemented:
 - Constructor palette should expose one Terminal row, not terminal variants.
 ```
 
-Remaining risks:
-
-```text
-- Parser gate must be run locally against current main.
-- Terminal links/status/action availability need gameplay smoke testing.
-```
-
 ### 2.7 PR-G0 — Cleanup Terminal palette validation shim
 
 Status: accepted.
-
-Implemented:
 
 ```text
 - Removed temporary scripts/game/visible_archetypes.gd.
@@ -208,9 +185,7 @@ Implemented:
 
 ### 2.8 PR-G — Item/key/digital placement through catalog/archetype registry
 
-Status: accepted by static review; parser/runtime smoke still required.
-
-Implemented:
+Status: accepted by static review; runtime smoke still required.
 
 ```text
 - Added Item archetype with item_class/storage_route/state/allowed_states/linked_door_id/payload/access_code fields.
@@ -226,30 +201,14 @@ Implemented:
 Important caveat:
 
 ```text
-- get_constructor_palette_rows now skips all OBJECT_LIBRARY rows with group == item.
+- get_constructor_palette_rows skips all OBJECT_LIBRARY rows with group == item.
 - This matches the one-Item-row direction.
-- But Fuse, Repair Kit, Reinforcement, modules and similar utility items will need their own archetype/catalog contract if they should remain placeable in Map Constructor.
-```
-
-Manual smoke required:
-
-```text
-- Palette shows Item once.
-- Item inspector renders item_class and storage_route.
-- item_class=key_card creates Key Card and keychain storage.
-- item_class=digital_key creates Digital Key and digital_storage.
-- item_class=access_code creates Access Code and digital_storage.
-- item_class=data_file creates Data File and digital_storage.
-- physical_item creates Physical Item and pocket storage.
-- Legacy mechanical_key/mechanical_keycard/keycard load/create paths normalize to key_card.
-- Item pickup/collection does not regress inventory routing.
+- Fuse, Repair Kit, Reinforcement, modules and similar utility items need dedicated archetype/catalog contracts if they should remain placeable in Map Constructor.
 ```
 
 ### 2.9 PR-H — Door runtime object_type finalization
 
-Status: accepted by static review; parser/runtime smoke still required.
-
-Implemented:
+Status: accepted by static review; runtime smoke still required.
 
 ```text
 - Door archetype now has object_type="door".
@@ -262,95 +221,43 @@ Implemented:
 - Validation catches non-canonical Door object_type/object_group, generated display name drift, derived state flag drift, and no_key locked/key drift.
 ```
 
-Important caveat:
-
-```text
-- Old door definitions still exist in OBJECT_LIBRARY as non-placeable compatibility entries.
-- This is acceptable only as hidden compatibility data.
-- New gameplay code should not branch on steel_door/reinforced_steel_door/titanium_door/energy_door/powered_gate as canonical identity.
-```
-
-Manual smoke required:
-
-```text
-- Palette shows Door once.
-- Placing Door creates object_type=door.
-- Door properties update generated display_name.
-- Legacy steel_door/titanium_door/energy_door/powered_gate load paths normalize to object_type=door.
-- Key Card doors still require/find key_card items.
-- Digital Key and Access Code doors still route through digital item/storage rules.
-- Terminal-controlled doors still work through terminal links.
-- Powered doors/gates still react correctly to power loss according to power_behavior.
-- Door state derived flags remain synchronized after open/close/locked/damaged/unpowered transitions.
-```
-
 ---
 
 ## 3. Current blockers and next required validation
 
-### Blocker 1 — Parser gate must be proven locally
+### Blocker 1 — Runtime smoke tests
 
-Run:
-
-```bash
-git diff --check
-python tools/check_gdscript_safety_patterns.py
-python tools/check_map_constructor_sections.py
-godot --headless --path . --quit
-godot --headless --path . --script res://tools/ci/parse_all_gd.gd
-```
-
-Until this runs successfully:
-
-```text
-Static review only. Godot parser gate was not executed.
-```
-
-### Blocker 2 — Terminal smoke tests
+Parser gate is green in CI, but it does not prove gameplay behavior.
 
 Manual checks:
 
 ```text
-- Palette shows exactly: Door, Floor, External Wall, Wall, Terminal, Item plus any non-migrated non-item objects still intentionally exposed.
-- Palette does not show Information Terminal, Control Terminal, Door Control Terminal, Cooling Control Terminal, Platform Control Terminal.
-- Placing Terminal creates archetype_id=terminal, object_group=terminal, object_type=terminal.
-- Information terminal display_name = Information Terminal.
-- control + none display_name = Control Terminal.
-- control + door display_name = Door Control Terminal.
-- status and allowed_statuses stay synchronized.
-- linked_* fields validate missing/wrong target ids without crashing.
-- No quick preset buttons are shown for Terminal.
+- Palette shows Door, Floor, External Wall, Wall, Terminal, Item.
+- Palette does not show generated variant names as separate entries.
+- Game UI labels are English only.
+- Door variants are configured only through Door properties.
+- Floor variants are configured only through Floor properties.
+- Wall material is configured only through Wall properties.
+- Terminal variants are configured only through Terminal properties.
+- Item variants are configured only through Item properties.
+- External Wall has no material selector and no preset buttons.
+- Display name updates from properties.
+- Floor placement still produces walkable floor tile.
+- Wall placement still produces wall tile.
+- Door placement produces object_type=door.
+- Terminal placement produces normalized runtime object and does not crash validation.
+- Item placement produces normalized runtime item and does not crash validation.
+- Key Card pickup/usage works for key-card doors.
+- Digital Key/Access Code route to digital storage.
+- Powered Door power behavior works after power changes.
 ```
 
-### Blocker 3 — Item/key/digital smoke tests
-
-Manual checks:
+### Blocker 2 — Utility item placement decision
 
 ```text
-- Palette shows exactly one Item row.
-- Palette does not show Key Card, Digital Key, Access Code, Data File, Physical Item as separate rows.
-- Item property schema is editable through inspector.
-- Key Card routes to keychain and is usable for key-card doors.
-- Digital Key/Access Code/Data File route to digital storage and are not physical pocket/manipulator items.
-- Physical Item routes to pocket.
-- linked_door_id validates invalid/stale links without crash.
-- Item pickup/collection still works with normalized item data.
-```
-
-### Blocker 4 — Door smoke tests
-
-Manual checks:
-
-```text
-- Palette shows exactly one Door row.
-- Palette does not show Steel Door, Reinforced Steel Door, Titanium Door, Energy Door, Powered Gate or any material/type Door variants.
-- Door property schema is editable through inspector.
-- Placing Door creates archetype_id=door, object_group=door, object_type=door.
-- Door display_name updates from material + door_type.
-- Key-card, digital-key, access-code and terminal doors still work.
-- no_key doors do not keep required_key_id or locked state.
-- Powered doors/gates still update state through power_behavior.
-- Grid-door legacy behavior, if loaded from old data, remains compatibility-only through legacy source metadata.
+Power Cable Reel, Fuse, Repair Kit, Reinforcement and module-like objects used to be raw OBJECT_LIBRARY item rows.
+After PR-G they must not return as raw generic item palette rows.
+If they are still needed as Map Constructor placeable objects, they need dedicated archetypes and normalization contracts.
 ```
 
 ---
@@ -403,15 +310,13 @@ state/status = active | damaged | unpowered | closed | open | locked | etc.
 
 ## 5. Syntax/parser verification gate
 
-Больше нельзя считать PR полностью проверенным только по grep/static review.
-
 Обязательный минимальный gate для каждого code PR:
 
 ```bash
 git diff --check
 python tools/check_gdscript_safety_patterns.py
 python tools/check_map_constructor_sections.py
-godot --headless --path . --quit
+godot --headless --path . --import
 godot --headless --path . --script res://tools/ci/parse_all_gd.gd
 ```
 
@@ -430,8 +335,8 @@ Review status wording:
 
 ```text
 Static review passed = проверены diff/grep/known risky patterns.
-Syntax verified = Godot parser/load gate реально запускался.
-Godot unavailable = PR is not fully verified.
+Syntax verified = Godot parser/load gate реально запускался и зелёный.
+Gameplay verified = ручной/автоматизированный runtime smoke реально выполнен.
 ```
 
 ---
@@ -506,18 +411,7 @@ Terminal → terminal_type/controlled_target_type/class/power/control/status/lin
 Item → item_class/storage_route/state/linked_door_id/payload
 Power Source → source_type/output/network/state
 Platform → platform_type/timer/trigger/state
-```
-
-Все пути создания объектов обязаны проходить через один pipeline:
-
-```text
-Catalog/archetype definition
-→ default data
-→ property overrides
-→ normalized runtime object
-→ generated display_name
-→ derived state/status flags
-→ validation
+Utility items → dedicated archetype contracts if still needed as placeable constructor objects
 ```
 
 ---
@@ -526,173 +420,52 @@ Catalog/archetype definition
 
 ### 8.1 Door
 
-Palette:
-
 ```text
-Door
-```
-
-Canonical runtime:
-
-```text
-archetype_id = door
-object_group = door
-object_type = door
-```
-
-Schema:
-
-```text
-door_type: mechanical | digital | powered
-material: steel | reinforced_steel | titanium | energy
-access_type: no_key | key_card | digital_key | access_code | terminal
-door_class: 1 | 2 | 3
-power_type: internal | external | none
-control_type: internal | external | terminal
-power_behavior: none | opens_when_unpowered | requires_power_to_open
-state: closed | open | damaged | jammed | locked | unpowered
-allowed_states: closed/open/damaged/jammed/locked/unpowered
-```
-
-Display name examples:
-
-```text
-Steel Mechanical Door
-Reinforced Steel Mechanical Door
-Titanium Mechanical Door
-Energy Digital Door
-Steel Powered Door
+Palette: Door
+Canonical runtime: archetype_id=door, object_group=door, object_type=door
+Schema: door_type/material/access_type/door_class/power_type/control_type/power_behavior/state/allowed_states
+Display name: {Material Label} {Door Type Label} Door
 ```
 
 Hidden compatibility aliases:
 
 ```text
-steel_door
-reinforced_steel_door
-titanium_door
-energy_door
-grid_door
-mechanical_door
-digital_door
-powered_gate
-mechanical_steel_door
-mechanical_reinforced_steel_door
-mechanical_titanium_door
-mechanical_energy_door
-digital_steel_door
-digital_reinforced_steel_door
-digital_titanium_door
-digital_energy_door
-powered_steel_door
-powered_reinforced_steel_door
-powered_titanium_door
-powered_energy_door
-```
-
-Important:
-
-```text
-These legacy ids may exist only as hidden load/import compatibility data.
-They must not be canonical runtime object_type values after normalization.
+steel_door, reinforced_steel_door, titanium_door, energy_door, grid_door,
+mechanical_door, digital_door, powered_gate,
+mechanical_steel_door, mechanical_reinforced_steel_door, mechanical_titanium_door, mechanical_energy_door,
+digital_steel_door, digital_reinforced_steel_door, digital_titanium_door, digital_energy_door,
+powered_steel_door, powered_reinforced_steel_door, powered_titanium_door, powered_energy_door
 ```
 
 ### 8.2 Floor
 
-Palette:
-
 ```text
-Floor
-```
-
-Schema:
-
-```text
-material: steel | concrete | grate
-covering: default | dirt | water | debris | oil
-visual_style: default | permission
-state: normal | damaged
-allowed_states: normal/damaged
-```
-
-Display name examples:
-
-```text
-Steel Floor
-Concrete Floor
-Grate Floor
+Palette: Floor
+Schema: material/covering/visual_style/state/allowed_states
+Display name examples: Steel Floor, Concrete Floor, Grate Floor
 ```
 
 ### 8.3 External Wall
 
-Palette:
-
 ```text
-External Wall
-```
-
-Fixed archetype:
-
-```text
-configurable = false
-is_destructible = false
-supports_embedded_objects = true
-supports_cables = true
-blocks_movement = true
-blocks_vision = true
+Palette: External Wall
+Fixed: configurable=false, is_destructible=false, supports_embedded_objects=true, supports_cables=true, blocks_movement=true, blocks_vision=true
 ```
 
 ### 8.4 Wall
 
-Palette:
-
 ```text
-Wall
-```
-
-Schema:
-
-```text
-material: brick | concrete | steel | reinforced_steel | titanium | grate | electromagnetic
-```
-
+Palette: Wall
+Schema: material = brick | concrete | steel | reinforced_steel | titanium | grate | electromagnetic
 Display name examples are generated only, not separate palette objects.
+```
 
 ### 8.5 Terminal
 
-Palette:
-
 ```text
-Terminal
-```
-
-Schema:
-
-```text
-terminal_type: information | control
-controlled_target_type: none | door | cooling | platform | power | lighting | device
-terminal_class: 1 | 2 | 3
-power_type: internal | external
-control_type: internal | external
-status: active | damaged | unpowered | locked | disabled | error
-allowed_statuses: active/damaged/unpowered/locked/disabled/error
-linked_object_ids: Array[String]
-linked_door_ids: Array[String]
-linked_cooling_ids: Array[String]
-linked_platform_ids: Array[String]
-linked_power_ids: Array[String]
-linked_lighting_ids: Array[String]
-chain_input_ids: Array[String]
-chain_output_ids: Array[String]
-```
-
-Display name examples:
-
-```text
-Information Terminal
-Control Terminal
-Door Control Terminal
-Cooling Control Terminal
-Platform Control Terminal
+Palette: Terminal
+Schema: terminal_type/controlled_target_type/terminal_class/power_type/control_type/status/allowed_statuses/links
+Display name examples: Information Terminal, Control Terminal, Door Control Terminal
 ```
 
 Important:
@@ -705,32 +478,19 @@ Important:
 
 ### 8.6 Item
 
-Palette:
-
 ```text
-Item
-```
-
-Schema:
-
-```text
-item_class: physical_item | key_card | digital_key | access_code | data_file
-storage_route: pocket | keychain | digital_buffer | digital_storage
-state: available | collected | disabled
-allowed_states: available/collected/disabled
-linked_door_id: String
-payload_id: String
-access_code: String
+Palette: Item
+Schema: item_class/storage_route/state/allowed_states/linked_door_id/payload_id/access_code
 ```
 
 Canonical routing:
 
 ```text
-physical_item -> item_form=physical, storage_route=pocket, storage_type=pocket, display_name=Physical Item
-key_card -> item_form=physical, storage_route=keychain, storage_type=keychain, key_type=key_card, display_name=Key Card
-digital_key -> item_form=digital, storage_route=digital_storage, storage_type=digital_storage, key_type=digital_key, display_name=Digital Key
-access_code -> item_form=digital, storage_route=digital_storage, storage_type=digital_storage, key_type=access_code, display_name=Access Code
-data_file -> item_form=digital, storage_route=digital_storage, storage_type=digital_storage, display_name=Data File
+physical_item -> physical, pocket, Physical Item
+key_card -> physical, keychain, Key Card
+digital_key -> digital, digital_storage, Digital Key
+access_code -> digital, digital_storage, Access Code
+data_file -> digital, digital_storage, Data File
 ```
 
 Hidden compatibility aliases:
@@ -748,7 +508,7 @@ data_file -> data_file
 Important caveat:
 
 ```text
-Fuse, Repair Kit, Reinforcement and modules are not covered by the Item archetype contract yet.
+Fuse, Repair Kit, Reinforcement, Power Cable Reel and modules are not covered by the Item archetype contract yet.
 They should not reappear as raw item palette rows; add dedicated archetype support if they must be placeable.
 ```
 
@@ -759,26 +519,15 @@ They should not reappear as raw item palette rows; add dedicated archetype suppo
 ### PR-I — Utility item archetypes if needed
 
 ```text
-- Decide whether Fuse, Repair Kit, Reinforcement, modules, cable reel-like items should be placeable.
+- Decide whether Fuse, Repair Kit, Reinforcement, Power Cable Reel, modules and cable reel-like items should be placeable.
 - If yes, add dedicated archetype/catalog contracts instead of restoring raw OBJECT_LIBRARY item rows.
 - Preserve pickup/inventory behavior.
-```
-
-### PR-J — Enforce Godot parser gate in CI/review flow
-
-Status: completed. The parser/load gate is CI-enforced for pull requests and pushes to main.
-
-```text
-- `.github/workflows/godot-parser-gate.yml` runs the static checks, Godot import smoke and parse_all_gd.gd.
-- The parser/load gate is visible and mandatory for code PRs.
-- Local gameplay/runtime smoke tests remain separate from parser/load checks and are still required where applicable.
 ```
 
 ### PR-K — Runtime smoke validation pass
 
 ```text
-- Run local Godot parser gate.
-- Smoke test Map Constructor palette and property panels.
+- Run local gameplay smoke checks for Map Constructor palette and property panels.
 - Smoke test Door/Terminal/Item runtime interactions.
 - Record results in this audit or a dedicated smoke report.
 ```
@@ -793,14 +542,8 @@ Every code PR:
 git diff --check
 python tools/check_gdscript_safety_patterns.py
 python tools/check_map_constructor_sections.py
-godot --headless --path . --quit
+godot --headless --path . --import
 godot --headless --path . --script res://tools/ci/parse_all_gd.gd
-```
-
-If Godot is unavailable, reviewer status must say:
-
-```text
-Static review only. Godot parser gate was not executed.
 ```
 
 Extra static checks:
