@@ -95,6 +95,7 @@ var runtime_interaction_mode_active: bool = false
 var runtime_interaction_actions_row: HBoxContainer = null
 var runtime_base_controls_grid: GridContainer = null
 var runtime_action_button: Button = null
+var runtime_connect_button: Button = null
 var runtime_end_turn_button: Button = null
 var runtime_notification_label: Label = null
 var runtime_notification_panel: PanelContainer = null
@@ -5136,7 +5137,7 @@ func _get_runtime_secondary_objective_text() -> String:
 	var objective_hint: String = String(view_model.get("objective_hint", "")).strip_edges()
 	if not objective_hint.is_empty() and not objective_hint.contains("legacy BipobController logic"):
 		return objective_hint
-	return String(view_model.get("goal_text", "Objective unavailable.")).strip_edges()
+	return String(view_model.get("goal_text", "No active objective")).strip_edges()
 
 
 func _refresh_runtime_notification_fallback() -> void:
@@ -5152,7 +5153,7 @@ func _get_runtime_mission_objective_view_model() -> Dictionary:
 		"mission_id": "",
 		"title": "",
 		"goal_title": "Goal",
-		"goal_text": "No mission selected.",
+		"goal_text": "No active objective",
 		"objective_hint": "",
 		"progress_text": "",
 		"status": "active",
@@ -5166,12 +5167,12 @@ func _get_runtime_mission_objective_text() -> String:
 	var view_model: Dictionary = _get_runtime_mission_objective_view_model()
 	var lines: Array[String] = []
 	var title: String = String(view_model.get("title", "")).strip_edges()
-	var goal_text: String = String(view_model.get("goal_text", "Objective unavailable.")).strip_edges()
+	var goal_text: String = String(view_model.get("goal_text", "No active objective")).strip_edges()
 	var progress_text: String = String(view_model.get("progress_text", "")).strip_edges()
 	var status: String = String(view_model.get("status", "active")).strip_edges()
 	if not title.is_empty():
 		lines.append(title)
-	lines.append(goal_text if not goal_text.is_empty() else "Objective unavailable.")
+	lines.append(goal_text if not goal_text.is_empty() else "No active objective")
 	if not progress_text.is_empty():
 		lines.append(progress_text)
 	var steps_variant: Variant = view_model.get("steps", [])
@@ -5251,7 +5252,7 @@ func _create_runtime_controls_panel() -> Control:
 
 	var grid := GridContainer.new()
 	grid.name = "RuntimeBaseControlRow"
-	grid.columns = 4
+	grid.columns = 5
 	grid.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	grid.add_theme_constant_override("h_separation", 8)
 	grid.add_theme_constant_override("v_separation", 4)
@@ -5262,6 +5263,8 @@ func _create_runtime_controls_panel() -> Control:
 	grid.add_child(_create_runtime_control_button("Turn Right", Callable(self, "_on_turn_right_pressed")))
 	runtime_action_button = _create_runtime_control_button("Action", Callable(self, "_on_interact_pressed"), "primary")
 	grid.add_child(runtime_action_button)
+	runtime_connect_button = _create_runtime_control_button("Connect", Callable(self, "_on_connect_pressed"), "primary")
+	grid.add_child(runtime_connect_button)
 	runtime_end_turn_button = _create_runtime_control_button("End Turn", Callable(self, "_on_end_turn_pressed"), "reference")
 	grid.add_child(runtime_end_turn_button)
 	_refresh_runtime_interaction_controls()
@@ -9964,6 +9967,7 @@ func _process(delta: float) -> void:
 	_update_map_keyboard_pan(delta)
 	_process_map_constructor_edge_scroll(delta)
 	_process_runtime_interaction_feedback(delta)
+	RuntimeHud.refresh_object_info_position(self)
 
 
 func _process_runtime_interaction_feedback(delta: float) -> void:
@@ -9976,11 +9980,12 @@ func _process_runtime_interaction_feedback(delta: float) -> void:
 	var target_data := _get_runtime_interaction_target_data()
 	var target_object: Dictionary = Dictionary(target_data.get("target_object", {}))
 	var actions: Array = Array(target_data.get("actions", []))
-	var has_interactable := not target_object.is_empty() and not actions.is_empty()
+	var physical_actions: Array[String] = RuntimeInteractionPanel.get_physical_actions(actions)
+	var has_interactable := not target_object.is_empty() and not physical_actions.is_empty()
 	if has_interactable and not runtime_interaction_mode_active and runtime_action_button != null:
 		_apply_selected_pulse(runtime_action_button)
 	var has_actions_left := int(bipob.actions_left) > 0
-	var manipulator_blocked := has_interactable and _is_runtime_interaction_manipulator_blocked(target_object, actions)
+	var manipulator_blocked := has_interactable and _is_runtime_interaction_manipulator_blocked(target_object, physical_actions)
 	var pulse_alpha: float = 0.72 + 0.28 * abs(sin(float(Time.get_ticks_msec()) / 170.0))
 	if runtime_action_button != null:
 		if manipulator_blocked:
@@ -12655,28 +12660,6 @@ func _is_runtime_interaction_manipulator_blocked(target_object: Dictionary, acti
 
 func _refresh_runtime_interaction_controls() -> void:
 	RuntimeInteractionPanel.refresh_controls(self)
-	if runtime_action_button == null or runtime_interaction_mode_active:
-		return
-	var view_model: Dictionary = _get_runtime_action_view_model()
-	var target_object: Dictionary = _safe_ui_dictionary(view_model.get("target", {}))
-	var has_available_action: bool = bool(view_model.get("has_available_action", false))
-	var action_label: String = String(view_model.get("primary_action_label", "Action"))
-	var disabled_reason: String = String(view_model.get("disabled_reason", ""))
-	if not target_object.is_empty() and bipob != null and bipob.has_method("get_facing_device_interaction_state_flow"):
-		var state_flow_variant: Variant = bipob.call("get_facing_device_interaction_state_flow", String(view_model.get("primary_action_id", "")))
-		if typeof(state_flow_variant) == TYPE_DICTIONARY:
-			var state_flow: Dictionary = state_flow_variant
-			var flow_state: String = String(state_flow.get("state", ""))
-			if bool(state_flow.get("is_applicable", false)) and flow_state in ["unknown", "scanned", "blocked", "executed_unavailable"]:
-				has_available_action = false
-				disabled_reason = _format_runtime_display_text(state_flow.get("message", action_label))
-				action_label = _format_runtime_short_message(disabled_reason, String(state_flow.get("next_step_label", "")))
-	runtime_action_button.text = action_label
-	runtime_action_button.tooltip_text = disabled_reason if not has_available_action else ""
-	runtime_action_button.disabled = target_object.is_empty() or not has_available_action
-	_apply_action_button_style(runtime_action_button, "primary" if has_available_action else "disabled", has_available_action)
-	if runtime_action_button.disabled:
-		_clear_selected_pulse(runtime_action_button)
 
 func _enter_runtime_interaction_mode() -> void:
 	RuntimeInteractionPanel.enter_mode(self)
@@ -12688,24 +12671,11 @@ func _on_runtime_interaction_action_pressed(action_id: String) -> void:
 	RuntimeInteractionPanel.press_action(self, action_id)
 
 func _on_interact_pressed() -> void:
-	var view_model: Dictionary = _get_runtime_action_view_model()
-	var target_object: Dictionary = _safe_ui_dictionary(view_model.get("target", {}))
-	if not target_object.is_empty():
-		var blocked_message: String = String(view_model.get("primary_action_label", "No available action for this object."))
-		var state_flow_blocks_action: bool = false
-		if bipob != null and bipob.has_method("get_facing_device_interaction_state_flow"):
-			var state_flow_variant: Variant = bipob.call("get_facing_device_interaction_state_flow", String(view_model.get("primary_action_id", "")))
-			if typeof(state_flow_variant) == TYPE_DICTIONARY:
-				var state_flow: Dictionary = state_flow_variant
-				var flow_state: String = String(state_flow.get("state", ""))
-				state_flow_blocks_action = bool(state_flow.get("is_applicable", false)) and flow_state in ["unknown", "scanned", "blocked", "executed_unavailable"]
-				if state_flow_blocks_action:
-					blocked_message = String(state_flow.get("message", blocked_message))
-		if state_flow_blocks_action or not bool(view_model.get("has_available_action", false)):
-			show_hint(blocked_message)
-			_refresh_runtime_interaction_controls()
-			return
 	RuntimeInteractionPanel.press_interact(self)
+
+
+func _on_connect_pressed() -> void:
+	RuntimeInteractionPanel.press_connect(self)
 
 func _on_use_selected_world_action_pressed() -> void:
 	RuntimeInteractionPanel.use_selected_world_action(self)

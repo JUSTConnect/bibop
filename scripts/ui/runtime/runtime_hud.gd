@@ -22,3 +22,11 @@ static func show_object_info(ui, cell: Vector2i) -> void:
 	if ui.mission_manager_runtime == null or not is_instance_valid(ui.mission_manager_runtime):
 		return
 	RuntimeObjectHud.build(ui, cell)
+
+
+static func refresh_object_info_position(ui) -> void:
+	if ui.runtime_object_info_panel == null or not is_instance_valid(ui.runtime_object_info_panel):
+		return
+	if ui.runtime_object_info_cell.x < 0 or ui.runtime_object_info_cell.y < 0:
+		return
+	RuntimeObjectHud.position_panel(ui, ui.runtime_object_info_panel, ui.runtime_object_info_cell)

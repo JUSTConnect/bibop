@@ -51,8 +51,8 @@ Current static coverage of the section 7.2 checklist:
 | TASK TEST object validation | DONE | `MissionManager._validate_task_test_object_contracts()`; `MissionManager.build_task_test_mission_world_objects_for_validation()` | TASK TEST validation builds a detached snapshot from catalog constructors and validates Door/item fields without mutating active state. Gameplay still needs smoke testing. |
 | door contract validation | DONE for static validation; NEEDS RUNTIME SMOKE | `WorldObjectCatalog.validate_archetype_object()`; `MissionManager._validate_current_door_contracts()`; `MissionManager._build_final_door_contract_section()`; `MapConstructorValidationService.get_map_constructor_validation_issues()` | Canonical fields, generated labels, state flags, aliases, invalid access types, `no_key` drift, and all declared powered-Door behaviors are checked. Manual powered-Door smoke remains required. |
 | inventory contract validation | PARTIAL | `MissionManager.validate_runtime_inventory_storage_contract()`; `MissionManager._validate_runtime_inventory_storage_item()` | Storage-class mismatches and duplicate storage are checked. The backend uses singular `manipulator_hold`, `pocket_items`, and `collected_key_ids` rather than the planned slot-named state model. |
-| runtime action validation | NEEDS RUNTIME SMOKE | `BipobController.build_runtime_action_view_model()`; `InteractionSystem.can_apply_action()`; `MissionManager._validate_runtime_action_view_model_section()` | Static action truth flows from normalized targets. Pulse clearing and post-action refresh must be exercised manually. |
-| mission goal binding validation | DONE | `MissionManager.get_current_mission_objective_view_model()`; `MissionManager._build_final_mission_goal_binding_section()`; `GameUI._get_runtime_mission_objective_text()` | The GOAL panel reads the active mission ViewModel/catalog objective. No TASK TEST placeholder string was found by the required search. |
+| runtime action validation | NEEDS RUNTIME SMOKE | `BipobController.build_runtime_action_view_model()`; `InteractionSystem.can_apply_action()`; `RuntimeInteractionPanel.refresh_controls()`; `MissionManager._validate_runtime_action_view_model_section()` | Static action truth flows from normalized targets. Explicit `Action`/`Connect`, connector-jack gating, pulse clearing, and post-action refresh must be exercised manually. |
+| mission goal binding validation | DONE | `MissionManager.get_current_mission_objective_view_model()`; `MissionManager._build_final_mission_goal_binding_section()`; `GameUI._get_runtime_mission_objective_text()` | The GOAL panel reads the active mission ViewModel/catalog objective. TASK TEST objective/hint text is catalog-owned; no TASK TEST objective is hardcoded in `GameUI`. |
 | validation read-only/snapshot-restore validation | DONE | `MissionManager._build_final_validation_read_only_section()` | The validator snapshots `mission_world_objects` and `runtime_inventory_state`, runs architecture validation, then detects mutation. The required mutation search found no writes in `map_constructor_validation_service.gd`. |
 
 ## Summary table
@@ -65,7 +65,7 @@ Current static coverage of the section 7.2 checklist:
 | Map Constructor catalog contract | DONE | `WorldObjectCatalog.get_constructor_palette_rows()`, `MapConstructorValidationService.validate_constructor_palette_contract()`, `MapConstructorValidationService.get_map_constructor_validation_issues()` | Runtime palette visual smoke remains required. |
 | Placement normalization | DONE | `MapConstructorService.place_map_constructor_prefab()`, `WorldObjectCatalog.create_world_object()`, `create_archetype_object()`, `MissionManager.add_item_at_cell()` | Smoke placed Door/item behavior and save/load restoration. |
 | TASK TEST alignment | NEEDS RUNTIME SMOKE | `MissionManager.build_task_test_mission_world_objects_for_validation()`, `_validate_task_test_object_contracts()`, `_build_final_validation_read_only_section()` | Static creation uses catalog constructors; run the full TASK TEST smoke list. |
-| Runtime action contract | NEEDS RUNTIME SMOKE | `BipobController.build_runtime_action_view_model()`, `get_available_world_actions()`, `clear_selected_world_action_if_invalid()`, `RuntimeInteractionPanel.get_target_data()`, `refresh_controls()` | Verify empty-cell behavior and stale action pulse clearing after pickup/action/move/turn. |
+| Runtime action contract | NEEDS RUNTIME SMOKE | `BipobController.build_runtime_action_view_model()`, `get_available_world_actions()`, `clear_selected_world_action_if_invalid()`, `RuntimeInteractionPanel.get_target_data()`, `refresh_controls()` | Verify explicit `Action`/`Connect`, connector-jack gating, empty-cell behavior, and stale action pulse clearing after pickup/action/move/turn. |
 | HUD / GOAL binding | PARTIAL | `MissionManager.get_current_mission_objective_view_model()`, `GameUI._get_runtime_mission_objective_view_model()`, `_get_runtime_mission_objective_text()`, `RuntimeStoragePanel.refresh()` | GOAL binding is implemented. Inventory HUD still needs visual/runtime verification. The audited Repair label is now English-only. |
 | Validation gate | PARTIAL | `MissionManager.validate_architecture_contracts()`, `build_architecture_stabilization_final_report()`, `WorldObjectCatalog.validate_archetype_object()`, `MapConstructorValidationService.get_map_constructor_validation_issues()` | Broad checks exist, including focused `requires_power_to_open` coverage. Strengthen UI checks only if the UI storage model is normalized later. |
 | Legacy compatibility boundary | PARTIAL | `WorldObjectCatalog.LEGACY_DOOR_ALIAS_CONFIGS`, `LEGACY_ITEM_ALIAS_CONFIGS`, `canonicalize_legacy_object_data()`, `MissionManager._validate_legacy_compatibility_boundary()` | Catalog/runtime Door and item inputs normalize correctly. Legacy names still appear in compatibility, visuals, debug labels, and older command vocabulary; review each remaining occurrence before cleanup. |
@@ -172,11 +172,18 @@ Static result:
 
 - Legacy Door ids such as `steel_door`, `reinforced_steel_door`, `titanium_door`, `energy_door`, `mechanical_door`, `digital_door`, and `powered_gate` are compatibility mappings in `LEGACY_DOOR_ALIAS_CONFIGS`; legacy library rows are hidden from constructor placement.
 - Canonical Door creation uses `archetype_id=door`, `object_group=door`, and `object_type=door`.
-- Door variation lives in the planned fields: `door_type`, `material`, `access_type`, `door_class`, `power_type`, `control_type`, `power_behavior`, `state`, and `allowed_states`.
+- Door variation lives in the planned fields: `door_type`, `material`, `access_type`, `door_class`, `power_type`, `control_type`, `power_behavior`, `state`, and `allowed_states`. Door normalization now also guarantees the explicit boolean `has_connector_jack` contract with a safe legacy default of `false`.
 - `normalize_door_contract()` and `normalize_door_state_fields()` clear `required_key_id` and locked state for `no_key` Doors.
 - `generate_display_name()` generates property-derived Door names.
 - Runtime action code normalizes Door data and dispatches by Door group/properties rather than treating `steel_door` as canonical gameplay truth.
 - Powered Door updates have an explicit `opens_when_unpowered` path. The declared `requires_power_to_open` mode still needs a focused contract decision/fix.
+
+### A.1. Terminal/interface connector contract — NEEDS RUNTIME SMOKE
+
+Static result:
+
+- The current interface object is the Terminal archetype. Its schema includes explicit boolean `has_connector_jack`, normalization supplies the safe legacy default `true`, and validation rejects non-bool-like authoring values.
+- Door schema includes the same field with safe legacy default `false`; terminal/external Door control does not implicitly grant connector access.
 
 ### B. Key-card / item contract — NEEDS RUNTIME SMOKE
 
@@ -230,6 +237,8 @@ Runtime behavior remains unverified until TASK TEST is launched and exercised ma
 Static result:
 
 - Target normalization precedes action calculation.
+- Runtime controls expose separate English-only `Action` and `Connect` buttons. `Action` opens only manipulator/physical choices; `Connect` dispatches only the connector action path. This split remains **NEEDS RUNTIME SMOKE**.
+- Connector availability requires explicit `has_connector_jack=true`, an installed matching connector, and the existing connector-level gate. Door defaults are `false`; Terminal/interface defaults are `true`.
 - UI delegates target/action truth to BipobController.
 - Door detection uses normalized `object_group=door`; item and terminal behavior is property/group driven.
 - Selection clearing exists after move and interaction paths, and UI pulse is cleared when no interactable target exists.
@@ -240,8 +249,9 @@ Static inspection is insufficient to prove no stale pulse remains after every pi
 
 Static result:
 
-- GOAL reads active mission objective ViewModel/catalog data.
-- No hardcoded `Use this mission to validate` placeholder was found.
+- GOAL reads active mission objective ViewModel/catalog data, with `No active objective` as the safe empty-state fallback. The TASK TEST text remains catalog-owned rather than hardcoded in `GameUI`.
+- No hardcoded TASK TEST GOAL placeholder remains in `GameUI`.
+- The runtime object info card now projects its selected cell through the world renderer, offsets beside the object, clamps to viewport bounds, and falls back to the prior safe HUD position when projection is unavailable. Placement remains **NEEDS RUNTIME SMOKE**.
 - Runtime storage HUD reads backend inventory state.
 - The exact manipulator/key/digital visual contract still needs smoke testing.
 - One Russian-facing label remains in `GameUI` and must be removed in a focused cleanup.
@@ -261,7 +271,7 @@ Static result:
 | physical item in digital buffer/storage | DONE | runtime storage validator and `can_place_item_in_digital_buffer()`. |
 | digital item in manipulator/pocket | DONE | runtime storage validator, `set_manipulator_item()`, and `set_pocket_item()`. |
 | UI manipulator slot count mismatch | PARTIAL | `_build_final_inventory_contract_section()` compares Bipob runtime manipulator item array length with backend slot count; complete widget-to-backend visual validation is not present. |
-| GOAL hardcode / missing mission objective binding | DONE for backend binding; PARTIAL for broad text lint | `_build_final_mission_goal_binding_section()` checks active catalog binding. Required search finds no TASK TEST placeholder but does find one unrelated Russian label. |
+| GOAL hardcode / missing mission objective binding | DONE | `_build_final_mission_goal_binding_section()` checks active catalog binding. TASK TEST objective/hint text is catalog-owned and `GameUI` uses the safe `No active objective` fallback. |
 
 Focused validation now accepts each declared powered-Door behavior, rejects unknown `power_behavior` values, and requires detached TASK TEST coverage for `requires_power_to_open`. Runtime smoke is still required before visual or interaction behavior can be considered verified.
 
@@ -315,6 +325,9 @@ The section 7.3 manual test list is updated to current archetype names and curre
 - [ ] Start TASK TEST.
 - [ ] No endless output errors.
 - [ ] GOAL panel shows mission objective.
+- [ ] Object info card follows the inspected Door/Terminal and remains clamped inside the viewport while the camera moves.
+- [ ] Runtime controls show separate `Action` and `Connect` buttons; physical actions do not invoke connector logic.
+- [ ] `Connect` is disabled without an explicit connector jack or without a sufficient installed connector.
 - [ ] Empty cell before Bipob gives no action pulse.
 - [ ] Fuse pickup goes to physical inventory/manipulator route.
 - [ ] Fuse can move manipulator ↔ pocket if supported.
