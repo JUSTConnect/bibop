@@ -71,17 +71,24 @@ static func refresh(ui) -> void:
 	if bipob == null or not is_instance_valid(bipob):
 		_refresh_empty_state(ui)
 		return
+	var inventory_state: Dictionary = bipob.get_inventory_state() if bipob.has_method("get_inventory_state") else {}
 	var manipulator_items: Array = bipob.get_manipulator_items()
+	var held_world_item_id: String = String(inventory_state.get("manipulator_hold", "")).strip_edges()
 	for index in range(ui.runtime_manipulator_slots.size()):
 		var manipulator_item: Variant = manipulator_items[index] if index < manipulator_items.size() else null
 		ui.runtime_manipulator_slots[index].text = _get_module_name(bipob, manipulator_item)
+		if index == 0 and not held_world_item_id.is_empty():
+			ui.runtime_manipulator_slots[index].text = _get_runtime_inventory_item_name(inventory_state, held_world_item_id)
 	_refresh_key_mini_hud(ui, bipob)
 
 	var pocket_items: Array = bipob.get_pocket_items()
+	var runtime_pocket_items: Array = Array(inventory_state.get("pocket_items", []))
 	var available_pocket_slots: int = bipob.get_available_pocket_slots()
 	for index in range(ui.runtime_pocket_slots.size()):
 		var pocket_item: Variant = pocket_items[index] if index < available_pocket_slots and index < pocket_items.size() else null
 		ui.runtime_pocket_slots[index].text = _get_module_name(bipob, pocket_item)
+		if index < runtime_pocket_items.size() and not String(runtime_pocket_items[index]).strip_edges().is_empty():
+			ui.runtime_pocket_slots[index].text = _get_runtime_inventory_item_name(inventory_state, String(runtime_pocket_items[index]))
 
 	var buffer_item: Variant = bipob.get_buffer_item()
 	if ui.runtime_buffer_content_label != null and is_instance_valid(ui.runtime_buffer_content_label):
@@ -507,6 +514,14 @@ static func _refresh_empty_state(ui) -> void:
 		if delete_button != null and is_instance_valid(delete_button):
 			delete_button.disabled = true
 
+
+
+static func _get_runtime_inventory_item_name(inventory_state: Dictionary, item_id: String) -> String:
+	var runtime_map: Dictionary = Dictionary(inventory_state.get("world_item_runtime", {}))
+	var item_runtime: Dictionary = Dictionary(runtime_map.get(item_id, {}))
+	var item_data: Dictionary = Dictionary(item_runtime.get("item_data", {}))
+	var display_name: String = String(item_data.get("display_name", item_data.get("item_type", item_id))).strip_edges()
+	return item_id if display_name.is_empty() else display_name.capitalize()
 
 static func _get_module_name(bipob, item: Variant) -> String:
 	if item == null:

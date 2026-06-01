@@ -8134,6 +8134,12 @@ func check_world_object_requirements(object_id: String, action: String = "") -> 
 		reasons.append("ok")
 	return {"allowed": reasons.size() == 1 and reasons[0] == "ok", "object_id": object_id, "action": action, "requirements": requirements, "capabilities": capabilities, "reasons": reasons}
 
+func _is_keycard_item(item_data: Dictionary) -> bool:
+	var item_type: String = String(item_data.get("item_type", item_data.get("object_type", ""))).strip_edges().to_lower()
+	item_type = item_type.replace(" ", "_").replace("-", "_")
+	var key_kind: String = String(item_data.get("key_kind", "")).strip_edges().to_lower()
+	return key_kind == "mechanical" or item_type in ["mechanical_key", "mechanical_keycard", "key_card", "keycard"]
+
 func can_pickup_world_item(item_id: String) -> Dictionary:
 	var normalized_id: String = item_id.strip_edges()
 	var item := get_world_object_by_id(normalized_id)
@@ -8146,10 +8152,10 @@ func can_pickup_world_item(item_id: String) -> Dictionary:
 	if String(item.get("item_form", "physical")) == "digital":
 		if not bool(item.get("can_place_in_digital_buffer", true)):
 			return {"success": false, "reasons": ["item_does_not_fit"], "item_id": normalized_id}
-	else:
+	elif not _is_keycard_item(item):
 		var hold_gate := can_hold_item_in_manipulator(normalized_id)
 		if not bool(hold_gate.get("success", false)):
-			return {"success": false, "reasons": ["manipulator_occupied"], "message": "Free the manipulator to pick up this item.", "item_id": normalized_id}
+			return {"success": false, "reasons": ["manipulator_occupied"], "message": "Free manipulator required.", "item_id": normalized_id}
 	return {"success": true, "reasons": ["ok"], "item_id": normalized_id}
 
 func _get_world_item_runtime_map() -> Dictionary:
@@ -8204,6 +8210,8 @@ func pickup_world_item(item_id: String) -> Dictionary:
 		if not digital_buffer.has(normalized_id):
 			digital_buffer.append(normalized_id)
 		runtime_inventory_state["digital_buffer"] = digital_buffer
+	elif _is_keycard_item(item):
+		mark_key_collected(normalized_id)
 	else:
 		runtime_inventory_state["manipulator_hold"] = normalized_id
 	var item_type := String(item.get("item_type", "")).strip_edges()
@@ -8218,6 +8226,36 @@ func pickup_world_item(item_id: String) -> Dictionary:
 	_remove_world_item_from_lookup_tables(normalized_id, item)
 	refresh_world_cooling_received()
 	return {"success": true, "reasons": ["ok"], "item_id": normalized_id}
+
+
+func move_runtime_manipulator_to_pocket(pocket_index: int, pocket_capacity: int) -> Dictionary:
+	var held_id: String = String(runtime_inventory_state.get("manipulator_hold", "")).strip_edges()
+	if held_id.is_empty():
+		return {"ok": false, "message": "Manipulator is empty."}
+	if pocket_index < 0 or pocket_index >= pocket_capacity:
+		return {"ok": false, "message": "Pocket slot is unavailable."}
+	var pocket: Array = Array(runtime_inventory_state.get("pocket_items", []))
+	pocket.resize(pocket_capacity)
+	if not String(pocket[pocket_index]).strip_edges().is_empty():
+		return {"ok": false, "message": "Pocket slot is occupied."}
+	pocket[pocket_index] = held_id
+	runtime_inventory_state["pocket_items"] = pocket
+	runtime_inventory_state["manipulator_hold"] = ""
+	return {"ok": true, "message": "Stored manipulator item in pocket."}
+
+func move_or_swap_runtime_pocket_slot_with_manipulator(pocket_index: int, pocket_capacity: int) -> Dictionary:
+	if pocket_index < 0 or pocket_index >= pocket_capacity:
+		return {"ok": false, "message": "Pocket slot is unavailable."}
+	var pocket: Array = Array(runtime_inventory_state.get("pocket_items", []))
+	pocket.resize(pocket_capacity)
+	var pocket_id: String = String(pocket[pocket_index]).strip_edges()
+	var held_id: String = String(runtime_inventory_state.get("manipulator_hold", "")).strip_edges()
+	if pocket_id.is_empty() and held_id.is_empty():
+		return {"ok": false, "message": "Pocket slot is empty."}
+	pocket[pocket_index] = held_id
+	runtime_inventory_state["pocket_items"] = pocket
+	runtime_inventory_state["manipulator_hold"] = pocket_id
+	return {"ok": true, "message": "Moved or swapped pocket and manipulator items."}
 
 func can_drop_inventory_item(item_id: String) -> Dictionary:
 	var inv := get_inventory_state()
@@ -10047,14 +10085,16 @@ func validate_inventory_tools_modules_runtime() -> Array[String]:
 	var stacked_second := {"id":"temp_item_stacked_second", "object_group":"item", "object_type":"item", "position":stacked_cell, "item_type":"mechanical_key", "key_kind":"mechanical", "item_form":"physical", "can_pickup":true}
 	add_item_at_cell(stacked_cell, stacked_first); add_item_at_cell(stacked_cell, stacked_second); temp_ids.append("temp_item_stacked_first"); temp_ids.append("temp_item_stacked_second")
 	if not bool(pickup_world_item("temp_item_stacked_second").get("success", false)): warnings.append("stacked_second_pickup_failed")
+	if String(runtime_inventory_state.get("manipulator_hold", "")) == "temp_item_stacked_second": warnings.append("mechanical_keycard_routed_to_manipulator")
+	if not Array(runtime_inventory_state.get("collected_key_ids", [])).has("temp_item_stacked_second"): warnings.append("mechanical_keycard_missing_from_keychain")
+	runtime_inventory_state["manipulator_hold"] = "occupied_slot"
 	var blocked_physical_pickup := pickup_world_item("temp_item_stacked_first")
 	if bool(blocked_physical_pickup.get("success", false)): warnings.append("occupied_manipulator_pickup_gate_missing")
-	if String(blocked_physical_pickup.get("message", "")) != "Free the manipulator to pick up this item.": warnings.append("occupied_manipulator_pickup_message_missing")
+	if String(blocked_physical_pickup.get("message", "")) != "Free manipulator required.": warnings.append("occupied_manipulator_pickup_message_missing")
 	var stacked_remaining := get_items_at_cell(stacked_cell)
 	if stacked_remaining.size() != 1 or String(Dictionary(stacked_remaining[0]).get("id", "")) != "temp_item_stacked_first": warnings.append("stacked_pickup_removed_wrong_item")
 	if not get_world_object_by_id("temp_item_stacked_second").is_empty(): warnings.append("stacked_pickup_world_copy_remains")
 	cell_items.erase(stacked_cell)
-	runtime_inventory_state["manipulator_hold"] = "occupied_slot"
 	if bool(hold_item_in_manipulator("temp_item_physical").get("success", false)): warnings.append("manipulator_single_item_gate_missing")
 	runtime_inventory_state["manipulator_hold"] = ""
 	var inv_before_fail := str(get_inventory_state())

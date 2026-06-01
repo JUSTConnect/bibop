@@ -9198,6 +9198,27 @@ func drop_held_item() -> void:
 		release_mission7_cable_end()
 		return
 
+	if mission_manager != null and mission_manager.has_method("get_inventory_state"):
+		var inventory: Dictionary = Dictionary(mission_manager.call("get_inventory_state"))
+		var held_world_item_id: String = String(inventory.get("manipulator_hold", "")).strip_edges()
+		if not held_world_item_id.is_empty():
+			var target_cell: Vector2i = grid_position + get_direction_vector(direction)
+			if not grid_manager.is_in_bounds(target_cell) or grid_manager.get_tile(target_cell) != GridManager.TILE_FLOOR:
+				hint_requested.emit("Cannot drop item here. Face an empty floor cell.")
+				status_changed.emit()
+				return
+			if not can_spend_action(1, 1):
+				return
+			var drop_result: Dictionary = Dictionary(mission_manager.call("drop_inventory_item", held_world_item_id, target_cell))
+			if not bool(drop_result.get("success", false)):
+				hint_requested.emit("Cannot drop item here.")
+				status_changed.emit()
+				return
+			spend_action(1, 1)
+			hint_requested.emit("Dropped: %s." % held_world_item_id)
+			status_changed.emit()
+			return
+
 	var active_index := _get_first_occupied_manipulator_index()
 	if active_index == -1:
 		hint_requested.emit("Hand is empty. Nothing to drop.")
@@ -9406,6 +9427,16 @@ func move_or_swap_storage_slot_with_buffer(storage_index: int) -> Dictionary:
 	return {"ok": true, "message": "Swapped buffer and storage records."}
 
 func move_manipulator_to_first_free_pocket(manipulator_index: int) -> Dictionary:
+	if manipulator_index == 0 and mission_manager != null and mission_manager.has_method("get_inventory_state"):
+		var inventory: Dictionary = Dictionary(mission_manager.call("get_inventory_state"))
+		if not String(inventory.get("manipulator_hold", "")).strip_edges().is_empty():
+			var runtime_pocket: Array = Array(inventory.get("pocket_items", []))
+			for pocket_index in range(get_available_pocket_slots()):
+				if pocket_index >= runtime_pocket.size() or String(runtime_pocket[pocket_index]).strip_edges().is_empty():
+					var result: Dictionary = Dictionary(mission_manager.call("move_runtime_manipulator_to_pocket", pocket_index, get_available_pocket_slots()))
+					status_changed.emit()
+					return result
+			return {"ok": false, "message": "No free pocket slot."}
 	if manipulator_index < 0 or manipulator_index >= get_available_manipulator_slots():
 		return {"ok": false, "message": "Manipulator slot is unavailable."}
 	if manipulator_items[manipulator_index] == null:
@@ -9420,6 +9451,14 @@ func move_manipulator_to_first_free_pocket(manipulator_index: int) -> Dictionary
 	return {"ok": true, "message": "Stored manipulator item in pocket."}
 
 func move_or_swap_pocket_slot_with_manipulator(pocket_index: int, manipulator_index: int) -> Dictionary:
+	if manipulator_index == 0 and mission_manager != null and mission_manager.has_method("get_inventory_state"):
+		var inventory: Dictionary = Dictionary(mission_manager.call("get_inventory_state"))
+		var runtime_pocket: Array = Array(inventory.get("pocket_items", []))
+		var runtime_pocket_id: String = String(runtime_pocket[pocket_index]).strip_edges() if pocket_index >= 0 and pocket_index < runtime_pocket.size() else ""
+		if not String(inventory.get("manipulator_hold", "")).strip_edges().is_empty() or not runtime_pocket_id.is_empty():
+			var result: Dictionary = Dictionary(mission_manager.call("move_or_swap_runtime_pocket_slot_with_manipulator", pocket_index, get_available_pocket_slots()))
+			status_changed.emit()
+			return result
 	if pocket_index < 0 or pocket_index >= get_available_pocket_slots():
 		return {"ok": false, "message": "Pocket slot is unavailable."}
 	if manipulator_index < 0 or manipulator_index >= get_available_manipulator_slots():
