@@ -767,7 +767,8 @@ func get_map_constructor_validation_issues() -> Array[Dictionary]:
 			issues.append(_make_map_constructor_issue("obj_legacy_alias_%s" % object_id, "error", "Legacy alias object_type was not normalized: %s." % object_type, object_cell, source_name, entity_kind, object_id, "Normalize saved constructor data through WorldObjectCatalog."))
 		elif bool(data.get("created_by_map_constructor", false)) and not WorldObjectCatalogRef.OBJECT_LIBRARY.has(object_type):
 			issues.append(_make_map_constructor_issue("obj_unknown_constructor_type_%s" % object_id, "error", "Constructor object_type is not in WorldObjectCatalog: %s." % object_type, object_cell, source_name, entity_kind, object_id, "Use a canonical WorldObjectCatalog runtime object type."))
-		if _safe_string(data.get("access_type", "")).strip_edges().to_lower() == "none":
+		var raw_access_type: String = _safe_string(data.get("access_type", "")).strip_edges().to_lower()
+		if raw_access_type == "none":
 			issues.append(_make_map_constructor_issue("obj_legacy_access_none_%s" % object_id, "error", "Legacy access_type=none must be normalized to no_key.", object_cell, source_name, entity_kind, object_id, "Normalize access_type through WorldObjectCatalog."))
 		elif not raw_access_type.is_empty():
 			var normalized_access_type: String = WorldObjectCatalogRef.normalize_access_type(raw_access_type)
@@ -775,8 +776,12 @@ func get_map_constructor_validation_issues() -> Array[Dictionary]:
 				issues.append(_make_map_constructor_issue("obj_invalid_access_type_%s" % object_id, "error", "Object access_type is not canonical: %s." % raw_access_type, object_cell, source_name, entity_kind, object_id, "Use no_key, key_card, digital_key, access_code, or terminal."))
 		if data.has("lock_type") and not data.has("access_type"):
 			issues.append(_make_map_constructor_issue("obj_lock_without_access_%s" % object_id, "error", "Legacy lock_type is present without canonical access_type.", object_cell, source_name, entity_kind, object_id, "Populate canonical access_type while retaining lock_type only as compatibility metadata."))
-		if object_group == "door" and WorldObjectCatalogRef.is_material_named_door_object_type(object_type) and _safe_string(data.get("door_type", "")).strip_edges().is_empty():
-			issues.append(_make_map_constructor_issue("obj_material_door_missing_mechanism_%s" % object_id, "error", "Material-named door is missing canonical door_type mechanism.", object_cell, source_name, entity_kind, object_id, "Populate canonical door_type."))
+		if object_group == "door":
+			var door_type: String = _safe_string(data.get("door_type", "")).strip_edges().to_lower()
+			if WorldObjectCatalogRef.is_material_named_door_object_type(object_type) and door_type.is_empty():
+				issues.append(_make_map_constructor_issue("obj_material_door_missing_mechanism_%s" % object_id, "error", "Material-named door is missing canonical door_type mechanism.", object_cell, source_name, entity_kind, object_id, "Populate canonical door_type."))
+			elif not door_type.is_empty() and not door_type in WorldObjectCatalogRef.DOOR_TYPES:
+				issues.append(_make_map_constructor_issue("obj_invalid_door_type_%s" % object_id, "error", "Door door_type is not canonical: %s." % door_type, object_cell, source_name, entity_kind, object_id, "Use mechanical, digital, or powered."))
 		if object_group.is_empty():
 			issues.append(_make_map_constructor_issue("obj_missing_group_%d" % index, "error", "Object missing object_group.", object_cell, source_name, entity_kind, object_id))
 		if object_cell.x < 0 or object_cell.y < 0:
