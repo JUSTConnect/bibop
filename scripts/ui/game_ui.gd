@@ -5897,13 +5897,13 @@ func navigate_to_screen(target_screen: AppScreenMode, payload: Dictionary = {}) 
 		AppScreenMode.MISSION_RESULT:
 			show_mission_result_screen(bool(payload.get("success", false)), int(payload.get("mission_index", -1)))
 		AppScreenMode.RESEARCH_PLACEHOLDER:
-			show_placeholder_screen("Исследования")
+			show_placeholder_screen("Research")
 		AppScreenMode.SHOP_PLACEHOLDER:
-			show_placeholder_screen("Магазин")
+			show_placeholder_screen("Shop")
 		AppScreenMode.SETTINGS_PLACEHOLDER:
-			show_placeholder_screen("Настройки")
+			show_placeholder_screen("Settings")
 		AppScreenMode.ABOUT_PLACEHOLDER:
-			show_placeholder_screen("О нас")
+			show_placeholder_screen("About")
 		_:
 			show_center_screen()
 
@@ -6565,7 +6565,7 @@ func charge_bipob_from_center() -> void:
 		bipob.restore_energy()
 	else:
 		bipob.energy = bipob.max_energy
-	show_hint("Бипоб заряжен.")
+	show_hint("Bipob charged.")
 	update_status()
 
 func _on_charge_button_pressed() -> void:
@@ -8183,23 +8183,23 @@ func _build_main_menu_layout() -> void:
 	title.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	vbox.add_child(title)
 
-	vbox.add_child(_create_menu_button("Играть", Callable(self, "_on_main_play_pressed"), Vector2(180, 36)))
-	vbox.add_child(_create_menu_button("Настройки", Callable(self, "_on_main_settings_pressed"), Vector2(180, 36)))
-	vbox.add_child(_create_menu_button("О нас", Callable(self, "_on_main_about_pressed"), Vector2(180, 36)))
-	vbox.add_child(_create_menu_button("Выйти из игры", Callable(self, "_on_exit_game_pressed"), Vector2(180, 36), "danger"))
+	vbox.add_child(_create_menu_button("Play", Callable(self, "_on_main_play_pressed"), Vector2(180, 36)))
+	vbox.add_child(_create_menu_button("Settings", Callable(self, "_on_main_settings_pressed"), Vector2(180, 36)))
+	vbox.add_child(_create_menu_button("About", Callable(self, "_on_main_about_pressed"), Vector2(180, 36)))
+	vbox.add_child(_create_menu_button("Exit Game", Callable(self, "_on_exit_game_pressed"), Vector2(180, 36), "danger"))
 
 	var spacer := Control.new()
 	spacer.custom_minimum_size = Vector2(0, 14)
 	vbox.add_child(spacer)
 
 	var social := Label.new()
-	social.text = "Соцсети"
+	social.text = "Social media"
 	_apply_label_style(social, true, false)
 	social.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	vbox.add_child(social)
 
 	var version := Label.new()
-	version.text = "версия"
+	version.text = "version"
 	_apply_label_style(version, true, false)
 	version.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	vbox.add_child(version)
@@ -8235,8 +8235,8 @@ func _build_center_menu_layout() -> void:
 	top_row.add_child(top_spacer)
 	var top_right := VBoxContainer.new()
 	top_right.add_theme_constant_override("separation", 8)
-	top_right.add_child(_create_menu_button("Выйти в главное меню", Callable(self, "_on_center_main_menu_pressed"), Vector2(220, 36)))
-	top_right.add_child(_create_menu_button("Настройки", Callable(self, "_on_center_settings_pressed"), Vector2(190, 36)))
+	top_right.add_child(_create_menu_button("Exit to Main Menu", Callable(self, "_on_center_main_menu_pressed"), Vector2(220, 36)))
+	top_right.add_child(_create_menu_button("Settings", Callable(self, "_on_center_settings_pressed"), Vector2(190, 36)))
 	top_row.add_child(top_right)
 
 	var middle_row := HBoxContainer.new()
@@ -8245,7 +8245,7 @@ func _build_center_menu_layout() -> void:
 	var middle_spacer := Control.new()
 	middle_spacer.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	middle_row.add_child(middle_spacer)
-	middle_row.add_child(_create_menu_button("Магазин", Callable(self, "_on_center_shop_pressed"), Vector2(170, 56)))
+	middle_row.add_child(_create_menu_button("Shop", Callable(self, "_on_center_shop_pressed"), Vector2(170, 56)))
 
 	var bottom_grid := GridContainer.new()
 	bottom_grid.columns = 4
@@ -8255,8 +8255,8 @@ func _build_center_menu_layout() -> void:
 	root.add_child(bottom_grid)
 	bottom_grid.add_child(_create_menu_button("Box", Callable(self, "_on_center_box_pressed"), Vector2(150, 54)))
 	bottom_grid.add_child(_create_menu_button("Shop", Callable(self, "_on_center_shop_pressed"), Vector2(150, 54)))
-	bottom_grid.add_child(_create_menu_button("Зарядка", Callable(self, "_on_center_charge_pressed"), Vector2(150, 54)))
-	bottom_grid.add_child(_create_menu_button("Исследования", Callable(self, "_on_center_research_pressed"), Vector2(150, 54)))
+	bottom_grid.add_child(_create_menu_button("Charge", Callable(self, "_on_center_charge_pressed"), Vector2(150, 54)))
+	bottom_grid.add_child(_create_menu_button("Research", Callable(self, "_on_center_research_pressed"), Vector2(150, 54)))
 	bottom_grid.add_child(_create_menu_button("Repair", Callable(self, "_on_center_repair_pressed"), Vector2(150, 54)))
 	bottom_grid.add_child(_create_menu_button("Programmer", Callable(self, "_on_center_programmer_pressed"), Vector2(150, 54)))
 
@@ -8711,9 +8711,9 @@ func _create_mission_result_rewards_panel(rewards: Array) -> Control:
 func _on_main_play_pressed() -> void:
 	navigate_to_screen(AppScreenMode.CENTER)
 func _on_main_settings_pressed() -> void:
-	show_placeholder_screen("Настройки")
+	show_placeholder_screen("Settings")
 func _on_main_about_pressed() -> void:
-	show_placeholder_screen("О нас")
+	show_placeholder_screen("About")
 func _on_main_exit_pressed() -> void:
 	_on_exit_game_pressed()
 
