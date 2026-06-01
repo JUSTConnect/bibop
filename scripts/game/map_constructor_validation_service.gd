@@ -19,6 +19,50 @@ func _safe_string(value: Variant, fallback: String = "") -> String:
 		return fallback
 	return str(value).strip_edges()
 
+func _map_constructor_token_is_key(value: Variant) -> bool:
+	var token: String = _safe_string(value).to_lower()
+	return token == "key" or token.begins_with("key_") or token.ends_with("_key") or token.contains("_key_") or token == "access_key" or token == "physical_key" or token == "digital_key"
+
+func _map_constructor_metadata_says_key(data: Dictionary) -> bool:
+	for field_name in ["prefab", "prefab_id", "category", "item_category", "metadata_category", "object_group", "item_group", "kind", "role"]:
+		if _map_constructor_token_is_key(data.get(field_name, "")):
+			return true
+	return false
+
+func _map_constructor_entity_kind(data: Dictionary) -> String:
+	var object_group: String = _safe_string(data.get("object_group", "")).to_lower()
+	var object_type: String = _safe_string(data.get("object_type", "")).to_lower()
+	var prefab_id: String = _safe_string(data.get("map_constructor_prefab_id", object_type)).to_lower()
+	var classifier: String = "%s|%s|%s" % [object_group, object_type, prefab_id]
+	if "door" in classifier or "gate" in classifier:
+		return "door"
+	if "terminal" in classifier:
+		return "terminal"
+	if "power" in classifier or "socket" in classifier or "cable" in classifier or "switch" in classifier or "fuse" in classifier or "cool" in classifier or "control" in classifier:
+		return "power_control_cooling"
+	if object_group == "item" or object_type == "item" or manager.is_map_constructor_item_prefab(prefab_id):
+		return "item"
+	return "generic"
+
+func _is_map_constructor_door_data(data: Dictionary) -> bool:
+	for field_name in ["object_type", "category", "object_group", "group", "prefab", "prefab_id", "metadata_category", "kind", "role"]:
+		var token: String = _safe_string(data.get(field_name, "")).to_lower()
+		if token in ["door", "gate", "locked_door", "mechanical_door", "digital_door", "powered_gate", "security_door", "blast_door", "airlock_door"]:
+			return true
+		if token.begins_with("door_") or token.ends_with("_door") or token.contains("_door_") or token.begins_with("gate_") or token.ends_with("_gate") or token.contains("_gate_"):
+			return true
+	var id_token: String = _safe_string(data.get("id", "")).to_lower()
+	return id_token.contains("door") or id_token.contains("gate")
+
+func _is_map_constructor_key_data(data: Dictionary) -> bool:
+	if _safe_string(data.get("item_type", "")).to_lower() == "key":
+		return true
+	if not _safe_string(data.get("key_type", "")).is_empty() or not _safe_string(data.get("key_kind", "")).is_empty():
+		return true
+	if _map_constructor_metadata_says_key(data):
+		return true
+	return _map_constructor_token_is_key(data.get("id", ""))
+
 func validate_constructor_palette_contract() -> Array[String]:
 	var warnings: Array[String] = []
 	var palette_runtime_types: Dictionary = {}
@@ -263,10 +307,10 @@ func validate_map_constructor_entity_links(entity_kind: String, entity_id: Strin
 		elif _count_lights_linked_to_source(light_switch_source_id) <= 0:
 			warnings.append("Light switch has no lights linked to its source.")
 	if type_group == "door":
-		var access_type: String = manager._normalize_map_constructor_access_type(data.get("access_type", data.get("lock_type", "")), manager._default_map_constructor_access_type_for_object(data))
+		var access_type: String = _safe_string(data.get("access_type", manager._normalize_map_constructor_access_type(data.get("lock_type", ""), manager._default_map_constructor_access_type_for_object(data)))).strip_edges().to_lower()
 		var required_key_id: String = _safe_string(data.get("required_key_id", "")).strip_edges()
 		var access_terminal_id: String = _safe_string(data.get("access_terminal_id", "")).strip_edges()
-		if access_type == WorldObjectCatalogRef.ACCESS_TYPE_KEY_CARD:
+		if access_type == "mechanical_key":
 			if required_key_id.is_empty():
 				missing.append("mechanical key selected but no physical key linked")
 			else:
@@ -704,7 +748,7 @@ func get_map_constructor_validation_issues() -> Array[Dictionary]:
 			issues.append(_make_map_constructor_issue("palette_missing_catalog_object_%s" % catalog_prefab_id, "error", "Constructor-placeable catalog object missing from Map Constructor palette: %s." % catalog_prefab_id, Vector2i(-1, -1), source_name, "palette", catalog_prefab_id, "Generate object palette rows from WorldObjectCatalog."))
 	for index in range(manager.mission_world_objects.size()):
 		var data: Dictionary = manager._safe_dictionary(manager.mission_world_objects[index])
-		var entity_kind: String = manager._map_constructor_entity_kind(data)
+		var entity_kind: String = _map_constructor_entity_kind(data)
 		if entity_kind == "item":
 			continue
 		var object_id: String = _safe_string(data.get("id", "")).strip_edges()
@@ -723,8 +767,7 @@ func get_map_constructor_validation_issues() -> Array[Dictionary]:
 			issues.append(_make_map_constructor_issue("obj_legacy_alias_%s" % object_id, "error", "Legacy alias object_type was not normalized: %s." % object_type, object_cell, source_name, entity_kind, object_id, "Normalize saved constructor data through WorldObjectCatalog."))
 		elif bool(data.get("created_by_map_constructor", false)) and not WorldObjectCatalogRef.OBJECT_LIBRARY.has(object_type):
 			issues.append(_make_map_constructor_issue("obj_unknown_constructor_type_%s" % object_id, "error", "Constructor object_type is not in WorldObjectCatalog: %s." % object_type, object_cell, source_name, entity_kind, object_id, "Use a canonical WorldObjectCatalog runtime object type."))
-		var raw_access_type: String = _safe_string(data.get("access_type", "")).to_lower()
-		if raw_access_type == "none":
+		if _safe_string(data.get("access_type", "")).strip_edges().to_lower() == "none":
 			issues.append(_make_map_constructor_issue("obj_legacy_access_none_%s" % object_id, "error", "Legacy access_type=none must be normalized to no_key.", object_cell, source_name, entity_kind, object_id, "Normalize access_type through WorldObjectCatalog."))
 		elif not raw_access_type.is_empty():
 			var normalized_access_type: String = WorldObjectCatalogRef.normalize_access_type(raw_access_type)
@@ -732,12 +775,8 @@ func get_map_constructor_validation_issues() -> Array[Dictionary]:
 				issues.append(_make_map_constructor_issue("obj_invalid_access_type_%s" % object_id, "error", "Object access_type is not canonical: %s." % raw_access_type, object_cell, source_name, entity_kind, object_id, "Use no_key, key_card, digital_key, access_code, or terminal."))
 		if data.has("lock_type") and not data.has("access_type"):
 			issues.append(_make_map_constructor_issue("obj_lock_without_access_%s" % object_id, "error", "Legacy lock_type is present without canonical access_type.", object_cell, source_name, entity_kind, object_id, "Populate canonical access_type while retaining lock_type only as compatibility metadata."))
-		if object_group == "door":
-			var door_type: String = _safe_string(data.get("door_type", "")).to_lower()
-			if WorldObjectCatalogRef.is_material_named_door_object_type(object_type) and door_type.is_empty():
-				issues.append(_make_map_constructor_issue("obj_material_door_missing_mechanism_%s" % object_id, "error", "Material-named door is missing canonical door_type mechanism.", object_cell, source_name, entity_kind, object_id, "Populate canonical door_type."))
-			elif not door_type.is_empty() and not door_type in WorldObjectCatalogRef.DOOR_TYPES:
-				issues.append(_make_map_constructor_issue("obj_invalid_door_type_%s" % object_id, "error", "Door door_type is not canonical: %s." % door_type, object_cell, source_name, entity_kind, object_id, "Use mechanical, digital, or powered."))
+		if object_group == "door" and WorldObjectCatalogRef.is_material_named_door_object_type(object_type) and _safe_string(data.get("door_type", "")).strip_edges().is_empty():
+			issues.append(_make_map_constructor_issue("obj_material_door_missing_mechanism_%s" % object_id, "error", "Material-named door is missing canonical door_type mechanism.", object_cell, source_name, entity_kind, object_id, "Populate canonical door_type."))
 		if object_group.is_empty():
 			issues.append(_make_map_constructor_issue("obj_missing_group_%d" % index, "error", "Object missing object_group.", object_cell, source_name, entity_kind, object_id))
 		if object_cell.x < 0 or object_cell.y < 0:
@@ -874,7 +913,7 @@ func get_map_constructor_validation_issues() -> Array[Dictionary]:
 					issues.append(_make_map_constructor_issue("door_opening_ambiguous_%d_%d" % [door_cell.x, door_cell.y], "warning", "Door/gate tile has ambiguous wall support and may render with fallback orientation.", door_cell, source_name, "door_opening", "", "Prefer opposite wall cells on one axis."))
 	for door_object_variant in manager.mission_world_objects:
 		var door_object_data: Dictionary = manager._safe_dictionary(door_object_variant)
-		if door_object_data.is_empty() or not manager._map_constructor_is_door_data(door_object_data):
+		if door_object_data.is_empty() or not _is_map_constructor_door_data(door_object_data):
 			continue
 		var door_object_id: String = _safe_string(door_object_data.get("id", "")).strip_edges()
 		var door_object_cell: Vector2i = manager._deserialize_cell_variant(door_object_data.get("position", Vector2i(-1, -1)))
@@ -893,7 +932,7 @@ func get_map_constructor_validation_issues() -> Array[Dictionary]:
 			if not (item_variant is Dictionary):
 				continue
 			var key_data: Dictionary = manager._safe_dictionary(item_variant)
-			if not manager._map_constructor_is_key_data(key_data):
+			if not _is_map_constructor_key_data(key_data):
 				continue
 			var key_id: String = _safe_string(key_data.get("id", "")).strip_edges()
 			var linked_door_id: String = _safe_string(key_data.get("linked_door_id", "")).strip_edges()
@@ -909,7 +948,7 @@ func get_map_constructor_validation_issues() -> Array[Dictionary]:
 		if not (door_variant is Dictionary):
 			continue
 		var door_data_for_link: Dictionary = manager._safe_dictionary(door_variant)
-		if not manager._map_constructor_is_door_data(door_data_for_link):
+		if not _is_map_constructor_door_data(door_data_for_link):
 			continue
 		var door_id_for_link: String = _safe_string(door_data_for_link.get("id", "")).strip_edges()
 		var door_cell_for_link: Vector2i = manager._deserialize_cell_variant(door_data_for_link.get("position", Vector2i(-1, -1)))
