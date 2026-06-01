@@ -66,14 +66,17 @@ func _is_map_constructor_key_data(data: Dictionary) -> bool:
 func validate_constructor_palette_contract() -> Array[String]:
 	var warnings: Array[String] = []
 	var visible_archetypes: Dictionary = {}
+	var visible_wall_prefabs: Array[String] = []
 	for row in WorldObjectCatalogRef.get_constructor_palette_rows():
 		var prefab_id: String = _safe_string(row.get("prefab_id", row.get("id", ""))).strip_edges()
 		var archetype_id: String = _safe_string(row.get("archetype_id", "")).strip_edges()
 		if prefab_id.is_empty():
 			warnings.append("constructor_palette_row_missing_prefab_id")
 			continue
-		if WorldObjectCatalogRef.LEGACY_DOOR_IDS.has(prefab_id) or WorldObjectCatalogRef.LEGACY_FLOOR_IDS.has(prefab_id) or WorldObjectCatalogRef.is_constructor_door_preset(prefab_id):
+		if WorldObjectCatalogRef.LEGACY_DOOR_IDS.has(prefab_id) or WorldObjectCatalogRef.is_constructor_door_preset(prefab_id) or WorldObjectCatalogRef.LEGACY_WALL_ALIAS_CONFIGS.has(prefab_id):
 			warnings.append("constructor_palette_exposes_legacy_alias_%s" % prefab_id)
+		if _safe_string(row.get("object_group", "")) == "wall":
+			visible_wall_prefabs.append(prefab_id)
 		if not archetype_id.is_empty():
 			if visible_archetypes.has(archetype_id):
 				warnings.append("constructor_palette_duplicate_archetype_%s" % archetype_id)
@@ -83,8 +86,33 @@ func validate_constructor_palette_contract() -> Array[String]:
 			warnings.append("constructor_palette_prefab_creates_empty_object_%s" % prefab_id)
 	if not visible_archetypes.has("door"):
 		warnings.append("constructor_palette_missing_door_archetype")
-	if not visible_archetypes.has("floor"):
-		warnings.append("constructor_palette_missing_floor_archetype")
+	if visible_wall_prefabs != ["external_wall", "wall"] and visible_wall_prefabs != ["wall", "external_wall"]:
+		warnings.append("constructor_palette_wall_entries_must_be_exactly_external_wall_and_wall")
+	for required_wall_archetype in ["external_wall", "wall"]:
+		if visible_wall_prefabs.count(required_wall_archetype) != 1:
+			warnings.append("constructor_palette_requires_exactly_one_%s" % required_wall_archetype)
+	var external_wall: Dictionary = WorldObjectCatalogRef.create_world_object("external_wall", "validation_external_wall")
+	if bool(external_wall.get("configurable", true)):
+		warnings.append("external_wall_must_not_be_configurable")
+	if bool(external_wall.get("is_destructible", true)):
+		warnings.append("external_wall_must_not_be_destructible")
+	if not bool(external_wall.get("supports_embedded_objects", false)) or not bool(external_wall.get("supports_cables", false)):
+		warnings.append("external_wall_must_support_embedded_objects_and_cables")
+	var wall_schema: Array[Dictionary] = WorldObjectCatalogRef.get_archetype_property_schema("wall")
+	var wall_material_schema: Dictionary = {}
+	for field in wall_schema:
+		if _safe_string(field.get("field", "")) == "material":
+			wall_material_schema = field
+	if wall_material_schema.is_empty():
+		warnings.append("wall_archetype_missing_material_field")
+	elif Array(wall_material_schema.get("values", [])) != WorldObjectCatalogRef.WALL_MATERIALS or _safe_string(wall_material_schema.get("default", "")) != WorldObjectCatalogRef.WALL_MATERIAL_BRICK:
+		warnings.append("wall_archetype_material_contract_invalid")
+	for material in WorldObjectCatalogRef.WALL_MATERIALS:
+		var generated_wall: Dictionary = WorldObjectCatalogRef.create_archetype_object("wall", "validation_wall_%s" % material, {"material":material})
+		if _safe_string(generated_wall.get("display_name", "")) != _safe_string(WorldObjectCatalogRef.WALL_DISPLAY_NAMES.get(material, "")):
+			warnings.append("wall_display_name_not_generated_%s" % material)
+	if not WorldObjectCatalogRef.get_wall_material_quick_presets().is_empty():
+		warnings.append("wall_material_quick_presets_forbidden")
 	if manager != null and is_instance_valid(manager):
 		var floor_palette_count: int = 0
 		for palette_row in manager.get_map_constructor_prefab_catalog():
@@ -99,7 +127,7 @@ func validate_constructor_palette_contract() -> Array[String]:
 			if typeof(object_variant) != TYPE_DICTIONARY:
 				continue
 			var object_data: Dictionary = object_variant
-			if String(object_data.get("object_group", "")) not in ["door", "floor"]:
+			if _safe_string(object_data.get("archetype_id", "")).is_empty():
 				continue
 			var object_id: String = _safe_string(object_data.get("id", ""))
 			for contract_warning in WorldObjectCatalogRef.validate_archetype_object(object_data):
