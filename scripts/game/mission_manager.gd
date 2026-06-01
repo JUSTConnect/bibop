@@ -8026,8 +8026,47 @@ func get_world_object_runtime_state() -> Dictionary:
 			runtime_state[object_id] = serialized
 	return runtime_state
 
+func _get_runtime_inventory_item_id(item_variant: Variant) -> String:
+	if item_variant is String or item_variant is StringName:
+		return String(item_variant).strip_edges()
+	if item_variant is Dictionary:
+		var item_data: Dictionary = Dictionary(item_variant)
+		return String(item_data.get("id", item_data.get("item_id", ""))).strip_edges()
+	return ""
+
+func get_manipulator_held_item_id() -> String:
+	return _get_runtime_inventory_item_id(runtime_inventory_state.get("manipulator_hold", ""))
+
+func get_manipulator_held_item_data() -> Dictionary:
+	var held_variant: Variant = runtime_inventory_state.get("manipulator_hold", "")
+	var held_id: String = _get_runtime_inventory_item_id(held_variant)
+	if held_id.is_empty():
+		return {}
+	var item_data: Dictionary = Dictionary(held_variant).duplicate(true) if held_variant is Dictionary else _get_runtime_item_data_snapshot(held_id)
+	if item_data.is_empty():
+		item_data = {"id": held_id}
+	elif String(item_data.get("id", "")).strip_edges().is_empty():
+		item_data["id"] = held_id
+	return item_data
+
+func clear_manipulator_held_item() -> void:
+	runtime_inventory_state["manipulator_hold"] = ""
+
+func set_manipulator_held_item(item_variant: Variant) -> void:
+	var held_id: String = _get_runtime_inventory_item_id(item_variant)
+	runtime_inventory_state["manipulator_hold"] = held_id
+	if held_id.is_empty() or not (item_variant is Dictionary):
+		return
+	var runtime_map := _get_world_item_runtime_map()
+	var item_runtime: Dictionary = Dictionary(runtime_map.get(held_id, {})).duplicate(true)
+	item_runtime["item_data"] = Dictionary(item_variant).duplicate(true)
+	runtime_map[held_id] = item_runtime
+	runtime_inventory_state["world_item_runtime"] = runtime_map
+
 func get_inventory_state() -> Dictionary:
-	return runtime_inventory_state.duplicate(true)
+	var snapshot: Dictionary = runtime_inventory_state.duplicate(true)
+	snapshot["manipulator_hold"] = get_manipulator_held_item_id()
+	return snapshot
 
 func mark_key_collected(key_id: String) -> void:
 	var normalized_id: String = key_id.strip_edges()
@@ -8139,7 +8178,7 @@ func check_world_object_requirements(object_id: String, action: String = "") -> 
 		reasons.append("required_tool_missing")
 	if not String(requirements.get("required_item_id", "")).strip_edges().is_empty():
 		var inv := get_inventory_state()
-		var all_items: Array = Array(inv.get("pocket_items", [])) + [String(inv.get("manipulator_hold", ""))] + Array(inv.get("digital_buffer", []))
+		var all_items: Array = Array(inv.get("pocket_items", [])) + [get_manipulator_held_item_id()] + Array(inv.get("digital_buffer", []))
 		if not all_items.has(String(requirements.get("required_item_id", ""))):
 			reasons.append("required_item_missing")
 	if reasons.is_empty():
@@ -8225,7 +8264,7 @@ func pickup_world_item(item_id: String) -> Dictionary:
 	elif _is_keycard_item(item):
 		mark_key_collected(normalized_id)
 	else:
-		runtime_inventory_state["manipulator_hold"] = normalized_id
+		set_manipulator_held_item(normalized_id)
 	var item_type := String(item.get("item_type", "")).strip_edges()
 	var linked_door_id := String(item.get("linked_door_id", item.get("door_id", ""))).strip_edges()
 	if linked_door_id.is_empty():
@@ -8241,7 +8280,7 @@ func pickup_world_item(item_id: String) -> Dictionary:
 
 
 func move_runtime_manipulator_to_pocket(pocket_index: int, pocket_capacity: int) -> Dictionary:
-	var held_id: String = String(runtime_inventory_state.get("manipulator_hold", "")).strip_edges()
+	var held_id: String = get_manipulator_held_item_id()
 	if held_id.is_empty():
 		return {"ok": false, "message": "Manipulator is empty."}
 	if pocket_index < 0 or pocket_index >= pocket_capacity:
@@ -8252,7 +8291,7 @@ func move_runtime_manipulator_to_pocket(pocket_index: int, pocket_capacity: int)
 		return {"ok": false, "message": "Pocket slot is occupied."}
 	pocket[pocket_index] = held_id
 	runtime_inventory_state["pocket_items"] = pocket
-	runtime_inventory_state["manipulator_hold"] = ""
+	clear_manipulator_held_item()
 	return {"ok": true, "message": "Stored manipulator item in pocket."}
 
 func move_or_swap_runtime_pocket_slot_with_manipulator(pocket_index: int, pocket_capacity: int) -> Dictionary:
@@ -8261,28 +8300,30 @@ func move_or_swap_runtime_pocket_slot_with_manipulator(pocket_index: int, pocket
 	var pocket: Array = Array(runtime_inventory_state.get("pocket_items", []))
 	pocket.resize(pocket_capacity)
 	var pocket_id: String = String(pocket[pocket_index]).strip_edges()
-	var held_id: String = String(runtime_inventory_state.get("manipulator_hold", "")).strip_edges()
+	var held_id: String = get_manipulator_held_item_id()
 	if pocket_id.is_empty() and held_id.is_empty():
 		return {"ok": false, "message": "Pocket slot is empty."}
 	pocket[pocket_index] = held_id
 	runtime_inventory_state["pocket_items"] = pocket
-	runtime_inventory_state["manipulator_hold"] = pocket_id
+	set_manipulator_held_item(pocket_id)
 	return {"ok": true, "message": "Moved or swapped pocket and manipulator items."}
 
 func can_drop_inventory_item(item_id: String) -> Dictionary:
 	var inv := get_inventory_state()
-	var has_item := Array(inv.get("pocket_items", [])).has(item_id) or String(inv.get("manipulator_hold", "")) == item_id
+	var has_item := Array(inv.get("pocket_items", [])).has(item_id) or get_manipulator_held_item_id() == item_id
 	return {"success": has_item, "item_id": item_id, "reasons": ["ok"] if has_item else ["item_missing"]}
 
 func drop_inventory_item(item_id: String, target_cell: Vector2i = Vector2i(-1, -1)) -> Dictionary:
 	var gate := can_drop_inventory_item(item_id)
 	if not bool(gate.get("success", false)):
 		return gate
+	if target_cell == Vector2i(-1, -1):
+		return {"success": false, "item_id": item_id, "target_cell": target_cell, "reasons": ["invalid_target_cell"]}
 	var pocket: Array = runtime_inventory_state.get("pocket_items", [])
 	pocket.erase(item_id)
 	runtime_inventory_state["pocket_items"] = pocket
-	if String(runtime_inventory_state.get("manipulator_hold", "")) == item_id:
-		runtime_inventory_state["manipulator_hold"] = ""
+	if get_manipulator_held_item_id() == item_id:
+		clear_manipulator_held_item()
 	var runtime_map := _get_world_item_runtime_map()
 	var dropped_runtime: Dictionary = {}
 	var dropped_runtime_variant: Variant = runtime_map.get(item_id, {})
@@ -8294,20 +8335,20 @@ func drop_inventory_item(item_id: String, target_cell: Vector2i = Vector2i(-1, -
 	dropped_runtime["in_inventory"] = false
 	dropped_runtime["carried_by"] = ""
 	dropped_runtime["position"] = [target_cell.x, target_cell.y]
+	var dropped_item_data: Dictionary = Dictionary(dropped_runtime.get("item_data", {})).duplicate(true)
+	if dropped_item_data.is_empty():
+		dropped_item_data = {"id": item_id}
+	dropped_item_data["id"] = item_id
+	add_item_at_cell(target_cell, dropped_item_data)
 	runtime_map[item_id] = dropped_runtime
 	runtime_inventory_state["world_item_runtime"] = runtime_map
 	return {"success": true, "item_id": item_id, "target_cell": target_cell, "reasons": ["ok"]}
 
 func get_manipulator_items() -> Array:
-	var held_item_id: String = String(runtime_inventory_state.get("manipulator_hold", "")).strip_edges()
+	var held_item_id: String = get_manipulator_held_item_id()
 	if held_item_id.is_empty():
 		return []
-	var item_data: Dictionary = _get_runtime_item_data_snapshot(held_item_id)
-	if item_data.is_empty():
-		item_data = {"id": held_item_id}
-	elif String(item_data.get("id", "")).strip_edges().is_empty():
-		item_data["id"] = held_item_id
-	return [item_data]
+	return [get_manipulator_held_item_data()]
 
 func can_hold_item_in_manipulator(item_id: String) -> Dictionary:
 	if not get_manipulator_items().is_empty():
@@ -8318,7 +8359,7 @@ func hold_item_in_manipulator(item_id: String) -> Dictionary:
 	var gate := can_hold_item_in_manipulator(item_id)
 	if not bool(gate.get("success", false)):
 		return gate
-	runtime_inventory_state["manipulator_hold"] = item_id
+	set_manipulator_held_item(item_id)
 	return {"success": true, "item_id": item_id, "reasons": ["ok"]}
 
 func can_place_item_in_digital_buffer(item_id: String) -> Dictionary:
@@ -10097,10 +10138,22 @@ func validate_inventory_tools_modules_runtime() -> Array[String]:
 	for obj in [physical_item, digital_item, digital_blocked]:
 		mission_world_objects.append(obj); world_objects_by_cell[Vector2i(obj.get("position", Vector2i(-1, -1)))] = obj; temp_ids.append(String(obj.get("id", "")))
 	if not bool(pickup_world_item("temp_item_physical").get("success", false)): warnings.append("physical_pickup_failed")
-	if String(runtime_inventory_state.get("manipulator_hold", "")) != "temp_item_physical": warnings.append("physical_pickup_not_routed_to_manipulator")
+	if get_manipulator_held_item_id() != "temp_item_physical": warnings.append("physical_pickup_not_routed_to_manipulator")
 	if Array(runtime_inventory_state.get("pocket_items", [])).has("temp_item_physical"): warnings.append("physical_pickup_routed_to_pocket")
 	if Array(runtime_inventory_state.get("digital_buffer", [])).has("temp_item_physical"): warnings.append("physical_pickup_routed_to_digital_buffer")
-	runtime_inventory_state["manipulator_hold"] = ""
+	runtime_inventory_state["manipulator_hold"] = physical_item.duplicate(true)
+	if get_manipulator_held_item_id() != "temp_item_physical": warnings.append("dictionary_manipulator_id_read_failed")
+	runtime_inventory_state["pocket_items"] = []
+	if not bool(move_runtime_manipulator_to_pocket(0, 1).get("ok", false)): warnings.append("dictionary_manipulator_to_pocket_failed")
+	if not Array(runtime_inventory_state.get("pocket_items", [])).has("temp_item_physical"): warnings.append("dictionary_manipulator_to_pocket_missing_item")
+	runtime_inventory_state["pocket_items"] = []
+	runtime_inventory_state["manipulator_hold"] = physical_item.duplicate(true)
+	var temp_drop_cell := Vector2i(125, 100)
+	if not bool(drop_inventory_item("temp_item_physical", temp_drop_cell).get("success", false)): warnings.append("dictionary_manipulator_drop_failed")
+	var dropped_items := get_items_at_cell(temp_drop_cell)
+	if dropped_items.size() != 1 or String(Dictionary(dropped_items[0]).get("id", "")) != "temp_item_physical": warnings.append("dropped_physical_item_missing_from_cell")
+	_remove_world_item_from_lookup_tables("temp_item_physical", physical_item)
+	clear_manipulator_held_item()
 	if not bool(pickup_world_item("temp_item_digital").get("success", false)): warnings.append("digital_pickup_allowed_failed")
 	if bool(pickup_world_item("temp_item_digital_blocked").get("success", false)): warnings.append("digital_pickup_block_missing")
 	var stacked_cell := Vector2i(124, 100)
@@ -10108,7 +10161,7 @@ func validate_inventory_tools_modules_runtime() -> Array[String]:
 	var stacked_second := {"id":"temp_item_stacked_second", "object_group":"item", "object_type":"item", "position":stacked_cell, "item_type":"mechanical_key", "key_kind":"mechanical", "item_form":"physical", "can_pickup":true}
 	add_item_at_cell(stacked_cell, stacked_first); add_item_at_cell(stacked_cell, stacked_second); temp_ids.append("temp_item_stacked_first"); temp_ids.append("temp_item_stacked_second")
 	if not bool(pickup_world_item("temp_item_stacked_second").get("success", false)): warnings.append("stacked_second_pickup_failed")
-	if String(runtime_inventory_state.get("manipulator_hold", "")) == "temp_item_stacked_second": warnings.append("mechanical_keycard_routed_to_manipulator")
+	if get_manipulator_held_item_id() == "temp_item_stacked_second": warnings.append("mechanical_keycard_routed_to_manipulator")
 	if not Array(runtime_inventory_state.get("collected_key_ids", [])).has("temp_item_stacked_second"): warnings.append("mechanical_keycard_missing_from_keychain")
 	runtime_inventory_state["manipulator_hold"] = "occupied_slot"
 	var blocked_physical_pickup := pickup_world_item("temp_item_stacked_first")
