@@ -49,6 +49,29 @@ static func access_type_label(value: String) -> String:
 	return value.capitalize()
 
 
+static func position_panel(ui, panel: PanelContainer, cell: Vector2i) -> void:
+	if panel == null or not is_instance_valid(panel):
+		return
+	var viewport_size: Vector2 = ui.get_viewport().get_visible_rect().size
+	panel.reset_size()
+	var panel_size: Vector2 = panel.get_combined_minimum_size()
+	var fallback_position := Vector2(maxf(8.0, viewport_size.x - panel_size.x - 16.0), 72.0)
+	var target_position: Vector2 = fallback_position
+	if ui.field_runtime != null and is_instance_valid(ui.field_runtime):
+		var renderer: Node = ui.field_runtime.get_node_or_null("RoomVisualRenderer")
+		if renderer != null and renderer.has_method("get_object_visual_center"):
+			var anchor_local: Vector2 = renderer.call("get_object_visual_center", cell)
+			var anchor_viewport: Vector2 = renderer.get_global_transform_with_canvas() * anchor_local
+			var root_transform: Transform2D = ui.runtime_hud_root.get_global_transform_with_canvas()
+			var anchor_ui: Vector2 = root_transform.affine_inverse() * anchor_viewport
+			target_position = anchor_ui + Vector2(20.0, -panel_size.y * 0.5)
+	var margin: float = 8.0
+	panel.position = Vector2(
+		clampf(target_position.x, margin, maxf(margin, viewport_size.x - panel_size.x - margin)),
+		clampf(target_position.y, margin, maxf(margin, viewport_size.y - panel_size.y - margin))
+	)
+
+
 static func build(ui, cell: Vector2i) -> void:
 	var object_data: Dictionary = {}
 	if ui.mission_manager_runtime.has_method("get_world_object_at_cell"):
@@ -127,7 +150,4 @@ static func build(ui, cell: Vector2i) -> void:
 	ui.runtime_hud_root.add_child(panel)
 	ui.runtime_object_info_panel = panel
 	ui.runtime_object_info_cell = cell
-	var viewport_size: Vector2 = ui.get_viewport().get_visible_rect().size
-	panel.reset_size()
-	var panel_size: Vector2 = panel.get_combined_minimum_size()
-	panel.position = Vector2(maxf(8.0, viewport_size.x - panel_size.x - 16.0), 72.0)
+	position_panel(ui, panel, cell)

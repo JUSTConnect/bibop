@@ -216,7 +216,7 @@ func get_mission_objective_view_model(mission_id: String = "") -> Dictionary:
 	if resolved_mission_id.is_empty():
 		resolved_mission_id = current_mission_id.strip_edges()
 	if resolved_mission_id.is_empty():
-		return _make_mission_objective_view_model("", "", "No mission selected.", "")
+		return _make_mission_objective_view_model("", "", "No active objective", "")
 	var catalog := MissionContentCatalogRef.new()
 	if not catalog.has_mission(resolved_mission_id):
 		return _make_mission_objective_view_model(resolved_mission_id, "Unknown mission", "Objective unavailable.", "")
@@ -3879,7 +3879,7 @@ func get_map_constructor_entity_by_id(entity_kind: String, entity_id: String) ->
 func _get_map_constructor_editable_field_schema() -> Dictionary:
 	return {
 		"state":"string","power_network_id":"string","is_open":"bool","is_closed":"bool","is_locked":"bool","blocks_movement":"bool","is_powered":"bool","is_hidden":"bool","fuse_installed":"bool","plugged":"bool",
-		"required_key_id":"string","required_terminal_id":"string","required_access_code_id":"string","required_digital_key_id":"string","lock_type":"string","linked_terminal_id":"string","required_manipulator_level":"int","required_connector_level":"int","required_processor_level":"int",
+		"required_key_id":"string","required_terminal_id":"string","required_access_code_id":"string","required_digital_key_id":"string","lock_type":"string","linked_terminal_id":"string","required_manipulator_level":"int","has_connector_jack":"bool","required_connector_level":"int","required_processor_level":"int",
 		"door_type":"string","material":"string","covering":"string","visual_style":"string","door_class":"int","power_type":"string","control_type":"string","power_behavior":"string","allowed_states":"array_string",
 		"terminal_type":"string","controlled_target_type":"string","terminal_class":"int","status":"string","allowed_statuses":"array_string","linked_object_ids":"array_string","linked_door_ids":"array_string","linked_cooling_ids":"array_string","linked_platform_ids":"array_string","linked_power_ids":"array_string","linked_lighting_ids":"array_string","chain_input_ids":"array_string","chain_output_ids":"array_string",
 		"control_source_id":"string","connected_device_ids":"array_string","target_door_id":"string","target_platform_id":"string","requires_external_control":"bool","requires_terminal_enabled":"bool",

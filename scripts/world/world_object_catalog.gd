@@ -217,6 +217,7 @@ const ARCHETYPE_REGISTRY: Dictionary = {
 			{"field":"required_access_code_id", "type":"string", "default":""},
 			{"field":"required_digital_key_id", "type":"string", "default":""},
 			{"field":"required_manipulator_level", "type":"int", "default":0},
+			{"field":"has_connector_jack", "type":"bool", "default":false},
 			{"field":"required_connector_level", "type":"int", "default":0},
 			{"field":"required_processor_level", "type":"int", "default":0}
 		]
@@ -228,6 +229,7 @@ const ARCHETYPE_REGISTRY: Dictionary = {
 			{"field":"terminal_type", "type":"enum", "values":["information", "control"], "default":"information", "labels":{"information":"Information", "control":"Control"}},
 			{"field":"controlled_target_type", "type":"enum", "values":["none", "door", "cooling", "platform", "power", "lighting", "device"], "default":"none", "labels":{"none":"None", "door":"Door", "cooling":"Cooling", "platform":"Platform", "power":"Power", "lighting":"Lighting", "device":"Device"}},
 			{"field":"terminal_class", "type":"enum", "values":[1, 2, 3], "default":1, "labels":{"1":"Class 1", "2":"Class 2", "3":"Class 3"}},
+			{"field":"has_connector_jack", "type":"bool", "default":true},
 			{"field":"power_type", "type":"enum", "values":["internal", "external"], "default":"internal", "labels":{"internal":"Internal", "external":"External"}},
 			{"field":"control_type", "type":"enum", "values":["internal", "external"], "default":"internal", "labels":{"internal":"Internal", "external":"External"}},
 			{"field":"status", "type":"enum", "values":["active", "damaged", "unpowered", "locked", "disabled", "error"], "default":"active", "labels":{"active":"Active", "damaged":"Damaged", "unpowered":"Unpowered", "locked":"Locked", "disabled":"Disabled", "error":"Error"}},
@@ -535,6 +537,24 @@ static func _safe_non_negative_int(value: Variant, fallback: int = 0) -> int:
 	return fallback
 
 
+static func _is_bool_like(value: Variant) -> bool:
+	if value is bool:
+		return true
+	if value is int or value is float:
+		return int(value) in [0, 1]
+	return _safe_string(value).strip_edges().to_lower() in ["true", "false", "1", "0", "yes", "no", "on", "off"]
+
+
+static func _safe_bool_like(value: Variant, fallback: bool = false) -> bool:
+	if not _is_bool_like(value):
+		return fallback
+	if value is bool:
+		return value
+	if value is int or value is float:
+		return int(value) == 1
+	return _safe_string(value).strip_edges().to_lower() in ["true", "1", "yes", "on"]
+
+
 static func _normalized_contract_token(value: Variant) -> String:
 	return _safe_string(value).strip_edges().to_lower().replace("-", "_").replace(" ", "_")
 
@@ -732,6 +752,7 @@ static func normalize_door_contract(object_data: Dictionary) -> Dictionary:
 	data["power_type"] = power_type if power_type in DOOR_POWER_TYPES else "internal"
 	var control_type: String = _normalized_contract_token(data.get("control_type", data.get("control_mode", "internal"))).trim_suffix("_control")
 	data["control_type"] = control_type if control_type in DOOR_CONTROL_TYPES else "internal"
+	data["has_connector_jack"] = _safe_bool_like(data.get("has_connector_jack", false), false)
 	if not data.has("allowed_states"):
 		data["allowed_states"] = DOOR_STATES.duplicate()
 	if access_type == ACCESS_TYPE_NO_KEY:
@@ -762,6 +783,7 @@ static func normalize_terminal_contract(object_data: Dictionary) -> Dictionary:
 	data["is_powered"] = String(data.get("status", "active")) != "unpowered"
 	data["power_mode"] = String(data.get("power_type", data.get("power_mode", "internal"))).trim_suffix("_power")
 	data["control_mode"] = String(data.get("control_type", data.get("control_mode", "internal"))).trim_suffix("_control")
+	data["has_connector_jack"] = _safe_bool_like(data.get("has_connector_jack", true), true)
 	return data
 
 static func normalize_world_object_contract(object_data: Dictionary) -> Dictionary:
@@ -810,6 +832,8 @@ static func validate_archetype_object(object_data: Dictionary) -> Array[String]:
 		var allowed: Array = Array(field.get("values", []))
 		if field_type == "enum" and not allowed.has(object_data.get(field_name)):
 			warnings.append("object_invalid_enum_%s" % field_name)
+		elif field_type == "bool" and not _is_bool_like(object_data.get(field_name)):
+			warnings.append("object_invalid_bool_%s" % field_name)
 		elif field_type == "enum_array":
 			for value_variant in Array(object_data.get(field_name, [])):
 				if not allowed.has(value_variant):

@@ -7947,9 +7947,11 @@ func get_world_object_action_for_context(world_object: Dictionary, _active_modul
 	var actions: Array = Array(view_model.get("available_action_ids", []))
 	if not selected_world_action.is_empty() and actions.has(selected_world_action):
 		return selected_world_action
-	if actions.is_empty():
-		return ""
-	return String(actions[0])
+	for action_variant in actions:
+		var action_id: String = String(action_variant)
+		if action_id != "connect":
+			return action_id
+	return ""
 
 
 func get_grid_position() -> Vector2i:
@@ -8067,15 +8069,17 @@ func return_held_cable_end_to_reel() -> Dictionary:
 func get_available_world_actions(world_object: Dictionary, target_position: Vector2i) -> Array[String]:
 	var actions: Array[String] = []
 	var normalized_world_object: Dictionary = WorldObjectCatalog.normalize_world_object_contract(world_object)
-	if String(normalized_world_object.get("object_group", "")) == "door":
-		world_object = WorldObjectCatalog.normalize_door_state_fields(normalized_world_object)
+	world_object = normalized_world_object
+	if String(world_object.get("object_group", "")) == "door":
+		world_object = WorldObjectCatalog.normalize_door_state_fields(world_object)
 	var group: String = String(world_object.get("object_group", ""))
 	var state: String = String(world_object.get("state", ""))
 	var _items_here: Array[Dictionary] = mission_manager.get_items_at_cell(target_position) if mission_manager != null else []
 	if group == "door":
 		var access_type: String = WorldObjectCatalog.normalize_access_type(world_object.get("access_type", world_object.get("lock_type", "")))
 		var is_digital_door: bool = access_type in ["digital_key", "access_code", "terminal"] or bool(world_object.get("is_digital_device", false))
-		if is_digital_door and get_installed_connector_level(String(world_object.get("connection_type", "wired"))) > 0:
+		var door_has_connector_jack: bool = bool(world_object.get("has_connector_jack", false))
+		if is_digital_door and door_has_connector_jack:
 			if not bool(world_object.get("connected", false)):
 				actions.append("connect")
 			elif int(world_object.get("scan_level", 0)) < 2:
@@ -8116,7 +8120,7 @@ func get_available_world_actions(world_object: Dictionary, target_position: Vect
 			actions.append("disconnect_power_wire")
 		elif _has_manipulator_cable_end():
 			actions.append("connect_wire_end")
-		if get_installed_connector_level(String(world_object.get("connection_type", "wired"))) > 0:
+		if bool(world_object.get("has_connector_jack", false)):
 			if not bool(world_object.get("connected", false)):
 				actions.append("connect")
 			elif int(world_object.get("scan_level", 0)) < 2:

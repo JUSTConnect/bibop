@@ -38,6 +38,13 @@ static func can_apply_action(actor: Dictionary, module: Dictionary, target_objec
 			var unlock_gate: Dictionary = _validate_door_class(actor, unlock_target)
 			if not bool(unlock_gate.get("success", false)):
 				return unlock_gate
+	if action_type == "connect":
+		if not bool(target_object.get("has_connector_jack", false)):
+			return _result(false, "Connector jack unavailable.", [], "connector_jack_required")
+		var connection_type: String = String(target_object.get("connection_type", "wired"))
+		var interface_field := "%s_connector_level" % connection_type
+		if String(module.get("id", "")).is_empty() or int(actor.get(interface_field, actor.get("connector_level", 0))) < int(target_object.get("required_connector_level", 1)):
+			return _result(false, "Connector level too low.", [], "connector_level_too_low")
 	if action_type == "pickup" and actor.get("manipulator_occupied", false) and not _is_keycard_item(target_object):
 		return _result(false, "Free manipulator required.")
 	if action_type == "hack" and actor.get("processor_level", 0) < target_object.get("required_processor_level", 1):
