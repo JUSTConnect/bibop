@@ -17,10 +17,14 @@ static func build(ui, hud_root: Control, margin: float) -> float:
 	menu_button.offset_right = -margin
 	menu_button.offset_top = margin
 	menu_button.offset_bottom = margin + MENU_BUTTON_SIZE.y
-	menu_button.pressed.connect(func() -> void: open_overlay(ui))
 	hud_root.add_child(menu_button)
 	ui.runtime_menu_button = menu_button
+	ui.runtime_menu_overlay = build_overlay(ui, hud_root, margin)
+	menu_button.pressed.connect(func() -> void: ui._show_game_menu())
+	return MENU_BUTTON_SIZE.y
 
+
+static func build_overlay(ui, overlay_parent: Control, margin: float, show_to_center_menu: bool = true) -> Control:
 	var overlay_root := Control.new()
 	overlay_root.name = "RuntimeMissionMenuOverlay"
 	overlay_root.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
@@ -28,15 +32,14 @@ static func build(ui, hud_root: Control, margin: float) -> float:
 	overlay_root.z_index = ui.Z_RUNTIME_MODAL
 	overlay_root.z_as_relative = false
 	overlay_root.visible = false
-	hud_root.add_child(overlay_root)
-	ui.runtime_menu_overlay = overlay_root
+	overlay_parent.add_child(overlay_root)
 
 	var outside_button := Button.new()
 	outside_button.name = "RuntimeMissionMenuOutsideClick"
 	outside_button.flat = true
 	outside_button.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
 	outside_button.focus_mode = Control.FOCUS_NONE
-	outside_button.pressed.connect(func() -> void: close_overlay(ui))
+	outside_button.pressed.connect(func() -> void: close_overlay(overlay_root))
 	overlay_root.add_child(outside_button)
 
 	var panel := PanelContainer.new()
@@ -61,24 +64,25 @@ static func build(ui, hud_root: Control, margin: float) -> float:
 	actions.add_theme_constant_override("separation", 4)
 	panel_margin.add_child(actions)
 
-	_add_action_button(actions, "Continue", func() -> void: close_overlay(ui))
-	_add_action_button(actions, "Restart mission", func() -> void: _call_game_ui_action(ui, "_on_restart_mission_button_pressed", "Restart mission is unavailable."))
-	_add_action_button(actions, "Back to Center", func() -> void: _call_game_ui_action(ui, "_on_return_to_box_button_pressed", "Back to Center is unavailable."))
-	_add_action_button(actions, "Save", func() -> void: _show_hint(ui, "Save is not implemented yet."))
-	_add_action_button(actions, "Load", func() -> void: _show_hint(ui, "Load is not implemented yet."))
-	_add_action_button(actions, "Settings", func() -> void: _show_hint(ui, "Settings are not implemented yet."))
-	_add_action_button(actions, "Main menu", func() -> void: _call_game_ui_action(ui, "_on_runtime_exit_to_main_menu_pressed", "Main menu is unavailable."))
-	return MENU_BUTTON_SIZE.y
+	_add_action_button(actions, "Continue", func() -> void: close_overlay(overlay_root))
+	if show_to_center_menu:
+		_add_action_button(actions, "Restart mission", func() -> void: _call_game_ui_action(ui, overlay_root, "_on_restart_mission_button_pressed", "Restart mission is unavailable."))
+		_add_action_button(actions, "To Center Menu", func() -> void: _call_game_ui_action(ui, overlay_root, "_on_return_to_box_button_pressed", "Center menu is unavailable."))
+	_add_action_button(actions, "Save", func() -> void: _show_hint(ui, overlay_root, "Save is not implemented yet."))
+	_add_action_button(actions, "Load", func() -> void: _show_hint(ui, overlay_root, "Load is not implemented yet."))
+	_add_action_button(actions, "Settings", func() -> void: _show_hint(ui, overlay_root, "Settings are not implemented yet."))
+	_add_action_button(actions, "Exit to Main Menu", func() -> void: _call_game_ui_action(ui, overlay_root, "_on_runtime_exit_to_main_menu_pressed", "Main menu is unavailable."))
+	return overlay_root
 
 
-static func open_overlay(ui) -> void:
-	if ui.runtime_menu_overlay != null and is_instance_valid(ui.runtime_menu_overlay):
-		ui.runtime_menu_overlay.visible = true
+static func open_overlay(overlay_root: Control) -> void:
+	if overlay_root != null and is_instance_valid(overlay_root):
+		overlay_root.visible = true
 
 
-static func close_overlay(ui) -> void:
-	if ui.runtime_menu_overlay != null and is_instance_valid(ui.runtime_menu_overlay):
-		ui.runtime_menu_overlay.visible = false
+static func close_overlay(overlay_root: Control) -> void:
+	if overlay_root != null and is_instance_valid(overlay_root):
+		overlay_root.visible = false
 
 
 static func _add_action_button(parent: VBoxContainer, text: String, callback: Callable) -> void:
@@ -94,15 +98,15 @@ static func _add_action_button(parent: VBoxContainer, text: String, callback: Ca
 	parent.add_child(button)
 
 
-static func _call_game_ui_action(ui, method_name: String, unavailable_hint: String) -> void:
-	close_overlay(ui)
+static func _call_game_ui_action(ui, overlay_root: Control, method_name: String, unavailable_hint: String) -> void:
+	close_overlay(overlay_root)
 	if ui != null and ui.has_method(method_name):
 		ui.call(method_name)
 		return
-	_show_hint(ui, unavailable_hint)
+	_show_hint(ui, overlay_root, unavailable_hint)
 
 
-static func _show_hint(ui, message: String) -> void:
-	close_overlay(ui)
+static func _show_hint(ui, overlay_root: Control, message: String) -> void:
+	close_overlay(overlay_root)
 	if ui != null and ui.has_method("show_hint"):
 		ui.call("show_hint", message)
