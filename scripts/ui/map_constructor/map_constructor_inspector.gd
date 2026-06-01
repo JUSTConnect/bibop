@@ -155,12 +155,16 @@ static func show_for_selection(ui: Variant, cell: Vector2i, preferred_entity_kin
 	if type_group == "power":
 		var power_object_type: String = ui._safe_ui_string(data.get("object_type", "")).to_lower()
 		if power_object_type.begins_with("power_source"):
-			ui._add_enum_property(configurable, "Source state", entity_kind, entity_id, "state", data.get("state", "on"), [{"label":"On", "value":"on"}, {"label":"Off", "value":"off"}, {"label":"Damaged", "value":"damaged"}, {"label":"Broken", "value":"broken"}])
-			ui._add_enum_property(configurable, "Source class", entity_kind, entity_id, "power_source_class", data.get("power_source_class", 1), [{"label":"Class 1 (4 outlets)", "value":"1"}, {"label":"Class 2 (5 outlets)", "value":"2"}, {"label":"Class 3 (6 outlets)", "value":"3"}])
+			var source_state_options: Array[Dictionary] = [{"label":"On", "value":"on"}, {"label":"Off", "value":"off"}, {"label":"Damaged", "value":"damaged"}, {"label":"Broken", "value":"broken"}]
+			ui._add_enum_property(configurable, "Source state", entity_kind, entity_id, "state", data.get("state", "on"), source_state_options)
+			var source_class_options: Array[Dictionary] = [{"label":"Class 1 (4 outlets)", "value":"1"}, {"label":"Class 2 (5 outlets)", "value":"2"}, {"label":"Class 3 (6 outlets)", "value":"3"}]
+			ui._add_enum_property(configurable, "Source class", entity_kind, entity_id, "power_source_class", data.get("power_source_class", 1), source_class_options)
 		elif power_object_type == "power_cable" or power_object_type == "power_cable_reel":
-			ui._add_enum_property(configurable, "Wire state", entity_kind, entity_id, "state", data.get("state", "ok"), [{"label":"OK", "value":"ok"}, {"label":"Damaged", "value":"damaged"}, {"label":"Broken", "value":"broken"}])
+			var wire_state_options: Array[Dictionary] = [{"label":"OK", "value":"ok"}, {"label":"Damaged", "value":"damaged"}, {"label":"Broken", "value":"broken"}]
+			ui._add_enum_property(configurable, "Wire state", entity_kind, entity_id, "state", data.get("state", "ok"), wire_state_options)
 			ui._add_bool_property(configurable, "Hidden installation", entity_kind, entity_id, "is_hidden", data.get("is_hidden", false))
-			ui._add_enum_property(configurable, "Route surface", entity_kind, entity_id, "route_surface", data.get("route_surface", "floor"), [{"label":"Floor", "value":"floor"}, {"label":"Wall", "value":"wall"}])
+			var route_surface_options: Array[Dictionary] = [{"label":"Floor", "value":"floor"}, {"label":"Wall", "value":"wall"}]
+			ui._add_enum_property(configurable, "Route surface", entity_kind, entity_id, "route_surface", data.get("route_surface", "floor"), route_surface_options)
 		elif power_object_type == "light":
 			ui._add_text_property(configurable, "Brightness", entity_kind, entity_id, "brightness", data.get("brightness", "1.0"))
 			ui._add_text_property(configurable, "Color", entity_kind, entity_id, "color", data.get("color", "#ffffff"))

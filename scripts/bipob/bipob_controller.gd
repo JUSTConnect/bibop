@@ -8163,7 +8163,7 @@ func interact() -> void:
 				if mission_manager.has_method("pickup_world_item"):
 					pickup_result = Dictionary(mission_manager.call("pickup_world_item", item_id))
 				if not bool(pickup_result.get("success", false)):
-					hint_requested.emit("Cannot pick up item: %s" % ", ".join(Array(pickup_result.get("reasons", []))))
+					hint_requested.emit(String(pickup_result.get("message", "Cannot pick up item: %s" % ", ".join(Array(pickup_result.get("reasons", []))))))
 					return
 				if is_digital_item:
 					store_digital_record(item_id if not item_id.is_empty() else "item_record", String(item.get("display_name", "Item")), "Recovered digital world item.")
@@ -8177,11 +8177,8 @@ func interact() -> void:
 					var key_kind := String(item.get("key_kind", "")).strip_edges()
 					if not key_kind.is_empty() or physical_item_type.contains("key") or physical_item_type == "access_code":
 						hint_requested.emit("Picked up %s" % String(item.get("display_name", "key")))
-					elif can_use_physical_hand():
-						buffer_item = item
-						hint_requested.emit("Picked up %s" % String(item.get("display_name", "item")))
 					else:
-						hint_requested.emit("Manipulator is occupied.")
+						hint_requested.emit("Picked up %s" % String(item.get("display_name", "item")))
 				clear_selected_world_action_if_invalid({}, item_cell)
 				update_threat_detection_preview()
 				emit_facing_world_object_hint()
@@ -9038,7 +9035,13 @@ func is_hand_occupied() -> bool:
 	return _get_first_free_manipulator_index() == -1
 
 func can_use_physical_hand() -> bool:
-	return not is_hand_occupied() and buffer_item.is_empty()
+	if is_hand_occupied() or (not buffer_item.is_empty() and not _is_digital_storage_item(buffer_item)):
+		return false
+	if mission_manager != null and mission_manager.has_method("get_inventory_state"):
+		var inventory: Dictionary = Dictionary(mission_manager.call("get_inventory_state"))
+		if not String(inventory.get("manipulator_hold", "")).strip_edges().is_empty():
+			return false
+	return true
 
 func get_held_world_item_type() -> String:
 	if buffer_item.is_empty():
