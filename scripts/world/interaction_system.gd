@@ -37,7 +37,7 @@ static func can_apply_action(actor: Dictionary, module: Dictionary, target_objec
 			var unlock_target: Dictionary = target_object.duplicate(true)
 			if unlock_power_mode in ["external", "external_power", "external power"]:
 				unlock_target["power_mode"] = "internal"
-			var unlock_gate: Dictionary = _validate_door_class(actor, unlock_target)
+			var unlock_gate: Dictionary = _validate_door_class(actor, unlock_target, true)
 			if not bool(unlock_gate.get("success", false)):
 				return unlock_gate
 	if action_type == "connect" or action_type == "apply_digital_key" or action_type == "input_password" or action_type.begins_with("access_code_"):
@@ -107,7 +107,7 @@ static func apply_action(actor: Dictionary, module: Dictionary, target_object: D
 				return _result(false, "Door is connected to power source.")
 			elif unlock_power_mode in ["external", "external_power", "external power"]:
 				target_object["power_mode"] = "internal"
-			var door_gate: Dictionary = _validate_door_class(actor, target_object)
+			var door_gate: Dictionary = _validate_door_class(actor, target_object, true)
 			if not door_gate.success:
 				return door_gate
 			var required_key_id: String = String(target_object.get("required_key_id", "")).strip_edges()
@@ -257,6 +257,8 @@ static func apply_action(actor: Dictionary, module: Dictionary, target_object: D
 			var record_name: String = String(target_object.get("download_display_name", record_id)).strip_edges()
 			return _result(true, "Downloaded %s." % record_name, [{"type":"store_digital_record","record_id":record_id,"display_name":record_name,"description":"Downloaded from %s" % String(target_object.get("display_name", target_object.get("id", "device")))}])
 		"push", "pull":
+			if action_type == "push" and not WorldObjectCatalogRef.can_world_object_be_moved_by_heavy_claw(target_object):
+				return _result(false, "Object cannot be moved by Heavy Claw.")
 			var move_gate: Dictionary = _validate_weight_class(actor, target_object)
 			if not move_gate.success:
 				return move_gate
@@ -276,6 +278,8 @@ static func apply_action(actor: Dictionary, module: Dictionary, target_object: D
 			var direction: Vector2i = facing
 			if action_type == "pull":
 				direction = -facing
+			if action_type == "push":
+				return _result(true, "Heavy object moved.")
 			return _result(true, "Object moved.", [{"type":"object_move","mode":action_type,"direction":direction,"dx":direction.x,"dy":direction.y}])
 		"insert_fuse":
 			if not String(target_object.get("object_type", "")).begins_with("fuse_box") and String(target_object.get("object_type", "")) != "fuse_block":
@@ -476,9 +480,9 @@ static func _door_requires_key_card(object_data: Dictionary) -> bool:
 static func _door_requires_terminal(object_data: Dictionary) -> bool:
 	return _get_door_access_type(object_data) == WorldObjectCatalogRef.ACCESS_TYPE_TERMINAL
 
-static func _validate_door_class(actor: Dictionary, target_object: Dictionary) -> Dictionary:
+static func _validate_door_class(actor: Dictionary, target_object: Dictionary, allow_external_control: bool = false) -> Dictionary:
 	var control_mode := String(target_object.get("control_type", target_object.get("control_mode", "internal"))).strip_edges().to_lower()
-	if control_mode in ["external", "external_control", "external control", "terminal"]:
+	if not allow_external_control and control_mode in ["external", "external_control", "external control", "terminal"]:
 		return _result(false, "Use linked terminal.", [], "terminal_control_required")
 	var power_mode := String(target_object.get("power_mode", "internal")).strip_edges().to_lower()
 	if power_mode in ["external", "external_power", "external power"] and not bool(target_object.get("is_powered", true)):

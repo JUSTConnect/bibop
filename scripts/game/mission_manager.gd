@@ -5831,21 +5831,10 @@ func move_world_object_by_heavy_claw(object_id: String, target_cell: Vector2i) -
 	if from_cell == target_cell:
 		result["message"] = "Object already there."
 		return result
-	if target_cell.x < 0 or target_cell.y < 0:
+	var target_cell_state: Dictionary = get_runtime_cell_state(target_cell)
+	if not bool(target_cell_state.get("in_bounds", false)) or not bool(target_cell_state.get("is_passable", false)):
 		result["message"] = "Target cell is blocked."
 		return result
-	if grid_manager != null:
-		if grid_manager.has_method("is_in_bounds") and not bool(grid_manager.is_in_bounds(target_cell)):
-			result["message"] = "Target cell is blocked."
-			return result
-		if grid_manager.has_method("is_walkable") and not bool(grid_manager.is_walkable(target_cell)):
-			result["message"] = "Target cell is blocked."
-			return result
-		if grid_manager.has_method("get_tile"):
-			var tile := int(grid_manager.get_tile(target_cell))
-			if tile == grid_manager.TILE_WALL:
-				result["message"] = "Target cell is blocked."
-				return result
 	if from_cell.x < 0 or from_cell.y < 0:
 		result["message"] = "Object not found."
 		return result
@@ -5853,12 +5842,13 @@ func move_world_object_by_heavy_claw(object_id: String, target_cell: Vector2i) -
 	if not target_object.is_empty():
 		result["message"] = "Target cell is occupied."
 		return result
-	if cell_items.has(target_cell) and not Array(cell_items.get(target_cell, [])).is_empty():
-		result["message"] = "Target cell contains items."
-		return result
 	world_objects_by_cell.erase(from_cell)
 	object_data["position"] = target_cell
 	world_objects_by_cell[target_cell] = object_data
+	for object_index in range(mission_world_objects.size()):
+		if String(mission_world_objects[object_index].get("id", "")) == object_id:
+			mission_world_objects[object_index] = object_data
+			break
 	refresh_world_cooling_received()
 	PowerSystemRef.recalculate_network(mission_world_objects, "power_net_A")
 	refresh_world_cooling_received()
