@@ -65,32 +65,45 @@ func _is_map_constructor_key_data(data: Dictionary) -> bool:
 
 func validate_constructor_palette_contract() -> Array[String]:
 	var warnings: Array[String] = []
-	var visible_archetypes: Dictionary = {}
+	var archetype_counts: Dictionary = {}
 	var visible_wall_prefabs: Array[String] = []
+	var visible_floor_prefabs: Array[String] = []
 	for row in WorldObjectCatalogRef.get_constructor_palette_rows():
 		var prefab_id: String = _safe_string(row.get("prefab_id", row.get("id", ""))).strip_edges()
 		var archetype_id: String = _safe_string(row.get("archetype_id", "")).strip_edges()
 		if prefab_id.is_empty():
 			warnings.append("constructor_palette_row_missing_prefab_id")
 			continue
-		if WorldObjectCatalogRef.LEGACY_DOOR_IDS.has(prefab_id) or WorldObjectCatalogRef.is_constructor_door_preset(prefab_id) or WorldObjectCatalogRef.LEGACY_WALL_ALIAS_CONFIGS.has(prefab_id):
+		if WorldObjectCatalogRef.LEGACY_DOOR_IDS.has(prefab_id) or WorldObjectCatalogRef.LEGACY_FLOOR_IDS.has(prefab_id) or WorldObjectCatalogRef.is_constructor_door_preset(prefab_id) or WorldObjectCatalogRef.LEGACY_WALL_ALIAS_CONFIGS.has(prefab_id):
 			warnings.append("constructor_palette_exposes_legacy_alias_%s" % prefab_id)
+		if archetype_id == "floor" or prefab_id == "floor":
+			visible_floor_prefabs.append(prefab_id)
+		if prefab_id == "stepped_floor" or WorldObjectCatalogRef.LEGACY_FLOOR_IDS.has(prefab_id):
+			warnings.append("constructor_palette_exposes_floor_variant_%s" % prefab_id)
 		if _safe_string(row.get("object_group", "")) == "wall":
 			visible_wall_prefabs.append(prefab_id)
 		if not archetype_id.is_empty():
-			if visible_archetypes.has(archetype_id):
+			archetype_counts[archetype_id] = int(archetype_counts.get(archetype_id, 0)) + 1
+			if int(archetype_counts[archetype_id]) > 1:
 				warnings.append("constructor_palette_duplicate_archetype_%s" % archetype_id)
-			visible_archetypes[archetype_id] = true
 		var object_data: Dictionary = WorldObjectCatalogRef.create_world_object(prefab_id, "validation_%s" % prefab_id)
 		if object_data.is_empty():
 			warnings.append("constructor_palette_prefab_creates_empty_object_%s" % prefab_id)
-	if not visible_archetypes.has("door"):
+	var required_archetype_warning_ids: Dictionary = {
+		"door":"constructor_palette_requires_exactly_one_door",
+		"floor":"constructor_palette_requires_exactly_one_floor",
+		"external_wall":"constructor_palette_requires_exactly_one_external_wall",
+		"wall":"constructor_palette_requires_exactly_one_wall"
+	}
+	for required_archetype in required_archetype_warning_ids:
+		if int(archetype_counts.get(required_archetype, 0)) != 1:
+			warnings.append(required_archetype_warning_ids[required_archetype])
+	if not archetype_counts.has("door"):
 		warnings.append("constructor_palette_missing_door_archetype")
+	if visible_floor_prefabs != ["floor"]:
+		warnings.append("constructor_palette_floor_entries_must_be_exactly_floor")
 	if visible_wall_prefabs != ["external_wall", "wall"] and visible_wall_prefabs != ["wall", "external_wall"]:
 		warnings.append("constructor_palette_wall_entries_must_be_exactly_external_wall_and_wall")
-	for required_wall_archetype in ["external_wall", "wall"]:
-		if visible_wall_prefabs.count(required_wall_archetype) != 1:
-			warnings.append("constructor_palette_requires_exactly_one_%s" % required_wall_archetype)
 	var external_wall: Dictionary = WorldObjectCatalogRef.create_world_object("external_wall", "validation_external_wall")
 	if bool(external_wall.get("configurable", true)):
 		warnings.append("external_wall_must_not_be_configurable")
@@ -113,6 +126,32 @@ func validate_constructor_palette_contract() -> Array[String]:
 			warnings.append("wall_display_name_not_generated_%s" % material)
 	if not WorldObjectCatalogRef.get_wall_material_quick_presets().is_empty():
 		warnings.append("wall_material_quick_presets_forbidden")
+	var floor_schema: Array[Dictionary] = WorldObjectCatalogRef.get_archetype_property_schema("floor")
+	if floor_schema.is_empty():
+		warnings.append("floor_archetype_missing_property_schema")
+	var floor_schema_fields: Dictionary = {}
+	for field in floor_schema:
+		floor_schema_fields[_safe_string(field.get("field", ""))] = field
+	var floor_material_schema: Dictionary = floor_schema_fields.get("material", {})
+	if floor_material_schema.is_empty():
+		warnings.append("floor_archetype_missing_material_field")
+	elif Array(floor_material_schema.get("values", [])) != WorldObjectCatalogRef.FLOOR_MATERIALS or _safe_string(floor_material_schema.get("default", "")) != "steel":
+		warnings.append("floor_archetype_material_contract_invalid")
+	var floor_covering_schema: Dictionary = floor_schema_fields.get("covering", {})
+	if floor_covering_schema.is_empty():
+		warnings.append("floor_archetype_missing_covering_field")
+	elif Array(floor_covering_schema.get("values", [])) != WorldObjectCatalogRef.FLOOR_COVERINGS or _safe_string(floor_covering_schema.get("default", "")) != "default":
+		warnings.append("floor_archetype_covering_contract_invalid")
+	var floor_visual_style_schema: Dictionary = floor_schema_fields.get("visual_style", {})
+	if floor_visual_style_schema.is_empty():
+		warnings.append("floor_archetype_missing_visual_style_field")
+	elif Array(floor_visual_style_schema.get("values", [])) != WorldObjectCatalogRef.FLOOR_VISUAL_STYLES or _safe_string(floor_visual_style_schema.get("default", "")) != "default":
+		warnings.append("floor_archetype_visual_style_contract_invalid")
+	var expected_floor_display_names: Dictionary = {"steel":"Steel Floor", "concrete":"Concrete Floor", "grate":"Grate Floor"}
+	for material in expected_floor_display_names:
+		var generated_floor: Dictionary = WorldObjectCatalogRef.create_archetype_object("floor", "validation_floor_%s" % material, {"material":material})
+		if _safe_string(generated_floor.get("display_name", "")) != _safe_string(expected_floor_display_names[material]):
+			warnings.append("floor_display_name_not_generated_%s" % material)
 	if manager != null and is_instance_valid(manager):
 		var floor_palette_count: int = 0
 		for palette_row in manager.get_map_constructor_prefab_catalog():
