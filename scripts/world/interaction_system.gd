@@ -149,7 +149,7 @@ static func apply_action(actor: Dictionary, module: Dictionary, target_object: D
 				var hits: int = int(target_object.get("impact_hits", 0)) + 1
 				target_object["impact_hits"] = hits
 				var material: String = String(target_object.get("material", ""))
-				if String(target_object.get("object_type", "")) == "grid_door":
+				if WorldObjectCatalogRef.get_legacy_source_id(target_object) == "grid_door":
 					if hits >= 2:
 						target_object["state"] = "destroyed"
 						return _result(true, "Grid door destroyed.", [{"type":"set_state","state":"destroyed"},{"type":"set_blocks_movement","value":false}])

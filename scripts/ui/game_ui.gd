@@ -416,8 +416,7 @@ const MAP_CONSTRUCTOR_POWER_PREFAB_IDS: Array[String] = [
 	"power_source_class_1",
 	"power_socket",
 	"power_cable",
-	"power_cable_reel",
-	"powered_gate"
+	"power_cable_reel"
 ]
 const MAP_CONSTRUCTOR_PREFAB_CATEGORY_GROUP_ORDER: Array[String] = [
 	"Structural",

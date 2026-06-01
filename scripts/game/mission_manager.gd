@@ -1925,20 +1925,20 @@ func build_task_test_mission_world_objects_for_validation() -> Dictionary:
 	var objects: Array[Dictionary] = []
 	var specs: Array[Dictionary] = [
 		# Basic doors
-		{"type":"steel_door","id":"task_test_door_open_mechanical","pos":Vector2i(2, 1),"extra":{"state":"open","is_open":true,"is_locked":false}},
-		{"type":"steel_door","id":"task_test_door_closed_mechanical","pos":Vector2i(3, 1),"extra":{"state":"closed","is_open":false,"is_locked":false}},
-		{"type":"grid_door","id":"task_test_door_jammed","pos":Vector2i(4, 1),"extra":{"state":"jammed","damaged":true,"is_locked":true}},
+		{"type":"door","id":"task_test_door_open_mechanical","pos":Vector2i(2, 1),"extra":{"door_type":"mechanical","material":"steel","access_type":"key_card","state":"open"}},
+		{"type":"door","id":"task_test_door_closed_mechanical","pos":Vector2i(3, 1),"extra":{"door_type":"mechanical","material":"steel","access_type":"key_card","state":"closed"}},
+		{"type":"door","id":"task_test_door_jammed","pos":Vector2i(4, 1),"extra":{"door_type":"mechanical","material":"steel","access_type":"no_key","state":"jammed","damaged":true}},
 		# Mechanical key doors
-		{"type":"steel_door","id":"task_test_door_locked_mechanical","pos":Vector2i(6, 1),"extra":{"state":"locked","is_locked":true,"lock_type":"mechanical_key","required_key_id":"task_test_item_mechanical_keycard"}},
+		{"type":"door","id":"task_test_door_locked_mechanical","pos":Vector2i(6, 1),"extra":{"door_type":"mechanical","material":"steel","access_type":"key_card","state":"locked","required_key_id":"task_test_item_mechanical_keycard"}},
 		# Digital key doors
-		{"type":"energy_door","id":"task_test_door_open_digital","pos":Vector2i(8, 1),"extra":{"state":"open","is_open":true,"is_locked":false,"lock_type":"digital_key","required_key_id":"task_test_item_digital_key_opened","power_network_id":"task_test_power_main"}},
-		{"type":"energy_door","id":"task_test_door_locked_digital","pos":Vector2i(9, 1),"extra":{"state":"locked","is_locked":true,"lock_type":"digital_key","required_key_id":"task_test_item_digital_key_encrypted","power_network_id":"task_test_power_main"}},
+		{"type":"door","id":"task_test_door_open_digital","pos":Vector2i(8, 1),"extra":{"door_type":"digital","material":"energy","access_type":"digital_key","state":"open","required_key_id":"task_test_item_digital_key_opened","power_network_id":"task_test_power_main"}},
+		{"type":"door","id":"task_test_door_locked_digital","pos":Vector2i(9, 1),"extra":{"door_type":"digital","material":"energy","access_type":"digital_key","state":"locked","required_key_id":"task_test_item_digital_key_encrypted","power_network_id":"task_test_power_main"}},
 		# Terminal-controlled doors
-		{"type":"reinforced_steel_door","id":"task_test_door_terminal_locked","pos":Vector2i(11, 1),"extra":{"state":"locked","is_locked":true,"lock_type":"terminal_lock","linked_terminal_id":"task_test_terminal_basic_door"}},
+		{"type":"door","id":"task_test_door_terminal_locked","pos":Vector2i(11, 1),"extra":{"door_type":"digital","material":"reinforced_steel","access_type":"terminal","state":"locked","linked_terminal_id":"task_test_terminal_basic_door"}},
 		{"type":"terminal","id":"task_test_terminal_basic_door","pos":Vector2i(12, 1),"extra":{"terminal_type":"control","controlled_target_type":"door","state":"active","is_powered":true,"target_door_id":"task_test_door_terminal_locked"}},
 		# Powered gates
-		{"type":"energy_door","id":"task_test_powered_gate_main","pos":Vector2i(2, 3),"extra":{"state":"closed","is_open":false,"is_locked":false,"requires_external_power":true,"power_network_id":"task_test_power_main"}},
-		{"type":"energy_door","id":"task_test_powered_gate_unpowered","pos":Vector2i(3, 3),"extra":{"state":"unpowered","is_open":false,"is_locked":true,"requires_external_power":true,"is_powered":false,"power_network_id":"task_test_power_missing"}},
+		{"type":"door","id":"task_test_powered_gate_main","pos":Vector2i(2, 3),"extra":{"door_type":"powered","material":"energy","access_type":"no_key","power_behavior":"opens_when_unpowered","power_type":"external","state":"closed","requires_external_power":true,"power_network_id":"task_test_power_main"}},
+		{"type":"door","id":"task_test_powered_gate_unpowered","pos":Vector2i(3, 3),"extra":{"door_type":"powered","material":"energy","access_type":"no_key","power_behavior":"opens_when_unpowered","power_type":"external","state":"unpowered","requires_external_power":true,"is_powered":false,"power_network_id":"task_test_power_missing"}},
 		# Power network
 		{"type":"power_source_class_1","id":"task_test_source_class_1","pos":Vector2i(5, 3),"extra":{"power_network_id":"task_test_power_main","connected_device_ids":["task_test_powered_gate_main"]}},
 		{"type":"power_source_class_2","id":"task_test_source_class_2","pos":Vector2i(6, 3),"extra":{"power_network_id":"task_test_power_main","connected_device_ids":["task_test_terminal_basic_door"],"current_heat":2,"working_heat":3,"overheat_threshold":6}},
@@ -1960,7 +1960,7 @@ func build_task_test_mission_world_objects_for_validation() -> Dictionary:
 		{"type":"terminal","id":"task_test_terminal_heat_device","pos":Vector2i(5, 5),"extra":{"state":"active","is_powered":true,"working_heat":4,"current_heat":6,"overheat_threshold":9,"cooling_received":1,"overheated_state_before":false}},
 		{"type":"terminal","id":"task_test_terminal_overheated","pos":Vector2i(6, 5),"extra":{"status":"active","state":"active","is_powered":true,"working_heat":3,"current_heat":7,"overheat_threshold":5,"cooling_received":0,"overheated_state_before":true}},
 		# Control network
-		{"type":"steel_door","id":"task_test_control_switch_door","pos":Vector2i(8, 5),"extra":{"state":"closed","control_type":"switch","control_source_id":"task_test_switch","requires_external_control":true}},
+		{"type":"door","id":"task_test_control_switch_door","pos":Vector2i(8, 5),"extra":{"door_type":"mechanical","material":"steel","access_type":"no_key","state":"closed","control_type":"external","control_source_id":"task_test_switch","requires_external_control":true}},
 		{"type":"lifting_platform","id":"task_test_control_terminal_platform","pos":Vector2i(9, 5),"extra":{"platform_id":"task_test_control_terminal_platform","control_type":"terminal","linked_terminal_id":"task_test_terminal_control","requires_external_control":true,"requires_terminal_enabled":true}},
 		{"type":"terminal","id":"task_test_terminal_control","pos":Vector2i(10, 5),"extra":{"terminal_type":"control","controlled_target_type":"platform","linked_platform_ids":["task_test_control_terminal_platform"],"state":"active","is_powered":true,"target_platform_id":"task_test_control_terminal_platform"}},
 		{"type":"rotating_platform","id":"task_test_control_missing_source","pos":Vector2i(11, 5),"extra":{"platform_id":"task_test_control_missing_source","requires_external_control":true}},
@@ -1989,10 +1989,10 @@ func build_task_test_mission_world_objects_for_validation() -> Dictionary:
 		{"type":"terminal","id":"task_test_terminal_processor_gate","pos":Vector2i(6, 8),"extra":{"state":"active","is_powered":true,"required_processor_level":1}},
 		
 		{"type":"terminal","id":"task_test_terminal_main","pos":Vector2i(7, 8),"extra":{"terminal_type":"control","controlled_target_type":"door","state":"active","is_powered":true,"required_connector_level":1,"required_processor_level":1,"target_door_id":"task_test_door_terminal_locked"}},
-		{"type":"steel_door","id":"task_test_door_mechanical","pos":Vector2i(5, 1),"extra":{"state":"locked","is_locked":true,"lock_type":"mechanical_key","required_key_id":"task_test_item_mechanical_keycard"}},
+		{"type":"door","id":"task_test_door_mechanical","pos":Vector2i(5, 1),"extra":{"door_type":"mechanical","material":"steel","access_type":"key_card","state":"locked","required_key_id":"task_test_item_mechanical_keycard"}},
 		{"type":"lifting_platform","id":"task_test_platform_lift","pos":Vector2i(8, 8),"extra":{"platform_id":"task_test_platform_lift","is_powered":false,"requires_external_power":true,"power_network_id":"task_test_power_missing"}},
 		{"type":"power_cable","id":"task_test_xray_route_marker","pos":Vector2i(9, 7),"extra":{"hidden":true,"visible_with_xray":true}},
-{"type":"energy_door","id":"task_test_extraction_door","pos":Vector2i(14, 7),"extra":{"state":"open","is_locked":false,"mission_exit":true,"extraction":true}}
+{"type":"door","id":"task_test_extraction_door","pos":Vector2i(14, 7),"extra":{"door_type":"digital","material":"energy","access_type":"digital_key","state":"open","mission_exit":true,"extraction":true}}
 	]
 	for spec in specs:
 		var obj: Dictionary = WorldObjectCatalogRef.create_world_object(String(spec.get("type", "")), String(spec.get("id", "")))
@@ -2004,6 +2004,7 @@ func build_task_test_mission_world_objects_for_validation() -> Dictionary:
 		for key_variant in extra.keys():
 			var key_name: String = String(key_variant)
 			obj[key_name] = extra[key_variant]
+		obj = WorldObjectCatalogRef.normalize_door_state_fields(WorldObjectCatalogRef.normalize_world_object_contract(obj))
 		objects.append(obj)
 
 	var items_by_cell: Dictionary = {}
@@ -2105,10 +2106,11 @@ func _should_assign_main_power_network(object_data: Dictionary) -> bool:
 		"circuit_breaker",
 		"fuse_box_installed",
 		"door_terminal",
-		"energy_door",
 		"energy_wall",
 		"light"
 	]:
+		return true
+	if object_group == "door" and (String(object_data.get("material", "")) == WorldObjectCatalogRef.DOOR_MATERIAL_ENERGY or String(object_data.get("power_behavior", "none")) != WorldObjectCatalogRef.POWER_BEHAVIOR_NONE):
 		return true
 	if object_group in ["terminal", "power"]:
 		return object_type != "fuse_box_empty"
@@ -5958,8 +5960,7 @@ func _is_power_network_object(object_data: Dictionary) -> bool:
 		"circuit_switch",
 		"fuse_box",
 		"light",
-		"light_switch",
-		"energy_door"
+		"light_switch"
 	]:
 		return true
 	return object_data.has("power_network_id") or object_data.has("network_id") or object_data.has("connected_power_source_id")
@@ -7438,10 +7439,10 @@ func validate_power_network_debug_scenario() -> Array[String]:
 	temp_objects.append(_build_power_network_debug_object("power_debug_terminal_damaged_terminal", "terminal", "power_debug_terminal_damaged", {"is_powered": false, "state": "damaged"}))
 	temp_objects.append(_build_power_network_debug_object("power_debug_energy_door_blocked_source", "power_source", "power_debug_energy_door_blocked", {"is_powered": true}))
 	temp_objects.append(_build_power_network_debug_object("power_debug_energy_door_blocked_switch", "circuit_switch", "power_debug_energy_door_blocked", {"state": "switch_off"}))
-	temp_objects.append(_build_power_network_debug_object("power_debug_energy_door_blocked_door", "energy_door", "power_debug_energy_door_blocked", {"is_powered": true, "state": "closed"}))
+	temp_objects.append(_build_power_network_debug_object("power_debug_energy_door_blocked_door", "door", "power_debug_energy_door_blocked", {"object_group":"door", "archetype_id":"door", "material":"energy", "door_type":"powered", "access_type":"no_key", "power_behavior":"opens_when_unpowered", "is_powered": true, "state": "closed"}))
 	temp_objects.append(_build_power_network_debug_object("power_debug_energy_door_powered_source", "power_source", "power_debug_energy_door_powered", {"is_powered": true}))
 	temp_objects.append(_build_power_network_debug_object("power_debug_energy_door_powered_switch", "circuit_switch", "power_debug_energy_door_powered", {"state": "switch_on"}))
-	temp_objects.append(_build_power_network_debug_object("power_debug_energy_door_powered_door", "energy_door", "power_debug_energy_door_powered", {"is_powered": false, "state": "unpowered"}))
+	temp_objects.append(_build_power_network_debug_object("power_debug_energy_door_powered_door", "door", "power_debug_energy_door_powered", {"object_group":"door", "archetype_id":"door", "material":"energy", "door_type":"powered", "access_type":"no_key", "power_behavior":"opens_when_unpowered", "is_powered": false, "state": "unpowered"}))
 	temp_objects.append(_build_power_network_debug_object("power_debug_platform_blocked_source", "power_source", "power_debug_platform_blocked", {"is_powered": true}))
 	temp_objects.append(_build_power_network_debug_object("power_debug_platform_blocked_switch", "circuit_switch", "power_debug_platform_blocked", {"state": "switch_off"}))
 	temp_objects.append(_build_power_network_debug_object("power_debug_platform_blocked_platform", "lifting_platform", "power_debug_platform_blocked", {"is_powered": true, "state": "active", "height_level": 1}))
@@ -7453,7 +7454,7 @@ func validate_power_network_debug_scenario() -> Array[String]:
 	temp_objects.append(_build_power_network_debug_object("power_debug_platform_damaged_platform", "lifting_platform", "power_debug_platform_damaged", {"is_powered": true, "state": "damaged", "height_level": 2, "damaged": true}))
 	temp_objects.append(_build_power_network_debug_object("power_debug_source_load_ok", "power_source_class_2", "power_debug_source_load_ok", {"is_powered": true, "state": "active", "outlet_capacity": 2, "current_heat": 0, "overheat_threshold": 10}))
 	temp_objects.append(_build_power_network_debug_object("power_debug_source_load_ok_terminal", "terminal", "power_debug_source_load_ok", {"is_powered": false, "state": "unpowered"}))
-	temp_objects.append(_build_power_network_debug_object("power_debug_source_load_ok_door", "energy_door", "power_debug_source_load_ok", {"is_powered": false, "state": "unpowered"}))
+	temp_objects.append(_build_power_network_debug_object("power_debug_source_load_ok_door", "door", "power_debug_source_load_ok", {"object_group":"door", "archetype_id":"door", "material":"energy", "door_type":"powered", "access_type":"no_key", "power_behavior":"opens_when_unpowered", "is_powered": false, "state": "unpowered"}))
 	temp_objects.append(_build_power_network_debug_object("power_debug_source_fallback_class2_source", "power_source_class_2", "power_debug_source_fallback_class2", {"is_powered": true, "state": "active", "current_heat": 0, "overheat_threshold": 10}))
 	temp_objects.append(_build_power_network_debug_object("power_debug_source_fallback_class2_terminal_a", "terminal", "power_debug_source_fallback_class2", {"is_powered": false, "state": "unpowered"}))
 	temp_objects.append(_build_power_network_debug_object("power_debug_source_fallback_class2_terminal_b", "terminal", "power_debug_source_fallback_class2", {"is_powered": false, "state": "unpowered"}))
@@ -8065,7 +8066,7 @@ func validate_full_power_system_runtime() -> Array[String]:
 	var cleanup_ids: Array[String] = []
 	temp_objects.append(_build_power_network_debug_object("power_debug_source_recovery_source", "power_source_class_1", "power_debug_source_recovery", {"state": "overheated", "is_powered": false, "overheated_state_before": "active", "current_heat": 4, "working_heat": 1, "heat_from_connections": 2, "cooling_received": 5, "overheat_threshold": 4}))
 	temp_objects.append(_build_power_network_debug_object("power_debug_source_recovery_terminal", "terminal", "power_debug_source_recovery", {"is_powered": false, "state": "unpowered"}))
-	temp_objects.append(_build_power_network_debug_object("power_debug_source_recovery_door", "energy_door", "power_debug_source_recovery", {"is_powered": false, "state": "unpowered"}))
+	temp_objects.append(_build_power_network_debug_object("power_debug_source_recovery_door", "door", "power_debug_source_recovery", {"object_group":"door", "archetype_id":"door", "material":"energy", "door_type":"powered", "access_type":"no_key", "power_behavior":"opens_when_unpowered", "is_powered": false, "state": "unpowered"}))
 	temp_objects.append(_build_power_network_debug_object("power_debug_source_recovery_platform", "lifting_platform", "power_debug_source_recovery", {"is_powered": false, "state": "unpowered", "height_level": 1}))
 	temp_objects.append(_build_power_network_debug_object("power_debug_source_recovery_damaged_source", "power_source_class_1", "power_debug_source_recovery_damaged", {"state": "overheated", "is_powered": false, "overheated_state_before": "damaged", "current_heat": 4, "working_heat": 1, "cooling_received": 6, "overheat_threshold": 4}))
 	temp_objects.append(_build_power_network_debug_object("power_debug_source_recovery_damaged_terminal", "terminal", "power_debug_source_recovery_damaged", {"is_powered": false, "state": "unpowered"}))

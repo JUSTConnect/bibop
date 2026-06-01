@@ -46,6 +46,11 @@ const ITEM_DISPLAY_NAMES: Dictionary = {
 }
 const POWER_BEHAVIOR_NONE := "none"
 const POWER_BEHAVIOR_OPENS_WHEN_UNPOWERED := "opens_when_unpowered"
+const POWER_BEHAVIOR_REQUIRES_POWER_TO_OPEN := "requires_power_to_open"
+const POWER_BEHAVIORS: Array[String] = [POWER_BEHAVIOR_NONE, POWER_BEHAVIOR_OPENS_WHEN_UNPOWERED, POWER_BEHAVIOR_REQUIRES_POWER_TO_OPEN]
+const DOOR_POWER_TYPES: Array[String] = ["internal", "external", "none"]
+const DOOR_CONTROL_TYPES: Array[String] = ["internal", "external", "terminal"]
+const DOOR_STATES: Array[String] = ["closed", "open", "damaged", "jammed", "locked", "unpowered"]
 
 const FLOOR_MATERIALS: Array[String] = ["steel", "concrete", "grate"]
 const FLOOR_COVERINGS: Array[String] = ["default", "dirt", "water", "debris", "oil"]
@@ -53,9 +58,6 @@ const FLOOR_VISUAL_STYLES: Array[String] = ["default", "permission"]
 const FLOOR_STATES: Array[String] = ["normal", "damaged"]
 
 const PREFAB_ALIASES: Dictionary = {
-	"mechanical_door": "steel_door",
-	"digital_door": "energy_door",
-	"powered_gate": "energy_door",
 	"steel_floor": "floor",
 	"concrete_floor": "floor",
 	"grate_floor": "floor",
@@ -69,9 +71,6 @@ const PREFAB_ALIASES: Dictionary = {
 const LEGACY_SOURCE_METADATA_FIELDS: Array[String] = ["legacy_prefab_id", "map_constructor_prefab_id", "legacy_object_type", "source_prefab_id"]
 
 const PREFAB_ALIAS_DEFAULTS: Dictionary = {
-	"mechanical_door": {"object_group":"door", "door_type":DOOR_TYPE_MECHANICAL, "access_type":ACCESS_TYPE_KEY_CARD},
-	"digital_door": {"object_group":"door", "door_type":DOOR_TYPE_DIGITAL, "access_type":ACCESS_TYPE_DIGITAL_KEY},
-	"powered_gate": {"object_group":"door", "door_type":DOOR_TYPE_POWERED, "access_type":ACCESS_TYPE_NO_KEY, "power_behavior":POWER_BEHAVIOR_OPENS_WHEN_UNPOWERED, "requires_external_power":true, "power_mode":"external_power"},
 	"steel_floor": {"object_group":"floor", "material":"steel"},
 	"concrete_floor": {"object_group":"floor", "material":"concrete"},
 	"grate_floor": {"object_group":"floor", "material":"grate"},
@@ -95,18 +94,26 @@ const LEGACY_ITEM_ALIAS_CONFIGS: Dictionary = {
 }
 
 const LEGACY_DOOR_ALIAS_CONFIGS: Dictionary = {
-	"mechanical_steel_door": {"object_type":"steel_door", "door_type":DOOR_TYPE_MECHANICAL, "material":DOOR_MATERIAL_STEEL, "access_type":ACCESS_TYPE_KEY_CARD, "power_behavior":POWER_BEHAVIOR_NONE},
-	"mechanical_reinforced_steel_door": {"object_type":"reinforced_steel_door", "door_type":DOOR_TYPE_MECHANICAL, "material":DOOR_MATERIAL_REINFORCED_STEEL, "access_type":ACCESS_TYPE_KEY_CARD, "power_behavior":POWER_BEHAVIOR_NONE},
-	"mechanical_titanium_door": {"object_type":"titanium_door", "door_type":DOOR_TYPE_MECHANICAL, "material":DOOR_MATERIAL_TITANIUM, "access_type":ACCESS_TYPE_KEY_CARD, "power_behavior":POWER_BEHAVIOR_NONE},
-	"mechanical_energy_door": {"object_type":"energy_door", "door_type":DOOR_TYPE_MECHANICAL, "material":DOOR_MATERIAL_ENERGY, "access_type":ACCESS_TYPE_KEY_CARD, "power_behavior":POWER_BEHAVIOR_NONE},
-	"digital_steel_door": {"object_type":"steel_door", "door_type":DOOR_TYPE_DIGITAL, "material":DOOR_MATERIAL_STEEL, "access_type":ACCESS_TYPE_DIGITAL_KEY, "power_behavior":POWER_BEHAVIOR_NONE},
-	"digital_reinforced_steel_door": {"object_type":"reinforced_steel_door", "door_type":DOOR_TYPE_DIGITAL, "material":DOOR_MATERIAL_REINFORCED_STEEL, "access_type":ACCESS_TYPE_DIGITAL_KEY, "power_behavior":POWER_BEHAVIOR_NONE},
-	"digital_titanium_door": {"object_type":"titanium_door", "door_type":DOOR_TYPE_DIGITAL, "material":DOOR_MATERIAL_TITANIUM, "access_type":ACCESS_TYPE_DIGITAL_KEY, "power_behavior":POWER_BEHAVIOR_NONE},
-	"digital_energy_door": {"object_type":"energy_door", "door_type":DOOR_TYPE_DIGITAL, "material":DOOR_MATERIAL_ENERGY, "access_type":ACCESS_TYPE_DIGITAL_KEY, "power_behavior":POWER_BEHAVIOR_NONE},
-	"powered_steel_door": {"object_type":"steel_door", "door_type":DOOR_TYPE_POWERED, "material":DOOR_MATERIAL_STEEL, "access_type":ACCESS_TYPE_NO_KEY, "power_behavior":POWER_BEHAVIOR_OPENS_WHEN_UNPOWERED, "requires_external_power":true, "power_mode":"external_power"},
-	"powered_reinforced_steel_door": {"object_type":"reinforced_steel_door", "door_type":DOOR_TYPE_POWERED, "material":DOOR_MATERIAL_REINFORCED_STEEL, "access_type":ACCESS_TYPE_NO_KEY, "power_behavior":POWER_BEHAVIOR_OPENS_WHEN_UNPOWERED, "requires_external_power":true, "power_mode":"external_power"},
-	"powered_titanium_door": {"object_type":"titanium_door", "door_type":DOOR_TYPE_POWERED, "material":DOOR_MATERIAL_TITANIUM, "access_type":ACCESS_TYPE_NO_KEY, "power_behavior":POWER_BEHAVIOR_OPENS_WHEN_UNPOWERED, "requires_external_power":true, "power_mode":"external_power"},
-	"powered_energy_door": {"object_type":"energy_door", "door_type":DOOR_TYPE_POWERED, "material":DOOR_MATERIAL_ENERGY, "access_type":ACCESS_TYPE_NO_KEY, "power_behavior":POWER_BEHAVIOR_OPENS_WHEN_UNPOWERED, "requires_external_power":true, "power_mode":"external_power"}
+	"steel_door": {"object_type":"door", "door_type":DOOR_TYPE_MECHANICAL, "material":DOOR_MATERIAL_STEEL, "access_type":ACCESS_TYPE_KEY_CARD, "power_behavior":POWER_BEHAVIOR_NONE},
+	"reinforced_steel_door": {"object_type":"door", "door_type":DOOR_TYPE_DIGITAL, "material":DOOR_MATERIAL_REINFORCED_STEEL, "access_type":ACCESS_TYPE_TERMINAL, "power_behavior":POWER_BEHAVIOR_NONE},
+	"titanium_door": {"object_type":"door", "door_type":DOOR_TYPE_DIGITAL, "material":DOOR_MATERIAL_TITANIUM, "access_type":ACCESS_TYPE_ACCESS_CODE, "power_behavior":POWER_BEHAVIOR_NONE},
+	"energy_door": {"object_type":"door", "door_type":DOOR_TYPE_DIGITAL, "material":DOOR_MATERIAL_ENERGY, "access_type":ACCESS_TYPE_DIGITAL_KEY, "power_behavior":POWER_BEHAVIOR_NONE},
+	"grid_door": {"object_type":"door", "door_type":DOOR_TYPE_MECHANICAL, "material":DOOR_MATERIAL_STEEL, "access_type":ACCESS_TYPE_NO_KEY, "power_behavior":POWER_BEHAVIOR_NONE},
+	"mechanical_door": {"object_type":"door", "door_type":DOOR_TYPE_MECHANICAL, "material":DOOR_MATERIAL_STEEL, "access_type":ACCESS_TYPE_KEY_CARD, "power_behavior":POWER_BEHAVIOR_NONE},
+	"digital_door": {"object_type":"door", "door_type":DOOR_TYPE_DIGITAL, "material":DOOR_MATERIAL_ENERGY, "access_type":ACCESS_TYPE_DIGITAL_KEY, "power_behavior":POWER_BEHAVIOR_NONE},
+	"powered_gate": {"object_type":"door", "door_type":DOOR_TYPE_POWERED, "material":DOOR_MATERIAL_ENERGY, "access_type":ACCESS_TYPE_NO_KEY, "power_behavior":POWER_BEHAVIOR_OPENS_WHEN_UNPOWERED, "requires_external_power":true, "power_mode":"external_power"},
+	"mechanical_steel_door": {"object_type":"door", "door_type":DOOR_TYPE_MECHANICAL, "material":DOOR_MATERIAL_STEEL, "access_type":ACCESS_TYPE_KEY_CARD, "power_behavior":POWER_BEHAVIOR_NONE},
+	"mechanical_reinforced_steel_door": {"object_type":"door", "door_type":DOOR_TYPE_MECHANICAL, "material":DOOR_MATERIAL_REINFORCED_STEEL, "access_type":ACCESS_TYPE_KEY_CARD, "power_behavior":POWER_BEHAVIOR_NONE},
+	"mechanical_titanium_door": {"object_type":"door", "door_type":DOOR_TYPE_MECHANICAL, "material":DOOR_MATERIAL_TITANIUM, "access_type":ACCESS_TYPE_KEY_CARD, "power_behavior":POWER_BEHAVIOR_NONE},
+	"mechanical_energy_door": {"object_type":"door", "door_type":DOOR_TYPE_MECHANICAL, "material":DOOR_MATERIAL_ENERGY, "access_type":ACCESS_TYPE_KEY_CARD, "power_behavior":POWER_BEHAVIOR_NONE},
+	"digital_steel_door": {"object_type":"door", "door_type":DOOR_TYPE_DIGITAL, "material":DOOR_MATERIAL_STEEL, "access_type":ACCESS_TYPE_DIGITAL_KEY, "power_behavior":POWER_BEHAVIOR_NONE},
+	"digital_reinforced_steel_door": {"object_type":"door", "door_type":DOOR_TYPE_DIGITAL, "material":DOOR_MATERIAL_REINFORCED_STEEL, "access_type":ACCESS_TYPE_DIGITAL_KEY, "power_behavior":POWER_BEHAVIOR_NONE},
+	"digital_titanium_door": {"object_type":"door", "door_type":DOOR_TYPE_DIGITAL, "material":DOOR_MATERIAL_TITANIUM, "access_type":ACCESS_TYPE_DIGITAL_KEY, "power_behavior":POWER_BEHAVIOR_NONE},
+	"digital_energy_door": {"object_type":"door", "door_type":DOOR_TYPE_DIGITAL, "material":DOOR_MATERIAL_ENERGY, "access_type":ACCESS_TYPE_DIGITAL_KEY, "power_behavior":POWER_BEHAVIOR_NONE},
+	"powered_steel_door": {"object_type":"door", "door_type":DOOR_TYPE_POWERED, "material":DOOR_MATERIAL_STEEL, "access_type":ACCESS_TYPE_NO_KEY, "power_behavior":POWER_BEHAVIOR_OPENS_WHEN_UNPOWERED, "requires_external_power":true, "power_mode":"external_power"},
+	"powered_reinforced_steel_door": {"object_type":"door", "door_type":DOOR_TYPE_POWERED, "material":DOOR_MATERIAL_REINFORCED_STEEL, "access_type":ACCESS_TYPE_NO_KEY, "power_behavior":POWER_BEHAVIOR_OPENS_WHEN_UNPOWERED, "requires_external_power":true, "power_mode":"external_power"},
+	"powered_titanium_door": {"object_type":"door", "door_type":DOOR_TYPE_POWERED, "material":DOOR_MATERIAL_TITANIUM, "access_type":ACCESS_TYPE_NO_KEY, "power_behavior":POWER_BEHAVIOR_OPENS_WHEN_UNPOWERED, "requires_external_power":true, "power_mode":"external_power"},
+	"powered_energy_door": {"object_type":"door", "door_type":DOOR_TYPE_POWERED, "material":DOOR_MATERIAL_ENERGY, "access_type":ACCESS_TYPE_NO_KEY, "power_behavior":POWER_BEHAVIOR_OPENS_WHEN_UNPOWERED, "requires_external_power":true, "power_mode":"external_power"}
 }
 
 const WALL_MATERIAL_BRICK := "brick"
@@ -190,18 +197,19 @@ const ARCHETYPE_REGISTRY: Dictionary = {
 		]
 	},
 	"door": {
-		"archetype_id":"door", "object_group":"door", "object_type":"steel_door", "palette_label":"Door",
+		"archetype_id":"door", "object_group":"door", "object_type":"door", "palette_label":"Door",
+		"configurable":true,
 		"display_name_template":"{material_label} {door_type_label} Door",
 		"property_schema":[
 			{"field":"door_type", "type":"enum", "values":["mechanical", "digital", "powered"], "default":"mechanical"},
 			{"field":"material", "type":"enum", "values":["steel", "reinforced_steel", "titanium", "energy"], "default":"steel"},
-			{"field":"access_type", "type":"enum", "values":["no_key", "key_card", "digital_key", "access_code", "terminal"], "default":"no_key"},
-			{"field":"door_class", "type":"int", "default":1},
+			{"field":"access_type", "type":"enum", "values":["no_key", "key_card", "digital_key", "access_code", "terminal"], "default":"key_card"},
+			{"field":"door_class", "type":"enum", "values":[1, 2, 3], "default":1},
 			{"field":"power_type", "type":"enum", "values":["internal", "external", "none"], "default":"internal"},
-			{"field":"control_type", "type":"enum", "values":["internal", "external", "none"], "default":"internal"},
-			{"field":"power_behavior", "type":"enum", "values":["none", "opens_when_unpowered"], "default":"none"},
+			{"field":"control_type", "type":"enum", "values":["internal", "external", "terminal"], "default":"internal"},
+			{"field":"power_behavior", "type":"enum", "values":["none", "opens_when_unpowered", "requires_power_to_open"], "default":"none"},
 			{"field":"state", "type":"enum", "values":["closed", "open", "damaged", "jammed", "locked", "unpowered"], "default":"closed"},
-			{"field":"allowed_states", "type":"enum_array", "values":["closed", "open", "damaged", "jammed", "locked", "unpowered"], "default":["closed", "open", "damaged"]},
+			{"field":"allowed_states", "type":"enum_array", "values":["closed", "open", "damaged", "jammed", "locked", "unpowered"], "default":["closed", "open", "damaged", "jammed", "locked", "unpowered"]},
 			{"field":"required_key_id", "type":"string", "default":""},
 			{"field":"required_terminal_id", "type":"string", "default":""},
 			{"field":"required_access_code_id", "type":"string", "default":""},
@@ -260,7 +268,7 @@ const ARCHETYPE_REGISTRY: Dictionary = {
 	}
 }
 
-const LEGACY_DOOR_IDS: Array[String] = ["steel_door", "reinforced_steel_door", "titanium_door", "energy_door", "grid_door", "mechanical_door", "digital_door", "powered_gate", "digital_steel_door", "digital_titanium_door", "mechanical_titanium_door"]
+const LEGACY_DOOR_IDS: Array[String] = ["steel_door", "reinforced_steel_door", "titanium_door", "energy_door", "grid_door", "mechanical_door", "digital_door", "powered_gate", "mechanical_steel_door", "mechanical_reinforced_steel_door", "mechanical_titanium_door", "mechanical_energy_door", "digital_steel_door", "digital_reinforced_steel_door", "digital_titanium_door", "digital_energy_door", "powered_steel_door", "powered_reinforced_steel_door", "powered_titanium_door", "powered_energy_door"]
 const LEGACY_FLOOR_IDS: Array[String] = ["steel_floor", "concrete_floor", "grate_floor", "permission_floor", "water_floor", "oil_floor", "dirty_floor", "debris_floor"]
 
 static func canonical_prefab_id(prefab_id: String) -> String:
@@ -278,7 +286,7 @@ static func canonical_object_type(object_type: String) -> String:
 
 static func is_legacy_prefab_alias(value: String) -> bool:
 	var normalized_value: String = value.strip_edges().to_lower()
-	return PREFAB_ALIASES.has(normalized_value) or LEGACY_ITEM_ALIAS_CONFIGS.has(normalized_value) or LEGACY_WALL_ALIAS_CONFIGS.has(normalized_value) or LEGACY_TERMINAL_ALIAS_CONFIGS.has(normalized_value)
+	return PREFAB_ALIASES.has(normalized_value) or LEGACY_DOOR_ALIAS_CONFIGS.has(normalized_value) or LEGACY_ITEM_ALIAS_CONFIGS.has(normalized_value) or LEGACY_WALL_ALIAS_CONFIGS.has(normalized_value) or LEGACY_TERMINAL_ALIAS_CONFIGS.has(normalized_value)
 
 static func is_legacy_door_object_type(value: String) -> bool:
 	var normalized_value: String = value.strip_edges().to_lower()
@@ -417,11 +425,11 @@ static func apply_prefab_alias_defaults(canonical_type: String, original_type: S
 
 const OBJECT_LIBRARY := {
 	"terminal": {"group":"terminal","name":"Information Terminal","state":"active","status":"active","is_powered":true,"power_mode":"internal","control_mode":"internal","requires_external_control":false,"control_terminal_id":"","linked_terminal_id":"","connection_type":"wired","terminal_class":1,"required_connector_level":1,"required_processor_level":1,"encrypts_data":false,"drain_pool":10,"durability":10,"working_heat":1,"current_heat":1,"overheat_threshold":3,"heat_from_connections":0,"cooling_received":0,"hack_heat":1,"overheated_state_before":"","placeable_in_constructor":false},
-	"steel_door": {"group":"door","name":"Steel Door","door_type":"mechanical","material":"steel","access_type":"key_card","power_behavior":"none","durability":30,"state":"closed","blocks_movement":true,"blocks_vision":true,"door_class":1,"lock_type":"mechanical_key","required_manipulator_level":1,"required_connector_level":0,"power_mode":"external_power","control_mode":"external_control"},
-	"reinforced_steel_door": {"group":"door","name":"Reinforced Steel Door","door_type":"digital","material":"reinforced_steel","access_type":"terminal","power_behavior":"none","durability":40,"state":"closed","blocks_movement":true,"blocks_vision":true,"door_class":2,"lock_type":"terminal_lock","required_manipulator_level":2,"required_connector_level":0,"power_mode":"external_power","control_mode":"external_control"},
-	"titanium_door": {"group":"door","name":"Titanium Door","door_type":"digital","material":"titanium","access_type":"access_code","power_behavior":"none","durability":100,"state":"closed","blocks_movement":true,"blocks_vision":true,"door_class":3,"lock_type":"password","required_manipulator_level":3,"required_connector_level":0},
-	"energy_door": {"group":"door","name":"Energy Door","door_type":"digital","material":"energy","access_type":"digital_key","power_behavior":"none","durability":1,"state":"closed","blocks_movement":true,"blocks_vision":false,"door_class":1,"lock_type":"digital_key","required_manipulator_level":1,"required_connector_level":1,"invulnerable_while_powered":true,"power_mode":"external_power","control_mode":"external_control"},
-	"grid_door": {"group":"door","name":"Grid Door","door_type":"mechanical","material":"steel","access_type":"no_key","power_behavior":"none","durability":15,"state":"closed","blocks_movement":true,"blocks_vision":false,"door_class":1,"lock_type":"none","required_manipulator_level":1,"required_connector_level":0},
+	"steel_door": {"group":"door","name":"Steel Door","placeable_in_constructor":false,"door_type":"mechanical","material":"steel","access_type":"key_card","power_behavior":"none","durability":30,"state":"closed","blocks_movement":true,"blocks_vision":true,"door_class":1,"lock_type":"mechanical_key","required_manipulator_level":1,"required_connector_level":0,"power_mode":"external_power","control_mode":"external_control"},
+	"reinforced_steel_door": {"group":"door","name":"Reinforced Steel Door","placeable_in_constructor":false,"door_type":"digital","material":"reinforced_steel","access_type":"terminal","power_behavior":"none","durability":40,"state":"closed","blocks_movement":true,"blocks_vision":true,"door_class":2,"lock_type":"terminal_lock","required_manipulator_level":2,"required_connector_level":0,"power_mode":"external_power","control_mode":"external_control"},
+	"titanium_door": {"group":"door","name":"Titanium Door","placeable_in_constructor":false,"door_type":"digital","material":"titanium","access_type":"access_code","power_behavior":"none","durability":100,"state":"closed","blocks_movement":true,"blocks_vision":true,"door_class":3,"lock_type":"password","required_manipulator_level":3,"required_connector_level":0},
+	"energy_door": {"group":"door","name":"Energy Door","placeable_in_constructor":false,"door_type":"digital","material":"energy","access_type":"digital_key","power_behavior":"none","durability":1,"state":"closed","blocks_movement":true,"blocks_vision":false,"door_class":1,"lock_type":"digital_key","required_manipulator_level":1,"required_connector_level":1,"invulnerable_while_powered":true,"power_mode":"external_power","control_mode":"external_control"},
+	"grid_door": {"group":"door","name":"Grid Door","placeable_in_constructor":false,"door_type":"mechanical","material":"steel","access_type":"no_key","power_behavior":"none","durability":15,"state":"closed","blocks_movement":true,"blocks_vision":false,"door_class":1,"lock_type":"none","required_manipulator_level":1,"required_connector_level":0},
 	"rotating_platform": {"group":"platform","name":"Rotating Platform","platform_type":"rotating","platform_id":"","platform_cells":[],"state":"active","is_powered":true,"power_type":"internal","control_type":"internal","requires_terminal_enabled":false,"linked_terminal_id":"","local_switch_cell":[0,0],"local_switch_facing_dir":"up","non_destructible":true,"destructible":false,"movable":false,"heavy_claw_movable":false,"activation_mode":"instant","timer_turns":0,"timer_remaining_turns":0,"period_turns":0,"periodic_active":false,"permanent_state":false,"pending_activation":false,"rotation_direction":"clockwise"},
 	"lifting_platform": {"group":"platform","name":"Lifting Platform","platform_type":"lifting","platform_id":"","platform_cells":[],"state":"active","is_powered":true,"power_type":"internal","control_type":"internal","requires_terminal_enabled":false,"linked_terminal_id":"","local_switch_cell":[0,0],"local_switch_facing_dir":"up","non_destructible":true,"destructible":false,"movable":false,"heavy_claw_movable":false,"height_level":0,"min_height_level":0,"max_height_level":1,"activation_mode":"instant","timer_turns":0,"timer_remaining_turns":0,"period_turns":0,"periodic_active":false,"permanent_state":false,"pending_activation":false},
 	"firewall": {"group":"terminal","name":"Firewall","placement_mode":"wall_mounted","state":"active","required_connector_level":1,"required_processor_level":1,"durability":10},
@@ -662,12 +670,16 @@ static func normalize_door_contract(object_data: Dictionary) -> Dictionary:
 	var group_text: String = _normalized_contract_token(data.get("object_group", data.get("group", "")))
 	if group_text != "door" and not object_type.contains("door") and not object_type.contains("gate") and defaults.is_empty():
 		return data
+	data["archetype_id"] = "door"
 	data["object_group"] = "door"
+	data["object_type"] = "door"
 	var raw_access_type: Variant = data.get("access_type", data.get("lock_type", ACCESS_TYPE_NO_KEY))
 	var access_type: String = normalize_access_type(raw_access_type)
 	data["access_type"] = access_type
 	data["lock_type"] = _legacy_lock_type_for_access_type(access_type)
 	var power_behavior: String = _normalized_contract_token(data.get("power_behavior", POWER_BEHAVIOR_NONE))
+	if power_behavior not in POWER_BEHAVIORS:
+		power_behavior = POWER_BEHAVIOR_NONE
 	var door_type: String = _normalize_door_type(data.get("door_type", ""))
 	if door_type.is_empty():
 		if prefab_id == "mechanical_door":
@@ -687,11 +699,15 @@ static func normalize_door_contract(object_data: Dictionary) -> Dictionary:
 	data["door_type"] = door_type
 	if door_type == DOOR_TYPE_POWERED and power_behavior == POWER_BEHAVIOR_NONE:
 		power_behavior = POWER_BEHAVIOR_OPENS_WHEN_UNPOWERED
-	elif door_type != DOOR_TYPE_POWERED:
-		power_behavior = POWER_BEHAVIOR_NONE
 	data["power_behavior"] = power_behavior
 	data["material"] = _normalize_door_material(data.get("material", ""), object_type)
 	data["door_class"] = clampi(int(data.get("door_class", 1)), 1, 3)
+	var power_type: String = _normalized_contract_token(data.get("power_type", data.get("power_mode", "internal"))).trim_suffix("_power")
+	data["power_type"] = power_type if power_type in DOOR_POWER_TYPES else "internal"
+	var control_type: String = _normalized_contract_token(data.get("control_type", data.get("control_mode", "internal"))).trim_suffix("_control")
+	data["control_type"] = control_type if control_type in DOOR_CONTROL_TYPES else "internal"
+	if not data.has("allowed_states"):
+		data["allowed_states"] = DOOR_STATES.duplicate()
 	if access_type == ACCESS_TYPE_NO_KEY:
 		data["required_key_id"] = ""
 		if _normalized_contract_token(data.get("state", "closed")) == "locked":
@@ -807,12 +823,58 @@ static func validate_archetype_object(object_data: Dictionary) -> Array[String]:
 					warnings.append("terminal_schema_contains_localized_label")
 	if archetype_id == "door":
 		var state: String = String(object_data.get("state", ""))
-		if bool(object_data.get("is_open", false)) != (state == "open") or bool(object_data.get("is_locked", false)) != (state == "locked"):
+		var expected_open: bool = state == "open"
+		var expected_closed: bool = state in ["closed", "locked", "jammed", "unpowered"]
+		var expected_locked: bool = state == "locked"
+		var expected_damaged: bool = state in ["damaged", "broken", "destroyed"]
+		if _normalized_contract_token(object_data.get("object_type", "")) != "door":
+			warnings.append("door_object_type_not_canonical")
+		if _normalized_contract_token(object_data.get("object_group", "")) != "door":
+			warnings.append("door_object_group_not_canonical")
+		if String(object_data.get("display_name", "")) != generate_display_name(object_data):
+			warnings.append("door_display_name_not_generated_from_properties")
+		if is_legacy_door_object_type(_normalized_contract_token(object_data.get("object_type", ""))):
+			warnings.append("door_legacy_object_type_remains_after_normalization")
+		var movement_out_of_sync: bool = not object_data.has("blocks_movement_override") and bool(object_data.get("blocks_movement", false)) != expected_closed
+		var vision_out_of_sync: bool = not object_data.has("blocks_vision_override") and bool(object_data.get("blocks_vision", false)) != (expected_closed and bool(object_data.get("blocks_vision_when_closed", false)))
+		if bool(object_data.get("is_open", false)) != expected_open or bool(object_data.get("is_closed", false)) != expected_closed or bool(object_data.get("is_locked", false)) != expected_locked or bool(object_data.get("locked", false)) != expected_locked or bool(object_data.get("damaged", false)) != expected_damaged or movement_out_of_sync or vision_out_of_sync:
 			warnings.append("object_derived_state_flags_out_of_sync")
+		if _normalized_contract_token(object_data.get("access_type", "")) == ACCESS_TYPE_NO_KEY:
+			if not _safe_string(object_data.get("required_key_id", "")).is_empty():
+				warnings.append("no_key_door_requires_key")
+			if state == "locked" or bool(object_data.get("is_locked", false)) or bool(object_data.get("locked", false)):
+				warnings.append("no_key_door_remains_locked")
 	return warnings
 
 static func validate_object_registry_contract() -> Array[String]:
 	var warnings: Array[String] = []
+	var door_definition: Dictionary = get_archetype_definition("door")
+	if _normalized_contract_token(door_definition.get("object_type", "")) != "door":
+		warnings.append("door_archetype_object_type_not_canonical")
+	var door_schema_fields: Array[String] = []
+	for field_variant in get_archetype_property_schema("door"):
+		door_schema_fields.append(String(Dictionary(field_variant).get("field", "")))
+	for required_field in ["door_type", "material", "access_type", "door_class", "power_type", "control_type", "power_behavior", "state", "allowed_states"]:
+		if required_field not in door_schema_fields:
+			warnings.append("door_archetype_schema_missing_%s" % required_field)
+	var door_palette_count: int = 0
+	for palette_row in get_constructor_palette_rows():
+		var palette_id: String = _normalized_contract_token(Dictionary(palette_row).get("id", ""))
+		if palette_id == "door":
+			door_palette_count += 1
+		elif is_legacy_door_object_type(palette_id):
+			warnings.append("door_legacy_alias_exposed_in_palette_%s" % palette_id)
+	if door_palette_count != 1:
+		warnings.append("door_palette_row_count_%d" % door_palette_count)
+	for legacy_door_id_variant in LEGACY_DOOR_ALIAS_CONFIGS.keys():
+		var legacy_door_id: String = String(legacy_door_id_variant)
+		var normalized_legacy_door: Dictionary = create_world_object(legacy_door_id, "validation_%s" % legacy_door_id)
+		if _normalized_contract_token(normalized_legacy_door.get("archetype_id", "")) != "door" or _normalized_contract_token(normalized_legacy_door.get("object_group", "")) != "door" or _normalized_contract_token(normalized_legacy_door.get("object_type", "")) != "door":
+			warnings.append("door_legacy_alias_not_normalized_%s" % legacy_door_id)
+	for legacy_object_type_variant in DOOR_MATERIAL_BY_OBJECT_TYPE.keys():
+		var legacy_object_type: String = String(legacy_object_type_variant)
+		if bool(Dictionary(OBJECT_LIBRARY.get(legacy_object_type, {})).get("placeable_in_constructor", true)):
+			warnings.append("door_legacy_library_object_placeable_%s" % legacy_object_type)
 	for alias_variant in PREFAB_ALIASES.keys():
 		var alias_id: String = String(alias_variant)
 		var target_id: String = canonical_prefab_id(alias_id)
@@ -869,7 +931,7 @@ static func normalize_door_state_fields(object_data: Dictionary) -> Dictionary:
 	object_data["lock_type"] = _legacy_lock_type_for_access_type(access_type)
 	var state := _safe_string(object_data.get("state", "closed"), "closed").strip_edges().to_lower()
 	if not object_data.has("allowed_states"):
-		object_data["allowed_states"] = ["closed", "open", "damaged"]
+		object_data["allowed_states"] = DOOR_STATES.duplicate()
 	if access_type == ACCESS_TYPE_NO_KEY:
 		object_data["required_key_id"] = ""
 		object_data["is_locked"] = false
@@ -880,8 +942,10 @@ static func normalize_door_state_fields(object_data: Dictionary) -> Dictionary:
 		state = "open"
 	if state == "":
 		state = "closed"
-	var damaged_flag := bool(object_data.get("damaged", false)) or bool(object_data.get("broken", false)) or bool(object_data.get("destroyed", false)) or state in ["damaged", "broken", "destroyed"]
-	if not bool(object_data.get("normalized_by_archetype_catalog", false)):
+	var was_normalized: bool = bool(object_data.get("normalized_by_archetype_catalog", false))
+	var damaged_flag: bool = state in ["damaged", "broken", "destroyed"]
+	if not was_normalized:
+		damaged_flag = bool(object_data.get("damaged", false)) or bool(object_data.get("broken", false)) or bool(object_data.get("destroyed", false)) or damaged_flag
 		if bool(object_data.get("is_open", false)) and not damaged_flag and state not in ["locked", "jammed"]:
 			state = "open"
 		if bool(object_data.get("is_locked", object_data.get("locked", false))) and not damaged_flag and state != "open":
@@ -889,7 +953,7 @@ static func normalize_door_state_fields(object_data: Dictionary) -> Dictionary:
 	var destroyed := bool(object_data.get("destroyed", false)) or state == "destroyed"
 	var open_state := state == "open"
 	var closed_state := state in ["closed", "locked", "jammed", "unpowered"] and not destroyed
-	var locked_state := state == "locked" or (bool(object_data.get("locked", false)) and not open_state and not destroyed)
+	var locked_state := state == "locked"
 	object_data["state"] = state
 	object_data["is_open"] = open_state
 	object_data["is_closed"] = closed_state
