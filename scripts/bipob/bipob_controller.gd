@@ -9198,6 +9198,29 @@ func rotate_physical_storage() -> void:
 	hint_requested.emit("Rotated physical storage.")
 	status_changed.emit()
 
+
+func _is_empty_floor_cell_for_runtime_inventory_drop(cell: Vector2i) -> bool:
+	if grid_manager == null or not grid_manager.is_in_bounds(cell) or grid_manager.get_tile(cell) != GridManager.TILE_FLOOR:
+		return false
+	if mission_manager != null and mission_manager.has_method("get_world_object_at_cell"):
+		if not Dictionary(mission_manager.call("get_world_object_at_cell", cell)).is_empty():
+			return false
+	if mission_manager != null and mission_manager.has_method("get_items_at_cell"):
+		return Array(mission_manager.call("get_items_at_cell", cell)).is_empty()
+	return true
+
+func _get_runtime_inventory_drop_cell() -> Vector2i:
+	if grid_manager == null or not grid_manager.is_in_bounds(grid_position):
+		return Vector2i(-1, -1)
+	var current_tile: int = grid_manager.get_tile(grid_position)
+	if current_tile != GridManager.TILE_DOOR and current_tile != GridManager.TILE_DIGITAL_DOOR and current_tile != GridManager.TILE_POWERED_GATE:
+		return grid_position
+	var direction_vector: Vector2i = get_direction_vector(direction)
+	for candidate in [grid_position + direction_vector, grid_position - direction_vector]:
+		if _is_empty_floor_cell_for_runtime_inventory_drop(candidate):
+			return candidate
+	return Vector2i(-1, -1)
+
 func drop_held_item() -> void:
 	if mission_finished:
 		return
@@ -9209,9 +9232,9 @@ func drop_held_item() -> void:
 		var inventory: Dictionary = Dictionary(mission_manager.call("get_inventory_state"))
 		var held_world_item_id: String = String(inventory.get("manipulator_hold", "")).strip_edges()
 		if not held_world_item_id.is_empty():
-			var target_cell: Vector2i = grid_position + get_direction_vector(direction)
-			if not grid_manager.is_in_bounds(target_cell) or grid_manager.get_tile(target_cell) != GridManager.TILE_FLOOR:
-				hint_requested.emit("Cannot drop item here. Face an empty floor cell.")
+			var target_cell: Vector2i = _get_runtime_inventory_drop_cell()
+			if target_cell == Vector2i(-1, -1):
+				hint_requested.emit("Cannot drop item here. Leave the doorway or face an empty floor cell.")
 				status_changed.emit()
 				return
 			if not can_spend_action(1, 1):
