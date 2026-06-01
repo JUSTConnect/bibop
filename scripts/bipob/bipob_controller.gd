@@ -4627,15 +4627,16 @@ func create_default_modules() -> void:
 		if wheels_module != null:
 			install_module(wheels_module)
 
-	if debug_install_manipulator:
-		var manipulator_module: BipobModule = create_external_module_by_id("manipulator_v1")
-		if manipulator_module != null:
-			install_module(manipulator_module)
+	# Basic Manipulator and Connector are baseline Bipob capabilities, not optional
+	# debug equipment. Keep aliases for save compatibility while installing both
+	# on every fresh actor.
+	var manipulator_module: BipobModule = create_external_module_by_id("manipulator_v1")
+	if manipulator_module != null:
+		install_module(manipulator_module)
 
-	if debug_install_interface:
-		var interface_module: BipobModule = create_external_module_by_id("interface_v1")
-		if interface_module != null:
-			install_module(interface_module)
+	var interface_module: BipobModule = create_external_module_by_id("interface_v1")
+	if interface_module != null:
+		install_module(interface_module)
 
 	if debug_install_visor:
 		var visor_module: BipobModule = create_external_module_by_id("visor_v1")
@@ -7093,7 +7094,11 @@ func get_world_action_display_label(action_id: String, object_data: Dictionary) 
 		"open": return "Open"
 		"close": return "Close"
 		"unlock": return "Unlock"
-		"input_password": return "Input Password"
+		"input_password": return "Input"
+		"apply_digital_key": return "Apply Digital Key"
+		"open_door": return "Open Door"
+		"close_door": return "Close Door"
+		"unlock_door": return "Unlock Door"
 		"cut": return "Cut"
 		"impact": return "Impact"
 		"force_open": return "Force Open"
@@ -7119,6 +7124,7 @@ func get_world_action_display_label(action_id: String, object_data: Dictionary) 
 		"circuit_1": return "Circuit 1"
 		"circuit_2": return "Circuit 2"
 		"circuit_3": return "Circuit 3"
+		"access_code_0", "access_code_1", "access_code_2", "access_code_3", "access_code_4", "access_code_5", "access_code_6", "access_code_7", "access_code_8", "access_code_9": return action_id.trim_prefix("access_code_")
 		"repair": return "Repair"
 		"push": return "Push"
 		"pull": return "Pull"
@@ -8081,35 +8087,31 @@ func get_available_world_actions(world_object: Dictionary, target_position: Vect
 	var _items_here: Array[Dictionary] = mission_manager.get_items_at_cell(target_position) if mission_manager != null else []
 	if group == "door":
 		var access_type: String = WorldObjectCatalog.normalize_access_type(world_object.get("access_type", world_object.get("lock_type", "")))
-		var is_digital_door: bool = access_type in ["digital_key", "access_code", "terminal"] or bool(world_object.get("is_digital_device", false))
+		var is_digital_door: bool = access_type in [WorldObjectCatalog.ACCESS_TYPE_DIGITAL_KEY, WorldObjectCatalog.ACCESS_TYPE_ACCESS_CODE] or bool(world_object.get("is_digital_device", false))
 		var door_has_connector_jack: bool = bool(world_object.get("has_connector_jack", false))
 		if is_digital_door and door_has_connector_jack:
 			if not bool(world_object.get("connected", false)):
 				actions.append("connect")
-			elif int(world_object.get("scan_level", 0)) < 2:
-				actions.append("scan")
-			else:
-				var needs_digital_unlock: bool = state == "locked" or bool(world_object.get("is_locked", false)) or bool(world_object.get("locked", false))
-				if needs_digital_unlock and get_installed_processor_level() >= int(world_object.get("required_processor_level", 1)):
-					actions.append("hack")
-		var control_mode: String = String(world_object.get("control_mode", "internal")).strip_edges().to_lower()
-		var linked_terminal_id: String = String(world_object.get("control_terminal_id", world_object.get("linked_terminal_id", ""))).strip_edges()
-		var requires_external_control: bool = bool(world_object.get("requires_external_control", false)) or not linked_terminal_id.is_empty()
-		var has_linked_external_controller: bool = requires_external_control and not linked_terminal_id.is_empty()
-		# A stale external-control default without an actual terminal link must not
-		# suppress local mechanical open/close actions. Linked doors remain remote.
-		if control_mode in ["external", "external_control", "external control"] and has_linked_external_controller:
+			elif access_type == WorldObjectCatalog.ACCESS_TYPE_DIGITAL_KEY and state == "locked":
+				actions.append("apply_digital_key")
+			elif access_type == WorldObjectCatalog.ACCESS_TYPE_ACCESS_CODE and state == "locked":
+				for digit_index in range(10):
+					actions.append("access_code_%d" % digit_index)
+				actions.append("input_password")
+		var control_mode: String = String(world_object.get("control_type", world_object.get("control_mode", "internal"))).strip_edges().to_lower()
+		# Control and access are orthogonal: external always means remote Open/Close.
+		if control_mode in ["external", "external_control", "external control", "terminal"]:
 			if state in ["damaged", "half_open", "jammed"] and has_heavy_claw():
 				actions.append("force_open")
 			return actions
 		var power_mode: String = String(world_object.get("power_mode", "internal")).strip_edges().to_lower()
 		if power_mode in ["external", "external_power", "external power"] and not bool(world_object.get("is_powered", true)) and state != "open":
-			if state == "locked":
+			if state == "locked" and access_type in [WorldObjectCatalog.ACCESS_TYPE_NO_KEY, WorldObjectCatalog.ACCESS_TYPE_KEY_CARD]:
 				actions.append("unlock")
 			return actions
 		if state in ["damaged", "half_open", "jammed"] and has_heavy_claw():
 			actions.append("force_open")
-		if state == "locked":
+		if state == "locked" and access_type in [WorldObjectCatalog.ACCESS_TYPE_NO_KEY, WorldObjectCatalog.ACCESS_TYPE_KEY_CARD]:
 			actions.append("unlock")
 		elif state == "closed" and has_manipulator_arm():
 			actions.append("open")
@@ -8137,6 +8139,15 @@ func get_available_world_actions(world_object: Dictionary, target_position: Vect
 			actions.append("activate_platform")
 		if has_repair_tool() and state == "damaged":
 			actions.append("repair")
+		var terminal_door_id: String = String(world_object.get("target_door_id", "")).strip_edges()
+		if not terminal_door_id.is_empty() and mission_manager != null:
+			var terminal_door: Dictionary = Dictionary(mission_manager.get_world_object_by_id(terminal_door_id))
+			if not terminal_door.is_empty():
+				var terminal_door_access: String = WorldObjectCatalog.normalize_access_type(terminal_door.get("access_type", "no_key"))
+				if String(terminal_door.get("state", "")) == "locked" and terminal_door_access == WorldObjectCatalog.ACCESS_TYPE_TERMINAL:
+					actions.append("unlock_door")
+				if String(terminal_door.get("control_type", terminal_door.get("control_mode", "internal"))) == "external":
+					actions.append("close_door" if String(terminal_door.get("state", "")) == "open" else "open_door")
 	elif group == "wall":
 		if has_plasma_cutter():
 			actions.append("cut")
@@ -8159,11 +8170,10 @@ func get_available_world_actions(world_object: Dictionary, target_position: Vect
 				else:
 					actions.append("disconnect_wire_2")
 	elif String(world_object.get("object_type", "")) == "circuit_switch":
-		actions.append("switch")
+		# The switch UI always exposes all three explicit positions. InteractionSystem
+		# disables an unwired output with a clear unavailable reason.
 		for circuit_index in range(1, 4):
-			var circuit_target: String = String(world_object.get("output_%d_wire_id" % circuit_index, world_object.get("output_%d_direction" % circuit_index, ""))).strip_edges().to_lower()
-			if not circuit_target.is_empty() and circuit_target != "none":
-				actions.append("circuit_%d" % circuit_index)
+			actions.append("circuit_%d" % circuit_index)
 	elif String(world_object.get("object_type", "")).begins_with("power_source"):
 		if bool(world_object.get("switchable", world_object.get("can_toggle", true))):
 			actions.append("switch")
@@ -8255,9 +8265,13 @@ func get_world_action_module(action_id: String, world_object: Dictionary) -> Dic
 			if has_digital_world_item("digital_key", "damaged"):
 				return _module_dict("digital_key_damaged")
 			return _module_dict("")
-		"connect":
+		"connect", "input_password", "access_code_0", "access_code_1", "access_code_2", "access_code_3", "access_code_4", "access_code_5", "access_code_6", "access_code_7", "access_code_8", "access_code_9":
 			var level := get_installed_connector_level(connection_type)
 			return _module_dict("%s_connector_v%d" % [connection_type, level] if level > 0 else "")
+		"apply_digital_key":
+			return _module_dict("digital_key_opened" if has_required_digital_key(world_object) else "")
+		"open_door", "close_door", "unlock_door":
+			return _module_dict("terminal_control")
 		"scan":
 			return get_world_action_module("connect", world_object)
 		"hack":
@@ -8483,6 +8497,19 @@ func interact() -> void:
 						hint_requested.emit(String(preflight.get("message", "Action unavailable.")))
 						status_changed.emit()
 						return
+			if String(world_object.get("object_group", "")) == "terminal" and action_id in ["open_door", "close_door", "unlock_door"]:
+				if not can_spend_action(1, 1):
+					hint_requested.emit("Not enough action/energy.")
+					status_changed.emit()
+					return
+				var terminal_result: Dictionary = Dictionary(mission_manager.execute_terminal_control_action(String(world_object.get("id", "")), String(world_object.get("target_door_id", "")), action_id))
+				if bool(terminal_result.get("success", false)):
+					spend_action(1, 1)
+					_register_successful_paid_player_action(true)
+				hint_requested.emit("Door control applied." if bool(terminal_result.get("success", false)) else "Door control unavailable.")
+				refresh_world_action_panel()
+				status_changed.emit()
+				return
 			var action_result: Dictionary = InteractionSystemRef.normalize_action_result(Dictionary(InteractionSystemRef.apply_action(actor, module, world_object, action_id)), world_object, action_id)
 			if bool(action_result.get("success", false)):
 				if not can_spend_action(1, 1):
@@ -9342,6 +9369,16 @@ func has_digital_world_item(item_type: String, digital_state: String = "opened")
 	if record.is_empty():
 		return false
 	return String(record.get("digital_state", "opened")) == digital_state
+
+func has_required_digital_key(world_object: Dictionary) -> bool:
+	var required_id: String = String(world_object.get("required_digital_key_id", "")).strip_edges()
+	if required_id.is_empty():
+		return has_digital_world_item("digital_key", "opened")
+	if digital_storage.has(required_id):
+		return true
+	if String(buffer_item.get("id", buffer_item.get("item_id", ""))).strip_edges() == required_id:
+		return String(buffer_item.get("digital_state", "opened")) == "opened"
+	return false
 
 func is_physical_storage_occupied() -> bool:
 	return _get_first_free_pocket_index() == -1

@@ -367,3 +367,18 @@ The current code has implemented the main catalog/archetype foundation, canonica
 ### Manual smoke items still open
 
 The following remain manual smoke checks because this headless code pass does not exercise the interactive Map Editor UI: Cable inspector selector layout and label; source-owned network choices; external binding visibility toggles; Door ↔ Terminal link/clear behavior; Power Source, Circuit Switch, and Light Switch Action behavior; dropped item pickup; and the existing Action/Connect separation.
+
+## PR-P final Door / Terminal / Power interaction rules — NEEDS RUNTIME SMOKE
+
+Static contract update:
+
+- Door `control_type` is now strictly `internal` or `external`. Historic serialized `control_type=terminal` values normalize to `external`; Terminal is no longer exposed as a third Door control mode.
+- Door `access_type` remains independent: `no_key`, `key_card`, `terminal`, `digital_key`, and `access_code`. Terminal unlock is not treated as external Open/Close control, and external Open/Close control is not treated as a Terminal unlock credential.
+- Direct Door Open/Close is local only for `control_type=internal`. External Doors report the linked-terminal path instead of opening directly.
+- Digital Key and Access Code unlock paths require the explicit Connector route. Access Code connection exposes the ten keypad digits plus `Input`, validates the entered four-digit value, and does not fake success.
+- Terminal and Power Source runtime objects normalize to `blocks_movement=true`; both remain interactable objects rather than passable floor content.
+- Fresh Bipob setup installs baseline Manipulator and Connector modules even when optional debug equipment switches are disabled.
+- Circuit Switch runtime actions expose exactly the explicit `Circuit 1`, `Circuit 2`, and `Circuit 3` positions; selecting a position keeps the existing `active_output_index` and power-recalculation flow.
+- Physical cable provenance is traversal-owned. Logical source binding no longer pre-populates `physical_connection_source_id`. `main_power_net` remains the explicit virtual-network exception.
+
+Manual smoke remains required for the Editor dropdown, legacy-map load normalization, mixed Door access/control combinations, keypad layout near the Door, Terminal/Power Source collision, fresh-Bipob capability HUD, all three Circuit Switch buttons, placed-cable Door power, missing-route warning behavior, and `main_power_net` virtual power.
