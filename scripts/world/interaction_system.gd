@@ -298,15 +298,35 @@ static func apply_action(actor: Dictionary, module: Dictionary, target_object: D
 			var state: String = String(target_object.get("state", "switch_off"))
 			if state.strip_edges().to_lower() in ["cut", "damaged", "broken", "destroyed"] or bool(target_object.get("cut", false)) or bool(target_object.get("damaged", false)) or bool(target_object.get("broken", false)):
 				return _result(false, "Switch is damaged.")
-			var next_state: String = "switch_on" if state in ["switch_off", "off", "open"] else "switch_off"
-			var is_on: bool = next_state == "switch_on"
+			var object_type: String = String(target_object.get("object_type", "")).strip_edges().to_lower()
+			if object_type.begins_with("power_source") and not bool(target_object.get("switchable", target_object.get("can_toggle", true))):
+				return _result(false, "Power source is not switchable.")
+			if object_type == "circuit_switch":
+				var available_outputs: Array[int] = []
+				for output_index in range(1, 4):
+					var output_target: String = String(target_object.get("output_%d_wire_id" % output_index, target_object.get("output_%d_direction" % output_index, ""))).strip_edges().to_lower()
+					if not output_target.is_empty() and output_target != "none":
+						available_outputs.append(output_index)
+				if not available_outputs.is_empty():
+					var active_output: int = int(target_object.get("active_output_index", 0))
+					var next_output: int = available_outputs[0]
+					var current_output_position: int = available_outputs.find(active_output)
+					if current_output_position >= 0:
+						next_output = available_outputs[(current_output_position + 1) % available_outputs.size()]
+					target_object["active_output_index"] = next_output
+					return _result(true, "Circuit %d selected." % next_output, [{"type":"set_int","field":"active_output_index","value":next_output},{"type":"power_recalc_needed"}])
+			var source_toggle: bool = object_type.begins_with("power_source")
+			var next_state: String = ("on" if state in ["off", "switch_off"] else "off") if source_toggle else ("switch_on" if state in ["switch_off", "off", "open"] else "switch_off")
+			var is_on: bool = next_state in ["on", "switch_on"]
 			target_object["state"] = next_state
 			target_object["is_on"] = is_on
 			var switch_effects: Array = [{"type":"set_state","state":next_state},{"type":"set_bool","field":"is_on","value":is_on}]
-			if String(target_object.get("object_type", "")).strip_edges().to_lower() == "light_switch":
+			if source_toggle:
+				switch_effects.append({"type":"set_bool","field":"is_powered","value":is_on})
+			if object_type == "light_switch":
 				switch_effects.append({"type":"toggle_linked_lights","is_on":is_on})
 			switch_effects.append({"type":"power_recalc_needed"})
-			return _result(true, "Switch toggled.", switch_effects)
+			return _result(true, "Power source toggled." if source_toggle else "Switch toggled.", switch_effects)
 		"circuit_1", "circuit_2", "circuit_3":
 			if String(target_object.get("object_type", "")) != "circuit_switch":
 				return _result(false, "Circuit output unavailable.")

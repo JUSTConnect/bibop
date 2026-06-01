@@ -351,3 +351,19 @@ The section 7.3 manual test list is updated to current archetype names and curre
 ## Final audit conclusion
 
 The current code has implemented the main catalog/archetype foundation, canonical Door and item normalization, constructor palette generation, placement normalization, TASK TEST detached validation, objective ViewModel binding, mandatory parser/CI gate, explicit `requires_power_to_open` Door behavior, and the audited English Repair label cleanup. Stabilization is **not yet fully complete**: runtime smoke is still required, including manual `requires_power_to_open` smoke, and the inventory model remains partially aligned with the plan.
+
+## PR-O follow-up: Map Editor power links, external controls, and dropped pickup
+
+### Implemented fixes
+
+- Power Cable authoring now uses a single **Wire state** selector. Its compatibility value remains `ok`, while the game-facing label is **Powered**; cut, damaged, and broken remain selectable.
+- Power Source networks are source-owned by default. Empty source networks normalize to a stable `<source_id>_net` id, while `main_power_net` remains the virtual level-wide option and existing legacy network ids remain available only when already used by loaded data.
+- External-power objects expose **Power Network** and **Power Source Binding** controls. Internal-power objects hide those external-only bindings, and Power Sources do not bind to other Power Sources.
+- Door ↔ Terminal linking now follows external control semantics and synchronizes compatibility aliases in both directions (`linked_terminal_id`, `required_terminal_id`, `control_terminal_id`, `target_door_id`, and `linked_door_ids`).
+- Runtime **Action** now toggles switchable Power Sources, cycles available Circuit Switch outputs, and preserves Light Switch linked-light refresh behavior. **Connect** remains gated by the existing `has_connector_jack` contract.
+- Dropped inventory snapshots are normalized back into authoritative `cell_items` pickup storage and current-cell dropped items are discoverable by the runtime action panel.
+- Map Constructor validation now reports invalid Power Source chaining, missing external power bindings, impossible internal unpowered states, external/internal Door terminal-link mismatches, non-mirrored Terminal ↔ Door links, and visible item records missing from `cell_items`.
+
+### Manual smoke items still open
+
+The following remain manual smoke checks because this headless code pass does not exercise the interactive Map Editor UI: Cable inspector selector layout and label; source-owned network choices; external binding visibility toggles; Door ↔ Terminal link/clear behavior; Power Source, Circuit Switch, and Light Switch Action behavior; dropped item pickup; and the existing Action/Connect separation.

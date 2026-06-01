@@ -889,6 +889,10 @@ func get_map_constructor_validation_issues() -> Array[Dictionary]:
 		var data: Dictionary = manager._safe_dictionary(manager.mission_world_objects[index])
 		var entity_kind: String = _map_constructor_entity_kind(data)
 		if entity_kind == "item":
+			var visible_item_id: String = _safe_string(data.get("id", "")).strip_edges()
+			var visible_item_cell: Vector2i = manager._deserialize_cell_variant(data.get("position", Vector2i(-1, -1)))
+			if not visible_item_id.is_empty() and manager.get_cell_item_by_id(visible_item_id).is_empty():
+				issues.append(_make_map_constructor_issue("visible_item_missing_cell_item_%s" % visible_item_id, "error", "Visible dropped item is missing from cell_items pickup storage.", visible_item_cell, source_name, entity_kind, visible_item_id, "Store visible dropped items through add_item_at_cell()."))
 			continue
 		var object_id: String = _safe_string(data.get("id", "")).strip_edges()
 		var object_type: String = _safe_string(data.get("object_type", "")).strip_edges()
@@ -915,6 +919,33 @@ func get_map_constructor_validation_issues() -> Array[Dictionary]:
 				issues.append(_make_map_constructor_issue("obj_invalid_access_type_%s" % object_id, "error", "Object access_type is not canonical: %s." % raw_access_type, object_cell, source_name, entity_kind, object_id, "Use no_key, key_card, digital_key, access_code, or terminal."))
 		if data.has("lock_type") and not data.has("access_type"):
 			issues.append(_make_map_constructor_issue("obj_lock_without_access_%s" % object_id, "error", "Legacy lock_type is present without canonical access_type.", object_cell, source_name, entity_kind, object_id, "Populate canonical access_type while retaining lock_type only as compatibility metadata."))
+		var normalized_power_mode: String = _safe_string(data.get("power_type", data.get("power_mode", "internal"))).strip_edges().to_lower().trim_suffix("_power")
+		var normalized_control_mode: String = _safe_string(data.get("control_type", data.get("control_mode", "internal"))).strip_edges().to_lower().trim_suffix("_control")
+		var power_source_id: String = _safe_string(data.get("power_source_id", data.get("connected_power_source_id", data.get("physical_connection_source_id", "")))).strip_edges()
+		var power_network_id: String = _safe_string(data.get("power_network_id", "")).strip_edges()
+		if normalized_power_mode == "external":
+			if power_source_id.is_empty():
+				issues.append(_make_map_constructor_issue("external_power_missing_source_%s" % object_id, "warning", "External-power object is missing a Power Source binding.", object_cell, source_name, entity_kind, object_id, "Bind an installed Power Source."))
+			if power_network_id.is_empty():
+				issues.append(_make_map_constructor_issue("external_power_missing_network_%s" % object_id, "warning", "External-power object is missing a Power Network binding.", object_cell, source_name, entity_kind, object_id, "Bind main_power_net or a source-owned network."))
+		elif normalized_power_mode == "internal" and (_safe_string(data.get("state", data.get("status", ""))).strip_edges().to_lower() == "unpowered" or _safe_string(data.get("status", "")).strip_edges().to_lower() == "unpowered"):
+			issues.append(_make_map_constructor_issue("internal_power_unpowered_%s" % object_id, "warning", "Internal-power object is authored as unpowered.", object_cell, source_name, entity_kind, object_id, "Use an active internal state or switch Power Type to External."))
+		if object_type.to_lower().begins_with("power_source") and not power_source_id.is_empty():
+			var linked_source: Dictionary = manager.get_world_object_by_id(power_source_id)
+			if not linked_source.is_empty() and _safe_string(linked_source.get("object_type", "")).strip_edges().to_lower().begins_with("power_source"):
+				issues.append(_make_map_constructor_issue("power_source_linked_to_source_%s" % object_id, "error", "Power Source must not bind to another Power Source.", object_cell, source_name, entity_kind, object_id, "Clear the Linked Power Source binding."))
+		if object_group == "door":
+			var linked_terminal_id: String = _safe_string(data.get("control_terminal_id", data.get("linked_terminal_id", data.get("required_terminal_id", "")))).strip_edges()
+			if normalized_control_mode in ["external", "terminal"] and linked_terminal_id.is_empty():
+				issues.append(_make_map_constructor_issue("door_external_control_missing_terminal_%s" % object_id, "warning", "External-control door is missing a Linked Terminal.", object_cell, source_name, entity_kind, object_id, "Bind an installed Terminal."))
+			elif normalized_control_mode == "internal" and not linked_terminal_id.is_empty():
+				issues.append(_make_map_constructor_issue("door_internal_control_has_terminal_%s" % object_id, "warning", "Internal-control door incorrectly retains a Linked Terminal.", object_cell, source_name, entity_kind, object_id, "Clear the terminal link or switch Control Type to External."))
+		if object_group == "terminal":
+			for linked_door_id_variant in Array(data.get("linked_door_ids", [])):
+				var linked_door_id: String = _safe_string(linked_door_id_variant).strip_edges()
+				var linked_door: Dictionary = manager.get_world_object_by_id(linked_door_id)
+				if linked_door.is_empty() or _safe_string(linked_door.get("control_terminal_id", linked_door.get("linked_terminal_id", ""))).strip_edges() != object_id:
+					issues.append(_make_map_constructor_issue("terminal_door_link_not_mirrored_%s_%s" % [object_id, linked_door_id], "warning", "Terminal linked_door_ids is not mirrored by the Door Linked Terminal field.", object_cell, source_name, entity_kind, object_id, "Relink the Terminal and Door."))
 		if object_group == "door" and WorldObjectCatalogRef.is_material_named_door_object_type(object_type) and _safe_string(data.get("door_type", "")).strip_edges().is_empty():
 			issues.append(_make_map_constructor_issue("obj_material_door_missing_mechanism_%s" % object_id, "error", "Material-named door is missing canonical door_type mechanism.", object_cell, source_name, entity_kind, object_id, "Populate canonical door_type."))
 		if bool(data.get("created_by_map_constructor", false)) and WorldObjectCatalogRef.UTILITY_ITEM_ARCHETYPE_IDS.has(object_type):
