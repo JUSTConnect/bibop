@@ -41,8 +41,8 @@
 ### 1.2 Что сейчас не считается полностью закрытым
 
 ```text
-- Godot parser gate was added, but it is not yet proven as mandatory CI/review gate.
-- PR-F, PR-G and PR-H were reviewed statically; parser-level verification must still be run locally.
+- Godot parser/load gate is CI-enforced for pull requests and pushes to main through `.github/workflows/godot-parser-gate.yml`.
+- PR-F, PR-G and PR-H were reviewed statically before CI enforcement; gameplay/runtime smoke verification is still separate and must be run locally.
 - Terminal links/status/action availability need gameplay smoke testing.
 - Item pickup/inventory/storage flow needs gameplay smoke testing after the one-Item-row migration.
 - Door/key/power/control interactions need gameplay smoke testing after object_type="door" finalization.
@@ -141,7 +141,7 @@ Acceptance:
 
 ### 2.5 PR-E — Godot parser gate
 
-Status: added, not yet enforced.
+Status: CI-enforced for pull requests and pushes to main.
 
 File:
 
@@ -149,9 +149,19 @@ File:
 tools/ci/parse_all_gd.gd
 ```
 
-Required command:
+CI workflow:
+
+```text
+.github/workflows/godot-parser-gate.yml
+```
+
+Exact CI command list:
 
 ```bash
+git diff --check
+python tools/check_gdscript_safety_patterns.py
+python tools/check_map_constructor_sections.py
+godot --headless --path . --quit
 godot --headless --path . --script res://tools/ci/parse_all_gd.gd
 ```
 
@@ -756,9 +766,12 @@ They should not reappear as raw item palette rows; add dedicated archetype suppo
 
 ### PR-J — Enforce Godot parser gate in CI/review flow
 
+Status: completed. The parser/load gate is CI-enforced for pull requests and pushes to main.
+
 ```text
-- Add real CI/action or project command wrapper for parse_all_gd.gd.
-- Make parser gate visible and mandatory for code PRs.
+- `.github/workflows/godot-parser-gate.yml` runs the static checks, Godot import smoke and parse_all_gd.gd.
+- The parser/load gate is visible and mandatory for code PRs.
+- Local gameplay/runtime smoke tests remain separate from parser/load checks and are still required where applicable.
 ```
 
 ### PR-K — Runtime smoke validation pass
