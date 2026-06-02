@@ -39,6 +39,7 @@ class_name RoomVisualRenderer
 @export var use_iso_tile_asset_hooks: bool = false
 @export var use_iso_placeholder_asset_preset: bool = false
 @export var iso_placeholder_asset_preset_requires_preview: bool = true
+@export var use_iso_concrete_wall_png_smoke_preview: bool = true
 @export var iso_floor_atlas_texture: Texture2D = null
 @export var iso_floor_default_texture: Texture2D = null
 @export var iso_floor_stepped_texture: Texture2D = null
@@ -120,6 +121,9 @@ const ISO_PLACEHOLDER_ASSET_PATHS: Dictionary = {
 	"object_switch": "res://assets/visual/isometric/placeholders/iso_object_switch.svg"
 }
 
+const ISO_CONCRETE_WALL_SMOKE_TEXTURE_PATH: String = "res://assets/visual/isometric/Concrete/ChatGPT Image Jun 2, 2026, 11_48_05 AM.png"
+const ISO_CONCRETE_WALL_SMOKE_TARGET_WIDTH: float = 128.0
+const ISO_CONCRETE_WALL_SMOKE_TARGET_HEIGHT: float = 128.0
 
 const ISO_FLOOR_ATLAS_COLUMNS: int = 6
 const ISO_FLOOR_ATLAS_ROWS: int = 7
@@ -183,6 +187,8 @@ const ISO_ASSET_ALIGNMENT_RULES: Dictionary = {
 }
 
 var _iso_placeholder_texture_cache: Dictionary = {}
+var _iso_concrete_wall_smoke_texture_cache: Texture2D = null
+var _iso_concrete_wall_smoke_texture_checked: bool = false
 var _grid_manager: GridManager = null
 var _rebuild_requested: bool = false
 
@@ -280,6 +286,24 @@ func should_use_iso_tile_asset_hook_visuals() -> bool:
 		use_iso_tile_asset_hooks
 		or (use_iso_visual_preview_preset and iso_visual_preview_includes_asset_hooks)
 		or should_use_iso_placeholder_asset_preset()
+	)
+
+func is_task_test_visual_preview_context() -> bool:
+	var mission_manager: Node = get_mission_manager_ref()
+	if mission_manager == null:
+		return use_iso_visual_preview_preset
+	if mission_manager.has_method("_is_task_test_constructor_context"):
+		return bool(mission_manager.call("_is_task_test_constructor_context"))
+	if mission_manager.has_method("get_current_mission_id"):
+		return String(mission_manager.call("get_current_mission_id")) == "mission_10"
+	return use_iso_visual_preview_preset
+
+func should_use_iso_concrete_wall_png_smoke_preview() -> bool:
+	return (
+		use_iso_concrete_wall_png_smoke_preview
+		and is_iso_visual_preview_active()
+		and should_use_iso_placeholder_asset_preset()
+		and is_task_test_visual_preview_context()
 	)
 
 func should_preview_drive_bipob_visual_position() -> bool:
@@ -1349,6 +1373,26 @@ func get_iso_placeholder_texture_for_asset_key(asset_key: String) -> Texture2D:
 
 func clear_iso_placeholder_texture_cache() -> void:
 	_iso_placeholder_texture_cache.clear()
+	_iso_concrete_wall_smoke_texture_cache = null
+	_iso_concrete_wall_smoke_texture_checked = false
+
+func get_iso_concrete_wall_smoke_texture() -> Texture2D:
+	# Prefer the existing exported texture hook when it is assigned manually.
+	# TASK TEST smoke then falls back to the temporary PNG path and finally to
+	# normal placeholder/procedural wall rendering if the PNG is missing.
+	if iso_wall_concrete_texture != null:
+		return iso_wall_concrete_texture
+	if not should_use_iso_concrete_wall_png_smoke_preview():
+		return null
+	if _iso_concrete_wall_smoke_texture_checked:
+		return _iso_concrete_wall_smoke_texture_cache
+	_iso_concrete_wall_smoke_texture_checked = true
+	if not FileAccess.file_exists(ISO_CONCRETE_WALL_SMOKE_TEXTURE_PATH):
+		return null
+	var loaded_resource: Resource = ResourceLoader.load(ISO_CONCRETE_WALL_SMOKE_TEXTURE_PATH)
+	if loaded_resource is Texture2D:
+		_iso_concrete_wall_smoke_texture_cache = loaded_resource as Texture2D
+	return _iso_concrete_wall_smoke_texture_cache
 
 func get_explicit_iso_texture_for_asset_key(asset_key: String) -> Texture2D:
 	match asset_key:
@@ -1379,7 +1423,7 @@ func get_explicit_iso_texture_for_asset_key(asset_key: String) -> Texture2D:
 		"wall_brick":
 			return iso_wall_brick_texture
 		"wall_concrete":
-			return iso_wall_concrete_texture
+			return get_iso_concrete_wall_smoke_texture()
 		"wall_grate":
 			return iso_wall_grate_texture
 		"wall_damaged":
@@ -1966,6 +2010,29 @@ func draw_iso_wall_texture_for_cell(cell: Vector2i, material_override: Dictionar
 			return true
 	return draw_iso_texture_asset(cell, get_iso_wall_asset_key_for_profile(wall_profile_key))
 
+func draw_iso_concrete_wall_smoke_texture_for_cell(cell: Vector2i, wall_profile_key: String) -> bool:
+	if wall_profile_key != "concrete_wall":
+		return false
+	if not should_use_iso_concrete_wall_png_smoke_preview() and iso_wall_concrete_texture == null:
+		return false
+	if is_wall_adjacent_to_door(cell):
+		return false
+	var texture: Texture2D = get_iso_concrete_wall_smoke_texture()
+	if texture == null:
+		return false
+	var source_size: Vector2 = texture.get_size()
+	if source_size.x <= 0.0 or source_size.y <= 0.0:
+		return false
+	var target_width: float = maxf(iso_tile_width, ISO_CONCRETE_WALL_SMOKE_TARGET_WIDTH)
+	var target_height: float = maxf(iso_tile_width, ISO_CONCRETE_WALL_SMOKE_TARGET_HEIGHT)
+	var scale_value: float = minf(target_width / source_size.x, target_height / source_size.y)
+	var destination_size: Vector2 = source_size * scale_value
+	var base_anchor: Vector2 = grid_to_iso(cell) + Vector2(0.0, get_iso_tile_half_size().y)
+	var destination_rect: Rect2 = Rect2(base_anchor - Vector2(destination_size.x * 0.5, destination_size.y), destination_size)
+	draw_texture_rect(texture, destination_rect, false)
+	draw_iso_asset_alignment_overlay("wall_concrete", base_anchor, destination_rect)
+	return true
+
 func get_wall_prototype_colors(cell: Vector2i) -> Dictionary:
 	var profile_key: String = get_wall_visual_profile_key_for_cell(cell)
 	var profile: Dictionary = get_wall_visual_profile(profile_key)
@@ -2535,12 +2602,13 @@ func draw_iso_wall_block(cell: Vector2i) -> void:
 	var floor_shadow: PackedVector2Array = PackedVector2Array([base_points[2], base_points[3], base_points[3] + Vector2(0.0, 8.0), base_points[2] + Vector2(0.0, 8.0)])
 	var accent_color: Color = _get_color_from_dict(colors, "accent", Color.WHITE)
 
-	# Standalone walls must stay on the same procedural architectural wall path as
-	# connected runs. Full-cell wall texture assets are legacy placeholders whose
-	# bottom-center alignment makes isolated constructor walls read as hovering
-	# object blocks. Material rows still tint the procedural wall profile below,
-	# so isolated walls retain the selected wall material without using an object
-	# style texture fallback.
+	# Standalone walls normally stay on the same procedural architectural path as
+	# connected runs. The TASK TEST smoke hook below is visual-only, concrete-only,
+	# and falls through to this procedural path whenever the temporary PNG is not
+	# available.
+	if draw_iso_concrete_wall_smoke_texture_for_cell(cell, wall_profile_key):
+		draw_iso_wall_debug_and_mount_overlays(cell, arch, topology)
+		return
 
 	var alpha_mult: float = 1.0
 	if iso_wall_cutaway_enabled and is_wall_adjacent_to_door(cell):
