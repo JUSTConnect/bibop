@@ -125,6 +125,7 @@ var mission_finished: bool = false
 var sector_completed: bool = false
 var current_mission_index: int = 1
 var max_mission_index: int = 10
+var active_runtime_mode_id: String = RUNTIME_MODE_UNKNOWN
 var turns_used: int = 0
 var has_key: bool = false
 var has_info_key: bool = false
@@ -1228,6 +1229,9 @@ func can_cross_stepped_floor() -> bool:
 	return has_legs() or has_tracks()
 
 func get_runtime_mode_id() -> String:
+	var normalized_runtime_mode_id: String = active_runtime_mode_id.strip_edges()
+	if not normalized_runtime_mode_id.is_empty() and normalized_runtime_mode_id != RUNTIME_MODE_UNKNOWN:
+		return normalized_runtime_mode_id
 	if current_mission_index == TASK_TEST_MISSION_INDEX:
 		return RUNTIME_MODE_TASK_TEST
 	if current_mission_index >= LEGACY_STORY_MISSION_MIN_INDEX and current_mission_index <= LEGACY_STORY_MISSION_MAX_INDEX:
@@ -1277,14 +1281,32 @@ func get_current_mission_goal_hint() -> String:
 	return get_mission_goal_hint(current_mission_index)
 
 func start_task_test_session(save_snapshot: bool = true) -> void:
-	start_mission(TASK_TEST_MISSION_INDEX, save_snapshot)
+	_start_runtime_session(
+		TASK_TEST_MISSION_INDEX,
+		get_task_test_layout_id(),
+		RUNTIME_MODE_TASK_TEST,
+		save_snapshot
+	)
 
 func reset_task_test_session() -> void:
 	start_task_test_session(true)
 
 func start_mission(mission_index: int, save_snapshot: bool = true) -> void:
+	var clamped_mission_index := clampi(mission_index, 1, max_mission_index)
+	if clamped_mission_index == TASK_TEST_MISSION_INDEX:
+		start_task_test_session(save_snapshot)
+		return
+	_start_runtime_session(
+		clamped_mission_index,
+		get_mission_layout_id(clamped_mission_index),
+		RUNTIME_MODE_LEGACY_STORY,
+		save_snapshot
+	)
+
+func _start_runtime_session(mission_index: int, layout_id: String, runtime_mode_id: String, save_snapshot: bool) -> void:
 	# Box preparation flow: mission start resets turn actions, but does not spend resources.
-	current_mission_index = clampi(mission_index, 1, max_mission_index)
+	current_mission_index = mission_index
+	active_runtime_mode_id = runtime_mode_id
 	if is_task_test_mode_active():
 		ensure_task_test_default_modules()
 	mission_finished = false
@@ -1302,7 +1324,7 @@ func start_mission(mission_index: int, save_snapshot: bool = true) -> void:
 	field_modules_by_position.clear()
 	BipobLegacyCableFlowServiceRef.reset_legacy_state(self)
 	if grid_manager != null:
-		var mission_id: String = get_mission_layout_id(current_mission_index)
+		var mission_id: String = layout_id
 		var used_catalog_layout := false
 		if is_sandbox_mode_active() and mission_manager != null and mission_manager.has_method("apply_catalog_mission_layout_to_grid"):
 			used_catalog_layout = bool(mission_manager.call("apply_catalog_mission_layout_to_grid", mission_id))

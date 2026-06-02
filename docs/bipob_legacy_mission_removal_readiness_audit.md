@@ -1,8 +1,8 @@
-# BIPOB PR-RF-18 — Legacy mission removal readiness audit
+# BIPOB PR-RF-19 — Legacy mission removal readiness audit
 
 ## Purpose
 
-This audit records what still blocks safe deletion of old story mission code/resources after PR-RF-08 through PR-RF-18. PR-RF-18 intentionally changes only TASK TEST layout/catalog identity resolution: no gameplay, TASK TEST mechanics, Map Constructor, runtime action, scan/hack, movement, inventory, cable, airflow, or mission resource behavior is changed by this change.
+This audit records what still blocks safe deletion of old story mission code/resources after PR-RF-08 through PR-RF-19. PR-RF-19 intentionally changes only the TASK TEST runtime/session identity boundary: no gameplay, TASK TEST mechanics, Map Constructor, runtime action, scan/hack, movement, inventory, cable, airflow, or mission resource behavior is changed by this change.
 
 Current product direction:
 
@@ -11,12 +11,12 @@ Current product direction:
 - Mechanics introduced by old missions must survive if they are reusable in TASK TEST or future missions.
 - Mission resources/scenes/layouts should be deleted only after TASK TEST startup, sandbox completion, Map Constructor, runtime actions, scan/hack, inventory, and movement pass smoke without relying on old mission-index branches.
 
-## Current status after PR-RF-18
+## Current status after PR-RF-19
 
 ### Already isolated or removed
 
-- TASK TEST runtime identity exists through `get_runtime_mode_id()`, `is_task_test_mode_active()`, and `is_sandbox_mode_active()`.
-- TASK TEST startup has explicit entry points: `start_task_test_session()` and `reset_task_test_session()`.
+- TASK TEST runtime identity exists through explicit `active_runtime_mode_id` session state, `get_runtime_mode_id()`, `is_task_test_mode_active()`, and `is_sandbox_mode_active()`.
+- TASK TEST startup has explicit entry points: `start_task_test_session()` and `reset_task_test_session()`, and `start_task_test_session()` now starts the sandbox session directly instead of delegating to `start_mission(10)`.
 - TASK TEST layout/catalog compatibility is named through `get_task_test_mission_id()` and `get_task_test_layout_id()`; `get_task_test_layout_id()` now exposes the non-story `task_test` alias while `mission_10` remains the compatibility mission id and fallback resource id.
 - TASK TEST completion is isolated through `complete_sandbox_run()` and checked before legacy completion in `check_mission_complete()`.
 - Legacy story completion is separated into `complete_legacy_story_mission()`.
@@ -29,10 +29,9 @@ Current product direction:
 
 ### Still compatibility-based
 
-- `start_task_test_session()` still delegates to `start_mission(TASK_TEST_MISSION_INDEX, save_snapshot)`.
-- `TASK_TEST_MISSION_INDEX` still maps to the legacy-compatible mission index `10`.
+- `TASK_TEST_MISSION_INDEX` still maps to the legacy-compatible mission index `10`, and `current_mission_index` is still set to `10` for compatibility during TASK TEST sessions.
 - `MissionManager.TASK_TEST_LAYOUT_ID` maps to `task_test`, while `MissionManager.TASK_TEST_MISSION_ID` still maps to `mission_10` for compatibility fallback.
-- `current_mission_index` still exists as the central runtime/session selector.
+- `current_mission_index` still exists as legacy compatibility state for story mission flow, restart/progression, hints, and Mission 7/8/9 branches.
 - Mission 7/8 reusable mechanics still have legacy hardcoded state and should not be deleted until generic runtime contracts exist.
 
 ## Removal readiness matrix
@@ -43,7 +42,7 @@ Current product direction:
 | Mission 4 hidden-route story glue | Removed from goal hints, exit gating, completion message, auto field setup, pickup hints, and discovery side effects. | Ready. | Old Mission 4 story resources can be deleted later. Keep hidden/reveal/X-Ray/Route Data mechanics and debug placement. |
 | Mission 7 cable/socket/powered-gate | Isolated behind `BipobLegacyCableFlowService`, but still hardcoded to Mission 7 state, positions, and `cable_a`. | Not ready for deletion. | Create a generic runtime cable/socket/power world-object contract before deleting old Mission 7 layout/state. |
 | Mission 8 fan/platform/airflow/cooling | Isolated behind `BipobLegacyAirflowFlowService`, but still hardcoded to Mission 8 state and positions. | Not ready for deletion. | Create a generic runtime airflow/fan/platform/cooling world-object contract before deleting old Mission 8 layout/state. |
-| TASK TEST startup | Has explicit `start_task_test_session()` wrapper, a neutral `task_test` layout alias, and `mission_10` fallback compatibility, but still delegates to `start_mission(10)`. | Not fully ready. | Move TASK TEST session state off `current_mission_index` before deleting mission-index startup code. |
+| TASK TEST startup | Has explicit `start_task_test_session()` / `reset_task_test_session()` entry points, explicit `active_runtime_mode_id` runtime identity in the controller and MissionManager, a neutral `task_test` layout alias, and `mission_10` fallback compatibility. `start_mission(10)` now delegates to `start_task_test_session()` for compatibility. | Partially ready. | Keep proving TASK TEST smoke coverage before deleting mission-index compatibility and old mission resources. |
 | TASK TEST completion | Isolated through `complete_sandbox_run()`. | Mostly ready. | Smoke-test sandbox completion. Later route direct TASK TEST callers to `complete_sandbox_run()` and reduce `complete_mission()` compatibility. |
 | Mission selection/progression | Still uses `current_mission_index`, `max_mission_index`, `start_mission()`, `complete_legacy_story_mission()`, and legacy hints. | Not ready. | Isolate/remove story mission selection UI/progression after TASK TEST no longer depends on mission index startup. |
 | MissionManager | Still owns runtime world-object APIs, TASK TEST compatibility id, layouts, and Map Constructor catalog behavior. | Not ready for broad deletion. | Keep MissionManager until its runtime world-object/catalog responsibilities are separated from story mission responsibilities. |
@@ -51,9 +50,10 @@ Current product direction:
 
 ## Remaining blockers before deleting old mission resources
 
-1. **TASK TEST still starts through legacy mission index compatibility.**
-   - `start_task_test_session()` exists but still calls `start_mission(10)`.
-   - `current_mission_index` remains the runtime/session selector.
+1. **TASK TEST still retains mission index compatibility state.**
+   - `start_task_test_session()` now owns TASK TEST startup and sets explicit runtime mode state.
+   - `start_mission(10)` delegates to `start_task_test_session()` for compatibility.
+   - `current_mission_index` remains compatibility state for restart/progression, hints, and legacy story branches.
    - `task_test` is now the neutral TASK TEST layout/catalog alias, while `mission_10` remains the compatibility fallback id.
 
 2. **Mission 7 cable mechanics are not generic yet.**
@@ -77,23 +77,13 @@ Current product direction:
 
 ### PR-RF-18 — Introduce non-story TASK TEST layout id alias
 
-Status: completed. TASK TEST now exposes `task_test` as the neutral layout/catalog alias, MissionManager and the mission catalog resolve that alias to the existing `mission_10` layout data, and `mission_10` remains accepted as the compatibility id. No mission resources were deleted or renamed, and TASK TEST startup still follows the existing session path.
+Status: completed. TASK TEST now exposes `task_test` as the neutral layout/catalog alias, MissionManager and the mission catalog resolve that alias to the existing `mission_10` layout data, and `mission_10` remains accepted as the compatibility id. No mission resources were deleted or renamed.
 
 ### PR-RF-19 — Split sandbox session state from `current_mission_index`
 
 Goal: introduce an explicit sandbox session field/state so TASK TEST does not depend on mission index internally.
 
-Suggested direction:
-
-- Add a minimal `runtime_mode_id` or `active_session_mode` field if not already present.
-- Keep `current_mission_index` for legacy stories only.
-- Make `start_task_test_session()` set sandbox state explicitly.
-- Keep `start_mission(10)` compatibility by delegating to `start_task_test_session()` instead of the other way around.
-
-Acceptance:
-
-- TASK TEST can start without treating index `10` as the source of truth.
-- Old `start_mission(10)` compatibility still works.
+Status: completed for the startup dependency direction. `BipobController.active_runtime_mode_id` now owns the active controller runtime identity when set, `start_task_test_session()` starts TASK TEST directly through the shared runtime-start helper, and `start_mission(10)` delegates back to `start_task_test_session()` for compatibility. `current_mission_index` remains set to `10` during TASK TEST only as compatibility state, not as the sole source of sandbox identity.
 
 ### PR-RF-20 — Generic runtime cable/socket/power contract planning or thin service
 

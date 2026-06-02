@@ -126,6 +126,7 @@ var map_constructor_terminal_visual_preset_overrides: Dictionary = {}
 var _map_constructor_change_history: Array[Dictionary] = []
 var _map_constructor_change_history_seq: int = 1
 var current_mission_id: String = ""
+var active_runtime_mode_id: String = RUNTIME_MODE_UNKNOWN
 var constructor_map_width: int = 16
 var constructor_map_height: int = 10
 var constructor_start_marker: Dictionary = {}
@@ -896,6 +897,7 @@ func _validate_architecture_mission_objective_contract() -> Array[String]:
 
 func setup_world_objects_for_mission(mission_id: String) -> void:
 	current_mission_id = mission_id
+	active_runtime_mode_id = _get_runtime_mode_id_for_mission_id(mission_id)
 	mission_world_objects.clear()
 	world_objects_by_cell.clear()
 	cell_items.clear()
@@ -1028,7 +1030,13 @@ func _is_valid_grid_cell(cell: Vector2i) -> bool:
 	return true
 
 func get_runtime_mode_id() -> String:
-	var normalized_mission_id: String = String(current_mission_id).strip_edges()
+	var normalized_runtime_mode_id: String = active_runtime_mode_id.strip_edges()
+	if not normalized_runtime_mode_id.is_empty() and normalized_runtime_mode_id != RUNTIME_MODE_UNKNOWN:
+		return normalized_runtime_mode_id
+	return _get_runtime_mode_id_for_mission_id(current_mission_id)
+
+func _get_runtime_mode_id_for_mission_id(mission_id: String) -> String:
+	var normalized_mission_id: String = String(mission_id).strip_edges()
 	if is_task_test_mission_id(normalized_mission_id):
 		return RUNTIME_MODE_TASK_TEST
 	if normalized_mission_id.begins_with("mission_"):
