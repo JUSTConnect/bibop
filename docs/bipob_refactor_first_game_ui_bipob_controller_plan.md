@@ -1,7 +1,7 @@
 # BIPOB — refactor-first plan for GameUI and BipobController
 
 **Version:** 2026-06-02  
-**Scope:** docs-only planning  
+**Scope:** docs-only planning update  
 **Primary decision:** split the big files before continuing TASK TEST mechanics  
 **Target files:** `scripts/ui/game_ui.gd`, `scripts/bipob/bipob_controller.gd`, supporting services
 
@@ -29,15 +29,29 @@ Therefore the correct order is:
 3. Only then return to TASK TEST mechanics, editor polish, and runtime gameplay iteration.
 ```
 
-This document replaces a TASK-TEST-first interpretation with a refactor-first strategy.
-
 ---
 
-## 1. What is already true
+## 1. Current verified state
 
-The project is not starting from a raw monolith. Several seams already exist.
+### 1.1 GameUI session state extraction is already done
 
-### 1.1 Existing Bipob seams
+`MapConstructorSessionState` already exists:
+
+```text
+scripts/ui/map_constructor/map_constructor_session_state.gd
+```
+
+`game_ui.gd` already preloads it and keeps:
+
+```gdscript
+var map_constructor_state: MapConstructorSessionState = MapConstructorSessionStateRef.new()
+```
+
+The session state holder already contains constructor selection, pending placement, picker, filters, issue/preset/patch/template names, overlay visibility, overview settings, and reset helpers.
+
+So the next PR must **not** be “extract session state”. That would repeat completed work.
+
+### 1.2 Existing Bipob seams
 
 Current extracted helpers include:
 
@@ -54,7 +68,7 @@ scripts/game/bipob_item_pickup_execution_service.gd
 
 These are useful and should not be bypassed by new mechanic work.
 
-### 1.2 Existing GameUI / Map Constructor seams
+### 1.3 Existing GameUI / Map Constructor seams
 
 Current extracted helpers include:
 
@@ -69,7 +83,7 @@ scripts/game/map_constructor_power_link_validation_rules.gd
 scripts/game/map_constructor_readiness_validation_service.gd
 ```
 
-These are also useful, but `game_ui.gd` remains too stateful and too central.
+The problem is not that no seams exist. The problem is that `game_ui.gd` and `bipob_controller.gd` still contain too much orchestration and many callback/execution branches.
 
 ---
 
@@ -99,175 +113,21 @@ The next phase should break this loop.
 
 ---
 
-## 3. Target architecture before more TASK TEST mechanics
+## 3. Updated refactor sequence
 
-### 3.1 GameUI target shape
+The previous idea of starting with a call-surface audit or session-state extraction is no longer the best next step:
 
-`game_ui.gd` should become a thin application/root coordinator.
+- a pure call-surface audit is too passive;
+- session state extraction is already implemented.
 
-It may keep:
-
-```text
-boot UI
-screen switching
-root node creation
-signal binding
-selected screen ownership
-high-level refresh routing
-modal/panel visibility orchestration
-calls to focused controllers/services
-```
-
-It should not keep growing:
-
-```text
-Map Constructor property semantics
-link validity decisions
-validation severity decisions
-autofix/cleanup planning
-runtime action availability decisions
-inventory display truth
-object-type hardcoded presentation branches
-large callback bodies for mechanic-specific UI
-```
-
-### 3.2 BipobController target shape
-
-`bipob_controller.gd` should become a thin owner/coordinator for the Bipob node.
-
-It may keep:
-
-```text
-node state
-signals
-high-level input methods used by UI
-basic delegation
-mission-manager reference
-service wiring
-status/hint forwarding
-```
-
-It should not keep growing:
-
-```text
-object-type execution branches
-tile-specific legacy routers
-inventory internals
-scan/hack diagnostic policy
-movement/path/collision implementation details
-runtime action descriptor construction
-terminal/door/power/cable/heavy-claw special cases
-visual feedback details
-```
+The next useful PR should be a narrow behavior-preserving code extraction.
 
 ---
 
-## 4. Refactor sequence
-
-The order below intentionally avoids broad rewrites. Each step must be narrow and should preserve behavior.
-
----
-
-## PR-RF-01 — GameUI call-surface audit
-
-**Type:** docs-only or script-assisted audit  
-**Goal:** list and classify every direct runtime call and large callback in `game_ui.gd`.
-
-Target files:
-
-```text
-scripts/ui/game_ui.gd
-scripts/ui/map_constructor/*.gd
-scripts/ui/runtime/*.gd
-docs/bipob_game_ui_call_surface_audit.md
-```
-
-Classify each direct call to `mission_manager_runtime`, `bipob`, or constructor helper as:
-
-```text
-screen/root coordination
-render-read
-refresh coordination
-callback route
-mutation facade
-semantic decision
-mechanic-specific branch
-legacy compatibility
-```
-
-Acceptance:
-
-```text
-- No behavior changes.
-- No UI redesign.
-- No TASK TEST mechanic changes.
-- Output identifies exact extraction candidates and blockers.
-```
-
-Why first:
-
-```text
-Without this audit, every later UI extraction risks moving the wrong thing or preserving hidden semantic decisions in another helper.
-```
-
----
-
-## PR-RF-02 — Extract GameUI constructor selection/session state
+## PR-RF-01 — Extract GameUI Map Constructor refresh coordinator
 
 **Type:** narrow code PR  
-**Goal:** move Map Constructor session state out of `game_ui.gd` without changing behavior.
-
-Create candidate:
-
-```text
-scripts/ui/map_constructor/map_constructor_session_state.gd
-```
-
-Move state like:
-
-```text
-map_constructor_mode_active
-map_constructor_active_tab
-selected_map_constructor_prefab_id
-pending_map_constructor_cell
-map_constructor_pending_place_prefab_id
-map_constructor_pending_place_cell
-map_constructor_pending_place_rotation
-selected_map_constructor_entity_kind
-selected_map_constructor_entity_id
-selected_map_constructor_entity_cell
-selected_map_constructor_wall_side
-selected_map_constructor_mounting_mode
-available_map_constructor_wall_sides
-picker field/entity state
-filters/search/recent/favorites state
-selected issue/template/patch/preset names
-```
-
-Rules:
-
-```text
-- Data container only.
-- No semantic decisions.
-- No mutation policy.
-- GameUI may still own refresh ordering.
-- Existing public behavior stays the same.
-```
-
-Acceptance:
-
-```text
-- game_ui.gd loses a large block of state variables.
-- All previous UI flows compile and use the same values through the session object.
-- Parser/safety checks pass.
-```
-
----
-
-## PR-RF-03 — Extract GameUI refresh coordinator
-
-**Type:** narrow code PR  
-**Goal:** isolate post-mutation refresh sequencing so callbacks do not keep growing.
+**Goal:** remove post-mutation refresh sequencing from `game_ui.gd` without changing behavior.
 
 Create candidate:
 
@@ -275,39 +135,54 @@ Create candidate:
 scripts/ui/map_constructor/map_constructor_refresh_coordinator.gd
 ```
 
-Move only sequencing like:
+Move only sequencing and routing like:
 
 ```text
-refresh inspector
-refresh palette
-refresh validation view
-refresh overlays
-refresh runtime object HUD
+refresh Map Constructor panels
+refresh inspector after property/preset/link mutation
 request field visual refresh
-restore scroll/expanded state
-focus selected issue/entity
+restore inspector scroll/expanded state when safe
+focus selected issue/entity after refresh
+refresh validation overlay visibility/update
+refresh runtime object HUD if needed
+clear/rebuild placement confirmation panel if needed
 ```
+
+The coordinator should receive the current `GameUI` owner and/or explicit context. It must not become a semantic service.
 
 Rules:
 
 ```text
+- No gameplay behavior changes.
+- No TASK TEST mechanic changes.
+- No MissionManager behavior changes.
 - No validation semantics.
 - No mutation decisions.
 - No power/cooling recalculation decisions.
-- Coordinator receives explicit mutation/read results and refreshes UI.
+- No UI redesign.
+- Keep existing callback order unless a bug is explicitly fixed.
 ```
 
 Acceptance:
 
 ```text
-- GameUI callbacks become shorter.
-- The refresh order remains unchanged.
-- No runtime mechanic behavior changes.
+- game_ui.gd has shorter property/link/placement/preset callbacks.
+- Existing Map Constructor selection, placement, inspector, validation view, overlay, and visual refresh still work.
+- Parser gate passes.
+- GDScript safety checks pass.
+```
+
+Why this is first:
+
+```text
+Session state is already extracted, but callbacks still repeatedly do:
+show hint → refresh panels → request visual refresh → reopen inspector → focus selection.
+That pattern should move out before new mechanics add more copies.
 ```
 
 ---
 
-## PR-RF-04 — Extract GameUI runtime interaction presenter/facade
+## PR-RF-02 — Extract GameUI runtime interaction presenter/facade
 
 **Type:** narrow code PR  
 **Goal:** prevent runtime Action / Connect / Heavy Claw UI growth inside `game_ui.gd`.
@@ -322,7 +197,9 @@ Responsibilities:
 
 ```text
 read target action context from BipobController
-prepare button labels/enabled/tooltip/pulse state
+prepare Action / Connect / Heavy Claw button labels
+enable/disable buttons from existing view model
+prepare tooltip/reason text
 route Action button click
 route Connect button click
 route Heavy Claw button click
@@ -333,9 +210,9 @@ Rules:
 
 ```text
 - The presenter does not decide game semantics.
-- It renders `BipobActionViewModelService` output.
-- It does not call InteractionSystem directly unless already part of existing read model flow.
-- It does not mutate world state except through existing controller methods.
+- It renders Bipob action/view-model data.
+- It does not call InteractionSystem directly unless already part of an existing read-model path.
+- It does not mutate world state except through existing BipobController public methods.
 ```
 
 Acceptance:
@@ -348,7 +225,7 @@ Acceptance:
 
 ---
 
-## PR-RF-05 — BipobController movement boundary
+## PR-RF-03 — BipobController movement boundary
 
 **Type:** narrow code PR  
 **Goal:** move movement/collision/visual-position update implementation out of `bipob_controller.gd`.
@@ -367,12 +244,11 @@ move_backward
 try_move_to
 turn_left
 turn_right
-get_direction_vector
-get_facing_device_position if not already fully delegated
-update_world_position
-update_rotation/update_visual_facing if safe
+movement/collision checks
 movement-related stale action clearing
 movement-related mission complete checks
+visual world position update if safe
+visual facing update if safe
 ```
 
 Rules:
@@ -396,9 +272,9 @@ Acceptance:
 
 ---
 
-## PR-RF-06 — BipobController legacy tile quarantine
+## PR-RF-04 — BipobController legacy tile quarantine
 
-**Type:** narrow code PR after audit  
+**Type:** narrow code PR after local code inspection  
 **Goal:** prevent old tile/device logic from living inline beside modern world-object action flow.
 
 Create candidate:
@@ -425,19 +301,11 @@ Rules:
 - No new mechanics.
 ```
 
-Acceptance:
-
-```text
-- Modern world-object action path remains preferred.
-- Legacy tile checks are isolated and easier to delete later.
-- No action/energy spending changes unless explicitly scoped.
-```
-
 ---
 
-## PR-RF-07 — BipobController scan/hack boundary audit and extraction
+## PR-RF-05 — BipobController scan/hack boundary
 
-**Type:** docs-only first, then narrow code PR  
+**Type:** narrow code PR, possibly preceded by small inspection note  
 **Goal:** remove scan/hack diagnostic policy from the controller.
 
 Candidate service:
@@ -446,7 +314,7 @@ Candidate service:
 scripts/game/bipob_scan_hack_service.gd
 ```
 
-Move only after audit:
+Move only after verifying current call order:
 
 ```text
 get_facing_device_diagnostic_result
@@ -467,17 +335,9 @@ Rules:
 - Preserve messages unless a separate UX PR changes them.
 ```
 
-Acceptance:
-
-```text
-- Controller delegates scan/hack.
-- Runtime scan/hack smoke remains identical.
-- Device preflight/state-flow still reads MissionManager/InteractionSystem contracts.
-```
-
 ---
 
-## PR-RF-08 — BipobController inventory boundary
+## PR-RF-06 — BipobController inventory boundary
 
 **Type:** narrow code PR  
 **Goal:** remove inventory internals from `BipobController` after item pickup execution helper is stable.
@@ -508,7 +368,7 @@ Rules:
 
 ---
 
-## PR-RF-09 — Pause and return to TASK TEST mechanics
+## PR-RF-07 — Pause and return to TASK TEST mechanics
 
 Only after the above boundaries are in place should mechanic work resume.
 
@@ -533,31 +393,7 @@ bipob_controller.gd
 
 ---
 
-## 5. File-size / responsibility acceptance target
-
-This project does not need a strict line-count gate yet, but the direction should be measurable.
-
-Soft target after the refactor-first phase:
-
-```text
-game_ui.gd:
-- mostly root/screen coordinator
-- fewer constructor state fields
-- fewer direct mutation callbacks
-- no mechanic-specific runtime action UI branches
-
-bipob_controller.gd:
-- public facade for UI
-- service delegation for targeting/action/execution/movement/scan/inventory
-- no large inline object-type execution tree
-- legacy tile logic isolated
-```
-
-A PR is considered suspicious if it adds new mechanic-specific branches to either big file without also explaining why no existing service boundary can own them.
-
----
-
-## 6. Rules for all refactor-first PRs
+## 4. Rules for all refactor-first PRs
 
 ```text
 [ ] No new TASK TEST mechanic behavior unless explicitly scoped.
@@ -576,69 +412,56 @@ A PR is considered suspicious if it adds new mechanic-specific branches to eithe
 
 ---
 
-## 7. Codex prompt for the immediate next PR
+## 5. Codex prompt for the immediate next PR
 
 ```text
-BIPOB PR-RF-01 — GameUI call-surface audit before further TASK TEST mechanics
+BIPOB PR-RF-01 — Extract GameUI Map Constructor refresh coordinator
 
 Goal:
-Perform a documentation-only audit of scripts/ui/game_ui.gd and UI helper call surfaces so we can split GameUI before continuing TASK TEST mechanic development.
+Reduce scripts/ui/game_ui.gd by moving Map Constructor post-mutation refresh sequencing into a dedicated coordinator, without changing runtime behavior.
 
-Reason:
-TASK TEST is already the active sandbox/editor/runtime mode, but every mechanic polish currently risks adding more branches to GameUI or BipobController. The next phase is refactor-first: reduce big-file responsibility before returning to TASK TEST mechanics.
+Create:
+- scripts/ui/map_constructor/map_constructor_refresh_coordinator.gd
+
+Target:
+- scripts/ui/game_ui.gd
+- scripts/ui/map_constructor/map_constructor_refresh_coordinator.gd
+
+Context:
+MapConstructorSessionState already exists and is already used by GameUI. Do not repeat session-state extraction. The next remaining problem is that many GameUI callbacks still manually perform the same refresh sequence: show hint, refresh constructor panels, request visual refresh, reopen inspector, restore/focus selected state.
 
 Scope:
-- scripts/ui/game_ui.gd
-- scripts/ui/map_constructor/*.gd
-- scripts/ui/runtime/*.gd
-- docs/bipob_game_ui_call_surface_audit.md
-
-Audit:
-List direct calls and callback paths involving:
-- mission_manager_runtime
-- bipob
-- map_constructor services/helpers
-- runtime action controls
-- constructor mutation callbacks
-- validation/overlay refresh callbacks
-
-Classify each call as:
-- screen/root coordination
-- render-read
-- refresh coordination
-- callback route
-- mutation facade
-- semantic decision
-- mechanic-specific branch
-- legacy compatibility
+Move only refresh sequencing/routing helpers used after Map Constructor mutations:
+- refresh Map Constructor panels
+- refresh inspector after property/preset/link mutation
+- request field visual refresh
+- restore/focus selected entity or issue after refresh where current behavior already does this
+- refresh validation overlay visibility/update where current behavior already does this
+- keep placement confirmation refresh behavior unchanged
 
 Rules:
-- Documentation-only.
-- Do not modify gameplay behavior.
-- Do not add or edit TASK TEST mechanics.
-- Do not edit normal mission content.
-- Do not change project.godot.
-- Do not create Test Build files/folders.
-- Do not add Russian game-facing labels.
-
-Deliverable:
-Create docs/bipob_game_ui_call_surface_audit.md with:
-- current GameUI responsibility map;
-- list of largest remaining state/callback clusters;
-- exact extraction candidates;
-- recommended next PR sequence;
-- non-goals;
-- smoke checklist for later extraction PRs.
+- No gameplay behavior changes.
+- No TASK TEST mechanic changes.
+- No MissionManager behavior changes.
+- No project.godot changes.
+- No UI redesign.
+- No semantic decisions in the new coordinator.
+- No validation rule changes.
+- No power/cooling recalculation decisions.
+- Keep existing GameUI public behavior and callbacks working.
+- Runtime labels remain English.
 
 Acceptance:
-- The doc explicitly says mechanic work should pause until GameUI/BipobController boundaries are improved.
-- The doc does not propose story mission work.
-- The doc identifies where future mechanic work should go instead of GameUI.
+- game_ui.gd has fewer repeated post-mutation refresh blocks.
+- Existing Map Constructor selection, placement, picker, filter, validation focus, inspector refresh, overlay, and field visual refresh still work.
+- Parser gate passes.
+- GDScript safety checks pass.
+- Manual smoke: place object, edit property, apply preset, link object, focus validation issue, delete object, confirm inspector/overlay/field visual refresh still update.
 ```
 
 ---
 
-## 8. Final note
+## 6. Final note
 
 The previous TASK TEST contract audit is still useful as a sandbox/runtime reference, but it is not the immediate execution plan.
 
@@ -646,5 +469,9 @@ The immediate execution plan is:
 
 ```text
 Refactor big files first.
-Then continue TASK TEST mechanics.
+Do not redo already-completed session-state extraction.
+Next: extract Map Constructor refresh coordinator.
+Then: extract runtime interaction presenter.
+Then: continue BipobController boundaries.
+Then: return to TASK TEST mechanics.
 ```
