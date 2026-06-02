@@ -36,6 +36,7 @@ const ScanSystemRef = preload("res://scripts/world/scan_system.gd")
 const InteractionSystemRef = preload("res://scripts/world/interaction_system.gd")
 const PowerSystemRef = preload("res://scripts/world/power_system.gd")
 const BipobModulePresenterRef = preload("res://scripts/bipob/bipob_module_presenter.gd")
+const BipobTargetingServiceRef = preload("res://scripts/game/bipob_targeting_service.gd")
 const EXTERNAL_MODULE_CATALOG: Dictionary = {
 "wheels_v1":{"name":"Wheels V1","cat":"Gear","size":Vector2i(3,2),"sides":[EXTERNAL_SIDE_BOTTOM],"desc":"Fast movement system for flat and stable surfaces. Ineffective on stairs, mud and debris.","energy":1,"terrain":"Flat surface","movement":"Drive","speed":3},
 "legs_v1":{"name":"Legs V1","cat":"Gear","size":Vector2i(3,2),"sides":[EXTERNAL_SIDE_BOTTOM],"desc":"Universal movement system that provides stable traversal across uneven terrain, steps, obstacles, and mixed surfaces.","energy":1,"terrain":"Any surface","movement":"Walk","speed":2},
@@ -6919,20 +6920,13 @@ func emit_facing_world_object_hint() -> void:
 	return
 
 func get_facing_world_action_target() -> Dictionary:
-	var target_position: Vector2i = get_facing_device_position()
-	var target_object: Dictionary = {}
-	if mission_manager != null:
-		target_object = Dictionary(mission_manager.get_world_object_at_cell(target_position))
-		if target_object.is_empty():
-			var items: Array = mission_manager.get_items_at_cell(target_position)
-			if items.is_empty() and target_position != grid_position:
-				items = mission_manager.get_items_at_cell(grid_position)
-				if not items.is_empty():
-					target_position = grid_position
-			if not items.is_empty():
-				target_object = Dictionary(items[0])
-	var view_model: Dictionary = build_runtime_action_view_model(target_object, target_position)
-	return {"target_position": target_position, "target_object": view_model.get("target", {}), "actions": view_model.get("available_action_ids", []), "action_view_model": view_model}
+	return BipobTargetingServiceRef.build_action_target_context(self)
+
+func get_facing_world_object() -> Dictionary:
+	return BipobTargetingServiceRef.get_facing_object(self)
+
+func get_facing_world_item() -> Dictionary:
+	return BipobTargetingServiceRef.get_facing_item(self)
 
 func get_facing_device_diagnostic_result() -> Dictionary:
 	if mission_manager == null or not mission_manager.has_method("build_device_diagnostic_result"):
@@ -7313,7 +7307,7 @@ func get_direction_vector(current_direction: Direction) -> Vector2i:
 	return Vector2i.ZERO
 
 func get_facing_device_position() -> Vector2i:
-	return grid_position + get_direction_vector(direction)
+	return BipobTargetingServiceRef.get_facing_cell(self)
 
 func get_device_definition_for_tile(tile_type: int) -> DeviceDefinition:
 	var definition := DeviceDefinition.new()
