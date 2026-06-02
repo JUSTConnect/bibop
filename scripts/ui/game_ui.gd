@@ -8,6 +8,7 @@ const CenterScreenRef = preload("res://scripts/ui/screens/center_screen.gd")
 const RuntimeStoragePanelRef = preload("res://scripts/ui/runtime/runtime_storage_panel.gd")
 const RuntimeControlPanelRef = preload("res://scripts/ui/runtime/runtime_control_panel.gd")
 const RuntimeBipobSwitcherRef = preload("res://scripts/ui/runtime/runtime_bipob_switcher.gd")
+const RuntimeObjectHudRef = preload("res://scripts/ui/runtime/runtime_object_hud.gd")
 
 
 class InternalIsoPreviewControl:
@@ -9887,7 +9888,7 @@ func _process(delta: float) -> void:
 	_update_map_keyboard_pan(delta)
 	_process_map_constructor_edge_scroll(delta)
 	_process_runtime_interaction_feedback(delta)
-	RuntimeHud.refresh_object_info_position(self)
+	refresh_object_info_position()
 
 
 func _process_runtime_interaction_feedback(delta: float) -> void:
@@ -10229,26 +10230,32 @@ func _cycle_map_constructor_wall_side() -> void:
 	show_hint("Wall side: %s" % selected_map_constructor_wall_side)
 
 
+func refresh_object_info_position() -> void:
+	RuntimeObjectHudRef.refresh_position(self)
+
+func _refresh_runtime_object_info() -> void:
+	RuntimeObjectHudRef.refresh(self)
+
 func _hide_runtime_object_info_hud() -> void:
-	RuntimeHud.hide_object_info(self)
+	RuntimeObjectHudRef.hide(self)
 
 func _clear_runtime_object_info_hud() -> void:
-	RuntimeHud.clear_object_info(self)
+	RuntimeObjectHudRef.clear(self)
 
 func _runtime_object_info_value(object_data: Dictionary, keys: Array[String], fallback: String = "") -> String:
-	return RuntimeObjectHud.info_value(self, object_data, keys, fallback)
+	return RuntimeObjectHudRef.info_value(self, object_data, keys, fallback)
 
 func _runtime_object_info_type_label(object_data: Dictionary) -> String:
-	return RuntimeObjectHud.info_type_label(self, object_data)
+	return RuntimeObjectHudRef.info_type_label(self, object_data)
 
 func _runtime_door_type_label(object_data: Dictionary) -> String:
-	return RuntimeObjectHud.door_type_label(self, object_data)
+	return RuntimeObjectHudRef.door_type_label(self, object_data)
 
 func _runtime_access_type_label(value: String) -> String:
-	return RuntimeObjectHud.access_type_label(value)
+	return RuntimeObjectHudRef.access_type_label(value)
 
 func _show_runtime_object_info_hud(cell: Vector2i) -> void:
-	RuntimeHud.show_object_info(self, cell)
+	RuntimeObjectHudRef.show(self, cell)
 
 func _handle_runtime_gameplay_mouse_click(event: InputEventMouseButton) -> bool:
 	if app_screen_mode != AppScreenMode.GAMEPLAY:
