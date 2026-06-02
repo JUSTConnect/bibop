@@ -1,6 +1,6 @@
 # BIPOB legacy mission retirement dependency map
 
-PR-RF-08 prepares legacy story missions for future removal without deleting shared mechanics or mission resources. The active product surface remains TASK TEST / Map Constructor / runtime sandbox.
+PR-RF-08 through PR-RF-10 prepare legacy story missions for future removal without deleting shared mechanics or mission resources. The active product surface remains TASK TEST / Map Constructor / runtime sandbox.
 
 ## Classification key
 
@@ -20,10 +20,10 @@ PR-RF-08 prepares legacy story missions for future removal without deleting shar
 - `is_legacy_mission4_hidden_route_flow_active()` names the hidden route-node branch.
 - `is_legacy_mission7_cable_flow_active()` and `is_legacy_mission7_cable_drag_active()` name the cable path branch.
 - `is_legacy_mission8_airflow_flow_active()` names the fan/platform/airflow branch.
-- `complete_legacy_mission_from_story_glue()` quarantines legacy mission completion side effects that are still called from old terminal tutorial flows.
-- `complete_legacy_mission8_airflow_terminal_hack()` quarantines the hardcoded Mission 8 terminal/door mutation.
+- `complete_legacy_mission_from_story_glue()` is now a compatibility no-op so deprecated story tutorial callers cannot complete missions from generic runtime flows.
+- `unlock_airflow_terminal_path()` preserves the reusable airflow-terminal unlock effect; `complete_legacy_mission8_airflow_terminal_hack()` remains as a compatibility wrapper and does not complete a mission.
 
-These wrappers are compatibility boundaries only. They preserve behavior and mark branches for removal or extraction after TASK TEST dependency proof.
+These wrappers are compatibility boundaries only. PR-RF-10 neutralizes legacy completion side effects in generic scan/hack/read-terminal flows while preserving shared mechanics for later extraction.
 
 ## Remaining usage map
 
@@ -35,8 +35,8 @@ These wrappers are compatibility boundaries only. They preserve behavior and mar
 | `175-188` | `mission8_*` fan speed/direction, terminal/door positions, and airflow cells. | Story glue still blocking TASK TEST safety, needs extraction first. | Fan/platform/airflow is reusable, but this state is hardcoded to Mission 8 positions. Extract to runtime cooling/airflow world-object state before deleting. |
 | `189-195` | `mission7_*` cable drag/connect positions, path, and length. | Story glue still blocking TASK TEST safety, needs extraction first. | Cable/socket/power is reusable, but this state is hardcoded to Mission 7 positions and object IDs. Extract to runtime cable/power state before deleting. |
 | `1243-1259` | Legacy wrapper predicates read `current_mission_index`, `mission7_is_dragging_cable`, and Mission 8 activation. | Story glue, safe to remove later. | These wrappers intentionally isolate direct checks. Remove with old missions after callers move to runtime contracts. |
-| `1261-1264` | `complete_legacy_mission_from_story_glue()` calls `complete_mission()`. | Story glue, safe to remove later. | Compatibility wrapper only; remove once terminal tutorial completion is gone. |
-| `1266-1271` | `complete_legacy_mission8_airflow_terminal_hack()` sets `mission8_terminal_hacked` and opens `mission8_door_position`. | Story glue still blocking TASK TEST safety, needs extraction first. | Replace with runtime Action/Hack result that mutates a world object or connection target, not a hardcoded tile. |
+| `1281-1285` | `complete_legacy_mission_from_story_glue()` is a no-op compatibility wrapper. | Retired/neutralized story completion side effect. | Mission completion is no longer triggered from old terminal tutorial scan/hack/read-terminal branches. Remove the wrapper after legacy callers are gone. |
+| `1287-1297` | `unlock_airflow_terminal_path()` sets `mission8_terminal_hacked` and opens `mission8_door_position`; `complete_legacy_mission8_airflow_terminal_hack()` delegates to it without mission completion. | Story glue still blocking TASK TEST safety, needs extraction first. | The generic hack flow now calls the reusable unlock helper directly. Replace the hardcoded Mission 8 tile mutation with a runtime Action/Hack result that mutates a world object or connection target. |
 | `1273` | Current goal hint delegates to legacy mission hint table. | Story glue, safe to remove later. | TASK TEST should eventually use runtime objective/help text independent of story missions. |
 | `1277`, `1301`, `1306`, `1383`, `1386`, `1449-1450` | Mission start/restart/progression uses `current_mission_index`. | Story glue still blocking TASK TEST safety, needs extraction first. | TASK TEST currently depends on mission `10` compatibility. Replace with sandbox session startup before removing. |
 | `1294-1299` | Mission 7 cable state reset on mission start. | Story glue, safe to remove later. | Safe after Mission 7 cable flow is removed or extracted to runtime cable state. |
@@ -51,14 +51,14 @@ These wrappers are compatibility boundaries only. They preserve behavior and mar
 | `8339-8346` | Mission 7 cable status text uses wrapper and Mission 7 state. | Story glue, safe to remove later. | Status text is old mission UI glue. Runtime cable status should come from generic runtime state. |
 | `8349-8425` | Mission 7 setup, cable reel/socket interactions, path drawing/clearing, and release. | Story glue still blocking TASK TEST safety, needs extraction first. | Cable dragging/path/socket/power event is reusable, but hardcoded positions and `cable_a` must be extracted before removal. |
 | `8429-8567` | Mission 8 terminal state text, fan rotation/speed controls, airflow range, and airflow tile updates. | Story glue still blocking TASK TEST safety, needs extraction first. | Fan/platform/airflow is reusable, but must move to runtime cooling/airflow service and world-object contracts. |
-| `8839` | `read_terminal()` switches on `current_mission_index`. | Story glue, safe to remove later. | Old terminal tutorial/info-key branch. Scan/Hack and digital record mechanics must remain. |
+| `8857-8883` | `read_terminal()` switches on `current_mission_index`; Mission 2 now emits tutorial feedback only and no longer completes a mission. | Retired/neutralized story completion side effect. | Old terminal tutorial/info-key branch remains for compatibility. Scan/Hack and digital record mechanics must remain. |
 
 ### `scripts/game/bipob_scan_hack_service.gd`
 
 | Location | Usage | Classification | Retirement note |
 | --- | --- | --- | --- |
-| `213-216` | Uses `is_legacy_mission2_terminal_tutorial_active()` and `complete_legacy_mission_from_story_glue()` for the old terminal tutorial branch. | Story glue, safe to remove later. | The reusable `download_info_key` action remains below this branch. Remove only the tutorial completion side effect. |
-| `239` | Calls `complete_legacy_mission8_airflow_terminal_hack()`. | Story glue still blocking TASK TEST safety, needs extraction first. | `unlock_airflow_terminal` is reusable, but the result must target runtime world-object contracts instead of Mission 8 hardcoded door state. |
+| `213-218` | Uses `is_legacy_mission2_terminal_tutorial_active()` for the old terminal tutorial branch, but only emits feedback/status. | Retired/neutralized story completion side effect. | Generic scan/hack no longer calls `complete_legacy_mission_from_story_glue()`. The reusable `download_info_key` action and Info-Key digital record storage remain below this branch. |
+| `239` | Calls `unlock_airflow_terminal_path()` for the airflow-terminal hack effect. | Reusable mechanic with legacy hardcoded state still needing extraction. | `unlock_airflow_terminal` remains available and does not call `complete_mission()`. Replace the hardcoded Mission 8 door state with runtime world-object contracts later. |
 
 ### `scripts/bipob/bipob_inventory_controller.gd`
 
@@ -82,7 +82,7 @@ No remaining `current_mission_index`, `mission7_*`, `mission8_*`, or `complete_m
 
 ## Reusable mechanics that must survive
 
-- Runtime scan/hack command flow and digital record storage.
+- Runtime scan/hack command flow and digital record storage. Generic scan/hack no longer completes legacy story missions.
 - Inventory pickup/drop, manipulator hand, and pocket logic.
 - Runtime movement/turn/action spending and map constructor startup behavior.
 - Cable/socket/power concepts, after extraction from Mission 7 hardcoded positions/object IDs.
@@ -91,7 +91,7 @@ No remaining `current_mission_index`, `mission7_*`, `mission8_*`, or `complete_m
 
 ## Branches that can be deleted after extraction/proof
 
-- Mission 2 terminal calibration completion branch.
+- Mission 2 terminal calibration completion side effect is retired/neutralized; remaining compatibility feedback can be deleted with the old terminal tutorial branch.
 - Mission 4 hidden route-node story gating and recovered-module hints.
 - Mission 7 hardcoded cable reel/socket/gate setup and status text, after cable mechanics are represented by runtime services.
 - Mission 8 hardcoded fan/platform/airflow/terminal setup and status text, after airflow mechanics are represented by runtime services.
@@ -100,5 +100,5 @@ No remaining `current_mission_index`, `mission7_*`, `mission8_*`, or `complete_m
 ## TASK TEST safety notes
 
 - PR-RF-08 does not delete resources, scenes, setup data, cable/socket/power behavior, fan/platform/airflow behavior, scan/hack, inventory, or MissionManager.
-- The code changes are boundary naming and compatibility wrappers only; they preserve existing behavior while making legacy story glue visible.
+- PR-RF-10 removes legacy mission completion from generic scan/hack/read-terminal flows while preserving TASK TEST startup, Map Constructor, scan/hack mechanics, Info-Key storage, digital doors, hot nodes, airflow terminal unlock, cable/socket/power, inventory, and movement behavior.
 - Future removal PRs should first prove TASK TEST startup, runtime Action / Connect / Heavy Claw, scan/hack, and pickup/drop paths no longer require old mission-index branches.
