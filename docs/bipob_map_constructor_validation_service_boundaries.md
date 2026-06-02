@@ -36,7 +36,7 @@ The extracted helper scripts now own meaningful presentation slices:
 - `map_constructor_link_controls.gd` renders link pickers and target navigation controls;
 - `map_constructor_validation_view.gd` renders linked, missing, and warning groups and deduplicates displayed warning rows.
 
-The helpers are currently presentation-oriented but not presentation-only. Several helpers call `ui.mission_manager_runtime` directly for read models and mutation APIs. In particular, property controls call property update/preset APIs, link controls call entity lookup/candidate/link mutation APIs, and the inspector calls entity lookup, type-group, visual-state, and link validation APIs.
+The helpers are currently presentation-oriented but not presentation-only. Several helpers call `ui.mission_manager_runtime` directly for read models and mutation APIs. In particular, property controls call property update/preset APIs, link controls still call specialized key-link reads and existing link mutation APIs while generic picker reads pass through `MapConstructorLinkReadModelService`, and the inspector calls entity lookup, type-group, visual-state, and link validation APIs.
 
 ### `MapConstructorService`
 
@@ -120,15 +120,15 @@ The objective is not to hide data blindly. The objective is to return explicit r
 
 ### UI helpers call `mission_manager_runtime` directly
 
-The extracted helpers are still coupled to a broad runtime owner. Inspector, property, and link helpers query `mission_manager_runtime` methods directly. This makes it easy to add another semantic decision to a UI helper instead of extending a focused constructor API.
+The extracted helpers are still coupled to a broad runtime owner. Inspector and property helpers query `mission_manager_runtime` methods directly. Link controls now use `MapConstructorLinkReadModelService` for generic picker reads, but specialized key-link reads and link mutation callbacks still call `mission_manager_runtime`. This makes it easy to add another semantic decision to a UI helper instead of extending a focused constructor API.
 
 ### Property controls apply mutations through MissionManager
 
 `map_constructor_property_controls.gd` calls `update_map_constructor_entity_properties` and property preset APIs directly, then triggers panel/field refresh work. This mixes widget callbacks, mutation routing, and refresh policy. The update path should eventually pass through a narrow constructor property update wrapper while retaining current behavior.
 
-### Link controls know persisted field names
+### Link picker field mapping now lives behind a read model
 
-`map_constructor_link_controls.gd` contains a UI-side map from semantic link types to fields such as `linked_terminal_id`, `target_door_id`, `power_network_id`, `control_source_id`, `power_source_id`, `control_terminal_id`, and `access_terminal_id`. That mapping is semantic contract knowledge. It should eventually move behind a read model/link service boundary so UI renders provided labels, current values, and candidates.
+`map_constructor_link_read_model_service.gd` now owns the generic semantic link-type-to-persisted-field mapping and provides display-ready picker labels, current values, candidate rows, and target navigation metadata. Existing specialized key-link reads and all mutation callbacks remain in their prior paths for later narrowly scoped extraction.
 
 ### Validation display still groups rule-shaped keys
 
@@ -156,6 +156,8 @@ Status: extracted. `map_constructor_validation_adapter.gd` now owns read-only no
 - Do not move autofix execution or alter issue semantics.
 
 ### PR-V2: Extract link candidate/read model service from MissionManager access
+
+Status: extracted. `map_constructor_link_read_model_service.gd` now owns the generic semantic link-type-to-field mapping and builds read-only picker rows, current labels, and navigation metadata. Existing MissionManager candidate generation and link mutation behavior remain unchanged.
 
 - Add a narrow constructor link read model for current target, candidates, labels, target cells, and navigation metadata.
 - Move semantic link-type-to-field mapping out of UI code.
@@ -229,4 +231,4 @@ Use this checklist for PR-V1 through PR-V5:
 
 ## Audit note
 
-This boundary document marks the validation/service boundary audit and PR-V1 validation display adapter extraction as complete. It does **not** mark validation rules, autofix, power/link consistency, or the full GameUI split complete.
+This boundary document marks the validation/service boundary audit, PR-V1 validation display adapter extraction, and PR-V2 link candidate/read model service extraction as complete. It does **not** mark link mutation extraction, property update wrapper extraction, validation rules, autofix, power/link consistency, save/load readiness validation extraction, or the full GameUI split complete.
