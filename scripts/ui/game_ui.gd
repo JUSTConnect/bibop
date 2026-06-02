@@ -10,6 +10,7 @@ const RuntimeControlPanelRef = preload("res://scripts/ui/runtime/runtime_control
 const RuntimeBipobSwitcherRef = preload("res://scripts/ui/runtime/runtime_bipob_switcher.gd")
 const RuntimeObjectHudRef = preload("res://scripts/ui/runtime/runtime_object_hud.gd")
 const MapConstructorScreenRef = preload("res://scripts/ui/map_constructor/map_constructor_screen.gd")
+const MapConstructorInspectorRef = preload("res://scripts/ui/map_constructor/map_constructor_inspector.gd")
 
 
 class InternalIsoPreviewControl:
@@ -10339,10 +10340,7 @@ func _clear_all_map_constructor_selection_state() -> void:
 	_clear_map_constructor_link_target()
 	_clear_map_constructor_browser_selection()
 	_clear_map_constructor_batch_preview_state()
-	if runtime_map_constructor_inspector_panel != null and is_instance_valid(runtime_map_constructor_inspector_panel):
-		runtime_map_constructor_inspector_panel.queue_free()
-	runtime_map_constructor_inspector_panel = null
-	runtime_map_constructor_inspector_scroll = null
+	MapConstructorInspectorRef.clear(self)
 
 func _map_constructor_prefab_matches_filters(entry: Dictionary) -> bool:
 	return MapConstructorObjectPalette.prefab_matches_filters(self, entry)
@@ -12306,7 +12304,7 @@ func _add_map_constructor_object_link_sections(link_section: VBoxContainer, enti
 # -----------------------------------------------------------------------------
 
 func _show_map_constructor_inspector(cell: Vector2i, preferred_entity_kind: String = "", preferred_entity_id: String = "") -> void:
-	MapConstructorInspector.show_for_selection(self, cell, preferred_entity_kind, preferred_entity_id)
+	MapConstructorInspectorRef.refresh(self, cell, preferred_entity_kind, preferred_entity_id)
 
 func _resolve_wall_material_target_for_selection(entity_info: Dictionary, data: Dictionary, fallback_cell: Vector2i) -> Dictionary:
 	return MapConstructorFloorWallControls.resolve_wall_material_target_for_selection(self, entity_info, data, fallback_cell)
