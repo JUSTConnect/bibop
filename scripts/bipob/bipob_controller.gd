@@ -1265,9 +1265,6 @@ func is_sandbox_mode_active() -> bool:
 func is_legacy_story_mission_active() -> bool:
 	return get_runtime_mode_id() == RUNTIME_MODE_LEGACY_STORY
 
-func is_legacy_mission2_terminal_tutorial_active() -> bool:
-	return current_mission_index == 2
-
 func is_legacy_mission4_hidden_route_flow_active() -> bool:
 	return current_mission_index == 4
 
@@ -1279,12 +1276,6 @@ func is_legacy_mission7_cable_drag_active() -> bool:
 
 func is_legacy_mission8_airflow_flow_active() -> bool:
 	return current_mission_index == 8
-
-func complete_legacy_mission_from_story_glue(_reason: String = "") -> void:
-	# TODO(legacy_mission_retirement): compatibility no-op kept until deprecated
-	# story tutorial callers are fully removed. Generic runtime flows must not
-	# complete legacy missions as a scan/hack/read-terminal side effect.
-	pass
 
 func unlock_airflow_terminal_path() -> void:
 	BipobLegacyAirflowFlowServiceRef.unlock_airflow_terminal_path(self)
@@ -8654,15 +8645,6 @@ func read_terminal(target_position: Vector2i) -> void:
 	if not require_command("read_terminal", "Missing module: Interface V1 required."):
 		return
 	match current_mission_index:
-		2:
-			# TODO(legacy_mission_retirement): old terminal calibration story branch.
-			if not can_spend_action(1, 1):
-				return
-			spend_action(1, 1)
-			print("Terminal is silent. Interface calibration required.")
-			hint_requested.emit("Terminal is silent. Interface calibration required.")
-			status_changed.emit()
-			return
 		3:
 			if not can_spend_action(1, 1):
 				return

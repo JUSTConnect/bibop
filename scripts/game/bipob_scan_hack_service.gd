@@ -210,13 +210,6 @@ static func hack_device(controller: Variant) -> void:
 			if not controller.can_spend_action(1, 1):
 				return
 			controller.spend_action(1, 1)
-			if controller.is_legacy_mission2_terminal_tutorial_active():
-				# TODO(legacy_mission_retirement): old terminal calibration story branch.
-				# Preserve the tutorial feedback, but do not complete a legacy
-				# story mission from the generic hack flow.
-				controller.hint_requested.emit("Terminal is silent. Interface calibration required.")
-				controller.status_changed.emit()
-				return
 			controller.has_info_key = true
 			controller.store_digital_record(DIGITAL_RECORD_INFO_KEY, "Info-Key", "Digital authorization record for opening a digital door.")
 			controller.hint_requested.emit("Info-Key downloaded. Now find the digital door, scan it, then hack it.")
