@@ -566,12 +566,21 @@ Heavy Claw — heavy object movement.
 
 ### PR-R — GameUI split phase 1
 
+Статус: phase 1 начата. Center screen extraction завершён; полный GameUI split ещё не завершён.
+
+Следующие кандидаты на extraction:
+
+- Runtime control panel;
+- Runtime object HUD;
+- Runtime storage panel;
+- Map Constructor screen/root.
+
 Содержание:
 
-- вынести Center screen;
-- вынести Runtime control panel;
-- вынести Runtime object HUD refresh/positioning;
-- `game_ui.gd` оставить coordinator.
+- [x] вынести Center screen;
+- [ ] вынести Runtime control panel;
+- [ ] вынести Runtime object HUD refresh/positioning;
+- [ ] `game_ui.gd` оставить coordinator.
 
 Минимальный критерий:
 
