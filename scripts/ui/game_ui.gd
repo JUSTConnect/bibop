@@ -15,6 +15,7 @@ const MapConstructorPropertyControlsRef = preload("res://scripts/ui/map_construc
 const MapConstructorPropertyUpdateServiceRef = preload("res://scripts/game/map_constructor_property_update_service.gd")
 const MapConstructorLinkControlsRef = preload("res://scripts/ui/map_constructor/map_constructor_link_controls.gd")
 const MapConstructorSessionStateRef = preload("res://scripts/ui/map_constructor/map_constructor_session_state.gd")
+const MapConstructorRefreshCoordinatorRef = preload("res://scripts/ui/map_constructor/map_constructor_refresh_coordinator.gd")
 
 
 class InternalIsoPreviewControl:
@@ -10076,8 +10077,7 @@ func _handle_runtime_gameplay_mouse_click(event: InputEventMouseButton) -> bool:
 		return false
 	if event.button_index == MOUSE_BUTTON_RIGHT and map_constructor_state.map_constructor_mode_active:
 		_clear_all_map_constructor_selection_state()
-		_refresh_map_constructor_panels()
-		_request_map_constructor_overlay_refresh()
+		MapConstructorRefreshCoordinatorRef.refresh_panels_and_overlay(self)
 		return true
 	var hovered_control: Control = get_viewport().gui_get_hovered_control()
 	if hovered_control != null:
@@ -10101,8 +10101,7 @@ func _handle_runtime_gameplay_mouse_click(event: InputEventMouseButton) -> bool:
 	else:
 		if map_constructor_state.map_constructor_mode_active:
 			_clear_all_map_constructor_selection_state()
-			_refresh_map_constructor_panels()
-			_request_map_constructor_overlay_refresh()
+			MapConstructorRefreshCoordinatorRef.refresh_panels_and_overlay(self)
 		else:
 			bipob.handle_grid_cell_right_click(cell)
 			_show_runtime_object_info_hud(cell)
@@ -10134,8 +10133,7 @@ func _handle_map_constructor_left_click(cell: Vector2i) -> void:
 			return
 		_clear_map_constructor_pending_placement()
 		_show_map_constructor_inspector(cell)
-		_refresh_map_constructor_panels()
-		_request_map_constructor_overlay_refresh()
+		MapConstructorRefreshCoordinatorRef.refresh_panels_and_overlay(self)
 		return
 	_start_map_constructor_pending_placement(map_constructor_state.selected_map_constructor_prefab_id, cell)
 
@@ -10156,8 +10154,7 @@ func _start_map_constructor_pending_placement(prefab_id: String, cell: Vector2i)
 		preview_message += " Side: %s" % String(preview_check.get("wall_side", ""))
 	show_hint(preview_message)
 	_show_map_constructor_place_confirm_panel()
-	_refresh_map_constructor_panels()
-	_request_map_constructor_overlay_refresh()
+	MapConstructorRefreshCoordinatorRef.refresh_panels_and_overlay(self)
 
 func _rotate_map_constructor_pending_placement(clockwise: bool) -> void:
 	if map_constructor_state.map_constructor_pending_place_cell.x < 0 or map_constructor_state.map_constructor_pending_place_prefab_id.is_empty():
@@ -10183,21 +10180,18 @@ func _confirm_map_constructor_pending_placement() -> void:
 		_clear_map_constructor_pending_placement()
 		map_constructor_state.pending_map_constructor_cell = Vector2i(-1, -1)
 		_clear_map_constructor_preview_cell()
-		if field_runtime != null and field_runtime.has_method("request_visual_refresh"):
-			field_runtime.call("request_visual_refresh")
+		MapConstructorRefreshCoordinatorRef.request_field_visual_refresh(self)
 		var object_id: String = String(result.get("object_id", ""))
 		if not object_id.is_empty():
 			var entity_kind: String = "item" if bool(result.get("is_item", false)) else "world_object"
 			_show_map_constructor_inspector(place_cell, entity_kind, object_id)
-	_refresh_map_constructor_panels()
-	_request_map_constructor_overlay_refresh()
+	MapConstructorRefreshCoordinatorRef.refresh_panels_and_overlay(self)
 
 func _cancel_map_constructor_pending_placement() -> void:
 	_clear_map_constructor_pending_placement()
 	map_constructor_state.pending_map_constructor_cell = Vector2i(-1, -1)
 	_clear_map_constructor_preview_cell()
-	_refresh_map_constructor_panels()
-	_request_map_constructor_overlay_refresh()
+	MapConstructorRefreshCoordinatorRef.refresh_panels_and_overlay(self)
 	show_hint("Placement cancelled.")
 
 func _show_map_constructor_place_confirm_panel() -> void:
@@ -10505,9 +10499,7 @@ func _apply_map_constructor_cleanup_action(cleanup_type: String, options: Dictio
 	_clear_map_constructor_wall_mounted_selection()
 	_clear_map_constructor_link_target()
 	_show_map_constructor_inspector(Vector2i(-1, -1))
-	_refresh_map_constructor_panels()
-	if field_runtime != null and field_runtime.has_method("request_visual_refresh"):
-		field_runtime.call("request_visual_refresh")
+	MapConstructorRefreshCoordinatorRef.refresh_panels_then_field(self)
 
 func _apply_map_constructor_autofix_action(fix_type: String, options: Dictionary = {}, apply_now: bool = false) -> void:
 	if mission_manager_runtime == null:
@@ -10526,9 +10518,7 @@ func _apply_map_constructor_autofix_action(fix_type: String, options: Dictionary
 	_clear_map_constructor_wall_mounted_selection()
 	_clear_map_constructor_link_target()
 	_show_map_constructor_inspector(Vector2i(-1, -1))
-	_refresh_map_constructor_panels()
-	if field_runtime != null and field_runtime.has_method("request_visual_refresh"):
-		field_runtime.call("request_visual_refresh")
+	MapConstructorRefreshCoordinatorRef.refresh_panels_then_field(self)
 
 func _make_map_constructor_multi_row_from_current_selection() -> Dictionary:
 	if map_constructor_state.selected_map_constructor_entity_id.is_empty():
@@ -10989,10 +10979,7 @@ func _build_map_constructor_map_settings_tab(list: VBoxContainer) -> void:
 		map_constructor_state.map_constructor_kit_preview = {}
 		map_constructor_state.map_constructor_kit_preview_can_apply = false
 		map_constructor_state.map_constructor_kit_pending_apply_key = ""
-		_refresh_map_constructor_panels()
-		_refresh_map_constructor_browser()
-		if field_runtime != null and field_runtime.has_method("request_visual_refresh"):
-			field_runtime.call("request_visual_refresh")
+		MapConstructorRefreshCoordinatorRef.refresh_panels_browser_then_field(self)
 	)
 	list.add_child(apply_kit_button)
 	var undo_kit_button: Button = _make_map_constructor_action_button("Undo Last Kit")
@@ -11004,10 +10991,7 @@ func _build_map_constructor_map_settings_tab(list: VBoxContainer) -> void:
 		map_constructor_state.map_constructor_kit_preview = {}
 		map_constructor_state.map_constructor_kit_preview_can_apply = false
 		map_constructor_state.map_constructor_kit_pending_apply_key = ""
-		_refresh_map_constructor_panels()
-		_refresh_map_constructor_browser()
-		if field_runtime != null and field_runtime.has_method("request_visual_refresh"):
-			field_runtime.call("request_visual_refresh")
+		MapConstructorRefreshCoordinatorRef.refresh_panels_browser_then_field(self)
 	)
 	list.add_child(undo_kit_button)
 	var template_select: OptionButton = OptionButton.new()
@@ -11097,10 +11081,7 @@ func _build_map_constructor_map_settings_tab(list: VBoxContainer) -> void:
 		map_constructor_state.map_constructor_template_preview = {}
 		map_constructor_state.map_constructor_template_preview_can_apply = false
 		map_constructor_state.map_constructor_template_pending_apply_key = ""
-		_refresh_map_constructor_panels()
-		_refresh_map_constructor_browser()
-		if field_runtime != null and field_runtime.has_method("request_visual_refresh"):
-			field_runtime.call("request_visual_refresh")
+		MapConstructorRefreshCoordinatorRef.refresh_panels_browser_then_field(self)
 	)
 	list.add_child(apply_template_button)
 	var undo_template_button: Button = _make_map_constructor_action_button("Undo Last Template")
@@ -11112,10 +11093,7 @@ func _build_map_constructor_map_settings_tab(list: VBoxContainer) -> void:
 		map_constructor_state.map_constructor_template_preview = {}
 		map_constructor_state.map_constructor_template_preview_can_apply = false
 		map_constructor_state.map_constructor_template_pending_apply_key = ""
-		_refresh_map_constructor_panels()
-		_refresh_map_constructor_browser()
-		if field_runtime != null and field_runtime.has_method("request_visual_refresh"):
-			field_runtime.call("request_visual_refresh")
+		MapConstructorRefreshCoordinatorRef.refresh_panels_browser_then_field(self)
 	)
 	list.add_child(undo_template_button)
 	for preview_bundle in [{"title":"Kit Preview","data":map_constructor_state.map_constructor_kit_preview},{"title":"Template Preview","data":map_constructor_state.map_constructor_template_preview}]:
@@ -11196,10 +11174,7 @@ func _build_map_constructor_map_settings_tab(list: VBoxContainer) -> void:
 			map_constructor_state.room_visual_preset_preview = mission_manager_runtime.call("preview_room_visual_preset", map_constructor_state.selected_room_visual_preset_id, {"scope":"task_test_room", "include_walls":true, "include_doors":true, "include_terminals":true})
 		else:
 			map_constructor_state.room_visual_preset_preview.clear()
-		_refresh_map_constructor_panels()
-		_request_map_constructor_overlay_refresh()
-		if field_runtime != null and field_runtime.has_method("request_visual_refresh"):
-			field_runtime.call("request_visual_refresh")
+		MapConstructorRefreshCoordinatorRef.refresh_panels_overlay_then_field(self)
 	)
 	list.add_child(apply_preset_button)
 	var clear_preset_button: Button = _make_map_constructor_action_button("Clear Preset Overrides")
@@ -11209,10 +11184,7 @@ func _build_map_constructor_map_settings_tab(list: VBoxContainer) -> void:
 		var clear_preset_result: Dictionary = mission_manager_runtime.call("clear_room_visual_preset_overrides", {})
 		show_hint(String(clear_preset_result.get("message", "Preset overrides cleared.")))
 		map_constructor_state.room_visual_preset_preview.clear()
-		_refresh_map_constructor_panels()
-		_request_map_constructor_overlay_refresh()
-		if field_runtime != null and field_runtime.has_method("request_visual_refresh"):
-			field_runtime.call("request_visual_refresh")
+		MapConstructorRefreshCoordinatorRef.refresh_panels_overlay_then_field(self)
 	)
 	list.add_child(clear_preset_button)
 	if not map_constructor_state.room_visual_preset_preview.is_empty():
@@ -11361,8 +11333,7 @@ func _build_map_constructor_map_settings_tab(list: VBoxContainer) -> void:
 					if not bool(selected_entity.get("ok", false)):
 						_show_map_constructor_inspector(Vector2i(-1, -1))
 				_clear_map_constructor_batch_preview_state()
-				if field_runtime != null and field_runtime.has_method("request_visual_refresh"):
-					field_runtime.call("request_visual_refresh")
+				MapConstructorRefreshCoordinatorRef.request_field_visual_refresh(self)
 			_refresh_map_constructor_panels()
 		)
 		batch_buttons.add_child(b)
@@ -11379,9 +11350,7 @@ func _build_map_constructor_map_settings_tab(list: VBoxContainer) -> void:
 			if not bool(selected_entity.get("ok", false)):
 				_show_map_constructor_inspector(Vector2i(-1, -1))
 		_clear_map_constructor_batch_preview_state()
-		_refresh_map_constructor_panels()
-		if field_runtime != null and field_runtime.has_method("request_visual_refresh"):
-			field_runtime.call("request_visual_refresh")
+		MapConstructorRefreshCoordinatorRef.refresh_panels_then_field(self)
 	)
 	list.add_child(undo_batch_button)
 	if not map_constructor_state.map_constructor_batch_preview.is_empty():
@@ -11458,9 +11427,7 @@ func _build_map_constructor_map_settings_tab(list: VBoxContainer) -> void:
 		_clear_map_constructor_wall_mounted_selection()
 		_clear_map_constructor_link_target()
 		_show_map_constructor_inspector(Vector2i(-1, -1))
-		_refresh_map_constructor_panels()
-		if field_runtime != null and field_runtime.has_method("request_visual_refresh"):
-			field_runtime.call("request_visual_refresh")
+		MapConstructorRefreshCoordinatorRef.refresh_panels_then_field(self)
 	)
 	list.add_child(undo_button)
 	var autofix_title: Label = Label.new()
@@ -11528,9 +11495,7 @@ func _build_map_constructor_map_settings_tab(list: VBoxContainer) -> void:
 		_clear_map_constructor_preview_cell()
 		_clear_map_constructor_wall_mounted_selection()
 		_clear_map_constructor_link_target()
-		_refresh_map_constructor_panels()
-		if field_runtime != null and field_runtime.has_method("request_visual_refresh"):
-			field_runtime.call("request_visual_refresh")
+		MapConstructorRefreshCoordinatorRef.refresh_panels_then_field(self)
 	)
 	list.add_child(autofix_undo_button)
 	if not map_constructor_state.map_constructor_cleanup_preview.is_empty():
@@ -11604,9 +11569,7 @@ func _build_map_constructor_map_settings_tab(list: VBoxContainer) -> void:
 		var apply_res: Dictionary = mission_manager_runtime.call("apply_map_constructor_patch", _safe_ui_dictionary(map_constructor_state.map_constructor_patch_parsed.get("patch", {})), {})
 		show_hint(String(apply_res.get("message", "Patch applied.")))
 		map_constructor_state.map_constructor_patch_pending_apply = false
-		if field_runtime != null and field_runtime.has_method("request_visual_refresh"):
-			field_runtime.call("request_visual_refresh")
-		_refresh_map_constructor_panels()
+		MapConstructorRefreshCoordinatorRef.refresh_field_then_panels(self)
 	)
 	var rollback_patch_button: Button = _make_map_constructor_action_button("Rollback Last Patch")
 	rollback_patch_button.pressed.connect(func() -> void:
@@ -11621,9 +11584,7 @@ func _build_map_constructor_map_settings_tab(list: VBoxContainer) -> void:
 		map_constructor_state.map_constructor_patch_pending_apply = false
 		map_constructor_state.map_constructor_patch_preview.clear()
 		map_constructor_state.map_constructor_patch_parsed.clear()
-		if field_runtime != null and field_runtime.has_method("request_visual_refresh"):
-			field_runtime.call("request_visual_refresh")
-		_refresh_map_constructor_panels()
+		MapConstructorRefreshCoordinatorRef.refresh_field_then_panels(self)
 	)
 	patch_actions.add_child(export_patch_button)
 	patch_actions.add_child(preview_patch_button)
@@ -11893,9 +11854,7 @@ func _build_map_constructor_map_settings_tab(list: VBoxContainer) -> void:
 		show_hint(String(save_result.get("message", "Preset save done.")))
 		map_constructor_state.map_constructor_selected_preset_name = String(save_result.get("preset_name", map_constructor_state.map_constructor_selected_preset_name))
 		_show_map_constructor_inspector(map_constructor_state.pending_map_constructor_cell)
-		_refresh_map_constructor_panels()
-		if field_runtime != null and field_runtime.has_method("request_visual_refresh"):
-			field_runtime.call("request_visual_refresh")
+		MapConstructorRefreshCoordinatorRef.refresh_panels_then_field(self)
 	)
 	preset_actions.add_child(save_preset_button)
 	var load_preset_button: Button = _make_map_constructor_action_button("Load selected")
@@ -11910,9 +11869,7 @@ func _build_map_constructor_map_settings_tab(list: VBoxContainer) -> void:
 			_clear_map_constructor_preview_cell()
 			_clear_map_constructor_wall_mounted_selection()
 		_show_map_constructor_inspector(Vector2i(-1, -1))
-		_refresh_map_constructor_panels()
-		if field_runtime != null and field_runtime.has_method("request_visual_refresh"):
-			field_runtime.call("request_visual_refresh")
+		MapConstructorRefreshCoordinatorRef.refresh_panels_then_field(self)
 	)
 	preset_actions.add_child(load_preset_button)
 	var delete_preset_button: Button = _make_map_constructor_action_button("Delete selected")
@@ -11924,9 +11881,7 @@ func _build_map_constructor_map_settings_tab(list: VBoxContainer) -> void:
 		show_hint(String(delete_result.get("message", "Preset delete done.")))
 		map_constructor_state.map_constructor_selected_preset_name = ""
 		_show_map_constructor_inspector(map_constructor_state.pending_map_constructor_cell)
-		_refresh_map_constructor_panels()
-		if field_runtime != null and field_runtime.has_method("request_visual_refresh"):
-			field_runtime.call("request_visual_refresh")
+		MapConstructorRefreshCoordinatorRef.refresh_panels_then_field(self)
 	)
 	preset_actions.add_child(delete_preset_button)
 	var refresh_preset_button: Button = _make_map_constructor_action_button("Refresh list")
@@ -12150,20 +12105,14 @@ func _apply_map_constructor_property_updates(entity_kind: String, entity_id: Str
 		return
 	var result: Dictionary = MapConstructorPropertyUpdateServiceRef.apply_property_updates(mission_manager_runtime, entity_kind, entity_id, updates, fallback_message)
 	show_hint(_safe_ui_string(result.get("message", fallback_message), fallback_message))
-	_refresh_map_constructor_panels()
-	if field_runtime != null and field_runtime.has_method("request_visual_refresh"):
-		field_runtime.call("request_visual_refresh")
-	_show_map_constructor_inspector(map_constructor_state.selected_map_constructor_entity_cell, map_constructor_state.selected_map_constructor_entity_kind, map_constructor_state.selected_map_constructor_entity_id)
+	MapConstructorRefreshCoordinatorRef.refresh_selected_entity_mutation(self)
 
 func _apply_map_constructor_property_preset(entity_kind: String, entity_id: String, preset_id: String) -> void:
 	if mission_manager_runtime == null or not mission_manager_runtime.has_method("apply_map_constructor_property_preset"):
 		return
 	var result: Dictionary = MapConstructorPropertyUpdateServiceRef.apply_property_preset(mission_manager_runtime, entity_kind, entity_id, preset_id)
 	show_hint(String(result.get("message", "Preset applied.")))
-	_refresh_map_constructor_panels()
-	if field_runtime != null and field_runtime.has_method("request_visual_refresh"):
-		field_runtime.call("request_visual_refresh")
-	_show_map_constructor_inspector(map_constructor_state.selected_map_constructor_entity_cell, map_constructor_state.selected_map_constructor_entity_kind, map_constructor_state.selected_map_constructor_entity_id)
+	MapConstructorRefreshCoordinatorRef.refresh_selected_entity_mutation(self)
 
 func _add_enum_property(section: VBoxContainer, label: String, entity_kind: String, entity_id: String, field_name: String, current_value: Variant, options: Array[Dictionary]) -> void:
 	MapConstructorPropertyControlsRef.add_enum_property(self, section, label, entity_kind, entity_id, field_name, current_value, options)
@@ -12291,8 +12240,7 @@ func _focus_map_constructor_issue(issue: Dictionary) -> void:
 				_update_map_constructor_preview_for_cell(issue_cell)
 				_show_map_constructor_inspector(issue_cell, entity_kind, entity_id)
 				_focus_map_constructor_cell(issue_cell)
-			if field_runtime != null and field_runtime.has_method("request_visual_refresh"):
-				field_runtime.call("request_visual_refresh")
+			MapConstructorRefreshCoordinatorRef.request_field_visual_refresh(self)
 		else:
 			_clear_map_constructor_browser_selection()
 			if issue_cell.x >= 0 and issue_cell.y >= 0:
@@ -14665,5 +14613,4 @@ func _refresh_map_constructor_browser() -> void:
 
 func _request_map_constructor_overlay_refresh() -> void:
 	_sync_map_constructor_overlay_visuals()
-	if field_runtime != null and field_runtime.has_method("request_visual_refresh"):
-		field_runtime.call("request_visual_refresh")
+	MapConstructorRefreshCoordinatorRef.request_field_visual_refresh(self)
