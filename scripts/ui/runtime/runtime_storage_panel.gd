@@ -64,6 +64,15 @@ static func build(ui, hud_root: Control, margin: float) -> PanelContainer:
 	return panel
 
 
+static func set_visible(ui, visible_state: bool) -> void:
+	if ui == null:
+		return
+	if ui.runtime_storage_panel != null and is_instance_valid(ui.runtime_storage_panel):
+		ui.runtime_storage_panel.visible = visible_state
+	if not visible_state and ui.runtime_storage_flyout != null and is_instance_valid(ui.runtime_storage_flyout):
+		ui.runtime_storage_flyout.visible = false
+
+
 static func _get_inventory_item_id(value: Variant) -> String:
 	if value is String or value is StringName:
 		return String(value).strip_edges()
