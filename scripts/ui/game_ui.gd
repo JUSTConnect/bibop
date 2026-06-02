@@ -4736,28 +4736,34 @@ func _get_runtime_bottom_panel_height() -> float:
 
 
 func _get_map_constructor_palette_rect() -> Rect2:
-	var margin: float = _get_runtime_margin()
+	var safe_margin: float = maxf(_get_runtime_margin(), 12.0)
 	var viewport: Vector2 = _get_viewport_size()
-	var preferred_width: float = _get_runtime_sidebar_width_adaptive()
-	var available_width: float = maxf(viewport.x - margin * 2.0, 1.0)
+	if runtime_hud_root != null and is_instance_valid(runtime_hud_root) and runtime_hud_root.size.x > 0.0 and runtime_hud_root.size.y > 0.0:
+		viewport = Vector2(minf(viewport.x, runtime_hud_root.size.x), minf(viewport.y, runtime_hud_root.size.y))
+	viewport.x = maxf(viewport.x, safe_margin * 2.0 + 1.0)
+	viewport.y = maxf(viewport.y, safe_margin * 2.0 + 1.0)
+
+	var desired_width: float = _get_runtime_sidebar_width_adaptive()
+	var available_width: float = maxf(viewport.x - safe_margin * 2.0, 1.0)
 	var minimum_usable_width: float = minf(280.0, available_width)
-	var sidebar_width: float = clampf(preferred_width, minimum_usable_width, available_width)
-	var right_x: float = clampf(viewport.x - sidebar_width - margin, margin, maxf(margin, viewport.x - margin - sidebar_width))
-	if right_x + sidebar_width > viewport.x - margin:
-		right_x = maxf(margin, viewport.x - margin - sidebar_width)
-		sidebar_width = maxf(1.0, viewport.x - margin - right_x)
+	var palette_width: float = minf(maxf(desired_width, minimum_usable_width), available_width)
+	var left_limit: float = safe_margin
+	var right_limit: float = maxf(left_limit, viewport.x - safe_margin - palette_width)
+	var palette_x: float = clampf(viewport.x - palette_width - safe_margin, left_limit, right_limit)
+	if palette_x + palette_width > viewport.x - safe_margin:
+		palette_width = maxf(1.0, viewport.x - safe_margin - palette_x)
 
 	# The runtime Things | Storage preview is bottom-right now, so constructor
 	# palettes can continue to use the top-right space without overlap.
-	var top_y: float = margin
-	var mission_panel_top_y: float = viewport.y - _get_runtime_bottom_panel_height() - margin
-	var bottom_y: float = viewport.y - margin if map_constructor_state.map_constructor_mode_active else mission_panel_top_y - 8.0
-	var available_height: float = bottom_y - top_y
-	var height: float = clampf(available_height, 72.0, maxf(72.0, viewport.y - margin * 2.0))
-	if top_y + height > bottom_y and available_height > 0.0:
-		height = available_height
+	var top_y: float = safe_margin
+	var mission_panel_top_y: float = viewport.y - _get_runtime_bottom_panel_height() - safe_margin
+	var bottom_y: float = viewport.y - safe_margin if map_constructor_state.map_constructor_mode_active else mission_panel_top_y - 8.0
+	var bottom_limit: float = maxf(top_y + 1.0, viewport.y - safe_margin)
+	var minimum_bottom_y: float = minf(top_y + 72.0, bottom_limit)
+	bottom_y = clampf(bottom_y, minimum_bottom_y, bottom_limit)
+	var palette_height: float = maxf(bottom_y - top_y, 1.0)
 
-	return Rect2(Vector2(right_x, top_y), Vector2(sidebar_width, height))
+	return Rect2(Vector2(palette_x, top_y), Vector2(palette_width, palette_height))
 
 
 func _get_map_constructor_bottom_inspector_rect() -> Rect2:
