@@ -126,7 +126,6 @@ var sector_completed: bool = false
 var current_mission_index: int = 1
 var max_mission_index: int = 10
 var turns_used: int = 0
-var mission4_hidden_route_node_discovered: bool = false
 var has_key: bool = false
 var has_info_key: bool = false
 var installed_modules: Array[BipobModule] = []
@@ -1191,8 +1190,6 @@ func get_mission_goal_hint(mission_index: int) -> String:
 			return "Mission 2: face the terminal, use Scan Device, then use Hack Device."
 		3:
 			return "Mission 3: Scan and Hack the terminal to get the Info-Key, then Scan and Hack the digital door."
-		4:
-			return get_mission4_context_hint()
 		5:
 			return "Mission 5: use Route Data to unlock the Route Gate and reach the exit."
 		6:
@@ -1210,25 +1207,6 @@ func get_mission_goal_hint(mission_index: int) -> String:
 			return "TASK TEST: validate power, cooling, cables, terminals, doors, platforms, scan/X-Ray, inventory/tools, and extraction."
 		_:
 			return "No mission goal available."
-
-func get_mission4_context_hint() -> String:
-	var has_visor_anywhere := has_module_id_anywhere("visor_v2")
-	var has_visor_installed := has_module_id("visor_v2")
-	var has_gpu_anywhere := has_module_id_anywhere("gpu_v1")
-	var has_gpu_installed := has_module_id("gpu_v1")
-
-	if mission4_hidden_route_node_discovered:
-		return "Hidden route-node found. Route Data stored. Reach the exit."
-	if has_visor_installed and has_gpu_installed:
-		return "Vision system ready. Find the hidden route-node."
-	if has_visor_installed and not has_gpu_anywhere:
-		return "Visor V2 widens vision, but hidden route data needs processing. Search for GPU V1."
-	if has_visor_installed and has_gpu_anywhere and not has_gpu_installed:
-		return "GPU V1 recovered. Return to the box and install it."
-	if has_visor_anywhere and not has_visor_installed:
-		return "Visor V2 recovered. Return to the box and install it."
-	return "Mission 4: base vision is too narrow. Search the blind sector for a wider visor."
-
 
 func get_mission9_context_hint() -> String:
 	if has_module_id("legs_v1"):
@@ -1265,9 +1243,6 @@ func is_sandbox_mode_active() -> bool:
 func is_legacy_story_mission_active() -> bool:
 	return get_runtime_mode_id() == RUNTIME_MODE_LEGACY_STORY
 
-func is_legacy_mission4_hidden_route_flow_active() -> bool:
-	return current_mission_index == 4
-
 func is_legacy_mission7_cable_flow_active() -> bool:
 	return current_mission_index == 7
 
@@ -1297,7 +1272,6 @@ func start_mission(mission_index: int, save_snapshot: bool = true) -> void:
 	has_key = false
 	has_info_key = false
 	last_diagnostic_result = null
-	mission4_hidden_route_node_discovered = false
 	held_module = null
 	stored_physical_module = null
 	_initialize_runtime_storage_slots()
@@ -1316,9 +1290,7 @@ func start_mission(mission_index: int, save_snapshot: bool = true) -> void:
 		if mission_manager != null:
 			mission_manager.setup_world_objects_for_mission(mission_id)
 			refresh_world_object_overlay()
-		if is_legacy_mission4_hidden_route_flow_active():
-			setup_mission4_field_modules()
-		elif debug_place_mission4_field_modules:
+		if debug_place_mission4_field_modules:
 			place_debug_mission4_field_modules()
 		if is_legacy_mission8_airflow_flow_active():
 			setup_mission8()
@@ -1329,7 +1301,7 @@ func start_mission(mission_index: int, save_snapshot: bool = true) -> void:
 		elif grid_manager.has_method("clear_fan_platform_marker"):
 			grid_manager.clear_fan_platform_marker()
 		grid_manager.reset_fog_of_war()
-		if not is_legacy_mission4_hidden_route_flow_active() and debug_place_hidden_route_node:
+		if debug_place_hidden_route_node:
 			place_debug_hidden_route_node()
 	grid_position = start_grid_position
 	direction = Direction.NORTH
@@ -1412,9 +1384,7 @@ func return_to_box() -> void:
 		add_module_to_box_storage(stored_physical_module)
 		stored_physical_module = null
 
-	if is_legacy_mission4_hidden_route_flow_active() and (has_module_id_anywhere("visor_v2") or has_module_id_anywhere("gpu_v1")):
-		hint_requested.emit(get_mission4_context_hint())
-	elif current_mission_index == 9 and has_module_id_anywhere("legs_v1"):
+	if current_mission_index == 9 and has_module_id_anywhere("legs_v1"):
 		hint_requested.emit(get_mission9_context_hint())
 	else:
 		hint_requested.emit("Returned to box. Mission attempt aborted.")
@@ -6607,10 +6577,6 @@ func check_mission_complete() -> void:
 	var current_tile := grid_manager.get_tile(grid_position)
 	
 	if current_tile == GridManager.TILE_EXIT:
-		if is_legacy_mission4_hidden_route_flow_active() and not mission4_hidden_route_node_discovered:
-			hint_requested.emit("Exit route is incomplete. Find the hidden route-node first.")
-			status_changed.emit()
-			return
 		complete_mission()
 
 func complete_mission() -> void:
@@ -6639,8 +6605,6 @@ func complete_mission() -> void:
 		hint_requested.emit("Mission 2 complete. Return to the box, then start Mission 3.")
 	elif current_mission_index == 3:
 		hint_requested.emit("Mission 3 complete. Return to the box, then start Mission 4.")
-	elif is_legacy_mission4_hidden_route_flow_active():
-		hint_requested.emit("Mission 4 complete. Return to the box, then start Mission 5.")
 	elif current_mission_index == 5:
 		hint_requested.emit("Mission 5 complete. Return to the box, then start Mission 6.")
 	elif current_mission_index == 6:
@@ -6925,11 +6889,7 @@ func detect_hidden_route_nodes_in_vision() -> void:
 					"Route Data",
 					"Recovered hidden route information."
 				)
-				if is_legacy_mission4_hidden_route_flow_active():
-					mission4_hidden_route_node_discovered = true
-					hint_requested.emit("Hidden route-node found. Route Data stored. Reach the exit.")
-				else:
-					hint_requested.emit("Hidden route-node detected. Route Data stored.")
+				hint_requested.emit("Hidden route-node detected. Route Data stored.")
 				status_changed.emit()
 				return
 	
@@ -8420,29 +8380,6 @@ func place_visor_v2_field_module(slot_position: Vector2i) -> void:
 func place_gpu_v1_field_module(slot_position: Vector2i) -> void:
 	set_field_module(slot_position, create_gpu_v1_module())
 
-func setup_mission4_field_modules() -> void:
-	if grid_manager == null:
-		return
-
-	var visor_position := Vector2i(4, 1)
-	var gpu_position := Vector2i(2, 6)
-	var hidden_node_position := Vector2i(4, 6)
-
-	if not has_module_id_anywhere("visor_v2"):
-		place_visor_v2_field_module(visor_position)
-	else:
-		grid_manager.set_tile(visor_position, GridManager.TILE_FLOOR)
-
-	if not has_module_id_anywhere("gpu_v1"):
-		place_gpu_v1_field_module(gpu_position)
-	else:
-		grid_manager.set_tile(gpu_position, GridManager.TILE_FLOOR)
-
-	active_hidden_route_node_position = Vector2i(-1, -1)
-	if grid_manager.is_in_bounds(hidden_node_position):
-		grid_manager.set_tile(hidden_node_position, GridManager.TILE_HIDDEN_ROUTE_NODE)
-		active_hidden_route_node_position = hidden_node_position
-
 func place_debug_field_module_if_valid(slot_position: Vector2i, module_name: String, place_callback: Callable) -> void:
 	if grid_manager == null:
 		return
@@ -8582,12 +8519,6 @@ func pick_up_component(component_position: Vector2i, manipulator_module: BipobMo
 			return
 		pocket_items[free_pocket_index] = picked_module
 		hint_requested.emit("Component stored in pocket: %s." % get_module_display_name(picked_module))
-
-	if is_legacy_mission4_hidden_route_flow_active():
-		if picked_module.id == "visor_v2":
-			hint_requested.emit("Visor V2 recovered. Return to the box and install it.")
-		elif picked_module.id == "gpu_v1":
-			hint_requested.emit("GPU V1 recovered. Return to the box and install it.")
 
 	spend_action(1, 0)
 	status_changed.emit()
