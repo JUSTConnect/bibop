@@ -585,6 +585,7 @@ Heavy Claw — heavy object movement.
 - [x] вынести Map Constructor inspector shell orchestration без property widgets/link controls;
 - [x] завершить Map Constructor property controls cleanup без extraction link controls;
 - [x] вынести Map Constructor link controls;
+- [x] документировать Map Constructor validation/service boundary audit;
 - [ ] `game_ui.gd` оставить coordinator.
 
 Минимальный критерий:
