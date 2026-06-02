@@ -107,6 +107,16 @@ Completed scope:
 - Supported dictionary serialization/deserialization and read-only legacy Mission 7 snapshot creation.
 - Kept `BipobLegacyCableFlowService` as the behavior owner. Mission 7 deletion remains blocked because no generic cable runtime behavior is integrated yet.
 
+### PR-RF-23 — Generic cable runtime service skeleton
+
+Goal: add the first generic service boundary for cable/socket/power runtime state transitions without gameplay wiring.
+
+Completed scope:
+
+- Added `scripts/game/bipob_cable_runtime_service.gd` as a parser-safe, data-only `BipobCableRuntimeService` skeleton operating on `BipobCableRuntimeState`.
+- Kept the service unwired from TASK TEST, Map Constructor, Mission 7, movement, inventory, interact, power, scan/hack, UI, and cable path drawing/clearing.
+- Kept `BipobLegacyCableFlowService` as the Mission 7 cable/socket/powered-gate behavior owner. Mission 7 deletion remains blocked because the generic service is not integrated into gameplay yet.
+
 ### PR-RF-21 — Generic runtime fan/platform/airflow/cooling contract planning
 
 Goal: prepare Mission 8 deletion by defining the non-story home for fan/platform/airflow/cooling mechanics.

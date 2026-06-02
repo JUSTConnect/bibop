@@ -14,6 +14,12 @@ This helper is not wired into gameplay yet. It must not change TASK TEST, Map Co
 
 `BipobLegacyCableFlowService` remains the owner of current Mission 7 cable/socket/powered-gate behavior until a future generic runtime service is implemented and smoke-tested. Mission 7 deletion remains blocked while behavior still depends on that legacy service.
 
+## PR-RF-23 service skeleton
+
+PR-RF-23 adds `BipobCableRuntimeService` as the first generic runtime service boundary for cable/socket/power data transitions. The service operates on `BipobCableRuntimeState`, returns cloned state for transition helpers, and remains data-only: it does not touch controllers, grids, tiles, inventory, movement, power systems, signals, UI, or Map Constructor behavior.
+
+The service is not wired into gameplay yet. `BipobLegacyCableFlowService` remains the current behavior owner for Mission 7 cable drag, socket connection, cable path drawing/clearing, and powered-gate behavior until a later integration PR explicitly replaces that flow and passes TASK TEST / Map Constructor smoke.
+
 ## Boundary: reusable mechanic vs. old Mission 7 story glue
 
 ### Reusable cable/socket/power mechanic
