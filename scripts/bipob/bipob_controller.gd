@@ -1234,6 +1234,21 @@ func get_runtime_mode_id() -> String:
 		return RUNTIME_MODE_LEGACY_STORY
 	return RUNTIME_MODE_UNKNOWN
 
+func get_task_test_mission_id() -> String:
+	if mission_manager != null and mission_manager.has_method("get_task_test_mission_id"):
+		return String(mission_manager.call("get_task_test_mission_id"))
+	return "mission_%d" % TASK_TEST_MISSION_INDEX
+
+func get_task_test_layout_id() -> String:
+	if mission_manager != null and mission_manager.has_method("get_task_test_layout_id"):
+		return String(mission_manager.call("get_task_test_layout_id"))
+	return get_task_test_mission_id()
+
+func get_mission_layout_id(mission_index: int) -> String:
+	if mission_index == TASK_TEST_MISSION_INDEX:
+		return get_task_test_layout_id()
+	return "mission_%d" % mission_index
+
 func is_task_test_mode_active() -> bool:
 	return get_runtime_mode_id() == RUNTIME_MODE_TASK_TEST
 
@@ -1261,6 +1276,12 @@ func complete_legacy_mission8_airflow_terminal_hack() -> void:
 func get_current_mission_goal_hint() -> String:
 	return get_mission_goal_hint(current_mission_index)
 
+func start_task_test_session(save_snapshot: bool = true) -> void:
+	start_mission(TASK_TEST_MISSION_INDEX, save_snapshot)
+
+func reset_task_test_session() -> void:
+	start_task_test_session(true)
+
 func start_mission(mission_index: int, save_snapshot: bool = true) -> void:
 	# Box preparation flow: mission start resets turn actions, but does not spend resources.
 	current_mission_index = clampi(mission_index, 1, max_mission_index)
@@ -1281,7 +1302,7 @@ func start_mission(mission_index: int, save_snapshot: bool = true) -> void:
 	field_modules_by_position.clear()
 	BipobLegacyCableFlowServiceRef.reset_legacy_state(self)
 	if grid_manager != null:
-		var mission_id: String = "mission_%d" % current_mission_index
+		var mission_id: String = get_mission_layout_id(current_mission_index)
 		var used_catalog_layout := false
 		if is_sandbox_mode_active() and mission_manager != null and mission_manager.has_method("apply_catalog_mission_layout_to_grid"):
 			used_catalog_layout = bool(mission_manager.call("apply_catalog_mission_layout_to_grid", mission_id))
@@ -9399,7 +9420,7 @@ func get_developer_validation_suite_text(suite: String = "all") -> String:
 	return "Validation unavailable." if mission_manager == null or not mission_manager.has_method("get_developer_validation_suite_text") else String(mission_manager.call("get_developer_validation_suite_text", suite))
 
 func start_dev_task_test_mission() -> void:
-	start_mission(TASK_TEST_MISSION_INDEX, true)
+	start_task_test_session(true)
 
 func get_door_debug_report_text(door_id: String = "") -> String:
 	if mission_manager == null or not mission_manager.has_method("get_door_debug_report_text"):

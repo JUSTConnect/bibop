@@ -9606,10 +9606,10 @@ func _build_tasks_dev_content() -> void:
 	_set_dev_validation_output("Ready. Select a validation suite to display output.")
 
 func _on_dev_start_task_test_pressed() -> void:
-	if bipob == null or not bipob.has_method("start_dev_task_test_mission"):
+	if bipob == null or not bipob.has_method("start_task_test_session"):
 		_set_dev_validation_output("Developer mission start unavailable: BipobController is not ready.")
 		return
-	bipob.call("start_dev_task_test_mission")
+	bipob.call("start_task_test_session")
 	_enter_gameplay_screen_without_starting_mission()
 
 func _on_dev_validation_all_pressed() -> void:
