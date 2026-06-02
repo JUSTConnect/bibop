@@ -433,7 +433,7 @@ func append_object_power_link_consistency_issues(data: Dictionary, object_cell: 
 
 
 func append_key_door_link_issues(source_name: String, issues: Array[Dictionary]) -> void:
-var key_link_counts_by_door: Dictionary = {}
+	var key_link_counts_by_door: Dictionary = {}
 	for cell_variant in manager.cell_items.keys():
 		var key_cell: Vector2i = manager._deserialize_cell_variant(cell_variant)
 		for item_variant in manager._safe_array(manager.cell_items.get(cell_variant, [])):
