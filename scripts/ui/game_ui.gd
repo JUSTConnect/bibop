@@ -9,6 +9,7 @@ const RuntimeStoragePanelRef = preload("res://scripts/ui/runtime/runtime_storage
 const RuntimeControlPanelRef = preload("res://scripts/ui/runtime/runtime_control_panel.gd")
 const RuntimeBipobSwitcherRef = preload("res://scripts/ui/runtime/runtime_bipob_switcher.gd")
 const RuntimeObjectHudRef = preload("res://scripts/ui/runtime/runtime_object_hud.gd")
+const MapConstructorScreenRef = preload("res://scripts/ui/map_constructor/map_constructor_screen.gd")
 
 
 class InternalIsoPreviewControl:
@@ -9999,7 +10000,7 @@ func _toggle_map_constructor_mode() -> void:
 	if bipob != null:
 		bipob.map_constructor_input_blocked = true
 	show_hint("Map Constructor Mode")
-	_set_runtime_bottom_hud_visible(false)
+	MapConstructorScreenRef.set_visible(self, true)
 	_refresh_runtime_mission_objective_label()
 	_refresh_map_constructor_panels()
 
@@ -10018,18 +10019,8 @@ func _deactivate_map_constructor_mode() -> void:
 	if bipob != null:
 		bipob.map_constructor_input_blocked = false
 
-	if runtime_map_constructor_palette_panel != null and is_instance_valid(runtime_map_constructor_palette_panel):
-		runtime_map_constructor_palette_panel.queue_free()
-	runtime_map_constructor_palette_panel = null
-
-	if runtime_map_constructor_inspector_panel != null and is_instance_valid(runtime_map_constructor_inspector_panel):
-		runtime_map_constructor_inspector_panel.queue_free()
-	runtime_map_constructor_inspector_panel = null
-	runtime_map_constructor_inspector_scroll = null
-	if runtime_map_constructor_validation_overlay_control != null and is_instance_valid(runtime_map_constructor_validation_overlay_control):
-		runtime_map_constructor_validation_overlay_control.queue_free()
-	runtime_map_constructor_validation_overlay_control = null
-	_set_runtime_bottom_hud_visible(true)
+	MapConstructorScreenRef.clear(self)
+	MapConstructorScreenRef.set_visible(self, false)
 
 	_clear_map_constructor_pending_placement()
 	_clear_map_constructor_preview_cell()
@@ -10743,7 +10734,7 @@ func _add_map_constructor_controls_hint(parent: VBoxContainer) -> void:
 	parent.add_child(local_hint_label)
 
 func _refresh_map_constructor_panels() -> void:
-	MapConstructorPanel.refresh_panels(self)
+	MapConstructorScreenRef.refresh(self)
 
 func _build_map_constructor_warnings_tab(list: VBoxContainer) -> void:
 	var readiness_title: Label = Label.new()

@@ -1,22 +1,6 @@
 extends RefCounted
 class_name MapConstructorPanel
 
-static func refresh_panels(ui: Variant) -> void:
-	if ui.app_screen_mode != ui.AppScreenMode.GAMEPLAY:
-		return
-	if ui.runtime_hud_root == null or not is_instance_valid(ui.runtime_hud_root):
-		return
-	MapConstructorTabs.remember_palette_scroll(ui)
-	clear_existing_panel(ui)
-	if not ui.map_constructor_mode_active:
-		ui._set_runtime_bottom_hud_visible(true)
-		return
-	ui._set_runtime_bottom_hud_visible(false)
-	if not ["map_settings", "objects", "warnings"].has(ui.map_constructor_active_tab):
-		ui.map_constructor_active_tab = "map_settings"
-	var panel: PanelContainer = build_panel(ui)
-	mount_panel(ui, panel)
-
 static func build_panel(ui: Variant) -> PanelContainer:
 	var panel: PanelContainer = PanelContainer.new()
 	ui.runtime_map_constructor_palette_panel = panel
