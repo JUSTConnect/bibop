@@ -1239,13 +1239,44 @@ func has_tracks() -> bool:
 
 func can_cross_stepped_floor() -> bool:
 	return has_legs() or has_tracks()
+
+func is_legacy_story_mission_active() -> bool:
+	return current_mission_index < max_mission_index
+
+func is_legacy_mission2_terminal_tutorial_active() -> bool:
+	return current_mission_index == 2
+
+func is_legacy_mission4_hidden_route_flow_active() -> bool:
+	return current_mission_index == 4
+
+func is_legacy_mission7_cable_flow_active() -> bool:
+	return current_mission_index == 7
+
+func is_legacy_mission7_cable_drag_active() -> bool:
+	return is_legacy_mission7_cable_flow_active() and mission7_is_dragging_cable
+
+func is_legacy_mission8_airflow_flow_active() -> bool:
+	return current_mission_index == 8
+
+func complete_legacy_mission_from_story_glue(_reason: String = "") -> void:
+	# TODO(legacy_mission_retirement): remove mission-completion side effects from
+	# story tutorial branches after TASK TEST has no dependency on legacy missions.
+	complete_mission()
+
+func complete_legacy_mission8_airflow_terminal_hack() -> void:
+	# TODO(legacy_mission_retirement): replace hardcoded Mission 8 terminal/door
+	# mutation with runtime world-object contracts before deleting legacy missions.
+	mission8_terminal_hacked = true
+	if grid_manager != null and grid_manager.is_in_bounds(mission8_door_position):
+		grid_manager.set_tile(mission8_door_position, GridManager.TILE_FLOOR)
+
 func get_current_mission_goal_hint() -> String:
 	return get_mission_goal_hint(current_mission_index)
 
 func start_mission(mission_index: int, save_snapshot: bool = true) -> void:
 	# Box preparation flow: mission start resets turn actions, but does not spend resources.
 	current_mission_index = clampi(mission_index, 1, max_mission_index)
-	if current_mission_index == 10:
+	if not is_legacy_story_mission_active():
 		ensure_task_test_default_modules()
 	mission_finished = false
 	turns_used = 0
@@ -1270,27 +1301,27 @@ func start_mission(mission_index: int, save_snapshot: bool = true) -> void:
 	if grid_manager != null:
 		var mission_id: String = "mission_%d" % current_mission_index
 		var used_catalog_layout := false
-		if current_mission_index == 10 and mission_manager != null and mission_manager.has_method("apply_catalog_mission_layout_to_grid"):
+		if not is_legacy_story_mission_active() and mission_manager != null and mission_manager.has_method("apply_catalog_mission_layout_to_grid"):
 			used_catalog_layout = bool(mission_manager.call("apply_catalog_mission_layout_to_grid", mission_id))
 		if not used_catalog_layout:
 			grid_manager.reset_mission_layout(current_mission_index)
 		if mission_manager != null:
 			mission_manager.setup_world_objects_for_mission(mission_id)
 			refresh_world_object_overlay()
-		if current_mission_index == 4:
+		if is_legacy_mission4_hidden_route_flow_active():
 			setup_mission4_field_modules()
 		elif debug_place_mission4_field_modules:
 			place_debug_mission4_field_modules()
-		if current_mission_index == 8:
+		if is_legacy_mission8_airflow_flow_active():
 			setup_mission8()
-		elif current_mission_index == 7:
+		elif is_legacy_mission7_cable_flow_active():
 			setup_mission7()
 		elif current_mission_index == 9:
 			setup_mission9()
 		elif grid_manager.has_method("clear_fan_platform_marker"):
 			grid_manager.clear_fan_platform_marker()
 		grid_manager.reset_fog_of_war()
-		if current_mission_index != 4 and debug_place_hidden_route_node:
+		if not is_legacy_mission4_hidden_route_flow_active() and debug_place_hidden_route_node:
 			place_debug_hidden_route_node()
 	grid_position = start_grid_position
 	direction = Direction.NORTH
@@ -1362,7 +1393,7 @@ func return_to_box() -> void:
 
 	mission_finished = true
 	last_diagnostic_result = null
-	if current_mission_index == 7 and mission7_is_dragging_cable:
+	if is_legacy_mission7_cable_drag_active():
 		release_mission7_cable_end()
 
 	if held_module != null:
@@ -1373,7 +1404,7 @@ func return_to_box() -> void:
 		add_module_to_box_storage(stored_physical_module)
 		stored_physical_module = null
 
-	if current_mission_index == 4 and (has_module_id_anywhere("visor_v2") or has_module_id_anywhere("gpu_v1")):
+	if is_legacy_mission4_hidden_route_flow_active() and (has_module_id_anywhere("visor_v2") or has_module_id_anywhere("gpu_v1")):
 		hint_requested.emit(get_mission4_context_hint())
 	elif current_mission_index == 9 and has_module_id_anywhere("legs_v1"):
 		hint_requested.emit(get_mission9_context_hint())
@@ -6568,7 +6599,7 @@ func check_mission_complete() -> void:
 	var current_tile := grid_manager.get_tile(grid_position)
 	
 	if current_tile == GridManager.TILE_EXIT:
-		if current_mission_index == 4 and not mission4_hidden_route_node_discovered:
+		if is_legacy_mission4_hidden_route_flow_active() and not mission4_hidden_route_node_discovered:
 			hint_requested.emit("Exit route is incomplete. Find the hidden route-node first.")
 			status_changed.emit()
 			return
@@ -6600,19 +6631,19 @@ func complete_mission() -> void:
 		hint_requested.emit("Mission 2 complete. Return to the box, then start Mission 3.")
 	elif current_mission_index == 3:
 		hint_requested.emit("Mission 3 complete. Return to the box, then start Mission 4.")
-	elif current_mission_index == 4:
+	elif is_legacy_mission4_hidden_route_flow_active():
 		hint_requested.emit("Mission 4 complete. Return to the box, then start Mission 5.")
 	elif current_mission_index == 5:
 		hint_requested.emit("Mission 5 complete. Return to the box, then start Mission 6.")
 	elif current_mission_index == 6:
 		hint_requested.emit("Mission 6 complete. Return to the box, then start Mission 7.")
-	elif current_mission_index == 7:
+	elif is_legacy_mission7_cable_flow_active():
 		hint_requested.emit("Mission 7 complete. Return to the box, then start Mission 8.")
-	elif current_mission_index == 8:
+	elif is_legacy_mission8_airflow_flow_active():
 		hint_requested.emit("Mission 8 complete. Return to the box, then start Mission 9.")
 	elif current_mission_index == 9:
 		hint_requested.emit("Mission 9 complete. Return to the box, then start TASK TEST.")
-	elif current_mission_index == 10:
+	elif not is_legacy_story_mission_active():
 		hint_requested.emit("TASK TEST complete. Extraction confirmed. Return to the box.")
 	else:
 		hint_requested.emit("Mission complete. Return to the box.")
@@ -6886,7 +6917,7 @@ func detect_hidden_route_nodes_in_vision() -> void:
 					"Route Data",
 					"Recovered hidden route information."
 				)
-				if current_mission_index == 4:
+				if is_legacy_mission4_hidden_route_flow_active():
 					mission4_hidden_route_node_discovered = true
 					hint_requested.emit("Hidden route-node found. Route Data stored. Reach the exit.")
 				else:
@@ -7769,7 +7800,7 @@ func interact() -> void:
 		hint_requested.emit("Powered gate is closed. Connect the cable to the socket.")
 		status_changed.emit()
 		return
-	if current_mission_index == 7 and mission7_is_dragging_cable and (target_tile == GridManager.TILE_COMPONENT or target_tile == GridManager.TILE_KEY or target_tile == GridManager.TILE_DOOR):
+	if is_legacy_mission7_cable_drag_active() and (target_tile == GridManager.TILE_COMPONENT or target_tile == GridManager.TILE_KEY or target_tile == GridManager.TILE_DOOR):
 		hint_requested.emit("Cable in hand. Connect it to the socket or drop it first.")
 		status_changed.emit()
 		return
@@ -8295,7 +8326,7 @@ func get_direction_name(value: Direction) -> String:
 			return "UNKNOWN"
 
 func get_mission8_airflow_status_text() -> String:
-	if current_mission_index != 8:
+	if not is_legacy_mission8_airflow_flow_active():
 		return ""
 
 	var airflow_range := get_mission8_airflow_range_for_speed(mission8_fan_speed)
@@ -8307,7 +8338,7 @@ func get_mission8_airflow_status_text() -> String:
 	]
 
 func get_mission7_cable_status_text() -> String:
-	if current_mission_index != 7:
+	if not is_legacy_mission7_cable_flow_active():
 		return ""
 	if mission7_cable_connected:
 		return "Cable: connected"
@@ -8412,7 +8443,7 @@ func rotate_mission8_fan_right() -> void:
 	status_changed.emit()
 
 func interact_mission8_platform_control_left() -> void:
-	if current_mission_index != 8:
+	if not is_legacy_mission8_airflow_flow_active():
 		hint_requested.emit("Platform control is inactive in this mission.")
 		status_changed.emit()
 		return
@@ -8422,7 +8453,7 @@ func interact_mission8_platform_control_left() -> void:
 	rotate_mission8_fan_left()
 
 func interact_mission8_platform_control_right() -> void:
-	if current_mission_index != 8:
+	if not is_legacy_mission8_airflow_flow_active():
 		hint_requested.emit("Platform control is inactive in this mission.")
 		status_changed.emit()
 		return
@@ -8432,7 +8463,7 @@ func interact_mission8_platform_control_right() -> void:
 	rotate_mission8_fan_right()
 
 func interact_mission8_fan_control() -> void:
-	if current_mission_index != 8:
+	if not is_legacy_mission8_airflow_flow_active():
 		hint_requested.emit("Fan control is inactive in this mission.")
 		status_changed.emit()
 		return
@@ -8446,7 +8477,7 @@ func interact_mission8_fan_control() -> void:
 	status_changed.emit()
 
 func change_mission8_fan_speed(delta: int) -> void:
-	if current_mission_index != 8:
+	if not is_legacy_mission8_airflow_flow_active():
 		hint_requested.emit("Fan speed controls are inactive in this mission.")
 		status_changed.emit()
 		return
@@ -8745,7 +8776,7 @@ func pick_up_component(component_position: Vector2i, manipulator_module: BipobMo
 		pocket_items[free_pocket_index] = picked_module
 		hint_requested.emit("Component stored in pocket: %s." % get_module_display_name(picked_module))
 
-	if current_mission_index == 4:
+	if is_legacy_mission4_hidden_route_flow_active():
 		if picked_module.id == "visor_v2":
 			hint_requested.emit("Visor V2 recovered. Return to the box and install it.")
 		elif picked_module.id == "gpu_v1":
@@ -8808,12 +8839,13 @@ func read_terminal(target_position: Vector2i) -> void:
 		return
 	match current_mission_index:
 		2:
+			# TODO(legacy_mission_retirement): old terminal calibration story branch.
 			if not can_spend_action(1, 1):
 				return
 			spend_action(1, 1)
 			print("Terminal is silent. Interface calibration required.")
 			hint_requested.emit("Terminal is silent. Interface calibration required.")
-			complete_mission()
+			complete_legacy_mission_from_story_glue("mission2_terminal_calibration")
 			return
 		3:
 			if not can_spend_action(1, 1):

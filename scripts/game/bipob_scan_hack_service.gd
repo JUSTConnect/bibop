@@ -210,9 +210,10 @@ static func hack_device(controller: Variant) -> void:
 			if not controller.can_spend_action(1, 1):
 				return
 			controller.spend_action(1, 1)
-			if controller.current_mission_index == 2:
+			if controller.is_legacy_mission2_terminal_tutorial_active():
+				# TODO(legacy_mission_retirement): old terminal calibration story branch.
 				controller.hint_requested.emit("Terminal is silent. Interface calibration required. Return to the box.")
-				controller.complete_mission()
+				controller.complete_legacy_mission_from_story_glue("mission2_scan_hack_terminal")
 				return
 			controller.has_info_key = true
 			controller.store_digital_record(DIGITAL_RECORD_INFO_KEY, "Info-Key", "Digital authorization record for opening a digital door.")
@@ -235,9 +236,7 @@ static func hack_device(controller: Variant) -> void:
 			if not controller.can_spend_action(1, 1):
 				return
 			controller.spend_action(1, 1)
-			controller.mission8_terminal_hacked = true
-			if controller.grid_manager != null and controller.grid_manager.is_in_bounds(controller.mission8_door_position):
-				controller.grid_manager.set_tile(controller.mission8_door_position, GridManager.TILE_FLOOR)
+			controller.complete_legacy_mission8_airflow_terminal_hack()
 			controller.hint_requested.emit("Airflow Terminal hacked. Path opened.")
 			controller.status_changed.emit()
 			return
