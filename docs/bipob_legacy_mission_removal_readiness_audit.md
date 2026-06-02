@@ -1,8 +1,8 @@
-# BIPOB PR-RF-21 — Legacy mission removal readiness audit
+# BIPOB PR-RF-22 — Legacy mission removal readiness audit
 
 ## Purpose
 
-This audit records what still blocks safe deletion of old story mission code/resources after PR-RF-08 through PR-RF-21. PR-RF-21 intentionally adds the generic fan/platform/airflow/cooling contract planning document only: no gameplay, TASK TEST mechanics, Map Constructor, runtime action, scan/hack, movement, inventory, cable, airflow, cooling, power, terminal hack, door/path unlock, or mission resource behavior is changed by this change.
+This audit records what still blocks safe deletion of old story mission code/resources after PR-RF-08 through PR-RF-22. PR-RF-22 intentionally adds generic cable/socket/power data-state helpers only: no gameplay, TASK TEST mechanics, Map Constructor, runtime action, scan/hack, movement, inventory, cable behavior, airflow, cooling, power routing, terminal hack, door/path unlock, or mission resource behavior is changed by this change.
 
 Current product direction:
 
@@ -11,7 +11,7 @@ Current product direction:
 - Mechanics introduced by old missions must survive if they are reusable in TASK TEST or future missions.
 - Mission resources/scenes/layouts should be deleted only after TASK TEST startup, sandbox completion, Map Constructor, runtime actions, scan/hack, inventory, and movement pass smoke without relying on old mission-index branches.
 
-## Current status after PR-RF-21
+## Current status after PR-RF-22
 
 ### Already isolated or removed
 
@@ -24,7 +24,7 @@ Current product direction:
 - Mission 2 terminal tutorial glue is removed; Info-Key / digital record mechanics remain.
 - Mission 4 hidden-route story glue is removed; hidden route-node discovery, Route Data digital record, Scan/X-Ray visibility, and debug placement remain.
 - Mission 7 cable/socket/powered-gate flow is isolated behind `BipobLegacyCableFlowService`.
-- PR-RF-20 defines the planned generic cable/socket/power runtime contract in `docs/bipob_generic_cable_socket_power_contract.md`; implementation has not landed yet.
+- PR-RF-20 defines the planned generic cable/socket/power runtime contract in `docs/bipob_generic_cable_socket_power_contract.md`; PR-RF-22 adds `BipobCableRuntimeState` as a generic data/state helper only. Generic cable gameplay behavior has not landed yet.
 - Mission 8 fan/platform/airflow/cooling flow is isolated behind `BipobLegacyAirflowFlowService`.
 - PR-RF-21 defines the planned generic fan/platform/airflow/cooling runtime contract in `docs/bipob_generic_airflow_cooling_contract.md`; implementation has not landed yet.
 - `BipobLegacyCableFlowService.reset_state()` was renamed to `reset_legacy_state()` to avoid the Godot `GDScript.reset_state()` conflict.
@@ -42,7 +42,7 @@ Current product direction:
 | --- | --- | --- | --- |
 | Mission 2 terminal tutorial glue | Removed from generic scan/hack/read-terminal paths. | Ready. | Old Mission 2 tutorial resources can be deleted later only with broader mission resource cleanup. Do not remove Info-Key/digital record mechanics. |
 | Mission 4 hidden-route story glue | Removed from goal hints, exit gating, completion message, auto field setup, pickup hints, and discovery side effects. | Ready. | Old Mission 4 story resources can be deleted later. Keep hidden/reveal/X-Ray/Route Data mechanics and debug placement. |
-| Mission 7 cable/socket/powered-gate | Isolated behind `BipobLegacyCableFlowService`, but still hardcoded to Mission 7 state, positions, and `cable_a`. PR-RF-20 adds a generic runtime cable/socket/power contract document, but no generic implementation exists yet. | Not ready for deletion. | Implement and smoke-test a generic runtime cable/socket/power service before deleting old Mission 7 layout/state. |
+| Mission 7 cable/socket/powered-gate | Isolated behind `BipobLegacyCableFlowService`, but still hardcoded to Mission 7 state, positions, and `cable_a`. PR-RF-20 adds a generic runtime cable/socket/power contract document, and PR-RF-22 adds a parser-safe data/state helper only. No generic behavior integration exists yet. | Not ready for deletion. | Implement and smoke-test a generic runtime cable/socket/power service before deleting old Mission 7 layout/state. |
 | Mission 8 fan/platform/airflow/cooling | Isolated behind `BipobLegacyAirflowFlowService`, but still hardcoded to Mission 8 state, positions, airflow cells, terminal cooling/hack state, and direct door mutation. PR-RF-21 adds a generic runtime fan/platform/airflow/cooling contract document, but no generic implementation exists yet. | Not ready for deletion. | Implement and smoke-test a generic runtime fan/platform/airflow/cooling service before deleting old Mission 8 layout/state. |
 | TASK TEST startup | Has explicit `start_task_test_session()` / `reset_task_test_session()` entry points, explicit `active_runtime_mode_id` runtime identity in the controller and MissionManager, a neutral `task_test` layout alias, and `mission_10` fallback compatibility. `start_mission(10)` now delegates to `start_task_test_session()` for compatibility. | Partially ready. | Keep proving TASK TEST smoke coverage before deleting mission-index compatibility and old mission resources. |
 | TASK TEST completion | Isolated through `complete_sandbox_run()`. | Mostly ready. | Smoke-test sandbox completion. Later route direct TASK TEST callers to `complete_sandbox_run()` and reduce `complete_mission()` compatibility. |
@@ -60,7 +60,7 @@ Current product direction:
 
 2. **Mission 7 cable mechanics are not generic yet.**
    - `BipobLegacyCableFlowService` preserves behavior but still uses hardcoded Mission 7 state, positions, tile mutations, and `cable_a`.
-   - PR-RF-20 documents the generic cable/socket/power contract, but deleting Mission 7 before a generic implementation exists still risks losing reusable cable mechanics.
+   - PR-RF-20 documents the generic cable/socket/power contract, and PR-RF-22 adds a parser-safe data/state helper only; deleting Mission 7 before a generic behavior implementation exists still risks losing reusable cable mechanics.
 
 3. **Mission 8 airflow mechanics are not generic yet.**
    - `BipobLegacyAirflowFlowService` preserves behavior but still uses hardcoded Mission 8 state, positions, airflow tiles, and door mutation.
@@ -96,6 +96,16 @@ Completed scope:
 - Added `docs/bipob_generic_cable_socket_power_contract.md` as the generic cable/socket/power runtime contract.
 - Identified required runtime roles, world-object properties, actions, service responsibilities, legacy Mission 7 field mappings, migration stages, and future acceptance smoke.
 - Kept `BipobLegacyCableFlowService` and old Mission 7 resources in place. Mission 7 deletion remains blocked until TASK TEST can exercise generic cable behavior through an implemented runtime service.
+
+### PR-RF-22 — Generic cable runtime data/state helper
+
+Goal: add a parser-safe data normalization layer for future generic cable/socket/power runtime work without wiring gameplay behavior.
+
+Completed scope:
+
+- Added `scripts/game/bipob_cable_runtime_state.gd` as a data-only `BipobCableRuntimeState` helper.
+- Supported dictionary serialization/deserialization and read-only legacy Mission 7 snapshot creation.
+- Kept `BipobLegacyCableFlowService` as the behavior owner. Mission 7 deletion remains blocked because no generic cable runtime behavior is integrated yet.
 
 ### PR-RF-21 — Generic runtime fan/platform/airflow/cooling contract planning
 

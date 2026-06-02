@@ -6,6 +6,14 @@ This document defines the generic runtime contract that should replace the old M
 
 PR-RF-20 is documentation-first. It does not implement new cable behavior, does not delete old Mission 7 resources, and does not remove `BipobLegacyCableFlowService`. The legacy Mission 7 flow remains the source of current behavior until a later PR introduces and proves a generic runtime service.
 
+## PR-RF-22 initial data helper
+
+PR-RF-22 adds `BipobCableRuntimeState` as a parser-safe, data-only helper for normalized cable/socket/power runtime state. The helper can store cable ids, socket/target ids, connection state, path cells, power metadata, and a read-only snapshot of current legacy Mission 7 controller fields.
+
+This helper is not wired into gameplay yet. It must not change TASK TEST, Map Constructor, Mission 7 cable drawing/clearing, powered-gate behavior, movement, inventory, scan/hack, action execution, or power routing.
+
+`BipobLegacyCableFlowService` remains the owner of current Mission 7 cable/socket/powered-gate behavior until a future generic runtime service is implemented and smoke-tested. Mission 7 deletion remains blocked while behavior still depends on that legacy service.
+
 ## Boundary: reusable mechanic vs. old Mission 7 story glue
 
 ### Reusable cable/socket/power mechanic
