@@ -1,67 +1,47 @@
 extends RefCounted
 class_name MapConstructorLinkControls
 
+const MapConstructorLinkReadModelServiceRef = preload("res://scripts/game/map_constructor_link_read_model_service.gd")
+
 static func add_link_picker(ui: Variant, section: VBoxContainer, entity_kind: String, entity_id: String, link_type: String, title: String) -> void:
-	if ui.mission_manager_runtime == null or not ui.mission_manager_runtime.has_method("get_map_constructor_entity_by_id"):
+	var model: Dictionary = MapConstructorLinkReadModelServiceRef.build_link_picker_model(ui.mission_manager_runtime, entity_kind, entity_id, link_type)
+	if not bool(model.get("ok", false)):
 		return
-	var entity_info: Dictionary = ui.mission_manager_runtime.call("get_map_constructor_entity_by_id", entity_kind, entity_id)
-	if not bool(entity_info.get("ok", false)):
-		return
-	var data: Dictionary = {}
-	var data_variant: Variant = entity_info.get("data", {})
-	if data_variant is Dictionary:
-		data = data_variant.duplicate(true)
-	var field_map: Dictionary = {"linked_terminal":"linked_terminal_id","linked_door":"target_door_id","power_network":"power_network_id","control_source":"control_source_id","terminal_target":"target_door_id","platform_target":"target_platform_id","power_source":"power_source_id","control_terminal":"control_terminal_id","access_terminal":"access_terminal_id"}
-	if not field_map.has(link_type):
-		return
-	var field_name: String = ui._safe_ui_string(field_map[link_type])
-	var current_target: String = ui._safe_ui_string(data.get(field_name, "")).strip_edges()
+	var current_target: String = ui._safe_ui_string(model.get("current_target_id", "")).strip_edges()
+	var target_cell: Vector2i = ui._safe_ui_vector2i(model.get("target_cell", Vector2i(-1, -1)))
+	var has_single_target: bool = bool(model.get("has_single_target", false))
 	var title_label: Label = Label.new(); title_label.text = title
 	section.add_child(title_label)
-	var current_label: Label = Label.new(); current_label.text = "Current: %s" % (current_target if not current_target.is_empty() else "(none)")
+	var current_label: Label = Label.new(); current_label.text = ui._safe_ui_string(model.get("current_label", "Current: (none)"), "Current: (none)")
 	section.add_child(current_label)
-	if ui.mission_manager_runtime.has_method("get_map_constructor_link_candidates"):
-		for candidate in ui._safe_ui_array(ui.mission_manager_runtime.call("get_map_constructor_link_candidates", entity_kind, entity_id, link_type)):
-			var c: Dictionary = ui._safe_ui_dictionary(candidate)
-			var cid: String = ui._safe_ui_string(c.get("id", ""))
-			var prefix: String = "✓ " if bool(c.get("current", false)) or cid == current_target else ""
-			var label_text: String = "%s%s [%s] %s" % [prefix, cid, ui._safe_ui_string(c.get("object_type", "obj")), ui._safe_ui_string(c.get("cell", ""))]
-			var button: Button = Button.new(); button.text = label_text
-			button.pressed.connect(func() -> void:
-				var result: Dictionary = ui.mission_manager_runtime.call("set_map_constructor_entity_link", entity_kind, entity_id, link_type, cid)
-				ui.show_hint(ui._safe_ui_string(result.get("message", "Link updated."), "Link updated."))
-				var target_cell: Vector2i = ui._safe_ui_vector2i(result.get("target_cell", Vector2i(-1, -1)))
-				if target_cell.x >= 0 and target_cell.y >= 0:
-					ui._set_map_constructor_link_target(target_cell, ui._safe_ui_string(result.get("target_id", cid), cid))
-				ui._refresh_map_constructor_panels()
-				if ui.field_runtime != null and ui.field_runtime.has_method("request_visual_refresh"):
-					ui.field_runtime.call("request_visual_refresh")
-				ui._show_map_constructor_inspector(ui.selected_map_constructor_entity_cell, ui.selected_map_constructor_entity_kind, ui.selected_map_constructor_entity_id)
-			)
-			section.add_child(button)
+	for candidate in ui._safe_ui_array(model.get("candidates", [])):
+		var c: Dictionary = ui._safe_ui_dictionary(candidate)
+		var cid: String = ui._safe_ui_string(c.get("id", ""))
+		var label_text: String = ui._safe_ui_string(c.get("label", ""))
+		var button: Button = Button.new(); button.text = label_text
+		button.pressed.connect(func() -> void:
+			var result: Dictionary = ui.mission_manager_runtime.call("set_map_constructor_entity_link", entity_kind, entity_id, link_type, cid)
+			ui.show_hint(ui._safe_ui_string(result.get("message", "Link updated."), "Link updated."))
+			var result_target_cell: Vector2i = ui._safe_ui_vector2i(result.get("target_cell", Vector2i(-1, -1)))
+			if result_target_cell.x >= 0 and result_target_cell.y >= 0:
+				ui._set_map_constructor_link_target(result_target_cell, ui._safe_ui_string(result.get("target_id", cid), cid))
+			ui._refresh_map_constructor_panels()
+			if ui.field_runtime != null and ui.field_runtime.has_method("request_visual_refresh"):
+				ui.field_runtime.call("request_visual_refresh")
+			ui._show_map_constructor_inspector(ui.selected_map_constructor_entity_cell, ui.selected_map_constructor_entity_kind, ui.selected_map_constructor_entity_id)
+		)
+		section.add_child(button)
 	var actions: HFlowContainer = HFlowContainer.new()
 	var show_button: Button = Button.new(); show_button.text = "Show Target"
 	show_button.pressed.connect(func() -> void:
 		if current_target.is_empty():
 			ui.show_hint("No linked target.")
 			return
-		if link_type == "power_network" and ui.mission_manager_runtime.has_method("get_map_constructor_link_candidates"):
-			var candidates: Array = ui._safe_ui_array(ui.mission_manager_runtime.call("get_map_constructor_link_candidates", entity_kind, entity_id, link_type))
-			for candidate_variant in candidates:
-				var candidate: Dictionary = ui._safe_ui_dictionary(candidate_variant)
-				if ui._safe_ui_string(candidate.get("id", "")) != current_target:
-					continue
-				var candidate_cell: Vector2i = ui._safe_ui_vector2i(candidate.get("cell", Vector2i(-1, -1)))
-				if candidate_cell.x < 0 or candidate_cell.y < 0:
-					ui.show_hint("Power network has no single map target.")
-					return
-				break
-		if ui.mission_manager_runtime.has_method("get_map_constructor_entity_by_id"):
-			var target_entity: Dictionary = ui.mission_manager_runtime.call("get_map_constructor_entity_by_id", "world_object", current_target)
-			if bool(target_entity.get("ok", false)):
-				ui._set_map_constructor_link_target(ui._safe_ui_vector2i(target_entity.get("cell", Vector2i(-1, -1))), current_target)
-			elif link_type == "power_network":
-				ui.show_hint("Power network has no single map target.")
+		if link_type == "power_network" and not has_single_target:
+			ui.show_hint("Power network has no single map target.")
+			return
+		if has_single_target:
+			ui._set_map_constructor_link_target(target_cell, current_target)
 	)
 	actions.add_child(show_button)
 	var clear_button: Button = Button.new(); clear_button.text = "Clear Link"
@@ -75,13 +55,10 @@ static func add_link_picker(ui: Variant, section: VBoxContainer, entity_kind: St
 	actions.add_child(clear_button)
 	var jump_button: Button = Button.new(); jump_button.text = "Jump/Select Target"
 	jump_button.pressed.connect(func() -> void:
-		if current_target.is_empty() or ui.mission_manager_runtime == null:
+		if current_target.is_empty() or not has_single_target:
 			return
-		var target_entity: Dictionary = ui.mission_manager_runtime.call("get_map_constructor_entity_by_id", "world_object", current_target)
-		if bool(target_entity.get("ok", false)):
-			var target_cell: Vector2i = ui._safe_ui_vector2i(target_entity.get("cell", Vector2i(-1, -1)))
-			ui._focus_map_constructor_cell(target_cell)
-			ui._show_map_constructor_inspector(target_cell, "world_object", current_target)
+		ui._focus_map_constructor_cell(target_cell)
+		ui._show_map_constructor_inspector(target_cell, "world_object", current_target)
 	)
 	actions.add_child(jump_button)
 	section.add_child(actions)
