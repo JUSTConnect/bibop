@@ -241,13 +241,13 @@ Docs-only or very small code comments.
 - List which side effects remain in controller.
 - No code movement.
 
-### PR-X2: Extract actor builder
+### PR-X2: Extract actor builder — completed
 
-Move `_build_runtime_action_actor(...)` to a read-only service or to `BipobActionViewModelService` if the dependency direction remains clean.
+Extracted `_build_runtime_action_actor(...)` dictionary construction to the read-only `scripts/game/bipob_runtime_action_actor_service.gd` service.
 
-- No execution.
-- Preserve actor dictionary keys exactly.
-- Keep `BipobController._build_runtime_action_actor(...)` wrapper.
+- No execution moved.
+- Actor dictionary keys remain unchanged.
+- `BipobController._build_runtime_action_actor(...)` remains as a wrapper.
 
 ### PR-X3: Extract terminal control execution helper
 
@@ -315,6 +315,11 @@ Every implementation PR in this area should verify:
 
 ## 8. Recommended next PR
 
-The safest next code PR is **PR-X2: Extract runtime action actor builder**.
+**PR-X2: Extract runtime action actor builder** is complete. The next candidates remain:
 
-Reason: `_build_runtime_action_actor(...)` is already a read-only dictionary builder used by view-model/preflight/execution paths. It can be extracted behind a controller wrapper without moving execution or changing action behavior.
+- **PR-X3:** terminal control execution helper;
+- **PR-X4:** Heavy Claw execution helper;
+- **PR-X5:** generic world-object execution helper;
+- **PR-X6:** item pickup execution helper.
+
+These follow-up candidates must preserve the existing controller façade, execution ordering, spend-on-success behavior, and refresh flow.

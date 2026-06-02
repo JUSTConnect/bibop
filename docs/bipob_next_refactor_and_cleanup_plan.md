@@ -568,12 +568,14 @@ Heavy Claw — heavy object movement.
 
 Статус: phase 1 начата. Center screen extraction, Runtime control panel extraction, Runtime object HUD extraction, Runtime storage panel extraction, Map Constructor screen/root extraction, Map Constructor inspector shell extraction, Map Constructor property controls cleanup, Map Constructor link controls extraction, PR-V1 validation display adapters extraction, PR-V2 link candidate/read model service extraction, PR-V3 Map Constructor property update service wrapper extraction, PR-V4 Map Constructor power/link consistency validation rules extraction и PR-V5 Map Constructor save/load readiness validation boundary extraction завершены; полный GameUI split ещё не завершён.
 
-BipobController targeting service extraction завершён: read-only facing cell/object/item lookup и action target context вынесены в `scripts/game/bipob_targeting_service.gd`. BipobController action view-model service extraction также завершён: read-only action descriptor availability, labels и target summary вынесены в `scripts/game/bipob_action_view_model_service.gd`. BipobController capability service extraction завершён: read-only module/capability availability checks вынесены в `scripts/game/bipob_capability_service.gd`. `BipobController` всё ещё остаётся coordinator/executor; action execution ещё НЕ вынесен.
+BipobController targeting service extraction завершён: read-only facing cell/object/item lookup и action target context вынесены в `scripts/game/bipob_targeting_service.gd`. BipobController action view-model service extraction также завершён: read-only action descriptor availability, labels и target summary вынесены в `scripts/game/bipob_action_view_model_service.gd`. BipobController capability service extraction завершён: read-only module/capability availability checks вынесены в `scripts/game/bipob_capability_service.gd`. PR-X2 runtime action actor builder extraction завершён: read-only actor dictionary construction вынесен в `scripts/game/bipob_runtime_action_actor_service.gd`. `BipobController` всё ещё остаётся coordinator/executor; action execution ещё НЕ вынесен.
 
 Следующие кандидаты на extraction:
 
-- BipobController interaction execution boundary audit;
-- BipobController action execution service;
+- PR-X3 terminal control execution helper;
+- PR-X4 Heavy Claw execution helper;
+- PR-X5 generic world-object execution helper;
+- PR-X6 item pickup execution helper;
 - MissionManager cleanup/autofix boundary audit;
 - MissionManager save/load/preset persistence boundary audit.
 
@@ -606,13 +608,14 @@ All current UI still works.
 
 ### PR-S — BipobController split phase 1
 
-Статус: targeting service extraction, action view-model service extraction и capability service extraction завершены; полный BipobController split ещё не завершён. `BipobController` остаётся coordinator/executor, а action execution ещё НЕ вынесен.
+Статус: targeting service extraction, action view-model service extraction, capability service extraction и PR-X2 runtime action actor builder extraction завершены; полный BipobController split ещё не завершён. `BipobController` остаётся coordinator/executor, а action execution ещё НЕ вынесен.
 
 Содержание:
 
 - [x] вынести targeting service;
 - [x] вынести capability service;
 - [x] вынести action view model builder;
+- [x] вынести PR-X2 runtime action actor builder в read-only service;
 - [x] оставить старый controller как façade.
 
 Критерий:

@@ -39,6 +39,7 @@ const BipobModulePresenterRef = preload("res://scripts/bipob/bipob_module_presen
 const BipobTargetingServiceRef = preload("res://scripts/game/bipob_targeting_service.gd")
 const BipobActionViewModelServiceRef = preload("res://scripts/game/bipob_action_view_model_service.gd")
 const BipobCapabilityServiceRef = preload("res://scripts/game/bipob_capability_service.gd")
+const BipobRuntimeActionActorServiceRef = preload("res://scripts/game/bipob_runtime_action_actor_service.gd")
 const EXTERNAL_MODULE_CATALOG: Dictionary = {
 "wheels_v1":{"name":"Wheels V1","cat":"Gear","size":Vector2i(3,2),"sides":[EXTERNAL_SIDE_BOTTOM],"desc":"Fast movement system for flat and stable surfaces. Ineffective on stairs, mud and debris.","energy":1,"terrain":"Flat surface","movement":"Drive","speed":3},
 "legs_v1":{"name":"Legs V1","cat":"Gear","size":Vector2i(3,2),"sides":[EXTERNAL_SIDE_BOTTOM],"desc":"Universal movement system that provides stable traversal across uneven terrain, steps, obstacles, and mixed surfaces.","energy":1,"terrain":"Any surface","movement":"Walk","speed":2},
@@ -6988,28 +6989,7 @@ func get_facing_device_interaction_state_flow(action_id: String = "") -> Diction
 	return Dictionary(flow_variant) if typeof(flow_variant) == TYPE_DICTIONARY else {}
 
 func _build_runtime_action_actor(target_object: Dictionary, target_position: Vector2i) -> Dictionary:
-	return {
-		"manipulator_level": get_installed_manipulator_arm_level(),
-		"heavy_claw_level": get_installed_heavy_claw_level(),
-		"connector_level": maxi(get_installed_connector_level("wired"), get_installed_connector_level("optical")),
-		"wired_connector_level": get_installed_connector_level("wired"),
-		"optical_connector_level": get_installed_connector_level("optical"),
-		"wireless_connector_level": get_installed_connector_level("wireless"),
-		"high_bandwidth_connector_level": get_installed_connector_level("high_bandwidth"),
-		"processor_level": get_installed_processor_level(),
-		"firewall_module_v1": has_module_id("firewall_module_v1"),
-		"power_class": get_bipob_power_class(),
-		"manipulator_occupied": not can_use_physical_hand(),
-		"pocket_full": get_available_pocket_slots() <= 0,
-		"range_to_target": 1,
-		"is_straight_line": true,
-		"magnetic_path_blocked": false,
-		"target_is_grate": target_object.get("object_type", "") == "grate_wall",
-		"facing_direction": get_direction_vector(direction),
-		"target_position": target_position,
-		"actor_position": grid_position,
-		"collected_key_ids": get_collected_runtime_key_ids()
-	}
+	return BipobRuntimeActionActorServiceRef.build_runtime_action_actor(self, target_object, target_position)
 
 func build_runtime_action_view_model(target_object: Dictionary, target_position: Vector2i) -> Dictionary:
 	return BipobActionViewModelServiceRef.build_runtime_action_view_model(self, target_object, target_position)
