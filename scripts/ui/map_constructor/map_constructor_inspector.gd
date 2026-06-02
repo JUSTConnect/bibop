@@ -1,46 +1,7 @@
 extends RefCounted
 class_name MapConstructorInspector
 
-static func show_for_selection(ui: Variant, cell: Vector2i, preferred_entity_kind: String = "", preferred_entity_id: String = "") -> void:
-	var previous_entity_kind: String = ui.selected_map_constructor_entity_kind
-	var previous_entity_id: String = ui.selected_map_constructor_entity_id
-	var preserve_scroll_value: int = 0
-	if ui.runtime_map_constructor_inspector_scroll != null and is_instance_valid(ui.runtime_map_constructor_inspector_scroll):
-		preserve_scroll_value = ui.runtime_map_constructor_inspector_scroll.scroll_vertical
-	if ui.runtime_map_constructor_inspector_panel != null and is_instance_valid(ui.runtime_map_constructor_inspector_panel):
-		ui.runtime_map_constructor_inspector_panel.queue_free()
-	ui.runtime_map_constructor_inspector_panel = null
-	ui.runtime_map_constructor_inspector_scroll = null
-	if not ui.map_constructor_mode_active:
-		ui._set_runtime_bottom_hud_visible(true)
-		return
-	ui._set_runtime_bottom_hud_visible(false)
-	ui._ensure_runtime_hud_root()
-	if ui.mission_manager_runtime == null:
-		return
-	var entity_info: Dictionary = {}
-	if not preferred_entity_id.is_empty() and ui.mission_manager_runtime.has_method("get_map_constructor_entity_by_id"):
-		entity_info = ui.mission_manager_runtime.call("get_map_constructor_entity_by_id", preferred_entity_kind, preferred_entity_id)
-	if entity_info.is_empty() and ui.mission_manager_runtime.has_method("get_map_constructor_editable_entity_at_cell"):
-		entity_info = ui.mission_manager_runtime.call("get_map_constructor_editable_entity_at_cell", cell)
-	if not bool(entity_info.get("ok", false)):
-		ui.selected_map_constructor_entity_kind = ""
-		ui.selected_map_constructor_entity_id = ""
-		ui.selected_map_constructor_entity_cell = Vector2i(-1, -1)
-		ui._clear_map_constructor_wall_mounted_selection()
-		ui._clear_map_constructor_link_target()
-		return
-	var entity_kind: String = ui._safe_ui_string(entity_info.get("entity_kind", "world_object"), "world_object")
-	var entity_id: String = ui._safe_ui_string(entity_info.get("id", ""))
-	var data: Dictionary = {}
-	var data_variant: Variant = entity_info.get("data", {})
-	if data_variant is Dictionary:
-		data = data_variant.duplicate(true)
-	ui.selected_map_constructor_entity_kind = entity_kind
-	ui.selected_map_constructor_entity_id = entity_id
-	ui.selected_map_constructor_entity_cell = ui._safe_ui_vector2i(entity_info.get("cell", cell))
-	var type_group: String = ui._safe_ui_string(ui.mission_manager_runtime.call("get_map_constructor_entity_type_group", entity_kind, entity_id), "generic") if ui.mission_manager_runtime.has_method("get_map_constructor_entity_type_group") else "generic"
-	var preserve_scroll_after_rebuild: bool = previous_entity_kind == entity_kind and previous_entity_id == entity_id
+static func build(ui: Variant, entity_kind: String, entity_id: String, data: Dictionary) -> PanelContainer:
 	var panel := PanelContainer.new()
 	var inspector_rect: Rect2 = ui._get_map_constructor_bottom_inspector_rect()
 	panel.position = inspector_rect.position
@@ -82,12 +43,63 @@ static func show_for_selection(ui: Variant, cell: Vector2i, preferred_entity_kin
 	scroll.size_flags_vertical = Control.SIZE_EXPAND_FILL
 	ui.runtime_map_constructor_inspector_scroll = scroll
 	inspector_stack.add_child(scroll)
-	var v := VBoxContainer.new()
-	v.add_theme_constant_override("separation", 8)
-	v.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-	v.size_flags_vertical = Control.SIZE_SHRINK_BEGIN
-	v.custom_minimum_size = Vector2(maxf(inspector_rect.size.x - 36.0, 1.0), 0.0)
-	scroll.add_child(v)
+	var content := VBoxContainer.new()
+	content.add_theme_constant_override("separation", 8)
+	content.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	content.size_flags_vertical = Control.SIZE_SHRINK_BEGIN
+	content.custom_minimum_size = Vector2(maxf(inspector_rect.size.x - 36.0, 1.0), 0.0)
+	scroll.add_child(content)
+	ui.runtime_map_constructor_inspector_panel = panel
+	return panel
+
+
+static func clear(ui: Variant) -> void:
+	if ui.runtime_map_constructor_inspector_panel != null and is_instance_valid(ui.runtime_map_constructor_inspector_panel):
+		ui.runtime_map_constructor_inspector_panel.queue_free()
+	ui.runtime_map_constructor_inspector_panel = null
+	ui.runtime_map_constructor_inspector_scroll = null
+
+
+static func refresh(ui: Variant, cell: Vector2i, preferred_entity_kind: String = "", preferred_entity_id: String = "") -> void:
+	var previous_entity_kind: String = ui.selected_map_constructor_entity_kind
+	var previous_entity_id: String = ui.selected_map_constructor_entity_id
+	var preserve_scroll_value: int = 0
+	if ui.runtime_map_constructor_inspector_scroll != null and is_instance_valid(ui.runtime_map_constructor_inspector_scroll):
+		preserve_scroll_value = ui.runtime_map_constructor_inspector_scroll.scroll_vertical
+	clear(ui)
+	if not ui.map_constructor_mode_active:
+		ui._set_runtime_bottom_hud_visible(true)
+		return
+	ui._set_runtime_bottom_hud_visible(false)
+	ui._ensure_runtime_hud_root()
+	if ui.mission_manager_runtime == null:
+		return
+	var entity_info: Dictionary = {}
+	if not preferred_entity_id.is_empty() and ui.mission_manager_runtime.has_method("get_map_constructor_entity_by_id"):
+		entity_info = ui.mission_manager_runtime.call("get_map_constructor_entity_by_id", preferred_entity_kind, preferred_entity_id)
+	if entity_info.is_empty() and ui.mission_manager_runtime.has_method("get_map_constructor_editable_entity_at_cell"):
+		entity_info = ui.mission_manager_runtime.call("get_map_constructor_editable_entity_at_cell", cell)
+	if not bool(entity_info.get("ok", false)):
+		ui.selected_map_constructor_entity_kind = ""
+		ui.selected_map_constructor_entity_id = ""
+		ui.selected_map_constructor_entity_cell = Vector2i(-1, -1)
+		ui._clear_map_constructor_wall_mounted_selection()
+		ui._clear_map_constructor_link_target()
+		return
+	var entity_kind: String = ui._safe_ui_string(entity_info.get("entity_kind", "world_object"), "world_object")
+	var entity_id: String = ui._safe_ui_string(entity_info.get("id", ""))
+	var data: Dictionary = {}
+	var data_variant: Variant = entity_info.get("data", {})
+	if data_variant is Dictionary:
+		data = data_variant.duplicate(true)
+	ui.selected_map_constructor_entity_kind = entity_kind
+	ui.selected_map_constructor_entity_id = entity_id
+	ui.selected_map_constructor_entity_cell = ui._safe_ui_vector2i(entity_info.get("cell", cell))
+	var type_group: String = ui._safe_ui_string(ui.mission_manager_runtime.call("get_map_constructor_entity_type_group", entity_kind, entity_id), "generic") if ui.mission_manager_runtime.has_method("get_map_constructor_entity_type_group") else "generic"
+	var preserve_scroll_after_rebuild: bool = previous_entity_kind == entity_kind and previous_entity_id == entity_id
+	var panel: PanelContainer = build(ui, entity_kind, entity_id, data)
+	var scroll: ScrollContainer = ui.runtime_map_constructor_inspector_scroll
+	var v: VBoxContainer = scroll.get_child(0) as VBoxContainer
 	var identity: VBoxContainer = ui._create_inspector_section("1. Object Identity")
 	var id_label: Label = Label.new(); id_label.text = entity_id; identity.add_child(ui._create_property_row("ID", id_label))
 	ui._add_text_property(identity, "Name", entity_kind, entity_id, "display_name", data.get("display_name", ""))
@@ -208,7 +220,6 @@ static func show_for_selection(ui: Variant, cell: Vector2i, preferred_entity_kin
 	MapConstructorValidationView.add_warning_entries(ui, warning_section, validation_result)
 	v.add_child(warning_section)
 	MapConstructorFloorWallControls.add_coverage_sections(ui, v, entity_info, cell, data, entity_kind, entity_id, type_group)
-	ui.runtime_map_constructor_inspector_panel = panel
 	if preserve_scroll_after_rebuild:
 		ui._restore_map_constructor_inspector_scroll_deferred(scroll, preserve_scroll_value)
 	ui.runtime_hud_root.add_child(panel)

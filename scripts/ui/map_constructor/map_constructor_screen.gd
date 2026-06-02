@@ -3,6 +3,7 @@ class_name MapConstructorScreen
 
 const MapConstructorPanelRef = preload("res://scripts/ui/map_constructor/map_constructor_panel.gd")
 const MapConstructorTabsRef = preload("res://scripts/ui/map_constructor/map_constructor_tabs.gd")
+const MapConstructorInspectorRef = preload("res://scripts/ui/map_constructor/map_constructor_inspector.gd")
 
 
 static func build(ui: Variant) -> Control:
@@ -34,10 +35,7 @@ static func set_visible(ui: Variant, visible_state: bool) -> void:
 static func clear(ui: Variant) -> void:
 	MapConstructorPanelRef.clear_existing_panel(ui)
 	ui.runtime_map_constructor_palette_panel = null
-	if ui.runtime_map_constructor_inspector_panel != null and is_instance_valid(ui.runtime_map_constructor_inspector_panel):
-		ui.runtime_map_constructor_inspector_panel.queue_free()
-	ui.runtime_map_constructor_inspector_panel = null
-	ui.runtime_map_constructor_inspector_scroll = null
+	MapConstructorInspectorRef.clear(ui)
 	if ui.runtime_map_constructor_validation_overlay_control != null and is_instance_valid(ui.runtime_map_constructor_validation_overlay_control):
 		ui.runtime_map_constructor_validation_overlay_control.queue_free()
 	ui.runtime_map_constructor_validation_overlay_control = null
