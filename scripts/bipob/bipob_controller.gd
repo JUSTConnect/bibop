@@ -6574,16 +6574,22 @@ func register_successful_movement_cells(cell_count: int, surface_id: String, cel
 			mission_failed.emit()
 	
 func check_mission_complete() -> void:
-	var current_tile := grid_manager.get_tile(grid_position)
-	
-	if current_tile == GridManager.TILE_EXIT:
-		complete_mission()
-
-func complete_mission() -> void:
-	if mission_finished:
+	if is_sandbox_completion_cell(grid_position):
+		complete_sandbox_run("exit_tile")
 		return
-	
-	mission_finished = true
+
+	var current_tile := grid_manager.get_tile(grid_position)
+	if current_tile == GridManager.TILE_EXIT:
+		complete_legacy_story_mission("exit_tile")
+
+func is_sandbox_completion_cell(cell: Vector2i) -> bool:
+	if not is_sandbox_mode_active():
+		return false
+	if grid_manager == null:
+		return false
+	return grid_manager.get_tile(cell) == GridManager.TILE_EXIT
+
+func _store_carried_modules_after_completion() -> bool:
 	var stored_module_this_mission := false
 	if held_module != null:
 		add_module_to_box_storage(held_module)
@@ -6593,12 +6599,47 @@ func complete_mission() -> void:
 		add_module_to_box_storage(stored_physical_module)
 		stored_physical_module = null
 		stored_module_this_mission = true
-	
+	return stored_module_this_mission
+
+func _finish_mission_completion(stored_module_this_mission: bool) -> void:
+	if stored_module_this_mission:
+		found_module = null
+	else:
+		create_debug_found_module()
+	status_changed.emit()
+	mission_completed.emit()
+
+func _mark_mission_completion_started() -> bool:
+	if mission_finished:
+		return false
+
+	mission_finished = true
+	return true
+
+func _present_mission_completion() -> void:
 	if mission_label != null:
 		mission_label.text = "MISSION COMPLETE"
-	
+
 	print("MISSION COMPLETE")
 	print("Bipob reached the exit.")
+
+func complete_sandbox_run(reason: String = "") -> void:
+	if not _mark_mission_completion_started():
+		return
+
+	var stored_module_this_mission := _store_carried_modules_after_completion()
+	_present_mission_completion()
+	hint_requested.emit("TASK TEST complete. Extraction confirmed. Return to the box.")
+	sector_completed = true
+	last_diagnostic_result = null
+	_finish_mission_completion(stored_module_this_mission)
+
+func complete_legacy_story_mission(reason: String = "") -> void:
+	if not _mark_mission_completion_started():
+		return
+
+	var stored_module_this_mission := _store_carried_modules_after_completion()
+	_present_mission_completion()
 	if current_mission_index == 1:
 		hint_requested.emit("Mission 1 complete. Return to the box, then start Mission 2.")
 	elif current_mission_index == 2:
@@ -6615,21 +6656,18 @@ func complete_mission() -> void:
 		hint_requested.emit("Mission 8 complete. Return to the box, then start Mission 9.")
 	elif current_mission_index == 9:
 		hint_requested.emit("Mission 9 complete. Return to the box, then start TASK TEST.")
-	elif is_task_test_mode_active():
-		hint_requested.emit("TASK TEST complete. Extraction confirmed. Return to the box.")
 	else:
 		hint_requested.emit("Mission complete. Return to the box.")
 	if current_mission_index == max_mission_index:
 		sector_completed = true
 		last_diagnostic_result = null
+	_finish_mission_completion(stored_module_this_mission)
 
-	if stored_module_this_mission:
-		found_module = null
-	else:
-		create_debug_found_module()
-	status_changed.emit()
-	mission_completed.emit()
-			
+func complete_mission() -> void:
+	if is_sandbox_mode_active():
+		complete_sandbox_run("compat")
+		return
+	complete_legacy_story_mission("compat")
 
 func setup_mission9() -> void:
 	if grid_manager == null:
