@@ -1350,13 +1350,11 @@ func get_iso_wall_texture_draw_rect_for_cell(cell: Vector2i, texture: Texture2D,
 	if visible_bounds.size.x <= 0.0 or visible_bounds.size.y <= 0.0:
 		visible_bounds = Rect2(Vector2.ZERO, source_size)
 	var target_base_width: float = maxf(float(placement.get("target_base_width", iso_tile_width)), iso_tile_width)
-	var target_height: float = maxf(float(placement.get("target_height", ISO_WALL_ASSET_EXPECTED_SIZE.y)), iso_wall_height + get_iso_tile_half_size().y)
 	var placement_scale: float = maxf(float(placement.get("scale", 1.0)), 0.01)
-	var scale_x: float = (target_base_width / visible_bounds.size.x) * placement_scale
-	var scale_y: float = (target_height / visible_bounds.size.y) * placement_scale
-	var destination_size: Vector2 = Vector2(source_size.x * scale_x, source_size.y * scale_y)
+	var scale_value: float = (target_base_width / visible_bounds.size.x) * placement_scale
+	var destination_size: Vector2 = source_size * scale_value
 	var visible_bottom_center_in_source: Vector2 = visible_bounds.position + Vector2(visible_bounds.size.x * 0.5, visible_bounds.size.y)
-	var visible_bottom_center_in_destination: Vector2 = Vector2(visible_bottom_center_in_source.x * scale_x, visible_bottom_center_in_source.y * scale_y)
+	var visible_bottom_center_in_destination: Vector2 = visible_bottom_center_in_source * scale_value
 	var base_anchor: Vector2 = grid_to_iso(cell) + Vector2(0.0, get_iso_tile_half_size().y) + Vector2(placement.get("offset", Vector2.ZERO))
 	return Rect2(base_anchor - visible_bottom_center_in_destination, destination_size)
 
