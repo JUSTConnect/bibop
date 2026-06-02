@@ -4,6 +4,7 @@ class_name GameUI
 const GameUITextHelpersRef = preload("res://scripts/ui/game_ui_text_helpers.gd")
 const WorldObjectCatalogRef = preload("res://scripts/world/world_object_catalog.gd")
 const RuntimeMissionMenuRef = preload("res://scripts/ui/runtime/runtime_mission_menu.gd")
+const CenterScreenRef = preload("res://scripts/ui/screens/center_screen.gd")
 const RuntimeStoragePanelRef = preload("res://scripts/ui/runtime/runtime_storage_panel.gd")
 const RuntimeBipobSwitcherRef = preload("res://scripts/ui/runtime/runtime_bipob_switcher.gd")
 
@@ -8220,61 +8221,7 @@ func _build_main_menu_layout() -> void:
 	vbox.add_child(version)
 
 func _build_center_menu_layout() -> void:
-	var background := PanelContainer.new()
-	background.set_anchors_preset(Control.PRESET_FULL_RECT)
-	_apply_panel_style(background, true)
-	center_menu_root.add_child(background)
-
-	var margin := MarginContainer.new()
-	margin.set_anchors_preset(Control.PRESET_FULL_RECT)
-	margin.add_theme_constant_override("margin_left", 24)
-	margin.add_theme_constant_override("margin_right", 24)
-	margin.add_theme_constant_override("margin_top", 24)
-	margin.add_theme_constant_override("margin_bottom", 24)
-	background.add_child(margin)
-
-	var root := VBoxContainer.new()
-	root.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-	root.size_flags_vertical = Control.SIZE_EXPAND_FILL
-	root.add_theme_constant_override("separation", 16)
-	margin.add_child(root)
-
-	var top_row := HFlowContainer.new()
-	top_row.add_theme_constant_override("separation", 8)
-	top_row.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-	root.add_child(top_row)
-	top_row.add_child(_create_menu_button("TSK", Callable(self, "_on_center_tasks_pressed"), Vector2(170, 36)))
-	top_row.add_child(_create_menu_button("Constructor", Callable(self, "_on_center_constructor_pressed"), Vector2(170, 36)))
-	var top_spacer := Control.new()
-	top_spacer.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-	top_row.add_child(top_spacer)
-	var top_right := VBoxContainer.new()
-	top_right.add_theme_constant_override("separation", 8)
-	top_right.add_child(_create_menu_button("Menu", Callable(self, "_on_center_menu_pressed"), Vector2(220, 36)))
-	top_row.add_child(top_right)
-
-	var middle_row := HBoxContainer.new()
-	middle_row.size_flags_vertical = Control.SIZE_EXPAND_FILL
-	root.add_child(middle_row)
-	var middle_spacer := Control.new()
-	middle_spacer.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-	middle_row.add_child(middle_spacer)
-	middle_row.add_child(_create_menu_button("Shop", Callable(self, "_on_center_shop_pressed"), Vector2(170, 56)))
-
-	var bottom_grid := GridContainer.new()
-	bottom_grid.columns = 4
-	bottom_grid.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-	bottom_grid.add_theme_constant_override("h_separation", 10)
-	bottom_grid.add_theme_constant_override("v_separation", 10)
-	root.add_child(bottom_grid)
-	bottom_grid.add_child(_create_menu_button("Box", Callable(self, "_on_center_box_pressed"), Vector2(150, 54)))
-	bottom_grid.add_child(_create_menu_button("Shop", Callable(self, "_on_center_shop_pressed"), Vector2(150, 54)))
-	bottom_grid.add_child(_create_menu_button("Charge", Callable(self, "_on_center_charge_pressed"), Vector2(150, 54)))
-	bottom_grid.add_child(_create_menu_button("Research", Callable(self, "_on_center_research_pressed"), Vector2(150, 54)))
-	bottom_grid.add_child(_create_menu_button("Repair", Callable(self, "_on_center_repair_pressed"), Vector2(150, 54)))
-	bottom_grid.add_child(_create_menu_button("Programmer", Callable(self, "_on_center_programmer_pressed"), Vector2(150, 54)))
-
-	center_menu_overlay = RuntimeMissionMenuRef.build_overlay(self, center_menu_root, 24.0, false)
+	CenterScreenRef.build(self)
 
 func _build_tasks_menu_layout() -> void:
 	if tasks_menu_root == null:
@@ -8754,7 +8701,7 @@ func _on_center_shop_pressed() -> void:
 func _on_center_settings_pressed() -> void:
 	navigate_to_screen(AppScreenMode.SETTINGS_PLACEHOLDER)
 func _on_center_menu_pressed() -> void:
-	_show_game_menu(false)
+	CenterScreenRef.show_menu(self)
 func _on_center_main_menu_pressed() -> void:
 	navigate_to_screen(AppScreenMode.MAIN_MENU)
 
