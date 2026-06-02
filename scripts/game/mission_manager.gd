@@ -133,6 +133,7 @@ var constructor_exit_marker: Dictionary = {}
 const RUNTIME_MODE_LEGACY_STORY := "legacy_story"
 const RUNTIME_MODE_TASK_TEST := "task_test"
 const RUNTIME_MODE_UNKNOWN := "unknown"
+const TASK_TEST_LAYOUT_ID := "task_test"
 const TASK_TEST_MISSION_ID := "mission_10"
 
 const MAP_CONSTRUCTOR_PRESET_DIR: String = "user://constructor_presets"
@@ -144,10 +145,23 @@ func get_task_test_mission_id() -> String:
 	return TASK_TEST_MISSION_ID
 
 func get_task_test_layout_id() -> String:
+	var catalog := MissionContentCatalogRef.new()
+	if catalog.has_mission_layout(TASK_TEST_LAYOUT_ID):
+		return TASK_TEST_LAYOUT_ID
 	return TASK_TEST_MISSION_ID
 
 func is_task_test_mission_id(mission_id: String) -> bool:
-	return String(mission_id).strip_edges() == TASK_TEST_MISSION_ID
+	var normalized := String(mission_id).strip_edges()
+	return normalized == TASK_TEST_MISSION_ID or normalized == TASK_TEST_LAYOUT_ID
+
+func resolve_task_test_catalog_id(mission_id: String) -> String:
+	var normalized := String(mission_id).strip_edges()
+	if normalized == TASK_TEST_LAYOUT_ID:
+		var catalog := MissionContentCatalogRef.new()
+		if catalog.has_mission_layout(TASK_TEST_LAYOUT_ID):
+			return TASK_TEST_LAYOUT_ID
+		return TASK_TEST_MISSION_ID
+	return normalized
 
 const MAP_CONSTRUCTOR_WALL_SIDE_DELTAS: Array[Dictionary] = [
 	{"side":"north", "delta": Vector2i(0, -1)},
@@ -203,26 +217,26 @@ func get_mission_content_catalog_validation_text() -> String:
 
 func get_mission_definition(mission_id: String) -> Dictionary:
 	var catalog := MissionContentCatalogRef.new()
-	return catalog.get_mission_definition(mission_id)
+	return catalog.get_mission_definition(resolve_task_test_catalog_id(mission_id))
 
 func get_mission_title(mission_id: String) -> String:
 	var catalog := MissionContentCatalogRef.new()
-	return catalog.get_mission_title(mission_id)
+	return catalog.get_mission_title(resolve_task_test_catalog_id(mission_id))
 
 func get_mission_display_name(mission_id: String) -> String:
 	var catalog := MissionContentCatalogRef.new()
-	return catalog.get_mission_display_name(mission_id)
+	return catalog.get_mission_display_name(resolve_task_test_catalog_id(mission_id))
 
 func get_current_mission_id() -> String:
 	return current_mission_id
 
 func get_mission_goal_text(mission_id: String) -> String:
 	var catalog := MissionContentCatalogRef.new()
-	return catalog.get_mission_goal_text(mission_id)
+	return catalog.get_mission_goal_text(resolve_task_test_catalog_id(mission_id))
 
 func get_mission_objective_hint(mission_id: String) -> String:
 	var catalog := MissionContentCatalogRef.new()
-	return catalog.get_mission_objective_hint(mission_id)
+	return catalog.get_mission_objective_hint(resolve_task_test_catalog_id(mission_id))
 
 func get_current_mission_objective_view_model() -> Dictionary:
 	return get_mission_objective_view_model()
@@ -234,15 +248,16 @@ func get_mission_objective_view_model(mission_id: String = "") -> Dictionary:
 	if resolved_mission_id.is_empty():
 		return _make_mission_objective_view_model("", "", "No active objective", "")
 	var catalog := MissionContentCatalogRef.new()
-	if not catalog.has_mission(resolved_mission_id):
+	var catalog_mission_id: String = resolve_task_test_catalog_id(resolved_mission_id)
+	if not catalog.has_mission(catalog_mission_id):
 		return _make_mission_objective_view_model(resolved_mission_id, "Unknown mission", "Objective unavailable.", "")
-	var title: String = catalog.get_mission_display_name(resolved_mission_id)
+	var title: String = catalog.get_mission_display_name(catalog_mission_id)
 	if title.is_empty():
-		title = catalog.get_mission_title(resolved_mission_id)
+		title = catalog.get_mission_title(catalog_mission_id)
 	if title.is_empty():
 		title = "Unknown mission"
-	var goal_text: String = catalog.get_mission_goal_text(resolved_mission_id)
-	var objective_hint: String = catalog.get_mission_objective_hint(resolved_mission_id)
+	var goal_text: String = catalog.get_mission_goal_text(catalog_mission_id)
+	var objective_hint: String = catalog.get_mission_objective_hint(catalog_mission_id)
 	if goal_text.is_empty() and not objective_hint.contains("legacy BipobController logic"):
 		goal_text = objective_hint
 	if goal_text.is_empty():
@@ -278,11 +293,11 @@ func _make_mission_objective_view_model(mission_id: String, title: String, goal_
 
 func get_mission_start_cell(mission_id: String) -> Vector2i:
 	var catalog := MissionContentCatalogRef.new()
-	return catalog.get_mission_start_cell(mission_id)
+	return catalog.get_mission_start_cell(resolve_task_test_catalog_id(mission_id))
 
 func get_mission_exit_cells(mission_id: String) -> Array[Vector2i]:
 	var catalog := MissionContentCatalogRef.new()
-	return catalog.get_mission_exit_cells(mission_id)
+	return catalog.get_mission_exit_cells(resolve_task_test_catalog_id(mission_id))
 
 func apply_catalog_mission_layout_to_grid(mission_id: String) -> bool:
 	if grid_manager == null:
@@ -290,9 +305,10 @@ func apply_catalog_mission_layout_to_grid(mission_id: String) -> bool:
 	if not grid_manager.has_method("apply_mission_layout"):
 		return false
 	var catalog := MissionContentCatalogRef.new()
-	if not catalog.has_mission_layout(mission_id):
+	var catalog_mission_id: String = resolve_task_test_catalog_id(mission_id)
+	if not catalog.has_mission_layout(catalog_mission_id):
 		return false
-	var catalog_layout: Array = catalog.get_mission_layout(mission_id)
+	var catalog_layout: Array = catalog.get_mission_layout(catalog_mission_id)
 	if catalog_layout.is_empty():
 		return false
 	return bool(grid_manager.call("apply_mission_layout", catalog_layout.duplicate(true)))
@@ -300,13 +316,14 @@ func apply_catalog_mission_layout_to_grid(mission_id: String) -> bool:
 func validate_task_test_catalog_layout_runtime_source() -> Array[String]:
 	var warnings: Array[String] = []
 	var catalog := MissionContentCatalogRef.new()
-	if not catalog.has_mission_layout(TASK_TEST_MISSION_ID):
+	var task_test_catalog_id: String = resolve_task_test_catalog_id(TASK_TEST_LAYOUT_ID)
+	if not catalog.has_mission_layout(task_test_catalog_id):
 		warnings.append("task_test_catalog_layout_missing_mission_10")
 		return warnings
-	var layout_size: Vector2i = catalog.get_mission_layout_size(TASK_TEST_MISSION_ID)
+	var layout_size: Vector2i = catalog.get_mission_layout_size(task_test_catalog_id)
 	if layout_size.x != 16 or layout_size.y != 10:
 		warnings.append("task_test_catalog_layout_expected_16x10_got_%dx%d" % [layout_size.x, layout_size.y])
-	if catalog.get_mission_exit_cells(TASK_TEST_MISSION_ID).is_empty():
+	if catalog.get_mission_exit_cells(task_test_catalog_id).is_empty():
 		warnings.append("task_test_catalog_layout_missing_exit_tile")
 	if grid_manager != null and not grid_manager.has_method("apply_mission_layout"):
 		warnings.append("task_test_catalog_runtime_grid_missing_apply_mission_layout")
@@ -1882,7 +1899,7 @@ func load_map_constructor_preset(preset_name: String) -> Dictionary:
 	var preset: Dictionary = Dictionary(parse_result)
 	if int(preset.get("version", 0)) != 1:
 		return {"ok": false, "message": "Preset load failed: unsupported version.", "preset_name": sanitized_name}
-	if String(preset.get("mission_id", "")) != TASK_TEST_MISSION_ID:
+	if not is_task_test_mission_id(String(preset.get("mission_id", ""))):
 		return {"ok": false, "message": "Preset load failed: mission mismatch.", "preset_name": sanitized_name}
 	var warnings: Array[String] = []
 	var map_data: Dictionary = Dictionary(preset.get("map", {}))
