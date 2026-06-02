@@ -6,6 +6,7 @@ const WorldObjectCatalogRef = preload("res://scripts/world/world_object_catalog.
 const RuntimeMissionMenuRef = preload("res://scripts/ui/runtime/runtime_mission_menu.gd")
 const CenterScreenRef = preload("res://scripts/ui/screens/center_screen.gd")
 const RuntimeStoragePanelRef = preload("res://scripts/ui/runtime/runtime_storage_panel.gd")
+const RuntimeControlPanelRef = preload("res://scripts/ui/runtime/runtime_control_panel.gd")
 const RuntimeBipobSwitcherRef = preload("res://scripts/ui/runtime/runtime_bipob_switcher.gd")
 
 
@@ -5239,53 +5240,7 @@ func _create_runtime_stats_strip() -> Control:
 
 
 func _create_runtime_controls_panel() -> Control:
-	var panel := PanelContainer.new()
-	panel.name = "RuntimeControlsPanel"
-	panel.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-	panel.custom_minimum_size = Vector2(0, 88)
-	panel.add_theme_stylebox_override("panel", _make_panel_style(UI_COLOR_PANEL_DARK, UI_COLOR_BORDER_DIM, 1, 6))
-
-	var margin := MarginContainer.new()
-	margin.add_theme_constant_override("margin_left", 10)
-	margin.add_theme_constant_override("margin_right", 10)
-	margin.add_theme_constant_override("margin_top", 6)
-	margin.add_theme_constant_override("margin_bottom", 6)
-	panel.add_child(margin)
-
-	var root := VBoxContainer.new()
-	root.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-	root.add_theme_constant_override("separation", 6)
-	margin.add_child(root)
-
-	runtime_interaction_actions_row = HBoxContainer.new()
-	runtime_interaction_actions_row.name = "RuntimeInteractionActionRow"
-	runtime_interaction_actions_row.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-	runtime_interaction_actions_row.add_theme_constant_override("separation", 8)
-	runtime_interaction_actions_row.visible = false
-	root.add_child(runtime_interaction_actions_row)
-
-	var grid := GridContainer.new()
-	grid.name = "RuntimeBaseControlRow"
-	grid.columns = 5
-	grid.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-	grid.add_theme_constant_override("h_separation", 8)
-	grid.add_theme_constant_override("v_separation", 4)
-	root.add_child(grid)
-	runtime_base_controls_grid = grid
-
-	grid.add_child(_create_runtime_control_button("Turn Left", Callable(self, "_on_turn_left_pressed")))
-	grid.add_child(_create_runtime_control_button("Turn Right", Callable(self, "_on_turn_right_pressed")))
-	runtime_action_button = _create_runtime_control_button("Action", Callable(self, "_on_interact_pressed"), "primary")
-	grid.add_child(runtime_action_button)
-	runtime_connect_button = _create_runtime_control_button("Connect", Callable(self, "_on_connect_pressed"), "primary")
-	grid.add_child(runtime_connect_button)
-	runtime_heavy_claw_button = _create_runtime_control_button("Heavy Claw", Callable(self, "_on_heavy_claw_pressed"), "primary")
-	grid.add_child(runtime_heavy_claw_button)
-	runtime_end_turn_button = _create_runtime_control_button("End Turn", Callable(self, "_on_end_turn_pressed"), "reference")
-	grid.add_child(runtime_end_turn_button)
-	_refresh_runtime_interaction_controls()
-
-	return panel
+	return RuntimeControlPanelRef.build(self)
 
 
 func _create_runtime_control_button(label_text: String, action_callable: Callable, role: String = "normal") -> Button:
@@ -12624,7 +12579,7 @@ func _is_runtime_interaction_manipulator_blocked(target_object: Dictionary, acti
 	return RuntimeInteractionPanel.is_manipulator_blocked(self, target_object, actions)
 
 func _refresh_runtime_interaction_controls() -> void:
-	RuntimeInteractionPanel.refresh_controls(self)
+	RuntimeControlPanelRef.refresh(self)
 
 func _enter_runtime_interaction_mode() -> void:
 	RuntimeInteractionPanel.enter_mode(self)
