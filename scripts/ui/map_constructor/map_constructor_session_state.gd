@@ -78,6 +78,7 @@ const SESSION_PROPERTY_NAMES: Array[StringName] = [
 	&"map_constructor_overlay_mode",
 	&"map_constructor_overlay_visibility",
 	&"map_constructor_pipeline_report",
+	&"map_constructor_overview_hud_visible",
 	&"map_constructor_overview_filter",
 	&"map_constructor_overview_show_issues",
 	&"map_constructor_overview_show_power",
@@ -160,6 +161,7 @@ var room_visual_preset_preview: Dictionary = {}
 var map_constructor_overlay_mode: String = "None"
 var map_constructor_overlay_visibility: Dictionary = {"show_preview": true, "show_validation": true, "show_links": true, "show_power": true, "show_wall_side_arrows": true, "show_multi_select": true}
 var map_constructor_pipeline_report: Dictionary = {}
+var map_constructor_overview_hud_visible: bool = false
 var map_constructor_overview_filter: String = "All"
 var map_constructor_overview_show_issues: bool = true
 var map_constructor_overview_show_power: bool = true

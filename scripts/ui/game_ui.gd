@@ -201,6 +201,8 @@ var map_constructor_state: MapConstructorSessionState = MapConstructorSessionSta
 var runtime_map_constructor_palette_panel: PanelContainer = null
 var runtime_map_constructor_inspector_panel: PanelContainer = null
 var runtime_map_constructor_inspector_scroll: ScrollContainer = null
+var runtime_map_constructor_overview_hud_panel: PanelContainer = null
+var runtime_map_constructor_overview_hud_scroll: ScrollContainer = null
 
 var runtime_object_info_panel: PanelContainer = null
 var runtime_object_info_cell: Vector2i = Vector2i(-1, -1)
@@ -9884,7 +9886,7 @@ func _is_mouse_over_map_constructor_ui_panel() -> bool:
 	var hovered: Control = get_viewport().gui_get_hovered_control()
 	if hovered == null:
 		return false
-	return _is_control_in_map_constructor_panel(hovered, runtime_map_constructor_palette_panel) or _is_control_in_map_constructor_panel(hovered, runtime_map_constructor_inspector_panel) or _is_control_in_map_constructor_panel(hovered, runtime_map_constructor_place_confirm_panel)
+	return _is_control_in_map_constructor_panel(hovered, runtime_map_constructor_palette_panel) or _is_control_in_map_constructor_panel(hovered, runtime_map_constructor_inspector_panel) or _is_control_in_map_constructor_panel(hovered, runtime_map_constructor_place_confirm_panel) or _is_control_in_map_constructor_panel(hovered, runtime_map_constructor_overview_hud_panel)
 
 func _is_control_in_map_constructor_panel(control: Control, panel: Control) -> bool:
 	if control == null or panel == null or not is_instance_valid(panel):
@@ -9968,6 +9970,9 @@ func _deactivate_map_constructor_mode() -> void:
 
 	if bipob != null:
 		bipob.map_constructor_input_blocked = false
+
+	_clear_map_constructor_overview_hud()
+	map_constructor_state.map_constructor_overview_hud_visible = false
 
 	MapConstructorScreenRef.clear(self)
 	MapConstructorScreenRef.set_visible(self, false)
@@ -10669,6 +10674,215 @@ func _add_map_constructor_controls_hint(parent: VBoxContainer) -> void:
 
 func _refresh_map_constructor_panels() -> void:
 	MapConstructorScreenRef.refresh(self)
+	_refresh_map_constructor_overview_hud()
+
+
+func _toggle_map_constructor_overview_hud() -> void:
+	if map_constructor_state.map_constructor_overview_hud_visible:
+		_hide_map_constructor_overview_hud()
+		return
+	_show_map_constructor_overview_hud()
+
+func _show_map_constructor_overview_hud() -> void:
+	if not map_constructor_state.map_constructor_mode_active or not _is_task_test_runtime_active():
+		return
+	map_constructor_state.map_constructor_overview_hud_visible = true
+	_refresh_map_constructor_panels()
+
+func _hide_map_constructor_overview_hud() -> void:
+	map_constructor_state.map_constructor_overview_hud_visible = false
+	_clear_map_constructor_overview_hud()
+	_refresh_map_constructor_panels()
+
+func _clear_map_constructor_overview_hud() -> void:
+	if runtime_map_constructor_overview_hud_panel != null and is_instance_valid(runtime_map_constructor_overview_hud_panel):
+		runtime_map_constructor_overview_hud_panel.queue_free()
+	runtime_map_constructor_overview_hud_panel = null
+	runtime_map_constructor_overview_hud_scroll = null
+
+func _get_map_constructor_overview_hud_rect() -> Rect2:
+	var safe_margin: float = 12.0
+	var viewport: Vector2 = _get_viewport_size()
+	if runtime_hud_root != null and is_instance_valid(runtime_hud_root) and runtime_hud_root.size.x > 0.0 and runtime_hud_root.size.y > 0.0:
+		viewport = Vector2(minf(viewport.x, runtime_hud_root.size.x), minf(viewport.y, runtime_hud_root.size.y))
+	viewport.x = maxf(viewport.x, safe_margin * 2.0 + 1.0)
+	viewport.y = maxf(viewport.y, safe_margin * 2.0 + 1.0)
+	var palette_rect: Rect2 = _get_map_constructor_palette_rect()
+	var max_bottom: float = maxf(safe_margin + 1.0, viewport.y - _get_runtime_bottom_panel_height() - safe_margin)
+	var available_left_width: float = maxf(1.0, palette_rect.position.x - safe_margin * 2.0)
+	var available_height: float = maxf(1.0, max_bottom - safe_margin)
+	var desired_width: float = clampf(viewport.x * 0.32, 320.0, 420.0)
+	var desired_height: float = clampf(viewport.y * 0.42, 260.0, 360.0)
+	var width: float = minf(desired_width, maxf(1.0, viewport.x - safe_margin * 2.0))
+	if available_left_width >= 260.0:
+		width = minf(width, available_left_width)
+	var height: float = minf(desired_height, available_height)
+	var x: float = safe_margin
+	if x + width > palette_rect.position.x - safe_margin and available_left_width >= 260.0:
+		width = maxf(1.0, palette_rect.position.x - safe_margin * 2.0)
+	var max_x: float = maxf(safe_margin, viewport.x - width - safe_margin)
+	return Rect2(Vector2(clampf(x, safe_margin, max_x), safe_margin), Vector2(width, maxf(1.0, height)))
+
+func _refresh_map_constructor_overview_hud() -> void:
+	if not map_constructor_state.map_constructor_mode_active or not map_constructor_state.map_constructor_overview_hud_visible or not _is_task_test_runtime_active():
+		_clear_map_constructor_overview_hud()
+		return
+	if runtime_hud_root == null or not is_instance_valid(runtime_hud_root):
+		_ensure_runtime_hud_root()
+	if runtime_map_constructor_overview_hud_panel == null or not is_instance_valid(runtime_map_constructor_overview_hud_panel):
+		var panel: PanelContainer = PanelContainer.new()
+		panel.name = "MapConstructorOverviewHudPanel"
+		panel.z_index = Z_MAP_CONSTRUCTOR_UI + 2
+		panel.z_as_relative = false
+		panel.mouse_filter = Control.MOUSE_FILTER_STOP
+		panel.clip_contents = true
+		panel.add_theme_stylebox_override("panel", _make_panel_style(UI_COLOR_PANEL_DARK, UI_COLOR_BORDER, 1, 8))
+		runtime_hud_root.add_child(panel)
+		runtime_map_constructor_overview_hud_panel = panel
+	var rect: Rect2 = _get_map_constructor_overview_hud_rect()
+	runtime_map_constructor_overview_hud_panel.position = rect.position
+	runtime_map_constructor_overview_hud_panel.custom_minimum_size = rect.size
+	runtime_map_constructor_overview_hud_panel.size = rect.size
+	for child in runtime_map_constructor_overview_hud_panel.get_children():
+		runtime_map_constructor_overview_hud_panel.remove_child(child)
+		child.queue_free()
+	var margin_box: MarginContainer = MarginContainer.new()
+	margin_box.add_theme_constant_override("margin_left", 8)
+	margin_box.add_theme_constant_override("margin_right", 8)
+	margin_box.add_theme_constant_override("margin_top", 8)
+	margin_box.add_theme_constant_override("margin_bottom", 8)
+	margin_box.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	margin_box.size_flags_vertical = Control.SIZE_EXPAND_FILL
+	runtime_map_constructor_overview_hud_panel.add_child(margin_box)
+	var root: VBoxContainer = VBoxContainer.new()
+	root.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	root.size_flags_vertical = Control.SIZE_EXPAND_FILL
+	root.add_theme_constant_override("separation", 6)
+	margin_box.add_child(root)
+	var title_row: HBoxContainer = HBoxContainer.new()
+	title_row.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	root.add_child(title_row)
+	var title_label: Label = Label.new()
+	title_label.text = "Map Overview"
+	title_label.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	title_label.add_theme_color_override("font_color", UI_COLOR_TEXT)
+	title_row.add_child(title_label)
+	var hide_button: Button = _make_map_constructor_action_button("×")
+	hide_button.tooltip_text = "Hide overview"
+	hide_button.pressed.connect(func() -> void: _hide_map_constructor_overview_hud())
+	title_row.add_child(hide_button)
+	var scroll: ScrollContainer = ScrollContainer.new()
+	scroll.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	scroll.size_flags_vertical = Control.SIZE_EXPAND_FILL
+	scroll.horizontal_scroll_mode = ScrollContainer.SCROLL_MODE_AUTO
+	scroll.vertical_scroll_mode = ScrollContainer.SCROLL_MODE_AUTO
+	scroll.clip_contents = true
+	root.add_child(scroll)
+	runtime_map_constructor_overview_hud_scroll = scroll
+	var content: VBoxContainer = VBoxContainer.new()
+	content.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	content.add_theme_constant_override("separation", 4)
+	scroll.add_child(content)
+	_add_map_constructor_overview_hud_content(content)
+
+func _add_map_constructor_overview_hud_content(list: VBoxContainer) -> void:
+	var overview_data: Dictionary = {}
+	if mission_manager_runtime != null and mission_manager_runtime.has_method("get_map_constructor_overview_data"):
+		overview_data = mission_manager_runtime.call("get_map_constructor_overview_data", {"include_validation":map_constructor_state.map_constructor_overview_show_issues, "include_history":map_constructor_state.map_constructor_overview_show_history, "include_power":map_constructor_state.map_constructor_overview_show_power, "include_items":map_constructor_state.map_constructor_overview_show_items, "include_wall_mounted":map_constructor_state.map_constructor_overview_show_wall_mounted, "selected_entities":map_constructor_state.map_constructor_multi_selected_entities, "selected_entity_id":map_constructor_state.selected_map_constructor_entity_id, "selected_entity_kind":map_constructor_state.selected_map_constructor_entity_kind, "max_history_markers":20})
+	var ov_summary: Dictionary = _safe_ui_dictionary(overview_data.get("summary", {}))
+	var sum_label: Label = Label.new()
+	sum_label.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	sum_label.text = "size=%dx%d objects=%d items=%d issues=%d warnings=%d expected=%d" % [int(ov_summary.get("width", 0)), int(ov_summary.get("height", 0)), int(ov_summary.get("object_count", 0)), int(ov_summary.get("item_count", 0)), int(ov_summary.get("error_count", 0)), int(ov_summary.get("warning_count", 0)), int(ov_summary.get("expected_invalid_count", 0))]
+	list.add_child(sum_label)
+	var legend_label: Label = Label.new()
+	legend_label.text = ". floor # wall D door T terminal P power I item W wall-mounted ! error ? warning * selected X expected-invalid"
+	legend_label.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	list.add_child(legend_label)
+	var jump_row: HFlowContainer = _make_map_constructor_action_row()
+	for cfg in [{"label":"Refresh Overview","kind":"refresh"},{"label":"Jump to Selected","kind":"selected"},{"label":"Jump to First Error","kind":"validation_issue"},{"label":"Jump to First Warning","kind":"warning"},{"label":"Jump to First Expected Invalid","kind":"expected_invalid"},{"label":"Jump to Last Change","kind":"history"}]:
+		var b: Button = _make_map_constructor_action_button(String(cfg.get("label", "Jump")))
+		b.pressed.connect(func() -> void:
+			if String(cfg.get("kind", "")) == "refresh":
+				_refresh_map_constructor_overview_hud()
+				return
+			var marker_rows: Array = _safe_ui_array(overview_data.get("markers", []))
+			if String(cfg.get("kind", "")) == "history":
+				marker_rows.reverse()
+			for marker_variant in marker_rows:
+				var marker: Dictionary = _safe_ui_dictionary(marker_variant)
+				var mk: String = String(marker.get("kind", ""))
+				if String(cfg.get("kind", "")) == "selected" and mk != "selected":
+					continue
+				if String(cfg.get("kind", "")) != "selected" and mk != String(cfg.get("kind", "")):
+					continue
+				_jump_to_map_constructor_history_row(marker)
+				return
+		)
+		jump_row.add_child(b)
+	list.add_child(jump_row)
+	var map_size: Vector2i = _safe_ui_vector2i(overview_data.get("map_size", Vector2i.ZERO))
+	if map_size.x > 80 or map_size.y > 80:
+		var large_label: Label = Label.new()
+		large_label.text = "Map is large; showing marker overview only."
+		list.add_child(large_label)
+	else:
+		var rows: Dictionary = {}
+		for cell_variant in _safe_ui_array(overview_data.get("cells", [])):
+			var cell_row: Dictionary = _safe_ui_dictionary(cell_variant)
+			var cell: Vector2i = _safe_ui_vector2i(cell_row.get("cell", Vector2i(-1, -1)))
+			var y: int = cell.y
+			if not rows.has(y):
+				rows[y] = []
+			rows[y].append(cell_row)
+		for y in range(map_size.y):
+			var row_box: HBoxContainer = HBoxContainer.new()
+			row_box.size_flags_horizontal = Control.SIZE_SHRINK_BEGIN
+			for x in range(map_size.x):
+				var symbol: String = " "
+				for cell_row_variant in _safe_ui_array(rows.get(y, [])):
+					var cr: Dictionary = _safe_ui_dictionary(cell_row_variant)
+					if _safe_ui_vector2i(cr.get("cell", Vector2i(-1, -1))).x == x:
+						symbol = _map_constructor_overview_symbol_for_cell(cr)
+						break
+				var cell_btn: Button = Button.new()
+				cell_btn.text = symbol
+				cell_btn.custom_minimum_size = Vector2(18, 18)
+				var c: Vector2i = Vector2i(x, y)
+				cell_btn.pressed.connect(func() -> void:
+					var opened_entity: bool = false
+					if mission_manager_runtime != null and mission_manager_runtime.has_method("get_map_constructor_editable_entity_at_cell"):
+						var editable_res: Dictionary = mission_manager_runtime.call("get_map_constructor_editable_entity_at_cell", c)
+						if bool(editable_res.get("ok", false)):
+							_show_map_constructor_inspector(c, String(editable_res.get("entity_kind", "")), String(editable_res.get("entity_id", "")))
+							opened_entity = true
+					_focus_map_constructor_cell(c)
+					if not opened_entity:
+						_show_map_constructor_inspector(c)
+				)
+				row_box.add_child(cell_btn)
+			list.add_child(row_box)
+	var markers_title: Label = Label.new()
+	markers_title.text = "Overview Markers"
+	list.add_child(markers_title)
+	var shown_markers: int = 0
+	for marker_variant in _safe_ui_array(overview_data.get("markers", [])):
+		var marker: Dictionary = _safe_ui_dictionary(marker_variant)
+		if not _map_constructor_overview_marker_matches_filter(marker):
+			continue
+		var line: HBoxContainer = HBoxContainer.new()
+		var lbl: Label = Label.new()
+		lbl.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+		lbl.clip_text = true
+		lbl.text_overrun_behavior = TextServer.OVERRUN_TRIM_ELLIPSIS
+		lbl.text = "%s | %s | %s | %s" % [String(marker.get("status", "info")), String(marker.get("kind", "")), String(marker.get("label", "")), str(marker.get("cell", Vector2i(-1, -1)))]
+		line.add_child(lbl)
+		var jump: Button = _make_map_constructor_action_button("Jump")
+		jump.pressed.connect(func() -> void: _jump_to_map_constructor_history_row(marker))
+		line.add_child(jump)
+		list.add_child(line)
+		shown_markers += 1
+		if shown_markers >= 30:
+			break
 
 func _build_map_constructor_warnings_tab(list: VBoxContainer) -> void:
 	var readiness_title: Label = Label.new()
@@ -11672,6 +11886,18 @@ func _build_map_constructor_map_settings_tab(list: VBoxContainer) -> void:
 	var overview_title: Label = Label.new()
 	overview_title.text = "Minimap / Overview"
 	list.add_child(overview_title)
+	var overview_button_row: HFlowContainer = _make_map_constructor_action_row()
+	var overview_hud_button: Button = _make_map_constructor_action_button("Hide Overview" if map_constructor_state.map_constructor_overview_hud_visible else "Show Overview")
+	overview_hud_button.pressed.connect(func() -> void:
+		_toggle_map_constructor_overview_hud()
+	)
+	overview_button_row.add_child(overview_hud_button)
+	var refresh_overview_button: Button = _make_map_constructor_action_button("Refresh Overview")
+	refresh_overview_button.pressed.connect(func() -> void:
+		_refresh_map_constructor_overview_hud()
+	)
+	overview_button_row.add_child(refresh_overview_button)
+	list.add_child(overview_button_row)
 	var overview_filter: OptionButton = OptionButton.new()
 	for opt in MAP_CONSTRUCTOR_OVERVIEW_FILTER_OPTIONS:
 		overview_filter.add_item(opt)
@@ -11730,102 +11956,6 @@ func _build_map_constructor_map_settings_tab(list: VBoxContainer) -> void:
 	)
 	overview_toggle_row_b.add_child(overview_show_history)
 	list.add_child(overview_toggle_row_b)
-	var overview_data: Dictionary = {}
-	if mission_manager_runtime != null and mission_manager_runtime.has_method("get_map_constructor_overview_data"):
-		overview_data = mission_manager_runtime.call("get_map_constructor_overview_data", {"include_validation":map_constructor_state.map_constructor_overview_show_issues, "include_history":map_constructor_state.map_constructor_overview_show_history, "include_power":map_constructor_state.map_constructor_overview_show_power, "include_items":map_constructor_state.map_constructor_overview_show_items, "include_wall_mounted":map_constructor_state.map_constructor_overview_show_wall_mounted, "selected_entities":map_constructor_state.map_constructor_multi_selected_entities, "selected_entity_id":map_constructor_state.selected_map_constructor_entity_id, "selected_entity_kind":map_constructor_state.selected_map_constructor_entity_kind, "max_history_markers":20})
-	var ov_summary: Dictionary = _safe_ui_dictionary(overview_data.get("summary", {}))
-	var sum_label: Label = Label.new()
-	sum_label.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
-	sum_label.text = "size=%dx%d objects=%d items=%d issues=%d warnings=%d expected=%d" % [int(ov_summary.get("width", 0)), int(ov_summary.get("height", 0)), int(ov_summary.get("object_count", 0)), int(ov_summary.get("item_count", 0)), int(ov_summary.get("error_count", 0)), int(ov_summary.get("warning_count", 0)), int(ov_summary.get("expected_invalid_count", 0))]
-	list.add_child(sum_label)
-	var legend_label: Label = Label.new()
-	legend_label.text = ". floor # wall D door T terminal P power I item W wall-mounted ! error ? warning * selected X expected-invalid"
-	legend_label.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
-	list.add_child(legend_label)
-	var jump_row: HFlowContainer = _make_map_constructor_action_row()
-	for cfg in [{"label":"Refresh Overview","kind":"refresh"},{"label":"Jump to Selected","kind":"selected"},{"label":"Jump to First Error","kind":"validation_issue"},{"label":"Jump to First Warning","kind":"warning"},{"label":"Jump to First Expected Invalid","kind":"expected_invalid"},{"label":"Jump to Last Change","kind":"history"}]:
-		var b: Button = _make_map_constructor_action_button(String(cfg.get("label", "Jump")))
-		b.pressed.connect(func() -> void:
-			if String(cfg.get("kind", "")) == "refresh":
-				_refresh_map_constructor_panels()
-				return
-			var marker_rows: Array = _safe_ui_array(overview_data.get("markers", []))
-			if String(cfg.get("kind", "")) == "history":
-				marker_rows.reverse()
-			for marker_variant in marker_rows:
-				var marker: Dictionary = _safe_ui_dictionary(marker_variant)
-				var mk: String = String(marker.get("kind", ""))
-				if String(cfg.get("kind", "")) == "selected" and mk != "selected":
-					continue
-				if String(cfg.get("kind", "")) != "selected" and mk != String(cfg.get("kind", "")):
-					continue
-				_jump_to_map_constructor_history_row(marker)
-				return
-		)
-		jump_row.add_child(b)
-	list.add_child(jump_row)
-	var map_size: Vector2i = _safe_ui_vector2i(overview_data.get("map_size", Vector2i.ZERO))
-	if map_size.x > 80 or map_size.y > 80:
-		var large_label: Label = Label.new()
-		large_label.text = "Map is large; showing marker overview only."
-		list.add_child(large_label)
-	else:
-		var rows: Dictionary = {}
-		for cell_variant in _safe_ui_array(overview_data.get("cells", [])):
-			var cell_row: Dictionary = _safe_ui_dictionary(cell_variant)
-			var cell: Vector2i = _safe_ui_vector2i(cell_row.get("cell", Vector2i(-1, -1)))
-			var y: int = cell.y
-			if not rows.has(y):
-				rows[y] = []
-			rows[y].append(cell_row)
-		for y in range(map_size.y):
-			var row_box: HBoxContainer = HBoxContainer.new()
-			for x in range(map_size.x):
-				var symbol: String = " "
-				for cell_row_variant in _safe_ui_array(rows.get(y, [])):
-					var cr: Dictionary = _safe_ui_dictionary(cell_row_variant)
-					if _safe_ui_vector2i(cr.get("cell", Vector2i(-1, -1))).x == x:
-						symbol = _map_constructor_overview_symbol_for_cell(cr)
-						break
-				var cell_btn: Button = Button.new()
-				cell_btn.text = symbol
-				cell_btn.custom_minimum_size = Vector2(18, 18)
-				var c: Vector2i = Vector2i(x, y)
-				cell_btn.pressed.connect(func() -> void:
-					var opened_entity: bool = false
-					if mission_manager_runtime != null and mission_manager_runtime.has_method("get_map_constructor_editable_entity_at_cell"):
-						var editable_res: Dictionary = mission_manager_runtime.call("get_map_constructor_editable_entity_at_cell", c)
-						if bool(editable_res.get("ok", false)):
-							_show_map_constructor_inspector(c, String(editable_res.get("entity_kind", "")), String(editable_res.get("entity_id", "")))
-							opened_entity = true
-					_focus_map_constructor_cell(c)
-					if not opened_entity:
-						_show_map_constructor_inspector(c)
-				)
-				row_box.add_child(cell_btn)
-			list.add_child(row_box)
-	var markers_title: Label = Label.new()
-	markers_title.text = "Overview Markers"
-	list.add_child(markers_title)
-	var shown_markers: int = 0
-	for marker_variant in _safe_ui_array(overview_data.get("markers", [])):
-		var marker: Dictionary = _safe_ui_dictionary(marker_variant)
-		if not _map_constructor_overview_marker_matches_filter(marker):
-			continue
-		var line: HBoxContainer = HBoxContainer.new()
-		var lbl: Label = Label.new()
-		lbl.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-		lbl.clip_text = true
-		lbl.text_overrun_behavior = TextServer.OVERRUN_TRIM_ELLIPSIS
-		lbl.text = "%s | %s | %s | %s" % [String(marker.get("status", "info")), String(marker.get("kind", "")), String(marker.get("label", "")), str(marker.get("cell", Vector2i(-1, -1)))]
-		line.add_child(lbl)
-		var jump: Button = _make_map_constructor_action_button("Jump")
-		jump.pressed.connect(func() -> void: _jump_to_map_constructor_history_row(marker))
-		line.add_child(jump)
-		list.add_child(line)
-		shown_markers += 1
-		if shown_markers >= 30:
-			break
 	_add_map_constructor_section_header(list, "CONSTRUCTOR PRESETS")
 	var preset_name_edit: LineEdit = LineEdit.new()
 	preset_name_edit.placeholder_text = "Preset name"
