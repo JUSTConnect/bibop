@@ -44,6 +44,7 @@ const BipobTerminalControlExecutionServiceRef = preload("res://scripts/game/bipo
 const BipobHeavyClawExecutionServiceRef = preload("res://scripts/game/bipob_heavy_claw_execution_service.gd")
 const BipobWorldObjectExecutionServiceRef = preload("res://scripts/game/bipob_world_object_execution_service.gd")
 const BipobItemPickupExecutionServiceRef = preload("res://scripts/game/bipob_item_pickup_execution_service.gd")
+const BipobMovementControllerRef = preload("res://scripts/bipob/bipob_movement_controller.gd")
 const EXTERNAL_MODULE_CATALOG: Dictionary = {
 "wheels_v1":{"name":"Wheels V1","cat":"Gear","size":Vector2i(3,2),"sides":[EXTERNAL_SIDE_BOTTOM],"desc":"Fast movement system for flat and stable surfaces. Ineffective on stairs, mud and debris.","energy":1,"terrain":"Flat surface","movement":"Drive","speed":3},
 "legs_v1":{"name":"Legs V1","cat":"Gear","size":Vector2i(3,2),"sides":[EXTERNAL_SIDE_BOTTOM],"desc":"Universal movement system that provides stable traversal across uneven terrain, steps, obstacles, and mixed surfaces.","energy":1,"terrain":"Any surface","movement":"Walk","speed":2},
@@ -6422,56 +6423,16 @@ func execute_selected_mouse_route() -> void:
 	start_selected_mouse_route_execution()
 
 func move_forward() -> void:
-	if not require_command("move_forward", "Missing module: Wheels V1 required."):
-		return
-	if not can_spend_action(1, 0):
-		return
-	
-	var target_position := grid_position + get_direction_vector(direction)
-	
-	if try_move_to(target_position):
-		spend_action(1, 0)
-		register_successful_movement_cells(1, get_surface_id_for_position(target_position), target_position)
-		refresh_world_action_panel()
+	BipobMovementControllerRef.move_forward(self)
 
 func move_backward() -> void:
-	if not require_command("move_backward", "Missing module: Wheels V1 required."):
-		return
-	if not can_spend_action(1, 0):
-		return
-	
-	var target_position := grid_position - get_direction_vector(direction)
-	
-	if try_move_to(target_position):
-		spend_action(1, 0)
-		register_successful_movement_cells(1, get_surface_id_for_position(target_position), target_position)
-		refresh_world_action_panel()
+	BipobMovementControllerRef.move_backward(self)
 
 func turn_left() -> void:
-	if not require_command("turn_left", "Missing module: Wheels V1 required."):
-		return
-	if not can_spend_action(1, 0):
-		return
-	
-	direction = Direction.values()[(int(direction) + 3) % 4]
-	update_visual_facing()
-	update_vision()
-	update_threat_detection_preview()
-	spend_action(1, 0)
-	refresh_world_action_panel()
+	BipobMovementControllerRef.turn_left(self)
 
 func turn_right() -> void:
-	if not require_command("turn_right", "Missing module: Wheels V1 required."):
-		return
-	if not can_spend_action(1, 0):
-		return
-	
-	direction = Direction.values()[(int(direction) + 1) % 4]
-	update_visual_facing()
-	update_vision()
-	update_threat_detection_preview()
-	spend_action(1, 0)
-	refresh_world_action_panel()
+	BipobMovementControllerRef.turn_right(self)
 
 func end_turn() -> void:
 	if mission_manager != null:
@@ -6515,96 +6476,7 @@ func spend_action(action_cost: int, energy_cost: int) -> void:
 		mission_failed.emit()
 
 func try_move_to(target_position: Vector2i) -> bool:
-	if has_power_source() and not has_power_block():
-		hint_requested.emit("Power Block broken. Restart mission or evacuate if possible.")
-		status_changed.emit()
-		return false
-	if grid_manager == null:
-		push_error("BipobController: grid_manager is null")
-		return false
-	
-	var target_tile := grid_manager.get_tile(target_position)
-	var target_surface_id: String = get_surface_id_for_tile(target_tile)
-	var active_gear: BipobModule = get_active_gear_module()
-	if active_gear == null:
-		hint_requested.emit("Missing module: Wheels V1 required.")
-		status_changed.emit()
-		return false
-	if not can_gear_move_on_surface(active_gear, target_surface_id):
-		hint_requested.emit("Current gear cannot move on this surface.")
-		status_changed.emit()
-		return false
-
-	if not is_cell_walkable_for_bipob(target_position):
-		var runtime_block_reason: String = _get_runtime_cell_block_reason(target_position)
-		if target_tile == GridManager.TILE_WALL:
-			hint_requested.emit("Blocked by wall.")
-		elif target_tile == GridManager.TILE_DOOR:
-			if is_runtime_door_cell_passable(target_position):
-				pass
-			else:
-				hint_requested.emit("Door is closed.")
-		elif target_tile == GridManager.TILE_DIGITAL_DOOR:
-			if is_runtime_door_cell_passable(target_position):
-				pass
-			else:
-				hint_requested.emit("Digital door is closed.")
-		elif target_tile == GridManager.TILE_HOT_NODE:
-			hint_requested.emit("Hot Node blocks the route. Scan it first.")
-		elif target_tile == GridManager.TILE_AIRFLOW_TERMINAL:
-			hint_requested.emit("Terminal blocks the route. Scan it first.")
-		elif target_tile == GridManager.TILE_FAN_PLATFORM:
-			hint_requested.emit("Fan platform blocks the path. Use controls to rotate airflow.")
-		elif target_tile == GridManager.TILE_PLATFORM_CONTROL_LEFT:
-			hint_requested.emit("Use Interact to rotate fan platform left.")
-		elif target_tile == GridManager.TILE_PLATFORM_CONTROL_RIGHT:
-			hint_requested.emit("Use Interact to rotate fan platform right.")
-		elif target_tile == GridManager.TILE_PLATFORM_CONTROL:
-			hint_requested.emit("Use Interact to rotate the fan platform.")
-		elif target_tile == GridManager.TILE_FAN_CONTROL:
-			hint_requested.emit("Use Interact to change fan speed.")
-		elif target_tile == GridManager.TILE_FAN_SPEED_UP_CONTROL:
-			hint_requested.emit("Use Interact to increase fan speed.")
-		elif target_tile == GridManager.TILE_FAN_SPEED_DOWN_CONTROL:
-			hint_requested.emit("Use Interact to decrease fan speed.")
-		elif target_tile == GridManager.TILE_POWERED_GATE:
-			if is_runtime_door_cell_passable(target_position):
-				pass
-			else:
-				hint_requested.emit("Powered gate is closed.")
-		elif target_tile == GridManager.TILE_CABLE_REEL:
-			hint_requested.emit("Cable reel. Use Interact to take the cable end.")
-		elif target_tile == GridManager.TILE_SOCKET:
-			hint_requested.emit("Socket. Bring the cable end here and use Interact.")
-		else:
-			if runtime_block_reason.is_empty():
-				hint_requested.emit("Path is blocked.")
-			else:
-				hint_requested.emit("Blocked: %s." % runtime_block_reason)
-
-		print("Blocked: ", target_position)
-		return false
-
-	if mission_manager != null:
-		if mission_manager.has_method("can_move_between_height_levels"):
-			var can_move_height_variant: Variant = mission_manager.call("can_move_between_height_levels", grid_position, target_position, self)
-			if not bool(can_move_height_variant):
-				hint_requested.emit("Height mismatch.")
-				return false
-		var blocking_obj: Dictionary = Dictionary(mission_manager.get_world_object_at_cell(target_position))
-		if not blocking_obj.is_empty() and bool(blocking_obj.get("blocks_movement", false)) and not is_cell_walkable_for_bipob(target_position):
-			hint_requested.emit("Blocked by %s." % blocking_obj.get("display_name", "object"))
-			return false
-	
-	grid_position = target_position
-	refresh_platform_height_state_after_move()
-	clear_selected_world_action_if_invalid({}, target_position)
-	update_world_position()
-	if current_mission_index == 7 and mission7_is_dragging_cable:
-		add_current_cell_to_mission7_cable_path()
-	_register_successful_player_action()
-	check_mission_complete()
-	return true
+	return BipobMovementControllerRef.try_move_to(self, target_position)
 
 func _register_successful_player_action() -> void:
 	player_action_index += 1
@@ -6879,27 +6751,7 @@ func get_visual_world_position_for_grid_cell(cell: Vector2i) -> Vector2:
 	return grid_manager.grid_to_world(cell)
 
 func update_world_position() -> void:
-	if grid_manager == null:
-		return
-
-	var use_iso_visual_position: bool = should_use_isometric_visual_position()
-	# Renderer preview preset is sampled only when Bipob updates visual world position.
-	# It does not force any mission or gameplay state changes.
-	if use_iso_visual_position:
-		var iso_position: Vector2 = get_visual_world_position_for_grid_cell(grid_position)
-		var parent_node: Node = get_parent()
-		if parent_node != null and parent_node is Node2D:
-			position = iso_position
-		else:
-			global_position = iso_position
-		z_index = grid_position.x + grid_position.y + 10
-	else:
-		global_position = grid_manager.global_position + get_visual_world_position_for_grid_cell(grid_position)
-	update_visual_facing()
-	update_vision()
-	update_threat_detection_preview()
-	emit_facing_world_object_hint()
-	refresh_world_action_panel()
+	BipobMovementControllerRef.update_world_position(self)
 
 func get_visual_position_debug_text() -> String:
 	var room_visual_renderer: RoomVisualRenderer = get_room_visual_renderer()
@@ -7193,35 +7045,13 @@ func get_isometric_visual_rotation_for_direction(direction_value: int) -> float:
 	return movement_delta.angle() + deg_to_rad(isometric_visual_rotation_offset_degrees)
 
 func update_visual_facing() -> void:
-	if should_use_isometric_visual_position():
-		rotation = get_isometric_visual_rotation_for_direction(direction)
-		return
-
-	match direction:
-		Direction.NORTH:
-			rotation_degrees = 0
-		Direction.EAST:
-			rotation_degrees = 90
-		Direction.SOUTH:
-			rotation_degrees = 180
-		Direction.WEST:
-			rotation_degrees = 270
+	BipobMovementControllerRef.update_visual_facing(self)
 
 func update_rotation() -> void:
 	update_visual_facing()
 
 func get_direction_vector(current_direction: Direction) -> Vector2i:
-	match current_direction:
-		Direction.NORTH:
-			return Vector2i(0, -1)
-		Direction.EAST:
-			return Vector2i(1, 0)
-		Direction.SOUTH:
-			return Vector2i(0, 1)
-		Direction.WEST:
-			return Vector2i(-1, 0)
-	
-	return Vector2i.ZERO
+	return BipobMovementControllerRef.get_direction_vector(current_direction)
 
 func get_facing_device_position() -> Vector2i:
 	return BipobTargetingServiceRef.get_facing_cell(self)
