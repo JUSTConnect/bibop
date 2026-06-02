@@ -17,8 +17,6 @@ static func build_panel(ui: Variant) -> PanelContainer:
 	palette_stack.add_theme_constant_override("separation", 6)
 	panel.add_child(palette_stack)
 	MapConstructorTabs.add_tab_header(ui, palette_stack, palette_rect.size.x)
-	if ui.map_constructor_active_tab != "objects":
-		ui._add_map_constructor_controls_hint(palette_stack)
 	var scroll: ScrollContainer = ScrollContainer.new()
 	scroll.clip_contents = true
 	scroll.horizontal_scroll_mode = ScrollContainer.SCROLL_MODE_DISABLED
