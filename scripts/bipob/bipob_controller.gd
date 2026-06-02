@@ -46,6 +46,7 @@ const BipobItemPickupExecutionServiceRef = preload("res://scripts/game/bipob_ite
 const BipobLegacyTileInteractionServiceRef = preload("res://scripts/game/bipob_legacy_tile_interaction_service.gd")
 const BipobScanHackServiceRef = preload("res://scripts/game/bipob_scan_hack_service.gd")
 const BipobMovementControllerRef = preload("res://scripts/bipob/bipob_movement_controller.gd")
+const BipobInventoryControllerRef = preload("res://scripts/bipob/bipob_inventory_controller.gd")
 const EXTERNAL_MODULE_CATALOG: Dictionary = {
 "wheels_v1":{"name":"Wheels V1","cat":"Gear","size":Vector2i(3,2),"sides":[EXTERNAL_SIDE_BOTTOM],"desc":"Fast movement system for flat and stable surfaces. Ineffective on stairs, mud and debris.","energy":1,"terrain":"Flat surface","movement":"Drive","speed":3},
 "legs_v1":{"name":"Legs V1","cat":"Gear","size":Vector2i(3,2),"sides":[EXTERNAL_SIDE_BOTTOM],"desc":"Universal movement system that provides stable traversal across uneven terrain, steps, obstacles, and mixed surfaces.","energy":1,"terrain":"Any surface","movement":"Walk","speed":2},
@@ -1382,78 +1383,25 @@ func return_to_box() -> void:
 	returned_to_box.emit()
 
 func store_digital_record(record_id: String, display_name: String, description: String = "") -> void:
-	if record_id.is_empty():
-		return
-
-	if digital_storage_capacity <= 0:
-		digital_storage.clear()
-		status_changed.emit()
-		return
-
-	var record := {
-		"id": record_id,
-		"display_name": display_name,
-		"description": description,
-	}
-
-	if digital_storage.has(record_id):
-		digital_storage[record_id] = record
-		hint_requested.emit("Digital record updated: " + get_digital_record_display_name(record_id))
-		status_changed.emit()
-		return
-
-	if digital_storage.size() < digital_storage_capacity:
-		digital_storage[record_id] = record
-		hint_requested.emit("Digital record stored: " + display_name)
-		status_changed.emit()
-		return
-
-	if digital_storage.size() >= digital_storage_capacity:
-		var existing_record_id := String(digital_storage.keys()[0])
-		var old_display_name := get_digital_record_display_name(existing_record_id)
-		digital_storage.erase(existing_record_id)
-		digital_storage[record_id] = record
-		hint_requested.emit("Digital storage overwritten: " + old_display_name + " -> " + display_name)
-		status_changed.emit()
-		return
+	BipobInventoryControllerRef.store_digital_record(self, record_id, display_name, description)
 
 func get_first_digital_record_display_name() -> String:
-	if digital_storage.is_empty():
-		return "empty"
-
-	var first_record_id := String(digital_storage.keys()[0])
-	return get_digital_record_display_name(first_record_id)
+	return BipobInventoryControllerRef.get_first_digital_record_display_name(self)
 
 func has_digital_record(record_id: String) -> bool:
-	return digital_storage.has(record_id)
+	return BipobInventoryControllerRef.has_digital_record(self, record_id)
 
 func use_digital_record(record_id: String) -> bool:
-	return has_digital_record(record_id)
+	return BipobInventoryControllerRef.use_digital_record(self, record_id)
 
 func get_digital_record_display_name(record_id: String) -> String:
-	if not digital_storage.has(record_id):
-		return record_id
+	return BipobInventoryControllerRef.get_digital_record_display_name(self, record_id)
 
-	var record_data: Variant = digital_storage.get(record_id, {})
-	if typeof(record_data) != TYPE_DICTIONARY:
-		return record_id
-
-	var record_dict: Dictionary = record_data
-	if record_dict.has("display_name"):
-		var resolved_display_name := String(record_dict.get("display_name", ""))
-		if not resolved_display_name.is_empty():
-			return resolved_display_name
-
-	return record_id
+func get_digital_record_display_text(record_id: String = "") -> String:
+	return BipobInventoryControllerRef.get_digital_record_display_text(self, record_id)
 
 func get_digital_storage_text() -> String:
-	if digital_storage.is_empty():
-		return "Digital storage: empty"
-
-	var lines := ["Digital storage:"]
-	for record_id in digital_storage.keys():
-		lines.append("- " + get_digital_record_display_name(String(record_id)))
-	return "\n".join(lines)
+	return BipobInventoryControllerRef.get_digital_storage_text(self)
 
 func debug_store_route_data() -> void:
 	store_digital_record(
@@ -8688,7 +8636,13 @@ func is_hand_occupied() -> bool:
 	return _get_first_free_manipulator_index() == -1
 
 func can_use_physical_hand() -> bool:
-	return BipobCapabilityServiceRef.can_use_physical_hand(self)
+	return BipobInventoryControllerRef.can_use_physical_hand(self)
+
+func has_held_physical_item() -> bool:
+	return BipobInventoryControllerRef.has_held_physical_item(self)
+
+func get_held_item_display_name() -> String:
+	return BipobInventoryControllerRef.get_held_item_display_name(self)
 
 func get_held_world_item_type() -> String:
 	if buffer_item.is_empty():
@@ -8722,11 +8676,7 @@ func consume_held_world_item_if_type(item_type: String) -> bool:
 	return true
 
 func infer_digital_item_family(item_type: String) -> String:
-	if item_type.begins_with("digital_key"):
-		return "digital_key"
-	if item_type.begins_with("data_file"):
-		return "data_file"
-	return item_type
+	return BipobInventoryControllerRef.infer_digital_item_family(self, item_type)
 
 func has_digital_world_item(item_type: String, digital_state: String = "opened") -> bool:
 	var record: Dictionary = digital_world_records.get(item_type, {})
@@ -8823,78 +8773,8 @@ func rotate_physical_storage() -> void:
 	status_changed.emit()
 
 
-func _is_empty_floor_cell_for_runtime_inventory_drop(cell: Vector2i) -> bool:
-	if grid_manager == null or not grid_manager.is_in_bounds(cell) or grid_manager.get_tile(cell) != GridManager.TILE_FLOOR:
-		return false
-	if mission_manager != null and mission_manager.has_method("get_world_object_at_cell"):
-		if not Dictionary(mission_manager.call("get_world_object_at_cell", cell)).is_empty():
-			return false
-	if mission_manager != null and mission_manager.has_method("get_items_at_cell"):
-		return Array(mission_manager.call("get_items_at_cell", cell)).is_empty()
-	return true
-
-func _get_runtime_inventory_drop_cell() -> Vector2i:
-	if grid_manager == null or not grid_manager.is_in_bounds(grid_position):
-		return Vector2i(-1, -1)
-	var current_tile: int = grid_manager.get_tile(grid_position)
-	if current_tile != GridManager.TILE_DOOR and current_tile != GridManager.TILE_DIGITAL_DOOR and current_tile != GridManager.TILE_POWERED_GATE:
-		return grid_position
-	var direction_vector: Vector2i = get_direction_vector(direction)
-	for candidate in [grid_position + direction_vector, grid_position - direction_vector]:
-		if _is_empty_floor_cell_for_runtime_inventory_drop(candidate):
-			return candidate
-	return Vector2i(-1, -1)
-
 func drop_held_item() -> void:
-	if mission_finished:
-		return
-	if current_mission_index == 7 and mission7_is_dragging_cable:
-		release_mission7_cable_end()
-		return
-
-	if mission_manager != null and mission_manager.has_method("get_inventory_state"):
-		var inventory: Dictionary = Dictionary(mission_manager.call("get_inventory_state"))
-		var held_world_item_id: String = _runtime_inventory_value_id(inventory.get("manipulator_hold", ""))
-		if not held_world_item_id.is_empty():
-			var target_cell: Vector2i = _get_runtime_inventory_drop_cell()
-			if target_cell == Vector2i(-1, -1):
-				hint_requested.emit("Cannot drop item here. Leave the doorway or face an empty floor cell.")
-				status_changed.emit()
-				return
-			if not can_spend_action(1, 1):
-				return
-			var drop_result: Dictionary = Dictionary(mission_manager.call("drop_inventory_item", held_world_item_id, target_cell))
-			if not bool(drop_result.get("success", false)):
-				hint_requested.emit("Cannot drop item here.")
-				status_changed.emit()
-				return
-			spend_action(1, 1)
-			hint_requested.emit("Dropped: %s." % held_world_item_id)
-			status_changed.emit()
-			return
-
-	var active_index := _get_first_occupied_manipulator_index()
-	if active_index == -1:
-		hint_requested.emit("Hand is empty. Nothing to drop.")
-		status_changed.emit()
-		return
-
-	var target_position := grid_position + get_direction_vector(direction)
-	if not grid_manager.is_in_bounds(target_position) or grid_manager.get_tile(target_position) != GridManager.TILE_FLOOR:
-		hint_requested.emit("Cannot drop item here. Face an empty floor cell.")
-		status_changed.emit()
-		return
-
-	if not can_spend_action(1, 1):
-		return
-
-	var module_to_drop := manipulator_items[active_index]
-	set_field_module(target_position, module_to_drop)
-	spend_action(1, 1)
-	hint_requested.emit("Dropped: %s." % get_module_display_name(module_to_drop))
-	manipulator_items[active_index] = null
-	_sync_legacy_physical_slots()
-	status_changed.emit()
+	BipobInventoryControllerRef.drop_held_item(self)
 
 func break_installed_module(module: BipobModule, _bipob = null) -> void:
 	if module == null:
