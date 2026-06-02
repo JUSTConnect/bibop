@@ -335,7 +335,7 @@ scripts/bipob/bipob_controller.gd
 scripts/bipob/bipob_movement_controller.gd
   Movement, turn left/right, collision checks, grid position.
 
-scripts/bipob/bipob_targeting_service.gd
+scripts/game/bipob_targeting_service.gd
   Facing cell, facing object, facing item, action target resolution.
 
 scripts/bipob/bipob_capability_service.gd
@@ -568,10 +568,12 @@ Heavy Claw — heavy object movement.
 
 Статус: phase 1 начата. Center screen extraction, Runtime control panel extraction, Runtime object HUD extraction, Runtime storage panel extraction, Map Constructor screen/root extraction, Map Constructor inspector shell extraction, Map Constructor property controls cleanup, Map Constructor link controls extraction, PR-V1 validation display adapters extraction, PR-V2 link candidate/read model service extraction, PR-V3 Map Constructor property update service wrapper extraction, PR-V4 Map Constructor power/link consistency validation rules extraction и PR-V5 Map Constructor save/load readiness validation boundary extraction завершены; полный GameUI split ещё не завершён.
 
+BipobController targeting service extraction завершён: read-only facing cell/object/item lookup и action target context вынесены в `scripts/game/bipob_targeting_service.gd`. `BipobController` всё ещё остаётся coordinator/executor; action execution и action view-model ещё НЕ вынесены.
+
 Следующие кандидаты на extraction:
 
-- BipobController targeting service;
 - BipobController action view-model service;
+- BipobController interaction execution boundary audit;
 - MissionManager cleanup/autofix boundary audit;
 - MissionManager save/load/preset persistence boundary audit.
 
@@ -604,12 +606,14 @@ All current UI still works.
 
 ### PR-S — BipobController split phase 1
 
+Статус: targeting service extraction завершён; полный BipobController split ещё не завершён. `BipobController` остаётся coordinator/executor, а action execution и action view-model ещё НЕ вынесены.
+
 Содержание:
 
-- вынести targeting service;
-- вынести capability service;
-- вынести action view model builder;
-- оставить старый controller как façade.
+- [x] вынести targeting service;
+- [ ] вынести capability service;
+- [ ] вынести action view model builder;
+- [x] оставить старый controller как façade.
 
 Критерий:
 
