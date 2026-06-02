@@ -123,7 +123,26 @@ const ISO_WALL_ASSET_CATALOG: Dictionary = {
 	"wall_brick": "wall_04_brick.png",
 	"wall_outer": "wall_05_outerwall.png",
 	"wall_titanium": "wall_06_titan.png",
-	"wall_grate": "wall_07_grate.png"
+	"wall_grate": "wall_07_grate.png",
+	"wall_concrete_damaged": "wall_08_concrete_damage.png",
+	"wall_brick_damaged": "wall_09_brick_damage.png"
+}
+
+# Wall PNGs contain intentionally large transparent margins.  These bounds are
+# measured from the checked-in wall atlas files and used only by the renderer so
+# the visible wall base, not the full transparent canvas, is anchored to the
+# 128x64 isometric wall footprint.
+const ISO_WALL_ASSET_PLACEMENT: Dictionary = {
+	"wall_default": {"visible_bounds": Rect2(65, 31, 471, 1139), "target_base_width": 128.0, "target_height": 120.0, "scale": 1.0, "offset": Vector2.ZERO},
+	"wall_concrete": {"visible_bounds": Rect2(65, 31, 471, 1139), "target_base_width": 128.0, "target_height": 120.0, "scale": 1.0, "offset": Vector2.ZERO},
+	"wall_steel": {"visible_bounds": Rect2(65, 31, 471, 1139), "target_base_width": 128.0, "target_height": 120.0, "scale": 1.0, "offset": Vector2.ZERO},
+	"wall_reinforced_steel": {"visible_bounds": Rect2(66, 31, 468, 1139), "target_base_width": 128.0, "target_height": 120.0, "scale": 1.0, "offset": Vector2.ZERO},
+	"wall_brick": {"visible_bounds": Rect2(75, 31, 450, 1139), "target_base_width": 128.0, "target_height": 120.0, "scale": 1.0, "offset": Vector2.ZERO},
+	"wall_outer": {"visible_bounds": Rect2(62, 30, 476, 1142), "target_base_width": 128.0, "target_height": 120.0, "scale": 1.0, "offset": Vector2.ZERO},
+	"wall_titanium": {"visible_bounds": Rect2(66, 31, 468, 1139), "target_base_width": 128.0, "target_height": 120.0, "scale": 1.0, "offset": Vector2.ZERO},
+	"wall_grate": {"visible_bounds": Rect2(64, 31, 473, 1139), "target_base_width": 128.0, "target_height": 120.0, "scale": 1.0, "offset": Vector2.ZERO},
+	"wall_concrete_damaged": {"visible_bounds": Rect2(39, 42, 524, 1139), "target_base_width": 128.0, "target_height": 120.0, "scale": 1.0, "offset": Vector2.ZERO},
+	"wall_brick_damaged": {"visible_bounds": Rect2(64, 42, 471, 1139), "target_base_width": 128.0, "target_height": 120.0, "scale": 1.0, "offset": Vector2.ZERO}
 }
 
 const ISO_FLOOR_ATLAS_COLUMNS: int = 6
@@ -168,7 +187,8 @@ const ISO_ASSET_ALIGNMENT_RULES: Dictionary = {
 	"wall_brick": {"anchor": "wall_cell_base", "scale": 1.0, "offset": Vector2(0, -32), "expected_size": Vector2(128, 120), "layer_hint": "wall", "notes": "Brick wall canvas bottom-center aligns to the blocked wall cell base."},
 	"wall_concrete": {"anchor": "wall_cell_base", "scale": 1.0, "offset": Vector2(0, -32), "expected_size": Vector2(128, 120), "layer_hint": "wall", "notes": "Concrete wall canvas bottom-center aligns to the blocked wall cell base."},
 	"wall_grate": {"anchor": "wall_cell_base", "scale": 1.0, "offset": Vector2(0, -32), "expected_size": Vector2(128, 120), "layer_hint": "wall", "notes": "Grate wall canvas bottom-center aligns to the blocked wall cell base."},
-	"wall_damaged": {"anchor": "wall_cell_base", "scale": 1.0, "offset": Vector2(0, -32), "expected_size": Vector2(128, 120), "layer_hint": "wall", "notes": "Damaged wall canvas bottom-center aligns to the blocked wall cell base."},
+	"wall_concrete_damaged": {"anchor": "wall_cell_base", "scale": 1.0, "offset": Vector2(0, -32), "expected_size": Vector2(128, 120), "layer_hint": "wall", "notes": "Concrete damaged wall visible base anchors to the blocked wall cell footprint."},
+	"wall_brick_damaged": {"anchor": "wall_cell_base", "scale": 1.0, "offset": Vector2(0, -32), "expected_size": Vector2(128, 120), "layer_hint": "wall", "notes": "Brick damaged wall visible base anchors to the blocked wall cell footprint."},
 	"wall_steel": {"anchor": "wall_cell_base", "scale": 1.0, "offset": Vector2(0, -32), "expected_size": Vector2(128, 120), "layer_hint": "wall", "notes": "Steel wall canvas bottom-center aligns to the blocked wall cell base."},
 	"wall_energy": {"anchor": "wall_cell_base", "scale": 1.0, "offset": Vector2(0, -32), "expected_size": Vector2(128, 120), "layer_hint": "wall", "notes": "Energy wall canvas bottom-center aligns to the blocked wall cell base."},
 	"object_door": {"anchor": "door_insert_center", "scale": 0.9, "offset": Vector2(0, -20), "expected_size": Vector2(96, 96), "layer_hint": "object", "notes": "Door art centers inside the visual wall opening."},
@@ -1235,8 +1255,10 @@ func normalize_wall_asset_key(profile_key: String) -> String:
 			return "wall_concrete"
 		"grate", "grate_wall", "wall_grate":
 			return "wall_grate"
-		"damaged", "damaged_wall", "wall_damaged":
-			return "wall_damaged"
+		"damaged", "damaged_wall", "wall_damaged", "concrete_damaged", "damaged_concrete", "concrete_damaged_wall", "wall_concrete_damaged":
+			return "wall_concrete_damaged"
+		"brick_damaged", "damaged_brick", "brick_damaged_wall", "wall_brick_damaged":
+			return "wall_brick_damaged"
 		"steel", "steel_wall", "wall_steel":
 			return "wall_steel"
 		"reinforced", "reinforced_steel", "reinforced_steel_wall", "wall_reinforced_steel":
@@ -1259,8 +1281,6 @@ func get_iso_wall_explicit_texture_for_asset_key(asset_key: String) -> Texture2D
 			return iso_wall_concrete_texture
 		"wall_grate":
 			return iso_wall_grate_texture
-		"wall_damaged":
-			return iso_wall_damaged_texture
 		"wall_steel", "wall_reinforced_steel", "wall_titanium":
 			return iso_wall_steel_texture
 		"wall_energy":
@@ -1287,7 +1307,11 @@ func get_iso_wall_texture_for_asset_key(asset_key: String) -> Texture2D:
 	if explicit_texture != null:
 		return explicit_texture
 	match asset_key:
-		"wall_outer", "wall_energy", "wall_damaged":
+		"wall_concrete_damaged":
+			return get_iso_wall_texture_for_asset_key("wall_concrete")
+		"wall_brick_damaged":
+			return get_iso_wall_texture_for_asset_key("wall_brick")
+		"wall_outer", "wall_energy":
 			return get_iso_wall_texture_for_asset_key("wall_default")
 		"wall_reinforced_steel", "wall_titanium":
 			return get_iso_wall_texture_for_asset_key("wall_steel")
@@ -1298,17 +1322,43 @@ func get_iso_wall_texture_for_asset_key(asset_key: String) -> Texture2D:
 func get_iso_wall_texture_for_profile(profile_key: String) -> Texture2D:
 	return get_iso_wall_texture_for_asset_key(normalize_wall_asset_key(profile_key))
 
+func get_iso_wall_asset_key_for_material_row(material_row: Dictionary, fallback_profile_key: String) -> String:
+	var texture_asset_id: String = String(material_row.get("texture_asset_id", "")).strip_edges()
+	if texture_asset_id.begins_with("wall_"):
+		return normalize_wall_asset_key(texture_asset_id)
+	var material_id: String = String(material_row.get("id", "")).strip_edges()
+	if not material_id.is_empty():
+		var material_asset_key: String = normalize_wall_asset_key(material_id)
+		if material_asset_key != "wall_default":
+			return material_asset_key
+	return normalize_wall_asset_key(fallback_profile_key)
+
+func get_iso_wall_asset_placement(asset_key: String, source_size: Vector2) -> Dictionary:
+	var normalized_key: String = normalize_wall_asset_key(asset_key)
+	var placement: Dictionary = Dictionary(ISO_WALL_ASSET_PLACEMENT.get(normalized_key, {}))
+	if placement.is_empty():
+		placement = {"visible_bounds": Rect2(Vector2.ZERO, source_size), "target_base_width": iso_tile_width, "target_height": ISO_WALL_ASSET_EXPECTED_SIZE.y, "scale": 1.0, "offset": Vector2.ZERO}
+	return placement
+
 func get_iso_wall_texture_draw_rect_for_cell(cell: Vector2i, texture: Texture2D, profile_key: String, topology: Dictionary) -> Rect2:
 	var source_size: Vector2 = texture.get_size()
 	if source_size.x <= 0.0 or source_size.y <= 0.0:
 		return Rect2()
-	var expected_size: Vector2 = ISO_WALL_ASSET_EXPECTED_SIZE
-	var target_width: float = maxf(iso_tile_width, expected_size.x)
-	var target_height: float = maxf(iso_wall_height + get_iso_tile_half_size().y, expected_size.y)
-	var scale_value: float = minf(target_width / source_size.x, target_height / source_size.y)
-	var destination_size: Vector2 = source_size * scale_value
-	var base_anchor: Vector2 = grid_to_iso(cell) + Vector2(0.0, get_iso_tile_half_size().y)
-	return Rect2(base_anchor - Vector2(destination_size.x * 0.5, destination_size.y), destination_size)
+	var asset_key: String = normalize_wall_asset_key(profile_key)
+	var placement: Dictionary = get_iso_wall_asset_placement(asset_key, source_size)
+	var visible_bounds: Rect2 = Rect2(placement.get("visible_bounds", Rect2(Vector2.ZERO, source_size)))
+	if visible_bounds.size.x <= 0.0 or visible_bounds.size.y <= 0.0:
+		visible_bounds = Rect2(Vector2.ZERO, source_size)
+	var target_base_width: float = maxf(float(placement.get("target_base_width", iso_tile_width)), iso_tile_width)
+	var target_height: float = maxf(float(placement.get("target_height", ISO_WALL_ASSET_EXPECTED_SIZE.y)), iso_wall_height + get_iso_tile_half_size().y)
+	var placement_scale: float = maxf(float(placement.get("scale", 1.0)), 0.01)
+	var scale_x: float = (target_base_width / visible_bounds.size.x) * placement_scale
+	var scale_y: float = (target_height / visible_bounds.size.y) * placement_scale
+	var destination_size: Vector2 = Vector2(source_size.x * scale_x, source_size.y * scale_y)
+	var visible_bottom_center_in_source: Vector2 = visible_bounds.position + Vector2(visible_bounds.size.x * 0.5, visible_bounds.size.y)
+	var visible_bottom_center_in_destination: Vector2 = Vector2(visible_bottom_center_in_source.x * scale_x, visible_bottom_center_in_source.y * scale_y)
+	var base_anchor: Vector2 = grid_to_iso(cell) + Vector2(0.0, get_iso_tile_half_size().y) + Vector2(placement.get("offset", Vector2.ZERO))
+	return Rect2(base_anchor - visible_bottom_center_in_destination, destination_size)
 
 func should_mirror_iso_wall_asset_for_topology(topology: Dictionary) -> bool:
 	var shape: String = String(topology.get("shape", ""))
@@ -1501,8 +1551,6 @@ func get_explicit_iso_texture_for_asset_key(asset_key: String) -> Texture2D:
 			return iso_wall_concrete_texture
 		"wall_grate":
 			return iso_wall_grate_texture
-		"wall_damaged":
-			return iso_wall_damaged_texture
 		"wall_steel":
 			return iso_wall_steel_texture
 		"wall_energy":
@@ -1614,7 +1662,7 @@ func get_iso_visual_texture_debug_state() -> Dictionary:
 func get_iso_visual_texture_debug_keys() -> Array[String]:
 	return [
 		"floor_default", "floor_stepped", "floor_clean_lab", "floor_dark_service", "floor_hazard", "floor_power", "floor_damaged", "floor_reinforced", "floor_diagnostic", "floor_door_underlay",
-		"wall_default", "wall_outer", "wall_brick", "wall_concrete", "wall_grate", "wall_damaged", "wall_steel", "wall_energy",
+		"wall_default", "wall_outer", "wall_brick", "wall_concrete", "wall_grate", "wall_concrete_damaged", "wall_brick_damaged", "wall_steel", "wall_energy",
 		"object_door", "object_terminal", "object_key", "object_component", "object_socket", "object_cable", "object_generic",
 		"object_fuse", "object_repair_kit", "object_keycard", "object_access_code", "object_cable_reel", "object_button", "object_switch"
 	]
@@ -2201,13 +2249,29 @@ func get_wall_visual_profiles() -> Dictionary:
 			"outline": Color(0.18, 0.24, 0.28, 0.88),
 			"accent": Color(0.78, 0.86, 0.92, 0.85)
 		},
+		"concrete_damaged_wall": {
+			"label": "Concrete Damaged Wall",
+			"top": Color(0.235, 0.205, 0.195, 0.98),
+			"left": Color(0.155, 0.125, 0.115, 0.98),
+			"right": Color(0.125, 0.1, 0.095, 0.98),
+			"outline": Color(0.36, 0.27, 0.24, 0.9),
+			"accent": Color(0.52, 0.28, 0.2, 0.55)
+		},
+		"brick_damaged_wall": {
+			"label": "Brick Damaged Wall",
+			"top": Color(0.315, 0.17, 0.135, 0.98),
+			"left": Color(0.22, 0.11, 0.09, 0.98),
+			"right": Color(0.18, 0.085, 0.075, 0.98),
+			"outline": Color(0.42, 0.2, 0.16, 0.92),
+			"accent": Color(0.76, 0.48, 0.34, 0.62)
+		},
 		"damaged_wall": {
-			"label": "Damaged Wall",
-			"top": Color(0.195, 0.16, 0.16, 0.98),
-			"left": Color(0.125, 0.09, 0.09, 0.98),
-			"right": Color(0.1, 0.075, 0.075, 0.98),
-			"outline": Color(0.33, 0.22, 0.21, 0.9),
-			"accent": Color(0.43, 0.2, 0.16, 0.55)
+			"label": "Concrete Damaged Wall",
+			"top": Color(0.235, 0.205, 0.195, 0.98),
+			"left": Color(0.155, 0.125, 0.115, 0.98),
+			"right": Color(0.125, 0.1, 0.095, 0.98),
+			"outline": Color(0.36, 0.27, 0.24, 0.9),
+			"accent": Color(0.52, 0.28, 0.2, 0.55)
 		},
 		"brick_wall": {
 			"label": "Brick Wall",
@@ -2662,7 +2726,8 @@ func draw_iso_wall_block(cell: Vector2i) -> void:
 	var floor_shadow: PackedVector2Array = PackedVector2Array([base_points[2], base_points[3], base_points[3] + Vector2(0.0, 8.0), base_points[2] + Vector2(0.0, 8.0)])
 	var accent_color: Color = _get_color_from_dict(colors, "accent", Color.WHITE)
 
-	if draw_iso_wall_asset_texture_for_cell(cell, wall_profile_key, render_topology):
+	var wall_asset_key: String = get_iso_wall_asset_key_for_material_row(material_row, wall_profile_key)
+	if draw_iso_wall_asset_texture_for_cell(cell, wall_asset_key, render_topology):
 		draw_iso_wall_debug_and_mount_overlays(cell, arch, topology)
 		return
 
