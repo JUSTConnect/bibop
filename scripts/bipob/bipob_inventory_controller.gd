@@ -145,13 +145,13 @@ static func drop_held_item(controller: Variant) -> void:
 			controller.status_changed.emit()
 			return
 
-	var active_index := controller._get_first_occupied_manipulator_index()
+	var active_index: int = controller._get_first_occupied_manipulator_index()
 	if active_index == -1:
 		controller.hint_requested.emit("Hand is empty. Nothing to drop.")
 		controller.status_changed.emit()
 		return
 
-	var target_position := controller.grid_position + controller.get_direction_vector(controller.direction)
+	var target_position: Vector2i = controller.grid_position + controller.get_direction_vector(controller.direction)
 	if not controller.grid_manager.is_in_bounds(target_position) or controller.grid_manager.get_tile(target_position) != GridManager.TILE_FLOOR:
 		controller.hint_requested.emit("Cannot drop item here. Face an empty floor cell.")
 		controller.status_changed.emit()
