@@ -4,6 +4,7 @@ class_name MapConstructorValidationService
 const WorldObjectCatalogRef = preload("res://scripts/world/world_object_catalog.gd")
 const MapConstructorPowerLinkValidationRulesRef = preload("res://scripts/game/map_constructor_power_link_validation_rules.gd")
 const MapConstructorReadinessValidationServiceRef = preload("res://scripts/game/map_constructor_readiness_validation_service.gd")
+const CableTopologyServiceRef = preload("res://scripts/game/cable_topology_service.gd")
 var manager: Variant
 var power_link_validation_rules: Variant = null
 
@@ -635,6 +636,12 @@ func get_map_constructor_validation_issues() -> Array[Dictionary]:
 				issues.append(_make_map_constructor_issue("door_grounding_mismatch_%d" % index, "warning", "Door/gate object is not on door/gate tile.", object_cell, source_name, entity_kind, object_id))
 		if (normalized_object_type.contains("key") or normalized_object_type.contains("kit") or normalized_object_type.contains("card") or normalized_object_type.contains("code")) and manager._is_map_constructor_wall_cell(object_cell):
 			issues.append(_make_map_constructor_issue("pickup_on_wall_%d" % index, "warning", "Pickup object overlaps blocked wall cell.", object_cell, source_name, entity_kind, object_id))
+	var cable_cells: Dictionary = CableTopologyServiceRef.build_cable_cell_map(manager.mission_world_objects)
+	for cable_cell_variant in cable_cells.keys():
+		var cable_cell: Vector2i = Vector2i(cable_cell_variant)
+		var cable_topology: Dictionary = CableTopologyServiceRef.classify_cell(cable_cell, manager.mission_world_objects)
+		if not bool(cable_topology.get("valid", true)):
+			issues.append(_make_map_constructor_issue("cable_junction_requires_switch_%d_%d" % [cable_cell.x, cable_cell.y], "error", CableTopologyServiceRef.ERROR_MESSAGE_JUNCTION_REQUIRES_SWITCH, cable_cell, source_name, "world_object", "", "Place a circuit switch on the junction cell or remove an extra cable branch."))
 	# validate explicit manager.cell_items map
 	for cell_variant in manager.cell_items.keys():
 		var item_cell: Vector2i = manager._deserialize_cell_variant(cell_variant)

@@ -1,6 +1,8 @@
 extends Node2D
 class_name RoomVisualRenderer
 
+const CableTopologyServiceRef = preload("res://scripts/game/cable_topology_service.gd")
+
 # GridManager remains the gameplay grid source.
 # RoomVisualRenderer is a future visual projection layer.
 # Gameplay cells remain Vector2i in GridManager logic.
@@ -3531,6 +3533,44 @@ func draw_iso_object_line(cell: Vector2i, profile: Dictionary, visual_center_ove
 	if debug_draw_iso_object_outlines:
 		draw_line(line_start, line_end, outline_color, 1.0)
 
+func draw_iso_cable_topology_line(cell: Vector2i, profile: Dictionary, object_data: Dictionary, visual_center_override: Vector2 = Vector2.INF) -> void:
+	var center: Vector2 = grid_to_iso(cell)
+	if visual_center_override != Vector2.INF:
+		center = visual_center_override
+	center += Vector2(0.0, -4.0)
+	var cable_z_offset: Vector2 = Vector2(0.0, -4.0)
+	var branch_points: Dictionary = {
+		"north": center.lerp(grid_to_iso(cell + Vector2i(0, -1)) + cable_z_offset, 0.5),
+		"south": center.lerp(grid_to_iso(cell + Vector2i(0, 1)) + cable_z_offset, 0.5),
+		"west": center.lerp(grid_to_iso(cell + Vector2i(-1, 0)) + cable_z_offset, 0.5),
+		"east": center.lerp(grid_to_iso(cell + Vector2i(1, 0)) + cable_z_offset, 0.5)
+	}
+	var topology: Dictionary = CableTopologyServiceRef.classify_cell(cell, _get_runtime_world_objects_for_iso_render(), object_data)
+	var shape: String = String(topology.get("shape", "isolated"))
+	var neighbors: Dictionary = Dictionary(topology.get("neighbors", {}))
+	var base_color: Color = _get_color_from_dict(profile, "base", Color.WHITE)
+	var accent_color: Color = _get_color_from_dict(profile, "accent", Color.WHITE)
+	var outline_color: Color = _get_color_from_dict(profile, "outline", Color.WHITE)
+	if not bool(topology.get("valid", true)):
+		base_color = Color(1.0, 0.25, 0.08, 0.98)
+		accent_color = Color(1.0, 0.82, 0.15, 0.98)
+		outline_color = Color(0.45, 0.04, 0.02, 0.98)
+	var active_dirs: Array[String] = []
+	for direction in ["north", "south", "west", "east"]:
+		if bool(neighbors.get(direction, false)):
+			active_dirs.append(direction)
+	if active_dirs.is_empty():
+		active_dirs.append("east")
+		active_dirs.append("west")
+	for direction in active_dirs:
+		var endpoint: Vector2 = Vector2(branch_points.get(direction, center))
+		draw_line(center, endpoint, base_color, 3.5)
+		draw_line(center, endpoint.lerp(center, 0.12), accent_color, 1.5)
+	draw_circle(center, 3.2 if shape.begins_with("junction") or shape.begins_with("invalid") else 2.1, accent_color)
+	if debug_draw_iso_object_outlines or not bool(topology.get("valid", true)):
+		for direction in active_dirs:
+			draw_line(center, Vector2(branch_points.get(direction, center)), outline_color, 1.0)
+
 func draw_iso_object_heat_marker(cell: Vector2i, profile: Dictionary, visual_center_override: Vector2 = Vector2.INF) -> void:
 	var center: Vector2 = grid_to_iso(cell)
 	if visual_center_override != Vector2.INF:
@@ -3947,6 +3987,10 @@ func draw_iso_object_marker(cell: Vector2i, tile_type: int, override_object_data
 		profile_key = wall_mounted_profile_key
 		object_asset_key = get_iso_object_asset_key_for_object_data(object_data, profile_key)
 	var profile: Dictionary = get_iso_object_profile(profile_key)
+	if CableTopologyServiceRef.is_circuit_switch_object(object_data):
+		var switch_topology: Dictionary = CableTopologyServiceRef.classify_cell(cell, _get_runtime_world_objects_for_iso_render(), object_data)
+		if int(switch_topology.get("neighbor_count", 0)) > 0:
+			draw_iso_cable_topology_line(cell, get_iso_object_profile("cable"), object_data, visual_center)
 	if has_door_visual:
 		profile["base"] = _blend_color(_get_color_from_dict(profile, "base", Color.WHITE), Color(door_visual.get("tint", Color.WHITE)), 0.45)
 		profile["accent"] = Color(door_visual.get("accent", _get_color_from_dict(profile, "accent", Color.WHITE)))
@@ -3994,7 +4038,10 @@ func draw_iso_object_marker(cell: Vector2i, tile_type: int, override_object_data
 	elif shape == "terminal_console":
 		draw_iso_object_terminal_console(cell, profile, visual_center)
 	elif shape == "line":
-		draw_iso_object_line(cell, profile, visual_center)
+		if profile_key == "cable":
+			draw_iso_cable_topology_line(cell, profile, object_data, visual_center)
+		else:
+			draw_iso_object_line(cell, profile, visual_center)
 	elif shape == "heat_marker":
 		draw_iso_object_heat_marker(cell, profile, visual_center)
 	else:
