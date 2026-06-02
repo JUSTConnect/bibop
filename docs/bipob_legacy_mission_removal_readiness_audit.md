@@ -1,8 +1,8 @@
-# BIPOB PR-RF-19 — Legacy mission removal readiness audit
+# BIPOB PR-RF-20 — Legacy mission removal readiness audit
 
 ## Purpose
 
-This audit records what still blocks safe deletion of old story mission code/resources after PR-RF-08 through PR-RF-19. PR-RF-19 intentionally changes only the TASK TEST runtime/session identity boundary: no gameplay, TASK TEST mechanics, Map Constructor, runtime action, scan/hack, movement, inventory, cable, airflow, or mission resource behavior is changed by this change.
+This audit records what still blocks safe deletion of old story mission code/resources after PR-RF-08 through PR-RF-20. PR-RF-20 intentionally adds the generic cable/socket/power contract planning document only: no gameplay, TASK TEST mechanics, Map Constructor, runtime action, scan/hack, movement, inventory, cable, airflow, power, or mission resource behavior is changed by this change.
 
 Current product direction:
 
@@ -11,7 +11,7 @@ Current product direction:
 - Mechanics introduced by old missions must survive if they are reusable in TASK TEST or future missions.
 - Mission resources/scenes/layouts should be deleted only after TASK TEST startup, sandbox completion, Map Constructor, runtime actions, scan/hack, inventory, and movement pass smoke without relying on old mission-index branches.
 
-## Current status after PR-RF-19
+## Current status after PR-RF-20
 
 ### Already isolated or removed
 
@@ -24,6 +24,7 @@ Current product direction:
 - Mission 2 terminal tutorial glue is removed; Info-Key / digital record mechanics remain.
 - Mission 4 hidden-route story glue is removed; hidden route-node discovery, Route Data digital record, Scan/X-Ray visibility, and debug placement remain.
 - Mission 7 cable/socket/powered-gate flow is isolated behind `BipobLegacyCableFlowService`.
+- PR-RF-20 defines the planned generic cable/socket/power runtime contract in `docs/bipob_generic_cable_socket_power_contract.md`; implementation has not landed yet.
 - Mission 8 fan/platform/airflow/cooling flow is isolated behind `BipobLegacyAirflowFlowService`.
 - `BipobLegacyCableFlowService.reset_state()` was renamed to `reset_legacy_state()` to avoid the Godot `GDScript.reset_state()` conflict.
 
@@ -40,7 +41,7 @@ Current product direction:
 | --- | --- | --- | --- |
 | Mission 2 terminal tutorial glue | Removed from generic scan/hack/read-terminal paths. | Ready. | Old Mission 2 tutorial resources can be deleted later only with broader mission resource cleanup. Do not remove Info-Key/digital record mechanics. |
 | Mission 4 hidden-route story glue | Removed from goal hints, exit gating, completion message, auto field setup, pickup hints, and discovery side effects. | Ready. | Old Mission 4 story resources can be deleted later. Keep hidden/reveal/X-Ray/Route Data mechanics and debug placement. |
-| Mission 7 cable/socket/powered-gate | Isolated behind `BipobLegacyCableFlowService`, but still hardcoded to Mission 7 state, positions, and `cable_a`. | Not ready for deletion. | Create a generic runtime cable/socket/power world-object contract before deleting old Mission 7 layout/state. |
+| Mission 7 cable/socket/powered-gate | Isolated behind `BipobLegacyCableFlowService`, but still hardcoded to Mission 7 state, positions, and `cable_a`. PR-RF-20 adds a generic runtime cable/socket/power contract document, but no generic implementation exists yet. | Not ready for deletion. | Implement and smoke-test a generic runtime cable/socket/power service before deleting old Mission 7 layout/state. |
 | Mission 8 fan/platform/airflow/cooling | Isolated behind `BipobLegacyAirflowFlowService`, but still hardcoded to Mission 8 state and positions. | Not ready for deletion. | Create a generic runtime airflow/fan/platform/cooling world-object contract before deleting old Mission 8 layout/state. |
 | TASK TEST startup | Has explicit `start_task_test_session()` / `reset_task_test_session()` entry points, explicit `active_runtime_mode_id` runtime identity in the controller and MissionManager, a neutral `task_test` layout alias, and `mission_10` fallback compatibility. `start_mission(10)` now delegates to `start_task_test_session()` for compatibility. | Partially ready. | Keep proving TASK TEST smoke coverage before deleting mission-index compatibility and old mission resources. |
 | TASK TEST completion | Isolated through `complete_sandbox_run()`. | Mostly ready. | Smoke-test sandbox completion. Later route direct TASK TEST callers to `complete_sandbox_run()` and reduce `complete_mission()` compatibility. |
@@ -58,7 +59,7 @@ Current product direction:
 
 2. **Mission 7 cable mechanics are not generic yet.**
    - `BipobLegacyCableFlowService` preserves behavior but still uses hardcoded Mission 7 state, positions, tile mutations, and `cable_a`.
-   - Deleting Mission 7 before a generic cable/socket/power contract exists risks losing reusable cable mechanics.
+   - PR-RF-20 documents the generic cable/socket/power contract, but deleting Mission 7 before a generic implementation exists still risks losing reusable cable mechanics.
 
 3. **Mission 8 airflow mechanics are not generic yet.**
    - `BipobLegacyAirflowFlowService` preserves behavior but still uses hardcoded Mission 8 state, positions, airflow tiles, and door mutation.
@@ -85,15 +86,15 @@ Goal: introduce an explicit sandbox session field/state so TASK TEST does not de
 
 Status: completed for the startup dependency direction. `BipobController.active_runtime_mode_id` now owns the active controller runtime identity when set, `start_task_test_session()` starts TASK TEST directly through the shared runtime-start helper, and `start_mission(10)` delegates back to `start_task_test_session()` for compatibility. `current_mission_index` remains set to `10` during TASK TEST only as compatibility state, not as the sole source of sandbox identity.
 
-### PR-RF-20 — Generic runtime cable/socket/power contract planning or thin service
+### PR-RF-20 — Generic runtime cable/socket/power contract planning
 
 Goal: prepare Mission 7 deletion by defining the non-story home for cable/socket/power mechanics.
 
-Suggested direction:
+Completed scope:
 
-- Create a small doc or service plan first if implementation is risky.
-- Identify required world-object properties for cable reel, cable endpoint, socket, powered gate, and power event filter.
-- Do not delete `BipobLegacyCableFlowService` until TASK TEST can exercise generic cable behavior.
+- Added `docs/bipob_generic_cable_socket_power_contract.md` as the generic cable/socket/power runtime contract.
+- Identified required runtime roles, world-object properties, actions, service responsibilities, legacy Mission 7 field mappings, migration stages, and future acceptance smoke.
+- Kept `BipobLegacyCableFlowService` and old Mission 7 resources in place. Mission 7 deletion remains blocked until TASK TEST can exercise generic cable behavior through an implemented runtime service.
 
 ### PR-RF-21 — Generic runtime fan/platform/airflow/cooling contract planning or thin service
 
@@ -113,7 +114,7 @@ Only after the above boundaries pass smoke:
 - Delete legacy story mission selection/progression UI.
 - Delete old Mission 1-9 resources in small batches.
 - Delete `complete_legacy_story_mission()` after no old story callers remain.
-- Delete `BipobLegacyCableFlowService` only after generic cable runtime replaces it.
+- Delete `BipobLegacyCableFlowService` only after the PR-RF-20 contract is implemented by a generic cable runtime and TASK TEST generic cable/socket/power smoke passes.
 - Delete `BipobLegacyAirflowFlowService` only after generic airflow runtime replaces it.
 
 ## Do-not-delete list for now
@@ -127,7 +128,7 @@ Do not delete these yet:
 - Scan/hack services and digital record storage.
 - Inventory pickup/drop/storage helpers.
 - Movement controller and runtime action presenter.
-- `BipobLegacyCableFlowService` until generic cable/socket/power exists.
+- `BipobLegacyCableFlowService` until the PR-RF-20 generic cable/socket/power contract has an implemented and smoke-tested runtime service.
 - `BipobLegacyAirflowFlowService` until generic fan/platform/airflow/cooling exists.
 - Mission resources/scenes/layouts until TASK TEST startup and completion smoke pass without old story dependencies.
 
