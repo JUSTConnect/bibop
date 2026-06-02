@@ -4,7 +4,7 @@ class_name BipobLegacyCableFlowService
 const LEGACY_CABLE_OBJECT_ID := "cable_a"
 
 
-static func reset_state(controller: Variant) -> void:
+static func reset_legacy_state(controller: Variant) -> void:
 	controller.mission7_is_dragging_cable = false
 	controller.mission7_cable_connected = false
 	controller.mission7_cable_reel_position = Vector2i(-1, -1)

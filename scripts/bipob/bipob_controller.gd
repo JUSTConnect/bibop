@@ -1279,7 +1279,7 @@ func start_mission(mission_index: int, save_snapshot: bool = true) -> void:
 	energy = max_energy
 	actions_left = actions_per_turn
 	field_modules_by_position.clear()
-	BipobLegacyCableFlowServiceRef.reset_state(self)
+	BipobLegacyCableFlowServiceRef.reset_legacy_state(self)
 	if grid_manager != null:
 		var mission_id: String = "mission_%d" % current_mission_index
 		var used_catalog_layout := false
@@ -6623,7 +6623,7 @@ func _present_mission_completion() -> void:
 	print("MISSION COMPLETE")
 	print("Bipob reached the exit.")
 
-func complete_sandbox_run(reason: String = "") -> void:
+func complete_sandbox_run(_reason: String = "") -> void:
 	if not _mark_mission_completion_started():
 		return
 
@@ -6634,7 +6634,7 @@ func complete_sandbox_run(reason: String = "") -> void:
 	last_diagnostic_result = null
 	_finish_mission_completion(stored_module_this_mission)
 
-func complete_legacy_story_mission(reason: String = "") -> void:
+func complete_legacy_story_mission(_reason: String = "") -> void:
 	if not _mark_mission_completion_started():
 		return
 
