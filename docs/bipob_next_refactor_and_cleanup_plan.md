@@ -566,13 +566,14 @@ Heavy Claw — heavy object movement.
 
 ### PR-R — GameUI split phase 1
 
-Статус: phase 1 начата. Center screen extraction, Runtime control panel extraction, Runtime object HUD extraction, Runtime storage panel extraction, Map Constructor screen/root extraction, Map Constructor inspector shell extraction, Map Constructor property controls cleanup, Map Constructor link controls extraction, PR-V1 validation display adapters extraction, PR-V2 link candidate/read model service extraction, PR-V3 Map Constructor property update service wrapper extraction и PR-V4 Map Constructor power/link consistency validation rules extraction завершены; полный GameUI split ещё не завершён.
+Статус: phase 1 начата. Center screen extraction, Runtime control panel extraction, Runtime object HUD extraction, Runtime storage panel extraction, Map Constructor screen/root extraction, Map Constructor inspector shell extraction, Map Constructor property controls cleanup, Map Constructor link controls extraction, PR-V1 validation display adapters extraction, PR-V2 link candidate/read model service extraction, PR-V3 Map Constructor property update service wrapper extraction, PR-V4 Map Constructor power/link consistency validation rules extraction и PR-V5 Map Constructor save/load readiness validation boundary extraction завершены; полный GameUI split ещё не завершён.
 
 Следующие кандидаты на extraction:
 
-- PR-V5 Map Constructor save/load readiness validation boundary;
 - BipobController targeting service;
-- BipobController action view-model service.
+- BipobController action view-model service;
+- MissionManager cleanup/autofix boundary audit;
+- MissionManager save/load/preset persistence boundary audit.
 
 Содержание:
 
@@ -589,6 +590,7 @@ Heavy Claw — heavy object movement.
 - [x] вынести PR-V2 Map Constructor link candidate/read model service без изменения mutation path;
 - [x] вынести PR-V3 Map Constructor property update service wrapper без изменения mutation semantics;
 - [x] вынести PR-V4 Map Constructor power/link consistency validation rules в read-only helper без изменения validation semantics;
+- [x] вынести PR-V5 Map Constructor save/load readiness validation boundary без изменения persistence execution;
 - [ ] `game_ui.gd` оставить coordinator.
 
 Минимальный критерий:

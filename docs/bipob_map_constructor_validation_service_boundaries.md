@@ -62,11 +62,11 @@ The helpers are currently presentation-oriented but not presentation-only. Sever
 - validation overlay aggregation;
 - issue creation and constructor issue collection;
 - door-opening probes and summaries;
-- expected-invalid classification;
-- readiness check assembly and mission readiness report generation;
+- expected-invalid classification, delegated to the read-only `MapConstructorReadinessValidationService` helper;
+- readiness report forwarding to the read-only readiness helper;
 - audit summary generation.
 
-The service still calls back into `MissionManager` for runtime state, task-test audit data, and autofix recommendations. That is a valid transitional adapter, not evidence that validation extraction is complete. A future PR should avoid introducing new validation decisions in UI code or in display adapters.
+The validation and readiness services still call back into `MissionManager` for runtime state, task-test audit data, and read-only autofix recommendations. That is a valid transitional adapter, not evidence that validation extraction is complete. A future PR should avoid introducing new validation decisions in UI code or in display adapters.
 
 ### `MissionManager`
 
@@ -140,7 +140,7 @@ The extracted helpers are still coupled to a broad runtime owner. Inspector and 
 
 ### Validation and autofix are not yet one clean boundary
 
-`MapConstructorValidationService` produces issues and readiness reports, but readiness recommendations still call back into MissionManager autofix options. MissionManager still owns cleanup/autofix preview, apply, undo, snapshots, and broad recalculation. This is a staged boundary: extract adapters and read models first, then isolate validation consistency rules without changing repair behavior.
+`MapConstructorReadinessValidationService` now produces read-only readiness reports, but readiness recommendations still call back into MissionManager autofix options. MissionManager still owns cleanup/autofix preview, apply, undo, snapshots, and broad recalculation. This remains a staged boundary: keep recommendation reads isolated without changing repair behavior.
 
 ## 5. Recommended extraction order
 
@@ -183,6 +183,8 @@ Status: extracted. `map_constructor_power_link_validation_rules.gd` now owns rea
 - Do not alter Door control/access semantics, Terminal behavior, or Power network behavior.
 
 ### PR-V5: Extract save/load readiness validation boundary
+
+Status: extracted. `map_constructor_readiness_validation_service.gd` now owns read-only save/load/promotion readiness report assembly, issue classification, counters, summary text, and actionable diagnostic rows. `MapConstructorValidationService` and `MissionManager` retain forwarding façades. No persistence execution, compatibility routing, mutation, autofix execution, or power/cooling recalculation was moved.
 
 - Add a readiness boundary used before save/load/promotion workflows where appropriate.
 - Keep the existing save format unchanged.
@@ -235,4 +237,11 @@ Use this checklist for PR-V1 through PR-V5:
 
 ## Audit note
 
-This boundary document marks the validation/service boundary audit, PR-V1 validation display adapter extraction, PR-V2 link candidate/read model service extraction, PR-V3 property update service wrapper extraction, and PR-V4 read-only power/link consistency validation rules extraction as complete. It does **not** mark link mutation extraction, autofix extraction, save/load readiness validation extraction, or the full GameUI split complete.
+This boundary document marks the validation/service boundary audit, PR-V1 validation display adapter extraction, PR-V2 link candidate/read model service extraction, PR-V3 property update service wrapper extraction, PR-V4 read-only power/link consistency validation rules extraction, and PR-V5 save/load readiness validation boundary extraction as complete. It does **not** mark link mutation extraction, autofix extraction, save/load execution extraction, preset persistence extraction, or the full GameUI split complete.
+
+Next candidates:
+
+- BipobController targeting service;
+- BipobController action view-model service;
+- MissionManager cleanup/autofix boundary audit;
+- MissionManager save/load/preset persistence boundary audit.
