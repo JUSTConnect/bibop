@@ -38,6 +38,7 @@ const PowerSystemRef = preload("res://scripts/world/power_system.gd")
 const BipobModulePresenterRef = preload("res://scripts/bipob/bipob_module_presenter.gd")
 const BipobTargetingServiceRef = preload("res://scripts/game/bipob_targeting_service.gd")
 const BipobActionViewModelServiceRef = preload("res://scripts/game/bipob_action_view_model_service.gd")
+const BipobCapabilityServiceRef = preload("res://scripts/game/bipob_capability_service.gd")
 const EXTERNAL_MODULE_CATALOG: Dictionary = {
 "wheels_v1":{"name":"Wheels V1","cat":"Gear","size":Vector2i(3,2),"sides":[EXTERNAL_SIDE_BOTTOM],"desc":"Fast movement system for flat and stable surfaces. Ineffective on stairs, mud and debris.","energy":1,"terrain":"Flat surface","movement":"Drive","speed":3},
 "legs_v1":{"name":"Legs V1","cat":"Gear","size":Vector2i(3,2),"sides":[EXTERNAL_SIDE_BOTTOM],"desc":"Universal movement system that provides stable traversal across uneven terrain, steps, obstacles, and mixed surfaces.","energy":1,"terrain":"Any surface","movement":"Walk","speed":2},
@@ -608,7 +609,7 @@ func get_installed_module_by_id(module_id: String) -> BipobModule:
 	return null
 
 func has_module_id(module_id: String) -> bool:
-	return get_installed_module_by_id(module_id) != null
+	return BipobCapabilityServiceRef.has_module_id(self, module_id)
 
 func has_module_id_in_box(module_id: String) -> bool:
 	for module in box_storage:
@@ -4784,11 +4785,7 @@ func get_internal_family_for_module_id(module_id: String) -> String:
 	return "none"
 
 func get_module_version_for_module_id(module_id: String) -> int:
-	if module_id.contains("_v3"):
-		return 3
-	if module_id.contains("_v2"):
-		return 2
-	return 1
+	return BipobCapabilityServiceRef.get_module_version_for_module_id(module_id)
 
 func get_internal_battery_capacity(module_id: String) -> int:
 	if not module_id.begins_with("battery_"):
@@ -7772,21 +7769,7 @@ func get_world_scan_type_from_installed_modules() -> String:
 	return "visor"
 
 func _extract_module_level_by_prefix(prefix: String) -> int:
-	var best := 0
-	for module in installed_modules:
-		if module == null:
-			continue
-		var module_id := String(module.id)
-		if not module_id.begins_with(prefix):
-			continue
-		var version_regex: RegEx = RegEx.new()
-		version_regex.compile("_v(\\d+)$")
-		var found: RegExMatch = version_regex.search(module_id)
-		if found != null:
-			best = maxi(best, int(found.get_string(1)))
-		elif module_id.ends_with("_v1"):
-			best = maxi(best, 1)
-	return best
+	return BipobCapabilityServiceRef.extract_module_level_by_prefix(self, prefix)
 
 func get_installed_manipulator_arm_level() -> int:
 	return _extract_module_level_by_prefix("manipulator_arm")
@@ -7813,54 +7796,19 @@ func has_magnetic_manipulator() -> bool:
 	return has_world_tool("magnetic_manipulator_v1")
 
 func has_heavy_claw_capability() -> bool:
-	if has_command("heavy_claw"):
-		return true
-	return get_installed_heavy_claw_level() > 0
+	return BipobCapabilityServiceRef.has_heavy_claw_capability(self)
 
 func has_heavy_claw() -> bool:
-	return has_heavy_claw_capability()
+	return BipobCapabilityServiceRef.has_heavy_claw(self)
 
 func has_manipulator_arm() -> bool:
-	return get_installed_manipulator_arm_level() > 0
+	return BipobCapabilityServiceRef.has_manipulator_arm(self)
 
 func get_installed_processor_level() -> int:
 	return _extract_module_level_by_prefix("processor")
 
-func _get_connector_module_prefix_for_kind(kind: String) -> String:
-	match String(kind).strip_edges().to_lower():
-		"wired":
-			return "wired_connector"
-		"optical":
-			return "optical_connector"
-		"wireless":
-			return "wireless_connector"
-		"high_bandwidth":
-			return "high_bandwidth_connector"
-		_:
-			return ""
-
 func get_installed_connector_level(kind: String = "") -> int:
-	var port_state := preview_module_port_activity()
-	var modules_state: Dictionary = Dictionary(port_state.get("modules", {}))
-	var target_prefix := _get_connector_module_prefix_for_kind(kind)
-	var best := 0
-	for module in installed_modules:
-		if module == null:
-			continue
-		var module_id := String(module.id)
-		if not module_id.contains("_connector_v"):
-			continue
-		if not target_prefix.is_empty() and not module_id.begins_with(target_prefix):
-			continue
-		var state: Dictionary = Dictionary(modules_state.get(module_id, {}))
-		if not bool(state.get("active", false)):
-			continue
-		var version_regex: RegEx = RegEx.new()
-		version_regex.compile("_v(\\d+)$")
-		var found: RegExMatch = version_regex.search(module_id)
-		if found != null:
-			best = maxi(best, int(found.get_string(1)))
-	return best
+	return BipobCapabilityServiceRef.get_installed_connector_level(self, kind)
 
 func get_bipob_power_class() -> String:
 	var body_size: Vector3i = get_constructor_body_size()
@@ -9267,13 +9215,7 @@ func is_hand_occupied() -> bool:
 	return _get_first_free_manipulator_index() == -1
 
 func can_use_physical_hand() -> bool:
-	if is_hand_occupied() or (not buffer_item.is_empty() and not _is_digital_storage_item(buffer_item)):
-		return false
-	if mission_manager != null and mission_manager.has_method("get_inventory_state"):
-		var inventory: Dictionary = Dictionary(mission_manager.call("get_inventory_state"))
-		if not _runtime_inventory_value_id(inventory.get("manipulator_hold", "")).is_empty():
-			return false
-	return true
+	return BipobCapabilityServiceRef.can_use_physical_hand(self)
 
 func get_held_world_item_type() -> String:
 	if buffer_item.is_empty():
