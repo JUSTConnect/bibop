@@ -98,7 +98,7 @@ static func change_fan_speed(controller: Variant, delta: int) -> void:
 	if not controller.can_spend_action(1, 1):
 		return
 
-	var previous_speed := controller.mission8_fan_speed
+	var previous_speed : int =int(controller.mission8_fan_speed)
 	controller.mission8_fan_speed = clampi(controller.mission8_fan_speed + delta, 0, 3)
 	if controller.mission8_fan_speed == previous_speed:
 		if delta > 0:
@@ -170,9 +170,9 @@ static func update_airflow(controller: Variant) -> void:
 		controller.status_changed.emit()
 		return
 
-	var max_range := get_airflow_range_for_speed(controller.mission8_fan_speed)
-	var direction_vector := controller.get_direction_vector(controller.mission8_fan_direction)
-	var current_position := controller.mission8_fan_platform_position + direction_vector
+	var max_range : int= int(get_airflow_range_for_speed(controller.mission8_fan_speed))
+	var direction_vector : Vector2i = Vector2i(controller.get_direction_vector(controller.mission8_fan_direction))
+	var current_position : Vector2i = Vector2i (controller.mission8_fan_platform_position + direction_vector)
 
 	for _i in range(max_range):
 		if not controller.grid_manager.is_in_bounds(current_position):
@@ -180,7 +180,7 @@ static func update_airflow(controller: Variant) -> void:
 		if current_position == controller.mission8_terminal_position:
 			controller.mission8_terminal_cooled = true
 			break
-		var tile := controller.grid_manager.get_tile(current_position)
+		var tile :int = int(controller.grid_manager.get_tile(current_position))
 		if tile == GridManager.TILE_WALL or tile == GridManager.TILE_DIGITAL_DOOR or tile == GridManager.TILE_ROUTE_GATE:
 			break
 		if tile == GridManager.TILE_AIRFLOW_TERMINAL:
