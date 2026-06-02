@@ -72,6 +72,7 @@ class_name RoomVisualRenderer
 @export var iso_object_cable_reel_texture: Texture2D = null
 @export var iso_object_button_texture: Texture2D = null
 @export var iso_object_switch_texture: Texture2D = null
+@export_enum("classic_128x64", "preview_128x71", "custom_export_values") var iso_projection_mode: String = "classic_128x64"
 @export var iso_tile_width: float = 128.0
 @export var iso_tile_height: float = 64.0
 @export var iso_wall_height: float = 56.0
@@ -224,6 +225,11 @@ var selected_wall_mounted_attached_wall_cell: Vector2i = Vector2i(-1, -1)
 var selected_wall_mounted_object_id: String = ""
 var map_constructor_link_target_cell: Vector2i = Vector2i(-1, -1)
 var map_constructor_link_target_object_id: String = ""
+const ISO_PROJECTION_CLASSIC: String = "classic_128x64"
+const ISO_PROJECTION_PREVIEW_181: String = "preview_128x71"
+const ISO_PROJECTION_CUSTOM: String = "custom_export_values"
+const ISO_CLASSIC_TILE_SIZE: Vector2 = Vector2(128.0, 64.0)
+const ISO_PREVIEW_181_TILE_SIZE: Vector2 = Vector2(128.0, 71.0)
 const WALL_SIDE_ORDER: Array[String] = ["north", "east", "south", "west"]
 const WALL_MASS_RATIO: float = 0.7
 const WALL_MOUNT_BAND_RATIO: float = 0.3
@@ -322,8 +328,11 @@ func should_preview_drive_bipob_visual_position() -> bool:
 	return (use_iso_visual_preview_preset and iso_visual_preview_drives_bipob_visual_position)
 
 func get_iso_visual_preview_state() -> Dictionary:
+	var projection_size: Vector2 = get_iso_tile_size()
 	return {
 		"preview_active": is_iso_visual_preview_active(),
+		"projection_mode": get_iso_projection_mode(),
+		"projection_tile_size": projection_size,
 		"floor": should_render_iso_floor_visuals(),
 		"wall": should_render_iso_wall_visuals(),
 		"objects": should_render_iso_object_visuals(),
@@ -338,8 +347,10 @@ func get_iso_visual_preview_state() -> Dictionary:
 
 func get_iso_visual_preview_state_text() -> String:
 	var state: Dictionary = get_iso_visual_preview_state()
-	return "IsoVisualPreview active=%s floor=%s wall=%s objects=%s fog=%s asset_hooks=%s placeholder_assets=%s drives_bipob=%s" % [
+	return "IsoVisualPreview active=%s projection=%s tile=%s floor=%s wall=%s objects=%s fog=%s asset_hooks=%s placeholder_assets=%s drives_bipob=%s" % [
 		str(state.get("preview_active", false)),
+		String(state.get("projection_mode", ISO_PROJECTION_CLASSIC)),
+		str(Vector2(state.get("projection_tile_size", ISO_CLASSIC_TILE_SIZE))),
 		str(state.get("floor", false)),
 		str(state.get("wall", false)),
 		str(state.get("objects", false)),
@@ -349,10 +360,28 @@ func get_iso_visual_preview_state_text() -> String:
 		str(state.get("drives_bipob_visual_position", false))
 	]
 
+func get_iso_projection_mode() -> String:
+	if iso_projection_mode == ISO_PROJECTION_PREVIEW_181:
+		return ISO_PROJECTION_PREVIEW_181
+	if iso_projection_mode == ISO_PROJECTION_CUSTOM:
+		return ISO_PROJECTION_CUSTOM
+	return ISO_PROJECTION_CLASSIC
+
+func get_iso_tile_size() -> Vector2:
+	var mode: String = get_iso_projection_mode()
+	if mode == ISO_PROJECTION_PREVIEW_181:
+		return ISO_PREVIEW_181_TILE_SIZE
+	if mode == ISO_PROJECTION_CLASSIC:
+		return ISO_CLASSIC_TILE_SIZE
+	# Custom mode intentionally keeps the old exported fields available for
+	# quick visual-only smoke tests without editing gameplay data.
+	return Vector2(maxf(iso_tile_width, 1.0), maxf(iso_tile_height, 1.0))
+
 func get_iso_tile_half_size() -> Vector2:
 	# Visual safety clamp to avoid invalid projection values.
-	var safe_width: float = maxf(iso_tile_width, 1.0)
-	var safe_height: float = maxf(iso_tile_height, 1.0)
+	var tile_size: Vector2 = get_iso_tile_size()
+	var safe_width: float = maxf(tile_size.x, 1.0)
+	var safe_height: float = maxf(tile_size.y, 1.0)
 	var half_width: float = safe_width * 0.5
 	var half_height: float = safe_height * 0.5
 	if absf(iso_floor_projection_pitch_correction_degrees) <= 0.001:
@@ -1337,7 +1366,7 @@ func get_iso_wall_asset_placement(asset_key: String, source_size: Vector2) -> Di
 	var normalized_key: String = normalize_wall_asset_key(asset_key)
 	var placement: Dictionary = Dictionary(ISO_WALL_ASSET_PLACEMENT.get(normalized_key, {}))
 	if placement.is_empty():
-		placement = {"visible_bounds": Rect2(Vector2.ZERO, source_size), "target_base_width": iso_tile_width, "target_height": ISO_WALL_ASSET_EXPECTED_SIZE.y, "scale": 1.0, "offset": Vector2.ZERO}
+		placement = {"visible_bounds": Rect2(Vector2.ZERO, source_size), "target_base_width": get_iso_tile_size().x, "target_height": ISO_WALL_ASSET_EXPECTED_SIZE.y, "scale": 1.0, "offset": Vector2.ZERO}
 	return placement
 
 func get_iso_wall_texture_draw_rect_for_cell(cell: Vector2i, texture: Texture2D, profile_key: String, topology: Dictionary) -> Rect2:
@@ -1349,7 +1378,7 @@ func get_iso_wall_texture_draw_rect_for_cell(cell: Vector2i, texture: Texture2D,
 	var visible_bounds: Rect2 = Rect2(placement.get("visible_bounds", Rect2(Vector2.ZERO, source_size)))
 	if visible_bounds.size.x <= 0.0 or visible_bounds.size.y <= 0.0:
 		visible_bounds = Rect2(Vector2.ZERO, source_size)
-	var target_base_width: float = maxf(float(placement.get("target_base_width", iso_tile_width)), iso_tile_width)
+	var target_base_width: float = maxf(float(placement.get("target_base_width", get_iso_tile_size().x)), get_iso_tile_size().x)
 	var placement_scale: float = maxf(float(placement.get("scale", 1.0)), 0.01)
 	var scale_value: float = (target_base_width / visible_bounds.size.x) * placement_scale
 	var destination_size: Vector2 = source_size * scale_value
@@ -1856,8 +1885,11 @@ func get_iso_visual_debug_report() -> Dictionary:
 		"asset_alignment": get_iso_asset_alignment_diagnostics(),
 		"cell_stats": get_iso_visual_cell_stats(),
 		"iso_settings": {
-			"tile_width": iso_tile_width,
-			"tile_height": iso_tile_height,
+			"projection_mode": get_iso_projection_mode(),
+			"tile_width": get_iso_tile_size().x,
+			"tile_height": get_iso_tile_size().y,
+			"custom_tile_width": iso_tile_width,
+			"custom_tile_height": iso_tile_height,
 			"wall_height": iso_wall_height,
 			"object_marker_height": iso_object_marker_height,
 			"origin": iso_origin
@@ -1921,6 +1953,7 @@ func get_iso_visual_debug_report_text() -> String:
 	lines.append("- objects: %s" % str(cell_stats.get("object_cells", 0)))
 	lines.append("- fog_overlay: %s" % str(cell_stats.get("fog_overlay_cells", 0)))
 	lines.append("Iso:")
+	lines.append("- projection: %s" % String(iso_settings.get("projection_mode", ISO_PROJECTION_CLASSIC)))
 	lines.append("- tile: %sx%s" % [str(iso_settings.get("tile_width", 0.0)), str(iso_settings.get("tile_height", 0.0))])
 	lines.append("- wall_height: %s" % str(iso_settings.get("wall_height", 0.0)))
 	lines.append("- object_marker_height: %s" % str(iso_settings.get("object_marker_height", 0.0)))
@@ -1928,9 +1961,9 @@ func get_iso_visual_debug_report_text() -> String:
 
 func validate_iso_visual_debug_report() -> Array[String]:
 	var warnings: Array[String] = []
-	if iso_tile_width <= 0.0:
+	if get_iso_tile_size().x <= 0.0:
 		warnings.append("iso_tile_width_invalid")
-	if iso_tile_height <= 0.0:
+	if get_iso_tile_size().y <= 0.0:
 		warnings.append("iso_tile_height_invalid")
 	if iso_wall_height <= 0.0:
 		warnings.append("iso_wall_height_invalid")
@@ -1973,17 +2006,26 @@ func _get_color_from_dict(data: Dictionary, key: String, fallback: Color) -> Col
 	return fallback
 
 func get_iso_asset_alignment_rule(asset_key: String) -> Dictionary:
+	var rule: Dictionary = {}
 	if ISO_ASSET_ALIGNMENT_RULES.has(asset_key):
-		return Dictionary(ISO_ASSET_ALIGNMENT_RULES.get(asset_key, {}))
+		rule = Dictionary(ISO_ASSET_ALIGNMENT_RULES.get(asset_key, {}))
+	elif asset_key.begins_with("floor_"):
+		rule = {"anchor": "center", "scale": 1.0, "offset": Vector2.ZERO, "expected_size": ISO_CLASSIC_TILE_SIZE, "layer_hint": "floor", "notes": "Fallback floor alignment."}
+	elif asset_key.begins_with("wall_"):
+		rule = {"anchor": "wall_cell_base", "scale": 1.0, "offset": Vector2(0, -ISO_CLASSIC_TILE_SIZE.y * 0.5), "expected_size": Vector2(128, 120), "layer_hint": "wall", "notes": "Fallback wall alignment."}
+	elif asset_key == "object_door":
+		rule = {"anchor": "door_insert_center", "scale": 0.9, "offset": Vector2(0, -20), "expected_size": Vector2(96, 96), "layer_hint": "object", "notes": "Fallback door alignment."}
+	elif asset_key.begins_with("object_"):
+		rule = {"anchor": "bottom_center", "scale": 0.75, "offset": Vector2(0, -8), "expected_size": Vector2(96, 96), "layer_hint": "object", "notes": "Fallback object alignment."}
+	else:
+		rule = {"anchor": "center", "scale": 1.0, "offset": Vector2.ZERO, "expected_size": Vector2(96, 96), "layer_hint": "unknown", "notes": "Fallback generic alignment."}
 	if asset_key.begins_with("floor_"):
-		return {"anchor": "center", "scale": 1.0, "offset": Vector2.ZERO, "expected_size": Vector2(128, 64), "layer_hint": "floor", "notes": "Fallback floor alignment."}
-	if asset_key.begins_with("wall_"):
-		return {"anchor": "wall_cell_base", "scale": 1.0, "offset": Vector2(0, -32), "expected_size": Vector2(128, 120), "layer_hint": "wall", "notes": "Fallback wall alignment."}
-	if asset_key == "object_door":
-		return {"anchor": "door_insert_center", "scale": 0.9, "offset": Vector2(0, -20), "expected_size": Vector2(96, 96), "layer_hint": "object", "notes": "Fallback door alignment."}
-	if asset_key.begins_with("object_"):
-		return {"anchor": "bottom_center", "scale": 0.75, "offset": Vector2(0, -8), "expected_size": Vector2(96, 96), "layer_hint": "object", "notes": "Fallback object alignment."}
-	return {"anchor": "center", "scale": 1.0, "offset": Vector2.ZERO, "expected_size": Vector2(96, 96), "layer_hint": "unknown", "notes": "Fallback generic alignment."}
+		rule["expected_size"] = get_iso_tile_size()
+	if String(rule.get("anchor", "")) == "wall_cell_base":
+		var offset: Vector2 = Vector2(rule.get("offset", Vector2.ZERO))
+		if is_equal_approx(offset.y, -ISO_CLASSIC_TILE_SIZE.y * 0.5):
+			rule["offset"] = Vector2(offset.x, -get_iso_tile_half_size().y)
+	return rule
 
 func get_iso_asset_alignment_scale(asset_key: String) -> float:
 	var rule: Dictionary = get_iso_asset_alignment_rule(asset_key)
@@ -2012,6 +2054,8 @@ func get_iso_texture_draw_rect_for_asset_key_with_size(asset_key: String, center
 	var anchor: String = String(rule.get("anchor", "center"))
 	var scale_value: float = get_iso_asset_alignment_scale(asset_key)
 	var destination_size: Vector2 = source_size * scale_value
+	if asset_key.begins_with("floor_"):
+		destination_size = get_iso_asset_alignment_expected_size(asset_key) * scale_value
 	var offset: Vector2 = Vector2(rule.get("offset", Vector2.ZERO))
 	var anchor_offset: Vector2 = get_iso_asset_alignment_anchor_offset(anchor, destination_size)
 	var destination_position: Vector2 = center - anchor_offset + offset
