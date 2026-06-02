@@ -52,6 +52,7 @@ const BipobWorldObjectExecutionServiceRef = preload("res://scripts/game/bipob_wo
 const BipobItemPickupExecutionServiceRef = preload("res://scripts/game/bipob_item_pickup_execution_service.gd")
 const BipobLegacyTileInteractionServiceRef = preload("res://scripts/game/bipob_legacy_tile_interaction_service.gd")
 const BipobLegacyCableFlowServiceRef = preload("res://scripts/game/bipob_legacy_cable_flow_service.gd")
+const BipobLegacyAirflowFlowServiceRef = preload("res://scripts/game/bipob_legacy_airflow_flow_service.gd")
 const BipobScanHackServiceRef = preload("res://scripts/game/bipob_scan_hack_service.gd")
 const BipobMovementControllerRef = preload("res://scripts/bipob/bipob_movement_controller.gd")
 const BipobInventoryControllerRef = preload("res://scripts/bipob/bipob_inventory_controller.gd")
@@ -1286,16 +1287,9 @@ func complete_legacy_mission_from_story_glue(_reason: String = "") -> void:
 	pass
 
 func unlock_airflow_terminal_path() -> void:
-	# TODO(legacy_mission_retirement): replace hardcoded Mission 8 terminal/door
-	# mutation with runtime world-object contracts before deleting legacy missions.
-	mission8_terminal_hacked = true
-	if grid_manager != null and grid_manager.is_in_bounds(mission8_door_position):
-		grid_manager.set_tile(mission8_door_position, GridManager.TILE_FLOOR)
+	BipobLegacyAirflowFlowServiceRef.unlock_airflow_terminal_path(self)
 
 func complete_legacy_mission8_airflow_terminal_hack() -> void:
-	# TODO(legacy_mission_retirement): compatibility wrapper for old Mission 8
-	# callers. This preserves the reusable airflow-terminal unlock effect only;
-	# it does not complete a story mission.
 	unlock_airflow_terminal_path()
 
 func get_current_mission_goal_hint() -> String:
@@ -8297,21 +8291,7 @@ func _get_world_marker(object_data: Dictionary) -> String:
 	return labels.get(object_type, String(object_data.get("object_group", "O")).substr(0, 2).to_upper())
 
 func setup_mission8() -> void:
-	mission8_fan_platform_position = Vector2i(4, 2)
-	mission8_platform_control_position = Vector2i(2, 2)
-	mission8_platform_left_control_position = Vector2i(2, 2)
-	mission8_platform_right_control_position = Vector2i(5, 2)
-	mission8_fan_control_position = Vector2i(2, 4)
-	mission8_fan_speed_up_control_position = Vector2i(2, 3)
-	mission8_fan_speed_down_control_position = Vector2i(2, 4)
-	mission8_terminal_position = Vector2i(6, 3)
-	mission8_door_position = Vector2i(6, 4)
-	mission8_fan_direction = Direction.EAST
-	mission8_fan_speed = 0
-	mission8_terminal_cooled = false
-	mission8_terminal_hacked = false
-	mission8_airflow_cells.clear()
-	update_mission8_airflow()
+	BipobLegacyAirflowFlowServiceRef.setup(self)
 
 func get_direction_display_name(direction_value: Direction) -> String:
 	match direction_value:
@@ -8339,16 +8319,7 @@ func get_direction_name(value: Direction) -> String:
 			return "UNKNOWN"
 
 func get_mission8_airflow_status_text() -> String:
-	if not is_legacy_mission8_airflow_flow_active():
-		return ""
-
-	var airflow_range := get_mission8_airflow_range_for_speed(mission8_fan_speed)
-	return "Airflow: %s | Speed: %d | Range: %d | Terminal: %s" % [
-		get_direction_display_name(mission8_fan_direction),
-		mission8_fan_speed,
-		airflow_range,
-		get_mission8_terminal_state_text()
-	]
+	return BipobLegacyAirflowFlowServiceRef.get_airflow_status_text(self)
 
 func get_mission7_cable_status_text() -> String:
 	return BipobLegacyCableFlowServiceRef.get_status_text(self)
@@ -8375,148 +8346,46 @@ func release_mission7_cable_end() -> void:
 	BipobLegacyCableFlowServiceRef.release_cable_end(self)
 
 func get_mission8_terminal_state_text() -> String:
-	return "cooled" if mission8_terminal_cooled else "hot"
+	return BipobLegacyAirflowFlowServiceRef.get_terminal_state_text(self)
 
 func rotate_mission8_fan_left() -> void:
-	mission8_fan_direction = Direction.values()[(int(mission8_fan_direction) + 3) % 4]
-	update_mission8_airflow()
-	hint_requested.emit("Fan platform rotated left. Airflow: %s | Terminal: %s" % [get_direction_display_name(mission8_fan_direction), get_mission8_terminal_state_text()])
-	status_changed.emit()
+	BipobLegacyAirflowFlowServiceRef.rotate_fan_left(self)
 
 func rotate_mission8_fan_right() -> void:
-	mission8_fan_direction = Direction.values()[(int(mission8_fan_direction) + 1) % 4]
-	update_mission8_airflow()
-	hint_requested.emit("Fan platform rotated right. Airflow: %s | Terminal: %s" % [get_direction_display_name(mission8_fan_direction), get_mission8_terminal_state_text()])
-	status_changed.emit()
+	BipobLegacyAirflowFlowServiceRef.rotate_fan_right(self)
 
 func interact_mission8_platform_control_left() -> void:
-	if not is_legacy_mission8_airflow_flow_active():
-		hint_requested.emit("Platform control is inactive in this mission.")
-		status_changed.emit()
-		return
-	if not can_spend_action(1, 1):
-		return
-	spend_action(1, 1)
-	rotate_mission8_fan_left()
+	BipobLegacyAirflowFlowServiceRef.interact_platform_control_left(self)
 
 func interact_mission8_platform_control_right() -> void:
-	if not is_legacy_mission8_airflow_flow_active():
-		hint_requested.emit("Platform control is inactive in this mission.")
-		status_changed.emit()
-		return
-	if not can_spend_action(1, 1):
-		return
-	spend_action(1, 1)
-	rotate_mission8_fan_right()
+	BipobLegacyAirflowFlowServiceRef.interact_platform_control_right(self)
 
 func interact_mission8_fan_control() -> void:
-	if not is_legacy_mission8_airflow_flow_active():
-		hint_requested.emit("Fan control is inactive in this mission.")
-		status_changed.emit()
-		return
-	if not can_spend_action(1, 1):
-		return
-	mission8_fan_speed = (mission8_fan_speed + 1) % 4
-	spend_action(1, 1)
-	update_mission8_airflow()
-	var airflow_range := get_mission8_airflow_range_for_speed(mission8_fan_speed)
-	hint_requested.emit("Fan speed set to %d. Airflow range: %d | Terminal: %s." % [mission8_fan_speed, airflow_range, get_mission8_terminal_state_text()])
-	status_changed.emit()
+	BipobLegacyAirflowFlowServiceRef.interact_fan_control(self)
 
 func change_mission8_fan_speed(delta: int) -> void:
-	if not is_legacy_mission8_airflow_flow_active():
-		hint_requested.emit("Fan speed controls are inactive in this mission.")
-		status_changed.emit()
-		return
-	if not can_spend_action(1, 1):
-		return
-
-	var previous_speed := mission8_fan_speed
-	mission8_fan_speed = clampi(mission8_fan_speed + delta, 0, 3)
-	if mission8_fan_speed == previous_speed:
-		if delta > 0:
-			hint_requested.emit("Fan speed already at maximum.")
-		else:
-			hint_requested.emit("Fan speed already at minimum.")
-		status_changed.emit()
-		return
-
-	update_mission8_airflow()
-	var airflow_range := get_mission8_airflow_range_for_speed(mission8_fan_speed)
-	hint_requested.emit(
-		"Fan speed set to %d. Airflow range: %d | Terminal: %s" % [
-			mission8_fan_speed,
-			airflow_range,
-			get_mission8_terminal_state_text()
-		]
-	)
-	spend_action(1, 1)
-	status_changed.emit()
+	BipobLegacyAirflowFlowServiceRef.change_fan_speed(self, delta)
 
 func increase_mission8_fan_speed() -> void:
-	change_mission8_fan_speed(1)
+	BipobLegacyAirflowFlowServiceRef.increase_fan_speed(self)
 
 func decrease_mission8_fan_speed() -> void:
-	change_mission8_fan_speed(-1)
+	BipobLegacyAirflowFlowServiceRef.decrease_fan_speed(self)
 
 func get_mission8_airflow_range_for_speed(speed: int) -> int:
-	match speed:
-		0:
-			return 0
-		1:
-			return 2
-		2:
-			return 4
-		3:
-			return 6
-		_:
-			return 0
+	return BipobLegacyAirflowFlowServiceRef.get_airflow_range_for_speed(speed)
+
+func get_mission8_airflow_cells() -> Array[Vector2i]:
+	return BipobLegacyAirflowFlowServiceRef.get_airflow_cells(self)
 
 func update_mission8_airflow() -> void:
-	if grid_manager == null:
-		return
-	for cell in mission8_airflow_cells:
-		if not grid_manager.is_in_bounds(cell):
-			continue
-		if grid_manager.get_tile(cell) == GridManager.TILE_AIRFLOW:
-			grid_manager.set_tile(cell, GridManager.TILE_FLOOR)
-	mission8_airflow_cells.clear()
-	mission8_terminal_cooled = false
-	grid_manager.set_fan_platform_marker(
-		mission8_fan_platform_position,
-		get_direction_vector(mission8_fan_direction)
-	)
+	BipobLegacyAirflowFlowServiceRef.update_airflow(self)
 
-	if mission8_fan_speed <= 0:
-		grid_manager.queue_redraw()
-		status_changed.emit()
-		return
+func is_cell_in_mission8_airflow(cell: Vector2i) -> bool:
+	return BipobLegacyAirflowFlowServiceRef.is_cell_in_airflow(self, cell)
 
-	var max_range := get_mission8_airflow_range_for_speed(mission8_fan_speed)
-	var direction_vector := get_direction_vector(mission8_fan_direction)
-	var current_position := mission8_fan_platform_position + direction_vector
-
-	for _i in range(max_range):
-		if not grid_manager.is_in_bounds(current_position):
-			break
-		if current_position == mission8_terminal_position:
-			mission8_terminal_cooled = true
-			break
-		var tile := grid_manager.get_tile(current_position)
-		if tile == GridManager.TILE_WALL or tile == GridManager.TILE_DIGITAL_DOOR or tile == GridManager.TILE_ROUTE_GATE:
-			break
-		if tile == GridManager.TILE_AIRFLOW_TERMINAL:
-			mission8_terminal_cooled = true
-			break
-		if tile == GridManager.TILE_FAN_PLATFORM or tile == GridManager.TILE_PLATFORM_CONTROL or tile == GridManager.TILE_PLATFORM_CONTROL_LEFT or tile == GridManager.TILE_PLATFORM_CONTROL_RIGHT or tile == GridManager.TILE_FAN_CONTROL or tile == GridManager.TILE_FAN_SPEED_UP_CONTROL or tile == GridManager.TILE_FAN_SPEED_DOWN_CONTROL:
-			break
-		if tile == GridManager.TILE_FLOOR or tile == GridManager.TILE_AIRFLOW:
-			grid_manager.set_tile(current_position, GridManager.TILE_AIRFLOW)
-			mission8_airflow_cells.append(current_position)
-		current_position += direction_vector
-
-	grid_manager.queue_redraw()
-	status_changed.emit()
+func apply_mission8_airflow_effects() -> void:
+	BipobLegacyAirflowFlowServiceRef.apply_airflow_effects(self)
 
 func create_debug_field_component() -> BipobModule:
 	var module := BipobModule.new()
