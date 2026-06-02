@@ -44,6 +44,7 @@ const BipobTerminalControlExecutionServiceRef = preload("res://scripts/game/bipo
 const BipobHeavyClawExecutionServiceRef = preload("res://scripts/game/bipob_heavy_claw_execution_service.gd")
 const BipobWorldObjectExecutionServiceRef = preload("res://scripts/game/bipob_world_object_execution_service.gd")
 const BipobItemPickupExecutionServiceRef = preload("res://scripts/game/bipob_item_pickup_execution_service.gd")
+const BipobLegacyTileInteractionServiceRef = preload("res://scripts/game/bipob_legacy_tile_interaction_service.gd")
 const BipobMovementControllerRef = preload("res://scripts/bipob/bipob_movement_controller.gd")
 const EXTERNAL_MODULE_CATALOG: Dictionary = {
 "wheels_v1":{"name":"Wheels V1","cat":"Gear","size":Vector2i(3,2),"sides":[EXTERNAL_SIDE_BOTTOM],"desc":"Fast movement system for flat and stable surfaces. Ineffective on stairs, mud and debris.","energy":1,"terrain":"Flat surface","movement":"Drive","speed":3},
@@ -8042,24 +8043,14 @@ func interact() -> void:
 	var target_position := get_facing_device_position()
 	var target_tile := grid_manager.get_tile(target_position)
 
-	# Legacy interact must not process digital devices.
-	if target_tile == GridManager.TILE_TERMINAL and selected_world_action.is_empty():
-		hint_requested.emit("Terminal is a digital device. Use Scan Device first, then Hack Device.")
-		status_changed.emit()
+	var legacy_tile_result: Dictionary = BipobLegacyTileInteractionServiceRef.handle_pre_world_object_tile_interaction(self, target_position, target_tile)
+	if bool(legacy_tile_result.get("handled", false)):
+		BipobLegacyTileInteractionServiceRef.apply_result(self, legacy_tile_result)
 		return
 
-	if target_tile == GridManager.TILE_DIGITAL_DOOR and selected_world_action.is_empty():
-		hint_requested.emit("Digital door cannot be opened with Interact. Use Scan Device, then Hack Device.")
-		status_changed.emit()
-		return
-	if target_tile == GridManager.TILE_HOT_NODE and selected_world_action.is_empty():
-		hint_requested.emit("Hot Node is a digital device. Use Scan Device, then Hack Device.")
-		status_changed.emit()
-		return
-	if target_tile == GridManager.TILE_AIRFLOW_TERMINAL and selected_world_action.is_empty():
-		hint_requested.emit("Airflow Terminal is a digital device. Use Scan Device, then Hack Device.")
-		status_changed.emit()
-		return
+	# TODO(PR-RF): Quarantine the remaining legacy mission tile branches in a later,
+	# behavior-preserving slice once Mission 7/8 cable, fan, platform, and fallback
+	# key/door flows can be moved without changing action or energy spending.
 	if target_tile == GridManager.TILE_PLATFORM_CONTROL:
 		hint_requested.emit("Use left/right platform controls.")
 		status_changed.emit()
