@@ -11,6 +11,7 @@ const RuntimeBipobSwitcherRef = preload("res://scripts/ui/runtime/runtime_bipob_
 const RuntimeObjectHudRef = preload("res://scripts/ui/runtime/runtime_object_hud.gd")
 const MapConstructorScreenRef = preload("res://scripts/ui/map_constructor/map_constructor_screen.gd")
 const MapConstructorInspectorRef = preload("res://scripts/ui/map_constructor/map_constructor_inspector.gd")
+const MapConstructorPropertyControlsRef = preload("res://scripts/ui/map_constructor/map_constructor_property_controls.gd")
 
 
 class InternalIsoPreviewControl:
@@ -12176,36 +12177,28 @@ func _parse_map_constructor_floor_visual_id(visual_id: String) -> Dictionary:
 # -----------------------------------------------------------------------------
 
 func _add_map_constructor_description_editor(section: VBoxContainer, data: Dictionary, entity_kind: String, entity_id: String) -> void:
-	MapConstructorPropertyControls.add_map_constructor_description_editor(self, section, data, entity_kind, entity_id)
+	MapConstructorPropertyControlsRef.add_map_constructor_description_editor(self, section, data, entity_kind, entity_id)
 
 func _create_map_constructor_description_block(data: Dictionary, entity_kind: String, entity_id: String) -> Control:
-	return MapConstructorPropertyControls.create_map_constructor_description_block(self, data, entity_kind, entity_id)
+	return MapConstructorPropertyControlsRef.create_map_constructor_description_block(self, data, entity_kind, entity_id)
 
 func _create_inspector_section(title: String) -> VBoxContainer:
-	return MapConstructorPropertyControls.create_inspector_section(title)
+	return MapConstructorPropertyControlsRef.create_inspector_section(self, title)
 
 func _create_property_row(label_text: String, control: Control) -> HBoxContainer:
-	var row: HBoxContainer = MapConstructorPropertyControls.create_property_row(label_text, control)
-	row.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-	control.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-	if control is Label:
-		var value_label: Label = control
-		value_label.autowrap_mode = TextServer.AUTOWRAP_OFF
-		value_label.clip_text = true
-		value_label.text_overrun_behavior = TextServer.OVERRUN_TRIM_ELLIPSIS
-	return row
+	return MapConstructorPropertyControlsRef.create_property_row(self, label_text, control, true)
 
 func _add_text_property(section: VBoxContainer, label: String, entity_kind: String, entity_id: String, field_name: String, current_value: Variant) -> void:
-	MapConstructorPropertyControls.add_text_property(self, section, label, entity_kind, entity_id, field_name, current_value)
+	MapConstructorPropertyControlsRef.add_text_property(self, section, label, entity_kind, entity_id, field_name, current_value)
 
 func _add_bool_property(section: VBoxContainer, label: String, entity_kind: String, entity_id: String, field_name: String, current_value: Variant) -> void:
-	MapConstructorPropertyControls.add_bool_property(self, section, label, entity_kind, entity_id, field_name, current_value)
+	MapConstructorPropertyControlsRef.add_bool_property(self, section, label, entity_kind, entity_id, field_name, current_value)
 
 func _add_archetype_schema_properties(section: VBoxContainer, entity_kind: String, entity_id: String, data: Dictionary) -> bool:
-	return MapConstructorPropertyControls.add_archetype_schema_properties(self, section, entity_kind, entity_id, data)
+	return MapConstructorPropertyControlsRef.add_archetype_schema_properties(self, section, entity_kind, entity_id, data)
 
 func _add_preset_buttons(section: VBoxContainer, entity_kind: String, entity_id: String) -> void:
-	MapConstructorPropertyControls.add_preset_buttons(self, section, entity_kind, entity_id)
+	MapConstructorPropertyControlsRef.add_preset_buttons(self, section, entity_kind, entity_id)
 
 # -----------------------------------------------------------------------------
 # Map Constructor inspector: link controls
@@ -12225,7 +12218,7 @@ func _apply_map_constructor_property_updates(entity_kind: String, entity_id: Str
 	_show_map_constructor_inspector(selected_map_constructor_entity_cell, selected_map_constructor_entity_kind, selected_map_constructor_entity_id)
 
 func _add_enum_property(section: VBoxContainer, label: String, entity_kind: String, entity_id: String, field_name: String, current_value: Variant, options: Array[Dictionary]) -> void:
-	MapConstructorPropertyControls.add_enum_property(self, section, label, entity_kind, entity_id, field_name, current_value, options)
+	MapConstructorPropertyControlsRef.add_enum_property(self, section, label, entity_kind, entity_id, field_name, current_value, options)
 
 func _add_map_constructor_active_settings(parent: VBoxContainer, entity_kind: String, entity_id: String, data: Dictionary, type_group: String) -> void:
 	if not (type_group in ["door", "terminal", "power", "control"]):

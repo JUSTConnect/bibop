@@ -17,7 +17,7 @@ static func add_map_constructor_description_editor(ui: Variant, section: VBoxCon
 		if ui.field_runtime != null and ui.field_runtime.has_method("request_visual_refresh"):
 			ui.field_runtime.call("request_visual_refresh")
 		ui._show_map_constructor_inspector(ui.selected_map_constructor_entity_cell, ui.selected_map_constructor_entity_kind, ui.selected_map_constructor_entity_id)
-	section.add_child(create_property_row("Description", desc_edit))
+	section.add_child(create_property_row(ui, "Description", desc_edit))
 	var apply_button: Button = Button.new()
 	apply_button.text = "Apply Description"
 	apply_button.pressed.connect(func() -> void:
@@ -26,11 +26,11 @@ static func add_map_constructor_description_editor(ui: Variant, section: VBoxCon
 	section.add_child(apply_button)
 
 static func create_map_constructor_description_block(ui: Variant, data: Dictionary, entity_kind: String, entity_id: String) -> Control:
-	var section: VBoxContainer = create_inspector_section("Description")
+	var section: VBoxContainer = create_inspector_section(ui, "Description")
 	add_map_constructor_description_editor(ui, section, data, entity_kind, entity_id)
 	return section
 
-static func create_inspector_section(title: String) -> VBoxContainer:
+static func create_inspector_section(_ui: Variant, title: String) -> VBoxContainer:
 	var section: VBoxContainer = VBoxContainer.new()
 	section.add_theme_constant_override("separation", 4)
 	var header: Label = Label.new()
@@ -38,9 +38,17 @@ static func create_inspector_section(title: String) -> VBoxContainer:
 	section.add_child(header)
 	return section
 
-static func create_property_row(label_text: String, control: Control) -> HBoxContainer:
+static func create_property_row(_ui: Variant, label_text: String, control: Control, expand_layout: bool = false) -> HBoxContainer:
 	var row: HBoxContainer = HBoxContainer.new()
 	row.add_theme_constant_override("separation", 6)
+	if expand_layout:
+		row.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+		control.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+		if control is Label:
+			var value_label: Label = control
+			value_label.autowrap_mode = TextServer.AUTOWRAP_OFF
+			value_label.clip_text = true
+			value_label.text_overrun_behavior = TextServer.OVERRUN_TRIM_ELLIPSIS
 	var label: Label = Label.new()
 	label.text = label_text
 	label.custom_minimum_size = Vector2(130, 0)
@@ -73,7 +81,7 @@ static func add_text_property(ui: Variant, section: VBoxContainer, label: String
 	row_controls.add_theme_constant_override("separation", 6)
 	row_controls.add_child(line_edit)
 	row_controls.add_child(apply_button)
-	section.add_child(create_property_row(label, row_controls))
+	section.add_child(create_property_row(ui, label, row_controls))
 
 static func add_bool_property(ui: Variant, section: VBoxContainer, label: String, entity_kind: String, entity_id: String, field_name: String, current_value: Variant) -> void:
 	var check: CheckBox = CheckBox.new()
@@ -92,7 +100,7 @@ static func add_bool_property(ui: Variant, section: VBoxContainer, label: String
 			ui.field_runtime.call("request_visual_refresh")
 		ui._show_map_constructor_inspector(ui.selected_map_constructor_entity_cell, ui.selected_map_constructor_entity_kind, ui.selected_map_constructor_entity_id)
 	)
-	section.add_child(create_property_row(label, check))
+	section.add_child(create_property_row(ui, label, check))
 
 static func add_preset_buttons(ui: Variant, section: VBoxContainer, entity_kind: String, entity_id: String) -> void:
 	if ui.mission_manager_runtime == null or not ui.mission_manager_runtime.has_method("get_map_constructor_property_presets"):
@@ -136,7 +144,7 @@ static func add_enum_property(ui: Variant, section: VBoxContainer, label: String
 	option.item_selected.connect(func(index: int) -> void:
 		ui._apply_map_constructor_property_updates(entity_kind, entity_id, {field_name: MapConstructorUiSafe.safe_string(option.get_item_metadata(index))})
 	)
-	section.add_child(create_property_row(label, option))
+	section.add_child(create_property_row(ui, label, option))
 
 
 static func add_int_property(ui: Variant, section: VBoxContainer, label: String, entity_kind: String, entity_id: String, field_name: String, current_value: Variant) -> void:
@@ -148,7 +156,7 @@ static func add_int_property(ui: Variant, section: VBoxContainer, label: String,
 	spin.value_changed.connect(func(value: float) -> void:
 		ui._apply_map_constructor_property_updates(entity_kind, entity_id, {field_name:int(value)})
 	)
-	section.add_child(create_property_row(label, spin))
+	section.add_child(create_property_row(ui, label, spin))
 
 static func add_enum_array_property(ui: Variant, section: VBoxContainer, label: String, entity_kind: String, entity_id: String, field_name: String, current_value: Variant, values: Array) -> void:
 	var menu: MenuButton = MenuButton.new()
@@ -171,7 +179,7 @@ static func add_enum_array_property(ui: Variant, section: VBoxContainer, label: 
 		menu.text = ", ".join(selected_values)
 		ui._apply_map_constructor_property_updates(entity_kind, entity_id, {field_name:selected_values.duplicate()})
 	)
-	section.add_child(create_property_row(label, menu))
+	section.add_child(create_property_row(ui, label, menu))
 
 static func get_display_label(field_name: String) -> String:
 	var label: String = field_name.replace("_", " ").capitalize()
