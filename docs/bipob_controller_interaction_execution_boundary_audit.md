@@ -1,6 +1,6 @@
 # BipobController interaction execution boundary audit
 
-Status: execution-boundary audit and extraction roadmap. PR-X4 Heavy Claw execution helper extraction is complete.
+Status: execution-boundary audit and extraction roadmap. PR-X5 generic world-object execution helper extraction is complete.
 
 This document audits the current interaction execution responsibilities in `scripts/bipob/bipob_controller.gd` after the completed read-only extractions:
 
@@ -265,14 +265,15 @@ Extracted only the push/pull movement path to `scripts/game/bipob_heavy_claw_exe
 - Preserve spend-on-success behavior.
 - Preserve overlay/threat/action-panel refresh flags.
 
-### PR-X5: Extract generic world-object execution helper
+### PR-X5: Extract generic world-object execution helper — completed
 
-Move `InteractionSystemRef.apply_action` branch after terminal and heavy claw paths are isolated.
+Extracted the generic `InteractionSystemRef.apply_action` path to `scripts/game/bipob_world_object_execution_service.gd` after the terminal and Heavy Claw paths were isolated.
 
-- Keep `_apply_world_object_effects` stable.
-- Keep power-network post-action apply stable.
-- Keep key cleanup stable.
-- Keep item consumption stable.
+- Kept `_apply_world_object_effects` stable.
+- Kept power-network post-action apply stable.
+- Kept key cleanup stable.
+- Kept item consumption stable.
+- Kept controller refresh ordering before paid-action finalization and hint emission.
 
 ### PR-X6: Extract item pickup execution helper
 
@@ -315,9 +316,8 @@ Every implementation PR in this area should verify:
 
 ## 8. Recommended next PR
 
-**PR-X4: Extract Heavy Claw execution helper** is complete. The next candidates remain:
+**PR-X5: Extract generic world-object execution helper** is complete. The next candidate is:
 
-- **PR-X5:** generic world-object execution helper;
 - **PR-X6:** item pickup execution helper.
 
-These follow-up candidates must preserve the existing controller façade, execution ordering, spend-on-success behavior, and refresh flow.
+This follow-up candidate must preserve the existing controller façade, execution ordering, spend-on-success behavior, and refresh flow.

@@ -42,6 +42,7 @@ const BipobCapabilityServiceRef = preload("res://scripts/game/bipob_capability_s
 const BipobRuntimeActionActorServiceRef = preload("res://scripts/game/bipob_runtime_action_actor_service.gd")
 const BipobTerminalControlExecutionServiceRef = preload("res://scripts/game/bipob_terminal_control_execution_service.gd")
 const BipobHeavyClawExecutionServiceRef = preload("res://scripts/game/bipob_heavy_claw_execution_service.gd")
+const BipobWorldObjectExecutionServiceRef = preload("res://scripts/game/bipob_world_object_execution_service.gd")
 const EXTERNAL_MODULE_CATALOG: Dictionary = {
 "wheels_v1":{"name":"Wheels V1","cat":"Gear","size":Vector2i(3,2),"sides":[EXTERNAL_SIDE_BOTTOM],"desc":"Fast movement system for flat and stable surfaces. Ineffective on stairs, mud and debris.","energy":1,"terrain":"Flat surface","movement":"Drive","speed":3},
 "legs_v1":{"name":"Legs V1","cat":"Gear","size":Vector2i(3,2),"sides":[EXTERNAL_SIDE_BOTTOM],"desc":"Universal movement system that provides stable traversal across uneven terrain, steps, obstacles, and mixed surfaces.","energy":1,"terrain":"Any surface","movement":"Walk","speed":2},
@@ -8384,72 +8385,44 @@ func interact() -> void:
 				if bool(terminal_execution.get("emit_status", true)):
 					status_changed.emit()
 				return
-			var action_result: Dictionary = InteractionSystemRef.normalize_action_result(Dictionary(InteractionSystemRef.apply_action(actor, module, world_object, action_id)), world_object, action_id)
-			if bool(action_result.get("success", false)):
+			if action_id in ["push", "pull"] and WorldObjectCatalog.can_world_object_be_moved_by_heavy_claw(world_object):
+				var claw_action_result: Dictionary = InteractionSystemRef.normalize_action_result(Dictionary(InteractionSystemRef.apply_action(actor, module, world_object, action_id)), world_object, action_id)
+				if not bool(claw_action_result.get("success", false)):
+					hint_requested.emit(String(claw_action_result.get("message", "Action failed.")))
+					status_changed.emit()
+					return
 				if not can_spend_action(1, 1):
 					hint_requested.emit("Not enough action/energy.")
 					status_changed.emit()
 					return
-				if action_id in ["push", "pull"] and WorldObjectCatalog.can_world_object_be_moved_by_heavy_claw(world_object):
-					var claw_execution: Dictionary = BipobHeavyClawExecutionServiceRef.execute_heavy_claw_action(self, world_object, target_position, action_id)
-					hint_requested.emit(String(claw_execution.get("message", "Cannot move object there.")))
-					if bool(claw_execution.get("refresh_overlay", false)):
-						refresh_world_object_overlay()
-					if bool(claw_execution.get("refresh_threats", false)):
-						update_threat_detection_preview()
-					if bool(claw_execution.get("emit_facing_hint", false)):
-						emit_facing_world_object_hint()
-					if bool(claw_execution.get("refresh_action_panel", false)):
-						refresh_world_action_panel()
-					if bool(claw_execution.get("emit_status", true)):
-						status_changed.emit()
-					return
-				if action_id == "insert_fuse" and not consume_held_world_item_if_type("fuse"):
-					hint_requested.emit("Manipulator does not contain a fuse.")
+				var claw_execution: Dictionary = BipobHeavyClawExecutionServiceRef.execute_heavy_claw_action(self, world_object, target_position, action_id)
+				hint_requested.emit(String(claw_execution.get("message", "Cannot move object there.")))
+				if bool(claw_execution.get("refresh_overlay", false)):
+					refresh_world_object_overlay()
+				if bool(claw_execution.get("refresh_threats", false)):
+					update_threat_detection_preview()
+				if bool(claw_execution.get("emit_facing_hint", false)):
+					emit_facing_world_object_hint()
+				if bool(claw_execution.get("refresh_action_panel", false)):
+					refresh_world_action_panel()
+				if bool(claw_execution.get("emit_status", true)):
 					status_changed.emit()
-					return
-				if action_id == "repair" and String(module.get("id", "")) == "repair_kit":
-					consume_held_world_item_if_type("repair_kit")
-				var moved := _apply_world_object_effects(action_result.get("effects", []), world_object, target_position, actor)
-				if not moved:
-					mission_manager.set_world_object_at_cell(target_position, world_object)
-				if action_id == "unlock" and String(world_object.get("object_group", "")) == "door" and WorldObjectCatalog.normalize_access_type(world_object.get("access_type", world_object.get("lock_type", ""))) == WorldObjectCatalog.ACCESS_TYPE_KEY_CARD and mission_manager.has_method("remove_keycard_if_no_door_references"):
-					mission_manager.call("remove_keycard_if_no_door_references", String(world_object.get("required_key_id", "")))
-				if action_id == "switch":
-					var object_type := String(world_object.get("object_type", "")).strip_edges().to_lower()
-					object_type = object_type.replace(" ", "_").replace("-", "_")
-					if object_type in ["light_switch", "circuit_switch", "circuit_breaker"]:
-						var reason := "switch_toggled"
-						if object_type == "circuit_breaker":
-							reason = "circuit_breaker_toggled"
-						var power_filter := ""
-						if mission_manager.has_method("_get_power_event_filter_for_object"):
-							power_filter = String(mission_manager.call("_get_power_event_filter_for_object", world_object))
-						var apply_report := apply_power_network_after_explicit_power_event(reason, power_filter)
-						if action_result is Dictionary:
-							action_result["power_apply_report"] = apply_report
-				elif action_id == "insert_fuse":
-					var power_filter := ""
-					if mission_manager.has_method("_get_power_event_filter_for_object"):
-						power_filter = String(mission_manager.call("_get_power_event_filter_for_object", world_object))
-					var apply_report := apply_power_network_after_explicit_power_event("fuse_inserted", power_filter)
-					if action_result is Dictionary:
-						action_result["power_apply_report"] = apply_report
+				return
+			var world_execution: Dictionary = BipobWorldObjectExecutionServiceRef.execute_world_object_action(self, world_object, target_position, actor, module, action_id)
+			if bool(world_execution.get("refresh_overlay", false)):
 				refresh_world_object_overlay()
+			if bool(world_execution.get("refresh_threats", false)):
 				update_threat_detection_preview()
-				clear_selected_world_action_if_invalid(world_object, target_position)
+			if bool(world_execution.get("clear_selected_action", false)):
+				clear_selected_world_action_if_invalid(Dictionary(world_execution.get("world_object", world_object)), target_position)
+			if bool(world_execution.get("emit_facing_hint", false)):
 				emit_facing_world_object_hint()
+			if bool(world_execution.get("refresh_action_panel", false)):
 				refresh_world_action_panel()
-				spend_action(1, 1)
-				_register_successful_paid_player_action(true)
-				var action_message := String(action_result.get("message", "Action complete."))
-				if String(world_object.get("object_group", "")) == "door" and action_id in ["open", "close", "unlock"]:
-					hint_requested.emit(action_message)
-				else:
-					hint_requested.emit("%s (%s): %s | Action: %s" % [world_object.get("display_name", "Object"), world_object.get("state", "unknown"), action_message, action_id])
-			else:
-				hint_requested.emit(String(action_result.get("message", "Action failed.")))
-			status_changed.emit()
+			BipobWorldObjectExecutionServiceRef.finalize_world_object_action(self, world_execution)
+			hint_requested.emit(String(world_execution.get("message", "Action failed.")))
+			if bool(world_execution.get("emit_status", true)):
+				status_changed.emit()
 			return
 
 	match target_tile:
