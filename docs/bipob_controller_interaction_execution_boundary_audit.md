@@ -1,6 +1,6 @@
 # BipobController interaction execution boundary audit
 
-Status: audit-only. No runtime code changes are part of this document.
+Status: execution-boundary audit and extraction roadmap. PR-X4 Heavy Claw execution helper extraction is complete.
 
 This document audits the current interaction execution responsibilities in `scripts/bipob/bipob_controller.gd` after the completed read-only extractions:
 
@@ -257,9 +257,9 @@ Extracted only the terminal branch for `open_door`, `close_door`, `unlock_door` 
 - Keep hint text and refresh behavior in controller wrapper.
 - No generic world-object execution yet.
 
-### PR-X4: Extract Heavy Claw execution helper
+### PR-X4: Extract Heavy Claw execution helper — completed
 
-Move only push/pull movement path.
+Extracted only the push/pull movement path to `scripts/game/bipob_heavy_claw_execution_service.gd`.
 
 - Preserve `get_heavy_claw_move_destination` behavior or keep it as a controller wrapper.
 - Preserve spend-on-success behavior.
@@ -315,9 +315,8 @@ Every implementation PR in this area should verify:
 
 ## 8. Recommended next PR
 
-**PR-X3: Extract terminal control execution helper** is complete. The next candidates remain:
+**PR-X4: Extract Heavy Claw execution helper** is complete. The next candidates remain:
 
-- **PR-X4:** Heavy Claw execution helper;
 - **PR-X5:** generic world-object execution helper;
 - **PR-X6:** item pickup execution helper.
 
