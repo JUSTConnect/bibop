@@ -9,11 +9,13 @@ PR-RF-08 prepares legacy story missions for future removal without deleting shar
 - **Story glue still blocking TASK TEST safety, needs extraction first** — old story branch touches generic paths or shared mechanics strongly enough that it should be extracted or replaced by runtime world-object contracts before deletion.
 - **Unknown, keep for now** — insufficient proof to delete safely in this PR.
 
-## Boundary wrappers added in PR-RF-08
+## Boundary wrappers added in PR-RF-08 and PR-RF-09
 
-`scripts/bipob/bipob_controller.gd` now exposes explicit legacy wrappers so external reusable services do not need direct story mission checks:
+`scripts/bipob/bipob_controller.gd` now exposes explicit runtime and legacy wrappers so external reusable services do not need direct story mission checks:
 
-- `is_legacy_story_mission_active()` separates missions `1..9` from TASK TEST (`10`).
+- `get_runtime_mode_id()` returns the explicit runtime mode identity.
+- `is_task_test_mode_active()` and `is_sandbox_mode_active()` identify the active TASK TEST / runtime sandbox surface while mission `10` remains the compatibility source.
+- `is_legacy_story_mission_active()` separates missions `1..9` from TASK TEST sandbox mode.
 - `is_legacy_mission2_terminal_tutorial_active()` names the old terminal calibration branch.
 - `is_legacy_mission4_hidden_route_flow_active()` names the hidden route-node branch.
 - `is_legacy_mission7_cable_flow_active()` and `is_legacy_mission7_cable_drag_active()` name the cable path branch.

@@ -22,6 +22,13 @@ const EXTERNAL_SIDE_RIGHT := "right"
 const EXTERNAL_SIDE_FRONT := "front"
 const EXTERNAL_SIDE_BACK := "back"
 
+const RUNTIME_MODE_LEGACY_STORY := "legacy_story"
+const RUNTIME_MODE_TASK_TEST := "task_test"
+const RUNTIME_MODE_UNKNOWN := "unknown"
+const LEGACY_STORY_MISSION_MIN_INDEX := 1
+const LEGACY_STORY_MISSION_MAX_INDEX := 9
+const TASK_TEST_MISSION_INDEX := 10
+
 const EXTERNAL_SIDE_ORDER := [
 	EXTERNAL_SIDE_TOP,
 	EXTERNAL_SIDE_FRONT,
@@ -1240,8 +1247,21 @@ func has_tracks() -> bool:
 func can_cross_stepped_floor() -> bool:
 	return has_legs() or has_tracks()
 
+func get_runtime_mode_id() -> String:
+	if current_mission_index == TASK_TEST_MISSION_INDEX:
+		return RUNTIME_MODE_TASK_TEST
+	if current_mission_index >= LEGACY_STORY_MISSION_MIN_INDEX and current_mission_index <= LEGACY_STORY_MISSION_MAX_INDEX:
+		return RUNTIME_MODE_LEGACY_STORY
+	return RUNTIME_MODE_UNKNOWN
+
+func is_task_test_mode_active() -> bool:
+	return get_runtime_mode_id() == RUNTIME_MODE_TASK_TEST
+
+func is_sandbox_mode_active() -> bool:
+	return is_task_test_mode_active()
+
 func is_legacy_story_mission_active() -> bool:
-	return current_mission_index < max_mission_index
+	return get_runtime_mode_id() == RUNTIME_MODE_LEGACY_STORY
 
 func is_legacy_mission2_terminal_tutorial_active() -> bool:
 	return current_mission_index == 2
@@ -1276,7 +1296,7 @@ func get_current_mission_goal_hint() -> String:
 func start_mission(mission_index: int, save_snapshot: bool = true) -> void:
 	# Box preparation flow: mission start resets turn actions, but does not spend resources.
 	current_mission_index = clampi(mission_index, 1, max_mission_index)
-	if not is_legacy_story_mission_active():
+	if is_task_test_mode_active():
 		ensure_task_test_default_modules()
 	mission_finished = false
 	turns_used = 0
@@ -1301,7 +1321,7 @@ func start_mission(mission_index: int, save_snapshot: bool = true) -> void:
 	if grid_manager != null:
 		var mission_id: String = "mission_%d" % current_mission_index
 		var used_catalog_layout := false
-		if not is_legacy_story_mission_active() and mission_manager != null and mission_manager.has_method("apply_catalog_mission_layout_to_grid"):
+		if is_sandbox_mode_active() and mission_manager != null and mission_manager.has_method("apply_catalog_mission_layout_to_grid"):
 			used_catalog_layout = bool(mission_manager.call("apply_catalog_mission_layout_to_grid", mission_id))
 		if not used_catalog_layout:
 			grid_manager.reset_mission_layout(current_mission_index)
@@ -6643,7 +6663,7 @@ func complete_mission() -> void:
 		hint_requested.emit("Mission 8 complete. Return to the box, then start Mission 9.")
 	elif current_mission_index == 9:
 		hint_requested.emit("Mission 9 complete. Return to the box, then start TASK TEST.")
-	elif not is_legacy_story_mission_active():
+	elif is_task_test_mode_active():
 		hint_requested.emit("TASK TEST complete. Extraction confirmed. Return to the box.")
 	else:
 		hint_requested.emit("Mission complete. Return to the box.")
@@ -9632,7 +9652,7 @@ func get_developer_validation_suite_text(suite: String = "all") -> String:
 	return "Validation unavailable." if mission_manager == null or not mission_manager.has_method("get_developer_validation_suite_text") else String(mission_manager.call("get_developer_validation_suite_text", suite))
 
 func start_dev_task_test_mission() -> void:
-	start_mission(10, true)
+	start_mission(TASK_TEST_MISSION_INDEX, true)
 
 func get_door_debug_report_text(door_id: String = "") -> String:
 	if mission_manager == null or not mission_manager.has_method("get_door_debug_report_text"):

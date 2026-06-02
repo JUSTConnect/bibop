@@ -130,6 +130,11 @@ var constructor_map_width: int = 16
 var constructor_map_height: int = 10
 var constructor_start_marker: Dictionary = {}
 var constructor_exit_marker: Dictionary = {}
+const RUNTIME_MODE_LEGACY_STORY := "legacy_story"
+const RUNTIME_MODE_TASK_TEST := "task_test"
+const RUNTIME_MODE_UNKNOWN := "unknown"
+const TASK_TEST_MISSION_ID := "mission_10"
+
 const MAP_CONSTRUCTOR_PRESET_DIR: String = "user://constructor_presets"
 
 const MAP_CONSTRUCTOR_MISSION_PATCH_DIR: String = "user://constructor_mission_patches"
@@ -286,13 +291,13 @@ func apply_catalog_mission_layout_to_grid(mission_id: String) -> bool:
 func validate_task_test_catalog_layout_runtime_source() -> Array[String]:
 	var warnings: Array[String] = []
 	var catalog := MissionContentCatalogRef.new()
-	if not catalog.has_mission_layout("mission_10"):
+	if not catalog.has_mission_layout(TASK_TEST_MISSION_ID):
 		warnings.append("task_test_catalog_layout_missing_mission_10")
 		return warnings
-	var layout_size: Vector2i = catalog.get_mission_layout_size("mission_10")
+	var layout_size: Vector2i = catalog.get_mission_layout_size(TASK_TEST_MISSION_ID)
 	if layout_size.x != 16 or layout_size.y != 10:
 		warnings.append("task_test_catalog_layout_expected_16x10_got_%dx%d" % [layout_size.x, layout_size.y])
-	if catalog.get_mission_exit_cells("mission_10").is_empty():
+	if catalog.get_mission_exit_cells(TASK_TEST_MISSION_ID).is_empty():
 		warnings.append("task_test_catalog_layout_missing_exit_tile")
 	if grid_manager != null and not grid_manager.has_method("apply_mission_layout"):
 		warnings.append("task_test_catalog_runtime_grid_missing_apply_mission_layout")
@@ -859,7 +864,7 @@ func _validate_architecture_mission_objective_contract() -> Array[String]:
 	var warnings: Array[String] = validate_current_mission_objective_view_model()
 	for warning_variant in validate_mission_content_catalog():
 		warnings.append(String(warning_variant))
-	if get_mission_goal_text("mission_10").strip_edges().is_empty():
+	if get_mission_goal_text(TASK_TEST_MISSION_ID).strip_edges().is_empty():
 		warnings.append("mission_10_catalog_goal_text_missing")
 	return warnings
 
@@ -872,7 +877,7 @@ func setup_world_objects_for_mission(mission_id: String) -> void:
 	_map_constructor_floor_material_overrides.clear()
 	if grid_manager != null and grid_manager.has_method("clear_floor_visual_states"):
 		grid_manager.call("clear_floor_visual_states")
-	if mission_id == "mission_10":
+	if mission_id == TASK_TEST_MISSION_ID:
 		_setup_task_test_mission_world()
 		return
 	if mission_id != "mission_1":
@@ -996,8 +1001,27 @@ func _is_valid_grid_cell(cell: Vector2i) -> bool:
 		return cell.x < width and cell.y < height
 	return true
 
+func get_runtime_mode_id() -> String:
+	var normalized_mission_id: String = String(current_mission_id).strip_edges()
+	if normalized_mission_id == TASK_TEST_MISSION_ID:
+		return RUNTIME_MODE_TASK_TEST
+	if normalized_mission_id.begins_with("mission_"):
+		var mission_index: int = int(normalized_mission_id.trim_prefix("mission_"))
+		if mission_index >= 1 and mission_index <= 9:
+			return RUNTIME_MODE_LEGACY_STORY
+	return RUNTIME_MODE_UNKNOWN
+
+func is_task_test_mode_active() -> bool:
+	return get_runtime_mode_id() == RUNTIME_MODE_TASK_TEST
+
+func is_sandbox_mode_active() -> bool:
+	return is_task_test_mode_active()
+
+func is_legacy_story_mission_active() -> bool:
+	return get_runtime_mode_id() == RUNTIME_MODE_LEGACY_STORY
+
 func _is_task_test_constructor_context() -> bool:
-	return String(current_mission_id) == "mission_10"
+	return is_sandbox_mode_active()
 
 func _is_known_map_constructor_wall_material_id(material_id: String) -> bool:
 	var normalized_id: String = material_id.to_lower().strip_edges()
@@ -1308,7 +1332,7 @@ func _map_constructor_cell_from_variant(cell_variant: Variant) -> Vector2i:
 func export_map_constructor_runtime_patch() -> Dictionary:
 	if not _is_task_test_constructor_context():
 		return {"ok": false, "message": "Runtime patch export works only in TASK TEST constructor mode.", "patch": {}, "json": "", "object_count": 0, "item_count": 0, "tile_edit_count": 0}
-	var patch: Dictionary = {"schema_version": MAP_CONSTRUCTOR_PATCH_SCHEMA_VERSION, "mission_id": "mission_10", "created_at_runtime": str(Time.get_unix_time_from_system()), "source": "task_test_map_constructor", "objects": [], "items": [], "tile_edits": [], "floor_visual_states": [], "links": [], "metadata": {}}
+	var patch: Dictionary = {"schema_version": MAP_CONSTRUCTOR_PATCH_SCHEMA_VERSION, "mission_id": TASK_TEST_MISSION_ID, "created_at_runtime": str(Time.get_unix_time_from_system()), "source": "task_test_map_constructor", "objects": [], "items": [], "tile_edits": [], "floor_visual_states": [], "links": [], "metadata": {}}
 	for object_data in mission_world_objects:
 		if not bool(object_data.get("created_by_map_constructor", false)):
 			continue
@@ -1666,7 +1690,7 @@ func get_map_constructor_mission_patch_data(patch_name: String = "") -> Dictiona
 	return {
 		"version": 1,
 		"patch_type": "task_test_constructor_mission_patch",
-		"source_mission_id": String(preset_data.get("mission_id", "mission_10")),
+		"source_mission_id": String(preset_data.get("mission_id", TASK_TEST_MISSION_ID)),
 		"patch_name": final_name,
 		"created_at_unix": int(Time.get_unix_time_from_system()),
 		"world_objects": Array(preset_data.get("world_objects", [])),
@@ -1849,7 +1873,7 @@ func load_map_constructor_preset(preset_name: String) -> Dictionary:
 	var preset: Dictionary = Dictionary(parse_result)
 	if int(preset.get("version", 0)) != 1:
 		return {"ok": false, "message": "Preset load failed: unsupported version.", "preset_name": sanitized_name}
-	if String(preset.get("mission_id", "")) != "mission_10":
+	if String(preset.get("mission_id", "")) != TASK_TEST_MISSION_ID:
 		return {"ok": false, "message": "Preset load failed: mission mismatch.", "preset_name": sanitized_name}
 	var warnings: Array[String] = []
 	var map_data: Dictionary = Dictionary(preset.get("map", {}))
@@ -3319,7 +3343,7 @@ func _is_map_constructor_batch_protected_entity(entity_id: String) -> bool:
 	return entity_id in ["bipob_start", "mission_exit", "constructor_start_marker", "constructor_exit_marker"]
 
 func preview_map_constructor_batch_operation(operation_type: String, entities: Array[Dictionary], options: Dictionary = {}) -> Dictionary:
-	if current_mission_id != "mission_10":
+	if not _is_task_test_constructor_context():
 		return {"ok": false, "operation_type": operation_type, "message": "Batch tools available only in TASK TEST.", "affected_count": 0, "affected": [], "warnings": [], "conflicts": [], "can_apply": false}
 	var op: String = operation_type.to_lower().strip_edges()
 	var include_non_constructor: bool = bool(options.get("include_non_constructor", false))
@@ -13132,8 +13156,8 @@ func export_map_constructor_design_notes(_options: Dictionary = {}) -> Dictionar
 	terminal_visual_summary["terminals"] = terminal_rows
 	var visual_catalog: Dictionary = get_visual_texture_asset_catalog()
 	var visual_summary: Dictionary = _build_visual_asset_summary(Dictionary(visual_catalog))
-	var notes: Dictionary = {"schema_version":1,"source":"task_test_map_constructor","mission_id":"mission_10","generated_at_runtime":str(Time.get_unix_time_from_system()),"summary":{"object_count":mission_world_objects.size(),"wall_material_override_count":wall_overrides.size(),"wall_material_counts":wall_counts,"floor_material_override_count":floor_overrides.size(),"floor_material_summary":floor_summary,"wall_topology_summary":wall_topology_summary,"wall_mounted_anchor_zone_summary":wall_mounted_anchor_zone_summary,"door_opening_summary":door_opening_summary,"object_grounding_summary":get_map_constructor_object_grounding_summary()},"visual_asset_summary":visual_summary,"readiness":readiness,"validation":{"issues":validation,"visual_diagnostics":visual_diagnostics},"objects":mission_world_objects.duplicate(true),"items":cell_items.values(),"tile_edits":Array(patch_export.get("patch", {}).get("tile_edits", [])),"links":Array(patch_export.get("patch", {}).get("links", [])),"patch":Dictionary(patch_export.get("patch", {})),"wall_material_overrides":wall_overrides,"floor_material_overrides":floor_overrides,"floor_material_summary":floor_summary,"wall_topology_summary":wall_topology_summary,"wall_mounted_anchor_zone_summary":wall_mounted_anchor_zone_summary,"door_opening_summary":door_opening_summary,"object_grounding_summary":get_map_constructor_object_grounding_summary(),"door_visual_summary":door_visual_summary,"terminal_visual_summary":terminal_visual_summary,"history_summary":Array(get_map_constructor_change_history(20).get("history", [])),"overview_summary":Dictionary(get_map_constructor_overview_data().get("summary", {})),"room_visual_preset_summary":get_room_visual_preset_summary(),"recommended_next_steps":["Manual promotion required. No mission files were modified."]}
-	var text: String = "# Design Notes\nMission: mission_10\nReadiness: %s\nValidation issues: %d\nPatch summary: objects=%d items=%d tiles=%d\nManual promotion required. No mission files were modified." % [String(readiness.get("status", "unknown")), validation.size(), int(patch_export.get("object_count", 0)), int(patch_export.get("item_count", 0)), int(patch_export.get("tile_edit_count", 0))]
+	var notes: Dictionary = {"schema_version":1,"source":"task_test_map_constructor","mission_id":TASK_TEST_MISSION_ID,"generated_at_runtime":str(Time.get_unix_time_from_system()),"summary":{"object_count":mission_world_objects.size(),"wall_material_override_count":wall_overrides.size(),"wall_material_counts":wall_counts,"floor_material_override_count":floor_overrides.size(),"floor_material_summary":floor_summary,"wall_topology_summary":wall_topology_summary,"wall_mounted_anchor_zone_summary":wall_mounted_anchor_zone_summary,"door_opening_summary":door_opening_summary,"object_grounding_summary":get_map_constructor_object_grounding_summary()},"visual_asset_summary":visual_summary,"readiness":readiness,"validation":{"issues":validation,"visual_diagnostics":visual_diagnostics},"objects":mission_world_objects.duplicate(true),"items":cell_items.values(),"tile_edits":Array(patch_export.get("patch", {}).get("tile_edits", [])),"links":Array(patch_export.get("patch", {}).get("links", [])),"patch":Dictionary(patch_export.get("patch", {})),"wall_material_overrides":wall_overrides,"floor_material_overrides":floor_overrides,"floor_material_summary":floor_summary,"wall_topology_summary":wall_topology_summary,"wall_mounted_anchor_zone_summary":wall_mounted_anchor_zone_summary,"door_opening_summary":door_opening_summary,"object_grounding_summary":get_map_constructor_object_grounding_summary(),"door_visual_summary":door_visual_summary,"terminal_visual_summary":terminal_visual_summary,"history_summary":Array(get_map_constructor_change_history(20).get("history", [])),"overview_summary":Dictionary(get_map_constructor_overview_data().get("summary", {})),"room_visual_preset_summary":get_room_visual_preset_summary(),"recommended_next_steps":["Manual promotion required. No mission files were modified."]}
+	var text: String = "# Design Notes\nMission: %s\nReadiness: %s\nValidation issues: %d\nPatch summary: objects=%d items=%d tiles=%d\nManual promotion required. No mission files were modified." % [TASK_TEST_MISSION_ID, String(readiness.get("status", "unknown")), validation.size(), int(patch_export.get("object_count", 0)), int(patch_export.get("item_count", 0)), int(patch_export.get("tile_edit_count", 0))]
 	return {"ok":true,"message":"OK","notes":notes,"text":text}
 
 func get_map_constructor_production_pipeline_report(_options: Dictionary = {}) -> Dictionary:
