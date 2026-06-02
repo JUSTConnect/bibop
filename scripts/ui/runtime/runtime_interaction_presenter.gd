@@ -1,0 +1,150 @@
+extends RefCounted
+class_name RuntimeInteractionPresenter
+
+const RuntimeInteractionPanelRef = preload("res://scripts/ui/runtime/runtime_interaction_panel.gd")
+
+
+static func refresh(ui) -> void:
+	if ui.runtime_action_button == null or ui.runtime_end_turn_button == null:
+		return
+	var target_data: Dictionary = RuntimeInteractionPanelRef.get_target_data(ui)
+	var target_object: Dictionary = ui._safe_ui_dictionary(target_data.get("target_object", {}))
+	var actions: Array = ui._safe_ui_array(target_data.get("actions", []))
+	var physical_actions: Array[String] = RuntimeInteractionPanelRef.get_physical_actions(actions)
+	var connect_descriptor: Dictionary = RuntimeInteractionPanelRef.get_connect_descriptor(target_data)
+	var heavy_claw_descriptor: Dictionary = RuntimeInteractionPanelRef.get_heavy_claw_descriptor(target_data)
+	var has_interactable: bool = not target_object.is_empty() and not physical_actions.is_empty()
+	if has_interactable and not ui.runtime_interaction_mode_active and ui.runtime_action_button != null:
+		ui._apply_selected_pulse(ui.runtime_action_button)
+	elif not has_interactable and ui.runtime_action_button != null:
+		ui._clear_selected_pulse(ui.runtime_action_button)
+	var has_actions_left: bool = ui.bipob != null and int(ui.bipob.actions_left) > 0
+	if ui.runtime_interaction_mode_active and (not has_interactable or not has_actions_left):
+		ui.runtime_interaction_mode_active = false
+	if ui.runtime_action_button != null:
+		ui.runtime_action_button.text = "Cancel" if ui.runtime_interaction_mode_active else "Action"
+		ui.runtime_action_button.disabled = not ui.runtime_interaction_mode_active and not has_interactable
+		ui.runtime_action_button.tooltip_text = "" if has_interactable else "No physical action available."
+		ui._apply_action_button_style(ui.runtime_action_button, "danger" if ui.runtime_interaction_mode_active else ("primary" if has_interactable else "disabled"), ui.runtime_interaction_mode_active or has_interactable)
+		if ui.runtime_interaction_mode_active:
+			ui._apply_selected_pulse(ui.runtime_action_button)
+	if ui.runtime_connect_button != null:
+		var connect_enabled: bool = not connect_descriptor.is_empty() and bool(connect_descriptor.get("enabled", false)) and has_actions_left
+		ui.runtime_connect_button.text = "Connect"
+		ui.runtime_connect_button.disabled = not connect_enabled
+		ui.runtime_connect_button.tooltip_text = "" if connect_enabled else String(connect_descriptor.get("label", "Connector jack unavailable."))
+		ui._apply_action_button_style(ui.runtime_connect_button, "primary" if connect_enabled else "disabled", connect_enabled)
+	if ui.runtime_heavy_claw_button != null:
+		var heavy_claw_enabled: bool = not heavy_claw_descriptor.is_empty() and bool(heavy_claw_descriptor.get("enabled", false)) and has_actions_left
+		ui.runtime_heavy_claw_button.text = "Heavy Claw"
+		ui.runtime_heavy_claw_button.disabled = not heavy_claw_enabled
+		ui.runtime_heavy_claw_button.tooltip_text = "" if heavy_claw_enabled else String(heavy_claw_descriptor.get("label", "No heavy object in front."))
+		ui._apply_action_button_style(ui.runtime_heavy_claw_button, "primary" if heavy_claw_enabled else "disabled", heavy_claw_enabled)
+	if ui.runtime_end_turn_button != null:
+		ui._apply_action_button_style(ui.runtime_end_turn_button, "reference", true)
+	_refresh_action_row(ui, target_object, physical_actions)
+
+
+static func refresh_world_actions_panel(ui, payload: Dictionary = {}) -> void:
+	if not payload.is_empty():
+		var target_object: Dictionary = ui._safe_ui_dictionary(payload.get("target_object", {}))
+		var actions: Array = ui._safe_ui_array(payload.get("actions", []))
+		var selected_action: String = String(payload.get("selected_action", ""))
+		var fallback_name: String = String(target_object.get("name", target_object.get("label", "")))
+		var target_id: String = ui._get_runtime_world_action_target_id(target_object, fallback_name)
+		var action_ids: Array[String] = []
+		for action_variant in actions:
+			action_ids.append(String(action_variant))
+		var actions_key: String = "|".join(action_ids)
+		var state_key: String = "%s|%s|%s" % [String(target_object.get("state", "")), String(target_object.get("power_state", "")), String(target_object.get("connected", ""))]
+		clear_selected_action_if_stale(ui, target_id, actions_key, state_key)
+		ui.last_world_action_target_id = target_id
+		ui.last_world_action_actions_key = actions_key
+		ui.last_world_action_selected = selected_action
+		ui.last_world_action_state_key = state_key
+	if ui.runtime_world_actions_panel != null:
+		ui.runtime_world_actions_panel.visible = false
+
+
+static func clear_selected_action_if_stale(ui, target_id: String, actions_key: String, state_key: String) -> void:
+	var target_changed: bool = not ui.last_world_action_target_id.is_empty() and ui.last_world_action_target_id != target_id
+	var actions_changed: bool = not ui.last_world_action_actions_key.is_empty() and ui.last_world_action_actions_key != actions_key
+	var state_changed: bool = not ui.last_world_action_state_key.is_empty() and ui.last_world_action_state_key != state_key
+	if not target_changed and not actions_changed and not state_changed:
+		return
+	ui.last_world_action_selected = ""
+	if ui.runtime_world_actions_selected_button != null and is_instance_valid(ui.runtime_world_actions_selected_button):
+		ui._clear_selected_pulse(ui.runtime_world_actions_selected_button)
+	ui.runtime_world_actions_selected_button = null
+
+
+static func on_action_pressed(ui) -> void:
+	RuntimeInteractionPanelRef.press_interact(ui)
+
+
+static func on_connect_pressed(ui) -> void:
+	RuntimeInteractionPanelRef.press_connect(ui)
+
+
+static func on_heavy_claw_pressed(ui) -> void:
+	RuntimeInteractionPanelRef.press_heavy_claw(ui)
+
+
+static func on_runtime_action_pressed(ui, action_id: String) -> void:
+	RuntimeInteractionPanelRef.press_action(ui, action_id)
+
+
+static func on_use_selected_world_action_pressed(ui) -> void:
+	RuntimeInteractionPanelRef.use_selected_world_action(ui)
+
+
+static func on_world_action_button_pressed(ui, action_id: String) -> void:
+	RuntimeInteractionPanelRef.select_world_action(ui, action_id)
+
+
+static func _refresh_action_row(ui, target_object: Dictionary, physical_actions: Array[String]) -> void:
+	if ui.runtime_interaction_actions_row == null:
+		return
+	var action_id_texts: Array[String] = []
+	for signature_action_variant in physical_actions:
+		action_id_texts.append(String(signature_action_variant))
+	var access_code_entry: String = String(target_object.get("access_code_entry", ""))
+	var next_signature: String = "%s|%s|%s" % [str(ui.runtime_interaction_mode_active), "|".join(action_id_texts), access_code_entry]
+	if next_signature == ui.runtime_interaction_actions_signature:
+		ui.runtime_interaction_actions_row.visible = ui.runtime_interaction_mode_active
+		return
+	ui.runtime_interaction_actions_signature = next_signature
+	for child in ui.runtime_interaction_actions_row.get_children():
+		child.queue_free()
+	ui.runtime_interaction_actions_row.visible = ui.runtime_interaction_mode_active
+	if not ui.runtime_interaction_mode_active:
+		return
+	if String(target_object.get("access_type", "")) == "access_code" and bool(target_object.get("connected", false)):
+		var keypad_display := Label.new()
+		keypad_display.name = "RuntimeAccessCodeDisplay"
+		keypad_display.text = "Code: %s" % (access_code_entry + "_".repeat(maxi(0, 4 - access_code_entry.length())))
+		keypad_display.tooltip_text = "Enter four digits, then press Input."
+		ui.runtime_interaction_actions_row.add_child(keypad_display)
+	for leading_column_index in range(2):
+		var leading_spacer := Control.new()
+		leading_spacer.name = "RuntimeInteractionActionSpacer%d" % (leading_column_index + 1)
+		leading_spacer.custom_minimum_size = ui.runtime_action_button.custom_minimum_size
+		leading_spacer.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+		ui.runtime_interaction_actions_row.add_child(leading_spacer)
+	for action_variant in physical_actions:
+		var action_id: String = String(action_variant)
+		if action_id.is_empty():
+			continue
+		var action_label: String = action_id.capitalize()
+		if ui.bipob != null and ui.bipob.has_method("get_world_action_display_label"):
+			action_label = String(ui.bipob.call("get_world_action_display_label", action_id, target_object))
+		var button: Button = ui._create_runtime_control_button(action_label, Callable(ui, "_on_runtime_interaction_action_pressed").bind(action_id), "primary")
+		button.custom_minimum_size = ui.runtime_action_button.custom_minimum_size
+		ui._apply_selected_pulse(button)
+		ui.runtime_interaction_actions_row.add_child(button)
+	for trailing_column_index in range(max(0, 2 - physical_actions.size())):
+		var trailing_spacer := Control.new()
+		trailing_spacer.name = "RuntimeInteractionActionTrailingSpacer%d" % (trailing_column_index + 1)
+		trailing_spacer.custom_minimum_size = ui.runtime_action_button.custom_minimum_size
+		trailing_spacer.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+		ui.runtime_interaction_actions_row.add_child(trailing_spacer)

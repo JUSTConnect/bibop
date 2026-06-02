@@ -1,7 +1,7 @@
 extends RefCounted
 class_name RuntimeControlPanel
 
-const RuntimeInteractionPanelRef = preload("res://scripts/ui/runtime/runtime_interaction_panel.gd")
+const RuntimeInteractionPresenterRef = preload("res://scripts/ui/runtime/runtime_interaction_presenter.gd")
 
 
 static func build(ui) -> Control:
@@ -55,4 +55,4 @@ static func build(ui) -> Control:
 
 
 static func refresh(ui) -> void:
-	RuntimeInteractionPanelRef.refresh_controls(ui)
+	RuntimeInteractionPresenterRef.refresh(ui)

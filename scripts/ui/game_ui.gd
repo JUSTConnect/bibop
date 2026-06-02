@@ -7,6 +7,7 @@ const RuntimeMissionMenuRef = preload("res://scripts/ui/runtime/runtime_mission_
 const CenterScreenRef = preload("res://scripts/ui/screens/center_screen.gd")
 const RuntimeStoragePanelRef = preload("res://scripts/ui/runtime/runtime_storage_panel.gd")
 const RuntimeControlPanelRef = preload("res://scripts/ui/runtime/runtime_control_panel.gd")
+const RuntimeInteractionPresenterRef = preload("res://scripts/ui/runtime/runtime_interaction_presenter.gd")
 const RuntimeBipobSwitcherRef = preload("res://scripts/ui/runtime/runtime_bipob_switcher.gd")
 const RuntimeObjectHudRef = preload("res://scripts/ui/runtime/runtime_object_hud.gd")
 const MapConstructorScreenRef = preload("res://scripts/ui/map_constructor/map_constructor_screen.gd")
@@ -12330,7 +12331,7 @@ func _is_runtime_interaction_manipulator_blocked(target_object: Dictionary, acti
 	return RuntimeInteractionPanel.is_manipulator_blocked(self, target_object, actions)
 
 func _refresh_runtime_interaction_controls() -> void:
-	RuntimeControlPanelRef.refresh(self)
+	RuntimeInteractionPresenterRef.refresh(self)
 
 func _enter_runtime_interaction_mode() -> void:
 	RuntimeInteractionPanel.enter_mode(self)
@@ -12339,23 +12340,23 @@ func _exit_runtime_interaction_mode() -> void:
 	RuntimeInteractionPanel.exit_mode(self)
 
 func _on_runtime_interaction_action_pressed(action_id: String) -> void:
-	RuntimeInteractionPanel.press_action(self, action_id)
+	RuntimeInteractionPresenterRef.on_runtime_action_pressed(self, action_id)
 
 func _on_interact_pressed() -> void:
-	RuntimeInteractionPanel.press_interact(self)
+	RuntimeInteractionPresenterRef.on_action_pressed(self)
 
 
 func _on_connect_pressed() -> void:
-	RuntimeInteractionPanel.press_connect(self)
+	RuntimeInteractionPresenterRef.on_connect_pressed(self)
 
 func _on_heavy_claw_pressed() -> void:
-	RuntimeInteractionPanel.press_heavy_claw(self)
+	RuntimeInteractionPresenterRef.on_heavy_claw_pressed(self)
 
 func _on_use_selected_world_action_pressed() -> void:
-	RuntimeInteractionPanel.use_selected_world_action(self)
+	RuntimeInteractionPresenterRef.on_use_selected_world_action_pressed(self)
 
 func _on_world_action_button_pressed(action_id: String) -> void:
-	RuntimeInteractionPanel.select_world_action(self, action_id)
+	RuntimeInteractionPresenterRef.on_world_action_button_pressed(self, action_id)
 
 func _get_runtime_world_action_target_id(target_object: Dictionary, fallback_name: String) -> String:
 	var raw_id: Variant = target_object.get("id", "")
@@ -12374,10 +12375,9 @@ func _get_runtime_world_action_target_id(target_object: Dictionary, fallback_nam
 
 	return fallback_name
 
-func _on_world_action_panel_requested(_target_object: Dictionary, _actions: Array, _selected_action: String) -> void:
+func _on_world_action_panel_requested(target_object: Dictionary, actions: Array, selected_action: String) -> void:
 	_refresh_runtime_interaction_controls()
-	if runtime_world_actions_panel != null:
-		runtime_world_actions_panel.visible = false
+	RuntimeInteractionPresenterRef.refresh_world_actions_panel(self, {"target_object": target_object, "actions": actions, "selected_action": selected_action})
 
 func _on_drop_item_button_pressed() -> void:
 	if bipob == null or not bipob.has_method("drop_held_item"):
