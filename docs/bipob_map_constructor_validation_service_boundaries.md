@@ -122,9 +122,9 @@ The objective is not to hide data blindly. The objective is to return explicit r
 
 The extracted helpers are still coupled to a broad runtime owner. Inspector and property helpers query `mission_manager_runtime` methods directly. Link controls now use `MapConstructorLinkReadModelService` for generic picker reads, but specialized key-link reads and link mutation callbacks still call `mission_manager_runtime`. This makes it easy to add another semantic decision to a UI helper instead of extending a focused constructor API.
 
-### Property controls apply mutations through MissionManager
+### Property controls apply mutations through the property update facade
 
-`map_constructor_property_controls.gd` calls `update_map_constructor_entity_properties` and property preset APIs directly, then triggers panel/field refresh work. This mixes widget callbacks, mutation routing, and refresh policy. The update path should eventually pass through a narrow constructor property update wrapper while retaining current behavior.
+`map_constructor_property_controls.gd` now routes property and preset callbacks through `GameUI`, which delegates mutation calls to `map_constructor_property_update_service.gd`. `GameUI` intentionally retains panel, field, and inspector refresh sequencing so this facade extraction does not alter UI behavior.
 
 ### Link picker field mapping now lives behind a read model
 
@@ -165,6 +165,8 @@ Status: extracted. `map_constructor_link_read_model_service.gd` now owns the gen
 - Preserve all Door/Terminal/Power/Item link behavior.
 
 ### PR-V3: Extract map constructor property update service wrapper
+
+Status: extracted. `map_constructor_property_update_service.gd` now owns the narrow property and preset mutation facade used by UI callbacks. Existing MissionManager mutation APIs, property semantics, and GameUI refresh sequencing remain unchanged.
 
 - Add a narrow property update facade used by UI callbacks.
 - Preserve existing single-field and preset mutation semantics.
@@ -231,4 +233,4 @@ Use this checklist for PR-V1 through PR-V5:
 
 ## Audit note
 
-This boundary document marks the validation/service boundary audit, PR-V1 validation display adapter extraction, and PR-V2 link candidate/read model service extraction as complete. It does **not** mark link mutation extraction, property update wrapper extraction, validation rules, autofix, power/link consistency, save/load readiness validation extraction, or the full GameUI split complete.
+This boundary document marks the validation/service boundary audit, PR-V1 validation display adapter extraction, PR-V2 link candidate/read model service extraction, and PR-V3 property update service wrapper extraction as complete. It does **not** mark link mutation extraction, validation rules, autofix, power/link consistency, save/load readiness validation extraction, or the full GameUI split complete.
