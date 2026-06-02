@@ -41,6 +41,7 @@ const BipobActionViewModelServiceRef = preload("res://scripts/game/bipob_action_
 const BipobCapabilityServiceRef = preload("res://scripts/game/bipob_capability_service.gd")
 const BipobRuntimeActionActorServiceRef = preload("res://scripts/game/bipob_runtime_action_actor_service.gd")
 const BipobTerminalControlExecutionServiceRef = preload("res://scripts/game/bipob_terminal_control_execution_service.gd")
+const BipobHeavyClawExecutionServiceRef = preload("res://scripts/game/bipob_heavy_claw_execution_service.gd")
 const EXTERNAL_MODULE_CATALOG: Dictionary = {
 "wheels_v1":{"name":"Wheels V1","cat":"Gear","size":Vector2i(3,2),"sides":[EXTERNAL_SIDE_BOTTOM],"desc":"Fast movement system for flat and stable surfaces. Ineffective on stairs, mud and debris.","energy":1,"terrain":"Flat surface","movement":"Drive","speed":3},
 "legs_v1":{"name":"Legs V1","cat":"Gear","size":Vector2i(3,2),"sides":[EXTERNAL_SIDE_BOTTOM],"desc":"Universal movement system that provides stable traversal across uneven terrain, steps, obstacles, and mixed surfaces.","energy":1,"terrain":"Any surface","movement":"Walk","speed":2},
@@ -8390,28 +8391,18 @@ func interact() -> void:
 					status_changed.emit()
 					return
 				if action_id in ["push", "pull"] and WorldObjectCatalog.can_world_object_be_moved_by_heavy_claw(world_object):
-					if not has_heavy_claw_capability():
-						hint_requested.emit("Heavy Claw required.")
-						status_changed.emit()
-						return
-					var target_destination := get_heavy_claw_move_destination(target_position, grid_position, action_id)
-					if target_destination.x < 0 or target_destination.y < 0:
-						hint_requested.emit("Heavy Claw move is unavailable for this direction.")
-						status_changed.emit()
-						return
-					var move_result: Dictionary = Dictionary(mission_manager.move_world_object_by_heavy_claw(String(world_object.get("id", "")), target_destination))
-					if bool(move_result.get("success", false)):
-						spend_action(1, 1)
-						_register_successful_paid_player_action(true)
-						hint_requested.emit(String(move_result.get("message", "Moved object.")))
+					var claw_execution: Dictionary = BipobHeavyClawExecutionServiceRef.execute_heavy_claw_action(self, world_object, target_position, action_id)
+					hint_requested.emit(String(claw_execution.get("message", "Cannot move object there.")))
+					if bool(claw_execution.get("refresh_overlay", false)):
 						refresh_world_object_overlay()
+					if bool(claw_execution.get("refresh_threats", false)):
 						update_threat_detection_preview()
+					if bool(claw_execution.get("emit_facing_hint", false)):
 						emit_facing_world_object_hint()
+					if bool(claw_execution.get("refresh_action_panel", false)):
 						refresh_world_action_panel()
+					if bool(claw_execution.get("emit_status", true)):
 						status_changed.emit()
-						return
-					hint_requested.emit(String(move_result.get("message", "Cannot move object there.")))
-					status_changed.emit()
 					return
 				if action_id == "insert_fuse" and not consume_held_world_item_if_type("fuse"):
 					hint_requested.emit("Manipulator does not contain a fuse.")
