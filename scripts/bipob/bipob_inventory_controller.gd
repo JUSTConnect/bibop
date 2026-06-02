@@ -120,7 +120,7 @@ static func get_digital_storage_text(controller: Variant) -> String:
 static func drop_held_item(controller: Variant) -> void:
 	if controller.mission_finished:
 		return
-	if controller.current_mission_index == 7 and controller.mission7_is_dragging_cable:
+	if controller.is_legacy_mission7_cable_drag_active():
 		controller.release_mission7_cable_end()
 		return
 
