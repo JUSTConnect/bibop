@@ -57,8 +57,8 @@ The helpers are currently presentation-oriented but not presentation-only. Sever
 `scripts/game/map_constructor_validation_service.gd` already owns a substantial validation slice:
 
 - constructor palette contract validation;
-- entity link validation;
-- dependency status calculation;
+- entity link validation, delegated to the read-only `MapConstructorPowerLinkValidationRules` helper;
+- dependency status calculation, delegated to the read-only power/link helper;
 - validation overlay aggregation;
 - issue creation and constructor issue collection;
 - door-opening probes and summaries;
@@ -175,6 +175,8 @@ Status: extracted. `map_constructor_property_update_service.gd` now owns the nar
 
 ### PR-V4: Extract power/link consistency validation rules
 
+Status: extracted. `map_constructor_power_link_validation_rules.gd` now owns read-only entity-link validation, dependency status assembly, physical-circuit warning assembly, external-power binding checks, Door access/key/Terminal consistency checks, and Terminal/Door mirror checks. `MapConstructorValidationService` retains forwarding wrappers and issue aggregation. No simulation, active-state mutation, autofix, link mutation, or power/cooling recalculation was added.
+
 - Consolidate power/link consistency checks behind the validation boundary.
 - Keep checks read-only.
 - If simulation becomes necessary, snapshot and restore runtime state explicitly.
@@ -233,4 +235,4 @@ Use this checklist for PR-V1 through PR-V5:
 
 ## Audit note
 
-This boundary document marks the validation/service boundary audit, PR-V1 validation display adapter extraction, PR-V2 link candidate/read model service extraction, and PR-V3 property update service wrapper extraction as complete. It does **not** mark link mutation extraction, validation rules, autofix, power/link consistency, save/load readiness validation extraction, or the full GameUI split complete.
+This boundary document marks the validation/service boundary audit, PR-V1 validation display adapter extraction, PR-V2 link candidate/read model service extraction, PR-V3 property update service wrapper extraction, and PR-V4 read-only power/link consistency validation rules extraction as complete. It does **not** mark link mutation extraction, autofix extraction, save/load readiness validation extraction, or the full GameUI split complete.
