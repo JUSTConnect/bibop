@@ -72,16 +72,43 @@ static func position_panel(ui, panel: PanelContainer, cell: Vector2i) -> void:
 	)
 
 
-static func refresh_object_info_position(ui) -> void:
+static func hide(ui) -> void:
+	if ui.runtime_object_info_panel != null and is_instance_valid(ui.runtime_object_info_panel):
+		ui.runtime_object_info_panel.queue_free()
+	ui.runtime_object_info_panel = null
+	ui.runtime_object_info_cell = Vector2i(-1, -1)
+
+
+static func clear(ui) -> void:
+	hide(ui)
+
+
+static func show(ui, cell: Vector2i) -> void:
+	hide(ui)
+	if ui.runtime_hud_root == null or not is_instance_valid(ui.runtime_hud_root):
+		return
+	if ui.field_runtime == null or not is_instance_valid(ui.field_runtime) or ui.bipob == null or not is_instance_valid(ui.bipob):
+		return
+	if ui.mission_manager_runtime == null or not is_instance_valid(ui.mission_manager_runtime):
+		return
+	build(ui, cell)
+
+
+static func refresh(ui) -> void:
+	refresh_position(ui)
+
+
+static func refresh_position(ui) -> void:
 	if ui == null:
 		return
 	if ui.runtime_object_info_panel == null or not is_instance_valid(ui.runtime_object_info_panel):
 		return
-	var cell: Vector2i = ui.runtime_object_info_cell
-	position_panel(ui, ui.runtime_object_info_panel, cell)
+	if ui.runtime_object_info_cell.x < 0 or ui.runtime_object_info_cell.y < 0:
+		return
+	position_panel(ui, ui.runtime_object_info_panel, ui.runtime_object_info_cell)
 
 
-static func build(ui, cell: Vector2i) -> void:
+static func build(ui, cell: Vector2i) -> Control:
 	var object_data: Dictionary = {}
 	if ui.mission_manager_runtime.has_method("get_world_object_at_cell"):
 		object_data = ui._safe_ui_dictionary(ui.mission_manager_runtime.call("get_world_object_at_cell", cell))
@@ -90,7 +117,7 @@ static func build(ui, cell: Vector2i) -> void:
 		if not items.is_empty():
 			object_data = ui._safe_ui_dictionary(items[0])
 	if object_data.is_empty():
-		return
+		return null
 	var scan_level: int = int(object_data.get("scan_level", 0))
 	var known_details: bool = scan_level >= 1 or bool(object_data.get("scanned", false)) or bool(object_data.get("visible", false))
 	var lines: Array[String] = []
@@ -160,3 +187,4 @@ static func build(ui, cell: Vector2i) -> void:
 	ui.runtime_object_info_panel = panel
 	ui.runtime_object_info_cell = cell
 	position_panel(ui, panel, cell)
+	return panel
