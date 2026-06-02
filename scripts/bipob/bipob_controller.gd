@@ -1279,16 +1279,23 @@ func is_legacy_mission8_airflow_flow_active() -> bool:
 	return current_mission_index == 8
 
 func complete_legacy_mission_from_story_glue(_reason: String = "") -> void:
-	# TODO(legacy_mission_retirement): remove mission-completion side effects from
-	# story tutorial branches after TASK TEST has no dependency on legacy missions.
-	complete_mission()
+	# TODO(legacy_mission_retirement): compatibility no-op kept until deprecated
+	# story tutorial callers are fully removed. Generic runtime flows must not
+	# complete legacy missions as a scan/hack/read-terminal side effect.
+	pass
 
-func complete_legacy_mission8_airflow_terminal_hack() -> void:
+func unlock_airflow_terminal_path() -> void:
 	# TODO(legacy_mission_retirement): replace hardcoded Mission 8 terminal/door
 	# mutation with runtime world-object contracts before deleting legacy missions.
 	mission8_terminal_hacked = true
 	if grid_manager != null and grid_manager.is_in_bounds(mission8_door_position):
 		grid_manager.set_tile(mission8_door_position, GridManager.TILE_FLOOR)
+
+func complete_legacy_mission8_airflow_terminal_hack() -> void:
+	# TODO(legacy_mission_retirement): compatibility wrapper for old Mission 8
+	# callers. This preserves the reusable airflow-terminal unlock effect only;
+	# it does not complete a story mission.
+	unlock_airflow_terminal_path()
 
 func get_current_mission_goal_hint() -> String:
 	return get_mission_goal_hint(current_mission_index)
@@ -8865,7 +8872,7 @@ func read_terminal(target_position: Vector2i) -> void:
 			spend_action(1, 1)
 			print("Terminal is silent. Interface calibration required.")
 			hint_requested.emit("Terminal is silent. Interface calibration required.")
-			complete_legacy_mission_from_story_glue("mission2_terminal_calibration")
+			status_changed.emit()
 			return
 		3:
 			if not can_spend_action(1, 1):
