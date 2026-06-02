@@ -51,6 +51,7 @@ const BipobHeavyClawExecutionServiceRef = preload("res://scripts/game/bipob_heav
 const BipobWorldObjectExecutionServiceRef = preload("res://scripts/game/bipob_world_object_execution_service.gd")
 const BipobItemPickupExecutionServiceRef = preload("res://scripts/game/bipob_item_pickup_execution_service.gd")
 const BipobLegacyTileInteractionServiceRef = preload("res://scripts/game/bipob_legacy_tile_interaction_service.gd")
+const BipobLegacyCableFlowServiceRef = preload("res://scripts/game/bipob_legacy_cable_flow_service.gd")
 const BipobScanHackServiceRef = preload("res://scripts/game/bipob_scan_hack_service.gd")
 const BipobMovementControllerRef = preload("res://scripts/bipob/bipob_movement_controller.gd")
 const BipobInventoryControllerRef = preload("res://scripts/bipob/bipob_inventory_controller.gd")
@@ -1319,12 +1320,7 @@ func start_mission(mission_index: int, save_snapshot: bool = true) -> void:
 	energy = max_energy
 	actions_left = actions_per_turn
 	field_modules_by_position.clear()
-	mission7_is_dragging_cable = false
-	mission7_cable_connected = false
-	mission7_cable_reel_position = Vector2i(-1, -1)
-	mission7_socket_position = Vector2i(-1, -1)
-	mission7_powered_gate_position = Vector2i(-1, -1)
-	mission7_cable_path.clear()
+	BipobLegacyCableFlowServiceRef.reset_state(self)
 	if grid_manager != null:
 		var mission_id: String = "mission_%d" % current_mission_index
 		var used_catalog_layout := false
@@ -7817,19 +7813,9 @@ func interact() -> void:
 	if target_tile == GridManager.TILE_FAN_SPEED_DOWN_CONTROL:
 		decrease_mission8_fan_speed()
 		return
-	if target_tile == GridManager.TILE_CABLE_REEL:
-		interact_mission7_cable_reel()
-		return
-	if target_tile == GridManager.TILE_SOCKET:
-		interact_mission7_socket()
-		return
-	if target_tile == GridManager.TILE_POWERED_GATE:
-		hint_requested.emit("Powered gate is closed. Connect the cable to the socket.")
-		status_changed.emit()
-		return
-	if is_legacy_mission7_cable_drag_active() and (target_tile == GridManager.TILE_COMPONENT or target_tile == GridManager.TILE_KEY or target_tile == GridManager.TILE_DOOR):
-		hint_requested.emit("Cable in hand. Connect it to the socket or drop it first.")
-		status_changed.emit()
+	var legacy_cable_result: Dictionary = BipobLegacyCableFlowServiceRef.handle_interact_tile(self, target_position, target_tile)
+	if bool(legacy_cable_result.get("handled", false)):
+		BipobLegacyCableFlowServiceRef.apply_interact_result(self, legacy_cable_result)
 		return
 	
 	var active_manipulator: BipobModule = get_best_manipulator_for_interaction(target_position)
@@ -8365,94 +8351,28 @@ func get_mission8_airflow_status_text() -> String:
 	]
 
 func get_mission7_cable_status_text() -> String:
-	if not is_legacy_mission7_cable_flow_active():
-		return ""
-	if mission7_cable_connected:
-		return "Cable: connected"
-	if mission7_is_dragging_cable:
-		return "Cable: dragging"
-	return "Cable: idle"
+	return BipobLegacyCableFlowServiceRef.get_status_text(self)
 
 func setup_mission7() -> void:
-	mission7_is_dragging_cable = false
-	mission7_cable_connected = false
-	mission7_cable_reel_position = Vector2i(2, 1)
-	mission7_socket_position = Vector2i(5, 3)
-	mission7_powered_gate_position = Vector2i(6, 4)
-	mission7_cable_path.clear()
-	# TODO(BIB-360): cable max-length behavior is intentionally not enforced in MVP.
+	BipobLegacyCableFlowServiceRef.setup(self)
 
 func interact_mission7_cable_reel() -> void:
-	if mission7_cable_connected:
-		hint_requested.emit("Cable is already connected.")
-		return
-	if mission7_is_dragging_cable:
-		hint_requested.emit("Cable already in hand. Drag it to the socket.")
-		return
-	if held_module != null:
-		hint_requested.emit("Hand occupied. Drop or store the item before taking the cable.")
-		return
-	if not can_spend_action(1, 1):
-		return
-	mission7_is_dragging_cable = true
-	mission7_cable_path.clear()
-	mission7_cable_path.append(grid_position)
-	hint_requested.emit("Cable end taken. Drag it to the socket.")
-	spend_action(1, 1)
-	status_changed.emit()
+	BipobLegacyCableFlowServiceRef.interact_cable_reel(self)
 
 func interact_mission7_socket() -> void:
-	if not mission7_is_dragging_cable:
-		hint_requested.emit("Take the cable end from the reel first.")
-		return
-	if mission7_cable_connected:
-		hint_requested.emit("Socket already connected.")
-		return
-	if not can_spend_action(1, 1):
-		return
-	mission7_is_dragging_cable = false
-	mission7_cable_connected = true
-	if mission_manager != null:
-		var mission7_cable_object: Dictionary = Dictionary(mission_manager.get_world_object_by_id("cable_a"))
-		if not mission7_cable_object.is_empty():
-			mission7_cable_object["state"] = "connected"
-			mission7_cable_object["connected"] = true
-			var power_filter := ""
-			if mission_manager.has_method("_get_power_event_filter_for_object"):
-				power_filter = String(mission_manager.call("_get_power_event_filter_for_object", mission7_cable_object))
-			apply_power_network_after_explicit_power_event("cable_connected", power_filter)
-	if grid_manager.get_tile(mission7_powered_gate_position) == GridManager.TILE_POWERED_GATE:
-		grid_manager.set_tile(mission7_powered_gate_position, GridManager.TILE_FLOOR)
-	hint_requested.emit("Cable connected. Powered gate opened.")
-	spend_action(1, 1)
-	status_changed.emit()
+	BipobLegacyCableFlowServiceRef.interact_socket(self)
 
 func add_current_cell_to_mission7_cable_path() -> void:
-	if grid_manager == null or mission7_cable_connected or not mission7_is_dragging_cable:
-		return
-	if not mission7_cable_path.has(grid_position):
-		mission7_cable_path.append(grid_position)
-	var tile := grid_manager.get_tile(grid_position)
-	if tile == GridManager.TILE_FLOOR:
-		grid_manager.set_tile(grid_position, GridManager.TILE_CABLE)
+	BipobLegacyCableFlowServiceRef.add_current_cell_to_path(self)
+
+func clear_mission7_cable_path_tiles() -> void:
+	BipobLegacyCableFlowServiceRef.clear_path_tiles(self)
 
 func clear_mission7_cable_tiles() -> void:
-	if grid_manager == null:
-		mission7_cable_path.clear()
-		return
-	for cable_position in mission7_cable_path:
-		if grid_manager.is_in_bounds(cable_position) and grid_manager.get_tile(cable_position) == GridManager.TILE_CABLE:
-			grid_manager.set_tile(cable_position, GridManager.TILE_FLOOR)
-	mission7_cable_path.clear()
+	clear_mission7_cable_path_tiles()
 
 func release_mission7_cable_end() -> void:
-	if not mission7_is_dragging_cable:
-		hint_requested.emit("No cable in hand.")
-		return
-	mission7_is_dragging_cable = false
-	clear_mission7_cable_tiles()
-	hint_requested.emit("Cable released. Return to the reel to take it again.")
-	status_changed.emit()
+	BipobLegacyCableFlowServiceRef.release_cable_end(self)
 
 func get_mission8_terminal_state_text() -> String:
 	return "cooled" if mission8_terminal_cooled else "hot"
