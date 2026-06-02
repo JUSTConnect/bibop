@@ -140,6 +140,15 @@ const MAP_CONSTRUCTOR_PRESET_DIR: String = "user://constructor_presets"
 const MAP_CONSTRUCTOR_MISSION_PATCH_DIR: String = "user://constructor_mission_patches"
 const MAP_CONSTRUCTOR_PATCH_SCHEMA_VERSION: int = 1
 
+func get_task_test_mission_id() -> String:
+	return TASK_TEST_MISSION_ID
+
+func get_task_test_layout_id() -> String:
+	return TASK_TEST_MISSION_ID
+
+func is_task_test_mission_id(mission_id: String) -> bool:
+	return String(mission_id).strip_edges() == TASK_TEST_MISSION_ID
+
 const MAP_CONSTRUCTOR_WALL_SIDE_DELTAS: Array[Dictionary] = [
 	{"side":"north", "delta": Vector2i(0, -1)},
 	{"side":"east", "delta": Vector2i(1, 0)},
@@ -877,7 +886,7 @@ func setup_world_objects_for_mission(mission_id: String) -> void:
 	_map_constructor_floor_material_overrides.clear()
 	if grid_manager != null and grid_manager.has_method("clear_floor_visual_states"):
 		grid_manager.call("clear_floor_visual_states")
-	if mission_id == TASK_TEST_MISSION_ID:
+	if is_task_test_mission_id(mission_id):
 		_setup_task_test_mission_world()
 		return
 	if mission_id != "mission_1":
@@ -1003,7 +1012,7 @@ func _is_valid_grid_cell(cell: Vector2i) -> bool:
 
 func get_runtime_mode_id() -> String:
 	var normalized_mission_id: String = String(current_mission_id).strip_edges()
-	if normalized_mission_id == TASK_TEST_MISSION_ID:
+	if is_task_test_mission_id(normalized_mission_id):
 		return RUNTIME_MODE_TASK_TEST
 	if normalized_mission_id.begins_with("mission_"):
 		var mission_index: int = int(normalized_mission_id.trim_prefix("mission_"))
