@@ -154,8 +154,6 @@ const Z_RUNTIME_WORLD_OVERLAY: int = 20
 const Z_RUNTIME_HUD: int = 50
 const Z_MAP_CONSTRUCTOR_UI: int = 90
 const Z_RUNTIME_MODAL: int = 120
-const RUNTIME_STORAGE_PANEL_EXPANDED_SIZE: Vector2 = Vector2(380, 190)
-const RUNTIME_STORAGE_PANEL_COLLAPSED_SIZE: Vector2 = Vector2(380, 48)
 var runtime_manipulator_content_label: Button
 var runtime_manipulator_slots: Array[Button] = []
 var runtime_pocket_slots: Array[Button] = []
@@ -4836,10 +4834,7 @@ func _set_runtime_bottom_hud_visible(visible_state: bool) -> void:
 	var bottom_left: Control = runtime_hud_root.get_node_or_null("RuntimeBottomLeft") as Control
 	if bottom_left != null:
 		bottom_left.visible = visible_state
-	if runtime_storage_panel != null and is_instance_valid(runtime_storage_panel):
-		runtime_storage_panel.visible = visible_state
-	if not visible_state and runtime_storage_flyout != null and is_instance_valid(runtime_storage_flyout):
-		runtime_storage_flyout.visible = false
+	RuntimeStoragePanelRef.set_visible(self, visible_state)
 
 
 func _toggle_map_constructor_inspector_expanded() -> void:
@@ -5085,7 +5080,7 @@ func _apply_runtime_hud_layout() -> void:
 	var menu_height: float = RuntimeMissionMenuRef.build(self, root, margin)
 	runtime_bipob_switcher_panel = RuntimeBipobSwitcherRef.build(self, root, margin, margin + menu_height + 6.0)
 
-	runtime_storage_panel = RuntimeStoragePanelRef.build(self, root, margin)
+	runtime_storage_panel = _create_runtime_storage_panel()
 
 	var mission_field_panel := Control.new()
 	mission_field_panel.name = "MissionFieldPanel"
@@ -5362,124 +5357,6 @@ func _create_runtime_world_actions_panel() -> PanelContainer:
 func _create_runtime_storage_panel() -> PanelContainer:
 	return RuntimeStoragePanelRef.build(self, runtime_hud_root, _get_runtime_margin())
 
-
-func _on_runtime_storage_collapse_pressed() -> void:
-	runtime_storage_panel_collapsed = not runtime_storage_panel_collapsed
-	_apply_runtime_storage_collapsed_state()
-
-
-func _apply_runtime_storage_collapsed_state() -> void:
-	if runtime_storage_panel == null or not is_instance_valid(runtime_storage_panel):
-		return
-
-	if runtime_storage_panel_body != null and is_instance_valid(runtime_storage_panel_body):
-		runtime_storage_panel_body.visible = not runtime_storage_panel_collapsed
-		runtime_storage_panel_body.custom_minimum_size = Vector2.ZERO
-		if runtime_storage_panel_collapsed:
-			runtime_storage_panel_body.size_flags_vertical = Control.SIZE_SHRINK_BEGIN
-		else:
-			runtime_storage_panel_body.size_flags_vertical = Control.SIZE_EXPAND_FILL
-
-	if runtime_storage_collapse_button != null and is_instance_valid(runtime_storage_collapse_button):
-		runtime_storage_collapse_button.text = "◀" if runtime_storage_panel_collapsed else "▶"
-		runtime_storage_collapse_button.tooltip_text = "Expand storage panel" if runtime_storage_panel_collapsed else "Collapse storage panel"
-
-	runtime_storage_panel.size_flags_horizontal = Control.SIZE_SHRINK_END
-	runtime_storage_panel.size_flags_vertical = Control.SIZE_SHRINK_BEGIN
-	if runtime_storage_panel_collapsed:
-		runtime_storage_panel.custom_minimum_size = RUNTIME_STORAGE_PANEL_COLLAPSED_SIZE
-		runtime_storage_panel.size = RUNTIME_STORAGE_PANEL_COLLAPSED_SIZE
-		runtime_storage_panel.offset_bottom = runtime_storage_panel.offset_top + RUNTIME_STORAGE_PANEL_COLLAPSED_SIZE.y
-	else:
-		runtime_storage_panel.custom_minimum_size = RUNTIME_STORAGE_PANEL_EXPANDED_SIZE
-		runtime_storage_panel.size = RUNTIME_STORAGE_PANEL_EXPANDED_SIZE
-		runtime_storage_panel.offset_bottom = runtime_storage_panel.offset_top + RUNTIME_STORAGE_PANEL_EXPANDED_SIZE.y
-
-	runtime_storage_panel.queue_sort()
-	runtime_storage_panel.queue_redraw()
-	if map_constructor_mode_active:
-		_refresh_map_constructor_panels()
-
-func _create_runtime_storage_dual_action_header(title: String, first_action_text: String, first_action_callable: Callable, second_action_text: String, second_action_callable: Callable) -> HBoxContainer:
-	var row := HBoxContainer.new()
-	row.add_theme_constant_override("separation", 4)
-	var label := Label.new()
-	label.text = title
-	row.add_child(label)
-	var spacer := Control.new()
-	spacer.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-	row.add_child(spacer)
-	var first_button := Button.new()
-	first_button.text = first_action_text
-	first_button.focus_mode = Control.FOCUS_NONE
-	_apply_action_button_style(first_button, "normal", first_action_callable.is_valid())
-	first_button.disabled = not first_action_callable.is_valid()
-	if first_action_callable.is_valid():
-		first_button.pressed.connect(first_action_callable)
-	row.add_child(first_button)
-	var second_button := Button.new()
-	second_button.text = second_action_text
-	second_button.focus_mode = Control.FOCUS_NONE
-	_apply_action_button_style(second_button, "normal", second_action_callable.is_valid())
-	second_button.disabled = not second_action_callable.is_valid()
-	if second_action_callable.is_valid():
-		second_button.pressed.connect(second_action_callable)
-	row.add_child(second_button)
-	return row
-
-func _create_runtime_slot_action_button(text: String, action_callable: Callable) -> Button:
-	var button := Button.new()
-	button.text = text
-	button.custom_minimum_size = Vector2(46, 22)
-	button.focus_mode = Control.FOCUS_NONE
-	_apply_action_button_style(button, "normal", action_callable.is_valid())
-	button.disabled = not action_callable.is_valid()
-	if action_callable.is_valid():
-		button.pressed.connect(action_callable)
-	return button
-
-func _create_runtime_storage_section_header(title: String, action_text: String, action_callable: Callable, title_label: Label = null) -> HBoxContainer:
-	var row := HBoxContainer.new()
-	row.add_theme_constant_override("separation", 4)
-	var label := title_label if title_label != null else Label.new()
-	if title_label == null:
-		label.text = title
-	row.add_child(label)
-	var spacer := Control.new()
-	spacer.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-	row.add_child(spacer)
-	var button := Button.new()
-	button.text = action_text
-	button.focus_mode = Control.FOCUS_NONE
-	_apply_action_button_style(button, "normal", action_callable.is_valid())
-	button.disabled = not action_callable.is_valid()
-	if action_callable.is_valid():
-		button.pressed.connect(action_callable)
-	row.add_child(button)
-	return row
-
-func _create_storage_slot(text: String, enabled: bool, min_size: Vector2 = Vector2(54, 34)) -> Button:
-	var slot := Button.new()
-	slot.text = text
-	slot.focus_mode = Control.FOCUS_NONE
-	slot.custom_minimum_size = min_size
-	slot.disabled = not enabled
-	slot.modulate = Color.WHITE if enabled else UI_COLOR_DISABLED
-	return slot
-
-func _create_storage_key_slot(enabled: bool) -> Control:
-	var key_slot := PanelContainer.new()
-	key_slot.custom_minimum_size = Vector2(42, 24)
-	key_slot.add_theme_stylebox_override("panel", _make_panel_style(Color(0.090, 0.110, 0.145, 1.0), UI_COLOR_BORDER_DIM, 1, 4))
-	key_slot.modulate = Color.WHITE if enabled else UI_COLOR_DISABLED
-	var label := Label.new()
-	label.name = "KeySlotLabel"
-	label.text = "-"
-	label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
-	label.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
-	label.clip_text = true
-	key_slot.add_child(label)
-	return key_slot
 
 func _ready() -> void:
 	if hint_label != null:
