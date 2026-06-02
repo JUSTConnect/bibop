@@ -7,6 +7,7 @@ const PowerSystemRef = preload("res://scripts/world/power_system.gd")
 const MissionContentCatalogRef = preload("res://scripts/game/mission_content_catalog.gd")
 const MapConstructorServiceRef = preload("res://scripts/game/map_constructor_service.gd")
 const MapConstructorValidationServiceRef = preload("res://scripts/game/map_constructor_validation_service.gd")
+const CableTopologyServiceRef = preload("res://scripts/game/cable_topology_service.gd")
 const DEVICE_INTERACTION_FLOW_STATES: Array[String] = ["no_target", "unknown", "scanned", "diagnosed", "ready", "blocked", "executed_unavailable"]
 
 const ISO_PLACEHOLDER_ASSET_PATHS: Dictionary = {
@@ -3294,6 +3295,17 @@ func can_place_map_constructor_prefab(prefab_id: String, cell: Vector2i, preferr
 		if bool(existing_data.get("mission_exit", false)) or bool(existing_data.get("extraction", false)):
 			result["reason"] = "exit_cell"
 			result["message"] = "Blocked: exit cell."
+			return result
+	if canonical_prefab_id == "power_cable":
+		var cable_preview: Dictionary = WorldObjectCatalogRef.create_world_object(prefab_id, "constructor_preview_cable")
+		if cable_preview.is_empty():
+			cable_preview = {"id": "constructor_preview_cable", "object_type": canonical_prefab_id}
+		cable_preview["position"] = cell
+		var cable_validation: Dictionary = CableTopologyServiceRef.validate_placement(cell, mission_world_objects, cable_preview)
+		if not bool(cable_validation.get("ok", false)):
+			result["reason"] = "invalid_cable_junction"
+			result["message"] = String(cable_validation.get("message", CableTopologyServiceRef.ERROR_MESSAGE_JUNCTION_REQUIRES_SWITCH))
+			result["cable_topology"] = cable_validation
 			return result
 	if prefab_is_wall_mounted:
 		result["placement_mode"] = "wall_mounted"
