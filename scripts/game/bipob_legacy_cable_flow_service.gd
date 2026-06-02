@@ -75,7 +75,7 @@ static func add_current_cell_to_path(controller: Variant) -> void:
 		return
 	if not controller.mission7_cable_path.has(controller.grid_position):
 		controller.mission7_cable_path.append(controller.grid_position)
-	var tile := controller.grid_manager.get_tile(controller.grid_position)
+	var tile: int = int(controller.grid_manager.get_tile(controller.grid_position))
 	if tile == GridManager.TILE_FLOOR:
 		controller.grid_manager.set_tile(controller.grid_position, GridManager.TILE_CABLE)
 
