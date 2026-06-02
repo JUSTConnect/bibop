@@ -12,6 +12,7 @@ const RuntimeObjectHudRef = preload("res://scripts/ui/runtime/runtime_object_hud
 const MapConstructorScreenRef = preload("res://scripts/ui/map_constructor/map_constructor_screen.gd")
 const MapConstructorInspectorRef = preload("res://scripts/ui/map_constructor/map_constructor_inspector.gd")
 const MapConstructorPropertyControlsRef = preload("res://scripts/ui/map_constructor/map_constructor_property_controls.gd")
+const MapConstructorPropertyUpdateServiceRef = preload("res://scripts/game/map_constructor_property_update_service.gd")
 const MapConstructorLinkControlsRef = preload("res://scripts/ui/map_constructor/map_constructor_link_controls.gd")
 
 
@@ -12211,8 +12212,18 @@ func _add_link_picker(section: VBoxContainer, entity_kind: String, entity_id: St
 func _apply_map_constructor_property_updates(entity_kind: String, entity_id: String, updates: Dictionary, fallback_message: String = "Updated.") -> void:
 	if mission_manager_runtime == null or not mission_manager_runtime.has_method("update_map_constructor_entity_properties"):
 		return
-	var result: Dictionary = mission_manager_runtime.call("update_map_constructor_entity_properties", entity_kind, entity_id, updates)
+	var result: Dictionary = MapConstructorPropertyUpdateServiceRef.apply_property_updates(mission_manager_runtime, entity_kind, entity_id, updates, fallback_message)
 	show_hint(_safe_ui_string(result.get("message", fallback_message), fallback_message))
+	_refresh_map_constructor_panels()
+	if field_runtime != null and field_runtime.has_method("request_visual_refresh"):
+		field_runtime.call("request_visual_refresh")
+	_show_map_constructor_inspector(selected_map_constructor_entity_cell, selected_map_constructor_entity_kind, selected_map_constructor_entity_id)
+
+func _apply_map_constructor_property_preset(entity_kind: String, entity_id: String, preset_id: String) -> void:
+	if mission_manager_runtime == null or not mission_manager_runtime.has_method("apply_map_constructor_property_preset"):
+		return
+	var result: Dictionary = MapConstructorPropertyUpdateServiceRef.apply_property_preset(mission_manager_runtime, entity_kind, entity_id, preset_id)
+	show_hint(String(result.get("message", "Preset applied.")))
 	_refresh_map_constructor_panels()
 	if field_runtime != null and field_runtime.has_method("request_visual_refresh"):
 		field_runtime.call("request_visual_refresh")

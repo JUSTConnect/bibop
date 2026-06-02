@@ -9,14 +9,7 @@ static func add_map_constructor_description_editor(ui: Variant, section: VBoxCon
 	desc_edit.custom_minimum_size = Vector2(0.0, 72.0)
 	desc_edit.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	var apply_description := func() -> void:
-		if ui.mission_manager_runtime == null or not ui.mission_manager_runtime.has_method("update_map_constructor_entity_properties"):
-			return
-		var result: Dictionary = ui.mission_manager_runtime.call("update_map_constructor_entity_properties", entity_kind, entity_id, {"description": desc_edit.text})
-		ui.show_hint(MapConstructorUiSafe.safe_string(result.get("message", "Description updated."), "Description updated."))
-		ui._refresh_map_constructor_panels()
-		if ui.field_runtime != null and ui.field_runtime.has_method("request_visual_refresh"):
-			ui.field_runtime.call("request_visual_refresh")
-		ui._show_map_constructor_inspector(ui.selected_map_constructor_entity_cell, ui.selected_map_constructor_entity_kind, ui.selected_map_constructor_entity_id)
+		ui._apply_map_constructor_property_updates(entity_kind, entity_id, {"description": desc_edit.text}, "Description updated.")
 	section.add_child(create_property_row(ui, "Description", desc_edit))
 	var apply_button: Button = Button.new()
 	apply_button.text = "Apply Description"
@@ -61,14 +54,7 @@ static func add_text_property(ui: Variant, section: VBoxContainer, label: String
 	line_edit.text = MapConstructorUiSafe.safe_string(current_value)
 	line_edit.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	var apply_text_update := func() -> void:
-		if ui.mission_manager_runtime == null or not ui.mission_manager_runtime.has_method("update_map_constructor_entity_properties"):
-			return
-		var result: Dictionary = ui.mission_manager_runtime.call("update_map_constructor_entity_properties", entity_kind, entity_id, {field_name: line_edit.text})
-		ui.show_hint(MapConstructorUiSafe.safe_string(result.get("message", "Updated."), "Updated."))
-		ui._refresh_map_constructor_panels()
-		if ui.field_runtime != null and ui.field_runtime.has_method("request_visual_refresh"):
-			ui.field_runtime.call("request_visual_refresh")
-		ui._show_map_constructor_inspector(ui.selected_map_constructor_entity_cell, ui.selected_map_constructor_entity_kind, ui.selected_map_constructor_entity_id)
+		ui._apply_map_constructor_property_updates(entity_kind, entity_id, {field_name: line_edit.text})
 	line_edit.text_submitted.connect(func(_text: String) -> void:
 		apply_text_update.call()
 	)
@@ -91,14 +77,7 @@ static func add_bool_property(ui: Variant, section: VBoxContainer, label: String
 	check.add_theme_color_override("font_pressed_color", ui.UI_COLOR_OK)
 	check.toggled.connect(func(pressed: bool) -> void:
 		check.text = "☑ Enabled" if pressed else "☐ Disabled"
-		if ui.mission_manager_runtime == null or not ui.mission_manager_runtime.has_method("update_map_constructor_entity_properties"):
-			return
-		var result: Dictionary = ui.mission_manager_runtime.call("update_map_constructor_entity_properties", entity_kind, entity_id, {field_name: pressed})
-		ui.show_hint(MapConstructorUiSafe.safe_string(result.get("message", "Updated."), "Updated."))
-		ui._refresh_map_constructor_panels()
-		if ui.field_runtime != null and ui.field_runtime.has_method("request_visual_refresh"):
-			ui.field_runtime.call("request_visual_refresh")
-		ui._show_map_constructor_inspector(ui.selected_map_constructor_entity_cell, ui.selected_map_constructor_entity_kind, ui.selected_map_constructor_entity_id)
+		ui._apply_map_constructor_property_updates(entity_kind, entity_id, {field_name: pressed})
 	)
 	section.add_child(create_property_row(ui, label, check))
 
@@ -114,14 +93,7 @@ static func add_preset_buttons(ui: Variant, section: VBoxContainer, entity_kind:
 		var button: Button = Button.new()
 		button.text = String(preset_data.get("label", "Preset"))
 		button.pressed.connect(func() -> void:
-			if ui.mission_manager_runtime == null or not ui.mission_manager_runtime.has_method("apply_map_constructor_property_preset"):
-				return
-			var result: Dictionary = ui.mission_manager_runtime.call("apply_map_constructor_property_preset", entity_kind, entity_id, preset_id)
-			ui.show_hint(String(result.get("message", "Preset applied.")))
-			ui._refresh_map_constructor_panels()
-			if ui.field_runtime != null and ui.field_runtime.has_method("request_visual_refresh"):
-				ui.field_runtime.call("request_visual_refresh")
-			ui._show_map_constructor_inspector(ui.selected_map_constructor_entity_cell, ui.selected_map_constructor_entity_kind, ui.selected_map_constructor_entity_id)
+			ui._apply_map_constructor_property_preset(entity_kind, entity_id, preset_id)
 		)
 		row.add_child(button)
 	if row.get_child_count() > 0:
