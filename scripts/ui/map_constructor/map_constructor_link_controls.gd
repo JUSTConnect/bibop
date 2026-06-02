@@ -266,6 +266,26 @@ static func add_door_required_key_picker(ui: Variant, parent: VBoxContainer, ent
 	section.add_child(actions)
 	parent.add_child(section)
 
+static func add_active_settings_power_link(ui: Variant, section: VBoxContainer, entity_kind: String, entity_id: String, power_mode: String) -> void:
+	if power_mode == "external":
+		add_link_picker(ui, section, entity_kind, entity_id, "power_source", "Power Source Binding")
+
+static func add_active_settings_control_link(ui: Variant, section: VBoxContainer, entity_kind: String, entity_id: String, control_mode: String) -> void:
+	if control_mode == "external":
+		add_link_picker(ui, section, entity_kind, entity_id, "control_terminal", "Control Terminal Binding")
+
+static func add_door_access_link_controls(ui: Variant, section: VBoxContainer, entity_kind: String, entity_id: String, data: Dictionary, access_type: String) -> void:
+	if access_type in ["mechanical_key", "digital_key", "access_code"]:
+		add_door_required_key_picker(ui, section, entity_kind, entity_id, data)
+	if access_type in ["digital_key", "access_code"]:
+		if access_type == "access_code":
+			var code_label: Label = Label.new()
+			code_label.text = ui._safe_ui_string(data.get("access_code_value", "(auto-generated on save)"), "(auto-generated on save)")
+			section.add_child(ui._create_property_row("Access code", code_label))
+		add_link_picker(ui, section, entity_kind, entity_id, "access_terminal", "Information/access Terminal Storage")
+	if access_type == "terminal_access":
+		add_link_picker(ui, section, entity_kind, entity_id, "access_terminal", "Terminal Access Binding")
+
 static func add_map_constructor_object_link_sections(ui: Variant, link_section: VBoxContainer, entity_kind: String, entity_id: String, data: Dictionary, type_group: String) -> void:
 	if is_map_constructor_key_item(ui, data, type_group):
 		add_key_door_link_section(ui, link_section, entity_kind, entity_id, data)

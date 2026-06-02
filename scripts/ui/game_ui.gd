@@ -12,6 +12,7 @@ const RuntimeObjectHudRef = preload("res://scripts/ui/runtime/runtime_object_hud
 const MapConstructorScreenRef = preload("res://scripts/ui/map_constructor/map_constructor_screen.gd")
 const MapConstructorInspectorRef = preload("res://scripts/ui/map_constructor/map_constructor_inspector.gd")
 const MapConstructorPropertyControlsRef = preload("res://scripts/ui/map_constructor/map_constructor_property_controls.gd")
+const MapConstructorLinkControlsRef = preload("res://scripts/ui/map_constructor/map_constructor_link_controls.gd")
 
 
 class InternalIsoPreviewControl:
@@ -12205,7 +12206,7 @@ func _add_preset_buttons(section: VBoxContainer, entity_kind: String, entity_id:
 # -----------------------------------------------------------------------------
 
 func _add_link_picker(section: VBoxContainer, entity_kind: String, entity_id: String, link_type: String, title: String) -> void:
-	MapConstructorLinkControls.add_link_picker(self, section, entity_kind, entity_id, link_type, title)
+	MapConstructorLinkControlsRef.add_link_picker(self, section, entity_kind, entity_id, link_type, title)
 
 func _apply_map_constructor_property_updates(entity_kind: String, entity_id: String, updates: Dictionary, fallback_message: String = "Updated.") -> void:
 	if mission_manager_runtime == null or not mission_manager_runtime.has_method("update_map_constructor_entity_properties"):
@@ -12229,15 +12230,13 @@ func _add_map_constructor_active_settings(parent: VBoxContainer, entity_kind: St
 	if type_group in ["power", "control"]:
 		power_options.push_front({"label":"Non", "value":"none"})
 	_add_enum_property(section, "Power type", entity_kind, entity_id, "power_mode", power_mode, power_options)
-	if power_mode == "external":
-		_add_link_picker(section, entity_kind, entity_id, "power_source", "Power Source Binding")
+	MapConstructorLinkControlsRef.add_active_settings_power_link(self, section, entity_kind, entity_id, power_mode)
 	var control_mode: String = _safe_ui_string(data.get("control_mode", "external" if bool(data.get("requires_external_control", false)) else "internal")).to_lower()
 	var control_options: Array[Dictionary] = [{"label":"Internal", "value":"internal"}, {"label":"External", "value":"external"}]
 	if type_group in ["power", "control"]:
 		control_options.push_front({"label":"Non", "value":"none"})
 	_add_enum_property(section, "Control type", entity_kind, entity_id, "control_mode", control_mode, control_options)
-	if control_mode == "external":
-		_add_link_picker(section, entity_kind, entity_id, "control_terminal", "Control Terminal Binding")
+	MapConstructorLinkControlsRef.add_active_settings_control_link(self, section, entity_kind, entity_id, control_mode)
 	if type_group == "door":
 		var state_note: Label = Label.new()
 		state_note.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
@@ -12249,16 +12248,7 @@ func _add_map_constructor_active_settings(parent: VBoxContainer, entity_kind: St
 		section.add_child(_create_property_row("is_closed", is_closed_label))
 		var access_type: String = _safe_ui_string(data.get("access_type", data.get("lock_type", "none"))).to_lower()
 		_add_enum_property(section, "Key/access type", entity_kind, entity_id, "access_type", access_type, [{"label":"Mechanical key", "value":"mechanical_key"}, {"label":"Digital key", "value":"digital_key"}, {"label":"Access code", "value":"access_code"}, {"label":"Terminal access", "value":"terminal_access"}, {"label":"No key", "value":"none"}])
-		if access_type in ["mechanical_key", "digital_key", "access_code"]:
-			_add_door_required_key_picker(section, entity_kind, entity_id, data)
-		if access_type in ["digital_key", "access_code"]:
-			if access_type == "access_code":
-				var code_label: Label = Label.new()
-				code_label.text = _safe_ui_string(data.get("access_code_value", "(auto-generated on save)"), "(auto-generated on save)")
-				section.add_child(_create_property_row("Access code", code_label))
-			_add_link_picker(section, entity_kind, entity_id, "access_terminal", "Information/access Terminal Storage")
-		if access_type == "terminal_access":
-			_add_link_picker(section, entity_kind, entity_id, "access_terminal", "Terminal Access Binding")
+		MapConstructorLinkControlsRef.add_door_access_link_controls(self, section, entity_kind, entity_id, data, access_type)
 
 # -----------------------------------------------------------------------------
 # Map Constructor inspector: validation display
@@ -12268,7 +12258,7 @@ func _add_validation_entries(section: VBoxContainer, title: String, entries: Arr
 	MapConstructorValidationView.add_validation_entries(self, section, title, entries)
 
 func _get_map_constructor_key_entity_by_id(key_id: String) -> Dictionary:
-	return MapConstructorLinkControls.get_map_constructor_key_entity_by_id(self, key_id)
+	return MapConstructorLinkControlsRef.get_map_constructor_key_entity_by_id(self, key_id)
 
 func _restore_map_constructor_inspector_scroll_deferred(scroll: ScrollContainer, scroll_value: int) -> void:
 	if scroll == null or not is_instance_valid(scroll):
@@ -12278,19 +12268,19 @@ func _restore_map_constructor_inspector_scroll_deferred(scroll: ScrollContainer,
 		scroll.scroll_vertical = scroll_value
 
 func _is_map_constructor_key_item(data: Dictionary, type_group: String) -> bool:
-	return MapConstructorLinkControls.is_map_constructor_key_item(self, data, type_group)
+	return MapConstructorLinkControlsRef.is_map_constructor_key_item(self, data, type_group)
 
 func _add_key_door_link_section(parent: VBoxContainer, entity_kind: String, entity_id: String, data: Dictionary) -> void:
-	MapConstructorLinkControls.add_key_door_link_section(self, parent, entity_kind, entity_id, data)
+	MapConstructorLinkControlsRef.add_key_door_link_section(self, parent, entity_kind, entity_id, data)
 
 func _add_door_linked_key_section(parent: VBoxContainer, entity_id: String, data: Dictionary) -> void:
-	MapConstructorLinkControls.add_door_linked_key_section(self, parent, entity_id, data)
+	MapConstructorLinkControlsRef.add_door_linked_key_section(self, parent, entity_id, data)
 
 func _add_door_required_key_picker(parent: VBoxContainer, entity_kind: String, entity_id: String, data: Dictionary) -> void:
-	MapConstructorLinkControls.add_door_required_key_picker(self, parent, entity_kind, entity_id, data)
+	MapConstructorLinkControlsRef.add_door_required_key_picker(self, parent, entity_kind, entity_id, data)
 
 func _add_map_constructor_object_link_sections(link_section: VBoxContainer, entity_kind: String, entity_id: String, data: Dictionary, type_group: String) -> void:
-	MapConstructorLinkControls.add_map_constructor_object_link_sections(self, link_section, entity_kind, entity_id, data, type_group)
+	MapConstructorLinkControlsRef.add_map_constructor_object_link_sections(self, link_section, entity_kind, entity_id, data, type_group)
 
 # -----------------------------------------------------------------------------
 # Map Constructor inspector root
