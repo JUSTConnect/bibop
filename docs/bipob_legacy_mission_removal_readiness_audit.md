@@ -1,8 +1,8 @@
-# BIPOB PR-RF-17 — Legacy mission removal readiness audit
+# BIPOB PR-RF-18 — Legacy mission removal readiness audit
 
 ## Purpose
 
-This audit records what still blocks safe deletion of old story mission code/resources after PR-RF-08 through PR-RF-16. It is intentionally documentation-only: no gameplay, TASK TEST, Map Constructor, runtime action, scan/hack, movement, inventory, cable, airflow, or mission resource behavior is changed by this change.
+This audit records what still blocks safe deletion of old story mission code/resources after PR-RF-08 through PR-RF-18. PR-RF-18 intentionally changes only TASK TEST layout/catalog identity resolution: no gameplay, TASK TEST mechanics, Map Constructor, runtime action, scan/hack, movement, inventory, cable, airflow, or mission resource behavior is changed by this change.
 
 Current product direction:
 
@@ -11,13 +11,13 @@ Current product direction:
 - Mechanics introduced by old missions must survive if they are reusable in TASK TEST or future missions.
 - Mission resources/scenes/layouts should be deleted only after TASK TEST startup, sandbox completion, Map Constructor, runtime actions, scan/hack, inventory, and movement pass smoke without relying on old mission-index branches.
 
-## Current status after PR-RF-16
+## Current status after PR-RF-18
 
 ### Already isolated or removed
 
 - TASK TEST runtime identity exists through `get_runtime_mode_id()`, `is_task_test_mode_active()`, and `is_sandbox_mode_active()`.
 - TASK TEST startup has explicit entry points: `start_task_test_session()` and `reset_task_test_session()`.
-- TASK TEST layout/catalog compatibility is named through `get_task_test_mission_id()` and `get_task_test_layout_id()`, but still maps to `mission_10` for now.
+- TASK TEST layout/catalog compatibility is named through `get_task_test_mission_id()` and `get_task_test_layout_id()`; `get_task_test_layout_id()` now exposes the non-story `task_test` alias while `mission_10` remains the compatibility mission id and fallback resource id.
 - TASK TEST completion is isolated through `complete_sandbox_run()` and checked before legacy completion in `check_mission_complete()`.
 - Legacy story completion is separated into `complete_legacy_story_mission()`.
 - `complete_mission()` remains as a compatibility wrapper that routes by runtime mode.
@@ -31,7 +31,7 @@ Current product direction:
 
 - `start_task_test_session()` still delegates to `start_mission(TASK_TEST_MISSION_INDEX, save_snapshot)`.
 - `TASK_TEST_MISSION_INDEX` still maps to the legacy-compatible mission index `10`.
-- `MissionManager.TASK_TEST_MISSION_ID` still maps to `mission_10`.
+- `MissionManager.TASK_TEST_LAYOUT_ID` maps to `task_test`, while `MissionManager.TASK_TEST_MISSION_ID` still maps to `mission_10` for compatibility fallback.
 - `current_mission_index` still exists as the central runtime/session selector.
 - Mission 7/8 reusable mechanics still have legacy hardcoded state and should not be deleted until generic runtime contracts exist.
 
@@ -43,7 +43,7 @@ Current product direction:
 | Mission 4 hidden-route story glue | Removed from goal hints, exit gating, completion message, auto field setup, pickup hints, and discovery side effects. | Ready. | Old Mission 4 story resources can be deleted later. Keep hidden/reveal/X-Ray/Route Data mechanics and debug placement. |
 | Mission 7 cable/socket/powered-gate | Isolated behind `BipobLegacyCableFlowService`, but still hardcoded to Mission 7 state, positions, and `cable_a`. | Not ready for deletion. | Create a generic runtime cable/socket/power world-object contract before deleting old Mission 7 layout/state. |
 | Mission 8 fan/platform/airflow/cooling | Isolated behind `BipobLegacyAirflowFlowService`, but still hardcoded to Mission 8 state and positions. | Not ready for deletion. | Create a generic runtime airflow/fan/platform/cooling world-object contract before deleting old Mission 8 layout/state. |
-| TASK TEST startup | Has explicit `start_task_test_session()` wrapper but still delegates to `start_mission(10)`. | Not fully ready. | Move TASK TEST session state off `current_mission_index` and introduce a non-story sandbox layout id before deleting mission-index startup code. |
+| TASK TEST startup | Has explicit `start_task_test_session()` wrapper, a neutral `task_test` layout alias, and `mission_10` fallback compatibility, but still delegates to `start_mission(10)`. | Not fully ready. | Move TASK TEST session state off `current_mission_index` before deleting mission-index startup code. |
 | TASK TEST completion | Isolated through `complete_sandbox_run()`. | Mostly ready. | Smoke-test sandbox completion. Later route direct TASK TEST callers to `complete_sandbox_run()` and reduce `complete_mission()` compatibility. |
 | Mission selection/progression | Still uses `current_mission_index`, `max_mission_index`, `start_mission()`, `complete_legacy_story_mission()`, and legacy hints. | Not ready. | Isolate/remove story mission selection UI/progression after TASK TEST no longer depends on mission index startup. |
 | MissionManager | Still owns runtime world-object APIs, TASK TEST compatibility id, layouts, and Map Constructor catalog behavior. | Not ready for broad deletion. | Keep MissionManager until its runtime world-object/catalog responsibilities are separated from story mission responsibilities. |
@@ -54,7 +54,7 @@ Current product direction:
 1. **TASK TEST still starts through legacy mission index compatibility.**
    - `start_task_test_session()` exists but still calls `start_mission(10)`.
    - `current_mission_index` remains the runtime/session selector.
-   - `mission_10` remains the TASK TEST layout/catalog compatibility id.
+   - `task_test` is now the neutral TASK TEST layout/catalog alias, while `mission_10` remains the compatibility fallback id.
 
 2. **Mission 7 cable mechanics are not generic yet.**
    - `BipobLegacyCableFlowService` preserves behavior but still uses hardcoded Mission 7 state, positions, tile mutations, and `cable_a`.
@@ -77,21 +77,7 @@ Current product direction:
 
 ### PR-RF-18 — Introduce non-story TASK TEST layout id alias
 
-Goal: make TASK TEST use a neutral sandbox layout id, while keeping `mission_10` as a fallback alias.
-
-Suggested direction:
-
-- Add `TASK_TEST_LAYOUT_ID := "task_test"` or `"sandbox_task_test"`.
-- Keep `TASK_TEST_MISSION_ID := "mission_10"` as compatibility fallback.
-- Make `get_task_test_layout_id()` return the new non-story id only after MissionManager can resolve it.
-- Let MissionManager accept both ids during transition.
-- Do not delete `mission_10` resources in this PR.
-
-Acceptance:
-
-- TASK TEST starts as before.
-- `mission_10` fallback still works.
-- Map Constructor, runtime actions, scan/hack, inventory, movement, and sandbox completion are unchanged.
+Status: completed. TASK TEST now exposes `task_test` as the neutral layout/catalog alias, MissionManager and the mission catalog resolve that alias to the existing `mission_10` layout data, and `mission_10` remains accepted as the compatibility id. No mission resources were deleted or renamed, and TASK TEST startup still follows the existing session path.
 
 ### PR-RF-19 — Split sandbox session state from `current_mission_index`
 
@@ -145,7 +131,7 @@ Only after the above boundaries pass smoke:
 Do not delete these yet:
 
 - `MissionManager` as a whole.
-- TASK TEST / `mission_10` compatibility layout/catalog data.
+- TASK TEST / `task_test` alias and `mission_10` compatibility layout/catalog data.
 - Map Constructor catalog/preset/patch APIs.
 - WorldObjectCatalog / InteractionSystem / PowerSystem runtime APIs.
 - Scan/hack services and digital record storage.

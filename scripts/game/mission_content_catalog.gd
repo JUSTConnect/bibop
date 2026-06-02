@@ -1,6 +1,10 @@
 extends RefCounted
 class_name MissionContentCatalog
 
+const TASK_TEST_LAYOUT_ID := "task_test"
+const TASK_TEST_MISSION_ID := "mission_10"
+const _MISSION_ALIASES: Dictionary = {"task_test": "mission_10"}
+
 const _MISSION_DEFINITIONS: Dictionary = {
 	"mission_1": {
 		"id": "mission_1",
@@ -140,13 +144,26 @@ const _MISSION_DEFINITIONS: Dictionary = {
 	}
 }
 
+func _resolve_mission_id(mission_id: String) -> String:
+	var normalized := String(mission_id).strip_edges()
+	if _MISSION_DEFINITIONS.has(normalized):
+		return normalized
+	return String(_MISSION_ALIASES.get(normalized, "")).strip_edges()
+
 func has_mission(mission_id: String) -> bool:
-	return _MISSION_DEFINITIONS.has(mission_id)
+	var resolved_mission_id: String = _resolve_mission_id(mission_id)
+	return not resolved_mission_id.is_empty() and _MISSION_DEFINITIONS.has(resolved_mission_id)
 
 func get_mission_definition(mission_id: String) -> Dictionary:
-	if not has_mission(mission_id):
+	var normalized := String(mission_id).strip_edges()
+	var resolved_mission_id: String = _resolve_mission_id(normalized)
+	if resolved_mission_id.is_empty():
 		return {}
-	return Dictionary(_MISSION_DEFINITIONS[mission_id]).duplicate(true)
+	var definition: Dictionary = Dictionary(_MISSION_DEFINITIONS[resolved_mission_id]).duplicate(true)
+	if normalized != resolved_mission_id and not normalized.is_empty():
+		definition["id"] = normalized
+		definition["compatibility_mission_id"] = resolved_mission_id
+	return definition
 
 func get_mission_title(mission_id: String) -> String:
 	return String(get_mission_definition(mission_id).get("title", "")).strip_edges()
@@ -181,18 +198,20 @@ func get_all_mission_ids() -> Array[String]:
 	return mission_ids
 
 func has_mission_layout(mission_id: String) -> bool:
-	if not has_mission(mission_id):
+	var resolved_mission_id: String = _resolve_mission_id(mission_id)
+	if resolved_mission_id.is_empty():
 		return false
-	var definition: Dictionary = Dictionary(_MISSION_DEFINITIONS.get(mission_id, {}))
+	var definition: Dictionary = Dictionary(_MISSION_DEFINITIONS.get(resolved_mission_id, {}))
 	if not definition.has("layout"):
 		return false
 	var layout: Array = Array(definition.get("layout", []))
 	return not layout.is_empty()
 
 func get_mission_layout(mission_id: String) -> Array:
-	if not has_mission_layout(mission_id):
+	var resolved_mission_id: String = _resolve_mission_id(mission_id)
+	if resolved_mission_id.is_empty() or not has_mission_layout(resolved_mission_id):
 		return []
-	var definition: Dictionary = Dictionary(_MISSION_DEFINITIONS.get(mission_id, {}))
+	var definition: Dictionary = Dictionary(_MISSION_DEFINITIONS.get(resolved_mission_id, {}))
 	return Array(definition.get("layout", [])).duplicate(true)
 
 func get_mission_layout_size(mission_id: String) -> Vector2i:
