@@ -10664,13 +10664,6 @@ func _add_map_constructor_tab_header(parent: VBoxContainer, available_width: flo
 	MapConstructorTabs.add_tab_header(self, parent, available_width)
 
 
-func _add_map_constructor_controls_hint(parent: VBoxContainer) -> void:
-	var local_hint_label: Label = Label.new()
-	local_hint_label.text = "LMB — select/place/preview   RMB — clear selection   WASD / arrows — pan map"
-	local_hint_label.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
-	local_hint_label.add_theme_color_override("font_color", UI_COLOR_TEXT_DIM)
-	local_hint_label.mouse_filter = Control.MOUSE_FILTER_IGNORE
-	parent.add_child(local_hint_label)
 
 func _refresh_map_constructor_panels() -> void:
 	MapConstructorScreenRef.refresh(self)

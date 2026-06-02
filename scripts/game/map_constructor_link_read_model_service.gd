@@ -14,7 +14,7 @@ const LINK_FIELD_NAMES: Dictionary = {
 }
 
 static func get_link_field_name(link_type: String) -> String:
-	return String(LINK_FIELD_NAMES.get(link_type, ""))
+	return _to_safe_string(LINK_FIELD_NAMES.get(link_type, ""))
 
 static func build_link_picker_model(mission_manager: Variant, entity_kind: String, entity_id: String, link_type: String) -> Dictionary:
 	var field_name: String = get_link_field_name(link_type)
@@ -38,20 +38,20 @@ static func build_link_picker_model(mission_manager: Variant, entity_kind: Strin
 		model["message"] = "Map constructor entity not found."
 		return model
 	var data: Dictionary = _to_dictionary(entity_info.get("data", {}))
-	var current_target_id: String = String(data.get(field_name, "")).strip_edges()
+	var current_target_id: String = _to_safe_string(data.get(field_name, "")).strip_edges()
 	model["current_target_id"] = current_target_id
 	model["current_label"] = "Current: %s" % (current_target_id if not current_target_id.is_empty() else "(none)")
 	var candidate_rows: Array[Dictionary] = []
 	if mission_manager.has_method("get_map_constructor_link_candidates"):
 		for candidate_variant in _to_array(mission_manager.call("get_map_constructor_link_candidates", entity_kind, entity_id, link_type)):
 			var candidate: Dictionary = _to_dictionary(candidate_variant)
-			var candidate_id: String = String(candidate.get("id", ""))
+			var candidate_id: String = _to_safe_string(candidate.get("id", ""))
 			var row: Dictionary = candidate.duplicate(true)
 			row["id"] = candidate_id
 			row["current"] = bool(candidate.get("current", false)) or candidate_id == current_target_id
-			row["object_type"] = String(candidate.get("object_type", "obj"))
+			row["object_type"] = _to_safe_string(candidate.get("object_type", "obj"))
 			row["cell"] = _to_vector2i(candidate.get("cell", Vector2i(-1, -1)))
-			row["label"] = "%s%s [%s] %s" % ["✓ " if bool(row["current"]) else "", candidate_id, String(row["object_type"]), String(row["cell"])]
+			row["label"] = "%s%s [%s] %s" % ["✓ " if bool(row["current"]) else "", candidate_id, _to_safe_string(row["object_type"]), str(row["cell"])]
 			candidate_rows.append(row)
 	model["candidates"] = candidate_rows
 	var target_cell: Vector2i = Vector2i(-1, -1)
@@ -59,7 +59,7 @@ static func build_link_picker_model(mission_manager: Variant, entity_kind: Strin
 	var power_network_has_map_target: bool = true
 	if link_type == "power_network":
 		for candidate in candidate_rows:
-			if String(candidate.get("id", "")) != current_target_id:
+			if _to_safe_string(candidate.get("id", "")) != current_target_id:
 				continue
 			var candidate_cell: Vector2i = _to_vector2i(candidate.get("cell", Vector2i(-1, -1)))
 			if candidate_cell.x < 0 or candidate_cell.y < 0:
@@ -75,6 +75,16 @@ static func build_link_picker_model(mission_manager: Variant, entity_kind: Strin
 	model["ok"] = true
 	model["message"] = "Link candidates ready."
 	return model
+
+static func _to_safe_string(value: Variant) -> String:
+	if value == null:
+		return ""
+	if value is String or value is StringName or value is NodePath:
+		return str(value)
+	if value is bool or value is int or value is float:
+		return str(value)
+	return ""
+
 
 static func _to_array(value: Variant) -> Array:
 	if value is Array:
