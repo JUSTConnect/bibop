@@ -27,7 +27,8 @@ static func try_pickup_adjacent_or_current_item(controller: Variant, target_posi
 		if controller.mission_manager.has_method("pickup_world_item"):
 			pickup_result = Dictionary(controller.mission_manager.call("pickup_world_item", item_id))
 		if not bool(pickup_result.get("success", false)):
-			return _build_result(false, String(pickup_result.get("message", "Cannot pick up item: %s" % ", ".join(Array(pickup_result.get("reasons", [])))))), item_cell, item, false, "world_item_pickup_failed")
+			var pickup_error_message: String = String(pickup_result.get("message", "Cannot pick up item: %s" % ", ".join(Array(pickup_result.get("reasons", [])))))
+			return _build_result(false, pickup_error_message, item_cell, item, false, "world_item_pickup_failed")
 		var message: String
 		if is_digital_item:
 			controller.buffer_item = item.duplicate(true)
