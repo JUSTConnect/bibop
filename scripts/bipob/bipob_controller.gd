@@ -43,6 +43,7 @@ const BipobRuntimeActionActorServiceRef = preload("res://scripts/game/bipob_runt
 const BipobTerminalControlExecutionServiceRef = preload("res://scripts/game/bipob_terminal_control_execution_service.gd")
 const BipobHeavyClawExecutionServiceRef = preload("res://scripts/game/bipob_heavy_claw_execution_service.gd")
 const BipobWorldObjectExecutionServiceRef = preload("res://scripts/game/bipob_world_object_execution_service.gd")
+const BipobItemPickupExecutionServiceRef = preload("res://scripts/game/bipob_item_pickup_execution_service.gd")
 const EXTERNAL_MODULE_CATALOG: Dictionary = {
 "wheels_v1":{"name":"Wheels V1","cat":"Gear","size":Vector2i(3,2),"sides":[EXTERNAL_SIDE_BOTTOM],"desc":"Fast movement system for flat and stable surfaces. Ineffective on stairs, mud and debris.","energy":1,"terrain":"Flat surface","movement":"Drive","speed":3},
 "legs_v1":{"name":"Legs V1","cat":"Gear","size":Vector2i(3,2),"sides":[EXTERNAL_SIDE_BOTTOM],"desc":"Universal movement system that provides stable traversal across uneven terrain, steps, obstacles, and mixed surfaces.","energy":1,"terrain":"Any surface","movement":"Walk","speed":2},
@@ -8266,48 +8267,19 @@ func interact() -> void:
 	
 	var active_manipulator: BipobModule = get_best_manipulator_for_interaction(target_position)
 	if mission_manager != null:
-		var item_cells: Array[Vector2i] = [grid_position]
-		if target_position != grid_position:
-			item_cells.append(target_position)
-		for item_cell in item_cells:
-			var cell_items: Array = mission_manager.get_items_at_cell(item_cell)
-			if cell_items.is_empty():
-				continue
-			var item: Dictionary = Dictionary(cell_items[0])
-			var storage_class: String = WorldObjectCatalog.get_item_storage_class(item)
-			var is_digital_item: bool = storage_class == WorldObjectCatalog.ITEM_STORAGE_CLASS_DIGITAL
-			var requires_free_manipulator: bool = storage_class == WorldObjectCatalog.ITEM_STORAGE_CLASS_PHYSICAL
-			var item_actor := {"manipulator_occupied": requires_free_manipulator and not can_use_physical_hand()}
-			var item_result: Dictionary = InteractionSystemRef.normalize_action_result(Dictionary(InteractionSystemRef.apply_action(item_actor, {"id": active_manipulator.id if active_manipulator != null else ""}, item, "pickup")), item, "pickup")
-			if bool(item_result.get("success", false)):
-				var item_id: String = String(item.get("id", ""))
-				var pickup_result := {"success": true, "reasons": ["ok"], "item_id": item_id}
-				if mission_manager.has_method("pickup_world_item"):
-					pickup_result = Dictionary(mission_manager.call("pickup_world_item", item_id))
-				if not bool(pickup_result.get("success", false)):
-					hint_requested.emit(String(pickup_result.get("message", "Cannot pick up item: %s" % ", ".join(Array(pickup_result.get("reasons", []))))))
-					return
-				if is_digital_item:
-					buffer_item = item.duplicate(true)
-					buffer_item["item_form"] = "digital"
-					var item_type := String(item.get("item_type", item.get("id", "")))
-					var digital_state := String(item.get("digital_state", item.get("state", "opened")))
-					var item_family := String(item.get("item_family", infer_digital_item_family(item_type)))
-					digital_world_records[item_family] = {"item_family": item_family, "item_type": item_type, "digital_state": digital_state}
-					hint_requested.emit("Pickup digital: item stored.")
-				else:
-					var pickup_message: String = String(pickup_result.get("message", ""))
-					if not pickup_message.is_empty():
-						hint_requested.emit(pickup_message)
-					else:
-						hint_requested.emit("Picked up %s" % String(item.get("display_name", "item")))
-				clear_selected_world_action_if_invalid({}, item_cell)
+		var pickup_execution: Dictionary = BipobItemPickupExecutionServiceRef.try_pickup_adjacent_or_current_item(self, target_position, active_manipulator)
+		if bool(pickup_execution.get("handled", false)):
+			hint_requested.emit(String(pickup_execution.get("message", "Pickup failed.")))
+			if bool(pickup_execution.get("clear_selected_action", false)):
+				clear_selected_world_action_if_invalid({}, Vector2i(pickup_execution.get("item_cell", target_position)))
+			if bool(pickup_execution.get("refresh_threats", false)):
 				update_threat_detection_preview()
+			if bool(pickup_execution.get("emit_facing_hint", false)):
 				emit_facing_world_object_hint()
+			if bool(pickup_execution.get("refresh_action_panel", false)):
 				refresh_world_action_panel()
-			else:
-				hint_requested.emit(String(item_result.get("message", "Pickup failed.")))
-			status_changed.emit()
+			if bool(pickup_execution.get("emit_status", true)):
+				status_changed.emit()
 			return
 
 		var world_object: Dictionary = Dictionary(mission_manager.get_world_object_at_cell(target_position))

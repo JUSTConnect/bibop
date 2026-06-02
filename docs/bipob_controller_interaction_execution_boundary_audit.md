@@ -1,6 +1,6 @@
 # BipobController interaction execution boundary audit
 
-Status: execution-boundary audit and extraction roadmap. PR-X5 generic world-object execution helper extraction is complete.
+Status: execution-boundary audit and extraction roadmap. PR-X6 item pickup execution helper extraction is complete.
 
 This document audits the current interaction execution responsibilities in `scripts/bipob/bipob_controller.gd` after the completed read-only extractions:
 
@@ -275,9 +275,9 @@ Extracted the generic `InteractionSystemRef.apply_action` path to `scripts/game/
 - Kept item consumption stable.
 - Kept controller refresh ordering before paid-action finalization and hint emission.
 
-### PR-X6: Extract item pickup execution helper
+### PR-X6: Extract item pickup execution helper — completed
 
-Move physical/digital item pickup path last or as a separate PR after storage smoke tests.
+Extracted the physical/digital item pickup path to `scripts/game/bipob_item_pickup_execution_service.gd`.
 
 - Preserve current-cell/facing-cell lookup order.
 - Preserve digital `buffer_item` behavior.
@@ -316,8 +316,10 @@ Every implementation PR in this area should verify:
 
 ## 8. Recommended next PR
 
-**PR-X5: Extract generic world-object execution helper** is complete. The next candidate is:
+**PR-X6: Extract item pickup execution helper** is complete. The next candidates are:
 
-- **PR-X6:** item pickup execution helper.
+- BipobController legacy/tile interaction boundary audit;
+- MissionManager cleanup/autofix boundary audit;
+- MissionManager save/load/preset persistence boundary audit.
 
-This follow-up candidate must preserve the existing controller façade, execution ordering, spend-on-success behavior, and refresh flow.
+These follow-up audits must preserve the existing controller façade, execution ordering, spend-on-success behavior, and refresh flow. Legacy tile interactions and legacy scan/hack/open_door helpers are not extracted yet.
