@@ -14,6 +14,7 @@ const MapConstructorInspectorRef = preload("res://scripts/ui/map_constructor/map
 const MapConstructorPropertyControlsRef = preload("res://scripts/ui/map_constructor/map_constructor_property_controls.gd")
 const MapConstructorPropertyUpdateServiceRef = preload("res://scripts/game/map_constructor_property_update_service.gd")
 const MapConstructorLinkControlsRef = preload("res://scripts/ui/map_constructor/map_constructor_link_controls.gd")
+const MapConstructorSessionStateRef = preload("res://scripts/ui/map_constructor/map_constructor_session_state.gd")
 
 
 class InternalIsoPreviewControl:
@@ -74,6 +75,20 @@ class ConstructorValidationOverlayControl:
 	func _draw() -> void:
 		if ui_ref != null:
 			ui_ref._draw_map_constructor_validation_overlay(self)
+
+
+
+func _get(property: StringName) -> Variant:
+	if map_constructor_state != null and map_constructor_state.has_session_property(property):
+		return map_constructor_state.get(property)
+	return null
+
+
+func _set(property: StringName, value: Variant) -> bool:
+	if map_constructor_state != null and map_constructor_state.has_session_property(property):
+		map_constructor_state.set(property, value)
+		return true
+	return false
 
 var bipob: BipobController = null
 var field_runtime: GridManager = null
@@ -180,15 +195,16 @@ var runtime_world_actions_behavior_label: Label = null
 var runtime_world_actions_list: VBoxContainer = null
 var runtime_world_actions_no_actions_label: Label = null
 var runtime_world_actions_selected_button: Button = null
+var map_constructor_state: MapConstructorSessionState = MapConstructorSessionStateRef.new()
 var runtime_map_constructor_palette_panel: PanelContainer = null
 var runtime_map_constructor_inspector_panel: PanelContainer = null
 var runtime_map_constructor_inspector_scroll: ScrollContainer = null
-var map_constructor_inspector_expanded: bool = false
+
 var runtime_object_info_panel: PanelContainer = null
 var runtime_object_info_cell: Vector2i = Vector2i(-1, -1)
 var runtime_map_constructor_validation_overlay_control: ConstructorValidationOverlayControl = null
 var runtime_map_constructor_place_confirm_panel: PanelContainer = null
-var map_constructor_validation_overlay_visible: bool = true
+
 var last_world_action_target_id: String = ""
 var last_world_action_actions_key: String = ""
 var last_world_action_selected: String = ""
@@ -329,85 +345,7 @@ var charging_active_tab: String = "supercharger"
 var tasks_validation_label: Label
 var tasks_start_button: Button
 var tasks_claim_button: Button
-var map_constructor_mode_active: bool = false
-var map_constructor_active_tab: String = "map_settings"
-var map_constructor_tab_scroll_positions: Dictionary = {}
-var selected_map_constructor_prefab_id: String = ""
-var pending_map_constructor_cell: Vector2i = Vector2i(-1, -1)
-var map_constructor_pending_place_prefab_id: String = ""
-var map_constructor_pending_place_cell: Vector2i = Vector2i(-1, -1)
-var map_constructor_pending_place_rotation: int = 0
-var selected_map_constructor_entity_kind: String = ""
-var selected_map_constructor_entity_id: String = ""
-var selected_map_constructor_entity_cell: Vector2i = Vector2i(-1, -1)
-var selected_map_constructor_wall_side: String = ""
-var selected_map_constructor_mounting_mode: String = "stationary"
-var available_map_constructor_wall_sides: Array[String] = []
-var map_constructor_picker_entity_kind: String = ""
-var map_constructor_picker_entity_id: String = ""
-var map_constructor_picker_field_name: String = ""
-var map_constructor_preset_name: String = "preset"
-var map_constructor_preset_entries: Array[Dictionary] = []
-var map_constructor_selected_preset_name: String = ""
-var map_constructor_patch_name: String = "mission_patch"
-var map_constructor_patch_entries: Array[Dictionary] = []
-var map_constructor_selected_patch_name: String = ""
-var map_constructor_geometry_width_text: String = "20"
-var map_constructor_geometry_height_text: String = "12"
-var map_constructor_marker_mode: String = ""
-var map_constructor_prefab_search_text: String = ""
-var map_constructor_prefab_category_filter: String = "All"
-var map_constructor_prefab_role_filter: String = "All"
-var map_constructor_prefab_placement_filter: String = "All"
-var map_constructor_prefab_show_diagnostics: bool = true
-var map_constructor_prefab_show_expected_invalid: bool = true
-var map_constructor_prefab_show_only_placeable_here: bool = false
-var map_constructor_prefab_favorites: Dictionary = {}
-var map_constructor_prefab_recent_ids: Array[String] = []
 const MAP_CONSTRUCTOR_PREFAB_RECENT_LIMIT: int = 8
-var map_constructor_placed_search_text: String = ""
-var map_constructor_issue_filter: String = "All"
-var map_constructor_selected_issue_id: String = ""
-var map_constructor_cleanup_preview: Dictionary = {}
-var map_constructor_cleanup_pending_apply_key: String = ""
-var map_constructor_autofix_preview: Dictionary = {}
-var map_constructor_autofix_pending_apply_key: String = ""
-var map_constructor_new_power_network_id: String = "mapedit_power_A"
-var map_constructor_patch_json_text: String = ""
-var map_constructor_patch_preview: Dictionary = {}
-var map_constructor_patch_parsed: Dictionary = {}
-var map_constructor_patch_pending_apply: bool = false
-var map_constructor_change_history_filter: String = "All"
-var map_constructor_multi_selected_entities: Array[Dictionary] = []
-var map_constructor_batch_preview: Dictionary = {}
-var map_constructor_batch_pending_apply_operation: String = ""
-var map_constructor_batch_pending_apply_key: String = ""
-var map_constructor_batch_offset_x: int = 0
-var map_constructor_batch_offset_y: int = 0
-var map_constructor_batch_power_network_id: String = "mapedit_power_A"
-var map_constructor_selected_kit_id: String = ""
-var map_constructor_selected_template_id: String = ""
-var map_constructor_template_rotation: int = 0
-var map_constructor_template_mirror_x: bool = false
-var map_constructor_template_mirror_y: bool = false
-var map_constructor_kit_preview: Dictionary = {}
-var map_constructor_template_preview: Dictionary = {}
-var map_constructor_kit_pending_apply_key: String = ""
-var map_constructor_template_pending_apply_key: String = ""
-var map_constructor_kit_preview_can_apply: bool = false
-var map_constructor_template_preview_can_apply: bool = false
-var map_constructor_design_notes_text: String = ""
-var selected_room_visual_preset_id: String = ""
-var room_visual_preset_preview: Dictionary = {}
-var map_constructor_overlay_mode: String = "None"
-var map_constructor_overlay_visibility: Dictionary = {"show_preview": true, "show_validation": true, "show_links": true, "show_power": true, "show_wall_side_arrows": true, "show_multi_select": true}
-var map_constructor_pipeline_report: Dictionary = {}
-var map_constructor_overview_filter: String = "All"
-var map_constructor_overview_show_issues: bool = true
-var map_constructor_overview_show_power: bool = true
-var map_constructor_overview_show_items: bool = true
-var map_constructor_overview_show_wall_mounted: bool = true
-var map_constructor_overview_show_history: bool = true
 const MAP_CONSTRUCTOR_ISSUE_FILTER_OPTIONS: Array[String] = ["All", "Errors", "Warnings", "Info"]
 const MAP_CONSTRUCTOR_HISTORY_FILTER_OPTIONS: Array[String] = ["All", "Placement", "Edit", "Cleanup", "Auto-fix", "Patch", "Reset"]
 const MAP_CONSTRUCTOR_OVERVIEW_FILTER_OPTIONS: Array[String] = ["All", "Issues", "Errors", "Warnings", "Expected Invalid", "Objects", "Items", "Power", "Terminals", "Doors", "Wall-mounted", "History", "Selected"]
@@ -4811,7 +4749,7 @@ func _get_map_constructor_palette_rect() -> Rect2:
 	# palettes can continue to use the top-right space without overlap.
 	var top_y: float = margin
 	var mission_panel_top_y: float = viewport.y - _get_runtime_bottom_panel_height() - margin
-	var bottom_y: float = viewport.y - margin if map_constructor_mode_active else mission_panel_top_y - 8.0
+	var bottom_y: float = viewport.y - margin if map_constructor_state.map_constructor_mode_active else mission_panel_top_y - 8.0
 	var available_height: float = bottom_y - top_y
 	var height: float = clampf(available_height, 72.0, maxf(72.0, viewport.y - margin * 2.0))
 	if top_y + height > bottom_y and available_height > 0.0:
@@ -4825,7 +4763,7 @@ func _get_map_constructor_bottom_inspector_rect() -> Rect2:
 	var viewport: Vector2 = _get_viewport_size()
 	var palette_rect: Rect2 = _get_map_constructor_palette_rect()
 	var base_height: float = clampf(_get_runtime_bottom_panel_height() + 90.0, 230.0, 290.0)
-	var height: float = base_height * 2.0 if map_constructor_inspector_expanded else base_height
+	var height: float = base_height * 2.0 if map_constructor_state.map_constructor_inspector_expanded else base_height
 	var left: float = margin
 	var right: float = clampf(palette_rect.position.x - margin, left + 1.0, viewport.x - margin)
 	var bottom: float = viewport.y - margin
@@ -4843,8 +4781,8 @@ func _set_runtime_bottom_hud_visible(visible_state: bool) -> void:
 
 
 func _toggle_map_constructor_inspector_expanded() -> void:
-	map_constructor_inspector_expanded = not map_constructor_inspector_expanded
-	_show_map_constructor_inspector(selected_map_constructor_entity_cell, selected_map_constructor_entity_kind, selected_map_constructor_entity_id)
+	map_constructor_state.map_constructor_inspector_expanded = not map_constructor_state.map_constructor_inspector_expanded
+	_show_map_constructor_inspector(map_constructor_state.selected_map_constructor_entity_cell, map_constructor_state.selected_map_constructor_entity_kind, map_constructor_state.selected_map_constructor_entity_id)
 
 
 func _safe_reparent_control(control: Control, new_parent: Node) -> void:
@@ -9752,13 +9690,13 @@ func _unhandled_input(event: InputEvent) -> void:
 		_toggle_map_constructor_mode()
 		return
 	if event is InputEventKey and event.pressed and not event.echo and event.keycode == KEY_V:
-		if map_constructor_mode_active:
-			map_constructor_validation_overlay_visible = not map_constructor_validation_overlay_visible
-			show_hint("Validation Overlay: %s" % ["ON" if map_constructor_validation_overlay_visible else "OFF"])
+		if map_constructor_state.map_constructor_mode_active:
+			map_constructor_state.map_constructor_validation_overlay_visible = not map_constructor_state.map_constructor_validation_overlay_visible
+			show_hint("Validation Overlay: %s" % ["ON" if map_constructor_state.map_constructor_validation_overlay_visible else "OFF"])
 			_refresh_map_constructor_panels()
 		return
 	if event is InputEventKey and event.pressed and not event.echo and event.keycode == KEY_R:
-		if map_constructor_mode_active:
+		if map_constructor_state.map_constructor_mode_active:
 			_cycle_map_constructor_wall_side()
 			_refresh_map_constructor_panels()
 		return
@@ -9812,7 +9750,7 @@ func _process_map_constructor_edge_scroll(delta: float) -> void:
 		return
 	if app_screen_mode != AppScreenMode.GAMEPLAY:
 		return
-	if not map_constructor_mode_active:
+	if not map_constructor_state.map_constructor_mode_active:
 		return
 	if field_runtime == null or not is_instance_valid(field_runtime):
 		return
@@ -9994,12 +9932,12 @@ func _is_task_test_runtime_active() -> bool:
 func _toggle_map_constructor_mode() -> void:
 	if not _is_task_test_runtime_active():
 		return
-	if map_constructor_mode_active:
+	if map_constructor_state.map_constructor_mode_active:
 		_deactivate_map_constructor_mode()
 		show_hint("Map Constructor Mode Off")
 		return
-	map_constructor_mode_active = true
-	map_constructor_validation_overlay_visible = true
+	map_constructor_state.map_constructor_mode_active = true
+	map_constructor_state.map_constructor_validation_overlay_visible = true
 	_request_map_constructor_overlay_refresh()
 	if bipob != null:
 		bipob.map_constructor_input_blocked = true
@@ -10009,16 +9947,16 @@ func _toggle_map_constructor_mode() -> void:
 	_refresh_map_constructor_panels()
 
 func _deactivate_map_constructor_mode() -> void:
-	map_constructor_mode_active = false
-	selected_map_constructor_prefab_id = ""
-	pending_map_constructor_cell = Vector2i(-1, -1)
-	selected_map_constructor_wall_side = ""
-	selected_map_constructor_mounting_mode = "stationary"
-	available_map_constructor_wall_sides.clear()
-	map_constructor_picker_entity_kind = ""
-	map_constructor_picker_entity_id = ""
-	map_constructor_picker_field_name = ""
-	map_constructor_marker_mode = ""
+	map_constructor_state.map_constructor_mode_active = false
+	map_constructor_state.selected_map_constructor_prefab_id = ""
+	map_constructor_state.pending_map_constructor_cell = Vector2i(-1, -1)
+	map_constructor_state.selected_map_constructor_wall_side = ""
+	map_constructor_state.selected_map_constructor_mounting_mode = "stationary"
+	map_constructor_state.available_map_constructor_wall_sides.clear()
+	map_constructor_state.map_constructor_picker_entity_kind = ""
+	map_constructor_state.map_constructor_picker_entity_id = ""
+	map_constructor_state.map_constructor_picker_field_name = ""
+	map_constructor_state.map_constructor_marker_mode = ""
 
 	if bipob != null:
 		bipob.map_constructor_input_blocked = false
@@ -10030,7 +9968,7 @@ func _deactivate_map_constructor_mode() -> void:
 	_clear_map_constructor_preview_cell()
 	_clear_map_constructor_wall_mounted_selection()
 	_clear_map_constructor_link_target()
-	map_constructor_multi_selected_entities.clear()
+	map_constructor_state.map_constructor_multi_selected_entities.clear()
 	_clear_map_constructor_batch_preview_state()
 	_refresh_runtime_mission_objective_label()
 
@@ -10058,17 +9996,17 @@ func _clear_map_constructor_preview_cell() -> void:
 func _update_map_constructor_preview_for_cell(cell: Vector2i) -> Dictionary:
 	if mission_manager_runtime == null or not mission_manager_runtime.has_method("can_place_map_constructor_prefab"):
 		return {}
-	var check: Dictionary = mission_manager_runtime.call("can_place_map_constructor_prefab", selected_map_constructor_prefab_id, cell, selected_map_constructor_wall_side, selected_map_constructor_mounting_mode)
-	available_map_constructor_wall_sides.clear()
+	var check: Dictionary = mission_manager_runtime.call("can_place_map_constructor_prefab", map_constructor_state.selected_map_constructor_prefab_id, cell, map_constructor_state.selected_map_constructor_wall_side, map_constructor_state.selected_map_constructor_mounting_mode)
+	map_constructor_state.available_map_constructor_wall_sides.clear()
 	for side_variant in _safe_ui_array(check.get("available_wall_sides", [])):
-		available_map_constructor_wall_sides.append(String(side_variant))
-	if selected_map_constructor_wall_side.is_empty() and not available_map_constructor_wall_sides.is_empty():
-		selected_map_constructor_wall_side = available_map_constructor_wall_sides[0]
-	elif not selected_map_constructor_wall_side.is_empty() and not available_map_constructor_wall_sides.has(selected_map_constructor_wall_side):
-		if not available_map_constructor_wall_sides.is_empty():
-			selected_map_constructor_wall_side = available_map_constructor_wall_sides[0]
+		map_constructor_state.available_map_constructor_wall_sides.append(String(side_variant))
+	if map_constructor_state.selected_map_constructor_wall_side.is_empty() and not map_constructor_state.available_map_constructor_wall_sides.is_empty():
+		map_constructor_state.selected_map_constructor_wall_side = map_constructor_state.available_map_constructor_wall_sides[0]
+	elif not map_constructor_state.selected_map_constructor_wall_side.is_empty() and not map_constructor_state.available_map_constructor_wall_sides.has(map_constructor_state.selected_map_constructor_wall_side):
+		if not map_constructor_state.available_map_constructor_wall_sides.is_empty():
+			map_constructor_state.selected_map_constructor_wall_side = map_constructor_state.available_map_constructor_wall_sides[0]
 		else:
-			selected_map_constructor_wall_side = ""
+			map_constructor_state.selected_map_constructor_wall_side = ""
 	if field_runtime != null:
 		var renderer: Node = field_runtime.get_node_or_null("RoomVisualRenderer")
 		if renderer != null and renderer.has_method("set_map_constructor_wall_mounted_preview") and String(check.get("placement_mode", "")) == "wall_mounted":
@@ -10090,16 +10028,16 @@ func _create_map_constructor_wall_side_picker(placement_mode: String) -> Control
 	return MapConstructorFloorWallControls.create_wall_side_picker(self, placement_mode)
 
 func _cycle_map_constructor_wall_side() -> void:
-	if available_map_constructor_wall_sides.size() <= 1:
+	if map_constructor_state.available_map_constructor_wall_sides.size() <= 1:
 		show_hint("Wall side: no alternatives.")
 		return
-	var current_index: int = available_map_constructor_wall_sides.find(selected_map_constructor_wall_side)
+	var current_index: int = map_constructor_state.available_map_constructor_wall_sides.find(map_constructor_state.selected_map_constructor_wall_side)
 	if current_index < 0:
 		current_index = 0
-	selected_map_constructor_wall_side = String(available_map_constructor_wall_sides[(current_index + 1) % available_map_constructor_wall_sides.size()])
-	if pending_map_constructor_cell.x >= 0 and pending_map_constructor_cell.y >= 0:
-		_update_map_constructor_preview_for_cell(pending_map_constructor_cell)
-	show_hint("Wall side: %s" % selected_map_constructor_wall_side)
+	map_constructor_state.selected_map_constructor_wall_side = String(map_constructor_state.available_map_constructor_wall_sides[(current_index + 1) % map_constructor_state.available_map_constructor_wall_sides.size()])
+	if map_constructor_state.pending_map_constructor_cell.x >= 0 and map_constructor_state.pending_map_constructor_cell.y >= 0:
+		_update_map_constructor_preview_for_cell(map_constructor_state.pending_map_constructor_cell)
+	show_hint("Wall side: %s" % map_constructor_state.selected_map_constructor_wall_side)
 
 
 func refresh_object_info_position() -> void:
@@ -10136,7 +10074,7 @@ func _handle_runtime_gameplay_mouse_click(event: InputEventMouseButton) -> bool:
 		return false
 	if event.button_index != MOUSE_BUTTON_LEFT and event.button_index != MOUSE_BUTTON_RIGHT:
 		return false
-	if event.button_index == MOUSE_BUTTON_RIGHT and map_constructor_mode_active:
+	if event.button_index == MOUSE_BUTTON_RIGHT and map_constructor_state.map_constructor_mode_active:
 		_clear_all_map_constructor_selection_state()
 		_refresh_map_constructor_panels()
 		_request_map_constructor_overlay_refresh()
@@ -10156,12 +10094,12 @@ func _handle_runtime_gameplay_mouse_click(event: InputEventMouseButton) -> bool:
 		return false
 	if event.button_index == MOUSE_BUTTON_LEFT:
 		_hide_runtime_object_info_hud()
-		if map_constructor_mode_active:
+		if map_constructor_state.map_constructor_mode_active:
 			_handle_map_constructor_left_click(cell)
 		else:
 			bipob.handle_grid_cell_left_click(cell)
 	else:
-		if map_constructor_mode_active:
+		if map_constructor_state.map_constructor_mode_active:
 			_clear_all_map_constructor_selection_state()
 			_refresh_map_constructor_panels()
 			_request_map_constructor_overlay_refresh()
@@ -10172,8 +10110,8 @@ func _handle_runtime_gameplay_mouse_click(event: InputEventMouseButton) -> bool:
 	if event.button_index == MOUSE_BUTTON_LEFT and bipob.grid_position.distance_to(cell) <= 1:
 		action_cell = cell
 	renderer.set_iso_mouse_selection_visuals(bipob.selected_grid_cell, bipob.selected_route_cells, action_cell)
-	if map_constructor_mode_active and map_constructor_pending_place_cell.x < 0:
-		renderer.set_map_constructor_preview_cell(pending_map_constructor_cell)
+	if map_constructor_state.map_constructor_mode_active and map_constructor_state.map_constructor_pending_place_cell.x < 0:
+		renderer.set_map_constructor_preview_cell(map_constructor_state.pending_map_constructor_cell)
 	update_status()
 	update_diagnostic_status()
 	update_box_status()
@@ -10181,17 +10119,17 @@ func _handle_runtime_gameplay_mouse_click(event: InputEventMouseButton) -> bool:
 	return true
 
 func _handle_map_constructor_left_click(cell: Vector2i) -> void:
-	if selected_map_constructor_prefab_id.is_empty():
-		if map_constructor_marker_mode == "start" or map_constructor_marker_mode == "exit":
+	if map_constructor_state.selected_map_constructor_prefab_id.is_empty():
+		if map_constructor_state.map_constructor_marker_mode == "start" or map_constructor_state.map_constructor_marker_mode == "exit":
 			if mission_manager_runtime == null:
 				return
 			var marker_result: Dictionary = {}
-			if map_constructor_marker_mode == "start" and mission_manager_runtime.has_method("set_map_constructor_start_marker"):
+			if map_constructor_state.map_constructor_marker_mode == "start" and mission_manager_runtime.has_method("set_map_constructor_start_marker"):
 				marker_result = mission_manager_runtime.call("set_map_constructor_start_marker", cell)
-			elif map_constructor_marker_mode == "exit" and mission_manager_runtime.has_method("set_map_constructor_exit_marker"):
+			elif map_constructor_state.map_constructor_marker_mode == "exit" and mission_manager_runtime.has_method("set_map_constructor_exit_marker"):
 				marker_result = mission_manager_runtime.call("set_map_constructor_exit_marker", cell)
 			show_hint(String(marker_result.get("message", "Marker set.")))
-			map_constructor_marker_mode = ""
+			map_constructor_state.map_constructor_marker_mode = ""
 			_refresh_map_constructor_panels()
 			return
 		_clear_map_constructor_pending_placement()
@@ -10199,21 +10137,19 @@ func _handle_map_constructor_left_click(cell: Vector2i) -> void:
 		_refresh_map_constructor_panels()
 		_request_map_constructor_overlay_refresh()
 		return
-	_start_map_constructor_pending_placement(selected_map_constructor_prefab_id, cell)
+	_start_map_constructor_pending_placement(map_constructor_state.selected_map_constructor_prefab_id, cell)
 
 func _clear_map_constructor_pending_placement() -> void:
-	map_constructor_pending_place_prefab_id = ""
-	map_constructor_pending_place_cell = Vector2i(-1, -1)
-	map_constructor_pending_place_rotation = 0
+	map_constructor_state.reset_pending_placement()
 	if runtime_map_constructor_place_confirm_panel != null and is_instance_valid(runtime_map_constructor_place_confirm_panel):
 		runtime_map_constructor_place_confirm_panel.queue_free()
 	runtime_map_constructor_place_confirm_panel = null
 
 func _start_map_constructor_pending_placement(prefab_id: String, cell: Vector2i) -> void:
-	map_constructor_pending_place_prefab_id = prefab_id
-	map_constructor_pending_place_cell = cell
-	map_constructor_pending_place_rotation = 0
-	pending_map_constructor_cell = cell
+	map_constructor_state.map_constructor_pending_place_prefab_id = prefab_id
+	map_constructor_state.map_constructor_pending_place_cell = cell
+	map_constructor_state.map_constructor_pending_place_rotation = 0
+	map_constructor_state.pending_map_constructor_cell = cell
 	var preview_check: Dictionary = _update_map_constructor_preview_for_cell(cell)
 	var preview_message: String = String(preview_check.get("message", "Preview: %s at %s" % [prefab_id, str(cell)]))
 	if String(preview_check.get("placement_mode", "")) == "wall_mounted":
@@ -10224,28 +10160,28 @@ func _start_map_constructor_pending_placement(prefab_id: String, cell: Vector2i)
 	_request_map_constructor_overlay_refresh()
 
 func _rotate_map_constructor_pending_placement(clockwise: bool) -> void:
-	if map_constructor_pending_place_cell.x < 0 or map_constructor_pending_place_prefab_id.is_empty():
+	if map_constructor_state.map_constructor_pending_place_cell.x < 0 or map_constructor_state.map_constructor_pending_place_prefab_id.is_empty():
 		return
-	map_constructor_pending_place_rotation = posmod(map_constructor_pending_place_rotation + (90 if clockwise else -90), 360)
-	_update_map_constructor_preview_for_cell(map_constructor_pending_place_cell)
+	map_constructor_state.map_constructor_pending_place_rotation = posmod(map_constructor_state.map_constructor_pending_place_rotation + (90 if clockwise else -90), 360)
+	_update_map_constructor_preview_for_cell(map_constructor_state.map_constructor_pending_place_cell)
 	_show_map_constructor_place_confirm_panel()
-	show_hint("Preview rotation: %d°" % map_constructor_pending_place_rotation)
+	show_hint("Preview rotation: %d°" % map_constructor_state.map_constructor_pending_place_rotation)
 	_request_map_constructor_overlay_refresh()
 
 func _confirm_map_constructor_pending_placement() -> void:
-	if map_constructor_pending_place_prefab_id.is_empty() or map_constructor_pending_place_cell.x < 0:
+	if map_constructor_state.map_constructor_pending_place_prefab_id.is_empty() or map_constructor_state.map_constructor_pending_place_cell.x < 0:
 		return
 	if mission_manager_runtime == null or not mission_manager_runtime.has_method("place_map_constructor_prefab"):
 		return
-	var prefab_id: String = map_constructor_pending_place_prefab_id
-	var place_cell: Vector2i = map_constructor_pending_place_cell
-	var visual_rotation: int = map_constructor_pending_place_rotation
-	var result: Dictionary = MapConstructorActions.apply_prefab_placement(self, prefab_id, place_cell, {"wall_side": selected_map_constructor_wall_side, "rotation": visual_rotation, "mounting_mode": selected_map_constructor_mounting_mode})
+	var prefab_id: String = map_constructor_state.map_constructor_pending_place_prefab_id
+	var place_cell: Vector2i = map_constructor_state.map_constructor_pending_place_cell
+	var visual_rotation: int = map_constructor_state.map_constructor_pending_place_rotation
+	var result: Dictionary = MapConstructorActions.apply_prefab_placement(self, prefab_id, place_cell, {"wall_side": map_constructor_state.selected_map_constructor_wall_side, "rotation": visual_rotation, "mounting_mode": map_constructor_state.selected_map_constructor_mounting_mode})
 	show_hint(String(result.get("message", "Placement done.")))
 	if bool(result.get("ok", false)):
 		_mark_map_constructor_prefab_recent(prefab_id)
 		_clear_map_constructor_pending_placement()
-		pending_map_constructor_cell = Vector2i(-1, -1)
+		map_constructor_state.pending_map_constructor_cell = Vector2i(-1, -1)
 		_clear_map_constructor_preview_cell()
 		if field_runtime != null and field_runtime.has_method("request_visual_refresh"):
 			field_runtime.call("request_visual_refresh")
@@ -10258,7 +10194,7 @@ func _confirm_map_constructor_pending_placement() -> void:
 
 func _cancel_map_constructor_pending_placement() -> void:
 	_clear_map_constructor_pending_placement()
-	pending_map_constructor_cell = Vector2i(-1, -1)
+	map_constructor_state.pending_map_constructor_cell = Vector2i(-1, -1)
 	_clear_map_constructor_preview_cell()
 	_refresh_map_constructor_panels()
 	_request_map_constructor_overlay_refresh()
@@ -10270,7 +10206,7 @@ func _show_map_constructor_place_confirm_panel() -> void:
 	if runtime_map_constructor_place_confirm_panel != null and is_instance_valid(runtime_map_constructor_place_confirm_panel):
 		runtime_map_constructor_place_confirm_panel.queue_free()
 	runtime_map_constructor_place_confirm_panel = null
-	if map_constructor_pending_place_cell.x < 0 or map_constructor_pending_place_prefab_id.is_empty() or field_runtime == null:
+	if map_constructor_state.map_constructor_pending_place_cell.x < 0 or map_constructor_state.map_constructor_pending_place_prefab_id.is_empty() or field_runtime == null:
 		return
 	var renderer_node: Node = field_runtime.get_node_or_null("RoomVisualRenderer")
 	if renderer_node == null or not (renderer_node is RoomVisualRenderer):
@@ -10310,33 +10246,33 @@ func _show_map_constructor_place_confirm_panel() -> void:
 		row.add_child(button)
 	runtime_hud_root.add_child(panel)
 	runtime_map_constructor_place_confirm_panel = panel
-	var world_pos: Vector2 = renderer.to_global(renderer.grid_to_iso(map_constructor_pending_place_cell)) + Vector2(-120.0, 38.0)
+	var world_pos: Vector2 = renderer.to_global(renderer.grid_to_iso(map_constructor_state.map_constructor_pending_place_cell)) + Vector2(-120.0, 38.0)
 	var viewport_size: Vector2 = get_viewport().get_visible_rect().size
 	panel.reset_size()
 	var panel_size: Vector2 = panel.get_combined_minimum_size()
 	panel.position = Vector2(clampf(world_pos.x, 8.0, maxf(8.0, viewport_size.x - panel_size.x - 8.0)), clampf(world_pos.y, 8.0, maxf(8.0, viewport_size.y - panel_size.y - 8.0)))
 
 func _clear_all_map_constructor_selection_state() -> void:
-	selected_map_constructor_prefab_id = ""
-	selected_map_constructor_entity_kind = ""
-	selected_map_constructor_entity_id = ""
-	selected_map_constructor_entity_cell = Vector2i(-1, -1)
-	pending_map_constructor_cell = Vector2i(-1, -1)
-	selected_map_constructor_wall_side = ""
-	available_map_constructor_wall_sides.clear()
-	map_constructor_picker_entity_kind = ""
-	map_constructor_picker_entity_id = ""
-	map_constructor_picker_field_name = ""
-	map_constructor_marker_mode = ""
-	map_constructor_selected_issue_id = ""
-	map_constructor_cleanup_preview.clear()
-	map_constructor_cleanup_pending_apply_key = ""
-	map_constructor_autofix_preview.clear()
-	map_constructor_autofix_pending_apply_key = ""
-	map_constructor_batch_preview.clear()
-	map_constructor_batch_pending_apply_operation = ""
-	map_constructor_batch_pending_apply_key = ""
-	map_constructor_multi_selected_entities.clear()
+	map_constructor_state.selected_map_constructor_prefab_id = ""
+	map_constructor_state.selected_map_constructor_entity_kind = ""
+	map_constructor_state.selected_map_constructor_entity_id = ""
+	map_constructor_state.selected_map_constructor_entity_cell = Vector2i(-1, -1)
+	map_constructor_state.pending_map_constructor_cell = Vector2i(-1, -1)
+	map_constructor_state.selected_map_constructor_wall_side = ""
+	map_constructor_state.available_map_constructor_wall_sides.clear()
+	map_constructor_state.map_constructor_picker_entity_kind = ""
+	map_constructor_state.map_constructor_picker_entity_id = ""
+	map_constructor_state.map_constructor_picker_field_name = ""
+	map_constructor_state.map_constructor_marker_mode = ""
+	map_constructor_state.map_constructor_selected_issue_id = ""
+	map_constructor_state.map_constructor_cleanup_preview.clear()
+	map_constructor_state.map_constructor_cleanup_pending_apply_key = ""
+	map_constructor_state.map_constructor_autofix_preview.clear()
+	map_constructor_state.map_constructor_autofix_pending_apply_key = ""
+	map_constructor_state.map_constructor_batch_preview.clear()
+	map_constructor_state.map_constructor_batch_pending_apply_operation = ""
+	map_constructor_state.map_constructor_batch_pending_apply_key = ""
+	map_constructor_state.map_constructor_multi_selected_entities.clear()
 	_clear_map_constructor_pending_placement()
 	_clear_map_constructor_preview_cell()
 	_clear_map_constructor_wall_mounted_selection()
@@ -10399,7 +10335,7 @@ func _build_map_constructor_placed_object_rows() -> Array[Dictionary]:
 	return mission_manager_runtime.call("get_map_constructor_placed_object_rows")
 
 func _map_constructor_placed_row_matches_search(row: Dictionary) -> bool:
-	var search_text: String = map_constructor_placed_search_text.strip_edges().to_lower()
+	var search_text: String = map_constructor_state.map_constructor_placed_search_text.strip_edges().to_lower()
 	if search_text.is_empty():
 		return true
 	var cell: Vector2i = _safe_ui_vector2i(row.get("cell", Vector2i(-1, -1)))
@@ -10415,9 +10351,9 @@ func _map_constructor_placed_row_matches_search(row: Dictionary) -> bool:
 	return haystack.find(search_text) >= 0
 
 func _clear_map_constructor_browser_selection() -> void:
-	selected_map_constructor_entity_kind = ""
-	selected_map_constructor_entity_id = ""
-	selected_map_constructor_entity_cell = Vector2i(-1, -1)
+	map_constructor_state.selected_map_constructor_entity_kind = ""
+	map_constructor_state.selected_map_constructor_entity_id = ""
+	map_constructor_state.selected_map_constructor_entity_cell = Vector2i(-1, -1)
 
 func _focus_map_constructor_cell(cell: Vector2i) -> void:
 	if cell.x < 0 or cell.y < 0:
@@ -10426,7 +10362,7 @@ func _focus_map_constructor_cell(cell: Vector2i) -> void:
 
 func _map_constructor_history_matches_filter(action_type: String) -> bool:
 	var action: String = action_type.to_lower()
-	match map_constructor_change_history_filter:
+	match map_constructor_state.map_constructor_change_history_filter:
 		"Placement":
 			return action in ["place", "duplicate"]
 		"Edit":
@@ -10471,11 +10407,11 @@ func _map_constructor_overview_symbol_for_cell(cell_row: Dictionary) -> String:
 		return "?"
 	if bool(cell_row.get("has_expected_invalid", false)):
 		return "X"
-	if map_constructor_overview_show_wall_mounted and bool(cell_row.get("has_wall_mounted", false)):
+	if map_constructor_state.map_constructor_overview_show_wall_mounted and bool(cell_row.get("has_wall_mounted", false)):
 		return "W"
-	if map_constructor_overview_show_items and bool(cell_row.get("has_item", false)):
+	if map_constructor_state.map_constructor_overview_show_items and bool(cell_row.get("has_item", false)):
 		return "I"
-	if map_constructor_overview_show_power and bool(cell_row.get("has_power", false)):
+	if map_constructor_state.map_constructor_overview_show_power and bool(cell_row.get("has_power", false)):
 		return "P"
 	if bool(cell_row.get("has_terminal", false)):
 		return "T"
@@ -10491,7 +10427,7 @@ func _map_constructor_overview_symbol_for_cell(cell_row: Dictionary) -> String:
 func _map_constructor_overview_marker_matches_filter(marker: Dictionary) -> bool:
 	var kind: String = String(marker.get("kind", ""))
 	var status: String = String(marker.get("status", ""))
-	match map_constructor_overview_filter:
+	match map_constructor_state.map_constructor_overview_filter:
 		"Issues":
 			return kind == "validation_issue" or kind == "warning"
 		"Errors":
@@ -10542,10 +10478,10 @@ func _select_map_constructor_entity_from_browser(row: Dictionary) -> void:
 	if focus_cell.x < 0 or focus_cell.y < 0:
 		focus_cell = row_cell
 	_clear_map_constructor_link_target()
-	selected_map_constructor_entity_kind = entity_kind
-	selected_map_constructor_entity_id = entity_id
-	selected_map_constructor_entity_cell = focus_cell
-	pending_map_constructor_cell = Vector2i(-1, -1)
+	map_constructor_state.selected_map_constructor_entity_kind = entity_kind
+	map_constructor_state.selected_map_constructor_entity_id = entity_id
+	map_constructor_state.selected_map_constructor_entity_cell = focus_cell
+	map_constructor_state.pending_map_constructor_cell = Vector2i(-1, -1)
 	_clear_map_constructor_pending_placement()
 	_clear_map_constructor_preview_cell()
 	_show_map_constructor_inspector(focus_cell, entity_kind, entity_id)
@@ -10556,15 +10492,15 @@ func _apply_map_constructor_cleanup_action(cleanup_type: String, options: Dictio
 	if mission_manager_runtime == null:
 		return
 	if not apply_now:
-		map_constructor_cleanup_preview = mission_manager_runtime.call("get_map_constructor_cleanup_preview", cleanup_type, options)
-		map_constructor_cleanup_pending_apply_key = "%s|%s" % [cleanup_type, JSON.stringify(options)]
-		show_hint(String(map_constructor_cleanup_preview.get("message", "Preview ready.")))
+		map_constructor_state.map_constructor_cleanup_preview = mission_manager_runtime.call("get_map_constructor_cleanup_preview", cleanup_type, options)
+		map_constructor_state.map_constructor_cleanup_pending_apply_key = "%s|%s" % [cleanup_type, JSON.stringify(options)]
+		show_hint(String(map_constructor_state.map_constructor_cleanup_preview.get("message", "Preview ready.")))
 		_refresh_map_constructor_panels()
 		return
 	var apply_result: Dictionary = mission_manager_runtime.call("apply_map_constructor_cleanup", cleanup_type, options)
 	show_hint(String(apply_result.get("message", "Cleanup applied.")))
-	map_constructor_cleanup_pending_apply_key = ""
-	map_constructor_cleanup_preview.clear()
+	map_constructor_state.map_constructor_cleanup_pending_apply_key = ""
+	map_constructor_state.map_constructor_cleanup_preview.clear()
 	_clear_map_constructor_preview_cell()
 	_clear_map_constructor_wall_mounted_selection()
 	_clear_map_constructor_link_target()
@@ -10577,15 +10513,15 @@ func _apply_map_constructor_autofix_action(fix_type: String, options: Dictionary
 	if mission_manager_runtime == null:
 		return
 	if not apply_now:
-		map_constructor_autofix_preview = mission_manager_runtime.call("get_map_constructor_autofix_preview", fix_type, options)
-		map_constructor_autofix_pending_apply_key = "%s|%s" % [fix_type, JSON.stringify(options)]
-		show_hint(String(map_constructor_autofix_preview.get("message", "Auto-fix preview ready.")))
+		map_constructor_state.map_constructor_autofix_preview = mission_manager_runtime.call("get_map_constructor_autofix_preview", fix_type, options)
+		map_constructor_state.map_constructor_autofix_pending_apply_key = "%s|%s" % [fix_type, JSON.stringify(options)]
+		show_hint(String(map_constructor_state.map_constructor_autofix_preview.get("message", "Auto-fix preview ready.")))
 		_refresh_map_constructor_panels()
 		return
 	var apply_result: Dictionary = mission_manager_runtime.call("apply_map_constructor_autofix", fix_type, options)
 	show_hint(String(apply_result.get("message", "Auto-fix applied.")))
-	map_constructor_autofix_pending_apply_key = ""
-	map_constructor_autofix_preview.clear()
+	map_constructor_state.map_constructor_autofix_pending_apply_key = ""
+	map_constructor_state.map_constructor_autofix_preview.clear()
 	_clear_map_constructor_preview_cell()
 	_clear_map_constructor_wall_mounted_selection()
 	_clear_map_constructor_link_target()
@@ -10595,48 +10531,48 @@ func _apply_map_constructor_autofix_action(fix_type: String, options: Dictionary
 		field_runtime.call("request_visual_refresh")
 
 func _make_map_constructor_multi_row_from_current_selection() -> Dictionary:
-	if selected_map_constructor_entity_id.is_empty():
+	if map_constructor_state.selected_map_constructor_entity_id.is_empty():
 		return {}
 	if mission_manager_runtime == null or not mission_manager_runtime.has_method("get_map_constructor_entity_by_id"):
 		return {}
-	var entity: Dictionary = mission_manager_runtime.call("get_map_constructor_entity_by_id", selected_map_constructor_entity_kind, selected_map_constructor_entity_id)
+	var entity: Dictionary = mission_manager_runtime.call("get_map_constructor_entity_by_id", map_constructor_state.selected_map_constructor_entity_kind, map_constructor_state.selected_map_constructor_entity_id)
 	if not bool(entity.get("ok", false)):
 		return {}
 	var data: Dictionary = _safe_ui_dictionary(entity.get("data", {}))
-	return {"entity_kind":String(entity.get("entity_kind", selected_map_constructor_entity_kind)), "entity_id":String(entity.get("id", selected_map_constructor_entity_id)), "cell":_safe_ui_vector2i(entity.get("cell", Vector2i(-1, -1))), "object_type":String(data.get("object_type", data.get("item_type", ""))), "created_by_map_constructor":bool(data.get("created_by_map_constructor", false))}
+	return {"entity_kind":String(entity.get("entity_kind", map_constructor_state.selected_map_constructor_entity_kind)), "entity_id":String(entity.get("id", map_constructor_state.selected_map_constructor_entity_id)), "cell":_safe_ui_vector2i(entity.get("cell", Vector2i(-1, -1))), "object_type":String(data.get("object_type", data.get("item_type", ""))), "created_by_map_constructor":bool(data.get("created_by_map_constructor", false))}
 
 func _refresh_map_constructor_multi_selection_stale() -> void:
 	if mission_manager_runtime == null or not mission_manager_runtime.has_method("get_map_constructor_entity_by_id"):
-		map_constructor_multi_selected_entities.clear()
+		map_constructor_state.map_constructor_multi_selected_entities.clear()
 		return
 	var fresh: Array[Dictionary] = []
 	var seen: Dictionary = {}
-	for row in map_constructor_multi_selected_entities:
+	for row in map_constructor_state.map_constructor_multi_selected_entities:
 		var key: String = "%s|%s" % [String(row.get("entity_kind", "")), String(row.get("entity_id", ""))]
 		if seen.has(key):
 			continue
 		seen[key] = true
 		var entity: Dictionary = mission_manager_runtime.call("get_map_constructor_entity_by_id", String(row.get("entity_kind", "")), String(row.get("entity_id", "")))
 		if bool(entity.get("ok", false)):
-			if String(entity.get("id", "")) == selected_map_constructor_entity_id:
+			if String(entity.get("id", "")) == map_constructor_state.selected_map_constructor_entity_id:
 				fresh.append(_make_map_constructor_multi_row_from_current_selection())
 			else:
 				var entity_data: Dictionary = _safe_ui_dictionary(entity.get("data", {}))
 				fresh.append({"entity_kind":String(entity.get("entity_kind", "")), "entity_id":String(entity.get("id", "")), "cell":_safe_ui_vector2i(entity.get("cell", Vector2i(-1, -1))), "object_type":String(entity_data.get("object_type", entity_data.get("item_type", ""))), "created_by_map_constructor":bool(entity_data.get("created_by_map_constructor", false))})
-	map_constructor_multi_selected_entities = fresh
+	map_constructor_state.map_constructor_multi_selected_entities = fresh
 
 
 func _build_map_constructor_batch_operation_key(operation_type: String) -> String:
 	var selected_keys: Array[String] = []
-	for row in map_constructor_multi_selected_entities:
+	for row in map_constructor_state.map_constructor_multi_selected_entities:
 		selected_keys.append("%s|%s" % [String(row.get("entity_kind", "")), String(row.get("entity_id", ""))])
 	selected_keys.sort()
-	return "%s|%s|%d|%d|%s" % [operation_type, ",".join(selected_keys), map_constructor_batch_offset_x, map_constructor_batch_offset_y, map_constructor_batch_power_network_id.strip_edges()]
+	return "%s|%s|%d|%d|%s" % [operation_type, ",".join(selected_keys), map_constructor_state.map_constructor_batch_offset_x, map_constructor_state.map_constructor_batch_offset_y, map_constructor_state.map_constructor_batch_power_network_id.strip_edges()]
 
 func _clear_map_constructor_batch_preview_state() -> void:
-	map_constructor_batch_preview.clear()
-	map_constructor_batch_pending_apply_operation = ""
-	map_constructor_batch_pending_apply_key = ""
+	map_constructor_state.map_constructor_batch_preview.clear()
+	map_constructor_state.map_constructor_batch_pending_apply_operation = ""
+	map_constructor_state.map_constructor_batch_pending_apply_key = ""
 
 func _add_map_constructor_multi_row_if_missing(row: Dictionary) -> void:
 	if row.is_empty():
@@ -10644,10 +10580,10 @@ func _add_map_constructor_multi_row_if_missing(row: Dictionary) -> void:
 	if not bool(row.get("created_by_map_constructor", false)):
 		return
 	var key: String = "%s|%s" % [String(row.get("entity_kind", "")), String(row.get("entity_id", ""))]
-	for existing in map_constructor_multi_selected_entities:
+	for existing in map_constructor_state.map_constructor_multi_selected_entities:
 		if "%s|%s" % [String(existing.get("entity_kind", "")), String(existing.get("entity_id", ""))] == key:
 			return
-	map_constructor_multi_selected_entities.append(row)
+	map_constructor_state.map_constructor_multi_selected_entities.append(row)
 
 func _add_map_constructor_multi_selection_by_filter(filter_mode: String) -> void:
 	for row in _build_map_constructor_placed_object_rows():
@@ -10759,8 +10695,8 @@ func _build_map_constructor_warnings_tab(list: VBoxContainer) -> void:
 		visual_summary_label.text = "assets=%d missing_optional=%d" % [visual_assets.size(), missing_optional_count]
 		list.add_child(visual_summary_label)
 		var selected_texture_asset_id: String = ""
-		if not selected_map_constructor_entity_id.is_empty() and mission_manager_runtime.has_method("get_map_constructor_entity_by_id"):
-			var entity_data: Dictionary = mission_manager_runtime.call("get_map_constructor_entity_by_id", selected_map_constructor_entity_kind, selected_map_constructor_entity_id)
+		if not map_constructor_state.selected_map_constructor_entity_id.is_empty() and mission_manager_runtime.has_method("get_map_constructor_entity_by_id"):
+			var entity_data: Dictionary = mission_manager_runtime.call("get_map_constructor_entity_by_id", map_constructor_state.selected_map_constructor_entity_kind, map_constructor_state.selected_map_constructor_entity_id)
 			var selected_payload: Dictionary = _safe_ui_dictionary(entity_data.get("data", {}))
 			selected_texture_asset_id = String(selected_payload.get("texture_asset_id", ""))
 		var selected_asset_label: Label = Label.new()
@@ -10835,14 +10771,14 @@ func _build_map_constructor_warnings_tab(list: VBoxContainer) -> void:
 	var issues_filter_option: OptionButton = OptionButton.new()
 	for filter_name in MAP_CONSTRUCTOR_ISSUE_FILTER_OPTIONS:
 		issues_filter_option.add_item(filter_name)
-	var selected_filter_index: int = MAP_CONSTRUCTOR_ISSUE_FILTER_OPTIONS.find(map_constructor_issue_filter)
+	var selected_filter_index: int = MAP_CONSTRUCTOR_ISSUE_FILTER_OPTIONS.find(map_constructor_state.map_constructor_issue_filter)
 	if selected_filter_index < 0:
 		selected_filter_index = 0
-		map_constructor_issue_filter = "All"
+		map_constructor_state.map_constructor_issue_filter = "All"
 	issues_filter_option.select(selected_filter_index)
 	issues_filter_option.item_selected.connect(func(index: int) -> void:
 		if index >= 0 and index < MAP_CONSTRUCTOR_ISSUE_FILTER_OPTIONS.size():
-			map_constructor_issue_filter = MAP_CONSTRUCTOR_ISSUE_FILTER_OPTIONS[index]
+			map_constructor_state.map_constructor_issue_filter = MAP_CONSTRUCTOR_ISSUE_FILTER_OPTIONS[index]
 			_refresh_map_constructor_panels()
 	)
 	list.add_child(issues_filter_option)
@@ -10861,10 +10797,10 @@ func _build_map_constructor_warnings_tab(list: VBoxContainer) -> void:
 			issue_warnings += 1
 		else:
 			issue_info += 1
-		if String(issue_row.get("id", "")) == map_constructor_selected_issue_id:
+		if String(issue_row.get("id", "")) == map_constructor_state.map_constructor_selected_issue_id:
 			issue_id_exists = true
 	if not issue_id_exists:
-		map_constructor_selected_issue_id = ""
+		map_constructor_state.map_constructor_selected_issue_id = ""
 	var issue_counts_label: Label = Label.new()
 	issue_counts_label.text = "Errors: %d Warnings: %d Info: %d" % [issue_errors, issue_warnings, issue_info]
 	list.add_child(issue_counts_label)
@@ -10876,7 +10812,7 @@ func _build_map_constructor_warnings_tab(list: VBoxContainer) -> void:
 		var issue_message: String = String(issue_row.get("message", "Validation issue"))
 		var issue_cell: Vector2i = _safe_ui_vector2i(issue_row.get("cell", Vector2i(-1, -1)))
 		var issue_entity_id: String = String(issue_row.get("entity_id", ""))
-		var issue_text: String = "%s%s: %s" % ["▶ " if issue_id == map_constructor_selected_issue_id else "", issue_severity, issue_message]
+		var issue_text: String = "%s%s: %s" % ["▶ " if issue_id == map_constructor_state.map_constructor_selected_issue_id else "", issue_severity, issue_message]
 		if not issue_entity_id.is_empty():
 			issue_text += " | id=%s" % issue_entity_id
 		if issue_cell.x >= 0 and issue_cell.y >= 0:
@@ -10885,7 +10821,7 @@ func _build_map_constructor_warnings_tab(list: VBoxContainer) -> void:
 		issue_button.text = issue_text
 		issue_button.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 		issue_button.pressed.connect(func() -> void:
-			map_constructor_selected_issue_id = issue_id
+			map_constructor_state.map_constructor_selected_issue_id = issue_id
 			_focus_map_constructor_issue(issue_row)
 			_refresh_map_constructor_panels()
 		)
@@ -10905,7 +10841,7 @@ func _build_map_constructor_warnings_tab(list: VBoxContainer) -> void:
 					preview_btn.pressed.connect(func() -> void:
 						_apply_map_constructor_autofix_action(ftype, foptions, false)
 					)
-					apply_btn.disabled = map_constructor_autofix_pending_apply_key != fkey
+					apply_btn.disabled = map_constructor_state.map_constructor_autofix_pending_apply_key != fkey
 					apply_btn.pressed.connect(func() -> void:
 						_apply_map_constructor_autofix_action(ftype, foptions, true)
 					)
@@ -10942,9 +10878,9 @@ func _build_map_constructor_warnings_tab(list: VBoxContainer) -> void:
 		else:
 			overlay_summary_label.text = "Validation: errors=%d warnings=%d valid=%d" % [error_count, warning_count, valid_count]
 	list.add_child(overlay_summary_label)
-	var overlay_toggle_button: Button = _make_map_constructor_action_button("Validation Overlay: %s" % ["ON" if map_constructor_validation_overlay_visible else "OFF"])
+	var overlay_toggle_button: Button = _make_map_constructor_action_button("Validation Overlay: %s" % ["ON" if map_constructor_state.map_constructor_validation_overlay_visible else "OFF"])
 	overlay_toggle_button.pressed.connect(func() -> void:
-		map_constructor_validation_overlay_visible = not map_constructor_validation_overlay_visible
+		map_constructor_state.map_constructor_validation_overlay_visible = not map_constructor_state.map_constructor_validation_overlay_visible
 		_refresh_map_constructor_panels()
 	)
 	list.add_child(overlay_toggle_button)
@@ -10963,15 +10899,15 @@ func _build_map_constructor_warnings_tab(list: VBoxContainer) -> void:
 		var toggle: CheckBox = CheckBox.new()
 		toggle.text = String(row.get("label", ""))
 		var pref_key: String = String(row.get("key", ""))
-		toggle.button_pressed = bool(map_constructor_overlay_visibility.get(pref_key, true))
+		toggle.button_pressed = bool(map_constructor_state.map_constructor_overlay_visibility.get(pref_key, true))
 		toggle.toggled.connect(func(enabled: bool) -> void:
-			map_constructor_overlay_visibility[pref_key] = enabled
+			map_constructor_state.map_constructor_overlay_visibility[pref_key] = enabled
 			_request_map_constructor_overlay_refresh()
 		)
 		list.add_child(toggle)
 	var reset_overlay_button: Button = _make_map_constructor_action_button("Reset Overlay Visibility")
 	reset_overlay_button.pressed.connect(func() -> void:
-		map_constructor_overlay_visibility = {"show_preview": true, "show_validation": true, "show_links": true, "show_power": true, "show_wall_side_arrows": true, "show_multi_select": true}
+		map_constructor_state.map_constructor_overlay_visibility = {"show_preview": true, "show_validation": true, "show_links": true, "show_power": true, "show_wall_side_arrows": true, "show_multi_select": true}
 		_request_map_constructor_overlay_refresh()
 		_refresh_map_constructor_panels()
 	)
@@ -10981,46 +10917,46 @@ func _build_map_constructor_map_settings_tab(list: VBoxContainer) -> void:
 	var constructor_sections_title: Label = Label.new()
 	constructor_sections_title.text = "Map Constructor Milestone Tools"
 	list.add_child(constructor_sections_title)
-	var anchor_cell: Vector2i = pending_map_constructor_cell if pending_map_constructor_cell.x >= 0 else selected_map_constructor_entity_cell
+	var anchor_cell: Vector2i = map_constructor_state.pending_map_constructor_cell if map_constructor_state.pending_map_constructor_cell.x >= 0 else map_constructor_state.selected_map_constructor_entity_cell
 	var kit_options: Dictionary = {"allow_overwrite": false}
-	var template_options: Dictionary = {"rotation": map_constructor_template_rotation, "mirror_x": map_constructor_template_mirror_x, "mirror_y": map_constructor_template_mirror_y, "allow_overwrite": false}
-	var current_kit_key: String = "%s|%s|%s" % [map_constructor_selected_kit_id, str(anchor_cell), JSON.stringify(kit_options)]
-	var current_template_key: String = "%s|%s|%s" % [map_constructor_selected_template_id, str(anchor_cell), JSON.stringify(template_options)]
+	var template_options: Dictionary = {"rotation": map_constructor_state.map_constructor_template_rotation, "mirror_x": map_constructor_state.map_constructor_template_mirror_x, "mirror_y": map_constructor_state.map_constructor_template_mirror_y, "allow_overwrite": false}
+	var current_kit_key: String = "%s|%s|%s" % [map_constructor_state.map_constructor_selected_kit_id, str(anchor_cell), JSON.stringify(kit_options)]
+	var current_template_key: String = "%s|%s|%s" % [map_constructor_state.map_constructor_selected_template_id, str(anchor_cell), JSON.stringify(template_options)]
 	var kit_data: Dictionary = mission_manager_runtime.call("get_map_constructor_prefab_kits") if mission_manager_runtime != null and mission_manager_runtime.has_method("get_map_constructor_prefab_kits") else {}
 	var template_data: Dictionary = mission_manager_runtime.call("get_map_constructor_room_templates") if mission_manager_runtime != null and mission_manager_runtime.has_method("get_map_constructor_room_templates") else {}
 	var kit_rows: Array = _safe_ui_array(kit_data.get("kits", []))
 	var template_rows: Array = _safe_ui_array(template_data.get("templates", []))
 	var selected_kit_exists: bool = false
 	for kit_row_variant in kit_rows:
-		if String(_safe_ui_dictionary(kit_row_variant).get("id", "")) == map_constructor_selected_kit_id:
+		if String(_safe_ui_dictionary(kit_row_variant).get("id", "")) == map_constructor_state.map_constructor_selected_kit_id:
 			selected_kit_exists = true
 			break
-	if (map_constructor_selected_kit_id.is_empty() or not selected_kit_exists) and not kit_rows.is_empty():
-		map_constructor_selected_kit_id = String(_safe_ui_dictionary(kit_rows[0]).get("id", ""))
+	if (map_constructor_state.map_constructor_selected_kit_id.is_empty() or not selected_kit_exists) and not kit_rows.is_empty():
+		map_constructor_state.map_constructor_selected_kit_id = String(_safe_ui_dictionary(kit_rows[0]).get("id", ""))
 	var selected_template_exists: bool = false
 	for template_row_variant in template_rows:
-		if String(_safe_ui_dictionary(template_row_variant).get("id", "")) == map_constructor_selected_template_id:
+		if String(_safe_ui_dictionary(template_row_variant).get("id", "")) == map_constructor_state.map_constructor_selected_template_id:
 			selected_template_exists = true
 			break
-	if (map_constructor_selected_template_id.is_empty() or not selected_template_exists) and not template_rows.is_empty():
-		map_constructor_selected_template_id = String(_safe_ui_dictionary(template_rows[0]).get("id", ""))
-	if map_constructor_kit_pending_apply_key != current_kit_key:
-		map_constructor_kit_preview_can_apply = false
-	if map_constructor_template_pending_apply_key != current_template_key:
-		map_constructor_template_preview_can_apply = false
+	if (map_constructor_state.map_constructor_selected_template_id.is_empty() or not selected_template_exists) and not template_rows.is_empty():
+		map_constructor_state.map_constructor_selected_template_id = String(_safe_ui_dictionary(template_rows[0]).get("id", ""))
+	if map_constructor_state.map_constructor_kit_pending_apply_key != current_kit_key:
+		map_constructor_state.map_constructor_kit_preview_can_apply = false
+	if map_constructor_state.map_constructor_template_pending_apply_key != current_template_key:
+		map_constructor_state.map_constructor_template_preview_can_apply = false
 	var kit_select: OptionButton = OptionButton.new()
 	for row_variant in kit_rows:
 		var row: Dictionary = _safe_ui_dictionary(row_variant)
 		kit_select.add_item(String(row.get("display_name", row.get("id", ""))))
 		kit_select.set_item_metadata(kit_select.item_count - 1, String(row.get("id", "")))
 	for idx in range(kit_select.item_count):
-		if String(kit_select.get_item_metadata(idx)) == map_constructor_selected_kit_id:
+		if String(kit_select.get_item_metadata(idx)) == map_constructor_state.map_constructor_selected_kit_id:
 			kit_select.select(idx)
 			break
 	kit_select.item_selected.connect(func(index: int) -> void:
-		map_constructor_selected_kit_id = String(kit_select.get_item_metadata(index))
-		map_constructor_kit_preview_can_apply = false
-		map_constructor_kit_pending_apply_key = ""
+		map_constructor_state.map_constructor_selected_kit_id = String(kit_select.get_item_metadata(index))
+		map_constructor_state.map_constructor_kit_preview_can_apply = false
+		map_constructor_state.map_constructor_kit_pending_apply_key = ""
 		_refresh_map_constructor_panels()
 	)
 	list.add_child(kit_select)
@@ -11028,31 +10964,31 @@ func _build_map_constructor_map_settings_tab(list: VBoxContainer) -> void:
 	selected_kit_info.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 	for row_variant in kit_rows:
 		var row: Dictionary = _safe_ui_dictionary(row_variant)
-		if String(row.get("id", "")) == map_constructor_selected_kit_id:
+		if String(row.get("id", "")) == map_constructor_state.map_constructor_selected_kit_id:
 			selected_kit_info.text = "Kit: %s\n%s\nTags: %s\nWarnings: %s" % [String(row.get("display_name", "")), String(row.get("description", "")), ", ".join(PackedStringArray(_safe_ui_array(row.get("tags", [])))), String(row.get("warning", "none"))]
 	list.add_child(selected_kit_info)
 	var quick_kits_button: Button = _make_map_constructor_action_button("Preview Kit")
 	quick_kits_button.pressed.connect(func() -> void:
 		if mission_manager_runtime == null or not mission_manager_runtime.has_method("preview_map_constructor_prefab_kit"):
 			return
-		if map_constructor_selected_kit_id.is_empty():
+		if map_constructor_state.map_constructor_selected_kit_id.is_empty():
 			return
-		map_constructor_kit_preview = mission_manager_runtime.call("preview_map_constructor_prefab_kit", map_constructor_selected_kit_id, anchor_cell, kit_options)
-		map_constructor_kit_preview_can_apply = bool(map_constructor_kit_preview.get("can_apply", false))
-		map_constructor_kit_pending_apply_key = "%s|%s|%s" % [map_constructor_selected_kit_id, str(anchor_cell), JSON.stringify(kit_options)] if map_constructor_kit_preview_can_apply else ""
+		map_constructor_state.map_constructor_kit_preview = mission_manager_runtime.call("preview_map_constructor_prefab_kit", map_constructor_state.map_constructor_selected_kit_id, anchor_cell, kit_options)
+		map_constructor_state.map_constructor_kit_preview_can_apply = bool(map_constructor_state.map_constructor_kit_preview.get("can_apply", false))
+		map_constructor_state.map_constructor_kit_pending_apply_key = "%s|%s|%s" % [map_constructor_state.map_constructor_selected_kit_id, str(anchor_cell), JSON.stringify(kit_options)] if map_constructor_state.map_constructor_kit_preview_can_apply else ""
 		_refresh_map_constructor_panels()
 	)
 	list.add_child(quick_kits_button)
 	var apply_kit_button: Button = _make_map_constructor_action_button("Apply Kit")
-	apply_kit_button.disabled = map_constructor_selected_kit_id.is_empty() or not map_constructor_kit_preview_can_apply or map_constructor_kit_pending_apply_key != current_kit_key
+	apply_kit_button.disabled = map_constructor_state.map_constructor_selected_kit_id.is_empty() or not map_constructor_state.map_constructor_kit_preview_can_apply or map_constructor_state.map_constructor_kit_pending_apply_key != current_kit_key
 	apply_kit_button.pressed.connect(func() -> void:
 		if mission_manager_runtime == null or not mission_manager_runtime.has_method("apply_map_constructor_prefab_kit"):
 			return
-		var result: Dictionary = mission_manager_runtime.call("apply_map_constructor_prefab_kit", map_constructor_selected_kit_id, anchor_cell, kit_options)
+		var result: Dictionary = mission_manager_runtime.call("apply_map_constructor_prefab_kit", map_constructor_state.map_constructor_selected_kit_id, anchor_cell, kit_options)
 		show_hint(String(result.get("message", "Kit applied.")))
-		map_constructor_kit_preview = {}
-		map_constructor_kit_preview_can_apply = false
-		map_constructor_kit_pending_apply_key = ""
+		map_constructor_state.map_constructor_kit_preview = {}
+		map_constructor_state.map_constructor_kit_preview_can_apply = false
+		map_constructor_state.map_constructor_kit_pending_apply_key = ""
 		_refresh_map_constructor_panels()
 		_refresh_map_constructor_browser()
 		if field_runtime != null and field_runtime.has_method("request_visual_refresh"):
@@ -11065,9 +11001,9 @@ func _build_map_constructor_map_settings_tab(list: VBoxContainer) -> void:
 			return
 		var undo_result: Dictionary = mission_manager_runtime.call("undo_last_map_constructor_prefab_kit")
 		show_hint(String(undo_result.get("message", "Kit undo completed.")))
-		map_constructor_kit_preview = {}
-		map_constructor_kit_preview_can_apply = false
-		map_constructor_kit_pending_apply_key = ""
+		map_constructor_state.map_constructor_kit_preview = {}
+		map_constructor_state.map_constructor_kit_preview_can_apply = false
+		map_constructor_state.map_constructor_kit_pending_apply_key = ""
 		_refresh_map_constructor_panels()
 		_refresh_map_constructor_browser()
 		if field_runtime != null and field_runtime.has_method("request_visual_refresh"):
@@ -11080,13 +11016,13 @@ func _build_map_constructor_map_settings_tab(list: VBoxContainer) -> void:
 		template_select.add_item(String(row.get("display_name", row.get("id", ""))))
 		template_select.set_item_metadata(template_select.item_count - 1, String(row.get("id", "")))
 	for idx in range(template_select.item_count):
-		if String(template_select.get_item_metadata(idx)) == map_constructor_selected_template_id:
+		if String(template_select.get_item_metadata(idx)) == map_constructor_state.map_constructor_selected_template_id:
 			template_select.select(idx)
 			break
 	template_select.item_selected.connect(func(index: int) -> void:
-		map_constructor_selected_template_id = String(template_select.get_item_metadata(index))
-		map_constructor_template_preview_can_apply = false
-		map_constructor_template_pending_apply_key = ""
+		map_constructor_state.map_constructor_selected_template_id = String(template_select.get_item_metadata(index))
+		map_constructor_state.map_constructor_template_preview_can_apply = false
+		map_constructor_state.map_constructor_template_pending_apply_key = ""
 		_refresh_map_constructor_panels()
 	)
 	list.add_child(template_select)
@@ -11094,7 +11030,7 @@ func _build_map_constructor_map_settings_tab(list: VBoxContainer) -> void:
 	template_info.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 	for row_variant in template_rows:
 		var row: Dictionary = _safe_ui_dictionary(row_variant)
-		if String(row.get("id", "")) == map_constructor_selected_template_id:
+		if String(row.get("id", "")) == map_constructor_state.map_constructor_selected_template_id:
 			template_info.text = "Template: %s\n%s\nsize=%s\nTags: %s\nWarnings: %s" % [String(row.get("display_name", "")), String(row.get("description", "")), str(row.get("size", Vector2i.ZERO)), ", ".join(PackedStringArray(_safe_ui_array(row.get("tags", [])))), String(row.get("warning", "none"))]
 	list.add_child(template_info)
 	var template_transform_row: HFlowContainer = _make_map_constructor_action_row()
@@ -11105,36 +11041,36 @@ func _build_map_constructor_map_settings_tab(list: VBoxContainer) -> void:
 	for rotation_option in [0, 90, 180, 270]:
 		rotation_select.add_item("%d" % rotation_option)
 	for rotation_index in range(rotation_select.item_count):
-		if int(rotation_select.get_item_text(rotation_index)) == map_constructor_template_rotation:
+		if int(rotation_select.get_item_text(rotation_index)) == map_constructor_state.map_constructor_template_rotation:
 			rotation_select.select(rotation_index)
 			break
 	rotation_select.item_selected.connect(func(index: int) -> void:
-		map_constructor_template_rotation = int(rotation_select.get_item_text(index))
-		map_constructor_template_preview = {}
-		map_constructor_template_preview_can_apply = false
-		map_constructor_template_pending_apply_key = ""
+		map_constructor_state.map_constructor_template_rotation = int(rotation_select.get_item_text(index))
+		map_constructor_state.map_constructor_template_preview = {}
+		map_constructor_state.map_constructor_template_preview_can_apply = false
+		map_constructor_state.map_constructor_template_pending_apply_key = ""
 		_refresh_map_constructor_panels()
 	)
 	template_transform_row.add_child(rotation_select)
 	var mirror_x_check: CheckBox = CheckBox.new()
 	mirror_x_check.text = "Mirror X"
-	mirror_x_check.button_pressed = map_constructor_template_mirror_x
+	mirror_x_check.button_pressed = map_constructor_state.map_constructor_template_mirror_x
 	mirror_x_check.toggled.connect(func(enabled: bool) -> void:
-		map_constructor_template_mirror_x = enabled
-		map_constructor_template_preview = {}
-		map_constructor_template_preview_can_apply = false
-		map_constructor_template_pending_apply_key = ""
+		map_constructor_state.map_constructor_template_mirror_x = enabled
+		map_constructor_state.map_constructor_template_preview = {}
+		map_constructor_state.map_constructor_template_preview_can_apply = false
+		map_constructor_state.map_constructor_template_pending_apply_key = ""
 		_refresh_map_constructor_panels()
 	)
 	template_transform_row.add_child(mirror_x_check)
 	var mirror_y_check: CheckBox = CheckBox.new()
 	mirror_y_check.text = "Mirror Y"
-	mirror_y_check.button_pressed = map_constructor_template_mirror_y
+	mirror_y_check.button_pressed = map_constructor_state.map_constructor_template_mirror_y
 	mirror_y_check.toggled.connect(func(enabled: bool) -> void:
-		map_constructor_template_mirror_y = enabled
-		map_constructor_template_preview = {}
-		map_constructor_template_preview_can_apply = false
-		map_constructor_template_pending_apply_key = ""
+		map_constructor_state.map_constructor_template_mirror_y = enabled
+		map_constructor_state.map_constructor_template_preview = {}
+		map_constructor_state.map_constructor_template_preview_can_apply = false
+		map_constructor_state.map_constructor_template_pending_apply_key = ""
 		_refresh_map_constructor_panels()
 	)
 	template_transform_row.add_child(mirror_y_check)
@@ -11143,24 +11079,24 @@ func _build_map_constructor_map_settings_tab(list: VBoxContainer) -> void:
 	template_preview_button.pressed.connect(func() -> void:
 		if mission_manager_runtime == null or not mission_manager_runtime.has_method("preview_map_constructor_room_template"):
 			return
-		if map_constructor_selected_template_id.is_empty():
+		if map_constructor_state.map_constructor_selected_template_id.is_empty():
 			return
-		map_constructor_template_preview = mission_manager_runtime.call("preview_map_constructor_room_template", map_constructor_selected_template_id, anchor_cell, template_options)
-		map_constructor_template_preview_can_apply = bool(map_constructor_template_preview.get("can_apply", false))
-		map_constructor_template_pending_apply_key = "%s|%s|%s" % [map_constructor_selected_template_id, str(anchor_cell), JSON.stringify(template_options)] if map_constructor_template_preview_can_apply else ""
+		map_constructor_state.map_constructor_template_preview = mission_manager_runtime.call("preview_map_constructor_room_template", map_constructor_state.map_constructor_selected_template_id, anchor_cell, template_options)
+		map_constructor_state.map_constructor_template_preview_can_apply = bool(map_constructor_state.map_constructor_template_preview.get("can_apply", false))
+		map_constructor_state.map_constructor_template_pending_apply_key = "%s|%s|%s" % [map_constructor_state.map_constructor_selected_template_id, str(anchor_cell), JSON.stringify(template_options)] if map_constructor_state.map_constructor_template_preview_can_apply else ""
 		_refresh_map_constructor_panels()
 	)
 	list.add_child(template_preview_button)
 	var apply_template_button: Button = _make_map_constructor_action_button("Apply Template")
-	apply_template_button.disabled = map_constructor_selected_template_id.is_empty() or not map_constructor_template_preview_can_apply or map_constructor_template_pending_apply_key != current_template_key
+	apply_template_button.disabled = map_constructor_state.map_constructor_selected_template_id.is_empty() or not map_constructor_state.map_constructor_template_preview_can_apply or map_constructor_state.map_constructor_template_pending_apply_key != current_template_key
 	apply_template_button.pressed.connect(func() -> void:
 		if mission_manager_runtime == null or not mission_manager_runtime.has_method("apply_map_constructor_room_template"):
 			return
-		var apply_result: Dictionary = mission_manager_runtime.call("apply_map_constructor_room_template", map_constructor_selected_template_id, anchor_cell, template_options)
+		var apply_result: Dictionary = mission_manager_runtime.call("apply_map_constructor_room_template", map_constructor_state.map_constructor_selected_template_id, anchor_cell, template_options)
 		show_hint(String(apply_result.get("message", "Template applied.")))
-		map_constructor_template_preview = {}
-		map_constructor_template_preview_can_apply = false
-		map_constructor_template_pending_apply_key = ""
+		map_constructor_state.map_constructor_template_preview = {}
+		map_constructor_state.map_constructor_template_preview_can_apply = false
+		map_constructor_state.map_constructor_template_pending_apply_key = ""
 		_refresh_map_constructor_panels()
 		_refresh_map_constructor_browser()
 		if field_runtime != null and field_runtime.has_method("request_visual_refresh"):
@@ -11173,16 +11109,16 @@ func _build_map_constructor_map_settings_tab(list: VBoxContainer) -> void:
 			return
 		var undo_result: Dictionary = mission_manager_runtime.call("undo_last_map_constructor_room_template")
 		show_hint(String(undo_result.get("message", "Template undo completed.")))
-		map_constructor_template_preview = {}
-		map_constructor_template_preview_can_apply = false
-		map_constructor_template_pending_apply_key = ""
+		map_constructor_state.map_constructor_template_preview = {}
+		map_constructor_state.map_constructor_template_preview_can_apply = false
+		map_constructor_state.map_constructor_template_pending_apply_key = ""
 		_refresh_map_constructor_panels()
 		_refresh_map_constructor_browser()
 		if field_runtime != null and field_runtime.has_method("request_visual_refresh"):
 			field_runtime.call("request_visual_refresh")
 	)
 	list.add_child(undo_template_button)
-	for preview_bundle in [{"title":"Kit Preview","data":map_constructor_kit_preview},{"title":"Template Preview","data":map_constructor_template_preview}]:
+	for preview_bundle in [{"title":"Kit Preview","data":map_constructor_state.map_constructor_kit_preview},{"title":"Template Preview","data":map_constructor_state.map_constructor_template_preview}]:
 		var preview_data: Dictionary = _safe_ui_dictionary(preview_bundle.get("data", {}))
 		if preview_data.is_empty():
 			continue
@@ -11204,10 +11140,10 @@ func _build_map_constructor_map_settings_tab(list: VBoxContainer) -> void:
 	var overlay_mode_option: OptionButton = OptionButton.new()
 	for overlay_name in ["None", "Selection", "Multi-select", "Validation Issues", "Expected Invalid", "Power Network", "Links", "Wall-mounted Sides"]:
 		overlay_mode_option.add_item(overlay_name)
-	var overlay_idx: int = maxi(0, ["None", "Selection", "Multi-select", "Validation Issues", "Expected Invalid", "Power Network", "Links", "Wall-mounted Sides"].find(map_constructor_overlay_mode))
+	var overlay_idx: int = maxi(0, ["None", "Selection", "Multi-select", "Validation Issues", "Expected Invalid", "Power Network", "Links", "Wall-mounted Sides"].find(map_constructor_state.map_constructor_overlay_mode))
 	overlay_mode_option.select(overlay_idx)
 	overlay_mode_option.item_selected.connect(func(index: int) -> void:
-		map_constructor_overlay_mode = overlay_mode_option.get_item_text(index)
+		map_constructor_state.map_constructor_overlay_mode = overlay_mode_option.get_item_text(index)
 		_request_map_constructor_overlay_refresh()
 		show_hint("Overlay data ready; renderer overlay refreshed.")
 	)
@@ -11222,15 +11158,15 @@ func _build_map_constructor_map_settings_tab(list: VBoxContainer) -> void:
 		var preset_row: Dictionary = _safe_ui_dictionary(preset_row_variant)
 		preset_select.add_item(String(preset_row.get("display_name", preset_row.get("id", ""))))
 		preset_select.set_item_metadata(preset_select.item_count - 1, String(preset_row.get("id", "")))
-	if selected_room_visual_preset_id.is_empty() and not preset_rows.is_empty():
-		selected_room_visual_preset_id = String(_safe_ui_dictionary(preset_rows[0]).get("id", ""))
+	if map_constructor_state.selected_room_visual_preset_id.is_empty() and not preset_rows.is_empty():
+		map_constructor_state.selected_room_visual_preset_id = String(_safe_ui_dictionary(preset_rows[0]).get("id", ""))
 	for preset_index in range(preset_select.item_count):
-		if String(preset_select.get_item_metadata(preset_index)) == selected_room_visual_preset_id:
+		if String(preset_select.get_item_metadata(preset_index)) == map_constructor_state.selected_room_visual_preset_id:
 			preset_select.select(preset_index)
 			break
 	preset_select.item_selected.connect(func(index: int) -> void:
-		selected_room_visual_preset_id = String(preset_select.get_item_metadata(index))
-		room_visual_preset_preview.clear()
+		map_constructor_state.selected_room_visual_preset_id = String(preset_select.get_item_metadata(index))
+		map_constructor_state.room_visual_preset_preview.clear()
 		_refresh_map_constructor_panels()
 	)
 	list.add_child(preset_select)
@@ -11238,15 +11174,15 @@ func _build_map_constructor_map_settings_tab(list: VBoxContainer) -> void:
 	preset_info_label.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 	for preset_row_variant in preset_rows:
 		var preset_row: Dictionary = _safe_ui_dictionary(preset_row_variant)
-		if String(preset_row.get("id", "")) == selected_room_visual_preset_id:
+		if String(preset_row.get("id", "")) == map_constructor_state.selected_room_visual_preset_id:
 			preset_info_label.text = String(preset_row.get("description", ""))
 	list.add_child(preset_info_label)
 	var preview_preset_button: Button = _make_map_constructor_action_button("Preview Preset")
 	preview_preset_button.pressed.connect(func() -> void:
 		if mission_manager_runtime == null or not mission_manager_runtime.has_method("preview_room_visual_preset"):
 			return
-		room_visual_preset_preview = mission_manager_runtime.call("preview_room_visual_preset", selected_room_visual_preset_id, {"scope":"task_test_room", "include_walls":true, "include_doors":true, "include_terminals":true})
-		show_hint(String(room_visual_preset_preview.get("message", "Preview ready.")))
+		map_constructor_state.room_visual_preset_preview = mission_manager_runtime.call("preview_room_visual_preset", map_constructor_state.selected_room_visual_preset_id, {"scope":"task_test_room", "include_walls":true, "include_doors":true, "include_terminals":true})
+		show_hint(String(map_constructor_state.room_visual_preset_preview.get("message", "Preview ready.")))
 		_refresh_map_constructor_panels()
 	)
 	list.add_child(preview_preset_button)
@@ -11254,12 +11190,12 @@ func _build_map_constructor_map_settings_tab(list: VBoxContainer) -> void:
 	apply_preset_button.pressed.connect(func() -> void:
 		if mission_manager_runtime == null or not mission_manager_runtime.has_method("apply_room_visual_preset"):
 			return
-		var apply_preset_result: Dictionary = mission_manager_runtime.call("apply_room_visual_preset", selected_room_visual_preset_id, {"scope":"task_test_room", "include_walls":true, "include_doors":true, "include_terminals":true})
+		var apply_preset_result: Dictionary = mission_manager_runtime.call("apply_room_visual_preset", map_constructor_state.selected_room_visual_preset_id, {"scope":"task_test_room", "include_walls":true, "include_doors":true, "include_terminals":true})
 		show_hint(String(apply_preset_result.get("message", "Preset applied.")))
 		if bool(apply_preset_result.get("ok", false)) and mission_manager_runtime.has_method("preview_room_visual_preset"):
-			room_visual_preset_preview = mission_manager_runtime.call("preview_room_visual_preset", selected_room_visual_preset_id, {"scope":"task_test_room", "include_walls":true, "include_doors":true, "include_terminals":true})
+			map_constructor_state.room_visual_preset_preview = mission_manager_runtime.call("preview_room_visual_preset", map_constructor_state.selected_room_visual_preset_id, {"scope":"task_test_room", "include_walls":true, "include_doors":true, "include_terminals":true})
 		else:
-			room_visual_preset_preview.clear()
+			map_constructor_state.room_visual_preset_preview.clear()
 		_refresh_map_constructor_panels()
 		_request_map_constructor_overlay_refresh()
 		if field_runtime != null and field_runtime.has_method("request_visual_refresh"):
@@ -11272,37 +11208,37 @@ func _build_map_constructor_map_settings_tab(list: VBoxContainer) -> void:
 			return
 		var clear_preset_result: Dictionary = mission_manager_runtime.call("clear_room_visual_preset_overrides", {})
 		show_hint(String(clear_preset_result.get("message", "Preset overrides cleared.")))
-		room_visual_preset_preview.clear()
+		map_constructor_state.room_visual_preset_preview.clear()
 		_refresh_map_constructor_panels()
 		_request_map_constructor_overlay_refresh()
 		if field_runtime != null and field_runtime.has_method("request_visual_refresh"):
 			field_runtime.call("request_visual_refresh")
 	)
 	list.add_child(clear_preset_button)
-	if not room_visual_preset_preview.is_empty():
-		var room_preview_summary: Dictionary = _safe_ui_dictionary(room_visual_preset_preview.get("summary", {}))
+	if not map_constructor_state.room_visual_preset_preview.is_empty():
+		var room_preview_summary: Dictionary = _safe_ui_dictionary(map_constructor_state.room_visual_preset_preview.get("summary", {}))
 		var room_preview_label: Label = Label.new()
 		room_preview_label.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
-		room_preview_label.text = "Preset Preview: walls=%d doors=%d terminals=%d can_apply=%s\n%s" % [int(room_preview_summary.get("affected_walls", 0)), int(room_preview_summary.get("affected_doors", 0)), int(room_preview_summary.get("affected_terminals", 0)), str(bool(room_visual_preset_preview.get("can_apply", false))), String(room_visual_preset_preview.get("message", ""))]
+		room_preview_label.text = "Preset Preview: walls=%d doors=%d terminals=%d can_apply=%s\n%s" % [int(room_preview_summary.get("affected_walls", 0)), int(room_preview_summary.get("affected_doors", 0)), int(room_preview_summary.get("affected_terminals", 0)), str(bool(map_constructor_state.room_visual_preset_preview.get("can_apply", false))), String(map_constructor_state.room_visual_preset_preview.get("message", ""))]
 		list.add_child(room_preview_label)
 	var room_design_notes_button: Button = _make_map_constructor_action_button("Generate Design Notes")
 	room_design_notes_button.pressed.connect(func() -> void:
 		if mission_manager_runtime == null or not mission_manager_runtime.has_method("export_map_constructor_design_notes"):
 			return
 		var notes_res: Dictionary = mission_manager_runtime.call("export_map_constructor_design_notes", {})
-		map_constructor_design_notes_text = String(notes_res.get("text", ""))
+		map_constructor_state.map_constructor_design_notes_text = String(notes_res.get("text", ""))
 		_refresh_map_constructor_panels()
 	)
 	list.add_child(room_design_notes_button)
 	var notes_edit: TextEdit = TextEdit.new()
 	notes_edit.custom_minimum_size = Vector2(0, 120)
-	notes_edit.text = map_constructor_design_notes_text
+	notes_edit.text = map_constructor_state.map_constructor_design_notes_text
 	list.add_child(notes_edit)
 	var pipeline_button: Button = _make_map_constructor_action_button("Build Promotion Package")
 	pipeline_button.pressed.connect(func() -> void:
 		if mission_manager_runtime == null or not mission_manager_runtime.has_method("get_map_constructor_production_pipeline_report"):
 			return
-		map_constructor_pipeline_report = mission_manager_runtime.call("get_map_constructor_production_pipeline_report", {})
+		map_constructor_state.map_constructor_pipeline_report = mission_manager_runtime.call("get_map_constructor_production_pipeline_report", {})
 		_refresh_map_constructor_panels()
 	)
 	list.add_child(pipeline_button)
@@ -11310,15 +11246,15 @@ func _build_map_constructor_map_settings_tab(list: VBoxContainer) -> void:
 	refresh_package_button.pressed.connect(func() -> void:
 		if mission_manager_runtime == null or not mission_manager_runtime.has_method("get_map_constructor_production_pipeline_report"):
 			return
-		map_constructor_pipeline_report = mission_manager_runtime.call("get_map_constructor_production_pipeline_report", {})
+		map_constructor_state.map_constructor_pipeline_report = mission_manager_runtime.call("get_map_constructor_production_pipeline_report", {})
 		_refresh_map_constructor_panels()
 	)
 	list.add_child(refresh_package_button)
-	if not map_constructor_pipeline_report.is_empty():
-		var pipeline_status: String = String(map_constructor_pipeline_report.get("status", "unknown"))
-		var pipeline_message: String = String(map_constructor_pipeline_report.get("message", ""))
+	if not map_constructor_state.map_constructor_pipeline_report.is_empty():
+		var pipeline_status: String = String(map_constructor_state.map_constructor_pipeline_report.get("status", "unknown"))
+		var pipeline_message: String = String(map_constructor_state.map_constructor_pipeline_report.get("message", ""))
 		var pipeline_lines: Array[String] = ["Pipeline status: %s" % pipeline_status, pipeline_message]
-		var checks: Array = _safe_ui_array(map_constructor_pipeline_report.get("checks", []))
+		var checks: Array = _safe_ui_array(map_constructor_state.map_constructor_pipeline_report.get("checks", []))
 		for check_index in range(mini(12, checks.size())):
 			var check_row: Dictionary = _safe_ui_dictionary(checks[check_index])
 			var check_line: String = "- %s [%s]" % [String(check_row.get("label", "")), String(check_row.get("status", ""))]
@@ -11326,7 +11262,7 @@ func _build_map_constructor_map_settings_tab(list: VBoxContainer) -> void:
 			if not check_message.is_empty():
 				check_line += " — %s" % check_message
 			pipeline_lines.append(check_line)
-		var promotion_package: Dictionary = _safe_ui_dictionary(map_constructor_pipeline_report.get("promotion_package", {}))
+		var promotion_package: Dictionary = _safe_ui_dictionary(map_constructor_state.map_constructor_pipeline_report.get("promotion_package", {}))
 		var package_warnings: Array = _safe_ui_array(promotion_package.get("warnings", []))
 		pipeline_lines.append("Warning summary: count=%d" % package_warnings.size())
 		for warning_index in range(mini(5, package_warnings.size())):
@@ -11353,11 +11289,11 @@ func _build_map_constructor_map_settings_tab(list: VBoxContainer) -> void:
 	list.add_child(multi_title)
 	_refresh_map_constructor_multi_selection_stale()
 	var selected_ids: Array[String] = []
-	for selected_row in map_constructor_multi_selected_entities:
+	for selected_row in map_constructor_state.map_constructor_multi_selected_entities:
 		selected_ids.append(String(selected_row.get("entity_id", "")))
 	var multi_info: Label = Label.new()
 	multi_info.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
-	multi_info.text = "Selected: %d\n%s" % [map_constructor_multi_selected_entities.size(), ", ".join(selected_ids.slice(0, mini(10, selected_ids.size())))]
+	multi_info.text = "Selected: %d\n%s" % [map_constructor_state.map_constructor_multi_selected_entities.size(), ", ".join(selected_ids.slice(0, mini(10, selected_ids.size())))]
 	list.add_child(multi_info)
 	var select_actions: HFlowContainer = _make_map_constructor_action_row()
 	var add_current: Button = _make_map_constructor_action_button("Add Current Selection")
@@ -11369,16 +11305,16 @@ func _build_map_constructor_map_settings_tab(list: VBoxContainer) -> void:
 	var remove_current: Button = _make_map_constructor_action_button("Remove Current Selection")
 	remove_current.pressed.connect(func() -> void:
 		var keep: Array[Dictionary] = []
-		for row in map_constructor_multi_selected_entities:
-			if String(row.get("entity_kind", "")) == selected_map_constructor_entity_kind and String(row.get("entity_id", "")) == selected_map_constructor_entity_id:
+		for row in map_constructor_state.map_constructor_multi_selected_entities:
+			if String(row.get("entity_kind", "")) == map_constructor_state.selected_map_constructor_entity_kind and String(row.get("entity_id", "")) == map_constructor_state.selected_map_constructor_entity_id:
 				continue
 			keep.append(row)
-		map_constructor_multi_selected_entities = keep
+		map_constructor_state.map_constructor_multi_selected_entities = keep
 		_refresh_map_constructor_multi_selection_stale()
 		_refresh_map_constructor_panels()
 	)
 	var clear_multi: Button = _make_map_constructor_action_button("Clear Multi-select")
-	clear_multi.pressed.connect(func() -> void: map_constructor_multi_selected_entities.clear(); _clear_map_constructor_batch_preview_state(); _refresh_map_constructor_panels())
+	clear_multi.pressed.connect(func() -> void: map_constructor_state.map_constructor_multi_selected_entities.clear(); _clear_map_constructor_batch_preview_state(); _refresh_map_constructor_panels())
 	select_actions.add_child(add_current); select_actions.add_child(remove_current); select_actions.add_child(clear_multi); list.add_child(select_actions)
 	var quick_select: HFlowContainer = _make_map_constructor_action_row()
 	for quick in [{"label":"All Constructor","mode":"all_constructor"},{"label":"All Items","mode":"items"},{"label":"Wall-mounted","mode":"wall_mounted"},{"label":"Doors","mode":"doors"},{"label":"Terminals","mode":"terminals"},{"label":"Power","mode":"power"},{"label":"Control","mode":"control"}]:
@@ -11390,9 +11326,9 @@ func _build_map_constructor_map_settings_tab(list: VBoxContainer) -> void:
 		quick_select.add_child(select_button)
 	list.add_child(quick_select)
 	var offset_row: HFlowContainer = _make_map_constructor_action_row()
-	var ox: SpinBox = SpinBox.new(); ox.min_value = -100; ox.max_value = 100; ox.step = 1; ox.value = map_constructor_batch_offset_x; ox.value_changed.connect(func(v: float) -> void: map_constructor_batch_offset_x = int(v))
-	var oy: SpinBox = SpinBox.new(); oy.min_value = -100; oy.max_value = 100; oy.step = 1; oy.value = map_constructor_batch_offset_y; oy.value_changed.connect(func(v: float) -> void: map_constructor_batch_offset_y = int(v))
-	var pn: LineEdit = LineEdit.new(); pn.text = map_constructor_batch_power_network_id; pn.placeholder_text = "Power network id"; pn.text_changed.connect(func(t: String) -> void: map_constructor_batch_power_network_id = t)
+	var ox: SpinBox = SpinBox.new(); ox.min_value = -100; ox.max_value = 100; ox.step = 1; ox.value = map_constructor_state.map_constructor_batch_offset_x; ox.value_changed.connect(func(v: float) -> void: map_constructor_state.map_constructor_batch_offset_x = int(v))
+	var oy: SpinBox = SpinBox.new(); oy.min_value = -100; oy.max_value = 100; oy.step = 1; oy.value = map_constructor_state.map_constructor_batch_offset_y; oy.value_changed.connect(func(v: float) -> void: map_constructor_state.map_constructor_batch_offset_y = int(v))
+	var pn: LineEdit = LineEdit.new(); pn.text = map_constructor_state.map_constructor_batch_power_network_id; pn.placeholder_text = "Power network id"; pn.text_changed.connect(func(t: String) -> void: map_constructor_state.map_constructor_batch_power_network_id = t)
 	offset_row.add_child(Label.new()); offset_row.get_child(0).set("text", "Offset X/Y:")
 	offset_row.add_child(ox); offset_row.add_child(oy); offset_row.add_child(pn); list.add_child(offset_row)
 	var batch_buttons: HFlowContainer = _make_map_constructor_action_row()
@@ -11401,27 +11337,27 @@ func _build_map_constructor_map_settings_tab(list: VBoxContainer) -> void:
 		var apply_mode: bool = bool(op.get("apply", false))
 		var current_key: String = _build_map_constructor_batch_operation_key(String(op.get("op", "")))
 		if apply_mode:
-			b.disabled = map_constructor_batch_pending_apply_operation != String(op.get("op", "")) or map_constructor_batch_pending_apply_key != current_key
+			b.disabled = map_constructor_state.map_constructor_batch_pending_apply_operation != String(op.get("op", "")) or map_constructor_state.map_constructor_batch_pending_apply_key != current_key
 		b.pressed.connect(func() -> void:
 			if mission_manager_runtime == null:
 				return
-			var options: Dictionary = {"offset":Vector2i(map_constructor_batch_offset_x, map_constructor_batch_offset_y), "power_network_id":map_constructor_batch_power_network_id}
+			var options: Dictionary = {"offset":Vector2i(map_constructor_state.map_constructor_batch_offset_x, map_constructor_state.map_constructor_batch_offset_y), "power_network_id":map_constructor_state.map_constructor_batch_power_network_id}
 			var op_name: String = String(op.get("op", ""))
 			if not apply_mode:
-				map_constructor_batch_preview = mission_manager_runtime.call("preview_map_constructor_batch_operation", op_name, map_constructor_multi_selected_entities, options)
-				if bool(map_constructor_batch_preview.get("can_apply", false)):
-					map_constructor_batch_pending_apply_operation = op_name
-					map_constructor_batch_pending_apply_key = _build_map_constructor_batch_operation_key(op_name)
+				map_constructor_state.map_constructor_batch_preview = mission_manager_runtime.call("preview_map_constructor_batch_operation", op_name, map_constructor_state.map_constructor_multi_selected_entities, options)
+				if bool(map_constructor_state.map_constructor_batch_preview.get("can_apply", false)):
+					map_constructor_state.map_constructor_batch_pending_apply_operation = op_name
+					map_constructor_state.map_constructor_batch_pending_apply_key = _build_map_constructor_batch_operation_key(op_name)
 				else:
-					map_constructor_batch_pending_apply_operation = ""
-					map_constructor_batch_pending_apply_key = ""
-				show_hint(String(map_constructor_batch_preview.get("message", "Preview ready.")))
+					map_constructor_state.map_constructor_batch_pending_apply_operation = ""
+					map_constructor_state.map_constructor_batch_pending_apply_key = ""
+				show_hint(String(map_constructor_state.map_constructor_batch_preview.get("message", "Preview ready.")))
 			else:
-				var apply_result: Dictionary = mission_manager_runtime.call("apply_map_constructor_batch_operation", op_name, map_constructor_multi_selected_entities, options)
+				var apply_result: Dictionary = mission_manager_runtime.call("apply_map_constructor_batch_operation", op_name, map_constructor_state.map_constructor_multi_selected_entities, options)
 				show_hint(String(apply_result.get("message", "Batch applied.")))
 				_refresh_map_constructor_multi_selection_stale()
-				if mission_manager_runtime != null and mission_manager_runtime.has_method("get_map_constructor_entity_by_id") and not selected_map_constructor_entity_id.is_empty():
-					var selected_entity: Dictionary = mission_manager_runtime.call("get_map_constructor_entity_by_id", selected_map_constructor_entity_kind, selected_map_constructor_entity_id)
+				if mission_manager_runtime != null and mission_manager_runtime.has_method("get_map_constructor_entity_by_id") and not map_constructor_state.selected_map_constructor_entity_id.is_empty():
+					var selected_entity: Dictionary = mission_manager_runtime.call("get_map_constructor_entity_by_id", map_constructor_state.selected_map_constructor_entity_kind, map_constructor_state.selected_map_constructor_entity_id)
 					if not bool(selected_entity.get("ok", false)):
 						_show_map_constructor_inspector(Vector2i(-1, -1))
 				_clear_map_constructor_batch_preview_state()
@@ -11438,8 +11374,8 @@ func _build_map_constructor_map_settings_tab(list: VBoxContainer) -> void:
 		var undo_result: Dictionary = mission_manager_runtime.call("undo_last_map_constructor_batch_operation")
 		show_hint(String(undo_result.get("message", "Undo done.")))
 		_refresh_map_constructor_multi_selection_stale()
-		if mission_manager_runtime != null and mission_manager_runtime.has_method("get_map_constructor_entity_by_id") and not selected_map_constructor_entity_id.is_empty():
-			var selected_entity: Dictionary = mission_manager_runtime.call("get_map_constructor_entity_by_id", selected_map_constructor_entity_kind, selected_map_constructor_entity_id)
+		if mission_manager_runtime != null and mission_manager_runtime.has_method("get_map_constructor_entity_by_id") and not map_constructor_state.selected_map_constructor_entity_id.is_empty():
+			var selected_entity: Dictionary = mission_manager_runtime.call("get_map_constructor_entity_by_id", map_constructor_state.selected_map_constructor_entity_kind, map_constructor_state.selected_map_constructor_entity_id)
 			if not bool(selected_entity.get("ok", false)):
 				_show_map_constructor_inspector(Vector2i(-1, -1))
 		_clear_map_constructor_batch_preview_state()
@@ -11448,16 +11384,16 @@ func _build_map_constructor_map_settings_tab(list: VBoxContainer) -> void:
 			field_runtime.call("request_visual_refresh")
 	)
 	list.add_child(undo_batch_button)
-	if not map_constructor_batch_preview.is_empty():
+	if not map_constructor_state.map_constructor_batch_preview.is_empty():
 		var preview_lines: Array[String] = []
-		preview_lines.append("Batch Preview: %s" % String(map_constructor_batch_preview.get("operation_type", "")))
-		preview_lines.append("affected=%d warnings=%d conflicts=%d" % [int(map_constructor_batch_preview.get("affected_count", 0)), _safe_ui_array(map_constructor_batch_preview.get("warnings", [])).size(), _safe_ui_array(map_constructor_batch_preview.get("conflicts", [])).size()])
-		var affected_rows: Array = _safe_ui_array(map_constructor_batch_preview.get("affected", []))
+		preview_lines.append("Batch Preview: %s" % String(map_constructor_state.map_constructor_batch_preview.get("operation_type", "")))
+		preview_lines.append("affected=%d warnings=%d conflicts=%d" % [int(map_constructor_state.map_constructor_batch_preview.get("affected_count", 0)), _safe_ui_array(map_constructor_state.map_constructor_batch_preview.get("warnings", [])).size(), _safe_ui_array(map_constructor_state.map_constructor_batch_preview.get("conflicts", [])).size()])
+		var affected_rows: Array = _safe_ui_array(map_constructor_state.map_constructor_batch_preview.get("affected", []))
 		for i in range(mini(10, affected_rows.size())):
 			var affected_row: Dictionary = _safe_ui_dictionary(affected_rows[i])
 			preview_lines.append("- %s %s from=%s to=%s fields=%s" % [String(affected_row.get("entity_id", "")), String(affected_row.get("operation", "")), str(affected_row.get("from_cell", Vector2i(-1, -1))), str(affected_row.get("to_cell", Vector2i(-1, -1))), JSON.stringify(affected_row.get("field_changes", []))])
-		var warn_rows: Array = _safe_ui_array(map_constructor_batch_preview.get("warnings", []))
-		var conflict_rows: Array = _safe_ui_array(map_constructor_batch_preview.get("conflicts", []))
+		var warn_rows: Array = _safe_ui_array(map_constructor_state.map_constructor_batch_preview.get("warnings", []))
+		var conflict_rows: Array = _safe_ui_array(map_constructor_state.map_constructor_batch_preview.get("conflicts", []))
 		for i in range(mini(5, warn_rows.size())):
 			preview_lines.append("warning: %s" % String(warn_rows[i]))
 		for i in range(mini(5, conflict_rows.size())):
@@ -11489,7 +11425,7 @@ func _build_map_constructor_map_settings_tab(list: VBoxContainer) -> void:
 			apply_label = "Clean Invalid References"
 		var apply_button: Button = _make_map_constructor_action_button(apply_label)
 		var apply_key: String = "%s|%s" % [ctype, JSON.stringify(coptions)]
-		apply_button.disabled = map_constructor_cleanup_pending_apply_key != apply_key
+		apply_button.disabled = map_constructor_state.map_constructor_cleanup_pending_apply_key != apply_key
 		apply_button.pressed.connect(func() -> void:
 			_apply_map_constructor_cleanup_action(ctype, coptions, true)
 		)
@@ -11503,7 +11439,7 @@ func _build_map_constructor_map_settings_tab(list: VBoxContainer) -> void:
 	)
 	var reset_apply_button: Button = _make_map_constructor_action_button("Apply Reset Runtime Map")
 	var reset_apply_key: String = "reset_runtime_map|{}"
-	reset_apply_button.disabled = map_constructor_cleanup_pending_apply_key != reset_apply_key
+	reset_apply_button.disabled = map_constructor_state.map_constructor_cleanup_pending_apply_key != reset_apply_key
 	reset_apply_button.pressed.connect(func() -> void:
 		_apply_map_constructor_cleanup_action("reset_runtime_map", {}, true)
 	)
@@ -11516,8 +11452,8 @@ func _build_map_constructor_map_settings_tab(list: VBoxContainer) -> void:
 			return
 		var undo_result: Dictionary = mission_manager_runtime.call("undo_last_map_constructor_cleanup")
 		show_hint(String(undo_result.get("message", "Undo done.")))
-		map_constructor_cleanup_pending_apply_key = ""
-		map_constructor_cleanup_preview.clear()
+		map_constructor_state.map_constructor_cleanup_pending_apply_key = ""
+		map_constructor_state.map_constructor_cleanup_preview.clear()
 		_clear_map_constructor_preview_cell()
 		_clear_map_constructor_wall_mounted_selection()
 		_clear_map_constructor_link_target()
@@ -11543,7 +11479,7 @@ func _build_map_constructor_map_settings_tab(list: VBoxContainer) -> void:
 			_apply_map_constructor_autofix_action(ftype, foptions, false)
 		)
 		var apply_button: Button = _make_map_constructor_action_button("Apply %s" % String(action.get("label", "")))
-		apply_button.disabled = map_constructor_autofix_pending_apply_key != "%s|%s" % [ftype, JSON.stringify(foptions)]
+		apply_button.disabled = map_constructor_state.map_constructor_autofix_pending_apply_key != "%s|%s" % [ftype, JSON.stringify(foptions)]
 		apply_button.pressed.connect(func() -> void:
 			_apply_map_constructor_autofix_action(ftype, foptions, true)
 		)
@@ -11552,17 +11488,17 @@ func _build_map_constructor_map_settings_tab(list: VBoxContainer) -> void:
 		list.add_child(action_row)
 	var power_network_id_edit: LineEdit = LineEdit.new()
 	power_network_id_edit.placeholder_text = "Power network id"
-	power_network_id_edit.text = map_constructor_new_power_network_id
+	power_network_id_edit.text = map_constructor_state.map_constructor_new_power_network_id
 	power_network_id_edit.text_changed.connect(func(new_text: String) -> void:
-		map_constructor_new_power_network_id = new_text
+		map_constructor_state.map_constructor_new_power_network_id = new_text
 	)
 	list.add_child(power_network_id_edit)
-	var selected_object_id: String = selected_map_constructor_entity_id if selected_map_constructor_entity_kind == "world_object" else ""
+	var selected_object_id: String = map_constructor_state.selected_map_constructor_entity_id if map_constructor_state.selected_map_constructor_entity_kind == "world_object" else ""
 	var selected_object_hint: Label = Label.new()
 	selected_object_hint.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 	selected_object_hint.text = "Select an object first." if selected_object_id.is_empty() else "Selected object: %s" % selected_object_id
 	list.add_child(selected_object_hint)
-	var power_assign_options: Dictionary = {"entity_kind":"world_object","entity_id":selected_object_id,"new_power_network_id":map_constructor_new_power_network_id.strip_edges()}
+	var power_assign_options: Dictionary = {"entity_kind":"world_object","entity_id":selected_object_id,"new_power_network_id":map_constructor_state.map_constructor_new_power_network_id.strip_edges()}
 	var power_assign_key: String = "assign_power_network|%s" % JSON.stringify(power_assign_options)
 	var power_assign_row: HFlowContainer = _make_map_constructor_action_row()
 	var power_preview_button: Button = _make_map_constructor_action_button("Preview Assign Power Network")
@@ -11574,7 +11510,7 @@ func _build_map_constructor_map_settings_tab(list: VBoxContainer) -> void:
 		_apply_map_constructor_autofix_action("assign_power_network", power_assign_options, false)
 	)
 	var power_apply_button: Button = _make_map_constructor_action_button("Apply Assign Power Network")
-	power_apply_button.disabled = map_constructor_autofix_pending_apply_key != power_assign_key or int(map_constructor_autofix_preview.get("affected_count", 0)) <= 0
+	power_apply_button.disabled = map_constructor_state.map_constructor_autofix_pending_apply_key != power_assign_key or int(map_constructor_state.map_constructor_autofix_preview.get("affected_count", 0)) <= 0
 	power_apply_button.pressed.connect(func() -> void:
 		_apply_map_constructor_autofix_action("assign_power_network", power_assign_options, true)
 	)
@@ -11587,8 +11523,8 @@ func _build_map_constructor_map_settings_tab(list: VBoxContainer) -> void:
 			return
 		var undo_result: Dictionary = mission_manager_runtime.call("undo_last_map_constructor_autofix")
 		show_hint(String(undo_result.get("message", "Undo done.")))
-		map_constructor_autofix_pending_apply_key = ""
-		map_constructor_autofix_preview.clear()
+		map_constructor_state.map_constructor_autofix_pending_apply_key = ""
+		map_constructor_state.map_constructor_autofix_preview.clear()
 		_clear_map_constructor_preview_cell()
 		_clear_map_constructor_wall_mounted_selection()
 		_clear_map_constructor_link_target()
@@ -11597,11 +11533,11 @@ func _build_map_constructor_map_settings_tab(list: VBoxContainer) -> void:
 			field_runtime.call("request_visual_refresh")
 	)
 	list.add_child(autofix_undo_button)
-	if not map_constructor_cleanup_preview.is_empty():
+	if not map_constructor_state.map_constructor_cleanup_preview.is_empty():
 		var preview_label: Label = Label.new()
-		var affected_count: int = int(map_constructor_cleanup_preview.get("affected_count", 0))
+		var affected_count: int = int(map_constructor_state.map_constructor_cleanup_preview.get("affected_count", 0))
 		var preview_ids: Array[String] = []
-		for row in _safe_ui_array(map_constructor_cleanup_preview.get("affected_objects", [])):
+		for row in _safe_ui_array(map_constructor_state.map_constructor_cleanup_preview.get("affected_objects", [])):
 			if preview_ids.size() >= 10:
 				break
 			preview_ids.append(String(_safe_ui_dictionary(row).get("id", "")))
@@ -11613,15 +11549,15 @@ func _build_map_constructor_map_settings_tab(list: VBoxContainer) -> void:
 		preview_label.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 		preview_label.text = "Cleanup preview: %d affected\n%s" % [affected_count, preview_ids_text]
 		list.add_child(preview_label)
-	if not map_constructor_autofix_preview.is_empty():
+	if not map_constructor_state.map_constructor_autofix_preview.is_empty():
 		var autofix_preview_label := Label.new()
 		autofix_preview_label.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 		var lines: Array[String] = []
-		for row in _safe_ui_array(map_constructor_autofix_preview.get("affected_fixes", [])):
+		for row in _safe_ui_array(map_constructor_state.map_constructor_autofix_preview.get("affected_fixes", [])):
 			if lines.size() >= 10:
 				break
 			lines.append(String(_safe_ui_dictionary(row).get("description", "")))
-		autofix_preview_label.text = "Auto-fix preview: %d affected\n%s" % [int(map_constructor_autofix_preview.get("affected_count", 0)), "\n".join(lines)]
+		autofix_preview_label.text = "Auto-fix preview: %d affected\n%s" % [int(map_constructor_state.map_constructor_autofix_preview.get("affected_count", 0)), "\n".join(lines)]
 		list.add_child(autofix_preview_label)
 	var patch_title: Label = Label.new()
 	patch_title.text = "Patch Tools"
@@ -11629,9 +11565,9 @@ func _build_map_constructor_map_settings_tab(list: VBoxContainer) -> void:
 	var patch_json_edit: TextEdit = TextEdit.new()
 	patch_json_edit.custom_minimum_size = Vector2(0, 160)
 	patch_json_edit.wrap_mode = TextEdit.LINE_WRAPPING_BOUNDARY
-	patch_json_edit.text = map_constructor_patch_json_text
+	patch_json_edit.text = map_constructor_state.map_constructor_patch_json_text
 	patch_json_edit.text_changed.connect(func() -> void:
-		map_constructor_patch_json_text = patch_json_edit.text
+		map_constructor_state.map_constructor_patch_json_text = patch_json_edit.text
 	)
 	list.add_child(patch_json_edit)
 	var patch_actions: HFlowContainer = _make_map_constructor_action_row()
@@ -11640,8 +11576,8 @@ func _build_map_constructor_map_settings_tab(list: VBoxContainer) -> void:
 		if mission_manager_runtime == null or not mission_manager_runtime.has_method("export_map_constructor_runtime_patch"):
 			return
 		var export_res: Dictionary = mission_manager_runtime.call("export_map_constructor_runtime_patch")
-		map_constructor_patch_json_text = String(export_res.get("json", ""))
-		patch_json_edit.text = map_constructor_patch_json_text
+		map_constructor_state.map_constructor_patch_json_text = String(export_res.get("json", ""))
+		patch_json_edit.text = map_constructor_state.map_constructor_patch_json_text
 		show_hint(String(export_res.get("message", "Export done.")))
 		_refresh_map_constructor_panels()
 	)
@@ -11649,25 +11585,25 @@ func _build_map_constructor_map_settings_tab(list: VBoxContainer) -> void:
 	preview_patch_button.pressed.connect(func() -> void:
 		if mission_manager_runtime == null or not mission_manager_runtime.has_method("parse_map_constructor_patch_json"):
 			return
-		var parsed_res: Dictionary = mission_manager_runtime.call("parse_map_constructor_patch_json", map_constructor_patch_json_text)
-		map_constructor_patch_parsed = parsed_res
-		map_constructor_patch_preview.clear()
-		map_constructor_patch_pending_apply = false
+		var parsed_res: Dictionary = mission_manager_runtime.call("parse_map_constructor_patch_json", map_constructor_state.map_constructor_patch_json_text)
+		map_constructor_state.map_constructor_patch_parsed = parsed_res
+		map_constructor_state.map_constructor_patch_preview.clear()
+		map_constructor_state.map_constructor_patch_pending_apply = false
 		if bool(parsed_res.get("ok", false)) and mission_manager_runtime.has_method("preview_apply_map_constructor_patch"):
 			var preview_res: Dictionary = mission_manager_runtime.call("preview_apply_map_constructor_patch", _safe_ui_dictionary(parsed_res.get("patch", {})))
-			map_constructor_patch_preview = preview_res
-			map_constructor_patch_pending_apply = bool(preview_res.get("ok", false)) and bool(preview_res.get("can_apply", false))
+			map_constructor_state.map_constructor_patch_preview = preview_res
+			map_constructor_state.map_constructor_patch_pending_apply = bool(preview_res.get("ok", false)) and bool(preview_res.get("can_apply", false))
 		show_hint(String(parsed_res.get("message", "Patch parsed.")))
 		_refresh_map_constructor_panels()
 	)
 	var apply_patch_button: Button = _make_map_constructor_action_button("Apply Patch")
-	apply_patch_button.disabled = not map_constructor_patch_pending_apply
+	apply_patch_button.disabled = not map_constructor_state.map_constructor_patch_pending_apply
 	apply_patch_button.pressed.connect(func() -> void:
 		if mission_manager_runtime == null or not mission_manager_runtime.has_method("apply_map_constructor_patch"):
 			return
-		var apply_res: Dictionary = mission_manager_runtime.call("apply_map_constructor_patch", _safe_ui_dictionary(map_constructor_patch_parsed.get("patch", {})), {})
+		var apply_res: Dictionary = mission_manager_runtime.call("apply_map_constructor_patch", _safe_ui_dictionary(map_constructor_state.map_constructor_patch_parsed.get("patch", {})), {})
 		show_hint(String(apply_res.get("message", "Patch applied.")))
-		map_constructor_patch_pending_apply = false
+		map_constructor_state.map_constructor_patch_pending_apply = false
 		if field_runtime != null and field_runtime.has_method("request_visual_refresh"):
 			field_runtime.call("request_visual_refresh")
 		_refresh_map_constructor_panels()
@@ -11682,9 +11618,9 @@ func _build_map_constructor_map_settings_tab(list: VBoxContainer) -> void:
 		_clear_map_constructor_wall_mounted_selection()
 		_clear_map_constructor_link_target()
 		_show_map_constructor_inspector(Vector2i(-1, -1))
-		map_constructor_patch_pending_apply = false
-		map_constructor_patch_preview.clear()
-		map_constructor_patch_parsed.clear()
+		map_constructor_state.map_constructor_patch_pending_apply = false
+		map_constructor_state.map_constructor_patch_preview.clear()
+		map_constructor_state.map_constructor_patch_parsed.clear()
 		if field_runtime != null and field_runtime.has_method("request_visual_refresh"):
 			field_runtime.call("request_visual_refresh")
 		_refresh_map_constructor_panels()
@@ -11706,14 +11642,14 @@ func _build_map_constructor_map_settings_tab(list: VBoxContainer) -> void:
 	var history_filter: OptionButton = OptionButton.new()
 	for opt in MAP_CONSTRUCTOR_HISTORY_FILTER_OPTIONS:
 		history_filter.add_item(opt)
-	var history_filter_index: int = MAP_CONSTRUCTOR_HISTORY_FILTER_OPTIONS.find(map_constructor_change_history_filter)
+	var history_filter_index: int = MAP_CONSTRUCTOR_HISTORY_FILTER_OPTIONS.find(map_constructor_state.map_constructor_change_history_filter)
 	if history_filter_index < 0:
 		history_filter_index = 0
-		map_constructor_change_history_filter = "All"
+		map_constructor_state.map_constructor_change_history_filter = "All"
 	history_filter.select(history_filter_index)
 	history_filter.item_selected.connect(func(index: int) -> void:
 		if index >= 0 and index < MAP_CONSTRUCTOR_HISTORY_FILTER_OPTIONS.size():
-			map_constructor_change_history_filter = MAP_CONSTRUCTOR_HISTORY_FILTER_OPTIONS[index]
+			map_constructor_state.map_constructor_change_history_filter = MAP_CONSTRUCTOR_HISTORY_FILTER_OPTIONS[index]
 			_refresh_map_constructor_panels()
 	)
 	list.add_child(history_filter)
@@ -11771,39 +11707,39 @@ func _build_map_constructor_map_settings_tab(list: VBoxContainer) -> void:
 	var overview_filter: OptionButton = OptionButton.new()
 	for opt in MAP_CONSTRUCTOR_OVERVIEW_FILTER_OPTIONS:
 		overview_filter.add_item(opt)
-	var overview_filter_idx: int = MAP_CONSTRUCTOR_OVERVIEW_FILTER_OPTIONS.find(map_constructor_overview_filter)
+	var overview_filter_idx: int = MAP_CONSTRUCTOR_OVERVIEW_FILTER_OPTIONS.find(map_constructor_state.map_constructor_overview_filter)
 	if overview_filter_idx < 0:
 		overview_filter_idx = 0
-		map_constructor_overview_filter = "All"
+		map_constructor_state.map_constructor_overview_filter = "All"
 	overview_filter.select(overview_filter_idx)
 	overview_filter.item_selected.connect(func(index: int) -> void:
 		if index >= 0 and index < MAP_CONSTRUCTOR_OVERVIEW_FILTER_OPTIONS.size():
-			map_constructor_overview_filter = MAP_CONSTRUCTOR_OVERVIEW_FILTER_OPTIONS[index]
+			map_constructor_state.map_constructor_overview_filter = MAP_CONSTRUCTOR_OVERVIEW_FILTER_OPTIONS[index]
 			_refresh_map_constructor_panels()
 	)
 	list.add_child(overview_filter)
 	var overview_toggle_row_a: HFlowContainer = _make_map_constructor_action_row()
 	var overview_show_issues: CheckButton = CheckButton.new()
 	overview_show_issues.text = "Show Issues"
-	overview_show_issues.button_pressed = map_constructor_overview_show_issues
+	overview_show_issues.button_pressed = map_constructor_state.map_constructor_overview_show_issues
 	overview_show_issues.toggled.connect(func(pressed: bool) -> void:
-		map_constructor_overview_show_issues = pressed
+		map_constructor_state.map_constructor_overview_show_issues = pressed
 		_refresh_map_constructor_panels()
 	)
 	overview_toggle_row_a.add_child(overview_show_issues)
 	var overview_show_power: CheckButton = CheckButton.new()
 	overview_show_power.text = "Show Power"
-	overview_show_power.button_pressed = map_constructor_overview_show_power
+	overview_show_power.button_pressed = map_constructor_state.map_constructor_overview_show_power
 	overview_show_power.toggled.connect(func(pressed: bool) -> void:
-		map_constructor_overview_show_power = pressed
+		map_constructor_state.map_constructor_overview_show_power = pressed
 		_refresh_map_constructor_panels()
 	)
 	overview_toggle_row_a.add_child(overview_show_power)
 	var overview_show_items: CheckButton = CheckButton.new()
 	overview_show_items.text = "Show Items"
-	overview_show_items.button_pressed = map_constructor_overview_show_items
+	overview_show_items.button_pressed = map_constructor_state.map_constructor_overview_show_items
 	overview_show_items.toggled.connect(func(pressed: bool) -> void:
-		map_constructor_overview_show_items = pressed
+		map_constructor_state.map_constructor_overview_show_items = pressed
 		_refresh_map_constructor_panels()
 	)
 	overview_toggle_row_a.add_child(overview_show_items)
@@ -11811,24 +11747,24 @@ func _build_map_constructor_map_settings_tab(list: VBoxContainer) -> void:
 	var overview_toggle_row_b: HFlowContainer = _make_map_constructor_action_row()
 	var overview_show_wall_mounted: CheckButton = CheckButton.new()
 	overview_show_wall_mounted.text = "Show Wall-mounted"
-	overview_show_wall_mounted.button_pressed = map_constructor_overview_show_wall_mounted
+	overview_show_wall_mounted.button_pressed = map_constructor_state.map_constructor_overview_show_wall_mounted
 	overview_show_wall_mounted.toggled.connect(func(pressed: bool) -> void:
-		map_constructor_overview_show_wall_mounted = pressed
+		map_constructor_state.map_constructor_overview_show_wall_mounted = pressed
 		_refresh_map_constructor_panels()
 	)
 	overview_toggle_row_b.add_child(overview_show_wall_mounted)
 	var overview_show_history: CheckButton = CheckButton.new()
 	overview_show_history.text = "Show History"
-	overview_show_history.button_pressed = map_constructor_overview_show_history
+	overview_show_history.button_pressed = map_constructor_state.map_constructor_overview_show_history
 	overview_show_history.toggled.connect(func(pressed: bool) -> void:
-		map_constructor_overview_show_history = pressed
+		map_constructor_state.map_constructor_overview_show_history = pressed
 		_refresh_map_constructor_panels()
 	)
 	overview_toggle_row_b.add_child(overview_show_history)
 	list.add_child(overview_toggle_row_b)
 	var overview_data: Dictionary = {}
 	if mission_manager_runtime != null and mission_manager_runtime.has_method("get_map_constructor_overview_data"):
-		overview_data = mission_manager_runtime.call("get_map_constructor_overview_data", {"include_validation":map_constructor_overview_show_issues, "include_history":map_constructor_overview_show_history, "include_power":map_constructor_overview_show_power, "include_items":map_constructor_overview_show_items, "include_wall_mounted":map_constructor_overview_show_wall_mounted, "selected_entities":map_constructor_multi_selected_entities, "selected_entity_id":selected_map_constructor_entity_id, "selected_entity_kind":selected_map_constructor_entity_kind, "max_history_markers":20})
+		overview_data = mission_manager_runtime.call("get_map_constructor_overview_data", {"include_validation":map_constructor_state.map_constructor_overview_show_issues, "include_history":map_constructor_state.map_constructor_overview_show_history, "include_power":map_constructor_state.map_constructor_overview_show_power, "include_items":map_constructor_state.map_constructor_overview_show_items, "include_wall_mounted":map_constructor_state.map_constructor_overview_show_wall_mounted, "selected_entities":map_constructor_state.map_constructor_multi_selected_entities, "selected_entity_id":map_constructor_state.selected_map_constructor_entity_id, "selected_entity_kind":map_constructor_state.selected_map_constructor_entity_kind, "max_history_markers":20})
 	var ov_summary: Dictionary = _safe_ui_dictionary(overview_data.get("summary", {}))
 	var sum_label: Label = Label.new()
 	sum_label.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
@@ -11925,38 +11861,38 @@ func _build_map_constructor_map_settings_tab(list: VBoxContainer) -> void:
 	_add_map_constructor_section_header(list, "CONSTRUCTOR PRESETS")
 	var preset_name_edit: LineEdit = LineEdit.new()
 	preset_name_edit.placeholder_text = "Preset name"
-	preset_name_edit.text = map_constructor_preset_name
+	preset_name_edit.text = map_constructor_state.map_constructor_preset_name
 	preset_name_edit.text_changed.connect(func(new_text: String) -> void:
-		map_constructor_preset_name = new_text
+		map_constructor_state.map_constructor_preset_name = new_text
 	)
 	list.add_child(preset_name_edit)
 	if mission_manager_runtime != null and mission_manager_runtime.has_method("list_map_constructor_presets"):
-		map_constructor_preset_entries = mission_manager_runtime.call("list_map_constructor_presets")
-	if map_constructor_selected_preset_name.is_empty() and not map_constructor_preset_entries.is_empty():
-		map_constructor_selected_preset_name = String(map_constructor_preset_entries[0].get("name", ""))
+		map_constructor_state.map_constructor_preset_entries = mission_manager_runtime.call("list_map_constructor_presets")
+	if map_constructor_state.map_constructor_selected_preset_name.is_empty() and not map_constructor_state.map_constructor_preset_entries.is_empty():
+		map_constructor_state.map_constructor_selected_preset_name = String(map_constructor_state.map_constructor_preset_entries[0].get("name", ""))
 	var constructor_preset_select: OptionButton = OptionButton.new()
-	for i in range(map_constructor_preset_entries.size()):
-		var entry: Dictionary = map_constructor_preset_entries[i]
+	for i in range(map_constructor_state.map_constructor_preset_entries.size()):
+		var entry: Dictionary = map_constructor_state.map_constructor_preset_entries[i]
 		var preset_name: String = String(entry.get("name", ""))
 		constructor_preset_select.add_item(preset_name)
-		if preset_name == map_constructor_selected_preset_name:
+		if preset_name == map_constructor_state.map_constructor_selected_preset_name:
 			constructor_preset_select.select(i)
 	constructor_preset_select.item_selected.connect(func(index: int) -> void:
-		if index >= 0 and index < map_constructor_preset_entries.size():
-			map_constructor_selected_preset_name = String(map_constructor_preset_entries[index].get("name", ""))
+		if index >= 0 and index < map_constructor_state.map_constructor_preset_entries.size():
+			map_constructor_state.map_constructor_selected_preset_name = String(map_constructor_state.map_constructor_preset_entries[index].get("name", ""))
 	)
 	list.add_child(constructor_preset_select)
 	var preset_actions: HFlowContainer = _make_map_constructor_action_row()
 	list.add_child(preset_actions)
 	var save_preset_button: Button = _make_map_constructor_action_button("Save")
 	save_preset_button.pressed.connect(func() -> void:
-		if not map_constructor_mode_active or mission_manager_runtime == null or not mission_manager_runtime.has_method("save_map_constructor_preset"):
+		if not map_constructor_state.map_constructor_mode_active or mission_manager_runtime == null or not mission_manager_runtime.has_method("save_map_constructor_preset"):
 			show_hint("Preset save unavailable.")
 			return
-		var save_result: Dictionary = mission_manager_runtime.call("save_map_constructor_preset", map_constructor_preset_name)
+		var save_result: Dictionary = mission_manager_runtime.call("save_map_constructor_preset", map_constructor_state.map_constructor_preset_name)
 		show_hint(String(save_result.get("message", "Preset save done.")))
-		map_constructor_selected_preset_name = String(save_result.get("preset_name", map_constructor_selected_preset_name))
-		_show_map_constructor_inspector(pending_map_constructor_cell)
+		map_constructor_state.map_constructor_selected_preset_name = String(save_result.get("preset_name", map_constructor_state.map_constructor_selected_preset_name))
+		_show_map_constructor_inspector(map_constructor_state.pending_map_constructor_cell)
 		_refresh_map_constructor_panels()
 		if field_runtime != null and field_runtime.has_method("request_visual_refresh"):
 			field_runtime.call("request_visual_refresh")
@@ -11964,13 +11900,13 @@ func _build_map_constructor_map_settings_tab(list: VBoxContainer) -> void:
 	preset_actions.add_child(save_preset_button)
 	var load_preset_button: Button = _make_map_constructor_action_button("Load selected")
 	load_preset_button.pressed.connect(func() -> void:
-		if not map_constructor_mode_active or map_constructor_selected_preset_name.is_empty() or mission_manager_runtime == null or not mission_manager_runtime.has_method("load_map_constructor_preset"):
+		if not map_constructor_state.map_constructor_mode_active or map_constructor_state.map_constructor_selected_preset_name.is_empty() or mission_manager_runtime == null or not mission_manager_runtime.has_method("load_map_constructor_preset"):
 			show_hint("Preset load unavailable.")
 			return
-		var load_result: Dictionary = mission_manager_runtime.call("load_map_constructor_preset", map_constructor_selected_preset_name)
+		var load_result: Dictionary = mission_manager_runtime.call("load_map_constructor_preset", map_constructor_state.map_constructor_selected_preset_name)
 		show_hint(String(load_result.get("message", "Preset load done.")))
 		if bool(load_result.get("ok", false)):
-			pending_map_constructor_cell = Vector2i(-1, -1)
+			map_constructor_state.pending_map_constructor_cell = Vector2i(-1, -1)
 			_clear_map_constructor_preview_cell()
 			_clear_map_constructor_wall_mounted_selection()
 		_show_map_constructor_inspector(Vector2i(-1, -1))
@@ -11981,13 +11917,13 @@ func _build_map_constructor_map_settings_tab(list: VBoxContainer) -> void:
 	preset_actions.add_child(load_preset_button)
 	var delete_preset_button: Button = _make_map_constructor_action_button("Delete selected")
 	delete_preset_button.pressed.connect(func() -> void:
-		if not map_constructor_mode_active or map_constructor_selected_preset_name.is_empty() or mission_manager_runtime == null or not mission_manager_runtime.has_method("delete_map_constructor_preset"):
+		if not map_constructor_state.map_constructor_mode_active or map_constructor_state.map_constructor_selected_preset_name.is_empty() or mission_manager_runtime == null or not mission_manager_runtime.has_method("delete_map_constructor_preset"):
 			show_hint("Preset delete unavailable.")
 			return
-		var delete_result: Dictionary = mission_manager_runtime.call("delete_map_constructor_preset", map_constructor_selected_preset_name)
+		var delete_result: Dictionary = mission_manager_runtime.call("delete_map_constructor_preset", map_constructor_state.map_constructor_selected_preset_name)
 		show_hint(String(delete_result.get("message", "Preset delete done.")))
-		map_constructor_selected_preset_name = ""
-		_show_map_constructor_inspector(pending_map_constructor_cell)
+		map_constructor_state.map_constructor_selected_preset_name = ""
+		_show_map_constructor_inspector(map_constructor_state.pending_map_constructor_cell)
 		_refresh_map_constructor_panels()
 		if field_runtime != null and field_runtime.has_method("request_visual_refresh"):
 			field_runtime.call("request_visual_refresh")
@@ -12002,37 +11938,37 @@ func _build_map_constructor_map_settings_tab(list: VBoxContainer) -> void:
 	_add_map_constructor_section_header(list, "MISSION PATCH EXPORT")
 	var patch_name_edit: LineEdit = LineEdit.new()
 	patch_name_edit.placeholder_text = "Patch name"
-	patch_name_edit.text = map_constructor_patch_name
+	patch_name_edit.text = map_constructor_state.map_constructor_patch_name
 	patch_name_edit.text_changed.connect(func(new_text: String) -> void:
-		map_constructor_patch_name = new_text
+		map_constructor_state.map_constructor_patch_name = new_text
 	)
 	list.add_child(patch_name_edit)
 	if mission_manager_runtime != null and mission_manager_runtime.has_method("list_map_constructor_mission_patches"):
-		map_constructor_patch_entries = mission_manager_runtime.call("list_map_constructor_mission_patches")
-	if map_constructor_selected_patch_name.is_empty() and not map_constructor_patch_entries.is_empty():
-		map_constructor_selected_patch_name = String(map_constructor_patch_entries[0].get("name", ""))
+		map_constructor_state.map_constructor_patch_entries = mission_manager_runtime.call("list_map_constructor_mission_patches")
+	if map_constructor_state.map_constructor_selected_patch_name.is_empty() and not map_constructor_state.map_constructor_patch_entries.is_empty():
+		map_constructor_state.map_constructor_selected_patch_name = String(map_constructor_state.map_constructor_patch_entries[0].get("name", ""))
 	var patch_select: OptionButton = OptionButton.new()
-	for i in range(map_constructor_patch_entries.size()):
-		var patch_entry: Dictionary = map_constructor_patch_entries[i]
+	for i in range(map_constructor_state.map_constructor_patch_entries.size()):
+		var patch_entry: Dictionary = map_constructor_state.map_constructor_patch_entries[i]
 		var patch_name_value: String = String(patch_entry.get("name", ""))
 		patch_select.add_item(patch_name_value)
-		if patch_name_value == map_constructor_selected_patch_name:
+		if patch_name_value == map_constructor_state.map_constructor_selected_patch_name:
 			patch_select.select(i)
 	patch_select.item_selected.connect(func(index: int) -> void:
-		if index >= 0 and index < map_constructor_patch_entries.size():
-			map_constructor_selected_patch_name = String(map_constructor_patch_entries[index].get("name", ""))
+		if index >= 0 and index < map_constructor_state.map_constructor_patch_entries.size():
+			map_constructor_state.map_constructor_selected_patch_name = String(map_constructor_state.map_constructor_patch_entries[index].get("name", ""))
 	)
 	list.add_child(patch_select)
 	var mission_patch_actions: HFlowContainer = _make_map_constructor_action_row()
 	list.add_child(mission_patch_actions)
 	var mission_patch_export_button: Button = _make_map_constructor_action_button("Export current")
 	mission_patch_export_button.pressed.connect(func() -> void:
-		if not map_constructor_mode_active or mission_manager_runtime == null or not mission_manager_runtime.has_method("export_map_constructor_mission_patch"):
+		if not map_constructor_state.map_constructor_mode_active or mission_manager_runtime == null or not mission_manager_runtime.has_method("export_map_constructor_mission_patch"):
 			show_hint("Mission patch export unavailable.")
 			return
-		var export_result: Dictionary = mission_manager_runtime.call("export_map_constructor_mission_patch", map_constructor_patch_name)
+		var export_result: Dictionary = mission_manager_runtime.call("export_map_constructor_mission_patch", map_constructor_state.map_constructor_patch_name)
 		show_hint(String(export_result.get("message", "Mission patch export done.")))
-		map_constructor_selected_patch_name = String(export_result.get("patch_name", map_constructor_selected_patch_name))
+		map_constructor_state.map_constructor_selected_patch_name = String(export_result.get("patch_name", map_constructor_state.map_constructor_selected_patch_name))
 		_refresh_map_constructor_panels()
 	)
 	mission_patch_actions.add_child(mission_patch_export_button)
@@ -12043,12 +11979,12 @@ func _build_map_constructor_map_settings_tab(list: VBoxContainer) -> void:
 	mission_patch_actions.add_child(refresh_patch_button)
 	var delete_patch_button: Button = _make_map_constructor_action_button("Delete patch")
 	delete_patch_button.pressed.connect(func() -> void:
-		if not map_constructor_mode_active or map_constructor_selected_patch_name.is_empty() or mission_manager_runtime == null or not mission_manager_runtime.has_method("delete_map_constructor_mission_patch"):
+		if not map_constructor_state.map_constructor_mode_active or map_constructor_state.map_constructor_selected_patch_name.is_empty() or mission_manager_runtime == null or not mission_manager_runtime.has_method("delete_map_constructor_mission_patch"):
 			show_hint("Mission patch delete unavailable.")
 			return
-		var delete_patch_result: Dictionary = mission_manager_runtime.call("delete_map_constructor_mission_patch", map_constructor_selected_patch_name)
+		var delete_patch_result: Dictionary = mission_manager_runtime.call("delete_map_constructor_mission_patch", map_constructor_state.map_constructor_selected_patch_name)
 		show_hint(String(delete_patch_result.get("message", "Mission patch delete done.")))
-		map_constructor_selected_patch_name = ""
+		map_constructor_state.map_constructor_selected_patch_name = ""
 		_refresh_map_constructor_panels()
 	)
 	mission_patch_actions.add_child(delete_patch_button)
@@ -12060,10 +11996,10 @@ func _build_map_constructor_map_settings_tab(list: VBoxContainer) -> void:
 	geometry_size_row.add_child(width_label)
 	var width_edit: LineEdit = LineEdit.new()
 	width_edit.placeholder_text = "Width >= 6"
-	width_edit.text = map_constructor_geometry_width_text
+	width_edit.text = map_constructor_state.map_constructor_geometry_width_text
 	width_edit.custom_minimum_size = Vector2(88, 0)
 	width_edit.text_changed.connect(func(new_text: String) -> void:
-		map_constructor_geometry_width_text = new_text
+		map_constructor_state.map_constructor_geometry_width_text = new_text
 	)
 	geometry_size_row.add_child(width_edit)
 	var height_label: Label = Label.new()
@@ -12071,10 +12007,10 @@ func _build_map_constructor_map_settings_tab(list: VBoxContainer) -> void:
 	geometry_size_row.add_child(height_label)
 	var height_edit: LineEdit = LineEdit.new()
 	height_edit.placeholder_text = "Height >= 6"
-	height_edit.text = map_constructor_geometry_height_text
+	height_edit.text = map_constructor_state.map_constructor_geometry_height_text
 	height_edit.custom_minimum_size = Vector2(88, 0)
 	height_edit.text_changed.connect(func(new_text: String) -> void:
-		map_constructor_geometry_height_text = new_text
+		map_constructor_state.map_constructor_geometry_height_text = new_text
 	)
 	geometry_size_row.add_child(height_edit)
 	var create_map_button: Button = _make_map_constructor_action_button("Apply Geometry")
@@ -12082,11 +12018,11 @@ func _build_map_constructor_map_settings_tab(list: VBoxContainer) -> void:
 		if mission_manager_runtime == null or not mission_manager_runtime.has_method("create_map_constructor_empty_map"):
 			show_hint("Map create unavailable.")
 			return
-		var build_result: Dictionary = mission_manager_runtime.call("create_map_constructor_empty_map", int(map_constructor_geometry_width_text), int(map_constructor_geometry_height_text))
+		var build_result: Dictionary = mission_manager_runtime.call("create_map_constructor_empty_map", int(map_constructor_state.map_constructor_geometry_width_text), int(map_constructor_state.map_constructor_geometry_height_text))
 		show_hint(String(build_result.get("message", "Map created.")))
-		selected_map_constructor_prefab_id = ""
-		map_constructor_marker_mode = ""
-		pending_map_constructor_cell = Vector2i(-1, -1)
+		map_constructor_state.selected_map_constructor_prefab_id = ""
+		map_constructor_state.map_constructor_marker_mode = ""
+		map_constructor_state.pending_map_constructor_cell = Vector2i(-1, -1)
 		_refresh_map_constructor_panels()
 	)
 	list.add_child(create_map_button)
@@ -12094,15 +12030,15 @@ func _build_map_constructor_map_settings_tab(list: VBoxContainer) -> void:
 	list.add_child(marker_button_row)
 	var set_start_button: Button = _make_map_constructor_action_button("Set Start")
 	set_start_button.pressed.connect(func() -> void:
-		selected_map_constructor_prefab_id = ""
-		map_constructor_marker_mode = "start"
+		map_constructor_state.selected_map_constructor_prefab_id = ""
+		map_constructor_state.map_constructor_marker_mode = "start"
 		show_hint("Click boundary cell to set start marker.")
 	)
 	marker_button_row.add_child(set_start_button)
 	var set_exit_button: Button = _make_map_constructor_action_button("Set Exit")
 	set_exit_button.pressed.connect(func() -> void:
-		selected_map_constructor_prefab_id = ""
-		map_constructor_marker_mode = "exit"
+		map_constructor_state.selected_map_constructor_prefab_id = ""
+		map_constructor_state.map_constructor_marker_mode = "exit"
 		show_hint("Click boundary cell to set exit marker.")
 	)
 	marker_button_row.add_child(set_exit_button)
@@ -12217,7 +12153,7 @@ func _apply_map_constructor_property_updates(entity_kind: String, entity_id: Str
 	_refresh_map_constructor_panels()
 	if field_runtime != null and field_runtime.has_method("request_visual_refresh"):
 		field_runtime.call("request_visual_refresh")
-	_show_map_constructor_inspector(selected_map_constructor_entity_cell, selected_map_constructor_entity_kind, selected_map_constructor_entity_id)
+	_show_map_constructor_inspector(map_constructor_state.selected_map_constructor_entity_cell, map_constructor_state.selected_map_constructor_entity_kind, map_constructor_state.selected_map_constructor_entity_id)
 
 func _apply_map_constructor_property_preset(entity_kind: String, entity_id: String, preset_id: String) -> void:
 	if mission_manager_runtime == null or not mission_manager_runtime.has_method("apply_map_constructor_property_preset"):
@@ -12227,7 +12163,7 @@ func _apply_map_constructor_property_preset(entity_kind: String, entity_id: Stri
 	_refresh_map_constructor_panels()
 	if field_runtime != null and field_runtime.has_method("request_visual_refresh"):
 		field_runtime.call("request_visual_refresh")
-	_show_map_constructor_inspector(selected_map_constructor_entity_cell, selected_map_constructor_entity_kind, selected_map_constructor_entity_id)
+	_show_map_constructor_inspector(map_constructor_state.selected_map_constructor_entity_cell, map_constructor_state.selected_map_constructor_entity_kind, map_constructor_state.selected_map_constructor_entity_id)
 
 func _add_enum_property(section: VBoxContainer, label: String, entity_kind: String, entity_id: String, field_name: String, current_value: Variant, options: Array[Dictionary]) -> void:
 	MapConstructorPropertyControlsRef.add_enum_property(self, section, label, entity_kind, entity_id, field_name, current_value, options)
@@ -12317,7 +12253,7 @@ func _clear_map_constructor_link_target() -> void:
 		renderer.call("clear_map_constructor_link_target")
 
 func _map_constructor_issue_matches_filter(issue: Dictionary) -> bool:
-	var filter_name: String = map_constructor_issue_filter
+	var filter_name: String = map_constructor_state.map_constructor_issue_filter
 	if filter_name == "All":
 		return true
 	var severity: String = String(issue.get("severity", "info")).to_lower()
@@ -12342,16 +12278,16 @@ func _focus_map_constructor_issue(issue: Dictionary) -> void:
 				var anchor_floor_cell: Vector2i = _safe_ui_vector2i(entity_info.get("anchor_floor_cell", Vector2i(-1, -1)))
 				if anchor_floor_cell.x >= 0 and anchor_floor_cell.y >= 0:
 					target_cell = anchor_floor_cell
-			selected_map_constructor_entity_kind = entity_kind
-			selected_map_constructor_entity_id = entity_id
-			selected_map_constructor_entity_cell = target_cell
+			map_constructor_state.selected_map_constructor_entity_kind = entity_kind
+			map_constructor_state.selected_map_constructor_entity_id = entity_id
+			map_constructor_state.selected_map_constructor_entity_cell = target_cell
 			if target_cell.x >= 0 and target_cell.y >= 0:
-				pending_map_constructor_cell = target_cell
+				map_constructor_state.pending_map_constructor_cell = target_cell
 				_update_map_constructor_preview_for_cell(target_cell)
 				_show_map_constructor_inspector(target_cell, entity_kind, entity_id)
 				_focus_map_constructor_cell(target_cell)
 			elif issue_cell.x >= 0 and issue_cell.y >= 0:
-				pending_map_constructor_cell = issue_cell
+				map_constructor_state.pending_map_constructor_cell = issue_cell
 				_update_map_constructor_preview_for_cell(issue_cell)
 				_show_map_constructor_inspector(issue_cell, entity_kind, entity_id)
 				_focus_map_constructor_cell(issue_cell)
@@ -12360,12 +12296,12 @@ func _focus_map_constructor_issue(issue: Dictionary) -> void:
 		else:
 			_clear_map_constructor_browser_selection()
 			if issue_cell.x >= 0 and issue_cell.y >= 0:
-				pending_map_constructor_cell = issue_cell
+				map_constructor_state.pending_map_constructor_cell = issue_cell
 				_update_map_constructor_preview_for_cell(issue_cell)
 				_focus_map_constructor_cell(issue_cell)
 				_show_map_constructor_inspector(issue_cell)
 	elif issue_cell.x >= 0 and issue_cell.y >= 0:
-		pending_map_constructor_cell = issue_cell
+		map_constructor_state.pending_map_constructor_cell = issue_cell
 		_update_map_constructor_preview_for_cell(issue_cell)
 		_focus_map_constructor_cell(issue_cell)
 		_show_map_constructor_inspector(issue_cell)
@@ -12379,7 +12315,7 @@ func _focus_map_constructor_readiness_issue_by_id(issue_id: String) -> void:
 		var issue: Dictionary = _safe_ui_dictionary(issue_variant)
 		if String(issue.get("id", "")) != issue_id:
 			continue
-		map_constructor_selected_issue_id = issue_id
+		map_constructor_state.map_constructor_selected_issue_id = issue_id
 		_focus_map_constructor_issue(issue)
 		_refresh_map_constructor_panels()
 		return
@@ -12393,7 +12329,7 @@ func _add_map_constructor_readiness_action_buttons(action_row: HFlowContainer, r
 		var preview_btn: Button = _make_map_constructor_action_button("Preview Fix")
 		preview_btn.pressed.connect(func() -> void: _apply_map_constructor_autofix_action(ftype, foptions, false))
 		var apply_btn: Button = _make_map_constructor_action_button("Apply Fix")
-		apply_btn.disabled = map_constructor_autofix_pending_apply_key != fkey
+		apply_btn.disabled = map_constructor_state.map_constructor_autofix_pending_apply_key != fkey
 		apply_btn.pressed.connect(func() -> void: _apply_map_constructor_autofix_action(ftype, foptions, true))
 		action_row.add_child(preview_btn); action_row.add_child(apply_btn)
 	elif action_type == "cleanup":
@@ -12403,30 +12339,30 @@ func _add_map_constructor_readiness_action_buttons(action_row: HFlowContainer, r
 		var preview_btn: Button = _make_map_constructor_action_button("Preview Cleanup")
 		preview_btn.pressed.connect(func() -> void: _apply_map_constructor_cleanup_action(ctype, coptions, false))
 		var apply_btn: Button = _make_map_constructor_action_button("Apply Cleanup")
-		apply_btn.disabled = map_constructor_cleanup_pending_apply_key != ckey
+		apply_btn.disabled = map_constructor_state.map_constructor_cleanup_pending_apply_key != ckey
 		apply_btn.pressed.connect(func() -> void: _apply_map_constructor_cleanup_action(ctype, coptions, true))
 		action_row.add_child(preview_btn); action_row.add_child(apply_btn)
 
 func _on_move_forward_pressed() -> void:
-	if map_constructor_mode_active:
+	if map_constructor_state.map_constructor_mode_active:
 		return
 	bipob.move_forward()
 	update_status()
 
 func _on_move_backward_pressed() -> void:
-	if map_constructor_mode_active:
+	if map_constructor_state.map_constructor_mode_active:
 		return
 	bipob.move_backward()
 	update_status()
 
 func _on_turn_left_pressed() -> void:
-	if map_constructor_mode_active or bipob == null:
+	if map_constructor_state.map_constructor_mode_active or bipob == null:
 		return
 	bipob.turn_left()
 	update_status()
 
 func _on_turn_right_pressed() -> void:
-	if map_constructor_mode_active or bipob == null:
+	if map_constructor_state.map_constructor_mode_active or bipob == null:
 		return
 	bipob.turn_right()
 	update_status()
@@ -12618,7 +12554,7 @@ func _on_hack_device_button_pressed() -> void:
 	update_box_status()
 
 func _on_end_turn_pressed() -> void:
-	if map_constructor_mode_active or bipob == null:
+	if map_constructor_state.map_constructor_mode_active or bipob == null:
 		return
 	bipob.end_turn()
 	update_status()
@@ -14573,7 +14509,7 @@ func _on_remove_selected_overlay_pressed() -> void:
 
 
 func _draw_map_constructor_validation_overlay(control: Control) -> void:
-	if not map_constructor_mode_active or not map_constructor_validation_overlay_visible:
+	if not map_constructor_state.map_constructor_mode_active or not map_constructor_state.map_constructor_validation_overlay_visible:
 		return
 	if mission_manager_runtime == null or not mission_manager_runtime.has_method("get_map_constructor_validation_overlay"):
 		return
@@ -14612,22 +14548,22 @@ func _sync_map_constructor_overlay_visuals() -> void:
 	if renderer_node == null or not (renderer_node is RoomVisualRenderer):
 		return
 	var renderer: RoomVisualRenderer = renderer_node
-	renderer.set_map_constructor_overlay_preferences(map_constructor_overlay_visibility)
+	renderer.set_map_constructor_overlay_preferences(map_constructor_state.map_constructor_overlay_visibility)
 	var overlay_data: Dictionary = {
-		"selected": {"cell": selected_map_constructor_entity_cell, "wall_side": selected_map_constructor_wall_side},
-		"hover": {"cell": pending_map_constructor_cell},
-		"preview": {"mode": "destructive" if not map_constructor_cleanup_preview.is_empty() else "place", "wall_side": selected_map_constructor_wall_side},
+		"selected": {"cell": map_constructor_state.selected_map_constructor_entity_cell, "wall_side": map_constructor_state.selected_map_constructor_wall_side},
+		"hover": {"cell": map_constructor_state.pending_map_constructor_cell},
+		"preview": {"mode": "destructive" if not map_constructor_state.map_constructor_cleanup_preview.is_empty() else "place", "wall_side": map_constructor_state.selected_map_constructor_wall_side},
 		"validation": [],
 		"links": _build_map_constructor_overlay_links(),
 		"power": _build_map_constructor_overlay_power(),
-		"multi_select": map_constructor_multi_selected_entities
+		"multi_select": map_constructor_state.map_constructor_multi_selected_entities
 	}
-	if not room_visual_preset_preview.is_empty():
+	if not map_constructor_state.room_visual_preset_preview.is_empty():
 		overlay_data["room_visual_preview"] = {
-			"walls": _safe_ui_array(room_visual_preset_preview.get("affected_walls", [])).duplicate(true),
-			"doors": _safe_ui_array(room_visual_preset_preview.get("affected_doors", [])).duplicate(true),
-			"terminals": _safe_ui_array(room_visual_preset_preview.get("affected_terminals", [])).duplicate(true),
-			"floors": _safe_ui_array(room_visual_preset_preview.get("affected_floors", [])).duplicate(true)
+			"walls": _safe_ui_array(map_constructor_state.room_visual_preset_preview.get("affected_walls", [])).duplicate(true),
+			"doors": _safe_ui_array(map_constructor_state.room_visual_preset_preview.get("affected_doors", [])).duplicate(true),
+			"terminals": _safe_ui_array(map_constructor_state.room_visual_preset_preview.get("affected_terminals", [])).duplicate(true),
+			"floors": _safe_ui_array(map_constructor_state.room_visual_preset_preview.get("affected_floors", [])).duplicate(true)
 		}
 	if mission_manager_runtime != null and mission_manager_runtime.has_method("get_map_constructor_validation_issues"):
 		overlay_data["validation"] = _safe_ui_array(mission_manager_runtime.call("get_map_constructor_validation_issues"))
@@ -14693,7 +14629,7 @@ func _build_map_constructor_overlay_power() -> Array[Dictionary]:
 		var nodes: Array = _safe_ui_array(network_nodes[network_id_variant])
 		if nodes.size() < 2:
 			continue
-		var selected_id: String = selected_map_constructor_entity_id.strip_edges()
+		var selected_id: String = map_constructor_state.selected_map_constructor_entity_id.strip_edges()
 		var selected_cell: Vector2i = Vector2i(-1, -1)
 		var selected_is_in_network: bool = false
 		for node_variant in nodes:
