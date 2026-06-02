@@ -1,6 +1,6 @@
 # BIPOB legacy mission retirement dependency map
 
-PR-RF-08 through PR-RF-13 prepare legacy story missions for future removal without deleting shared mechanics or mission resources. The active product surface remains TASK TEST / Map Constructor / runtime sandbox.
+PR-RF-08 through PR-RF-14 prepare legacy story missions for future removal without deleting shared mechanics or mission resources. The active product surface remains TASK TEST / Map Constructor / runtime sandbox.
 
 ## Classification key
 
@@ -16,12 +16,11 @@ PR-RF-08 through PR-RF-13 prepare legacy story missions for future removal witho
 - `get_runtime_mode_id()` returns the explicit runtime mode identity.
 - `is_task_test_mode_active()` and `is_sandbox_mode_active()` identify the active TASK TEST / runtime sandbox surface while mission `10` remains the compatibility source.
 - `is_legacy_story_mission_active()` separates missions `1..9` from TASK TEST sandbox mode.
-- `is_legacy_mission4_hidden_route_flow_active()` names the hidden route-node branch.
 - `is_legacy_mission7_cable_flow_active()` and `is_legacy_mission7_cable_drag_active()` name the cable path branch.
 - `is_legacy_mission8_airflow_flow_active()` names the fan/platform/airflow branch.
 - `unlock_airflow_terminal_path()` preserves the reusable airflow-terminal unlock effect; `complete_legacy_mission8_airflow_terminal_hack()` remains as a compatibility wrapper and does not complete a mission.
 
-These wrappers are compatibility boundaries only. PR-RF-10 neutralizes legacy completion side effects in generic scan/hack/read-terminal flows while preserving shared mechanics for later extraction. PR-RF-11 isolates the old Mission 7 cable reel/socket/powered-gate implementation behind `scripts/game/bipob_legacy_cable_flow_service.gd`; the hardcoded Mission 7 state remains legacy, but the reusable cable/socket/power concept is preserved for a future generic runtime world-object contract. PR-RF-12 isolates the old Mission 8 fan/platform/airflow/terminal implementation behind `scripts/game/bipob_legacy_airflow_flow_service.gd`; the hardcoded Mission 8 state remains legacy, but the reusable fan/platform/airflow/cooling concept is preserved for a future generic runtime world-object contract. PR-RF-13 removes the retired Mission 2 terminal tutorial predicate, completion no-op wrapper, and generic scan/hack/read-terminal tutorial feedback branches while preserving Info-Key and digital record mechanics.
+These wrappers are compatibility boundaries only. PR-RF-10 neutralizes legacy completion side effects in generic scan/hack/read-terminal flows while preserving shared mechanics for later extraction. PR-RF-11 isolates the old Mission 7 cable reel/socket/powered-gate implementation behind `scripts/game/bipob_legacy_cable_flow_service.gd`; the hardcoded Mission 7 state remains legacy, but the reusable cable/socket/power concept is preserved for a future generic runtime world-object contract. PR-RF-12 isolates the old Mission 8 fan/platform/airflow/terminal implementation behind `scripts/game/bipob_legacy_airflow_flow_service.gd`; the hardcoded Mission 8 state remains legacy, but the reusable fan/platform/airflow/cooling concept is preserved for a future generic runtime world-object contract. PR-RF-13 removes the retired Mission 2 terminal tutorial predicate, completion no-op wrapper, and generic scan/hack/read-terminal tutorial feedback branches while preserving Info-Key and digital record mechanics. PR-RF-14 removes the retired Mission 4 hidden route story predicate, route-node exit gate, recovered-module story hints, auto hidden-route setup, and Mission 4-specific hidden-route discovery feedback while preserving generic hidden route-node discovery, Scan/X-Ray visibility, Route Data digital records, TASK TEST, and Map Constructor behavior.
 
 ## Removed Mission 2 terminal tutorial glue in PR-RF-13
 
@@ -30,6 +29,15 @@ These wrappers are compatibility boundaries only. PR-RF-10 neutralizes legacy co
 - `BipobScanHackService.hack_device()` no longer contains a Mission 2-only terminal tutorial branch; terminal `download_info_key` hacks fall through to the existing generic Info-Key / digital record branch.
 - `BipobController.read_terminal()` no longer contains a Mission 2-only terminal calibration tutorial branch; no scan/hack/read-terminal path completes a story mission.
 - Info-Key / digital record storage, digital door unlocks, TASK TEST startup, Map Constructor behavior, Mission 7 cable boundaries, and Mission 8 airflow boundaries remain preserved.
+
+
+## Removed Mission 4 hidden route story glue in PR-RF-14
+
+- `is_legacy_mission4_hidden_route_flow_active()` was removed because no generic runtime caller remains after deleting the Mission 4 hidden route-node story branches.
+- `get_mission4_context_hint()` and the Mission 4 goal-hint case were removed so generic goal/help paths no longer emit recovered-module or route-node story guidance.
+- Mission start no longer auto-runs `setup_mission4_field_modules()`; the setup helper was removed. Debug-only field module and hidden route-node placement remain available behind their explicit debug exports.
+- Exit completion no longer blocks Mission 4 on `mission4_hidden_route_node_discovered`, and the Mission 4-specific completion message was removed from `complete_mission()`. Hidden route-node discovery no longer toggles Mission 4 story state.
+- Generic hidden route-node detection still discovers hidden nodes, stores the Route Data digital record, emits the generic detection hint, and refreshes status. Hidden object flags, discovered/revealed state, Scan Device / X-Ray vision behavior, digital records, TASK TEST startup, Map Constructor behavior, Mission 7 cable boundary, and Mission 8 airflow boundary remain preserved.
 
 ## Remaining usage map
 
@@ -40,15 +48,15 @@ These wrappers are compatibility boundaries only. PR-RF-10 neutralizes legacy co
 | `117` | `current_mission_index` mission selector state. | Story glue still blocking TASK TEST safety, needs extraction first. | Keep until TASK TEST no longer boots through legacy mission numbering and mission selection is separated from runtime sandbox state. |
 | `175-188` | `mission8_*` fan speed/direction, terminal/door positions, and airflow cells. | Story glue still blocking TASK TEST safety, needs extraction first. | Fan/platform/airflow is reusable, but this state is hardcoded to Mission 8 positions. Extract to runtime cooling/airflow world-object state before deleting. |
 | `189-195` | `mission7_*` cable drag/connect positions, path, and length. | Story glue still blocking TASK TEST safety, needs extraction first. | Cable/socket/power is reusable, but this state is hardcoded to Mission 7 positions and object IDs. Extract to runtime cable/power state before deleting. |
-| `1268-1278` | Legacy wrapper predicates read `current_mission_index`, `mission7_is_dragging_cable`, and Mission 8 activation. The retired `is_legacy_mission2_terminal_tutorial_active()` wrapper has been removed. | Story glue, safe to remove later. | Remaining wrappers intentionally isolate direct checks. Remove with old missions after callers move to runtime contracts. |
+| `1246-1253` | Remaining legacy wrapper predicates read `current_mission_index`, `mission7_is_dragging_cable`, and Mission 8 activation. The retired Mission 2 tutorial and Mission 4 hidden-route predicates have been removed. | Story glue, safe to remove later. | Remaining wrappers intentionally isolate direct Mission 7/8 checks. Remove with old missions after callers move to runtime contracts. |
 | `1280-1284` | `unlock_airflow_terminal_path()` and `complete_legacy_mission8_airflow_terminal_hack()` are compatibility wrappers that delegate through `BipobLegacyAirflowFlowService`. | Isolated legacy boundary, safe to remove after replacement. | The generic hack flow still calls the controller wrapper. Replace the service's hardcoded Mission 8 tile mutation with a runtime Action/Hack result that mutates a world object or connection target before deleting the old Mission 8 state. |
-| `1273` | Current goal hint delegates to legacy mission hint table. | Story glue, safe to remove later. | TASK TEST should eventually use runtime objective/help text independent of story missions. |
+| `1261-1262` | Current goal hint delegates to the legacy mission hint table, with the retired Mission 4 hidden-route story hint removed. | Story glue, safe to remove later. | TASK TEST should eventually use runtime objective/help text independent of story missions. |
 | `1277`, `1301`, `1306`, `1383`, `1386`, `1449-1450` | Mission start/restart/progression uses `current_mission_index`. | Story glue still blocking TASK TEST safety, needs extraction first. | TASK TEST currently depends on mission `10` compatibility. Replace with sandbox session startup before removing. |
 | `1323` | Mission 7 cable state reset on mission start now delegates to `BipobLegacyCableFlowService.reset_state()`. | Isolated legacy boundary, safe to remove later. | Hardcoded Mission 7 state is still legacy and removable after generic cable runtime exists; reset behavior is no longer inline in the controller. |
-| `1314-1318` | Mission-specific setup dispatch for Missions 7, 8, and 9. | Story glue, safe to remove later. | Remove with old mission layouts after TASK TEST startup no longer depends on this switch. |
+| `1297-1303` | Mission-specific setup dispatch for Missions 7, 8, and 9; Mission 4 hidden-route auto setup has been removed. | Story glue, safe to remove later. | Remove with old mission layouts after TASK TEST startup no longer depends on this switch. |
 | `1395-1396` | Return-to-box releases active Mission 7 cable drag through wrapper. | Story glue, safe to remove later. | Keep until cable drag is extracted or old mission return flow is removed. |
 | `1408` | Mission 9 return-to-box context hint. | Story glue, safe to remove later. | Old story hint only. |
-| `6605`, `6607`, `6627-6649` | Exit completion and `complete_mission()` message/progression logic. | Story glue still blocking TASK TEST safety, needs extraction first. | TASK TEST uses completion compatibility. Isolate runtime sandbox completion before deleting mission-completion flow. |
+| `6578-6617` | Exit completion and `complete_mission()` message/progression logic. The Mission 4 hidden-route exit gate and Mission 4-specific completion hint have been removed. | Story glue still blocking TASK TEST safety, needs extraction first. | TASK TEST uses completion compatibility. Isolate runtime sandbox completion before deleting remaining mission-completion flow. |
 | `7075` | Scan diagnostic checks `mission8_terminal_cooled`. | Story glue still blocking TASK TEST safety, needs extraction first. | Airflow cooled/hot state is reusable; read from runtime cooling state instead of Mission 8 variable. |
 | `7800-7824` | Legacy tile interaction dispatches Mission 8 control tiles through controller wrappers, then delegates Mission 7 cable/socket/gate branches to `BipobLegacyCableFlowService.handle_interact_tile()`. | Isolated legacy boundaries, safe to remove after replacement. | Mission 8 fan/platform/airflow and Mission 7 cable/socket/power behavior are preserved behind legacy boundaries. Later work should replace both with data-driven world-object actions/contracts before old missions are deleted. |
 | `8299-8341` | Mission 8 setup, fan/platform control, airflow, terminal state, and unlock helpers are compatibility wrappers that delegate through `BipobLegacyAirflowFlowService`; Mission 8 tile branches still call those wrappers. | Isolated legacy boundary, safe to remove after replacement. | Fan/platform/airflow/cooling is reusable and must later move to generic runtime world-object contracts. The hardcoded old Mission 8 state is still legacy and removable after that generic airflow runtime exists. |
@@ -97,16 +105,15 @@ No remaining `current_mission_index`, `mission7_*`, `mission8_*`, or `complete_m
 
 ## Reusable mechanics that must survive
 
-- Runtime scan/hack command flow and digital record storage. Generic scan/hack no longer completes legacy story missions and no longer contains the Mission 2 terminal tutorial feedback branch.
+- Runtime scan/hack command flow and digital record storage. Generic scan/hack no longer completes legacy story missions and no longer contains the Mission 2 terminal tutorial feedback branch. Hidden route-node discovery still stores Route Data as a reusable digital record without Mission 4 story gating.
 - Inventory pickup/drop, manipulator hand, and pocket logic.
 - Runtime movement/turn/action spending and map constructor startup behavior.
 - Cable/socket/power concepts. PR-RF-11 preserves the old Mission 7 implementation behind `BipobLegacyCableFlowService`; future work must move the reusable mechanic to generic runtime world-object contracts before deleting the old Mission 7 state.
 - Fan/platform/airflow/cooling concepts. PR-RF-12 preserves the old Mission 8 implementation behind `BipobLegacyAirflowFlowService`; future work must move the reusable mechanic to generic runtime world-object contracts before deleting the old Mission 8 state.
-- WorldObjectCatalog, InteractionSystem, PowerSystem, and MissionManager generic runtime APIs.
+- Hidden route-node discovery/revealed state, Scan Device / X-Ray visibility, WorldObjectCatalog, InteractionSystem, PowerSystem, and MissionManager generic runtime APIs.
 
 ## Branches that can be deleted after extraction/proof
 
-- Mission 4 hidden route-node story gating and recovered-module hints.
 - Mission 7 hardcoded cable reel/socket/gate setup, status text, and `cable_a` power event now isolated in `BipobLegacyCableFlowService`; delete after cable mechanics are represented by generic runtime services.
 - Mission 8 hardcoded fan/platform/airflow/terminal setup, status text, controls, airflow tile updates, cooling state, and door unlock now isolated in `BipobLegacyAirflowFlowService`; delete after airflow mechanics are represented by generic runtime services.
 - Mission-specific completion messages/progression after TASK TEST has standalone sandbox objective handling.
@@ -118,4 +125,5 @@ No remaining `current_mission_index`, `mission7_*`, `mission8_*`, or `complete_m
 - PR-RF-11 moves legacy Mission 7 cable/socket/powered-gate flow behind `BipobLegacyCableFlowService` while preserving TASK TEST, Map Constructor, scan/hack, inventory, movement, and old Mission 7 behavior.
 - PR-RF-12 moves legacy Mission 8 fan/platform/airflow/terminal flow behind `BipobLegacyAirflowFlowService` while preserving TASK TEST, Map Constructor, scan/hack, inventory, movement, and old Mission 8 behavior.
 - PR-RF-13 removes the retired Mission 2 terminal tutorial hack/read branches, `is_legacy_mission2_terminal_tutorial_active()`, and `complete_legacy_mission_from_story_glue()` while preserving generic scan/hack, terminal, Info-Key, digital record, digital door, TASK TEST, and Map Constructor behavior.
+- PR-RF-14 removes retired Mission 4 hidden route-node story gating, recovered-module hints, Mission 4 hidden-route completion gating, and Mission 4-specific hidden-route discovery feedback while preserving generic hidden/reveal/Scan/X-Ray mechanics, Route Data digital records, TASK TEST, Map Constructor, Mission 7 cable boundaries, and Mission 8 airflow boundaries.
 - Future removal PRs should first prove TASK TEST startup, runtime Action / Connect / Heavy Claw, scan/hack, and pickup/drop paths no longer require old mission-index branches.
