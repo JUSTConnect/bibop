@@ -40,6 +40,7 @@ const BipobTargetingServiceRef = preload("res://scripts/game/bipob_targeting_ser
 const BipobActionViewModelServiceRef = preload("res://scripts/game/bipob_action_view_model_service.gd")
 const BipobCapabilityServiceRef = preload("res://scripts/game/bipob_capability_service.gd")
 const BipobRuntimeActionActorServiceRef = preload("res://scripts/game/bipob_runtime_action_actor_service.gd")
+const BipobTerminalControlExecutionServiceRef = preload("res://scripts/game/bipob_terminal_control_execution_service.gd")
 const EXTERNAL_MODULE_CATALOG: Dictionary = {
 "wheels_v1":{"name":"Wheels V1","cat":"Gear","size":Vector2i(3,2),"sides":[EXTERNAL_SIDE_BOTTOM],"desc":"Fast movement system for flat and stable surfaces. Ineffective on stairs, mud and debris.","energy":1,"terrain":"Flat surface","movement":"Drive","speed":3},
 "legs_v1":{"name":"Legs V1","cat":"Gear","size":Vector2i(3,2),"sides":[EXTERNAL_SIDE_BOTTOM],"desc":"Universal movement system that provides stable traversal across uneven terrain, steps, obstacles, and mixed surfaces.","energy":1,"terrain":"Any surface","movement":"Walk","speed":2},
@@ -8375,17 +8376,12 @@ func interact() -> void:
 						status_changed.emit()
 						return
 			if String(world_object.get("object_group", "")) == "terminal" and action_id in ["open_door", "close_door", "unlock_door"]:
-				if not can_spend_action(1, 1):
-					hint_requested.emit("Not enough action/energy.")
+				var terminal_execution: Dictionary = BipobTerminalControlExecutionServiceRef.execute_terminal_control_action(self, world_object, target_position, action_id)
+				hint_requested.emit(String(terminal_execution.get("message", "Door control unavailable.")))
+				if bool(terminal_execution.get("refresh_action_panel", true)):
+					refresh_world_action_panel()
+				if bool(terminal_execution.get("emit_status", true)):
 					status_changed.emit()
-					return
-				var terminal_result: Dictionary = Dictionary(mission_manager.execute_terminal_control_action(String(world_object.get("id", "")), String(world_object.get("target_door_id", "")), action_id))
-				if bool(terminal_result.get("success", false)):
-					spend_action(1, 1)
-					_register_successful_paid_player_action(true)
-				hint_requested.emit("Door control applied." if bool(terminal_result.get("success", false)) else "Door control unavailable.")
-				refresh_world_action_panel()
-				status_changed.emit()
 				return
 			var action_result: Dictionary = InteractionSystemRef.normalize_action_result(Dictionary(InteractionSystemRef.apply_action(actor, module, world_object, action_id)), world_object, action_id)
 			if bool(action_result.get("success", false)):

@@ -249,9 +249,9 @@ Extracted `_build_runtime_action_actor(...)` dictionary construction to the read
 - Actor dictionary keys remain unchanged.
 - `BipobController._build_runtime_action_actor(...)` remains as a wrapper.
 
-### PR-X3: Extract terminal control execution helper
+### PR-X3: Extract terminal control execution helper — completed
 
-Move only the terminal branch for `open_door`, `close_door`, `unlock_door`.
+Extracted only the terminal branch for `open_door`, `close_door`, `unlock_door` to `scripts/game/bipob_terminal_control_execution_service.gd`.
 
 - Keep spend-on-success behavior.
 - Keep hint text and refresh behavior in controller wrapper.
@@ -315,9 +315,8 @@ Every implementation PR in this area should verify:
 
 ## 8. Recommended next PR
 
-**PR-X2: Extract runtime action actor builder** is complete. The next candidates remain:
+**PR-X3: Extract terminal control execution helper** is complete. The next candidates remain:
 
-- **PR-X3:** terminal control execution helper;
 - **PR-X4:** Heavy Claw execution helper;
 - **PR-X5:** generic world-object execution helper;
 - **PR-X6:** item pickup execution helper.
