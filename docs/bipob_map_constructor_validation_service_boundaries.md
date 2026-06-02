@@ -148,6 +148,8 @@ The order below intentionally separates read-only extraction from mutation extra
 
 ### PR-V1: Extract validation display adapters only
 
+Status: extracted. `map_constructor_validation_adapter.gd` now owns read-only normalization and display dedupe for the inspector linked, missing, and warning rows. Validation rules, severity decisions, readiness rules, and autofix execution remain in their existing owners.
+
 - Define a display adapter/read-model boundary for linked, missing, warning, and readiness rows.
 - Keep validation rules, severity decisions, and issue generation unchanged.
 - Keep `map_constructor_validation_view.gd` focused on rows, labels, buttons, grouping for display, and callbacks.
@@ -227,4 +229,4 @@ Use this checklist for PR-V1 through PR-V5:
 
 ## Audit note
 
-This boundary document marks the validation/service boundary audit as complete. It does **not** mark any service extraction implementation complete, and it does **not** mark the full GameUI split complete.
+This boundary document marks the validation/service boundary audit and PR-V1 validation display adapter extraction as complete. It does **not** mark validation rules, autofix, power/link consistency, or the full GameUI split complete.
