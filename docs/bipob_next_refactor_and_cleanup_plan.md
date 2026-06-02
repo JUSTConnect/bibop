@@ -566,14 +566,15 @@ Heavy Claw — heavy object movement.
 
 ### PR-R — GameUI split phase 1
 
-Статус: phase 1 начата. Center screen extraction, Runtime control panel extraction, Runtime object HUD extraction и Runtime storage panel extraction завершены; полный GameUI split ещё не завершён.
+Статус: phase 1 начата. Center screen extraction, Runtime control panel extraction, Runtime object HUD extraction, Runtime storage panel extraction и Map Constructor screen/root extraction завершены; полный GameUI split ещё не завершён. Inspector/property/link controls Map Constructor пока не вынесены.
 
 Следующие кандидаты на extraction:
 
-- Map Constructor screen/root;
+- Map Constructor inspector;
+- Map Constructor property controls cleanup;
+- Map Constructor link/power services;
 - BipobController targeting service;
-- BipobController action view-model service;
-- MissionManager map-constructor link/power services.
+- BipobController action view-model service.
 
 Содержание:
 
@@ -581,6 +582,7 @@ Heavy Claw — heavy object movement.
 - [x] вынести Runtime control panel;
 - [x] вынести Runtime object HUD refresh/positioning;
 - [x] вынести Runtime storage panel;
+- [x] вынести Map Constructor screen/root orchestration без inspector/property/link controls;
 - [ ] `game_ui.gd` оставить coordinator.
 
 Минимальный критерий:
