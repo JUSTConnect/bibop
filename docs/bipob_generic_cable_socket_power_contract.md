@@ -20,6 +20,12 @@ PR-RF-23 adds `BipobCableRuntimeService` as the first generic runtime service bo
 
 The service is not wired into gameplay yet. `BipobLegacyCableFlowService` remains the current behavior owner for Mission 7 cable drag, socket connection, cable path drawing/clearing, and powered-gate behavior until a later integration PR explicitly replaces that flow and passes TASK TEST / Map Constructor smoke.
 
+## PR-RF-24 non-gameplay checks
+
+PR-RF-24 adds `tools/ci/check_bipob_cable_runtime_service.gd` as a parser-safe, non-gameplay check script for `BipobCableRuntimeState` and `BipobCableRuntimeService`. The check validates empty-state status, dictionary serialization roundtrip, cloned drag/start/connect/release/clear-path transitions, path extension limits, and read-only legacy Mission 7 snapshot creation from a dictionary source.
+
+These checks do not wire the generic cable runtime into gameplay. They do not instantiate gameplay scenes, touch TASK TEST, Map Constructor, Mission 7 cable drawing/clearing, movement, inventory, interact, power, scan/hack, UI, grid, tiles, or signals. `BipobLegacyCableFlowService` remains the current Mission 7 cable/socket/powered-gate behavior owner until a later integration PR wires generic runtime behavior and passes TASK TEST / Map Constructor smoke.
+
 ## Boundary: reusable mechanic vs. old Mission 7 story glue
 
 ### Reusable cable/socket/power mechanic
