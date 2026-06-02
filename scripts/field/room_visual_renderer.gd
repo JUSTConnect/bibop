@@ -39,7 +39,6 @@ class_name RoomVisualRenderer
 @export var use_iso_tile_asset_hooks: bool = false
 @export var use_iso_placeholder_asset_preset: bool = false
 @export var iso_placeholder_asset_preset_requires_preview: bool = true
-@export var use_iso_concrete_wall_png_smoke_preview: bool = true
 @export var iso_floor_atlas_texture: Texture2D = null
 @export var iso_floor_default_texture: Texture2D = null
 @export var iso_floor_stepped_texture: Texture2D = null
@@ -97,14 +96,6 @@ const ISO_PLACEHOLDER_ASSET_PATHS: Dictionary = {
 	"floor_reinforced": "res://assets/visual/isometric/placeholders/iso_floor_reinforced.svg",
 	"floor_diagnostic": "res://assets/visual/isometric/placeholders/iso_floor_diagnostic.svg",
 	"floor_door_underlay": "res://assets/visual/isometric/placeholders/iso_floor_door_underlay.svg",
-	"wall_default": "res://assets/visual/isometric/placeholders/iso_wall_default.svg",
-	"wall_outer": "res://assets/visual/isometric/placeholders/iso_wall_outer.svg",
-	"wall_brick": "res://assets/visual/isometric/placeholders/iso_wall_brick.svg",
-	"wall_concrete": "res://assets/visual/isometric/placeholders/iso_wall_concrete.svg",
-	"wall_grate": "res://assets/visual/isometric/placeholders/iso_wall_grate.svg",
-	"wall_damaged": "res://assets/visual/isometric/placeholders/iso_wall_damaged.svg",
-	"wall_steel": "res://assets/visual/isometric/placeholders/iso_wall_steel.svg",
-	"wall_energy": "res://assets/visual/isometric/placeholders/iso_wall_energy.svg",
 	"object_door": "res://assets/visual/isometric/placeholders/iso_object_door.svg",
 	"object_terminal": "res://assets/visual/isometric/placeholders/iso_object_terminal.svg",
 	"object_key": "res://assets/visual/isometric/placeholders/iso_object_key.svg",
@@ -121,9 +112,19 @@ const ISO_PLACEHOLDER_ASSET_PATHS: Dictionary = {
 	"object_switch": "res://assets/visual/isometric/placeholders/iso_object_switch.svg"
 }
 
-const ISO_CONCRETE_WALL_SMOKE_TEXTURE_PATH: String = "res://assets/visual/isometric/Concrete/ChatGPT Image Jun 2, 2026, 11_48_05 AM.png"
-const ISO_CONCRETE_WALL_SMOKE_TARGET_WIDTH: float = 128.0
-const ISO_CONCRETE_WALL_SMOKE_TARGET_HEIGHT: float = 128.0
+
+const ISO_WALL_ASSET_PACK_DIR: String = "res://assets/visual/isometric/wall/"
+const ISO_WALL_ASSET_EXPECTED_SIZE: Vector2 = Vector2(128.0, 120.0)
+const ISO_WALL_ASSET_CATALOG: Dictionary = {
+	"wall_default": "wall_01_concrete.png",
+	"wall_concrete": "wall_01_concrete.png",
+	"wall_steel": "wall_02_steel.png",
+	"wall_reinforced_steel": "wall_03_reinforced_steel.png",
+	"wall_brick": "wall_04_brick.png",
+	"wall_outer": "wall_05_outerwall.png",
+	"wall_titanium": "wall_06_titan.png",
+	"wall_grate": "wall_07_grate.png"
+}
 
 const ISO_FLOOR_ATLAS_COLUMNS: int = 6
 const ISO_FLOOR_ATLAS_ROWS: int = 7
@@ -187,8 +188,7 @@ const ISO_ASSET_ALIGNMENT_RULES: Dictionary = {
 }
 
 var _iso_placeholder_texture_cache: Dictionary = {}
-var _iso_concrete_wall_smoke_texture_cache: Texture2D = null
-var _iso_concrete_wall_smoke_texture_checked: bool = false
+var _iso_wall_asset_texture_cache: Dictionary = {}
 var _grid_manager: GridManager = null
 var _rebuild_requested: bool = false
 
@@ -297,14 +297,6 @@ func is_task_test_visual_preview_context() -> bool:
 	if mission_manager.has_method("get_current_mission_id"):
 		return String(mission_manager.call("get_current_mission_id")) == "mission_10"
 	return use_iso_visual_preview_preset
-
-func should_use_iso_concrete_wall_png_smoke_preview() -> bool:
-	return (
-		use_iso_concrete_wall_png_smoke_preview
-		and is_iso_visual_preview_active()
-		and should_use_iso_placeholder_asset_preset()
-		and is_task_test_visual_preview_context()
-	)
 
 func should_preview_drive_bipob_visual_position() -> bool:
 	return (use_iso_visual_preview_preset and iso_visual_preview_drives_bipob_visual_position)
@@ -1222,23 +1214,125 @@ func get_iso_floor_asset_key_for_tile(tile_type: int) -> String:
 	return ""
 
 func get_iso_wall_asset_key_for_profile(profile_key: String) -> String:
-	match profile_key:
-		"outer_wall":
-			return "wall_outer"
-		"grate_wall":
-			return "wall_grate"
-		"brick_wall":
-			return "wall_brick"
-		"concrete_wall":
-			return "wall_concrete"
-		"steel_wall", "reinforced_steel_wall", "titanium_wall":
-			return "wall_steel"
-		"energy_wall":
-			return "wall_energy"
-		"damaged_wall":
-			return "wall_damaged"
-		_:
+	return normalize_wall_asset_key(profile_key)
+
+func get_iso_wall_asset_catalog() -> Dictionary:
+	return ISO_WALL_ASSET_CATALOG.duplicate()
+
+func normalize_wall_asset_key(profile_key: String) -> String:
+	var normalized_key: String = profile_key.strip_edges().to_lower()
+	normalized_key = normalized_key.replace(" ", "_")
+	normalized_key = normalized_key.replace("-", "_")
+	normalized_key = normalized_key.replace("default_wall", "wall_default")
+	match normalized_key:
+		"", "wall", "default", "wall_default":
 			return "wall_default"
+		"outer", "outerwall", "outer_wall", "wall_outer":
+			return "wall_outer"
+		"brick", "brick_wall", "wall_brick":
+			return "wall_brick"
+		"concrete", "concrete_wall", "wall_concrete":
+			return "wall_concrete"
+		"grate", "grate_wall", "wall_grate":
+			return "wall_grate"
+		"damaged", "damaged_wall", "wall_damaged":
+			return "wall_damaged"
+		"steel", "steel_wall", "wall_steel":
+			return "wall_steel"
+		"reinforced", "reinforced_steel", "reinforced_steel_wall", "wall_reinforced_steel":
+			return "wall_reinforced_steel"
+		"titan", "titanium", "titanium_wall", "wall_titanium":
+			return "wall_titanium"
+		"energy", "energy_flow", "energy_wall", "wall_energy":
+			return "wall_energy"
+	return "wall_default"
+
+func get_iso_wall_explicit_texture_for_asset_key(asset_key: String) -> Texture2D:
+	match asset_key:
+		"wall_default":
+			return iso_wall_default_texture
+		"wall_outer":
+			return iso_wall_outer_texture
+		"wall_brick":
+			return iso_wall_brick_texture
+		"wall_concrete":
+			return iso_wall_concrete_texture
+		"wall_grate":
+			return iso_wall_grate_texture
+		"wall_damaged":
+			return iso_wall_damaged_texture
+		"wall_steel", "wall_reinforced_steel", "wall_titanium":
+			return iso_wall_steel_texture
+		"wall_energy":
+			return iso_wall_energy_texture
+	return null
+
+func get_iso_wall_texture_for_asset_key(asset_key: String) -> Texture2D:
+	var catalog: Dictionary = get_iso_wall_asset_catalog()
+	if catalog.has(asset_key):
+		if _iso_wall_asset_texture_cache.has(asset_key):
+			var cached_value: Variant = _iso_wall_asset_texture_cache.get(asset_key)
+			if cached_value is Texture2D:
+				return cached_value as Texture2D
+		else:
+			var texture_path: String = ISO_WALL_ASSET_PACK_DIR + String(catalog.get(asset_key, ""))
+			if ResourceLoader.exists(texture_path):
+				var loaded_resource: Resource = ResourceLoader.load(texture_path)
+				if loaded_resource is Texture2D:
+					var loaded_texture: Texture2D = loaded_resource as Texture2D
+					_iso_wall_asset_texture_cache[asset_key] = loaded_texture
+					return loaded_texture
+			_iso_wall_asset_texture_cache[asset_key] = null
+	var explicit_texture: Texture2D = get_iso_wall_explicit_texture_for_asset_key(asset_key)
+	if explicit_texture != null:
+		return explicit_texture
+	match asset_key:
+		"wall_outer", "wall_energy", "wall_damaged":
+			return get_iso_wall_texture_for_asset_key("wall_default")
+		"wall_reinforced_steel", "wall_titanium":
+			return get_iso_wall_texture_for_asset_key("wall_steel")
+	if asset_key != "wall_default":
+		return get_iso_wall_texture_for_asset_key("wall_default")
+	return null
+
+func get_iso_wall_texture_for_profile(profile_key: String) -> Texture2D:
+	return get_iso_wall_texture_for_asset_key(normalize_wall_asset_key(profile_key))
+
+func get_iso_wall_texture_draw_rect_for_cell(cell: Vector2i, texture: Texture2D, profile_key: String, topology: Dictionary) -> Rect2:
+	var source_size: Vector2 = texture.get_size()
+	if source_size.x <= 0.0 or source_size.y <= 0.0:
+		return Rect2()
+	var expected_size: Vector2 = ISO_WALL_ASSET_EXPECTED_SIZE
+	var target_width: float = maxf(iso_tile_width, expected_size.x)
+	var target_height: float = maxf(iso_wall_height + get_iso_tile_half_size().y, expected_size.y)
+	var scale_value: float = minf(target_width / source_size.x, target_height / source_size.y)
+	var destination_size: Vector2 = source_size * scale_value
+	var base_anchor: Vector2 = grid_to_iso(cell) + Vector2(0.0, get_iso_tile_half_size().y)
+	return Rect2(base_anchor - Vector2(destination_size.x * 0.5, destination_size.y), destination_size)
+
+func should_mirror_iso_wall_asset_for_topology(topology: Dictionary) -> bool:
+	var shape: String = String(topology.get("shape", ""))
+	return shape == "straight_y" or shape.ends_with("_east") or shape.ends_with("_ne") or shape.ends_with("_se")
+
+func draw_iso_wall_asset_texture_rect(texture: Texture2D, destination_rect: Rect2, mirror_x: bool) -> void:
+	if not mirror_x:
+		draw_texture_rect(texture, destination_rect, false)
+		return
+	var center: Vector2 = destination_rect.position + destination_rect.size * 0.5
+	draw_set_transform(center, 0.0, Vector2(-1.0, 1.0))
+	draw_texture_rect(texture, Rect2(destination_rect.size * -0.5, destination_rect.size), false)
+	draw_set_transform(Vector2.ZERO, 0.0, Vector2.ONE)
+
+func draw_iso_wall_asset_texture_for_cell(cell: Vector2i, profile_key: String, topology: Dictionary) -> bool:
+	var texture: Texture2D = get_iso_wall_texture_for_profile(profile_key)
+	if texture == null:
+		return false
+	var destination_rect: Rect2 = get_iso_wall_texture_draw_rect_for_cell(cell, texture, profile_key, topology)
+	if destination_rect.size.x <= 0.0 or destination_rect.size.y <= 0.0:
+		return false
+	draw_iso_wall_asset_texture_rect(texture, destination_rect, should_mirror_iso_wall_asset_for_topology(topology))
+	draw_iso_asset_alignment_overlay(normalize_wall_asset_key(profile_key), destination_rect.position + Vector2(destination_rect.size.x * 0.5, destination_rect.size.y), destination_rect)
+	return true
 
 func get_iso_object_asset_key_for_profile(profile_key: String) -> String:
 	match profile_key:
@@ -1373,26 +1467,7 @@ func get_iso_placeholder_texture_for_asset_key(asset_key: String) -> Texture2D:
 
 func clear_iso_placeholder_texture_cache() -> void:
 	_iso_placeholder_texture_cache.clear()
-	_iso_concrete_wall_smoke_texture_cache = null
-	_iso_concrete_wall_smoke_texture_checked = false
-
-func get_iso_concrete_wall_smoke_texture() -> Texture2D:
-	# Prefer the existing exported texture hook when it is assigned manually.
-	# TASK TEST smoke then falls back to the temporary PNG path and finally to
-	# normal placeholder/procedural wall rendering if the PNG is missing.
-	if iso_wall_concrete_texture != null:
-		return iso_wall_concrete_texture
-	if not should_use_iso_concrete_wall_png_smoke_preview():
-		return null
-	if _iso_concrete_wall_smoke_texture_checked:
-		return _iso_concrete_wall_smoke_texture_cache
-	_iso_concrete_wall_smoke_texture_checked = true
-	if not FileAccess.file_exists(ISO_CONCRETE_WALL_SMOKE_TEXTURE_PATH):
-		return null
-	var loaded_resource: Resource = ResourceLoader.load(ISO_CONCRETE_WALL_SMOKE_TEXTURE_PATH)
-	if loaded_resource is Texture2D:
-		_iso_concrete_wall_smoke_texture_cache = loaded_resource as Texture2D
-	return _iso_concrete_wall_smoke_texture_cache
+	_iso_wall_asset_texture_cache.clear()
 
 func get_explicit_iso_texture_for_asset_key(asset_key: String) -> Texture2D:
 	match asset_key:
@@ -1423,7 +1498,7 @@ func get_explicit_iso_texture_for_asset_key(asset_key: String) -> Texture2D:
 		"wall_brick":
 			return iso_wall_brick_texture
 		"wall_concrete":
-			return get_iso_concrete_wall_smoke_texture()
+			return iso_wall_concrete_texture
 		"wall_grate":
 			return iso_wall_grate_texture
 		"wall_damaged":
@@ -1464,6 +1539,8 @@ func get_explicit_iso_texture_for_asset_key(asset_key: String) -> Texture2D:
 			return null
 
 func get_iso_texture_for_asset_key(asset_key: String) -> Texture2D:
+	if asset_key.begins_with("wall_"):
+		return get_iso_wall_texture_for_asset_key(asset_key)
 	var explicit_texture: Texture2D = get_explicit_iso_texture_for_asset_key(asset_key)
 	if explicit_texture == null and not ISO_PLACEHOLDER_ASSET_PATHS.has(asset_key):
 		return null
@@ -1506,11 +1583,20 @@ func get_iso_visual_texture_debug_state() -> Dictionary:
 		var has_explicit_texture: bool = explicit_texture != null
 		var placeholder_path: String = get_iso_placeholder_asset_path(texture_key)
 		var placeholder_available: bool = false
-		if placeholder_preset_enabled and placeholder_path != "":
+		var wall_catalog_path: String = ""
+		var wall_catalog_available: bool = false
+		if texture_key.begins_with("wall_"):
+			var wall_catalog: Dictionary = get_iso_wall_asset_catalog()
+			if wall_catalog.has(texture_key):
+				wall_catalog_path = ISO_WALL_ASSET_PACK_DIR + String(wall_catalog.get(texture_key, ""))
+				wall_catalog_available = ResourceLoader.exists(wall_catalog_path)
+		elif placeholder_preset_enabled and placeholder_path != "":
 			placeholder_available = ResourceLoader.exists(placeholder_path)
 
 		var active_texture_source: String = "none"
-		if has_explicit_texture:
+		if wall_catalog_available:
+			active_texture_source = "wall_catalog"
+		elif has_explicit_texture:
 			active_texture_source = "explicit"
 		elif placeholder_preset_enabled and placeholder_available:
 			active_texture_source = "placeholder"
@@ -1519,6 +1605,8 @@ func get_iso_visual_texture_debug_state() -> Dictionary:
 			"has_explicit_texture": has_explicit_texture,
 			"placeholder_path": placeholder_path,
 			"placeholder_available": placeholder_available,
+			"wall_catalog_path": wall_catalog_path,
+			"wall_catalog_available": wall_catalog_available,
 			"active_texture_source": active_texture_source
 		}
 	return debug_state
@@ -1997,41 +2085,13 @@ func has_drawable_iso_wall_texture(material_override: Dictionary, material_row: 
 	if bool(material_override.get("ok", false)):
 		if can_draw_optional_visual_texture_asset(String(material_row.get("texture_asset_id", ""))):
 			return true
-	var wall_asset_key: String = get_iso_wall_asset_key_for_profile(wall_profile_key)
-	if wall_asset_key.is_empty():
-		return false
-	if not should_use_iso_tile_asset_hook_visuals():
-		return false
-	return get_iso_texture_for_asset_key(wall_asset_key) != null
+	return get_iso_wall_texture_for_profile(wall_profile_key) != null
 
 func draw_iso_wall_texture_for_cell(cell: Vector2i, material_override: Dictionary, material_row: Dictionary, wall_profile_key: String) -> bool:
 	if bool(material_override.get("ok", false)):
 		if draw_optional_visual_texture_asset(String(material_row.get("texture_asset_id", "")), cell, "draw_iso_wall_surface_accent"):
 			return true
-	return draw_iso_texture_asset(cell, get_iso_wall_asset_key_for_profile(wall_profile_key))
-
-func draw_iso_concrete_wall_smoke_texture_for_cell(cell: Vector2i, wall_profile_key: String) -> bool:
-	if wall_profile_key != "concrete_wall":
-		return false
-	if not should_use_iso_concrete_wall_png_smoke_preview() and iso_wall_concrete_texture == null:
-		return false
-	if is_wall_adjacent_to_door(cell):
-		return false
-	var texture: Texture2D = get_iso_concrete_wall_smoke_texture()
-	if texture == null:
-		return false
-	var source_size: Vector2 = texture.get_size()
-	if source_size.x <= 0.0 or source_size.y <= 0.0:
-		return false
-	var target_width: float = maxf(iso_tile_width, ISO_CONCRETE_WALL_SMOKE_TARGET_WIDTH)
-	var target_height: float = maxf(iso_tile_width, ISO_CONCRETE_WALL_SMOKE_TARGET_HEIGHT)
-	var scale_value: float = minf(target_width / source_size.x, target_height / source_size.y)
-	var destination_size: Vector2 = source_size * scale_value
-	var base_anchor: Vector2 = grid_to_iso(cell) + Vector2(0.0, get_iso_tile_half_size().y)
-	var destination_rect: Rect2 = Rect2(base_anchor - Vector2(destination_size.x * 0.5, destination_size.y), destination_size)
-	draw_texture_rect(texture, destination_rect, false)
-	draw_iso_asset_alignment_overlay("wall_concrete", base_anchor, destination_rect)
-	return true
+	return draw_iso_wall_asset_texture_for_cell(cell, wall_profile_key, get_wall_render_topology(cell))
 
 func get_wall_prototype_colors(cell: Vector2i) -> Dictionary:
 	var profile_key: String = get_wall_visual_profile_key_for_cell(cell)
@@ -2602,11 +2662,7 @@ func draw_iso_wall_block(cell: Vector2i) -> void:
 	var floor_shadow: PackedVector2Array = PackedVector2Array([base_points[2], base_points[3], base_points[3] + Vector2(0.0, 8.0), base_points[2] + Vector2(0.0, 8.0)])
 	var accent_color: Color = _get_color_from_dict(colors, "accent", Color.WHITE)
 
-	# Standalone walls normally stay on the same procedural architectural path as
-	# connected runs. The TASK TEST smoke hook below is visual-only, concrete-only,
-	# and falls through to this procedural path whenever the temporary PNG is not
-	# available.
-	if draw_iso_concrete_wall_smoke_texture_for_cell(cell, wall_profile_key):
+	if draw_iso_wall_asset_texture_for_cell(cell, wall_profile_key, render_topology):
 		draw_iso_wall_debug_and_mount_overlays(cell, arch, topology)
 		return
 
