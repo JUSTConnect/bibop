@@ -1380,7 +1380,7 @@ func _start_runtime_session(mission_index: int, layout_id: String, runtime_mode_
 	BipobLegacyCableFlowServiceRef.reset_legacy_state(self)
 	if grid_manager != null:
 		var mission_id: String = layout_id
-		var used_catalog_layout := false
+		var used_catalog_layout: bool = false
 		if is_sandbox_mode_active() and mission_manager != null and mission_manager.has_method("apply_catalog_mission_layout_to_grid"):
 			used_catalog_layout = bool(mission_manager.call("apply_catalog_mission_layout_to_grid", mission_id))
 		if not used_catalog_layout:
@@ -1393,7 +1393,10 @@ func _start_runtime_session(mission_index: int, layout_id: String, runtime_mode_
 			else:
 				grid_manager.reset_mission_layout(current_mission_index)
 		if mission_manager != null:
-			mission_manager.setup_world_objects_for_mission(mission_id)
+			if is_sandbox_mode_active() and mission_manager.has_method("setup_task_test_sandbox_world"):
+				mission_manager.call("setup_task_test_sandbox_world")
+			else:
+				mission_manager.setup_world_objects_for_mission(mission_id)
 			refresh_world_object_overlay()
 		if debug_place_mission4_field_modules:
 			place_debug_mission4_field_modules()

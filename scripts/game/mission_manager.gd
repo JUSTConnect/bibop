@@ -171,6 +171,12 @@ func has_task_test_catalog_layout() -> bool:
 func get_task_test_source_id() -> String:
 	return TASK_TEST_LAYOUT_ID
 
+func get_task_test_sandbox_layout_id() -> String:
+	return get_task_test_layout_id()
+
+func get_task_test_sandbox_source_id() -> String:
+	return get_task_test_source_id()
+
 func normalize_task_test_source_id(source_id: String) -> String:
 	var normalized: String = str(source_id).strip_edges()
 	if normalized == TASK_TEST_MISSION_ID or normalized == TASK_TEST_LAYOUT_ID:
@@ -738,7 +744,7 @@ func _validate_legacy_compatibility_boundary() -> Array[String]:
 
 func _validate_task_test_object_contracts() -> Array[String]:
 	var warnings: Array[String] = validate_task_test_catalog_layout_runtime_source()
-	var task_test_snapshot: Dictionary = build_task_test_mission_world_objects_for_validation()
+	var task_test_snapshot: Dictionary = build_task_test_sandbox_world_objects_for_validation()
 	var has_requires_power_to_open_door: bool = false
 	for build_warning_variant in Array(task_test_snapshot.get("warnings", [])):
 		warnings.append(str(build_warning_variant))
@@ -944,18 +950,12 @@ func _validate_architecture_mission_objective_contract() -> Array[String]:
 	return warnings
 
 func setup_world_objects_for_mission(mission_id: String) -> void:
+	if is_task_test_mission_id(mission_id):
+		setup_task_test_sandbox_world()
+		return
 	current_mission_id = mission_id
 	active_runtime_mode_id = _get_runtime_mode_id_for_mission_id(mission_id)
-	mission_world_objects.clear()
-	world_objects_by_cell.clear()
-	cell_items.clear()
-	_map_constructor_wall_material_overrides.clear()
-	_map_constructor_floor_material_overrides.clear()
-	if grid_manager != null and grid_manager.has_method("clear_floor_visual_states"):
-		grid_manager.call("clear_floor_visual_states")
-	if is_task_test_mission_id(mission_id):
-		_setup_task_test_mission_world()
-		return
+	_clear_world_object_runtime_state()
 	if mission_id != "mission_1":
 		return
 	var objects: Array[Dictionary] = WorldObjectCatalogRef.create_test_set()
@@ -1023,7 +1023,19 @@ func setup_world_objects_for_mission(mission_id: String) -> void:
 				push_warning("[WorldScenario] %s" % warning)
 # endregion
 
-func _setup_task_test_mission_world() -> void:
+func _clear_world_object_runtime_state() -> void:
+	mission_world_objects.clear()
+	world_objects_by_cell.clear()
+	cell_items.clear()
+	_map_constructor_wall_material_overrides.clear()
+	_map_constructor_floor_material_overrides.clear()
+	if grid_manager != null and grid_manager.has_method("clear_floor_visual_states"):
+		grid_manager.call("clear_floor_visual_states")
+
+func setup_task_test_sandbox_world() -> void:
+	current_mission_id = get_task_test_sandbox_source_id()
+	active_runtime_mode_id = RUNTIME_MODE_TASK_TEST
+	_clear_world_object_runtime_state()
 	_capture_task_test_constructor_base_tiles()
 	var validation_data: Dictionary = TaskTestWorldBuilderRef.build_validation_world_objects()
 	var objects: Array[Dictionary] = _safe_dictionary_array(validation_data.get("objects", []))
@@ -1036,6 +1048,9 @@ func _setup_task_test_mission_world() -> void:
 			add_item_at_cell(cell, Dictionary(item).duplicate(true))
 	PowerSystemRef.recalculate_network(mission_world_objects, "task_test_power_main")
 	refresh_world_cooling_received()
+
+func _setup_task_test_mission_world() -> void:
+	setup_task_test_sandbox_world()
 
 func _capture_task_test_constructor_base_tiles() -> void:
 	_task_test_constructor_base_tiles.clear()
@@ -2051,8 +2066,11 @@ func delete_map_constructor_preset(preset_name: String) -> Dictionary:
 		return {"ok": false, "message": "Preset delete failed.", "preset_name": sanitized_name}
 	return {"ok": true, "message": "Preset '%s' deleted." % sanitized_name, "preset_name": sanitized_name}
 
-func build_task_test_mission_world_objects_for_validation() -> Dictionary:
+func build_task_test_sandbox_world_objects_for_validation() -> Dictionary:
 	return TaskTestWorldBuilderRef.build_validation_world_objects()
+
+func build_task_test_mission_world_objects_for_validation() -> Dictionary:
+	return build_task_test_sandbox_world_objects_for_validation()
 
 func set_grid_manager_ref(value: Node) -> void:
 	grid_manager = value
@@ -2991,15 +3009,15 @@ func get_visual_texture_asset_catalog() -> Dictionary:
 		{"id":"terminal_state_generic","category":"terminal","display_name":"Terminal / Generic","description":"Terminal visual state texture slot.","texture_path":"","atlas_region":Rect2i(0, 0, 0, 0),"fallback_style":"state_tint","fallback_color":Color(0.78, 0.87, 0.96, 0.98),"tags":["terminal","state"],"is_optional":true},
 		{"id":"item_generic_marker","category":"item","display_name":"Item / Marker","description":"Generic item marker texture slot.","texture_path":"","atlas_region":Rect2i(0, 0, 0, 0),"fallback_style":"small_marker","fallback_color":Color(0.74, 0.84, 0.96, 0.95),"tags":["item"],"is_optional":true},
 		{"id":"cabel_reel_01","category":"object","display_name":"Cable Reel","description":"Cable reel object asset.","texture_path":"res://assets/visual/isometric/objects/cabel_reel_01.png","atlas_region":Rect2i(0, 0, 0, 0),"fallback_style":"object","fallback_color":Color(0.74, 0.84, 0.96, 0.95),"tags":["object","cable_reel"],"is_optional":true,"placeholder_asset_key":"object_cable_reel"},
-		{"id":"fuse_box_in_01","category":"object","display_name":"Fuse Box / Floor / In","description":"Floor fuse box with fuse inserted.","texture_path":"res://assets/visual/isometric/objects/fuse_box_in_01.png","atlas_region":Rect2i(0, 0, 0, 0),"fallback_style":"object","fallback_color":Color(0.74, 0.84, 0.96, 0.95),"tags":["object","fuse_box"],"is_optional":true,"placeholder_asset_key":"object_component"},
-		{"id":"fuse_box_out_01","category":"object","display_name":"Fuse Box / Floor / Out","description":"Floor fuse box with fuse removed.","texture_path":"res://assets/visual/isometric/objects/fuse_box_out_01.png","atlas_region":Rect2i(0, 0, 0, 0),"fallback_style":"object","fallback_color":Color(0.74, 0.84, 0.96, 0.95),"tags":["object","fuse_box"],"is_optional":true,"placeholder_asset_key":"object_component"},
+		{"id":"fuse_box_in_01","category":"object","display_name":"Floor Fuse Box / In","description":"Floor fuse box with fuse inserted.","texture_path":"res://assets/visual/isometric/objects/fuse_box_in_01.png","atlas_region":Rect2i(0, 0, 0, 0),"fallback_style":"object","fallback_color":Color(0.74, 0.84, 0.96, 0.95),"tags":["object","fuse_box"],"is_optional":true,"placeholder_asset_key":"object_component"},
+		{"id":"fuse_box_out_01","category":"object","display_name":"Floor Fuse Box / Out","description":"Floor fuse box with fuse removed.","texture_path":"res://assets/visual/isometric/objects/fuse_box_out_01.png","atlas_region":Rect2i(0, 0, 0, 0),"fallback_style":"object","fallback_color":Color(0.74, 0.84, 0.96, 0.95),"tags":["object","fuse_box"],"is_optional":true,"placeholder_asset_key":"object_component"},
 		{"id":"fuse_box_in_wall_01","category":"object","display_name":"Fuse Box / Wall / In","description":"Wall fuse box with fuse inserted.","texture_path":"res://assets/visual/isometric/objects/fuse_box_in_wall_01.png","atlas_region":Rect2i(0, 0, 0, 0),"fallback_style":"object","fallback_color":Color(0.74, 0.84, 0.96, 0.95),"tags":["object","fuse_box","wall"],"is_optional":true,"placeholder_asset_key":"object_component"},
 		{"id":"fuse_box_out_wall_01","category":"object","display_name":"Fuse Box / Wall / Out","description":"Wall fuse box with fuse removed.","texture_path":"res://assets/visual/isometric/objects/fuse_box_out_wall_01.png","atlas_region":Rect2i(0, 0, 0, 0),"fallback_style":"object","fallback_color":Color(0.74, 0.84, 0.96, 0.95),"tags":["object","fuse_box","wall"],"is_optional":true,"placeholder_asset_key":"object_component"},
 		{"id":"light_01","category":"object","display_name":"Light","description":"Wall light object asset.","texture_path":"res://assets/visual/isometric/objects/light_01.png","atlas_region":Rect2i(0, 0, 0, 0),"fallback_style":"object","fallback_color":Color(0.98, 0.94, 0.75, 0.99),"tags":["object","light"],"is_optional":true,"placeholder_asset_key":"object_button"},
 		{"id":"power_source_01","category":"object","display_name":"Power Source","description":"Power source object asset.","texture_path":"res://assets/visual/isometric/objects/power_source_01.png","atlas_region":Rect2i(0, 0, 0, 0),"fallback_style":"object","fallback_color":Color(0.95, 0.88, 0.52, 0.99),"tags":["object","power"],"is_optional":true,"placeholder_asset_key":"object_component"},
-		{"id":"power_switcher_off_01","category":"object","display_name":"Power Switcher / Floor / Off","description":"Floor power switcher off.","texture_path":"res://assets/visual/isometric/objects/power_switcher_off_01.png","atlas_region":Rect2i(0, 0, 0, 0),"fallback_style":"object","fallback_color":Color(0.95, 0.88, 0.52, 0.99),"tags":["object","switch"],"is_optional":true,"placeholder_asset_key":"object_switch"},
+		{"id":"power_switcher_off_01","category":"object","display_name":"Floor Power Switcher / Off","description":"Floor power switcher off.","texture_path":"res://assets/visual/isometric/objects/power_switcher_off_01.png","atlas_region":Rect2i(0, 0, 0, 0),"fallback_style":"object","fallback_color":Color(0.95, 0.88, 0.52, 0.99),"tags":["object","switch"],"is_optional":true,"placeholder_asset_key":"object_switch"},
 		{"id":"power_switcher_off_wall_01","category":"object","display_name":"Power Switcher / Wall / Off","description":"Wall power switcher off.","texture_path":"res://assets/visual/isometric/objects/power_switcher_off_wall_01.png","atlas_region":Rect2i(0, 0, 0, 0),"fallback_style":"object","fallback_color":Color(0.95, 0.88, 0.52, 0.99),"tags":["object","switch","wall"],"is_optional":true,"placeholder_asset_key":"object_switch"},
-		{"id":"power_switcher_on_01","category":"object","display_name":"Power Switcher / Floor / On","description":"Floor power switcher on.","texture_path":"res://assets/visual/isometric/objects/power_switcher_on_01.png","atlas_region":Rect2i(0, 0, 0, 0),"fallback_style":"object","fallback_color":Color(0.95, 0.88, 0.52, 0.99),"tags":["object","switch"],"is_optional":true,"placeholder_asset_key":"object_switch"},
+		{"id":"power_switcher_on_01","category":"object","display_name":"Floor Power Switcher / On","description":"Floor power switcher on.","texture_path":"res://assets/visual/isometric/objects/power_switcher_on_01.png","atlas_region":Rect2i(0, 0, 0, 0),"fallback_style":"object","fallback_color":Color(0.95, 0.88, 0.52, 0.99),"tags":["object","switch"],"is_optional":true,"placeholder_asset_key":"object_switch"},
 		{"id":"power_switcher_on_wall_01","category":"object","display_name":"Power Switcher / Wall / On","description":"Wall power switcher on.","texture_path":"res://assets/visual/isometric/objects/power_switcher_on_wall_01.png","atlas_region":Rect2i(0, 0, 0, 0),"fallback_style":"object","fallback_color":Color(0.95, 0.88, 0.52, 0.99),"tags":["object","switch","wall"],"is_optional":true,"placeholder_asset_key":"object_switch"},
 		{"id":"radiator_01","category":"object","display_name":"Radiator","description":"External floor radiator object asset.","texture_path":"res://assets/visual/isometric/objects/radiator_01.png","atlas_region":Rect2i(0, 0, 0, 0),"fallback_style":"object","fallback_color":Color(0.7, 0.82, 0.9, 0.99),"tags":["object","radiator"],"is_optional":true,"placeholder_asset_key":"object_component"},
 		{"id":"terminal_01","category":"object","display_name":"Terminal","description":"Floor terminal object asset.","texture_path":"res://assets/visual/isometric/objects/terminal_01.png","atlas_region":Rect2i(0, 0, 0, 0),"fallback_style":"object","fallback_color":Color(0.78, 0.87, 0.96, 0.98),"tags":["object","terminal"],"is_optional":true,"placeholder_asset_key":"object_terminal"},
@@ -11644,7 +11662,7 @@ func _get_task_test_duplicate_cell_warnings(objects: Array[Dictionary], items_by
 func validate_task_test_mission_runtime() -> Array[String]:
 	var warnings: Array[String] = []
 	var runtime_before: Dictionary = _build_world_runtime_validation_fingerprint()
-	var built: Dictionary = build_task_test_mission_world_objects_for_validation()
+	var built: Dictionary = build_task_test_sandbox_world_objects_for_validation()
 	warnings.append_array(Array(built.get("warnings", [])))
 	var task_objects: Array[Dictionary] = _safe_dictionary_array(built.get("objects", []))
 	var task_items_by_cell: Dictionary = built.get("items_by_cell", {})
@@ -12462,7 +12480,7 @@ func validate_connector_processor_migration() -> Array[String]:
 		if caps.has(legacy_key):
 			warnings.append("capability_report_uses_legacy_%s" % legacy_key)
 
-	var task := build_task_test_mission_world_objects_for_validation()
+	var task: Dictionary = build_task_test_sandbox_world_objects_for_validation()
 	for obj in Array(task.get("objects", [])):
 		var obj_dict: Dictionary = Dictionary(obj)
 		var obj_id: String = str(obj_dict.get("id", ""))

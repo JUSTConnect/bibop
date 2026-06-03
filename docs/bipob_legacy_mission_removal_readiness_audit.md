@@ -100,7 +100,14 @@ Status: completed for the mission-result UI restart dependency direction. GameUI
 
 ### PR-RF-30 — Extract TASK TEST world-object builder from MissionManager
 
-Status: completed. `scripts/game/task_test_world_builder.gd` now owns the behavior-equivalent TASK TEST seed object and item construction. MissionManager keeps the existing TASK TEST setup and validation methods as wrappers, preserving runtime startup, Map Constructor validation/build callers, canonical `task_test`, and `mission_10` alias compatibility without deleting old mission resources.
+Status: completed. `scripts/game/task_test_world_builder.gd` now owns the behavior-equivalent TASK TEST seed object and item construction. MissionManager exposes sandbox-named TASK TEST setup and validation wrappers while keeping the older mission-named methods as compatibility wrappers, preserving runtime startup, Map Constructor validation/build callers, canonical `task_test`, and `mission_10` alias compatibility without deleting old mission resources.
+
+
+### PR-RF-35 — Sandbox-named MissionManager TASK TEST setup/validation wrappers
+
+Status: completed for code-side decoupling. `setup_task_test_sandbox_world()` and `build_task_test_sandbox_world_objects_for_validation()` are now the preferred MissionManager boundaries for TASK TEST runtime setup and validation. `setup_world_objects_for_mission()`, `_setup_task_test_mission_world()`, and `build_task_test_mission_world_objects_for_validation()` remain compatibility APIs and route TASK TEST through the sandbox wrappers.
+
+This is the final code decoupling step before the final audit, not permission to delete old mission resources. Legacy story setup, `mission_10` alias compatibility, `current_mission_index`, and GridManager Mission 10 fallback remain in place until a later removal PR proves they are safe to retire.
 
 ### PR-RF-20 — Generic runtime cable/socket/power contract planning
 

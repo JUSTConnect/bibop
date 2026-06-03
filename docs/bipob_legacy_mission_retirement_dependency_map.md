@@ -129,7 +129,7 @@ No remaining `current_mission_index`, `mission7_*`, `mission8_*`, or `complete_m
 
 ### `scripts/game/mission_manager.gd`
 
-No remaining `current_mission_index`, `mission7_*`, `mission8_*`, or `complete_mission()` usage found in this file. MissionManager still owns runtime world-object APIs and mission layout compatibility, so it should not be broadly deleted in the legacy mission retirement work. PR-RF-16 added `get_task_test_mission_id()`, `get_task_test_layout_id()`, and `is_task_test_mission_id()`; PR-RF-18 updates that boundary so `task_test` is the explicit TASK TEST layout/catalog alias while `mission_10` remains the compatibility fallback id. PR-RF-30 extracts TASK TEST seed object/item construction into `TaskTestWorldBuilder`, leaving MissionManager setup and validation methods as compatibility wrappers for runtime and Map Constructor callers.
+No remaining `current_mission_index`, `mission7_*`, `mission8_*`, or `complete_mission()` usage found in this file. MissionManager still owns runtime world-object APIs and mission layout compatibility, so it should not be broadly deleted in the legacy mission retirement work. PR-RF-16 added `get_task_test_mission_id()`, `get_task_test_layout_id()`, and `is_task_test_mission_id()`; PR-RF-18 updates that boundary so `task_test` is the explicit TASK TEST layout/catalog alias while `mission_10` remains the compatibility fallback id. PR-RF-30 extracts TASK TEST seed object/item construction into `TaskTestWorldBuilder`; PR-RF-35 adds sandbox-named MissionManager setup and validation wrappers while leaving the mission-named methods as compatibility wrappers for runtime and Map Constructor callers.
 
 ## Reusable mechanics that must survive
 
@@ -182,3 +182,10 @@ This removes TASK TEST objective UI from the old numeric mission hint table with
 TASK TEST startup/restart/reset/completion/layout/objective routing should now be read as depending on explicit runtime/session ids: `active_runtime_mode_id`, `current_mission_id`, canonical `task_test` layout/source ids, and the `is_task_test_mode_active()` / `is_sandbox_mode_active()` helpers. `current_mission_index = 10` remains only a compatibility mirror for legacy callers such as `start_mission(10)` and for centralized UI fallback detection.
 
 This reduces the dependency on mission index 10 as semantic TASK TEST state, but it does not remove the dependency map entries for old story missions or their reusable mechanics. Do not delete mission resources, Mission 7 cable behavior, Mission 8 airflow behavior, or GridManager Mission 10 compatibility fallback based on this update alone.
+
+
+## PR-RF-35 update — sandbox-named TASK TEST MissionManager boundary
+
+TASK TEST setup/validation now has sandbox-named MissionManager boundaries: `setup_task_test_sandbox_world()`, `build_task_test_sandbox_world_objects_for_validation()`, `get_task_test_sandbox_layout_id()`, and `get_task_test_sandbox_source_id()`. `BipobController._start_runtime_session()` prefers the sandbox setup wrapper when TASK TEST / sandbox mode is active. Mission-named MissionManager methods still exist for compatibility and delegate TASK TEST work to the sandbox wrappers.
+
+This is the final code decoupling step before a final audit. It does not make old story mission resources ready for deletion, and it does not remove `mission_10`, `current_mission_index`, legacy story setup paths, Mission 7 cable behavior, Mission 8 airflow behavior, or GridManager Mission 10 fallback.
