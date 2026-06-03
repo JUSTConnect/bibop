@@ -1288,8 +1288,11 @@ func start_task_test_session(save_snapshot: bool = true) -> void:
 		save_snapshot
 	)
 
-func reset_task_test_session() -> void:
+func restart_task_test_session() -> void:
 	start_task_test_session(true)
+
+func reset_task_test_session() -> void:
+	restart_task_test_session()
 
 func start_mission(mission_index: int, save_snapshot: bool = true) -> void:
 	var clamped_mission_index := clampi(mission_index, 1, max_mission_index)
@@ -1403,11 +1406,18 @@ func place_debug_hidden_route_node() -> void:
 		print("Debug hidden route-node placed at: ", hidden_node_position)
 		hint_requested.emit("Debug hidden route-node placed at: " + str(hidden_node_position))
 
-func restart_current_mission() -> void:
+func restart_legacy_story_mission() -> void:
 	if sector_completed and current_mission_index == max_mission_index:
 		sector_completed = false
 
 	start_mission(current_mission_index, true)
+
+func restart_current_mission() -> void:
+	if is_sandbox_mode_active():
+		restart_task_test_session()
+		return
+
+	restart_legacy_story_mission()
 
 func return_to_box() -> void:
 	if mission_finished:
