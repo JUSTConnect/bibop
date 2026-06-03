@@ -25,14 +25,17 @@ const ISO_PLACEHOLDER_ASSET_PATHS: Dictionary = {
 	"floor_reinforced": "res://assets/visual/isometric/placeholders/iso_floor_reinforced.svg",
 	"floor_diagnostic": "res://assets/visual/isometric/placeholders/iso_floor_diagnostic.svg",
 	"floor_door_underlay": "res://assets/visual/isometric/placeholders/iso_floor_door_underlay.svg",
-	"wall_default": "res://assets/visual/isometric/placeholders/iso_wall_default.svg",
-	"wall_outer": "res://assets/visual/isometric/placeholders/iso_wall_outer.svg",
-	"wall_brick": "res://assets/visual/isometric/placeholders/iso_wall_brick.svg",
-	"wall_concrete": "res://assets/visual/isometric/placeholders/iso_wall_concrete.svg",
+	"wall_default": "res://assets/visual/isometric/wall/wall_01_concrete.png",
+	"wall_outer": "res://assets/visual/isometric/wall/wall_05_outwall.png",
+	"wall_brick": "res://assets/visual/isometric/wall/wall_04_brick.png",
+	"wall_concrete": "res://assets/visual/isometric/wall/wall_01_concrete.png",
 	"wall_grate": "res://assets/visual/isometric/placeholders/iso_wall_grate.svg",
-	"wall_damaged": "res://assets/visual/isometric/placeholders/iso_wall_damaged.svg",
-	"wall_steel": "res://assets/visual/isometric/placeholders/iso_wall_steel.svg",
-	"wall_energy": "res://assets/visual/isometric/placeholders/iso_wall_energy.svg",
+	"wall_damaged": "res://assets/visual/isometric/wall/wall_08_concrete_damage.png",
+	"wall_concrete_damaged": "res://assets/visual/isometric/wall/wall_08_concrete_damage.png",
+	"wall_brick_damaged": "res://assets/visual/isometric/wall/wall_09_brick_damage.png",
+	"wall_steel": "res://assets/visual/isometric/wall/wall_02_steel.png",
+	"wall_reinforced_steel": "res://assets/visual/isometric/wall/wall_03_reinforced_steel.png",
+	"wall_energy": "res://assets/visual/isometric/wall/wall_03_reinforced_steel.png",
 	"object_door": "res://assets/visual/isometric/placeholders/iso_object_door.svg",
 	"object_terminal": "res://assets/visual/isometric/placeholders/iso_object_terminal.svg",
 	"object_key": "res://assets/visual/isometric/placeholders/iso_object_key.svg",
@@ -71,18 +74,25 @@ const FLOOR_TEXTURE_ASSET_ALIASES: Dictionary = {
 
 const WALL_TEXTURE_ASSET_ALIASES: Dictionary = {
 	"default_wall": "wall_default",
-	"wall_default_metal": "wall_default",
-	"wall_clean_lab": "wall_default",
+	"wall_default_metal": "wall_concrete",
+	"wall_clean_lab": "wall_concrete",
 	"wall_dark_service": "wall_grate",
-	"wall_orange_hazard": "wall_damaged",
-	"wall_damaged_red": "wall_damaged",
+	"wall_orange_hazard": "wall_concrete_damaged",
+	"wall_damaged_red": "wall_brick_damaged",
 	"wall_reinforced": "wall_steel",
-	"wall_power_room": "wall_energy",
-	"wall_diagnostic_blue": "wall_energy",
+	"wall_power_room": "wall_reinforced_steel",
+	"wall_diagnostic_blue": "wall_brick",
 	"wall_concrete": "wall_concrete",
 	"wall_concrete_default": "wall_concrete",
 	"wall_steel": "wall_steel",
 	"wall_brick": "wall_brick",
+	"wall_brick_damage": "wall_brick_damaged",
+	"wall_brick_damaged": "wall_brick_damaged",
+	"wall_concrete_damage": "wall_concrete_damaged",
+	"wall_concrete_damaged": "wall_concrete_damaged",
+	"wall_reinforced_steel": "wall_reinforced_steel",
+	"wall_outer": "wall_outer",
+	"wall_outerwall": "wall_outer",
 	"wall_grate": "wall_grate",
 	"wall_boundary": "wall_outer",
 	"industrial_panel": "wall_brick",
@@ -96,18 +106,39 @@ const WALL_TEXTURE_ASSET_ALIASES: Dictionary = {
 	"vent": "wall_grate",
 	"service": "wall_grate",
 	"steel": "wall_steel",
-	"reinforced": "wall_steel",
-	"damaged": "wall_damaged",
-	"red": "wall_damaged",
-	"broken": "wall_damaged",
-	"energy": "wall_energy",
-	"powered": "wall_energy"
+	"reinforced": "wall_reinforced_steel",
+	"damaged": "wall_concrete_damaged",
+	"red": "wall_brick_damaged",
+	"broken": "wall_concrete_damaged",
+	"energy": "wall_reinforced_steel",
+	"powered": "wall_reinforced_steel"
 }
 
 const OBJECT_TEXTURE_ASSET_ALIASES: Dictionary = {
 	"door_state_generic": "object_door",
 	"terminal_state_generic": "object_terminal",
-	"item_generic_marker": "object_generic"
+	"item_generic_marker": "object_generic",
+	"cable_reel": "cabel_reel_01",
+	"cable_reel_01": "cabel_reel_01",
+	"power_cable_reel": "cabel_reel_01",
+	"fuse_box": "fuse_box_out_01",
+	"fuse_box_empty": "fuse_box_out_01",
+	"fuse_box_installed": "fuse_box_in_01",
+	"wall_fuse_box": "fuse_box_out_wall_01",
+	"power_source": "power_source_01",
+	"power_source_class_1": "power_source_01",
+	"power_source_class_2": "power_source_01",
+	"power_source_class_3": "power_source_01",
+	"switcher": "power_switcher_off_01",
+	"power_switcher": "power_switcher_off_01",
+	"radiator": "radiator_01",
+	"external_radiator": "radiator_01",
+	"terminal": "terminal_01",
+	"barrel": "barrel_01",
+	"fire_barrel": "fire_barrel_01",
+	"case": "case_01",
+	"steel_box": "steel_box_01",
+	"light": "light_01"
 }
 
 const VISUAL_TEXTURE_ASSET_ALIASES: Dictionary = {
@@ -125,14 +156,14 @@ const VISUAL_TEXTURE_ASSET_ALIASES: Dictionary = {
 	"reinforced_floor": "floor_steel",
 	"diagnostic_floor": "floor_steel",
 	"default_wall": "wall_default",
-	"wall_default_metal": "wall_default",
-	"wall_clean_lab": "wall_default",
+	"wall_default_metal": "wall_concrete",
+	"wall_clean_lab": "wall_concrete",
 	"wall_dark_service": "wall_grate",
-	"wall_orange_hazard": "wall_damaged",
-	"wall_damaged_red": "wall_damaged",
+	"wall_orange_hazard": "wall_concrete_damaged",
+	"wall_damaged_red": "wall_brick_damaged",
 	"wall_reinforced": "wall_steel",
-	"wall_power_room": "wall_energy",
-	"wall_diagnostic_blue": "wall_energy",
+	"wall_power_room": "wall_reinforced_steel",
+	"wall_diagnostic_blue": "wall_brick",
 	"wall_concrete_default": "wall_concrete",
 	"wall_industrial_panel": "wall_brick",
 	"wall_service_vent": "wall_grate",
@@ -1162,8 +1193,26 @@ func is_legacy_story_mission_active() -> bool:
 func _is_task_test_constructor_context() -> bool:
 	return is_sandbox_mode_active()
 
-func _is_known_map_constructor_wall_material_id(material_id: String) -> bool:
+func normalize_map_constructor_wall_material_id(material_id: String) -> String:
 	var normalized_id: String = material_id.to_lower().strip_edges()
+	var legacy_aliases: Dictionary = {
+		"default_metal": "concrete",
+		"clean_lab": "concrete",
+		"dark_service": "grate",
+		"orange_hazard": "concrete_damage",
+		"damaged_red": "brick_damage",
+		"reinforced": "steel",
+		"power_room": "reinforced_steel",
+		"diagnostic_blue": "brick",
+		"outer_wall": "outerwall",
+		"wall_outer": "outerwall"
+	}
+	if legacy_aliases.has(normalized_id):
+		return str(legacy_aliases.get(normalized_id, normalized_id))
+	return normalized_id
+
+func _is_known_map_constructor_wall_material_id(material_id: String) -> bool:
+	var normalized_id: String = normalize_map_constructor_wall_material_id(material_id)
 	if normalized_id.is_empty():
 		return false
 	var catalog: Dictionary = get_map_constructor_wall_material_catalog()
@@ -2967,14 +3016,14 @@ func _is_wall_mount_neighbor_tile_type(tile_type: int) -> bool:
 
 func get_map_constructor_wall_material_catalog() -> Dictionary:
 	var materials: Array[Dictionary] = [
-		{"id":"default_metal","display_name":"Default Metal","description":"Baseline steel alloy wall finish.","tags":["default","metal"],"style":"default","texture_asset_id":"wall_default","fallback_color":Color(0.33, 0.37, 0.43, 0.98),"edge_color":Color(0.62, 0.67, 0.75, 1.0),"damage_level":0,"is_default":true},
-		{"id":"clean_lab","display_name":"Clean Lab","description":"Clean sterile laboratory paneling.","tags":["lab","clean"],"style":"clean","texture_asset_id":"wall_default","fallback_color":Color(0.66, 0.72, 0.76, 0.98),"edge_color":Color(0.86, 0.9, 0.94, 1.0),"damage_level":0,"is_default":false},
-		{"id":"dark_service","display_name":"Dark Service","description":"Low-light service tunnel plating.","tags":["service","dark"],"style":"dark","texture_asset_id":"wall_grate","fallback_color":Color(0.18, 0.2, 0.24, 0.98),"edge_color":Color(0.32, 0.36, 0.41, 1.0),"damage_level":1,"is_default":false},
-		{"id":"orange_hazard","display_name":"Orange Hazard","description":"Hazard-striped industrial wall section.","tags":["hazard","orange"],"style":"hazard","texture_asset_id":"wall_damaged","fallback_color":Color(0.48, 0.31, 0.16, 0.98),"edge_color":Color(0.96, 0.57, 0.21, 1.0),"damage_level":1,"is_default":false},
-		{"id":"damaged_red","display_name":"Damaged Red","description":"Damaged emergency-painted wall.","tags":["damaged","red"],"style":"damaged","texture_asset_id":"wall_damaged","fallback_color":Color(0.42, 0.19, 0.2, 0.98),"edge_color":Color(0.84, 0.34, 0.37, 1.0),"damage_level":3,"is_default":false},
-		{"id":"reinforced","display_name":"Reinforced","description":"Reinforced heavy-duty support wall.","tags":["reinforced","security"],"style":"reinforced","texture_asset_id":"wall_steel","fallback_color":Color(0.24, 0.27, 0.33, 0.98),"edge_color":Color(0.55, 0.61, 0.72, 1.0),"damage_level":0,"is_default":false},
-		{"id":"power_room","display_name":"Power Room","description":"Power distribution room insulation panels.","tags":["power","utility"],"style":"power","texture_asset_id":"wall_energy","fallback_color":Color(0.28, 0.3, 0.21, 0.98),"edge_color":Color(0.71, 0.81, 0.34, 1.0),"damage_level":1,"is_default":false},
-		{"id":"diagnostic_blue","display_name":"Diagnostic Blue","description":"Diagnostic bay blue marker finish.","tags":["diagnostic","blue"],"style":"diagnostic","texture_asset_id":"wall_energy","fallback_color":Color(0.21, 0.3, 0.49, 0.98),"edge_color":Color(0.44, 0.69, 0.97, 1.0),"damage_level":0,"is_default":false}
+		{"id":"concrete","display_name":"Concrete","description":"Standard concrete wall using the unified outerwall silhouette.","tags":["concrete","default"],"style":"concrete","texture_asset_id":"wall_concrete","fallback_color":Color(0.66, 0.72, 0.76, 0.98),"edge_color":Color(0.86, 0.9, 0.94, 1.0),"damage_level":0,"is_default":true},
+		{"id":"concrete_damage","display_name":"Concrete damage","description":"Damaged concrete wall using the unified outerwall silhouette.","tags":["concrete","damaged"],"style":"concrete_damage","texture_asset_id":"wall_concrete_damaged","fallback_color":Color(0.48, 0.31, 0.16, 0.98),"edge_color":Color(0.96, 0.57, 0.21, 1.0),"damage_level":2,"is_default":false},
+		{"id":"brick","display_name":"Brick","description":"Brick wall using the unified outerwall silhouette.","tags":["brick"],"style":"brick","texture_asset_id":"wall_brick","fallback_color":Color(0.37, 0.21, 0.16, 0.98),"edge_color":Color(0.82, 0.72, 0.58, 1.0),"damage_level":0,"is_default":false},
+		{"id":"brick_damage","display_name":"Brick damage","description":"Damaged brick wall using the unified outerwall silhouette.","tags":["brick","damaged"],"style":"brick_damage","texture_asset_id":"wall_brick_damaged","fallback_color":Color(0.42, 0.19, 0.2, 0.98),"edge_color":Color(0.84, 0.34, 0.37, 1.0),"damage_level":3,"is_default":false},
+		{"id":"grate","display_name":"Grate","description":"Grate wall using the unified outerwall silhouette.","tags":["grate","service"],"style":"grate","texture_asset_id":"wall_grate","fallback_color":Color(0.18, 0.2, 0.24, 0.98),"edge_color":Color(0.32, 0.36, 0.41, 1.0),"damage_level":1,"is_default":false},
+		{"id":"steel","display_name":"Steel","description":"Steel wall using the unified outerwall silhouette.","tags":["steel"],"style":"steel","texture_asset_id":"wall_steel","fallback_color":Color(0.24, 0.27, 0.33, 0.98),"edge_color":Color(0.55, 0.61, 0.72, 1.0),"damage_level":0,"is_default":false},
+		{"id":"reinforced_steel","display_name":"Reinforced Steel","description":"Reinforced steel wall using the unified outerwall silhouette.","tags":["reinforced","steel"],"style":"reinforced_steel","texture_asset_id":"wall_reinforced_steel","fallback_color":Color(0.28, 0.3, 0.21, 0.98),"edge_color":Color(0.71, 0.81, 0.34, 1.0),"damage_level":0,"is_default":false},
+		{"id":"outerwall","display_name":"Outerwall","description":"Outer boundary wall material and baseline visual standard.","tags":["outer","boundary"],"style":"outerwall","texture_asset_id":"wall_outer","fallback_color":Color(0.19, 0.2, 0.22, 0.98),"edge_color":Color(0.62, 0.67, 0.75, 1.0),"damage_level":0,"is_default":false}
 	]
 	return {"ok": true, "materials": materials, "message": "Wall material catalog ready."}
 
@@ -3668,7 +3717,7 @@ func set_map_constructor_wall_material(cell: Vector2i, side: String, material_id
 	if not _is_task_test_constructor_context():
 		return {"ok": false, "message": "Wall material overrides are available only in TASK TEST constructor mode."}
 	var normalized_side: String = side.to_lower().strip_edges()
-	var normalized_material_id: String = material_id.to_lower().strip_edges()
+	var normalized_material_id: String = normalize_map_constructor_wall_material_id(material_id)
 	if _get_map_constructor_wall_side_delta(normalized_side) == Vector2i.ZERO:
 		return {"ok": false, "message": "Invalid wall side."}
 	var attached_wall_cell: Vector2i = cell + _get_map_constructor_wall_side_delta(normalized_side)
@@ -3730,7 +3779,7 @@ func get_map_constructor_wall_material_for_wall_cell(wall_cell: Vector2i) -> Dic
 			var attached_wall_cell: Vector2i = anchor_cell + _get_map_constructor_wall_side_delta(override_side)
 			if attached_wall_cell != wall_cell:
 				continue
-			var material_id: String = str(entry.get("material_id", "")).to_lower().strip_edges()
+			var material_id: String = normalize_map_constructor_wall_material_id(str(entry.get("material_id", "")))
 			if material_id.is_empty() or not catalog_by_id.has(material_id):
 				return {"ok": false, "message": "Unknown wall material id: %s" % material_id, "override": entry.duplicate(true), "material": {}}
 			return {"ok": true, "message": "OK", "override": entry.duplicate(true), "material": Dictionary(catalog_by_id.get(material_id, {})).duplicate(true)}
