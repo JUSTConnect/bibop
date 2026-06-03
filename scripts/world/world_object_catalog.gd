@@ -52,14 +52,16 @@ const DOOR_POWER_TYPES: Array[String] = ["internal", "external", "none"]
 const DOOR_CONTROL_TYPES: Array[String] = ["internal", "external"]
 const DOOR_STATES: Array[String] = ["closed", "open", "damaged", "jammed", "locked", "unpowered"]
 
-const FLOOR_MATERIALS: Array[String] = ["steel", "concrete", "grate"]
+const FLOOR_MATERIALS: Array[String] = ["concrete", "steel", "titan"]
 const FLOOR_COVERINGS: Array[String] = ["default", "dirt", "water", "debris", "oil"]
 const FLOOR_VISUAL_STYLES: Array[String] = ["default", "permission"]
 const FLOOR_STATES: Array[String] = ["normal", "damaged"]
 
 const PREFAB_ALIASES: Dictionary = {
-	"steel_floor": "floor",
 	"concrete_floor": "floor",
+	"steel_floor": "floor",
+	"titan_floor": "floor",
+	"titanium_floor": "floor",
 	"grate_floor": "floor",
 	"permission_floor": "floor",
 	"water_floor": "floor",
@@ -71,9 +73,11 @@ const PREFAB_ALIASES: Dictionary = {
 const LEGACY_SOURCE_METADATA_FIELDS: Array[String] = ["legacy_prefab_id", "map_constructor_prefab_id", "legacy_object_type", "source_prefab_id"]
 
 const PREFAB_ALIAS_DEFAULTS: Dictionary = {
-	"steel_floor": {"object_group":"floor", "material":"steel"},
 	"concrete_floor": {"object_group":"floor", "material":"concrete"},
-	"grate_floor": {"object_group":"floor", "material":"grate"},
+	"steel_floor": {"object_group":"floor", "material":"steel"},
+	"titan_floor": {"object_group":"floor", "material":"titan"},
+	"titanium_floor": {"object_group":"floor", "material":"titan"},
+	"grate_floor": {"object_group":"floor", "material":"steel"},
 	"permission_floor": {"object_group":"floor", "visual_style":"permission"},
 	"water_floor": {"object_group":"floor", "covering":"water"},
 	"oil_floor": {"object_group":"floor", "covering":"oil"},
@@ -287,7 +291,7 @@ const ARCHETYPE_REGISTRY: Dictionary = {
 		"placement_mode":"object", "display_name_template":"{material_label} Floor",
 		"blocks_movement":false, "blocks_vision":false, "configurable":true, "replaces_tile_with":"floor",
 		"property_schema":[
-			{"field":"material", "type":"enum", "values":["steel", "concrete", "grate"], "default":"steel", "labels":{"steel":"Steel", "concrete":"Concrete", "grate":"Grate"}},
+			{"field":"material", "type":"enum", "values":["concrete", "steel", "titan"], "default":"concrete", "labels":{"concrete":"Concrete", "steel":"Steel", "titan":"Titan"}},
 			{"field":"covering", "type":"enum", "values":["default", "dirt", "water", "debris", "oil"], "default":"default", "labels":{"default":"Default", "dirt":"Dirt", "water":"Water", "debris":"Debris", "oil":"Oil"}},
 			{"field":"visual_style", "type":"enum", "values":["default", "permission"], "default":"default", "labels":{"default":"Default", "permission":"Permission Tile"}},
 			{"field":"state", "type":"enum", "values":["normal", "damaged"], "default":"normal"},

@@ -89,7 +89,10 @@ const CableTopologyServiceRef = preload("res://scripts/game/cable_topology_servi
 # Missing/unsupported placeholder resources safely fall back to procedural rendering.
 # Visual-only behavior; no gameplay state is changed.
 const ISO_PLACEHOLDER_ASSET_PATHS: Dictionary = {
-	"floor_default": "res://assets/visual/isometric/placeholders/iso_floor_default.svg",
+	"floor_concrete": "res://assets/visual/isometric/floor/floor_concrete_01.png",
+	"floor_steel": "res://assets/visual/isometric/floor/floor_steel_01.png",
+	"floor_titan": "res://assets/visual/isometric/floor/floor_titan_01.png",
+	"floor_default": "res://assets/visual/isometric/floor/floor_concrete_01.png",
 	"floor_stepped": "res://assets/visual/isometric/placeholders/iso_floor_stepped.svg",
 	"floor_clean_lab": "res://assets/visual/isometric/placeholders/iso_floor_clean_lab.svg",
 	"floor_dark_service": "res://assets/visual/isometric/placeholders/iso_floor_dark_service.svg",
@@ -124,11 +127,18 @@ const ISO_WALL_ASSET_CATALOG: Dictionary = {
 	"wall_steel": "wall_02_steel.png",
 	"wall_reinforced_steel": "wall_03_reinforced_steel.png",
 	"wall_brick": "wall_04_brick.png",
-	"wall_outer": "wall_05_outerwall.png",
+	"wall_outer": "wall_05_outwall.png",
 	"wall_titanium": "wall_06_titan.png",
 	"wall_grate": "wall_07_grate.png",
 	"wall_concrete_damaged": "wall_08_concrete_damage.png",
 	"wall_brick_damaged": "wall_09_brick_damage.png"
+}
+
+const ISO_FLOOR_ASSET_PACK_DIR: String = "res://assets/visual/isometric/floor/"
+const ISO_FLOOR_ASSET_CATALOG: Dictionary = {
+	"floor_concrete": "floor_concrete_01.png",
+	"floor_steel": "floor_steel_01.png",
+	"floor_titan": "floor_titan_01.png"
 }
 
 # Wall PNGs contain intentionally large transparent margins.  These bounds are
@@ -136,16 +146,16 @@ const ISO_WALL_ASSET_CATALOG: Dictionary = {
 # the visible wall base, not the full transparent canvas, is anchored to the
 # 128x64 isometric wall footprint.
 const ISO_WALL_ASSET_PLACEMENT: Dictionary = {
-	"wall_default": {"visible_bounds": Rect2(65, 31, 471, 1139), "target_base_width": 128.0, "target_height": 120.0, "scale": 1.0, "offset": Vector2.ZERO},
-	"wall_concrete": {"visible_bounds": Rect2(65, 31, 471, 1139), "target_base_width": 128.0, "target_height": 120.0, "scale": 1.0, "offset": Vector2.ZERO},
-	"wall_steel": {"visible_bounds": Rect2(65, 31, 471, 1139), "target_base_width": 128.0, "target_height": 120.0, "scale": 1.0, "offset": Vector2.ZERO},
-	"wall_reinforced_steel": {"visible_bounds": Rect2(66, 31, 468, 1139), "target_base_width": 128.0, "target_height": 120.0, "scale": 1.0, "offset": Vector2.ZERO},
-	"wall_brick": {"visible_bounds": Rect2(75, 31, 450, 1139), "target_base_width": 128.0, "target_height": 120.0, "scale": 1.0, "offset": Vector2.ZERO},
-	"wall_outer": {"visible_bounds": Rect2(62, 30, 476, 1142), "target_base_width": 128.0, "target_height": 120.0, "scale": 1.0, "offset": Vector2.ZERO},
-	"wall_titanium": {"visible_bounds": Rect2(66, 31, 468, 1139), "target_base_width": 128.0, "target_height": 120.0, "scale": 1.0, "offset": Vector2.ZERO},
-	"wall_grate": {"visible_bounds": Rect2(64, 31, 473, 1139), "target_base_width": 128.0, "target_height": 120.0, "scale": 1.0, "offset": Vector2.ZERO},
-	"wall_concrete_damaged": {"visible_bounds": Rect2(39, 42, 524, 1139), "target_base_width": 128.0, "target_height": 120.0, "scale": 1.0, "offset": Vector2.ZERO},
-	"wall_brick_damaged": {"visible_bounds": Rect2(64, 42, 471, 1139), "target_base_width": 128.0, "target_height": 120.0, "scale": 1.0, "offset": Vector2.ZERO}
+	"wall_default": {"visible_bounds": Rect2(64, 36, 471, 842), "target_base_width": 128.0, "scale": 1.0, "offset": Vector2.ZERO},
+	"wall_concrete": {"visible_bounds": Rect2(64, 36, 471, 842), "target_base_width": 128.0, "scale": 1.0, "offset": Vector2.ZERO},
+	"wall_steel": {"visible_bounds": Rect2(60, 31, 476, 857), "target_base_width": 128.0, "scale": 1.0, "offset": Vector2.ZERO},
+	"wall_reinforced_steel": {"visible_bounds": Rect2(64, 27, 471, 861), "target_base_width": 128.0, "scale": 1.0, "offset": Vector2.ZERO},
+	"wall_brick": {"visible_bounds": Rect2(0, 27, 537, 859), "target_base_width": 128.0, "scale": 1.0, "offset": Vector2.ZERO},
+	"wall_outer": {"visible_bounds": Rect2(47, 36, 508, 842), "target_base_width": 128.0, "scale": 1.0, "offset": Vector2.ZERO},
+	"wall_titanium": {"visible_bounds": Rect2(62, 36, 474, 842), "target_base_width": 128.0, "scale": 1.0, "offset": Vector2.ZERO},
+	"wall_grate": {"visible_bounds": Rect2(64, 36, 473, 842), "target_base_width": 128.0, "scale": 1.0, "offset": Vector2.ZERO},
+	"wall_concrete_damaged": {"visible_bounds": Rect2(62, 39, 474, 841), "target_base_width": 128.0, "scale": 1.0, "offset": Vector2.ZERO},
+	"wall_brick_damaged": {"visible_bounds": Rect2(54, 27, 483, 857), "target_base_width": 128.0, "scale": 1.0, "offset": Vector2.ZERO}
 }
 
 const ISO_FLOOR_ATLAS_COLUMNS: int = 6
@@ -176,6 +186,9 @@ const ISO_FLOOR_ATLAS_LAYOUT: Dictionary = {
 
 const ISO_ASSET_ALIGNMENT_RULES: Dictionary = {
 	"floor_default": {"anchor": "center", "scale": 1.0, "offset": Vector2.ZERO, "expected_size": Vector2(128, 64), "layer_hint": "floor", "notes": "Default 128x64 floor diamond centered in the grid cell."},
+	"floor_concrete": {"anchor": "center", "scale": 1.0, "offset": Vector2.ZERO, "expected_size": Vector2(128, 64), "layer_hint": "floor", "notes": "Concrete floor PNG is squeezed to the active isometric floor footprint."},
+	"floor_steel": {"anchor": "center", "scale": 1.0, "offset": Vector2.ZERO, "expected_size": Vector2(128, 64), "layer_hint": "floor", "notes": "Steel floor PNG is squeezed to the active isometric floor footprint."},
+	"floor_titan": {"anchor": "center", "scale": 1.0, "offset": Vector2.ZERO, "expected_size": Vector2(128, 64), "layer_hint": "floor", "notes": "Titanium floor PNG is squeezed to the active isometric floor footprint."},
 	"floor_stepped": {"anchor": "center", "scale": 1.0, "offset": Vector2.ZERO, "expected_size": Vector2(128, 64), "layer_hint": "floor", "notes": "Stepped 128x64 floor diamond centered in the grid cell."},
 	"floor_clean_lab": {"anchor": "center", "scale": 1.0, "offset": Vector2.ZERO, "expected_size": Vector2(128, 64), "layer_hint": "floor", "notes": "Clean lab 128x64 floor diamond centered in the grid cell."},
 	"floor_dark_service": {"anchor": "center", "scale": 1.0, "offset": Vector2.ZERO, "expected_size": Vector2(128, 64), "layer_hint": "floor", "notes": "Dark service 128x64 floor diamond centered in the grid cell."},
@@ -212,6 +225,7 @@ const ISO_ASSET_ALIGNMENT_RULES: Dictionary = {
 
 var _iso_placeholder_texture_cache: Dictionary = {}
 var _iso_wall_asset_texture_cache: Dictionary = {}
+var _iso_floor_asset_texture_cache: Dictionary = {}
 var _grid_manager: GridManager = null
 var _rebuild_requested: bool = false
 
@@ -1258,16 +1272,68 @@ func get_iso_door_visual_profile_key_for_tile(tile_type: int) -> String:
 		return "door_powered_gate"
 	return ""
 
+func normalize_floor_material_key(material_key: String) -> String:
+	var normalized_key: String = material_key.strip_edges().to_lower()
+	normalized_key = normalized_key.replace(" ", "_")
+	normalized_key = normalized_key.replace("-", "_")
+	match normalized_key:
+		"", "default", "default_floor", "floor", "floor_default", "concrete", "concrete_default", "concrete_floor", "floor_concrete":
+			return "concrete"
+		"steel", "steel_default", "steel_floor", "floor_steel":
+			return "steel"
+		"titan", "titan_default", "titan_floor", "titanium", "titanium_default", "titanium_floor", "floor_titan", "floor_titanium":
+			return "titan"
+		"clean_lab_floor", "reinforced_floor":
+			return "steel"
+		"dark_service_floor", "damaged_floor", "hazard_floor", "power_floor", "diagnostic_floor":
+			return "concrete"
+	return "concrete"
+
+func get_iso_floor_asset_key_for_material_key(material_key: String) -> String:
+	match normalize_floor_material_key(material_key):
+		"steel":
+			return "floor_steel"
+		"titan":
+			return "floor_titan"
+		_:
+			return "floor_concrete"
+
 func get_iso_floor_asset_key_for_tile(tile_type: int) -> String:
 	if tile_type == GridManager.TILE_WALL:
 		return ""
-	if tile_type == GridManager.TILE_STEPPED_FLOOR:
-		return "floor_stepped"
 	if tile_type == GridManager.TILE_DOOR or tile_type == GridManager.TILE_DIGITAL_DOOR or tile_type == GridManager.TILE_POWERED_GATE:
 		return "floor_door_underlay"
 	if tile_type == GridManager.TILE_FLOOR or is_floor_like_tile(tile_type):
-		return "floor_default"
+		return "floor_concrete"
 	return ""
+
+
+func get_iso_floor_texture_for_asset_key(asset_key: String) -> Texture2D:
+	if not ISO_FLOOR_ASSET_CATALOG.has(asset_key):
+		return null
+	if _iso_floor_asset_texture_cache.has(asset_key):
+		var cached_value: Variant = _iso_floor_asset_texture_cache.get(asset_key)
+		if cached_value is Texture2D:
+			return cached_value as Texture2D
+		return null
+	var texture_path: String = ISO_FLOOR_ASSET_PACK_DIR + str(ISO_FLOOR_ASSET_CATALOG.get(asset_key, ""))
+	if ResourceLoader.exists(texture_path):
+		var loaded_resource: Resource = ResourceLoader.load(texture_path)
+		if loaded_resource is Texture2D:
+			var loaded_texture: Texture2D = loaded_resource as Texture2D
+			_iso_floor_asset_texture_cache[asset_key] = loaded_texture
+			return loaded_texture
+	_iso_floor_asset_texture_cache[asset_key] = null
+	return null
+
+func draw_iso_floor_asset_texture_for_cell(cell: Vector2i, asset_key: String) -> bool:
+	var texture: Texture2D = get_iso_floor_texture_for_asset_key(asset_key)
+	if texture == null:
+		return false
+	var destination_rect: Rect2 = Rect2(grid_to_iso(cell) - get_iso_tile_half_size(), get_iso_tile_size())
+	draw_texture_rect(texture, destination_rect, false)
+	draw_iso_asset_alignment_overlay(asset_key, grid_to_iso(cell), destination_rect)
+	return true
 
 func get_iso_wall_asset_key_for_profile(profile_key: String) -> String:
 	return normalize_wall_asset_key(profile_key)
@@ -1552,6 +1618,7 @@ func get_iso_placeholder_texture_for_asset_key(asset_key: String) -> Texture2D:
 func clear_iso_placeholder_texture_cache() -> void:
 	_iso_placeholder_texture_cache.clear()
 	_iso_wall_asset_texture_cache.clear()
+	_iso_floor_asset_texture_cache.clear()
 
 func get_explicit_iso_texture_for_asset_key(asset_key: String) -> Texture2D:
 	match asset_key:
@@ -3185,19 +3252,27 @@ func draw_iso_floor_prototype() -> void:
 			var fill_color: Color = _get_color_from_dict(profile, "fill", get_floor_prototype_color(tile_type, cell))
 			var mission_manager: Node = get_mission_manager_ref()
 			var floor_texture_asset_id: String = ""
+			var floor_material_key: String = "concrete"
 			if mission_manager != null and mission_manager.has_method("get_map_constructor_floor_material_for_cell"):
 				var floor_material_result: Dictionary = _safe_variant_dictionary(mission_manager.call("get_map_constructor_floor_material_for_cell", cell))
 				if bool(floor_material_result.get("ok", false)):
 					var floor_material: Dictionary = _safe_variant_dictionary(floor_material_result.get("material", {}))
 					fill_color = Color(floor_material.get("fallback_color", fill_color))
 					floor_texture_asset_id = str(floor_material.get("texture_asset_id", "")).strip_edges()
+					floor_material_key = normalize_floor_material_key(str(floor_material.get("material", floor_material.get("id", "concrete"))))
+			if floor_texture_asset_id.begins_with("floor_"):
+				floor_asset_key = floor_texture_asset_id
+			else:
+				floor_asset_key = get_iso_floor_asset_key_for_material_key(floor_material_key)
 			if use_procedural_floor_debug_tiles:
 				draw_procedural_floor_debug_tile(cell, fill_color)
 				continue
-			# Default to the procedural renderer so every material/coating shares the
-			# exact same full-cell footprint and center anchor. The old floor atlas and
-			# legacy texture hooks are opt-in only until their padding/footprints are
-			# normalized to this geometry.
+			if draw_iso_floor_asset_texture_for_cell(cell, floor_asset_key):
+				if debug_floor_tile_bounds:
+					draw_floor_tile_bounds_debug(cell)
+				continue
+			# Fallback to the procedural renderer so missing assets never leave holes.
+			# The old floor atlas and legacy texture hooks remain opt-in fallbacks.
 			if use_iso_floor_atlas_textures:
 				draw_floor_seamless_underlay(cell, fill_color)
 				if draw_iso_floor_atlas_for_cell(cell):
