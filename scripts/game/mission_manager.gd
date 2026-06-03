@@ -49,7 +49,7 @@ const ISO_PLACEHOLDER_ASSET_PATHS: Dictionary = {
 	"object_switch": "res://assets/visual/isometric/placeholders/iso_object_switch.svg"
 }
 
-const VISUAL_TEXTURE_ASSET_ALIASES: Dictionary = {
+const FLOOR_TEXTURE_ASSET_ALIASES: Dictionary = {
 	"default_floor": "floor_concrete",
 	"floor_default": "floor_concrete",
 	"concrete": "floor_concrete",
@@ -59,6 +59,63 @@ const VISUAL_TEXTURE_ASSET_ALIASES: Dictionary = {
 	"titan": "floor_titan",
 	"titan_floor": "floor_titan",
 	"titanium": "floor_titan",
+	"titanium_floor": "floor_titan",
+	"clean_lab_floor": "floor_steel",
+	"dark_service_floor": "floor_concrete",
+	"hazard_floor": "floor_concrete",
+	"power_floor": "floor_steel",
+	"damaged_floor": "floor_concrete",
+	"reinforced_floor": "floor_steel",
+	"diagnostic_floor": "floor_steel"
+}
+
+const WALL_TEXTURE_ASSET_ALIASES: Dictionary = {
+	"default_wall": "wall_default",
+	"wall_default_metal": "wall_default",
+	"wall_clean_lab": "wall_default",
+	"wall_dark_service": "wall_grate",
+	"wall_orange_hazard": "wall_damaged",
+	"wall_damaged_red": "wall_damaged",
+	"wall_reinforced": "wall_steel",
+	"wall_power_room": "wall_energy",
+	"wall_diagnostic_blue": "wall_energy",
+	"wall_concrete": "wall_concrete",
+	"wall_concrete_default": "wall_concrete",
+	"wall_steel": "wall_steel",
+	"wall_brick": "wall_brick",
+	"wall_grate": "wall_grate",
+	"wall_boundary": "wall_outer",
+	"industrial_panel": "wall_brick",
+	"wall_industrial_panel": "wall_brick",
+	"wall_service_vent": "wall_grate",
+	"outer": "wall_outer",
+	"boundary": "wall_outer",
+	"concrete": "wall_concrete",
+	"brick": "wall_brick",
+	"grate": "wall_grate",
+	"vent": "wall_grate",
+	"service": "wall_grate",
+	"steel": "wall_steel",
+	"reinforced": "wall_steel",
+	"damaged": "wall_damaged",
+	"red": "wall_damaged",
+	"broken": "wall_damaged",
+	"energy": "wall_energy",
+	"powered": "wall_energy"
+}
+
+const OBJECT_TEXTURE_ASSET_ALIASES: Dictionary = {
+	"door_state_generic": "object_door",
+	"terminal_state_generic": "object_terminal",
+	"item_generic_marker": "object_generic"
+}
+
+const VISUAL_TEXTURE_ASSET_ALIASES: Dictionary = {
+	"default_floor": "floor_concrete",
+	"floor_default": "floor_concrete",
+	"concrete_floor": "floor_concrete",
+	"steel_floor": "floor_steel",
+	"titan_floor": "floor_titan",
 	"titanium_floor": "floor_titan",
 	"clean_lab_floor": "floor_steel",
 	"dark_service_floor": "floor_concrete",
@@ -77,24 +134,9 @@ const VISUAL_TEXTURE_ASSET_ALIASES: Dictionary = {
 	"wall_power_room": "wall_energy",
 	"wall_diagnostic_blue": "wall_energy",
 	"wall_concrete_default": "wall_concrete",
-	"industrial_panel": "wall_brick",
 	"wall_industrial_panel": "wall_brick",
 	"wall_service_vent": "wall_grate",
 	"wall_boundary": "wall_outer",
-	"outer": "wall_outer",
-	"boundary": "wall_outer",
-	"concrete": "wall_concrete",
-	"brick": "wall_brick",
-	"grate": "wall_grate",
-	"vent": "wall_grate",
-	"service": "wall_grate",
-	"steel": "wall_steel",
-	"reinforced": "wall_steel",
-	"damaged": "wall_damaged",
-	"red": "wall_damaged",
-	"broken": "wall_damaged",
-	"energy": "wall_energy",
-	"powered": "wall_energy",
 	"door_state_generic": "object_door",
 	"terminal_state_generic": "object_terminal",
 	"item_generic_marker": "object_generic"
@@ -2944,6 +2986,32 @@ func normalize_visual_texture_asset_id(asset_id: String) -> String:
 		return str(VISUAL_TEXTURE_ASSET_ALIASES.get(normalized_asset_id, normalized_asset_id))
 	return normalized_asset_id
 
+func normalize_visual_texture_asset_id_for_context(asset_id: String, asset_context: String) -> String:
+	var normalized_asset_id: String = asset_id.strip_edges()
+	if normalized_asset_id.is_empty():
+		return ""
+	var normalized_context: String = asset_context.strip_edges().to_lower()
+	match normalized_context:
+		"floor":
+			if FLOOR_TEXTURE_ASSET_ALIASES.has(normalized_asset_id):
+				return str(FLOOR_TEXTURE_ASSET_ALIASES.get(normalized_asset_id, normalized_asset_id))
+		"wall":
+			if WALL_TEXTURE_ASSET_ALIASES.has(normalized_asset_id):
+				return str(WALL_TEXTURE_ASSET_ALIASES.get(normalized_asset_id, normalized_asset_id))
+		"object", "door", "terminal", "item":
+			if OBJECT_TEXTURE_ASSET_ALIASES.has(normalized_asset_id):
+				return str(OBJECT_TEXTURE_ASSET_ALIASES.get(normalized_asset_id, normalized_asset_id))
+	return normalize_visual_texture_asset_id(normalized_asset_id)
+
+func normalize_floor_texture_asset_id(asset_id: String) -> String:
+	return normalize_visual_texture_asset_id_for_context(asset_id, "floor")
+
+func normalize_wall_texture_asset_id(asset_id: String) -> String:
+	return normalize_visual_texture_asset_id_for_context(asset_id, "wall")
+
+func normalize_object_texture_asset_id(asset_id: String) -> String:
+	return normalize_visual_texture_asset_id_for_context(asset_id, "object")
+
 func get_placeholder_asset_presence_report() -> Array[Dictionary]:
 	var report: Array[Dictionary] = []
 	var asset_keys: Array = ISO_PLACEHOLDER_ASSET_PATHS.keys()
@@ -3043,9 +3111,9 @@ func get_visual_texture_asset_catalog() -> Dictionary:
 	_append_visual_texture_asset_alias_rows(assets)
 	return {"ok": true, "assets": assets, "placeholder_assets": get_placeholder_asset_presence_report(), "message": "Visual texture asset catalog ready."}
 
-func resolve_visual_texture_asset(asset_id: String) -> Dictionary:
+func resolve_visual_texture_asset(asset_id: String, asset_context: String = "") -> Dictionary:
 	var requested_asset_id: String = asset_id.strip_edges()
-	var normalized_asset_id: String = normalize_visual_texture_asset_id(requested_asset_id)
+	var normalized_asset_id: String = normalize_visual_texture_asset_id_for_context(requested_asset_id, asset_context)
 	if normalized_asset_id.is_empty():
 		return {"ok": false, "asset_id": normalized_asset_id, "requested_asset_id": requested_asset_id, "has_texture": false, "texture_path": "", "atlas_region": Rect2i(0, 0, 0, 0), "fallback_style": "default", "fallback_color": Color(1, 1, 1, 1), "message": "Asset id is empty."}
 	var catalog: Dictionary = get_visual_texture_asset_catalog()
@@ -3076,7 +3144,7 @@ func get_visual_texture_asset_reference_diagnostics() -> Dictionary:
 		if wall_asset_id.is_empty():
 			continue
 		seen_asset_ids[wall_asset_id] = true
-		var wall_resolved: Dictionary = resolve_visual_texture_asset(wall_asset_id)
+		var wall_resolved: Dictionary = resolve_visual_texture_asset(wall_asset_id, "wall")
 		if not bool(wall_resolved.get("ok", false)):
 			unknown_references.append(wall_asset_id)
 			continue
@@ -3091,7 +3159,7 @@ func get_visual_texture_asset_reference_diagnostics() -> Dictionary:
 		if floor_asset_id.is_empty():
 			continue
 		seen_asset_ids[floor_asset_id] = true
-		var floor_resolved: Dictionary = resolve_visual_texture_asset(floor_asset_id)
+		var floor_resolved: Dictionary = resolve_visual_texture_asset(floor_asset_id, "floor")
 		if not bool(floor_resolved.get("ok", false)):
 			unknown_references.append(floor_asset_id)
 			continue
@@ -3106,7 +3174,7 @@ func get_visual_texture_asset_reference_diagnostics() -> Dictionary:
 		if normalized_door_asset_id.is_empty() or seen_asset_ids.has(normalized_door_asset_id):
 			continue
 		seen_asset_ids[normalized_door_asset_id] = true
-		var door_resolved: Dictionary = resolve_visual_texture_asset(normalized_door_asset_id)
+		var door_resolved: Dictionary = resolve_visual_texture_asset(normalized_door_asset_id, "object")
 		if not bool(door_resolved.get("ok", false)):
 			unknown_references.append(normalized_door_asset_id)
 			continue
@@ -3121,7 +3189,7 @@ func get_visual_texture_asset_reference_diagnostics() -> Dictionary:
 		if normalized_terminal_asset_id.is_empty() or seen_asset_ids.has(normalized_terminal_asset_id):
 			continue
 		seen_asset_ids[normalized_terminal_asset_id] = true
-		var terminal_resolved: Dictionary = resolve_visual_texture_asset(normalized_terminal_asset_id)
+		var terminal_resolved: Dictionary = resolve_visual_texture_asset(normalized_terminal_asset_id, "object")
 		if not bool(terminal_resolved.get("ok", false)):
 			unknown_references.append(normalized_terminal_asset_id)
 			continue
