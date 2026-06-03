@@ -32,13 +32,13 @@ static func refresh(ui) -> void:
 		var connect_enabled: bool = not connect_descriptor.is_empty() and bool(connect_descriptor.get("enabled", false)) and has_actions_left
 		ui.runtime_connect_button.text = "Connect"
 		ui.runtime_connect_button.disabled = not connect_enabled
-		ui.runtime_connect_button.tooltip_text = "" if connect_enabled else String(connect_descriptor.get("label", "Connector jack unavailable."))
+		ui.runtime_connect_button.tooltip_text = "" if connect_enabled else str(connect_descriptor.get("label", "Connector jack unavailable."))
 		ui._apply_action_button_style(ui.runtime_connect_button, "primary" if connect_enabled else "disabled", connect_enabled)
 	if ui.runtime_heavy_claw_button != null:
 		var heavy_claw_enabled: bool = not heavy_claw_descriptor.is_empty() and bool(heavy_claw_descriptor.get("enabled", false)) and has_actions_left
 		ui.runtime_heavy_claw_button.text = "Heavy Claw"
 		ui.runtime_heavy_claw_button.disabled = not heavy_claw_enabled
-		ui.runtime_heavy_claw_button.tooltip_text = "" if heavy_claw_enabled else String(heavy_claw_descriptor.get("label", "No heavy object in front."))
+		ui.runtime_heavy_claw_button.tooltip_text = "" if heavy_claw_enabled else str(heavy_claw_descriptor.get("label", "No heavy object in front."))
 		ui._apply_action_button_style(ui.runtime_heavy_claw_button, "primary" if heavy_claw_enabled else "disabled", heavy_claw_enabled)
 	if ui.runtime_end_turn_button != null:
 		ui._apply_action_button_style(ui.runtime_end_turn_button, "reference", true)
@@ -49,14 +49,14 @@ static func refresh_world_actions_panel(ui, payload: Dictionary = {}) -> void:
 	if not payload.is_empty():
 		var target_object: Dictionary = ui._safe_ui_dictionary(payload.get("target_object", {}))
 		var actions: Array = ui._safe_ui_array(payload.get("actions", []))
-		var selected_action: String = String(payload.get("selected_action", ""))
-		var fallback_name: String = String(target_object.get("name", target_object.get("label", "")))
+		var selected_action: String = str(payload.get("selected_action", ""))
+		var fallback_name: String = str(target_object.get("name", target_object.get("label", "")))
 		var target_id: String = ui._get_runtime_world_action_target_id(target_object, fallback_name)
 		var action_ids: Array[String] = []
 		for action_variant in actions:
-			action_ids.append(String(action_variant))
+			action_ids.append(str(action_variant))
 		var actions_key: String = "|".join(action_ids)
-		var state_key: String = "%s|%s|%s" % [String(target_object.get("state", "")), String(target_object.get("power_state", "")), String(target_object.get("connected", ""))]
+		var state_key: String = "%s|%s|%s" % [str(target_object.get("state", "")), str(target_object.get("power_state", "")), str(target_object.get("connected", ""))]
 		clear_selected_action_if_stale(ui, target_id, actions_key, state_key)
 		ui.last_world_action_target_id = target_id
 		ui.last_world_action_actions_key = actions_key
@@ -107,8 +107,8 @@ static func _refresh_action_row(ui, target_object: Dictionary, physical_actions:
 		return
 	var action_id_texts: Array[String] = []
 	for signature_action_variant in physical_actions:
-		action_id_texts.append(String(signature_action_variant))
-	var access_code_entry: String = String(target_object.get("access_code_entry", ""))
+		action_id_texts.append(str(signature_action_variant))
+	var access_code_entry: String = str(target_object.get("access_code_entry", ""))
 	var next_signature: String = "%s|%s|%s" % [str(ui.runtime_interaction_mode_active), "|".join(action_id_texts), access_code_entry]
 	if next_signature == ui.runtime_interaction_actions_signature:
 		ui.runtime_interaction_actions_row.visible = ui.runtime_interaction_mode_active
@@ -119,7 +119,7 @@ static func _refresh_action_row(ui, target_object: Dictionary, physical_actions:
 	ui.runtime_interaction_actions_row.visible = ui.runtime_interaction_mode_active
 	if not ui.runtime_interaction_mode_active:
 		return
-	if String(target_object.get("access_type", "")) == "access_code" and bool(target_object.get("connected", false)):
+	if str(target_object.get("access_type", "")) == "access_code" and bool(target_object.get("connected", false)):
 		var keypad_display := Label.new()
 		keypad_display.name = "RuntimeAccessCodeDisplay"
 		keypad_display.text = "Code: %s" % (access_code_entry + "_".repeat(maxi(0, 4 - access_code_entry.length())))
@@ -132,12 +132,12 @@ static func _refresh_action_row(ui, target_object: Dictionary, physical_actions:
 		leading_spacer.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 		ui.runtime_interaction_actions_row.add_child(leading_spacer)
 	for action_variant in physical_actions:
-		var action_id: String = String(action_variant)
+		var action_id: String = str(action_variant)
 		if action_id.is_empty():
 			continue
 		var action_label: String = action_id.capitalize()
 		if ui.bipob != null and ui.bipob.has_method("get_world_action_display_label"):
-			action_label = String(ui.bipob.call("get_world_action_display_label", action_id, target_object))
+			action_label = str(ui.bipob.call("get_world_action_display_label", action_id, target_object))
 		var button: Button = ui._create_runtime_control_button(action_label, Callable(ui, "_on_runtime_interaction_action_pressed").bind(action_id), "primary")
 		button.custom_minimum_size = ui.runtime_action_button.custom_minimum_size
 		ui._apply_selected_pulse(button)
