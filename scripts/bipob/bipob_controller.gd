@@ -1248,6 +1248,20 @@ func get_task_test_layout_id() -> String:
 		return str(mission_manager.call("get_task_test_layout_id"))
 	return get_task_test_mission_id()
 
+func get_task_test_goal_text() -> String:
+	if mission_manager != null and mission_manager.has_method("get_task_test_goal_text"):
+		return str(mission_manager.call("get_task_test_goal_text")).strip_edges()
+	if mission_manager != null and mission_manager.has_method("get_mission_goal_text"):
+		return str(mission_manager.call("get_mission_goal_text", get_task_test_layout_id())).strip_edges()
+	return ""
+
+func get_task_test_objective_hint() -> String:
+	if mission_manager != null and mission_manager.has_method("get_task_test_objective_hint"):
+		return str(mission_manager.call("get_task_test_objective_hint")).strip_edges()
+	if mission_manager != null and mission_manager.has_method("get_mission_objective_hint"):
+		return str(mission_manager.call("get_mission_objective_hint", get_task_test_layout_id())).strip_edges()
+	return ""
+
 func get_mission_layout_id(mission_index: int) -> String:
 	if mission_index == TASK_TEST_MISSION_INDEX:
 		return get_task_test_layout_id()
@@ -1278,6 +1292,13 @@ func complete_legacy_mission8_airflow_terminal_hack() -> void:
 	unlock_airflow_terminal_path()
 
 func get_current_mission_goal_hint() -> String:
+	if is_task_test_mode_active():
+		var objective_hint: String = get_task_test_objective_hint()
+		if not objective_hint.is_empty():
+			return objective_hint
+		var goal_text: String = get_task_test_goal_text()
+		if not goal_text.is_empty():
+			return goal_text
 	return get_mission_goal_hint(current_mission_index)
 
 func start_task_test_session(save_snapshot: bool = true) -> void:

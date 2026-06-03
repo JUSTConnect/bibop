@@ -5097,6 +5097,13 @@ func _refresh_runtime_mission_objective_label() -> void:
 
 
 func _get_runtime_secondary_objective_text() -> String:
+	if _is_task_test_runtime_active():
+		var task_test_objective_hint: String = _get_task_test_objective_hint_text()
+		if not task_test_objective_hint.is_empty():
+			return task_test_objective_hint
+		var task_test_goal_text: String = _get_task_test_goal_text()
+		if not task_test_goal_text.is_empty():
+			return task_test_goal_text
 	var view_model: Dictionary = _get_runtime_mission_objective_view_model()
 	var objective_hint: String = str(view_model.get("objective_hint", "")).strip_edges()
 	if not objective_hint.is_empty() and not objective_hint.contains("legacy BipobController logic"):
@@ -5127,11 +5134,27 @@ func _get_runtime_mission_objective_view_model() -> Dictionary:
 	}
 
 
+func _get_task_test_goal_text() -> String:
+	if bipob != null and bipob.has_method("get_task_test_goal_text"):
+		return str(bipob.call("get_task_test_goal_text")).strip_edges()
+	return ""
+
+
+func _get_task_test_objective_hint_text() -> String:
+	if bipob != null and bipob.has_method("get_task_test_objective_hint"):
+		return str(bipob.call("get_task_test_objective_hint")).strip_edges()
+	return ""
+
+
 func _get_runtime_mission_objective_text() -> String:
 	var view_model: Dictionary = _get_runtime_mission_objective_view_model()
 	var lines: Array[String] = []
 	var title: String = str(view_model.get("title", "")).strip_edges()
 	var goal_text: String = str(view_model.get("goal_text", "No active objective")).strip_edges()
+	if _is_task_test_runtime_active():
+		var task_test_goal_text: String = _get_task_test_goal_text()
+		if not task_test_goal_text.is_empty():
+			goal_text = task_test_goal_text
 	var progress_text: String = str(view_model.get("progress_text", "")).strip_edges()
 	var status: String = str(view_model.get("status", "active")).strip_edges()
 	if not title.is_empty():

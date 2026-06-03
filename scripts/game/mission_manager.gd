@@ -241,6 +241,20 @@ func get_mission_objective_hint(mission_id: String) -> String:
 	var catalog := MissionContentCatalogRef.new()
 	return catalog.get_mission_objective_hint(resolve_task_test_catalog_id(mission_id))
 
+func get_task_test_goal_text() -> String:
+	var catalog: MissionContentCatalog = MissionContentCatalogRef.new()
+	var goal_text: String = catalog.get_mission_goal_text(TASK_TEST_LAYOUT_ID)
+	if not goal_text.is_empty():
+		return goal_text
+	return catalog.get_mission_goal_text(TASK_TEST_MISSION_ID)
+
+func get_task_test_objective_hint() -> String:
+	var catalog: MissionContentCatalog = MissionContentCatalogRef.new()
+	var objective_hint: String = catalog.get_mission_objective_hint(TASK_TEST_LAYOUT_ID)
+	if not objective_hint.is_empty():
+		return objective_hint
+	return catalog.get_mission_objective_hint(TASK_TEST_MISSION_ID)
+
 func get_current_mission_objective_view_model() -> Dictionary:
 	return get_mission_objective_view_model()
 
