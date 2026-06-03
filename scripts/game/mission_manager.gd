@@ -3965,6 +3965,9 @@ func get_map_constructor_placed_object_rows() -> Array[Dictionary]:
 func get_map_constructor_entity_by_id(entity_kind: String, entity_id: String) -> Dictionary:
 	return _ensure_map_constructor_service().get_map_constructor_entity_by_id(entity_kind, entity_id)
 
+func get_map_constructor_cell_inspection_model(cell: Vector2i, preferred_entity_kind: String = "", preferred_entity_id: String = "") -> Dictionary:
+	return _ensure_map_constructor_service().get_map_constructor_cell_inspection_model(cell, preferred_entity_kind, preferred_entity_id)
+
 func get_normalized_map_constructor_circuit_id(data: Dictionary) -> String:
 	return _ensure_map_constructor_service().get_normalized_map_constructor_circuit_id(data)
 

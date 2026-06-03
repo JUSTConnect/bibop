@@ -256,6 +256,100 @@ func remove_map_constructor_object_at_cell(cell: Vector2i) -> Dictionary:
 		return {"ok": false, "message": "Nothing to remove.", "object_id": "", "warnings": []}
 	return _remove_map_constructor_entity_by_id(str(entity.get("entity_kind", "")), str(entity.get("id", "")))
 
+
+
+func _get_map_constructor_entity_inspection_tab_id(entity_kind: String, data: Dictionary) -> String:
+	if entity_kind == "item":
+		return "items"
+	var object_type: String = str(data.get("object_type", data.get("item_type", ""))).to_lower().strip_edges()
+	var object_group: String = str(data.get("object_group", data.get("group", ""))).to_lower().strip_edges()
+	var category: String = str(data.get("category", "")).to_lower().strip_edges()
+	var prefab_id: String = str(data.get("map_constructor_prefab_id", "")).to_lower().strip_edges()
+	var joined: String = "%s %s %s %s" % [object_type, object_group, category, prefab_id]
+	if object_group == "threat" or joined.contains("enemy") or joined.contains("bipob") or joined.contains("bipop"):
+		return "enemies"
+	if object_type == "power_cable" or object_type == "power_cable_reel" or object_group == "cable" or joined.contains("power_cable"):
+		return "cables"
+	if object_type == "light" or object_group == "lighting" or joined.contains(" lighting"):
+		return "lighting"
+	if object_group == "wall" or joined.contains("outer_wall") or joined.contains("brick_wall") or joined.contains("concrete_wall") or joined.contains("steel_wall") or joined.contains("grate_wall"):
+		return "walls"
+	return "objects"
+
+
+func _append_map_constructor_cell_inspection_entity(tabs_by_id: Dictionary, tab_id: String, entity_kind: String, entity_id: String, cell: Vector2i, data: Dictionary) -> void:
+	if not tabs_by_id.has(tab_id):
+		return
+	var tab: Dictionary = Dictionary(tabs_by_id.get(tab_id, {}))
+	var entities: Array = Array(tab.get("entities", []))
+	entities.append({"entity_kind": entity_kind, "id": entity_id, "cell": cell, "data": data.duplicate(true)})
+	tab["entities"] = entities
+	tabs_by_id[tab_id] = tab
+
+
+func get_map_constructor_cell_inspection_model(cell: Vector2i, preferred_entity_kind: String = "", preferred_entity_id: String = "") -> Dictionary:
+	var tab_order: Array[Dictionary] = [
+		{"id":"objects", "title":"Objects", "entities": []},
+		{"id":"enemies", "title":"Enemies", "entities": []},
+		{"id":"items", "title":"Items", "entities": []},
+		{"id":"cables", "title":"Cables", "entities": []},
+		{"id":"lighting", "title":"Lighting", "entities": []},
+		{"id":"walls", "title":"Walls", "entities": []},
+		{"id":"floor", "title":"Floor", "entities": []}
+	]
+	var tabs_by_id: Dictionary = {}
+	for tab in tab_order:
+		tabs_by_id[str(tab.get("id", ""))] = Dictionary(tab).duplicate(true)
+	var tile_type: int = -1
+	var tile_name: String = ""
+	var in_bounds: bool = true
+	if manager.grid_manager != null and manager.grid_manager.has_method("is_in_bounds"):
+		in_bounds = bool(manager.grid_manager.call("is_in_bounds", cell))
+	if manager.grid_manager != null and manager.grid_manager.has_method("get_tile") and in_bounds:
+		tile_type = int(manager.grid_manager.call("get_tile", cell))
+		if manager.grid_manager.has_method("get_tile_name"):
+			tile_name = str(manager.grid_manager.call("get_tile_name", tile_type))
+	var floor_data: Dictionary = {"id":"floor_%d_%d" % [cell.x, cell.y], "display_name":"Floor", "object_type":"floor", "position":cell, "tile_type":tile_type, "tile_name":tile_name, "in_bounds":in_bounds}
+	_append_map_constructor_cell_inspection_entity(tabs_by_id, "floor", "floor", str(floor_data.get("id", "")), cell, floor_data)
+	if in_bounds and manager.grid_manager != null and tile_type in [GridManager.TILE_WALL, GridManager.TILE_DOOR, GridManager.TILE_DIGITAL_DOOR, GridManager.TILE_POWERED_GATE]:
+		var wall_data: Dictionary = {"id":"wall_%d_%d" % [cell.x, cell.y], "display_name":"Wall", "object_type":"wall", "object_group":"wall", "position":cell, "tile_type":tile_type, "tile_name":tile_name}
+		_append_map_constructor_cell_inspection_entity(tabs_by_id, "walls", "wall", str(wall_data.get("id", "")), cell, wall_data)
+	for object_variant in manager.mission_world_objects:
+		var object_data: Dictionary = manager._safe_dictionary(object_variant)
+		if object_data.is_empty():
+			continue
+		var object_cell: Vector2i = manager._get_world_object_cell_from_data(object_data)
+		var matches_cell: bool = object_cell == cell
+		if not matches_cell and str(object_data.get("placement_mode", "")) == "wall_mounted":
+			matches_cell = manager._deserialize_cell_variant(object_data.get("anchor_floor_cell", Vector2i(-1, -1))) == cell or manager._deserialize_cell_variant(object_data.get("attached_wall_cell", Vector2i(-1, -1))) == cell
+		if not matches_cell:
+			continue
+		var object_id: String = str(object_data.get("id", ""))
+		_append_map_constructor_cell_inspection_entity(tabs_by_id, _get_map_constructor_entity_inspection_tab_id("world_object", object_data), "world_object", object_id, object_cell if object_cell.x >= 0 and object_cell.y >= 0 else cell, manager._normalize_map_constructor_active_object_fields(object_data))
+	for cell_variant in manager.cell_items.keys():
+		var item_cell: Vector2i = Vector2i(cell_variant)
+		if item_cell != cell:
+			continue
+		for item_variant in manager.get_items_at_cell(item_cell):
+			var item_data: Dictionary = manager._safe_dictionary(item_variant)
+			_append_map_constructor_cell_inspection_entity(tabs_by_id, "items", "item", str(item_data.get("id", "")), item_cell, item_data)
+	if manager.active_bipob_ref != null and is_instance_valid(manager.active_bipob_ref) and manager.active_bipob_ref.has_method("get_grid_position"):
+		var bipob_cell: Vector2i = Vector2i(manager.active_bipob_ref.call("get_grid_position"))
+		if bipob_cell == cell:
+			_append_map_constructor_cell_inspection_entity(tabs_by_id, "enemies", "bipob", "active_bipob", cell, {"id":"active_bipob", "display_name":"Active Bipob", "object_type":"bipob", "position":cell})
+	var present_tabs: Array[Dictionary] = []
+	for tab in tab_order:
+		var tab_id: String = str(tab.get("id", ""))
+		var resolved_tab: Dictionary = Dictionary(tabs_by_id.get(tab_id, tab))
+		if tab_id == "floor" or not Array(resolved_tab.get("entities", [])).is_empty():
+			present_tabs.append(resolved_tab)
+	var preferred_tab: String = "floor"
+	if not preferred_entity_id.is_empty():
+		var preferred_entity: Dictionary = get_map_constructor_entity_by_id(preferred_entity_kind, preferred_entity_id)
+		if bool(preferred_entity.get("ok", false)):
+			preferred_tab = _get_map_constructor_entity_inspection_tab_id(str(preferred_entity.get("entity_kind", preferred_entity_kind)), manager._safe_dictionary(preferred_entity.get("data", {})))
+	return {"ok": true, "cell": cell, "tabs": present_tabs, "preferred_tab": preferred_tab}
+
 func get_map_constructor_entity_by_id(entity_kind: String, entity_id: String) -> Dictionary:
 	if entity_kind.is_empty():
 		var world_entity: Dictionary = get_map_constructor_entity_by_id("world_object", entity_id)
