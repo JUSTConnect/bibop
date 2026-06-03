@@ -58,6 +58,18 @@ const FLOOR_VISUAL_STYLES: Array[String] = ["default", "permission"]
 const FLOOR_STATES: Array[String] = ["normal", "damaged"]
 
 const PREFAB_ALIASES: Dictionary = {
+	"fuse_box_installed": "fuse_box",
+	"fuse_box_empty": "fuse_box",
+	"light_switch": "power_switcher",
+	"circuit_breaker": "power_switcher",
+	"power_switch": "power_switcher",
+	"power_switcher_floor_off": "power_switcher",
+	"power_switcher_floor_on": "power_switcher",
+	"power_switcher_wall_off": "power_switcher",
+	"power_switcher_wall_on": "power_switcher",
+	"explosive_barrel": "barrel",
+	"fire_barrel": "barrel",
+	"heavy_crate": "steel_box",
 	"concrete_floor": "floor",
 	"steel_floor": "floor",
 	"titan_floor": "floor",
@@ -261,6 +273,53 @@ const ARCHETYPE_REGISTRY: Dictionary = {
 			{"field":"payload_id", "type":"string", "default":""},
 			{"field":"access_code", "type":"string", "default":""}
 		]
+	},
+	"power_switcher": {
+		"archetype_id":"power_switcher", "object_group":"power", "object_type":"power_switcher", "palette_label":"Power Switcher",
+		"placement_mode":"object", "display_name_template":"Power Switcher", "configurable":true, "state":"switch_off", "switch_state":"off", "is_on":false, "can_be_switched":true, "power_mode":"external_power", "control_mode":"internal_control", "is_powered":false, "blocks_movement":false, "blocks_vision":false,
+		"property_schema":[
+			{"field":"mount", "type":"enum", "values":["floor", "wall"], "default":"floor", "labels":{"floor":"Floor", "wall":"Wall"}},
+			{"field":"switch_state", "type":"enum", "values":["off", "on"], "default":"off", "labels":{"off":"Off", "on":"On"}}
+		]
+	},
+	"fuse_box": {
+		"archetype_id":"fuse_box", "object_group":"power", "object_type":"fuse_box", "palette_label":"Fuse Box",
+		"placement_mode":"object", "display_name_template":"Fuse Box", "configurable":true, "state":"installed", "requires_fuse":true, "fuse_present":true, "fuse_installed":true, "power_mode":"external_power", "control_mode":"internal_control", "is_powered":false, "blocks_movement":false, "blocks_vision":false,
+		"property_schema":[
+			{"field":"mount", "type":"enum", "values":["floor", "wall"], "default":"floor", "labels":{"floor":"Floor", "wall":"Wall"}},
+			{"field":"fuse_present", "type":"bool", "default":true}
+		]
+	},
+	"barrel": {
+		"archetype_id":"barrel", "object_group":"physical_object", "object_type":"barrel", "palette_label":"Barrel",
+		"placement_mode":"object", "display_name_template":"Barrel", "configurable":true, "weight_class":"normal", "required_bipob_power_class":"scout", "movable":true, "heavy_claw_movable":true, "heavy_claw_mode":"push", "blocks_movement":true,
+		"property_schema":[
+			{"field":"variant", "type":"enum", "values":["normal", "fire"], "default":"normal", "labels":{"normal":"Normal", "fire":"Fire"}}
+		]
+	},
+	"steel_box": {
+		"archetype_id":"steel_box", "object_group":"physical_object", "object_type":"steel_box", "palette_label":"Steel Box",
+		"placement_mode":"object", "display_name_template":"Steel Box", "configurable":false, "weight_class":"heavy", "required_bipob_power_class":"engineer", "movable":true, "heavy_claw_movable":true, "heavy_claw_mode":"push", "blocks_movement":true, "magnetic":true, "material_tags":["metal"], "property_schema":[]
+	},
+	"case": {
+		"archetype_id":"case", "object_group":"physical_object", "object_type":"case", "palette_label":"Case",
+		"placement_mode":"object", "display_name_template":"Case", "configurable":false, "blocks_movement":true, "property_schema":[]
+	},
+	"cable_reel": {
+		"archetype_id":"cable_reel", "object_group":"physical_object", "object_type":"cable_reel", "palette_label":"Cable Reel",
+		"placement_mode":"object", "display_name_template":"Cable Reel", "configurable":false, "blocks_movement":true, "property_schema":[]
+	},
+	"power_source": {
+		"archetype_id":"power_source", "object_group":"power", "object_type":"power_source", "palette_label":"Power Source",
+		"placement_mode":"object", "display_name_template":"Power Source", "configurable":false, "state":"on", "is_powered":true, "power_mode":"internal", "control_mode":"internal", "blocks_movement":true, "property_schema":[]
+	},
+	"radiator": {
+		"archetype_id":"radiator", "object_group":"cooling", "object_type":"radiator", "palette_label":"Radiator",
+		"placement_mode":"object", "display_name_template":"Radiator", "configurable":false, "cooling_device_type":"radiator", "cooling_output":1, "movable":true, "heavy_claw_movable":true, "blocks_movement":true, "property_schema":[]
+	},
+	"light": {
+		"archetype_id":"light", "object_group":"power", "object_type":"light", "palette_label":"Light",
+		"placement_mode":"wall_mounted", "display_name_template":"Light", "configurable":false, "state":"active", "is_powered":false, "blocks_movement":false, "property_schema":[]
 	},
 	"power_cable_reel": {
 		"archetype_id":"power_cable_reel", "object_group":"item", "object_type":"power_cable_reel", "palette_label":"Power Cable Reel",
@@ -477,19 +536,19 @@ const OBJECT_LIBRARY := {
 	"titanium_wall": {"group":"wall","name":"Titanium Wall","material":"titanium","durability":100,"blocks_movement":true,"blocks_vision":true,"placeable_in_constructor":false},
 	"energy_wall": {"group":"wall","name":"Energy Wall","material":"energy_flow","durability":1,"blocks_movement":true,"blocks_vision":false,"invulnerable_while_powered":true,"power_mode":"external_power","placeable_in_constructor":false},
 	"power_cable": {"group":"power","name":"Power Cable","state":"ok","durability":5,"power_mode":"external_power","control_mode":"internal_control","is_powered":false,"power_network_id":"","power_source_id":"","physical_connection_source_id":"","connected":true,"disconnected":false,"connected_side":true,"cut":false,"damaged":false,"broken":false,"is_hidden":false,"hidden_installation":false,"route_surface":"floor","cable_install_mode":"floor","install_mode":"floor","cable_health_state":"normal","health_state":"normal","cable_path_cells":[],"cable_length":0},
-	"circuit_breaker": {"group":"power","name":"Circuit Breaker","placement_mode":"wall_mounted","state":"switch_on","durability":8,"power_mode":"external_power","control_mode":"internal_control","requires_external_control":false,"control_terminal_id":"","linked_terminal_id":"","is_powered":false,"is_on":true,"power_network_id":"","power_source_id":"","physical_connection_source_id":"","damaged":false,"broken":false},
-	"circuit_switch": {"group":"power","name":"Circuit Switch","state":"switch_off","durability":8,"power_mode":"external_power","control_mode":"internal_control","requires_external_control":false,"control_terminal_id":"","linked_terminal_id":"","is_powered":false,"power_network_id":"","power_source_id":"","physical_connection_source_id":"","damaged":false,"broken":false,"input_wire_id":"","output_1_wire_id":"","output_2_wire_id":"","output_3_wire_id":"","active_output_index":1},
-	"fuse_box": {"group":"power","name":"Fuse Box","placement_mode":"wall_mounted","state":"installed","durability":8,"power_mode":"external_power","control_mode":"internal_control","is_powered":false,"requires_fuse":true,"fuse_installed":true,"power_network_id":"","power_source_id":"","physical_connection_source_id":"","damaged":false,"broken":false},
-	"fuse_box_installed": {"group":"power","name":"Fuse Box Installed","placement_mode":"wall_mounted","state":"installed","durability":8,"power_mode":"external_power","control_mode":"internal_control","is_powered":false,"requires_fuse":true,"fuse_installed":true,"power_network_id":"","power_source_id":"","physical_connection_source_id":"","damaged":false,"broken":false},
-	"fuse_box_empty": {"group":"power","name":"Fuse Box Empty","placement_mode":"wall_mounted","state":"empty","durability":8,"power_mode":"external_power","control_mode":"internal_control","is_powered":false,"requires_fuse":true,"fuse_installed":false,"power_network_id":"","power_source_id":"","physical_connection_source_id":"","damaged":false,"broken":false},
-	"light": {"group":"power","name":"Light","placement_mode":"wall_mounted","state":"active","durability":6,"power_mode":"external_power","control_mode":"internal_control","is_powered":false,"power_network_id":"","power_source_id":"","physical_connection_source_id":"","damaged":false,"broken":false,"brightness":1.0,"color":"#ffffff"},
-	"light_switch": {"group":"power","name":"Light Switch","placement_mode":"wall_mounted","state":"switch_off","durability":6,"power_mode":"external_power","control_mode":"internal_control","requires_external_control":false,"control_terminal_id":"","linked_terminal_id":"","is_powered":false,"is_on":false,"can_be_switched":true,"power_network_id":"","power_source_id":"","physical_connection_source_id":"","damaged":false,"broken":false},
+	"circuit_breaker": {"group":"power","name":"Circuit Breaker","placeable_in_constructor":false,"placement_mode":"wall_mounted","state":"switch_on","durability":8,"power_mode":"external_power","control_mode":"internal_control","requires_external_control":false,"control_terminal_id":"","linked_terminal_id":"","is_powered":false,"is_on":true,"power_network_id":"","power_source_id":"","physical_connection_source_id":"","damaged":false,"broken":false},
+	"circuit_switch": {"group":"power","name":"Circuit Switch","placeable_in_constructor":false,"state":"switch_off","durability":8,"power_mode":"external_power","control_mode":"internal_control","requires_external_control":false,"control_terminal_id":"","linked_terminal_id":"","is_powered":false,"power_network_id":"","power_source_id":"","physical_connection_source_id":"","damaged":false,"broken":false,"input_wire_id":"","output_1_wire_id":"","output_2_wire_id":"","output_3_wire_id":"","active_output_index":1},
+	"legacy_fuse_box_library": {"group":"power","name":"Fuse Box","placeable_in_constructor":false,"placement_mode":"wall_mounted","state":"installed","durability":8,"power_mode":"external_power","control_mode":"internal_control","is_powered":false,"requires_fuse":true,"fuse_installed":true,"power_network_id":"","power_source_id":"","physical_connection_source_id":"","damaged":false,"broken":false},
+	"fuse_box_installed": {"group":"power","name":"Fuse Box Installed","placeable_in_constructor":false,"placement_mode":"wall_mounted","state":"installed","durability":8,"power_mode":"external_power","control_mode":"internal_control","is_powered":false,"requires_fuse":true,"fuse_installed":true,"power_network_id":"","power_source_id":"","physical_connection_source_id":"","damaged":false,"broken":false},
+	"fuse_box_empty": {"group":"power","name":"Fuse Box Empty","placeable_in_constructor":false,"placement_mode":"wall_mounted","state":"empty","durability":8,"power_mode":"external_power","control_mode":"internal_control","is_powered":false,"requires_fuse":true,"fuse_installed":false,"power_network_id":"","power_source_id":"","physical_connection_source_id":"","damaged":false,"broken":false},
+	"legacy_light_library": {"group":"power","name":"Light","placeable_in_constructor":false,"placement_mode":"wall_mounted","state":"active","durability":6,"power_mode":"external_power","control_mode":"internal_control","is_powered":false,"power_network_id":"","power_source_id":"","physical_connection_source_id":"","damaged":false,"broken":false,"brightness":1.0,"color":"#ffffff"},
+	"light_switch": {"group":"power","name":"Light Switch","placeable_in_constructor":false,"placement_mode":"wall_mounted","state":"switch_off","durability":6,"power_mode":"external_power","control_mode":"internal_control","requires_external_control":false,"control_terminal_id":"","linked_terminal_id":"","is_powered":false,"is_on":false,"can_be_switched":true,"power_network_id":"","power_source_id":"","physical_connection_source_id":"","damaged":false,"broken":false},
 	"power_socket": {"group":"power","name":"Power Socket","state":"disconnected","durability":8,"power_mode":"external_power","control_mode":"internal_control","is_powered":false,"power_network_id":"","power_source_id":"","physical_connection_source_id":"","connected":false,"disconnected":true,"connected_side":false,"damaged":false,"broken":false,"can_connect_cable":true},
 	"power_cable_reel": {"group":"item","name":"Power Cable Reel","placement_mode":"wall_mounted","state":"disconnected","item_form":"physical","storage_type":"pocket","can_connect_socket":true,"max_cable_length":5,"connected":false,"disconnected":true,"connected_side":false,"connected_side_1":false,"connected_side_2":false,"end_1_state":"on_reel","end_1_target_id":"","end_1_path_cells":[],"end_1_cable_length":0,"end_2_state":"on_reel","end_2_target_id":"","end_2_path_cells":[],"end_2_cable_length":0,"cable_endpoint_a_id":"","cable_endpoint_b_id":"","cable_path_cells":[],"cable_length":0,"cut":false,"damaged":false,"broken":false,"cable_install_mode":"floor","install_mode":"floor","cable_health_state":"normal","health_state":"normal"},
-	"power_source_class_1": {"group":"power","name":"Power Source C1","state":"on","power_mode":"internal","control_mode":"internal","requires_external_control":false,"is_powered":true,"power_network_id":"","damaged":false,"broken":false,"durability":30,"power_source_class":1,"outlet_capacity":4,"drain_pool":60,"working_heat":1,"current_heat":1,"overheat_threshold":3,"heat_from_connections":0,"cooling_received":0,"overheated_state_before":"","allowed_socket_connections":1,"connected_device_ids":[]},
-	"power_source_class_2": {"group":"power","name":"Power Source C2","state":"on","power_mode":"internal","control_mode":"internal","requires_external_control":false,"is_powered":true,"power_network_id":"","damaged":false,"broken":false,"durability":30,"power_source_class":2,"outlet_capacity":5,"drain_pool":120,"working_heat":2,"current_heat":2,"overheat_threshold":3,"heat_from_connections":0,"cooling_received":0,"overheated_state_before":"","allowed_socket_connections":2,"connected_device_ids":[]},
-	"power_source_class_3": {"group":"power","name":"Power Source C3","state":"on","power_mode":"internal","control_mode":"internal","requires_external_control":false,"is_powered":true,"power_network_id":"","damaged":false,"broken":false,"durability":30,"power_source_class":3,"outlet_capacity":6,"drain_pool":240,"working_heat":3,"current_heat":3,"overheat_threshold":3,"heat_from_connections":0,"cooling_received":0,"overheated_state_before":"","allowed_socket_connections":3,"connected_device_ids":[]},
-	"external_radiator": {"group":"cooling","name":"External Radiator","state":"active","cooling_device_type":"radiator","cooling_output":1,"movable":true,"heavy_claw_movable":true,"material":"metal","blocks_movement":true,"blocks_vision":false,"durability":20},
+	"power_source_class_1": {"group":"power","name":"Power Source C1","placeable_in_constructor":false,"state":"on","power_mode":"internal","control_mode":"internal","requires_external_control":false,"is_powered":true,"power_network_id":"","damaged":false,"broken":false,"durability":30,"power_source_class":1,"outlet_capacity":4,"drain_pool":60,"working_heat":1,"current_heat":1,"overheat_threshold":3,"heat_from_connections":0,"cooling_received":0,"overheated_state_before":"","allowed_socket_connections":1,"connected_device_ids":[]},
+	"power_source_class_2": {"group":"power","name":"Power Source C2","placeable_in_constructor":false,"state":"on","power_mode":"internal","control_mode":"internal","requires_external_control":false,"is_powered":true,"power_network_id":"","damaged":false,"broken":false,"durability":30,"power_source_class":2,"outlet_capacity":5,"drain_pool":120,"working_heat":2,"current_heat":2,"overheat_threshold":3,"heat_from_connections":0,"cooling_received":0,"overheated_state_before":"","allowed_socket_connections":2,"connected_device_ids":[]},
+	"power_source_class_3": {"group":"power","name":"Power Source C3","placeable_in_constructor":false,"state":"on","power_mode":"internal","control_mode":"internal","requires_external_control":false,"is_powered":true,"power_network_id":"","damaged":false,"broken":false,"durability":30,"power_source_class":3,"outlet_capacity":6,"drain_pool":240,"working_heat":3,"current_heat":3,"overheat_threshold":3,"heat_from_connections":0,"cooling_received":0,"overheated_state_before":"","allowed_socket_connections":3,"connected_device_ids":[]},
+	"external_radiator": {"group":"cooling","name":"External Radiator","placeable_in_constructor":false,"state":"active","cooling_device_type":"radiator","cooling_output":1,"movable":true,"heavy_claw_movable":true,"material":"metal","blocks_movement":true,"blocks_vision":false,"durability":20},
 	"external_air_cooler": {"group":"cooling","name":"External Air Cooler","state":"active","cooling_device_type":"air_cooler","cooling_output":2,"directed_airflow":true,"facing_dir":"right","movable":true,"heavy_claw_movable":true,"material":"metal","blocks_movement":true,"blocks_vision":false,"durability":20},
 	"metal_cooling_block": {"group":"physical","name":"Metal Cooling Block","state":"active","material":"metal","cooling_amplifier":true,"movable":true,"heavy_claw_movable":true,"blocks_movement":true,"blocks_vision":false,"durability":30},
 	"external_water_pipe": {"group":"cooling","name":"External Water Pipe","state":"active","cooling_device_type":"water_pipe","cooling_output":2,"passive_cooling":true,"movable":false,"material":"metal","blocks_movement":false,"blocks_vision":false,"durability":15},
@@ -512,7 +571,7 @@ const OBJECT_LIBRARY := {
 	"data_file_opened": {"group":"item","name":"Data File Opened","item_form":"digital","storage_type":"digital_buffer","can_place_in_digital_buffer":true,"item_family":"data_file","digital_state":"opened","consumable":false,"fits_targets":["terminal","firewall"]},
 	"data_file_encrypted": {"group":"item","name":"Data File Encrypted","item_form":"digital","storage_type":"digital_buffer","can_place_in_digital_buffer":true,"item_family":"data_file","digital_state":"encrypted","consumable":false,"fits_targets":["terminal","firewall"]},
 	"data_file_damaged": {"group":"item","name":"Data File Damaged","item_form":"digital","storage_type":"digital_buffer","can_place_in_digital_buffer":true,"item_family":"data_file","digital_state":"damaged","consumable":false,"fits_targets":["terminal","firewall"]},
-	"normal_crate": {"group":"physical_object","name":"Normal Crate","weight_class":"normal","required_bipob_power_class":"scout","durability":8,"movable":true,"heavy_claw_movable":true,"heavy_claw_mode":"push","blocks_movement":true},"heavy_crate": {"group":"physical_object","name":"Heavy Crate","weight_class":"heavy","required_bipob_power_class":"engineer","durability":14,"movable":true,"heavy_claw_movable":true,"heavy_claw_mode":"push","blocks_movement":true,"magnetic":true,"material_tags":["metal"]},"movable_platform_block": {"group":"physical_object","name":"Movable Platform Block","weight_class":"block","required_bipob_power_class":"juggernaut","durability":20,"blocks_movement":true,"magnetic":true,"material_tags":["metal"]},"disabled_bipop_scout": {"group":"physical_object","name":"Disabled Bipop Scout","weight_class":"normal","required_bipob_power_class":"scout","durability":10},"disabled_bipop_engineer": {"group":"physical_object","name":"Disabled Bipop Engineer","weight_class":"heavy","required_bipob_power_class":"engineer","durability":15},"disabled_bipop_juggernaut": {"group":"physical_object","name":"Disabled Bipop Juggernaut","weight_class":"block","required_bipob_power_class":"juggernaut","durability":25},"barrel": {"group":"physical_object","name":"Barrel","weight_class":"normal","required_bipob_power_class":"scout","durability":8,"movable":true,"heavy_claw_movable":true,"heavy_claw_mode":"push","blocks_movement":true},"explosive_barrel": {"group":"physical_object","name":"Explosive Barrel","weight_class":"normal","required_bipob_power_class":"scout","durability":6,"movable":true,"heavy_claw_movable":true,"heavy_claw_mode":"push","blocks_movement":true,"on_destroy":"explode"},"debris": {"group":"physical_object","name":"Debris","weight_class":"normal","required_bipob_power_class":"scout","durability":1,"blocks_movement":false,"terrain_tag":"debris","movement_debuff":-1},
+	"normal_crate": {"group":"physical_object","name":"Normal Crate","weight_class":"normal","required_bipob_power_class":"scout","durability":8,"movable":true,"heavy_claw_movable":true,"heavy_claw_mode":"push","blocks_movement":true},"heavy_crate": {"group":"physical_object","name":"Heavy Crate","placeable_in_constructor":false,"weight_class":"heavy","required_bipob_power_class":"engineer","durability":14,"movable":true,"heavy_claw_movable":true,"heavy_claw_mode":"push","blocks_movement":true,"magnetic":true,"material_tags":["metal"]},"movable_platform_block": {"group":"physical_object","name":"Movable Platform Block","weight_class":"block","required_bipob_power_class":"juggernaut","durability":20,"blocks_movement":true,"magnetic":true,"material_tags":["metal"]},"disabled_bipop_scout": {"group":"physical_object","name":"Disabled Bipop Scout","weight_class":"normal","required_bipob_power_class":"scout","durability":10},"disabled_bipop_engineer": {"group":"physical_object","name":"Disabled Bipop Engineer","weight_class":"heavy","required_bipob_power_class":"engineer","durability":15},"disabled_bipop_juggernaut": {"group":"physical_object","name":"Disabled Bipop Juggernaut","weight_class":"block","required_bipob_power_class":"juggernaut","durability":25},"legacy_barrel_library": {"group":"physical_object","name":"Barrel","placeable_in_constructor":false,"weight_class":"normal","required_bipob_power_class":"scout","durability":8,"movable":true,"heavy_claw_movable":true,"heavy_claw_mode":"push","blocks_movement":true},"explosive_barrel": {"group":"physical_object","name":"Explosive Barrel","placeable_in_constructor":false,"weight_class":"normal","required_bipob_power_class":"scout","durability":6,"movable":true,"heavy_claw_movable":true,"heavy_claw_mode":"push","blocks_movement":true,"on_destroy":"explode"},"debris": {"group":"physical_object","name":"Debris","weight_class":"normal","required_bipob_power_class":"scout","durability":1,"blocks_movement":false,"terrain_tag":"debris","movement_debuff":-1},
 	"enemy_robot": {"group":"threat","name":"Enemy Robot","state":"active","behavior_state":"patrolling","durability":20,"blocks_movement":true,"blocks_vision":false,"power_mode":"internal_power","power_network_id":"","is_powered":true,"control_mode":"internal_control","controlled_by":[],"scan_level":0,"material_tags":["metal","armor_light"],"heat_signature":true,"magnetic":true,"drain_energy_pool":20,"drained_this_turn":false,"detection_range":3,"vision_range":3,"radar_range":3,"thermal_range":0,"detection_modes":["vision","radar"],"detection_shape":"radius","detection_cone_enabled":false,"detection_direction":"forward","attack_range":1,"attack_damage":5,"drops":["parts_medium"],"on_destroy":["drop_items","debris"]},
 	"turret": {"group":"threat","name":"Turret","state":"active","behavior_state":"idle","durability":15,"blocks_movement":true,"blocks_vision":false,"power_mode":"external_power","power_network_id":"power_net_A","is_powered":true,"control_mode":"external_control","controlled_by":[],"scan_level":0,"material_tags":["metal","armor_light"],"heat_signature":true,"magnetic":true,"drain_energy_pool":15,"drained_this_turn":false,"detection_range":4,"vision_range":4,"radar_range":0,"thermal_range":4,"detection_modes":["vision","thermal"],"detection_shape":"cardinal","detection_cone_enabled":false,"detection_direction":"forward","attack_range":4,"attack_damage":4,"can_be_controlled_by_terminal":true,"required_processor_level":1,"drops":["parts_medium"],"on_destroy":["drop_items","debris"]},
 	"bug": {"group":"threat","name":"Bug","state":"active","behavior_state":"patrolling","durability":8,"blocks_movement":true,"blocks_vision":false,"power_mode":"internal_power","power_network_id":"","is_powered":true,"control_mode":"internal_control","controlled_by":[],"scan_level":0,"material_tags":["organic"],"heat_signature":true,"magnetic":false,"drain_energy_pool":5,"drained_this_turn":false,"detection_range":2,"vision_range":2,"radar_range":0,"thermal_range":0,"detection_modes":["vision"],"detection_shape":"radius","detection_cone_enabled":false,"detection_direction":"forward","attack_range":1,"attack_damage":2,"drops":["sample","parts_small"],"on_destroy":["drop_items"]},
@@ -1198,6 +1257,12 @@ static func normalize_archetype_object(object_data: Dictionary) -> Dictionary:
 	data["archetype_id"] = archetype_id
 	data["object_group"] = str(definition.get("object_group", archetype_id))
 	data["object_type"] = str(definition.get("object_type", archetype_id))
+	for definition_key_variant in definition.keys():
+		var definition_key: String = str(definition_key_variant)
+		if definition_key in ["archetype_id", "object_group", "object_type", "palette_label", "display_name_template", "property_schema"]:
+			continue
+		if not data.has(definition_key):
+			data[definition_key] = definition[definition_key]
 	for fixed_field in ["material", "is_destructible", "supports_embedded_objects", "supports_cables", "configurable", "blocks_movement", "blocks_vision"]:
 		if definition.has(fixed_field) and (archetype_id == "external_wall" or not data.has(fixed_field)):
 			data[fixed_field] = definition[fixed_field]
@@ -1207,6 +1272,30 @@ static func normalize_archetype_object(object_data: Dictionary) -> Dictionary:
 			data[key] = _schema_defaults(archetype_id)[key]
 	if archetype_id == "wall":
 		data["material"] = _normalize_wall_material(data.get("material", WALL_MATERIAL_BRICK))
+	if archetype_id == "power_switcher":
+		data["mount"] = _normalized_contract_token(data.get("mount", data.get("install_mode", "floor")))
+		if data["mount"] == "wall_mounted":
+			data["mount"] = "wall"
+		if data["mount"] not in ["floor", "wall"]:
+			data["mount"] = "floor"
+		data["install_mode"] = data["mount"]
+		data["placement_mode"] = "wall_mounted" if data["mount"] == "wall" else "object"
+		data["switch_state"] = _normalized_contract_token(data.get("switch_state", ""))
+		if data["switch_state"] not in ["on", "off"]:
+			data["switch_state"] = "on" if _safe_bool_like(data.get("is_on", false), _normalized_contract_token(data.get("state", "switch_off")) in ["on", "switch_on"]) else "off"
+		data["state"] = "switch_on" if data["switch_state"] == "on" else "switch_off"
+		data["is_on"] = data["switch_state"] == "on"
+	if archetype_id == "fuse_box":
+		data["mount"] = _normalized_contract_token(data.get("mount", data.get("install_mode", "floor")))
+		if data["mount"] == "wall_mounted":
+			data["mount"] = "wall"
+		if data["mount"] not in ["floor", "wall"]:
+			data["mount"] = "floor"
+		data["install_mode"] = data["mount"]
+		data["placement_mode"] = "wall_mounted" if data["mount"] == "wall" else "object"
+		data["fuse_present"] = _safe_bool_like(data.get("fuse_present", data.get("fuse_installed", true)), true)
+		data["fuse_installed"] = data["fuse_present"]
+		data["state"] = "installed" if data["fuse_present"] else "empty"
 	if archetype_id == "door":
 		data["power_mode"] = str(data.get("power_type", data.get("power_mode", "internal")))
 		data["control_mode"] = str(data.get("control_type", data.get("control_mode", "internal")))

@@ -30,7 +30,8 @@ const POWER_TRAVERSAL_TYPES := {
 	"fuse_box_installed": true,
 	"fuse_box_empty": true,
 	"fuse_block": true,
-	"light_switch": true
+	"light_switch": true,
+	"power_switcher": true
 }
 
 static func _is_state_driven_powered_object(obj: Dictionary) -> bool:
@@ -68,7 +69,7 @@ static func _is_power_consumer_object(obj: Dictionary) -> bool:
 	if _is_power_source_object(obj):
 		return false
 	var object_type: String = _normalize_type(obj.get("object_type", ""))
-	if object_type in ["power_cable", "circuit_switch", "circuit_breaker", "power_breaker", "power_knife_switch", "fuse_box", "fuse_box_empty", "fuse_box_installed", "fuse_block", "light_switch"]:
+	if object_type in ["power_cable", "circuit_switch", "circuit_breaker", "power_breaker", "power_knife_switch", "fuse_box", "fuse_box_empty", "fuse_box_installed", "fuse_block", "light_switch", "power_switcher"]:
 		return false
 	if _is_state_driven_powered_object(obj):
 		return true
@@ -94,7 +95,7 @@ static func _is_segment_blocked(obj: Dictionary) -> bool:
 			return true
 	if object_type in ["fuse_box", "fuse_box_empty", "fuse_block"]:
 		return not (bool(obj.get("fuse_installed", false)) or state in ["installed", "ok", "active"] or object_type == "fuse_box_installed")
-	if object_type in ["circuit_breaker", "power_breaker", "power_knife_switch"]:
+	if object_type in ["circuit_breaker", "power_breaker", "power_knife_switch", "power_switcher"]:
 		return state in ["off", "switch_off", "open"] or not bool(obj.get("is_on", state in ["on", "switch_on", "active", "ok"]))
 	return false
 

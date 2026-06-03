@@ -7689,7 +7689,7 @@ func get_available_world_actions(world_object: Dictionary, target_position: Vect
 	elif str(world_object.get("object_type", "")).begins_with("power_source"):
 		if bool(world_object.get("switchable", world_object.get("can_toggle", true))):
 			actions.append("switch")
-	elif str(world_object.get("object_type", "")) in ["circuit_breaker", "power_breaker", "power_knife_switch", "light_switch"]:
+	elif str(world_object.get("object_type", "")) in ["circuit_breaker", "power_breaker", "power_knife_switch", "light_switch", "power_switcher"]:
 		actions.append("switch")
 	elif str(world_object.get("object_type", "")).begins_with("fuse_box"):
 		if bool(world_object.get("fuse_installed", state == "installed")):
@@ -8060,6 +8060,10 @@ func _apply_world_object_effects(effects: Array, world_object: Dictionary, targe
 			var int_field_name := str(effect.get("field", "")).strip_edges()
 			if not int_field_name.is_empty():
 				world_object[int_field_name] = int(effect.get("value", 0))
+		elif effect_type == "set_string":
+			var string_field_name := str(effect.get("field", "")).strip_edges()
+			if not string_field_name.is_empty():
+				world_object[string_field_name] = str(effect.get("value", ""))
 		elif effect_type == "store_digital_record":
 			store_digital_record(str(effect.get("record_id", "")), str(effect.get("display_name", effect.get("record_id", "Data"))), str(effect.get("description", "Downloaded data.")))
 		elif effect_type == "power_recalc_needed":

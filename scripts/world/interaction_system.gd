@@ -290,7 +290,7 @@ static func apply_action(actor: Dictionary, module: Dictionary, target_object: D
 				return _result(false, "Manipulator does not contain a fuse.")
 			target_object["state"] = "installed"
 			target_object["fuse_installed"] = true
-			return _result(true, "Fuse installed.", [{"type":"set_state","state":"installed"},{"type":"set_bool","field":"fuse_installed","value":true},{"type":"power_recalc_needed"}])
+			return _result(true, "Fuse installed.", [{"type":"set_state","state":"installed"},{"type":"set_bool","field":"fuse_installed","value":true},{"type":"set_bool","field":"fuse_present","value":true},{"type":"power_recalc_needed"}])
 		"remove_fuse":
 			if not str(target_object.get("object_type", "")).begins_with("fuse_box") and str(target_object.get("object_type", "")) != "fuse_block":
 				return _result(false, "Cannot remove fuse here.")
@@ -298,7 +298,7 @@ static func apply_action(actor: Dictionary, module: Dictionary, target_object: D
 				return _result(false, "No fuse installed.")
 			target_object["state"] = "empty"
 			target_object["fuse_installed"] = false
-			return _result(true, "Fuse removed.", [{"type":"set_state","state":"empty"},{"type":"set_bool","field":"fuse_installed","value":false},{"type":"grant_item","item_type":"fuse"},{"type":"power_recalc_needed"}])
+			return _result(true, "Fuse removed.", [{"type":"set_state","state":"empty"},{"type":"set_bool","field":"fuse_installed","value":false},{"type":"set_bool","field":"fuse_present","value":false},{"type":"grant_item","item_type":"fuse"},{"type":"power_recalc_needed"}])
 		"repair":
 			if module_id != "repair_v1" and module_id != "repair_kit":
 				return _result(false, "Repair module or repair kit not found.")
@@ -346,7 +346,7 @@ static func apply_action(actor: Dictionary, module: Dictionary, target_object: D
 			var is_on: bool = next_state in ["on", "switch_on"]
 			target_object["state"] = next_state
 			target_object["is_on"] = is_on
-			var switch_effects: Array = [{"type":"set_state","state":next_state},{"type":"set_bool","field":"is_on","value":is_on}]
+			var switch_effects: Array = [{"type":"set_state","state":next_state},{"type":"set_bool","field":"is_on","value":is_on},{"type":"set_string","field":"switch_state","value":"on" if is_on else "off"}]
 			if source_toggle:
 				switch_effects.append({"type":"set_bool","field":"is_powered","value":is_on})
 			if object_type == "light_switch":

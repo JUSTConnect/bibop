@@ -1530,6 +1530,8 @@ func get_iso_object_profile_key_for_object_data(object_data: Dictionary, fallbac
 		return "repair_kit"
 	if blob.contains("access_code") or blob.contains("code"):
 		return "access_code"
+	if blob.contains("cable_reel") or blob.contains("cable reel"):
+		return "cable_reel"
 	if blob.contains("power_cable") or blob.contains("cable") or blob.contains("wire"):
 		return "cable"
 	if blob.contains("power_source"):
@@ -1548,6 +1550,25 @@ func get_iso_object_profile_key_for_object_data(object_data: Dictionary, fallbac
 		return "generic_object"
 	return fallback_profile_key
 
+func _get_object_mount_mode(object_data: Dictionary) -> String:
+	var mount: String = str(object_data.get("mount", object_data.get("install_mode", object_data.get("placement_mode", "floor")))).to_lower().strip_edges()
+	if mount in ["wall", "wall_mounted"]:
+		return "wall"
+	return "floor"
+
+func _is_object_state_on(object_data: Dictionary) -> bool:
+	var state: String = str(object_data.get("switch_state", object_data.get("state", "off"))).to_lower().strip_edges()
+	if state in ["on", "off", "switch_on", "switch_off", "active", "inactive"]:
+		return state in ["on", "switch_on", "active"]
+	if object_data.has("is_on"):
+		return bool(object_data.get("is_on", false))
+	return false
+
+func _is_fuse_present(object_data: Dictionary) -> bool:
+	if object_data.has("fuse_present"):
+		return bool(object_data.get("fuse_present", false))
+	return bool(object_data.get("fuse_installed", str(object_data.get("state", "")).to_lower().strip_edges() == "installed"))
+
 func get_iso_object_asset_key_for_object_data(object_data: Dictionary, fallback_profile_key: String) -> String:
 	var fallback_asset_key: String = get_iso_object_asset_key_for_profile(fallback_profile_key)
 	var type_value: String = str(object_data.get("object_type", object_data.get("type", ""))).to_lower().strip_edges()
@@ -1555,6 +1576,33 @@ func get_iso_object_asset_key_for_object_data(object_data: Dictionary, fallback_
 	var name_value: String = str(object_data.get("name", "")).to_lower().strip_edges()
 	var id_value: String = str(object_data.get("id", object_data.get("object_id", ""))).to_lower().strip_edges()
 	var blob: String = "%s %s %s %s %s" % [fallback_profile_key.to_lower(), type_value, group_value, name_value, id_value]
+	if type_value == "power_switcher" or blob.contains("power_switcher"):
+		var mount: String = _get_object_mount_mode(object_data)
+		var on_suffix: String = "on" if _is_object_state_on(object_data) else "off"
+		if mount == "wall":
+			return "power_switcher_%s_wall_01" % on_suffix
+		return "power_switcher_%s_01" % on_suffix
+	if type_value == "fuse_box" or blob.contains("fuse_box"):
+		var fuse_suffix: String = "in" if _is_fuse_present(object_data) else "out"
+		if _get_object_mount_mode(object_data) == "wall":
+			return "fuse_box_%s_wall_01" % fuse_suffix
+		return "fuse_box_%s_01" % fuse_suffix
+	if type_value == "barrel" or blob.contains("barrel"):
+		return "fire_barrel_01" if str(object_data.get("variant", "normal")).to_lower().strip_edges() == "fire" else "barrel_01"
+	if type_value == "steel_box" or blob.contains("steel_box") or blob.contains("steel box"):
+		return "steel_box_01"
+	if type_value == "case" or blob.contains(" case"):
+		return "case_01"
+	if type_value == "cable_reel" or blob.contains("cable_reel") or blob.contains("cable reel"):
+		return "cabel_reel_01"
+	if type_value == "power_source" or blob.contains("power_source"):
+		return "power_source_01"
+	if type_value == "radiator" or blob.contains("radiator"):
+		return "radiator_01"
+	if type_value == "light" or blob.contains(" light"):
+		return "light_01"
+	if blob.contains("terminal") or blob.contains("console") or blob.contains("control_panel"):
+		return "terminal_01"
 	if blob.contains("door") or blob.contains("powered_gate"):
 		return "object_door"
 	if blob.contains("terminal") or blob.contains("console") or blob.contains("control_panel"):
@@ -4293,7 +4341,9 @@ func draw_iso_object_marker(cell: Vector2i, tile_type: int, override_object_data
 	# per-cell cable icon/marker texture.
 	var used_texture_asset: bool = false
 	if profile_key != "cable":
-		used_texture_asset = draw_iso_texture_asset(cell, object_asset_key, visual_center)
+		used_texture_asset = draw_optional_visual_texture_asset(object_asset_key, cell, "draw_iso_object_marker", {"visual_center": visual_center})
+		if not used_texture_asset:
+			used_texture_asset = draw_iso_texture_asset(cell, object_asset_key, visual_center)
 	if not used_texture_asset and has_door_visual:
 		used_texture_asset = draw_optional_visual_texture_asset(str(door_visual.get("texture_asset_id", "")), cell, "draw_iso_object_marker", {"visual_center": visual_center})
 	if not used_texture_asset and has_terminal_visual:
