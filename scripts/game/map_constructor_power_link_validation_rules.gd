@@ -93,6 +93,35 @@ func _count_adjacent_power_wires(cell: Vector2i, target_id: String = "") -> int:
 					break
 	return count
 
+
+func _power_source_link_matches(object_data: Dictionary, source_id: String, source_network_id: String) -> bool:
+	for field_name in ["power_source_id", "connected_power_source_id", "physical_connection_source_id"]:
+		if _safe_string(object_data.get(field_name, "")).strip_edges() == source_id:
+			return true
+	var power_network_id: String = _safe_string(object_data.get("power_network_id", "")).strip_edges()
+	if not source_network_id.is_empty() and power_network_id == source_network_id:
+		return true
+	if power_network_id == source_id:
+		return true
+	for end_index in range(1, 3):
+		if _safe_string(object_data.get("end_%d_target_id" % end_index, "")).strip_edges() == source_id:
+			return true
+	return false
+
+
+func _power_source_link_label_for_type(object_type: String) -> String:
+	if object_type == "power_cable" or object_type == "power_cable_reel":
+		return "Connected cable"
+	if object_type in ["power_socket", "outlet"]:
+		return "Connected socket/outlet"
+	if object_type == "light" or object_type == "light_switch":
+		return "Linked light"
+	if object_type == "terminal" or object_type.find("terminal") >= 0:
+		return "Linked terminal/device"
+	if object_type.find("door") >= 0 or object_type.find("gate") >= 0 or object_type.find("platform") >= 0:
+		return "Linked door/gate/platform"
+	return "Linked terminal/device"
+
 func validate_map_constructor_entity_links(entity_kind: String, entity_id: String) -> Dictionary:
 	var warnings: Array[String] = []
 	var missing: Array[String] = []
@@ -107,23 +136,26 @@ func validate_map_constructor_entity_links(entity_kind: String, entity_id: Strin
 	var normalized_object_type_for_validation: String = _safe_string(data.get("object_type", "")).strip_edges().to_lower()
 	if normalized_object_type_for_validation in ["power_source", "power_source_class_1", "power_source_class_2", "power_source_class_3"]:
 		var source_id: String = _safe_string(data.get("id", entity_id)).strip_edges()
-		linked.append({"label":"Lighting", "target_id":"section", "target_kind":"world_object", "field_name":"power_source_id", "location":"summary"})
-		linked.append({"label":"Outlets", "target_id":"section", "target_kind":"world_object", "field_name":"power_source_id", "location":"summary"})
-		linked.append({"label":"Wires / physical circuit", "target_id":"section", "target_kind":"world_object", "field_name":"power_source_id", "location":"summary"})
+		var source_network_id: String = _safe_string(data.get("power_network_id", "")).strip_edges()
 		var outlet_count: int = 0
 		var linked_wire_count: int = 0
 		var linked_light_count: int = 0
 		for object_data in manager.mission_world_objects:
-			var linked_source: String = _safe_string(object_data.get("power_source_id", object_data.get("connected_power_source_id", object_data.get("power_network_id", "")))).strip_edges()
-			if linked_source != source_id:
+			var linked_id: String = _safe_string(object_data.get("id", "")).strip_edges()
+			if linked_id.is_empty() or linked_id == source_id:
+				continue
+			if not _power_source_link_matches(object_data, source_id, source_network_id):
 				continue
 			var linked_type: String = _safe_string(object_data.get("object_type", "")).strip_edges().to_lower()
 			if linked_type == "light":
 				linked_light_count += 1
 			elif linked_type in ["power_socket", "outlet"]:
 				outlet_count += 1
-			elif linked_type == "power_cable":
+			elif linked_type == "power_cable" or linked_type == "power_cable_reel":
 				linked_wire_count += 1
+			linked.append(_map_constructor_make_validation_link(_power_source_link_label_for_type(linked_type), linked_id, "world_object", "power_source_id"))
+		if linked.is_empty():
+			linked.append({"display_is_dictionary": false, "display_text": "No linked objects in this circuit."})
 		var source_class: int = clampi(int(data.get("power_source_class", data.get("source_class", 1))), 1, 3)
 		var outlet_capacity: int = source_class + 3
 		if outlet_count > outlet_capacity:

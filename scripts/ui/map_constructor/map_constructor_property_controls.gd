@@ -119,6 +119,31 @@ static func add_enum_property(ui: Variant, section: VBoxContainer, label: String
 	section.add_child(create_property_row(ui, label, option))
 
 
+
+static func add_enum_updates_property(ui: Variant, section: VBoxContainer, label: String, entity_kind: String, entity_id: String, current_value: Variant, options: Array[Dictionary]) -> void:
+	var option: OptionButton = OptionButton.new()
+	var current_text: String = MapConstructorUiSafe.safe_string(current_value).strip_edges().to_lower()
+	var selected_index: int = -1
+	for option_variant in options:
+		var row: Dictionary = MapConstructorUiSafe.safe_dictionary(option_variant)
+		var value: String = MapConstructorUiSafe.safe_string(row.get("value", "")).strip_edges()
+		option.add_item(MapConstructorUiSafe.safe_string(row.get("label", value), value))
+		var index: int = option.item_count - 1
+		option.set_item_metadata(index, row)
+		if value == current_text:
+			selected_index = index
+	if selected_index >= 0:
+		option.select(selected_index)
+	option.item_selected.connect(func(index: int) -> void:
+		var row: Dictionary = MapConstructorUiSafe.safe_dictionary(option.get_item_metadata(index))
+		var updates: Dictionary = MapConstructorUiSafe.safe_dictionary(row.get("updates", {}))
+		if updates.is_empty() and row.has("field"):
+			updates[MapConstructorUiSafe.safe_string(row.get("field", ""))] = row.get("value", "")
+		if not updates.is_empty():
+			ui._apply_map_constructor_property_updates(entity_kind, entity_id, updates)
+	)
+	section.add_child(create_property_row(ui, label, option))
+
 static func add_int_property(ui: Variant, section: VBoxContainer, label: String, entity_kind: String, entity_id: String, field_name: String, current_value: Variant) -> void:
 	var spin: SpinBox = SpinBox.new()
 	spin.step = 1
