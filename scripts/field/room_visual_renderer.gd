@@ -3534,42 +3534,124 @@ func draw_iso_object_line(cell: Vector2i, profile: Dictionary, visual_center_ove
 		draw_line(line_start, line_end, outline_color, 1.0)
 
 func draw_iso_cable_topology_line(cell: Vector2i, profile: Dictionary, object_data: Dictionary, visual_center_override: Vector2 = Vector2.INF) -> void:
-	var center: Vector2 = grid_to_iso(cell)
+	var visual_center: Vector2 = grid_to_iso(cell)
 	if visual_center_override != Vector2.INF:
-		center = visual_center_override
-	center += Vector2(0.0, -4.0)
-	var cable_z_offset: Vector2 = Vector2(0.0, -4.0)
-	var branch_points: Dictionary = {
-		"north": center.lerp(grid_to_iso(cell + Vector2i(0, -1)) + cable_z_offset, 0.5),
-		"south": center.lerp(grid_to_iso(cell + Vector2i(0, 1)) + cable_z_offset, 0.5),
-		"west": center.lerp(grid_to_iso(cell + Vector2i(-1, 0)) + cable_z_offset, 0.5),
-		"east": center.lerp(grid_to_iso(cell + Vector2i(1, 0)) + cable_z_offset, 0.5)
-	}
+		visual_center = visual_center_override
 	var topology: Dictionary = CableTopologyServiceRef.classify_cell(cell, _get_runtime_world_objects_for_iso_render(), object_data)
+	draw_iso_cable_segment_shape(cell, topology, profile, visual_center)
+
+func draw_iso_cable_segment_shape(cell: Vector2i, topology: Dictionary, profile: Dictionary, visual_center: Vector2) -> void:
+	var cable_center: Vector2 = visual_center + Vector2(0.0, -4.0)
 	var shape: String = str(topology.get("shape", "isolated"))
 	var neighbors: Dictionary = Dictionary(topology.get("neighbors", {}))
-	var base_color: Color = _get_color_from_dict(profile, "base", Color.WHITE)
-	var accent_color: Color = _get_color_from_dict(profile, "accent", Color.WHITE)
-	var outline_color: Color = _get_color_from_dict(profile, "outline", Color.WHITE)
-	if not bool(topology.get("valid", true)):
-		base_color = Color(1.0, 0.25, 0.08, 0.98)
-		accent_color = Color(1.0, 0.82, 0.15, 0.98)
-		outline_color = Color(0.45, 0.04, 0.02, 0.98)
+	var has_switch: bool = bool(topology.get("has_circuit_switch", false))
+	var valid: bool = bool(topology.get("valid", true))
 	var active_dirs: Array[String] = []
 	for direction in ["north", "south", "west", "east"]:
 		if bool(neighbors.get(direction, false)):
 			active_dirs.append(direction)
+
+	var base_color: Color = _get_color_from_dict(profile, "base", Color.WHITE)
+	var accent_color: Color = _get_color_from_dict(profile, "accent", Color.WHITE)
+	var outline_color: Color = _get_color_from_dict(profile, "outline", Color.WHITE)
+	if not valid:
+		base_color = Color(1.0, 0.25, 0.08, 0.98)
+		accent_color = Color(1.0, 0.82, 0.15, 0.98)
+		outline_color = Color(0.45, 0.04, 0.02, 0.98)
+	var cable_profile: Dictionary = profile.duplicate()
+	cable_profile["base"] = base_color
+	cable_profile["accent"] = accent_color
+	cable_profile["outline"] = outline_color
+
 	if active_dirs.is_empty():
-		active_dirs.append("east")
-		active_dirs.append("west")
-	for direction in active_dirs:
-		var endpoint: Vector2 = Vector2(branch_points.get(direction, center))
-		draw_line(center, endpoint, base_color, 3.5)
-		draw_line(center, endpoint.lerp(center, 0.12), accent_color, 1.5)
-	draw_circle(center, 3.2 if shape.begins_with("junction") or shape.begins_with("invalid") else 2.1, accent_color)
-	if debug_draw_iso_object_outlines or not bool(topology.get("valid", true)):
+		var isolated_half_width: float = maxf(get_iso_tile_half_size().x * 0.12, 7.0)
+		var isolated_start: Vector2 = cable_center + Vector2(-isolated_half_width, 0.0)
+		var isolated_end: Vector2 = cable_center + Vector2(isolated_half_width, 0.0)
+		draw_line(isolated_start + Vector2(0.0, 2.0), isolated_end + Vector2(0.0, 2.0), Color(0.03, 0.02, 0.02, 0.28), 7.0, true)
+		draw_line(isolated_start, isolated_end, outline_color, 6.0, true)
+		draw_line(isolated_start, isolated_end, base_color.darkened(0.08), 4.0, true)
+		draw_circle(cable_center, 4.5, accent_color)
+		draw_arc(cable_center, 7.0, 0.0, PI * 2.0, 20, outline_color, 1.4, true)
+		return
+
+	if active_dirs.size() == 2 and not shape.begins_with("junction") and not shape.begins_with("invalid"):
+		if (active_dirs.has("east") and active_dirs.has("west")) or (active_dirs.has("north") and active_dirs.has("south")):
+			_draw_iso_cable_polyline([_get_iso_cable_branch_endpoint_for_visual_center(cell, active_dirs[0], cable_center), _get_iso_cable_branch_endpoint_for_visual_center(cell, active_dirs[1], cable_center)], cable_profile)
+		else:
+			draw_iso_cable_elbow(cable_center, active_dirs[0], active_dirs[1], cable_profile)
+	else:
 		for direction in active_dirs:
-			draw_line(center, Vector2(branch_points.get(direction, center)), outline_color, 1.0)
+			_draw_iso_cable_polyline([cable_center, _get_iso_cable_branch_endpoint_for_visual_center(cell, direction, cable_center)], cable_profile)
+
+	if active_dirs.size() == 1 and not has_switch:
+		draw_iso_cable_endpoint_cap(_get_iso_cable_branch_endpoint_for_visual_center(cell, active_dirs[0], cable_center), active_dirs[0], accent_color)
+	if not valid:
+		draw_iso_cable_invalid_marker(cable_center, shape)
+	elif shape.begins_with("junction") and not has_switch:
+		draw_circle(cable_center, 3.6, accent_color)
+	if debug_draw_iso_object_outlines:
+		for direction in active_dirs:
+			draw_line(cable_center, _get_iso_cable_branch_endpoint_for_visual_center(cell, direction, cable_center), outline_color, 1.0, true)
+
+func _draw_iso_cable_polyline(points: Array[Vector2], profile: Dictionary) -> void:
+	if points.size() < 2:
+		return
+	var packed_points: PackedVector2Array = PackedVector2Array(points)
+	var shadow_points: PackedVector2Array = PackedVector2Array()
+	for point in points:
+		shadow_points.append(point + Vector2(0.0, 2.0))
+	var base_color: Color = _get_color_from_dict(profile, "base", Color.WHITE)
+	var accent_color: Color = _get_color_from_dict(profile, "accent", Color.WHITE)
+	var outline_color: Color = _get_color_from_dict(profile, "outline", Color.WHITE)
+	draw_polyline(shadow_points, Color(0.03, 0.02, 0.02, 0.28), 7.0, true)
+	draw_polyline(packed_points, outline_color, 6.0, true)
+	draw_polyline(packed_points, base_color, 4.0, true)
+	draw_polyline(packed_points, accent_color, 1.5, true)
+
+func draw_iso_cable_endpoint_cap(center: Vector2, direction: String, color: Color) -> void:
+	var dir_vector: Vector2 = _get_iso_cable_screen_direction(direction).normalized()
+	var normal: Vector2 = Vector2(-dir_vector.y, dir_vector.x).normalized()
+	var outline_color: Color = Color(0.1, 0.03, 0.02, 0.95)
+	draw_line(center - normal * 5.0 + dir_vector * 1.0, center + normal * 5.0 + dir_vector * 1.0, outline_color, 4.4, true)
+	draw_line(center - normal * 4.0 + dir_vector * 1.0, center + normal * 4.0 + dir_vector * 1.0, color, 2.2, true)
+	draw_line(center, center + dir_vector * 5.0, color.lightened(0.18), 1.2, true)
+
+func draw_iso_cable_elbow(center: Vector2, dir_a: String, dir_b: String, profile: Dictionary) -> void:
+	var endpoint_a: Vector2 = center + _get_iso_cable_screen_direction(dir_a) * 0.5
+	var endpoint_b: Vector2 = center + _get_iso_cable_screen_direction(dir_b) * 0.5
+	_draw_iso_cable_polyline([endpoint_a, center, endpoint_b], profile)
+	var base_color: Color = _get_color_from_dict(profile, "base", Color.WHITE)
+	var accent_color: Color = _get_color_from_dict(profile, "accent", Color.WHITE)
+	draw_circle(center, 2.7, base_color)
+	draw_circle(center + Vector2(0.0, -0.4), 1.2, accent_color)
+
+func draw_iso_cable_invalid_marker(center: Vector2, shape: String) -> void:
+	var marker_radius: float = 7.0 if shape == "invalid_cross" else 6.0
+	draw_circle(center + Vector2(0.0, -1.0), marker_radius, Color(0.44, 0.04, 0.02, 0.96))
+	draw_line(center + Vector2(-marker_radius * 0.55, -marker_radius * 0.55 - 1.0), center + Vector2(marker_radius * 0.55, marker_radius * 0.55 - 1.0), Color(1.0, 0.82, 0.15, 0.98), 2.2, true)
+	draw_line(center + Vector2(marker_radius * 0.55, -marker_radius * 0.55 - 1.0), center + Vector2(-marker_radius * 0.55, marker_radius * 0.55 - 1.0), Color(1.0, 0.82, 0.15, 0.98), 2.2, true)
+
+func get_iso_cable_branch_endpoint(cell: Vector2i, direction: String) -> Vector2:
+	return grid_to_iso(cell) + Vector2(0.0, -4.0) + _get_iso_cable_screen_direction(direction) * 0.5
+
+func _get_iso_cable_branch_endpoint_for_visual_center(cell: Vector2i, direction: String, cable_center: Vector2) -> Vector2:
+	# Keep preview and final cable cells on the same topology-aware drawing path while
+	# preserving any grounded visual-center offset supplied by object preview code.
+	var default_center: Vector2 = grid_to_iso(cell) + Vector2(0.0, -4.0)
+	return cable_center + (get_iso_cable_branch_endpoint(cell, direction) - default_center)
+
+func _get_iso_cable_screen_direction(direction: String) -> Vector2:
+	match direction:
+		"north":
+			return grid_to_iso(Vector2i(0, -1)) - grid_to_iso(Vector2i.ZERO)
+		"south":
+			return grid_to_iso(Vector2i(0, 1)) - grid_to_iso(Vector2i.ZERO)
+		"west":
+			return grid_to_iso(Vector2i(-1, 0)) - grid_to_iso(Vector2i.ZERO)
+		"east":
+			return grid_to_iso(Vector2i(1, 0)) - grid_to_iso(Vector2i.ZERO)
+		_:
+			return Vector2.RIGHT
 
 func draw_iso_object_heat_marker(cell: Vector2i, profile: Dictionary, visual_center_override: Vector2 = Vector2.INF) -> void:
 	var center: Vector2 = grid_to_iso(cell)
@@ -3998,7 +4080,12 @@ func draw_iso_object_marker(cell: Vector2i, tile_type: int, override_object_data
 		profile["base"] = _blend_color(_get_color_from_dict(profile, "base", Color.WHITE), Color(terminal_visual.get("tint", Color.WHITE)), 0.45)
 		profile["accent"] = Color(terminal_visual.get("accent", _get_color_from_dict(profile, "accent", Color.WHITE)))
 	var overlay_accent: Color = _get_color_from_dict(profile, "accent", Color(0.72, 0.78, 0.86, 0.95))
-	var used_texture_asset: bool = draw_iso_texture_asset(cell, object_asset_key, visual_center)
+	# Topology-aware cable cells are rendered procedurally below so placed and preview
+	# cables share one continuous visual language instead of falling back to the old
+	# per-cell cable icon/marker texture.
+	var used_texture_asset: bool = false
+	if profile_key != "cable":
+		used_texture_asset = draw_iso_texture_asset(cell, object_asset_key, visual_center)
 	if not used_texture_asset and has_door_visual:
 		used_texture_asset = draw_optional_visual_texture_asset(str(door_visual.get("texture_asset_id", "")), cell, "draw_iso_object_marker", {"visual_center": visual_center})
 	if not used_texture_asset and has_terminal_visual:
