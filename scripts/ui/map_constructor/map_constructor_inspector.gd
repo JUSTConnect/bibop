@@ -60,6 +60,51 @@ static func clear(ui: Variant) -> void:
 	ui.runtime_map_constructor_inspector_scroll = null
 
 
+static func _get_normalized_object_type(ui: Variant, data: Dictionary) -> String:
+	var object_type: String = ui._safe_ui_string(data.get("object_type", data.get("item_type", "item")), "item").strip_edges().to_lower()
+	if object_type.begins_with("power_source"):
+		return "power_source"
+	if object_type == "power_cable_reel":
+		return "power_cable"
+	return object_type
+
+
+static func _get_normalized_object_class(ui: Variant, data: Dictionary, type_group: String) -> String:
+	var object_type: String = _get_normalized_object_type(ui, data)
+	if object_type == "power_source":
+		var source_class: String = ui._safe_ui_string(data.get("power_source_class", data.get("source_class", ""))).strip_edges()
+		if source_class.is_empty():
+			var raw_type: String = ui._safe_ui_string(data.get("object_type", "")).strip_edges().to_lower()
+			if raw_type.ends_with("_1"):
+				source_class = "1"
+			elif raw_type.ends_with("_2"):
+				source_class = "2"
+			elif raw_type.ends_with("_3"):
+				source_class = "3"
+		return "C%s" % source_class if not source_class.is_empty() else ""
+	for class_field in ["object_class", "door_class", "terminal_class", "item_class"]:
+		if data.has(class_field):
+			var class_value: String = ui._safe_ui_string(data.get(class_field, "")).strip_edges()
+			if not class_value.is_empty() and class_value.to_lower() != object_type:
+				return class_value
+	return "" if type_group == object_type or type_group == "generic" else type_group
+
+
+static func _get_power_health_state(data: Dictionary) -> String:
+	var state: String = MapConstructorUiSafe.safe_string(data.get("state", "")).strip_edges().to_lower()
+	if bool(data.get("broken", false)) or state == "broken":
+		return "broken"
+	if bool(data.get("damaged", false)) or state == "damaged":
+		return "damaged"
+	return "normal"
+
+
+static func _get_cable_install_type(data: Dictionary) -> String:
+	if bool(data.get("is_hidden", false)):
+		return "hidden"
+	return MapConstructorUiSafe.safe_string(data.get("route_surface", "floor"), "floor").strip_edges().to_lower()
+
+
 static func refresh(ui: Variant, cell: Vector2i, preferred_entity_kind: String = "", preferred_entity_id: String = "") -> void:
 	var previous_entity_kind: String = ui.selected_map_constructor_entity_kind
 	var previous_entity_id: String = ui.selected_map_constructor_entity_id
@@ -104,28 +149,28 @@ static func refresh(ui: Variant, cell: Vector2i, preferred_entity_kind: String =
 	var id_label: Label = Label.new(); id_label.text = entity_id; identity.add_child(ui._create_property_row("ID", id_label))
 	ui._add_text_property(identity, "Name", entity_kind, entity_id, "display_name", data.get("display_name", ""))
 	ui._add_map_constructor_description_editor(identity, data, entity_kind, entity_id)
-	var type_label: Label = Label.new(); type_label.text = ui._safe_ui_string(data.get("object_type", data.get("item_type", "item")), "item"); identity.add_child(ui._create_property_row("Object type", type_label))
-	var class_tokens: Array[String] = []
-	for class_field in ["object_class", "door_class", "terminal_class", "power_source_class", "category", "subcategory"]:
-		if data.has(class_field) and not ui._safe_ui_string(data.get(class_field, "")).strip_edges().is_empty():
-			class_tokens.append("%s=%s" % [class_field, ui._safe_ui_string(data.get(class_field, ""))])
-	var class_text: String = type_group
-	if not class_tokens.is_empty():
-		class_text = ""
-		for class_index in range(class_tokens.size()):
-			if class_index > 0:
-				class_text += ", "
-			class_text += class_tokens[class_index]
-	var class_label: Label = Label.new(); class_label.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART; class_label.text = class_text
-	identity.add_child(ui._create_property_row("Object class", class_label))
+	var normalized_object_type: String = _get_normalized_object_type(ui, data)
+	var type_label: Label = Label.new(); type_label.text = normalized_object_type; identity.add_child(ui._create_property_row("Object type", type_label))
+	var class_text: String = _get_normalized_object_class(ui, data, type_group)
+	if not class_text.is_empty():
+		var class_label: Label = Label.new(); class_label.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART; class_label.text = class_text
+		identity.add_child(ui._create_property_row("Object class", class_label))
 	v.add_child(identity)
 	var current_status: VBoxContainer = ui._create_inspector_section("2. Current Status")
-	var state_label: Label = Label.new(); state_label.text = ui._safe_ui_string(data.get("state", "(none)"), "(none)"); current_status.add_child(ui._create_property_row("state", state_label))
-	for status_field in ["is_open", "is_closed", "is_locked", "is_powered", "damaged", "broken", "blocks_movement"]:
-		if data.has(status_field):
-			var status_value_label: Label = Label.new()
-			status_value_label.text = ui._safe_ui_string(data.get(status_field, ""))
-			current_status.add_child(ui._create_property_row(status_field, status_value_label))
+	if type_group == "power":
+		if normalized_object_type == "power_cable":
+			var install_label: Label = Label.new(); install_label.text = _get_cable_install_type(data); current_status.add_child(ui._create_property_row("Cable install type", install_label))
+		var power_state_label: Label = Label.new(); power_state_label.text = "powered" if bool(data.get("is_powered", false)) else "unpowered"; current_status.add_child(ui._create_property_row("Power state", power_state_label))
+		if data.has("is_on") or normalized_object_type == "power_source":
+			var active_label: Label = Label.new(); active_label.text = "off" if ui._safe_ui_string(data.get("state", "on")).strip_edges().to_lower() == "off" or not bool(data.get("is_on", true)) else "on"; current_status.add_child(ui._create_property_row("Active state", active_label))
+		var health_label: Label = Label.new(); health_label.text = _get_power_health_state(data); current_status.add_child(ui._create_property_row("Health state", health_label))
+	else:
+		var state_label: Label = Label.new(); state_label.text = ui._safe_ui_string(data.get("state", "(none)"), "(none)"); current_status.add_child(ui._create_property_row("state", state_label))
+		for status_field in ["is_open", "is_closed", "is_locked", "is_powered", "damaged", "broken", "blocks_movement"]:
+			if data.has(status_field):
+				var status_value_label: Label = Label.new()
+				status_value_label.text = ui._safe_ui_string(data.get(status_field, ""))
+				current_status.add_child(ui._create_property_row(status_field, status_value_label))
 	if entity_kind == "world_object" and type_group == "door" and ui.mission_manager_runtime.has_method("get_map_constructor_door_visual_state"):
 		var door_visual: Dictionary = ui._safe_ui_dictionary(ui.mission_manager_runtime.call("get_map_constructor_door_visual_state", entity_id))
 		var door_visual_label: Label = Label.new(); door_visual_label.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
@@ -166,11 +211,12 @@ static func refresh(ui: Variant, cell: Vector2i, preferred_entity_kind: String =
 	var object_is_configurable: bool = bool(data.get("configurable", true))
 	var object_archetype_id: String = ui._safe_ui_string(data.get("archetype_id", "")).strip_edges()
 	if object_is_configurable and object_archetype_id.is_empty():
-		ui._add_preset_buttons(configurable, entity_kind, entity_id)
+		if not (type_group == "power" and normalized_object_type in ["power_source", "power_cable"]):
+			ui._add_preset_buttons(configurable, entity_kind, entity_id)
 	var rendered_archetype_schema: bool = ui._add_archetype_schema_properties(configurable, entity_kind, entity_id, data) if object_is_configurable else false
 	if object_is_configurable and not rendered_archetype_schema:
 		ui._add_map_constructor_active_settings(configurable, entity_kind, entity_id, data, type_group)
-	if type_group == "control" or data.has("requires_external_control"):
+	if (type_group == "control" or data.has("requires_external_control")) and normalized_object_type != "power_source":
 		ui._add_bool_property(configurable, "requires_external_control", entity_kind, entity_id, "requires_external_control", data.get("requires_external_control", false))
 	var inspector_object_type: String = ui._safe_ui_string(data.get("object_type", "")).to_lower()
 	var uses_dedicated_power_state_selector: bool = type_group == "power" and (inspector_object_type.begins_with("power_source") or inspector_object_type in ["power_cable", "power_cable_reel"])
@@ -180,24 +226,22 @@ static func refresh(ui: Variant, cell: Vector2i, preferred_entity_kind: String =
 		ui._add_bool_property(configurable, "damaged", entity_kind, entity_id, "damaged", data.get("damaged", false))
 		ui._add_bool_property(configurable, "encrypted", entity_kind, entity_id, "encrypted", data.get("encrypted", false))
 	if type_group == "power":
-		var power_object_type: String = ui._safe_ui_string(data.get("object_type", "")).to_lower()
-		if power_object_type.begins_with("power_source"):
-			var source_state_options: Array[Dictionary] = [{"label":"On", "value":"on"}, {"label":"Off", "value":"off"}, {"label":"Damaged", "value":"damaged"}, {"label":"Broken", "value":"broken"}]
-			ui._add_enum_property(configurable, "Source state", entity_kind, entity_id, "state", data.get("state", "on"), source_state_options)
-			var source_class_options: Array[Dictionary] = [{"label":"Class 1 (4 outlets)", "value":"1"}, {"label":"Class 2 (5 outlets)", "value":"2"}, {"label":"Class 3 (6 outlets)", "value":"3"}]
+		var power_object_type: String = normalized_object_type
+		if power_object_type == "power_source":
+			var source_active_state: String = "off" if ui._safe_ui_string(data.get("state", "on")).strip_edges().to_lower() == "off" else "on"
+			MapConstructorPropertyControls.add_enum_updates_property(ui, configurable, "Active state", entity_kind, entity_id, source_active_state, [{"label":"On", "value":"on", "updates":{"state":"on"}}, {"label":"Off", "value":"off", "updates":{"state":"off"}}])
+			MapConstructorPropertyControls.add_enum_updates_property(ui, configurable, "Health state", entity_kind, entity_id, _get_power_health_state(data), [{"label":"Normal", "value":"normal", "updates":{"state":"on", "damaged":false}}, {"label":"Damaged", "value":"damaged", "updates":{"state":"damaged", "damaged":true}}, {"label":"Broken", "value":"broken", "updates":{"state":"broken", "damaged":true}}])
+			var source_class_options: Array[Dictionary] = [{"label":"C1 (4 outlets)", "value":"1"}, {"label":"C2 (5 outlets)", "value":"2"}, {"label":"C3 (6 outlets)", "value":"3"}]
 			ui._add_enum_property(configurable, "Source class", entity_kind, entity_id, "power_source_class", data.get("power_source_class", 1), source_class_options)
 		elif power_object_type == "power_cable" or power_object_type == "power_cable_reel":
-			var wire_state_options: Array[Dictionary] = [{"label":"Powered", "value":"ok"}, {"label":"Cut", "value":"cut"}, {"label":"Damaged", "value":"damaged"}, {"label":"Broken", "value":"broken"}]
-			ui._add_enum_property(configurable, "Wire state", entity_kind, entity_id, "state", data.get("state", "ok"), wire_state_options)
-			ui._add_bool_property(configurable, "Hidden installation", entity_kind, entity_id, "is_hidden", data.get("is_hidden", false))
-			var route_surface_options: Array[Dictionary] = [{"label":"Floor", "value":"floor"}, {"label":"Wall", "value":"wall"}]
-			ui._add_enum_property(configurable, "Route surface", entity_kind, entity_id, "route_surface", data.get("route_surface", "floor"), route_surface_options)
+			MapConstructorPropertyControls.add_enum_updates_property(ui, configurable, "Cable install type", entity_kind, entity_id, _get_cable_install_type(data), [{"label":"Floor", "value":"floor", "updates":{"route_surface":"floor", "is_hidden":false}}, {"label":"Wall", "value":"wall", "updates":{"route_surface":"wall", "is_hidden":false}}, {"label":"Hidden", "value":"hidden", "updates":{"route_surface":"floor", "is_hidden":true}}])
+			MapConstructorPropertyControls.add_enum_updates_property(ui, configurable, "Health state", entity_kind, entity_id, _get_power_health_state(data), [{"label":"Normal", "value":"normal", "updates":{"state":"ok", "damaged":false}}, {"label":"Damaged", "value":"damaged", "updates":{"state":"damaged", "damaged":true}}, {"label":"Broken", "value":"broken", "updates":{"state":"broken", "damaged":true}}])
+			MapConstructorPropertyControls.add_enum_updates_property(ui, configurable, "Power state", entity_kind, entity_id, "powered" if bool(data.get("is_powered", false)) else "unpowered", [{"label":"Powered", "value":"powered", "updates":{"is_powered":true}}, {"label":"Unpowered", "value":"unpowered", "updates":{"is_powered":false}}])
 		elif power_object_type == "light":
 			ui._add_text_property(configurable, "Brightness", entity_kind, entity_id, "brightness", data.get("brightness", "1.0"))
 			ui._add_text_property(configurable, "Color", entity_kind, entity_id, "color", data.get("color", "#ffffff"))
-		ui._add_bool_property(configurable, "is_powered", entity_kind, entity_id, "is_powered", data.get("is_powered", false))
-		ui._add_bool_property(configurable, "damaged", entity_kind, entity_id, "damaged", data.get("damaged", false))
-		ui._add_bool_property(configurable, "broken", entity_kind, entity_id, "broken", data.get("broken", false))
+			MapConstructorPropertyControls.add_enum_updates_property(ui, configurable, "Power state", entity_kind, entity_id, "powered" if bool(data.get("is_powered", false)) else "unpowered", [{"label":"Powered", "value":"powered", "updates":{"is_powered":true}}, {"label":"Unpowered", "value":"unpowered", "updates":{"is_powered":false}}])
+			MapConstructorPropertyControls.add_enum_updates_property(ui, configurable, "Health state", entity_kind, entity_id, _get_power_health_state(data), [{"label":"Normal", "value":"normal", "updates":{"damaged":false}}, {"label":"Damaged", "value":"damaged", "updates":{"damaged":true}}, {"label":"Broken", "value":"broken", "updates":{"state":"broken", "damaged":true}}])
 	if type_group == "item":
 		var item_type_label: Label = Label.new()
 		item_type_label.text = ui._safe_ui_string(data.get("item_type", data.get("object_type", "item")), "item")
