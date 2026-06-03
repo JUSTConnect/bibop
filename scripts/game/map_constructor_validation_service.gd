@@ -642,6 +642,8 @@ func get_map_constructor_validation_issues() -> Array[Dictionary]:
 		var cable_topology: Dictionary = CableTopologyServiceRef.classify_cell(cable_cell, manager.mission_world_objects)
 		if not bool(cable_topology.get("valid", true)):
 			issues.append(_make_map_constructor_issue("cable_junction_requires_switch_%d_%d" % [cable_cell.x, cable_cell.y], "error", CableTopologyServiceRef.ERROR_MESSAGE_JUNCTION_REQUIRES_SWITCH, cable_cell, source_name, "world_object", "", "Place a circuit switch on the junction cell or remove an extra cable branch."))
+		elif not str(cable_topology.get("message", "")).is_empty():
+			issues.append(_make_map_constructor_issue("cable_extra_branch_skipped_%d_%d" % [cable_cell.x, cable_cell.y], "warning", str(cable_topology.get("message", CableTopologyServiceRef.WARNING_MESSAGE_EXTRA_BRANCH_SKIPPED)), cable_cell, source_name, "world_object", "", "Use a circuit switch if this cable should branch."))
 	# validate explicit manager.cell_items map
 	for cell_variant in manager.cell_items.keys():
 		var item_cell: Vector2i = manager._deserialize_cell_variant(cell_variant)

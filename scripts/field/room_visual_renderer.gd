@@ -3543,12 +3543,13 @@ func draw_iso_cable_topology_line(cell: Vector2i, profile: Dictionary, object_da
 func draw_iso_cable_segment_shape(cell: Vector2i, topology: Dictionary, profile: Dictionary, visual_center: Vector2) -> void:
 	var cable_center: Vector2 = visual_center + Vector2(0.0, -4.0)
 	var shape: String = str(topology.get("shape", "isolated"))
-	var neighbors: Dictionary = Dictionary(topology.get("neighbors", {}))
+	var connected_dirs: Dictionary = Dictionary(topology.get("connected_dirs", topology.get("neighbors", {})))
+	var object_links: Dictionary = Dictionary(topology.get("object_links", {}))
 	var has_switch: bool = bool(topology.get("has_circuit_switch", false))
 	var valid: bool = bool(topology.get("valid", true))
 	var active_dirs: Array[String] = []
 	for direction in ["north", "south", "west", "east"]:
-		if bool(neighbors.get(direction, false)):
+		if bool(connected_dirs.get(direction, false)):
 			active_dirs.append(direction)
 
 	var base_color: Color = _get_color_from_dict(profile, "base", Color.WHITE)
@@ -3572,6 +3573,7 @@ func draw_iso_cable_segment_shape(cell: Vector2i, topology: Dictionary, profile:
 		draw_line(isolated_start, isolated_end, base_color.darkened(0.08), 4.0, true)
 		draw_circle(cable_center, 4.5, accent_color)
 		draw_arc(cable_center, 7.0, 0.0, PI * 2.0, 20, outline_color, 1.4, true)
+		draw_iso_cable_object_links(cell, object_links, cable_center, cable_profile)
 		return
 
 	if active_dirs.size() == 2 and not shape.begins_with("junction") and not shape.begins_with("invalid"):
@@ -3583,6 +3585,7 @@ func draw_iso_cable_segment_shape(cell: Vector2i, topology: Dictionary, profile:
 		for direction in active_dirs:
 			_draw_iso_cable_polyline([cable_center, _get_iso_cable_branch_endpoint_for_visual_center(cell, direction, cable_center)], cable_profile)
 
+	draw_iso_cable_object_links(cell, object_links, cable_center, cable_profile)
 	if active_dirs.size() == 1 and not has_switch:
 		draw_iso_cable_endpoint_cap(_get_iso_cable_branch_endpoint_for_visual_center(cell, active_dirs[0], cable_center), active_dirs[0], accent_color)
 	if not valid:
@@ -3592,6 +3595,25 @@ func draw_iso_cable_segment_shape(cell: Vector2i, topology: Dictionary, profile:
 	if debug_draw_iso_object_outlines:
 		for direction in active_dirs:
 			draw_line(cable_center, _get_iso_cable_branch_endpoint_for_visual_center(cell, direction, cable_center), outline_color, 1.0, true)
+
+func draw_iso_cable_object_links(_cell: Vector2i, object_links: Dictionary, cable_center: Vector2, profile: Dictionary) -> void:
+	if object_links.is_empty():
+		return
+	var base_color: Color = _get_color_from_dict(profile, "base", Color.WHITE).lightened(0.12)
+	var accent_color: Color = _get_color_from_dict(profile, "accent", Color.WHITE)
+	var outline_color: Color = _get_color_from_dict(profile, "outline", Color.WHITE)
+	for direction_variant in object_links.keys():
+		var direction: String = str(direction_variant)
+		var dir_vector: Vector2 = _get_iso_cable_screen_direction(direction).normalized()
+		if dir_vector == Vector2.ZERO:
+			continue
+		var tile_dir_length: float = _get_iso_cable_screen_direction(direction).length()
+		var link_start: Vector2 = cable_center + dir_vector * minf(tile_dir_length * 0.18, 12.0)
+		var link_end: Vector2 = cable_center + dir_vector * minf(tile_dir_length * 0.34, 22.0)
+		draw_line(link_start + Vector2(0.0, 1.3), link_end + Vector2(0.0, 1.3), Color(0.03, 0.02, 0.02, 0.22), 4.0, true)
+		draw_line(link_start, link_end, outline_color, 3.0, true)
+		draw_line(link_start, link_end, base_color, 1.9, true)
+		draw_circle(link_end, 2.3, accent_color)
 
 func _draw_iso_cable_polyline(points: Array[Vector2], profile: Dictionary) -> void:
 	if points.size() < 2:
