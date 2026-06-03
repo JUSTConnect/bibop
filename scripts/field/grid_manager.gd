@@ -310,7 +310,7 @@ func _draw() -> void:
 			if fog_enabled:
 				draw_fog_for_cell(grid_position, rect)
 			if world_overlay_markers.has(grid_position) and is_cell_visible(grid_position):
-				_draw_world_overlay_marker(rect, String(world_overlay_markers[grid_position]))
+				_draw_world_overlay_marker(rect, str(world_overlay_markers[grid_position]))
 
 func _draw_world_overlay_marker(rect: Rect2, marker: String) -> void:
 	if marker.is_empty():
@@ -410,8 +410,8 @@ func set_floor_visual_state(cell: Vector2i, state: Dictionary) -> void:
 		push_error("GridManager: cannot set floor state outside map bounds: " + str(cell))
 		return
 	floor_visual_states[_get_floor_state_key(cell)] = make_floor_visual_state(
-		String(state.get("family", FLOOR_FAMILY_METAL)),
-		String(state.get("wear", FLOOR_WEAR_NONE)),
+		str(state.get("family", FLOOR_FAMILY_METAL)),
+		str(state.get("wear", FLOOR_WEAR_NONE)),
 		int(state.get("base_variant", -1)),
 		int(state.get("overlay_variant", -1)),
 		bool(state.get("mirror_h", false)),
@@ -436,7 +436,7 @@ func get_floor_visual_state_overrides() -> Array[Dictionary]:
 	var keys: Array = floor_visual_states.keys()
 	keys.sort()
 	for key_variant in keys:
-		var key: String = String(key_variant)
+		var key: String = str(key_variant)
 		var parts: PackedStringArray = key.split(",")
 		if parts.size() != 2:
 			continue
@@ -447,8 +447,8 @@ func get_floor_visual_state_overrides() -> Array[Dictionary]:
 		if state.is_empty():
 			continue
 		var row: Dictionary = make_floor_visual_state(
-			String(state.get("family", FLOOR_FAMILY_METAL)),
-			String(state.get("wear", FLOOR_WEAR_NONE)),
+			str(state.get("family", FLOOR_FAMILY_METAL)),
+			str(state.get("wear", FLOOR_WEAR_NONE)),
 			int(state.get("base_variant", -1)),
 			int(state.get("overlay_variant", -1)),
 			bool(state.get("mirror_h", false)),
@@ -463,33 +463,33 @@ func clear_floor_visual_states() -> void:
 	request_visual_refresh()
 
 func get_floor_family_for_cell(cell: Vector2i) -> String:
-	return String(get_floor_visual_state(cell).get("family", FLOOR_FAMILY_METAL))
+	return str(get_floor_visual_state(cell).get("family", FLOOR_FAMILY_METAL))
 
 func get_floor_wear_for_cell(cell: Vector2i) -> String:
-	return String(get_floor_visual_state(cell).get("wear", FLOOR_WEAR_NONE))
+	return str(get_floor_visual_state(cell).get("wear", FLOOR_WEAR_NONE))
 
 func is_wheeled_gear_module(gear: BipobModule) -> bool:
 	if gear == null:
 		return false
-	var movement_type: String = String(gear.movement_type).strip_edges().to_lower()
+	var movement_type: String = str(gear.movement_type).strip_edges().to_lower()
 	if movement_type in ["wheel", "wheels", "wheeled"]:
 		return true
 	if not movement_type.is_empty() and movement_type in ["leg", "legs", "tracked", "track", "tracks", "hover", "walker"]:
 		return false
-	var terrain_type: String = String(gear.terrain_type).strip_edges().to_lower()
+	var terrain_type: String = str(gear.terrain_type).strip_edges().to_lower()
 	if terrain_type in ["wheel", "wheels", "wheeled"]:
 		return true
 	var tags_variant: Variant = gear.get("tags")
 	if tags_variant is Array:
 		for tag_variant in Array(tags_variant):
-			var tag: String = String(tag_variant).strip_edges().to_lower()
+			var tag: String = str(tag_variant).strip_edges().to_lower()
 			if tag in ["wheel", "wheels", "wheeled", "wheeled_gear", "wheeled_chassis"]:
 				return true
 			if tag in ["leg", "legs", "tracked", "tracks", "hover"]:
 				return false
 	var identifiers: Array = [gear.id, gear.module_id, gear.display_name, gear.get_display_name()]
 	for identifier in identifiers:
-		if String(identifier).to_lower().contains("wheel"):
+		if str(identifier).to_lower().contains("wheel"):
 			return true
 	return false
 

@@ -37,22 +37,22 @@ func place_map_constructor_prefab(prefab_id: String, cell: Vector2i, preferred_w
 		if CableTopologyServiceRef.is_cable_object(item_data):
 			var cable_validation: Dictionary = CableTopologyServiceRef.validate_placement(cell, manager.mission_world_objects, item_data)
 			if not bool(cable_validation.get("ok", false)):
-				return {"ok": false, "reason": "invalid_cable_junction", "message": String(cable_validation.get("message", CableTopologyServiceRef.ERROR_MESSAGE_JUNCTION_REQUIRES_SWITCH)), "object_id": "", "warnings": [], "cable_topology": cable_validation}
+				return {"ok": false, "reason": "invalid_cable_junction", "message": str(cable_validation.get("message", CableTopologyServiceRef.ERROR_MESSAGE_JUNCTION_REQUIRES_SWITCH)), "object_id": "", "warnings": [], "cable_topology": cable_validation}
 		manager.add_item_at_cell(cell, item_data)
 		PowerSystemRef.recalculate_network(manager.mission_world_objects, "")
 		manager.refresh_world_cooling_received()
 		result["object_id"] = item_object_id
 		result["is_item"] = true
-		manager._record_map_constructor_change("place", {"entity_kind":"item", "entity_id":item_object_id, "object_type":String(item_data.get("item_type", "item")), "cell":cell, "summary":"Placed %s at %s" % [String(item_data.get("display_name", "Item")), manager._format_map_constructor_cell(cell)], "undo_hint":"Can undo by deleting item."})
+		manager._record_map_constructor_change("place", {"entity_kind":"item", "entity_id":item_object_id, "object_type":str(item_data.get("item_type", "item")), "cell":cell, "summary":"Placed %s at %s" % [str(item_data.get("display_name", "Item")), manager._format_map_constructor_cell(cell)], "undo_hint":"Can undo by deleting item."})
 		return result
 	var canonical_prefab_id: String = WorldObjectCatalogRef.canonical_object_type(prefab_id)
 	var constructor_prefab_defaults: Dictionary = WorldObjectCatalogRef.get_prefab_alias_defaults(prefab_id)
 	var constructor_preview: Dictionary = WorldObjectCatalogRef.create_world_object(prefab_id, "constructor_preview")
-	var requested_door_type: String = String(constructor_preview.get("door_type", constructor_prefab_defaults.get("door_type", "")))
-	var requested_object_group: String = String(constructor_preview.get("object_group", ""))
-	var requested_material: String = String(constructor_preview.get("material", ""))
+	var requested_door_type: String = str(constructor_preview.get("door_type", constructor_prefab_defaults.get("door_type", "")))
+	var requested_object_group: String = str(constructor_preview.get("object_group", ""))
+	var requested_material: String = str(constructor_preview.get("material", ""))
 	var placed_tile_type: int = previous_tile_type
-	if String(constructor_preview.get("replaces_tile_with", "")) == "floor":
+	if str(constructor_preview.get("replaces_tile_with", "")) == "floor":
 		placed_tile_type = GridManager.TILE_FLOOR
 		manager.grid_manager.call("set_tile", cell, placed_tile_type)
 	elif requested_object_group == "wall":
@@ -83,30 +83,30 @@ func place_map_constructor_prefab(prefab_id: String, cell: Vector2i, preferred_w
 		var prefab_meta: Dictionary = manager._safe_dictionary(prefab_meta_result.get("prefab", {}))
 		var prefab_defaults: Dictionary = manager._safe_dictionary(prefab_meta.get("default_state", {}))
 		for default_key in prefab_defaults.keys():
-			object_data[String(default_key)] = prefab_defaults[default_key]
+			object_data[str(default_key)] = prefab_defaults[default_key]
 	object_data = WorldObjectCatalogRef.apply_prefab_alias_defaults(canonical_prefab_id, prefab_id, object_data)
 	object_data = WorldObjectCatalogRef.normalize_world_object_contract(object_data)
 	object_data = WorldObjectCatalogRef.normalize_door_state_fields(object_data)
-	if String(check.get("placement_mode", "")) == "wall_mounted":
+	if str(check.get("placement_mode", "")) == "wall_mounted":
 		var attachment: Dictionary = manager._resolve_wall_mounted_attachment(cell, preferred_wall_side)
 		if not bool(attachment.get("ok", false)):
-			return {"ok": false, "reason": String(attachment.get("reason", "no_adjacent_wall")), "message": String(attachment.get("message", "Blocked: no adjacent wall.")), "object_id": "", "warnings": []}
+			return {"ok": false, "reason": str(attachment.get("reason", "no_adjacent_wall")), "message": str(attachment.get("message", "Blocked: no adjacent wall.")), "object_id": "", "warnings": []}
 		var attached_wall_cell: Vector2i = Vector2i(attachment.get("attached_wall_cell", Vector2i(-1, -1)))
 		if not manager._is_wall_or_boundary_cell(attached_wall_cell):
 			return {"ok": false, "reason": "invalid_wall_attachment", "message": "Blocked: attached wall cell is not wall/boundary.", "object_id": "", "warnings": []}
 		object_data["placement_mode"] = "wall_mounted"
 		object_data["anchor_floor_cell"] = manager._serialize_cell_key(cell)
 		object_data["attached_wall_cell"] = manager._serialize_cell_key(attached_wall_cell)
-		object_data["wall_side"] = String(attachment.get("wall_side", "north"))
+		object_data["wall_side"] = str(attachment.get("wall_side", "north"))
 	if CableTopologyServiceRef.is_cable_object(object_data):
 		var cable_validation: Dictionary = CableTopologyServiceRef.validate_placement(cell, manager.mission_world_objects, object_data)
 		if not bool(cable_validation.get("ok", false)):
-			return {"ok": false, "reason": "invalid_cable_junction", "message": String(cable_validation.get("message", CableTopologyServiceRef.ERROR_MESSAGE_JUNCTION_REQUIRES_SWITCH)), "object_id": "", "warnings": [], "cable_topology": cable_validation}
+			return {"ok": false, "reason": "invalid_cable_junction", "message": str(cable_validation.get("message", CableTopologyServiceRef.ERROR_MESSAGE_JUNCTION_REQUIRES_SWITCH)), "object_id": "", "warnings": [], "cable_topology": cable_validation}
 	object_data = manager._normalize_map_constructor_active_object_fields(object_data)
 	object_data = WorldObjectCatalogRef.normalize_world_object_contract(object_data)
 	object_data = WorldObjectCatalogRef.normalize_door_state_fields(object_data)
 	manager.set_world_object_at_cell(cell, object_data)
-	PowerSystemRef.recalculate_network(manager.mission_world_objects, String(object_data.get("power_network_id", "")))
+	PowerSystemRef.recalculate_network(manager.mission_world_objects, str(object_data.get("power_network_id", "")))
 	manager.refresh_world_cooling_received()
 	result["object_id"] = object_id
 	manager._record_map_constructor_change("place", {"entity_kind":"world_object", "entity_id":object_id, "object_type":canonical_prefab_id, "cell":cell, "summary":"Placed %s at %s" % [prefab_id, manager._format_map_constructor_cell(cell)], "undo_hint":"Can undo by deleting object."})
@@ -119,7 +119,7 @@ func _remove_map_constructor_entity_by_id(entity_kind: String, entity_id: String
 			var items: Array[Dictionary] = manager.get_items_at_cell(cell)
 			for index in range(items.size() - 1, -1, -1):
 				var item_data: Dictionary = items[index]
-				if String(item_data.get("id", "")) != entity_id:
+				if str(item_data.get("id", "")) != entity_id:
 					continue
 				if not bool(item_data.get("created_by_map_constructor", false)):
 					return {"ok": false, "message": "Cannot remove non-constructor item.", "object_id": entity_id, "warnings": []}
@@ -128,7 +128,7 @@ func _remove_map_constructor_entity_by_id(entity_kind: String, entity_id: String
 				manager.mission_world_objects.erase(item_data)
 				PowerSystemRef.recalculate_network(manager.mission_world_objects, "")
 				manager.refresh_world_cooling_received()
-				manager._record_map_constructor_change("delete", {"entity_kind":"item", "entity_id":entity_id, "object_type":String(item_data.get("item_type", item_data.get("object_type", "item"))), "cell":cell, "summary":"Deleted item %s" % entity_id, "undo_hint":"Cannot directly undo; use cleanup/autofix/patch undo systems when applicable."})
+				manager._record_map_constructor_change("delete", {"entity_kind":"item", "entity_id":entity_id, "object_type":str(item_data.get("item_type", item_data.get("object_type", "item"))), "cell":cell, "summary":"Deleted item %s" % entity_id, "undo_hint":"Cannot directly undo; use cleanup/autofix/patch undo systems when applicable."})
 				return {"ok": true, "message": "Removed item.", "object_id": entity_id, "warnings": []}
 		return {"ok": false, "message": "Nothing to remove.", "object_id": "", "warnings": []}
 	var object_data: Dictionary = manager.get_world_object_by_id(entity_id)
@@ -137,7 +137,7 @@ func _remove_map_constructor_entity_by_id(entity_kind: String, entity_id: String
 	if not bool(object_data.get("created_by_map_constructor", false)):
 		return {"ok": false, "message": "Cannot remove non-constructor object.", "object_id": entity_id, "warnings": []}
 	var object_cell: Vector2i = Vector2i(object_data.get("position", Vector2i(-1, -1)))
-	var removed_network_id: String = String(object_data.get("power_network_id", ""))
+	var removed_network_id: String = str(object_data.get("power_network_id", ""))
 	if manager.grid_manager != null and manager.grid_manager.has_method("set_tile"):
 		var restore_tile_type: int = GridManager.TILE_FLOOR
 		if object_data.has("map_constructor_previous_tile_type"):
@@ -146,34 +146,34 @@ func _remove_map_constructor_entity_by_id(entity_kind: String, entity_id: String
 	manager.remove_world_object_at_cell(object_cell)
 	PowerSystemRef.recalculate_network(manager.mission_world_objects, removed_network_id)
 	manager.refresh_world_cooling_received()
-	manager._record_map_constructor_change("delete", {"entity_kind":"world_object", "entity_id":entity_id, "object_type":String(object_data.get("object_type", "")), "cell":object_cell, "summary":"Deleted %s %s" % [String(object_data.get("object_type", "object")), entity_id], "undo_hint":"Cannot directly undo; use cleanup/autofix/patch undo systems when applicable."})
+	manager._record_map_constructor_change("delete", {"entity_kind":"world_object", "entity_id":entity_id, "object_type":str(object_data.get("object_type", "")), "cell":object_cell, "summary":"Deleted %s %s" % [str(object_data.get("object_type", "object")), entity_id], "undo_hint":"Cannot directly undo; use cleanup/autofix/patch undo systems when applicable."})
 	return {"ok": true, "message": "Removed object.", "object_id": entity_id, "warnings": []}
 
 func _clone_map_constructor_entity_data(source_data: Dictionary, target_cell: Vector2i, preferred_wall_side: String, assign_new_id: bool) -> Dictionary:
 	var clone_data: Dictionary = source_data.duplicate(true)
 	if assign_new_id:
-		var prefab_id: String = String(clone_data.get("map_constructor_prefab_id", clone_data.get("object_type", "object")))
+		var prefab_id: String = str(clone_data.get("map_constructor_prefab_id", clone_data.get("object_type", "object")))
 		clone_data["id"] = "mapedit_%s_%d" % [prefab_id, manager._map_constructor_runtime_object_seq]
 		manager._map_constructor_runtime_object_seq += 1
-		if String(clone_data.get("object_type", "")).strip_edges().to_lower().begins_with("power_source"):
-			clone_data["power_network_id"] = "%s_net" % String(clone_data.get("id", "power_source"))
+		if str(clone_data.get("object_type", "")).strip_edges().to_lower().begins_with("power_source"):
+			clone_data["power_network_id"] = "%s_net" % str(clone_data.get("id", "power_source"))
 	clone_data.erase("position")
 	clone_data.erase("anchor_floor_cell")
 	clone_data.erase("attached_wall_cell")
 	clone_data.erase("wall_side")
 	clone_data.erase("map_constructor_previous_tile_type")
 	clone_data["position"] = target_cell
-	if String(clone_data.get("placement_mode", "")) == "wall_mounted":
+	if str(clone_data.get("placement_mode", "")) == "wall_mounted":
 		var resolved_side: String = preferred_wall_side.strip_edges()
 		if resolved_side.is_empty():
-			resolved_side = String(source_data.get("wall_side", ""))
+			resolved_side = str(source_data.get("wall_side", ""))
 		var attachment: Dictionary = manager._resolve_wall_mounted_attachment(target_cell, resolved_side)
 		if not bool(attachment.get("ok", false)):
-			return {"ok": false, "message": String(attachment.get("message", "Blocked: no adjacent wall."))}
+			return {"ok": false, "message": str(attachment.get("message", "Blocked: no adjacent wall."))}
 		clone_data["placement_mode"] = "wall_mounted"
 		clone_data["anchor_floor_cell"] = manager._serialize_cell_key(target_cell)
 		clone_data["attached_wall_cell"] = manager._serialize_cell_key(Vector2i(attachment.get("attached_wall_cell", Vector2i(-1, -1))))
-		clone_data["wall_side"] = String(attachment.get("wall_side", "north"))
+		clone_data["wall_side"] = str(attachment.get("wall_side", "north"))
 	return {"ok": true, "data": clone_data}
 
 func move_map_constructor_entity_to_cell(entity_kind: String, entity_id: String, target_cell: Vector2i, preferred_wall_side: String = "") -> Dictionary:
@@ -184,23 +184,23 @@ func move_map_constructor_entity_to_cell(entity_kind: String, entity_id: String,
 		return {"ok": false, "message": "Move failed: entity not found."}
 	var data: Dictionary = manager._safe_dictionary(entity.get("data", {}))
 	var source_cell: Vector2i = Vector2i(entity.get("cell", Vector2i(-1, -1)))
-	var prefab_id: String = String(data.get("map_constructor_prefab_id", data.get("object_type", "")))
+	var prefab_id: String = str(data.get("map_constructor_prefab_id", data.get("object_type", "")))
 	var place_check: Dictionary = manager.can_place_map_constructor_prefab(prefab_id, target_cell, preferred_wall_side)
 	if not bool(place_check.get("ok", false)):
-		return {"ok": false, "message": String(place_check.get("message", "Move failed."))}
+		return {"ok": false, "message": str(place_check.get("message", "Move failed."))}
 	var clone_result: Dictionary = _clone_map_constructor_entity_data(data, target_cell, preferred_wall_side, false)
 	if not bool(clone_result.get("ok", false)):
-		return {"ok": false, "message": String(clone_result.get("message", "Move failed."))}
+		return {"ok": false, "message": str(clone_result.get("message", "Move failed."))}
 	var cloned_data: Dictionary = manager._safe_dictionary(clone_result.get("data", {}))
-	var remove_result: Dictionary = _remove_map_constructor_entity_by_id(String(entity.get("entity_kind", entity_kind)), entity_id)
+	var remove_result: Dictionary = _remove_map_constructor_entity_by_id(str(entity.get("entity_kind", entity_kind)), entity_id)
 	if not bool(remove_result.get("ok", false)):
-		return {"ok": false, "message": String(remove_result.get("message", "Move failed."))}
-	if entity_kind == "item" or String(entity.get("entity_kind", entity_kind)) == "item":
+		return {"ok": false, "message": str(remove_result.get("message", "Move failed."))}
+	if entity_kind == "item" or str(entity.get("entity_kind", entity_kind)) == "item":
 		manager.add_item_at_cell(target_cell, cloned_data)
 		PowerSystemRef.recalculate_network(manager.mission_world_objects, "")
 		manager.refresh_world_cooling_received()
-		manager._record_map_constructor_change("move", {"entity_kind":"item", "entity_id":String(cloned_data.get("id", "")), "object_type":String(cloned_data.get("item_type", cloned_data.get("object_type", "item"))), "cell":target_cell, "summary":"Moved object %s from %s to %s" % [String(cloned_data.get("id", "")), manager._format_map_constructor_cell(source_cell), manager._format_map_constructor_cell(target_cell)], "details":{"from_cell":source_cell, "to_cell":target_cell}, "undo_hint":"Move back manually."})
-		return {"ok": true, "message": "Moved object.", "object_id": String(cloned_data.get("id", ""))}
+		manager._record_map_constructor_change("move", {"entity_kind":"item", "entity_id":str(cloned_data.get("id", "")), "object_type":str(cloned_data.get("item_type", cloned_data.get("object_type", "item"))), "cell":target_cell, "summary":"Moved object %s from %s to %s" % [str(cloned_data.get("id", "")), manager._format_map_constructor_cell(source_cell), manager._format_map_constructor_cell(target_cell)], "details":{"from_cell":source_cell, "to_cell":target_cell}, "undo_hint":"Move back manually."})
+		return {"ok": true, "message": "Moved object.", "object_id": str(cloned_data.get("id", ""))}
 	var previous_tile_type: int = GridManager.TILE_FLOOR
 	if manager.grid_manager != null and manager.grid_manager.has_method("get_tile"):
 		previous_tile_type = int(manager.grid_manager.call("get_tile", target_cell))
@@ -208,10 +208,10 @@ func move_map_constructor_entity_to_cell(entity_kind: String, entity_id: String,
 	if manager.grid_manager != null and manager.grid_manager.has_method("set_tile"):
 		manager.grid_manager.call("set_tile", target_cell, int(cloned_data.get("map_constructor_tile_type", previous_tile_type)))
 	manager.set_world_object_at_cell(target_cell, cloned_data)
-	PowerSystemRef.recalculate_network(manager.mission_world_objects, String(cloned_data.get("power_network_id", "")))
+	PowerSystemRef.recalculate_network(manager.mission_world_objects, str(cloned_data.get("power_network_id", "")))
 	manager.refresh_world_cooling_received()
-	manager._record_map_constructor_change("move", {"entity_kind":"world_object", "entity_id":String(cloned_data.get("id", "")), "object_type":String(cloned_data.get("object_type", "")), "cell":target_cell, "summary":"Moved object %s from %s to %s" % [String(cloned_data.get("id", "")), manager._format_map_constructor_cell(source_cell), manager._format_map_constructor_cell(target_cell)], "details":{"from_cell":source_cell, "to_cell":target_cell}, "undo_hint":"Move back manually."})
-	return {"ok": true, "message": "Moved object.", "object_id": String(cloned_data.get("id", ""))}
+	manager._record_map_constructor_change("move", {"entity_kind":"world_object", "entity_id":str(cloned_data.get("id", "")), "object_type":str(cloned_data.get("object_type", "")), "cell":target_cell, "summary":"Moved object %s from %s to %s" % [str(cloned_data.get("id", "")), manager._format_map_constructor_cell(source_cell), manager._format_map_constructor_cell(target_cell)], "details":{"from_cell":source_cell, "to_cell":target_cell}, "undo_hint":"Move back manually."})
+	return {"ok": true, "message": "Moved object.", "object_id": str(cloned_data.get("id", ""))}
 
 func duplicate_map_constructor_entity_to_cell(entity_kind: String, entity_id: String, target_cell: Vector2i, preferred_wall_side: String = "") -> Dictionary:
 	if not manager._is_task_test_constructor_context():
@@ -220,20 +220,20 @@ func duplicate_map_constructor_entity_to_cell(entity_kind: String, entity_id: St
 	if not bool(entity.get("ok", false)):
 		return {"ok": false, "message": "Duplicate failed: entity not found."}
 	var data: Dictionary = manager._safe_dictionary(entity.get("data", {}))
-	var prefab_id: String = String(data.get("map_constructor_prefab_id", data.get("object_type", "")))
+	var prefab_id: String = str(data.get("map_constructor_prefab_id", data.get("object_type", "")))
 	var place_check: Dictionary = manager.can_place_map_constructor_prefab(prefab_id, target_cell, preferred_wall_side)
 	if not bool(place_check.get("ok", false)):
-		return {"ok": false, "message": String(place_check.get("message", "Duplicate failed."))}
+		return {"ok": false, "message": str(place_check.get("message", "Duplicate failed."))}
 	var clone_result: Dictionary = _clone_map_constructor_entity_data(data, target_cell, preferred_wall_side, true)
 	if not bool(clone_result.get("ok", false)):
-		return {"ok": false, "message": String(clone_result.get("message", "Duplicate failed."))}
+		return {"ok": false, "message": str(clone_result.get("message", "Duplicate failed."))}
 	var cloned_data: Dictionary = manager._safe_dictionary(clone_result.get("data", {}))
-	if entity_kind == "item" or String(entity.get("entity_kind", entity_kind)) == "item":
+	if entity_kind == "item" or str(entity.get("entity_kind", entity_kind)) == "item":
 		manager.add_item_at_cell(target_cell, cloned_data)
 		PowerSystemRef.recalculate_network(manager.mission_world_objects, "")
 		manager.refresh_world_cooling_received()
-		manager._record_map_constructor_change("duplicate", {"entity_kind":"item", "entity_id":String(cloned_data.get("id", "")), "object_type":String(cloned_data.get("item_type", cloned_data.get("object_type", "item"))), "cell":target_cell, "summary":"Duplicated object %s to %s" % [entity_id, manager._format_map_constructor_cell(target_cell)], "details":{"source_entity_id":entity_id}, "undo_hint":"Can undo by deleting duplicate."})
-		return {"ok": true, "message": "Duplicated object.", "object_id": String(cloned_data.get("id", ""))}
+		manager._record_map_constructor_change("duplicate", {"entity_kind":"item", "entity_id":str(cloned_data.get("id", "")), "object_type":str(cloned_data.get("item_type", cloned_data.get("object_type", "item"))), "cell":target_cell, "summary":"Duplicated object %s to %s" % [entity_id, manager._format_map_constructor_cell(target_cell)], "details":{"source_entity_id":entity_id}, "undo_hint":"Can undo by deleting duplicate."})
+		return {"ok": true, "message": "Duplicated object.", "object_id": str(cloned_data.get("id", ""))}
 	var previous_tile_type: int = GridManager.TILE_FLOOR
 	if manager.grid_manager != null and manager.grid_manager.has_method("get_tile"):
 		previous_tile_type = int(manager.grid_manager.call("get_tile", target_cell))
@@ -241,10 +241,10 @@ func duplicate_map_constructor_entity_to_cell(entity_kind: String, entity_id: St
 	if manager.grid_manager != null and manager.grid_manager.has_method("set_tile"):
 		manager.grid_manager.call("set_tile", target_cell, int(cloned_data.get("map_constructor_tile_type", previous_tile_type)))
 	manager.set_world_object_at_cell(target_cell, cloned_data)
-	PowerSystemRef.recalculate_network(manager.mission_world_objects, String(cloned_data.get("power_network_id", "")))
+	PowerSystemRef.recalculate_network(manager.mission_world_objects, str(cloned_data.get("power_network_id", "")))
 	manager.refresh_world_cooling_received()
-	manager._record_map_constructor_change("duplicate", {"entity_kind":"world_object", "entity_id":String(cloned_data.get("id", "")), "object_type":String(cloned_data.get("object_type", "")), "cell":target_cell, "summary":"Duplicated object %s to %s" % [entity_id, manager._format_map_constructor_cell(target_cell)], "details":{"source_entity_id":entity_id}, "undo_hint":"Can undo by deleting duplicate."})
-	return {"ok": true, "message": "Duplicated object.", "object_id": String(cloned_data.get("id", ""))}
+	manager._record_map_constructor_change("duplicate", {"entity_kind":"world_object", "entity_id":str(cloned_data.get("id", "")), "object_type":str(cloned_data.get("object_type", "")), "cell":target_cell, "summary":"Duplicated object %s to %s" % [entity_id, manager._format_map_constructor_cell(target_cell)], "details":{"source_entity_id":entity_id}, "undo_hint":"Can undo by deleting duplicate."})
+	return {"ok": true, "message": "Duplicated object.", "object_id": str(cloned_data.get("id", ""))}
 
 func remove_map_constructor_object_at_cell(cell: Vector2i) -> Dictionary:
 	if not manager._is_task_test_constructor_context():
@@ -252,7 +252,7 @@ func remove_map_constructor_object_at_cell(cell: Vector2i) -> Dictionary:
 	var entity: Dictionary = manager.get_map_constructor_editable_entity_at_cell(cell)
 	if not bool(entity.get("ok", false)):
 		return {"ok": false, "message": "Nothing to remove.", "object_id": "", "warnings": []}
-	return _remove_map_constructor_entity_by_id(String(entity.get("entity_kind", "")), String(entity.get("id", "")))
+	return _remove_map_constructor_entity_by_id(str(entity.get("entity_kind", "")), str(entity.get("id", "")))
 
 func get_map_constructor_entity_by_id(entity_kind: String, entity_id: String) -> Dictionary:
 	if entity_kind.is_empty():
@@ -270,7 +270,7 @@ func get_map_constructor_entity_by_id(entity_kind: String, entity_id: String) ->
 			var cell: Vector2i = Vector2i(cell_variant)
 			var items: Array[Dictionary] = manager.get_items_at_cell(cell)
 			for item_data in items:
-				if String(item_data.get("id", "")) == entity_id:
+				if str(item_data.get("id", "")) == entity_id:
 					return {"ok": true, "entity_kind": entity_kind, "id": entity_id, "cell": cell, "data": item_data}
 		return {"ok": false, "reason": "not_found", "entity_kind": entity_kind, "id": entity_id}
 	return {"ok": false, "reason": "unsupported_entity_kind", "entity_kind": entity_kind, "id": entity_id}
@@ -278,9 +278,9 @@ func get_map_constructor_entity_by_id(entity_kind: String, entity_id: String) ->
 func _sync_terminal_door_link(entity_id: String, data: Dictionary, field_name: String, old_value: Variant, new_value: Variant) -> void:
 	if field_name not in ["target_door_id", "linked_terminal_id", "required_terminal_id", "control_terminal_id"]:
 		return
-	var old_id: String = String(old_value).strip_edges()
-	var new_id: String = String(new_value).strip_edges()
-	var group: String = String(data.get("object_group", "")).strip_edges().to_lower()
+	var old_id: String = str(old_value).strip_edges()
+	var new_id: String = str(new_value).strip_edges()
+	var group: String = str(data.get("object_group", "")).strip_edges().to_lower()
 	if group == "terminal" and field_name == "target_door_id":
 		for door_id in [old_id, new_id]:
 			if door_id.is_empty():
@@ -290,7 +290,7 @@ func _sync_terminal_door_link(entity_id: String, data: Dictionary, field_name: S
 				continue
 			if door_id == new_id:
 				door["linked_terminal_id"] = entity_id
-			elif String(door.get("linked_terminal_id", "")) == entity_id:
+			elif str(door.get("linked_terminal_id", "")) == entity_id:
 				door["linked_terminal_id"] = ""
 			manager.update_world_object_by_id(door_id, door)
 	elif group == "door" and field_name in ["linked_terminal_id", "required_terminal_id", "control_terminal_id"]:
@@ -307,7 +307,7 @@ func _sync_terminal_door_link(entity_id: String, data: Dictionary, field_name: S
 					linked_ids.append(entity_id)
 				terminal["linked_door_ids"] = linked_ids
 			else:
-				if String(terminal.get("target_door_id", "")) == entity_id:
+				if str(terminal.get("target_door_id", "")) == entity_id:
 					terminal["target_door_id"] = ""
 				var linked_ids: Array = manager._safe_array(terminal.get("linked_door_ids", []))
 				linked_ids.erase(entity_id)
@@ -340,15 +340,15 @@ func apply_map_constructor_property_update(entity_kind: String, entity_id: Strin
 			result["message"] = "Field is unavailable for this entity."
 			return result
 		data[field_name] = default_value
-	var converted: Dictionary = manager._convert_map_constructor_field_value(field_name, raw_value, String(schema[field_name]))
+	var converted: Dictionary = manager._convert_map_constructor_field_value(field_name, raw_value, str(schema[field_name]))
 	if not bool(converted.get("ok", false)):
-		result["message"] = String(converted.get("message", "Invalid value."))
+		result["message"] = str(converted.get("message", "Invalid value."))
 		return result
 	var new_value: Variant = converted.get("value")
 	var old_value: Variant = data.get(field_name)
-	var old_network_id: String = String(data.get("power_network_id", ""))
+	var old_network_id: String = str(data.get("power_network_id", ""))
 	data[field_name] = new_value
-	if resolved_kind == "world_object" and field_name == "access_type" and WorldObjectCatalogRef.normalize_access_type(new_value) == WorldObjectCatalogRef.ACCESS_TYPE_KEY_CARD and String(data.get("state", "closed")) not in ["damaged", "broken", "destroyed", "jammed"]:
+	if resolved_kind == "world_object" and field_name == "access_type" and WorldObjectCatalogRef.normalize_access_type(new_value) == WorldObjectCatalogRef.ACCESS_TYPE_KEY_CARD and str(data.get("state", "closed")) not in ["damaged", "broken", "destroyed", "jammed"]:
 		data["state"] = "locked"
 		data["is_locked"] = true
 		data["is_closed"] = true
@@ -356,7 +356,7 @@ func apply_map_constructor_property_update(entity_kind: String, entity_id: Strin
 		data["blocks_movement"] = true
 	if resolved_kind == "world_object" and field_name == "door_class" and int(new_value) == 1:
 		data["required_manipulator_level"] = 1
-	if field_name == "status" and String(data.get("archetype_id", "")) == "terminal":
+	if field_name == "status" and str(data.get("archetype_id", "")) == "terminal":
 		data["state"] = new_value
 	if resolved_kind == "world_object":
 		data = WorldObjectCatalogRef.normalize_door_state_fields(WorldObjectCatalogRef.normalize_world_object_contract(data))
@@ -370,7 +370,7 @@ func apply_map_constructor_property_update(entity_kind: String, entity_id: Strin
 			var items: Array[Dictionary] = manager.get_items_at_cell(cell)
 			for index in range(items.size()):
 				var item_data: Dictionary = items[index]
-				if String(item_data.get("id", "")) != entity_id:
+				if str(item_data.get("id", "")) != entity_id:
 					continue
 				items[index] = data
 				manager.cell_items[cell] = items
@@ -388,12 +388,12 @@ func apply_map_constructor_property_update(entity_kind: String, entity_id: Strin
 	var needs_power_refresh: bool = field_name == "power_network_id" or field_name in ["is_powered", "requires_external_power", "power_mode", "power_source_id", "current_heat", "working_heat", "overheat_threshold"]
 	if needs_power_refresh:
 		PowerSystemRef.recalculate_network(manager.mission_world_objects, old_network_id)
-		PowerSystemRef.recalculate_network(manager.mission_world_objects, String(data.get("power_network_id", "")))
+		PowerSystemRef.recalculate_network(manager.mission_world_objects, str(data.get("power_network_id", "")))
 	manager.refresh_world_cooling_received()
 	if resolved_kind == "world_object":
 		_sync_terminal_door_link(entity_id, data, field_name, old_value, new_value)
 	if resolved_kind == "world_object" and field_name in ["power_source_id", "control_terminal_id", "access_terminal_id"]:
-		var linked_id: String = String(new_value).strip_edges()
+		var linked_id: String = str(new_value).strip_edges()
 		if not linked_id.is_empty():
 			var linked_object: Dictionary = manager.get_world_object_by_id(linked_id)
 			if not linked_object.is_empty():
@@ -406,14 +406,14 @@ func apply_map_constructor_property_update(entity_kind: String, entity_id: Strin
 				linked_object[backlink_field] = backlink_ids
 				manager.update_world_object_by_id(linked_id, linked_object)
 	if field_name == "linked_door_id" and resolved_kind == "item":
-		var door_id: String = String(new_value).strip_edges()
+		var door_id: String = str(new_value).strip_edges()
 		if not door_id.is_empty():
 			var linked_door: Dictionary = manager.get_world_object_by_id(door_id)
 			if not linked_door.is_empty():
 				linked_door["required_key_id"] = entity_id
 				manager.update_world_object_by_id(door_id, linked_door)
 	elif field_name == "required_key_id" and resolved_kind == "world_object":
-		var key_id: String = String(new_value).strip_edges()
+		var key_id: String = str(new_value).strip_edges()
 		if not key_id.is_empty():
 			var linked_key: Dictionary = manager.get_cell_item_by_id(key_id)
 			if not linked_key.is_empty():
@@ -423,12 +423,12 @@ func apply_map_constructor_property_update(entity_kind: String, entity_id: Strin
 					var cell: Vector2i = Vector2i(cell_variant)
 					var items: Array[Dictionary] = manager.get_items_at_cell(cell)
 					for item_index in range(items.size()):
-						if String(items[item_index].get("id", "")) == key_id:
+						if str(items[item_index].get("id", "")) == key_id:
 							items[item_index] = linked_key
 							manager.cell_items[cell] = items
 							break
 	result["ok"] = true
 	result["value"] = new_value
 	result["message"] = "Updated %s." % field_name
-	manager._record_map_constructor_change("property_update", {"entity_kind":resolved_kind, "entity_id":entity_id, "object_type":String(data.get("object_type", data.get("item_type", ""))), "cell":Vector2i(entity_info.get("cell", Vector2i(-1, -1))), "summary":"Updated %s on %s" % [field_name, entity_id], "details":{"field":field_name, "old":old_value, "new":new_value}, "undo_hint":"Can undo by setting previous value manually."})
+	manager._record_map_constructor_change("property_update", {"entity_kind":resolved_kind, "entity_id":entity_id, "object_type":str(data.get("object_type", data.get("item_type", ""))), "cell":Vector2i(entity_info.get("cell", Vector2i(-1, -1))), "summary":"Updated %s on %s" % [field_name, entity_id], "details":{"field":field_name, "old":old_value, "new":new_value}, "undo_hint":"Can undo by setting previous value manually."})
 	return result

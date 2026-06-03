@@ -19,7 +19,7 @@ static func extract_module_level_by_prefix(controller: Variant, prefix: String) 
 	for module in controller.installed_modules:
 		if module == null:
 			continue
-		var module_id := String(module.id)
+		var module_id := str(module.id)
 		if not module_id.begins_with(prefix):
 			continue
 		var version_regex: RegEx = RegEx.new()
@@ -40,7 +40,7 @@ static func get_installed_connector_level(controller: Variant, kind: String = ""
 	for module in controller.installed_modules:
 		if module == null:
 			continue
-		var module_id := String(module.id)
+		var module_id := str(module.id)
 		if not module_id.contains("_connector_v"):
 			continue
 		if not target_prefix.is_empty() and not module_id.begins_with(target_prefix):
@@ -85,7 +85,7 @@ static func can_use_physical_hand(controller: Variant) -> bool:
 
 
 static func _get_connector_module_prefix_for_kind(kind: String) -> String:
-	match String(kind).strip_edges().to_lower():
+	match str(kind).strip_edges().to_lower():
 		"wired":
 			return "wired_connector"
 		"optical":

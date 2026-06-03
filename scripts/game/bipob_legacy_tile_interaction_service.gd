@@ -9,7 +9,7 @@ static func handle_pre_world_object_tile_interaction(
 ) -> Dictionary:
 	# Legacy interact must not process digital devices before the modern
 	# world-object action path has an explicitly selected action to execute.
-	if not String(controller.selected_world_action).is_empty():
+	if not str(controller.selected_world_action).is_empty():
 		return _unhandled("selected_world_action")
 
 	match target_tile:
@@ -28,7 +28,7 @@ static func handle_pre_world_object_tile_interaction(
 static func apply_result(controller: Variant, result: Dictionary) -> void:
 	if not bool(result.get("handled", false)):
 		return
-	var message: String = String(result.get("message", ""))
+	var message: String = str(result.get("message", ""))
 	if not message.is_empty():
 		controller.hint_requested.emit(message)
 	if bool(result.get("clear_selected_action", false)):

@@ -87,11 +87,11 @@ static func add_preset_buttons(ui: Variant, section: VBoxContainer, entity_kind:
 	var row: HFlowContainer = HFlowContainer.new()
 	for preset in MapConstructorUiSafe.safe_array(ui.mission_manager_runtime.call("get_map_constructor_property_presets", entity_kind, entity_id)):
 		var preset_data: Dictionary = MapConstructorUiSafe.safe_dictionary(preset)
-		var preset_id: String = String(preset_data.get("id", ""))
+		var preset_id: String = str(preset_data.get("id", ""))
 		if preset_id.is_empty():
 			continue
 		var button: Button = Button.new()
-		button.text = String(preset_data.get("label", "Preset"))
+		button.text = str(preset_data.get("label", "Preset"))
 		button.pressed.connect(func() -> void:
 			ui._apply_map_constructor_property_preset(entity_kind, entity_id, preset_id)
 		)

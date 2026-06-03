@@ -19,7 +19,7 @@ static func is_heavy_claw_action(action_id: String) -> bool:
 static func get_physical_actions(actions: Array) -> Array[String]:
 	var physical_actions: Array[String] = []
 	for action_variant in actions:
-		var action_id: String = String(action_variant)
+		var action_id: String = str(action_variant)
 		if not action_id.is_empty() and not is_connector_action(action_id) and not is_heavy_claw_action(action_id):
 			physical_actions.append(action_id)
 	return physical_actions
@@ -28,7 +28,7 @@ static func get_physical_actions(actions: Array) -> Array[String]:
 static func get_action_descriptor(target_data: Dictionary, action_id: String) -> Dictionary:
 	var view_model: Dictionary = Dictionary(target_data.get("action_view_model", {}))
 	for descriptor_variant in Array(view_model.get("actions", [])):
-		if descriptor_variant is Dictionary and String(Dictionary(descriptor_variant).get("id", "")) == action_id:
+		if descriptor_variant is Dictionary and str(Dictionary(descriptor_variant).get("id", "")) == action_id:
 			return Dictionary(descriptor_variant)
 	return {}
 
@@ -42,7 +42,7 @@ static func get_heavy_claw_descriptor(target_data: Dictionary) -> Dictionary:
 
 
 static func action_requires_manipulator(action_id: String, target_object: Dictionary) -> bool:
-	if action_id == "pickup" and String(target_object.get("item_form", "physical")) == "digital":
+	if action_id == "pickup" and str(target_object.get("item_form", "physical")) == "digital":
 		return false
 	return action_id in ["pickup", "open", "close", "unlock", "switch", "force_open", "push", "pull", "insert_fuse", "repair", "cut", "impact", "take_end_1", "take_end_2", "plug_in", "plug_out", "connect_wire_end", "connect_wire_1", "connect_wire_2", "disconnect_power_wire", "disconnect_wire_1", "disconnect_wire_2"]
 
@@ -53,7 +53,7 @@ static func is_manipulator_blocked(ui, target_object: Dictionary, actions: Array
 	if bool(ui.bipob.call("can_use_physical_hand")):
 		return false
 	for action_variant in actions:
-		if action_requires_manipulator(String(action_variant), target_object):
+		if action_requires_manipulator(str(action_variant), target_object):
 			return true
 	return false
 
@@ -114,7 +114,7 @@ static func press_connect(ui) -> void:
 	var target_data: Dictionary = get_target_data(ui)
 	var descriptor: Dictionary = get_connect_descriptor(target_data)
 	if descriptor.is_empty() or not bool(descriptor.get("enabled", false)):
-		ui.show_hint(String(descriptor.get("label", "Connector jack unavailable.")))
+		ui.show_hint(str(descriptor.get("label", "Connector jack unavailable.")))
 		refresh_controls(ui)
 		return
 	press_action(ui, "connect")
@@ -128,7 +128,7 @@ static func press_heavy_claw(ui) -> void:
 		return
 	var descriptor: Dictionary = get_heavy_claw_descriptor(get_target_data(ui))
 	if descriptor.is_empty() or not bool(descriptor.get("enabled", false)):
-		ui.show_hint(String(descriptor.get("label", "No heavy object in front.")))
+		ui.show_hint(str(descriptor.get("label", "No heavy object in front.")))
 		refresh_controls(ui)
 		return
 	press_action(ui, "push")

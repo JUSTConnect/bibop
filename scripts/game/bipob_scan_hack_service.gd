@@ -19,7 +19,7 @@ static func get_facing_device_diagnostic_result(controller: Variant) -> Dictiona
 	var diagnostic: Dictionary = diagnostic_variant
 	if controller.mission_manager.has_method("build_device_interaction_preflight"):
 		var view_model: Dictionary = controller.build_runtime_action_view_model(target_object, target_cell)
-		var primary_action_id: String = String(view_model.get("primary_action_id", ""))
+		var primary_action_id: String = str(view_model.get("primary_action_id", ""))
 		if not primary_action_id.is_empty():
 			var actor: Dictionary = controller._build_runtime_action_actor(target_object, target_cell)
 			var preflight_variant: Variant = controller.mission_manager.call("build_device_interaction_preflight", target_object, target_cell, primary_action_id, actor)
@@ -27,7 +27,7 @@ static func get_facing_device_diagnostic_result(controller: Variant) -> Dictiona
 				var preflight: Dictionary = preflight_variant
 				diagnostic["interaction_preflight"] = preflight.duplicate(true)
 				if not bool(preflight.get("preflight_ok", false)):
-					diagnostic["summary"] = "Device blocked: %s" % String(preflight.get("message", "Action unavailable."))
+					diagnostic["summary"] = "Device blocked: %s" % str(preflight.get("message", "Action unavailable."))
 	return diagnostic
 
 static func get_facing_device_interaction_preflight(controller: Variant, action_id: String = "") -> Dictionary:
@@ -43,7 +43,7 @@ static func get_facing_device_interaction_preflight(controller: Variant, action_
 	if resolved_action_id.is_empty():
 		var view_model_variant: Variant = target_data.get("action_view_model", {})
 		if typeof(view_model_variant) == TYPE_DICTIONARY:
-			resolved_action_id = String(Dictionary(view_model_variant).get("primary_action_id", ""))
+			resolved_action_id = str(Dictionary(view_model_variant).get("primary_action_id", ""))
 	var actor: Dictionary = controller._build_runtime_action_actor(target_object, target_cell)
 	var preflight_variant: Variant = controller.mission_manager.call("build_device_interaction_preflight", target_object, target_cell, resolved_action_id, actor)
 	return Dictionary(preflight_variant) if typeof(preflight_variant) == TYPE_DICTIONARY else {}
@@ -61,7 +61,7 @@ static func get_facing_device_interaction_state_flow(controller: Variant, action
 	if resolved_action_id.is_empty():
 		var view_model_variant: Variant = target_data.get("action_view_model", {})
 		if typeof(view_model_variant) == TYPE_DICTIONARY:
-			resolved_action_id = String(Dictionary(view_model_variant).get("primary_action_id", ""))
+			resolved_action_id = str(Dictionary(view_model_variant).get("primary_action_id", ""))
 	var actor: Dictionary = controller._build_runtime_action_actor(target_object, target_cell)
 	var flow_variant: Variant = controller.mission_manager.call("build_device_interaction_state_flow", target_object, target_cell, resolved_action_id, actor)
 	return Dictionary(flow_variant) if typeof(flow_variant) == TYPE_DICTIONARY else {}
@@ -102,7 +102,7 @@ static func scan_device(controller: Variant) -> void:
 				var overheat_result: Dictionary = controller.apply_internal_overheat_if_needed(overheat_action_id, controller.get_internal_action_temporary_heat_context(overheat_action_id))
 				if bool(overheat_result.get("failed", false)):
 					for overheat_message in overheat_result.get("messages", []):
-						controller.hint_requested.emit(String(overheat_message))
+						controller.hint_requested.emit(str(overheat_message))
 					controller.status_changed.emit()
 					return
 			var result: Dictionary = ScanSystemRef.scan_object(world_object, scan_type, controller.get_effective_visor_level())
@@ -179,19 +179,19 @@ static func hack_device(controller: Variant) -> void:
 	if bool(overheat_result.get("failed", false)):
 		controller.spend_action(1, 1)
 		for overheat_message in overheat_result.get("messages", []):
-			controller.hint_requested.emit(String(overheat_message))
+			controller.hint_requested.emit(str(overheat_message))
 		controller.status_changed.emit()
 		return
 	var hack_world_object: Dictionary = Dictionary(controller.mission_manager.get_world_object_at_cell(controller.get_facing_device_position()))
-	if not hack_world_object.is_empty() and String(hack_world_object.get("object_group", "")) == "terminal":
+	if not hack_world_object.is_empty() and str(hack_world_object.get("object_group", "")) == "terminal":
 		if not controller._is_terminal_powered_for_interaction(hack_world_object):
 			controller.hint_requested.emit("Terminal is unpowered.")
 			controller.status_changed.emit()
 			return
 		WorldObjectCatalogRef.update_world_object_heat_state(hack_world_object)
-		if String(hack_world_object.get("state", "")) == "overheated":
+		if str(hack_world_object.get("state", "")) == "overheated":
 			controller.spend_action(1, 1)
-			controller.mission_manager.update_world_object_by_id(String(hack_world_object.get("id", "")), hack_world_object)
+			controller.mission_manager.update_world_object_by_id(str(hack_world_object.get("id", "")), hack_world_object)
 			controller.hint_requested.emit("Terminal overheated. Hack failed.")
 			controller.status_changed.emit()
 			return
@@ -200,7 +200,7 @@ static func hack_device(controller: Variant) -> void:
 			controller.spend_action(1, 1)
 			hack_world_object["current_heat"] = WorldObjectCatalogRef.get_world_object_current_heat(hack_world_object)
 			WorldObjectCatalogRef.update_world_object_heat_state(hack_world_object)
-			controller.mission_manager.update_world_object_by_id(String(hack_world_object.get("id", "")), hack_world_object)
+			controller.mission_manager.update_world_object_by_id(str(hack_world_object.get("id", "")), hack_world_object)
 			controller.hint_requested.emit("Terminal overheated. Hack failed.")
 			controller.status_changed.emit()
 			return
@@ -261,19 +261,19 @@ static func hack_device(controller: Variant) -> void:
 			return
 
 static func _format_scan_device_hint(diagnostic: Dictionary, state_flow: Dictionary, fallback_target: Dictionary) -> String:
-	var target_name: String = String(diagnostic.get("target_name", fallback_target.get("display_name", fallback_target.get("name", fallback_target.get("object_type", "Unknown object"))))).strip_edges()
+	var target_name: String = str(diagnostic.get("target_name", fallback_target.get("display_name", fallback_target.get("name", fallback_target.get("object_type", "Unknown object"))))).strip_edges()
 	if target_name.is_empty():
 		target_name = "Unknown object"
 	var lines: Array[String] = ["Scan: %s" % target_name]
 	var state_parts: Array[String] = []
 	for state_key in ["state", "power_state"]:
-		var state_text: String = String(diagnostic.get(state_key, "")).strip_edges()
+		var state_text: String = str(diagnostic.get(state_key, "")).strip_edges()
 		if not state_text.is_empty() and not state_parts.has(state_text):
 			state_parts.append(state_text)
 	if not state_parts.is_empty():
 		lines.append("State: %s" % " / ".join(state_parts))
 	if bool(state_flow.get("is_applicable", false)):
-		var next_message: String = String(state_flow.get("message", "")).strip_edges()
+		var next_message: String = str(state_flow.get("message", "")).strip_edges()
 		if not next_message.is_empty():
 			lines.append("Next: %s" % next_message)
 	return "\n".join(lines)

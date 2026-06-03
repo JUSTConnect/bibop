@@ -153,11 +153,11 @@ func get_task_test_layout_id() -> String:
 	return TASK_TEST_MISSION_ID
 
 func is_task_test_mission_id(mission_id: String) -> bool:
-	var normalized := String(mission_id).strip_edges()
+	var normalized := str(mission_id).strip_edges()
 	return normalized == TASK_TEST_MISSION_ID or normalized == TASK_TEST_LAYOUT_ID
 
 func resolve_task_test_catalog_id(mission_id: String) -> String:
-	var normalized := String(mission_id).strip_edges()
+	var normalized := str(mission_id).strip_edges()
 	if normalized == TASK_TEST_LAYOUT_ID:
 		var catalog := MissionContentCatalogRef.new()
 		if catalog.has_mission_layout(TASK_TEST_LAYOUT_ID):
@@ -191,13 +191,13 @@ const MAP_CONSTRUCTOR_SOLID_PREFABS: Array[String] = [
 
 # region Typed world-object access wrappers
 func _wo_id(object_data: Dictionary) -> String:
-	return String(object_data.get("id", ""))
+	return str(object_data.get("id", ""))
 
 func _wo_group(object_data: Dictionary) -> String:
-	return String(object_data.get("object_group", ""))
+	return str(object_data.get("object_group", ""))
 
 func _wo_type(object_data: Dictionary) -> String:
-	return String(object_data.get("object_type", ""))
+	return str(object_data.get("object_type", ""))
 
 func _wo_pos(object_data: Dictionary, fallback: Vector2i = Vector2i(-1, -1)) -> Vector2i:
 	return Vector2i(object_data.get("position", fallback))
@@ -273,9 +273,9 @@ func validate_current_mission_objective_view_model() -> Array[String]:
 		if not view_model.has(required_field):
 			warnings.append("Mission objective ViewModel is missing '%s'." % required_field)
 	if not current_mission_id.is_empty():
-		if String(view_model.get("title", "")).strip_edges().is_empty():
+		if str(view_model.get("title", "")).strip_edges().is_empty():
 			warnings.append("Active mission objective ViewModel title must not be empty.")
-		if String(view_model.get("goal_text", "")).strip_edges().is_empty() and String(view_model.get("objective_hint", "")).strip_edges().is_empty():
+		if str(view_model.get("goal_text", "")).strip_edges().is_empty() and str(view_model.get("objective_hint", "")).strip_edges().is_empty():
 			warnings.append("Active mission objective ViewModel must provide goal_text or objective_hint.")
 	return warnings
 
@@ -350,7 +350,7 @@ func validate_architecture_contracts() -> Dictionary:
 	for section in sections:
 		var section_warnings: Array = section.get("warnings", [])
 		for warning_variant in section_warnings:
-			warnings.append("%s: %s" % [String(section.get("id", "unknown")), String(warning_variant)])
+			warnings.append("%s: %s" % [str(section.get("id", "unknown")), str(warning_variant)])
 		if not bool(section.get("ok", false)):
 			contract_breaking_count += section_warnings.size()
 	var report_ok: bool = contract_breaking_count == 0
@@ -399,7 +399,7 @@ func build_architecture_stabilization_final_report() -> Dictionary:
 		"manual_smoke_checklist": manual_smoke_checklist,
 		"checks": {
 			"syntax_gate": ["git diff --check", "python tools/check_gdscript_safety_patterns.py", "python tools/check_map_constructor_sections.py", "godot --headless --path . --quit"],
-			"contract_validation": [String(architecture_snapshot.get("summary", "Architecture contract validation unavailable."))],
+			"contract_validation": [str(architecture_snapshot.get("summary", "Architecture contract validation unavailable."))],
 			"runtime_smoke": manual_smoke_checklist.duplicate()
 		}
 	}
@@ -410,16 +410,16 @@ func _index_architecture_validation_sections(report: Dictionary) -> Dictionary:
 		if typeof(section_variant) != TYPE_DICTIONARY:
 			continue
 		var section: Dictionary = section_variant
-		indexed_sections[String(section.get("id", ""))] = section
+		indexed_sections[str(section.get("id", ""))] = section
 	return indexed_sections
 
 func _make_final_verification_section(section_id: String, title: String, errors: Array, warnings: Array = []) -> Dictionary:
 	var copied_errors: Array[String] = []
 	var copied_warnings: Array[String] = []
 	for error_variant in errors:
-		copied_errors.append(String(error_variant))
+		copied_errors.append(str(error_variant))
 	for warning_variant in warnings:
-		copied_warnings.append(String(warning_variant))
+		copied_warnings.append(str(warning_variant))
 	return {"id": section_id, "title": title, "ok": copied_errors.is_empty(), "errors": copied_errors, "warnings": copied_warnings}
 
 func _build_final_reused_section(section_id: String, title: String, architecture_sections: Dictionary, source_section_id: String) -> Dictionary:
@@ -436,15 +436,15 @@ func _build_final_object_registry_section(architecture_sections: Dictionary) -> 
 	var errors: Array[String] = []
 	var registry_section: Dictionary = _build_final_reused_section("object_registry", "Object Registry", architecture_sections, "object_registry")
 	for error_variant in Array(registry_section.get("errors", [])):
-		errors.append(String(error_variant))
+		errors.append(str(error_variant))
 	for object_variant in mission_world_objects:
 		if typeof(object_variant) != TYPE_DICTIONARY:
 			errors.append("runtime_world_object_not_dictionary")
 			continue
 		var object_data: Dictionary = object_variant
-		var object_id: String = String(object_data.get("id", "")).strip_edges()
-		var object_type: String = String(object_data.get("object_type", "")).strip_edges().to_lower()
-		var object_group: String = String(object_data.get("object_group", "")).strip_edges().to_lower()
+		var object_id: String = str(object_data.get("id", "")).strip_edges()
+		var object_type: String = str(object_data.get("object_type", "")).strip_edges().to_lower()
+		var object_group: String = str(object_data.get("object_group", "")).strip_edges().to_lower()
 		if object_id.is_empty():
 			errors.append("runtime_world_object_missing_id")
 		if object_type.is_empty() or not WorldObjectCatalogRef.OBJECT_LIBRARY.has(object_type):
@@ -463,33 +463,33 @@ func _build_final_door_contract_section(architecture_sections: Dictionary) -> Di
 	var errors: Array[String] = []
 	var warnings: Array[String] = []
 	for error_variant in Array(reused_section.get("errors", [])):
-		errors.append(String(error_variant))
+		errors.append(str(error_variant))
 	for warning_variant in Array(reused_section.get("warnings", [])):
-		warnings.append(String(warning_variant))
+		warnings.append(str(warning_variant))
 	var door_count: int = 0
 	for object_variant in mission_world_objects:
 		if typeof(object_variant) != TYPE_DICTIONARY:
 			continue
 		var door: Dictionary = object_variant
-		if String(door.get("object_group", "")).strip_edges().to_lower() != "door":
+		if str(door.get("object_group", "")).strip_edges().to_lower() != "door":
 			continue
 		door_count += 1
-		var door_id: String = String(door.get("id", "unnamed_door"))
-		var door_type: String = String(door.get("door_type", "")).strip_edges().to_lower()
-		var material: String = String(door.get("material", "")).strip_edges().to_lower()
-		var access_type: String = String(door.get("access_type", "")).strip_edges().to_lower()
+		var door_id: String = str(door.get("id", "unnamed_door"))
+		var door_type: String = str(door.get("door_type", "")).strip_edges().to_lower()
+		var material: String = str(door.get("material", "")).strip_edges().to_lower()
+		var access_type: String = str(door.get("access_type", "")).strip_edges().to_lower()
 		if door_type not in WorldObjectCatalogRef.DOOR_TYPES:
 			errors.append("door_type_unknown_%s_%s" % [door_id, door_type])
 		if material not in WorldObjectCatalogRef.DOOR_MATERIALS:
 			errors.append("door_material_unknown_%s_%s" % [door_id, material])
 		if access_type not in WorldObjectCatalogRef.ACCESS_TYPES:
 			errors.append("door_access_type_unknown_%s_%s" % [door_id, access_type])
-		if not door.has("state") or String(door.get("state", "")).strip_edges().is_empty():
+		if not door.has("state") or str(door.get("state", "")).strip_edges().is_empty():
 			errors.append("door_missing_state_%s" % door_id)
-		if access_type == WorldObjectCatalogRef.ACCESS_TYPE_NO_KEY and not String(door.get("required_key_id", "")).strip_edges().is_empty():
+		if access_type == WorldObjectCatalogRef.ACCESS_TYPE_NO_KEY and not str(door.get("required_key_id", "")).strip_edges().is_empty():
 			errors.append("no_key_door_requires_key_%s" % door_id)
 		if door_type == WorldObjectCatalogRef.DOOR_TYPE_POWERED:
-			var power_behavior: String = String(door.get("power_behavior", "")).strip_edges().to_lower()
+			var power_behavior: String = str(door.get("power_behavior", "")).strip_edges().to_lower()
 			if power_behavior not in WorldObjectCatalogRef.POWER_BEHAVIORS:
 				errors.append("powered_door_power_behavior_unknown_%s_%s" % [door_id, power_behavior])
 		if material == door_type:
@@ -520,9 +520,9 @@ func _build_final_runtime_action_contract_section(architecture_sections: Diction
 	for source_section_id in ["device_diagnostics", "device_interaction_flow", "device_interaction_state_flow"]:
 		var diagnostics_section: Dictionary = _build_final_reused_section("runtime_action_contract", "Runtime Action Contract", architecture_sections, source_section_id)
 		for error_variant in Array(diagnostics_section.get("errors", [])):
-			errors.append("%s:%s" % [source_section_id, String(error_variant)])
+			errors.append("%s:%s" % [source_section_id, str(error_variant)])
 		for warning_variant in Array(diagnostics_section.get("warnings", [])):
-			warnings.append("%s:%s" % [source_section_id, String(warning_variant)])
+			warnings.append("%s:%s" % [source_section_id, str(warning_variant)])
 	if active_bipob_ref == null or not is_instance_valid(active_bipob_ref) or not active_bipob_ref.has_method("get_facing_world_action_target"):
 		warnings.append("runtime_action_target_unavailable")
 		return _make_final_verification_section("runtime_action_contract", "Runtime Action Contract", errors, warnings)
@@ -532,7 +532,7 @@ func _build_final_runtime_action_contract_section(architecture_sections: Diction
 		return _make_final_verification_section("runtime_action_contract", "Runtime Action Contract", errors, warnings)
 	var facing: Dictionary = facing_variant
 	var target_variant: Variant = facing.get("target_object", {})
-	var selected_action: String = String(active_bipob_ref.get("selected_world_action")).strip_edges()
+	var selected_action: String = str(active_bipob_ref.get("selected_world_action")).strip_edges()
 	if typeof(target_variant) != TYPE_DICTIONARY or target_variant.is_empty():
 		if not selected_action.is_empty():
 			errors.append("stale_selected_world_action_without_target_%s" % selected_action)
@@ -548,8 +548,8 @@ func _build_final_runtime_action_contract_section(architecture_sections: Diction
 		var model_target_variant: Variant = view_model.get("target", {})
 		if typeof(model_target_variant) != TYPE_DICTIONARY:
 			errors.append("runtime_action_view_model_target_missing")
-		elif String(Dictionary(model_target_variant).get("object_type", "")) != String(normalized_target.get("object_type", "")):
-			errors.append("runtime_action_view_model_target_not_normalized_%s" % String(target.get("id", "unnamed_target")))
+		elif str(Dictionary(model_target_variant).get("object_type", "")) != str(normalized_target.get("object_type", "")):
+			errors.append("runtime_action_view_model_target_not_normalized_%s" % str(target.get("id", "unnamed_target")))
 	return _make_final_verification_section("runtime_action_contract", "Runtime Action Contract", errors, warnings)
 
 func _build_final_mission_goal_binding_section(architecture_sections: Dictionary) -> Dictionary:
@@ -560,8 +560,8 @@ func _build_final_mission_goal_binding_section(architecture_sections: Dictionary
 	if view_model.is_empty():
 		errors.append("active_mission_objective_view_model_missing")
 	else:
-		var goal_text: String = String(view_model.get("goal_text", "")).strip_edges()
-		var objective_hint: String = String(view_model.get("objective_hint", "")).strip_edges()
+		var goal_text: String = str(view_model.get("goal_text", "")).strip_edges()
+		var objective_hint: String = str(view_model.get("objective_hint", "")).strip_edges()
 		if goal_text.is_empty() and objective_hint.is_empty():
 			errors.append("active_mission_objective_text_missing")
 		if not current_mission_id.is_empty():
@@ -629,40 +629,40 @@ func _get_architecture_stabilization_manual_smoke_checklist() -> Array[String]:
 
 func get_architecture_contract_validation_text() -> String:
 	var report: Dictionary = validate_architecture_contracts()
-	var lines: Array[String] = ["Architecture Contract Validation:", String(report.get("summary", ""))]
+	var lines: Array[String] = ["Architecture Contract Validation:", str(report.get("summary", ""))]
 	for section_variant in Array(report.get("sections", [])):
 		if typeof(section_variant) != TYPE_DICTIONARY:
 			continue
 		var section: Dictionary = section_variant
 		var section_warnings: Array = section.get("warnings", [])
 		var status: String = "OK" if bool(section.get("ok", false)) else "WARN"
-		lines.append("[%s] %s" % [status, String(section.get("title", section.get("id", "Unknown")))])
+		lines.append("[%s] %s" % [status, str(section.get("title", section.get("id", "Unknown")))])
 		for warning_variant in section_warnings:
-			lines.append("- %s" % String(warning_variant))
+			lines.append("- %s" % str(warning_variant))
 	return "\n".join(lines)
 
 func _make_architecture_validation_section(section_id: String, title: String, warnings: Array, warnings_are_blocking: bool = true) -> Dictionary:
 	var copied_warnings: Array[String] = []
 	for warning_variant in warnings:
-		copied_warnings.append(String(warning_variant))
+		copied_warnings.append(str(warning_variant))
 	return {"id": section_id, "title": title, "ok": copied_warnings.is_empty() or not warnings_are_blocking, "warnings": copied_warnings}
 
 func _validate_current_door_contracts() -> Array[String]:
 	var warnings: Array[String] = []
 	for object_data in mission_world_objects:
-		if String(object_data.get("object_group", "")).strip_edges().to_lower() != "door":
+		if str(object_data.get("object_group", "")).strip_edges().to_lower() != "door":
 			continue
-		var object_id: String = String(object_data.get("id", "unnamed_door"))
+		var object_id: String = str(object_data.get("id", "unnamed_door"))
 		for required_field in ["object_group", "door_type", "material", "access_type", "door_class", "state", "is_open", "is_locked", "blocks_movement"]:
-			if not object_data.has(required_field) or String(object_data.get(required_field, "")).strip_edges().is_empty():
+			if not object_data.has(required_field) or str(object_data.get(required_field, "")).strip_edges().is_empty():
 				warnings.append("door_missing_%s_%s" % [required_field, object_id])
 		var access_type: String = WorldObjectCatalogRef.normalize_access_type(object_data.get("access_type", object_data.get("lock_type", "")))
 		if access_type not in WorldObjectCatalogRef.ACCESS_TYPES:
 			warnings.append("door_access_type_unknown_%s_%s" % [object_id, access_type])
-		if access_type == WorldObjectCatalogRef.ACCESS_TYPE_NO_KEY and not String(object_data.get("required_key_id", "")).strip_edges().is_empty():
+		if access_type == WorldObjectCatalogRef.ACCESS_TYPE_NO_KEY and not str(object_data.get("required_key_id", "")).strip_edges().is_empty():
 			warnings.append("no_key_door_requires_key_%s" % object_id)
-		if String(object_data.get("door_type", "")).strip_edges().to_lower() == WorldObjectCatalogRef.DOOR_TYPE_POWERED:
-			var power_behavior: String = String(object_data.get("power_behavior", "")).strip_edges().to_lower()
+		if str(object_data.get("door_type", "")).strip_edges().to_lower() == WorldObjectCatalogRef.DOOR_TYPE_POWERED:
+			var power_behavior: String = str(object_data.get("power_behavior", "")).strip_edges().to_lower()
 			if power_behavior not in WorldObjectCatalogRef.POWER_BEHAVIORS:
 				warnings.append("powered_door_power_behavior_unknown_%s_%s" % [object_id, power_behavior])
 	return warnings
@@ -670,23 +670,23 @@ func _validate_current_door_contracts() -> Array[String]:
 func _validate_legacy_compatibility_boundary() -> Array[String]:
 	var warnings: Array[String] = []
 	for object_data in mission_world_objects:
-		var object_id: String = String(object_data.get("id", "unnamed_object"))
-		var object_type: String = String(object_data.get("object_type", "")).strip_edges().to_lower()
+		var object_id: String = str(object_data.get("id", "unnamed_object"))
+		var object_type: String = str(object_data.get("object_type", "")).strip_edges().to_lower()
 		if WorldObjectCatalogRef.is_legacy_door_object_type(object_type):
 			warnings.append("legacy_runtime_object_type_%s_%s" % [object_id, object_type])
-		if String(object_data.get("access_type", "")).strip_edges().to_lower() == "none":
+		if str(object_data.get("access_type", "")).strip_edges().to_lower() == "none":
 			warnings.append("legacy_access_type_none_%s" % object_id)
 		if object_data.has("lock_type") and not object_data.has("access_type"):
 			warnings.append("legacy_lock_type_without_access_type_%s" % object_id)
-		if String(object_data.get("object_group", "")).strip_edges().to_lower() == "door" and WorldObjectCatalogRef.is_material_named_door_object_type(object_type) and String(object_data.get("door_type", "")).strip_edges().is_empty():
+		if str(object_data.get("object_group", "")).strip_edges().to_lower() == "door" and WorldObjectCatalogRef.is_material_named_door_object_type(object_type) and str(object_data.get("door_type", "")).strip_edges().is_empty():
 			warnings.append("material_named_door_missing_mechanism_%s_%s" % [object_id, object_type])
 		for field_variant in object_data.keys():
-			var field_name: String = String(field_variant)
+			var field_name: String = str(field_variant)
 			if field_name in WorldObjectCatalogRef.LEGACY_SOURCE_METADATA_FIELDS:
 				continue
 			var field_value: Variant = object_data.get(field_variant)
-			if field_value is String and WorldObjectCatalogRef.is_legacy_prefab_alias(String(field_value)) and field_name != "object_type":
-				warnings.append("legacy_prefab_id_outside_metadata_%s_%s_%s" % [object_id, field_name, String(field_value)])
+			if field_value is String and WorldObjectCatalogRef.is_legacy_prefab_alias(str(field_value)) and field_name != "object_type":
+				warnings.append("legacy_prefab_id_outside_metadata_%s_%s_%s" % [object_id, field_name, str(field_value)])
 	return warnings
 
 func _validate_task_test_object_contracts() -> Array[String]:
@@ -694,28 +694,28 @@ func _validate_task_test_object_contracts() -> Array[String]:
 	var task_test_snapshot: Dictionary = build_task_test_mission_world_objects_for_validation()
 	var has_requires_power_to_open_door: bool = false
 	for build_warning_variant in Array(task_test_snapshot.get("warnings", [])):
-		warnings.append(String(build_warning_variant))
+		warnings.append(str(build_warning_variant))
 	for object_variant in Array(task_test_snapshot.get("objects", [])):
 		if typeof(object_variant) != TYPE_DICTIONARY:
 			warnings.append("task_test_object_not_dictionary")
 			continue
 		var object_data: Dictionary = object_variant
-		var object_id: String = String(object_data.get("id", "")).strip_edges()
+		var object_id: String = str(object_data.get("id", "")).strip_edges()
 		if object_id.is_empty():
 			warnings.append("task_test_object_missing_id")
 			object_id = "unnamed_object"
-		var object_type: String = String(object_data.get("object_type", ""))
+		var object_type: String = str(object_data.get("object_type", ""))
 		if not WorldObjectCatalogRef.OBJECT_LIBRARY.has(object_type):
 			warnings.append("task_test_object_unknown_catalog_type_%s_%s" % [object_id, object_type])
-		if String(object_data.get("object_group", "")) == "door":
+		if str(object_data.get("object_group", "")) == "door":
 			var normalized_door: Dictionary = WorldObjectCatalogRef.normalize_door_contract(object_data)
-			var power_behavior: String = String(normalized_door.get("power_behavior", "")).strip_edges().to_lower()
+			var power_behavior: String = str(normalized_door.get("power_behavior", "")).strip_edges().to_lower()
 			if power_behavior == WorldObjectCatalogRef.POWER_BEHAVIOR_REQUIRES_POWER_TO_OPEN:
 				has_requires_power_to_open_door = true
 			elif power_behavior not in WorldObjectCatalogRef.POWER_BEHAVIORS:
 				warnings.append("task_test_door_power_behavior_unknown_%s_%s" % [object_id, power_behavior])
 			for required_field in ["door_type", "material", "access_type", "door_class", "state", "is_open", "is_locked", "blocks_movement"]:
-				if not normalized_door.has(required_field) or String(normalized_door.get(required_field, "")).strip_edges().is_empty():
+				if not normalized_door.has(required_field) or str(normalized_door.get(required_field, "")).strip_edges().is_empty():
 					warnings.append("task_test_door_missing_%s_%s" % [required_field, object_id])
 	if not has_requires_power_to_open_door:
 		warnings.append("task_test_requires_power_to_open_door_missing")
@@ -725,7 +725,7 @@ func _validate_task_test_object_contracts() -> Array[String]:
 			if typeof(item_variant) != TYPE_DICTIONARY:
 				continue
 			var item_data: Dictionary = item_variant
-			var item_id: String = String(item_data.get("id", "unnamed_item"))
+			var item_id: String = str(item_data.get("id", "unnamed_item"))
 			var expected_class: String = ""
 			if "fuse" in item_id:
 				expected_class = WorldObjectCatalogRef.ITEM_STORAGE_CLASS_PHYSICAL
@@ -760,12 +760,12 @@ func _validate_runtime_action_view_model_section() -> Dictionary:
 			warnings.append("runtime_action_view_model_missing_%s" % required_field)
 	if active_bipob_ref.has_method("validate_runtime_action_view_model"):
 		for warning_variant in Array(active_bipob_ref.call("validate_runtime_action_view_model", view_model)):
-			warnings.append(String(warning_variant))
+			warnings.append(str(warning_variant))
 	else:
 		warnings.append("validation_helper_missing_validate_runtime_action_view_model")
 	var target: Dictionary = target_variant
-	if String(target.get("object_group", "")) == "door" and Array(view_model.get("actions", [])).is_empty() and String(view_model.get("disabled_reason", "")).strip_edges().is_empty():
-		warnings.append("canonical_door_has_no_action_or_reason_%s" % String(target.get("id", "unnamed_door")))
+	if str(target.get("object_group", "")) == "door" and Array(view_model.get("actions", [])).is_empty() and str(view_model.get("disabled_reason", "")).strip_edges().is_empty():
+		warnings.append("canonical_door_has_no_action_or_reason_%s" % str(target.get("id", "unnamed_door")))
 	return _make_architecture_validation_section("runtime_action_view_model", "Runtime Action ViewModel", warnings)
 
 func _validate_device_diagnostics_section() -> Dictionary:
@@ -799,9 +799,9 @@ func _validate_device_diagnostics_section() -> Dictionary:
 			warnings.append("diagnostic_missing_requirement_not_dictionary")
 			continue
 		var missing_item: Dictionary = missing_variant
-		if String(missing_item.get("id", "")).strip_edges().is_empty() or String(missing_item.get("label", "")).strip_edges().is_empty():
+		if str(missing_item.get("id", "")).strip_edges().is_empty() or str(missing_item.get("label", "")).strip_edges().is_empty():
 			warnings.append("diagnostic_missing_requirement_unstable")
-	if String(diagnostic.get("summary", "")).strip_edges().is_empty():
+	if str(diagnostic.get("summary", "")).strip_edges().is_empty():
 		warnings.append("diagnostic_summary_missing")
 	if target_snapshot != var_to_str(target):
 		warnings.append("diagnostic_builder_mutated_target")
@@ -823,7 +823,7 @@ func _validate_device_interaction_flow_section() -> Dictionary:
 	var view_model_variant: Variant = facing_result.get("action_view_model", {})
 	var primary_action_id: String = ""
 	if typeof(view_model_variant) == TYPE_DICTIONARY:
-		primary_action_id = String(Dictionary(view_model_variant).get("primary_action_id", ""))
+		primary_action_id = str(Dictionary(view_model_variant).get("primary_action_id", ""))
 	var preflight: Dictionary = build_device_interaction_preflight(target, target_cell, primary_action_id)
 	var warnings: Array[String] = []
 	for required_field in ["success", "action_id", "target_id", "target_name", "diagnostic", "preflight_ok", "blocked_reason", "message", "state_changed"]:
@@ -831,14 +831,14 @@ func _validate_device_interaction_flow_section() -> Dictionary:
 			warnings.append("device_interaction_preflight_missing_%s" % required_field)
 	if target_snapshot != var_to_str(target):
 		warnings.append("device_interaction_preflight_mutated_target")
-	if not primary_action_id.is_empty() and String(preflight.get("action_id", "")) != primary_action_id:
+	if not primary_action_id.is_empty() and str(preflight.get("action_id", "")) != primary_action_id:
 		warnings.append("device_interaction_primary_action_preflight_missing")
 	if not bool(preflight.get("preflight_ok", false)):
-		if String(preflight.get("blocked_reason", "")).strip_edges().is_empty():
+		if str(preflight.get("blocked_reason", "")).strip_edges().is_empty():
 			warnings.append("device_interaction_blocked_reason_missing")
-		if String(preflight.get("message", "")).strip_edges().is_empty():
+		if str(preflight.get("message", "")).strip_edges().is_empty():
 			warnings.append("device_interaction_blocked_message_missing")
-	var message: String = String(preflight.get("message", ""))
+	var message: String = str(preflight.get("message", ""))
 	if message.find("Interface") >= 0 or message.find("CPU") >= 0:
 		warnings.append("device_interaction_obsolete_label_in_message")
 	return _make_architecture_validation_section("device_interaction_flow", "Device Interaction Flow", warnings)
@@ -849,7 +849,7 @@ func _validate_device_interaction_state_flow_section() -> Dictionary:
 	for required_field in ["target_id", "target_name", "target_cell", "state", "next_step_id", "next_step_label", "message", "diagnostic", "preflight", "can_execute", "warnings"]:
 		if not no_target_flow.has(required_field):
 			warnings.append("device_interaction_state_flow_missing_%s" % required_field)
-	if String(no_target_flow.get("state", "")) != "no_target" or bool(no_target_flow.get("can_execute", false)):
+	if str(no_target_flow.get("state", "")) != "no_target" or bool(no_target_flow.get("can_execute", false)):
 		warnings.append("device_interaction_state_flow_no_target_not_informational")
 	if active_bipob_ref == null or not is_instance_valid(active_bipob_ref) or not active_bipob_ref.has_method("get_facing_world_action_target"):
 		return _make_architecture_validation_section("device_interaction_state_flow", "Device Interaction State Flow", warnings, false)
@@ -866,22 +866,22 @@ func _validate_device_interaction_state_flow_section() -> Dictionary:
 	var view_model_variant: Variant = facing_result.get("action_view_model", {})
 	var primary_action_id: String = ""
 	if typeof(view_model_variant) == TYPE_DICTIONARY:
-		primary_action_id = String(Dictionary(view_model_variant).get("primary_action_id", ""))
+		primary_action_id = str(Dictionary(view_model_variant).get("primary_action_id", ""))
 	var flow: Dictionary = build_device_interaction_state_flow(target, target_cell, primary_action_id)
 	for required_field in ["target_id", "target_name", "target_cell", "state", "next_step_id", "next_step_label", "message", "diagnostic", "preflight", "can_execute", "warnings"]:
 		if not flow.has(required_field):
 			warnings.append("device_interaction_state_flow_missing_%s" % required_field)
-	var state: String = String(flow.get("state", ""))
+	var state: String = str(flow.get("state", ""))
 	if state not in DEVICE_INTERACTION_FLOW_STATES:
 		warnings.append("device_interaction_state_flow_unknown_state_%s" % state)
-	if state == "blocked" and (String(flow.get("message", "")).strip_edges().is_empty() or String(flow.get("next_step_id", "")).strip_edges().is_empty()):
+	if state == "blocked" and (str(flow.get("message", "")).strip_edges().is_empty() or str(flow.get("next_step_id", "")).strip_edges().is_empty()):
 		warnings.append("device_interaction_state_flow_blocked_guidance_missing")
 	if state == "ready" and not bool(flow.get("can_execute", false)):
 		warnings.append("device_interaction_state_flow_ready_not_executable")
 	var preflight_variant: Variant = flow.get("preflight", {})
 	if bool(flow.get("can_execute", false)) and (typeof(preflight_variant) != TYPE_DICTIONARY or not bool(Dictionary(preflight_variant).get("preflight_ok", false))):
 		warnings.append("device_interaction_state_flow_execute_without_preflight")
-	var message: String = String(flow.get("message", ""))
+	var message: String = str(flow.get("message", ""))
 	if message.find("Interface") >= 0 or message.find("CPU") >= 0:
 		warnings.append("device_interaction_state_flow_obsolete_label_in_message")
 	if target_snapshot != var_to_str(target):
@@ -891,7 +891,7 @@ func _validate_device_interaction_state_flow_section() -> Dictionary:
 func _validate_architecture_mission_objective_contract() -> Array[String]:
 	var warnings: Array[String] = validate_current_mission_objective_view_model()
 	for warning_variant in validate_mission_content_catalog():
-		warnings.append(String(warning_variant))
+		warnings.append(str(warning_variant))
 	if get_mission_goal_text(TASK_TEST_MISSION_ID).strip_edges().is_empty():
 		warnings.append("mission_10_catalog_goal_text_missing")
 	return warnings
@@ -1014,7 +1014,7 @@ func _deserialize_cell_variant(cell_value: Variant) -> Vector2i:
 	if cell_value is Vector2i:
 		return Vector2i(cell_value)
 	if cell_value is String:
-		return _deserialize_cell_key(String(cell_value))
+		return _deserialize_cell_key(str(cell_value))
 	if cell_value is Dictionary:
 		var cell_dict: Dictionary = Dictionary(cell_value)
 		if cell_dict.has("x") and cell_dict.has("y"):
@@ -1037,7 +1037,7 @@ func get_runtime_mode_id() -> String:
 	return _get_runtime_mode_id_for_mission_id(current_mission_id)
 
 func _get_runtime_mode_id_for_mission_id(mission_id: String) -> String:
-	var normalized_mission_id: String = String(mission_id).strip_edges()
+	var normalized_mission_id: String = str(mission_id).strip_edges()
 	if is_task_test_mission_id(normalized_mission_id):
 		return RUNTIME_MODE_TASK_TEST
 	if normalized_mission_id.begins_with("mission_"):
@@ -1065,7 +1065,7 @@ func _is_known_map_constructor_wall_material_id(material_id: String) -> bool:
 	var catalog: Dictionary = get_map_constructor_wall_material_catalog()
 	for row_variant in Array(catalog.get("materials", [])):
 		var row: Dictionary = Dictionary(row_variant)
-		if String(row.get("id", "")).to_lower().strip_edges() == normalized_id:
+		if str(row.get("id", "")).to_lower().strip_edges() == normalized_id:
 			return true
 	return false
 
@@ -1078,15 +1078,15 @@ func _record_map_constructor_change(action_type: String, payload: Dictionary = {
 	var action: String = action_type.strip_edges().to_lower()
 	if action.is_empty():
 		action = "unknown"
-	var entity_kind: String = String(payload.get("entity_kind", "")).strip_edges()
-	var entity_id: String = String(payload.get("entity_id", "")).strip_edges()
-	var object_type: String = String(payload.get("object_type", payload.get("prefab_id", ""))).strip_edges()
+	var entity_kind: String = str(payload.get("entity_kind", "")).strip_edges()
+	var entity_id: String = str(payload.get("entity_id", "")).strip_edges()
+	var object_type: String = str(payload.get("object_type", payload.get("prefab_id", ""))).strip_edges()
 	var cell: Vector2i = _map_constructor_cell_from_variant(payload.get("cell", Vector2i(-1, -1)))
-	var summary: String = String(payload.get("summary", "")).strip_edges()
+	var summary: String = str(payload.get("summary", "")).strip_edges()
 	if summary.is_empty():
 		summary = "Map constructor change: %s" % action
 	var details: Dictionary = Dictionary(payload.get("details", {})).duplicate(true)
-	var undo_hint: String = String(payload.get("undo_hint", "")).strip_edges()
+	var undo_hint: String = str(payload.get("undo_hint", "")).strip_edges()
 	var row: Dictionary = {
 		"seq": _map_constructor_change_history_seq,
 		"timestamp": Time.get_datetime_string_from_system(true, true),
@@ -1176,8 +1176,8 @@ func _normalize_map_constructor_floor_visual_state_row(row: Dictionary) -> Dicti
 	var cell: Vector2i = _map_constructor_cell_from_variant(row.get("cell", Vector2i(-1, -1)))
 	return {
 		"cell": cell,
-		"family": String(row.get("family", GridManager.FLOOR_FAMILY_METAL)).strip_edges().to_lower(),
-		"wear": String(row.get("wear", GridManager.FLOOR_WEAR_NONE)).strip_edges().to_lower(),
+		"family": str(row.get("family", GridManager.FLOOR_FAMILY_METAL)).strip_edges().to_lower(),
+		"wear": str(row.get("wear", GridManager.FLOOR_WEAR_NONE)).strip_edges().to_lower(),
 		"base_variant": int(row.get("base_variant", -1)),
 		"overlay_variant": int(row.get("overlay_variant", -1)),
 		"mirror_h": bool(row.get("mirror_h", false)),
@@ -1356,7 +1356,7 @@ func _map_constructor_cell_from_variant(cell_variant: Variant) -> Vector2i:
 		if arr.size() >= 2:
 			return Vector2i(int(arr[0]), int(arr[1]))
 	if cell_variant is String:
-		var text: String = String(cell_variant).strip_edges()
+		var text: String = str(cell_variant).strip_edges()
 		if text.begins_with("(") and text.ends_with(")"):
 			text = text.substr(1, text.length() - 2)
 		var parts: PackedStringArray = text.split(",")
@@ -1371,7 +1371,7 @@ func export_map_constructor_runtime_patch() -> Dictionary:
 	for object_data in mission_world_objects:
 		if not bool(object_data.get("created_by_map_constructor", false)):
 			continue
-		var object_id: String = String(object_data.get("id", "")).strip_edges()
+		var object_id: String = str(object_data.get("id", "")).strip_edges()
 		if object_id.is_empty() or _map_constructor_is_protected_id(object_id):
 			continue
 		var row: Dictionary = Dictionary(object_data).duplicate(true)
@@ -1385,7 +1385,7 @@ func export_map_constructor_runtime_patch() -> Dictionary:
 			var item: Dictionary = _safe_dictionary(item_variant)
 			if not bool(item.get("created_by_map_constructor", false)):
 				continue
-			var item_id: String = String(item.get("id", "")).strip_edges()
+			var item_id: String = str(item.get("id", "")).strip_edges()
 			if item_id.is_empty() or _map_constructor_is_protected_id(item_id):
 				continue
 			var item_row: Dictionary = item.duplicate(true)
@@ -1396,8 +1396,8 @@ func export_map_constructor_runtime_patch() -> Dictionary:
 		if not (link_object_variant is Dictionary):
 			continue
 		var door_data: Dictionary = Dictionary(link_object_variant)
-		var door_id: String = String(door_data.get("id", "")).strip_edges()
-		var key_id: String = String(door_data.get("required_key_id", "")).strip_edges()
+		var door_id: String = str(door_data.get("id", "")).strip_edges()
+		var key_id: String = str(door_data.get("required_key_id", "")).strip_edges()
 		if not door_id.is_empty() and not key_id.is_empty():
 			patch["links"].append({"type":"key_door", "key_id":key_id, "door_id":door_id, "source_id":key_id, "target_id":door_id})
 	var json_text: String = JSON.stringify(patch, "\t")
@@ -1410,7 +1410,7 @@ func parse_map_constructor_patch_json(patch_json: String) -> Dictionary:
 	var patch: Dictionary = Dictionary(parsed).duplicate(true)
 	if int(patch.get("schema_version", 0)) != MAP_CONSTRUCTOR_PATCH_SCHEMA_VERSION:
 		return {"ok": false, "message": "Unsupported patch schema_version.", "patch": {}, "warnings": []}
-	if String(patch.get("mission_id", "")) != String(current_mission_id):
+	if str(patch.get("mission_id", "")) != str(current_mission_id):
 		return {"ok": false, "message": "Patch mission_id mismatch.", "patch": {}, "warnings": []}
 	for row_variant in Array(patch.get("objects", [])):
 		if row_variant is Dictionary:
@@ -1461,7 +1461,7 @@ func compare_map_constructor_patch(patch: Dictionary) -> Dictionary:
 			if not (row_variant is Dictionary):
 				continue
 			var row: Dictionary = Dictionary(row_variant)
-			var entity_id: String = String(row.get("id", "")).strip_edges()
+			var entity_id: String = str(row.get("id", "")).strip_edges()
 			if entity_kind == "world_object":
 				row["position"] = _map_constructor_cell_from_variant(row.get("position", Vector2i(-1, -1)))
 			else:
@@ -1519,14 +1519,14 @@ func compare_map_constructor_patch(patch: Dictionary) -> Dictionary:
 
 func preview_apply_map_constructor_patch(patch: Dictionary) -> Dictionary:
 	var cmp: Dictionary = compare_map_constructor_patch(patch)
-	return {"ok": bool(cmp.get("ok", false)), "message": String(cmp.get("message", "")), "can_apply": Array(cmp.get("conflicts", [])).is_empty(), "diffs": Array(cmp.get("diffs", [])), "warnings": Array(cmp.get("warnings", [])), "conflicts": Array(cmp.get("conflicts", [])), "summary": Dictionary(cmp.get("summary", {}))}
+	return {"ok": bool(cmp.get("ok", false)), "message": str(cmp.get("message", "")), "can_apply": Array(cmp.get("conflicts", [])).is_empty(), "diffs": Array(cmp.get("diffs", [])), "warnings": Array(cmp.get("warnings", [])), "conflicts": Array(cmp.get("conflicts", [])), "summary": Dictionary(cmp.get("summary", {}))}
 
 func apply_map_constructor_patch(patch: Dictionary, options: Dictionary = {}) -> Dictionary:
 	if not _is_task_test_constructor_context():
 		return {"ok": false, "message": "Patch apply works only in TASK TEST constructor mode.", "applied_count": 0, "added_count": 0, "updated_count": 0, "deleted_count": 0, "warnings": [], "conflicts": [], "patch_id": ""}
 	var preview: Dictionary = preview_apply_map_constructor_patch(patch)
 	if not bool(preview.get("ok", false)):
-		return {"ok": false, "message": String(preview.get("message", "Preview failed.")), "applied_count": 0, "added_count": 0, "updated_count": 0, "deleted_count": 0, "warnings": [], "conflicts": Array(preview.get("conflicts", [])), "patch_id": ""}
+		return {"ok": false, "message": str(preview.get("message", "Preview failed.")), "applied_count": 0, "added_count": 0, "updated_count": 0, "deleted_count": 0, "warnings": [], "conflicts": Array(preview.get("conflicts", [])), "patch_id": ""}
 	var warnings: Array[String] = Array(preview.get("warnings", [])).duplicate()
 	if not bool(options.get("allow_conflicts", false)) and not bool(preview.get("can_apply", false)):
 		return {"ok": false, "message": "Patch has conflicts.", "applied_count": 0, "added_count": 0, "updated_count": 0, "deleted_count": 0, "warnings": warnings, "conflicts": Array(preview.get("conflicts", [])), "patch_id": ""}
@@ -1539,17 +1539,17 @@ func apply_map_constructor_patch(patch: Dictionary, options: Dictionary = {}) ->
 		if not (diff_variant is Dictionary):
 			continue
 		var diff: Dictionary = Dictionary(diff_variant)
-		var change_type: String = String(diff.get("change_type", ""))
+		var change_type: String = str(diff.get("change_type", ""))
 		if change_type == "add" and not allow_adds:
-			warnings.append("Skipped add for %s %s: allow_adds=false" % [String(diff.get("entity_kind", "entity")), String(diff.get("id", ""))])
+			warnings.append("Skipped add for %s %s: allow_adds=false" % [str(diff.get("entity_kind", "entity")), str(diff.get("id", ""))])
 			continue
 		if change_type == "update" and not allow_updates:
-			warnings.append("Skipped update for %s %s: allow_updates=false" % [String(diff.get("entity_kind", "entity")), String(diff.get("id", ""))])
+			warnings.append("Skipped update for %s %s: allow_updates=false" % [str(diff.get("entity_kind", "entity")), str(diff.get("id", ""))])
 			continue
 		if change_type != "add" and change_type != "update":
 			continue
-		var entity_kind: String = String(diff.get("entity_kind", ""))
-		var entity_id: String = String(diff.get("id", "")).strip_edges()
+		var entity_kind: String = str(diff.get("entity_kind", ""))
+		var entity_id: String = str(diff.get("id", "")).strip_edges()
 		if entity_kind == "floor_visual_state":
 			var target_cell: Vector2i = _map_constructor_cell_from_variant(diff.get("cell", Vector2i(-1, -1)))
 			var applied_floor_state: bool = false
@@ -1567,7 +1567,7 @@ func apply_map_constructor_patch(patch: Dictionary, options: Dictionary = {}) ->
 		var source_rows: Array = Array(patch.get("objects" if entity_kind == "world_object" else "items", []))
 		var incoming_row: Dictionary = {}
 		for row_variant in source_rows:
-			if row_variant is Dictionary and String(Dictionary(row_variant).get("id", "")).strip_edges() == entity_id:
+			if row_variant is Dictionary and str(Dictionary(row_variant).get("id", "")).strip_edges() == entity_id:
 				incoming_row = Dictionary(row_variant).duplicate(true)
 				break
 		if incoming_row.is_empty():
@@ -1593,7 +1593,7 @@ func apply_map_constructor_patch(patch: Dictionary, options: Dictionary = {}) ->
 			add_item_at_cell(cell, incoming_row)
 	PowerSystemRef.recalculate_network(mission_world_objects, "task_test_power_main")
 	refresh_world_cooling_received()
-	var patch_id: String = String(_map_constructor_last_patch_snapshot.get("patch_id", ""))
+	var patch_id: String = str(_map_constructor_last_patch_snapshot.get("patch_id", ""))
 	var summary_data: Dictionary = Dictionary(preview.get("summary", {}))
 	_record_map_constructor_change("patch_apply", {"summary":"Applied patch: +%d / ~%d / -0" % [added_count, updated_count], "details":{"patch_id":patch_id, "added_count":added_count, "updated_count":updated_count, "summary":summary_data}, "undo_hint":"Use Rollback Last Patch."})
 	return {"ok": true, "message": "Patch applied.", "applied_count": added_count + updated_count, "added_count": added_count, "updated_count": updated_count, "deleted_count": 0, "warnings": warnings, "conflicts": Array(preview.get("conflicts", [])), "patch_id": patch_id}
@@ -1657,11 +1657,11 @@ func get_inside_cell_for_boundary_marker(cell: Vector2i) -> Dictionary:
 func _set_constructor_marker(marker_type: String, cell: Vector2i) -> Dictionary:
 	var inside_info: Dictionary = get_inside_cell_for_boundary_marker(cell)
 	if not bool(inside_info.get("ok", false)):
-		return {"ok": false, "message": String(inside_info.get("message", "Marker placement failed."))}
+		return {"ok": false, "message": str(inside_info.get("message", "Marker placement failed."))}
 	var inside_cell: Vector2i = Vector2i(inside_info.get("inside_cell", Vector2i(-1, -1)))
 	if grid_manager == null or int(grid_manager.call("get_tile", inside_cell)) == GridManager.TILE_WALL:
 		return {"ok": false, "message": "Inside marker cell is invalid."}
-	var marker: Dictionary = {"cell": _serialize_cell_key(cell), "inside_cell": _serialize_cell_key(inside_cell), "side": String(inside_info.get("side", ""))}
+	var marker: Dictionary = {"cell": _serialize_cell_key(cell), "inside_cell": _serialize_cell_key(inside_cell), "side": str(inside_info.get("side", ""))}
 	if marker_type == "start":
 		constructor_start_marker = marker
 		return {"ok": true, "message": "Start marker set.", "marker": marker}
@@ -1725,7 +1725,7 @@ func get_map_constructor_mission_patch_data(patch_name: String = "") -> Dictiona
 	return {
 		"version": 1,
 		"patch_type": "task_test_constructor_mission_patch",
-		"source_mission_id": String(preset_data.get("mission_id", TASK_TEST_MISSION_ID)),
+		"source_mission_id": str(preset_data.get("mission_id", TASK_TEST_MISSION_ID)),
 		"patch_name": final_name,
 		"created_at_unix": int(Time.get_unix_time_from_system()),
 		"world_objects": Array(preset_data.get("world_objects", [])),
@@ -1776,7 +1776,7 @@ func list_map_constructor_mission_patches() -> Array[Dictionary]:
 		file_name = dir.get_next()
 	dir.list_dir_end()
 	patches.sort_custom(func(a: Dictionary, b: Dictionary) -> bool:
-		return String(a.get("name", "")) < String(b.get("name", ""))
+		return str(a.get("name", "")) < str(b.get("name", ""))
 	)
 	return patches
 
@@ -1825,7 +1825,7 @@ func get_map_constructor_preset_data() -> Dictionary:
 					grid_overrides.append({"cell": _serialize_cell_key(tile_cell), "tile_type": tile_type})
 	return {
 		"version": 1,
-		"mission_id": String(current_mission_id),
+		"mission_id": str(current_mission_id),
 		"saved_at_unix": Time.get_unix_time_from_system(),
 		"world_objects": world_objects_export,
 		"cell_items": cell_items_export,
@@ -1849,7 +1849,7 @@ func _validate_constructor_marker(marker: Dictionary, marker_name: String) -> Di
 		return {"ok": false, "message": "%s marker not boundary: %s." % [marker_name.capitalize(), _serialize_cell_key(marker_cell)]}
 	var inside_info: Dictionary = get_inside_cell_for_boundary_marker(marker_cell)
 	if not bool(inside_info.get("ok", false)):
-		return {"ok": false, "message": "%s inside cell invalid: %s." % [marker_name.capitalize(), String(inside_info.get("message", "invalid marker"))]}
+		return {"ok": false, "message": "%s inside cell invalid: %s." % [marker_name.capitalize(), str(inside_info.get("message", "invalid marker"))]}
 	var expected_inside: Vector2i = Vector2i(inside_info.get("inside_cell", Vector2i(-1, -1)))
 	if expected_inside != inside_cell:
 		return {"ok": false, "message": "%s inside cell invalid: expected %s, got %s." % [marker_name.capitalize(), _serialize_cell_key(expected_inside), _serialize_cell_key(inside_cell)]}
@@ -1887,7 +1887,7 @@ func list_map_constructor_presets() -> Array[Dictionary]:
 		file_name = dir.get_next()
 	dir.list_dir_end()
 	presets.sort_custom(func(a: Dictionary, b: Dictionary) -> bool:
-		return String(a.get("name", "")) < String(b.get("name", ""))
+		return str(a.get("name", "")) < str(b.get("name", ""))
 	)
 	return presets
 
@@ -1908,7 +1908,7 @@ func load_map_constructor_preset(preset_name: String) -> Dictionary:
 	var preset: Dictionary = Dictionary(parse_result)
 	if int(preset.get("version", 0)) != 1:
 		return {"ok": false, "message": "Preset load failed: unsupported version.", "preset_name": sanitized_name}
-	if not is_task_test_mission_id(String(preset.get("mission_id", ""))):
+	if not is_task_test_mission_id(str(preset.get("mission_id", ""))):
 		return {"ok": false, "message": "Preset load failed: mission mismatch.", "preset_name": sanitized_name}
 	var warnings: Array[String] = []
 	var map_data: Dictionary = Dictionary(preset.get("map", {}))
@@ -1922,10 +1922,10 @@ func load_map_constructor_preset(preset_name: String) -> Dictionary:
 		if not (object_variant is Dictionary):
 			continue
 		var object_data: Dictionary = _safe_dictionary(object_variant).duplicate(true)
-		var object_id: String = String(object_data.get("id", "<unknown>"))
+		var object_id: String = str(object_data.get("id", "<unknown>"))
 		var object_cell: Vector2i = _deserialize_cell_variant(object_data.get("position", "-1,-1"))
 		if not _is_valid_grid_cell(object_cell):
-			warnings.append("Skipped world object %s: invalid cell '%s'." % [object_id, String(object_data.get("position", "-1,-1"))])
+			warnings.append("Skipped world object %s: invalid cell '%s'." % [object_id, str(object_data.get("position", "-1,-1"))])
 			continue
 		object_data["position"] = object_cell
 		set_world_object_at_cell(object_cell, object_data)
@@ -1936,7 +1936,7 @@ func load_map_constructor_preset(preset_name: String) -> Dictionary:
 		var cell_raw: Variant = cell_entry.get("cell", "-1,-1")
 		var cell: Vector2i = _deserialize_cell_variant(cell_raw)
 		if not _is_valid_grid_cell(cell):
-			warnings.append("Skipped cell items entry: invalid cell '%s'." % String(cell_raw))
+			warnings.append("Skipped cell items entry: invalid cell '%s'." % str(cell_raw))
 			continue
 		for item_variant in Array(cell_entry.get("items", [])):
 			if item_variant is Dictionary:
@@ -1966,11 +1966,11 @@ func load_map_constructor_preset(preset_name: String) -> Dictionary:
 	for object_data_variant in mission_world_objects:
 		if not (object_data_variant is Dictionary):
 			continue
-		var network_id: String = String(Dictionary(object_data_variant).get("power_network_id", "")).strip_edges()
+		var network_id: String = str(Dictionary(object_data_variant).get("power_network_id", "")).strip_edges()
 		if not network_id.is_empty():
 			networks[network_id] = true
 	for network_id_variant in networks.keys():
-		PowerSystemRef.recalculate_network(mission_world_objects, String(network_id_variant))
+		PowerSystemRef.recalculate_network(mission_world_objects, str(network_id_variant))
 	refresh_world_cooling_received()
 	return {"ok": true, "message": "Preset '%s' loaded." % sanitized_name, "preset_name": sanitized_name, "warnings": warnings}
 
@@ -2065,14 +2065,14 @@ func build_task_test_mission_world_objects_for_validation() -> Dictionary:
 {"type":"door","id":"task_test_extraction_door","pos":Vector2i(14, 7),"extra":{"door_type":"digital","material":"energy","access_type":"digital_key","state":"open","mission_exit":true,"extraction":true}}
 	]
 	for spec in specs:
-		var obj: Dictionary = WorldObjectCatalogRef.create_world_object(String(spec.get("type", "")), String(spec.get("id", "")))
+		var obj: Dictionary = WorldObjectCatalogRef.create_world_object(str(spec.get("type", "")), str(spec.get("id", "")))
 		if obj.is_empty():
-			warnings.append("catalog_create_failed_%s" % String(spec.get("id", "")))
+			warnings.append("catalog_create_failed_%s" % str(spec.get("id", "")))
 			continue
 		obj["position"] = Vector2i(spec.get("pos", Vector2i.ZERO))
 		var extra: Dictionary = Dictionary(spec.get("extra", {}))
 		for key_variant in extra.keys():
-			var key_name: String = String(key_variant)
+			var key_name: String = str(key_variant)
 			obj[key_name] = extra[key_variant]
 		obj = WorldObjectCatalogRef.normalize_door_state_fields(WorldObjectCatalogRef.normalize_world_object_contract(obj))
 		objects.append(obj)
@@ -2089,13 +2089,13 @@ func build_task_test_mission_world_objects_for_validation() -> Dictionary:
 		{"type":"repair_kit","id":"task_test_item_repair_kit","cell":Vector2i(2, 6),"extra":{}}
 	]
 	for item_spec in key_specs:
-		var item: Dictionary = WorldObjectCatalogRef.create_world_object(String(item_spec.get("type", "")), String(item_spec.get("id", "")))
+		var item: Dictionary = WorldObjectCatalogRef.create_world_object(str(item_spec.get("type", "")), str(item_spec.get("id", "")))
 		if item.is_empty():
-			warnings.append("catalog_create_failed_%s" % String(item_spec.get("id", "")))
+			warnings.append("catalog_create_failed_%s" % str(item_spec.get("id", "")))
 			continue
 		var extra_item: Dictionary = Dictionary(item_spec.get("extra", {}))
 		for item_key_variant in extra_item.keys():
-			var item_key: String = String(item_key_variant)
+			var item_key: String = str(item_key_variant)
 			item[item_key] = extra_item[item_key_variant]
 		item = WorldObjectCatalogRef.normalize_item_contract(WorldObjectCatalogRef.normalize_archetype_object(WorldObjectCatalogRef.normalize_world_object_contract(item)))
 		var cell: Vector2i = Vector2i(item_spec.get("cell", Vector2i.ZERO))
@@ -2132,10 +2132,10 @@ func validate_world_object_scenario() -> Array[String]:
 		if object_data.has("controls") and controls.is_empty():
 			warnings.append("Object %s has empty controls list." % object_id)
 		for controlled_id in controls:
-			if not ids.has(String(controlled_id)):
-				warnings.append("Object %s controls missing id %s." % [object_id, String(controlled_id)])
+			if not ids.has(str(controlled_id)):
+				warnings.append("Object %s controls missing id %s." % [object_id, str(controlled_id)])
 		if object_data.has("power_network_id"):
-			var network_id := String(object_data.get("power_network_id", ""))
+			var network_id := str(object_data.get("power_network_id", ""))
 			if network_id.is_empty():
 				warnings.append("Object %s has empty power network id." % object_id)
 		if bool(object_data.get("heavy_claw_movable", false)):
@@ -2147,7 +2147,7 @@ func validate_world_object_scenario() -> Array[String]:
 		if not ids.has(required_id):
 			warnings.append("Required scenario id missing: %s." % required_id)
 	if not turret_1.is_empty():
-		if String(turret_1.get("object_group", "")) != "threat":
+		if str(turret_1.get("object_group", "")) != "threat":
 			warnings.append("turret_1 must use object_group threat.")
 		if int(turret_1.get("detection_range", 0)) <= 0:
 			warnings.append("turret_1 must have detection_range > 0.")
@@ -2165,7 +2165,7 @@ func validate_world_object_scenario() -> Array[String]:
 	for cell in cell_items.keys():
 		var seen := {}
 		for item in cell_items[cell]:
-			var item_id := String(item.get("id", ""))
+			var item_id := str(item.get("id", ""))
 			if seen.has(item_id):
 				warnings.append("Duplicate item id %s at cell %s." % [item_id, str(cell)])
 			seen[item_id] = true
@@ -2185,7 +2185,7 @@ func _should_assign_main_power_network(object_data: Dictionary) -> bool:
 		"light"
 	]:
 		return true
-	if object_group == "door" and (String(object_data.get("material", "")) == WorldObjectCatalogRef.DOOR_MATERIAL_ENERGY or String(object_data.get("power_behavior", "none")) != WorldObjectCatalogRef.POWER_BEHAVIOR_NONE):
+	if object_group == "door" and (str(object_data.get("material", "")) == WorldObjectCatalogRef.DOOR_MATERIAL_ENERGY or str(object_data.get("power_behavior", "none")) != WorldObjectCatalogRef.POWER_BEHAVIOR_NONE):
 		return true
 	if object_group in ["terminal", "power"]:
 		return object_type != "fuse_box_empty"
@@ -2230,7 +2230,7 @@ func _place_debug_world_object(object_type: String, object_id: String, cell: Vec
 	for key in overrides.keys():
 		object_data[key] = overrides[key]
 	var replaced := get_world_object_at_cell(cell)
-	if not replaced.is_empty() and String(replaced.get("id", "")) == object_id:
+	if not replaced.is_empty() and str(replaced.get("id", "")) == object_id:
 		mission_world_objects.erase(replaced)
 	world_objects_by_cell[cell] = object_data
 	if not mission_world_objects.has(object_data):
@@ -2275,20 +2275,20 @@ func validate_world_cooling_debug_scenario() -> Array[String]:
 		"terminal_c2_air_water": 4
 	}
 	for object_id in expected.keys():
-		var object_data := get_world_object_by_id(String(object_id))
+		var object_data := get_world_object_by_id(str(object_id))
 		if object_data.is_empty():
-			warnings.append("Missing debug object: %s." % String(object_id))
+			warnings.append("Missing debug object: %s." % str(object_id))
 			continue
 		var received := int(object_data.get("cooling_received", -1))
 		var target := int(expected[object_id])
 		if received != target:
-			warnings.append("%s cooling_received expected %d, got %d." % [String(object_id), target, received])
+			warnings.append("%s cooling_received expected %d, got %d." % [str(object_id), target, received])
 	var power_source := get_world_object_by_id("power_source_c3_cooled")
 	if power_source.is_empty():
 		warnings.append("Missing debug object: power_source_c3_cooled.")
 	else:
-		if String(power_source.get("state", "")) != "active":
-			warnings.append("power_source_c3_cooled state expected active, got %s." % String(power_source.get("state", "")))
+		if str(power_source.get("state", "")) != "active":
+			warnings.append("power_source_c3_cooled state expected active, got %s." % str(power_source.get("state", "")))
 		var current_heat := int(power_source.get("current_heat", 999))
 		var threshold := int(power_source.get("overheat_threshold", 0))
 		if current_heat >= threshold:
@@ -2369,7 +2369,7 @@ func _select_world_object_for_cell(cell: Vector2i) -> Dictionary:
 	if not selected_object.is_empty():
 		return selected_object
 	var by_cell: Dictionary = Dictionary(world_objects_by_cell.get(cell, {}))
-	if String(by_cell.get("object_group", "")).to_lower() == "item":
+	if str(by_cell.get("object_group", "")).to_lower() == "item":
 		return {}
 	return by_cell
 
@@ -2387,9 +2387,9 @@ func get_world_object_at_cell(cell: Vector2i, include_lookup_metadata: bool = fa
 			"position": cell,
 			"data": {}
 		}
-	var object_id: String = String(selected_object.get("id", "")).strip_edges()
-	var object_type: String = String(selected_object.get("object_type", "")).strip_edges()
-	var object_group: String = String(selected_object.get("object_group", "")).strip_edges()
+	var object_id: String = str(selected_object.get("id", "")).strip_edges()
+	var object_type: String = str(selected_object.get("object_type", "")).strip_edges()
+	var object_group: String = str(selected_object.get("object_group", "")).strip_edges()
 	var position: Vector2i = _get_world_object_cell_from_data(selected_object)
 	if position.x < 0 or position.y < 0:
 		position = cell
@@ -2442,31 +2442,31 @@ func get_runtime_cell_state(cell: Vector2i) -> Dictionary:
 		var tile_type: int = int(grid_manager.call("get_tile", cell))
 		state["tile_type"] = tile_type
 		if grid_manager.has_method("get_tile_name"):
-			state["tile_name"] = String(grid_manager.call("get_tile_name", tile_type))
+			state["tile_name"] = str(grid_manager.call("get_tile_name", tile_type))
 	if grid_manager.has_method("is_walkable"):
 		state["static_walkable"] = bool(grid_manager.call("is_walkable", cell))
 
 	var object_data: Dictionary = get_world_object_at_cell(cell)
 	if not object_data.is_empty():
 		state["has_object"] = true
-		state["object_id"] = String(object_data.get("id", ""))
-		state["object_type"] = String(object_data.get("object_type", ""))
-		state["object_group"] = String(object_data.get("object_group", ""))
-		state["display_name"] = String(object_data.get("display_name", ""))
-		state["state"] = String(object_data.get("state", "")).to_lower()
+		state["object_id"] = str(object_data.get("id", ""))
+		state["object_type"] = str(object_data.get("object_type", ""))
+		state["object_group"] = str(object_data.get("object_group", ""))
+		state["display_name"] = str(object_data.get("display_name", ""))
+		state["state"] = str(object_data.get("state", "")).to_lower()
 		state["is_open"] = bool(object_data.get("is_open", false))
 		state["is_locked"] = bool(object_data.get("is_locked", false)) or bool(object_data.get("locked", false))
 		state["is_powered"] = bool(object_data.get("is_powered", false))
 		state["blocks_movement"] = bool(object_data.get("blocks_movement", false))
 		state["requires_key"] = bool(object_data.get("requires_key", false))
-		state["required_key_id"] = String(object_data.get("required_key_id", ""))
-		state["lock_type"] = String(object_data.get("lock_type", ""))
-		state["power_network_id"] = String(object_data.get("power_network_id", ""))
-		state["control_source_id"] = String(object_data.get("control_source_id", object_data.get("linked_terminal_id", object_data.get("controller_id", ""))))
-		state["visual_profile"] = String(object_data.get("visual_profile", ""))
-		var object_group_value: String = String(state.get("object_group", "")).to_lower()
-		var object_type_value: String = String(state.get("object_type", "")).to_lower()
-		var lock_type_value: String = String(state.get("lock_type", ""))
+		state["required_key_id"] = str(object_data.get("required_key_id", ""))
+		state["lock_type"] = str(object_data.get("lock_type", ""))
+		state["power_network_id"] = str(object_data.get("power_network_id", ""))
+		state["control_source_id"] = str(object_data.get("control_source_id", object_data.get("linked_terminal_id", object_data.get("controller_id", ""))))
+		state["visual_profile"] = str(object_data.get("visual_profile", ""))
+		var object_group_value: String = str(state.get("object_group", "")).to_lower()
+		var object_type_value: String = str(state.get("object_type", "")).to_lower()
+		var lock_type_value: String = str(state.get("lock_type", ""))
 		var has_door_class: bool = object_data.has("door_class")
 		state["is_door_object"] = object_group_value == "door" or object_type_value.find("door") >= 0 or not lock_type_value.is_empty() or has_door_class
 
@@ -2475,7 +2475,7 @@ func get_runtime_cell_state(cell: Vector2i) -> Dictionary:
 	var tile_is_door: bool = tile_type_value == GridManager.TILE_DOOR or tile_type_value == GridManager.TILE_DIGITAL_DOOR or tile_type_value == GridManager.TILE_POWERED_GATE
 	state["is_door_tile"] = tile_is_door
 	state["is_door_cell"] = tile_is_door or bool(state.get("is_door_object", false))
-	var object_state: String = String(state.get("state", ""))
+	var object_state: String = str(state.get("state", ""))
 	var is_open_state: bool = object_state == "open" or object_state == "opened"
 	var canonical_open: bool = bool(state.get("is_open", false)) or is_open_state
 	if bool(state.get("is_door_cell", false)):
@@ -2512,23 +2512,23 @@ func is_runtime_cell_passable(cell: Vector2i) -> bool:
 
 func get_runtime_cell_block_reason(cell: Vector2i) -> String:
 	var state: Dictionary = get_runtime_cell_state(cell)
-	return String(state.get("block_reason", ""))
+	return str(state.get("block_reason", ""))
 
 func set_world_object_at_cell(cell: Vector2i, object_data: Dictionary) -> void:
 	if object_data.is_empty():
 		return
 	object_data = WorldObjectCatalogRef.normalize_door_state_fields(WorldObjectCatalogRef.normalize_world_object_contract(object_data))
 	object_data["position"] = cell
-	var incoming_group: String = String(object_data.get("object_group", "")).to_lower()
-	var incoming_id: String = String(object_data.get("id", ""))
+	var incoming_group: String = str(object_data.get("object_group", "")).to_lower()
+	var incoming_id: String = str(object_data.get("id", ""))
 	for index in range(mission_world_objects.size() - 1, -1, -1):
 		var existing: Dictionary = mission_world_objects[index]
-		var existing_group: String = String(existing.get("object_group", "")).to_lower()
-		var same_id: bool = not incoming_id.is_empty() and String(existing.get("id", "")) == incoming_id
+		var existing_group: String = str(existing.get("object_group", "")).to_lower()
+		var same_id: bool = not incoming_id.is_empty() and str(existing.get("id", "")) == incoming_id
 		var conflicting_primary: bool = incoming_group in ["door", "terminal"] and existing_group in ["door", "terminal"] and _get_world_object_cell_from_data(existing) == cell
 		if same_id or conflicting_primary:
 			var existing_cell: Vector2i = _get_world_object_cell_from_data(existing)
-			if existing_cell != cell and String(Dictionary(world_objects_by_cell.get(existing_cell, {})).get("id", "")) == String(existing.get("id", "")):
+			if existing_cell != cell and str(Dictionary(world_objects_by_cell.get(existing_cell, {})).get("id", "")) == str(existing.get("id", "")):
 				world_objects_by_cell.erase(existing_cell)
 			mission_world_objects.remove_at(index)
 	world_objects_by_cell[cell] = object_data
@@ -2556,7 +2556,7 @@ func add_item_at_cell(cell: Vector2i, item_data: Dictionary) -> void:
 	# cell_items is the authoritative pickup lookup. A dropped inventory snapshot
 	# must remain an item even if old save data carried a stale world-object group.
 	item_data["object_group"] = "item"
-	if String(item_data.get("object_type", "")).strip_edges().is_empty():
+	if str(item_data.get("object_type", "")).strip_edges().is_empty():
 		item_data["object_type"] = "item"
 	if not item_data.has("can_pickup"):
 		item_data["can_pickup"] = true
@@ -2566,12 +2566,12 @@ func add_item_at_cell(cell: Vector2i, item_data: Dictionary) -> void:
 	_sync_world_item_record(item_data)
 
 func _sync_world_item_record(item_data: Dictionary) -> void:
-	var item_id: String = String(item_data.get("id", "")).strip_edges()
+	var item_id: String = str(item_data.get("id", "")).strip_edges()
 	if item_id.is_empty():
 		return
 	for index in range(mission_world_objects.size()):
 		var object_data: Dictionary = mission_world_objects[index]
-		if String(object_data.get("id", "")) != item_id:
+		if str(object_data.get("id", "")) != item_id:
 			continue
 		mission_world_objects[index] = item_data
 		return
@@ -2582,7 +2582,7 @@ func _remove_world_item_record(item_id: String) -> void:
 		return
 	for index in range(mission_world_objects.size() - 1, -1, -1):
 		var object_data: Dictionary = mission_world_objects[index]
-		if String(object_data.get("id", "")) == item_id:
+		if str(object_data.get("id", "")) == item_id:
 			mission_world_objects.remove_at(index)
 
 func _remove_world_item_from_lookup_tables(item_id: String, item_data: Dictionary = {}) -> void:
@@ -2594,7 +2594,7 @@ func _remove_world_item_from_lookup_tables(item_id: String, item_data: Dictionar
 		var remaining_items: Array[Dictionary] = []
 		var removed := false
 		for item_variant in original_items:
-			if item_variant is Dictionary and String(Dictionary(item_variant).get("id", "")).strip_edges() == normalized_id:
+			if item_variant is Dictionary and str(Dictionary(item_variant).get("id", "")).strip_edges() == normalized_id:
 				removed = true
 				continue
 			if item_variant is Dictionary:
@@ -2608,12 +2608,12 @@ func _remove_world_item_from_lookup_tables(item_id: String, item_data: Dictionar
 	var item_cell := WorldObjectCatalogRef.to_world_cell(item_data.get("position", Vector2i(-1, -1)), Vector2i(-1, -1))
 	for cell_variant in world_objects_by_cell.keys():
 		var object_variant: Variant = world_objects_by_cell.get(cell_variant)
-		if object_variant is Dictionary and String(Dictionary(object_variant).get("id", "")).strip_edges() == normalized_id:
+		if object_variant is Dictionary and str(Dictionary(object_variant).get("id", "")).strip_edges() == normalized_id:
 			world_objects_by_cell.erase(cell_variant)
 			break
 	if item_cell != Vector2i(-1, -1):
 		var item_cell_object_variant: Variant = world_objects_by_cell.get(item_cell)
-		if item_cell_object_variant is Dictionary and String(Dictionary(item_cell_object_variant).get("id", "")).strip_edges() == normalized_id:
+		if item_cell_object_variant is Dictionary and str(Dictionary(item_cell_object_variant).get("id", "")).strip_edges() == normalized_id:
 			world_objects_by_cell.erase(item_cell)
 	_remove_world_item_record(normalized_id)
 
@@ -2626,7 +2626,7 @@ func remove_first_item_at_cell(cell: Vector2i) -> Dictionary:
 		cell_items.erase(cell)
 	else:
 		cell_items[cell] = items
-	_remove_world_item_record(String(item.get("id", "")))
+	_remove_world_item_record(str(item.get("id", "")))
 	return item
 
 func _get_world_object_template(prefab_id: String) -> Dictionary:
@@ -2644,9 +2644,9 @@ func get_map_constructor_prefab_catalog() -> Array[Dictionary]:
 	var entries: Array[Dictionary] = []
 	var seen_prefab_ids: Dictionary = {}
 	for entry in entries:
-		seen_prefab_ids[String(entry.get("id", ""))] = true
+		seen_prefab_ids[str(entry.get("id", ""))] = true
 	for row in WorldObjectCatalogRef.get_constructor_palette_rows():
-		var prefab_id: String = String(row.get("prefab_id", ""))
+		var prefab_id: String = str(row.get("prefab_id", ""))
 		if prefab_id.is_empty() or seen_prefab_ids.has(prefab_id):
 			continue
 		var catalog_row: Dictionary = row.duplicate(true)
@@ -2655,10 +2655,10 @@ func get_map_constructor_prefab_catalog() -> Array[Dictionary]:
 		seen_prefab_ids[prefab_id] = true
 	for index in range(entries.size()):
 		var entry: Dictionary = entries[index]
-		var prefab_id: String = String(entry.get("id", ""))
+		var prefab_id: String = str(entry.get("id", ""))
 		var object_template: Dictionary = _get_world_object_template(prefab_id)
-		entry["label"] = String(entry.get("display_name", object_template.get("name", prefab_id.replace("_", " ").capitalize())))
-		entry["placement_mode"] = String(entry.get("placement_mode", object_template.get("placement_mode", "floor")))
+		entry["label"] = str(entry.get("display_name", object_template.get("name", prefab_id.replace("_", " ").capitalize())))
+		entry["placement_mode"] = str(entry.get("placement_mode", object_template.get("placement_mode", "floor")))
 		entries[index] = entry
 	return entries
 
@@ -2689,16 +2689,16 @@ func _get_map_constructor_prefab_metadata_catalog() -> Dictionary:
 
 func _build_map_constructor_prefab_fallback_metadata(prefab_id: String, catalog_entry: Dictionary = {}) -> Dictionary:
 	var id: String = prefab_id.strip_edges()
-	var category: String = String(catalog_entry.get("category", catalog_entry.get("group", ""))).strip_edges()
+	var category: String = str(catalog_entry.get("category", catalog_entry.get("group", ""))).strip_edges()
 	if category.is_empty():
 		category = "Utility"
-	var placement_mode: String = String(catalog_entry.get("placement_mode", "")).strip_edges()
+	var placement_mode: String = str(catalog_entry.get("placement_mode", "")).strip_edges()
 	if placement_mode.is_empty():
 		placement_mode = "floor"
-	var display_name: String = String(catalog_entry.get("label", id)).strip_edges()
+	var display_name: String = str(catalog_entry.get("label", id)).strip_edges()
 	if display_name.is_empty():
 		display_name = id
-	var hint: String = String(catalog_entry.get("hint", "")).strip_edges()
+	var hint: String = str(catalog_entry.get("hint", "")).strip_edges()
 	var expected_invalid: bool = id.find("expected_invalid") >= 0 or category.to_lower().find("expected_invalid") >= 0
 	var requires_floor: bool = placement_mode != "tile"
 	var fallback_tags: Array[String] = [id, category, placement_mode]
@@ -2720,15 +2720,15 @@ func _build_map_constructor_prefab_fallback_metadata(prefab_id: String, catalog_
 		"can_have_power_network": false,
 		"can_have_links": false,
 		"default_state": catalog_entry.get("default_state", {}),
-		"canonical_object_type": String(catalog_entry.get("canonical_object_type", id)),
-		"object_group": String(catalog_entry.get("object_group", "")),
+		"canonical_object_type": str(catalog_entry.get("canonical_object_type", id)),
+		"object_group": str(catalog_entry.get("object_group", "")),
 		"is_alias": bool(catalog_entry.get("is_alias", false)),
-		"alias_source_id": String(catalog_entry.get("alias_source_id", "")),
-		"door_type": String(catalog_entry.get("door_type", "")),
-		"material": String(catalog_entry.get("material", "")),
-		"access_type": String(catalog_entry.get("access_type", "")),
+		"alias_source_id": str(catalog_entry.get("alias_source_id", "")),
+		"door_type": str(catalog_entry.get("door_type", "")),
+		"material": str(catalog_entry.get("material", "")),
+		"access_type": str(catalog_entry.get("access_type", "")),
 		"door_class": catalog_entry.get("door_class", ""),
-		"power_behavior": String(catalog_entry.get("power_behavior", "")),
+		"power_behavior": str(catalog_entry.get("power_behavior", "")),
 		"blocks_movement": bool(catalog_entry.get("blocks_movement", false))
 	}
 
@@ -2741,15 +2741,15 @@ func get_map_constructor_prefab_metadata(prefab_id: String) -> Dictionary:
 		return {"ok": true, "prefab": explicit_row, "message": "OK"}
 	for entry in get_map_constructor_prefab_catalog():
 		var catalog_entry: Dictionary = Dictionary(entry)
-		if String(catalog_entry.get("id", "")).strip_edges() == id:
+		if str(catalog_entry.get("id", "")).strip_edges() == id:
 			return {"ok": true, "prefab": _build_map_constructor_prefab_fallback_metadata(id, catalog_entry), "message": "OK"}
 	return {"ok": false, "prefab": {}, "message": "Unknown prefab id."}
 
 func get_map_constructor_prefab_palette_rows(options: Dictionary = {}) -> Dictionary:
-	var search: String = String(options.get("search", "")).strip_edges().to_lower()
-	var category_filter: String = String(options.get("category", "All")).strip_edges()
-	var role_filter: String = String(options.get("role", "All")).strip_edges()
-	var placement_filter: String = String(options.get("placement_mode", "All")).strip_edges()
+	var search: String = str(options.get("search", "")).strip_edges().to_lower()
+	var category_filter: String = str(options.get("category", "All")).strip_edges()
+	var role_filter: String = str(options.get("role", "All")).strip_edges()
+	var placement_filter: String = str(options.get("placement_mode", "All")).strip_edges()
 	var show_expected_invalid: bool = bool(options.get("show_expected_invalid", true))
 	var show_diagnostics: bool = bool(options.get("show_diagnostics", true))
 	var only_placeable: bool = bool(options.get("show_only_placeable_here", false))
@@ -2759,18 +2759,18 @@ func get_map_constructor_prefab_palette_rows(options: Dictionary = {}) -> Dictio
 	var roles: Array[String] = []
 	for entry in get_map_constructor_prefab_catalog():
 		var catalog_entry: Dictionary = Dictionary(entry)
-		var prefab_id: String = String(catalog_entry.get("id", "")).strip_edges()
+		var prefab_id: String = str(catalog_entry.get("id", "")).strip_edges()
 		if prefab_id.is_empty():
 			continue
 		var meta_result: Dictionary = get_map_constructor_prefab_metadata(prefab_id)
 		var meta: Dictionary = Dictionary(meta_result.get("prefab", {})).duplicate(true)
-		var category: String = String(meta.get("category", ""))
-		var placement_mode: String = String(meta.get("placement_mode", ""))
+		var category: String = str(meta.get("category", ""))
+		var placement_mode: String = str(meta.get("placement_mode", ""))
 		var role_values: Array[String] = []
 		for role in Array(meta.get("system_roles", [])):
-			role_values.append(String(role))
-			if not roles.has(String(role)):
-				roles.append(String(role))
+			role_values.append(str(role))
+			if not roles.has(str(role)):
+				roles.append(str(role))
 		if not categories.has(category):
 			categories.append(category)
 		if not show_expected_invalid and bool(meta.get("is_expected_invalid_tool", false)):
@@ -2783,19 +2783,19 @@ func get_map_constructor_prefab_palette_rows(options: Dictionary = {}) -> Dictio
 			continue
 		if placement_filter != "All" and placement_mode != placement_filter:
 			continue
-		var haystack: String = "%s %s %s %s %s %s" % [String(meta.get("id", "")).to_lower(), String(meta.get("display_name", "")).to_lower(), category.to_lower(), " ".join(PackedStringArray(meta.get("tags", []))).to_lower(), " ".join(PackedStringArray(role_values)).to_lower(), String(meta.get("description", "")).to_lower()]
+		var haystack: String = "%s %s %s %s %s %s" % [str(meta.get("id", "")).to_lower(), str(meta.get("display_name", "")).to_lower(), category.to_lower(), " ".join(PackedStringArray(meta.get("tags", []))).to_lower(), " ".join(PackedStringArray(role_values)).to_lower(), str(meta.get("description", "")).to_lower()]
 		if not search.is_empty() and haystack.find(search) < 0:
 			continue
 		var row: Dictionary = meta.duplicate(true)
 		if selected_cell.x >= 0 and selected_cell.y >= 0:
-			var place_check: Dictionary = can_place_map_constructor_prefab(String(meta.get("id", "")), selected_cell, "")
+			var place_check: Dictionary = can_place_map_constructor_prefab(str(meta.get("id", "")), selected_cell, "")
 			row["placeability"] = place_check
 			if only_placeable and not bool(place_check.get("ok", false)):
 				continue
 		rows.append(row)
 	categories.sort()
 	roles.sort()
-	rows.sort_custom(func(a: Dictionary, b: Dictionary) -> bool: return String(a.get("display_name", a.get("id", ""))) < String(b.get("display_name", b.get("id", ""))))
+	rows.sort_custom(func(a: Dictionary, b: Dictionary) -> bool: return str(a.get("display_name", a.get("id", ""))) < str(b.get("display_name", b.get("id", ""))))
 	return {"ok": true, "rows": rows, "categories": categories, "roles": roles, "message": "OK"}
 
 func is_map_constructor_item_prefab(prefab_id: String) -> bool:
@@ -2803,12 +2803,12 @@ func is_map_constructor_item_prefab(prefab_id: String) -> bool:
 	if normalized_prefab_id == "item" or WorldObjectCatalogRef.LEGACY_ITEM_ALIAS_CONFIGS.has(normalized_prefab_id):
 		return true
 	var archetype_definition: Dictionary = WorldObjectCatalogRef.get_archetype_definition(normalized_prefab_id)
-	return String(archetype_definition.get("object_group", "")) == "item" and String(archetype_definition.get("placement_mode", "")) == "item"
+	return str(archetype_definition.get("object_group", "")) == "item" and str(archetype_definition.get("placement_mode", "")) == "item"
 
 func _map_constructor_entity_kind(object_data: Dictionary) -> String:
 	var object_group: String = str(object_data.get("object_group", "")).to_lower()
 	var object_type: String = str(object_data.get("object_type", "")).to_lower()
-	var prefab_id: String = String(object_data.get("map_constructor_prefab_id", object_type)).to_lower()
+	var prefab_id: String = str(object_data.get("map_constructor_prefab_id", object_type)).to_lower()
 	var classifier: String = "%s|%s|%s" % [object_group, object_type, prefab_id]
 	if "door" in classifier or "gate" in classifier:
 		return "door"
@@ -2822,15 +2822,15 @@ func _map_constructor_entity_kind(object_data: Dictionary) -> String:
 
 func get_default_map_constructor_field_value(field_name: String, entity_kind: String, data: Dictionary) -> Variant:
 	var normalized_field: String = field_name.strip_edges()
-	for field_variant in WorldObjectCatalogRef.get_archetype_property_schema(String(data.get("archetype_id", ""))):
+	for field_variant in WorldObjectCatalogRef.get_archetype_property_schema(str(data.get("archetype_id", ""))):
 		var archetype_field: Dictionary = field_variant
-		if String(archetype_field.get("field", "")) == normalized_field:
+		if str(archetype_field.get("field", "")) == normalized_field:
 			return archetype_field.get("default")
 	match normalized_field:
 		"is_open":
 			return false
 		"is_closed":
-			var state_text: String = String(data.get("state", "closed")).strip_edges().to_lower()
+			var state_text: String = str(data.get("state", "closed")).strip_edges().to_lower()
 			return state_text in ["closed", "locked", "jammed", "damaged", ""]
 		"is_locked":
 			return false
@@ -2921,23 +2921,23 @@ func get_map_constructor_floor_material_catalog() -> Dictionary:
 		{"id":"oil", "name":"Oil", "texture":"floor_hazard", "color_shift":Color(0.62, 0.56, 0.42, 1.0), "description":"slippery oily surface"}
 	]
 	for material_id_variant in ["steel", "concrete", "grate"]:
-		var material_id: String = String(material_id_variant)
+		var material_id: String = str(material_id_variant)
 		var base: Dictionary = Dictionary(base_colors.get(material_id, {}))
 		for coating in coatings:
-			var coating_id: String = String(coating.get("id", "default"))
+			var coating_id: String = str(coating.get("id", "default"))
 			var visual_id: String = "%s_%s" % [material_id, coating_id]
 			var shift: Color = Color(coating.get("color_shift", Color.WHITE))
 			var fallback: Color = Color(base.get("fallback", Color(0.13, 0.17, 0.2, 0.97)))
 			var edge: Color = Color(base.get("edge", Color(0.22, 0.28, 0.33, 0.95)))
 			materials.append({
 				"id": visual_id,
-				"display_name": "%s / %s" % [String(base.get("name", material_id.capitalize())), String(coating.get("name", coating_id.capitalize()))],
-				"description": "%s floor with %s." % [String(base.get("name", material_id.capitalize())), String(coating.get("description", coating_id))],
+				"display_name": "%s / %s" % [str(base.get("name", material_id.capitalize())), str(coating.get("name", coating_id.capitalize()))],
+				"description": "%s floor with %s." % [str(base.get("name", material_id.capitalize())), str(coating.get("description", coating_id))],
 				"material": material_id,
 				"coating": coating_id,
 				"tags": [material_id, coating_id, "floor"],
 				"style": visual_id,
-				"texture_asset_id": String(coating.get("texture", base.get("texture", "floor_default"))),
+				"texture_asset_id": str(coating.get("texture", base.get("texture", "floor_default"))),
 				"fallback_color": Color(fallback.r * shift.r, fallback.g * shift.g, fallback.b * shift.b, fallback.a),
 				"edge_color": edge,
 				"is_default": visual_id == "steel_default"
@@ -2961,7 +2961,7 @@ func _is_known_map_constructor_floor_material_id(material_id: String) -> bool:
 		return false
 	for row_variant in Array(get_map_constructor_floor_material_catalog().get("materials", [])):
 		var row: Dictionary = Dictionary(row_variant)
-		if String(row.get("id", "")).to_lower().strip_edges() == normalized_id:
+		if str(row.get("id", "")).to_lower().strip_edges() == normalized_id:
 			return true
 	return false
 
@@ -2995,7 +2995,7 @@ func normalize_visual_texture_asset_id(asset_id: String) -> String:
 	if normalized_asset_id.is_empty():
 		return ""
 	if VISUAL_TEXTURE_ASSET_ALIASES.has(normalized_asset_id):
-		return String(VISUAL_TEXTURE_ASSET_ALIASES.get(normalized_asset_id, normalized_asset_id))
+		return str(VISUAL_TEXTURE_ASSET_ALIASES.get(normalized_asset_id, normalized_asset_id))
 	return normalized_asset_id
 
 func get_placeholder_asset_presence_report() -> Array[Dictionary]:
@@ -3003,8 +3003,8 @@ func get_placeholder_asset_presence_report() -> Array[Dictionary]:
 	var asset_keys: Array = ISO_PLACEHOLDER_ASSET_PATHS.keys()
 	asset_keys.sort()
 	for asset_key_variant in asset_keys:
-		var asset_key: String = String(asset_key_variant)
-		var placeholder_path: String = String(ISO_PLACEHOLDER_ASSET_PATHS.get(asset_key, ""))
+		var asset_key: String = str(asset_key_variant)
+		var placeholder_path: String = str(ISO_PLACEHOLDER_ASSET_PATHS.get(asset_key, ""))
 		var exists: bool = false
 		var loadable: bool = false
 		if not placeholder_path.is_empty():
@@ -3018,11 +3018,11 @@ func _append_placeholder_visual_texture_assets(assets: Array[Dictionary]) -> voi
 	var existing_ids: Dictionary = {}
 	for row_variant in assets:
 		var row: Dictionary = Dictionary(row_variant)
-		existing_ids[String(row.get("id", ""))] = true
+		existing_ids[str(row.get("id", ""))] = true
 	var asset_keys: Array = ISO_PLACEHOLDER_ASSET_PATHS.keys()
 	asset_keys.sort()
 	for asset_key_variant in asset_keys:
-		var asset_key: String = String(asset_key_variant)
+		var asset_key: String = str(asset_key_variant)
 		if existing_ids.has(asset_key):
 			continue
 		var category: String = "placeholder"
@@ -3032,21 +3032,21 @@ func _append_placeholder_visual_texture_assets(assets: Array[Dictionary]) -> voi
 			category = "wall"
 		elif asset_key.begins_with("object_"):
 			category = "object"
-		assets.append({"id": asset_key, "category": category, "display_name": "Placeholder / %s" % asset_key.capitalize(), "description": "BIP-Visual-011 placeholder SVG asset.", "texture_path": String(ISO_PLACEHOLDER_ASSET_PATHS.get(asset_key, "")), "atlas_region": Rect2i(0, 0, 0, 0), "fallback_style": "placeholder", "fallback_color": Color(0.72, 0.82, 0.9, 0.95), "tags": ["placeholder", category], "is_optional": true, "placeholder_asset_key": asset_key})
+		assets.append({"id": asset_key, "category": category, "display_name": "Placeholder / %s" % asset_key.capitalize(), "description": "BIP-Visual-011 placeholder SVG asset.", "texture_path": str(ISO_PLACEHOLDER_ASSET_PATHS.get(asset_key, "")), "atlas_region": Rect2i(0, 0, 0, 0), "fallback_style": "placeholder", "fallback_color": Color(0.72, 0.82, 0.9, 0.95), "tags": ["placeholder", category], "is_optional": true, "placeholder_asset_key": asset_key})
 
 func _append_visual_texture_asset_alias_rows(assets: Array[Dictionary]) -> void:
 	var existing_ids: Dictionary = {}
 	for row_variant in assets:
 		var row: Dictionary = Dictionary(row_variant)
-		existing_ids[String(row.get("id", ""))] = true
+		existing_ids[str(row.get("id", ""))] = true
 	var alias_ids: Array = VISUAL_TEXTURE_ASSET_ALIASES.keys()
 	alias_ids.sort()
 	for alias_id_variant in alias_ids:
-		var alias_id: String = String(alias_id_variant)
+		var alias_id: String = str(alias_id_variant)
 		if existing_ids.has(alias_id):
 			continue
 		var placeholder_key: String = normalize_visual_texture_asset_id(alias_id)
-		var placeholder_path: String = String(ISO_PLACEHOLDER_ASSET_PATHS.get(placeholder_key, ""))
+		var placeholder_path: String = str(ISO_PLACEHOLDER_ASSET_PATHS.get(placeholder_key, ""))
 		assets.append({"id": alias_id, "category": "alias", "display_name": "Alias / %s" % alias_id.capitalize(), "description": "Backward-compatible visual texture asset alias.", "texture_path": placeholder_path, "atlas_region": Rect2i(0, 0, 0, 0), "fallback_style": "alias", "fallback_color": Color(0.72, 0.82, 0.9, 0.95), "tags": ["alias", placeholder_key], "is_optional": true, "placeholder_asset_key": placeholder_key})
 
 func get_visual_texture_asset_catalog() -> Dictionary:
@@ -3085,18 +3085,18 @@ func resolve_visual_texture_asset(asset_id: String) -> Dictionary:
 	var catalog: Dictionary = get_visual_texture_asset_catalog()
 	for row_variant in Array(catalog.get("assets", [])):
 		var row: Dictionary = Dictionary(row_variant)
-		if String(row.get("id", "")) != normalized_asset_id and String(row.get("id", "")) != requested_asset_id:
+		if str(row.get("id", "")) != normalized_asset_id and str(row.get("id", "")) != requested_asset_id:
 			continue
-		var texture_path: String = String(row.get("texture_path", "")).strip_edges()
+		var texture_path: String = str(row.get("texture_path", "")).strip_edges()
 		if texture_path.is_empty() and ISO_PLACEHOLDER_ASSET_PATHS.has(normalized_asset_id):
-			texture_path = String(ISO_PLACEHOLDER_ASSET_PATHS.get(normalized_asset_id, ""))
+			texture_path = str(ISO_PLACEHOLDER_ASSET_PATHS.get(normalized_asset_id, ""))
 		var has_texture: bool = false
 		if not texture_path.is_empty():
 			has_texture = ResourceLoader.exists(texture_path)
 		var message: String = "Texture missing; fallback should be used."
 		if has_texture:
 			message = "Texture asset resolved."
-		return {"ok": true, "asset_id": normalized_asset_id, "requested_asset_id": requested_asset_id, "has_texture": has_texture, "texture_path": texture_path, "atlas_region": Rect2i(row.get("atlas_region", Rect2i(0, 0, 0, 0))), "fallback_style": String(row.get("fallback_style", "default")), "fallback_color": Color(row.get("fallback_color", Color(1, 1, 1, 1))), "message": message, "is_optional": bool(row.get("is_optional", true)), "placeholder_asset_key": String(row.get("placeholder_asset_key", normalized_asset_id))}
+		return {"ok": true, "asset_id": normalized_asset_id, "requested_asset_id": requested_asset_id, "has_texture": has_texture, "texture_path": texture_path, "atlas_region": Rect2i(row.get("atlas_region", Rect2i(0, 0, 0, 0))), "fallback_style": str(row.get("fallback_style", "default")), "fallback_color": Color(row.get("fallback_color", Color(1, 1, 1, 1))), "message": message, "is_optional": bool(row.get("is_optional", true)), "placeholder_asset_key": str(row.get("placeholder_asset_key", normalized_asset_id))}
 	return {"ok": false, "asset_id": normalized_asset_id, "requested_asset_id": requested_asset_id, "has_texture": false, "texture_path": "", "atlas_region": Rect2i(0, 0, 0, 0), "fallback_style": "default", "fallback_color": Color(1, 1, 1, 1), "message": "Unknown visual texture asset id: %s" % requested_asset_id}
 
 func get_visual_texture_asset_reference_diagnostics() -> Dictionary:
@@ -3106,7 +3106,7 @@ func get_visual_texture_asset_reference_diagnostics() -> Dictionary:
 	var seen_asset_ids: Dictionary = {}
 	for wall_row_variant in Array(get_map_constructor_wall_material_catalog().get("materials", [])):
 		var wall_row: Dictionary = Dictionary(wall_row_variant)
-		var wall_asset_id: String = String(wall_row.get("texture_asset_id", "")).strip_edges()
+		var wall_asset_id: String = str(wall_row.get("texture_asset_id", "")).strip_edges()
 		if wall_asset_id.is_empty():
 			continue
 		seen_asset_ids[wall_asset_id] = true
@@ -3121,7 +3121,7 @@ func get_visual_texture_asset_reference_diagnostics() -> Dictionary:
 				missing_required.append(wall_asset_id)
 	for floor_row_variant in Array(get_map_constructor_floor_material_catalog().get("materials", [])):
 		var floor_row: Dictionary = Dictionary(floor_row_variant)
-		var floor_asset_id: String = String(floor_row.get("texture_asset_id", "")).strip_edges()
+		var floor_asset_id: String = str(floor_row.get("texture_asset_id", "")).strip_edges()
 		if floor_asset_id.is_empty():
 			continue
 		seen_asset_ids[floor_asset_id] = true
@@ -3191,7 +3191,7 @@ func _resolve_wall_mounted_attachment(anchor_floor_cell: Vector2i, preferred_sid
 		return {"ok": false, "reason": "grid_unavailable", "message": "Blocked: grid unavailable."}
 	var valid_attachments: Array[Dictionary] = []
 	for side_entry in MAP_CONSTRUCTOR_WALL_SIDE_DELTAS:
-		var side: String = String(side_entry.get("side", ""))
+		var side: String = str(side_entry.get("side", ""))
 		var delta: Vector2i = Vector2i(side_entry.get("delta", Vector2i.ZERO))
 		var wall_cell: Vector2i = anchor_floor_cell + delta
 		if _is_wall_or_boundary_cell(wall_cell):
@@ -3202,17 +3202,17 @@ func _resolve_wall_mounted_attachment(anchor_floor_cell: Vector2i, preferred_sid
 	var normalized_preferred: String = preferred_side.to_lower().strip_edges()
 	if not normalized_preferred.is_empty():
 		for attachment in valid_attachments:
-			if String(attachment.get("side", "")) == normalized_preferred:
+			if str(attachment.get("side", "")) == normalized_preferred:
 				selected = attachment
 				break
 	var available_sides: Array[String] = []
 	for attachment in valid_attachments:
-		available_sides.append(String(attachment.get("side", "")))
+		available_sides.append(str(attachment.get("side", "")))
 	return {
 		"ok": true,
 		"anchor_floor_cell": anchor_floor_cell,
 		"attached_wall_cell": Vector2i(selected.get("attached_wall_cell", Vector2i(-1, -1))),
-		"wall_side": String(selected.get("side", "north")),
+		"wall_side": str(selected.get("side", "north")),
 		"available_wall_sides": available_sides
 	}
 
@@ -3220,7 +3220,7 @@ func can_place_map_constructor_prefab(prefab_id: String, cell: Vector2i, preferr
 	var result: Dictionary = {"ok": false, "reason": "unsupported_prefab", "message": "Blocked: unsupported prefab.", "cell_state": get_runtime_cell_state(cell)}
 	var is_supported: bool = false
 	for entry in get_map_constructor_prefab_catalog():
-		if String(entry.get("id", "")) == prefab_id:
+		if str(entry.get("id", "")) == prefab_id:
 			is_supported = true
 			break
 	var canonical_prefab_id: String = WorldObjectCatalogRef.canonical_object_type(prefab_id)
@@ -3232,7 +3232,7 @@ func can_place_map_constructor_prefab(prefab_id: String, cell: Vector2i, preferr
 	var requested_mounting_mode: String = placement_mode_override.strip_edges().to_lower()
 	var prefab_metadata: Dictionary = get_map_constructor_prefab_metadata(prefab_id)
 	var prefab_metadata_row: Dictionary = _safe_dictionary(prefab_metadata.get("prefab", {}))
-	var prefab_is_wall_mounted: bool = String(prefab_metadata_row.get("placement_mode", "")) == "wall_mounted" or bool(MAP_CONSTRUCTOR_WALL_MOUNTED_PREFABS.get(prefab_id, false))
+	var prefab_is_wall_mounted: bool = str(prefab_metadata_row.get("placement_mode", "")) == "wall_mounted" or bool(MAP_CONSTRUCTOR_WALL_MOUNTED_PREFABS.get(prefab_id, false))
 	if requested_mounting_mode == "wall_mounted":
 		prefab_is_wall_mounted = true
 	elif requested_mounting_mode == "stationary":
@@ -3256,8 +3256,8 @@ func can_place_map_constructor_prefab(prefab_id: String, cell: Vector2i, preferr
 	var tile_is_exit: bool = tile_type_value == GridManager.TILE_EXIT
 	var tile_is_floor_like: bool = tile_type_value == GridManager.TILE_FLOOR or tile_type_value == GridManager.TILE_STEPPED_FLOOR
 	var canonical_prefab_template: Dictionary = _get_world_object_template(canonical_prefab_id)
-	var prefab_is_wall: bool = String(canonical_prefab_template.get("group", "")) == "wall"
-	var prefab_is_door_or_gate: bool = String(canonical_prefab_template.get("group", "")) == "door"
+	var prefab_is_wall: bool = str(canonical_prefab_template.get("group", "")) == "wall"
+	var prefab_is_door_or_gate: bool = str(canonical_prefab_template.get("group", "")) == "door"
 	var prefab_is_floor_replacement: bool = prefab_id == "floor" or prefab_id == "stepped_floor"
 	if tile_is_exit and prefab_id != "powered_gate":
 		result["reason"] = "exit_cell"
@@ -3304,7 +3304,7 @@ func can_place_map_constructor_prefab(prefab_id: String, cell: Vector2i, preferr
 		var cable_validation: Dictionary = CableTopologyServiceRef.validate_placement(cell, mission_world_objects, cable_preview)
 		if not bool(cable_validation.get("ok", false)):
 			result["reason"] = "invalid_cable_junction"
-			result["message"] = String(cable_validation.get("message", CableTopologyServiceRef.ERROR_MESSAGE_JUNCTION_REQUIRES_SWITCH))
+			result["message"] = str(cable_validation.get("message", CableTopologyServiceRef.ERROR_MESSAGE_JUNCTION_REQUIRES_SWITCH))
 			result["cable_topology"] = cable_validation
 			return result
 	if prefab_is_wall_mounted:
@@ -3318,7 +3318,7 @@ func can_place_map_constructor_prefab(prefab_id: String, cell: Vector2i, preferr
 			return result
 		var available_sides: Array[String] = []
 		for side_entry in MAP_CONSTRUCTOR_WALL_SIDE_DELTAS:
-			var side_id: String = String(side_entry.get("side", ""))
+			var side_id: String = str(side_entry.get("side", ""))
 			var wall_cell: Vector2i = cell + _get_map_constructor_wall_side_delta(side_id)
 			if _is_map_constructor_wall_cell(wall_cell):
 				available_sides.append(side_id)
@@ -3338,14 +3338,14 @@ func can_place_map_constructor_prefab(prefab_id: String, cell: Vector2i, preferr
 		result["attached_wall_cell"] = _serialize_cell_key(attached_wall_cell)
 		result["wall_side"] = normalized_side
 		for object_data in mission_world_objects:
-			if String(object_data.get("placement_mode", "")) != "wall_mounted":
+			if str(object_data.get("placement_mode", "")) != "wall_mounted":
 				continue
-			if _deserialize_cell_variant(object_data.get("anchor_floor_cell", "")) == cell and String(object_data.get("wall_side", "")).to_lower() == normalized_side:
+			if _deserialize_cell_variant(object_data.get("anchor_floor_cell", "")) == cell and str(object_data.get("wall_side", "")).to_lower() == normalized_side:
 				result["reason"] = "wall_mounted_side_occupied"
 				result["message"] = "Cannot mount on %s: wall side already has a mounted object." % _get_map_constructor_wall_side_label(normalized_side)
 				return result
 	if prefab_id != "powered_gate":
-		var tile_name: String = String(cell_state.get("tile_name", "")).to_lower()
+		var tile_name: String = str(cell_state.get("tile_name", "")).to_lower()
 		if tile_name.find("exit") >= 0 or tile_name.find("extraction") >= 0:
 			result["reason"] = "exit_cell"
 			result["message"] = "Blocked: exit cell."
@@ -3417,7 +3417,7 @@ func preview_map_constructor_batch_operation(operation_type: String, entities: A
 			continue
 		var from_cell: Vector2i = Vector2i(entity.get("cell", Vector2i(-1, -1)))
 		var to_cell: Vector2i = from_cell + offset
-		var op_row: Dictionary = {"entity_kind":entity_kind, "entity_id":entity_id, "object_type":String(data.get("object_type", data.get("item_type", ""))), "from_cell":from_cell, "to_cell":to_cell, "operation":"update", "field_changes":[], "message":"OK"}
+		var op_row: Dictionary = {"entity_kind":entity_kind, "entity_id":entity_id, "object_type":str(data.get("object_type", data.get("item_type", ""))), "from_cell":from_cell, "to_cell":to_cell, "operation":"update", "field_changes":[], "message":"OK"}
 		if op == "delete_selected":
 			op_row["operation"] = "delete"
 		elif op == "assign_power_network":
@@ -3425,15 +3425,15 @@ func preview_map_constructor_batch_operation(operation_type: String, entities: A
 			if entity_kind != "world_object":
 				warnings.append("Item %s skipped for power assignment." % entity_id)
 				continue
-			op_row["field_changes"] = [{"field":"power_network_id", "new":String(options.get("power_network_id", ""))}]
+			op_row["field_changes"] = [{"field":"power_network_id", "new":str(options.get("power_network_id", ""))}]
 		elif op == "clear_broken_references":
 			op_row["operation"] = "update"
 		elif op == "move_selected" or op == "duplicate_selected":
 			op_row["operation"] = "move" if op == "move_selected" else "duplicate"
-			var prefab_id: String = String(data.get("map_constructor_prefab_id", data.get("object_type", "")))
-			var check: Dictionary = can_place_map_constructor_prefab(prefab_id, to_cell, String(data.get("wall_side", "")))
+			var prefab_id: String = str(data.get("map_constructor_prefab_id", data.get("object_type", "")))
+			var check: Dictionary = can_place_map_constructor_prefab(prefab_id, to_cell, str(data.get("wall_side", "")))
 			if not bool(check.get("ok", false)):
-				conflicts.append({"entity_id":entity_id, "from_cell":from_cell, "to_cell":to_cell, "reason":String(check.get("reason", "blocked")), "message":String(check.get("message", "Blocked."))})
+				conflicts.append({"entity_id":entity_id, "from_cell":from_cell, "to_cell":to_cell, "reason":str(check.get("reason", "blocked")), "message":str(check.get("message", "Blocked."))})
 				continue
 		else:
 			return {"ok": false, "operation_type": operation_type, "message": "Unsupported operation.", "affected_count": 0, "affected": [], "warnings": [], "conflicts": [], "can_apply": false}
@@ -3447,7 +3447,7 @@ func apply_map_constructor_batch_operation(operation_type: String, entities: Arr
 		return {"ok": false, "message": "Operation is available only in TASK TEST constructor mode."}
 	var preview: Dictionary = preview_map_constructor_batch_operation(operation_type, entities, options)
 	if not bool(preview.get("ok", false)) or not bool(preview.get("can_apply", false)):
-		return {"ok": false, "message": String(preview.get("message", "Cannot apply.")), "applied_count": 0, "warnings": Array(preview.get("warnings", [])), "conflicts": Array(preview.get("conflicts", [])), "batch_id": ""}
+		return {"ok": false, "message": str(preview.get("message", "Cannot apply.")), "applied_count": 0, "warnings": Array(preview.get("warnings", [])), "conflicts": Array(preview.get("conflicts", [])), "batch_id": ""}
 	_map_constructor_last_batch_snapshot = {"batch_id":"batch_%d" % int(Time.get_unix_time_from_system()), "mission_world_objects": mission_world_objects.duplicate(true), "cell_items": cell_items.duplicate(true), "world_objects_by_cell": world_objects_by_cell.duplicate(true)}
 	var applied_count: int = 0
 	for row_variant in Array(preview.get("affected", [])):
@@ -3455,7 +3455,7 @@ func apply_map_constructor_batch_operation(operation_type: String, entities: Arr
 		var ek: String = str(row.get("entity_kind", ""))
 		var eid: String = str(row.get("entity_id", ""))
 		var to_cell: Vector2i = Vector2i(row.get("to_cell", Vector2i(-1, -1)))
-		match String(preview.get("operation_type", "")):
+		match str(preview.get("operation_type", "")):
 			"delete_selected":
 				if bool(_remove_map_constructor_entity_by_id(ek, eid).get("ok", false)): applied_count += 1
 			"move_selected":
@@ -3463,7 +3463,7 @@ func apply_map_constructor_batch_operation(operation_type: String, entities: Arr
 			"duplicate_selected":
 				if bool(duplicate_map_constructor_entity_to_cell(ek, eid, to_cell, "").get("ok", false)): applied_count += 1
 			"assign_power_network":
-				var update: Dictionary = apply_map_constructor_property_update(ek, eid, "power_network_id", String(options.get("power_network_id", "")))
+				var update: Dictionary = apply_map_constructor_property_update(ek, eid, "power_network_id", str(options.get("power_network_id", "")))
 				if bool(update.get("ok", false)):
 					applied_count += 1
 			"clear_broken_references":
@@ -3477,7 +3477,7 @@ func apply_map_constructor_batch_operation(operation_type: String, entities: Arr
 				var data: Dictionary = _safe_dictionary(entity_info.get("data", {}))
 				var cleared_any: bool = false
 				for ref_field in ["target_door_id", "target_platform_id", "linked_terminal_id", "control_source_id", "required_key_id"]:
-					var ref_id: String = String(data.get(ref_field, "")).strip_edges()
+					var ref_id: String = str(data.get(ref_field, "")).strip_edges()
 					if ref_id.is_empty():
 						continue
 					var ref_valid: bool = world_ids.has(ref_id) or (ref_field == "required_key_id" and item_ids.has(ref_id))
@@ -3489,7 +3489,7 @@ func apply_map_constructor_batch_operation(operation_type: String, entities: Arr
 				var connected_ids: Array[String] = []
 				var connected_valid_ids: Array[String] = []
 				for connected_id_variant in Array(data.get("connected_device_ids", [])):
-					var connected_id: String = String(connected_id_variant).strip_edges()
+					var connected_id: String = str(connected_id_variant).strip_edges()
 					if connected_id.is_empty():
 						continue
 					connected_ids.append(connected_id)
@@ -3503,8 +3503,8 @@ func apply_map_constructor_batch_operation(operation_type: String, entities: Arr
 					applied_count += 1
 	PowerSystemRef.recalculate_network(mission_world_objects, "")
 	refresh_world_cooling_received()
-	_record_map_constructor_change("batch", {"summary":"Batch %s: %d affected" % [String(preview.get("operation_type", "")), applied_count], "details":{"operation_type":String(preview.get("operation_type", "")), "affected_count":applied_count}, "undo_hint":"Use Undo Last Batch."})
-	return {"ok": true, "message": "Batch applied.", "applied_count": applied_count, "warnings": Array(preview.get("warnings", [])), "conflicts": Array(preview.get("conflicts", [])), "batch_id": String(_map_constructor_last_batch_snapshot.get("batch_id", ""))}
+	_record_map_constructor_change("batch", {"summary":"Batch %s: %d affected" % [str(preview.get("operation_type", "")), applied_count], "details":{"operation_type":str(preview.get("operation_type", "")), "affected_count":applied_count}, "undo_hint":"Use Undo Last Batch."})
+	return {"ok": true, "message": "Batch applied.", "applied_count": applied_count, "warnings": Array(preview.get("warnings", [])), "conflicts": Array(preview.get("conflicts", [])), "batch_id": str(_map_constructor_last_batch_snapshot.get("batch_id", ""))}
 
 func undo_last_map_constructor_batch_operation() -> Dictionary:
 	if _map_constructor_last_batch_snapshot.is_empty():
@@ -3522,7 +3522,7 @@ func remove_map_constructor_object_at_cell(cell: Vector2i) -> Dictionary:
 	return _ensure_map_constructor_service().remove_map_constructor_object_at_cell(cell)
 
 func _get_map_constructor_wall_mounted_match_score(object_data: Dictionary, cell: Vector2i) -> int:
-	if String(object_data.get("placement_mode", "")) != "wall_mounted":
+	if str(object_data.get("placement_mode", "")) != "wall_mounted":
 		return -1
 	var object_cell: Vector2i = Vector2i(object_data.get("position", Vector2i(-1, -1)))
 	if object_cell == cell:
@@ -3548,7 +3548,7 @@ func _get_map_constructor_best_wall_mounted_entity_at_cell(cell: Vector2i) -> Di
 	return {
 		"ok": true,
 		"entity_kind": "world_object",
-		"id": String(best_entity.get("id", "")),
+		"id": str(best_entity.get("id", "")),
 		"cell": Vector2i(best_entity.get("position", cell)),
 		"data": best_entity
 	}
@@ -3556,14 +3556,14 @@ func _get_map_constructor_best_wall_mounted_entity_at_cell(cell: Vector2i) -> Di
 func get_map_constructor_editable_entity_at_cell(cell: Vector2i) -> Dictionary:
 	var object_data: Dictionary = get_world_object_at_cell(cell)
 	if not object_data.is_empty():
-		return {"ok": true, "entity_kind": "world_object", "id": String(object_data.get("id", "")), "cell": cell, "data": object_data}
+		return {"ok": true, "entity_kind": "world_object", "id": str(object_data.get("id", "")), "cell": cell, "data": object_data}
 	var wall_mounted_entity: Dictionary = _get_map_constructor_best_wall_mounted_entity_at_cell(cell)
 	if bool(wall_mounted_entity.get("ok", false)):
 		return wall_mounted_entity
 	var items: Array[Dictionary] = get_items_at_cell(cell)
 	if not items.is_empty():
 		var item_data: Dictionary = items[0]
-		return {"ok": true, "entity_kind": "item", "id": String(item_data.get("id", "")), "cell": cell, "data": item_data}
+		return {"ok": true, "entity_kind": "item", "id": str(item_data.get("id", "")), "cell": cell, "data": item_data}
 	return {"ok": false, "reason": "empty_cell"}
 
 
@@ -3572,14 +3572,14 @@ func get_map_constructor_wall_mounted_status(entity_kind: String, entity_id: Str
 	if not bool(entity.get("ok", false)):
 		return {"ok": false, "reason": "missing_entity", "message": "Wall-mounted object not found."}
 	var data: Dictionary = _safe_dictionary(entity.get("data", {}))
-	if String(data.get("placement_mode", "")) != "wall_mounted":
+	if str(data.get("placement_mode", "")) != "wall_mounted":
 		return {"ok": true, "reason": "not_wall_mounted", "message": "Not a wall-mounted object."}
 	var anchor: Vector2i = _deserialize_cell_variant(data.get("anchor_floor_cell", ""))
 	var attached: Vector2i = _deserialize_cell_variant(data.get("attached_wall_cell", ""))
-	var side: String = String(data.get("wall_side", "")).to_lower().strip_edges()
+	var side: String = str(data.get("wall_side", "")).to_lower().strip_edges()
 	var available: Array[String] = []
 	for e in MAP_CONSTRUCTOR_WALL_SIDE_DELTAS:
-		var s: String = String(e.get("side", ""))
+		var s: String = str(e.get("side", ""))
 		if _is_map_constructor_wall_cell(anchor + _get_map_constructor_wall_side_delta(s)):
 			available.append(s)
 	var base := {"ok": true, "reason": "ok", "message": "Wall-mounted object is valid.", "anchor_floor_cell": anchor, "attached_wall_cell": attached, "wall_side": side, "available_wall_sides": available}
@@ -3595,13 +3595,13 @@ func get_map_constructor_wall_mounted_status(entity_kind: String, entity_id: Str
 
 func set_map_constructor_wall_mounted_side(entity_kind: String, entity_id: String, new_wall_side: String) -> Dictionary:
 	var status: Dictionary = get_map_constructor_wall_mounted_status(entity_kind, entity_id)
-	if not bool(status.get("ok", false)) and String(status.get("reason", "")) != "wall_mounted_attached_wall_missing":
+	if not bool(status.get("ok", false)) and str(status.get("reason", "")) != "wall_mounted_attached_wall_missing":
 		return status
 	var entity: Dictionary = get_map_constructor_entity_by_id(entity_kind, entity_id)
 	if not bool(entity.get("ok", false)):
 		return {"ok": false, "reason": "missing_entity", "message": "Wall-mounted object not found."}
 	var data: Dictionary = _safe_dictionary(entity.get("data", {}))
-	if String(data.get("placement_mode", "")) != "wall_mounted" or not bool(data.get("created_by_map_constructor", false)):
+	if str(data.get("placement_mode", "")) != "wall_mounted" or not bool(data.get("created_by_map_constructor", false)):
 		return {"ok": false, "reason": "not_wall_mounted", "message": "Not a wall-mounted object."}
 	var side: String = new_wall_side.to_lower().strip_edges()
 	if _get_map_constructor_wall_side_delta(side) == Vector2i.ZERO:
@@ -3611,19 +3611,19 @@ func set_map_constructor_wall_mounted_side(entity_kind: String, entity_id: Strin
 	if not _is_map_constructor_wall_cell(attached):
 		return {"ok": false, "reason": "wall_mounted_wrong_side", "message": "Cannot mount on %s: adjacent cell is not a wall." % _get_map_constructor_wall_side_label(side)}
 	for object_data in mission_world_objects:
-		if String(object_data.get("id", "")) == entity_id:
+		if str(object_data.get("id", "")) == entity_id:
 			continue
-		if String(object_data.get("placement_mode", "")) != "wall_mounted":
+		if str(object_data.get("placement_mode", "")) != "wall_mounted":
 			continue
-		if _deserialize_cell_variant(object_data.get("anchor_floor_cell", "")) == anchor and String(object_data.get("wall_side", "")).to_lower() == side:
+		if _deserialize_cell_variant(object_data.get("anchor_floor_cell", "")) == anchor and str(object_data.get("wall_side", "")).to_lower() == side:
 			return {"ok": false, "reason": "wall_mounted_side_occupied", "message": "Cannot mount on %s: wall side already has a mounted object." % _get_map_constructor_wall_side_label(side)}
 	data["wall_side"] = side
 	data["attached_wall_cell"] = _serialize_cell_key(attached)
 	data["position"] = anchor
 	set_world_object_at_cell(anchor, data)
-	PowerSystemRef.recalculate_network(mission_world_objects, String(data.get("power_network_id", "")))
+	PowerSystemRef.recalculate_network(mission_world_objects, str(data.get("power_network_id", "")))
 	refresh_world_cooling_received()
-	_record_map_constructor_change("side_change", {"entity_kind":"world_object", "entity_id":entity_id, "object_type":String(data.get("object_type", "")), "cell":anchor, "summary":"Changed wall side on %s to %s" % [entity_id, side], "undo_hint":"Can undo by switching side again."})
+	_record_map_constructor_change("side_change", {"entity_kind":"world_object", "entity_id":entity_id, "object_type":str(data.get("object_type", "")), "cell":anchor, "summary":"Changed wall side on %s to %s" % [entity_id, side], "undo_hint":"Can undo by switching side again."})
 	return {"ok": true, "message": "Wall side changed to %s." % _get_map_constructor_wall_side_label(side), "object_id": entity_id, "wall_side": side, "attached_wall_cell": attached}
 
 func set_map_constructor_wall_material(cell: Vector2i, side: String, material_id: String) -> Dictionary:
@@ -3640,7 +3640,7 @@ func set_map_constructor_wall_material(cell: Vector2i, side: String, material_id
 	var known: bool = false
 	for row_variant in Array(catalog.get("materials", [])):
 		var row: Dictionary = Dictionary(row_variant)
-		if String(row.get("id", "")).to_lower() == normalized_material_id:
+		if str(row.get("id", "")).to_lower() == normalized_material_id:
 			known = true
 			break
 	if not known:
@@ -3677,22 +3677,22 @@ func get_map_constructor_wall_material_for_wall_cell(wall_cell: Vector2i) -> Dic
 		if not (row_variant is Dictionary):
 			continue
 		var row: Dictionary = Dictionary(row_variant)
-		var row_id: String = String(row.get("id", "")).to_lower().strip_edges()
+		var row_id: String = str(row.get("id", "")).to_lower().strip_edges()
 		if row_id.is_empty():
 			continue
 		catalog_by_id[row_id] = row
 	var side_order: Array[String] = ["north", "east", "south", "west"]
 	for side_id in side_order:
 		for key_variant in _map_constructor_wall_material_overrides.keys():
-			var entry: Dictionary = Dictionary(_map_constructor_wall_material_overrides.get(String(key_variant), {}))
-			var override_side: String = String(entry.get("side", "")).to_lower().strip_edges()
+			var entry: Dictionary = Dictionary(_map_constructor_wall_material_overrides.get(str(key_variant), {}))
+			var override_side: String = str(entry.get("side", "")).to_lower().strip_edges()
 			if override_side != side_id:
 				continue
 			var anchor_cell: Vector2i = _deserialize_cell_variant(entry.get("cell", Vector2i(-1, -1)))
 			var attached_wall_cell: Vector2i = anchor_cell + _get_map_constructor_wall_side_delta(override_side)
 			if attached_wall_cell != wall_cell:
 				continue
-			var material_id: String = String(entry.get("material_id", "")).to_lower().strip_edges()
+			var material_id: String = str(entry.get("material_id", "")).to_lower().strip_edges()
 			if material_id.is_empty() or not catalog_by_id.has(material_id):
 				return {"ok": false, "message": "Unknown wall material id: %s" % material_id, "override": entry.duplicate(true), "material": {}}
 			return {"ok": true, "message": "OK", "override": entry.duplicate(true), "material": Dictionary(catalog_by_id.get(material_id, {})).duplicate(true)}
@@ -3703,7 +3703,7 @@ func get_map_constructor_wall_material_overrides() -> Dictionary:
 		return {"ok": false, "message": "Wall material overrides are available only in TASK TEST constructor mode.", "overrides": []}
 	var rows: Array[Dictionary] = []
 	for key_variant in _map_constructor_wall_material_overrides.keys():
-		rows.append(Dictionary(_map_constructor_wall_material_overrides.get(String(key_variant), {})).duplicate(true))
+		rows.append(Dictionary(_map_constructor_wall_material_overrides.get(str(key_variant), {})).duplicate(true))
 	return {"ok": true, "message": "OK", "overrides": rows}
 
 func _get_map_constructor_floor_visual_state_for_material_id(material_id: String) -> Dictionary:
@@ -3722,7 +3722,7 @@ func _get_map_constructor_floor_visual_state_for_material_id(material_id: String
 		"diagnostic_floor": "grate_default"
 	}
 	if legacy_map.has(normalized_material_id):
-		return _get_map_constructor_floor_visual_state_for_material_id(String(legacy_map[normalized_material_id]))
+		return _get_map_constructor_floor_visual_state_for_material_id(str(legacy_map[normalized_material_id]))
 	var family: String = GridManager.FLOOR_FAMILY_METAL
 	match material:
 		"concrete":
@@ -3811,17 +3811,17 @@ func get_map_constructor_floor_material_overrides() -> Dictionary:
 		return {"ok": false, "message": "Floor material overrides are available only in TASK TEST constructor mode.", "overrides": []}
 	var rows: Array[Dictionary] = []
 	for key_variant in _map_constructor_floor_material_overrides.keys():
-		rows.append(Dictionary(_map_constructor_floor_material_overrides.get(String(key_variant), {})).duplicate(true))
+		rows.append(Dictionary(_map_constructor_floor_material_overrides.get(str(key_variant), {})).duplicate(true))
 	return {"ok": true, "message": "OK", "overrides": rows}
 
 func get_map_constructor_floor_material_for_cell(cell: Vector2i) -> Dictionary:
 	var override_row: Dictionary = Dictionary(get_map_constructor_floor_material(cell).get("override", {}))
 	if override_row.is_empty():
 		return {"ok": false, "message": "No floor material override.", "override": {}, "material": {}}
-	var material_id: String = String(override_row.get("material_id", "")).to_lower().strip_edges()
+	var material_id: String = str(override_row.get("material_id", "")).to_lower().strip_edges()
 	for row_variant in Array(get_map_constructor_floor_material_catalog().get("materials", [])):
 		var row: Dictionary = Dictionary(row_variant)
-		if String(row.get("id", "")).to_lower().strip_edges() == material_id:
+		if str(row.get("id", "")).to_lower().strip_edges() == material_id:
 			return {"ok": true, "message": "OK", "override": override_row.duplicate(true), "material": row.duplicate(true)}
 	return {"ok": false, "message": "Unknown floor material id: %s" % material_id, "override": override_row.duplicate(true), "material": {}}
 
@@ -3830,14 +3830,14 @@ func get_map_constructor_floor_material_summary() -> Dictionary:
 	var affected_cells: Array[Vector2i] = []
 	var preset_generated_floor_override_count: int = 0
 	for key_variant in _map_constructor_floor_material_overrides.keys():
-		var row: Dictionary = Dictionary(_map_constructor_floor_material_overrides.get(String(key_variant), {}))
-		var material_id: String = String(row.get("material_id", "unknown")).to_lower().strip_edges()
+		var row: Dictionary = Dictionary(_map_constructor_floor_material_overrides.get(str(key_variant), {}))
+		var material_id: String = str(row.get("material_id", "unknown")).to_lower().strip_edges()
 		if material_id.is_empty():
 			material_id = "unknown"
 		material_counts[material_id] = int(material_counts.get(material_id, 0)) + 1
 		if bool(row.get("created_by_room_visual_preset", false)):
 			preset_generated_floor_override_count += 1
-		var floor_cell: Vector2i = Vector2i(row.get("cell", _deserialize_cell_key(String(key_variant))))
+		var floor_cell: Vector2i = Vector2i(row.get("cell", _deserialize_cell_key(str(key_variant))))
 		if floor_cell.x >= 0 and floor_cell.y >= 0:
 			affected_cells.append(floor_cell)
 	affected_cells.sort_custom(func(a: Vector2i, b: Vector2i) -> bool:
@@ -3848,7 +3848,7 @@ func get_map_constructor_floor_material_summary() -> Dictionary:
 	return {"override_count": _map_constructor_floor_material_overrides.size(), "material_counts": material_counts, "preset_generated_floor_override_count": preset_generated_floor_override_count, "affected_cells": affected_cells}
 
 func _resolve_floor_material_id_for_room_visual_preset(preset: Dictionary) -> String:
-	var floor_style: String = String(preset.get("floor_style", "")).to_lower().strip_edges()
+	var floor_style: String = str(preset.get("floor_style", "")).to_lower().strip_edges()
 	match floor_style:
 		"polished":
 			return "clean_lab_floor"
@@ -3883,7 +3883,7 @@ func _get_room_visual_preset_by_id(preset_id: String) -> Dictionary:
 	var normalized_id: String = preset_id.to_lower().strip_edges()
 	for preset_variant in Array(get_room_visual_preset_catalog().get("presets", [])):
 		var preset: Dictionary = Dictionary(preset_variant)
-		if String(preset.get("id", "")).to_lower().strip_edges() == normalized_id:
+		if str(preset.get("id", "")).to_lower().strip_edges() == normalized_id:
 			return preset
 	return {}
 
@@ -3894,19 +3894,19 @@ func get_map_constructor_placed_object_rows() -> Array[Dictionary]:
 			continue
 		var object_data: Dictionary = Dictionary(object_data_variant)
 		var row_cell: Vector2i = Vector2i(object_data.get("position", Vector2i(-1, -1)))
-		var object_type: String = String(object_data.get("object_type", "object"))
-		var prefab_id: String = String(object_data.get("map_constructor_prefab_id", object_type))
-		var placement_mode: String = String(object_data.get("placement_mode", "floor"))
+		var object_type: String = str(object_data.get("object_type", "object"))
+		var prefab_id: String = str(object_data.get("map_constructor_prefab_id", object_type))
+		var placement_mode: String = str(object_data.get("placement_mode", "floor"))
 		var row: Dictionary = {
 			"entity_kind": "world_object",
-			"id": String(object_data.get("id", "")),
+			"id": str(object_data.get("id", "")),
 			"type_or_prefab": prefab_id,
 			"cell": row_cell,
 			"anchor_floor_cell": row_cell,
-			"category_or_placement": String(object_data.get("category", placement_mode.capitalize())),
+			"category_or_placement": str(object_data.get("category", placement_mode.capitalize())),
 			"placement_mode": placement_mode,
 			"attached_wall_cell": Vector2i(-1, -1),
-			"wall_side": String(object_data.get("wall_side", ""))
+			"wall_side": str(object_data.get("wall_side", ""))
 		}
 		for link_field in ["control_source_id", "linked_terminal_id", "controller_id", "target_door_id", "target_platform_id", "linked_object_id", "target_object_id", "required_key_id"]:
 			if object_data.has(link_field):
@@ -3914,8 +3914,8 @@ func get_map_constructor_placed_object_rows() -> Array[Dictionary]:
 		var meta_result: Dictionary = get_map_constructor_prefab_metadata(prefab_id)
 		if bool(meta_result.get("ok", false)):
 			var prefab_meta: Dictionary = Dictionary(meta_result.get("prefab", {}))
-			row["display_name"] = String(prefab_meta.get("display_name", prefab_id))
-			row["metadata_category"] = String(prefab_meta.get("category", ""))
+			row["display_name"] = str(prefab_meta.get("display_name", prefab_id))
+			row["metadata_category"] = str(prefab_meta.get("category", ""))
 			row["metadata_roles"] = Array(prefab_meta.get("system_roles", []))
 			row["metadata_tags"] = Array(prefab_meta.get("tags", []))
 			row["is_expected_invalid_tool"] = bool(prefab_meta.get("is_expected_invalid_tool", false))
@@ -3931,21 +3931,21 @@ func get_map_constructor_placed_object_rows() -> Array[Dictionary]:
 			var item_data: Dictionary = _safe_dictionary(item_variant)
 			rows.append({
 				"entity_kind": "item",
-				"id": String(item_data.get("id", "")),
-				"type_or_prefab": String(item_data.get("item_type", item_data.get("map_constructor_prefab_id", item_data.get("object_type", "item")))),
+				"id": str(item_data.get("id", "")),
+				"type_or_prefab": str(item_data.get("item_type", item_data.get("map_constructor_prefab_id", item_data.get("object_type", "item")))),
 				"cell": cell,
 				"anchor_floor_cell": cell,
 				"category_or_placement": "item",
 				"placement_mode": "item",
 				"attached_wall_cell": Vector2i(-1, -1),
 				"wall_side": "",
-				"linked_door_id": String(item_data.get("linked_door_id", ""))
+				"linked_door_id": str(item_data.get("linked_door_id", ""))
 			})
-			var meta_item: Dictionary = get_map_constructor_prefab_metadata(String(item_data.get("map_constructor_prefab_id", "")))
+			var meta_item: Dictionary = get_map_constructor_prefab_metadata(str(item_data.get("map_constructor_prefab_id", "")))
 			if bool(meta_item.get("ok", false)):
 				var meta: Dictionary = Dictionary(meta_item.get("prefab", {}))
-				rows[rows.size() - 1]["display_name"] = String(meta.get("display_name", rows[rows.size() - 1].get("type_or_prefab", "item")))
-				rows[rows.size() - 1]["metadata_category"] = String(meta.get("category", "Item"))
+				rows[rows.size() - 1]["display_name"] = str(meta.get("display_name", rows[rows.size() - 1].get("type_or_prefab", "item")))
+				rows[rows.size() - 1]["metadata_category"] = str(meta.get("category", "Item"))
 				rows[rows.size() - 1]["metadata_roles"] = Array(meta.get("system_roles", []))
 				rows[rows.size() - 1]["metadata_tags"] = Array(meta.get("tags", []))
 				rows[rows.size() - 1]["is_expected_invalid_tool"] = bool(meta.get("is_expected_invalid_tool", false))
@@ -3956,7 +3956,7 @@ func get_map_constructor_placed_object_rows() -> Array[Dictionary]:
 			var ax: int = int(Vector2i(a.get("anchor_floor_cell", Vector2i.ZERO)).x)
 			var bx: int = int(Vector2i(b.get("anchor_floor_cell", Vector2i.ZERO)).x)
 			if ax == bx:
-				return String(a.get("id", "")) < String(b.get("id", ""))
+				return str(a.get("id", "")) < str(b.get("id", ""))
 			return ax < bx
 		return ay < by
 	)
@@ -3982,7 +3982,7 @@ func get_map_constructor_archetype_property_schema(entity_kind: String, entity_i
 	if not bool(entity_info.get("ok", false)):
 		return []
 	var data: Dictionary = _safe_dictionary(entity_info.get("data", {}))
-	return WorldObjectCatalogRef.get_archetype_property_schema(String(data.get("archetype_id", "")))
+	return WorldObjectCatalogRef.get_archetype_property_schema(str(data.get("archetype_id", "")))
 
 func get_map_constructor_editable_fields_for_entity(entity_id: String, entity_kind: String = "") -> Array[Dictionary]:
 	var fields: Array[Dictionary] = []
@@ -3999,18 +3999,18 @@ func get_map_constructor_editable_fields_for_entity(entity_id: String, entity_ki
 	var data: Dictionary = _safe_dictionary(entity_info.get("data", {}))
 	var schema: Dictionary = _get_map_constructor_editable_field_schema()
 	for field_name_variant in schema.keys():
-		var field_name: String = String(field_name_variant)
+		var field_name: String = str(field_name_variant)
 		var value: Variant = data.get(field_name, get_default_map_constructor_field_value(field_name, resolved_kind, data))
 		if value == null:
 			continue
-		fields.append({"name": field_name, "type": String(schema[field_name]), "value": value})
+		fields.append({"name": field_name, "type": str(schema[field_name]), "value": value})
 	return fields
 
 func _convert_map_constructor_field_value(field_name: String, raw_value: Variant, target_type: String) -> Dictionary:
 	if target_type == "bool":
 		if typeof(raw_value) == TYPE_BOOL:
 			return {"ok": true, "value": raw_value}
-		var lower_text: String = String(raw_value).strip_edges().to_lower()
+		var lower_text: String = str(raw_value).strip_edges().to_lower()
 		if lower_text in ["1", "true", "yes", "on"]:
 			return {"ok": true, "value": true}
 		if lower_text in ["0", "false", "no", "off", ""]:
@@ -4019,7 +4019,7 @@ func _convert_map_constructor_field_value(field_name: String, raw_value: Variant
 	if target_type == "int":
 		if typeof(raw_value) == TYPE_INT:
 			return {"ok": true, "value": int(raw_value)}
-		var number_text: String = String(raw_value).strip_edges()
+		var number_text: String = str(raw_value).strip_edges()
 		if number_text.is_empty():
 			number_text = "0"
 		if not number_text.is_valid_int():
@@ -4030,20 +4030,20 @@ func _convert_map_constructor_field_value(field_name: String, raw_value: Variant
 		var seen: Dictionary = {}
 		if raw_value is Array:
 			for value_variant in Array(raw_value):
-				var entry: String = String(value_variant).strip_edges()
+				var entry: String = str(value_variant).strip_edges()
 				if entry.is_empty() or seen.has(entry):
 					continue
 				seen[entry] = true
 				values.append(entry)
 		else:
-			for value_text in String(raw_value).split(",", false):
-				var entry: String = String(value_text).strip_edges()
+			for value_text in str(raw_value).split(",", false):
+				var entry: String = str(value_text).strip_edges()
 				if entry.is_empty() or seen.has(entry):
 					continue
 				seen[entry] = true
 				values.append(entry)
 		return {"ok": true, "value": values}
-	return {"ok": true, "value": String(raw_value)}
+	return {"ok": true, "value": str(raw_value)}
 
 func apply_map_constructor_property_update(entity_kind: String, entity_id: String, field_name: String, raw_value: Variant) -> Dictionary:
 	return _ensure_map_constructor_service().apply_map_constructor_property_update(entity_kind, entity_id, field_name, raw_value)
@@ -4054,7 +4054,7 @@ func _map_constructor_is_item_like_world_object(object_data: Dictionary) -> bool
 	return object_group == "item" or object_type.contains("key") or object_type.contains("access_code")
 
 func preview_room_visual_preset(preset_id: String, options: Dictionary = {}) -> Dictionary:
-	var scope: String = String(options.get("scope", "task_test_room")).strip_edges()
+	var scope: String = str(options.get("scope", "task_test_room")).strip_edges()
 	var result: Dictionary = {"ok": false, "preset_id": preset_id, "scope": scope, "affected_walls": [], "affected_doors": [], "affected_terminals": [], "affected_floors": [], "summary": {}, "can_apply": false, "message": "Preview failed."}
 	if not _is_task_test_constructor_context():
 		result["message"] = "Room visual presets are available only in TASK TEST constructor mode."
@@ -4069,7 +4069,7 @@ func preview_room_visual_preset(preset_id: String, options: Dictionary = {}) -> 
 	if preset.is_empty():
 		result["message"] = "Unknown room visual preset id: %s" % preset_id
 		return result
-	var material_id: String = String(preset.get("wall_material_id", "")).to_lower().strip_edges()
+	var material_id: String = str(preset.get("wall_material_id", "")).to_lower().strip_edges()
 	var include_walls: bool = bool(options.get("include_walls", true))
 	var include_doors: bool = bool(options.get("include_doors", true))
 	var include_terminals: bool = bool(options.get("include_terminals", true))
@@ -4087,27 +4087,27 @@ func preview_room_visual_preset(preset_id: String, options: Dictionary = {}) -> 
 				var cell: Vector2i = Vector2i(x, y)
 				var tile_type: int = int(grid_manager.call("get_tile", cell))
 				if include_floors and _is_floor_like_constructor_tile(tile_type):
-					var current_floor_material_id: String = String(get_map_constructor_floor_material(cell).get("override", {}).get("material_id", "default_floor"))
+					var current_floor_material_id: String = str(get_map_constructor_floor_material(cell).get("override", {}).get("material_id", "default_floor"))
 					floors.append({"cell": cell, "current_material_id": current_floor_material_id, "new_material_id": floor_material_id})
 				if include_walls and tile_type == GridManager.TILE_WALL:
 					for side_row in MAP_CONSTRUCTOR_WALL_SIDE_DELTAS:
-						var side: String = String(side_row.get("side", ""))
+						var side: String = str(side_row.get("side", ""))
 						var delta: Vector2i = Vector2i(side_row.get("delta", Vector2i.ZERO))
 						var floor_cell: Vector2i = cell - delta
 						if not _is_valid_grid_cell(floor_cell):
 							continue
-						var current_material_id: String = String(get_map_constructor_wall_material(floor_cell, side).get("override", {}).get("material_id", "default_metal"))
+						var current_material_id: String = str(get_map_constructor_wall_material(floor_cell, side).get("override", {}).get("material_id", "default_metal"))
 						walls.append({"cell": floor_cell, "side": side, "current_material_id": current_material_id, "new_material_id": material_id})
 	if include_doors or include_terminals:
 		for object_data in mission_world_objects:
 			var row: Dictionary = Dictionary(object_data)
-			var object_id: String = String(row.get("id", ""))
+			var object_id: String = str(row.get("id", ""))
 			var object_cell: Vector2i = Vector2i(row.get("position", Vector2i(-1, -1)))
-			var object_type: String = String(row.get("object_type", "")).to_lower()
-			if include_doors and (object_type.contains("door") or object_type.contains("gate") or String(row.get("object_group", "")).to_lower() == "door"):
-				doors.append({"object_id": object_id, "cell": object_cell, "current_visual_hint": String(Dictionary(map_constructor_door_visual_preset_overrides.get(object_id, {})).get("visual_hint", "")), "new_visual_hint": String(preset.get("door_visual_hint", ""))})
-			if include_terminals and (object_type.contains("terminal") or String(row.get("object_group", "")).to_lower() == "terminal"):
-				terminals.append({"object_id": object_id, "cell": object_cell, "current_visual_hint": String(Dictionary(map_constructor_terminal_visual_preset_overrides.get(object_id, {})).get("visual_hint", "")), "new_visual_hint": String(preset.get("terminal_visual_hint", ""))})
+			var object_type: String = str(row.get("object_type", "")).to_lower()
+			if include_doors and (object_type.contains("door") or object_type.contains("gate") or str(row.get("object_group", "")).to_lower() == "door"):
+				doors.append({"object_id": object_id, "cell": object_cell, "current_visual_hint": str(Dictionary(map_constructor_door_visual_preset_overrides.get(object_id, {})).get("visual_hint", "")), "new_visual_hint": str(preset.get("door_visual_hint", ""))})
+			if include_terminals and (object_type.contains("terminal") or str(row.get("object_group", "")).to_lower() == "terminal"):
+				terminals.append({"object_id": object_id, "cell": object_cell, "current_visual_hint": str(Dictionary(map_constructor_terminal_visual_preset_overrides.get(object_id, {})).get("visual_hint", "")), "new_visual_hint": str(preset.get("terminal_visual_hint", ""))})
 	var can_apply: bool = _is_known_map_constructor_wall_material_id(material_id) and _is_known_map_constructor_floor_material_id(floor_material_id) and (not walls.is_empty() or not doors.is_empty() or not terminals.is_empty() or not floors.is_empty())
 	result["ok"] = true
 	result["affected_walls"] = walls
@@ -4122,43 +4122,43 @@ func preview_room_visual_preset(preset_id: String, options: Dictionary = {}) -> 
 func apply_room_visual_preset(preset_id: String, options: Dictionary = {}) -> Dictionary:
 	var preview: Dictionary = preview_room_visual_preset(preset_id, options)
 	if not bool(preview.get("ok", false)) or not bool(preview.get("can_apply", false)):
-		return {"ok": false, "preset_id": preset_id, "applied_walls": 0, "applied_doors": 0, "applied_terminals": 0, "applied_floors": 0, "message": String(preview.get("message", "Cannot apply preset."))}
+		return {"ok": false, "preset_id": preset_id, "applied_walls": 0, "applied_doors": 0, "applied_terminals": 0, "applied_floors": 0, "message": str(preview.get("message", "Cannot apply preset."))}
 	var applied_walls: int = 0
 	for wall_row_variant in Array(preview.get("affected_walls", [])):
 		var wall_row: Dictionary = Dictionary(wall_row_variant)
 		var wall_cell: Vector2i = Vector2i(wall_row.get("cell", Vector2i(-1, -1)))
-		var wall_side: String = String(wall_row.get("side", ""))
-		var wall_material_id: String = String(wall_row.get("new_material_id", ""))
+		var wall_side: String = str(wall_row.get("side", ""))
+		var wall_material_id: String = str(wall_row.get("new_material_id", ""))
 		var key: String = _serialize_wall_material_override_key(wall_cell, wall_side)
-		_map_constructor_wall_material_overrides[key] = {"cell": wall_cell, "side": wall_side, "material_id": wall_material_id, "created_by_room_visual_preset": true, "room_visual_preset_id": String(preset_id).to_lower().strip_edges()}
+		_map_constructor_wall_material_overrides[key] = {"cell": wall_cell, "side": wall_side, "material_id": wall_material_id, "created_by_room_visual_preset": true, "room_visual_preset_id": str(preset_id).to_lower().strip_edges()}
 		applied_walls += 1
 	var applied_doors: int = 0
 	for door_row_variant in Array(preview.get("affected_doors", [])):
 		var door_row: Dictionary = Dictionary(door_row_variant)
-		var door_object_id: String = String(door_row.get("object_id", ""))
+		var door_object_id: String = str(door_row.get("object_id", ""))
 		if door_object_id.is_empty():
 			continue
-		map_constructor_door_visual_preset_overrides[door_object_id] = {"preset_id": String(preset_id).to_lower().strip_edges(), "visual_hint": String(door_row.get("new_visual_hint", "")), "created_by_room_visual_preset": true}
+		map_constructor_door_visual_preset_overrides[door_object_id] = {"preset_id": str(preset_id).to_lower().strip_edges(), "visual_hint": str(door_row.get("new_visual_hint", "")), "created_by_room_visual_preset": true}
 		applied_doors += 1
 	var applied_terminals: int = 0
 	for terminal_row_variant in Array(preview.get("affected_terminals", [])):
 		var terminal_row: Dictionary = Dictionary(terminal_row_variant)
-		var terminal_object_id: String = String(terminal_row.get("object_id", ""))
+		var terminal_object_id: String = str(terminal_row.get("object_id", ""))
 		if terminal_object_id.is_empty():
 			continue
-		map_constructor_terminal_visual_preset_overrides[terminal_object_id] = {"preset_id": String(preset_id).to_lower().strip_edges(), "visual_hint": String(terminal_row.get("new_visual_hint", "")), "created_by_room_visual_preset": true}
+		map_constructor_terminal_visual_preset_overrides[terminal_object_id] = {"preset_id": str(preset_id).to_lower().strip_edges(), "visual_hint": str(terminal_row.get("new_visual_hint", "")), "created_by_room_visual_preset": true}
 		applied_terminals += 1
 	var applied_floors: int = 0
 	for floor_row_variant in Array(preview.get("affected_floors", [])):
 		var floor_row: Dictionary = Dictionary(floor_row_variant)
 		var floor_cell: Vector2i = Vector2i(floor_row.get("cell", Vector2i(-1, -1)))
-		var floor_material_id: String = String(floor_row.get("new_material_id", "default_floor"))
+		var floor_material_id: String = str(floor_row.get("new_material_id", "default_floor"))
 		var floor_result: Dictionary = set_map_constructor_floor_material(floor_cell, floor_material_id)
 		if bool(floor_result.get("ok", false)):
 			var floor_key: String = _serialize_cell_key(floor_cell)
 			var floor_override: Dictionary = Dictionary(_map_constructor_floor_material_overrides.get(floor_key, {}))
 			floor_override["created_by_room_visual_preset"] = true
-			floor_override["room_visual_preset_id"] = String(preset_id).to_lower().strip_edges()
+			floor_override["room_visual_preset_id"] = str(preset_id).to_lower().strip_edges()
 			_map_constructor_floor_material_overrides[floor_key] = floor_override
 			applied_floors += 1
 	return {"ok": true, "preset_id": preset_id, "applied_walls": applied_walls, "applied_doors": applied_doors, "applied_terminals": applied_terminals, "applied_floors": applied_floors, "message": "Room visual preset applied (runtime-only)."}
@@ -4167,14 +4167,14 @@ func clear_room_visual_preset_overrides(_options: Dictionary = {}) -> Dictionary
 	var cleared_walls: int = 0
 	var wall_keys: Array = _map_constructor_wall_material_overrides.keys()
 	for key_variant in wall_keys:
-		var key: String = String(key_variant)
+		var key: String = str(key_variant)
 		var row: Dictionary = Dictionary(_map_constructor_wall_material_overrides.get(key, {}))
 		if bool(row.get("created_by_room_visual_preset", false)):
 			_map_constructor_wall_material_overrides.erase(key)
 			cleared_walls += 1
 	var cleared_floors: int = 0
 	for floor_key_variant in _map_constructor_floor_material_overrides.keys():
-		var floor_key: String = String(floor_key_variant)
+		var floor_key: String = str(floor_key_variant)
 		var floor_row: Dictionary = Dictionary(_map_constructor_floor_material_overrides.get(floor_key, {}))
 		if bool(floor_row.get("created_by_room_visual_preset", false)):
 			_map_constructor_floor_material_overrides.erase(floor_key)
@@ -4198,32 +4198,32 @@ func _map_constructor_token_is_key(value: String) -> bool:
 
 func _map_constructor_metadata_says_key(data: Dictionary) -> bool:
 	for field_name in ["prefab", "prefab_id", "category", "item_category", "metadata_category", "object_group", "item_group", "kind", "role"]:
-		if _map_constructor_token_is_key(String(data.get(field_name, ""))):
+		if _map_constructor_token_is_key(str(data.get(field_name, ""))):
 			return true
 	return false
 
 func _map_constructor_is_door_data(data: Dictionary) -> bool:
 	for field_name in ["object_type", "category", "object_group", "group", "prefab", "prefab_id", "metadata_category", "kind", "role"]:
-		var token: String = String(data.get(field_name, "")).strip_edges().to_lower()
+		var token: String = str(data.get(field_name, "")).strip_edges().to_lower()
 		if token in ["door", "gate", "locked_door", "mechanical_door", "digital_door", "powered_gate", "security_door", "blast_door", "airlock_door"]:
 			return true
 		if token.begins_with("door_") or token.ends_with("_door") or token.contains("_door_") or token.begins_with("gate_") or token.ends_with("_gate") or token.contains("_gate_"):
 			return true
-	var id_token: String = String(data.get("id", "")).strip_edges().to_lower()
+	var id_token: String = str(data.get("id", "")).strip_edges().to_lower()
 	return id_token.contains("door") or id_token.contains("gate")
 
 func _map_constructor_is_key_data(data: Dictionary) -> bool:
-	if String(data.get("item_type", "")).strip_edges().to_lower() == "key":
+	if str(data.get("item_type", "")).strip_edges().to_lower() == "key":
 		return true
-	if not String(data.get("key_type", "")).strip_edges().is_empty() or not String(data.get("key_kind", "")).strip_edges().is_empty():
+	if not str(data.get("key_type", "")).strip_edges().is_empty() or not str(data.get("key_kind", "")).strip_edges().is_empty():
 		return true
 	if _map_constructor_metadata_says_key(data):
 		return true
-	var id_token: String = String(data.get("id", "")).strip_edges().to_lower()
+	var id_token: String = str(data.get("id", "")).strip_edges().to_lower()
 	return _map_constructor_token_is_key(id_token)
 
 func _format_world_item_reference_label(item_data: Dictionary, fallback_id: String, location: String) -> String:
-	var label: String = String(item_data.get("display_name", item_data.get("name", fallback_id))).strip_edges()
+	var label: String = str(item_data.get("display_name", item_data.get("name", fallback_id))).strip_edges()
 	if label.is_empty():
 		label = fallback_id
 	if location == "inventory":
@@ -4243,12 +4243,12 @@ func resolve_world_item_reference(item_id: String) -> Dictionary:
 		var cell: Vector2i = _deserialize_cell_variant(cell_variant)
 		for item_variant in _safe_array(cell_items.get(cell_variant, [])):
 			var item_data: Dictionary = _safe_dictionary(item_variant)
-			if String(item_data.get("id", "")).strip_edges() == normalized_id:
+			if str(item_data.get("id", "")).strip_edges() == normalized_id:
 				return {"exists": true, "ok": true, "location": "map", "entity_kind": "item", "id": normalized_id, "cell": cell, "item_data": item_data, "data": item_data, "label": _format_world_item_reference_label(item_data, normalized_id, "map")}
 
 	for object_variant in mission_world_objects:
 		var world_data: Dictionary = _safe_dictionary(object_variant)
-		if String(world_data.get("id", "")).strip_edges() != normalized_id:
+		if str(world_data.get("id", "")).strip_edges() != normalized_id:
 			continue
 		if _map_constructor_is_item_like_world_object(world_data):
 			var world_cell: Vector2i = _deserialize_cell_variant(world_data.get("position", Vector2i(-1, -1)))
@@ -4259,7 +4259,7 @@ func resolve_world_item_reference(item_id: String) -> Dictionary:
 	var runtime_entry: Dictionary = _safe_dictionary(runtime_map.get(normalized_id, {}))
 	var runtime_item_data: Dictionary = _safe_dictionary(runtime_entry.get("item_data", runtime_entry))
 	if not runtime_item_data.is_empty():
-		var runtime_location: String = String(runtime_entry.get("location", runtime_item_data.get("location", "inventory"))).strip_edges().to_lower()
+		var runtime_location: String = str(runtime_entry.get("location", runtime_item_data.get("location", "inventory"))).strip_edges().to_lower()
 		if runtime_location.is_empty() or runtime_location == "picked_up":
 			runtime_location = "inventory"
 		if runtime_location != "terminal":
@@ -4272,8 +4272,8 @@ func resolve_world_item_reference(item_id: String) -> Dictionary:
 
 	for terminal_variant in mission_world_objects:
 		var terminal_data: Dictionary = _safe_dictionary(terminal_variant)
-		var object_group: String = String(terminal_data.get("object_group", "")).strip_edges().to_lower()
-		var object_type: String = String(terminal_data.get("object_type", "")).strip_edges().to_lower()
+		var object_group: String = str(terminal_data.get("object_group", "")).strip_edges().to_lower()
+		var object_type: String = str(terminal_data.get("object_type", "")).strip_edges().to_lower()
 		if object_group != "terminal" and not object_type.contains("terminal"):
 			continue
 		var terminal_has_id: bool = false
@@ -4283,11 +4283,11 @@ func resolve_world_item_reference(item_id: String) -> Dictionary:
 				break
 		if not terminal_has_id:
 			for field_name in ["stored_key_id", "access_key_id", "download_record_id"]:
-				if String(terminal_data.get(field_name, "")).strip_edges() == normalized_id:
+				if str(terminal_data.get(field_name, "")).strip_edges() == normalized_id:
 					terminal_has_id = true
 					break
 		if terminal_has_id:
-			var terminal_item_data: Dictionary = {"id": normalized_id, "item_type": "terminal_stored_key", "key_kind": "digital", "terminal_id": String(terminal_data.get("id", "")).strip_edges()}
+			var terminal_item_data: Dictionary = {"id": normalized_id, "item_type": "terminal_stored_key", "key_kind": "digital", "terminal_id": str(terminal_data.get("id", "")).strip_edges()}
 			return {"exists": true, "ok": true, "location": "terminal", "entity_kind": "item", "id": normalized_id, "cell": _deserialize_cell_variant(terminal_data.get("position", Vector2i(-1, -1))), "item_data": terminal_item_data, "data": terminal_item_data, "label": _format_world_item_reference_label(terminal_item_data, normalized_id, "terminal")}
 
 	return missing_result
@@ -4316,7 +4316,7 @@ func _map_constructor_get_linked_key_for_door(door_id: String) -> String:
 	var door_entity: Dictionary = get_map_constructor_entity_by_id("world_object", normalized_door_id)
 	if bool(door_entity.get("ok", false)):
 		var door_data: Dictionary = _safe_dictionary(door_entity.get("data", {}))
-		var required_key_id: String = String(door_data.get("required_key_id", "")).strip_edges()
+		var required_key_id: String = str(door_data.get("required_key_id", "")).strip_edges()
 		if not required_key_id.is_empty() and bool(find_map_constructor_key_item_by_id(required_key_id).get("ok", false)):
 			return required_key_id
 	for cell_variant in cell_items.keys():
@@ -4324,19 +4324,19 @@ func _map_constructor_get_linked_key_for_door(door_id: String) -> String:
 			var item_data: Dictionary = _safe_dictionary(item_variant)
 			if item_data.is_empty() or not _map_constructor_is_key_data(item_data):
 				continue
-			if String(item_data.get("linked_door_id", "")).strip_edges() == normalized_door_id:
-				return String(item_data.get("id", "")).strip_edges()
+			if str(item_data.get("linked_door_id", "")).strip_edges() == normalized_door_id:
+				return str(item_data.get("id", "")).strip_edges()
 	for object_variant in mission_world_objects:
 		var world_data: Dictionary = _safe_dictionary(object_variant)
 		if world_data.is_empty() or not _map_constructor_is_item_like_world_object(world_data) or not _map_constructor_is_key_data(world_data):
 			continue
-		if String(world_data.get("linked_door_id", "")).strip_edges() == normalized_door_id:
-			return String(world_data.get("id", "")).strip_edges()
+		if str(world_data.get("linked_door_id", "")).strip_edges() == normalized_door_id:
+			return str(world_data.get("id", "")).strip_edges()
 	return ""
 
 func _map_constructor_format_door_link_label(door_data: Dictionary, door_cell: Vector2i) -> String:
-	var door_id: String = String(door_data.get("id", "")).strip_edges()
-	var display_name: String = String(door_data.get("display_name", door_data.get("name", ""))).strip_edges()
+	var door_id: String = str(door_data.get("id", "")).strip_edges()
+	var display_name: String = str(door_data.get("display_name", door_data.get("name", ""))).strip_edges()
 	if display_name.is_empty():
 		display_name = "Door"
 	return "%s — %s at (%d, %d)" % [display_name, door_id, door_cell.x, door_cell.y]
@@ -4348,8 +4348,8 @@ func get_map_constructor_key_door_link_candidates(entity_kind: String, entity_id
 	var data: Dictionary = _safe_dictionary(entity.get("data", {}))
 	if not _map_constructor_is_key_data(data):
 		return {"ok": false, "doors": [], "message": "Selected item is not a key."}
-	var current_door_id: String = String(data.get("linked_door_id", "")).strip_edges()
-	var key_kind: String = String(data.get("key_type", data.get("key_kind", data.get("item_type", "")))).strip_edges().to_lower()
+	var current_door_id: String = str(data.get("linked_door_id", "")).strip_edges()
+	var key_kind: String = str(data.get("key_type", data.get("key_kind", data.get("item_type", "")))).strip_edges().to_lower()
 	var all_door_count: int = 0
 	var doors: Array[Dictionary] = []
 	for object_variant in mission_world_objects:
@@ -4359,7 +4359,7 @@ func get_map_constructor_key_door_link_candidates(entity_kind: String, entity_id
 		if not _map_constructor_is_door_data(door_data):
 			continue
 		all_door_count += 1
-		var door_id: String = String(door_data.get("id", "")).strip_edges()
+		var door_id: String = str(door_data.get("id", "")).strip_edges()
 		if door_id.is_empty():
 			continue
 		var access_type: String = WorldObjectCatalogRef.normalize_access_type(door_data.get("access_type", door_data.get("lock_type", "")))
@@ -4399,15 +4399,15 @@ func get_map_constructor_link_targets_for_field(entity_kind: String, entity_id: 
 				if typeof(item_variant) != TYPE_DICTIONARY:
 					continue
 				var item_data: Dictionary = _safe_dictionary(item_variant)
-				var item_id: String = String(item_data.get("id", "")).strip_edges()
+				var item_id: String = str(item_data.get("id", "")).strip_edges()
 				if item_id.is_empty() or seen_key_ids.has(item_id):
 					continue
 				if not _map_constructor_is_key_data(item_data):
 					continue
 				seen_key_ids[item_id] = true
-				var item_type: String = String(item_data.get("item_type", item_data.get("object_type", ""))).to_lower()
+				var item_type: String = str(item_data.get("item_type", item_data.get("object_type", ""))).to_lower()
 				var target: Dictionary = _map_constructor_make_link_target(item_id, item_id, "item", cell, "valid", "key_item")
-				if item_type in ["key", "mechanical_keycard", "digital_key", "access_code"] or not String(item_data.get("key_type", item_data.get("key_kind", ""))).strip_edges().is_empty():
+				if item_type in ["key", "mechanical_keycard", "digital_key", "access_code"] or not str(item_data.get("key_type", item_data.get("key_kind", ""))).strip_edges().is_empty():
 					ranked_items.append(target)
 				else:
 					other_items.append(target)
@@ -4417,14 +4417,14 @@ func get_map_constructor_link_targets_for_field(entity_kind: String, entity_id: 
 			var world_data: Dictionary = _safe_dictionary(object_data)
 			if not _map_constructor_is_item_like_world_object(world_data):
 				continue
-			var world_id: String = String(world_data.get("id", "")).strip_edges()
+			var world_id: String = str(world_data.get("id", "")).strip_edges()
 			if world_id.is_empty() or seen_key_ids.has(world_id):
 				continue
 			seen_key_ids[world_id] = true
 			var world_cell: Vector2i = Vector2i(world_data.get("position", Vector2i(-1, -1)))
 			targets.append(_map_constructor_make_link_target(world_id, world_id, "world_object", world_cell, "valid", "item_like_object"))
 		for collected_key_variant in Array(runtime_inventory_state.get("collected_key_ids", [])):
-			var collected_key_id: String = String(collected_key_variant).strip_edges()
+			var collected_key_id: String = str(collected_key_variant).strip_edges()
 			if collected_key_id.is_empty() or seen_key_ids.has(collected_key_id):
 				continue
 			seen_key_ids[collected_key_id] = true
@@ -4432,15 +4432,15 @@ func get_map_constructor_link_targets_for_field(entity_kind: String, entity_id: 
 		ranked_items.sort_custom(func(a: Dictionary, b: Dictionary) -> bool:
 			var ac: Vector2i = Vector2i(a.get("cell", Vector2i.ZERO))
 			var bc: Vector2i = Vector2i(b.get("cell", Vector2i.ZERO))
-			var al: String = "%s|%04d|%04d|%s" % [String(a.get("label", "")), ac.y, ac.x, String(a.get("id", ""))]
-			var bl: String = "%s|%04d|%04d|%s" % [String(b.get("label", "")), bc.y, bc.x, String(b.get("id", ""))]
+			var al: String = "%s|%04d|%04d|%s" % [str(a.get("label", "")), ac.y, ac.x, str(a.get("id", ""))]
+			var bl: String = "%s|%04d|%04d|%s" % [str(b.get("label", "")), bc.y, bc.x, str(b.get("id", ""))]
 			return al < bl
 		)
 		other_items.sort_custom(func(a: Dictionary, b: Dictionary) -> bool:
 			var ac: Vector2i = Vector2i(a.get("cell", Vector2i.ZERO))
 			var bc: Vector2i = Vector2i(b.get("cell", Vector2i.ZERO))
-			var al: String = "%s|%04d|%04d|%s" % [String(a.get("label", "")), ac.y, ac.x, String(a.get("id", ""))]
-			var bl: String = "%s|%04d|%04d|%s" % [String(b.get("label", "")), bc.y, bc.x, String(b.get("id", ""))]
+			var al: String = "%s|%04d|%04d|%s" % [str(a.get("label", "")), ac.y, ac.x, str(a.get("id", ""))]
+			var bl: String = "%s|%04d|%04d|%s" % [str(b.get("label", "")), bc.y, bc.x, str(b.get("id", ""))]
 			return al < bl
 		)
 		targets.append_array(ranked_items)
@@ -4448,43 +4448,43 @@ func get_map_constructor_link_targets_for_field(entity_kind: String, entity_id: 
 	elif field_name == "linked_terminal_id" or field_name == "control_terminal_id" or field_name == "access_terminal_id":
 		for object_data in mission_world_objects:
 			var data: Dictionary = _safe_dictionary(object_data)
-			var object_type: String = String(data.get("object_type", "")).to_lower()
-			var group_text: String = String(data.get("object_group", data.get("group", ""))).to_lower()
+			var object_type: String = str(data.get("object_type", "")).to_lower()
+			var group_text: String = str(data.get("object_group", data.get("group", ""))).to_lower()
 			if object_type.contains("terminal") or group_text.contains("terminal"):
-				targets.append(_map_constructor_make_link_target(String(data.get("id", "")), String(data.get("id", "")), "world_object", Vector2i(data.get("position", Vector2i(-1, -1))), "valid", "terminal_candidate"))
+				targets.append(_map_constructor_make_link_target(str(data.get("id", "")), str(data.get("id", "")), "world_object", Vector2i(data.get("position", Vector2i(-1, -1))), "valid", "terminal_candidate"))
 	elif field_name == "target_door_id":
 		for object_data in mission_world_objects:
 			var data_door: Dictionary = _safe_dictionary(object_data)
 			if _map_constructor_is_door_data(data_door) and _map_constructor_door_uses_external_terminal_control(data_door):
-				targets.append(_map_constructor_make_link_target(String(data_door.get("id", "")), String(data_door.get("id", "")), "world_object", Vector2i(data_door.get("position", Vector2i(-1, -1))), "valid", "door_candidate"))
+				targets.append(_map_constructor_make_link_target(str(data_door.get("id", "")), str(data_door.get("id", "")), "world_object", Vector2i(data_door.get("position", Vector2i(-1, -1))), "valid", "door_candidate"))
 	elif field_name == "target_platform_id":
 		for object_data in mission_world_objects:
 			var data_platform: Dictionary = _safe_dictionary(object_data)
-			var type_platform: String = String(data_platform.get("object_type", "")).to_lower()
+			var type_platform: String = str(data_platform.get("object_type", "")).to_lower()
 			if type_platform.contains("platform") or data_platform.has("platform_id"):
-				targets.append(_map_constructor_make_link_target(String(data_platform.get("id", "")), String(data_platform.get("id", "")), "world_object", Vector2i(data_platform.get("position", Vector2i(-1, -1))), "valid", "platform_candidate"))
+				targets.append(_map_constructor_make_link_target(str(data_platform.get("id", "")), str(data_platform.get("id", "")), "world_object", Vector2i(data_platform.get("position", Vector2i(-1, -1))), "valid", "platform_candidate"))
 	elif field_name == "control_source_id":
 		for object_data in mission_world_objects:
 			var data_control: Dictionary = _safe_dictionary(object_data)
-			var control_id: String = String(data_control.get("id", ""))
-			var type_control: String = String(data_control.get("object_type", "")).to_lower()
+			var control_id: String = str(data_control.get("id", ""))
+			var type_control: String = str(data_control.get("object_type", "")).to_lower()
 			if type_control.contains("switch") or type_control.contains("terminal") or type_control.contains("control") or control_id.contains("task_test_switch"):
 				targets.append(_map_constructor_make_link_target(control_id, control_id, "world_object", Vector2i(data_control.get("position", Vector2i(-1, -1))), "valid", "control_candidate"))
 	elif field_name == "connected_device_ids":
 		for object_data in mission_world_objects:
 			var data_connected: Dictionary = _safe_dictionary(object_data)
-			var connected_id: String = String(data_connected.get("id", "")).strip_edges()
+			var connected_id: String = str(data_connected.get("id", "")).strip_edges()
 			if connected_id.is_empty() or connected_id == entity_id:
 				continue
-			var group_connected: String = String(data_connected.get("object_group", "")).to_lower()
+			var group_connected: String = str(data_connected.get("object_group", "")).to_lower()
 			if group_connected == "item":
 				continue
 			targets.append(_map_constructor_make_link_target(connected_id, connected_id, "world_object", Vector2i(data_connected.get("position", Vector2i(-1, -1))), "valid", "device_candidate"))
 	elif field_name == "power_source_id":
 		for object_data in mission_world_objects:
 			var source_data: Dictionary = _safe_dictionary(object_data)
-			var source_id: String = String(source_data.get("id", "")).strip_edges()
-			var source_type: String = String(source_data.get("object_type", "")).to_lower()
+			var source_id: String = str(source_data.get("id", "")).strip_edges()
+			var source_type: String = str(source_data.get("object_type", "")).to_lower()
 			if source_id.is_empty() or source_id == entity_id or not source_type.begins_with("power_source"):
 				continue
 			targets.append(_map_constructor_make_link_target(source_id, source_id, "world_object", Vector2i(source_data.get("position", Vector2i(-1, -1))), "valid", "power_source"))
@@ -4497,15 +4497,15 @@ func get_map_constructor_link_targets_for_field(entity_kind: String, entity_id: 
 	return result
 
 func get_power_source_network_id(source_obj: Dictionary) -> String:
-	var existing_network_id: String = String(source_obj.get("power_network_id", "")).strip_edges()
+	var existing_network_id: String = str(source_obj.get("power_network_id", "")).strip_edges()
 	if not existing_network_id.is_empty():
 		return existing_network_id
-	var source_id: String = String(source_obj.get("id", "power_source")).strip_edges()
+	var source_id: String = str(source_obj.get("id", "power_source")).strip_edges()
 	return "%s_net" % source_id if not source_id.is_empty() else "power_source_net"
 
 func ensure_power_source_network_id(source_obj: Dictionary) -> String:
 	var network_id: String = get_power_source_network_id(source_obj)
-	if String(source_obj.get("power_network_id", "")).strip_edges().is_empty():
+	if str(source_obj.get("power_network_id", "")).strip_edges().is_empty():
 		source_obj["power_network_id"] = network_id
 	return network_id
 
@@ -4517,7 +4517,7 @@ func get_power_network_options() -> Array[Dictionary]:
 	options.append(_map_constructor_make_link_target(main_network_id, main_network_id, "power_network", Vector2i(-1, -1), "valid", "virtual_network"))
 	for object_data in mission_world_objects:
 		var source_data: Dictionary = _safe_dictionary(object_data)
-		if not String(source_data.get("object_type", "")).strip_edges().to_lower().begins_with("power_source"):
+		if not str(source_data.get("object_type", "")).strip_edges().to_lower().begins_with("power_source"):
 			continue
 		var network_id: String = get_power_source_network_id(source_data)
 		if network_id.is_empty() or seen_networks.has(network_id):
@@ -4526,7 +4526,7 @@ func get_power_network_options() -> Array[Dictionary]:
 		options.append(_map_constructor_make_link_target(network_id, network_id, "power_network", Vector2i(-1, -1), "valid", "source_owned_network"))
 	# Retain legacy network ids only when existing objects still use them.
 	for object_data in mission_world_objects:
-		var legacy_network_id: String = String(Dictionary(object_data).get("power_network_id", "")).strip_edges()
+		var legacy_network_id: String = str(Dictionary(object_data).get("power_network_id", "")).strip_edges()
 		if legacy_network_id.is_empty() or seen_networks.has(legacy_network_id):
 			continue
 		seen_networks[legacy_network_id] = true
@@ -4534,7 +4534,7 @@ func get_power_network_options() -> Array[Dictionary]:
 	return options
 
 func _map_constructor_door_uses_external_terminal_control(door_data: Dictionary) -> bool:
-	var control_type: String = String(door_data.get("control_type", door_data.get("control_mode", "internal"))).strip_edges().to_lower()
+	var control_type: String = str(door_data.get("control_type", door_data.get("control_mode", "internal"))).strip_edges().to_lower()
 	return control_type in ["external", "terminal", "external_control", "external control"]
 
 func _map_constructor_set_terminal_door_link(terminal_id: String, door_id: String) -> Dictionary:
@@ -4549,10 +4549,10 @@ func _map_constructor_set_terminal_door_link(terminal_id: String, door_id: Strin
 			return {"ok": false, "message": "Door must use external terminal control before linking."}
 	var old_door_ids: Array[String] = []
 	for old_id_variant in Array(terminal_data.get("linked_door_ids", [])):
-		var old_id: String = String(old_id_variant).strip_edges()
+		var old_id: String = str(old_id_variant).strip_edges()
 		if not old_id.is_empty() and not old_door_ids.has(old_id):
 			old_door_ids.append(old_id)
-	var old_target_door_id: String = String(terminal_data.get("target_door_id", "")).strip_edges()
+	var old_target_door_id: String = str(terminal_data.get("target_door_id", "")).strip_edges()
 	if not old_target_door_id.is_empty() and not old_door_ids.has(old_target_door_id):
 		old_door_ids.append(old_target_door_id)
 	for old_door_id in old_door_ids:
@@ -4561,7 +4561,7 @@ func _map_constructor_set_terminal_door_link(terminal_id: String, door_id: Strin
 		var old_door: Dictionary = get_world_object_by_id(old_door_id)
 		if old_door.is_empty():
 			continue
-		if String(old_door.get("control_terminal_id", old_door.get("linked_terminal_id", ""))).strip_edges() == terminal_id:
+		if str(old_door.get("control_terminal_id", old_door.get("linked_terminal_id", ""))).strip_edges() == terminal_id:
 			old_door["linked_terminal_id"] = ""
 			old_door["required_terminal_id"] = ""
 			old_door["control_terminal_id"] = ""
@@ -4575,11 +4575,11 @@ func _map_constructor_set_terminal_door_link(terminal_id: String, door_id: Strin
 	var door_data: Dictionary = get_world_object_by_id(door_id)
 	if door_data.is_empty():
 		return {"ok": false, "message": "Linked door not found."}
-	var previous_terminal_id: String = String(door_data.get("control_terminal_id", door_data.get("linked_terminal_id", ""))).strip_edges()
+	var previous_terminal_id: String = str(door_data.get("control_terminal_id", door_data.get("linked_terminal_id", ""))).strip_edges()
 	if not previous_terminal_id.is_empty() and previous_terminal_id != terminal_id:
 		var previous_terminal: Dictionary = get_world_object_by_id(previous_terminal_id)
 		if not previous_terminal.is_empty():
-			previous_terminal["target_door_id"] = "" if String(previous_terminal.get("target_door_id", "")) == door_id else previous_terminal.get("target_door_id", "")
+			previous_terminal["target_door_id"] = "" if str(previous_terminal.get("target_door_id", "")) == door_id else previous_terminal.get("target_door_id", "")
 			var previous_door_ids: Array = Array(previous_terminal.get("linked_door_ids", [])).duplicate()
 			previous_door_ids.erase(door_id)
 			previous_terminal["linked_door_ids"] = previous_door_ids
@@ -4601,7 +4601,7 @@ func _map_constructor_sync_terminal_door_link(entity_id: String, field_name: Str
 		return {"ok": true}
 	if not target_id.is_empty() and not _map_constructor_door_uses_external_terminal_control(door_data):
 		return {"ok": false, "message": "Door must use external terminal control before linking."}
-	var old_terminal_id: String = String(door_data.get("control_terminal_id", door_data.get("linked_terminal_id", ""))).strip_edges()
+	var old_terminal_id: String = str(door_data.get("control_terminal_id", door_data.get("linked_terminal_id", ""))).strip_edges()
 	if not old_terminal_id.is_empty() and old_terminal_id != target_id:
 		_map_constructor_set_terminal_door_link(old_terminal_id, "")
 	if target_id.is_empty():
@@ -4623,13 +4623,13 @@ func apply_map_constructor_link_target(entity_kind: String, entity_id: String, f
 			result["message"] = "Entity not found."
 			return result
 		var data: Dictionary = _safe_dictionary(entity_info.get("data", {}))
-		var old_network_id: String = String(data.get("power_network_id", ""))
+		var old_network_id: String = str(data.get("power_network_id", ""))
 		var next_ids: Array[String] = []
 		if target_id.is_empty() or target_id == "__none__":
 			next_ids.clear()
 		else:
 			for value_variant in Array(data.get("connected_device_ids", [])):
-				var existing_id: String = String(value_variant).strip_edges()
+				var existing_id: String = str(value_variant).strip_edges()
 				if existing_id.is_empty() or next_ids.has(existing_id):
 					continue
 				next_ids.append(existing_id)
@@ -4642,12 +4642,12 @@ func apply_map_constructor_link_target(entity_kind: String, entity_id: String, f
 			result["message"] = "connected_device_ids supports world_object only."
 			return result
 		PowerSystemRef.recalculate_network(mission_world_objects, old_network_id)
-		PowerSystemRef.recalculate_network(mission_world_objects, String(data.get("power_network_id", "")))
+		PowerSystemRef.recalculate_network(mission_world_objects, str(data.get("power_network_id", "")))
 		refresh_world_cooling_received()
 		result["ok"] = true
 		result["message"] = "Updated connected_device_ids."
 		result["target_id"] = target_id
-		_record_map_constructor_change("link_update", {"entity_kind":"world_object", "entity_id":entity_id, "object_type":String(data.get("object_type", "")), "cell":Vector2i(entity_info.get("cell", Vector2i(-1, -1))), "summary":"Updated connected_device_ids on %s" % entity_id, "details":{"field":"connected_device_ids","target_id":target_id}, "undo_hint":"Can undo by editing link field."})
+		_record_map_constructor_change("link_update", {"entity_kind":"world_object", "entity_id":entity_id, "object_type":str(data.get("object_type", "")), "cell":Vector2i(entity_info.get("cell", Vector2i(-1, -1))), "summary":"Updated connected_device_ids on %s" % entity_id, "details":{"field":"connected_device_ids","target_id":target_id}, "undo_hint":"Can undo by editing link field."})
 		return result
 	var applied_target: String = target_id
 	if target_id.is_empty() or target_id == "__none__":
@@ -4655,16 +4655,16 @@ func apply_map_constructor_link_target(entity_kind: String, entity_id: String, f
 	if entity_kind == "world_object" and field_name in ["target_door_id", "linked_terminal_id", "control_terminal_id"]:
 		var sync_result: Dictionary = _map_constructor_sync_terminal_door_link(entity_id, field_name, applied_target)
 		if not bool(sync_result.get("ok", false)):
-			result["message"] = String(sync_result.get("message", "Link update failed."))
+			result["message"] = str(sync_result.get("message", "Link update failed."))
 			return result
 	var apply_result: Dictionary = apply_map_constructor_property_update(entity_kind, entity_id, field_name, applied_target)
 	result["ok"] = bool(apply_result.get("ok", false))
-	result["message"] = String(apply_result.get("message", "Link update failed."))
+	result["message"] = str(apply_result.get("message", "Link update failed."))
 	result["target_id"] = applied_target
 	if bool(result.get("ok", false)):
 		var entity_after: Dictionary = get_map_constructor_entity_by_id(entity_kind, entity_id)
 		var entity_after_data: Dictionary = _safe_dictionary(entity_after.get("data", {}))
-		_record_map_constructor_change("link_update", {"entity_kind":String(entity_after.get("entity_kind", entity_kind)), "entity_id":entity_id, "object_type":String(entity_after_data.get("object_type", entity_after_data.get("item_type", ""))), "cell":Vector2i(entity_after.get("cell", Vector2i(-1, -1))), "summary":"Updated %s on %s" % [field_name, entity_id], "details":{"field":field_name, "target_id":applied_target}, "undo_hint":"Can undo by setting previous link target."})
+		_record_map_constructor_change("link_update", {"entity_kind":str(entity_after.get("entity_kind", entity_kind)), "entity_id":entity_id, "object_type":str(entity_after_data.get("object_type", entity_after_data.get("item_type", ""))), "cell":Vector2i(entity_after.get("cell", Vector2i(-1, -1))), "summary":"Updated %s on %s" % [field_name, entity_id], "details":{"field":field_name, "target_id":applied_target}, "undo_hint":"Can undo by setting previous link target."})
 	return result
 
 func apply_map_constructor_state_preset(entity_kind: String, entity_id: String, preset: String) -> Dictionary:
@@ -4717,19 +4717,19 @@ func apply_map_constructor_state_preset(entity_kind: String, entity_id: String, 
 	var schema: Dictionary = _get_map_constructor_editable_field_schema()
 	var converted_updates: Array[Dictionary] = []
 	for update_entry in updates:
-		var update_field: String = String(update_entry.get("field", ""))
+		var update_field: String = str(update_entry.get("field", ""))
 		if update_field.is_empty() or not schema.has(update_field):
 			return {"ok": false, "message": "Preset contains unsupported field.", "entity_id": entity_id, "preset": preset}
 		var field_value: Variant = data.get(update_field, get_default_map_constructor_field_value(update_field, resolved_kind, data))
 		if field_value == null:
 			return {"ok": false, "message": "Preset contains unsupported field.", "entity_id": entity_id, "preset": preset}
-		var converted: Dictionary = _convert_map_constructor_field_value(update_field, update_entry.get("value"), String(schema[update_field]))
+		var converted: Dictionary = _convert_map_constructor_field_value(update_field, update_entry.get("value"), str(schema[update_field]))
 		if not bool(converted.get("ok", false)):
-			return {"ok": false, "message": String(converted.get("message", "Invalid value.")), "entity_id": entity_id, "preset": preset}
+			return {"ok": false, "message": str(converted.get("message", "Invalid value.")), "entity_id": entity_id, "preset": preset}
 		converted_updates.append({"field": update_field, "value": converted.get("value")})
-	var old_network_id: String = String(data.get("power_network_id", ""))
+	var old_network_id: String = str(data.get("power_network_id", ""))
 	for converted_entry in converted_updates:
-		data[String(converted_entry.get("field", ""))] = converted_entry.get("value")
+		data[str(converted_entry.get("field", ""))] = converted_entry.get("value")
 	if resolved_kind == "world_object":
 		update_world_object_by_id(entity_id, data)
 	elif resolved_kind == "item":
@@ -4739,7 +4739,7 @@ func apply_map_constructor_state_preset(entity_kind: String, entity_id: String, 
 			var items: Array[Dictionary] = get_items_at_cell(cell)
 			for index in range(items.size()):
 				var item_data: Dictionary = items[index]
-				if String(item_data.get("id", "")) != entity_id:
+				if str(item_data.get("id", "")) != entity_id:
 					continue
 				items[index] = data
 				cell_items[cell] = items
@@ -4753,13 +4753,13 @@ func apply_map_constructor_state_preset(entity_kind: String, entity_id: String, 
 		return {"ok": false, "message": "Unsupported entity kind.", "entity_id": entity_id, "preset": preset}
 	var needs_power_refresh: bool = false
 	for converted_entry in converted_updates:
-		var changed_field: String = String(converted_entry.get("field", ""))
+		var changed_field: String = str(converted_entry.get("field", ""))
 		if changed_field == "power_network_id" or changed_field in ["is_powered", "requires_external_power", "power_mode", "power_source_id", "current_heat", "working_heat", "overheat_threshold"]:
 			needs_power_refresh = true
 			break
 	if needs_power_refresh:
 		PowerSystemRef.recalculate_network(mission_world_objects, old_network_id)
-		PowerSystemRef.recalculate_network(mission_world_objects, String(data.get("power_network_id", "")))
+		PowerSystemRef.recalculate_network(mission_world_objects, str(data.get("power_network_id", "")))
 	refresh_world_cooling_received()
 	return {"ok": true, "message": "Preset %s applied." % lower_preset, "entity_id": entity_id, "preset": lower_preset}
 
@@ -4777,11 +4777,11 @@ func get_map_constructor_entity_type_group(entity_kind: String, entity_id: Strin
 	if not bool(entity.get("ok", false)):
 		return "generic"
 	var data: Dictionary = _safe_dictionary(entity.get("data", {}))
-	var object_type: String = String(data.get("object_type", data.get("item_type", ""))).to_lower()
-	var object_group: String = String(data.get("object_group", data.get("group", ""))).to_lower()
-	var category: String = String(data.get("category", "")).to_lower()
-	var placement_mode: String = String(data.get("placement_mode", "")).to_lower()
-	var prefab_id: String = String(data.get("map_constructor_prefab_id", "")).to_lower()
+	var object_type: String = str(data.get("object_type", data.get("item_type", ""))).to_lower()
+	var object_group: String = str(data.get("object_group", data.get("group", ""))).to_lower()
+	var category: String = str(data.get("category", "")).to_lower()
+	var placement_mode: String = str(data.get("placement_mode", "")).to_lower()
+	var prefab_id: String = str(data.get("map_constructor_prefab_id", "")).to_lower()
 	var join_text: String = "%s %s %s %s %s %s" % [object_type, object_group, category, placement_mode, prefab_id, entity_id.to_lower()]
 	if _map_constructor_matches_any_token(join_text, ["outer_wall","brick_wall","concrete_wall","steel_wall","grate_wall"]): return "wall"
 	if _map_constructor_matches_any_token(join_text, ["door","gate"]): return "door"
@@ -4808,14 +4808,14 @@ func get_map_constructor_door_visual_state(object_id: String) -> Dictionary:
 	var badges: Array[String] = []
 	var state: String = "closed"
 	var message: String = "Door visual state resolved."
-	var raw_state: String = String(object_data.get("state", "")).to_lower()
+	var raw_state: String = str(object_data.get("state", "")).to_lower()
 	var is_open: bool = bool(object_data.get("is_open", object_data.get("open", object_data.get("opened", false))))
-	var has_key_req: bool = not String(object_data.get("required_key_id", object_data.get("required_key", object_data.get("access_code", "")))).strip_edges().is_empty()
-	var is_locked: bool = bool(object_data.get("is_locked", object_data.get("locked", false))) or has_key_req or String(object_data.get("lock_type", "")).strip_edges() != ""
+	var has_key_req: bool = not str(object_data.get("required_key_id", object_data.get("required_key", object_data.get("access_code", "")))).strip_edges().is_empty()
+	var is_locked: bool = bool(object_data.get("is_locked", object_data.get("locked", false))) or has_key_req or str(object_data.get("lock_type", "")).strip_edges() != ""
 	var damage_level: int = int(object_data.get("damage_level", 0))
 	var is_broken: bool = bool(object_data.get("broken", false)) or bool(object_data.get("is_broken", false)) or bool(object_data.get("damaged", false)) or damage_level > 0 or raw_state in ["broken", "damaged", "jammed", "destroyed"]
 	var requires_power: bool = bool(object_data.get("requires_power", object_data.get("requires_external_power", false)))
-	var has_power_network: bool = not String(object_data.get("power_network_id", "")).strip_edges().is_empty()
+	var has_power_network: bool = not str(object_data.get("power_network_id", "")).strip_edges().is_empty()
 	var has_power_flag: bool = object_data.has("is_powered") or object_data.has("powered")
 	var is_powered: bool = bool(object_data.get("is_powered", object_data.get("powered", false)))
 	if is_broken:
@@ -4839,8 +4839,8 @@ func get_map_constructor_door_visual_state(object_id: String) -> Dictionary:
 	if requires_power:
 		badges.append("requires_power")
 	if has_power_network:
-		badges.append("power_network:%s" % String(object_data.get("power_network_id", "")))
-	var control_source_id: String = String(object_data.get("control_source_id", object_data.get("linked_terminal_id", object_data.get("controller_id", "")))).strip_edges()
+		badges.append("power_network:%s" % str(object_data.get("power_network_id", "")))
+	var control_source_id: String = str(object_data.get("control_source_id", object_data.get("linked_terminal_id", object_data.get("controller_id", "")))).strip_edges()
 	if not control_source_id.is_empty():
 		badges.append("linked_control:%s" % control_source_id)
 	if state == "unknown":
@@ -4864,8 +4864,8 @@ func get_map_constructor_door_visual_state(object_id: String) -> Dictionary:
 			tint = Color(0.7, 0.38, 0.34, 0.95)
 			accent = Color(0.95, 0.28, 0.22, 0.98)
 	var preset_override: Dictionary = Dictionary(map_constructor_door_visual_preset_overrides.get(normalized_id, {}))
-	var room_visual_preset_id: String = String(preset_override.get("preset_id", "")).strip_edges()
-	var room_visual_hint: String = String(preset_override.get("visual_hint", "")).strip_edges()
+	var room_visual_preset_id: String = str(preset_override.get("preset_id", "")).strip_edges()
+	var room_visual_hint: String = str(preset_override.get("visual_hint", "")).strip_edges()
 	var normalized_room_visual_hint: String = room_visual_hint.to_lower()
 	var created_by_room_visual_preset: bool = bool(preset_override.get("created_by_room_visual_preset", false))
 	if not normalized_room_visual_hint.is_empty():
@@ -4907,13 +4907,13 @@ func get_map_constructor_terminal_visual_state(object_id: String) -> Dictionary:
 		fallback["message"] = "Object is not terminal/device."
 		return fallback
 	var terminal_type: String = "unknown"
-	var normalized_terminal_type: String = String(object_data.get("terminal_type", "")).to_lower()
-	var controlled_target_type: String = String(object_data.get("controlled_target_type", "none")).to_lower()
+	var normalized_terminal_type: String = str(object_data.get("terminal_type", "")).to_lower()
+	var controlled_target_type: String = str(object_data.get("controlled_target_type", "none")).to_lower()
 	if normalized_terminal_type == "information":
 		terminal_type = "information_terminal"
 	elif normalized_terminal_type == "control":
 		terminal_type = "%s_terminal" % controlled_target_type if controlled_target_type != "none" else "control_terminal"
-	var raw_state: String = String(object_data.get("status", object_data.get("state", "idle"))).to_lower()
+	var raw_state: String = str(object_data.get("status", object_data.get("state", "idle"))).to_lower()
 	var state: String = "idle"
 	var badges: Array[String] = []
 	var is_broken: bool = bool(object_data.get("broken", false)) or bool(object_data.get("is_broken", false)) or bool(object_data.get("damaged", false))
@@ -4938,10 +4938,10 @@ func get_map_constructor_terminal_visual_state(object_id: String) -> Dictionary:
 		state = "disabled"
 	if terminal_type != "unknown":
 		badges.append(terminal_type)
-	if not String(object_data.get("target_door_id", "")).strip_edges().is_empty():
-		badges.append("target_door:%s" % String(object_data.get("target_door_id", "")))
-	if not String(object_data.get("target_platform_id", "")).strip_edges().is_empty():
-		badges.append("target_platform:%s" % String(object_data.get("target_platform_id", "")))
+	if not str(object_data.get("target_door_id", "")).strip_edges().is_empty():
+		badges.append("target_door:%s" % str(object_data.get("target_door_id", "")))
+	if not str(object_data.get("target_platform_id", "")).strip_edges().is_empty():
+		badges.append("target_platform:%s" % str(object_data.get("target_platform_id", "")))
 	var tint: Color = Color(1.0, 1.0, 1.0, 1.0)
 	var accent: Color = Color(0.78, 0.87, 0.96, 0.98)
 	match terminal_type:
@@ -4960,8 +4960,8 @@ func get_map_constructor_terminal_visual_state(object_id: String) -> Dictionary:
 			tint = Color(0.7, 0.92, 1.0, 0.96)
 			accent = Color(0.39, 0.95, 1.0, 0.99)
 	var terminal_preset_override: Dictionary = Dictionary(map_constructor_terminal_visual_preset_overrides.get(normalized_id, {}))
-	var terminal_room_preset_id: String = String(terminal_preset_override.get("preset_id", "")).strip_edges()
-	var terminal_room_visual_hint: String = String(terminal_preset_override.get("visual_hint", "")).strip_edges()
+	var terminal_room_preset_id: String = str(terminal_preset_override.get("preset_id", "")).strip_edges()
+	var terminal_room_visual_hint: String = str(terminal_preset_override.get("visual_hint", "")).strip_edges()
 	var normalized_terminal_room_visual_hint: String = terminal_room_visual_hint.to_lower()
 	var terminal_created_by_room_preset: bool = bool(terminal_preset_override.get("created_by_room_visual_preset", false))
 	if not normalized_terminal_room_visual_hint.is_empty():
@@ -4987,7 +4987,7 @@ func get_map_constructor_terminal_visual_state(object_id: String) -> Dictionary:
 func get_map_constructor_property_presets(entity_kind: String, entity_id: String) -> Array[Dictionary]:
 	var entity_info: Dictionary = get_map_constructor_entity_by_id(entity_kind, entity_id)
 	var data: Dictionary = _safe_dictionary(entity_info.get("data", {}))
-	if not String(data.get("archetype_id", "")).strip_edges().is_empty():
+	if not str(data.get("archetype_id", "")).strip_edges().is_empty():
 		return []
 	var group: String = get_map_constructor_entity_type_group(entity_kind, entity_id)
 	match group:
@@ -5021,21 +5021,21 @@ func apply_map_constructor_property_preset(entity_kind: String, entity_id: Strin
 	if group == "terminal" and preset_id == "linked":
 		var e: Dictionary = get_map_constructor_entity_by_id(entity_kind, entity_id)
 		var d: Dictionary = _safe_dictionary(e.get("data", {}))
-		if String(d.get("target_door_id", "")).is_empty() and String(d.get("target_platform_id", "")).is_empty() and String(d.get("linked_terminal_id", "")).is_empty():
+		if str(d.get("target_door_id", "")).is_empty() and str(d.get("target_platform_id", "")).is_empty() and str(d.get("linked_terminal_id", "")).is_empty():
 			warning = "Terminal is active but no linked target selected."
-	return {"ok": bool(apply.get("ok", false)), "message": warning if not warning.is_empty() else String(apply.get("message", "Preset applied.")), "entity_kind": entity_kind, "entity_id": entity_id}
+	return {"ok": bool(apply.get("ok", false)), "message": warning if not warning.is_empty() else str(apply.get("message", "Preset applied.")), "entity_kind": entity_kind, "entity_id": entity_id}
 
 func update_map_constructor_entity_properties(entity_kind: String, entity_id: String, updates: Dictionary) -> Dictionary:
 	var warnings: Array[String] = []
 	for k in updates.keys():
-		if String(k) == "id" or String(k) == "position" or String(k) == "wall_side":
-			warnings.append("Field %s is restricted." % String(k))
+		if str(k) == "id" or str(k) == "position" or str(k) == "wall_side":
+			warnings.append("Field %s is restricted." % str(k))
 	var safe: Dictionary = updates.duplicate(true)
 	safe.erase("id"); safe.erase("position"); safe.erase("wall_side")
 	for k in safe.keys():
-		var r: Dictionary = apply_map_constructor_property_update(entity_kind, entity_id, String(k), safe[k])
+		var r: Dictionary = apply_map_constructor_property_update(entity_kind, entity_id, str(k), safe[k])
 		if not bool(r.get("ok", false)):
-			return {"ok": false, "message": String(r.get("message", "Update failed.")), "warnings": warnings}
+			return {"ok": false, "message": str(r.get("message", "Update failed.")), "warnings": warnings}
 	return {"ok": true, "message": "Updated properties.", "warnings": warnings}
 
 func get_map_constructor_link_candidates(entity_kind: String, entity_id: String, link_type: String) -> Array[Dictionary]:
@@ -5044,18 +5044,18 @@ func get_map_constructor_link_candidates(entity_kind: String, entity_id: String,
 	var entity: Dictionary = get_map_constructor_entity_by_id(entity_kind, entity_id)
 	var current_value: String = ""
 	if bool(entity.get("ok", false)):
-		current_value = String(_safe_dictionary(entity.get("data", {})).get(String(field_map[link_type]), "")).strip_edges()
-	var raw: Dictionary = get_map_constructor_link_targets_for_field(entity_kind, entity_id, String(field_map[link_type]))
+		current_value = str(_safe_dictionary(entity.get("data", {})).get(str(field_map[link_type]), "")).strip_edges()
+	var raw: Dictionary = get_map_constructor_link_targets_for_field(entity_kind, entity_id, str(field_map[link_type]))
 	var out: Array[Dictionary] = []
 	for t in Array(raw.get("targets", [])):
 		var td: Dictionary = Dictionary(t)
-		if String(td.get("id", "")) == "__none__": continue
-		var id: String = String(td.get("id",""))
-		out.append({"id":id,"label":String(td.get("label","")),"cell":Vector2i(td.get("cell",Vector2i(-1,-1))),"entity_kind":"world_object","object_type":String(td.get("kind","")),"current":id == current_value})
+		if str(td.get("id", "")) == "__none__": continue
+		var id: String = str(td.get("id",""))
+		out.append({"id":id,"label":str(td.get("label","")),"cell":Vector2i(td.get("cell",Vector2i(-1,-1))),"entity_kind":"world_object","object_type":str(td.get("kind","")),"current":id == current_value})
 	if link_type == "power_network":
 		var known: Dictionary = {}
 		for entry in out:
-			known[String(Dictionary(entry).get("id", ""))] = true
+			known[str(Dictionary(entry).get("id", ""))] = true
 		if not current_value.is_empty() and not known.has(current_value):
 			out.append({"id":current_value,"label":"Network: %s" % current_value,"cell":Vector2i(-1,-1),"entity_kind":"world_object","object_type":"power_network","current":true})
 	return out
@@ -5066,10 +5066,10 @@ func _set_map_constructor_key_door_link(entity_kind: String, key_id: String, doo
 		key_entity = find_map_constructor_key_item_by_id(key_id)
 	if not bool(key_entity.get("ok", false)):
 		return {"ok": false, "message": "Key item not found.", "target_id": door_id}
-	var old_door_id: String = String(_safe_dictionary(key_entity.get("data", {})).get("linked_door_id", "")).strip_edges()
+	var old_door_id: String = str(_safe_dictionary(key_entity.get("data", {})).get("linked_door_id", "")).strip_edges()
 	if not old_door_id.is_empty() and old_door_id != door_id:
 		var old_door: Dictionary = get_map_constructor_entity_by_id("world_object", old_door_id)
-		if bool(old_door.get("ok", false)) and String(_safe_dictionary(old_door.get("data", {})).get("required_key_id", "")).strip_edges() == key_id:
+		if bool(old_door.get("ok", false)) and str(_safe_dictionary(old_door.get("data", {})).get("required_key_id", "")).strip_edges() == key_id:
 			apply_map_constructor_property_update("world_object", old_door_id, "required_key_id", "")
 	var normalized_door_id: String = door_id.strip_edges()
 	if not normalized_door_id.is_empty():
@@ -5079,7 +5079,7 @@ func _set_map_constructor_key_door_link(entity_kind: String, key_id: String, doo
 		var existing_key: String = _map_constructor_get_linked_key_for_door(normalized_door_id)
 		if not existing_key.is_empty() and existing_key != key_id:
 			return {"ok": false, "message": "Door already has a linked key.", "target_id": normalized_door_id}
-	var key_location: String = String(key_entity.get("location", "map"))
+	var key_location: String = str(key_entity.get("location", "map"))
 	if key_location == "inventory":
 		var runtime_map: Dictionary = _get_world_item_runtime_map()
 		var key_runtime: Dictionary = Dictionary(runtime_map.get(key_id, {}))
@@ -5091,7 +5091,7 @@ func _set_map_constructor_key_door_link(entity_kind: String, key_id: String, doo
 		runtime_map[key_id] = key_runtime
 		runtime_inventory_state["world_item_runtime"] = runtime_map
 	else:
-		var key_apply: Dictionary = apply_map_constructor_property_update(String(key_entity.get("entity_kind", entity_kind)), key_id, "linked_door_id", normalized_door_id)
+		var key_apply: Dictionary = apply_map_constructor_property_update(str(key_entity.get("entity_kind", entity_kind)), key_id, "linked_door_id", normalized_door_id)
 		if not bool(key_apply.get("ok", false)):
 			return key_apply
 	if not normalized_door_id.is_empty():
@@ -5107,11 +5107,11 @@ func set_map_constructor_entity_link(entity_kind: String, entity_id: String, lin
 	if not field_map.has(link_type): return {"ok":false,"message":"Unsupported link type.","target_id":target_id}
 	if link_type == "key_door":
 		return _set_map_constructor_key_door_link(entity_kind, entity_id, target_id)
-	var apply: Dictionary = apply_map_constructor_link_target(entity_kind, entity_id, String(field_map[link_type]), target_id)
+	var apply: Dictionary = apply_map_constructor_link_target(entity_kind, entity_id, str(field_map[link_type]), target_id)
 	var target_cell: Vector2i = Vector2i(-1, -1)
 	var target_entity: Dictionary = get_map_constructor_entity_by_id("world_object", target_id)
 	if bool(target_entity.get("ok", false)): target_cell = Vector2i(target_entity.get("cell", Vector2i(-1, -1)))
-	return {"ok":bool(apply.get("ok",false)),"message":String(apply.get("message","Link updated.")),"target_cell":target_cell,"target_id":target_id}
+	return {"ok":bool(apply.get("ok",false)),"message":str(apply.get("message","Link updated.")),"target_cell":target_cell,"target_id":target_id}
 
 
 func _map_constructor_link_target_exists_for_field(field_name: String, target_id: String) -> bool:
@@ -5124,7 +5124,7 @@ func _map_constructor_link_target_exists_for_field(field_name: String, target_id
 		if bool(get_map_constructor_entity_by_id("world_object", normalized_target_id).get("ok", false)):
 			return true
 		for object_data in mission_world_objects:
-			if String(Dictionary(object_data).get("power_network_id", "")).strip_edges() == normalized_target_id:
+			if str(Dictionary(object_data).get("power_network_id", "")).strip_edges() == normalized_target_id:
 				return true
 		return false
 	return bool(get_map_constructor_entity_by_id("world_object", normalized_target_id).get("ok", false))
@@ -5132,12 +5132,12 @@ func _map_constructor_link_target_exists_for_field(field_name: String, target_id
 
 func _normalize_map_constructor_access_type(raw_value: Variant, fallback_value: String = "") -> String:
 	var normalized_access_type: String = WorldObjectCatalogRef.normalize_access_type(raw_value)
-	if String(raw_value).strip_edges().is_empty() and not fallback_value.is_empty():
+	if str(raw_value).strip_edges().is_empty() and not fallback_value.is_empty():
 		return WorldObjectCatalogRef.normalize_access_type(fallback_value)
 	return normalized_access_type
 
 func _default_map_constructor_access_type_for_object(object_data: Dictionary) -> String:
-	var classifier: String = "%s %s %s" % [String(object_data.get("object_type", "")).to_lower(), String(object_data.get("map_constructor_prefab_id", "")).to_lower(), String(object_data.get("display_name", "")).to_lower()]
+	var classifier: String = "%s %s %s" % [str(object_data.get("object_type", "")).to_lower(), str(object_data.get("map_constructor_prefab_id", "")).to_lower(), str(object_data.get("display_name", "")).to_lower()]
 	if classifier.contains("powered_gate") or classifier.contains("gate"):
 		return WorldObjectCatalogRef.ACCESS_TYPE_NO_KEY
 	var access_type: String = WorldObjectCatalogRef.normalize_access_type(object_data.get("access_type", object_data.get("lock_type", "")))
@@ -5147,7 +5147,7 @@ func _default_map_constructor_access_type_for_object(object_data: Dictionary) ->
 
 func _normalize_map_constructor_active_object_fields(object_data: Dictionary) -> Dictionary:
 	var data: Dictionary = WorldObjectCatalogRef.normalize_world_object_contract(object_data)
-	var classifier: String = "%s %s %s %s" % [String(data.get("object_group", "")).to_lower(), String(data.get("object_type", "")).to_lower(), String(data.get("map_constructor_prefab_id", "")).to_lower(), String(data.get("id", "")).to_lower()]
+	var classifier: String = "%s %s %s %s" % [str(data.get("object_group", "")).to_lower(), str(data.get("object_type", "")).to_lower(), str(data.get("map_constructor_prefab_id", "")).to_lower(), str(data.get("id", "")).to_lower()]
 	var type_group: String = "generic"
 	if _map_constructor_is_door_data(data):
 		type_group = "door"
@@ -5157,9 +5157,9 @@ func _normalize_map_constructor_active_object_fields(object_data: Dictionary) ->
 		type_group = "power"
 	if not (type_group in ["door", "terminal", "power", "control"]):
 		return data
-	var prefab_id: String = String(data.get("map_constructor_prefab_id", data.get("object_type", ""))).to_lower()
+	var prefab_id: String = str(data.get("map_constructor_prefab_id", data.get("object_type", ""))).to_lower()
 	var default_power_mode: String = "external" if prefab_id == "powered_gate" or bool(data.get("requires_external_power", false)) else "internal"
-	var power_mode: String = String(data.get("power_mode", default_power_mode)).strip_edges().to_lower()
+	var power_mode: String = str(data.get("power_mode", default_power_mode)).strip_edges().to_lower()
 	if power_mode in ["external_power", "external power"]:
 		power_mode = "external"
 	if power_mode in ["none", "non", "no", ""]:
@@ -5169,13 +5169,13 @@ func _normalize_map_constructor_active_object_fields(object_data: Dictionary) ->
 	data["power_mode"] = power_mode
 	data["requires_external_power"] = power_mode == "external"
 	if not data.has("power_network_id"):
-		data["power_network_id"] = String(data.get("network_id", data.get("connected_power_source_id", ""))).strip_edges()
+		data["power_network_id"] = str(data.get("network_id", data.get("connected_power_source_id", ""))).strip_edges()
 	if not data.has("power_source_id"):
-		data["power_source_id"] = String(data.get("connected_power_source_id", data.get("power_network_id", ""))).strip_edges()
-	var object_type_normalized: String = String(data.get("object_type", prefab_id)).strip_edges().to_lower()
+		data["power_source_id"] = str(data.get("connected_power_source_id", data.get("power_network_id", ""))).strip_edges()
+	var object_type_normalized: String = str(data.get("object_type", prefab_id)).strip_edges().to_lower()
 	if object_type_normalized in ["power_source", "power_source_class_1", "power_source_class_2", "power_source_class_3"]:
 		ensure_power_source_network_id(data)
-		var source_state: String = String(data.get("state", "on")).strip_edges().to_lower()
+		var source_state: String = str(data.get("state", "on")).strip_edges().to_lower()
 		if source_state.is_empty():
 			source_state = "on"
 		if source_state == "active":
@@ -5213,10 +5213,10 @@ func _normalize_map_constructor_active_object_fields(object_data: Dictionary) ->
 		if not data.has("broken"):
 			data["broken"] = false
 	if object_type_normalized == "power_cable":
-		data["state"] = String(data.get("state", "ok")).strip_edges().to_lower()
+		data["state"] = str(data.get("state", "ok")).strip_edges().to_lower()
 		if data["state"] == "active":
 			data["state"] = "ok"
-		if not (String(data["state"]) in ["ok", "cut", "damaged", "broken"]):
+		if not (str(data["state"]) in ["ok", "cut", "damaged", "broken"]):
 			data["state"] = "ok"
 		if not data.has("connected"):
 			data["connected"] = true
@@ -5236,20 +5236,20 @@ func _normalize_map_constructor_active_object_fields(object_data: Dictionary) ->
 			data["cable_length"] = 0
 	if object_type_normalized in ["circuit_breaker", "circuit_switch", "light_switch"]:
 		var switch_default_state: String = "switch_on" if object_type_normalized == "circuit_breaker" else "switch_off"
-		if String(data.get("state", "active")).strip_edges().to_lower() == "active":
+		if str(data.get("state", "active")).strip_edges().to_lower() == "active":
 			data["state"] = switch_default_state
 		if not data.has("is_on"):
-			data["is_on"] = String(data.get("state", switch_default_state)).strip_edges().to_lower() == "switch_on"
+			data["is_on"] = str(data.get("state", switch_default_state)).strip_edges().to_lower() == "switch_on"
 	if object_type_normalized in ["fuse_box", "fuse_box_installed", "fuse_box_empty"]:
 		var fuse_installed_default: bool = object_type_normalized != "fuse_box_empty"
-		if String(data.get("state", "active")).strip_edges().to_lower() == "active":
+		if str(data.get("state", "active")).strip_edges().to_lower() == "active":
 			data["state"] = "installed" if fuse_installed_default else "empty"
 		if not data.has("requires_fuse"):
 			data["requires_fuse"] = true
 		if not data.has("fuse_installed"):
 			data["fuse_installed"] = fuse_installed_default
 	if object_type_normalized == "power_socket":
-		if String(data.get("state", "active")).strip_edges().to_lower() == "active":
+		if str(data.get("state", "active")).strip_edges().to_lower() == "active":
 			data["state"] = "disconnected"
 		if not data.has("connected"):
 			data["connected"] = false
@@ -5258,9 +5258,9 @@ func _normalize_map_constructor_active_object_fields(object_data: Dictionary) ->
 		if not data.has("connected_side"):
 			data["connected_side"] = bool(data.get("connected", false))
 	if object_type_normalized == "power_cable_reel":
-		if String(data.get("state", "active")).strip_edges().to_lower() == "active":
+		if str(data.get("state", "active")).strip_edges().to_lower() == "active":
 			data["state"] = "disconnected"
-		var legacy_reel_target_id: String = String(data.get("cable_endpoint_b_id", "")).strip_edges()
+		var legacy_reel_target_id: String = str(data.get("cable_endpoint_b_id", "")).strip_edges()
 		var has_explicit_reel_ends: bool = data.has("end_1_state") or data.has("end_1_target_id") or data.has("end_2_state") or data.has("end_2_target_id")
 		if not has_explicit_reel_ends and bool(data.get("connected", false)) and not legacy_reel_target_id.is_empty():
 			data["end_1_state"] = "connected"
@@ -5279,17 +5279,17 @@ func _normalize_map_constructor_active_object_fields(object_data: Dictionary) ->
 			var end_target_key: String = "end_%d_target_id" % end_index
 			var end_path_key: String = "end_%d_path_cells" % end_index
 			var end_length_key: String = "end_%d_cable_length" % end_index
-			var end_state: String = String(data.get(end_state_key, "on_reel")).strip_edges().to_lower()
+			var end_state: String = str(data.get(end_state_key, "on_reel")).strip_edges().to_lower()
 			if not (end_state in ["on_reel", "held", "connected", "disconnected"]):
 				end_state = "on_reel"
 			data[end_state_key] = end_state
-			data[end_target_key] = String(data.get(end_target_key, "")).strip_edges()
+			data[end_target_key] = str(data.get(end_target_key, "")).strip_edges()
 			if not data.has(end_path_key):
 				data[end_path_key] = []
 			if not data.has(end_length_key):
 				data[end_length_key] = 0
 			if not data.has("connected_side_%d" % end_index):
-				data["connected_side_%d" % end_index] = end_state == "connected" and not String(data.get(end_target_key, "")).is_empty()
+				data["connected_side_%d" % end_index] = end_state == "connected" and not str(data.get(end_target_key, "")).is_empty()
 		if not data.has("connected"):
 			data["connected"] = bool(data.get("connected_side_1", false)) or bool(data.get("connected_side_2", false))
 		if not data.has("disconnected"):
@@ -5304,7 +5304,7 @@ func _normalize_map_constructor_active_object_fields(object_data: Dictionary) ->
 			data["cable_path_cells"] = []
 		if not data.has("cable_length"):
 			data["cable_length"] = 0
-	var control_mode: String = String(data.get("control_type", data.get("control_mode", "external" if bool(data.get("requires_external_control", false)) else "internal"))).strip_edges().to_lower()
+	var control_mode: String = str(data.get("control_type", data.get("control_mode", "external" if bool(data.get("requires_external_control", false)) else "internal"))).strip_edges().to_lower()
 	if control_mode in ["external_control", "external control", "terminal"]:
 		control_mode = "external"
 	if control_mode in ["none", "non", "no", ""]:
@@ -5313,7 +5313,7 @@ func _normalize_map_constructor_active_object_fields(object_data: Dictionary) ->
 		control_mode = "internal"
 	data["control_mode"] = control_mode
 	data["requires_external_control"] = control_mode == "external"
-	var terminal_id: String = String(data.get("control_terminal_id", data.get("linked_terminal_id", data.get("control_source_id", "")))).strip_edges()
+	var terminal_id: String = str(data.get("control_terminal_id", data.get("linked_terminal_id", data.get("control_source_id", "")))).strip_edges()
 	data["control_terminal_id"] = terminal_id
 	if not data.has("linked_terminal_id"):
 		data["linked_terminal_id"] = terminal_id
@@ -5322,7 +5322,7 @@ func _normalize_map_constructor_active_object_fields(object_data: Dictionary) ->
 		data["control_source_id"] = terminal_id
 	if type_group == "door":
 		data["control_type"] = control_mode if control_mode in ["internal", "external"] else "internal"
-		var door_state: String = String(data.get("state", "closed")).strip_edges().to_lower()
+		var door_state: String = str(data.get("state", "closed")).strip_edges().to_lower()
 		if not (door_state in ["open", "closed", "locked", "jammed", "damaged"]):
 			door_state = "closed"
 		data["state"] = door_state
@@ -5333,19 +5333,19 @@ func _normalize_map_constructor_active_object_fields(object_data: Dictionary) ->
 		if access_type == WorldObjectCatalogRef.ACCESS_TYPE_NO_KEY:
 			data["required_key_id"] = ""
 			data["lock_type"] = "none"
-			if String(data.get("state", "closed")) == "locked":
+			if str(data.get("state", "closed")) == "locked":
 				data["state"] = "closed"
 		elif access_type == WorldObjectCatalogRef.ACCESS_TYPE_TERMINAL:
 			data["required_key_id"] = ""
 			data["lock_type"] = "terminal_lock"
-			if String(data.get("access_terminal_id", "")).strip_edges().is_empty():
+			if str(data.get("access_terminal_id", "")).strip_edges().is_empty():
 				data["access_terminal_id"] = terminal_id
 			if control_mode == "external" and not terminal_id.is_empty():
 				data["access_terminal_id"] = terminal_id
 		else:
 			data["lock_type"] = "mechanical_key" if access_type == WorldObjectCatalogRef.ACCESS_TYPE_KEY_CARD else access_type
-			if access_type == WorldObjectCatalogRef.ACCESS_TYPE_ACCESS_CODE and String(data.get("access_code_value", "")).strip_edges().is_empty():
-				var seed_value: int = abs(hash(String(data.get("id", "access_code")))) % 10000
+			if access_type == WorldObjectCatalogRef.ACCESS_TYPE_ACCESS_CODE and str(data.get("access_code_value", "")).strip_edges().is_empty():
+				var seed_value: int = abs(hash(str(data.get("id", "access_code")))) % 10000
 				data["access_code_value"] = "%04d" % seed_value
 	return WorldObjectCatalogRef.normalize_door_state_fields(data)
 
@@ -5362,7 +5362,7 @@ func _count_adjacent_power_wires(cell: Vector2i, target_id: String = "") -> int:
 	return _ensure_map_constructor_validation_service()._count_adjacent_power_wires(cell, target_id)
 
 func _append_light_switch_target_id(target_ids: Array[String], raw_target_id: Variant) -> void:
-	var target_id: String = String(raw_target_id).strip_edges()
+	var target_id: String = str(raw_target_id).strip_edges()
 	if not target_id.is_empty() and not target_ids.has(target_id):
 		target_ids.append(target_id)
 
@@ -5373,7 +5373,7 @@ func toggle_light_switch_links(light_switch_id: String, switch_is_on: bool) -> D
 		return {"success": false, "updated": 0, "reason": "switch_missing", "message": "Light switch is missing."}
 	switch_object["state"] = "switch_on" if switch_is_on else "switch_off"
 	switch_object["is_on"] = switch_is_on
-	var source_id: String = String(switch_object.get("power_source_id", switch_object.get("power_network_id", ""))).strip_edges()
+	var source_id: String = str(switch_object.get("power_source_id", switch_object.get("power_network_id", ""))).strip_edges()
 	var explicit_target_ids: Array[String] = []
 	for field_name in ["target_light_id", "linked_light_id", "target_object_id", "linked_object_id"]:
 		_append_light_switch_target_id(explicit_target_ids, switch_object.get(field_name, ""))
@@ -5391,24 +5391,24 @@ func toggle_light_switch_links(light_switch_id: String, switch_is_on: bool) -> D
 			warnings.append("Linked light not found: %s." % target_id)
 			continue
 		linked_light_ids.append(target_id)
-		if String(linked_object.get("object_type", "")).strip_edges().to_lower() != "light":
+		if str(linked_object.get("object_type", "")).strip_edges().to_lower() != "light":
 			warnings.append("Linked light target is invalid: %s." % target_id)
 			continue
-		var linked_state: String = String(linked_object.get("state", "")).strip_edges().to_lower()
+		var linked_state: String = str(linked_object.get("state", "")).strip_edges().to_lower()
 		if linked_state in ["damaged", "broken", "destroyed"] or bool(linked_object.get("damaged", false)) or bool(linked_object.get("broken", false)) or bool(linked_object.get("destroyed", false)):
 			warnings.append("Linked light is damaged: %s." % target_id)
 			continue
 		linked_lights.append(linked_object)
 	if not source_id.is_empty():
 		for object_data in mission_world_objects:
-			if String(object_data.get("object_type", "")).strip_edges().to_lower() != "light":
+			if str(object_data.get("object_type", "")).strip_edges().to_lower() != "light":
 				continue
-			var linked_source: String = String(object_data.get("power_source_id", object_data.get("power_network_id", ""))).strip_edges()
-			var object_id: String = String(object_data.get("id", "")).strip_edges()
+			var linked_source: String = str(object_data.get("power_source_id", object_data.get("power_network_id", ""))).strip_edges()
+			var object_id: String = str(object_data.get("id", "")).strip_edges()
 			if linked_source != source_id or linked_light_ids.has(object_id):
 				continue
 			linked_light_ids.append(object_id)
-			var linked_state: String = String(object_data.get("state", "")).strip_edges().to_lower()
+			var linked_state: String = str(object_data.get("state", "")).strip_edges().to_lower()
 			if linked_state in ["damaged", "broken", "destroyed"] or bool(object_data.get("damaged", false)) or bool(object_data.get("broken", false)) or bool(object_data.get("destroyed", false)):
 				warnings.append("Linked light is damaged: %s." % object_id)
 				continue
@@ -5422,7 +5422,7 @@ func toggle_light_switch_links(light_switch_id: String, switch_is_on: bool) -> D
 	if switch_is_on:
 		for linked_light in linked_lights:
 			if not bool(linked_light.get("is_powered", false)):
-				warnings.append("Linked light is unpowered: %s." % String(linked_light.get("id", "")))
+				warnings.append("Linked light is unpowered: %s." % str(linked_light.get("id", "")))
 	if linked_lights.is_empty():
 		var reason: String = "source_missing" if source_id.is_empty() else "linked_light_missing"
 		var local_message: String = "Light switch source is missing." if source_id.is_empty() else "Light switch has no linked lights."
@@ -5438,7 +5438,7 @@ func validate_map_constructor_entity_links(entity_kind: String, entity_id: Strin
 	return _ensure_map_constructor_validation_service().validate_map_constructor_entity_links(entity_kind, entity_id)
 
 func _is_map_constructor_cleanup_protected_object(object_data: Dictionary) -> bool:
-	var object_id: String = String(object_data.get("id", "")).to_lower()
+	var object_id: String = str(object_data.get("id", "")).to_lower()
 	if object_id == "bipob" or object_id.find("bipob") >= 0:
 		return true
 	if object_id.find("start") >= 0 and object_id.find("marker") >= 0:
@@ -5448,8 +5448,8 @@ func _is_map_constructor_cleanup_protected_object(object_data: Dictionary) -> bo
 	return false
 
 func _build_map_constructor_cleanup_row(entity_kind: String, data: Dictionary, cell: Vector2i) -> Dictionary:
-	var object_id: String = String(data.get("id", ""))
-	return {"entity_kind": entity_kind, "id": object_id, "object_type": String(data.get("object_type", data.get("item_type", ""))), "object_group": String(data.get("object_group", "")), "category": String(data.get("category", "")), "type_group": get_map_constructor_entity_type_group(entity_kind, object_id), "cell": cell, "created_by_map_constructor": bool(data.get("created_by_map_constructor", false))}
+	var object_id: String = str(data.get("id", ""))
+	return {"entity_kind": entity_kind, "id": object_id, "object_type": str(data.get("object_type", data.get("item_type", ""))), "object_group": str(data.get("object_group", "")), "category": str(data.get("category", "")), "type_group": get_map_constructor_entity_type_group(entity_kind, object_id), "cell": cell, "created_by_map_constructor": bool(data.get("created_by_map_constructor", false))}
 
 func get_map_constructor_cleanup_preview(cleanup_type: String, options: Dictionary = {}) -> Dictionary:
 	var lower_type: String = cleanup_type.strip_edges().to_lower()
@@ -5476,11 +5476,11 @@ func get_map_constructor_cleanup_preview(cleanup_type: String, options: Dictiona
 			"items":
 				add_row = row["type_group"] == "item" or _map_constructor_is_item_like_world_object(data)
 			"wall_mounted":
-				add_row = String(data.get("placement_mode", "")) == "wall_mounted"
+				add_row = str(data.get("placement_mode", "")) == "wall_mounted"
 			"category":
-				add_row = String(row.get("category", "")).to_lower() == String(options.get("category", "")).to_lower()
+				add_row = str(row.get("category", "")).to_lower() == str(options.get("category", "")).to_lower()
 			"type_group":
-				add_row = String(row.get("type_group", "")) == String(options.get("type_group", "")).to_lower()
+				add_row = str(row.get("type_group", "")) == str(options.get("type_group", "")).to_lower()
 			"all_constructor_objects", "reset_runtime_map":
 				add_row = created or include_base
 				if lower_type == "reset_runtime_map":
@@ -5488,17 +5488,17 @@ func get_map_constructor_cleanup_preview(cleanup_type: String, options: Dictiona
 			"invalid_references":
 				var fields: Array[String] = ["target_door_id","target_platform_id","linked_terminal_id","control_source_id","required_key_id"]
 				for f in fields:
-					var tid: String = String(data.get(f, "")).strip_edges()
+					var tid: String = str(data.get(f, "")).strip_edges()
 					if tid.is_empty():
 						continue
 					if not _map_constructor_link_target_exists_for_field(f, tid):
-						rows.append({"entity_kind":"world_object","id":String(data.get("id","")),"field_name":f,"invalid_value":tid,"cell":Vector2i(data.get("position", Vector2i(-1,-1))),"created_by_map_constructor":created})
+						rows.append({"entity_kind":"world_object","id":str(data.get("id","")),"field_name":f,"invalid_value":tid,"cell":Vector2i(data.get("position", Vector2i(-1,-1))),"created_by_map_constructor":created})
 				for connected_id in Array(data.get("connected_device_ids", [])):
-					var cid: String = String(connected_id).strip_edges()
+					var cid: String = str(connected_id).strip_edges()
 					if cid.is_empty():
 						continue
 					if not _map_constructor_link_target_exists_for_field("connected_device_ids", cid):
-						rows.append({"entity_kind":"world_object","id":String(data.get("id","")),"field_name":"connected_device_ids","invalid_value":cid,"cell":Vector2i(data.get("position", Vector2i(-1,-1))),"created_by_map_constructor":created})
+						rows.append({"entity_kind":"world_object","id":str(data.get("id","")),"field_name":"connected_device_ids","invalid_value":cid,"cell":Vector2i(data.get("position", Vector2i(-1,-1))),"created_by_map_constructor":created})
 			_:
 				return {"ok": false, "cleanup_type": lower_type, "message": "Unsupported cleanup type.", "affected_count": 0, "affected_objects": [], "warnings": []}
 		if add_row:
@@ -5521,48 +5521,48 @@ func apply_map_constructor_cleanup(cleanup_type: String, options: Dictionary = {
 		return {"ok": false, "message": "Operation is available only in TASK TEST constructor mode."}
 	var preview: Dictionary = get_map_constructor_cleanup_preview(cleanup_type, options)
 	if not bool(preview.get("ok", false)):
-		return {"ok": false, "message": String(preview.get("message", "Cleanup failed.")), "deleted_count": 0, "cleanup_id": "", "warnings": Array(preview.get("warnings", []))}
+		return {"ok": false, "message": str(preview.get("message", "Cleanup failed.")), "deleted_count": 0, "cleanup_id": "", "warnings": Array(preview.get("warnings", []))}
 	var affected: Array = Array(preview.get("affected_objects", []))
 	if affected.is_empty():
 		return {"ok": true, "message": "Nothing to clean up.", "deleted_count": 0, "cleanup_id": "", "warnings": Array(preview.get("warnings", []))}
 	_map_constructor_last_cleanup_snapshot = {"cleanup_id": "cleanup_%d" % Time.get_unix_time_from_system(), "mission_world_objects": mission_world_objects.duplicate(true), "cell_items": cell_items.duplicate(true), "world_objects_by_cell": world_objects_by_cell.duplicate(true)}
 	var deleted_count: int = 0
-	if String(cleanup_type).to_lower() == "invalid_references":
+	if str(cleanup_type).to_lower() == "invalid_references":
 		var cleared: int = 0
 		for row_variant in affected:
 			var row: Dictionary = Dictionary(row_variant)
-			var entity: Dictionary = get_map_constructor_entity_by_id(String(row.get("entity_kind", "world_object")), String(row.get("id", "")))
+			var entity: Dictionary = get_map_constructor_entity_by_id(str(row.get("entity_kind", "world_object")), str(row.get("id", "")))
 			if not bool(entity.get("ok", false)):
 				continue
 			var data: Dictionary = _safe_dictionary(entity.get("data", {}))
-			var field_name: String = String(row.get("field_name", ""))
+			var field_name: String = str(row.get("field_name", ""))
 			if field_name == "connected_device_ids":
 				var filtered: Array[String] = []
 				for cid in Array(data.get("connected_device_ids", [])):
-					if _map_constructor_link_target_exists_for_field("connected_device_ids", String(cid)):
-						filtered.append(String(cid))
+					if _map_constructor_link_target_exists_for_field("connected_device_ids", str(cid)):
+						filtered.append(str(cid))
 				data["connected_device_ids"] = filtered
 				cleared += 1
 			else:
 				data[field_name] = ""
 				cleared += 1
-			update_world_object_by_id(String(row.get("id", "")), data)
+			update_world_object_by_id(str(row.get("id", "")), data)
 		PowerSystemRef.recalculate_network(mission_world_objects, "")
 		refresh_world_cooling_received()
-		_record_map_constructor_change("cleanup", {"entity_kind":"", "entity_id":"", "summary":"Applied cleanup: %d objects affected" % cleared, "details":{"cleanup_type":String(cleanup_type).to_lower(), "affected_count":cleared}, "undo_hint":"Use Undo Last Cleanup."})
-		return {"ok": true, "message": "Invalid references cleaned.", "deleted_count": cleared, "cleanup_id": String(_map_constructor_last_cleanup_snapshot.get("cleanup_id", "")), "warnings": []}
+		_record_map_constructor_change("cleanup", {"entity_kind":"", "entity_id":"", "summary":"Applied cleanup: %d objects affected" % cleared, "details":{"cleanup_type":str(cleanup_type).to_lower(), "affected_count":cleared}, "undo_hint":"Use Undo Last Cleanup."})
+		return {"ok": true, "message": "Invalid references cleaned.", "deleted_count": cleared, "cleanup_id": str(_map_constructor_last_cleanup_snapshot.get("cleanup_id", "")), "warnings": []}
 	for row_variant in affected:
 		var row: Dictionary = Dictionary(row_variant)
-		var remove_result: Dictionary = _remove_map_constructor_entity_by_id(str(row.get("entity_kind", "")), String(row.get("id", "")))
+		var remove_result: Dictionary = _remove_map_constructor_entity_by_id(str(row.get("entity_kind", "")), str(row.get("id", "")))
 		if bool(remove_result.get("ok", false)):
 			deleted_count += 1
 	PowerSystemRef.recalculate_network(mission_world_objects, "")
 	refresh_world_cooling_received()
 	var message: String = "Cleanup applied."
-	if String(cleanup_type).to_lower() == "reset_runtime_map":
+	if str(cleanup_type).to_lower() == "reset_runtime_map":
 		message = "Runtime map reset cleared constructor-created edits. Full baseline reset is not available yet."
-	_record_map_constructor_change("reset" if String(cleanup_type).to_lower() == "reset_runtime_map" else "cleanup", {"entity_kind":"", "entity_id":"", "summary":"Applied cleanup: %d objects affected" % deleted_count if String(cleanup_type).to_lower() != "reset_runtime_map" else "Reset runtime map.", "details":{"cleanup_type":String(cleanup_type).to_lower(), "affected_count":deleted_count}, "undo_hint":"Use Undo Last Cleanup."})
-	return {"ok": true, "message": message, "deleted_count": deleted_count, "cleanup_id": String(_map_constructor_last_cleanup_snapshot.get("cleanup_id", "")), "warnings": Array(preview.get("warnings", []))}
+	_record_map_constructor_change("reset" if str(cleanup_type).to_lower() == "reset_runtime_map" else "cleanup", {"entity_kind":"", "entity_id":"", "summary":"Applied cleanup: %d objects affected" % deleted_count if str(cleanup_type).to_lower() != "reset_runtime_map" else "Reset runtime map.", "details":{"cleanup_type":str(cleanup_type).to_lower(), "affected_count":deleted_count}, "undo_hint":"Use Undo Last Cleanup."})
+	return {"ok": true, "message": message, "deleted_count": deleted_count, "cleanup_id": str(_map_constructor_last_cleanup_snapshot.get("cleanup_id", "")), "warnings": Array(preview.get("warnings", []))}
 
 func undo_last_map_constructor_cleanup() -> Dictionary:
 	if _map_constructor_last_cleanup_snapshot.is_empty():
@@ -5614,7 +5614,7 @@ func _map_constructor_collect_world_ids() -> Dictionary:
 	for object_data in mission_world_objects:
 		if typeof(object_data) != TYPE_DICTIONARY:
 			continue
-		var object_id: String = String(Dictionary(object_data).get("id", "")).strip_edges()
+		var object_id: String = str(Dictionary(object_data).get("id", "")).strip_edges()
 		if not object_id.is_empty():
 			ids[object_id] = true
 	return ids
@@ -5625,13 +5625,13 @@ func _map_constructor_collect_item_ids() -> Dictionary:
 		for item_variant in Array(cell_items.get(cell_variant, [])):
 			if typeof(item_variant) != TYPE_DICTIONARY:
 				continue
-			var item_id: String = String(_safe_dictionary(item_variant).get("id", "")).strip_edges()
+			var item_id: String = str(_safe_dictionary(item_variant).get("id", "")).strip_edges()
 			if not item_id.is_empty():
 				ids[item_id] = true
 	return ids
 
 func get_map_constructor_autofix_preview(fix_type: String, options: Dictionary = {}) -> Dictionary:
-	var lower_type: String = String(fix_type).strip_edges().to_lower()
+	var lower_type: String = str(fix_type).strip_edges().to_lower()
 	var preview: Dictionary = {"ok": false, "fix_type": lower_type, "message": "Unsupported auto-fix type.", "affected_count": 0, "affected_fixes": [], "warnings": []}
 	if not _is_task_test_constructor_context():
 		preview["message"] = "Auto-fix works only in TASK TEST runtime constructor mode."
@@ -5644,18 +5644,18 @@ func get_map_constructor_autofix_preview(fix_type: String, options: Dictionary =
 		var target_fields: Array[String] = ["target_door_id","target_platform_id","linked_terminal_id","control_source_id","required_key_id","connected_device_ids"]
 		for object_data in mission_world_objects:
 			var data: Dictionary = _safe_dictionary(object_data)
-			var object_id: String = String(data.get("id", ""))
+			var object_id: String = str(data.get("id", ""))
 			if lower_type != "clear_all_broken_references":
-				if object_id != String(options.get("entity_id", "")) or String(options.get("entity_kind", "world_object")) != "world_object":
+				if object_id != str(options.get("entity_id", "")) or str(options.get("entity_kind", "world_object")) != "world_object":
 					continue
 			for field_name in target_fields:
-				if lower_type != "clear_all_broken_references" and not String(options.get("field_name", "")) == field_name:
+				if lower_type != "clear_all_broken_references" and not str(options.get("field_name", "")) == field_name:
 					continue
 				if field_name == "connected_device_ids":
 					var current_ids: Array[String] = []
 					var valid_ids: Array[String] = []
 					for cid_variant in Array(data.get("connected_device_ids", [])):
-						var cid: String = String(cid_variant).strip_edges()
+						var cid: String = str(cid_variant).strip_edges()
 						if cid.is_empty():
 							continue
 						current_ids.append(cid)
@@ -5664,7 +5664,7 @@ func get_map_constructor_autofix_preview(fix_type: String, options: Dictionary =
 					if valid_ids.size() != current_ids.size():
 						fixes.append({"entity_kind":"world_object","entity_id":object_id,"field_name":field_name,"old_value":current_ids,"new_value":valid_ids,"cell":Vector2i(data.get("position", Vector2i(-1,-1))),"description":"Remove invalid connected_device_ids on %s" % object_id})
 				else:
-					var ref_id: String = String(data.get(field_name, "")).strip_edges()
+					var ref_id: String = str(data.get(field_name, "")).strip_edges()
 					if ref_id.is_empty():
 						continue
 					var is_valid: bool = world_ids.has(ref_id) or (field_name == "required_key_id" and item_ids.has(ref_id))
@@ -5673,65 +5673,65 @@ func get_map_constructor_autofix_preview(fix_type: String, options: Dictionary =
 	elif lower_type in ["repair_wall_mounted_attachment", "repair_all_wall_mounted_attachments"]:
 		for object_data in mission_world_objects:
 			var data: Dictionary = _safe_dictionary(object_data)
-			if String(data.get("placement_mode", "")) != "wall_mounted":
+			if str(data.get("placement_mode", "")) != "wall_mounted":
 				continue
-			if lower_type == "repair_wall_mounted_attachment" and String(data.get("id", "")) != String(options.get("entity_id", "")):
+			if lower_type == "repair_wall_mounted_attachment" and str(data.get("id", "")) != str(options.get("entity_id", "")):
 				continue
 			var anchor: Vector2i = _deserialize_cell_variant(data.get("anchor_floor_cell", data.get("position", Vector2i(-1, -1))))
-			var preferred: String = String(data.get("wall_side", ""))
+			var preferred: String = str(data.get("wall_side", ""))
 			var resolved: Dictionary = _resolve_wall_mounted_attachment(anchor, preferred)
 			if bool(resolved.get("ok", false)):
-				var new_side: String = String(resolved.get("wall_side", ""))
+				var new_side: String = str(resolved.get("wall_side", ""))
 				var new_wall: Vector2i = Vector2i(resolved.get("attached_wall_cell", Vector2i(-1, -1)))
-				if new_side != String(data.get("wall_side", "")) or new_wall != _deserialize_cell_variant(data.get("attached_wall_cell", Vector2i(-1,-1))):
-					fixes.append({"entity_kind":"world_object","entity_id":String(data.get("id","")),"field_name":"wall_attachment","old_value":{"wall_side":String(data.get("wall_side","")),"attached_wall_cell":_deserialize_cell_variant(data.get("attached_wall_cell", Vector2i(-1,-1)))},"new_value":{"wall_side":new_side,"attached_wall_cell":new_wall},"cell":anchor,"description":"Repair wall-mounted attachment on %s" % String(data.get("id",""))})
+				if new_side != str(data.get("wall_side", "")) or new_wall != _deserialize_cell_variant(data.get("attached_wall_cell", Vector2i(-1,-1))):
+					fixes.append({"entity_kind":"world_object","entity_id":str(data.get("id","")),"field_name":"wall_attachment","old_value":{"wall_side":str(data.get("wall_side","")),"attached_wall_cell":_deserialize_cell_variant(data.get("attached_wall_cell", Vector2i(-1,-1)))},"new_value":{"wall_side":new_side,"attached_wall_cell":new_wall},"cell":anchor,"description":"Repair wall-mounted attachment on %s" % str(data.get("id",""))})
 			else:
 				warnings.append("Cannot repair wall-mounted attachment: no adjacent wall near anchor.")
 	elif lower_type == "assign_power_network":
-		var entity: Dictionary = get_map_constructor_entity_by_id(String(options.get("entity_kind", "world_object")), String(options.get("entity_id", "")))
+		var entity: Dictionary = get_map_constructor_entity_by_id(str(options.get("entity_kind", "world_object")), str(options.get("entity_id", "")))
 		if bool(entity.get("ok", false)):
 			var data: Dictionary = _safe_dictionary(entity.get("data", {}))
-			var new_net: String = String(options.get("new_power_network_id", "")).strip_edges()
+			var new_net: String = str(options.get("new_power_network_id", "")).strip_edges()
 			if new_net.is_empty():
 				warnings.append("New power network id is required.")
-			elif String(data.get("power_network_id", "")) != new_net:
-				fixes.append({"entity_kind":String(entity.get("entity_kind", "world_object")),"entity_id":String(entity.get("id", "")),"field_name":"power_network_id","old_value":String(data.get("power_network_id","")),"new_value":new_net,"cell":Vector2i(entity.get("cell", Vector2i(-1,-1))),"description":"Assign power network on %s" % String(entity.get("id", ""))})
+			elif str(data.get("power_network_id", "")) != new_net:
+				fixes.append({"entity_kind":str(entity.get("entity_kind", "world_object")),"entity_id":str(entity.get("id", "")),"field_name":"power_network_id","old_value":str(data.get("power_network_id","")),"new_value":new_net,"cell":Vector2i(entity.get("cell", Vector2i(-1,-1))),"description":"Assign power network on %s" % str(entity.get("id", ""))})
 	elif lower_type == "create_power_network":
 		var selected_ids: Array = Array(options.get("apply_to_selected_ids", []))
 		if selected_ids.is_empty():
 			warnings.append("Choose target objects before creating/assigning a power network.")
 		else:
-			var new_network_id: String = String(options.get("new_power_network_id", "")).strip_edges()
+			var new_network_id: String = str(options.get("new_power_network_id", "")).strip_edges()
 			for id_variant in selected_ids:
-				var object_id: String = String(id_variant)
+				var object_id: String = str(id_variant)
 				var entity_info: Dictionary = get_map_constructor_entity_by_id("world_object", object_id)
 				if not bool(entity_info.get("ok", false)):
 					continue
 				var current_data: Dictionary = Dictionary(entity_info.get("data", {}))
-				if new_network_id.is_empty() or String(current_data.get("power_network_id", "")) == new_network_id:
+				if new_network_id.is_empty() or str(current_data.get("power_network_id", "")) == new_network_id:
 					continue
-				fixes.append({"entity_kind":"world_object","entity_id":object_id,"field_name":"power_network_id","old_value":String(current_data.get("power_network_id", "")),"new_value":new_network_id,"cell":Vector2i(entity_info.get("cell", Vector2i(-1,-1))),"description":"Assign new network %s to %s" % [new_network_id, object_id]})
+				fixes.append({"entity_kind":"world_object","entity_id":object_id,"field_name":"power_network_id","old_value":str(current_data.get("power_network_id", "")),"new_value":new_network_id,"cell":Vector2i(entity_info.get("cell", Vector2i(-1,-1))),"description":"Assign new network %s to %s" % [new_network_id, object_id]})
 	elif lower_type == "fix_missing_required_id":
-		var entity_kind: String = String(options.get("entity_kind", "world_object"))
-		var entity_id: String = String(options.get("entity_id", ""))
-		var field_name: String = String(options.get("field_name", "id"))
+		var entity_kind: String = str(options.get("entity_kind", "world_object"))
+		var entity_id: String = str(options.get("entity_id", ""))
+		var field_name: String = str(options.get("field_name", "id"))
 		var entity_info: Dictionary = get_map_constructor_entity_by_id(entity_kind, entity_id)
 		if bool(entity_info.get("ok", false)):
 			var data: Dictionary = _safe_dictionary(entity_info.get("data", {}))
-			if field_name == "required_key_id" and String(data.get("required_key_id", "")).is_empty():
+			if field_name == "required_key_id" and str(data.get("required_key_id", "")).is_empty():
 				var keys: Array[String] = []
 				for cell_variant in cell_items.keys():
 					for item_variant in Array(cell_items.get(cell_variant, [])):
 						var item: Dictionary = _safe_dictionary(item_variant)
 						var storage_class: String = WorldObjectCatalogRef.get_item_storage_class(item)
 						if storage_class in [WorldObjectCatalogRef.ITEM_STORAGE_CLASS_KEY_CARD, WorldObjectCatalogRef.ITEM_STORAGE_CLASS_DIGITAL]:
-							keys.append(String(item.get("id", "")))
+							keys.append(str(item.get("id", "")))
 				if keys.size() == 1:
 					fixes.append({"entity_kind":entity_kind,"entity_id":entity_id,"field_name":"required_key_id","old_value":"","new_value":keys[0],"cell":Vector2i(entity_info.get("cell", Vector2i(-1,-1))),"description":"Set required_key_id on %s" % entity_id})
 				else:
 					warnings.append("Cannot safely set required_key_id: need exactly one matching key item.")
 	elif lower_type == "apply_issue_fix":
-		var issue_id: String = String(options.get("issue_id", "")).strip_edges()
+		var issue_id: String = str(options.get("issue_id", "")).strip_edges()
 		if issue_id.is_empty():
 			warnings.append("Issue id is required.")
 		else:
@@ -5740,7 +5740,7 @@ func get_map_constructor_autofix_preview(fix_type: String, options: Dictionary =
 			var issue_match: Dictionary = {}
 			for issue_variant in validation_issues:
 				var issue_data: Dictionary = Dictionary(issue_variant)
-				if String(issue_data.get("id", "")).strip_edges() == issue_id:
+				if str(issue_data.get("id", "")).strip_edges() == issue_id:
 					issue_match = issue_data
 					break
 			if issue_match.is_empty():
@@ -5751,11 +5751,11 @@ func get_map_constructor_autofix_preview(fix_type: String, options: Dictionary =
 				var safe_options: Array[Dictionary] = []
 				for option_variant in issue_fix_options:
 					var option_data: Dictionary = Dictionary(option_variant)
-					if String(option_data.get("danger_level", "")).to_lower() == "safe":
+					if str(option_data.get("danger_level", "")).to_lower() == "safe":
 						safe_options.append(option_data)
 				if safe_options.size() == 1:
 					var selected_fix: Dictionary = Dictionary(safe_options[0])
-					var nested_fix_type: String = String(selected_fix.get("fix_type", "")).strip_edges()
+					var nested_fix_type: String = str(selected_fix.get("fix_type", "")).strip_edges()
 					var nested_options: Dictionary = Dictionary(selected_fix.get("options", {}))
 					if nested_fix_type.is_empty():
 						warnings.append("No safe auto-fix available for this issue.")
@@ -5764,9 +5764,9 @@ func get_map_constructor_autofix_preview(fix_type: String, options: Dictionary =
 						if bool(nested_preview.get("ok", false)):
 							fixes = Array(nested_preview.get("affected_fixes", []))
 							for nested_warning_variant in Array(nested_preview.get("warnings", [])):
-								warnings.append(String(nested_warning_variant))
+								warnings.append(str(nested_warning_variant))
 						else:
-							warnings.append(String(nested_preview.get("message", "No safe auto-fix available for this issue.")))
+							warnings.append(str(nested_preview.get("message", "No safe auto-fix available for this issue.")))
 				elif safe_options.size() > 1:
 					warnings.append("Multiple fixes available; choose a specific fix.")
 				else:
@@ -5781,26 +5781,26 @@ func get_map_constructor_autofix_preview(fix_type: String, options: Dictionary =
 func apply_map_constructor_autofix(fix_type: String, options: Dictionary = {}) -> Dictionary:
 	var preview: Dictionary = get_map_constructor_autofix_preview(fix_type, options)
 	if not bool(preview.get("ok", false)):
-		return {"ok": false, "message": String(preview.get("message", "Auto-fix failed.")), "fixed_count": 0, "fix_id": "", "warnings": Array(preview.get("warnings", []))}
+		return {"ok": false, "message": str(preview.get("message", "Auto-fix failed.")), "fixed_count": 0, "fix_id": "", "warnings": Array(preview.get("warnings", []))}
 	var fixes: Array = Array(preview.get("affected_fixes", []))
 	if fixes.is_empty():
 		return {"ok": true, "message": "Nothing to fix.", "fixed_count": 0, "fix_id": "", "warnings": Array(preview.get("warnings", []))}
 	_map_constructor_last_autofix_snapshot = {"fix_id":"autofix_%d" % Time.get_unix_time_from_system(), "mission_world_objects": mission_world_objects.duplicate(true), "cell_items": cell_items.duplicate(true), "world_objects_by_cell": world_objects_by_cell.duplicate(true)}
 	for row_variant in fixes:
 		var row: Dictionary = Dictionary(row_variant)
-		var apply_res: Dictionary = apply_map_constructor_property_update(String(row.get("entity_kind", "world_object")), str(row.get("entity_id", "")), String(row.get("field_name", "")), row.get("new_value"))
-		if not bool(apply_res.get("ok", false)) and String(row.get("field_name", "")) == "wall_attachment":
+		var apply_res: Dictionary = apply_map_constructor_property_update(str(row.get("entity_kind", "world_object")), str(row.get("entity_id", "")), str(row.get("field_name", "")), row.get("new_value"))
+		if not bool(apply_res.get("ok", false)) and str(row.get("field_name", "")) == "wall_attachment":
 			var entity: Dictionary = get_map_constructor_entity_by_id("world_object", str(row.get("entity_id", "")))
 			if bool(entity.get("ok", false)):
 				var d: Dictionary = _safe_dictionary(entity.get("data", {}))
 				var wall_data: Dictionary = Dictionary(row.get("new_value", {}))
-				d["wall_side"] = String(wall_data.get("wall_side", d.get("wall_side", "")))
+				d["wall_side"] = str(wall_data.get("wall_side", d.get("wall_side", "")))
 				d["attached_wall_cell"] = Vector2i(wall_data.get("attached_wall_cell", d.get("attached_wall_cell", Vector2i(-1,-1))))
 				update_world_object_by_id(str(row.get("entity_id", "")), d)
 	PowerSystemRef.recalculate_network(mission_world_objects, "")
 	refresh_world_cooling_received()
 	_record_map_constructor_change("autofix", {"summary":"Applied auto-fix: %d fields fixed" % fixes.size(), "details":{"fix_type":fix_type, "fixed_count":fixes.size()}, "undo_hint":"Use Undo Last Auto-fix."})
-	return {"ok": true, "message": "Auto-fix applied.", "fixed_count": fixes.size(), "fix_id": String(_map_constructor_last_autofix_snapshot.get("fix_id", "")), "warnings": Array(preview.get("warnings", []))}
+	return {"ok": true, "message": "Auto-fix applied.", "fixed_count": fixes.size(), "fix_id": str(_map_constructor_last_autofix_snapshot.get("fix_id", "")), "warnings": Array(preview.get("warnings", []))}
 
 func undo_last_map_constructor_autofix() -> Dictionary:
 	if _map_constructor_last_autofix_snapshot.is_empty():
@@ -5818,8 +5818,8 @@ func get_map_constructor_issue_autofix_options(issue: Dictionary) -> Array[Dicti
 	var options: Array[Dictionary] = []
 	var message: String = str(issue.get("message", "")).to_lower()
 	var entity_id: String = str(issue.get("entity_id", ""))
-	var entity_kind: String = String(issue.get("entity_kind", "world_object"))
-	var issue_id: String = String(issue.get("id", ""))
+	var entity_kind: String = str(issue.get("entity_kind", "world_object"))
+	var issue_id: String = str(issue.get("id", ""))
 	if message.find("missing") >= 0 and (message.find("target_door_id") >= 0 or message.find("target_platform_id") >= 0 or message.find("linked_terminal_id") >= 0 or message.find("control_source_id") >= 0 or message.find("required_key_id") >= 0):
 		var field_name: String = ""
 		for candidate in ["target_door_id","target_platform_id","linked_terminal_id","control_source_id","required_key_id"]:
@@ -5828,7 +5828,7 @@ func get_map_constructor_issue_autofix_options(issue: Dictionary) -> Array[Dicti
 				break
 		if not field_name.is_empty():
 			options.append({"label":"Clear broken %s" % field_name, "fix_type":"clear_broken_reference", "options":{"entity_kind":entity_kind,"entity_id":entity_id,"field_name":field_name,"issue_id":issue_id}, "danger_level":"safe"})
-	if String(issue_id).begins_with("wm_"):
+	if str(issue_id).begins_with("wm_"):
 		options.append({"label":"Repair wall mount", "fix_type":"repair_wall_mounted_attachment", "options":{"entity_kind":entity_kind,"entity_id":entity_id,"issue_id":issue_id}, "danger_level":"safe"})
 	return options
 
@@ -5850,7 +5850,7 @@ func get_map_constructor_audit_summary_text() -> String:
 
 func get_world_object_by_id(id: String) -> Dictionary:
 	for object_data in mission_world_objects:
-		if String(object_data.get("id", "")) == id:
+		if str(object_data.get("id", "")) == id:
 			return object_data
 	return {}
 
@@ -5860,7 +5860,7 @@ func get_cell_item_by_id(id: String) -> Dictionary:
 		return {}
 	for cell_variant in cell_items.keys():
 		for item_variant in Array(cell_items.get(cell_variant, [])):
-			if item_variant is Dictionary and String(Dictionary(item_variant).get("id", "")) == normalized_id:
+			if item_variant is Dictionary and str(Dictionary(item_variant).get("id", "")) == normalized_id:
 				return Dictionary(item_variant)
 	return {}
 
@@ -5870,7 +5870,7 @@ func update_world_object_by_id(id: String, data: Dictionary) -> void:
 	data = WorldObjectCatalogRef.normalize_door_state_fields(data)
 	for index in range(mission_world_objects.size()):
 		var object_data: Dictionary = mission_world_objects[index]
-		if String(object_data.get("id", "")) != id:
+		if str(object_data.get("id", "")) != id:
 			continue
 		var old_position := Vector2i(object_data.get("position", Vector2i(-1, -1)))
 		for key in data.keys():
@@ -5916,14 +5916,14 @@ func move_world_object_by_heavy_claw(object_id: String, target_cell: Vector2i) -
 	object_data["position"] = target_cell
 	world_objects_by_cell[target_cell] = object_data
 	for object_index in range(mission_world_objects.size()):
-		if String(mission_world_objects[object_index].get("id", "")) == object_id:
+		if str(mission_world_objects[object_index].get("id", "")) == object_id:
 			mission_world_objects[object_index] = object_data
 			break
 	refresh_world_cooling_received()
 	PowerSystemRef.recalculate_network(mission_world_objects, "power_net_A")
 	refresh_world_cooling_received()
 	result["success"] = true
-	result["message"] = "Moved %s." % String(object_data.get("display_name", "Object"))
+	result["message"] = "Moved %s." % str(object_data.get("display_name", "Object"))
 	return result
 
 func refresh_world_cooling_received() -> void:
@@ -5944,10 +5944,10 @@ func preview_cooling_application(filter: String = "") -> Dictionary:
 		var object_network := _get_power_network_id(object_data)
 		if not resolved_filter.is_empty() and object_network != resolved_filter:
 			continue
-		var object_id := String(object_data.get("id", ""))
+		var object_id := str(object_data.get("id", ""))
 		var previous_cooling := maxi(0, int(object_data.get("cooling_received", 0)))
 		var previous_heat := maxi(0, int(object_data.get("current_heat", 0)))
-		var previous_state := String(object_data.get("state", ""))
+		var previous_state := str(object_data.get("state", ""))
 		var target_position := WorldObjectCatalogRef.to_world_cell(object_data.get("position", Vector2i(-1, -1)), Vector2i(-1, -1))
 		var next_cooling := WorldObjectCatalogRef.calculate_world_cooling_received_for_target(object_data, target_position, mission_world_objects)
 		var projected_heat := maxi(0, int(object_data.get("working_heat", previous_heat)) + int(object_data.get("heat_from_connections", 0)) - next_cooling)
@@ -5956,7 +5956,7 @@ func preview_cooling_application(filter: String = "") -> Dictionary:
 		if threshold > 0 and projected_heat >= threshold:
 			next_state = "overheated"
 		elif previous_state == "overheated":
-			next_state = String(object_data.get("overheated_state_before", object_data.get("powered_state_before_unpowered", "active")))
+			next_state = str(object_data.get("overheated_state_before", object_data.get("powered_state_before_unpowered", "active")))
 		var reason := "stable"
 		if next_cooling > 0:
 			reason = "cooled"
@@ -5964,12 +5964,12 @@ func preview_cooling_application(filter: String = "") -> Dictionary:
 		if previous_cooling != next_cooling or previous_heat != projected_heat or previous_state != next_state:
 			report["changes"].append({"object_id": object_id, "cooling_received": next_cooling, "previous_heat": previous_heat, "new_heat": projected_heat, "previous_state": previous_state, "new_state": next_state, "reason": reason})
 	for object_data in mission_world_objects:
-		if String(object_data.get("object_group", "")) != "cooling":
+		if str(object_data.get("object_group", "")) != "cooling":
 			continue
 		var object_network := _get_power_network_id(object_data)
 		if not resolved_filter.is_empty() and object_network != resolved_filter:
 			continue
-		report["cooling_sources"].append({"object_id": String(object_data.get("id", "")), "cooling_output": maxi(0, int(object_data.get("cooling_output", 0))), "cooling_device_type": String(object_data.get("cooling_device_type", "")), "facing_dir": String(object_data.get("facing_dir", "")), "state": String(object_data.get("state", ""))})
+		report["cooling_sources"].append({"object_id": str(object_data.get("id", "")), "cooling_output": maxi(0, int(object_data.get("cooling_output", 0))), "cooling_device_type": str(object_data.get("cooling_device_type", "")), "facing_dir": str(object_data.get("facing_dir", "")), "state": str(object_data.get("state", ""))})
 	return report
 
 func apply_cooling_application(filter: String = "") -> Dictionary:
@@ -5978,7 +5978,7 @@ func apply_cooling_application(filter: String = "") -> Dictionary:
 		if typeof(target_variant) != TYPE_DICTIONARY:
 			continue
 		var target: Dictionary = target_variant
-		var object_id := String(target.get("object_id", "")).strip_edges()
+		var object_id := str(target.get("object_id", "")).strip_edges()
 		if object_id.is_empty():
 			continue
 		var object_data := get_world_object_by_id(object_id)
@@ -5999,16 +5999,16 @@ func get_cooling_debug_report_text(filter: String = "") -> String:
 	lines.append("Cooling sources:")
 	for source_variant in preview.get("cooling_sources", []):
 		var source: Dictionary = source_variant
-		lines.append("- %s type=%s output=%d facing=%s state=%s" % [String(source.get("object_id", "")), String(source.get("cooling_device_type", "")), int(source.get("cooling_output", 0)), String(source.get("facing_dir", "-")), String(source.get("state", ""))])
+		lines.append("- %s type=%s output=%d facing=%s state=%s" % [str(source.get("object_id", "")), str(source.get("cooling_device_type", "")), int(source.get("cooling_output", 0)), str(source.get("facing_dir", "-")), str(source.get("state", ""))])
 	lines.append("Cooling targets:")
 	for target_variant in preview.get("targets", []):
 		var target: Dictionary = target_variant
-		lines.append("- %s heat %d->%d cooling=%d state %s->%s reason=%s" % [String(target.get("object_id", "")), int(target.get("previous_heat", 0)), int(target.get("new_heat", 0)), int(target.get("cooling_received", 0)), String(target.get("previous_state", "")), String(target.get("new_state", "")), String(target.get("reason", ""))])
+		lines.append("- %s heat %d->%d cooling=%d state %s->%s reason=%s" % [str(target.get("object_id", "")), int(target.get("previous_heat", 0)), int(target.get("new_heat", 0)), int(target.get("cooling_received", 0)), str(target.get("previous_state", "")), str(target.get("new_state", "")), str(target.get("reason", ""))])
 	lines.append("Preview changes:")
 	lines.append("- %d" % Array(preview.get("changes", [])).size())
 	lines.append("Warnings:")
 	for warning in preview.get("warnings", []):
-		lines.append("- %s" % String(warning))
+		lines.append("- %s" % str(warning))
 	return "\n".join(lines)
 
 func get_hidden_objects_at_cell(cell: Vector2i) -> Array[Dictionary]:
@@ -6017,27 +6017,27 @@ func get_hidden_objects_at_cell(cell: Vector2i) -> Array[Dictionary]:
 		return []
 	var hidden: Array[Dictionary] = []
 	for hidden_id in object_data.get("hidden_content", []):
-		hidden.append({"id": hidden_id, "display_name": String(hidden_id).capitalize()})
+		hidden.append({"id": hidden_id, "display_name": str(hidden_id).capitalize()})
 	return hidden
 
 func get_threats() -> Array[Dictionary]:
 	var threats: Array[Dictionary] = []
 	for object_data in mission_world_objects:
-		if String(object_data.get("object_group", "")) == "threat":
+		if str(object_data.get("object_group", "")) == "threat":
 			threats.append(object_data)
 	return threats
 
 func is_threat_active(threat: Dictionary) -> bool:
 	if threat.is_empty():
 		return false
-	if String(threat.get("object_group", "")) != "threat":
+	if str(threat.get("object_group", "")) != "threat":
 		return false
-	var state := String(threat.get("state", "active"))
+	var state := str(threat.get("state", "active"))
 	if state in ["destroyed", "disabled", "hacked", "stunned", "unpowered"]:
 		return false
-	if String(threat.get("behavior_state", "")) == "disabled":
+	if str(threat.get("behavior_state", "")) == "disabled":
 		return false
-	if String(threat.get("power_mode", "")) == "external_power" and not bool(threat.get("is_powered", true)):
+	if str(threat.get("power_mode", "")) == "external_power" and not bool(threat.get("is_powered", true)):
 		return false
 	return true
 
@@ -6045,7 +6045,7 @@ func can_threat_detect_bipop(threat: Dictionary, bipob_cell: Vector2i, grid_mana
 	return bool(get_threat_detection_result(threat, bipob_cell, grid_manager_ref).get("detected", false))
 
 func get_threat_detection_result(threat: Dictionary, bipob_cell: Vector2i, grid_manager_ref: Node) -> Dictionary:
-	var result := {"detected":false, "threat_id":String(threat.get("id", "")), "threat_name":String(threat.get("display_name", "Threat")), "detection_mode":"", "distance":999, "message":"Threat cannot detect Bipop."}
+	var result := {"detected":false, "threat_id":str(threat.get("id", "")), "threat_name":str(threat.get("display_name", "Threat")), "detection_mode":"", "distance":999, "message":"Threat cannot detect Bipop."}
 	if threat.is_empty() or not is_threat_active(threat):
 		result["message"] = "Threat inactive."
 		return result
@@ -6057,7 +6057,7 @@ func get_threat_detection_result(threat: Dictionary, bipob_cell: Vector2i, grid_
 		result["message"] = "%s is out of detection range." % result["threat_name"]
 		return result
 	for mode_variant in Array(threat.get("detection_modes", [])):
-		var mode := String(mode_variant)
+		var mode := str(mode_variant)
 		var mode_range := int(threat.get("%s_range" % mode, max_range))
 		if mode_range <= 0 or distance > mode_range:
 			continue
@@ -6076,7 +6076,7 @@ func _can_detect_by_mode(mode: String, from_cell: Vector2i, to_cell: Vector2i, g
 
 func _has_cardinal_clear_path(from_cell: Vector2i, to_cell: Vector2i, grid_manager_ref: Node, scan_type: String, allow_wall_pass: bool) -> bool:
 	var threat := get_world_object_at_cell(from_cell)
-	var detection_shape := String(threat.get("detection_shape", "cardinal"))
+	var detection_shape := str(threat.get("detection_shape", "cardinal"))
 	if detection_shape == "cardinal" and from_cell.x != to_cell.x and from_cell.y != to_cell.y:
 		return false
 	if detection_shape == "radius":
@@ -6105,16 +6105,16 @@ func _has_cardinal_clear_path(from_cell: Vector2i, to_cell: Vector2i, grid_manag
 
 func reset_world_object_turn_flags() -> void:
 	for object_data in mission_world_objects:
-		if String(object_data.get("object_group", "")) != "threat":
+		if str(object_data.get("object_group", "")) != "threat":
 			continue
 		object_data["drained_this_turn"] = false
 		var stunned_turns := int(object_data.get("stunned_turns", 0))
 		if stunned_turns > 0:
 			stunned_turns -= 1
 			object_data["stunned_turns"] = stunned_turns
-			if stunned_turns <= 0 and String(object_data.get("state", "")) == "stunned":
-				var previous_state := String(object_data.get("state_before_stun", ""))
-				var previous_behavior := String(object_data.get("behavior_before_stun", ""))
+			if stunned_turns <= 0 and str(object_data.get("state", "")) == "stunned":
+				var previous_state := str(object_data.get("state_before_stun", ""))
+				var previous_behavior := str(object_data.get("behavior_before_stun", ""))
 				if previous_state.is_empty() or previous_state in ["destroyed", "hacked", "disabled", "unpowered", "stunned"]:
 					object_data["state"] = "active"
 				else:
@@ -6132,9 +6132,9 @@ func get_world_object_debug_summary() -> String:
 	var threats_count := 0
 	var powered_count := 0
 	for object_data in mission_world_objects:
-		if String(object_data.get("object_group", "")) == "item":
+		if str(object_data.get("object_group", "")) == "item":
 			items_count += 1
-		if String(object_data.get("object_group", "")) == "threat":
+		if str(object_data.get("object_group", "")) == "threat":
 			threats_count += 1
 		if bool(object_data.get("is_powered", false)):
 			powered_count += 1
@@ -6144,10 +6144,10 @@ func get_world_object_debug_summary() -> String:
 func _is_power_network_object(object_data: Dictionary) -> bool:
 	if object_data.is_empty():
 		return false
-	var object_group := String(object_data.get("object_group", "")).strip_edges().to_lower()
+	var object_group := str(object_data.get("object_group", "")).strip_edges().to_lower()
 	if object_group == "power":
 		return true
-	var object_type := String(object_data.get("object_type", "")).strip_edges().to_lower()
+	var object_type := str(object_data.get("object_type", "")).strip_edges().to_lower()
 	if object_type in [
 		"power_source",
 		"power_cable",
@@ -6164,7 +6164,7 @@ func _is_power_network_object(object_data: Dictionary) -> bool:
 
 func _get_power_network_id(object_data: Dictionary) -> String:
 	for key in ["power_network_id", "network_id", "connected_power_source_id"]:
-		var value := String(object_data.get(key, "")).strip_edges()
+		var value := str(object_data.get(key, "")).strip_edges()
 		if not value.is_empty():
 			return value
 	return ""
@@ -6173,14 +6173,14 @@ func _get_power_event_filter_for_object(object_data: Dictionary) -> String:
 	var network_id := _get_power_network_id(object_data)
 	if not network_id.is_empty():
 		return network_id
-	var object_id := String(object_data.get("id", "")).strip_edges()
+	var object_id := str(object_data.get("id", "")).strip_edges()
 	if not object_id.is_empty():
 		return object_id
 	return ""
 
 func _is_power_source_object(object_data: Dictionary) -> bool:
-	var object_type := String(object_data.get("object_type", "")).strip_edges().to_lower()
-	var power_role := String(object_data.get("power_role", "")).strip_edges().to_lower()
+	var object_type := str(object_data.get("object_type", "")).strip_edges().to_lower()
+	var power_role := str(object_data.get("power_role", "")).strip_edges().to_lower()
 	return object_type == "power_source" or power_role == "source" or object_type in ["power_source_class_1", "power_source_class_2", "power_source_class_3"]
 
 func _collect_power_network_objects() -> Dictionary:
@@ -6196,7 +6196,7 @@ func _collect_power_network_objects() -> Dictionary:
 			networks[network_id] = []
 		networks[network_id].append(object_data)
 		if _is_power_source_object(object_data):
-			var source_id := String(object_data.get("id", "")).strip_edges()
+			var source_id := str(object_data.get("id", "")).strip_edges()
 			if not source_id.is_empty():
 				sources_by_id[source_id] = object_data
 	return {"objects": power_objects, "networks": networks, "sources_by_id": sources_by_id}
@@ -6204,7 +6204,7 @@ func _collect_power_network_objects() -> Dictionary:
 func _is_power_source_available(source: Dictionary) -> bool:
 	if not _is_power_source_object(source):
 		return false
-	var state := String(source.get("state", "")).strip_edges().to_lower()
+	var state := str(source.get("state", "")).strip_edges().to_lower()
 	var is_powered := bool(source.get("is_powered", false))
 	var damaged_or_broken := bool(source.get("damaged", false)) or bool(source.get("broken", false))
 	if state in ["overheated", "damaged", "broken", "destroyed"]:
@@ -6216,7 +6216,7 @@ func _is_power_source_available(source: Dictionary) -> bool:
 	return state in ["active", "switch_on", "connected"]
 
 func _normalize_power_gate_text(raw_value: Variant) -> String:
-	return String(raw_value).strip_edges().to_lower().replace(" ", "_").replace("-", "_")
+	return str(raw_value).strip_edges().to_lower().replace(" ", "_").replace("-", "_")
 
 func _normalize_power_consumer_text(raw_value: Variant) -> String:
 	return _normalize_power_gate_text(raw_value)
@@ -6258,8 +6258,8 @@ func _is_platform_power_consumer(object_data: Dictionary) -> bool:
 
 func update_terminal_power_state_from_is_powered(object_data: Dictionary) -> Dictionary:
 	var state := _normalize_power_consumer_text(object_data.get("state", ""))
-	var previous_state := String(object_data.get("state", ""))
-	var report := {"changed": false, "object_id": String(object_data.get("id", "")), "previous_state": previous_state, "new_state": previous_state, "reason": "not_terminal"}
+	var previous_state := str(object_data.get("state", ""))
+	var report := {"changed": false, "object_id": str(object_data.get("id", "")), "previous_state": previous_state, "new_state": previous_state, "reason": "not_terminal"}
 	if not _is_terminal_object(object_data):
 		return report
 	if state in ["damaged", "broken", "destroyed", "overheated"] or bool(object_data.get("damaged", false)) or bool(object_data.get("broken", false)):
@@ -6287,17 +6287,17 @@ func update_terminal_power_state_from_is_powered(object_data: Dictionary) -> Dic
 	return report
 
 func update_power_door_state_from_is_powered(object_data: Dictionary) -> Dictionary:
-	var previous_state := String(object_data.get("state", ""))
+	var previous_state := str(object_data.get("state", ""))
 	var state := _normalize_power_consumer_text(previous_state)
-	var report := {"changed": false, "object_id": String(object_data.get("id", "")), "previous_state": previous_state, "new_state": previous_state, "reason": "not_power_reactive_door"}
+	var report := {"changed": false, "object_id": str(object_data.get("id", "")), "previous_state": previous_state, "new_state": previous_state, "reason": "not_power_reactive_door"}
 	if not _is_power_reactive_door_object(object_data):
 		return report
 	if state in ["damaged", "broken", "destroyed", "sealed"] or bool(object_data.get("damaged", false)) or bool(object_data.get("broken", false)):
 		report["reason"] = "door_blocked_state"
 		return report
 	var normalized_door: Dictionary = _normalize_runtime_door_data(object_data)
-	var opens_when_unpowered: bool = String(normalized_door.get("power_behavior", "")) == WorldObjectCatalogRef.POWER_BEHAVIOR_OPENS_WHEN_UNPOWERED
-	var requires_power_to_open: bool = String(normalized_door.get("power_behavior", "")) == WorldObjectCatalogRef.POWER_BEHAVIOR_REQUIRES_POWER_TO_OPEN
+	var opens_when_unpowered: bool = str(normalized_door.get("power_behavior", "")) == WorldObjectCatalogRef.POWER_BEHAVIOR_OPENS_WHEN_UNPOWERED
+	var requires_power_to_open: bool = str(normalized_door.get("power_behavior", "")) == WorldObjectCatalogRef.POWER_BEHAVIOR_REQUIRES_POWER_TO_OPEN
 	if not bool(object_data.get("is_powered", false)):
 		if opens_when_unpowered:
 			object_data["state"] = "open"
@@ -6339,9 +6339,9 @@ func update_power_door_state_from_is_powered(object_data: Dictionary) -> Diction
 	return report
 
 func update_platform_power_state_from_is_powered(object_data: Dictionary) -> Dictionary:
-	var previous_state := String(object_data.get("state", ""))
+	var previous_state := str(object_data.get("state", ""))
 	var state := _normalize_power_consumer_text(previous_state)
-	var report := {"changed": false, "object_id": String(object_data.get("id", "")), "previous_state": previous_state, "new_state": previous_state, "reason": "not_platform_consumer"}
+	var report := {"changed": false, "object_id": str(object_data.get("id", "")), "previous_state": previous_state, "new_state": previous_state, "reason": "not_platform_consumer"}
 	if not _is_platform_power_consumer(object_data):
 		return report
 	if state in ["damaged", "broken", "destroyed"] or bool(object_data.get("damaged", false)) or bool(object_data.get("broken", false)) or bool(object_data.get("destroyed", false)):
@@ -6411,13 +6411,13 @@ func _resolve_power_graph_filter_to_network_id(filter: String) -> String:
 	if networks.has(filter_text):
 		return filter_text
 	for network_id_variant in networks.keys():
-		var network_id := String(network_id_variant)
+		var network_id := str(network_id_variant)
 		var network_objects: Array = networks.get(network_id, [])
 		for object_variant in network_objects:
 			if typeof(object_variant) != TYPE_DICTIONARY:
 				continue
 			var object_data: Dictionary = object_variant
-			if String(object_data.get("id", "")).strip_edges() == filter_text:
+			if str(object_data.get("id", "")).strip_edges() == filter_text:
 				return network_id
 	return filter_text
 
@@ -6440,7 +6440,7 @@ func _is_power_load_consumer_object(object_data: Dictionary) -> bool:
 		return true
 	if object_group == "terminal" or object_type in ["terminal", "door_terminal"]:
 		return true
-	if object_group == "door" and String(object_data.get("material", "")).strip_edges().to_lower() == WorldObjectCatalogRef.DOOR_MATERIAL_ENERGY:
+	if object_group == "door" and str(object_data.get("material", "")).strip_edges().to_lower() == WorldObjectCatalogRef.DOOR_MATERIAL_ENERGY:
 		return true
 	if object_type in ["energy_wall", "electromagnetic_door", "electromagnetic_wall", "grid_door", "grid_wall"]:
 		return true
@@ -6454,7 +6454,7 @@ func _is_power_load_consumer_object(object_data: Dictionary) -> bool:
 
 func _get_power_source_capacity_for_load(source: Dictionary) -> int:
 	var source_class: int = int(source.get("power_source_class", source.get("source_class", 1)))
-	var object_type: String = String(source.get("object_type", "")).strip_edges().to_lower()
+	var object_type: String = str(source.get("object_type", "")).strip_edges().to_lower()
 	if object_type == "power_source_class_2" or object_type.find("class_2") != -1:
 		source_class = 2
 	elif object_type == "power_source_class_3" or object_type.find("class_3") != -1:
@@ -6477,7 +6477,7 @@ func preview_power_source_load_heat_for_network(filter: String = "") -> Dictiona
 		"warnings": warnings
 	}
 	for network_id_variant in networks.keys():
-		var network_id := String(network_id_variant)
+		var network_id := str(network_id_variant)
 		if not resolved_filter.is_empty() and network_id != resolved_filter:
 			continue
 		var network_objects: Array = networks.get(network_id, [])
@@ -6500,11 +6500,11 @@ func preview_power_source_load_heat_for_network(filter: String = "") -> Dictiona
 			var source_overloaded := consumer_count > source_capacity
 			var heat_from_connections := maxi(0, consumer_count - source_capacity)
 			var projected_heat := maxi(0, current_heat - int(source.get("cooling_received", 0))) + int(source.get("working_heat", 0)) + heat_from_connections
-			var projected_state := String(source.get("state", "")).strip_edges().to_lower()
+			var projected_state := str(source.get("state", "")).strip_edges().to_lower()
 			if overheat_threshold > 0 and projected_heat >= overheat_threshold:
 				projected_state = "overheated"
 			source_reports.append({
-				"object_id": String(source.get("id", "")),
+				"object_id": str(source.get("id", "")),
 				"network_id": network_id,
 				"source_load": consumer_count,
 				"source_capacity": source_capacity,
@@ -6529,7 +6529,7 @@ func update_power_source_load_heat_for_network(filter: String = "") -> Dictionar
 		"warnings": warnings
 	}
 	for network_id_variant in networks.keys():
-		var network_id := String(network_id_variant)
+		var network_id := str(network_id_variant)
 		if not resolved_filter.is_empty() and network_id != resolved_filter:
 			continue
 		var network_objects: Array = networks.get(network_id, [])
@@ -6553,14 +6553,14 @@ func update_power_source_load_heat_for_network(filter: String = "") -> Dictionar
 			source["heat_from_connections"] = maxi(0, consumer_count - source_capacity)
 			WorldObjectCatalogRef.update_world_object_heat_state(source)
 			source_reports.append({
-				"object_id": String(source.get("id", "")),
+				"object_id": str(source.get("id", "")),
 				"network_id": network_id,
 				"source_load": int(source.get("source_load", 0)),
 				"source_capacity": int(source.get("source_capacity", source_capacity)),
 				"source_overloaded": bool(source.get("source_overloaded", false)),
 				"current_heat": int(source.get("current_heat", 0)),
 				"overheat_threshold": int(source.get("overheat_threshold", 0)),
-				"state": String(source.get("state", ""))
+				"state": str(source.get("state", ""))
 			})
 			report["updated"] = int(report.get("updated", 0)) + 1
 	return report
@@ -6591,7 +6591,7 @@ func preview_power_graph_state_application(filter: String = "") -> Dictionary:
 	}
 	warnings.append("Power graph combines physical 4-neighbor recalculation with legacy network-level gate blocking.")
 	for network_id_variant in networks.keys():
-		var network_id := String(network_id_variant)
+		var network_id := str(network_id_variant)
 		if not resolved_filter.is_empty() and network_id != resolved_filter:
 			continue
 		var network_objects: Array = networks.get(network_id, [])
@@ -6601,7 +6601,7 @@ func preview_power_graph_state_application(filter: String = "") -> Dictionary:
 			if typeof(object_variant) != TYPE_DICTIONARY:
 				continue
 			var object_data: Dictionary = object_variant
-			var object_id := String(object_data.get("id", "")).strip_edges()
+			var object_id := str(object_data.get("id", "")).strip_edges()
 			if not object_id.is_empty():
 				nodes.append(object_id)
 			if _is_power_source_object(object_data) and _is_power_source_available(object_data):
@@ -6613,8 +6613,8 @@ func preview_power_graph_state_application(filter: String = "") -> Dictionary:
 				blocked_entries.append({
 					"object_id": object_id,
 					"network_id": network_id,
-					"gate_type": String(gate_state.get("gate_type", "")),
-					"reason": String(gate_state.get("reason", "blocked_by_gate"))
+					"gate_type": str(gate_state.get("gate_type", "")),
+					"reason": str(gate_state.get("reason", "blocked_by_gate"))
 				})
 		for object_variant in network_objects:
 			if typeof(object_variant) != TYPE_DICTIONARY:
@@ -6622,7 +6622,7 @@ func preview_power_graph_state_application(filter: String = "") -> Dictionary:
 			var object_data: Dictionary = object_variant
 			if _is_power_source_object(object_data):
 				continue
-			var object_id := String(object_data.get("id", "")).strip_edges()
+			var object_id := str(object_data.get("id", "")).strip_edges()
 			var current_is_powered := bool(object_data.get("is_powered", false))
 			var state := _normalize_power_gate_text(object_data.get("state", ""))
 			var damaged_or_broken := bool(object_data.get("damaged", false)) or bool(object_data.get("broken", false))
@@ -6666,7 +6666,7 @@ func get_power_graph_preview_text(filter: String = "") -> String:
 	var preview := preview_power_graph_state_application(filter)
 	var lines: Array[String] = []
 	lines.append("PowerGraphPreview: filter=%s sources=%d reachable=%d blocked=%d changes=%d warnings=%d" % [
-		String(preview.get("filter", "")),
+		str(preview.get("filter", "")),
 		(preview.get("sources", []) as Array).size(),
 		(preview.get("reachable_object_ids", []) as Array).size(),
 		(preview.get("blocked", []) as Array).size(),
@@ -6677,19 +6677,19 @@ func get_power_graph_preview_text(filter: String = "") -> String:
 		if typeof(source_variant) != TYPE_DICTIONARY:
 			continue
 		var source: Dictionary = source_variant
-		lines.append("SOURCE: object=%s network=%s" % [String(source.get("object_id", "")), String(source.get("network_id", ""))])
+		lines.append("SOURCE: object=%s network=%s" % [str(source.get("object_id", "")), str(source.get("network_id", ""))])
 	for blocked_variant in preview.get("blocked", []):
 		if typeof(blocked_variant) != TYPE_DICTIONARY:
 			continue
 		var blocked: Dictionary = blocked_variant
-		lines.append("BLOCKED: object=%s network=%s gate=%s reason=%s" % [String(blocked.get("object_id", "")), String(blocked.get("network_id", "")), String(blocked.get("gate_type", "")), String(blocked.get("reason", ""))])
+		lines.append("BLOCKED: object=%s network=%s gate=%s reason=%s" % [str(blocked.get("object_id", "")), str(blocked.get("network_id", "")), str(blocked.get("gate_type", "")), str(blocked.get("reason", ""))])
 	for change_variant in preview.get("changes", []):
 		if typeof(change_variant) != TYPE_DICTIONARY:
 			continue
 		var change: Dictionary = change_variant
-		lines.append("WOULD_APPLY: object=%s network=%s is_powered %s -> %s reason=%s" % [String(change.get("object_id", "")), String(change.get("network_id", "")), str(bool(change.get("current_is_powered", false))).to_lower(), str(bool(change.get("preview_is_powered", false))).to_lower(), String(change.get("reason", ""))])
+		lines.append("WOULD_APPLY: object=%s network=%s is_powered %s -> %s reason=%s" % [str(change.get("object_id", "")), str(change.get("network_id", "")), str(bool(change.get("current_is_powered", false))).to_lower(), str(bool(change.get("preview_is_powered", false))).to_lower(), str(change.get("reason", ""))])
 	for warning_variant in preview.get("warnings", []):
-		lines.append("WARNING: %s" % String(warning_variant))
+		lines.append("WARNING: %s" % str(warning_variant))
 	return "\n".join(lines)
 
 func apply_power_graph_state_from_preview(filter: String = "") -> Dictionary:
@@ -6700,7 +6700,7 @@ func apply_power_graph_state_from_preview(filter: String = "") -> Dictionary:
 		if typeof(change_variant) != TYPE_DICTIONARY:
 			continue
 		var change: Dictionary = change_variant
-		var object_id := String(change.get("object_id", "")).strip_edges()
+		var object_id := str(change.get("object_id", "")).strip_edges()
 		var object_data := get_world_object_by_id(object_id)
 		if object_data.is_empty() or _is_power_source_object(object_data):
 			continue
@@ -6716,8 +6716,8 @@ func apply_power_graph_state_from_preview(filter: String = "") -> Dictionary:
 		if next_is_powered:
 			object_data.erase("power_unavailable_reason")
 		else:
-			object_data["power_unavailable_reason"] = String(change.get("reason", ""))
-		var applied_change := {"object_id": object_id, "network_id": String(change.get("network_id", "")), "previous_is_powered": previous_is_powered, "new_is_powered": next_is_powered, "reason": String(change.get("reason", ""))}
+			object_data["power_unavailable_reason"] = str(change.get("reason", ""))
+		var applied_change := {"object_id": object_id, "network_id": str(change.get("network_id", "")), "previous_is_powered": previous_is_powered, "new_is_powered": next_is_powered, "reason": str(change.get("reason", ""))}
 		var consumer_state_report := {}
 		if _is_terminal_object(object_data):
 			consumer_state_report = update_terminal_power_state_from_is_powered(object_data)
@@ -6738,15 +6738,15 @@ func execute_power_graph_apply_and_get_report_text(filter: String = "") -> Strin
 		if typeof(change_variant) != TYPE_DICTIONARY:
 			continue
 		var change: Dictionary = change_variant
-		var line := "APPLIED: object=%s network=%s is_powered %s -> %s reason=%s" % [String(change.get("object_id", "")), String(change.get("network_id", "")), str(bool(change.get("previous_is_powered", false))).to_lower(), str(bool(change.get("new_is_powered", false))).to_lower(), String(change.get("reason", ""))]
+		var line := "APPLIED: object=%s network=%s is_powered %s -> %s reason=%s" % [str(change.get("object_id", "")), str(change.get("network_id", "")), str(bool(change.get("previous_is_powered", false))).to_lower(), str(bool(change.get("new_is_powered", false))).to_lower(), str(change.get("reason", ""))]
 		var consumer_state_report_variant: Variant = change.get("consumer_state_report", {})
 		if consumer_state_report_variant is Dictionary:
 			var consumer_state_report: Dictionary = consumer_state_report_variant
 			if bool(consumer_state_report.get("changed", false)):
-				line += " state %s -> %s" % [String(consumer_state_report.get("previous_state", "")), String(consumer_state_report.get("new_state", ""))]
+				line += " state %s -> %s" % [str(consumer_state_report.get("previous_state", "")), str(consumer_state_report.get("new_state", ""))]
 		lines.append(line)
 	for warning_variant in report.get("warnings", []):
-		lines.append("WARNING: %s" % String(warning_variant))
+		lines.append("WARNING: %s" % str(warning_variant))
 	return "\n".join(lines)
 
 func preview_power_network_state_application(filter: String = "") -> Dictionary:
@@ -6759,7 +6759,7 @@ func preview_power_network_state_application(filter: String = "") -> Dictionary:
 	var filter_text := filter.strip_edges().to_lower()
 	var all_network_ids: Array[String] = []
 	for network_id_variant in networks.keys():
-		all_network_ids.append(String(network_id_variant))
+		all_network_ids.append(str(network_id_variant))
 	all_network_ids.sort()
 	for network_id in all_network_ids:
 		var network_objects: Array = networks.get(network_id, [])
@@ -6774,10 +6774,10 @@ func preview_power_network_state_application(filter: String = "") -> Dictionary:
 			if _is_power_source_available(source_candidate):
 				network_has_available_source = true
 			else:
-				var source_state := String(source_candidate.get("state", "")).strip_edges().to_lower()
+				var source_state := str(source_candidate.get("state", "")).strip_edges().to_lower()
 				var source_damaged := bool(source_candidate.get("damaged", false)) or bool(source_candidate.get("broken", false))
 				if source_state in ["overheated", "damaged"] or source_damaged:
-					var source_id := String(source_candidate.get("id", "")).strip_edges()
+					var source_id := str(source_candidate.get("id", "")).strip_edges()
 					warnings.append("Source %s in network %s is unavailable: overheated/damaged." % [source_id, network_id if not network_id.is_empty() else "-"])
 		for object_variant in network_objects:
 			if typeof(object_variant) != TYPE_DICTIONARY:
@@ -6794,8 +6794,8 @@ func preview_power_network_state_application(filter: String = "") -> Dictionary:
 			if typeof(object_variant) != TYPE_DICTIONARY:
 				continue
 			var object_data: Dictionary = object_variant
-			var object_id := String(object_data.get("id", "")).strip_edges()
-			var object_state := String(object_data.get("state", "")).strip_edges().to_lower()
+			var object_id := str(object_data.get("id", "")).strip_edges()
+			var object_state := str(object_data.get("state", "")).strip_edges().to_lower()
 			var object_damaged := bool(object_data.get("damaged", false)) or bool(object_data.get("broken", false))
 			var current_is_powered := bool(object_data.get("is_powered", false))
 			var preview_is_powered := current_is_powered
@@ -6812,7 +6812,7 @@ func preview_power_network_state_application(filter: String = "") -> Dictionary:
 			else:
 				preview_is_powered = network_has_available_source
 				reason = "powered_source_available" if network_has_available_source else "no_powered_source"
-			var connected_source_id := String(object_data.get("connected_power_source_id", "")).strip_edges()
+			var connected_source_id := str(object_data.get("connected_power_source_id", "")).strip_edges()
 			if not connected_source_id.is_empty() and not sources_by_id.has(connected_source_id):
 				warnings.append("Power object %s connected_power_source_id points to missing source %s." % [object_id, connected_source_id])
 			if network_id.is_empty():
@@ -6851,11 +6851,11 @@ func get_power_network_state_preview_text(filter: String = "") -> String:
 			continue
 		var change: Dictionary = change_variant
 		lines.append("CHANGE: object=%s network=%s is_powered %s -> %s reason=%s" % [
-			String(change.get("object_id", "")),
-			String(change.get("network_id", "")),
+			str(change.get("object_id", "")),
+			str(change.get("network_id", "")),
 			str(bool(change.get("current_is_powered", false))).to_lower(),
 			str(bool(change.get("preview_is_powered", false))).to_lower(),
-			String(change.get("reason", ""))
+			str(change.get("reason", ""))
 		])
 	for warning in warnings:
 		lines.append("WARNING: %s" % warning)
@@ -6870,7 +6870,7 @@ func apply_power_network_state_from_preview(filter: String = "") -> Dictionary:
 		if typeof(change_variant) != TYPE_DICTIONARY:
 			continue
 		var change: Dictionary = change_variant
-		var object_id := String(change.get("object_id", "")).strip_edges()
+		var object_id := str(change.get("object_id", "")).strip_edges()
 		if object_id.is_empty():
 			continue
 		var object_data := get_world_object_by_id(object_id)
@@ -6884,7 +6884,7 @@ func apply_power_network_state_from_preview(filter: String = "") -> Dictionary:
 			continue
 		var previous_is_powered := bool(object_data.get("is_powered", false))
 		var preview_is_powered := bool(change.get("preview_is_powered", false))
-		var object_state := String(object_data.get("state", "")).strip_edges().to_lower()
+		var object_state := str(object_data.get("state", "")).strip_edges().to_lower()
 		var object_damaged := bool(object_data.get("damaged", false)) or bool(object_data.get("broken", false))
 		var blocked_from_power_up := object_state in ["damaged", "overheated"] or object_damaged
 		var new_is_powered := preview_is_powered
@@ -6895,13 +6895,13 @@ func apply_power_network_state_from_preview(filter: String = "") -> Dictionary:
 		object_data["is_powered"] = new_is_powered
 		applied_changes.append({
 			"object_id": object_id,
-			"network_id": String(change.get("network_id", "")),
+			"network_id": str(change.get("network_id", "")),
 			"previous_is_powered": previous_is_powered,
 			"new_is_powered": new_is_powered,
-			"reason": String(change.get("reason", ""))
+			"reason": str(change.get("reason", ""))
 		})
 	for preview_warning in preview.get("warnings", []):
-		var warning_text := String(preview_warning).strip_edges()
+		var warning_text := str(preview_warning).strip_edges()
 		if warning_text.is_empty():
 			continue
 		warnings.append(warning_text)
@@ -6939,7 +6939,7 @@ func validate_cable_path(cable_reel: Dictionary, target: Dictionary, path_cells:
 		return {"valid": false, "reason": "cable_cut", "length": 0, "max_length": 0, "path_cells": path_cells}
 	if bool(cable_reel.get("damaged", false)):
 		return {"valid": false, "reason": "cable_damaged", "length": 0, "max_length": 0, "path_cells": path_cells}
-	var target_type: String = String(target.get("object_type", "")).strip_edges().to_lower()
+	var target_type: String = str(target.get("object_type", "")).strip_edges().to_lower()
 	if not bool(target.get("can_connect_cable", false)) and not (target_type in ["power_source", "power_source_class_1", "power_source_class_2", "power_source_class_3"]):
 		return {"valid": false, "reason": "no_socket", "length": 0, "max_length": 0, "path_cells": path_cells}
 	var max_length := maxi(1, int(cable_reel.get("max_cable_length", 5)))
@@ -6953,29 +6953,29 @@ func validate_cable_path(cable_reel: Dictionary, target: Dictionary, path_cells:
 		var blocker := get_world_object_at_cell(path_cell)
 		if blocker.is_empty():
 			continue
-		if bool(blocker.get("blocks_movement", false)) or String(blocker.get("state", "")) == "closed":
+		if bool(blocker.get("blocks_movement", false)) or str(blocker.get("state", "")) == "closed":
 			return {"valid": false, "reason": "path_blocked", "length": length, "max_length": max_length, "path_cells": path_cells}
 	var cable_preview: Dictionary = cable_reel.duplicate(true)
 	cable_preview["cable_path_cells"] = path_cells.duplicate(true)
 	var topology_validation: Dictionary = CableTopologyServiceRef.validate_cable_object(mission_world_objects, cable_preview)
 	if not bool(topology_validation.get("ok", false)):
-		return {"valid": false, "reason": "invalid_cable_junction", "message": String(topology_validation.get("message", CableTopologyServiceRef.ERROR_MESSAGE_JUNCTION_REQUIRES_SWITCH)), "length": length, "max_length": max_length, "path_cells": path_cells, "cable_topology": topology_validation}
+		return {"valid": false, "reason": "invalid_cable_junction", "message": str(topology_validation.get("message", CableTopologyServiceRef.ERROR_MESSAGE_JUNCTION_REQUIRES_SWITCH)), "length": length, "max_length": max_length, "path_cells": path_cells, "cable_topology": topology_validation}
 	return {"valid": true, "reason": "ok", "length": length, "max_length": max_length, "path_cells": path_cells}
 
 func can_connect_cable_reel_to_target(cable_reel: Dictionary, target: Dictionary) -> Dictionary:
-	var path_report := preview_cable_path(String(cable_reel.get("id", "")), String(target.get("id", "")))
+	var path_report := preview_cable_path(str(cable_reel.get("id", "")), str(target.get("id", "")))
 	if not bool(path_report.get("valid", false)):
 		return path_report
 	return {"valid": true, "reason": "ok", "length": int(path_report.get("length", 0)), "max_length": int(path_report.get("max_length", 0)), "path_cells": path_report.get("path_cells", [])}
 
 func _is_power_cable_unavailable(cable: Dictionary) -> bool:
-	var cable_state: String = String(cable.get("state", "")).strip_edges().to_lower()
+	var cable_state: String = str(cable.get("state", "")).strip_edges().to_lower()
 	return cable_state in ["cut", "damaged", "broken", "destroyed"] or bool(cable.get("cut", false)) or bool(cable.get("damaged", false)) or bool(cable.get("broken", false))
 
 func _normalize_power_cable_reel_state(cable: Dictionary) -> void:
 	if cable.is_empty():
 		return
-	var legacy_target_id: String = String(cable.get("cable_endpoint_b_id", "")).strip_edges()
+	var legacy_target_id: String = str(cable.get("cable_endpoint_b_id", "")).strip_edges()
 	var has_explicit_end_fields: bool = cable.has("end_1_state") or cable.has("end_1_target_id") or cable.has("end_2_state") or cable.has("end_2_target_id")
 	if not has_explicit_end_fields and bool(cable.get("connected", false)) and not legacy_target_id.is_empty():
 		cable["end_1_state"] = "connected"
@@ -6993,12 +6993,12 @@ func _normalize_power_cable_reel_state(cable: Dictionary) -> void:
 		var path_key: String = "end_%d_path_cells" % end_index
 		var length_key: String = "end_%d_cable_length" % end_index
 		var has_end_state: bool = cable.has(state_key)
-		var end_state: String = String(cable.get(state_key, "on_reel")).strip_edges().to_lower()
-		if not has_end_state and not String(cable.get(target_key, "")).strip_edges().is_empty():
+		var end_state: String = str(cable.get(state_key, "on_reel")).strip_edges().to_lower()
+		if not has_end_state and not str(cable.get(target_key, "")).strip_edges().is_empty():
 			end_state = "connected"
 		if not (end_state in ["on_reel", "held", "connected", "disconnected"]):
 			end_state = "on_reel"
-		var end_target_id: String = String(cable.get(target_key, "")).strip_edges()
+		var end_target_id: String = str(cable.get(target_key, "")).strip_edges()
 		var end_has_target: bool = end_state == "connected" and not end_target_id.is_empty()
 		cable[state_key] = end_state
 		cable[target_key] = end_target_id if end_has_target else ""
@@ -7038,13 +7038,13 @@ func connect_cable_reel_to_target(cable_reel_id: String, target_id: String, end_
 		return {"success": false, "reason": "cable_damaged", "message": "Cable reel must be repaired first."}
 	var can_connect := can_connect_cable_reel_to_target(cable_reel, target)
 	if not bool(can_connect.get("valid", false)):
-		return {"success": false, "reason": String(can_connect.get("reason", "target_not_connectable")), "message": String(can_connect.get("message", "Cable target is not connectable.")), "path": can_connect}
+		return {"success": false, "reason": str(can_connect.get("reason", "target_not_connectable")), "message": str(can_connect.get("message", "Cable target is not connectable.")), "path": can_connect}
 	cable_reel["state"] = "connected"
 	cable_reel["end_%d_state" % end_index] = "connected"
 	cable_reel["end_%d_target_id" % end_index] = normalized_target_id
 	cable_reel["end_%d_path_cells" % end_index] = can_connect.get("path_cells", [])
 	cable_reel["end_%d_cable_length" % end_index] = int(can_connect.get("length", 0))
-	cable_reel["cable_endpoint_a_id"] = String(cable_reel.get("id", "")).strip_edges()
+	cable_reel["cable_endpoint_a_id"] = str(cable_reel.get("id", "")).strip_edges()
 	cable_reel["cable_max_length"] = int(can_connect.get("max_length", 0))
 	_normalize_power_cable_reel_state(cable_reel)
 	var report := _apply_graph_power_after_world_object_power_change(cable_reel, "cable_connected")
@@ -7064,9 +7064,9 @@ func disconnect_cable_from_target(cable_id_or_reel_id: String, target_id: String
 		if end_index > 0 and candidate_end != end_index:
 			continue
 		var target_key: String = "end_%d_target_id" % candidate_end
-		if not normalized_target_id.is_empty() and String(cable.get(target_key, "")).strip_edges() != normalized_target_id:
+		if not normalized_target_id.is_empty() and str(cable.get(target_key, "")).strip_edges() != normalized_target_id:
 			continue
-		if String(cable.get(target_key, "")).strip_edges().is_empty() and String(cable.get("end_%d_state" % candidate_end, "on_reel")) != "connected":
+		if str(cable.get(target_key, "")).strip_edges().is_empty() and str(cable.get("end_%d_state" % candidate_end, "on_reel")) != "connected":
 			continue
 		cable["end_%d_state" % candidate_end] = "disconnected"
 		cable[target_key] = ""
@@ -7093,15 +7093,15 @@ func repair_power_cable(cable_id: String, normalize_repaired: bool = false) -> D
 	var cable := get_world_object_by_id(cable_id.strip_edges())
 	if cable.is_empty():
 		return {"success": false, "reason": "target_not_connectable"}
-	if not normalize_repaired and not bool(cable.get("cut", false)) and not bool(cable.get("damaged", false)) and not bool(cable.get("broken", false)) and not (String(cable.get("state", "")).strip_edges().to_lower() in ["damaged", "broken"]):
+	if not normalize_repaired and not bool(cable.get("cut", false)) and not bool(cable.get("damaged", false)) and not bool(cable.get("broken", false)) and not (str(cable.get("state", "")).strip_edges().to_lower() in ["damaged", "broken"]):
 		return {"success": false, "reason": "ok"}
 	cable["cut"] = false
 	cable["damaged"] = false
 	cable["broken"] = false
-	var is_cable_reel: bool = String(cable.get("object_type", "")).strip_edges().to_lower() == "power_cable_reel" or cable.has("end_1_state") or cable.has("end_1_target_id") or cable.has("end_2_state") or cable.has("end_2_target_id")
+	var is_cable_reel: bool = str(cable.get("object_type", "")).strip_edges().to_lower() == "power_cable_reel" or cable.has("end_1_state") or cable.has("end_1_target_id") or cable.has("end_2_state") or cable.has("end_2_target_id")
 	if is_cable_reel:
 		for repaired_end in range(1, 3):
-			if String(cable.get("end_%d_target_id" % repaired_end, "")).strip_edges().is_empty():
+			if str(cable.get("end_%d_target_id" % repaired_end, "")).strip_edges().is_empty():
 				cable["end_%d_state" % repaired_end] = "on_reel"
 		_normalize_power_cable_reel_state(cable)
 	cable["state"] = "connected" if bool(cable.get("connected", false)) else "ok"
@@ -7116,7 +7116,7 @@ func reconnect_power_cable(cable_id: String) -> Dictionary:
 		return {"success": false, "reason": "cable_damaged"}
 	var topology_validation: Dictionary = CableTopologyServiceRef.validate_cable_object(mission_world_objects, cable)
 	if not bool(topology_validation.get("ok", false)):
-		return {"success": false, "reason": "invalid_cable_junction", "message": String(topology_validation.get("message", CableTopologyServiceRef.ERROR_MESSAGE_JUNCTION_REQUIRES_SWITCH)), "cable_topology": topology_validation}
+		return {"success": false, "reason": "invalid_cable_junction", "message": str(topology_validation.get("message", CableTopologyServiceRef.ERROR_MESSAGE_JUNCTION_REQUIRES_SWITCH)), "cable_topology": topology_validation}
 	cable["connected"] = true
 	cable["disconnected"] = false
 	cable["state"] = "connected"
@@ -7133,9 +7133,9 @@ func update_power_source_overheat_recovery_for_network(filter: String = "") -> D
 		var network_id := _get_power_network_id(object_data)
 		if not resolved_filter.is_empty() and network_id != resolved_filter:
 			continue
-		var prev_state := String(object_data.get("state", "")).strip_edges().to_lower()
+		var prev_state := str(object_data.get("state", "")).strip_edges().to_lower()
 		var prev_is_powered := bool(object_data.get("is_powered", false))
-		var prev_overheated_state_before := String(object_data.get("overheated_state_before", object_data.get("powered_state_before_unpowered", "active"))).strip_edges().to_lower()
+		var prev_overheated_state_before := str(object_data.get("overheated_state_before", object_data.get("powered_state_before_unpowered", "active"))).strip_edges().to_lower()
 		var prev_damaged_flag := bool(object_data.get("damaged", false))
 		var prev_broken_flag := bool(object_data.get("broken", false))
 		var prev_destroyed_flag := bool(object_data.get("destroyed", false))
@@ -7145,7 +7145,7 @@ func update_power_source_overheat_recovery_for_network(filter: String = "") -> D
 		var prev_state_is_damage := prev_state in ["damaged", "broken", "destroyed"]
 		var prev_overheated_state_is_damage := prev_overheated_state_before in ["damaged", "broken", "destroyed"]
 		WorldObjectCatalogRef.update_world_object_heat_state(object_data)
-		var next_state := String(object_data.get("state", "")).strip_edges().to_lower()
+		var next_state := str(object_data.get("state", "")).strip_edges().to_lower()
 		var threshold := int(object_data.get("overheat_threshold", 0))
 		var heat := int(object_data.get("current_heat", 0))
 		if prev_state != "overheated":
@@ -7159,7 +7159,7 @@ func update_power_source_overheat_recovery_for_network(filter: String = "") -> D
 				object_data["state"] = "unpowered"
 			object_data["is_powered"] = false
 			object_data["power_unavailable_reason"] = "source_damage_state"
-			warnings.append("Source %s remains unavailable due to source_damage_state." % String(object_data.get("id", "")))
+			warnings.append("Source %s remains unavailable due to source_damage_state." % str(object_data.get("id", "")))
 			continue
 		if threshold > 0 and heat >= threshold:
 			continue
@@ -7169,7 +7169,7 @@ func update_power_source_overheat_recovery_for_network(filter: String = "") -> D
 		object_data["state"] = restore_state
 		object_data["power_unavailable_reason"] = ""
 		recovered.append({
-			"object_id": String(object_data.get("id", "")),
+			"object_id": str(object_data.get("id", "")),
 			"network_id": network_id,
 			"previous_state": prev_state,
 			"new_state": restore_state,
@@ -7185,7 +7185,7 @@ func update_power_source_overheat_recovery_for_network(filter: String = "") -> D
 
 func execute_power_source_recovery_apply(filter: String = "") -> Dictionary:
 	var recovery := update_power_source_overheat_recovery_for_network(filter)
-	var apply := apply_power_network_after_explicit_power_event("source_cooling_recovered", String(recovery.get("resolved_filter", filter)))
+	var apply := apply_power_network_after_explicit_power_event("source_cooling_recovered", str(recovery.get("resolved_filter", filter)))
 	return {"recovery": recovery, "apply": apply}
 
 func apply_power_network_after_explicit_power_event(reason: String = "", filter: String = "") -> Dictionary:
@@ -7209,14 +7209,14 @@ func execute_power_event_apply_and_get_report_text(reason: String = "", filter: 
 			continue
 		var change: Dictionary = change_variant
 		lines.append("APPLIED: object=%s network=%s is_powered %s -> %s reason=%s" % [
-			String(change.get("object_id", "")),
-			String(change.get("network_id", "")),
+			str(change.get("object_id", "")),
+			str(change.get("network_id", "")),
 			str(bool(change.get("previous_is_powered", false))).to_lower(),
 			str(bool(change.get("new_is_powered", false))).to_lower(),
-			String(change.get("reason", ""))
+			str(change.get("reason", ""))
 		])
 	for warning in warnings:
-		lines.append("WARNING: %s" % String(warning))
+		lines.append("WARNING: %s" % str(warning))
 	return "\n".join(lines)
 
 func get_power_event_apply_preview_text(reason: String = "", filter: String = "") -> String:
@@ -7230,14 +7230,14 @@ func get_power_event_apply_preview_text(reason: String = "", filter: String = ""
 			continue
 		var change: Dictionary = change_variant
 		lines.append("WOULD_APPLY: object=%s network=%s is_powered %s -> %s reason=%s" % [
-			String(change.get("object_id", "")),
-			String(change.get("network_id", "")),
+			str(change.get("object_id", "")),
+			str(change.get("network_id", "")),
 			str(bool(change.get("current_is_powered", false))).to_lower(),
 			str(bool(change.get("preview_is_powered", false))).to_lower(),
-			String(change.get("reason", ""))
+			str(change.get("reason", ""))
 		])
 	for warning in warnings:
-		lines.append("WARNING: %s" % String(warning))
+		lines.append("WARNING: %s" % str(warning))
 	return "\n".join(lines)
 
 func execute_power_network_apply_and_get_report_text(filter: String = "") -> String:
@@ -7251,14 +7251,14 @@ func execute_power_network_apply_and_get_report_text(filter: String = "") -> Str
 			continue
 		var change: Dictionary = change_variant
 		lines.append("APPLIED: object=%s network=%s is_powered %s -> %s reason=%s" % [
-			String(change.get("object_id", "")),
-			String(change.get("network_id", "")),
+			str(change.get("object_id", "")),
+			str(change.get("network_id", "")),
 			str(bool(change.get("previous_is_powered", false))).to_lower(),
 			str(bool(change.get("new_is_powered", false))).to_lower(),
-			String(change.get("reason", ""))
+			str(change.get("reason", ""))
 		])
 	for warning in warnings:
-		lines.append("WARNING: %s" % String(warning))
+		lines.append("WARNING: %s" % str(warning))
 	return "\n".join(lines)
 
 func execute_power_network_apply_debug_command(filter: String = "") -> String:
@@ -7278,14 +7278,14 @@ func get_power_network_apply_preview_report_text(filter: String = "") -> String:
 			continue
 		var change: Dictionary = change_variant
 		lines.append("WOULD_APPLY: object=%s network=%s is_powered %s -> %s reason=%s" % [
-			String(change.get("object_id", "")),
-			String(change.get("network_id", "")),
+			str(change.get("object_id", "")),
+			str(change.get("network_id", "")),
 			str(bool(change.get("current_is_powered", false))).to_lower(),
 			str(bool(change.get("preview_is_powered", false))).to_lower(),
-			String(change.get("reason", ""))
+			str(change.get("reason", ""))
 		])
 	for warning in warnings:
-		lines.append("WARNING: %s" % String(warning))
+		lines.append("WARNING: %s" % str(warning))
 	return "\n".join(lines)
 
 func _get_power_network_summary_lines(filter: String = "") -> Array[String]:
@@ -7299,7 +7299,7 @@ func _get_power_network_summary_lines(filter: String = "") -> Array[String]:
 		grouped[network_id].append(object_data)
 	var ids: Array[String] = []
 	for key in grouped.keys():
-		ids.append(String(key))
+		ids.append(str(key))
 	ids.sort()
 	var filter_text := filter.strip_edges().to_lower()
 	var lines: Array[String] = []
@@ -7318,8 +7318,8 @@ func _get_power_network_summary_lines(filter: String = "") -> Array[String]:
 				continue
 			var object_data: Dictionary = object_variant
 			object_count += 1
-			var object_type := String(object_data.get("object_type", "")).strip_edges().to_lower()
-			var state := String(object_data.get("state", "")).strip_edges().to_lower()
+			var object_type := str(object_data.get("object_type", "")).strip_edges().to_lower()
+			var state := str(object_data.get("state", "")).strip_edges().to_lower()
 			var is_source := _is_power_source_object(object_data)
 			if is_source:
 				source_count += 1
@@ -7377,27 +7377,27 @@ func validate_power_network_runtime_state() -> Dictionary:
 	var sources_by_id: Dictionary = collected.get("sources_by_id", {})
 	var source_ids := {}
 	for source_id in sources_by_id.keys():
-		source_ids[String(source_id)] = true
+		source_ids[str(source_id)] = true
 	var network_has_powered_source := {}
 	for object_data in power_objects:
-		var object_id := String(object_data.get("id", "")).strip_edges()
+		var object_id := str(object_data.get("id", "")).strip_edges()
 		var network_id := _get_power_network_id(object_data)
 		if network_id.is_empty():
 			warnings.append("Power object %s has no network id." % object_id)
 		if _is_power_source_object(object_data):
-			var state := String(object_data.get("state", "")).strip_edges().to_lower()
+			var state := str(object_data.get("state", "")).strip_edges().to_lower()
 			var powered_source := bool(object_data.get("is_powered", false)) and state != "overheated"
 			if powered_source:
 				network_has_powered_source[network_id] = true
 	for object_data in power_objects:
-		var object_id := String(object_data.get("id", "")).strip_edges()
+		var object_id := str(object_data.get("id", "")).strip_edges()
 		var current_heat := int(object_data.get("current_heat", 0))
 		var threshold := int(object_data.get("overheat_threshold", 0))
 		if current_heat < 0:
 			errors.append("Power object %s has negative current_heat (%d)." % [object_id, current_heat])
 		if threshold < 0:
 			errors.append("Power object %s has negative overheat_threshold (%d)." % [object_id, threshold])
-		var state_text := String(object_data.get("state", "")).strip_edges().to_lower()
+		var state_text := str(object_data.get("state", "")).strip_edges().to_lower()
 		var damaged_or_broken := bool(object_data.get("damaged", false)) or bool(object_data.get("broken", false))
 		if _is_power_source_object(object_data):
 			if not bool(object_data.get("blocks_movement", false)):
@@ -7406,13 +7406,13 @@ func validate_power_network_runtime_state() -> Dictionary:
 				warnings.append("Power source %s current_heat >= overheat_threshold but state is not overheated." % object_id)
 			if threshold > 0 and state_text == "overheated" and current_heat < threshold and not damaged_or_broken:
 				warnings.append("Power source %s state is overheated but current_heat < overheat_threshold and object is not damaged/broken." % object_id)
-		var linked_source_id := String(object_data.get("connected_power_source_id", "")).strip_edges()
+		var linked_source_id := str(object_data.get("connected_power_source_id", "")).strip_edges()
 		if not linked_source_id.is_empty() and not source_ids.has(linked_source_id):
 			warnings.append("Power object %s connected_power_source_id points to missing source %s." % [object_id, linked_source_id])
-		var logical_source_id: String = String(object_data.get("power_source_id", object_data.get("power_network_id", ""))).strip_edges()
-		var validation_type: String = String(object_data.get("object_type", "")).strip_edges().to_lower()
+		var logical_source_id: String = str(object_data.get("power_source_id", object_data.get("power_network_id", ""))).strip_edges()
+		var validation_type: String = str(object_data.get("object_type", "")).strip_edges().to_lower()
 		if not logical_source_id.is_empty() and source_ids.has(logical_source_id) and validation_type != "light" and not _is_power_source_object(object_data):
-			var physical_source_id: String = String(object_data.get("physical_connection_source_id", "")).strip_edges()
+			var physical_source_id: String = str(object_data.get("physical_connection_source_id", "")).strip_edges()
 			if physical_source_id != logical_source_id:
 				warnings.append("Power object %s is linked to source %s but has no physical wire path." % [object_id, logical_source_id])
 		if validation_type.begins_with("fuse_box") or validation_type == "fuse_block":
@@ -7429,9 +7429,9 @@ func validate_power_network_runtime_state() -> Dictionary:
 			if typeof(object_variant) != TYPE_DICTIONARY:
 				continue
 			var object_data: Dictionary = object_variant
-			var object_id := String(object_data.get("id", "")).strip_edges()
-			var object_type := String(object_data.get("object_type", "")).strip_edges().to_lower()
-			var state := String(object_data.get("state", "")).strip_edges().to_lower()
+			var object_id := str(object_data.get("id", "")).strip_edges()
+			var object_type := str(object_data.get("object_type", "")).strip_edges().to_lower()
+			var state := str(object_data.get("state", "")).strip_edges().to_lower()
 			var connected := state == "connected" or bool(object_data.get("connected", false))
 			var is_source := _is_power_source_object(object_data)
 			if is_source:
@@ -7444,7 +7444,7 @@ func validate_power_network_runtime_state() -> Dictionary:
 							if typeof(object_variant_2) != TYPE_DICTIONARY:
 								continue
 							var connected_object: Dictionary = object_variant_2
-							var connected_source_id := String(connected_object.get("connected_power_source_id", "")).strip_edges()
+							var connected_source_id := str(connected_object.get("connected_power_source_id", "")).strip_edges()
 							if connected_source_id == object_id:
 								source_connections += 1
 						if source_connections > allowed:
@@ -7452,11 +7452,11 @@ func validate_power_network_runtime_state() -> Dictionary:
 			if object_type.find("cable") != -1 or object_type.find("socket") != -1:
 				has_cable_or_socket = true
 			if connected and not has_powered_source:
-				warnings.append("Connected power object %s is in network %s but no source is powered." % [object_id, String(network_id if not String(network_id).is_empty() else "-")])
+				warnings.append("Connected power object %s is in network %s but no source is powered." % [object_id, str(network_id if not str(network_id).is_empty() else "-")])
 			if bool(object_data.get("is_powered", false)) and not has_powered_source:
-				warnings.append("Power object %s is_powered=true but network %s has no powered source." % [object_id, String(network_id if not String(network_id).is_empty() else "-")])
+				warnings.append("Power object %s is_powered=true but network %s has no powered source." % [object_id, str(network_id if not str(network_id).is_empty() else "-")])
 		if has_cable_or_socket and not has_source:
-			warnings.append("Network %s has cables/sockets but no source." % String(network_id if not String(network_id).is_empty() else "-"))
+			warnings.append("Network %s has cables/sockets but no source." % str(network_id if not str(network_id).is_empty() else "-"))
 	return {"valid": errors.is_empty(), "networks": networks.size(), "objects": power_objects.size(), "warnings": warnings, "errors": errors}
 
 func get_power_network_validation_text() -> String:
@@ -7681,7 +7681,7 @@ func validate_power_network_debug_scenario() -> Array[String]:
 	temp_objects.append(_build_power_network_debug_object("power_debug_source_overheat_shutdown_platform", "lifting_platform", "power_debug_source_overheat_shutdown", {"is_powered": true, "state": "active"}))
 	for object_data in temp_objects:
 		mission_world_objects.append(object_data)
-		var object_id := String(object_data.get("id", "")).strip_edges()
+		var object_id := str(object_data.get("id", "")).strip_edges()
 		if not object_id.is_empty():
 			temp_ids[object_id] = true
 	var validation := validate_power_network_runtime_state()
@@ -7726,7 +7726,7 @@ func validate_power_network_debug_scenario() -> Array[String]:
 		if typeof(change_variant) != TYPE_DICTIONARY:
 			continue
 		var change: Dictionary = change_variant
-		var changed_id := String(change.get("object_id", ""))
+		var changed_id := str(change.get("object_id", ""))
 		var preview_powered := bool(change.get("preview_is_powered", false))
 		if changed_id == "power_debug_preview_cable" and preview_powered:
 			saw_power_up_change = true
@@ -7736,7 +7736,7 @@ func validate_power_network_debug_scenario() -> Array[String]:
 			saw_damaged_consumer_change = true
 		if changed_id == "power_debug_preview_consumer_damaged_powered":
 			saw_damaged_powered_change = true
-			if not preview_powered and String(change.get("reason", "")) == "damaged":
+			if not preview_powered and str(change.get("reason", "")) == "damaged":
 				damaged_powered_reason_ok = true
 	if not saw_power_up_change:
 		warnings.append("Preview regression: powered source did not predict power-up for connected consumer.")
@@ -7783,7 +7783,7 @@ func validate_power_network_debug_scenario() -> Array[String]:
 		if typeof(change_variant) != TYPE_DICTIONARY:
 			continue
 		var change: Dictionary = change_variant
-		if String(change.get("object_id", "")) == "power_debug_apply_case_b_consumer" and bool(change.get("new_is_powered", false)):
+		if str(change.get("object_id", "")) == "power_debug_apply_case_b_consumer" and bool(change.get("new_is_powered", false)):
 			warnings.append("Apply regression B: report included invalid consumer power-up.")
 			break
 	var apply_case_c_consumer := get_world_object_by_id("power_debug_apply_case_c_consumer")
@@ -7795,9 +7795,9 @@ func validate_power_network_debug_scenario() -> Array[String]:
 		if typeof(change_variant) != TYPE_DICTIONARY:
 			continue
 		var change: Dictionary = change_variant
-		if String(change.get("object_id", "")) != "power_debug_apply_case_c_consumer":
+		if str(change.get("object_id", "")) != "power_debug_apply_case_c_consumer":
 			continue
-		if not bool(change.get("new_is_powered", false)) and String(change.get("reason", "")) == "damaged":
+		if not bool(change.get("new_is_powered", false)) and str(change.get("reason", "")) == "damaged":
 			apply_case_c_reason_ok = true
 			break
 	if not apply_case_c_reason_ok:
@@ -7835,7 +7835,7 @@ func validate_power_network_debug_scenario() -> Array[String]:
 	var event_dict_report := apply_power_network_after_explicit_power_event("debug_event_dict", "power_debug_event_apply")
 	if int(event_dict_report.get("applied", -1)) != 0:
 		warnings.append("Event apply dictionary regression: expected applied=0 after execute.")
-	if String(event_dict_report.get("event_reason", "")) != "debug_event_dict":
+	if str(event_dict_report.get("event_reason", "")) != "debug_event_dict":
 		warnings.append("Event apply dictionary regression: event_reason mismatch.")
 	var switch_toggle_consumer := get_world_object_by_id("power_debug_switch_toggle_consumer")
 	var switch_toggle_before := bool(switch_toggle_consumer.get("is_powered", false))
@@ -7844,7 +7844,7 @@ func validate_power_network_debug_scenario() -> Array[String]:
 	if switch_filter != "power_debug_switch_toggle":
 		warnings.append("Power event filter helper regression: expected power_debug_switch_toggle for switch object.")
 	var switch_toggle_report := apply_power_network_after_explicit_power_event("switch_toggled", switch_filter)
-	if String(switch_toggle_report.get("event_reason", "")) != "switch_toggled":
+	if str(switch_toggle_report.get("event_reason", "")) != "switch_toggled":
 		warnings.append("Switch toggle event apply regression: event_reason mismatch.")
 	if not bool(switch_toggle_consumer.get("is_powered", false)):
 		warnings.append("Switch toggle event apply regression: consumer did not become powered.")
@@ -7856,14 +7856,14 @@ func validate_power_network_debug_scenario() -> Array[String]:
 		warnings.append("Power event filter helper regression: expected power_debug_fuse_event for fuse object.")
 	debug_fuse_object["state"] = "installed"
 	var fuse_insert_report := apply_power_network_after_explicit_power_event("fuse_inserted", fuse_filter)
-	if String(fuse_insert_report.get("event_reason", "")) != "fuse_inserted":
+	if str(fuse_insert_report.get("event_reason", "")) != "fuse_inserted":
 		warnings.append("Fuse insert event apply regression: event_reason mismatch.")
 	if not bool(fuse_consumer.get("is_powered", false)):
 		warnings.append("Fuse insert event apply regression: consumer did not become powered.")
 	fuse_consumer["is_powered"] = true
 	debug_fuse_object["state"] = "empty"
 	var fuse_remove_report := apply_power_network_after_explicit_power_event("fuse_removed", fuse_filter)
-	if String(fuse_remove_report.get("event_reason", "")) != "fuse_removed":
+	if str(fuse_remove_report.get("event_reason", "")) != "fuse_removed":
 		warnings.append("Fuse remove event apply regression: event_reason mismatch.")
 	var debug_cable_consumer := get_world_object_by_id("power_debug_cable_consumer")
 	debug_cable_object["state"] = "connected"
@@ -7872,7 +7872,7 @@ func validate_power_network_debug_scenario() -> Array[String]:
 	if cable_filter != "power_debug_cable_event":
 		warnings.append("Power event filter helper regression: expected power_debug_cable_event for cable object.")
 	var cable_connect_report := apply_power_network_after_explicit_power_event("cable_connected", cable_filter)
-	if String(cable_connect_report.get("event_reason", "")) != "cable_connected":
+	if str(cable_connect_report.get("event_reason", "")) != "cable_connected":
 		warnings.append("Cable connect event apply regression: event_reason mismatch.")
 	if not bool(debug_cable_consumer.get("is_powered", false)):
 		warnings.append("Cable connect event apply regression: consumer did not become powered.")
@@ -7880,13 +7880,13 @@ func validate_power_network_debug_scenario() -> Array[String]:
 	debug_cable_object["state"] = "disconnected"
 	debug_cable_object["connected"] = false
 	var cable_disconnect_report := apply_power_network_after_explicit_power_event("cable_disconnected", cable_filter)
-	if String(cable_disconnect_report.get("event_reason", "")) != "cable_disconnected":
+	if str(cable_disconnect_report.get("event_reason", "")) != "cable_disconnected":
 		warnings.append("Cable disconnect event apply regression: event_reason mismatch.")
 	var graph_closed_source := get_world_object_by_id("power_debug_graph_closed_gate_source")
 	var graph_closed_gate := get_world_object_by_id("power_debug_graph_closed_gate_switch")
 	var graph_closed_consumer := get_world_object_by_id("power_debug_graph_closed_gate_consumer")
 	var graph_closed_source_before_preview := bool(graph_closed_source.get("is_powered", false))
-	var graph_closed_gate_state_before_preview := String(graph_closed_gate.get("state", ""))
+	var graph_closed_gate_state_before_preview := str(graph_closed_gate.get("state", ""))
 	var graph_closed_gate_power_before_preview := bool(graph_closed_gate.get("is_powered", false))
 	var graph_closed_consumer_before_preview := bool(graph_closed_consumer.get("is_powered", false))
 	var graph_closed_preview := preview_power_graph_state_application("power_debug_graph_closed_gate")
@@ -7896,12 +7896,12 @@ func validate_power_network_debug_scenario() -> Array[String]:
 		if typeof(change_variant) != TYPE_DICTIONARY:
 			continue
 		var change: Dictionary = change_variant
-		if String(change.get("object_id", "")) == "power_debug_graph_closed_gate_consumer" and String(change.get("reason", "")) == "graph_powered_source_reachable":
+		if str(change.get("object_id", "")) == "power_debug_graph_closed_gate_consumer" and str(change.get("reason", "")) == "graph_powered_source_reachable":
 			graph_closed_preview_reason_ok = true
 			break
 	if not graph_closed_preview_reason_ok:
 		warnings.append("Graph closed gate scenario regression: expected reason=graph_powered_source_reachable.")
-	if graph_closed_source_before_preview != bool(graph_closed_source.get("is_powered", false)) or graph_closed_consumer_before_preview != bool(graph_closed_consumer.get("is_powered", false)) or graph_closed_gate_state_before_preview != String(graph_closed_gate.get("state", "")) or graph_closed_gate_power_before_preview != bool(graph_closed_gate.get("is_powered", false)):
+	if graph_closed_source_before_preview != bool(graph_closed_source.get("is_powered", false)) or graph_closed_consumer_before_preview != bool(graph_closed_consumer.get("is_powered", false)) or graph_closed_gate_state_before_preview != str(graph_closed_gate.get("state", "")) or graph_closed_gate_power_before_preview != bool(graph_closed_gate.get("is_powered", false)):
 		warnings.append("Graph preview regression: preview mutated closed-gate objects.")
 	var graph_closed_apply := apply_power_graph_state_from_preview("power_debug_graph_closed_gate")
 	if int(graph_closed_apply.get("applied", 0)) <= 0:
@@ -7914,29 +7914,29 @@ func validate_power_network_debug_scenario() -> Array[String]:
 		if typeof(change_variant) != TYPE_DICTIONARY:
 			continue
 		var change: Dictionary = change_variant
-		if String(change.get("object_id", "")) == "power_debug_graph_closed_gate_source":
+		if str(change.get("object_id", "")) == "power_debug_graph_closed_gate_source":
 			warnings.append("Graph apply regression: source object appeared in applied changes.")
 			break
 	var graph_open_source := get_world_object_by_id("power_debug_graph_open_switch_source")
 	var graph_open_gate := get_world_object_by_id("power_debug_graph_open_switch_gate")
 	var graph_open_consumer := get_world_object_by_id("power_debug_graph_open_switch_consumer")
 	var graph_open_source_before_preview := bool(graph_open_source.get("is_powered", false))
-	var graph_open_gate_state_before_preview := String(graph_open_gate.get("state", ""))
+	var graph_open_gate_state_before_preview := str(graph_open_gate.get("state", ""))
 	var graph_open_gate_power_before_preview := bool(graph_open_gate.get("is_powered", false))
 	var graph_open_consumer_before_preview := bool(graph_open_consumer.get("is_powered", false))
 	var graph_open_preview := preview_power_graph_state_application("power_debug_graph_open_switch")
-	if String(get_power_graph_preview_text("power_debug_graph_open_switch")).find("blocked=1") == -1:
+	if str(get_power_graph_preview_text("power_debug_graph_open_switch")).find("blocked=1") == -1:
 		warnings.append("Graph open switch scenario regression: blocked gate not reported.")
 	if str(graph_open_preview).find("blocked_by_gate") == -1:
 		warnings.append("Graph open switch scenario regression: reason blocked_by_gate missing.")
-	if graph_open_source_before_preview != bool(graph_open_source.get("is_powered", false)) or graph_open_consumer_before_preview != bool(graph_open_consumer.get("is_powered", false)) or graph_open_gate_state_before_preview != String(graph_open_gate.get("state", "")) or graph_open_gate_power_before_preview != bool(graph_open_gate.get("is_powered", false)):
+	if graph_open_source_before_preview != bool(graph_open_source.get("is_powered", false)) or graph_open_consumer_before_preview != bool(graph_open_consumer.get("is_powered", false)) or graph_open_gate_state_before_preview != str(graph_open_gate.get("state", "")) or graph_open_gate_power_before_preview != bool(graph_open_gate.get("is_powered", false)):
 		warnings.append("Graph preview regression: preview mutated open-gate objects.")
 	var graph_open_blocked_ok := false
 	for blocked_variant in graph_open_preview.get("blocked", []):
 		if typeof(blocked_variant) != TYPE_DICTIONARY:
 			continue
 		var blocked: Dictionary = blocked_variant
-		if String(blocked.get("object_id", "")) == "power_debug_graph_open_switch_gate":
+		if str(blocked.get("object_id", "")) == "power_debug_graph_open_switch_gate":
 			graph_open_blocked_ok = true
 			break
 	if not graph_open_blocked_ok:
@@ -7951,10 +7951,10 @@ func validate_power_network_debug_scenario() -> Array[String]:
 		if typeof(change_variant) != TYPE_DICTIONARY:
 			continue
 		var change: Dictionary = change_variant
-		if String(change.get("object_id", "")) == "power_debug_graph_open_switch_consumer":
-			if String(change.get("reason", "")) == "blocked_by_gate":
+		if str(change.get("object_id", "")) == "power_debug_graph_open_switch_consumer":
+			if str(change.get("reason", "")) == "blocked_by_gate":
 				graph_open_reason_ok = true
-		elif String(change.get("object_id", "")) == "power_debug_graph_open_switch_source":
+		elif str(change.get("object_id", "")) == "power_debug_graph_open_switch_source":
 			warnings.append("Graph apply regression: source object appeared in open-switch changes.")
 	if not graph_open_reason_ok:
 		warnings.append("Graph open switch scenario regression: missing reason=blocked_by_gate.")
@@ -7966,7 +7966,7 @@ func validate_power_network_debug_scenario() -> Array[String]:
 		if typeof(blocked_variant) != TYPE_DICTIONARY:
 			continue
 		var blocked: Dictionary = blocked_variant
-		if String(blocked.get("object_id", "")) == "power_debug_graph_empty_fuse_gate":
+		if str(blocked.get("object_id", "")) == "power_debug_graph_empty_fuse_gate":
 			graph_empty_fuse_blocked_ok = true
 			break
 	if not graph_empty_fuse_blocked_ok:
@@ -7981,9 +7981,9 @@ func validate_power_network_debug_scenario() -> Array[String]:
 		if typeof(change_variant) != TYPE_DICTIONARY:
 			continue
 		var change: Dictionary = change_variant
-		if String(change.get("object_id", "")) == "power_debug_graph_empty_fuse_consumer" and String(change.get("reason", "")) == "blocked_by_gate":
+		if str(change.get("object_id", "")) == "power_debug_graph_empty_fuse_consumer" and str(change.get("reason", "")) == "blocked_by_gate":
 			graph_empty_fuse_reason_ok = true
-		elif String(change.get("object_id", "")) == "power_debug_graph_empty_fuse_source":
+		elif str(change.get("object_id", "")) == "power_debug_graph_empty_fuse_source":
 			warnings.append("Graph apply regression: source object appeared in empty-fuse changes.")
 	if not graph_empty_fuse_reason_ok:
 		warnings.append("Graph empty fuse scenario regression: missing reason=blocked_by_gate.")
@@ -7995,7 +7995,7 @@ func validate_power_network_debug_scenario() -> Array[String]:
 		if typeof(blocked_variant) != TYPE_DICTIONARY:
 			continue
 		var blocked: Dictionary = blocked_variant
-		if String(blocked.get("object_id", "")) == "power_debug_graph_cut_cable_gate":
+		if str(blocked.get("object_id", "")) == "power_debug_graph_cut_cable_gate":
 			graph_cut_cable_blocked_ok = true
 			break
 	if not graph_cut_cable_blocked_ok:
@@ -8010,11 +8010,11 @@ func validate_power_network_debug_scenario() -> Array[String]:
 		if typeof(change_variant) != TYPE_DICTIONARY:
 			continue
 		var change: Dictionary = change_variant
-		if String(change.get("object_id", "")) == "power_debug_graph_cut_cable_consumer":
-			var change_reason := String(change.get("reason", ""))
+		if str(change.get("object_id", "")) == "power_debug_graph_cut_cable_consumer":
+			var change_reason := str(change.get("reason", ""))
 			if change_reason == "blocked_by_gate" or change_reason == "cut":
 				graph_cut_cable_reason_ok = true
-		elif String(change.get("object_id", "")) == "power_debug_graph_cut_cable_source":
+		elif str(change.get("object_id", "")) == "power_debug_graph_cut_cable_source":
 			warnings.append("Graph apply regression: source object appeared in cut-cable changes.")
 	if not graph_cut_cable_reason_ok:
 		warnings.append("Graph cut cable scenario regression: missing reason=blocked_by_gate/cut.")
@@ -8027,7 +8027,7 @@ func validate_power_network_debug_scenario() -> Array[String]:
 		if typeof(change_variant) != TYPE_DICTIONARY:
 			continue
 		var change: Dictionary = change_variant
-		if String(change.get("object_id", "")) == "power_debug_graph_no_source_consumer" and String(change.get("reason", "")) == "no_powered_source":
+		if str(change.get("object_id", "")) == "power_debug_graph_no_source_consumer" and str(change.get("reason", "")) == "no_powered_source":
 			graph_no_source_reason_ok = true
 			break
 	if not graph_no_source_reason_ok:
@@ -8041,25 +8041,25 @@ func validate_power_network_debug_scenario() -> Array[String]:
 		if typeof(change_variant) != TYPE_DICTIONARY:
 			continue
 		var change: Dictionary = change_variant
-		if String(change.get("object_id", "")) == "power_debug_graph_damaged_consumer_source":
+		if str(change.get("object_id", "")) == "power_debug_graph_damaged_consumer_source":
 			warnings.append("Graph apply regression: source object appeared in damaged-consumer changes.")
 	for change_variant in graph_damaged_preview.get("changes", []):
 		if typeof(change_variant) != TYPE_DICTIONARY:
 			continue
 		var change: Dictionary = change_variant
-		if String(change.get("object_id", "")) == "power_debug_graph_damaged_consumer" and String(change.get("reason", "")) != "damaged":
+		if str(change.get("object_id", "")) == "power_debug_graph_damaged_consumer" and str(change.get("reason", "")) != "damaged":
 			warnings.append("Graph damaged consumer scenario regression: expected reason=damaged for preview change.")
 	var terminal_powered := get_world_object_by_id("power_debug_terminal_powered_terminal")
 	apply_power_graph_state_from_preview("power_debug_terminal_powered")
-	if not bool(terminal_powered.get("is_powered", false)) or String(terminal_powered.get("state", "")) != "active":
+	if not bool(terminal_powered.get("is_powered", false)) or str(terminal_powered.get("state", "")) != "active":
 		warnings.append("Terminal powered restore regression: terminal did not restore active powered state.")
 	var terminal_blocked := get_world_object_by_id("power_debug_terminal_blocked_terminal")
 	apply_power_graph_state_from_preview("power_debug_terminal_blocked")
-	if bool(terminal_blocked.get("is_powered", true)) or String(terminal_blocked.get("state", "")) != "unpowered":
+	if bool(terminal_blocked.get("is_powered", true)) or str(terminal_blocked.get("state", "")) != "unpowered":
 		warnings.append("Terminal blocked regression: terminal should become unpowered.")
 	var terminal_damaged := get_world_object_by_id("power_debug_terminal_damaged_terminal")
 	apply_power_graph_state_from_preview("power_debug_terminal_damaged")
-	if String(terminal_damaged.get("state", "")) != "damaged" or _is_terminal_powered_for_interaction(terminal_damaged):
+	if str(terminal_damaged.get("state", "")) != "damaged" or _is_terminal_powered_for_interaction(terminal_damaged):
 		warnings.append("Terminal damaged regression: damaged terminal must remain non-interactable.")
 	var terminal_legacy := {"object_type": "terminal", "state": "active"}
 	if not _is_terminal_powered_for_interaction(terminal_legacy):
@@ -8069,43 +8069,43 @@ func validate_power_network_debug_scenario() -> Array[String]:
 		warnings.append("Terminal explicit unpowered regression: is_powered=false must block interaction.")
 	var energy_door_blocked := get_world_object_by_id("power_debug_energy_door_blocked_door")
 	apply_power_graph_state_from_preview("power_debug_energy_door_blocked")
-	if bool(energy_door_blocked.get("is_powered", true)) or not String(energy_door_blocked.get("state", "")) in ["unpowered", "disabled"]:
+	if bool(energy_door_blocked.get("is_powered", true)) or not str(energy_door_blocked.get("state", "")) in ["unpowered", "disabled"]:
 		warnings.append("Energy door blocked regression: powered barrier did not disable when unpowered.")
 	var energy_door_powered := get_world_object_by_id("power_debug_energy_door_powered_door")
 	apply_power_graph_state_from_preview("power_debug_energy_door_powered")
-	if not bool(energy_door_powered.get("is_powered", false)) or not String(energy_door_powered.get("state", "")) in ["closed", "active", "powered"]:
+	if not bool(energy_door_powered.get("is_powered", false)) or not str(energy_door_powered.get("state", "")) in ["closed", "active", "powered"]:
 		warnings.append("Energy door powered regression: barrier did not restore.")
 	var platform_blocked := get_world_object_by_id("power_debug_platform_blocked_platform")
 	var platform_blocked_height_before := int(platform_blocked.get("height_level", 0))
 	apply_power_graph_state_from_preview("power_debug_platform_blocked")
-	if bool(platform_blocked.get("is_powered", true)) or not String(platform_blocked.get("state", "")) in ["unpowered", "disabled"] or int(platform_blocked.get("height_level", 0)) != platform_blocked_height_before:
+	if bool(platform_blocked.get("is_powered", true)) or not str(platform_blocked.get("state", "")) in ["unpowered", "disabled"] or int(platform_blocked.get("height_level", 0)) != platform_blocked_height_before:
 		warnings.append("Platform blocked regression: platform power-off should disable without movement.")
 	var platform_powered := get_world_object_by_id("power_debug_platform_powered_platform")
 	var platform_powered_height_before := int(platform_powered.get("height_level", 0))
 	apply_power_graph_state_from_preview("power_debug_platform_powered")
-	if not bool(platform_powered.get("is_powered", false)) or not String(platform_powered.get("state", "")) in ["active", "idle"] or int(platform_powered.get("height_level", 0)) != platform_powered_height_before:
+	if not bool(platform_powered.get("is_powered", false)) or not str(platform_powered.get("state", "")) in ["active", "idle"] or int(platform_powered.get("height_level", 0)) != platform_powered_height_before:
 		warnings.append("Platform powered regression: platform should restore and not move.")
 	var platform_damaged := get_world_object_by_id("power_debug_platform_damaged_platform")
-	var platform_damaged_state_before := String(platform_damaged.get("state", ""))
+	var platform_damaged_state_before := str(platform_damaged.get("state", ""))
 	apply_power_graph_state_from_preview("power_debug_platform_damaged")
-	if String(platform_damaged.get("state", "")) != platform_damaged_state_before or String(platform_damaged.get("state", "")) == "unpowered" or String(platform_damaged.get("state", "")) == "active":
+	if str(platform_damaged.get("state", "")) != platform_damaged_state_before or str(platform_damaged.get("state", "")) == "unpowered" or str(platform_damaged.get("state", "")) == "active":
 		warnings.append("Platform damaged regression: damaged platform state must be preserved when unpowered.")
 	var platform_damaged_switch := get_world_object_by_id("power_debug_platform_damaged_switch")
 	platform_damaged_switch["state"] = "switch_on"
 	apply_power_graph_state_from_preview("power_debug_platform_damaged")
-	if String(platform_damaged.get("state", "")) != platform_damaged_state_before:
+	if str(platform_damaged.get("state", "")) != platform_damaged_state_before:
 		warnings.append("Platform damaged restore regression: power restore must not heal damaged platform.")
 	var graph_filter_source := get_world_object_by_id("power_debug_graph_open_switch_source")
 	var graph_filter_gate := get_world_object_by_id("power_debug_graph_open_switch_gate")
 	var graph_filter_consumer := get_world_object_by_id("power_debug_graph_open_switch_consumer")
 	var graph_filter_source_before_preview := bool(graph_filter_source.get("is_powered", false))
-	var graph_filter_gate_state_before_preview := String(graph_filter_gate.get("state", ""))
+	var graph_filter_gate_state_before_preview := str(graph_filter_gate.get("state", ""))
 	var graph_filter_gate_power_before_preview := bool(graph_filter_gate.get("is_powered", false))
 	var graph_filter_consumer_before_preview := bool(graph_filter_consumer.get("is_powered", false))
 	var graph_filter_object_preview := preview_power_graph_state_application("power_debug_graph_open_switch_gate")
 	if int((graph_filter_object_preview.get("sources", []) as Array).size()) != 1:
 		warnings.append("Graph filter fallback regression: object-id filter did not resolve to network.")
-	if graph_filter_source_before_preview != bool(graph_filter_source.get("is_powered", false)) or graph_filter_consumer_before_preview != bool(graph_filter_consumer.get("is_powered", false)) or graph_filter_gate_state_before_preview != String(graph_filter_gate.get("state", "")) or graph_filter_gate_power_before_preview != bool(graph_filter_gate.get("is_powered", false)):
+	if graph_filter_source_before_preview != bool(graph_filter_source.get("is_powered", false)) or graph_filter_consumer_before_preview != bool(graph_filter_consumer.get("is_powered", false)) or graph_filter_gate_state_before_preview != str(graph_filter_gate.get("state", "")) or graph_filter_gate_power_before_preview != bool(graph_filter_gate.get("is_powered", false)):
 		warnings.append("Graph preview regression: object-id filter preview mutated open-switch objects.")
 	var load_ok_source := get_world_object_by_id("power_debug_source_load_ok")
 	var _load_ok_preview := preview_power_graph_state_application("power_debug_source_load_ok")
@@ -8114,7 +8114,7 @@ func validate_power_network_debug_scenario() -> Array[String]:
 	var load_ok_apply := apply_power_graph_state_from_preview("power_debug_source_load_ok")
 	if int(load_ok_source.get("source_load", -1)) != 2 or int(load_ok_source.get("source_capacity", -1)) != 2 or bool(load_ok_source.get("source_overloaded", true)):
 		warnings.append("Source load scenario A regression: expected load=2 capacity=2 overloaded=false.")
-	if String(load_ok_source.get("state", "")).to_lower() == "overheated":
+	if str(load_ok_source.get("state", "")).to_lower() == "overheated":
 		warnings.append("Source load scenario A regression: source should not overheat.")
 	if int(load_ok_apply.get("applied", 0)) < 2:
 		warnings.append("Source load scenario A regression: expected consumers to be powered.")
@@ -8128,7 +8128,7 @@ func validate_power_network_debug_scenario() -> Array[String]:
 		if typeof(source_variant) != TYPE_DICTIONARY:
 			continue
 		var source_entry: Dictionary = source_variant
-		if String(source_entry.get("object_id", "")) == "power_debug_source_fallback_class2_source" and int(source_entry.get("source_capacity", -1)) == 5:
+		if str(source_entry.get("object_id", "")) == "power_debug_source_fallback_class2_source" and int(source_entry.get("source_capacity", -1)) == 5:
 			fallback_class2_preview_capacity_ok = true
 			break
 	if not fallback_class2_preview_capacity_ok:
@@ -8146,7 +8146,7 @@ func validate_power_network_debug_scenario() -> Array[String]:
 		if typeof(source_variant) != TYPE_DICTIONARY:
 			continue
 		var source_entry: Dictionary = source_variant
-		if String(source_entry.get("object_id", "")) == "power_debug_source_fallback_class3_source" and int(source_entry.get("source_capacity", -1)) == 6:
+		if str(source_entry.get("object_id", "")) == "power_debug_source_fallback_class3_source" and int(source_entry.get("source_capacity", -1)) == 6:
 			fallback_class3_preview_capacity_ok = true
 			break
 	if not fallback_class3_preview_capacity_ok:
@@ -8167,7 +8167,7 @@ func validate_power_network_debug_scenario() -> Array[String]:
 	if int(overheat_source.get("source_load", -1)) != -1:
 		warnings.append("Source load preview regression: source overheat preview mutated source fields.")
 	var overheat_apply := apply_power_graph_state_from_preview("power_debug_source_overheat_shutdown")
-	if String(overheat_source.get("state", "")).to_lower() != "overheated":
+	if str(overheat_source.get("state", "")).to_lower() != "overheated":
 		warnings.append("Source load scenario C regression: source did not overheat.")
 	if bool(overheat_terminal.get("is_powered", true)) or bool(overheat_platform.get("is_powered", true)):
 		warnings.append("Source load scenario C regression: dependent consumers should be unpowered.")
@@ -8175,7 +8175,7 @@ func validate_power_network_debug_scenario() -> Array[String]:
 		if typeof(change_variant) != TYPE_DICTIONARY:
 			continue
 		var change: Dictionary = change_variant
-		if String(change.get("object_id", "")) == "power_debug_source_overheat_shutdown_source":
+		if str(change.get("object_id", "")) == "power_debug_source_overheat_shutdown_source":
 			warnings.append("Source load scenario C regression: source appeared in applied changes.")
 			break
 	var allowed_fuse_remove_fields := {
@@ -8191,19 +8191,19 @@ func validate_power_network_debug_scenario() -> Array[String]:
 			continue
 		var change: Dictionary = change_variant
 		for key_variant in change.keys():
-			var key := String(key_variant)
+			var key := str(key_variant)
 			if not allowed_fuse_remove_fields.has(key):
 				warnings.append("Fuse remove event apply regression: unexpected change field %s." % key)
 				break
 	var index := mission_world_objects.size() - 1
 	while index >= 0:
 		var object_data: Dictionary = mission_world_objects[index]
-		var object_id := String(object_data.get("id", "")).strip_edges()
+		var object_id := str(object_data.get("id", "")).strip_edges()
 		if temp_ids.has(object_id):
 			mission_world_objects.remove_at(index)
 		index -= 1
 	for object_data in mission_world_objects:
-		var object_id := String(object_data.get("id", "")).strip_edges()
+		var object_id := str(object_data.get("id", "")).strip_edges()
 		if temp_ids.has(object_id):
 			warnings.append("Temporary debug power object remained after cleanup: %s." % object_id)
 	if mission_world_objects.size() != base_size:
@@ -8228,14 +8228,14 @@ func get_power_network_debug_validation_text() -> String:
 func get_power_network_full_debug_report_text(filter: String = "") -> String:
 	var preview := preview_power_graph_state_application(filter)
 	var lines: Array[String] = []
-	lines.append("PowerNetworkFullDebug: filter=%s resolved_filter=%s" % [filter.strip_edges(), String(preview.get("resolved_filter", ""))])
+	lines.append("PowerNetworkFullDebug: filter=%s resolved_filter=%s" % [filter.strip_edges(), str(preview.get("resolved_filter", ""))])
 	lines.append("Sources:")
 	for source_variant in preview.get("source_load_report", {}).get("sources", []):
 		if typeof(source_variant) != TYPE_DICTIONARY:
 			continue
 		var source: Dictionary = source_variant
-		var obj := get_world_object_by_id(String(source.get("object_id", "")))
-		lines.append("- %s state=%s available=%s load=%d/%d heat=%d/%d overloaded=%s" % [String(source.get("object_id", "")), String(source.get("state", obj.get("state", ""))), str(_is_power_source_available(obj)).to_lower(), int(source.get("source_load", 0)), int(source.get("source_capacity", 0)), int(source.get("current_heat", 0)), int(source.get("overheat_threshold", 0)), str(bool(source.get("source_overloaded", false))).to_lower()])
+		var obj := get_world_object_by_id(str(source.get("object_id", "")))
+		lines.append("- %s state=%s available=%s load=%d/%d heat=%d/%d overloaded=%s" % [str(source.get("object_id", "")), str(source.get("state", obj.get("state", ""))), str(_is_power_source_available(obj)).to_lower(), int(source.get("source_load", 0)), int(source.get("source_capacity", 0)), int(source.get("current_heat", 0)), int(source.get("overheat_threshold", 0)), str(bool(source.get("source_overloaded", false))).to_lower()])
 	lines.append("Gates:")
 	for object_data in mission_world_objects:
 		if not _is_power_network_object(object_data):
@@ -8245,14 +8245,14 @@ func get_power_network_full_debug_report_text(filter: String = "") -> String:
 		var gate := _get_power_gate_state(object_data)
 		if not bool(gate.get("is_gate", false)):
 			continue
-		lines.append("- %s type=%s state=%s closed=%s reason=%s" % [String(object_data.get("id", "")), String(gate.get("gate_type", "")), String(object_data.get("state", "")), str(bool(gate.get("is_closed", true))).to_lower(), String(gate.get("reason", ""))])
+		lines.append("- %s type=%s state=%s closed=%s reason=%s" % [str(object_data.get("id", "")), str(gate.get("gate_type", "")), str(object_data.get("state", "")), str(bool(gate.get("is_closed", true))).to_lower(), str(gate.get("reason", ""))])
 	lines.append("Consumers:")
 	for object_data in mission_world_objects:
 		if _is_power_source_object(object_data) or not _is_power_network_object(object_data):
 			continue
 		if not _resolve_power_graph_filter_to_network_id(filter).is_empty() and _get_power_network_id(object_data) != _resolve_power_graph_filter_to_network_id(filter):
 			continue
-		lines.append("- %s type=%s powered=%s state=%s reason=%s" % [String(object_data.get("id", "")), String(object_data.get("object_type", "")), str(bool(object_data.get("is_powered", false))).to_lower(), String(object_data.get("state", "")), String(object_data.get("power_unavailable_reason", ""))])
+		lines.append("- %s type=%s powered=%s state=%s reason=%s" % [str(object_data.get("id", "")), str(object_data.get("object_type", "")), str(bool(object_data.get("is_powered", false))).to_lower(), str(object_data.get("state", "")), str(object_data.get("power_unavailable_reason", ""))])
 	lines.append("Blocked:")
 	for b in preview.get("blocked", []):
 		lines.append("- %s" % str(b))
@@ -8263,16 +8263,16 @@ func get_power_network_full_debug_report_text(filter: String = "") -> String:
 	lines.append(str(preview.get("source_load_report", {})))
 	lines.append("Warnings:")
 	for w in preview.get("warnings", []):
-		lines.append("- %s" % String(w))
+		lines.append("- %s" % str(w))
 	return "\n".join(lines)
 
 func validate_full_power_system_runtime() -> Array[String]:
 	var warnings := validate_power_network_debug_scenario()
 	var runtime_validation := validate_power_network_runtime_state()
 	for warning in runtime_validation.get("warnings", []):
-		warnings.append("runtime: %s" % String(warning))
+		warnings.append("runtime: %s" % str(warning))
 	for err in runtime_validation.get("errors", []):
-		warnings.append("runtime_error: %s" % String(err))
+		warnings.append("runtime_error: %s" % str(err))
 	var temp_objects: Array[Dictionary] = []
 	var cleanup_ids: Array[String] = []
 	temp_objects.append(_build_power_network_debug_object("power_debug_source_recovery_source", "power_source_class_1", "power_debug_source_recovery", {"state": "overheated", "is_powered": false, "overheated_state_before": "active", "current_heat": 4, "working_heat": 1, "heat_from_connections": 2, "cooling_received": 5, "overheat_threshold": 4}))
@@ -8285,10 +8285,10 @@ func validate_full_power_system_runtime() -> Array[String]:
 	temp_objects.append(_build_power_network_debug_object("power_debug_source_recovery_broken_terminal", "terminal", "power_debug_source_recovery_broken", {"is_powered": false, "state": "unpowered"}))
 	for object_data in temp_objects:
 		mission_world_objects.append(object_data)
-		cleanup_ids.append(String(object_data.get("id", "")))
+		cleanup_ids.append(str(object_data.get("id", "")))
 	var recovery_a := execute_power_source_recovery_apply("power_debug_source_recovery")
 	var source_a := get_world_object_by_id("power_debug_source_recovery_source")
-	if String(source_a.get("state", "")).to_lower() != "active":
+	if str(source_a.get("state", "")).to_lower() != "active":
 		warnings.append("power_debug_source_recovery: expected source state active after valid cooling recovery.")
 	if not _is_power_source_available(source_a):
 		warnings.append("power_debug_source_recovery: expected source available after valid cooling recovery.")
@@ -8296,7 +8296,7 @@ func validate_full_power_system_runtime() -> Array[String]:
 	for change_variant in recovery_a_changes:
 		if typeof(change_variant) != TYPE_DICTIONARY:
 			continue
-		if String(Dictionary(change_variant).get("object_id", "")) == "power_debug_source_recovery_source":
+		if str(Dictionary(change_variant).get("object_id", "")) == "power_debug_source_recovery_source":
 			warnings.append("power_debug_source_recovery: source should not be included in consumer apply changes.")
 			break
 	for object_id in ["power_debug_source_recovery_terminal", "power_debug_source_recovery_door", "power_debug_source_recovery_platform"]:
@@ -8305,11 +8305,11 @@ func validate_full_power_system_runtime() -> Array[String]:
 			warnings.append("power_debug_source_recovery: expected %s to become powered after valid recovery." % object_id)
 	var recovery_b := execute_power_source_recovery_apply("power_debug_source_recovery_damaged")
 	var source_b := get_world_object_by_id("power_debug_source_recovery_damaged_source")
-	if String(source_b.get("state", "")).to_lower() == "active":
+	if str(source_b.get("state", "")).to_lower() == "active":
 		warnings.append("power_debug_source_recovery_damaged: source unexpectedly recovered to active from damaged pre-overheat state.")
 	if _is_power_source_available(source_b):
 		warnings.append("power_debug_source_recovery_damaged: expected source to remain unavailable.")
-	if String(source_b.get("power_unavailable_reason", "")) != "source_damage_state":
+	if str(source_b.get("power_unavailable_reason", "")) != "source_damage_state":
 		warnings.append("power_debug_source_recovery_damaged: expected power_unavailable_reason=source_damage_state.")
 	if bool(get_world_object_by_id("power_debug_source_recovery_damaged_terminal").get("is_powered", false)):
 		warnings.append("power_debug_source_recovery_damaged: consumer should remain unpowered.")
@@ -8317,20 +8317,20 @@ func validate_full_power_system_runtime() -> Array[String]:
 		warnings.append("power_debug_source_recovery_damaged: expected recovery warning for blocked damaged restore.")
 	var _recovery_c := execute_power_source_recovery_apply("power_debug_source_recovery_broken")
 	var source_c := get_world_object_by_id("power_debug_source_recovery_broken_source")
-	if String(source_c.get("state", "")).to_lower() == "active":
+	if str(source_c.get("state", "")).to_lower() == "active":
 		warnings.append("power_debug_source_recovery_broken: source unexpectedly recovered while broken=true.")
 	if bool(get_world_object_by_id("power_debug_source_recovery_broken_terminal").get("is_powered", false)):
 		warnings.append("power_debug_source_recovery_broken: consumer should remain unpowered.")
 	var report_snapshot := {}
 	for object_id in ["power_debug_source_recovery_source", "power_debug_source_recovery_terminal", "power_debug_source_recovery_door", "power_debug_source_recovery_platform"]:
 		var obj := get_world_object_by_id(object_id)
-		report_snapshot[object_id] = {"state": String(obj.get("state", "")), "is_powered": bool(obj.get("is_powered", false)), "power_unavailable_reason": String(obj.get("power_unavailable_reason", "")), "connected": bool(obj.get("connected", false))}
+		report_snapshot[object_id] = {"state": str(obj.get("state", "")), "is_powered": bool(obj.get("is_powered", false)), "power_unavailable_reason": str(obj.get("power_unavailable_reason", "")), "connected": bool(obj.get("connected", false))}
 	get_power_network_full_debug_report_text("power_debug_source_recovery")
 	for object_id in report_snapshot.keys():
-		var obj := get_world_object_by_id(String(object_id))
+		var obj := get_world_object_by_id(str(object_id))
 		var snap: Dictionary = report_snapshot[object_id]
-		if String(obj.get("state", "")) != String(snap.get("state", "")) or bool(obj.get("is_powered", false)) != bool(snap.get("is_powered", false)) or String(obj.get("power_unavailable_reason", "")) != String(snap.get("power_unavailable_reason", "")) or bool(obj.get("connected", false)) != bool(snap.get("connected", false)):
-			warnings.append("power_debug_source_recovery: full debug report mutated runtime state for %s." % String(object_id))
+		if str(obj.get("state", "")) != str(snap.get("state", "")) or bool(obj.get("is_powered", false)) != bool(snap.get("is_powered", false)) or str(obj.get("power_unavailable_reason", "")) != str(snap.get("power_unavailable_reason", "")) or bool(obj.get("connected", false)) != bool(snap.get("connected", false)):
+			warnings.append("power_debug_source_recovery: full debug report mutated runtime state for %s." % str(object_id))
 	var runtime_object := _build_power_network_debug_object("power_debug_runtime_save_fields", "terminal", "power_debug_runtime_save")
 	runtime_object["state"] = "unpowered"
 	runtime_object["is_powered"] = false
@@ -8359,16 +8359,16 @@ func validate_full_power_system_runtime() -> Array[String]:
 		if not saved_entry.has(field_name):
 			warnings.append("power_debug_runtime_save_fields: runtime snapshot missing field %s." % field_name)
 	for i in range(mission_world_objects.size() - 1, -1, -1):
-		var object_id := String(mission_world_objects[i].get("id", "")).strip_edges()
+		var object_id := str(mission_world_objects[i].get("id", "")).strip_edges()
 		if cleanup_ids.has(object_id):
 			mission_world_objects.remove_at(i)
 	for warning in validate_cooling_runtime():
-		warnings.append(String(warning))
+		warnings.append(str(warning))
 	for warning in validate_cooling_and_cable_runtime():
-		warnings.append(String(warning))
+		warnings.append(str(warning))
 	if has_method("validate_platform_scan_visibility_runtime"):
 		for warning in validate_platform_scan_visibility_runtime():
-			warnings.append(String(warning))
+			warnings.append(str(warning))
 	return warnings
 
 func validate_cooling_runtime() -> Array[String]:
@@ -8388,7 +8388,7 @@ func validate_power_cable_reel_normalization() -> Array[String]:
 	no_connected_ends["damaged"] = false
 	no_connected_ends["broken"] = false
 	_normalize_power_cable_reel_state(no_connected_ends)
-	if bool(no_connected_ends.get("connected", true)) or not bool(no_connected_ends.get("disconnected", false)) or String(no_connected_ends.get("end_1_state", "")) != "on_reel" or String(no_connected_ends.get("end_2_state", "")) != "on_reel":
+	if bool(no_connected_ends.get("connected", true)) or not bool(no_connected_ends.get("disconnected", false)) or str(no_connected_ends.get("end_1_state", "")) != "on_reel" or str(no_connected_ends.get("end_2_state", "")) != "on_reel":
 		warnings.append("Cable reel normalization regression: repaired reel without connected ends is inconsistent.")
 	var one_connected_end: Dictionary = {"state":"broken", "end_1_state":"connected", "end_1_target_id":"socket_a", "end_1_path_cells":[Vector2i(1, 0)], "end_1_cable_length":1, "end_2_state":"on_reel", "end_2_target_id":""}
 	_normalize_power_cable_reel_state(one_connected_end)
@@ -8397,20 +8397,20 @@ func validate_power_cable_reel_normalization() -> Array[String]:
 	one_connected_end["state"] = "ok"
 	one_connected_end["broken"] = false
 	_normalize_power_cable_reel_state(one_connected_end)
-	if not bool(one_connected_end.get("connected", false)) or bool(one_connected_end.get("disconnected", true)) or String(one_connected_end.get("cable_endpoint_b_id", "")) != "socket_a" or int(one_connected_end.get("end_1_cable_length", 0)) != 1:
+	if not bool(one_connected_end.get("connected", false)) or bool(one_connected_end.get("disconnected", true)) or str(one_connected_end.get("cable_endpoint_b_id", "")) != "socket_a" or int(one_connected_end.get("end_1_cable_length", 0)) != 1:
 		warnings.append("Cable reel normalization regression: repaired reel lost its connected end.")
 	var disconnect_one_end: Dictionary = {"end_1_state":"disconnected", "end_1_target_id":"", "end_1_path_cells":[Vector2i(1, 0)], "end_1_cable_length":1, "end_2_state":"connected", "end_2_target_id":"socket_b", "end_2_path_cells":[Vector2i(0, 1)], "end_2_cable_length":1}
 	_normalize_power_cable_reel_state(disconnect_one_end)
-	if not bool(disconnect_one_end.get("connected", false)) or String(disconnect_one_end.get("cable_endpoint_b_id", "")) != "socket_b" or not Array(disconnect_one_end.get("end_1_path_cells", [])).is_empty() or int(disconnect_one_end.get("end_1_cable_length", -1)) != 0:
+	if not bool(disconnect_one_end.get("connected", false)) or str(disconnect_one_end.get("cable_endpoint_b_id", "")) != "socket_b" or not Array(disconnect_one_end.get("end_1_path_cells", [])).is_empty() or int(disconnect_one_end.get("end_1_cable_length", -1)) != 0:
 		warnings.append("Cable reel normalization regression: disconnecting one end did not preserve the other end.")
 	disconnect_one_end["end_2_state"] = "disconnected"
 	disconnect_one_end["end_2_target_id"] = ""
 	_normalize_power_cable_reel_state(disconnect_one_end)
-	if bool(disconnect_one_end.get("connected", true)) or not bool(disconnect_one_end.get("disconnected", false)) or not String(disconnect_one_end.get("cable_endpoint_b_id", "missing")).is_empty():
+	if bool(disconnect_one_end.get("connected", true)) or not bool(disconnect_one_end.get("disconnected", false)) or not str(disconnect_one_end.get("cable_endpoint_b_id", "missing")).is_empty():
 		warnings.append("Cable reel normalization regression: disconnecting both ends left aggregate connection state.")
 	var old_cable: Dictionary = {"id":"old_cable", "connected":true, "disconnected":false, "cable_endpoint_b_id":"legacy_socket"}
 	_normalize_power_cable_reel_state(old_cable)
-	if not bool(old_cable.get("connected", false)) or bool(old_cable.get("disconnected", true)) or String(old_cable.get("end_1_state", "")) != "connected" or String(old_cable.get("end_1_target_id", "")) != "legacy_socket" or String(old_cable.get("end_2_state", "")) != "on_reel":
+	if not bool(old_cable.get("connected", false)) or bool(old_cable.get("disconnected", true)) or str(old_cable.get("end_1_state", "")) != "connected" or str(old_cable.get("end_1_target_id", "")) != "legacy_socket" or str(old_cable.get("end_2_state", "")) != "on_reel":
 		warnings.append("Cable reel normalization regression: old cable map compatibility failed.")
 	return warnings
 
@@ -8440,13 +8440,13 @@ func validate_cooling_and_cable_runtime() -> Array[String]:
 	if not bool(cable.get("disconnected", false)):
 		warnings.append("cable_repair_should_not_reconnect")
 	for i in range(mission_world_objects.size() - 1, -1, -1):
-		var oid := String(mission_world_objects[i].get("id", ""))
+		var oid := str(mission_world_objects[i].get("id", ""))
 		if oid.begins_with("temp_"):
 			world_objects_by_cell.erase(WorldObjectCatalogRef.to_world_cell(mission_world_objects[i].get("position", Vector2i(-1, -1)), Vector2i(-1, -1)))
 			mission_world_objects.remove_at(i)
 	apply_world_object_runtime_state(snapshot)
 	for object_id_variant in snapshot.keys():
-		var object_id := String(object_id_variant)
+		var object_id := str(object_id_variant)
 		var entry: Dictionary = snapshot.get(object_id_variant, {})
 		if entry.has("cable_path_cells") and not entry.has("cable_length"):
 			warnings.append("Runtime cable serialization regression: cable_length missing for %s." % object_id)
@@ -8494,7 +8494,7 @@ func get_xray_visible_objects(filter: String = "") -> Array[Dictionary]:
 	for object_data in mission_world_objects:
 		if not bool(object_data.get("hidden", false)): continue
 		if not bool(object_data.get("visible_with_xray", false)) and not bool(object_data.get("hidden_cable", false)): continue
-		if not filter.strip_edges().is_empty() and String(object_data.get("power_network_id", "")) != filter.strip_edges(): continue
+		if not filter.strip_edges().is_empty() and str(object_data.get("power_network_id", "")) != filter.strip_edges(): continue
 		out.append(object_data)
 	return out
 
@@ -8505,7 +8505,7 @@ func reveal_xray_objects(filter: String = "") -> Dictionary:
 		target["revealed"] = true
 		target["discovered"] = true
 		target["revealed_by_scan"] = true
-	return {"success": true, "reason": String(cap.get("reason", "ok")), "debug_reason": String(cap.get("debug_reason", "")), "revealed": targets.size()}
+	return {"success": true, "reason": str(cap.get("reason", "ok")), "debug_reason": str(cap.get("debug_reason", "")), "revealed": targets.size()}
 
 func get_world_object_debug_info(object_id: String) -> Dictionary:
 	var normalized_id := object_id.strip_edges()
@@ -8553,11 +8553,11 @@ func get_world_object_debug_info(object_id: String) -> Dictionary:
 		info["current_heat"] = int(object_data.get("current_heat", 0))
 		info["overheat_threshold"] = int(object_data.get("overheat_threshold", 0))
 		info["is_powered"] = bool(object_data.get("is_powered", false))
-		info["connected_power_source_id"] = String(object_data.get("connected_power_source_id", "")).strip_edges()
+		info["connected_power_source_id"] = str(object_data.get("connected_power_source_id", "")).strip_edges()
 		var network_summary_lines := _get_power_network_summary_lines(_get_power_network_id(object_data))
 		if not network_summary_lines.is_empty():
 			info["power_network_summary_line"] = network_summary_lines[0]
-	if String(object_data.get("object_group", "")) == "platform":
+	if str(object_data.get("object_group", "")) == "platform":
 		info["platform_state_summary"] = get_platform_state_summary(object_data)
 		info["platform_occupant_summary"] = get_platform_occupant_summary(object_data)
 	return info
@@ -8576,7 +8576,7 @@ func _get_debug_tile_info(cell: Vector2i) -> Variant:
 		TYPE_FLOAT:
 			return float(tile_variant)
 		TYPE_STRING:
-			return String(tile_variant)
+			return str(tile_variant)
 		TYPE_DICTIONARY:
 			return Dictionary(tile_variant).duplicate(true)
 		TYPE_ARRAY:
@@ -8595,7 +8595,7 @@ func _get_wall_tile_id() -> Variant:
 	for property_data in grid_manager.get_property_list():
 		if typeof(property_data) != TYPE_DICTIONARY:
 			continue
-		if String(property_data.get("name", "")) == "TILE_WALL":
+		if str(property_data.get("name", "")) == "TILE_WALL":
 			return grid_manager.get("TILE_WALL")
 	return null
 
@@ -8612,7 +8612,7 @@ func get_world_cell_debug_info(cell: Vector2i) -> Dictionary:
 			info["tile"] = tile_info
 			if typeof(tile_info) == TYPE_DICTIONARY:
 				var tile_data: Dictionary = Dictionary(tile_info)
-				if String(tile_data.get("type", "")) == "wall":
+				if str(tile_data.get("type", "")) == "wall":
 					info["is_wall"] = true
 			elif typeof(tile_info) == TYPE_INT:
 				var wall_tile_id: Variant = _get_wall_tile_id()
@@ -8620,16 +8620,16 @@ func get_world_cell_debug_info(cell: Vector2i) -> Dictionary:
 					info["is_wall"] = int(tile_info) == int(wall_tile_id)
 	var object_data := get_world_object_at_cell(cell)
 	if not object_data.is_empty():
-		info["world_object_id"] = String(object_data.get("id", ""))
-		info["world_object_type"] = String(object_data.get("object_type", ""))
+		info["world_object_id"] = str(object_data.get("id", ""))
+		info["world_object_type"] = str(object_data.get("object_type", ""))
 		if _is_power_network_object(object_data):
 			var power_network_id := _get_power_network_id(object_data)
 			info["power_network_id"] = power_network_id
 			var network_summary_lines := _get_power_network_summary_lines(power_network_id)
 			if not network_summary_lines.is_empty():
 				info["power_network_debug_summary_line"] = network_summary_lines[0]
-		if String(object_data.get("object_group", "")) == "platform":
-			info["platform_id"] = String(object_data.get("platform_id", ""))
+		if str(object_data.get("object_group", "")) == "platform":
+			info["platform_id"] = str(object_data.get("platform_id", ""))
 			info["platform_state_summary"] = get_platform_state_summary(object_data)
 			info["platform_occupant_summary"] = get_platform_occupant_summary(object_data)
 	var items: Array = cell_items.get(cell, [])
@@ -8641,8 +8641,8 @@ func get_world_cell_debug_info(cell: Vector2i) -> Dictionary:
 			if typeof(item_variant) != TYPE_DICTIONARY:
 				continue
 			var item_data := _safe_dictionary(item_variant)
-			item_ids.append(String(item_data.get("id", "")))
-			item_types.append(String(item_data.get("object_type", "")))
+			item_ids.append(str(item_data.get("id", "")))
+			item_types.append(str(item_data.get("object_type", "")))
 		info["item_ids"] = item_ids
 		info["item_types"] = item_types
 	return info
@@ -8653,10 +8653,10 @@ func get_world_objects_debug_table_text(filter: String = "") -> String:
 	var filter_text := filter.strip_edges().to_lower()
 	var object_rows: Array[String] = []
 	for object_data in mission_world_objects:
-		var object_id := String(object_data.get("id", ""))
-		var object_type := String(object_data.get("object_type", ""))
-		var object_group := String(object_data.get("object_group", ""))
-		var state := String(object_data.get("state", ""))
+		var object_id := str(object_data.get("id", ""))
+		var object_type := str(object_data.get("object_type", ""))
+		var object_group := str(object_data.get("object_group", ""))
+		var state := str(object_data.get("state", ""))
 		if not filter_text.is_empty():
 			var match_blob := ("%s|%s|%s|%s" % [object_id, object_type, object_group, state]).to_lower()
 			if match_blob.find(filter_text) == -1:
@@ -8674,9 +8674,9 @@ func get_world_objects_debug_table_text(filter: String = "") -> String:
 	return "\n".join(lines)
 
 func _format_world_object_debug_row(object_data: Dictionary) -> String:
-	var object_id := String(object_data.get("id", ""))
-	var object_type := String(object_data.get("object_type", ""))
-	var state := String(object_data.get("state", ""))
+	var object_id := str(object_data.get("id", ""))
+	var object_type := str(object_data.get("object_type", ""))
+	var state := str(object_data.get("state", ""))
 	var cell := WorldObjectCatalogRef.to_world_cell(object_data.get("position", Vector2i(-1, -1)), Vector2i(-1, -1))
 	var position_text := "[%d,%d]" % [cell.x, cell.y]
 	var heat_text := "-"
@@ -8690,7 +8690,7 @@ func _format_world_object_debug_row(object_data: Dictionary) -> String:
 		powered_text = str(bool(object_data.get("is_powered", false)))
 	var facing_text := "-"
 	if object_data.has("facing_dir"):
-		facing_text = String(object_data.get("facing_dir", "")).strip_edges()
+		facing_text = str(object_data.get("facing_dir", "")).strip_edges()
 		if facing_text.is_empty():
 			facing_text = "-"
 	var movable_text := str(WorldObjectCatalogRef.can_world_object_be_moved_by_heavy_claw(object_data))
@@ -8726,19 +8726,19 @@ func get_world_heat_debug_summary_text() -> String:
 	var invalid_cooling_metadata := 0
 	var has_cooling_debug_scenario := not get_world_object_by_id("terminal_c2_radiator").is_empty()
 	for object_data in mission_world_objects:
-		var group := String(object_data.get("object_group", ""))
-		var object_type := String(object_data.get("object_type", ""))
+		var group := str(object_data.get("object_group", ""))
+		var object_type := str(object_data.get("object_type", ""))
 		var is_power_source := object_type in ["power_source", "power_source_class_1", "power_source_class_2", "power_source_class_3"]
 		if group == "cooling":
 			cooling_devices_count += 1
 		var heat_enabled := object_data.has("working_heat") or object_data.has("overheat_threshold")
 		if group == "terminal":
 			terminals_count += 1
-			if String(object_data.get("state", "")) == "overheated":
+			if str(object_data.get("state", "")) == "overheated":
 				overheated_terminals += 1
 		elif is_power_source:
 			power_sources_count += 1
-			if String(object_data.get("state", "")) == "overheated":
+			if str(object_data.get("state", "")) == "overheated":
 				overheated_power_sources += 1
 		if heat_enabled:
 			var cooling_value := maxi(0, int(object_data.get("cooling_received", 0)))
@@ -8750,7 +8750,7 @@ func get_world_heat_debug_summary_text() -> String:
 			var threshold := int(object_data.get("overheat_threshold", 0))
 			if threshold < 0 or int(object_data.get("working_heat", 0)) < 0:
 				invalid_heat_metadata += 1
-		var object_cooling_type := String(object_data.get("cooling_device_type", ""))
+		var object_cooling_type := str(object_data.get("cooling_device_type", ""))
 		if group == "cooling":
 			if object_cooling_type.is_empty():
 				invalid_cooling_metadata += 1
@@ -8850,12 +8850,12 @@ func get_world_object_runtime_state() -> Dictionary:
 		"terminal_control_enabled"
 	]
 	for object_data in mission_world_objects:
-		var object_id := String(object_data.get("id", "")).strip_edges()
+		var object_id := str(object_data.get("id", "")).strip_edges()
 		if object_id.is_empty():
 			continue
 		var serialized := {}
 		if object_data.has("object_type"):
-			serialized["object_type"] = String(object_data.get("object_type", ""))
+			serialized["object_type"] = str(object_data.get("object_type", ""))
 		if object_data.has("position"):
 			var world_cell := WorldObjectCatalogRef.to_world_cell(object_data.get("position", Vector2i(-1, -1)), Vector2i(-1, -1))
 			serialized["position"] = [world_cell.x, world_cell.y]
@@ -8868,10 +8868,10 @@ func get_world_object_runtime_state() -> Dictionary:
 
 func _get_runtime_inventory_item_id(item_variant: Variant) -> String:
 	if item_variant is String or item_variant is StringName:
-		return String(item_variant).strip_edges()
+		return str(item_variant).strip_edges()
 	if item_variant is Dictionary:
 		var item_data: Dictionary = Dictionary(item_variant)
-		return String(item_data.get("id", item_data.get("item_id", ""))).strip_edges()
+		return str(item_data.get("id", item_data.get("item_id", ""))).strip_edges()
 	return ""
 
 func get_manipulator_item_id() -> String:
@@ -8963,12 +8963,12 @@ func remove_keycard_if_no_door_references(item_id: String) -> bool:
 		return false
 	for object_variant in mission_world_objects:
 		var object_data: Dictionary = Dictionary(object_variant)
-		if String(object_data.get("object_group", "")) != "door":
+		if str(object_data.get("object_group", "")) != "door":
 			continue
 		# Door.required_key_id is the canonical key-card link. Keep the legacy
 		# required_key compatibility field reference-sensitive as well.
-		var required_key_id: String = String(object_data.get("required_key_id", "")).strip_edges()
-		var legacy_required_key: String = String(object_data.get("required_key", "")).strip_edges()
+		var required_key_id: String = str(object_data.get("required_key_id", "")).strip_edges()
+		var legacy_required_key: String = str(object_data.get("required_key", "")).strip_edges()
 		if required_key_id == normalized_id or legacy_required_key == normalized_id:
 			return false
 	var collected: Array = get_keychain_ids()
@@ -9056,7 +9056,7 @@ func validate_runtime_inventory_storage_contract() -> Array[String]:
 
 func _validate_runtime_inventory_storage_item(item_id: String, storage_name: String, expected_class: String, stored_ids: Dictionary, warnings: Array[String]) -> void:
 	if stored_ids.has(item_id):
-		warnings.append("inventory_item_duplicated_%s_%s_%s" % [item_id, String(stored_ids[item_id]), storage_name])
+		warnings.append("inventory_item_duplicated_%s_%s_%s" % [item_id, str(stored_ids[item_id]), storage_name])
 	else:
 		stored_ids[item_id] = storage_name
 	var item_data: Dictionary = _get_known_inventory_item_data(item_id)
@@ -9093,7 +9093,7 @@ func get_actor_capability_levels() -> Dictionary:
 	if active_bipob_ref == null:
 		return defaults
 	defaults["manipulator_level"] = int(active_bipob_ref.call("get_installed_manipulator_arm_level")) if active_bipob_ref.has_method("get_installed_manipulator_arm_level") else 0
-	defaults["power_class"] = String(active_bipob_ref.call("get_bipob_power_class")) if active_bipob_ref.has_method("get_bipob_power_class") else "none"
+	defaults["power_class"] = str(active_bipob_ref.call("get_bipob_power_class")) if active_bipob_ref.has_method("get_bipob_power_class") else "none"
 	var port_state: Dictionary = active_bipob_ref.call("preview_module_port_activity") if active_bipob_ref.has_method("preview_module_port_activity") else {}
 	defaults["port_state"] = port_state
 	var modules_state: Dictionary = Dictionary(port_state.get("modules", {}))
@@ -9108,7 +9108,7 @@ func get_actor_capability_levels() -> Dictionary:
 	var level_regex := RegEx.new()
 	level_regex.compile("_v(\\d+)$")
 	for module_id_variant in modules_state.keys():
-		var module_id := String(module_id_variant)
+		var module_id := str(module_id_variant)
 		var module_state: Dictionary = Dictionary(modules_state.get(module_id_variant, {}))
 		if not bool(module_state.get("active", false)):
 			continue
@@ -9136,15 +9136,15 @@ func get_actor_capability_levels() -> Dictionary:
 	for module_variant in installed_modules:
 		if module_variant == null:
 			continue
-		var module_id := String(module_variant.id).strip_edges()
+		var module_id := str(module_variant.id).strip_edges()
 		if module_id.is_empty():
 			continue
-		if String(module_variant.category) != "Tools":
+		if str(module_variant.category) != "Tools":
 			continue
 		var module_state: Dictionary = Dictionary(modules_state.get(module_id, {}))
 		if not bool(module_state.get("active", false)):
 			continue
-		var tool_action := String(module_variant.tool_action).strip_edges()
+		var tool_action := str(module_variant.tool_action).strip_edges()
 		var tool_id := tool_action if not tool_action.is_empty() else module_id
 		if tool_seen.has(tool_id):
 			continue
@@ -9168,7 +9168,7 @@ func _build_device_diagnostic_capabilities(actor: Dictionary = {}) -> Dictionary
 	var key_card_ids: Array = get_keychain_ids()
 	var digital_ids: Array = get_digital_buffer_items() + get_digital_storage_items()
 	capabilities["has_free_manipulator"] = get_manipulator_item_id().is_empty()
-	capabilities["has_power"] = String(capabilities.get("power_class", "none")) != "none"
+	capabilities["has_power"] = str(capabilities.get("power_class", "none")) != "none"
 	capabilities["has_power_state_knowledge"] = true
 	capabilities["key_card_ids"] = key_card_ids.duplicate()
 	capabilities["digital_item_ids"] = digital_ids.duplicate()
@@ -9178,13 +9178,13 @@ func _build_device_diagnostic_capabilities(actor: Dictionary = {}) -> Dictionary
 	for item_variant in digital_ids:
 		var item_id: String = _get_runtime_inventory_item_id(item_variant)
 		var item_data: Dictionary = _get_runtime_item_data_snapshot(item_id)
-		var item_type: String = String(item_data.get("item_type", item_data.get("object_type", item_id))).strip_edges().to_lower()
+		var item_type: String = str(item_data.get("item_type", item_data.get("object_type", item_id))).strip_edges().to_lower()
 		if item_type.contains("digital_key") or item_id.to_lower().contains("digital_key"):
 			capabilities["has_digital_key"] = true
 		if item_type.contains("access_code") or item_id.to_lower().contains("access_code"):
 			capabilities["has_access_code"] = true
 	for actor_key_variant in actor.keys():
-		capabilities[String(actor_key_variant)] = actor[actor_key_variant]
+		capabilities[str(actor_key_variant)] = actor[actor_key_variant]
 	return capabilities
 
 func _append_device_diagnostic_missing(missing: Array[Dictionary], id: String, label: String, required: Variant = true, current: Variant = false) -> void:
@@ -9192,9 +9192,9 @@ func _append_device_diagnostic_missing(missing: Array[Dictionary], id: String, l
 
 func _get_device_diagnostic_requirements(target: Dictionary) -> Dictionary:
 	var access_type: String = WorldObjectCatalogRef.normalize_access_type(target.get("access_type", target.get("lock_type", "")))
-	var power_behavior: String = String(target.get("power_behavior", "")).strip_edges().to_lower()
-	var required_key_id: String = String(target.get("required_key_id", target.get("required_key", ""))).strip_edges()
-	var requires_fuse: bool = bool(target.get("fuse_required", target.get("requires_fuse", false))) or not String(target.get("required_fuse_id", "")).strip_edges().is_empty()
+	var power_behavior: String = str(target.get("power_behavior", "")).strip_edges().to_lower()
+	var required_key_id: String = str(target.get("required_key_id", target.get("required_key", ""))).strip_edges()
+	var requires_fuse: bool = bool(target.get("fuse_required", target.get("requires_fuse", false))) or not str(target.get("required_fuse_id", "")).strip_edges().is_empty()
 	var requires_cable: bool = bool(target.get("cable_connection_required", target.get("requires_cable_connection", false)))
 	var requires_repair: bool = bool(target.get("repair_required", target.get("requires_repair", false)))
 	return {
@@ -9208,7 +9208,7 @@ func _get_device_diagnostic_requirements(target: Dictionary) -> Dictionary:
 		"digital_key_required": access_type == WorldObjectCatalogRef.ACCESS_TYPE_DIGITAL_KEY,
 		"access_code_required": access_type == WorldObjectCatalogRef.ACCESS_TYPE_ACCESS_CODE or access_type == "password",
 		"terminal_required": access_type == WorldObjectCatalogRef.ACCESS_TYPE_TERMINAL or access_type == "terminal_lock",
-		"power_required": bool(target.get("power_required", false)) or (not String(target.get("power_network_id", "")).strip_edges().is_empty() and power_behavior != WorldObjectCatalogRef.POWER_BEHAVIOR_OPENS_WHEN_UNPOWERED),
+		"power_required": bool(target.get("power_required", false)) or (not str(target.get("power_network_id", "")).strip_edges().is_empty() and power_behavior != WorldObjectCatalogRef.POWER_BEHAVIOR_OPENS_WHEN_UNPOWERED),
 		"power_must_be_cut": power_behavior == WorldObjectCatalogRef.POWER_BEHAVIOR_OPENS_WHEN_UNPOWERED,
 		"fuse_required": requires_fuse,
 		"cable_connection_required": requires_cable,
@@ -9227,7 +9227,7 @@ func _get_device_diagnostic_missing(requirements: Dictionary, capabilities: Dict
 			_append_device_diagnostic_missing(missing, "%s_level_required" % capability_name, "%s Version %d required" % [capability_name.capitalize(), required_level], required_level, current_level)
 	if bool(requirements.get("free_manipulator_required", false)) and not bool(capabilities.get("has_free_manipulator", false)):
 		_append_device_diagnostic_missing(missing, "free_manipulator_required", "Free manipulator required")
-	var required_key_id: String = String(requirements.get("required_key_id", "")).strip_edges()
+	var required_key_id: String = str(requirements.get("required_key_id", "")).strip_edges()
 	var digital_ids: Array = Array(capabilities.get("digital_item_ids", []))
 	var has_required_key_card: bool = _diagnostic_has_inventory_item(required_key_id, Array(capabilities.get("key_card_ids", []))) if not required_key_id.is_empty() else bool(capabilities.get("has_key_card", false))
 	if bool(requirements.get("key_card_required", false)) and not has_required_key_card:
@@ -9238,7 +9238,7 @@ func _get_device_diagnostic_missing(requirements: Dictionary, capabilities: Dict
 	var has_required_access_code: bool = _diagnostic_has_inventory_item(required_key_id, digital_ids) if not required_key_id.is_empty() else bool(capabilities.get("has_access_code", false))
 	if bool(requirements.get("access_code_required", false)) and not has_required_access_code:
 		_append_device_diagnostic_missing(missing, "access_code_required", "Access code required", required_key_id, digital_ids)
-	if bool(requirements.get("terminal_required", false)) and String(target.get("control_terminal_id", target.get("linked_terminal_id", ""))).strip_edges().is_empty():
+	if bool(requirements.get("terminal_required", false)) and str(target.get("control_terminal_id", target.get("linked_terminal_id", ""))).strip_edges().is_empty():
 		_append_device_diagnostic_missing(missing, "terminal_required", "Linked terminal required")
 	var is_powered: bool = bool(target.get("is_powered", true))
 	if bool(requirements.get("power_required", false)) and not is_powered:
@@ -9255,7 +9255,7 @@ func _get_device_diagnostic_missing(requirements: Dictionary, capabilities: Dict
 
 func build_device_diagnostic_result(target_object: Dictionary, target_cell: Vector2i, actor: Dictionary = {}) -> Dictionary:
 	var normalized_target: Dictionary = WorldObjectCatalogRef.normalize_world_object_contract(target_object)
-	if String(normalized_target.get("object_group", "")) == "door":
+	if str(normalized_target.get("object_group", "")) == "door":
 		normalized_target = WorldObjectCatalogRef.normalize_door_contract(normalized_target)
 		normalized_target = WorldObjectCatalogRef.normalize_door_state_fields(normalized_target)
 	var scan_level: int = maxi(0, int(normalized_target.get("scan_level", 0)))
@@ -9281,26 +9281,26 @@ func build_device_diagnostic_result(target_object: Dictionary, target_cell: Vect
 	elif not missing.is_empty():
 		var missing_labels: Array[String] = []
 		for missing_item in missing:
-			missing_labels.append(String(missing_item.get("label", "Requirement missing")))
+			missing_labels.append(str(missing_item.get("label", "Requirement missing")))
 		summary = "Device blocked: %s." % ", ".join(missing_labels)
 	elif available_actions.is_empty() and not blocked_actions.is_empty():
 		summary = "Device scanned; runtime actions are blocked."
 	return {
 		"ok": not normalized_target.is_empty(),
-		"target_id": String(normalized_target.get("id", "")),
-		"target_name": String(normalized_target.get("display_name", normalized_target.get("name", normalized_target.get("object_type", "Unknown device")))),
-		"target_group": String(normalized_target.get("object_group", "")),
-		"target_type": String(normalized_target.get("object_type", "")),
+		"target_id": str(normalized_target.get("id", "")),
+		"target_name": str(normalized_target.get("display_name", normalized_target.get("name", normalized_target.get("object_type", "Unknown device")))),
+		"target_group": str(normalized_target.get("object_group", "")),
+		"target_type": str(normalized_target.get("object_type", "")),
 		"target_cell": target_cell,
 		"scan_level": scan_level,
 		"required_scan_level": int(requirements.get("scan_level", 0)),
 		"is_scanned": scan_level > 0,
 		"is_known": bool(normalized_target.get("discovered", normalized_target.get("revealed", scan_level > 0))),
-		"state": String(normalized_target.get("state", "unknown")),
+		"state": str(normalized_target.get("state", "unknown")),
 		"power_state": "powered" if bool(normalized_target.get("is_powered", true)) else "unpowered",
-		"door_type": String(normalized_target.get("door_type", "")),
-		"material": String(normalized_target.get("material", "")),
-		"access_type": String(normalized_target.get("access_type", "")),
+		"door_type": str(normalized_target.get("door_type", "")),
+		"material": str(normalized_target.get("material", "")),
+		"access_type": str(normalized_target.get("access_type", "")),
 		"requirements": requirements,
 		"capabilities": capabilities,
 		"missing": missing,
@@ -9347,8 +9347,8 @@ func _get_device_interaction_blocked_message(reason: String, missing_item: Dicti
 func build_device_interaction_preflight(target_object: Dictionary, target_cell: Vector2i, action_id: String, actor: Dictionary = {}) -> Dictionary:
 	var target_snapshot: Dictionary = target_object.duplicate(true)
 	var diagnostic: Dictionary = build_device_diagnostic_result(target_snapshot, target_cell, actor)
-	var target_id: String = String(diagnostic.get("target_id", target_snapshot.get("id", "")))
-	var target_name: String = String(diagnostic.get("target_name", target_snapshot.get("display_name", target_snapshot.get("name", "Unknown device"))))
+	var target_id: String = str(diagnostic.get("target_id", target_snapshot.get("id", "")))
+	var target_name: String = str(diagnostic.get("target_name", target_snapshot.get("display_name", target_snapshot.get("name", "Unknown device"))))
 	var result: Dictionary = {
 		"success": true,
 		"action_id": action_id,
@@ -9371,7 +9371,7 @@ func build_device_interaction_preflight(target_object: Dictionary, target_cell: 
 		if typeof(missing_variant) != TYPE_DICTIONARY:
 			continue
 		var missing_item: Dictionary = missing_variant
-		var missing_id: String = String(missing_item.get("id", ""))
+		var missing_id: String = str(missing_item.get("id", ""))
 		if blocking_ids.has(missing_id):
 			result["success"] = false
 			result["preflight_ok"] = false
@@ -9382,9 +9382,9 @@ func build_device_interaction_preflight(target_object: Dictionary, target_cell: 
 		if typeof(descriptor_variant) != TYPE_DICTIONARY:
 			continue
 		var descriptor: Dictionary = descriptor_variant
-		if String(descriptor.get("id", "")) != action_id:
+		if str(descriptor.get("id", "")) != action_id:
 			continue
-		var descriptor_reason: String = String(descriptor.get("reason", "action_unavailable"))
+		var descriptor_reason: String = str(descriptor.get("reason", "action_unavailable"))
 		result["success"] = false
 		result["preflight_ok"] = false
 		result["blocked_reason"] = descriptor_reason
@@ -9418,18 +9418,18 @@ func _get_device_interaction_action_label(diagnostic: Dictionary, action_id: Str
 		if typeof(descriptor_variant) != TYPE_DICTIONARY:
 			continue
 		var descriptor: Dictionary = descriptor_variant
-		if String(descriptor.get("id", "")) == action_id:
-			return String(descriptor.get("label", action_id.capitalize()))
+		if str(descriptor.get("id", "")) == action_id:
+			return str(descriptor.get("label", action_id.capitalize()))
 	return action_id.capitalize()
 
 func _device_diagnostic_has_available_action(diagnostic: Dictionary, action_id: String) -> bool:
 	for descriptor_variant in Array(diagnostic.get("available_actions", [])):
-		if typeof(descriptor_variant) == TYPE_DICTIONARY and String(Dictionary(descriptor_variant).get("id", "")) == action_id:
+		if typeof(descriptor_variant) == TYPE_DICTIONARY and str(Dictionary(descriptor_variant).get("id", "")) == action_id:
 			return true
 	return false
 
 func _is_device_interaction_state_flow_target(target: Dictionary, diagnostic: Dictionary) -> bool:
-	var target_group: String = String(target.get("object_group", "")).strip_edges().to_lower()
+	var target_group: String = str(target.get("object_group", "")).strip_edges().to_lower()
 	if target_group in ["door", "terminal", "device", "power", "platform"] or bool(target.get("is_digital_device", false)):
 		return true
 	var requirements_variant: Variant = diagnostic.get("requirements", {})
@@ -9449,8 +9449,8 @@ func build_device_interaction_state_flow(target_object: Dictionary, target_cell:
 	var diagnostic: Dictionary = build_device_diagnostic_result(target_snapshot, target_cell, actor)
 	var preflight: Dictionary = build_device_interaction_preflight(target_snapshot, target_cell, action_id, actor)
 	var result: Dictionary = {
-		"target_id": String(diagnostic.get("target_id", target_snapshot.get("id", ""))),
-		"target_name": String(diagnostic.get("target_name", target_snapshot.get("display_name", target_snapshot.get("name", "Unknown device")))),
+		"target_id": str(diagnostic.get("target_id", target_snapshot.get("id", ""))),
+		"target_name": str(diagnostic.get("target_name", target_snapshot.get("display_name", target_snapshot.get("name", "Unknown device")))),
 		"target_cell": target_cell,
 		"state": "no_target",
 		"next_step_id": "",
@@ -9481,13 +9481,13 @@ func build_device_interaction_state_flow(target_object: Dictionary, target_cell:
 		if typeof(missing_variant) != TYPE_DICTIONARY:
 			continue
 		var missing_item: Dictionary = missing_variant
-		var missing_id: String = String(missing_item.get("id", ""))
+		var missing_id: String = str(missing_item.get("id", ""))
 		var next_step: Dictionary = _get_device_interaction_state_next_step(missing_id)
 		if next_step.is_empty():
 			continue
 		result["state"] = "blocked"
-		result["next_step_id"] = String(next_step.get("id", ""))
-		result["next_step_label"] = String(next_step.get("label", ""))
+		result["next_step_id"] = str(next_step.get("id", ""))
+		result["next_step_label"] = str(next_step.get("label", ""))
 		result["message"] = _get_device_interaction_blocked_message(missing_id, missing_item)
 		return result
 	if bool(preflight.get("preflight_ok", false)) and not action_id.is_empty() and _device_diagnostic_has_available_action(diagnostic, action_id):
@@ -9497,18 +9497,18 @@ func build_device_interaction_state_flow(target_object: Dictionary, target_cell:
 		result["message"] = "Ready."
 		result["can_execute"] = true
 		return result
-	var blocked_reason: String = String(preflight.get("blocked_reason", ""))
+	var blocked_reason: String = str(preflight.get("blocked_reason", ""))
 	var blocked_step: Dictionary = _get_device_interaction_state_next_step(blocked_reason)
 	if not blocked_step.is_empty():
 		result["state"] = "blocked"
-		result["next_step_id"] = String(blocked_step.get("id", ""))
-		result["next_step_label"] = String(blocked_step.get("label", ""))
-		result["message"] = String(preflight.get("message", _get_device_interaction_blocked_message(blocked_reason)))
+		result["next_step_id"] = str(blocked_step.get("id", ""))
+		result["next_step_label"] = str(blocked_step.get("label", ""))
+		result["message"] = str(preflight.get("message", _get_device_interaction_blocked_message(blocked_reason)))
 		return result
 	result["state"] = "executed_unavailable"
 	result["message"] = "Action unavailable."
 	if not blocked_reason.is_empty():
-		result["message"] = String(preflight.get("message", _get_device_interaction_blocked_message(blocked_reason)))
+		result["message"] = str(preflight.get("message", _get_device_interaction_blocked_message(blocked_reason)))
 	return result
 
 func get_runtime_device_diagnostic(target_id: String) -> Dictionary:
@@ -9530,15 +9530,15 @@ func check_world_object_requirements(object_id: String, action: String = "") -> 
 	if int(requirements.get("required_manipulator_level", 0)) > int(capabilities.get("manipulator_level", 0)): reasons.append("manipulator_level_too_low")
 	if int(requirements.get("required_connector_level", 0)) > int(capabilities.get("connector_level", 0)): reasons.append("connector_level_too_low")
 	if int(requirements.get("required_processor_level", 0)) > int(capabilities.get("processor_level", 0)): reasons.append("processor_level_too_low")
-	var required_power_class := String(requirements.get("required_bipob_power_class", "")).strip_edges()
-	if not required_power_class.is_empty() and required_power_class != String(capabilities.get("power_class", "none")):
+	var required_power_class := str(requirements.get("required_bipob_power_class", "")).strip_edges()
+	if not required_power_class.is_empty() and required_power_class != str(capabilities.get("power_class", "none")):
 		reasons.append("power_class_too_low")
-	if not String(requirements.get("required_tool", "")).strip_edges().is_empty() and not Array(capabilities.get("tools", [])).has(String(requirements.get("required_tool", ""))):
+	if not str(requirements.get("required_tool", "")).strip_edges().is_empty() and not Array(capabilities.get("tools", [])).has(str(requirements.get("required_tool", ""))):
 		reasons.append("required_tool_missing")
-	if not String(requirements.get("required_item_id", "")).strip_edges().is_empty():
+	if not str(requirements.get("required_item_id", "")).strip_edges().is_empty():
 		var inv := get_inventory_state()
 		var all_items: Array = Array(inv.get("pocket_items", [])) + [get_manipulator_held_item_id()] + Array(inv.get("digital_buffer", []))
-		if not all_items.has(String(requirements.get("required_item_id", ""))):
+		if not all_items.has(str(requirements.get("required_item_id", ""))):
 			reasons.append("required_item_missing")
 	if reasons.is_empty():
 		reasons.append("ok")
@@ -9558,7 +9558,7 @@ func can_pickup_world_item(item_id: String) -> Dictionary:
 		return {"success": false, "reasons": ["item_does_not_fit"], "item_id": normalized_id}
 	var storage_class: String = WorldObjectCatalogRef.get_item_storage_class(item)
 	if storage_class == WorldObjectCatalogRef.ITEM_STORAGE_CLASS_DIGITAL:
-		if not bool(item.get("can_place_in_digital_buffer", true)) and String(item.get("storage_type", "")) != "digital_storage":
+		if not bool(item.get("can_place_in_digital_buffer", true)) and str(item.get("storage_type", "")) != "digital_storage":
 			return {"success": false, "reasons": ["digital_storage_full"], "message": "No free digital storage slot.", "item_id": normalized_id}
 		if not get_digital_buffer_items().is_empty():
 			return {"success": false, "reasons": ["digital_buffer_full"], "message": "No free digital buffer slot.", "item_id": normalized_id}
@@ -9578,22 +9578,22 @@ func _find_linked_door_id_for_key(item_id: String) -> String:
 	if normalized_id.is_empty():
 		return ""
 	for object_data in mission_world_objects:
-		if String(object_data.get("required_key_id", "")).strip_edges() == normalized_id:
-			return String(object_data.get("id", "")).strip_edges()
+		if str(object_data.get("required_key_id", "")).strip_edges() == normalized_id:
+			return str(object_data.get("id", "")).strip_edges()
 	return ""
 
 func _build_picked_up_world_item_runtime(item_data: Dictionary) -> Dictionary:
-	var item_id: String = String(item_data.get("id", "")).strip_edges()
+	var item_id: String = str(item_data.get("id", "")).strip_edges()
 	var snapshot := {
 		"picked_up": true,
 		"in_inventory": true,
 		"carried_by": "bipob",
 		"item_data": item_data.duplicate(true),
-		"key_kind": String(item_data.get("key_kind", "")).strip_edges(),
-		"key_type": String(item_data.get("key_type", item_data.get("item_type", ""))).strip_edges(),
-		"linked_door_id": String(item_data.get("linked_door_id", item_data.get("door_id", ""))).strip_edges()
+		"key_kind": str(item_data.get("key_kind", "")).strip_edges(),
+		"key_type": str(item_data.get("key_type", item_data.get("item_type", ""))).strip_edges(),
+		"linked_door_id": str(item_data.get("linked_door_id", item_data.get("door_id", ""))).strip_edges()
 	}
-	if String(snapshot.get("linked_door_id", "")).is_empty():
+	if str(snapshot.get("linked_door_id", "")).is_empty():
 		snapshot["linked_door_id"] = _find_linked_door_id_for_key(item_id)
 	return snapshot
 
@@ -9785,7 +9785,7 @@ func _extract_saved_world_runtime_position(saved_data: Dictionary, object_id: St
 		var tile_variant: Variant = grid_manager.call("get_tile", parsed_position)
 		if typeof(tile_variant) == TYPE_DICTIONARY:
 			var tile_data: Dictionary = tile_variant
-			if String(tile_data.get("type", "")) == "wall":
+			if str(tile_data.get("type", "")) == "wall":
 				_add_world_runtime_restore_warning("Restore skipped for %s: position %s is a wall tile." % [object_id, str(parsed_position)])
 				return {"ok": false}
 	return {"ok": true, "position": parsed_position}
@@ -9795,7 +9795,7 @@ func apply_world_object_runtime_state(saved_state: Dictionary) -> void:
 	if saved_state.is_empty():
 		return
 	for object_id_variant in saved_state.keys():
-		var object_id := String(object_id_variant).strip_edges()
+		var object_id := str(object_id_variant).strip_edges()
 		if object_id.is_empty():
 			continue
 		var saved_data_variant: Variant = saved_state.get(object_id_variant, {})
@@ -9807,7 +9807,7 @@ func apply_world_object_runtime_state(saved_state: Dictionary) -> void:
 		var is_new_object := existing_object.is_empty()
 		var candidate_object := existing_object
 		if is_new_object:
-			var object_type := String(saved_data.get("object_type", "")).strip_edges()
+			var object_type := str(saved_data.get("object_type", "")).strip_edges()
 			if object_type.is_empty():
 				_add_world_runtime_restore_warning("Restore skipped for %s: missing object_type for unknown object id." % object_id)
 				continue
@@ -9823,13 +9823,13 @@ func apply_world_object_runtime_state(saved_state: Dictionary) -> void:
 			continue
 		var new_position := Vector2i(parsed_position_info.get("position", old_position))
 		var replaced := get_world_object_at_cell(new_position)
-		if not replaced.is_empty() and String(replaced.get("id", "")) != object_id:
-			_add_world_runtime_restore_warning("Restore skipped for %s: target cell occupied by %s." % [object_id, String(replaced.get("id", ""))])
+		if not replaced.is_empty() and str(replaced.get("id", "")) != object_id:
+			_add_world_runtime_restore_warning("Restore skipped for %s: target cell occupied by %s." % [object_id, str(replaced.get("id", ""))])
 			continue
 		var runtime_updates: Dictionary = {}
 		for key_variant in saved_data.keys():
-			var key := String(key_variant)
-			if String(key) == "position":
+			var key := str(key_variant)
+			if str(key) == "position":
 				continue
 			runtime_updates[key] = saved_data[key_variant]
 		for key in runtime_updates.keys():
@@ -9886,15 +9886,15 @@ func set_active_bipob_ref(bipob: Node) -> void:
 
 func get_platform_by_id(platform_id: String) -> Dictionary:
 	for object_data in mission_world_objects:
-		if String(object_data.get("object_group", "")) != "platform":
+		if str(object_data.get("object_group", "")) != "platform":
 			continue
-		if String(object_data.get("platform_id", "")) == platform_id:
+		if str(object_data.get("platform_id", "")) == platform_id:
 			return object_data
 	return {}
 
 func get_platform_for_cell(cell: Vector2i) -> Dictionary:
 	for object_data in mission_world_objects:
-		if String(object_data.get("object_group", "")) != "platform":
+		if str(object_data.get("object_group", "")) != "platform":
 			continue
 		for platform_cell_variant in Array(object_data.get("platform_cells", [])):
 			var platform_cell := WorldObjectCatalogRef.to_world_cell(platform_cell_variant, Vector2i(-1, -1))
@@ -9904,7 +9904,7 @@ func get_platform_for_cell(cell: Vector2i) -> Dictionary:
 
 func get_cell_height_level(cell: Vector2i) -> int:
 	var platform := get_platform_for_cell(cell)
-	if platform.is_empty() or String(platform.get("platform_type", "")) != "lifting":
+	if platform.is_empty() or str(platform.get("platform_type", "")) != "lifting":
 		return 0
 	return int(platform.get("height_level", 0))
 
@@ -9915,9 +9915,9 @@ func refresh_world_object_platform_height_state(object_data: Dictionary) -> void
 	if object_cell.x < 0 or object_cell.y < 0:
 		return
 	var platform := get_platform_for_cell(object_cell)
-	if not platform.is_empty() and String(platform.get("platform_type", "")) == "lifting":
+	if not platform.is_empty() and str(platform.get("platform_type", "")) == "lifting":
 		object_data["platform_height_level"] = int(platform.get("height_level", 0))
-		object_data["carried_by_platform_id"] = String(platform.get("platform_id", ""))
+		object_data["carried_by_platform_id"] = str(platform.get("platform_id", ""))
 		return
 	object_data["platform_height_level"] = get_cell_height_level(object_cell)
 	object_data.erase("carried_by_platform_id")
@@ -9935,13 +9935,13 @@ func get_actor_height_level(actor_cell: Vector2i, actor: Node = null) -> int:
 	if actor == null:
 		return cell_height
 	if actor.has_method("get_carried_by_platform_id"):
-		var carried_platform_id := String(actor.call("get_carried_by_platform_id")).strip_edges()
+		var carried_platform_id := str(actor.call("get_carried_by_platform_id")).strip_edges()
 		if carried_platform_id.is_empty():
 			return cell_height
 		var current_platform := get_platform_for_cell(actor_cell)
 		if current_platform.is_empty():
 			return cell_height
-		var current_platform_id := String(current_platform.get("platform_id", "")).strip_edges()
+		var current_platform_id := str(current_platform.get("platform_id", "")).strip_edges()
 		if current_platform_id != carried_platform_id:
 			return cell_height
 		if actor.has_method("get_platform_height_level"):
@@ -9957,10 +9957,10 @@ func can_move_between_height_levels(from_cell: Vector2i, to_cell: Vector2i, acto
 	if from_height == to_height:
 		return true
 	if actor != null and actor.has_method("get_carried_by_platform_id"):
-		var carried_platform_id := String(actor.call("get_carried_by_platform_id")).strip_edges()
+		var carried_platform_id := str(actor.call("get_carried_by_platform_id")).strip_edges()
 		if not carried_platform_id.is_empty():
 			var target_platform := get_platform_for_cell(to_cell)
-			if not target_platform.is_empty() and String(target_platform.get("platform_id", "")).strip_edges() == carried_platform_id:
+			if not target_platform.is_empty() and str(target_platform.get("platform_id", "")).strip_edges() == carried_platform_id:
 				return true
 	return false
 
@@ -9973,7 +9973,7 @@ func get_platform_occupants(platform_id: String) -> Dictionary:
 		cells.append(WorldObjectCatalogRef.to_world_cell(c, Vector2i(-1, -1)))
 	var occupants := {"world_objects": [], "items": [], "bipobs": []}
 	for object_data in mission_world_objects:
-		if String(object_data.get("id", "")) == String(platform.get("id", "")):
+		if str(object_data.get("id", "")) == str(platform.get("id", "")):
 			continue
 		var pos := WorldObjectCatalogRef.to_world_cell(object_data.get("position", Vector2i(-1, -1)), Vector2i(-1, -1))
 		if cells.has(pos):
@@ -9986,16 +9986,16 @@ func get_platform_occupants(platform_id: String) -> Dictionary:
 		if cells.has(bipob_cell):
 			var bipob_direction := "up"
 			if active_bipob_ref.has_method("get_direction"):
-				bipob_direction = String(active_bipob_ref.get_direction())
+				bipob_direction = str(active_bipob_ref.get_direction())
 			occupants["bipobs"].append({"id":"active_bipob","position":bipob_cell,"direction":bipob_direction})
 	return occupants
 
 func can_bipob_access_platform_switch(platform: Dictionary, actor_cell: Vector2i, facing_dir: String) -> bool:
 	if platform.is_empty():
 		return false
-	if String(platform.get("object_group", "")) != "platform":
+	if str(platform.get("object_group", "")) != "platform":
 		return false
-	if String(platform.get("control_type", "internal")) != "internal":
+	if str(platform.get("control_type", "internal")) != "internal":
 		return false
 	if not platform.has("local_switch_cell"):
 		return false
@@ -10009,13 +10009,13 @@ func activate_platform_by_id(platform_id: String, source: String = "") -> Dictio
 	var platform := get_platform_by_id(platform_id)
 	if platform.is_empty():
 		return {"success":false, "message":"Platform not found."}
-	if String(platform.get("state", "active")) in ["unpowered", "disabled"] or not bool(platform.get("is_powered", true)):
+	if str(platform.get("state", "active")) in ["unpowered", "disabled"] or not bool(platform.get("is_powered", true)):
 		return {"success":false, "message":"Platform is unpowered."}
 	if bool(platform.get("requires_terminal_enabled", false)):
-		var terminal := get_world_object_by_id(String(platform.get("linked_terminal_id", "")))
-		if terminal.is_empty() or String(terminal.get("state", "active")) in ["unpowered", "disabled", "damaged"] or not bool(terminal.get("platform_control_enabled", true)) or not bool(terminal.get("is_powered", true)):
+		var terminal := get_world_object_by_id(str(platform.get("linked_terminal_id", "")))
+		if terminal.is_empty() or str(terminal.get("state", "active")) in ["unpowered", "disabled", "damaged"] or not bool(terminal.get("platform_control_enabled", true)) or not bool(terminal.get("is_powered", true)):
 			return {"success":false, "message":"Platform terminal is unavailable."}
-	var mode := String(platform.get("activation_mode", "instant"))
+	var mode := str(platform.get("activation_mode", "instant"))
 	if mode == "timer":
 		platform["pending_activation"] = true
 		platform["timer_remaining_turns"] = maxi(1, int(platform.get("timer_turns", 1)))
@@ -10040,24 +10040,24 @@ func get_platform_action_availability(platform_id: String, action: String = "") 
 	if platform.is_empty():
 		result["reasons"] = ["platform_missing"]
 		return result
-	if String(platform.get("object_group", "")) != "platform":
+	if str(platform.get("object_group", "")) != "platform":
 		result["reasons"] = ["not_platform"]
 		return result
-	result["state"] = String(platform.get("state", ""))
+	result["state"] = str(platform.get("state", ""))
 	result["is_powered"] = bool(platform.get("is_powered", false))
-	result["control_type"] = String(platform.get("control_type", "internal"))
-	result["power_type"] = String(platform.get("power_type", "external"))
+	result["control_type"] = str(platform.get("control_type", "internal"))
+	result["power_type"] = str(platform.get("power_type", "external"))
 	var reasons: Array[String] = []
-	if bool(platform.get("damaged", false)) or String(platform.get("state", "")) == "damaged": reasons.append("platform_damaged")
-	if bool(platform.get("broken", false)) or String(platform.get("state", "")) == "broken": reasons.append("platform_broken")
-	if bool(platform.get("destroyed", false)) or String(platform.get("state", "")) == "destroyed": reasons.append("platform_destroyed")
-	if not bool(platform.get("is_powered", true)) or String(platform.get("state", "")) in ["unpowered", "disabled"] or String(platform.get("power_type", "external")) == "external" and not bool(platform.get("is_powered", false)):
+	if bool(platform.get("damaged", false)) or str(platform.get("state", "")) == "damaged": reasons.append("platform_damaged")
+	if bool(platform.get("broken", false)) or str(platform.get("state", "")) == "broken": reasons.append("platform_broken")
+	if bool(platform.get("destroyed", false)) or str(platform.get("state", "")) == "destroyed": reasons.append("platform_destroyed")
+	if not bool(platform.get("is_powered", true)) or str(platform.get("state", "")) in ["unpowered", "disabled"] or str(platform.get("power_type", "external")) == "external" and not bool(platform.get("is_powered", false)):
 		reasons.append("platform_unpowered")
 	if not bool(platform.get("local_switch_enabled", true)): reasons.append("local_switch_disabled")
 	if not bool(platform.get("terminal_control_enabled", true)): reasons.append("terminal_control_disabled")
 	if bool(platform.get("requires_terminal_enabled", false)):
-		var terminal := get_world_object_by_id(String(platform.get("linked_terminal_id", "")))
-		if terminal.is_empty() or not bool(terminal.get("platform_control_enabled", true)) or String(terminal.get("state", "")) in ["unpowered", "disabled", "damaged"]:
+		var terminal := get_world_object_by_id(str(platform.get("linked_terminal_id", "")))
+		if terminal.is_empty() or not bool(terminal.get("platform_control_enabled", true)) or str(terminal.get("state", "")) in ["unpowered", "disabled", "damaged"]:
 			reasons.append("linked_terminal_unavailable")
 	if reasons.is_empty(): reasons.append("ok")
 	result["reasons"] = reasons
@@ -10066,13 +10066,13 @@ func get_platform_action_availability(platform_id: String, action: String = "") 
 
 func get_lifting_platform_carry_targets(platform_id: String) -> Array[Dictionary]:
 	var platform := get_platform_by_id(platform_id)
-	if platform.is_empty() or String(platform.get("platform_type", "")) != "lifting":
+	if platform.is_empty() or str(platform.get("platform_type", "")) != "lifting":
 		return []
 	var targets: Array[Dictionary] = []
 	for object_data in mission_world_objects:
-		if String(object_data.get("id", "")) == String(platform.get("id", "")):
+		if str(object_data.get("id", "")) == str(platform.get("id", "")):
 			continue
-		if String(object_data.get("object_group", "")) in ["wall", "door", "terminal"] and not bool(object_data.get("rotate_with_platform", false)):
+		if str(object_data.get("object_group", "")) in ["wall", "door", "terminal"] and not bool(object_data.get("rotate_with_platform", false)):
 			continue
 		if bool(object_data.get("destroyed", false)):
 			continue
@@ -10082,7 +10082,7 @@ func get_lifting_platform_carry_targets(platform_id: String) -> Array[Dictionary
 			if WorldObjectCatalogRef.to_world_cell(platform_cell_variant, Vector2i(-1, -1)) == object_cell:
 				on_platform = true
 				break
-		if on_platform or String(object_data.get("carried_by_platform_id", "")) == platform_id:
+		if on_platform or str(object_data.get("carried_by_platform_id", "")) == platform_id:
 			targets.append(object_data)
 	return targets
 
@@ -10110,12 +10110,12 @@ func apply_rotating_platform_rotation(platform_id: String, clockwise: bool = tru
 	var occupants := get_platform_occupants(platform_id)
 	platform["rotation_direction"] = "clockwise" if clockwise else "counterclockwise"
 	if platform.has("facing_dir"):
-		platform["facing_dir"] = _rotate_facing(String(platform.get("facing_dir", "up")), clockwise)
+		platform["facing_dir"] = _rotate_facing(str(platform.get("facing_dir", "up")), clockwise)
 	for obj in Array(occupants.get("world_objects", [])):
-		if String(obj.get("object_type", "")) in ["external_air_cooler", "external_air_duct"] or bool(obj.get("rotate_with_platform", false)):
+		if str(obj.get("object_type", "")) in ["external_air_cooler", "external_air_duct"] or bool(obj.get("rotate_with_platform", false)):
 			if obj.has("facing_dir"):
-				obj["facing_dir"] = _rotate_facing(String(obj.get("facing_dir", "up")), clockwise)
-	var filter := String(platform.get("power_network_id", ""))
+				obj["facing_dir"] = _rotate_facing(str(obj.get("facing_dir", "up")), clockwise)
+	var filter := str(platform.get("power_network_id", ""))
 	apply_cooling_application(filter)
 	execute_power_source_recovery_apply(filter)
 	return {"success": true, "reason": "ok", "rotation_direction": platform["rotation_direction"], "controller_id": controller_id}
@@ -10123,7 +10123,7 @@ func apply_rotating_platform_rotation(platform_id: String, clockwise: bool = tru
 func execute_platform_action(platform_id: String, action: String = "", controller_id: String = "") -> Dictionary:
 	var availability := get_platform_action_availability(platform_id, action)
 	if not bool(availability.get("available", false)):
-		return {"success": false, "platform_id": platform_id, "action": action, "reason": String((availability.get("reasons", ["blocked"]) as Array)[0]), "availability": availability}
+		return {"success": false, "platform_id": platform_id, "action": action, "reason": str((availability.get("reasons", ["blocked"]) as Array)[0]), "availability": availability}
 	var normalized := action.strip_edges().to_lower()
 	if normalized in ["", "activate", "toggle"]:
 		var r := activate_platform_by_id(platform_id, controller_id)
@@ -10150,9 +10150,9 @@ func _is_active_bipob_on_platform(platform: Dictionary) -> bool:
 	return false
 
 func _execute_platform_action(platform: Dictionary, source: String = "") -> Dictionary:
-	var platform_id := String(platform.get("platform_id", platform.get("id", "")))
-	var platform_type := String(platform.get("platform_type", ""))
-	var activation_mode := String(platform.get("activation_mode", "instant"))
+	var platform_id := str(platform.get("platform_id", platform.get("id", "")))
+	var platform_type := str(platform.get("platform_type", ""))
+	var activation_mode := str(platform.get("activation_mode", "instant"))
 	var normalized_source := source
 	var result := {
 		"success": false,
@@ -10165,16 +10165,16 @@ func _execute_platform_action(platform: Dictionary, source: String = "") -> Dict
 		"rotation_direction": ""
 	}
 	if platform_type == "rotating":
-		var rotation_direction := String(platform.get("rotation_direction", "clockwise"))
+		var rotation_direction := str(platform.get("rotation_direction", "clockwise"))
 		result["rotation_direction"] = rotation_direction
-		var occupants := get_platform_occupants(String(platform.get("platform_id", "")))
+		var occupants := get_platform_occupants(str(platform.get("platform_id", "")))
 		for obj in Array(occupants.get("world_objects", [])):
 			if obj.has("facing_dir"):
-				obj["facing_dir"] = _rotate_facing(String(obj.get("facing_dir", "up")), rotation_direction != "counterclockwise")
+				obj["facing_dir"] = _rotate_facing(str(obj.get("facing_dir", "up")), rotation_direction != "counterclockwise")
 		if _is_active_bipob_on_platform(platform) and active_bipob_ref.has_method("set_direction"):
 			var current_direction := "up"
 			if active_bipob_ref.has_method("get_direction"):
-				current_direction = String(active_bipob_ref.get_direction())
+				current_direction = str(active_bipob_ref.get_direction())
 			active_bipob_ref.set_direction(_rotate_facing(current_direction, rotation_direction != "counterclockwise"))
 		refresh_world_cooling_received()
 		result["success"] = true
@@ -10184,7 +10184,7 @@ func _execute_platform_action(platform: Dictionary, source: String = "") -> Dict
 		else:
 			result["message"] = "Platform %s rotated %s." % [platform_id, rotation_direction]
 		platform["last_activation_source"] = normalized_source
-		platform["last_activation_message"] = String(result.get("message", ""))
+		platform["last_activation_message"] = str(result.get("message", ""))
 		return result
 	if platform_type == "lifting":
 		var min_h := int(platform.get("min_height_level", 0))
@@ -10193,7 +10193,7 @@ func _execute_platform_action(platform: Dictionary, source: String = "") -> Dict
 		platform["height_level"] = max_h if previous_height <= min_h else min_h
 		var current_height := int(platform.get("height_level", min_h))
 		result["height_level"] = current_height
-		var occupants := get_platform_occupants(String(platform.get("platform_id", "")))
+		var occupants := get_platform_occupants(str(platform.get("platform_id", "")))
 		for obj in Array(occupants.get("world_objects", [])):
 			refresh_world_object_platform_height_state(obj)
 		if active_bipob_ref != null and active_bipob_ref.has_method("set_platform_height_level") and active_bipob_ref.has_method("get_grid_position"):
@@ -10201,7 +10201,7 @@ func _execute_platform_action(platform: Dictionary, source: String = "") -> Dict
 			for platform_cell_variant in Array(platform.get("platform_cells", [])):
 				var platform_cell := WorldObjectCatalogRef.to_world_cell(platform_cell_variant, Vector2i(-1, -1))
 				if platform_cell == actor_cell:
-					active_bipob_ref.call("set_platform_height_level", int(platform.get("height_level", 0)), String(platform.get("platform_id", "")))
+					active_bipob_ref.call("set_platform_height_level", int(platform.get("height_level", 0)), str(platform.get("platform_id", "")))
 					break
 		result["success"] = true
 		if current_height > previous_height:
@@ -10211,7 +10211,7 @@ func _execute_platform_action(platform: Dictionary, source: String = "") -> Dict
 		else:
 			result["message"] = "Platform %s stayed at height %d." % [platform_id, current_height]
 		platform["last_activation_source"] = normalized_source
-		platform["last_activation_message"] = String(result.get("message", ""))
+		platform["last_activation_message"] = str(result.get("message", ""))
 		return result
 	result["message"] = "Unknown platform type."
 	return result
@@ -10240,17 +10240,17 @@ func process_platform_turn_tick() -> Array[String]:
 	var events: Array[String] = []
 	var platforms: Array[Dictionary] = []
 	for object_data in mission_world_objects:
-		if String(object_data.get("object_group", "")) == "platform":
+		if str(object_data.get("object_group", "")) == "platform":
 			platforms.append(object_data)
 	if platforms.is_empty():
 		return events
 	platforms.sort_custom(func(a: Dictionary, b: Dictionary) -> bool:
-		var a_key := "%s|%s" % [String(a.get("platform_id", "")), String(a.get("id", ""))]
-		var b_key := "%s|%s" % [String(b.get("platform_id", "")), String(b.get("id", ""))]
+		var a_key := "%s|%s" % [str(a.get("platform_id", "")), str(a.get("id", ""))]
+		var b_key := "%s|%s" % [str(b.get("platform_id", "")), str(b.get("id", ""))]
 		return a_key < b_key
 	)
 	for platform in platforms:
-		var mode := String(platform.get("activation_mode", "instant"))
+		var mode := str(platform.get("activation_mode", "instant"))
 		if mode == "timer":
 			if not bool(platform.get("pending_activation", false)):
 				continue
@@ -10265,11 +10265,11 @@ func process_platform_turn_tick() -> Array[String]:
 				platform["pending_activation"] = false
 				var result := _execute_platform_action(platform, "timer")
 				if bool(result.get("success", false)):
-					var result_message := String(result.get("message", "")).strip_edges()
+					var result_message := str(result.get("message", "")).strip_edges()
 					if not result_message.is_empty():
 						events.append(result_message)
 					else:
-						events.append("%s activated (timer)." % String(platform.get("display_name", platform.get("platform_id", platform.get("id", "Platform")))))
+						events.append("%s activated (timer)." % str(platform.get("display_name", platform.get("platform_id", platform.get("id", "Platform")))))
 		elif mode == "periodic":
 			if not bool(platform.get("periodic_active", false)):
 				continue
@@ -10282,11 +10282,11 @@ func process_platform_turn_tick() -> Array[String]:
 				var periodic_result := _execute_platform_action(platform, "periodic")
 				platform["timer_remaining_turns"] = maxi(1, period_turns)
 				if bool(periodic_result.get("success", false)):
-					var periodic_message := String(periodic_result.get("message", "")).strip_edges()
+					var periodic_message := str(periodic_result.get("message", "")).strip_edges()
 					if not periodic_message.is_empty():
 						events.append(periodic_message)
 					else:
-						events.append("%s activated (periodic)." % String(platform.get("display_name", platform.get("platform_id", platform.get("id", "Platform")))))
+						events.append("%s activated (periodic)." % str(platform.get("display_name", platform.get("platform_id", platform.get("id", "Platform")))))
 	return events
 
 func process_platform_turn_tick_once(action_index: int) -> Array[String]:
@@ -10301,22 +10301,22 @@ func get_platform_last_tick_action_index() -> int:
 func get_platform_timer_debug_summary_text() -> String:
 	var lines: Array[String] = []
 	for object_data in mission_world_objects:
-		if String(object_data.get("object_group", "")) != "platform":
+		if str(object_data.get("object_group", "")) != "platform":
 			continue
-		lines.append("%s mode=%s pending=%s periodic=%s remaining=%d" % [String(object_data.get("platform_id", object_data.get("id", ""))), String(object_data.get("activation_mode", "instant")), str(bool(object_data.get("pending_activation", false))), str(bool(object_data.get("periodic_active", false))), int(object_data.get("timer_remaining_turns", 0))])
+		lines.append("%s mode=%s pending=%s periodic=%s remaining=%d" % [str(object_data.get("platform_id", object_data.get("id", ""))), str(object_data.get("activation_mode", "instant")), str(bool(object_data.get("pending_activation", false))), str(bool(object_data.get("periodic_active", false))), int(object_data.get("timer_remaining_turns", 0))])
 	return "\n".join(lines) if not lines.is_empty() else "No platforms."
 
 func get_platform_state_summary(platform: Dictionary) -> String:
-	var platform_id := String(platform.get("platform_id", platform.get("id", ""))).strip_edges()
+	var platform_id := str(platform.get("platform_id", platform.get("id", ""))).strip_edges()
 	if platform_id.is_empty():
 		platform_id = "-"
-	var platform_type := String(platform.get("platform_type", "")).strip_edges()
+	var platform_type := str(platform.get("platform_type", "")).strip_edges()
 	if platform_type.is_empty():
 		platform_type = "-"
-	var activation_mode := String(platform.get("activation_mode", "instant")).strip_edges()
+	var activation_mode := str(platform.get("activation_mode", "instant")).strip_edges()
 	if activation_mode.is_empty():
 		activation_mode = "instant"
-	var state := String(platform.get("state", "active")).strip_edges()
+	var state := str(platform.get("state", "active")).strip_edges()
 	if state.is_empty():
 		state = "active"
 	var powered_text := str(bool(platform.get("is_powered", true))).to_lower()
@@ -10324,7 +10324,7 @@ func get_platform_state_summary(platform: Dictionary) -> String:
 	if platform_type == "lifting":
 		details.append("height=%d" % int(platform.get("height_level", 0)))
 	elif platform_type == "rotating":
-		var rotation_direction := String(platform.get("rotation_direction", "")).strip_edges()
+		var rotation_direction := str(platform.get("rotation_direction", "")).strip_edges()
 		if rotation_direction.is_empty():
 			rotation_direction = "-"
 		details.append("rotation=%s" % rotation_direction)
@@ -10334,16 +10334,16 @@ func get_platform_state_summary(platform: Dictionary) -> String:
 		details.append("timer=%d/%d" % [int(platform.get("timer_remaining_turns", 0)), int(platform.get("period_turns", 0))])
 	details.append("pending=%s" % str(bool(platform.get("pending_activation", false))).to_lower())
 	details.append("periodic=%s" % str(bool(platform.get("periodic_active", false))).to_lower())
-	var control_type := String(platform.get("control_type", "internal")).strip_edges()
+	var control_type := str(platform.get("control_type", "internal")).strip_edges()
 	if control_type.is_empty():
 		control_type = "internal"
 	details.append("control=%s" % control_type)
-	var terminal_id := String(platform.get("linked_terminal_id", "")).strip_edges()
+	var terminal_id := str(platform.get("linked_terminal_id", "")).strip_edges()
 	if terminal_id.is_empty():
 		terminal_id = "-"
 	details.append("terminal=%s" % terminal_id)
-	var last_source := String(platform.get("last_activation_source", "")).strip_edges()
-	var last_message := String(platform.get("last_activation_message", "")).strip_edges()
+	var last_source := str(platform.get("last_activation_source", "")).strip_edges()
+	var last_message := str(platform.get("last_activation_message", "")).strip_edges()
 	var last_text := "-"
 	if not last_source.is_empty() and not last_message.is_empty():
 		last_text = "%s:%s" % [last_source, last_message]
@@ -10365,13 +10365,13 @@ func get_platform_state_summary_table_text(filter: String = "") -> String:
 	var filter_text := filter.strip_edges().to_lower()
 	var platforms: Array[Dictionary] = []
 	for object_data in mission_world_objects:
-		if String(object_data.get("object_group", "")) == "platform":
+		if str(object_data.get("object_group", "")) == "platform":
 			platforms.append(object_data)
 	platforms.sort_custom(func(a: Dictionary, b: Dictionary) -> bool:
-		var a_id := String(a.get("platform_id", a.get("id", ""))).strip_edges()
-		var b_id := String(b.get("platform_id", b.get("id", ""))).strip_edges()
+		var a_id := str(a.get("platform_id", a.get("id", ""))).strip_edges()
+		var b_id := str(b.get("platform_id", b.get("id", ""))).strip_edges()
 		if a_id == b_id:
-			return String(a.get("id", "")) < String(b.get("id", ""))
+			return str(a.get("id", "")) < str(b.get("id", ""))
 		return a_id < b_id
 	)
 	var lines: Array[String] = ["PlatformStateSummary:"]
@@ -10388,7 +10388,7 @@ func get_platform_state_summary_table_text(filter: String = "") -> String:
 	return "\n".join(lines)
 
 func get_platform_occupant_summary(platform: Dictionary) -> String:
-	var platform_id := String(platform.get("platform_id", platform.get("id", ""))).strip_edges()
+	var platform_id := str(platform.get("platform_id", platform.get("id", ""))).strip_edges()
 	if platform_id.is_empty():
 		platform_id = "-"
 	var cells_count := Array(platform.get("platform_cells", [])).size()
@@ -10400,14 +10400,14 @@ func get_platform_occupant_summary(platform: Dictionary) -> String:
 	var world_objects: Array = Array(occupants.get("world_objects", []))
 	var items_count := Array(occupants.get("items", [])).size()
 	var bipobs_count := Array(occupants.get("bipobs", [])).size()
-	var is_lifting_platform := String(platform.get("platform_type", "")) == "lifting"
+	var is_lifting_platform := str(platform.get("platform_type", "")) == "lifting"
 	var carried_world_objects := 0
 	var stale_world_objects := 0
 	for object_data_variant in world_objects:
 		if typeof(object_data_variant) != TYPE_DICTIONARY:
 			continue
 		var object_data: Dictionary = object_data_variant
-		var carried_id := String(object_data.get("carried_by_platform_id", "")).strip_edges()
+		var carried_id := str(object_data.get("carried_by_platform_id", "")).strip_edges()
 		if carried_id == platform_id:
 			carried_world_objects += 1
 		elif is_lifting_platform:
@@ -10432,13 +10432,13 @@ func get_platform_occupant_summary_table_text(filter: String = "") -> String:
 	var filter_text := filter.strip_edges().to_lower()
 	var platforms: Array[Dictionary] = []
 	for object_data in mission_world_objects:
-		if String(object_data.get("object_group", "")) == "platform":
+		if str(object_data.get("object_group", "")) == "platform":
 			platforms.append(object_data)
 	platforms.sort_custom(func(a: Dictionary, b: Dictionary) -> bool:
-		var a_id := String(a.get("platform_id", a.get("id", ""))).strip_edges()
-		var b_id := String(b.get("platform_id", b.get("id", ""))).strip_edges()
+		var a_id := str(a.get("platform_id", a.get("id", ""))).strip_edges()
+		var b_id := str(b.get("platform_id", b.get("id", ""))).strip_edges()
 		if a_id == b_id:
-			return String(a.get("id", "")) < String(b.get("id", ""))
+			return str(a.get("id", "")) < str(b.get("id", ""))
 		return a_id < b_id
 	)
 	var lines: Array[String] = ["PlatformOccupantSummary:"]
@@ -10460,20 +10460,20 @@ func validate_platform_runtime_state() -> Dictionary:
 	var platform_ids := {}
 	var terminal_targets_count := {}
 	for object_data in mission_world_objects:
-		var group := String(object_data.get("object_group", ""))
+		var group := str(object_data.get("object_group", ""))
 		if group == "platform":
 			platforms.append(object_data)
 			continue
-		if String(object_data.get("object_group", "")) == "terminal" and String(object_data.get("controlled_target_type", "")) == "platform":
+		if str(object_data.get("object_group", "")) == "terminal" and str(object_data.get("controlled_target_type", "")) == "platform":
 			terminals.append(object_data)
 	for platform in platforms:
-		var object_id := String(platform.get("id", ""))
-		var platform_id := String(platform.get("platform_id", "")).strip_edges()
+		var object_id := str(platform.get("id", ""))
+		var platform_id := str(platform.get("platform_id", "")).strip_edges()
 		if platform_id.is_empty():
 			errors.append("Platform %s has empty platform_id." % object_id)
 		else:
 			platform_ids[platform_id] = true
-		var platform_type := String(platform.get("platform_type", ""))
+		var platform_type := str(platform.get("platform_type", ""))
 		if not platform_type in ["rotating", "lifting"]:
 			errors.append("Platform %s has invalid platform_type %s." % [platform_id if not platform_id.is_empty() else object_id, platform_type])
 		var raw_cells: Array = platform.get("platform_cells", [])
@@ -10490,13 +10490,13 @@ func validate_platform_runtime_state() -> Dictionary:
 				continue
 			local_cells[world_cell] = true
 			if platform_cell_owner.has(world_cell):
-				errors.append("Cell %s is claimed by multiple platforms (%s and %s)." % [str(world_cell), String(platform_cell_owner[world_cell]), platform_id])
+				errors.append("Cell %s is claimed by multiple platforms (%s and %s)." % [str(world_cell), str(platform_cell_owner[world_cell]), platform_id])
 			else:
 				platform_cell_owner[world_cell] = platform_id
-		var control_type := String(platform.get("control_type", ""))
+		var control_type := str(platform.get("control_type", ""))
 		if not control_type in ["internal", "external"]:
 			errors.append("Platform %s has invalid control_type %s." % [platform_id, control_type])
-		var power_type := String(platform.get("power_type", ""))
+		var power_type := str(platform.get("power_type", ""))
 		if not power_type in ["internal", "external"]:
 			errors.append("Platform %s has invalid power_type %s." % [platform_id, power_type])
 		if control_type == "internal":
@@ -10504,7 +10504,7 @@ func validate_platform_runtime_state() -> Dictionary:
 			if local_switch.x < 0 or local_switch.y < 0:
 				errors.append("Platform %s has invalid local_switch_cell %s." % [platform_id, str(local_switch)])
 		if platform_type == "rotating":
-			var rotation_direction := String(platform.get("rotation_direction", ""))
+			var rotation_direction := str(platform.get("rotation_direction", ""))
 			if not rotation_direction in ["clockwise", "counterclockwise"]:
 				errors.append("Platform %s has invalid rotation_direction %s." % [platform_id, rotation_direction])
 			if not platform.has("rotation_direction"):
@@ -10522,7 +10522,7 @@ func validate_platform_runtime_state() -> Dictionary:
 		for timer_key in ["timer_turns", "timer_remaining_turns", "period_turns"]:
 			if int(platform.get(timer_key, 0)) < 0:
 				errors.append("Platform %s has negative %s." % [platform_id, timer_key])
-		var activation_mode := String(platform.get("activation_mode", "instant"))
+		var activation_mode := str(platform.get("activation_mode", "instant"))
 		if activation_mode == "timer":
 			if int(platform.get("timer_turns", 0)) <= 0:
 				warnings.append("Platform %s uses timer mode with timer_turns <= 0." % platform_id)
@@ -10533,7 +10533,7 @@ func validate_platform_runtime_state() -> Dictionary:
 				warnings.append("Platform %s uses periodic mode with period_turns <= 0." % platform_id)
 			if bool(platform.get("periodic_active", false)) and int(platform.get("timer_remaining_turns", 0)) <= 0 and int(platform.get("period_turns", 0)) > 0:
 				warnings.append("Platform %s has periodic_active with timer_remaining_turns <= 0." % platform_id)
-		var last_source := String(platform.get("last_activation_source", ""))
+		var last_source := str(platform.get("last_activation_source", ""))
 		if not last_source in ["", "timer", "periodic", "terminal", "local_switch", "debug", "direct"]:
 			warnings.append("Platform %s has unexpected last_activation_source %s." % [platform_id, last_source])
 		if platform.has("last_activation_message") and typeof(platform.get("last_activation_message", "")) != TYPE_STRING:
@@ -10545,7 +10545,7 @@ func validate_platform_runtime_state() -> Dictionary:
 		if has_periodic_active and activation_mode != "periodic":
 			warnings.append("Platform %s has periodic_active outside periodic mode." % platform_id)
 		if bool(platform.get("requires_terminal_enabled", false)):
-			var linked_terminal_id := String(platform.get("linked_terminal_id", "")).strip_edges()
+			var linked_terminal_id := str(platform.get("linked_terminal_id", "")).strip_edges()
 			if linked_terminal_id.is_empty():
 				errors.append("Platform %s requires terminal but linked_terminal_id is empty." % platform_id)
 			else:
@@ -10553,13 +10553,13 @@ func validate_platform_runtime_state() -> Dictionary:
 				if linked_terminal.is_empty():
 					errors.append("Platform %s linked terminal %s is missing." % [platform_id, linked_terminal_id])
 				else:
-					if String(linked_terminal.get("controlled_target_type", "")) != "platform":
+					if str(linked_terminal.get("controlled_target_type", "")) != "platform":
 						errors.append("Platform %s linked terminal %s has invalid terminal_type." % [platform_id, linked_terminal_id])
-					if String(linked_terminal.get("target_platform_id", "")) != platform_id:
-						errors.append("Platform %s linked terminal %s targets %s." % [platform_id, linked_terminal_id, String(linked_terminal.get("target_platform_id", ""))])
+					if str(linked_terminal.get("target_platform_id", "")) != platform_id:
+						errors.append("Platform %s linked terminal %s targets %s." % [platform_id, linked_terminal_id, str(linked_terminal.get("target_platform_id", ""))])
 	for terminal in terminals:
-		var terminal_id := String(terminal.get("id", ""))
-		var target_platform_id := String(terminal.get("target_platform_id", "")).strip_edges()
+		var terminal_id := str(terminal.get("id", ""))
+		var target_platform_id := str(terminal.get("target_platform_id", "")).strip_edges()
 		if target_platform_id.is_empty():
 			errors.append("Platform terminal %s has empty target_platform_id." % terminal_id)
 			continue
@@ -10569,15 +10569,15 @@ func validate_platform_runtime_state() -> Dictionary:
 	for target_id in terminal_targets_count.keys():
 		var count := int(terminal_targets_count[target_id])
 		if count > 1:
-			warnings.append("Multiple terminals (%d) target platform %s." % [count, String(target_id)])
+			warnings.append("Multiple terminals (%d) target platform %s." % [count, str(target_id)])
 	for object_data in mission_world_objects:
-		var object_id := String(object_data.get("id", ""))
-		var carried_platform_id := String(object_data.get("carried_by_platform_id", "")).strip_edges()
+		var object_id := str(object_data.get("id", ""))
+		var carried_platform_id := str(object_data.get("carried_by_platform_id", "")).strip_edges()
 		if carried_platform_id.is_empty():
 			var object_cell := WorldObjectCatalogRef.to_world_cell(object_data.get("position", Vector2i(-1, -1)), Vector2i(-1, -1))
 			var object_platform := get_platform_for_cell(object_cell)
-			if not object_platform.is_empty() and String(object_platform.get("platform_type", "")) == "lifting":
-				var expected_platform_id := String(object_platform.get("platform_id", "")).strip_edges()
+			if not object_platform.is_empty() and str(object_platform.get("platform_type", "")) == "lifting":
+				var expected_platform_id := str(object_platform.get("platform_id", "")).strip_edges()
 				warnings.append("Object %s stands on lifting platform %s but carried_by_platform_id is missing." % [object_id, expected_platform_id])
 			continue
 		if not platform_ids.has(carried_platform_id):
@@ -10588,8 +10588,8 @@ func validate_platform_runtime_state() -> Dictionary:
 		if current_platform.is_empty():
 			warnings.append("Object %s references carried_by_platform_id %s but is not on a platform cell." % [object_id, carried_platform_id])
 			continue
-		var current_platform_id := String(current_platform.get("platform_id", "")).strip_edges()
-		var current_platform_type := String(current_platform.get("platform_type", ""))
+		var current_platform_id := str(current_platform.get("platform_id", "")).strip_edges()
+		var current_platform_type := str(current_platform.get("platform_type", ""))
 		if current_platform_type != "lifting":
 			warnings.append("Object %s references carried_by_platform_id %s but stands on non-lifting platform %s." % [object_id, carried_platform_id, current_platform_id])
 			continue
@@ -10603,7 +10603,7 @@ func validate_platform_runtime_state() -> Dictionary:
 				if object_height != platform_height:
 					warnings.append("Object %s platform_height_level %d differs from platform %s height %d." % [object_id, object_height, carried_platform_id, platform_height])
 	for platform in platforms:
-		var platform_id := String(platform.get("platform_id", "")).strip_edges()
+		var platform_id := str(platform.get("platform_id", "")).strip_edges()
 		if platform_id.is_empty():
 			continue
 		var occupants := get_platform_occupants(platform_id)
@@ -10612,24 +10612,24 @@ func validate_platform_runtime_state() -> Dictionary:
 			var platform_cell := WorldObjectCatalogRef.to_world_cell(cell_variant, Vector2i(-1, -1))
 			if platform_cell.x >= 0 and platform_cell.y >= 0:
 				platform_cells.append(platform_cell)
-		var is_lifting_platform := String(platform.get("platform_type", "")) == "lifting"
+		var is_lifting_platform := str(platform.get("platform_type", "")) == "lifting"
 		var platform_height := int(platform.get("height_level", 0))
 		for world_object_variant in Array(occupants.get("world_objects", [])):
 			if typeof(world_object_variant) != TYPE_DICTIONARY:
 				continue
 			var world_object: Dictionary = world_object_variant
-			var world_object_id := String(world_object.get("id", ""))
-			var world_object_carried_id := String(world_object.get("carried_by_platform_id", "")).strip_edges()
+			var world_object_id := str(world_object.get("id", ""))
+			var world_object_carried_id := str(world_object.get("carried_by_platform_id", "")).strip_edges()
 			if is_lifting_platform and world_object_carried_id != platform_id:
 				warnings.append("World object %s is on lifting platform %s but carried_by_platform_id is stale." % [world_object_id, platform_id])
 			if is_lifting_platform and int(world_object.get("platform_height_level", 0)) != platform_height:
 				warnings.append("World object %s has platform_height_level mismatch on lifting platform %s." % [world_object_id, platform_id])
 		for world_object in mission_world_objects:
-			if String(world_object.get("carried_by_platform_id", "")).strip_edges() != platform_id:
+			if str(world_object.get("carried_by_platform_id", "")).strip_edges() != platform_id:
 				continue
 			var object_cell := WorldObjectCatalogRef.to_world_cell(world_object.get("position", Vector2i(-1, -1)), Vector2i(-1, -1))
 			if not platform_cells.has(object_cell):
-				warnings.append("World object %s is carried by platform %s but is not on its cells." % [String(world_object.get("id", "")), platform_id])
+				warnings.append("World object %s is carried by platform %s but is not on its cells." % [str(world_object.get("id", "")), platform_id])
 		if active_bipob_ref != null and active_bipob_ref.has_method("get_grid_position"):
 			var active_cell_variant: Variant = active_bipob_ref.call("get_grid_position")
 			if typeof(active_cell_variant) == TYPE_VECTOR2I:
@@ -10639,7 +10639,7 @@ func validate_platform_runtime_state() -> Dictionary:
 				var has_bipob_height_getter := active_bipob_ref.has_method("get_platform_height_level")
 				var bipob_carried_id := ""
 				if has_bipob_carried_getter:
-					bipob_carried_id = String(active_bipob_ref.call("get_carried_by_platform_id")).strip_edges()
+					bipob_carried_id = str(active_bipob_ref.call("get_carried_by_platform_id")).strip_edges()
 				if is_lifting_platform and active_on_platform and has_bipob_carried_getter and bipob_carried_id != platform_id:
 					warnings.append("Active Bipop is on lifting platform %s but carried_by_platform_id is stale." % platform_id)
 				if has_bipob_carried_getter and bipob_carried_id == platform_id and not active_on_platform:
@@ -10679,47 +10679,47 @@ func get_platform_runtime_table_text(filter: String = "") -> String:
 	var platforms: Array[Dictionary] = []
 	var terminals: Array[Dictionary] = []
 	for object_data in mission_world_objects:
-		if String(object_data.get("object_group", "")) == "platform":
+		if str(object_data.get("object_group", "")) == "platform":
 			platforms.append(object_data)
-		elif String(object_data.get("object_group", "")) == "terminal" and String(object_data.get("controlled_target_type", "")) == "platform":
+		elif str(object_data.get("object_group", "")) == "terminal" and str(object_data.get("controlled_target_type", "")) == "platform":
 			terminals.append(object_data)
 	platforms.sort_custom(func(a: Dictionary, b: Dictionary) -> bool:
-		var a_key := "%s|%s" % [String(a.get("platform_id", "")), String(a.get("id", ""))]
-		var b_key := "%s|%s" % [String(b.get("platform_id", "")), String(b.get("id", ""))]
+		var a_key := "%s|%s" % [str(a.get("platform_id", "")), str(a.get("id", ""))]
+		var b_key := "%s|%s" % [str(b.get("platform_id", "")), str(b.get("id", ""))]
 		return a_key < b_key
 	)
 	terminals.sort_custom(func(a: Dictionary, b: Dictionary) -> bool:
-		return String(a.get("id", "")) < String(b.get("id", ""))
+		return str(a.get("id", "")) < str(b.get("id", ""))
 	)
 	var lines: Array[String] = []
 	lines.append("Platforms:")
 	for platform in platforms:
-		var platform_id := String(platform.get("platform_id", platform.get("id", "")))
-		var terminal_id := String(platform.get("linked_terminal_id", "none"))
+		var platform_id := str(platform.get("platform_id", platform.get("id", "")))
+		var terminal_id := str(platform.get("linked_terminal_id", "none"))
 		if terminal_id.strip_edges().is_empty():
 			terminal_id = "none"
 		var occupants := get_platform_occupants(platform_id)
 		var occ_obj := Array(occupants.get("world_objects", [])).size()
 		var occ_item := Array(occupants.get("items", [])).size()
 		var occ_bipob := Array(occupants.get("bipobs", [])).size()
-		var mode := String(platform.get("activation_mode", "instant"))
+		var mode := str(platform.get("activation_mode", "instant"))
 		var timer_remaining := int(platform.get("timer_remaining_turns", 0))
 		var height := "-"
-		if String(platform.get("platform_type", "")) == "lifting":
+		if str(platform.get("platform_type", "")) == "lifting":
 			height = str(int(platform.get("height_level", 0)))
-		var last_source := String(platform.get("last_activation_source", "")).strip_edges()
-		var last_message := String(platform.get("last_activation_message", "")).strip_edges()
+		var last_source := str(platform.get("last_activation_source", "")).strip_edges()
+		var last_message := str(platform.get("last_activation_message", "")).strip_edges()
 		var last_fragment := "last=-"
 		if not last_source.is_empty() or not last_message.is_empty():
 			last_fragment = "last=%s:%s" % [last_source if not last_source.is_empty() else "-", last_message if not last_message.is_empty() else "-"]
 		var line := "%s | %s | cells=%d | %s | powered=%s | %s/%s | terminal=%s | %s | pending=%s | periodic=%s | timer_turns=%d | period_turns=%d | timer=%d | height=%s | occupants obj=%d item=%d bipob=%d" % [
 			platform_id,
-			String(platform.get("platform_type", "")),
+			str(platform.get("platform_type", "")),
 			Array(platform.get("platform_cells", [])).size(),
-			String(platform.get("state", "active")),
+			str(platform.get("state", "active")),
 			str(bool(platform.get("is_powered", true))).to_lower(),
-			String(platform.get("power_type", "internal")),
-			String(platform.get("control_type", "internal")),
+			str(platform.get("power_type", "internal")),
+			str(platform.get("control_type", "internal")),
 			terminal_id,
 			mode,
 			str(bool(platform.get("pending_activation", false))).to_lower(),
@@ -10733,21 +10733,21 @@ func get_platform_runtime_table_text(filter: String = "") -> String:
 			occ_bipob
 		]
 		line = "%s | %s" % [line, last_fragment]
-		var haystack := "%s %s %s %s %s" % [platform_id, String(platform.get("id", "")), String(platform.get("platform_type", "")), String(platform.get("state", "")), terminal_id]
+		var haystack := "%s %s %s %s %s" % [platform_id, str(platform.get("id", "")), str(platform.get("platform_type", "")), str(platform.get("state", "")), terminal_id]
 		if filter_text.is_empty() or haystack.to_lower().find(filter_text) != -1:
 			lines.append(line)
 	lines.append("Terminals:")
 	for terminal in terminals:
 		var line := "%s | target=%s | %s | powered=%s | enabled=%s | remote=%s | interface=%s" % [
-			String(terminal.get("id", "")),
-			String(terminal.get("target_platform_id", "")),
-			String(terminal.get("state", "active")),
+			str(terminal.get("id", "")),
+			str(terminal.get("target_platform_id", "")),
+			str(terminal.get("state", "active")),
 			str(bool(terminal.get("is_powered", true))).to_lower(),
 			str(bool(terminal.get("platform_control_enabled", true))).to_lower(),
 			str(bool(terminal.get("platform_remote_control", true))).to_lower(),
-			String(terminal.get("terminal_interface", "standard"))
+			str(terminal.get("terminal_interface", "standard"))
 		]
-		var haystack := "%s %s %s" % [String(terminal.get("id", "")), String(terminal.get("target_platform_id", "")), String(terminal.get("state", ""))]
+		var haystack := "%s %s %s" % [str(terminal.get("id", "")), str(terminal.get("target_platform_id", "")), str(terminal.get("state", ""))]
 		if filter_text.is_empty() or haystack.to_lower().find(filter_text) != -1:
 			lines.append(line)
 	return "\n".join(lines)
@@ -10859,7 +10859,7 @@ func validate_platform_timer_tick_debug_scenario() -> Array[String]:
 	var original_last_tick_action_index := platform_last_tick_action_index
 	var original_platform_snapshots := {}
 	for object_data in mission_world_objects:
-		if String(object_data.get("object_group", "")) != "platform":
+		if str(object_data.get("object_group", "")) != "platform":
 			continue
 		original_platform_snapshots[object_data] = _snapshot_platform_debug_fields(object_data, fields_to_snapshot)
 
@@ -10957,7 +10957,7 @@ func validate_platform_debug_scenario() -> Array[String]:
 	var lifting_platform := get_platform_by_id("platform_lift_a")
 	if lifting_platform.is_empty(): warnings.append("Missing lifting platform.")
 	var terminal := get_world_object_by_id("platform_terminal_debug")
-	if terminal.is_empty() or String(terminal.get("target_platform_id", "")) != "platform_rot_a": warnings.append("Platform terminal link invalid.")
+	if terminal.is_empty() or str(terminal.get("target_platform_id", "")) != "platform_rot_a": warnings.append("Platform terminal link invalid.")
 	var air_cooler := get_world_object_by_id("platform_air_cooler_debug")
 	if air_cooler.is_empty():
 		warnings.append("Missing air cooler on rotating platform.")
@@ -10975,11 +10975,11 @@ func validate_platform_debug_scenario() -> Array[String]:
 	if not rotating_platform.is_empty():
 		rotating_platform_snapshot = _snapshot_platform_debug_fields(rotating_platform, ["timer_remaining_turns", "pending_activation", "periodic_active", "requires_terminal_enabled", "permanent_state", "activation_mode", "timer_turns", "period_turns", "rotation_direction"])
 	if not rotating_platform.is_empty() and not air_cooler.is_empty():
-		var before_facing := String(air_cooler.get("facing_dir", ""))
+		var before_facing := str(air_cooler.get("facing_dir", ""))
 		var rotate_result := activate_platform_by_id("platform_rot_a", "debug_validation")
 		if not bool(rotate_result.get("success", false)):
 			warnings.append("Rotating platform activation failed during validation.")
-		var after_facing := String(air_cooler.get("facing_dir", ""))
+		var after_facing := str(air_cooler.get("facing_dir", ""))
 		if before_facing == after_facing:
 			warnings.append("Rotating platform action did not rotate air cooler.")
 	if not lifting_platform.is_empty():
@@ -10994,8 +10994,8 @@ func validate_platform_debug_scenario() -> Array[String]:
 		var wrong_access := can_bipob_access_platform_switch(lifting_platform, switch_cell + Vector2i(2, 0), "left")
 		if wrong_access:
 			warnings.append("Internal switch access returned true from wrong position.")
-		var actor_cell := switch_cell - _facing_to_vector(String(lifting_platform.get("local_switch_facing_dir", "right")))
-		var right_access := can_bipob_access_platform_switch(lifting_platform, actor_cell, String(lifting_platform.get("local_switch_facing_dir", "right")))
+		var actor_cell := switch_cell - _facing_to_vector(str(lifting_platform.get("local_switch_facing_dir", "right")))
+		var right_access := can_bipob_access_platform_switch(lifting_platform, actor_cell, str(lifting_platform.get("local_switch_facing_dir", "right")))
 		if not right_access:
 			warnings.append("Internal switch access returned false from valid position.")
 	if not rotating_platform.is_empty() and not terminal.is_empty():
@@ -11058,9 +11058,9 @@ func validate_platform_height_gating_debug_scenario() -> Array[String]:
 		warnings.append("Height gating failed: movement between same-height platform cells blocked.")
 	var candidate_object: Dictionary = {}
 	for object_data in mission_world_objects:
-		if String(object_data.get("object_group", "")) == "platform":
+		if str(object_data.get("object_group", "")) == "platform":
 			continue
-		if String(object_data.get("object_group", "")) == "item":
+		if str(object_data.get("object_group", "")) == "item":
 			continue
 		candidate_object = object_data
 		break
@@ -11071,18 +11071,18 @@ func validate_platform_height_gating_debug_scenario() -> Array[String]:
 	var object_snapshot := _snapshot_platform_debug_fields(candidate_object, ["position", "platform_height_level", "carried_by_platform_id"])
 	candidate_object["position"] = platform_cell
 	refresh_world_object_platform_height_state(candidate_object)
-	var carried_platform_id := String(candidate_object.get("carried_by_platform_id", "")).strip_edges()
-	if carried_platform_id != String(lifting_platform.get("platform_id", "")).strip_edges():
+	var carried_platform_id := str(candidate_object.get("carried_by_platform_id", "")).strip_edges()
+	if carried_platform_id != str(lifting_platform.get("platform_id", "")).strip_edges():
 		warnings.append("Object on lifting platform did not receive matching carried_by_platform_id.")
 	if int(candidate_object.get("platform_height_level", -1)) != int(lifting_platform.get("height_level", -1)):
 		warnings.append("Object platform height on lifting platform does not match platform height.")
 	candidate_object["position"] = floor_cell
 	refresh_world_object_platform_height_state(candidate_object)
-	if String(candidate_object.get("carried_by_platform_id", "")).strip_edges() != "":
+	if str(candidate_object.get("carried_by_platform_id", "")).strip_edges() != "":
 		warnings.append("Object moved off lifting platform kept carried_by_platform_id.")
 	candidate_object["position"] = platform_cell
 	refresh_world_object_platform_height_state(candidate_object)
-	if String(candidate_object.get("carried_by_platform_id", "")).strip_edges() != String(lifting_platform.get("platform_id", "")).strip_edges():
+	if str(candidate_object.get("carried_by_platform_id", "")).strip_edges() != str(lifting_platform.get("platform_id", "")).strip_edges():
 		warnings.append("Object moved onto lifting platform did not get carried_by_platform_id.")
 	_restore_platform_debug_fields(candidate_object, object_snapshot)
 	_restore_platform_debug_fields(lifting_platform, platform_snapshot)
@@ -11108,7 +11108,7 @@ func get_terminal_hack_requirements(terminal_id: String) -> Dictionary:
 	else:
 		if not _is_terminal_powered_for_interaction(terminal):
 			reasons.append("terminal_unpowered")
-		if bool(terminal.get("damaged", false)) or String(terminal.get("state", "")).to_lower() == "damaged":
+		if bool(terminal.get("damaged", false)) or str(terminal.get("state", "")).to_lower() == "damaged":
 			reasons.append("terminal_damaged")
 	if available_connector_level < required_connector_level:
 		reasons.append("connector_level_too_low")
@@ -11136,7 +11136,7 @@ func get_terminal_action_availability(terminal_id: String, action: String = "") 
 	if not _is_terminal_object(terminal):
 		report["reasons"] = ["not_terminal"]
 		return report
-	var state := String(terminal.get("state", "active")).strip_edges().to_lower()
+	var state := str(terminal.get("state", "active")).strip_edges().to_lower()
 	report["state"] = state
 	var powered := bool(terminal.get("is_powered", true)) if terminal.has("is_powered") else true
 	report["is_powered"] = powered
@@ -11160,11 +11160,11 @@ func get_terminal_action_availability(terminal_id: String, action: String = "") 
 
 func attempt_terminal_hack(terminal_id: String) -> Dictionary:
 	var terminal := get_world_object_by_id(terminal_id)
-	var before := String(terminal.get("state", "")) if not terminal.is_empty() else ""
+	var before := str(terminal.get("state", "")) if not terminal.is_empty() else ""
 	var req: Dictionary = get_terminal_hack_requirements(terminal_id)
 	if not bool(req.get("can_hack", false)):
 		return {"success": false, "terminal_id": terminal_id, "reasons": req.get("reasons", []), "state_before": before, "state_after": before, "heat_report": req.get("heat_preview", {})}
-	if String(terminal.get("state", "")) == "hacked":
+	if str(terminal.get("state", "")) == "hacked":
 		return {"success": false, "terminal_id": terminal_id, "reasons": ["already_hacked"], "state_before": before, "state_after": before, "heat_report": req.get("heat_preview", {})}
 	terminal["state"] = "hacked"
 	terminal["hacked"] = true
@@ -11177,14 +11177,14 @@ func get_terminal_control_targets(terminal_id: String) -> Array[Dictionary]:
 	if terminal.is_empty(): return []
 	var out: Array[Dictionary] = []
 	for key in ["target_door_id","target_platform_id","target_object_id","linked_object_id"]:
-		var tid := String(terminal.get(key, "")).strip_edges()
+		var tid := str(terminal.get(key, "")).strip_edges()
 		if tid != "": out.append({"target_id":tid, "source":key})
 	for key in ["controlled_object_ids", "controls"]:
 		var target_ids_variant: Variant = terminal.get(key, [])
 		if not (target_ids_variant is Array):
 			continue
 		for tidv in target_ids_variant:
-			var tid := String(tidv).strip_edges()
+			var tid := str(tidv).strip_edges()
 			if tid != "": out.append({"target_id":tid, "source":key})
 	return out
 
@@ -11199,19 +11199,19 @@ func execute_terminal_control_action(terminal_id: String, target_id: String = ""
 	var targets := get_terminal_control_targets(terminal_id)
 	var allowed: bool = normalized_target_id.is_empty() and action in global_actions
 	for target_link in targets:
-		if String(target_link.get("target_id", "")) == normalized_target_id: allowed = true
+		if str(target_link.get("target_id", "")) == normalized_target_id: allowed = true
 	if not allowed: return {"success":false, "terminal_id":terminal_id, "target_id":normalized_target_id, "action":action, "reasons":["target_invalid"]}
 	var target := get_world_object_by_id(normalized_target_id) if not normalized_target_id.is_empty() else {}
 	if action in target_actions and target.is_empty():
 		return {"success":false, "terminal_id":terminal_id, "target_id":normalized_target_id, "action":action, "reasons":["target_missing"]}
-	var target_state: String = String(target.get("state", "")).strip_edges().to_lower()
+	var target_state: String = str(target.get("state", "")).strip_edges().to_lower()
 	if action in target_actions and (target_state in ["damaged", "broken", "destroyed"] or bool(target.get("damaged", false)) or bool(target.get("broken", false)) or bool(target.get("destroyed", false))):
 		return {"success":false, "terminal_id":terminal_id, "target_id":normalized_target_id, "action":action, "reasons":["target_damaged"]}
 	if action in target_actions and target.has("is_powered") and not bool(target.get("is_powered", true)):
 		return {"success":false, "terminal_id":terminal_id, "target_id":normalized_target_id, "action":action, "reasons":["target_unpowered"]}
-	if action in ["open_door", "close_door", "unlock_door", "lock_door"] and String(target.get("object_group", "")) != "door":
+	if action in ["open_door", "close_door", "unlock_door", "lock_door"] and str(target.get("object_group", "")) != "door":
 		return {"success":false, "terminal_id":terminal_id, "target_id":normalized_target_id, "action":action, "reasons":["target_invalid"]}
-	var door_control_type: String = String(target.get("control_type", target.get("control_mode", "internal"))).strip_edges().to_lower()
+	var door_control_type: String = str(target.get("control_type", target.get("control_mode", "internal"))).strip_edges().to_lower()
 	var door_access_type: String = WorldObjectCatalogRef.normalize_access_type(target.get("access_type", "no_key"))
 	if action in ["open_door", "close_door"] and door_control_type != "external":
 		return {"success":false, "terminal_id":terminal_id, "target_id":normalized_target_id, "action":action, "reasons":["door_uses_internal_control"]}
@@ -11226,9 +11226,9 @@ func execute_terminal_control_action(terminal_id: String, target_id: String = ""
 	if action in ["open_door", "close_door", "unlock_door", "lock_door"]:
 		WorldObjectCatalogRef.normalize_door_state_fields(target)
 	elif action in ["activate_platform","toggle_platform","rotate_platform"]:
-		var platform_result: Dictionary = activate_platform_by_id(String(target.get("platform_id", normalized_target_id)), "terminal")
+		var platform_result: Dictionary = activate_platform_by_id(str(target.get("platform_id", normalized_target_id)), "terminal")
 		if not bool(platform_result.get("success", false)):
-			return {"success":false, "terminal_id":terminal_id, "target_id":normalized_target_id, "action":action, "reasons":[String(platform_result.get("reason", "platform_unavailable"))]}
+			return {"success":false, "terminal_id":terminal_id, "target_id":normalized_target_id, "action":action, "reasons":[str(platform_result.get("reason", "platform_unavailable"))]}
 	elif action == "enable_cooling":
 		apply_cooling_application()
 	elif action == "reset_source_overheat":
@@ -11244,7 +11244,7 @@ func _get_door_access_type(object_data: Dictionary) -> String:
 	return WorldObjectCatalogRef.normalize_access_type(object_data.get("access_type", object_data.get("lock_type", "")))
 
 func _get_door_type(object_data: Dictionary) -> String:
-	return String(_normalize_runtime_door_data(object_data).get("door_type", ""))
+	return str(_normalize_runtime_door_data(object_data).get("door_type", ""))
 
 func _door_is_powered_mechanism(object_data: Dictionary) -> bool:
 	return _get_door_type(object_data) == WorldObjectCatalogRef.DOOR_TYPE_POWERED
@@ -11255,15 +11255,15 @@ func get_door_access_state(door_id: String) -> Dictionary:
 		return {"door_id":door_id, "can_open":false, "can_unlock":false, "is_locked":true, "is_open":false, "is_powered":false, "reasons":["door_missing"], "lock_type":"", "access_type":"", "door_type":"", "door_class":0}
 	var normalized_door: Dictionary = _normalize_runtime_door_data(door)
 	var access_type: String = _get_door_access_type(normalized_door)
-	var lock_type: String = String(normalized_door.get("lock_type", "none"))
+	var lock_type: String = str(normalized_door.get("lock_type", "none"))
 	var is_locked: bool = bool(normalized_door.get("is_locked", false))
 	var is_open: bool = bool(normalized_door.get("is_open", false))
 	var powered: bool = bool(normalized_door.get("is_powered", true))
 	var reasons: Array[String] = []
-	if String(normalized_door.get("state", "")).to_lower() == "destroyed": reasons.append("door_destroyed")
+	if str(normalized_door.get("state", "")).to_lower() == "destroyed": reasons.append("door_destroyed")
 	elif is_locked: reasons.append("locked")
 	else: reasons.append("ok")
-	return {"door_id":door_id, "can_open":reasons.has("ok"), "can_unlock":is_locked, "is_locked":is_locked, "is_open":is_open, "is_powered":powered, "reasons":reasons, "lock_type":lock_type, "access_type":access_type, "door_type":String(normalized_door.get("door_type", "")), "door_class":int(normalized_door.get("door_class", 1))}
+	return {"door_id":door_id, "can_open":reasons.has("ok"), "can_unlock":is_locked, "is_locked":is_locked, "is_open":is_open, "is_powered":powered, "reasons":reasons, "lock_type":lock_type, "access_type":access_type, "door_type":str(normalized_door.get("door_type", "")), "door_class":int(normalized_door.get("door_class", 1))}
 
 func can_use_access_item_on_door(item_id: String, door_id: String) -> Dictionary:
 	var normalized_item_id: String = item_id.strip_edges()
@@ -11272,7 +11272,7 @@ func can_use_access_item_on_door(item_id: String, door_id: String) -> Dictionary
 	if door.is_empty():
 		return {"success":false, "item_id":normalized_item_id, "door_id":normalized_door_id, "reasons":["door_missing"]}
 	var normalized_door: Dictionary = _normalize_runtime_door_data(door)
-	var required_key_id := String(normalized_door.get("required_key_id", "")).strip_edges()
+	var required_key_id := str(normalized_door.get("required_key_id", "")).strip_edges()
 	if not required_key_id.is_empty() and normalized_item_id != required_key_id:
 		return {"success":false, "item_id":normalized_item_id, "door_id":normalized_door_id, "reasons":["wrong_key_id"]}
 	var item := get_world_object_by_id(normalized_item_id)
@@ -11282,12 +11282,12 @@ func can_use_access_item_on_door(item_id: String, door_id: String) -> Dictionary
 	if item.is_empty() and not has_collected_item:
 		return {"success":false, "item_id":normalized_item_id, "door_id":normalized_door_id, "reasons":["item_missing"]}
 	var access_type: String = _get_door_access_type(normalized_door)
-	var digital_state := String(item.get("digital_state", ""))
+	var digital_state := str(item.get("digital_state", ""))
 	if normalized_item_id.find("damaged") != -1 or digital_state == "damaged":
 		return {"success":false, "item_id":normalized_item_id, "door_id":normalized_door_id, "reasons":["digital_key_damaged"]}
 	if normalized_item_id.find("encrypted") != -1 or digital_state == "encrypted":
 		return {"success":false, "item_id":normalized_item_id, "door_id":normalized_door_id, "reasons":["digital_key_encrypted"]}
-	var key_kind := String(item.get("key_kind", "")).strip_edges()
+	var key_kind := str(item.get("key_kind", "")).strip_edges()
 	if access_type == WorldObjectCatalogRef.ACCESS_TYPE_KEY_CARD and not key_kind.is_empty() and WorldObjectCatalogRef.normalize_key_item_type(item.get("item_type", key_kind)) != WorldObjectCatalogRef.KEY_ITEM_TYPE_KEY_CARD:
 		return {"success":false, "item_id":normalized_item_id, "door_id":normalized_door_id, "reasons":["wrong_key_type"]}
 	return {"success":true, "item_id":normalized_item_id, "door_id":normalized_door_id, "reasons":["ok"]}
@@ -11297,11 +11297,11 @@ func use_access_item_on_door(item_id: String, door_id: String) -> Dictionary:
 	var normalized_door_id: String = door_id.strip_edges()
 	var gate := can_use_access_item_on_door(normalized_item_id, normalized_door_id)
 	var door := get_world_object_by_id(normalized_door_id)
-	var before := String(door.get("state", "")) if not door.is_empty() else ""
+	var before := str(door.get("state", "")) if not door.is_empty() else ""
 	if not bool(gate.get("success", false)): return {"success":false, "item_id":normalized_item_id, "door_id":normalized_door_id, "reasons":gate.get("reasons", []), "door_state_before":before, "door_state_after":before, "consumed":false}
 	door["state"] = "open"
 	WorldObjectCatalogRef.normalize_door_state_fields(door)
-	return {"success":true, "item_id":normalized_item_id, "door_id":normalized_door_id, "reasons":["ok"], "door_state_before":before, "door_state_after":String(door.get("state", "open")), "consumed":false}
+	return {"success":true, "item_id":normalized_item_id, "door_id":normalized_door_id, "reasons":["ok"], "door_state_before":before, "door_state_after":str(door.get("state", "open")), "consumed":false}
 
 func use_inventory_item_on_world_object(item_id: String, target_id: String, action: String = "") -> Dictionary:
 	var out := {"success": false, "item_id": item_id, "target_id": target_id, "action": action, "reasons": [], "consumed": false, "target_state_before": "", "target_state_after": "", "side_effects": {}}
@@ -11313,33 +11313,33 @@ func use_inventory_item_on_world_object(item_id: String, target_id: String, acti
 	if target.is_empty():
 		out["reasons"] = ["target_missing"]
 		return out
-	var item_type := String(item.get("item_type", item.get("object_type", item_id)))
-	var before := String(target.get("state", ""))
+	var item_type := str(item.get("item_type", item.get("object_type", item_id)))
+	var before := str(target.get("state", ""))
 	out["target_state_before"] = before
-	if item_type == "fuse" and String(target.get("object_type", "")) in ["fuse_box_empty", "fuse_box_installed"]:
-		if String(target.get("state", "")) == "installed":
+	if item_type == "fuse" and str(target.get("object_type", "")) in ["fuse_box_empty", "fuse_box_installed"]:
+		if str(target.get("state", "")) == "installed":
 			out["reasons"] = ["fuse_already_installed"]
 			return out
 		target["state"] = "installed"
-		out["side_effects"] = apply_power_network_after_explicit_power_event("fuse_inserted", String(target.get("power_network_id", "")))
+		out["side_effects"] = apply_power_network_after_explicit_power_event("fuse_inserted", str(target.get("power_network_id", "")))
 		out["success"] = true
 		out["consumed"] = bool(item.get("consumable", true))
 		out["reasons"] = ["ok"]
 	elif item_type == "repair_kit":
-		if bool(target.get("destroyed", false)) or String(target.get("state", "")) == "destroyed":
+		if bool(target.get("destroyed", false)) or str(target.get("state", "")) == "destroyed":
 			out["reasons"] = ["target_destroyed"]
 			return out
-		var target_object_type: String = String(target.get("object_type", "")).strip_edges().to_lower()
+		var target_object_type: String = str(target.get("object_type", "")).strip_edges().to_lower()
 		var target_is_power_cable: bool = target_object_type in ["power_cable", "power_cable_reel"]
-		if not (bool(target.get("damaged", false)) or bool(target.get("broken", false)) or bool(target.get("cut", false)) or String(target.get("state", "")) in ["damaged", "broken", "cut"]):
+		if not (bool(target.get("damaged", false)) or bool(target.get("broken", false)) or bool(target.get("cut", false)) or str(target.get("state", "")) in ["damaged", "broken", "cut"]):
 			out["reasons"] = ["already_repaired"]
 			return out
 		if target_is_power_cable:
-			out["side_effects"] = repair_power_cable(String(target.get("id", "")))
+			out["side_effects"] = repair_power_cable(str(target.get("id", "")))
 		else:
 			target["damaged"] = false
 			target["broken"] = false
-			if String(target.get("state", "")) in ["damaged", "broken"]:
+			if str(target.get("state", "")) in ["damaged", "broken"]:
 				target["state"] = "active"
 		out["success"] = true
 		out["consumed"] = bool(item.get("consumable", true))
@@ -11357,7 +11357,7 @@ func use_inventory_item_on_world_object(item_id: String, target_id: String, acti
 	else:
 		out["reasons"] = ["wrong_item_type"]
 		return out
-	out["target_state_after"] = String(target.get("state", before))
+	out["target_state_after"] = str(target.get("state", before))
 	return out
 
 func get_door_debug_report_text(door_id: String = "") -> String:
@@ -11365,11 +11365,11 @@ func get_door_debug_report_text(door_id: String = "") -> String:
 	if door_id.strip_edges() != "": ids.append(door_id)
 	else:
 		for obj in mission_world_objects:
-			if String(obj.get("object_group", "")) == "door": ids.append(String(obj.get("id", "")))
+			if str(obj.get("object_group", "")) == "door": ids.append(str(obj.get("id", "")))
 	var lines: Array[String] = []
 	for id in ids:
 		var st := get_door_access_state(id)
-		lines.append("%s | lock=%s | locked=%s | powered=%s | reasons=%s" % [id, String(st.get("lock_type", "")), str(bool(st.get("is_locked", false))), str(bool(st.get("is_powered", true))), ",".join(Array(st.get("reasons", [])))])
+		lines.append("%s | lock=%s | locked=%s | powered=%s | reasons=%s" % [id, str(st.get("lock_type", "")), str(bool(st.get("is_locked", false))), str(bool(st.get("is_powered", true))), ",".join(Array(st.get("reasons", [])))])
 	return "\n".join(lines)
 
 func validate_terminal_and_door_runtime() -> Array[String]:
@@ -11391,7 +11391,7 @@ func validate_terminal_and_door_runtime() -> Array[String]:
 	for obj in [terminal, linked_door, unlinked_door, mechanical_door, digital_door]:
 		mission_world_objects.append(obj)
 		world_objects_by_cell[Vector2i(obj.get("position", Vector2i(-1, -1)))] = obj
-		temp_ids.append(String(obj.get("id", "")))
+		temp_ids.append(str(obj.get("id", "")))
 	var av := get_terminal_action_availability(terminal_id, "hack")
 	if not bool(av.get("available", false)): warnings.append("active_powered_terminal_unavailable")
 	terminal["is_powered"] = false
@@ -11426,7 +11426,7 @@ func validate_terminal_and_door_runtime() -> Array[String]:
 	var encrypted_key := {"id":"temp_validation_encrypted_key", "object_group":"item", "object_type":"item", "position":Vector2i(108, 100), "item_type":"digital_key", "digital_state":"encrypted"}
 	var good_digital := {"id":"temp_validation_good_digital", "object_group":"item", "object_type":"item", "position":Vector2i(109, 100), "item_type":"access_code"}
 	for key_obj in [mechanical_key, wrong_key, damaged_key, encrypted_key, good_digital]:
-		mission_world_objects.append(key_obj); world_objects_by_cell[Vector2i(key_obj.get("position", Vector2i(-1, -1)))] = key_obj; temp_ids.append(String(key_obj.get("id", "")))
+		mission_world_objects.append(key_obj); world_objects_by_cell[Vector2i(key_obj.get("position", Vector2i(-1, -1)))] = key_obj; temp_ids.append(str(key_obj.get("id", "")))
 	if not bool(can_use_access_item_on_door(mechanical_key["id"], mechanical_door_id).get("success", false)): warnings.append("mechanical_key_gate_failed")
 	if not bool(pickup_world_item(mechanical_key["id"]).get("success", false)): warnings.append("mechanical_key_pickup_failed")
 	if not get_world_object_by_id(mechanical_key["id"]).is_empty(): warnings.append("picked_up_key_world_copy_remains")
@@ -11450,7 +11450,7 @@ func validate_terminal_and_door_runtime() -> Array[String]:
 	if not Dictionary(runtime_snap.get(terminal_id, {})).has("state"): warnings.append("runtime_snapshot_terminal_state_missing")
 	if not Dictionary(runtime_snap.get(digital_door_id, {})).has("is_locked"): warnings.append("runtime_snapshot_door_lock_missing")
 	for i in range(mission_world_objects.size() - 1, -1, -1):
-		var object_id := String(mission_world_objects[i].get("id", "")).strip_edges()
+		var object_id := str(mission_world_objects[i].get("id", "")).strip_edges()
 		if temp_ids.has(object_id):
 			world_objects_by_cell.erase(WorldObjectCatalogRef.to_world_cell(mission_world_objects[i].get("position", Vector2i(-1, -1)), Vector2i(-1, -1)))
 			mission_world_objects.remove_at(i)
@@ -11470,23 +11470,23 @@ func get_scan_result_for_object(object_id: String, scan_mode: String = "basic") 
 		return {"ok": false, "reason": "object_missing", "scan_mode": scan_mode}
 	if not is_world_object_visible_to_player(object_data, scan_mode):
 		return {"ok": false, "reason": "not_visible", "scan_mode": scan_mode}
-	var result := {"ok": true, "scan_mode": scan_mode, "object_id": object_id, "object_type": String(object_data.get("object_type", "")), "state": String(object_data.get("state", ""))}
+	var result := {"ok": true, "scan_mode": scan_mode, "object_id": object_id, "object_type": str(object_data.get("object_type", "")), "state": str(object_data.get("state", ""))}
 	if scan_mode in ["diagnostic", "power", "platform"]:
-		result["power_reason"] = String(object_data.get("power_unavailable_reason", ""))
+		result["power_reason"] = str(object_data.get("power_unavailable_reason", ""))
 	if scan_mode in ["diagnostic", "cooling"]:
 		result["cooling_received"] = int(object_data.get("cooling_received", 0))
 		result["cooling_source_ids"] = object_data.get("cooling_source_ids", [])
-	if scan_mode in ["diagnostic", "platform"] and String(object_data.get("object_group", "")) == "platform":
-		result["platform"] = get_platform_action_availability(String(object_data.get("platform_id", "")), "activate")
+	if scan_mode in ["diagnostic", "platform"] and str(object_data.get("object_group", "")) == "platform":
+		result["platform"] = get_platform_action_availability(str(object_data.get("platform_id", "")), "activate")
 	if scan_mode == "xray":
-		result["xray_objects"] = get_xray_visible_objects(String(object_data.get("power_network_id", "")))
+		result["xray_objects"] = get_xray_visible_objects(str(object_data.get("power_network_id", "")))
 	return result
 
 func get_scan_result_for_cell(cell: Vector2i, scan_mode: String = "basic") -> Dictionary:
 	var object_data := get_world_object_at_cell(cell)
 	if object_data.is_empty():
 		return {"ok": true, "scan_mode": scan_mode, "cell": [cell.x, cell.y], "object": {}}
-	return get_scan_result_for_object(String(object_data.get("id", "")), scan_mode)
+	return get_scan_result_for_object(str(object_data.get("id", "")), scan_mode)
 
 func get_scan_text_for_object(object_id: String, scan_mode: String = "basic") -> String:
 	return JSON.stringify(get_scan_result_for_object(object_id, scan_mode))
@@ -11495,7 +11495,7 @@ func validate_platform_scan_visibility_runtime() -> Array[String]:
 	var warnings: Array[String] = []
 	var platform := get_platform_by_id("platform_lift_a")
 	if not platform.is_empty():
-		var av := get_platform_action_availability(String(platform.get("platform_id", "")), "activate")
+		var av := get_platform_action_availability(str(platform.get("platform_id", "")), "activate")
 		if not av.has("available"):
 			warnings.append("platform availability helper missing fields")
 	var snapshot_a := str(get_world_object_runtime_state())
@@ -11520,7 +11520,7 @@ func validate_platform_scan_visibility_runtime() -> Array[String]:
 	if reveal_before == str(reveal_after):
 		warnings.append("reveal_xray_objects_no_effect")
 	for i in range(mission_world_objects.size() - 1, -1, -1):
-		if String(mission_world_objects[i].get("id", "")) == "temp_hidden_cable":
+		if str(mission_world_objects[i].get("id", "")) == "temp_hidden_cable":
 			world_objects_by_cell.erase(WorldObjectCatalogRef.to_world_cell(mission_world_objects[i].get("position", Vector2i(-1, -1)), Vector2i(-1, -1)))
 			mission_world_objects.remove_at(i)
 	return warnings
@@ -11548,7 +11548,7 @@ func validate_inventory_tools_modules_runtime() -> Array[String]:
 	var digital_item := {"id":"temp_item_digital", "object_group":"item", "object_type":"item", "position":Vector2i(122, 100), "item_form":"digital", "can_place_in_digital_buffer":true}
 	var digital_blocked := {"id":"temp_item_digital_blocked", "object_group":"item", "object_type":"item", "position":Vector2i(123, 100), "item_form":"digital", "can_place_in_digital_buffer":false}
 	for obj in [physical_item, digital_item, digital_blocked]:
-		mission_world_objects.append(obj); world_objects_by_cell[Vector2i(obj.get("position", Vector2i(-1, -1)))] = obj; temp_ids.append(String(obj.get("id", "")))
+		mission_world_objects.append(obj); world_objects_by_cell[Vector2i(obj.get("position", Vector2i(-1, -1)))] = obj; temp_ids.append(str(obj.get("id", "")))
 	if not bool(pickup_world_item("temp_item_physical").get("success", false)): warnings.append("physical_pickup_failed")
 	if get_manipulator_held_item_id() != "temp_item_physical": warnings.append("physical_pickup_not_routed_to_manipulator")
 	if Array(runtime_inventory_state.get("pocket_items", [])).has("temp_item_physical"): warnings.append("physical_pickup_routed_to_pocket")
@@ -11563,7 +11563,7 @@ func validate_inventory_tools_modules_runtime() -> Array[String]:
 	var temp_drop_cell := Vector2i(125, 100)
 	if not bool(drop_inventory_item("temp_item_physical", temp_drop_cell).get("success", false)): warnings.append("dictionary_manipulator_drop_failed")
 	var dropped_items := get_items_at_cell(temp_drop_cell)
-	if dropped_items.size() != 1 or String(Dictionary(dropped_items[0]).get("id", "")) != "temp_item_physical": warnings.append("dropped_physical_item_missing_from_cell")
+	if dropped_items.size() != 1 or str(Dictionary(dropped_items[0]).get("id", "")) != "temp_item_physical": warnings.append("dropped_physical_item_missing_from_cell")
 	_remove_world_item_from_lookup_tables("temp_item_physical", physical_item)
 	clear_manipulator_held_item()
 	if not bool(pickup_world_item("temp_item_digital").get("success", false)): warnings.append("digital_pickup_allowed_failed")
@@ -11578,9 +11578,9 @@ func validate_inventory_tools_modules_runtime() -> Array[String]:
 	runtime_inventory_state["manipulator_hold"] = "occupied_slot"
 	var blocked_physical_pickup := pickup_world_item("temp_item_stacked_first")
 	if bool(blocked_physical_pickup.get("success", false)): warnings.append("occupied_manipulator_pickup_gate_missing")
-	if String(blocked_physical_pickup.get("message", "")) != "Free manipulator required.": warnings.append("occupied_manipulator_pickup_message_missing")
+	if str(blocked_physical_pickup.get("message", "")) != "Free manipulator required.": warnings.append("occupied_manipulator_pickup_message_missing")
 	var stacked_remaining := get_items_at_cell(stacked_cell)
-	if stacked_remaining.size() != 1 or String(Dictionary(stacked_remaining[0]).get("id", "")) != "temp_item_stacked_first": warnings.append("stacked_pickup_removed_wrong_item")
+	if stacked_remaining.size() != 1 or str(Dictionary(stacked_remaining[0]).get("id", "")) != "temp_item_stacked_first": warnings.append("stacked_pickup_removed_wrong_item")
 	if not get_world_object_by_id("temp_item_stacked_second").is_empty(): warnings.append("stacked_pickup_world_copy_remains")
 	cell_items.erase(stacked_cell)
 	if bool(hold_item_in_manipulator("temp_item_physical").get("success", false)): warnings.append("manipulator_single_item_gate_missing")
@@ -11589,7 +11589,7 @@ func validate_inventory_tools_modules_runtime() -> Array[String]:
 	drop_inventory_item("missing_item")
 	if str(get_inventory_state()) != inv_before_fail: warnings.append("failed_inventory_action_mutated_state")
 	for i in range(mission_world_objects.size() - 1, -1, -1):
-		var oid := String(mission_world_objects[i].get("id", ""))
+		var oid := str(mission_world_objects[i].get("id", ""))
 		if temp_ids.has(oid):
 			world_objects_by_cell.erase(WorldObjectCatalogRef.to_world_cell(mission_world_objects[i].get("position", Vector2i(-1, -1)), Vector2i(-1, -1)))
 			mission_world_objects.remove_at(i)
@@ -11625,8 +11625,8 @@ func _build_world_runtime_validation_fingerprint() -> Dictionary:
 	var object_cells: Array[String] = []
 	for obj_variant in mission_world_objects:
 		var obj: Dictionary = Dictionary(obj_variant)
-		object_ids.append(String(obj.get("id", "")))
-		object_cells.append("%s@%s" % [String(obj.get("id", "")), str(WorldObjectCatalogRef.to_world_cell(obj.get("position", Vector2i.ZERO), Vector2i.ZERO))])
+		object_ids.append(str(obj.get("id", "")))
+		object_cells.append("%s@%s" % [str(obj.get("id", "")), str(WorldObjectCatalogRef.to_world_cell(obj.get("position", Vector2i.ZERO), Vector2i.ZERO))])
 	object_ids.sort()
 	object_cells.sort()
 	var item_ids: Array[String] = []
@@ -11635,8 +11635,8 @@ func _build_world_runtime_validation_fingerprint() -> Dictionary:
 		var cell: Vector2i = Vector2i(cell_variant)
 		for item_variant in Array(cell_items[cell_variant]):
 			var item: Dictionary = _safe_dictionary(item_variant)
-			item_ids.append(String(item.get("id", "")))
-			item_cells.append("%s@%s" % [String(item.get("id", "")), str(cell)])
+			item_ids.append(str(item.get("id", "")))
+			item_cells.append("%s@%s" % [str(item.get("id", "")), str(cell)])
 	item_ids.sort()
 	item_cells.sort()
 	return {
@@ -11653,14 +11653,14 @@ func _get_task_test_duplicate_cell_warnings(objects: Array[Dictionary], items_by
 	var warnings: Array[String] = []
 	var occupied_cells: Dictionary = {}
 	for obj in objects:
-		var oid := String(obj.get("id", "")).strip_edges()
+		var oid := str(obj.get("id", "")).strip_edges()
 		if not oid.begins_with("task_test_"):
 			continue
 		var cell: Vector2i = Vector2i(obj.get("position", Vector2i.ZERO))
 		if bool(obj.get("allow_cell_overlap", false)):
 			continue
 		if occupied_cells.has(cell):
-			warnings.append("duplicate_task_test_cell_%s_between_%s_and_%s" % [str(cell), String(occupied_cells[cell]), oid])
+			warnings.append("duplicate_task_test_cell_%s_between_%s_and_%s" % [str(cell), str(occupied_cells[cell]), oid])
 		else:
 			occupied_cells[cell] = oid
 	for cell_variant in items_by_cell.keys():
@@ -11669,9 +11669,9 @@ func _get_task_test_duplicate_cell_warnings(objects: Array[Dictionary], items_by
 			continue
 		for item_variant in Array(items_by_cell[cell_variant]):
 			var item: Dictionary = _safe_dictionary(item_variant)
-			var item_id: String = String(item.get("id", "")).strip_edges()
+			var item_id: String = str(item.get("id", "")).strip_edges()
 			if item_id.begins_with("task_test_"):
-				warnings.append("duplicate_task_test_cell_%s_between_%s_and_%s" % [str(cell), String(occupied_cells[cell]), item_id])
+				warnings.append("duplicate_task_test_cell_%s_between_%s_and_%s" % [str(cell), str(occupied_cells[cell]), item_id])
 	return warnings
 
 func validate_task_test_mission_runtime() -> Array[String]:
@@ -11683,15 +11683,15 @@ func validate_task_test_mission_runtime() -> Array[String]:
 	var task_items_by_cell: Dictionary = built.get("items_by_cell", {})
 	var task_ids := {}
 	for obj in task_objects:
-		var oid := String(obj.get("id", "")).strip_edges()
+		var oid := str(obj.get("id", "")).strip_edges()
 		if not oid.begins_with("task_test_"):
 			continue
 		if task_ids.has(oid):
 			warnings.append("duplicate_task_test_id_%s" % oid)
 		task_ids[oid] = true
-		if String(obj.get("object_type", "")).strip_edges() == "":
+		if str(obj.get("object_type", "")).strip_edges() == "":
 			warnings.append("task_test_object_missing_type_%s" % oid)
-		if String(obj.get("object_group", "")).strip_edges() == "":
+		if str(obj.get("object_group", "")).strip_edges() == "":
 			warnings.append("task_test_object_missing_group_%s" % oid)
 	warnings.append_array(_get_task_test_duplicate_cell_warnings(task_objects, task_items_by_cell))
 	for required_id in ["task_test_extraction_door","task_test_source_class_1","task_test_radiator","task_test_terminal_main","task_test_door_mechanical","task_test_platform_lift","task_test_hidden_cable","task_test_item_repair_kit","task_test_cable_reel"]:
@@ -11699,7 +11699,7 @@ func validate_task_test_mission_runtime() -> Array[String]:
 			var exists_item := false
 			for cell in task_items_by_cell.keys():
 				for item in Array(task_items_by_cell[cell]):
-					if String(item.get("id", "")) == required_id:
+					if str(item.get("id", "")) == required_id:
 						exists_item = true
 						break
 				if exists_item:
@@ -11708,7 +11708,7 @@ func validate_task_test_mission_runtime() -> Array[String]:
 				warnings.append("missing_%s" % required_id)
 	var extraction: Dictionary = {}
 	for obj in task_objects:
-		if String(obj.get("id", "")) == "task_test_extraction_door":
+		if str(obj.get("id", "")) == "task_test_extraction_door":
 			extraction = obj
 			break
 	if extraction.is_empty() or not bool(extraction.get("mission_exit", false)):
@@ -11716,7 +11716,7 @@ func validate_task_test_mission_runtime() -> Array[String]:
 	else:
 		if not bool(extraction.get("extraction", false)):
 			warnings.append("task_test_extraction_missing_extraction_flag")
-		if String(extraction.get("state", "")) != "open":
+		if str(extraction.get("state", "")) != "open":
 			warnings.append("task_test_extraction_not_open")
 		if bool(extraction.get("is_locked", false)):
 			warnings.append("task_test_extraction_locked")
@@ -11725,7 +11725,7 @@ func validate_task_test_mission_runtime() -> Array[String]:
 		warnings.append("task_test_xray_route_marker_missing")
 	var xray_marker: Dictionary = {}
 	for obj in task_objects:
-		if String(obj.get("id", "")) == "task_test_xray_route_marker":
+		if str(obj.get("id", "")) == "task_test_xray_route_marker":
 			xray_marker = obj
 			break
 	if not xray_marker.is_empty() and not extraction.is_empty():
@@ -11748,19 +11748,19 @@ func validate_task_test_mission_runtime() -> Array[String]:
 	elif extraction_cell != layout_exit_cell and extraction_cell.distance_to(layout_exit_cell) > 1.0:
 		warnings.append("task_test_extraction_cell_not_matching_layout_exit")
 	var runtime_after: Dictionary = _build_world_runtime_validation_fingerprint()
-	if String(runtime_after.get("mission_id", "")) != String(runtime_before.get("mission_id", "")):
+	if str(runtime_after.get("mission_id", "")) != str(runtime_before.get("mission_id", "")):
 		warnings.append("task_test_validation_mutated_mission_id")
-	if String(runtime_after.get("object_ids", "")) != String(runtime_before.get("object_ids", "")):
+	if str(runtime_after.get("object_ids", "")) != str(runtime_before.get("object_ids", "")):
 		warnings.append("task_test_validation_mutated_object_ids")
-	if String(runtime_after.get("item_ids", "")) != String(runtime_before.get("item_ids", "")):
+	if str(runtime_after.get("item_ids", "")) != str(runtime_before.get("item_ids", "")):
 		warnings.append("task_test_validation_mutated_item_ids")
-	if String(runtime_after.get("world_objects_by_cell", "")) != String(runtime_before.get("world_objects_by_cell", "")):
+	if str(runtime_after.get("world_objects_by_cell", "")) != str(runtime_before.get("world_objects_by_cell", "")):
 		warnings.append("task_test_validation_mutated_world_objects_by_cell")
-	if String(runtime_after.get("cell_items", "")) != String(runtime_before.get("cell_items", "")):
+	if str(runtime_after.get("cell_items", "")) != str(runtime_before.get("cell_items", "")):
 		warnings.append("task_test_validation_mutated_cell_items")
-	if String(runtime_after.get("object_cells", "")) != String(runtime_before.get("object_cells", "")):
+	if str(runtime_after.get("object_cells", "")) != str(runtime_before.get("object_cells", "")):
 		warnings.append("task_test_validation_mutated_object_cells")
-	if String(runtime_after.get("item_cells", "")) != String(runtime_before.get("item_cells", "")):
+	if str(runtime_after.get("item_cells", "")) != str(runtime_before.get("item_cells", "")):
 		warnings.append("task_test_validation_mutated_item_cells")
 	return warnings
 
@@ -11783,11 +11783,11 @@ func get_task_test_required_system_coverage_spec() -> Dictionary:
 
 func classify_task_test_object_for_audit(object_data: Dictionary) -> Array[String]:
 	var tags: Array[String] = []
-	var object_id: String = String(object_data.get("id", ""))
-	var group: String = String(object_data.get("object_group", ""))
-	var object_type: String = String(object_data.get("object_type", ""))
-	var item_type: String = String(object_data.get("item_type", object_type))
-	var state: String = String(object_data.get("state", "")).to_lower()
+	var object_id: String = str(object_data.get("id", ""))
+	var group: String = str(object_data.get("object_group", ""))
+	var object_type: String = str(object_data.get("object_type", ""))
+	var item_type: String = str(object_data.get("item_type", object_type))
+	var state: String = str(object_data.get("state", "")).to_lower()
 	var access_type: String = WorldObjectCatalogRef.normalize_access_type(object_data.get("access_type", object_data.get("lock_type", "")))
 	if group == "door":
 		var is_open := state == "open" or bool(object_data.get("is_open", false))
@@ -11795,13 +11795,13 @@ func classify_task_test_object_for_audit(object_data: Dictionary) -> Array[Strin
 		var is_damaged_or_jammed := state in ["damaged", "jammed"] or bool(object_data.get("damaged", false))
 		if is_open:
 			tags.append("door_open")
-			if String(object_data.get("door_type", "")) == WorldObjectCatalogRef.DOOR_TYPE_MECHANICAL:
+			if str(object_data.get("door_type", "")) == WorldObjectCatalogRef.DOOR_TYPE_MECHANICAL:
 				tags.append("open_mechanical_door")
-			if String(object_data.get("door_type", "")) == WorldObjectCatalogRef.DOOR_TYPE_DIGITAL:
+			if str(object_data.get("door_type", "")) == WorldObjectCatalogRef.DOOR_TYPE_DIGITAL:
 				tags.append("open_digital_door")
 		if is_closed:
 			tags.append("door_closed")
-			if String(object_data.get("door_type", "")) == WorldObjectCatalogRef.DOOR_TYPE_MECHANICAL:
+			if str(object_data.get("door_type", "")) == WorldObjectCatalogRef.DOOR_TYPE_MECHANICAL:
 				tags.append("closed_mechanical_door")
 		if access_type == WorldObjectCatalogRef.ACCESS_TYPE_KEY_CARD:
 			tags.append("door_locked_mechanical")
@@ -11826,7 +11826,7 @@ func classify_task_test_object_for_audit(object_data: Dictionary) -> Array[Strin
 			tags.append("mechanical_key")
 			tags.append("key_mechanical")
 		if item_type == "digital_key":
-			var dstate: String = String(object_data.get("digital_state", "")).to_lower()
+			var dstate: String = str(object_data.get("digital_state", "")).to_lower()
 			if dstate == "opened":
 				tags.append("digital_key_opened")
 				tags.append("key_digital_opened")
@@ -11852,13 +11852,13 @@ func classify_task_test_object_for_audit(object_data: Dictionary) -> Array[Strin
 	if int(object_data.get("working_heat", 0)) > 0: tags.append("heat_producer")
 	if int(object_data.get("current_heat", 0)) >= int(object_data.get("overheat_threshold", 999999)): tags.append("overheated_device")
 	if group == "terminal":
-		if String(object_data.get("connection_type", "")) == "info": tags.append("terminal_info")
+		if str(object_data.get("connection_type", "")) == "info": tags.append("terminal_info")
 		if state == "unpowered": tags.append("terminal_unpowered")
 		if state == "damaged": tags.append("terminal_damaged")
 		if bool(object_data.get("encrypts_data", false)): tags.append("terminal_encrypted")
 		if int(object_data.get("required_connector_level", 0)) > 0: tags.append("terminal_connector_gated")
 		if int(object_data.get("required_processor_level", 0)) > 0: tags.append("terminal_processor_gated")
-	var material: String = String(object_data.get("material", ""))
+	var material: String = str(object_data.get("material", ""))
 	if material == "outer_wall": tags.append("wall_outer")
 	if material == "brick_wall": tags.append("wall_brick")
 	if material == "concrete_wall": tags.append("wall_concrete")
@@ -11895,27 +11895,27 @@ func get_task_test_system_audit_report() -> Dictionary:
 	var notes: Array[String] = []
 	var occupied: Dictionary = {}
 	for object_data in mission_world_objects:
-		var object_id: String = String(object_data.get("id", ""))
+		var object_id: String = str(object_data.get("id", ""))
 		object_ids[object_id] = true
 	for cell_variant in cell_items.keys():
 		for item_variant in Array(cell_items.get(cell_variant, [])):
 			var item_data: Dictionary = _safe_dictionary(item_variant)
-			item_ids[String(item_data.get("id", ""))] = true
+			item_ids[str(item_data.get("id", ""))] = true
 	var spec: Dictionary = get_task_test_required_system_coverage_spec()
 	var expected_invalid_ids: Dictionary = {}
 	for entry_variant in Array(spec.get("negative_samples", {}).get("intentionally_invalid", [])):
-		expected_invalid_ids[String(entry_variant)] = true
+		expected_invalid_ids[str(entry_variant)] = true
 	var has_open_passable_door: bool = false
 	var has_closed_not_passable_door: bool = false
 	for object_data in mission_world_objects:
-		var object_id: String = String(object_data.get("id", ""))
+		var object_id: String = str(object_data.get("id", ""))
 		var tags: Array[String] = classify_task_test_object_for_audit(object_data)
-		var group: String = String(object_data.get("object_group", ""))
+		var group: String = str(object_data.get("object_group", ""))
 		var cell: Vector2i = Vector2i(object_data.get("position", Vector2i.ZERO))
 		if group == "door":
 			var runtime_state: Dictionary = get_runtime_cell_state(cell)
 			var is_passable := bool(runtime_state.get("is_passable", false))
-			var state: String = String(object_data.get("state", "")).to_lower()
+			var state: String = str(object_data.get("state", "")).to_lower()
 			var access_type: String = WorldObjectCatalogRef.normalize_access_type(object_data.get("access_type", object_data.get("lock_type", "")))
 			if (state == "open" or bool(object_data.get("is_open", false))) and is_passable:
 				tags.append("door_open_passable")
@@ -11929,14 +11929,14 @@ func get_task_test_system_audit_report() -> Dictionary:
 		if tags.is_empty():
 			objects_without_audit_tags.append(object_id)
 		for tag in tags:
-			coverage_hits[String(tag)] = true
+			coverage_hits[str(tag)] = true
 		if group != "item":
 			if occupied.has(cell):
-				duplicate_cell_warnings.append("duplicate_world_object_cell_%s_%s_%s" % [str(cell), String(occupied[cell]), object_id])
+				duplicate_cell_warnings.append("duplicate_world_object_cell_%s_%s_%s" % [str(cell), str(occupied[cell]), object_id])
 			else:
 				occupied[cell] = object_id
 		for field_name in ["power_network_id", "control_source_id", "linked_terminal_id", "controller_id", "target_door_id", "target_platform_id", "required_key_id"]:
-			var ref_id: String = String(object_data.get(field_name, "")).strip_edges()
+			var ref_id: String = str(object_data.get(field_name, "")).strip_edges()
 			if ref_id.is_empty():
 				continue
 			var exists: bool = object_ids.has(ref_id) or item_ids.has(ref_id) or field_name == "power_network_id"
@@ -11949,7 +11949,7 @@ func get_task_test_system_audit_report() -> Dictionary:
 				invalid_links.append(link_row)
 		var ctrls: Array = Array(object_data.get("controls", []))
 		for ctrl_target in ctrls:
-			var ctrl_id: String = String(ctrl_target).strip_edges()
+			var ctrl_id: String = str(ctrl_target).strip_edges()
 			if ctrl_id.is_empty():
 				continue
 			var ctrl_row: Dictionary = {"object_id": object_id, "field": "controls", "target_id": ctrl_id}
@@ -11964,10 +11964,10 @@ func get_task_test_system_audit_report() -> Dictionary:
 	var expected_runtime_warnings: Array[String] = []
 	var unexpected_runtime_warnings: Array[String] = []
 	for runtime_warning in validate_task_test_runtime_cell_states():
-		var warning_text: String = String(runtime_warning)
+		var warning_text: String = str(runtime_warning)
 		var matched_expected: bool = false
 		for expected_id_variant in expected_invalid_ids.keys():
-			var expected_id: String = String(expected_id_variant)
+			var expected_id: String = str(expected_id_variant)
 			if not expected_id.is_empty() and warning_text.find(expected_id) != -1:
 				matched_expected = true
 				break
@@ -11984,13 +11984,13 @@ func get_task_test_system_audit_report() -> Dictionary:
 		var covered: Array[String] = []
 		var missing: Array[String] = []
 		for req in required_items:
-			var req_key: String = String(req)
+			var req_key: String = str(req)
 			if coverage_hits.has(req_key):
 				covered.append(req_key)
 			else:
 				missing.append(req_key)
-				missing_coverage.append("%s:%s" % [String(section_name), req_key])
-		coverage[String(section_name)] = {"ok": missing.is_empty(), "covered": covered, "missing": missing, "object_ids": []}
+				missing_coverage.append("%s:%s" % [str(section_name), req_key])
+		coverage[str(section_name)] = {"ok": missing.is_empty(), "covered": covered, "missing": missing, "object_ids": []}
 	var summary: Dictionary = {"total_objects": mission_world_objects.size(), "total_items": item_ids.size(), "missing_coverage_count": missing_coverage.size()}
 	var ok: bool = missing_coverage.is_empty() and invalid_links.is_empty() and unexpected_runtime_warnings.is_empty() and duplicate_cell_warnings.is_empty()
 	notes.append("Expected invalid links are represented explicitly and do not count as valid.")
@@ -12000,7 +12000,7 @@ func get_task_test_system_audit_report_text() -> String:
 	var report: Dictionary = get_task_test_system_audit_report()
 	var lines: Array[String] = []
 	lines.append("TASK TEST SYSTEM AUDIT")
-	lines.append("OK: %s" % String(report.get("ok", false)))
+	lines.append("OK: %s" % str(report.get("ok", false)))
 	lines.append("")
 	lines.append("Coverage:")
 	for section_name in ["movement","doors","keys","power","control","cooling","terminals","wall_materials","scan_visibility","runtime_cell_state","extraction"]:
@@ -12013,13 +12013,13 @@ func get_task_test_system_audit_report_text() -> String:
 	for row in Array(report.get("expected_invalid_links", [])):
 		lines.append("- %s" % JSON.stringify(row))
 	for warning in Array(report.get("expected_runtime_warnings", [])):
-		lines.append("- %s" % String(warning))
+		lines.append("- %s" % str(warning))
 	lines.append("Runtime cell warnings:")
 	for warning in Array(report.get("unexpected_runtime_warnings", [])):
-		lines.append("- %s" % String(warning))
+		lines.append("- %s" % str(warning))
 	lines.append("Objects without audit tags:")
 	for object_id in Array(report.get("objects_without_audit_tags", [])):
-		lines.append("- %s" % String(object_id))
+		lines.append("- %s" % str(object_id))
 	return "\n".join(lines)
 
 func validate_task_test_runtime_cell_states() -> Array[String]:
@@ -12030,29 +12030,29 @@ func validate_task_test_runtime_cell_states() -> Array[String]:
 	for object_data in mission_world_objects:
 		if typeof(object_data) != TYPE_DICTIONARY:
 			continue
-		var existing_object_id := String(object_data.get("id", "")).strip_edges()
+		var existing_object_id := str(object_data.get("id", "")).strip_edges()
 		if not existing_object_id.is_empty():
 			object_ids[existing_object_id] = true
 		var existing_type := str(object_data.get("object_type", "")).to_lower()
 		if existing_type.begins_with("power_source"):
-			var existing_network_id := String(object_data.get("power_network_id", "")).strip_edges()
+			var existing_network_id := str(object_data.get("power_network_id", "")).strip_edges()
 			if not existing_network_id.is_empty():
 				power_source_network_ids[existing_network_id] = true
 	for cell_variant in cell_items.keys():
 		for item_variant in Array(cell_items.get(cell_variant, [])):
 			if typeof(item_variant) != TYPE_DICTIONARY:
 				continue
-			task_item_ids.append(String(_safe_dictionary(item_variant).get("id", "")))
+			task_item_ids.append(str(_safe_dictionary(item_variant).get("id", "")))
 	for object_data in mission_world_objects:
 		if typeof(object_data) != TYPE_DICTIONARY:
 			continue
-		var object_id: String = String(object_data.get("id", ""))
+		var object_id: String = str(object_data.get("id", ""))
 		var _object_type: String = str(object_data.get("object_type", "")).to_lower()
 		var cell: Vector2i = Vector2i(object_data.get("position", Vector2i.ZERO))
 		var runtime_state: Dictionary = get_runtime_cell_state(cell)
 		if not bool(runtime_state.get("has_object", false)):
 			warnings.append("object_exists_but_runtime_has_no_object_%s" % object_id)
-		var state_name: String = String(object_data.get("state", "")).to_lower()
+		var state_name: String = str(object_data.get("state", "")).to_lower()
 		var canonical_open: bool = state_name == "open" or state_name == "opened" or bool(object_data.get("is_open", false))
 		var is_door_object: bool = bool(runtime_state.get("is_door_object", false))
 		var is_door: bool = bool(runtime_state.get("is_door_cell", false))
@@ -12068,36 +12068,36 @@ func validate_task_test_runtime_cell_states() -> Array[String]:
 			if not bool(runtime_state.get("is_door_cell", false)):
 				warnings.append("door_object_tile_mismatch_%s" % object_id)
 		if bool(object_data.get("requires_external_power", false)):
-			var power_network_id: String = String(object_data.get("power_network_id", "")).strip_edges()
+			var power_network_id: String = str(object_data.get("power_network_id", "")).strip_edges()
 			if power_network_id.is_empty():
 				warnings.append("external_power_missing_network_%s" % object_id)
 			elif not power_source_network_ids.has(power_network_id):
 				warnings.append("external_power_invalid_network_%s_%s" % [object_id, power_network_id])
 		if bool(object_data.get("requires_external_control", false)):
-			var ctrl: String = String(object_data.get("control_source_id", object_data.get("linked_terminal_id", object_data.get("controller_id", "")))).strip_edges()
+			var ctrl: String = str(object_data.get("control_source_id", object_data.get("linked_terminal_id", object_data.get("controller_id", "")))).strip_edges()
 			if ctrl.is_empty():
 				warnings.append("external_control_missing_reference_%s" % object_id)
 			elif not object_ids.has(ctrl):
 				warnings.append("external_control_invalid_reference_%s_%s" % [object_id, ctrl])
 		for control_ref_field in ["control_source_id", "linked_terminal_id", "controller_id"]:
-			var control_ref_id: String = String(object_data.get(control_ref_field, "")).strip_edges()
+			var control_ref_id: String = str(object_data.get(control_ref_field, "")).strip_edges()
 			if control_ref_id.is_empty():
 				continue
 			if not object_ids.has(control_ref_id):
 				warnings.append("external_control_invalid_reference_%s_%s" % [object_id, control_ref_id])
-		var target_door_id: String = String(object_data.get("target_door_id", "")).strip_edges()
+		var target_door_id: String = str(object_data.get("target_door_id", "")).strip_edges()
 		if not target_door_id.is_empty() and not object_ids.has(target_door_id):
 			warnings.append("target_door_missing_%s_%s" % [object_id, target_door_id])
-		var target_platform_id: String = String(object_data.get("target_platform_id", "")).strip_edges()
+		var target_platform_id: String = str(object_data.get("target_platform_id", "")).strip_edges()
 		if not target_platform_id.is_empty() and not object_ids.has(target_platform_id):
 			warnings.append("target_platform_missing_%s_%s" % [object_id, target_platform_id])
-		var linked_terminal_id: String = String(object_data.get("linked_terminal_id", "")).strip_edges()
+		var linked_terminal_id: String = str(object_data.get("linked_terminal_id", "")).strip_edges()
 		if not linked_terminal_id.is_empty() and not object_ids.has(linked_terminal_id):
 			warnings.append("linked_terminal_missing_%s_%s" % [object_id, linked_terminal_id])
 		var access_type: String = WorldObjectCatalogRef.normalize_access_type(object_data.get("access_type", object_data.get("lock_type", "")))
-		if (bool(object_data.get("requires_key", false)) or access_type in [WorldObjectCatalogRef.ACCESS_TYPE_KEY_CARD, WorldObjectCatalogRef.ACCESS_TYPE_DIGITAL_KEY]) and String(object_data.get("required_key_id", "")).is_empty():
+		if (bool(object_data.get("requires_key", false)) or access_type in [WorldObjectCatalogRef.ACCESS_TYPE_KEY_CARD, WorldObjectCatalogRef.ACCESS_TYPE_DIGITAL_KEY]) and str(object_data.get("required_key_id", "")).is_empty():
 			warnings.append("key_locked_door_missing_required_key_%s" % object_id)
-		var required_key_id: String = String(object_data.get("required_key_id", ""))
+		var required_key_id: String = str(object_data.get("required_key_id", ""))
 		if not required_key_id.is_empty() and not task_item_ids.has(required_key_id):
 			warnings.append("required_key_not_in_task_items_%s_%s" % [object_id, required_key_id])
 		if bool(object_data.get("blocks_movement", false)) and bool(runtime_state.get("is_passable", false)) and not (is_door and canonical_open):
@@ -12118,7 +12118,7 @@ func validate_task_test_system_audit() -> Array[String]:
 	warnings.append_array(Array(report.get("duplicate_cell_warnings", [])))
 	var expected_neutral: Dictionary = {"task_test_scan_normal_visible":true}
 	for object_id in Array(report.get("objects_without_audit_tags", [])):
-		var tagless_id: String = String(object_id)
+		var tagless_id: String = str(object_id)
 		if not expected_neutral.has(tagless_id):
 			warnings.append("object_without_audit_tags_%s" % tagless_id)
 	return warnings
@@ -12130,7 +12130,7 @@ func get_task_test_mission_validation_text() -> String:
 		base_text = "TaskTestValidation:\n- " + "\n- ".join(warnings)
 	var audit: Dictionary = get_task_test_system_audit_report()
 	var audit_summary: String = "Audit: ok=%s missing=%d invalid_links=%d runtime_warnings=%d" % [
-		String(audit.get("ok", false)),
+		str(audit.get("ok", false)),
 		Array(audit.get("missing_coverage", [])).size(),
 		Array(audit.get("invalid_links", [])).size(),
 		Array(audit.get("runtime_cell_warnings", [])).size()
@@ -12161,18 +12161,18 @@ func _simulate_task_test_port_state(specs: Array[Dictionary], active_module_ids:
 	var modules: Dictionary = {}
 	var sorted_specs := specs.duplicate()
 	sorted_specs.sort_custom(func(a: Dictionary, b: Dictionary) -> bool:
-		var pa := int(active_bipob_ref.call("_get_module_port_priority", String(a.get("module_id", ""))))
-		var pb := int(active_bipob_ref.call("_get_module_port_priority", String(b.get("module_id", ""))))
+		var pa := int(active_bipob_ref.call("_get_module_port_priority", str(a.get("module_id", ""))))
+		var pb := int(active_bipob_ref.call("_get_module_port_priority", str(b.get("module_id", ""))))
 		if pa == pb:
-			return String(a.get("id", "")) < String(b.get("id", ""))
+			return str(a.get("id", "")) < str(b.get("id", ""))
 		return pa < pb
 	)
 	var internal_remaining := maxi(0, internal_ports_total)
 	var external_remaining := maxi(0, external_ports_total)
 	var power_remaining := maxi(0, power_ports_total)
 	for spec in sorted_specs:
-		var tid := String(spec.get("id", ""))
-		var module_id := String(spec.get("module_id", ""))
+		var tid := str(spec.get("id", ""))
+		var module_id := str(spec.get("module_id", ""))
 		if not active_module_ids.has(tid):
 			modules[tid] = {"id":tid,"active":false,"inactive_reason":"module_not_installed","port_priority":int(active_bipob_ref.call("_get_module_port_priority", module_id))}
 			continue
@@ -12204,7 +12204,7 @@ func _active_bipob_has_property(property_name: String) -> bool:
 	if active_bipob_ref == null:
 		return false
 	for property_info in Array(active_bipob_ref.get_property_list()):
-		if String(Dictionary(property_info).get("name", "")) == property_name:
+		if str(Dictionary(property_info).get("name", "")) == property_name:
 			return true
 	return false
 
@@ -12241,7 +12241,7 @@ func _build_runtime_modules_by_id(module_ids: Array[String]) -> Array:
 func _preview_module_port_activity_for_module_ids(module_ids: Array[String]) -> Dictionary:
 	var snapshot := _snapshot_installed_modules_for_validation()
 	if not bool(snapshot.get("ok", false)):
-		return {"ok": false, "reason": String(snapshot.get("reason", "snapshot_failed"))}
+		return {"ok": false, "reason": str(snapshot.get("reason", "snapshot_failed"))}
 	var runtime_modules := _build_runtime_modules_by_id(module_ids)
 	if runtime_modules.is_empty() and not module_ids.is_empty():
 		_restore_installed_modules_from_snapshot(snapshot)
@@ -12278,7 +12278,7 @@ func validate_module_port_network_runtime() -> Array[String]:
 	for report_key in ["internal_ports_total", "internal_ports_used", "internal_ports_remaining", "external_ports_total", "external_ports_used", "external_ports_remaining", "power_ports_total", "power_ports_used", "power_ports_remaining", "active_modules", "inactive_modules", "modules"]:
 		if not debug_report_a.has(report_key):
 			warnings.append("module_ports_debug_report_missing_%s" % report_key)
-	var debug_text: String = String(active_bipob_ref.call("get_module_port_debug_report_text"))
+	var debug_text: String = str(active_bipob_ref.call("get_module_port_debug_report_text"))
 	if debug_text.strip_edges().is_empty():
 		warnings.append("module_ports_debug_report_text_empty")
 	if str(debug_report_a) != str(debug_report_b):
@@ -12332,14 +12332,14 @@ func validate_module_port_network_runtime() -> Array[String]:
 	for scenario in scenarios:
 		var runtime: Dictionary = _preview_module_port_activity_for_module_ids(Array(scenario.get("modules", [])))
 		if not bool(runtime.get("ok", false)):
-			warnings.append("module_ports_runtime_preview_unavailable_%s" % String(runtime.get("reason", "unknown")))
+			warnings.append("module_ports_runtime_preview_unavailable_%s" % str(runtime.get("reason", "unknown")))
 			break
 		var state: Dictionary = Dictionary(runtime.get("state", {}))
 		var modules: Dictionary = Dictionary(state.get("modules", {}))
 		if scenario.has("internal_ports_total"):
 			var internal_interface_state := Dictionary(state.get("internal_interface", {}))
 			if int(internal_interface_state.get("ports_total", -1)) != int(scenario.get("internal_ports_total", -1)):
-				warnings.append("module_ports_internal_interface_capacity_mismatch_%s" % String(scenario.get("id", "")))
+				warnings.append("module_ports_internal_interface_capacity_mismatch_%s" % str(scenario.get("id", "")))
 			continue
 		if bool(scenario.get("priority", false)):
 			var p1 := Dictionary(modules.get("processor_v1", {}))
@@ -12354,19 +12354,19 @@ func validate_module_port_network_runtime() -> Array[String]:
 			if not p1_active and p2_active:
 				warnings.append("task_test_processor_priority_tie_break_unstable_order")
 			continue
-		var module_id := String(scenario.get("module", ""))
+		var module_id := str(scenario.get("module", ""))
 		var module_state: Dictionary = Dictionary(modules.get(module_id, {}))
 		if module_state.is_empty():
 			warnings.append("module_not_installed")
 			continue
 		var expected_active := bool(scenario.get("active", false))
-		var expected_reason := String(scenario.get("reason", "ok"))
+		var expected_reason := str(scenario.get("reason", "ok"))
 		if bool(module_state.get("active", false)) != expected_active:
-			warnings.append("module_ports_runtime_active_mismatch_%s" % String(scenario.get("id", "")))
-		var actual_reason := String(module_state.get("inactive_reason", "module_installed_but_inactive"))
+			warnings.append("module_ports_runtime_active_mismatch_%s" % str(scenario.get("id", "")))
+		var actual_reason := str(module_state.get("inactive_reason", "module_installed_but_inactive"))
 		observed_runtime_reason_keys[actual_reason] = true
 		if actual_reason != expected_reason:
-			warnings.append("module_ports_runtime_reason_mismatch_%s_%s" % [String(scenario.get("id", "")), actual_reason])
+			warnings.append("module_ports_runtime_reason_mismatch_%s_%s" % [str(scenario.get("id", "")), actual_reason])
 	return warnings
 
 func _get_module_port_reason_coverage_gaps() -> Array[String]:
@@ -12402,11 +12402,11 @@ func _get_module_port_reason_coverage_gaps() -> Array[String]:
 		if not bool(runtime.get("ok", false)):
 			return []
 		var state: Dictionary = Dictionary(runtime.get("state", {}))
-		var module_id := String(scenario.get("module", ""))
+		var module_id := str(scenario.get("module", ""))
 		var module_state: Dictionary = Dictionary(Dictionary(state.get("modules", {})).get(module_id, {}))
 		if module_state.is_empty():
 			continue
-		var actual_reason := String(module_state.get("inactive_reason", "module_installed_but_inactive"))
+		var actual_reason := str(module_state.get("inactive_reason", "module_installed_but_inactive"))
 		observed_runtime_reason_keys[actual_reason] = true
 
 	var gaps: Array[String] = []
@@ -12430,7 +12430,7 @@ func get_module_port_network_validation_text() -> String:
 		lines.append("- " + "\n- ".join(coverage_gaps))
 	if active_bipob_ref != null and active_bipob_ref.has_method("get_module_port_debug_report_text"):
 		lines.append("")
-		lines.append(String(active_bipob_ref.call("get_module_port_debug_report_text")))
+		lines.append(str(active_bipob_ref.call("get_module_port_debug_report_text")))
 	return "\n".join(lines)
 
 func validate_connector_processor_migration() -> Array[String]:
@@ -12477,7 +12477,7 @@ func validate_connector_processor_migration() -> Array[String]:
 				"external_interface_connector_v1": true
 			}
 			for entry in tools_array:
-				var tool_entry: String = String(entry)
+				var tool_entry: String = str(entry)
 				if non_tool_module_ids.has(tool_entry):
 					warnings.append("capability_report_tools_contains_non_tool_module_id_%s" % tool_entry)
 					break
@@ -12498,7 +12498,7 @@ func validate_connector_processor_migration() -> Array[String]:
 	var task := build_task_test_mission_world_objects_for_validation()
 	for obj in Array(task.get("objects", [])):
 		var obj_dict: Dictionary = Dictionary(obj)
-		var obj_id: String = String(obj_dict.get("id", ""))
+		var obj_id: String = str(obj_dict.get("id", ""))
 		if not obj_id.begins_with("task_test_terminal"):
 			continue
 		if obj_dict.has("required_interface_level"):
@@ -12507,12 +12507,12 @@ func validate_connector_processor_migration() -> Array[String]:
 			warnings.append("task_test_uses_required_cpu_level")
 		if not obj_dict.has("required_connector_level"):
 			warnings.append("task_test_terminal_missing_required_connector_level")
-		if not obj_dict.has("required_processor_level") and String(obj_dict.get("state", "")).to_lower() not in ["damaged", "unpowered"]:
+		if not obj_dict.has("required_processor_level") and str(obj_dict.get("state", "")).to_lower() not in ["damaged", "unpowered"]:
 			warnings.append("task_test_terminal_missing_required_processor_level")
 
 	if active_bipob_ref != null and active_bipob_ref.has_method("get_world_action_module"):
 		var module: Dictionary = Dictionary(active_bipob_ref.call("get_world_action_module", "connect", {"connection_type":"wired"}))
-		if not String(Dictionary(module).get("id", "")).contains("_connector_v"):
+		if not str(Dictionary(module).get("id", "")).contains("_connector_v"):
 			warnings.append("connect_action_not_connector_id")
 
 	var req: Dictionary = get_terminal_hack_requirements("task_test_terminal_main")
@@ -12544,7 +12544,7 @@ func _to_stable_validation_summary(value: Variant) -> String:
 		var dict_value: Dictionary = Dictionary(value)
 		var keys: Array[String] = []
 		for key_variant in dict_value.keys():
-			keys.append(String(key_variant))
+			keys.append(str(key_variant))
 		keys.sort()
 		var parts: Array[String] = []
 		for key in keys:
@@ -12578,7 +12578,7 @@ func _build_developer_validation_runtime_snapshot() -> Dictionary:
 	var property_names: Dictionary = {}
 	for property_data in get_property_list():
 		var property_dict: Dictionary = Dictionary(property_data)
-		var property_name: String = String(property_dict.get("name", ""))
+		var property_name: String = str(property_dict.get("name", ""))
 		if property_name.is_empty():
 			continue
 		property_names[property_name] = true
@@ -12634,13 +12634,13 @@ func validate_developer_systems_logic_audit() -> Array[String]:
 			warnings.append("audit_system_missing_required_field_unknown_id")
 			continue
 		var entry: Dictionary = Dictionary(entry_variant)
-		var system_id: String = String(entry.get("id", ""))
+		var system_id: String = str(entry.get("id", ""))
 		if not system_id.is_empty():
 			ids[system_id] = true
 		for field_name in required_fields:
 			if not entry.has(field_name):
 				warnings.append("audit_system_missing_required_field_%s_%s" % [system_id, field_name])
-		var status: String = String(entry.get("status", ""))
+		var status: String = str(entry.get("status", ""))
 		if not allowed_status.has(status):
 			warnings.append("audit_system_invalid_status_%s" % system_id)
 	if not ids.has("power"):
@@ -12662,13 +12662,13 @@ func get_developer_systems_logic_audit_text() -> String:
 		if typeof(entry_variant) != TYPE_DICTIONARY:
 			continue
 		var entry: Dictionary = Dictionary(entry_variant)
-		var status: String = String(entry.get("status", "missing"))
+		var status: String = str(entry.get("status", "missing"))
 		var logic_flag: String = "yes" if bool(entry.get("has_runtime_logic", false)) else "no"
 		var validation_flag: String = "yes" if bool(entry.get("has_validation", false)) else "no"
 		var task_test_flag: String = "yes" if bool(entry.get("has_task_test_coverage", false)) else "no"
-		lines.append("- %s: %s logic=%s validation=%s task_test=%s" % [String(entry.get("id", "unknown")), status, logic_flag, validation_flag, task_test_flag])
+		lines.append("- %s: %s logic=%s validation=%s task_test=%s" % [str(entry.get("id", "unknown")), status, logic_flag, validation_flag, task_test_flag])
 		for gap_variant in Array(entry.get("gaps", [])):
-			var gap_id: String = String(gap_variant)
+			var gap_id: String = str(gap_variant)
 			if gap_id.is_empty():
 				continue
 			if gaps.has(gap_id):
@@ -12691,21 +12691,21 @@ func validate_developer_validation_no_mutation() -> Array[String]:
 	run_developer_validation_suite("connector_processor_migration")
 	_run_developer_validation_suite_internal("all", false)
 	var after: Dictionary = _build_developer_validation_runtime_snapshot()
-	if String(after.get("mission_id", "")) != String(baseline.get("mission_id", "")):
+	if str(after.get("mission_id", "")) != str(baseline.get("mission_id", "")):
 		warnings.append("developer_validation_mutated_mission_id")
-	if String(after.get("mission_state", "")) != String(baseline.get("mission_state", "")):
+	if str(after.get("mission_state", "")) != str(baseline.get("mission_state", "")):
 		warnings.append("developer_validation_mutated_mission_state")
-	if String(after.get("world_objects", "")) != String(baseline.get("world_objects", "")):
+	if str(after.get("world_objects", "")) != str(baseline.get("world_objects", "")):
 		warnings.append("developer_validation_mutated_world_objects")
-	if String(after.get("inventory", "")) != String(baseline.get("inventory", "")):
+	if str(after.get("inventory", "")) != str(baseline.get("inventory", "")):
 		warnings.append("developer_validation_mutated_inventory")
-	if String(after.get("installed_modules", "")) != String(baseline.get("installed_modules", "")):
+	if str(after.get("installed_modules", "")) != str(baseline.get("installed_modules", "")):
 		warnings.append("developer_validation_mutated_installed_modules")
-	if String(after.get("port_state", "")) != String(baseline.get("port_state", "")):
+	if str(after.get("port_state", "")) != str(baseline.get("port_state", "")):
 		warnings.append("developer_validation_mutated_port_state")
-	if String(after.get("capability_report", "")) != String(baseline.get("capability_report", "")):
+	if str(after.get("capability_report", "")) != str(baseline.get("capability_report", "")):
 		warnings.append("developer_validation_mutated_capability_report")
-	if String(after.get("task_state", "")) != String(baseline.get("task_state", "")):
+	if str(after.get("task_state", "")) != str(baseline.get("task_state", "")):
 		warnings.append("developer_validation_mutated_task_state")
 	return warnings
 
@@ -12766,11 +12766,11 @@ func _get_developer_validation_suite_text_internal(suite: String = "all", includ
 	var lines: Array[String] = ["DeveloperValidation suite=%s suites_run=%d warnings=%d" % [suite, int(report.get("suites_run", 0)), int(report.get("warnings_count", 0))]]
 	var by_suite: Dictionary = Dictionary(report.get("warnings_by_suite", {}))
 	for suite_id_variant in by_suite.keys():
-		var suite_id: String = String(suite_id_variant)
+		var suite_id: String = str(suite_id_variant)
 		var suite_warnings: Array = Array(by_suite.get(suite_id_variant, []))
 		lines.append("- %s: %d warning(s)" % [suite_id, suite_warnings.size()])
 		for warning in suite_warnings:
-			lines.append("  • %s" % String(warning))
+			lines.append("  • %s" % str(warning))
 	return "\n".join(lines)
 
 var _map_constructor_last_kit_snapshot: Dictionary = {}
@@ -12801,10 +12801,10 @@ func _map_constructor_filter_entry_rows(entries: Array, warnings: Array[String],
 	var catalog_ids: Dictionary = {}
 	for catalog_row in get_map_constructor_prefab_catalog():
 		var catalog_entry: Dictionary = Dictionary(catalog_row)
-		catalog_ids[String(catalog_entry.get("id", ""))] = true
+		catalog_ids[str(catalog_entry.get("id", ""))] = true
 	for entry_variant in entries:
 		var entry: Dictionary = Dictionary(entry_variant)
-		var prefab_id: String = String(entry.get("prefab_id", "")).strip_edges()
+		var prefab_id: String = str(entry.get("prefab_id", "")).strip_edges()
 		var canonical_prefab_id: String = WorldObjectCatalogRef.canonical_object_type(prefab_id)
 		if not catalog_ids.has(prefab_id) and not catalog_ids.has(canonical_prefab_id):
 			if not removed_missing_ids.has(prefab_id):
@@ -12835,7 +12835,7 @@ func get_map_constructor_prefab_kits() -> Dictionary:
 		var removed_missing_ids: Array[String] = []
 		kit["entries"] = _map_constructor_filter_entry_rows(entries, row_warnings, removed_missing_ids)
 		if not row_warnings.is_empty():
-			var existing_warning: String = String(kit.get("warning", "")).strip_edges()
+			var existing_warning: String = str(kit.get("warning", "")).strip_edges()
 			var joined_warnings: String = "; ".join(row_warnings)
 			kit["warning"] = joined_warnings if existing_warning.is_empty() else "%s; %s" % [existing_warning, joined_warnings]
 		if Array(kit.get("entries", [])).is_empty():
@@ -12849,7 +12849,7 @@ func preview_map_constructor_prefab_kit(kit_id: String, anchor_cell: Vector2i, o
 	var kits: Array = Array(get_map_constructor_prefab_kits().get("kits", []))
 	var kit: Dictionary = {}
 	for row in kits:
-		if String(row.get("id", "")) == kit_id:
+		if str(row.get("id", "")) == kit_id:
 			kit = Dictionary(row)
 			break
 	if kit.is_empty():
@@ -12864,7 +12864,7 @@ func apply_map_constructor_prefab_kit(kit_id: String, anchor_cell: Vector2i, opt
 	var kits: Array = Array(get_map_constructor_prefab_kits().get("kits", []))
 	var kit: Dictionary = {}
 	for row in kits:
-		if String(Dictionary(row).get("id", "")) == kit_id:
+		if str(Dictionary(row).get("id", "")) == kit_id:
 			kit = Dictionary(row)
 			break
 	if kit.is_empty():
@@ -12919,7 +12919,7 @@ func preview_map_constructor_room_template(template_id: String, anchor_cell: Vec
 		return {"ok": false, "template_id": template_id, "anchor_cell": anchor_cell, "affected": [], "warnings": [], "conflicts": [], "can_apply": false, "message": "Template preview is available only in TASK TEST constructor mode."}
 	var tpls: Array = Array(get_map_constructor_room_templates().get("templates", []))
 	for t in tpls:
-		if String(Dictionary(t).get("id", "")) == template_id:
+		if str(Dictionary(t).get("id", "")) == template_id:
 			var template: Dictionary = Dictionary(t)
 			var preview: Dictionary = _preview_map_constructor_entry_set(Array(template.get("entries", [])), anchor_cell, options)
 			var tile_edits_preview: Dictionary = preview_map_constructor_tile_edits(Array(template.get("tile_edits", [])), anchor_cell, options)
@@ -12937,7 +12937,7 @@ func apply_map_constructor_room_template(template_id: String, anchor_cell: Vecto
 	var templates: Array = Array(get_map_constructor_room_templates().get("templates", []))
 	var template: Dictionary = {}
 	for row in templates:
-		if String(Dictionary(row).get("id", "")) == template_id:
+		if str(Dictionary(row).get("id", "")) == template_id:
 			template = Dictionary(row)
 			break
 	if template.is_empty():
@@ -12964,7 +12964,7 @@ func apply_map_constructor_room_template(template_id: String, anchor_cell: Vecto
 	result["warnings"] = Array(result.get("warnings", [])) + Array(tile_apply.get("warnings", []))
 	if not bool(tile_apply.get("ok", false)):
 		result["ok"] = false
-		result["message"] = String(tile_apply.get("message", "Template tile edits failed."))
+		result["message"] = str(tile_apply.get("message", "Template tile edits failed."))
 		return result
 	if bool(result.get("ok", false)):
 		_record_map_constructor_change("template", {"summary":"Applied template %s" % template_id})
@@ -13044,29 +13044,29 @@ func get_room_visual_preset_summary() -> Dictionary:
 	var floor_summary: Dictionary = get_map_constructor_floor_material_summary()
 	var floor_material_counts: Dictionary = Dictionary(floor_summary.get("material_counts", {}))
 	for key_variant in _map_constructor_wall_material_overrides.keys():
-		var key: String = String(key_variant)
+		var key: String = str(key_variant)
 		var row: Dictionary = Dictionary(_map_constructor_wall_material_overrides.get(key, {}))
 		if not bool(row.get("created_by_room_visual_preset", false)):
 			continue
 		wall_count += 1
-		var material_id: String = String(row.get("material_id", "")).strip_edges()
+		var material_id: String = str(row.get("material_id", "")).strip_edges()
 		if material_id.is_empty():
 			material_id = "unknown"
 		wall_material_counts[material_id] = int(wall_material_counts.get(material_id, 0)) + 1
-		var preset_id: String = String(row.get("room_visual_preset_id", "")).strip_edges()
+		var preset_id: String = str(row.get("room_visual_preset_id", "")).strip_edges()
 		if not preset_id.is_empty():
 			active_preset_lookup[preset_id] = true
 		var cell: Vector2i = Vector2i(row.get("cell", Vector2i(-1, -1)))
 		if cell.x >= 0 and cell.y >= 0:
 			affected_cell_lookup[_serialize_cell_key(cell)] = cell
 	for object_id_variant in map_constructor_door_visual_preset_overrides.keys():
-		var door_object_id: String = String(object_id_variant)
+		var door_object_id: String = str(object_id_variant)
 		var row_door: Dictionary = Dictionary(map_constructor_door_visual_preset_overrides.get(door_object_id, {}))
-		var hint: String = String(row_door.get("visual_hint", "")).strip_edges()
+		var hint: String = str(row_door.get("visual_hint", "")).strip_edges()
 		if hint.is_empty():
 			hint = "none"
 		door_visual_counts[hint] = int(door_visual_counts.get(hint, 0)) + 1
-		var preset_id_door: String = String(row_door.get("preset_id", "")).strip_edges()
+		var preset_id_door: String = str(row_door.get("preset_id", "")).strip_edges()
 		if not preset_id_door.is_empty():
 			active_preset_lookup[preset_id_door] = true
 		var door_object: Dictionary = get_world_object_by_id(door_object_id)
@@ -13074,13 +13074,13 @@ func get_room_visual_preset_summary() -> Dictionary:
 		if door_cell.x >= 0 and door_cell.y >= 0:
 			affected_cell_lookup[_serialize_cell_key(door_cell)] = door_cell
 	for terminal_id_variant in map_constructor_terminal_visual_preset_overrides.keys():
-		var terminal_id: String = String(terminal_id_variant)
+		var terminal_id: String = str(terminal_id_variant)
 		var row_terminal: Dictionary = Dictionary(map_constructor_terminal_visual_preset_overrides.get(terminal_id, {}))
-		var terminal_hint: String = String(row_terminal.get("visual_hint", "")).strip_edges()
+		var terminal_hint: String = str(row_terminal.get("visual_hint", "")).strip_edges()
 		if terminal_hint.is_empty():
 			terminal_hint = "none"
 		terminal_visual_counts[terminal_hint] = int(terminal_visual_counts.get(terminal_hint, 0)) + 1
-		var preset_id_terminal: String = String(row_terminal.get("preset_id", "")).strip_edges()
+		var preset_id_terminal: String = str(row_terminal.get("preset_id", "")).strip_edges()
 		if not preset_id_terminal.is_empty():
 			active_preset_lookup[preset_id_terminal] = true
 		var terminal_object: Dictionary = get_world_object_by_id(terminal_id)
@@ -13093,7 +13093,7 @@ func get_room_visual_preset_summary() -> Dictionary:
 			affected_cell_lookup[_serialize_cell_key(floor_cell)] = floor_cell
 	var active_preset_ids: Array[String] = []
 	for preset_id_variant in active_preset_lookup.keys():
-		active_preset_ids.append(String(preset_id_variant))
+		active_preset_ids.append(str(preset_id_variant))
 	active_preset_ids.sort()
 	var affected_cells: Array = []
 	for cell_key_variant in affected_cell_lookup.keys():
@@ -13121,22 +13121,22 @@ func get_map_constructor_object_grounding_summary() -> Dictionary:
 	for object_variant in mission_world_objects:
 		var data: Dictionary = _safe_dictionary(object_variant)
 		summary["object_count"] = int(summary.get("object_count", 0)) + 1
-		var _object_type: String = String(data.get("object_type", data.get("type", ""))).to_lower().strip_edges()
-		var entity_kind: String = String(_map_constructor_entity_kind(data)).to_lower().strip_edges()
+		var _object_type: String = str(data.get("object_type", data.get("type", ""))).to_lower().strip_edges()
+		var entity_kind: String = str(_map_constructor_entity_kind(data)).to_lower().strip_edges()
 		if entity_kind == "item":
 			summary["item_count"] = int(summary.get("item_count", 0)) + 1
-		var placement_mode: String = String(data.get("placement_mode", "")).to_lower().strip_edges()
+		var placement_mode: String = str(data.get("placement_mode", "")).to_lower().strip_edges()
 		var anchor: Vector2i = _deserialize_cell_variant(data.get("anchor_floor_cell", data.get("position", Vector2i(-1, -1))))
 		if anchor.x < 0 or anchor.y < 0:
 			summary["missing_anchor_count"] = int(summary.get("missing_anchor_count", 0)) + 1
 		if placement_mode == "wall_mounted":
 			summary["wall_mounted_count"] = int(summary.get("wall_mounted_count", 0)) + 1
 			var attached: Vector2i = _deserialize_cell_variant(data.get("attached_wall_cell", Vector2i(-1, -1)))
-			if attached.x < 0 or attached.y < 0 or String(data.get("wall_side", "")).strip_edges().is_empty():
+			if attached.x < 0 or attached.y < 0 or str(data.get("wall_side", "")).strip_edges().is_empty():
 				summary["missing_wall_mount_count"] = int(summary.get("missing_wall_mount_count", 0)) + 1
 		elif _object_type.contains("door") or _object_type.contains("gate"):
 			summary["door_insert_count"] = int(summary.get("door_insert_count", 0)) + 1
-		elif entity_kind == "item" or _object_type.contains("key") or _object_type.contains("kit") or _object_type.contains("card") or _object_type.contains("code") or _object_type.contains("fuse") or _object_type.contains("item") or String(data.get("item_type", "")).strip_edges() != "":
+		elif entity_kind == "item" or _object_type.contains("key") or _object_type.contains("kit") or _object_type.contains("card") or _object_type.contains("code") or _object_type.contains("fuse") or _object_type.contains("item") or str(data.get("item_type", "")).strip_edges() != "":
 			summary["floor_pickup_count"] = int(summary.get("floor_pickup_count", 0)) + 1
 		else:
 			summary["floor_standing_count"] = int(summary.get("floor_standing_count", 0)) + 1
@@ -13157,7 +13157,7 @@ func export_map_constructor_design_notes(_options: Dictionary = {}) -> Dictionar
 	var wall_counts: Dictionary = {}
 	for row_variant in wall_overrides:
 		var row: Dictionary = Dictionary(row_variant)
-		var material_id: String = String(row.get("material_id", "unknown")).to_lower()
+		var material_id: String = str(row.get("material_id", "unknown")).to_lower()
 		wall_counts[material_id] = int(wall_counts.get(material_id, 0)) + 1
 	var door_visual_summary: Dictionary = {"counts_by_state": {}, "doors": []}
 	var terminal_visual_summary: Dictionary = {"counts_by_type": {}, "counts_by_state": {}, "terminals": []}
@@ -13167,23 +13167,23 @@ func export_map_constructor_design_notes(_options: Dictionary = {}) -> Dictionar
 	var object_ids: Dictionary = {}
 	for object_variant in mission_world_objects:
 		var object_data_indexed: Dictionary = _safe_dictionary(object_variant)
-		var indexed_id: String = String(object_data_indexed.get("id", "")).strip_edges()
+		var indexed_id: String = str(object_data_indexed.get("id", "")).strip_edges()
 		if not indexed_id.is_empty():
 			object_ids[indexed_id] = true
 	for object_variant in mission_world_objects:
 		var object_data: Dictionary = _safe_dictionary(object_variant)
-		var object_id: String = String(object_data.get("id", "")).strip_edges()
+		var object_id: String = str(object_data.get("id", "")).strip_edges()
 		if object_id.is_empty():
 			continue
-		var object_type: String = String(object_data.get("object_type", object_data.get("type", ""))).strip_edges()
+		var object_type: String = str(object_data.get("object_type", object_data.get("type", ""))).strip_edges()
 		var cell: Vector2i = Vector2i(object_data.get("position", Vector2i(-1, -1)))
 		var normalized_type: String = object_type.to_lower()
 		if normalized_type.find("door") >= 0 or normalized_type.find("gate") >= 0:
 			var door_visual: Dictionary = get_map_constructor_door_visual_state(object_id)
-			var door_state: String = String(door_visual.get("state", "unknown"))
+			var door_state: String = str(door_visual.get("state", "unknown"))
 			var door_badges: Array[String] = []
 			for badge_variant in Array(door_visual.get("badges", [])):
-				door_badges.append(String(badge_variant))
+				door_badges.append(str(badge_variant))
 			var count_state: String = door_state.to_lower()
 			door_visual_summary["counts_by_state"][count_state] = int(door_visual_summary["counts_by_state"].get(count_state, 0)) + 1
 			door_rows.append({"object_id": object_id, "cell": cell, "object_type": object_type, "state": door_state, "badges": door_badges})
@@ -13191,11 +13191,11 @@ func export_map_constructor_design_notes(_options: Dictionary = {}) -> Dictionar
 				visual_diagnostics.append(_make_map_constructor_issue("door_visual_unknown_%s" % object_id, "warning", "Door visual state unknown for %s." % object_id, cell, "world_object", "world_object", object_id, "Set valid door state metadata."))
 		if normalized_type.find("terminal") >= 0:
 			var terminal_visual: Dictionary = get_map_constructor_terminal_visual_state(object_id)
-			var terminal_type: String = String(terminal_visual.get("terminal_type", "unknown"))
-			var terminal_state: String = String(terminal_visual.get("state", "unknown"))
+			var terminal_type: String = str(terminal_visual.get("terminal_type", "unknown"))
+			var terminal_state: String = str(terminal_visual.get("state", "unknown"))
 			var terminal_badges: Array[String] = []
 			for terminal_badge_variant in Array(terminal_visual.get("badges", [])):
-				terminal_badges.append(String(terminal_badge_variant))
+				terminal_badges.append(str(terminal_badge_variant))
 			var count_type: String = terminal_type.to_lower()
 			var count_terminal_state: String = terminal_state.to_lower()
 			terminal_visual_summary["counts_by_type"][count_type] = int(terminal_visual_summary["counts_by_type"].get(count_type, 0)) + 1
@@ -13203,7 +13203,7 @@ func export_map_constructor_design_notes(_options: Dictionary = {}) -> Dictionar
 			terminal_rows.append({"object_id": object_id, "cell": cell, "object_type": object_type, "terminal_type": terminal_type, "state": terminal_state, "badges": terminal_badges})
 			if count_type == "unknown":
 				visual_diagnostics.append(_make_map_constructor_issue("terminal_visual_type_unknown_%s" % object_id, "warning", "Terminal visual type unknown for %s." % object_id, cell, "world_object", "world_object", object_id, "Set valid terminal_type metadata."))
-			var linked_target_id: String = String(object_data.get("linked_object_id", object_data.get("target_object_id", ""))).strip_edges()
+			var linked_target_id: String = str(object_data.get("linked_object_id", object_data.get("target_object_id", ""))).strip_edges()
 			if not linked_target_id.is_empty() and not object_ids.has(linked_target_id):
 				visual_diagnostics.append(_make_map_constructor_issue("terminal_missing_link_target_%s" % object_id, "warning", "Terminal %s references missing linked target %s." % [object_id, linked_target_id], cell, "world_object", "world_object", object_id, "Fix linked target id or add the target object."))
 	door_visual_summary["doors"] = door_rows
@@ -13211,7 +13211,7 @@ func export_map_constructor_design_notes(_options: Dictionary = {}) -> Dictionar
 	var visual_catalog: Dictionary = get_visual_texture_asset_catalog()
 	var visual_summary: Dictionary = _build_visual_asset_summary(Dictionary(visual_catalog))
 	var notes: Dictionary = {"schema_version":1,"source":"task_test_map_constructor","mission_id":TASK_TEST_MISSION_ID,"generated_at_runtime":str(Time.get_unix_time_from_system()),"summary":{"object_count":mission_world_objects.size(),"wall_material_override_count":wall_overrides.size(),"wall_material_counts":wall_counts,"floor_material_override_count":floor_overrides.size(),"floor_material_summary":floor_summary,"wall_topology_summary":wall_topology_summary,"wall_mounted_anchor_zone_summary":wall_mounted_anchor_zone_summary,"door_opening_summary":door_opening_summary,"object_grounding_summary":get_map_constructor_object_grounding_summary()},"visual_asset_summary":visual_summary,"readiness":readiness,"validation":{"issues":validation,"visual_diagnostics":visual_diagnostics},"objects":mission_world_objects.duplicate(true),"items":cell_items.values(),"tile_edits":Array(patch_export.get("patch", {}).get("tile_edits", [])),"links":Array(patch_export.get("patch", {}).get("links", [])),"patch":Dictionary(patch_export.get("patch", {})),"wall_material_overrides":wall_overrides,"floor_material_overrides":floor_overrides,"floor_material_summary":floor_summary,"wall_topology_summary":wall_topology_summary,"wall_mounted_anchor_zone_summary":wall_mounted_anchor_zone_summary,"door_opening_summary":door_opening_summary,"object_grounding_summary":get_map_constructor_object_grounding_summary(),"door_visual_summary":door_visual_summary,"terminal_visual_summary":terminal_visual_summary,"history_summary":Array(get_map_constructor_change_history(20).get("history", [])),"overview_summary":Dictionary(get_map_constructor_overview_data().get("summary", {})),"room_visual_preset_summary":get_room_visual_preset_summary(),"recommended_next_steps":["Manual promotion required. No mission files were modified."]}
-	var text: String = "# Design Notes\nMission: %s\nReadiness: %s\nValidation issues: %d\nPatch summary: objects=%d items=%d tiles=%d\nManual promotion required. No mission files were modified." % [TASK_TEST_MISSION_ID, String(readiness.get("status", "unknown")), validation.size(), int(patch_export.get("object_count", 0)), int(patch_export.get("item_count", 0)), int(patch_export.get("tile_edit_count", 0))]
+	var text: String = "# Design Notes\nMission: %s\nReadiness: %s\nValidation issues: %d\nPatch summary: objects=%d items=%d tiles=%d\nManual promotion required. No mission files were modified." % [TASK_TEST_MISSION_ID, str(readiness.get("status", "unknown")), validation.size(), int(patch_export.get("object_count", 0)), int(patch_export.get("item_count", 0)), int(patch_export.get("tile_edit_count", 0))]
 	return {"ok":true,"message":"OK","notes":notes,"text":text}
 
 func get_map_constructor_production_pipeline_report(_options: Dictionary = {}) -> Dictionary:
@@ -13226,24 +13226,24 @@ func get_map_constructor_production_pipeline_report(_options: Dictionary = {}) -
 	var warning_count: int = 0
 	for issue_variant in validation_issues:
 		var issue: Dictionary = Dictionary(issue_variant)
-		var severity: String = String(issue.get("severity", "warning")).to_lower()
+		var severity: String = str(issue.get("severity", "warning")).to_lower()
 		var expected: bool = bool(issue.get("expected_invalid", false))
 		if severity == "error" and not expected:
 			non_expected_errors += 1
 		if severity == "warning":
 			warning_count += 1
 	checks.append({"label":"TASK TEST constructor context active","status":"pass"})
-	checks.append({"label":"readiness playable","status":"pass" if String(readiness.get("status", "")) == "playable" else "fail"})
+	checks.append({"label":"readiness playable","status":"pass" if str(readiness.get("status", "")) == "playable" else "fail"})
 	checks.append({"label":"validation blocking errors","status":"pass" if non_expected_errors <= 0 else "fail"})
 	checks.append({"label":"patch export ok","status":"pass" if bool(patch_export.get("ok", false)) else "fail"})
 	checks.append({"label":"design notes ok","status":"pass" if bool(notes.get("ok", false)) else "fail"})
 	checks.append({"label":"validation warnings","status":"warning" if warning_count > 0 else "pass"})
 	checks.append({"label":"readiness diagnostics","status":"info","message":"not checked"})
-	var blocked: bool = String(readiness.get("status", "")) == "blocked" or not bool(readiness.get("ok", true)) or not bool(patch_export.get("ok", false)) or not bool(notes.get("ok", false)) or non_expected_errors > 0
+	var blocked: bool = str(readiness.get("status", "")) == "blocked" or not bool(readiness.get("ok", true)) or not bool(patch_export.get("ok", false)) or not bool(notes.get("ok", false)) or non_expected_errors > 0
 	var has_warnings: bool = warning_count > 0
 	var status: String = "blocked" if blocked else ("warning" if has_warnings else "ready")
 	var notes_payload: Dictionary = Dictionary(notes.get("notes", {}))
-	return {"ok":true,"status":status,"message":"Manual promotion required. No mission files were modified.","checks":checks,"promotion_package":{"patch":Dictionary(patch_export.get("patch", {})),"design_notes":notes_payload,"summary":{"readiness":String(readiness.get("status", "unknown")),"wall_material_overrides":Array(get_map_constructor_wall_material_overrides().get("overrides", [])),"floor_material_summary":Dictionary(notes_payload.get("floor_material_summary", {})),"wall_topology_summary":Dictionary(notes_payload.get("wall_topology_summary", {})),"wall_mounted_anchor_zone_summary":Dictionary(notes_payload.get("wall_mounted_anchor_zone_summary", {})),"door_opening_summary":Dictionary(notes_payload.get("door_opening_summary", {})),"door_visual_summary":Dictionary(notes_payload.get("door_visual_summary", {})),"terminal_visual_summary":Dictionary(notes_payload.get("terminal_visual_summary", {})),"visual_asset_summary":Dictionary(notes_payload.get("visual_asset_summary", {})),"room_visual_preset_summary":Dictionary(notes_payload.get("room_visual_preset_summary", {})),"object_grounding_summary":Dictionary(notes_payload.get("object_grounding_summary", {}))},"manual_steps":["Review design notes","Review patch JSON","Promote manually in controlled pipeline"],"warnings":[]},"recommended_actions":[]}
+	return {"ok":true,"status":status,"message":"Manual promotion required. No mission files were modified.","checks":checks,"promotion_package":{"patch":Dictionary(patch_export.get("patch", {})),"design_notes":notes_payload,"summary":{"readiness":str(readiness.get("status", "unknown")),"wall_material_overrides":Array(get_map_constructor_wall_material_overrides().get("overrides", [])),"floor_material_summary":Dictionary(notes_payload.get("floor_material_summary", {})),"wall_topology_summary":Dictionary(notes_payload.get("wall_topology_summary", {})),"wall_mounted_anchor_zone_summary":Dictionary(notes_payload.get("wall_mounted_anchor_zone_summary", {})),"door_opening_summary":Dictionary(notes_payload.get("door_opening_summary", {})),"door_visual_summary":Dictionary(notes_payload.get("door_visual_summary", {})),"terminal_visual_summary":Dictionary(notes_payload.get("terminal_visual_summary", {})),"visual_asset_summary":Dictionary(notes_payload.get("visual_asset_summary", {})),"room_visual_preset_summary":Dictionary(notes_payload.get("room_visual_preset_summary", {})),"object_grounding_summary":Dictionary(notes_payload.get("object_grounding_summary", {}))},"manual_steps":["Review design notes","Review patch JSON","Promote manually in controlled pipeline"],"warnings":[]},"recommended_actions":[]}
 
 func get_map_constructor_wall_mounted_anchor_zone_summary() -> Dictionary:
 	var summary: Dictionary = {"wall_count": 0, "visible_side_count": 0, "mountable_zone_count": 0, "zones_by_side": {"north": 0, "east": 0, "south": 0, "west": 0}, "wall_mass_ratio": 0.7, "mount_band_ratio": 0.3, "wall_mounted_object_count": 0, "unanchored_wall_mounted_object_count": 0}
@@ -13278,10 +13278,10 @@ func get_map_constructor_wall_mounted_anchor_zone_summary() -> Dictionary:
 					summary["zones_by_side"] = by_side
 	for object_data in mission_world_objects:
 		var data: Dictionary = _safe_dictionary(object_data)
-		if String(data.get("placement_mode", "")).to_lower().strip_edges() != "wall_mounted":
+		if str(data.get("placement_mode", "")).to_lower().strip_edges() != "wall_mounted":
 			continue
 		summary["wall_mounted_object_count"] = int(summary.get("wall_mounted_object_count", 0)) + 1
-		if String(data.get("wall_side", "")).strip_edges().is_empty():
+		if str(data.get("wall_side", "")).strip_edges().is_empty():
 			summary["unanchored_wall_mounted_object_count"] = int(summary.get("unanchored_wall_mounted_object_count", 0)) + 1
 	return summary
 
@@ -13306,7 +13306,7 @@ func get_map_constructor_wall_topology_summary() -> Dictionary:
 				continue
 			wall_count += 1
 			var material_row: Dictionary = Dictionary(get_map_constructor_wall_material_for_wall_cell(cell).get("material", {}))
-			var material_id: String = String(material_row.get("id", "default_wall")).strip_edges()
+			var material_id: String = str(material_row.get("id", "default_wall")).strip_edges()
 			if material_id.is_empty():
 				material_id = "default_wall"
 			material_counts[material_id] = int(material_counts.get(material_id, 0)) + 1
@@ -13368,9 +13368,9 @@ func _build_visual_asset_summary(catalog: Dictionary) -> Dictionary:
 	var category_counts: Dictionary = {}
 	for row_variant in assets:
 		var row: Dictionary = Dictionary(row_variant)
-		var category: String = String(row.get("category", "unknown"))
+		var category: String = str(row.get("category", "unknown"))
 		category_counts[category] = int(category_counts.get(category, 0)) + 1
-		var resolved: Dictionary = resolve_visual_texture_asset(String(row.get("id", "")))
+		var resolved: Dictionary = resolve_visual_texture_asset(str(row.get("id", "")))
 		if bool(resolved.get("ok", false)) and not bool(resolved.get("has_texture", false)):
 			if bool(row.get("is_optional", true)):
 				missing_optional_count += 1
@@ -13399,16 +13399,16 @@ func _preview_map_constructor_entry_set(entries: Array, anchor_cell: Vector2i, o
 		var entry: Dictionary = Dictionary(entry_variant)
 		var transformed_offset: Vector2i = _map_constructor_transform_template_offset(Vector2i(entry.get("offset", Vector2i.ZERO)), options)
 		var cell: Vector2i = anchor_cell + transformed_offset
-		var wall_side: String = String(entry.get("wall_side", ""))
-		if bool(MAP_CONSTRUCTOR_WALL_MOUNTED_PREFABS.get(String(entry.get("prefab_id", "")), false)) and wall_side.is_empty():
-			conflicts.append({"prefab_id":String(entry.get("prefab_id", "")), "cell": cell, "reason":"missing_wall_side", "message":"Wall-mounted prefab requires wall_side."})
+		var wall_side: String = str(entry.get("wall_side", ""))
+		if bool(MAP_CONSTRUCTOR_WALL_MOUNTED_PREFABS.get(str(entry.get("prefab_id", "")), false)) and wall_side.is_empty():
+			conflicts.append({"prefab_id":str(entry.get("prefab_id", "")), "cell": cell, "reason":"missing_wall_side", "message":"Wall-mounted prefab requires wall_side."})
 			continue
-		var check: Dictionary = can_place_map_constructor_prefab(String(entry.get("prefab_id", "")), cell, wall_side)
+		var check: Dictionary = can_place_map_constructor_prefab(str(entry.get("prefab_id", "")), cell, wall_side)
 		if not bool(check.get("ok", false)):
-			conflicts.append({"prefab_id":String(entry.get("prefab_id", "")),"cell":cell,"reason":String(check.get("reason", "blocked")),"message":String(check.get("message", "Blocked."))})
-		affected.append({"prefab_id":String(entry.get("prefab_id", "")), "cell": cell})
-		if not String(entry.get("link_group", "")).is_empty():
-			warnings.append("Link group metadata preserved for %s; link resolver not applied." % String(entry.get("prefab_id", "")))
+			conflicts.append({"prefab_id":str(entry.get("prefab_id", "")),"cell":cell,"reason":str(check.get("reason", "blocked")),"message":str(check.get("message", "Blocked."))})
+		affected.append({"prefab_id":str(entry.get("prefab_id", "")), "cell": cell})
+		if not str(entry.get("link_group", "")).is_empty():
+			warnings.append("Link group metadata preserved for %s; link resolver not applied." % str(entry.get("prefab_id", "")))
 	return {"ok": true, "anchor_cell": anchor_cell, "affected": affected, "warnings": warnings, "conflicts": conflicts, "can_apply": conflicts.is_empty() or allow_overwrite, "message": "Preview ready."}
 
 func _apply_map_constructor_entry_set(entries: Array, anchor_cell: Vector2i, options: Dictionary = {}) -> Dictionary:
@@ -13423,18 +13423,18 @@ func _apply_map_constructor_entry_set(entries: Array, anchor_cell: Vector2i, opt
 		var entry: Dictionary = Dictionary(entry_variant)
 		var transformed_offset: Vector2i = _map_constructor_transform_template_offset(Vector2i(entry.get("offset", Vector2i.ZERO)), options)
 		var cell: Vector2i = anchor_cell + transformed_offset
-		var wall_side: String = String(entry.get("wall_side", ""))
-		var placed: Dictionary = place_map_constructor_prefab(String(entry.get("prefab_id", "")), cell, wall_side)
+		var wall_side: String = str(entry.get("wall_side", ""))
+		var placed: Dictionary = place_map_constructor_prefab(str(entry.get("prefab_id", "")), cell, wall_side)
 		if bool(placed.get("ok", false)):
 			placed_count += 1
 			var properties: Dictionary = Dictionary(entry.get("properties", {}))
 			if not properties.is_empty():
-				var placed_object_id: String = String(placed.get("object_id", ""))
+				var placed_object_id: String = str(placed.get("object_id", ""))
 				if placed_object_id.is_empty():
 					warnings.append("Properties not applied: placement result did not include entity id.")
 				else:
 					for property_name_variant in properties.keys():
-						var property_name: String = String(property_name_variant)
+						var property_name: String = str(property_name_variant)
 						var update_result: Dictionary = apply_map_constructor_property_update("world_object", placed_object_id, property_name, properties.get(property_name_variant))
 						if not bool(update_result.get("ok", false)):
 							warnings.append("Property '%s' not applied for %s." % [property_name, placed_object_id])

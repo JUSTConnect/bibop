@@ -12,10 +12,10 @@ static func add_tab_header(ui: Variant, parent: VBoxContainer, available_width: 
 		{"id":"objects", "label":"Objects", "short_label":"Objects", "tooltip":"Objects: search and place prefab object cards, then inspect placed objects."},
 		{"id":"warnings", "label":"Warnings", "short_label":"Warnings", "tooltip":"Warnings: mission readiness, validation issues, and recommended fixes."}
 	]:
-		var tab_id: String = String(tab_data.get("id", ""))
+		var tab_id: String = str(tab_data.get("id", ""))
 		var tab_button: Button = Button.new()
-		tab_button.text = String(tab_data.get("short_label" if use_short_labels else "label", tab_id))
-		tab_button.tooltip_text = String(tab_data.get("tooltip", tab_data.get("label", tab_id)))
+		tab_button.text = str(tab_data.get("short_label" if use_short_labels else "label", tab_id))
+		tab_button.tooltip_text = str(tab_data.get("tooltip", tab_data.get("label", tab_id)))
 		tab_button.clip_text = true
 		tab_button.toggle_mode = true
 		tab_button.button_pressed = tab_id == ui.map_constructor_active_tab

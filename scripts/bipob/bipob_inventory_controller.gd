@@ -59,7 +59,7 @@ static func store_digital_record(controller: Variant, record_id: String, display
 		return
 
 	if controller.digital_storage.size() >= controller.digital_storage_capacity:
-		var existing_record_id := String(controller.digital_storage.keys()[0])
+		var existing_record_id := str(controller.digital_storage.keys()[0])
 		var old_display_name := get_digital_record_display_name(controller, existing_record_id)
 		controller.digital_storage.erase(existing_record_id)
 		controller.digital_storage[record_id] = record
@@ -72,7 +72,7 @@ static func get_first_digital_record_display_name(controller: Variant) -> String
 	if controller.digital_storage.is_empty():
 		return "empty"
 
-	var first_record_id := String(controller.digital_storage.keys()[0])
+	var first_record_id := str(controller.digital_storage.keys()[0])
 	return get_digital_record_display_name(controller, first_record_id)
 
 
@@ -94,7 +94,7 @@ static func get_digital_record_display_name(controller: Variant, record_id: Stri
 
 	var record_dict: Dictionary = record_data
 	if record_dict.has("display_name"):
-		var resolved_display_name := String(record_dict.get("display_name", ""))
+		var resolved_display_name := str(record_dict.get("display_name", ""))
 		if not resolved_display_name.is_empty():
 			return resolved_display_name
 
@@ -113,7 +113,7 @@ static func get_digital_storage_text(controller: Variant) -> String:
 
 	var lines := ["Digital storage:"]
 	for record_id in controller.digital_storage.keys():
-		lines.append("- " + get_digital_record_display_name(controller, String(record_id)))
+		lines.append("- " + get_digital_record_display_name(controller, str(record_id)))
 	return "\n".join(lines)
 
 

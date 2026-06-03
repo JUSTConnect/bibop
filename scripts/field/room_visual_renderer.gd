@@ -290,7 +290,7 @@ func should_suppress_iso_fog_for_constructor() -> bool:
 	if mission_manager.has_method("_is_task_test_constructor_context"):
 		return bool(mission_manager.call("_is_task_test_constructor_context"))
 	if mission_manager.has_method("get_current_mission_id"):
-		return String(mission_manager.call("get_current_mission_id")) == "mission_10"
+		return str(mission_manager.call("get_current_mission_id")) == "mission_10"
 	return false
 
 func should_render_iso_fog_visuals() -> bool:
@@ -323,7 +323,7 @@ func is_task_test_visual_preview_context() -> bool:
 	if mission_manager.has_method("_is_task_test_constructor_context"):
 		return bool(mission_manager.call("_is_task_test_constructor_context"))
 	if mission_manager.has_method("get_current_mission_id"):
-		return String(mission_manager.call("get_current_mission_id")) == "mission_10"
+		return str(mission_manager.call("get_current_mission_id")) == "mission_10"
 	return use_iso_visual_preview_preset
 
 func should_preview_drive_bipob_visual_position() -> bool:
@@ -351,7 +351,7 @@ func get_iso_visual_preview_state_text() -> String:
 	var state: Dictionary = get_iso_visual_preview_state()
 	return "IsoVisualPreview active=%s projection=%s tile=%s floor=%s wall=%s objects=%s fog=%s asset_hooks=%s placeholder_assets=%s drives_bipob=%s" % [
 		str(state.get("preview_active", false)),
-		String(state.get("projection_mode", ISO_PROJECTION_CLASSIC)),
+		str(state.get("projection_mode", ISO_PROJECTION_CLASSIC)),
 		str(Vector2(state.get("projection_tile_size", ISO_CLASSIC_TILE_SIZE))),
 		str(state.get("floor", false)),
 		str(state.get("wall", false)),
@@ -410,10 +410,10 @@ func get_object_visual_center(cell: Vector2i, object_data: Dictionary = {}) -> V
 	# Visual-only helper for object overlay markers.
 	# Keeps object anchors deterministic and independent of gameplay systems.
 	var center: Vector2 = grid_to_iso(cell)
-	var object_type: String = String(object_data.get("type", "")).to_lower()
-	var object_kind: String = String(object_data.get("kind", "")).to_lower()
-	var object_visual_hint: String = String(object_data.get("visual_hint", "")).to_lower()
-	var object_id: String = String(object_data.get("id", "")).to_lower()
+	var object_type: String = str(object_data.get("type", "")).to_lower()
+	var object_kind: String = str(object_data.get("kind", "")).to_lower()
+	var object_visual_hint: String = str(object_data.get("visual_hint", "")).to_lower()
+	var object_id: String = str(object_data.get("id", "")).to_lower()
 	var hint_blob: String = "%s %s %s %s" % [object_type, object_kind, object_visual_hint, object_id]
 	if hint_blob.contains("wall") or hint_blob.contains("door") or hint_blob.contains("terminal"):
 		return center + Vector2(0.0, -6.0)
@@ -623,7 +623,7 @@ func draw_iso_mouse_selection_overlay() -> void:
 		var obj: Dictionary = {}
 		if mission_manager != null and mission_manager.has_method("get_world_object_at_cell"):
 			obj = Dictionary(mission_manager.call("get_world_object_at_cell", selected_wall_mounted_anchor_cell))
-		if String(obj.get("id", "")) == selected_wall_mounted_object_id:
+		if str(obj.get("id", "")) == selected_wall_mounted_object_id:
 			var center: Vector2 = get_object_visual_center(selected_wall_mounted_anchor_cell, obj)
 			var r: float = 9.0
 			var pts: PackedVector2Array = PackedVector2Array([center + Vector2(0, -r), center + Vector2(r, 0), center + Vector2(0, r), center + Vector2(-r, 0)])
@@ -651,7 +651,7 @@ func draw_iso_mouse_selection_overlay() -> void:
 			var mission_manager_link: Node = get_mission_manager_ref()
 			if mission_manager_link != null and mission_manager_link.has_method("get_world_object_at_cell"):
 				var target_obj: Dictionary = Dictionary(mission_manager_link.call("get_world_object_at_cell", map_constructor_link_target_cell))
-				if String(target_obj.get("id", "")) == map_constructor_link_target_object_id:
+				if str(target_obj.get("id", "")) == map_constructor_link_target_object_id:
 					var target_center: Vector2 = get_object_visual_center(map_constructor_link_target_cell, target_obj)
 					draw_circle(target_center, 5.5, Color(0.95, 0.6, 1.0, 0.95))
 					draw_arc(target_center, 10.0, 0.0, TAU, 20, Color(0.95, 0.6, 1.0, 1.0), 2.0)
@@ -677,7 +677,7 @@ var map_constructor_overlay_data: Dictionary = {}
 
 func set_map_constructor_overlay_preferences(prefs: Dictionary) -> void:
 	for key_variant in prefs.keys():
-		var key: String = String(key_variant)
+		var key: String = str(key_variant)
 		if map_constructor_overlay_prefs.has(key):
 			map_constructor_overlay_prefs[key] = bool(prefs.get(key_variant, map_constructor_overlay_prefs[key]))
 	queue_redraw()
@@ -730,7 +730,7 @@ func draw_map_constructor_visual_overlay_passes() -> void:
 				var hover_next_index: int = (hover_edge_index + 1) % hover_poly.size()
 				draw_line(hover_poly[hover_edge_index], hover_poly[hover_next_index], Color(0.72, 0.92, 1.0, 0.45), 1.2)
 	if bool(map_constructor_overlay_prefs.get("show_preview", true)):
-		var destructive: bool = String(preview.get("mode", "")) == "destructive"
+		var destructive: bool = str(preview.get("mode", "")) == "destructive"
 		var preview_blocked: bool = map_constructor_preview_is_blocked
 		if map_constructor_preview_cell.x >= 0 and map_constructor_preview_cell.y >= 0:
 			var p: PackedVector2Array = get_iso_inset_diamond_points(map_constructor_preview_cell, iso_floor_visual_inset + 3.0)
@@ -796,7 +796,7 @@ func draw_map_constructor_visual_overlay_passes() -> void:
 			var cell: Vector2i = Vector2i(issue.get("cell", Vector2i(-1, -1)))
 			if cell.x < 0 or cell.y < 0:
 				continue
-			var sev: String = String(issue.get("severity", "info"))
+			var sev: String = str(issue.get("severity", "info"))
 			var expected_invalid: bool = bool(issue.get("expected_invalid", false)) or sev.to_lower() == "expected_invalid"
 			var mc: Color = Color(0.62, 0.8, 1.0, 0.95)
 			if expected_invalid:
@@ -826,10 +826,10 @@ func draw_map_constructor_visual_overlay_passes() -> void:
 				continue
 			draw_line(grid_to_iso(f), grid_to_iso(t), Color(0.45, 0.9, 1.0, 0.65), 1.2)
 	if bool(map_constructor_overlay_prefs.get("show_wall_side_arrows", true)):
-		if String(preview.get("wall_side", "")) != "" and map_constructor_preview_cell.x >= 0:
-			_draw_wall_side_arrow(map_constructor_preview_cell, String(preview.get("wall_side", "")), Color(0.82, 0.95, 1.0, 1.0))
-		if String(selected.get("wall_side", "")) != "":
-			_draw_wall_side_arrow(Vector2i(selected.get("cell", Vector2i(-1, -1))), String(selected.get("wall_side", "")), Color(1.0, 0.88, 0.35, 1.0))
+		if str(preview.get("wall_side", "")) != "" and map_constructor_preview_cell.x >= 0:
+			_draw_wall_side_arrow(map_constructor_preview_cell, str(preview.get("wall_side", "")), Color(0.82, 0.95, 1.0, 1.0))
+		if str(selected.get("wall_side", "")) != "":
+			_draw_wall_side_arrow(Vector2i(selected.get("cell", Vector2i(-1, -1))), str(selected.get("wall_side", "")), Color(1.0, 0.88, 0.35, 1.0))
 const ISO_LAYER_BIAS_FLOOR: float = 0.0
 const ISO_LAYER_BIAS_ITEM: float = 0.1
 const ISO_LAYER_BIAS_DOOR: float = 0.2
@@ -996,13 +996,13 @@ func get_iso_door_opening_visual_profile(cell: Vector2i, object_data: Dictionary
 	if _grid_manager != null and is_cell_in_bounds(cell):
 		tile_type = _grid_manager.get_tile(cell)
 	var door_kind: String = _get_door_kind_for_tile(tile_type)
-	var door_state: String = String(object_data.get("state", object_data.get("visual_state", "closed"))).to_lower().strip_edges()
-	var object_id: String = String(object_data.get("id", object_data.get("object_id", ""))).strip_edges()
+	var door_state: String = str(object_data.get("state", object_data.get("visual_state", "closed"))).to_lower().strip_edges()
+	var object_id: String = str(object_data.get("id", object_data.get("object_id", ""))).strip_edges()
 	var mission_manager: Node = get_mission_manager_ref()
 	if not object_id.is_empty() and mission_manager != null and mission_manager.has_method("get_map_constructor_door_visual_state"):
 		var resolved_state: Dictionary = Dictionary(mission_manager.call("get_map_constructor_door_visual_state", object_id))
 		if bool(resolved_state.get("ok", false)):
-			door_state = String(resolved_state.get("state", door_state)).to_lower().strip_edges()
+			door_state = str(resolved_state.get("state", door_state)).to_lower().strip_edges()
 	if bool(object_data.get("is_open", object_data.get("open", false))):
 		door_state = "open"
 	if bool(object_data.get("is_locked", object_data.get("locked", false))):
@@ -1326,7 +1326,7 @@ func get_iso_wall_texture_for_asset_key(asset_key: String) -> Texture2D:
 			if cached_value is Texture2D:
 				return cached_value as Texture2D
 		else:
-			var texture_path: String = ISO_WALL_ASSET_PACK_DIR + String(catalog.get(asset_key, ""))
+			var texture_path: String = ISO_WALL_ASSET_PACK_DIR + str(catalog.get(asset_key, ""))
 			if ResourceLoader.exists(texture_path):
 				var loaded_resource: Resource = ResourceLoader.load(texture_path)
 				if loaded_resource is Texture2D:
@@ -1354,10 +1354,10 @@ func get_iso_wall_texture_for_profile(profile_key: String) -> Texture2D:
 	return get_iso_wall_texture_for_asset_key(normalize_wall_asset_key(profile_key))
 
 func get_iso_wall_asset_key_for_material_row(material_row: Dictionary, fallback_profile_key: String) -> String:
-	var texture_asset_id: String = String(material_row.get("texture_asset_id", "")).strip_edges()
+	var texture_asset_id: String = str(material_row.get("texture_asset_id", "")).strip_edges()
 	if texture_asset_id.begins_with("wall_"):
 		return normalize_wall_asset_key(texture_asset_id)
-	var material_id: String = String(material_row.get("id", "")).strip_edges()
+	var material_id: String = str(material_row.get("id", "")).strip_edges()
 	if not material_id.is_empty():
 		var material_asset_key: String = normalize_wall_asset_key(material_id)
 		if material_asset_key != "wall_default":
@@ -1390,7 +1390,7 @@ func get_iso_wall_texture_draw_rect_for_cell(cell: Vector2i, texture: Texture2D,
 	return Rect2(base_anchor - visible_bottom_center_in_destination, destination_size)
 
 func should_mirror_iso_wall_asset_for_topology(topology: Dictionary) -> bool:
-	var shape: String = String(topology.get("shape", ""))
+	var shape: String = str(topology.get("shape", ""))
 	return shape == "straight_y" or shape.ends_with("_east") or shape.ends_with("_ne") or shape.ends_with("_se")
 
 func draw_iso_wall_asset_texture_rect(texture: Texture2D, destination_rect: Rect2, mirror_x: bool) -> void:
@@ -1445,9 +1445,9 @@ func get_iso_object_asset_key_for_profile(profile_key: String) -> String:
 			return "object_generic"
 
 func get_iso_object_profile_key_for_object_data(object_data: Dictionary, fallback_profile_key: String = "generic_object") -> String:
-	var type_value: String = String(object_data.get("object_type", object_data.get("item_type", object_data.get("type", "")))).to_lower().strip_edges()
-	var prefab_value: String = String(object_data.get("map_constructor_prefab_id", "")).to_lower().strip_edges()
-	var key_kind: String = String(object_data.get("key_kind", object_data.get("key_type", ""))).to_lower().strip_edges()
+	var type_value: String = str(object_data.get("object_type", object_data.get("item_type", object_data.get("type", "")))).to_lower().strip_edges()
+	var prefab_value: String = str(object_data.get("map_constructor_prefab_id", "")).to_lower().strip_edges()
+	var key_kind: String = str(object_data.get("key_kind", object_data.get("key_type", ""))).to_lower().strip_edges()
 	var blob: String = "%s %s %s" % [type_value, prefab_value, key_kind]
 	if blob.contains("digital_key") or blob.contains("keycard"):
 		return "keycard"
@@ -1479,10 +1479,10 @@ func get_iso_object_profile_key_for_object_data(object_data: Dictionary, fallbac
 
 func get_iso_object_asset_key_for_object_data(object_data: Dictionary, fallback_profile_key: String) -> String:
 	var fallback_asset_key: String = get_iso_object_asset_key_for_profile(fallback_profile_key)
-	var type_value: String = String(object_data.get("object_type", object_data.get("type", ""))).to_lower().strip_edges()
-	var group_value: String = String(object_data.get("group", "")).to_lower().strip_edges()
-	var name_value: String = String(object_data.get("name", "")).to_lower().strip_edges()
-	var id_value: String = String(object_data.get("id", object_data.get("object_id", ""))).to_lower().strip_edges()
+	var type_value: String = str(object_data.get("object_type", object_data.get("type", ""))).to_lower().strip_edges()
+	var group_value: String = str(object_data.get("group", "")).to_lower().strip_edges()
+	var name_value: String = str(object_data.get("name", "")).to_lower().strip_edges()
+	var id_value: String = str(object_data.get("id", object_data.get("object_id", ""))).to_lower().strip_edges()
 	var blob: String = "%s %s %s %s %s" % [fallback_profile_key.to_lower(), type_value, group_value, name_value, id_value]
 	if blob.contains("door") or blob.contains("powered_gate"):
 		return "object_door"
@@ -1665,7 +1665,7 @@ func get_iso_visual_texture_debug_state() -> Dictionary:
 		if texture_key.begins_with("wall_"):
 			var wall_catalog: Dictionary = get_iso_wall_asset_catalog()
 			if wall_catalog.has(texture_key):
-				wall_catalog_path = ISO_WALL_ASSET_PACK_DIR + String(wall_catalog.get(texture_key, ""))
+				wall_catalog_path = ISO_WALL_ASSET_PACK_DIR + str(wall_catalog.get(texture_key, ""))
 				wall_catalog_available = ResourceLoader.exists(wall_catalog_path)
 		elif placeholder_preset_enabled and placeholder_path != "":
 			placeholder_available = ResourceLoader.exists(placeholder_path)
@@ -1702,11 +1702,11 @@ func get_iso_asset_alignment_diagnostics() -> Dictionary:
 	var unused_alignment_rules: Array[String] = []
 	var scale_overrides: Dictionary = {}
 	for asset_key_variant in ISO_PLACEHOLDER_ASSET_PATHS.keys():
-		var asset_key: String = String(asset_key_variant)
+		var asset_key: String = str(asset_key_variant)
 		if not ISO_ASSET_ALIGNMENT_RULES.has(asset_key):
 			missing_alignment_rules.append(asset_key)
 	for rule_key_variant in ISO_ASSET_ALIGNMENT_RULES.keys():
-		var rule_key: String = String(rule_key_variant)
+		var rule_key: String = str(rule_key_variant)
 		var rule: Dictionary = Dictionary(ISO_ASSET_ALIGNMENT_RULES.get(rule_key, {}))
 		if not ISO_PLACEHOLDER_ASSET_PATHS.has(rule_key):
 			unused_alignment_rules.append(rule_key)
@@ -1955,7 +1955,7 @@ func get_iso_visual_debug_report_text() -> String:
 	lines.append("- objects: %s" % str(cell_stats.get("object_cells", 0)))
 	lines.append("- fog_overlay: %s" % str(cell_stats.get("fog_overlay_cells", 0)))
 	lines.append("Iso:")
-	lines.append("- projection: %s" % String(iso_settings.get("projection_mode", ISO_PROJECTION_CLASSIC)))
+	lines.append("- projection: %s" % str(iso_settings.get("projection_mode", ISO_PROJECTION_CLASSIC)))
 	lines.append("- tile: %sx%s" % [str(iso_settings.get("tile_width", 0.0)), str(iso_settings.get("tile_height", 0.0))])
 	lines.append("- wall_height: %s" % str(iso_settings.get("wall_height", 0.0)))
 	lines.append("- object_marker_height: %s" % str(iso_settings.get("object_marker_height", 0.0)))
@@ -2023,7 +2023,7 @@ func get_iso_asset_alignment_rule(asset_key: String) -> Dictionary:
 		rule = {"anchor": "center", "scale": 1.0, "offset": Vector2.ZERO, "expected_size": Vector2(96, 96), "layer_hint": "unknown", "notes": "Fallback generic alignment."}
 	if asset_key.begins_with("floor_"):
 		rule["expected_size"] = get_iso_tile_size()
-	if String(rule.get("anchor", "")) == "wall_cell_base":
+	if str(rule.get("anchor", "")) == "wall_cell_base":
 		var offset: Vector2 = Vector2(rule.get("offset", Vector2.ZERO))
 		if is_equal_approx(offset.y, -ISO_CLASSIC_TILE_SIZE.y * 0.5):
 			rule["offset"] = Vector2(offset.x, -get_iso_tile_half_size().y)
@@ -2053,7 +2053,7 @@ func get_iso_texture_draw_position_from_center(center: Vector2, texture: Texture
 
 func get_iso_texture_draw_rect_for_asset_key_with_size(asset_key: String, center: Vector2, source_size: Vector2) -> Rect2:
 	var rule: Dictionary = get_iso_asset_alignment_rule(asset_key)
-	var anchor: String = String(rule.get("anchor", "center"))
+	var anchor: String = str(rule.get("anchor", "center"))
 	var scale_value: float = get_iso_asset_alignment_scale(asset_key)
 	var destination_size: Vector2 = source_size * scale_value
 	if asset_key.begins_with("floor_"):
@@ -2076,7 +2076,7 @@ func should_draw_iso_asset_with_rect(asset_key: String) -> bool:
 	var rule: Dictionary = get_iso_asset_alignment_rule(asset_key)
 	var scale_value: float = get_iso_asset_alignment_scale(asset_key)
 	var offset: Vector2 = Vector2(rule.get("offset", Vector2.ZERO))
-	var anchor: String = String(rule.get("anchor", "center"))
+	var anchor: String = str(rule.get("anchor", "center"))
 	if not is_equal_approx(scale_value, 1.0):
 		return true
 	if offset != Vector2.ZERO:
@@ -2088,7 +2088,7 @@ func draw_iso_asset_alignment_overlay(asset_key: String, anchor_position: Vector
 		return
 	var expected_size: Vector2 = get_iso_asset_alignment_expected_size(asset_key) * get_iso_asset_alignment_scale(asset_key)
 	var rule: Dictionary = get_iso_asset_alignment_rule(asset_key)
-	var expected_anchor_offset: Vector2 = get_iso_asset_alignment_anchor_offset(String(rule.get("anchor", "center")), expected_size)
+	var expected_anchor_offset: Vector2 = get_iso_asset_alignment_anchor_offset(str(rule.get("anchor", "center")), expected_size)
 	var expected_rect: Rect2 = Rect2(anchor_position - expected_anchor_offset + Vector2(rule.get("offset", Vector2.ZERO)), expected_size)
 	draw_rect(expected_rect, Color(1.0, 0.78, 0.22, 0.18), true)
 	draw_rect(expected_rect, Color(1.0, 0.78, 0.22, 0.95), false, 1.0)
@@ -2134,7 +2134,7 @@ func draw_optional_visual_texture_asset(asset_id: String, cell: Vector2i, _fallb
 		return false
 	if not bool(resolved.get("has_texture", false)):
 		return false
-	var texture_path: String = String(resolved.get("texture_path", "")).strip_edges()
+	var texture_path: String = str(resolved.get("texture_path", "")).strip_edges()
 	if texture_path.is_empty():
 		return false
 	var loaded: Resource = load(texture_path)
@@ -2144,7 +2144,7 @@ func draw_optional_visual_texture_asset(asset_id: String, cell: Vector2i, _fallb
 	var center: Vector2 = grid_to_iso(cell)
 	if options.has("visual_center"):
 		center = Vector2(options.get("visual_center", center))
-	var alignment_asset_key: String = String(resolved.get("placeholder_asset_key", normalized_asset_id))
+	var alignment_asset_key: String = str(resolved.get("placeholder_asset_key", normalized_asset_id))
 	var atlas_region: Rect2i = Rect2i(resolved.get("atlas_region", Rect2i(0, 0, 0, 0)))
 	if atlas_region.size.x > 0 and atlas_region.size.y > 0:
 		var atlas_size: Vector2 = Vector2(float(atlas_region.size.x), float(atlas_region.size.y))
@@ -2167,7 +2167,7 @@ func can_draw_optional_visual_texture_asset(asset_id: String) -> bool:
 		return false
 	if not bool(resolved.get("has_texture", false)):
 		return false
-	var texture_path: String = String(resolved.get("texture_path", "")).strip_edges()
+	var texture_path: String = str(resolved.get("texture_path", "")).strip_edges()
 	if texture_path.is_empty():
 		return false
 	var loaded: Resource = load(texture_path)
@@ -2175,13 +2175,13 @@ func can_draw_optional_visual_texture_asset(asset_id: String) -> bool:
 
 func has_drawable_iso_wall_texture(material_override: Dictionary, material_row: Dictionary, wall_profile_key: String) -> bool:
 	if bool(material_override.get("ok", false)):
-		if can_draw_optional_visual_texture_asset(String(material_row.get("texture_asset_id", ""))):
+		if can_draw_optional_visual_texture_asset(str(material_row.get("texture_asset_id", ""))):
 			return true
 	return get_iso_wall_texture_for_profile(wall_profile_key) != null
 
 func draw_iso_wall_texture_for_cell(cell: Vector2i, material_override: Dictionary, material_row: Dictionary, wall_profile_key: String) -> bool:
 	if bool(material_override.get("ok", false)):
-		if draw_optional_visual_texture_asset(String(material_row.get("texture_asset_id", "")), cell, "draw_iso_wall_surface_accent"):
+		if draw_optional_visual_texture_asset(str(material_row.get("texture_asset_id", "")), cell, "draw_iso_wall_surface_accent"):
 			return true
 	return draw_iso_wall_asset_texture_for_cell(cell, wall_profile_key, get_wall_render_topology(cell))
 
@@ -2214,7 +2214,7 @@ func get_wall_prototype_colors(cell: Vector2i) -> Dictionary:
 		colors["right"] = _blend_color(Color(colors.get("right", Color.WHITE)), tint_color.darkened(0.1), 0.5)
 		colors["outline"] = _blend_color(Color(colors.get("outline", Color.WHITE)), edge_color, 0.72)
 		colors["accent"] = _blend_color(Color(colors.get("accent", Color.WHITE)), edge_color.lightened(0.12), 0.68)
-		colors["wall_material_style"] = String(material_row.get("style", "default"))
+		colors["wall_material_style"] = str(material_row.get("style", "default"))
 	return colors
 
 func _blend_color(base_color: Color, tint_color: Color, amount: float) -> Color:
@@ -2240,13 +2240,13 @@ func _get_wall_material_override_for_cell(cell: Vector2i) -> Dictionary:
 			break
 	if chosen_override.is_empty():
 		return {"ok": false}
-	var material_id: String = String(chosen_override.get("material_id", "")).to_lower()
+	var material_id: String = str(chosen_override.get("material_id", "")).to_lower()
 	if material_id.is_empty() or not mission_manager.has_method("get_map_constructor_wall_material_catalog"):
 		return {"ok": false}
 	var catalog: Dictionary = Dictionary(mission_manager.call("get_map_constructor_wall_material_catalog"))
 	for material_variant in Array(catalog.get("materials", [])):
 		var material_row: Dictionary = Dictionary(material_variant)
-		if String(material_row.get("id", "")).to_lower() == material_id:
+		if str(material_row.get("id", "")).to_lower() == material_id:
 			return {"ok": true, "override": chosen_override, "material": material_row}
 	return {"ok": false}
 
@@ -2416,12 +2416,12 @@ func _get_iso_world_object_metadata_for_cell(cell: Vector2i) -> Dictionary:
 		return fallback
 	var metadata: Dictionary = Dictionary(metadata_variant)
 	var nested_data: Dictionary = Dictionary(metadata.get("data", {}))
-	var object_id: String = String(metadata.get("object_id", metadata.get("id", ""))).strip_edges()
+	var object_id: String = str(metadata.get("object_id", metadata.get("id", ""))).strip_edges()
 	if object_id.is_empty():
-		object_id = String(nested_data.get("id", nested_data.get("object_id", ""))).strip_edges()
-	var object_type: String = String(metadata.get("object_type", metadata.get("type", ""))).strip_edges()
+		object_id = str(nested_data.get("id", nested_data.get("object_id", ""))).strip_edges()
+	var object_type: String = str(metadata.get("object_type", metadata.get("type", ""))).strip_edges()
 	if object_type.is_empty():
-		object_type = String(nested_data.get("object_type", nested_data.get("type", ""))).strip_edges()
+		object_type = str(nested_data.get("object_type", nested_data.get("type", ""))).strip_edges()
 	if object_id.is_empty():
 		return fallback
 	if nested_data.is_empty():
@@ -2433,13 +2433,13 @@ func get_wall_object_type_for_cell(cell: Vector2i) -> String:
 	if metadata.is_empty():
 		return ""
 	var candidates: Array[String] = [
-		String(metadata.get("visual_profile", "")),
-		String(metadata.get("wall_type", "")),
-		String(metadata.get("object_type", "")),
-		String(metadata.get("type", "")),
-		String(metadata.get("catalog_id", "")),
-		String(metadata.get("id", "")),
-		String(metadata.get("material", ""))
+		str(metadata.get("visual_profile", "")),
+		str(metadata.get("wall_type", "")),
+		str(metadata.get("object_type", "")),
+		str(metadata.get("type", "")),
+		str(metadata.get("catalog_id", "")),
+		str(metadata.get("id", "")),
+		str(metadata.get("material", ""))
 	]
 	var tag_profile: String = get_wall_profile_from_tags(metadata.get("tags", []))
 	if not tag_profile.is_empty():
@@ -2454,7 +2454,7 @@ func get_wall_profile_from_tags(tags_variant: Variant) -> String:
 	if not (tags_variant is Array):
 		return ""
 	for tag_value in Array(tags_variant):
-		var mapped: String = map_wall_metadata_value_to_profile(String(tag_value))
+		var mapped: String = map_wall_metadata_value_to_profile(str(tag_value))
 		if not mapped.is_empty():
 			return mapped
 	return ""
@@ -2481,7 +2481,7 @@ func map_wall_metadata_value_to_profile(raw_value: String) -> String:
 		"energy_flow": "energy_wall"
 	}
 	if direct_map.has(value):
-		return String(direct_map.get(value, ""))
+		return str(direct_map.get(value, ""))
 	return ""
 
 func get_mission_manager_ref() -> Node:
@@ -2523,7 +2523,7 @@ func _get_wall_neighbor_mask(cell: Vector2i) -> Dictionary:
 	var mask: Dictionary = {"north": false, "east": false, "south": false, "west": false}
 	var deltas: Dictionary = {"north": Vector2i(0, -1), "east": Vector2i(1, 0), "south": Vector2i(0, 1), "west": Vector2i(-1, 0)}
 	for key_variant in deltas.keys():
-		var side: String = String(key_variant)
+		var side: String = str(key_variant)
 		var neighbor: Vector2i = cell + Vector2i(deltas.get(key_variant, Vector2i.ZERO))
 		mask[side] = _is_wall_in_bounds(neighbor) and _is_wall_cell(neighbor)
 	return mask
@@ -2719,11 +2719,11 @@ func classify_wall_topology(cell: Vector2i) -> String:
 	if is_wall_adjacent_to_door(cell):
 		return "door_adjacent"
 	var topology: Dictionary = get_wall_render_topology(cell)
-	return String(topology.get("shape", "isolated"))
+	return str(topology.get("shape", "isolated"))
 
 func get_iso_architectural_wall_profile(topology: String, visual_material: Dictionary) -> Dictionary:
 	var fallback_colors: Dictionary = get_wall_prototype_colors(Vector2i.ZERO)
-	var material_id: String = String(visual_material.get("id", visual_material.get("material_id", "default_wall"))).strip_edges()
+	var material_id: String = str(visual_material.get("id", visual_material.get("material_id", "default_wall"))).strip_edges()
 	var base_color: Color = Color(visual_material.get("fallback_color", fallback_colors.get("top", Color(0.2, 0.2, 0.24, 1.0))))
 	var edge_color: Color = Color(visual_material.get("edge_color", fallback_colors.get("outline", Color(0.3, 0.3, 0.35, 1.0))))
 	var safe_topology: String = topology if not topology.is_empty() else "isolated"
@@ -3140,8 +3140,8 @@ func draw_iso_floor_atlas_for_cell(cell: Vector2i) -> bool:
 	if iso_floor_atlas_texture == null:
 		return false
 	var state: Dictionary = get_floor_state_for_cell(cell)
-	var family: String = String(state.get("family", "metal"))
-	var wear: String = String(state.get("wear", "none"))
+	var family: String = str(state.get("family", "metal"))
+	var wear: String = str(state.get("wear", "none"))
 	var mirror_h: bool = bool(state.get("mirror_h", false))
 	var mirror_v: bool = bool(state.get("mirror_v", false))
 	var base_key: String = get_floor_base_atlas_key(family)
@@ -3185,7 +3185,7 @@ func draw_iso_floor_prototype() -> void:
 				if bool(floor_material_result.get("ok", false)):
 					var floor_material: Dictionary = _safe_variant_dictionary(floor_material_result.get("material", {}))
 					fill_color = Color(floor_material.get("fallback_color", fill_color))
-					floor_texture_asset_id = String(floor_material.get("texture_asset_id", "")).strip_edges()
+					floor_texture_asset_id = str(floor_material.get("texture_asset_id", "")).strip_edges()
 			if use_procedural_floor_debug_tiles:
 				draw_procedural_floor_debug_tile(cell, fill_color)
 				continue
@@ -3349,13 +3349,13 @@ func _try_parse_cell_variant(cell_variant: Variant, fallback: Vector2i = Vector2
 		if values.size() >= 2:
 			return Vector2i(int(values[0]), int(values[1]))
 	if cell_variant is String:
-		var tokens: PackedStringArray = String(cell_variant).strip_edges().split(",", false)
+		var tokens: PackedStringArray = str(cell_variant).strip_edges().split(",", false)
 		if tokens.size() == 2:
 			return Vector2i(int(tokens[0]), int(tokens[1]))
 	return fallback
 
 func get_wall_mounted_visual_offset(metadata: Dictionary) -> Vector2:
-	var wall_side: String = String(metadata.get("wall_side", "")).to_lower().strip_edges()
+	var wall_side: String = str(metadata.get("wall_side", "")).to_lower().strip_edges()
 	var half_size: Vector2 = get_iso_tile_half_size()
 	var x_offset: float = half_size.x * 0.34
 	var y_offset: float = half_size.y * 0.2
@@ -3375,12 +3375,12 @@ func get_world_object_visual_position(cell: Vector2i) -> Vector2:
 	var metadata: Dictionary = get_wall_metadata_for_cell(cell)
 	if metadata.is_empty():
 		return base_center
-	var placement_mode: String = String(metadata.get("placement_mode", "")).to_lower().strip_edges()
+	var placement_mode: String = str(metadata.get("placement_mode", "")).to_lower().strip_edges()
 	if placement_mode != "wall_mounted":
 		return base_center
 	var anchor_cell: Vector2i = _try_parse_cell_variant(metadata.get("anchor_floor_cell", cell), cell)
 	var attached_wall_cell: Vector2i = _try_parse_cell_variant(metadata.get("attached_wall_cell", Vector2i(-1, -1)), Vector2i(-1, -1))
-	var wall_side: String = String(metadata.get("wall_side", "")).to_lower().strip_edges()
+	var wall_side: String = str(metadata.get("wall_side", "")).to_lower().strip_edges()
 	if wall_side.is_empty() or attached_wall_cell.x < 0 or attached_wall_cell.y < 0:
 		return base_center
 	if anchor_cell != cell:
@@ -3388,7 +3388,7 @@ func get_world_object_visual_position(cell: Vector2i) -> Vector2:
 	var mount_zones: Array[Dictionary] = get_wall_mounted_anchor_zones(attached_wall_cell)
 	for zone_variant in mount_zones:
 		var zone: Dictionary = Dictionary(zone_variant)
-		if String(zone.get("wall_side", "")) != wall_side:
+		if str(zone.get("wall_side", "")) != wall_side:
 			continue
 		if Vector2i(zone.get("anchor_floor_cell", Vector2i(-1, -1))) != anchor_cell:
 			continue
@@ -3546,7 +3546,7 @@ func draw_iso_cable_topology_line(cell: Vector2i, profile: Dictionary, object_da
 		"east": center.lerp(grid_to_iso(cell + Vector2i(1, 0)) + cable_z_offset, 0.5)
 	}
 	var topology: Dictionary = CableTopologyServiceRef.classify_cell(cell, _get_runtime_world_objects_for_iso_render(), object_data)
-	var shape: String = String(topology.get("shape", "isolated"))
+	var shape: String = str(topology.get("shape", "isolated"))
 	var neighbors: Dictionary = Dictionary(topology.get("neighbors", {}))
 	var base_color: Color = _get_color_from_dict(profile, "base", Color.WHITE)
 	var accent_color: Color = _get_color_from_dict(profile, "accent", Color.WHITE)
@@ -3590,14 +3590,14 @@ func get_wall_mounted_object_profile_key(cell: Vector2i) -> String:
 	var metadata: Dictionary = get_wall_metadata_for_cell(cell)
 	if metadata.is_empty():
 		return ""
-	if String(metadata.get("placement_mode", "")).to_lower().strip_edges() != "wall_mounted":
+	if str(metadata.get("placement_mode", "")).to_lower().strip_edges() != "wall_mounted":
 		return ""
 	var candidates: Array[String] = [
-		String(metadata.get("visual_profile", "")),
-		String(metadata.get("object_type", "")),
-		String(metadata.get("catalog_id", "")),
-		String(metadata.get("type", "")),
-		String(metadata.get("id", ""))
+		str(metadata.get("visual_profile", "")),
+		str(metadata.get("object_type", "")),
+		str(metadata.get("catalog_id", "")),
+		str(metadata.get("type", "")),
+		str(metadata.get("id", ""))
 	]
 	for candidate in candidates:
 		var normalized: String = candidate.strip_edges().to_lower()
@@ -3749,12 +3749,12 @@ func draw_wall_mounted_object_shape(_cell: Vector2i, profile_key: String, profil
 	return false
 
 func get_iso_object_grounding_profile(object_data: Dictionary, fallback_cell: Vector2i = Vector2i(-1, -1)) -> Dictionary:
-	var object_id: String = String(object_data.get("id", "")).strip_edges()
-	var object_type: String = String(object_data.get("object_type", object_data.get("type", ""))).to_lower().strip_edges()
-	var placement_mode: String = String(object_data.get("placement_mode", "")).to_lower().strip_edges()
+	var object_id: String = str(object_data.get("id", "")).strip_edges()
+	var object_type: String = str(object_data.get("object_type", object_data.get("type", ""))).to_lower().strip_edges()
+	var placement_mode: String = str(object_data.get("placement_mode", "")).to_lower().strip_edges()
 	var anchor_cell: Vector2i = _try_parse_cell_variant(object_data.get("anchor_floor_cell", Vector2i(-1, -1)), Vector2i(-1, -1))
 	var attached_wall_cell: Vector2i = _try_parse_cell_variant(object_data.get("attached_wall_cell", Vector2i(-1, -1)), Vector2i(-1, -1))
-	var wall_side: String = String(object_data.get("wall_side", "")).to_lower().strip_edges()
+	var wall_side: String = str(object_data.get("wall_side", "")).to_lower().strip_edges()
 	if anchor_cell.x < 0 or anchor_cell.y < 0:
 		anchor_cell = _try_parse_cell_variant(object_data.get("position", Vector2i(-1, -1)), Vector2i(-1, -1))
 	if anchor_cell.x < 0 or anchor_cell.y < 0:
@@ -3765,7 +3765,7 @@ func get_iso_object_grounding_profile(object_data: Dictionary, fallback_cell: Ve
 	if placement_mode == "wall_mounted" and attached_wall_cell.x >= 0 and attached_wall_cell.y >= 0 and not wall_side.is_empty():
 		for zone_variant in get_wall_mounted_anchor_zones(attached_wall_cell):
 			var zone: Dictionary = Dictionary(zone_variant)
-			if String(zone.get("wall_side", "")) == wall_side and Vector2i(zone.get("anchor_floor_cell", Vector2i(-1, -1))) == anchor_cell:
+			if str(zone.get("wall_side", "")) == wall_side and Vector2i(zone.get("anchor_floor_cell", Vector2i(-1, -1))) == anchor_cell:
 				center = Vector2(zone.get("mount_zone_center", center))
 				break
 	var grounding_type: String = "floor_standing"
@@ -3806,7 +3806,7 @@ func _draw_grounding_overlay(profile: Dictionary) -> void:
 			draw_line(fp[i], fp[n], Color(0.28, 0.8, 1.0, 0.65), 1.0)
 	var center: Vector2 = Vector2(profile.get("visual_center", Vector2.ZERO))
 	draw_circle(center, 2.0, Color(0.96, 0.96, 0.2, 0.95))
-	var gt: String = String(profile.get("grounding_type", "unknown"))
+	var gt: String = str(profile.get("grounding_type", "unknown"))
 	var short: String = "UN"
 	match gt:
 		"floor_standing": short = "FS"
@@ -3826,7 +3826,7 @@ func draw_iso_door_insert(cell: Vector2i, _tile_type: int, object_data: Dictiona
 	if not bool(context.get("ok", false)):
 		return
 	var profile: Dictionary = get_iso_door_opening_visual_profile(cell, object_data)
-	var orientation: String = String(context.get("orientation", "unknown"))
+	var orientation: String = str(context.get("orientation", "unknown"))
 	var door_insert_center: Vector2 = Vector2(context.get("door_insert_center", grid_to_iso(cell)))
 	var threshold_polygon: PackedVector2Array = PackedVector2Array(context.get("threshold_polygon", PackedVector2Array()))
 	var frame_polygon: PackedVector2Array = PackedVector2Array(context.get("door_frame_polygon", PackedVector2Array()))
@@ -3863,8 +3863,8 @@ func draw_iso_door_insert(cell: Vector2i, _tile_type: int, object_data: Dictiona
 				continue
 			var jamb_center: Vector2 = grid_to_iso(jamb_cell) + Vector2(0.0, -iso_wall_height * 0.4)
 			draw_line(jamb_center + Vector2(0.0, -10.0), jamb_center + Vector2(0.0, 13.0), frame_color.lightened(0.24), 3.0)
-	var door_kind: String = String(profile.get("door_kind", "mechanical_door"))
-	var door_state: String = String(profile.get("door_state", "closed"))
+	var door_kind: String = str(profile.get("door_kind", "mechanical_door"))
+	var door_state: String = str(profile.get("door_state", "closed"))
 	var used_texture_asset: bool = draw_iso_texture_asset(cell, "object_door", door_insert_center)
 	if not used_texture_asset:
 		var axis_data: Dictionary = _get_door_axis_vectors(orientation)
@@ -3947,12 +3947,12 @@ func draw_door_opening_overlay_for_context(context: Dictionary) -> void:
 	for wall_cell_variant in Array(context.get("adjacent_wall_cells", [])):
 		var wall_cell: Vector2i = Vector2i(wall_cell_variant)
 		draw_circle(grid_to_iso(wall_cell) + Vector2(0.0, -iso_wall_height * 0.35), 3.0, Color(0.95, 0.74, 0.28, 0.95))
-	draw_string(ThemeDB.fallback_font, insert_center + Vector2(5.0, -7.0), String(context.get("orientation", "unknown")), HORIZONTAL_ALIGNMENT_LEFT, 64.0, 9, Color(0.95, 1.0, 1.0, 0.95))
+	draw_string(ThemeDB.fallback_font, insert_center + Vector2(5.0, -7.0), str(context.get("orientation", "unknown")), HORIZONTAL_ALIGNMENT_LEFT, 64.0, 9, Color(0.95, 1.0, 1.0, 0.95))
 
 func draw_iso_object_marker(cell: Vector2i, tile_type: int, override_object_data: Dictionary = {}) -> void:
 	var object_meta: Dictionary = _get_iso_world_object_metadata_for_cell(cell)
 	if not override_object_data.is_empty():
-		object_meta = {"ok": true, "object_id": String(override_object_data.get("id", "")), "object_type": String(override_object_data.get("object_type", override_object_data.get("item_type", ""))), "data": override_object_data}
+		object_meta = {"ok": true, "object_id": str(override_object_data.get("id", "")), "object_type": str(override_object_data.get("object_type", override_object_data.get("item_type", ""))), "data": override_object_data}
 	if is_door_like_tile(tile_type) and override_object_data.is_empty():
 		draw_iso_door_insert(cell, tile_type, Dictionary(object_meta.get("data", {})))
 		return
@@ -3964,7 +3964,7 @@ func draw_iso_object_marker(cell: Vector2i, tile_type: int, override_object_data
 	var footprint_polygon: PackedVector2Array = PackedVector2Array(profile_data.get("footprint_polygon", PackedVector2Array()))
 	if footprint_polygon.size() >= 3:
 		draw_colored_polygon(footprint_polygon, Color(0.2, 0.24, 0.28, 0.2))
-	var object_id: String = String(object_meta.get("object_id", ""))
+	var object_id: String = str(object_meta.get("object_id", ""))
 	var object_data: Dictionary = Dictionary(object_meta.get("data", {}))
 	var profile_key: String = get_iso_object_profile_key_for_tile(tile_type)
 	if not override_object_data.is_empty() or profile_key.is_empty():
@@ -4000,9 +4000,9 @@ func draw_iso_object_marker(cell: Vector2i, tile_type: int, override_object_data
 	var overlay_accent: Color = _get_color_from_dict(profile, "accent", Color(0.72, 0.78, 0.86, 0.95))
 	var used_texture_asset: bool = draw_iso_texture_asset(cell, object_asset_key, visual_center)
 	if not used_texture_asset and has_door_visual:
-		used_texture_asset = draw_optional_visual_texture_asset(String(door_visual.get("texture_asset_id", "")), cell, "draw_iso_object_marker", {"visual_center": visual_center})
+		used_texture_asset = draw_optional_visual_texture_asset(str(door_visual.get("texture_asset_id", "")), cell, "draw_iso_object_marker", {"visual_center": visual_center})
 	if not used_texture_asset and has_terminal_visual:
-		used_texture_asset = draw_optional_visual_texture_asset(String(terminal_visual.get("texture_asset_id", "")), cell, "draw_iso_object_marker", {"visual_center": visual_center})
+		used_texture_asset = draw_optional_visual_texture_asset(str(terminal_visual.get("texture_asset_id", "")), cell, "draw_iso_object_marker", {"visual_center": visual_center})
 	if used_texture_asset:
 		draw_circle(visual_center + Vector2(0.0, -iso_object_marker_height - 8.0), 2.4, overlay_accent)
 		draw_line(
@@ -4087,7 +4087,7 @@ func _get_runtime_items_for_cell(cell: Vector2i) -> Array[Dictionary]:
 	return result
 
 func _is_hidden_cable_visual(object_data: Dictionary) -> bool:
-	var object_type: String = String(object_data.get("object_type", "")).to_lower()
+	var object_type: String = str(object_data.get("object_type", "")).to_lower()
 	if not object_type.contains("cable") and not object_type.contains("wire"):
 		return false
 	return bool(object_data.get("hidden_installation", object_data.get("concealed", object_data.get("hidden_cable", object_data.get("hidden", false)))))
@@ -4104,7 +4104,7 @@ func _get_runtime_world_objects_for_iso_render() -> Array[Dictionary]:
 		if _is_hidden_cable_visual(object_data):
 			continue
 		result.append(object_data)
-		if String(object_data.get("object_type", "")).to_lower().contains("cable"):
+		if str(object_data.get("object_type", "")).to_lower().contains("cable"):
 			for path_cell_variant in Array(object_data.get("cable_path_cells", [])):
 				var path_cell: Vector2i = _try_parse_cell_variant(path_cell_variant)
 				if path_cell.x < 0 or path_cell.y < 0 or path_cell == _try_parse_cell_variant(object_data.get("position", Vector2i(-1, -1))):
@@ -4163,7 +4163,7 @@ func build_iso_geometry_draw_entries(include_walls: bool, include_objects: bool)
 	return draw_entries
 
 func draw_iso_draw_entry(entry: Dictionary) -> void:
-	var kind: String = String(entry.get("kind", ""))
+	var kind: String = str(entry.get("kind", ""))
 	if kind == "wall":
 		var cell: Vector2i = Vector2i(entry.get("cell", Vector2i(-1, -1)))
 		if cell.x < 0 or cell.y < 0:
@@ -4293,7 +4293,7 @@ func draw_wall_mount_zones_overlay() -> void:
 					continue
 				var center: Vector2 = Vector2(zone.get("mount_zone_center", grid_to_iso(wall_cell)))
 				draw_circle(center, 2.8, Color(0.35, 0.98, 0.86, 0.95))
-				var side: String = String(zone.get("wall_side", ""))
+				var side: String = str(zone.get("wall_side", ""))
 				var label: String = side.substr(0, 1).to_upper()
 				draw_string(ThemeDB.fallback_font, center + Vector2(3.0, -4.0), label, HORIZONTAL_ALIGNMENT_LEFT, 12.0, 10, Color(0.9, 0.98, 1.0, 0.9))
 
@@ -4306,7 +4306,7 @@ func draw_wall_run_overlay() -> void:
 			if _grid_manager.get_tile(cell) != GridManager.TILE_WALL:
 				continue
 			var topology: Dictionary = get_wall_render_topology(cell)
-			var shape: String = String(topology.get("shape", "unknown"))
+			var shape: String = str(topology.get("shape", "unknown"))
 			var center: Vector2 = grid_to_iso(cell) + Vector2(-28.0, -iso_wall_height - 10.0)
 			var label: String = shape
 			if bool(topology.get("run_x", false)):

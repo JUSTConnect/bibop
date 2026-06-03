@@ -302,10 +302,10 @@ const LEGACY_FLOOR_IDS: Array[String] = ["steel_floor", "concrete_floor", "grate
 static func canonical_prefab_id(prefab_id: String) -> String:
 	var normalized_type: String = prefab_id.strip_edges().to_lower()
 	if PREFAB_ALIASES.has(normalized_type):
-		return String(PREFAB_ALIASES[normalized_type])
+		return str(PREFAB_ALIASES[normalized_type])
 	var preset_variant: Variant = LEGACY_ITEM_ALIAS_CONFIGS.get(normalized_type, LEGACY_DOOR_ALIAS_CONFIGS.get(normalized_type, LEGACY_WALL_ALIAS_CONFIGS.get(normalized_type, LEGACY_TERMINAL_ALIAS_CONFIGS.get(normalized_type, {}))))
 	if preset_variant is Dictionary:
-		return String(preset_variant.get("object_type", "terminal" if LEGACY_TERMINAL_ALIAS_CONFIGS.has(normalized_type) else normalized_type))
+		return str(preset_variant.get("object_type", "terminal" if LEGACY_TERMINAL_ALIAS_CONFIGS.has(normalized_type) else normalized_type))
 	return normalized_type
 
 # Compatibility name retained for existing constructor and runtime callers.
@@ -351,7 +351,7 @@ static func canonicalize_legacy_object_data(object_data: Dictionary) -> Dictiona
 		data["legacy_object_type"] = original_object_type
 		data["object_type"] = canonical_prefab_id(original_object_type)
 		for key_variant in get_prefab_alias_defaults(original_object_type).keys():
-			var key: String = String(key_variant)
+			var key: String = str(key_variant)
 			if not data.has(key):
 				data[key] = get_prefab_alias_defaults(original_object_type)[key]
 		if data["object_type"] in ["floor", "item"]:
@@ -384,28 +384,28 @@ static func get_wall_material_quick_presets() -> Array[Dictionary]:
 static func get_constructor_palette_rows() -> Array[Dictionary]:
 	var rows: Array[Dictionary] = []
 	for archetype_id_variant in ARCHETYPE_REGISTRY.keys():
-		var archetype_id: String = String(archetype_id_variant)
+		var archetype_id: String = str(archetype_id_variant)
 		var definition: Dictionary = ARCHETYPE_REGISTRY[archetype_id]
-		rows.append({"id":archetype_id, "prefab_id":archetype_id, "archetype_id":archetype_id, "canonical_object_type":String(definition.get("object_type", archetype_id)), "display_name":String(definition.get("palette_label", archetype_id.capitalize())), "label":String(definition.get("palette_label", archetype_id.capitalize())), "category":String(definition.get("object_group", "Objects")).capitalize(), "object_group":String(definition.get("object_group", "physical_object")), "placement_mode":String(definition.get("placement_mode", "object")), "blocks_movement":bool(definition.get("blocks_movement", true)), "is_alias":false})
+		rows.append({"id":archetype_id, "prefab_id":archetype_id, "archetype_id":archetype_id, "canonical_object_type":str(definition.get("object_type", archetype_id)), "display_name":str(definition.get("palette_label", archetype_id.capitalize())), "label":str(definition.get("palette_label", archetype_id.capitalize())), "category":str(definition.get("object_group", "Objects")).capitalize(), "object_group":str(definition.get("object_group", "physical_object")), "placement_mode":str(definition.get("placement_mode", "object")), "blocks_movement":bool(definition.get("blocks_movement", true)), "is_alias":false})
 	for object_type_variant in OBJECT_LIBRARY.keys():
-		var object_type: String = String(object_type_variant)
+		var object_type: String = str(object_type_variant)
 		var definition: Dictionary = OBJECT_LIBRARY[object_type]
-		if ARCHETYPE_REGISTRY.has(object_type) or not bool(definition.get("placeable_in_constructor", true)) or String(definition.get("group", "")) in ["door", "terminal", "item"]:
+		if ARCHETYPE_REGISTRY.has(object_type) or not bool(definition.get("placeable_in_constructor", true)) or str(definition.get("group", "")) in ["door", "terminal", "item"]:
 			continue
 		rows.append(_build_constructor_palette_row(object_type, object_type, definition, false))
-	rows.sort_custom(func(a: Dictionary, b: Dictionary) -> bool: return String(a.get("display_name", "")) < String(b.get("display_name", "")))
+	rows.sort_custom(func(a: Dictionary, b: Dictionary) -> bool: return str(a.get("display_name", "")) < str(b.get("display_name", "")))
 	return rows
 
 static func _build_constructor_palette_row(prefab_id: String, canonical_type: String, definition: Dictionary, is_alias: bool) -> Dictionary:
-	var object_group: String = String(definition.get("group", definition.get("object_group", "physical_object")))
-	var category: String = String(definition.get("constructor_category", object_group.capitalize()))
-	var placement_mode: String = String(definition.get("placement_mode", "object"))
+	var object_group: String = str(definition.get("group", definition.get("object_group", "physical_object")))
+	var category: String = str(definition.get("constructor_category", object_group.capitalize()))
+	var placement_mode: String = str(definition.get("placement_mode", "object"))
 	var row: Dictionary = {
 		"id": prefab_id,
 		"prefab_id": prefab_id,
 		"canonical_object_type": canonical_type,
-		"display_name": String(definition.get("name", prefab_id.capitalize())),
-		"label": String(definition.get("name", prefab_id.capitalize())),
+		"display_name": str(definition.get("name", prefab_id.capitalize())),
+		"label": str(definition.get("name", prefab_id.capitalize())),
 		"category": category,
 		"object_group": object_group,
 		"placement_mode": placement_mode,
@@ -425,9 +425,9 @@ static func is_constructor_solid_prefab(prefab_id: String) -> bool:
 static func get_constructor_placeable_door_types() -> Array[String]:
 	var door_types: Array[String] = []
 	for object_type_variant in OBJECT_LIBRARY.keys():
-		var object_type: String = String(object_type_variant)
+		var object_type: String = str(object_type_variant)
 		var definition: Dictionary = OBJECT_LIBRARY[object_type]
-		if String(definition.get("group", "")) == "door" and bool(definition.get("placeable_in_constructor", true)):
+		if str(definition.get("group", "")) == "door" and bool(definition.get("placeable_in_constructor", true)):
 			door_types.append(object_type)
 	door_types.sort()
 	return door_types
@@ -443,12 +443,12 @@ static func apply_prefab_alias_defaults(canonical_type: String, original_type: S
 		return normalize_world_object_contract(data)
 	data["map_constructor_prefab_id"] = normalized_original_type
 	for key_variant in defaults.keys():
-		var key: String = String(key_variant)
+		var key: String = str(key_variant)
 		if not data.has(key):
 			data[key] = defaults[key]
 	if normalized_original_type == "powered_gate":
 		data["requires_external_power"] = bool(data.get("requires_external_power", true))
-		data["power_mode"] = String(data.get("power_mode", "external_power"))
+		data["power_mode"] = str(data.get("power_mode", "external_power"))
 	return normalize_world_object_contract(data)
 
 const OBJECT_LIBRARY := {
@@ -645,7 +645,7 @@ static func normalize_item_contract(item_data: Dictionary) -> Dictionary:
 			data["storage_type"] = ITEM_STORAGE_ROUTE_POCKET
 			data.erase("key_kind")
 			data.erase("key_type")
-	data["display_name"] = String(ITEM_DISPLAY_NAMES[item_class])
+	data["display_name"] = str(ITEM_DISPLAY_NAMES[item_class])
 	return data
 
 static func get_item_storage_class(item_data: Dictionary) -> String:
@@ -694,7 +694,7 @@ static func _normalize_door_material(value: Variant, object_type: String) -> Str
 		material = DOOR_MATERIAL_ENERGY
 	if material in DOOR_MATERIALS:
 		return material
-	return String(DOOR_MATERIAL_BY_OBJECT_TYPE.get(object_type, DOOR_MATERIAL_STEEL))
+	return str(DOOR_MATERIAL_BY_OBJECT_TYPE.get(object_type, DOOR_MATERIAL_STEEL))
 
 static func _normalize_door_type(value: Variant) -> String:
 	var door_type: String = _normalized_contract_token(value)
@@ -710,7 +710,7 @@ static func normalize_door_contract(object_data: Dictionary) -> Dictionary:
 	var prefab_id: String = _normalized_contract_token(data.get("map_constructor_prefab_id", object_type))
 	var defaults: Dictionary = get_prefab_alias_defaults(prefab_id)
 	for key_variant in defaults.keys():
-		var key: String = String(key_variant)
+		var key: String = str(key_variant)
 		if not data.has(key):
 			data[key] = defaults[key]
 	var group_text: String = _normalized_contract_token(data.get("object_group", data.get("group", "")))
@@ -783,19 +783,19 @@ static func normalize_terminal_contract(object_data: Dictionary) -> Dictionary:
 	data["object_type"] = "terminal"
 	if not data.has("status"):
 		data["status"] = _normalized_contract_token(data.get("state", "active"))
-	elif data.has("state") and String(data.get("state", "active")) != String(data.get("status", "active")):
+	elif data.has("state") and str(data.get("state", "active")) != str(data.get("status", "active")):
 		data["status"] = _normalized_contract_token(data.get("state", "active"))
 	if not data.has("allowed_statuses"):
 		data["allowed_statuses"] = ["active", "damaged", "unpowered"]
-	data["state"] = String(data.get("status", "active"))
-	data["is_powered"] = String(data.get("status", "active")) != "unpowered"
-	data["power_mode"] = String(data.get("power_type", data.get("power_mode", "internal"))).trim_suffix("_power")
-	data["control_mode"] = String(data.get("control_type", data.get("control_mode", "internal"))).trim_suffix("_control")
+	data["state"] = str(data.get("status", "active"))
+	data["is_powered"] = str(data.get("status", "active")) != "unpowered"
+	data["power_mode"] = str(data.get("power_type", data.get("power_mode", "internal"))).trim_suffix("_power")
+	data["control_mode"] = str(data.get("control_type", data.get("control_mode", "internal"))).trim_suffix("_control")
 	data["has_connector_jack"] = _safe_bool_like(data.get("has_connector_jack", true), true)
 	data["blocks_movement"] = true
 	data["blocks_vision"] = _safe_bool_like(data.get("blocks_vision", false), false)
 	data["can_interact"] = true
-	if String(data.get("power_mode", "internal")) == "internal" and String(data.get("status", "active")) == "unpowered":
+	if str(data.get("power_mode", "internal")) == "internal" and str(data.get("status", "active")) == "unpowered":
 		data["status"] = "active"
 		data["state"] = "active"
 		data["is_powered"] = true
@@ -826,7 +826,7 @@ static func normalize_world_object_contract(object_data: Dictionary) -> Dictiona
 	return data
 
 static func _contains_cyrillic(value: Variant) -> bool:
-	var text: String = String(value)
+	var text: String = str(value)
 	for index in range(text.length()):
 		var codepoint: int = text.unicode_at(index)
 		if codepoint >= 0x0400 and codepoint <= 0x04ff:
@@ -844,11 +844,11 @@ static func validate_archetype_object(object_data: Dictionary) -> Array[String]:
 		warnings.append("object_bypassed_archetype_normalization")
 	for field_variant in get_archetype_property_schema(archetype_id):
 		var field: Dictionary = field_variant
-		var field_name: String = String(field.get("field", ""))
+		var field_name: String = str(field.get("field", ""))
 		if not object_data.has(field_name):
 			warnings.append("object_missing_schema_field_%s" % field_name)
 			continue
-		var field_type: String = String(field.get("type", ""))
+		var field_type: String = str(field.get("type", ""))
 		var allowed: Array = Array(field.get("values", []))
 		if field_type == "enum" and not allowed.has(object_data.get(field_name)):
 			warnings.append("object_invalid_enum_%s" % field_name)
@@ -866,7 +866,7 @@ static func validate_archetype_object(object_data: Dictionary) -> Array[String]:
 		var item_class: String = _normalized_contract_token(object_data.get("item_class", ""))
 		if not ITEM_CLASSES.has(item_class):
 			warnings.append("item_invalid_item_class")
-		if String(object_data.get("display_name", "")) != generate_display_name(object_data):
+		if str(object_data.get("display_name", "")) != generate_display_name(object_data):
 			warnings.append("item_display_name_not_generated_from_item_class")
 		var storage_route: String = _normalized_contract_token(object_data.get("storage_route", ""))
 		var storage_type: String = _normalized_contract_token(object_data.get("storage_type", ""))
@@ -879,10 +879,10 @@ static func validate_archetype_object(object_data: Dictionary) -> Array[String]:
 		for key_field in ["item_type", "key_type", "key_kind"]:
 			if _normalized_contract_token(object_data.get(key_field, "")) in ["mechanical_key", "mechanical_keycard", "keycard"]:
 				warnings.append("item_legacy_key_value_remains_%s" % key_field)
-	if archetype_id == "floor" and String(object_data.get("display_name", "")) != generate_display_name(object_data):
+	if archetype_id == "floor" and str(object_data.get("display_name", "")) != generate_display_name(object_data):
 		warnings.append("floor_display_name_not_generated_from_material")
 	if archetype_id == "terminal":
-		if String(object_data.get("display_name", "")) != generate_display_name(object_data):
+		if str(object_data.get("display_name", "")) != generate_display_name(object_data):
 			warnings.append("terminal_display_name_not_generated_from_properties")
 		if _contains_cyrillic(object_data.get("display_name", "")):
 			warnings.append("terminal_display_name_contains_localized_text")
@@ -899,7 +899,7 @@ static func validate_archetype_object(object_data: Dictionary) -> Array[String]:
 			warnings.append("utility_object_group_not_item")
 		if _normalized_contract_token(object_data.get("object_type", "")) != expected_utility_type:
 			warnings.append("utility_object_type_not_runtime_compatible")
-		if String(object_data.get("display_name", "")) != generate_display_name(object_data):
+		if str(object_data.get("display_name", "")) != generate_display_name(object_data):
 			warnings.append("utility_display_name_not_generated")
 		if _contains_cyrillic(object_data.get("display_name", "")):
 			warnings.append("utility_display_name_contains_localized_text")
@@ -913,7 +913,7 @@ static func validate_archetype_object(object_data: Dictionary) -> Array[String]:
 			if _normalized_contract_token(object_data.get("item_class", "")) in [ITEM_CLASS_KEY_CARD, ITEM_CLASS_DIGITAL_KEY, ITEM_CLASS_ACCESS_CODE]:
 				warnings.append("fuse_uses_access_item_class")
 	if archetype_id == "door":
-		var state: String = String(object_data.get("state", ""))
+		var state: String = str(object_data.get("state", ""))
 		var expected_open: bool = state == "open"
 		var expected_closed: bool = state in ["closed", "locked", "jammed", "unpowered"]
 		var expected_locked: bool = state == "locked"
@@ -929,7 +929,7 @@ static func validate_archetype_object(object_data: Dictionary) -> Array[String]:
 		var door_access_type: String = normalize_access_type(object_data.get("access_type", ACCESS_TYPE_NO_KEY))
 		if door_access_type in [ACCESS_TYPE_DIGITAL_KEY, ACCESS_TYPE_ACCESS_CODE] and not bool(object_data.get("has_connector_jack", false)):
 			warnings.append("door_connector_jack_required_for_%s" % door_access_type)
-		if String(object_data.get("display_name", "")) != generate_display_name(object_data):
+		if str(object_data.get("display_name", "")) != generate_display_name(object_data):
 			warnings.append("door_display_name_not_generated_from_properties")
 		if is_legacy_door_object_type(_normalized_contract_token(object_data.get("object_type", ""))):
 			warnings.append("door_legacy_object_type_remains_after_normalization")
@@ -951,7 +951,7 @@ static func validate_object_registry_contract() -> Array[String]:
 		warnings.append("door_archetype_object_type_not_canonical")
 	var door_schema_fields: Array[String] = []
 	for field_variant in get_archetype_property_schema("door"):
-		door_schema_fields.append(String(Dictionary(field_variant).get("field", "")))
+		door_schema_fields.append(str(Dictionary(field_variant).get("field", "")))
 	for required_field in ["door_type", "material", "access_type", "door_class", "power_type", "control_type", "power_behavior", "state", "allowed_states"]:
 		if required_field not in door_schema_fields:
 			warnings.append("door_archetype_schema_missing_%s" % required_field)
@@ -965,29 +965,29 @@ static func validate_object_registry_contract() -> Array[String]:
 	if door_palette_count != 1:
 		warnings.append("door_palette_row_count_%d" % door_palette_count)
 	for legacy_door_id_variant in LEGACY_DOOR_ALIAS_CONFIGS.keys():
-		var legacy_door_id: String = String(legacy_door_id_variant)
+		var legacy_door_id: String = str(legacy_door_id_variant)
 		var normalized_legacy_door: Dictionary = create_world_object(legacy_door_id, "validation_%s" % legacy_door_id)
 		if _normalized_contract_token(normalized_legacy_door.get("archetype_id", "")) != "door" or _normalized_contract_token(normalized_legacy_door.get("object_group", "")) != "door" or _normalized_contract_token(normalized_legacy_door.get("object_type", "")) != "door":
 			warnings.append("door_legacy_alias_not_normalized_%s" % legacy_door_id)
 	for legacy_object_type_variant in DOOR_MATERIAL_BY_OBJECT_TYPE.keys():
-		var legacy_object_type: String = String(legacy_object_type_variant)
+		var legacy_object_type: String = str(legacy_object_type_variant)
 		if bool(Dictionary(OBJECT_LIBRARY.get(legacy_object_type, {})).get("placeable_in_constructor", true)):
 			warnings.append("door_legacy_library_object_placeable_%s" % legacy_object_type)
 	for alias_variant in PREFAB_ALIASES.keys():
-		var alias_id: String = String(alias_variant)
+		var alias_id: String = str(alias_variant)
 		var target_id: String = canonical_prefab_id(alias_id)
 		if not OBJECT_LIBRARY.has(target_id) and not ARCHETYPE_REGISTRY.has(target_id):
 			warnings.append("prefab_alias_target_missing_%s_%s" % [alias_id, target_id])
 			continue
 		var alias_data: Dictionary = create_world_object(alias_id, "validation_%s" % alias_id)
-		if alias_data.is_empty() or (not OBJECT_LIBRARY.has(String(alias_data.get("object_type", ""))) and not ARCHETYPE_REGISTRY.has(String(alias_data.get("archetype_id", "")))):
+		if alias_data.is_empty() or (not OBJECT_LIBRARY.has(str(alias_data.get("object_type", ""))) and not ARCHETYPE_REGISTRY.has(str(alias_data.get("archetype_id", "")))):
 			warnings.append("prefab_alias_creates_unknown_runtime_object_%s" % alias_id)
 		if target_id != "floor":
 			for required_field in ["door_type", "material", "access_type", "door_class"]:
 				if not alias_data.has(required_field) or _normalized_contract_token(alias_data.get(required_field, "")).is_empty():
 					warnings.append("prefab_alias_missing_%s_%s" % [required_field, alias_id])
 	for object_type_variant in OBJECT_LIBRARY.keys():
-		var object_type: String = String(object_type_variant)
+		var object_type: String = str(object_type_variant)
 		var definition: Dictionary = OBJECT_LIBRARY[object_type]
 		if _normalized_contract_token(definition.get("group", "")) != "door":
 			continue
@@ -1099,7 +1099,7 @@ static func _schema_defaults(archetype_id: String) -> Dictionary:
 	var defaults: Dictionary = {}
 	for field_variant in get_archetype_property_schema(archetype_id):
 		var field: Dictionary = field_variant
-		defaults[String(field.get("field", ""))] = field.get("default")
+		defaults[str(field.get("field", ""))] = field.get("default")
 	return defaults
 
 static func _normalize_wall_material(value: Variant) -> String:
@@ -1112,7 +1112,7 @@ static func _label_for_id(value: Variant) -> String:
 static func generate_display_name(object_data: Dictionary) -> String:
 	var archetype_id: String = get_archetype_id_for_object(object_data)
 	if archetype_id == "item":
-		return String(ITEM_DISPLAY_NAMES.get(normalize_item_class(object_data.get("item_class", "physical_item")), "Physical Item"))
+		return str(ITEM_DISPLAY_NAMES.get(normalize_item_class(object_data.get("item_class", "physical_item")), "Physical Item"))
 	if archetype_id == "terminal":
 		if _normalized_contract_token(object_data.get("terminal_type", "information")) != "control":
 			return "Information Terminal"
@@ -1121,10 +1121,10 @@ static func generate_display_name(object_data: Dictionary) -> String:
 			return "Control Terminal"
 		return "%s Control Terminal" % _label_for_id(target_type)
 	var definition: Dictionary = get_archetype_definition(archetype_id)
-	var template: String = String(definition.get("display_name_template", object_data.get("display_name", archetype_id.capitalize())))
+	var template: String = str(definition.get("display_name_template", object_data.get("display_name", archetype_id.capitalize())))
 	for field_variant in get_archetype_property_schema(archetype_id):
 		var field: Dictionary = field_variant
-		var field_name: String = String(field.get("field", ""))
+		var field_name: String = str(field.get("field", ""))
 		template = template.replace("{%s_label}" % field_name, _label_for_id(object_data.get(field_name, field.get("default", ""))))
 	return template
 
@@ -1135,20 +1135,20 @@ static func normalize_archetype_object(object_data: Dictionary) -> Dictionary:
 		return data
 	var definition: Dictionary = get_archetype_definition(archetype_id)
 	data["archetype_id"] = archetype_id
-	data["object_group"] = String(definition.get("object_group", archetype_id))
-	data["object_type"] = String(definition.get("object_type", archetype_id))
+	data["object_group"] = str(definition.get("object_group", archetype_id))
+	data["object_type"] = str(definition.get("object_type", archetype_id))
 	for fixed_field in ["material", "is_destructible", "supports_embedded_objects", "supports_cables", "configurable", "blocks_movement", "blocks_vision"]:
 		if definition.has(fixed_field) and (archetype_id == "external_wall" or not data.has(fixed_field)):
 			data[fixed_field] = definition[fixed_field]
 	for key_variant in _schema_defaults(archetype_id).keys():
-		var key: String = String(key_variant)
+		var key: String = str(key_variant)
 		if not data.has(key):
 			data[key] = _schema_defaults(archetype_id)[key]
 	if archetype_id == "wall":
 		data["material"] = _normalize_wall_material(data.get("material", WALL_MATERIAL_BRICK))
 	if archetype_id == "door":
-		data["power_mode"] = String(data.get("power_type", data.get("power_mode", "internal")))
-		data["control_mode"] = String(data.get("control_type", data.get("control_mode", "internal")))
+		data["power_mode"] = str(data.get("power_type", data.get("power_mode", "internal")))
+		data["control_mode"] = str(data.get("control_type", data.get("control_mode", "internal")))
 	elif archetype_id == "terminal":
 		data = normalize_terminal_contract(data)
 	elif archetype_id == "item":
@@ -1161,14 +1161,14 @@ static func create_archetype_object(archetype_id: String, id_override: String = 
 	var definition: Dictionary = get_archetype_definition(archetype_id)
 	if definition.is_empty():
 		return {}
-	var runtime_type: String = String(definition.get("object_type", archetype_id))
+	var runtime_type: String = str(definition.get("object_type", archetype_id))
 	var data: Dictionary = _create_library_object(runtime_type, id_override) if runtime_type == archetype_id else create_world_object(runtime_type, id_override)
 	if data.is_empty():
 		var object_id: String = id_override if not id_override.is_empty() else "%s_%s" % [archetype_id, str(Time.get_unix_time_from_system())]
-		data = WorldObjectDataRef.create_base(object_id, String(definition.get("palette_label", archetype_id.capitalize())), String(definition.get("object_group", archetype_id)), runtime_type)
+		data = WorldObjectDataRef.create_base(object_id, str(definition.get("palette_label", archetype_id.capitalize())), str(definition.get("object_group", archetype_id)), runtime_type)
 	data["archetype_id"] = archetype_id
 	for key_variant in overrides.keys():
-		data[String(key_variant)] = overrides[key_variant]
+		data[str(key_variant)] = overrides[key_variant]
 	if archetype_id == "terminal" and overrides.has("status"):
 		data["state"] = overrides["status"]
 	return normalize_door_state_fields(normalize_world_object_contract(normalize_archetype_object(data)))
@@ -1198,7 +1198,7 @@ static func _create_library_object(object_type: String, id_override: String = ""
 	data = apply_prefab_alias_defaults(canonical_type, object_type, data)
 	var alias_defaults: Dictionary = get_prefab_alias_defaults(object_type)
 	for key_variant in alias_defaults.keys():
-		data[String(key_variant)] = alias_defaults[key_variant]
+		data[str(key_variant)] = alias_defaults[key_variant]
 	data = normalize_world_object_contract(data)
 	data = update_world_object_heat_state(data)
 	return normalize_door_state_fields(data)
@@ -1297,12 +1297,12 @@ static func can_world_object_be_moved_by_heavy_claw(object_data: Dictionary) -> 
 		return false
 	if not bool(object_data.get("heavy_claw_movable", false)):
 		return false
-	if String(object_data.get("state", "active")) in ["destroyed", "damaged"]:
+	if str(object_data.get("state", "active")) in ["destroyed", "damaged"]:
 		return false
-	var object_group := String(object_data.get("object_group", ""))
+	var object_group := str(object_data.get("object_group", ""))
 	if object_group not in ["cooling", "physical", "physical_object"]:
 		return false
-	var object_type := String(object_data.get("object_type", ""))
+	var object_type := str(object_data.get("object_type", ""))
 	return object_type in ["external_radiator", "external_air_cooler", "metal_cooling_block", "normal_crate", "heavy_crate", "barrel", "explosive_barrel"]
 
 static func can_world_object_receive_cooling(object_data: Dictionary) -> bool:
@@ -1311,10 +1311,10 @@ static func can_world_object_receive_cooling(object_data: Dictionary) -> bool:
 	var has_heat_metadata := object_data.has("overheat_threshold") or object_data.has("working_heat")
 	if not has_heat_metadata:
 		return false
-	var object_group := String(object_data.get("object_group", ""))
+	var object_group := str(object_data.get("object_group", ""))
 	if object_group == "terminal":
 		return true
-	var object_type := String(object_data.get("object_type", ""))
+	var object_type := str(object_data.get("object_type", ""))
 	return object_type in ["power_source", "power_source_class_1", "power_source_class_2", "power_source_class_3"]
 
 static func _to_vector2i(value: Variant, fallback: Vector2i = Vector2i.ZERO) -> Vector2i:
@@ -1332,7 +1332,7 @@ static func to_world_cell(value: Variant, fallback: Vector2i = Vector2i.ZERO) ->
 	return _to_vector2i(value, fallback)
 
 static func _is_world_object_inactive_for_cooling(object_data: Dictionary) -> bool:
-	var state := String(object_data.get("state", "active"))
+	var state := str(object_data.get("state", "active"))
 	return state in ["damaged", "destroyed", "overheated", "disabled", "inactive", "unpowered"]
 
 static func _is_adjacent(a: Vector2i, b: Vector2i) -> bool:
@@ -1341,7 +1341,7 @@ static func _is_adjacent(a: Vector2i, b: Vector2i) -> bool:
 static func _facing_dir_to_vector2i(value: Variant) -> Vector2i:
 	if value is Vector2i:
 		return value
-	var dir_text := String(value).to_lower()
+	var dir_text := str(value).to_lower()
 	match dir_text:
 		"up":
 			return Vector2i.UP
@@ -1356,7 +1356,7 @@ static func _facing_dir_to_vector2i(value: Variant) -> Vector2i:
 static func get_radiator_world_cooling_for_target(target_object: Dictionary, target_position: Vector2i, all_objects: Array[Dictionary]) -> int:
 	var strongest := 0
 	for object_data in all_objects:
-		if String(object_data.get("cooling_device_type", "")) != "radiator":
+		if str(object_data.get("cooling_device_type", "")) != "radiator":
 			continue
 		if _is_world_object_inactive_for_cooling(object_data):
 			continue
@@ -1372,7 +1372,7 @@ static func get_radiator_world_cooling_for_target(target_object: Dictionary, tar
 			var neighbor_position := _to_vector2i(neighbor.get("position", Vector2i(-999, -999)))
 			if not _is_adjacent(radiator_position, neighbor_position):
 				continue
-			var is_metal := String(neighbor.get("material", "")) == "metal"
+			var is_metal := str(neighbor.get("material", "")) == "metal"
 			var is_amplifier := bool(neighbor.get("cooling_amplifier", false))
 			if is_metal or is_amplifier:
 				output = maxi(output, 2)
@@ -1383,7 +1383,7 @@ static func get_radiator_world_cooling_for_target(target_object: Dictionary, tar
 static func get_air_cooler_world_cooling_for_target(target_object: Dictionary, target_position: Vector2i, all_objects: Array[Dictionary]) -> int:
 	var strongest := 0
 	for object_data in all_objects:
-		if String(object_data.get("cooling_device_type", "")) != "air_cooler":
+		if str(object_data.get("cooling_device_type", "")) != "air_cooler":
 			continue
 		if _is_world_object_inactive_for_cooling(object_data):
 			continue
@@ -1400,7 +1400,7 @@ static func get_air_cooler_world_cooling_for_target(target_object: Dictionary, t
 static func get_water_pipe_world_cooling_for_target(_target_object: Dictionary, target_position: Vector2i, all_objects: Array[Dictionary]) -> int:
 	var strongest := 0
 	for object_data in all_objects:
-		if String(object_data.get("cooling_device_type", "")) != "water_pipe":
+		if str(object_data.get("cooling_device_type", "")) != "water_pipe":
 			continue
 		if _is_world_object_inactive_for_cooling(object_data):
 			continue
@@ -1414,7 +1414,7 @@ static func get_water_pipe_world_cooling_for_target(_target_object: Dictionary, 
 static func get_air_duct_path_cooling_for_target(_target_object: Dictionary, target_position: Vector2i, all_objects: Array[Dictionary]) -> int:
 	var strongest := 0
 	for object_data in all_objects:
-		if String(object_data.get("cooling_device_type", "")) != "air_cooler":
+		if str(object_data.get("cooling_device_type", "")) != "air_cooler":
 			continue
 		if _is_world_object_inactive_for_cooling(object_data):
 			continue
@@ -1425,7 +1425,7 @@ static func get_air_duct_path_cooling_for_target(_target_object: Dictionary, tar
 		for _step in range(20):
 			var found_active_duct := false
 			for duct_data in all_objects:
-				if String(duct_data.get("cooling_device_type", "")) != "air_duct":
+				if str(duct_data.get("cooling_device_type", "")) != "air_duct":
 					continue
 				if _is_world_object_inactive_for_cooling(duct_data):
 					continue
@@ -1462,7 +1462,7 @@ static func get_power_source_active_socket_connection_count(source_data: Diction
 
 static func can_power_source_accept_connection(source_data: Dictionary) -> bool:
 	var source_class: int = int(source_data.get("power_source_class", source_data.get("source_class", 1)))
-	var object_type: String = String(source_data.get("object_type", "")).strip_edges().to_lower()
+	var object_type: String = str(source_data.get("object_type", "")).strip_edges().to_lower()
 	if object_type.ends_with("class_2"):
 		source_class = 2
 	elif object_type.ends_with("class_3"):

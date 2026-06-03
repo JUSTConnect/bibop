@@ -93,13 +93,13 @@ func to_dictionary() -> Dictionary:
 
 
 func from_dictionary(data: Dictionary) -> void:
-	cable_id = String(data.get("cable_id", ""))
-	reel_id = String(data.get("reel_id", ""))
-	socket_id = String(data.get("socket_id", ""))
-	linked_target_id = String(data.get("linked_target_id", ""))
-	power_event_id = String(data.get("power_event_id", ""))
-	power_filter = String(data.get("power_filter", ""))
-	state = String(data.get("state", STATE_IDLE))
+	cable_id = str(data.get("cable_id", ""))
+	reel_id = str(data.get("reel_id", ""))
+	socket_id = str(data.get("socket_id", ""))
+	linked_target_id = str(data.get("linked_target_id", ""))
+	power_event_id = str(data.get("power_event_id", ""))
+	power_filter = str(data.get("power_filter", ""))
+	state = str(data.get("state", STATE_IDLE))
 	connected = bool(data.get("connected", false))
 	max_length = int(data.get("max_length", 0))
 	path_cells = _variant_to_vector2i_array(data.get("path_cells", []))

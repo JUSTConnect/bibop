@@ -158,7 +158,7 @@ static func build(ui, cell: Vector2i) -> Control:
 			var stored: Array[String] = []
 			for field_name in ["stored_key_ids", "stored_access_ids", "stored_item_ids", "digital_key_ids", "access_code_ids"]:
 				for value_variant in ui._safe_ui_array(object_data.get(field_name, [])):
-					stored.append(String(value_variant))
+					stored.append(str(value_variant))
 			if not ui._safe_ui_string(object_data.get("stored_key_id", object_data.get("access_key_id", ""))).strip_edges().is_empty():
 				stored.append(ui._safe_ui_string(object_data.get("stored_key_id", object_data.get("access_key_id", ""))))
 			lines.append("Stored keys/access: %s" % (", ".join(stored) if not stored.is_empty() else "none"))
