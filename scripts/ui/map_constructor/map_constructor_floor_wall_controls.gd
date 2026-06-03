@@ -48,6 +48,37 @@ static func get_wall_side_label(side_id: String) -> String:
 		_:
 			return side_id.capitalize()
 
+static func _get_wall_side_delta(side_id: String) -> Vector2i:
+	match normalize_wall_side(side_id):
+		"north":
+			return Vector2i(0, -1)
+		"east":
+			return Vector2i(1, 0)
+		"south":
+			return Vector2i(0, 1)
+		"west":
+			return Vector2i(-1, 0)
+		_:
+			return Vector2i.ZERO
+
+
+static func _cell_is_wall(ui: Variant, cell: Vector2i) -> bool:
+	if ui.mission_manager_runtime != null and ui.mission_manager_runtime.has_method("_is_map_constructor_wall_cell"):
+		return bool(ui.mission_manager_runtime.call("_is_map_constructor_wall_cell", cell))
+	return false
+
+
+static func _resolve_wall_layer_material_target(ui: Variant, wall_cell: Vector2i) -> Dictionary:
+	for side_id in ["north", "east", "south", "west"]:
+		var delta: Vector2i = _get_wall_side_delta(side_id)
+		var floor_cell: Vector2i = wall_cell - delta
+		if floor_cell.x < 0 or floor_cell.y < 0:
+			continue
+		if not _cell_is_wall(ui, floor_cell):
+			return {"ok": true, "cell": floor_cell, "side": side_id, "wall_cell": wall_cell}
+	return {"ok": false}
+
+
 static func create_wall_side_picker(ui: Variant, placement_mode: String) -> Control:
 	var root: VBoxContainer = VBoxContainer.new()
 	root.add_theme_constant_override("separation", 4)
@@ -96,6 +127,11 @@ static func resolve_wall_material_target_for_selection(ui: Variant, entity_info:
 		var side: String = normalize_wall_side(ui._safe_ui_string(data.get("wall_side", "")))
 		if anchor_cell.x >= 0 and anchor_cell.y >= 0 and not side.is_empty():
 			return {"ok": true, "cell": anchor_cell, "side": side}
+	if ui._safe_ui_string(data.get("object_type", "")).strip_edges().to_lower() == "wall" or ui._safe_ui_string(data.get("object_group", "")).strip_edges().to_lower() == "wall" or ui._safe_ui_string(entity_info.get("entity_kind", "")).strip_edges().to_lower() == "wall":
+		var wall_cell: Vector2i = ui._safe_ui_vector2i(entity_info.get("cell", fallback_cell))
+		var wall_target: Dictionary = _resolve_wall_layer_material_target(ui, wall_cell)
+		if bool(wall_target.get("ok", false)):
+			return wall_target
 	var selected_side: String = normalize_wall_side(ui.selected_map_constructor_wall_side)
 	if not selected_side.is_empty():
 		var selected_cell: Vector2i = ui._safe_ui_vector2i(entity_info.get("cell", fallback_cell))
@@ -220,9 +256,8 @@ static func add_wall_coverage_section(ui: Variant, parent: VBoxContainer, entity
 						description_label.text = ui._safe_ui_string(material_row_inner.get("description", ""))
 						break
 			)
-			wall_section.add_child(ui._create_property_row("Target", Label.new()))
 			var target_label: Label = Label.new(); target_label.text = "%s / %s" % [str(wall_cell), wall_side]
-			wall_section.add_child(target_label)
+			wall_section.add_child(ui._create_property_row("Target", target_label))
 			wall_section.add_child(ui._create_property_row("Material", material_option))
 			wall_section.add_child(description_label)
 			var apply_material: Button = Button.new(); apply_material.text = "Apply Wall Material"

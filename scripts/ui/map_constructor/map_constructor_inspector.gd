@@ -192,7 +192,7 @@ static func _get_tab_id_for_entity(ui: Variant, entity_kind: String, data: Dicti
 		return "cables"
 	if object_type == "light" or object_group == "lighting":
 		return "lighting"
-	if object_group == "wall" or object_type == "wall" or joined.contains("_wall"):
+	if object_group == "wall" or object_type == "wall":
 		return "walls"
 	return "objects"
 
@@ -205,6 +205,23 @@ static func _find_entity_in_tabs(tabs: Array, entity_kind: String, entity_id: St
 			if str(entity.get("entity_kind", "")) == entity_kind and str(entity.get("id", "")) == entity_id:
 				return entity
 	return {}
+
+
+static func _find_tab_index_by_id(tabs: Array, tab_id: String) -> int:
+	for index in range(tabs.size()):
+		var tab: Dictionary = Dictionary(tabs[index])
+		if str(tab.get("id", "")) == tab_id:
+			return index
+	return -1
+
+
+static func _choose_preferred_tab_id(ui: Variant, tabs: Array, model_preferred_tab: String, preferred_entity_kind: String, preferred_entity_id: String) -> String:
+	if not preferred_entity_id.is_empty():
+		return model_preferred_tab
+	var remembered_tab: String = ui._safe_ui_string(ui.map_constructor_active_inspector_tab_id, "")
+	if not remembered_tab.is_empty() and _find_tab_index_by_id(tabs, remembered_tab) >= 0:
+		return remembered_tab
+	return model_preferred_tab
 
 
 static func _choose_tab_entity(ui: Variant, tab: Dictionary, preferred_entity_kind: String, preferred_entity_id: String) -> Dictionary:
@@ -272,9 +289,25 @@ static func _render_floor_tab(ui: Variant, parent: VBoxContainer, cell: Vector2i
 
 static func _render_wall_tab(ui: Variant, parent: VBoxContainer, entity: Dictionary, cell: Vector2i) -> void:
 	var data: Dictionary = ui._safe_ui_dictionary(entity.get("data", {}))
-	_render_read_only_entity(ui, parent, entity, "Wall")
+	var identity: VBoxContainer = ui._create_inspector_section("1. Identity")
+	var id_label: Label = Label.new(); id_label.text = str(entity.get("id", "wall_%d_%d" % [cell.x, cell.y])); identity.add_child(ui._create_property_row("ID", id_label))
+	var type_label: Label = Label.new(); type_label.text = "wall"; identity.add_child(ui._create_property_row("Type", type_label))
+	parent.add_child(identity)
+	var placement: VBoxContainer = ui._create_inspector_section("2. Placement")
+	var cell_label: Label = Label.new(); cell_label.text = str(cell); placement.add_child(ui._create_property_row("Cell", cell_label))
+	var tile_label: Label = Label.new(); tile_label.text = ui._safe_ui_string(data.get("tile_name", data.get("tile_type", "wall")), "wall"); placement.add_child(ui._create_property_row("Tile", tile_label))
+	parent.add_child(placement)
+	var status: VBoxContainer = ui._create_inspector_section("3. Status")
+	var layer_label: Label = Label.new(); layer_label.text = "actual wall layer"; status.add_child(ui._create_property_row("Layer", layer_label))
+	parent.add_child(status)
 	var wall_entity_info: Dictionary = {"ok": true, "entity_kind": str(entity.get("entity_kind", "wall")), "id": str(entity.get("id", "")), "cell": cell, "data": data}
 	_add_floor_wall_coverage_sections(ui, parent, wall_entity_info, cell, data, str(entity.get("entity_kind", "wall")), str(entity.get("id", "")), "wall", false, true)
+	var linked: VBoxContainer = ui._create_inspector_section("6. Linked logical objects")
+	var linked_label: Label = Label.new(); linked_label.text = "No logical object links for wall layer."; linked.add_child(linked_label)
+	parent.add_child(linked)
+	var warnings: VBoxContainer = ui._create_inspector_section("Warnings")
+	var warn_label: Label = Label.new(); warn_label.text = "No wall warnings."; warnings.add_child(warn_label)
+	parent.add_child(warnings)
 
 
 static func _render_entity_tab(ui: Variant, parent: VBoxContainer, entity_info: Dictionary, fallback_cell: Vector2i, include_wall_coverage: bool = false) -> void:
@@ -418,6 +451,11 @@ static func _render_entity_tab(ui: Variant, parent: VBoxContainer, entity_info: 
 static func refresh(ui: Variant, cell: Vector2i, preferred_entity_kind: String = "", preferred_entity_id: String = "") -> void:
 	var previous_entity_kind: String = ui.selected_map_constructor_entity_kind
 	var previous_entity_id: String = ui.selected_map_constructor_entity_id
+	var previous_cell: Vector2i = ui.selected_map_constructor_entity_cell
+	if preferred_entity_id.is_empty() and previous_cell != cell:
+		ui.map_constructor_active_inspector_tab_id = ""
+		ui.map_constructor_active_inspector_entity_id = ""
+		ui.map_constructor_active_inspector_entity_kind = ""
 	var preserve_scroll_value: int = 0
 	if ui.runtime_map_constructor_inspector_scroll != null and is_instance_valid(ui.runtime_map_constructor_inspector_scroll):
 		preserve_scroll_value = ui.runtime_map_constructor_inspector_scroll.scroll_vertical
@@ -435,7 +473,7 @@ static func refresh(ui: Variant, cell: Vector2i, preferred_entity_kind: String =
 	var selected_cell: Vector2i = ui._safe_ui_vector2i(model.get("cell", cell))
 	ui.pending_map_constructor_cell = selected_cell
 	var tabs: Array = ui._safe_ui_array(model.get("tabs", []))
-	var preferred_tab_id: String = ui._safe_ui_string(model.get("preferred_tab", "floor"), "floor")
+	var preferred_tab_id: String = _choose_preferred_tab_id(ui, tabs, ui._safe_ui_string(model.get("preferred_tab", "floor"), "floor"), preferred_entity_kind, preferred_entity_id)
 	if preferred_tab_id.is_empty() and not preferred_entity_id.is_empty():
 		var preferred_entity: Dictionary = _find_entity_in_tabs(tabs, preferred_entity_kind, preferred_entity_id)
 		preferred_tab_id = _get_tab_id_for_entity(ui, preferred_entity_kind, ui._safe_ui_dictionary(preferred_entity.get("data", {}))) if not preferred_entity.is_empty() else "floor"
@@ -448,6 +486,15 @@ static func refresh(ui: Variant, cell: Vector2i, preferred_entity_kind: String =
 	stack.add_child(tab_container)
 	var selected_tab_index: int = 0
 	var selected_tab_entity: Dictionary = {}
+	tab_container.tab_changed.connect(func(tab_index: int) -> void:
+		if tab_index < 0 or tab_index >= tabs.size():
+			return
+		var changed_tab: Dictionary = Dictionary(tabs[tab_index])
+		ui.map_constructor_active_inspector_tab_id = ui._safe_ui_string(changed_tab.get("id", ""))
+		var changed_entity: Dictionary = _choose_tab_entity(ui, changed_tab, preferred_entity_kind, preferred_entity_id)
+		ui.map_constructor_active_inspector_entity_kind = ui._safe_ui_string(changed_entity.get("entity_kind", ""))
+		ui.map_constructor_active_inspector_entity_id = ui._safe_ui_string(changed_entity.get("id", ""))
+	)
 	for tab_variant in tabs:
 		var tab: Dictionary = Dictionary(tab_variant)
 		var tab_id: String = ui._safe_ui_string(tab.get("id", ""))
@@ -465,12 +512,13 @@ static func refresh(ui: Variant, cell: Vector2i, preferred_entity_kind: String =
 			"walls":
 				_render_wall_tab(ui, content, entity, selected_cell)
 			_:
-				_render_entity_tab(ui, content, entity, selected_cell, tab_id == "objects")
+				_render_entity_tab(ui, content, entity, selected_cell, false)
 		if tab_id == preferred_tab_id:
 			selected_tab_index = tab_index
 			selected_tab_entity = entity
 	if tab_container.get_tab_count() > 0:
 		tab_container.current_tab = selected_tab_index
+		ui.map_constructor_active_inspector_tab_id = ui._safe_ui_string(Dictionary(tabs[selected_tab_index]).get("id", ""))
 		var selected_scroll: ScrollContainer = tab_container.get_child(selected_tab_index) as ScrollContainer
 		ui.runtime_map_constructor_inspector_scroll = selected_scroll
 		if selected_tab_entity.is_empty():
@@ -483,6 +531,8 @@ static func refresh(ui: Variant, cell: Vector2i, preferred_entity_kind: String =
 			ui.selected_map_constructor_entity_kind = ""
 			ui.selected_map_constructor_entity_id = ""
 			ui.selected_map_constructor_entity_cell = selected_cell
+		ui.map_constructor_active_inspector_entity_kind = ui.selected_map_constructor_entity_kind
+		ui.map_constructor_active_inspector_entity_id = ui.selected_map_constructor_entity_id
 		if previous_entity_kind == ui.selected_map_constructor_entity_kind and previous_entity_id == ui.selected_map_constructor_entity_id:
 			ui._restore_map_constructor_inspector_scroll_deferred(selected_scroll, preserve_scroll_value)
 	ui.runtime_hud_root.add_child(panel)

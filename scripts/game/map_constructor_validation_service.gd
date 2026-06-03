@@ -600,8 +600,9 @@ func get_map_constructor_validation_issues() -> Array[Dictionary]:
 			issues.append(_make_map_constructor_issue("obj_legacy_access_none_%s" % object_id, "error", "Legacy access_type=none must be normalized to no_key.", object_cell, source_name, entity_kind, object_id, "Normalize access_type through WorldObjectCatalog."))
 		elif not raw_access_type.is_empty():
 			var normalized_access_type: String = WorldObjectCatalogRef.normalize_access_type(raw_access_type)
+			var canonical_link_access_types: Array[String] = [WorldObjectCatalogRef.ACCESS_TYPE_KEY_CARD, WorldObjectCatalogRef.ACCESS_TYPE_DIGITAL_KEY, WorldObjectCatalogRef.ACCESS_TYPE_ACCESS_CODE, WorldObjectCatalogRef.ACCESS_TYPE_TERMINAL]
 			if normalized_access_type != raw_access_type or not normalized_access_type in WorldObjectCatalogRef.ACCESS_TYPES:
-				issues.append(_make_map_constructor_issue("obj_invalid_access_type_%s" % object_id, "error", "Object access_type is not canonical: %s." % raw_access_type, object_cell, source_name, entity_kind, object_id, "Use no_key, key_card, digital_key, access_code, or terminal."))
+				issues.append(_make_map_constructor_issue("obj_invalid_access_type_%s" % object_id, "error", "Object access_type is not canonical: %s." % raw_access_type, object_cell, source_name, entity_kind, object_id, "Use %s, %s, %s, %s, or %s." % [WorldObjectCatalogRef.ACCESS_TYPE_NO_KEY, canonical_link_access_types[0], canonical_link_access_types[1], canonical_link_access_types[2], canonical_link_access_types[3]]))
 		if data.has("lock_type") and not data.has("access_type"):
 			issues.append(_make_map_constructor_issue("obj_lock_without_access_%s" % object_id, "error", "Legacy lock_type is present without canonical access_type.", object_cell, source_name, entity_kind, object_id, "Populate canonical access_type while retaining lock_type only as compatibility metadata."))
 		_get_power_link_validation_rules().append_object_power_link_consistency_issues(data, object_cell, source_name, entity_kind, issues)
