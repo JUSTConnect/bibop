@@ -2,6 +2,7 @@ extends RefCounted
 class_name BipobLegacyCableFlowService
 
 const LEGACY_CABLE_OBJECT_ID := "cable_a"
+const CableTopologyServiceRef = preload("res://scripts/game/cable_topology_service.gd")
 
 
 static func reset_legacy_state(controller: Variant) -> void:
@@ -52,13 +53,26 @@ static func interact_socket(controller: Variant) -> void:
 		return
 	if not controller.can_spend_action(1, 1):
 		return
+	var path_preview: Array = controller.mission7_cable_path.duplicate(true)
+	if not path_preview.has(controller.grid_position):
+		path_preview.append(controller.grid_position)
+	var topology_validation: Dictionary = _validate_legacy_path(controller, path_preview)
+	if not bool(topology_validation.get("ok", true)):
+		controller.hint_requested.emit(String(topology_validation.get("message", CableTopologyServiceRef.ERROR_MESSAGE_JUNCTION_REQUIRES_SWITCH)))
+		return
 	controller.mission7_is_dragging_cable = false
 	controller.mission7_cable_connected = true
+	controller.mission7_cable_path.clear()
+	for path_cell_variant in path_preview:
+		if path_cell_variant is Vector2i:
+			controller.mission7_cable_path.append(path_cell_variant)
 	if controller.mission_manager != null:
 		var mission7_cable_object: Dictionary = Dictionary(controller.mission_manager.get_world_object_by_id(LEGACY_CABLE_OBJECT_ID))
 		if not mission7_cable_object.is_empty():
 			mission7_cable_object["state"] = "connected"
 			mission7_cable_object["connected"] = true
+			mission7_cable_object["cable_path_cells"] = path_preview.duplicate(true)
+			mission7_cable_object["cable_length"] = path_preview.size()
 			var power_filter := ""
 			if controller.mission_manager.has_method("_get_power_event_filter_for_object"):
 				power_filter = String(controller.mission_manager.call("_get_power_event_filter_for_object", mission7_cable_object))
@@ -74,6 +88,12 @@ static func add_current_cell_to_path(controller: Variant) -> void:
 	if controller.grid_manager == null or controller.mission7_cable_connected or not controller.mission7_is_dragging_cable:
 		return
 	if not controller.mission7_cable_path.has(controller.grid_position):
+		var path_preview: Array = controller.mission7_cable_path.duplicate(true)
+		path_preview.append(controller.grid_position)
+		var topology_validation: Dictionary = _validate_legacy_path(controller, path_preview)
+		if not bool(topology_validation.get("ok", true)):
+			controller.hint_requested.emit(String(topology_validation.get("message", CableTopologyServiceRef.ERROR_MESSAGE_JUNCTION_REQUIRES_SWITCH)))
+			return
 		controller.mission7_cable_path.append(controller.grid_position)
 	var tile: int = int(controller.grid_manager.get_tile(controller.grid_position))
 	if tile == GridManager.TILE_FLOOR:
@@ -98,6 +118,19 @@ static func release_cable_end(controller: Variant) -> void:
 	clear_path_tiles(controller)
 	controller.hint_requested.emit("Cable released. Return to the reel to take it again.")
 	controller.status_changed.emit()
+
+
+static func _validate_legacy_path(controller: Variant, path_cells: Array) -> Dictionary:
+	if controller == null or controller.mission_manager == null:
+		return {"ok": true, "message": "OK"}
+	var world_objects: Array = Array(controller.mission_manager.get("mission_world_objects"))
+	var cable_preview: Dictionary = Dictionary(controller.mission_manager.get_world_object_by_id(LEGACY_CABLE_OBJECT_ID))
+	if cable_preview.is_empty():
+		cable_preview = {"id": LEGACY_CABLE_OBJECT_ID, "object_type": "power_cable"}
+	cable_preview["position"] = controller.mission7_cable_reel_position
+	cable_preview["cable_path_cells"] = path_cells.duplicate(true)
+	cable_preview["cable_length"] = path_cells.size()
+	return CableTopologyServiceRef.validate_cable_object(world_objects, cable_preview)
 
 
 static func get_status_text(controller: Variant) -> String:

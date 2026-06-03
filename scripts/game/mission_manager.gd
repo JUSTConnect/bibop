@@ -6955,6 +6955,11 @@ func validate_cable_path(cable_reel: Dictionary, target: Dictionary, path_cells:
 			continue
 		if bool(blocker.get("blocks_movement", false)) or String(blocker.get("state", "")) == "closed":
 			return {"valid": false, "reason": "path_blocked", "length": length, "max_length": max_length, "path_cells": path_cells}
+	var cable_preview: Dictionary = cable_reel.duplicate(true)
+	cable_preview["cable_path_cells"] = path_cells.duplicate(true)
+	var topology_validation: Dictionary = CableTopologyServiceRef.validate_cable_object(mission_world_objects, cable_preview)
+	if not bool(topology_validation.get("ok", false)):
+		return {"valid": false, "reason": "invalid_cable_junction", "message": String(topology_validation.get("message", CableTopologyServiceRef.ERROR_MESSAGE_JUNCTION_REQUIRES_SWITCH)), "length": length, "max_length": max_length, "path_cells": path_cells, "cable_topology": topology_validation}
 	return {"valid": true, "reason": "ok", "length": length, "max_length": max_length, "path_cells": path_cells}
 
 func can_connect_cable_reel_to_target(cable_reel: Dictionary, target: Dictionary) -> Dictionary:
@@ -7033,7 +7038,7 @@ func connect_cable_reel_to_target(cable_reel_id: String, target_id: String, end_
 		return {"success": false, "reason": "cable_damaged", "message": "Cable reel must be repaired first."}
 	var can_connect := can_connect_cable_reel_to_target(cable_reel, target)
 	if not bool(can_connect.get("valid", false)):
-		return {"success": false, "reason": String(can_connect.get("reason", "target_not_connectable")), "message": "Cable target is not connectable.", "path": can_connect}
+		return {"success": false, "reason": String(can_connect.get("reason", "target_not_connectable")), "message": String(can_connect.get("message", "Cable target is not connectable.")), "path": can_connect}
 	cable_reel["state"] = "connected"
 	cable_reel["end_%d_state" % end_index] = "connected"
 	cable_reel["end_%d_target_id" % end_index] = normalized_target_id
@@ -7109,6 +7114,9 @@ func reconnect_power_cable(cable_id: String) -> Dictionary:
 		return {"success": false, "reason": "target_not_connectable"}
 	if bool(cable.get("cut", false)) or bool(cable.get("damaged", false)):
 		return {"success": false, "reason": "cable_damaged"}
+	var topology_validation: Dictionary = CableTopologyServiceRef.validate_cable_object(mission_world_objects, cable)
+	if not bool(topology_validation.get("ok", false)):
+		return {"success": false, "reason": "invalid_cable_junction", "message": String(topology_validation.get("message", CableTopologyServiceRef.ERROR_MESSAGE_JUNCTION_REQUIRES_SWITCH)), "cable_topology": topology_validation}
 	cable["connected"] = true
 	cable["disconnected"] = false
 	cable["state"] = "connected"
