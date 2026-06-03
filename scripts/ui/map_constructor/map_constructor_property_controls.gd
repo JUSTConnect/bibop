@@ -130,6 +130,9 @@ static func add_enum_updates_property(ui: Variant, section: VBoxContainer, label
 		option.add_item(MapConstructorUiSafe.safe_string(row.get("label", value), value))
 		var index: int = option.item_count - 1
 		option.set_item_metadata(index, row)
+		if bool(row.get("disabled", false)):
+			option.set_item_disabled(index, true)
+			option.set_item_tooltip(index, MapConstructorUiSafe.safe_string(row.get("disabled_reason", "Unavailable."), "Unavailable."))
 		if value == current_text:
 			selected_index = index
 	if selected_index >= 0:
