@@ -17,7 +17,7 @@ Current product direction:
 
 - TASK TEST runtime identity exists through explicit `active_runtime_mode_id` session state, `get_runtime_mode_id()`, `is_task_test_mode_active()`, and `is_sandbox_mode_active()`.
 - TASK TEST startup/restart/reset has explicit entry points: `start_task_test_session()`, `restart_task_test_session()`, and `reset_task_test_session()`. `start_task_test_session()` starts the sandbox session directly instead of delegating to `start_mission(10)`, TASK TEST restart/reset now routes through the explicit TASK TEST boundary, and mission-result restart uses that boundary instead of mutating `current_mission_index` for TASK TEST.
-- TASK TEST layout/catalog compatibility is named through `get_task_test_mission_id()` and `get_task_test_layout_id()`; `get_task_test_layout_id()` now exposes the non-story `task_test` alias while `mission_10` remains the compatibility mission id and fallback resource id.
+- TASK TEST layout/catalog compatibility is named through `get_task_test_mission_id()` and `get_task_test_layout_id()`; `get_task_test_layout_id()` now exposes the non-story `task_test` alias while `mission_10` remains the compatibility mission id and fallback resource id. `get_task_test_source_id()` is the canonical Map Constructor persistence/export source id boundary and returns `task_test`.
 - GameUI TASK TEST detection is centralized through `_is_task_test_runtime_active()`, which prefers `BipobController.is_task_test_mode_active()` and keeps the raw mission-index fallback only inside that helper boundary. The Dev TASK TEST card resolves its displayed compatibility id through controller helpers instead of embedding `mission_10` directly.
 - TASK TEST completion is isolated through `complete_sandbox_run()` and checked before legacy completion in `check_mission_complete()`.
 - Legacy story completion is separated into `complete_legacy_story_mission()`.
@@ -33,7 +33,7 @@ Current product direction:
 ### Still compatibility-based
 
 - `TASK_TEST_MISSION_INDEX` still maps to the legacy-compatible mission index `10`, and `current_mission_index` is still set to `10` for compatibility during TASK TEST sessions.
-- `MissionManager.TASK_TEST_LAYOUT_ID` maps to `task_test`, while `MissionManager.TASK_TEST_MISSION_ID` still maps to `mission_10` for compatibility fallback.
+- `MissionManager.TASK_TEST_LAYOUT_ID` maps to `task_test`, while `MissionManager.TASK_TEST_MISSION_ID` still maps to `mission_10` for compatibility fallback. New Map Constructor presets, runtime patches, mission patch exports, and design-note metadata default source ids to `task_test`; old `mission_10` source ids remain accepted for import/load compatibility.
 - `current_mission_index` still exists as legacy compatibility state for story mission flow, progression, hints, and Mission 7/8/9 branches. TASK TEST restart/reset no longer relies on mission index `10` as the only restart boundary when sandbox mode is active, including the mission-result restart UI path; GameUI keeps that index fallback only inside `_is_task_test_runtime_active()`.
 - Mission 7/8 reusable mechanics still have legacy hardcoded state and should not be deleted until their generic runtime contracts are implemented and smoke-tested.
 
