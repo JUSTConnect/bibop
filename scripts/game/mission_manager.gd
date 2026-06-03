@@ -3143,6 +3143,7 @@ func can_place_map_constructor_prefab(prefab_id: String, cell: Vector2i, preferr
 	var tile_is_exit: bool = tile_type_value == GridManager.TILE_EXIT
 	var tile_is_floor_like: bool = tile_type_value == GridManager.TILE_FLOOR or tile_type_value == GridManager.TILE_STEPPED_FLOOR
 	var canonical_prefab_template: Dictionary = _get_world_object_template(canonical_prefab_id)
+	var prefab_is_cable_layer: bool = canonical_prefab_id == "power_cable" or CableTopologyServiceRef.is_cable_object({"object_type": canonical_prefab_id})
 	var prefab_is_wall: bool = str(canonical_prefab_template.get("group", "")) == "wall"
 	var prefab_is_door_or_gate: bool = str(canonical_prefab_template.get("group", "")) == "door"
 	var prefab_is_floor_replacement: bool = prefab_id == "floor" or prefab_id == "stepped_floor"
@@ -3151,11 +3152,11 @@ func can_place_map_constructor_prefab(prefab_id: String, cell: Vector2i, preferr
 		result["message"] = "Blocked: exit cell."
 		return result
 	var has_static_wall_or_blocked_tile: bool = tile_is_wall or (not bool(cell_state.get("static_walkable", true)) and not tile_is_door_or_gate and not tile_is_exit)
-	if has_static_wall_or_blocked_tile and not prefab_is_floor_replacement:
+	if has_static_wall_or_blocked_tile and not prefab_is_floor_replacement and not prefab_is_cable_layer:
 		result["reason"] = "wall_or_static"
 		result["message"] = "Blocked: wall/static obstacle."
 		return result
-	var prefab_can_replace_non_floor: bool = prefab_is_wall or prefab_is_door_or_gate or prefab_is_floor_replacement
+	var prefab_can_replace_non_floor: bool = prefab_is_wall or prefab_is_door_or_gate or prefab_is_floor_replacement or prefab_is_cable_layer
 	if not tile_is_floor_like and not tile_is_exit and not prefab_can_replace_non_floor:
 		result["reason"] = "non_floor_tile"
 		result["message"] = "Blocked: non-floor tile."
@@ -3169,11 +3170,14 @@ func can_place_map_constructor_prefab(prefab_id: String, cell: Vector2i, preferr
 		result["message"] = "Blocked: non-floor tile."
 		return result
 	var existing_object: Dictionary = get_world_object_at_cell(cell)
-	if not prefab_is_item and not existing_object.is_empty():
+	var existing_object_is_cable_layer: bool = CableTopologyServiceRef.is_cable_object(existing_object)
+	var existing_object_is_static_layer: bool = bool(existing_object.get("blocks_movement", false)) or str(existing_object.get("object_group", "")).to_lower() == "wall"
+	var allow_cable_wall_stack: bool = (prefab_is_cable_layer and existing_object_is_static_layer) or (prefab_is_wall and existing_object_is_cable_layer)
+	if not prefab_is_item and not existing_object.is_empty() and not allow_cable_wall_stack:
 		result["reason"] = "existing_object"
 		result["message"] = "Blocked: existing object."
 		return result
-	if bool(cell_state.get("has_object", false)) and bool(cell_state.get("blocks_movement", false)) and WorldObjectCatalogRef.is_constructor_solid_prefab(prefab_id):
+	if bool(cell_state.get("has_object", false)) and bool(cell_state.get("blocks_movement", false)) and WorldObjectCatalogRef.is_constructor_solid_prefab(prefab_id) and not prefab_is_cable_layer:
 		result["reason"] = "wall_or_static"
 		result["message"] = "Blocked: wall/static obstacle."
 		return result

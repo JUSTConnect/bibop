@@ -101,6 +101,8 @@ func place_map_constructor_prefab(prefab_id: String, cell: Vector2i, preferred_w
 		object_data["attached_wall_cell"] = manager._serialize_cell_key(attached_wall_cell)
 		object_data["wall_side"] = str(attachment.get("wall_side", "north"))
 	if CableTopologyServiceRef.is_cable_object(object_data):
+		if _normalize_cable_install_mode(object_data.get("cable_install_mode", object_data.get("install_mode", "floor"))) == "wall" and not manager._is_map_constructor_wall_cell(cell):
+			return {"ok": false, "reason": "wall_cable_requires_wall", "message": "Wall cable requires a wall in this cell.", "object_id": "", "warnings": []}
 		var cable_validation: Dictionary = CableTopologyServiceRef.validate_placement(cell, manager.mission_world_objects, object_data)
 		if not bool(cable_validation.get("ok", false)):
 			return {"ok": false, "reason": "invalid_cable_junction", "message": str(cable_validation.get("message", CableTopologyServiceRef.ERROR_MESSAGE_JUNCTION_REQUIRES_SWITCH)), "object_id": "", "warnings": [], "cable_topology": cable_validation}

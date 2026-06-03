@@ -4651,6 +4651,7 @@ func ensure_task_test_default_modules() -> void:
 	# the minimal internal port chain required to keep its connector active.
 	_install_module_if_missing(create_internal_module("internal_interface_v1", "Internal Interface V1", Vector3i(1, 1, 1)))
 	_install_module_if_missing(create_internal_module("power_block_v1", "Power Block V1", Vector3i(2, 2, 1)))
+	_install_module_if_missing(create_internal_module("processor_v1", "Processor V1", Vector3i(1, 1, 1)))
 	_install_module_if_missing(create_internal_module("external_interface_v1", "External Interface V1", Vector3i(2, 2, 1)))
 	_install_module_if_missing(create_external_module_by_id("wired_connector_v1"))
 	_install_module_if_missing(create_external_module_by_id("manipulator_v1"))
