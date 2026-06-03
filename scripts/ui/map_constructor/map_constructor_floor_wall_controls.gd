@@ -1,33 +1,45 @@
 extends RefCounted
 class_name MapConstructorFloorWallControls
 
-static func compose_floor_visual_id(material_id: String, coating_id: String) -> String:
+static func compose_floor_visual_id(material_id: String, _coating_id: String = "") -> String:
 	var material: String = material_id.to_lower().strip_edges()
-	var coating: String = coating_id.to_lower().strip_edges()
-	if material.is_empty():
-		material = "steel"
-	if coating.is_empty():
-		coating = "default"
-	return "%s_%s" % [material, coating]
+	match material:
+		"steel", "concrete", "titan":
+			return material
+		"titanium":
+			return "titan"
+		_:
+			return "concrete"
 
 static func parse_floor_visual_id(visual_id: String) -> Dictionary:
 	var normalized: String = visual_id.to_lower().strip_edges()
 	var legacy: Dictionary = {
-		"default_floor":"steel_default",
-		"clean_lab_floor":"steel_default",
-		"dark_service_floor":"concrete_dirty",
-		"hazard_floor":"steel_oil",
-		"power_floor":"grate_default",
-		"damaged_floor":"concrete_destroyed",
-		"reinforced_floor":"steel_default",
-		"diagnostic_floor":"grate_default"
+		"default_floor":"concrete",
+		"floor_default":"concrete",
+		"steel_default":"steel",
+		"concrete_default":"concrete",
+		"titanium_default":"titan",
+		"titan_default":"titan",
+		"clean_lab_floor":"steel",
+		"dark_service_floor":"concrete",
+		"hazard_floor":"concrete",
+		"power_floor":"steel",
+		"damaged_floor":"concrete",
+		"reinforced_floor":"steel",
+		"diagnostic_floor":"steel",
+		"grate_default":"steel",
+		"grate":"steel"
 	}
 	if legacy.has(normalized):
 		normalized = str(legacy[normalized])
 	var parts: PackedStringArray = normalized.split("_", false)
-	if parts.size() >= 2:
-		return {"material": str(parts[0]), "coating": str(parts[1])}
-	return {"material":"steel", "coating":"default"}
+	if normalized == "titanium":
+		normalized = "titan"
+	if normalized in ["steel", "concrete", "titan"]:
+		return {"material": normalized, "coating": "default"}
+	if parts.size() >= 1 and str(parts[0]) in ["steel", "concrete", "titan"]:
+		return {"material": str(parts[0]), "coating": "default"}
+	return {"material":"concrete", "coating":"default"}
 
 static func normalize_wall_side(side_id: String) -> String:
 	var normalized: String = side_id.to_lower().strip_edges()
@@ -155,56 +167,38 @@ static func add_floor_coverage_section(ui: Variant, parent: VBoxContainer) -> vo
 	floor_section.add_child(ui._create_property_row("Target", floor_target_label))
 	if floor_target_cell.x >= 0 and floor_target_cell.y >= 0:
 		var floor_materials: Array[Dictionary] = [
-			{"id":"steel", "label":"Steel"},
 			{"id":"concrete", "label":"Concrete"},
-			{"id":"grate", "label":"Grate"}
+			{"id":"steel", "label":"Steel"},
+			{"id":"titan", "label":"Titan"}
 		]
-		var floor_coatings: Array[Dictionary] = [
-			{"id":"default", "label":"Default"},
-			{"id":"destroyed", "label":"Destroyed"},
-			{"id":"dirty", "label":"Dirt"},
-			{"id":"water", "label":"Water"},
-			{"id":"oil", "label":"Oil"}
-		]
-		var selected_floor_material_id: String = "steel_default"
+		var selected_floor_material_id: String = "concrete"
 		if ui.mission_manager_runtime != null and ui.mission_manager_runtime.has_method("get_map_constructor_floor_material"):
 			var current_floor_override: Dictionary = ui._safe_ui_dictionary(ui.mission_manager_runtime.call("get_map_constructor_floor_material", floor_target_cell))
-			selected_floor_material_id = ui._safe_ui_string(ui._safe_ui_dictionary(current_floor_override.get("override", {})).get("material_id", "steel_default"), "steel_default")
+			selected_floor_material_id = ui._safe_ui_string(ui._safe_ui_dictionary(current_floor_override.get("override", {})).get("material_id", "concrete"), "concrete")
 		var parsed_floor: Dictionary = parse_floor_visual_id(selected_floor_material_id)
 		var floor_material_option: OptionButton = OptionButton.new()
-		var floor_coating_option: OptionButton = OptionButton.new()
 		for floor_material in floor_materials:
 			floor_material_option.add_item(str(floor_material.get("label", "")))
-			floor_material_option.set_item_metadata(floor_material_option.item_count - 1, str(floor_material.get("id", "steel")))
-			if str(floor_material.get("id", "steel")) == str(parsed_floor.get("material", "steel")):
+			floor_material_option.set_item_metadata(floor_material_option.item_count - 1, str(floor_material.get("id", "concrete")))
+			if str(floor_material.get("id", "concrete")) == str(parsed_floor.get("material", "concrete")):
 				floor_material_option.select(floor_material_option.item_count - 1)
-		for floor_coating in floor_coatings:
-			floor_coating_option.add_item(str(floor_coating.get("label", "")))
-			floor_coating_option.set_item_metadata(floor_coating_option.item_count - 1, str(floor_coating.get("id", "default")))
-			if str(floor_coating.get("id", "default")) == str(parsed_floor.get("coating", "default")):
-				floor_coating_option.select(floor_coating_option.item_count - 1)
 		if floor_material_option.selected < 0:
 			floor_material_option.select(0)
-		if floor_coating_option.selected < 0:
-			floor_coating_option.select(0)
 		var floor_row: HBoxContainer = HBoxContainer.new()
 		floor_row.add_theme_constant_override("separation", 6)
 		floor_material_option.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-		floor_coating_option.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 		floor_row.add_child(ui._create_property_row("Material", floor_material_option))
-		floor_row.add_child(ui._create_property_row("Coating", floor_coating_option))
 		floor_section.add_child(floor_row)
 		var floor_summary_label: Label = Label.new()
 		floor_summary_label.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
-		floor_summary_label.text = "Floor visual id: %s" % compose_floor_visual_id(str(floor_material_option.get_selected_metadata()), str(floor_coating_option.get_selected_metadata()))
+		floor_summary_label.text = "Floor visual id: %s" % compose_floor_visual_id(str(floor_material_option.get_selected_metadata()))
 		var update_floor_summary := func(_idx: int = 0) -> void:
-			floor_summary_label.text = "Floor visual id: %s" % compose_floor_visual_id(str(floor_material_option.get_selected_metadata()), str(floor_coating_option.get_selected_metadata()))
+			floor_summary_label.text = "Floor visual id: %s" % compose_floor_visual_id(str(floor_material_option.get_selected_metadata()))
 		floor_material_option.item_selected.connect(update_floor_summary)
-		floor_coating_option.item_selected.connect(update_floor_summary)
 		floor_section.add_child(floor_summary_label)
 		var apply_floor_button: Button = Button.new(); apply_floor_button.text = "Apply Floor Material"
 		apply_floor_button.pressed.connect(func() -> void:
-			var floor_material_id_apply: String = compose_floor_visual_id(str(floor_material_option.get_selected_metadata()), str(floor_coating_option.get_selected_metadata()))
+			var floor_material_id_apply: String = compose_floor_visual_id(str(floor_material_option.get_selected_metadata()))
 			MapConstructorActions.apply_floor_material(ui, floor_target_cell, floor_material_id_apply)
 		)
 		var clear_floor_button: Button = Button.new(); clear_floor_button.text = "Clear Floor Material"

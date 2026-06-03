@@ -194,7 +194,7 @@ func validate_constructor_palette_contract() -> Array[String]:
 	var floor_material_schema: Dictionary = floor_schema_fields.get("material", {})
 	if floor_material_schema.is_empty():
 		warnings.append("floor_archetype_missing_material_field")
-	elif Array(floor_material_schema.get("values", [])) != WorldObjectCatalogRef.FLOOR_MATERIALS or _safe_string(floor_material_schema.get("default", "")) != "steel":
+	elif Array(floor_material_schema.get("values", [])) != WorldObjectCatalogRef.FLOOR_MATERIALS or _safe_string(floor_material_schema.get("default", "")) != "concrete":
 		warnings.append("floor_archetype_material_contract_invalid")
 	var floor_covering_schema: Dictionary = floor_schema_fields.get("covering", {})
 	if floor_covering_schema.is_empty():
@@ -206,7 +206,7 @@ func validate_constructor_palette_contract() -> Array[String]:
 		warnings.append("floor_archetype_missing_visual_style_field")
 	elif Array(floor_visual_style_schema.get("values", [])) != WorldObjectCatalogRef.FLOOR_VISUAL_STYLES or _safe_string(floor_visual_style_schema.get("default", "")) != "default":
 		warnings.append("floor_archetype_visual_style_contract_invalid")
-	var expected_floor_display_names: Dictionary = {"steel":"Steel Floor", "concrete":"Concrete Floor", "grate":"Grate Floor"}
+	var expected_floor_display_names: Dictionary = {"concrete":"Concrete Floor", "steel":"Steel Floor", "titan":"Titan Floor"}
 	for material in expected_floor_display_names:
 		var generated_floor: Dictionary = WorldObjectCatalogRef.create_archetype_object("floor", "validation_floor_%s" % material, {"material":material})
 		if _safe_string(generated_floor.get("display_name", "")) != _safe_string(expected_floor_display_names[material]):
