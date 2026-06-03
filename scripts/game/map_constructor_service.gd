@@ -577,6 +577,73 @@ func rename_map_constructor_circuit(entity_kind: String, entity_id: String, circ
 				updated_count += 1
 	return {"ok": true, "message": "Renamed circuit %s." % circuit_id, "circuit_id": circuit_id, "circuit_name": normalized_name, "updated_count": updated_count}
 
+func _normalize_cable_install_mode(value: Variant) -> String:
+	var raw_mode: String = str(value).strip_edges().to_lower()
+	match raw_mode:
+		"hidden", "concealed", "embedded":
+			return "hidden"
+		"wall", "wall_cable", "wall_surface":
+			return "wall"
+		_:
+			return "floor"
+
+func _normalize_cable_health_state(value: Variant) -> String:
+	var raw_state: String = str(value).strip_edges().to_lower()
+	match raw_state:
+		"damaged", "broken", "cut":
+			return raw_state
+		_:
+			return "normal"
+
+func _is_cable_property_field(field_name: String) -> bool:
+	return field_name in ["cable_install_mode", "install_mode", "placement_mode", "route_surface", "hidden_installation", "is_hidden", "cable_health_state", "health_state", "state", "damaged", "broken"]
+
+func _is_cable_entity_data(data: Dictionary) -> bool:
+	var object_type: String = str(data.get("object_type", data.get("item_type", ""))).strip_edges().to_lower()
+	return object_type.contains("cable") or object_type.contains("wire")
+
+func _cable_wall_install_missing_wall_cells(data: Dictionary) -> Array[Vector2i]:
+	var missing_cells: Array[Vector2i] = []
+	var cells_to_check: Array[Vector2i] = []
+	cells_to_check.append(manager._deserialize_cell_variant(data.get("position", Vector2i(-1, -1))))
+	for path_cell_variant in manager._safe_array(data.get("cable_path_cells", [])):
+		var path_cell: Vector2i = manager._deserialize_cell_variant(path_cell_variant)
+		if path_cell.x >= 0 and path_cell.y >= 0 and not cells_to_check.has(path_cell):
+			cells_to_check.append(path_cell)
+	for cell in cells_to_check:
+		if cell.x >= 0 and cell.y >= 0 and not manager._is_map_constructor_wall_cell(cell):
+			missing_cells.append(cell)
+	return missing_cells
+
+func _apply_cable_property_aliases(data: Dictionary, field_name: String, value: Variant) -> Dictionary:
+	if not _is_cable_entity_data(data) or not _is_cable_property_field(field_name):
+		return data
+	if field_name in ["cable_install_mode", "install_mode", "placement_mode", "route_surface", "hidden_installation", "is_hidden"]:
+		var install_mode: String = "hidden" if (field_name in ["hidden_installation", "is_hidden"] and bool(value)) else _normalize_cable_install_mode(value)
+		if field_name == "route_surface" and str(value).strip_edges().to_lower() == "floor" and bool(data.get("is_hidden", false)):
+			install_mode = "hidden"
+		data["cable_install_mode"] = install_mode
+		data["install_mode"] = install_mode
+		data["route_surface"] = "wall" if install_mode == "wall" else "floor"
+		data["hidden_installation"] = install_mode == "hidden"
+		data["is_hidden"] = install_mode == "hidden"
+	if field_name in ["cable_health_state", "health_state", "state", "damaged", "broken"]:
+		var health_state: String = "normal"
+		if field_name == "damaged" and bool(value):
+			health_state = "damaged"
+		elif field_name == "broken" and bool(value):
+			health_state = "broken"
+		else:
+			health_state = _normalize_cable_health_state(value)
+		data["cable_health_state"] = health_state
+		data["health_state"] = health_state
+		data["cut"] = health_state == "cut"
+		data["broken"] = health_state == "broken"
+		data["damaged"] = health_state in ["damaged", "broken", "cut"]
+		if str(data.get("object_type", "")).strip_edges().to_lower() == "power_cable":
+			data["state"] = "ok" if health_state == "normal" else health_state
+	return data
+
 
 func apply_map_constructor_property_update(entity_kind: String, entity_id: String, field_name: String, raw_value: Variant) -> Dictionary:
 	if not manager._is_task_test_constructor_context():
@@ -609,9 +676,14 @@ func apply_map_constructor_property_update(entity_kind: String, entity_id: Strin
 		result["message"] = str(converted.get("message", "Invalid value."))
 		return result
 	var new_value: Variant = converted.get("value")
+	if _is_cable_entity_data(data) and field_name in ["cable_install_mode", "install_mode", "placement_mode", "route_surface"] and _normalize_cable_install_mode(new_value) == "wall":
+		if not _cable_wall_install_missing_wall_cells(data).is_empty():
+			result["message"] = "Wall cable requires a wall in this cell."
+			return result
 	var old_value: Variant = data.get(field_name)
 	var old_network_id: String = str(data.get("power_network_id", ""))
 	data[field_name] = new_value
+	data = _apply_cable_property_aliases(data, field_name, new_value)
 	if resolved_kind == "world_object" and field_name == "access_type" and WorldObjectCatalogRef.normalize_access_type(new_value) == WorldObjectCatalogRef.ACCESS_TYPE_KEY_CARD and str(data.get("state", "closed")) not in ["damaged", "broken", "destroyed", "jammed"]:
 		data["state"] = "locked"
 		data["is_locked"] = true

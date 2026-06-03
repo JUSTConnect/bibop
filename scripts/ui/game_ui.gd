@@ -9976,6 +9976,7 @@ func _toggle_map_constructor_mode() -> void:
 		return
 	map_constructor_state.map_constructor_mode_active = true
 	map_constructor_state.map_constructor_validation_overlay_visible = true
+	_set_room_visual_map_constructor_editor_render_active(true)
 	_request_map_constructor_overlay_refresh()
 	if bipob != null:
 		bipob.map_constructor_input_blocked = true
@@ -9986,6 +9987,7 @@ func _toggle_map_constructor_mode() -> void:
 
 func _deactivate_map_constructor_mode() -> void:
 	map_constructor_state.map_constructor_mode_active = false
+	_set_room_visual_map_constructor_editor_render_active(false)
 	map_constructor_state.selected_map_constructor_prefab_id = ""
 	map_constructor_state.pending_map_constructor_cell = Vector2i(-1, -1)
 	map_constructor_state.selected_map_constructor_wall_side = ""
@@ -14649,6 +14651,15 @@ func _draw_map_constructor_validation_overlay(control: Control) -> void:
 		control.draw_arc(world_center, 11.0, 0.0, TAU, 14, Color(color.r, color.g, color.b, 0.9), 2.0)
 
 
+func _set_room_visual_map_constructor_editor_render_active(active: bool) -> void:
+	if field_runtime == null:
+		return
+	var renderer_node: Node = field_runtime.get_node_or_null("RoomVisualRenderer")
+	if renderer_node != null and renderer_node.has_method("set_map_constructor_editor_render_active"):
+		renderer_node.call("set_map_constructor_editor_render_active", active)
+	if field_runtime.has_method("request_visual_refresh"):
+		field_runtime.call("request_visual_refresh")
+
 func _sync_map_constructor_overlay_visuals() -> void:
 	if field_runtime == null:
 		return
@@ -14658,6 +14669,7 @@ func _sync_map_constructor_overlay_visuals() -> void:
 	var renderer: RoomVisualRenderer = renderer_node
 	renderer.set_map_constructor_overlay_preferences(map_constructor_state.map_constructor_overlay_visibility)
 	var overlay_data: Dictionary = {
+		"map_constructor_active": map_constructor_state.map_constructor_mode_active,
 		"selected": {"cell": map_constructor_state.selected_map_constructor_entity_cell, "wall_side": map_constructor_state.selected_map_constructor_wall_side},
 		"hover": {"cell": map_constructor_state.pending_map_constructor_cell},
 		"preview": {"mode": "destructive" if not map_constructor_state.map_constructor_cleanup_preview.is_empty() else "place", "wall_side": map_constructor_state.selected_map_constructor_wall_side},

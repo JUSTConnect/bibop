@@ -674,6 +674,7 @@ var map_constructor_overlay_prefs: Dictionary = {
 	"show_multi_select": true
 }
 var map_constructor_overlay_data: Dictionary = {}
+var map_constructor_editor_render_active: bool = false
 
 func set_map_constructor_overlay_preferences(prefs: Dictionary) -> void:
 	for key_variant in prefs.keys():
@@ -684,6 +685,10 @@ func set_map_constructor_overlay_preferences(prefs: Dictionary) -> void:
 
 func set_map_constructor_overlay_data(data: Dictionary) -> void:
 	map_constructor_overlay_data = data.duplicate(true)
+	map_constructor_editor_render_active = bool(map_constructor_overlay_data.get("map_constructor_active", map_constructor_editor_render_active))
+
+func set_map_constructor_editor_render_active(active: bool) -> void:
+	map_constructor_editor_render_active = active
 	queue_redraw()
 
 func _draw_wall_side_arrow(cell: Vector2i, wall_side: String, color: Color) -> void:
@@ -3537,11 +3542,18 @@ func draw_iso_cable_topology_line(cell: Vector2i, profile: Dictionary, object_da
 	var visual_center: Vector2 = grid_to_iso(cell)
 	if visual_center_override != Vector2.INF:
 		visual_center = visual_center_override
-	var topology: Dictionary = CableTopologyServiceRef.classify_cell(cell, _get_runtime_world_objects_for_iso_render(), object_data)
-	draw_iso_cable_segment_shape(cell, topology, profile, visual_center)
+	var topology: Dictionary = CableTopologyServiceRef.classify_cell(cell, _get_runtime_world_objects_for_iso_render(true), object_data)
+	draw_iso_cable_segment_shape(cell, topology, profile, visual_center, object_data)
 
-func draw_iso_cable_segment_shape(cell: Vector2i, topology: Dictionary, profile: Dictionary, visual_center: Vector2) -> void:
+func draw_iso_cable_segment_shape(cell: Vector2i, topology: Dictionary, profile: Dictionary, visual_center: Vector2, object_data: Dictionary = {}) -> void:
+	var install_mode: String = get_cable_install_mode(object_data)
+	var health_state: String = get_cable_health_state(object_data)
+	var editor_render: bool = is_map_constructor_editor_render()
+	if install_mode == "hidden" and not editor_render:
+		return
 	var cable_center: Vector2 = visual_center + Vector2(0.0, -4.0)
+	if install_mode == "wall" and _cell_has_wall_for_iso_cable(cell):
+		cable_center = _get_iso_cable_wall_center(visual_center)
 	var shape: String = str(topology.get("shape", "isolated"))
 	var connected_dirs: Dictionary = Dictionary(topology.get("connected_dirs", topology.get("neighbors", {})))
 	var object_links: Dictionary = Dictionary(topology.get("object_links", {}))
@@ -3555,6 +3567,12 @@ func draw_iso_cable_segment_shape(cell: Vector2i, topology: Dictionary, profile:
 	var base_color: Color = _get_color_from_dict(profile, "base", Color.WHITE)
 	var accent_color: Color = _get_color_from_dict(profile, "accent", Color.WHITE)
 	var outline_color: Color = _get_color_from_dict(profile, "outline", Color.WHITE)
+	if install_mode == "hidden":
+		base_color = Color(base_color.r, base_color.g, base_color.b, 0.72)
+		accent_color = Color(accent_color.r, accent_color.g, accent_color.b, 0.82)
+	if install_mode == "wall":
+		base_color = base_color.lightened(0.08)
+		accent_color = accent_color.lightened(0.12)
 	if not valid:
 		base_color = Color(1.0, 0.25, 0.08, 0.98)
 		accent_color = Color(1.0, 0.82, 0.15, 0.98)
@@ -3563,27 +3581,27 @@ func draw_iso_cable_segment_shape(cell: Vector2i, topology: Dictionary, profile:
 	cable_profile["base"] = base_color
 	cable_profile["accent"] = accent_color
 	cable_profile["outline"] = outline_color
+	cable_profile["install_mode"] = install_mode
 
+	var drew_any_line: bool = false
 	if active_dirs.is_empty():
 		var isolated_half_width: float = maxf(get_iso_tile_half_size().x * 0.12, 7.0)
 		var isolated_start: Vector2 = cable_center + Vector2(-isolated_half_width, 0.0)
 		var isolated_end: Vector2 = cable_center + Vector2(isolated_half_width, 0.0)
-		draw_line(isolated_start + Vector2(0.0, 2.0), isolated_end + Vector2(0.0, 2.0), Color(0.03, 0.02, 0.02, 0.28), 7.0, true)
-		draw_line(isolated_start, isolated_end, outline_color, 6.0, true)
-		draw_line(isolated_start, isolated_end, base_color.darkened(0.08), 4.0, true)
+		draw_iso_cable_mode_segment(isolated_start, isolated_end, cable_profile)
 		draw_circle(cable_center, 4.5, accent_color)
 		draw_arc(cable_center, 7.0, 0.0, PI * 2.0, 20, outline_color, 1.4, true)
-		draw_iso_cable_object_links(cell, object_links, cable_center, cable_profile)
-		return
-
-	if active_dirs.size() == 2 and not shape.begins_with("junction") and not shape.begins_with("invalid"):
-		if (active_dirs.has("east") and active_dirs.has("west")) or (active_dirs.has("north") and active_dirs.has("south")):
-			_draw_iso_cable_polyline([_get_iso_cable_branch_endpoint_for_visual_center(cell, active_dirs[0], cable_center), _get_iso_cable_branch_endpoint_for_visual_center(cell, active_dirs[1], cable_center)], cable_profile)
-		else:
-			draw_iso_cable_elbow(cable_center, active_dirs[0], active_dirs[1], cable_profile)
+		drew_any_line = true
 	else:
-		for direction in active_dirs:
-			_draw_iso_cable_polyline([cable_center, _get_iso_cable_branch_endpoint_for_visual_center(cell, direction, cable_center)], cable_profile)
+		if active_dirs.size() == 2 and not shape.begins_with("junction") and not shape.begins_with("invalid"):
+			if (active_dirs.has("east") and active_dirs.has("west")) or (active_dirs.has("north") and active_dirs.has("south")):
+				draw_iso_cable_mode_polyline([_get_iso_cable_branch_endpoint_for_visual_center(cell, active_dirs[0], cable_center), _get_iso_cable_branch_endpoint_for_visual_center(cell, active_dirs[1], cable_center)], cable_profile)
+			else:
+				draw_iso_cable_elbow(cable_center, active_dirs[0], active_dirs[1], cable_profile)
+		else:
+			for direction in active_dirs:
+				draw_iso_cable_mode_polyline([cable_center, _get_iso_cable_branch_endpoint_for_visual_center(cell, direction, cable_center)], cable_profile)
+		drew_any_line = true
 
 	draw_iso_cable_object_links(cell, object_links, cable_center, cable_profile)
 	if active_dirs.size() == 1 and not has_switch:
@@ -3592,9 +3610,99 @@ func draw_iso_cable_segment_shape(cell: Vector2i, topology: Dictionary, profile:
 		draw_iso_cable_invalid_marker(cable_center, shape)
 	elif shape.begins_with("junction") and not has_switch:
 		draw_circle(cable_center, 3.6, accent_color)
+	if health_state in ["damaged", "broken", "cut"] and drew_any_line:
+		draw_iso_cable_damage_marker(cable_center, health_state, cable_profile)
 	if debug_draw_iso_object_outlines:
 		for direction in active_dirs:
 			draw_line(cable_center, _get_iso_cable_branch_endpoint_for_visual_center(cell, direction, cable_center), outline_color, 1.0, true)
+
+func get_cable_install_mode(object_data: Dictionary) -> String:
+	if object_data.is_empty():
+		return "floor"
+	if bool(object_data.get("hidden_installation", object_data.get("is_hidden", object_data.get("hidden", false)))):
+		return "hidden"
+	var raw_mode_value: Variant = object_data.get("cable_install_mode", object_data.get("install_mode", object_data.get("placement_mode", object_data.get("route_surface", "floor"))))
+	var raw_mode: String = str(raw_mode_value).strip_edges().to_lower()
+	match raw_mode:
+		"hidden", "concealed", "embedded":
+			return "hidden"
+		"wall", "wall_cable", "wall_surface":
+			return "wall"
+		_:
+			return "floor"
+
+func get_cable_health_state(object_data: Dictionary) -> String:
+	if object_data.is_empty():
+		return "normal"
+	if bool(object_data.get("cut", false)):
+		return "cut"
+	if bool(object_data.get("broken", false)):
+		return "broken"
+	if bool(object_data.get("damaged", false)):
+		return "damaged"
+	var raw_state: String = str(object_data.get("cable_health_state", object_data.get("health_state", object_data.get("state", "normal")))).strip_edges().to_lower()
+	if raw_state in ["damaged", "broken", "cut"]:
+		return raw_state
+	return "normal"
+
+func is_map_constructor_editor_render() -> bool:
+	return map_constructor_editor_render_active
+
+func _cell_has_wall_for_iso_cable(cell: Vector2i) -> bool:
+	if _grid_manager == null or not _grid_manager.has_method("get_tile"):
+		return false
+	if _grid_manager.has_method("is_in_bounds") and not bool(_grid_manager.call("is_in_bounds", cell)):
+		return false
+	return is_wall_tile(int(_grid_manager.call("get_tile", cell)))
+
+func _get_iso_cable_wall_center(visual_center: Vector2) -> Vector2:
+	return visual_center + Vector2(0.0, -maxf(iso_wall_height * 0.48, 18.0))
+
+func draw_iso_cable_mode_polyline(points: Array[Vector2], profile: Dictionary) -> void:
+	if points.size() < 2:
+		return
+	for index in range(points.size() - 1):
+		draw_iso_cable_mode_segment(points[index], points[index + 1], profile)
+
+func draw_iso_cable_mode_segment(start: Vector2, end: Vector2, profile: Dictionary) -> void:
+	match str(profile.get("install_mode", "floor")):
+		"hidden":
+			draw_iso_cable_hidden_segment(start, end, profile)
+		"wall":
+			draw_iso_cable_wall_segment(start, end, profile)
+		_:
+			_draw_iso_cable_polyline([start, end], profile)
+
+func draw_iso_cable_hidden_segment(start: Vector2, end: Vector2, profile: Dictionary) -> void:
+	var delta: Vector2 = end - start
+	var length: float = delta.length()
+	if length <= 0.1:
+		return
+	var dir: Vector2 = delta / length
+	var dash: float = 7.0
+	var gap: float = 5.0
+	var cursor: float = 0.0
+	while cursor < length:
+		var dash_end: float = minf(cursor + dash, length)
+		var a: Vector2 = start + dir * cursor
+		var b: Vector2 = start + dir * dash_end
+		_draw_iso_cable_polyline([a, b], profile)
+		cursor += dash + gap
+
+func draw_iso_cable_wall_segment(start: Vector2, end: Vector2, profile: Dictionary) -> void:
+	_draw_iso_cable_polyline([start, end], profile)
+	draw_line(start + Vector2(0.0, 2.0), end + Vector2(0.0, 2.0), Color(0.0, 0.0, 0.0, 0.18), 2.0, true)
+
+func draw_iso_cable_damage_marker(center: Vector2, health_state: String, profile: Dictionary) -> void:
+	var outline_color: Color = _get_color_from_dict(profile, "outline", Color(0.1, 0.03, 0.02, 0.95))
+	var accent_color: Color = Color(1.0, 0.78, 0.18, 0.98) if health_state == "damaged" else Color(1.0, 0.28, 0.12, 0.98)
+	var break_color: Color = Color(0.04, 0.025, 0.02, 0.92)
+	draw_circle(center, 5.6, break_color)
+	draw_line(center + Vector2(-7.0, -3.0), center + Vector2(-1.5, 1.5), outline_color, 2.2, true)
+	draw_line(center + Vector2(1.5, -1.5), center + Vector2(7.0, 3.0), outline_color, 2.2, true)
+	draw_line(center + Vector2(-2.5, 1.5), center + Vector2(-5.0, 7.0), accent_color, 1.4, true)
+	draw_line(center + Vector2(1.5, 2.0), center + Vector2(2.5, 8.0), accent_color.lightened(0.12), 1.2, true)
+	draw_line(center + Vector2(4.0, 0.5), center + Vector2(7.0, 6.0), accent_color, 1.2, true)
 
 func draw_iso_cable_object_links(_cell: Vector2i, object_links: Dictionary, cable_center: Vector2, profile: Dictionary) -> void:
 	if object_links.is_empty():
@@ -3610,9 +3718,12 @@ func draw_iso_cable_object_links(_cell: Vector2i, object_links: Dictionary, cabl
 		var tile_dir_length: float = _get_iso_cable_screen_direction(direction).length()
 		var link_start: Vector2 = cable_center + dir_vector * minf(tile_dir_length * 0.18, 12.0)
 		var link_end: Vector2 = cable_center + dir_vector * minf(tile_dir_length * 0.34, 22.0)
-		draw_line(link_start + Vector2(0.0, 1.3), link_end + Vector2(0.0, 1.3), Color(0.03, 0.02, 0.02, 0.22), 4.0, true)
-		draw_line(link_start, link_end, outline_color, 3.0, true)
-		draw_line(link_start, link_end, base_color, 1.9, true)
+		if str(profile.get("install_mode", "floor")) == "hidden":
+			draw_iso_cable_hidden_segment(link_start, link_end, profile)
+		else:
+			draw_line(link_start + Vector2(0.0, 1.3), link_end + Vector2(0.0, 1.3), Color(0.03, 0.02, 0.02, 0.22), 4.0, true)
+			draw_line(link_start, link_end, outline_color, 3.0, true)
+			draw_line(link_start, link_end, base_color, 1.9, true)
 		draw_circle(link_end, 2.3, accent_color)
 
 func _draw_iso_cable_polyline(points: Array[Vector2], profile: Dictionary) -> void:
@@ -3641,7 +3752,7 @@ func draw_iso_cable_endpoint_cap(center: Vector2, direction: String, color: Colo
 func draw_iso_cable_elbow(center: Vector2, dir_a: String, dir_b: String, profile: Dictionary) -> void:
 	var endpoint_a: Vector2 = center + _get_iso_cable_screen_direction(dir_a) * 0.5
 	var endpoint_b: Vector2 = center + _get_iso_cable_screen_direction(dir_b) * 0.5
-	_draw_iso_cable_polyline([endpoint_a, center, endpoint_b], profile)
+	draw_iso_cable_mode_polyline([endpoint_a, center, endpoint_b], profile)
 	var base_color: Color = _get_color_from_dict(profile, "base", Color.WHITE)
 	var accent_color: Color = _get_color_from_dict(profile, "accent", Color.WHITE)
 	draw_circle(center, 2.7, base_color)
@@ -4092,7 +4203,7 @@ func draw_iso_object_marker(cell: Vector2i, tile_type: int, override_object_data
 		object_asset_key = get_iso_object_asset_key_for_object_data(object_data, profile_key)
 	var profile: Dictionary = get_iso_object_profile(profile_key)
 	if CableTopologyServiceRef.is_circuit_switch_object(object_data):
-		var switch_topology: Dictionary = CableTopologyServiceRef.classify_cell(cell, _get_runtime_world_objects_for_iso_render(), object_data)
+		var switch_topology: Dictionary = CableTopologyServiceRef.classify_cell(cell, _get_runtime_world_objects_for_iso_render(true), object_data)
 		if int(switch_topology.get("neighbor_count", 0)) > 0:
 			draw_iso_cable_topology_line(cell, get_iso_object_profile("cable"), object_data, visual_center)
 	if has_door_visual:
@@ -4199,9 +4310,9 @@ func _is_hidden_cable_visual(object_data: Dictionary) -> bool:
 	var object_type: String = str(object_data.get("object_type", "")).to_lower()
 	if not object_type.contains("cable") and not object_type.contains("wire"):
 		return false
-	return bool(object_data.get("hidden_installation", object_data.get("concealed", object_data.get("hidden_cable", object_data.get("hidden", false)))))
+	return get_cable_install_mode(object_data) == "hidden"
 
-func _get_runtime_world_objects_for_iso_render() -> Array[Dictionary]:
+func _get_runtime_world_objects_for_iso_render(include_hidden_cables: bool = true) -> Array[Dictionary]:
 	var result: Array[Dictionary] = []
 	var mission_manager: Node = get_mission_manager_ref()
 	if mission_manager == null:
@@ -4210,7 +4321,7 @@ func _get_runtime_world_objects_for_iso_render() -> Array[Dictionary]:
 		if not (object_variant is Dictionary):
 			continue
 		var object_data: Dictionary = Dictionary(object_variant)
-		if _is_hidden_cable_visual(object_data):
+		if not include_hidden_cables and _is_hidden_cable_visual(object_data):
 			continue
 		result.append(object_data)
 		if str(object_data.get("object_type", "")).to_lower().contains("cable"):
@@ -4233,7 +4344,7 @@ func build_iso_object_draw_entries() -> Array[Dictionary]:
 	if map_width <= 0 or map_height <= 0:
 		return []
 	var runtime_objects_by_cell: Dictionary = {}
-	for object_data in _get_runtime_world_objects_for_iso_render():
+	for object_data in _get_runtime_world_objects_for_iso_render(is_map_constructor_editor_render()):
 		var object_cell: Vector2i = _try_parse_cell_variant(object_data.get("position", Vector2i(-1, -1)))
 		if object_cell.x < 0 or object_cell.y < 0:
 			continue

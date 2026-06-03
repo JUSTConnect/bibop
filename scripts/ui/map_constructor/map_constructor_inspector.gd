@@ -91,7 +91,9 @@ static func _get_normalized_object_class(ui: Variant, data: Dictionary, type_gro
 
 
 static func _get_power_health_state(data: Dictionary) -> String:
-	var state: String = MapConstructorUiSafe.safe_string(data.get("state", "")).strip_edges().to_lower()
+	var state: String = MapConstructorUiSafe.safe_string(data.get("cable_health_state", data.get("health_state", data.get("state", "")))).strip_edges().to_lower()
+	if bool(data.get("cut", false)) or state == "cut":
+		return "cut"
 	if bool(data.get("broken", false)) or state == "broken":
 		return "broken"
 	if bool(data.get("damaged", false)) or state == "damaged":
@@ -100,9 +102,27 @@ static func _get_power_health_state(data: Dictionary) -> String:
 
 
 static func _get_cable_install_type(data: Dictionary) -> String:
-	if bool(data.get("is_hidden", false)):
+	if bool(data.get("hidden_installation", data.get("is_hidden", false))):
 		return "hidden"
-	return MapConstructorUiSafe.safe_string(data.get("route_surface", "floor"), "floor").strip_edges().to_lower()
+	var raw_install_mode: Variant = data.get("cable_install_mode", data.get("install_mode", data.get("placement_mode", data.get("route_surface", "floor"))))
+	var install_mode: String = MapConstructorUiSafe.safe_string(raw_install_mode, "floor").strip_edges().to_lower()
+	if install_mode in ["wall", "hidden"]:
+		return install_mode
+	return "floor"
+
+
+static func _cell_has_wall(ui: Variant, cell: Vector2i) -> bool:
+	if ui.mission_manager_runtime != null and ui.mission_manager_runtime.has_method("_is_map_constructor_wall_cell"):
+		return bool(ui.mission_manager_runtime.call("_is_map_constructor_wall_cell", cell))
+	return false
+
+
+static func _add_cable_note(ui: Variant, section: VBoxContainer, text: String, is_warning: bool = false) -> void:
+	var note: Label = Label.new()
+	note.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	note.text = text
+	note.add_theme_color_override("font_color", ui.UI_COLOR_WARNING if is_warning else ui.UI_COLOR_ACCENT)
+	section.add_child(note)
 
 
 
@@ -354,8 +374,13 @@ static func _render_entity_tab(ui: Variant, parent: VBoxContainer, entity_info: 
 			var source_class_options: Array[Dictionary] = [{"label":"C1 (4 outlets)", "value":"1"}, {"label":"C2 (5 outlets)", "value":"2"}, {"label":"C3 (6 outlets)", "value":"3"}]
 			ui._add_enum_property(configurable, "Source class", entity_kind, entity_id, "power_source_class", data.get("power_source_class", 1), source_class_options)
 		elif power_object_type == "power_cable" or power_object_type == "power_cable_reel":
-			MapConstructorPropertyControls.add_enum_updates_property(ui, configurable, "Cable install type", entity_kind, entity_id, _get_cable_install_type(data), [{"label":"Floor", "value":"floor", "updates":{"route_surface":"floor", "is_hidden":false}}, {"label":"Wall", "value":"wall", "updates":{"route_surface":"wall", "is_hidden":false}}, {"label":"Hidden", "value":"hidden", "updates":{"route_surface":"floor", "is_hidden":true}}])
-			MapConstructorPropertyControls.add_enum_updates_property(ui, configurable, "Health state", entity_kind, entity_id, _get_power_health_state(data), [{"label":"Normal", "value":"normal", "updates":{"state":"ok", "damaged":false}}, {"label":"Damaged", "value":"damaged", "updates":{"state":"damaged", "damaged":true}}, {"label":"Broken", "value":"broken", "updates":{"state":"broken", "damaged":true}}])
+			var cable_has_wall: bool = _cell_has_wall(ui, cell)
+			MapConstructorPropertyControls.add_enum_updates_property(ui, configurable, "Install mode", entity_kind, entity_id, _get_cable_install_type(data), [{"label":"Floor", "value":"floor", "updates":{"cable_install_mode":"floor"}}, {"label":"Wall", "value":"wall", "updates":{"cable_install_mode":"wall"}, "disabled": not cable_has_wall, "disabled_reason":"Wall cable requires a wall in this cell."}, {"label":"Hidden", "value":"hidden", "updates":{"cable_install_mode":"hidden"}}])
+			if not cable_has_wall:
+				_add_cable_note(ui, configurable, "Wall cable requires a wall in this cell.", true)
+			if _get_cable_install_type(data) == "hidden":
+				_add_cable_note(ui, configurable, "Hidden cables are visible only in the editor.")
+			MapConstructorPropertyControls.add_enum_updates_property(ui, configurable, "Health state", entity_kind, entity_id, _get_power_health_state(data), [{"label":"Normal", "value":"normal", "updates":{"cable_health_state":"normal"}}, {"label":"Damaged", "value":"damaged", "updates":{"cable_health_state":"damaged"}}, {"label":"Broken", "value":"broken", "updates":{"cable_health_state":"broken"}}, {"label":"Cut", "value":"cut", "updates":{"cable_health_state":"cut"}}])
 			MapConstructorPropertyControls.add_enum_updates_property(ui, configurable, "Power state", entity_kind, entity_id, "powered" if bool(data.get("is_powered", false)) else "unpowered", [{"label":"Powered", "value":"powered", "updates":{"is_powered":true}}, {"label":"Unpowered", "value":"unpowered", "updates":{"is_powered":false}}])
 		elif power_object_type == "light":
 			ui._add_text_property(configurable, "Brightness", entity_kind, entity_id, "brightness", data.get("brightness", "1.0"))

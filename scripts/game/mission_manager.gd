@@ -3991,14 +3991,14 @@ func rename_map_constructor_circuit(entity_kind: String, entity_id: String, circ
 
 func _get_map_constructor_editable_field_schema() -> Dictionary:
 	return {
-		"state":"string","power_network_id":"string","circuit_id":"string","power_circuit_id":"string","network_id":"string","chain_id":"string","link_group":"string","cable_group":"string","connected_circuit":"string","circuit_name":"string","is_open":"bool","is_closed":"bool","is_locked":"bool","blocks_movement":"bool","is_powered":"bool","is_hidden":"bool","fuse_installed":"bool","plugged":"bool",
+		"state":"string","power_network_id":"string","circuit_id":"string","power_circuit_id":"string","network_id":"string","chain_id":"string","link_group":"string","cable_group":"string","connected_circuit":"string","circuit_name":"string","is_open":"bool","is_closed":"bool","is_locked":"bool","blocks_movement":"bool","is_powered":"bool","is_hidden":"bool","hidden_installation":"bool","fuse_installed":"bool","plugged":"bool",
 		"required_key_id":"string","required_terminal_id":"string","required_access_code_id":"string","required_digital_key_id":"string","lock_type":"string","linked_terminal_id":"string","required_manipulator_level":"int","has_connector_jack":"bool","required_connector_level":"int","required_processor_level":"int",
 		"door_type":"string","material":"string","covering":"string","visual_style":"string","door_class":"int","power_type":"string","control_type":"string","power_behavior":"string","allowed_states":"array_string",
 		"terminal_type":"string","controlled_target_type":"string","terminal_class":"int","status":"string","allowed_statuses":"array_string","linked_object_ids":"array_string","linked_door_ids":"array_string","linked_cooling_ids":"array_string","linked_platform_ids":"array_string","linked_power_ids":"array_string","linked_lighting_ids":"array_string","chain_input_ids":"array_string","chain_output_ids":"array_string",
 		"control_source_id":"string","connected_device_ids":"array_string","target_door_id":"string","target_platform_id":"string","requires_external_control":"bool","requires_terminal_enabled":"bool",
 		"requires_external_power":"bool","current_heat":"int","working_heat":"int","overheat_threshold":"int","power_source_class":"int","source_class":"int","outlet_capacity":"int","active_output_index":"int",
 		"item_class":"string","storage_route":"string","item_type":"string","digital_state":"string","key_kind":"string","key_type":"string","display_name":"string","description":"string","custom_description":"string","linked_door_id":"string","payload_id":"string","access_code":"string","damaged":"bool",
-		"power_mode":"string","power_source_id":"string","control_mode":"string","control_terminal_id":"string","access_type":"string","access_terminal_id":"string","access_code_value":"string","stored_key_ids":"array_string","route_surface":"string","physical_connection_source_id":"string","input_wire_id":"string","input_direction":"string","output_1_wire_id":"string","output_2_wire_id":"string","output_3_wire_id":"string","output_1_direction":"string","output_2_direction":"string","output_3_direction":"string","brightness":"string","color":"string"
+		"power_mode":"string","power_source_id":"string","control_mode":"string","control_terminal_id":"string","access_type":"string","access_terminal_id":"string","access_code_value":"string","stored_key_ids":"array_string","route_surface":"string","cable_install_mode":"string","install_mode":"string","cable_health_state":"string","health_state":"string","physical_connection_source_id":"string","input_wire_id":"string","input_direction":"string","output_1_wire_id":"string","output_2_wire_id":"string","output_3_wire_id":"string","output_1_direction":"string","output_2_direction":"string","output_3_direction":"string","brightness":"string","color":"string"
 	}
 
 func get_map_constructor_archetype_property_schema(entity_kind: String, entity_id: String) -> Array[Dictionary]:
@@ -5250,10 +5250,7 @@ func _normalize_map_constructor_active_object_fields(object_data: Dictionary) ->
 			data["connected_side"] = bool(data.get("connected", true))
 		if not data.has("cut"):
 			data["cut"] = false
-		if not data.has("route_surface"):
-			data["route_surface"] = "floor"
-		if not data.has("is_hidden"):
-			data["is_hidden"] = bool(data.get("hidden", false))
+		data = WorldObjectCatalogRef.normalize_cable_contract(data)
 		if not data.has("cable_path_cells"):
 			data["cable_path_cells"] = []
 		if not data.has("cable_length"):

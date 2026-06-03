@@ -472,7 +472,7 @@ const OBJECT_LIBRARY := {
 	"reinforced_steel_wall": {"group":"wall","name":"Reinforced Steel Wall","material":"reinforced_steel","durability":40,"blocks_movement":true,"blocks_vision":true,"placeable_in_constructor":false},
 	"titanium_wall": {"group":"wall","name":"Titanium Wall","material":"titanium","durability":100,"blocks_movement":true,"blocks_vision":true,"placeable_in_constructor":false},
 	"energy_wall": {"group":"wall","name":"Energy Wall","material":"energy_flow","durability":1,"blocks_movement":true,"blocks_vision":false,"invulnerable_while_powered":true,"power_mode":"external_power","placeable_in_constructor":false},
-	"power_cable": {"group":"power","name":"Power Cable","state":"ok","durability":5,"power_mode":"external_power","control_mode":"internal_control","is_powered":false,"power_network_id":"","power_source_id":"","physical_connection_source_id":"","connected":true,"disconnected":false,"connected_side":true,"cut":false,"damaged":false,"broken":false,"is_hidden":false,"route_surface":"floor","cable_path_cells":[],"cable_length":0},
+	"power_cable": {"group":"power","name":"Power Cable","state":"ok","durability":5,"power_mode":"external_power","control_mode":"internal_control","is_powered":false,"power_network_id":"","power_source_id":"","physical_connection_source_id":"","connected":true,"disconnected":false,"connected_side":true,"cut":false,"damaged":false,"broken":false,"is_hidden":false,"hidden_installation":false,"route_surface":"floor","cable_install_mode":"floor","install_mode":"floor","cable_health_state":"normal","health_state":"normal","cable_path_cells":[],"cable_length":0},
 	"circuit_breaker": {"group":"power","name":"Circuit Breaker","placement_mode":"wall_mounted","state":"switch_on","durability":8,"power_mode":"external_power","control_mode":"internal_control","requires_external_control":false,"control_terminal_id":"","linked_terminal_id":"","is_powered":false,"is_on":true,"power_network_id":"","power_source_id":"","physical_connection_source_id":"","damaged":false,"broken":false},
 	"circuit_switch": {"group":"power","name":"Circuit Switch","state":"switch_off","durability":8,"power_mode":"external_power","control_mode":"internal_control","requires_external_control":false,"control_terminal_id":"","linked_terminal_id":"","is_powered":false,"power_network_id":"","power_source_id":"","physical_connection_source_id":"","damaged":false,"broken":false,"input_wire_id":"","output_1_wire_id":"","output_2_wire_id":"","output_3_wire_id":"","active_output_index":1},
 	"fuse_box": {"group":"power","name":"Fuse Box","placement_mode":"wall_mounted","state":"installed","durability":8,"power_mode":"external_power","control_mode":"internal_control","is_powered":false,"requires_fuse":true,"fuse_installed":true,"power_network_id":"","power_source_id":"","physical_connection_source_id":"","damaged":false,"broken":false},
@@ -481,7 +481,7 @@ const OBJECT_LIBRARY := {
 	"light": {"group":"power","name":"Light","placement_mode":"wall_mounted","state":"active","durability":6,"power_mode":"external_power","control_mode":"internal_control","is_powered":false,"power_network_id":"","power_source_id":"","physical_connection_source_id":"","damaged":false,"broken":false,"brightness":1.0,"color":"#ffffff"},
 	"light_switch": {"group":"power","name":"Light Switch","placement_mode":"wall_mounted","state":"switch_off","durability":6,"power_mode":"external_power","control_mode":"internal_control","requires_external_control":false,"control_terminal_id":"","linked_terminal_id":"","is_powered":false,"is_on":false,"can_be_switched":true,"power_network_id":"","power_source_id":"","physical_connection_source_id":"","damaged":false,"broken":false},
 	"power_socket": {"group":"power","name":"Power Socket","state":"disconnected","durability":8,"power_mode":"external_power","control_mode":"internal_control","is_powered":false,"power_network_id":"","power_source_id":"","physical_connection_source_id":"","connected":false,"disconnected":true,"connected_side":false,"damaged":false,"broken":false,"can_connect_cable":true},
-	"power_cable_reel": {"group":"item","name":"Power Cable Reel","placement_mode":"wall_mounted","state":"disconnected","item_form":"physical","storage_type":"pocket","can_connect_socket":true,"max_cable_length":5,"connected":false,"disconnected":true,"connected_side":false,"connected_side_1":false,"connected_side_2":false,"end_1_state":"on_reel","end_1_target_id":"","end_1_path_cells":[],"end_1_cable_length":0,"end_2_state":"on_reel","end_2_target_id":"","end_2_path_cells":[],"end_2_cable_length":0,"cable_endpoint_a_id":"","cable_endpoint_b_id":"","cable_path_cells":[],"cable_length":0,"cut":false,"damaged":false,"broken":false},
+	"power_cable_reel": {"group":"item","name":"Power Cable Reel","placement_mode":"wall_mounted","state":"disconnected","item_form":"physical","storage_type":"pocket","can_connect_socket":true,"max_cable_length":5,"connected":false,"disconnected":true,"connected_side":false,"connected_side_1":false,"connected_side_2":false,"end_1_state":"on_reel","end_1_target_id":"","end_1_path_cells":[],"end_1_cable_length":0,"end_2_state":"on_reel","end_2_target_id":"","end_2_path_cells":[],"end_2_cable_length":0,"cable_endpoint_a_id":"","cable_endpoint_b_id":"","cable_path_cells":[],"cable_length":0,"cut":false,"damaged":false,"broken":false,"cable_install_mode":"floor","install_mode":"floor","cable_health_state":"normal","health_state":"normal"},
 	"power_source_class_1": {"group":"power","name":"Power Source C1","state":"on","power_mode":"internal","control_mode":"internal","requires_external_control":false,"is_powered":true,"power_network_id":"","damaged":false,"broken":false,"durability":30,"power_source_class":1,"outlet_capacity":4,"drain_pool":60,"working_heat":1,"current_heat":1,"overheat_threshold":3,"heat_from_connections":0,"cooling_received":0,"overheated_state_before":"","allowed_socket_connections":1,"connected_device_ids":[]},
 	"power_source_class_2": {"group":"power","name":"Power Source C2","state":"on","power_mode":"internal","control_mode":"internal","requires_external_control":false,"is_powered":true,"power_network_id":"","damaged":false,"broken":false,"durability":30,"power_source_class":2,"outlet_capacity":5,"drain_pool":120,"working_heat":2,"current_heat":2,"overheat_threshold":3,"heat_from_connections":0,"cooling_received":0,"overheated_state_before":"","allowed_socket_connections":2,"connected_device_ids":[]},
 	"power_source_class_3": {"group":"power","name":"Power Source C3","state":"on","power_mode":"internal","control_mode":"internal","requires_external_control":false,"is_powered":true,"power_network_id":"","damaged":false,"broken":false,"durability":30,"power_source_class":3,"outlet_capacity":6,"drain_pool":240,"working_heat":3,"current_heat":3,"overheat_threshold":3,"heat_from_connections":0,"cooling_received":0,"overheated_state_before":"","allowed_socket_connections":3,"connected_device_ids":[]},
@@ -801,6 +801,62 @@ static func normalize_terminal_contract(object_data: Dictionary) -> Dictionary:
 		data["is_powered"] = true
 	return data
 
+
+static func normalize_cable_install_mode(value: Variant) -> String:
+	var install_mode: String = _normalized_contract_token(value)
+	match install_mode:
+		"", "ground", "floor_mounted", "floor_cable":
+			return "floor"
+		"wall", "wall_cable", "wall_surface", "surface_wall":
+			return "wall"
+		"hidden", "concealed", "embedded", "under_floor", "underfloor":
+			return "hidden"
+	return "floor"
+
+static func normalize_cable_health_state(value: Variant) -> String:
+	var health_state: String = _normalized_contract_token(value)
+	match health_state:
+		"", "ok", "active", "powered", "healthy":
+			return "normal"
+		"damaged":
+			return "damaged"
+		"broken":
+			return "broken"
+		"cut", "severed":
+			return "cut"
+	return "normal"
+
+static func normalize_cable_contract(object_data: Dictionary) -> Dictionary:
+	var data: Dictionary = object_data.duplicate(true)
+	var object_type: String = _normalized_contract_token(data.get("object_type", data.get("item_type", "")))
+	if not object_type.contains("cable") and not object_type.contains("wire"):
+		return data
+	var raw_install_mode: Variant = data.get("cable_install_mode", data.get("install_mode", data.get("placement_mode", data.get("route_surface", "floor"))))
+	if bool(data.get("hidden_installation", data.get("is_hidden", data.get("hidden", false)))):
+		raw_install_mode = "hidden"
+	var install_mode: String = normalize_cable_install_mode(raw_install_mode)
+	var raw_health_state: Variant = data.get("cable_health_state", data.get("health_state", data.get("state", "normal")))
+	if bool(data.get("cut", false)):
+		raw_health_state = "cut"
+	elif bool(data.get("broken", false)):
+		raw_health_state = "broken"
+	elif bool(data.get("damaged", false)):
+		raw_health_state = "damaged"
+	var health_state: String = normalize_cable_health_state(raw_health_state)
+	data["cable_install_mode"] = install_mode
+	data["install_mode"] = install_mode
+	data["route_surface"] = "wall" if install_mode == "wall" else "floor"
+	data["hidden_installation"] = install_mode == "hidden"
+	data["is_hidden"] = install_mode == "hidden"
+	data["cable_health_state"] = health_state
+	data["health_state"] = health_state
+	data["cut"] = health_state == "cut"
+	data["broken"] = health_state == "broken"
+	data["damaged"] = health_state in ["damaged", "broken", "cut"]
+	if object_type == "power_cable":
+		data["state"] = "ok" if health_state == "normal" else health_state
+	return data
+
 static func normalize_world_object_contract(object_data: Dictionary) -> Dictionary:
 	var data: Dictionary = canonicalize_legacy_object_data(object_data)
 	if data.is_empty():
@@ -818,6 +874,7 @@ static func normalize_world_object_contract(object_data: Dictionary) -> Dictiona
 	data = normalize_archetype_object(data)
 	data = normalize_terminal_contract(data)
 	data = normalize_item_contract(data)
+	data = normalize_cable_contract(data)
 	var normalized_object_type: String = _normalized_contract_token(data.get("object_type", ""))
 	if normalized_object_type in ["power_source", "power_source_class_1", "power_source_class_2", "power_source_class_3"]:
 		data["blocks_movement"] = true
