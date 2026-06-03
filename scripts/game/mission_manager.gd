@@ -2862,7 +2862,7 @@ func get_default_map_constructor_field_value(field_name: String, entity_kind: St
 		if entity_kind == "item":
 			return null
 		return []
-	if normalized_field in ["state", "power_network_id", "required_key_id", "lock_type", "linked_terminal_id", "target_door_id", "target_platform_id", "control_source_id", "digital_state", "key_kind", "key_type", "display_name", "description", "custom_description", "linked_door_id", "power_mode", "power_source_id", "control_mode", "control_terminal_id", "access_type", "access_terminal_id", "access_code_value", "stored_key_ids", "route_surface", "physical_connection_source_id", "input_wire_id", "input_direction", "output_1_wire_id", "output_2_wire_id", "output_3_wire_id", "output_1_direction", "output_2_direction", "output_3_direction", "brightness", "color"]:
+	if normalized_field in ["state", "power_network_id", "circuit_id", "power_circuit_id", "network_id", "power_network_id", "chain_id", "link_group", "cable_group", "connected_circuit", "circuit_name", "required_key_id", "lock_type", "linked_terminal_id", "target_door_id", "target_platform_id", "control_source_id", "digital_state", "key_kind", "key_type", "display_name", "description", "custom_description", "linked_door_id", "power_mode", "power_source_id", "control_mode", "control_terminal_id", "access_type", "access_terminal_id", "access_code_value", "stored_key_ids", "route_surface", "physical_connection_source_id", "input_wire_id", "input_direction", "output_1_wire_id", "output_2_wire_id", "output_3_wire_id", "output_1_direction", "output_2_direction", "output_3_direction", "brightness", "color"]:
 		return ""
 	return null
 
@@ -3965,9 +3965,30 @@ func get_map_constructor_placed_object_rows() -> Array[Dictionary]:
 func get_map_constructor_entity_by_id(entity_kind: String, entity_id: String) -> Dictionary:
 	return _ensure_map_constructor_service().get_map_constructor_entity_by_id(entity_kind, entity_id)
 
+func get_normalized_map_constructor_circuit_id(data: Dictionary) -> String:
+	return _ensure_map_constructor_service().get_normalized_map_constructor_circuit_id(data)
+
+func get_map_constructor_circuit_summary(entity_kind: String, entity_id: String) -> Dictionary:
+	return _ensure_map_constructor_service().get_map_constructor_circuit_summary(entity_kind, entity_id)
+
+func get_map_constructor_circuit_options() -> Array[Dictionary]:
+	return _ensure_map_constructor_service().get_map_constructor_circuit_options()
+
+func get_map_constructor_same_circuit_entities(entity_kind: String, entity_id: String) -> Array[Dictionary]:
+	return _ensure_map_constructor_service().get_map_constructor_same_circuit_entities(entity_kind, entity_id)
+
+func assign_map_constructor_entity_to_circuit(entity_kind: String, entity_id: String, circuit_id: String, circuit_name: String = "") -> Dictionary:
+	return _ensure_map_constructor_service().assign_map_constructor_entity_to_circuit(entity_kind, entity_id, circuit_id, circuit_name)
+
+func create_map_constructor_circuit(entity_kind: String, entity_id: String, requested_id: String = "", circuit_name: String = "") -> Dictionary:
+	return _ensure_map_constructor_service().create_map_constructor_circuit(entity_kind, entity_id, requested_id, circuit_name)
+
+func rename_map_constructor_circuit(entity_kind: String, entity_id: String, circuit_name: String) -> Dictionary:
+	return _ensure_map_constructor_service().rename_map_constructor_circuit(entity_kind, entity_id, circuit_name)
+
 func _get_map_constructor_editable_field_schema() -> Dictionary:
 	return {
-		"state":"string","power_network_id":"string","is_open":"bool","is_closed":"bool","is_locked":"bool","blocks_movement":"bool","is_powered":"bool","is_hidden":"bool","fuse_installed":"bool","plugged":"bool",
+		"state":"string","power_network_id":"string","circuit_id":"string","power_circuit_id":"string","network_id":"string","chain_id":"string","link_group":"string","cable_group":"string","connected_circuit":"string","circuit_name":"string","is_open":"bool","is_closed":"bool","is_locked":"bool","blocks_movement":"bool","is_powered":"bool","is_hidden":"bool","fuse_installed":"bool","plugged":"bool",
 		"required_key_id":"string","required_terminal_id":"string","required_access_code_id":"string","required_digital_key_id":"string","lock_type":"string","linked_terminal_id":"string","required_manipulator_level":"int","has_connector_jack":"bool","required_connector_level":"int","required_processor_level":"int",
 		"door_type":"string","material":"string","covering":"string","visual_style":"string","door_class":"int","power_type":"string","control_type":"string","power_behavior":"string","allowed_states":"array_string",
 		"terminal_type":"string","controlled_target_type":"string","terminal_class":"int","status":"string","allowed_statuses":"array_string","linked_object_ids":"array_string","linked_door_ids":"array_string","linked_cooling_ids":"array_string","linked_platform_ids":"array_string","linked_power_ids":"array_string","linked_lighting_ids":"array_string","chain_input_ids":"array_string","chain_output_ids":"array_string",

@@ -5,6 +5,8 @@ const WorldObjectCatalogRef = preload("res://scripts/world/world_object_catalog.
 const PowerSystemRef = preload("res://scripts/world/power_system.gd")
 const CableTopologyServiceRef = preload("res://scripts/game/cable_topology_service.gd")
 
+const CIRCUIT_ID_FIELDS = ["circuit_id", "power_circuit_id", "network_id", "power_network_id", "chain_id", "link_group", "cable_group", "connected_circuit"]
+
 var manager: Variant
 
 func _init(owner: Node) -> void:
@@ -314,6 +316,174 @@ func _sync_terminal_door_link(entity_id: String, data: Dictionary, field_name: S
 				terminal["linked_door_ids"] = linked_ids
 			manager.update_world_object_by_id(terminal_id, terminal)
 
+
+func get_normalized_map_constructor_circuit_id(data: Dictionary) -> String:
+	for field_name in CIRCUIT_ID_FIELDS:
+		var circuit_id: String = str(data.get(field_name, "")).strip_edges()
+		if not circuit_id.is_empty():
+			return circuit_id
+	return ""
+
+func _get_map_constructor_entity_circuit_id(entity_kind: String, entity_id: String) -> String:
+	var entity: Dictionary = get_map_constructor_entity_by_id(entity_kind, entity_id)
+	if not bool(entity.get("ok", false)):
+		return ""
+	return get_normalized_map_constructor_circuit_id(manager._safe_dictionary(entity.get("data", {})))
+
+func _get_circuit_display_name(circuit_id: String) -> String:
+	var normalized_id: String = circuit_id.strip_edges()
+	if normalized_id.is_empty():
+		return ""
+	for object_variant in manager.mission_world_objects:
+		var object_data: Dictionary = manager._safe_dictionary(object_variant)
+		if get_normalized_map_constructor_circuit_id(object_data) == normalized_id:
+			var object_circuit_name: String = str(object_data.get("circuit_name", "")).strip_edges()
+			if not object_circuit_name.is_empty():
+				return object_circuit_name
+	for cell_variant in manager.cell_items.keys():
+		for item_variant in manager.get_items_at_cell(Vector2i(cell_variant)):
+			var item_data: Dictionary = manager._safe_dictionary(item_variant)
+			if get_normalized_map_constructor_circuit_id(item_data) == normalized_id:
+				var item_circuit_name: String = str(item_data.get("circuit_name", "")).strip_edges()
+				if not item_circuit_name.is_empty():
+					return item_circuit_name
+	return ""
+
+func _make_map_constructor_circuit_option(circuit_id: String) -> Dictionary:
+	var normalized_id: String = circuit_id.strip_edges()
+	var display_name: String = _get_circuit_display_name(normalized_id)
+	var label: String = normalized_id
+	if not display_name.is_empty():
+		label = "%s — %s" % [normalized_id, display_name]
+	return {"id": normalized_id, "label": label, "name": display_name}
+
+func get_map_constructor_circuit_options() -> Array[Dictionary]:
+	var ids: Dictionary = {}
+	for object_variant in manager.mission_world_objects:
+		var object_data: Dictionary = manager._safe_dictionary(object_variant)
+		var circuit_id: String = get_normalized_map_constructor_circuit_id(object_data)
+		if not circuit_id.is_empty():
+			ids[circuit_id] = true
+	for cell_variant in manager.cell_items.keys():
+		for item_variant in manager.get_items_at_cell(Vector2i(cell_variant)):
+			var item_data: Dictionary = manager._safe_dictionary(item_variant)
+			var item_circuit_id: String = get_normalized_map_constructor_circuit_id(item_data)
+			if not item_circuit_id.is_empty():
+				ids[item_circuit_id] = true
+	var out: Array[Dictionary] = []
+	for id_variant in ids.keys():
+		out.append(_make_map_constructor_circuit_option(str(id_variant)))
+	out.sort_custom(func(a: Dictionary, b: Dictionary) -> bool:
+		return str(a.get("id", "")) < str(b.get("id", ""))
+	)
+	return out
+
+func get_map_constructor_same_circuit_entities(entity_kind: String, entity_id: String) -> Array[Dictionary]:
+	var circuit_id: String = _get_map_constructor_entity_circuit_id(entity_kind, entity_id)
+	var out: Array[Dictionary] = []
+	if circuit_id.is_empty():
+		return out
+	for object_variant in manager.mission_world_objects:
+		var object_data: Dictionary = manager._safe_dictionary(object_variant)
+		var object_id: String = str(object_data.get("id", "")).strip_edges()
+		if object_id.is_empty() or object_id == entity_id:
+			continue
+		if get_normalized_map_constructor_circuit_id(object_data) != circuit_id:
+			continue
+		out.append({"entity_kind":"world_object", "id":object_id, "label":str(object_data.get("display_name", object_id)), "cell":Vector2i(object_data.get("position", Vector2i(-1, -1))), "object_type":str(object_data.get("object_type", "")), "circuit_id":circuit_id})
+	for cell_variant in manager.cell_items.keys():
+		var cell: Vector2i = Vector2i(cell_variant)
+		for item_variant in manager.get_items_at_cell(cell):
+			var item_data: Dictionary = manager._safe_dictionary(item_variant)
+			var item_id: String = str(item_data.get("id", "")).strip_edges()
+			if item_id.is_empty() or item_id == entity_id:
+				continue
+			if get_normalized_map_constructor_circuit_id(item_data) != circuit_id:
+				continue
+			out.append({"entity_kind":"item", "id":item_id, "label":str(item_data.get("display_name", item_id)), "cell":cell, "object_type":str(item_data.get("item_type", item_data.get("object_type", ""))), "circuit_id":circuit_id})
+	out.sort_custom(func(a: Dictionary, b: Dictionary) -> bool:
+		var ac: Vector2i = Vector2i(a.get("cell", Vector2i.ZERO))
+		var bc: Vector2i = Vector2i(b.get("cell", Vector2i.ZERO))
+		return "%04d|%04d|%s" % [ac.y, ac.x, str(a.get("id", ""))] < "%04d|%04d|%s" % [bc.y, bc.x, str(b.get("id", ""))]
+	)
+	return out
+
+func get_map_constructor_circuit_summary(entity_kind: String, entity_id: String) -> Dictionary:
+	var entity: Dictionary = get_map_constructor_entity_by_id(entity_kind, entity_id)
+	if not bool(entity.get("ok", false)):
+		return {"ok": false, "message": "Entity not found.", "circuit_id": "", "circuit_name": "", "options": [], "linked_entities": []}
+	var data: Dictionary = manager._safe_dictionary(entity.get("data", {}))
+	var circuit_id: String = get_normalized_map_constructor_circuit_id(data)
+	var circuit_name: String = str(data.get("circuit_name", "")).strip_edges()
+	if circuit_name.is_empty():
+		circuit_name = _get_circuit_display_name(circuit_id)
+	return {"ok": true, "circuit_id": circuit_id, "circuit_name": circuit_name, "options": get_map_constructor_circuit_options(), "linked_entities": get_map_constructor_same_circuit_entities(entity_kind, entity_id)}
+
+func _build_map_constructor_circuit_updates(data: Dictionary, circuit_id: String, circuit_name: String = "", include_name: bool = false) -> Dictionary:
+	var updates: Dictionary = {"circuit_id": circuit_id}
+	var object_type: String = str(data.get("object_type", data.get("item_type", ""))).strip_edges().to_lower()
+	var object_group: String = str(data.get("object_group", data.get("group", ""))).strip_edges().to_lower()
+	if data.has("power_network_id") or object_group == "power" or object_type.contains("power") or object_type.contains("cable") or object_type.contains("socket") or object_type.contains("outlet"):
+		updates["power_network_id"] = circuit_id
+	for field_name in ["power_circuit_id", "network_id", "power_network_id", "chain_id", "link_group", "cable_group", "connected_circuit"]:
+		if data.has(field_name):
+			updates[field_name] = circuit_id
+	if include_name:
+		updates["circuit_name"] = circuit_name
+	return updates
+
+func assign_map_constructor_entity_to_circuit(entity_kind: String, entity_id: String, circuit_id: String, circuit_name: String = "") -> Dictionary:
+	if not manager._is_task_test_constructor_context():
+		return {"ok": false, "message": "Operation is available only in TASK TEST constructor mode."}
+	var normalized_id: String = circuit_id.strip_edges()
+	if normalized_id.is_empty():
+		return {"ok": false, "message": "Circuit id is required."}
+	var entity: Dictionary = get_map_constructor_entity_by_id(entity_kind, entity_id)
+	if not bool(entity.get("ok", false)):
+		return {"ok": false, "message": "Entity not found."}
+	var data: Dictionary = manager._safe_dictionary(entity.get("data", {}))
+	var updates: Dictionary = _build_map_constructor_circuit_updates(data, normalized_id, circuit_name.strip_edges(), not circuit_name.strip_edges().is_empty())
+	var result: Dictionary = manager.update_map_constructor_entity_properties(str(entity.get("entity_kind", entity_kind)), entity_id, updates)
+	if bool(result.get("ok", false)):
+		result["message"] = "Assigned circuit %s." % normalized_id
+		result["circuit_id"] = normalized_id
+	return result
+
+func create_map_constructor_circuit(entity_kind: String, entity_id: String, requested_id: String = "", circuit_name: String = "") -> Dictionary:
+	var circuit_id: String = requested_id.strip_edges()
+	if circuit_id.is_empty():
+		circuit_id = "mapedit_circuit_%d" % manager._map_constructor_runtime_object_seq
+		manager._map_constructor_runtime_object_seq += 1
+	return assign_map_constructor_entity_to_circuit(entity_kind, entity_id, circuit_id, circuit_name)
+
+func rename_map_constructor_circuit(entity_kind: String, entity_id: String, circuit_name: String) -> Dictionary:
+	if not manager._is_task_test_constructor_context():
+		return {"ok": false, "message": "Operation is available only in TASK TEST constructor mode."}
+	var circuit_id: String = _get_map_constructor_entity_circuit_id(entity_kind, entity_id)
+	if circuit_id.is_empty():
+		return {"ok": false, "message": "No circuit assigned."}
+	var normalized_name: String = circuit_name.strip_edges()
+	var updated_count: int = 0
+	for object_variant in manager.mission_world_objects:
+		var object_data: Dictionary = manager._safe_dictionary(object_variant)
+		var object_id: String = str(object_data.get("id", "")).strip_edges()
+		if object_id.is_empty() or get_normalized_map_constructor_circuit_id(object_data) != circuit_id:
+			continue
+		var result: Dictionary = manager.update_map_constructor_entity_properties("world_object", object_id, {"circuit_name": normalized_name})
+		if bool(result.get("ok", false)):
+			updated_count += 1
+	for cell_variant in manager.cell_items.keys():
+		for item_variant in manager.get_items_at_cell(Vector2i(cell_variant)):
+			var item_data: Dictionary = manager._safe_dictionary(item_variant)
+			var item_id: String = str(item_data.get("id", "")).strip_edges()
+			if item_id.is_empty() or get_normalized_map_constructor_circuit_id(item_data) != circuit_id:
+				continue
+			var item_result: Dictionary = manager.update_map_constructor_entity_properties("item", item_id, {"circuit_name": normalized_name})
+			if bool(item_result.get("ok", false)):
+				updated_count += 1
+	return {"ok": true, "message": "Renamed circuit %s." % circuit_id, "circuit_id": circuit_id, "circuit_name": normalized_name, "updated_count": updated_count}
+
+
 func apply_map_constructor_property_update(entity_kind: String, entity_id: String, field_name: String, raw_value: Variant) -> Dictionary:
 	if not manager._is_task_test_constructor_context():
 		return {"ok": false, "message": "Operation is available only in TASK TEST constructor mode."}
@@ -385,7 +555,7 @@ func apply_map_constructor_property_update(entity_kind: String, entity_id: Strin
 	else:
 		result["message"] = "Unsupported entity kind."
 		return result
-	var needs_power_refresh: bool = field_name == "power_network_id" or field_name in ["is_powered", "requires_external_power", "power_mode", "power_source_id", "current_heat", "working_heat", "overheat_threshold"]
+	var needs_power_refresh: bool = field_name in CIRCUIT_ID_FIELDS or field_name in ["is_powered", "requires_external_power", "power_mode", "power_source_id", "current_heat", "working_heat", "overheat_threshold"]
 	if needs_power_refresh:
 		PowerSystemRef.recalculate_network(manager.mission_world_objects, old_network_id)
 		PowerSystemRef.recalculate_network(manager.mission_world_objects, str(data.get("power_network_id", "")))
