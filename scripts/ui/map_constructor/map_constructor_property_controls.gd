@@ -35,10 +35,10 @@ static func create_property_row(_ui: Variant, label_text: String, control: Contr
 	var row: HBoxContainer = HBoxContainer.new()
 	row.add_theme_constant_override("separation", 6)
 	row.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-	row.custom_minimum_size = Vector2(360, 0)
+	row.custom_minimum_size = Vector2(420, 0)
 	control.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	var control_minimum_size: Vector2 = control.custom_minimum_size
-	control_minimum_size.x = maxf(control_minimum_size.x, 180.0)
+	control_minimum_size.x = maxf(control_minimum_size.x, 220.0)
 	control.custom_minimum_size = control_minimum_size
 	if control is Label:
 		var value_label: Label = control
@@ -50,7 +50,7 @@ static func create_property_row(_ui: Variant, label_text: String, control: Contr
 		value_edit.expand_to_text_length = false
 	var label: Label = Label.new()
 	label.text = label_text
-	label.custom_minimum_size = Vector2(130, 0)
+	label.custom_minimum_size = Vector2(120, 0)
 	label.size_flags_horizontal = Control.SIZE_SHRINK_BEGIN
 	label.autowrap_mode = TextServer.AUTOWRAP_OFF
 	label.clip_text = true
@@ -192,6 +192,9 @@ static func add_enum_array_property(ui: Variant, section: VBoxContainer, label: 
 	section.add_child(create_property_row(ui, label, menu))
 
 static func add_circuit_block(ui: Variant, parent: VBoxContainer, entity_kind: String, entity_id: String, data: Dictionary) -> void:
+	var object_type: String = MapConstructorUiSafe.safe_string(data.get("object_type", data.get("item_type", ""))).strip_edges().to_lower()
+	if not object_type.begins_with("power_source"):
+		return
 	var section: VBoxContainer = create_inspector_section(ui, "3. Circuit")
 	var summary: Dictionary = {}
 	if ui.mission_manager_runtime != null and ui.mission_manager_runtime.has_method("get_map_constructor_circuit_summary"):
@@ -203,6 +206,42 @@ static func add_circuit_block(ui: Variant, parent: VBoxContainer, entity_kind: S
 	id_label.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 	id_label.text = circuit_id if not circuit_id.is_empty() else "No circuit assigned"
 	section.add_child(create_property_row(ui, "Circuit id", id_label))
+	var list_box: VBoxContainer = VBoxContainer.new()
+	list_box.add_theme_constant_override("separation", 4)
+	var has_main: bool = false
+	for option_variant_list in MapConstructorUiSafe.safe_array(summary.get("options", [])):
+		var option_data_list: Dictionary = MapConstructorUiSafe.safe_dictionary(option_variant_list)
+		var option_id_list: String = MapConstructorUiSafe.safe_string(option_data_list.get("id", "")).strip_edges()
+		if option_id_list.is_empty():
+			continue
+		if option_id_list == "main":
+			has_main = true
+		var circuit_row: HBoxContainer = HBoxContainer.new()
+		circuit_row.add_theme_constant_override("separation", 6)
+		var circuit_label: Label = Label.new()
+		circuit_label.text = MapConstructorUiSafe.safe_string(option_data_list.get("label", option_id_list), option_id_list)
+		circuit_label.clip_text = true
+		circuit_label.text_overrun_behavior = TextServer.OVERRUN_TRIM_ELLIPSIS
+		circuit_label.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+		circuit_row.add_child(circuit_label)
+		var delete_button: Button = Button.new()
+		delete_button.text = "Delete"
+		delete_button.disabled = option_id_list == "main" or ui.mission_manager_runtime == null or not ui.mission_manager_runtime.has_method("delete_map_constructor_circuit")
+		delete_button.pressed.connect(func() -> void:
+			if ui.mission_manager_runtime == null or not ui.mission_manager_runtime.has_method("delete_map_constructor_circuit"):
+				return
+			var result: Dictionary = MapConstructorUiSafe.safe_dictionary(ui.mission_manager_runtime.call("delete_map_constructor_circuit", option_id_list))
+			ui.show_hint(MapConstructorUiSafe.safe_string(result.get("message", "Circuit deleted."), "Circuit deleted."))
+			ui._refresh_map_constructor_panels()
+			ui._show_map_constructor_inspector(ui.selected_map_constructor_entity_cell, entity_kind, entity_id)
+		)
+		circuit_row.add_child(delete_button)
+		list_box.add_child(circuit_row)
+	if not has_main:
+		var main_label: Label = Label.new()
+		main_label.text = "main"
+		list_box.add_child(main_label)
+	section.add_child(create_property_row(ui, "Circuits", list_box))
 	var name_edit: LineEdit = LineEdit.new()
 	name_edit.text = MapConstructorUiSafe.safe_string(summary.get("circuit_name", data.get("circuit_name", ""))).strip_edges()
 	name_edit.placeholder_text = "Circuit display name"
@@ -261,7 +300,7 @@ static func add_circuit_block(ui: Variant, parent: VBoxContainer, entity_kind: S
 	if selected_index >= 0:
 		assign_option.select(selected_index)
 	var assign_button: Button = Button.new()
-	assign_button.text = "Assign selected object to circuit"
+	assign_button.text = "Set source circuit"
 	assign_button.disabled = assign_option.item_count <= 0
 	assign_button.pressed.connect(func() -> void:
 		if assign_option.get_selected() < 0 or ui.mission_manager_runtime == null or not ui.mission_manager_runtime.has_method("assign_map_constructor_entity_to_circuit"):

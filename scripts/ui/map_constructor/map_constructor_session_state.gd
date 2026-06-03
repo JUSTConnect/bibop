@@ -8,6 +8,9 @@ const SESSION_PROPERTY_NAMES: Array[StringName] = [
 	&"map_constructor_validation_overlay_visible",
 	&"map_constructor_mode_active",
 	&"map_constructor_active_tab",
+	&"map_constructor_active_inspector_tab_id",
+	&"map_constructor_active_inspector_entity_id",
+	&"map_constructor_active_inspector_entity_kind",
 	&"map_constructor_tab_scroll_positions",
 	&"selected_map_constructor_prefab_id",
 	&"pending_map_constructor_cell",
@@ -91,6 +94,9 @@ var map_constructor_inspector_expanded: bool = false
 var map_constructor_validation_overlay_visible: bool = true
 var map_constructor_mode_active: bool = false
 var map_constructor_active_tab: String = "map_settings"
+var map_constructor_active_inspector_tab_id: String = ""
+var map_constructor_active_inspector_entity_id: String = ""
+var map_constructor_active_inspector_entity_kind: String = ""
 var map_constructor_tab_scroll_positions: Dictionary = {}
 var selected_map_constructor_prefab_id: String = ""
 var pending_map_constructor_cell: Vector2i = Vector2i(-1, -1)

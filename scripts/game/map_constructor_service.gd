@@ -274,7 +274,7 @@ func _get_map_constructor_entity_inspection_tab_id(entity_kind: String, data: Di
 		return "cables"
 	if object_type == "light" or object_group == "lighting" or joined.contains(" lighting"):
 		return "lighting"
-	if object_group == "wall" or joined.contains("outer_wall") or joined.contains("brick_wall") or joined.contains("concrete_wall") or joined.contains("steel_wall") or joined.contains("grate_wall"):
+	if object_group == "wall" or object_type == "wall":
 		return "walls"
 	return "objects"
 
@@ -313,8 +313,8 @@ func get_map_constructor_cell_inspection_model(cell: Vector2i, preferred_entity_
 			tile_name = str(manager.grid_manager.call("get_tile_name", tile_type))
 	var floor_data: Dictionary = {"id":"floor_%d_%d" % [cell.x, cell.y], "display_name":"Floor", "object_type":"floor", "position":cell, "tile_type":tile_type, "tile_name":tile_name, "in_bounds":in_bounds}
 	_append_map_constructor_cell_inspection_entity(tabs_by_id, "floor", "floor", str(floor_data.get("id", "")), cell, floor_data)
-	if in_bounds and manager.grid_manager != null and tile_type in [GridManager.TILE_WALL, GridManager.TILE_DOOR, GridManager.TILE_DIGITAL_DOOR, GridManager.TILE_POWERED_GATE]:
-		var wall_data: Dictionary = {"id":"wall_%d_%d" % [cell.x, cell.y], "display_name":"Wall", "object_type":"wall", "object_group":"wall", "position":cell, "tile_type":tile_type, "tile_name":tile_name}
+	if in_bounds and manager.grid_manager != null and tile_type == GridManager.TILE_WALL:
+		var wall_data: Dictionary = {"id":"wall_%d_%d" % [cell.x, cell.y], "display_name":"Wall", "object_type":"wall", "object_group":"wall", "position":cell, "tile_type":tile_type, "tile_name":tile_name, "has_actual_wall_layer":true}
 		_append_map_constructor_cell_inspection_entity(tabs_by_id, "walls", "wall", str(wall_data.get("id", "")), cell, wall_data)
 	for object_variant in manager.mission_world_objects:
 		var object_data: Dictionary = manager._safe_dictionary(object_variant)
@@ -448,13 +448,15 @@ func _get_circuit_display_name(circuit_id: String) -> String:
 func _make_map_constructor_circuit_option(circuit_id: String) -> Dictionary:
 	var normalized_id: String = circuit_id.strip_edges()
 	var display_name: String = _get_circuit_display_name(normalized_id)
+	if normalized_id == "main" and display_name.is_empty():
+		display_name = "Main"
 	var label: String = normalized_id
 	if not display_name.is_empty():
 		label = "%s — %s" % [normalized_id, display_name]
 	return {"id": normalized_id, "label": label, "name": display_name}
 
 func get_map_constructor_circuit_options() -> Array[Dictionary]:
-	var ids: Dictionary = {}
+	var ids: Dictionary = {"main": true}
 	for object_variant in manager.mission_world_objects:
 		var object_data: Dictionary = manager._safe_dictionary(object_variant)
 		var circuit_id: String = get_normalized_map_constructor_circuit_id(object_data)
@@ -578,6 +580,34 @@ func rename_map_constructor_circuit(entity_kind: String, entity_id: String, circ
 			if bool(item_result.get("ok", false)):
 				updated_count += 1
 	return {"ok": true, "message": "Renamed circuit %s." % circuit_id, "circuit_id": circuit_id, "circuit_name": normalized_name, "updated_count": updated_count}
+
+func delete_map_constructor_circuit(circuit_id: String) -> Dictionary:
+	if not manager._is_task_test_constructor_context():
+		return {"ok": false, "message": "Operation is available only in TASK TEST constructor mode."}
+	var normalized_id: String = circuit_id.strip_edges()
+	if normalized_id.is_empty():
+		return {"ok": false, "message": "Circuit id is required."}
+	if normalized_id == "main":
+		return {"ok": false, "message": "Main circuit cannot be deleted."}
+	var updated_count: int = 0
+	for object_variant in manager.mission_world_objects:
+		var object_data: Dictionary = manager._safe_dictionary(object_variant)
+		var object_id: String = str(object_data.get("id", "")).strip_edges()
+		if object_id.is_empty() or get_normalized_map_constructor_circuit_id(object_data) != normalized_id:
+			continue
+		var result: Dictionary = manager.update_map_constructor_entity_properties("world_object", object_id, _build_map_constructor_circuit_updates(object_data, "main", "Main", true))
+		if bool(result.get("ok", false)):
+			updated_count += 1
+	for cell_variant in manager.cell_items.keys():
+		for item_variant in manager.get_items_at_cell(Vector2i(cell_variant)):
+			var item_data: Dictionary = manager._safe_dictionary(item_variant)
+			var item_id: String = str(item_data.get("id", "")).strip_edges()
+			if item_id.is_empty() or get_normalized_map_constructor_circuit_id(item_data) != normalized_id:
+				continue
+			var item_result: Dictionary = manager.update_map_constructor_entity_properties("item", item_id, _build_map_constructor_circuit_updates(item_data, "main", "Main", true))
+			if bool(item_result.get("ok", false)):
+				updated_count += 1
+	return {"ok": true, "message": "Deleted circuit %s." % normalized_id, "circuit_id": normalized_id, "updated_count": updated_count}
 
 func _normalize_cable_install_mode(value: Variant) -> String:
 	var raw_mode: String = str(value).strip_edges().to_lower()
