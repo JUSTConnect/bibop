@@ -9676,17 +9676,25 @@ func _on_mission_result_restart_pressed() -> void:
 	var restart_mission_id: int = tasks_selected_mission_id
 	if bipob != null:
 		restart_mission_id = int(bipob.current_mission_index)
-	if bipob != null:
+	if bipob != null and not _restart_task_test_from_result_screen():
 		bipob.current_mission_index = restart_mission_id
-		var is_task_test_restart: bool = bipob.has_method("is_task_test_mode_active") and bool(bipob.call("is_task_test_mode_active"))
-		if is_task_test_restart and bipob.has_method("restart_task_test_session"):
-			bipob.restart_task_test_session()
-		elif bipob.has_method("start_mission"):
+		if bipob.has_method("start_mission"):
 			bipob.start_mission(restart_mission_id, true)
 		elif bipob.has_method("restart_current_mission"):
 			bipob.restart_current_mission()
 	_enter_gameplay_screen_without_starting_mission()
 	call_deferred("_sync_runtime_bipob_visual_state")
+
+func _restart_task_test_from_result_screen() -> bool:
+	if bipob == null or not _is_task_test_runtime_active():
+		return false
+	if bipob.has_method("restart_task_test_session"):
+		bipob.restart_task_test_session()
+		return true
+	if bipob.has_method("reset_task_test_session"):
+		bipob.reset_task_test_session()
+		return true
+	return false
 
 func _on_mission_result_center_pressed() -> void:
 	if not _can_return_to_center_after_result(last_mission_success):
@@ -9940,7 +9948,9 @@ func _get_clamped_runtime_field_position(unclamped_position: Vector2, viewport_s
 	return Vector2(clamped_x, clamped_y)
 
 func _is_task_test_runtime_active() -> bool:
-	if app_screen_mode != AppScreenMode.GAMEPLAY or bipob == null:
+	if bipob == null:
+		return false
+	if app_screen_mode != AppScreenMode.GAMEPLAY and app_screen_mode != AppScreenMode.MISSION_RESULT:
 		return false
 	if bipob.has_method("is_task_test_mode_active"):
 		return bool(bipob.call("is_task_test_mode_active"))
