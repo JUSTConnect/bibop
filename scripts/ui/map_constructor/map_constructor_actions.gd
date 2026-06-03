@@ -33,6 +33,15 @@ static func delete_entity_at_cell(ui: Variant, cell: Vector2i) -> Dictionary:
 	ui._clear_map_constructor_link_target()
 	return result
 
+static func delete_entity_by_id(ui: Variant, entity_kind: String, entity_id: String, fallback_cell: Vector2i = Vector2i(-1, -1)) -> Dictionary:
+	if ui.mission_manager_runtime == null or not ui.mission_manager_runtime.has_method("_remove_map_constructor_entity_by_id"):
+		return {}
+	var result: Dictionary = ui._safe_ui_dictionary(ui.mission_manager_runtime.call("_remove_map_constructor_entity_by_id", entity_kind, entity_id))
+	ui.show_hint(ui._safe_ui_string(result.get("message", "Deleted."), "Deleted."))
+	refresh_after_mutation(ui, result, fallback_cell)
+	ui._clear_map_constructor_link_target()
+	return result
+
 static func apply_prefab_placement(ui: Variant, prefab_id: String, cell: Vector2i, options: Dictionary = {}) -> Dictionary:
 	if ui.mission_manager_runtime == null or not ui.mission_manager_runtime.has_method("place_map_constructor_prefab"):
 		return {}
