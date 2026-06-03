@@ -2,7 +2,7 @@
 
 ## Purpose
 
-This audit records what still blocks safe deletion of old story mission code/resources after PR-RF-08 through PR-RF-30. PR-RF-24 intentionally added non-gameplay checks for the generic cable runtime state/service only, PR-RF-25 isolates TASK TEST restart/reset routing, PR-RF-26 routes mission-result TASK TEST restart through the explicit sandbox boundary, and PR-RF-27 centralizes remaining GameUI TASK TEST mission-index compatibility behind helper boundaries without changing gameplay mechanics, Map Constructor behavior, runtime actions, scan/hack, movement, inventory, cable behavior, airflow, cooling, power routing, terminal hack, door/path unlock, or mission resources. PR-RF-30 extracts TASK TEST seed world-object construction into a dedicated builder while keeping MissionManager compatibility wrappers.
+This audit records what still blocks safe deletion of old story mission code/resources after PR-RF-08 through PR-RF-33. PR-RF-24 intentionally added non-gameplay checks for the generic cable runtime state/service only, PR-RF-25 isolates TASK TEST restart/reset routing, PR-RF-26 routes mission-result TASK TEST restart through the explicit sandbox boundary, and PR-RF-27 centralizes remaining GameUI TASK TEST mission-index compatibility behind helper boundaries without changing gameplay mechanics, Map Constructor behavior, runtime actions, scan/hack, movement, inventory, cable behavior, airflow, cooling, power routing, terminal hack, door/path unlock, or mission resources. PR-RF-30 extracts TASK TEST seed world-object construction into a dedicated builder while keeping MissionManager compatibility wrappers, PR-RF-31 routes TASK TEST objective copy through catalog/helper boundaries, PR-RF-32 canonicalizes new Map Constructor persistence source ids to `task_test`, and PR-RF-33 makes normal TASK TEST layout startup catalog-only through canonical `task_test` while quarantining GridManager Mission 10 fallback as compatibility-only.
 
 Current product direction:
 
@@ -17,7 +17,7 @@ Current product direction:
 
 - TASK TEST runtime identity exists through explicit `active_runtime_mode_id` session state, `get_runtime_mode_id()`, `is_task_test_mode_active()`, and `is_sandbox_mode_active()`.
 - TASK TEST startup/restart/reset has explicit entry points: `start_task_test_session()`, `restart_task_test_session()`, and `reset_task_test_session()`. `start_task_test_session()` starts the sandbox session directly instead of delegating to `start_mission(10)`, TASK TEST restart/reset now routes through the explicit TASK TEST boundary, and mission-result restart uses that boundary instead of mutating `current_mission_index` for TASK TEST.
-- TASK TEST layout/catalog compatibility is named through `get_task_test_mission_id()` and `get_task_test_layout_id()`; `get_task_test_layout_id()` now exposes the non-story `task_test` alias while `mission_10` remains the compatibility mission id and fallback resource id. `get_task_test_source_id()` is the canonical Map Constructor persistence/export source id boundary and returns `task_test`.
+- TASK TEST layout/catalog compatibility is named through `get_task_test_mission_id()`, `get_task_test_layout_id()`, and `has_task_test_catalog_layout()`; `get_task_test_layout_id()` now requests canonical `task_test`, while `mission_10` remains the compatibility mission id/alias only. `get_task_test_source_id()` is the canonical Map Constructor persistence/export source id boundary and returns `task_test`.
 - GameUI TASK TEST detection is centralized through `_is_task_test_runtime_active()`, which prefers `BipobController.is_task_test_mode_active()` and keeps the raw mission-index fallback only inside that helper boundary. The Dev TASK TEST card resolves its displayed compatibility id through controller helpers instead of embedding `mission_10` directly.
 - TASK TEST completion is isolated through `complete_sandbox_run()` and checked before legacy completion in `check_mission_complete()`.
 - Legacy story completion is separated into `complete_legacy_story_mission()`.
@@ -33,7 +33,7 @@ Current product direction:
 ### Still compatibility-based
 
 - `TASK_TEST_MISSION_INDEX` still maps to the legacy-compatible mission index `10`, and `current_mission_index` is still set to `10` for compatibility during TASK TEST sessions.
-- `MissionManager.TASK_TEST_LAYOUT_ID` maps to `task_test`, while `MissionManager.TASK_TEST_MISSION_ID` still maps to `mission_10` for compatibility fallback. New Map Constructor presets, runtime patches, mission patch exports, and design-note metadata default source ids to `task_test`; old `mission_10` source ids remain accepted for import/load compatibility.
+- `MissionManager.TASK_TEST_LAYOUT_ID` maps to canonical `task_test`, while `MissionManager.TASK_TEST_MISSION_ID` still maps to `mission_10` for compatibility alias/fallback. New Map Constructor presets, runtime patches, mission patch exports, and design-note metadata default source ids to `task_test`; old `mission_10` source ids remain accepted for import/load compatibility.
 - `current_mission_index` still exists as legacy compatibility state for story mission flow, progression, hints, and Mission 7/8/9 branches. TASK TEST restart/reset no longer relies on mission index `10` as the only restart boundary when sandbox mode is active, including the mission-result restart UI path; GameUI keeps that index fallback only inside `_is_task_test_runtime_active()`.
 - Mission 7/8 reusable mechanics still have legacy hardcoded state and should not be deleted until their generic runtime contracts are implemented and smoke-tested.
 
@@ -45,7 +45,7 @@ Current product direction:
 | Mission 4 hidden-route story glue | Removed from goal hints, exit gating, completion message, auto field setup, pickup hints, and discovery side effects. | Ready. | Old Mission 4 story resources can be deleted later. Keep hidden/reveal/X-Ray/Route Data mechanics and debug placement. |
 | Mission 7 cable/socket/powered-gate | Isolated behind `BipobLegacyCableFlowService`, but still hardcoded to Mission 7 state, positions, and `cable_a`. PR-RF-20 adds a generic runtime cable/socket/power contract document, PR-RF-22 adds a parser-safe data/state helper only, PR-RF-23 adds a data-only service skeleton, and PR-RF-24 adds non-gameplay checks only. No generic behavior integration exists yet. | Not ready for deletion. | Implement and smoke-test a generic runtime cable/socket/power service before deleting old Mission 7 layout/state. |
 | Mission 8 fan/platform/airflow/cooling | Isolated behind `BipobLegacyAirflowFlowService`, but still hardcoded to Mission 8 state, positions, airflow cells, terminal cooling/hack state, and direct door mutation. PR-RF-21 adds a generic runtime fan/platform/airflow/cooling contract document, but no generic implementation exists yet. | Not ready for deletion. | Implement and smoke-test a generic runtime fan/platform/airflow/cooling service before deleting old Mission 8 layout/state. |
-| TASK TEST startup/restart/reset | Has explicit `start_task_test_session()` / `restart_task_test_session()` / `reset_task_test_session()` entry points, explicit `active_runtime_mode_id` runtime identity in the controller and MissionManager, a neutral `task_test` layout alias, and `mission_10` fallback compatibility. `start_mission(10)` still delegates to `start_task_test_session()` for compatibility, `restart_current_mission()` dispatches to TASK TEST restart when sandbox mode is active, and GameUI mission-result restart calls the TASK TEST restart/reset boundary before legacy mission-id restart fallback. Raw GameUI TASK TEST mission-index checks are centralized behind `_is_task_test_runtime_active()` and controller helper calls. | Partially ready. | Keep proving TASK TEST smoke coverage before deleting mission-index compatibility and old mission resources. |
+| TASK TEST startup/restart/reset | Has explicit `start_task_test_session()` / `restart_task_test_session()` / `reset_task_test_session()` entry points, explicit `active_runtime_mode_id` runtime identity in the controller and MissionManager, a canonical `task_test` catalog layout id, and `mission_10` alias/fallback compatibility. `start_mission(10)` still delegates to `start_task_test_session()` for compatibility, `restart_current_mission()` dispatches to TASK TEST restart when sandbox mode is active, and GameUI mission-result restart calls the TASK TEST restart/reset boundary before legacy mission-id restart fallback. Raw GameUI TASK TEST mission-index checks are centralized behind `_is_task_test_runtime_active()` and controller helper calls. | Partially ready. | Keep proving TASK TEST smoke coverage before deleting mission-index compatibility and old mission resources. |
 | TASK TEST completion | Isolated through `complete_sandbox_run()`. | Mostly ready. | Smoke-test sandbox completion. Later route direct TASK TEST callers to `complete_sandbox_run()` and reduce `complete_mission()` compatibility. |
 | Mission selection/progression | Still uses `current_mission_index`, `max_mission_index`, `start_mission()`, `complete_legacy_story_mission()`, and legacy hints. | Not ready. | Isolate/remove story mission selection UI/progression after TASK TEST no longer depends on mission index startup. |
 | MissionManager | Still owns runtime world-object APIs, TASK TEST compatibility id, layouts, and Map Constructor catalog behavior; TASK TEST seed object construction is now delegated to `TaskTestWorldBuilder`. | Not ready for broad deletion. | Keep reducing MissionManager by separating runtime world-object/catalog responsibilities from story mission responsibilities. |
@@ -58,7 +58,7 @@ Current product direction:
    - `restart_task_test_session()` / `reset_task_test_session()` own TASK TEST restart/reset and are used before falling back to legacy mission restart wrappers, including GameUI mission-result restart.
    - `start_mission(10)` delegates to `start_task_test_session()` for compatibility.
    - `current_mission_index` remains compatibility state for progression, hints, and legacy story branches.
-   - `task_test` is now the neutral TASK TEST layout/catalog alias, while `mission_10` remains the compatibility fallback id.
+   - `task_test` is now the canonical TASK TEST layout/catalog id, while `mission_10` remains the compatibility fallback id.
 
 2. **Mission 7 cable mechanics are not generic yet.**
    - `BipobLegacyCableFlowService` preserves behavior but still uses hardcoded Mission 7 state, positions, tile mutations, and `cable_a`.
@@ -81,7 +81,7 @@ Current product direction:
 
 ### PR-RF-18 — Introduce non-story TASK TEST layout id alias
 
-Status: completed. TASK TEST now exposes `task_test` as the neutral layout/catalog alias, MissionManager and the mission catalog resolve that alias to the existing `mission_10` layout data, and `mission_10` remains accepted as the compatibility id. No mission resources were deleted or renamed.
+Status: completed. TASK TEST now exposes `task_test` as the canonical layout/catalog id, MissionManager and the mission catalog keep `mission_10` accepted as an alias, and normal startup requests `task_test` layout data. No mission resources were deleted or renamed.
 
 ### PR-RF-19 — Split sandbox session state from `current_mission_index`
 
@@ -100,7 +100,7 @@ Status: completed for the mission-result UI restart dependency direction. GameUI
 
 ### PR-RF-30 — Extract TASK TEST world-object builder from MissionManager
 
-Status: completed. `scripts/game/task_test_world_builder.gd` now owns the behavior-equivalent TASK TEST seed object and item construction. MissionManager keeps the existing TASK TEST setup and validation methods as wrappers, preserving runtime startup, Map Constructor validation/build callers, `task_test`, and `mission_10` compatibility without deleting old mission resources.
+Status: completed. `scripts/game/task_test_world_builder.gd` now owns the behavior-equivalent TASK TEST seed object and item construction. MissionManager keeps the existing TASK TEST setup and validation methods as wrappers, preserving runtime startup, Map Constructor validation/build callers, canonical `task_test`, and `mission_10` alias compatibility without deleting old mission resources.
 
 ### PR-RF-20 — Generic runtime cable/socket/power contract planning
 
@@ -168,7 +168,7 @@ Only after the above boundaries pass smoke:
 Do not delete these yet:
 
 - `MissionManager` as a whole.
-- TASK TEST / `task_test` alias and `mission_10` compatibility layout/catalog data.
+- TASK TEST canonical `task_test` layout/catalog data and `mission_10` compatibility alias.
 - Map Constructor catalog/preset/patch APIs.
 - WorldObjectCatalog / InteractionSystem / PowerSystem runtime APIs.
 - Scan/hack services and digital record storage.
@@ -209,8 +209,13 @@ Goal: keep TASK TEST objective/goal/hint UI independent from legacy numeric miss
 
 Completed scope:
 
-- Added MissionManager TASK TEST objective helpers that resolve `goal_text` and `objective_hint` from the canonical `task_test` MissionContentCatalog entry while still accepting the `mission_10` compatibility alias/fallback.
+- Added MissionManager TASK TEST objective helpers that resolve `goal_text` and `objective_hint` from the canonical `task_test` MissionContentCatalog entry while still accepting the `mission_10` compatibility alias.
 - Added BipobController TASK TEST objective wrapper helpers for UI-facing callers.
 - Routed GameUI TASK TEST objective/secondary hint selection through `_is_task_test_runtime_active()` and the BipobController helper boundary, leaving old story missions on the legacy hint/view-model path.
 
 Deletion readiness impact: TASK TEST objective copy no longer needs raw `get_mission_goal_hint(10)` or a `current_mission_index == 10` UI branch for objective text. Legacy story hint compatibility, `current_mission_index`, and `mission_10` compatibility remain in place until later retirement PRs.
+
+
+### PR-RF-33 — Catalog-only TASK TEST layout startup
+
+Status: completed for the normal TASK TEST layout path. `start_task_test_session()` requests canonical `task_test`, MissionManager applies MissionContentCatalog layout data first, and BipobController skips the old `GridManager.reset_mission_layout(10)` fallback whenever the TASK TEST catalog layout exists. `mission_10` remains accepted as a compatibility alias, and GridManager Mission 10 layout data remains in place as emergency/legacy fallback only. Old mission resources are not ready for deletion yet.

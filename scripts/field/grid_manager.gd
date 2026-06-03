@@ -174,7 +174,8 @@ func get_mission7_layout() -> Array:
 	]
 
 func get_mission10_layout() -> Array:
-	# TASK TEST universal systems testbed layout (16x10)
+	# Compatibility-only TASK TEST emergency layout fallback. Normal TASK TEST
+	# startup loads canonical `task_test` layout data through MissionContentCatalog.
 	return [
 		[1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1],
 		[1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1],
@@ -203,6 +204,8 @@ func reset_mission_layout(mission_index: int) -> void:
 	elif mission_index == 9:
 		map_data = duplicate_map_layout(get_mission9_layout())
 	elif mission_index == 10:
+		# Compatibility-only path for legacy callers. Normal TASK TEST startup
+		# applies the canonical `task_test` catalog layout before this fallback.
 		map_data = duplicate_map_layout(get_mission10_layout())
 	else:
 		map_data = duplicate_map_layout(mission_initial_map_data)

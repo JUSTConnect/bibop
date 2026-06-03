@@ -148,10 +148,13 @@ func get_task_test_mission_id() -> String:
 	return TASK_TEST_MISSION_ID
 
 func get_task_test_layout_id() -> String:
+	return TASK_TEST_LAYOUT_ID
+
+func has_task_test_catalog_layout() -> bool:
 	var catalog := MissionContentCatalogRef.new()
-	if catalog.has_mission_layout(TASK_TEST_LAYOUT_ID):
-		return TASK_TEST_LAYOUT_ID
-	return TASK_TEST_MISSION_ID
+	if not catalog.has_mission_layout(TASK_TEST_LAYOUT_ID):
+		return false
+	return not catalog.get_mission_layout(TASK_TEST_LAYOUT_ID).is_empty()
 
 func get_task_test_source_id() -> String:
 	return TASK_TEST_LAYOUT_ID
@@ -168,11 +171,8 @@ func is_task_test_mission_id(mission_id: String) -> bool:
 
 func resolve_task_test_catalog_id(mission_id: String) -> String:
 	var normalized := str(mission_id).strip_edges()
-	if normalized == TASK_TEST_LAYOUT_ID:
-		var catalog := MissionContentCatalogRef.new()
-		if catalog.has_mission_layout(TASK_TEST_LAYOUT_ID):
-			return TASK_TEST_LAYOUT_ID
-		return TASK_TEST_MISSION_ID
+	if normalized == TASK_TEST_LAYOUT_ID or normalized == TASK_TEST_MISSION_ID:
+		return TASK_TEST_LAYOUT_ID
 	return normalized
 
 const MAP_CONSTRUCTOR_WALL_SIDE_DELTAS: Array[Dictionary] = [
@@ -344,8 +344,19 @@ func validate_task_test_catalog_layout_runtime_source() -> Array[String]:
 	var catalog := MissionContentCatalogRef.new()
 	var task_test_catalog_id: String = resolve_task_test_catalog_id(TASK_TEST_LAYOUT_ID)
 	if not catalog.has_mission_layout(task_test_catalog_id):
-		warnings.append("task_test_catalog_layout_missing_mission_10")
+		warnings.append("task_test_catalog_layout_missing_task_test")
 		return warnings
+	var task_test_layout: Array = catalog.get_mission_layout(TASK_TEST_LAYOUT_ID)
+	if task_test_layout.is_empty():
+		warnings.append("task_test_catalog_layout_empty")
+	if not catalog.has_mission_layout(TASK_TEST_MISSION_ID):
+		warnings.append("task_test_catalog_layout_missing_mission_10_alias")
+	else:
+		var mission10_layout: Array = catalog.get_mission_layout(TASK_TEST_MISSION_ID)
+		if mission10_layout.is_empty():
+			warnings.append("task_test_catalog_layout_mission_10_alias_empty")
+		elif var_to_str(task_test_layout) != var_to_str(mission10_layout):
+			warnings.append("task_test_catalog_layout_mission_10_alias_mismatch")
 	var layout_size: Vector2i = catalog.get_mission_layout_size(task_test_catalog_id)
 	if layout_size.x != 16 or layout_size.y != 10:
 		warnings.append("task_test_catalog_layout_expected_16x10_got_%dx%d" % [layout_size.x, layout_size.y])

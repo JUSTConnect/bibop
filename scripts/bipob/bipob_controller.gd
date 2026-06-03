@@ -1246,7 +1246,12 @@ func get_task_test_mission_id() -> String:
 func get_task_test_layout_id() -> String:
 	if mission_manager != null and mission_manager.has_method("get_task_test_layout_id"):
 		return str(mission_manager.call("get_task_test_layout_id"))
-	return get_task_test_mission_id()
+	return RUNTIME_MODE_TASK_TEST
+
+func has_task_test_catalog_layout() -> bool:
+	if mission_manager != null and mission_manager.has_method("has_task_test_catalog_layout"):
+		return bool(mission_manager.call("has_task_test_catalog_layout"))
+	return false
 
 func get_task_test_goal_text() -> String:
 	if mission_manager != null and mission_manager.has_method("get_task_test_goal_text"):
@@ -1353,7 +1358,13 @@ func _start_runtime_session(mission_index: int, layout_id: String, runtime_mode_
 		if is_sandbox_mode_active() and mission_manager != null and mission_manager.has_method("apply_catalog_mission_layout_to_grid"):
 			used_catalog_layout = bool(mission_manager.call("apply_catalog_mission_layout_to_grid", mission_id))
 		if not used_catalog_layout:
-			grid_manager.reset_mission_layout(current_mission_index)
+			if is_sandbox_mode_active():
+				if has_task_test_catalog_layout():
+					push_warning("TASK TEST catalog layout exists but could not be applied; skipping GridManager mission10 compatibility fallback.")
+				else:
+					grid_manager.reset_mission_layout(current_mission_index)
+			else:
+				grid_manager.reset_mission_layout(current_mission_index)
 		if mission_manager != null:
 			mission_manager.setup_world_objects_for_mission(mission_id)
 			refresh_world_object_overlay()
