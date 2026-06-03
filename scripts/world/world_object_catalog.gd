@@ -85,6 +85,9 @@ const PREFAB_ALIASES: Dictionary = {
 const LEGACY_SOURCE_METADATA_FIELDS: Array[String] = ["legacy_prefab_id", "map_constructor_prefab_id", "legacy_object_type", "source_prefab_id"]
 
 const PREFAB_ALIAS_DEFAULTS: Dictionary = {
+	"fire_barrel": {"variant":"fire"},
+	"explosive_barrel": {"variant":"fire"},
+	"heavy_crate": {"movable":true, "heavy_claw_movable":true, "weight_class":"heavy", "required_bipob_power_class":"engineer"},
 	"concrete_floor": {"object_group":"floor", "material":"concrete"},
 	"steel_floor": {"object_group":"floor", "material":"steel"},
 	"titan_floor": {"object_group":"floor", "material":"titan"},
@@ -299,7 +302,11 @@ const ARCHETYPE_REGISTRY: Dictionary = {
 	},
 	"steel_box": {
 		"archetype_id":"steel_box", "object_group":"physical_object", "object_type":"steel_box", "palette_label":"Steel Box",
-		"placement_mode":"object", "display_name_template":"Steel Box", "configurable":false, "weight_class":"heavy", "required_bipob_power_class":"engineer", "movable":true, "heavy_claw_movable":true, "heavy_claw_mode":"push", "blocks_movement":true, "magnetic":true, "material_tags":["metal"], "property_schema":[]
+		"placement_mode":"object", "display_name_template":"Steel Box", "configurable":true, "weight_class":"heavy", "required_bipob_power_class":"engineer", "movable":true, "heavy_claw_movable":true, "heavy_claw_mode":"push", "blocks_movement":true, "magnetic":true, "material_tags":["metal"],
+		"property_schema":[
+			{"field":"movable", "type":"bool", "default":true},
+			{"field":"heavy_claw_movable", "type":"bool", "default":true}
+		]
 	},
 	"case": {
 		"archetype_id":"case", "object_group":"physical_object", "object_type":"case", "palette_label":"Case",
@@ -1453,7 +1460,7 @@ static func can_world_object_be_moved_by_heavy_claw(object_data: Dictionary) -> 
 	if object_group not in ["cooling", "physical", "physical_object"]:
 		return false
 	var object_type := str(object_data.get("object_type", ""))
-	return object_type in ["external_radiator", "external_air_cooler", "metal_cooling_block", "normal_crate", "heavy_crate", "barrel", "explosive_barrel"]
+	return object_type in ["external_radiator", "external_air_cooler", "metal_cooling_block", "normal_crate", "heavy_crate", "steel_box", "barrel", "explosive_barrel", "fire_barrel"]
 
 static func can_world_object_receive_cooling(object_data: Dictionary) -> bool:
 	if object_data.is_empty():

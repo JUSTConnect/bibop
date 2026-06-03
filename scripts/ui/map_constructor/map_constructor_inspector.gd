@@ -396,7 +396,7 @@ static func _render_entity_tab(ui: Variant, parent: VBoxContainer, entity_info: 
 		ui._add_bool_property(configurable, "requires_external_control", entity_kind, entity_id, "requires_external_control", data.get("requires_external_control", false))
 	var inspector_object_type: String = ui._safe_ui_string(data.get("object_type", "")).to_lower()
 	var uses_dedicated_power_state_selector: bool = type_group == "power" and (inspector_object_type.begins_with("power_source") or inspector_object_type in ["power_cable", "power_cable_reel"])
-	if object_is_configurable and data.has("state") and not (type_group == "door" or uses_dedicated_power_state_selector):
+	if object_is_configurable and data.has("state") and normalized_object_type not in ["power_switcher", "fuse_box"] and not (type_group == "door" or uses_dedicated_power_state_selector):
 		ui._add_text_property(configurable, "Editable state override", entity_kind, entity_id, "state", data.get("state", ""))
 	if type_group == "terminal":
 		ui._add_bool_property(configurable, "damaged", entity_kind, entity_id, "damaged", data.get("damaged", false))

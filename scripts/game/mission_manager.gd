@@ -5171,7 +5171,7 @@ func _normalize_map_constructor_active_object_fields(object_data: Dictionary) ->
 		data["outlet_capacity"] = source_class + 3
 	if type_group == "terminal" and not data.has("is_powered"):
 		data["is_powered"] = true
-	if object_type_normalized in ["power_cable", "power_socket", "circuit_breaker", "circuit_switch", "fuse_box", "fuse_box_installed", "fuse_box_empty", "light", "light_switch"]:
+	if object_type_normalized in ["power_cable", "power_socket", "circuit_breaker", "circuit_switch", "fuse_box", "fuse_box_installed", "fuse_box_empty", "light", "light_switch", "power_switcher"]:
 		if not data.has("is_powered"):
 			data["is_powered"] = false
 		if not data.has("physical_connection_source_id"):
@@ -5201,12 +5201,13 @@ func _normalize_map_constructor_active_object_fields(object_data: Dictionary) ->
 			data["cable_path_cells"] = []
 		if not data.has("cable_length"):
 			data["cable_length"] = 0
-	if object_type_normalized in ["circuit_breaker", "circuit_switch", "light_switch"]:
+	if object_type_normalized in ["circuit_breaker", "circuit_switch", "light_switch", "power_switcher"]:
 		var switch_default_state: String = "switch_on" if object_type_normalized == "circuit_breaker" else "switch_off"
 		if str(data.get("state", "active")).strip_edges().to_lower() == "active":
 			data["state"] = switch_default_state
 		if not data.has("is_on"):
 			data["is_on"] = str(data.get("state", switch_default_state)).strip_edges().to_lower() == "switch_on"
+		data["switch_state"] = "on" if bool(data.get("is_on", false)) else "off"
 	if object_type_normalized in ["fuse_box", "fuse_box_installed", "fuse_box_empty"]:
 		var fuse_installed_default: bool = object_type_normalized != "fuse_box_empty"
 		if str(data.get("state", "active")).strip_edges().to_lower() == "active":
@@ -5215,6 +5216,8 @@ func _normalize_map_constructor_active_object_fields(object_data: Dictionary) ->
 			data["requires_fuse"] = true
 		if not data.has("fuse_installed"):
 			data["fuse_installed"] = fuse_installed_default
+		data["fuse_present"] = bool(data.get("fuse_present", data.get("fuse_installed", fuse_installed_default)))
+		data["fuse_installed"] = bool(data.get("fuse_present", false))
 	if object_type_normalized == "power_socket":
 		if str(data.get("state", "active")).strip_edges().to_lower() == "active":
 			data["state"] = "disconnected"
@@ -5834,7 +5837,7 @@ func get_cell_item_by_id(id: String) -> Dictionary:
 func update_world_object_by_id(id: String, data: Dictionary) -> void:
 	if id.is_empty() or data.is_empty():
 		return
-	data = WorldObjectCatalogRef.normalize_door_state_fields(data)
+	data = WorldObjectCatalogRef.normalize_door_state_fields(WorldObjectCatalogRef.normalize_world_object_contract(data))
 	for index in range(mission_world_objects.size()):
 		var object_data: Dictionary = mission_world_objects[index]
 		if str(object_data.get("id", "")) != id:

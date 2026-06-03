@@ -48,7 +48,7 @@ static func _apply_explicit_power_event(controller: Variant, world_object: Dicti
 	if action_id == "switch":
 		var object_type: String = str(world_object.get("object_type", "")).strip_edges().to_lower()
 		object_type = object_type.replace(" ", "_").replace("-", "_")
-		if object_type in ["light_switch", "circuit_switch", "circuit_breaker"]:
+		if object_type in ["light_switch", "circuit_switch", "circuit_breaker", "power_switcher"]:
 			var reason := "switch_toggled"
 			if object_type == "circuit_breaker":
 				reason = "circuit_breaker_toggled"
@@ -57,11 +57,12 @@ static func _apply_explicit_power_event(controller: Variant, world_object: Dicti
 				power_filter = str(controller.mission_manager.call("_get_power_event_filter_for_object", world_object))
 			var apply_report: Dictionary = Dictionary(controller.apply_power_network_after_explicit_power_event(reason, power_filter))
 			action_result["power_apply_report"] = apply_report
-	elif action_id == "insert_fuse":
+	elif action_id in ["insert_fuse", "remove_fuse"]:
 		var power_filter := ""
 		if controller.mission_manager.has_method("_get_power_event_filter_for_object"):
 			power_filter = str(controller.mission_manager.call("_get_power_event_filter_for_object", world_object))
-		var apply_report: Dictionary = Dictionary(controller.apply_power_network_after_explicit_power_event("fuse_inserted", power_filter))
+		var power_reason: String = "fuse_inserted" if action_id == "insert_fuse" else "fuse_removed"
+		var apply_report: Dictionary = Dictionary(controller.apply_power_network_after_explicit_power_event(power_reason, power_filter))
 		action_result["power_apply_report"] = apply_report
 
 
