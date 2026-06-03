@@ -3,15 +3,15 @@
 importer="texture"
 type="CompressedTexture2D"
 uid="uid://bnmmd5wqeel8m"
-path="res://.godot/imported/box_01.png-23d5d58776ed7a0db6c1721012fd3834.ctex"
+path="res://.godot/imported/steel_box_01.png-23d5d58776ed7a0db6c1721012fd3834.ctex"
 metadata={
 "vram_texture": false
 }
 
 [deps]
 
-source_file="res://assets/visual/isometric/moovable/box_01.png"
-dest_files=["res://.godot/imported/box_01.png-23d5d58776ed7a0db6c1721012fd3834.ctex"]
+source_file="res://assets/visual/isometric/moovable/steel_box_01.png"
+dest_files=["res://.godot/imported/steel_box_01.png-23d5d58776ed7a0db6c1721012fd3834.ctex"]
 
 [params]
 
