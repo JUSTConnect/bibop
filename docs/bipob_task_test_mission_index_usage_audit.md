@@ -89,15 +89,16 @@ Conclusion: BipobController still carries mission-index compatibility, but TASK 
 | `TASK_TEST_LAYOUT_ID := "task_test"`. | Desired semantic id. | Should become the canonical catalog id. |
 | `TASK_TEST_MISSION_ID := "mission_10"`. | Compatibility id. | Keep as alias/fallback for now. |
 | `get_task_test_layout_id()` tries `task_test`, falls back to `mission_10`. | Safe compatibility boundary. | Good transition helper. |
+| `get_task_test_source_id()` returns `task_test`. | Canonical persistence/export boundary. | Use for new Map Constructor source metadata. |
 | `is_task_test_mission_id()` accepts both `task_test` and `mission_10`. | Safe compatibility boundary. | Keep. |
 | `resolve_task_test_catalog_id()` resolves `task_test` to `mission_10` if catalog does not have `task_test`. | Compatibility fallback. | Next step should invert this once `task_test` is canonical. |
 | `setup_world_objects_for_mission()` dispatches TASK TEST by `is_task_test_mission_id()`. | TASK TEST boundary isolated. | Good. |
 | `_setup_task_test_mission_world()` remains in MissionManager as the runtime setup wrapper. | TASK TEST runtime setup compatibility boundary. | The wrapper now pulls seed data through `TaskTestWorldBuilder`; keep it until external callers no longer need the MissionManager method. |
 | `build_task_test_mission_world_objects_for_validation()`. | TASK TEST validation compatibility wrapper. | Delegates to `TaskTestWorldBuilder.build_validation_world_objects()` while preserving the existing MissionManager API. |
 | Map Constructor APIs gate through `_is_task_test_constructor_context()`. | TASK TEST boundary isolated. | Correct. |
-| Preset/patch export defaults `source_mission_id` to `mission_10`. | Compatibility leak. | Later default to canonical `task_test`, while still accepting `mission_10` on import. |
+| Preset/patch export defaults `source_mission_id` / source metadata to `task_test`. | Canonicalized. | New Map Constructor presets, runtime patches, mission patch exports, and design notes use `task_test`; `mission_10` remains accepted only for old imports/loads. |
 
-Conclusion: MissionManager is now mode-aware, and TASK TEST seed object construction is delegated to `TaskTestWorldBuilder`. Constructor persistence still keeps `mission_10` compatibility in several places.
+Conclusion: MissionManager is now mode-aware, TASK TEST seed object construction is delegated to `TaskTestWorldBuilder`, and new Constructor persistence/export source metadata uses canonical `task_test` while keeping `mission_10` import compatibility.
 
 ## 4. MissionContentCatalog
 
