@@ -145,17 +145,18 @@ const ISO_FLOOR_ASSET_CATALOG: Dictionary = {
 # measured from the checked-in wall atlas files and used only by the renderer so
 # the visible wall base, not the full transparent canvas, is anchored to the
 # 128x64 isometric wall footprint.
+const ISO_WALL_BASELINE_VISIBLE_BOUNDS: Rect2 = Rect2(47, 36, 508, 842)
 const ISO_WALL_ASSET_PLACEMENT: Dictionary = {
-	"wall_default": {"visible_bounds": Rect2(64, 36, 471, 842), "target_base_width": 128.0, "scale": 1.0, "offset": Vector2.ZERO},
-	"wall_concrete": {"visible_bounds": Rect2(64, 36, 471, 842), "target_base_width": 128.0, "scale": 1.0, "offset": Vector2.ZERO},
-	"wall_steel": {"visible_bounds": Rect2(60, 31, 476, 857), "target_base_width": 128.0, "scale": 1.0, "offset": Vector2.ZERO},
-	"wall_reinforced_steel": {"visible_bounds": Rect2(64, 27, 471, 861), "target_base_width": 128.0, "scale": 1.0, "offset": Vector2.ZERO},
-	"wall_brick": {"visible_bounds": Rect2(0, 27, 537, 859), "target_base_width": 128.0, "scale": 1.0, "offset": Vector2.ZERO},
-	"wall_outer": {"visible_bounds": Rect2(47, 36, 508, 842), "target_base_width": 128.0, "scale": 1.0, "offset": Vector2.ZERO},
-	"wall_titanium": {"visible_bounds": Rect2(62, 36, 474, 842), "target_base_width": 128.0, "scale": 1.0, "offset": Vector2.ZERO},
-	"wall_grate": {"visible_bounds": Rect2(64, 36, 473, 842), "target_base_width": 128.0, "scale": 1.0, "offset": Vector2.ZERO},
-	"wall_concrete_damaged": {"visible_bounds": Rect2(62, 39, 474, 841), "target_base_width": 128.0, "scale": 1.0, "offset": Vector2.ZERO},
-	"wall_brick_damaged": {"visible_bounds": Rect2(54, 27, 483, 857), "target_base_width": 128.0, "scale": 1.0, "offset": Vector2.ZERO}
+	"wall_default": {"visible_bounds": ISO_WALL_BASELINE_VISIBLE_BOUNDS, "target_base_width": 128.0, "scale": 1.0, "offset": Vector2.ZERO},
+	"wall_concrete": {"visible_bounds": ISO_WALL_BASELINE_VISIBLE_BOUNDS, "target_base_width": 128.0, "scale": 1.0, "offset": Vector2.ZERO},
+	"wall_steel": {"visible_bounds": ISO_WALL_BASELINE_VISIBLE_BOUNDS, "target_base_width": 128.0, "scale": 1.0, "offset": Vector2.ZERO},
+	"wall_reinforced_steel": {"visible_bounds": ISO_WALL_BASELINE_VISIBLE_BOUNDS, "target_base_width": 128.0, "scale": 1.0, "offset": Vector2.ZERO},
+	"wall_brick": {"visible_bounds": ISO_WALL_BASELINE_VISIBLE_BOUNDS, "target_base_width": 128.0, "scale": 1.0, "offset": Vector2.ZERO},
+	"wall_outer": {"visible_bounds": ISO_WALL_BASELINE_VISIBLE_BOUNDS, "target_base_width": 128.0, "scale": 1.0, "offset": Vector2.ZERO},
+	"wall_titanium": {"visible_bounds": ISO_WALL_BASELINE_VISIBLE_BOUNDS, "target_base_width": 128.0, "scale": 1.0, "offset": Vector2.ZERO},
+	"wall_grate": {"visible_bounds": ISO_WALL_BASELINE_VISIBLE_BOUNDS, "target_base_width": 128.0, "scale": 1.0, "offset": Vector2.ZERO},
+	"wall_concrete_damaged": {"visible_bounds": ISO_WALL_BASELINE_VISIBLE_BOUNDS, "target_base_width": 128.0, "scale": 1.0, "offset": Vector2.ZERO},
+	"wall_brick_damaged": {"visible_bounds": ISO_WALL_BASELINE_VISIBLE_BOUNDS, "target_base_width": 128.0, "scale": 1.0, "offset": Vector2.ZERO}
 }
 
 const ISO_FLOOR_ATLAS_COLUMNS: int = 6
@@ -165,6 +166,7 @@ const ISO_FLOOR_ATLAS_HEAVY_METAL_VARIANTS: int = 4
 const ISO_FLOOR_ATLAS_SOURCE_EDGE_PADDING: float = 3.0
 const ISO_FLOOR_ATLAS_SCREEN_OVERLAP: float = 1.5
 const ISO_FLOOR_UNDERLAY_OVERLAP: float = 1.25
+const ISO_FLOOR_ASSET_SCREEN_OVERLAP: float = 2.0
 const ISO_FLOOR_OVERLAY_INNER_INSET: float = 12.0
 const ISO_FLOOR_SEAM_SAFE_BASE_VARIANTS: Dictionary = {
 	"grate_base": [1],
@@ -1330,7 +1332,8 @@ func draw_iso_floor_asset_texture_for_cell(cell: Vector2i, asset_key: String) ->
 	var texture: Texture2D = get_iso_floor_texture_for_asset_key(asset_key)
 	if texture == null:
 		return false
-	var destination_rect: Rect2 = Rect2(grid_to_iso(cell) - get_iso_tile_half_size(), get_iso_tile_size())
+	var floor_overlap: Vector2 = Vector2(ISO_FLOOR_ASSET_SCREEN_OVERLAP, ISO_FLOOR_ASSET_SCREEN_OVERLAP)
+	var destination_rect: Rect2 = Rect2(grid_to_iso(cell) - get_iso_tile_half_size() - floor_overlap, get_iso_tile_size() + floor_overlap * 2.0)
 	draw_texture_rect(texture, destination_rect, false)
 	draw_iso_asset_alignment_overlay(asset_key, grid_to_iso(cell), destination_rect)
 	return true
@@ -1457,12 +1460,11 @@ func get_iso_wall_texture_draw_rect_for_cell(cell: Vector2i, texture: Texture2D,
 	var destination_size: Vector2 = source_size * scale_value
 	var visible_bottom_center_in_source: Vector2 = visible_bounds.position + Vector2(visible_bounds.size.x * 0.5, visible_bounds.size.y)
 	var visible_bottom_center_in_destination: Vector2 = visible_bottom_center_in_source * scale_value
-	var base_anchor: Vector2 = grid_to_iso(cell) + Vector2(0.0, get_iso_tile_half_size().y) + Vector2(placement.get("offset", Vector2.ZERO))
-	return Rect2(base_anchor - visible_bottom_center_in_destination, destination_size)
+	var base_anchor: Vector2 = (grid_to_iso(cell) + Vector2(0.0, get_iso_tile_half_size().y) + Vector2(placement.get("offset", Vector2.ZERO))).round()
+	return Rect2((base_anchor - visible_bottom_center_in_destination).round(), destination_size)
 
-func should_mirror_iso_wall_asset_for_topology(topology: Dictionary) -> bool:
-	var shape: String = str(topology.get("shape", ""))
-	return shape == "straight_y" or shape.ends_with("_east") or shape.ends_with("_ne") or shape.ends_with("_se")
+func should_mirror_iso_wall_asset_for_topology(_topology: Dictionary) -> bool:
+	return false
 
 func draw_iso_wall_asset_texture_rect(texture: Texture2D, destination_rect: Rect2, mirror_x: bool) -> void:
 	if not mirror_x:
@@ -1557,7 +1559,12 @@ func _get_object_mount_mode(object_data: Dictionary) -> String:
 	return "floor"
 
 func _is_object_state_on(object_data: Dictionary) -> bool:
+	var type_value: String = str(object_data.get("object_type", object_data.get("type", ""))).to_lower().strip_edges()
 	var state: String = str(object_data.get("switch_state", object_data.get("state", "off"))).to_lower().strip_edges()
+	if type_value.ends_with("_on") or type_value.contains("_on_"):
+		return true
+	if type_value.ends_with("_off") or type_value.contains("_off_"):
+		return false
 	if state in ["on", "off", "switch_on", "switch_off", "active", "inactive"]:
 		return state in ["on", "switch_on", "active"]
 	if object_data.has("is_on"):
@@ -1565,6 +1572,11 @@ func _is_object_state_on(object_data: Dictionary) -> bool:
 	return false
 
 func _is_fuse_present(object_data: Dictionary) -> bool:
+	var type_value: String = str(object_data.get("object_type", object_data.get("type", ""))).to_lower().strip_edges()
+	if type_value.contains("installed") or type_value.contains("_in"):
+		return true
+	if type_value.contains("empty") or type_value.contains("_out"):
+		return false
 	if object_data.has("fuse_present"):
 		return bool(object_data.get("fuse_present", false))
 	return bool(object_data.get("fuse_installed", str(object_data.get("state", "")).to_lower().strip_edges() == "installed"))
@@ -1588,7 +1600,8 @@ func get_iso_object_asset_key_for_object_data(object_data: Dictionary, fallback_
 			return "fuse_box_%s_wall_01" % fuse_suffix
 		return "fuse_box_%s_01" % fuse_suffix
 	if type_value == "barrel" or blob.contains("barrel"):
-		return "fire_barrel_01" if str(object_data.get("variant", "normal")).to_lower().strip_edges() == "fire" else "barrel_01"
+		var barrel_variant: String = str(object_data.get("variant", "normal")).to_lower().strip_edges()
+		return "fire_barrel_01" if barrel_variant == "fire" or type_value == "fire_barrel" or blob.contains("fire_barrel") or blob.contains("fire barrel") else "barrel_01"
 	if type_value == "steel_box" or blob.contains("steel_box") or blob.contains("steel box"):
 		return "steel_box_01"
 	if type_value == "case" or blob.contains(" case"):
@@ -2176,7 +2189,7 @@ func get_iso_texture_draw_rect_for_asset_key_with_size(asset_key: String, center
 	var anchor: String = str(rule.get("anchor", "center"))
 	var scale_value: float = get_iso_asset_alignment_scale(asset_key)
 	var destination_size: Vector2 = source_size * scale_value
-	if asset_key.begins_with("floor_"):
+	if asset_key.begins_with("floor_") or asset_key.begins_with("object_"):
 		destination_size = get_iso_asset_alignment_expected_size(asset_key) * scale_value
 	var offset: Vector2 = Vector2(rule.get("offset", Vector2.ZERO))
 	var anchor_offset: Vector2 = get_iso_asset_alignment_anchor_offset(anchor, destination_size)
@@ -2294,16 +2307,16 @@ func can_draw_optional_visual_texture_asset(asset_id: String) -> bool:
 	return loaded != null and (loaded is Texture2D)
 
 func has_drawable_iso_wall_texture(material_override: Dictionary, material_row: Dictionary, wall_profile_key: String) -> bool:
+	var wall_asset_key: String = wall_profile_key
 	if bool(material_override.get("ok", false)):
-		if can_draw_optional_visual_texture_asset(str(material_row.get("texture_asset_id", ""))):
-			return true
-	return get_iso_wall_texture_for_profile(wall_profile_key) != null
+		wall_asset_key = get_iso_wall_asset_key_for_material_row(material_row, wall_profile_key)
+	return get_iso_wall_texture_for_profile(wall_asset_key) != null
 
 func draw_iso_wall_texture_for_cell(cell: Vector2i, material_override: Dictionary, material_row: Dictionary, wall_profile_key: String) -> bool:
+	var wall_asset_key: String = wall_profile_key
 	if bool(material_override.get("ok", false)):
-		if draw_optional_visual_texture_asset(str(material_row.get("texture_asset_id", "")), cell, "draw_iso_wall_surface_accent"):
-			return true
-	return draw_iso_wall_asset_texture_for_cell(cell, wall_profile_key, get_wall_render_topology(cell))
+		wall_asset_key = get_iso_wall_asset_key_for_material_row(material_row, wall_profile_key)
+	return draw_iso_wall_asset_texture_for_cell(cell, wall_asset_key, get_wall_render_topology(cell))
 
 func get_wall_prototype_colors(cell: Vector2i) -> Dictionary:
 	var profile_key: String = get_wall_visual_profile_key_for_cell(cell)
