@@ -89,16 +89,16 @@ Conclusion: BipobController still carries mission-index compatibility, but TASK 
 | `TASK_TEST_LAYOUT_ID := "task_test"`. | Canonical semantic id. | Normal TASK TEST runtime layout loading uses this id. |
 | `TASK_TEST_MISSION_ID := "mission_10"`. | Compatibility id. | Keep as alias/fallback for now; do not use as the normal runtime layout id. |
 | `get_task_test_layout_id()` returns `task_test`. | Canonical TASK TEST layout boundary. | Normal startup requests the catalog layout by canonical id. |
-| `get_task_test_source_id()` returns `task_test`. | Canonical persistence/export boundary. | Use for new Map Constructor source metadata. |
+| `get_task_test_source_id()` returns `task_test`; `get_task_test_sandbox_source_id()` mirrors it. | Canonical sandbox persistence/export boundary. | Use for new Map Constructor source metadata; the sandbox-named wrapper is the preferred TASK TEST boundary. |
 | `is_task_test_mission_id()` accepts both `task_test` and `mission_10`. | Safe compatibility boundary. | Keep. |
 | `resolve_task_test_catalog_id()` resolves both `task_test` and `mission_10` to canonical `task_test`. | Compatibility alias boundary. | Keeps old `mission_10` callers accepted without making them the normal layout source. |
-| `setup_world_objects_for_mission()` dispatches TASK TEST by `is_task_test_mission_id()`. | TASK TEST boundary isolated. | Good. |
-| `_setup_task_test_mission_world()` remains in MissionManager as the runtime setup wrapper. | TASK TEST runtime setup compatibility boundary. | The wrapper now pulls seed data through `TaskTestWorldBuilder`; keep it until external callers no longer need the MissionManager method. |
-| `build_task_test_mission_world_objects_for_validation()`. | TASK TEST validation compatibility wrapper. | Delegates to `TaskTestWorldBuilder.build_validation_world_objects()` while preserving the existing MissionManager API. |
+| `setup_world_objects_for_mission()` dispatches TASK TEST by `is_task_test_mission_id()`. | Legacy compatibility boundary. | Still accepts `task_test` / `mission_10`, but now delegates TASK TEST setup to `setup_task_test_sandbox_world()`. |
+| `setup_task_test_sandbox_world()` is the preferred runtime setup API; `_setup_task_test_mission_world()` remains as a compatibility wrapper. | Sandbox runtime setup boundary. | The sandbox wrapper pulls seed data through `TaskTestWorldBuilder`; keep the mission-named wrapper until external compatibility callers are retired. |
+| `build_task_test_sandbox_world_objects_for_validation()` is the preferred validation API; `build_task_test_mission_world_objects_for_validation()` remains as a compatibility wrapper. | Sandbox validation boundary. | Both preserve behavior-equivalent Map Constructor validation/build data through `TaskTestWorldBuilder.build_validation_world_objects()`. |
 | Map Constructor APIs gate through `_is_task_test_constructor_context()`. | TASK TEST boundary isolated. | Correct. |
 | Preset/patch export defaults `source_mission_id` / source metadata to `task_test`. | Canonicalized. | New Map Constructor presets, runtime patches, mission patch exports, and design notes use `task_test`; `mission_10` remains accepted only for old imports/loads. |
 
-Conclusion: MissionManager is now mode-aware, TASK TEST seed object construction is delegated to `TaskTestWorldBuilder`, and new Constructor persistence/export source metadata uses canonical `task_test` while keeping `mission_10` import compatibility.
+Conclusion: MissionManager is now mode-aware, TASK TEST setup/validation has sandbox-named API boundaries backed by `TaskTestWorldBuilder`, and mission-named methods remain compatibility wrappers. New Constructor persistence/export source metadata uses canonical `task_test` while keeping `mission_10` import compatibility.
 
 ## 4. MissionContentCatalog
 
@@ -128,9 +128,10 @@ Conclusion: GridManager still owns old hardcoded layouts. TASK TEST normal start
    - Normal TASK TEST startup is catalog-only through `task_test` when the catalog layout is present.
    - `mission_10` and `reset_mission_layout(10)` remain compatibility fallbacks until old callers/resources can be removed safely.
 
-2. **TASK TEST world content builder is extracted behind MissionManager wrappers.**
+2. **TASK TEST world content builder is exposed through sandbox-named MissionManager wrappers.**
    - `TaskTestWorldBuilder` owns the behavior-equivalent TASK TEST seed object and item construction.
-   - `_setup_task_test_mission_world()` and `build_task_test_mission_world_objects_for_validation()` remain MissionManager compatibility wrappers for runtime setup and validation callers.
+   - `setup_task_test_sandbox_world()` and `build_task_test_sandbox_world_objects_for_validation()` are the preferred runtime setup and validation boundaries.
+   - `_setup_task_test_mission_world()` and `build_task_test_mission_world_objects_for_validation()` remain MissionManager compatibility wrappers for old callers.
 
 3. **`current_mission_index` still exists in BipobController.**
    - TASK TEST no longer depends on it as the only identity source.
@@ -163,7 +164,7 @@ Scope suggestion:
 
 ### PR-RF-30 — Extract TASK TEST world-object builder from MissionManager
 
-Status: completed. `TaskTestWorldBuilder` now owns behavior-equivalent TASK TEST world-object and item seed construction, while MissionManager keeps `_setup_task_test_mission_world()` and `build_task_test_mission_world_objects_for_validation()` as compatibility wrappers. Map Constructor validation/build paths continue to use the same wrapper output, and no mission resources were removed.
+Status: completed. `TaskTestWorldBuilder` now owns behavior-equivalent TASK TEST world-object and item seed construction. MissionManager now exposes sandbox-named setup/validation wrappers and keeps `_setup_task_test_mission_world()` and `build_task_test_mission_world_objects_for_validation()` as compatibility wrappers. Map Constructor validation/build paths continue to use the same builder output, and no mission resources were removed.
 
 ### PR-RF-31 — Add TASK TEST objective/view-model boundary independent of legacy hint table
 
@@ -246,3 +247,9 @@ No TASK TEST mechanics, Map Constructor behavior, Mission 7 cable behavior, Miss
 | GameUI raw `current_mission_index == 10` | UI fallback helper only. | Remains centralized inside `_is_task_test_runtime_active()` and should not spread. |
 
 Old story missions are still not ready for deletion; Mission 7 cable behavior, Mission 8 airflow behavior, legacy progression/hints, and compatibility resources remain deliberately retained.
+
+## PR-RF-35 update — sandbox-named setup/validation boundaries
+
+Status: completed for code-side decoupling. TASK TEST runtime setup now prefers `MissionManager.setup_task_test_sandbox_world()`, and validation paths use `build_task_test_sandbox_world_objects_for_validation()` internally. The old mission-named methods remain present as compatibility wrappers, `setup_world_objects_for_mission()` still supports legacy story setup and routes `task_test` / `mission_10` to the sandbox wrapper, and `TaskTestWorldBuilder` remains the only TASK TEST seed-data source.
+
+This is the final code decoupling step before the final audit. It does not mean old mission resources, GridManager Mission 10 fallback, `mission_10`, or `current_mission_index` are ready for deletion.
