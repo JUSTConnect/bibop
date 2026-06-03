@@ -92,12 +92,12 @@ Conclusion: BipobController still carries mission-index compatibility, but TASK 
 | `is_task_test_mission_id()` accepts both `task_test` and `mission_10`. | Safe compatibility boundary. | Keep. |
 | `resolve_task_test_catalog_id()` resolves `task_test` to `mission_10` if catalog does not have `task_test`. | Compatibility fallback. | Next step should invert this once `task_test` is canonical. |
 | `setup_world_objects_for_mission()` dispatches TASK TEST by `is_task_test_mission_id()`. | TASK TEST boundary isolated. | Good. |
-| `_setup_task_test_mission_world()` still lives in MissionManager. | TASK TEST runtime builder still coupled to MissionManager. | Extract later to a TaskTest/Sandbox world builder. |
-| `build_task_test_mission_world_objects_for_validation()`. | TASK TEST builder / validation source. | Misleading name because it is also runtime seed data. Extract/rename later. |
+| `_setup_task_test_mission_world()` remains in MissionManager as the runtime setup wrapper. | TASK TEST runtime setup compatibility boundary. | The wrapper now pulls seed data through `TaskTestWorldBuilder`; keep it until external callers no longer need the MissionManager method. |
+| `build_task_test_mission_world_objects_for_validation()`. | TASK TEST validation compatibility wrapper. | Delegates to `TaskTestWorldBuilder.build_validation_world_objects()` while preserving the existing MissionManager API. |
 | Map Constructor APIs gate through `_is_task_test_constructor_context()`. | TASK TEST boundary isolated. | Correct. |
 | Preset/patch export defaults `source_mission_id` to `mission_10`. | Compatibility leak. | Later default to canonical `task_test`, while still accepting `mission_10` on import. |
 
-Conclusion: MissionManager is now mode-aware, but TASK TEST world building and constructor persistence still keep `mission_10` compatibility in several places.
+Conclusion: MissionManager is now mode-aware, and TASK TEST seed object construction is delegated to `TaskTestWorldBuilder`. Constructor persistence still keeps `mission_10` compatibility in several places.
 
 ## 4. MissionContentCatalog
 
@@ -127,9 +127,9 @@ Conclusion: GridManager still owns old hardcoded layouts. TASK TEST currently pr
    - `task_test` exists, but currently aliases to `mission_10`.
    - Validation still requires `mission_10`.
 
-2. **TASK TEST world content builder still lives in MissionManager.**
-   - `_setup_task_test_mission_world()` and `build_task_test_mission_world_objects_for_validation()` are still MissionManager responsibilities.
-   - The builder should move to a dedicated TaskTest/Sandbox builder before MissionManager can be reduced further.
+2. **TASK TEST world content builder is extracted behind MissionManager wrappers.**
+   - `TaskTestWorldBuilder` owns the behavior-equivalent TASK TEST seed object and item construction.
+   - `_setup_task_test_mission_world()` and `build_task_test_mission_world_objects_for_validation()` remain MissionManager compatibility wrappers for runtime setup and validation callers.
 
 3. **`current_mission_index` still exists in BipobController.**
    - TASK TEST no longer depends on it as the only identity source.
@@ -162,14 +162,7 @@ Scope suggestion:
 
 ### PR-RF-30 — Extract TASK TEST world-object builder from MissionManager
 
-Goal: move `_setup_task_test_mission_world()` / `build_task_test_mission_world_objects_for_validation()` responsibility into a dedicated builder such as `TaskTestWorldBuilder` or `SandboxWorldBuilder`.
-
-Scope suggestion:
-
-- Behavior-equivalent extraction only.
-- MissionManager can call the new builder.
-- Keep Map Constructor behavior unchanged.
-- Keep validation read-only.
+Status: completed. `TaskTestWorldBuilder` now owns behavior-equivalent TASK TEST world-object and item seed construction, while MissionManager keeps `_setup_task_test_mission_world()` and `build_task_test_mission_world_objects_for_validation()` as compatibility wrappers. Map Constructor validation/build paths continue to use the same wrapper output, and no mission resources were removed.
 
 ### PR-RF-31 — Add TASK TEST objective/view-model boundary independent of legacy hint table
 

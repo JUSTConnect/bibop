@@ -2,7 +2,7 @@
 
 ## Purpose
 
-This audit records what still blocks safe deletion of old story mission code/resources after PR-RF-08 through PR-RF-27. PR-RF-24 intentionally added non-gameplay checks for the generic cable runtime state/service only, PR-RF-25 isolates TASK TEST restart/reset routing, PR-RF-26 routes mission-result TASK TEST restart through the explicit sandbox boundary, and PR-RF-27 centralizes remaining GameUI TASK TEST mission-index compatibility behind helper boundaries without changing gameplay mechanics, Map Constructor behavior, runtime actions, scan/hack, movement, inventory, cable behavior, airflow, cooling, power routing, terminal hack, door/path unlock, or mission resources.
+This audit records what still blocks safe deletion of old story mission code/resources after PR-RF-08 through PR-RF-30. PR-RF-24 intentionally added non-gameplay checks for the generic cable runtime state/service only, PR-RF-25 isolates TASK TEST restart/reset routing, PR-RF-26 routes mission-result TASK TEST restart through the explicit sandbox boundary, and PR-RF-27 centralizes remaining GameUI TASK TEST mission-index compatibility behind helper boundaries without changing gameplay mechanics, Map Constructor behavior, runtime actions, scan/hack, movement, inventory, cable behavior, airflow, cooling, power routing, terminal hack, door/path unlock, or mission resources. PR-RF-30 extracts TASK TEST seed world-object construction into a dedicated builder while keeping MissionManager compatibility wrappers.
 
 Current product direction:
 
@@ -48,7 +48,7 @@ Current product direction:
 | TASK TEST startup/restart/reset | Has explicit `start_task_test_session()` / `restart_task_test_session()` / `reset_task_test_session()` entry points, explicit `active_runtime_mode_id` runtime identity in the controller and MissionManager, a neutral `task_test` layout alias, and `mission_10` fallback compatibility. `start_mission(10)` still delegates to `start_task_test_session()` for compatibility, `restart_current_mission()` dispatches to TASK TEST restart when sandbox mode is active, and GameUI mission-result restart calls the TASK TEST restart/reset boundary before legacy mission-id restart fallback. Raw GameUI TASK TEST mission-index checks are centralized behind `_is_task_test_runtime_active()` and controller helper calls. | Partially ready. | Keep proving TASK TEST smoke coverage before deleting mission-index compatibility and old mission resources. |
 | TASK TEST completion | Isolated through `complete_sandbox_run()`. | Mostly ready. | Smoke-test sandbox completion. Later route direct TASK TEST callers to `complete_sandbox_run()` and reduce `complete_mission()` compatibility. |
 | Mission selection/progression | Still uses `current_mission_index`, `max_mission_index`, `start_mission()`, `complete_legacy_story_mission()`, and legacy hints. | Not ready. | Isolate/remove story mission selection UI/progression after TASK TEST no longer depends on mission index startup. |
-| MissionManager | Still owns runtime world-object APIs, TASK TEST compatibility id, layouts, and Map Constructor catalog behavior. | Not ready for broad deletion. | Keep MissionManager until its runtime world-object/catalog responsibilities are separated from story mission responsibilities. |
+| MissionManager | Still owns runtime world-object APIs, TASK TEST compatibility id, layouts, and Map Constructor catalog behavior; TASK TEST seed object construction is now delegated to `TaskTestWorldBuilder`. | Not ready for broad deletion. | Keep reducing MissionManager by separating runtime world-object/catalog responsibilities from story mission responsibilities. |
 | Mission resources/scenes/layouts | Still present and should remain until smoke proof exists. | Not ready for broad deletion. | Delete in small PRs only after TASK TEST no longer references story mission startup/layout assumptions. |
 
 ## Remaining blockers before deleting old mission resources
@@ -75,7 +75,7 @@ Current product direction:
 
 5. **MissionManager still mixes runtime infrastructure and mission compatibility.**
    - It should not be broadly deleted.
-   - Runtime world-object/catalog/Map Constructor responsibilities must remain available to TASK TEST.
+   - TASK TEST seed world-object construction now lives in `TaskTestWorldBuilder`, but runtime world-object/catalog/Map Constructor responsibilities must remain available to TASK TEST.
 
 ## Recommended next PR sequence
 
@@ -97,6 +97,10 @@ Status: completed for the restart/reset dependency direction. `restart_task_test
 ### PR-RF-26 — Route mission-result TASK TEST restart through sandbox boundary
 
 Status: completed for the mission-result UI restart dependency direction. GameUI now detects TASK TEST through `_is_task_test_runtime_active()` on the result screen, calls `restart_task_test_session()` or `reset_task_test_session()` for TASK TEST, and leaves the raw `restart_mission_id` / `current_mission_index` mutation / `start_mission(restart_mission_id, true)` path as legacy story compatibility only.
+
+### PR-RF-30 — Extract TASK TEST world-object builder from MissionManager
+
+Status: completed. `scripts/game/task_test_world_builder.gd` now owns the behavior-equivalent TASK TEST seed object and item construction. MissionManager keeps the existing TASK TEST setup and validation methods as wrappers, preserving runtime startup, Map Constructor validation/build callers, `task_test`, and `mission_10` compatibility without deleting old mission resources.
 
 ### PR-RF-20 — Generic runtime cable/socket/power contract planning
 

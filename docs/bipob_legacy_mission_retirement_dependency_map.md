@@ -129,7 +129,7 @@ No remaining `current_mission_index`, `mission7_*`, `mission8_*`, or `complete_m
 
 ### `scripts/game/mission_manager.gd`
 
-No remaining `current_mission_index`, `mission7_*`, `mission8_*`, or `complete_mission()` usage found in this file. MissionManager still owns runtime world-object APIs and mission layout compatibility, so it should not be broadly deleted in the legacy mission retirement work. PR-RF-16 added `get_task_test_mission_id()`, `get_task_test_layout_id()`, and `is_task_test_mission_id()`; PR-RF-18 updates that boundary so `task_test` is the explicit TASK TEST layout/catalog alias while `mission_10` remains the compatibility fallback id.
+No remaining `current_mission_index`, `mission7_*`, `mission8_*`, or `complete_mission()` usage found in this file. MissionManager still owns runtime world-object APIs and mission layout compatibility, so it should not be broadly deleted in the legacy mission retirement work. PR-RF-16 added `get_task_test_mission_id()`, `get_task_test_layout_id()`, and `is_task_test_mission_id()`; PR-RF-18 updates that boundary so `task_test` is the explicit TASK TEST layout/catalog alias while `mission_10` remains the compatibility fallback id. PR-RF-30 extracts TASK TEST seed object/item construction into `TaskTestWorldBuilder`, leaving MissionManager setup and validation methods as compatibility wrappers for runtime and Map Constructor callers.
 
 ## Reusable mechanics that must survive
 
