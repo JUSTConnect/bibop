@@ -44,7 +44,7 @@ static func get_heavy_claw_descriptor(target_data: Dictionary) -> Dictionary:
 static func action_requires_manipulator(action_id: String, target_object: Dictionary) -> bool:
 	if action_id == "pickup" and str(target_object.get("item_form", "physical")) == "digital":
 		return false
-	return action_id in ["pickup", "open", "close", "unlock", "switch", "force_open", "push", "pull", "insert_fuse", "repair", "cut", "impact", "take_end_1", "take_end_2", "plug_in", "plug_out", "connect_wire_end", "connect_wire_1", "connect_wire_2", "disconnect_power_wire", "disconnect_wire_1", "disconnect_wire_2"]
+	return action_id in ["pickup", "open", "close", "unlock", "switch", "force_open", "push", "pull", "insert_fuse", "remove_fuse", "repair", "cut", "impact", "take_end_1", "take_end_2", "plug_in", "plug_out", "connect_wire_end", "connect_wire_1", "connect_wire_2", "disconnect_power_wire", "disconnect_wire_1", "disconnect_wire_2"]
 
 
 static func is_manipulator_blocked(ui, target_object: Dictionary, actions: Array) -> bool:
