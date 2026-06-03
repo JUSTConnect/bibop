@@ -58,7 +58,7 @@ static func interact_socket(controller: Variant) -> void:
 		path_preview.append(controller.grid_position)
 	var topology_validation: Dictionary = _validate_legacy_path(controller, path_preview)
 	if not bool(topology_validation.get("ok", true)):
-		controller.hint_requested.emit(String(topology_validation.get("message", CableTopologyServiceRef.ERROR_MESSAGE_JUNCTION_REQUIRES_SWITCH)))
+		controller.hint_requested.emit(str(topology_validation.get("message", CableTopologyServiceRef.ERROR_MESSAGE_JUNCTION_REQUIRES_SWITCH)))
 		return
 	controller.mission7_is_dragging_cable = false
 	controller.mission7_cable_connected = true
@@ -75,7 +75,7 @@ static func interact_socket(controller: Variant) -> void:
 			mission7_cable_object["cable_length"] = path_preview.size()
 			var power_filter := ""
 			if controller.mission_manager.has_method("_get_power_event_filter_for_object"):
-				power_filter = String(controller.mission_manager.call("_get_power_event_filter_for_object", mission7_cable_object))
+				power_filter = str(controller.mission_manager.call("_get_power_event_filter_for_object", mission7_cable_object))
 			controller.apply_power_network_after_explicit_power_event("cable_connected", power_filter)
 	if controller.grid_manager.get_tile(controller.mission7_powered_gate_position) == GridManager.TILE_POWERED_GATE:
 		controller.grid_manager.set_tile(controller.mission7_powered_gate_position, GridManager.TILE_FLOOR)
@@ -92,7 +92,7 @@ static func add_current_cell_to_path(controller: Variant) -> void:
 		path_preview.append(controller.grid_position)
 		var topology_validation: Dictionary = _validate_legacy_path(controller, path_preview)
 		if not bool(topology_validation.get("ok", true)):
-			controller.hint_requested.emit(String(topology_validation.get("message", CableTopologyServiceRef.ERROR_MESSAGE_JUNCTION_REQUIRES_SWITCH)))
+			controller.hint_requested.emit(str(topology_validation.get("message", CableTopologyServiceRef.ERROR_MESSAGE_JUNCTION_REQUIRES_SWITCH)))
 			return
 		controller.mission7_cable_path.append(controller.grid_position)
 	var tile: int = int(controller.grid_manager.get_tile(controller.grid_position))
@@ -168,7 +168,7 @@ static func handle_interact_tile(controller: Variant, _target_position: Vector2i
 
 
 static func apply_interact_result(controller: Variant, result: Dictionary) -> void:
-	var message := String(result.get("message", ""))
+	var message := str(result.get("message", ""))
 	if not message.is_empty():
 		controller.hint_requested.emit(message)
 	if bool(result.get("emit_status", false)):

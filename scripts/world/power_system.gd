@@ -34,18 +34,18 @@ const POWER_TRAVERSAL_TYPES := {
 }
 
 static func _is_state_driven_powered_object(obj: Dictionary) -> bool:
-	var object_type: String = String(obj.get("object_type", ""))
-	var object_group: String = String(obj.get("object_group", ""))
+	var object_type: String = str(obj.get("object_type", ""))
+	var object_group: String = str(obj.get("object_group", ""))
 	if object_group == "terminal":
 		return true
 	if object_group == "door":
-		return String(obj.get("material", "")) == WorldObjectCatalogRef.DOOR_MATERIAL_ENERGY or String(obj.get("power_behavior", "none")) != WorldObjectCatalogRef.POWER_BEHAVIOR_NONE or bool(obj.get("requires_external_power", false))
+		return str(obj.get("material", "")) == WorldObjectCatalogRef.DOOR_MATERIAL_ENERGY or str(obj.get("power_behavior", "none")) != WorldObjectCatalogRef.POWER_BEHAVIOR_NONE or bool(obj.get("requires_external_power", false))
 	if object_group == "threat" and object_type == "turret":
 		return true
 	return bool(STATE_DRIVEN_POWER_TYPES.get(object_type, false))
 
 static func _normalize_type(value: Variant) -> String:
-	return String(value).strip_edges().to_lower().replace(" ", "_").replace("-", "_")
+	return str(value).strip_edges().to_lower().replace(" ", "_").replace("-", "_")
 
 static func _is_power_source_object(obj: Dictionary) -> bool:
 	var object_type: String = _normalize_type(obj.get("object_type", ""))
@@ -128,12 +128,12 @@ static func _direction_to_delta(direction: String) -> Vector2i:
 	return Vector2i.ZERO
 
 static func _resolve_switch_connection_cell(switch_obj: Dictionary, field_prefix: String, switch_cell: Vector2i, object_by_id: Dictionary) -> Vector2i:
-	var wire_id: String = String(switch_obj.get("%s_wire_id" % field_prefix, "")).strip_edges()
+	var wire_id: String = str(switch_obj.get("%s_wire_id" % field_prefix, "")).strip_edges()
 	if not wire_id.is_empty() and object_by_id.has(wire_id):
 		var wire_value: Variant = object_by_id.get(wire_id, {})
 		if wire_value is Dictionary:
 			return _cell_from_obj(wire_value)
-	var direction: String = String(switch_obj.get("%s_direction" % field_prefix, "")).strip_edges()
+	var direction: String = str(switch_obj.get("%s_direction" % field_prefix, "")).strip_edges()
 	var delta: Vector2i = _direction_to_delta(direction)
 	if delta != Vector2i.ZERO:
 		return switch_cell + delta
@@ -165,7 +165,7 @@ static func _get_circuit_switch_next_cells(switch_obj: Dictionary, switch_cell: 
 	return next_cells
 
 static func _apply_powered_state(obj: Dictionary, powered: bool) -> void:
-	var power_mode: String = String(obj.get("power_type", obj.get("power_mode", "external"))).trim_suffix("_power")
+	var power_mode: String = str(obj.get("power_type", obj.get("power_mode", "external"))).trim_suffix("_power")
 	if power_mode == "internal":
 		powered = true
 	if _is_power_source_object(obj):
@@ -173,8 +173,8 @@ static func _apply_powered_state(obj: Dictionary, powered: bool) -> void:
 		return
 	obj["is_powered"] = powered
 	var object_type: String = _normalize_type(obj.get("object_type", ""))
-	var object_group: String = String(obj.get("object_group", ""))
-	var power_behavior: String = String(obj.get("power_behavior", WorldObjectCatalogRef.POWER_BEHAVIOR_NONE))
+	var object_group: String = str(obj.get("object_group", ""))
+	var power_behavior: String = str(obj.get("power_behavior", WorldObjectCatalogRef.POWER_BEHAVIOR_NONE))
 	if object_group == "door" and power_behavior == WorldObjectCatalogRef.POWER_BEHAVIOR_REQUIRES_POWER_TO_OPEN:
 		var door_state: String = _normalize_type(obj.get("state", ""))
 		if not powered:
@@ -182,7 +182,7 @@ static func _apply_powered_state(obj: Dictionary, powered: bool) -> void:
 				obj["state_before_unpowered"] = door_state
 				obj["state"] = "unpowered"
 		elif door_state == "unpowered":
-			var restored_door_state: String = String(obj.get("state_before_unpowered", "closed"))
+			var restored_door_state: String = str(obj.get("state_before_unpowered", "closed"))
 			if restored_door_state.is_empty() or restored_door_state in ["unpowered", "damaged", "broken", "destroyed", "jammed"]:
 				restored_door_state = "closed"
 			obj["state"] = restored_door_state
@@ -196,20 +196,20 @@ static func _apply_powered_state(obj: Dictionary, powered: bool) -> void:
 				obj["state_before_unpowered"] = current_state
 				if not (object_group == "threat" and object_type == "turret" and current_state in ["destroyed", "hacked", "disabled"]):
 					obj["state"] = "unpowered"
-			if object_group == "threat" and object_type == "turret" and String(obj.get("state", "")) == "unpowered":
+			if object_group == "threat" and object_type == "turret" and str(obj.get("state", "")) == "unpowered":
 				obj["behavior_state"] = "idle"
 				obj.erase("target_position")
 		elif current_state == "unpowered":
-			var restored_state: String = String(obj.get("state_before_unpowered", "active"))
+			var restored_state: String = str(obj.get("state_before_unpowered", "active"))
 			if restored_state.is_empty():
 				restored_state = "active"
 			if not (object_group == "threat" and object_type == "turret" and restored_state in ["destroyed", "hacked", "disabled"]):
 				obj["state"] = restored_state
 			obj.erase("state_before_unpowered")
 		if object_group == "terminal":
-			obj["status"] = String(obj.get("state", "active"))
-	if object_group == "door" and String(obj.get("power_behavior", "none")) == WorldObjectCatalogRef.POWER_BEHAVIOR_OPENS_WHEN_UNPOWERED:
-		obj["state"] = "open" if not powered else String(obj.get("state", "closed"))
+			obj["status"] = str(obj.get("state", "active"))
+	if object_group == "door" and str(obj.get("power_behavior", "none")) == WorldObjectCatalogRef.POWER_BEHAVIOR_OPENS_WHEN_UNPOWERED:
+		obj["state"] = "open" if not powered else str(obj.get("state", "closed"))
 		WorldObjectCatalogRef.normalize_door_state_fields(obj)
 	elif object_type == "energy_wall":
 		obj["blocks_movement"] = powered and obj.get("state", "") not in ["open", "inactive", "destroyed"]
@@ -218,13 +218,13 @@ static func recalculate_network(objects: Array[Dictionary], network_id: String) 
 	var object_by_cell: Dictionary = {}
 	var object_by_id: Dictionary = {}
 	for obj in objects:
-		var obj_id: String = String(obj.get("id", "")).strip_edges()
+		var obj_id: String = str(obj.get("id", "")).strip_edges()
 		if not obj_id.is_empty():
 			object_by_id[obj_id] = obj
 		var cell: Vector2i = _cell_from_obj(obj)
 		if cell.x >= 0 and cell.y >= 0:
 			object_by_cell[cell] = obj
-		if network_id.is_empty() or String(obj.get("power_network_id", "")) == network_id or String(obj.get("power_source_id", "")) == network_id:
+		if network_id.is_empty() or str(obj.get("power_network_id", "")) == network_id or str(obj.get("power_source_id", "")) == network_id:
 			if not _is_power_source_object(obj):
 				_apply_powered_state(obj, false)
 				obj["physical_connection_source_id"] = ""
@@ -233,15 +233,15 @@ static func recalculate_network(objects: Array[Dictionary], network_id: String) 
 	# source-owned network must earn physical provenance through traversal.
 	if network_id == "main_power_net":
 		for virtual_obj in objects:
-			if String(virtual_obj.get("power_network_id", "")).strip_edges() == "main_power_net" and not _is_power_source_object(virtual_obj):
+			if str(virtual_obj.get("power_network_id", "")).strip_edges() == "main_power_net" and not _is_power_source_object(virtual_obj):
 				_apply_powered_state(virtual_obj, true)
 	var directions: Array[Vector2i] = [Vector2i.UP, Vector2i.DOWN, Vector2i.LEFT, Vector2i.RIGHT]
 	var traversal_cap: int = maxi(64, objects.size() * 8)
 	for source in objects:
 		if not _is_power_source_object(source):
 			continue
-		var source_id: String = String(source.get("id", "")).strip_edges()
-		if not network_id.is_empty() and String(source.get("power_network_id", source_id)) != network_id and source_id != network_id:
+		var source_id: String = str(source.get("id", "")).strip_edges()
+		if not network_id.is_empty() and str(source.get("power_network_id", source_id)) != network_id and source_id != network_id:
 			continue
 		var source_on: bool = _is_source_on(source)
 		source["is_powered"] = source_on
@@ -290,12 +290,12 @@ static func recalculate_network(objects: Array[Dictionary], network_id: String) 
 		# Lighting may be direct logical links without physical wires.
 		for obj in objects:
 			var obj_type: String = _normalize_type(obj.get("object_type", ""))
-			if obj_type == "light" and String(obj.get("power_source_id", obj.get("power_network_id", ""))).strip_edges() == source_id:
+			if obj_type == "light" and str(obj.get("power_source_id", obj.get("power_network_id", ""))).strip_edges() == source_id:
 				_apply_powered_state(obj, not bool(obj.get("light_switch_off", false)))
 		var outlet_count: int = 0
 		for obj in objects:
 			var obj_type_count: String = _normalize_type(obj.get("object_type", ""))
-			if obj_type_count in ["power_socket", "outlet"] and String(obj.get("power_source_id", obj.get("connected_power_source_id", ""))).strip_edges() == source_id:
+			if obj_type_count in ["power_socket", "outlet"] and str(obj.get("power_source_id", obj.get("connected_power_source_id", ""))).strip_edges() == source_id:
 				outlet_count += 1
 		source["source_load"] = outlet_count
 		source["source_capacity"] = int(source.get("outlet_capacity", _get_power_source_capacity_for_load(source)))

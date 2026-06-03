@@ -23,10 +23,10 @@ static func parse_floor_visual_id(visual_id: String) -> Dictionary:
 		"diagnostic_floor":"grate_default"
 	}
 	if legacy.has(normalized):
-		normalized = String(legacy[normalized])
+		normalized = str(legacy[normalized])
 	var parts: PackedStringArray = normalized.split("_", false)
 	if parts.size() >= 2:
-		return {"material": String(parts[0]), "coating": String(parts[1])}
+		return {"material": str(parts[0]), "coating": str(parts[1])}
 	return {"material":"steel", "coating":"default"}
 
 static func normalize_wall_side(side_id: String) -> String:
@@ -136,14 +136,14 @@ static func add_floor_coverage_section(ui: Variant, parent: VBoxContainer) -> vo
 		var floor_material_option: OptionButton = OptionButton.new()
 		var floor_coating_option: OptionButton = OptionButton.new()
 		for floor_material in floor_materials:
-			floor_material_option.add_item(String(floor_material.get("label", "")))
-			floor_material_option.set_item_metadata(floor_material_option.item_count - 1, String(floor_material.get("id", "steel")))
-			if String(floor_material.get("id", "steel")) == String(parsed_floor.get("material", "steel")):
+			floor_material_option.add_item(str(floor_material.get("label", "")))
+			floor_material_option.set_item_metadata(floor_material_option.item_count - 1, str(floor_material.get("id", "steel")))
+			if str(floor_material.get("id", "steel")) == str(parsed_floor.get("material", "steel")):
 				floor_material_option.select(floor_material_option.item_count - 1)
 		for floor_coating in floor_coatings:
-			floor_coating_option.add_item(String(floor_coating.get("label", "")))
-			floor_coating_option.set_item_metadata(floor_coating_option.item_count - 1, String(floor_coating.get("id", "default")))
-			if String(floor_coating.get("id", "default")) == String(parsed_floor.get("coating", "default")):
+			floor_coating_option.add_item(str(floor_coating.get("label", "")))
+			floor_coating_option.set_item_metadata(floor_coating_option.item_count - 1, str(floor_coating.get("id", "default")))
+			if str(floor_coating.get("id", "default")) == str(parsed_floor.get("coating", "default")):
 				floor_coating_option.select(floor_coating_option.item_count - 1)
 		if floor_material_option.selected < 0:
 			floor_material_option.select(0)
@@ -158,15 +158,15 @@ static func add_floor_coverage_section(ui: Variant, parent: VBoxContainer) -> vo
 		floor_section.add_child(floor_row)
 		var floor_summary_label: Label = Label.new()
 		floor_summary_label.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
-		floor_summary_label.text = "Floor visual id: %s" % compose_floor_visual_id(String(floor_material_option.get_selected_metadata()), String(floor_coating_option.get_selected_metadata()))
+		floor_summary_label.text = "Floor visual id: %s" % compose_floor_visual_id(str(floor_material_option.get_selected_metadata()), str(floor_coating_option.get_selected_metadata()))
 		var update_floor_summary := func(_idx: int = 0) -> void:
-			floor_summary_label.text = "Floor visual id: %s" % compose_floor_visual_id(String(floor_material_option.get_selected_metadata()), String(floor_coating_option.get_selected_metadata()))
+			floor_summary_label.text = "Floor visual id: %s" % compose_floor_visual_id(str(floor_material_option.get_selected_metadata()), str(floor_coating_option.get_selected_metadata()))
 		floor_material_option.item_selected.connect(update_floor_summary)
 		floor_coating_option.item_selected.connect(update_floor_summary)
 		floor_section.add_child(floor_summary_label)
 		var apply_floor_button: Button = Button.new(); apply_floor_button.text = "Apply Floor Material"
 		apply_floor_button.pressed.connect(func() -> void:
-			var floor_material_id_apply: String = compose_floor_visual_id(String(floor_material_option.get_selected_metadata()), String(floor_coating_option.get_selected_metadata()))
+			var floor_material_id_apply: String = compose_floor_visual_id(str(floor_material_option.get_selected_metadata()), str(floor_coating_option.get_selected_metadata()))
 			MapConstructorActions.apply_floor_material(ui, floor_target_cell, floor_material_id_apply)
 		)
 		var clear_floor_button: Button = Button.new(); clear_floor_button.text = "Clear Floor Material"

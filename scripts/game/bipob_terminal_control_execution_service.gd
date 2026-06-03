@@ -10,7 +10,7 @@ static func execute_terminal_control_action(controller: Variant, terminal: Dicti
 		return _build_result(false, false, "Door control unavailable.", false, false, false, "unsupported_action")
 	if not controller.can_spend_action(1, 1):
 		return _build_result(true, false, "Not enough action/energy.", false, false, true, "insufficient_resources")
-	var terminal_result: Dictionary = Dictionary(controller.mission_manager.execute_terminal_control_action(String(terminal.get("id", "")), String(terminal.get("target_door_id", "")), action_id))
+	var terminal_result: Dictionary = Dictionary(controller.mission_manager.execute_terminal_control_action(str(terminal.get("id", "")), str(terminal.get("target_door_id", "")), action_id))
 	var success: bool = bool(terminal_result.get("success", false))
 	if success:
 		controller.spend_action(1, 1)

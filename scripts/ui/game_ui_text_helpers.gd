@@ -9,7 +9,7 @@ static func get_module_characteristics_lines(module: BipobModule, _context: Stri
 	var is_internal_module: bool = module.placement_type == "internal" or module.placement_type == "internal_overlay"
 	if is_internal_module:
 		return get_internal_characteristics_lines(module)
-	if module.placement_type == "external" and String(module.category).to_lower() == "gear":
+	if module.placement_type == "external" and str(module.category).to_lower() == "gear":
 		lines.append("Energy: %d" % module.energy_cost)
 		if not module.terrain_type.is_empty():
 			lines.append("Terrain: %s" % module.terrain_type)
@@ -21,7 +21,7 @@ static func get_module_characteristics_lines(module: BipobModule, _context: Stri
 			lines.append("Special: ignore debuff")
 		return lines
 
-	if module.placement_type == "external" and String(module.category) == "Manipulator":
+	if module.placement_type == "external" and str(module.category) == "Manipulator":
 		lines.append("Energy: %d" % module.energy_cost)
 		if module.reach_value > 0:
 			lines.append("Reach: %d" % module.reach_value)
@@ -33,7 +33,7 @@ static func get_module_characteristics_lines(module: BipobModule, _context: Stri
 			lines.append("Special: %s" % module.special_effect_text)
 		return lines
 
-	if module.placement_type == "external" and String(module.category) == "Sensors":
+	if module.placement_type == "external" and str(module.category) == "Sensors":
 		lines.append("Energy: %d" % module.energy_cost)
 		if not module.sensor_direction.is_empty():
 			lines.append("Direction: %s" % module.sensor_direction)
@@ -43,7 +43,7 @@ static func get_module_characteristics_lines(module: BipobModule, _context: Stri
 			lines.append("Special: %s" % module.special_effect_text)
 		return lines
 
-	if module.placement_type == "external" and String(module.category) == "Interface":
+	if module.placement_type == "external" and str(module.category) == "Interface":
 		if module.energy_cost > 0:
 			lines.append("Energy: %d" % module.energy_cost)
 		if not module.connection_type.is_empty():
@@ -54,7 +54,7 @@ static func get_module_characteristics_lines(module: BipobModule, _context: Stri
 			lines.append("Special: %s" % module.special_effect_text)
 		return lines
 
-	if module.placement_type == "external" and String(module.category) == "Defense":
+	if module.placement_type == "external" and str(module.category) == "Defense":
 		lines.append("Energy: %d" % module.energy_cost)
 		if not module.defense_type.is_empty():
 			lines.append("Type Defense: %s" % module.defense_type)
@@ -66,7 +66,7 @@ static func get_module_characteristics_lines(module: BipobModule, _context: Stri
 			lines.append("Special: %s" % module.special_effect_text)
 		return lines
 
-	if module.placement_type == "external" and String(module.category) == "Other":
+	if module.placement_type == "external" and str(module.category) == "Other":
 		lines.append("Energy: %d" % module.energy_cost)
 		if not module.action_text.is_empty():
 			lines.append("Action: %s" % module.action_text)
@@ -74,7 +74,7 @@ static func get_module_characteristics_lines(module: BipobModule, _context: Stri
 			lines.append("Special: %s" % module.special_effect_text)
 		return lines
 
-	if module.placement_type == "external" and String(module.category) == "Weapons":
+	if module.placement_type == "external" and str(module.category) == "Weapons":
 		lines.append("Energy: %d" % module.energy_cost)
 		if module.fuel_capacity > 0:
 			lines.append("Fuel: %d" % module.fuel_capacity)
@@ -143,7 +143,7 @@ static func get_internal_characteristics_lines(module: BipobModule) -> Array:
 		lines.append("Overheat: +%d" % module.heat_value)
 	if module.power_ports > 0:
 		lines.append("Power Ports: %d" % module.power_ports)
-	if String(module.internal_family).to_lower() == "battery" and module.energy_capacity > 0:
+	if str(module.internal_family).to_lower() == "battery" and module.energy_capacity > 0:
 		lines.append("Energy: %d / %d" % [clampi(int(module.current_charge), 0, int(module.energy_capacity)), int(module.energy_capacity)])
 	elif module.energy_capacity > 0:
 		lines.append("Energy: +%d" % module.energy_capacity)
@@ -159,7 +159,7 @@ static func get_internal_characteristics_lines(module: BipobModule) -> Array:
 		lines.append("Storage: +%d" % module.digital_storage_slots)
 	if module.cooling_power != 0:
 		lines.append("Cooling Power: %d" % module.cooling_power)
-	if not String(module.cooling_type).is_empty() and String(module.cooling_type).to_lower() != "none":
+	if not str(module.cooling_type).is_empty() and str(module.cooling_type).to_lower() != "none":
 		lines.append("Cooling Type: %s" % module.cooling_type)
 	if module.requires_air_intake:
 		lines.append("Requires: Air Intake")

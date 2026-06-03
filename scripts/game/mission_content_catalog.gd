@@ -145,17 +145,17 @@ const _MISSION_DEFINITIONS: Dictionary = {
 }
 
 func _resolve_mission_id(mission_id: String) -> String:
-	var normalized := String(mission_id).strip_edges()
+	var normalized := str(mission_id).strip_edges()
 	if _MISSION_DEFINITIONS.has(normalized):
 		return normalized
-	return String(_MISSION_ALIASES.get(normalized, "")).strip_edges()
+	return str(_MISSION_ALIASES.get(normalized, "")).strip_edges()
 
 func has_mission(mission_id: String) -> bool:
 	var resolved_mission_id: String = _resolve_mission_id(mission_id)
 	return not resolved_mission_id.is_empty() and _MISSION_DEFINITIONS.has(resolved_mission_id)
 
 func get_mission_definition(mission_id: String) -> Dictionary:
-	var normalized := String(mission_id).strip_edges()
+	var normalized := str(mission_id).strip_edges()
 	var resolved_mission_id: String = _resolve_mission_id(normalized)
 	if resolved_mission_id.is_empty():
 		return {}
@@ -166,19 +166,19 @@ func get_mission_definition(mission_id: String) -> Dictionary:
 	return definition
 
 func get_mission_title(mission_id: String) -> String:
-	return String(get_mission_definition(mission_id).get("title", "")).strip_edges()
+	return str(get_mission_definition(mission_id).get("title", "")).strip_edges()
 
 func get_mission_display_name(mission_id: String) -> String:
-	return String(get_mission_definition(mission_id).get("display_name", "")).strip_edges()
+	return str(get_mission_definition(mission_id).get("display_name", "")).strip_edges()
 
 func get_mission_goal_text(mission_id: String) -> String:
-	return String(get_mission_definition(mission_id).get("goal_text", "")).strip_edges()
+	return str(get_mission_definition(mission_id).get("goal_text", "")).strip_edges()
 
 func get_mission_objective_hint(mission_id: String) -> String:
-	return String(get_mission_definition(mission_id).get("objective_hint", "")).strip_edges()
+	return str(get_mission_definition(mission_id).get("objective_hint", "")).strip_edges()
 
 func get_mission_short_description(mission_id: String) -> String:
-	return String(get_mission_definition(mission_id).get("short_description", "")).strip_edges()
+	return str(get_mission_definition(mission_id).get("short_description", "")).strip_edges()
 
 func has_mission_start_cell(mission_id: String) -> bool:
 	var start_cell_variant: Variant = get_mission_definition(mission_id).get("start_cell", Vector2i(-1, -1))
@@ -193,7 +193,7 @@ func get_mission_start_cell(mission_id: String) -> Vector2i:
 func get_all_mission_ids() -> Array[String]:
 	var mission_ids: Array[String] = []
 	for mission_id_variant in _MISSION_DEFINITIONS.keys():
-		mission_ids.append(String(mission_id_variant))
+		mission_ids.append(str(mission_id_variant))
 	mission_ids.sort()
 	return mission_ids
 
@@ -242,26 +242,26 @@ func validate_mission_catalog() -> Array[String]:
 	var warnings: Array[String] = []
 	var seen_indexes: Dictionary = {}
 	for mission_key_variant in _MISSION_DEFINITIONS.keys():
-		var mission_key: String = String(mission_key_variant)
+		var mission_key: String = str(mission_key_variant)
 		var definition: Dictionary = Dictionary(_MISSION_DEFINITIONS.get(mission_key, {}))
-		if String(definition.get("id", "")) == "":
+		if str(definition.get("id", "")) == "":
 			warnings.append("Mission '%s' is missing id." % mission_key)
 		if not definition.has("index"):
 			warnings.append("Mission '%s' is missing index." % mission_key)
-		if String(definition.get("title", "")) == "":
+		if str(definition.get("title", "")) == "":
 			warnings.append("Mission '%s' is missing title." % mission_key)
-		if String(definition.get("display_name", "")) == "":
+		if str(definition.get("display_name", "")) == "":
 			warnings.append("Mission '%s' is missing display_name." % mission_key)
-		if String(definition.get("role", "")) == "":
+		if str(definition.get("role", "")) == "":
 			warnings.append("Mission '%s' is missing role." % mission_key)
-		if String(definition.get("migration_status", "")) == "":
+		if str(definition.get("migration_status", "")) == "":
 			warnings.append("Mission '%s' is missing migration_status." % mission_key)
-		if String(definition.get("id", "")) != mission_key:
-			warnings.append("Mission key '%s' does not match definition id '%s'." % [mission_key, String(definition.get("id", ""))])
+		if str(definition.get("id", "")) != mission_key:
+			warnings.append("Mission key '%s' does not match definition id '%s'." % [mission_key, str(definition.get("id", ""))])
 		if definition.has("index"):
 			var mission_index: int = int(definition.get("index", -1))
 			if seen_indexes.has(mission_index):
-				warnings.append("Mission index %d is duplicated by '%s' and '%s'." % [mission_index, String(seen_indexes[mission_index]), mission_key])
+				warnings.append("Mission index %d is duplicated by '%s' and '%s'." % [mission_index, str(seen_indexes[mission_index]), mission_key])
 			else:
 				seen_indexes[mission_index] = mission_key
 		if definition.has("layout"):
@@ -288,19 +288,19 @@ func validate_mission_catalog() -> Array[String]:
 	if mission_10.is_empty():
 		warnings.append("Mission catalog is missing mission_10.")
 	else:
-		if String(mission_10.get("display_name", "")) != "TASK TEST":
+		if str(mission_10.get("display_name", "")) != "TASK TEST":
 			warnings.append("Mission mission_10 display_name must be TASK TEST.")
-		if String(mission_10.get("role", "")) != "systems_testbed":
+		if str(mission_10.get("role", "")) != "systems_testbed":
 			warnings.append("Mission mission_10 role must be systems_testbed.")
-		if String(mission_10.get("goal_text", "")).strip_edges() == "":
+		if str(mission_10.get("goal_text", "")).strip_edges() == "":
 			warnings.append("Mission mission_10 goal_text must not be empty.")
-		if String(mission_10.get("objective_hint", "")).strip_edges() == "":
+		if str(mission_10.get("objective_hint", "")).strip_edges() == "":
 			warnings.append("Mission mission_10 objective_hint must not be empty.")
-		if String(mission_10.get("migration_status", "")) != "task_test_layout_catalogued":
+		if str(mission_10.get("migration_status", "")) != "task_test_layout_catalogued":
 			warnings.append("Mission mission_10 migration_status must be task_test_layout_catalogued.")
-		if String(mission_10.get("layout_source", "")) != "mission_content_catalog":
+		if str(mission_10.get("layout_source", "")) != "mission_content_catalog":
 			warnings.append("Mission mission_10 layout_source must be mission_content_catalog.")
-		if String(mission_10.get("world_content_source", "")) != "legacy_mission_manager":
+		if str(mission_10.get("world_content_source", "")) != "legacy_mission_manager":
 			warnings.append("Mission mission_10 world_content_source must remain legacy_mission_manager.")
 		if not has_mission_layout("mission_10"):
 			warnings.append("Mission mission_10 layout is required.")

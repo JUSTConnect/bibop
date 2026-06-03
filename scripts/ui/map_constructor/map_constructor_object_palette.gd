@@ -117,14 +117,14 @@ static func build_object_palette(ui: Variant, parent: VBoxContainer) -> void:
 		grouped_entries[group_name] = group_entries
 	var favorite_entries: Array[Dictionary] = []
 	for favorite_id_variant in ui.map_constructor_prefab_favorites.keys():
-		var favorite_id: String = String(favorite_id_variant)
+		var favorite_id: String = str(favorite_id_variant)
 		if not bool(ui.map_constructor_prefab_favorites.get(favorite_id, false)) or not catalog_by_id.has(favorite_id):
 			continue
 		var favorite_entry: Dictionary = ui._safe_ui_dictionary(catalog_by_id[favorite_id])
 		if ui._map_constructor_prefab_matches_filters(favorite_entry):
 			favorite_entries.append(favorite_entry)
 	favorite_entries.sort_custom(func(a: Dictionary, b: Dictionary) -> bool:
-		return String(a.get("label", a.get("id", ""))) < String(b.get("label", b.get("id", "")) )
+		return str(a.get("label", a.get("id", ""))) < str(b.get("label", b.get("id", "")) )
 	)
 	var recent_entries: Array[Dictionary] = []
 	for recent_id in ui.map_constructor_prefab_recent_ids:
@@ -139,7 +139,7 @@ static func build_object_palette(ui: Variant, parent: VBoxContainer) -> void:
 		if section_entries.is_empty():
 			continue
 		var section_header: Label = Label.new()
-		section_header.text = String(section.get("name", ""))
+		section_header.text = str(section.get("name", ""))
 		list.add_child(section_header)
 		for entry in section_entries:
 			var card: Button = ui._create_map_constructor_prefab_card(entry)
@@ -179,8 +179,8 @@ static func build_object_palette(ui: Variant, parent: VBoxContainer) -> void:
 		if ui.mission_manager_runtime != null and ui.mission_manager_runtime.has_method("can_place_map_constructor_prefab"):
 			var check: Dictionary = ui._update_map_constructor_preview_for_cell(ui.pending_map_constructor_cell)
 			if selected_visible:
-				list.add_child(ui._create_map_constructor_wall_side_picker(String(check.get("placement_mode", ""))))
-			var reason: String = String(check.get("reason", "unsupported_prefab"))
+				list.add_child(ui._create_map_constructor_wall_side_picker(str(check.get("placement_mode", ""))))
+			var reason: String = str(check.get("reason", "unsupported_prefab"))
 			match reason:
 				"ok":
 					placement_label.text = "Placement: OK (mode: %s)" % ui.selected_map_constructor_mounting_mode
@@ -196,8 +196,8 @@ static func build_object_palette(ui: Variant, parent: VBoxContainer) -> void:
 					placement_label.text = "Placement: blocked: non-floor tile"
 				_:
 					placement_label.text = "Placement: blocked: unsupported prefab"
-			if String(check.get("placement_mode", "")) == "wall_mounted":
-				placement_label.text += "\nWall side: %s (R to cycle)" % ui._get_map_constructor_wall_side_label(String(check.get("wall_side", ui.selected_map_constructor_wall_side)))
+			if str(check.get("placement_mode", "")) == "wall_mounted":
+				placement_label.text += "\nWall side: %s (R to cycle)" % ui._get_map_constructor_wall_side_label(str(check.get("wall_side", ui.selected_map_constructor_wall_side)))
 	list.add_child(placement_label)
 	var favorite_toggle: Button = Button.new()
 	var selected_is_favorite: bool = bool(ui.map_constructor_prefab_favorites.get(ui.selected_map_constructor_prefab_id, false))
@@ -225,8 +225,8 @@ static func build_object_palette(ui: Variant, parent: VBoxContainer) -> void:
 	var placed_rows: Array[Dictionary] = ui._build_map_constructor_placed_object_rows()
 	var selected_row_exists: bool = ui.selected_map_constructor_entity_id.is_empty()
 	for row in placed_rows:
-		var row_entity_id: String = String(row.get("id", ""))
-		var row_entity_kind: String = String(row.get("entity_kind", ""))
+		var row_entity_id: String = str(row.get("id", ""))
+		var row_entity_kind: String = str(row.get("entity_kind", ""))
 		if row_entity_id == ui.selected_map_constructor_entity_id and row_entity_kind == ui.selected_map_constructor_entity_kind:
 			selected_row_exists = true
 	for row in placed_rows:
@@ -234,13 +234,13 @@ static func build_object_palette(ui: Variant, parent: VBoxContainer) -> void:
 			continue
 		var row_cell: Vector2i = ui._safe_ui_vector2i(row.get("cell", Vector2i(-1, -1)))
 		var row_anchor_cell: Vector2i = ui._safe_ui_vector2i(row.get("anchor_floor_cell", row_cell))
-		var row_entity_id: String = String(row.get("id", ""))
-		var row_entity_kind: String = String(row.get("entity_kind", ""))
+		var row_entity_id: String = str(row.get("id", ""))
+		var row_entity_kind: String = str(row.get("entity_kind", ""))
 		var row_selected: bool = row_entity_id == ui.selected_map_constructor_entity_id and row_entity_kind == ui.selected_map_constructor_entity_kind
 		var row_button: Button = Button.new()
-		var row_text: String = "%s | %s | c:%s | %s" % [String(row.get("id", "")), String(row.get("type_or_prefab", "")), str(row_cell), String(row.get("category_or_placement", ""))]
-		if String(row.get("placement_mode", "")) == "wall_mounted":
-			row_text += " | a:%s w:%s side:%s" % [str(row_anchor_cell), str(ui._safe_ui_vector2i(row.get("attached_wall_cell", Vector2i(-1, -1)))), String(row.get("wall_side", ""))]
+		var row_text: String = "%s | %s | c:%s | %s" % [str(row.get("id", "")), str(row.get("type_or_prefab", "")), str(row_cell), str(row.get("category_or_placement", ""))]
+		if str(row.get("placement_mode", "")) == "wall_mounted":
+			row_text += " | a:%s w:%s side:%s" % [str(row_anchor_cell), str(ui._safe_ui_vector2i(row.get("attached_wall_cell", Vector2i(-1, -1)))), str(row.get("wall_side", ""))]
 		if row_selected:
 			row_text = "▶ " + row_text
 		row_button.text = row_text

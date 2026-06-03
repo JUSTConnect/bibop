@@ -16,21 +16,21 @@ static func can_apply_action(actor: Dictionary, module: Dictionary, target_objec
 			if not bool(door_gate.get("success", false)):
 				return door_gate
 		if action_type == "unlock":
-			var unlock_power_mode: String = String(target_object.get("power_mode", "internal")).strip_edges().to_lower()
+			var unlock_power_mode: String = str(target_object.get("power_mode", "internal")).strip_edges().to_lower()
 			if unlock_power_mode in ["external", "external_power", "external power"] and bool(target_object.get("is_powered", false)):
 				return _result(false, "Door opens when power is cut.", [], "power_must_be_cut")
 			if _door_requires_terminal(target_object):
 				return _result(false, "Use linked terminal.", [], "terminal_control_required")
 			if _get_door_access_type(target_object) in [WorldObjectCatalogRef.ACCESS_TYPE_DIGITAL_KEY, WorldObjectCatalogRef.ACCESS_TYPE_ACCESS_CODE]:
 				return _result(false, "Use Connector for digital access.", [], "digital_access_required")
-			var required_key_id: String = String(target_object.get("required_key_id", "")).strip_edges()
+			var required_key_id: String = str(target_object.get("required_key_id", "")).strip_edges()
 			var has_required_key: bool = not required_key_id.is_empty() and Array(actor.get("collected_key_ids", [])).has(required_key_id)
 			if not required_key_id.is_empty() and not has_required_key:
 				return _result(false, "Key-card required.", [], "key_card_required")
-			if _door_requires_key_card(target_object) and String(module.get("id", "")).is_empty():
+			if _door_requires_key_card(target_object) and str(module.get("id", "")).is_empty():
 				return _result(false, "Key-card required.", [], "key_card_required")
 			var access_type: String = _get_door_access_type(target_object)
-			if access_type not in [WorldObjectCatalogRef.ACCESS_TYPE_NO_KEY, WorldObjectCatalogRef.ACCESS_TYPE_KEY_CARD] and String(module.get("id", "")).is_empty():
+			if access_type not in [WorldObjectCatalogRef.ACCESS_TYPE_NO_KEY, WorldObjectCatalogRef.ACCESS_TYPE_KEY_CARD] and str(module.get("id", "")).is_empty():
 				return _result(false, "Digital access required.", [], "digital_access_required")
 			if _door_requires_key_card(target_object) and bool(actor.get("manipulator_occupied", false)):
 				return _result(false, "Free manipulator required.", [], "free_manipulator_required")
@@ -43,25 +43,25 @@ static func can_apply_action(actor: Dictionary, module: Dictionary, target_objec
 	if action_type == "connect" or action_type == "apply_digital_key" or action_type == "input_password" or action_type.begins_with("access_code_"):
 		if not bool(target_object.get("has_connector_jack", false)):
 			return _result(false, "Connector jack unavailable.", [], "connector_jack_required")
-		var connection_type: String = String(target_object.get("connection_type", "wired"))
+		var connection_type: String = str(target_object.get("connection_type", "wired"))
 		var interface_field := "%s_connector_level" % connection_type
-		if String(module.get("id", "")).is_empty() or int(actor.get(interface_field, actor.get("connector_level", 0))) < int(target_object.get("required_connector_level", 1)):
+		if str(module.get("id", "")).is_empty() or int(actor.get(interface_field, actor.get("connector_level", 0))) < int(target_object.get("required_connector_level", 1)):
 			return _result(false, "Connector Version too low.", [], "connector_level_too_low")
 	if action_type == "pickup" and actor.get("manipulator_occupied", false) and not _is_keycard_item(target_object):
 		return _result(false, "Free manipulator required.")
 	if action_type == "hack" and actor.get("processor_level", 0) < target_object.get("required_processor_level", 1):
 		return _result(false, "Hacking impossible")
 	if action_type == "download":
-		if String(module.get("id", "")) != "storage_buffer":
+		if str(module.get("id", "")) != "storage_buffer":
 			return _result(false, "Storage buffer required.")
-		if String(target_object.get("state", "")) != "hacked" and not bool(target_object.get("download_unlocked", false)):
+		if str(target_object.get("state", "")) != "hacked" and not bool(target_object.get("download_unlocked", false)):
 			return _result(false, "Hack device first.")
-		var record_id: String = String(target_object.get("stored_key_id", target_object.get("access_key_id", target_object.get("download_record_id", "")))).strip_edges()
+		var record_id: String = str(target_object.get("stored_key_id", target_object.get("access_key_id", target_object.get("download_record_id", "")))).strip_edges()
 		if record_id.is_empty():
 			for field_name in ["stored_key_ids", "stored_access_ids", "stored_item_ids", "digital_key_ids", "access_code_ids"]:
 				var stored_ids_value: Variant = target_object.get(field_name, [])
 				if stored_ids_value is Array and not Array(stored_ids_value).is_empty():
-					record_id = String(Array(stored_ids_value)[0]).strip_edges()
+					record_id = str(Array(stored_ids_value)[0]).strip_edges()
 					break
 		if record_id.is_empty():
 			return _result(false, "No downloadable key or data found.")
@@ -73,8 +73,8 @@ static func apply_action(actor: Dictionary, module: Dictionary, target_object: D
 		return can
 	if _is_door_object(target_object):
 		target_object = _normalize_runtime_door_data(target_object)
-	var group: String = String(target_object.get("object_group", ""))
-	var module_id: String = String(module.get("id", ""))
+	var group: String = str(target_object.get("object_group", ""))
+	var module_id: String = str(module.get("id", ""))
 	match action_type:
 		"open":
 			if group == "door":
@@ -102,7 +102,7 @@ static func apply_action(actor: Dictionary, module: Dictionary, target_object: D
 		"unlock":
 			if group != "door":
 				return _result(false, "Cannot unlock this object.")
-			var unlock_power_mode: String = String(target_object.get("power_mode", "internal")).strip_edges().to_lower()
+			var unlock_power_mode: String = str(target_object.get("power_mode", "internal")).strip_edges().to_lower()
 			if unlock_power_mode in ["external", "external_power", "external power"] and bool(target_object.get("is_powered", false)):
 				return _result(false, "Door is connected to power source.")
 			elif unlock_power_mode in ["external", "external_power", "external power"]:
@@ -110,7 +110,7 @@ static func apply_action(actor: Dictionary, module: Dictionary, target_object: D
 			var door_gate: Dictionary = _validate_door_class(actor, target_object, true)
 			if not door_gate.success:
 				return door_gate
-			var required_key_id: String = String(target_object.get("required_key_id", "")).strip_edges()
+			var required_key_id: String = str(target_object.get("required_key_id", "")).strip_edges()
 			var has_required_key := not required_key_id.is_empty() and Array(actor.get("collected_key_ids", [])).has(required_key_id)
 			var access_type: String = _get_door_access_type(target_object)
 			if _door_requires_key_card(target_object) and bool(actor.get("manipulator_occupied", false)):
@@ -144,8 +144,8 @@ static func apply_action(actor: Dictionary, module: Dictionary, target_object: D
 				return _result(false, "Access-code lock not present.")
 			if not bool(target_object.get("connected", false)):
 				return _result(false, "Connect to door first.")
-			var entered_code: String = String(target_object.get("access_code_entry", ""))
-			var expected_code: String = String(target_object.get("access_code_value", target_object.get("password", "")))
+			var entered_code: String = str(target_object.get("access_code_entry", ""))
+			var expected_code: String = str(target_object.get("access_code_value", target_object.get("password", "")))
 			if entered_code.length() == 4 and entered_code == expected_code:
 				return _result(true, "Access Code accepted. Door unlocked.", [{"type":"set_state","state":"closed"},{"type":"set_string","field":"access_code_entry","value":""}])
 			return _result(false, "Access Code rejected.")
@@ -154,7 +154,7 @@ static func apply_action(actor: Dictionary, module: Dictionary, target_object: D
 				return _result(false, "Access-code lock not present.")
 			if not bool(target_object.get("connected", false)):
 				return _result(false, "Connect to door first.")
-			var entry: String = String(target_object.get("access_code_entry", ""))
+			var entry: String = str(target_object.get("access_code_entry", ""))
 			if entry.length() >= 4:
 				return _result(false, "Access Code already has four digits.")
 			return _result(true, "Access Code digit entered.", [{"type":"set_string","field":"access_code_entry","value":entry + action_type.trim_prefix("access_code_")}])
@@ -177,7 +177,7 @@ static func apply_action(actor: Dictionary, module: Dictionary, target_object: D
 			if module_id == "sledgehammer_v1" and group == "door":
 				var hits: int = int(target_object.get("impact_hits", 0)) + 1
 				target_object["impact_hits"] = hits
-				var material: String = String(target_object.get("material", ""))
+				var material: String = str(target_object.get("material", ""))
 				if WorldObjectCatalogRef.get_legacy_source_id(target_object) == "grid_door":
 					if hits >= 2:
 						target_object["state"] = "destroyed"
@@ -194,7 +194,7 @@ static func apply_action(actor: Dictionary, module: Dictionary, target_object: D
 					return _result(false, "Impact ineffective.")
 				return _result(true, "Impact applied.")
 			if module_id == "sledgehammer_v1" and group == "wall":
-				if String(target_object.get("state", "")) == "damaged":
+				if str(target_object.get("state", "")) == "damaged":
 					target_object["state"] = "destroyed"
 					return _result(true, "Wall destroyed.", [{"type":"set_state","state":"destroyed"},{"type":"set_blocks_movement","value":false}])
 				target_object["state"] = "damaged"
@@ -203,13 +203,13 @@ static func apply_action(actor: Dictionary, module: Dictionary, target_object: D
 			if group == "door" and target_object.get("state", "") in ["damaged", "half_open", "jammed"] and module_id == "manipulator_heavy_claw_v1":
 				target_object["state"] = "open"
 				return _result(true, "Door forced open.", [{"type":"set_state","state":"open"},{"type":"set_blocks_movement","value":false}])
-			if group == "wall" and module_id == "manipulator_heavy_claw_v1" and String(target_object.get("state", "")) == "damaged":
+			if group == "wall" and module_id == "manipulator_heavy_claw_v1" and str(target_object.get("state", "")) == "damaged":
 				target_object["state"] = "open"
 				return _result(true, "Wall opening forced.", [{"type":"set_state","state":"open"},{"type":"set_blocks_movement","value":false}])
 			return _result(false, "Door cannot be forced open.")
 		"connect":
 			if group in ["terminal", "door"] or bool(target_object.get("is_digital_device", false)):
-				var connection_type: String = String(target_object.get("connection_type", "wired"))
+				var connection_type: String = str(target_object.get("connection_type", "wired"))
 				var expected = {"wired":"wired_connector","optical":"optical_connector","wireless":"wireless_connector","high_bandwidth":"high_bandwidth_connector"}
 				var needed = expected.get(connection_type, "wired_connector")
 				if module_id.find(needed) == -1:
@@ -232,7 +232,7 @@ static func apply_action(actor: Dictionary, module: Dictionary, target_object: D
 				return _result(false, "Firewall required.", ["terminal_attack"])
 			if group == "terminal":
 				WorldObjectCatalogRef.update_world_object_heat_state(target_object)
-				if String(target_object.get("state", "")) == "overheated":
+				if str(target_object.get("state", "")) == "overheated":
 					return _result(false, "Terminal overheated. Hack failed.", [{"type":"terminal_overheated","heat_breakdown":WorldObjectCatalogRef.get_world_object_heat_breakdown(target_object, 0)}])
 				var hack_heat: int = maxi(0, int(target_object.get("hack_heat", 1)))
 				if WorldObjectCatalogRef.would_world_object_overheat_with_temporary_heat(target_object, hack_heat):
@@ -247,15 +247,15 @@ static func apply_action(actor: Dictionary, module: Dictionary, target_object: D
 				return _result(true, "Hack successful.", [{"type":"set_state","state":"hacked"},{"type":"set_behavior_state","behavior_state":"idle"}])
 			return _result(true, "Hack successful.", [{"type":"terminal_hacked"},{"type":"apply_terminal_controls"},{"type":"set_state","state":"hacked"}])
 		"download":
-			var record_id: String = String(target_object.get("stored_key_id", target_object.get("access_key_id", target_object.get("download_record_id", "")))).strip_edges()
+			var record_id: String = str(target_object.get("stored_key_id", target_object.get("access_key_id", target_object.get("download_record_id", "")))).strip_edges()
 			if record_id.is_empty():
 				for field_name in ["stored_key_ids", "stored_access_ids", "stored_item_ids", "digital_key_ids", "access_code_ids"]:
 					var stored_ids_value: Variant = target_object.get(field_name, [])
 					if stored_ids_value is Array and not Array(stored_ids_value).is_empty():
-						record_id = String(Array(stored_ids_value)[0]).strip_edges()
+						record_id = str(Array(stored_ids_value)[0]).strip_edges()
 						break
-			var record_name: String = String(target_object.get("download_display_name", record_id)).strip_edges()
-			return _result(true, "Downloaded %s." % record_name, [{"type":"store_digital_record","record_id":record_id,"display_name":record_name,"description":"Downloaded from %s" % String(target_object.get("display_name", target_object.get("id", "device")))}])
+			var record_name: String = str(target_object.get("download_display_name", record_id)).strip_edges()
+			return _result(true, "Downloaded %s." % record_name, [{"type":"store_digital_record","record_id":record_id,"display_name":record_name,"description":"Downloaded from %s" % str(target_object.get("display_name", target_object.get("id", "device")))}])
 		"push", "pull":
 			if action_type == "push" and not WorldObjectCatalogRef.can_world_object_be_moved_by_heavy_claw(target_object):
 				return _result(false, "Object cannot be moved by Heavy Claw.")
@@ -282,9 +282,9 @@ static func apply_action(actor: Dictionary, module: Dictionary, target_object: D
 				return _result(true, "Heavy object moved.")
 			return _result(true, "Object moved.", [{"type":"object_move","mode":action_type,"direction":direction,"dx":direction.x,"dy":direction.y}])
 		"insert_fuse":
-			if not String(target_object.get("object_type", "")).begins_with("fuse_box") and String(target_object.get("object_type", "")) != "fuse_block":
+			if not str(target_object.get("object_type", "")).begins_with("fuse_box") and str(target_object.get("object_type", "")) != "fuse_block":
 				return _result(false, "Cannot insert fuse here.")
-			if bool(target_object.get("fuse_installed", false)) or String(target_object.get("state", "")) == "installed":
+			if bool(target_object.get("fuse_installed", false)) or str(target_object.get("state", "")) == "installed":
 				return _result(false, "Fuse already installed.")
 			if module_id != "fuse":
 				return _result(false, "Manipulator does not contain a fuse.")
@@ -292,9 +292,9 @@ static func apply_action(actor: Dictionary, module: Dictionary, target_object: D
 			target_object["fuse_installed"] = true
 			return _result(true, "Fuse installed.", [{"type":"set_state","state":"installed"},{"type":"set_bool","field":"fuse_installed","value":true},{"type":"power_recalc_needed"}])
 		"remove_fuse":
-			if not String(target_object.get("object_type", "")).begins_with("fuse_box") and String(target_object.get("object_type", "")) != "fuse_block":
+			if not str(target_object.get("object_type", "")).begins_with("fuse_box") and str(target_object.get("object_type", "")) != "fuse_block":
 				return _result(false, "Cannot remove fuse here.")
-			if not bool(target_object.get("fuse_installed", String(target_object.get("state", "")) == "installed")):
+			if not bool(target_object.get("fuse_installed", str(target_object.get("state", "")) == "installed")):
 				return _result(false, "No fuse installed.")
 			target_object["state"] = "empty"
 			target_object["fuse_installed"] = false
@@ -302,8 +302,8 @@ static func apply_action(actor: Dictionary, module: Dictionary, target_object: D
 		"repair":
 			if module_id != "repair_v1" and module_id != "repair_kit":
 				return _result(false, "Repair module or repair kit not found.")
-			var repair_state: String = String(target_object.get("state", "")).strip_edges().to_lower()
-			var repair_object_type: String = String(target_object.get("object_type", "")).strip_edges().to_lower()
+			var repair_state: String = str(target_object.get("state", "")).strip_edges().to_lower()
+			var repair_object_type: String = str(target_object.get("object_type", "")).strip_edges().to_lower()
 			var is_power_cable: bool = repair_object_type == "power_cable" or repair_object_type == "power_cable_reel"
 			var cable_needs_repair: bool = is_power_cable and (repair_state in ["cut", "damaged", "broken"] or bool(target_object.get("cut", false)) or bool(target_object.get("damaged", false)) or bool(target_object.get("broken", false)))
 			if repair_state != "damaged" and not cable_needs_repair:
@@ -316,21 +316,21 @@ static func apply_action(actor: Dictionary, module: Dictionary, target_object: D
 			var effects: Array = [{"type":"set_state","state":repaired_state},{"type":"set_bool","field":"damaged","value":false},{"type":"set_bool","field":"broken","value":false},{"type":"set_bool","field":"cut","value":false}]
 			if is_power_cable:
 				effects.append({"type":"repair_power_cable"})
-			var object_group: String = String(target_object.get("object_group", ""))
+			var object_group: String = str(target_object.get("object_group", ""))
 			if is_power_cable or target_object.has("power_network_id") or object_group in ["power", "terminal"]:
 				effects.append({"type":"power_recalc_needed"})
 			return _result(true, "Object repaired.", effects)
 		"switch":
-			var state: String = String(target_object.get("state", "switch_off"))
+			var state: String = str(target_object.get("state", "switch_off"))
 			if state.strip_edges().to_lower() in ["cut", "damaged", "broken", "destroyed"] or bool(target_object.get("cut", false)) or bool(target_object.get("damaged", false)) or bool(target_object.get("broken", false)):
 				return _result(false, "Switch is damaged.")
-			var object_type: String = String(target_object.get("object_type", "")).strip_edges().to_lower()
+			var object_type: String = str(target_object.get("object_type", "")).strip_edges().to_lower()
 			if object_type.begins_with("power_source") and not bool(target_object.get("switchable", target_object.get("can_toggle", true))):
 				return _result(false, "Power source is not switchable.")
 			if object_type == "circuit_switch":
 				var available_outputs: Array[int] = []
 				for output_index in range(1, 4):
-					var output_target: String = String(target_object.get("output_%d_wire_id" % output_index, target_object.get("output_%d_direction" % output_index, ""))).strip_edges().to_lower()
+					var output_target: String = str(target_object.get("output_%d_wire_id" % output_index, target_object.get("output_%d_direction" % output_index, ""))).strip_edges().to_lower()
 					if not output_target.is_empty() and output_target != "none":
 						available_outputs.append(output_index)
 				if not available_outputs.is_empty():
@@ -354,10 +354,10 @@ static func apply_action(actor: Dictionary, module: Dictionary, target_object: D
 			switch_effects.append({"type":"power_recalc_needed"})
 			return _result(true, "Power source toggled." if source_toggle else "Switch toggled.", switch_effects)
 		"circuit_1", "circuit_2", "circuit_3":
-			if String(target_object.get("object_type", "")) != "circuit_switch":
+			if str(target_object.get("object_type", "")) != "circuit_switch":
 				return _result(false, "Circuit output unavailable.")
 			var output_index: int = int(action_type.replace("circuit_", ""))
-			if String(target_object.get("output_%d_wire_id" % output_index, target_object.get("output_%d_direction" % output_index, "none"))).strip_edges().to_lower() in ["", "none"]:
+			if str(target_object.get("output_%d_wire_id" % output_index, target_object.get("output_%d_direction" % output_index, "none"))).strip_edges().to_lower() in ["", "none"]:
 				return _result(false, "Circuit output unavailable.")
 			target_object["active_output_index"] = output_index
 			return _result(true, "Circuit %d selected." % output_index, [{"type":"set_int","field":"active_output_index","value":output_index},{"type":"power_recalc_needed"}])
@@ -372,12 +372,12 @@ static func apply_action(actor: Dictionary, module: Dictionary, target_object: D
 			return _result(true, "Wire disconnected.", [{"type":"set_bool","field":"plugged","value":false},{"type":"disconnect_cable_end_from_target","wire_side":0},{"type":"power_recalc_needed"}])
 		"take_end_1", "take_end_2":
 			var end_index: int = 1 if action_type == "take_end_1" else 2
-			var end_state: String = String(target_object.get("end_%d_state" % end_index, "on_reel")).strip_edges().to_lower()
+			var end_state: String = str(target_object.get("end_%d_state" % end_index, "on_reel")).strip_edges().to_lower()
 			if not (end_state in ["on_reel", "disconnected", ""]):
 				return _result(false, "Cable end is already in use.")
 			target_object["end_%d_state" % end_index] = "held"
 			target_object["end_%d_target_id" % end_index] = ""
-			return _result(true, "Cable end %d taken." % end_index, [{"type":"set_state","state":String(target_object.get("state", "disconnected"))},{"type":"take_cable_end","reel_id":String(target_object.get("id", "")),"end_index":end_index}])
+			return _result(true, "Cable end %d taken." % end_index, [{"type":"set_state","state":str(target_object.get("state", "disconnected"))},{"type":"take_cable_end","reel_id":str(target_object.get("id", "")),"end_index":end_index}])
 		"connect_wire_end", "connect_wire_1", "connect_wire_2":
 			if _is_cable_unavailable(target_object):
 				return _result(false, "Cable must be repaired first.")
@@ -398,19 +398,19 @@ static func apply_action(actor: Dictionary, module: Dictionary, target_object: D
 
 		"activate_platform", "switch_platform":
 			if group == "platform":
-				if String(target_object.get("state", "active")) in ["unpowered", "disabled", "damaged"] or not bool(target_object.get("is_powered", true)):
+				if str(target_object.get("state", "active")) in ["unpowered", "disabled", "damaged"] or not bool(target_object.get("is_powered", true)):
 					return _result(false, "Platform is unpowered.")
-				if String(target_object.get("control_type", "internal")) == "internal":
+				if str(target_object.get("control_type", "internal")) == "internal":
 					if int(actor.get("manipulator_level", 0)) < 1:
 						return _result(false, "Manipulator required.")
 					if not bool(actor.get("platform_switch_access", false)):
 						return _result(false, "Platform switch is not accessible.")
 				return _result(true, "Platform activated.", [{"type":"activate_platform"}])
-			if group == "terminal" and String(target_object.get("terminal_type", "")) == "platform":
-				if String(target_object.get("state", "active")) in ["unpowered", "disabled", "damaged"] or not bool(target_object.get("platform_remote_control", true)):
+			if group == "terminal" and str(target_object.get("terminal_type", "")) == "platform":
+				if str(target_object.get("state", "active")) in ["unpowered", "disabled", "damaged"] or not bool(target_object.get("platform_remote_control", true)):
 					return _result(false, "Platform terminal is unavailable.")
 				var required_interface: int = maxi(1, int(target_object.get("required_connector_level", 1)))
-				var connection_type := String(target_object.get("connection_type", "wired"))
+				var connection_type := str(target_object.get("connection_type", "wired"))
 				var interface_key := "%s_connector_level" % connection_type
 				if int(actor.get(interface_key, 0)) < required_interface:
 					return _result(false, "Connector required.")
@@ -458,7 +458,7 @@ static func apply_action(actor: Dictionary, module: Dictionary, target_object: D
 	return _result(false, "No available action for this object.")
 
 static func _is_cable_unavailable(target_object: Dictionary) -> bool:
-	var state: String = String(target_object.get("state", "")).strip_edges().to_lower()
+	var state: String = str(target_object.get("state", "")).strip_edges().to_lower()
 	return state in ["cut", "damaged", "broken", "destroyed"] or bool(target_object.get("cut", false)) or bool(target_object.get("damaged", false)) or bool(target_object.get("broken", false))
 
 
@@ -469,7 +469,7 @@ static func _normalize_runtime_door_data(object_data: Dictionary) -> Dictionary:
 
 static func _is_door_object(object_data: Dictionary) -> bool:
 	var data: Dictionary = WorldObjectCatalogRef.normalize_world_object_contract(object_data)
-	return String(data.get("object_group", "")) == "door"
+	return str(data.get("object_group", "")) == "door"
 
 static func _get_door_access_type(object_data: Dictionary) -> String:
 	return WorldObjectCatalogRef.normalize_access_type(object_data.get("access_type", object_data.get("lock_type", "")))
@@ -481,10 +481,10 @@ static func _door_requires_terminal(object_data: Dictionary) -> bool:
 	return _get_door_access_type(object_data) == WorldObjectCatalogRef.ACCESS_TYPE_TERMINAL
 
 static func _validate_door_class(actor: Dictionary, target_object: Dictionary, allow_external_control: bool = false) -> Dictionary:
-	var control_mode := String(target_object.get("control_type", target_object.get("control_mode", "internal"))).strip_edges().to_lower()
+	var control_mode := str(target_object.get("control_type", target_object.get("control_mode", "internal"))).strip_edges().to_lower()
 	if not allow_external_control and control_mode in ["external", "external_control", "external control", "terminal"]:
 		return _result(false, "Use linked terminal.", [], "terminal_control_required")
-	var power_mode := String(target_object.get("power_mode", "internal")).strip_edges().to_lower()
+	var power_mode := str(target_object.get("power_mode", "internal")).strip_edges().to_lower()
 	if power_mode in ["external", "external_power", "external power"] and not bool(target_object.get("is_powered", true)):
 		return _result(false, "Door is unpowered.")
 	if int(actor.get("manipulator_level", 0)) < int(target_object.get("required_manipulator_level", 1)):
@@ -494,8 +494,8 @@ static func _validate_door_class(actor: Dictionary, target_object: Dictionary, a
 	return _result(true, "OK")
 
 static func _validate_weight_class(actor: Dictionary, target_object: Dictionary) -> Dictionary:
-	var weight_class: String = String(target_object.get("weight_class", "normal"))
-	var actor_power: String = String(actor.get("power_class", "scout"))
+	var weight_class: String = str(target_object.get("weight_class", "normal"))
+	var actor_power: String = str(actor.get("power_class", "scout"))
 	if weight_class == "heavy" and actor_power == "scout":
 		return _result(false, "Object is too heavy.")
 	if weight_class == "block" and actor_power != "juggernaut":
@@ -505,9 +505,9 @@ static func _validate_weight_class(actor: Dictionary, target_object: Dictionary)
 static func normalize_action_result(result: Dictionary, target_object: Dictionary, action_id: String) -> Dictionary:
 	var normalized: Dictionary = result.duplicate(true)
 	normalized["success"] = bool(result.get("success", false))
-	normalized["message"] = String(result.get("message", ""))
-	normalized["reason"] = String(result.get("reason", "ok" if bool(normalized["success"]) else "action_unavailable"))
-	normalized["target_id"] = String(target_object.get("id", ""))
+	normalized["message"] = str(result.get("message", ""))
+	normalized["reason"] = str(result.get("reason", "ok" if bool(normalized["success"]) else "action_unavailable"))
+	normalized["target_id"] = str(target_object.get("id", ""))
 	normalized["action_id"] = action_id
 	var effects_value: Variant = result.get("effects", [])
 	normalized["state_changed"] = effects_value is Array and not effects_value.is_empty()

@@ -21,29 +21,29 @@ static func try_pickup_adjacent_or_current_item(controller: Variant, target_posi
 		var item_actor := {"manipulator_occupied": requires_free_manipulator and not controller.can_use_physical_hand()}
 		var item_result: Dictionary = InteractionSystemRef.normalize_action_result(Dictionary(InteractionSystemRef.apply_action(item_actor, {"id": active_manipulator.id if active_manipulator != null else ""}, item, "pickup")), item, "pickup")
 		if not bool(item_result.get("success", false)):
-			return _build_result(false, String(item_result.get("message", "Pickup failed.")), item_cell, item, true, "pickup_failed")
-		var item_id: String = String(item.get("id", ""))
+			return _build_result(false, str(item_result.get("message", "Pickup failed.")), item_cell, item, true, "pickup_failed")
+		var item_id: String = str(item.get("id", ""))
 		var pickup_result := {"success": true, "reasons": ["ok"], "item_id": item_id}
 		if controller.mission_manager.has_method("pickup_world_item"):
 			pickup_result = Dictionary(controller.mission_manager.call("pickup_world_item", item_id))
 		if not bool(pickup_result.get("success", false)):
-			var pickup_error_message: String = String(pickup_result.get("message", "Cannot pick up item: %s" % ", ".join(Array(pickup_result.get("reasons", [])))))
+			var pickup_error_message: String = str(pickup_result.get("message", "Cannot pick up item: %s" % ", ".join(Array(pickup_result.get("reasons", [])))))
 			return _build_result(false, pickup_error_message, item_cell, item, false, "world_item_pickup_failed")
 		var message: String
 		if is_digital_item:
 			controller.buffer_item = item.duplicate(true)
 			controller.buffer_item["item_form"] = "digital"
-			var item_type := String(item.get("item_type", item.get("id", "")))
-			var digital_state := String(item.get("digital_state", item.get("state", "opened")))
-			var item_family := String(item.get("item_family", controller.infer_digital_item_family(item_type)))
+			var item_type := str(item.get("item_type", item.get("id", "")))
+			var digital_state := str(item.get("digital_state", item.get("state", "opened")))
+			var item_family := str(item.get("item_family", controller.infer_digital_item_family(item_type)))
 			controller.digital_world_records[item_family] = {"item_family": item_family, "item_type": item_type, "digital_state": digital_state}
 			message = "Pickup digital: item stored."
 		else:
-			var pickup_message: String = String(pickup_result.get("message", ""))
+			var pickup_message: String = str(pickup_result.get("message", ""))
 			if not pickup_message.is_empty():
 				message = pickup_message
 			else:
-				message = "Picked up %s" % String(item.get("display_name", "item"))
+				message = "Picked up %s" % str(item.get("display_name", "item"))
 		var result: Dictionary = _build_result(true, message, item_cell, item, true, "ok")
 		result["clear_selected_action"] = true
 		result["refresh_threats"] = true

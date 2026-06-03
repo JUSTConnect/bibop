@@ -58,7 +58,7 @@ static func build_targeting_snapshot(controller: Variant) -> Dictionary:
 static func _build_action_context_for_id(action_target: Dictionary, action_id: String) -> Dictionary:
 	var view_model: Dictionary = Dictionary(action_target.get("action_view_model", {}))
 	for descriptor_variant in Array(view_model.get("actions", [])):
-		if descriptor_variant is Dictionary and String(Dictionary(descriptor_variant).get("id", "")) == action_id:
+		if descriptor_variant is Dictionary and str(Dictionary(descriptor_variant).get("id", "")) == action_id:
 			return {
 				"target_position": action_target.get("target_position", Vector2i.ZERO),
 				"target_object": action_target.get("target_object", {}),

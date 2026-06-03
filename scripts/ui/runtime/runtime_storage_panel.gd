@@ -75,9 +75,9 @@ static func set_visible(ui, visible_state: bool) -> void:
 
 static func _get_inventory_item_id(value: Variant) -> String:
 	if value is String or value is StringName:
-		return String(value).strip_edges()
+		return str(value).strip_edges()
 	if value is Dictionary:
-		return String(Dictionary(value).get("id", Dictionary(value).get("item_id", ""))).strip_edges()
+		return str(Dictionary(value).get("id", Dictionary(value).get("item_id", ""))).strip_edges()
 	return ""
 
 
@@ -139,7 +139,7 @@ static func _refresh_key_mini_hud(ui, bipob) -> void:
 		var key_text: String = "·"
 		var tooltip_text: String = "Empty key slot"
 		if index < key_ids.size():
-			var key_id: String = String(key_ids[index]).strip_edges()
+			var key_id: String = str(key_ids[index]).strip_edges()
 			tooltip_text = key_id
 			if ui.has_method("_get_runtime_key_display_text"):
 				tooltip_text = ui._get_runtime_key_display_text(key_id, inventory_state)
@@ -514,7 +514,7 @@ static func _get_key_slot_text(ui, key_value: Variant) -> String:
 	if key_id.is_empty():
 		return "—"
 	if ui != null and ui.has_method("_get_runtime_key_display_text"):
-		var display_text: String = String(ui.call("_get_runtime_key_display_text", key_id)).strip_edges()
+		var display_text: String = str(ui.call("_get_runtime_key_display_text", key_id)).strip_edges()
 		if not display_text.is_empty():
 			return display_text.left(8)
 	return key_id.left(8)
@@ -539,7 +539,7 @@ static func _get_runtime_inventory_item_name(inventory_state: Dictionary, item_i
 	var runtime_map: Dictionary = Dictionary(inventory_state.get("world_item_runtime", {}))
 	var item_runtime: Dictionary = Dictionary(runtime_map.get(item_id, {}))
 	var item_data: Dictionary = Dictionary(item_runtime.get("item_data", {}))
-	var display_name: String = String(item_data.get("display_name", item_data.get("item_type", item_id))).strip_edges()
+	var display_name: String = str(item_data.get("display_name", item_data.get("item_type", item_id))).strip_edges()
 	return item_id if display_name.is_empty() else display_name.capitalize()
 
 static func _get_module_name(bipob, item: Variant) -> String:
@@ -554,7 +554,7 @@ static func _get_record_name(item: Variant, empty_text: String) -> String:
 	if typeof(item) != TYPE_DICTIONARY:
 		return empty_text
 	var record: Dictionary = item
-	var display_name: String = String(record.get("display_name", record.get("id", ""))).strip_edges()
+	var display_name: String = str(record.get("display_name", record.get("id", ""))).strip_edges()
 	return empty_text if display_name.is_empty() else display_name
 
 

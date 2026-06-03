@@ -7,7 +7,7 @@ const WorldObjectCatalogRef = preload("res://scripts/world/world_object_catalog.
 
 static func build_runtime_action_view_model(controller: Variant, target_object: Dictionary, target_position: Vector2i) -> Dictionary:
 	var normalized_target: Dictionary = WorldObjectCatalogRef.normalize_world_object_contract(target_object)
-	if String(normalized_target.get("object_group", "")) == "door":
+	if str(normalized_target.get("object_group", "")) == "door":
 		normalized_target = WorldObjectCatalogRef.normalize_door_contract(normalized_target)
 		normalized_target = WorldObjectCatalogRef.normalize_door_state_fields(normalized_target)
 	var raw_action_ids: Array = []
@@ -15,11 +15,11 @@ static func build_runtime_action_view_model(controller: Variant, target_object: 
 		raw_action_ids = controller.get_available_world_actions(normalized_target, target_position)
 	var action_ids: Array[String] = []
 	for action_id_variant in raw_action_ids:
-		var action_id: String = String(action_id_variant)
+		var action_id: String = str(action_id_variant)
 		if not action_id.is_empty():
 			action_ids.append(action_id)
-	var group: String = String(normalized_target.get("object_group", ""))
-	var state: String = String(normalized_target.get("state", ""))
+	var group: String = str(normalized_target.get("object_group", ""))
+	var state: String = str(normalized_target.get("state", ""))
 	if group == "door":
 		var expected_door_action: String = ""
 		if state == "open": expected_door_action = "close"
@@ -30,13 +30,13 @@ static func build_runtime_action_view_model(controller: Variant, target_object: 
 	var actor: Dictionary = controller._build_runtime_action_actor(normalized_target, target_position)
 	var descriptors: Array[Dictionary] = []
 	var available_action_ids: Array[String] = []
-	var target_id: String = String(normalized_target.get("id", ""))
-	var target_type: String = String(normalized_target.get("object_type", group))
+	var target_id: String = str(normalized_target.get("id", ""))
+	var target_type: String = str(normalized_target.get("object_type", group))
 	for action_id in action_ids:
 		var module: Dictionary = controller.get_world_action_module(action_id, normalized_target)
 		var gate: Dictionary = InteractionSystemRef.can_apply_action(actor, module, normalized_target, action_id)
 		var enabled: bool = bool(gate.get("success", false))
-		var reason: String = String(gate.get("reason", "ok" if enabled else "action_unavailable"))
+		var reason: String = str(gate.get("reason", "ok" if enabled else "action_unavailable"))
 		var requires_free_manipulator: bool = _runtime_action_requires_free_manipulator(action_id, normalized_target)
 		if enabled and requires_free_manipulator and not controller.can_use_physical_hand():
 			enabled = false
@@ -55,8 +55,8 @@ static func build_runtime_action_view_model(controller: Variant, target_object: 
 			break
 	if primary.is_empty() and not descriptors.is_empty():
 		primary = descriptors[0]
-	var disabled_reason: String = String(primary.get("reason", "target_missing" if normalized_target.is_empty() else "no_available_action"))
-	return {"target":normalized_target, "actions":descriptors, "available_action_ids":available_action_ids, "primary_action_id":String(primary.get("id", "")), "primary_action_label":String(primary.get("label", "Action")), "has_available_action":not available_action_ids.is_empty(), "disabled_reason":disabled_reason}
+	var disabled_reason: String = str(primary.get("reason", "target_missing" if normalized_target.is_empty() else "no_available_action"))
+	return {"target":normalized_target, "actions":descriptors, "available_action_ids":available_action_ids, "primary_action_id":str(primary.get("id", "")), "primary_action_label":str(primary.get("label", "Action")), "has_available_action":not available_action_ids.is_empty(), "disabled_reason":disabled_reason}
 
 
 static func _runtime_action_requires_free_manipulator(action_id: String, target_object: Dictionary) -> bool:

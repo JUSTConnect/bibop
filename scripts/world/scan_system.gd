@@ -29,9 +29,9 @@ static func scan_object(object_data: Dictionary, scan_type: String, scanner_leve
 			out["details"].append("Controlled by: %s" % ", ".join(object_data.get("controlled_by", [])))
 	elif object_data.get("object_group", "") == "terminal":
 		out["details"].append("Status: %s" % object_data.get("state", "unknown"))
-		if String(object_data.get("terminal_type", "")) == "platform":
+		if str(object_data.get("terminal_type", "")) == "platform":
 			out["details"].append("Platform Terminal")
-			out["details"].append("Target: %s" % String(object_data.get("target_platform_id", "")))
+			out["details"].append("Target: %s" % str(object_data.get("target_platform_id", "")))
 			out["details"].append("Control enabled: %s" % str(bool(object_data.get("platform_control_enabled", false))))
 		if level >= 2:
 			out["details"].append("Connection: %s" % object_data.get("connection_type", "unknown"))
@@ -54,7 +54,7 @@ static func scan_object(object_data: Dictionary, scan_type: String, scanner_leve
 			out["details"].append("Embedded: %s" % ", ".join(object_data.get("hidden_content", [])))
 	elif object_data.get("object_group", "") == "item":
 		if level >= 2:
-			var storage: String = String(object_data.get("storage_type", object_data.get("item_storage", "unknown")))
+			var storage: String = str(object_data.get("storage_type", object_data.get("item_storage", "unknown")))
 			out["details"].append("Storage: %s" % storage)
 	elif object_data.get("object_group", "") == "physical_object":
 		if level >= 2:
@@ -64,16 +64,16 @@ static func scan_object(object_data: Dictionary, scan_type: String, scanner_leve
 		if WorldObjectCatalogRef.can_world_object_be_moved_by_heavy_claw(object_data):
 			out["details"].append("Movable: Heavy Claw")
 		var cooling_output: int = maxi(0, int(object_data.get("cooling_output", 0)))
-		if String(object_data.get("cooling_device_type", "")) == "radiator":
+		if str(object_data.get("cooling_device_type", "")) == "radiator":
 			out["details"].append("Cooling output: %d" % cooling_output)
 			out["details"].append("Metal boost: adjacent metal object increases radiator cooling to 2")
-		elif String(object_data.get("cooling_device_type", "")) == "air_cooler":
+		elif str(object_data.get("cooling_device_type", "")) == "air_cooler":
 			out["details"].append("Cooling output: %d" % cooling_output)
-			out["details"].append("Facing: %s" % String(object_data.get("facing_dir", "right")))
-		elif String(object_data.get("cooling_device_type", "")) == "water_pipe":
+			out["details"].append("Facing: %s" % str(object_data.get("facing_dir", "right")))
+		elif str(object_data.get("cooling_device_type", "")) == "water_pipe":
 			out["details"].append("Cooling output: %d" % cooling_output)
 			out["details"].append("Water cooling: adjacent heat device receives cooling")
-		elif String(object_data.get("cooling_device_type", "")) == "air_duct":
+		elif str(object_data.get("cooling_device_type", "")) == "air_duct":
 			out["details"].append("Carries airflow")
 			out["details"].append("Requires External Air Cooler facing duct line")
 		elif bool(object_data.get("cooling_amplifier", false)):
@@ -81,14 +81,14 @@ static func scan_object(object_data: Dictionary, scan_type: String, scanner_leve
 
 
 	elif object_data.get("object_group", "") == "platform":
-		out["details"].append("Platform type: %s" % String(object_data.get("platform_type", "unknown")))
-		out["details"].append("Status: %s" % String(object_data.get("state", "unknown")))
-		out["details"].append("Power/control: %s / %s" % [String(object_data.get("power_type", "internal")), String(object_data.get("control_type", "internal"))])
-		out["details"].append("Activation: %s" % String(object_data.get("activation_mode", "instant")))
+		out["details"].append("Platform type: %s" % str(object_data.get("platform_type", "unknown")))
+		out["details"].append("Status: %s" % str(object_data.get("state", "unknown")))
+		out["details"].append("Power/control: %s / %s" % [str(object_data.get("power_type", "internal")), str(object_data.get("control_type", "internal"))])
+		out["details"].append("Activation: %s" % str(object_data.get("activation_mode", "instant")))
 		if object_data.has("height_level"):
 			out["details"].append("Height: %d" % int(object_data.get("height_level", 0)))
-		if object_data.has("linked_terminal_id") and String(object_data.get("linked_terminal_id", "")) != "":
-			out["details"].append("Linked terminal: %s" % String(object_data.get("linked_terminal_id", "")))
+		if object_data.has("linked_terminal_id") and str(object_data.get("linked_terminal_id", "")) != "":
+			out["details"].append("Linked terminal: %s" % str(object_data.get("linked_terminal_id", "")))
 		if object_data.has("timer_remaining_turns"):
 			out["details"].append("Timer: %d" % int(object_data.get("timer_remaining_turns", 0)))
 	elif object_data.get("object_group", "") == "threat":
@@ -96,9 +96,9 @@ static func scan_object(object_data: Dictionary, scan_type: String, scanner_leve
 			out["details"].append("Behavior: %s" % object_data.get("behavior_state", "idle"))
 		if scan_type == "thermal" and bool(object_data.get("heat_signature", false)):
 			out["details"].append("Heat signature detected")
-			if String(object_data.get("object_type", "")) == "turret" and String(object_data.get("state", "")) == "active":
+			if str(object_data.get("object_type", "")) == "turret" and str(object_data.get("state", "")) == "active":
 				out["details"].append("Active turret")
-		if scan_type == "radar" and String(object_data.get("behavior_state", "")) in ["patrolling", "active"]:
+		if scan_type == "radar" and str(object_data.get("behavior_state", "")) in ["patrolling", "active"]:
 			out["details"].append("Patrol movement detected")
 			out["details"].append("Threat outline")
 		if scan_type == "xray" and level >= 2:
