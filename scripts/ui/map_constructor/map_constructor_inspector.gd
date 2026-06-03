@@ -182,7 +182,8 @@ static func refresh(ui: Variant, cell: Vector2i, preferred_entity_kind: String =
 		terminal_visual_label.text = "type=%s, state=%s, badges=%s" % [ui._safe_ui_string(terminal_visual.get("terminal_type", "unknown"), "unknown"), ui._safe_ui_string(terminal_visual.get("state", "unknown"), "unknown"), ui._safe_ui_string(terminal_visual.get("badges", []))]
 		current_status.add_child(ui._create_property_row("Terminal visual", terminal_visual_label))
 	v.add_child(current_status)
-	var placement: VBoxContainer = ui._create_inspector_section("3. Placement")
+	MapConstructorPropertyControls.add_circuit_block(ui, v, entity_kind, entity_id, data)
+	var placement: VBoxContainer = ui._create_inspector_section("4. Placement")
 	var cell_l:=Label.new(); cell_l.text = ui._safe_ui_string(entity_info.get("cell", cell), str(cell)); placement.add_child(ui._create_property_row("Cell", cell_l))
 	var pm_l:=Label.new(); pm_l.text = ui._safe_ui_string(data.get("placement_mode", "floor"), "floor"); placement.add_child(ui._create_property_row("Mode", pm_l))
 	var move_row: HBoxContainer = HBoxContainer.new()
@@ -207,7 +208,7 @@ static func refresh(ui: Variant, cell: Vector2i, preferred_entity_kind: String =
 	)
 	placement.add_child(del)
 	v.add_child(placement)
-	var configurable: VBoxContainer = ui._create_inspector_section("4. Configurable Parameters")
+	var configurable: VBoxContainer = ui._create_inspector_section("5. Configurable Parameters")
 	var object_is_configurable: bool = bool(data.get("configurable", true))
 	var object_archetype_id: String = ui._safe_ui_string(data.get("archetype_id", "")).strip_edges()
 	if object_is_configurable and object_archetype_id.is_empty():
@@ -253,14 +254,14 @@ static func refresh(ui: Variant, cell: Vector2i, preferred_entity_kind: String =
 		no_config_label.text = "No configurable object-specific parameters."
 		configurable.add_child(no_config_label)
 	v.add_child(configurable)
-	var link_section: VBoxContainer = ui._create_inspector_section("5. Links")
+	var link_section: VBoxContainer = ui._create_inspector_section("6. Links")
 	ui._add_map_constructor_object_link_sections(link_section, entity_kind, entity_id, data, type_group)
 	var validation_result: Dictionary = {}
 	if ui.mission_manager_runtime != null and ui.mission_manager_runtime.has_method("validate_map_constructor_entity_links"):
 		validation_result = ui._safe_ui_dictionary(ui.mission_manager_runtime.call("validate_map_constructor_entity_links", entity_kind, entity_id))
 		MapConstructorValidationView.add_linked_targets(ui, link_section, validation_result)
 	v.add_child(link_section)
-	var warning_section: VBoxContainer = ui._create_inspector_section("6. Warnings")
+	var warning_section: VBoxContainer = ui._create_inspector_section("7. Warnings")
 	MapConstructorValidationView.add_warning_entries(ui, warning_section, validation_result)
 	v.add_child(warning_section)
 	MapConstructorFloorWallControls.add_coverage_sections(ui, v, entity_info, cell, data, entity_kind, entity_id, type_group)

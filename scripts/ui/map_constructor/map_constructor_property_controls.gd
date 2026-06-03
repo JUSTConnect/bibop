@@ -178,6 +178,105 @@ static func add_enum_array_property(ui: Variant, section: VBoxContainer, label: 
 	)
 	section.add_child(create_property_row(ui, label, menu))
 
+static func add_circuit_block(ui: Variant, parent: VBoxContainer, entity_kind: String, entity_id: String, data: Dictionary) -> void:
+	var section: VBoxContainer = create_inspector_section(ui, "3. Circuit")
+	var summary: Dictionary = {}
+	if ui.mission_manager_runtime != null and ui.mission_manager_runtime.has_method("get_map_constructor_circuit_summary"):
+		summary = MapConstructorUiSafe.safe_dictionary(ui.mission_manager_runtime.call("get_map_constructor_circuit_summary", entity_kind, entity_id))
+	var circuit_id: String = MapConstructorUiSafe.safe_string(summary.get("circuit_id", "")).strip_edges()
+	if circuit_id.is_empty() and ui.mission_manager_runtime != null and ui.mission_manager_runtime.has_method("get_normalized_map_constructor_circuit_id"):
+		circuit_id = MapConstructorUiSafe.safe_string(ui.mission_manager_runtime.call("get_normalized_map_constructor_circuit_id", data)).strip_edges()
+	var id_label: Label = Label.new()
+	id_label.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	id_label.text = circuit_id if not circuit_id.is_empty() else "No circuit assigned"
+	section.add_child(create_property_row(ui, "Circuit id", id_label))
+	var name_edit: LineEdit = LineEdit.new()
+	name_edit.text = MapConstructorUiSafe.safe_string(summary.get("circuit_name", data.get("circuit_name", ""))).strip_edges()
+	name_edit.placeholder_text = "Circuit display name"
+	name_edit.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	var rename_button: Button = Button.new()
+	rename_button.text = "Rename circuit"
+	rename_button.disabled = circuit_id.is_empty()
+	rename_button.pressed.connect(func() -> void:
+		if ui.mission_manager_runtime == null or not ui.mission_manager_runtime.has_method("rename_map_constructor_circuit"):
+			return
+		var result: Dictionary = MapConstructorUiSafe.safe_dictionary(ui.mission_manager_runtime.call("rename_map_constructor_circuit", entity_kind, entity_id, name_edit.text))
+		ui.show_hint(MapConstructorUiSafe.safe_string(result.get("message", "Circuit renamed."), "Circuit renamed."))
+		ui._refresh_map_constructor_panels()
+		ui._show_map_constructor_inspector(ui.selected_map_constructor_entity_cell, entity_kind, entity_id)
+	)
+	var name_row: HBoxContainer = HBoxContainer.new()
+	name_row.add_theme_constant_override("separation", 6)
+	name_row.add_child(name_edit)
+	name_row.add_child(rename_button)
+	section.add_child(create_property_row(ui, "Name", name_row))
+	var create_id_edit: LineEdit = LineEdit.new()
+	create_id_edit.placeholder_text = "New circuit id (blank = auto)"
+	create_id_edit.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	var create_name_edit: LineEdit = LineEdit.new()
+	create_name_edit.placeholder_text = "New circuit name"
+	create_name_edit.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	var create_button: Button = Button.new()
+	create_button.text = "Create new circuit"
+	create_button.pressed.connect(func() -> void:
+		if ui.mission_manager_runtime == null or not ui.mission_manager_runtime.has_method("create_map_constructor_circuit"):
+			return
+		var result: Dictionary = MapConstructorUiSafe.safe_dictionary(ui.mission_manager_runtime.call("create_map_constructor_circuit", entity_kind, entity_id, create_id_edit.text, create_name_edit.text))
+		ui.show_hint(MapConstructorUiSafe.safe_string(result.get("message", "Circuit created."), "Circuit created."))
+		ui._refresh_map_constructor_panels()
+		ui._show_map_constructor_inspector(ui.selected_map_constructor_entity_cell, entity_kind, entity_id)
+	)
+	var create_row: VBoxContainer = VBoxContainer.new()
+	create_row.add_theme_constant_override("separation", 4)
+	create_row.add_child(create_id_edit)
+	create_row.add_child(create_name_edit)
+	create_row.add_child(create_button)
+	section.add_child(create_property_row(ui, "Create", create_row))
+	var assign_option: OptionButton = OptionButton.new()
+	assign_option.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	var selected_index: int = -1
+	for option_variant in MapConstructorUiSafe.safe_array(summary.get("options", [])):
+		var option_data: Dictionary = MapConstructorUiSafe.safe_dictionary(option_variant)
+		var option_id: String = MapConstructorUiSafe.safe_string(option_data.get("id", "")).strip_edges()
+		if option_id.is_empty():
+			continue
+		assign_option.add_item(MapConstructorUiSafe.safe_string(option_data.get("label", option_id), option_id))
+		var index: int = assign_option.item_count - 1
+		assign_option.set_item_metadata(index, option_id)
+		if option_id == circuit_id:
+			selected_index = index
+	if selected_index >= 0:
+		assign_option.select(selected_index)
+	var assign_button: Button = Button.new()
+	assign_button.text = "Assign selected object to circuit"
+	assign_button.disabled = assign_option.item_count <= 0
+	assign_button.pressed.connect(func() -> void:
+		if assign_option.get_selected() < 0 or ui.mission_manager_runtime == null or not ui.mission_manager_runtime.has_method("assign_map_constructor_entity_to_circuit"):
+			return
+		var target_circuit_id: String = MapConstructorUiSafe.safe_string(assign_option.get_item_metadata(assign_option.get_selected())).strip_edges()
+		var result: Dictionary = MapConstructorUiSafe.safe_dictionary(ui.mission_manager_runtime.call("assign_map_constructor_entity_to_circuit", entity_kind, entity_id, target_circuit_id, ""))
+		ui.show_hint(MapConstructorUiSafe.safe_string(result.get("message", "Circuit assigned."), "Circuit assigned."))
+		ui._refresh_map_constructor_panels()
+		ui._show_map_constructor_inspector(ui.selected_map_constructor_entity_cell, entity_kind, entity_id)
+	)
+	var assign_row: HBoxContainer = HBoxContainer.new()
+	assign_row.add_theme_constant_override("separation", 6)
+	assign_row.add_child(assign_option)
+	assign_row.add_child(assign_button)
+	section.add_child(create_property_row(ui, "Assign", assign_row))
+	var copy_button: Button = Button.new()
+	copy_button.text = "Copy circuit from selected object / current cell"
+	copy_button.disabled = circuit_id.is_empty()
+	copy_button.pressed.connect(func() -> void:
+		if circuit_id.is_empty():
+			ui.show_hint("No circuit assigned")
+			return
+		DisplayServer.clipboard_set(circuit_id)
+		ui.show_hint("Copied circuit %s." % circuit_id)
+	)
+	section.add_child(copy_button)
+	parent.add_child(section)
+
 static func get_display_label(field_name: String) -> String:
 	var label: String = field_name.replace("_", " ").capitalize()
 	if field_name in ["required_manipulator_level", "required_connector_level", "required_processor_level"]:

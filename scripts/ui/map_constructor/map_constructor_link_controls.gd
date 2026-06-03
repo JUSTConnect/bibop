@@ -263,7 +263,36 @@ static func add_door_access_link_controls(ui: Variant, section: VBoxContainer, e
 	if access_type == "terminal_access":
 		add_link_picker(ui, section, entity_kind, entity_id, "access_terminal", "Terminal Access Binding")
 
+
+static func add_same_circuit_linked_section(ui: Variant, link_section: VBoxContainer, entity_kind: String, entity_id: String) -> void:
+	if ui.mission_manager_runtime == null or not ui.mission_manager_runtime.has_method("get_map_constructor_same_circuit_entities"):
+		return
+	var linked_entities: Array = MapConstructorUiSafe.safe_array(ui.mission_manager_runtime.call("get_map_constructor_same_circuit_entities", entity_kind, entity_id))
+	var section: VBoxContainer = ui._create_inspector_section("Same Circuit")
+	if linked_entities.is_empty():
+		var empty_label: Label = Label.new()
+		empty_label.text = "No same-circuit objects found."
+		section.add_child(empty_label)
+	else:
+		for row_variant in linked_entities:
+			var row: Dictionary = MapConstructorUiSafe.safe_dictionary(row_variant)
+			var target_id: String = MapConstructorUiSafe.safe_string(row.get("id", "")).strip_edges()
+			if target_id.is_empty():
+				continue
+			var target_kind: String = MapConstructorUiSafe.safe_string(row.get("entity_kind", "world_object"), "world_object")
+			var target_cell: Vector2i = Vector2i(row.get("cell", Vector2i(-1, -1)))
+			var button: Button = Button.new()
+			button.text = "%s @ %s" % [MapConstructorUiSafe.safe_string(row.get("label", target_id), target_id), str(target_cell)]
+			button.tooltip_text = "%s / %s" % [target_kind, MapConstructorUiSafe.safe_string(row.get("object_type", ""))]
+			button.pressed.connect(func() -> void:
+				ui._focus_map_constructor_cell(target_cell)
+				ui._show_map_constructor_inspector(target_cell, target_kind, target_id)
+			)
+			section.add_child(button)
+	link_section.add_child(section)
+
 static func add_map_constructor_object_link_sections(ui: Variant, link_section: VBoxContainer, entity_kind: String, entity_id: String, data: Dictionary, type_group: String) -> void:
+	add_same_circuit_linked_section(ui, link_section, entity_kind, entity_id)
 	if is_map_constructor_key_item(ui, data, type_group):
 		add_key_door_link_section(ui, link_section, entity_kind, entity_id, data)
 	if type_group == "door":
