@@ -9678,7 +9678,10 @@ func _on_mission_result_restart_pressed() -> void:
 		restart_mission_id = int(bipob.current_mission_index)
 	if bipob != null:
 		bipob.current_mission_index = restart_mission_id
-		if bipob.has_method("start_mission"):
+		var is_task_test_restart: bool = bipob.has_method("is_task_test_mode_active") and bool(bipob.call("is_task_test_mode_active"))
+		if is_task_test_restart and bipob.has_method("restart_task_test_session"):
+			bipob.restart_task_test_session()
+		elif bipob.has_method("start_mission"):
 			bipob.start_mission(restart_mission_id, true)
 		elif bipob.has_method("restart_current_mission"):
 			bipob.restart_current_mission()
@@ -9937,7 +9940,11 @@ func _get_clamped_runtime_field_position(unclamped_position: Vector2, viewport_s
 	return Vector2(clamped_x, clamped_y)
 
 func _is_task_test_runtime_active() -> bool:
-	return app_screen_mode == AppScreenMode.GAMEPLAY and bipob != null and int(bipob.current_mission_index) == 10
+	if app_screen_mode != AppScreenMode.GAMEPLAY or bipob == null:
+		return false
+	if bipob.has_method("is_task_test_mode_active"):
+		return bool(bipob.call("is_task_test_mode_active"))
+	return int(bipob.current_mission_index) == 10
 
 func _toggle_map_constructor_mode() -> void:
 	if not _is_task_test_runtime_active():
@@ -12643,7 +12650,10 @@ func _on_restart_mission_button_pressed() -> void:
 	_deactivate_map_constructor_mode()
 
 	# Mission reset action: should not spend field action points or energy as button press.
-	bipob.restart_current_mission()
+	if _is_task_test_runtime_active() and bipob.has_method("reset_task_test_session"):
+		bipob.reset_task_test_session()
+	else:
+		bipob.restart_current_mission()
 	if box_screen != null and box_screen.visible:
 		hide_box_screen()
 	else:
