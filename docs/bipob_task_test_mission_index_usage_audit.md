@@ -224,3 +224,25 @@ Status: completed. TASK TEST objective/goal text now has explicit helper boundar
 - `GameUI` uses `_is_task_test_runtime_active()` before selecting objective text, then asks BipobController for TASK TEST goal/hint values. Legacy story objective/hint display continues to use the existing view-model and `get_mission_goal_hint()` compatibility flow.
 
 No TASK TEST mechanics, Map Constructor behavior, Mission 7 cable behavior, Mission 8 airflow behavior, scan/hack, inventory, movement, mission resources, scenes, or `project.godot` changed.
+
+## PR-RF-34 update — TASK TEST session state source of truth
+
+`current_mission_index = 10` is now classified as a compatibility mirror only during TASK TEST startup. TASK TEST runtime/session decisions should use explicit session state instead:
+
+- `active_runtime_mode_id` wins when set.
+- `current_mission_id` / canonical `task_test` layout id are the session/layout identity.
+- `get_runtime_mode_id()`, `is_task_test_mode_active()`, and `is_sandbox_mode_active()` are the runtime gates.
+- `get_task_test_layout_id()` and `get_task_test_source_id()` are the canonical layout/source id boundaries.
+
+### PR-RF-34 usage classification
+
+| Usage | Classification | Status |
+| --- | --- | --- |
+| `current_mission_index = TASK_TEST_MISSION_INDEX` in `BipobController._start_runtime_session()` | TASK TEST compatibility mirror. | Kept with an inline comment; explicit runtime mode/current mission id are authoritative. |
+| `BipobController.get_runtime_mode_id()` fallback from `current_mission_index == TASK_TEST_MISSION_INDEX` | Legacy/compatibility fallback. | Kept only after `active_runtime_mode_id` and `current_mission_id` checks. |
+| `BipobController.start_mission(10)` | Compatibility entry point. | Kept; delegates to `start_task_test_session()`. |
+| `BipobController.get_mission_layout_id(10)` / `get_mission_goal_hint(10)` | Compatibility helper/story-hint fallback. | Kept; active TASK TEST layout/objective paths use TASK TEST helpers first. |
+| Sandbox layout reset fallback to `reset_mission_layout(current_mission_index)` | Quarantined GridManager compatibility fallback. | Kept only for missing TASK TEST catalog layout emergency compatibility. |
+| GameUI raw `current_mission_index == 10` | UI fallback helper only. | Remains centralized inside `_is_task_test_runtime_active()` and should not spread. |
+
+Old story missions are still not ready for deletion; Mission 7 cable behavior, Mission 8 airflow behavior, legacy progression/hints, and compatibility resources remain deliberately retained.

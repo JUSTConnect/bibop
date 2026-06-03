@@ -219,3 +219,9 @@ Deletion readiness impact: TASK TEST objective copy no longer needs raw `get_mis
 ### PR-RF-33 — Catalog-only TASK TEST layout startup
 
 Status: completed for the normal TASK TEST layout path. `start_task_test_session()` requests canonical `task_test`, MissionManager applies MissionContentCatalog layout data first, and BipobController skips the old `GridManager.reset_mission_layout(10)` fallback whenever the TASK TEST catalog layout exists. `mission_10` remains accepted as a compatibility alias, and GridManager Mission 10 layout data remains in place as emergency/legacy fallback only. Old mission resources are not ready for deletion yet.
+
+## PR-RF-34 update — `current_mission_index = 10` demoted to compatibility mirror
+
+TASK TEST runtime/session identity is now documented and enforced as runtime mode plus canonical ids, not numeric mission index state. In `BipobController`, explicit `active_runtime_mode_id` wins, `current_mission_id` / canonical `task_test` layout id are checked next, and the `current_mission_index == 10` check remains only as a legacy compatibility fallback. The assignment of `current_mission_index = TASK_TEST_MISSION_INDEX` remains for compatibility mirrors such as old callers and UI fallback code, but it is not the TASK TEST source of truth.
+
+Readiness remains partial. This does not make old missions ready for deletion: Mission 7 cable behavior, Mission 8 airflow behavior, legacy story progression, mission resources, and GridManager Mission 10 fallback compatibility are still retained until separate replacement/smoke work proves they can be removed safely.

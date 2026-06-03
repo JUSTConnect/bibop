@@ -178,11 +178,11 @@ func normalize_task_test_source_id(source_id: String) -> String:
 	return normalized
 
 func is_task_test_mission_id(mission_id: String) -> bool:
-	var normalized := str(mission_id).strip_edges()
+	var normalized: String = str(mission_id).strip_edges()
 	return normalized == TASK_TEST_MISSION_ID or normalized == TASK_TEST_LAYOUT_ID
 
 func resolve_task_test_catalog_id(mission_id: String) -> String:
-	var normalized := str(mission_id).strip_edges()
+	var normalized: String = str(mission_id).strip_edges()
 	if normalized == TASK_TEST_LAYOUT_ID or normalized == TASK_TEST_MISSION_ID:
 		return TASK_TEST_LAYOUT_ID
 	return normalized
