@@ -9568,9 +9568,20 @@ func _on_tasks_start_pressed() -> void:
 	# TODO(BIB-453): bind each task to a dedicated mission profile when mission registry is ready.
 	start_selected_task_mission()
 
+func _get_task_test_dev_card_mission_id_text() -> String:
+	if bipob != null and bipob.has_method("get_task_test_mission_id"):
+		var mission_id: String = str(bipob.call("get_task_test_mission_id")).strip_edges()
+		if not mission_id.is_empty():
+			return mission_id
+	if bipob != null and bipob.has_method("get_task_test_layout_id"):
+		var layout_id: String = str(bipob.call("get_task_test_layout_id")).strip_edges()
+		if not layout_id.is_empty():
+			return layout_id
+	return "task_test"
+
 func _build_tasks_dev_content() -> void:
 	var card: Button = Button.new()
-	card.text = "TASK TEST\nTest room for mechanics and validation checks.\nMission ID: mission_10"
+	card.text = "TASK TEST\nTest room for mechanics and validation checks.\nMission ID: %s" % _get_task_test_dev_card_mission_id_text()
 	card.alignment = HORIZONTAL_ALIGNMENT_LEFT
 	card.text_overrun_behavior = TextServer.OVERRUN_TRIM_ELLIPSIS
 	card.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
