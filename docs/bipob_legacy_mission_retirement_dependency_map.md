@@ -176,3 +176,9 @@ This removes TASK TEST objective UI from the old numeric mission hint table with
 - Normal TASK TEST startup now follows `start_task_test_session()` -> runtime mode `task_test` -> MissionManager layout id `task_test` -> MissionContentCatalog layout -> TaskTestWorldBuilder objects.
 - `MissionContentCatalog.has_mission_layout("task_test")`, non-empty `get_mission_layout("task_test")`, and the `mission_10` alias resolving to the same layout are covered by MissionManager catalog validation/helper checks.
 - `GridManager.get_mission10_layout()` and `reset_mission_layout(10)` remain in place only as emergency/legacy compatibility fallback. They are not evidence that old mission resources are ready for deletion.
+
+## PR-RF-34 update — TASK TEST dependency on mission index 10
+
+TASK TEST startup/restart/reset/completion/layout/objective routing should now be read as depending on explicit runtime/session ids: `active_runtime_mode_id`, `current_mission_id`, canonical `task_test` layout/source ids, and the `is_task_test_mode_active()` / `is_sandbox_mode_active()` helpers. `current_mission_index = 10` remains only a compatibility mirror for legacy callers such as `start_mission(10)` and for centralized UI fallback detection.
+
+This reduces the dependency on mission index 10 as semantic TASK TEST state, but it does not remove the dependency map entries for old story missions or their reusable mechanics. Do not delete mission resources, Mission 7 cable behavior, Mission 8 airflow behavior, or GridManager Mission 10 compatibility fallback based on this update alone.

@@ -28,6 +28,8 @@ const RUNTIME_MODE_UNKNOWN := "unknown"
 const LEGACY_STORY_MISSION_MIN_INDEX := 1
 const LEGACY_STORY_MISSION_MAX_INDEX := 9
 const TASK_TEST_MISSION_INDEX := 10
+const TASK_TEST_COMPAT_MISSION_ID := "mission_10"
+const TASK_TEST_LAYOUT_ID := "task_test"
 
 const EXTERNAL_SIDE_ORDER := [
 	EXTERNAL_SIDE_TOP,
@@ -125,6 +127,7 @@ var mission_finished: bool = false
 var sector_completed: bool = false
 var current_mission_index: int = 1
 var max_mission_index: int = 10
+var current_mission_id: String = "mission_1"
 var active_runtime_mode_id: String = RUNTIME_MODE_UNKNOWN
 var turns_used: int = 0
 var has_key: bool = false
@@ -1232,21 +1235,42 @@ func get_runtime_mode_id() -> String:
 	var normalized_runtime_mode_id: String = active_runtime_mode_id.strip_edges()
 	if not normalized_runtime_mode_id.is_empty() and normalized_runtime_mode_id != RUNTIME_MODE_UNKNOWN:
 		return normalized_runtime_mode_id
+
+	var normalized_mission_id: String = current_mission_id.strip_edges()
+	if _is_task_test_mission_id(normalized_mission_id):
+		return RUNTIME_MODE_TASK_TEST
+	if normalized_mission_id.begins_with("mission_"):
+		var mission_index_from_id: int = int(normalized_mission_id.trim_prefix("mission_"))
+		if mission_index_from_id >= LEGACY_STORY_MISSION_MIN_INDEX and mission_index_from_id <= LEGACY_STORY_MISSION_MAX_INDEX:
+			return RUNTIME_MODE_LEGACY_STORY
+
+	# Legacy compatibility fallback only; explicit runtime mode/current_mission_id should be authoritative.
 	if current_mission_index == TASK_TEST_MISSION_INDEX:
 		return RUNTIME_MODE_TASK_TEST
 	if current_mission_index >= LEGACY_STORY_MISSION_MIN_INDEX and current_mission_index <= LEGACY_STORY_MISSION_MAX_INDEX:
 		return RUNTIME_MODE_LEGACY_STORY
 	return RUNTIME_MODE_UNKNOWN
 
+func _is_task_test_mission_id(mission_id: String) -> bool:
+	var normalized_mission_id: String = mission_id.strip_edges()
+	if mission_manager != null and mission_manager.has_method("is_task_test_mission_id"):
+		return bool(mission_manager.call("is_task_test_mission_id", normalized_mission_id))
+	return normalized_mission_id == TASK_TEST_LAYOUT_ID or normalized_mission_id == TASK_TEST_COMPAT_MISSION_ID
+
 func get_task_test_mission_id() -> String:
 	if mission_manager != null and mission_manager.has_method("get_task_test_mission_id"):
 		return str(mission_manager.call("get_task_test_mission_id"))
-	return "mission_%d" % TASK_TEST_MISSION_INDEX
+	return TASK_TEST_COMPAT_MISSION_ID
 
 func get_task_test_layout_id() -> String:
 	if mission_manager != null and mission_manager.has_method("get_task_test_layout_id"):
 		return str(mission_manager.call("get_task_test_layout_id"))
-	return RUNTIME_MODE_TASK_TEST
+	return TASK_TEST_LAYOUT_ID
+
+func get_task_test_source_id() -> String:
+	if mission_manager != null and mission_manager.has_method("get_task_test_source_id"):
+		return str(mission_manager.call("get_task_test_source_id"))
+	return TASK_TEST_LAYOUT_ID
 
 func has_task_test_catalog_layout() -> bool:
 	if mission_manager != null and mission_manager.has_method("has_task_test_catalog_layout"):
@@ -1321,7 +1345,7 @@ func reset_task_test_session() -> void:
 	restart_task_test_session()
 
 func start_mission(mission_index: int, save_snapshot: bool = true) -> void:
-	var clamped_mission_index := clampi(mission_index, 1, max_mission_index)
+	var clamped_mission_index: int = clampi(mission_index, 1, max_mission_index)
 	if clamped_mission_index == TASK_TEST_MISSION_INDEX:
 		start_task_test_session(save_snapshot)
 		return
@@ -1334,7 +1358,9 @@ func start_mission(mission_index: int, save_snapshot: bool = true) -> void:
 
 func _start_runtime_session(mission_index: int, layout_id: String, runtime_mode_id: String, save_snapshot: bool) -> void:
 	# Box preparation flow: mission start resets turn actions, but does not spend resources.
+	# Compatibility mirror only; TASK TEST runtime state is active_runtime_mode_id/current_mission_id.
 	current_mission_index = mission_index
+	current_mission_id = layout_id
 	active_runtime_mode_id = runtime_mode_id
 	if is_task_test_mode_active():
 		ensure_task_test_default_modules()
@@ -1362,6 +1388,7 @@ func _start_runtime_session(mission_index: int, layout_id: String, runtime_mode_
 				if has_task_test_catalog_layout():
 					push_warning("TASK TEST catalog layout exists but could not be applied; skipping GridManager mission10 compatibility fallback.")
 				else:
+					# Compatibility fallback only for missing TASK TEST catalog layouts. Normal sandbox startup uses current_mission_id/layout_id.
 					grid_manager.reset_mission_layout(current_mission_index)
 			else:
 				grid_manager.reset_mission_layout(current_mission_index)
