@@ -40,8 +40,8 @@ The following compatibility anchors still exist and should remain until the next
 - `BipobController.current_mission_index` still becomes `10` during TASK TEST session startup.
 - `MissionManager.TASK_TEST_MISSION_ID == "mission_10"`
 - `MissionManager.TASK_TEST_LAYOUT_ID == "task_test"`
-- `MissionContentCatalog` currently resolves `task_test` to `mission_10`.
-- `GridManager.get_mission10_layout()` and `reset_mission_layout(10)` remain fallback layout compatibility.
+- `MissionContentCatalog` owns canonical `task_test` layout data and resolves `mission_10` as a compatibility alias to it.
+- `GridManager.get_mission10_layout()` and `reset_mission_layout(10)` remain emergency/legacy fallback layout compatibility only; normal TASK TEST startup does not use them when the catalog layout is present.
 
 ## Usage classification
 
@@ -66,11 +66,11 @@ Conclusion: GameUI is mostly clean for the current stage. The raw TASK TEST miss
 | `current_mission_index`. | Legacy compatibility state, still blocking final mission-index removal. | TASK TEST identity no longer depends only on it, but old story progression, hints, and setup still do. |
 | `active_runtime_mode_id`. | TASK TEST boundary isolated. | Primary runtime identity when a runtime session is active. |
 | `get_runtime_mode_id()` falls back from `active_runtime_mode_id` to `current_mission_index`. | Safe compatibility boundary. | Later remove fallback after all startup/restart/completion/UI paths use explicit runtime mode. |
-| `get_task_test_mission_id()` / `get_task_test_layout_id()`. | Safe compatibility boundary. | Good API surface. Next step should make `task_test` canonical in catalog while keeping `mission_10` alias. |
+| `get_task_test_mission_id()` / `get_task_test_layout_id()` / `has_task_test_catalog_layout()`. | Safe compatibility boundary. | `get_task_test_layout_id()` now returns canonical `task_test`; `mission_10` remains only the compatibility mission id/alias. |
 | `start_task_test_session()`. | TASK TEST boundary isolated. | Starts sandbox through shared runtime session helper. |
 | `start_mission(10)` delegates to `start_task_test_session()`. | Safe compatibility boundary. | Keep until no external caller uses `start_mission(10)`. |
 | `_start_runtime_session()` still sets `current_mission_index = mission_index`. | Compatibility state, still blocking final removal. | Acceptable for now; future step should store sandbox session id/layout id separately from story mission index. |
-| `_start_runtime_session()` uses `grid_manager.reset_mission_layout(current_mission_index)` as fallback. | Compatibility fallback. | For TASK TEST primary path catalog layout is attempted first; fallback can remain until GridManager mission10 layout is retired. |
+| `_start_runtime_session()` applies the catalog layout first for sandbox sessions and skips `reset_mission_layout(10)` when the TASK TEST catalog layout exists. | TASK TEST catalog boundary with quarantined compatibility fallback. | GridManager Mission 10 fallback is only for missing-catalog emergency/legacy compatibility; normal TASK TEST startup uses `task_test` catalog layout. |
 | Mission 7/8/9 setup branches by legacy predicates/index. | Legacy story glue / reusable mechanic boundary. | Keep until generic cable and generic airflow runtime services are wired and smoke-tested. |
 | `restart_current_mission()` dispatches sandbox restart before legacy restart. | TASK TEST boundary isolated. | Correct. |
 | `return_to_box()` still releases Mission 7 drag and emits Mission 9 hint. | Legacy story glue. | Keep until Mission 7/9 legacy flows are retired. |
@@ -86,12 +86,12 @@ Conclusion: BipobController still carries mission-index compatibility, but TASK 
 | --- | --- | --- |
 | `current_mission_id`. | Runtime/session id boundary. | Better than numeric mission index; keep. |
 | `active_runtime_mode_id`. | TASK TEST boundary isolated. | Correct. |
-| `TASK_TEST_LAYOUT_ID := "task_test"`. | Desired semantic id. | Should become the canonical catalog id. |
-| `TASK_TEST_MISSION_ID := "mission_10"`. | Compatibility id. | Keep as alias/fallback for now. |
-| `get_task_test_layout_id()` tries `task_test`, falls back to `mission_10`. | Safe compatibility boundary. | Good transition helper. |
+| `TASK_TEST_LAYOUT_ID := "task_test"`. | Canonical semantic id. | Normal TASK TEST runtime layout loading uses this id. |
+| `TASK_TEST_MISSION_ID := "mission_10"`. | Compatibility id. | Keep as alias/fallback for now; do not use as the normal runtime layout id. |
+| `get_task_test_layout_id()` returns `task_test`. | Canonical TASK TEST layout boundary. | Normal startup requests the catalog layout by canonical id. |
 | `get_task_test_source_id()` returns `task_test`. | Canonical persistence/export boundary. | Use for new Map Constructor source metadata. |
 | `is_task_test_mission_id()` accepts both `task_test` and `mission_10`. | Safe compatibility boundary. | Keep. |
-| `resolve_task_test_catalog_id()` resolves `task_test` to `mission_10` if catalog does not have `task_test`. | Compatibility fallback. | Next step should invert this once `task_test` is canonical. |
+| `resolve_task_test_catalog_id()` resolves both `task_test` and `mission_10` to canonical `task_test`. | Compatibility alias boundary. | Keeps old `mission_10` callers accepted without making them the normal layout source. |
 | `setup_world_objects_for_mission()` dispatches TASK TEST by `is_task_test_mission_id()`. | TASK TEST boundary isolated. | Good. |
 | `_setup_task_test_mission_world()` remains in MissionManager as the runtime setup wrapper. | TASK TEST runtime setup compatibility boundary. | The wrapper now pulls seed data through `TaskTestWorldBuilder`; keep it until external callers no longer need the MissionManager method. |
 | `build_task_test_mission_world_objects_for_validation()`. | TASK TEST validation compatibility wrapper. | Delegates to `TaskTestWorldBuilder.build_validation_world_objects()` while preserving the existing MissionManager API. |
@@ -104,29 +104,29 @@ Conclusion: MissionManager is now mode-aware, TASK TEST seed object construction
 
 | Usage | Classification | Retirement note |
 | --- | --- | --- |
-| `TASK_TEST_LAYOUT_ID := "task_test"`. | Desired semantic id. | Should become canonical. |
+| `TASK_TEST_LAYOUT_ID := "task_test"`. | Canonical semantic id. | Normal TASK TEST runtime layout loading uses this id. |
 | `TASK_TEST_MISSION_ID := "mission_10"`. | Compatibility id. | Keep as alias/fallback. |
-| `_MISSION_ALIASES = {"task_test": "mission_10"}`. | Compatibility direction still points semantic id to legacy id. | Next step should make `task_test` canonical and `mission_10` an alias to it. |
-| `mission_10` definition contains TASK TEST layout and metadata. | Compatibility anchor still blocking final removal. | Move or mirror this definition under `task_test` in a behavior-preserving PR. |
-| Validation hard-checks `mission_10` display name, role, migration status, layout source, and `world_content_source == legacy_mission_manager`. | Blocker. | Update validation to check canonical `task_test` and accept `mission_10` only as compatibility alias. |
+| `_MISSION_ALIASES = {"mission_10": "task_test"}`. | Compatibility alias. | Correct direction: `task_test` is canonical and `mission_10` remains accepted. |
+| `task_test` definition contains TASK TEST layout and metadata. | Canonical catalog source. | Keep `mission_10` alias until old callers/imports are retired. |
+| Validation checks canonical `task_test` metadata/layout and verifies `mission_10` aliases to it. | Compatibility check. | Keep alias validation until old callers/imports are retired. |
 
-Conclusion: MissionContentCatalog is the next best target. It still makes `mission_10` the canonical data owner for TASK TEST.
+Conclusion: MissionContentCatalog now makes `task_test` the canonical data owner for TASK TEST while preserving `mission_10` as an alias.
 
 ## 5. GridManager
 
 | Usage | Classification | Retirement note |
 | --- | --- | --- |
-| `get_mission10_layout()`. | Compatibility fallback. | Keep until catalog layout is proven and no TASK TEST start path falls back to GridManager layout. |
-| `reset_mission_layout(10)`. | Compatibility fallback. | Keep for `start_mission(10)`/legacy fallback only. Later move behind explicit compatibility helper or delete after smoke. |
+| `get_mission10_layout()`. | Emergency/legacy compatibility fallback. | Normal TASK TEST startup uses the `task_test` catalog layout; keep this only until compatibility callers are retired and smoke proves removal safe. |
+| `reset_mission_layout(10)`. | Emergency/legacy compatibility fallback. | `start_mission(10)` delegates to TASK TEST startup; normal successful TASK TEST layout loading does not call this when catalog layout exists. |
 | Mission 7/8/9 layout helpers. | Legacy story resources. | Keep until reusable cable/airflow/terrain mechanics are generic and old mission resources are retired. |
 
-Conclusion: GridManager still owns old hardcoded layouts. TASK TEST currently prefers catalog layout, but the mission10 fallback remains.
+Conclusion: GridManager still owns old hardcoded layouts. TASK TEST normal startup uses the canonical catalog layout, and the mission10 fallback remains quarantined as compatibility-only.
 
 ## Remaining blockers before old mission deletion
 
-1. **Canonical TASK TEST id is still `mission_10` inside MissionContentCatalog.**
-   - `task_test` exists, but currently aliases to `mission_10`.
-   - Validation still requires `mission_10`.
+1. **GridManager Mission 10 fallback still exists for compatibility.**
+   - Normal TASK TEST startup is catalog-only through `task_test` when the catalog layout is present.
+   - `mission_10` and `reset_mission_layout(10)` remain compatibility fallbacks until old callers/resources can be removed safely.
 
 2. **TASK TEST world content builder is extracted behind MissionManager wrappers.**
    - `TaskTestWorldBuilder` owns the behavior-equivalent TASK TEST seed object and item construction.
