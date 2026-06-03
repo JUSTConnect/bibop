@@ -640,7 +640,7 @@ func get_map_constructor_validation_issues() -> Array[Dictionary]:
 				if cable_wall_cell.x >= 0 and cable_wall_cell.y >= 0 and not _cell_has_wall_for_cable(cable_wall_cell):
 					issues.append(_make_map_constructor_issue("cable_wall_requires_wall_%s_%d_%d" % [object_id, cable_wall_cell.x, cable_wall_cell.y], "warning", "Wall cable requires a wall in this cell.", cable_wall_cell, source_name, entity_kind, object_id, "Place a wall in the same cell or set the cable install mode to Floor/Hidden."))
 		var _cable_health_state_for_validation: String = get_cable_health_state(data) if _is_cable_object_data(data) else "normal"
-		var allow_overlap: bool = bool(data.get("allow_cell_overlap", false))
+		var allow_overlap: bool = bool(data.get("allow_cell_overlap", false)) or _is_cable_object_data(data)
 		if not allow_overlap and object_group != "item" and object_group != "visual" and object_cell.x >= 0 and object_cell.y >= 0:
 			var occupancy_key: String = "%d,%d" % [object_cell.x, object_cell.y]
 			if seen_occupancy_cells.has(occupancy_key):

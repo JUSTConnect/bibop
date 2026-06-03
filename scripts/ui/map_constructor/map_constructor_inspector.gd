@@ -175,7 +175,7 @@ static func _make_tab_content(ui: Variant, inspector_rect: Rect2) -> VBoxContain
 	content.add_theme_constant_override("separation", 8)
 	content.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	content.size_flags_vertical = Control.SIZE_SHRINK_BEGIN
-	content.custom_minimum_size = Vector2(maxf(inspector_rect.size.x - 46.0, 1.0), 0.0)
+	content.custom_minimum_size = Vector2(maxf(inspector_rect.size.x - 46.0, 420.0), 0.0)
 	scroll.add_child(content)
 	return content
 

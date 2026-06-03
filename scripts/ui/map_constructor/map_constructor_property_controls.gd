@@ -34,17 +34,27 @@ static func create_inspector_section(_ui: Variant, title: String) -> VBoxContain
 static func create_property_row(_ui: Variant, label_text: String, control: Control, expand_layout: bool = false) -> HBoxContainer:
 	var row: HBoxContainer = HBoxContainer.new()
 	row.add_theme_constant_override("separation", 6)
-	if expand_layout:
-		row.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-		control.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-		if control is Label:
-			var value_label: Label = control
-			value_label.autowrap_mode = TextServer.AUTOWRAP_OFF
-			value_label.clip_text = true
-			value_label.text_overrun_behavior = TextServer.OVERRUN_TRIM_ELLIPSIS
+	row.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	row.custom_minimum_size = Vector2(360, 0)
+	control.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	var control_minimum_size: Vector2 = control.custom_minimum_size
+	control_minimum_size.x = maxf(control_minimum_size.x, 180.0)
+	control.custom_minimum_size = control_minimum_size
+	if control is Label:
+		var value_label: Label = control
+		value_label.autowrap_mode = TextServer.AUTOWRAP_OFF
+		value_label.clip_text = true
+		value_label.text_overrun_behavior = TextServer.OVERRUN_TRIM_ELLIPSIS
+	elif control is LineEdit:
+		var value_edit: LineEdit = control
+		value_edit.expand_to_text_length = false
 	var label: Label = Label.new()
 	label.text = label_text
 	label.custom_minimum_size = Vector2(130, 0)
+	label.size_flags_horizontal = Control.SIZE_SHRINK_BEGIN
+	label.autowrap_mode = TextServer.AUTOWRAP_OFF
+	label.clip_text = true
+	label.text_overrun_behavior = TextServer.OVERRUN_TRIM_ELLIPSIS
 	row.add_child(label)
 	row.add_child(control)
 	return row
