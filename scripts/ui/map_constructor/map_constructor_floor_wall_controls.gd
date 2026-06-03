@@ -103,9 +103,11 @@ static func resolve_wall_material_target_for_selection(ui: Variant, entity_info:
 			return {"ok": true, "cell": selected_cell, "side": selected_side}
 	return {"ok": false}
 
-static func add_coverage_sections(ui: Variant, parent: VBoxContainer, entity_info: Dictionary, cell: Vector2i, data: Dictionary, entity_kind: String, entity_id: String, type_group: String) -> void:
-	add_floor_coverage_section(ui, parent)
-	add_wall_coverage_section(ui, parent, entity_info, cell, data, entity_kind, entity_id, type_group)
+static func add_coverage_sections(ui: Variant, parent: VBoxContainer, entity_info: Dictionary, cell: Vector2i, data: Dictionary, entity_kind: String, entity_id: String, type_group: String, include_floor_coverage: bool = true, include_wall_coverage: bool = true) -> void:
+	if include_floor_coverage:
+		add_floor_coverage_section(ui, parent)
+	if include_wall_coverage:
+		add_wall_coverage_section(ui, parent, entity_info, cell, data, entity_kind, entity_id, type_group)
 
 static func add_floor_coverage_section(ui: Variant, parent: VBoxContainer) -> void:
 	var floor_section: VBoxContainer = ui._create_inspector_section("7. Floor Coverage")

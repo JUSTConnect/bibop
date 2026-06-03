@@ -256,13 +256,16 @@ static func _render_read_only_entity(ui: Variant, parent: VBoxContainer, entity:
 			section.add_child(ui._create_property_row(key, label))
 	parent.add_child(section)
 
+static func _add_floor_wall_coverage_sections(ui: Variant, parent: VBoxContainer, entity_info: Dictionary, cell: Vector2i, data: Dictionary, entity_kind: String, entity_id: String, type_group: String, include_floor_coverage: bool = true, include_wall_coverage: bool = true) -> void:
+	MapConstructorFloorWallControls.add_coverage_sections(ui, parent, entity_info, cell, data, entity_kind, entity_id, type_group, include_floor_coverage, include_wall_coverage)
 
 static func _render_floor_tab(ui: Variant, parent: VBoxContainer, cell: Vector2i) -> void:
 	var previous_pending: Vector2i = ui.pending_map_constructor_cell
 	var previous_selected_cell: Vector2i = ui.selected_map_constructor_entity_cell
 	ui.pending_map_constructor_cell = cell
 	ui.selected_map_constructor_entity_cell = cell
-	MapConstructorFloorWallControls.add_floor_coverage_section(ui, parent)
+	var floor_entity_info: Dictionary = {"ok": false, "cell": cell, "data": {}}
+	_add_floor_wall_coverage_sections(ui, parent, floor_entity_info, cell, {}, "", "", "floor", true, false)
 	ui.pending_map_constructor_cell = previous_pending
 	ui.selected_map_constructor_entity_cell = previous_selected_cell
 
@@ -271,7 +274,7 @@ static func _render_wall_tab(ui: Variant, parent: VBoxContainer, entity: Diction
 	var data: Dictionary = ui._safe_ui_dictionary(entity.get("data", {}))
 	_render_read_only_entity(ui, parent, entity, "Wall")
 	var wall_entity_info: Dictionary = {"ok": true, "entity_kind": str(entity.get("entity_kind", "wall")), "id": str(entity.get("id", "")), "cell": cell, "data": data}
-	MapConstructorFloorWallControls.add_wall_coverage_section(ui, parent, wall_entity_info, cell, data, str(entity.get("entity_kind", "wall")), str(entity.get("id", "")), "wall")
+	_add_floor_wall_coverage_sections(ui, parent, wall_entity_info, cell, data, str(entity.get("entity_kind", "wall")), str(entity.get("id", "")), "wall", false, true)
 
 
 static func _render_entity_tab(ui: Variant, parent: VBoxContainer, entity_info: Dictionary, fallback_cell: Vector2i, include_wall_coverage: bool = false) -> void:
@@ -409,7 +412,7 @@ static func _render_entity_tab(ui: Variant, parent: VBoxContainer, entity_info: 
 	MapConstructorValidationView.add_warning_entries(ui, warning_section, validation_result)
 	parent.add_child(warning_section)
 	if include_wall_coverage:
-		MapConstructorFloorWallControls.add_wall_coverage_section(ui, parent, entity_info, cell, data, entity_kind, entity_id, type_group)
+		_add_floor_wall_coverage_sections(ui, parent, entity_info, cell, data, entity_kind, entity_id, type_group, false, true)
 
 
 static func refresh(ui: Variant, cell: Vector2i, preferred_entity_kind: String = "", preferred_entity_id: String = "") -> void:
