@@ -158,3 +158,14 @@ No remaining `current_mission_index`, `mission7_*`, `mission8_*`, or `complete_m
 - PR-RF-16 isolates TASK TEST startup/session calls behind `start_task_test_session()` and `reset_task_test_session()` while preserving `start_mission(10)` compatibility; PR-RF-18 adds the `task_test` catalog/layout alias and preserves `mission_10` fallback compatibility; PR-RF-25 adds `restart_task_test_session()` and routes sandbox restart/reset through the explicit TASK TEST boundary while preserving legacy restart compatibility; PR-RF-26 extends that isolation to the GameUI mission-result restart path and keeps raw mission-id restart handling legacy-only; PR-RF-27 centralizes remaining GameUI TASK TEST mission-index fallback inside `_is_task_test_runtime_active()` and uses controller helpers for TASK TEST compatibility ids.
 - PR-RF-20 adds cable/socket/power contract planning only; PR-RF-22 adds generic cable data/state helpers only; PR-RF-23 adds a generic cable service skeleton only; PR-RF-24 adds non-gameplay state/service checks only. Mission 7 is not ready for deletion until the planned generic runtime replacement is wired into gameplay and passes TASK TEST smoke.
 - PR-RF-21 adds fan/platform/airflow/cooling contract planning only; Mission 8 is not ready for deletion until the planned generic runtime replacement exists and passes TASK TEST smoke. Future removal PRs should first prove TASK TEST startup, sandbox exit completion, Map Constructor entry/exit, runtime Action / Connect / Heavy Claw, scan/hack, pickup/drop, generic cable/socket/power paths, and generic fan/platform/airflow/cooling paths no longer require old mission-index branches, then replace the `mission_10` compatibility layout id with a non-story sandbox layout id.
+
+## PR-RF-31 update — TASK TEST objective text boundary
+
+TASK TEST objective text is now separated from the legacy story mission hint dependency through a thin helper chain:
+
+1. `MissionContentCatalog` keeps canonical `task_test` `goal_text` and `objective_hint` data, with `mission_10` accepted as an alias.
+2. `MissionManager.get_task_test_goal_text()` and `MissionManager.get_task_test_objective_hint()` read that catalog data directly.
+3. `BipobController.get_task_test_goal_text()` and `BipobController.get_task_test_objective_hint()` provide UI-safe wrappers.
+4. `GameUI` chooses this TASK TEST boundary via `_is_task_test_runtime_active()` before falling back to legacy objective view-model / story hint behavior.
+
+This removes TASK TEST objective UI from the old numeric mission hint table without deleting the table, `current_mission_index`, or `mission_10` compatibility. Remaining legacy mission retirement work should keep old story hints available until story mission resources and selection/progression UI are removed in later focused PRs.

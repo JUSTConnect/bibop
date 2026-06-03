@@ -202,3 +202,15 @@ Run this before deleting mission resources/scenes:
 - `godot --headless --path . --script res://tools/ci/parse_all_gd.gd`
 
 If Godot CLI is unavailable in the PR environment, parser verification must be completed locally before accepting deletion PRs.
+
+### PR-RF-31 — TASK TEST objective/view-model boundary
+
+Goal: keep TASK TEST objective/goal/hint UI independent from legacy numeric mission hint tables.
+
+Completed scope:
+
+- Added MissionManager TASK TEST objective helpers that resolve `goal_text` and `objective_hint` from the canonical `task_test` MissionContentCatalog entry while still accepting the `mission_10` compatibility alias/fallback.
+- Added BipobController TASK TEST objective wrapper helpers for UI-facing callers.
+- Routed GameUI TASK TEST objective/secondary hint selection through `_is_task_test_runtime_active()` and the BipobController helper boundary, leaving old story missions on the legacy hint/view-model path.
+
+Deletion readiness impact: TASK TEST objective copy no longer needs raw `get_mission_goal_hint(10)` or a `current_mission_index == 10` UI branch for objective text. Legacy story hint compatibility, `current_mission_index`, and `mission_10` compatibility remain in place until later retirement PRs.

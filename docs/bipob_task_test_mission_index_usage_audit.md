@@ -213,3 +213,13 @@ Before any deletion of mission resources or removal of mission-index compatibili
 11. Scan/hack runtime device if available.
 12. Pick up/drop item if available.
 13. Confirm no old story mission progression runs for TASK TEST.
+
+### PR-RF-31 completion note — TASK TEST objective/helper boundary
+
+Status: completed. TASK TEST objective/goal text now has explicit helper boundaries before legacy mission hint lookup:
+
+- `MissionManager.get_task_test_goal_text()` and `MissionManager.get_task_test_objective_hint()` read the canonical `task_test` catalog definition first and keep `mission_10` as compatibility fallback.
+- `BipobController.get_task_test_goal_text()` and `BipobController.get_task_test_objective_hint()` delegate to MissionManager helpers and avoid adding a new UI-facing mission-index `10` path.
+- `GameUI` uses `_is_task_test_runtime_active()` before selecting objective text, then asks BipobController for TASK TEST goal/hint values. Legacy story objective/hint display continues to use the existing view-model and `get_mission_goal_hint()` compatibility flow.
+
+No TASK TEST mechanics, Map Constructor behavior, Mission 7 cable behavior, Mission 8 airflow behavior, scan/hack, inventory, movement, mission resources, scenes, or `project.godot` changed.
