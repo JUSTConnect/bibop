@@ -42,8 +42,26 @@ static func validate_placement(cell: Vector2i, world_objects: Array, preview_obj
 		var neighbor_cell: Vector2i = cell + Vector2i(delta)
 		if cable_cells.has(neighbor_cell):
 			cells_to_check.append(neighbor_cell)
+	return _validate_cells(cells_to_check, world_objects, preview_object)
+
+static func validate_cable_object(world_objects: Array, preview_object: Dictionary = {}) -> Dictionary:
+	var cable_cells: Dictionary = build_cable_cell_map([], preview_object)
+	var cells_to_check: Array[Vector2i] = []
+	for cable_cell_variant in cable_cells.keys():
+		var cable_cell: Vector2i = Vector2i(cable_cell_variant)
+		cells_to_check.append(cable_cell)
+		for delta in NEIGHBOR_DELTAS.values():
+			var neighbor_cell: Vector2i = cable_cell + Vector2i(delta)
+			cells_to_check.append(neighbor_cell)
+	return _validate_cells(cells_to_check, world_objects, preview_object)
+
+static func _validate_cells(cells_to_check: Array[Vector2i], world_objects: Array, preview_object: Dictionary = {}) -> Dictionary:
 	var topologies: Array[Dictionary] = []
+	var checked_cells: Dictionary = {}
 	for check_cell in cells_to_check:
+		if checked_cells.has(check_cell):
+			continue
+		checked_cells[check_cell] = true
 		var topology: Dictionary = classify_cell(check_cell, world_objects, preview_object)
 		topologies.append(topology)
 		if not bool(topology.get("valid", true)):
@@ -68,13 +86,13 @@ static func build_cable_cell_map(world_objects: Array, preview_object: Dictionar
 	return cable_cells
 
 static func is_cable_object(object_data: Dictionary) -> bool:
-	var object_type: String = String(object_data.get("object_type", object_data.get("item_type", object_data.get("type", "")))).strip_edges().to_lower()
+	var object_type: String = str(object_data.get("object_type", object_data.get("item_type", object_data.get("type", "")))).strip_edges().to_lower()
 	if object_type == "circuit_switch":
 		return true
 	return object_type == "power_cable" or object_type == "power_cable_reel" or object_type.contains("cable") or object_type.contains("wire")
 
 static func is_circuit_switch_object(object_data: Dictionary) -> bool:
-	var object_type: String = String(object_data.get("object_type", object_data.get("type", ""))).strip_edges().to_lower()
+	var object_type: String = str(object_data.get("object_type", object_data.get("type", ""))).strip_edges().to_lower()
 	return object_type == "circuit_switch"
 
 static func _add_object_to_cable_cell_map(cable_cells: Dictionary, object_data: Dictionary) -> void:
@@ -154,7 +172,7 @@ static func _try_parse_cell_variant(value: Variant, fallback: Vector2i = Vector2
 		return Vector2i(value)
 	if value is Dictionary:
 		return Vector2i(int(value.get("x", fallback.x)), int(value.get("y", fallback.y)))
-	var text: String = String(value).strip_edges()
+	var text: String = str(value).strip_edges()
 	if text.is_empty():
 		return fallback
 	var parts: PackedStringArray = text.split(",")

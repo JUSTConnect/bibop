@@ -3,6 +3,7 @@ class_name MapConstructorService
 
 const WorldObjectCatalogRef = preload("res://scripts/world/world_object_catalog.gd")
 const PowerSystemRef = preload("res://scripts/world/power_system.gd")
+const CableTopologyServiceRef = preload("res://scripts/game/cable_topology_service.gd")
 
 var manager: Variant
 
@@ -33,6 +34,10 @@ func place_map_constructor_prefab(prefab_id: String, cell: Vector2i, preferred_w
 		item_data["created_by_map_constructor"] = true
 		item_data["map_constructor_rotation_degrees"] = posmod(rotation_degrees, 360)
 		item_data = WorldObjectCatalogRef.normalize_item_contract(WorldObjectCatalogRef.normalize_archetype_object(WorldObjectCatalogRef.normalize_world_object_contract(item_data)))
+		if CableTopologyServiceRef.is_cable_object(item_data):
+			var cable_validation: Dictionary = CableTopologyServiceRef.validate_placement(cell, manager.mission_world_objects, item_data)
+			if not bool(cable_validation.get("ok", false)):
+				return {"ok": false, "reason": "invalid_cable_junction", "message": String(cable_validation.get("message", CableTopologyServiceRef.ERROR_MESSAGE_JUNCTION_REQUIRES_SWITCH)), "object_id": "", "warnings": [], "cable_topology": cable_validation}
 		manager.add_item_at_cell(cell, item_data)
 		PowerSystemRef.recalculate_network(manager.mission_world_objects, "")
 		manager.refresh_world_cooling_received()
@@ -93,6 +98,10 @@ func place_map_constructor_prefab(prefab_id: String, cell: Vector2i, preferred_w
 		object_data["anchor_floor_cell"] = manager._serialize_cell_key(cell)
 		object_data["attached_wall_cell"] = manager._serialize_cell_key(attached_wall_cell)
 		object_data["wall_side"] = String(attachment.get("wall_side", "north"))
+	if CableTopologyServiceRef.is_cable_object(object_data):
+		var cable_validation: Dictionary = CableTopologyServiceRef.validate_placement(cell, manager.mission_world_objects, object_data)
+		if not bool(cable_validation.get("ok", false)):
+			return {"ok": false, "reason": "invalid_cable_junction", "message": String(cable_validation.get("message", CableTopologyServiceRef.ERROR_MESSAGE_JUNCTION_REQUIRES_SWITCH)), "object_id": "", "warnings": [], "cable_topology": cable_validation}
 	object_data = manager._normalize_map_constructor_active_object_fields(object_data)
 	object_data = WorldObjectCatalogRef.normalize_world_object_contract(object_data)
 	object_data = WorldObjectCatalogRef.normalize_door_state_fields(object_data)
