@@ -1556,7 +1556,7 @@ func get_iso_object_profile_key_for_object_data(object_data: Dictionary, fallbac
 	return fallback_profile_key
 
 func _get_object_mount_mode(object_data: Dictionary) -> String:
-	var mount: String = str(object_data.get("mount", object_data.get("install_mode", object_data.get("placement_mode", "floor")))).to_lower().strip_edges()
+	var mount: String = str(object_data.get("mount", object_data.get("cable_install_mode", object_data.get("install_mode", object_data.get("placement_mode", "floor"))))).to_lower().strip_edges()
 	if mount in ["wall", "wall_mounted"]:
 		return "wall"
 	return "floor"
