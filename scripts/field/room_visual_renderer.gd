@@ -123,6 +123,22 @@ const ISO_PLACEHOLDER_ASSET_PATHS: Dictionary = {
 	"object_cable_reel": "res://assets/visual/isometric/placeholders/iso_object_cable_reel.svg",
 	"cabel_reel_01": "res://assets/visual/isometric/objects/cabel_reel_01.png",
 	"cabel_reel_02": "res://assets/visual/isometric/objects/cabel_reel_02.png",
+	"fuse_box_in_01": "res://assets/visual/isometric/objects/fuse_box_in_01.png",
+	"fuse_box_out_01": "res://assets/visual/isometric/objects/fuse_box_out_01.png",
+	"fuse_box_in_wall_01": "res://assets/visual/isometric/objects/fuse_box_in_wall_01.png",
+	"fuse_box_out_wall_01": "res://assets/visual/isometric/objects/fuse_box_out_wall_01.png",
+	"light_01": "res://assets/visual/isometric/objects/light_01.png",
+	"power_source_01": "res://assets/visual/isometric/objects/power_source_01.png",
+	"power_switcher_off_01": "res://assets/visual/isometric/objects/power_switcher_off_01.png",
+	"power_switcher_off_wall_01": "res://assets/visual/isometric/objects/power_switcher_off_wall_01.png",
+	"power_switcher_on_01": "res://assets/visual/isometric/objects/power_switcher_on_01.png",
+	"power_switcher_on_wall_01": "res://assets/visual/isometric/objects/power_switcher_on_wall_01.png",
+	"radiator_01": "res://assets/visual/isometric/objects/radiator_01.png",
+	"terminal_01": "res://assets/visual/isometric/objects/terminal_01.png",
+	"barrel_01": "res://assets/visual/isometric/moovable/barrel_01.png",
+	"case_01": "res://assets/visual/isometric/objects/case_01.png",
+	"steel_box_01": "res://assets/visual/isometric/moovable/steel_box_01.png",
+	"fire_barrel_01": "res://assets/visual/isometric/moovable/fire_barrel_01.png",
 	"object_button": "res://assets/visual/isometric/placeholders/iso_object_button.svg",
 	"object_switch": "res://assets/visual/isometric/placeholders/iso_object_switch.svg"
 }
@@ -148,6 +164,17 @@ const ISO_FLOOR_ASSET_CATALOG: Dictionary = {
 	"floor_concrete": "floor_concrete_01.png",
 	"floor_steel": "floor_steel_01.png",
 	"floor_titan": "floor_titan_01.png"
+}
+
+# Floor PNGs are authored on a larger transparent canvas. The renderer crops to
+# the measured visible alpha bounds and maps every material to the same active
+# 128x71 iso diamond footprint so neighboring cells share one anchor contract.
+const ISO_FLOOR_ASSET_TARGET_FOOTPRINT: Vector2 = ISO_STANDARD_TILE_SIZE
+const ISO_FLOOR_ASSET_NORMALIZED_OVERLAP: Vector2 = Vector2(1.5, 1.5)
+const ISO_FLOOR_ASSET_PLACEMENT: Dictionary = {
+	"floor_concrete": {"visible_bounds": Rect2i(18, 95, 1227, 1016), "target_footprint": ISO_FLOOR_ASSET_TARGET_FOOTPRINT, "overlap": ISO_FLOOR_ASSET_NORMALIZED_OVERLAP, "offset": Vector2.ZERO, "fallback_color": Color(0.08, 0.085, 0.09, 0.96)},
+	"floor_steel": {"visible_bounds": Rect2i(18, 95, 1227, 1011), "target_footprint": ISO_FLOOR_ASSET_TARGET_FOOTPRINT, "overlap": ISO_FLOOR_ASSET_NORMALIZED_OVERLAP, "offset": Vector2.ZERO, "fallback_color": Color(0.07, 0.085, 0.1, 0.96)},
+	"floor_titan": {"visible_bounds": Rect2i(11, 95, 1232, 1011), "target_footprint": ISO_FLOOR_ASSET_TARGET_FOOTPRINT, "overlap": ISO_FLOOR_ASSET_NORMALIZED_OVERLAP, "offset": Vector2.ZERO, "fallback_color": Color(0.075, 0.085, 0.11, 0.96)}
 }
 
 # Wall PNGs contain intentionally large transparent margins.  These bounds are
@@ -1349,13 +1376,30 @@ func get_iso_floor_texture_for_asset_key(asset_key: String) -> Texture2D:
 	_iso_floor_asset_texture_cache[asset_key] = null
 	return null
 
+func get_iso_floor_asset_placement(asset_key: String) -> Dictionary:
+	if ISO_FLOOR_ASSET_PLACEMENT.has(asset_key):
+		return Dictionary(ISO_FLOOR_ASSET_PLACEMENT.get(asset_key, {}))
+	return {"visible_bounds": Rect2i(0, 0, int(get_iso_tile_size().x), int(get_iso_tile_size().y)), "target_footprint": get_iso_tile_size(), "overlap": ISO_FLOOR_ASSET_NORMALIZED_OVERLAP, "offset": Vector2.ZERO, "fallback_color": Color(0.08, 0.085, 0.09, 0.96)}
+
+func draw_iso_floor_asset_safe_base(cell: Vector2i, color: Color) -> void:
+	var base_points: PackedVector2Array = get_iso_diamond_points_with_overlap(cell, ISO_FLOOR_UNDERLAY_OVERLAP)
+	draw_colored_polygon(base_points, color)
+
 func draw_iso_floor_asset_texture_for_cell(cell: Vector2i, asset_key: String) -> bool:
 	var texture: Texture2D = get_iso_floor_texture_for_asset_key(asset_key)
 	if texture == null:
 		return false
-	var floor_overlap: Vector2 = Vector2(ISO_FLOOR_ASSET_SCREEN_OVERLAP, ISO_FLOOR_ASSET_SCREEN_OVERLAP)
-	var destination_rect: Rect2 = Rect2(grid_to_iso(cell) - get_iso_tile_half_size() - floor_overlap, get_iso_tile_size() + floor_overlap * 2.0)
-	draw_texture_rect(texture, destination_rect, false)
+	var placement: Dictionary = get_iso_floor_asset_placement(asset_key)
+	var visible_bounds: Rect2i = Rect2i(placement.get("visible_bounds", Rect2i(0, 0, texture.get_width(), texture.get_height())))
+	if visible_bounds.size.x <= 0 or visible_bounds.size.y <= 0:
+		return false
+	var target_footprint: Vector2 = Vector2(placement.get("target_footprint", get_iso_tile_size()))
+	if is_equal_approx(target_footprint.x, ISO_STANDARD_TILE_SIZE.x) and is_equal_approx(target_footprint.y, ISO_STANDARD_TILE_SIZE.y):
+		target_footprint = get_iso_tile_size()
+	var floor_overlap: Vector2 = Vector2(placement.get("overlap", ISO_FLOOR_ASSET_NORMALIZED_OVERLAP))
+	var destination_rect: Rect2 = Rect2(grid_to_iso(cell) - target_footprint * 0.5 - floor_overlap + Vector2(placement.get("offset", Vector2.ZERO)), target_footprint + floor_overlap * 2.0)
+	draw_iso_floor_asset_safe_base(cell, Color(placement.get("fallback_color", Color(0.08, 0.085, 0.09, 0.96))))
+	draw_texture_rect_region(texture, destination_rect, Rect2(Vector2(visible_bounds.position), Vector2(visible_bounds.size)))
 	draw_iso_asset_alignment_overlay(asset_key, grid_to_iso(cell), destination_rect)
 	return true
 
@@ -2299,6 +2343,7 @@ func draw_optional_visual_texture_asset(asset_id: String, cell: Vector2i, _fallb
 		return false
 	var loaded: Resource = load(texture_path)
 	if loaded == null or not (loaded is Texture2D):
+		push_warning("[VisualAsset] failed to load texture_path for %s: %s" % [normalized_asset_id, texture_path])
 		return false
 	var texture: Texture2D = loaded as Texture2D
 	var center: Vector2 = grid_to_iso(cell)
