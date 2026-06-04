@@ -3040,6 +3040,36 @@ func _is_wall_mount_neighbor_tile_type(tile_type: int) -> bool:
 		or tile_type == GridManager.TILE_POWERED_GATE
 	)
 
+func get_map_constructor_wall_height_catalog() -> Dictionary:
+	return {"ok": true, "heights": [
+		{"id":"", "display_name":"Auto", "description":"Use depth-based gray wall height."},
+		{"id":"tallest", "display_name":"Tallest", "description":"Use the tallest gray wall test asset."},
+		{"id":"tall", "display_name":"Tall", "description":"Use the tall gray wall test asset."},
+		{"id":"mid", "display_name":"Mid", "description":"Use the mid gray wall test asset."},
+		{"id":"halfmid", "display_name":"Half Mid", "description":"Use the half-mid gray wall test asset."},
+		{"id":"low", "display_name":"Low", "description":"Use the low gray wall test asset."}
+	], "message": "Wall height catalog ready."}
+
+func normalize_map_constructor_wall_height(value: String) -> String:
+	var normalized_value: String = value.strip_edges().to_lower()
+	normalized_value = normalized_value.replace(" ", "")
+	normalized_value = normalized_value.replace("-", "")
+	normalized_value = normalized_value.replace("_", "")
+	match normalized_value:
+		"", "auto", "default":
+			return ""
+		"highest", "tallest":
+			return "tallest"
+		"high", "tall":
+			return "tall"
+		"medium", "middle", "mid":
+			return "mid"
+		"half", "halfmedium", "halfmid":
+			return "halfmid"
+		"short", "lowest", "low":
+			return "low"
+	return ""
+
 func get_map_constructor_wall_material_catalog() -> Dictionary:
 	var materials: Array[Dictionary] = [
 		{"id":"concrete","display_name":"Concrete","description":"Standard concrete wall using the unified outerwall silhouette.","tags":["concrete","default"],"style":"concrete","texture_asset_id":"wall_concrete","fallback_color":Color(0.66, 0.72, 0.76, 0.98),"edge_color":Color(0.86, 0.9, 0.94, 1.0),"damage_level":0,"is_default":true},
@@ -3775,7 +3805,10 @@ func set_map_constructor_wall_material(cell: Vector2i, side: String, material_id
 	if not known:
 		return {"ok": false, "message": "Unknown wall material id: %s" % material_id}
 	var key: String = _serialize_wall_material_override_key(cell, normalized_side)
-	var entry: Dictionary = {"cell": cell, "side": normalized_side, "material_id": normalized_material_id}
+	var entry: Dictionary = Dictionary(_map_constructor_wall_material_overrides.get(key, {})).duplicate(true)
+	entry["cell"] = cell
+	entry["side"] = normalized_side
+	entry["material_id"] = normalized_material_id
 	_map_constructor_wall_material_overrides[key] = entry
 	_record_map_constructor_change("wall_material", {"cell":cell, "summary":"Set wall material %s at %s/%s" % [normalized_material_id, _format_map_constructor_cell(cell), normalized_side], "details":{"side":normalized_side, "material_id":normalized_material_id}})
 	return {"ok": true, "message": "Wall material applied.", "override": entry}
@@ -3787,7 +3820,12 @@ func clear_map_constructor_wall_material(cell: Vector2i, side: String) -> Dictio
 	var key: String = _serialize_wall_material_override_key(cell, normalized_side)
 	if not _map_constructor_wall_material_overrides.has(key):
 		return {"ok": false, "message": "No wall material override to clear."}
-	_map_constructor_wall_material_overrides.erase(key)
+	var entry: Dictionary = Dictionary(_map_constructor_wall_material_overrides.get(key, {})).duplicate(true)
+	entry.erase("material_id")
+	if str(entry.get("wall_height", "")).strip_edges().is_empty():
+		_map_constructor_wall_material_overrides.erase(key)
+	else:
+		_map_constructor_wall_material_overrides[key] = entry
 	_record_map_constructor_change("wall_material_clear", {"cell":cell, "summary":"Cleared wall material at %s/%s" % [_format_map_constructor_cell(cell), normalized_side], "details":{"side":normalized_side}})
 	return {"ok": true, "message": "Wall material override cleared."}
 
@@ -3796,6 +3834,34 @@ func get_map_constructor_wall_material(cell: Vector2i, side: String) -> Dictiona
 	if not _map_constructor_wall_material_overrides.has(key):
 		return {"ok": false, "message": "No wall material override.", "override": {}}
 	return {"ok": true, "message": "OK", "override": Dictionary(_map_constructor_wall_material_overrides.get(key, {})).duplicate(true)}
+
+func set_map_constructor_wall_height(cell: Vector2i, side: String, wall_height: String) -> Dictionary:
+	if not _is_task_test_constructor_context():
+		return {"ok": false, "message": "Wall height overrides are available only in TASK TEST constructor mode."}
+	var normalized_side: String = side.to_lower().strip_edges()
+	if _get_map_constructor_wall_side_delta(normalized_side) == Vector2i.ZERO:
+		return {"ok": false, "message": "Invalid wall side."}
+	var attached_wall_cell: Vector2i = cell + _get_map_constructor_wall_side_delta(normalized_side)
+	if not _is_wall_or_boundary_cell(attached_wall_cell):
+		return {"ok": false, "message": "Selected side has no wall."}
+	var normalized_height: String = normalize_map_constructor_wall_height(wall_height)
+	if not wall_height.strip_edges().is_empty() and normalized_height.is_empty() and wall_height.strip_edges().to_lower() != "auto":
+		return {"ok": false, "message": "Unknown wall height: %s" % wall_height}
+	var key: String = _serialize_wall_material_override_key(cell, normalized_side)
+	var entry: Dictionary = Dictionary(_map_constructor_wall_material_overrides.get(key, {})).duplicate(true)
+	entry["cell"] = cell
+	entry["side"] = normalized_side
+	if normalized_height.is_empty():
+		entry.erase("wall_height")
+		entry.erase("wall_visual_height")
+	else:
+		entry["wall_height"] = normalized_height
+	if str(entry.get("material_id", "")).strip_edges().is_empty() and str(entry.get("wall_height", "")).strip_edges().is_empty():
+		_map_constructor_wall_material_overrides.erase(key)
+	else:
+		_map_constructor_wall_material_overrides[key] = entry
+	_record_map_constructor_change("wall_height", {"cell":cell, "summary":"Set wall height %s at %s/%s" % [("auto" if normalized_height.is_empty() else normalized_height), _format_map_constructor_cell(cell), normalized_side], "details":{"side":normalized_side, "wall_height":normalized_height}})
+	return {"ok": true, "message": "Wall height updated.", "override": entry}
 
 func get_map_constructor_wall_material_for_wall_cell(wall_cell: Vector2i) -> Dictionary:
 	if not _is_task_test_constructor_context():
@@ -3822,9 +3888,16 @@ func get_map_constructor_wall_material_for_wall_cell(wall_cell: Vector2i) -> Dic
 			if attached_wall_cell != wall_cell:
 				continue
 			var material_id: String = normalize_map_constructor_wall_material_id(str(entry.get("material_id", "")))
-			if material_id.is_empty() or not catalog_by_id.has(material_id):
+			var normalized_height: String = normalize_map_constructor_wall_height(str(entry.get("wall_height", entry.get("wall_visual_height", ""))))
+			if material_id.is_empty():
+				var auto_material: Dictionary = Dictionary(catalog_by_id.get("concrete", {})).duplicate(true)
+				auto_material["wall_height"] = normalized_height
+				return {"ok": true, "message": "OK", "override": entry.duplicate(true), "material": auto_material}
+			if not catalog_by_id.has(material_id):
 				return {"ok": false, "message": "Unknown wall material id: %s" % material_id, "override": entry.duplicate(true), "material": {}}
-			return {"ok": true, "message": "OK", "override": entry.duplicate(true), "material": Dictionary(catalog_by_id.get(material_id, {})).duplicate(true)}
+			var material: Dictionary = Dictionary(catalog_by_id.get(material_id, {})).duplicate(true)
+			material["wall_height"] = normalized_height
+			return {"ok": true, "message": "OK", "override": entry.duplicate(true), "material": material}
 	return {"ok": false, "message": "No wall material override.", "override": {}, "material": {}}
 
 func get_map_constructor_wall_material_overrides() -> Dictionary:
