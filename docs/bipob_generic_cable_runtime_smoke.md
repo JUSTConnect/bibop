@@ -55,3 +55,15 @@ Expected result: `task_test_generic_unpowered_device` has `is_powered == false`,
 - PR-GEN-02 does not implement Map Constructor cable validation.
 - PR-GEN-02 does not implement airflow/cooling.
 - Complex multi-source, branching, load, and compatibility graph behavior remains future work.
+
+## Post-legacy-removal static smoke — 2026-06-04
+
+After PR-LEGACY-RM-02 physical deletion, the generic cable smoke was statically rechecked:
+
+- `task_test_generic_powered_device` remains present in TASK TEST world content and remains configured as a generic externally powered device that starts unpowered before the runtime propagation pass.
+- `task_test_generic_unpowered_device` remains present and intentionally points at missing source/socket ids so it stays unpowered.
+- `MissionManager` still preloads `bipob_cable_runtime_service.gd` and exposes `refresh_generic_cable_runtime_state()` / `get_generic_cable_runtime_report()`.
+- Map Constructor validation still preloads the generic cable runtime service and keeps `generic_cable_*` validation issue paths.
+- No active code references to the deleted legacy Mission 7 cable service were found.
+
+Godot parser/runtime smoke was not executed in this environment because the `godot` CLI was unavailable.

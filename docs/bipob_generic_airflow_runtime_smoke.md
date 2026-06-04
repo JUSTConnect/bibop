@@ -48,3 +48,17 @@ After TASK TEST setup or runtime refresh:
 - It does not implement a broad graph solver or fluid simulation.
 - Map Constructor airflow validation is intentionally deferred to PR-GEN-04.
 - Legacy Mission 8 no longer remains backed by a legacy service after PR-LEGACY-RM-02; use TASK TEST generic airflow/cooling smoke instead.
+
+## Post-legacy-removal static smoke — 2026-06-04
+
+After PR-LEGACY-RM-02 physical deletion, the generic airflow smoke was statically rechecked:
+
+- `task_test_generic_airflow_target` remains present at `(11, 9)` and requires cooling.
+- `task_test_generic_airflow_blocker` remains present at `(12, 9)` and blocks airflow before the uncooled target.
+- `task_test_generic_uncooled_target` remains present at `(13, 9)` and should remain uncooled/blocked behind the blocker.
+- `MissionManager` still preloads `bipob_airflow_runtime_service.gd` and exposes `refresh_generic_airflow_runtime_state()` / `get_generic_airflow_runtime_report()`.
+- Map Constructor validation still preloads the generic airflow runtime service and keeps `generic_airflow_*` validation issue paths.
+- Scan/hack airflow terminal readiness no longer reads `mission8_terminal_cooled`; it checks world-object `cooling_required` and `is_cooled` instead.
+- No active code references to the deleted legacy Mission 8 airflow service were found.
+
+Godot parser/runtime smoke was not executed in this environment because the `godot` CLI was unavailable.
