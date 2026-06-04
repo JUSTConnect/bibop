@@ -6,8 +6,7 @@ const WorldObjectCatalogRef = preload("res://scripts/world/world_object_catalog.
 const RuntimeMissionMenuRef = preload("res://scripts/ui/runtime/runtime_mission_menu.gd")
 const CenterScreenRef = preload("res://scripts/ui/screens/center_screen.gd")
 const RuntimeStoragePanelRef = preload("res://scripts/ui/runtime/runtime_storage_panel.gd")
-const RuntimeControlPanelRef = preload("res://scripts/ui/runtime/runtime_control_panel.gd")
-const RuntimeInteractionPresenterRef = preload("res://scripts/ui/runtime/runtime_interaction_presenter.gd")
+const RuntimeActionPanelBridgeRef = preload("res://scripts/ui/runtime/runtime_action_panel_bridge.gd")
 const RuntimeBipobSwitcherRef = preload("res://scripts/ui/runtime/runtime_bipob_switcher.gd")
 const RuntimeObjectHudRef = preload("res://scripts/ui/runtime/runtime_object_hud.gd")
 const MapConstructorScreenRef = preload("res://scripts/ui/map_constructor/map_constructor_screen.gd")
@@ -200,6 +199,7 @@ var runtime_world_actions_no_actions_label: Label = null
 var runtime_world_actions_selected_button: Button = null
 var map_constructor_state: MapConstructorSessionState = MapConstructorSessionStateRef.new()
 var map_constructor_ui_bridge: MapConstructorUIBridge = null
+var runtime_action_panel_bridge = null
 var runtime_map_constructor_palette_panel: PanelContainer = null
 var runtime_map_constructor_inspector_panel: PanelContainer = null
 var runtime_map_constructor_inspector_scroll: ScrollContainer = null
@@ -4959,7 +4959,8 @@ func _create_runtime_stats_strip() -> Control:
 
 
 func _create_runtime_controls_panel() -> Control:
-	return RuntimeControlPanelRef.build(self)
+	_ensure_runtime_action_panel_bridge()
+	return runtime_action_panel_bridge.build_control_panel()
 
 
 func _create_runtime_control_button(label_text: String, action_callable: Callable, role: String = "normal") -> Button:
@@ -9515,34 +9516,8 @@ func _process(delta: float) -> void:
 
 
 func _process_runtime_interaction_feedback(delta: float) -> void:
-	if app_screen_mode != AppScreenMode.GAMEPLAY:
-		return
-	RuntimeNotifications.process_runtime_notification_timer(self, delta)
-	if bipob == null:
-		return
-	_refresh_runtime_interaction_controls()
-	var target_data := _get_runtime_interaction_target_data()
-	var target_object: Dictionary = Dictionary(target_data.get("target_object", {}))
-	var actions: Array = Array(target_data.get("actions", []))
-	var physical_actions: Array[String] = RuntimeInteractionPanel.get_physical_actions(actions)
-	var has_interactable := not target_object.is_empty() and not physical_actions.is_empty()
-	if has_interactable and not runtime_interaction_mode_active and runtime_action_button != null:
-		_apply_selected_pulse(runtime_action_button)
-	var has_actions_left := int(bipob.actions_left) > 0
-	var manipulator_blocked := has_interactable and _is_runtime_interaction_manipulator_blocked(target_object, physical_actions)
-	var pulse_alpha: float = 0.72 + 0.28 * abs(sin(float(Time.get_ticks_msec()) / 170.0))
-	if runtime_action_button != null:
-		if manipulator_blocked:
-			runtime_action_button.modulate = Color(1.0, 0.38, 0.38, 1.0)
-		elif has_interactable and has_actions_left and not runtime_interaction_mode_active:
-			runtime_action_button.modulate = Color(1.0, 1.0, 1.0, pulse_alpha)
-		else:
-			_clear_selected_pulse(runtime_action_button)
-	if runtime_end_turn_button != null:
-		if bipob != null and int(bipob.actions_left) <= 0:
-			runtime_end_turn_button.modulate = Color(1.0, 1.0, 1.0, pulse_alpha)
-		else:
-			runtime_end_turn_button.modulate = Color.WHITE
+	_ensure_runtime_action_panel_bridge()
+	runtime_action_panel_bridge.process_feedback(delta)
 
 # -----------------------------------------------------------------------------
 # Map Constructor root
@@ -12249,67 +12224,70 @@ func _on_turn_right_pressed() -> void:
 	update_status()
 
 
+func _ensure_runtime_action_panel_bridge() -> void:
+	if runtime_action_panel_bridge == null:
+		runtime_action_panel_bridge = RuntimeActionPanelBridgeRef.new(self)
+
 func _get_runtime_interaction_target_data() -> Dictionary:
-	return RuntimeInteractionPanel.get_target_data(self)
+	_ensure_runtime_action_panel_bridge()
+	return runtime_action_panel_bridge.get_target_data()
 
 func _get_runtime_action_view_model() -> Dictionary:
-	var target_data: Dictionary = _get_runtime_interaction_target_data()
-	return _safe_ui_dictionary(target_data.get("action_view_model", {}))
+	_ensure_runtime_action_panel_bridge()
+	return runtime_action_panel_bridge.get_action_view_model()
 
 func _runtime_action_requires_manipulator(action_id: String, target_object: Dictionary) -> bool:
-	return RuntimeInteractionPanel.action_requires_manipulator(action_id, target_object)
+	_ensure_runtime_action_panel_bridge()
+	return runtime_action_panel_bridge.action_requires_manipulator(action_id, target_object)
 
 func _is_runtime_interaction_manipulator_blocked(target_object: Dictionary, actions: Array) -> bool:
-	return RuntimeInteractionPanel.is_manipulator_blocked(self, target_object, actions)
+	_ensure_runtime_action_panel_bridge()
+	return runtime_action_panel_bridge.is_manipulator_blocked(target_object, actions)
 
 func _refresh_runtime_interaction_controls() -> void:
-	RuntimeInteractionPresenterRef.refresh(self)
+	_ensure_runtime_action_panel_bridge()
+	runtime_action_panel_bridge.refresh_controls()
 
 func _enter_runtime_interaction_mode() -> void:
-	RuntimeInteractionPanel.enter_mode(self)
+	_ensure_runtime_action_panel_bridge()
+	runtime_action_panel_bridge.enter_interaction_mode()
 
 func _exit_runtime_interaction_mode() -> void:
-	RuntimeInteractionPanel.exit_mode(self)
+	_ensure_runtime_action_panel_bridge()
+	runtime_action_panel_bridge.exit_interaction_mode()
 
 func _on_runtime_interaction_action_pressed(action_id: String) -> void:
-	RuntimeInteractionPresenterRef.on_runtime_action_pressed(self, action_id)
+	_ensure_runtime_action_panel_bridge()
+	runtime_action_panel_bridge.on_runtime_action_pressed(action_id)
 
 func _on_interact_pressed() -> void:
-	RuntimeInteractionPresenterRef.on_action_pressed(self)
+	_ensure_runtime_action_panel_bridge()
+	runtime_action_panel_bridge.on_action_pressed()
 
 
 func _on_connect_pressed() -> void:
-	RuntimeInteractionPresenterRef.on_connect_pressed(self)
+	_ensure_runtime_action_panel_bridge()
+	runtime_action_panel_bridge.on_connect_pressed()
 
 func _on_heavy_claw_pressed() -> void:
-	RuntimeInteractionPresenterRef.on_heavy_claw_pressed(self)
+	_ensure_runtime_action_panel_bridge()
+	runtime_action_panel_bridge.on_heavy_claw_pressed()
 
 func _on_use_selected_world_action_pressed() -> void:
-	RuntimeInteractionPresenterRef.on_use_selected_world_action_pressed(self)
+	_ensure_runtime_action_panel_bridge()
+	runtime_action_panel_bridge.on_use_selected_world_action_pressed()
 
 func _on_world_action_button_pressed(action_id: String) -> void:
-	RuntimeInteractionPresenterRef.on_world_action_button_pressed(self, action_id)
+	_ensure_runtime_action_panel_bridge()
+	runtime_action_panel_bridge.on_world_action_button_pressed(action_id)
 
 func _get_runtime_world_action_target_id(target_object: Dictionary, fallback_name: String) -> String:
-	var raw_id: Variant = target_object.get("id", "")
-	if not str(raw_id).is_empty():
-		return str(raw_id)
-
-	var raw_position: Variant = target_object.get("position", null)
-	if raw_position is Vector2i:
-		var cell: Vector2i = raw_position
-		return "cell_%d_%d" % [cell.x, cell.y]
-	if raw_position is Vector2:
-		var vector_position: Vector2 = raw_position
-		return "pos_%d_%d" % [int(vector_position.x), int(vector_position.y)]
-	if raw_position != null:
-		return str(raw_position)
-
-	return fallback_name
+	_ensure_runtime_action_panel_bridge()
+	return runtime_action_panel_bridge.get_world_action_target_id(target_object, fallback_name)
 
 func _on_world_action_panel_requested(target_object: Dictionary, actions: Array, selected_action: String) -> void:
-	_refresh_runtime_interaction_controls()
-	RuntimeInteractionPresenterRef.refresh_world_actions_panel(self, {"target_object": target_object, "actions": actions, "selected_action": selected_action})
+	_ensure_runtime_action_panel_bridge()
+	runtime_action_panel_bridge.refresh_world_actions_panel(target_object, actions, selected_action)
 
 func _on_drop_item_button_pressed() -> void:
 	if bipob == null or not bipob.has_method("drop_held_item"):
@@ -12434,10 +12412,8 @@ func _on_hack_device_button_pressed() -> void:
 	update_box_status()
 
 func _on_end_turn_pressed() -> void:
-	if map_constructor_state.map_constructor_mode_active or bipob == null:
-		return
-	bipob.end_turn()
-	update_status()
+	_ensure_runtime_action_panel_bridge()
+	runtime_action_panel_bridge.on_end_turn_pressed()
 
 func _on_restart_mission_button_pressed() -> void:
 	if bipob == null:
