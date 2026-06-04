@@ -468,18 +468,18 @@ Reason:
 
 ### 3. Runtime action dispatch / Action / Connect / Heavy Claw
 
-Current owner: `BipobController`, partially extracted to services.
+Current owner: `BipobActionController`, with `BipobController` keeping compatibility wrappers and legacy tile fallbacks.
 
-Observed responsibilities:
+Extracted responsibilities:
 
-- action view model assembly;
-- targeting lookup;
-- action execution dispatch;
-- terminal/power/door/object item execution;
-- Heavy Claw execution;
-- world action panel requests.
+- action view model and actor wrapper delegation;
+- facing action target/object/item lookup;
+- selected action mutation, cycling, invalidation, and world-action panel emission;
+- runtime item pickup orchestration;
+- runtime world-object action dispatch;
+- terminal door-control, Heavy Claw, and generic world-object execution refresh/signal handling.
 
-Important services already present:
+Important services reused by the coordinator:
 
 - `BipobActionViewModelService`
 - `BipobRuntimeActionActorService`
@@ -487,19 +487,20 @@ Important services already present:
 - `BipobHeavyClawExecutionService`
 - `BipobWorldObjectExecutionService`
 - `BipobItemPickupExecutionService`
+- `BipobTargetingService`
 - `InteractionSystem`
 
 Risk: medium.
 
 Recommended target:
 
-- `scripts/bipob/bipob_action_controller.gd` or continue strengthening `BipobRuntimeActionActorService` as the execution coordinator.
+- Continue shrinking `BipobController` around remaining action-adjacent data helpers only when behavior-preserving seams are obvious.
 
-Can extract now: yes, after GameUI action panel extraction.
+Can extract now: completed in UICTRL-RF-05.
 
 Reason:
 
-- UI action panel and controller dispatch should be extracted in sequence: first UI, then controller-side action coordinator.
+- Runtime Action / Connect / Heavy Claw orchestration now has a focused code-side owner while preserving existing execution services and UI-facing wrappers.
 
 ### 4. Inventory / storage / digital records
 
