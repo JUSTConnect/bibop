@@ -254,6 +254,38 @@ static func add_wall_coverage_section(ui: Variant, parent: VBoxContainer, entity
 			wall_section.add_child(ui._create_property_row("Target", target_label))
 			wall_section.add_child(ui._create_property_row("Material", material_option))
 			wall_section.add_child(description_label)
+			var visual_test_note: Label = Label.new()
+			visual_test_note.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+			visual_test_note.text = "Current visual test mode uses gray test wall assets for all materials."
+			wall_section.add_child(visual_test_note)
+			var selected_wall_height: String = ""
+			if ui.mission_manager_runtime != null and ui.mission_manager_runtime.has_method("get_map_constructor_wall_material"):
+				var current_wall_override: Dictionary = ui._safe_ui_dictionary(ui.mission_manager_runtime.call("get_map_constructor_wall_material", wall_cell, wall_side))
+				var current_wall_row: Dictionary = ui._safe_ui_dictionary(current_wall_override.get("override", {}))
+				selected_wall_height = ui._safe_ui_string(current_wall_row.get("wall_height", current_wall_row.get("wall_visual_height", "")))
+			var height_option: OptionButton = OptionButton.new()
+			var height_rows: Array[Dictionary] = [
+				{"id":"", "label":"Auto"},
+				{"id":"tallest", "label":"Tallest"},
+				{"id":"tall", "label":"Tall"},
+				{"id":"mid", "label":"Mid"},
+				{"id":"halfmid", "label":"Half Mid"},
+				{"id":"low", "label":"Low"}
+			]
+			for height_row_variant in height_rows:
+				var height_row: Dictionary = ui._safe_ui_dictionary(height_row_variant)
+				height_option.add_item(ui._safe_ui_string(height_row.get("label", "Auto")))
+				height_option.set_item_metadata(height_option.item_count - 1, ui._safe_ui_string(height_row.get("id", "")))
+				if ui._safe_ui_string(height_row.get("id", "")) == selected_wall_height:
+					height_option.select(height_option.item_count - 1)
+			if height_option.selected < 0:
+				height_option.select(0)
+			wall_section.add_child(ui._create_property_row("Height", height_option))
+			var apply_height: Button = Button.new(); apply_height.text = "Apply Wall Height"
+			apply_height.pressed.connect(func() -> void:
+				MapConstructorActions.apply_wall_height(ui, wall_cell, wall_side, ui._safe_ui_string(height_option.get_selected_metadata()))
+			)
+			wall_section.add_child(apply_height)
 			var apply_material: Button = Button.new(); apply_material.text = "Apply Wall Material"
 			apply_material.pressed.connect(func() -> void:
 				var mat_id: String = ui._safe_ui_string(material_option.get_selected_metadata())

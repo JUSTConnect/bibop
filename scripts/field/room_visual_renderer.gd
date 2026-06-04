@@ -26,6 +26,7 @@ const CableTopologyServiceRef = preload("res://scripts/game/cable_topology_servi
 @export var debug_floor_tile_bounds: bool = false
 @export var use_iso_floor_atlas_textures: bool = false
 @export var allow_legacy_floor_texture_assets: bool = false
+@export var use_gray_room_visual_test_assets: bool = true
 @export var use_iso_visual_preview_preset: bool = false
 @export var iso_visual_preview_includes_fog: bool = false
 @export var iso_fog_draw_cell_shapes: bool = false
@@ -145,8 +146,22 @@ const ISO_PLACEHOLDER_ASSET_PATHS: Dictionary = {
 
 
 const ISO_WALL_ASSET_PACK_DIR: String = "res://assets/visual/isometric/wall/"
+const ISO_TEST_ASSET_PACK_DIR: String = "res://assets/visual/isometric/test/"
 const ISO_WALL_ASSET_EXPECTED_SIZE: Vector2 = Vector2(128.0, 120.0)
+const ISO_TEST_WALL_HEIGHT_ORDER: Array[String] = ["tallest", "tall", "mid", "halfmid", "low"]
+const ISO_TEST_WALL_HEIGHT_ASSET_KEYS: Dictionary = {
+	"tallest": "wall_gray_tallest",
+	"tall": "wall_gray_tall",
+	"mid": "wall_gray_mid",
+	"halfmid": "wall_gray_halfmid",
+	"low": "wall_gray_low"
+}
 const ISO_WALL_ASSET_CATALOG: Dictionary = {
+	"wall_gray_tallest": "wall_gray_tallest_01.png",
+	"wall_gray_tall": "wall_gray_tall_01.png",
+	"wall_gray_mid": "wall_gray_mid_01.png",
+	"wall_gray_halfmid": "wall_gray_halfmid_01.png",
+	"wall_gray_low": "wall_gray_low_01.png",
 	"wall_default": "wall_01_concrete.png",
 	"wall_concrete": "wall_01_concrete.png",
 	"wall_steel": "wall_02_steel.png",
@@ -160,7 +175,9 @@ const ISO_WALL_ASSET_CATALOG: Dictionary = {
 }
 
 const ISO_FLOOR_ASSET_PACK_DIR: String = "res://assets/visual/isometric/floor/"
+const ISO_FLOOR_TEST_ASSET_KEY: String = "floor_gray_test"
 const ISO_FLOOR_ASSET_CATALOG: Dictionary = {
+	"floor_gray_test": "floor_gray_01.png",
 	"floor_concrete": "floor_concrete_01.png",
 	"floor_steel": "floor_steel_01.png",
 	"floor_titan": "floor_titan_01.png"
@@ -172,6 +189,7 @@ const ISO_FLOOR_ASSET_CATALOG: Dictionary = {
 const ISO_FLOOR_ASSET_TARGET_FOOTPRINT: Vector2 = ISO_STANDARD_TILE_SIZE
 const ISO_FLOOR_ASSET_NORMALIZED_OVERLAP: Vector2 = Vector2(1.5, 1.5)
 const ISO_FLOOR_ASSET_PLACEMENT: Dictionary = {
+	"floor_gray_test": {"visible_bounds": Rect2i(0, 162, 512, 286), "target_footprint": ISO_FLOOR_ASSET_TARGET_FOOTPRINT, "overlap": ISO_FLOOR_ASSET_NORMALIZED_OVERLAP, "offset": Vector2.ZERO, "fallback_color": Color(0.11, 0.12, 0.13, 0.98)},
 	"floor_concrete": {"visible_bounds": Rect2i(18, 95, 1227, 1016), "target_footprint": ISO_FLOOR_ASSET_TARGET_FOOTPRINT, "overlap": ISO_FLOOR_ASSET_NORMALIZED_OVERLAP, "offset": Vector2.ZERO, "fallback_color": Color(0.08, 0.085, 0.09, 0.96)},
 	"floor_steel": {"visible_bounds": Rect2i(18, 95, 1227, 1011), "target_footprint": ISO_FLOOR_ASSET_TARGET_FOOTPRINT, "overlap": ISO_FLOOR_ASSET_NORMALIZED_OVERLAP, "offset": Vector2.ZERO, "fallback_color": Color(0.07, 0.085, 0.1, 0.96)},
 	"floor_titan": {"visible_bounds": Rect2i(11, 95, 1232, 1011), "target_footprint": ISO_FLOOR_ASSET_TARGET_FOOTPRINT, "overlap": ISO_FLOOR_ASSET_NORMALIZED_OVERLAP, "offset": Vector2.ZERO, "fallback_color": Color(0.075, 0.085, 0.11, 0.96)}
@@ -182,7 +200,19 @@ const ISO_FLOOR_ASSET_PLACEMENT: Dictionary = {
 # the visible wall base, not the full transparent canvas, is anchored to the
 # active 128x71 isometric wall footprint.
 const ISO_WALL_BASELINE_VISIBLE_BOUNDS: Rect2 = Rect2(47, 36, 508, 842)
+const ISO_TEST_WALL_VISIBLE_BOUNDS: Dictionary = {
+	"wall_gray_tallest": Rect2(0, 0, 512, 768),
+	"wall_gray_tall": Rect2(0, 63, 512, 705),
+	"wall_gray_mid": Rect2(0, 150, 512, 618),
+	"wall_gray_halfmid": Rect2(0, 238, 512, 532),
+	"wall_gray_low": Rect2(0, 353, 512, 415)
+}
 const ISO_WALL_ASSET_PLACEMENT: Dictionary = {
+	"wall_gray_tallest": {"visible_bounds": Rect2(0, 0, 512, 768), "target_base_width": 128.0, "scale": 1.0, "offset": Vector2.ZERO},
+	"wall_gray_tall": {"visible_bounds": Rect2(0, 63, 512, 705), "target_base_width": 128.0, "scale": 1.0, "offset": Vector2.ZERO},
+	"wall_gray_mid": {"visible_bounds": Rect2(0, 150, 512, 618), "target_base_width": 128.0, "scale": 1.0, "offset": Vector2.ZERO},
+	"wall_gray_halfmid": {"visible_bounds": Rect2(0, 238, 512, 532), "target_base_width": 128.0, "scale": 1.0, "offset": Vector2.ZERO},
+	"wall_gray_low": {"visible_bounds": Rect2(0, 353, 512, 415), "target_base_width": 128.0, "scale": 1.0, "offset": Vector2.ZERO},
 	"wall_default": {"visible_bounds": ISO_WALL_BASELINE_VISIBLE_BOUNDS, "target_base_width": 128.0, "scale": 1.0, "offset": Vector2.ZERO},
 	"wall_concrete": {"visible_bounds": ISO_WALL_BASELINE_VISIBLE_BOUNDS, "target_base_width": 128.0, "scale": 1.0, "offset": Vector2.ZERO},
 	"wall_steel": {"visible_bounds": ISO_WALL_BASELINE_VISIBLE_BOUNDS, "target_base_width": 128.0, "scale": 1.0, "offset": Vector2.ZERO},
@@ -1340,6 +1370,8 @@ func normalize_floor_material_key(material_key: String) -> String:
 	return "concrete"
 
 func get_iso_floor_asset_key_for_material_key(material_key: String) -> String:
+	if use_gray_room_visual_test_assets:
+		return ISO_FLOOR_TEST_ASSET_KEY
 	match normalize_floor_material_key(material_key):
 		"steel":
 			return "floor_steel"
@@ -1351,6 +1383,8 @@ func get_iso_floor_asset_key_for_material_key(material_key: String) -> String:
 func get_iso_floor_asset_key_for_tile(tile_type: int) -> String:
 	if tile_type == GridManager.TILE_WALL:
 		return ""
+	if use_gray_room_visual_test_assets and is_floor_like_tile(tile_type):
+		return ISO_FLOOR_TEST_ASSET_KEY
 	if tile_type == GridManager.TILE_DOOR or tile_type == GridManager.TILE_DIGITAL_DOOR or tile_type == GridManager.TILE_POWERED_GATE:
 		return "floor_door_underlay"
 	if tile_type == GridManager.TILE_FLOOR or is_floor_like_tile(tile_type):
@@ -1366,7 +1400,8 @@ func get_iso_floor_texture_for_asset_key(asset_key: String) -> Texture2D:
 		if cached_value is Texture2D:
 			return cached_value as Texture2D
 		return null
-	var texture_path: String = ISO_FLOOR_ASSET_PACK_DIR + str(ISO_FLOOR_ASSET_CATALOG.get(asset_key, ""))
+	var asset_file: String = str(ISO_FLOOR_ASSET_CATALOG.get(asset_key, ""))
+	var texture_path: String = (ISO_TEST_ASSET_PACK_DIR if asset_key == ISO_FLOOR_TEST_ASSET_KEY else ISO_FLOOR_ASSET_PACK_DIR) + asset_file
 	if ResourceLoader.exists(texture_path):
 		var loaded_resource: Resource = ResourceLoader.load(texture_path)
 		if loaded_resource is Texture2D:
@@ -1415,6 +1450,16 @@ func normalize_wall_asset_key(profile_key: String) -> String:
 	normalized_key = normalized_key.replace("-", "_")
 	normalized_key = normalized_key.replace("default_wall", "wall_default")
 	match normalized_key:
+		"gray_tallest", "wall_gray_tallest", "wall_gray_tallest_01":
+			return "wall_gray_tallest"
+		"gray_tall", "wall_gray_tall", "wall_gray_tall_01":
+			return "wall_gray_tall"
+		"gray_mid", "wall_gray_mid", "wall_gray_mid_01":
+			return "wall_gray_mid"
+		"gray_halfmid", "wall_gray_halfmid", "wall_gray_halfmid_01":
+			return "wall_gray_halfmid"
+		"gray_low", "wall_gray_low", "wall_gray_low_01":
+			return "wall_gray_low"
 		"", "wall", "default", "wall_default":
 			return "wall_default"
 		"outer", "outerwall", "outer_wall", "wall_outer":
@@ -1465,7 +1510,8 @@ func get_iso_wall_texture_for_asset_key(asset_key: String) -> Texture2D:
 			if cached_value is Texture2D:
 				return cached_value as Texture2D
 		else:
-			var texture_path: String = ISO_WALL_ASSET_PACK_DIR + str(catalog.get(asset_key, ""))
+			var asset_file: String = str(catalog.get(asset_key, ""))
+			var texture_path: String = (ISO_TEST_ASSET_PACK_DIR if asset_key.begins_with("wall_gray_") else ISO_WALL_ASSET_PACK_DIR) + asset_file
 			if ResourceLoader.exists(texture_path):
 				var loaded_resource: Resource = ResourceLoader.load(texture_path)
 				if loaded_resource is Texture2D:
@@ -1502,6 +1548,78 @@ func get_iso_wall_asset_key_for_material_row(material_row: Dictionary, fallback_
 		if material_asset_key != "wall_default":
 			return material_asset_key
 	return normalize_wall_asset_key(fallback_profile_key)
+
+func normalize_test_wall_height(value: String) -> String:
+	var normalized_value: String = value.strip_edges().to_lower()
+	normalized_value = normalized_value.replace(" ", "")
+	normalized_value = normalized_value.replace("-", "")
+	normalized_value = normalized_value.replace("_", "")
+	match normalized_value:
+		"auto", "", "default":
+			return ""
+		"highest", "tallest":
+			return "tallest"
+		"high", "tall":
+			return "tall"
+		"medium", "middle", "mid":
+			return "mid"
+		"halfmid", "halfmedium", "half":
+			return "halfmid"
+		"short", "lowest", "low":
+			return "low"
+	return ""
+
+func get_iso_wall_depth_bounds() -> Dictionary:
+	if _grid_manager == null:
+		return {"min_depth": 0, "max_depth": 0, "wall_count": 0}
+	var min_depth: int = 0
+	var max_depth: int = 0
+	var wall_count: int = 0
+	var map_width: int = _grid_manager.get_map_width()
+	var map_height: int = _grid_manager.get_map_height()
+	for y in range(map_height):
+		for x in range(map_width):
+			var cell: Vector2i = Vector2i(x, y)
+			if not is_wall_tile(_grid_manager.get_tile(cell)):
+				continue
+			var depth: int = cell.x + cell.y
+			if wall_count == 0:
+				min_depth = depth
+				max_depth = depth
+			else:
+				min_depth = mini(min_depth, depth)
+				max_depth = maxi(max_depth, depth)
+			wall_count += 1
+	return {"min_depth": min_depth, "max_depth": max_depth, "wall_count": wall_count}
+
+func resolve_auto_test_wall_height(cell: Vector2i, map_bounds: Dictionary = {}) -> String:
+	var bounds: Dictionary = map_bounds
+	if bounds.is_empty():
+		bounds = get_iso_wall_depth_bounds()
+	var min_depth: int = int(bounds.get("min_depth", cell.x + cell.y))
+	var max_depth: int = int(bounds.get("max_depth", cell.x + cell.y))
+	var depth_span: int = maxi(max_depth - min_depth, 0)
+	if depth_span <= 0:
+		return "mid"
+	var depth_index: int = clampi(cell.x + cell.y - min_depth, 0, depth_span)
+	var band_count: int = ISO_TEST_WALL_HEIGHT_ORDER.size()
+	var band: int = int(floor(float(depth_index) * float(band_count) / float(depth_span + 1)))
+	band = clampi(band, 0, band_count - 1)
+	return str(ISO_TEST_WALL_HEIGHT_ORDER[band])
+
+func get_test_wall_height_asset_key(wall_data: Dictionary, cell: Vector2i, map_bounds: Dictionary = {}) -> String:
+	var override_data: Dictionary = Dictionary(wall_data.get("override", {}))
+	var material_data: Dictionary = Dictionary(wall_data.get("material", {}))
+	var raw_height: String = str(material_data.get("wall_height", material_data.get("wall_visual_height", "")))
+	if raw_height.is_empty():
+		raw_height = str(override_data.get("wall_height", override_data.get("wall_visual_height", "")))
+	if raw_height.is_empty():
+		raw_height = str(wall_data.get("wall_height", wall_data.get("wall_visual_height", "")))
+	var explicit_height: String = normalize_test_wall_height(raw_height)
+	var resolved_height: String = explicit_height
+	if resolved_height.is_empty():
+		resolved_height = resolve_auto_test_wall_height(cell, map_bounds)
+	return str(ISO_TEST_WALL_HEIGHT_ASSET_KEYS.get(resolved_height, ISO_TEST_WALL_HEIGHT_ASSET_KEYS.get("mid", "wall_gray_mid")))
 
 func get_iso_wall_asset_placement(asset_key: String, source_size: Vector2) -> Dictionary:
 	var normalized_key: String = normalize_wall_asset_key(asset_key)
@@ -2050,6 +2168,23 @@ func get_iso_visual_cell_stats_validation_text() -> String:
 	for warning_key in warnings:
 		lines.append("- %s" % warning_key)
 	return "\n".join(lines)
+
+func get_gray_room_visual_test_asset_validation() -> Dictionary:
+	var required_assets: Dictionary = {
+		ISO_FLOOR_TEST_ASSET_KEY: ISO_TEST_ASSET_PACK_DIR + "floor_gray_01.png",
+		"wall_gray_tallest": ISO_TEST_ASSET_PACK_DIR + "wall_gray_tallest_01.png",
+		"wall_gray_tall": ISO_TEST_ASSET_PACK_DIR + "wall_gray_tall_01.png",
+		"wall_gray_mid": ISO_TEST_ASSET_PACK_DIR + "wall_gray_mid_01.png",
+		"wall_gray_halfmid": ISO_TEST_ASSET_PACK_DIR + "wall_gray_halfmid_01.png",
+		"wall_gray_low": ISO_TEST_ASSET_PACK_DIR + "wall_gray_low_01.png"
+	}
+	var missing_assets: Array[String] = []
+	for key_variant in required_assets.keys():
+		var asset_path: String = str(required_assets.get(key_variant, ""))
+		if not ResourceLoader.exists(asset_path):
+			missing_assets.append("%s:%s" % [str(key_variant), asset_path])
+	missing_assets.sort()
+	return {"ok": missing_assets.is_empty(), "enabled": use_gray_room_visual_test_assets, "required_assets": required_assets, "missing_assets": missing_assets, "fallback": "procedural dark floor/wall renderer"}
 
 func get_iso_visual_debug_report() -> Dictionary:
 	var has_grid_manager: bool = _grid_manager != null
@@ -2976,6 +3111,8 @@ func draw_iso_wall_block(cell: Vector2i) -> void:
 	var accent_color: Color = _get_color_from_dict(colors, "accent", Color.WHITE)
 
 	var wall_asset_key: String = get_iso_wall_asset_key_for_material_row(material_row, wall_profile_key)
+	if use_gray_room_visual_test_assets:
+		wall_asset_key = get_test_wall_height_asset_key(material_override, cell, get_iso_wall_depth_bounds())
 	if draw_iso_wall_asset_texture_for_cell(cell, wall_asset_key, render_topology):
 		draw_iso_wall_debug_and_mount_overlays(cell, arch, topology)
 		return
