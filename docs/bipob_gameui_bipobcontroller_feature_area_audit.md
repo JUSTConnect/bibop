@@ -656,11 +656,21 @@ Goal:
 
 Risk: medium.
 
+Status after UICTRL-RF-02:
+
+- `scripts/ui/map_constructor/map_constructor_ui_bridge.gd` now owns the moved Map Constructor readiness/warning card construction and validation overlay routing helpers.
+- `scripts/ui/game_ui.gd` keeps compatibility wrappers for existing callback/callable surfaces and delegates bridge-safe orchestration to `MapConstructorUIBridge`.
+- `ConstructorValidationOverlayControl` remains in GameUI as a draw-callback shim; moving that inner control is a follow-up only if the callback surface is made explicit.
+
 Why first:
 
 - active surface;
 - existing extracted classes make this feasible;
 - high line-count reduction potential.
+
+Next recommended extraction:
+
+- UICTRL-RF-03 should extract the runtime action/control panel bridge while preserving Runtime Action / Connect / Heavy Claw smoke behavior.
 
 ### UICTRL-RF-03 — Extract GameUI runtime action/control panel bridge
 
