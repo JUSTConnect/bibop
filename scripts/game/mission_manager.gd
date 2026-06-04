@@ -2405,6 +2405,8 @@ func _get_world_object_lookup_priority(object_data: Dictionary) -> int:
 	var score: int = 0
 	if object_group != "visual":
 		score += 10
+	if CableTopologyServiceRef.is_cable_object(object_data):
+		score -= 8
 	if object_type.find("door") != -1 or object_type.find("gate") != -1 or object_type.find("terminal") != -1 or object_type.find("device") != -1:
 		score += 5
 	return score
@@ -3367,13 +3369,12 @@ func can_place_map_constructor_prefab(prefab_id: String, cell: Vector2i, preferr
 		return result
 	var existing_object: Dictionary = get_world_object_at_cell(cell)
 	var existing_object_is_cable_layer: bool = CableTopologyServiceRef.is_cable_object(existing_object)
-	var existing_object_is_static_layer: bool = bool(existing_object.get("blocks_movement", false)) or str(existing_object.get("object_group", "")).to_lower() == "wall"
-	var allow_cable_wall_stack: bool = (prefab_is_cable_layer and existing_object_is_static_layer) or (prefab_is_wall and existing_object_is_cable_layer)
-	if not prefab_is_item and not existing_object.is_empty() and not allow_cable_wall_stack:
+	var allow_cable_layer_stack: bool = prefab_is_cable_layer or (existing_object_is_cable_layer and not prefab_is_item)
+	if not prefab_is_item and not existing_object.is_empty() and not allow_cable_layer_stack:
 		result["reason"] = "existing_object"
 		result["message"] = "Blocked: existing object."
 		return result
-	if bool(cell_state.get("has_object", false)) and bool(cell_state.get("blocks_movement", false)) and WorldObjectCatalogRef.is_constructor_solid_prefab(prefab_id) and not prefab_is_cable_layer:
+	if bool(cell_state.get("has_object", false)) and bool(cell_state.get("blocks_movement", false)) and WorldObjectCatalogRef.is_constructor_solid_prefab(prefab_id) and not prefab_is_cable_layer and not existing_object_is_cable_layer:
 		result["reason"] = "wall_or_static"
 		result["message"] = "Blocked: wall/static obstacle."
 		return result

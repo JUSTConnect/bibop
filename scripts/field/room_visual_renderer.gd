@@ -114,6 +114,8 @@ const ISO_PLACEHOLDER_ASSET_PATHS: Dictionary = {
 	"object_keycard": "res://assets/visual/isometric/placeholders/iso_object_keycard.svg",
 	"object_access_code": "res://assets/visual/isometric/placeholders/iso_object_access_code.svg",
 	"object_cable_reel": "res://assets/visual/isometric/placeholders/iso_object_cable_reel.svg",
+	"cabel_reel_01": "res://assets/visual/isometric/objects/cabel_reel_01.png",
+	"cabel_reel_02": "res://assets/visual/isometric/objects/cabel_reel_02.png",
 	"object_button": "res://assets/visual/isometric/placeholders/iso_object_button.svg",
 	"object_switch": "res://assets/visual/isometric/placeholders/iso_object_switch.svg"
 }
@@ -852,6 +854,7 @@ func draw_map_constructor_visual_overlay_passes() -> void:
 		if str(selected.get("wall_side", "")) != "":
 			_draw_wall_side_arrow(Vector2i(selected.get("cell", Vector2i(-1, -1))), str(selected.get("wall_side", "")), Color(1.0, 0.88, 0.35, 1.0))
 const ISO_LAYER_BIAS_FLOOR: float = 0.0
+const ISO_LAYER_BIAS_CABLE: float = 0.05
 const ISO_LAYER_BIAS_ITEM: float = 0.1
 const ISO_LAYER_BIAS_DOOR: float = 0.2
 const ISO_LAYER_BIAS_WALL: float = 0.4
@@ -1606,8 +1609,8 @@ func get_iso_object_asset_key_for_object_data(object_data: Dictionary, fallback_
 		return "steel_box_01"
 	if type_value == "case" or blob.contains(" case"):
 		return "case_01"
-	if type_value == "cable_reel" or blob.contains("cable_reel") or blob.contains("cable reel"):
-		return "cabel_reel_01"
+	if type_value == "cable_reel" or type_value == "power_cable_reel" or blob.contains("cable_reel") or blob.contains("cable reel"):
+		return "cabel_reel_02" if _get_object_mount_mode(object_data) == "wall" else "cabel_reel_01"
 	if type_value == "power_source" or blob.contains("power_source"):
 		return "power_source_01"
 	if type_value == "radiator" or blob.contains("radiator"):
@@ -4502,8 +4505,8 @@ func build_iso_object_draw_entries() -> Array[Dictionary]:
 			for object_index in range(runtime_objects.size()):
 				var object_data: Dictionary = Dictionary(runtime_objects[object_index])
 				var profile_key: String = get_iso_object_profile_key_for_object_data(object_data, "generic_object")
-				var layer_name: String = "terminal" if is_terminal_like_profile(profile_key) else "item"
-				var layer_bias: float = ISO_LAYER_BIAS_TERMINAL if layer_name == "terminal" else ISO_LAYER_BIAS_ITEM
+				var layer_name: String = "cable" if CableTopologyServiceRef.is_cable_object(object_data) else ("terminal" if is_terminal_like_profile(profile_key) else "item")
+				var layer_bias: float = ISO_LAYER_BIAS_CABLE if layer_name == "cable" else (ISO_LAYER_BIAS_TERMINAL if layer_name == "terminal" else ISO_LAYER_BIAS_ITEM)
 				draw_entries.append({"cell":cell, "layer":layer_name, "layer_bias":layer_bias + float(object_index) * 0.01, "kind":"object", "payload":{"object_cell":cell, "tile_type":tile_type, "profile_key":profile_key, "object_data":object_data}})
 			if not runtime_objects.is_empty() or not is_iso_object_tile(tile_type):
 				continue
