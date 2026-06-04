@@ -5,6 +5,8 @@ const WorldObjectCatalogRef = preload("res://scripts/world/world_object_catalog.
 const MapConstructorPowerLinkValidationRulesRef = preload("res://scripts/game/map_constructor_power_link_validation_rules.gd")
 const MapConstructorReadinessValidationServiceRef = preload("res://scripts/game/map_constructor_readiness_validation_service.gd")
 const CableTopologyServiceRef = preload("res://scripts/game/cable_topology_service.gd")
+const BipobCableRuntimeServiceRef = preload("res://scripts/game/bipob_cable_runtime_service.gd")
+const BipobAirflowRuntimeServiceRef = preload("res://scripts/game/bipob_airflow_runtime_service.gd")
 var manager: Variant
 var power_link_validation_rules: Variant = null
 
@@ -515,6 +517,273 @@ func get_map_constructor_door_opening_summary() -> Dictionary:
 				summary["powered_count"] = int(summary.get("powered_count", 0)) + 1
 	return summary
 
+
+func _duplicate_world_objects_for_validation() -> Array[Dictionary]:
+	var result: Array[Dictionary] = []
+	for object_variant in manager.mission_world_objects:
+		if typeof(object_variant) != TYPE_DICTIONARY:
+			continue
+		var object_data: Dictionary = Dictionary(object_variant).duplicate(true)
+		result.append(object_data)
+	return result
+
+func _build_object_id_index(objects: Array[Dictionary]) -> Dictionary:
+	var result: Dictionary = {}
+	for object_data in objects:
+		var object_id: String = _safe_string(object_data.get("id", "")).strip_edges()
+		if not object_id.is_empty():
+			result[object_id] = object_data
+	return result
+
+func _get_object_cell_read_only(object_data: Dictionary) -> Vector2i:
+	return manager._deserialize_cell_variant(object_data.get("position", Vector2i(-1, -1)))
+
+func _is_generic_power_validation_candidate(object_data: Dictionary) -> bool:
+	if bool(object_data.get("generic_power_runtime", false)) or bool(object_data.get("uses_generic_cable_runtime", false)):
+		return true
+	if not _safe_string(object_data.get("generic_power_role", object_data.get("power_role", object_data.get("cable_role", "")))).strip_edges().is_empty():
+		return true
+	for field_name in ["connection_id", "source_object_id", "sink_object_id", "socket_id", "endpoint_a_id", "endpoint_b_id"]:
+		if not _safe_string(object_data.get(field_name, "")).strip_edges().is_empty():
+			return true
+	return false
+
+func _generic_power_role(object_data: Dictionary) -> String:
+	return BipobCableRuntimeServiceRef.get_generic_power_role(object_data)
+
+func _role_is_power_sink(role: String, object_data: Dictionary) -> bool:
+	return role in ["power_sink", "powered_device"] or bool(object_data.get("power_required", false)) or bool(object_data.get("requires_external_power", false))
+
+func _role_is_socket(role: String) -> bool:
+	return role in ["socket_input", "socket_output", "cable_endpoint"]
+
+func _role_is_cable_link(role: String) -> bool:
+	return role in ["cable_link", "cable_segment"]
+
+func _append_generic_cable_validation_issues(source_name: String, issues: Array[Dictionary]) -> void:
+	var runtime_objects: Array[Dictionary] = _duplicate_world_objects_for_validation()
+	var object_by_id: Dictionary = _build_object_id_index(runtime_objects)
+	var runtime_report: Dictionary = BipobCableRuntimeServiceRef.apply_generic_power_runtime(runtime_objects)
+	var powered_ids: Dictionary = {}
+	for powered_id_variant in manager._safe_array(runtime_report.get("powered_ids", [])):
+		powered_ids[_safe_string(powered_id_variant).strip_edges()] = true
+	var network_has_source: Dictionary = {}
+	var network_has_sink: Dictionary = {}
+	for object_data in runtime_objects:
+		if not _is_generic_power_validation_candidate(object_data):
+			continue
+		var role: String = _generic_power_role(object_data)
+		var network_id: String = _safe_string(object_data.get("power_network_id", "")).strip_edges()
+		if role == "power_source" and not network_id.is_empty():
+			network_has_source[network_id] = true
+		if _role_is_power_sink(role, object_data) and not network_id.is_empty():
+			network_has_sink[network_id] = true
+	for object_data in runtime_objects:
+		if not _is_generic_power_validation_candidate(object_data):
+			continue
+		var object_id: String = _safe_string(object_data.get("id", "")).strip_edges()
+		var object_cell: Vector2i = _get_object_cell_read_only(object_data)
+		var role: String = _generic_power_role(object_data)
+		var network_id: String = _safe_string(object_data.get("power_network_id", "")).strip_edges()
+		var connection_id: String = _safe_string(object_data.get("connection_id", "")).strip_edges()
+		var source_object_id: String = _safe_string(object_data.get("source_object_id", object_data.get("power_source_id", ""))).strip_edges()
+		var socket_id: String = _safe_string(object_data.get("socket_id", "")).strip_edges()
+		if network_id.is_empty():
+			issues.append(_make_map_constructor_issue("generic_cable_missing_network_%s" % object_id, "warning", "Generic cable/power object is missing power_network_id.", object_cell, source_name, "world_object", object_id, "Assign a power_network_id shared by the source, sockets, cable, and powered device."))
+		elif role == "power_source" and not bool(network_has_sink.get(network_id, false)):
+			issues.append(_make_map_constructor_issue("generic_cable_incomplete_chain_%s" % object_id, "warning", "Generic power source has no sink/powered device on its power network.", object_cell, source_name, "world_object", object_id, "Add a powered sink/device on the same power_network_id or remove the unused source."))
+		elif _role_is_power_sink(role, object_data) and not bool(network_has_source.get(network_id, false)):
+			issues.append(_make_map_constructor_issue("generic_cable_missing_source_%s" % object_id, "warning", "Generic powered device requires power but its network has no valid source.", object_cell, source_name, "world_object", object_id, "Add a generic power source on the same power_network_id."))
+		if connection_id.is_empty() and role in ["socket_input", "socket_output", "cable_endpoint", "cable_link", "cable_segment", "power_sink", "powered_device"]:
+			issues.append(_make_map_constructor_issue("generic_cable_incomplete_chain_%s_connection" % object_id, "warning", "Generic cable/socket chain is missing connection_id.", object_cell, source_name, "world_object", object_id, "Use a shared connection_id for connected generic cable objects."))
+		if role != "power_source" and source_object_id.is_empty():
+			issues.append(_make_map_constructor_issue("generic_cable_missing_source_%s" % object_id, "warning", "Generic cable/socket object is missing source_object_id.", object_cell, source_name, "world_object", object_id, "Link this object to a generic power source id."))
+		elif role != "power_source" and not object_by_id.has(source_object_id):
+			issues.append(_make_map_constructor_issue("generic_cable_missing_source_%s" % object_id, "warning", "Generic cable/socket object references a missing source_object_id: %s." % source_object_id, object_cell, source_name, "world_object", object_id, "Point source_object_id at an existing generic power source."))
+		elif role != "power_source":
+			var source_data: Dictionary = manager._safe_dictionary(object_by_id.get(source_object_id, {}))
+			if _generic_power_role(source_data) != "power_source":
+				issues.append(_make_map_constructor_issue("generic_cable_missing_source_%s" % object_id, "warning", "Generic cable/socket source_object_id does not point to a power source: %s." % source_object_id, object_cell, source_name, "world_object", object_id, "Point source_object_id at a generic power source."))
+		if _role_is_power_sink(role, object_data):
+			if socket_id.is_empty():
+				issues.append(_make_map_constructor_issue("generic_cable_missing_socket_%s" % object_id, "warning", "Generic powered device is missing socket_id.", object_cell, source_name, "world_object", object_id, "Set socket_id to the output socket feeding this powered device."))
+			elif not object_by_id.has(socket_id):
+				issues.append(_make_map_constructor_issue("generic_cable_missing_socket_%s" % object_id, "warning", "Generic powered device references a missing socket_id: %s." % socket_id, object_cell, source_name, "world_object", object_id, "Point socket_id at an existing generic socket."))
+			else:
+				var socket_data: Dictionary = manager._safe_dictionary(object_by_id.get(socket_id, {}))
+				if not _role_is_socket(_generic_power_role(socket_data)):
+					issues.append(_make_map_constructor_issue("generic_cable_missing_socket_%s" % object_id, "warning", "Generic powered device socket_id points to an incompatible object: %s." % socket_id, object_cell, source_name, "world_object", object_id, "Point socket_id at a generic socket endpoint."))
+			if not bool(powered_ids.get(object_id, false)):
+				issues.append(_make_map_constructor_issue("generic_cable_sink_unpowered_%s" % object_id, "warning", "Generic powered device requires power but is unpowered in read-only validation.", object_cell, source_name, "world_object", object_id, "Complete the source/socket/cable chain."))
+		if _role_is_cable_link(role):
+			var endpoint_a_id: String = _safe_string(object_data.get("endpoint_a_id", "")).strip_edges()
+			var endpoint_b_id: String = _safe_string(object_data.get("endpoint_b_id", "")).strip_edges()
+			if endpoint_a_id.is_empty() or endpoint_b_id.is_empty():
+				issues.append(_make_map_constructor_issue("generic_cable_incomplete_chain_%s" % object_id, "warning", "Generic cable link has a dangling cable endpoint.", object_cell, source_name, "world_object", object_id, "Connect both endpoint_a_id and endpoint_b_id."))
+			for endpoint_id in [endpoint_a_id, endpoint_b_id]:
+				if endpoint_id.is_empty():
+					continue
+				if not object_by_id.has(endpoint_id):
+					issues.append(_make_map_constructor_issue("generic_cable_incomplete_chain_%s_%s" % [object_id, endpoint_id], "warning", "Generic cable endpoint references a missing object: %s." % endpoint_id, object_cell, source_name, "world_object", object_id, "Connect cable endpoints to existing socket/cable objects."))
+				else:
+					var endpoint_data: Dictionary = manager._safe_dictionary(object_by_id.get(endpoint_id, {}))
+					var endpoint_role: String = _generic_power_role(endpoint_data)
+					if not _role_is_socket(endpoint_role) and not _role_is_cable_link(endpoint_role):
+						issues.append(_make_map_constructor_issue("generic_cable_incomplete_chain_%s_%s" % [object_id, endpoint_id], "warning", "Generic cable endpoint is connected to an incompatible object: %s." % endpoint_id, object_cell, source_name, "world_object", object_id, "Connect cable endpoints to generic sockets or cable links."))
+
+func _is_generic_airflow_validation_candidate(object_data: Dictionary) -> bool:
+	if bool(object_data.get("generic_airflow_runtime", false)):
+		return true
+	if not _safe_string(object_data.get("airflow_network_id", "")).strip_edges().is_empty():
+		return object_data.has("generic_airflow_role") or object_data.has("airflow_roles") or object_data.has("cooling_required")
+	return bool(object_data.get("cooling_required", false))
+
+func _get_airflow_roles(object_data: Dictionary) -> Array[String]:
+	var result: Array[String] = []
+	var single_role: String = _safe_string(object_data.get("generic_airflow_role", "")).strip_edges()
+	if not single_role.is_empty():
+		result.append(single_role)
+	var roles_variant: Variant = object_data.get("airflow_roles", [])
+	if roles_variant is Array:
+		for role_variant in Array(roles_variant):
+			var role: String = _safe_string(role_variant).strip_edges()
+			if not role.is_empty() and not result.has(role):
+				result.append(role)
+	return result
+
+func _has_airflow_role(object_data: Dictionary, role: String) -> bool:
+	return _get_airflow_roles(object_data).has(role)
+
+func _is_airflow_fan(object_data: Dictionary) -> bool:
+	return _has_airflow_role(object_data, "fan") or _has_airflow_role(object_data, "airflow_source")
+
+func _is_airflow_target(object_data: Dictionary) -> bool:
+	return _has_airflow_role(object_data, "cooling_target") or _has_airflow_role(object_data, "heat_sensitive_terminal") or bool(object_data.get("cooling_required", false))
+
+func _is_airflow_blocker(object_data: Dictionary) -> bool:
+	return _has_airflow_role(object_data, "airflow_blocker") or bool(object_data.get("blocks_airflow", false))
+
+func _direction_to_vector2i_for_validation(value: Variant) -> Vector2i:
+	var direction_text: String = _safe_string(value).strip_edges().to_lower()
+	match direction_text:
+		"up", "north":
+			return Vector2i.UP
+		"down", "south":
+			return Vector2i.DOWN
+		"left", "west":
+			return Vector2i.LEFT
+		"right", "east":
+			return Vector2i.RIGHT
+	return Vector2i.ZERO
+
+func _get_airflow_linked_target_ids(fan_object: Dictionary) -> Array[String]:
+	var result: Array[String] = []
+	for field_name in ["linked_cooling_ids", "linked_target_ids", "cooled_target_ids", "target_object_ids"]:
+		var value: Variant = fan_object.get(field_name, [])
+		if value is Array:
+			for id_variant in Array(value):
+				var target_id: String = _safe_string(id_variant).strip_edges()
+				if not target_id.is_empty() and not result.has(target_id):
+					result.append(target_id)
+	var single_target_id: String = _safe_string(fan_object.get("target_object_id", "")).strip_edges()
+	if not single_target_id.is_empty() and not result.has(single_target_id):
+		result.append(single_target_id)
+	return result
+
+func _classify_airflow_uncooled_reason(target_data: Dictionary, fans: Array[Dictionary], objects: Array[Dictionary]) -> String:
+	var target_cell: Vector2i = _get_object_cell_read_only(target_data)
+	var target_network_id: String = _safe_string(target_data.get("airflow_network_id", "")).strip_edges()
+	for fan_data in fans:
+		if _safe_string(fan_data.get("airflow_network_id", "")).strip_edges() != target_network_id:
+			continue
+		var linked_ids: Array[String] = _get_airflow_linked_target_ids(fan_data)
+		var target_id: String = _safe_string(target_data.get("id", "")).strip_edges()
+		if not linked_ids.is_empty() and not linked_ids.has(target_id):
+			continue
+		if not bool(fan_data.get("fan_enabled", fan_data.get("enabled", false))):
+			return "disabled"
+		var direction: Vector2i = _direction_to_vector2i_for_validation(fan_data.get("fan_direction", fan_data.get("facing_dir", "")))
+		if direction == Vector2i.ZERO:
+			continue
+		var fan_cell: Vector2i = _get_object_cell_read_only(fan_data)
+		var delta: Vector2i = target_cell - fan_cell
+		var aligned: bool = false
+		var distance: int = 0
+		if direction.x != 0 and delta.y == 0 and ((delta.x > 0 and direction.x > 0) or (delta.x < 0 and direction.x < 0)):
+			aligned = true
+			distance = abs(delta.x)
+		elif direction.y != 0 and delta.x == 0 and ((delta.y > 0 and direction.y > 0) or (delta.y < 0 and direction.y < 0)):
+			aligned = true
+			distance = abs(delta.y)
+		if not aligned:
+			continue
+		var airflow_range: int = maxi(0, int(fan_data.get("airflow_range", fan_data.get("fan_speed", 0))))
+		if distance > airflow_range:
+			return "out_of_range"
+		var probe_cell: Vector2i = fan_cell + direction
+		while probe_cell != target_cell:
+			for object_data in objects:
+				if _get_object_cell_read_only(object_data) == probe_cell and _is_airflow_blocker(object_data):
+					return "blocked"
+			probe_cell += direction
+	return "uncooled"
+
+func _append_generic_airflow_validation_issues(source_name: String, issues: Array[Dictionary]) -> void:
+	var runtime_objects: Array[Dictionary] = _duplicate_world_objects_for_validation()
+	var object_by_id: Dictionary = _build_object_id_index(runtime_objects)
+	BipobAirflowRuntimeServiceRef.apply_generic_airflow_runtime(runtime_objects)
+	var fans: Array[Dictionary] = []
+	var network_has_enabled_fan: Dictionary = {}
+	for object_data in runtime_objects:
+		if not _is_generic_airflow_validation_candidate(object_data):
+			continue
+		if _is_airflow_fan(object_data):
+			fans.append(object_data)
+			var fan_network_id: String = _safe_string(object_data.get("airflow_network_id", "")).strip_edges()
+			if not fan_network_id.is_empty() and bool(object_data.get("fan_enabled", object_data.get("enabled", false))):
+				network_has_enabled_fan[fan_network_id] = true
+	for object_data in runtime_objects:
+		if not _is_generic_airflow_validation_candidate(object_data):
+			continue
+		var object_id: String = _safe_string(object_data.get("id", "")).strip_edges()
+		var object_cell: Vector2i = _get_object_cell_read_only(object_data)
+		var network_id: String = _safe_string(object_data.get("airflow_network_id", "")).strip_edges()
+		if network_id.is_empty():
+			issues.append(_make_map_constructor_issue("generic_airflow_missing_network_%s" % object_id, "warning", "Generic airflow/cooling object is missing airflow_network_id.", object_cell, source_name, "world_object", object_id, "Assign an airflow_network_id shared by fan, path, blocker, and cooling target."))
+		if _is_airflow_fan(object_data):
+			var raw_direction: String = _safe_string(object_data.get("fan_direction", object_data.get("facing_dir", ""))).strip_edges()
+			if raw_direction.is_empty() or _direction_to_vector2i_for_validation(raw_direction) == Vector2i.ZERO:
+				issues.append(_make_map_constructor_issue("generic_airflow_fan_missing_direction_%s" % object_id, "warning", "Generic airflow fan is missing a valid fan_direction.", object_cell, source_name, "world_object", object_id, "Set fan_direction to up/down/left/right or north/south/east/west."))
+			for target_id in _get_airflow_linked_target_ids(object_data):
+				if not object_by_id.has(target_id):
+					issues.append(_make_map_constructor_issue("generic_airflow_target_uncooled_%s_%s" % [object_id, target_id], "warning", "Generic airflow fan links to a missing cooling target: %s." % target_id, object_cell, source_name, "world_object", object_id, "Fix linked target id or add the target object."))
+				else:
+					var linked_target: Dictionary = manager._safe_dictionary(object_by_id.get(target_id, {}))
+					if not _is_airflow_target(linked_target):
+						issues.append(_make_map_constructor_issue("generic_airflow_target_uncooled_%s_%s" % [object_id, target_id], "warning", "Generic airflow fan links to an object that is not a cooling target: %s." % target_id, object_cell, source_name, "world_object", object_id, "Link fans only to generic cooling targets."))
+		if _is_airflow_target(object_data) and bool(object_data.get("cooling_required", false)):
+			if not network_id.is_empty() and not bool(network_has_enabled_fan.get(network_id, false)):
+				issues.append(_make_map_constructor_issue("generic_airflow_target_uncooled_%s_disabled_fan" % object_id, "warning", "Generic cooling target requires airflow but has no enabled fan on its network.", object_cell, source_name, "world_object", object_id, "Enable a fan on the same airflow_network_id."))
+			if not bool(object_data.get("is_cooled", false)):
+				var reason: String = _classify_airflow_uncooled_reason(object_data, fans, runtime_objects)
+				var issue_id: String = "generic_airflow_target_uncooled_%s" % object_id
+				var message: String = "Generic cooling target requires airflow but is uncooled in read-only validation."
+				if reason == "blocked":
+					issue_id = "generic_airflow_path_blocked_%s" % object_id
+					message = "Generic cooling target is uncooled because the airflow path is blocked."
+				elif reason == "out_of_range":
+					issue_id = "generic_airflow_target_out_of_range_%s" % object_id
+					message = "Generic cooling target is outside the fan airflow range."
+				elif reason == "disabled":
+					message = "Generic cooling target requires airflow but its matching fan is disabled."
+				issues.append(_make_map_constructor_issue(issue_id, "warning", message, object_cell, source_name, "world_object", object_id, "Complete a clear fan-to-target airflow path."))
+
+func _append_legacy_mission_removal_readiness_issues(source_name: String, issues: Array[Dictionary]) -> void:
+	if FileAccess.file_exists("res://scripts/game/bipob_legacy_cable_flow_service.gd"):
+		issues.append(_make_map_constructor_issue("legacy_mission7_dependency_present", "warning", "Legacy Mission 7 cable/socket/power adapter is still present; deletion is not ready in this PR.", Vector2i(-1, -1), source_name, "legacy_dependency", "mission7", "Review docs/bipob_legacy_mission7_8_removal_readiness_audit.md before deleting Mission 7 files."))
+	if FileAccess.file_exists("res://scripts/game/bipob_legacy_airflow_flow_service.gd"):
+		issues.append(_make_map_constructor_issue("legacy_mission8_dependency_present", "warning", "Legacy Mission 8 fan/airflow/cooling adapter is still present; deletion is not ready in this PR.", Vector2i(-1, -1), source_name, "legacy_dependency", "mission8", "Review docs/bipob_legacy_mission7_8_removal_readiness_audit.md before deleting Mission 8 files."))
+
 func get_map_constructor_validation_issues() -> Array[Dictionary]:
 	var issues: Array[Dictionary] = []
 	var source_name: String = "map_constructor_validation"
@@ -683,6 +952,9 @@ func get_map_constructor_validation_issues() -> Array[Dictionary]:
 				issues.append(_make_map_constructor_issue("door_grounding_mismatch_%d" % index, "warning", "Door/gate object is not on door/gate tile.", object_cell, source_name, entity_kind, object_id))
 		if (normalized_object_type.contains("key") or normalized_object_type.contains("kit") or normalized_object_type.contains("card") or normalized_object_type.contains("code")) and manager._is_map_constructor_wall_cell(object_cell):
 			issues.append(_make_map_constructor_issue("pickup_on_wall_%d" % index, "warning", "Pickup object overlaps blocked wall cell.", object_cell, source_name, entity_kind, object_id))
+	_append_generic_cable_validation_issues(source_name, issues)
+	_append_generic_airflow_validation_issues(source_name, issues)
+	_append_legacy_mission_removal_readiness_issues(source_name, issues)
 	var cable_cells: Dictionary = CableTopologyServiceRef.build_cable_cell_map(manager.mission_world_objects)
 	for cable_cell_variant in cable_cells.keys():
 		var cable_cell: Vector2i = Vector2i(cable_cell_variant)

@@ -409,3 +409,46 @@ Compatibility notes:
 - Generic airflow does not read `mission8_terminal_cooled` as source of truth.
 - PR-GEN-02 generic cable ids and propagation semantics are unchanged.
 - PR-GEN-04 remains responsible for Map Constructor readiness/warnings.
+
+## PR-GEN-04 validation/readiness status
+
+Status: implemented for Map Constructor readiness validation and removal-readiness documentation.
+
+PR-GEN-04 adds read-only validation warnings for the generic TASK TEST cable/socket/power and fan/airflow/cooling contracts. Validation duplicates world objects before invoking the generic runtime services, then emits normal Map Constructor validation issues consumed by the existing readiness/warning display.
+
+Generic cable warning categories:
+
+- `generic_cable_missing_network`
+- `generic_cable_missing_source`
+- `generic_cable_missing_socket`
+- `generic_cable_incomplete_chain`
+- `generic_cable_sink_unpowered`
+
+Generic airflow warning categories:
+
+- `generic_airflow_missing_network`
+- `generic_airflow_fan_missing_direction`
+- `generic_airflow_target_uncooled`
+- `generic_airflow_path_blocked`
+- `generic_airflow_target_out_of_range`
+
+Legacy removal-readiness warning categories:
+
+- `legacy_mission7_dependency_present`
+- `legacy_mission8_dependency_present`
+
+Removal-readiness result:
+
+- Legacy Mission 7 deletion is **not safe yet**. Generic cable runtime and validation exist, but story Mission 7 still has legacy controller/grid/UI dependencies and needs a separate migration/smoke PR.
+- Legacy Mission 8 deletion is **not safe yet**. Generic airflow runtime and validation exist, but story Mission 8 still has legacy controller/grid/UI dependencies and needs a separate migration/smoke PR.
+
+New supporting docs:
+
+- `docs/bipob_generic_cable_airflow_map_constructor_validation.md`
+- `docs/bipob_legacy_mission7_8_removal_readiness_audit.md`
+
+Next recommended step:
+
+1. Run full local Godot smoke for TASK TEST Map Constructor warnings and old Mission 7/8 compatibility.
+2. Create a follow-up Mission 7 migration PR that ports old cable/socket/power content to generic metadata without deleting legacy code first.
+3. Create a follow-up Mission 8 migration PR that ports old fan/airflow/cooling terminal content to generic metadata without deleting legacy code first.
