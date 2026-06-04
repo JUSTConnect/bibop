@@ -76,7 +76,7 @@ func is_dragging() -> bool:
 	return state == STATE_DRAGGING
 
 
-func is_connected() -> bool:
+func has_connected_cable() -> bool:
 	return connected or state == STATE_CONNECTED
 
 
