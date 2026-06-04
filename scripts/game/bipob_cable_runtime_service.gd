@@ -33,7 +33,7 @@ static func can_start_drag(state: BipobCableRuntimeState, hand_occupied: bool = 
 		return false
 	if hand_occupied:
 		return false
-	if state.is_connected():
+	if state.is_cable_connected():
 		return false
 	return state.has_cable() and not state.is_dragging()
 
@@ -70,7 +70,7 @@ static func can_connect_to_socket(state: BipobCableRuntimeState, socket_id: Stri
 		return false
 	if not state.is_dragging():
 		return false
-	if state.is_connected():
+	if state.is_cable_connected():
 		return false
 	if not socket_id.is_empty() and not state.socket_id.is_empty() and state.socket_id != socket_id:
 		return false
@@ -93,7 +93,7 @@ static func connect_to_socket(state: BipobCableRuntimeState, socket_id: String =
 
 static func release_cable(state: BipobCableRuntimeState) -> BipobCableRuntimeState:
 	var result: BipobCableRuntimeState = _duplicate_state_or_empty(state)
-	if not result.is_connected():
+	if not result.is_cable_connected():
 		result.state = CableRuntimeStateRef.STATE_RELEASED
 	return result
 
@@ -107,7 +107,7 @@ static func clear_path(state: BipobCableRuntimeState) -> BipobCableRuntimeState:
 static func get_status_text(state: BipobCableRuntimeState) -> String:
 	if state == null or not state.has_cable():
 		return "No cable selected."
-	if state.is_connected():
+	if state.is_cable_connected():
 		return "Cable connected."
 	if state.is_dragging():
 		return "Cable dragging."
