@@ -58,7 +58,7 @@ static func validate_runtime_action_view_model(view_model: Dictionary) -> Array[
 
 
 static func set_selected_world_action(controller: Variant, action_id: String) -> void:
-	var target_data := get_facing_world_action_target(controller)
+	var target_data: Dictionary = get_facing_world_action_target(controller)
 	var actions: Array[String] = target_data.get("actions", [])
 	if action_id.is_empty() or actions.is_empty() or not actions.has(action_id):
 		controller.selected_world_action = ""
@@ -85,7 +85,7 @@ static func refresh_world_action_panel(controller: Variant) -> void:
 
 
 static func cycle_selected_world_action(controller: Variant) -> void:
-	var target_data := get_facing_world_action_target(controller)
+	var target_data: Dictionary = get_facing_world_action_target(controller)
 	var actions: Array[String] = target_data.get("actions", [])
 	if actions.is_empty():
 		controller.selected_world_action = ""
@@ -98,8 +98,8 @@ static func cycle_selected_world_action(controller: Variant) -> void:
 	if controller.selected_world_action.is_empty() or not actions.has(controller.selected_world_action):
 		controller.selected_world_action = actions[0]
 	else:
-		var idx := actions.find(controller.selected_world_action)
-		controller.selected_world_action = actions[(idx + 1) % actions.size()]
+		var selected_action_index: int = actions.find(controller.selected_world_action)
+		controller.selected_world_action = actions[(selected_action_index + 1) % actions.size()]
 	controller.emit_facing_world_object_hint()
 	refresh_world_action_panel(controller)
 	controller.status_changed.emit()
@@ -130,7 +130,7 @@ static func get_world_object_action_for_context(controller: Variant, world_objec
 static func handle_runtime_action_interact(controller: Variant, target_position: Vector2i, _target_tile: int) -> bool:
 	if controller.mission_manager == null:
 		return false
-	var active_manipulator = controller.get_best_manipulator_for_interaction(target_position)
+	var active_manipulator: Variant = controller.get_best_manipulator_for_interaction(target_position)
 	var pickup_execution: Dictionary = BipobItemPickupExecutionServiceRef.try_pickup_adjacent_or_current_item(controller, target_position, active_manipulator)
 	if bool(pickup_execution.get("handled", false)):
 		_apply_pickup_execution(controller, pickup_execution, target_position)
@@ -163,8 +163,8 @@ static func _execute_world_object_action(controller: Variant, world_object: Dict
 		target_platform = world_object
 	var actor: Dictionary = build_runtime_action_actor(controller, world_object, target_position)
 	actor["platform_switch_access"] = controller.mission_manager.can_bipob_access_platform_switch(target_platform, controller.grid_position, controller.get_direction_id(controller.direction))
-	var action_id := get_world_object_action_for_context(controller, world_object, target_position)
-	var module := controller.get_world_action_module(action_id, world_object)
+	var action_id: String = get_world_object_action_for_context(controller, world_object, target_position)
+	var module: Dictionary = Dictionary(controller.get_world_action_module(action_id, world_object))
 	if str(world_object.get("object_group", "")) == "terminal" and (action_id == "hack" or action_id == "activate_platform") and not controller._is_terminal_powered_for_interaction(world_object):
 		controller.hint_requested.emit("Terminal is unpowered.")
 		controller.status_changed.emit()
