@@ -351,3 +351,32 @@ Manual smoke:
 7. Inspect cable/source/sink objects.
 8. Exit Map Constructor.
 9. Confirm Mission 7 legacy flow still does not crash if reachable.
+
+## PR-GEN-02 status update
+
+Status: implemented for the TASK TEST-first generic cable/socket/power runtime path.
+
+Implemented cable runtime pieces:
+
+- `BipobCableRuntimeState` now carries the generic cable/socket/power runtime fields from this audit in addition to the existing legacy Mission 7 snapshot fields.
+- `BipobCableRuntimeService` remains independent from `BipobController` and Mission 7 legacy state, and now applies a small deterministic generic propagation pass over world-object dictionaries.
+- `MissionManager` owns the runtime application point and exposes `is_world_object_powered(object_id)` plus `get_world_object_power_state(object_id)` read helpers for runtime object/action code.
+- `WorldObjectCatalog` power source/socket/cable defaults now include the generic role and runtime field contract expected by future Map Constructor validation.
+- TASK TEST includes a stable smoke chain under `task_test_generic_power_smoke` and a deliberately incomplete generic powered device.
+
+TASK TEST smoke ids:
+
+- Valid source: `task_test_generic_power_source`
+- Input socket: `task_test_generic_socket_input`
+- Cable link: `task_test_generic_cable_link`
+- Output socket: `task_test_generic_socket_output`
+- Powered sink/device: `task_test_generic_powered_device`
+- Incomplete/unpowered device: `task_test_generic_unpowered_device`
+
+Current limitations kept intentionally for PR-GEN-02:
+
+- The generic propagation is deterministic metadata traversal, not a full electrical graph solver.
+- It supports the first smoke shape: one source, one socket/cable chain, and a sink/device.
+- Map Constructor validation/readiness warnings are still deferred to PR-GEN-04.
+- Airflow/cooling remains untouched for PR-GEN-03.
+- Legacy Mission 7 cable flow remains present and is not deleted or converted.

@@ -10,6 +10,13 @@ const ROLE_CABLE_REEL: String = "cable_reel"
 const ROLE_CABLE_ENDPOINT: String = "cable_endpoint"
 const ROLE_CABLE_SOCKET: String = "cable_socket"
 const ROLE_POWERED_TARGET: String = "powered_target"
+const ROLE_POWER_SOURCE: String = "power_source"
+const ROLE_SOCKET_INPUT: String = "socket_input"
+const ROLE_SOCKET_OUTPUT: String = "socket_output"
+const ROLE_CABLE_LINK: String = "cable_link"
+const ROLE_CABLE_SEGMENT: String = "cable_segment"
+const ROLE_POWER_SINK: String = "power_sink"
+const ROLE_POWERED_DEVICE: String = "powered_device"
 
 const LEGACY_MISSION7_CABLE_ID: String = "cable_a"
 
@@ -26,6 +33,17 @@ var path_cells: Array[Vector2i] = []
 var reel_position: Vector2i = Vector2i.ZERO
 var socket_position: Vector2i = Vector2i.ZERO
 var target_position: Vector2i = Vector2i.ZERO
+var power_network_id: String = ""
+var connection_id: String = ""
+var source_object_id: String = ""
+var sink_object_id: String = ""
+var endpoint_a_id: String = ""
+var endpoint_b_id: String = ""
+var runtime_is_connected: bool = false
+var is_powered: bool = false
+var power_state: String = "unpowered"
+var power_required: bool = false
+var power_received: int = 0
 
 
 func reset() -> void:
@@ -42,6 +60,17 @@ func reset() -> void:
 	reel_position = Vector2i.ZERO
 	socket_position = Vector2i.ZERO
 	target_position = Vector2i.ZERO
+	power_network_id = ""
+	connection_id = ""
+	source_object_id = ""
+	sink_object_id = ""
+	endpoint_a_id = ""
+	endpoint_b_id = ""
+	runtime_is_connected = false
+	is_powered = false
+	power_state = "unpowered"
+	power_required = false
+	power_received = 0
 
 
 func is_dragging() -> bool:
@@ -89,6 +118,17 @@ func to_dictionary() -> Dictionary:
 		"reel_position": reel_position,
 		"socket_position": socket_position,
 		"target_position": target_position,
+		"power_network_id": power_network_id,
+		"connection_id": connection_id,
+		"source_object_id": source_object_id,
+		"sink_object_id": sink_object_id,
+		"endpoint_a_id": endpoint_a_id,
+		"endpoint_b_id": endpoint_b_id,
+		"is_connected": runtime_is_connected,
+		"is_powered": is_powered,
+		"power_state": power_state,
+		"power_required": power_required,
+		"power_received": power_received,
 	}
 
 
@@ -106,6 +146,17 @@ func from_dictionary(data: Dictionary) -> void:
 	reel_position = _variant_to_vector2i(data.get("reel_position", Vector2i.ZERO), Vector2i.ZERO)
 	socket_position = _variant_to_vector2i(data.get("socket_position", Vector2i.ZERO), Vector2i.ZERO)
 	target_position = _variant_to_vector2i(data.get("target_position", Vector2i.ZERO), Vector2i.ZERO)
+	power_network_id = str(data.get("power_network_id", ""))
+	connection_id = str(data.get("connection_id", ""))
+	source_object_id = str(data.get("source_object_id", ""))
+	sink_object_id = str(data.get("sink_object_id", ""))
+	endpoint_a_id = str(data.get("endpoint_a_id", ""))
+	endpoint_b_id = str(data.get("endpoint_b_id", ""))
+	runtime_is_connected = bool(data.get("is_connected", false))
+	is_powered = bool(data.get("is_powered", false))
+	power_state = str(data.get("power_state", "unpowered"))
+	power_required = bool(data.get("power_required", false))
+	power_received = int(data.get("power_received", 0))
 
 
 static func from_legacy_mission7(controller: Variant) -> BipobCableRuntimeState:
