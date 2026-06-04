@@ -12,6 +12,29 @@ var manager: Variant
 func _init(owner: Node) -> void:
 	manager = owner
 
+func _parse_wall_entity_cell(entity_id: String, fallback_cell: Vector2i = Vector2i(-1, -1)) -> Vector2i:
+	var parts: PackedStringArray = entity_id.strip_edges().split("_")
+	if parts.size() >= 3 and parts[0] == "wall":
+		return Vector2i(int(parts[1]), int(parts[2]))
+	return fallback_cell
+
+func _remove_world_object_record_by_id(entity_id: String) -> bool:
+	var removed: bool = false
+	for index in range(manager.mission_world_objects.size() - 1, -1, -1):
+		var existing: Dictionary = manager._safe_dictionary(manager.mission_world_objects[index])
+		if str(existing.get("id", "")) == entity_id:
+			manager.mission_world_objects.remove_at(index)
+			removed = true
+	for cell_variant in manager.world_objects_by_cell.keys().duplicate():
+		var lookup_data: Dictionary = manager._safe_dictionary(manager.world_objects_by_cell.get(cell_variant, {}))
+		if str(lookup_data.get("id", "")) == entity_id:
+			manager.world_objects_by_cell.erase(cell_variant)
+	return removed
+
+func _set_wall_tile_for_constructor(cell: Vector2i, tile_type: int) -> void:
+	if manager.grid_manager != null and manager.grid_manager.has_method("set_tile"):
+		manager.grid_manager.call("set_tile", cell, tile_type)
+
 func place_map_constructor_prefab(prefab_id: String, cell: Vector2i, preferred_wall_side: String = "", rotation_degrees: int = 0, placement_mode_override: String = "") -> Dictionary:
 	if not manager._is_task_test_constructor_context():
 		return {"ok": false, "message": "Operation is available only in TASK TEST constructor mode."}
@@ -135,6 +158,13 @@ func _remove_map_constructor_entity_by_id(entity_kind: String, entity_id: String
 				manager._record_map_constructor_change("delete", {"entity_kind":"item", "entity_id":entity_id, "object_type":str(item_data.get("item_type", item_data.get("object_type", "item"))), "cell":cell, "summary":"Deleted item %s" % entity_id, "undo_hint":"Cannot directly undo; use cleanup/autofix/patch undo systems when applicable."})
 				return {"ok": true, "message": "Removed item.", "object_id": entity_id, "warnings": []}
 		return {"ok": false, "message": "Nothing to remove.", "object_id": "", "warnings": []}
+	if entity_kind == "wall":
+		var wall_cell: Vector2i = _parse_wall_entity_cell(entity_id)
+		if wall_cell.x < 0 or wall_cell.y < 0 or not manager._is_map_constructor_wall_cell(wall_cell):
+			return {"ok": false, "message": "Wall not found.", "object_id": entity_id, "warnings": []}
+		_set_wall_tile_for_constructor(wall_cell, GridManager.TILE_FLOOR)
+		manager._record_map_constructor_change("delete", {"entity_kind":"wall", "entity_id":entity_id, "object_type":"wall", "cell":wall_cell, "summary":"Deleted wall at %s" % manager._format_map_constructor_cell(wall_cell), "undo_hint":"Place a wall again if needed."})
+		return {"ok": true, "message": "Removed wall.", "object_id": entity_id, "cell": wall_cell, "warnings": []}
 	var object_data: Dictionary = manager.get_world_object_by_id(entity_id)
 	if object_data.is_empty():
 		return {"ok": false, "message": "Nothing to remove.", "object_id": "", "warnings": []}
@@ -142,12 +172,12 @@ func _remove_map_constructor_entity_by_id(entity_kind: String, entity_id: String
 		return {"ok": false, "message": "Cannot remove non-constructor object.", "object_id": entity_id, "warnings": []}
 	var object_cell: Vector2i = Vector2i(object_data.get("position", Vector2i(-1, -1)))
 	var removed_network_id: String = str(object_data.get("power_network_id", ""))
-	if manager.grid_manager != null and manager.grid_manager.has_method("set_tile"):
+	if manager.grid_manager != null and manager.grid_manager.has_method("set_tile") and not CableTopologyServiceRef.is_cable_object(object_data):
 		var restore_tile_type: int = GridManager.TILE_FLOOR
 		if object_data.has("map_constructor_previous_tile_type"):
 			restore_tile_type = int(object_data.get("map_constructor_previous_tile_type", GridManager.TILE_FLOOR))
 		manager.grid_manager.call("set_tile", object_cell, restore_tile_type)
-	manager.remove_world_object_at_cell(object_cell)
+	_remove_world_object_record_by_id(entity_id)
 	PowerSystemRef.recalculate_network(manager.mission_world_objects, removed_network_id)
 	manager.refresh_world_cooling_received()
 	manager._record_map_constructor_change("delete", {"entity_kind":"world_object", "entity_id":entity_id, "object_type":str(object_data.get("object_type", "")), "cell":object_cell, "summary":"Deleted %s %s" % [str(object_data.get("object_type", "object")), entity_id], "undo_hint":"Cannot directly undo; use cleanup/autofix/patch undo systems when applicable."})
@@ -183,6 +213,18 @@ func _clone_map_constructor_entity_data(source_data: Dictionary, target_cell: Ve
 func move_map_constructor_entity_to_cell(entity_kind: String, entity_id: String, target_cell: Vector2i, preferred_wall_side: String = "") -> Dictionary:
 	if not manager._is_task_test_constructor_context():
 		return {"ok": false, "message": "Operation is available only in TASK TEST constructor mode."}
+	if entity_kind == "wall":
+		var source_wall_cell: Vector2i = _parse_wall_entity_cell(entity_id)
+		if source_wall_cell.x < 0 or source_wall_cell.y < 0 or not manager._is_map_constructor_wall_cell(source_wall_cell):
+			return {"ok": false, "message": "Move failed: wall not found."}
+		var wall_place_check: Dictionary = manager.can_place_map_constructor_prefab("wall", target_cell, preferred_wall_side)
+		if not bool(wall_place_check.get("ok", false)):
+			return {"ok": false, "message": str(wall_place_check.get("message", "Move failed."))}
+		_set_wall_tile_for_constructor(source_wall_cell, GridManager.TILE_FLOOR)
+		_set_wall_tile_for_constructor(target_cell, GridManager.TILE_WALL)
+		var moved_wall_id: String = "wall_%d_%d" % [target_cell.x, target_cell.y]
+		manager._record_map_constructor_change("move", {"entity_kind":"wall", "entity_id":moved_wall_id, "object_type":"wall", "cell":target_cell, "summary":"Moved wall from %s to %s" % [manager._format_map_constructor_cell(source_wall_cell), manager._format_map_constructor_cell(target_cell)], "details":{"from_cell":source_wall_cell, "to_cell":target_cell}, "undo_hint":"Move back manually."})
+		return {"ok": true, "message": "Moved wall.", "object_id": moved_wall_id, "entity_id": moved_wall_id, "cell": target_cell}
 	var entity: Dictionary = get_map_constructor_entity_by_id(entity_kind, entity_id)
 	if not bool(entity.get("ok", false)):
 		return {"ok": false, "message": "Move failed: entity not found."}
@@ -220,6 +262,17 @@ func move_map_constructor_entity_to_cell(entity_kind: String, entity_id: String,
 func duplicate_map_constructor_entity_to_cell(entity_kind: String, entity_id: String, target_cell: Vector2i, preferred_wall_side: String = "") -> Dictionary:
 	if not manager._is_task_test_constructor_context():
 		return {"ok": false, "message": "Operation is available only in TASK TEST constructor mode."}
+	if entity_kind == "wall":
+		var source_wall_cell: Vector2i = _parse_wall_entity_cell(entity_id)
+		if source_wall_cell.x < 0 or source_wall_cell.y < 0 or not manager._is_map_constructor_wall_cell(source_wall_cell):
+			return {"ok": false, "message": "Duplicate failed: wall not found."}
+		var wall_place_check: Dictionary = manager.can_place_map_constructor_prefab("wall", target_cell, preferred_wall_side)
+		if not bool(wall_place_check.get("ok", false)):
+			return {"ok": false, "message": str(wall_place_check.get("message", "Duplicate failed."))}
+		_set_wall_tile_for_constructor(target_cell, GridManager.TILE_WALL)
+		var duplicated_wall_id: String = "wall_%d_%d" % [target_cell.x, target_cell.y]
+		manager._record_map_constructor_change("duplicate", {"entity_kind":"wall", "entity_id":duplicated_wall_id, "object_type":"wall", "cell":target_cell, "summary":"Duplicated wall %s to %s" % [entity_id, manager._format_map_constructor_cell(target_cell)], "details":{"source_entity_id":entity_id}, "undo_hint":"Can undo by deleting duplicate."})
+		return {"ok": true, "message": "Duplicated wall.", "object_id": duplicated_wall_id, "entity_id": duplicated_wall_id, "cell": target_cell}
 	var entity: Dictionary = get_map_constructor_entity_by_id(entity_kind, entity_id)
 	if not bool(entity.get("ok", false)):
 		return {"ok": false, "message": "Duplicate failed: entity not found."}
@@ -370,6 +423,11 @@ func get_map_constructor_entity_by_id(entity_kind: String, entity_id: String) ->
 			for item_data in items:
 				if str(item_data.get("id", "")) == entity_id:
 					return {"ok": true, "entity_kind": entity_kind, "id": entity_id, "cell": cell, "data": item_data}
+		return {"ok": false, "reason": "not_found", "entity_kind": entity_kind, "id": entity_id}
+	if entity_kind == "wall":
+		var wall_cell: Vector2i = _parse_wall_entity_cell(entity_id)
+		if wall_cell.x >= 0 and wall_cell.y >= 0 and manager._is_map_constructor_wall_cell(wall_cell):
+			return {"ok": true, "entity_kind": entity_kind, "id": entity_id, "cell": wall_cell, "data": {"id":entity_id, "object_type":"wall", "object_group":"wall", "position":wall_cell}}
 		return {"ok": false, "reason": "not_found", "entity_kind": entity_kind, "id": entity_id}
 	return {"ok": false, "reason": "unsupported_entity_kind", "entity_kind": entity_kind, "id": entity_id}
 
@@ -628,7 +686,7 @@ func _normalize_cable_health_state(value: Variant) -> String:
 			return "normal"
 
 func _is_cable_property_field(field_name: String) -> bool:
-	return field_name in ["cable_install_mode", "install_mode", "placement_mode", "route_surface", "hidden_installation", "is_hidden", "cable_health_state", "health_state", "state", "damaged", "broken"]
+	return field_name in ["mount", "cable_install_mode", "install_mode", "placement_mode", "route_surface", "hidden_installation", "is_hidden", "cable_health_state", "health_state", "state", "damaged", "broken"]
 
 func _is_cable_entity_data(data: Dictionary) -> bool:
 	var object_type: String = str(data.get("object_type", data.get("item_type", ""))).strip_edges().to_lower()
@@ -650,10 +708,11 @@ func _cable_wall_install_missing_wall_cells(data: Dictionary) -> Array[Vector2i]
 func _apply_cable_property_aliases(data: Dictionary, field_name: String, value: Variant) -> Dictionary:
 	if not _is_cable_entity_data(data) or not _is_cable_property_field(field_name):
 		return data
-	if field_name in ["cable_install_mode", "install_mode", "placement_mode", "route_surface", "hidden_installation", "is_hidden"]:
+	if field_name in ["mount", "cable_install_mode", "install_mode", "placement_mode", "route_surface", "hidden_installation", "is_hidden"]:
 		var install_mode: String = "hidden" if (field_name in ["hidden_installation", "is_hidden"] and bool(value)) else _normalize_cable_install_mode(value)
 		if field_name == "route_surface" and str(value).strip_edges().to_lower() == "floor" and bool(data.get("is_hidden", false)):
 			install_mode = "hidden"
+		data["mount"] = "wall" if install_mode == "wall" else "floor"
 		data["cable_install_mode"] = install_mode
 		data["install_mode"] = install_mode
 		data["route_surface"] = "wall" if install_mode == "wall" else "floor"
@@ -708,7 +767,7 @@ func apply_map_constructor_property_update(entity_kind: String, entity_id: Strin
 		result["message"] = str(converted.get("message", "Invalid value."))
 		return result
 	var new_value: Variant = converted.get("value")
-	if _is_cable_entity_data(data) and field_name in ["cable_install_mode", "install_mode", "placement_mode", "route_surface"] and _normalize_cable_install_mode(new_value) == "wall":
+	if _is_cable_entity_data(data) and field_name in ["mount", "cable_install_mode", "install_mode", "placement_mode", "route_surface"] and _normalize_cable_install_mode(new_value) == "wall":
 		if not _cable_wall_install_missing_wall_cells(data).is_empty():
 			result["message"] = "Wall cable requires a wall in this cell."
 			return result

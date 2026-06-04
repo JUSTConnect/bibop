@@ -192,7 +192,7 @@ const LEGACY_TERMINAL_ALIAS_CONFIGS: Dictionary = {
 	"turret_terminal": {"terminal_type":"control", "controlled_target_type":"device"}
 }
 
-const UTILITY_ITEM_ARCHETYPE_IDS: Array[String] = ["power_cable_reel", "fuse", "repair_kit", "reinforcement", "module_external", "module_internal"]
+const UTILITY_ITEM_ARCHETYPE_IDS: Array[String] = ["fuse", "repair_kit", "reinforcement", "module_external", "module_internal"]
 
 const DOOR_MATERIAL_BY_OBJECT_TYPE: Dictionary = {
 	"steel_door": DOOR_MATERIAL_STEEL,
@@ -312,10 +312,6 @@ const ARCHETYPE_REGISTRY: Dictionary = {
 		"archetype_id":"case", "object_group":"physical_object", "object_type":"case", "palette_label":"Case",
 		"placement_mode":"object", "display_name_template":"Case", "configurable":false, "blocks_movement":true, "property_schema":[]
 	},
-	"cable_reel": {
-		"archetype_id":"cable_reel", "object_group":"physical_object", "object_type":"cable_reel", "palette_label":"Cable Reel",
-		"placement_mode":"object", "display_name_template":"Cable Reel", "configurable":false, "blocks_movement":true, "property_schema":[]
-	},
 	"power_source": {
 		"archetype_id":"power_source", "object_group":"power", "object_type":"power_source", "palette_label":"Power Source",
 		"placement_mode":"object", "display_name_template":"Power Source", "configurable":false, "state":"on", "is_powered":true, "power_mode":"internal", "control_mode":"internal", "blocks_movement":true, "property_schema":[]
@@ -329,8 +325,11 @@ const ARCHETYPE_REGISTRY: Dictionary = {
 		"placement_mode":"wall_mounted", "display_name_template":"Light", "configurable":false, "state":"active", "is_powered":false, "blocks_movement":false, "property_schema":[]
 	},
 	"power_cable_reel": {
-		"archetype_id":"power_cable_reel", "object_group":"item", "object_type":"power_cable_reel", "palette_label":"Power Cable Reel",
-		"placement_mode":"wall_mounted", "display_name_template":"Power Cable Reel", "configurable":false, "property_schema":[]
+		"archetype_id":"power_cable_reel", "object_group":"power", "object_type":"power_cable_reel", "palette_label":"Cable Reel",
+		"placement_mode":"object", "display_name_template":"Cable Reel", "configurable":true, "blocks_movement":false, "blocks_vision":false, "cable_install_mode":"floor", "install_mode":"floor", "mount":"floor",
+		"property_schema":[
+			{"field":"mount", "type":"enum", "values":["floor", "wall"], "default":"floor", "labels":{"floor":"Floor", "wall":"Wall"}}
+		]
 	},
 	"fuse": {
 		"archetype_id":"fuse", "object_group":"item", "object_type":"fuse", "palette_label":"Fuse",
@@ -1303,6 +1302,18 @@ static func normalize_archetype_object(object_data: Dictionary) -> Dictionary:
 		data["fuse_present"] = _safe_bool_like(data.get("fuse_present", data.get("fuse_installed", true)), true)
 		data["fuse_installed"] = data["fuse_present"]
 		data["state"] = "installed" if data["fuse_present"] else "empty"
+	if archetype_id == "power_cable_reel":
+		data["mount"] = _normalized_contract_token(data.get("mount", data.get("cable_install_mode", data.get("install_mode", "floor"))))
+		if data["mount"] == "wall_mounted":
+			data["mount"] = "wall"
+		if data["mount"] not in ["floor", "wall"]:
+			data["mount"] = "floor"
+		data["cable_install_mode"] = data["mount"]
+		data["install_mode"] = data["mount"]
+		data["route_surface"] = data["mount"]
+		data["placement_mode"] = "object"
+		data["hidden_installation"] = false
+		data["is_hidden"] = false
 	if archetype_id == "door":
 		data["power_mode"] = str(data.get("power_type", data.get("power_mode", "internal")))
 		data["control_mode"] = str(data.get("control_type", data.get("control_mode", "internal")))

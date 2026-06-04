@@ -64,8 +64,6 @@ static func _get_normalized_object_type(ui: Variant, data: Dictionary) -> String
 	var object_type: String = ui._safe_ui_string(data.get("object_type", data.get("item_type", "item")), "item").strip_edges().to_lower()
 	if object_type.begins_with("power_source"):
 		return "power_source"
-	if object_type == "power_cable_reel":
-		return "power_cable"
 	return object_type
 
 
@@ -104,7 +102,7 @@ static func _get_power_health_state(data: Dictionary) -> String:
 static func _get_cable_install_type(data: Dictionary) -> String:
 	if bool(data.get("hidden_installation", data.get("is_hidden", false))):
 		return "hidden"
-	var raw_install_mode: Variant = data.get("cable_install_mode", data.get("install_mode", data.get("placement_mode", data.get("route_surface", "floor"))))
+	var raw_install_mode: Variant = data.get("mount", data.get("cable_install_mode", data.get("install_mode", data.get("placement_mode", data.get("route_surface", "floor")))))
 	var install_mode: String = MapConstructorUiSafe.safe_string(raw_install_mode, "floor").strip_edges().to_lower()
 	if install_mode in ["wall", "hidden"]:
 		return install_mode
@@ -289,25 +287,41 @@ static func _render_floor_tab(ui: Variant, parent: VBoxContainer, cell: Vector2i
 
 static func _render_wall_tab(ui: Variant, parent: VBoxContainer, entity: Dictionary, cell: Vector2i) -> void:
 	var data: Dictionary = ui._safe_ui_dictionary(entity.get("data", {}))
+	var entity_kind: String = str(entity.get("entity_kind", "wall"))
+	var entity_id: String = str(entity.get("id", "wall_%d_%d" % [cell.x, cell.y]))
 	var identity: VBoxContainer = ui._create_inspector_section("1. Identity")
-	var id_label: Label = Label.new(); id_label.text = str(entity.get("id", "wall_%d_%d" % [cell.x, cell.y])); identity.add_child(ui._create_property_row("ID", id_label))
+	var id_label: Label = Label.new(); id_label.text = entity_id; identity.add_child(ui._create_property_row("ID", id_label))
 	var type_label: Label = Label.new(); type_label.text = "wall"; identity.add_child(ui._create_property_row("Type", type_label))
 	parent.add_child(identity)
 	var placement: VBoxContainer = ui._create_inspector_section("2. Placement")
 	var cell_label: Label = Label.new(); cell_label.text = str(cell); placement.add_child(ui._create_property_row("Cell", cell_label))
 	var tile_label: Label = Label.new(); tile_label.text = ui._safe_ui_string(data.get("tile_name", data.get("tile_type", "wall")), "wall"); placement.add_child(ui._create_property_row("Tile", tile_label))
+	var move_row: HBoxContainer = HBoxContainer.new()
+	move_row.add_theme_constant_override("separation", 6)
+	var move_x: SpinBox = SpinBox.new(); move_x.step = 1; move_x.min_value = -999; move_x.max_value = 999; move_x.value = float(cell.x); move_x.custom_minimum_size = Vector2(72, 0)
+	var move_y: SpinBox = SpinBox.new(); move_y.step = 1; move_y.min_value = -999; move_y.max_value = 999; move_y.value = float(cell.y); move_y.custom_minimum_size = Vector2(72, 0)
+	var move_button: Button = Button.new(); move_button.text = "Move"
+	move_button.pressed.connect(func() -> void:
+		MapConstructorActions.move_entity_to_cell(ui, entity_kind, entity_id, Vector2i(int(move_x.value), int(move_y.value)))
+	)
+	move_row.add_child(move_x); move_row.add_child(move_y); move_row.add_child(move_button)
+	placement.add_child(ui._create_property_row("X / Y", move_row))
+	var duplicate_button: Button = Button.new(); duplicate_button.text = "Duplicate to X/Y"
+	duplicate_button.pressed.connect(func() -> void:
+		MapConstructorActions.duplicate_entity_to_cell(ui, entity_kind, entity_id, Vector2i(int(move_x.value), int(move_y.value)))
+	)
+	placement.add_child(duplicate_button)
+	var delete_button: Button = Button.new(); delete_button.text = "Delete"
+	delete_button.pressed.connect(func() -> void:
+		MapConstructorActions.delete_entity_by_id(ui, entity_kind, entity_id, cell)
+	)
+	placement.add_child(delete_button)
 	parent.add_child(placement)
-	var status: VBoxContainer = ui._create_inspector_section("3. Status")
+	var status: VBoxContainer = ui._create_inspector_section("3. Wall Layer")
 	var layer_label: Label = Label.new(); layer_label.text = "actual wall layer"; status.add_child(ui._create_property_row("Layer", layer_label))
 	parent.add_child(status)
-	var wall_entity_info: Dictionary = {"ok": true, "entity_kind": str(entity.get("entity_kind", "wall")), "id": str(entity.get("id", "")), "cell": cell, "data": data}
-	_add_floor_wall_coverage_sections(ui, parent, wall_entity_info, cell, data, str(entity.get("entity_kind", "wall")), str(entity.get("id", "")), "wall", false, true)
-	var linked: VBoxContainer = ui._create_inspector_section("6. Linked logical objects")
-	var linked_label: Label = Label.new(); linked_label.text = "No logical object links for wall layer."; linked.add_child(linked_label)
-	parent.add_child(linked)
-	var warnings: VBoxContainer = ui._create_inspector_section("Warnings")
-	var warn_label: Label = Label.new(); warn_label.text = "No wall warnings."; warnings.add_child(warn_label)
-	parent.add_child(warnings)
+	var wall_entity_info: Dictionary = {"ok": true, "entity_kind": entity_kind, "id": entity_id, "cell": cell, "data": data}
+	_add_floor_wall_coverage_sections(ui, parent, wall_entity_info, cell, data, entity_kind, entity_id, "wall", false, true)
 
 
 static func _render_entity_tab(ui: Variant, parent: VBoxContainer, entity_info: Dictionary, fallback_cell: Vector2i, include_wall_coverage: bool = false) -> void:
