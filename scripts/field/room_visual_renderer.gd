@@ -3157,17 +3157,20 @@ func draw_iso_wall_block(cell: Vector2i) -> void:
 func draw_iso_wall_debug_and_mount_overlays(cell: Vector2i, arch: Dictionary, topology: String) -> void:
 	if show_wall_topology_overlay:
 		draw_string(ThemeDB.fallback_font, grid_to_iso(cell) + Vector2(-20.0, -float(arch.get("height_px", 24)) - 4.0), topology, HORIZONTAL_ALIGNMENT_LEFT, 56.0, 9, Color(0.95, 0.96, 1.0, 0.9))
+	# Wall mount zones are visual metadata for editor/debug workflows. Keep them
+	# out of normal wall rendering unless the explicit debug overlay is enabled.
+	if not show_wall_mount_zones_overlay or not bool(arch.get("mount_band_enabled", true)):
+		return
 	var mount_zones: Array[Dictionary] = get_wall_mounted_anchor_zones(cell)
-	if bool(arch.get("mount_band_enabled", true)):
-		for zone_variant in mount_zones:
-			var zone: Dictionary = Dictionary(zone_variant)
-			if not bool(zone.get("mountable", false)):
-				continue
-			var mount_poly: PackedVector2Array = PackedVector2Array(zone.get("mount_zone_polygon", PackedVector2Array()))
-			if mount_poly.size() >= 3:
-				draw_colored_polygon(mount_poly, Color(arch.get("mount_band_color", Color(0.6, 0.62, 0.66, 0.35))))
-				if debug_draw_iso_wall_outlines:
-					draw_polyline(mount_poly, Color(arch.get("mount_band_edge_color", Color.WHITE)), 1.1, true)
+	for zone_variant in mount_zones:
+		var zone: Dictionary = Dictionary(zone_variant)
+		if not bool(zone.get("mountable", false)):
+			continue
+		var mount_poly: PackedVector2Array = PackedVector2Array(zone.get("mount_zone_polygon", PackedVector2Array()))
+		if mount_poly.size() >= 3:
+			draw_colored_polygon(mount_poly, Color(arch.get("mount_band_color", Color(0.6, 0.62, 0.66, 0.35))))
+			if debug_draw_iso_wall_outlines:
+				draw_polyline(mount_poly, Color(arch.get("mount_band_edge_color", Color.WHITE)), 1.1, true)
 
 func draw_iso_wall_surface_accent(
 	left_face: PackedVector2Array,
