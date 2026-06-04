@@ -121,8 +121,8 @@ const ISO_PLACEHOLDER_ASSET_PATHS: Dictionary = {
 	"object_keycard": "res://assets/visual/isometric/placeholders/iso_object_keycard.svg",
 	"object_access_code": "res://assets/visual/isometric/placeholders/iso_object_access_code.svg",
 	"object_cable_reel": "res://assets/visual/isometric/placeholders/iso_object_cable_reel.svg",
-	"cabel_reel_01": "res://assets/visual/isometric/objects/cabel_reel_01.png",
-	"cabel_reel_02": "res://assets/visual/isometric/objects/cabel_reel_02.png",
+	"cable_reel_01": "res://assets/visual/isometric/objects/cable_reel_01.png",
+	"cable_reel_02": "res://assets/visual/isometric/objects/cable_reel_02.png",
 	"fuse_box_in_01": "res://assets/visual/isometric/objects/fuse_box_in_01.png",
 	"fuse_box_out_01": "res://assets/visual/isometric/objects/fuse_box_out_01.png",
 	"fuse_box_in_wall_01": "res://assets/visual/isometric/objects/fuse_box_in_wall_01.png",
@@ -1672,7 +1672,7 @@ func get_iso_object_asset_key_for_object_data(object_data: Dictionary, fallback_
 	if type_value == "case" or blob.contains(" case"):
 		return "case_01"
 	if type_value == "cable_reel" or type_value == "power_cable_reel" or blob.contains("cable_reel") or blob.contains("cable reel"):
-		return "cabel_reel_02" if _get_object_mount_mode(object_data) == "wall" else "cabel_reel_01"
+		return "cable_reel_02" if _get_object_mount_mode(object_data) == "wall" else "cable_reel_01"
 	if type_value == "power_source" or blob.contains("power_source"):
 		return "power_source_01"
 	if type_value == "radiator" or blob.contains("radiator"):
