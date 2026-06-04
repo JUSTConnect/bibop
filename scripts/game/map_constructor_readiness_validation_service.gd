@@ -50,10 +50,6 @@ static func build_readiness_check(issue: Dictionary, status: String) -> Dictiona
 		label = "Generic cable/power readiness"
 	elif issue_id.find("generic_airflow_") == 0:
 		label = "Generic airflow/cooling readiness"
-	elif issue_id.find("legacy_mission7_") == 0:
-		label = "Legacy Mission 7 dependency"
-	elif issue_id.find("legacy_mission8_") == 0:
-		label = "Legacy Mission 8 dependency"
 	elif issue_id.find("missing_marker_") == 0:
 		label = "Mission markers"
 	return {

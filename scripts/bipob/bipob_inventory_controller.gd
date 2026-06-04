@@ -507,10 +507,6 @@ static func rotate_first_manipulator_and_pocket(controller: Variant) -> void:
 static func drop_held_item(controller: Variant) -> void:
 	if controller.mission_finished:
 		return
-	if controller.is_legacy_mission7_cable_drag_active():
-		controller.release_mission7_cable_end()
-		return
-
 	if controller.mission_manager != null and controller.mission_manager.has_method("get_inventory_state"):
 		var inventory: Dictionary = Dictionary(controller.mission_manager.call("get_inventory_state"))
 		var held_world_item_id: String = controller._runtime_inventory_value_id(inventory.get("manipulator_hold", ""))

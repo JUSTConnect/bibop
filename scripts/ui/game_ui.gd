@@ -17,6 +17,7 @@ const MapConstructorLinkControlsRef = preload("res://scripts/ui/map_constructor/
 const MapConstructorSessionStateRef = preload("res://scripts/ui/map_constructor/map_constructor_session_state.gd")
 const MapConstructorRefreshCoordinatorRef = preload("res://scripts/ui/map_constructor/map_constructor_refresh_coordinator.gd")
 const MapConstructorUIBridgeRef = preload("res://scripts/ui/map_constructor/map_constructor_ui_bridge.gd")
+const MissionContentCatalogRef = preload("res://scripts/game/mission_content_catalog.gd")
 
 
 class InternalIsoPreviewControl:
@@ -5586,9 +5587,23 @@ func _enter_gameplay_screen_without_starting_mission() -> void:
 	update_box_status()
 
 
+
+func _get_active_runtime_task_mission_ids() -> Array[int]:
+	var active_mission_ids: Array[int] = []
+	var catalog: MissionContentCatalog = MissionContentCatalogRef.new()
+	var catalog_ids: Array[String] = catalog.get_active_runtime_mission_ids()
+	for catalog_id in catalog_ids:
+		if not catalog_id.begins_with("mission_"):
+			continue
+		var mission_index: int = int(catalog_id.trim_prefix("mission_"))
+		if mission_index >= 1 and mission_index <= 9:
+			active_mission_ids.append(mission_index)
+	active_mission_ids.sort()
+	return active_mission_ids
+
 func _build_tasks_mission_data() -> void:
 	tasks_mission_data.clear()
-	var active_mission_ids: Array[int] = [1, 2, 3, 4, 5, 6, 9]
+	var active_mission_ids: Array[int] = _get_active_runtime_task_mission_ids()
 	for mission_id in active_mission_ids:
 		var mission_title_short := "Mission %d" % mission_id
 		var mission_title_full := "Mission %d" % mission_id
@@ -5663,10 +5678,6 @@ func start_selected_task_mission() -> void:
 		return
 	if bipob != null:
 		var mission_id: int = int(mission.get("id", tasks_selected_career_index + 1))
-		if bipob.has_method("is_retired_legacy_mission_index") and bool(bipob.call("is_retired_legacy_mission_index", mission_id)):
-			show_hint("Mission %d is retired. Use TASK TEST for generic cable/power and airflow/cooling smoke." % mission_id)
-			_refresh_tasks_content()
-			return
 		bipob.current_mission_index = mission_id
 	start_gameplay_from_center()
 
@@ -12431,8 +12442,6 @@ func update_status() -> void:
 	var held_text := "empty"
 	if bipob.held_module != null:
 		held_text = bipob.get_module_display_name(bipob.held_module)
-	elif bipob.has_method("is_legacy_mission7_cable_drag_active") and bool(bipob.call("is_legacy_mission7_cable_drag_active")):
-		held_text = "Cable End"
 	var storage_text := "empty"
 	if bipob.stored_physical_module != null:
 		storage_text = bipob.get_module_display_name(bipob.stored_physical_module)
@@ -12470,12 +12479,6 @@ func update_status() -> void:
 		elif not full_storage_text.is_empty():
 			digital_storage_short_text = full_storage_text
 	hud_status_label.text += " | Data: %s" % digital_storage_short_text
-	if bipob.has_method("is_legacy_mission8_airflow_flow_active") and bool(bipob.call("is_legacy_mission8_airflow_flow_active")) and bipob.has_method("get_mission8_airflow_status_text"):
-		var mission8_status := str(bipob.get_mission8_airflow_status_text())
-		if not mission8_status.is_empty():
-			hud_status_label.text += " | %s" % mission8_status
-	if bipob.has_method("is_legacy_mission7_cable_flow_active") and bool(bipob.call("is_legacy_mission7_cable_flow_active")) and bipob.has_method("get_mission7_cable_status_text"):
-		hud_status_label.text += " | %s" % str(bipob.get_mission7_cable_status_text())
 	if bipob.has_method("refresh_world_action_panel"):
 		bipob.refresh_world_action_panel()
 

@@ -47,7 +47,7 @@ Expected result: `task_test_generic_unpowered_device` has `is_powered == false`,
 5. Confirm Runtime Action / Connect / Heavy Claw still behaves as before.
 6. Enter Map Constructor and inspect the generic source/socket/cable/device metadata if visible.
 7. Exit Map Constructor and restart/reset TASK TEST; the same startup states should return.
-8. If Mission 7 is reachable, confirm it does not crash. The PR-GEN-02 runtime does not delete or replace `BipobLegacyCableFlowService`.
+8. Historical note: Mission 7 is no longer reachable after PR-LEGACY-RM-02, and the legacy cable service has been deleted.
 
 ## Known limitations
 

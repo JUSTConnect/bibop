@@ -18,7 +18,6 @@ const ROLE_CABLE_SEGMENT: String = "cable_segment"
 const ROLE_POWER_SINK: String = "power_sink"
 const ROLE_POWERED_DEVICE: String = "powered_device"
 
-const LEGACY_MISSION7_CABLE_ID: String = "cable_a"
 
 var cable_id: String = ""
 var reel_id: String = ""
@@ -157,42 +156,6 @@ func from_dictionary(data: Dictionary) -> void:
 	power_state = str(data.get("power_state", "unpowered"))
 	power_required = bool(data.get("power_required", false))
 	power_received = int(data.get("power_received", 0))
-
-
-static func from_legacy_mission7(controller: Variant) -> BipobCableRuntimeState:
-	var result: BipobCableRuntimeState = BipobCableRuntimeState.new()
-	result.cable_id = LEGACY_MISSION7_CABLE_ID
-	result.reel_position = _variant_to_vector2i(_read_variant_field(controller, "mission7_cable_reel_position", Vector2i.ZERO), Vector2i.ZERO)
-	result.socket_position = _variant_to_vector2i(_read_variant_field(controller, "mission7_socket_position", Vector2i.ZERO), Vector2i.ZERO)
-	result.target_position = _variant_to_vector2i(_read_variant_field(controller, "mission7_powered_gate_position", Vector2i.ZERO), Vector2i.ZERO)
-	result.connected = bool(_read_variant_field(controller, "mission7_cable_connected", false))
-	result.max_length = int(_read_variant_field(controller, "mission7_cable_max_length", 0))
-	result.path_cells = _variant_to_vector2i_array(_read_variant_field(controller, "mission7_cable_path", []))
-	var is_dragging: bool = bool(_read_variant_field(controller, "mission7_is_dragging_cable", false))
-	if result.connected:
-		result.state = STATE_CONNECTED
-	elif is_dragging:
-		result.state = STATE_DRAGGING
-	else:
-		result.state = STATE_IDLE
-	return result
-
-
-static func _read_variant_field(source: Variant, field_name: String, fallback: Variant) -> Variant:
-	if source == null:
-		return fallback
-	if source is Dictionary:
-		var source_dictionary: Dictionary = Dictionary(source)
-		return source_dictionary.get(field_name, fallback)
-	if source is Object:
-		var source_object: Object = source as Object
-		if source_object == null:
-			return fallback
-		var property_value: Variant = source_object.get(field_name)
-		if property_value == null:
-			return fallback
-		return property_value
-	return fallback
 
 
 static func _variant_to_vector2i(value: Variant, fallback: Vector2i) -> Vector2i:

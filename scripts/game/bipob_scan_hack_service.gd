@@ -97,10 +97,19 @@ static func evaluate_device_capability(controller: Variant, device: DeviceDefini
 		result.device_type = device.device_type
 		result.device_name = device.display_name
 		result.supported_action = device.supported_action
-		if not controller.mission8_terminal_cooled:
+		var target_cell: Vector2i = controller.get_facing_device_position()
+		var target_object_variant: Variant = {}
+		if controller.mission_manager != null and controller.mission_manager.has_method("get_world_object_at_cell"):
+			target_object_variant = controller.mission_manager.get_world_object_at_cell(target_cell)
+		var target_object: Dictionary = {}
+		if typeof(target_object_variant) == TYPE_DICTIONARY:
+			target_object = Dictionary(target_object_variant)
+		var cooling_required: bool = bool(target_object.get("cooling_required", false))
+		var is_cooled: bool = bool(target_object.get("is_cooled", false))
+		if cooling_required and not is_cooled:
 			result.status = DiagnosticResult.STATUS_BLOCKED
 			result.reason = "Terminal heat is too high without airflow."
-			result.recommendation = "Rotate the fan platform and increase fan speed until airflow reaches the terminal."
+			result.recommendation = "Activate generic airflow/cooling until airflow reaches the terminal."
 			result.estimated_risk = "high"
 			return result
 		result.status = DiagnosticResult.STATUS_READY
@@ -299,10 +308,18 @@ static func hack_device(controller: Variant) -> void:
 			if not controller.can_spend_action(1, 1):
 				return
 			controller.spend_action(1, 1)
-			controller.unlock_airflow_terminal_path()
-			controller.hint_requested.emit("Airflow Terminal hacked. Path opened.")
+			var target_cell: Vector2i = controller.get_facing_device_position()
+			var target_object_variant: Variant = {}
+			if controller.mission_manager != null and controller.mission_manager.has_method("get_world_object_at_cell"):
+				target_object_variant = controller.mission_manager.get_world_object_at_cell(target_cell)
+			if typeof(target_object_variant) == TYPE_DICTIONARY:
+				var target_object: Dictionary = Dictionary(target_object_variant)
+				target_object["state"] = "hacked"
+				controller.mission_manager.update_world_object_by_id(str(target_object.get("id", "")), target_object)
+			controller.hint_requested.emit("Airflow Terminal hacked.")
 			controller.status_changed.emit()
 			return
+
 		"stabilize_hot_node":
 			var energy_cost: int = 1
 			if controller.last_diagnostic_result.status == DiagnosticResult.STATUS_RISKY:

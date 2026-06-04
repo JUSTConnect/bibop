@@ -22,14 +22,9 @@ const POWER_STATE_SOURCE_OFF: String = "source_off"
 ##
 ## Transition helpers return a cloned BipobCableRuntimeState and leave the input
 ## state untouched. Generic propagation mutates the supplied world-object
-## dictionaries in place and stays independent from legacy Mission 7 flow.
+## dictionaries in place.
 static func create_empty_state() -> BipobCableRuntimeState:
 	var result: BipobCableRuntimeState = CableRuntimeStateRef.new()
-	return result
-
-
-static func snapshot_legacy_mission7(controller: Variant) -> BipobCableRuntimeState:
-	var result: BipobCableRuntimeState = CableRuntimeStateRef.from_legacy_mission7(controller)
 	return result
 
 

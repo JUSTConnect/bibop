@@ -48,8 +48,6 @@ const BipobTargetingServiceRef = preload("res://scripts/game/bipob_targeting_ser
 const BipobActionControllerRef = preload("res://scripts/bipob/bipob_action_controller.gd")
 const BipobCapabilityServiceRef = preload("res://scripts/game/bipob_capability_service.gd")
 const BipobLegacyTileInteractionServiceRef = preload("res://scripts/game/bipob_legacy_tile_interaction_service.gd")
-const BipobLegacyCableFlowServiceRef = preload("res://scripts/game/bipob_legacy_cable_flow_service.gd")
-const BipobLegacyAirflowFlowServiceRef = preload("res://scripts/game/bipob_legacy_airflow_flow_service.gd")
 const BipobScanHackServiceRef = preload("res://scripts/game/bipob_scan_hack_service.gd")
 const BipobMovementControllerRef = preload("res://scripts/bipob/bipob_movement_controller.gd")
 const BipobInventoryControllerRef = preload("res://scripts/bipob/bipob_inventory_controller.gd")
@@ -179,27 +177,6 @@ var mission_start_held_module: BipobModule = null
 var mission_start_stored_physical_module: BipobModule = null
 var missing_visor_hint_shown: bool = false
 var active_hidden_route_node_position: Vector2i = Vector2i(-1, -1)
-var mission8_fan_direction: Direction = Direction.EAST
-var mission8_fan_speed: int = 0
-var mission8_terminal_cooled: bool = false
-var mission8_terminal_hacked: bool = false
-var mission8_fan_platform_position: Vector2i = Vector2i(-1, -1)
-var mission8_platform_control_position: Vector2i = Vector2i(-1, -1)
-var mission8_platform_left_control_position: Vector2i = Vector2i(-1, -1)
-var mission8_platform_right_control_position: Vector2i = Vector2i(-1, -1)
-var mission8_fan_control_position: Vector2i = Vector2i(-1, -1)
-var mission8_fan_speed_up_control_position: Vector2i = Vector2i(-1, -1)
-var mission8_fan_speed_down_control_position: Vector2i = Vector2i(-1, -1)
-var mission8_terminal_position: Vector2i = Vector2i(-1, -1)
-var mission8_door_position: Vector2i = Vector2i(-1, -1)
-var mission8_airflow_cells: Array[Vector2i] = []
-var mission7_is_dragging_cable: bool = false
-var mission7_cable_connected: bool = false
-var mission7_cable_reel_position: Vector2i = Vector2i(-1, -1)
-var mission7_socket_position: Vector2i = Vector2i(-1, -1)
-var mission7_powered_gate_position: Vector2i = Vector2i(-1, -1)
-var mission7_cable_path: Array[Vector2i] = []
-var mission7_cable_max_length: int = 12
 var movement_cells_since_energy_spend: int = 0
 var platform_height_level: int = 0
 var carried_by_platform_id: String = ""
@@ -1169,10 +1146,6 @@ func get_mission_name(mission_index: int) -> String:
 			return "Mission 5 — Route Gate"
 		6:
 			return "Mission 6 — Hot Node"
-		7:
-			return "Mission 7 — Retired"
-		8:
-			return "Mission 8 — Retired"
 		9:
 			return "Mission 9 — Terrain Passage"
 		10:
@@ -1195,10 +1168,6 @@ func get_mission_goal_hint(mission_index: int) -> String:
 			return "Mission 5: use Route Data to unlock the Route Gate and reach the exit."
 		6:
 			return "Mission 6: scan the hot node, manage the risk, then hack it to open the path."
-		7:
-			return "Mission 7 is retired. Use TASK TEST for generic cable/socket/power smoke."
-		8:
-			return "Mission 8 is retired. Use TASK TEST for generic fan/airflow/cooling smoke."
 		9:
 			return get_mission9_context_hint()
 		10:
@@ -1318,21 +1287,6 @@ func is_sandbox_mode_active() -> bool:
 func is_legacy_story_mission_active() -> bool:
 	return get_runtime_mode_id() == RUNTIME_MODE_LEGACY_STORY
 
-func is_legacy_mission7_cable_flow_active() -> bool:
-	return false
-
-func is_legacy_mission7_cable_drag_active() -> bool:
-	return is_legacy_mission7_cable_flow_active() and mission7_is_dragging_cable
-
-func is_legacy_mission8_airflow_flow_active() -> bool:
-	return false
-
-func unlock_airflow_terminal_path() -> void:
-	BipobLegacyAirflowFlowServiceRef.unlock_airflow_terminal_path(self)
-
-func complete_legacy_mission8_airflow_terminal_hack() -> void:
-	unlock_airflow_terminal_path()
-
 func get_current_mission_goal_hint() -> String:
 	if is_task_test_mode_active():
 		var objective_hint: String = get_task_test_objective_hint()
@@ -1394,7 +1348,6 @@ func _start_runtime_session(mission_index: int, layout_id: String, runtime_mode_
 	energy = max_energy
 	actions_left = actions_per_turn
 	field_modules_by_position.clear()
-	BipobLegacyCableFlowServiceRef.reset_legacy_state(self)
 	if grid_manager != null:
 		var mission_id: String = layout_id
 		var used_catalog_layout: bool = false
@@ -1417,11 +1370,7 @@ func _start_runtime_session(mission_index: int, layout_id: String, runtime_mode_
 			refresh_world_object_overlay()
 		if debug_place_mission4_field_modules:
 			place_debug_mission4_field_modules()
-		if is_legacy_mission8_airflow_flow_active():
-			setup_mission8()
-		elif is_legacy_mission7_cable_flow_active():
-			setup_mission7()
-		elif current_mission_index == 9:
+		if current_mission_index == 9:
 			setup_mission9()
 		elif grid_manager.has_method("clear_fan_platform_marker"):
 			grid_manager.clear_fan_platform_marker()
@@ -1505,9 +1454,6 @@ func return_to_box() -> void:
 
 	mission_finished = true
 	last_diagnostic_result = null
-	if is_legacy_mission7_cable_drag_active():
-		release_mission7_cable_end()
-
 	if held_module != null:
 		add_module_to_box_storage(held_module)
 		held_module = null
@@ -6621,8 +6567,6 @@ func try_move_heavy_claw_drag_to(target_position: Vector2i) -> bool:
 	refresh_platform_height_state_after_move()
 	clear_selected_world_action_if_invalid({}, target_position)
 	BipobMovementControllerRef.update_world_position(self)
-	if is_legacy_mission7_cable_drag_active():
-		add_current_cell_to_mission7_cable_path()
 	_register_successful_player_action()
 	check_mission_complete()
 	return true
@@ -6884,11 +6828,7 @@ func complete_legacy_story_mission(_reason: String = "") -> void:
 	elif current_mission_index == 5:
 		hint_requested.emit("Mission 5 complete. Return to the box, then start Mission 6.")
 	elif current_mission_index == 6:
-		hint_requested.emit("Mission 6 complete. Return to the box, then start Mission 9. Mission 7/8 are retired; use TASK TEST for cable/power and airflow/cooling smoke.")
-	elif is_legacy_mission7_cable_flow_active():
-		hint_requested.emit("Mission 7 is retired. Return to the box, then start Mission 9.")
-	elif is_legacy_mission8_airflow_flow_active():
-		hint_requested.emit("Mission 8 is retired. Return to the box, then start Mission 9.")
+		hint_requested.emit("Mission 6 complete. Return to the box, then start Mission 9.")
 	elif current_mission_index == 9:
 		hint_requested.emit("Mission 9 complete. Return to the box, then start TASK TEST.")
 	else:
@@ -7857,35 +7797,6 @@ func interact() -> void:
 		BipobLegacyTileInteractionServiceRef.apply_result(self, legacy_tile_result)
 		return
 
-	# Retired Mission 7/8 tile branches are parser-safe compatibility only and
-	# remain unreachable while the legacy-active predicates are quarantined.
-	if is_legacy_mission8_airflow_flow_active():
-		if target_tile == GridManager.TILE_PLATFORM_CONTROL:
-			hint_requested.emit("Use left/right platform controls.")
-			status_changed.emit()
-			return
-		if target_tile == GridManager.TILE_PLATFORM_CONTROL_LEFT:
-			interact_mission8_platform_control_left()
-			return
-		if target_tile == GridManager.TILE_PLATFORM_CONTROL_RIGHT:
-			interact_mission8_platform_control_right()
-			return
-		if target_tile == GridManager.TILE_FAN_CONTROL:
-			hint_requested.emit("Use fan speed up/down controls.")
-			status_changed.emit()
-			return
-		if target_tile == GridManager.TILE_FAN_SPEED_UP_CONTROL:
-			increase_mission8_fan_speed()
-			return
-		if target_tile == GridManager.TILE_FAN_SPEED_DOWN_CONTROL:
-			decrease_mission8_fan_speed()
-			return
-	if is_legacy_mission7_cable_flow_active():
-		var legacy_cable_result: Dictionary = BipobLegacyCableFlowServiceRef.handle_interact_tile(self, target_position, target_tile)
-		if bool(legacy_cable_result.get("handled", false)):
-			BipobLegacyCableFlowServiceRef.apply_interact_result(self, legacy_cable_result)
-			return
-
 	if BipobActionControllerRef.handle_runtime_action_interact(self, target_position, target_tile):
 		return
 
@@ -8240,8 +8151,6 @@ func _get_world_marker(object_data: Dictionary) -> String:
 	var labels := {"steel_door":"D","energy_door":"ED","grid_door":"GD","brick_wall":"BW","damaged_wall":"DW","energy_wall":"EW","door_terminal":"T","information_terminal":"IT","power_cable":"C","power_source_class_1":"PS","circuit_breaker":"BR","fuse_box_installed":"FB","fuse_box_empty":"FE","fuse":"F","mechanical_keycard":"K","digital_key_opened":"DK","data_file_encrypted":"DF","normal_crate":"CR","heavy_crate":"HC","barrel":"BA","debris":"DB","enemy_robot":"ER","turret":"TU","bug":"BG","vagus":"VG"}
 	return labels.get(object_type, str(object_data.get("object_group", "O")).substr(0, 2).to_upper())
 
-func setup_mission8() -> void:
-	BipobLegacyAirflowFlowServiceRef.setup(self)
 
 func get_direction_display_name(direction_value: Direction) -> String:
 	match direction_value:
@@ -8267,75 +8176,6 @@ func get_direction_name(value: Direction) -> String:
 			return "WEST"
 		_:
 			return "UNKNOWN"
-
-func get_mission8_airflow_status_text() -> String:
-	return BipobLegacyAirflowFlowServiceRef.get_airflow_status_text(self)
-
-func get_mission7_cable_status_text() -> String:
-	return BipobLegacyCableFlowServiceRef.get_status_text(self)
-
-func setup_mission7() -> void:
-	BipobLegacyCableFlowServiceRef.setup(self)
-
-func interact_mission7_cable_reel() -> void:
-	BipobLegacyCableFlowServiceRef.interact_cable_reel(self)
-
-func interact_mission7_socket() -> void:
-	BipobLegacyCableFlowServiceRef.interact_socket(self)
-
-func add_current_cell_to_mission7_cable_path() -> void:
-	BipobLegacyCableFlowServiceRef.add_current_cell_to_path(self)
-
-func clear_mission7_cable_path_tiles() -> void:
-	BipobLegacyCableFlowServiceRef.clear_path_tiles(self)
-
-func clear_mission7_cable_tiles() -> void:
-	clear_mission7_cable_path_tiles()
-
-func release_mission7_cable_end() -> void:
-	BipobLegacyCableFlowServiceRef.release_cable_end(self)
-
-func get_mission8_terminal_state_text() -> String:
-	return BipobLegacyAirflowFlowServiceRef.get_terminal_state_text(self)
-
-func rotate_mission8_fan_left() -> void:
-	BipobLegacyAirflowFlowServiceRef.rotate_fan_left(self)
-
-func rotate_mission8_fan_right() -> void:
-	BipobLegacyAirflowFlowServiceRef.rotate_fan_right(self)
-
-func interact_mission8_platform_control_left() -> void:
-	BipobLegacyAirflowFlowServiceRef.interact_platform_control_left(self)
-
-func interact_mission8_platform_control_right() -> void:
-	BipobLegacyAirflowFlowServiceRef.interact_platform_control_right(self)
-
-func interact_mission8_fan_control() -> void:
-	BipobLegacyAirflowFlowServiceRef.interact_fan_control(self)
-
-func change_mission8_fan_speed(delta: int) -> void:
-	BipobLegacyAirflowFlowServiceRef.change_fan_speed(self, delta)
-
-func increase_mission8_fan_speed() -> void:
-	BipobLegacyAirflowFlowServiceRef.increase_fan_speed(self)
-
-func decrease_mission8_fan_speed() -> void:
-	BipobLegacyAirflowFlowServiceRef.decrease_fan_speed(self)
-
-func get_mission8_airflow_range_for_speed(speed: int) -> int:
-	return BipobLegacyAirflowFlowServiceRef.get_airflow_range_for_speed(speed)
-
-func get_mission8_airflow_cells() -> Array[Vector2i]:
-	return BipobLegacyAirflowFlowServiceRef.get_airflow_cells(self)
-
-func update_mission8_airflow() -> void:
-	BipobLegacyAirflowFlowServiceRef.update_airflow(self)
-
-func is_cell_in_mission8_airflow(cell: Vector2i) -> bool:
-	return BipobLegacyAirflowFlowServiceRef.is_cell_in_airflow(self, cell)
-
-func apply_mission8_airflow_effects() -> void:
-	BipobLegacyAirflowFlowServiceRef.apply_airflow_effects(self)
 
 func create_debug_field_component() -> BipobModule:
 	var module := BipobModule.new()
