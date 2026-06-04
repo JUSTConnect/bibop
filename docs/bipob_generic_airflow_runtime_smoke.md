@@ -1,6 +1,6 @@
 # PR-GEN-03 Generic Airflow Runtime Smoke
 
-PR-GEN-03 adds an additive TASK TEST-first generic fan / airflow / cooling runtime. It does not delete or replace the legacy Mission 8 fan-platform flow.
+PR-GEN-03 originally added an additive TASK TEST-first generic fan / airflow / cooling runtime. As of PR-LEGACY-RM-02, retired legacy Mission 8 code has been physically deleted; this document is retained as historical generic runtime smoke context.
 
 ## Runtime roles
 
@@ -40,11 +40,11 @@ After TASK TEST setup or runtime refresh:
    - `task_test_generic_powered_device` is powered.
    - `task_test_generic_unpowered_device` is unpowered.
 7. Confirm Runtime Action / Connect / Heavy Claw and TASK TEST restart/reset still work.
-8. If legacy Mission 8 is reachable, confirm it still starts and does not crash.
+8. Historical note: legacy Mission 8 is no longer reachable after PR-LEGACY-RM-02.
 
 ## Known limitations
 
 - The first generic implementation is intentionally simple: one-direction line propagation from enabled fans.
 - It does not implement a broad graph solver or fluid simulation.
 - Map Constructor airflow validation is intentionally deferred to PR-GEN-04.
-- Legacy Mission 8 remains backed by `BipobLegacyAirflowFlowService` until the later retirement PR.
+- Legacy Mission 8 no longer remains backed by a legacy service after PR-LEGACY-RM-02; use TASK TEST generic airflow/cooling smoke instead.

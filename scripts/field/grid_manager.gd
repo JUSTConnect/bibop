@@ -137,19 +137,6 @@ func get_mission6_layout() -> Array:
 	]
 
 
-func get_mission8_layout() -> Array:
-	return [
-		[1, 1, 1, 1, 1, 1, 1, 1],
-		[1, 0, 0, 0, 0, 0, 0, 1],
-		[1, 0, TILE_PLATFORM_CONTROL_LEFT, 0, TILE_FAN_PLATFORM, TILE_PLATFORM_CONTROL_RIGHT, 0, 1],
-		[1, 0, TILE_FAN_SPEED_UP_CONTROL, 0, 0, 0, TILE_AIRFLOW_TERMINAL, 1],
-		[1, 0, TILE_FAN_SPEED_DOWN_CONTROL, 0, 0, 0, TILE_DIGITAL_DOOR, 1],
-		[1, 0, 0, 0, 0, 0, 0, 1],
-		[1, 0, 1, 1, 1, 1, 4, 1],
-		[1, 1, 1, 1, 1, 1, 1, 1],
-	]
-
-
 func get_mission9_layout() -> Array:
 	return [
 		[1, 1, 1, 1, 1, 1, 1, 1],
@@ -161,18 +148,6 @@ func get_mission9_layout() -> Array:
 		[1, 0, 1, 1, 0, 0, 4, 1],
 		[1, 1, 1, 1, 1, 1, 1, 1],
 	]
-func get_mission7_layout() -> Array:
-	return [
-		[1, 1, 1, 1, 1, 1, 1, 1],
-		[1, 0, TILE_CABLE_REEL, 0, 0, 0, 0, 1],
-		[1, 0, 1, 1, 1, 1, 0, 1],
-		[1, 0, 0, 0, 0, TILE_SOCKET, 0, 1],
-		[1, 1, 1, 0, 1, 1, TILE_POWERED_GATE, 1],
-		[1, 0, 0, 0, 0, 0, 0, 1],
-		[1, 0, 1, 1, 1, 1, 4, 1],
-		[1, 1, 1, 1, 1, 1, 1, 1],
-	]
-
 func get_mission10_layout() -> Array:
 	# Compatibility-only TASK TEST emergency layout fallback. Normal TASK TEST
 	# startup loads canonical `task_test` layout data through MissionContentCatalog.
@@ -197,10 +172,6 @@ func reset_mission_layout(mission_index: int) -> void:
 		map_data = duplicate_map_layout(get_mission4_layout())
 	elif mission_index == 6:
 		map_data = duplicate_map_layout(get_mission6_layout())
-	elif mission_index == 7 or mission_index == 8:
-		# Retired/quarantined legacy layouts remain in this file for parser-safe
-		# compatibility, but are no longer selected by active runtime flows.
-		map_data = duplicate_map_layout(mission_initial_map_data)
 	elif mission_index == 9:
 		map_data = duplicate_map_layout(get_mission9_layout())
 	elif mission_index == 10:

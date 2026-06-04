@@ -156,8 +156,6 @@ static func try_move_to(controller: BipobController, target_position: Vector2i) 
 	controller.refresh_platform_height_state_after_move()
 	controller.clear_selected_world_action_if_invalid({}, target_position)
 	update_world_position(controller)
-	if controller.is_legacy_mission7_cable_drag_active():
-		controller.add_current_cell_to_mission7_cable_path()
 	controller._register_successful_player_action()
 	controller.check_mission_complete()
 	return true

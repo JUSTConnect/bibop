@@ -23,11 +23,62 @@ const _MISSION_DEFINITIONS: Dictionary = {
 		"validation_suites": [],
 		"notes": ["Start/exit gameplay positions are still legacy-owned for this mission."]
 	},
+	"mission_2": {
+		"id": "mission_2",
+		"index": 2,
+		"title": "Mission 2",
+		"display_name": "Mission 2",
+		"short_description": "Legacy mission metadata placeholder.",
+		"objective_hint": "Mission objective hint is provided by legacy BipobController logic.",
+		"start_cell": Vector2i(-1, -1),
+		"exit_cells": [],
+		"role": "mainline",
+		"layout_source": "legacy_grid_manager",
+		"world_content_source": "legacy_mission_manager",
+		"runtime_source": "mission_manager",
+		"migration_status": "metadata_only",
+		"validation_suites": [],
+		"notes": ["Start/exit gameplay positions are still legacy-owned for this mission."]
+	},
+	"mission_3": {
+		"id": "mission_3",
+		"index": 3,
+		"title": "Mission 3",
+		"display_name": "Mission 3",
+		"short_description": "Legacy mission metadata placeholder.",
+		"objective_hint": "Mission objective hint is provided by legacy BipobController logic.",
+		"start_cell": Vector2i(-1, -1),
+		"exit_cells": [],
+		"role": "mainline",
+		"layout_source": "legacy_grid_manager",
+		"world_content_source": "legacy_mission_manager",
+		"runtime_source": "mission_manager",
+		"migration_status": "metadata_only",
+		"validation_suites": [],
+		"notes": ["Start/exit gameplay positions are still legacy-owned for this mission."]
+	},
 	"mission_4": {
 		"id": "mission_4",
 		"index": 4,
 		"title": "Mission 4",
 		"display_name": "Mission 4",
+		"short_description": "Legacy mission metadata placeholder.",
+		"objective_hint": "Mission objective hint is provided by legacy BipobController logic.",
+		"start_cell": Vector2i(-1, -1),
+		"exit_cells": [],
+		"role": "mainline",
+		"layout_source": "legacy_grid_manager",
+		"world_content_source": "legacy_mission_manager",
+		"runtime_source": "mission_manager",
+		"migration_status": "metadata_only",
+		"validation_suites": [],
+		"notes": ["Start/exit gameplay positions are still legacy-owned for this mission."]
+	},
+	"mission_5": {
+		"id": "mission_5",
+		"index": 5,
+		"title": "Mission 5",
+		"display_name": "Mission 5",
 		"short_description": "Legacy mission metadata placeholder.",
 		"objective_hint": "Mission objective hint is provided by legacy BipobController logic.",
 		"start_cell": Vector2i(-1, -1),
@@ -56,46 +107,6 @@ const _MISSION_DEFINITIONS: Dictionary = {
 		"migration_status": "metadata_only",
 		"validation_suites": [],
 		"notes": ["Start/exit gameplay positions are still legacy-owned for this mission."]
-	},
-	"mission_7": {
-		"id": "mission_7",
-		"index": 7,
-		"title": "Mission 7 (retired)",
-		"display_name": "Mission 7 (retired)",
-		"short_description": "Retired legacy story mission; kept only as parser-safe metadata until physical deletion.",
-		"objective_hint": "Mission 7 is retired. Use TASK TEST for generic cable/socket/power smoke.",
-		"start_cell": Vector2i(-1, -1),
-		"exit_cells": [],
-		"role": "retired_quarantined",
-		"layout_source": "retired_legacy_grid_manager",
-		"world_content_source": "retired_legacy_mission_manager",
-		"runtime_source": "quarantined_stub",
-		"migration_status": "retired_quarantined_not_deleted",
-		"validation_suites": [],
-		"notes": [
-			"Mission 7 is removed from active selectable/runtime mission flow.",
-			"Legacy files remain temporarily for parser safety and will be physically deleted in a later PR."
-		]
-	},
-	"mission_8": {
-		"id": "mission_8",
-		"index": 8,
-		"title": "Mission 8 (retired)",
-		"display_name": "Mission 8 (retired)",
-		"short_description": "Retired legacy story mission; kept only as parser-safe metadata until physical deletion.",
-		"objective_hint": "Mission 8 is retired. Use TASK TEST for generic fan/airflow/cooling smoke.",
-		"start_cell": Vector2i(-1, -1),
-		"exit_cells": [],
-		"role": "retired_quarantined",
-		"layout_source": "retired_legacy_grid_manager",
-		"world_content_source": "retired_legacy_mission_manager",
-		"runtime_source": "quarantined_stub",
-		"migration_status": "retired_quarantined_not_deleted",
-		"validation_suites": [],
-		"notes": [
-			"Mission 8 is removed from active selectable/runtime mission flow.",
-			"Legacy files remain temporarily for parser safety and will be physically deleted in a later PR."
-		]
 	},
 	"mission_9": {
 		"id": "mission_9",
@@ -213,9 +224,6 @@ func get_active_runtime_mission_ids() -> Array[String]:
 	var mission_ids: Array[String] = get_all_mission_ids()
 	var active_mission_ids: Array[String] = []
 	for mission_id in mission_ids:
-		var definition: Dictionary = get_mission_definition(mission_id)
-		if str(definition.get("role", "")) == "retired_quarantined":
-			continue
 		active_mission_ids.append(mission_id)
 	return active_mission_ids
 

@@ -778,12 +778,6 @@ func _append_generic_airflow_validation_issues(source_name: String, issues: Arra
 					message = "Generic cooling target requires airflow but its matching fan is disabled."
 				issues.append(_make_map_constructor_issue(issue_id, "warning", message, object_cell, source_name, "world_object", object_id, "Complete a clear fan-to-target airflow path."))
 
-func _append_legacy_mission_removal_readiness_issues(source_name: String, issues: Array[Dictionary]) -> void:
-	if FileAccess.file_exists("res://scripts/game/bipob_legacy_cable_flow_service.gd"):
-		issues.append(_make_map_constructor_issue("legacy_mission7_dependency_present", "warning", "Legacy Mission 7 cable/socket/power adapter is still present; deletion is not ready in this PR.", Vector2i(-1, -1), source_name, "legacy_dependency", "mission7", "Review docs/bipob_legacy_mission7_8_removal_readiness_audit.md before deleting Mission 7 files."))
-	if FileAccess.file_exists("res://scripts/game/bipob_legacy_airflow_flow_service.gd"):
-		issues.append(_make_map_constructor_issue("legacy_mission8_dependency_present", "warning", "Legacy Mission 8 fan/airflow/cooling adapter is still present; deletion is not ready in this PR.", Vector2i(-1, -1), source_name, "legacy_dependency", "mission8", "Review docs/bipob_legacy_mission7_8_removal_readiness_audit.md before deleting Mission 8 files."))
-
 func get_map_constructor_validation_issues() -> Array[Dictionary]:
 	var issues: Array[Dictionary] = []
 	var source_name: String = "map_constructor_validation"
@@ -954,7 +948,6 @@ func get_map_constructor_validation_issues() -> Array[Dictionary]:
 			issues.append(_make_map_constructor_issue("pickup_on_wall_%d" % index, "warning", "Pickup object overlaps blocked wall cell.", object_cell, source_name, entity_kind, object_id))
 	_append_generic_cable_validation_issues(source_name, issues)
 	_append_generic_airflow_validation_issues(source_name, issues)
-	_append_legacy_mission_removal_readiness_issues(source_name, issues)
 	var cable_cells: Dictionary = CableTopologyServiceRef.build_cable_cell_map(manager.mission_world_objects)
 	for cable_cell_variant in cable_cells.keys():
 		var cable_cell: Vector2i = Vector2i(cable_cell_variant)

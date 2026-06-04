@@ -23,7 +23,6 @@ func _run() -> void:
 	_check_connect()
 	_check_release()
 	_check_clear_path()
-	_check_legacy_snapshot()
 
 
 func _expect(condition: bool, message: String) -> void:
@@ -144,30 +143,6 @@ func _check_clear_path() -> void:
 	_expect(cleared_state != source_state, "clear_path() should return a cloned state.")
 	_expect(cleared_state.path_cells.is_empty(), "clear_path() clone should have an empty path.")
 	_expect(source_state.path_cells.size() == 2, "clear_path() should not mutate input path cells.")
-
-
-func _check_legacy_snapshot() -> void:
-	var legacy_path_cells: Array[Vector2i] = _make_path(Vector2i(2, 2), Vector2i(3, 2))
-	var legacy_source: Dictionary = {
-		"mission7_cable_reel_position": Vector2i(2, 2),
-		"mission7_socket_position": Vector2i(3, 2),
-		"mission7_powered_gate_position": Vector2i(4, 2),
-		"mission7_cable_connected": false,
-		"mission7_cable_max_length": 5,
-		"mission7_cable_path": legacy_path_cells,
-		"mission7_is_dragging_cable": true,
-	}
-
-	var snapshot_state: BipobCableRuntimeState = CableRuntimeServiceRef.snapshot_legacy_mission7(legacy_source)
-	_expect(snapshot_state.cable_id == "cable_a", "snapshot_legacy_mission7() should use the legacy cable id.")
-	_expect(snapshot_state.state == CableRuntimeStateRef.STATE_DRAGGING, "snapshot_legacy_mission7() should report dragging state.")
-	_expect(snapshot_state.path_cells.size() == 2, "snapshot_legacy_mission7() should copy path cells.")
-	_expect(snapshot_state.reel_position == Vector2i(2, 2), "snapshot_legacy_mission7() should copy reel position.")
-	_expect(snapshot_state.socket_position == Vector2i(3, 2), "snapshot_legacy_mission7() should copy socket position.")
-	_expect(snapshot_state.target_position == Vector2i(4, 2), "snapshot_legacy_mission7() should copy target position.")
-	_expect(snapshot_state.max_length == 5, "snapshot_legacy_mission7() should copy max length.")
-	var legacy_path: Array = Array(legacy_source.get("mission7_cable_path", []))
-	_expect(legacy_path.size() == 2, "snapshot_legacy_mission7() should not mutate legacy dictionary path.")
 
 
 func _make_path(first_cell: Vector2i, second_cell: Vector2i) -> Array[Vector2i]:
