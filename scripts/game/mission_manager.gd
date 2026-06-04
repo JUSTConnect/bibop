@@ -10,6 +10,7 @@ const MapConstructorServiceRef = preload("res://scripts/game/map_constructor_ser
 const MapConstructorValidationServiceRef = preload("res://scripts/game/map_constructor_validation_service.gd")
 const CableTopologyServiceRef = preload("res://scripts/game/cable_topology_service.gd")
 const BipobCableRuntimeServiceRef = preload("res://scripts/game/bipob_cable_runtime_service.gd")
+const BipobAirflowRuntimeServiceRef = preload("res://scripts/game/bipob_airflow_runtime_service.gd")
 const DEVICE_INTERACTION_FLOW_STATES: Array[String] = ["no_target", "unknown", "scanned", "diagnosed", "ready", "blocked", "executed_unavailable"]
 
 const ISO_PLACEHOLDER_ASSET_PATHS: Dictionary = {
@@ -200,6 +201,7 @@ const VISUAL_TEXTURE_ASSET_ALIASES: Dictionary = {
 var mission_world_objects: Array[Dictionary] = []
 var world_objects_by_cell: Dictionary = {}
 var generic_cable_runtime_report: Dictionary = {}
+var generic_airflow_runtime_report: Dictionary = {}
 var cell_items: Dictionary = {}
 var last_threat_warning_ids: Dictionary = {}
 var last_world_runtime_restore_warnings: Array[String] = []
@@ -1127,6 +1129,7 @@ func _clear_world_object_runtime_state() -> void:
 	_map_constructor_wall_material_overrides.clear()
 	_map_constructor_floor_material_overrides.clear()
 	generic_cable_runtime_report.clear()
+	generic_airflow_runtime_report.clear()
 	if grid_manager != null and grid_manager.has_method("clear_floor_visual_states"):
 		grid_manager.call("clear_floor_visual_states")
 
@@ -2467,6 +2470,43 @@ func refresh_generic_cable_runtime_state(network_filter: String = "") -> Diction
 
 func get_generic_cable_runtime_report() -> Dictionary:
 	return generic_cable_runtime_report.duplicate(true)
+
+
+func refresh_generic_airflow_runtime_state(network_filter: String = "") -> Dictionary:
+	generic_airflow_runtime_report = BipobAirflowRuntimeServiceRef.apply_generic_airflow_runtime(mission_world_objects, network_filter)
+	for object_data in mission_world_objects:
+		if bool(object_data.get("generic_airflow_runtime", false)) and bool(object_data.get("cooling_required", false)):
+			WorldObjectCatalogRef.update_world_object_heat_state(object_data)
+	return generic_airflow_runtime_report.duplicate(true)
+
+
+func get_generic_airflow_runtime_report() -> Dictionary:
+	return generic_airflow_runtime_report.duplicate(true)
+
+
+func is_world_object_cooled(object_id: String) -> bool:
+	var object_data: Dictionary = get_world_object_by_id(object_id.strip_edges())
+	if object_data.is_empty():
+		return false
+	return bool(object_data.get("is_cooled", false))
+
+
+func get_world_object_cooling_state(object_id: String) -> Dictionary:
+	var normalized_object_id: String = object_id.strip_edges()
+	var object_data: Dictionary = get_world_object_by_id(normalized_object_id)
+	if object_data.is_empty():
+		return {"ok": false, "object_id": normalized_object_id, "is_cooled": false, "cooling_required": false, "cooling_received": 0, "cooling_state": "missing"}
+	return {
+		"ok": true,
+		"object_id": str(object_data.get("id", "")),
+		"is_cooled": bool(object_data.get("is_cooled", false)),
+		"cooling_required": bool(object_data.get("cooling_required", false)),
+		"cooling_received": int(object_data.get("cooling_received", 0)),
+		"cooling_state": str(object_data.get("cooling_state", "uncooled")),
+		"airflow_network_id": str(object_data.get("airflow_network_id", "")),
+		"fan_object_id": str(object_data.get("fan_object_id", object_data.get("cooled_by_fan_id", ""))),
+		"cooling_source_ids": Array(object_data.get("cooling_source_ids", [])).duplicate(),
+	}
 
 
 func is_world_object_powered(object_id: String) -> bool:
@@ -6198,12 +6238,15 @@ func move_world_object_by_heavy_claw(object_id: String, target_cell: Vector2i) -
 
 func refresh_world_cooling_received() -> void:
 	for object_data in mission_world_objects:
+		if bool(object_data.get("generic_airflow_runtime", false)) and bool(object_data.get("cooling_required", false)):
+			continue
 		if not WorldObjectCatalogRef.can_world_object_receive_cooling(object_data):
 			continue
-		var target_position := WorldObjectCatalogRef.to_world_cell(object_data.get("position", Vector2i(-1, -1)), Vector2i(-1, -1))
-		var cooling_received := WorldObjectCatalogRef.calculate_world_cooling_received_for_target(object_data, target_position, mission_world_objects)
+		var target_position: Vector2i = WorldObjectCatalogRef.to_world_cell(object_data.get("position", Vector2i(-1, -1)), Vector2i(-1, -1))
+		var cooling_received: int = WorldObjectCatalogRef.calculate_world_cooling_received_for_target(object_data, target_position, mission_world_objects)
 		object_data["cooling_received"] = cooling_received
 		WorldObjectCatalogRef.update_world_object_heat_state(object_data)
+	refresh_generic_airflow_runtime_state()
 
 func preview_cooling_application(filter: String = "") -> Dictionary:
 	var resolved_filter := _resolve_power_graph_filter_to_network_id(filter.strip_edges())
