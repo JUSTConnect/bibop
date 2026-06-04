@@ -18,8 +18,9 @@ iso_fog_visible_alpha = 0.0
 iso_visual_preview_includes_asset_hooks = false
 iso_visual_preview_drives_bipob_visual_position = true
 iso_placeholder_asset_preset_requires_preview = true
+iso_projection_mode = "standard_128x71"
 iso_tile_width = 128.0
-iso_tile_height = 56.0
+iso_tile_height = 71.0
 iso_wall_height = 36.0
 iso_origin = Vector2(320, 48)
 

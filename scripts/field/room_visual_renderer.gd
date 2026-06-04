@@ -74,15 +74,22 @@ const CableTopologyServiceRef = preload("res://scripts/game/cable_topology_servi
 @export var iso_object_cable_reel_texture: Texture2D = null
 @export var iso_object_button_texture: Texture2D = null
 @export var iso_object_switch_texture: Texture2D = null
-@export_enum("classic_128x64", "preview_128x71", "custom_export_values") var iso_projection_mode: String = "classic_128x64"
+@export_enum("standard_128x71", "classic_128x64", "preview_128x71", "custom_export_values") var iso_projection_mode: String = "standard_128x71"
 @export var iso_tile_width: float = 128.0
-@export var iso_tile_height: float = 64.0
+@export var iso_tile_height: float = 71.0
 @export var iso_wall_height: float = 56.0
 @export var iso_floor_projection_pitch_correction_degrees: float = 0.0
 @export var iso_floor_visual_inset: float = 1.0
 @export var iso_wall_visual_inset: float = 8.0
 @export var iso_object_marker_height: float = 18.0
 @export var iso_origin: Vector2 = Vector2.ZERO
+
+const ISO_PROJECTION_STANDARD: String = "standard_128x71"
+const ISO_PROJECTION_CLASSIC: String = "classic_128x64" # Legacy visual option only.
+const ISO_PROJECTION_PREVIEW_181: String = "preview_128x71" # Legacy serialized alias for standard_128x71.
+const ISO_PROJECTION_CUSTOM: String = "custom_export_values"
+const ISO_STANDARD_TILE_SIZE: Vector2 = Vector2(128.0, 71.0)
+const ISO_CLASSIC_TILE_SIZE: Vector2 = Vector2(128.0, 64.0)
 
 # Dev-only placeholder preset: loads BIP-Visual-011 SVG placeholders as visual fallback textures.
 # Explicit exported Texture2D hooks always take priority when assigned.
@@ -146,7 +153,7 @@ const ISO_FLOOR_ASSET_CATALOG: Dictionary = {
 # Wall PNGs contain intentionally large transparent margins.  These bounds are
 # measured from the checked-in wall atlas files and used only by the renderer so
 # the visible wall base, not the full transparent canvas, is anchored to the
-# 128x64 isometric wall footprint.
+# active 128x71 isometric wall footprint.
 const ISO_WALL_BASELINE_VISIBLE_BOUNDS: Rect2 = Rect2(47, 36, 508, 842)
 const ISO_WALL_ASSET_PLACEMENT: Dictionary = {
 	"wall_default": {"visible_bounds": ISO_WALL_BASELINE_VISIBLE_BOUNDS, "target_base_width": 128.0, "scale": 1.0, "offset": Vector2.ZERO},
@@ -177,7 +184,7 @@ const ISO_FLOOR_SEAM_SAFE_BASE_VARIANTS: Dictionary = {
 }
 # The source atlas is 7524x8778, giving 1254x1254 frames in a 6x7 grid.
 # Each frame is a high-resolution render of one isometric floor cell and is
-# intentionally downsampled into the current iso_tile_width x iso_tile_height.
+# intentionally downsampled into the active runtime isometric footprint.
 const ISO_FLOOR_ATLAS_LAYOUT: Dictionary = {
 	"grate_base": {"row": 1, "variants": 6, "overlay": false},
 	"metal_base": {"row": 2, "variants": 6, "overlay": false},
@@ -189,28 +196,28 @@ const ISO_FLOOR_ATLAS_LAYOUT: Dictionary = {
 }
 
 const ISO_ASSET_ALIGNMENT_RULES: Dictionary = {
-	"floor_default": {"anchor": "center", "scale": 1.0, "offset": Vector2.ZERO, "expected_size": Vector2(128, 64), "layer_hint": "floor", "notes": "Default 128x64 floor diamond centered in the grid cell."},
-	"floor_concrete": {"anchor": "center", "scale": 1.0, "offset": Vector2.ZERO, "expected_size": Vector2(128, 64), "layer_hint": "floor", "notes": "Concrete floor PNG is squeezed to the active isometric floor footprint."},
-	"floor_steel": {"anchor": "center", "scale": 1.0, "offset": Vector2.ZERO, "expected_size": Vector2(128, 64), "layer_hint": "floor", "notes": "Steel floor PNG is squeezed to the active isometric floor footprint."},
-	"floor_titan": {"anchor": "center", "scale": 1.0, "offset": Vector2.ZERO, "expected_size": Vector2(128, 64), "layer_hint": "floor", "notes": "Titanium floor PNG is squeezed to the active isometric floor footprint."},
-	"floor_stepped": {"anchor": "center", "scale": 1.0, "offset": Vector2.ZERO, "expected_size": Vector2(128, 64), "layer_hint": "floor", "notes": "Stepped 128x64 floor diamond centered in the grid cell."},
-	"floor_clean_lab": {"anchor": "center", "scale": 1.0, "offset": Vector2.ZERO, "expected_size": Vector2(128, 64), "layer_hint": "floor", "notes": "Clean lab 128x64 floor diamond centered in the grid cell."},
-	"floor_dark_service": {"anchor": "center", "scale": 1.0, "offset": Vector2.ZERO, "expected_size": Vector2(128, 64), "layer_hint": "floor", "notes": "Dark service 128x64 floor diamond centered in the grid cell."},
-	"floor_hazard": {"anchor": "center", "scale": 1.0, "offset": Vector2.ZERO, "expected_size": Vector2(128, 64), "layer_hint": "floor", "notes": "Hazard 128x64 floor diamond centered in the grid cell."},
-	"floor_power": {"anchor": "center", "scale": 1.0, "offset": Vector2.ZERO, "expected_size": Vector2(128, 64), "layer_hint": "floor", "notes": "Powered 128x64 floor diamond centered in the grid cell."},
-	"floor_damaged": {"anchor": "center", "scale": 1.0, "offset": Vector2.ZERO, "expected_size": Vector2(128, 64), "layer_hint": "floor", "notes": "Damaged 128x64 floor diamond centered in the grid cell."},
-	"floor_reinforced": {"anchor": "center", "scale": 1.0, "offset": Vector2.ZERO, "expected_size": Vector2(128, 64), "layer_hint": "floor", "notes": "Reinforced 128x64 floor diamond centered in the grid cell."},
-	"floor_diagnostic": {"anchor": "center", "scale": 1.0, "offset": Vector2.ZERO, "expected_size": Vector2(128, 64), "layer_hint": "floor", "notes": "Diagnostic 128x64 floor diamond centered in the grid cell."},
-	"floor_door_underlay": {"anchor": "center", "scale": 1.0, "offset": Vector2.ZERO, "expected_size": Vector2(128, 64), "layer_hint": "floor", "notes": "Door underlay remains centered under the wall opening."},
-	"wall_default": {"anchor": "wall_cell_base", "scale": 1.0, "offset": Vector2(0, -32), "expected_size": Vector2(128, 120), "layer_hint": "wall", "notes": "Wall canvas bottom-center aligns to the blocked wall cell base."},
-	"wall_outer": {"anchor": "wall_cell_base", "scale": 1.0, "offset": Vector2(0, -32), "expected_size": Vector2(128, 120), "layer_hint": "wall", "notes": "Outer wall canvas bottom-center aligns to the blocked wall cell base."},
-	"wall_brick": {"anchor": "wall_cell_base", "scale": 1.0, "offset": Vector2(0, -32), "expected_size": Vector2(128, 120), "layer_hint": "wall", "notes": "Brick wall canvas bottom-center aligns to the blocked wall cell base."},
-	"wall_concrete": {"anchor": "wall_cell_base", "scale": 1.0, "offset": Vector2(0, -32), "expected_size": Vector2(128, 120), "layer_hint": "wall", "notes": "Concrete wall canvas bottom-center aligns to the blocked wall cell base."},
-	"wall_grate": {"anchor": "wall_cell_base", "scale": 1.0, "offset": Vector2(0, -32), "expected_size": Vector2(128, 120), "layer_hint": "wall", "notes": "Grate wall canvas bottom-center aligns to the blocked wall cell base."},
-	"wall_concrete_damaged": {"anchor": "wall_cell_base", "scale": 1.0, "offset": Vector2(0, -32), "expected_size": Vector2(128, 120), "layer_hint": "wall", "notes": "Concrete damaged wall visible base anchors to the blocked wall cell footprint."},
-	"wall_brick_damaged": {"anchor": "wall_cell_base", "scale": 1.0, "offset": Vector2(0, -32), "expected_size": Vector2(128, 120), "layer_hint": "wall", "notes": "Brick damaged wall visible base anchors to the blocked wall cell footprint."},
-	"wall_steel": {"anchor": "wall_cell_base", "scale": 1.0, "offset": Vector2(0, -32), "expected_size": Vector2(128, 120), "layer_hint": "wall", "notes": "Steel wall canvas bottom-center aligns to the blocked wall cell base."},
-	"wall_energy": {"anchor": "wall_cell_base", "scale": 1.0, "offset": Vector2(0, -32), "expected_size": Vector2(128, 120), "layer_hint": "wall", "notes": "Energy wall canvas bottom-center aligns to the blocked wall cell base."},
+	"floor_default": {"anchor": "center", "scale": 1.0, "offset": Vector2.ZERO, "expected_size": ISO_STANDARD_TILE_SIZE, "layer_hint": "floor", "notes": "Default 128x71 floor diamond centered in the grid cell."},
+	"floor_concrete": {"anchor": "center", "scale": 1.0, "offset": Vector2.ZERO, "expected_size": ISO_STANDARD_TILE_SIZE, "layer_hint": "floor", "notes": "Concrete floor PNG is squeezed to the active isometric floor footprint."},
+	"floor_steel": {"anchor": "center", "scale": 1.0, "offset": Vector2.ZERO, "expected_size": ISO_STANDARD_TILE_SIZE, "layer_hint": "floor", "notes": "Steel floor PNG is squeezed to the active isometric floor footprint."},
+	"floor_titan": {"anchor": "center", "scale": 1.0, "offset": Vector2.ZERO, "expected_size": ISO_STANDARD_TILE_SIZE, "layer_hint": "floor", "notes": "Titanium floor PNG is squeezed to the active isometric floor footprint."},
+	"floor_stepped": {"anchor": "center", "scale": 1.0, "offset": Vector2.ZERO, "expected_size": ISO_STANDARD_TILE_SIZE, "layer_hint": "floor", "notes": "Stepped 128x71 floor diamond centered in the grid cell."},
+	"floor_clean_lab": {"anchor": "center", "scale": 1.0, "offset": Vector2.ZERO, "expected_size": ISO_STANDARD_TILE_SIZE, "layer_hint": "floor", "notes": "Clean lab 128x71 floor diamond centered in the grid cell."},
+	"floor_dark_service": {"anchor": "center", "scale": 1.0, "offset": Vector2.ZERO, "expected_size": ISO_STANDARD_TILE_SIZE, "layer_hint": "floor", "notes": "Dark service 128x71 floor diamond centered in the grid cell."},
+	"floor_hazard": {"anchor": "center", "scale": 1.0, "offset": Vector2.ZERO, "expected_size": ISO_STANDARD_TILE_SIZE, "layer_hint": "floor", "notes": "Hazard 128x71 floor diamond centered in the grid cell."},
+	"floor_power": {"anchor": "center", "scale": 1.0, "offset": Vector2.ZERO, "expected_size": ISO_STANDARD_TILE_SIZE, "layer_hint": "floor", "notes": "Powered 128x71 floor diamond centered in the grid cell."},
+	"floor_damaged": {"anchor": "center", "scale": 1.0, "offset": Vector2.ZERO, "expected_size": ISO_STANDARD_TILE_SIZE, "layer_hint": "floor", "notes": "Damaged 128x71 floor diamond centered in the grid cell."},
+	"floor_reinforced": {"anchor": "center", "scale": 1.0, "offset": Vector2.ZERO, "expected_size": ISO_STANDARD_TILE_SIZE, "layer_hint": "floor", "notes": "Reinforced 128x71 floor diamond centered in the grid cell."},
+	"floor_diagnostic": {"anchor": "center", "scale": 1.0, "offset": Vector2.ZERO, "expected_size": ISO_STANDARD_TILE_SIZE, "layer_hint": "floor", "notes": "Diagnostic 128x71 floor diamond centered in the grid cell."},
+	"floor_door_underlay": {"anchor": "center", "scale": 1.0, "offset": Vector2.ZERO, "expected_size": ISO_STANDARD_TILE_SIZE, "layer_hint": "floor", "notes": "Door underlay remains centered under the wall opening."},
+	"wall_default": {"anchor": "wall_cell_base", "scale": 1.0, "offset": Vector2(0, -32), "expected_size": Vector2(128, 120), "layer_hint": "wall", "notes": "Wall canvas bottom-center aligns to the blocked wall cell base on the active 128x71 footprint."},
+	"wall_outer": {"anchor": "wall_cell_base", "scale": 1.0, "offset": Vector2(0, -32), "expected_size": Vector2(128, 120), "layer_hint": "wall", "notes": "Outer wall canvas bottom-center aligns to the blocked wall cell base on the active 128x71 footprint."},
+	"wall_brick": {"anchor": "wall_cell_base", "scale": 1.0, "offset": Vector2(0, -32), "expected_size": Vector2(128, 120), "layer_hint": "wall", "notes": "Brick wall canvas bottom-center aligns to the blocked wall cell base on the active 128x71 footprint."},
+	"wall_concrete": {"anchor": "wall_cell_base", "scale": 1.0, "offset": Vector2(0, -32), "expected_size": Vector2(128, 120), "layer_hint": "wall", "notes": "Concrete wall canvas bottom-center aligns to the blocked wall cell base on the active 128x71 footprint."},
+	"wall_grate": {"anchor": "wall_cell_base", "scale": 1.0, "offset": Vector2(0, -32), "expected_size": Vector2(128, 120), "layer_hint": "wall", "notes": "Grate wall canvas bottom-center aligns to the blocked wall cell base on the active 128x71 footprint."},
+	"wall_concrete_damaged": {"anchor": "wall_cell_base", "scale": 1.0, "offset": Vector2(0, -32), "expected_size": Vector2(128, 120), "layer_hint": "wall", "notes": "Concrete damaged wall visible base anchors to the blocked wall cell base on the active 128x71 footprint."},
+	"wall_brick_damaged": {"anchor": "wall_cell_base", "scale": 1.0, "offset": Vector2(0, -32), "expected_size": Vector2(128, 120), "layer_hint": "wall", "notes": "Brick damaged wall visible base anchors to the blocked wall cell base on the active 128x71 footprint."},
+	"wall_steel": {"anchor": "wall_cell_base", "scale": 1.0, "offset": Vector2(0, -32), "expected_size": Vector2(128, 120), "layer_hint": "wall", "notes": "Steel wall canvas bottom-center aligns to the blocked wall cell base on the active 128x71 footprint."},
+	"wall_energy": {"anchor": "wall_cell_base", "scale": 1.0, "offset": Vector2(0, -32), "expected_size": Vector2(128, 120), "layer_hint": "wall", "notes": "Energy wall canvas bottom-center aligns to the blocked wall cell base on the active 128x71 footprint."},
 	"object_door": {"anchor": "door_insert_center", "scale": 0.9, "offset": Vector2(0, -20), "expected_size": Vector2(96, 96), "layer_hint": "object", "notes": "Door art centers inside the visual wall opening."},
 	"object_terminal": {"anchor": "wall_mount_center", "scale": 0.8, "offset": Vector2(0, -18), "expected_size": Vector2(96, 96), "layer_hint": "object", "notes": "Terminal art centers on the wall mount band."},
 	"object_key": {"anchor": "bottom_center", "scale": 0.55, "offset": Vector2(0, -6), "expected_size": Vector2(96, 96), "layer_hint": "object", "notes": "Key pickup uses a small bottom-centered floor footprint."},
@@ -245,11 +252,6 @@ var selected_wall_mounted_attached_wall_cell: Vector2i = Vector2i(-1, -1)
 var selected_wall_mounted_object_id: String = ""
 var map_constructor_link_target_cell: Vector2i = Vector2i(-1, -1)
 var map_constructor_link_target_object_id: String = ""
-const ISO_PROJECTION_CLASSIC: String = "classic_128x64"
-const ISO_PROJECTION_PREVIEW_181: String = "preview_128x71"
-const ISO_PROJECTION_CUSTOM: String = "custom_export_values"
-const ISO_CLASSIC_TILE_SIZE: Vector2 = Vector2(128.0, 64.0)
-const ISO_PREVIEW_181_TILE_SIZE: Vector2 = Vector2(128.0, 71.0)
 const WALL_SIDE_ORDER: Array[String] = ["north", "east", "south", "west"]
 const WALL_MASS_RATIO: float = 0.7
 const WALL_MOUNT_BAND_RATIO: float = 0.3
@@ -369,8 +371,8 @@ func get_iso_visual_preview_state_text() -> String:
 	var state: Dictionary = get_iso_visual_preview_state()
 	return "IsoVisualPreview active=%s projection=%s tile=%s floor=%s wall=%s objects=%s fog=%s asset_hooks=%s placeholder_assets=%s drives_bipob=%s" % [
 		str(state.get("preview_active", false)),
-		str(state.get("projection_mode", ISO_PROJECTION_CLASSIC)),
-		str(Vector2(state.get("projection_tile_size", ISO_CLASSIC_TILE_SIZE))),
+		str(state.get("projection_mode", ISO_PROJECTION_STANDARD)),
+		str(Vector2(state.get("projection_tile_size", ISO_STANDARD_TILE_SIZE))),
 		str(state.get("floor", false)),
 		str(state.get("wall", false)),
 		str(state.get("objects", false)),
@@ -381,21 +383,37 @@ func get_iso_visual_preview_state_text() -> String:
 	]
 
 func get_iso_projection_mode() -> String:
-	if iso_projection_mode == ISO_PROJECTION_PREVIEW_181:
-		return ISO_PROJECTION_PREVIEW_181
+	if iso_projection_mode == ISO_PROJECTION_STANDARD or iso_projection_mode == ISO_PROJECTION_PREVIEW_181:
+		return ISO_PROJECTION_STANDARD
+	if iso_projection_mode == ISO_PROJECTION_CLASSIC:
+		return ISO_PROJECTION_CLASSIC
 	if iso_projection_mode == ISO_PROJECTION_CUSTOM:
 		return ISO_PROJECTION_CUSTOM
-	return ISO_PROJECTION_CLASSIC
+	return ISO_PROJECTION_STANDARD
 
 func get_iso_tile_size() -> Vector2:
 	var mode: String = get_iso_projection_mode()
-	if mode == ISO_PROJECTION_PREVIEW_181:
-		return ISO_PREVIEW_181_TILE_SIZE
+	if mode == ISO_PROJECTION_STANDARD:
+		return ISO_STANDARD_TILE_SIZE
 	if mode == ISO_PROJECTION_CLASSIC:
 		return ISO_CLASSIC_TILE_SIZE
-	# Custom mode intentionally keeps the old exported fields available for
+	# Custom mode intentionally keeps the exported fields available for
 	# quick visual-only smoke tests without editing gameplay data.
 	return Vector2(maxf(iso_tile_width, 1.0), maxf(iso_tile_height, 1.0))
+
+func get_iso_exported_tile_size_matches_active_mode() -> bool:
+	var active_size: Vector2 = get_iso_tile_size()
+	return is_equal_approx(iso_tile_width, active_size.x) and is_equal_approx(iso_tile_height, active_size.y)
+
+func get_iso_projection_diagnostic_text() -> String:
+	var active_size: Vector2 = get_iso_tile_size()
+	var ratio: float = active_size.x / maxf(active_size.y, 1.0)
+	return "Iso projection: %s tile=%s ratio=%.4f exported_match=%s" % [
+		get_iso_projection_mode(),
+		str(active_size),
+		ratio,
+		str(get_iso_exported_tile_size_matches_active_mode())
+	]
 
 func get_iso_tile_half_size() -> Vector2:
 	# Visual safety clamp to avoid invalid projection values.
@@ -2024,8 +2042,11 @@ func get_iso_visual_debug_report() -> Dictionary:
 		"cell_stats": get_iso_visual_cell_stats(),
 		"iso_settings": {
 			"projection_mode": get_iso_projection_mode(),
+			"projection_diagnostic": get_iso_projection_diagnostic_text(),
 			"tile_width": get_iso_tile_size().x,
 			"tile_height": get_iso_tile_size().y,
+			"tile_ratio": get_iso_tile_size().x / maxf(get_iso_tile_size().y, 1.0),
+			"exported_tile_size_matches_active_mode": get_iso_exported_tile_size_matches_active_mode(),
 			"custom_tile_width": iso_tile_width,
 			"custom_tile_height": iso_tile_height,
 			"wall_height": iso_wall_height,
@@ -2091,8 +2112,11 @@ func get_iso_visual_debug_report_text() -> String:
 	lines.append("- objects: %s" % str(cell_stats.get("object_cells", 0)))
 	lines.append("- fog_overlay: %s" % str(cell_stats.get("fog_overlay_cells", 0)))
 	lines.append("Iso:")
-	lines.append("- projection: %s" % str(iso_settings.get("projection_mode", ISO_PROJECTION_CLASSIC)))
+	lines.append("- %s" % str(iso_settings.get("projection_diagnostic", get_iso_projection_diagnostic_text())))
+	lines.append("- projection: %s" % str(iso_settings.get("projection_mode", ISO_PROJECTION_STANDARD)))
 	lines.append("- tile: %sx%s" % [str(iso_settings.get("tile_width", 0.0)), str(iso_settings.get("tile_height", 0.0))])
+	lines.append("- ratio: %.4f" % float(iso_settings.get("tile_ratio", 0.0)))
+	lines.append("- exported_match: %s" % str(iso_settings.get("exported_tile_size_matches_active_mode", false)))
 	lines.append("- wall_height: %s" % str(iso_settings.get("wall_height", 0.0)))
 	lines.append("- object_marker_height: %s" % str(iso_settings.get("object_marker_height", 0.0)))
 	return "\n".join(lines)
@@ -2148,9 +2172,9 @@ func get_iso_asset_alignment_rule(asset_key: String) -> Dictionary:
 	if ISO_ASSET_ALIGNMENT_RULES.has(asset_key):
 		rule = Dictionary(ISO_ASSET_ALIGNMENT_RULES.get(asset_key, {}))
 	elif asset_key.begins_with("floor_"):
-		rule = {"anchor": "center", "scale": 1.0, "offset": Vector2.ZERO, "expected_size": ISO_CLASSIC_TILE_SIZE, "layer_hint": "floor", "notes": "Fallback floor alignment."}
+		rule = {"anchor": "center", "scale": 1.0, "offset": Vector2.ZERO, "expected_size": get_iso_tile_size(), "layer_hint": "floor", "notes": "Fallback floor alignment."}
 	elif asset_key.begins_with("wall_"):
-		rule = {"anchor": "wall_cell_base", "scale": 1.0, "offset": Vector2(0, -ISO_CLASSIC_TILE_SIZE.y * 0.5), "expected_size": Vector2(128, 120), "layer_hint": "wall", "notes": "Fallback wall alignment."}
+		rule = {"anchor": "wall_cell_base", "scale": 1.0, "offset": Vector2(0, -get_iso_tile_half_size().y), "expected_size": Vector2(128, 120), "layer_hint": "wall", "notes": "Fallback wall alignment against the active 128x71 footprint."}
 	elif asset_key == "object_door":
 		rule = {"anchor": "door_insert_center", "scale": 0.9, "offset": Vector2(0, -20), "expected_size": Vector2(96, 96), "layer_hint": "object", "notes": "Fallback door alignment."}
 	elif asset_key.begins_with("object_"):
