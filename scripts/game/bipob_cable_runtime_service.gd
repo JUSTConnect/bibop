@@ -266,12 +266,18 @@ static func _apply_default_runtime_fields(object_data: Dictionary) -> void:
 static func _set_runtime_power_state(object_data: Dictionary, powered: bool, source_id: String, power_state: String, changes: Array[Dictionary]) -> void:
 	var before_powered: bool = bool(object_data.get("is_powered", false))
 	var before_state: String = str(object_data.get("power_state", ""))
+	var power_received_value: int = 0
+	if powered:
+		power_received_value = 1
 	object_data["is_powered"] = powered
-	object_data["power_received"] = 1 if powered else 0
+	object_data["power_received"] = power_received_value
 	object_data["power_state"] = power_state
 	if powered:
 		object_data["power_source_id"] = source_id
-		object_data["source_object_id"] = source_id if get_generic_power_role(object_data) == ROLE_POWER_SOURCE else str(object_data.get("source_object_id", source_id))
+		var resolved_source_object_id: String = str(object_data.get("source_object_id", source_id))
+		if get_generic_power_role(object_data) == ROLE_POWER_SOURCE:
+			resolved_source_object_id = source_id
+		object_data["source_object_id"] = resolved_source_object_id
 		object_data["power_unavailable_reason"] = ""
 		_restore_powered_object_state(object_data)
 	else:

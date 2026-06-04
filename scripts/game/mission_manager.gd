@@ -2477,19 +2477,26 @@ func is_world_object_powered(object_id: String) -> bool:
 
 
 func get_world_object_power_state(object_id: String) -> Dictionary:
-	var object_data: Dictionary = get_world_object_by_id(object_id.strip_edges())
+	var normalized_object_id: String = object_id.strip_edges()
+	var object_data: Dictionary = get_world_object_by_id(normalized_object_id)
 	if object_data.is_empty():
-		return {"ok": false, "object_id": object_id.strip_edges(), "is_powered": false, "power_state": "missing", "power_required": false, "power_received": 0}
+		return {"ok": false, "object_id": normalized_object_id, "is_powered": false, "power_state": "missing", "power_required": false, "power_received": 0}
+	var is_powered_value: bool = bool(object_data.get("is_powered", false))
+	var default_power_state: String = "unpowered"
+	if is_powered_value:
+		default_power_state = "powered"
+	var resolved_power_state: String = str(object_data.get("power_state", default_power_state))
+	var source_object_id: String = str(object_data.get("source_object_id", object_data.get("power_source_id", "")))
 	return {
 		"ok": true,
 		"object_id": str(object_data.get("id", "")),
-		"is_powered": bool(object_data.get("is_powered", false)),
-		"power_state": str(object_data.get("power_state", "powered" if bool(object_data.get("is_powered", false)) else "unpowered")),
+		"is_powered": is_powered_value,
+		"power_state": resolved_power_state,
 		"power_required": bool(object_data.get("power_required", false)),
 		"power_received": int(object_data.get("power_received", 0)),
 		"power_network_id": str(object_data.get("power_network_id", "")),
 		"connection_id": str(object_data.get("connection_id", "")),
-		"source_object_id": str(object_data.get("source_object_id", object_data.get("power_source_id", ""))),
+		"source_object_id": source_object_id,
 		"socket_id": str(object_data.get("socket_id", ""))
 	}
 
