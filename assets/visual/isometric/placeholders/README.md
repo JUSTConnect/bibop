@@ -1,6 +1,6 @@
 # BIPOB isometric placeholder asset pack
 
-These SVGs are **placeholder production hooks**, not final production art. They provide readable, cartoon-like sci-fi industrial stand-ins for the current 2:1 isometric visual pipeline while keeping gameplay data in code/resources only.
+These SVGs are **placeholder production hooks**, not final production art. They provide readable, cartoon-like sci-fi industrial stand-ins for the current 1.81:1 isometric visual pipeline while keeping gameplay data in code/resources only.
 
 ## Naming convention
 
@@ -12,7 +12,7 @@ Files use `iso_<category>_<variant>.svg`, and renderer/catalog keys use `<catego
 
 ## Intended sizes and viewBoxes
 
-- **Floors:** designed to sit inside a 128×64 diamond. Use `viewBox="0 0 128 64"` and keep the main tile diamond near `M64 4 L124 32 L64 60 L4 32 Z`.
+- **Floors:** designed to sit inside the runtime 128×71 diamond. Use `viewBox="0 0 128 71"` and keep the main tile diamond near `M64 4 L124 35.5 L64 67 L4 35.5 Z`.
 - **Walls:** designed for a taller isometric wall mass. Use about `viewBox="0 0 128 120"`, with the footprint centered around the lower half and transparent background above/around it.
 - **Objects:** designed as compact props/pickups. Use about `viewBox="0 0 96 96"` or `0 0 128 128` for larger props, with transparent background and a bottom-centered visual footprint.
 
@@ -23,8 +23,8 @@ All assets should stay SVG-only unless the final art pipeline intentionally repl
 
 The renderer treats each asset key as having visual-only alignment metadata in `RoomVisualRenderer.ISO_ASSET_ALIGNMENT_RULES`. Keep the canvas, pivot, and transparent padding compatible with these anchors so final art can replace placeholders without changing gameplay logic.
 
-- **Floor assets** use the `center` anchor. A 128×64 SVG canvas should keep the 2:1 diamond centered so it remains inside the projected grid cell.
-- **Wall assets** use the `wall_cell_base` anchor. A 128×120 canvas should place the lower wall footprint at the bottom center; the renderer offsets it upward to sit on the blocked wall cell.
+- **Floor assets** use the `center` anchor. A 128×71 SVG canvas should keep the 1.81:1 diamond centered so it remains inside the projected grid cell.
+- **Wall assets** use the `wall_cell_base` anchor. A 128×120 canvas should place the lower wall footprint at the bottom center of the active 128×71 footprint; the renderer offsets it upward to sit on the blocked wall cell.
 - **Wall-mounted objects** such as terminals, buttons, switches, and sockets use `wall_mount_center`. A 96×96 canvas should keep the useful prop centered around the mount band, with transparent padding around it.
 - **Doors/gates** use `door_insert_center`. A 96×96 canvas should keep the door panel centered in the intended wall opening rather than on the floor diamond. Keep the visible panel centered in that 96×96 canvas; transparent padding above/below matters because the renderer aligns the full canvas, not the painted pixels. Door state overlays for locked, powered, unpowered, open, and damaged states are drawn by the renderer, so replacement art should not bake those gameplay-state badges into the placeholder itself.
 - **Pickups/items** such as keys, fuses, keycards, access codes, and repair kits use `bottom_center`. A 96×96 canvas should put the visual footprint at the bottom center so the item is small, readable, and grounded on the floor.
