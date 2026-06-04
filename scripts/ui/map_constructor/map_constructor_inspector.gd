@@ -298,14 +298,16 @@ static func _render_wall_tab(ui: Variant, parent: VBoxContainer, entity: Diction
 	var tile_label: Label = Label.new(); tile_label.text = ui._safe_ui_string(data.get("tile_name", data.get("tile_type", "wall")), "wall"); placement.add_child(ui._create_property_row("Tile", tile_label))
 	var move_row: HBoxContainer = HBoxContainer.new()
 	move_row.add_theme_constant_override("separation", 6)
+	var move_x_label: Label = Label.new(); move_x_label.text = "X"
 	var move_x: SpinBox = SpinBox.new(); move_x.step = 1; move_x.min_value = -999; move_x.max_value = 999; move_x.value = float(cell.x); move_x.custom_minimum_size = Vector2(72, 0)
+	var move_y_label: Label = Label.new(); move_y_label.text = "Y"
 	var move_y: SpinBox = SpinBox.new(); move_y.step = 1; move_y.min_value = -999; move_y.max_value = 999; move_y.value = float(cell.y); move_y.custom_minimum_size = Vector2(72, 0)
 	var move_button: Button = Button.new(); move_button.text = "Move"
 	move_button.pressed.connect(func() -> void:
 		MapConstructorActions.move_entity_to_cell(ui, entity_kind, entity_id, Vector2i(int(move_x.value), int(move_y.value)))
 	)
-	move_row.add_child(move_x); move_row.add_child(move_y); move_row.add_child(move_button)
-	placement.add_child(ui._create_property_row("X / Y", move_row))
+	move_row.add_child(move_x_label); move_row.add_child(move_x); move_row.add_child(move_y_label); move_row.add_child(move_y); move_row.add_child(move_button)
+	placement.add_child(ui._create_property_row("Position", move_row))
 	var duplicate_button: Button = Button.new(); duplicate_button.text = "Duplicate to X/Y"
 	duplicate_button.pressed.connect(func() -> void:
 		MapConstructorActions.duplicate_entity_to_cell(ui, entity_kind, entity_id, Vector2i(int(move_x.value), int(move_y.value)))
@@ -425,9 +427,14 @@ static func _render_entity_tab(ui: Variant, parent: VBoxContainer, entity_info: 
 			ui._add_enum_property(configurable, "Source class", entity_kind, entity_id, "power_source_class", data.get("power_source_class", 1), source_class_options)
 		elif power_object_type == "power_cable" or power_object_type == "power_cable_reel":
 			var cable_has_wall: bool = _cell_has_wall(ui, cell)
-			MapConstructorPropertyControls.add_enum_updates_property(ui, configurable, "Install mode", entity_kind, entity_id, _get_cable_install_type(data), [{"label":"Floor", "value":"floor", "updates":{"cable_install_mode":"floor"}}, {"label":"Wall", "value":"wall", "updates":{"cable_install_mode":"wall"}, "disabled": not cable_has_wall, "disabled_reason":"Wall cable requires a wall in this cell."}, {"label":"Hidden", "value":"hidden", "updates":{"cable_install_mode":"hidden"}}])
-			if not cable_has_wall:
-				_add_cable_note(ui, configurable, "Wall cable requires a wall in this cell.", true)
+			if power_object_type == "power_cable_reel":
+				MapConstructorPropertyControls.add_enum_updates_property(ui, configurable, "Mount", entity_kind, entity_id, _get_cable_install_type(data), [{"label":"Floor", "value":"floor", "updates":{"mount":"floor", "cable_install_mode":"floor", "install_mode":"floor", "route_surface":"floor"}}, {"label":"Wall", "value":"wall", "updates":{"mount":"wall", "cable_install_mode":"wall", "install_mode":"wall", "route_surface":"wall"}, "disabled": not cable_has_wall, "disabled_reason":"Wall cable reel requires a wall in this cell."}])
+				if not cable_has_wall:
+					_add_cable_note(ui, configurable, "Wall cable reel requires a wall in this cell.", true)
+			else:
+				MapConstructorPropertyControls.add_enum_updates_property(ui, configurable, "Install mode", entity_kind, entity_id, _get_cable_install_type(data), [{"label":"Floor", "value":"floor", "updates":{"cable_install_mode":"floor", "install_mode":"floor", "route_surface":"floor"}}, {"label":"Wall", "value":"wall", "updates":{"cable_install_mode":"wall", "install_mode":"wall", "route_surface":"wall"}, "disabled": not cable_has_wall, "disabled_reason":"Wall cable requires a wall in this cell."}, {"label":"Hidden", "value":"hidden", "updates":{"cable_install_mode":"hidden", "install_mode":"hidden", "route_surface":"floor"}}])
+				if not cable_has_wall:
+					_add_cable_note(ui, configurable, "Wall cable requires a wall in this cell.", true)
 			if _get_cable_install_type(data) == "hidden":
 				_add_cable_note(ui, configurable, "Hidden cables are visible only in the editor.")
 			MapConstructorPropertyControls.add_enum_updates_property(ui, configurable, "Health state", entity_kind, entity_id, _get_power_health_state(data), [{"label":"Normal", "value":"normal", "updates":{"cable_health_state":"normal"}}, {"label":"Damaged", "value":"damaged", "updates":{"cable_health_state":"damaged"}}, {"label":"Broken", "value":"broken", "updates":{"cable_health_state":"broken"}}, {"label":"Cut", "value":"cut", "updates":{"cable_health_state":"cut"}}])
