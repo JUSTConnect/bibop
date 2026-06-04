@@ -9,6 +9,12 @@ static func move_forward(controller: BipobController) -> void:
 		return
 	
 	var target_position := controller.grid_position + get_direction_vector(controller.direction)
+	if controller.has_method("is_heavy_claw_drag_active") and bool(controller.call("is_heavy_claw_drag_active")):
+		if bool(controller.call("try_move_heavy_claw_drag_to", target_position)):
+			controller.spend_action(1, 0)
+			controller.register_successful_movement_cells(1, controller.get_surface_id_for_position(target_position), target_position)
+			controller.refresh_world_action_panel()
+		return
 	
 	if try_move_to(controller, target_position):
 		controller.spend_action(1, 0)
@@ -23,6 +29,12 @@ static func move_backward(controller: BipobController) -> void:
 		return
 	
 	var target_position := controller.grid_position - get_direction_vector(controller.direction)
+	if controller.has_method("is_heavy_claw_drag_active") and bool(controller.call("is_heavy_claw_drag_active")):
+		if bool(controller.call("try_move_heavy_claw_drag_to", target_position)):
+			controller.spend_action(1, 0)
+			controller.register_successful_movement_cells(1, controller.get_surface_id_for_position(target_position), target_position)
+			controller.refresh_world_action_panel()
+		return
 	
 	if try_move_to(controller, target_position):
 		controller.spend_action(1, 0)

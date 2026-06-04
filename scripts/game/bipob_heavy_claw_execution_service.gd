@@ -10,16 +10,19 @@ static func execute_heavy_claw_action(controller: Variant, world_object: Diction
 		return _build_result(false, false, "Cannot move object there.", false, false, false, false, true, false, "unsupported_action")
 	if not controller.has_heavy_claw_capability():
 		return _build_result(true, false, "Heavy Claw required.", false, false, false, false, true, false, "heavy_claw_required")
-	var target_destination: Vector2i = controller.get_heavy_claw_move_destination(target_position, controller.grid_position, action_id)
-	if target_destination.x < 0 or target_destination.y < 0:
+	if action_id != "push":
 		return _build_result(true, false, "Heavy Claw move is unavailable for this direction.", false, false, false, false, true, false, "move_direction_unavailable")
-	var move_result: Dictionary = Dictionary(controller.mission_manager.move_world_object_by_heavy_claw(str(world_object.get("id", "")), target_destination))
-	var success: bool = bool(move_result.get("success", false))
-	if success:
-		controller.spend_action(1, 1)
-		controller._register_successful_paid_player_action(true)
-		return _build_result(true, true, str(move_result.get("message", "Moved object.")), true, true, true, true, true, true, "ok")
-	return _build_result(true, false, str(move_result.get("message", "Cannot move object there.")), false, false, false, false, true, false, "move_unavailable")
+	var expected_target: Vector2i = controller.grid_position + controller.get_direction_vector(controller.direction)
+	if target_position != expected_target:
+		return _build_result(true, false, "Heavy Claw target must be directly in front.", false, false, false, false, true, false, "target_not_in_front")
+	if controller.has_method("start_heavy_claw_drag"):
+		var attach_result: Dictionary = Dictionary(controller.call("start_heavy_claw_drag", world_object))
+		if bool(attach_result.get("success", false)):
+			controller.spend_action(1, 1)
+			controller._register_successful_paid_player_action(true)
+			return _build_result(true, true, str(attach_result.get("message", "Heavy Claw attached.")), true, true, true, true, true, true, "ok")
+		return _build_result(true, false, str(attach_result.get("message", "Cannot attach object.")), false, false, false, true, true, false, "attach_unavailable")
+	return _build_result(true, false, "Heavy Claw drag unavailable.", false, false, false, false, true, false, "drag_unavailable")
 
 
 static func _build_result(handled: bool, success: bool, message: String, spent_action: bool, refresh_overlay: bool, refresh_threats: bool, refresh_action_panel: bool, emit_status: bool, emit_facing_hint: bool, reason: String) -> Dictionary:

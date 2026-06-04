@@ -35,11 +35,12 @@ static func refresh(ui) -> void:
 		ui.runtime_connect_button.tooltip_text = "" if connect_enabled else str(connect_descriptor.get("label", "Connector jack unavailable."))
 		ui._apply_action_button_style(ui.runtime_connect_button, "primary" if connect_enabled else "disabled", connect_enabled)
 	if ui.runtime_heavy_claw_button != null:
-		var heavy_claw_enabled: bool = not heavy_claw_descriptor.is_empty() and bool(heavy_claw_descriptor.get("enabled", false)) and has_actions_left
-		ui.runtime_heavy_claw_button.text = "Heavy Claw"
+		var heavy_claw_drag_active: bool = ui.bipob != null and ui.bipob.has_method("is_heavy_claw_drag_active") and bool(ui.bipob.call("is_heavy_claw_drag_active"))
+		var heavy_claw_enabled: bool = heavy_claw_drag_active or (not heavy_claw_descriptor.is_empty() and bool(heavy_claw_descriptor.get("enabled", false)) and has_actions_left)
+		ui.runtime_heavy_claw_button.text = "Cancel" if heavy_claw_drag_active else "Heavy Claw"
 		ui.runtime_heavy_claw_button.disabled = not heavy_claw_enabled
 		ui.runtime_heavy_claw_button.tooltip_text = "" if heavy_claw_enabled else str(heavy_claw_descriptor.get("label", "No heavy object in front."))
-		ui._apply_action_button_style(ui.runtime_heavy_claw_button, "primary" if heavy_claw_enabled else "disabled", heavy_claw_enabled)
+		ui._apply_action_button_style(ui.runtime_heavy_claw_button, "danger" if heavy_claw_drag_active else ("primary" if heavy_claw_enabled else "disabled"), heavy_claw_enabled)
 	if ui.runtime_end_turn_button != null:
 		ui._apply_action_button_style(ui.runtime_end_turn_button, "reference", true)
 	_refresh_action_row(ui, target_object, physical_actions)

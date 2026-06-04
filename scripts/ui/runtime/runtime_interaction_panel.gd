@@ -123,6 +123,13 @@ static func press_connect(ui) -> void:
 static func press_heavy_claw(ui) -> void:
 	if ui.map_constructor_mode_active or ui.bipob == null:
 		return
+	if ui.bipob.has_method("is_heavy_claw_drag_active") and bool(ui.bipob.call("is_heavy_claw_drag_active")):
+		if ui.bipob.has_method("cancel_heavy_claw_drag"):
+			var cancel_result: Dictionary = Dictionary(ui.bipob.call("cancel_heavy_claw_drag"))
+			ui.show_hint(str(cancel_result.get("message", "Heavy Claw detached.")))
+		refresh_controls(ui)
+		ui.update_status()
+		return
 	if int(ui.bipob.actions_left) <= 0:
 		ui.show_hint("No actions left. End turn.")
 		return
