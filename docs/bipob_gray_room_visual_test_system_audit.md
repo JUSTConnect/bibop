@@ -297,3 +297,11 @@ This audit is complete when:
 - visible-bounds/base-anchor behavior is recorded;
 - future work is framed as extending the existing system, not replacing it;
 - no code or asset files are changed.
+
+## VIS-ASSET-REAL-01 update
+
+The gray room visual test system is no longer the default production runtime path. Real
+floor assets in `assets/visual/isometric/floor/` and real wall assets in
+`assets/visual/isometric/wall/` are now the primary catalog source in `RoomVisualRenderer`.
+The gray PNGs remain available only as an explicit debug/fallback baseline through
+`use_gray_room_visual_test_assets`.
