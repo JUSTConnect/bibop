@@ -84,6 +84,15 @@ static func clear_wall_material(ui: Variant, cell: Vector2i, side: String) -> Di
 	refresh_after_mutation(ui, {}, ui.selected_map_constructor_entity_cell, ui.selected_map_constructor_entity_kind, ui.selected_map_constructor_entity_id)
 	return result
 
+static func apply_wall_height(ui: Variant, cell: Vector2i, side: String, wall_height: String) -> Dictionary:
+	if ui.mission_manager_runtime == null or not ui.mission_manager_runtime.has_method("set_map_constructor_wall_height"):
+		ui.show_hint("Wall height action unavailable.")
+		return {}
+	var result: Dictionary = ui._safe_ui_dictionary(ui.mission_manager_runtime.call("set_map_constructor_wall_height", cell, side, wall_height))
+	ui.show_hint(ui._safe_ui_string(result.get("message", "Wall height updated."), "Wall height updated."))
+	refresh_after_mutation(ui, {}, ui.selected_map_constructor_entity_cell, ui.selected_map_constructor_entity_kind, ui.selected_map_constructor_entity_id)
+	return result
+
 static func apply_wall_mounted_side(ui: Variant, entity_kind: String, entity_id: String, selected_side: String) -> Dictionary:
 	var normalized_side: String = ui._normalize_map_constructor_wall_side(selected_side)
 	if normalized_side.is_empty():
