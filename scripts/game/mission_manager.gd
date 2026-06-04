@@ -48,6 +48,24 @@ const ISO_PLACEHOLDER_ASSET_PATHS: Dictionary = {
 	"object_keycard": "res://assets/visual/isometric/placeholders/iso_object_keycard.svg",
 	"object_access_code": "res://assets/visual/isometric/placeholders/iso_object_access_code.svg",
 	"object_cable_reel": "res://assets/visual/isometric/placeholders/iso_object_cable_reel.svg",
+	"cabel_reel_01": "res://assets/visual/isometric/objects/cabel_reel_01.png",
+	"cabel_reel_02": "res://assets/visual/isometric/objects/cabel_reel_02.png",
+	"fuse_box_in_01": "res://assets/visual/isometric/objects/fuse_box_in_01.png",
+	"fuse_box_out_01": "res://assets/visual/isometric/objects/fuse_box_out_01.png",
+	"fuse_box_in_wall_01": "res://assets/visual/isometric/objects/fuse_box_in_wall_01.png",
+	"fuse_box_out_wall_01": "res://assets/visual/isometric/objects/fuse_box_out_wall_01.png",
+	"light_01": "res://assets/visual/isometric/objects/light_01.png",
+	"power_source_01": "res://assets/visual/isometric/objects/power_source_01.png",
+	"power_switcher_off_01": "res://assets/visual/isometric/objects/power_switcher_off_01.png",
+	"power_switcher_off_wall_01": "res://assets/visual/isometric/objects/power_switcher_off_wall_01.png",
+	"power_switcher_on_01": "res://assets/visual/isometric/objects/power_switcher_on_01.png",
+	"power_switcher_on_wall_01": "res://assets/visual/isometric/objects/power_switcher_on_wall_01.png",
+	"radiator_01": "res://assets/visual/isometric/objects/radiator_01.png",
+	"terminal_01": "res://assets/visual/isometric/objects/terminal_01.png",
+	"barrel_01": "res://assets/visual/isometric/moovable/barrel_01.png",
+	"case_01": "res://assets/visual/isometric/objects/case_01.png",
+	"steel_box_01": "res://assets/visual/isometric/moovable/steel_box_01.png",
+	"fire_barrel_01": "res://assets/visual/isometric/moovable/fire_barrel_01.png",
 	"object_button": "res://assets/visual/isometric/placeholders/iso_object_button.svg",
 	"object_switch": "res://assets/visual/isometric/placeholders/iso_object_switch.svg"
 }
@@ -122,8 +140,13 @@ const OBJECT_TEXTURE_ASSET_ALIASES: Dictionary = {
 	"cable_reel_01": "cabel_reel_01",
 	"power_cable_reel": "cabel_reel_01",
 	"fuse_box": "fuse_box_out_01",
+	"Fuse_box": "fuse_box_out_01",
 	"fuse_box_empty": "fuse_box_out_01",
 	"fuse_box_installed": "fuse_box_in_01",
+	"Fuse_box_in_01": "fuse_box_in_01",
+	"Fuse_box_out_01": "fuse_box_out_01",
+	"Fuse_box_in_wall_01": "fuse_box_in_wall_01",
+	"Fuse_box_out_wall_01": "fuse_box_out_wall_01",
 	"wall_fuse_box": "fuse_box_out_wall_01",
 	"power_source": "power_source_01",
 	"power_source_class_1": "power_source_01",
@@ -3034,14 +3057,26 @@ func normalize_visual_texture_asset_id(asset_id: String) -> String:
 	var normalized_asset_id: String = asset_id.strip_edges()
 	if normalized_asset_id.is_empty():
 		return ""
+	var lowercase_asset_id: String = normalized_asset_id.to_lower()
 	if VISUAL_TEXTURE_ASSET_ALIASES.has(normalized_asset_id):
 		return str(VISUAL_TEXTURE_ASSET_ALIASES.get(normalized_asset_id, normalized_asset_id))
+	if OBJECT_TEXTURE_ASSET_ALIASES.has(normalized_asset_id):
+		return str(OBJECT_TEXTURE_ASSET_ALIASES.get(normalized_asset_id, normalized_asset_id))
+	if FLOOR_TEXTURE_ASSET_ALIASES.has(lowercase_asset_id):
+		return str(FLOOR_TEXTURE_ASSET_ALIASES.get(lowercase_asset_id, lowercase_asset_id))
+	if WALL_TEXTURE_ASSET_ALIASES.has(lowercase_asset_id):
+		return str(WALL_TEXTURE_ASSET_ALIASES.get(lowercase_asset_id, lowercase_asset_id))
+	if OBJECT_TEXTURE_ASSET_ALIASES.has(lowercase_asset_id):
+		return str(OBJECT_TEXTURE_ASSET_ALIASES.get(lowercase_asset_id, lowercase_asset_id))
+	if VISUAL_TEXTURE_ASSET_ALIASES.has(lowercase_asset_id):
+		return str(VISUAL_TEXTURE_ASSET_ALIASES.get(lowercase_asset_id, lowercase_asset_id))
 	return normalized_asset_id
 
 func normalize_visual_texture_asset_id_for_context(asset_id: String, asset_context: String) -> String:
 	var normalized_asset_id: String = asset_id.strip_edges()
 	if normalized_asset_id.is_empty():
 		return ""
+	var lowercase_asset_id: String = normalized_asset_id.to_lower()
 	var normalized_context: String = asset_context.strip_edges().to_lower()
 	match normalized_context:
 		"floor":
@@ -3053,6 +3088,10 @@ func normalize_visual_texture_asset_id_for_context(asset_id: String, asset_conte
 		"object", "door", "terminal", "item":
 			if OBJECT_TEXTURE_ASSET_ALIASES.has(normalized_asset_id):
 				return str(OBJECT_TEXTURE_ASSET_ALIASES.get(normalized_asset_id, normalized_asset_id))
+			if OBJECT_TEXTURE_ASSET_ALIASES.has(lowercase_asset_id):
+				return str(OBJECT_TEXTURE_ASSET_ALIASES.get(lowercase_asset_id, lowercase_asset_id))
+	if VISUAL_TEXTURE_ASSET_ALIASES.has(lowercase_asset_id):
+		return str(VISUAL_TEXTURE_ASSET_ALIASES.get(lowercase_asset_id, lowercase_asset_id))
 	return normalize_visual_texture_asset_id(normalized_asset_id)
 
 func normalize_floor_texture_asset_id(asset_id: String) -> String:
