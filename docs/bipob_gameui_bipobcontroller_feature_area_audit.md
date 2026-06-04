@@ -35,13 +35,13 @@ This audit should not ignore existing progress.
 
 ### GameUI already uses several extracted UI helpers
 
-`GameUI` already preloads several extracted helpers/controllers:
+`GameUI` already uses several extracted helpers/controllers:
 
 - `RuntimeMissionMenu`
 - `CenterScreen`
 - `RuntimeStoragePanel`
-- `RuntimeControlPanel`
-- `RuntimeInteractionPresenter`
+- `RuntimeActionPanelBridge`
+- runtime action bridge dependencies `RuntimeControlPanel` and `RuntimeInteractionPresenter`
 - `RuntimeBipobSwitcher`
 - `RuntimeObjectHud`
 - `MapConstructorScreen`
@@ -201,6 +201,12 @@ Notes:
 - This should be after Map Constructor UI bridge because Action/Connect/Heavy Claw are active runtime smoke surface.
 - Keep GameUI as event router only.
 - Do not change action availability logic in the same PR; only move existing UI orchestration.
+
+UICTRL-RF-03 status:
+
+- Added `scripts/ui/runtime/runtime_action_panel_bridge.gd` as the runtime action/control orchestration owner.
+- `GameUI` now keeps compatibility wrapper methods and delegates action target lookup, action mode transitions, Action/Connect/Heavy Claw/End Turn callbacks, world-action target id derivation, and per-frame action feedback to the bridge.
+- `RuntimeControlPanel` still builds the existing control panel view, but runtime button callbacks can now be wired directly to the bridge so no parallel runtime UI system is introduced.
 
 ### 4. Runtime storage / inventory UI
 

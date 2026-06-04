@@ -4,7 +4,7 @@ class_name RuntimeControlPanel
 const RuntimeInteractionPresenterRef = preload("res://scripts/ui/runtime/runtime_interaction_presenter.gd")
 
 
-static func build(ui) -> Control:
+static func build(ui, bridge = null) -> Control:
 	var panel := PanelContainer.new()
 	panel.name = "RuntimeControlsPanel"
 	panel.size_flags_horizontal = Control.SIZE_EXPAND_FILL
@@ -39,15 +39,16 @@ static func build(ui) -> Control:
 	root.add_child(grid)
 	ui.runtime_base_controls_grid = grid
 
-	grid.add_child(ui._create_runtime_control_button("Turn Left", Callable(ui, "_on_turn_left_pressed")))
-	grid.add_child(ui._create_runtime_control_button("Turn Right", Callable(ui, "_on_turn_right_pressed")))
-	ui.runtime_action_button = ui._create_runtime_control_button("Action", Callable(ui, "_on_interact_pressed"), "primary")
+	var callback_owner: Object = bridge if bridge != null else ui
+	grid.add_child(ui._create_runtime_control_button("Turn Left", Callable(callback_owner, "on_turn_left_pressed") if bridge != null else Callable(ui, "_on_turn_left_pressed")))
+	grid.add_child(ui._create_runtime_control_button("Turn Right", Callable(callback_owner, "on_turn_right_pressed") if bridge != null else Callable(ui, "_on_turn_right_pressed")))
+	ui.runtime_action_button = ui._create_runtime_control_button("Action", Callable(callback_owner, "on_action_pressed") if bridge != null else Callable(ui, "_on_interact_pressed"), "primary")
 	grid.add_child(ui.runtime_action_button)
-	ui.runtime_connect_button = ui._create_runtime_control_button("Connect", Callable(ui, "_on_connect_pressed"), "primary")
+	ui.runtime_connect_button = ui._create_runtime_control_button("Connect", Callable(callback_owner, "on_connect_pressed") if bridge != null else Callable(ui, "_on_connect_pressed"), "primary")
 	grid.add_child(ui.runtime_connect_button)
-	ui.runtime_heavy_claw_button = ui._create_runtime_control_button("Heavy Claw", Callable(ui, "_on_heavy_claw_pressed"), "primary")
+	ui.runtime_heavy_claw_button = ui._create_runtime_control_button("Heavy Claw", Callable(callback_owner, "on_heavy_claw_pressed") if bridge != null else Callable(ui, "_on_heavy_claw_pressed"), "primary")
 	grid.add_child(ui.runtime_heavy_claw_button)
-	ui.runtime_end_turn_button = ui._create_runtime_control_button("End Turn", Callable(ui, "_on_end_turn_pressed"), "reference")
+	ui.runtime_end_turn_button = ui._create_runtime_control_button("End Turn", Callable(callback_owner, "on_end_turn_pressed") if bridge != null else Callable(ui, "_on_end_turn_pressed"), "reference")
 	grid.add_child(ui.runtime_end_turn_button)
 	refresh(ui)
 

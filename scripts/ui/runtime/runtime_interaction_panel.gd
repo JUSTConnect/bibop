@@ -82,7 +82,7 @@ static func press_action(ui, action_id: String) -> void:
 
 
 static func press_interact(ui) -> void:
-	if ui.map_constructor_mode_active or ui.bipob == null:
+	if ui.map_constructor_state.map_constructor_mode_active or ui.bipob == null:
 		return
 	if ui.runtime_interaction_mode_active:
 		exit_mode(ui)
@@ -106,7 +106,7 @@ static func press_interact(ui) -> void:
 
 
 static func press_connect(ui) -> void:
-	if ui.map_constructor_mode_active or ui.bipob == null:
+	if ui.map_constructor_state.map_constructor_mode_active or ui.bipob == null:
 		return
 	if int(ui.bipob.actions_left) <= 0:
 		ui.show_hint("No actions left. End turn.")
@@ -121,7 +121,7 @@ static func press_connect(ui) -> void:
 
 
 static func press_heavy_claw(ui) -> void:
-	if ui.map_constructor_mode_active or ui.bipob == null:
+	if ui.map_constructor_state.map_constructor_mode_active or ui.bipob == null:
 		return
 	if ui.bipob.has_method("is_heavy_claw_drag_active") and bool(ui.bipob.call("is_heavy_claw_drag_active")):
 		if ui.bipob.has_method("cancel_heavy_claw_drag"):
