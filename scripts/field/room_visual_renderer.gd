@@ -26,7 +26,7 @@ const CableTopologyServiceRef = preload("res://scripts/game/cable_topology_servi
 @export var debug_floor_tile_bounds: bool = false
 @export var use_iso_floor_atlas_textures: bool = false
 @export var allow_legacy_floor_texture_assets: bool = false
-@export var use_gray_room_visual_test_assets: bool = true
+@export var use_gray_room_visual_test_assets: bool = false
 @export var use_iso_visual_preview_preset: bool = false
 @export var iso_visual_preview_includes_fog: bool = false
 @export var iso_fog_draw_cell_shapes: bool = false
@@ -148,6 +148,9 @@ const ISO_PLACEHOLDER_ASSET_PATHS: Dictionary = {
 const ISO_WALL_ASSET_PACK_DIR: String = "res://assets/visual/isometric/wall/"
 const ISO_TEST_ASSET_PACK_DIR: String = "res://assets/visual/isometric/test/"
 const ISO_WALL_ASSET_EXPECTED_SIZE: Vector2 = Vector2(128.0, 120.0)
+const ISO_WALL_HEIGHT_LEVELS: Array[String] = ["low", "halflow", "mid", "halfmid", "tall"]
+const ISO_OUTER_WALL_HEIGHT_ORDER: Array[String] = ["tall", "halfmid", "mid", "halflow", "low"]
+const ISO_GRATE_WALL_HEIGHT_LEVELS: Array[String] = ["mid", "halfmid", "tall"]
 const ISO_TEST_WALL_HEIGHT_ORDER: Array[String] = ["tallest", "tall", "mid", "halfmid", "low"]
 const ISO_TEST_WALL_HEIGHT_ASSET_KEYS: Dictionary = {
 	"tallest": "wall_gray_tallest",
@@ -162,16 +165,40 @@ const ISO_WALL_ASSET_CATALOG: Dictionary = {
 	"wall_gray_mid": "wall_gray_mid_01.png",
 	"wall_gray_halfmid": "wall_gray_halfmid_01.png",
 	"wall_gray_low": "wall_gray_low_01.png",
-	"wall_default": "wall_01_concrete.png",
-	"wall_concrete": "wall_01_concrete.png",
-	"wall_steel": "wall_02_steel.png",
-	"wall_reinforced_steel": "wall_03_reinforced_steel.png",
-	"wall_brick": "wall_04_brick.png",
-	"wall_outer": "wall_05_outwall.png",
-	"wall_titanium": "wall_06_titan.png",
-	"wall_grate": "wall_07_grate.png",
-	"wall_concrete_damaged": "wall_08_concrete_damage.png",
-	"wall_brick_damaged": "wall_09_brick_damage.png"
+	"wall_default": "concrete/wall_concrete_mid_01.png",
+	"wall_concrete_low": "concrete/wall_concrete_low_01.png",
+	"wall_concrete_halflow": "concrete/wall_concrete_halflow_01.png",
+	"wall_concrete_mid": "concrete/wall_concrete_mid_01.png",
+	"wall_concrete_halfmid": "concrete/wall_concrete_halfmid_01.png",
+	"wall_concrete_tall": "concrete/wall_concrete_tall_01.png",
+	"wall_steel_low": "steel/wall_steel_low_01.png",
+	"wall_steel_halflow": "steel/wall_steel_halflow_01.png",
+	"wall_steel_mid": "steel/wall_steel_mid_01.png",
+	"wall_steel_halfmid": "steel/wall_steel_halfmid_01.png",
+	"wall_steel_tall": "steel/wall_steel_tall_01.png",
+	"wall_titan_low": "titan/wall_titan_low_01.png",
+	"wall_titan_halflow": "titan/wall_titan_halflow_01.png",
+	"wall_titan_mid": "titan/wall_titan_mid_01.png",
+	"wall_titan_halfmid": "titan/wall_titan_halfmid_01.png",
+	"wall_titan_tall": "titan/wall_titan_tall_01.png",
+	"wall_reinforced_steel_low": "reinforce_steel/wall_reinforcesteel_low_01.png",
+	"wall_reinforced_steel_halflow": "reinforce_steel/wall_reinforcesteel_halflow_01.png",
+	"wall_reinforced_steel_mid": "reinforce_steel/wall_reinforcesteel_mid_01.png",
+	"wall_reinforced_steel_halfmid": "reinforce_steel/wall_reinforcesteel_halfmid_01.png",
+	"wall_reinforced_steel_tall": "reinforce_steel/wall_reinforcesteel_tall_01.png",
+	"wall_brick_low": "brick/wall_brick_low_01.png",
+	"wall_brick_halflow": "brick/wall_brick_halflow_01.png",
+	"wall_brick_mid": "brick/wall_brick_mid_01.png",
+	"wall_brick_halfmid": "brick/wall_brick_halfmid_01.png",
+	"wall_brick_tall": "brick/wall_brick_tall_01.png",
+	"wall_outer_low": "outerwall/wall_outerwall_low_01.png",
+	"wall_outer_halflow": "outerwall/wall_outerwall_halflow_01.png",
+	"wall_outer_mid": "outerwall/wall_outerwall_mid_01.png",
+	"wall_outer_halfmid": "outerwall/wall_outerwall_halfmid_01.png",
+	"wall_outer_tall": "outerwall/wall_outerwall_tall_01.png",
+	"wall_grate_mid": "grate/wall_grate_mid_01.png",
+	"wall_grate_halfmid": "grate/wall_grate_halfmid_01.png",
+	"wall_grate_tall": "grate/wall_grate_tall_01.png"
 }
 
 const ISO_FLOOR_ASSET_PACK_DIR: String = "res://assets/visual/isometric/floor/"
@@ -199,7 +226,14 @@ const ISO_FLOOR_ASSET_PLACEMENT: Dictionary = {
 # measured from the checked-in wall atlas files and used only by the renderer so
 # the visible wall base, not the full transparent canvas, is anchored to the
 # active 128x71 isometric wall footprint.
-const ISO_WALL_BASELINE_VISIBLE_BOUNDS: Rect2 = Rect2(47, 36, 508, 842)
+const ISO_WALL_BASELINE_VISIBLE_BOUNDS: Rect2 = Rect2(1, 148, 511, 619)
+const ISO_WALL_HEIGHT_VISIBLE_BOUNDS: Dictionary = {
+	"low": Rect2(0, 353, 512, 415),
+	"halflow": Rect2(0, 239, 511, 534),
+	"mid": Rect2(1, 148, 511, 619),
+	"halfmid": Rect2(1, 63, 511, 704),
+	"tall": Rect2(1, 0, 511, 767)
+}
 const ISO_TEST_WALL_VISIBLE_BOUNDS: Dictionary = {
 	"wall_gray_tallest": Rect2(0, 0, 512, 768),
 	"wall_gray_tall": Rect2(0, 63, 512, 705),
@@ -213,16 +247,40 @@ const ISO_WALL_ASSET_PLACEMENT: Dictionary = {
 	"wall_gray_mid": {"visible_bounds": Rect2(0, 150, 512, 618), "target_base_width": 128.0, "scale": 1.0, "offset": Vector2.ZERO},
 	"wall_gray_halfmid": {"visible_bounds": Rect2(0, 238, 512, 532), "target_base_width": 128.0, "scale": 1.0, "offset": Vector2.ZERO},
 	"wall_gray_low": {"visible_bounds": Rect2(0, 353, 512, 415), "target_base_width": 128.0, "scale": 1.0, "offset": Vector2.ZERO},
-	"wall_default": {"visible_bounds": ISO_WALL_BASELINE_VISIBLE_BOUNDS, "target_base_width": 128.0, "scale": 1.0, "offset": Vector2.ZERO},
-	"wall_concrete": {"visible_bounds": ISO_WALL_BASELINE_VISIBLE_BOUNDS, "target_base_width": 128.0, "scale": 1.0, "offset": Vector2.ZERO},
-	"wall_steel": {"visible_bounds": ISO_WALL_BASELINE_VISIBLE_BOUNDS, "target_base_width": 128.0, "scale": 1.0, "offset": Vector2.ZERO},
-	"wall_reinforced_steel": {"visible_bounds": ISO_WALL_BASELINE_VISIBLE_BOUNDS, "target_base_width": 128.0, "scale": 1.0, "offset": Vector2.ZERO},
-	"wall_brick": {"visible_bounds": ISO_WALL_BASELINE_VISIBLE_BOUNDS, "target_base_width": 128.0, "scale": 1.0, "offset": Vector2.ZERO},
-	"wall_outer": {"visible_bounds": ISO_WALL_BASELINE_VISIBLE_BOUNDS, "target_base_width": 128.0, "scale": 1.0, "offset": Vector2.ZERO},
-	"wall_titanium": {"visible_bounds": ISO_WALL_BASELINE_VISIBLE_BOUNDS, "target_base_width": 128.0, "scale": 1.0, "offset": Vector2.ZERO},
-	"wall_grate": {"visible_bounds": ISO_WALL_BASELINE_VISIBLE_BOUNDS, "target_base_width": 128.0, "scale": 1.0, "offset": Vector2.ZERO},
-	"wall_concrete_damaged": {"visible_bounds": ISO_WALL_BASELINE_VISIBLE_BOUNDS, "target_base_width": 128.0, "scale": 1.0, "offset": Vector2.ZERO},
-	"wall_brick_damaged": {"visible_bounds": ISO_WALL_BASELINE_VISIBLE_BOUNDS, "target_base_width": 128.0, "scale": 1.0, "offset": Vector2.ZERO}
+	"wall_default": {"visible_bounds": Rect2(1, 148, 511, 619), "target_base_width": 128.0, "scale": 1.0, "offset": Vector2.ZERO},
+	"wall_concrete_low": {"visible_bounds": Rect2(0, 353, 512, 415), "target_base_width": 128.0, "scale": 1.0, "offset": Vector2.ZERO},
+	"wall_concrete_halflow": {"visible_bounds": Rect2(0, 239, 511, 534), "target_base_width": 128.0, "scale": 1.0, "offset": Vector2.ZERO},
+	"wall_concrete_mid": {"visible_bounds": Rect2(1, 148, 511, 619), "target_base_width": 128.0, "scale": 1.0, "offset": Vector2.ZERO},
+	"wall_concrete_halfmid": {"visible_bounds": Rect2(1, 63, 511, 704), "target_base_width": 128.0, "scale": 1.0, "offset": Vector2.ZERO},
+	"wall_concrete_tall": {"visible_bounds": Rect2(1, 0, 511, 767), "target_base_width": 128.0, "scale": 1.0, "offset": Vector2.ZERO},
+	"wall_steel_low": {"visible_bounds": Rect2(0, 353, 512, 415), "target_base_width": 128.0, "scale": 1.0, "offset": Vector2.ZERO},
+	"wall_steel_halflow": {"visible_bounds": Rect2(0, 239, 511, 534), "target_base_width": 128.0, "scale": 1.0, "offset": Vector2.ZERO},
+	"wall_steel_mid": {"visible_bounds": Rect2(1, 148, 511, 619), "target_base_width": 128.0, "scale": 1.0, "offset": Vector2.ZERO},
+	"wall_steel_halfmid": {"visible_bounds": Rect2(1, 63, 511, 704), "target_base_width": 128.0, "scale": 1.0, "offset": Vector2.ZERO},
+	"wall_steel_tall": {"visible_bounds": Rect2(1, 0, 511, 767), "target_base_width": 128.0, "scale": 1.0, "offset": Vector2.ZERO},
+	"wall_titan_low": {"visible_bounds": Rect2(0, 353, 512, 415), "target_base_width": 128.0, "scale": 1.0, "offset": Vector2.ZERO},
+	"wall_titan_halflow": {"visible_bounds": Rect2(0, 239, 511, 534), "target_base_width": 128.0, "scale": 1.0, "offset": Vector2.ZERO},
+	"wall_titan_mid": {"visible_bounds": Rect2(1, 148, 511, 619), "target_base_width": 128.0, "scale": 1.0, "offset": Vector2.ZERO},
+	"wall_titan_halfmid": {"visible_bounds": Rect2(1, 63, 511, 704), "target_base_width": 128.0, "scale": 1.0, "offset": Vector2.ZERO},
+	"wall_titan_tall": {"visible_bounds": Rect2(1, 0, 511, 767), "target_base_width": 128.0, "scale": 1.0, "offset": Vector2.ZERO},
+	"wall_reinforced_steel_low": {"visible_bounds": Rect2(0, 353, 512, 415), "target_base_width": 128.0, "scale": 1.0, "offset": Vector2.ZERO},
+	"wall_reinforced_steel_halflow": {"visible_bounds": Rect2(0, 239, 511, 534), "target_base_width": 128.0, "scale": 1.0, "offset": Vector2.ZERO},
+	"wall_reinforced_steel_mid": {"visible_bounds": Rect2(1, 148, 511, 619), "target_base_width": 128.0, "scale": 1.0, "offset": Vector2.ZERO},
+	"wall_reinforced_steel_halfmid": {"visible_bounds": Rect2(1, 63, 511, 704), "target_base_width": 128.0, "scale": 1.0, "offset": Vector2.ZERO},
+	"wall_reinforced_steel_tall": {"visible_bounds": Rect2(1, 0, 511, 767), "target_base_width": 128.0, "scale": 1.0, "offset": Vector2.ZERO},
+	"wall_brick_low": {"visible_bounds": Rect2(0, 353, 512, 415), "target_base_width": 128.0, "scale": 1.0, "offset": Vector2.ZERO},
+	"wall_brick_halflow": {"visible_bounds": Rect2(0, 239, 511, 534), "target_base_width": 128.0, "scale": 1.0, "offset": Vector2.ZERO},
+	"wall_brick_mid": {"visible_bounds": Rect2(1, 148, 511, 619), "target_base_width": 128.0, "scale": 1.0, "offset": Vector2.ZERO},
+	"wall_brick_halfmid": {"visible_bounds": Rect2(1, 63, 511, 704), "target_base_width": 128.0, "scale": 1.0, "offset": Vector2.ZERO},
+	"wall_brick_tall": {"visible_bounds": Rect2(1, 0, 511, 767), "target_base_width": 128.0, "scale": 1.0, "offset": Vector2.ZERO},
+	"wall_outer_low": {"visible_bounds": Rect2(0, 353, 512, 415), "target_base_width": 128.0, "scale": 1.0, "offset": Vector2.ZERO},
+	"wall_outer_halflow": {"visible_bounds": Rect2(0, 239, 511, 534), "target_base_width": 128.0, "scale": 1.0, "offset": Vector2.ZERO},
+	"wall_outer_mid": {"visible_bounds": Rect2(1, 148, 511, 619), "target_base_width": 128.0, "scale": 1.0, "offset": Vector2.ZERO},
+	"wall_outer_halfmid": {"visible_bounds": Rect2(1, 63, 511, 704), "target_base_width": 128.0, "scale": 1.0, "offset": Vector2.ZERO},
+	"wall_outer_tall": {"visible_bounds": Rect2(1, 0, 511, 767), "target_base_width": 128.0, "scale": 1.0, "offset": Vector2.ZERO},
+	"wall_grate_mid": {"visible_bounds": Rect2(1, 148, 511, 619), "target_base_width": 128.0, "scale": 1.0, "offset": Vector2.ZERO},
+	"wall_grate_halfmid": {"visible_bounds": Rect2(1, 63, 511, 704), "target_base_width": 128.0, "scale": 1.0, "offset": Vector2.ZERO},
+	"wall_grate_tall": {"visible_bounds": Rect2(1, 0, 511, 767), "target_base_width": 128.0, "scale": 1.0, "offset": Vector2.ZERO}
 }
 
 const ISO_FLOOR_ATLAS_COLUMNS: int = 6
@@ -1444,110 +1502,114 @@ func get_iso_wall_asset_key_for_profile(profile_key: String) -> String:
 func get_iso_wall_asset_catalog() -> Dictionary:
 	return ISO_WALL_ASSET_CATALOG.duplicate()
 
-func normalize_wall_asset_key(profile_key: String) -> String:
+func normalize_wall_material_asset_base_key(profile_key: String) -> String:
 	var normalized_key: String = profile_key.strip_edges().to_lower()
 	normalized_key = normalized_key.replace(" ", "_")
 	normalized_key = normalized_key.replace("-", "_")
 	normalized_key = normalized_key.replace("default_wall", "wall_default")
 	match normalized_key:
-		"gray_tallest", "wall_gray_tallest", "wall_gray_tallest_01":
-			return "wall_gray_tallest"
-		"gray_tall", "wall_gray_tall", "wall_gray_tall_01":
-			return "wall_gray_tall"
-		"gray_mid", "wall_gray_mid", "wall_gray_mid_01":
-			return "wall_gray_mid"
-		"gray_halfmid", "wall_gray_halfmid", "wall_gray_halfmid_01":
-			return "wall_gray_halfmid"
-		"gray_low", "wall_gray_low", "wall_gray_low_01":
-			return "wall_gray_low"
 		"", "wall", "default", "wall_default":
-			return "wall_default"
-		"outer", "outerwall", "outer_wall", "wall_outer":
+			return "wall_concrete"
+		"outer", "outerwall", "outer_wall", "wall_outer", "wall_outerwall":
 			return "wall_outer"
-		"brick", "brick_wall", "wall_brick":
+		"brick", "brick_wall", "wall_brick", "brick_damaged", "damaged_brick", "brick_damage", "brick_damaged_wall", "wall_brick_damaged":
 			return "wall_brick"
-		"concrete", "concrete_wall", "wall_concrete":
+		"concrete", "concrete_wall", "wall_concrete", "damaged", "damaged_wall", "wall_damaged", "concrete_damaged", "concrete_damage", "damaged_concrete", "concrete_damaged_wall", "wall_concrete_damaged":
 			return "wall_concrete"
 		"grate", "grate_wall", "wall_grate":
 			return "wall_grate"
-		"damaged", "damaged_wall", "wall_damaged", "concrete_damaged", "damaged_concrete", "concrete_damaged_wall", "wall_concrete_damaged":
-			return "wall_concrete_damaged"
-		"brick_damaged", "damaged_brick", "brick_damaged_wall", "wall_brick_damaged":
-			return "wall_brick_damaged"
 		"steel", "steel_wall", "wall_steel":
 			return "wall_steel"
-		"reinforced", "reinforced_steel", "reinforced_steel_wall", "wall_reinforced_steel":
+		"reinforced", "reinforced_steel", "reinforce_steel", "reinforcesteel", "reinforced_steel_wall", "wall_reinforced", "wall_reinforced_steel", "wall_reinforce_steel", "wall_reinforcesteel":
 			return "wall_reinforced_steel"
-		"titan", "titanium", "titanium_wall", "wall_titanium":
-			return "wall_titanium"
+		"titan", "titanium", "titan_wall", "titanium_wall", "wall_titan", "wall_titanium":
+			return "wall_titan"
 		"energy", "energy_flow", "energy_wall", "wall_energy":
-			return "wall_energy"
-	return "wall_default"
+			return "wall_steel"
+	return "wall_concrete"
+
+func normalize_wall_asset_key(profile_key: String) -> String:
+	var normalized_key: String = profile_key.strip_edges().to_lower()
+	normalized_key = normalized_key.replace(" ", "_")
+	normalized_key = normalized_key.replace("-", "_")
+	normalized_key = normalized_key.replace("_01", "")
+	match normalized_key:
+		"gray_tallest", "wall_gray_tallest":
+			return "wall_gray_tallest"
+		"gray_tall", "wall_gray_tall":
+			return "wall_gray_tall"
+		"gray_mid", "wall_gray_mid":
+			return "wall_gray_mid"
+		"gray_halfmid", "wall_gray_halfmid":
+			return "wall_gray_halfmid"
+		"gray_low", "wall_gray_low":
+			return "wall_gray_low"
+	if ISO_WALL_ASSET_CATALOG.has(normalized_key):
+		return normalized_key
+	var base_key: String = normalize_wall_material_asset_base_key(normalized_key)
+	return get_wall_asset_key_for_material_and_height(base_key, "mid")
 
 func get_iso_wall_explicit_texture_for_asset_key(asset_key: String) -> Texture2D:
-	match asset_key:
-		"wall_default":
-			return iso_wall_default_texture
+	var base_key: String = normalize_wall_material_asset_base_key(asset_key)
+	match base_key:
+		"wall_concrete":
+			return iso_wall_concrete_texture
 		"wall_outer":
 			return iso_wall_outer_texture
 		"wall_brick":
 			return iso_wall_brick_texture
-		"wall_concrete":
-			return iso_wall_concrete_texture
 		"wall_grate":
 			return iso_wall_grate_texture
-		"wall_steel", "wall_reinforced_steel", "wall_titanium":
+		"wall_steel", "wall_reinforced_steel", "wall_titan":
 			return iso_wall_steel_texture
-		"wall_energy":
-			return iso_wall_energy_texture
 	return null
 
 func get_iso_wall_texture_for_asset_key(asset_key: String) -> Texture2D:
+	var normalized_key: String = normalize_wall_asset_key(asset_key)
 	var catalog: Dictionary = get_iso_wall_asset_catalog()
-	if catalog.has(asset_key):
-		if _iso_wall_asset_texture_cache.has(asset_key):
-			var cached_value: Variant = _iso_wall_asset_texture_cache.get(asset_key)
+	if catalog.has(normalized_key):
+		if _iso_wall_asset_texture_cache.has(normalized_key):
+			var cached_value: Variant = _iso_wall_asset_texture_cache.get(normalized_key)
 			if cached_value is Texture2D:
 				return cached_value as Texture2D
-		else:
-			var asset_file: String = str(catalog.get(asset_key, ""))
-			var texture_path: String = (ISO_TEST_ASSET_PACK_DIR if asset_key.begins_with("wall_gray_") else ISO_WALL_ASSET_PACK_DIR) + asset_file
-			if ResourceLoader.exists(texture_path):
-				var loaded_resource: Resource = ResourceLoader.load(texture_path)
-				if loaded_resource is Texture2D:
-					var loaded_texture: Texture2D = loaded_resource as Texture2D
-					_iso_wall_asset_texture_cache[asset_key] = loaded_texture
-					return loaded_texture
-			_iso_wall_asset_texture_cache[asset_key] = null
-	var explicit_texture: Texture2D = get_iso_wall_explicit_texture_for_asset_key(asset_key)
+			return null
+		var asset_file: String = str(catalog.get(normalized_key, ""))
+		var pack_dir: String = ISO_WALL_ASSET_PACK_DIR
+		if normalized_key.begins_with("wall_gray_"):
+			pack_dir = ISO_TEST_ASSET_PACK_DIR
+		var texture_path: String = pack_dir + asset_file
+		if ResourceLoader.exists(texture_path):
+			var loaded_resource: Resource = ResourceLoader.load(texture_path)
+			if loaded_resource is Texture2D:
+				var loaded_texture: Texture2D = loaded_resource as Texture2D
+				_iso_wall_asset_texture_cache[normalized_key] = loaded_texture
+				return loaded_texture
+		_iso_wall_asset_texture_cache[normalized_key] = null
+	var explicit_texture: Texture2D = get_iso_wall_explicit_texture_for_asset_key(normalized_key)
 	if explicit_texture != null:
 		return explicit_texture
-	match asset_key:
-		"wall_concrete_damaged":
-			return get_iso_wall_texture_for_asset_key("wall_concrete")
-		"wall_brick_damaged":
-			return get_iso_wall_texture_for_asset_key("wall_brick")
-		"wall_outer", "wall_energy":
-			return get_iso_wall_texture_for_asset_key("wall_default")
-		"wall_reinforced_steel", "wall_titanium":
-			return get_iso_wall_texture_for_asset_key("wall_steel")
-	if asset_key != "wall_default":
-		return get_iso_wall_texture_for_asset_key("wall_default")
+	if normalized_key != "wall_concrete_mid":
+		return get_iso_wall_texture_for_asset_key("wall_concrete_mid")
 	return null
 
 func get_iso_wall_texture_for_profile(profile_key: String) -> Texture2D:
 	return get_iso_wall_texture_for_asset_key(normalize_wall_asset_key(profile_key))
 
-func get_iso_wall_asset_key_for_material_row(material_row: Dictionary, fallback_profile_key: String) -> String:
+func get_iso_wall_material_base_key_for_material_row(material_row: Dictionary, fallback_profile_key: String) -> String:
 	var texture_asset_id: String = str(material_row.get("texture_asset_id", "")).strip_edges()
 	if texture_asset_id.begins_with("wall_"):
-		return normalize_wall_asset_key(texture_asset_id)
+		return normalize_wall_material_asset_base_key(texture_asset_id)
 	var material_id: String = str(material_row.get("id", "")).strip_edges()
 	if not material_id.is_empty():
-		var material_asset_key: String = normalize_wall_asset_key(material_id)
-		if material_asset_key != "wall_default":
-			return material_asset_key
-	return normalize_wall_asset_key(fallback_profile_key)
+		return normalize_wall_material_asset_base_key(material_id)
+	return normalize_wall_material_asset_base_key(fallback_profile_key)
+
+func get_iso_wall_asset_key_for_material_row(material_row: Dictionary, fallback_profile_key: String) -> String:
+	var base_key: String = get_iso_wall_material_base_key_for_material_row(material_row, fallback_profile_key)
+	var height_level: String = normalize_wall_height_level(str(material_row.get("wall_height", material_row.get("wall_visual_height", ""))))
+	if height_level.is_empty():
+		height_level = "mid"
+	return get_wall_asset_key_for_material_and_height(base_key, height_level)
 
 func normalize_test_wall_height(value: String) -> String:
 	var normalized_value: String = value.strip_edges().to_lower()
@@ -1565,9 +1627,59 @@ func normalize_test_wall_height(value: String) -> String:
 			return "mid"
 		"halfmid", "halfmedium", "half":
 			return "halfmid"
+		"halflow", "halflowmedium", "halflowest", "halflowheight":
+			return "halfmid"
 		"short", "lowest", "low":
 			return "low"
 	return ""
+
+func normalize_wall_height_level(value: String) -> String:
+	var normalized_value: String = value.strip_edges().to_lower()
+	normalized_value = normalized_value.replace(" ", "")
+	normalized_value = normalized_value.replace("-", "")
+	normalized_value = normalized_value.replace("_", "")
+	match normalized_value:
+		"", "auto", "default":
+			return ""
+		"short", "lowest", "low":
+			return "low"
+		"halflow", "halflowheight", "halfshort", "half_low":
+			return "halflow"
+		"medium", "middle", "mid":
+			return "mid"
+		"halfmid", "halfmedium", "uppermid", "half":
+			return "halfmid"
+		"high", "tall", "highest", "tallest":
+			return "tall"
+	return ""
+
+func normalize_wall_height_level_for_material(base_key: String, height_level: String) -> String:
+	var normalized_height: String = normalize_wall_height_level(height_level)
+	if normalized_height.is_empty():
+		normalized_height = "mid"
+	if base_key == "wall_grate" and not ISO_GRATE_WALL_HEIGHT_LEVELS.has(normalized_height):
+		return "mid"
+	return normalized_height
+
+func get_wall_asset_key_for_material_and_height(material_asset_key: String, height_level: String) -> String:
+	var base_key: String = normalize_wall_material_asset_base_key(material_asset_key)
+	var normalized_height: String = normalize_wall_height_level_for_material(base_key, height_level)
+	var candidate_key: String = "%s_%s" % [base_key, normalized_height]
+	if ISO_WALL_ASSET_CATALOG.has(candidate_key):
+		return candidate_key
+	if base_key == "wall_grate":
+		return "wall_grate_mid"
+	return "wall_concrete_mid"
+
+func get_raw_wall_height_value(wall_data: Dictionary) -> String:
+	var material_data: Dictionary = Dictionary(wall_data.get("material", {}))
+	var override_data: Dictionary = Dictionary(wall_data.get("override", {}))
+	var raw_height: String = str(material_data.get("wall_height", material_data.get("wall_visual_height", "")))
+	if raw_height.is_empty():
+		raw_height = str(override_data.get("wall_height", override_data.get("wall_visual_height", "")))
+	if raw_height.is_empty():
+		raw_height = str(wall_data.get("wall_height", wall_data.get("wall_visual_height", "")))
+	return raw_height
 
 func get_iso_wall_depth_bounds() -> Dictionary:
 	if _grid_manager == null:
@@ -1607,15 +1719,39 @@ func resolve_auto_test_wall_height(cell: Vector2i, map_bounds: Dictionary = {}) 
 	band = clampi(band, 0, band_count - 1)
 	return str(ISO_TEST_WALL_HEIGHT_ORDER[band])
 
-func get_test_wall_height_asset_key(wall_data: Dictionary, cell: Vector2i, map_bounds: Dictionary = {}) -> String:
-	var override_data: Dictionary = Dictionary(wall_data.get("override", {}))
+func resolve_outer_wall_height_level(cell: Vector2i, map_bounds: Dictionary = {}) -> String:
+	var bounds: Dictionary = map_bounds
+	if bounds.is_empty():
+		bounds = get_iso_wall_depth_bounds()
+	var min_depth: int = int(bounds.get("min_depth", cell.x + cell.y))
+	var max_depth: int = int(bounds.get("max_depth", cell.x + cell.y))
+	var depth_span: int = maxi(max_depth - min_depth, 0)
+	if depth_span <= 0:
+		return "mid"
+	var depth_index: int = clampi(cell.x + cell.y - min_depth, 0, depth_span)
+	var band_count: int = ISO_OUTER_WALL_HEIGHT_ORDER.size()
+	var band: int = int(floor(float(depth_index) * float(band_count) / float(depth_span + 1)))
+	band = clampi(band, 0, band_count - 1)
+	return str(ISO_OUTER_WALL_HEIGHT_ORDER[band])
+
+func get_production_wall_height_level(wall_data: Dictionary, cell: Vector2i, material_asset_key: String, map_bounds: Dictionary = {}) -> String:
+	var explicit_height: String = normalize_wall_height_level(get_raw_wall_height_value(wall_data))
+	var resolved_height: String = explicit_height
+	if resolved_height.is_empty():
+		if normalize_wall_material_asset_base_key(material_asset_key) == "wall_outer":
+			resolved_height = resolve_outer_wall_height_level(cell, map_bounds)
+		else:
+			resolved_height = "mid"
+	return normalize_wall_height_level_for_material(normalize_wall_material_asset_base_key(material_asset_key), resolved_height)
+
+func get_production_wall_asset_key(wall_data: Dictionary, cell: Vector2i, fallback_profile_key: String, map_bounds: Dictionary = {}) -> String:
 	var material_data: Dictionary = Dictionary(wall_data.get("material", {}))
-	var raw_height: String = str(material_data.get("wall_height", material_data.get("wall_visual_height", "")))
-	if raw_height.is_empty():
-		raw_height = str(override_data.get("wall_height", override_data.get("wall_visual_height", "")))
-	if raw_height.is_empty():
-		raw_height = str(wall_data.get("wall_height", wall_data.get("wall_visual_height", "")))
-	var explicit_height: String = normalize_test_wall_height(raw_height)
+	var base_key: String = get_iso_wall_material_base_key_for_material_row(material_data, fallback_profile_key)
+	var height_level: String = get_production_wall_height_level(wall_data, cell, base_key, map_bounds)
+	return get_wall_asset_key_for_material_and_height(base_key, height_level)
+
+func get_test_wall_height_asset_key(wall_data: Dictionary, cell: Vector2i, map_bounds: Dictionary = {}) -> String:
+	var explicit_height: String = normalize_test_wall_height(get_raw_wall_height_value(wall_data))
 	var resolved_height: String = explicit_height
 	if resolved_height.is_empty():
 		resolved_height = resolve_auto_test_wall_height(cell, map_bounds)
@@ -2033,8 +2169,14 @@ func get_iso_visual_texture_debug_state() -> Dictionary:
 
 func get_iso_visual_texture_debug_keys() -> Array[String]:
 	return [
-		"floor_default", "floor_stepped", "floor_clean_lab", "floor_dark_service", "floor_hazard", "floor_power", "floor_damaged", "floor_reinforced", "floor_diagnostic", "floor_door_underlay",
-		"wall_default", "wall_outer", "wall_brick", "wall_concrete", "wall_grate", "wall_concrete_damaged", "wall_brick_damaged", "wall_steel", "wall_energy",
+		"floor_concrete", "floor_steel", "floor_titan", "floor_default", "floor_stepped", "floor_clean_lab", "floor_dark_service", "floor_hazard", "floor_power", "floor_damaged", "floor_reinforced", "floor_diagnostic", "floor_door_underlay",
+		"wall_concrete_low", "wall_concrete_halflow", "wall_concrete_mid", "wall_concrete_halfmid", "wall_concrete_tall",
+		"wall_steel_low", "wall_steel_halflow", "wall_steel_mid", "wall_steel_halfmid", "wall_steel_tall",
+		"wall_titan_low", "wall_titan_halflow", "wall_titan_mid", "wall_titan_halfmid", "wall_titan_tall",
+		"wall_reinforced_steel_low", "wall_reinforced_steel_halflow", "wall_reinforced_steel_mid", "wall_reinforced_steel_halfmid", "wall_reinforced_steel_tall",
+		"wall_brick_low", "wall_brick_halflow", "wall_brick_mid", "wall_brick_halfmid", "wall_brick_tall",
+		"wall_outer_low", "wall_outer_halflow", "wall_outer_mid", "wall_outer_halfmid", "wall_outer_tall",
+		"wall_grate_mid", "wall_grate_halfmid", "wall_grate_tall",
 		"object_door", "object_terminal", "object_key", "object_component", "object_socket", "object_cable", "object_generic",
 		"object_fuse", "object_repair_kit", "object_keycard", "object_access_code", "object_cable_reel", "object_button", "object_switch"
 	]
@@ -2121,8 +2263,12 @@ func get_iso_visual_cell_stats() -> Dictionary:
 			if is_wall_tile(tile_type):
 				stats["wall_cells"] = int(stats.get("wall_cells", 0)) + 1
 				var wall_profile_key: String = get_wall_visual_profile_key_for_cell(cell)
+				var wall_material_override: Dictionary = _get_wall_material_override_for_cell(cell)
+				var wall_asset_key: String = get_production_wall_asset_key(wall_material_override, cell, wall_profile_key, get_iso_wall_depth_bounds())
+				if use_gray_room_visual_test_assets:
+					wall_asset_key = get_test_wall_height_asset_key(wall_material_override, cell, get_iso_wall_depth_bounds())
 				_increment_iso_debug_count(wall_profile_counts, wall_profile_key)
-				_increment_iso_debug_count(asset_key_counts, get_iso_wall_asset_key_for_profile(wall_profile_key))
+				_increment_iso_debug_count(asset_key_counts, wall_asset_key)
 			if is_iso_object_tile(tile_type):
 				stats["object_cells"] = int(stats.get("object_cells", 0)) + 1
 				var object_profile_key: String = get_iso_object_profile_key_for_tile(tile_type)
@@ -2544,16 +2690,16 @@ func can_draw_optional_visual_texture_asset(asset_id: String) -> bool:
 	var loaded: Resource = load(texture_path)
 	return loaded != null and (loaded is Texture2D)
 
-func has_drawable_iso_wall_texture(material_override: Dictionary, material_row: Dictionary, wall_profile_key: String) -> bool:
-	var wall_asset_key: String = wall_profile_key
-	if bool(material_override.get("ok", false)):
-		wall_asset_key = get_iso_wall_asset_key_for_material_row(material_row, wall_profile_key)
+func has_drawable_iso_wall_texture(material_override: Dictionary, _material_row: Dictionary, wall_profile_key: String) -> bool:
+	var wall_asset_key: String = get_production_wall_asset_key(material_override, Vector2i.ZERO, wall_profile_key)
+	if use_gray_room_visual_test_assets:
+		wall_asset_key = get_test_wall_height_asset_key(material_override, Vector2i.ZERO)
 	return get_iso_wall_texture_for_profile(wall_asset_key) != null
 
-func draw_iso_wall_texture_for_cell(cell: Vector2i, material_override: Dictionary, material_row: Dictionary, wall_profile_key: String) -> bool:
-	var wall_asset_key: String = wall_profile_key
-	if bool(material_override.get("ok", false)):
-		wall_asset_key = get_iso_wall_asset_key_for_material_row(material_row, wall_profile_key)
+func draw_iso_wall_texture_for_cell(cell: Vector2i, material_override: Dictionary, _material_row: Dictionary, wall_profile_key: String) -> bool:
+	var wall_asset_key: String = get_production_wall_asset_key(material_override, cell, wall_profile_key, get_iso_wall_depth_bounds())
+	if use_gray_room_visual_test_assets:
+		wall_asset_key = get_test_wall_height_asset_key(material_override, cell, get_iso_wall_depth_bounds())
 	return draw_iso_wall_asset_texture_for_cell(cell, wall_asset_key, get_wall_render_topology(cell))
 
 func get_wall_prototype_colors(cell: Vector2i) -> Dictionary:
@@ -3141,7 +3287,7 @@ func draw_iso_wall_block(cell: Vector2i) -> void:
 	var floor_shadow: PackedVector2Array = PackedVector2Array([base_points[2], base_points[3], base_points[3] + Vector2(0.0, 8.0), base_points[2] + Vector2(0.0, 8.0)])
 	var accent_color: Color = _get_color_from_dict(colors, "accent", Color.WHITE)
 
-	var wall_asset_key: String = get_iso_wall_asset_key_for_material_row(material_row, wall_profile_key)
+	var wall_asset_key: String = get_production_wall_asset_key(material_override, cell, wall_profile_key, get_iso_wall_depth_bounds())
 	if use_gray_room_visual_test_assets:
 		wall_asset_key = get_test_wall_height_asset_key(material_override, cell, get_iso_wall_depth_bounds())
 	if draw_iso_wall_asset_texture_for_cell(cell, wall_asset_key, render_topology):

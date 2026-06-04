@@ -256,7 +256,7 @@ static func add_wall_coverage_section(ui: Variant, parent: VBoxContainer, entity
 			wall_section.add_child(description_label)
 			var visual_test_note: Label = Label.new()
 			visual_test_note.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
-			visual_test_note.text = "Current visual test mode uses gray test wall assets for all materials."
+			visual_test_note.text = "Production visual mode uses real floor/wall PNG assets; gray assets remain only as an optional debug fallback."
 			wall_section.add_child(visual_test_note)
 			var selected_wall_height: String = ""
 			if ui.mission_manager_runtime != null and ui.mission_manager_runtime.has_method("get_map_constructor_wall_material"):
@@ -266,10 +266,10 @@ static func add_wall_coverage_section(ui: Variant, parent: VBoxContainer, entity
 			var height_option: OptionButton = OptionButton.new()
 			var height_rows: Array[Dictionary] = [
 				{"id":"", "label":"Auto"},
-				{"id":"tallest", "label":"Tallest"},
 				{"id":"tall", "label":"Tall"},
-				{"id":"mid", "label":"Mid"},
 				{"id":"halfmid", "label":"Half Mid"},
+				{"id":"mid", "label":"Mid"},
+				{"id":"halflow", "label":"Half Low"},
 				{"id":"low", "label":"Low"}
 			]
 			for height_row_variant in height_rows:
