@@ -188,7 +188,11 @@ These are safer candidates for the next code PR:
 4. Add docs/comments marking terminal execution as separate from scan/hack evaluation.
 5. Replace any unsafe `:=` or untyped Variant locals in scan/hack service if found by safety gates.
 
-## Recommended next code PR
+## Status update — UICTRL-RF-07A
+
+UICTRL-RF-07A moved scan/hack device capability evaluation into `BipobScanHackService.evaluate_device_capability(controller, device)`. `BipobController.evaluate_device_capability(device)` remains as a public compatibility wrapper, and terminal control execution remains outside scan/hack evaluation.
+
+## UICTRL-RF-07A code PR
 
 **UICTRL-RF-07A — Thin Bipob scan/hack wrappers to BipobScanHackService**
 
@@ -215,7 +219,7 @@ Acceptance:
 - inventory/key checks remain through existing controller/inventory boundaries;
 - no scan/hack behavior changes.
 
-## Required checks for the next code PR
+## Required checks for UICTRL-RF-07A
 
 Run:
 

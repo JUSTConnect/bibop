@@ -46,7 +46,9 @@ static func get_facing_device_interaction_preflight(controller: Variant, action_
 			resolved_action_id = str(Dictionary(view_model_variant).get("primary_action_id", ""))
 	var actor: Dictionary = controller._build_runtime_action_actor(target_object, target_cell)
 	var preflight_variant: Variant = controller.mission_manager.call("build_device_interaction_preflight", target_object, target_cell, resolved_action_id, actor)
-	return Dictionary(preflight_variant) if typeof(preflight_variant) == TYPE_DICTIONARY else {}
+	if typeof(preflight_variant) == TYPE_DICTIONARY:
+		return Dictionary(preflight_variant)
+	return {}
 
 static func get_facing_device_interaction_state_flow(controller: Variant, action_id: String = "") -> Dictionary:
 	if controller.mission_manager == null or not controller.mission_manager.has_method("build_device_interaction_state_flow"):
@@ -64,11 +66,77 @@ static func get_facing_device_interaction_state_flow(controller: Variant, action
 			resolved_action_id = str(Dictionary(view_model_variant).get("primary_action_id", ""))
 	var actor: Dictionary = controller._build_runtime_action_actor(target_object, target_cell)
 	var flow_variant: Variant = controller.mission_manager.call("build_device_interaction_state_flow", target_object, target_cell, resolved_action_id, actor)
-	return Dictionary(flow_variant) if typeof(flow_variant) == TYPE_DICTIONARY else {}
+	if typeof(flow_variant) == TYPE_DICTIONARY:
+		return Dictionary(flow_variant)
+	return {}
+
+static func evaluate_device_capability(controller: Variant, device: DeviceDefinition) -> DiagnosticResult:
+	var result: DiagnosticResult = DiagnosticResult.new()
+
+	if device == null:
+		result.status = DiagnosticResult.STATUS_BLOCKED
+		result.device_type = ""
+		result.device_name = "Unknown"
+		result.supported_action = ""
+		result.reason = "No device detected."
+		result.recommendation = "Face a digital device and scan again."
+		result.estimated_risk = "none"
+		return result
+
+	if not controller.has_required_interface(device.required_interface):
+		result.status = DiagnosticResult.STATUS_BLOCKED
+		result.device_type = device.device_type
+		result.device_name = device.display_name
+		result.supported_action = device.supported_action
+		result.reason = "Missing required interface: " + device.required_interface
+		result.recommendation = "Install Interface V1 or compatible module."
+		result.estimated_risk = "low"
+		return result
+
+	if device.device_type == "airflow_terminal":
+		result.device_type = device.device_type
+		result.device_name = device.display_name
+		result.supported_action = device.supported_action
+		if not controller.mission8_terminal_cooled:
+			result.status = DiagnosticResult.STATUS_BLOCKED
+			result.reason = "Terminal heat is too high without airflow."
+			result.recommendation = "Rotate the fan platform and increase fan speed until airflow reaches the terminal."
+			result.estimated_risk = "high"
+			return result
+		result.status = DiagnosticResult.STATUS_READY
+		result.reason = "Terminal cooled by directed airflow."
+		result.recommendation = "Proceed with Hack Device."
+		result.estimated_risk = "low"
+		return result
+
+	if device.device_type == "hot_node":
+		result.device_type = device.device_type
+		result.device_name = device.display_name
+		result.supported_action = device.supported_action
+		if controller.has_cooling_support():
+			result.status = DiagnosticResult.STATUS_READY
+			result.reason = "Cooling support detected."
+			result.recommendation = "Hack Device can stabilize the node safely."
+			result.estimated_risk = "low"
+			return result
+		result.status = DiagnosticResult.STATUS_RISKY
+		result.reason = "No cooling support installed."
+		result.recommendation = "Install Cooling V1 or proceed with extra energy cost."
+		result.estimated_risk = "medium"
+		return result
+
+	result.status = DiagnosticResult.STATUS_READY
+	result.device_type = device.device_type
+	result.device_name = device.display_name
+	result.supported_action = device.supported_action
+	result.reason = "Current build can interact with this device."
+	result.recommendation = "Proceed with Hack Device."
+	result.estimated_risk = "low"
+	return result
 
 static func evaluate_facing_device_capability(controller: Variant) -> DiagnosticResult:
 	var device: DeviceDefinition = controller.get_facing_device_definition()
-	controller.last_diagnostic_result = controller.evaluate_device_capability(device)
+	controller.last_diagnostic_result = evaluate_device_capability(controller, device)
 	print(
 		"Capability check | Status: ",
 		controller.last_diagnostic_result.status,
@@ -93,7 +161,7 @@ static func scan_device(controller: Variant) -> void:
 			# If GPU overheats, the attempted scan still costs action and reveals no new data.
 			controller.spend_action(1, 1)
 			var scan_type: String = controller.get_world_scan_type_from_installed_modules()
-			var overheat_action_id := ""
+			var overheat_action_id: String = ""
 			if scan_type == "xray":
 				overheat_action_id = "xray"
 			elif scan_type == "thermal":
@@ -126,7 +194,7 @@ static func scan_device(controller: Variant) -> void:
 
 	var device: DeviceDefinition = controller.get_facing_device_definition()
 	if device == null:
-		var blocked_result := DiagnosticResult.new()
+		var blocked_result: DiagnosticResult = DiagnosticResult.new()
 		blocked_result.status = DiagnosticResult.STATUS_BLOCKED
 		blocked_result.device_name = "Unknown"
 		blocked_result.reason = "No digital device detected."
@@ -195,7 +263,7 @@ static func hack_device(controller: Variant) -> void:
 			controller.hint_requested.emit("Terminal overheated. Hack failed.")
 			controller.status_changed.emit()
 			return
-		var hack_heat := maxi(0, int(hack_world_object.get("hack_heat", 1)))
+		var hack_heat: int = maxi(0, int(hack_world_object.get("hack_heat", 1)))
 		if WorldObjectCatalogRef.would_world_object_overheat_with_temporary_heat(hack_world_object, hack_heat):
 			controller.spend_action(1, 1)
 			hack_world_object["current_heat"] = WorldObjectCatalogRef.get_world_object_current_heat(hack_world_object)
@@ -236,7 +304,7 @@ static func hack_device(controller: Variant) -> void:
 			controller.status_changed.emit()
 			return
 		"stabilize_hot_node":
-			var energy_cost := 1
+			var energy_cost: int = 1
 			if controller.last_diagnostic_result.status == DiagnosticResult.STATUS_RISKY:
 				energy_cost = 3
 			if not controller.can_spend_action(1, energy_cost):
@@ -246,7 +314,7 @@ static func hack_device(controller: Variant) -> void:
 			controller.grid_manager.set_tile(hot_node_position, GridManager.TILE_FLOOR)
 			var adjacent_offsets: Array[Vector2i] = [Vector2i(1, 0), Vector2i(-1, 0), Vector2i(0, 1), Vector2i(0, -1)]
 			for offset in adjacent_offsets:
-				var adjacent_position := hot_node_position + offset
+				var adjacent_position: Vector2i = hot_node_position + offset
 				if controller.grid_manager.get_tile(adjacent_position) == GridManager.TILE_DIGITAL_DOOR:
 					controller.grid_manager.set_tile(adjacent_position, GridManager.TILE_FLOOR)
 			if controller.last_diagnostic_result.status == DiagnosticResult.STATUS_RISKY:
