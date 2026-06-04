@@ -41,17 +41,11 @@ const EXTERNAL_SIDE_ORDER := [
 ]
 const EXTERNAL_CATEGORY_MAP := {"movement":"Gear","sensor":"Sensors","manipulator":"Manipulator","connector":"Interface","tool":"Tools","repair":"Tools","weapon":"Weapons","armor":"Defense","other":"Other"}
 const MissionManagerScript = preload("res://scripts/game/mission_manager.gd")
-const InteractionSystemRef = preload("res://scripts/world/interaction_system.gd")
 const PowerSystemRef = preload("res://scripts/world/power_system.gd")
 const BipobModulePresenterRef = preload("res://scripts/bipob/bipob_module_presenter.gd")
 const BipobTargetingServiceRef = preload("res://scripts/game/bipob_targeting_service.gd")
-const BipobActionViewModelServiceRef = preload("res://scripts/game/bipob_action_view_model_service.gd")
+const BipobActionControllerRef = preload("res://scripts/bipob/bipob_action_controller.gd")
 const BipobCapabilityServiceRef = preload("res://scripts/game/bipob_capability_service.gd")
-const BipobRuntimeActionActorServiceRef = preload("res://scripts/game/bipob_runtime_action_actor_service.gd")
-const BipobTerminalControlExecutionServiceRef = preload("res://scripts/game/bipob_terminal_control_execution_service.gd")
-const BipobHeavyClawExecutionServiceRef = preload("res://scripts/game/bipob_heavy_claw_execution_service.gd")
-const BipobWorldObjectExecutionServiceRef = preload("res://scripts/game/bipob_world_object_execution_service.gd")
-const BipobItemPickupExecutionServiceRef = preload("res://scripts/game/bipob_item_pickup_execution_service.gd")
 const BipobLegacyTileInteractionServiceRef = preload("res://scripts/game/bipob_legacy_tile_interaction_service.gd")
 const BipobLegacyCableFlowServiceRef = preload("res://scripts/game/bipob_legacy_cable_flow_service.gd")
 const BipobLegacyAirflowFlowServiceRef = preload("res://scripts/game/bipob_legacy_airflow_flow_service.gd")
@@ -1122,13 +1116,13 @@ func _ready() -> void:
 
 	energy = max_energy
 	actions_left = actions_per_turn
-	
+
 	if mission_label != null:
 		mission_label.text = ""
-	
+
 	setup_body()
 	_setup_cycle_world_action_input()
-	
+
 	grid_position = start_grid_position
 	update_visual_facing()
 	if debug_place_hidden_route_node:
@@ -5448,7 +5442,7 @@ func get_constructor_final_audit_text() -> String:
 	return "\n".join(lines)
 func rebuild_internal_modules_by_cell() -> void:
 	pass
-	
+
 func get_repair_planning_reference_text() -> String:
 	var lines: Array[String] = []
 
@@ -6103,7 +6097,7 @@ func _unhandled_input(event: InputEvent) -> void:
 		return
 	if map_constructor_input_blocked:
 		return
-	
+
 	if event.is_action_pressed("end_turn"):
 		end_turn()
 	elif event.is_action_pressed("interact"):
@@ -6632,22 +6626,22 @@ func can_spend_action(action_cost: int, energy_cost: int) -> bool:
 		print("Not enough actions. Press Space to end turn.")
 		hint_requested.emit("No actions left. Press Space to end turn.")
 		return false
-	
+
 	if energy < energy_cost:
 		print("Not enough energy.")
 		hint_requested.emit("Not enough energy. Return to the box and use Charge.")
 		return false
-	
+
 	return true
 
 
 func spend_action(action_cost: int, energy_cost: int) -> void:
 	actions_left -= action_cost
 	energy -= energy_cost
-	
+
 	print_status()
 	status_changed.emit()
-	
+
 	if energy <= 0:
 		print("Energy depleted. Mission failed.")
 		mission_failed.emit()
@@ -6791,7 +6785,7 @@ func register_successful_movement_cells(cell_count: int, surface_id: String, cel
 		if energy <= 0:
 			print("Energy depleted. Mission failed.")
 			mission_failed.emit()
-	
+
 func check_mission_complete() -> void:
 	if is_sandbox_completion_cell(grid_position):
 		complete_sandbox_run("exit_tile")
@@ -6984,13 +6978,13 @@ func emit_facing_world_object_hint() -> void:
 	return
 
 func get_facing_world_action_target() -> Dictionary:
-	return BipobTargetingServiceRef.build_action_target_context(self)
+	return BipobActionControllerRef.get_facing_world_action_target(self)
 
 func get_facing_world_object() -> Dictionary:
-	return BipobTargetingServiceRef.get_facing_object(self)
+	return BipobActionControllerRef.get_facing_world_object(self)
 
 func get_facing_world_item() -> Dictionary:
-	return BipobTargetingServiceRef.get_facing_item(self)
+	return BipobActionControllerRef.get_facing_world_item(self)
 
 func get_facing_device_diagnostic_result() -> Dictionary:
 	return BipobScanHackServiceRef.get_facing_device_diagnostic_result(self)
@@ -7002,29 +6996,13 @@ func get_facing_device_interaction_state_flow(action_id: String = "") -> Diction
 	return BipobScanHackServiceRef.get_facing_device_interaction_state_flow(self, action_id)
 
 func _build_runtime_action_actor(target_object: Dictionary, target_position: Vector2i) -> Dictionary:
-	return BipobRuntimeActionActorServiceRef.build_runtime_action_actor(self, target_object, target_position)
+	return BipobActionControllerRef.build_runtime_action_actor(self, target_object, target_position)
 
 func build_runtime_action_view_model(target_object: Dictionary, target_position: Vector2i) -> Dictionary:
-	return BipobActionViewModelServiceRef.build_runtime_action_view_model(self, target_object, target_position)
+	return BipobActionControllerRef.build_runtime_action_view_model(self, target_object, target_position)
 
 func validate_runtime_action_view_model(view_model: Dictionary) -> Array[String]:
-	var warnings: Array[String] = []
-	var actions: Array = view_model.get("actions", [])
-	var action_ids: Array[String] = []
-	for action_variant in actions:
-		if not action_variant is Dictionary:
-			warnings.append("Action descriptor is not a dictionary.")
-			continue
-		var action: Dictionary = action_variant
-		for required_field in ["id", "label", "enabled", "reason"]:
-			if not action.has(required_field): warnings.append("Action descriptor missing %s." % required_field)
-		var action_id: String = str(action.get("id", ""))
-		if action_id.is_empty(): warnings.append("Action descriptor has no executable id.")
-		else: action_ids.append(action_id)
-		if not bool(action.get("enabled", false)) and str(action.get("reason", "")).is_empty(): warnings.append("Disabled action %s has no reason." % action_id)
-	var primary_action_id: String = str(view_model.get("primary_action_id", ""))
-	if not primary_action_id.is_empty() and not action_ids.has(primary_action_id): warnings.append("Primary action is absent from actions.")
-	return warnings
+	return BipobActionControllerRef.validate_runtime_action_view_model(view_model)
 
 func get_world_action_display_label(action_id: String, object_data: Dictionary) -> String:
 	match action_id:
@@ -7074,30 +7052,11 @@ func get_world_action_display_label(action_id: String, object_data: Dictionary) 
 	return action_id.capitalize()
 
 func set_selected_world_action(action_id: String) -> void:
-	var target_data := get_facing_world_action_target()
-	var actions: Array[String] = target_data.get("actions", [])
-	if action_id.is_empty() or actions.is_empty() or not actions.has(action_id):
-		selected_world_action = ""
-		if not action_id.is_empty():
-			hint_requested.emit("Selected action is not available for this target.")
-	else:
-		selected_world_action = action_id
-	emit_facing_world_object_hint()
-	refresh_world_action_panel()
-	status_changed.emit()
+	BipobActionControllerRef.set_selected_world_action(self, action_id)
 
 func refresh_world_action_panel() -> void:
-	var target_data: Dictionary = get_facing_world_action_target()
-	var target_object: Dictionary = Dictionary(target_data.get("target_object", {}))
-	var actions: Array = Array(target_data.get("actions", []))
-	if target_object.is_empty():
-		selected_world_action = ""
-		world_action_panel_requested.emit({}, [], "")
-		return
-	if actions.is_empty() or not actions.has(selected_world_action):
-		selected_world_action = ""
-	world_action_panel_requested.emit(target_object, actions, selected_world_action)
-	
+	BipobActionControllerRef.refresh_world_action_panel(self)
+
 func update_vision() -> void:
 	if grid_manager == null:
 		return
@@ -7149,14 +7108,14 @@ func detect_hidden_route_nodes_in_vision() -> void:
 				hint_requested.emit("Hidden route-node detected. Route Data stored.")
 				status_changed.emit()
 				return
-	
+
 func charge_to_full() -> void:
 	# Box preparation action: refill battery without spending field actions/energy.
 	energy = max_energy
 	print("Bipob fully charged.")
 	hint_requested.emit("Bipob fully charged.")
 	status_changed.emit()
-		
+
 func get_forward_grid_delta_for_direction(direction_value: int) -> Vector2i:
 	match direction_value:
 		Direction.NORTH:
@@ -7272,72 +7231,11 @@ func has_cooling_support() -> bool:
 	return has_module_id("cooling_v1")
 
 func evaluate_device_capability(device: DeviceDefinition) -> DiagnosticResult:
-	var result := DiagnosticResult.new()
-
-	if device == null:
-		result.status = DiagnosticResult.STATUS_BLOCKED
-		result.device_type = ""
-		result.device_name = "Unknown"
-		result.supported_action = ""
-		result.reason = "No device detected."
-		result.recommendation = "Face a digital device and scan again."
-		result.estimated_risk = "none"
-		return result
-
-	if not has_required_interface(device.required_interface):
-		result.status = DiagnosticResult.STATUS_BLOCKED
-		result.device_type = device.device_type
-		result.device_name = device.display_name
-		result.supported_action = device.supported_action
-		result.reason = "Missing required interface: " + device.required_interface
-		result.recommendation = "Install Interface V1 or compatible module."
-		result.estimated_risk = "low"
-		return result
-
-	if device.device_type == "airflow_terminal":
-		result.device_type = device.device_type
-		result.device_name = device.display_name
-		result.supported_action = device.supported_action
-		if not mission8_terminal_cooled:
-			result.status = DiagnosticResult.STATUS_BLOCKED
-			result.reason = "Terminal heat is too high without airflow."
-			result.recommendation = "Rotate the fan platform and increase fan speed until airflow reaches the terminal."
-			result.estimated_risk = "high"
-			return result
-		result.status = DiagnosticResult.STATUS_READY
-		result.reason = "Terminal cooled by directed airflow."
-		result.recommendation = "Proceed with Hack Device."
-		result.estimated_risk = "low"
-		return result
-
-	if device.device_type == "hot_node":
-		result.device_type = device.device_type
-		result.device_name = device.display_name
-		result.supported_action = device.supported_action
-		if has_cooling_support():
-			result.status = DiagnosticResult.STATUS_READY
-			result.reason = "Cooling support detected."
-			result.recommendation = "Hack Device can stabilize the node safely."
-			result.estimated_risk = "low"
-			return result
-		result.status = DiagnosticResult.STATUS_RISKY
-		result.reason = "No cooling support installed."
-		result.recommendation = "Install Cooling V1 or proceed with extra energy cost."
-		result.estimated_risk = "medium"
-		return result
-
-	result.status = DiagnosticResult.STATUS_READY
-	result.device_type = device.device_type
-	result.device_name = device.display_name
-	result.supported_action = device.supported_action
-	result.reason = "Current build can interact with this device."
-	result.recommendation = "Proceed with Hack Device."
-	result.estimated_risk = "low"
-	return result
+	return BipobScanHackServiceRef.evaluate_device_capability(self, device)
 
 func evaluate_facing_device_capability() -> DiagnosticResult:
 	return BipobScanHackServiceRef.evaluate_facing_device_capability(self)
-	
+
 
 func open_door(door_position: Vector2i, manipulator_module: BipobModule = null) -> void:
 	if not can_use_physical_hand():
@@ -7350,7 +7248,7 @@ func open_door(door_position: Vector2i, manipulator_module: BipobModule = null) 
 		print("Door is locked. Key-card required.")
 		hint_requested.emit("Physical door locked. Find the key-card first.")
 		return
-	
+
 	if not can_spend_action(1, 0):
 		return
 	if not spend_energy_for_manipulator_action(manipulator_module):
@@ -7363,7 +7261,7 @@ func open_door(door_position: Vector2i, manipulator_module: BipobModule = null) 
 	print("Door opened.")
 	hint_requested.emit("Physical door opened. Reach the exit.")
 	print_status()
-	
+
 func open_digital_door(door_position: Vector2i) -> void:
 	if not require_command("open_digital_door", "Missing module: Interface V1 required."):
 		return
@@ -7578,44 +7476,13 @@ func get_bipob_power_class() -> String:
 	return "scout"
 
 func cycle_selected_world_action() -> void:
-	var target_data := get_facing_world_action_target()
-	var actions: Array[String] = target_data.get("actions", [])
-	if actions.is_empty():
-		selected_world_action = ""
-		var view_model: Dictionary = Dictionary(target_data.get("action_view_model", {}))
-		var unavailable_label: String = str(view_model.get("primary_action_label", ""))
-		hint_requested.emit(unavailable_label if not unavailable_label.is_empty() and unavailable_label != "Action" else "No available action for this object.")
-		refresh_world_action_panel()
-		status_changed.emit()
-		return
-	if selected_world_action.is_empty() or not actions.has(selected_world_action):
-		selected_world_action = actions[0]
-	else:
-		var idx := actions.find(selected_world_action)
-		selected_world_action = actions[(idx + 1) % actions.size()]
-	emit_facing_world_object_hint()
-	refresh_world_action_panel()
-	status_changed.emit()
+	BipobActionControllerRef.cycle_selected_world_action(self)
 
 func clear_selected_world_action_if_invalid(target_object: Dictionary, target_position: Vector2i) -> void:
-	if target_object.is_empty():
-		selected_world_action = ""
-		return
-	var view_model: Dictionary = build_runtime_action_view_model(target_object, target_position)
-	var actions: Array = Array(view_model.get("available_action_ids", []))
-	if actions.is_empty() or not actions.has(selected_world_action):
-		selected_world_action = ""
+	BipobActionControllerRef.clear_selected_world_action_if_invalid(self, target_object, target_position)
 
 func get_world_object_action_for_context(world_object: Dictionary, _active_module: BipobModule, target_position: Vector2i) -> String:
-	var view_model: Dictionary = build_runtime_action_view_model(world_object, target_position)
-	var actions: Array = Array(view_model.get("available_action_ids", []))
-	if not selected_world_action.is_empty() and actions.has(selected_world_action):
-		return selected_world_action
-	for action_variant in actions:
-		var action_id: String = str(action_variant)
-		if action_id != "connect":
-			return action_id
-	return ""
+	return BipobActionControllerRef.get_world_object_action_for_context(self, world_object, target_position)
 
 
 func get_grid_position() -> Vector2i:
@@ -7661,41 +7528,17 @@ func get_heavy_claw_move_destination(object_cell: Vector2i, actor_cell: Vector2i
 	return Vector2i(-1, -1)
 
 func has_collected_runtime_key(key_id: String) -> bool:
-	if key_id.strip_edges().is_empty() or mission_manager == null or not mission_manager.has_method("has_collected_key"):
-		return false
-	return bool(mission_manager.call("has_collected_key", key_id))
+	return BipobInventoryControllerRef.has_collected_runtime_key(self, key_id)
 
 func has_collected_mechanical_keycard() -> bool:
-	if mission_manager != null and mission_manager.has_method("has_keycard_access"):
-		return bool(mission_manager.call("has_keycard_access", "key_card"))
-	if mission_manager == null or not mission_manager.has_method("get_inventory_state"):
-		return false
-	var inventory: Dictionary = mission_manager.call("get_inventory_state")
-	var runtime_map: Dictionary = inventory.get("world_item_runtime", {})
-	var collected_key_ids: Array = inventory.get("collected_key_ids", [])
-	for key_value in collected_key_ids:
-		var key_id: String = str(key_value).strip_edges()
-		var item_runtime: Dictionary = runtime_map.get(key_id, {})
-		var item_data: Dictionary = item_runtime.get("item_data", {})
-		if not item_data.has("key_kind") and item_runtime.has("key_kind"):
-			item_data["key_kind"] = item_runtime.get("key_kind", "")
-		if WorldObjectCatalog.is_key_card_item(item_data):
-			return true
-	return false
+	return BipobInventoryControllerRef.has_collected_mechanical_keycard(self)
 
 
 func has_access_for_door(world_object: Dictionary) -> bool:
-	var access_type: String = WorldObjectCatalog.normalize_access_type(world_object.get("access_type", world_object.get("lock_type", "")))
-	var required_key_id: String = str(world_object.get("required_key_id", "")).strip_edges()
-	if access_type == WorldObjectCatalog.ACCESS_TYPE_NO_KEY or required_key_id.is_empty():
-		return true
-	return has_collected_runtime_key(required_key_id)
+	return BipobInventoryControllerRef.has_access_for_door(self, world_object)
 
 func get_collected_runtime_key_ids() -> Array:
-	if mission_manager == null or not mission_manager.has_method("get_inventory_state"):
-		return []
-	var inventory: Dictionary = Dictionary(mission_manager.call("get_inventory_state"))
-	return Array(inventory.get("collected_key_ids", []))
+	return BipobInventoryControllerRef.get_collected_runtime_key_ids(self)
 
 
 func _get_held_cable_end_metadata() -> Dictionary:
@@ -8019,139 +7862,11 @@ func interact() -> void:
 	if bool(legacy_cable_result.get("handled", false)):
 		BipobLegacyCableFlowServiceRef.apply_interact_result(self, legacy_cable_result)
 		return
-	
+
+	if BipobActionControllerRef.handle_runtime_action_interact(self, target_position, target_tile):
+		return
+
 	var active_manipulator: BipobModule = get_best_manipulator_for_interaction(target_position)
-	if mission_manager != null:
-		var pickup_execution: Dictionary = BipobItemPickupExecutionServiceRef.try_pickup_adjacent_or_current_item(self, target_position, active_manipulator)
-		if bool(pickup_execution.get("handled", false)):
-			hint_requested.emit(str(pickup_execution.get("message", "Pickup failed.")))
-			if bool(pickup_execution.get("clear_selected_action", false)):
-				clear_selected_world_action_if_invalid({}, Vector2i(pickup_execution.get("item_cell", target_position)))
-			if bool(pickup_execution.get("refresh_threats", false)):
-				update_threat_detection_preview()
-			if bool(pickup_execution.get("emit_facing_hint", false)):
-				emit_facing_world_object_hint()
-			if bool(pickup_execution.get("refresh_action_panel", false)):
-				refresh_world_action_panel()
-			if bool(pickup_execution.get("emit_status", true)):
-				status_changed.emit()
-			return
-
-		var world_object: Dictionary = Dictionary(mission_manager.get_world_object_at_cell(target_position))
-		if not world_object.is_empty():
-			var target_platform: Dictionary = Dictionary(mission_manager.get_platform_for_cell(target_position))
-			if str(world_object.get("object_group", "")) == "platform":
-				target_platform = world_object
-			var actor := {
-				"manipulator_level": get_installed_manipulator_arm_level(),
-				"heavy_claw_level": get_installed_heavy_claw_level(),
-				"connector_level": maxi(get_installed_connector_level("wired"), get_installed_connector_level("optical")),
-				"wired_connector_level": get_installed_connector_level("wired"),
-				"optical_connector_level": get_installed_connector_level("optical"),
-				"wireless_connector_level": get_installed_connector_level("wireless"),
-				"high_bandwidth_connector_level": get_installed_connector_level("high_bandwidth"),
-				"processor_level": get_installed_processor_level(),
-				"firewall_module_v1": has_module_id("firewall_module_v1"),
-				"power_class": get_bipob_power_class(),
-				"manipulator_occupied": not can_use_physical_hand(),
-				"pocket_full": get_available_pocket_slots() <= 0,
-				"range_to_target": 1,
-				"is_straight_line": true,
-				"magnetic_path_blocked": false,
-				"target_is_grate": world_object.get("object_type", "") == "grate_wall",
-				"facing_direction": get_direction_vector(direction),
-				"target_position": target_position,
-				"actor_position": grid_position,
-				"platform_switch_access": mission_manager.can_bipob_access_platform_switch(target_platform, grid_position, get_direction_id(direction)),
-				"collected_key_ids": get_collected_runtime_key_ids()
-			}
-			var action_id := get_world_object_action_for_context(world_object, active_manipulator, target_position)
-			var _available_actions := get_available_world_actions(world_object, target_position)
-			var module := get_world_action_module(action_id, world_object)
-			if str(world_object.get("object_group", "")) == "terminal" and (action_id == "hack" or action_id == "activate_platform") and not _is_terminal_powered_for_interaction(world_object):
-				hint_requested.emit("Terminal is unpowered.")
-				status_changed.emit()
-				return
-			if str(world_object.get("object_group", "")) == "platform":
-				if str(world_object.get("state", "active")) in ["unpowered", "disabled"] or not bool(world_object.get("is_powered", true)):
-					hint_requested.emit("Platform is unpowered.")
-					status_changed.emit()
-					return
-			if action_id in ["plug_in", "connect_wire_end", "connect_wire_1", "connect_wire_2"] and not _has_manipulator_cable_end():
-				hint_requested.emit("Cable reel wire end not found.")
-				status_changed.emit()
-				return
-			if action_id == "unlock" and WorldObjectCatalog.normalize_access_type(world_object.get("access_type", world_object.get("lock_type", ""))) == WorldObjectCatalog.ACCESS_TYPE_KEY_CARD and not can_use_physical_hand():
-				hint_requested.emit("Free manipulator required.")
-				status_changed.emit()
-				return
-			if action_id.is_empty():
-				var unavailable_view_model: Dictionary = build_runtime_action_view_model(world_object, target_position)
-				var unavailable_label: String = str(unavailable_view_model.get("primary_action_label", ""))
-				if WorldObjectCatalog.can_world_object_be_moved_by_heavy_claw(world_object) and not has_heavy_claw_capability():
-					hint_requested.emit("Heavy Claw required.")
-				elif not unavailable_label.is_empty() and unavailable_label != "Action":
-					hint_requested.emit(unavailable_label)
-				else:
-					hint_requested.emit("No available action for this object.")
-				status_changed.emit()
-				return
-			if mission_manager.has_method("build_device_interaction_preflight"):
-				var preflight_variant: Variant = mission_manager.call("build_device_interaction_preflight", world_object, target_position, action_id, actor)
-				if typeof(preflight_variant) == TYPE_DICTIONARY:
-					var preflight: Dictionary = preflight_variant
-					if not bool(preflight.get("preflight_ok", false)):
-						hint_requested.emit(str(preflight.get("message", "Action unavailable.")))
-						status_changed.emit()
-						return
-			if str(world_object.get("object_group", "")) == "terminal" and action_id in ["open_door", "close_door", "unlock_door"]:
-				var terminal_execution: Dictionary = BipobTerminalControlExecutionServiceRef.execute_terminal_control_action(self, world_object, target_position, action_id)
-				hint_requested.emit(str(terminal_execution.get("message", "Door control unavailable.")))
-				if bool(terminal_execution.get("refresh_action_panel", true)):
-					refresh_world_action_panel()
-				if bool(terminal_execution.get("emit_status", true)):
-					status_changed.emit()
-				return
-			if action_id in ["push", "pull"] and WorldObjectCatalog.can_world_object_be_moved_by_heavy_claw(world_object):
-				var claw_action_result: Dictionary = InteractionSystemRef.normalize_action_result(Dictionary(InteractionSystemRef.apply_action(actor, module, world_object, action_id)), world_object, action_id)
-				if not bool(claw_action_result.get("success", false)):
-					hint_requested.emit(str(claw_action_result.get("message", "Action failed.")))
-					status_changed.emit()
-					return
-				if not can_spend_action(1, 1):
-					hint_requested.emit("Not enough action/energy.")
-					status_changed.emit()
-					return
-				var claw_execution: Dictionary = BipobHeavyClawExecutionServiceRef.execute_heavy_claw_action(self, world_object, target_position, action_id)
-				hint_requested.emit(str(claw_execution.get("message", "Cannot move object there.")))
-				if bool(claw_execution.get("refresh_overlay", false)):
-					refresh_world_object_overlay()
-				if bool(claw_execution.get("refresh_threats", false)):
-					update_threat_detection_preview()
-				if bool(claw_execution.get("emit_facing_hint", false)):
-					emit_facing_world_object_hint()
-				if bool(claw_execution.get("refresh_action_panel", false)):
-					refresh_world_action_panel()
-				if bool(claw_execution.get("emit_status", true)):
-					status_changed.emit()
-				return
-			var world_execution: Dictionary = BipobWorldObjectExecutionServiceRef.execute_world_object_action(self, world_object, target_position, actor, module, action_id)
-			if bool(world_execution.get("refresh_overlay", false)):
-				refresh_world_object_overlay()
-			if bool(world_execution.get("refresh_threats", false)):
-				update_threat_detection_preview()
-			if bool(world_execution.get("clear_selected_action", false)):
-				clear_selected_world_action_if_invalid(Dictionary(world_execution.get("world_object", world_object)), target_position)
-			if bool(world_execution.get("emit_facing_hint", false)):
-				emit_facing_world_object_hint()
-			if bool(world_execution.get("refresh_action_panel", false)):
-				refresh_world_action_panel()
-			BipobWorldObjectExecutionServiceRef.finalize_world_object_action(self, world_execution)
-			hint_requested.emit(str(world_execution.get("message", "Action failed.")))
-			if bool(world_execution.get("emit_status", true)):
-				status_changed.emit()
-			return
-
 	match target_tile:
 		GridManager.TILE_COMPONENT:
 			pick_up_component(target_position, active_manipulator)
@@ -8715,20 +8430,10 @@ func infer_digital_item_family(item_type: String) -> String:
 	return BipobInventoryControllerRef.infer_digital_item_family(self, item_type)
 
 func has_digital_world_item(item_type: String, digital_state: String = "opened") -> bool:
-	var record: Dictionary = digital_world_records.get(item_type, {})
-	if record.is_empty():
-		return false
-	return str(record.get("digital_state", "opened")) == digital_state
+	return BipobInventoryControllerRef.has_digital_world_item(self, item_type, digital_state)
 
 func has_required_digital_key(world_object: Dictionary) -> bool:
-	var required_id: String = str(world_object.get("required_digital_key_id", "")).strip_edges()
-	if required_id.is_empty():
-		return has_digital_world_item("digital_key", "opened")
-	if digital_storage.has(required_id):
-		return true
-	if str(buffer_item.get("id", buffer_item.get("item_id", ""))).strip_edges() == required_id:
-		return str(buffer_item.get("digital_state", "opened")) == "opened"
-	return false
+	return BipobInventoryControllerRef.has_required_digital_key(self, world_object)
 
 func is_physical_storage_occupied() -> bool:
 	return _get_first_free_pocket_index() == -1
@@ -8786,21 +8491,7 @@ func pick_up_component(component_position: Vector2i, manipulator_module: BipobMo
 
 
 func rotate_physical_storage() -> void:
-	if mission_finished:
-		return
-
-	if not has_any_physical_item():
-		hint_requested.emit("No physical items to rotate.")
-		status_changed.emit()
-		return
-
-	if not can_spend_action(1, 0):
-		return
-
-	_rotate_first_manipulator_and_pocket()
-	spend_action(1, 0)
-	hint_requested.emit("Rotated physical storage.")
-	status_changed.emit()
+	BipobInventoryControllerRef.rotate_physical_storage(self)
 
 
 func drop_held_item() -> void:
@@ -8873,24 +8564,16 @@ func pick_up_key(key_position: Vector2i, manipulator_module: BipobModule = null)
 	print_status()
 
 func get_available_manipulator_slots() -> int:
-	return clampi(available_manipulator_slots, 0, get_max_manipulator_slots())
+	return BipobInventoryControllerRef.get_available_manipulator_slots(self)
 
 func get_max_manipulator_slots() -> int:
-	return max_manipulator_slots
+	return BipobInventoryControllerRef.get_max_manipulator_slots(self)
 
 func get_manipulator_items() -> Array:
 	return manipulator_items.duplicate()
 
 func get_runtime_manipulator_items() -> Array:
-	var runtime_items: Array = []
-	if mission_manager != null and mission_manager.has_method("get_manipulator_items"):
-		var runtime_items_variant: Variant = mission_manager.call("get_manipulator_items")
-		if typeof(runtime_items_variant) == TYPE_ARRAY:
-			runtime_items = runtime_items_variant
-	if runtime_items.is_empty():
-		for index in range(get_available_manipulator_slots()):
-			runtime_items.append(manipulator_items[index])
-	return runtime_items
+	return BipobInventoryControllerRef.get_runtime_manipulator_items(self)
 
 func _runtime_inventory_value_id(value: Variant) -> String:
 	if value is String or value is StringName:
@@ -8912,10 +8595,10 @@ func _get_held_runtime_world_item_id() -> String:
 	return str(held_value).strip_edges() if held_value is String or held_value is StringName else ""
 
 func get_available_pocket_slots() -> int:
-	return clampi(available_pocket_slots, 0, get_max_pocket_slots())
+	return BipobInventoryControllerRef.get_available_pocket_slots(self)
 
 func get_max_pocket_slots() -> int:
-	return max_pocket_slots
+	return BipobInventoryControllerRef.get_max_pocket_slots(self)
 
 func get_pocket_items() -> Array:
 	return pocket_items.duplicate()
@@ -8924,228 +8607,44 @@ func get_key_count() -> int:
 	return 1 if has_key else 0
 
 func get_available_digital_storage_slots() -> int:
-	return clampi(available_digital_storage_slots, 0, get_max_digital_storage_slots())
+	return BipobInventoryControllerRef.get_available_digital_storage_slots(self)
 
 func get_max_digital_storage_slots() -> int:
-	return max_digital_storage_slots
+	return BipobInventoryControllerRef.get_max_digital_storage_slots(self)
 
 func get_digital_storage_items() -> Array:
-	var items: Array = []
-	for key in digital_storage.keys():
-		items.append(digital_storage[key])
-	return items
+	return BipobInventoryControllerRef.get_digital_storage_items(self)
 
 func get_buffer_item() -> Variant:
-	if buffer_item.is_empty():
-		return null
-	return buffer_item
+	return BipobInventoryControllerRef.get_buffer_item(self)
 
 func _is_digital_storage_item(item: Dictionary, allow_untyped_storage_record: bool = false) -> bool:
-	var storage_class: String = WorldObjectCatalog.get_item_storage_class(item)
-	if storage_class in [WorldObjectCatalog.ITEM_STORAGE_CLASS_PHYSICAL, WorldObjectCatalog.ITEM_STORAGE_CLASS_KEY_CARD]:
-		return false
-	if storage_class == WorldObjectCatalog.ITEM_STORAGE_CLASS_DIGITAL:
-		return true
-	var item_form: String = str(item.get("item_form", "")).strip_edges().to_lower()
-	var item_type: String = str(item.get("item_type", item.get("id", ""))).strip_edges().to_lower()
-	if item_form == "physical" or item_type in ["fuse", "repair_kit", "cable_end"] or item_type.contains("cable_end") or item_type.contains("wire_end"):
-		return false
-	for metadata_key in item.keys():
-		var metadata_name: String = str(metadata_key).strip_edges().to_lower()
-		if metadata_name in ["reel_id", "end_index"] or metadata_name.contains("cable") or metadata_name.contains("wire"):
-			return false
-	if item_form == "digital":
-		return true
-	if not item_form.is_empty():
-		return false
-	for field_name in ["item_type", "item_family", "digital_payload_type", "id"]:
-		var digital_type: String = str(item.get(field_name, "")).strip_edges().to_lower()
-		if digital_type.contains("route_data") or digital_type.contains("info_key") or digital_type.contains("data_file") or digital_type.contains("digital_key") or digital_type.contains("access_code"):
-			return true
-	return allow_untyped_storage_record
+	return BipobInventoryControllerRef.is_digital_storage_item(self, item, allow_untyped_storage_record)
 
 func move_buffer_to_first_free_storage() -> Dictionary:
-	if buffer_item.is_empty():
-		return {"ok": false, "message": "Buffer is empty."}
-	if not _is_digital_storage_item(buffer_item):
-		return {"ok": false, "message": "This item cannot be stored in digital storage."}
-	if digital_storage.size() >= get_available_digital_storage_slots():
-		return {"ok": false, "message": "No free storage slot."}
-	var record_id: String = str(buffer_item.get("id", "")).strip_edges()
-	if record_id.is_empty():
-		return {"ok": false, "message": "Buffered record is unavailable."}
-	if digital_storage.has(record_id):
-		return {"ok": false, "message": "Storage already contains this record."}
-	digital_storage[record_id] = buffer_item.duplicate(true)
-	buffer_item.clear()
-	if mission_manager != null and mission_manager.has_method("move_runtime_digital_buffer_to_storage"):
-		mission_manager.call("move_runtime_digital_buffer_to_storage", record_id)
-	status_changed.emit()
-	return {"ok": true, "message": "Stored buffered digital record."}
+	return BipobInventoryControllerRef.move_buffer_to_first_free_storage(self)
 
 func move_or_swap_storage_slot_with_buffer(storage_index: int) -> Dictionary:
-	if storage_index < 0 or storage_index >= get_available_digital_storage_slots():
-		return {"ok": false, "message": "Storage slot is unavailable."}
-	var storage_keys: Array = digital_storage.keys()
-	if storage_index >= storage_keys.size():
-		if buffer_item.is_empty():
-			return {"ok": false, "message": "Storage slot is empty."}
-		return move_buffer_to_first_free_storage()
-	var stored_record_id: Variant = storage_keys[storage_index]
-	var stored_record_value: Variant = digital_storage.get(stored_record_id, {})
-	if typeof(stored_record_value) != TYPE_DICTIONARY:
-		return {"ok": false, "message": "Storage slot is unavailable."}
-	var stored_record: Dictionary = stored_record_value
-	if not _is_digital_storage_item(stored_record, true):
-		return {"ok": false, "message": "Storage slot is unavailable."}
-	if buffer_item.is_empty():
-		buffer_item = stored_record.duplicate(true)
-		buffer_item["item_form"] = "digital"
-		digital_storage.erase(stored_record_id)
-		if mission_manager != null and mission_manager.has_method("move_runtime_digital_storage_to_buffer"):
-			mission_manager.call("move_runtime_digital_storage_to_buffer", str(stored_record_id))
-		status_changed.emit()
-		return {"ok": true, "message": "Loaded storage record into buffer."}
-	if not _is_digital_storage_item(buffer_item):
-		return {"ok": false, "message": "This item cannot be stored in digital storage."}
-	var buffered_record_id: String = str(buffer_item.get("id", "")).strip_edges()
-	if buffered_record_id.is_empty():
-		return {"ok": false, "message": "Buffered record is unavailable."}
-	if buffered_record_id != str(stored_record_id) and digital_storage.has(buffered_record_id):
-		return {"ok": false, "message": "Storage already contains this record."}
-	var buffered_record: Dictionary = buffer_item.duplicate(true)
-	digital_storage.erase(stored_record_id)
-	digital_storage[buffered_record_id] = buffered_record
-	buffer_item = stored_record.duplicate(true)
-	buffer_item["item_form"] = "digital"
-	if mission_manager != null and mission_manager.has_method("swap_runtime_digital_buffer_and_storage"):
-		mission_manager.call("swap_runtime_digital_buffer_and_storage", buffered_record_id, str(stored_record_id))
-	status_changed.emit()
-	return {"ok": true, "message": "Swapped buffer and storage records."}
+	return BipobInventoryControllerRef.move_or_swap_storage_slot_with_buffer(self, storage_index)
 
 func move_manipulator_to_first_free_pocket(manipulator_index: int) -> Dictionary:
-	if manipulator_index == 0 and mission_manager != null and mission_manager.has_method("get_inventory_state"):
-		var inventory: Dictionary = Dictionary(mission_manager.call("get_inventory_state"))
-		if not _runtime_inventory_value_id(inventory.get("manipulator_hold", "")).is_empty():
-			var runtime_pocket: Array = Array(inventory.get("pocket_items", []))
-			for pocket_index in range(get_available_pocket_slots()):
-				if pocket_index >= runtime_pocket.size() or _runtime_inventory_value_id(runtime_pocket[pocket_index]).is_empty():
-					var result: Dictionary = Dictionary(mission_manager.call("move_runtime_manipulator_to_pocket", pocket_index, get_available_pocket_slots()))
-					status_changed.emit()
-					return result
-			return {"ok": false, "message": "No free pocket slot."}
-	if manipulator_index < 0 or manipulator_index >= get_available_manipulator_slots():
-		return {"ok": false, "message": "Manipulator slot is unavailable."}
-	if manipulator_items[manipulator_index] == null:
-		return {"ok": false, "message": "Manipulator is empty."}
-	var free_index: int = _get_first_free_pocket_index()
-	if free_index == -1:
-		return {"ok": false, "message": "No free pocket slot."}
-	pocket_items[free_index] = manipulator_items[manipulator_index]
-	manipulator_items[manipulator_index] = null
-	_sync_legacy_physical_slots()
-	status_changed.emit()
-	return {"ok": true, "message": "Stored manipulator item in pocket."}
+	return BipobInventoryControllerRef.move_manipulator_to_first_free_pocket(self, manipulator_index)
 
 func move_or_swap_pocket_slot_with_manipulator(pocket_index: int, manipulator_index: int) -> Dictionary:
-	if manipulator_index == 0 and mission_manager != null and mission_manager.has_method("get_inventory_state"):
-		var inventory: Dictionary = Dictionary(mission_manager.call("get_inventory_state"))
-		var runtime_pocket: Array = Array(inventory.get("pocket_items", []))
-		var runtime_pocket_id: String = _runtime_inventory_value_id(runtime_pocket[pocket_index]) if pocket_index >= 0 and pocket_index < runtime_pocket.size() else ""
-		if not _runtime_inventory_value_id(inventory.get("manipulator_hold", "")).is_empty() or not runtime_pocket_id.is_empty():
-			var result: Dictionary = Dictionary(mission_manager.call("move_or_swap_runtime_pocket_slot_with_manipulator", pocket_index, get_available_pocket_slots()))
-			status_changed.emit()
-			return result
-	if pocket_index < 0 or pocket_index >= get_available_pocket_slots():
-		return {"ok": false, "message": "Pocket slot is unavailable."}
-	if manipulator_index < 0 or manipulator_index >= get_available_manipulator_slots():
-		return {"ok": false, "message": "Manipulator slot is unavailable."}
-	var pocket_item: BipobModule = pocket_items[pocket_index]
-	var manipulator_item: BipobModule = manipulator_items[manipulator_index]
-	if pocket_item == null and manipulator_item == null:
-		return {"ok": false, "message": "Pocket slot is empty."}
-	pocket_items[pocket_index] = manipulator_item
-	manipulator_items[manipulator_index] = pocket_item
-	_sync_legacy_physical_slots()
-	status_changed.emit()
-	return {"ok": true, "message": "Moved or swapped pocket and manipulator items."}
+	return BipobInventoryControllerRef.move_or_swap_pocket_slot_with_manipulator(self, pocket_index, manipulator_index)
 
 func move_digital_storage_to_buffer(storage_index: int) -> bool:
-	if not buffer_item.is_empty():
-		hint_requested.emit("Digital buffer is occupied.")
-		return false
-	var storage_keys: Array = digital_storage.keys()
-	if storage_index < 0 or storage_index >= storage_keys.size():
-		hint_requested.emit("Storage slot is empty.")
-		return false
-	var record_id: Variant = storage_keys[storage_index]
-	var record_data: Variant = digital_storage.get(record_id, {})
-	if typeof(record_data) != TYPE_DICTIONARY or not _is_digital_storage_item(record_data, true):
-		hint_requested.emit("Storage slot is unavailable.")
-		return false
-	buffer_item = record_data.duplicate(true)
-	buffer_item["item_form"] = "digital"
-	digital_storage.erase(record_id)
-	if mission_manager != null and mission_manager.has_method("move_runtime_digital_storage_to_buffer"):
-		mission_manager.call("move_runtime_digital_storage_to_buffer", str(record_id))
-	hint_requested.emit("Loaded into digital buffer: %s." % str(buffer_item.get("display_name", buffer_item.get("id", "record"))))
-	status_changed.emit()
-	return true
+	return BipobInventoryControllerRef.move_digital_storage_to_buffer(self, storage_index)
 
 func move_buffer_to_digital_storage() -> bool:
-	if buffer_item.is_empty():
-		hint_requested.emit("Buffer is empty.")
-		return false
-	if not _is_digital_storage_item(buffer_item):
-		hint_requested.emit("This item cannot be stored in digital storage.")
-		return false
-	if digital_storage.size() >= get_available_digital_storage_slots():
-		hint_requested.emit("No free digital storage slot.")
-		return false
-	var record_id: String = str(buffer_item.get("id", "")).strip_edges()
-	if record_id.is_empty():
-		hint_requested.emit("Buffered record is unavailable.")
-		return false
-	digital_storage[record_id] = buffer_item.duplicate(true)
-	buffer_item.clear()
-	if mission_manager != null and mission_manager.has_method("move_runtime_digital_buffer_to_storage"):
-		mission_manager.call("move_runtime_digital_buffer_to_storage", record_id)
-	hint_requested.emit("Stored buffered digital record.")
-	status_changed.emit()
-	return true
+	return BipobInventoryControllerRef.move_buffer_to_digital_storage(self)
 
 func move_pocket_to_manipulator(pocket_index: int) -> bool:
-	if pocket_index < 0 or pocket_index >= get_available_pocket_slots():
-		return false
-	if pocket_items[pocket_index] == null:
-		hint_requested.emit("No pocket item selected.")
-		return false
-	var free_index := _get_first_free_manipulator_index()
-	if free_index == -1:
-		hint_requested.emit("No free manipulator slot.")
-		return false
-	manipulator_items[free_index] = pocket_items[pocket_index]
-	pocket_items[pocket_index] = null
-	_sync_legacy_physical_slots()
-	status_changed.emit()
-	return true
+	return BipobInventoryControllerRef.move_pocket_to_manipulator(self, pocket_index)
 
 func move_manipulator_to_pocket(manipulator_index: int) -> bool:
-	if manipulator_index < 0 or manipulator_index >= get_available_manipulator_slots():
-		return false
-	if manipulator_items[manipulator_index] == null:
-		hint_requested.emit("No manipulator item selected.")
-		return false
-	var free_index := _get_first_free_pocket_index()
-	if free_index == -1:
-		hint_requested.emit("No free pocket slot.")
-		return false
-	pocket_items[free_index] = manipulator_items[manipulator_index]
-	manipulator_items[manipulator_index] = null
-	_sync_legacy_physical_slots()
-	status_changed.emit()
-	return true
-	
+	return BipobInventoryControllerRef.move_manipulator_to_pocket(self, manipulator_index)
+
 func print_status() -> void:
 	print(
 		"Energy: ", energy, " / ", max_energy,
@@ -9167,39 +8666,22 @@ func _initialize_runtime_storage_slots() -> void:
 	digital_storage_capacity = get_available_digital_storage_slots()
 
 func _sync_legacy_physical_slots() -> void:
-	held_module = manipulator_items[0] if manipulator_items.size() > 0 else null
-	stored_physical_module = pocket_items[0] if pocket_items.size() > 0 else null
-	physical_carry_capacity = get_available_manipulator_slots() + get_available_pocket_slots()
+	BipobInventoryControllerRef.sync_legacy_physical_slots(self)
 
 func _get_first_free_manipulator_index() -> int:
-	for i in range(get_available_manipulator_slots()):
-		if manipulator_items[i] == null:
-			return i
-	return -1
+	return BipobInventoryControllerRef.get_first_free_manipulator_index(self)
 
 func _get_first_occupied_manipulator_index() -> int:
-	for i in range(get_available_manipulator_slots()):
-		if manipulator_items[i] != null:
-			return i
-	return -1
+	return BipobInventoryControllerRef.get_first_occupied_manipulator_index(self)
 
 func _get_first_free_pocket_index() -> int:
-	for i in range(get_available_pocket_slots()):
-		if pocket_items[i] == null:
-			return i
-	return -1
+	return BipobInventoryControllerRef.get_first_free_pocket_index(self)
 
 func _get_first_occupied_pocket_index() -> int:
-	for i in range(get_available_pocket_slots()):
-		if pocket_items[i] != null:
-			return i
-	return -1
+	return BipobInventoryControllerRef.get_first_occupied_pocket_index(self)
 
 func _rotate_first_manipulator_and_pocket() -> void:
-	var hand_module: BipobModule = manipulator_items[0]
-	manipulator_items[0] = pocket_items[0]
-	pocket_items[0] = hand_module
-	_sync_legacy_physical_slots()
+	BipobInventoryControllerRef.rotate_first_manipulator_and_pocket(self)
 
 
 func _variant_to_dictionary(value: Variant, fallback: Dictionary = {}) -> Dictionary:

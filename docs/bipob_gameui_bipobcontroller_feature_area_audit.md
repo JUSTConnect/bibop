@@ -208,6 +208,12 @@ UICTRL-RF-03 status:
 - `GameUI` now keeps compatibility wrapper methods and delegates action target lookup, action mode transitions, Action/Connect/Heavy Claw/End Turn callbacks, world-action target id derivation, and per-frame action feedback to the bridge.
 - `RuntimeControlPanel` still builds the existing control panel view, but runtime button callbacks can now be wired directly to the bridge so no parallel runtime UI system is introduced.
 
+UICTRL-RF-04 status:
+
+- `RuntimeStoragePanel` now owns runtime storage action routing for drop, rotate, pocket take/swap, manipulator store, digital load/swap, and buffer store while continuing to call existing Bipob inventory APIs.
+- `RuntimeStoragePanel` now owns runtime key id/display derivation used by the mini HUD; `GameUI` keeps compatibility wrappers that delegate to the panel.
+- `GameUI` keeps the storage panel build/refresh bridge and existing callback method names, but the runtime storage UI callbacks are no longer implemented directly in `GameUI`.
+
 ### 4. Runtime storage / inventory UI
 
 Current owner: `GameUI`, partially extracted to `RuntimeStoragePanel`.
@@ -462,18 +468,18 @@ Reason:
 
 ### 3. Runtime action dispatch / Action / Connect / Heavy Claw
 
-Current owner: `BipobController`, partially extracted to services.
+Current owner: `BipobActionController`, with `BipobController` keeping compatibility wrappers and legacy tile fallbacks.
 
-Observed responsibilities:
+Extracted responsibilities:
 
-- action view model assembly;
-- targeting lookup;
-- action execution dispatch;
-- terminal/power/door/object item execution;
-- Heavy Claw execution;
-- world action panel requests.
+- action view model and actor wrapper delegation;
+- facing action target/object/item lookup;
+- selected action mutation, cycling, invalidation, and world-action panel emission;
+- runtime item pickup orchestration;
+- runtime world-object action dispatch;
+- terminal door-control, Heavy Claw, and generic world-object execution refresh/signal handling.
 
-Important services already present:
+Important services reused by the coordinator:
 
 - `BipobActionViewModelService`
 - `BipobRuntimeActionActorService`
@@ -481,53 +487,67 @@ Important services already present:
 - `BipobHeavyClawExecutionService`
 - `BipobWorldObjectExecutionService`
 - `BipobItemPickupExecutionService`
+- `BipobTargetingService`
 - `InteractionSystem`
 
 Risk: medium.
 
 Recommended target:
 
-- `scripts/bipob/bipob_action_controller.gd` or continue strengthening `BipobRuntimeActionActorService` as the execution coordinator.
+- Continue shrinking `BipobController` around remaining action-adjacent data helpers only when behavior-preserving seams are obvious.
 
-Can extract now: yes, after GameUI action panel extraction.
+Can extract now: completed in UICTRL-RF-05.
 
 Reason:
 
-- UI action panel and controller dispatch should be extracted in sequence: first UI, then controller-side action coordinator.
+- Runtime Action / Connect / Heavy Claw orchestration now has a focused code-side owner while preserving existing execution services and UI-facing wrappers.
 
 ### 4. Inventory / storage / digital records
 
-Current owner: `BipobController`, partially extracted to `BipobInventoryController`.
+Current owner: `BipobInventoryController`, with `BipobController` keeping compatibility wrappers.
 
-Observed responsibilities:
+Extracted responsibilities:
 
-- digital records;
-- held/stored physical modules;
-- storage text;
-- pickup/drop/use wrappers;
-- return-to-box storage cleanup.
+- digital records and digital storage display text;
+- manipulator/pocket/digital storage slot limits and item snapshots;
+- physical held/stored legacy slot synchronization;
+- runtime physical drop orchestration;
+- rotate physical storage;
+- pocket/manipulator move/swap/store mutations;
+- digital buffer/storage move/swap/store mutations;
+- digital-storage item classification used by these boundaries.
 
-Important state/calls:
+Important state/calls kept as wrappers on `BipobController`:
 
-- `held_module`
-- `stored_physical_module`
-- `store_digital_record()`
-- `has_digital_record()`
-- `use_digital_record()`
-- `get_digital_storage_text()`
+- `drop_held_item()`
+- `rotate_physical_storage()`
+- `move_pocket_to_manipulator()`
+- `move_manipulator_to_pocket()`
+- `move_manipulator_to_first_free_pocket()`
+- `move_or_swap_pocket_slot_with_manipulator()`
+- `move_digital_storage_to_buffer()`
+- `move_buffer_to_digital_storage()`
+- `move_buffer_to_first_free_storage()`
+- `move_or_swap_storage_slot_with_buffer()`
+- `get_available_*_slots()`
+- `get_runtime_manipulator_items()`
+- `get_digital_storage_items()`
+- `get_buffer_item()`
 - `BipobInventoryControllerRef`
 
 Risk: medium.
 
 Recommended target:
 
-- continue moving wrappers/state mutations into `scripts/bipob/bipob_inventory_controller.gd`.
+- keep `BipobInventoryController` as the owner for inventory/storage mutations;
+- only move additional inventory-adjacent helpers when they do not overlap scan/hack, movement, action budget, or legacy Mission 7/8 adapters.
 
-Can extract now: yes, after runtime storage UI extraction.
+Can extract now: completed in UICTRL-RF-06.
 
 Notes:
 
-- This is a good second or third controller-side code extraction because a service already exists.
+- `BipobController` remains the public API surface for UI/action callers, but its inventory/storage methods now delegate to the inventory controller.
+- Runtime storage UI and action code can continue using the same public method names.
 
 ### 5. Scan / hack / terminal / digital interaction
 
@@ -707,6 +727,16 @@ Goal:
 
 Risk: medium.
 
+Status after UICTRL-RF-04:
+
+- `scripts/ui/runtime/runtime_storage_panel.gd` owns the runtime storage callback routing and key-display helpers.
+- `scripts/ui/game_ui.gd` keeps compatibility wrappers for existing callable names and delegates them to `RuntimeStoragePanel`.
+- Inventory mutation rules remain in Bipob/MissionManager; the panel only invokes existing guarded public methods and refreshes host status.
+
+Next recommended extraction:
+
+- UICTRL-RF-05 should extract/strengthen the Bipob runtime action coordinator after the runtime action and storage UI surfaces are stable.
+
 ### UICTRL-RF-05 — Extract Bipob runtime action coordinator
 
 Target:
@@ -738,6 +768,16 @@ Goal:
 - keep public methods on BipobController as compatibility wrappers.
 
 Risk: medium.
+
+Status after UICTRL-RF-06:
+
+- `scripts/bipob/bipob_inventory_controller.gd` now owns runtime manipulator/pocket/digital slot queries, physical storage rotation, physical legacy slot sync helpers, and pocket/manipulator/digital buffer/storage mutations.
+- `scripts/bipob/bipob_controller.gd` keeps the existing public inventory/storage method names as wrappers so `RuntimeStoragePanel`, `BipobActionController`, and other callers do not need API changes.
+- Inventory mutation result dictionaries, hint/status emissions, runtime mission-manager synchronization calls, and failed-action no-mutation guards are preserved.
+
+Next recommended extraction:
+
+- UICTRL-RF-07 should audit/extract the scan/hack/terminal boundary into the existing scan/hack and terminal execution services.
 
 ### UICTRL-RF-07 — Scan/hack/terminal boundary audit or extraction
 
@@ -778,14 +818,14 @@ These are high-risk and should wait until UI/runtime action/storage surfaces are
 
 The next code PR should be:
 
-**UICTRL-RF-02 — Extract GameUI Map Constructor UI bridge**
+**UICTRL-RF-07 — Scan/hack/terminal boundary audit or extraction**
 
 Reason:
 
-- it attacks the largest active UI area;
-- it builds on already extracted Map Constructor components;
-- it can be behavior-equivalent;
-- it should reduce future pressure to keep adding editor logic directly into `GameUI`.
+- UICTRL-RF-02 through UICTRL-RF-04 reduced the Map Constructor, runtime action, and runtime storage UI surfaces in `GameUI`;
+- UICTRL-RF-05 moved Bipob runtime action orchestration into `BipobActionController`;
+- UICTRL-RF-06 moved remaining inventory/storage mutation orchestration into `BipobInventoryController` while preserving the `BipobController` public API;
+- the remaining medium-risk controller-side seam is scan/hack/terminal ownership, which should be audited or extracted without changing scan/hack semantics.
 
 ## Acceptance for this audit
 

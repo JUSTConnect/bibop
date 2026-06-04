@@ -12290,105 +12290,53 @@ func _on_world_action_panel_requested(target_object: Dictionary, actions: Array,
 	runtime_action_panel_bridge.refresh_world_actions_panel(target_object, actions, selected_action)
 
 func _on_drop_item_button_pressed() -> void:
-	if bipob == null or not bipob.has_method("drop_held_item"):
-		show_hint("Drop action is unavailable.")
-		return
-	var manipulator_items: Array = bipob.get_runtime_manipulator_items()
-	if selected_manipulator_slot < 0 or selected_manipulator_slot >= bipob.get_available_manipulator_slots():
-		show_hint("Manipulator slot is inactive.")
-		return
-	if selected_manipulator_slot >= manipulator_items.size() or manipulator_items[selected_manipulator_slot] == null:
-		show_hint("Manipulator is empty.")
-		return
-	bipob.drop_held_item()
-	update_status()
-	update_diagnostic_status()
-	update_box_status()
-	call_deferred("_sync_runtime_bipob_visual_state")
+	RuntimeStoragePanelRef.handle_drop_item(self)
 
 func _on_rotate_storage_button_pressed() -> void:
-	bipob.rotate_physical_storage()
-	update_status()
-	update_diagnostic_status()
-	update_box_status()
+	RuntimeStoragePanelRef.handle_rotate_storage(self)
 
 func _refresh_runtime_storage_panel() -> void:
 	RuntimeStoragePanelRef.refresh(self)
 
 
 func _get_runtime_display_key_ids(inventory_state: Dictionary) -> Array:
-	var display_key_ids: Array = []
-	var seen: Dictionary = {}
-	var runtime_map: Dictionary = Dictionary(inventory_state.get("world_item_runtime", {}))
-	var raw_collected_key_ids: Array = Array(inventory_state.get("collected_key_ids", []))
-	for key_value in raw_collected_key_ids:
-		var key_id: String = str(key_value).strip_edges()
-		if key_id.is_empty() or seen.has(key_id):
-			continue
-		var item_runtime: Dictionary = Dictionary(runtime_map.get(key_id, {}))
-		if not item_runtime.is_empty() and not bool(item_runtime.get("in_inventory", true)):
-			continue
-		seen[key_id] = true
-		display_key_ids.append(key_id)
-	if raw_collected_key_ids.is_empty() and display_key_ids.is_empty() and bool(bipob.has_key):
-		display_key_ids.append("physical_key")
-	return display_key_ids
+	return RuntimeStoragePanelRef.get_runtime_display_key_ids(self, inventory_state)
 
 
 func _get_runtime_key_display_text(key_id: String, inventory_state: Dictionary = {}) -> String:
-	var text := key_id.strip_edges()
-	if text.is_empty():
-		return "-"
-	var runtime_map: Dictionary = Dictionary(inventory_state.get("world_item_runtime", {}))
-	var item_runtime: Dictionary = Dictionary(runtime_map.get(text, {}))
-	var item_data: Dictionary = Dictionary(item_runtime.get("item_data", {}))
-	var display_name: String = str(item_data.get("display_name", "")).strip_edges()
-	if not display_name.is_empty():
-		return display_name
-	var item_data_id: String = str(item_data.get("id", "")).strip_edges()
-	if not item_data_id.is_empty():
-		return item_data_id
-	if text == "physical_key":
-		return "Key"
-	return text
+	return RuntimeStoragePanelRef.get_runtime_key_display_text(key_id, inventory_state)
 
 func _on_storage_take_pressed() -> void:
-	bipob.move_pocket_to_manipulator(selected_pocket_slot)
-	update_status()
+	RuntimeStoragePanelRef.handle_take_selected_pocket(self)
 
 func _on_storage_take_slot_pressed(slot_index: int) -> void:
 	selected_pocket_slot = slot_index
-	_on_storage_take_pressed()
+	RuntimeStoragePanelRef.handle_take_selected_pocket(self)
 
 func _on_storage_store_pressed() -> void:
-	bipob.move_manipulator_to_pocket(selected_manipulator_slot)
-	update_status()
+	RuntimeStoragePanelRef.handle_store_manipulator_selected(self)
 
 func _on_storage_load_pressed() -> void:
-	bipob.move_digital_storage_to_buffer(selected_digital_slot)
-	update_status()
+	RuntimeStoragePanelRef.handle_load_selected_digital(self)
 
 func _on_storage_load_slot_pressed(slot_index: int) -> void:
 	selected_digital_slot = slot_index
-	_on_storage_load_pressed()
+	RuntimeStoragePanelRef.handle_load_selected_digital(self)
 
 func _on_storage_data_store_pressed() -> void:
-	bipob.move_buffer_to_digital_storage()
-	update_status()
+	RuntimeStoragePanelRef.handle_store_buffer_selected(self)
 
 func _move_runtime_manipulator_to_first_free_pocket() -> Dictionary:
-	return _apply_runtime_storage_result(bipob.move_manipulator_to_first_free_pocket(selected_manipulator_slot))
+	return RuntimeStoragePanelRef.handle_store_manipulator(self)
 
 func _move_or_swap_runtime_pocket_slot(slot_index: int) -> Dictionary:
-	selected_pocket_slot = slot_index
-	return _apply_runtime_storage_result(bipob.move_or_swap_pocket_slot_with_manipulator(slot_index, selected_manipulator_slot))
+	return RuntimeStoragePanelRef.handle_take_pocket_item(self, slot_index)
 
 func _move_runtime_buffer_to_first_free_storage() -> Dictionary:
-	return _apply_runtime_storage_result(bipob.move_buffer_to_first_free_storage())
+	return RuntimeStoragePanelRef.handle_store_buffer(self)
 
 func _move_or_swap_runtime_storage_slot(slot_index: int) -> Dictionary:
-	selected_digital_slot = slot_index
-	return _apply_runtime_storage_result(bipob.move_or_swap_storage_slot_with_buffer(slot_index))
+	return RuntimeStoragePanelRef.handle_load_digital_item(self, slot_index)
 
 func _apply_runtime_storage_result(result: Dictionary) -> Dictionary:
 	if bool(result.get("ok", false)):
