@@ -504,37 +504,50 @@ Reason:
 
 ### 4. Inventory / storage / digital records
 
-Current owner: `BipobController`, partially extracted to `BipobInventoryController`.
+Current owner: `BipobInventoryController`, with `BipobController` keeping compatibility wrappers.
 
-Observed responsibilities:
+Extracted responsibilities:
 
-- digital records;
-- held/stored physical modules;
-- storage text;
-- pickup/drop/use wrappers;
-- return-to-box storage cleanup.
+- digital records and digital storage display text;
+- manipulator/pocket/digital storage slot limits and item snapshots;
+- physical held/stored legacy slot synchronization;
+- runtime physical drop orchestration;
+- rotate physical storage;
+- pocket/manipulator move/swap/store mutations;
+- digital buffer/storage move/swap/store mutations;
+- digital-storage item classification used by these boundaries.
 
-Important state/calls:
+Important state/calls kept as wrappers on `BipobController`:
 
-- `held_module`
-- `stored_physical_module`
-- `store_digital_record()`
-- `has_digital_record()`
-- `use_digital_record()`
-- `get_digital_storage_text()`
+- `drop_held_item()`
+- `rotate_physical_storage()`
+- `move_pocket_to_manipulator()`
+- `move_manipulator_to_pocket()`
+- `move_manipulator_to_first_free_pocket()`
+- `move_or_swap_pocket_slot_with_manipulator()`
+- `move_digital_storage_to_buffer()`
+- `move_buffer_to_digital_storage()`
+- `move_buffer_to_first_free_storage()`
+- `move_or_swap_storage_slot_with_buffer()`
+- `get_available_*_slots()`
+- `get_runtime_manipulator_items()`
+- `get_digital_storage_items()`
+- `get_buffer_item()`
 - `BipobInventoryControllerRef`
 
 Risk: medium.
 
 Recommended target:
 
-- continue moving wrappers/state mutations into `scripts/bipob/bipob_inventory_controller.gd`.
+- keep `BipobInventoryController` as the owner for inventory/storage mutations;
+- only move additional inventory-adjacent helpers when they do not overlap scan/hack, movement, action budget, or legacy Mission 7/8 adapters.
 
-Can extract now: yes, after runtime storage UI extraction.
+Can extract now: completed in UICTRL-RF-06.
 
 Notes:
 
-- This is a good second or third controller-side code extraction because a service already exists.
+- `BipobController` remains the public API surface for UI/action callers, but its inventory/storage methods now delegate to the inventory controller.
+- Runtime storage UI and action code can continue using the same public method names.
 
 ### 5. Scan / hack / terminal / digital interaction
 
@@ -756,6 +769,16 @@ Goal:
 
 Risk: medium.
 
+Status after UICTRL-RF-06:
+
+- `scripts/bipob/bipob_inventory_controller.gd` now owns runtime manipulator/pocket/digital slot queries, physical storage rotation, physical legacy slot sync helpers, and pocket/manipulator/digital buffer/storage mutations.
+- `scripts/bipob/bipob_controller.gd` keeps the existing public inventory/storage method names as wrappers so `RuntimeStoragePanel`, `BipobActionController`, and other callers do not need API changes.
+- Inventory mutation result dictionaries, hint/status emissions, runtime mission-manager synchronization calls, and failed-action no-mutation guards are preserved.
+
+Next recommended extraction:
+
+- UICTRL-RF-07 should audit/extract the scan/hack/terminal boundary into the existing scan/hack and terminal execution services.
+
 ### UICTRL-RF-07 — Scan/hack/terminal boundary audit or extraction
 
 Target:
@@ -795,13 +818,14 @@ These are high-risk and should wait until UI/runtime action/storage surfaces are
 
 The next code PR should be:
 
-**UICTRL-RF-05 — Extract Bipob runtime action coordinator**
+**UICTRL-RF-07 — Scan/hack/terminal boundary audit or extraction**
 
 Reason:
 
-- UICTRL-RF-02, UICTRL-RF-03, and UICTRL-RF-04 have reduced the Map Constructor, runtime action, and runtime storage UI surfaces in `GameUI`;
-- the remaining pressure is now on `BipobController` action coordination rather than introducing more runtime UI bridges;
-- this should preserve TASK TEST / Map Constructor smoke behavior while continuing the feature-owner boundary work.
+- UICTRL-RF-02 through UICTRL-RF-04 reduced the Map Constructor, runtime action, and runtime storage UI surfaces in `GameUI`;
+- UICTRL-RF-05 moved Bipob runtime action orchestration into `BipobActionController`;
+- UICTRL-RF-06 moved remaining inventory/storage mutation orchestration into `BipobInventoryController` while preserving the `BipobController` public API;
+- the remaining medium-risk controller-side seam is scan/hack/terminal ownership, which should be audited or extracted without changing scan/hack semantics.
 
 ## Acceptance for this audit
 

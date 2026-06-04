@@ -7589,41 +7589,17 @@ func get_heavy_claw_move_destination(object_cell: Vector2i, actor_cell: Vector2i
 	return Vector2i(-1, -1)
 
 func has_collected_runtime_key(key_id: String) -> bool:
-	if key_id.strip_edges().is_empty() or mission_manager == null or not mission_manager.has_method("has_collected_key"):
-		return false
-	return bool(mission_manager.call("has_collected_key", key_id))
+	return BipobInventoryControllerRef.has_collected_runtime_key(self, key_id)
 
 func has_collected_mechanical_keycard() -> bool:
-	if mission_manager != null and mission_manager.has_method("has_keycard_access"):
-		return bool(mission_manager.call("has_keycard_access", "key_card"))
-	if mission_manager == null or not mission_manager.has_method("get_inventory_state"):
-		return false
-	var inventory: Dictionary = mission_manager.call("get_inventory_state")
-	var runtime_map: Dictionary = inventory.get("world_item_runtime", {})
-	var collected_key_ids: Array = inventory.get("collected_key_ids", [])
-	for key_value in collected_key_ids:
-		var key_id: String = str(key_value).strip_edges()
-		var item_runtime: Dictionary = runtime_map.get(key_id, {})
-		var item_data: Dictionary = item_runtime.get("item_data", {})
-		if not item_data.has("key_kind") and item_runtime.has("key_kind"):
-			item_data["key_kind"] = item_runtime.get("key_kind", "")
-		if WorldObjectCatalog.is_key_card_item(item_data):
-			return true
-	return false
+	return BipobInventoryControllerRef.has_collected_mechanical_keycard(self)
 
 
 func has_access_for_door(world_object: Dictionary) -> bool:
-	var access_type: String = WorldObjectCatalog.normalize_access_type(world_object.get("access_type", world_object.get("lock_type", "")))
-	var required_key_id: String = str(world_object.get("required_key_id", "")).strip_edges()
-	if access_type == WorldObjectCatalog.ACCESS_TYPE_NO_KEY or required_key_id.is_empty():
-		return true
-	return has_collected_runtime_key(required_key_id)
+	return BipobInventoryControllerRef.has_access_for_door(self, world_object)
 
 func get_collected_runtime_key_ids() -> Array:
-	if mission_manager == null or not mission_manager.has_method("get_inventory_state"):
-		return []
-	var inventory: Dictionary = Dictionary(mission_manager.call("get_inventory_state"))
-	return Array(inventory.get("collected_key_ids", []))
+	return BipobInventoryControllerRef.get_collected_runtime_key_ids(self)
 
 
 func _get_held_cable_end_metadata() -> Dictionary:
@@ -8515,20 +8491,10 @@ func infer_digital_item_family(item_type: String) -> String:
 	return BipobInventoryControllerRef.infer_digital_item_family(self, item_type)
 
 func has_digital_world_item(item_type: String, digital_state: String = "opened") -> bool:
-	var record: Dictionary = digital_world_records.get(item_type, {})
-	if record.is_empty():
-		return false
-	return str(record.get("digital_state", "opened")) == digital_state
+	return BipobInventoryControllerRef.has_digital_world_item(self, item_type, digital_state)
 
 func has_required_digital_key(world_object: Dictionary) -> bool:
-	var required_id: String = str(world_object.get("required_digital_key_id", "")).strip_edges()
-	if required_id.is_empty():
-		return has_digital_world_item("digital_key", "opened")
-	if digital_storage.has(required_id):
-		return true
-	if str(buffer_item.get("id", buffer_item.get("item_id", ""))).strip_edges() == required_id:
-		return str(buffer_item.get("digital_state", "opened")) == "opened"
-	return false
+	return BipobInventoryControllerRef.has_required_digital_key(self, world_object)
 
 func is_physical_storage_occupied() -> bool:
 	return _get_first_free_pocket_index() == -1
@@ -8586,21 +8552,7 @@ func pick_up_component(component_position: Vector2i, manipulator_module: BipobMo
 
 
 func rotate_physical_storage() -> void:
-	if mission_finished:
-		return
-
-	if not has_any_physical_item():
-		hint_requested.emit("No physical items to rotate.")
-		status_changed.emit()
-		return
-
-	if not can_spend_action(1, 0):
-		return
-
-	_rotate_first_manipulator_and_pocket()
-	spend_action(1, 0)
-	hint_requested.emit("Rotated physical storage.")
-	status_changed.emit()
+	BipobInventoryControllerRef.rotate_physical_storage(self)
 
 
 func drop_held_item() -> void:
@@ -8673,24 +8625,16 @@ func pick_up_key(key_position: Vector2i, manipulator_module: BipobModule = null)
 	print_status()
 
 func get_available_manipulator_slots() -> int:
-	return clampi(available_manipulator_slots, 0, get_max_manipulator_slots())
+	return BipobInventoryControllerRef.get_available_manipulator_slots(self)
 
 func get_max_manipulator_slots() -> int:
-	return max_manipulator_slots
+	return BipobInventoryControllerRef.get_max_manipulator_slots(self)
 
 func get_manipulator_items() -> Array:
 	return manipulator_items.duplicate()
 
 func get_runtime_manipulator_items() -> Array:
-	var runtime_items: Array = []
-	if mission_manager != null and mission_manager.has_method("get_manipulator_items"):
-		var runtime_items_variant: Variant = mission_manager.call("get_manipulator_items")
-		if typeof(runtime_items_variant) == TYPE_ARRAY:
-			runtime_items = runtime_items_variant
-	if runtime_items.is_empty():
-		for index in range(get_available_manipulator_slots()):
-			runtime_items.append(manipulator_items[index])
-	return runtime_items
+	return BipobInventoryControllerRef.get_runtime_manipulator_items(self)
 
 func _runtime_inventory_value_id(value: Variant) -> String:
 	if value is String or value is StringName:
@@ -8712,10 +8656,10 @@ func _get_held_runtime_world_item_id() -> String:
 	return str(held_value).strip_edges() if held_value is String or held_value is StringName else ""
 
 func get_available_pocket_slots() -> int:
-	return clampi(available_pocket_slots, 0, get_max_pocket_slots())
+	return BipobInventoryControllerRef.get_available_pocket_slots(self)
 
 func get_max_pocket_slots() -> int:
-	return max_pocket_slots
+	return BipobInventoryControllerRef.get_max_pocket_slots(self)
 
 func get_pocket_items() -> Array:
 	return pocket_items.duplicate()
@@ -8724,227 +8668,43 @@ func get_key_count() -> int:
 	return 1 if has_key else 0
 
 func get_available_digital_storage_slots() -> int:
-	return clampi(available_digital_storage_slots, 0, get_max_digital_storage_slots())
+	return BipobInventoryControllerRef.get_available_digital_storage_slots(self)
 
 func get_max_digital_storage_slots() -> int:
-	return max_digital_storage_slots
+	return BipobInventoryControllerRef.get_max_digital_storage_slots(self)
 
 func get_digital_storage_items() -> Array:
-	var items: Array = []
-	for key in digital_storage.keys():
-		items.append(digital_storage[key])
-	return items
+	return BipobInventoryControllerRef.get_digital_storage_items(self)
 
 func get_buffer_item() -> Variant:
-	if buffer_item.is_empty():
-		return null
-	return buffer_item
+	return BipobInventoryControllerRef.get_buffer_item(self)
 
 func _is_digital_storage_item(item: Dictionary, allow_untyped_storage_record: bool = false) -> bool:
-	var storage_class: String = WorldObjectCatalog.get_item_storage_class(item)
-	if storage_class in [WorldObjectCatalog.ITEM_STORAGE_CLASS_PHYSICAL, WorldObjectCatalog.ITEM_STORAGE_CLASS_KEY_CARD]:
-		return false
-	if storage_class == WorldObjectCatalog.ITEM_STORAGE_CLASS_DIGITAL:
-		return true
-	var item_form: String = str(item.get("item_form", "")).strip_edges().to_lower()
-	var item_type: String = str(item.get("item_type", item.get("id", ""))).strip_edges().to_lower()
-	if item_form == "physical" or item_type in ["fuse", "repair_kit", "cable_end"] or item_type.contains("cable_end") or item_type.contains("wire_end"):
-		return false
-	for metadata_key in item.keys():
-		var metadata_name: String = str(metadata_key).strip_edges().to_lower()
-		if metadata_name in ["reel_id", "end_index"] or metadata_name.contains("cable") or metadata_name.contains("wire"):
-			return false
-	if item_form == "digital":
-		return true
-	if not item_form.is_empty():
-		return false
-	for field_name in ["item_type", "item_family", "digital_payload_type", "id"]:
-		var digital_type: String = str(item.get(field_name, "")).strip_edges().to_lower()
-		if digital_type.contains("route_data") or digital_type.contains("info_key") or digital_type.contains("data_file") or digital_type.contains("digital_key") or digital_type.contains("access_code"):
-			return true
-	return allow_untyped_storage_record
+	return BipobInventoryControllerRef.is_digital_storage_item(self, item, allow_untyped_storage_record)
 
 func move_buffer_to_first_free_storage() -> Dictionary:
-	if buffer_item.is_empty():
-		return {"ok": false, "message": "Buffer is empty."}
-	if not _is_digital_storage_item(buffer_item):
-		return {"ok": false, "message": "This item cannot be stored in digital storage."}
-	if digital_storage.size() >= get_available_digital_storage_slots():
-		return {"ok": false, "message": "No free storage slot."}
-	var record_id: String = str(buffer_item.get("id", "")).strip_edges()
-	if record_id.is_empty():
-		return {"ok": false, "message": "Buffered record is unavailable."}
-	if digital_storage.has(record_id):
-		return {"ok": false, "message": "Storage already contains this record."}
-	digital_storage[record_id] = buffer_item.duplicate(true)
-	buffer_item.clear()
-	if mission_manager != null and mission_manager.has_method("move_runtime_digital_buffer_to_storage"):
-		mission_manager.call("move_runtime_digital_buffer_to_storage", record_id)
-	status_changed.emit()
-	return {"ok": true, "message": "Stored buffered digital record."}
+	return BipobInventoryControllerRef.move_buffer_to_first_free_storage(self)
 
 func move_or_swap_storage_slot_with_buffer(storage_index: int) -> Dictionary:
-	if storage_index < 0 or storage_index >= get_available_digital_storage_slots():
-		return {"ok": false, "message": "Storage slot is unavailable."}
-	var storage_keys: Array = digital_storage.keys()
-	if storage_index >= storage_keys.size():
-		if buffer_item.is_empty():
-			return {"ok": false, "message": "Storage slot is empty."}
-		return move_buffer_to_first_free_storage()
-	var stored_record_id: Variant = storage_keys[storage_index]
-	var stored_record_value: Variant = digital_storage.get(stored_record_id, {})
-	if typeof(stored_record_value) != TYPE_DICTIONARY:
-		return {"ok": false, "message": "Storage slot is unavailable."}
-	var stored_record: Dictionary = stored_record_value
-	if not _is_digital_storage_item(stored_record, true):
-		return {"ok": false, "message": "Storage slot is unavailable."}
-	if buffer_item.is_empty():
-		buffer_item = stored_record.duplicate(true)
-		buffer_item["item_form"] = "digital"
-		digital_storage.erase(stored_record_id)
-		if mission_manager != null and mission_manager.has_method("move_runtime_digital_storage_to_buffer"):
-			mission_manager.call("move_runtime_digital_storage_to_buffer", str(stored_record_id))
-		status_changed.emit()
-		return {"ok": true, "message": "Loaded storage record into buffer."}
-	if not _is_digital_storage_item(buffer_item):
-		return {"ok": false, "message": "This item cannot be stored in digital storage."}
-	var buffered_record_id: String = str(buffer_item.get("id", "")).strip_edges()
-	if buffered_record_id.is_empty():
-		return {"ok": false, "message": "Buffered record is unavailable."}
-	if buffered_record_id != str(stored_record_id) and digital_storage.has(buffered_record_id):
-		return {"ok": false, "message": "Storage already contains this record."}
-	var buffered_record: Dictionary = buffer_item.duplicate(true)
-	digital_storage.erase(stored_record_id)
-	digital_storage[buffered_record_id] = buffered_record
-	buffer_item = stored_record.duplicate(true)
-	buffer_item["item_form"] = "digital"
-	if mission_manager != null and mission_manager.has_method("swap_runtime_digital_buffer_and_storage"):
-		mission_manager.call("swap_runtime_digital_buffer_and_storage", buffered_record_id, str(stored_record_id))
-	status_changed.emit()
-	return {"ok": true, "message": "Swapped buffer and storage records."}
+	return BipobInventoryControllerRef.move_or_swap_storage_slot_with_buffer(self, storage_index)
 
 func move_manipulator_to_first_free_pocket(manipulator_index: int) -> Dictionary:
-	if manipulator_index == 0 and mission_manager != null and mission_manager.has_method("get_inventory_state"):
-		var inventory: Dictionary = Dictionary(mission_manager.call("get_inventory_state"))
-		if not _runtime_inventory_value_id(inventory.get("manipulator_hold", "")).is_empty():
-			var runtime_pocket: Array = Array(inventory.get("pocket_items", []))
-			for pocket_index in range(get_available_pocket_slots()):
-				if pocket_index >= runtime_pocket.size() or _runtime_inventory_value_id(runtime_pocket[pocket_index]).is_empty():
-					var result: Dictionary = Dictionary(mission_manager.call("move_runtime_manipulator_to_pocket", pocket_index, get_available_pocket_slots()))
-					status_changed.emit()
-					return result
-			return {"ok": false, "message": "No free pocket slot."}
-	if manipulator_index < 0 or manipulator_index >= get_available_manipulator_slots():
-		return {"ok": false, "message": "Manipulator slot is unavailable."}
-	if manipulator_items[manipulator_index] == null:
-		return {"ok": false, "message": "Manipulator is empty."}
-	var free_index: int = _get_first_free_pocket_index()
-	if free_index == -1:
-		return {"ok": false, "message": "No free pocket slot."}
-	pocket_items[free_index] = manipulator_items[manipulator_index]
-	manipulator_items[manipulator_index] = null
-	_sync_legacy_physical_slots()
-	status_changed.emit()
-	return {"ok": true, "message": "Stored manipulator item in pocket."}
+	return BipobInventoryControllerRef.move_manipulator_to_first_free_pocket(self, manipulator_index)
 
 func move_or_swap_pocket_slot_with_manipulator(pocket_index: int, manipulator_index: int) -> Dictionary:
-	if manipulator_index == 0 and mission_manager != null and mission_manager.has_method("get_inventory_state"):
-		var inventory: Dictionary = Dictionary(mission_manager.call("get_inventory_state"))
-		var runtime_pocket: Array = Array(inventory.get("pocket_items", []))
-		var runtime_pocket_id: String = _runtime_inventory_value_id(runtime_pocket[pocket_index]) if pocket_index >= 0 and pocket_index < runtime_pocket.size() else ""
-		if not _runtime_inventory_value_id(inventory.get("manipulator_hold", "")).is_empty() or not runtime_pocket_id.is_empty():
-			var result: Dictionary = Dictionary(mission_manager.call("move_or_swap_runtime_pocket_slot_with_manipulator", pocket_index, get_available_pocket_slots()))
-			status_changed.emit()
-			return result
-	if pocket_index < 0 or pocket_index >= get_available_pocket_slots():
-		return {"ok": false, "message": "Pocket slot is unavailable."}
-	if manipulator_index < 0 or manipulator_index >= get_available_manipulator_slots():
-		return {"ok": false, "message": "Manipulator slot is unavailable."}
-	var pocket_item: BipobModule = pocket_items[pocket_index]
-	var manipulator_item: BipobModule = manipulator_items[manipulator_index]
-	if pocket_item == null and manipulator_item == null:
-		return {"ok": false, "message": "Pocket slot is empty."}
-	pocket_items[pocket_index] = manipulator_item
-	manipulator_items[manipulator_index] = pocket_item
-	_sync_legacy_physical_slots()
-	status_changed.emit()
-	return {"ok": true, "message": "Moved or swapped pocket and manipulator items."}
+	return BipobInventoryControllerRef.move_or_swap_pocket_slot_with_manipulator(self, pocket_index, manipulator_index)
 
 func move_digital_storage_to_buffer(storage_index: int) -> bool:
-	if not buffer_item.is_empty():
-		hint_requested.emit("Digital buffer is occupied.")
-		return false
-	var storage_keys: Array = digital_storage.keys()
-	if storage_index < 0 or storage_index >= storage_keys.size():
-		hint_requested.emit("Storage slot is empty.")
-		return false
-	var record_id: Variant = storage_keys[storage_index]
-	var record_data: Variant = digital_storage.get(record_id, {})
-	if typeof(record_data) != TYPE_DICTIONARY or not _is_digital_storage_item(record_data, true):
-		hint_requested.emit("Storage slot is unavailable.")
-		return false
-	buffer_item = record_data.duplicate(true)
-	buffer_item["item_form"] = "digital"
-	digital_storage.erase(record_id)
-	if mission_manager != null and mission_manager.has_method("move_runtime_digital_storage_to_buffer"):
-		mission_manager.call("move_runtime_digital_storage_to_buffer", str(record_id))
-	hint_requested.emit("Loaded into digital buffer: %s." % str(buffer_item.get("display_name", buffer_item.get("id", "record"))))
-	status_changed.emit()
-	return true
+	return BipobInventoryControllerRef.move_digital_storage_to_buffer(self, storage_index)
 
 func move_buffer_to_digital_storage() -> bool:
-	if buffer_item.is_empty():
-		hint_requested.emit("Buffer is empty.")
-		return false
-	if not _is_digital_storage_item(buffer_item):
-		hint_requested.emit("This item cannot be stored in digital storage.")
-		return false
-	if digital_storage.size() >= get_available_digital_storage_slots():
-		hint_requested.emit("No free digital storage slot.")
-		return false
-	var record_id: String = str(buffer_item.get("id", "")).strip_edges()
-	if record_id.is_empty():
-		hint_requested.emit("Buffered record is unavailable.")
-		return false
-	digital_storage[record_id] = buffer_item.duplicate(true)
-	buffer_item.clear()
-	if mission_manager != null and mission_manager.has_method("move_runtime_digital_buffer_to_storage"):
-		mission_manager.call("move_runtime_digital_buffer_to_storage", record_id)
-	hint_requested.emit("Stored buffered digital record.")
-	status_changed.emit()
-	return true
+	return BipobInventoryControllerRef.move_buffer_to_digital_storage(self)
 
 func move_pocket_to_manipulator(pocket_index: int) -> bool:
-	if pocket_index < 0 or pocket_index >= get_available_pocket_slots():
-		return false
-	if pocket_items[pocket_index] == null:
-		hint_requested.emit("No pocket item selected.")
-		return false
-	var free_index := _get_first_free_manipulator_index()
-	if free_index == -1:
-		hint_requested.emit("No free manipulator slot.")
-		return false
-	manipulator_items[free_index] = pocket_items[pocket_index]
-	pocket_items[pocket_index] = null
-	_sync_legacy_physical_slots()
-	status_changed.emit()
-	return true
+	return BipobInventoryControllerRef.move_pocket_to_manipulator(self, pocket_index)
 
 func move_manipulator_to_pocket(manipulator_index: int) -> bool:
-	if manipulator_index < 0 or manipulator_index >= get_available_manipulator_slots():
-		return false
-	if manipulator_items[manipulator_index] == null:
-		hint_requested.emit("No manipulator item selected.")
-		return false
-	var free_index := _get_first_free_pocket_index()
-	if free_index == -1:
-		hint_requested.emit("No free pocket slot.")
-		return false
-	pocket_items[free_index] = manipulator_items[manipulator_index]
-	manipulator_items[manipulator_index] = null
-	_sync_legacy_physical_slots()
-	status_changed.emit()
-	return true
+	return BipobInventoryControllerRef.move_manipulator_to_pocket(self, manipulator_index)
 
 func print_status() -> void:
 	print(
@@ -8967,39 +8727,22 @@ func _initialize_runtime_storage_slots() -> void:
 	digital_storage_capacity = get_available_digital_storage_slots()
 
 func _sync_legacy_physical_slots() -> void:
-	held_module = manipulator_items[0] if manipulator_items.size() > 0 else null
-	stored_physical_module = pocket_items[0] if pocket_items.size() > 0 else null
-	physical_carry_capacity = get_available_manipulator_slots() + get_available_pocket_slots()
+	BipobInventoryControllerRef.sync_legacy_physical_slots(self)
 
 func _get_first_free_manipulator_index() -> int:
-	for i in range(get_available_manipulator_slots()):
-		if manipulator_items[i] == null:
-			return i
-	return -1
+	return BipobInventoryControllerRef.get_first_free_manipulator_index(self)
 
 func _get_first_occupied_manipulator_index() -> int:
-	for i in range(get_available_manipulator_slots()):
-		if manipulator_items[i] != null:
-			return i
-	return -1
+	return BipobInventoryControllerRef.get_first_occupied_manipulator_index(self)
 
 func _get_first_free_pocket_index() -> int:
-	for i in range(get_available_pocket_slots()):
-		if pocket_items[i] == null:
-			return i
-	return -1
+	return BipobInventoryControllerRef.get_first_free_pocket_index(self)
 
 func _get_first_occupied_pocket_index() -> int:
-	for i in range(get_available_pocket_slots()):
-		if pocket_items[i] != null:
-			return i
-	return -1
+	return BipobInventoryControllerRef.get_first_occupied_pocket_index(self)
 
 func _rotate_first_manipulator_and_pocket() -> void:
-	var hand_module: BipobModule = manipulator_items[0]
-	manipulator_items[0] = pocket_items[0]
-	pocket_items[0] = hand_module
-	_sync_legacy_physical_slots()
+	BipobInventoryControllerRef.rotate_first_manipulator_and_pocket(self)
 
 
 func _variant_to_dictionary(value: Variant, fallback: Dictionary = {}) -> Dictionary:
