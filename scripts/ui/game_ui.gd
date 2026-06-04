@@ -17,6 +17,7 @@ const MapConstructorPropertyUpdateServiceRef = preload("res://scripts/game/map_c
 const MapConstructorLinkControlsRef = preload("res://scripts/ui/map_constructor/map_constructor_link_controls.gd")
 const MapConstructorSessionStateRef = preload("res://scripts/ui/map_constructor/map_constructor_session_state.gd")
 const MapConstructorRefreshCoordinatorRef = preload("res://scripts/ui/map_constructor/map_constructor_refresh_coordinator.gd")
+const MapConstructorUIBridgeRef = preload("res://scripts/ui/map_constructor/map_constructor_ui_bridge.gd")
 
 
 class InternalIsoPreviewControl:
@@ -198,6 +199,7 @@ var runtime_world_actions_list: VBoxContainer = null
 var runtime_world_actions_no_actions_label: Label = null
 var runtime_world_actions_selected_button: Button = null
 var map_constructor_state: MapConstructorSessionState = MapConstructorSessionStateRef.new()
+var map_constructor_ui_bridge: MapConstructorUIBridge = null
 var runtime_map_constructor_palette_panel: PanelContainer = null
 var runtime_map_constructor_inspector_panel: PanelContainer = null
 var runtime_map_constructor_inspector_scroll: ScrollContainer = null
@@ -871,340 +873,85 @@ func _create_constructor_status_badges_panel(max_badges: int = -1) -> Control:
 
 
 
+func _ensure_map_constructor_ui_bridge() -> void:
+	if map_constructor_ui_bridge == null:
+		map_constructor_ui_bridge = MapConstructorUIBridgeRef.new(self, map_constructor_state)
+	else:
+		map_constructor_ui_bridge.configure(self, map_constructor_state)
+	map_constructor_ui_bridge.set_panel_references(
+		runtime_map_constructor_palette_panel,
+		runtime_map_constructor_inspector_panel,
+		runtime_map_constructor_inspector_scroll,
+		runtime_map_constructor_overview_hud_panel,
+		runtime_map_constructor_overview_hud_scroll,
+		runtime_map_constructor_validation_overlay_control,
+		runtime_map_constructor_place_confirm_panel
+	)
+
+
 func _get_warning_category_title(category: String) -> String:
-	match category:
-		"power":
-			return "POWER"
-		"data":
-			return "DATA NETWORK"
-		"external":
-			return "EXTERNAL LINK"
-		"cooling":
-			return "COOLING"
-		"thermal":
-			return "THERMAL"
-		"damage":
-			return "DAMAGE PREVIEW"
-		"overlay":
-			return "OVERLAY"
-		"storage":
-			return "BOX STORAGE"
-		"placement":
-			return "PLACEMENT"
-		"consistency":
-			return "CONSISTENCY"
-		_:
-			return "GENERAL"
+	_ensure_map_constructor_ui_bridge()
+	return map_constructor_ui_bridge.get_warning_category_title(category)
 
 
 func _get_warning_category_hint(category: String) -> String:
-	match category:
-		"power":
-			return "Install Battery and Power Block."
-		"data":
-			return "Install Internal Interface and required data modules."
-		"external":
-			return "Install External Interface bridge for external devices."
-		"cooling":
-			return "Add Cooler/Radiator/Air Intake or adjust layout."
-		"thermal":
-			return "Reduce heat near hot modules or add cooling."
-		"damage":
-			return "Critical heat can damage modules later."
-		"overlay":
-			return "Overlay paths are hypothetical until committed."
-		"storage":
-			return "Check Box Storage availability."
-		"placement":
-			return "Move cursor or rotate selected module."
-		"consistency":
-			return "Constructor data needs cleanup."
-		_:
-			return "Check constructor setup."
+	_ensure_map_constructor_ui_bridge()
+	return map_constructor_ui_bridge.get_warning_category_hint(category)
 
 
 func _get_warning_severity_role(severity: String) -> String:
-	match severity:
-		"ok":
-			return "ok"
-		"info":
-			return "info"
-		"warning":
-			return "warning"
-		"danger":
-			return "danger"
-		_:
-			return "neutral"
+	_ensure_map_constructor_ui_bridge()
+	return map_constructor_ui_bridge.get_warning_severity_role(severity)
 
 
 func _make_constructor_warning_item(category: String, severity: String, message: String, hint: String = "") -> Dictionary:
-	return {
-		"category": category,
-		"severity": severity,
-		"message": message,
-		"hint": hint
-	}
+	_ensure_map_constructor_ui_bridge()
+	return map_constructor_ui_bridge.make_constructor_warning_item(category, severity, message, hint)
 
 
 func _infer_warning_category_from_text(text: String) -> String:
-	var lower_text: String = text.to_lower()
-
-	if lower_text.contains("power") or lower_text.contains("battery"):
-		return "power"
-	if lower_text.contains("data") or lower_text.contains("interface") or lower_text.contains("network"):
-		return "data"
-	if lower_text.contains("external"):
-		return "external"
-	if lower_text.contains("cool") or lower_text.contains("air") or lower_text.contains("intake"):
-		return "cooling"
-	if lower_text.contains("thermal") or lower_text.contains("heat"):
-		return "thermal"
-	if lower_text.contains("damage") or lower_text.contains("repair"):
-		return "damage"
-	if lower_text.contains("overlay") or lower_text.contains("tube") or lower_text.contains("duct"):
-		return "overlay"
-	if lower_text.contains("storage") or lower_text.contains("box"):
-		return "storage"
-	if lower_text.contains("place") or lower_text.contains("slot") or lower_text.contains("cell"):
-		return "placement"
-	if lower_text.contains("consistency") or lower_text.contains("invalid"):
-		return "consistency"
-
-	return "general"
+	_ensure_map_constructor_ui_bridge()
+	return map_constructor_ui_bridge.infer_warning_category_from_text(text)
 
 
 func _infer_warning_severity_from_text(text: String) -> String:
-	var lower_text: String = text.to_lower()
-
-	if lower_text.contains("critical") or lower_text.contains("missing") or lower_text.contains("invalid"):
-		return "danger"
-
-	if lower_text.contains("warning") or lower_text.contains("required") or lower_text.contains("high"):
-		return "warning"
-
-	if lower_text.contains("info") or lower_text.contains("hypothetical"):
-		return "info"
-
-	return "warning"
+	_ensure_map_constructor_ui_bridge()
+	return map_constructor_ui_bridge.infer_warning_severity_from_text(text)
 
 
 func _get_constructor_warning_items() -> Array[Dictionary]:
-	var items: Array[Dictionary] = []
-	if bipob == null:
-		return items
-
-	if bipob.has_method("is_virtual_power_available") and not bipob.is_virtual_power_available():
-		items.append(_make_constructor_warning_item("power", "danger", "Virtual power network is incomplete.", "Install Battery and Power Block, then connect through automatic virtual wiring."))
-
-	if bipob.has_method("is_internal_data_network_available") and not bipob.is_internal_data_network_available():
-		items.append(_make_constructor_warning_item("data", "warning", "Internal data network is incomplete.", "Install Internal Interface and required processing/data modules."))
-
-	if bipob.has_method("is_external_data_network_available") and not bipob.is_external_data_network_available():
-		items.append(_make_constructor_warning_item("external", "warning", "External devices do not have a complete data bridge.", "Install External Interface and Internal Interface."))
-
-	if bipob.has_method("has_air_cooling_requiring_intake") and bipob.has_method("has_external_air_intake"):
-		if bipob.has_air_cooling_requiring_intake() and not bipob.has_external_air_intake():
-			items.append(_make_constructor_warning_item("cooling", "warning", "Air cooling requires an external Air Intake.", "Place Air Intake Node on an external slot."))
-
-	if bipob.has_method("get_highest_internal_preview_heat"):
-		var highest_heat: int = bipob.get_highest_internal_preview_heat()
-		if highest_heat >= 5:
-			items.append(_make_constructor_warning_item("thermal", "danger", "Thermal preview reaches critical heat 5.", "Add cooling, move hot modules apart, or plan overlay cooling."))
-		elif highest_heat >= 4:
-			items.append(_make_constructor_warning_item("thermal", "warning", "Thermal preview has high heat 4.", "Consider cooler/radiator placement before mission use."))
-
-	if bipob.has_method("get_damage_preview_critical_count") and bipob.has_method("get_damage_preview_warning_count"):
-		var damage_critical_count: int = bipob.get_damage_preview_critical_count()
-		var damage_warning_count: int = bipob.get_damage_preview_warning_count()
-		if damage_critical_count > 0:
-			items.append(_make_constructor_warning_item("damage", "danger", "Damage preview has %d critical module(s)." % damage_critical_count, "Lower heat below damage threshold."))
-		elif damage_warning_count > 0:
-			items.append(_make_constructor_warning_item("damage", "warning", "Damage preview has %d module(s) near threshold." % damage_warning_count, "Add cooling or move modules before using active abilities."))
-
-	if bipob.has_method("get_overlay_heat_diff_compact_text"):
-		var overlay_text: String = bipob.get_overlay_heat_diff_compact_text()
-		if not overlay_text.contains("changed 0"):
-			items.append(_make_constructor_warning_item("overlay", "info", "Overlay paths may improve hypothetical thermal preview.", "Overlay effects are informational until later gameplay rules."))
-
-	if bipob.has_method("get_constructor_consistency_issue_count"):
-		var consistency_count: int = bipob.get_constructor_consistency_issue_count()
-		if consistency_count > 0:
-			items.append(_make_constructor_warning_item("consistency", "danger", "Constructor consistency has %d issue(s)." % consistency_count, "Run Checkpoint and fix missing metadata or invalid records."))
-	elif bipob.has_method("get_constructor_consistency_check_text"):
-		var consistency_text: String = bipob.get_constructor_consistency_check_text()
-		if not consistency_text.contains("OK") and not consistency_text.contains("ok"):
-			items.append(_make_constructor_warning_item("consistency", "warning", "Constructor consistency needs review.", "Open Checkpoint or Overlay Check."))
-
-	if bipob.has_method("get_constructor_warning_lines"):
-		var warning_lines: Array[String] = bipob.get_constructor_warning_lines()
-		for warning_line in warning_lines:
-			var line_text: String = str(warning_line)
-			if line_text.is_empty():
-				continue
-			var already_covered: bool = false
-			for item in items:
-				if str(item.get("message", "")) == line_text:
-					already_covered = true
-					break
-			if not already_covered:
-				var inferred_category: String = _infer_warning_category_from_text(line_text)
-				items.append(_make_constructor_warning_item(inferred_category, _infer_warning_severity_from_text(line_text), line_text, _get_warning_category_hint(inferred_category)))
-
-	return items
+	_ensure_map_constructor_ui_bridge()
+	return map_constructor_ui_bridge.get_constructor_warning_items(bipob)
 
 
 func _get_constructor_readiness_state() -> Dictionary:
-	var constructor_ready: bool = false
-	var label: String = "NOT READY"
-	var severity: String = "warning"
-	var hint: String = "Review constructor warnings."
-	if bipob == null:
-		return {"ready": constructor_ready, "label": label, "severity": severity, "hint": hint, "danger_count": 0, "warning_count": 0}
-
-	if bipob != null and bipob.has_method("is_constructor_ready"):
-		constructor_ready = bipob.is_constructor_ready()
-	elif bipob != null and bipob.has_method("get_constructor_readiness_compact_text"):
-		var ready_text: String = bipob.get_constructor_readiness_compact_text()
-		var ready_lower: String = ready_text.to_lower()
-		constructor_ready = ready_lower.contains("ready") and not ready_lower.contains("not ready")
-
-	if constructor_ready:
-		label = "READY"
-		severity = "ok"
-		hint = "Configuration passes current constructor readiness checks."
-
-	var warning_items: Array[Dictionary] = _get_constructor_warning_items()
-	var danger_count: int = 0
-	var warning_count: int = 0
-	for item in warning_items:
-		var item_severity: String = str(item.get("severity", "warning"))
-		if item_severity == "danger":
-			danger_count += 1
-		elif item_severity == "warning":
-			warning_count += 1
-
-	if danger_count > 0:
-		label = "BLOCKED"
-		severity = "danger"
-		hint = "Fix critical constructor issues first."
-	elif warning_count > 0 and constructor_ready:
-		label = "READY WITH WARNINGS"
-		severity = "warning"
-		hint = "Configuration can continue, but warnings remain."
-	elif warning_count > 0:
-		label = "NOT READY"
-		severity = "warning"
-		hint = "Fix warnings or complete required modules."
-
-	return {"ready": constructor_ready, "label": label, "severity": severity, "hint": hint, "danger_count": danger_count, "warning_count": warning_count}
+	_ensure_map_constructor_ui_bridge()
+	return map_constructor_ui_bridge.get_constructor_readiness_state(bipob)
 
 
 func _get_warning_severity_rank(severity: String) -> int:
-	match severity:
-		"danger":
-			return 0
-		"warning":
-			return 1
-		"info":
-			return 2
-		"ok":
-			return 3
-		_:
-			return 4
+	_ensure_map_constructor_ui_bridge()
+	return map_constructor_ui_bridge.get_warning_severity_rank(severity)
 
 
 func _sort_warning_items_for_display(items: Array[Dictionary]) -> Array[Dictionary]:
-	var sorted_items: Array[Dictionary] = items.duplicate()
-	sorted_items.sort_custom(func(a: Dictionary, b: Dictionary) -> bool:
-		var rank_a: int = _get_warning_severity_rank(str(a.get("severity", "warning")))
-		var rank_b: int = _get_warning_severity_rank(str(b.get("severity", "warning")))
-		if rank_a != rank_b:
-			return rank_a < rank_b
-		return str(a.get("category", "general")) < str(b.get("category", "general"))
-	)
-	return sorted_items
+	_ensure_map_constructor_ui_bridge()
+	return map_constructor_ui_bridge.sort_warning_items_for_display(items)
 
 
 func _create_constructor_readiness_banner() -> Control:
-	var state: Dictionary = _get_constructor_readiness_state()
-	var panel: PanelContainer = PanelContainer.new()
-	panel.add_theme_stylebox_override("panel", _make_status_badge_style(_get_warning_severity_role(str(state.get("severity", "warning")))))
-	var root: VBoxContainer = VBoxContainer.new()
-	root.add_theme_constant_override("separation", 3)
-	var label: Label = Label.new()
-	label.text = str(state.get("label", "NOT READY"))
-	label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
-	_apply_label_style(label, false, true)
-	root.add_child(label)
-	var hint_text_label: Label = Label.new()
-	hint_text_label.text = str(state.get("hint", "Review constructor setup."))
-	hint_text_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
-	hint_text_label.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
-	_apply_label_style(hint_text_label, true, false)
-	root.add_child(hint_text_label)
-	panel.add_child(root)
-	return panel
+	_ensure_map_constructor_ui_bridge()
+	return map_constructor_ui_bridge.create_constructor_readiness_banner(bipob)
 
 
 func _create_warning_item_card(item: Dictionary) -> Control:
-	var category: String = str(item.get("category", "general"))
-	var severity: String = str(item.get("severity", "warning"))
-	var message: String = str(item.get("message", "Warning"))
-	var hint: String = str(item.get("hint", ""))
-	var panel: PanelContainer = PanelContainer.new()
-	panel.add_theme_stylebox_override("panel", _make_status_badge_style(_get_warning_severity_role(severity)))
-	var root: VBoxContainer = VBoxContainer.new()
-	root.add_theme_constant_override("separation", 3)
-	var title: Label = Label.new()
-	title.text = _get_warning_category_title(category)
-	_apply_label_style(title, false, true)
-	root.add_child(title)
-	var message_label: Label = Label.new()
-	message_label.text = message
-	message_label.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
-	_apply_label_style(message_label)
-	root.add_child(message_label)
-	if not hint.is_empty():
-		var hint_text_label: Label = Label.new()
-		hint_text_label.text = "Next: " + hint
-		hint_text_label.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
-		_apply_label_style(hint_text_label, true, false)
-		root.add_child(hint_text_label)
-	panel.add_child(root)
-	return panel
+	_ensure_map_constructor_ui_bridge()
+	return map_constructor_ui_bridge.create_warning_item_card(item)
 
 
 func _create_constructor_warning_readiness_panel() -> Control:
-	var panel: PanelContainer = PanelContainer.new()
-	_apply_panel_style(panel, true)
-	var root: VBoxContainer = VBoxContainer.new()
-	root.add_theme_constant_override("separation", 8)
-	root.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-	root.size_flags_vertical = Control.SIZE_EXPAND_FILL
-	var title: Label = Label.new()
-	title.text = "READINESS / WARNINGS"
-	_apply_label_style(title, false, true)
-	root.add_child(title)
-	root.add_child(_create_constructor_readiness_banner())
-	var items: Array[Dictionary] = _get_constructor_warning_items()
-	if items.is_empty():
-		root.add_child(_create_warning_item_card(_make_constructor_warning_item("general", "ok", "No constructor warnings.", "Configuration is clean for the current rule set.")))
-	else:
-		var sorted_items: Array[Dictionary] = _sort_warning_items_for_display(items)
-		var shown_count: int = 0
-		var max_shown: int = 6
-		for item in sorted_items:
-			if shown_count >= max_shown:
-				break
-			root.add_child(_create_warning_item_card(item))
-			shown_count += 1
-		if sorted_items.size() > max_shown:
-			var more_label: Label = Label.new()
-			more_label.text = "+%d more. Open Checkpoint for full details." % [sorted_items.size() - max_shown]
-			_apply_label_style(more_label, true, false)
-			root.add_child(more_label)
-	panel.add_child(root)
-	return panel
+	_ensure_map_constructor_ui_bridge()
+	return map_constructor_ui_bridge.build_warning_panel(bipob)
 
 
 func _load_cached_module_type_icon_texture(path: String) -> Texture2D:
@@ -5335,6 +5082,7 @@ func _create_runtime_storage_panel() -> PanelContainer:
 
 
 func _ready() -> void:
+	_ensure_map_constructor_ui_bridge()
 	if hint_label != null:
 		hint_label.text = "Mission 1: pick up the key-card, open the door, reach the exit."
 
@@ -12218,6 +11966,8 @@ func _ensure_map_constructor_validation_overlay() -> void:
 		runtime_map_constructor_validation_overlay_control.z_index = Z_RUNTIME_WORLD_OVERLAY
 		runtime_map_constructor_validation_overlay_control.z_as_relative = false
 		runtime_hud_root.add_child(runtime_map_constructor_validation_overlay_control)
+	_ensure_map_constructor_ui_bridge()
+	map_constructor_ui_bridge.update_validation_overlay_reference(runtime_map_constructor_validation_overlay_control)
 
 
 # -----------------------------------------------------------------------------
@@ -14642,36 +14392,8 @@ func _on_remove_selected_overlay_pressed() -> void:
 
 
 func _draw_map_constructor_validation_overlay(control: Control) -> void:
-	if not map_constructor_state.map_constructor_mode_active or not map_constructor_state.map_constructor_validation_overlay_visible:
-		return
-	if mission_manager_runtime == null or not mission_manager_runtime.has_method("get_map_constructor_validation_overlay"):
-		return
-	if field_runtime == null:
-		return
-	var renderer_node: Node = field_runtime.get_node_or_null("RoomVisualRenderer")
-	if renderer_node == null or not (renderer_node is RoomVisualRenderer):
-		return
-	var renderer: RoomVisualRenderer = renderer_node
-	var overlay: Dictionary = mission_manager_runtime.call("get_map_constructor_validation_overlay")
-	var cells: Dictionary = _safe_ui_dictionary(overlay.get("cells", {}))
-	for cell_variant in cells.keys():
-		var cell: Vector2i = _safe_ui_vector2i(cell_variant)
-		var row: Dictionary = _safe_ui_dictionary(cells[cell_variant])
-		var severity: String = str(row.get("severity", "none"))
-		if severity == "none":
-			continue
-		var color: Color = Color(0, 0, 0, 0)
-		if severity == "error":
-			color = Color(0.95, 0.2, 0.2, 0.35)
-		elif severity == "warning":
-			color = Color(0.95, 0.7, 0.2, 0.35)
-		elif severity == "valid":
-			color = Color(0.2, 0.9, 0.4, 0.30)
-		else:
-			continue
-		var world_center: Vector2 = renderer.to_global(renderer.grid_to_iso(cell))
-		control.draw_circle(world_center, 10.0, color)
-		control.draw_arc(world_center, 11.0, 0.0, TAU, 14, Color(color.r, color.g, color.b, 0.9), 2.0)
+	_ensure_map_constructor_ui_bridge()
+	map_constructor_ui_bridge.draw_validation_overlay(control, mission_manager_runtime, field_runtime)
 
 
 func _set_room_visual_map_constructor_editor_render_active(active: bool) -> void:
@@ -14684,33 +14406,8 @@ func _set_room_visual_map_constructor_editor_render_active(active: bool) -> void
 		field_runtime.call("request_visual_refresh")
 
 func _sync_map_constructor_overlay_visuals() -> void:
-	if field_runtime == null:
-		return
-	var renderer_node: Node = field_runtime.get_node_or_null("RoomVisualRenderer")
-	if renderer_node == null or not (renderer_node is RoomVisualRenderer):
-		return
-	var renderer: RoomVisualRenderer = renderer_node
-	renderer.set_map_constructor_overlay_preferences(map_constructor_state.map_constructor_overlay_visibility)
-	var overlay_data: Dictionary = {
-		"map_constructor_active": map_constructor_state.map_constructor_mode_active,
-		"selected": {"cell": map_constructor_state.selected_map_constructor_entity_cell, "wall_side": map_constructor_state.selected_map_constructor_wall_side},
-		"hover": {"cell": map_constructor_state.pending_map_constructor_cell},
-		"preview": {"mode": "destructive" if not map_constructor_state.map_constructor_cleanup_preview.is_empty() else "place", "wall_side": map_constructor_state.selected_map_constructor_wall_side},
-		"validation": [],
-		"links": _build_map_constructor_overlay_links(),
-		"power": _build_map_constructor_overlay_power(),
-		"multi_select": map_constructor_state.map_constructor_multi_selected_entities
-	}
-	if not map_constructor_state.room_visual_preset_preview.is_empty():
-		overlay_data["room_visual_preview"] = {
-			"walls": _safe_ui_array(map_constructor_state.room_visual_preset_preview.get("affected_walls", [])).duplicate(true),
-			"doors": _safe_ui_array(map_constructor_state.room_visual_preset_preview.get("affected_doors", [])).duplicate(true),
-			"terminals": _safe_ui_array(map_constructor_state.room_visual_preset_preview.get("affected_terminals", [])).duplicate(true),
-			"floors": _safe_ui_array(map_constructor_state.room_visual_preset_preview.get("affected_floors", [])).duplicate(true)
-		}
-	if mission_manager_runtime != null and mission_manager_runtime.has_method("get_map_constructor_validation_issues"):
-		overlay_data["validation"] = _safe_ui_array(mission_manager_runtime.call("get_map_constructor_validation_issues"))
-	renderer.set_map_constructor_overlay_data(overlay_data)
+	_ensure_map_constructor_ui_bridge()
+	map_constructor_ui_bridge.sync_overlay_visuals(field_runtime, mission_manager_runtime, _build_map_constructor_overlay_links(), _build_map_constructor_overlay_power())
 
 func _build_map_constructor_overlay_links() -> Array[Dictionary]:
 	var result: Array[Dictionary] = []
@@ -14803,9 +14500,12 @@ func _build_map_constructor_overlay_power() -> Array[Dictionary]:
 	return result
 
 func _refresh_map_constructor_browser() -> void:
-	_refresh_map_constructor_panels()
-	_request_map_constructor_overlay_refresh()
+	_ensure_map_constructor_ui_bridge()
+	map_constructor_ui_bridge.refresh(self)
 
 func _request_map_constructor_overlay_refresh() -> void:
-	_sync_map_constructor_overlay_visuals()
+	_ensure_map_constructor_ui_bridge()
+	map_constructor_ui_bridge.update_overlay(self)
+
+func _request_map_constructor_field_visual_refresh() -> void:
 	MapConstructorRefreshCoordinatorRef.request_field_visual_refresh(self)
