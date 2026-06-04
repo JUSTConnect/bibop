@@ -1837,6 +1837,28 @@ func get_iso_placeholder_asset_path(asset_key: String) -> String:
 	var placeholder_path: String = str(ISO_PLACEHOLDER_ASSET_PATHS.get(asset_key, ""))
 	return placeholder_path
 
+func is_placeholder_object_texture_path(texture_path: String) -> bool:
+	var normalized_path: String = texture_path.strip_edges().to_lower()
+	return normalized_path.begins_with("res://assets/visual/isometric/placeholders/iso_object_") and normalized_path.ends_with(".svg")
+
+func is_placeholder_object_texture_asset_key(asset_key: String) -> bool:
+	if asset_key.is_empty():
+		return false
+	var placeholder_path: String = get_iso_placeholder_asset_path(asset_key)
+	return is_placeholder_object_texture_path(placeholder_path)
+
+func should_skip_placeholder_object_texture_in_gray_test(asset_key: String) -> bool:
+	if not use_gray_room_visual_test_assets:
+		return false
+	if get_explicit_iso_texture_for_asset_key(asset_key) != null:
+		return false
+	return is_placeholder_object_texture_asset_key(asset_key)
+
+func should_skip_placeholder_object_texture_path_in_gray_test(texture_path: String) -> bool:
+	if not use_gray_room_visual_test_assets:
+		return false
+	return is_placeholder_object_texture_path(texture_path)
+
 func get_iso_placeholder_texture_for_asset_key(asset_key: String) -> Texture2D:
 	if not should_use_iso_placeholder_asset_preset():
 		return null
@@ -1935,11 +1957,12 @@ func get_iso_texture_for_asset_key(asset_key: String) -> Texture2D:
 	if asset_key.begins_with("wall_"):
 		return get_iso_wall_texture_for_asset_key(asset_key)
 	var explicit_texture: Texture2D = get_explicit_iso_texture_for_asset_key(asset_key)
-	if explicit_texture == null and not ISO_PLACEHOLDER_ASSET_PATHS.has(asset_key):
-		return null
-
 	if explicit_texture != null:
 		return explicit_texture
+	if should_skip_placeholder_object_texture_in_gray_test(asset_key):
+		return null
+	if not ISO_PLACEHOLDER_ASSET_PATHS.has(asset_key):
+		return null
 
 	return get_iso_placeholder_texture_for_asset_key(asset_key)
 
@@ -1978,12 +2001,13 @@ func get_iso_visual_texture_debug_state() -> Dictionary:
 		var placeholder_available: bool = false
 		var wall_catalog_path: String = ""
 		var wall_catalog_available: bool = false
+		var gray_test_placeholder_object_skipped: bool = should_skip_placeholder_object_texture_in_gray_test(texture_key)
 		if texture_key.begins_with("wall_"):
 			var wall_catalog: Dictionary = get_iso_wall_asset_catalog()
 			if wall_catalog.has(texture_key):
 				wall_catalog_path = ISO_WALL_ASSET_PACK_DIR + str(wall_catalog.get(texture_key, ""))
 				wall_catalog_available = ResourceLoader.exists(wall_catalog_path)
-		elif placeholder_preset_enabled and placeholder_path != "":
+		elif placeholder_preset_enabled and placeholder_path != "" and not gray_test_placeholder_object_skipped:
 			placeholder_available = ResourceLoader.exists(placeholder_path)
 
 		var active_texture_source: String = "none"
@@ -1991,6 +2015,8 @@ func get_iso_visual_texture_debug_state() -> Dictionary:
 			active_texture_source = "wall_catalog"
 		elif has_explicit_texture:
 			active_texture_source = "explicit"
+		elif gray_test_placeholder_object_skipped:
+			active_texture_source = "gray_test_placeholder_object_skipped"
 		elif placeholder_preset_enabled and placeholder_available:
 			active_texture_source = "placeholder"
 
@@ -1998,6 +2024,7 @@ func get_iso_visual_texture_debug_state() -> Dictionary:
 			"has_explicit_texture": has_explicit_texture,
 			"placeholder_path": placeholder_path,
 			"placeholder_available": placeholder_available,
+			"gray_test_placeholder_object_skipped": gray_test_placeholder_object_skipped,
 			"wall_catalog_path": wall_catalog_path,
 			"wall_catalog_available": wall_catalog_available,
 			"active_texture_source": active_texture_source
@@ -2476,6 +2503,8 @@ func draw_optional_visual_texture_asset(asset_id: String, cell: Vector2i, _fallb
 	var texture_path: String = str(resolved.get("texture_path", "")).strip_edges()
 	if texture_path.is_empty():
 		return false
+	if should_skip_placeholder_object_texture_path_in_gray_test(texture_path):
+		return false
 	var loaded: Resource = load(texture_path)
 	if loaded == null or not (loaded is Texture2D):
 		push_warning("[VisualAsset] failed to load texture_path for %s: %s" % [normalized_asset_id, texture_path])
@@ -2509,6 +2538,8 @@ func can_draw_optional_visual_texture_asset(asset_id: String) -> bool:
 		return false
 	var texture_path: String = str(resolved.get("texture_path", "")).strip_edges()
 	if texture_path.is_empty():
+		return false
+	if should_skip_placeholder_object_texture_path_in_gray_test(texture_path):
 		return false
 	var loaded: Resource = load(texture_path)
 	return loaded != null and (loaded is Texture2D)
