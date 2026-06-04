@@ -9,6 +9,7 @@ const TaskTestWorldBuilderRef = preload("res://scripts/game/task_test_world_buil
 const MapConstructorServiceRef = preload("res://scripts/game/map_constructor_service.gd")
 const MapConstructorValidationServiceRef = preload("res://scripts/game/map_constructor_validation_service.gd")
 const CableTopologyServiceRef = preload("res://scripts/game/cable_topology_service.gd")
+const BipobCableRuntimeServiceRef = preload("res://scripts/game/bipob_cable_runtime_service.gd")
 const DEVICE_INTERACTION_FLOW_STATES: Array[String] = ["no_target", "unknown", "scanned", "diagnosed", "ready", "blocked", "executed_unavailable"]
 
 const ISO_PLACEHOLDER_ASSET_PATHS: Dictionary = {
@@ -198,6 +199,7 @@ const VISUAL_TEXTURE_ASSET_ALIASES: Dictionary = {
 
 var mission_world_objects: Array[Dictionary] = []
 var world_objects_by_cell: Dictionary = {}
+var generic_cable_runtime_report: Dictionary = {}
 var cell_items: Dictionary = {}
 var last_threat_warning_ids: Dictionary = {}
 var last_world_runtime_restore_warnings: Array[String] = []
@@ -1124,6 +1126,7 @@ func _clear_world_object_runtime_state() -> void:
 	cell_items.clear()
 	_map_constructor_wall_material_overrides.clear()
 	_map_constructor_floor_material_overrides.clear()
+	generic_cable_runtime_report.clear()
 	if grid_manager != null and grid_manager.has_method("clear_floor_visual_states"):
 		grid_manager.call("clear_floor_visual_states")
 
@@ -1142,6 +1145,7 @@ func setup_task_test_sandbox_world() -> void:
 		for item in Array(items_by_cell.get(cell_variant, [])):
 			add_item_at_cell(cell, Dictionary(item).duplicate(true))
 	PowerSystemRef.recalculate_network(mission_world_objects, "task_test_power_main")
+	refresh_generic_cable_runtime_state()
 	refresh_world_cooling_received()
 
 func _setup_task_test_mission_world() -> void:
@@ -1775,6 +1779,7 @@ func apply_map_constructor_patch(patch: Dictionary, options: Dictionary = {}) ->
 			incoming_row.erase("cell")
 			add_item_at_cell(cell, incoming_row)
 	PowerSystemRef.recalculate_network(mission_world_objects, "task_test_power_main")
+	refresh_generic_cable_runtime_state()
 	refresh_world_cooling_received()
 	var patch_id: String = str(_map_constructor_last_patch_snapshot.get("patch_id", ""))
 	var summary_data: Dictionary = Dictionary(preview.get("summary", {}))
@@ -1794,6 +1799,7 @@ func rollback_last_map_constructor_patch() -> Dictionary:
 			_apply_map_constructor_floor_visual_state_row(_safe_dictionary(floor_state_variant))
 	_map_constructor_last_patch_snapshot.clear()
 	PowerSystemRef.recalculate_network(mission_world_objects, "task_test_power_main")
+	refresh_generic_cable_runtime_state()
 	refresh_world_cooling_received()
 	_record_map_constructor_change("patch_rollback", {"summary":"Rolled back last patch", "undo_hint":"Apply patch again if needed."})
 	return {"ok": true, "message": "Last patch rolled back."}
@@ -2454,6 +2460,40 @@ func _select_world_object_for_cell(cell: Vector2i) -> Dictionary:
 		return {}
 	return by_cell
 
+func refresh_generic_cable_runtime_state(network_filter: String = "") -> Dictionary:
+	generic_cable_runtime_report = BipobCableRuntimeServiceRef.apply_generic_power_runtime(mission_world_objects, network_filter)
+	return generic_cable_runtime_report.duplicate(true)
+
+
+func get_generic_cable_runtime_report() -> Dictionary:
+	return generic_cable_runtime_report.duplicate(true)
+
+
+func is_world_object_powered(object_id: String) -> bool:
+	var object_data: Dictionary = get_world_object_by_id(object_id.strip_edges())
+	if object_data.is_empty():
+		return false
+	return bool(object_data.get("is_powered", false))
+
+
+func get_world_object_power_state(object_id: String) -> Dictionary:
+	var object_data: Dictionary = get_world_object_by_id(object_id.strip_edges())
+	if object_data.is_empty():
+		return {"ok": false, "object_id": object_id.strip_edges(), "is_powered": false, "power_state": "missing", "power_required": false, "power_received": 0}
+	return {
+		"ok": true,
+		"object_id": str(object_data.get("id", "")),
+		"is_powered": bool(object_data.get("is_powered", false)),
+		"power_state": str(object_data.get("power_state", "powered" if bool(object_data.get("is_powered", false)) else "unpowered")),
+		"power_required": bool(object_data.get("power_required", false)),
+		"power_received": int(object_data.get("power_received", 0)),
+		"power_network_id": str(object_data.get("power_network_id", "")),
+		"connection_id": str(object_data.get("connection_id", "")),
+		"source_object_id": str(object_data.get("source_object_id", object_data.get("power_source_id", ""))),
+		"socket_id": str(object_data.get("socket_id", ""))
+	}
+
+
 func get_world_object_at_cell(cell: Vector2i, include_lookup_metadata: bool = false) -> Dictionary:
 	var selected_object: Dictionary = _select_world_object_for_cell(cell)
 	if not include_lookup_metadata:
@@ -2617,6 +2657,7 @@ func set_world_object_at_cell(cell: Vector2i, object_data: Dictionary) -> void:
 	if not incoming_is_cable_layer or current_lookup.is_empty() or CableTopologyServiceRef.is_cable_object(current_lookup):
 		world_objects_by_cell[cell] = object_data
 	mission_world_objects.append(object_data)
+	refresh_generic_cable_runtime_state(str(object_data.get("power_network_id", "")))
 	refresh_world_cooling_received()
 
 func remove_world_object_at_cell(cell: Vector2i) -> void:
@@ -2624,6 +2665,7 @@ func remove_world_object_at_cell(cell: Vector2i) -> void:
 	if not object_data.is_empty():
 		mission_world_objects.erase(object_data)
 	world_objects_by_cell.erase(cell)
+	refresh_generic_cable_runtime_state()
 	refresh_world_cooling_received()
 
 func get_items_at_cell(cell: Vector2i) -> Array[Dictionary]:
@@ -6100,6 +6142,7 @@ func update_world_object_by_id(id: String, data: Dictionary) -> void:
 		if old_position != new_position:
 			world_objects_by_cell.erase(old_position)
 		world_objects_by_cell[new_position] = object_data
+		refresh_generic_cable_runtime_state(str(object_data.get("power_network_id", "")))
 		refresh_world_cooling_received()
 		return
 
@@ -7410,6 +7453,7 @@ func execute_power_source_recovery_apply(filter: String = "") -> Dictionary:
 
 func apply_power_network_after_explicit_power_event(reason: String = "", filter: String = "") -> Dictionary:
 	PowerSystemRef.recalculate_network(mission_world_objects, filter)
+	refresh_generic_cable_runtime_state(filter)
 	var report := apply_power_graph_state_from_preview(filter)
 	return {
 		"event_reason": reason,
