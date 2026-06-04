@@ -7231,68 +7231,7 @@ func has_cooling_support() -> bool:
 	return has_module_id("cooling_v1")
 
 func evaluate_device_capability(device: DeviceDefinition) -> DiagnosticResult:
-	var result := DiagnosticResult.new()
-
-	if device == null:
-		result.status = DiagnosticResult.STATUS_BLOCKED
-		result.device_type = ""
-		result.device_name = "Unknown"
-		result.supported_action = ""
-		result.reason = "No device detected."
-		result.recommendation = "Face a digital device and scan again."
-		result.estimated_risk = "none"
-		return result
-
-	if not has_required_interface(device.required_interface):
-		result.status = DiagnosticResult.STATUS_BLOCKED
-		result.device_type = device.device_type
-		result.device_name = device.display_name
-		result.supported_action = device.supported_action
-		result.reason = "Missing required interface: " + device.required_interface
-		result.recommendation = "Install Interface V1 or compatible module."
-		result.estimated_risk = "low"
-		return result
-
-	if device.device_type == "airflow_terminal":
-		result.device_type = device.device_type
-		result.device_name = device.display_name
-		result.supported_action = device.supported_action
-		if not mission8_terminal_cooled:
-			result.status = DiagnosticResult.STATUS_BLOCKED
-			result.reason = "Terminal heat is too high without airflow."
-			result.recommendation = "Rotate the fan platform and increase fan speed until airflow reaches the terminal."
-			result.estimated_risk = "high"
-			return result
-		result.status = DiagnosticResult.STATUS_READY
-		result.reason = "Terminal cooled by directed airflow."
-		result.recommendation = "Proceed with Hack Device."
-		result.estimated_risk = "low"
-		return result
-
-	if device.device_type == "hot_node":
-		result.device_type = device.device_type
-		result.device_name = device.display_name
-		result.supported_action = device.supported_action
-		if has_cooling_support():
-			result.status = DiagnosticResult.STATUS_READY
-			result.reason = "Cooling support detected."
-			result.recommendation = "Hack Device can stabilize the node safely."
-			result.estimated_risk = "low"
-			return result
-		result.status = DiagnosticResult.STATUS_RISKY
-		result.reason = "No cooling support installed."
-		result.recommendation = "Install Cooling V1 or proceed with extra energy cost."
-		result.estimated_risk = "medium"
-		return result
-
-	result.status = DiagnosticResult.STATUS_READY
-	result.device_type = device.device_type
-	result.device_name = device.display_name
-	result.supported_action = device.supported_action
-	result.reason = "Current build can interact with this device."
-	result.recommendation = "Proceed with Hack Device."
-	result.estimated_risk = "low"
-	return result
+	return BipobScanHackServiceRef.evaluate_device_capability(self, device)
 
 func evaluate_facing_device_capability() -> DiagnosticResult:
 	return BipobScanHackServiceRef.evaluate_facing_device_capability(self)
