@@ -197,10 +197,10 @@ func reset_mission_layout(mission_index: int) -> void:
 		map_data = duplicate_map_layout(get_mission4_layout())
 	elif mission_index == 6:
 		map_data = duplicate_map_layout(get_mission6_layout())
-	elif mission_index == 7:
-		map_data = duplicate_map_layout(get_mission7_layout())
-	elif mission_index == 8:
-		map_data = duplicate_map_layout(get_mission8_layout())
+	elif mission_index == 7 or mission_index == 8:
+		# Retired/quarantined legacy layouts remain in this file for parser-safe
+		# compatibility, but are no longer selected by active runtime flows.
+		map_data = duplicate_map_layout(mission_initial_map_data)
 	elif mission_index == 9:
 		map_data = duplicate_map_layout(get_mission9_layout())
 	elif mission_index == 10:

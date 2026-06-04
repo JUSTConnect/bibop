@@ -1,116 +1,69 @@
-# PR-GEN-04 — Legacy Mission 7/8 removal-readiness audit
+# PR-LEGACY-RM-01 — Mission 7/8 quarantine and removal-readiness audit
 
-Status: legacy Mission 7 and Mission 8 are **not ready for deletion** in this PR.
+Status: legacy Mission 7 and Mission 8 are **retired/quarantined but not physically deleted**.
 
-This audit records deletion readiness after PR-GEN-02 generic cable runtime, PR-GEN-03 generic airflow runtime, and PR-GEN-04 Map Constructor validation. It is an audit only; no mission resources, scenes, story missions, or `project.godot` entries are deleted.
+This audit supersedes the PR-GEN-04 deletion-readiness note for Mission 7/8. Product decision: old Mission 7/8 story flows will not be used in the future. PR-LEGACY-RM-01 disconnects them from active selectable/runtime paths while keeping files, services, metadata stubs, and parser-safe compatibility methods in place for a later physical deletion PR.
+
+## Active replacements
+
+- **TASK TEST** remains the active smoke surface for reusable mechanics.
+- **Generic cable/socket/power runtime** remains active through TASK TEST, MissionManager generic cable reports, and Map Constructor validation.
+- **Generic fan/airflow/cooling runtime** remains active through TASK TEST, MissionManager generic airflow reports, and Map Constructor validation.
+- **Map Constructor validation** remains active and continues reporting generic cable/power and generic airflow/cooling readiness issues.
+
+## Runtime quarantine applied in PR-LEGACY-RM-01
+
+- Mission 7/8 are no longer included in the active Tasks mission list.
+- `BipobController.start_mission(7)` and `start_mission(8)` now stop with a retired-mission hint instead of launching legacy runtime setup.
+- Legacy story progression skips from Mission 6 to Mission 9.
+- Runtime-mode classification no longer treats `mission_7` or `mission_8` as active legacy story missions.
+- `GridManager.reset_mission_layout(7/8)` no longer selects the retired Mission 7/8 layouts; those layout functions remain in the file only for compatibility until deletion.
+- Mission 7 cable HUD/status branches and Mission 8 airflow HUD/status branches are gated behind legacy-active checks, which are now false for retired missions.
+- Legacy Mission 7 cable tile handling and Mission 8 fan/platform control tile handling are gated behind legacy-active checks, which prevents those flows from being reached through active runtime interaction.
+- Mission catalog entries for `mission_7` and `mission_8` are retained as `retired_quarantined` metadata stubs.
 
 ## Mission 7 — cable/socket/power legacy flow
 
-### Legacy files/services still present
+### Current state
 
-- `scripts/game/bipob_legacy_cable_flow_service.gd` still implements the Mission 7 cable route interaction adapter.
-- `scripts/game/bipob_legacy_tile_interaction_service.gd` still participates in legacy tile interaction routing.
-- `scripts/bipob/bipob_controller.gd` still preloads the legacy cable service and owns Mission 7 cable state.
-- `scripts/field/grid_manager.gd` still contains `get_mission7_layout()` and Mission 7 map selection.
-- `scripts/ui/game_ui.gd` still displays Mission 7 cable drag/status affordances.
+Mission 7 is retired and disconnected from active mission launch/selection paths. Its legacy files are still present for parser safety and staged cleanup only.
 
-### Generic replacements now available
+### Files/services still intentionally present
 
-- PR-GEN-02 introduced `BipobCableRuntimeState` and `BipobCableRuntimeService` for generic cable/socket/power state and propagation.
-- `MissionManager.refresh_generic_cable_runtime_state()`, `get_generic_cable_runtime_report()`, `is_world_object_powered()`, and `get_world_object_power_state()` expose the generic runtime to TASK TEST/read-only callers.
-- TASK TEST includes the valid `task_test_generic_power_smoke` chain plus `task_test_generic_unpowered_device` as an intentionally incomplete case.
-- PR-GEN-04 adds Map Constructor warnings for missing power networks, missing/invalid sources, missing/invalid sockets, dangling endpoints, incomplete chains, and unpowered generic sinks.
+- `scripts/game/bipob_legacy_cable_flow_service.gd`
+- `scripts/bipob/bipob_controller.gd` Mission 7 compatibility state and method stubs
+- `scripts/field/grid_manager.gd` `get_mission7_layout()` compatibility layout data
+- parser/CI checks that snapshot legacy Mission 7 dictionaries while validating generic cable service behavior
 
-### Callers still referencing Mission 7-specific methods/state
+### Replacement surface
 
-Observed references include:
-
-- `BipobController.is_legacy_mission7_cable_flow_active()`;
-- `BipobController.is_legacy_mission7_cable_drag_active()`;
-- `BipobController.setup_mission7()`;
-- `BipobController.release_mission7_cable_end()`;
-- `BipobController.add_current_cell_to_mission7_cable_path()`;
-- `BipobController.get_mission7_cable_status_text()`;
-- `mission7_is_dragging_cable`;
-- `mission7_cable_connected`;
-- `mission7_cable_reel_position`;
-- `mission7_socket_position`;
-- `mission7_powered_gate_position`;
-- `mission7_cable_path`;
-- `mission7_cable_max_length`;
-- `GameUI` Mission 7 cable status/HUD branches.
-
-### Remaining blockers
-
-- Story Mission 7 still has hardcoded controller/grid/UI wiring.
-- There is no Mission 7 resource migration proving the story mission can be expressed entirely as generic world-object cable metadata.
-- Existing player-facing Mission 7 status text and cable drag behavior still depend on legacy controller state.
-- Generic cable runtime is TASK TEST-first and intentionally simple; it has not been promoted as a full replacement for the legacy story mission flow.
-- Full local Godot smoke for old Mission 7 was not completed in this audit environment.
+Use TASK TEST generic cable/socket/power smoke and Map Constructor validation. Do not add new dependencies to `mission7_*` state.
 
 ### Deletion safety
 
-Deletion safe now: **No**.
-
-Recommended next step: create a separate migration PR that either ports Mission 7 content to generic cable/socket/power metadata and updates caller routing, or formally quarantines Mission 7 as a legacy-only mission while leaving old files in place.
+Deletion safe now: **No**. The mission is runtime-quarantined, but physical deletion is intentionally deferred to the next PR so remaining parser-safe references can be removed in one focused cleanup.
 
 ## Mission 8 — fan/airflow/cooling legacy flow
 
-### Legacy files/services still present
+### Current state
 
-- `scripts/game/bipob_legacy_airflow_flow_service.gd` still implements Mission 8 fan/platform/terminal flow.
-- `scripts/game/bipob_legacy_tile_interaction_service.gd` still participates in legacy tile interaction routing.
-- `scripts/bipob/bipob_controller.gd` still preloads the legacy airflow service and owns Mission 8 airflow state.
-- `scripts/field/grid_manager.gd` still contains `get_mission8_layout()` and Mission 8 map selection.
-- `scripts/ui/game_ui.gd` still displays Mission 8 airflow status text.
-- `scripts/field/room_visual_renderer.gd` still includes `airflow_terminal` visual classification/support.
+Mission 8 is retired and disconnected from active mission launch/selection paths. Its legacy files are still present for parser safety and staged cleanup only.
 
-### Generic replacements now available
+### Files/services still intentionally present
 
-- PR-GEN-03 introduced `BipobAirflowRuntimeState` and `BipobAirflowRuntimeService` for generic fan/airflow/cooling propagation.
-- `MissionManager.refresh_generic_airflow_runtime_state()`, `get_generic_airflow_runtime_report()`, `is_world_object_cooled()`, and `get_world_object_cooling_state()` expose generic cooling state to TASK TEST/read-only callers.
-- TASK TEST includes the generic fan/path/target/blocker/uncooled-target smoke chain.
-- PR-GEN-04 adds Map Constructor warnings for missing airflow networks, missing fan direction, disabled fan with cooling-required targets, uncooled targets, blocked paths, out-of-range targets, and invalid declared linked target ids.
+- `scripts/game/bipob_legacy_airflow_flow_service.gd`
+- `scripts/bipob/bipob_controller.gd` Mission 8 compatibility state and method stubs
+- `scripts/field/grid_manager.gd` `get_mission8_layout()` compatibility layout data
+- legacy tile/device constants used by parser-safe compatibility code
 
-### Callers still referencing Mission 8-specific methods/state
+### Replacement surface
 
-Observed references include:
-
-- `BipobController.is_legacy_mission8_airflow_flow_active()`;
-- `BipobController.setup_mission8()`;
-- `BipobController.unlock_airflow_terminal_path()`;
-- `BipobController.complete_legacy_mission8_airflow_terminal_hack()`;
-- `BipobController.interact_mission8_platform_control_left()`;
-- `BipobController.interact_mission8_platform_control_right()`;
-- `BipobController.increase_mission8_fan_speed()`;
-- `BipobController.decrease_mission8_fan_speed()`;
-- `BipobController.get_mission8_airflow_status_text()`;
-- `mission8_fan_direction`;
-- `mission8_fan_speed`;
-- `mission8_terminal_cooled`;
-- `mission8_terminal_hacked`;
-- `mission8_fan_platform_position`;
-- `mission8_platform_control_position` and side-specific platform controls;
-- `mission8_fan_control_position` and speed controls;
-- `mission8_terminal_position`;
-- `mission8_door_position`;
-- `mission8_airflow_cells`;
-- `GameUI` Mission 8 airflow status/HUD branches.
-
-### Remaining blockers
-
-- Story Mission 8 still has hardcoded controller/grid/UI wiring.
-- There is no Mission 8 resource migration proving the story mission can be expressed entirely as generic fan/path/blocker/target metadata.
-- Existing Mission 8 terminal hack and door unlock sequence still depends on legacy controller state.
-- Generic airflow runtime is TASK TEST-first and line-of-sight/range based; it has not been promoted as a full replacement for the legacy story mission flow.
-- Full local Godot smoke for old Mission 8 was not completed in this audit environment.
+Use TASK TEST generic fan/airflow/cooling smoke and Map Constructor validation. Do not add new dependencies to `mission8_*` state.
 
 ### Deletion safety
 
-Deletion safe now: **No**.
+Deletion safe now: **No**. The mission is runtime-quarantined, but physical deletion is intentionally deferred to the next PR so remaining parser-safe references can be removed in one focused cleanup.
 
-Recommended next step: create a separate migration PR that ports Mission 8 content and terminal unlock conditions to generic airflow/cooling metadata, then runs a full old Mission 8 smoke before deleting legacy adapters.
+## Next PR: physical deletion
 
-## Overall removal-readiness result
-
-Legacy Mission 7/8 removal should remain blocked until both old story missions are either migrated to generic data or explicitly retired through a separate deletion PR with full runtime smoke coverage.
+The next PR should delete the retired Mission 7/8 compatibility files and stubs after verifying no parser/runtime entry point depends on them. Expected cleanup targets include legacy services, Mission 7/8 layout helpers, Mission 7/8 controller state/method stubs, legacy tile routing helpers that only served Mission 7/8, and docs references that described pre-quarantine blockers.

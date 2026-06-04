@@ -189,3 +189,9 @@ This reduces the dependency on mission index 10 as semantic TASK TEST state, but
 TASK TEST setup/validation now has sandbox-named MissionManager boundaries: `setup_task_test_sandbox_world()`, `build_task_test_sandbox_world_objects_for_validation()`, `get_task_test_sandbox_layout_id()`, and `get_task_test_sandbox_source_id()`. `BipobController._start_runtime_session()` prefers the sandbox setup wrapper when TASK TEST / sandbox mode is active. Mission-named MissionManager methods still exist for compatibility and delegate TASK TEST work to the sandbox wrappers.
 
 This is the final code decoupling step before a final audit. It does not make old story mission resources ready for deletion, and it does not remove `mission_10`, `current_mission_index`, legacy story setup paths, Mission 7 cable behavior, Mission 8 airflow behavior, or GridManager Mission 10 fallback.
+
+### PR-LEGACY-RM-01 — Quarantine retired Mission 7/8 runtime flows
+
+Status: completed for active runtime disconnection. Mission 7 and Mission 8 are retired product scope and are no longer selectable from the active Tasks list, no longer launch through `start_mission(7/8)`, no longer classify as active legacy story runtime modes, and no longer select their legacy GridManager layouts. Legacy Mission 7/8 files and parser-safe compatibility stubs remain in place for a follow-up physical deletion PR.
+
+TASK TEST remains the active smoke surface for generic cable/socket/power and generic fan/airflow/cooling behavior. Map Constructor validation remains active for those generic systems.

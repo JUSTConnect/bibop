@@ -5588,9 +5588,8 @@ func _enter_gameplay_screen_without_starting_mission() -> void:
 
 func _build_tasks_mission_data() -> void:
 	tasks_mission_data.clear()
-	var total_missions: int = 9
-	for i in range(total_missions):
-		var mission_id: int = i + 1
+	var active_mission_ids: Array[int] = [1, 2, 3, 4, 5, 6, 9]
+	for mission_id in active_mission_ids:
 		var mission_title_short := "Mission %d" % mission_id
 		var mission_title_full := "Mission %d" % mission_id
 		var short_description := "Reach extraction."
@@ -5616,7 +5615,10 @@ func _build_tasks_mission_data() -> void:
 		})
 	if tasks_selected_career_index >= tasks_mission_data.size():
 		tasks_selected_career_index = maxi(tasks_mission_data.size() - 1, 0)
-	tasks_selected_mission_id = tasks_selected_career_index + 1
+	if tasks_mission_data.is_empty():
+		tasks_selected_mission_id = 0
+	else:
+		tasks_selected_mission_id = int(Dictionary(tasks_mission_data[tasks_selected_career_index]).get("id", 0))
 
 func _get_mission_progress(mission_id: int) -> Dictionary:
 	if not mission_progress.has(mission_id):
@@ -5660,7 +5662,12 @@ func start_selected_task_mission() -> void:
 		_refresh_tasks_content()
 		return
 	if bipob != null:
-		bipob.current_mission_index = int(mission.get("id", tasks_selected_career_index + 1))
+		var mission_id: int = int(mission.get("id", tasks_selected_career_index + 1))
+		if bipob.has_method("is_retired_legacy_mission_index") and bool(bipob.call("is_retired_legacy_mission_index", mission_id)):
+			show_hint("Mission %d is retired. Use TASK TEST for generic cable/power and airflow/cooling smoke." % mission_id)
+			_refresh_tasks_content()
+			return
+		bipob.current_mission_index = mission_id
 	start_gameplay_from_center()
 
 func show_box_constructor_from_center() -> void:
@@ -5888,7 +5895,10 @@ func _update_tasks_details_panel() -> void:
 	if tasks_mission_data.is_empty():
 		return
 	tasks_selected_career_index = clampi(tasks_selected_career_index, 0, tasks_mission_data.size() - 1)
-	tasks_selected_mission_id = tasks_selected_career_index + 1
+	if tasks_mission_data.is_empty():
+		tasks_selected_mission_id = 0
+	else:
+		tasks_selected_mission_id = int(Dictionary(tasks_mission_data[tasks_selected_career_index]).get("id", 0))
 	var task: Dictionary = Dictionary(tasks_mission_data[tasks_selected_career_index])
 	var selected_bipobs: Array[Dictionary] = get_selected_bipobs_for_mission()
 	var validation: Dictionary = validate_mission_requirements(task, selected_bipobs)
@@ -12421,7 +12431,7 @@ func update_status() -> void:
 	var held_text := "empty"
 	if bipob.held_module != null:
 		held_text = bipob.get_module_display_name(bipob.held_module)
-	elif bipob.current_mission_index == 7 and bipob.mission7_is_dragging_cable:
+	elif bipob.has_method("is_legacy_mission7_cable_drag_active") and bool(bipob.call("is_legacy_mission7_cable_drag_active")):
 		held_text = "Cable End"
 	var storage_text := "empty"
 	if bipob.stored_physical_module != null:
@@ -12460,11 +12470,11 @@ func update_status() -> void:
 		elif not full_storage_text.is_empty():
 			digital_storage_short_text = full_storage_text
 	hud_status_label.text += " | Data: %s" % digital_storage_short_text
-	if bipob.has_method("get_mission8_airflow_status_text"):
+	if bipob.has_method("is_legacy_mission8_airflow_flow_active") and bool(bipob.call("is_legacy_mission8_airflow_flow_active")) and bipob.has_method("get_mission8_airflow_status_text"):
 		var mission8_status := str(bipob.get_mission8_airflow_status_text())
 		if not mission8_status.is_empty():
 			hud_status_label.text += " | %s" % mission8_status
-	if bipob.current_mission_index == 7 and bipob.has_method("get_mission7_cable_status_text"):
+	if bipob.has_method("is_legacy_mission7_cable_flow_active") and bool(bipob.call("is_legacy_mission7_cable_flow_active")) and bipob.has_method("get_mission7_cable_status_text"):
 		hud_status_label.text += " | %s" % str(bipob.get_mission7_cable_status_text())
 	if bipob.has_method("refresh_world_action_panel"):
 		bipob.refresh_world_action_panel()

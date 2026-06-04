@@ -232,3 +232,9 @@ Status: completed for the normal TASK TEST layout path. `start_task_test_session
 TASK TEST runtime/session identity is now documented and enforced as runtime mode plus canonical ids, not numeric mission index state. In `BipobController`, explicit `active_runtime_mode_id` wins, `current_mission_id` / canonical `task_test` layout id are checked next, and the `current_mission_index == 10` check remains only as a legacy compatibility fallback. The assignment of `current_mission_index = TASK_TEST_MISSION_INDEX` remains for compatibility mirrors such as old callers and UI fallback code, but it is not the TASK TEST source of truth.
 
 Readiness remains partial. This does not make old missions ready for deletion: Mission 7 cable behavior, Mission 8 airflow behavior, legacy story progression, mission resources, and GridManager Mission 10 fallback compatibility are still retained until separate replacement/smoke work proves they can be removed safely.
+
+## PR-LEGACY-RM-01 update — Mission 7/8 retired and quarantined
+
+Mission 7 and Mission 8 are now retired product scope and disconnected from active selectable/runtime paths. They are intentionally **not deleted** in PR-LEGACY-RM-01. TASK TEST is the active smoke surface for generic cable/socket/power and generic fan/airflow/cooling behavior, with Map Constructor validation covering the generic readiness checks.
+
+Physical deletion of remaining Mission 7/8 compatibility files, state, and parser-safe stubs is deferred to the next PR.

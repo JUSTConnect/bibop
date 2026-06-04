@@ -248,6 +248,7 @@ var constructor_exit_marker: Dictionary = {}
 const RUNTIME_MODE_LEGACY_STORY := "legacy_story"
 const RUNTIME_MODE_TASK_TEST := "task_test"
 const RUNTIME_MODE_UNKNOWN := "unknown"
+const RETIRED_LEGACY_MISSION_INDEXES: Array[int] = [7, 8]
 const TASK_TEST_LAYOUT_ID := "task_test"
 const TASK_TEST_MISSION_ID := "mission_10"
 
@@ -1195,6 +1196,10 @@ func _is_valid_grid_cell(cell: Vector2i) -> bool:
 	return true
 
 func get_runtime_mode_id() -> String:
+	var normalized_mission_id: String = current_mission_id.strip_edges()
+	if normalized_mission_id.begins_with("mission_") and RETIRED_LEGACY_MISSION_INDEXES.has(int(normalized_mission_id.trim_prefix("mission_"))):
+		return RUNTIME_MODE_UNKNOWN
+
 	var normalized_runtime_mode_id: String = active_runtime_mode_id.strip_edges()
 	if not normalized_runtime_mode_id.is_empty() and normalized_runtime_mode_id != RUNTIME_MODE_UNKNOWN:
 		return normalized_runtime_mode_id
@@ -1206,7 +1211,7 @@ func _get_runtime_mode_id_for_mission_id(mission_id: String) -> String:
 		return RUNTIME_MODE_TASK_TEST
 	if normalized_mission_id.begins_with("mission_"):
 		var mission_index: int = int(normalized_mission_id.trim_prefix("mission_"))
-		if mission_index >= 1 and mission_index <= 9:
+		if mission_index >= 1 and mission_index <= 9 and not RETIRED_LEGACY_MISSION_INDEXES.has(mission_index):
 			return RUNTIME_MODE_LEGACY_STORY
 	return RUNTIME_MODE_UNKNOWN
 

@@ -27,6 +27,7 @@ const RUNTIME_MODE_TASK_TEST := "task_test"
 const RUNTIME_MODE_UNKNOWN := "unknown"
 const LEGACY_STORY_MISSION_MIN_INDEX := 1
 const LEGACY_STORY_MISSION_MAX_INDEX := 9
+const RETIRED_LEGACY_MISSION_INDEXES: Array[int] = [7, 8]
 const TASK_TEST_MISSION_INDEX := 10
 const TASK_TEST_COMPAT_MISSION_ID := "mission_10"
 const TASK_TEST_LAYOUT_ID := "task_test"
@@ -1169,9 +1170,9 @@ func get_mission_name(mission_index: int) -> String:
 		6:
 			return "Mission 6 — Hot Node"
 		7:
-			return "Mission 7 — Cable Route"
+			return "Mission 7 — Retired"
 		8:
-			return "Mission 8 — Airflow Terminal"
+			return "Mission 8 — Retired"
 		9:
 			return "Mission 9 — Terrain Passage"
 		10:
@@ -1195,9 +1196,9 @@ func get_mission_goal_hint(mission_index: int) -> String:
 		6:
 			return "Mission 6: scan the hot node, manage the risk, then hack it to open the path."
 		7:
-			return "Mission 7: take the cable end from the reel, drag it to the socket, then reach the exit."
+			return "Mission 7 is retired. Use TASK TEST for generic cable/socket/power smoke."
 		8:
-			return "Mission 8: cool the terminal with directed airflow, then hack it and reach the exit."
+			return "Mission 8 is retired. Use TASK TEST for generic fan/airflow/cooling smoke."
 		9:
 			return get_mission9_context_hint()
 		10:
@@ -1228,22 +1229,27 @@ func can_cross_stepped_floor() -> bool:
 	return has_legs() or has_tracks()
 
 func get_runtime_mode_id() -> String:
+	var normalized_mission_id: String = current_mission_id.strip_edges()
+	if normalized_mission_id.begins_with("mission_") and is_retired_legacy_mission_index(int(normalized_mission_id.trim_prefix("mission_"))):
+		return RUNTIME_MODE_UNKNOWN
+	if is_retired_legacy_mission_index(current_mission_index):
+		return RUNTIME_MODE_UNKNOWN
+
 	var normalized_runtime_mode_id: String = active_runtime_mode_id.strip_edges()
 	if not normalized_runtime_mode_id.is_empty() and normalized_runtime_mode_id != RUNTIME_MODE_UNKNOWN:
 		return normalized_runtime_mode_id
 
-	var normalized_mission_id: String = current_mission_id.strip_edges()
 	if _is_task_test_mission_id(normalized_mission_id):
 		return RUNTIME_MODE_TASK_TEST
 	if normalized_mission_id.begins_with("mission_"):
 		var mission_index_from_id: int = int(normalized_mission_id.trim_prefix("mission_"))
-		if mission_index_from_id >= LEGACY_STORY_MISSION_MIN_INDEX and mission_index_from_id <= LEGACY_STORY_MISSION_MAX_INDEX:
+		if mission_index_from_id >= LEGACY_STORY_MISSION_MIN_INDEX and mission_index_from_id <= LEGACY_STORY_MISSION_MAX_INDEX and not is_retired_legacy_mission_index(mission_index_from_id):
 			return RUNTIME_MODE_LEGACY_STORY
 
 	# Legacy compatibility fallback only; explicit runtime mode/current_mission_id should be authoritative.
 	if current_mission_index == TASK_TEST_MISSION_INDEX:
 		return RUNTIME_MODE_TASK_TEST
-	if current_mission_index >= LEGACY_STORY_MISSION_MIN_INDEX and current_mission_index <= LEGACY_STORY_MISSION_MAX_INDEX:
+	if current_mission_index >= LEGACY_STORY_MISSION_MIN_INDEX and current_mission_index <= LEGACY_STORY_MISSION_MAX_INDEX and not is_retired_legacy_mission_index(current_mission_index):
 		return RUNTIME_MODE_LEGACY_STORY
 	return RUNTIME_MODE_UNKNOWN
 
@@ -1287,9 +1293,20 @@ func get_task_test_objective_hint() -> String:
 		return str(mission_manager.call("get_mission_objective_hint", get_task_test_layout_id())).strip_edges()
 	return ""
 
+func is_retired_legacy_mission_index(mission_index: int) -> bool:
+	return RETIRED_LEGACY_MISSION_INDEXES.has(mission_index)
+
+func get_next_active_mission_index_after(mission_index: int) -> int:
+	var next_index: int = mission_index + 1
+	while next_index <= max_mission_index and is_retired_legacy_mission_index(next_index):
+		next_index += 1
+	return next_index
+
 func get_mission_layout_id(mission_index: int) -> String:
 	if mission_index == TASK_TEST_MISSION_INDEX:
 		return get_task_test_layout_id()
+	if is_retired_legacy_mission_index(mission_index):
+		return ""
 	return "mission_%d" % mission_index
 
 func is_task_test_mode_active() -> bool:
@@ -1302,13 +1319,13 @@ func is_legacy_story_mission_active() -> bool:
 	return get_runtime_mode_id() == RUNTIME_MODE_LEGACY_STORY
 
 func is_legacy_mission7_cable_flow_active() -> bool:
-	return current_mission_index == 7
+	return false
 
 func is_legacy_mission7_cable_drag_active() -> bool:
 	return is_legacy_mission7_cable_flow_active() and mission7_is_dragging_cable
 
 func is_legacy_mission8_airflow_flow_active() -> bool:
-	return current_mission_index == 8
+	return false
 
 func unlock_airflow_terminal_path() -> void:
 	BipobLegacyAirflowFlowServiceRef.unlock_airflow_terminal_path(self)
@@ -1342,6 +1359,10 @@ func reset_task_test_session() -> void:
 
 func start_mission(mission_index: int, save_snapshot: bool = true) -> void:
 	var clamped_mission_index: int = clampi(mission_index, 1, max_mission_index)
+	if is_retired_legacy_mission_index(clamped_mission_index):
+		hint_requested.emit("Mission %d is retired. Use TASK TEST for generic cable/power and airflow/cooling smoke." % clamped_mission_index)
+		status_changed.emit()
+		return
 	if clamped_mission_index == TASK_TEST_MISSION_INDEX:
 		start_task_test_session(save_snapshot)
 		return
@@ -1536,8 +1557,9 @@ func start_next_mission() -> void:
 		status_changed.emit()
 		return
 
-	if current_mission_index < max_mission_index:
-		start_mission(current_mission_index + 1)
+	var next_mission_index: int = get_next_active_mission_index_after(current_mission_index)
+	if next_mission_index <= max_mission_index:
+		start_mission(next_mission_index)
 		return
 
 	sector_completed = true
@@ -6862,11 +6884,11 @@ func complete_legacy_story_mission(_reason: String = "") -> void:
 	elif current_mission_index == 5:
 		hint_requested.emit("Mission 5 complete. Return to the box, then start Mission 6.")
 	elif current_mission_index == 6:
-		hint_requested.emit("Mission 6 complete. Return to the box, then start Mission 7.")
+		hint_requested.emit("Mission 6 complete. Return to the box, then start Mission 9. Mission 7/8 are retired; use TASK TEST for cable/power and airflow/cooling smoke.")
 	elif is_legacy_mission7_cable_flow_active():
-		hint_requested.emit("Mission 7 complete. Return to the box, then start Mission 8.")
+		hint_requested.emit("Mission 7 is retired. Return to the box, then start Mission 9.")
 	elif is_legacy_mission8_airflow_flow_active():
-		hint_requested.emit("Mission 8 complete. Return to the box, then start Mission 9.")
+		hint_requested.emit("Mission 8 is retired. Return to the box, then start Mission 9.")
 	elif current_mission_index == 9:
 		hint_requested.emit("Mission 9 complete. Return to the box, then start TASK TEST.")
 	else:
@@ -7835,33 +7857,34 @@ func interact() -> void:
 		BipobLegacyTileInteractionServiceRef.apply_result(self, legacy_tile_result)
 		return
 
-	# TODO(PR-RF): Quarantine the remaining legacy mission tile branches in a later,
-	# behavior-preserving slice once Mission 7/8 cable, fan, platform, and fallback
-	# key/door flows can be moved without changing action or energy spending.
-	if target_tile == GridManager.TILE_PLATFORM_CONTROL:
-		hint_requested.emit("Use left/right platform controls.")
-		status_changed.emit()
-		return
-	if target_tile == GridManager.TILE_PLATFORM_CONTROL_LEFT:
-		interact_mission8_platform_control_left()
-		return
-	if target_tile == GridManager.TILE_PLATFORM_CONTROL_RIGHT:
-		interact_mission8_platform_control_right()
-		return
-	if target_tile == GridManager.TILE_FAN_CONTROL:
-		hint_requested.emit("Use fan speed up/down controls.")
-		status_changed.emit()
-		return
-	if target_tile == GridManager.TILE_FAN_SPEED_UP_CONTROL:
-		increase_mission8_fan_speed()
-		return
-	if target_tile == GridManager.TILE_FAN_SPEED_DOWN_CONTROL:
-		decrease_mission8_fan_speed()
-		return
-	var legacy_cable_result: Dictionary = BipobLegacyCableFlowServiceRef.handle_interact_tile(self, target_position, target_tile)
-	if bool(legacy_cable_result.get("handled", false)):
-		BipobLegacyCableFlowServiceRef.apply_interact_result(self, legacy_cable_result)
-		return
+	# Retired Mission 7/8 tile branches are parser-safe compatibility only and
+	# remain unreachable while the legacy-active predicates are quarantined.
+	if is_legacy_mission8_airflow_flow_active():
+		if target_tile == GridManager.TILE_PLATFORM_CONTROL:
+			hint_requested.emit("Use left/right platform controls.")
+			status_changed.emit()
+			return
+		if target_tile == GridManager.TILE_PLATFORM_CONTROL_LEFT:
+			interact_mission8_platform_control_left()
+			return
+		if target_tile == GridManager.TILE_PLATFORM_CONTROL_RIGHT:
+			interact_mission8_platform_control_right()
+			return
+		if target_tile == GridManager.TILE_FAN_CONTROL:
+			hint_requested.emit("Use fan speed up/down controls.")
+			status_changed.emit()
+			return
+		if target_tile == GridManager.TILE_FAN_SPEED_UP_CONTROL:
+			increase_mission8_fan_speed()
+			return
+		if target_tile == GridManager.TILE_FAN_SPEED_DOWN_CONTROL:
+			decrease_mission8_fan_speed()
+			return
+	if is_legacy_mission7_cable_flow_active():
+		var legacy_cable_result: Dictionary = BipobLegacyCableFlowServiceRef.handle_interact_tile(self, target_position, target_tile)
+		if bool(legacy_cable_result.get("handled", false)):
+			BipobLegacyCableFlowServiceRef.apply_interact_result(self, legacy_cable_result)
+			return
 
 	if BipobActionControllerRef.handle_runtime_action_interact(self, target_position, target_tile):
 		return
