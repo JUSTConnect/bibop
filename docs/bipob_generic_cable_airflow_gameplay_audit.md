@@ -380,3 +380,32 @@ Current limitations kept intentionally for PR-GEN-02:
 - Map Constructor validation/readiness warnings are still deferred to PR-GEN-04.
 - Airflow/cooling remains untouched for PR-GEN-03.
 - Legacy Mission 7 cable flow remains present and is not deleted or converted.
+
+## PR-GEN-03 implementation status
+
+Status: implemented for TASK TEST as an additive generic runtime path.
+
+PR-GEN-03 adds:
+
+- `BipobAirflowRuntimeState` as a parser-safe generic state holder for fan/cooling runtime fields.
+- `BipobAirflowRuntimeService` as a Mission 8-independent propagation service.
+- MissionManager generic cooling accessors:
+  - `is_world_object_cooled(object_id)`;
+  - `get_world_object_cooling_state(object_id)`;
+  - `get_generic_airflow_runtime_report()`.
+- TASK TEST smoke objects using stable ids:
+  - `task_test_generic_airflow_fan`;
+  - `task_test_generic_airflow_path_cell`;
+  - `task_test_generic_airflow_target`;
+  - `task_test_generic_airflow_blocker`;
+  - `task_test_generic_uncooled_target`.
+- `docs/bipob_generic_airflow_runtime_smoke.md` with expected states and manual smoke steps.
+
+The generic runtime is intentionally simple and TASK TEST-first: enabled fan + direction/range + unobstructed line path cools linked targets; blockers stop propagation. It does not implement Map Constructor validation, a broad airflow graph solver, or legacy Mission 8 deletion.
+
+Compatibility notes:
+
+- `BipobLegacyAirflowFlowService` remains intact.
+- Generic airflow does not read `mission8_terminal_cooled` as source of truth.
+- PR-GEN-02 generic cable ids and propagation semantics are unchanged.
+- PR-GEN-04 remains responsible for Map Constructor readiness/warnings.
