@@ -364,7 +364,11 @@ static func _render_entity_tab(ui: Variant, parent: VBoxContainer, entity_info: 
 		identity.add_child(ui._create_property_row("Object class", class_label))
 	parent.add_child(identity)
 	var use_simple_movable_inspector: bool = entity_kind == "world_object" and _is_simple_movable_object(data)
-	var current_status: VBoxContainer = ui._create_inspector_section("2. Status" if use_simple_movable_inspector else "2. Current Status")
+	var current_status: VBoxContainer = null
+	if use_simple_movable_inspector:
+		current_status = ui._create_inspector_section("2. Status")
+	else:
+		current_status = ui._create_inspector_section("2. Current Status")
 	if type_group == "power":
 		if normalized_object_type == "power_cable":
 			var install_label: Label = Label.new(); install_label.text = _get_cable_install_type(data); current_status.add_child(ui._create_property_row("Cable install type", install_label))
@@ -394,7 +398,11 @@ static func _render_entity_tab(ui: Variant, parent: VBoxContainer, entity_info: 
 	parent.add_child(current_status)
 	if not use_simple_movable_inspector:
 		MapConstructorPropertyControls.add_circuit_block(ui, parent, entity_kind, entity_id, data)
-	var placement: VBoxContainer = ui._create_inspector_section("3. Placement" if use_simple_movable_inspector else "4. Placement")
+	var placement: VBoxContainer = null
+	if use_simple_movable_inspector:
+		placement = ui._create_inspector_section("3. Placement")
+	else:
+		placement = ui._create_inspector_section("4. Placement")
 	var cell_l:=Label.new(); cell_l.text = ui._safe_ui_string(entity_info.get("cell", fallback_cell), str(fallback_cell)); placement.add_child(ui._create_property_row("Cell", cell_l))
 	var pm_l:=Label.new(); pm_l.text = ui._safe_ui_string(data.get("placement_mode", "floor"), "floor"); placement.add_child(ui._create_property_row("Mode", pm_l))
 	var move_row: HBoxContainer = HBoxContainer.new()
@@ -417,7 +425,11 @@ static func _render_entity_tab(ui: Variant, parent: VBoxContainer, entity_info: 
 	)
 	placement.add_child(del)
 	parent.add_child(placement)
-	var configurable: VBoxContainer = ui._create_inspector_section("4. Configuration" if use_simple_movable_inspector else "5. Configurable Parameters")
+	var configurable: VBoxContainer = null
+	if use_simple_movable_inspector:
+		configurable = ui._create_inspector_section("4. Configuration")
+	else:
+		configurable = ui._create_inspector_section("5. Configurable Parameters")
 	var object_is_configurable: bool = bool(data.get("configurable", true))
 	var object_archetype_id: String = ui._safe_ui_string(data.get("archetype_id", "")).strip_edges()
 	if object_is_configurable and object_archetype_id.is_empty():
@@ -481,7 +493,11 @@ static func _render_entity_tab(ui: Variant, parent: VBoxContainer, entity_info: 
 		ui._add_map_constructor_object_link_sections(link_section, entity_kind, entity_id, data, type_group)
 		MapConstructorValidationView.add_linked_targets(ui, link_section, validation_result)
 		parent.add_child(link_section)
-	var warning_section: VBoxContainer = ui._create_inspector_section("5. Warnings" if use_simple_movable_inspector else "7. Warnings")
+	var warning_section: VBoxContainer = null
+	if use_simple_movable_inspector:
+		warning_section = ui._create_inspector_section("5. Warnings")
+	else:
+		warning_section = ui._create_inspector_section("7. Warnings")
 	MapConstructorValidationView.add_warning_entries(ui, warning_section, validation_result)
 	parent.add_child(warning_section)
 	if include_wall_coverage:

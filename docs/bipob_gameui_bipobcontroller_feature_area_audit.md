@@ -208,6 +208,12 @@ UICTRL-RF-03 status:
 - `GameUI` now keeps compatibility wrapper methods and delegates action target lookup, action mode transitions, Action/Connect/Heavy Claw/End Turn callbacks, world-action target id derivation, and per-frame action feedback to the bridge.
 - `RuntimeControlPanel` still builds the existing control panel view, but runtime button callbacks can now be wired directly to the bridge so no parallel runtime UI system is introduced.
 
+UICTRL-RF-04 status:
+
+- `RuntimeStoragePanel` now owns runtime storage action routing for drop, rotate, pocket take/swap, manipulator store, digital load/swap, and buffer store while continuing to call existing Bipob inventory APIs.
+- `RuntimeStoragePanel` now owns runtime key id/display derivation used by the mini HUD; `GameUI` keeps compatibility wrappers that delegate to the panel.
+- `GameUI` keeps the storage panel build/refresh bridge and existing callback method names, but the runtime storage UI callbacks are no longer implemented directly in `GameUI`.
+
 ### 4. Runtime storage / inventory UI
 
 Current owner: `GameUI`, partially extracted to `RuntimeStoragePanel`.
@@ -707,6 +713,16 @@ Goal:
 
 Risk: medium.
 
+Status after UICTRL-RF-04:
+
+- `scripts/ui/runtime/runtime_storage_panel.gd` owns the runtime storage callback routing and key-display helpers.
+- `scripts/ui/game_ui.gd` keeps compatibility wrappers for existing callable names and delegates them to `RuntimeStoragePanel`.
+- Inventory mutation rules remain in Bipob/MissionManager; the panel only invokes existing guarded public methods and refreshes host status.
+
+Next recommended extraction:
+
+- UICTRL-RF-05 should extract/strengthen the Bipob runtime action coordinator after the runtime action and storage UI surfaces are stable.
+
 ### UICTRL-RF-05 — Extract Bipob runtime action coordinator
 
 Target:
@@ -778,14 +794,13 @@ These are high-risk and should wait until UI/runtime action/storage surfaces are
 
 The next code PR should be:
 
-**UICTRL-RF-02 — Extract GameUI Map Constructor UI bridge**
+**UICTRL-RF-05 — Extract Bipob runtime action coordinator**
 
 Reason:
 
-- it attacks the largest active UI area;
-- it builds on already extracted Map Constructor components;
-- it can be behavior-equivalent;
-- it should reduce future pressure to keep adding editor logic directly into `GameUI`.
+- UICTRL-RF-02, UICTRL-RF-03, and UICTRL-RF-04 have reduced the Map Constructor, runtime action, and runtime storage UI surfaces in `GameUI`;
+- the remaining pressure is now on `BipobController` action coordination rather than introducing more runtime UI bridges;
+- this should preserve TASK TEST / Map Constructor smoke behavior while continuing the feature-owner boundary work.
 
 ## Acceptance for this audit
 

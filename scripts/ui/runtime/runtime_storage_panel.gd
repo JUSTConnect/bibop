@@ -127,11 +127,7 @@ static func _refresh_key_mini_hud(ui, bipob) -> void:
 		var raw_inventory_state: Variant = bipob.call("get_inventory_state")
 		if typeof(raw_inventory_state) == TYPE_DICTIONARY:
 			inventory_state = raw_inventory_state
-	var key_ids: Array = []
-	if ui.has_method("_get_runtime_display_key_ids"):
-		key_ids = ui._get_runtime_display_key_ids(inventory_state)
-	elif bipob.has_method("get_key_count") and int(bipob.call("get_key_count")) > 0:
-		key_ids.append("physical_key")
+	var key_ids: Array = get_runtime_display_key_ids(ui, inventory_state)
 	for index in range(ui.runtime_key_slots.size()):
 		var key_slot: Control = ui.runtime_key_slots[index]
 		if key_slot == null or not is_instance_valid(key_slot):
@@ -140,9 +136,7 @@ static func _refresh_key_mini_hud(ui, bipob) -> void:
 		var tooltip_text: String = "Empty key slot"
 		if index < key_ids.size():
 			var key_id: String = str(key_ids[index]).strip_edges()
-			tooltip_text = key_id
-			if ui.has_method("_get_runtime_key_display_text"):
-				tooltip_text = ui._get_runtime_key_display_text(key_id, inventory_state)
+			tooltip_text = get_runtime_key_display_text(key_id, inventory_state)
 			# Keep the strip layout stable: every collected access card, including
 			# compatibility ids for old mechanical keys, uses one compact glyph.
 			key_text = "K"
@@ -338,42 +332,220 @@ static func _build_flyout(ui, hud_root: Control, margin: float, node_name: Strin
 
 
 static func _on_manipulator_preview_pressed(ui, manipulator_index: int) -> void:
-	if ui == null or ui.bipob == null or not is_instance_valid(ui.bipob):
+	if not _has_valid_bipob(ui):
 		return
 	ui.selected_manipulator_slot = manipulator_index
 	if not _is_pocket_flyout_open_for(ui, manipulator_index):
 		_open_flyout(ui, "pocket", manipulator_index)
 		return
-	var result: Dictionary = ui._move_runtime_manipulator_to_first_free_pocket()
+	var result: Dictionary = handle_store_manipulator(ui)
 	if bool(result.get("ok", false)):
 		refresh(ui)
 
 
 static func _on_buffer_preview_pressed(ui) -> void:
-	if ui == null or ui.bipob == null or not is_instance_valid(ui.bipob):
+	if not _has_valid_bipob(ui):
 		return
 	if not _is_storage_flyout_open(ui):
 		_open_flyout(ui, "storage")
 		return
-	var result: Dictionary = ui._move_runtime_buffer_to_first_free_storage()
+	var result: Dictionary = handle_store_buffer(ui)
 	if bool(result.get("ok", false)):
 		refresh(ui)
 
 
 static func _on_pocket_slot_pressed(ui, slot_index: int) -> void:
-	if ui == null or ui.bipob == null or not is_instance_valid(ui.bipob):
+	if not _has_valid_bipob(ui):
 		return
-	var result: Dictionary = ui._move_or_swap_runtime_pocket_slot(slot_index)
+	var result: Dictionary = handle_take_pocket_item(ui, slot_index)
 	if bool(result.get("ok", false)):
 		refresh(ui)
 
 
 static func _on_storage_slot_pressed(ui, slot_index: int) -> void:
-	if ui == null or ui.bipob == null or not is_instance_valid(ui.bipob):
+	if not _has_valid_bipob(ui):
 		return
-	var result: Dictionary = ui._move_or_swap_runtime_storage_slot(slot_index)
+	var result: Dictionary = handle_load_digital_item(ui, slot_index)
 	if bool(result.get("ok", false)):
 		refresh(ui)
+
+
+static func handle_drop_item(ui) -> Dictionary:
+	if not _has_valid_bipob(ui) or not ui.bipob.has_method("drop_held_item"):
+		return _storage_unavailable(ui, "Drop action is unavailable.")
+	var manipulator_items: Array = ui.bipob.get_runtime_manipulator_items() if ui.bipob.has_method("get_runtime_manipulator_items") else []
+	var available_slots: int = ui.bipob.get_available_manipulator_slots() if ui.bipob.has_method("get_available_manipulator_slots") else manipulator_items.size()
+	if ui.selected_manipulator_slot < 0 or ui.selected_manipulator_slot >= available_slots:
+		return _storage_unavailable(ui, "Manipulator slot is inactive.")
+	if ui.selected_manipulator_slot >= manipulator_items.size() or manipulator_items[ui.selected_manipulator_slot] == null:
+		return _storage_unavailable(ui, "Manipulator is empty.")
+	ui.bipob.call("drop_held_item")
+	_refresh_host_after_storage_action(ui)
+	return {"ok": true}
+
+
+static func handle_rotate_storage(ui) -> Dictionary:
+	if not _has_valid_bipob(ui) or not ui.bipob.has_method("rotate_physical_storage"):
+		return _storage_unavailable(ui, "Rotate storage action is unavailable.")
+	ui.bipob.call("rotate_physical_storage")
+	_refresh_host_after_storage_action(ui)
+	return {"ok": true}
+
+
+static func handle_take_pocket_item(ui, slot_index: int = -1) -> Dictionary:
+	if not _has_valid_bipob(ui):
+		return _storage_unavailable(ui, "Storage action is unavailable.")
+	if slot_index >= 0:
+		ui.selected_pocket_slot = slot_index
+	if ui.bipob.has_method("move_or_swap_pocket_slot_with_manipulator"):
+		return _apply_storage_result(ui, ui.bipob.call("move_or_swap_pocket_slot_with_manipulator", ui.selected_pocket_slot, ui.selected_manipulator_slot))
+	if ui.bipob.has_method("move_pocket_to_manipulator"):
+		ui.bipob.call("move_pocket_to_manipulator", ui.selected_pocket_slot)
+		_refresh_host_after_storage_action(ui)
+		return {"ok": true}
+	return _storage_unavailable(ui, "Storage action is unavailable.")
+
+
+static func handle_store_manipulator(ui) -> Dictionary:
+	if not _has_valid_bipob(ui):
+		return _storage_unavailable(ui, "Storage action is unavailable.")
+	if ui.bipob.has_method("move_manipulator_to_first_free_pocket"):
+		return _apply_storage_result(ui, ui.bipob.call("move_manipulator_to_first_free_pocket", ui.selected_manipulator_slot))
+	if ui.bipob.has_method("move_manipulator_to_pocket"):
+		ui.bipob.call("move_manipulator_to_pocket", ui.selected_manipulator_slot)
+		_refresh_host_after_storage_action(ui)
+		return {"ok": true}
+	return _storage_unavailable(ui, "Storage action is unavailable.")
+
+
+static func handle_load_digital_item(ui, slot_index: int = -1) -> Dictionary:
+	if not _has_valid_bipob(ui):
+		return _storage_unavailable(ui, "Storage action is unavailable.")
+	if slot_index >= 0:
+		ui.selected_digital_slot = slot_index
+	if ui.bipob.has_method("move_or_swap_storage_slot_with_buffer"):
+		return _apply_storage_result(ui, ui.bipob.call("move_or_swap_storage_slot_with_buffer", ui.selected_digital_slot))
+	if ui.bipob.has_method("move_digital_storage_to_buffer"):
+		ui.bipob.call("move_digital_storage_to_buffer", ui.selected_digital_slot)
+		_refresh_host_after_storage_action(ui)
+		return {"ok": true}
+	return _storage_unavailable(ui, "Storage action is unavailable.")
+
+
+static func handle_store_buffer(ui) -> Dictionary:
+	if not _has_valid_bipob(ui):
+		return _storage_unavailable(ui, "Storage action is unavailable.")
+	if ui.bipob.has_method("move_buffer_to_first_free_storage"):
+		return _apply_storage_result(ui, ui.bipob.call("move_buffer_to_first_free_storage"))
+	return handle_store_buffer_selected(ui)
+
+
+static func handle_take_selected_pocket(ui) -> Dictionary:
+	if not _has_valid_bipob(ui) or not ui.bipob.has_method("move_pocket_to_manipulator"):
+		return _storage_unavailable(ui, "Storage action is unavailable.")
+	ui.bipob.call("move_pocket_to_manipulator", ui.selected_pocket_slot)
+	_refresh_host_after_storage_action(ui)
+	return {"ok": true}
+
+
+static func handle_store_manipulator_selected(ui) -> Dictionary:
+	if not _has_valid_bipob(ui) or not ui.bipob.has_method("move_manipulator_to_pocket"):
+		return _storage_unavailable(ui, "Storage action is unavailable.")
+	ui.bipob.call("move_manipulator_to_pocket", ui.selected_manipulator_slot)
+	_refresh_host_after_storage_action(ui)
+	return {"ok": true}
+
+
+static func handle_load_selected_digital(ui) -> Dictionary:
+	if not _has_valid_bipob(ui) or not ui.bipob.has_method("move_digital_storage_to_buffer"):
+		return _storage_unavailable(ui, "Storage action is unavailable.")
+	ui.bipob.call("move_digital_storage_to_buffer", ui.selected_digital_slot)
+	_refresh_host_after_storage_action(ui)
+	return {"ok": true}
+
+
+static func handle_store_buffer_selected(ui) -> Dictionary:
+	if not _has_valid_bipob(ui) or not ui.bipob.has_method("move_buffer_to_digital_storage"):
+		return _storage_unavailable(ui, "Storage action is unavailable.")
+	ui.bipob.call("move_buffer_to_digital_storage")
+	_refresh_host_after_storage_action(ui)
+	return {"ok": true}
+
+
+static func get_runtime_display_key_ids(ui, inventory_state: Dictionary) -> Array:
+	var display_key_ids: Array = []
+	var seen: Dictionary = {}
+	var runtime_map: Dictionary = Dictionary(inventory_state.get("world_item_runtime", {}))
+	var raw_collected_key_ids: Array = Array(inventory_state.get("collected_key_ids", []))
+	for key_value in raw_collected_key_ids:
+		var key_id: String = str(key_value).strip_edges()
+		if key_id.is_empty() or seen.has(key_id):
+			continue
+		var item_runtime: Dictionary = Dictionary(runtime_map.get(key_id, {}))
+		if not item_runtime.is_empty() and not bool(item_runtime.get("in_inventory", true)):
+			continue
+		seen[key_id] = true
+		display_key_ids.append(key_id)
+	if raw_collected_key_ids.is_empty() and display_key_ids.is_empty() and _has_valid_bipob(ui) and bool(ui.bipob.has_key):
+		display_key_ids.append("physical_key")
+	return display_key_ids
+
+
+static func get_runtime_key_display_text(key_id: String, inventory_state: Dictionary = {}) -> String:
+	var text: String = key_id.strip_edges()
+	if text.is_empty():
+		return "-"
+	var runtime_map: Dictionary = Dictionary(inventory_state.get("world_item_runtime", {}))
+	var item_runtime: Dictionary = Dictionary(runtime_map.get(text, {}))
+	var item_data: Dictionary = Dictionary(item_runtime.get("item_data", {}))
+	var display_name: String = str(item_data.get("display_name", "")).strip_edges()
+	if not display_name.is_empty():
+		return display_name
+	var item_data_id: String = str(item_data.get("id", "")).strip_edges()
+	if not item_data_id.is_empty():
+		return item_data_id
+	if text == "physical_key":
+		return "Key"
+	return text
+
+
+static func _apply_storage_result(ui, raw_result: Variant) -> Dictionary:
+	var result: Dictionary = {}
+	if typeof(raw_result) == TYPE_DICTIONARY:
+		result = raw_result
+	elif raw_result == null:
+		result = {"ok": true}
+	else:
+		result = {"ok": bool(raw_result)}
+	if bool(result.get("ok", false)):
+		_refresh_host_after_storage_action(ui)
+		return result
+	var message: String = str(result.get("message", "Storage action is unavailable."))
+	if not message.is_empty():
+		_show_hint(ui, message)
+	return result
+
+
+static func _storage_unavailable(ui, message: String) -> Dictionary:
+	_show_hint(ui, message)
+	return {"ok": false, "message": message}
+
+
+static func _refresh_host_after_storage_action(ui) -> void:
+	if ui == null:
+		return
+	if ui.has_method("update_status"):
+		ui.call("update_status")
+	if ui.has_method("update_diagnostic_status"):
+		ui.call("update_diagnostic_status")
+	if ui.has_method("update_box_status"):
+		ui.call("update_box_status")
+	if ui.has_method("_sync_runtime_bipob_visual_state"):
+		ui.call_deferred("_sync_runtime_bipob_visual_state")
+
+
+static func _has_valid_bipob(ui) -> bool:
+	return ui != null and ui.bipob != null and is_instance_valid(ui.bipob)
 
 
 static func _is_pocket_flyout_open_for(ui, manipulator_index: int) -> bool:
@@ -388,7 +560,7 @@ static func _is_storage_flyout_open(ui) -> bool:
 
 static func _on_drop_pressed(ui, manipulator_index: int) -> void:
 	ui.selected_manipulator_slot = manipulator_index
-	ui._on_drop_item_button_pressed()
+	handle_drop_item(ui)
 	refresh(ui)
 
 
