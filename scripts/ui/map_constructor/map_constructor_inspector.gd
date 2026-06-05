@@ -1,6 +1,8 @@
 extends RefCounted
 class_name MapConstructorInspector
 
+const MapConstructorPlatformControlsRef = preload("res://scripts/ui/map_constructor/map_constructor_platform_controls.gd")
+
 
 static func _is_simple_movable_object(data: Dictionary) -> bool:
 	var object_type: String = str(data.get("object_type", data.get("type", ""))).strip_edges().to_lower()
@@ -350,6 +352,9 @@ static func _render_entity_tab(ui: Variant, parent: VBoxContainer, entity_info: 
 	ui.selected_map_constructor_entity_cell = cell
 	if not (entity_kind in ["world_object", "item"]):
 		_render_read_only_entity(ui, parent, entity_info, "Details")
+		return
+	if entity_kind == "world_object" and MapConstructorPlatformControlsRef.is_platform(data):
+		MapConstructorPlatformControlsRef.render(ui, parent, entity_info, fallback_cell)
 		return
 	var type_group: String = ui._safe_ui_string(ui.mission_manager_runtime.call("get_map_constructor_entity_type_group", entity_kind, entity_id), "generic") if ui.mission_manager_runtime.has_method("get_map_constructor_entity_type_group") else "generic"
 	var identity: VBoxContainer = ui._create_inspector_section("1. Identity")

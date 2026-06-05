@@ -9,6 +9,12 @@ const TaskTestWorldBuilderRef = preload("res://scripts/game/task_test_world_buil
 const MapConstructorServiceRef = preload("res://scripts/game/map_constructor_service.gd")
 const MapConstructorValidationServiceRef = preload("res://scripts/game/map_constructor_validation_service.gd")
 const CableTopologyServiceRef = preload("res://scripts/game/cable_topology_service.gd")
+const PlatformTypesRef = preload("res://scripts/game/platform/platform_types.gd")
+const PlatformMechanismServiceRef = preload("res://scripts/game/platform/platform_mechanism_service.gd")
+const PlatformControlServiceRef = preload("res://scripts/game/platform/platform_control_service.gd")
+const PlatformVisualServiceRef = preload("res://scripts/game/platform/platform_visual_service.gd")
+const PlatformMotionServiceRef = preload("res://scripts/game/platform/platform_motion_service.gd")
+const PlatformRotationServiceRef = preload("res://scripts/game/platform/platform_rotation_service.gd")
 const BipobCableRuntimeServiceRef = preload("res://scripts/game/bipob_cable_runtime_service.gd")
 const BipobAirflowRuntimeServiceRef = preload("res://scripts/game/bipob_airflow_runtime_service.gd")
 const DEVICE_INTERACTION_FLOW_STATES: Array[String] = ["no_target", "unknown", "scanned", "diagnosed", "ready", "blocked", "executed_unavailable"]
@@ -17,6 +23,7 @@ const ISO_PLACEHOLDER_ASSET_PATHS: Dictionary = {
 	"floor_concrete": "res://assets/visual/isometric/floor/floor_concrete_01.png",
 	"floor_steel": "res://assets/visual/isometric/floor/floor_steel_01.png",
 	"floor_titan": "res://assets/visual/isometric/floor/floor_titan_01.png",
+	"platform_floor": "res://assets/visual/isometric/floor/floor_platform_01.png",
 	"floor_default": "res://assets/visual/isometric/floor/floor_concrete_01.png",
 	"floor_stepped": "res://assets/visual/isometric/floor/floor_concrete_01.png",
 	"floor_clean_lab": "res://assets/visual/isometric/placeholders/iso_floor_clean_lab.svg",
@@ -3079,7 +3086,7 @@ func get_default_map_constructor_field_value(field_name: String, entity_kind: St
 		if entity_kind == "item":
 			return null
 		return []
-	if normalized_field in ["state", "power_network_id", "circuit_id", "power_circuit_id", "network_id", "power_network_id", "chain_id", "link_group", "cable_group", "connected_circuit", "circuit_name", "required_key_id", "lock_type", "linked_terminal_id", "target_door_id", "target_platform_id", "control_source_id", "digital_state", "key_kind", "key_type", "display_name", "description", "custom_description", "linked_door_id", "power_mode", "power_source_id", "control_mode", "control_terminal_id", "access_type", "access_terminal_id", "access_code_value", "stored_key_ids", "route_surface", "physical_connection_source_id", "input_wire_id", "input_direction", "output_1_wire_id", "output_2_wire_id", "output_3_wire_id", "output_1_direction", "output_2_direction", "output_3_direction", "brightness", "color"]:
+	if normalized_field in ["state", "power_network_id", "circuit_id", "power_circuit_id", "network_id", "power_network_id", "chain_id", "link_group", "cable_group", "connected_circuit", "circuit_name", "required_key_id", "lock_type", "linked_terminal_id", "target_door_id", "target_platform_id", "control_source_id", "digital_state", "key_kind", "key_type", "display_name", "description", "custom_description", "linked_door_id", "power_mode", "power_source_id", "control_mode", "control_terminal_id", "access_type", "access_terminal_id", "access_code_value", "stored_key_ids", "route_surface", "physical_connection_source_id", "input_wire_id", "input_direction", "output_1_wire_id", "output_2_wire_id", "output_3_wire_id", "output_1_direction", "output_2_direction", "output_3_direction", "brightness", "color", "platform_mode", "mechanism_id", "mechanism_role", "activation_mode"]:
 		return ""
 	return null
 
@@ -3406,6 +3413,7 @@ func get_visual_texture_asset_catalog() -> Dictionary:
 		{"id":"floor_concrete","category":"floor","display_name":"Floor Concrete","description":"Concrete floor asset.","texture_path":"res://assets/visual/isometric/floor/floor_concrete_01.png","atlas_region":Rect2i(0, 0, 0, 0),"fallback_style":"diamond_fill","fallback_color":Color(0.16, 0.16, 0.15, 0.97),"tags":["floor","concrete"],"is_optional":false,"placeholder_asset_key":"floor_concrete"},
 		{"id":"floor_steel","category":"floor","display_name":"Floor Steel","description":"Steel floor asset.","texture_path":"res://assets/visual/isometric/floor/floor_steel_01.png","atlas_region":Rect2i(0, 0, 0, 0),"fallback_style":"diamond_fill","fallback_color":Color(0.13, 0.17, 0.2, 0.97),"tags":["floor","steel"],"is_optional":false,"placeholder_asset_key":"floor_steel"},
 		{"id":"floor_titan","category":"floor","display_name":"Floor Titan","description":"Titanium floor asset.","texture_path":"res://assets/visual/isometric/floor/floor_titan_01.png","atlas_region":Rect2i(0, 0, 0, 0),"fallback_style":"diamond_fill","fallback_color":Color(0.15, 0.18, 0.22, 0.97),"tags":["floor","titan","titanium"],"is_optional":false,"placeholder_asset_key":"floor_titan"},
+		{"id":"platform_floor","category":"floor","display_name":"Platform Floor","description":"Configurable platform floor asset.","texture_path":"res://assets/visual/isometric/floor/floor_platform_01.png","atlas_region":Rect2i(0, 0, 0, 0),"fallback_style":"diamond_fill","fallback_color":Color(0.12, 0.14, 0.16, 0.97),"tags":["floor","platform"],"is_optional":false,"placeholder_asset_key":"platform_floor"},
 		{"id":"floor_default","category":"floor","display_name":"Floor Default","description":"Default floor texture alias.","texture_path":"res://assets/visual/isometric/floor/floor_concrete_01.png","atlas_region":Rect2i(0, 0, 0, 0),"fallback_style":"diamond_fill","fallback_color":Color(0.16, 0.16, 0.15, 0.97),"tags":["floor","concrete","alias"],"is_optional":true,"placeholder_asset_key":"floor_concrete"},
 		{"id":"floor_clean_lab","category":"floor","display_name":"Floor Clean Lab","description":"Clean lab floor texture slot.","texture_path":"","atlas_region":Rect2i(0, 0, 0, 0),"fallback_style":"clean","fallback_color":Color(0.18, 0.23, 0.26, 0.97),"tags":["floor","clean"],"is_optional":true},
 		{"id":"floor_dark_service","category":"floor","display_name":"Floor Dark Service","description":"Dark service floor texture slot.","texture_path":"","atlas_region":Rect2i(0, 0, 0, 0),"fallback_style":"dark","fallback_color":Color(0.1, 0.12, 0.15, 0.97),"tags":["floor","dark"],"is_optional":true},
@@ -4497,7 +4505,8 @@ func _get_map_constructor_editable_field_schema() -> Dictionary:
 		"control_source_id":"string","connected_device_ids":"array_string","target_door_id":"string","target_platform_id":"string","requires_external_control":"bool","requires_terminal_enabled":"bool",
 		"requires_external_power":"bool","current_heat":"int","working_heat":"int","overheat_threshold":"int","power_source_class":"int","source_class":"int","outlet_capacity":"int","active_output_index":"int",
 		"item_class":"string","storage_route":"string","item_type":"string","digital_state":"string","key_kind":"string","key_type":"string","display_name":"string","description":"string","custom_description":"string","linked_door_id":"string","payload_id":"string","access_code":"string","damaged":"bool",
-		"power_mode":"string","power_source_id":"string","control_mode":"string","control_terminal_id":"string","access_type":"string","access_terminal_id":"string","access_code_value":"string","stored_key_ids":"array_string","route_surface":"string","cable_install_mode":"string","install_mode":"string","cable_health_state":"string","health_state":"string","physical_connection_source_id":"string","input_wire_id":"string","input_direction":"string","output_1_wire_id":"string","output_2_wire_id":"string","output_3_wire_id":"string","output_1_direction":"string","output_2_direction":"string","output_3_direction":"string","brightness":"string","color":"string","mount":"string","switch_state":"string","fuse_present":"bool","variant":"string"
+		"power_mode":"string","power_source_id":"string","control_mode":"string","control_terminal_id":"string","access_type":"string","access_terminal_id":"string","access_code_value":"string","stored_key_ids":"array_string","route_surface":"string","cable_install_mode":"string","install_mode":"string","cable_health_state":"string","health_state":"string","physical_connection_source_id":"string","input_wire_id":"string","input_direction":"string","output_1_wire_id":"string","output_2_wire_id":"string","output_3_wire_id":"string","output_1_direction":"string","output_2_direction":"string","output_3_direction":"string","brightness":"string","color":"string","mount":"string","switch_state":"string","fuse_present":"bool","variant":"string",
+		"platform_mode":"string","platform_level":"int","max_level":"int","mechanism_id":"string","mechanism_role":"string","activation_mode":"string","activation_delay_turns":"int","control_cell_x":"int","control_cell_y":"int"
 	}
 
 func get_map_constructor_archetype_property_schema(entity_kind: String, entity_id: String) -> Array[Dictionary]:
@@ -4575,6 +4584,51 @@ func _map_constructor_is_item_like_world_object(object_data: Dictionary) -> bool
 	var object_group: String = str(object_data.get("object_group", "")).to_lower()
 	var object_type: String = str(object_data.get("object_type", "")).to_lower()
 	return object_group == "item" or object_type.contains("key") or object_type.contains("access_code")
+
+func get_platform_config_for_object(object_id: String) -> Dictionary:
+	var object_data: Dictionary = get_world_object_by_id(object_id.strip_edges())
+	if object_data.is_empty() or not PlatformTypesRef.is_platform_data(object_data):
+		return {"ok": false, "object_id": object_id, "platform_data": {}, "message": "Platform not found."}
+	return {"ok": true, "object_id": object_id, "platform_data": PlatformTypesRef.normalize_platform_config(object_data)}
+
+func set_platform_config_field(object_id: String, field: String, value: Variant) -> Dictionary:
+	var config: Dictionary = get_platform_config_for_object(object_id)
+	if not bool(config.get("ok", false)):
+		return config
+	return apply_map_constructor_property_update("world_object", object_id, field, value)
+
+func get_platform_mechanism_summary(mechanism_id: String) -> Dictionary:
+	return PlatformMechanismServiceRef.get_mechanism_summary(mechanism_id, mission_world_objects)
+
+func validate_platform_mechanism(mechanism_id: String) -> Dictionary:
+	return PlatformMechanismServiceRef.validate_mechanism(mechanism_id, mission_world_objects)
+
+func get_platform_control_actions(object_id: String) -> Dictionary:
+	var config: Dictionary = get_platform_config_for_object(object_id)
+	if not bool(config.get("ok", false)):
+		return {"ok": false, "object_id": object_id, "actions": [], "message": "Platform not found."}
+	var platform_data: Dictionary = Dictionary(config.get("platform_data", {}))
+	return {"ok": true, "object_id": object_id, "actions": PlatformControlServiceRef.get_action_labels(platform_data), "schedule": PlatformControlServiceRef.get_activation_schedule_metadata(platform_data)}
+
+func get_platform_visual_descriptor_for_object(object_id: String) -> Dictionary:
+	var config: Dictionary = get_platform_config_for_object(object_id)
+	if not bool(config.get("ok", false)):
+		return {"ok": false, "object_id": object_id}
+	var descriptor: Dictionary = PlatformVisualServiceRef.get_platform_draw_descriptor(Dictionary(config.get("platform_data", {})))
+	descriptor["object_id"] = object_id
+	return descriptor
+
+func preview_platform_motion_for_object(object_id: String, action_id: String) -> Dictionary:
+	var config: Dictionary = get_platform_config_for_object(object_id)
+	if not bool(config.get("ok", false)):
+		return {"ok": false, "object_id": object_id, "message": "Platform not found."}
+	return PlatformMotionServiceRef.preview_level_after_action(Dictionary(config.get("platform_data", {})), action_id)
+
+func preview_platform_rotation_for_object(object_id: String, action_id: String) -> Dictionary:
+	var config: Dictionary = get_platform_config_for_object(object_id)
+	if not bool(config.get("ok", false)):
+		return {"ok": false, "object_id": object_id, "message": "Platform not found."}
+	return {"ok": true, "object_id": object_id, "rotation_delta": PlatformRotationServiceRef.get_rotation_delta(action_id)}
 
 func preview_room_visual_preset(preset_id: String, options: Dictionary = {}) -> Dictionary:
 	var scope: String = str(options.get("scope", "task_test_room")).strip_edges()

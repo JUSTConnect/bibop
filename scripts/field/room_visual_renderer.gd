@@ -2,6 +2,8 @@ extends Node2D
 class_name RoomVisualRenderer
 
 const CableTopologyServiceRef = preload("res://scripts/game/cable_topology_service.gd")
+const PlatformTypesRef = preload("res://scripts/game/platform/platform_types.gd")
+const PlatformVisualServiceRef = preload("res://scripts/game/platform/platform_visual_service.gd")
 
 # GridManager remains the gameplay grid source.
 # RoomVisualRenderer is a future visual projection layer.
@@ -101,6 +103,7 @@ const ISO_PLACEHOLDER_ASSET_PATHS: Dictionary = {
 	"floor_concrete": "res://assets/visual/isometric/floor/floor_concrete_01.png",
 	"floor_steel": "res://assets/visual/isometric/floor/floor_steel_01.png",
 	"floor_titan": "res://assets/visual/isometric/floor/floor_titan_01.png",
+	"platform_floor": "res://assets/visual/isometric/floor/floor_platform_01.png",
 	"floor_default": "res://assets/visual/isometric/floor/floor_concrete_01.png",
 	"floor_stepped": "res://assets/visual/isometric/placeholders/iso_floor_stepped.svg",
 	"floor_clean_lab": "res://assets/visual/isometric/placeholders/iso_floor_clean_lab.svg",
@@ -255,6 +258,7 @@ const ISO_FLOOR_ASSET_CATALOG: Dictionary = {
 	"floor_concrete": "floor_concrete_01.png",
 	"floor_steel": "floor_steel_01.png",
 	"floor_titan": "floor_titan_01.png",
+	"platform_floor": "floor_platform_01.png",
 	"ground_low": "ground_low_01.png",
 	"ground_halflow": "ground_halflow_01.png"
 }
@@ -273,7 +277,8 @@ const ISO_FLOOR_ASSET_PLACEMENT: Dictionary = {
 	"floor_gray_test": {"visible_bounds": Rect2i(0, 162, 512, 286), "target_footprint": ISO_FLOOR_ASSET_TARGET_FOOTPRINT, "overlap": ISO_FLOOR_ASSET_NORMALIZED_OVERLAP, "offset": Vector2.ZERO, "fallback_color": Color(0.11, 0.12, 0.13, 0.98), "draw_safe_base": false},
 	"floor_concrete": {"visible_bounds": Rect2i(18, 95, 1227, 1016), "target_footprint": ISO_FLOOR_ASSET_TARGET_FOOTPRINT, "overlap": ISO_FLOOR_ASSET_NORMALIZED_OVERLAP, "offset": Vector2.ZERO, "fallback_color": Color(0.08, 0.085, 0.09, 0.96)},
 	"floor_steel": {"visible_bounds": Rect2i(18, 95, 1227, 1011), "target_footprint": ISO_FLOOR_ASSET_TARGET_FOOTPRINT, "overlap": ISO_FLOOR_ASSET_NORMALIZED_OVERLAP, "offset": Vector2.ZERO, "fallback_color": Color(0.07, 0.085, 0.1, 0.96)},
-	"floor_titan": {"visible_bounds": Rect2i(11, 95, 1232, 1011), "target_footprint": ISO_FLOOR_ASSET_TARGET_FOOTPRINT, "overlap": ISO_FLOOR_ASSET_NORMALIZED_OVERLAP, "offset": Vector2.ZERO, "fallback_color": Color(0.075, 0.085, 0.11, 0.96)}
+	"floor_titan": {"visible_bounds": Rect2i(11, 95, 1232, 1011), "target_footprint": ISO_FLOOR_ASSET_TARGET_FOOTPRINT, "overlap": ISO_FLOOR_ASSET_NORMALIZED_OVERLAP, "offset": Vector2.ZERO, "fallback_color": Color(0.075, 0.085, 0.11, 0.96)},
+	"platform_floor": {"visible_bounds": Rect2i(18, 95, 1227, 1016), "target_footprint": ISO_FLOOR_ASSET_TARGET_FOOTPRINT, "overlap": ISO_FLOOR_ASSET_NORMALIZED_OVERLAP, "offset": Vector2.ZERO, "fallback_color": Color(0.09, 0.105, 0.12, 0.96)}
 }
 const ISO_GROUND_ASSET_PLACEMENT: Dictionary = {
 	"ground_low": {"visible_bounds": Rect2(0, 353, 512, 415), "target_base_width": 128.0, "scale": 1.0, "offset": Vector2.ZERO},
@@ -1684,6 +1689,33 @@ func draw_iso_floor_asset_texture_for_cell(cell: Vector2i, asset_key: String) ->
 	draw_iso_asset_alignment_overlay(asset_key, grid_to_iso(cell), destination_rect)
 	return true
 
+func draw_platform_floor_visual_for_cell(cell: Vector2i, platform_data: Dictionary) -> bool:
+	if use_gray_room_visual_test_assets or platform_data.is_empty() or not PlatformTypesRef.is_platform_data(platform_data):
+		return false
+	var descriptor: Dictionary = PlatformVisualServiceRef.get_platform_draw_descriptor(platform_data)
+	var texture: Texture2D = get_iso_floor_texture_for_asset_key(str(descriptor.get("floor_asset_key", "platform_floor")))
+	if texture == null:
+		return false
+	var destination_rect: Rect2 = get_iso_floor_asset_destination_rect_for_cell(cell, "platform_floor")
+	destination_rect.position.y += float(descriptor.get("visual_y_offset", 0.0))
+	var source_rect: Rect2 = Rect2(Vector2.ZERO, texture.get_size())
+	if str(descriptor.get("source_region_mode", "full_with_rim")) == "top_only_flush":
+		var crop_height: float = source_rect.size.y * 0.56
+		source_rect = Rect2(Vector2(source_rect.position.x, source_rect.position.y), Vector2(source_rect.size.x, crop_height))
+		destination_rect.size.y *= 0.56
+	if bool(descriptor.get("is_flush", false)):
+		draw_iso_floor_asset_safe_base(cell, Color(0.08, 0.085, 0.09, 0.96))
+	draw_texture_rect_region(texture, destination_rect, source_rect)
+	draw_iso_asset_alignment_overlay("platform_floor", grid_to_iso(cell), destination_rect)
+	return true
+
+func get_platform_data_for_floor_cell(cell: Vector2i) -> Dictionary:
+	var mission_manager: Node = get_mission_manager_ref()
+	if mission_manager == null or not mission_manager.has_method("get_world_object_at_cell"):
+		return {}
+	var object_data: Dictionary = Dictionary(mission_manager.call("get_world_object_at_cell", cell))
+	return object_data if PlatformTypesRef.is_platform_data(object_data) else {}
+
 func get_iso_wall_asset_key_for_profile(profile_key: String) -> String:
 	return normalize_wall_asset_key(profile_key)
 
@@ -2326,6 +2358,8 @@ func get_iso_object_asset_key_for_object_data(object_data: Dictionary, fallback_
 	var name_value: String = str(object_data.get("name", "")).to_lower().strip_edges()
 	var id_value: String = str(object_data.get("id", object_data.get("object_id", ""))).to_lower().strip_edges()
 	var blob: String = "%s %s %s %s %s %s" % [fallback_profile_key.to_lower(), type_value, prefab_value, group_value, name_value, id_value]
+	if type_value == "platform" or blob.contains(" platform"):
+		return ""
 	if type_value == "power_switcher" or blob.contains("power_switcher"):
 		var mount: String = _get_object_mount_mode(object_data)
 		var on_suffix: String = "on" if _is_object_state_on(object_data) else "off"
@@ -4367,6 +4401,11 @@ func draw_iso_floor_prototype() -> void:
 			else:
 				var height_asset_key: String = get_iso_floor_asset_key_for_visual_state(cell)
 				floor_asset_key = height_asset_key if not height_asset_key.is_empty() else get_iso_floor_asset_key_for_material_key(floor_material_key)
+			var platform_data: Dictionary = get_platform_data_for_floor_cell(cell)
+			if draw_platform_floor_visual_for_cell(cell, platform_data):
+				if debug_floor_tile_bounds:
+					draw_floor_tile_bounds_debug(cell)
+				continue
 			if use_procedural_floor_debug_tiles:
 				draw_procedural_floor_debug_tile(cell, fill_color)
 				continue
@@ -5362,6 +5401,8 @@ func draw_iso_object_marker(cell: Vector2i, tile_type: int, override_object_data
 		draw_colored_polygon(footprint_polygon, Color(0.2, 0.24, 0.28, 0.2))
 	var object_id: String = str(object_meta.get("object_id", ""))
 	var object_data: Dictionary = Dictionary(object_meta.get("data", {}))
+	if PlatformTypesRef.is_platform_data(object_data):
+		return
 	var profile_key: String = get_iso_object_profile_key_for_tile(tile_type)
 	if not override_object_data.is_empty() or profile_key.is_empty():
 		profile_key = get_iso_object_profile_key_for_object_data(object_data, profile_key)
