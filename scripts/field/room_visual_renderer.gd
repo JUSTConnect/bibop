@@ -3972,15 +3972,37 @@ func draw_iso_wall_block(cell: Vector2i) -> void:
 	draw_iso_wall_surface_accent(left_face, right_face, top_face, wall_profile_key, accent_color)
 	draw_iso_breachable_wall_overlay(cell)
 	draw_iso_wall_debug_and_mount_overlays(cell, arch, topology)
+func _get_mission_runtime_manager() -> Variant:
+	var parent_node: Node = get_parent()
+	if parent_node != null and parent_node.has_method("get_world_object_at_cell"):
+		return parent_node
 
+	var scene_root: Node = get_tree().current_scene
+	if scene_root != null and scene_root.has_method("get_mission_manager_runtime"):
+		return scene_root.call("get_mission_manager_runtime")
+
+	if scene_root != null and scene_root.has_node("MissionManager"):
+		return scene_root.get_node("MissionManager")
+
+	return null
+	
 func _get_breachable_wall_data_for_cell(cell: Vector2i) -> Dictionary:
-	if mission_manager == null or not mission_manager.has_method("get_world_object_at_cell"):
+	var runtime_manager: Variant = _get_mission_runtime_manager()
+	if runtime_manager == null or not runtime_manager.has_method("get_world_object_at_cell"):
 		return {}
-	var object_data: Dictionary = Dictionary(mission_manager.call("get_world_object_at_cell", cell))
+	var object_data: Dictionary = Dictionary(runtime_manager.call("get_world_object_at_cell", cell))
+	if object_data.has("data") and object_data.get("data") is Dictionary:
+		var nested_data: Dictionary = Dictionary(object_data.get("data", {}))
+		if not nested_data.is_empty():
+			object_data = nested_data
+
 	if object_data.is_empty() or not bool(object_data.get("is_breachable_wall", false)):
 		return {}
-	if str(object_data.get("state", "active")).strip_edges().to_lower() in ["open", "destroyed", "breached", "removed"]:
+
+	var state_value: String = str(object_data.get("state", "active")).strip_edges().to_lower()
+	if state_value in ["open", "destroyed", "breached", "removed"]:
 		return {}
+
 	return object_data
 
 func draw_iso_breachable_wall_overlay(cell: Vector2i) -> void:
