@@ -10,6 +10,7 @@ const BipobRuntimeActionActorServiceRef = preload("res://scripts/game/bipob_runt
 const BipobTargetingServiceRef = preload("res://scripts/game/bipob_targeting_service.gd")
 const BipobTerminalControlExecutionServiceRef = preload("res://scripts/game/bipob_terminal_control_execution_service.gd")
 const BipobWorldObjectExecutionServiceRef = preload("res://scripts/game/bipob_world_object_execution_service.gd")
+const InteractionActionCostServiceRef = preload("res://scripts/game/interaction/interaction_action_cost_service.gd")
 
 
 static func normalize_world_action_id(action_id: String) -> String:
@@ -163,6 +164,10 @@ static func handle_runtime_action_interact(controller: Variant, target_position:
 
 
 static func _apply_pickup_execution(controller: Variant, pickup_execution: Dictionary, target_position: Vector2i) -> void:
+	if bool(pickup_execution.get("success", false)) and not InteractionActionCostServiceRef.commit_gameplay_action(controller, pickup_execution):
+		controller.hint_requested.emit(str(pickup_execution.get("message", "Not enough action/energy.")))
+		controller.status_changed.emit()
+		return
 	controller.hint_requested.emit(str(pickup_execution.get("message", "Pickup failed.")))
 	if bool(pickup_execution.get("clear_selected_action", false)):
 		clear_selected_world_action_if_invalid(controller, {}, Vector2i(pickup_execution.get("item_cell", target_position)))
@@ -247,12 +252,13 @@ static func _apply_terminal_control_execution(controller: Variant, world_object:
 
 
 static func _apply_breachable_wall_execution(controller: Variant, world_object: Dictionary, target_position: Vector2i, actor: Dictionary, module: Dictionary, action_id: String) -> void:
-	var action_result: Dictionary = InteractionSystemRef.normalize_action_result(Dictionary(InteractionSystemRef.apply_action(actor, module, world_object, action_id)), world_object, action_id)
+	var working_object: Dictionary = world_object.duplicate(true)
+	var action_result: Dictionary = InteractionSystemRef.normalize_action_result(Dictionary(InteractionSystemRef.apply_action(actor, module, working_object, action_id)), working_object, action_id)
 	if not bool(action_result.get("success", false)):
 		controller.hint_requested.emit(str(action_result.get("message", "Action failed.")))
 		controller.status_changed.emit()
 		return
-	if not controller.can_spend_action(1, 1):
+	if not InteractionActionCostServiceRef.can_commit_gameplay_action(controller):
 		controller.hint_requested.emit("Not enough action/energy.")
 		controller.status_changed.emit()
 		return
@@ -266,8 +272,8 @@ static func _apply_breachable_wall_execution(controller: Variant, world_object: 
 		controller.hint_requested.emit(str(break_result.get("message", "Cannot break wall.")))
 		controller.status_changed.emit()
 		return
-	controller.spend_action(1, 1)
-	controller._register_successful_paid_player_action(true)
+	var wall_execution: Dictionary = {"success": true, "message": str(break_result.get("message", "Breachable Wall broken. Passage cleared."))}
+	InteractionActionCostServiceRef.commit_gameplay_action(controller, wall_execution)
 	controller.selected_world_action = ""
 	controller.hint_requested.emit(str(break_result.get("message", "Breachable Wall broken. Passage cleared.")))
 	controller.refresh_world_object_overlay()
@@ -278,12 +284,13 @@ static func _apply_breachable_wall_execution(controller: Variant, world_object: 
 
 
 static func _apply_heavy_claw_execution(controller: Variant, world_object: Dictionary, target_position: Vector2i, actor: Dictionary, module: Dictionary, action_id: String) -> void:
-	var claw_action_result: Dictionary = InteractionSystemRef.normalize_action_result(Dictionary(InteractionSystemRef.apply_action(actor, module, world_object, action_id)), world_object, action_id)
+	var working_object: Dictionary = world_object.duplicate(true)
+	var claw_action_result: Dictionary = InteractionSystemRef.normalize_action_result(Dictionary(InteractionSystemRef.apply_action(actor, module, working_object, action_id)), working_object, action_id)
 	if not bool(claw_action_result.get("success", false)):
 		controller.hint_requested.emit(str(claw_action_result.get("message", "Action failed.")))
 		controller.status_changed.emit()
 		return
-	if not controller.can_spend_action(1, 1):
+	if not InteractionActionCostServiceRef.can_commit_gameplay_action(controller):
 		controller.hint_requested.emit("Not enough action/energy.")
 		controller.status_changed.emit()
 		return

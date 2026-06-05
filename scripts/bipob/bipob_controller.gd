@@ -7018,9 +7018,18 @@ func open_terminal_connection_mode(target_cell: Vector2i = Vector2i(-9999, -9999
 		status_changed.emit()
 		return {"success": false, "message": "No terminal connected."}
 	if not bool(terminal.get("connected", false)):
-		_clear_terminal_connection_state("Connector link was not established.")
-		status_changed.emit()
-		return {"success": false, "message": "Connector link was not established."}
+		var view_model: Dictionary = build_runtime_action_view_model(terminal, resolved_cell)
+		var can_enter_connection_mode: bool = false
+		for descriptor_variant in Array(view_model.get("actions", [])):
+			if descriptor_variant is Dictionary:
+				var descriptor: Dictionary = descriptor_variant
+				if str(descriptor.get("id", "")) == "connect" and bool(descriptor.get("enabled", false)):
+					can_enter_connection_mode = true
+					break
+		if not can_enter_connection_mode:
+			_clear_terminal_connection_state("Connector link was not established.")
+			status_changed.emit()
+			return {"success": false, "message": "Connector link was not established."}
 	is_terminal_connected = true
 	connected_terminal_id = str(terminal.get("id", ""))
 	connected_terminal_cell = resolved_cell

@@ -93,9 +93,6 @@ static func press_interact(ui) -> void:
 	var target_data: Dictionary = get_target_data(ui)
 	var target_object: Dictionary = ui._safe_ui_dictionary(target_data.get("target_object", {}))
 	var actions: Array[String] = get_physical_actions(ui._safe_ui_array(target_data.get("actions", [])))
-	if int(ui.bipob.actions_left) <= 0:
-		ui.show_hint("No actions left. End turn.")
-		return
 	if not target_object.is_empty() and not actions.is_empty():
 		if is_manipulator_blocked(ui, target_object, actions):
 			ui.show_hint("Free manipulator required.")
@@ -103,8 +100,8 @@ static func press_interact(ui) -> void:
 			return
 		enter_mode(ui)
 		return
-	if ui.bipob.has_method("interact"):
-		ui.bipob.call("interact")
+	ui.show_hint("No physical action available. Face an interactable object first.")
+	refresh_controls(ui)
 	ui.update_status()
 
 
@@ -128,21 +125,19 @@ static func press_connect(ui) -> void:
 		refresh_controls(ui)
 		ui.update_status()
 		return
-	if int(ui.bipob.actions_left) <= 0:
-		ui.show_hint("No actions left. End turn.")
-		return
 	var descriptor: Dictionary = get_connect_descriptor(target_data)
 	if descriptor.is_empty() or not bool(descriptor.get("enabled", false)):
 		ui.show_hint(str(descriptor.get("label", "Connector jack unavailable.")))
 		refresh_controls(ui)
 		return
-	ui.bipob.allow_connector_workflow_action_once = true
-	press_action(ui, "connect")
 	if is_terminal_target and ui.bipob.has_method("open_terminal_connection_mode"):
 		var connect_result: Dictionary = Dictionary(ui.bipob.call("open_terminal_connection_mode", target_position))
-		if bool(connect_result.get("success", false)):
-			ui.show_hint(str(connect_result.get("message", "Terminal connected.")))
+		ui.show_hint(str(connect_result.get("message", "Terminal connection unavailable.")))
+	else:
+		ui.bipob.call("set_selected_world_action", "connect")
+		ui.show_hint("Connection target selected.")
 	refresh_controls(ui)
+	ui.update_status()
 
 
 static func press_heavy_claw(ui) -> void:
