@@ -18,6 +18,7 @@ const PlatformRotationServiceRef = preload("res://scripts/game/platform/platform
 const BipobCableRuntimeServiceRef = preload("res://scripts/game/bipob_cable_runtime_service.gd")
 const BipobAirflowRuntimeServiceRef = preload("res://scripts/game/bipob_airflow_runtime_service.gd")
 const BreachableWallServiceRef = preload("res://scripts/game/wall/breachable_wall_service.gd")
+const VisualAssetCatalogRef = preload("res://scripts/visual/visual_asset_catalog.gd")
 const DEVICE_INTERACTION_FLOW_STATES: Array[String] = ["no_target", "unknown", "scanned", "diagnosed", "ready", "blocked", "executed_unavailable"]
 
 const ISO_PLACEHOLDER_ASSET_PATHS: Dictionary = {
@@ -3283,6 +3284,8 @@ func normalize_visual_texture_asset_id(asset_id: String) -> String:
 		return str(OBJECT_TEXTURE_ASSET_ALIASES.get(lowercase_asset_id, lowercase_asset_id))
 	if VISUAL_TEXTURE_ASSET_ALIASES.has(lowercase_asset_id):
 		return str(VISUAL_TEXTURE_ASSET_ALIASES.get(lowercase_asset_id, lowercase_asset_id))
+	if VisualAssetCatalogRef.has_asset(lowercase_asset_id):
+		return lowercase_asset_id
 	return normalized_asset_id
 
 func normalize_visual_texture_asset_id_for_context(asset_id: String, asset_context: String) -> String:
@@ -3293,16 +3296,13 @@ func normalize_visual_texture_asset_id_for_context(asset_id: String, asset_conte
 	var normalized_context: String = asset_context.strip_edges().to_lower()
 	match normalized_context:
 		"floor":
-			if FLOOR_TEXTURE_ASSET_ALIASES.has(normalized_asset_id):
-				return str(FLOOR_TEXTURE_ASSET_ALIASES.get(normalized_asset_id, normalized_asset_id))
+			return VisualAssetCatalogRef.resolve_floor_asset_id(lowercase_asset_id)
 		"wall":
-			if WALL_TEXTURE_ASSET_ALIASES.has(normalized_asset_id):
-				return str(WALL_TEXTURE_ASSET_ALIASES.get(normalized_asset_id, normalized_asset_id))
+			return VisualAssetCatalogRef.resolve_wall_asset_id(lowercase_asset_id)
 		"object", "door", "terminal", "item":
 			if OBJECT_TEXTURE_ASSET_ALIASES.has(normalized_asset_id):
 				return str(OBJECT_TEXTURE_ASSET_ALIASES.get(normalized_asset_id, normalized_asset_id))
-			if OBJECT_TEXTURE_ASSET_ALIASES.has(lowercase_asset_id):
-				return str(OBJECT_TEXTURE_ASSET_ALIASES.get(lowercase_asset_id, lowercase_asset_id))
+			return VisualAssetCatalogRef.resolve_object_asset_id(lowercase_asset_id)
 	if VISUAL_TEXTURE_ASSET_ALIASES.has(lowercase_asset_id):
 		return str(VISUAL_TEXTURE_ASSET_ALIASES.get(lowercase_asset_id, lowercase_asset_id))
 	return normalize_visual_texture_asset_id(normalized_asset_id)
@@ -3318,11 +3318,11 @@ func normalize_object_texture_asset_id(asset_id: String) -> String:
 
 func get_placeholder_asset_presence_report() -> Array[Dictionary]:
 	var report: Array[Dictionary] = []
-	var asset_keys: Array = ISO_PLACEHOLDER_ASSET_PATHS.keys()
+	var asset_keys: Array = VisualAssetCatalogRef.get_all_asset_paths().keys()
 	asset_keys.sort()
 	for asset_key_variant in asset_keys:
 		var asset_key: String = str(asset_key_variant)
-		var placeholder_path: String = str(ISO_PLACEHOLDER_ASSET_PATHS.get(asset_key, ""))
+		var placeholder_path: String = VisualAssetCatalogRef.get_asset_path(asset_key)
 		var exists: bool = false
 		var loadable: bool = false
 		if not placeholder_path.is_empty():
@@ -3337,7 +3337,7 @@ func _append_placeholder_visual_texture_assets(assets: Array[Dictionary]) -> voi
 	for row_variant in assets:
 		var row: Dictionary = Dictionary(row_variant)
 		existing_ids[str(row.get("id", ""))] = true
-	var asset_keys: Array = ISO_PLACEHOLDER_ASSET_PATHS.keys()
+	var asset_keys: Array = VisualAssetCatalogRef.get_all_asset_paths().keys()
 	asset_keys.sort()
 	for asset_key_variant in asset_keys:
 		var asset_key: String = str(asset_key_variant)
@@ -3350,7 +3350,7 @@ func _append_placeholder_visual_texture_assets(assets: Array[Dictionary]) -> voi
 			category = "wall"
 		elif asset_key.begins_with("object_"):
 			category = "object"
-		assets.append({"id": asset_key, "category": category, "display_name": "Placeholder / %s" % asset_key.capitalize(), "description": "BIP-Visual-011 placeholder SVG asset.", "texture_path": str(ISO_PLACEHOLDER_ASSET_PATHS.get(asset_key, "")), "atlas_region": Rect2i(0, 0, 0, 0), "fallback_style": "placeholder", "fallback_color": Color(0.72, 0.82, 0.9, 0.95), "tags": ["placeholder", category], "is_optional": true, "placeholder_asset_key": asset_key})
+		assets.append({"id": asset_key, "category": category, "display_name": "Placeholder / %s" % asset_key.capitalize(), "description": "BIP-Visual-011 placeholder SVG asset.", "texture_path": VisualAssetCatalogRef.get_asset_path(asset_key), "atlas_region": Rect2i(0, 0, 0, 0), "fallback_style": "placeholder", "fallback_color": Color(0.72, 0.82, 0.9, 0.95), "tags": ["placeholder", category], "is_optional": true, "placeholder_asset_key": asset_key})
 
 func _append_visual_texture_asset_alias_rows(assets: Array[Dictionary]) -> void:
 	var existing_ids: Dictionary = {}
@@ -3364,7 +3364,7 @@ func _append_visual_texture_asset_alias_rows(assets: Array[Dictionary]) -> void:
 		if existing_ids.has(alias_id):
 			continue
 		var placeholder_key: String = normalize_visual_texture_asset_id(alias_id)
-		var placeholder_path: String = str(ISO_PLACEHOLDER_ASSET_PATHS.get(placeholder_key, ""))
+		var placeholder_path: String = VisualAssetCatalogRef.get_asset_path(placeholder_key)
 		assets.append({"id": alias_id, "category": "alias", "display_name": "Alias / %s" % alias_id.capitalize(), "description": "Backward-compatible visual texture asset alias.", "texture_path": placeholder_path, "atlas_region": Rect2i(0, 0, 0, 0), "fallback_style": "alias", "fallback_color": Color(0.72, 0.82, 0.9, 0.95), "tags": ["alias", placeholder_key], "is_optional": true, "placeholder_asset_key": placeholder_key})
 
 func get_visual_texture_asset_catalog() -> Dictionary:
@@ -3428,8 +3428,8 @@ func resolve_visual_texture_asset(asset_id: String, asset_context: String = "") 
 		if str(row.get("id", "")) != normalized_asset_id and str(row.get("id", "")) != requested_asset_id:
 			continue
 		var texture_path: String = str(row.get("texture_path", "")).strip_edges()
-		if texture_path.is_empty() and ISO_PLACEHOLDER_ASSET_PATHS.has(normalized_asset_id):
-			texture_path = str(ISO_PLACEHOLDER_ASSET_PATHS.get(normalized_asset_id, ""))
+		if texture_path.is_empty():
+			texture_path = VisualAssetCatalogRef.get_asset_path(normalized_asset_id)
 		var has_texture: bool = false
 		if not texture_path.is_empty():
 			has_texture = ResourceLoader.exists(texture_path)
