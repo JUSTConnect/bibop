@@ -119,12 +119,17 @@ static func get_world_object_action_for_context(controller: Variant, world_objec
 	var view_model: Dictionary = build_runtime_action_view_model(controller, world_object, target_position)
 	var actions: Array = Array(view_model.get("available_action_ids", []))
 	if not controller.selected_world_action.is_empty() and actions.has(controller.selected_world_action):
-		return controller.selected_world_action
+		if not _is_connector_workflow_action(controller.selected_world_action) or bool(controller.allow_connector_workflow_action_once):
+			return controller.selected_world_action
 	for action_variant in actions:
 		var action_id: String = str(action_variant)
-		if action_id != "connect":
+		if not _is_connector_workflow_action(action_id):
 			return action_id
 	return ""
+
+
+static func _is_connector_workflow_action(action_id: String) -> bool:
+	return action_id in ["connect", "scan", "hack", "download", "activate_platform", "open_door", "close_door", "unlock_door", "apply_digital_key", "input_password"] or action_id.begins_with("access_code_")
 
 
 static func handle_runtime_action_interact(controller: Variant, target_position: Vector2i, _target_tile: int) -> bool:
@@ -138,6 +143,8 @@ static func handle_runtime_action_interact(controller: Variant, target_position:
 
 	var world_object: Dictionary = Dictionary(controller.mission_manager.get_world_object_at_cell(target_position))
 	if world_object.is_empty():
+		return false
+	if controller.mission_manager.has_method("is_visual_only_floor_ground_object") and bool(controller.mission_manager.call("is_visual_only_floor_ground_object", world_object)):
 		return false
 	_execute_world_object_action(controller, world_object, target_position, active_manipulator)
 	return true
@@ -164,6 +171,7 @@ static func _execute_world_object_action(controller: Variant, world_object: Dict
 	var actor: Dictionary = build_runtime_action_actor(controller, world_object, target_position)
 	actor["platform_switch_access"] = controller.mission_manager.can_bipob_access_platform_switch(target_platform, controller.grid_position, controller.get_direction_id(controller.direction))
 	var action_id: String = get_world_object_action_for_context(controller, world_object, target_position)
+	controller.allow_connector_workflow_action_once = false
 	var module: Dictionary = Dictionary(controller.get_world_action_module(action_id, world_object))
 	if str(world_object.get("object_group", "")) == "terminal" and (action_id == "hack" or action_id == "activate_platform") and not controller._is_terminal_powered_for_interaction(world_object):
 		controller.hint_requested.emit("Terminal is unpowered.")

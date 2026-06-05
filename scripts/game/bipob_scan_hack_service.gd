@@ -5,10 +5,27 @@ const ScanSystemRef = preload("res://scripts/world/scan_system.gd")
 const WorldObjectCatalogRef = preload("res://scripts/world/world_object_catalog.gd")
 const DIGITAL_RECORD_INFO_KEY := "info_key"
 
+
+static func _get_diagnostic_target_cell(controller: Variant) -> Vector2i:
+	if controller.has_method("is_connected_to_terminal") and bool(controller.call("is_connected_to_terminal")):
+		return Vector2i(controller.connected_terminal_cell)
+	return controller.get_facing_device_position()
+
+
+static func _get_interaction_target_data(controller: Variant) -> Dictionary:
+	if controller.has_method("is_connected_to_terminal") and bool(controller.call("is_connected_to_terminal")):
+		var target_cell: Vector2i = _get_diagnostic_target_cell(controller)
+		if controller.mission_manager != null:
+			var target_object: Dictionary = Dictionary(controller.mission_manager.get_world_object_at_cell(target_cell))
+			if not target_object.is_empty():
+				var view_model: Dictionary = controller.build_runtime_action_view_model(target_object, target_cell)
+				return {"target_position": target_cell, "target_object": view_model.get("target", target_object), "actions": view_model.get("available_action_ids", []), "action_view_model": view_model}
+	return controller.get_facing_world_action_target()
+
 static func get_facing_device_diagnostic_result(controller: Variant) -> Dictionary:
 	if controller.mission_manager == null or not controller.mission_manager.has_method("build_device_diagnostic_result"):
 		return {}
-	var target_cell: Vector2i = controller.get_facing_device_position()
+	var target_cell: Vector2i = _get_diagnostic_target_cell(controller)
 	var target_variant: Variant = controller.mission_manager.get_world_object_at_cell(target_cell)
 	if typeof(target_variant) != TYPE_DICTIONARY or Dictionary(target_variant).is_empty():
 		return {}
@@ -33,7 +50,7 @@ static func get_facing_device_diagnostic_result(controller: Variant) -> Dictiona
 static func get_facing_device_interaction_preflight(controller: Variant, action_id: String = "") -> Dictionary:
 	if controller.mission_manager == null or not controller.mission_manager.has_method("build_device_interaction_preflight"):
 		return {}
-	var target_data: Dictionary = controller.get_facing_world_action_target()
+	var target_data: Dictionary = _get_interaction_target_data(controller)
 	var target_variant: Variant = target_data.get("target_object", {})
 	if typeof(target_variant) != TYPE_DICTIONARY:
 		return {}
@@ -53,7 +70,7 @@ static func get_facing_device_interaction_preflight(controller: Variant, action_
 static func get_facing_device_interaction_state_flow(controller: Variant, action_id: String = "") -> Dictionary:
 	if controller.mission_manager == null or not controller.mission_manager.has_method("build_device_interaction_state_flow"):
 		return {}
-	var target_data: Dictionary = controller.get_facing_world_action_target()
+	var target_data: Dictionary = _get_interaction_target_data(controller)
 	var target_variant: Variant = target_data.get("target_object", {})
 	if typeof(target_variant) != TYPE_DICTIONARY:
 		return {}
@@ -160,7 +177,7 @@ static func scan_device(controller: Variant) -> void:
 	if controller.mission_finished:
 		return
 
-	var facing_cell: Vector2i = controller.get_facing_device_position()
+	var facing_cell: Vector2i = _get_diagnostic_target_cell(controller)
 	if controller.mission_manager != null:
 		var world_object: Dictionary = Dictionary(controller.mission_manager.get_world_object_at_cell(facing_cell))
 		if not world_object.is_empty():
@@ -191,7 +208,10 @@ static func scan_device(controller: Variant) -> void:
 			controller.update_threat_detection_preview()
 			var diagnostic: Dictionary = get_facing_device_diagnostic_result(controller)
 			var state_flow: Dictionary = get_facing_device_interaction_state_flow(controller)
-			controller.hint_requested.emit(_format_scan_device_hint(diagnostic, state_flow, world_object))
+			var scan_message: String = _format_scan_device_hint(diagnostic, state_flow, world_object)
+			if str(world_object.get("object_group", "")) == "terminal" and controller.has_method("set_terminal_response_text"):
+				controller.call("set_terminal_response_text", scan_message)
+			controller.hint_requested.emit(scan_message)
 			controller.clear_selected_world_action_if_invalid(world_object, facing_cell)
 			controller.emit_facing_world_object_hint()
 			controller.refresh_world_action_panel()
@@ -210,16 +230,22 @@ static func scan_device(controller: Variant) -> void:
 		blocked_result.recommendation = "Face a terminal or digital door and scan again."
 		blocked_result.estimated_risk = "none"
 		controller.last_diagnostic_result = blocked_result
+		if controller.has_method("set_terminal_response_text") and controller.has_method("is_connected_to_terminal") and bool(controller.call("is_connected_to_terminal")):
+			controller.call("set_terminal_response_text", "No digital device detected. Face a terminal or digital door, then scan.")
 		controller.hint_requested.emit("No digital device detected. Face a terminal or digital door, then scan.")
 		controller.status_changed.emit()
 		return
 
 	controller.spend_action(1, 1)
 	evaluate_facing_device_capability(controller)
+	var completion_message: String = ""
 	if controller.last_diagnostic_result.status == DiagnosticResult.STATUS_BLOCKED:
-		controller.hint_requested.emit("Scan complete: BLOCKED. Check Diagnostic panel for missing requirements.")
+		completion_message = "Scan complete: BLOCKED. Check Diagnostic panel for missing requirements."
 	else:
-		controller.hint_requested.emit("Scan complete: " + controller.last_diagnostic_result.get_status_text() + ". Check Diagnostic panel, then use Hack Device if READY.")
+		completion_message = "Scan complete: " + controller.last_diagnostic_result.get_status_text() + ". Check Diagnostic panel, then use Hack Device if READY."
+	if controller.has_method("set_terminal_response_text") and controller.has_method("is_connected_to_terminal") and bool(controller.call("is_connected_to_terminal")):
+		controller.call("set_terminal_response_text", completion_message)
+	controller.hint_requested.emit(completion_message)
 	controller.status_changed.emit()
 
 static func hack_device(controller: Variant) -> void:

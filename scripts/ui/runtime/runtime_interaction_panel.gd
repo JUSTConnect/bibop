@@ -9,7 +9,7 @@ static func get_target_data(ui) -> Dictionary:
 
 
 static func is_connector_action(action_id: String) -> bool:
-	return action_id == "connect"
+	return action_id in ["connect", "scan", "hack", "download", "activate_platform", "open_door", "close_door", "unlock_door", "apply_digital_key", "input_password"] or action_id.begins_with("access_code_")
 
 
 static func is_heavy_claw_action(action_id: String) -> bool:
@@ -108,16 +108,38 @@ static func press_interact(ui) -> void:
 static func press_connect(ui) -> void:
 	if ui.map_constructor_state.map_constructor_mode_active or ui.bipob == null:
 		return
+	if ui.bipob.has_method("is_connected_to_terminal") and bool(ui.bipob.call("is_connected_to_terminal")):
+		if ui.bipob.has_method("cancel_terminal_connection"):
+			var cancel_result: Dictionary = Dictionary(ui.bipob.call("cancel_terminal_connection"))
+			ui.show_hint(str(cancel_result.get("message", "Terminal connection cancelled.")))
+		refresh_controls(ui)
+		ui.update_status()
+		return
+	var target_data: Dictionary = get_target_data(ui)
+	var target_object: Dictionary = ui._safe_ui_dictionary(target_data.get("target_object", {}))
+	var target_position: Vector2i = Vector2i(target_data.get("target_position", Vector2i(-9999, -9999)))
+	var is_terminal_target: bool = not target_object.is_empty() and str(target_object.get("object_group", "")) == "terminal"
+	if is_terminal_target and bool(target_object.get("connected", false)) and ui.bipob.has_method("open_terminal_connection_mode"):
+		var reopen_result: Dictionary = Dictionary(ui.bipob.call("open_terminal_connection_mode", target_position))
+		ui.show_hint(str(reopen_result.get("message", "Terminal connected.")))
+		refresh_controls(ui)
+		ui.update_status()
+		return
 	if int(ui.bipob.actions_left) <= 0:
 		ui.show_hint("No actions left. End turn.")
 		return
-	var target_data: Dictionary = get_target_data(ui)
 	var descriptor: Dictionary = get_connect_descriptor(target_data)
 	if descriptor.is_empty() or not bool(descriptor.get("enabled", false)):
 		ui.show_hint(str(descriptor.get("label", "Connector jack unavailable.")))
 		refresh_controls(ui)
 		return
+	ui.bipob.allow_connector_workflow_action_once = true
 	press_action(ui, "connect")
+	if is_terminal_target and ui.bipob.has_method("open_terminal_connection_mode"):
+		var connect_result: Dictionary = Dictionary(ui.bipob.call("open_terminal_connection_mode", target_position))
+		if bool(connect_result.get("success", false)):
+			ui.show_hint(str(connect_result.get("message", "Terminal connected.")))
+	refresh_controls(ui)
 
 
 static func press_heavy_claw(ui) -> void:

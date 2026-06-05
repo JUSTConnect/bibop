@@ -288,10 +288,6 @@ static func add_wall_coverage_section(ui: Variant, parent: VBoxContainer, entity
 			wall_section.add_child(ui._create_property_row("Target", target_label))
 			wall_section.add_child(ui._create_property_row("Material", material_option))
 			wall_section.add_child(description_label)
-			var visual_test_note: Label = Label.new()
-			visual_test_note.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
-			visual_test_note.text = "Production visual mode uses real floor/wall PNG assets; gray assets remain only as an optional debug fallback."
-			wall_section.add_child(visual_test_note)
 			var selected_wall_height: String = ""
 			if ui.mission_manager_runtime != null and ui.mission_manager_runtime.has_method("get_map_constructor_wall_material"):
 				var current_wall_override: Dictionary = ui._safe_ui_dictionary(ui.mission_manager_runtime.call("get_map_constructor_wall_material", wall_cell, wall_side))
