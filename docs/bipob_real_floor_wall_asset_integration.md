@@ -67,3 +67,8 @@ gradient to the new five-level vocabulary:
 
 This keeps perimeter walls visually tall near the top of the map and progressively lower
 toward the lower/deeper border.
+
+## Raised ground floor visuals
+
+Raised floor visuals are documented separately in `docs/bipob_raised_floor_ground_visuals.md`.
+Floor height is visual-only metadata: `default`, `step_1`, and `step_2` select whether a raised ground base is drawn beneath the existing concrete/steel/titan top floor material. Movement, pathfinding, collision, and stair/platform transfer gameplay are intentionally unchanged.

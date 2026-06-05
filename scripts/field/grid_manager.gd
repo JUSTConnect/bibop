@@ -33,6 +33,9 @@ const FLOOR_FAMILY_CONCRETE := "concrete"
 const FLOOR_WEAR_NONE := "none"
 const FLOOR_WEAR_LIGHT := "light_wear"
 const FLOOR_WEAR_HEAVY := "heavy_damage"
+const FLOOR_HEIGHT_DEFAULT := "default"
+const FLOOR_HEIGHT_STEP_1 := "step_1"
+const FLOOR_HEIGHT_STEP_2 := "step_2"
 const FLOOR_HEAVY_DAMAGE_WHEELED_MOVE_MODIFIER := -1
 
 @export var cell_size: int = 64
@@ -342,7 +345,7 @@ func get_tile(grid_position: Vector2i) -> int:
 func _get_floor_state_key(cell: Vector2i) -> String:
 	return "%d,%d" % [cell.x, cell.y]
 
-func make_floor_visual_state(family: String, wear: String = FLOOR_WEAR_NONE, base_variant: int = -1, overlay_variant: int = -1, mirror_h: bool = false, mirror_v: bool = false) -> Dictionary:
+func make_floor_visual_state(family: String, wear: String = FLOOR_WEAR_NONE, base_variant: int = -1, overlay_variant: int = -1, mirror_h: bool = false, mirror_v: bool = false, floor_height: String = FLOOR_HEIGHT_DEFAULT) -> Dictionary:
 	return {
 		"family": normalize_floor_family(family),
 		"wear": normalize_floor_wear(wear),
@@ -350,6 +353,7 @@ func make_floor_visual_state(family: String, wear: String = FLOOR_WEAR_NONE, bas
 		"overlay_variant": overlay_variant,
 		"mirror_h": mirror_h,
 		"mirror_v": mirror_v,
+		"floor_height": normalize_floor_height_level(floor_height),
 	}
 
 func normalize_floor_family(family: String) -> String:
@@ -367,6 +371,20 @@ func normalize_floor_wear(wear: String) -> String:
 	if normalized_wear == FLOOR_WEAR_HEAVY:
 		return FLOOR_WEAR_HEAVY
 	return FLOOR_WEAR_NONE
+
+func normalize_floor_height_level(floor_height: String) -> String:
+	var normalized_height: String = floor_height.strip_edges().to_lower()
+	normalized_height = normalized_height.replace(" ", "")
+	normalized_height = normalized_height.replace("-", "")
+	normalized_height = normalized_height.replace("_", "")
+	match normalized_height:
+		"", "empty", "default", "flat", "normal":
+			return FLOOR_HEIGHT_DEFAULT
+		"1", "step1", "low", "groundlow":
+			return FLOOR_HEIGHT_STEP_1
+		"2", "step2", "halflow", "groundhalflow":
+			return FLOOR_HEIGHT_STEP_2
+	return FLOOR_HEIGHT_DEFAULT
 
 func get_default_floor_visual_state(_cell: Vector2i = Vector2i(-1, -1)) -> Dictionary:
 	# Keep the default floor base fixed until all atlas base variants have matching
@@ -389,7 +407,8 @@ func set_floor_visual_state(cell: Vector2i, state: Dictionary) -> void:
 		int(state.get("base_variant", -1)),
 		int(state.get("overlay_variant", -1)),
 		bool(state.get("mirror_h", false)),
-		bool(state.get("mirror_v", false))
+		bool(state.get("mirror_v", false)),
+		str(state.get("floor_height", state.get("floor_visual_height", state.get("ground_height", FLOOR_HEIGHT_DEFAULT))))
 	)
 	request_visual_refresh()
 
@@ -426,7 +445,8 @@ func get_floor_visual_state_overrides() -> Array[Dictionary]:
 			int(state.get("base_variant", -1)),
 			int(state.get("overlay_variant", -1)),
 			bool(state.get("mirror_h", false)),
-			bool(state.get("mirror_v", false))
+			bool(state.get("mirror_v", false)),
+			str(state.get("floor_height", state.get("floor_visual_height", state.get("ground_height", FLOOR_HEIGHT_DEFAULT))))
 		)
 		row["cell"] = cell
 		rows.append(row)
@@ -441,6 +461,9 @@ func get_floor_family_for_cell(cell: Vector2i) -> String:
 
 func get_floor_wear_for_cell(cell: Vector2i) -> String:
 	return str(get_floor_visual_state(cell).get("wear", FLOOR_WEAR_NONE))
+
+func get_floor_height_for_cell(cell: Vector2i) -> String:
+	return str(get_floor_visual_state(cell).get("floor_height", FLOOR_HEIGHT_DEFAULT))
 
 func is_wheeled_gear_module(gear: BipobModule) -> bool:
 	if gear == null:

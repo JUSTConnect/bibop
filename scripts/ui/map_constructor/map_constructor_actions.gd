@@ -50,10 +50,10 @@ static func apply_prefab_placement(ui: Variant, prefab_id: String, cell: Vector2
 	var mounting_mode: String = ui._safe_ui_string(options.get("mounting_mode", ui.selected_map_constructor_mounting_mode))
 	return ui._safe_ui_dictionary(ui.mission_manager_runtime.call("place_map_constructor_prefab", prefab_id, cell, wall_side, rotation, mounting_mode))
 
-static func apply_floor_material(ui: Variant, cell: Vector2i, material_id: String) -> Dictionary:
+static func apply_floor_material(ui: Variant, cell: Vector2i, material_id: String, floor_height: String = "default") -> Dictionary:
 	if ui.mission_manager_runtime == null or not ui.mission_manager_runtime.has_method("set_map_constructor_floor_material"):
 		return {}
-	var result: Dictionary = ui._safe_ui_dictionary(ui.mission_manager_runtime.call("set_map_constructor_floor_material", cell, material_id))
+	var result: Dictionary = ui._safe_ui_dictionary(ui.mission_manager_runtime.call("set_map_constructor_floor_material", cell, material_id, floor_height))
 	ui.show_hint(ui._safe_ui_string(result.get("message", "Floor material updated."), "Floor material updated."))
 	refresh_after_mutation(ui, {}, ui.selected_map_constructor_entity_cell, ui.selected_map_constructor_entity_kind, ui.selected_map_constructor_entity_id)
 	return result
