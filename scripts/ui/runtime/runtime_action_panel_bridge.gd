@@ -5,6 +5,7 @@ const RuntimeControlPanelRef = preload("res://scripts/ui/runtime/runtime_control
 const RuntimeInteractionPanelRef = preload("res://scripts/ui/runtime/runtime_interaction_panel.gd")
 const RuntimeInteractionPresenterRef = preload("res://scripts/ui/runtime/runtime_interaction_presenter.gd")
 const RuntimeNotificationsRef = preload("res://scripts/ui/runtime/runtime_notifications.gd")
+const RuntimeHeavyClawPresenterRef = preload("res://scripts/ui/runtime/runtime_heavy_claw_presenter.gd")
 
 var ui = null
 
@@ -53,6 +54,8 @@ func process_feedback(delta: float) -> void:
 	if ui.bipob == null:
 		return
 	refresh_controls()
+	if RuntimeHeavyClawPresenterRef.is_drag_active(ui):
+		return
 	var target_data: Dictionary = get_target_data()
 	var target_object: Dictionary = Dictionary(target_data.get("target_object", {}))
 	var actions: Array = Array(target_data.get("actions", []))
@@ -75,6 +78,18 @@ func process_feedback(delta: float) -> void:
 			ui.runtime_end_turn_button.modulate = Color(1.0, 1.0, 1.0, pulse_alpha)
 		else:
 			ui.runtime_end_turn_button.modulate = Color.WHITE
+
+
+func on_move_forward_pressed() -> void:
+	RuntimeHeavyClawPresenterRef.on_forward_pressed(ui)
+
+
+func on_move_backward_pressed() -> void:
+	RuntimeHeavyClawPresenterRef.on_back_pressed(ui)
+
+
+func on_heavy_claw_drag_cancel_pressed() -> void:
+	RuntimeHeavyClawPresenterRef.on_cancel_pressed(ui)
 
 
 func on_turn_left_pressed() -> void:
