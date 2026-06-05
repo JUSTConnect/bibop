@@ -62,7 +62,7 @@ static func build_runtime_action_view_model(controller: Variant, target_object: 
 static func _runtime_action_requires_free_manipulator(action_id: String, target_object: Dictionary) -> bool:
 	if action_id == "pickup":
 		return WorldObjectCatalogRef.get_item_storage_class(target_object) == WorldObjectCatalogRef.ITEM_STORAGE_CLASS_PHYSICAL
-	return action_id in ["open", "close", "unlock", "switch", "force_open", "push", "pull", "insert_fuse", "remove_fuse", "repair", "cut", "impact", "take_end_1", "take_end_2", "plug_in", "plug_out", "connect_wire_end", "connect_wire_1", "connect_wire_2", "disconnect_power_wire", "disconnect_wire_1", "disconnect_wire_2"]
+	return action_id in ["open", "close", "unlock", "switch", "force_open", "breach", "push", "pull", "insert_fuse", "remove_fuse", "repair", "cut", "impact", "take_end_1", "take_end_2", "plug_in", "plug_out", "connect_wire_end", "connect_wire_1", "connect_wire_2", "disconnect_power_wire", "disconnect_wire_1", "disconnect_wire_2"]
 
 
 static func _runtime_action_disabled_label(controller: Variant, action_id: String, reason: String, target_object: Dictionary) -> String:
@@ -73,4 +73,6 @@ static func _runtime_action_disabled_label(controller: Variant, action_id: Strin
 		"terminal_control_required": return "Use linked terminal"
 		"digital_access_required": return "Digital access required"
 		"unpowered": return "Unpowered"
+		"wrong_breach_side": return "Cracked side only"
+		"heavy_claw_required": return "Heavy Claw required"
 	return controller.get_world_action_display_label(action_id, target_object)

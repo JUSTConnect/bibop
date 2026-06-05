@@ -142,7 +142,12 @@ const WALL_MATERIAL_REINFORCED_STEEL := "reinforced_steel"
 const WALL_MATERIAL_TITANIUM := "titanium"
 const WALL_MATERIAL_GRATE := "grate"
 const WALL_MATERIAL_ELECTROMAGNETIC := "electromagnetic"
+const WALL_MATERIAL_BREACHABLE_CONCRETE := "breachable_concrete"
+const WALL_MATERIAL_BREACHABLE_BRICK := "breachable_brick"
 const WALL_MATERIALS: Array[String] = [WALL_MATERIAL_BRICK, WALL_MATERIAL_CONCRETE, WALL_MATERIAL_STEEL, WALL_MATERIAL_REINFORCED_STEEL, WALL_MATERIAL_TITANIUM, WALL_MATERIAL_GRATE, WALL_MATERIAL_ELECTROMAGNETIC]
+const BREACHABLE_WALL_MATERIALS: Array[String] = [WALL_MATERIAL_BREACHABLE_CONCRETE, WALL_MATERIAL_BREACHABLE_BRICK]
+const BREACHABLE_WALL_HEIGHTS: Array[String] = ["mid", "halfmid", "tall"]
+const WALL_SIDES: Array[String] = ["north", "east", "south", "west"]
 const WALL_DISPLAY_NAMES: Dictionary = {
 	WALL_MATERIAL_BRICK: "Brick Wall",
 	WALL_MATERIAL_CONCRETE: "Concrete Wall",
@@ -150,7 +155,9 @@ const WALL_DISPLAY_NAMES: Dictionary = {
 	WALL_MATERIAL_REINFORCED_STEEL: "Reinforced Steel Wall",
 	WALL_MATERIAL_TITANIUM: "Titanium Wall",
 	WALL_MATERIAL_GRATE: "Grate Wall",
-	WALL_MATERIAL_ELECTROMAGNETIC: "Electromagnetic Wall"
+	WALL_MATERIAL_ELECTROMAGNETIC: "Electromagnetic Wall",
+	WALL_MATERIAL_BREACHABLE_CONCRETE: "Breachable Concrete Wall",
+	WALL_MATERIAL_BREACHABLE_BRICK: "Breachable Brick Wall"
 }
 
 # Hidden compatibility mappings for historic wall ids. Constructor palettes must
@@ -215,6 +222,15 @@ const ARCHETYPE_REGISTRY: Dictionary = {
 		"display_name_template":"{material_label} Wall", "is_destructible":true, "supports_embedded_objects":true, "supports_cables":true, "configurable":true, "blocks_movement":true, "blocks_vision":true,
 		"property_schema":[
 			{"field":"material", "type":"enum", "values":["brick", "concrete", "steel", "reinforced_steel", "titanium", "grate", "electromagnetic"], "default":"brick", "labels":{"brick":"Brick", "concrete":"Concrete", "steel":"Steel", "reinforced_steel":"Reinforced Steel", "titanium":"Titanium", "grate":"Grate", "electromagnetic":"Electromagnetic"}}
+		]
+	},
+	"breachable_wall": {
+		"archetype_id":"breachable_wall", "object_group":"wall", "object_type":"breachable_wall", "palette_label":"Breachable Wall",
+		"display_name_template":"{material_label} Wall", "is_destructible":true, "is_breachable_wall":true, "heavy_claw_breachable":true, "supports_embedded_objects":false, "supports_cables":false, "configurable":true, "blocks_movement":true, "blocks_vision":true,
+		"property_schema":[
+			{"field":"material", "type":"enum", "values":["breachable_concrete", "breachable_brick"], "default":"breachable_concrete", "labels":{"breachable_concrete":"Breachable Concrete Wall", "breachable_brick":"Breachable Brick Wall"}},
+			{"field":"wall_height", "type":"enum", "values":["mid", "halfmid", "tall"], "default":"mid", "labels":{"mid":"Mid", "halfmid":"Half Mid", "tall":"Tall"}},
+			{"field":"breach_side", "type":"enum", "values":["north", "east", "south", "west"], "default":"north", "labels":{"north":"North", "east":"East", "south":"South", "west":"West"}}
 		]
 	},
 	"door": {
@@ -1236,6 +1252,77 @@ static func _schema_defaults(archetype_id: String) -> Dictionary:
 static func _normalize_wall_material(value: Variant) -> String:
 	var material: String = _normalized_contract_token(value)
 	return material if WALL_MATERIALS.has(material) else WALL_MATERIAL_BRICK
+
+
+static func normalize_breach_side(value: Variant) -> String:
+	var side: String = _normalized_contract_token(value)
+	match side:
+		"up", "top", "n":
+			return "north"
+		"right", "e":
+			return "east"
+		"down", "bottom", "s":
+			return "south"
+		"left", "w":
+			return "west"
+	return side if WALL_SIDES.has(side) else "north"
+
+
+static func normalize_breachable_wall_material(value: Variant) -> String:
+	var material: String = _normalized_contract_token(value)
+	if material == "concrete":
+		return WALL_MATERIAL_BREACHABLE_CONCRETE
+	if material == "brick":
+		return WALL_MATERIAL_BREACHABLE_BRICK
+	return material if BREACHABLE_WALL_MATERIALS.has(material) else WALL_MATERIAL_BREACHABLE_CONCRETE
+
+
+static func normalize_breachable_wall_height(value: Variant) -> String:
+	var height: String = _normalized_contract_token(value)
+	height = height.replace(" ", "").replace("-", "").replace("_", "")
+	match height:
+		"high", "highest", "tallest":
+			return "tall"
+		"medium", "middle":
+			return "mid"
+		"half", "halfmedium", "uppermid":
+			return "halfmid"
+	return height if BREACHABLE_WALL_HEIGHTS.has(height) else "mid"
+
+
+static func is_breachable_wall(object_data: Dictionary) -> bool:
+	if object_data.is_empty():
+		return false
+	return _normalized_contract_token(object_data.get("archetype_id", "")) == "breachable_wall" or _normalized_contract_token(object_data.get("object_type", "")) == "breachable_wall" or bool(object_data.get("is_breachable_wall", false))
+
+
+static func wall_side_delta(side: String) -> Vector2i:
+	match normalize_breach_side(side):
+		"north":
+			return Vector2i(0, -1)
+		"east":
+			return Vector2i(1, 0)
+		"south":
+			return Vector2i(0, 1)
+		"west":
+			return Vector2i(-1, 0)
+	return Vector2i.ZERO
+
+
+static func get_wall_side_for_adjacent_actor(wall_cell: Vector2i, actor_cell: Vector2i) -> String:
+	var offset: Vector2i = actor_cell - wall_cell
+	for side in WALL_SIDES:
+		if wall_side_delta(side) == offset:
+			return side
+	return ""
+
+
+static func can_heavy_claw_breach_wall_from_side(object_data: Dictionary, actor_side: String) -> bool:
+	if not is_breachable_wall(object_data):
+		return false
+	if str(object_data.get("state", "active")).strip_edges().to_lower() in ["open", "destroyed", "breached"]:
+		return false
+	return normalize_breach_side(actor_side) == normalize_breach_side(object_data.get("breach_side", "north"))
 
 static func _label_for_id(value: Variant) -> String:
 	return _normalized_contract_token(value).replace("_", " ").capitalize()

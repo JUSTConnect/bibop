@@ -7089,6 +7089,7 @@ func get_world_action_display_label(action_id: String, object_data: Dictionary) 
 		"cut": return "Cut"
 		"impact": return "Impact"
 		"force_open": return "Force Open"
+		"breach": return "Heavy Claw Break"
 		"connect": return "Connect"
 		"scan": return "Scan"
 		"hack": return "Hack"
@@ -7720,6 +7721,11 @@ func get_available_world_actions(world_object: Dictionary, target_position: Vect
 				if str(terminal_door.get("control_type", terminal_door.get("control_mode", "internal"))) == "external":
 					actions.append("close_door" if str(terminal_door.get("state", "")) == "open" else "open_door")
 	elif group == "wall":
+		if WorldObjectCatalog.is_breachable_wall(world_object):
+			var breach_actor_side: String = WorldObjectCatalog.get_wall_side_for_adjacent_actor(target_position, grid_position)
+			if has_heavy_claw() and WorldObjectCatalog.can_heavy_claw_breach_wall_from_side(world_object, breach_actor_side):
+				actions.append("breach")
+			return actions
 		if has_plasma_cutter():
 			actions.append("cut")
 		if has_sledgehammer():
@@ -7874,7 +7880,7 @@ func get_world_action_module(action_id: String, world_object: Dictionary) -> Dic
 			return _module_dict("shocker_v1" if has_module_id("shocker_v1") else "")
 		"drain_energy":
 			return _module_dict("energy_drain_v1" if has_module_id("energy_drain_v1") else "")
-		"force_open", "push":
+		"force_open", "breach", "push":
 			return _module_dict("manipulator_heavy_claw_v1" if has_module_id("manipulator_heavy_claw_v1") else "")
 		"repair":
 			if has_module_id("repair_v1"):
@@ -7955,6 +7961,9 @@ func _apply_world_object_effects(effects: Array, world_object: Dictionary, targe
 		elif effect_type == "set_blocks_movement":
 			if str(world_object.get("object_group", "")) != "door":
 				world_object["blocks_movement"] = effect.get("value", world_object.get("blocks_movement", false))
+		elif effect_type == "clear_wall_tile":
+			if grid_manager != null and grid_manager.has_method("set_tile"):
+				grid_manager.call("set_tile", target_position, GridManager.TILE_FLOOR)
 		elif effect_type == "set_bool":
 			var field_name := str(effect.get("field", "")).strip_edges()
 			if not field_name.is_empty() and not (str(world_object.get("object_group", "")) == "door" and field_name in ["is_open", "is_closed", "is_locked", "locked", "blocks_movement"]):
