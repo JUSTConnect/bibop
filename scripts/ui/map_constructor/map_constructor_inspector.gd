@@ -3,6 +3,7 @@ class_name MapConstructorInspector
 
 const MapConstructorPlatformControlsRef = preload("res://scripts/ui/map_constructor/map_constructor_platform_controls.gd")
 const MapConstructorInspectorVisibilityServiceRef = preload("res://scripts/ui/map_constructor/map_constructor_inspector_visibility_service.gd")
+const MapConstructorTerminalStoredDataControlsRef = preload("res://scripts/ui/map_constructor/map_constructor_terminal_stored_data_controls.gd")
 
 
 static func _is_simple_movable_object(data: Dictionary) -> bool:
@@ -444,13 +445,15 @@ static func _render_entity_tab(ui: Variant, parent: VBoxContainer, entity_info: 
 	var rendered_archetype_schema: bool = ui._add_archetype_schema_properties(configurable, entity_kind, entity_id, data) if object_is_configurable else false
 	if object_is_configurable and not rendered_archetype_schema:
 		ui._add_map_constructor_active_settings(configurable, entity_kind, entity_id, data, type_group)
+	if type_group == "terminal":
+		MapConstructorTerminalStoredDataControlsRef.add_stored_data_section(ui, configurable, entity_kind, entity_id, data)
 	if (type_group == "control" or data.has("requires_external_control")) and MapConstructorInspectorVisibilityServiceRef.should_show_external_control_selector(data) and normalized_object_type != "power_source":
 		ui._add_bool_property(configurable, "requires_external_control", entity_kind, entity_id, "requires_external_control", data.get("requires_external_control", false))
 	var inspector_object_type: String = ui._safe_ui_string(data.get("object_type", "")).to_lower()
 	var uses_dedicated_power_state_selector: bool = type_group == "power" and (inspector_object_type.begins_with("power_source") or inspector_object_type in ["power_cable", "power_cable_reel"])
 	if object_is_configurable and data.has("state") and normalized_object_type not in ["power_switcher", "fuse_box"] and not (type_group == "door" or uses_dedicated_power_state_selector):
 		ui._add_text_property(configurable, "Editable state override", entity_kind, entity_id, "state", data.get("state", ""))
-	if type_group == "terminal":
+	if type_group == "terminal" and MapConstructorInspectorVisibilityServiceRef.should_show_terminal_stored_data_damage_flags(data):
 		ui._add_bool_property(configurable, "damaged", entity_kind, entity_id, "damaged", data.get("damaged", false))
 		ui._add_bool_property(configurable, "encrypted", entity_kind, entity_id, "encrypted", data.get("encrypted", false))
 	if type_group == "power":

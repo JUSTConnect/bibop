@@ -106,7 +106,7 @@ static func _add_platform_member_checklist(ui: Variant, section: VBoxContainer, 
 		section.add_child(empty_label)
 		return
 	for row_variant in rows:
-		var row: Dictionary = Dictionary(row_variant)
+		var row: Dictionary = MapConstructorUiSafe.safe_dictionary(row_variant)
 		var platform_id: String = str(row.get("id", "")).strip_edges()
 		if platform_id.is_empty():
 			continue
