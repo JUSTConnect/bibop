@@ -9,6 +9,7 @@ const MissionIdsRef = preload("res://scripts/game/mission_ids.gd")
 const TaskTestWorldBuilderRef = preload("res://scripts/game/task_test_world_builder.gd")
 const MapConstructorServiceRef = preload("res://scripts/game/map_constructor_service.gd")
 const MapConstructorValidationServiceRef = preload("res://scripts/game/map_constructor_validation_service.gd")
+const MapConstructorPresetServiceRef = preload("res://scripts/game/map_constructor_preset_service.gd")
 const CableTopologyServiceRef = preload("res://scripts/game/cable_topology_service.gd")
 const PlatformTypesRef = preload("res://scripts/game/platform/platform_types.gd")
 const PlatformMechanismServiceRef = preload("res://scripts/game/platform/platform_mechanism_service.gd")
@@ -2069,116 +2070,29 @@ func _validate_constructor_marker(marker: Dictionary, marker_name: String) -> Di
 		return {"ok": false, "message": "%s inside cell invalid: %s is wall." % [marker_name.capitalize(), _serialize_cell_key(inside_cell)]}
 	return {"ok": true, "message": ""}
 
-func save_map_constructor_preset(preset_name: String) -> Dictionary:
-	var sanitized_name: String = _sanitize_map_constructor_preset_name(preset_name)
-	var path: String = _get_map_constructor_preset_path(sanitized_name)
-	if not _is_task_test_constructor_context():
-		return {"ok": false, "message": "Preset save works only in TASK TEST constructor mode.", "path": path, "preset_name": sanitized_name}
-	var dir_result: Error = DirAccess.make_dir_recursive_absolute(MAP_CONSTRUCTOR_PRESET_DIR)
-	if dir_result != OK and dir_result != ERR_ALREADY_EXISTS:
-		return {"ok": false, "message": "Preset save failed: cannot create preset directory.", "path": path, "preset_name": sanitized_name}
-	var file: FileAccess = FileAccess.open(path, FileAccess.WRITE)
-	if file == null:
-		return {"ok": false, "message": "Preset save failed: cannot open file.", "path": path, "preset_name": sanitized_name}
-	file.store_string(JSON.stringify(get_map_constructor_preset_data(), "\t"))
-	file.close()
-	return {"ok": true, "message": "Preset '%s' saved." % sanitized_name, "path": path, "preset_name": sanitized_name}
+func get_map_constructor_preset_snapshot() -> Dictionary:
+	_sync_map_constructor_grid_snapshot_state()
+	return MapConstructorPresetServiceRef.snapshot_from_owner(self)
 
-func list_map_constructor_presets() -> Array[Dictionary]:
-	var presets: Array[Dictionary] = []
-	var dir: DirAccess = DirAccess.open(MAP_CONSTRUCTOR_PRESET_DIR)
-	if dir == null:
-		return presets
-	dir.list_dir_begin()
-	var file_name: String = dir.get_next()
-	while not file_name.is_empty():
-		if not dir.current_is_dir() and file_name.to_lower().ends_with(".json"):
-			var preset_entry_name: String = file_name.substr(0, file_name.length() - 5)
-			var full_path: String = "%s/%s" % [MAP_CONSTRUCTOR_PRESET_DIR, file_name]
-			presets.append({"name": preset_entry_name, "path": full_path, "modified_unix": int(FileAccess.get_modified_time(full_path))})
-		file_name = dir.get_next()
-	dir.list_dir_end()
-	presets.sort_custom(func(a: Dictionary, b: Dictionary) -> bool:
-		return str(a.get("name", "")) < str(b.get("name", ""))
-	)
-	return presets
+func _sync_map_constructor_grid_snapshot_state() -> void:
+	if grid_manager == null or not grid_manager.has_method("get_width") or not grid_manager.has_method("get_height"):
+		return
+	constructor_map_width = int(grid_manager.call("get_width"))
+	constructor_map_height = int(grid_manager.call("get_height"))
 
-func load_map_constructor_preset(preset_name: String) -> Dictionary:
-	var sanitized_name: String = _sanitize_map_constructor_preset_name(preset_name)
-	var path: String = _get_map_constructor_preset_path(sanitized_name)
-	if not _is_task_test_constructor_context():
-		return {"ok": false, "message": "Preset load works only in TASK TEST constructor mode.", "preset_name": sanitized_name}
-	if not FileAccess.file_exists(path):
-		return {"ok": false, "message": "Preset load failed: file not found.", "preset_name": sanitized_name}
-	var file: FileAccess = FileAccess.open(path, FileAccess.READ)
-	if file == null:
-		return {"ok": false, "message": "Preset load failed: cannot open file.", "preset_name": sanitized_name}
-	var parse_result: Variant = JSON.parse_string(file.get_as_text())
-	file.close()
-	if not (parse_result is Dictionary):
-		return {"ok": false, "message": "Preset load failed: invalid JSON.", "preset_name": sanitized_name}
-	var preset: Dictionary = Dictionary(parse_result)
-	if int(preset.get("version", 0)) != 1:
-		return {"ok": false, "message": "Preset load failed: unsupported version.", "preset_name": sanitized_name}
-	var imported_source_id: String = str(preset.get("mission_id", "")).strip_edges()
-	if imported_source_id.is_empty():
-		imported_source_id = str(preset.get("source_mission_id", "")).strip_edges()
-	if not is_task_test_mission_id(imported_source_id):
-		return {"ok": false, "message": "Preset load failed: mission mismatch.", "preset_name": sanitized_name}
-	var preset_source_id: String = normalize_task_test_source_id(imported_source_id)
-	preset["mission_id"] = preset_source_id
-	preset["source_mission_id"] = preset_source_id
-	var warnings: Array[String] = []
-	var map_data: Dictionary = Dictionary(preset.get("map", {}))
-	var map_width: int = int(map_data.get("width", constructor_map_width))
-	var map_height: int = int(map_data.get("height", constructor_map_height))
-	create_map_constructor_empty_map(map_width, map_height)
-	mission_world_objects.clear()
+func _refresh_map_constructor_state_after_preset_apply() -> void:
 	world_objects_by_cell.clear()
-	cell_items.clear()
-	for object_variant in Array(preset.get("world_objects", [])):
+	for object_variant in mission_world_objects:
 		if not (object_variant is Dictionary):
 			continue
-		var object_data: Dictionary = _safe_dictionary(object_variant).duplicate(true)
-		var object_id: String = str(object_data.get("id", "<unknown>"))
-		var object_cell: Vector2i = _deserialize_cell_variant(object_data.get("position", "-1,-1"))
-		if not _is_valid_grid_cell(object_cell):
-			warnings.append("Skipped world object %s: invalid cell '%s'." % [object_id, str(object_data.get("position", "-1,-1"))])
-			continue
-		object_data["position"] = object_cell
-		set_world_object_at_cell(object_cell, object_data)
-	for cell_entry_variant in Array(preset.get("cell_items", [])):
-		if not (cell_entry_variant is Dictionary):
-			continue
-		var cell_entry: Dictionary = Dictionary(cell_entry_variant)
-		var cell_raw: Variant = cell_entry.get("cell", "-1,-1")
-		var cell: Vector2i = _deserialize_cell_variant(cell_raw)
-		if not _is_valid_grid_cell(cell):
-			warnings.append("Skipped cell items entry: invalid cell '%s'." % str(cell_raw))
-			continue
-		for item_variant in Array(cell_entry.get("items", [])):
-			if item_variant is Dictionary:
-				add_item_at_cell(cell, _safe_dictionary(item_variant).duplicate(true))
-	var loaded_grid_tiles: Array = Array(preset.get("grid_tiles", []))
-	for tile_variant in loaded_grid_tiles:
-		if not (tile_variant is Dictionary):
-			continue
-		var tile_row: Dictionary = Dictionary(tile_variant)
-		var tile_cell: Vector2i = _deserialize_cell_variant(tile_row.get("cell", "-1,-1"))
-		if not _is_valid_grid_cell(tile_cell):
-			continue
-		if grid_manager != null and grid_manager.has_method("set_tile"):
-			grid_manager.call("set_tile", tile_cell, int(tile_row.get("tile_type", GridManager.TILE_FLOOR)))
-	for floor_state_variant in Array(preset.get("floor_visual_states", [])):
-		if not (floor_state_variant is Dictionary):
-			continue
-		if not _apply_map_constructor_floor_visual_state_row(_safe_dictionary(floor_state_variant)):
-			warnings.append("Skipped floor visual state: invalid row.")
+		var object_data: Dictionary = Dictionary(object_variant)
+		var object_cell: Vector2i = WorldObjectCatalogRef.to_world_cell(object_data.get("position", Vector2i(-1, -1)), Vector2i(-1, -1))
+		if object_cell != Vector2i(-1, -1):
+			world_objects_by_cell[object_cell] = object_data
 	if grid_manager != null and grid_manager.has_method("enforce_boundary_walls"):
 		grid_manager.call("enforce_boundary_walls")
-	var mission_markers: Dictionary = Dictionary(preset.get("mission_markers", {}))
-	constructor_start_marker = Dictionary(mission_markers.get("start", {})).duplicate(true)
-	constructor_exit_marker = Dictionary(mission_markers.get("exit", {})).duplicate(true)
+	if grid_manager != null and grid_manager.has_method("request_visual_refresh"):
+		grid_manager.call("request_visual_refresh")
 	PowerSystemRef.recalculate_network(mission_world_objects, "task_test_power_main")
 	var networks: Dictionary = {}
 	for object_data_variant in mission_world_objects:
@@ -2189,23 +2103,59 @@ func load_map_constructor_preset(preset_name: String) -> Dictionary:
 			networks[network_id] = true
 	for network_id_variant in networks.keys():
 		PowerSystemRef.recalculate_network(mission_world_objects, str(network_id_variant))
+	refresh_generic_cable_runtime_state()
 	refresh_world_cooling_received()
-	return {"ok": true, "message": "Preset '%s' loaded." % sanitized_name, "preset_name": sanitized_name, "warnings": warnings}
 
-func delete_map_constructor_preset(preset_name: String) -> Dictionary:
-	var sanitized_name: String = _sanitize_map_constructor_preset_name(preset_name)
-	var path: String = _get_map_constructor_preset_path(sanitized_name)
+func save_map_constructor_preset(preset_id: String, display_name: String = "", metadata: Dictionary = {}) -> Dictionary:
+	var sanitized_name: String = MapConstructorPresetServiceRef.sanitize_preset_id(preset_id)
+	var path: String = MapConstructorPresetServiceRef.get_preset_file_path(sanitized_name, MAP_CONSTRUCTOR_PRESET_DIR)
 	if not _is_task_test_constructor_context():
-		return {"ok": false, "message": "Preset delete works only in TASK TEST constructor mode.", "preset_name": sanitized_name}
-	if not FileAccess.file_exists(path):
-		return {"ok": false, "message": "Preset delete failed: file not found.", "preset_name": sanitized_name}
-	var dir: DirAccess = DirAccess.open(MAP_CONSTRUCTOR_PRESET_DIR)
-	if dir == null:
-		return {"ok": false, "message": "Preset delete failed: directory unavailable.", "preset_name": sanitized_name}
-	var err: Error = dir.remove("%s.json" % sanitized_name)
-	if err != OK:
-		return {"ok": false, "message": "Preset delete failed.", "preset_name": sanitized_name}
-	return {"ok": true, "message": "Preset '%s' deleted." % sanitized_name, "preset_name": sanitized_name}
+		return {"ok": false, "message": "Presets are available only in TASK TEST constructor mode.", "path": path, "preset_name": sanitized_name, "preset_id": sanitized_name}
+	var result: Dictionary = MapConstructorPresetServiceRef.save_preset(sanitized_name, get_map_constructor_preset_snapshot(), MAP_CONSTRUCTOR_PRESET_DIR, display_name, metadata)
+	result["preset_name"] = str(result.get("preset_id", sanitized_name))
+	return result
+
+func list_map_constructor_presets() -> Dictionary:
+	var result: Dictionary = MapConstructorPresetServiceRef.list_presets(MAP_CONSTRUCTOR_PRESET_DIR)
+	var presets: Array = Array(result.get("presets", []))
+	for index in range(presets.size()):
+		if not (presets[index] is Dictionary):
+			continue
+		var row: Dictionary = Dictionary(presets[index])
+		var preset_id: String = str(row.get("preset_id", ""))
+		row["name"] = preset_id
+		row["modified_unix"] = int(FileAccess.get_modified_time(str(row.get("path", "")))) if str(row.get("path", "")).strip_edges() != "" else 0
+		presets[index] = row
+	result["presets"] = presets
+	return result
+
+func load_map_constructor_preset(preset_id: String) -> Dictionary:
+	var sanitized_name: String = MapConstructorPresetServiceRef.sanitize_preset_id(preset_id)
+	if not _is_task_test_constructor_context():
+		return {"ok": false, "message": "Presets are available only in TASK TEST constructor mode.", "preset_name": sanitized_name, "preset_id": sanitized_name}
+	var loaded: Dictionary = MapConstructorPresetServiceRef.load_preset(sanitized_name, MAP_CONSTRUCTOR_PRESET_DIR)
+	if not bool(loaded.get("ok", false)):
+		loaded["preset_name"] = str(loaded.get("preset_id", sanitized_name))
+		return loaded
+	var snapshot: Dictionary = Dictionary(loaded.get("snapshot", {}))
+	var snapshot_width: int = int(snapshot.get("constructor_map_width", constructor_map_width))
+	var snapshot_height: int = int(snapshot.get("constructor_map_height", constructor_map_height))
+	if snapshot_width > 0 and snapshot_height > 0:
+		create_map_constructor_empty_map(snapshot_width, snapshot_height)
+	var apply_result: Dictionary = MapConstructorPresetServiceRef.apply_snapshot_to_owner(self, snapshot)
+	loaded["apply_result"] = apply_result
+	loaded["preset_name"] = str(loaded.get("preset_id", sanitized_name))
+	if bool(apply_result.get("ok", false)):
+		_refresh_map_constructor_state_after_preset_apply()
+	return loaded
+
+func delete_map_constructor_preset(preset_id: String) -> Dictionary:
+	var sanitized_name: String = MapConstructorPresetServiceRef.sanitize_preset_id(preset_id)
+	if not _is_task_test_constructor_context():
+		return {"ok": false, "message": "Presets are available only in TASK TEST constructor mode.", "preset_name": sanitized_name, "preset_id": sanitized_name}
+	var result: Dictionary = MapConstructorPresetServiceRef.delete_preset(sanitized_name, MAP_CONSTRUCTOR_PRESET_DIR)
+	result["preset_name"] = str(result.get("preset_id", sanitized_name))
+	return result
 
 func build_task_test_sandbox_world_objects_for_validation() -> Dictionary:
 	return TaskTestWorldBuilderRef.build_validation_world_objects()
