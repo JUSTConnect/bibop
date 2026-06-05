@@ -159,6 +159,14 @@ const ISO_TEST_WALL_HEIGHT_ASSET_KEYS: Dictionary = {
 	"halfmid": "wall_gray_halfmid",
 	"low": "wall_gray_low"
 }
+const ISO_GRAY_TEST_REQUIRED_ASSET_KEYS: Array[String] = [
+	"floor_gray_test",
+	"wall_gray_tallest",
+	"wall_gray_tall",
+	"wall_gray_mid",
+	"wall_gray_halfmid",
+	"wall_gray_low"
+]
 const ISO_WALL_ASSET_CATALOG: Dictionary = {
 	"wall_gray_tallest": "wall_gray_tallest_01.png",
 	"wall_gray_tall": "wall_gray_tall_01.png",
@@ -216,7 +224,7 @@ const ISO_FLOOR_ASSET_CATALOG: Dictionary = {
 const ISO_FLOOR_ASSET_TARGET_FOOTPRINT: Vector2 = ISO_STANDARD_TILE_SIZE
 const ISO_FLOOR_ASSET_NORMALIZED_OVERLAP: Vector2 = Vector2(1.5, 1.5)
 const ISO_FLOOR_ASSET_PLACEMENT: Dictionary = {
-	"floor_gray_test": {"visible_bounds": Rect2i(0, 162, 512, 286), "target_footprint": ISO_FLOOR_ASSET_TARGET_FOOTPRINT, "overlap": ISO_FLOOR_ASSET_NORMALIZED_OVERLAP, "offset": Vector2.ZERO, "fallback_color": Color(0.11, 0.12, 0.13, 0.98)},
+	"floor_gray_test": {"visible_bounds": Rect2i(0, 162, 512, 286), "target_footprint": ISO_FLOOR_ASSET_TARGET_FOOTPRINT, "overlap": ISO_FLOOR_ASSET_NORMALIZED_OVERLAP, "offset": Vector2.ZERO, "fallback_color": Color(0.11, 0.12, 0.13, 0.98), "draw_safe_base": false},
 	"floor_concrete": {"visible_bounds": Rect2i(18, 95, 1227, 1016), "target_footprint": ISO_FLOOR_ASSET_TARGET_FOOTPRINT, "overlap": ISO_FLOOR_ASSET_NORMALIZED_OVERLAP, "offset": Vector2.ZERO, "fallback_color": Color(0.08, 0.085, 0.09, 0.96)},
 	"floor_steel": {"visible_bounds": Rect2i(18, 95, 1227, 1011), "target_footprint": ISO_FLOOR_ASSET_TARGET_FOOTPRINT, "overlap": ISO_FLOOR_ASSET_NORMALIZED_OVERLAP, "offset": Vector2.ZERO, "fallback_color": Color(0.07, 0.085, 0.1, 0.96)},
 	"floor_titan": {"visible_bounds": Rect2i(11, 95, 1232, 1011), "target_footprint": ISO_FLOOR_ASSET_TARGET_FOOTPRINT, "overlap": ISO_FLOOR_ASSET_NORMALIZED_OVERLAP, "offset": Vector2.ZERO, "fallback_color": Color(0.075, 0.085, 0.11, 0.96)}
@@ -1478,20 +1486,44 @@ func draw_iso_floor_asset_safe_base(cell: Vector2i, color: Color) -> void:
 	var base_points: PackedVector2Array = get_iso_diamond_points_with_overlap(cell, ISO_FLOOR_UNDERLAY_OVERLAP)
 	draw_colored_polygon(base_points, color)
 
+func draw_missing_iso_asset_debug_fallback(cell: Vector2i, asset_key: String, destination_rect: Rect2) -> void:
+	if destination_rect.size.x <= 0.0 or destination_rect.size.y <= 0.0:
+		return
+	var checker_color_a: Color = Color(1.0, 0.0, 0.85, 0.62)
+	var checker_color_b: Color = Color(0.02, 0.02, 0.025, 0.74)
+	var half_size: Vector2 = destination_rect.size * 0.5
+	draw_rect(Rect2(destination_rect.position, half_size), checker_color_a, true)
+	draw_rect(Rect2(destination_rect.position + Vector2(half_size.x, 0.0), half_size), checker_color_b, true)
+	draw_rect(Rect2(destination_rect.position + Vector2(0.0, half_size.y), half_size), checker_color_b, true)
+	draw_rect(Rect2(destination_rect.position + half_size, half_size), checker_color_a, true)
+	draw_rect(destination_rect, Color(1.0, 0.05, 0.05, 0.95), false, 2.0)
+	draw_line(destination_rect.position, destination_rect.position + destination_rect.size, Color(1.0, 0.05, 0.05, 0.95), 1.5)
+	draw_line(destination_rect.position + Vector2(destination_rect.size.x, 0.0), destination_rect.position + Vector2(0.0, destination_rect.size.y), Color(1.0, 0.05, 0.05, 0.95), 1.5)
+	draw_string(ThemeDB.fallback_font, destination_rect.position + Vector2(3.0, 11.0), "MISSING %s" % asset_key, HORIZONTAL_ALIGNMENT_LEFT, maxf(destination_rect.size.x - 6.0, 24.0), 9, Color(1.0, 0.95, 0.95, 0.98))
+	draw_iso_asset_alignment_overlay(asset_key, grid_to_iso(cell), destination_rect)
+
+func get_iso_floor_asset_destination_rect_for_cell(cell: Vector2i, asset_key: String) -> Rect2:
+	var placement: Dictionary = get_iso_floor_asset_placement(asset_key)
+	var target_footprint: Vector2 = Vector2(placement.get("target_footprint", get_iso_tile_size()))
+	if is_equal_approx(target_footprint.x, ISO_STANDARD_TILE_SIZE.x) and is_equal_approx(target_footprint.y, ISO_STANDARD_TILE_SIZE.y):
+		target_footprint = get_iso_tile_size()
+	var floor_overlap: Vector2 = Vector2(placement.get("overlap", ISO_FLOOR_ASSET_NORMALIZED_OVERLAP))
+	return Rect2(grid_to_iso(cell) - target_footprint * 0.5 - floor_overlap + Vector2(placement.get("offset", Vector2.ZERO)), target_footprint + floor_overlap * 2.0)
+
 func draw_iso_floor_asset_texture_for_cell(cell: Vector2i, asset_key: String) -> bool:
 	var texture: Texture2D = get_iso_floor_texture_for_asset_key(asset_key)
+	var destination_rect: Rect2 = get_iso_floor_asset_destination_rect_for_cell(cell, asset_key)
 	if texture == null:
+		if use_gray_room_visual_test_assets and asset_key == ISO_FLOOR_TEST_ASSET_KEY:
+			draw_missing_iso_asset_debug_fallback(cell, asset_key, destination_rect)
+			return true
 		return false
 	var placement: Dictionary = get_iso_floor_asset_placement(asset_key)
 	var visible_bounds: Rect2i = Rect2i(placement.get("visible_bounds", Rect2i(0, 0, texture.get_width(), texture.get_height())))
 	if visible_bounds.size.x <= 0 or visible_bounds.size.y <= 0:
 		return false
-	var target_footprint: Vector2 = Vector2(placement.get("target_footprint", get_iso_tile_size()))
-	if is_equal_approx(target_footprint.x, ISO_STANDARD_TILE_SIZE.x) and is_equal_approx(target_footprint.y, ISO_STANDARD_TILE_SIZE.y):
-		target_footprint = get_iso_tile_size()
-	var floor_overlap: Vector2 = Vector2(placement.get("overlap", ISO_FLOOR_ASSET_NORMALIZED_OVERLAP))
-	var destination_rect: Rect2 = Rect2(grid_to_iso(cell) - target_footprint * 0.5 - floor_overlap + Vector2(placement.get("offset", Vector2.ZERO)), target_footprint + floor_overlap * 2.0)
-	draw_iso_floor_asset_safe_base(cell, Color(placement.get("fallback_color", Color(0.08, 0.085, 0.09, 0.96))))
+	if bool(placement.get("draw_safe_base", not use_gray_room_visual_test_assets)):
+		draw_iso_floor_asset_safe_base(cell, Color(placement.get("fallback_color", Color(0.08, 0.085, 0.09, 0.96))))
 	draw_texture_rect_region(texture, destination_rect, Rect2(Vector2(visible_bounds.position), Vector2(visible_bounds.size)))
 	draw_iso_asset_alignment_overlay(asset_key, grid_to_iso(cell), destination_rect)
 	return true
@@ -1501,6 +1533,32 @@ func get_iso_wall_asset_key_for_profile(profile_key: String) -> String:
 
 func get_iso_wall_asset_catalog() -> Dictionary:
 	return ISO_WALL_ASSET_CATALOG.duplicate()
+
+func get_iso_gray_test_asset_path(asset_key: String) -> String:
+	if asset_key == ISO_FLOOR_TEST_ASSET_KEY:
+		return ISO_TEST_ASSET_PACK_DIR + str(ISO_FLOOR_ASSET_CATALOG.get(asset_key, ""))
+	if ISO_WALL_ASSET_CATALOG.has(asset_key) and asset_key.begins_with("wall_gray_"):
+		return ISO_TEST_ASSET_PACK_DIR + str(ISO_WALL_ASSET_CATALOG.get(asset_key, ""))
+	return ""
+
+func get_gray_room_visual_test_asset_validation() -> Dictionary:
+	var assets: Dictionary = {}
+	var missing: Array[String] = []
+	var invalid: Array[String] = []
+	for asset_key in ISO_GRAY_TEST_REQUIRED_ASSET_KEYS:
+		var path: String = get_iso_gray_test_asset_path(asset_key)
+		var exists: bool = not path.is_empty() and ResourceLoader.exists(path)
+		var loads_as_texture: bool = false
+		if exists:
+			var loaded_resource: Resource = ResourceLoader.load(path)
+			loads_as_texture = loaded_resource is Texture2D
+		assets[asset_key] = {"path": path, "exists": exists, "loads_as_texture": loads_as_texture}
+		if not exists:
+			missing.append(asset_key)
+		elif not loads_as_texture:
+			invalid.append(asset_key)
+	return {"ok": missing.is_empty() and invalid.is_empty(), "enabled": use_gray_room_visual_test_assets, "assets": assets, "missing": missing, "invalid": invalid, "fallback": "magenta_black_missing_asset_debug_checker"}
+
 
 func normalize_wall_material_asset_base_key(profile_key: String) -> String:
 	var normalized_key: String = profile_key.strip_edges().to_lower()
@@ -1585,6 +1643,8 @@ func get_iso_wall_texture_for_asset_key(asset_key: String) -> Texture2D:
 				_iso_wall_asset_texture_cache[normalized_key] = loaded_texture
 				return loaded_texture
 		_iso_wall_asset_texture_cache[normalized_key] = null
+	if normalized_key.begins_with("wall_gray_"):
+		return null
 	var explicit_texture: Texture2D = get_iso_wall_explicit_texture_for_asset_key(normalized_key)
 	if explicit_texture != null:
 		return explicit_texture
@@ -1785,24 +1845,51 @@ func get_iso_wall_texture_draw_rect_for_cell(cell: Vector2i, texture: Texture2D,
 func should_mirror_iso_wall_asset_for_topology(_topology: Dictionary) -> bool:
 	return false
 
-func draw_iso_wall_asset_texture_rect(texture: Texture2D, destination_rect: Rect2, mirror_x: bool) -> void:
+func get_iso_wall_visible_source_rect(asset_key: String, texture: Texture2D) -> Rect2:
+	var source_size: Vector2 = texture.get_size()
+	var placement: Dictionary = get_iso_wall_asset_placement(asset_key, source_size)
+	var visible_bounds: Rect2 = Rect2(placement.get("visible_bounds", Rect2(Vector2.ZERO, source_size)))
+	if visible_bounds.size.x <= 0.0 or visible_bounds.size.y <= 0.0:
+		return Rect2(Vector2.ZERO, source_size)
+	return visible_bounds
+
+func get_iso_wall_visible_destination_rect(texture_rect: Rect2, source_rect: Rect2, texture: Texture2D) -> Rect2:
+	var texture_size: Vector2 = texture.get_size()
+	if texture_size.x <= 0.0 or texture_size.y <= 0.0:
+		return Rect2()
+	var scale_value: Vector2 = Vector2(texture_rect.size.x / texture_size.x, texture_rect.size.y / texture_size.y)
+	return Rect2(texture_rect.position + source_rect.position * scale_value, source_rect.size * scale_value)
+
+func draw_iso_wall_asset_texture_rect(texture: Texture2D, texture_rect: Rect2, source_rect: Rect2, mirror_x: bool) -> Rect2:
+	var destination_rect: Rect2 = get_iso_wall_visible_destination_rect(texture_rect, source_rect, texture)
+	if destination_rect.size.x <= 0.0 or destination_rect.size.y <= 0.0:
+		return Rect2()
 	if not mirror_x:
-		draw_texture_rect(texture, destination_rect, false)
-		return
+		draw_texture_rect_region(texture, destination_rect, source_rect)
+		return destination_rect
 	var center: Vector2 = destination_rect.position + destination_rect.size * 0.5
 	draw_set_transform(center, 0.0, Vector2(-1.0, 1.0))
-	draw_texture_rect(texture, Rect2(destination_rect.size * -0.5, destination_rect.size), false)
+	draw_texture_rect_region(texture, Rect2(destination_rect.size * -0.5, destination_rect.size), source_rect)
 	draw_set_transform(Vector2.ZERO, 0.0, Vector2.ONE)
+	return destination_rect
 
 func draw_iso_wall_asset_texture_for_cell(cell: Vector2i, profile_key: String, topology: Dictionary) -> bool:
-	var texture: Texture2D = get_iso_wall_texture_for_profile(profile_key)
+	var asset_key: String = normalize_wall_asset_key(profile_key)
+	var texture: Texture2D = get_iso_wall_texture_for_profile(asset_key)
+	var debug_destination_rect: Rect2 = Rect2(grid_to_iso(cell) - Vector2(get_iso_tile_size().x * 0.5, get_iso_tile_size().y + iso_wall_height), Vector2(get_iso_tile_size().x, get_iso_tile_size().y + iso_wall_height))
 	if texture == null:
+		if use_gray_room_visual_test_assets and asset_key.begins_with("wall_gray_"):
+			draw_missing_iso_asset_debug_fallback(cell, asset_key, debug_destination_rect)
+			return true
 		return false
-	var destination_rect: Rect2 = get_iso_wall_texture_draw_rect_for_cell(cell, texture, profile_key, topology)
-	if destination_rect.size.x <= 0.0 or destination_rect.size.y <= 0.0:
+	var texture_rect: Rect2 = get_iso_wall_texture_draw_rect_for_cell(cell, texture, asset_key, topology)
+	if texture_rect.size.x <= 0.0 or texture_rect.size.y <= 0.0:
 		return false
-	draw_iso_wall_asset_texture_rect(texture, destination_rect, should_mirror_iso_wall_asset_for_topology(topology))
-	draw_iso_asset_alignment_overlay(normalize_wall_asset_key(profile_key), destination_rect.position + Vector2(destination_rect.size.x * 0.5, destination_rect.size.y), destination_rect)
+	var source_rect: Rect2 = get_iso_wall_visible_source_rect(asset_key, texture)
+	var drawn_rect: Rect2 = draw_iso_wall_asset_texture_rect(texture, texture_rect, source_rect, should_mirror_iso_wall_asset_for_topology(topology))
+	if drawn_rect.size.x <= 0.0 or drawn_rect.size.y <= 0.0:
+		return false
+	draw_iso_asset_alignment_overlay(asset_key, drawn_rect.position + Vector2(drawn_rect.size.x * 0.5, drawn_rect.size.y), drawn_rect)
 	return true
 
 func get_iso_object_asset_key_for_profile(profile_key: String) -> String:
@@ -2123,7 +2210,8 @@ func get_iso_visual_layer_debug_state() -> Dictionary:
 		"cell_outlines": debug_draw_iso_cell_outlines,
 		"wall_outlines": debug_draw_iso_wall_outlines,
 		"object_outlines": debug_draw_iso_object_outlines,
-		"asset_alignment_overlay": show_asset_alignment_overlay
+		"asset_alignment_overlay": show_asset_alignment_overlay,
+		"gray_test_asset_validation": get_gray_room_visual_test_asset_validation()
 	}
 
 func get_iso_visual_texture_debug_state() -> Dictionary:
@@ -2138,10 +2226,13 @@ func get_iso_visual_texture_debug_state() -> Dictionary:
 		var wall_catalog_path: String = ""
 		var wall_catalog_available: bool = false
 		var gray_test_placeholder_object_skipped: bool = should_skip_placeholder_object_texture_in_gray_test(texture_key)
-		if texture_key.begins_with("wall_"):
+		if texture_key == ISO_FLOOR_TEST_ASSET_KEY:
+			wall_catalog_path = get_iso_gray_test_asset_path(texture_key)
+			wall_catalog_available = ResourceLoader.exists(wall_catalog_path)
+		elif texture_key.begins_with("wall_"):
 			var wall_catalog: Dictionary = get_iso_wall_asset_catalog()
 			if wall_catalog.has(texture_key):
-				wall_catalog_path = ISO_WALL_ASSET_PACK_DIR + str(wall_catalog.get(texture_key, ""))
+				wall_catalog_path = get_iso_gray_test_asset_path(texture_key) if texture_key.begins_with("wall_gray_") else ISO_WALL_ASSET_PACK_DIR + str(wall_catalog.get(texture_key, ""))
 				wall_catalog_available = ResourceLoader.exists(wall_catalog_path)
 		elif placeholder_preset_enabled and placeholder_path != "" and not gray_test_placeholder_object_skipped:
 			placeholder_available = ResourceLoader.exists(placeholder_path)
@@ -2169,7 +2260,8 @@ func get_iso_visual_texture_debug_state() -> Dictionary:
 
 func get_iso_visual_texture_debug_keys() -> Array[String]:
 	return [
-		"floor_concrete", "floor_steel", "floor_titan", "floor_default", "floor_stepped", "floor_clean_lab", "floor_dark_service", "floor_hazard", "floor_power", "floor_damaged", "floor_reinforced", "floor_diagnostic", "floor_door_underlay",
+		"floor_gray_test", "floor_concrete", "floor_steel", "floor_titan", "floor_default", "floor_stepped", "floor_clean_lab", "floor_dark_service", "floor_hazard", "floor_power", "floor_damaged", "floor_reinforced", "floor_diagnostic", "floor_door_underlay",
+		"wall_gray_tallest", "wall_gray_tall", "wall_gray_mid", "wall_gray_halfmid", "wall_gray_low",
 		"wall_concrete_low", "wall_concrete_halflow", "wall_concrete_mid", "wall_concrete_halfmid", "wall_concrete_tall",
 		"wall_steel_low", "wall_steel_halflow", "wall_steel_mid", "wall_steel_halfmid", "wall_steel_tall",
 		"wall_titan_low", "wall_titan_halflow", "wall_titan_mid", "wall_titan_halfmid", "wall_titan_tall",
@@ -2341,23 +2433,6 @@ func get_iso_visual_cell_stats_validation_text() -> String:
 	for warning_key in warnings:
 		lines.append("- %s" % warning_key)
 	return "\n".join(lines)
-
-func get_gray_room_visual_test_asset_validation() -> Dictionary:
-	var required_assets: Dictionary = {
-		ISO_FLOOR_TEST_ASSET_KEY: ISO_TEST_ASSET_PACK_DIR + "floor_gray_01.png",
-		"wall_gray_tallest": ISO_TEST_ASSET_PACK_DIR + "wall_gray_tallest_01.png",
-		"wall_gray_tall": ISO_TEST_ASSET_PACK_DIR + "wall_gray_tall_01.png",
-		"wall_gray_mid": ISO_TEST_ASSET_PACK_DIR + "wall_gray_mid_01.png",
-		"wall_gray_halfmid": ISO_TEST_ASSET_PACK_DIR + "wall_gray_halfmid_01.png",
-		"wall_gray_low": ISO_TEST_ASSET_PACK_DIR + "wall_gray_low_01.png"
-	}
-	var missing_assets: Array[String] = []
-	for key_variant in required_assets.keys():
-		var asset_path: String = str(required_assets.get(key_variant, ""))
-		if not ResourceLoader.exists(asset_path):
-			missing_assets.append("%s:%s" % [str(key_variant), asset_path])
-	missing_assets.sort()
-	return {"ok": missing_assets.is_empty(), "enabled": use_gray_room_visual_test_assets, "required_assets": required_assets, "missing_assets": missing_assets, "fallback": "procedural dark floor/wall renderer"}
 
 func get_iso_visual_debug_report() -> Dictionary:
 	var has_grid_manager: bool = _grid_manager != null
@@ -3710,7 +3785,9 @@ func draw_iso_floor_prototype() -> void:
 					fill_color = Color(floor_material.get("fallback_color", fill_color))
 					floor_texture_asset_id = str(floor_material.get("texture_asset_id", "")).strip_edges()
 					floor_material_key = normalize_floor_material_key(str(floor_material.get("material", floor_material.get("id", "concrete"))))
-			if floor_texture_asset_id.begins_with("floor_"):
+			if use_gray_room_visual_test_assets:
+				floor_asset_key = ISO_FLOOR_TEST_ASSET_KEY
+			elif floor_texture_asset_id.begins_with("floor_"):
 				floor_asset_key = floor_texture_asset_id
 			else:
 				floor_asset_key = get_iso_floor_asset_key_for_material_key(floor_material_key)
