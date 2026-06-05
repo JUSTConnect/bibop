@@ -118,7 +118,6 @@ static func try_move_to(controller: Variant, target_position: Vector2i) -> bool:
 	controller.refresh_platform_height_state_after_move()
 	controller.clear_selected_world_action_if_invalid({}, target_position)
 	BipobMovementControllerRef.update_world_position(controller)
-	controller._register_successful_player_action()
 	controller.check_mission_complete()
 	return true
 
