@@ -49,9 +49,8 @@ static func build_link_picker_model(mission_manager: Variant, entity_kind: Strin
 	elif mission_manager.has_method("get_map_constructor_link_candidates"):
 		for candidate_variant in _to_array(mission_manager.call("get_map_constructor_link_candidates", entity_kind, entity_id, link_type)):
 			var candidate: Dictionary = _to_dictionary(candidate_variant)
-			if not _should_include_candidate_for_link_type(mission_manager, link_type, candidate):
-				continue
-			candidate_rows.append(_make_candidate_row(candidate, current_target_id))
+			if _is_link_candidate_allowed(mission_manager, link_type, candidate):
+				candidate_rows.append(_make_candidate_row(candidate, current_target_id))
 	model["candidates"] = candidate_rows
 	var target_cell: Vector2i = Vector2i(-1, -1)
 	var target_entity_found: bool = false
@@ -67,34 +66,25 @@ static func build_link_picker_model(mission_manager: Variant, entity_kind: Strin
 	model["message"] = "Link candidates ready."
 	return model
 
-static func _should_include_candidate_for_link_type(mission_manager: Variant, link_type: String, candidate: Dictionary) -> bool:
-	if not _link_type_uses_terminal_door_filter(link_type):
-		return true
+static func _is_link_candidate_allowed(mission_manager: Variant, link_type: String, candidate: Dictionary) -> bool:
 	var candidate_id: String = _to_safe_string(candidate.get("id", "")).strip_edges()
-	if candidate_id.is_empty():
-		return false
-	var target_data: Dictionary = _get_world_object_data_by_id(mission_manager, candidate_id)
-	if target_data.is_empty():
-		target_data = candidate
-	match link_type:
-		"linked_terminal", "control_terminal":
-			return TerminalLinkFilterServiceRef.is_control_terminal(target_data)
-		"access_terminal":
-			return TerminalLinkFilterServiceRef.is_information_terminal(target_data)
-		"linked_door", "terminal_target":
-			return TerminalLinkFilterServiceRef.is_door_data(target_data)
-	return true
-
-static func _link_type_uses_terminal_door_filter(link_type: String) -> bool:
-	return link_type in ["linked_terminal", "control_terminal", "access_terminal", "linked_door", "terminal_target"]
-
-static func _get_world_object_data_by_id(mission_manager: Variant, object_id: String) -> Dictionary:
+	if candidate_id.is_empty() or candidate_id == "__none__":
+		return true
+	if not (link_type in ["linked_terminal", "control_terminal", "access_terminal", "linked_door", "terminal_target"]):
+		return true
 	if mission_manager == null or not mission_manager.has_method("get_map_constructor_entity_by_id"):
-		return {}
-	var target_entity: Dictionary = mission_manager.call("get_map_constructor_entity_by_id", "world_object", object_id)
-	if not bool(target_entity.get("ok", false)):
-		return {}
-	return _to_dictionary(target_entity.get("data", {}))
+		return true
+	var entity: Dictionary = mission_manager.call("get_map_constructor_entity_by_id", "world_object", candidate_id)
+	if not bool(entity.get("ok", false)):
+		return false
+	var data: Dictionary = _to_dictionary(entity.get("data", {}))
+	if link_type == "linked_door" or link_type == "terminal_target":
+		return TerminalLinkFilterServiceRef.is_door_data(data)
+	if link_type == "linked_terminal" or link_type == "control_terminal":
+		return TerminalLinkFilterServiceRef.is_control_terminal(data)
+	if link_type == "access_terminal":
+		return TerminalLinkFilterServiceRef.is_information_terminal(data)
+	return true
 
 static func _build_platform_mechanism_candidates(mission_manager: Variant, current_target_id: String) -> Array[Dictionary]:
 	var rows: Array[Dictionary] = []
