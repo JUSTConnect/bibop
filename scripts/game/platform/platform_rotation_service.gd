@@ -37,6 +37,14 @@ static func build_rotation_cell_map(cells: Array[Vector2i], action: String) -> D
 static func rotate_direction(direction: String, action: String) -> String:
 	return PlatformTypesRef.rotate_direction(direction, action)
 
+static func get_rotation_delta(action: String) -> int:
+	var normalized_action: String = PlatformTypesRef.normalize_platform_action(action)
+	if normalized_action == PlatformTypesRef.ACTION_ROTATE_RIGHT:
+		return 90
+	if normalized_action == PlatformTypesRef.ACTION_ROTATE_LEFT:
+		return -90
+	return 0
+
 static func is_valid_rotation_action(action: String) -> bool:
 	var normalized_action: String = PlatformTypesRef.normalize_platform_action(action)
 	return normalized_action == PlatformTypesRef.ACTION_ROTATE_LEFT or normalized_action == PlatformTypesRef.ACTION_ROTATE_RIGHT
@@ -95,7 +103,7 @@ static func plan_carried_cell_rotation(carried_entries: Array[Dictionary], cente
 		planned.append(planned_entry)
 	return planned
 
-static func build_rotation_plan(members: Array, carried_entries: Array[Dictionary], action: String, blocked_cells: Array[Vector2i] = []) -> Dictionary:
+static func build_rotation_plan(members: Array[Dictionary], carried_entries: Array[Dictionary], action: String, blocked_cells: Array[Vector2i] = []) -> Dictionary:
 	var validation: Dictionary = validate_rotation_plan(members, action, blocked_cells)
 	if not bool(validation.get("ok", false)):
 		validation["carried_plan"] = []
