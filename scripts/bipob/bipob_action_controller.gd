@@ -250,7 +250,8 @@ static func _apply_breachable_wall_execution(controller: Variant, world_object: 
 		controller.hint_requested.emit("Breachable Wall clearing is unavailable.")
 		controller.status_changed.emit()
 		return
-	var break_result: Dictionary = Dictionary(controller.mission_manager.call("break_breachable_wall_at_cell", target_position, "heavy_claw"))
+	var actor_cell: Vector2i = Vector2i(actor.get("actor_position", controller.grid_position))
+	var break_result: Dictionary = Dictionary(controller.mission_manager.call("break_breachable_wall_at_cell", target_position, "heavy_claw", actor_cell))
 	if not bool(break_result.get("ok", false)):
 		controller.hint_requested.emit(str(break_result.get("message", "Cannot break wall.")))
 		controller.status_changed.emit()

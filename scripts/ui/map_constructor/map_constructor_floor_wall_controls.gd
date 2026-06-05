@@ -293,10 +293,12 @@ static func add_wall_coverage_section(ui: Variant, parent: VBoxContainer, entity
 			wall_section.add_child(ui._create_property_row("Material", material_option))
 			wall_section.add_child(description_label)
 			var selected_wall_height: String = ""
+			var selected_breach_side: String = "sw"
 			if ui.mission_manager_runtime != null and ui.mission_manager_runtime.has_method("get_map_constructor_wall_material"):
 				var current_wall_override: Dictionary = ui._safe_ui_dictionary(ui.mission_manager_runtime.call("get_map_constructor_wall_material", wall_cell, wall_side))
 				var current_wall_row: Dictionary = ui._safe_ui_dictionary(current_wall_override.get("override", {}))
 				selected_wall_height = ui._safe_ui_string(current_wall_row.get("wall_height", current_wall_row.get("wall_visual_height", "")))
+				selected_breach_side = ui._safe_ui_string(current_wall_row.get("breach_side", "sw"), "sw")
 			var height_option: OptionButton = OptionButton.new()
 			var height_rows: Array[Dictionary] = [
 				{"id":"", "label":"Auto"},
@@ -315,12 +317,44 @@ static func add_wall_coverage_section(ui: Variant, parent: VBoxContainer, entity
 			if height_option.selected < 0:
 				height_option.select(0)
 			wall_section.add_child(ui._create_property_row("Height", height_option))
+			var breach_side_option: OptionButton = OptionButton.new()
+			var breach_side_rows: Array[Dictionary] = [
+				{"id":"sw", "label":"SW"},
+				{"id":"se", "label":"SE"},
+				{"id":"nw", "label":"NW"},
+				{"id":"ne", "label":"NE"}
+			]
+			for breach_side_row_variant in breach_side_rows:
+				var breach_side_row: Dictionary = ui._safe_ui_dictionary(breach_side_row_variant)
+				breach_side_option.add_item(ui._safe_ui_string(breach_side_row.get("label", "SW")))
+				breach_side_option.set_item_metadata(breach_side_option.item_count - 1, ui._safe_ui_string(breach_side_row.get("id", "sw")))
+				if ui._safe_ui_string(breach_side_row.get("id", "sw")) == selected_breach_side:
+					breach_side_option.select(breach_side_option.item_count - 1)
+			if breach_side_option.selected < 0:
+				breach_side_option.select(0)
+			var breach_side_row_control: Control = ui._create_property_row("Breach Side", breach_side_option)
+			breach_side_row_control.visible = selected_material_id in ["breachable_concrete", "breachable_brick"]
+			material_option.item_selected.connect(func(_idx_inner: int) -> void:
+				var material_id_for_side: String = ui._safe_ui_string(material_option.get_selected_metadata())
+				breach_side_row_control.visible = material_id_for_side in ["breachable_concrete", "breachable_brick"]
+			)
+			wall_section.add_child(breach_side_row_control)
 			wall_section.add_child(breachable_height_note)
 			var apply_height: Button = Button.new(); apply_height.text = "Apply Wall Height"
 			apply_height.pressed.connect(func() -> void:
 				MapConstructorActions.apply_wall_height(ui, wall_cell, wall_side, ui._safe_ui_string(height_option.get_selected_metadata()))
 			)
 			wall_section.add_child(apply_height)
+			var apply_breach_side: Button = Button.new(); apply_breach_side.text = "Apply Breach Side"
+			apply_breach_side.visible = selected_material_id in ["breachable_concrete", "breachable_brick"]
+			material_option.item_selected.connect(func(_idx_breach_button: int) -> void:
+				var material_id_for_button: String = ui._safe_ui_string(material_option.get_selected_metadata())
+				apply_breach_side.visible = material_id_for_button in ["breachable_concrete", "breachable_brick"]
+			)
+			apply_breach_side.pressed.connect(func() -> void:
+				MapConstructorActions.apply_wall_breach_side(ui, wall_cell, wall_side, ui._safe_ui_string(breach_side_option.get_selected_metadata()))
+			)
+			wall_section.add_child(apply_breach_side)
 			var apply_material: Button = Button.new(); apply_material.text = "Apply Wall Material"
 			apply_material.pressed.connect(func() -> void:
 				var mat_id: String = ui._safe_ui_string(material_option.get_selected_metadata())

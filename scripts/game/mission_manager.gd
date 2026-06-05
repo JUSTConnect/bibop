@@ -3197,6 +3197,40 @@ func normalize_map_constructor_wall_height(value: String) -> String:
 			return "low"
 	return ""
 
+func normalize_breach_side(value: String) -> String:
+	var normalized_value: String = value.strip_edges().to_lower()
+	normalized_value = normalized_value.replace(" ", "_")
+	normalized_value = normalized_value.replace("-", "_")
+	match normalized_value:
+		"sw", "southwest", "south_west", "left_front", "south":
+			return "sw"
+		"se", "southeast", "south_east", "right_front", "east":
+			return "se"
+		"nw", "northwest", "north_west", "left_back", "west":
+			return "nw"
+		"ne", "northeast", "north_east", "right_back", "north":
+			return "ne"
+	return "sw"
+
+func get_grid_side_for_breach_side(breach_side: String) -> String:
+	match normalize_breach_side(breach_side):
+		"sw":
+			return "south"
+		"se":
+			return "east"
+		"nw":
+			return "west"
+		"ne":
+			return "north"
+	return "south"
+
+func get_cell_for_breach_side(wall_cell: Vector2i, breach_side: String) -> Vector2i:
+	return wall_cell + _get_map_constructor_wall_side_delta(get_grid_side_for_breach_side(breach_side))
+
+func is_bipob_on_breach_side(wall_cell: Vector2i, bipob_cell: Vector2i, breach_side: String) -> bool:
+	return bipob_cell == get_cell_for_breach_side(wall_cell, breach_side)
+
+
 func normalize_floor_height_level(value: String) -> String:
 	var normalized_value: String = value.strip_edges().to_lower()
 	normalized_value = normalized_value.replace(" ", "")
@@ -3959,12 +3993,18 @@ func set_map_constructor_wall_material(cell: Vector2i, side: String, material_id
 	var entry: Dictionary = Dictionary(_map_constructor_wall_material_overrides.get(key, {})).duplicate(true)
 	var existing_height: String = normalize_map_constructor_wall_height(str(entry.get("wall_height", entry.get("wall_visual_height", ""))))
 	if normalized_material_id in ["breachable_concrete", "breachable_brick"] and existing_height in ["low", "halflow"]:
-		return {"ok": false, "message": "Breachable Wall supports only mid, halfmid, or tall height."}
+		existing_height = "mid"
+		entry["wall_height"] = existing_height
+		entry.erase("wall_visual_height")
 	if normalized_material_id in ["breachable_concrete", "breachable_brick"] and grid_manager != null and grid_manager.has_method("is_boundary_cell") and bool(grid_manager.call("is_boundary_cell", attached_wall_cell)):
 		return {"ok": false, "message": "Breachable Wall cannot be assigned to boundary walls."}
 	entry["cell"] = cell
 	entry["side"] = normalized_side
 	entry["material_id"] = normalized_material_id
+	if normalized_material_id in ["breachable_concrete", "breachable_brick"]:
+		entry["breach_side"] = normalize_breach_side(str(entry.get("breach_side", "sw")))
+	else:
+		entry.erase("breach_side")
 	_map_constructor_wall_material_overrides[key] = entry
 	_record_map_constructor_change("wall_material", {"cell":cell, "summary":"Set wall material %s at %s/%s" % [normalized_material_id, _format_map_constructor_cell(cell), normalized_side], "details":{"side":normalized_side, "material_id":normalized_material_id}})
 	return {"ok": true, "message": "Wall material applied.", "override": entry}
@@ -3978,6 +4018,7 @@ func clear_map_constructor_wall_material(cell: Vector2i, side: String) -> Dictio
 		return {"ok": false, "message": "No wall material override to clear."}
 	var entry: Dictionary = Dictionary(_map_constructor_wall_material_overrides.get(key, {})).duplicate(true)
 	entry.erase("material_id")
+	entry.erase("breach_side")
 	if str(entry.get("wall_height", "")).strip_edges().is_empty():
 		_map_constructor_wall_material_overrides.erase(key)
 	else:
@@ -4007,7 +4048,7 @@ func set_map_constructor_wall_height(cell: Vector2i, side: String, wall_height: 
 	var entry: Dictionary = Dictionary(_map_constructor_wall_material_overrides.get(key, {})).duplicate(true)
 	var existing_material_id: String = normalize_map_constructor_wall_material_id(str(entry.get("material_id", "")))
 	if existing_material_id in ["breachable_concrete", "breachable_brick"] and normalized_height in ["low", "halflow"]:
-		return {"ok": false, "message": "Breachable Wall supports only mid, halfmid, or tall height."}
+		normalized_height = "mid"
 	entry["cell"] = cell
 	entry["side"] = normalized_side
 	if normalized_height.is_empty():
@@ -4021,6 +4062,29 @@ func set_map_constructor_wall_height(cell: Vector2i, side: String, wall_height: 
 		_map_constructor_wall_material_overrides[key] = entry
 	_record_map_constructor_change("wall_height", {"cell":cell, "summary":"Set wall height %s at %s/%s" % [("auto" if normalized_height.is_empty() else normalized_height), _format_map_constructor_cell(cell), normalized_side], "details":{"side":normalized_side, "wall_height":normalized_height}})
 	return {"ok": true, "message": "Wall height updated.", "override": entry}
+
+func set_map_constructor_wall_breach_side(cell: Vector2i, side: String, breach_side: String) -> Dictionary:
+	if not _is_task_test_constructor_context():
+		return {"ok": false, "message": "Breach Side overrides are available only in TASK TEST constructor mode."}
+	var normalized_side: String = side.to_lower().strip_edges()
+	if _get_map_constructor_wall_side_delta(normalized_side) == Vector2i.ZERO:
+		return {"ok": false, "message": "Invalid wall side."}
+	var attached_wall_cell: Vector2i = cell + _get_map_constructor_wall_side_delta(normalized_side)
+	if not _is_wall_or_boundary_cell(attached_wall_cell):
+		return {"ok": false, "message": "Selected side has no wall."}
+	var key: String = _serialize_wall_material_override_key(cell, normalized_side)
+	var entry: Dictionary = Dictionary(_map_constructor_wall_material_overrides.get(key, {})).duplicate(true)
+	var material_id: String = normalize_map_constructor_wall_material_id(str(entry.get("material_id", "")))
+	if not (material_id in ["breachable_concrete", "breachable_brick"]):
+		return {"ok": false, "message": "Breach Side is available only for Breachable Wall materials."}
+	var normalized_breach_side: String = normalize_breach_side(breach_side)
+	entry["cell"] = cell
+	entry["side"] = normalized_side
+	entry["material_id"] = material_id
+	entry["breach_side"] = normalized_breach_side
+	_map_constructor_wall_material_overrides[key] = entry
+	_record_map_constructor_change("wall_breach_side", {"cell":cell, "summary":"Set breach side %s at %s/%s" % [normalized_breach_side.to_upper(), _format_map_constructor_cell(cell), normalized_side], "details":{"side":normalized_side, "breach_side":normalized_breach_side}})
+	return {"ok": true, "message": "Breach Side updated.", "override": entry}
 
 func get_map_constructor_wall_material_for_wall_cell(wall_cell: Vector2i) -> Dictionary:
 	if not _is_task_test_constructor_context():
@@ -4048,6 +4112,7 @@ func get_map_constructor_wall_material_for_wall_cell(wall_cell: Vector2i) -> Dic
 				continue
 			var material_id: String = normalize_map_constructor_wall_material_id(str(entry.get("material_id", "")))
 			var normalized_height: String = normalize_map_constructor_wall_height(str(entry.get("wall_height", entry.get("wall_visual_height", ""))))
+			var normalized_breach_side: String = normalize_breach_side(str(entry.get("breach_side", "sw")))
 			if material_id.is_empty():
 				var auto_material: Dictionary = Dictionary(catalog_by_id.get("concrete", {})).duplicate(true)
 				auto_material["wall_height"] = normalized_height
@@ -4056,6 +4121,8 @@ func get_map_constructor_wall_material_for_wall_cell(wall_cell: Vector2i) -> Dic
 				return {"ok": false, "message": "Unknown wall material id: %s" % material_id, "override": entry.duplicate(true), "material": {}}
 			var material: Dictionary = Dictionary(catalog_by_id.get(material_id, {})).duplicate(true)
 			material["wall_height"] = normalized_height
+			if material_id in ["breachable_concrete", "breachable_brick"]:
+				material["breach_side"] = normalized_breach_side
 			return {"ok": true, "message": "OK", "override": entry.duplicate(true), "material": material}
 	return {"ok": false, "message": "No wall material override.", "override": {}, "material": {}}
 
@@ -4088,10 +4155,13 @@ func get_breachable_wall_action_target_at_cell(cell: Vector2i) -> Dictionary:
 	var height: String = normalize_map_constructor_wall_height(str(material.get("wall_height", "")))
 	if height.is_empty():
 		height = "mid"
+	if height == "low" or height == "halflow":
+		height = "mid"
 	var allowed_heights: Array = Array(material.get("allowed_wall_heights", ["mid", "halfmid", "tall"]))
 	if not allowed_heights.has(height):
 		return {}
 	var material_id: String = normalize_map_constructor_wall_material_id(str(material.get("id", "")))
+	var breach_side: String = normalize_breach_side(str(material.get("breach_side", "sw")))
 	return {
 		"id": "breachable_wall_%d_%d" % [cell.x, cell.y],
 		"object_group": "wall",
@@ -4102,6 +4172,7 @@ func get_breachable_wall_action_target_at_cell(cell: Vector2i) -> Dictionary:
 		"material": material_id,
 		"wall_material_id": material_id,
 		"wall_height": height,
+		"breach_side": breach_side,
 		"breach_tools": Array(material.get("breach_tools", ["heavy_claw"])).duplicate(),
 		"position": cell,
 		"blocks_movement": true,
@@ -4109,18 +4180,20 @@ func get_breachable_wall_action_target_at_cell(cell: Vector2i) -> Dictionary:
 		"state": "intact"
 	}
 
-func break_breachable_wall_at_cell(cell: Vector2i, tool_id: String = "heavy_claw") -> Dictionary:
+func break_breachable_wall_at_cell(cell: Vector2i, tool_id: String = "heavy_claw", actor_cell: Vector2i = Vector2i(-1, -1)) -> Dictionary:
 	var wall_data: Dictionary = get_breachable_wall_action_target_at_cell(cell)
 	if wall_data.is_empty():
 		return {"ok": false, "message": "No Breachable Wall at target cell."}
 	if not Array(wall_data.get("breach_tools", [])).has(tool_id):
 		return {"ok": false, "message": "Heavy Claw required."}
+	if actor_cell.x >= 0 and actor_cell.y >= 0 and not is_bipob_on_breach_side(cell, actor_cell, str(wall_data.get("breach_side", "sw"))):
+		return {"ok": false, "message": "Break is available only from the selected Breach Side."}
 	if grid_manager == null or not grid_manager.has_method("set_tile"):
 		return {"ok": false, "message": "Grid is unavailable."}
 	grid_manager.call("set_tile", cell, GridManager.TILE_FLOOR)
 	_clear_map_constructor_wall_material_overrides_for_wall_cell(cell)
 	_record_map_constructor_change("breach_wall", {"cell":cell, "summary":"Breachable Wall cleared at %s" % _format_map_constructor_cell(cell), "details":{"tool_id":tool_id}})
-	return {"ok": true, "message": "Breachable Wall broken. Passage cleared.", "cell": cell, "tool_id": tool_id}
+	return {"ok": true, "message": "Wall breached. Breachable Wall broken.", "cell": cell, "tool_id": tool_id}
 
 func get_map_constructor_wall_material_overrides() -> Dictionary:
 	if not _is_task_test_constructor_context():

@@ -179,6 +179,11 @@ const ISO_OBJECT_CANONICAL_VISUAL_IDS: Array[String] = [
 ]
 
 const ISO_WALL_ASSET_PACK_DIR: String = "res://assets/visual/isometric/wall/"
+const ISO_WALL_BREACH_OVERLAY_PACK_DIR: String = "res://assets/visual/isometric/wall/overlay/"
+const ISO_WALL_BREACH_OVERLAY_CATALOG: Dictionary = {
+	"breach_overlay_concrete_sw": "wall_breach_overlay_concrete_sw_01.png",
+	"breach_overlay_brick_sw": "wall_breach_overlay_brick_sw_01.png"
+}
 const ISO_TEST_ASSET_PACK_DIR: String = "res://assets/visual/isometric/test/"
 const ISO_WALL_ASSET_EXPECTED_SIZE: Vector2 = Vector2(128.0, 120.0)
 const ISO_WALL_HEIGHT_LEVELS: Array[String] = ["low", "halflow", "mid", "halfmid", "tall"]
@@ -407,6 +412,7 @@ const ISO_ASSET_ALIGNMENT_RULES: Dictionary = {
 var _iso_placeholder_texture_cache: Dictionary = {}
 var _iso_object_png_texture_cache: Dictionary = {}
 var _iso_wall_asset_texture_cache: Dictionary = {}
+var _iso_wall_breach_overlay_texture_cache: Dictionary = {}
 var _iso_floor_asset_texture_cache: Dictionary = {}
 var _iso_ground_asset_texture_cache: Dictionary = {}
 var _grid_manager: GridManager = null
@@ -2041,6 +2047,160 @@ func draw_iso_wall_asset_texture_for_cell(cell: Vector2i, profile_key: String, t
 		return false
 	draw_iso_asset_alignment_overlay(asset_key, drawn_rect.position + Vector2(drawn_rect.size.x * 0.5, drawn_rect.size.y), drawn_rect)
 	return true
+
+func normalize_breach_side(value: String) -> String:
+	var normalized_value: String = value.strip_edges().to_lower()
+	normalized_value = normalized_value.replace(" ", "_")
+	normalized_value = normalized_value.replace("-", "_")
+	match normalized_value:
+		"sw", "southwest", "south_west", "left_front", "south":
+			return "sw"
+		"se", "southeast", "south_east", "right_front", "east":
+			return "se"
+		"nw", "northwest", "north_west", "left_back", "west":
+			return "nw"
+		"ne", "northeast", "north_east", "right_back", "north":
+			return "ne"
+	return "sw"
+
+func get_breach_grid_side_for_visual_side(breach_side: String) -> String:
+	match normalize_breach_side(breach_side):
+		"sw":
+			return "south"
+		"se":
+			return "east"
+		"nw":
+			return "west"
+		"ne":
+			return "north"
+	return "south"
+
+func is_breachable_wall_material_id(material_id: String) -> bool:
+	var normalized_material_id: String = material_id.strip_edges().to_lower()
+	return normalized_material_id == "breachable_concrete" or normalized_material_id == "breachable_brick"
+
+func get_breach_overlay_asset_key(base_material: String) -> String:
+	var base_key: String = normalize_wall_material_asset_base_key(base_material)
+	match base_key:
+		"wall_concrete":
+			return "breach_overlay_concrete_sw"
+		"wall_brick":
+			return "breach_overlay_brick_sw"
+	return ""
+
+func get_breach_overlay_texture_for_asset_key(asset_key: String) -> Texture2D:
+	var normalized_key: String = asset_key.strip_edges().to_lower()
+	if not ISO_WALL_BREACH_OVERLAY_CATALOG.has(normalized_key):
+		return null
+	if _iso_wall_breach_overlay_texture_cache.has(normalized_key):
+		var cached_value: Variant = _iso_wall_breach_overlay_texture_cache.get(normalized_key)
+		if cached_value is Texture2D:
+			return cached_value as Texture2D
+		return null
+	var texture_path: String = ISO_WALL_BREACH_OVERLAY_PACK_DIR + str(ISO_WALL_BREACH_OVERLAY_CATALOG.get(normalized_key, ""))
+	if ResourceLoader.exists(texture_path):
+		var loaded_resource: Resource = ResourceLoader.load(texture_path)
+		if loaded_resource is Texture2D:
+			var loaded_texture: Texture2D = loaded_resource as Texture2D
+			_iso_wall_breach_overlay_texture_cache[normalized_key] = loaded_texture
+			return loaded_texture
+	_iso_wall_breach_overlay_texture_cache[normalized_key] = null
+	return null
+
+func get_breach_overlay_transform_for_side(side: String) -> Dictionary:
+	var normalized_side: String = normalize_breach_side(side)
+	var flip_h: bool = false
+	var flip_v: bool = false
+	match normalized_side:
+		"se":
+			flip_h = true
+		"nw":
+			flip_v = true
+		"ne":
+			flip_h = true
+			flip_v = true
+	return {"side": normalized_side, "flip_h": flip_h, "flip_v": flip_v, "offset": Vector2.ZERO, "visible": true}
+
+func is_breach_side_visible_for_wall(cell: Vector2i, breach_side: String, topology: Dictionary) -> bool:
+	var grid_side: String = get_breach_grid_side_for_visual_side(breach_side)
+	var visible_sides: Array = Array(topology.get("visible_sides", []))
+	if visible_sides.has(grid_side):
+		return true
+	if visible_sides.is_empty():
+		return false
+	var neighbor_cell: Vector2i = cell + _get_wall_side_delta(grid_side)
+	if not _is_wall_in_bounds(neighbor_cell):
+		return true
+	return false
+
+func get_normalized_breachable_wall_height(wall_data: Dictionary) -> String:
+	var height: String = normalize_wall_height_level(get_raw_wall_height_value(wall_data))
+	if height.is_empty():
+		height = "mid"
+	if height == "low" or height == "halflow":
+		return "mid"
+	return height
+
+func get_breach_overlay_destination_rect(base_texture_rect: Rect2, base_source_rect: Rect2, base_texture: Texture2D, overlay_texture: Texture2D, height_level: String) -> Rect2:
+	if base_texture == null or overlay_texture == null:
+		return Rect2()
+	if base_texture.get_width() <= 0 or base_texture.get_height() <= 0:
+		return Rect2()
+	var tall_bounds: Rect2 = Rect2(ISO_WALL_HEIGHT_VISIBLE_BOUNDS.get("tall", ISO_WALL_BASELINE_VISIBLE_BOUNDS))
+	var target_bounds: Rect2 = Rect2(ISO_WALL_HEIGHT_VISIBLE_BOUNDS.get(height_level, ISO_WALL_BASELINE_VISIBLE_BOUNDS))
+	var height_scale: float = target_bounds.size.y / maxf(tall_bounds.size.y, 1.0)
+	var base_scale: Vector2 = Vector2(base_texture_rect.size.x / float(base_texture.get_width()), base_texture_rect.size.y / float(base_texture.get_height()))
+	var source_bottom_center: Vector2 = base_source_rect.position + Vector2(base_source_rect.size.x * 0.5, base_source_rect.size.y)
+	var base_bottom_center: Vector2 = base_texture_rect.position + source_bottom_center * base_scale
+	var overlay_size: Vector2 = overlay_texture.get_size() * base_scale * height_scale
+	var overlay_bottom_center: Vector2 = base_bottom_center
+	return Rect2((overlay_bottom_center - Vector2(overlay_size.x * 0.5, overlay_size.y)).round(), overlay_size.round())
+
+func draw_breach_overlay_texture_rect(texture: Texture2D, destination_rect: Rect2, source_rect: Rect2, transform: Dictionary) -> void:
+	if destination_rect.size.x <= 0.0 or destination_rect.size.y <= 0.0:
+		return
+	var flip_h: bool = bool(transform.get("flip_h", false))
+	var flip_v: bool = bool(transform.get("flip_v", false))
+	if not flip_h and not flip_v:
+		draw_texture_rect_region(texture, destination_rect, source_rect)
+		return
+	var center: Vector2 = destination_rect.position + destination_rect.size * 0.5
+	var draw_scale: Vector2 = Vector2(1.0, 1.0)
+	if flip_h:
+		draw_scale.x = -1.0
+	if flip_v:
+		draw_scale.y = -1.0
+	draw_set_transform(center, 0.0, draw_scale)
+	draw_texture_rect_region(texture, Rect2(destination_rect.size * -0.5, destination_rect.size), source_rect)
+	draw_set_transform(Vector2.ZERO, 0.0, Vector2.ONE)
+
+func draw_breachable_wall_overlay_for_cell(cell: Vector2i, wall_data: Dictionary, wall_asset_key: String, topology: Dictionary) -> void:
+	var material_row: Dictionary = Dictionary(wall_data.get("material", {}))
+	var material_id: String = str(material_row.get("id", material_row.get("material_id", ""))).strip_edges().to_lower()
+	if not is_breachable_wall_material_id(material_id):
+		return
+	var override_data: Dictionary = Dictionary(wall_data.get("override", {}))
+	var breach_side: String = normalize_breach_side(str(override_data.get("breach_side", material_row.get("breach_side", "sw"))))
+	if not is_breach_side_visible_for_wall(cell, breach_side, topology):
+		return
+	var overlay_asset_key: String = get_breach_overlay_asset_key(str(material_row.get("texture_asset_id", material_id)))
+	if overlay_asset_key.is_empty():
+		return
+	var overlay_texture: Texture2D = get_breach_overlay_texture_for_asset_key(overlay_asset_key)
+	if overlay_texture == null:
+		return
+	var base_texture: Texture2D = get_iso_wall_texture_for_asset_key(wall_asset_key)
+	if base_texture == null:
+		return
+	var texture_rect: Rect2 = get_iso_wall_texture_draw_rect_for_cell(cell, base_texture, wall_asset_key, topology)
+	var source_rect: Rect2 = get_iso_wall_visible_source_rect(wall_asset_key, base_texture)
+	var height_level: String = get_normalized_breachable_wall_height(wall_data)
+	var destination_rect: Rect2 = get_breach_overlay_destination_rect(texture_rect, source_rect, base_texture, overlay_texture, height_level)
+	var side_transform: Dictionary = get_breach_overlay_transform_for_side(breach_side)
+	var offset: Vector2 = Vector2(side_transform.get("offset", Vector2.ZERO))
+	destination_rect.position += offset
+	draw_breach_overlay_texture_rect(overlay_texture, destination_rect, Rect2(Vector2.ZERO, overlay_texture.get_size()), side_transform)
+	draw_iso_asset_alignment_overlay(overlay_asset_key, destination_rect.position + Vector2(destination_rect.size.x * 0.5, destination_rect.size.y), destination_rect)
 
 func get_iso_object_asset_key_for_profile(profile_key: String) -> String:
 	var normalized_profile_key: String = profile_key.strip_edges().to_lower()
@@ -3740,7 +3900,7 @@ func draw_iso_wall_block(cell: Vector2i) -> void:
 	if use_gray_room_visual_test_assets:
 		wall_asset_key = get_test_wall_height_asset_key(material_override, cell, get_iso_wall_depth_bounds())
 	if draw_iso_wall_asset_texture_for_cell(cell, wall_asset_key, render_topology):
-		draw_iso_breachable_wall_overlay(cell)
+		draw_breachable_wall_overlay_for_cell(cell, material_override, wall_asset_key, render_topology)
 		draw_iso_wall_debug_and_mount_overlays(cell, arch, topology)
 		return
 
