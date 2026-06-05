@@ -32,7 +32,7 @@ static func build(ui, bridge = null) -> Control:
 
 	var grid := GridContainer.new()
 	grid.name = "RuntimeBaseControlRow"
-	grid.columns = 5
+	grid.columns = 6
 	grid.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	grid.add_theme_constant_override("h_separation", 8)
 	grid.add_theme_constant_override("v_separation", 4)
@@ -40,8 +40,14 @@ static func build(ui, bridge = null) -> Control:
 	ui.runtime_base_controls_grid = grid
 
 	var callback_owner: Object = bridge if bridge != null else ui
-	grid.add_child(ui._create_runtime_control_button("Turn Left", Callable(callback_owner, "on_turn_left_pressed") if bridge != null else Callable(ui, "_on_turn_left_pressed")))
-	grid.add_child(ui._create_runtime_control_button("Turn Right", Callable(callback_owner, "on_turn_right_pressed") if bridge != null else Callable(ui, "_on_turn_right_pressed")))
+	ui.runtime_move_forward_button = ui._create_runtime_control_button("Forward", Callable(callback_owner, "on_move_forward_pressed") if bridge != null else Callable(ui, "_on_move_forward_pressed"))
+	grid.add_child(ui.runtime_move_forward_button)
+	ui.runtime_move_backward_button = ui._create_runtime_control_button("Back", Callable(callback_owner, "on_move_backward_pressed") if bridge != null else Callable(ui, "_on_move_backward_pressed"))
+	grid.add_child(ui.runtime_move_backward_button)
+	ui.runtime_turn_left_button = ui._create_runtime_control_button("Turn Left", Callable(callback_owner, "on_turn_left_pressed") if bridge != null else Callable(ui, "_on_turn_left_pressed"))
+	grid.add_child(ui.runtime_turn_left_button)
+	ui.runtime_turn_right_button = ui._create_runtime_control_button("Turn Right", Callable(callback_owner, "on_turn_right_pressed") if bridge != null else Callable(ui, "_on_turn_right_pressed"))
+	grid.add_child(ui.runtime_turn_right_button)
 	ui.runtime_action_button = ui._create_runtime_control_button("Action", Callable(callback_owner, "on_action_pressed") if bridge != null else Callable(ui, "_on_interact_pressed"), "primary")
 	grid.add_child(ui.runtime_action_button)
 	ui.runtime_connect_button = ui._create_runtime_control_button("Connect", Callable(callback_owner, "on_connect_pressed") if bridge != null else Callable(ui, "_on_connect_pressed"), "primary")

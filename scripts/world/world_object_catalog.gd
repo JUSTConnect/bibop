@@ -1668,7 +1668,7 @@ static func can_world_object_be_moved_by_heavy_claw(object_data: Dictionary) -> 
 	if object_group not in ["cooling", "physical", "physical_object"]:
 		return false
 	var object_type := str(object_data.get("object_type", ""))
-	return object_type in ["radiator", "external_radiator", "external_air_cooler", "metal_cooling_block", "normal_crate", "heavy_crate", "steel_box", "barrel", "explosive_barrel", "fire_barrel"]
+	return object_type in ["external_radiator", "radiator", "cooling_radiator", "external_air_cooler", "metal_cooling_block", "normal_crate", "heavy_crate", "steel_box", "box", "case", "barrel", "explosive_barrel", "fire_barrel"]
 
 static func can_world_object_receive_cooling(object_data: Dictionary) -> bool:
 	if object_data.is_empty():

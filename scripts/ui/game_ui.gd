@@ -121,6 +121,10 @@ var runtime_mission_bipob_cards: Array[Button] = []
 var runtime_interaction_mode_active: bool = false
 var runtime_interaction_actions_row: HBoxContainer = null
 var runtime_base_controls_grid: GridContainer = null
+var runtime_move_forward_button: Button = null
+var runtime_move_backward_button: Button = null
+var runtime_turn_left_button: Button = null
+var runtime_turn_right_button: Button = null
 var runtime_action_button: Button = null
 var runtime_connect_button: Button = null
 var runtime_heavy_claw_button: Button = null
@@ -12279,6 +12283,18 @@ func _on_move_backward_pressed() -> void:
 		return
 	bipob.move_backward()
 	update_status()
+
+func _on_runtime_heavy_claw_forward_pressed() -> void:
+	_ensure_runtime_action_panel_bridge()
+	runtime_action_panel_bridge.on_move_forward_pressed()
+
+func _on_runtime_heavy_claw_back_pressed() -> void:
+	_ensure_runtime_action_panel_bridge()
+	runtime_action_panel_bridge.on_move_backward_pressed()
+
+func _on_runtime_heavy_claw_cancel_pressed() -> void:
+	_ensure_runtime_action_panel_bridge()
+	runtime_action_panel_bridge.on_heavy_claw_drag_cancel_pressed()
 
 func _on_turn_left_pressed() -> void:
 	if map_constructor_state.map_constructor_mode_active or bipob == null:

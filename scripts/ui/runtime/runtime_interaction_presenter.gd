@@ -2,6 +2,7 @@ extends RefCounted
 class_name RuntimeInteractionPresenter
 
 const RuntimeInteractionPanelRef = preload("res://scripts/ui/runtime/runtime_interaction_panel.gd")
+const RuntimeHeavyClawPresenterRef = preload("res://scripts/ui/runtime/runtime_heavy_claw_presenter.gd")
 
 
 static func refresh(ui) -> void:
@@ -45,6 +46,10 @@ static func refresh(ui) -> void:
 		ui._apply_action_button_style(ui.runtime_heavy_claw_button, "danger" if heavy_claw_drag_active else ("primary" if heavy_claw_enabled else "disabled"), heavy_claw_enabled)
 	if ui.runtime_end_turn_button != null:
 		ui._apply_action_button_style(ui.runtime_end_turn_button, "reference", true)
+	if RuntimeHeavyClawPresenterRef.is_drag_active(ui):
+		RuntimeHeavyClawPresenterRef.refresh(ui)
+		return
+	RuntimeHeavyClawPresenterRef.refresh(ui)
 	_refresh_action_row(ui, target_object, physical_actions)
 
 

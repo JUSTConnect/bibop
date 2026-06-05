@@ -53,6 +53,7 @@ const BipobCapabilityServiceRef = preload("res://scripts/game/bipob_capability_s
 const BipobLegacyTileInteractionServiceRef = preload("res://scripts/game/bipob_legacy_tile_interaction_service.gd")
 const BipobScanHackServiceRef = preload("res://scripts/game/bipob_scan_hack_service.gd")
 const BipobMovementControllerRef = preload("res://scripts/bipob/bipob_movement_controller.gd")
+const HeavyClawDragServiceRef = preload("res://scripts/game/heavy_claw/heavy_claw_drag_service.gd")
 const BipobInventoryControllerRef = preload("res://scripts/bipob/bipob_inventory_controller.gd")
 const EXTERNAL_MODULE_CATALOG: Dictionary = {
 "wheels_v1":{"name":"Wheels V1","cat":"Gear","size":Vector2i(3,2),"sides":[EXTERNAL_SIDE_BOTTOM],"desc":"Fast movement system for flat and stable surfaces. Ineffective on stairs, mud and debris.","energy":1,"terrain":"Flat surface","movement":"Drive","speed":3},
@@ -6505,115 +6506,28 @@ func turn_right() -> void:
 
 
 func is_heavy_claw_drag_active() -> bool:
-	return heavy_claw_active and not heavy_claw_drag_object_id.strip_edges().is_empty()
+	return HeavyClawDragServiceRef.is_drag_active(self)
 
 func get_heavy_claw_drag_object_id() -> String:
 	return heavy_claw_drag_object_id
 
+func get_heavy_claw_drag_context() -> Dictionary:
+	return HeavyClawDragServiceRef.get_drag_context(self)
+
 func start_heavy_claw_drag(object_data: Dictionary) -> Dictionary:
-	var object_id: String = str(object_data.get("id", "")).strip_edges()
-	if object_id.is_empty():
-		return {"success": false, "message": "Object not found."}
-	var object_cell: Vector2i = Vector2i(object_data.get("position", Vector2i(-1, -1)))
-	var anchor_direction: Vector2i = get_direction_vector(direction)
-	if object_cell != grid_position + anchor_direction:
-		return {"success": false, "message": "Heavy Claw target must stay directly in front."}
-	heavy_claw_active = true
-	heavy_claw_drag_object_id = object_id
-	heavy_claw_attached_object_cell = object_cell
-	heavy_claw_anchor_direction = anchor_direction
-	heavy_claw_drag_direction = direction
-	refresh_world_action_panel()
-	status_changed.emit()
-	return {"success": true, "message": "Heavy Claw attached. Back up to drag the object; detach before turning or pathing."}
+	return HeavyClawDragServiceRef.start_drag(self, object_data)
 
 func cancel_heavy_claw_drag() -> Dictionary:
-	if not is_heavy_claw_drag_active():
-		return {"success": false, "message": "No dragged object."}
-	heavy_claw_active = false
-	heavy_claw_drag_object_id = ""
-	heavy_claw_attached_object_cell = Vector2i(-1, -1)
-	heavy_claw_anchor_direction = Vector2i.ZERO
-	heavy_claw_drag_direction = direction
-	refresh_world_action_panel()
-	status_changed.emit()
-	return {"success": true, "message": "Heavy Claw detached."}
+	return HeavyClawDragServiceRef.cancel_drag(self)
 
 func _get_heavy_claw_drag_object() -> Dictionary:
-	if mission_manager == null or not is_heavy_claw_drag_active():
-		return {}
-	if mission_manager.has_method("get_world_object_by_id"):
-		return Dictionary(mission_manager.call("get_world_object_by_id", heavy_claw_drag_object_id))
-	return {}
+	return HeavyClawDragServiceRef.get_drag_object(self)
 
 func _is_heavy_claw_drag_object_synchronized() -> bool:
-	var object_data: Dictionary = _get_heavy_claw_drag_object()
-	if object_data.is_empty():
-		return false
-	var expected_cell: Vector2i = grid_position + heavy_claw_anchor_direction
-	var object_cell: Vector2i = Vector2i(object_data.get("position", Vector2i(-1, -1)))
-	return object_cell == expected_cell
+	return HeavyClawDragServiceRef.is_drag_object_synchronized(self)
 
 func try_move_heavy_claw_drag_to(target_position: Vector2i) -> bool:
-	if not is_heavy_claw_drag_active():
-		return false
-	if direction != heavy_claw_drag_direction:
-		hint_requested.emit("Cannot turn while dragging object.")
-		status_changed.emit()
-		return false
-	var drag_direction_vector: Vector2i = heavy_claw_anchor_direction
-	var movement_delta: Vector2i = target_position - grid_position
-	if movement_delta == drag_direction_vector:
-		hint_requested.emit("Heavy Claw is holding the object in front. Back up to drag it; detach before moving forward.")
-		status_changed.emit()
-		return false
-	if movement_delta != -drag_direction_vector:
-		hint_requested.emit("Cannot turn while dragging object.")
-		status_changed.emit()
-		return false
-	var object_data: Dictionary = _get_heavy_claw_drag_object()
-	if object_data.is_empty():
-		heavy_claw_active = false
-		heavy_claw_drag_object_id = ""
-		heavy_claw_attached_object_cell = Vector2i(-1, -1)
-		heavy_claw_anchor_direction = Vector2i.ZERO
-		hint_requested.emit("Dragged object missing.")
-		status_changed.emit()
-		return false
-	var object_cell: Vector2i = Vector2i(object_data.get("position", Vector2i(-1, -1)))
-	var expected_object_cell: Vector2i = grid_position + drag_direction_vector
-	if object_cell != expected_object_cell:
-		heavy_claw_active = false
-		heavy_claw_drag_object_id = ""
-		heavy_claw_attached_object_cell = Vector2i(-1, -1)
-		heavy_claw_anchor_direction = Vector2i.ZERO
-		hint_requested.emit("Dragged object detached.")
-		refresh_world_action_panel()
-		status_changed.emit()
-		return false
-	if not is_cell_walkable_for_bipob(target_position):
-		hint_requested.emit("Object movement blocked.")
-		status_changed.emit()
-		return false
-	if mission_manager == null or not mission_manager.has_method("move_world_object_by_heavy_claw"):
-		hint_requested.emit("Object movement blocked.")
-		status_changed.emit()
-		return false
-	var object_destination: Vector2i = grid_position
-	var move_result: Dictionary = Dictionary(mission_manager.call("move_world_object_by_heavy_claw", heavy_claw_drag_object_id, object_destination))
-	if not bool(move_result.get("success", false)):
-		hint_requested.emit("Object movement blocked.")
-		status_changed.emit()
-		return false
-	heavy_claw_attached_object_cell = object_destination
-	refresh_world_object_overlay()
-	grid_position = target_position
-	refresh_platform_height_state_after_move()
-	clear_selected_world_action_if_invalid({}, target_position)
-	BipobMovementControllerRef.update_world_position(self)
-	_register_successful_player_action()
-	check_mission_complete()
-	return true
+	return HeavyClawDragServiceRef.try_move_to(self, target_position)
 
 func end_turn() -> void:
 	if mission_manager != null:
@@ -7909,6 +7823,10 @@ func get_world_action_module(action_id: String, world_object: Dictionary) -> Dic
 	return _module_dict("")
 
 func interact() -> void:
+	if is_heavy_claw_drag_active():
+		hint_requested.emit("Heavy Claw dragging: use Forward, Back, or Cancel.")
+		status_changed.emit()
+		return
 	if mission_manager != null and mission_manager.has_method("set_active_bipob_ref"):
 		mission_manager.set_active_bipob_ref(self)
 	var target_position := get_facing_device_position()
