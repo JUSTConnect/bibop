@@ -59,12 +59,15 @@ static func get_source_region_mode(platform_data: Dictionary) -> String:
 	return "top_only_flush"
 
 static func get_platform_draw_descriptor(platform_data: Dictionary, level_height_pixels: float = DEFAULT_LEVEL_HEIGHT_PIXELS) -> Dictionary:
+	var visual_mode: String = get_visual_mode(platform_data)
 	return {
-		"asset_key": get_platform_asset_key(platform_data),
-		"asset_path": get_platform_asset_path(platform_data),
-		"visual_mode": get_visual_mode(platform_data),
+		"asset_key": PLATFORM_ASSET_KEY,
+		"floor_asset_key": PLATFORM_ASSET_KEY,
+		"asset_path": PLATFORM_ASSET_PATH,
+		"visual_mode": visual_mode,
 		"source_region_mode": get_source_region_mode(platform_data),
 		"show_rim": should_show_platform_rim(platform_data),
+		"is_flush": visual_mode == PlatformTypesRef.VISUAL_FLUSH_TOP,
 		"visual_level": get_visual_level(platform_data),
 		"visual_y_offset": get_visual_y_offset(platform_data, level_height_pixels),
 		"motion_progress": get_motion_progress(platform_data),
