@@ -3,7 +3,6 @@ class_name PlatformTypes
 
 const MODE_ELEVATOR: String = "elevator"
 const MODE_ROTATOR: String = "rotator"
-const MODE_ELEVATOR_ROTATOR: String = "elevator_rotator"
 
 const CONTROL_INTERNAL: String = "internal"
 const CONTROL_EXTERNAL: String = "external"
@@ -40,12 +39,10 @@ static func normalize_platform_mode(value: String) -> String:
 	normalized_value = normalized_value.replace(" ", "_")
 	normalized_value = normalized_value.replace("-", "_")
 	match normalized_value:
-		"", "lift", "lifting", "elevator", "elevator_platform", "platform_elevator":
-			return MODE_ELEVATOR
 		"rotate", "rotation", "rotator", "rotating", "turntable", "platform_rotator":
 			return MODE_ROTATOR
 		"both", "elevator_rotator", "rotator_elevator", "lift_rotate", "rotate_lift", "elevator_and_rotator":
-			return MODE_ELEVATOR_ROTATOR
+			return MODE_ELEVATOR
 	return MODE_ELEVATOR
 
 static func normalize_control_type(value: String) -> String:
@@ -112,12 +109,10 @@ static func normalize_platform_action(value: String) -> String:
 	return ""
 
 static func platform_mode_supports_elevator(mode: String) -> bool:
-	var normalized_mode: String = normalize_platform_mode(mode)
-	return normalized_mode == MODE_ELEVATOR or normalized_mode == MODE_ELEVATOR_ROTATOR
+	return normalize_platform_mode(mode) == MODE_ELEVATOR
 
 static func platform_mode_supports_rotator(mode: String) -> bool:
-	var normalized_mode: String = normalize_platform_mode(mode)
-	return normalized_mode == MODE_ROTATOR or normalized_mode == MODE_ELEVATOR_ROTATOR
+	return normalize_platform_mode(mode) == MODE_ROTATOR
 
 static func clamp_platform_level(value: int, max_level: int) -> int:
 	return clampi(value, 0, maxi(max_level, 0))
@@ -192,7 +187,8 @@ static func get_default_platform_config() -> Dictionary:
 		"activation_mode": ACTIVATION_INSTANT,
 		"activation_delay_turns": 0,
 		"control_cell_x": 0,
-		"control_cell_y": 0
+		"control_cell_y": 0,
+		"input_direction": "SW"
 	}
 
 static func normalize_platform_config(config: Dictionary) -> Dictionary:
@@ -211,6 +207,9 @@ static func normalize_platform_config(config: Dictionary) -> Dictionary:
 	normalized["current_level"] = int(normalized.get("platform_level", 0))
 	normalized["activation_delay_turns"] = normalize_delay_turns(int(normalized.get("activation_delay_turns", normalized.get("timer_turns", 0))))
 	normalized["motion_state"] = normalize_motion_state(str(normalized.get("motion_state", MOTION_IDLE)))
+	normalized["input_direction"] = str(normalized.get("input_direction", normalized.get("control_button_side", "SW"))).strip_edges().to_upper()
+	if normalized["input_direction"] not in ["SW", "SE"]:
+		normalized["input_direction"] = "SW"
 	normalized["object_type"] = "platform"
 	normalized["object_group"] = "platform"
 	normalized["archetype_id"] = "platform"
@@ -222,7 +221,10 @@ static func normalize_platform_config(config: Dictionary) -> Dictionary:
 static func is_platform_data(data: Dictionary) -> bool:
 	if data.is_empty():
 		return false
+	var nested_data: Dictionary = Dictionary(data.get("data", {}))
+	if not nested_data.is_empty() and is_platform_data(nested_data):
+		return true
 	var archetype_id: String = str(data.get("archetype_id", "")).strip_edges().to_lower()
 	var object_group: String = str(data.get("object_group", "")).strip_edges().to_lower()
 	var object_type: String = str(data.get("object_type", "")).strip_edges().to_lower()
-	return archetype_id == "platform" or object_group == "platform" or object_type == "platform"
+	return archetype_id == "platform" or object_group == "platform" or object_type == "platform" or data.has("platform_mode")
