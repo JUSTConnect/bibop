@@ -53,6 +53,7 @@ const DOOR_CONTROL_TYPES: Array[String] = ["internal", "external"]
 const DOOR_STATES: Array[String] = ["closed", "open", "damaged", "jammed", "locked", "unpowered"]
 
 const FLOOR_MATERIALS: Array[String] = ["concrete", "steel", "titan"]
+const PlatformTypesRef = preload("res://scripts/game/platform/platform_types.gd")
 const FLOOR_COVERINGS: Array[String] = ["default", "dirt", "water", "debris", "oil"]
 const FLOOR_VISUAL_STYLES: Array[String] = ["default", "permission"]
 const FLOOR_STATES: Array[String] = ["normal", "damaged"]
@@ -255,6 +256,23 @@ const ARCHETYPE_REGISTRY: Dictionary = {
 			{"field":"has_connector_jack", "type":"bool", "default":false},
 			{"field":"required_connector_level", "type":"int", "default":0},
 			{"field":"required_processor_level", "type":"int", "default":0}
+		]
+	},
+	"platform": {
+		"archetype_id":"platform", "object_group":"platform", "object_type":"platform", "palette_label":"Platform",
+		"placement_mode":"object", "display_name_template":"Platform", "configurable":true, "blocks_movement":false, "blocks_vision":false, "walkable":true,
+		"property_schema":[
+			{"field":"platform_mode", "type":"enum", "values":["elevator", "rotator", "elevator_rotator"], "default":"elevator", "labels":{"elevator":"Elevator", "rotator":"Rotator", "elevator_rotator":"Elevator + Rotator"}},
+			{"field":"platform_level", "type":"int", "default":0},
+			{"field":"max_level", "type":"int", "default":1},
+			{"field":"mechanism_id", "type":"string", "default":""},
+			{"field":"mechanism_role", "type":"enum", "values":["single"], "default":"single"},
+			{"field":"control_type", "type":"enum", "values":["internal", "external"], "default":"internal"},
+			{"field":"power_type", "type":"enum", "values":["none", "internal", "external"], "default":"none"},
+			{"field":"activation_mode", "type":"enum", "values":["instant", "delayed"], "default":"instant"},
+			{"field":"activation_delay_turns", "type":"int", "default":0},
+			{"field":"control_cell_x", "type":"int", "default":0},
+			{"field":"control_cell_y", "type":"int", "default":0}
 		]
 	},
 	"terminal": {
@@ -475,7 +493,7 @@ static func get_constructor_palette_rows() -> Array[Dictionary]:
 	for object_type_variant in OBJECT_LIBRARY.keys():
 		var object_type: String = str(object_type_variant)
 		var definition: Dictionary = OBJECT_LIBRARY[object_type]
-		if ARCHETYPE_REGISTRY.has(object_type) or not bool(definition.get("placeable_in_constructor", true)) or str(definition.get("group", "")) in ["door", "terminal", "item"]:
+		if ARCHETYPE_REGISTRY.has(object_type) or not bool(definition.get("placeable_in_constructor", true)) or str(definition.get("group", "")) in ["door", "terminal", "item", "platform"]:
 			continue
 		rows.append(_build_constructor_palette_row(object_type, object_type, definition, false))
 	rows.sort_custom(func(a: Dictionary, b: Dictionary) -> bool: return str(a.get("display_name", "")) < str(b.get("display_name", "")))
@@ -1440,6 +1458,14 @@ static func normalize_archetype_object(object_data: Dictionary) -> Dictionary:
 		data["control_mode"] = str(data.get("control_type", data.get("control_mode", "internal")))
 	elif archetype_id == "terminal":
 		data = normalize_terminal_contract(data)
+	elif archetype_id == "platform":
+		data = PlatformTypesRef.normalize_platform_config(data)
+		data["object_group"] = "platform"
+		data["archetype_id"] = "platform"
+		data["configurable"] = true
+		data["blocks_movement"] = false
+		data["blocks_vision"] = false
+		data["walkable"] = true
 	elif archetype_id == "item":
 		data = normalize_item_contract(data)
 	data["display_name"] = generate_display_name(data)
