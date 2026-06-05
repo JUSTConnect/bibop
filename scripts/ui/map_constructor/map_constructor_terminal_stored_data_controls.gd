@@ -85,7 +85,7 @@ static func _get_digital_key_candidates(ui: Variant) -> Array[Dictionary]:
 	for row_variant in Array(ui.mission_manager_runtime.call("get_map_constructor_placed_object_rows")):
 		if not row_variant is Dictionary:
 			continue
-		var row: Dictionary = Dictionary(row_variant)
+		var row: Dictionary = MapConstructorUiSafe.safe_dictionary(row_variant)
 		var row_id: String = str(row.get("id", "")).strip_edges()
 		if row_id.is_empty():
 			continue
