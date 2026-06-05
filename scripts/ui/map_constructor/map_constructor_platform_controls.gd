@@ -4,6 +4,8 @@ class_name MapConstructorPlatformControls
 const PlatformTypesRef = preload("res://scripts/game/platform/platform_types.gd")
 const PlatformMechanismServiceRef = preload("res://scripts/game/platform/platform_mechanism_service.gd")
 const PlatformControlServiceRef = preload("res://scripts/game/platform/platform_control_service.gd")
+const MapConstructorInspectorVisibilityServiceRef = preload("res://scripts/ui/map_constructor/map_constructor_inspector_visibility_service.gd")
+const MapConstructorLinkControlsRef = preload("res://scripts/ui/map_constructor/map_constructor_link_controls.gd")
 
 static func is_platform(data: Dictionary) -> bool:
 	return PlatformTypesRef.is_platform_data(data)
@@ -69,18 +71,25 @@ static func _add_mechanism(ui: Variant, parent: VBoxContainer, entity_kind: Stri
 static func _add_control(ui: Variant, parent: VBoxContainer, entity_kind: String, entity_id: String, data: Dictionary) -> void:
 	var section: VBoxContainer = ui._create_inspector_section("5. Control")
 	ui._add_enum_property(section, "Control type", entity_kind, entity_id, "control_type", data.get("control_type", "internal"), _options(["internal", "external"]))
-	ui._add_enum_property(section, "Activation", entity_kind, entity_id, "activation_mode", data.get("activation_mode", "instant"), _options(["instant", "delayed"]))
-	ui._add_text_property(section, "Delay turns", entity_kind, entity_id, "activation_delay_turns", data.get("activation_delay_turns", 0))
-	ui._add_text_property(section, "Control cell X", entity_kind, entity_id, "control_cell_x", data.get("control_cell_x", 0))
-	ui._add_text_property(section, "Control cell Y", entity_kind, entity_id, "control_cell_y", data.get("control_cell_y", 0))
-	var actions: Dictionary = _get_actions(ui, entity_id, data)
-	var action_label := Label.new(); action_label.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART; action_label.text = _format_action_labels(Array(actions.get("actions", [])))
-	section.add_child(ui._create_property_row("Actions", action_label))
+	if MapConstructorInspectorVisibilityServiceRef.should_show_internal_control_settings(data, "platform"):
+		ui._add_enum_property(section, "Activation", entity_kind, entity_id, "activation_mode", data.get("activation_mode", "instant"), _options(["instant", "delayed"]))
+		ui._add_text_property(section, "Delay turns", entity_kind, entity_id, "activation_delay_turns", data.get("activation_delay_turns", 0))
+		ui._add_text_property(section, "Control cell X", entity_kind, entity_id, "control_cell_x", data.get("control_cell_x", 0))
+		ui._add_text_property(section, "Control cell Y", entity_kind, entity_id, "control_cell_y", data.get("control_cell_y", 0))
+		var actions: Dictionary = _get_actions(ui, entity_id, data)
+		var action_label := Label.new(); action_label.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART; action_label.text = _format_action_labels(Array(actions.get("actions", [])))
+		section.add_child(ui._create_property_row("Actions", action_label))
+	elif MapConstructorInspectorVisibilityServiceRef.should_show_external_control_selector(data):
+		MapConstructorLinkControlsRef.add_link_picker(ui, section, entity_kind, entity_id, "control_terminal", "Control Terminal Binding")
 	parent.add_child(section)
 
 static func _add_power(ui: Variant, parent: VBoxContainer, entity_kind: String, entity_id: String, data: Dictionary) -> void:
 	var section: VBoxContainer = ui._create_inspector_section("6. Power")
 	ui._add_enum_property(section, "Power type", entity_kind, entity_id, "power_type", data.get("power_type", "none"), _options(["none", "internal", "external"]))
+	if MapConstructorInspectorVisibilityServiceRef.should_show_external_power_source_selector(data):
+		MapConstructorLinkControlsRef.add_link_picker(ui, section, entity_kind, entity_id, "power_source", "Power Source Binding")
+		if MapConstructorInspectorVisibilityServiceRef.should_show_external_circuit_selector(data):
+			MapConstructorLinkControlsRef.add_link_picker(ui, section, entity_kind, entity_id, "power_network", "Power Network")
 	var note := Label.new(); note.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART; note.text = "Power controls availability only. Motion and rotation still require explicit actions."
 	section.add_child(note)
 	parent.add_child(section)
