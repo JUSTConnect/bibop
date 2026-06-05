@@ -1,9 +1,11 @@
 extends RefCounted
 class_name MissionContentCatalog
 
-const TASK_TEST_LAYOUT_ID := "task_test"
-const TASK_TEST_MISSION_ID := "mission_10"
-const _MISSION_ALIASES: Dictionary = {"mission_10": "task_test"}
+const MissionIdsRef = preload("res://scripts/game/mission_ids.gd")
+const TASK_TEST_LAYOUT_ID := MissionIdsRef.TASK_TEST_LAYOUT_ID
+const TASK_TEST_MISSION_ID := MissionIdsRef.TASK_TEST_COMPAT_MISSION_ID
+const TASK_TEST_INDEX := MissionIdsRef.TASK_TEST_INDEX
+const _MISSION_ALIASES: Dictionary = {TASK_TEST_MISSION_ID: TASK_TEST_LAYOUT_ID}
 
 const _MISSION_DEFINITIONS: Dictionary = {
 	"mission_1": {
@@ -125,10 +127,10 @@ const _MISSION_DEFINITIONS: Dictionary = {
 		"validation_suites": [],
 		"notes": ["Start/exit gameplay positions are still legacy-owned for this mission."]
 	},
-	"task_test": {
-		"id": "task_test",
-		"compatibility_mission_id": "mission_10",
-		"index": 10,
+	TASK_TEST_LAYOUT_ID: {
+		"id": TASK_TEST_LAYOUT_ID,
+		"compatibility_mission_id": TASK_TEST_MISSION_ID,
+		"index": TASK_TEST_INDEX,
 		"title": "TASK TEST",
 		"display_name": "TASK TEST",
 		"short_description": "Universal mechanics validation sandbox.",
@@ -167,6 +169,9 @@ func _resolve_mission_id(mission_id: String) -> String:
 	var normalized := str(mission_id).strip_edges()
 	if _MISSION_DEFINITIONS.has(normalized):
 		return normalized
+	var task_test_id: String = MissionIdsRef.resolve_task_test_alias(normalized)
+	if task_test_id != normalized and _MISSION_DEFINITIONS.has(task_test_id):
+		return task_test_id
 	return str(_MISSION_ALIASES.get(normalized, "")).strip_edges()
 
 func has_mission(mission_id: String) -> bool:
@@ -314,13 +319,13 @@ func validate_mission_catalog() -> Array[String]:
 				if expected_row_width <= 0 or mission_layout.size() <= 0:
 					warnings.append("Mission '%s' layout size must be positive." % mission_key)
 
-	var task_test: Dictionary = Dictionary(_MISSION_DEFINITIONS.get("task_test", {}))
+	var task_test: Dictionary = Dictionary(_MISSION_DEFINITIONS.get(TASK_TEST_LAYOUT_ID, {}))
 	if task_test.is_empty():
 		warnings.append("Mission catalog is missing canonical task_test.")
 	else:
-		if _resolve_mission_id("mission_10") != "task_test":
+		if _resolve_mission_id(TASK_TEST_MISSION_ID) != TASK_TEST_LAYOUT_ID:
 			warnings.append("Mission mission_10 must resolve to canonical task_test.")
-		if str(task_test.get("compatibility_mission_id", "")) != "mission_10":
+		if str(task_test.get("compatibility_mission_id", "")) != TASK_TEST_MISSION_ID:
 			warnings.append("Mission task_test compatibility_mission_id must be mission_10.")
 		if str(task_test.get("display_name", "")) != "TASK TEST":
 			warnings.append("Mission task_test display_name must be TASK TEST.")
@@ -336,11 +341,11 @@ func validate_mission_catalog() -> Array[String]:
 			warnings.append("Mission task_test layout_source must be mission_content_catalog.")
 		if str(task_test.get("world_content_source", "")) != "legacy_mission_manager":
 			warnings.append("Mission task_test world_content_source must remain legacy_mission_manager.")
-		if not has_mission_layout("task_test"):
+		if not has_mission_layout(TASK_TEST_LAYOUT_ID):
 			warnings.append("Mission task_test layout is required.")
 		else:
-			var task_test_layout: Array = get_mission_layout("task_test")
-			var task_test_size: Vector2i = get_mission_layout_size("task_test")
+			var task_test_layout: Array = get_mission_layout(TASK_TEST_LAYOUT_ID)
+			var task_test_size: Vector2i = get_mission_layout_size(TASK_TEST_LAYOUT_ID)
 			if task_test_layout.is_empty():
 				warnings.append("Mission task_test layout must not be empty.")
 			if task_test_size.x != 16:
@@ -353,20 +358,20 @@ func validate_mission_catalog() -> Array[String]:
 				for x in range(row.size()):
 					if int(row[x]) == 4:
 						layout_exit_cells.append(Vector2i(x, y))
-			var metadata_exit_cells: Array[Vector2i] = get_mission_exit_cells("task_test")
+			var metadata_exit_cells: Array[Vector2i] = get_mission_exit_cells(TASK_TEST_LAYOUT_ID)
 			if metadata_exit_cells.is_empty():
 				warnings.append("Mission task_test exit_cells must not be empty.")
 			if not layout_exit_cells.is_empty() and metadata_exit_cells != layout_exit_cells:
 				warnings.append("Mission task_test exit_cells must match layout exit tiles.")
-			if get_mission_exit_cells("mission_10") != metadata_exit_cells:
+			if get_mission_exit_cells(TASK_TEST_MISSION_ID) != metadata_exit_cells:
 				warnings.append("Mission mission_10 alias exit_cells must match task_test.")
-			if has_mission_start_cell("task_test"):
-				var start_cell: Vector2i = get_mission_start_cell("task_test")
+			if has_mission_start_cell(TASK_TEST_LAYOUT_ID):
+				var start_cell: Vector2i = get_mission_start_cell(TASK_TEST_LAYOUT_ID)
 				if start_cell.x < 0 or start_cell.y < 0 or start_cell.x >= task_test_size.x or start_cell.y >= task_test_size.y:
 					warnings.append("Mission task_test start_cell must be inside layout bounds.")
 				elif int(Array(task_test_layout[start_cell.y])[start_cell.x]) == 1:
 					warnings.append("Mission task_test start_cell must not be a wall tile.")
-				if get_mission_start_cell("mission_10") != start_cell:
+				if get_mission_start_cell(TASK_TEST_MISSION_ID) != start_cell:
 					warnings.append("Mission mission_10 alias start_cell must match task_test.")
 
 	return warnings

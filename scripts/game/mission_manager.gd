@@ -5,6 +5,7 @@ const ScanSystemRef = preload("res://scripts/world/scan_system.gd")
 const InteractionSystemRef = preload("res://scripts/world/interaction_system.gd")
 const PowerSystemRef = preload("res://scripts/world/power_system.gd")
 const MissionContentCatalogRef = preload("res://scripts/game/mission_content_catalog.gd")
+const MissionIdsRef = preload("res://scripts/game/mission_ids.gd")
 const TaskTestWorldBuilderRef = preload("res://scripts/game/task_test_world_builder.gd")
 const MapConstructorServiceRef = preload("res://scripts/game/map_constructor_service.gd")
 const MapConstructorValidationServiceRef = preload("res://scripts/game/map_constructor_validation_service.gd")
@@ -262,9 +263,12 @@ var constructor_exit_marker: Dictionary = {}
 const RUNTIME_MODE_LEGACY_STORY := "legacy_story"
 const RUNTIME_MODE_TASK_TEST := "task_test"
 const RUNTIME_MODE_UNKNOWN := "unknown"
-const RETIRED_LEGACY_MISSION_INDEXES: Array[int] = [7, 8]
-const TASK_TEST_LAYOUT_ID := "task_test"
-const TASK_TEST_MISSION_ID := "mission_10"
+const RETIRED_LEGACY_MISSION_INDEXES: Array[int] = MissionIdsRef.RETIRED_LEGACY_MISSION_INDEXES
+const TASK_TEST_LAYOUT_ID := MissionIdsRef.TASK_TEST_LAYOUT_ID
+const TASK_TEST_MISSION_ID := MissionIdsRef.TASK_TEST_COMPAT_MISSION_ID
+const TASK_TEST_MISSION_INDEX := MissionIdsRef.TASK_TEST_INDEX
+const LEGACY_STORY_MISSION_MIN_INDEX := MissionIdsRef.LEGACY_STORY_MISSION_MIN_INDEX
+const LEGACY_STORY_MISSION_MAX_INDEX := MissionIdsRef.LEGACY_STORY_MISSION_MAX_INDEX
 
 const MAP_CONSTRUCTOR_PRESET_DIR: String = "user://constructor_presets"
 
@@ -293,20 +297,13 @@ func get_task_test_sandbox_source_id() -> String:
 	return get_task_test_source_id()
 
 func normalize_task_test_source_id(source_id: String) -> String:
-	var normalized: String = str(source_id).strip_edges()
-	if normalized == TASK_TEST_MISSION_ID or normalized == TASK_TEST_LAYOUT_ID:
-		return TASK_TEST_LAYOUT_ID
-	return normalized
+	return MissionIdsRef.resolve_task_test_alias(source_id)
 
 func is_task_test_mission_id(mission_id: String) -> bool:
-	var normalized: String = str(mission_id).strip_edges()
-	return normalized == TASK_TEST_MISSION_ID or normalized == TASK_TEST_LAYOUT_ID
+	return MissionIdsRef.is_task_test_id(mission_id)
 
 func resolve_task_test_catalog_id(mission_id: String) -> String:
-	var normalized: String = str(mission_id).strip_edges()
-	if normalized == TASK_TEST_LAYOUT_ID or normalized == TASK_TEST_MISSION_ID:
-		return TASK_TEST_LAYOUT_ID
-	return normalized
+	return MissionIdsRef.resolve_task_test_alias(mission_id)
 
 const MAP_CONSTRUCTOR_WALL_SIDE_DELTAS: Array[Dictionary] = [
 	{"side":"north", "delta": Vector2i(0, -1)},
@@ -1211,7 +1208,7 @@ func _is_valid_grid_cell(cell: Vector2i) -> bool:
 
 func get_runtime_mode_id() -> String:
 	var normalized_mission_id: String = current_mission_id.strip_edges()
-	if normalized_mission_id.begins_with("mission_") and RETIRED_LEGACY_MISSION_INDEXES.has(int(normalized_mission_id.trim_prefix("mission_"))):
+	if normalized_mission_id.begins_with("mission_") and MissionIdsRef.is_retired_legacy_mission_index(int(normalized_mission_id.trim_prefix("mission_"))):
 		return RUNTIME_MODE_UNKNOWN
 
 	var normalized_runtime_mode_id: String = active_runtime_mode_id.strip_edges()
@@ -1225,7 +1222,7 @@ func _get_runtime_mode_id_for_mission_id(mission_id: String) -> String:
 		return RUNTIME_MODE_TASK_TEST
 	if normalized_mission_id.begins_with("mission_"):
 		var mission_index: int = int(normalized_mission_id.trim_prefix("mission_"))
-		if mission_index >= 1 and mission_index <= 9 and not RETIRED_LEGACY_MISSION_INDEXES.has(mission_index):
+		if MissionIdsRef.is_legacy_story_mission_index(mission_index):
 			return RUNTIME_MODE_LEGACY_STORY
 	return RUNTIME_MODE_UNKNOWN
 
