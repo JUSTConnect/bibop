@@ -109,6 +109,9 @@ func _cell_has_wall_for_cable(cell: Vector2i) -> bool:
 		return false
 	return bool(manager.call("_is_map_constructor_wall_cell", cell))
 
+func _cell_is_breachable_wall(cell: Vector2i) -> bool:
+	return manager != null and manager.has_method("is_breachable_wall_cell") and bool(manager.call("is_breachable_wall_cell", cell))
+
 func validate_constructor_palette_contract() -> Array[String]:
 	var warnings: Array[String] = []
 	var archetype_counts: Dictionary = {}
@@ -121,7 +124,7 @@ func validate_constructor_palette_contract() -> Array[String]:
 		if prefab_id.is_empty():
 			warnings.append("constructor_palette_row_missing_prefab_id")
 			continue
-		if WorldObjectCatalogRef.LEGACY_DOOR_IDS.has(prefab_id) or WorldObjectCatalogRef.is_constructor_door_preset(prefab_id) or WorldObjectCatalogRef.LEGACY_WALL_ALIAS_CONFIGS.has(prefab_id) or WorldObjectCatalogRef.LEGACY_TERMINAL_ALIAS_CONFIGS.has(prefab_id):
+		if WorldObjectCatalogRef.LEGACY_DOOR_IDS.has(prefab_id) or WorldObjectCatalogRef.is_constructor_door_preset(prefab_id) or WorldObjectCatalogRef.LEGACY_WALL_ALIAS_CONFIGS.has(prefab_id) or WorldObjectCatalogRef.LEGACY_PLATFORM_ALIAS_CONFIGS.has(prefab_id) or WorldObjectCatalogRef.LEGACY_TERMINAL_ALIAS_CONFIGS.has(prefab_id):
 			warnings.append("constructor_palette_exposes_legacy_alias_%s" % prefab_id)
 		if archetype_id == "floor" or prefab_id == "floor":
 			visible_floor_prefabs.append(prefab_id)
@@ -143,8 +146,8 @@ func validate_constructor_palette_contract() -> Array[String]:
 	var required_archetype_warning_ids: Dictionary = {
 		"door":"constructor_palette_requires_exactly_one_door",
 		"floor":"constructor_palette_requires_exactly_one_floor",
-		"external_wall":"constructor_palette_requires_exactly_one_external_wall",
 		"wall":"constructor_palette_requires_exactly_one_wall",
+		"platform":"constructor_palette_requires_exactly_one_platform",
 		"terminal":"constructor_palette_requires_exactly_one_terminal",
 		"item":"constructor_palette_requires_exactly_one_item"
 	}
@@ -157,8 +160,12 @@ func validate_constructor_palette_contract() -> Array[String]:
 		warnings.append("constructor_palette_missing_terminal_archetype")
 	if WorldObjectCatalogRef.get_archetype_property_schema("terminal").is_empty():
 		warnings.append("terminal_archetype_missing_property_schema")
-	if visible_wall_prefabs != ["external_wall", "wall"] and visible_wall_prefabs != ["wall", "external_wall"]:
-		warnings.append("constructor_palette_wall_entries_must_be_exactly_external_wall_and_wall")
+	if visible_wall_prefabs != ["wall"]:
+		warnings.append("constructor_palette_wall_entries_must_be_exactly_wall")
+	if archetype_counts.has("external_wall"):
+		warnings.append("constructor_palette_exposes_external_wall")
+	if archetype_counts.has("breachable_wall") or visible_wall_prefabs.has("breachable_wall"):
+		warnings.append("constructor_palette_exposes_breachable_wall")
 	if visible_floor_prefabs != ["floor"]:
 		warnings.append("constructor_palette_floor_entries_must_be_exactly_floor")
 	if visible_item_prefabs != ["item"]:
@@ -174,7 +181,9 @@ func validate_constructor_palette_contract() -> Array[String]:
 		warnings.append("external_wall_must_support_embedded_objects_and_cables")
 	var wall_schema: Array[Dictionary] = WorldObjectCatalogRef.get_archetype_property_schema("wall")
 	var wall_material_schema: Dictionary = {}
+	var wall_schema_fields: Dictionary = {}
 	for field in wall_schema:
+		wall_schema_fields[_safe_string(field.get("field", ""))] = field
 		if _safe_string(field.get("field", "")) == "material":
 			wall_material_schema = field
 	if wall_material_schema.is_empty():
@@ -185,6 +194,18 @@ func validate_constructor_palette_contract() -> Array[String]:
 		var generated_wall: Dictionary = WorldObjectCatalogRef.create_archetype_object("wall", "validation_wall_%s" % material, {"material":material})
 		if _safe_string(generated_wall.get("display_name", "")) != _safe_string(WorldObjectCatalogRef.WALL_DISPLAY_NAMES.get(material, "")):
 			warnings.append("wall_display_name_not_generated_%s" % material)
+	for required_wall_field in ["is_breachable_wall", "wall_height", "breach_side"]:
+		if not wall_schema_fields.has(required_wall_field):
+			warnings.append("wall_archetype_missing_%s_field" % required_wall_field)
+	var generated_breachable_wall: Dictionary = WorldObjectCatalogRef.create_world_object("breachable_wall", "validation_breachable_wall")
+	if _safe_string(generated_breachable_wall.get("object_type", "")) != "wall" or _safe_string(generated_breachable_wall.get("archetype_id", "")) != "wall" or not bool(generated_breachable_wall.get("is_breachable_wall", false)):
+		warnings.append("breachable_wall_alias_not_normalized_to_wall")
+	var generated_platform: Dictionary = WorldObjectCatalogRef.create_world_object("movable_platform_block", "validation_movable_platform_block")
+	if _safe_string(generated_platform.get("object_type", "")) != "platform" or _safe_string(generated_platform.get("object_group", "")) != "platform" or _safe_string(generated_platform.get("archetype_id", "")) != "platform":
+		warnings.append("movable_platform_block_not_normalized_to_platform")
+	for stale_platform_field in ["weight_class", "required_bipob_power_class", "magnetic", "material_tags"]:
+		if generated_platform.has(stale_platform_field):
+			warnings.append("movable_platform_block_stale_field_%s" % stale_platform_field)
 	if not WorldObjectCatalogRef.get_wall_material_quick_presets().is_empty():
 		warnings.append("wall_material_quick_presets_forbidden")
 	var floor_schema: Array[Dictionary] = WorldObjectCatalogRef.get_archetype_property_schema("floor")
@@ -901,7 +922,9 @@ func get_map_constructor_validation_issues() -> Array[Dictionary]:
 				if path_cell.x >= 0 and path_cell.y >= 0 and not cable_wall_cells.has(path_cell):
 					cable_wall_cells.append(path_cell)
 			for cable_wall_cell in cable_wall_cells:
-				if cable_wall_cell.x >= 0 and cable_wall_cell.y >= 0 and not _cell_has_wall_for_cable(cable_wall_cell):
+				if cable_wall_cell.x >= 0 and cable_wall_cell.y >= 0 and _cell_is_breachable_wall(cable_wall_cell):
+					issues.append(_make_map_constructor_issue("cable_on_breachable_wall_%s_%d_%d" % [object_id, cable_wall_cell.x, cable_wall_cell.y], "error", "Cannot route cables on a Breachable Wall.", cable_wall_cell, source_name, entity_kind, object_id, "Move the cable route off the Breachable Wall."))
+				elif cable_wall_cell.x >= 0 and cable_wall_cell.y >= 0 and not _cell_has_wall_for_cable(cable_wall_cell):
 					issues.append(_make_map_constructor_issue("cable_wall_requires_wall_%s_%d_%d" % [object_id, cable_wall_cell.x, cable_wall_cell.y], "warning", "Wall cable requires a wall in this cell.", cable_wall_cell, source_name, entity_kind, object_id, "Place a wall in the same cell or set the cable install mode to Floor/Hidden."))
 		var _cable_health_state_for_validation: String = get_cable_health_state(data) if _is_cable_object_data(data) else "normal"
 		var allow_overlap: bool = bool(data.get("allow_cell_overlap", false)) or _is_cable_object_data(data)
@@ -923,7 +946,9 @@ func get_map_constructor_validation_issues() -> Array[Dictionary]:
 				issues.append(_make_map_constructor_issue("wm_missing_side_%d" % index, "error", "Wall-mounted object missing wall_side.", object_cell, source_name, entity_kind, object_id))
 			if attached_wall_cell.x >= 0 and attached_wall_cell.y >= 0 and has_grid_bounds and not bool(manager.grid_manager.call("is_in_bounds", attached_wall_cell)):
 				issues.append(_make_map_constructor_issue("wm_attached_oob_%d" % index, "error", "Wall-mounted attached wall cell out of bounds.", attached_wall_cell, source_name, entity_kind, object_id))
-			if attached_wall_cell.x >= 0 and attached_wall_cell.y >= 0 and not manager._is_map_constructor_wall_cell(attached_wall_cell):
+			if attached_wall_cell.x >= 0 and attached_wall_cell.y >= 0 and _cell_is_breachable_wall(attached_wall_cell):
+				issues.append(_make_map_constructor_issue("wm_attached_breachable_wall_%d" % index, "error", "Cannot mount on a Breachable Wall.", attached_wall_cell, source_name, entity_kind, object_id, "Move this wall-mounted object to a normal wall."))
+			elif attached_wall_cell.x >= 0 and attached_wall_cell.y >= 0 and not manager._is_map_constructor_wall_cell(attached_wall_cell):
 				issues.append(_make_map_constructor_issue("wm_attached_not_wall_%d" % index, "warning", "Wall-mounted object attached_wall_cell is not a wall tile.", attached_wall_cell, source_name, entity_kind, object_id))
 			if wall_side.is_empty():
 				issues.append(_make_map_constructor_issue("wm_missing_side_warning_%d" % index, "warning", "Wall-mounted object has no wall_side metadata.", object_cell, source_name, entity_kind, object_id))
@@ -939,7 +964,9 @@ func get_map_constructor_validation_issues() -> Array[Dictionary]:
 				issues.append(_make_map_constructor_issue("wm_floating_%d" % index, "warning", "Wall-mounted object is floating without complete wall attachment metadata.", object_cell, source_name, entity_kind, object_id))
 		var normalized_object_type: String = object_type.to_lower()
 		if not _is_cable_object_data(data) and _safe_string(data.get("placement_mode", "")).to_lower() != "wall_mounted" and not normalized_object_type.contains("door") and not normalized_object_type.contains("gate") and manager._is_map_constructor_wall_cell(object_cell):
-			issues.append(_make_map_constructor_issue("grounding_floor_on_wall_%d" % index, "warning", "Floor-standing object is placed on a wall cell.", object_cell, source_name, entity_kind, object_id))
+			var wall_object_severity: String = "error" if _cell_is_breachable_wall(object_cell) else "warning"
+			var wall_object_message: String = "Cannot place objects on a Breachable Wall." if _cell_is_breachable_wall(object_cell) else "Floor-standing object is placed on a wall cell."
+			issues.append(_make_map_constructor_issue("grounding_floor_on_wall_%d" % index, wall_object_severity, wall_object_message, object_cell, source_name, entity_kind, object_id))
 		if (normalized_object_type.contains("door") or normalized_object_type.contains("gate")) and manager.grid_manager != null and manager.grid_manager.has_method("get_tile") and manager._is_valid_grid_cell(object_cell):
 			var door_tile: int = int(manager.grid_manager.call("get_tile", object_cell))
 			if door_tile != GridManager.TILE_DOOR and door_tile != GridManager.TILE_DIGITAL_DOOR and door_tile != GridManager.TILE_POWERED_GATE:
