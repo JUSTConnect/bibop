@@ -251,17 +251,14 @@ const ISO_WALL_ASSET_CATALOG: Dictionary = {
 }
 
 const ISO_FLOOR_ASSET_PACK_DIR: String = "res://assets/visual/isometric/floor/"
-const ISO_GROUND_ASSET_PACK_DIR: String = "res://assets/visual/isometric/ground/"
 const ISO_FLOOR_TEST_ASSET_KEY: String = "floor_gray_test"
 const ISO_FLOOR_ASSET_CATALOG: Dictionary = {
-	"floor_gray_test": "floor_gray_01.png",
 	"floor_concrete": "floor_concrete_01.png",
 	"floor_steel": "floor_steel_01.png",
 	"floor_titan": "floor_titan_01.png",
-	"platform_floor": "floor_platform_01.png",
-	"ground_low": "ground_low_01.png",
-	"ground_halflow": "ground_halflow_01.png"
+	"platform_floor": "floor_platform_01.png"
 }
+
 const ISO_GROUND_ASSET_PACK_DIR: String = "res://assets/visual/isometric/ground/"
 const ISO_GROUND_ASSET_CATALOG: Dictionary = {
 	"ground_low": "ground_low_01.png",
