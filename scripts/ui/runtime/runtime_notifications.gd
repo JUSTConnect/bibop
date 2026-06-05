@@ -36,7 +36,7 @@ static func get_runtime_notification_role(message: String) -> String:
 	for token in ["collected", "unlocked", "opened", "closed", "complete", "success", "stored", "picked up"]:
 		if lower.find(token) != -1:
 			return "ok"
-	for token in ["required", "locked", "no ", "cannot", "failed", "missing", "not enough", "blocked", "rejected", "occupied"]:
+	for token in ["too heavy", "required", "locked", "no ", "cannot", "failed", "missing", "not enough", "blocked", "rejected", "occupied"]:
 		if lower.find(token) != -1:
 			return "danger"
 	return "info"
