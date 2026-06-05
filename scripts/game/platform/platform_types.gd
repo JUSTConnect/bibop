@@ -2,7 +2,8 @@ extends RefCounted
 class_name PlatformTypes
 
 const MODE_ELEVATOR: String = "elevator"
-const MODE_ROTATOR: String = "rotator"
+const MODE_ROTATE: String = "rotate"
+const MODE_ROTATOR: String = MODE_ROTATE
 
 const CONTROL_INTERNAL: String = "internal"
 const CONTROL_EXTERNAL: String = "external"
@@ -40,7 +41,7 @@ static func normalize_platform_mode(value: String) -> String:
 	normalized_value = normalized_value.replace("-", "_")
 	match normalized_value:
 		"rotate", "rotation", "rotator", "rotating", "turntable", "platform_rotator":
-			return MODE_ROTATOR
+			return MODE_ROTATE
 		"both", "elevator_rotator", "rotator_elevator", "lift_rotate", "rotate_lift", "elevator_and_rotator":
 			return MODE_ELEVATOR
 	return MODE_ELEVATOR
@@ -102,7 +103,7 @@ static func normalize_platform_action(value: String) -> String:
 			return ACTION_LOWER
 		"left", "rotate_left", "turn_left":
 			return ACTION_ROTATE_LEFT
-		"right", "rotate_right", "turn_right":
+		"right", "rotate_right", "turn_right", "rotate", "activate_platform":
 			return ACTION_ROTATE_RIGHT
 		"cancel", "cancel_pending":
 			return ACTION_CANCEL_PENDING
@@ -112,7 +113,10 @@ static func platform_mode_supports_elevator(mode: String) -> bool:
 	return normalize_platform_mode(mode) == MODE_ELEVATOR
 
 static func platform_mode_supports_rotator(mode: String) -> bool:
-	return normalize_platform_mode(mode) == MODE_ROTATOR
+	return normalize_platform_mode(mode) == MODE_ROTATE
+
+static func platform_mode_supports_rotate(mode: String) -> bool:
+	return platform_mode_supports_rotator(mode)
 
 static func clamp_platform_level(value: int, max_level: int) -> int:
 	return clampi(value, 0, maxi(max_level, 0))
