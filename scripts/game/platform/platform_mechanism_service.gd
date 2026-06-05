@@ -28,14 +28,40 @@ static func get_mechanism_id(platform_data: Dictionary) -> String:
 	return str(platform_data.get("mechanism_id", platform_data.get("platform_mechanism_id", ""))).strip_edges()
 
 static func is_platform_data(platform_data: Dictionary) -> bool:
+	var nested_data: Dictionary = Dictionary(platform_data.get("data", {}))
+	if not nested_data.is_empty() and is_platform_data(nested_data):
+		return true
 	var type_value: String = str(platform_data.get("object_type", platform_data.get("type", platform_data.get("platform_type", "")))).to_lower().strip_edges()
+	var group_value: String = str(platform_data.get("object_group", platform_data.get("group", ""))).to_lower().strip_edges()
+	var archetype_value: String = str(platform_data.get("archetype_id", platform_data.get("map_constructor_prefab_id", ""))).to_lower().strip_edges()
 	var prefab_value: String = str(platform_data.get("map_constructor_prefab_id", platform_data.get("catalog_id", ""))).to_lower().strip_edges()
-	return type_value.contains("platform") or prefab_value.contains("platform") or platform_data.has("platform_mode")
+	return type_value == "platform" or group_value == "platform" or archetype_value == "platform" or prefab_value == "platform" or platform_data.has("platform_mode")
 
-static func collect_platforms_by_mechanism(platforms: Array[Dictionary]) -> Dictionary:
+static func unwrap_platform_data(value: Variant) -> Dictionary:
+	if not value is Dictionary:
+		return {}
+	var data: Dictionary = value as Dictionary
+	if is_platform_data(data):
+		return data
+	var nested_data: Dictionary = Dictionary(data.get("data", {}))
+	if is_platform_data(nested_data):
+		var result: Dictionary = nested_data.duplicate(true)
+		if not result.has("id") and data.has("id"):
+			result["id"] = data.get("id")
+		if not result.has("object_id") and data.has("object_id"):
+			result["object_id"] = data.get("object_id")
+		if not result.has("position") and data.has("position"):
+			result["position"] = data.get("position")
+		if not result.has("cell") and data.has("cell"):
+			result["cell"] = data.get("cell")
+		return result
+	return {}
+
+static func collect_platforms_by_mechanism(platforms: Array) -> Dictionary:
 	var grouped: Dictionary = {}
-	for platform_data in platforms:
-		if not is_platform_data(platform_data):
+	for platform_variant in platforms:
+		var platform_data: Dictionary = unwrap_platform_data(platform_variant)
+		if platform_data.is_empty() or not is_platform_data(platform_data):
 			continue
 		var mechanism_id: String = get_mechanism_id(platform_data)
 		if mechanism_id.is_empty():
@@ -47,13 +73,28 @@ static func collect_platforms_by_mechanism(platforms: Array[Dictionary]) -> Dict
 		grouped[mechanism_id] = members
 	return grouped
 
+static func get_mechanism_members(mechanism_id: String, world_objects_or_members: Array) -> Array[Dictionary]:
+	var normalized_mechanism_id: String = mechanism_id.strip_edges()
+	var members: Array[Dictionary] = []
+	for value in world_objects_or_members:
+		var platform_data: Dictionary = unwrap_platform_data(value)
+		if platform_data.is_empty() or not is_platform_data(platform_data):
+			continue
+		var platform_mechanism_id: String = get_mechanism_id(platform_data)
+		if normalized_mechanism_id.is_empty():
+			if platform_mechanism_id.is_empty():
+				members.append(platform_data)
+		elif platform_mechanism_id == normalized_mechanism_id:
+			members.append(platform_data)
+	return members
+
 static func get_member_cells(members: Array) -> Array[Vector2i]:
 	var cells: Array[Vector2i] = []
 	var seen: Dictionary = {}
 	for member_variant in members:
-		if not member_variant is Dictionary:
+		var member_data: Dictionary = unwrap_platform_data(member_variant)
+		if member_data.is_empty():
 			continue
-		var member_data: Dictionary = member_variant as Dictionary
 		var cell: Vector2i = get_platform_cell(member_data)
 		var key: String = "%s:%s" % [cell.x, cell.y]
 		if seen.has(key):
@@ -126,18 +167,24 @@ static func has_any_ground_adjacency(cells: Array[Vector2i], ground_cells: Array
 static func validate_mechanism(mechanism_id: String, members: Array, ground_cells: Array[Vector2i] = []) -> Dictionary:
 	var errors: Array[String] = []
 	var warnings: Array[String] = []
-	var cells: Array[Vector2i] = get_member_cells(members)
-	if members.is_empty():
+	var platform_members: Array[Dictionary] = []
+	for member_variant in members:
+		var member_data: Dictionary = unwrap_platform_data(member_variant)
+		if member_data.is_empty() or not is_platform_data(member_data):
+			continue
+		platform_members.append(member_data)
+	var cells: Array[Vector2i] = get_member_cells(platform_members)
+	if platform_members.is_empty():
 		errors.append("Platform mechanism has no members.")
 	if cells.is_empty():
 		errors.append("Platform mechanism has no valid cells.")
-	if cells.size() != members.size():
+	if cells.size() != platform_members.size():
 		warnings.append("Some platform members share the same cell or have invalid cell data.")
 	if not are_cells_orthogonally_connected(cells):
 		errors.append("Platform mechanism members must be orthogonally connected.")
 	var platform_mode: String = PlatformTypesRef.MODE_ELEVATOR
-	if not members.is_empty() and members[0] is Dictionary:
-		platform_mode = PlatformTypesRef.normalize_platform_mode(str(Dictionary(members[0]).get("platform_mode", "")))
+	if not platform_members.is_empty():
+		platform_mode = PlatformTypesRef.normalize_platform_mode(str(platform_members[0].get("platform_mode", "")))
 	if PlatformTypesRef.platform_mode_supports_rotator(platform_mode) and not is_square_footprint(cells, true):
 		errors.append("Rotating platform mechanisms must form a filled square footprint.")
 	if PlatformTypesRef.platform_mode_supports_elevator(platform_mode) and not ground_cells.is_empty() and not has_any_ground_adjacency(cells, ground_cells):
@@ -146,7 +193,7 @@ static func validate_mechanism(mechanism_id: String, members: Array, ground_cell
 		"ok": errors.is_empty(),
 		"mechanism_id": mechanism_id,
 		"platform_mode": platform_mode,
-		"member_count": members.size(),
+		"member_count": platform_members.size(),
 		"cells": cells,
 		"bounds": get_cell_bounds(cells),
 		"errors": errors,
@@ -154,19 +201,31 @@ static func validate_mechanism(mechanism_id: String, members: Array, ground_cell
 	}
 
 static func build_mechanism_summary(mechanism_id: String, members: Array) -> Dictionary:
-	var cells: Array[Vector2i] = get_member_cells(members)
-	var platform_ids: Array[String] = []
+	var platform_members: Array[Dictionary] = []
 	for member_variant in members:
-		if member_variant is Dictionary:
-			var platform_id: String = get_platform_id(member_variant as Dictionary)
-			if not platform_id.is_empty():
-				platform_ids.append(platform_id)
+		var member_data: Dictionary = unwrap_platform_data(member_variant)
+		if member_data.is_empty() or not is_platform_data(member_data):
+			continue
+		platform_members.append(member_data)
+	var cells: Array[Vector2i] = get_member_cells(platform_members)
+	var platform_ids: Array[String] = []
+	for member_data in platform_members:
+		var platform_id: String = get_platform_id(member_data)
+		if not platform_id.is_empty():
+			platform_ids.append(platform_id)
 	return {
+		"ok": not platform_members.is_empty(),
 		"mechanism_id": mechanism_id,
-		"member_count": members.size(),
+		"member_count": platform_members.size(),
 		"platform_ids": platform_ids,
 		"cells": cells,
 		"bounds": get_cell_bounds(cells),
 		"is_connected": are_cells_orthogonally_connected(cells),
-		"is_square": is_square_footprint(cells, true)
+		"is_square": is_square_footprint(cells, true),
+		"errors": [] if not platform_members.is_empty() else ["Platform mechanism has no members."],
+		"warnings": []
 	}
+
+static func get_mechanism_summary(mechanism_id: String, world_objects_or_members: Array) -> Dictionary:
+	var members: Array[Dictionary] = get_mechanism_members(mechanism_id, world_objects_or_members)
+	return build_mechanism_summary(mechanism_id, members)
