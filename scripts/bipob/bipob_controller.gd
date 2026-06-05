@@ -28,12 +28,13 @@ const EXTERNAL_SIDE_BACK := "back"
 const RUNTIME_MODE_LEGACY_STORY := "legacy_story"
 const RUNTIME_MODE_TASK_TEST := "task_test"
 const RUNTIME_MODE_UNKNOWN := "unknown"
-const LEGACY_STORY_MISSION_MIN_INDEX := 1
-const LEGACY_STORY_MISSION_MAX_INDEX := 9
-const RETIRED_LEGACY_MISSION_INDEXES: Array[int] = [7, 8]
-const TASK_TEST_MISSION_INDEX := 10
-const TASK_TEST_COMPAT_MISSION_ID := "mission_10"
-const TASK_TEST_LAYOUT_ID := "task_test"
+const MissionIdsRef = preload("res://scripts/game/mission_ids.gd")
+const LEGACY_STORY_MISSION_MIN_INDEX := MissionIdsRef.LEGACY_STORY_MISSION_MIN_INDEX
+const LEGACY_STORY_MISSION_MAX_INDEX := MissionIdsRef.LEGACY_STORY_MISSION_MAX_INDEX
+const RETIRED_LEGACY_MISSION_INDEXES: Array[int] = MissionIdsRef.RETIRED_LEGACY_MISSION_INDEXES
+const TASK_TEST_MISSION_INDEX := MissionIdsRef.TASK_TEST_INDEX
+const TASK_TEST_COMPAT_MISSION_ID := MissionIdsRef.TASK_TEST_COMPAT_MISSION_ID
+const TASK_TEST_LAYOUT_ID := MissionIdsRef.TASK_TEST_LAYOUT_ID
 
 const EXTERNAL_SIDE_ORDER := [
 	EXTERNAL_SIDE_TOP,
@@ -1225,13 +1226,13 @@ func get_runtime_mode_id() -> String:
 		return RUNTIME_MODE_TASK_TEST
 	if normalized_mission_id.begins_with("mission_"):
 		var mission_index_from_id: int = int(normalized_mission_id.trim_prefix("mission_"))
-		if mission_index_from_id >= LEGACY_STORY_MISSION_MIN_INDEX and mission_index_from_id <= LEGACY_STORY_MISSION_MAX_INDEX and not is_retired_legacy_mission_index(mission_index_from_id):
+		if MissionIdsRef.is_legacy_story_mission_index(mission_index_from_id):
 			return RUNTIME_MODE_LEGACY_STORY
 
 	# Legacy compatibility fallback only; explicit runtime mode/current_mission_id should be authoritative.
 	if current_mission_index == TASK_TEST_MISSION_INDEX:
 		return RUNTIME_MODE_TASK_TEST
-	if current_mission_index >= LEGACY_STORY_MISSION_MIN_INDEX and current_mission_index <= LEGACY_STORY_MISSION_MAX_INDEX and not is_retired_legacy_mission_index(current_mission_index):
+	if MissionIdsRef.is_legacy_story_mission_index(current_mission_index):
 		return RUNTIME_MODE_LEGACY_STORY
 	return RUNTIME_MODE_UNKNOWN
 
@@ -1239,7 +1240,7 @@ func _is_task_test_mission_id(mission_id: String) -> bool:
 	var normalized_mission_id: String = mission_id.strip_edges()
 	if mission_manager != null and mission_manager.has_method("is_task_test_mission_id"):
 		return bool(mission_manager.call("is_task_test_mission_id", normalized_mission_id))
-	return normalized_mission_id == TASK_TEST_LAYOUT_ID or normalized_mission_id == TASK_TEST_COMPAT_MISSION_ID
+	return MissionIdsRef.is_task_test_id(normalized_mission_id)
 
 func get_task_test_mission_id() -> String:
 	if mission_manager != null and mission_manager.has_method("get_task_test_mission_id"):
@@ -1276,7 +1277,7 @@ func get_task_test_objective_hint() -> String:
 	return ""
 
 func is_retired_legacy_mission_index(mission_index: int) -> bool:
-	return RETIRED_LEGACY_MISSION_INDEXES.has(mission_index)
+	return MissionIdsRef.is_retired_legacy_mission_index(mission_index)
 
 func get_next_active_mission_index_after(mission_index: int) -> int:
 	var next_index: int = mission_index + 1
