@@ -4,10 +4,13 @@ class_name BipobActionViewModelService
 const InteractionSystemRef = preload("res://scripts/world/interaction_system.gd")
 const ObjectFacingServiceRef = preload("res://scripts/game/object/object_facing_service.gd")
 const WorldObjectCatalogRef = preload("res://scripts/world/world_object_catalog.gd")
+const BreachableWallServiceRef = preload("res://scripts/game/wall/breachable_wall_service.gd")
 
 
 static func build_runtime_action_view_model(controller: Variant, target_object: Dictionary, target_position: Vector2i) -> Dictionary:
 	var normalized_target: Dictionary = WorldObjectCatalogRef.normalize_world_object_contract(target_object)
+	if BreachableWallServiceRef.is_breachable_wall_data(normalized_target):
+		normalized_target = BreachableWallServiceRef.normalize_runtime_breachable_wall_data(normalized_target)
 	if str(normalized_target.get("object_group", "")) == "door":
 		normalized_target = WorldObjectCatalogRef.normalize_door_contract(normalized_target)
 		normalized_target = WorldObjectCatalogRef.normalize_door_state_fields(normalized_target)
@@ -16,9 +19,18 @@ static func build_runtime_action_view_model(controller: Variant, target_object: 
 		raw_action_ids = controller.get_available_world_actions(normalized_target, target_position)
 	var action_ids: Array[String] = []
 	for action_id_variant in raw_action_ids:
-		var action_id: String = str(action_id_variant)
-		if not action_id.is_empty():
+		var action_id: String = str(action_id_variant).strip_edges().to_lower()
+		if action_id.is_empty():
+			continue
+		if BreachableWallServiceRef.is_breachable_wall_data(normalized_target):
+			if action_id == "breach":
+				action_id = BreachableWallServiceRef.ACTION_BREAK_BREACHABLE_WALL
+			if action_id != BreachableWallServiceRef.ACTION_BREAK_BREACHABLE_WALL:
+				continue
+		if not action_ids.has(action_id):
 			action_ids.append(action_id)
+	if BreachableWallServiceRef.is_active_breachable_wall_data(normalized_target) and not action_ids.has(BreachableWallServiceRef.ACTION_BREAK_BREACHABLE_WALL):
+		action_ids.append(BreachableWallServiceRef.ACTION_BREAK_BREACHABLE_WALL)
 	var group: String = str(normalized_target.get("object_group", ""))
 	var state: String = str(normalized_target.get("state", ""))
 	if group == "door":
@@ -42,6 +54,9 @@ static func build_runtime_action_view_model(controller: Variant, target_object: 
 		if enabled and requires_free_manipulator and not controller.can_use_physical_hand():
 			enabled = false
 			reason = "free_manipulator_required"
+		if enabled and BreachableWallServiceRef.is_breachable_wall_data(normalized_target) and action_id == BreachableWallServiceRef.ACTION_BREAK_BREACHABLE_WALL and not _has_heavy_claw_for_breach(controller):
+			enabled = false
+			reason = "heavy_claw_required"
 		if enabled and group == "terminal" and action_id in ["hack", "activate_platform"] and not controller._is_terminal_powered_for_interaction(normalized_target):
 			enabled = false
 			reason = "unpowered"
@@ -58,6 +73,10 @@ static func build_runtime_action_view_model(controller: Variant, target_object: 
 		primary = descriptors[0]
 	var disabled_reason: String = str(primary.get("reason", "target_missing" if normalized_target.is_empty() else "no_available_action"))
 	return {"target":normalized_target, "actions":descriptors, "available_action_ids":available_action_ids, "primary_action_id":str(primary.get("id", "")), "primary_action_label":str(primary.get("label", "Action")), "has_available_action":not available_action_ids.is_empty(), "disabled_reason":disabled_reason}
+
+
+static func _has_heavy_claw_for_breach(controller: Variant) -> bool:
+	return controller != null and controller.has_method("has_heavy_claw_capability") and bool(controller.call("has_heavy_claw_capability"))
 
 
 static func _runtime_action_requires_free_manipulator(action_id: String, target_object: Dictionary) -> bool:
@@ -77,4 +96,6 @@ static func _runtime_action_disabled_label(controller: Variant, action_id: Strin
 		"wrong_breach_side": return "Cracked side only"
 		"wrong_front_side": return ObjectFacingServiceRef.FRONT_SIDE_HINT
 		"heavy_claw_required": return "Heavy Claw required"
+	if BreachableWallServiceRef.is_breachable_wall_data(target_object) and action_id == BreachableWallServiceRef.ACTION_BREAK_BREACHABLE_WALL:
+		return "Heavy Claw required"
 	return controller.get_world_action_display_label(action_id, target_object)
