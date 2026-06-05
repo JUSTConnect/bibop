@@ -1550,13 +1550,15 @@ func get_iso_floor_texture_for_asset_key(asset_key: String) -> Texture2D:
 		if cached_value is Texture2D:
 			return cached_value as Texture2D
 		return null
-	var asset_file: String = str(ISO_FLOOR_ASSET_CATALOG.get(asset_key, ""))
-	var asset_directory: String = ISO_FLOOR_ASSET_PACK_DIR
-	if asset_key == ISO_FLOOR_TEST_ASSET_KEY:
-		asset_directory = ISO_TEST_ASSET_PACK_DIR
-	elif asset_key.begins_with("ground_"):
-		asset_directory = ISO_GROUND_ASSET_PACK_DIR
-	var texture_path: String = asset_directory + asset_file
+	var texture_path: String = VisualAssetCatalogRef.get_asset_path(asset_key)
+	if texture_path.is_empty():
+		var asset_file: String = str(ISO_FLOOR_ASSET_CATALOG.get(asset_key, ""))
+		var asset_directory: String = ISO_FLOOR_ASSET_PACK_DIR
+		if asset_key == ISO_FLOOR_TEST_ASSET_KEY:
+			asset_directory = ISO_TEST_ASSET_PACK_DIR
+		elif asset_key.begins_with("ground_"):
+			asset_directory = ISO_GROUND_ASSET_PACK_DIR
+		texture_path = asset_directory + asset_file
 	if ResourceLoader.exists(texture_path):
 		var loaded_resource: Resource = ResourceLoader.load(texture_path)
 		if loaded_resource is Texture2D:
@@ -1601,8 +1603,10 @@ func get_iso_ground_texture_for_asset_key(asset_key: String) -> Texture2D:
 		if cached_value is Texture2D:
 			return cached_value as Texture2D
 		return null
-	var asset_file: String = str(ISO_GROUND_ASSET_CATALOG.get(asset_key, ""))
-	var texture_path: String = ISO_GROUND_ASSET_PACK_DIR + asset_file
+	var texture_path: String = VisualAssetCatalogRef.get_asset_path(asset_key)
+	if texture_path.is_empty():
+		var asset_file: String = str(ISO_GROUND_ASSET_CATALOG.get(asset_key, ""))
+		texture_path = ISO_GROUND_ASSET_PACK_DIR + asset_file
 	if ResourceLoader.exists(texture_path):
 		var loaded_resource: Resource = ResourceLoader.load(texture_path)
 		if loaded_resource is Texture2D:
@@ -1824,11 +1828,13 @@ func get_iso_wall_texture_for_asset_key(asset_key: String) -> Texture2D:
 			if cached_value is Texture2D:
 				return cached_value as Texture2D
 			return null
-		var asset_file: String = str(catalog.get(normalized_key, ""))
-		var pack_dir: String = ISO_WALL_ASSET_PACK_DIR
-		if normalized_key.begins_with("wall_gray_"):
-			pack_dir = ISO_TEST_ASSET_PACK_DIR
-		var texture_path: String = pack_dir + asset_file
+		var texture_path: String = VisualAssetCatalogRef.get_asset_path(normalized_key)
+		if texture_path.is_empty():
+			var asset_file: String = str(catalog.get(normalized_key, ""))
+			var pack_dir: String = ISO_WALL_ASSET_PACK_DIR
+			if normalized_key.begins_with("wall_gray_"):
+				pack_dir = ISO_TEST_ASSET_PACK_DIR
+			texture_path = pack_dir + asset_file
 		if ResourceLoader.exists(texture_path):
 			var loaded_resource: Resource = ResourceLoader.load(texture_path)
 			if loaded_resource is Texture2D:
@@ -2439,6 +2445,9 @@ func get_iso_object_png_asset_path(asset_key: String) -> String:
 	var normalized_asset_key: String = asset_key.strip_edges().to_lower()
 	if normalized_asset_key.is_empty():
 		return ""
+	var catalog_path: String = VisualAssetCatalogRef.get_asset_path(normalized_asset_key)
+	if catalog_path.ends_with(".png") and (catalog_path.find("/objects/") >= 0 or catalog_path.find("/moovable/") >= 0):
+		return catalog_path
 	if not ISO_OBJECT_PNG_ASSET_PATHS.has(normalized_asset_key):
 		return ""
 	return str(ISO_OBJECT_PNG_ASSET_PATHS.get(normalized_asset_key, ""))
@@ -2472,10 +2481,12 @@ func get_iso_object_png_texture_for_asset_key(asset_key: String) -> Texture2D:
 func get_iso_placeholder_asset_path(asset_key: String) -> String:
 	if asset_key == "":
 		return ""
+	var placeholder_path: String = VisualAssetCatalogRef.get_asset_path(asset_key)
+	if placeholder_path.find("/placeholders/") >= 0:
+		return placeholder_path
 	if not ISO_PLACEHOLDER_ASSET_PATHS.has(asset_key):
 		return ""
-	var placeholder_path: String = str(ISO_PLACEHOLDER_ASSET_PATHS.get(asset_key, ""))
-	return placeholder_path
+	return str(ISO_PLACEHOLDER_ASSET_PATHS.get(asset_key, ""))
 
 func is_placeholder_object_texture_path(texture_path: String) -> bool:
 	var normalized_path: String = texture_path.strip_edges().to_lower()
@@ -2703,7 +2714,7 @@ func validate_iso_object_png_assets() -> Dictionary:
 	var invalid_textures: Array[Dictionary] = []
 	var svg_conflicts: Array[Dictionary] = []
 	var assets: Dictionary = {}
-	for visual_id_variant in ISO_OBJECT_CANONICAL_VISUAL_IDS:
+	for visual_id_variant in VisualAssetCatalogRef.get_canonical_object_visual_ids():
 		var visual_id: String = str(visual_id_variant)
 		var expected_path: String = get_iso_object_png_asset_path(visual_id)
 		var exists: bool = false
@@ -2721,7 +2732,7 @@ func validate_iso_object_png_assets() -> Dictionary:
 			svg_conflicts.append({"visual_id": visual_id, "png_path": expected_path, "svg_path": placeholder_path})
 	return {
 		"ok": missing_paths.is_empty() and invalid_textures.is_empty() and svg_conflicts.is_empty(),
-		"asset_count": ISO_OBJECT_CANONICAL_VISUAL_IDS.size(),
+		"asset_count": VisualAssetCatalogRef.get_canonical_object_visual_ids().size(),
 		"assets": assets,
 		"missing_paths": missing_paths,
 		"invalid_textures": invalid_textures,
