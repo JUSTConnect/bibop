@@ -945,6 +945,11 @@ static func normalize_world_object_contract(object_data: Dictionary) -> Dictiona
 	data = normalize_item_contract(data)
 	data = normalize_cable_contract(data)
 	var normalized_object_type: String = _normalized_contract_token(data.get("object_type", ""))
+	if normalized_object_type in ["barrel", "explosive_barrel", "fire_barrel", "normal_crate", "heavy_crate", "steel_box"] or bool(data.get("heavy_claw_movable", false)) and str(data.get("weight_class", "")).to_lower() in ["normal", "heavy", "block"]:
+		data["blocks_movement"] = true
+		data["walkable"] = false
+		data["passable"] = false
+		data["is_obstacle"] = true
 	if normalized_object_type in ["power_source", "power_source_class_1", "power_source_class_2", "power_source_class_3"]:
 		data["blocks_movement"] = true
 		data["blocks_vision"] = _safe_bool_like(data.get("blocks_vision", false), false)
