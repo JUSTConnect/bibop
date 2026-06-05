@@ -80,7 +80,8 @@ const PREFAB_ALIASES: Dictionary = {
 	"water_floor": "floor",
 	"oil_floor": "floor",
 	"dirty_floor": "floor",
-	"debris_floor": "floor"
+	"debris_floor": "floor",
+	"breachable_wall": "wall"
 }
 
 const LEGACY_SOURCE_METADATA_FIELDS: Array[String] = ["legacy_prefab_id", "map_constructor_prefab_id", "legacy_object_type", "source_prefab_id"]
@@ -98,7 +99,8 @@ const PREFAB_ALIAS_DEFAULTS: Dictionary = {
 	"water_floor": {"object_group":"floor", "covering":"water"},
 	"oil_floor": {"object_group":"floor", "covering":"oil"},
 	"dirty_floor": {"object_group":"floor", "covering":"dirt"},
-	"debris_floor": {"object_group":"floor", "covering":"debris"}
+	"debris_floor": {"object_group":"floor", "covering":"debris"},
+	"breachable_wall": {"object_group":"wall", "is_breachable_wall":true, "wall_archetype":"breachable", "material":"breachable_concrete", "breach_side":"sw", "breach_state":"intact", "supports_embedded_objects":false, "supports_cables":false}
 }
 
 # Hidden compatibility mappings for loading old constructor/runtime data only.
@@ -1270,7 +1272,7 @@ static func _schema_defaults(archetype_id: String) -> Dictionary:
 
 static func _normalize_wall_material(value: Variant) -> String:
 	var material: String = _normalized_contract_token(value)
-	return material if WALL_MATERIALS.has(material) else WALL_MATERIAL_BRICK
+	return material if WALL_MATERIALS.has(material) or BREACHABLE_WALL_MATERIALS.has(material) else WALL_MATERIAL_BRICK
 
 
 static func normalize_breach_side(value: Variant) -> String:
@@ -1341,7 +1343,7 @@ static func get_grid_side_for_breachable_wall_breach_side(breach_side: Variant) 
 static func is_breachable_wall(object_data: Dictionary) -> bool:
 	if object_data.is_empty():
 		return false
-	return _normalized_contract_token(object_data.get("archetype_id", "")) == "breachable_wall" or _normalized_contract_token(object_data.get("object_type", "")) == "breachable_wall" or bool(object_data.get("is_breachable_wall", false))
+	return _normalized_contract_token(object_data.get("archetype_id", "")) == "breachable_wall" or _normalized_contract_token(object_data.get("object_type", "")) == "breachable_wall" or _normalized_contract_token(object_data.get("legacy_object_type", "")) == "breachable_wall" or bool(object_data.get("is_breachable_wall", false))
 
 
 static func wall_side_delta(side: String) -> Vector2i:
@@ -1368,9 +1370,12 @@ static func get_wall_side_for_adjacent_actor(wall_cell: Vector2i, actor_cell: Ve
 static func can_heavy_claw_breach_wall_from_side(object_data: Dictionary, actor_side: String) -> bool:
 	if not is_breachable_wall(object_data):
 		return false
-	if str(object_data.get("state", "active")).strip_edges().to_lower() in ["open", "destroyed", "breached", "removed"]:
+	if str(object_data.get("breach_state", object_data.get("state", "active"))).strip_edges().to_lower() in ["open", "destroyed", "breached", "removed"]:
 		return false
-	return normalize_breach_side(actor_side) == get_grid_side_for_breachable_wall_breach_side(object_data.get("breach_side", "sw"))
+	var breach_side: String = normalize_breachable_wall_breach_side(object_data.get("breach_side", "sw"))
+	if breach_side not in ["sw", "se"]:
+		return false
+	return normalize_breach_side(actor_side) == get_grid_side_for_breachable_wall_breach_side(breach_side)
 
 static func _label_for_id(value: Variant) -> String:
 	return _normalized_contract_token(value).replace("_", " ").capitalize()

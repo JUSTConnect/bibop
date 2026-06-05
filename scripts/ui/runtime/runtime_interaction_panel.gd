@@ -13,7 +13,7 @@ static func is_connector_action(action_id: String) -> bool:
 
 
 static func is_heavy_claw_action(action_id: String) -> bool:
-	return action_id == "push"
+	return action_id in ["push", "break_breachable_wall"]
 
 
 static func get_physical_actions(actions: Array) -> Array[String]:
@@ -38,13 +38,16 @@ static func get_connect_descriptor(target_data: Dictionary) -> Dictionary:
 
 
 static func get_heavy_claw_descriptor(target_data: Dictionary) -> Dictionary:
+	var breach_descriptor: Dictionary = get_action_descriptor(target_data, "break_breachable_wall")
+	if not breach_descriptor.is_empty():
+		return breach_descriptor
 	return get_action_descriptor(target_data, "push")
 
 
 static func action_requires_manipulator(action_id: String, target_object: Dictionary) -> bool:
 	if action_id == "pickup" and str(target_object.get("item_form", "physical")) == "digital":
 		return false
-	return action_id in ["pickup", "open", "close", "unlock", "switch", "force_open", "push", "pull", "insert_fuse", "remove_fuse", "repair", "cut", "impact", "take_end_1", "take_end_2", "plug_in", "plug_out", "connect_wire_end", "connect_wire_1", "connect_wire_2", "disconnect_power_wire", "disconnect_wire_1", "disconnect_wire_2"]
+	return action_id in ["pickup", "open", "close", "unlock", "switch", "force_open", "break_breachable_wall", "push", "pull", "insert_fuse", "remove_fuse", "repair", "cut", "impact", "take_end_1", "take_end_2", "plug_in", "plug_out", "connect_wire_end", "connect_wire_1", "connect_wire_2", "disconnect_power_wire", "disconnect_wire_1", "disconnect_wire_2"]
 
 
 static func is_manipulator_blocked(ui, target_object: Dictionary, actions: Array) -> bool:
@@ -160,7 +163,7 @@ static func press_heavy_claw(ui) -> void:
 		ui.show_hint(str(descriptor.get("label", "No heavy object in front.")))
 		refresh_controls(ui)
 		return
-	press_action(ui, "push")
+	press_action(ui, str(descriptor.get("id", "push")))
 
 
 static func use_selected_world_action(ui) -> void:

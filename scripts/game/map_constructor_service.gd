@@ -117,6 +117,8 @@ func place_map_constructor_prefab(prefab_id: String, cell: Vector2i, preferred_w
 		if not bool(attachment.get("ok", false)):
 			return {"ok": false, "reason": str(attachment.get("reason", "no_adjacent_wall")), "message": str(attachment.get("message", "Blocked: no adjacent wall.")), "object_id": "", "warnings": []}
 		var attached_wall_cell: Vector2i = Vector2i(attachment.get("attached_wall_cell", Vector2i(-1, -1)))
+		if manager.has_method("is_breachable_wall_cell") and bool(manager.call("is_breachable_wall_cell", attached_wall_cell)):
+			return {"ok": false, "reason": "breachable_wall_blocks_wall_mount", "message": "Cannot mount on a Breachable Wall.", "object_id": "", "warnings": []}
 		if not manager._is_wall_or_boundary_cell(attached_wall_cell):
 			return {"ok": false, "reason": "invalid_wall_attachment", "message": "Blocked: attached wall cell is not wall/boundary.", "object_id": "", "warnings": []}
 		object_data["placement_mode"] = "wall_mounted"
@@ -126,6 +128,8 @@ func place_map_constructor_prefab(prefab_id: String, cell: Vector2i, preferred_w
 	if CableTopologyServiceRef.is_cable_object(object_data):
 		if _normalize_cable_install_mode(object_data.get("cable_install_mode", object_data.get("install_mode", "floor"))) == "wall" and not manager._is_map_constructor_wall_cell(cell):
 			return {"ok": false, "reason": "wall_cable_requires_wall", "message": "Wall cable requires a wall in this cell.", "object_id": "", "warnings": []}
+		if _normalize_cable_install_mode(object_data.get("cable_install_mode", object_data.get("install_mode", "floor"))) == "wall" and manager.has_method("is_breachable_wall_cell") and bool(manager.call("is_breachable_wall_cell", cell)):
+			return {"ok": false, "reason": "breachable_wall_blocks_cable", "message": "Cannot route cables on a Breachable Wall.", "object_id": "", "warnings": []}
 		var cable_validation: Dictionary = CableTopologyServiceRef.validate_placement(cell, manager.mission_world_objects, object_data)
 		if not bool(cable_validation.get("ok", false)):
 			return {"ok": false, "reason": "invalid_cable_junction", "message": str(cable_validation.get("message", CableTopologyServiceRef.ERROR_MESSAGE_JUNCTION_REQUIRES_SWITCH)), "object_id": "", "warnings": [], "cable_topology": cable_validation}
@@ -770,6 +774,10 @@ func apply_map_constructor_property_update(entity_kind: String, entity_id: Strin
 	if _is_cable_entity_data(data) and field_name in ["mount", "cable_install_mode", "install_mode", "placement_mode", "route_surface"] and _normalize_cable_install_mode(new_value) == "wall":
 		if not _cable_wall_install_missing_wall_cells(data).is_empty():
 			result["message"] = "Wall cable requires a wall in this cell."
+			return result
+		var cable_cell: Vector2i = manager._deserialize_cell_variant(data.get("position", data.get("cell", Vector2i(-1, -1))))
+		if manager.has_method("is_breachable_wall_cell") and bool(manager.call("is_breachable_wall_cell", cable_cell)):
+			result["message"] = "Cannot route cables on a Breachable Wall."
 			return result
 	var old_value: Variant = data.get(field_name)
 	var old_network_id: String = str(data.get("power_network_id", ""))
