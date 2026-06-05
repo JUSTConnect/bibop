@@ -39,6 +39,7 @@ const CableTopologyServiceRef = preload("res://scripts/game/cable_topology_servi
 @export var debug_draw_iso_cell_outlines: bool = false
 @export var debug_draw_iso_wall_outlines: bool = false
 @export var debug_draw_iso_object_outlines: bool = false
+@export var debug_log_iso_object_asset_resolution: bool = false
 @export var use_iso_tile_asset_hooks: bool = false
 @export var use_iso_placeholder_asset_preset: bool = false
 @export var iso_placeholder_asset_preset_requires_preview: bool = true
@@ -2042,17 +2043,20 @@ func draw_iso_wall_asset_texture_for_cell(cell: Vector2i, profile_key: String, t
 	return true
 
 func get_iso_object_asset_key_for_profile(profile_key: String) -> String:
-	match profile_key:
+	var normalized_profile_key: String = profile_key.strip_edges().to_lower()
+	match normalized_profile_key:
 		"door", "digital_door", "powered_gate":
 			return "object_door"
-		"terminal", "airflow_terminal":
-			return "object_terminal"
+		"terminal", "airflow_terminal", "door_terminal", "platform_terminal", "cooling_terminal":
+			return "terminal_01"
 		"key":
 			return "object_key"
 		"keycard", "digital_key":
 			return "object_keycard"
-		"fuse", "fuse_box":
+		"fuse":
 			return "object_fuse"
+		"fuse_box":
+			return "fuse_box_in_01"
 		"repair_kit":
 			return "object_repair_kit"
 		"access_code", "datafile":
@@ -2063,12 +2067,24 @@ func get_iso_object_asset_key_for_profile(profile_key: String) -> String:
 			return "object_socket"
 		"cable":
 			return "object_cable"
-		"cable_reel":
-			return "object_cable_reel"
+		"cable_reel", "power_cable_reel":
+			return "cable_reel_01"
 		"button", "platform_control", "fan_control", "fan_speed_control":
 			return "object_button"
-		"switch", "breaker", "circuit_breaker":
-			return "object_switch"
+		"switch", "breaker", "circuit_breaker", "light_switch", "power_switcher":
+			return "power_switcher_off_01"
+		"power_source":
+			return "power_source_01"
+		"radiator":
+			return "radiator_01"
+		"light":
+			return "light_01"
+		"barrel":
+			return "barrel_01"
+		"crate", "box", "steel_box":
+			return "steel_box_01"
+		"case":
+			return "case_01"
 		_:
 			return "object_generic"
 
@@ -2093,8 +2109,14 @@ func get_iso_object_profile_key_for_object_data(object_data: Dictionary, fallbac
 		return "cable"
 	if blob.contains("power_source"):
 		return "power_source"
+	if blob.contains("radiator"):
+		return "radiator"
+	if blob.contains("power_switcher"):
+		return "power_switcher"
 	if blob.contains("circuit_switch") or blob.contains("light_switch") or blob.contains("breaker") or blob.contains("switch"):
 		return "switch"
+	if blob.contains("light"):
+		return "light"
 	if blob.contains("door") or blob.contains("powered_gate"):
 		return "door"
 	if blob.contains("terminal"):
@@ -2138,11 +2160,12 @@ func _is_fuse_present(object_data: Dictionary) -> bool:
 
 func get_iso_object_asset_key_for_object_data(object_data: Dictionary, fallback_profile_key: String) -> String:
 	var fallback_asset_key: String = get_iso_object_asset_key_for_profile(fallback_profile_key)
-	var type_value: String = str(object_data.get("object_type", object_data.get("type", ""))).to_lower().strip_edges()
+	var type_value: String = str(object_data.get("object_type", object_data.get("item_type", object_data.get("type", "")))).to_lower().strip_edges()
+	var prefab_value: String = str(object_data.get("map_constructor_prefab_id", object_data.get("catalog_id", ""))).to_lower().strip_edges()
 	var group_value: String = str(object_data.get("group", "")).to_lower().strip_edges()
 	var name_value: String = str(object_data.get("name", "")).to_lower().strip_edges()
 	var id_value: String = str(object_data.get("id", object_data.get("object_id", ""))).to_lower().strip_edges()
-	var blob: String = "%s %s %s %s %s" % [fallback_profile_key.to_lower(), type_value, group_value, name_value, id_value]
+	var blob: String = "%s %s %s %s %s %s" % [fallback_profile_key.to_lower(), type_value, prefab_value, group_value, name_value, id_value]
 	if type_value == "power_switcher" or blob.contains("power_switcher"):
 		var mount: String = _get_object_mount_mode(object_data)
 		var on_suffix: String = "on" if _is_object_state_on(object_data) else "off"
@@ -2154,6 +2177,12 @@ func get_iso_object_asset_key_for_object_data(object_data: Dictionary, fallback_
 		if _get_object_mount_mode(object_data) == "wall":
 			return "fuse_box_%s_wall_01" % fuse_suffix
 		return "fuse_box_%s_01" % fuse_suffix
+	if blob.contains("circuit_switch") or blob.contains("light_switch") or blob.contains("breaker") or blob.contains("switch"):
+		var switch_mount: String = _get_object_mount_mode(object_data)
+		var switch_suffix: String = "on" if _is_object_state_on(object_data) else "off"
+		if switch_mount == "wall":
+			return "power_switcher_%s_wall_01" % switch_suffix
+		return "power_switcher_%s_01" % switch_suffix
 	if type_value == "barrel" or blob.contains("barrel"):
 		var barrel_variant: String = str(object_data.get("variant", "normal")).to_lower().strip_edges()
 		return "fire_barrel_01" if barrel_variant == "fire" or type_value == "fire_barrel" or blob.contains("fire_barrel") or blob.contains("fire barrel") else "barrel_01"
@@ -2196,10 +2225,46 @@ func get_iso_object_asset_key_for_object_data(object_data: Dictionary, fallback_
 	if blob.contains("button"):
 		return "object_button"
 	if blob.contains("switch") or blob.contains("breaker"):
-		return "object_switch"
+		var fallback_mount: String = _get_object_mount_mode(object_data)
+		var fallback_switch_suffix: String = "on" if _is_object_state_on(object_data) else "off"
+		if fallback_mount == "wall":
+			return "power_switcher_%s_wall_01" % fallback_switch_suffix
+		return "power_switcher_%s_01" % fallback_switch_suffix
 	if fallback_asset_key.is_empty():
 		return "object_generic"
 	return fallback_asset_key
+
+func get_iso_object_asset_resolution_diagnostic(object_data: Dictionary, fallback_profile_key: String, resolved_asset_key: String) -> Dictionary:
+	var normalized_asset_key: String = resolved_asset_key.strip_edges().to_lower()
+	var resolved_path: String = get_iso_object_png_asset_path(normalized_asset_key)
+	var used_png: bool = not resolved_path.is_empty()
+	var used_svg_fallback: bool = false
+	if not used_png:
+		resolved_path = get_iso_placeholder_asset_path(normalized_asset_key)
+		used_svg_fallback = not resolved_path.is_empty() and is_placeholder_object_texture_path(resolved_path)
+	return {
+		"object_id": str(object_data.get("id", object_data.get("object_id", ""))),
+		"object_type": str(object_data.get("object_type", object_data.get("item_type", object_data.get("type", "")))),
+		"fallback_profile": fallback_profile_key,
+		"resolved_asset_key": normalized_asset_key,
+		"resolved_path": resolved_path,
+		"used_png": used_png,
+		"used_svg_fallback": used_svg_fallback
+	}
+
+func log_iso_object_asset_resolution(object_data: Dictionary, fallback_profile_key: String, resolved_asset_key: String) -> void:
+	if not debug_log_iso_object_asset_resolution:
+		return
+	var diagnostic: Dictionary = get_iso_object_asset_resolution_diagnostic(object_data, fallback_profile_key, resolved_asset_key)
+	print("[IsoObjectAsset] object_id=%s object_type=%s fallback_profile=%s resolved_asset_key=%s resolved_path=%s used_png=%s used_svg_fallback=%s" % [
+		str(diagnostic.get("object_id", "")),
+		str(diagnostic.get("object_type", "")),
+		str(diagnostic.get("fallback_profile", "")),
+		str(diagnostic.get("resolved_asset_key", "")),
+		str(diagnostic.get("resolved_path", "")),
+		str(diagnostic.get("used_png", false)),
+		str(diagnostic.get("used_svg_fallback", false))
+	])
 
 func get_iso_object_png_asset_path(asset_key: String) -> String:
 	var normalized_asset_key: String = asset_key.strip_edges().to_lower()
@@ -5117,6 +5182,7 @@ func draw_iso_object_marker(cell: Vector2i, tile_type: int, override_object_data
 	if not wall_mounted_profile_key.is_empty():
 		profile_key = wall_mounted_profile_key
 		object_asset_key = get_iso_object_asset_key_for_object_data(object_data, profile_key)
+	log_iso_object_asset_resolution(object_data, profile_key, object_asset_key)
 	var profile: Dictionary = get_iso_object_profile(profile_key)
 	if CableTopologyServiceRef.is_circuit_switch_object(object_data):
 		var switch_topology: Dictionary = CableTopologyServiceRef.classify_cell(cell, _get_runtime_world_objects_for_iso_render(true), object_data)
