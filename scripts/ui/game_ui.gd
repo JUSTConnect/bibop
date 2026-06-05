@@ -127,6 +127,8 @@ var runtime_heavy_claw_button: Button = null
 var runtime_end_turn_button: Button = null
 var runtime_notification_label: Label = null
 var runtime_notification_panel: PanelContainer = null
+var runtime_terminal_response_panel: PanelContainer = null
+var runtime_terminal_response_label: Label = null
 var runtime_notification_timer: float = 0.0
 var runtime_notification_role: String = "neutral"
 var runtime_interaction_actions_signature: String = ""
@@ -619,6 +621,7 @@ func _sync_runtime_bipob_visual_state() -> void:
 func _on_runtime_bipob_status_changed() -> void:
 	update_status()
 	update_diagnostic_status()
+	update_terminal_response_hud()
 	update_box_status()
 	call_deferred("_sync_runtime_bipob_visual_state")
 
@@ -4753,6 +4756,8 @@ func _apply_runtime_hud_layout() -> void:
 	mission_goal_value_label.text = _get_runtime_mission_objective_text()
 	objective_lines.add_child(mission_goal_value_label)
 
+	_create_runtime_terminal_response_hud(root, margin, top_panel_height)
+
 	runtime_notification_panel = PanelContainer.new()
 	runtime_notification_panel.name = "RuntimeNotificationPanel"
 	runtime_notification_panel.custom_minimum_size = Vector2(300, top_panel_height)
@@ -5036,6 +5041,48 @@ func _create_runtime_mission_panel() -> PanelContainer:
 		exit_main_menu_button.size_flags_vertical = Control.SIZE_EXPAND_FILL
 		_safe_reparent_control(exit_main_menu_button, vbox)
 	return panel
+
+
+func _create_runtime_terminal_response_hud(root: Control, margin: float, top_panel_height: float) -> void:
+	runtime_terminal_response_panel = PanelContainer.new()
+	runtime_terminal_response_panel.name = "RuntimeTerminalResponseHud"
+	runtime_terminal_response_panel.position = Vector2(margin, margin + top_panel_height + 6.0)
+	runtime_terminal_response_panel.size = Vector2(430, 118)
+	runtime_terminal_response_panel.visible = false
+	runtime_terminal_response_panel.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	var terminal_bg: Color = Color(UI_COLOR_PANEL_DARK.r, UI_COLOR_PANEL_DARK.g, UI_COLOR_PANEL_DARK.b, 0.76)
+	runtime_terminal_response_panel.add_theme_stylebox_override("panel", _make_panel_style(terminal_bg, UI_COLOR_ACCENT, 1, 8))
+	root.add_child(runtime_terminal_response_panel)
+
+	var terminal_margin := MarginContainer.new()
+	terminal_margin.add_theme_constant_override("margin_left", 10)
+	terminal_margin.add_theme_constant_override("margin_right", 10)
+	terminal_margin.add_theme_constant_override("margin_top", 6)
+	terminal_margin.add_theme_constant_override("margin_bottom", 6)
+	runtime_terminal_response_panel.add_child(terminal_margin)
+
+	var terminal_lines := VBoxContainer.new()
+	terminal_lines.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	terminal_lines.size_flags_vertical = Control.SIZE_EXPAND_FILL
+	terminal_lines.add_theme_constant_override("separation", 3)
+	terminal_margin.add_child(terminal_lines)
+
+	var terminal_heading := Label.new()
+	terminal_heading.name = "RuntimeTerminalResponseHeading"
+	terminal_heading.text = "TERMINAL"
+	terminal_heading.add_theme_color_override("font_color", UI_COLOR_TEXT_DIM)
+	terminal_lines.add_child(terminal_heading)
+
+	runtime_terminal_response_label = Label.new()
+	runtime_terminal_response_label.name = "RuntimeTerminalResponseLabel"
+	runtime_terminal_response_label.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	runtime_terminal_response_label.clip_text = true
+	runtime_terminal_response_label.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	runtime_terminal_response_label.size_flags_vertical = Control.SIZE_EXPAND_FILL
+	runtime_terminal_response_label.add_theme_color_override("font_color", UI_COLOR_ACCENT)
+	terminal_lines.add_child(runtime_terminal_response_label)
+
+	_update_terminal_response_hud()
 
 func _create_runtime_world_actions_panel() -> PanelContainer:
 	var panel := PanelContainer.new()
@@ -7611,6 +7658,7 @@ func _on_remove_external_module_pressed() -> void:
 
 func show_hint(message: String) -> void:
 	RuntimeNotifications.show_hint(self, message)
+	update_terminal_response_hud()
 
 
 func _on_constructor_dashboard_button_pressed() -> void:
@@ -12372,6 +12420,7 @@ func _on_scan_device_button_pressed() -> void:
 	bipob.scan_device()
 	update_status()
 	update_diagnostic_status()
+	update_terminal_response_hud()
 	update_box_status()
 
 func _on_hack_device_button_pressed() -> void:
@@ -12422,10 +12471,28 @@ func _on_runtime_settings_pressed() -> void:
 func _on_runtime_exit_to_main_menu_pressed() -> void:
 	show_main_menu_screen()
 
+
+func update_terminal_response_hud() -> void:
+	_update_terminal_response_hud()
+
+func _update_terminal_response_hud() -> void:
+	if runtime_terminal_response_panel == null or runtime_terminal_response_label == null:
+		return
+	var connected: bool = bipob != null and bipob.has_method("is_connected_to_terminal") and bool(bipob.call("is_connected_to_terminal"))
+	var response_text: String = ""
+	if bipob != null and bipob.has_method("get_terminal_response_text"):
+		response_text = str(bipob.call("get_terminal_response_text")).strip_edges()
+	runtime_terminal_response_panel.visible = connected or not response_text.is_empty()
+	if response_text.is_empty():
+		runtime_terminal_response_label.text = "Connected. Select Scan to run diagnostics." if connected else ""
+	else:
+		runtime_terminal_response_label.text = response_text
+
 func update_status() -> void:
 	if bipob == null:
 		return
 
+	_update_terminal_response_hud()
 	if runtime_energy_label != null:
 		runtime_energy_label.text = _get_runtime_energy_text()
 	if runtime_actions_label != null and is_instance_valid(runtime_actions_label):

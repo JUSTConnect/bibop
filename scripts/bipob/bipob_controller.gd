@@ -8,6 +8,9 @@ signal mission_failed
 signal returned_to_box
 signal world_action_panel_requested(target_object: Dictionary, actions: Array, selected_action: String)
 
+const TERMINAL_MODE_NONE := ""
+const TERMINAL_MODE_CONNECTED := "connected"
+
 enum Direction {
 	NORTH,
 	EAST,
@@ -161,6 +164,12 @@ var available_digital_storage_slots: int = 1
 var buffer_item: Dictionary = {}
 var digital_world_records: Dictionary = {}
 var selected_world_action: String = ""
+var is_terminal_connected: bool = false
+var connected_terminal_id: String = ""
+var connected_terminal_cell: Vector2i = Vector2i(-9999, -9999)
+var terminal_interaction_mode: String = TERMINAL_MODE_NONE
+var terminal_response_text: String = ""
+var allow_connector_workflow_action_once: bool = false
 var selected_grid_cell: Vector2i = Vector2i(-1, -1)
 var selected_route_target_cell: Vector2i = Vector2i(-1, -1)
 var selected_route_cells: Array[Vector2i] = []
@@ -6947,6 +6956,72 @@ func get_facing_world_object() -> Dictionary:
 
 func get_facing_world_item() -> Dictionary:
 	return BipobActionControllerRef.get_facing_world_item(self)
+
+
+func is_connected_to_terminal() -> bool:
+	_validate_terminal_connection_state()
+	return is_terminal_connected
+
+func get_terminal_response_text() -> String:
+	return terminal_response_text
+
+func get_connected_terminal_id() -> String:
+	_validate_terminal_connection_state()
+	return connected_terminal_id
+
+func open_terminal_connection_mode(target_cell: Vector2i = Vector2i(-9999, -9999)) -> Dictionary:
+	if mission_manager == null:
+		_clear_terminal_connection_state("Terminal unavailable.")
+		status_changed.emit()
+		return {"success": false, "message": "Terminal unavailable."}
+	var resolved_cell: Vector2i = target_cell
+	if resolved_cell == Vector2i(-9999, -9999):
+		resolved_cell = get_facing_device_position()
+	var terminal: Dictionary = Dictionary(mission_manager.get_world_object_at_cell(resolved_cell))
+	if terminal.is_empty() or str(terminal.get("object_group", "")) != "terminal":
+		_clear_terminal_connection_state("No terminal connected.")
+		status_changed.emit()
+		return {"success": false, "message": "No terminal connected."}
+	if not bool(terminal.get("connected", false)):
+		_clear_terminal_connection_state("Connector link was not established.")
+		status_changed.emit()
+		return {"success": false, "message": "Connector link was not established."}
+	is_terminal_connected = true
+	connected_terminal_id = str(terminal.get("id", ""))
+	connected_terminal_cell = resolved_cell
+	terminal_interaction_mode = TERMINAL_MODE_CONNECTED
+	var target_name: String = str(terminal.get("display_name", terminal.get("name", terminal.get("object_type", "Terminal")))).strip_edges()
+	if target_name.is_empty():
+		target_name = "Terminal"
+	terminal_response_text = "Connected to %s. Select Scan to run diagnostics." % target_name
+	status_changed.emit()
+	return {"success": true, "message": terminal_response_text, "terminal_id": connected_terminal_id, "terminal_cell": connected_terminal_cell}
+
+func cancel_terminal_connection() -> Dictionary:
+	var message := "Terminal connection cancelled."
+	_clear_terminal_connection_state()
+	status_changed.emit()
+	return {"success": true, "message": message}
+
+func set_terminal_response_text(message: String) -> void:
+	terminal_response_text = message.strip_edges()
+
+func _clear_terminal_connection_state(message: String = "") -> void:
+	is_terminal_connected = false
+	connected_terminal_id = ""
+	connected_terminal_cell = Vector2i(-9999, -9999)
+	terminal_interaction_mode = TERMINAL_MODE_NONE
+	terminal_response_text = message.strip_edges()
+
+func _validate_terminal_connection_state() -> void:
+	if not is_terminal_connected:
+		return
+	if mission_manager == null:
+		_clear_terminal_connection_state()
+		return
+	var terminal: Dictionary = Dictionary(mission_manager.get_world_object_at_cell(connected_terminal_cell))
+	if terminal.is_empty() or str(terminal.get("object_group", "")) != "terminal" or not bool(terminal.get("connected", false)):
+		_clear_terminal_connection_state("Terminal link lost.")
 
 func get_facing_device_diagnostic_result() -> Dictionary:
 	return BipobScanHackServiceRef.get_facing_device_diagnostic_result(self)
