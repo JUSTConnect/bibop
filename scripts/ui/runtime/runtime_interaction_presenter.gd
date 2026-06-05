@@ -29,11 +29,13 @@ static func refresh(ui) -> void:
 		if ui.runtime_interaction_mode_active:
 			ui._apply_selected_pulse(ui.runtime_action_button)
 	if ui.runtime_connect_button != null:
-		var connect_enabled: bool = not connect_descriptor.is_empty() and bool(connect_descriptor.get("enabled", false)) and has_actions_left
-		ui.runtime_connect_button.text = "Connect"
+		var terminal_connected: bool = ui.bipob != null and ui.bipob.has_method("is_connected_to_terminal") and bool(ui.bipob.call("is_connected_to_terminal"))
+		var terminal_reopen_enabled: bool = not target_object.is_empty() and str(target_object.get("object_group", "")) == "terminal" and bool(target_object.get("connected", false))
+		var connect_enabled: bool = terminal_connected or terminal_reopen_enabled or (not connect_descriptor.is_empty() and bool(connect_descriptor.get("enabled", false)) and has_actions_left)
+		ui.runtime_connect_button.text = "Cancel" if terminal_connected else "Connect"
 		ui.runtime_connect_button.disabled = not connect_enabled
 		ui.runtime_connect_button.tooltip_text = "" if connect_enabled else str(connect_descriptor.get("label", "Connector jack unavailable."))
-		ui._apply_action_button_style(ui.runtime_connect_button, "primary" if connect_enabled else "disabled", connect_enabled)
+		ui._apply_action_button_style(ui.runtime_connect_button, "danger" if terminal_connected else ("primary" if connect_enabled else "disabled"), connect_enabled)
 	if ui.runtime_heavy_claw_button != null:
 		var heavy_claw_drag_active: bool = ui.bipob != null and ui.bipob.has_method("is_heavy_claw_drag_active") and bool(ui.bipob.call("is_heavy_claw_drag_active"))
 		var heavy_claw_enabled: bool = heavy_claw_drag_active or (not heavy_claw_descriptor.is_empty() and bool(heavy_claw_descriptor.get("enabled", false)) and has_actions_left)
@@ -106,6 +108,10 @@ static func on_world_action_button_pressed(ui, action_id: String) -> void:
 static func _refresh_action_row(ui, target_object: Dictionary, physical_actions: Array[String]) -> void:
 	if ui.runtime_interaction_actions_row == null:
 		return
+	var terminal_connected: bool = ui.bipob != null and ui.bipob.has_method("is_connected_to_terminal") and bool(ui.bipob.call("is_connected_to_terminal"))
+	if terminal_connected:
+		_refresh_terminal_action_row(ui)
+		return
 	var action_id_texts: Array[String] = []
 	for signature_action_variant in physical_actions:
 		action_id_texts.append(str(signature_action_variant))
@@ -149,3 +155,33 @@ static func _refresh_action_row(ui, target_object: Dictionary, physical_actions:
 		trailing_spacer.custom_minimum_size = ui.runtime_action_button.custom_minimum_size
 		trailing_spacer.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 		ui.runtime_interaction_actions_row.add_child(trailing_spacer)
+
+
+static func _refresh_terminal_action_row(ui) -> void:
+	var has_actions_left: bool = ui.bipob != null and int(ui.bipob.actions_left) > 0
+	var next_signature: String = "terminal|%s" % str(has_actions_left)
+	if next_signature == ui.runtime_interaction_actions_signature:
+		ui.runtime_interaction_actions_row.visible = true
+		return
+	ui.runtime_interaction_actions_signature = next_signature
+	for child in ui.runtime_interaction_actions_row.get_children():
+		child.queue_free()
+	ui.runtime_interaction_actions_row.visible = true
+	for leading_column_index in range(3):
+		var leading_spacer := Control.new()
+		leading_spacer.name = "RuntimeTerminalActionSpacer%d" % (leading_column_index + 1)
+		leading_spacer.custom_minimum_size = ui.runtime_action_button.custom_minimum_size
+		leading_spacer.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+		ui.runtime_interaction_actions_row.add_child(leading_spacer)
+	var scan_button: Button = ui._create_runtime_control_button("Scan", Callable(ui, "_on_scan_device_button_pressed"), "primary" if has_actions_left else "disabled")
+	scan_button.custom_minimum_size = ui.runtime_action_button.custom_minimum_size
+	scan_button.disabled = not has_actions_left
+	scan_button.tooltip_text = "" if has_actions_left else "No actions left. End turn."
+	if has_actions_left:
+		ui._apply_selected_pulse(scan_button)
+	ui.runtime_interaction_actions_row.add_child(scan_button)
+	var trailing_spacer := Control.new()
+	trailing_spacer.name = "RuntimeTerminalActionTrailingSpacer"
+	trailing_spacer.custom_minimum_size = ui.runtime_action_button.custom_minimum_size
+	trailing_spacer.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	ui.runtime_interaction_actions_row.add_child(trailing_spacer)
