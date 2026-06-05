@@ -7,6 +7,7 @@ const CableTopologyServiceRef = preload("res://scripts/game/cable_topology_servi
 const PlatformTypesRef = preload("res://scripts/game/platform/platform_types.gd")
 const PlatformVisualServiceRef = preload("res://scripts/game/platform/platform_visual_service.gd")
 const ObjectFacingServiceRef = preload("res://scripts/game/object/object_facing_service.gd")
+const IsoVisualAlignmentServiceRef = preload("res://scripts/field/iso_visual_alignment_service_ref.gd")
 
 # GridManager remains the gameplay grid source.
 # RoomVisualRenderer is a future visual projection layer.
@@ -3169,6 +3170,36 @@ func get_safe_iso_object_png_visual_scale(object_data: Dictionary, asset_key: St
 
 	var custom_scale: float = float(object_data.get("visual_scale", rule_scale))
 	return clampf(custom_scale, ISO_OBJECT_PNG_MIN_VISUAL_SCALE, ISO_OBJECT_PNG_MAX_VISUAL_SCALE)
+
+func build_iso_object_surface_context(object_data: Dictionary, cell_visual_center: Vector2 = Vector2.INF) -> Dictionary:
+	var surface_level: int = get_iso_object_surface_level(object_data)
+	var placement_mode: String = str(object_data.get("placement_mode", object_data.get("install_mode", object_data.get("mount", "")))).to_lower().strip_edges()
+	var anchor_value: String = str(object_data.get("anchor", object_data.get("visual_anchor", object_data.get("alignment_anchor", "")))).to_lower().strip_edges()
+	var rule: Dictionary = {}
+	if object_data.get("rule", {}) is Dictionary:
+		rule = Dictionary(object_data.get("rule", {}))
+	elif object_data.get("alignment_rule", {}) is Dictionary:
+		rule = Dictionary(object_data.get("alignment_rule", {}))
+	elif object_data.get("visual_rule", {}) is Dictionary:
+		rule = Dictionary(object_data.get("visual_rule", {}))
+	var rule_anchor: String = str(rule.get("anchor", "")).to_lower().strip_edges()
+	var rule_mount: String = str(rule.get("mount", rule.get("placement_mode", ""))).to_lower().strip_edges()
+	var wall_mounted: bool = placement_mode == "wall_mounted" or _get_object_mount_mode(object_data) == "wall" or anchor_value.contains("wall_mount") or rule_anchor.contains("wall_mount") or rule_mount in ["wall", "wall_mounted"]
+	if wall_mounted:
+		return IsoVisualAlignmentServiceRef.build_surface_context(surface_level, 0.0, 0.0, true)
+
+	if object_data.has("explicit_surface_y_offset"):
+		return {"explicit_surface_y_offset": float(object_data.get("explicit_surface_y_offset", 0.0)), "surface_level": surface_level, "wall_mounted": false}
+
+	var platform_offset: float = 0.0
+	if object_data.has("platform_level") or object_data.has("current_level") or object_data.has("visual_level") or object_data.has("platform_height_level"):
+		platform_offset = IsoVisualAlignmentServiceRef.get_platform_surface_y_offset(object_data)
+
+	var ground_offset: float = 0.0
+	if object_data.has("ground_surface_y_offset"):
+		ground_offset = float(object_data.get("ground_surface_y_offset", 0.0))
+
+	return IsoVisualAlignmentServiceRef.build_surface_context(surface_level, ground_offset, platform_offset, false)
 	
 func build_iso_object_visual_descriptor(object_data: Dictionary, asset_key: String, visual_center: Vector2, texture: Texture2D = null) -> Dictionary:
 	var rule: Dictionary = get_iso_asset_alignment_rule(asset_key)
@@ -3177,7 +3208,8 @@ func build_iso_object_visual_descriptor(object_data: Dictionary, asset_key: Stri
 	var destination_size: Vector2 = expected_size * visual_scale
 	var visual_pivot: Vector2 = _parse_visual_pivot(object_data.get("visual_pivot", get_iso_asset_alignment_anchor_offset(str(rule.get("anchor", "bottom_center")), destination_size)), get_iso_asset_alignment_anchor_offset(str(rule.get("anchor", "bottom_center")), destination_size))
 	var surface_level: int = get_iso_object_surface_level(object_data)
-	var surface_offset: Vector2 = Vector2(0.0, -float(surface_level) * 16.0)
+	var surface_context: Dictionary = build_iso_object_surface_context(object_data, visual_center)
+	var surface_offset: Vector2 = Vector2(0.0, IsoVisualAlignmentServiceRef.get_object_surface_y_offset(surface_context))
 	var configured_offset: Vector2 = Vector2(rule.get("offset", Vector2.ZERO)) + _parse_visual_pivot(object_data.get("visual_offset", Vector2.ZERO), Vector2.ZERO)
 	var final_draw_position: Vector2 = visual_center + surface_offset - visual_pivot + configured_offset
 	var destination_rect: Rect2 = Rect2(final_draw_position, destination_size)
@@ -3187,6 +3219,8 @@ func build_iso_object_visual_descriptor(object_data: Dictionary, asset_key: Stri
 		"visual_scale": visual_scale,
 		"visual_pivot": visual_pivot,
 		"surface_level": surface_level,
+		"surface_context": surface_context,
+		"surface_y_offset": float(surface_offset.y),
 		"final_draw_position": final_draw_position,
 		"destination_rect": destination_rect,
 		"source_rect": Rect2(Vector2.ZERO, texture.get_size() if texture != null else expected_size),
@@ -3204,7 +3238,7 @@ func draw_iso_object_png_texture_with_descriptor(texture: Texture2D, descriptor:
 		draw_texture_rect_region(texture, destination_rect, source_rect)
 	draw_iso_asset_alignment_overlay(str(descriptor.get("visual_asset_key", "")), destination_rect.position + Vector2(descriptor.get("visual_pivot", destination_rect.size * 0.5)), destination_rect)
 	if debug_log_iso_object_asset_resolution:
-		print("[IsoObjectVisual] visual_asset_key=%s visual_scale=%s visual_pivot=%s surface_level=%s final_draw_position=%s" % [str(descriptor.get("visual_asset_key", "")), str(descriptor.get("visual_scale", 1.0)), str(descriptor.get("visual_pivot", Vector2.ZERO)), str(descriptor.get("surface_level", 0)), str(descriptor.get("final_draw_position", Vector2.ZERO))])
+		print("[IsoObjectVisual] visual_asset_key=%s visual_scale=%s visual_pivot=%s surface_level=%s surface_y_offset=%s final_draw_position=%s" % [str(descriptor.get("visual_asset_key", "")), str(descriptor.get("visual_scale", 1.0)), str(descriptor.get("visual_pivot", Vector2.ZERO)), str(descriptor.get("surface_level", 0)), str(descriptor.get("surface_y_offset", 0.0)), str(descriptor.get("final_draw_position", Vector2.ZERO))])
 
 func get_iso_asset_alignment_rule(asset_key: String) -> Dictionary:
 	var rule: Dictionary = {}
