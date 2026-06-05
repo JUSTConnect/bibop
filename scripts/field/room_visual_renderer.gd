@@ -1695,6 +1695,42 @@ func get_cell_surface_y_offset_for_floor_height(floor_height_level: String) -> f
 	var ground_asset_key: String = get_iso_ground_asset_key_for_floor_height(floor_height_level)
 	return get_ground_surface_y_offset_for_asset_key(ground_asset_key)
 
+func get_ground_asset_key_for_cell(cell: Vector2i) -> String:
+	var floor_height_level: String = ""
+	var mission_manager: Node = get_mission_manager_ref()
+	if mission_manager != null and mission_manager.has_method("get_map_constructor_floor_material_for_cell"):
+		var floor_material_result: Dictionary = _safe_variant_dictionary(mission_manager.call("get_map_constructor_floor_material_for_cell", cell))
+		if bool(floor_material_result.get("ok", false)):
+			var floor_override: Dictionary = _safe_variant_dictionary(floor_material_result.get("override", {}))
+			floor_height_level = normalize_floor_height_level(str(floor_override.get("floor_height", floor_override.get("floor_visual_height", floor_override.get("ground_height", "")))))
+	if floor_height_level.is_empty() and _grid_manager != null and _grid_manager.has_method("get_floor_height_for_cell"):
+		floor_height_level = normalize_floor_height_level(str(_grid_manager.call("get_floor_height_for_cell", cell)))
+	return get_iso_ground_asset_key_for_floor_height(floor_height_level)
+
+func enrich_iso_object_surface_context_for_cell(object_data: Dictionary, cell: Vector2i) -> Dictionary:
+	var enriched: Dictionary = object_data.duplicate(true)
+
+	if enriched.has("ground_surface_y_offset"):
+		return enriched
+
+	var ground_asset_key: String = get_ground_asset_key_for_cell(cell) if has_method("get_ground_asset_key_for_cell") else ""
+	if ground_asset_key.is_empty():
+		return enriched
+
+	var ground_texture: Texture2D = get_iso_ground_texture_for_asset_key(ground_asset_key) if has_method("get_iso_ground_texture_for_asset_key") else null
+	if ground_texture == null:
+		return enriched
+
+	var placement: Dictionary = Dictionary(ISO_GROUND_ASSET_PLACEMENT.get(ground_asset_key, {}))
+	var offset: float = IsoVisualAlignmentServiceRef.get_ground_top_surface_y_offset(
+		get_iso_tile_size(),
+		ground_texture.get_size(),
+		placement
+	)
+
+	enriched["ground_surface_y_offset"] = offset
+	return enriched
+
 func draw_platform_floor_visual_for_cell(cell: Vector2i, platform_data: Dictionary, base_surface_y_offset: float = 0.0) -> bool:
 	if use_gray_room_visual_test_assets or platform_data.is_empty() or not PlatformTypesRef.is_platform_data(platform_data):
 		return false
@@ -3383,6 +3419,7 @@ func draw_iso_object_png_texture_asset(cell: Vector2i, asset_key: String, visual
 		var fallback_rect: Rect2 = get_iso_texture_draw_rect_for_asset_key_with_size(normalized_asset_key, visual_center, get_iso_asset_alignment_expected_size(normalized_asset_key))
 		draw_missing_iso_asset_debug_fallback(cell, normalized_asset_key, fallback_rect)
 		return true
+	object_data = enrich_iso_object_surface_context_for_cell(object_data, cell)
 	var descriptor: Dictionary = build_iso_object_visual_descriptor(object_data, normalized_asset_key, visual_center, texture)
 	draw_iso_object_png_texture_with_descriptor(texture, descriptor)
 	return true
