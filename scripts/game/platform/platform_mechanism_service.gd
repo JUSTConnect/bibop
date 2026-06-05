@@ -27,6 +27,10 @@ static func get_platform_id(platform_data: Dictionary) -> String:
 static func get_mechanism_id(platform_data: Dictionary) -> String:
 	return str(platform_data.get("mechanism_id", platform_data.get("platform_mechanism_id", ""))).strip_edges()
 
+static func get_single_mechanism_id(platform_data: Dictionary) -> String:
+	var platform_id: String = get_platform_id(platform_data)
+	return "single:%s" % platform_id if not platform_id.is_empty() else ""
+
 static func is_platform_data(platform_data: Dictionary) -> bool:
 	var nested_data: Dictionary = Dictionary(platform_data.get("data", {}))
 	if not nested_data.is_empty() and is_platform_data(nested_data):
@@ -65,7 +69,9 @@ static func collect_platforms_by_mechanism(platforms: Array) -> Dictionary:
 			continue
 		var mechanism_id: String = get_mechanism_id(platform_data)
 		if mechanism_id.is_empty():
-			mechanism_id = "single:%s" % get_platform_id(platform_data)
+			mechanism_id = get_single_mechanism_id(platform_data)
+		if mechanism_id.is_empty():
+			continue
 		if not grouped.has(mechanism_id):
 			grouped[mechanism_id] = []
 		var members: Array = Array(grouped.get(mechanism_id, []))
@@ -81,10 +87,11 @@ static func get_mechanism_members(mechanism_id: String, world_objects_or_members
 		if platform_data.is_empty() or not is_platform_data(platform_data):
 			continue
 		var platform_mechanism_id: String = get_mechanism_id(platform_data)
+		var platform_single_id: String = get_single_mechanism_id(platform_data)
 		if normalized_mechanism_id.is_empty():
 			if platform_mechanism_id.is_empty():
 				members.append(platform_data)
-		elif platform_mechanism_id == normalized_mechanism_id:
+		elif normalized_mechanism_id == platform_mechanism_id or (platform_mechanism_id.is_empty() and normalized_mechanism_id == platform_single_id):
 			members.append(platform_data)
 	return members
 
@@ -184,16 +191,7 @@ static func validate_mechanism(mechanism_id: String, members: Array, ground_cell
 		errors.append("Rotating platform mechanisms must form a filled square footprint.")
 	if PlatformTypesRef.platform_mode_supports_elevator(platform_mode) and not ground_cells.is_empty() and not has_any_ground_adjacency(cells, ground_cells):
 		warnings.append("Elevator platform mechanism has no adjacency to raised ground/top surface.")
-	return {
-		"ok": errors.is_empty(),
-		"mechanism_id": mechanism_id,
-		"platform_mode": platform_mode,
-		"member_count": platform_members.size(),
-		"cells": cells,
-		"bounds": get_cell_bounds(cells),
-		"errors": errors,
-		"warnings": warnings
-	}
+	return {"ok": errors.is_empty(), "mechanism_id": mechanism_id, "platform_mode": platform_mode, "member_count": platform_members.size(), "cells": cells, "bounds": get_cell_bounds(cells), "errors": errors, "warnings": warnings}
 
 static func build_mechanism_summary(mechanism_id: String, members: Array) -> Dictionary:
 	var platform_members: Array[Dictionary] = []
@@ -208,18 +206,7 @@ static func build_mechanism_summary(mechanism_id: String, members: Array) -> Dic
 		var platform_id: String = get_platform_id(member_data)
 		if not platform_id.is_empty():
 			platform_ids.append(platform_id)
-	return {
-		"ok": not platform_members.is_empty(),
-		"mechanism_id": mechanism_id,
-		"member_count": platform_members.size(),
-		"platform_ids": platform_ids,
-		"cells": cells,
-		"bounds": get_cell_bounds(cells),
-		"is_connected": are_cells_orthogonally_connected(cells),
-		"is_square": is_square_footprint(cells, true),
-		"errors": [] if not platform_members.is_empty() else ["Platform mechanism has no members."],
-		"warnings": []
-	}
+	return {"ok": not platform_members.is_empty(), "mechanism_id": mechanism_id, "member_count": platform_members.size(), "platform_ids": platform_ids, "cells": cells, "bounds": get_cell_bounds(cells), "is_connected": are_cells_orthogonally_connected(cells), "is_square": is_square_footprint(cells, true), "errors": [] if not platform_members.is_empty() else ["Platform mechanism has no members."], "warnings": []}
 
 static func get_mechanism_summary(mechanism_id: String, world_objects_or_members: Array) -> Dictionary:
 	var members: Array[Dictionary] = get_mechanism_members(mechanism_id, world_objects_or_members)
