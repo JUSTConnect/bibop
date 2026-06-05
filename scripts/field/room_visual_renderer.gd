@@ -110,6 +110,8 @@ const ISO_PLACEHOLDER_ASSET_PATHS: Dictionary = {
 	"floor_reinforced": "res://assets/visual/isometric/placeholders/iso_floor_reinforced.svg",
 	"floor_diagnostic": "res://assets/visual/isometric/placeholders/iso_floor_diagnostic.svg",
 	"floor_door_underlay": "res://assets/visual/isometric/placeholders/iso_floor_door_underlay.svg",
+	"ground_low": "res://assets/visual/isometric/ground/ground_low_01.png",
+	"ground_halflow": "res://assets/visual/isometric/ground/ground_halflow_01.png",
 	"object_door": "res://assets/visual/isometric/placeholders/iso_object_door.svg",
 	"object_terminal": "res://assets/visual/isometric/placeholders/iso_object_terminal.svg",
 	"object_key": "res://assets/visual/isometric/placeholders/iso_object_key.svg",
@@ -210,12 +212,15 @@ const ISO_WALL_ASSET_CATALOG: Dictionary = {
 }
 
 const ISO_FLOOR_ASSET_PACK_DIR: String = "res://assets/visual/isometric/floor/"
+const ISO_GROUND_ASSET_PACK_DIR: String = "res://assets/visual/isometric/ground/"
 const ISO_FLOOR_TEST_ASSET_KEY: String = "floor_gray_test"
 const ISO_FLOOR_ASSET_CATALOG: Dictionary = {
 	"floor_gray_test": "floor_gray_01.png",
 	"floor_concrete": "floor_concrete_01.png",
 	"floor_steel": "floor_steel_01.png",
-	"floor_titan": "floor_titan_01.png"
+	"floor_titan": "floor_titan_01.png",
+	"ground_low": "ground_low_01.png",
+	"ground_halflow": "ground_halflow_01.png"
 }
 
 # Floor PNGs are authored on a larger transparent canvas. The renderer crops to
@@ -332,6 +337,8 @@ const ISO_ASSET_ALIGNMENT_RULES: Dictionary = {
 	"floor_reinforced": {"anchor": "center", "scale": 1.0, "offset": Vector2.ZERO, "expected_size": ISO_STANDARD_TILE_SIZE, "layer_hint": "floor", "notes": "Reinforced 128x71 floor diamond centered in the grid cell."},
 	"floor_diagnostic": {"anchor": "center", "scale": 1.0, "offset": Vector2.ZERO, "expected_size": ISO_STANDARD_TILE_SIZE, "layer_hint": "floor", "notes": "Diagnostic 128x71 floor diamond centered in the grid cell."},
 	"floor_door_underlay": {"anchor": "center", "scale": 1.0, "offset": Vector2.ZERO, "expected_size": ISO_STANDARD_TILE_SIZE, "layer_hint": "floor", "notes": "Door underlay remains centered under the wall opening."},
+	"ground_low": {"anchor": "center", "scale": 1.0, "offset": Vector2.ZERO, "expected_size": ISO_STANDARD_TILE_SIZE, "layer_hint": "floor", "notes": "Visual-only raised ground step 1 floor asset."},
+	"ground_halflow": {"anchor": "center", "scale": 1.0, "offset": Vector2.ZERO, "expected_size": ISO_STANDARD_TILE_SIZE, "layer_hint": "floor", "notes": "Visual-only raised ground step 2 floor asset."},
 	"wall_default": {"anchor": "wall_cell_base", "scale": 1.0, "offset": Vector2(0, -32), "expected_size": Vector2(128, 120), "layer_hint": "wall", "notes": "Wall canvas bottom-center aligns to the blocked wall cell base on the active 128x71 footprint."},
 	"wall_outer": {"anchor": "wall_cell_base", "scale": 1.0, "offset": Vector2(0, -32), "expected_size": Vector2(128, 120), "layer_hint": "wall", "notes": "Outer wall canvas bottom-center aligns to the blocked wall cell base on the active 128x71 footprint."},
 	"wall_brick": {"anchor": "wall_cell_base", "scale": 1.0, "offset": Vector2(0, -32), "expected_size": Vector2(128, 120), "layer_hint": "wall", "notes": "Brick wall canvas bottom-center aligns to the blocked wall cell base on the active 128x71 footprint."},
@@ -1438,6 +1445,11 @@ func normalize_floor_material_key(material_key: String) -> String:
 func get_iso_floor_asset_key_for_material_key(material_key: String) -> String:
 	if use_gray_room_visual_test_assets:
 		return ISO_FLOOR_TEST_ASSET_KEY
+	var normalized_key: String = material_key.strip_edges().to_lower()
+	if normalized_key in ["step_1", "ground_low", "ground_low_01", "ground_low_01.png"]:
+		return "ground_low"
+	if normalized_key in ["step_2", "ground_halflow", "ground_halflow_01", "ground_halflow_01.png"]:
+		return "ground_halflow"
 	match normalize_floor_material_key(material_key):
 		"steel":
 			return "floor_steel"
@@ -1457,6 +1469,24 @@ func get_iso_floor_asset_key_for_tile(tile_type: int) -> String:
 		return "floor_concrete"
 	return ""
 
+func get_iso_floor_asset_key_for_visual_height(value: String) -> String:
+	var normalized_height: String = value.strip_edges().to_lower()
+	match normalized_height:
+		"step_1", "ground_low", "ground_low_01", "ground_low_01.png", "low":
+			return "ground_low"
+		"step_2", "ground_halflow", "ground_halflow_01", "ground_halflow_01.png", "halflow", "half_low":
+			return "ground_halflow"
+	return ""
+
+func get_iso_floor_asset_key_for_visual_state(cell: Vector2i) -> String:
+	if _grid_manager == null or not _grid_manager.has_method("get_floor_visual_state"):
+		return ""
+	var state: Dictionary = _safe_variant_dictionary(_grid_manager.call("get_floor_visual_state", cell), true)
+	for field_name in ["floor_height_level", "floor_visual_height", "ground_height", "height_level"]:
+		var asset_key: String = get_iso_floor_asset_key_for_visual_height(str(state.get(field_name, "")))
+		if not asset_key.is_empty():
+			return asset_key
+	return ""
 
 func get_iso_floor_texture_for_asset_key(asset_key: String) -> Texture2D:
 	if not ISO_FLOOR_ASSET_CATALOG.has(asset_key):
@@ -1467,7 +1497,12 @@ func get_iso_floor_texture_for_asset_key(asset_key: String) -> Texture2D:
 			return cached_value as Texture2D
 		return null
 	var asset_file: String = str(ISO_FLOOR_ASSET_CATALOG.get(asset_key, ""))
-	var texture_path: String = (ISO_TEST_ASSET_PACK_DIR if asset_key == ISO_FLOOR_TEST_ASSET_KEY else ISO_FLOOR_ASSET_PACK_DIR) + asset_file
+	var asset_directory: String = ISO_FLOOR_ASSET_PACK_DIR
+	if asset_key == ISO_FLOOR_TEST_ASSET_KEY:
+		asset_directory = ISO_TEST_ASSET_PACK_DIR
+	elif asset_key.begins_with("ground_"):
+		asset_directory = ISO_GROUND_ASSET_PACK_DIR
+	var texture_path: String = asset_directory + asset_file
 	if ResourceLoader.exists(texture_path):
 		var loaded_resource: Resource = ResourceLoader.load(texture_path)
 		if loaded_resource is Texture2D:
@@ -2260,7 +2295,7 @@ func get_iso_visual_texture_debug_state() -> Dictionary:
 
 func get_iso_visual_texture_debug_keys() -> Array[String]:
 	return [
-		"floor_gray_test", "floor_concrete", "floor_steel", "floor_titan", "floor_default", "floor_stepped", "floor_clean_lab", "floor_dark_service", "floor_hazard", "floor_power", "floor_damaged", "floor_reinforced", "floor_diagnostic", "floor_door_underlay",
+		"floor_gray_test", "floor_concrete", "floor_steel", "floor_titan", "floor_default", "floor_stepped", "floor_clean_lab", "floor_dark_service", "floor_hazard", "floor_power", "floor_damaged", "floor_reinforced", "floor_diagnostic", "floor_door_underlay", "ground_low", "ground_halflow",
 		"wall_gray_tallest", "wall_gray_tall", "wall_gray_mid", "wall_gray_halfmid", "wall_gray_low",
 		"wall_concrete_low", "wall_concrete_halflow", "wall_concrete_mid", "wall_concrete_halfmid", "wall_concrete_tall",
 		"wall_steel_low", "wall_steel_halflow", "wall_steel_mid", "wall_steel_halfmid", "wall_steel_tall",
@@ -3787,10 +3822,11 @@ func draw_iso_floor_prototype() -> void:
 					floor_material_key = normalize_floor_material_key(str(floor_material.get("material", floor_material.get("id", "concrete"))))
 			if use_gray_room_visual_test_assets:
 				floor_asset_key = ISO_FLOOR_TEST_ASSET_KEY
-			elif floor_texture_asset_id.begins_with("floor_"):
-				floor_asset_key = floor_texture_asset_id
+			elif floor_texture_asset_id.begins_with("floor_") or floor_texture_asset_id.begins_with("ground_"):
+				floor_asset_key = get_iso_floor_asset_key_for_material_key(floor_texture_asset_id)
 			else:
-				floor_asset_key = get_iso_floor_asset_key_for_material_key(floor_material_key)
+				var height_asset_key: String = get_iso_floor_asset_key_for_visual_state(cell)
+				floor_asset_key = height_asset_key if not height_asset_key.is_empty() else get_iso_floor_asset_key_for_material_key(floor_material_key)
 			if use_procedural_floor_debug_tiles:
 				draw_procedural_floor_debug_tile(cell, fill_color)
 				continue

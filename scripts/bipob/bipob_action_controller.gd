@@ -139,6 +139,8 @@ static func handle_runtime_action_interact(controller: Variant, target_position:
 	var world_object: Dictionary = Dictionary(controller.mission_manager.get_world_object_at_cell(target_position))
 	if world_object.is_empty():
 		return false
+	if controller.mission_manager.has_method("is_visual_only_floor_ground_object") and bool(controller.mission_manager.call("is_visual_only_floor_ground_object", world_object)):
+		return false
 	_execute_world_object_action(controller, world_object, target_position, active_manipulator)
 	return true
 
