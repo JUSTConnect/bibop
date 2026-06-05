@@ -1720,9 +1720,9 @@ func normalize_wall_material_asset_base_key(profile_key: String) -> String:
 			return "wall_concrete"
 		"outer", "outerwall", "outer_wall", "wall_outer", "wall_outerwall":
 			return "wall_outer"
-		"brick", "brick_wall", "wall_brick", "brick_damaged", "damaged_brick", "brick_damage", "brick_damaged_wall", "wall_brick_damaged":
+		"brick", "brick_wall", "wall_brick", "breachable_brick", "wall_breachable_brick", "brick_damaged", "damaged_brick", "brick_damage", "brick_damaged_wall", "wall_brick_damaged":
 			return "wall_brick"
-		"concrete", "concrete_wall", "wall_concrete", "damaged", "damaged_wall", "wall_damaged", "concrete_damaged", "concrete_damage", "damaged_concrete", "concrete_damaged_wall", "wall_concrete_damaged":
+		"concrete", "concrete_wall", "wall_concrete", "breachable_concrete", "wall_breachable_concrete", "damaged", "damaged_wall", "wall_damaged", "concrete_damaged", "concrete_damage", "damaged_concrete", "concrete_damaged_wall", "wall_concrete_damaged":
 			return "wall_concrete"
 		"grate", "grate_wall", "wall_grate":
 			return "wall_grate"

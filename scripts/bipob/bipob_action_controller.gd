@@ -142,6 +142,8 @@ static func handle_runtime_action_interact(controller: Variant, target_position:
 		return true
 
 	var world_object: Dictionary = Dictionary(controller.mission_manager.get_world_object_at_cell(target_position))
+	if world_object.is_empty() and controller.mission_manager.has_method("get_breachable_wall_action_target_at_cell"):
+		world_object = Dictionary(controller.mission_manager.call("get_breachable_wall_action_target_at_cell", target_position))
 	if world_object.is_empty():
 		return false
 	if controller.mission_manager.has_method("is_visual_only_floor_ground_object") and bool(controller.mission_manager.call("is_visual_only_floor_ground_object", world_object)):
@@ -193,6 +195,9 @@ static func _execute_world_object_action(controller: Variant, world_object: Dict
 	if action_id.is_empty():
 		_emit_no_action_available(controller, world_object, target_position)
 		return
+	if action_id == "break_breachable_wall":
+		_apply_breachable_wall_execution(controller, world_object, target_position, actor, module, action_id)
+		return
 	if controller.mission_manager.has_method("build_device_interaction_preflight"):
 		var preflight_variant: Variant = controller.mission_manager.call("build_device_interaction_preflight", world_object, target_position, action_id, actor)
 		if typeof(preflight_variant) == TYPE_DICTIONARY:
@@ -229,6 +234,36 @@ static func _apply_terminal_control_execution(controller: Variant, world_object:
 		refresh_world_action_panel(controller)
 	if bool(terminal_execution.get("emit_status", true)):
 		controller.status_changed.emit()
+
+
+static func _apply_breachable_wall_execution(controller: Variant, world_object: Dictionary, target_position: Vector2i, actor: Dictionary, module: Dictionary, action_id: String) -> void:
+	var action_result: Dictionary = InteractionSystemRef.normalize_action_result(Dictionary(InteractionSystemRef.apply_action(actor, module, world_object, action_id)), world_object, action_id)
+	if not bool(action_result.get("success", false)):
+		controller.hint_requested.emit(str(action_result.get("message", "Action failed.")))
+		controller.status_changed.emit()
+		return
+	if not controller.can_spend_action(1, 1):
+		controller.hint_requested.emit("Not enough action/energy.")
+		controller.status_changed.emit()
+		return
+	if controller.mission_manager == null or not controller.mission_manager.has_method("break_breachable_wall_at_cell"):
+		controller.hint_requested.emit("Breachable Wall clearing is unavailable.")
+		controller.status_changed.emit()
+		return
+	var break_result: Dictionary = Dictionary(controller.mission_manager.call("break_breachable_wall_at_cell", target_position, "heavy_claw"))
+	if not bool(break_result.get("ok", false)):
+		controller.hint_requested.emit(str(break_result.get("message", "Cannot break wall.")))
+		controller.status_changed.emit()
+		return
+	controller.spend_action(1, 1)
+	controller._register_successful_paid_player_action(true)
+	controller.selected_world_action = ""
+	controller.hint_requested.emit(str(break_result.get("message", "Breachable Wall broken. Passage cleared.")))
+	controller.refresh_world_object_overlay()
+	controller.update_threat_detection_preview()
+	controller.emit_facing_world_object_hint()
+	refresh_world_action_panel(controller)
+	controller.status_changed.emit()
 
 
 static func _apply_heavy_claw_execution(controller: Variant, world_object: Dictionary, target_position: Vector2i, actor: Dictionary, module: Dictionary, action_id: String) -> void:

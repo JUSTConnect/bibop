@@ -7089,6 +7089,7 @@ func get_world_action_display_label(action_id: String, object_data: Dictionary) 
 		"cut": return "Cut"
 		"impact": return "Impact"
 		"force_open": return "Force Open"
+		"break_breachable_wall": return "Break"
 		"connect": return "Connect"
 		"scan": return "Scan"
 		"hack": return "Hack"
@@ -7720,6 +7721,8 @@ func get_available_world_actions(world_object: Dictionary, target_position: Vect
 				if str(terminal_door.get("control_type", terminal_door.get("control_mode", "internal"))) == "external":
 					actions.append("close_door" if str(terminal_door.get("state", "")) == "open" else "open_door")
 	elif group == "wall":
+		if str(world_object.get("wall_archetype", "")) == "breachable" and Array(world_object.get("breach_tools", [])).has("heavy_claw") and has_heavy_claw_capability():
+			actions.append("break_breachable_wall")
 		if has_plasma_cutter():
 			actions.append("cut")
 		if has_sledgehammer():
@@ -7874,7 +7877,7 @@ func get_world_action_module(action_id: String, world_object: Dictionary) -> Dic
 			return _module_dict("shocker_v1" if has_module_id("shocker_v1") else "")
 		"drain_energy":
 			return _module_dict("energy_drain_v1" if has_module_id("energy_drain_v1") else "")
-		"force_open", "push":
+		"force_open", "push", "break_breachable_wall":
 			return _module_dict("manipulator_heavy_claw_v1" if has_module_id("manipulator_heavy_claw_v1") else "")
 		"repair":
 			if has_module_id("repair_v1"):
