@@ -18,7 +18,7 @@ static func start_drag(controller: Variant, object_data: Dictionary) -> Dictiona
 	if object_id.is_empty():
 		return {"success": false, "message": "Object not found."}
 	if not WorldObjectCatalogRef.can_world_object_be_moved_by_heavy_claw(object_data):
-		return {"success": false, "message": "Object cannot be moved by Heavy Claw."}
+		return {"success": false, "message": "Object is too heavy."}
 	var object_cell: Vector2i = Vector2i(object_data.get("position", Vector2i(-1, -1)))
 	var anchor_direction: Vector2i = controller.get_direction_vector(controller.direction)
 	if object_cell != controller.grid_position + anchor_direction:
