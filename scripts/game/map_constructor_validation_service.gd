@@ -121,7 +121,7 @@ func validate_constructor_palette_contract() -> Array[String]:
 		if prefab_id.is_empty():
 			warnings.append("constructor_palette_row_missing_prefab_id")
 			continue
-		if WorldObjectCatalogRef.LEGACY_DOOR_IDS.has(prefab_id) or WorldObjectCatalogRef.is_constructor_door_preset(prefab_id) or WorldObjectCatalogRef.LEGACY_WALL_ALIAS_CONFIGS.has(prefab_id) or WorldObjectCatalogRef.LEGACY_TERMINAL_ALIAS_CONFIGS.has(prefab_id):
+		if WorldObjectCatalogRef.LEGACY_DOOR_IDS.has(prefab_id) or WorldObjectCatalogRef.is_constructor_door_preset(prefab_id) or WorldObjectCatalogRef.LEGACY_WALL_ALIAS_CONFIGS.has(prefab_id) or WorldObjectCatalogRef.LEGACY_PLATFORM_ALIAS_CONFIGS.has(prefab_id) or WorldObjectCatalogRef.LEGACY_TERMINAL_ALIAS_CONFIGS.has(prefab_id):
 			warnings.append("constructor_palette_exposes_legacy_alias_%s" % prefab_id)
 		if archetype_id == "floor" or prefab_id == "floor":
 			visible_floor_prefabs.append(prefab_id)
@@ -143,8 +143,8 @@ func validate_constructor_palette_contract() -> Array[String]:
 	var required_archetype_warning_ids: Dictionary = {
 		"door":"constructor_palette_requires_exactly_one_door",
 		"floor":"constructor_palette_requires_exactly_one_floor",
-		"external_wall":"constructor_palette_requires_exactly_one_external_wall",
 		"wall":"constructor_palette_requires_exactly_one_wall",
+		"platform":"constructor_palette_requires_exactly_one_platform",
 		"terminal":"constructor_palette_requires_exactly_one_terminal",
 		"item":"constructor_palette_requires_exactly_one_item"
 	}
@@ -157,8 +157,12 @@ func validate_constructor_palette_contract() -> Array[String]:
 		warnings.append("constructor_palette_missing_terminal_archetype")
 	if WorldObjectCatalogRef.get_archetype_property_schema("terminal").is_empty():
 		warnings.append("terminal_archetype_missing_property_schema")
-	if visible_wall_prefabs != ["external_wall", "wall"] and visible_wall_prefabs != ["wall", "external_wall"]:
-		warnings.append("constructor_palette_wall_entries_must_be_exactly_external_wall_and_wall")
+	if visible_wall_prefabs != ["wall"]:
+		warnings.append("constructor_palette_wall_entries_must_be_exactly_wall")
+	if archetype_counts.has("external_wall"):
+		warnings.append("constructor_palette_exposes_external_wall")
+	if archetype_counts.has("breachable_wall") or visible_wall_prefabs.has("breachable_wall"):
+		warnings.append("constructor_palette_exposes_breachable_wall")
 	if visible_floor_prefabs != ["floor"]:
 		warnings.append("constructor_palette_floor_entries_must_be_exactly_floor")
 	if visible_item_prefabs != ["item"]:
@@ -174,7 +178,9 @@ func validate_constructor_palette_contract() -> Array[String]:
 		warnings.append("external_wall_must_support_embedded_objects_and_cables")
 	var wall_schema: Array[Dictionary] = WorldObjectCatalogRef.get_archetype_property_schema("wall")
 	var wall_material_schema: Dictionary = {}
+	var wall_schema_fields: Dictionary = {}
 	for field in wall_schema:
+		wall_schema_fields[_safe_string(field.get("field", ""))] = field
 		if _safe_string(field.get("field", "")) == "material":
 			wall_material_schema = field
 	if wall_material_schema.is_empty():
@@ -185,6 +191,18 @@ func validate_constructor_palette_contract() -> Array[String]:
 		var generated_wall: Dictionary = WorldObjectCatalogRef.create_archetype_object("wall", "validation_wall_%s" % material, {"material":material})
 		if _safe_string(generated_wall.get("display_name", "")) != _safe_string(WorldObjectCatalogRef.WALL_DISPLAY_NAMES.get(material, "")):
 			warnings.append("wall_display_name_not_generated_%s" % material)
+	for required_wall_field in ["is_breachable_wall", "wall_height", "breach_side"]:
+		if not wall_schema_fields.has(required_wall_field):
+			warnings.append("wall_archetype_missing_%s_field" % required_wall_field)
+	var generated_breachable_wall: Dictionary = WorldObjectCatalogRef.create_world_object("breachable_wall", "validation_breachable_wall")
+	if _safe_string(generated_breachable_wall.get("object_type", "")) != "wall" or _safe_string(generated_breachable_wall.get("archetype_id", "")) != "wall" or not bool(generated_breachable_wall.get("is_breachable_wall", false)):
+		warnings.append("breachable_wall_alias_not_normalized_to_wall")
+	var generated_platform: Dictionary = WorldObjectCatalogRef.create_world_object("movable_platform_block", "validation_movable_platform_block")
+	if _safe_string(generated_platform.get("object_type", "")) != "platform" or _safe_string(generated_platform.get("object_group", "")) != "platform" or _safe_string(generated_platform.get("archetype_id", "")) != "platform":
+		warnings.append("movable_platform_block_not_normalized_to_platform")
+	for stale_platform_field in ["weight_class", "required_bipob_power_class", "magnetic", "material_tags"]:
+		if generated_platform.has(stale_platform_field):
+			warnings.append("movable_platform_block_stale_field_%s" % stale_platform_field)
 	if not WorldObjectCatalogRef.get_wall_material_quick_presets().is_empty():
 		warnings.append("wall_material_quick_presets_forbidden")
 	var floor_schema: Array[Dictionary] = WorldObjectCatalogRef.get_archetype_property_schema("floor")
