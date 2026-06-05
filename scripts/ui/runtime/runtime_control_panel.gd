@@ -41,8 +41,10 @@ static func build(ui, bridge = null) -> Control:
 
 	var callback_owner: Object = bridge if bridge != null else ui
 	ui.runtime_move_forward_button = ui._create_runtime_control_button("Forward", Callable(callback_owner, "on_move_forward_pressed") if bridge != null else Callable(ui, "_on_move_forward_pressed"))
+	ui.runtime_move_forward_button.visible = false
 	grid.add_child(ui.runtime_move_forward_button)
 	ui.runtime_move_backward_button = ui._create_runtime_control_button("Back", Callable(callback_owner, "on_move_backward_pressed") if bridge != null else Callable(ui, "_on_move_backward_pressed"))
+	ui.runtime_move_backward_button.visible = false
 	grid.add_child(ui.runtime_move_backward_button)
 	ui.runtime_turn_left_button = ui._create_runtime_control_button("Turn Left", Callable(callback_owner, "on_turn_left_pressed") if bridge != null else Callable(ui, "_on_turn_left_pressed"))
 	grid.add_child(ui.runtime_turn_left_button)
