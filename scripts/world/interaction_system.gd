@@ -2,7 +2,7 @@ extends RefCounted
 class_name InteractionSystem
 const WorldObjectCatalogRef = preload("res://scripts/world/world_object_catalog.gd")
 
-const SUPPORTED_ACTIONS := ["open","close","unlock","input_password","apply_digital_key","access_code_0","access_code_1","access_code_2","access_code_3","access_code_4","access_code_5","access_code_6","access_code_7","access_code_8","access_code_9","cut","impact","force_open","connect","scan","hack","download","drain_energy","pickup","use_item","insert_fuse","remove_fuse","repair","plug_in","plug_out","take_end_1","take_end_2","connect_wire_end","connect_wire_1","connect_wire_2","disconnect_power_wire","disconnect_wire_1","disconnect_wire_2","circuit_1","circuit_2","circuit_3","open_door","close_door","unlock_door","push","pull","break_breachable_wall","switch","disable","enable","attack","stun","repair_ally"]
+const SUPPORTED_ACTIONS := ["open","close","unlock","input_password","apply_digital_key","access_code_0","access_code_1","access_code_2","access_code_3","access_code_4","access_code_5","access_code_6","access_code_7","access_code_8","access_code_9","cut","impact","force_open","connect","scan","hack","download","drain_energy","pickup","use_item","insert_fuse","remove_fuse","repair","plug_in","plug_out","take_end_1","take_end_2","connect_wire_end","connect_wire_1","connect_wire_2","disconnect_power_wire","disconnect_wire_1","disconnect_wire_2","circuit_1","circuit_2","circuit_3","open_door","close_door","unlock_door","push","pull","breach","switch","disable","enable","attack","stun","repair_ally"]
 
 static func can_apply_action(actor: Dictionary, module: Dictionary, target_object: Dictionary, action_type: String) -> Dictionary:
 	if action_type not in SUPPORTED_ACTIONS:
@@ -56,6 +56,12 @@ static func can_apply_action(actor: Dictionary, module: Dictionary, target_objec
 			return _result(false, "Connector Version too low.", [], "connector_level_too_low")
 	if action_type == "pickup" and actor.get("manipulator_occupied", false) and not _is_keycard_item(target_object):
 		return _result(false, "Free manipulator required.")
+	if action_type == "breach":
+		if str(module.get("id", "")) != "manipulator_heavy_claw_v1":
+			return _result(false, "Heavy Claw required.", [], "heavy_claw_required")
+		var actor_side: String = WorldObjectCatalogRef.get_wall_side_for_adjacent_actor(Vector2i(target_object.get("position", actor.get("target_position", Vector2i(-1, -1)))), Vector2i(actor.get("actor_position", Vector2i(-1, -1))))
+		if not WorldObjectCatalogRef.can_heavy_claw_breach_wall_from_side(target_object, actor_side):
+			return _result(false, "Heavy Claw must attack the cracked side.", [], "wrong_breach_side")
 	if action_type == "hack" and actor.get("processor_level", 0) < target_object.get("required_processor_level", 1):
 		return _result(false, "Hacking impossible")
 	if action_type == "download":
@@ -206,6 +212,13 @@ static func apply_action(actor: Dictionary, module: Dictionary, target_object: D
 					return _result(true, "Wall destroyed.", [{"type":"set_state","state":"destroyed"},{"type":"set_blocks_movement","value":false}])
 				target_object["state"] = "damaged"
 				return _result(true, "Wall damaged.", [{"type":"set_state","state":"damaged"}])
+		"breach":
+			if group == "wall" and module_id == "manipulator_heavy_claw_v1" and WorldObjectCatalogRef.is_breachable_wall(target_object):
+				var actor_side: String = WorldObjectCatalogRef.get_wall_side_for_adjacent_actor(Vector2i(target_object.get("position", actor.get("target_position", Vector2i(-1, -1)))), Vector2i(actor.get("actor_position", Vector2i(-1, -1))))
+				if not WorldObjectCatalogRef.can_heavy_claw_breach_wall_from_side(target_object, actor_side):
+					return _result(false, "Heavy Claw must attack the cracked side.")
+				target_object["state"] = "breached"
+				return _result(true, "Breachable wall cleared.", [{"type":"set_state","state":"breached"},{"type":"set_blocks_movement","value":false},{"type":"set_bool","field":"blocks_vision","value":false},{"type":"clear_wall_tile"}])
 		"force_open":
 			if group == "door" and target_object.get("state", "") in ["damaged", "half_open", "jammed"] and module_id == "manipulator_heavy_claw_v1":
 				target_object["state"] = "open"
