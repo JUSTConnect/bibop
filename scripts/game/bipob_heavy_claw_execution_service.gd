@@ -19,9 +19,7 @@ static func execute_heavy_claw_action(controller: Variant, world_object: Diction
 	if controller.has_method("start_heavy_claw_drag"):
 		var attach_result: Dictionary = Dictionary(controller.call("start_heavy_claw_drag", world_object))
 		if bool(attach_result.get("success", false)):
-			var result: Dictionary = _build_result(true, true, str(attach_result.get("message", "Heavy Claw attached.")), false, true, true, true, true, true, "ok")
-			InteractionActionCostServiceRef.commit_gameplay_action(controller, result)
-			return result
+			return _build_result(true, true, str(attach_result.get("message", "Heavy Claw attached.")), false, true, true, true, true, true, "ok")
 		return _build_result(true, false, str(attach_result.get("message", "Cannot attach object.")), false, false, false, true, true, false, "attach_unavailable")
 	return _build_result(true, false, "Heavy Claw drag unavailable.", false, false, false, false, true, false, "drag_unavailable")
 
@@ -37,5 +35,6 @@ static func _build_result(handled: bool, success: bool, message: String, spent_a
 		"refresh_action_panel": refresh_action_panel,
 		"emit_status": emit_status,
 		"emit_facing_hint": emit_facing_hint,
-		"reason": reason
+		"reason": reason,
+		"pending_paid_action": false
 	}
