@@ -230,7 +230,7 @@ const ARCHETYPE_REGISTRY: Dictionary = {
 		"property_schema":[
 			{"field":"material", "type":"enum", "values":["breachable_concrete", "breachable_brick"], "default":"breachable_concrete", "labels":{"breachable_concrete":"Breachable Concrete Wall", "breachable_brick":"Breachable Brick Wall"}},
 			{"field":"wall_height", "type":"enum", "values":["mid", "halfmid", "tall"], "default":"mid", "labels":{"mid":"Mid", "halfmid":"Half Mid", "tall":"Tall"}},
-			{"field":"breach_side", "type":"enum", "values":["north", "east", "south", "west"], "default":"north", "labels":{"north":"North", "east":"East", "south":"South", "west":"West"}}
+			{"field":"breach_side", "type":"enum", "values":["sw", "se", "nw", "ne"], "default":"sw", "labels":{"sw":"SW", "se":"SE", "nw":"NW", "ne":"NE"}}
 		]
 	},
 	"door": {
@@ -1290,6 +1290,35 @@ static func normalize_breachable_wall_height(value: Variant) -> String:
 	return height if BREACHABLE_WALL_HEIGHTS.has(height) else "mid"
 
 
+static func normalize_breachable_wall_breach_side(value: Variant) -> String:
+	var side: String = _normalized_contract_token(value)
+	match side:
+		"southwest", "south_west", "left_front", "south":
+			return "sw"
+		"southeast", "south_east", "right_front", "east":
+			return "se"
+		"northwest", "north_west", "left_back", "west":
+			return "nw"
+		"northeast", "north_east", "right_back", "north":
+			return "ne"
+	return side if side in ["sw", "se", "nw", "ne"] else "sw"
+
+
+static func get_grid_side_for_breachable_wall_breach_side(breach_side: Variant) -> String:
+	# Grid-to-isometric projection maps grid north/east/south/west to visual
+	# NE/SE/SW/NW respectively. Breachable Wall side ids are visual iso sides.
+	match normalize_breachable_wall_breach_side(breach_side):
+		"sw":
+			return "south"
+		"se":
+			return "east"
+		"nw":
+			return "west"
+		"ne":
+			return "north"
+	return "south"
+
+
 static func is_breachable_wall(object_data: Dictionary) -> bool:
 	if object_data.is_empty():
 		return false
@@ -1320,9 +1349,9 @@ static func get_wall_side_for_adjacent_actor(wall_cell: Vector2i, actor_cell: Ve
 static func can_heavy_claw_breach_wall_from_side(object_data: Dictionary, actor_side: String) -> bool:
 	if not is_breachable_wall(object_data):
 		return false
-	if str(object_data.get("state", "active")).strip_edges().to_lower() in ["open", "destroyed", "breached"]:
+	if str(object_data.get("state", "active")).strip_edges().to_lower() in ["open", "destroyed", "breached", "removed"]:
 		return false
-	return normalize_breach_side(actor_side) == normalize_breach_side(object_data.get("breach_side", "north"))
+	return normalize_breach_side(actor_side) == get_grid_side_for_breachable_wall_breach_side(object_data.get("breach_side", "sw"))
 
 static func _label_for_id(value: Variant) -> String:
 	return _normalized_contract_token(value).replace("_", " ").capitalize()

@@ -12,6 +12,14 @@ const BipobTerminalControlExecutionServiceRef = preload("res://scripts/game/bipo
 const BipobWorldObjectExecutionServiceRef = preload("res://scripts/game/bipob_world_object_execution_service.gd")
 
 
+static func normalize_world_action_id(action_id: String) -> String:
+	match action_id.strip_edges().to_lower():
+		"breach":
+			return "break_breachable_wall"
+		_:
+			return action_id.strip_edges().to_lower()
+
+
 static func get_facing_world_action_target(controller: Variant) -> Dictionary:
 	return BipobTargetingServiceRef.build_action_target_context(controller)
 
@@ -58,6 +66,7 @@ static func validate_runtime_action_view_model(view_model: Dictionary) -> Array[
 
 
 static func set_selected_world_action(controller: Variant, action_id: String) -> void:
+	action_id = normalize_world_action_id(action_id)
 	var target_data: Dictionary = get_facing_world_action_target(controller)
 	var actions: Array[String] = target_data.get("actions", [])
 	if action_id.is_empty() or actions.is_empty() or not actions.has(action_id):
@@ -116,6 +125,7 @@ static func clear_selected_world_action_if_invalid(controller: Variant, target_o
 
 
 static func get_world_object_action_for_context(controller: Variant, world_object: Dictionary, target_position: Vector2i) -> String:
+	controller.selected_world_action = normalize_world_action_id(controller.selected_world_action)
 	var view_model: Dictionary = build_runtime_action_view_model(controller, world_object, target_position)
 	var actions: Array = Array(view_model.get("available_action_ids", []))
 	if not controller.selected_world_action.is_empty() and actions.has(controller.selected_world_action):
@@ -172,7 +182,7 @@ static func _execute_world_object_action(controller: Variant, world_object: Dict
 		target_platform = world_object
 	var actor: Dictionary = build_runtime_action_actor(controller, world_object, target_position)
 	actor["platform_switch_access"] = controller.mission_manager.can_bipob_access_platform_switch(target_platform, controller.grid_position, controller.get_direction_id(controller.direction))
-	var action_id: String = get_world_object_action_for_context(controller, world_object, target_position)
+	var action_id: String = normalize_world_action_id(get_world_object_action_for_context(controller, world_object, target_position))
 	controller.allow_connector_workflow_action_once = false
 	var module: Dictionary = Dictionary(controller.get_world_action_module(action_id, world_object))
 	if str(world_object.get("object_group", "")) == "terminal" and (action_id == "hack" or action_id == "activate_platform") and not controller._is_terminal_powered_for_interaction(world_object):
