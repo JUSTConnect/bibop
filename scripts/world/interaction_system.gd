@@ -40,6 +40,13 @@ static func can_apply_action(actor: Dictionary, module: Dictionary, target_objec
 			var unlock_gate: Dictionary = _validate_door_class(actor, unlock_target, true)
 			if not bool(unlock_gate.get("success", false)):
 				return unlock_gate
+	if action_type == "break_breachable_wall":
+		if str(target_object.get("object_group", "")) != "wall" or str(target_object.get("wall_archetype", "")) != "breachable":
+			return _result(false, "Target is not a Breachable Wall.", [], "not_breachable_wall")
+		if str(module.get("id", "")) != "manipulator_heavy_claw_v1":
+			return _result(false, "Heavy Claw required.", [], "heavy_claw_required")
+		if not Array(target_object.get("breach_tools", [])).has("heavy_claw"):
+			return _result(false, "Heavy Claw cannot breach this wall.", [], "tool_not_allowed")
 	if action_type == "connect" or action_type == "apply_digital_key" or action_type == "input_password" or action_type.begins_with("access_code_"):
 		if not bool(target_object.get("has_connector_jack", false)):
 			return _result(false, "Connector jack unavailable.", [], "connector_jack_required")
@@ -269,6 +276,10 @@ static func apply_action(actor: Dictionary, module: Dictionary, target_object: D
 						break
 			var record_name: String = str(target_object.get("download_display_name", record_id)).strip_edges()
 			return _result(true, "Downloaded %s." % record_name, [{"type":"store_digital_record","record_id":record_id,"display_name":record_name,"description":"Downloaded from %s" % str(target_object.get("display_name", target_object.get("id", "device")))}])
+		"break_breachable_wall":
+			if group == "wall" and str(target_object.get("wall_archetype", "")) == "breachable" and module_id == "manipulator_heavy_claw_v1":
+				return _result(true, "Breachable Wall broken.", [{"type":"set_state","state":"removed"},{"type":"set_blocks_movement","value":false}])
+			return _result(false, "Cannot break this wall.")
 		"push", "pull":
 			if action_type == "push" and not WorldObjectCatalogRef.can_world_object_be_moved_by_heavy_claw(target_object):
 				return _result(false, "Object cannot be moved by Heavy Claw.")

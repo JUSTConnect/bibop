@@ -9,7 +9,13 @@ static func get_facing_cell(controller: Variant) -> Vector2i:
 static func get_facing_object(controller: Variant) -> Dictionary:
 	if controller.mission_manager == null:
 		return {}
-	return Dictionary(controller.mission_manager.get_world_object_at_cell(get_facing_cell(controller)))
+	var facing_cell: Vector2i = get_facing_cell(controller)
+	var world_object: Dictionary = Dictionary(controller.mission_manager.get_world_object_at_cell(facing_cell))
+	if not world_object.is_empty():
+		return world_object
+	if controller.mission_manager.has_method("get_breachable_wall_action_target_at_cell"):
+		return Dictionary(controller.mission_manager.call("get_breachable_wall_action_target_at_cell", facing_cell))
+	return {}
 
 
 static func get_facing_item(controller: Variant) -> Dictionary:

@@ -1240,6 +1240,8 @@ func normalize_map_constructor_wall_material_id(material_id: String) -> String:
 		"dark_service": "grate",
 		"orange_hazard": "concrete_damage",
 		"damaged_red": "brick_damage",
+		"breachable_concrete": "breachable_concrete",
+		"breachable_brick": "breachable_brick",
 		"reinforced": "steel",
 		"power_room": "reinforced_steel",
 		"diagnostic_blue": "brick",
@@ -3221,6 +3223,8 @@ func get_map_constructor_wall_material_catalog() -> Dictionary:
 		{"id":"concrete","display_name":"Concrete","description":"Concrete wall using production concrete height assets.","tags":["concrete","default"],"style":"concrete","texture_asset_id":"wall_concrete","fallback_color":Color(0.66, 0.72, 0.76, 0.98),"edge_color":Color(0.86, 0.9, 0.94, 1.0),"damage_level":0,"is_default":true},
 		{"id":"concrete_damage","display_name":"Concrete damage","description":"Legacy damaged concrete id mapped to the production concrete wall assets.","tags":["concrete","damaged"],"style":"concrete_damage","texture_asset_id":"wall_concrete","fallback_color":Color(0.48, 0.31, 0.16, 0.98),"edge_color":Color(0.96, 0.57, 0.21, 1.0),"damage_level":2,"is_default":false,"is_legacy":true},
 		{"id":"brick","display_name":"Brick","description":"Brick wall using production brick height assets.","tags":["brick"],"style":"brick","texture_asset_id":"wall_brick","fallback_color":Color(0.37, 0.21, 0.16, 0.98),"edge_color":Color(0.82, 0.72, 0.58, 1.0),"damage_level":0,"is_default":false},
+		{"id":"breachable_concrete","display_name":"Breachable Concrete","description":"Breachable Wall / проламываемая стена using concrete wall visuals; Heavy Claw can remove it at mid, half-mid, or tall height.","tags":["concrete","breachable"],"style":"breachable_concrete","texture_asset_id":"wall_concrete","fallback_color":Color(0.62, 0.67, 0.7, 0.98),"edge_color":Color(1.0, 0.82, 0.32, 1.0),"damage_level":0,"is_default":false,"wall_archetype":"breachable","breach_tools":["heavy_claw"],"allowed_wall_heights":["mid","halfmid","tall"]},
+		{"id":"breachable_brick","display_name":"Breachable Brick","description":"Breachable Wall / проламываемая стена using brick wall visuals; Heavy Claw can remove it at mid, half-mid, or tall height.","tags":["brick","breachable"],"style":"breachable_brick","texture_asset_id":"wall_brick","fallback_color":Color(0.44, 0.23, 0.17, 0.98),"edge_color":Color(1.0, 0.76, 0.28, 1.0),"damage_level":0,"is_default":false,"wall_archetype":"breachable","breach_tools":["heavy_claw"],"allowed_wall_heights":["mid","halfmid","tall"]},
 		{"id":"brick_damage","display_name":"Brick damage","description":"Legacy damaged brick id mapped to the production brick wall assets.","tags":["brick","damaged"],"style":"brick_damage","texture_asset_id":"wall_brick","fallback_color":Color(0.42, 0.19, 0.2, 0.98),"edge_color":Color(0.84, 0.34, 0.37, 1.0),"damage_level":3,"is_default":false,"is_legacy":true},
 		{"id":"grate","display_name":"Grate","description":"Grate wall using production grate mid/halfmid/tall assets; lower heights normalize to mid.","tags":["grate","service"],"style":"grate","texture_asset_id":"wall_grate","fallback_color":Color(0.18, 0.2, 0.24, 0.98),"edge_color":Color(0.32, 0.36, 0.41, 1.0),"damage_level":1,"is_default":false},
 		{"id":"steel","display_name":"Steel","description":"Steel wall using production steel height assets.","tags":["steel"],"style":"steel","texture_asset_id":"wall_steel","fallback_color":Color(0.24, 0.27, 0.33, 0.98),"edge_color":Color(0.55, 0.61, 0.72, 1.0),"damage_level":0,"is_default":false},
@@ -3953,6 +3957,11 @@ func set_map_constructor_wall_material(cell: Vector2i, side: String, material_id
 		return {"ok": false, "message": "Unknown wall material id: %s" % material_id}
 	var key: String = _serialize_wall_material_override_key(cell, normalized_side)
 	var entry: Dictionary = Dictionary(_map_constructor_wall_material_overrides.get(key, {})).duplicate(true)
+	var existing_height: String = normalize_map_constructor_wall_height(str(entry.get("wall_height", entry.get("wall_visual_height", ""))))
+	if normalized_material_id in ["breachable_concrete", "breachable_brick"] and existing_height in ["low", "halflow"]:
+		return {"ok": false, "message": "Breachable Wall supports only mid, halfmid, or tall height."}
+	if normalized_material_id in ["breachable_concrete", "breachable_brick"] and grid_manager != null and grid_manager.has_method("is_boundary_cell") and bool(grid_manager.call("is_boundary_cell", attached_wall_cell)):
+		return {"ok": false, "message": "Breachable Wall cannot be assigned to boundary walls."}
 	entry["cell"] = cell
 	entry["side"] = normalized_side
 	entry["material_id"] = normalized_material_id
@@ -3996,6 +4005,9 @@ func set_map_constructor_wall_height(cell: Vector2i, side: String, wall_height: 
 		return {"ok": false, "message": "Unknown wall height: %s" % wall_height}
 	var key: String = _serialize_wall_material_override_key(cell, normalized_side)
 	var entry: Dictionary = Dictionary(_map_constructor_wall_material_overrides.get(key, {})).duplicate(true)
+	var existing_material_id: String = normalize_map_constructor_wall_material_id(str(entry.get("material_id", "")))
+	if existing_material_id in ["breachable_concrete", "breachable_brick"] and normalized_height in ["low", "halflow"]:
+		return {"ok": false, "message": "Breachable Wall supports only mid, halfmid, or tall height."}
 	entry["cell"] = cell
 	entry["side"] = normalized_side
 	if normalized_height.is_empty():
@@ -4046,6 +4058,69 @@ func get_map_constructor_wall_material_for_wall_cell(wall_cell: Vector2i) -> Dic
 			material["wall_height"] = normalized_height
 			return {"ok": true, "message": "OK", "override": entry.duplicate(true), "material": material}
 	return {"ok": false, "message": "No wall material override.", "override": {}, "material": {}}
+
+
+func _clear_map_constructor_wall_material_overrides_for_wall_cell(wall_cell: Vector2i) -> void:
+	var keys_to_erase: Array[String] = []
+	for key_variant in _map_constructor_wall_material_overrides.keys():
+		var key: String = str(key_variant)
+		var entry: Dictionary = Dictionary(_map_constructor_wall_material_overrides.get(key, {}))
+		var side: String = str(entry.get("side", "")).to_lower().strip_edges()
+		var anchor_cell: Vector2i = _deserialize_cell_variant(entry.get("cell", Vector2i(-1, -1)))
+		if anchor_cell + _get_map_constructor_wall_side_delta(side) == wall_cell:
+			keys_to_erase.append(key)
+	for key in keys_to_erase:
+		_map_constructor_wall_material_overrides.erase(key)
+
+func get_breachable_wall_action_target_at_cell(cell: Vector2i) -> Dictionary:
+	if grid_manager == null or not grid_manager.has_method("get_tile") or not grid_manager.has_method("is_in_bounds"):
+		return {}
+	if not bool(grid_manager.call("is_in_bounds", cell)) or int(grid_manager.call("get_tile", cell)) != GridManager.TILE_WALL:
+		return {}
+	if grid_manager.has_method("is_boundary_cell") and bool(grid_manager.call("is_boundary_cell", cell)):
+		return {}
+	var material_result: Dictionary = get_map_constructor_wall_material_for_wall_cell(cell)
+	if not bool(material_result.get("ok", false)):
+		return {}
+	var material: Dictionary = Dictionary(material_result.get("material", {}))
+	if str(material.get("wall_archetype", "")).to_lower().strip_edges() != "breachable":
+		return {}
+	var height: String = normalize_map_constructor_wall_height(str(material.get("wall_height", "")))
+	if height.is_empty():
+		height = "mid"
+	var allowed_heights: Array = Array(material.get("allowed_wall_heights", ["mid", "halfmid", "tall"]))
+	if not allowed_heights.has(height):
+		return {}
+	var material_id: String = normalize_map_constructor_wall_material_id(str(material.get("id", "")))
+	return {
+		"id": "breachable_wall_%d_%d" % [cell.x, cell.y],
+		"object_group": "wall",
+		"object_type": "breachable_wall",
+		"display_name": "Breachable Wall",
+		"design_term_ru": "проламываемая стена",
+		"wall_archetype": "breachable",
+		"material": material_id,
+		"wall_material_id": material_id,
+		"wall_height": height,
+		"breach_tools": Array(material.get("breach_tools", ["heavy_claw"])).duplicate(),
+		"position": cell,
+		"blocks_movement": true,
+		"blocks_vision": true,
+		"state": "intact"
+	}
+
+func break_breachable_wall_at_cell(cell: Vector2i, tool_id: String = "heavy_claw") -> Dictionary:
+	var wall_data: Dictionary = get_breachable_wall_action_target_at_cell(cell)
+	if wall_data.is_empty():
+		return {"ok": false, "message": "No Breachable Wall at target cell."}
+	if not Array(wall_data.get("breach_tools", [])).has(tool_id):
+		return {"ok": false, "message": "Heavy Claw required."}
+	if grid_manager == null or not grid_manager.has_method("set_tile"):
+		return {"ok": false, "message": "Grid is unavailable."}
+	grid_manager.call("set_tile", cell, GridManager.TILE_FLOOR)
+	_clear_map_constructor_wall_material_overrides_for_wall_cell(cell)
+	_record_map_constructor_change("breach_wall", {"cell":cell, "summary":"Breachable Wall cleared at %s" % _format_map_constructor_cell(cell), "details":{"tool_id":tool_id}})
+	return {"ok": true, "message": "Breachable Wall broken. Passage cleared.", "cell": cell, "tool_id": tool_id}
 
 func get_map_constructor_wall_material_overrides() -> Dictionary:
 	if not _is_task_test_constructor_context():
