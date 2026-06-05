@@ -2,6 +2,7 @@ extends RefCounted
 class_name BipobActionViewModelService
 
 const InteractionSystemRef = preload("res://scripts/world/interaction_system.gd")
+const ObjectFacingServiceRef = preload("res://scripts/game/object/object_facing_service.gd")
 const WorldObjectCatalogRef = preload("res://scripts/world/world_object_catalog.gd")
 
 
@@ -74,5 +75,6 @@ static func _runtime_action_disabled_label(controller: Variant, action_id: Strin
 		"digital_access_required": return "Digital access required"
 		"unpowered": return "Unpowered"
 		"wrong_breach_side": return "Cracked side only"
+		"wrong_front_side": return ObjectFacingServiceRef.FRONT_SIDE_HINT
 		"heavy_claw_required": return "Heavy Claw required"
 	return controller.get_world_action_display_label(action_id, target_object)

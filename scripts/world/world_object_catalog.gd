@@ -190,6 +190,11 @@ const TERMINAL_POWER_TYPES: Array[String] = ["internal", "external"]
 const TERMINAL_CONTROL_TYPES: Array[String] = ["internal", "external"]
 const TERMINAL_STATUSES: Array[String] = ["active", "damaged", "unpowered", "locked", "disabled", "error"]
 
+const FACING_SIDE_SW := "SW"
+const FACING_SIDE_SE := "SE"
+const FACING_SIDES: Array[String] = [FACING_SIDE_SW, FACING_SIDE_SE]
+const FACING_SIDE_SCHEMA: Dictionary = {"field":"facing_side", "type":"enum", "values":["SW", "SE"], "default":"SW", "labels":{"SW":"SW", "SE":"SE"}, "label":"Facing Side"}
+
 # Hidden compatibility mappings for historic terminal ids. Constructor palettes,
 # searches, kits, and templates must expose only the configurable terminal archetype.
 const LEGACY_TERMINAL_ALIAS_CONFIGS: Dictionary = {
@@ -236,10 +241,11 @@ const ARCHETYPE_REGISTRY: Dictionary = {
 		]
 	},
 	"door": {
-		"archetype_id":"door", "object_group":"door", "object_type":"door", "palette_label":"Door",
+		"archetype_id":"door", "object_group":"door", "object_type":"door", "palette_label":"Door", "facing_side":"SW",
 		"configurable":true,
 		"display_name_template":"{material_label} {door_type_label} Door",
 		"property_schema":[
+			FACING_SIDE_SCHEMA,
 			{"field":"door_type", "type":"enum", "values":["mechanical", "digital", "powered"], "default":"mechanical"},
 			{"field":"material", "type":"enum", "values":["steel", "reinforced_steel", "titanium", "energy"], "default":"steel"},
 			{"field":"access_type", "type":"enum", "values":["no_key", "key_card", "digital_key", "access_code", "terminal"], "default":"key_card"},
@@ -277,9 +283,10 @@ const ARCHETYPE_REGISTRY: Dictionary = {
 		]
 	},
 	"terminal": {
-		"archetype_id":"terminal", "object_group":"terminal", "object_type":"terminal", "palette_label":"Terminal",
+		"archetype_id":"terminal", "object_group":"terminal", "object_type":"terminal", "palette_label":"Terminal", "facing_side":"SW",
 		"configurable":true,
 		"property_schema":[
+			FACING_SIDE_SCHEMA,
 			{"field":"terminal_type", "type":"enum", "values":["information", "control"], "default":"information", "labels":{"information":"Information", "control":"Control"}},
 			{"field":"controlled_target_type", "type":"enum", "values":["none", "door", "cooling", "platform", "power", "lighting", "device"], "default":"none", "labels":{"none":"None", "door":"Door", "cooling":"Cooling", "platform":"Platform", "power":"Power", "lighting":"Lighting", "device":"Device"}},
 			{"field":"terminal_class", "type":"enum", "values":[1, 2, 3], "default":1, "labels":{"1":"Class 1", "2":"Class 2", "3":"Class 3"}},
@@ -313,17 +320,19 @@ const ARCHETYPE_REGISTRY: Dictionary = {
 		]
 	},
 	"power_switcher": {
-		"archetype_id":"power_switcher", "object_group":"power", "object_type":"power_switcher", "palette_label":"Power Switcher",
+		"archetype_id":"power_switcher", "object_group":"power", "object_type":"power_switcher", "palette_label":"Power Switcher", "facing_side":"SW",
 		"placement_mode":"object", "display_name_template":"Power Switcher", "configurable":true, "state":"switch_off", "switch_state":"off", "is_on":false, "can_be_switched":true, "power_mode":"external_power", "control_mode":"internal_control", "is_powered":false, "blocks_movement":false, "blocks_vision":false,
 		"property_schema":[
+			FACING_SIDE_SCHEMA,
 			{"field":"mount", "type":"enum", "values":["floor", "wall"], "default":"floor", "labels":{"floor":"Floor", "wall":"Wall"}},
 			{"field":"switch_state", "type":"enum", "values":["off", "on"], "default":"off", "labels":{"off":"Off", "on":"On"}}
 		]
 	},
 	"fuse_box": {
-		"archetype_id":"fuse_box", "object_group":"power", "object_type":"fuse_box", "palette_label":"Fuse Box",
+		"archetype_id":"fuse_box", "object_group":"power", "object_type":"fuse_box", "palette_label":"Fuse Box", "facing_side":"SW",
 		"placement_mode":"object", "display_name_template":"Fuse Box", "configurable":true, "state":"installed", "requires_fuse":true, "fuse_present":true, "fuse_installed":true, "power_mode":"external_power", "control_mode":"internal_control", "is_powered":false, "blocks_movement":false, "blocks_vision":false,
 		"property_schema":[
+			FACING_SIDE_SCHEMA,
 			{"field":"mount", "type":"enum", "values":["floor", "wall"], "default":"floor", "labels":{"floor":"Floor", "wall":"Wall"}},
 			{"field":"fuse_present", "type":"bool", "default":true}
 		]
@@ -344,8 +353,8 @@ const ARCHETYPE_REGISTRY: Dictionary = {
 		]
 	},
 	"case": {
-		"archetype_id":"case", "object_group":"physical_object", "object_type":"case", "palette_label":"Case",
-		"placement_mode":"object", "display_name_template":"Case", "configurable":false, "blocks_movement":true, "property_schema":[]
+		"archetype_id":"case", "object_group":"physical_object", "object_type":"case", "palette_label":"Case", "facing_side":"SW",
+		"placement_mode":"object", "display_name_template":"Case", "configurable":true, "blocks_movement":true, "property_schema":[FACING_SIDE_SCHEMA]
 	},
 	"power_source": {
 		"archetype_id":"power_source", "object_group":"power", "object_type":"power_source", "palette_label":"Power Source",
@@ -963,6 +972,25 @@ static func normalize_cable_contract(object_data: Dictionary) -> Dictionary:
 		data["state"] = "ok" if health_state == "normal" else health_state
 	return data
 
+
+static func normalize_facing_side(value: Variant) -> String:
+	var side: String = str(value).strip_edges().to_upper()
+	return side if side in FACING_SIDES else FACING_SIDE_SW
+
+static func resolve_facing_side_from_object_data(object_data: Dictionary) -> String:
+	if object_data.has("facing_side"):
+		return normalize_facing_side(object_data.get("facing_side", FACING_SIDE_SW))
+	var legacy_side: String = str(object_data.get("front_side", object_data.get("interaction_side", ""))).strip_edges()
+	if not legacy_side.is_empty():
+		return normalize_facing_side(legacy_side)
+	var legacy_direction: String = str(object_data.get("facing_dir", object_data.get("direction", object_data.get("facing", "")))).strip_edges().to_lower()
+	match legacy_direction:
+		"se", "southeast", "south_east", "right", "east":
+			return FACING_SIDE_SE
+		"sw", "southwest", "south_west", "left", "south":
+			return FACING_SIDE_SW
+	return FACING_SIDE_SW
+
 static func normalize_world_object_contract(object_data: Dictionary) -> Dictionary:
 	var data: Dictionary = canonicalize_legacy_object_data(object_data)
 	if data.is_empty():
@@ -991,6 +1019,8 @@ static func normalize_world_object_contract(object_data: Dictionary) -> Dictiona
 		data["blocks_movement"] = true
 		data["blocks_vision"] = _safe_bool_like(data.get("blocks_vision", false), false)
 		data["can_interact"] = true
+	if normalized_object_type in ["terminal", "fuse_box", "power_switcher", "light_switcher", "light_switch", "case", "door"] or str(data.get("object_group", "")) in ["terminal", "door"]:
+		data["facing_side"] = resolve_facing_side_from_object_data(object_data)
 	return data
 
 static func _contains_cyrillic(value: Variant) -> bool:
@@ -1638,7 +1668,7 @@ static func can_world_object_be_moved_by_heavy_claw(object_data: Dictionary) -> 
 	if object_group not in ["cooling", "physical", "physical_object"]:
 		return false
 	var object_type := str(object_data.get("object_type", ""))
-	return object_type in ["external_radiator", "external_air_cooler", "metal_cooling_block", "normal_crate", "heavy_crate", "steel_box", "barrel", "explosive_barrel", "fire_barrel"]
+	return object_type in ["radiator", "external_radiator", "external_air_cooler", "metal_cooling_block", "normal_crate", "heavy_crate", "steel_box", "barrel", "explosive_barrel", "fire_barrel"]
 
 static func can_world_object_receive_cooling(object_data: Dictionary) -> bool:
 	if object_data.is_empty():

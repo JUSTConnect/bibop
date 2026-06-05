@@ -6,7 +6,7 @@ const BreachableWallServiceRef = preload("res://scripts/game/wall/breachable_wal
 const CableTopologyServiceRef = preload("res://scripts/game/cable_topology_service.gd")
 const PlatformTypesRef = preload("res://scripts/game/platform/platform_types.gd")
 const PlatformVisualServiceRef = preload("res://scripts/game/platform/platform_visual_service.gd")
-const IsoVisualAlignmentServiceRef = preload("res://scripts/field/iso_visual_alignment_service.gd")
+const ObjectFacingServiceRef = preload("res://scripts/game/object/object_facing_service.gd")
 
 # GridManager remains the gameplay grid source.
 # RoomVisualRenderer is a future visual projection layer.
@@ -3111,6 +3111,88 @@ func _get_color_from_dict(data: Dictionary, key: String, fallback: Color) -> Col
 		return value
 	return fallback
 
+func get_iso_object_png_visual_rule(asset_key: String) -> Dictionary:
+	var normalized_asset_key: String = asset_key.strip_edges().to_lower()
+	var wall_mounted: bool = normalized_asset_key.contains("_wall_") or normalized_asset_key == "cable_reel_02" or normalized_asset_key == "light_01"
+	var rule: Dictionary = {"anchor": "wall_mount_center" if wall_mounted else "bottom_center", "scale": 1.0, "offset": Vector2(0, -18) if wall_mounted else Vector2.ZERO, "expected_size": Vector2(72, 72), "layer_hint": "object", "notes": "Normalized object PNG draw size/pivot."}
+	match normalized_asset_key:
+		"terminal_01":
+			rule["expected_size"] = Vector2(80, 78)
+		"power_source_01":
+			rule["expected_size"] = Vector2(84, 86)
+		"radiator_01":
+			rule["expected_size"] = Vector2(82, 74)
+		"barrel_01", "fire_barrel_01":
+			rule["expected_size"] = Vector2(58, 76)
+		"case_01":
+			rule["expected_size"] = Vector2(68, 56)
+		"steel_box_01":
+			rule["expected_size"] = Vector2(72, 60)
+		"fuse_box_in_01", "fuse_box_out_01":
+			rule["expected_size"] = Vector2(52, 58)
+		"fuse_box_in_wall_01", "fuse_box_out_wall_01":
+			rule["expected_size"] = Vector2(46, 54)
+		"power_switcher_off_01", "power_switcher_on_01":
+			rule["expected_size"] = Vector2(48, 42)
+		"power_switcher_off_wall_01", "power_switcher_on_wall_01":
+			rule["expected_size"] = Vector2(42, 42)
+		"cable_reel_01", "cable_reel_02":
+			rule["expected_size"] = Vector2(58, 58)
+	return rule
+
+func get_iso_object_surface_level(object_data: Dictionary) -> int:
+	if object_data.has("platform_height_level"):
+		return int(object_data.get("platform_height_level", 0))
+	if object_data.has("height_level") and typeof(object_data.get("height_level")) in [TYPE_INT, TYPE_FLOAT]:
+		return int(object_data.get("height_level", 0))
+	return 0
+
+func _parse_visual_pivot(value: Variant, fallback: Vector2) -> Vector2:
+	if value is Vector2:
+		return value
+	if value is Array and Array(value).size() >= 2:
+		return Vector2(float(value[0]), float(value[1]))
+	if value is Dictionary:
+		var dict: Dictionary = Dictionary(value)
+		return Vector2(float(dict.get("x", fallback.x)), float(dict.get("y", fallback.y)))
+	return fallback
+
+func build_iso_object_visual_descriptor(object_data: Dictionary, asset_key: String, visual_center: Vector2, texture: Texture2D = null) -> Dictionary:
+	var rule: Dictionary = get_iso_asset_alignment_rule(asset_key)
+	var expected_size: Vector2 = get_iso_asset_alignment_expected_size(asset_key)
+	var visual_scale: float = maxf(float(object_data.get("visual_scale", rule.get("scale", 1.0))), 0.01)
+	var destination_size: Vector2 = expected_size * visual_scale
+	var visual_pivot: Vector2 = _parse_visual_pivot(object_data.get("visual_pivot", get_iso_asset_alignment_anchor_offset(str(rule.get("anchor", "bottom_center")), destination_size)), get_iso_asset_alignment_anchor_offset(str(rule.get("anchor", "bottom_center")), destination_size))
+	var surface_level: int = get_iso_object_surface_level(object_data)
+	var surface_offset: Vector2 = Vector2(0.0, -float(surface_level) * 16.0)
+	var configured_offset: Vector2 = Vector2(rule.get("offset", Vector2.ZERO)) + _parse_visual_pivot(object_data.get("visual_offset", Vector2.ZERO), Vector2.ZERO)
+	var final_draw_position: Vector2 = visual_center + surface_offset - visual_pivot + configured_offset
+	var destination_rect: Rect2 = Rect2(final_draw_position, destination_size)
+	return {
+		"visual_asset_key": asset_key,
+		"texture": texture,
+		"visual_scale": visual_scale,
+		"visual_pivot": visual_pivot,
+		"surface_level": surface_level,
+		"final_draw_position": final_draw_position,
+		"destination_rect": destination_rect,
+		"source_rect": Rect2(Vector2.ZERO, texture.get_size() if texture != null else expected_size),
+		"mirror_h": ObjectFacingServiceRef.get_facing_side(object_data) == ObjectFacingServiceRef.FACING_SIDE_SE and bool(object_data.get("mirror_visual_for_facing_side", true))
+	}
+
+func draw_iso_object_png_texture_with_descriptor(texture: Texture2D, descriptor: Dictionary) -> void:
+	var destination_rect: Rect2 = Rect2(descriptor.get("destination_rect", Rect2()))
+	var source_rect: Rect2 = Rect2(descriptor.get("source_rect", Rect2(Vector2.ZERO, texture.get_size())))
+	if bool(descriptor.get("mirror_h", false)):
+		draw_set_transform(destination_rect.position + Vector2(destination_rect.size.x, 0.0), 0.0, Vector2(-1.0, 1.0))
+		draw_texture_rect_region(texture, Rect2(Vector2.ZERO, destination_rect.size), source_rect)
+		draw_set_transform(Vector2.ZERO, 0.0, Vector2.ONE)
+	else:
+		draw_texture_rect_region(texture, destination_rect, source_rect)
+	draw_iso_asset_alignment_overlay(str(descriptor.get("visual_asset_key", "")), destination_rect.position + Vector2(descriptor.get("visual_pivot", destination_rect.size * 0.5)), destination_rect)
+	if debug_log_iso_object_asset_resolution:
+		print("[IsoObjectVisual] visual_asset_key=%s visual_scale=%s visual_pivot=%s surface_level=%s final_draw_position=%s" % [str(descriptor.get("visual_asset_key", "")), str(descriptor.get("visual_scale", 1.0)), str(descriptor.get("visual_pivot", Vector2.ZERO)), str(descriptor.get("surface_level", 0)), str(descriptor.get("final_draw_position", Vector2.ZERO))])
+
 func get_iso_asset_alignment_rule(asset_key: String) -> Dictionary:
 	var rule: Dictionary = {}
 	if ISO_ASSET_ALIGNMENT_RULES.has(asset_key):
@@ -3124,9 +3206,7 @@ func get_iso_asset_alignment_rule(asset_key: String) -> Dictionary:
 	elif asset_key.begins_with("object_"):
 		rule = {"anchor": "bottom_center", "scale": 0.75, "offset": Vector2(0, -8), "expected_size": Vector2(96, 96), "layer_hint": "object", "notes": "Fallback object alignment."}
 	elif ISO_OBJECT_PNG_ASSET_PATHS.has(asset_key):
-		var object_anchor: String = "wall_mount_center" if asset_key.contains("_wall_") or asset_key == "cable_reel_02" or asset_key == "light_01" else "bottom_center"
-		var object_offset: Vector2 = Vector2(0, -18) if object_anchor == "wall_mount_center" else Vector2(0, -8)
-		rule = {"anchor": object_anchor, "scale": 0.75, "offset": object_offset, "expected_size": Vector2(96, 96), "layer_hint": "object", "notes": "Canonical object PNG alignment; SVG placeholders are not consulted."}
+		rule = get_iso_object_png_visual_rule(asset_key)
 	else:
 		rule = {"anchor": "center", "scale": 1.0, "offset": Vector2.ZERO, "expected_size": Vector2(96, 96), "layer_hint": "unknown", "notes": "Fallback generic alignment."}
 	if asset_key.begins_with("floor_"):
@@ -3164,7 +3244,7 @@ func get_iso_texture_draw_rect_for_asset_key_with_size(asset_key: String, center
 	var anchor: String = str(rule.get("anchor", "center"))
 	var scale_value: float = get_iso_asset_alignment_scale(asset_key)
 	var destination_size: Vector2 = source_size * scale_value
-	if asset_key.begins_with("floor_") or asset_key.begins_with("object_"):
+	if asset_key.begins_with("floor_") or asset_key.begins_with("object_") or ISO_OBJECT_PNG_ASSET_PATHS.has(asset_key):
 		destination_size = get_iso_asset_alignment_expected_size(asset_key) * scale_value
 	var offset: Vector2 = Vector2(rule.get("offset", Vector2.ZERO))
 	var anchor_offset: Vector2 = get_iso_asset_alignment_anchor_offset(anchor, destination_size)
@@ -3229,7 +3309,7 @@ func draw_iso_texture_asset(cell: Vector2i, asset_key: String, visual_center_ove
 	draw_iso_texture_with_alignment(texture, asset_key, visual_center)
 	return true
 
-func draw_iso_object_png_texture_asset(cell: Vector2i, asset_key: String, visual_center_override: Vector2 = Vector2.INF) -> bool:
+func draw_iso_object_png_texture_asset(cell: Vector2i, asset_key: String, visual_center_override: Vector2 = Vector2.INF, object_data: Dictionary = {}) -> bool:
 	if not should_use_iso_tile_asset_hook_visuals():
 		return false
 	var normalized_asset_key: String = asset_key.strip_edges().to_lower()
@@ -3245,7 +3325,8 @@ func draw_iso_object_png_texture_asset(cell: Vector2i, asset_key: String, visual
 		var fallback_rect: Rect2 = get_iso_texture_draw_rect_for_asset_key_with_size(normalized_asset_key, visual_center, get_iso_asset_alignment_expected_size(normalized_asset_key))
 		draw_missing_iso_asset_debug_fallback(cell, normalized_asset_key, fallback_rect)
 		return true
-	draw_iso_texture_with_alignment(texture, normalized_asset_key, visual_center)
+	var descriptor: Dictionary = build_iso_object_visual_descriptor(object_data, normalized_asset_key, visual_center, texture)
+	draw_iso_object_png_texture_with_descriptor(texture, descriptor)
 	return true
 
 func draw_optional_visual_texture_asset(asset_id: String, cell: Vector2i, _fallback_callable_name: String = "", options: Dictionary = {}) -> bool:
@@ -5427,7 +5508,7 @@ func draw_iso_object_marker(cell: Vector2i, tile_type: int, override_object_data
 	var used_texture_asset: bool = false
 	if profile_key != "cable":
 		if is_iso_object_png_asset_key(object_asset_key):
-			used_texture_asset = draw_iso_object_png_texture_asset(cell, object_asset_key, visual_center)
+			used_texture_asset = draw_iso_object_png_texture_asset(cell, object_asset_key, visual_center, object_data)
 		else:
 			used_texture_asset = draw_optional_visual_texture_asset(object_asset_key, cell, "draw_iso_object_marker", {"visual_center": visual_center})
 			if not used_texture_asset:
