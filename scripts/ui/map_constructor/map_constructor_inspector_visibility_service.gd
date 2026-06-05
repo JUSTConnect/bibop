@@ -7,6 +7,39 @@ static func get_object_type(data: Dictionary) -> String:
 static func is_power_source(data: Dictionary) -> bool:
 	return get_object_type(data).begins_with("power_source")
 
+static func normalize_terminal_type(data: Dictionary) -> String:
+	var terminal_type: String = _normalize_text(data.get("terminal_type", data.get("terminal_mode", "")))
+	if terminal_type in ["info", "data", "storage"]:
+		return "information"
+	if terminal_type in ["controller", "control_terminal"]:
+		return "control"
+	return terminal_type if terminal_type in ["information", "control"] else "information"
+
+static func is_information_terminal(data: Dictionary) -> bool:
+	return normalize_terminal_type(data) == "information"
+
+static func is_control_terminal(data: Dictionary) -> bool:
+	return normalize_terminal_type(data) == "control"
+
+static func normalize_stored_data_type(data: Dictionary) -> String:
+	var stored_data_type: String = _normalize_text(data.get("stored_data_type", data.get("digital_payload_type", data.get("payload_type", ""))))
+	if stored_data_type in ["code", "password"]:
+		return "access_code"
+	if stored_data_type in ["key", "digitalkey"]:
+		return "digital_key"
+	if stored_data_type in ["file", "record", "datafile"]:
+		return "data_file"
+	return stored_data_type if stored_data_type in ["access_code", "digital_key", "data_file"] else "access_code"
+
+static func should_show_terminal_controlled_target(data: Dictionary) -> bool:
+	return is_control_terminal(data)
+
+static func should_show_terminal_stored_data(data: Dictionary) -> bool:
+	return is_information_terminal(data)
+
+static func should_show_terminal_stored_data_damage_flags(data: Dictionary) -> bool:
+	return should_show_terminal_stored_data(data) and normalize_stored_data_type(data) == "data_file"
+
 static func normalize_control_type(data: Dictionary) -> String:
 	var control_type: String = _normalize_text(data.get("control_type", data.get("control_mode", "")))
 	if control_type.is_empty():
