@@ -106,7 +106,7 @@ static func _get_mechanism_summary(ui: Variant, data: Dictionary) -> Dictionary:
 	var mechanism_id: String = MapConstructorUiSafe.safe_string(data.get("mechanism_id", ""))
 	if ui.mission_manager_runtime != null and ui.mission_manager_runtime.has_method("get_platform_mechanism_summary"):
 		return MapConstructorUiSafe.safe_dictionary(ui.mission_manager_runtime.call("get_platform_mechanism_summary", mechanism_id))
-	return PlatformMechanismServiceRef.get_mechanism_summary(mechanism_id, [])
+	return PlatformMechanismServiceRef.build_mechanism_summary(mechanism_id, [])
 
 static func _validate_mechanism(ui: Variant, data: Dictionary) -> Dictionary:
 	var mechanism_id: String = MapConstructorUiSafe.safe_string(data.get("mechanism_id", ""))
