@@ -3110,6 +3110,9 @@ func _get_color_from_dict(data: Dictionary, key: String, fallback: Color) -> Col
 	if value is Color:
 		return value
 	return fallback
+	
+const ISO_OBJECT_PNG_MIN_VISUAL_SCALE: float = 0.25
+const ISO_OBJECT_PNG_MAX_VISUAL_SCALE: float = 1.25
 
 func get_iso_object_png_visual_rule(asset_key: String) -> Dictionary:
 	var normalized_asset_key: String = asset_key.strip_edges().to_lower()
@@ -3156,11 +3159,21 @@ func _parse_visual_pivot(value: Variant, fallback: Vector2) -> Vector2:
 		var dict: Dictionary = Dictionary(value)
 		return Vector2(float(dict.get("x", fallback.x)), float(dict.get("y", fallback.y)))
 	return fallback
+func get_safe_iso_object_png_visual_scale(object_data: Dictionary, asset_key: String, rule: Dictionary) -> float:
+	var rule_scale: float = float(rule.get("scale", 1.0))
+	if not ISO_OBJECT_PNG_ASSET_PATHS.has(asset_key):
+		return maxf(float(object_data.get("visual_scale", rule_scale)), 0.01)
 
+	if not bool(object_data.get("allow_custom_visual_scale", false)):
+		return clampf(rule_scale, ISO_OBJECT_PNG_MIN_VISUAL_SCALE, ISO_OBJECT_PNG_MAX_VISUAL_SCALE)
+
+	var custom_scale: float = float(object_data.get("visual_scale", rule_scale))
+	return clampf(custom_scale, ISO_OBJECT_PNG_MIN_VISUAL_SCALE, ISO_OBJECT_PNG_MAX_VISUAL_SCALE)
+	
 func build_iso_object_visual_descriptor(object_data: Dictionary, asset_key: String, visual_center: Vector2, texture: Texture2D = null) -> Dictionary:
 	var rule: Dictionary = get_iso_asset_alignment_rule(asset_key)
 	var expected_size: Vector2 = get_iso_asset_alignment_expected_size(asset_key)
-	var visual_scale: float = maxf(float(object_data.get("visual_scale", rule.get("scale", 1.0))), 0.01)
+	var visual_scale: float = get_safe_iso_object_png_visual_scale(object_data, asset_key, rule)
 	var destination_size: Vector2 = expected_size * visual_scale
 	var visual_pivot: Vector2 = _parse_visual_pivot(object_data.get("visual_pivot", get_iso_asset_alignment_anchor_offset(str(rule.get("anchor", "bottom_center")), destination_size)), get_iso_asset_alignment_anchor_offset(str(rule.get("anchor", "bottom_center")), destination_size))
 	var surface_level: int = get_iso_object_surface_level(object_data)
