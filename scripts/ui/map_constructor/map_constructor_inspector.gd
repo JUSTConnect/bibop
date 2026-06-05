@@ -3,6 +3,7 @@ class_name MapConstructorInspector
 
 const MapConstructorPlatformControlsRef = preload("res://scripts/ui/map_constructor/map_constructor_platform_controls.gd")
 const MapConstructorInspectorVisibilityServiceRef = preload("res://scripts/ui/map_constructor/map_constructor_inspector_visibility_service.gd")
+const MapConstructorTerminalStoredDataControlsRef = preload("res://scripts/ui/map_constructor/map_constructor_terminal_stored_data_controls.gd")
 
 
 static func _is_simple_movable_object(data: Dictionary) -> bool:
@@ -450,7 +451,7 @@ static func _render_entity_tab(ui: Variant, parent: VBoxContainer, entity_info: 
 	var uses_dedicated_power_state_selector: bool = type_group == "power" and (inspector_object_type.begins_with("power_source") or inspector_object_type in ["power_cable", "power_cable_reel"])
 	if object_is_configurable and data.has("state") and normalized_object_type not in ["power_switcher", "fuse_box"] and not (type_group == "door" or uses_dedicated_power_state_selector):
 		ui._add_text_property(configurable, "Editable state override", entity_kind, entity_id, "state", data.get("state", ""))
-	if type_group == "terminal":
+	if type_group == "terminal" and not MapConstructorInspectorVisibilityServiceRef.should_show_terminal_stored_data(data):
 		ui._add_bool_property(configurable, "damaged", entity_kind, entity_id, "damaged", data.get("damaged", false))
 		ui._add_bool_property(configurable, "encrypted", entity_kind, entity_id, "encrypted", data.get("encrypted", false))
 	if type_group == "power":
@@ -491,6 +492,8 @@ static func _render_entity_tab(ui: Variant, parent: VBoxContainer, entity_info: 
 		no_config_label.text = "No configurable object-specific parameters."
 		configurable.add_child(no_config_label)
 	parent.add_child(configurable)
+	if not use_simple_movable_inspector:
+		MapConstructorTerminalStoredDataControlsRef.add_stored_data_section(ui, parent, entity_kind, entity_id, data)
 	var validation_result: Dictionary = {}
 	if not use_simple_movable_inspector and ui.mission_manager_runtime != null and ui.mission_manager_runtime.has_method("validate_map_constructor_entity_links"):
 		validation_result = ui._safe_ui_dictionary(ui.mission_manager_runtime.call("validate_map_constructor_entity_links", entity_kind, entity_id))
