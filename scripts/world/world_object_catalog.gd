@@ -80,7 +80,8 @@ const PREFAB_ALIASES: Dictionary = {
 	"water_floor": "floor",
 	"oil_floor": "floor",
 	"dirty_floor": "floor",
-	"debris_floor": "floor"
+	"debris_floor": "floor",
+	"breachable_wall": "wall"
 }
 
 const LEGACY_SOURCE_METADATA_FIELDS: Array[String] = ["legacy_prefab_id", "map_constructor_prefab_id", "legacy_object_type", "source_prefab_id"]
@@ -98,7 +99,8 @@ const PREFAB_ALIAS_DEFAULTS: Dictionary = {
 	"water_floor": {"object_group":"floor", "covering":"water"},
 	"oil_floor": {"object_group":"floor", "covering":"oil"},
 	"dirty_floor": {"object_group":"floor", "covering":"dirt"},
-	"debris_floor": {"object_group":"floor", "covering":"debris"}
+	"debris_floor": {"object_group":"floor", "covering":"debris"},
+	"breachable_wall": {"object_group":"wall", "is_breachable_wall":true, "wall_archetype":"breachable", "material":"breachable_concrete", "breach_side":"sw", "breach_state":"intact", "supports_embedded_objects":false, "supports_cables":false}
 }
 
 # Hidden compatibility mappings for loading old constructor/runtime data only.
@@ -145,7 +147,7 @@ const WALL_MATERIAL_GRATE := "grate"
 const WALL_MATERIAL_ELECTROMAGNETIC := "electromagnetic"
 const WALL_MATERIAL_BREACHABLE_CONCRETE := "breachable_concrete"
 const WALL_MATERIAL_BREACHABLE_BRICK := "breachable_brick"
-const WALL_MATERIALS: Array[String] = [WALL_MATERIAL_BRICK, WALL_MATERIAL_CONCRETE, WALL_MATERIAL_STEEL, WALL_MATERIAL_REINFORCED_STEEL, WALL_MATERIAL_TITANIUM, WALL_MATERIAL_GRATE, WALL_MATERIAL_ELECTROMAGNETIC]
+const WALL_MATERIALS: Array[String] = [WALL_MATERIAL_BRICK, WALL_MATERIAL_CONCRETE, WALL_MATERIAL_STEEL, WALL_MATERIAL_REINFORCED_STEEL, WALL_MATERIAL_TITANIUM, WALL_MATERIAL_GRATE, WALL_MATERIAL_ELECTROMAGNETIC, WALL_MATERIAL_BREACHABLE_CONCRETE, WALL_MATERIAL_BREACHABLE_BRICK]
 const BREACHABLE_WALL_MATERIALS: Array[String] = [WALL_MATERIAL_BREACHABLE_CONCRETE, WALL_MATERIAL_BREACHABLE_BRICK]
 const BREACHABLE_WALL_HEIGHTS: Array[String] = ["mid", "halfmid", "tall"]
 const WALL_SIDES: Array[String] = ["north", "east", "south", "west"]
@@ -162,9 +164,10 @@ const WALL_DISPLAY_NAMES: Dictionary = {
 }
 
 # Hidden compatibility mappings for historic wall ids. Constructor palettes must
-# expose only external_wall and wall; old ids normalize while loading legacy data.
+# expose only one configurable wall row; old ids normalize while loading legacy data.
 const LEGACY_WALL_ALIAS_CONFIGS: Dictionary = {
 	"outer_wall": {"object_type":"external_wall"},
+	"breachable_wall": {"object_type":"wall", "material":WALL_MATERIAL_BREACHABLE_CONCRETE, "is_breachable_wall":true, "heavy_claw_breachable":true, "supports_embedded_objects":false, "supports_cables":false, "wall_height":"mid", "breach_side":"sw"},
 	"brick_wall": {"object_type":"wall", "material":WALL_MATERIAL_BRICK},
 	"concrete_wall": {"object_type":"wall", "material":WALL_MATERIAL_CONCRETE},
 	"steel_wall": {"object_type":"wall", "material":WALL_MATERIAL_STEEL},
@@ -176,12 +179,21 @@ const LEGACY_WALL_ALIAS_CONFIGS: Dictionary = {
 	"damaged_wall": {"object_type":"wall", "material":WALL_MATERIAL_CONCRETE, "damaged":true}
 }
 
+const LEGACY_PLATFORM_ALIAS_CONFIGS: Dictionary = {
+	"movable_platform_block": {"object_type":"platform", "platform_mode":"elevator", "platform_level":0, "max_level":1, "control_type":"internal", "power_type":"none"}
+}
+
 const TERMINAL_TYPES: Array[String] = ["information", "control"]
 const TERMINAL_CONTROLLED_TARGET_TYPES: Array[String] = ["none", "door", "cooling", "platform", "power", "lighting", "device"]
 const TERMINAL_CLASSES: Array[int] = [1, 2, 3]
 const TERMINAL_POWER_TYPES: Array[String] = ["internal", "external"]
 const TERMINAL_CONTROL_TYPES: Array[String] = ["internal", "external"]
 const TERMINAL_STATUSES: Array[String] = ["active", "damaged", "unpowered", "locked", "disabled", "error"]
+
+const FACING_SIDE_SW := "SW"
+const FACING_SIDE_SE := "SE"
+const FACING_SIDES: Array[String] = [FACING_SIDE_SW, FACING_SIDE_SE]
+const FACING_SIDE_SCHEMA: Dictionary = {"field":"facing_side", "type":"enum", "values":["SW", "SE"], "default":"SW", "labels":{"SW":"SW", "SE":"SE"}, "label":"Facing Side"}
 
 # Hidden compatibility mappings for historic terminal ids. Constructor palettes,
 # searches, kits, and templates must expose only the configurable terminal archetype.
@@ -214,7 +226,7 @@ const DOOR_MATERIAL_BY_OBJECT_TYPE: Dictionary = {
 # power_source, item, wall, cooling_device, data_device) without adding palette variants.
 const ARCHETYPE_REGISTRY: Dictionary = {
 	"external_wall": {
-		"archetype_id":"external_wall", "object_group":"wall", "object_type":"external_wall", "palette_label":"External Wall",
+		"archetype_id":"external_wall", "object_group":"wall", "object_type":"external_wall", "palette_label":"External Wall", "show_in_palette":false,
 		"display_name_template":"External Wall", "material":"external_structural", "is_destructible":false, "supports_embedded_objects":true, "supports_cables":true, "configurable":false, "blocks_movement":true, "blocks_vision":true,
 		"property_schema":[]
 	},
@@ -222,23 +234,18 @@ const ARCHETYPE_REGISTRY: Dictionary = {
 		"archetype_id":"wall", "object_group":"wall", "object_type":"wall", "palette_label":"Wall",
 		"display_name_template":"{material_label} Wall", "is_destructible":true, "supports_embedded_objects":true, "supports_cables":true, "configurable":true, "blocks_movement":true, "blocks_vision":true,
 		"property_schema":[
-			{"field":"material", "type":"enum", "values":["brick", "concrete", "steel", "reinforced_steel", "titanium", "grate", "electromagnetic"], "default":"brick", "labels":{"brick":"Brick", "concrete":"Concrete", "steel":"Steel", "reinforced_steel":"Reinforced Steel", "titanium":"Titanium", "grate":"Grate", "electromagnetic":"Electromagnetic"}}
-		]
-	},
-	"breachable_wall": {
-		"archetype_id":"breachable_wall", "object_group":"wall", "object_type":"breachable_wall", "palette_label":"Breachable Wall",
-		"display_name_template":"{material_label} Wall", "is_destructible":true, "is_breachable_wall":true, "heavy_claw_breachable":true, "supports_embedded_objects":false, "supports_cables":false, "configurable":true, "blocks_movement":true, "blocks_vision":true,
-		"property_schema":[
-			{"field":"material", "type":"enum", "values":["breachable_concrete", "breachable_brick"], "default":"breachable_concrete", "labels":{"breachable_concrete":"Breachable Concrete Wall", "breachable_brick":"Breachable Brick Wall"}},
+			{"field":"material", "type":"enum", "values":["brick", "concrete", "steel", "reinforced_steel", "titanium", "grate", "electromagnetic", "breachable_concrete", "breachable_brick"], "default":"brick", "labels":{"brick":"Brick", "concrete":"Concrete", "steel":"Steel", "reinforced_steel":"Reinforced Steel", "titanium":"Titanium", "grate":"Grate", "electromagnetic":"Electromagnetic", "breachable_concrete":"Breachable Concrete", "breachable_brick":"Breachable Brick"}},
+			{"field":"is_breachable_wall", "type":"bool", "default":false},
 			{"field":"wall_height", "type":"enum", "values":["mid", "halfmid", "tall"], "default":"mid", "labels":{"mid":"Mid", "halfmid":"Half Mid", "tall":"Tall"}},
 			{"field":"breach_side", "type":"enum", "values":["sw", "se", "nw", "ne"], "default":"sw", "labels":{"sw":"SW", "se":"SE", "nw":"NW", "ne":"NE"}}
 		]
 	},
 	"door": {
-		"archetype_id":"door", "object_group":"door", "object_type":"door", "palette_label":"Door",
+		"archetype_id":"door", "object_group":"door", "object_type":"door", "palette_label":"Door", "facing_side":"SW",
 		"configurable":true,
 		"display_name_template":"{material_label} {door_type_label} Door",
 		"property_schema":[
+			FACING_SIDE_SCHEMA,
 			{"field":"door_type", "type":"enum", "values":["mechanical", "digital", "powered"], "default":"mechanical"},
 			{"field":"material", "type":"enum", "values":["steel", "reinforced_steel", "titanium", "energy"], "default":"steel"},
 			{"field":"access_type", "type":"enum", "values":["no_key", "key_card", "digital_key", "access_code", "terminal"], "default":"key_card"},
@@ -276,9 +283,10 @@ const ARCHETYPE_REGISTRY: Dictionary = {
 		]
 	},
 	"terminal": {
-		"archetype_id":"terminal", "object_group":"terminal", "object_type":"terminal", "palette_label":"Terminal",
+		"archetype_id":"terminal", "object_group":"terminal", "object_type":"terminal", "palette_label":"Terminal", "facing_side":"SW",
 		"configurable":true,
 		"property_schema":[
+			FACING_SIDE_SCHEMA,
 			{"field":"terminal_type", "type":"enum", "values":["information", "control"], "default":"information", "labels":{"information":"Information", "control":"Control"}},
 			{"field":"controlled_target_type", "type":"enum", "values":["none", "door", "cooling", "platform", "power", "lighting", "device"], "default":"none", "labels":{"none":"None", "door":"Door", "cooling":"Cooling", "platform":"Platform", "power":"Power", "lighting":"Lighting", "device":"Device"}},
 			{"field":"terminal_class", "type":"enum", "values":[1, 2, 3], "default":1, "labels":{"1":"Class 1", "2":"Class 2", "3":"Class 3"}},
@@ -312,17 +320,19 @@ const ARCHETYPE_REGISTRY: Dictionary = {
 		]
 	},
 	"power_switcher": {
-		"archetype_id":"power_switcher", "object_group":"power", "object_type":"power_switcher", "palette_label":"Power Switcher",
+		"archetype_id":"power_switcher", "object_group":"power", "object_type":"power_switcher", "palette_label":"Power Switcher", "facing_side":"SW",
 		"placement_mode":"object", "display_name_template":"Power Switcher", "configurable":true, "state":"switch_off", "switch_state":"off", "is_on":false, "can_be_switched":true, "power_mode":"external_power", "control_mode":"internal_control", "is_powered":false, "blocks_movement":false, "blocks_vision":false,
 		"property_schema":[
+			FACING_SIDE_SCHEMA,
 			{"field":"mount", "type":"enum", "values":["floor", "wall"], "default":"floor", "labels":{"floor":"Floor", "wall":"Wall"}},
 			{"field":"switch_state", "type":"enum", "values":["off", "on"], "default":"off", "labels":{"off":"Off", "on":"On"}}
 		]
 	},
 	"fuse_box": {
-		"archetype_id":"fuse_box", "object_group":"power", "object_type":"fuse_box", "palette_label":"Fuse Box",
+		"archetype_id":"fuse_box", "object_group":"power", "object_type":"fuse_box", "palette_label":"Fuse Box", "facing_side":"SW",
 		"placement_mode":"object", "display_name_template":"Fuse Box", "configurable":true, "state":"installed", "requires_fuse":true, "fuse_present":true, "fuse_installed":true, "power_mode":"external_power", "control_mode":"internal_control", "is_powered":false, "blocks_movement":false, "blocks_vision":false,
 		"property_schema":[
+			FACING_SIDE_SCHEMA,
 			{"field":"mount", "type":"enum", "values":["floor", "wall"], "default":"floor", "labels":{"floor":"Floor", "wall":"Wall"}},
 			{"field":"fuse_present", "type":"bool", "default":true}
 		]
@@ -343,8 +353,8 @@ const ARCHETYPE_REGISTRY: Dictionary = {
 		]
 	},
 	"case": {
-		"archetype_id":"case", "object_group":"physical_object", "object_type":"case", "palette_label":"Case",
-		"placement_mode":"object", "display_name_template":"Case", "configurable":false, "blocks_movement":true, "property_schema":[]
+		"archetype_id":"case", "object_group":"physical_object", "object_type":"case", "palette_label":"Case", "facing_side":"SW",
+		"placement_mode":"object", "display_name_template":"Case", "configurable":true, "blocks_movement":true, "property_schema":[FACING_SIDE_SCHEMA]
 	},
 	"power_source": {
 		"archetype_id":"power_source", "object_group":"power", "object_type":"power_source", "palette_label":"Power Source",
@@ -406,7 +416,7 @@ static func canonical_prefab_id(prefab_id: String) -> String:
 	var normalized_type: String = prefab_id.strip_edges().to_lower()
 	if PREFAB_ALIASES.has(normalized_type):
 		return str(PREFAB_ALIASES[normalized_type])
-	var preset_variant: Variant = LEGACY_ITEM_ALIAS_CONFIGS.get(normalized_type, LEGACY_DOOR_ALIAS_CONFIGS.get(normalized_type, LEGACY_WALL_ALIAS_CONFIGS.get(normalized_type, LEGACY_TERMINAL_ALIAS_CONFIGS.get(normalized_type, {}))))
+	var preset_variant: Variant = LEGACY_ITEM_ALIAS_CONFIGS.get(normalized_type, LEGACY_DOOR_ALIAS_CONFIGS.get(normalized_type, LEGACY_WALL_ALIAS_CONFIGS.get(normalized_type, LEGACY_PLATFORM_ALIAS_CONFIGS.get(normalized_type, LEGACY_TERMINAL_ALIAS_CONFIGS.get(normalized_type, {})))))
 	if preset_variant is Dictionary:
 		return str(preset_variant.get("object_type", "terminal" if LEGACY_TERMINAL_ALIAS_CONFIGS.has(normalized_type) else normalized_type))
 	return normalized_type
@@ -417,7 +427,7 @@ static func canonical_object_type(object_type: String) -> String:
 
 static func is_legacy_prefab_alias(value: String) -> bool:
 	var normalized_value: String = value.strip_edges().to_lower()
-	return PREFAB_ALIASES.has(normalized_value) or LEGACY_DOOR_ALIAS_CONFIGS.has(normalized_value) or LEGACY_ITEM_ALIAS_CONFIGS.has(normalized_value) or LEGACY_WALL_ALIAS_CONFIGS.has(normalized_value) or LEGACY_TERMINAL_ALIAS_CONFIGS.has(normalized_value)
+	return PREFAB_ALIASES.has(normalized_value) or LEGACY_DOOR_ALIAS_CONFIGS.has(normalized_value) or LEGACY_ITEM_ALIAS_CONFIGS.has(normalized_value) or LEGACY_WALL_ALIAS_CONFIGS.has(normalized_value) or LEGACY_PLATFORM_ALIAS_CONFIGS.has(normalized_value) or LEGACY_TERMINAL_ALIAS_CONFIGS.has(normalized_value)
 
 static func is_legacy_door_object_type(value: String) -> bool:
 	var normalized_value: String = value.strip_edges().to_lower()
@@ -470,7 +480,7 @@ static func get_prefab_alias_defaults(prefab_id: String) -> Dictionary:
 	var raw_defaults: Variant = PREFAB_ALIAS_DEFAULTS.get(normalized_prefab_id, {})
 	if raw_defaults is Dictionary and not raw_defaults.is_empty():
 		return raw_defaults.duplicate(true)
-	var preset_variant: Variant = LEGACY_ITEM_ALIAS_CONFIGS.get(normalized_prefab_id, LEGACY_DOOR_ALIAS_CONFIGS.get(normalized_prefab_id, LEGACY_WALL_ALIAS_CONFIGS.get(normalized_prefab_id, LEGACY_TERMINAL_ALIAS_CONFIGS.get(normalized_prefab_id, {}))))
+	var preset_variant: Variant = LEGACY_ITEM_ALIAS_CONFIGS.get(normalized_prefab_id, LEGACY_DOOR_ALIAS_CONFIGS.get(normalized_prefab_id, LEGACY_WALL_ALIAS_CONFIGS.get(normalized_prefab_id, LEGACY_PLATFORM_ALIAS_CONFIGS.get(normalized_prefab_id, LEGACY_TERMINAL_ALIAS_CONFIGS.get(normalized_prefab_id, {})))))
 	if preset_variant is Dictionary:
 		var preset_defaults: Dictionary = preset_variant.duplicate(true)
 		preset_defaults.erase("object_type")
@@ -489,11 +499,13 @@ static func get_constructor_palette_rows() -> Array[Dictionary]:
 	for archetype_id_variant in ARCHETYPE_REGISTRY.keys():
 		var archetype_id: String = str(archetype_id_variant)
 		var definition: Dictionary = ARCHETYPE_REGISTRY[archetype_id]
+		if not bool(definition.get("show_in_palette", true)):
+			continue
 		rows.append({"id":archetype_id, "prefab_id":archetype_id, "archetype_id":archetype_id, "canonical_object_type":str(definition.get("object_type", archetype_id)), "display_name":str(definition.get("palette_label", archetype_id.capitalize())), "label":str(definition.get("palette_label", archetype_id.capitalize())), "category":str(definition.get("object_group", "Objects")).capitalize(), "object_group":str(definition.get("object_group", "physical_object")), "placement_mode":str(definition.get("placement_mode", "object")), "blocks_movement":bool(definition.get("blocks_movement", true)), "is_alias":false})
 	for object_type_variant in OBJECT_LIBRARY.keys():
 		var object_type: String = str(object_type_variant)
 		var definition: Dictionary = OBJECT_LIBRARY[object_type]
-		if ARCHETYPE_REGISTRY.has(object_type) or not bool(definition.get("placeable_in_constructor", true)) or str(definition.get("group", "")) in ["door", "terminal", "item", "platform"]:
+		if ARCHETYPE_REGISTRY.has(object_type) or is_legacy_prefab_alias(object_type) or not bool(definition.get("placeable_in_constructor", true)) or str(definition.get("group", "")) in ["door", "terminal", "item", "platform"]:
 			continue
 		rows.append(_build_constructor_palette_row(object_type, object_type, definition, false))
 	rows.sort_custom(func(a: Dictionary, b: Dictionary) -> bool: return str(a.get("display_name", "")) < str(b.get("display_name", "")))
@@ -960,6 +972,25 @@ static func normalize_cable_contract(object_data: Dictionary) -> Dictionary:
 		data["state"] = "ok" if health_state == "normal" else health_state
 	return data
 
+
+static func normalize_facing_side(value: Variant) -> String:
+	var side: String = str(value).strip_edges().to_upper()
+	return side if side in FACING_SIDES else FACING_SIDE_SW
+
+static func resolve_facing_side_from_object_data(object_data: Dictionary) -> String:
+	if object_data.has("facing_side"):
+		return normalize_facing_side(object_data.get("facing_side", FACING_SIDE_SW))
+	var legacy_side: String = str(object_data.get("front_side", object_data.get("interaction_side", ""))).strip_edges()
+	if not legacy_side.is_empty():
+		return normalize_facing_side(legacy_side)
+	var legacy_direction: String = str(object_data.get("facing_dir", object_data.get("direction", object_data.get("facing", "")))).strip_edges().to_lower()
+	match legacy_direction:
+		"se", "southeast", "south_east", "right", "east":
+			return FACING_SIDE_SE
+		"sw", "southwest", "south_west", "left", "south":
+			return FACING_SIDE_SW
+	return FACING_SIDE_SW
+
 static func normalize_world_object_contract(object_data: Dictionary) -> Dictionary:
 	var data: Dictionary = canonicalize_legacy_object_data(object_data)
 	if data.is_empty():
@@ -988,6 +1019,8 @@ static func normalize_world_object_contract(object_data: Dictionary) -> Dictiona
 		data["blocks_movement"] = true
 		data["blocks_vision"] = _safe_bool_like(data.get("blocks_vision", false), false)
 		data["can_interact"] = true
+	if normalized_object_type in ["terminal", "fuse_box", "power_switcher", "light_switcher", "light_switch", "case", "door"] or str(data.get("object_group", "")) in ["terminal", "door"]:
+		data["facing_side"] = resolve_facing_side_from_object_data(object_data)
 	return data
 
 static func _contains_cyrillic(value: Variant) -> bool:
@@ -1269,7 +1302,7 @@ static func _schema_defaults(archetype_id: String) -> Dictionary:
 
 static func _normalize_wall_material(value: Variant) -> String:
 	var material: String = _normalized_contract_token(value)
-	return material if WALL_MATERIALS.has(material) else WALL_MATERIAL_BRICK
+	return material if WALL_MATERIALS.has(material) or BREACHABLE_WALL_MATERIALS.has(material) else WALL_MATERIAL_BRICK
 
 
 static func normalize_breach_side(value: Variant) -> String:
@@ -1340,7 +1373,7 @@ static func get_grid_side_for_breachable_wall_breach_side(breach_side: Variant) 
 static func is_breachable_wall(object_data: Dictionary) -> bool:
 	if object_data.is_empty():
 		return false
-	return _normalized_contract_token(object_data.get("archetype_id", "")) == "breachable_wall" or _normalized_contract_token(object_data.get("object_type", "")) == "breachable_wall" or bool(object_data.get("is_breachable_wall", false))
+	return _normalized_contract_token(object_data.get("archetype_id", "")) == "breachable_wall" or _normalized_contract_token(object_data.get("object_type", "")) == "breachable_wall" or _normalized_contract_token(object_data.get("legacy_object_type", "")) == "breachable_wall" or bool(object_data.get("is_breachable_wall", false))
 
 
 static func wall_side_delta(side: String) -> Vector2i:
@@ -1367,9 +1400,12 @@ static func get_wall_side_for_adjacent_actor(wall_cell: Vector2i, actor_cell: Ve
 static func can_heavy_claw_breach_wall_from_side(object_data: Dictionary, actor_side: String) -> bool:
 	if not is_breachable_wall(object_data):
 		return false
-	if str(object_data.get("state", "active")).strip_edges().to_lower() in ["open", "destroyed", "breached", "removed"]:
+	if str(object_data.get("breach_state", object_data.get("state", "active"))).strip_edges().to_lower() in ["open", "destroyed", "breached", "removed"]:
 		return false
-	return normalize_breach_side(actor_side) == get_grid_side_for_breachable_wall_breach_side(object_data.get("breach_side", "sw"))
+	var breach_side: String = normalize_breachable_wall_breach_side(object_data.get("breach_side", "sw"))
+	if breach_side not in ["sw", "se"]:
+		return false
+	return normalize_breach_side(actor_side) == get_grid_side_for_breachable_wall_breach_side(breach_side)
 
 static func _label_for_id(value: Variant) -> String:
 	return _normalized_contract_token(value).replace("_", " ").capitalize()
@@ -1417,6 +1453,14 @@ static func normalize_archetype_object(object_data: Dictionary) -> Dictionary:
 			data[key] = _schema_defaults(archetype_id)[key]
 	if archetype_id == "wall":
 		data["material"] = _normalize_wall_material(data.get("material", WALL_MATERIAL_BRICK))
+		var breachable_by_material: bool = BREACHABLE_WALL_MATERIALS.has(str(data.get("material", "")))
+		data["is_breachable_wall"] = _safe_bool_like(data.get("is_breachable_wall", data.get("breachable", breachable_by_material)), breachable_by_material)
+		data["wall_height"] = normalize_breachable_wall_height(data.get("wall_height", "mid"))
+		data["breach_side"] = normalize_breachable_wall_breach_side(data.get("breach_side", "sw"))
+		data["heavy_claw_breachable"] = bool(data.get("is_breachable_wall", false))
+		if bool(data.get("is_breachable_wall", false)):
+			data["supports_embedded_objects"] = false
+			data["supports_cables"] = false
 	if archetype_id == "power_switcher":
 		data["mount"] = _normalized_contract_token(data.get("mount", data.get("install_mode", "floor")))
 		if data["mount"] == "wall_mounted":
@@ -1519,8 +1563,14 @@ static func _create_library_object(object_type: String, id_override: String = ""
 	return normalize_door_state_fields(data)
 
 static func create_world_object(object_type: String, id_override: String = "") -> Dictionary:
-	if ARCHETYPE_REGISTRY.has(_normalized_contract_token(object_type)):
-		return create_archetype_object(_normalized_contract_token(object_type), id_override)
+	var normalized_type: String = _normalized_contract_token(object_type)
+	if is_legacy_prefab_alias(normalized_type):
+		var canonical_type: String = canonical_prefab_id(normalized_type)
+		if ARCHETYPE_REGISTRY.has(canonical_type):
+			var archetype_data: Dictionary = create_archetype_object(canonical_type, id_override, get_prefab_alias_defaults(normalized_type))
+			return mark_legacy_source(archetype_data, normalized_type)
+	if ARCHETYPE_REGISTRY.has(normalized_type):
+		return create_archetype_object(normalized_type, id_override)
 	return _create_library_object(object_type, id_override)
 
 static func get_world_object_working_heat(object_data: Dictionary) -> int:

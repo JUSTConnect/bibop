@@ -1,9 +1,12 @@
 extends Node2D
 class_name RoomVisualRenderer
 
+const BreachableWallServiceRef = preload("res://scripts/game/wall/breachable_wall_service.gd")
+
 const CableTopologyServiceRef = preload("res://scripts/game/cable_topology_service.gd")
 const PlatformTypesRef = preload("res://scripts/game/platform/platform_types.gd")
 const PlatformVisualServiceRef = preload("res://scripts/game/platform/platform_visual_service.gd")
+const ObjectFacingServiceRef = preload("res://scripts/game/object/object_facing_service.gd")
 
 # GridManager remains the gameplay grid source.
 # RoomVisualRenderer is a future visual projection layer.
@@ -272,10 +275,10 @@ const ISO_FLOOR_ASSET_TARGET_FOOTPRINT: Vector2 = ISO_STANDARD_TILE_SIZE
 const ISO_FLOOR_ASSET_NORMALIZED_OVERLAP: Vector2 = Vector2(1.5, 1.5)
 const ISO_FLOOR_ASSET_PLACEMENT: Dictionary = {
 	"floor_gray_test": {"visible_bounds": Rect2i(0, 162, 512, 286), "target_footprint": ISO_FLOOR_ASSET_TARGET_FOOTPRINT, "overlap": ISO_FLOOR_ASSET_NORMALIZED_OVERLAP, "offset": Vector2.ZERO, "fallback_color": Color(0.11, 0.12, 0.13, 0.98), "draw_safe_base": false},
-	"floor_concrete": {"visible_bounds": Rect2i(18, 95, 1227, 1016), "target_footprint": ISO_FLOOR_ASSET_TARGET_FOOTPRINT, "overlap": ISO_FLOOR_ASSET_NORMALIZED_OVERLAP, "offset": Vector2.ZERO, "fallback_color": Color(0.08, 0.085, 0.09, 0.96)},
-	"floor_steel": {"visible_bounds": Rect2i(18, 95, 1227, 1011), "target_footprint": ISO_FLOOR_ASSET_TARGET_FOOTPRINT, "overlap": ISO_FLOOR_ASSET_NORMALIZED_OVERLAP, "offset": Vector2.ZERO, "fallback_color": Color(0.07, 0.085, 0.1, 0.96)},
-	"floor_titan": {"visible_bounds": Rect2i(11, 95, 1232, 1011), "target_footprint": ISO_FLOOR_ASSET_TARGET_FOOTPRINT, "overlap": ISO_FLOOR_ASSET_NORMALIZED_OVERLAP, "offset": Vector2.ZERO, "fallback_color": Color(0.075, 0.085, 0.11, 0.96)},
-	"platform_floor": {"visible_bounds": Rect2i(18, 95, 1227, 1016), "target_footprint": ISO_FLOOR_ASSET_TARGET_FOOTPRINT, "overlap": ISO_FLOOR_ASSET_NORMALIZED_OVERLAP, "offset": Vector2.ZERO, "fallback_color": Color(0.09, 0.105, 0.12, 0.96)}
+	"floor_concrete": {"visible_bounds": Rect2i(0, 162, 512, 287), "target_footprint": ISO_FLOOR_ASSET_TARGET_FOOTPRINT, "overlap": ISO_FLOOR_ASSET_NORMALIZED_OVERLAP, "offset": Vector2.ZERO, "fallback_color": Color(0.08, 0.085, 0.09, 0.96)},
+	"floor_steel": {"visible_bounds": Rect2i(0, 161, 512, 288), "target_footprint": ISO_FLOOR_ASSET_TARGET_FOOTPRINT, "overlap": ISO_FLOOR_ASSET_NORMALIZED_OVERLAP, "offset": Vector2.ZERO, "fallback_color": Color(0.07, 0.085, 0.1, 0.96)},
+	"floor_titan": {"visible_bounds": Rect2i(0, 162, 512, 287), "target_footprint": ISO_FLOOR_ASSET_TARGET_FOOTPRINT, "overlap": ISO_FLOOR_ASSET_NORMALIZED_OVERLAP, "offset": Vector2.ZERO, "fallback_color": Color(0.075, 0.085, 0.11, 0.96)},
+	"platform_floor": {"visible_bounds": Rect2i(0, 163, 512, 349), "target_footprint": ISO_FLOOR_ASSET_TARGET_FOOTPRINT, "overlap": ISO_FLOOR_ASSET_NORMALIZED_OVERLAP, "offset": Vector2.ZERO, "fallback_color": Color(0.09, 0.105, 0.12, 0.96)}
 }
 const ISO_GROUND_ASSET_PLACEMENT: Dictionary = {
 	"ground_low": {"visible_bounds": Rect2(0, 353, 512, 415), "target_base_width": 128.0, "scale": 1.0, "offset": Vector2.ZERO},
@@ -1609,23 +1612,10 @@ func get_iso_ground_texture_for_asset_key(asset_key: String) -> Texture2D:
 	return null
 
 func get_iso_ground_texture_draw_rect_for_cell(cell: Vector2i, texture: Texture2D, asset_key: String) -> Rect2:
-	var source_size: Vector2 = texture.get_size()
-	if source_size.x <= 0.0 or source_size.y <= 0.0:
-		return Rect2()
 	var placement: Dictionary = Dictionary(ISO_GROUND_ASSET_PLACEMENT.get(asset_key, {}))
 	if placement.is_empty():
-		placement = {"visible_bounds": Rect2(Vector2.ZERO, source_size), "target_base_width": get_iso_tile_size().x, "scale": 1.0, "offset": Vector2.ZERO}
-	var visible_bounds: Rect2 = Rect2(placement.get("visible_bounds", Rect2(Vector2.ZERO, source_size)))
-	if visible_bounds.size.x <= 0.0 or visible_bounds.size.y <= 0.0:
-		visible_bounds = Rect2(Vector2.ZERO, source_size)
-	var target_base_width: float = maxf(float(placement.get("target_base_width", get_iso_tile_size().x)), get_iso_tile_size().x)
-	var placement_scale: float = maxf(float(placement.get("scale", 1.0)), 0.01)
-	var scale_value: float = (target_base_width / visible_bounds.size.x) * placement_scale
-	var destination_size: Vector2 = source_size * scale_value
-	var visible_bottom_center_in_source: Vector2 = visible_bounds.position + Vector2(visible_bounds.size.x * 0.5, visible_bounds.size.y)
-	var visible_bottom_center_in_destination: Vector2 = visible_bottom_center_in_source * scale_value
-	var base_anchor: Vector2 = (grid_to_iso(cell) + Vector2(0.0, get_iso_tile_half_size().y) + Vector2(placement.get("offset", Vector2.ZERO))).round()
-	return Rect2((base_anchor - visible_bottom_center_in_destination).round(), destination_size)
+		placement = {"visible_bounds": Rect2(Vector2.ZERO, texture.get_size()), "target_base_width": get_iso_tile_size().x, "scale": 1.0, "offset": Vector2.ZERO}
+	return IsoVisualAlignmentServiceRef.get_ground_destination_rect(grid_to_iso(cell), get_iso_tile_size(), texture.get_size(), placement)
 
 func draw_iso_ground_asset_texture_for_cell(cell: Vector2i, asset_key: String) -> bool:
 	if asset_key.is_empty():
@@ -1640,8 +1630,13 @@ func draw_iso_ground_asset_texture_for_cell(cell: Vector2i, asset_key: String) -
 	draw_iso_asset_alignment_overlay(asset_key, destination_rect.position + Vector2(destination_rect.size.x * 0.5, destination_rect.size.y), destination_rect)
 	return true
 
-func draw_iso_floor_asset_safe_base(cell: Vector2i, color: Color) -> void:
+func draw_iso_floor_asset_safe_base(cell: Vector2i, color: Color, surface_y_offset: float = 0.0) -> void:
 	var base_points: PackedVector2Array = get_iso_diamond_points_with_overlap(cell, ISO_FLOOR_UNDERLAY_OVERLAP)
+	if not is_zero_approx(surface_y_offset):
+		var shifted_points: PackedVector2Array = PackedVector2Array()
+		for point in base_points:
+			shifted_points.append(point + Vector2(0.0, surface_y_offset))
+		base_points = shifted_points
 	draw_colored_polygon(base_points, color)
 
 func draw_missing_iso_asset_debug_fallback(cell: Vector2i, asset_key: String, destination_rect: Rect2) -> void:
@@ -1660,50 +1655,62 @@ func draw_missing_iso_asset_debug_fallback(cell: Vector2i, asset_key: String, de
 	draw_string(ThemeDB.fallback_font, destination_rect.position + Vector2(3.0, 11.0), "MISSING %s" % asset_key, HORIZONTAL_ALIGNMENT_LEFT, maxf(destination_rect.size.x - 6.0, 24.0), 9, Color(1.0, 0.95, 0.95, 0.98))
 	draw_iso_asset_alignment_overlay(asset_key, grid_to_iso(cell), destination_rect)
 
-func get_iso_floor_asset_destination_rect_for_cell(cell: Vector2i, asset_key: String) -> Rect2:
-	var placement: Dictionary = get_iso_floor_asset_placement(asset_key)
-	var target_footprint: Vector2 = Vector2(placement.get("target_footprint", get_iso_tile_size()))
-	if is_equal_approx(target_footprint.x, ISO_STANDARD_TILE_SIZE.x) and is_equal_approx(target_footprint.y, ISO_STANDARD_TILE_SIZE.y):
-		target_footprint = get_iso_tile_size()
-	var floor_overlap: Vector2 = Vector2(placement.get("overlap", ISO_FLOOR_ASSET_NORMALIZED_OVERLAP))
-	return Rect2(grid_to_iso(cell) - target_footprint * 0.5 - floor_overlap + Vector2(placement.get("offset", Vector2.ZERO)), target_footprint + floor_overlap * 2.0)
+func get_iso_floor_asset_destination_rect_for_cell(cell: Vector2i, asset_key: String, surface_y_offset: float = 0.0) -> Rect2:
+	return IsoVisualAlignmentServiceRef.get_floor_destination_rect(grid_to_iso(cell), get_iso_tile_size(), get_iso_floor_asset_placement(asset_key), surface_y_offset)
 
-func draw_iso_floor_asset_texture_for_cell(cell: Vector2i, asset_key: String) -> bool:
+func draw_iso_floor_asset_texture_for_cell(cell: Vector2i, asset_key: String, surface_y_offset: float = 0.0) -> bool:
 	var texture: Texture2D = get_iso_floor_texture_for_asset_key(asset_key)
-	var destination_rect: Rect2 = get_iso_floor_asset_destination_rect_for_cell(cell, asset_key)
+	var destination_rect: Rect2 = get_iso_floor_asset_destination_rect_for_cell(cell, asset_key, surface_y_offset)
 	if texture == null:
 		if use_gray_room_visual_test_assets and asset_key == ISO_FLOOR_TEST_ASSET_KEY:
 			draw_missing_iso_asset_debug_fallback(cell, asset_key, destination_rect)
 			return true
 		return false
 	var placement: Dictionary = get_iso_floor_asset_placement(asset_key)
-	var visible_bounds: Rect2i = Rect2i(placement.get("visible_bounds", Rect2i(0, 0, texture.get_width(), texture.get_height())))
+	var visible_bounds_rect: Rect2 = IsoVisualAlignmentServiceRef.clamp_visible_bounds(Rect2(placement.get("visible_bounds", Rect2i(0, 0, texture.get_width(), texture.get_height()))), texture.get_size())
+	var visible_bounds: Rect2i = Rect2i(int(visible_bounds_rect.position.x), int(visible_bounds_rect.position.y), int(visible_bounds_rect.size.x), int(visible_bounds_rect.size.y))
 	if visible_bounds.size.x <= 0 or visible_bounds.size.y <= 0:
 		return false
 	if bool(placement.get("draw_safe_base", not use_gray_room_visual_test_assets)):
-		draw_iso_floor_asset_safe_base(cell, Color(placement.get("fallback_color", Color(0.08, 0.085, 0.09, 0.96))))
+		draw_iso_floor_asset_safe_base(cell, Color(placement.get("fallback_color", Color(0.08, 0.085, 0.09, 0.96))), surface_y_offset)
 	draw_texture_rect_region(texture, destination_rect, Rect2(Vector2(visible_bounds.position), Vector2(visible_bounds.size)))
-	draw_iso_asset_alignment_overlay(asset_key, grid_to_iso(cell), destination_rect)
+	draw_iso_asset_alignment_overlay(asset_key, grid_to_iso(cell) + Vector2(0.0, surface_y_offset), destination_rect)
 	return true
 
-func draw_platform_floor_visual_for_cell(cell: Vector2i, platform_data: Dictionary) -> bool:
+func get_ground_surface_y_offset_for_asset_key(asset_key: String) -> float:
+	if asset_key.is_empty():
+		return 0.0
+	var texture: Texture2D = get_iso_ground_texture_for_asset_key(asset_key)
+	if texture == null:
+		return 0.0
+	var placement: Dictionary = Dictionary(ISO_GROUND_ASSET_PLACEMENT.get(asset_key, {}))
+	return IsoVisualAlignmentServiceRef.get_ground_top_surface_y_offset(get_iso_tile_size(), texture.get_size(), placement)
+
+func get_cell_surface_y_offset_for_floor_height(floor_height_level: String) -> float:
+	var ground_asset_key: String = get_iso_ground_asset_key_for_floor_height(floor_height_level)
+	return get_ground_surface_y_offset_for_asset_key(ground_asset_key)
+
+func draw_platform_floor_visual_for_cell(cell: Vector2i, platform_data: Dictionary, base_surface_y_offset: float = 0.0) -> bool:
 	if use_gray_room_visual_test_assets or platform_data.is_empty() or not PlatformTypesRef.is_platform_data(platform_data):
 		return false
 	var descriptor: Dictionary = PlatformVisualServiceRef.get_platform_draw_descriptor(platform_data)
 	var texture: Texture2D = get_iso_floor_texture_for_asset_key(str(descriptor.get("floor_asset_key", "platform_floor")))
 	if texture == null:
 		return false
-	var destination_rect: Rect2 = get_iso_floor_asset_destination_rect_for_cell(cell, "platform_floor")
-	destination_rect.position.y += float(descriptor.get("visual_y_offset", 0.0))
-	var source_rect: Rect2 = Rect2(Vector2.ZERO, texture.get_size())
+	var platform_y_offset: float = base_surface_y_offset + float(descriptor.get("visual_y_offset", 0.0))
+	var destination_rect: Rect2 = get_iso_floor_asset_destination_rect_for_cell(cell, "platform_floor", platform_y_offset)
+	var platform_placement: Dictionary = get_iso_floor_asset_placement("platform_floor")
+	var source_rect: Rect2 = IsoVisualAlignmentServiceRef.clamp_visible_bounds(Rect2(platform_placement.get("visible_bounds", Rect2(Vector2.ZERO, texture.get_size()))), texture.get_size())
 	if str(descriptor.get("source_region_mode", "full_with_rim")) == "top_only_flush":
-		var crop_height: float = source_rect.size.y * 0.56
-		source_rect = Rect2(Vector2(source_rect.position.x, source_rect.position.y), Vector2(source_rect.size.x, crop_height))
-		destination_rect.size.y *= 0.56
+		# Level-0 platforms use the same authored top diamond footprint as floor tiles.
+		source_rect = IsoVisualAlignmentServiceRef.clamp_visible_bounds(Rect2(0, 163, 512, 286), texture.get_size())
+	else:
+		var scale_value: float = destination_rect.size.x / maxf(source_rect.size.x, 1.0)
+		destination_rect.size.y = source_rect.size.y * scale_value
 	if bool(descriptor.get("is_flush", false)):
-		draw_iso_floor_asset_safe_base(cell, Color(0.08, 0.085, 0.09, 0.96))
+		draw_iso_floor_asset_safe_base(cell, Color(0.08, 0.085, 0.09, 0.96), base_surface_y_offset)
 	draw_texture_rect_region(texture, destination_rect, source_rect)
-	draw_iso_asset_alignment_overlay("platform_floor", grid_to_iso(cell), destination_rect)
+	draw_iso_asset_alignment_overlay("platform_floor", grid_to_iso(cell) + Vector2(0.0, platform_y_offset), destination_rect)
 	return true
 
 func get_platform_data_for_floor_cell(cell: Vector2i) -> Dictionary:
@@ -2078,19 +2085,7 @@ func draw_iso_wall_asset_texture_for_cell(cell: Vector2i, profile_key: String, t
 	return true
 
 func normalize_breach_side(value: String) -> String:
-	var normalized_value: String = value.strip_edges().to_lower()
-	normalized_value = normalized_value.replace(" ", "_")
-	normalized_value = normalized_value.replace("-", "_")
-	match normalized_value:
-		"sw", "southwest", "south_west", "left_front", "south":
-			return "sw"
-		"se", "southeast", "south_east", "right_front", "east":
-			return "se"
-		"nw", "northwest", "north_west", "left_back", "west":
-			return "nw"
-		"ne", "northeast", "north_east", "right_back", "north":
-			return "ne"
-	return "sw"
+	return BreachableWallServiceRef.normalize_breach_side(value)
 
 func get_breach_grid_side_for_visual_side(breach_side: String) -> String:
 	match normalize_breach_side(breach_side):
@@ -2150,40 +2145,22 @@ func get_breach_overlay_transform_for_side(side: String) -> Dictionary:
 			flip_v = true
 	return {"side": normalized_side, "flip_h": flip_h, "flip_v": flip_v, "offset": Vector2.ZERO, "visible": true}
 
-func is_breach_side_visible_for_wall(cell: Vector2i, breach_side: String, topology: Dictionary) -> bool:
-	var grid_side: String = get_breach_grid_side_for_visual_side(breach_side)
-	var visible_sides: Array = Array(topology.get("visible_sides", []))
-	if visible_sides.has(grid_side):
-		return true
-	if visible_sides.is_empty():
-		return false
-	var neighbor_cell: Vector2i = cell + _get_wall_side_delta(grid_side)
-	if not _is_wall_in_bounds(neighbor_cell):
-		return true
-	return false
+func is_breach_side_visible_for_wall(_cell: Vector2i, breach_side: String, _topology: Dictionary) -> bool:
+	return BreachableWallServiceRef.is_visible_breach_side(breach_side)
 
 func get_normalized_breachable_wall_height(wall_data: Dictionary) -> String:
 	var height: String = normalize_wall_height_level(get_raw_wall_height_value(wall_data))
 	if height.is_empty():
 		height = "mid"
 	if height == "low" or height == "halflow":
-		return "mid"
+		return "low"
 	return height
 
 func get_breach_overlay_destination_rect(base_texture_rect: Rect2, base_source_rect: Rect2, base_texture: Texture2D, overlay_texture: Texture2D, height_level: String) -> Rect2:
 	if base_texture == null or overlay_texture == null:
 		return Rect2()
-	if base_texture.get_width() <= 0 or base_texture.get_height() <= 0:
-		return Rect2()
-	var tall_bounds: Rect2 = Rect2(ISO_WALL_HEIGHT_VISIBLE_BOUNDS.get("tall", ISO_WALL_BASELINE_VISIBLE_BOUNDS))
-	var target_bounds: Rect2 = Rect2(ISO_WALL_HEIGHT_VISIBLE_BOUNDS.get(height_level, ISO_WALL_BASELINE_VISIBLE_BOUNDS))
-	var height_scale: float = target_bounds.size.y / maxf(tall_bounds.size.y, 1.0)
-	var base_scale: Vector2 = Vector2(base_texture_rect.size.x / float(base_texture.get_width()), base_texture_rect.size.y / float(base_texture.get_height()))
-	var source_bottom_center: Vector2 = base_source_rect.position + Vector2(base_source_rect.size.x * 0.5, base_source_rect.size.y)
-	var base_bottom_center: Vector2 = base_texture_rect.position + source_bottom_center * base_scale
-	var overlay_size: Vector2 = overlay_texture.get_size() * base_scale * height_scale
-	var overlay_bottom_center: Vector2 = base_bottom_center
-	return Rect2((overlay_bottom_center - Vector2(overlay_size.x * 0.5, overlay_size.y)).round(), overlay_size.round())
+	var layout: Dictionary = BreachableWallServiceRef.get_texture_overlay_layout(base_texture_rect, base_source_rect, base_texture.get_size(), overlay_texture.get_size(), height_level, ISO_WALL_HEIGHT_VISIBLE_BOUNDS, ISO_WALL_BASELINE_VISIBLE_BOUNDS)
+	return Rect2(layout.get("rect", Rect2())) if bool(layout.get("ok", false)) else Rect2()
 
 func draw_breach_overlay_texture_rect(texture: Texture2D, destination_rect: Rect2, source_rect: Rect2, transform: Dictionary) -> void:
 	if destination_rect.size.x <= 0.0 or destination_rect.size.y <= 0.0:
@@ -3134,6 +3111,88 @@ func _get_color_from_dict(data: Dictionary, key: String, fallback: Color) -> Col
 		return value
 	return fallback
 
+func get_iso_object_png_visual_rule(asset_key: String) -> Dictionary:
+	var normalized_asset_key: String = asset_key.strip_edges().to_lower()
+	var wall_mounted: bool = normalized_asset_key.contains("_wall_") or normalized_asset_key == "cable_reel_02" or normalized_asset_key == "light_01"
+	var rule: Dictionary = {"anchor": "wall_mount_center" if wall_mounted else "bottom_center", "scale": 1.0, "offset": Vector2(0, -18) if wall_mounted else Vector2.ZERO, "expected_size": Vector2(72, 72), "layer_hint": "object", "notes": "Normalized object PNG draw size/pivot."}
+	match normalized_asset_key:
+		"terminal_01":
+			rule["expected_size"] = Vector2(80, 78)
+		"power_source_01":
+			rule["expected_size"] = Vector2(84, 86)
+		"radiator_01":
+			rule["expected_size"] = Vector2(82, 74)
+		"barrel_01", "fire_barrel_01":
+			rule["expected_size"] = Vector2(58, 76)
+		"case_01":
+			rule["expected_size"] = Vector2(68, 56)
+		"steel_box_01":
+			rule["expected_size"] = Vector2(72, 60)
+		"fuse_box_in_01", "fuse_box_out_01":
+			rule["expected_size"] = Vector2(52, 58)
+		"fuse_box_in_wall_01", "fuse_box_out_wall_01":
+			rule["expected_size"] = Vector2(46, 54)
+		"power_switcher_off_01", "power_switcher_on_01":
+			rule["expected_size"] = Vector2(48, 42)
+		"power_switcher_off_wall_01", "power_switcher_on_wall_01":
+			rule["expected_size"] = Vector2(42, 42)
+		"cable_reel_01", "cable_reel_02":
+			rule["expected_size"] = Vector2(58, 58)
+	return rule
+
+func get_iso_object_surface_level(object_data: Dictionary) -> int:
+	if object_data.has("platform_height_level"):
+		return int(object_data.get("platform_height_level", 0))
+	if object_data.has("height_level") and typeof(object_data.get("height_level")) in [TYPE_INT, TYPE_FLOAT]:
+		return int(object_data.get("height_level", 0))
+	return 0
+
+func _parse_visual_pivot(value: Variant, fallback: Vector2) -> Vector2:
+	if value is Vector2:
+		return value
+	if value is Array and Array(value).size() >= 2:
+		return Vector2(float(value[0]), float(value[1]))
+	if value is Dictionary:
+		var dict: Dictionary = Dictionary(value)
+		return Vector2(float(dict.get("x", fallback.x)), float(dict.get("y", fallback.y)))
+	return fallback
+
+func build_iso_object_visual_descriptor(object_data: Dictionary, asset_key: String, visual_center: Vector2, texture: Texture2D = null) -> Dictionary:
+	var rule: Dictionary = get_iso_asset_alignment_rule(asset_key)
+	var expected_size: Vector2 = get_iso_asset_alignment_expected_size(asset_key)
+	var visual_scale: float = maxf(float(object_data.get("visual_scale", rule.get("scale", 1.0))), 0.01)
+	var destination_size: Vector2 = expected_size * visual_scale
+	var visual_pivot: Vector2 = _parse_visual_pivot(object_data.get("visual_pivot", get_iso_asset_alignment_anchor_offset(str(rule.get("anchor", "bottom_center")), destination_size)), get_iso_asset_alignment_anchor_offset(str(rule.get("anchor", "bottom_center")), destination_size))
+	var surface_level: int = get_iso_object_surface_level(object_data)
+	var surface_offset: Vector2 = Vector2(0.0, -float(surface_level) * 16.0)
+	var configured_offset: Vector2 = Vector2(rule.get("offset", Vector2.ZERO)) + _parse_visual_pivot(object_data.get("visual_offset", Vector2.ZERO), Vector2.ZERO)
+	var final_draw_position: Vector2 = visual_center + surface_offset - visual_pivot + configured_offset
+	var destination_rect: Rect2 = Rect2(final_draw_position, destination_size)
+	return {
+		"visual_asset_key": asset_key,
+		"texture": texture,
+		"visual_scale": visual_scale,
+		"visual_pivot": visual_pivot,
+		"surface_level": surface_level,
+		"final_draw_position": final_draw_position,
+		"destination_rect": destination_rect,
+		"source_rect": Rect2(Vector2.ZERO, texture.get_size() if texture != null else expected_size),
+		"mirror_h": ObjectFacingServiceRef.get_facing_side(object_data) == ObjectFacingServiceRef.FACING_SIDE_SE and bool(object_data.get("mirror_visual_for_facing_side", true))
+	}
+
+func draw_iso_object_png_texture_with_descriptor(texture: Texture2D, descriptor: Dictionary) -> void:
+	var destination_rect: Rect2 = Rect2(descriptor.get("destination_rect", Rect2()))
+	var source_rect: Rect2 = Rect2(descriptor.get("source_rect", Rect2(Vector2.ZERO, texture.get_size())))
+	if bool(descriptor.get("mirror_h", false)):
+		draw_set_transform(destination_rect.position + Vector2(destination_rect.size.x, 0.0), 0.0, Vector2(-1.0, 1.0))
+		draw_texture_rect_region(texture, Rect2(Vector2.ZERO, destination_rect.size), source_rect)
+		draw_set_transform(Vector2.ZERO, 0.0, Vector2.ONE)
+	else:
+		draw_texture_rect_region(texture, destination_rect, source_rect)
+	draw_iso_asset_alignment_overlay(str(descriptor.get("visual_asset_key", "")), destination_rect.position + Vector2(descriptor.get("visual_pivot", destination_rect.size * 0.5)), destination_rect)
+	if debug_log_iso_object_asset_resolution:
+		print("[IsoObjectVisual] visual_asset_key=%s visual_scale=%s visual_pivot=%s surface_level=%s final_draw_position=%s" % [str(descriptor.get("visual_asset_key", "")), str(descriptor.get("visual_scale", 1.0)), str(descriptor.get("visual_pivot", Vector2.ZERO)), str(descriptor.get("surface_level", 0)), str(descriptor.get("final_draw_position", Vector2.ZERO))])
+
 func get_iso_asset_alignment_rule(asset_key: String) -> Dictionary:
 	var rule: Dictionary = {}
 	if ISO_ASSET_ALIGNMENT_RULES.has(asset_key):
@@ -3147,9 +3206,7 @@ func get_iso_asset_alignment_rule(asset_key: String) -> Dictionary:
 	elif asset_key.begins_with("object_"):
 		rule = {"anchor": "bottom_center", "scale": 0.75, "offset": Vector2(0, -8), "expected_size": Vector2(96, 96), "layer_hint": "object", "notes": "Fallback object alignment."}
 	elif ISO_OBJECT_PNG_ASSET_PATHS.has(asset_key):
-		var object_anchor: String = "wall_mount_center" if asset_key.contains("_wall_") or asset_key == "cable_reel_02" or asset_key == "light_01" else "bottom_center"
-		var object_offset: Vector2 = Vector2(0, -18) if object_anchor == "wall_mount_center" else Vector2(0, -8)
-		rule = {"anchor": object_anchor, "scale": 0.75, "offset": object_offset, "expected_size": Vector2(96, 96), "layer_hint": "object", "notes": "Canonical object PNG alignment; SVG placeholders are not consulted."}
+		rule = get_iso_object_png_visual_rule(asset_key)
 	else:
 		rule = {"anchor": "center", "scale": 1.0, "offset": Vector2.ZERO, "expected_size": Vector2(96, 96), "layer_hint": "unknown", "notes": "Fallback generic alignment."}
 	if asset_key.begins_with("floor_"):
@@ -3187,7 +3244,7 @@ func get_iso_texture_draw_rect_for_asset_key_with_size(asset_key: String, center
 	var anchor: String = str(rule.get("anchor", "center"))
 	var scale_value: float = get_iso_asset_alignment_scale(asset_key)
 	var destination_size: Vector2 = source_size * scale_value
-	if asset_key.begins_with("floor_") or asset_key.begins_with("object_"):
+	if asset_key.begins_with("floor_") or asset_key.begins_with("object_") or ISO_OBJECT_PNG_ASSET_PATHS.has(asset_key):
 		destination_size = get_iso_asset_alignment_expected_size(asset_key) * scale_value
 	var offset: Vector2 = Vector2(rule.get("offset", Vector2.ZERO))
 	var anchor_offset: Vector2 = get_iso_asset_alignment_anchor_offset(anchor, destination_size)
@@ -3252,7 +3309,7 @@ func draw_iso_texture_asset(cell: Vector2i, asset_key: String, visual_center_ove
 	draw_iso_texture_with_alignment(texture, asset_key, visual_center)
 	return true
 
-func draw_iso_object_png_texture_asset(cell: Vector2i, asset_key: String, visual_center_override: Vector2 = Vector2.INF) -> bool:
+func draw_iso_object_png_texture_asset(cell: Vector2i, asset_key: String, visual_center_override: Vector2 = Vector2.INF, object_data: Dictionary = {}) -> bool:
 	if not should_use_iso_tile_asset_hook_visuals():
 		return false
 	var normalized_asset_key: String = asset_key.strip_edges().to_lower()
@@ -3268,7 +3325,8 @@ func draw_iso_object_png_texture_asset(cell: Vector2i, asset_key: String, visual
 		var fallback_rect: Rect2 = get_iso_texture_draw_rect_for_asset_key_with_size(normalized_asset_key, visual_center, get_iso_asset_alignment_expected_size(normalized_asset_key))
 		draw_missing_iso_asset_debug_fallback(cell, normalized_asset_key, fallback_rect)
 		return true
-	draw_iso_texture_with_alignment(texture, normalized_asset_key, visual_center)
+	var descriptor: Dictionary = build_iso_object_visual_descriptor(object_data, normalized_asset_key, visual_center, texture)
+	draw_iso_object_png_texture_with_descriptor(texture, descriptor)
 	return true
 
 func draw_optional_visual_texture_asset(asset_id: String, cell: Vector2i, _fallback_callable_name: String = "", options: Dictionary = {}) -> bool:
@@ -3991,45 +4049,34 @@ func _get_breachable_wall_data_for_cell(cell: Vector2i) -> Dictionary:
 	if runtime_manager == null or not runtime_manager.has_method("get_world_object_at_cell"):
 		return {}
 	var object_data: Dictionary = Dictionary(runtime_manager.call("get_world_object_at_cell", cell))
+	if object_data.is_empty() and runtime_manager.has_method("get_breachable_wall_action_target_at_cell"):
+		object_data = Dictionary(runtime_manager.call("get_breachable_wall_action_target_at_cell", cell))
 	if object_data.has("data") and object_data.get("data") is Dictionary:
 		var nested_data: Dictionary = Dictionary(object_data.get("data", {}))
 		if not nested_data.is_empty():
 			object_data = nested_data
 
-	if object_data.is_empty() or not bool(object_data.get("is_breachable_wall", false)):
+	if not BreachableWallServiceRef.is_active_breachable_wall_data(object_data):
 		return {}
-
-	var state_value: String = str(object_data.get("state", "active")).strip_edges().to_lower()
-	if state_value in ["open", "destroyed", "breached", "removed"]:
-		return {}
-
 	return object_data
 
 func draw_iso_breachable_wall_overlay(cell: Vector2i) -> void:
 	var object_data: Dictionary = _get_breachable_wall_data_for_cell(cell)
 	if object_data.is_empty():
 		return
-	var side: String = str(object_data.get("breach_side", "sw")).strip_edges().to_lower()
-	var center: Vector2 = grid_to_iso(cell) + Vector2(0.0, -iso_wall_height * 0.44)
-	var side_offset: Vector2 = Vector2.ZERO
-	match side:
-		"sw", "south", "southwest", "south_west":
-			side_offset = Vector2(-get_iso_tile_half_size().x * 0.18, iso_wall_height * 0.10)
-		"se", "east", "southeast", "south_east":
-			side_offset = Vector2(get_iso_tile_half_size().x * 0.26, -iso_wall_height * 0.02)
-		"nw", "west", "northwest", "north_west":
-			side_offset = Vector2(-get_iso_tile_half_size().x * 0.26, -iso_wall_height * 0.02)
-		"ne", "north", "northeast", "north_east":
-			side_offset = Vector2(get_iso_tile_half_size().x * 0.18, -iso_wall_height * 0.16)
-	var crack_center: Vector2 = center + side_offset
+	var descriptor: Dictionary = BreachableWallServiceRef.get_crack_visual_descriptor(cell, object_data, iso_wall_height, get_iso_tile_half_size())
+	if not bool(descriptor.get("visible", false)):
+		return
+	var crack_center: Vector2 = grid_to_iso(cell) + Vector2(descriptor.get("center_offset", Vector2.ZERO))
+	var scale: float = float(descriptor.get("scale", 1.0))
 	var crack_color: Color = Color(0.06, 0.045, 0.035, 0.92)
 	var glow_color: Color = Color(1.0, 0.72, 0.24, 0.34)
-	draw_circle(crack_center, 8.0, glow_color)
-	draw_line(crack_center + Vector2(-2.0, -12.0), crack_center + Vector2(1.0, -3.0), crack_color, 2.0)
-	draw_line(crack_center + Vector2(1.0, -3.0), crack_center + Vector2(-5.0, 5.0), crack_color, 2.0)
-	draw_line(crack_center + Vector2(1.0, -3.0), crack_center + Vector2(7.0, 7.0), crack_color, 2.0)
-	draw_line(crack_center + Vector2(-5.0, 5.0), crack_center + Vector2(-1.0, 13.0), crack_color, 1.4)
-	draw_line(crack_center + Vector2(7.0, 7.0), crack_center + Vector2(3.0, 14.0), crack_color, 1.4)
+	draw_circle(crack_center, 8.0 * scale, glow_color)
+	draw_line(crack_center + Vector2(-2.0, -12.0) * scale, crack_center + Vector2(1.0, -3.0) * scale, crack_color, 2.0 * scale)
+	draw_line(crack_center + Vector2(1.0, -3.0) * scale, crack_center + Vector2(-5.0, 5.0) * scale, crack_color, 2.0 * scale)
+	draw_line(crack_center + Vector2(1.0, -3.0) * scale, crack_center + Vector2(7.0, 7.0) * scale, crack_color, 2.0 * scale)
+	draw_line(crack_center + Vector2(-5.0, 5.0) * scale, crack_center + Vector2(-1.0, 13.0) * scale, crack_color, 1.4 * scale)
+	draw_line(crack_center + Vector2(7.0, 7.0) * scale, crack_center + Vector2(3.0, 14.0) * scale, crack_color, 1.4 * scale)
 
 func draw_iso_wall_debug_and_mount_overlays(cell: Vector2i, arch: Dictionary, topology: String) -> void:
 	if show_wall_topology_overlay:
@@ -4418,20 +4465,20 @@ func draw_iso_floor_prototype() -> void:
 			if floor_texture_asset_id.begins_with("floor_"):
 				floor_asset_key = floor_texture_asset_id
 			else:
-				var height_asset_key: String = get_iso_floor_asset_key_for_visual_state(cell)
-				floor_asset_key = height_asset_key if not height_asset_key.is_empty() else get_iso_floor_asset_key_for_material_key(floor_material_key)
+				floor_asset_key = get_iso_floor_asset_key_for_material_key(floor_material_key)
+			var ground_asset_key: String = get_iso_ground_asset_key_for_floor_height(floor_height_level)
+			var surface_y_offset: float = get_ground_surface_y_offset_for_asset_key(ground_asset_key)
+			if not ground_asset_key.is_empty():
+				draw_iso_ground_asset_texture_for_cell(cell, ground_asset_key)
 			var platform_data: Dictionary = get_platform_data_for_floor_cell(cell)
-			if draw_platform_floor_visual_for_cell(cell, platform_data):
+			if draw_platform_floor_visual_for_cell(cell, platform_data, surface_y_offset):
 				if debug_floor_tile_bounds:
 					draw_floor_tile_bounds_debug(cell)
 				continue
 			if use_procedural_floor_debug_tiles:
 				draw_procedural_floor_debug_tile(cell, fill_color)
 				continue
-			var ground_asset_key: String = get_iso_ground_asset_key_for_floor_height(floor_height_level)
-			if not ground_asset_key.is_empty():
-				draw_iso_ground_asset_texture_for_cell(cell, ground_asset_key)
-			if draw_iso_floor_asset_texture_for_cell(cell, floor_asset_key):
+			if draw_iso_floor_asset_texture_for_cell(cell, floor_asset_key, surface_y_offset):
 				if debug_floor_tile_bounds:
 					draw_floor_tile_bounds_debug(cell)
 				continue
@@ -5461,7 +5508,7 @@ func draw_iso_object_marker(cell: Vector2i, tile_type: int, override_object_data
 	var used_texture_asset: bool = false
 	if profile_key != "cable":
 		if is_iso_object_png_asset_key(object_asset_key):
-			used_texture_asset = draw_iso_object_png_texture_asset(cell, object_asset_key, visual_center)
+			used_texture_asset = draw_iso_object_png_texture_asset(cell, object_asset_key, visual_center, object_data)
 		else:
 			used_texture_asset = draw_optional_visual_texture_asset(object_asset_key, cell, "draw_iso_object_marker", {"visual_center": visual_center})
 			if not used_texture_asset:

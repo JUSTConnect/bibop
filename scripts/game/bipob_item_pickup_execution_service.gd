@@ -4,6 +4,7 @@ class_name BipobItemPickupExecutionService
 
 const InteractionSystemRef = preload("res://scripts/world/interaction_system.gd")
 const WorldObjectCatalogRef = preload("res://scripts/world/world_object_catalog.gd")
+const InteractionActionCostServiceRef = preload("res://scripts/game/interaction/interaction_action_cost_service.gd")
 
 
 static func try_pickup_adjacent_or_current_item(controller: Variant, target_position: Vector2i, active_manipulator: Variant) -> Dictionary:
@@ -19,9 +20,12 @@ static func try_pickup_adjacent_or_current_item(controller: Variant, target_posi
 		var is_digital_item: bool = storage_class == WorldObjectCatalogRef.ITEM_STORAGE_CLASS_DIGITAL
 		var requires_free_manipulator: bool = storage_class == WorldObjectCatalogRef.ITEM_STORAGE_CLASS_PHYSICAL
 		var item_actor := {"manipulator_occupied": requires_free_manipulator and not controller.can_use_physical_hand()}
-		var item_result: Dictionary = InteractionSystemRef.normalize_action_result(Dictionary(InteractionSystemRef.apply_action(item_actor, {"id": active_manipulator.id if active_manipulator != null else ""}, item, "pickup")), item, "pickup")
+		var preflight_item: Dictionary = item.duplicate(true)
+		var item_result: Dictionary = InteractionSystemRef.normalize_action_result(Dictionary(InteractionSystemRef.apply_action(item_actor, {"id": active_manipulator.id if active_manipulator != null else ""}, preflight_item, "pickup")), preflight_item, "pickup")
 		if not bool(item_result.get("success", false)):
 			return _build_result(false, str(item_result.get("message", "Pickup failed.")), item_cell, item, true, "pickup_failed")
+		if not InteractionActionCostServiceRef.can_commit_gameplay_action(controller):
+			return _build_result(false, "Not enough action/energy.", item_cell, item, true, "insufficient_resources")
 		var item_id: String = str(item.get("id", ""))
 		var pickup_result := {"success": true, "reasons": ["ok"], "item_id": item_id}
 		if controller.mission_manager.has_method("pickup_world_item"):

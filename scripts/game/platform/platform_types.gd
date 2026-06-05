@@ -199,17 +199,24 @@ static func normalize_platform_config(config: Dictionary) -> Dictionary:
 	var normalized: Dictionary = get_default_platform_config()
 	for key in config.keys():
 		normalized[key] = config.get(key)
-	normalized["platform_mode"] = normalize_platform_mode(str(normalized.get("platform_mode", normalized.get("mode", MODE_ELEVATOR))))
+	var legacy_source_id: String = str(normalized.get("source_prefab_id", normalized.get("legacy_prefab_id", normalized.get("map_constructor_prefab_id", normalized.get("legacy_object_type", ""))))).strip_edges().to_lower()
+	var old_level: Variant = config.get("platform_level", config.get("current_level", config.get("height_level", config.get("platform_height_level", 0))))
+	var old_max_level: Variant = config.get("max_level", config.get("max_height_level", maxi(int(old_level), 1)))
+	normalized["platform_mode"] = normalize_platform_mode(str(normalized.get("platform_mode", normalized.get("mode", normalized.get("platform_type", MODE_ELEVATOR)))))
 	normalized["control_type"] = normalize_control_type(str(normalized.get("control_type", normalized.get("control_mode", CONTROL_INTERNAL))))
 	normalized["power_type"] = normalize_power_type(str(normalized.get("power_type", normalized.get("power_mode", POWER_NONE))))
 	normalized["activation_mode"] = normalize_activation_mode(str(normalized.get("activation_mode", ACTIVATION_INSTANT)))
-	normalized["platform_level"] = clamp_platform_level(int(normalized.get("platform_level", normalized.get("current_level", 0))), int(normalized.get("max_level", 1)))
+	normalized["max_level"] = maxi(int(old_max_level), 0)
+	normalized["platform_level"] = clamp_platform_level(int(old_level), int(normalized.get("max_level", 1)))
 	normalized["current_level"] = int(normalized.get("platform_level", 0))
-	normalized["max_level"] = maxi(int(normalized.get("max_level", 1)), 0)
-	normalized["activation_delay_turns"] = normalize_delay_turns(int(normalized.get("activation_delay_turns", 0)))
+	normalized["activation_delay_turns"] = normalize_delay_turns(int(normalized.get("activation_delay_turns", normalized.get("timer_turns", 0))))
 	normalized["motion_state"] = normalize_motion_state(str(normalized.get("motion_state", MOTION_IDLE)))
+	normalized["object_type"] = "platform"
 	normalized["object_group"] = "platform"
 	normalized["archetype_id"] = "platform"
+	if legacy_source_id == "movable_platform_block":
+		for stale_key in ["weight_class", "required_bipob_power_class", "magnetic", "material_tags", "heavy_claw_movable", "heavy_claw_mode", "movable", "platform_type", "platform_id", "platform_cells", "height_level", "min_height_level", "max_height_level", "requires_terminal_enabled", "linked_terminal_id", "local_switch_cell", "local_switch_facing_dir", "timer_turns", "timer_remaining_turns", "period_turns", "periodic_active", "permanent_state", "pending_activation", "rotation_direction", "non_destructible", "destructible", "is_powered"]:
+			normalized.erase(stale_key)
 	return normalized
 
 static func is_platform_data(data: Dictionary) -> bool:
