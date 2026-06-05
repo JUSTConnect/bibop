@@ -265,6 +265,9 @@ static func add_wall_coverage_section(ui: Variant, parent: VBoxContainer, entity
 				var current_override: Dictionary = ui._safe_ui_dictionary(ui.mission_manager_runtime.call("get_map_constructor_wall_material", wall_cell, wall_side))
 				selected_material_id = ui._safe_ui_string(ui._safe_ui_dictionary(current_override.get("override", {})).get("material_id", ""))
 			var description_label: Label = Label.new()
+			var breachable_height_note: Label = Label.new()
+			breachable_height_note.text = "Breachable Wall heights: Mid, Half Mid, or Tall only."
+			breachable_height_note.visible = selected_material_id in ["breachable_concrete", "breachable_brick"]
 			for row_variant in material_rows:
 				var material_row: Dictionary = ui._safe_ui_dictionary(row_variant)
 				var material_id: String = ui._safe_ui_string(material_row.get("id", ""))
@@ -278,6 +281,7 @@ static func add_wall_coverage_section(ui: Variant, parent: VBoxContainer, entity
 				material_option.select(0)
 			material_option.item_selected.connect(func(_idx: int) -> void:
 				var current_id: String = ui._safe_ui_string(material_option.get_selected_metadata())
+				breachable_height_note.visible = current_id in ["breachable_concrete", "breachable_brick"]
 				for row_variant_inner in material_rows:
 					var material_row_inner: Dictionary = ui._safe_ui_dictionary(row_variant_inner)
 					if ui._safe_ui_string(material_row_inner.get("id", "")) == current_id:
@@ -311,6 +315,7 @@ static func add_wall_coverage_section(ui: Variant, parent: VBoxContainer, entity
 			if height_option.selected < 0:
 				height_option.select(0)
 			wall_section.add_child(ui._create_property_row("Height", height_option))
+			wall_section.add_child(breachable_height_note)
 			var apply_height: Button = Button.new(); apply_height.text = "Apply Wall Height"
 			apply_height.pressed.connect(func() -> void:
 				MapConstructorActions.apply_wall_height(ui, wall_cell, wall_side, ui._safe_ui_string(height_option.get_selected_metadata()))
