@@ -24,6 +24,21 @@ static func get_action_labels(platform_data: Dictionary) -> Array[Dictionary]:
 		result.append({"action": action, "label": PlatformTypesRef.action_label(action)})
 	return result
 
+static func get_activation_schedule_metadata(platform_data: Dictionary) -> Dictionary:
+	var activation_mode: String = PlatformTypesRef.normalize_activation_mode(str(platform_data.get("activation_mode", "")))
+	var delay_turns: int = PlatformTypesRef.normalize_delay_turns(int(platform_data.get("activation_delay_turns", 0)))
+	var pending_action: String = PlatformTypesRef.normalize_platform_action(str(platform_data.get("pending_action", "")))
+	var pending_turns: int = normalize_pending_turns(int(platform_data.get("pending_activation_turns", 0)))
+	return {
+		"activation_mode": activation_mode,
+		"activation_delay_turns": delay_turns,
+		"is_delayed": activation_mode == PlatformTypesRef.ACTIVATION_DELAYED and delay_turns > 0,
+		"pending": not pending_action.is_empty() and pending_turns > 0,
+		"pending_action": pending_action,
+		"pending_activation_turns": pending_turns,
+		"label": "Instant" if activation_mode == PlatformTypesRef.ACTIVATION_INSTANT else "Delayed: %s turns" % str(delay_turns)
+	}
+
 static func validate_control_config(platform_data: Dictionary, known_controller_ids: Array[String] = []) -> Dictionary:
 	var errors: Array[String] = []
 	var warnings: Array[String] = []
