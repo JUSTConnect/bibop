@@ -3,6 +3,7 @@ class_name MapConstructorLinkControls
 
 const MapConstructorLinkReadModelServiceRef = preload("res://scripts/game/map_constructor_link_read_model_service.gd")
 const MapConstructorInspectorVisibilityServiceRef = preload("res://scripts/ui/map_constructor/map_constructor_inspector_visibility_service.gd")
+const MapConstructorKeyDoorLinkServiceRef = preload("res://scripts/game/map_constructor_key_door_link_service.gd")
 
 static func add_link_picker(ui: Variant, section: VBoxContainer, entity_kind: String, entity_id: String, link_type: String, title: String) -> void:
 	var model: Dictionary = MapConstructorLinkReadModelServiceRef.build_link_picker_model(ui.mission_manager_runtime, entity_kind, entity_id, link_type)
@@ -74,6 +75,26 @@ static func get_map_constructor_key_entity_by_id(ui: Variant, key_id: String) ->
 		return ui._safe_ui_dictionary(ui.mission_manager_runtime.call("get_map_constructor_entity_by_id", "item", normalized_key_id))
 	return {}
 
+static func get_map_constructor_door_entity_data_by_id(ui: Variant, door_id: String) -> Dictionary:
+	var normalized_door_id: String = door_id.strip_edges()
+	if normalized_door_id.is_empty() or ui.mission_manager_runtime == null:
+		return {}
+	if not ui.mission_manager_runtime.has_method("get_map_constructor_entity_by_id"):
+		return {}
+	var door_entity: Dictionary = ui._safe_ui_dictionary(ui.mission_manager_runtime.call("get_map_constructor_entity_by_id", "world_object", normalized_door_id))
+	if not bool(door_entity.get("ok", false)):
+		return {}
+	return ui._safe_ui_dictionary(door_entity.get("data", {}))
+
+static func get_map_constructor_key_entity_data_by_id(ui: Variant, key_id: String) -> Dictionary:
+	var key_entity: Dictionary = get_map_constructor_key_entity_by_id(ui, key_id)
+	if not bool(key_entity.get("ok", false)):
+		return {}
+	var data: Dictionary = ui._safe_ui_dictionary(key_entity.get("data", key_entity.get("item_data", {})))
+	if data.is_empty():
+		data = ui._safe_ui_dictionary(key_entity.get("item_data", {}))
+	return data
+
 static func is_map_constructor_key_item(ui: Variant, data: Dictionary, type_group: String) -> bool:
 	if type_group != "item":
 		return false
@@ -99,14 +120,24 @@ static func add_key_door_link_section(ui: Variant, parent: VBoxContainer, entity
 	section.add_child(current_label)
 	var candidates: Dictionary = ui._safe_ui_dictionary(ui.mission_manager_runtime.call("get_map_constructor_key_door_link_candidates", entity_kind, entity_id))
 	var doors: Array = ui._safe_ui_array(candidates.get("doors", []))
-	if doors.is_empty():
+	var filtered_doors: Array[Dictionary] = []
+	for door_variant in doors:
+		var door: Dictionary = ui._safe_ui_dictionary(door_variant)
+		var door_id: String = ui._safe_ui_string(door.get("id", "")).strip_edges()
+		if door_id.is_empty():
+			continue
+		var door_data: Dictionary = get_map_constructor_door_entity_data_by_id(ui, door_id)
+		if door_data.is_empty() or not MapConstructorKeyDoorLinkServiceRef.can_key_link_to_door(data, door_data):
+			continue
+		filtered_doors.append(door)
+	if filtered_doors.is_empty():
 		var none_label: Label = Label.new()
 		none_label.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 		none_label.text = ui._safe_ui_string(candidates.get("message", "No compatible doors placed on the map."))
 		section.add_child(none_label)
 	else:
 		var option: OptionButton = OptionButton.new()
-		for door_variant in doors:
+		for door_variant in filtered_doors:
 			var door: Dictionary = ui._safe_ui_dictionary(door_variant)
 			option.add_item(ui._safe_ui_string(door.get("label", door.get("id", "Door"))))
 			var option_index: int = option.item_count - 1
@@ -190,6 +221,9 @@ static func add_door_required_key_picker(ui: Variant, parent: VBoxContainer, ent
 		if candidate_id.is_empty() or candidate_id == "__none__":
 			continue
 		var candidate_kind: String = ui._safe_ui_string(candidate.get("kind", "item"), "item")
+		var key_data: Dictionary = get_map_constructor_key_entity_data_by_id(ui, candidate_id)
+		if key_data.is_empty() or not MapConstructorKeyDoorLinkServiceRef.can_key_link_to_door(key_data, data):
+			continue
 		option.add_item(ui._safe_ui_string(candidate.get("label", candidate_id), candidate_id))
 		var option_index: int = option.item_count - 1
 		option.set_item_metadata(option_index, {"id": candidate_id, "entity_kind": candidate_kind})
