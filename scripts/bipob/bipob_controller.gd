@@ -7722,7 +7722,11 @@ func get_available_world_actions(world_object: Dictionary, target_position: Vect
 					actions.append("close_door" if str(terminal_door.get("state", "")) == "open" else "open_door")
 	elif group == "wall":
 		if str(world_object.get("wall_archetype", "")) == "breachable" and Array(world_object.get("breach_tools", [])).has("heavy_claw") and has_heavy_claw_capability():
-			actions.append("break_breachable_wall")
+			var breach_side_ok: bool = true
+			if mission_manager != null and mission_manager.has_method("is_bipob_on_breach_side"):
+				breach_side_ok = bool(mission_manager.call("is_bipob_on_breach_side", target_position, grid_position, str(world_object.get("breach_side", "sw"))))
+			if breach_side_ok:
+				actions.append("break_breachable_wall")
 		if has_plasma_cutter():
 			actions.append("cut")
 		if has_sledgehammer():
