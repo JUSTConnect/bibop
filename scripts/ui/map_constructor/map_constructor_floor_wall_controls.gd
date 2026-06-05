@@ -1,6 +1,8 @@
 extends RefCounted
 class_name MapConstructorFloorWallControls
 
+const BreachableWallServiceRef = preload("res://scripts/game/wall/breachable_wall_service.gd")
+
 static func compose_floor_visual_id(material_id: String, _coating_id: String = "") -> String:
 	var material: String = material_id.to_lower().strip_edges()
 	match material:
@@ -334,11 +336,21 @@ static func add_wall_coverage_section(ui: Variant, parent: VBoxContainer, entity
 				breach_side_option.select(0)
 			var breach_side_row_control: Control = ui._create_property_row("Breach Side", breach_side_option)
 			breach_side_row_control.visible = selected_material_id in ["breachable_concrete", "breachable_brick"]
+			var breach_side_warning: Label = Label.new()
+			breach_side_warning.text = BreachableWallServiceRef.get_invisible_side_warning(selected_breach_side)
+			breach_side_warning.modulate = Color(1.0, 0.78, 0.28, 1.0)
+			breach_side_warning.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+			breach_side_warning.visible = breach_side_row_control.visible and not BreachableWallServiceRef.is_visible_breach_side(selected_breach_side)
 			material_option.item_selected.connect(func(_idx_inner: int) -> void:
 				var material_id_for_side: String = ui._safe_ui_string(material_option.get_selected_metadata())
 				breach_side_row_control.visible = material_id_for_side in ["breachable_concrete", "breachable_brick"]
+				breach_side_warning.visible = breach_side_row_control.visible and not BreachableWallServiceRef.is_visible_breach_side(ui._safe_ui_string(breach_side_option.get_selected_metadata()))
+			)
+			breach_side_option.item_selected.connect(func(_idx_warning: int) -> void:
+				breach_side_warning.visible = breach_side_row_control.visible and not BreachableWallServiceRef.is_visible_breach_side(ui._safe_ui_string(breach_side_option.get_selected_metadata()))
 			)
 			wall_section.add_child(breach_side_row_control)
+			wall_section.add_child(breach_side_warning)
 			wall_section.add_child(breachable_height_note)
 			var apply_height: Button = Button.new(); apply_height.text = "Apply Wall Height"
 			apply_height.pressed.connect(func() -> void:

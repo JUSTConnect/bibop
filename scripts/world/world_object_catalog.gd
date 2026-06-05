@@ -80,7 +80,8 @@ const PREFAB_ALIASES: Dictionary = {
 	"water_floor": "floor",
 	"oil_floor": "floor",
 	"dirty_floor": "floor",
-	"debris_floor": "floor"
+	"debris_floor": "floor",
+	"breachable_wall": "wall"
 }
 
 const LEGACY_SOURCE_METADATA_FIELDS: Array[String] = ["legacy_prefab_id", "map_constructor_prefab_id", "legacy_object_type", "source_prefab_id"]
@@ -98,7 +99,8 @@ const PREFAB_ALIAS_DEFAULTS: Dictionary = {
 	"water_floor": {"object_group":"floor", "covering":"water"},
 	"oil_floor": {"object_group":"floor", "covering":"oil"},
 	"dirty_floor": {"object_group":"floor", "covering":"dirt"},
-	"debris_floor": {"object_group":"floor", "covering":"debris"}
+	"debris_floor": {"object_group":"floor", "covering":"debris"},
+	"breachable_wall": {"object_group":"wall", "is_breachable_wall":true, "wall_archetype":"breachable", "material":"breachable_concrete", "breach_side":"sw", "breach_state":"intact", "supports_embedded_objects":false, "supports_cables":false}
 }
 
 # Hidden compatibility mappings for loading old constructor/runtime data only.
@@ -222,11 +224,14 @@ const ARCHETYPE_REGISTRY: Dictionary = {
 		"archetype_id":"wall", "object_group":"wall", "object_type":"wall", "palette_label":"Wall",
 		"display_name_template":"{material_label} Wall", "is_destructible":true, "supports_embedded_objects":true, "supports_cables":true, "configurable":true, "blocks_movement":true, "blocks_vision":true,
 		"property_schema":[
-			{"field":"material", "type":"enum", "values":["brick", "concrete", "steel", "reinforced_steel", "titanium", "grate", "electromagnetic"], "default":"brick", "labels":{"brick":"Brick", "concrete":"Concrete", "steel":"Steel", "reinforced_steel":"Reinforced Steel", "titanium":"Titanium", "grate":"Grate", "electromagnetic":"Electromagnetic"}}
+			{"field":"material", "type":"enum", "values":["brick", "concrete", "steel", "reinforced_steel", "titanium", "grate", "electromagnetic", "breachable_concrete", "breachable_brick"], "default":"brick", "labels":{"brick":"Brick", "concrete":"Concrete", "steel":"Steel", "reinforced_steel":"Reinforced Steel", "titanium":"Titanium", "grate":"Grate", "electromagnetic":"Electromagnetic", "breachable_concrete":"Breachable Concrete", "breachable_brick":"Breachable Brick"}},
+			{"field":"is_breachable_wall", "type":"bool", "default":false},
+			{"field":"breach_side", "type":"enum", "values":["sw", "se", "nw", "ne"], "default":"sw", "labels":{"sw":"SW", "se":"SE", "nw":"NW", "ne":"NE"}},
+			{"field":"breach_state", "type":"enum", "values":["intact", "breached", "destroyed"], "default":"intact"}
 		]
 	},
 	"breachable_wall": {
-		"archetype_id":"breachable_wall", "object_group":"wall", "object_type":"breachable_wall", "palette_label":"Breachable Wall",
+		"archetype_id":"breachable_wall", "object_group":"wall", "object_type":"wall", "palette_label":"Breachable Wall", "hidden_from_palette":true,
 		"display_name_template":"{material_label} Wall", "is_destructible":true, "is_breachable_wall":true, "heavy_claw_breachable":true, "supports_embedded_objects":false, "supports_cables":false, "configurable":true, "blocks_movement":true, "blocks_vision":true,
 		"property_schema":[
 			{"field":"material", "type":"enum", "values":["breachable_concrete", "breachable_brick"], "default":"breachable_concrete", "labels":{"breachable_concrete":"Breachable Concrete Wall", "breachable_brick":"Breachable Brick Wall"}},
@@ -489,6 +494,8 @@ static func get_constructor_palette_rows() -> Array[Dictionary]:
 	for archetype_id_variant in ARCHETYPE_REGISTRY.keys():
 		var archetype_id: String = str(archetype_id_variant)
 		var definition: Dictionary = ARCHETYPE_REGISTRY[archetype_id]
+		if bool(definition.get("hidden_from_palette", false)):
+			continue
 		rows.append({"id":archetype_id, "prefab_id":archetype_id, "archetype_id":archetype_id, "canonical_object_type":str(definition.get("object_type", archetype_id)), "display_name":str(definition.get("palette_label", archetype_id.capitalize())), "label":str(definition.get("palette_label", archetype_id.capitalize())), "category":str(definition.get("object_group", "Objects")).capitalize(), "object_group":str(definition.get("object_group", "physical_object")), "placement_mode":str(definition.get("placement_mode", "object")), "blocks_movement":bool(definition.get("blocks_movement", true)), "is_alias":false})
 	for object_type_variant in OBJECT_LIBRARY.keys():
 		var object_type: String = str(object_type_variant)
@@ -1269,7 +1276,7 @@ static func _schema_defaults(archetype_id: String) -> Dictionary:
 
 static func _normalize_wall_material(value: Variant) -> String:
 	var material: String = _normalized_contract_token(value)
-	return material if WALL_MATERIALS.has(material) else WALL_MATERIAL_BRICK
+	return material if WALL_MATERIALS.has(material) or BREACHABLE_WALL_MATERIALS.has(material) else WALL_MATERIAL_BRICK
 
 
 static func normalize_breach_side(value: Variant) -> String:
@@ -1340,7 +1347,7 @@ static func get_grid_side_for_breachable_wall_breach_side(breach_side: Variant) 
 static func is_breachable_wall(object_data: Dictionary) -> bool:
 	if object_data.is_empty():
 		return false
-	return _normalized_contract_token(object_data.get("archetype_id", "")) == "breachable_wall" or _normalized_contract_token(object_data.get("object_type", "")) == "breachable_wall" or bool(object_data.get("is_breachable_wall", false))
+	return _normalized_contract_token(object_data.get("archetype_id", "")) == "breachable_wall" or _normalized_contract_token(object_data.get("object_type", "")) == "breachable_wall" or _normalized_contract_token(object_data.get("legacy_object_type", "")) == "breachable_wall" or bool(object_data.get("is_breachable_wall", false))
 
 
 static func wall_side_delta(side: String) -> Vector2i:
@@ -1367,9 +1374,12 @@ static func get_wall_side_for_adjacent_actor(wall_cell: Vector2i, actor_cell: Ve
 static func can_heavy_claw_breach_wall_from_side(object_data: Dictionary, actor_side: String) -> bool:
 	if not is_breachable_wall(object_data):
 		return false
-	if str(object_data.get("state", "active")).strip_edges().to_lower() in ["open", "destroyed", "breached", "removed"]:
+	if str(object_data.get("breach_state", object_data.get("state", "active"))).strip_edges().to_lower() in ["open", "destroyed", "breached", "removed"]:
 		return false
-	return normalize_breach_side(actor_side) == get_grid_side_for_breachable_wall_breach_side(object_data.get("breach_side", "sw"))
+	var breach_side: String = normalize_breachable_wall_breach_side(object_data.get("breach_side", "sw"))
+	if breach_side not in ["sw", "se"]:
+		return false
+	return normalize_breach_side(actor_side) == get_grid_side_for_breachable_wall_breach_side(breach_side)
 
 static func _label_for_id(value: Variant) -> String:
 	return _normalized_contract_token(value).replace("_", " ").capitalize()
@@ -1417,6 +1427,15 @@ static func normalize_archetype_object(object_data: Dictionary) -> Dictionary:
 			data[key] = _schema_defaults(archetype_id)[key]
 	if archetype_id == "wall":
 		data["material"] = _normalize_wall_material(data.get("material", WALL_MATERIAL_BRICK))
+		data["is_breachable_wall"] = _safe_bool_like(data.get("is_breachable_wall", BREACHABLE_WALL_MATERIALS.has(str(data.get("material", "")))), false) or BREACHABLE_WALL_MATERIALS.has(str(data.get("material", "")))
+		if bool(data.get("is_breachable_wall", false)):
+			data["wall_archetype"] = "breachable"
+			data["breach_side"] = normalize_breachable_wall_breach_side(data.get("breach_side", "sw"))
+			data["breach_state"] = str(data.get("breach_state", data.get("state", "intact"))).strip_edges().to_lower()
+			if data["breach_state"] not in ["intact", "breached", "destroyed"]:
+				data["breach_state"] = "intact"
+			data["supports_embedded_objects"] = false
+			data["supports_cables"] = false
 	if archetype_id == "power_switcher":
 		data["mount"] = _normalized_contract_token(data.get("mount", data.get("install_mode", "floor")))
 		if data["mount"] == "wall_mounted":
