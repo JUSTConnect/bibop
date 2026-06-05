@@ -194,3 +194,28 @@ static func get_default_platform_config() -> Dictionary:
 		"control_cell_x": 0,
 		"control_cell_y": 0
 	}
+
+static func normalize_platform_config(config: Dictionary) -> Dictionary:
+	var normalized: Dictionary = get_default_platform_config()
+	for key in config.keys():
+		normalized[key] = config.get(key)
+	normalized["platform_mode"] = normalize_platform_mode(str(normalized.get("platform_mode", normalized.get("mode", MODE_ELEVATOR))))
+	normalized["control_type"] = normalize_control_type(str(normalized.get("control_type", normalized.get("control_mode", CONTROL_INTERNAL))))
+	normalized["power_type"] = normalize_power_type(str(normalized.get("power_type", normalized.get("power_mode", POWER_NONE))))
+	normalized["activation_mode"] = normalize_activation_mode(str(normalized.get("activation_mode", ACTIVATION_INSTANT)))
+	normalized["platform_level"] = clamp_platform_level(int(normalized.get("platform_level", normalized.get("current_level", 0))), int(normalized.get("max_level", 1)))
+	normalized["current_level"] = int(normalized.get("platform_level", 0))
+	normalized["max_level"] = maxi(int(normalized.get("max_level", 1)), 0)
+	normalized["activation_delay_turns"] = normalize_delay_turns(int(normalized.get("activation_delay_turns", 0)))
+	normalized["motion_state"] = normalize_motion_state(str(normalized.get("motion_state", MOTION_IDLE)))
+	normalized["object_group"] = "platform"
+	normalized["archetype_id"] = "platform"
+	return normalized
+
+static func is_platform_data(data: Dictionary) -> bool:
+	if data.is_empty():
+		return false
+	var archetype_id: String = str(data.get("archetype_id", "")).strip_edges().to_lower()
+	var object_group: String = str(data.get("object_group", "")).strip_edges().to_lower()
+	var object_type: String = str(data.get("object_type", "")).strip_edges().to_lower()
+	return archetype_id == "platform" or object_group == "platform" or object_type == "platform"
