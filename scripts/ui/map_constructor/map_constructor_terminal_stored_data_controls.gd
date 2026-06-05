@@ -46,7 +46,7 @@ static func _add_access_code_controls(ui: Variant, section: VBoxContainer, entit
 	_add_note(ui, section, "Access code is always 4 digits and cannot be encrypted or damaged.", false)
 
 static func _add_digital_key_controls(ui: Variant, section: VBoxContainer, entity_kind: String, entity_id: String, data: Dictionary) -> void:
-	var current_key_id: String = str(data.get("stored_digital_key_id", data.get("stored_key_id", ""))).strip_edges()
+	var current_key_id: String = str(data.get("stored_digital_key_id", data.get("stored_key_id", data.get("stored_item_id", "")))).strip_edges()
 	var option: OptionButton = OptionButton.new()
 	option.add_item("(no digital key)")
 	option.set_item_metadata(0, "")
@@ -54,7 +54,7 @@ static func _add_digital_key_controls(ui: Variant, section: VBoxContainer, entit
 		option.select(0)
 	var selected_index: int = 0
 	for candidate in _get_digital_key_candidates(ui):
-		var candidate_data: Dictionary = Dictionary(candidate)
+		var candidate_data: Dictionary = MapConstructorUiSafe.safe_dictionary(candidate)
 		var candidate_id: String = str(candidate_data.get("id", "")).strip_edges()
 		if candidate_id.is_empty():
 			continue
@@ -66,10 +66,12 @@ static func _add_digital_key_controls(ui: Variant, section: VBoxContainer, entit
 	option.select(selected_index)
 	option.item_selected.connect(func(index: int) -> void:
 		var key_id: String = str(option.get_item_metadata(index)).strip_edges()
-		ui._apply_map_constructor_property_updates(entity_kind, entity_id, {"stored_digital_key_id":key_id, "stored_key_id":key_id, "stored_item_id":key_id, "encrypted":false, "damaged":false})
+		var updates: Dictionary = {"stored_digital_key_id":key_id, "stored_key_id":key_id, "stored_item_id":key_id, "encrypted":false, "damaged":false}
+		ui._apply_map_constructor_property_updates(entity_kind, entity_id, updates)
+		_sync_digital_key_terminal_storage(ui, key_id, entity_id)
 	)
 	section.add_child(ui._create_property_row("Digital key", option))
-	_add_note(ui, section, "Digital key storage points to one placed digital key item.", false)
+	_add_note(ui, section, "Digital key storage points to one placed digital key item and marks that key as stored in this information terminal.", false)
 
 static func _add_data_file_controls(ui: Variant, section: VBoxContainer, entity_kind: String, entity_id: String, data: Dictionary) -> void:
 	ui._add_text_property(section, "Data file id", entity_kind, entity_id, "stored_data_file_id", data.get("stored_data_file_id", data.get("payload_id", "")))
@@ -80,7 +82,19 @@ static func _add_data_file_controls(ui: Variant, section: VBoxContainer, entity_
 
 static func _get_digital_key_candidates(ui: Variant) -> Array[Dictionary]:
 	var rows: Array[Dictionary] = []
-	if ui.mission_manager_runtime == null or not ui.mission_manager_runtime.has_method("get_map_constructor_placed_object_rows"):
+	if ui.mission_manager_runtime == null:
+		return rows
+	if ui.mission_manager_runtime.has_method("get_map_constructor_link_targets_for_field"):
+		var targets: Dictionary = MapConstructorUiSafe.safe_dictionary(ui.mission_manager_runtime.call("get_map_constructor_link_targets_for_field", "item", "", "required_key_id"))
+		for target_variant in MapConstructorUiSafe.safe_array(targets.get("targets", [])):
+			var target: Dictionary = MapConstructorUiSafe.safe_dictionary(target_variant)
+			var key_id: String = str(target.get("id", "")).strip_edges()
+			if key_id.is_empty() or key_id == "__none__":
+				continue
+			if _is_digital_key_id(ui, key_id):
+				rows.append({"id":key_id, "label":str(target.get("label", key_id))})
+		return rows
+	if not ui.mission_manager_runtime.has_method("get_map_constructor_placed_object_rows"):
 		return rows
 	for row_variant in Array(ui.mission_manager_runtime.call("get_map_constructor_placed_object_rows")):
 		if not row_variant is Dictionary:
@@ -89,11 +103,35 @@ static func _get_digital_key_candidates(ui: Variant) -> Array[Dictionary]:
 		var row_id: String = str(row.get("id", "")).strip_edges()
 		if row_id.is_empty():
 			continue
-		var joined: String = "%s %s %s" % [str(row.get("type_or_prefab", "")).to_lower(), str(row.get("display_name", "")).to_lower(), str(row.get("metadata_tags", "")).to_lower()]
-		if not joined.contains("digital_key") and not joined.contains("digital key"):
-			continue
-		rows.append({"id":row_id, "label":"%s at %s" % [row_id, str(row.get("cell", Vector2i(-1, -1)))]})
+		if _is_digital_key_id(ui, row_id):
+			rows.append({"id":row_id, "label":"%s at %s" % [row_id, str(row.get("cell", Vector2i(-1, -1)))]})
 	return rows
+
+static func _is_digital_key_id(ui: Variant, key_id: String) -> bool:
+	var normalized_key_id: String = key_id.strip_edges()
+	if normalized_key_id.is_empty():
+		return false
+	var joined: String = normalized_key_id.to_lower()
+	if ui.mission_manager_runtime != null and ui.mission_manager_runtime.has_method("find_map_constructor_key_item_by_id"):
+		var key_entity: Dictionary = MapConstructorUiSafe.safe_dictionary(ui.mission_manager_runtime.call("find_map_constructor_key_item_by_id", normalized_key_id))
+		var key_data: Dictionary = MapConstructorUiSafe.safe_dictionary(key_entity.get("data", key_entity.get("item_data", {})))
+		joined = "%s %s %s %s %s" % [joined, str(key_data.get("item_type", "")).to_lower(), str(key_data.get("key_type", "")).to_lower(), str(key_data.get("key_kind", "")).to_lower(), str(key_data.get("digital_payload_type", "")).to_lower()]
+	return joined.contains("digital_key") or joined.contains("digital key") or joined.contains("digital")
+
+static func _sync_digital_key_terminal_storage(ui: Variant, key_id: String, terminal_id: String) -> void:
+	var normalized_key_id: String = key_id.strip_edges()
+	if normalized_key_id.is_empty() or ui.mission_manager_runtime == null:
+		return
+	if not ui.mission_manager_runtime.has_method("find_map_constructor_key_item_by_id"):
+		return
+	var key_entity: Dictionary = MapConstructorUiSafe.safe_dictionary(ui.mission_manager_runtime.call("find_map_constructor_key_item_by_id", normalized_key_id))
+	if not bool(key_entity.get("ok", false)):
+		return
+	var key_kind: String = str(key_entity.get("entity_kind", "item")).strip_edges()
+	if key_kind.is_empty():
+		key_kind = "item"
+	var key_updates: Dictionary = {"storage_location":"terminal", "stored_in_terminal_id":terminal_id, "storage_terminal_id":terminal_id, "access_terminal_id":terminal_id}
+	ui._apply_map_constructor_property_updates(key_kind, normalized_key_id, key_updates)
 
 static func _add_note(ui: Variant, section: VBoxContainer, text: String, is_warning: bool) -> void:
 	var note: Label = Label.new()
