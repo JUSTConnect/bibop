@@ -2440,7 +2440,28 @@ func _get_world_object_cell_from_data(object_data: Dictionary) -> Vector2i:
 	var grid_cell: Vector2i = _deserialize_cell_variant(object_data.get("grid_cell", Vector2i(-1, -1)))
 	return grid_cell
 
+func is_visual_only_floor_ground_object(object_data: Dictionary) -> bool:
+	var object_group: String = str(object_data.get("object_group", "")).strip_edges().to_lower()
+	var object_type: String = str(object_data.get("object_type", "")).strip_edges().to_lower()
+	var category: String = str(object_data.get("category", object_data.get("object_category", ""))).strip_edges().to_lower()
+	var texture_asset_id: String = str(object_data.get("texture_asset_id", object_data.get("visual_texture_asset_id", object_data.get("visual_asset_id", object_data.get("asset_id", ""))))).strip_edges().to_lower()
+	var floor_height_level: String = str(object_data.get("floor_height_level", object_data.get("floor_visual_height", object_data.get("ground_height", object_data.get("height_level", ""))))).strip_edges().to_lower()
+	var visual_only_groups: Array[String] = ["floor", "ground", "floor_visual", "visual_floor", "floor_height", "raised_ground"]
+	if object_group in visual_only_groups:
+		return true
+	if category in visual_only_groups:
+		return true
+	if object_type in ["stepped_floor", "raised_ground", "ground_low", "ground_halflow", "ground_low_01", "ground_halflow_01", "floor_stepped", "step_1", "step_2"]:
+		return true
+	if object_type.begins_with("floor_") or object_type.begins_with("ground_"):
+		return true
+	if texture_asset_id in ["ground_low_01", "ground_low_01.png", "ground_low", "ground_halflow_01", "ground_halflow_01.png", "ground_halflow", "floor_stepped"]:
+		return true
+	return floor_height_level in ["step_1", "step_2", "ground_low", "ground_halflow", "low", "halflow"]
+
 func _get_world_object_lookup_priority(object_data: Dictionary) -> int:
+	if is_visual_only_floor_ground_object(object_data):
+		return -1000
 	var object_group: String = str(object_data.get("object_group", "")).to_lower()
 	var object_type: String = str(object_data.get("object_type", "")).to_lower()
 	var score: int = 0
@@ -2459,6 +2480,8 @@ func _select_world_object_for_cell(cell: Vector2i) -> Dictionary:
 		var object_data: Dictionary = Dictionary(object_data_variant)
 		if str(object_data.get("object_group", "")).to_lower() == "item":
 			continue
+		if is_visual_only_floor_ground_object(object_data):
+			continue
 		var object_cell: Vector2i = _get_world_object_cell_from_data(object_data)
 		if object_cell != cell:
 			continue
@@ -2470,6 +2493,8 @@ func _select_world_object_for_cell(cell: Vector2i) -> Dictionary:
 		return selected_object
 	var by_cell: Dictionary = Dictionary(world_objects_by_cell.get(cell, {}))
 	if str(by_cell.get("object_group", "")).to_lower() == "item":
+		return {}
+	if is_visual_only_floor_ground_object(by_cell):
 		return {}
 	return by_cell
 
