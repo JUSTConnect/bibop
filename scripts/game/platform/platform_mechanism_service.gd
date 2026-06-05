@@ -167,12 +167,7 @@ static func has_any_ground_adjacency(cells: Array[Vector2i], ground_cells: Array
 static func validate_mechanism(mechanism_id: String, members: Array, ground_cells: Array[Vector2i] = []) -> Dictionary:
 	var errors: Array[String] = []
 	var warnings: Array[String] = []
-	var platform_members: Array[Dictionary] = []
-	for member_variant in members:
-		var member_data: Dictionary = unwrap_platform_data(member_variant)
-		if member_data.is_empty() or not is_platform_data(member_data):
-			continue
-		platform_members.append(member_data)
+	var platform_members: Array[Dictionary] = get_mechanism_members(mechanism_id, members)
 	var cells: Array[Vector2i] = get_member_cells(platform_members)
 	if platform_members.is_empty():
 		errors.append("Platform mechanism has no members.")
