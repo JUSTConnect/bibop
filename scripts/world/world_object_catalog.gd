@@ -147,7 +147,7 @@ const WALL_MATERIAL_GRATE := "grate"
 const WALL_MATERIAL_ELECTROMAGNETIC := "electromagnetic"
 const WALL_MATERIAL_BREACHABLE_CONCRETE := "breachable_concrete"
 const WALL_MATERIAL_BREACHABLE_BRICK := "breachable_brick"
-const WALL_MATERIALS: Array[String] = [WALL_MATERIAL_BRICK, WALL_MATERIAL_CONCRETE, WALL_MATERIAL_STEEL, WALL_MATERIAL_REINFORCED_STEEL, WALL_MATERIAL_TITANIUM, WALL_MATERIAL_GRATE, WALL_MATERIAL_ELECTROMAGNETIC]
+const WALL_MATERIALS: Array[String] = [WALL_MATERIAL_BRICK, WALL_MATERIAL_CONCRETE, WALL_MATERIAL_STEEL, WALL_MATERIAL_REINFORCED_STEEL, WALL_MATERIAL_TITANIUM, WALL_MATERIAL_GRATE, WALL_MATERIAL_ELECTROMAGNETIC, WALL_MATERIAL_BREACHABLE_CONCRETE, WALL_MATERIAL_BREACHABLE_BRICK]
 const BREACHABLE_WALL_MATERIALS: Array[String] = [WALL_MATERIAL_BREACHABLE_CONCRETE, WALL_MATERIAL_BREACHABLE_BRICK]
 const BREACHABLE_WALL_HEIGHTS: Array[String] = ["mid", "halfmid", "tall"]
 const WALL_SIDES: Array[String] = ["north", "east", "south", "west"]
@@ -164,9 +164,10 @@ const WALL_DISPLAY_NAMES: Dictionary = {
 }
 
 # Hidden compatibility mappings for historic wall ids. Constructor palettes must
-# expose only external_wall and wall; old ids normalize while loading legacy data.
+# expose only one configurable wall row; old ids normalize while loading legacy data.
 const LEGACY_WALL_ALIAS_CONFIGS: Dictionary = {
 	"outer_wall": {"object_type":"external_wall"},
+	"breachable_wall": {"object_type":"wall", "material":WALL_MATERIAL_BREACHABLE_CONCRETE, "is_breachable_wall":true, "heavy_claw_breachable":true, "supports_embedded_objects":false, "supports_cables":false, "wall_height":"mid", "breach_side":"sw"},
 	"brick_wall": {"object_type":"wall", "material":WALL_MATERIAL_BRICK},
 	"concrete_wall": {"object_type":"wall", "material":WALL_MATERIAL_CONCRETE},
 	"steel_wall": {"object_type":"wall", "material":WALL_MATERIAL_STEEL},
@@ -176,6 +177,10 @@ const LEGACY_WALL_ALIAS_CONFIGS: Dictionary = {
 	"electromagnetic_wall": {"object_type":"wall", "material":WALL_MATERIAL_ELECTROMAGNETIC},
 	"energy_wall": {"object_type":"wall", "material":WALL_MATERIAL_ELECTROMAGNETIC},
 	"damaged_wall": {"object_type":"wall", "material":WALL_MATERIAL_CONCRETE, "damaged":true}
+}
+
+const LEGACY_PLATFORM_ALIAS_CONFIGS: Dictionary = {
+	"movable_platform_block": {"object_type":"platform", "platform_mode":"elevator", "platform_level":0, "max_level":1, "control_type":"internal", "power_type":"none"}
 }
 
 const TERMINAL_TYPES: Array[String] = ["information", "control"]
@@ -216,7 +221,7 @@ const DOOR_MATERIAL_BY_OBJECT_TYPE: Dictionary = {
 # power_source, item, wall, cooling_device, data_device) without adding palette variants.
 const ARCHETYPE_REGISTRY: Dictionary = {
 	"external_wall": {
-		"archetype_id":"external_wall", "object_group":"wall", "object_type":"external_wall", "palette_label":"External Wall",
+		"archetype_id":"external_wall", "object_group":"wall", "object_type":"external_wall", "palette_label":"External Wall", "show_in_palette":false,
 		"display_name_template":"External Wall", "material":"external_structural", "is_destructible":false, "supports_embedded_objects":true, "supports_cables":true, "configurable":false, "blocks_movement":true, "blocks_vision":true,
 		"property_schema":[]
 	},
@@ -226,15 +231,6 @@ const ARCHETYPE_REGISTRY: Dictionary = {
 		"property_schema":[
 			{"field":"material", "type":"enum", "values":["brick", "concrete", "steel", "reinforced_steel", "titanium", "grate", "electromagnetic", "breachable_concrete", "breachable_brick"], "default":"brick", "labels":{"brick":"Brick", "concrete":"Concrete", "steel":"Steel", "reinforced_steel":"Reinforced Steel", "titanium":"Titanium", "grate":"Grate", "electromagnetic":"Electromagnetic", "breachable_concrete":"Breachable Concrete", "breachable_brick":"Breachable Brick"}},
 			{"field":"is_breachable_wall", "type":"bool", "default":false},
-			{"field":"breach_side", "type":"enum", "values":["sw", "se", "nw", "ne"], "default":"sw", "labels":{"sw":"SW", "se":"SE", "nw":"NW", "ne":"NE"}},
-			{"field":"breach_state", "type":"enum", "values":["intact", "breached", "destroyed"], "default":"intact"}
-		]
-	},
-	"breachable_wall": {
-		"archetype_id":"breachable_wall", "object_group":"wall", "object_type":"wall", "palette_label":"Breachable Wall", "hidden_from_palette":true,
-		"display_name_template":"{material_label} Wall", "is_destructible":true, "is_breachable_wall":true, "heavy_claw_breachable":true, "supports_embedded_objects":false, "supports_cables":false, "configurable":true, "blocks_movement":true, "blocks_vision":true,
-		"property_schema":[
-			{"field":"material", "type":"enum", "values":["breachable_concrete", "breachable_brick"], "default":"breachable_concrete", "labels":{"breachable_concrete":"Breachable Concrete Wall", "breachable_brick":"Breachable Brick Wall"}},
 			{"field":"wall_height", "type":"enum", "values":["mid", "halfmid", "tall"], "default":"mid", "labels":{"mid":"Mid", "halfmid":"Half Mid", "tall":"Tall"}},
 			{"field":"breach_side", "type":"enum", "values":["sw", "se", "nw", "ne"], "default":"sw", "labels":{"sw":"SW", "se":"SE", "nw":"NW", "ne":"NE"}}
 		]
@@ -411,7 +407,7 @@ static func canonical_prefab_id(prefab_id: String) -> String:
 	var normalized_type: String = prefab_id.strip_edges().to_lower()
 	if PREFAB_ALIASES.has(normalized_type):
 		return str(PREFAB_ALIASES[normalized_type])
-	var preset_variant: Variant = LEGACY_ITEM_ALIAS_CONFIGS.get(normalized_type, LEGACY_DOOR_ALIAS_CONFIGS.get(normalized_type, LEGACY_WALL_ALIAS_CONFIGS.get(normalized_type, LEGACY_TERMINAL_ALIAS_CONFIGS.get(normalized_type, {}))))
+	var preset_variant: Variant = LEGACY_ITEM_ALIAS_CONFIGS.get(normalized_type, LEGACY_DOOR_ALIAS_CONFIGS.get(normalized_type, LEGACY_WALL_ALIAS_CONFIGS.get(normalized_type, LEGACY_PLATFORM_ALIAS_CONFIGS.get(normalized_type, LEGACY_TERMINAL_ALIAS_CONFIGS.get(normalized_type, {})))))
 	if preset_variant is Dictionary:
 		return str(preset_variant.get("object_type", "terminal" if LEGACY_TERMINAL_ALIAS_CONFIGS.has(normalized_type) else normalized_type))
 	return normalized_type
@@ -422,7 +418,7 @@ static func canonical_object_type(object_type: String) -> String:
 
 static func is_legacy_prefab_alias(value: String) -> bool:
 	var normalized_value: String = value.strip_edges().to_lower()
-	return PREFAB_ALIASES.has(normalized_value) or LEGACY_DOOR_ALIAS_CONFIGS.has(normalized_value) or LEGACY_ITEM_ALIAS_CONFIGS.has(normalized_value) or LEGACY_WALL_ALIAS_CONFIGS.has(normalized_value) or LEGACY_TERMINAL_ALIAS_CONFIGS.has(normalized_value)
+	return PREFAB_ALIASES.has(normalized_value) or LEGACY_DOOR_ALIAS_CONFIGS.has(normalized_value) or LEGACY_ITEM_ALIAS_CONFIGS.has(normalized_value) or LEGACY_WALL_ALIAS_CONFIGS.has(normalized_value) or LEGACY_PLATFORM_ALIAS_CONFIGS.has(normalized_value) or LEGACY_TERMINAL_ALIAS_CONFIGS.has(normalized_value)
 
 static func is_legacy_door_object_type(value: String) -> bool:
 	var normalized_value: String = value.strip_edges().to_lower()
@@ -475,7 +471,7 @@ static func get_prefab_alias_defaults(prefab_id: String) -> Dictionary:
 	var raw_defaults: Variant = PREFAB_ALIAS_DEFAULTS.get(normalized_prefab_id, {})
 	if raw_defaults is Dictionary and not raw_defaults.is_empty():
 		return raw_defaults.duplicate(true)
-	var preset_variant: Variant = LEGACY_ITEM_ALIAS_CONFIGS.get(normalized_prefab_id, LEGACY_DOOR_ALIAS_CONFIGS.get(normalized_prefab_id, LEGACY_WALL_ALIAS_CONFIGS.get(normalized_prefab_id, LEGACY_TERMINAL_ALIAS_CONFIGS.get(normalized_prefab_id, {}))))
+	var preset_variant: Variant = LEGACY_ITEM_ALIAS_CONFIGS.get(normalized_prefab_id, LEGACY_DOOR_ALIAS_CONFIGS.get(normalized_prefab_id, LEGACY_WALL_ALIAS_CONFIGS.get(normalized_prefab_id, LEGACY_PLATFORM_ALIAS_CONFIGS.get(normalized_prefab_id, LEGACY_TERMINAL_ALIAS_CONFIGS.get(normalized_prefab_id, {})))))
 	if preset_variant is Dictionary:
 		var preset_defaults: Dictionary = preset_variant.duplicate(true)
 		preset_defaults.erase("object_type")
@@ -494,13 +490,13 @@ static func get_constructor_palette_rows() -> Array[Dictionary]:
 	for archetype_id_variant in ARCHETYPE_REGISTRY.keys():
 		var archetype_id: String = str(archetype_id_variant)
 		var definition: Dictionary = ARCHETYPE_REGISTRY[archetype_id]
-		if bool(definition.get("hidden_from_palette", false)):
+		if not bool(definition.get("show_in_palette", true)):
 			continue
 		rows.append({"id":archetype_id, "prefab_id":archetype_id, "archetype_id":archetype_id, "canonical_object_type":str(definition.get("object_type", archetype_id)), "display_name":str(definition.get("palette_label", archetype_id.capitalize())), "label":str(definition.get("palette_label", archetype_id.capitalize())), "category":str(definition.get("object_group", "Objects")).capitalize(), "object_group":str(definition.get("object_group", "physical_object")), "placement_mode":str(definition.get("placement_mode", "object")), "blocks_movement":bool(definition.get("blocks_movement", true)), "is_alias":false})
 	for object_type_variant in OBJECT_LIBRARY.keys():
 		var object_type: String = str(object_type_variant)
 		var definition: Dictionary = OBJECT_LIBRARY[object_type]
-		if ARCHETYPE_REGISTRY.has(object_type) or not bool(definition.get("placeable_in_constructor", true)) or str(definition.get("group", "")) in ["door", "terminal", "item", "platform"]:
+		if ARCHETYPE_REGISTRY.has(object_type) or is_legacy_prefab_alias(object_type) or not bool(definition.get("placeable_in_constructor", true)) or str(definition.get("group", "")) in ["door", "terminal", "item", "platform"]:
 			continue
 		rows.append(_build_constructor_palette_row(object_type, object_type, definition, false))
 	rows.sort_custom(func(a: Dictionary, b: Dictionary) -> bool: return str(a.get("display_name", "")) < str(b.get("display_name", "")))
@@ -1427,13 +1423,12 @@ static func normalize_archetype_object(object_data: Dictionary) -> Dictionary:
 			data[key] = _schema_defaults(archetype_id)[key]
 	if archetype_id == "wall":
 		data["material"] = _normalize_wall_material(data.get("material", WALL_MATERIAL_BRICK))
-		data["is_breachable_wall"] = _safe_bool_like(data.get("is_breachable_wall", BREACHABLE_WALL_MATERIALS.has(str(data.get("material", "")))), false) or BREACHABLE_WALL_MATERIALS.has(str(data.get("material", "")))
+		var breachable_by_material: bool = BREACHABLE_WALL_MATERIALS.has(str(data.get("material", "")))
+		data["is_breachable_wall"] = _safe_bool_like(data.get("is_breachable_wall", data.get("breachable", breachable_by_material)), breachable_by_material)
+		data["wall_height"] = normalize_breachable_wall_height(data.get("wall_height", "mid"))
+		data["breach_side"] = normalize_breachable_wall_breach_side(data.get("breach_side", "sw"))
+		data["heavy_claw_breachable"] = bool(data.get("is_breachable_wall", false))
 		if bool(data.get("is_breachable_wall", false)):
-			data["wall_archetype"] = "breachable"
-			data["breach_side"] = normalize_breachable_wall_breach_side(data.get("breach_side", "sw"))
-			data["breach_state"] = str(data.get("breach_state", data.get("state", "intact"))).strip_edges().to_lower()
-			if data["breach_state"] not in ["intact", "breached", "destroyed"]:
-				data["breach_state"] = "intact"
 			data["supports_embedded_objects"] = false
 			data["supports_cables"] = false
 	if archetype_id == "power_switcher":
@@ -1538,8 +1533,14 @@ static func _create_library_object(object_type: String, id_override: String = ""
 	return normalize_door_state_fields(data)
 
 static func create_world_object(object_type: String, id_override: String = "") -> Dictionary:
-	if ARCHETYPE_REGISTRY.has(_normalized_contract_token(object_type)):
-		return create_archetype_object(_normalized_contract_token(object_type), id_override)
+	var normalized_type: String = _normalized_contract_token(object_type)
+	if is_legacy_prefab_alias(normalized_type):
+		var canonical_type: String = canonical_prefab_id(normalized_type)
+		if ARCHETYPE_REGISTRY.has(canonical_type):
+			var archetype_data: Dictionary = create_archetype_object(canonical_type, id_override, get_prefab_alias_defaults(normalized_type))
+			return mark_legacy_source(archetype_data, normalized_type)
+	if ARCHETYPE_REGISTRY.has(normalized_type):
+		return create_archetype_object(normalized_type, id_override)
 	return _create_library_object(object_type, id_override)
 
 static func get_world_object_working_heat(object_data: Dictionary) -> int:
