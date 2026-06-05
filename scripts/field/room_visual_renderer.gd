@@ -3598,7 +3598,9 @@ func map_wall_metadata_value_to_profile(raw_value: String) -> String:
 		"energy_wall": "energy_wall",
 		"damaged_wall": "damaged_wall",
 		"brick": "brick_wall",
+		"breachable_brick": "brick_wall",
 		"concrete": "concrete_wall",
+		"breachable_concrete": "concrete_wall",
 		"steel": "steel_wall",
 		"reinforced_steel": "reinforced_steel_wall",
 		"titanium": "titanium_wall",
@@ -3937,7 +3939,44 @@ func draw_iso_wall_block(cell: Vector2i) -> void:
 	var accent_end: Vector2 = top_points[0].lerp(top_points[1], 0.45)
 	draw_line(accent_start, accent_end, accent_color, 1.2)
 	draw_iso_wall_surface_accent(left_face, right_face, top_face, wall_profile_key, accent_color)
+	draw_iso_breachable_wall_overlay(cell)
 	draw_iso_wall_debug_and_mount_overlays(cell, arch, topology)
+
+func _get_breachable_wall_data_for_cell(cell: Vector2i) -> Dictionary:
+	if mission_manager == null or not mission_manager.has_method("get_world_object_at_cell"):
+		return {}
+	var object_data: Dictionary = Dictionary(mission_manager.call("get_world_object_at_cell", cell))
+	if object_data.is_empty() or not bool(object_data.get("is_breachable_wall", false)):
+		return {}
+	if str(object_data.get("state", "active")).strip_edges().to_lower() in ["open", "destroyed", "breached"]:
+		return {}
+	return object_data
+
+func draw_iso_breachable_wall_overlay(cell: Vector2i) -> void:
+	var object_data: Dictionary = _get_breachable_wall_data_for_cell(cell)
+	if object_data.is_empty():
+		return
+	var side: String = str(object_data.get("breach_side", "north")).strip_edges().to_lower()
+	var center: Vector2 = grid_to_iso(cell) + Vector2(0.0, -iso_wall_height * 0.44)
+	var side_offset: Vector2 = Vector2.ZERO
+	match side:
+		"north":
+			side_offset = Vector2(0.0, -iso_wall_height * 0.14)
+		"east":
+			side_offset = Vector2(get_iso_tile_half_size().x * 0.26, -iso_wall_height * 0.02)
+		"south":
+			side_offset = Vector2(0.0, iso_wall_height * 0.12)
+		"west":
+			side_offset = Vector2(-get_iso_tile_half_size().x * 0.26, -iso_wall_height * 0.02)
+	var crack_center: Vector2 = center + side_offset
+	var crack_color: Color = Color(0.06, 0.045, 0.035, 0.92)
+	var glow_color: Color = Color(1.0, 0.72, 0.24, 0.34)
+	draw_circle(crack_center, 8.0, glow_color)
+	draw_line(crack_center + Vector2(-2.0, -12.0), crack_center + Vector2(1.0, -3.0), crack_color, 2.0)
+	draw_line(crack_center + Vector2(1.0, -3.0), crack_center + Vector2(-5.0, 5.0), crack_color, 2.0)
+	draw_line(crack_center + Vector2(1.0, -3.0), crack_center + Vector2(7.0, 7.0), crack_color, 2.0)
+	draw_line(crack_center + Vector2(-5.0, 5.0), crack_center + Vector2(-1.0, 13.0), crack_color, 1.4)
+	draw_line(crack_center + Vector2(7.0, 7.0), crack_center + Vector2(3.0, 14.0), crack_color, 1.4)
 
 func draw_iso_wall_debug_and_mount_overlays(cell: Vector2i, arch: Dictionary, topology: String) -> void:
 	if show_wall_topology_overlay:
