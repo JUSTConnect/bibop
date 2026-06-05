@@ -4,13 +4,16 @@ class_name BipobWorldObjectExecutionService
 
 const InteractionSystemRef = preload("res://scripts/world/interaction_system.gd")
 const WorldObjectCatalogRef = preload("res://scripts/world/world_object_catalog.gd")
+const InteractionActionCostServiceRef = preload("res://scripts/game/interaction/interaction_action_cost_service.gd")
 
 
 static func execute_world_object_action(controller: Variant, world_object: Dictionary, target_position: Vector2i, actor: Dictionary, module: Dictionary, action_id: String) -> Dictionary:
-	var action_result: Dictionary = InteractionSystemRef.normalize_action_result(Dictionary(InteractionSystemRef.apply_action(actor, module, world_object, action_id)), world_object, action_id)
+	var working_object: Dictionary = world_object.duplicate(true)
+	var action_result: Dictionary = InteractionSystemRef.normalize_action_result(Dictionary(InteractionSystemRef.apply_action(actor, module, working_object, action_id)), working_object, action_id)
 	if not bool(action_result.get("success", false)):
 		return _build_result(false, str(action_result.get("message", "Action failed.")), world_object, target_position, action_result, "action_failed")
-	if not controller.can_spend_action(1, 1):
+	world_object = working_object
+	if not InteractionActionCostServiceRef.can_commit_gameplay_action(controller):
 		return _build_result(false, "Not enough action/energy.", world_object, target_position, action_result, "insufficient_resources")
 	if action_id == "insert_fuse" and not controller.consume_held_world_item_if_type("fuse"):
 		return _build_result(false, "Manipulator does not contain a fuse.", world_object, target_position, action_result, "fuse_not_held")
@@ -38,10 +41,7 @@ static func execute_world_object_action(controller: Variant, world_object: Dicti
 static func finalize_world_object_action(controller: Variant, execution_result: Dictionary) -> void:
 	if not bool(execution_result.get("pending_paid_action", false)):
 		return
-	controller.spend_action(1, 1)
-	controller._register_successful_paid_player_action(true)
-	execution_result["spent_action"] = true
-	execution_result["pending_paid_action"] = false
+	InteractionActionCostServiceRef.commit_gameplay_action(controller, execution_result)
 
 
 static func _apply_explicit_power_event(controller: Variant, world_object: Dictionary, action_id: String, action_result: Dictionary) -> void:
