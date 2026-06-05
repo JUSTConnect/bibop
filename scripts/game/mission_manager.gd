@@ -17,6 +17,7 @@ const PlatformMotionServiceRef = preload("res://scripts/game/platform/platform_m
 const PlatformRotationServiceRef = preload("res://scripts/game/platform/platform_rotation_service.gd")
 const BipobCableRuntimeServiceRef = preload("res://scripts/game/bipob_cable_runtime_service.gd")
 const BipobAirflowRuntimeServiceRef = preload("res://scripts/game/bipob_airflow_runtime_service.gd")
+const BreachableWallServiceRef = preload("res://scripts/game/wall/breachable_wall_service.gd")
 const DEVICE_INTERACTION_FLOW_STATES: Array[String] = ["no_target", "unknown", "scanned", "diagnosed", "ready", "blocked", "executed_unavailable"]
 
 const ISO_PLACEHOLDER_ASSET_PATHS: Dictionary = {
@@ -3205,19 +3206,7 @@ func normalize_map_constructor_wall_height(value: String) -> String:
 	return ""
 
 func normalize_breach_side(value: String) -> String:
-	var normalized_value: String = value.strip_edges().to_lower()
-	normalized_value = normalized_value.replace(" ", "_")
-	normalized_value = normalized_value.replace("-", "_")
-	match normalized_value:
-		"sw", "southwest", "south_west", "left_front", "south":
-			return "sw"
-		"se", "southeast", "south_east", "right_front", "east":
-			return "se"
-		"nw", "northwest", "north_west", "left_back", "west":
-			return "nw"
-		"ne", "northeast", "north_east", "right_back", "north":
-			return "ne"
-	return "sw"
+	return BreachableWallServiceRef.normalize_breach_side(value)
 
 func get_grid_side_for_breach_side(breach_side: String) -> String:
 	# grid_to_iso projects +x as visual SE and +y as visual SW, so the
@@ -3567,6 +3556,10 @@ func _resolve_wall_mounted_attachment(anchor_floor_cell: Vector2i, preferred_sid
 		"available_wall_sides": available_sides
 	}
 
+func is_breachable_wall_cell(cell: Vector2i) -> bool:
+	var wall_data: Dictionary = get_breachable_wall_action_target_at_cell(cell)
+	return not wall_data.is_empty()
+
 func can_place_map_constructor_prefab(prefab_id: String, cell: Vector2i, preferred_wall_side: String = "", placement_mode_override: String = "") -> Dictionary:
 	var result: Dictionary = {"ok": false, "reason": "unsupported_prefab", "message": "Blocked: unsupported prefab.", "cell_state": get_runtime_cell_state(cell)}
 	var is_supported: bool = false
@@ -3608,6 +3601,10 @@ func can_place_map_constructor_prefab(prefab_id: String, cell: Vector2i, preferr
 	var tile_is_floor_like: bool = tile_type_value == GridManager.TILE_FLOOR or tile_type_value == GridManager.TILE_STEPPED_FLOOR
 	var canonical_prefab_template: Dictionary = _get_world_object_template(canonical_prefab_id)
 	var prefab_is_cable_layer: bool = canonical_prefab_id == "power_cable" or CableTopologyServiceRef.is_cable_object({"object_type": canonical_prefab_id})
+	if prefab_is_cable_layer and is_breachable_wall_cell(cell):
+		result["reason"] = "breachable_wall_blocks_cable"
+		result["message"] = "Cannot route cables on a Breachable Wall."
+		return result
 	var prefab_is_wall: bool = str(canonical_prefab_template.get("group", "")) == "wall"
 	var prefab_is_door_or_gate: bool = str(canonical_prefab_template.get("group", "")) == "door"
 	var prefab_is_floor_replacement: bool = prefab_id == "floor" or prefab_id == "stepped_floor"
@@ -3674,7 +3671,7 @@ func can_place_map_constructor_prefab(prefab_id: String, cell: Vector2i, preferr
 		for side_entry in MAP_CONSTRUCTOR_WALL_SIDE_DELTAS:
 			var side_id: String = str(side_entry.get("side", ""))
 			var wall_cell: Vector2i = cell + _get_map_constructor_wall_side_delta(side_id)
-			if _is_map_constructor_wall_cell(wall_cell):
+			if _is_map_constructor_wall_cell(wall_cell) and not is_breachable_wall_cell(wall_cell):
 				available_sides.append(side_id)
 		result["available_wall_sides"] = available_sides
 		if available_sides.is_empty():
@@ -3689,6 +3686,10 @@ func can_place_map_constructor_prefab(prefab_id: String, cell: Vector2i, preferr
 			result["message"] = "Cannot mount on %s: adjacent cell is not a wall." % _get_map_constructor_wall_side_label(normalized_side)
 			return result
 		var attached_wall_cell: Vector2i = cell + _get_map_constructor_wall_side_delta(normalized_side)
+		if is_breachable_wall_cell(attached_wall_cell):
+			result["reason"] = "breachable_wall_blocks_wall_mount"
+			result["message"] = "Cannot mount on a Breachable Wall."
+			return result
 		result["attached_wall_cell"] = _serialize_cell_key(attached_wall_cell)
 		result["wall_side"] = normalized_side
 		for object_data in mission_world_objects:
@@ -4171,24 +4172,8 @@ func get_breachable_wall_action_target_at_cell(cell: Vector2i) -> Dictionary:
 	if not allowed_heights.has(height):
 		return {}
 	var material_id: String = normalize_map_constructor_wall_material_id(str(material.get("id", "")))
-	var breach_side: String = normalize_breach_side(str(material.get("breach_side", "sw")))
-	return {
-		"id": "breachable_wall_%d_%d" % [cell.x, cell.y],
-		"object_group": "wall",
-		"object_type": "breachable_wall",
-		"display_name": "Breachable Wall",
-		"design_term_ru": "проламываемая стена",
-		"wall_archetype": "breachable",
-		"material": material_id,
-		"wall_material_id": material_id,
-		"wall_height": height,
-		"breach_side": breach_side,
-		"breach_tools": Array(material.get("breach_tools", ["heavy_claw"])).duplicate(),
-		"position": cell,
-		"blocks_movement": true,
-		"blocks_vision": true,
-		"state": "intact"
-	}
+	var breach_side: String = BreachableWallServiceRef.normalize_breach_side(material.get("breach_side", "sw"))
+	return BreachableWallServiceRef.build_runtime_wall_target(cell, material, height, breach_side)
 
 func break_breachable_wall_at_cell(cell: Vector2i, tool_id: String = "heavy_claw", actor_cell: Vector2i = Vector2i(-1, -1)) -> Dictionary:
 	var wall_data: Dictionary = get_breachable_wall_action_target_at_cell(cell)

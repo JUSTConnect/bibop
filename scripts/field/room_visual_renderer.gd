@@ -1,6 +1,8 @@
 extends Node2D
 class_name RoomVisualRenderer
 
+const BreachableWallServiceRef = preload("res://scripts/game/wall/breachable_wall_service.gd")
+
 const CableTopologyServiceRef = preload("res://scripts/game/cable_topology_service.gd")
 const PlatformTypesRef = preload("res://scripts/game/platform/platform_types.gd")
 const PlatformVisualServiceRef = preload("res://scripts/game/platform/platform_visual_service.gd")
@@ -2083,19 +2085,7 @@ func draw_iso_wall_asset_texture_for_cell(cell: Vector2i, profile_key: String, t
 	return true
 
 func normalize_breach_side(value: String) -> String:
-	var normalized_value: String = value.strip_edges().to_lower()
-	normalized_value = normalized_value.replace(" ", "_")
-	normalized_value = normalized_value.replace("-", "_")
-	match normalized_value:
-		"sw", "southwest", "south_west", "left_front", "south":
-			return "sw"
-		"se", "southeast", "south_east", "right_front", "east":
-			return "se"
-		"nw", "northwest", "north_west", "left_back", "west":
-			return "nw"
-		"ne", "northeast", "north_east", "right_back", "north":
-			return "ne"
-	return "sw"
+	return BreachableWallServiceRef.normalize_breach_side(value)
 
 func get_breach_grid_side_for_visual_side(breach_side: String) -> String:
 	match normalize_breach_side(breach_side):
@@ -2155,40 +2145,22 @@ func get_breach_overlay_transform_for_side(side: String) -> Dictionary:
 			flip_v = true
 	return {"side": normalized_side, "flip_h": flip_h, "flip_v": flip_v, "offset": Vector2.ZERO, "visible": true}
 
-func is_breach_side_visible_for_wall(cell: Vector2i, breach_side: String, topology: Dictionary) -> bool:
-	var grid_side: String = get_breach_grid_side_for_visual_side(breach_side)
-	var visible_sides: Array = Array(topology.get("visible_sides", []))
-	if visible_sides.has(grid_side):
-		return true
-	if visible_sides.is_empty():
-		return false
-	var neighbor_cell: Vector2i = cell + _get_wall_side_delta(grid_side)
-	if not _is_wall_in_bounds(neighbor_cell):
-		return true
-	return false
+func is_breach_side_visible_for_wall(_cell: Vector2i, breach_side: String, _topology: Dictionary) -> bool:
+	return BreachableWallServiceRef.is_visible_breach_side(breach_side)
 
 func get_normalized_breachable_wall_height(wall_data: Dictionary) -> String:
 	var height: String = normalize_wall_height_level(get_raw_wall_height_value(wall_data))
 	if height.is_empty():
 		height = "mid"
 	if height == "low" or height == "halflow":
-		return "mid"
+		return "low"
 	return height
 
 func get_breach_overlay_destination_rect(base_texture_rect: Rect2, base_source_rect: Rect2, base_texture: Texture2D, overlay_texture: Texture2D, height_level: String) -> Rect2:
 	if base_texture == null or overlay_texture == null:
 		return Rect2()
-	if base_texture.get_width() <= 0 or base_texture.get_height() <= 0:
-		return Rect2()
-	var tall_bounds: Rect2 = Rect2(ISO_WALL_HEIGHT_VISIBLE_BOUNDS.get("tall", ISO_WALL_BASELINE_VISIBLE_BOUNDS))
-	var target_bounds: Rect2 = Rect2(ISO_WALL_HEIGHT_VISIBLE_BOUNDS.get(height_level, ISO_WALL_BASELINE_VISIBLE_BOUNDS))
-	var height_scale: float = target_bounds.size.y / maxf(tall_bounds.size.y, 1.0)
-	var base_scale: Vector2 = Vector2(base_texture_rect.size.x / float(base_texture.get_width()), base_texture_rect.size.y / float(base_texture.get_height()))
-	var source_bottom_center: Vector2 = base_source_rect.position + Vector2(base_source_rect.size.x * 0.5, base_source_rect.size.y)
-	var base_bottom_center: Vector2 = base_texture_rect.position + source_bottom_center * base_scale
-	var overlay_size: Vector2 = overlay_texture.get_size() * base_scale * height_scale
-	var overlay_bottom_center: Vector2 = base_bottom_center
-	return Rect2((overlay_bottom_center - Vector2(overlay_size.x * 0.5, overlay_size.y)).round(), overlay_size.round())
+	var layout: Dictionary = BreachableWallServiceRef.get_texture_overlay_layout(base_texture_rect, base_source_rect, base_texture.get_size(), overlay_texture.get_size(), height_level, ISO_WALL_HEIGHT_VISIBLE_BOUNDS, ISO_WALL_BASELINE_VISIBLE_BOUNDS)
+	return Rect2(layout.get("rect", Rect2())) if bool(layout.get("ok", false)) else Rect2()
 
 func draw_breach_overlay_texture_rect(texture: Texture2D, destination_rect: Rect2, source_rect: Rect2, transform: Dictionary) -> void:
 	if destination_rect.size.x <= 0.0 or destination_rect.size.y <= 0.0:
@@ -3996,45 +3968,34 @@ func _get_breachable_wall_data_for_cell(cell: Vector2i) -> Dictionary:
 	if runtime_manager == null or not runtime_manager.has_method("get_world_object_at_cell"):
 		return {}
 	var object_data: Dictionary = Dictionary(runtime_manager.call("get_world_object_at_cell", cell))
+	if object_data.is_empty() and runtime_manager.has_method("get_breachable_wall_action_target_at_cell"):
+		object_data = Dictionary(runtime_manager.call("get_breachable_wall_action_target_at_cell", cell))
 	if object_data.has("data") and object_data.get("data") is Dictionary:
 		var nested_data: Dictionary = Dictionary(object_data.get("data", {}))
 		if not nested_data.is_empty():
 			object_data = nested_data
 
-	if object_data.is_empty() or not bool(object_data.get("is_breachable_wall", false)):
+	if not BreachableWallServiceRef.is_active_breachable_wall_data(object_data):
 		return {}
-
-	var state_value: String = str(object_data.get("state", "active")).strip_edges().to_lower()
-	if state_value in ["open", "destroyed", "breached", "removed"]:
-		return {}
-
 	return object_data
 
 func draw_iso_breachable_wall_overlay(cell: Vector2i) -> void:
 	var object_data: Dictionary = _get_breachable_wall_data_for_cell(cell)
 	if object_data.is_empty():
 		return
-	var side: String = str(object_data.get("breach_side", "sw")).strip_edges().to_lower()
-	var center: Vector2 = grid_to_iso(cell) + Vector2(0.0, -iso_wall_height * 0.44)
-	var side_offset: Vector2 = Vector2.ZERO
-	match side:
-		"sw", "south", "southwest", "south_west":
-			side_offset = Vector2(-get_iso_tile_half_size().x * 0.18, iso_wall_height * 0.10)
-		"se", "east", "southeast", "south_east":
-			side_offset = Vector2(get_iso_tile_half_size().x * 0.26, -iso_wall_height * 0.02)
-		"nw", "west", "northwest", "north_west":
-			side_offset = Vector2(-get_iso_tile_half_size().x * 0.26, -iso_wall_height * 0.02)
-		"ne", "north", "northeast", "north_east":
-			side_offset = Vector2(get_iso_tile_half_size().x * 0.18, -iso_wall_height * 0.16)
-	var crack_center: Vector2 = center + side_offset
+	var descriptor: Dictionary = BreachableWallServiceRef.get_crack_visual_descriptor(cell, object_data, iso_wall_height, get_iso_tile_half_size())
+	if not bool(descriptor.get("visible", false)):
+		return
+	var crack_center: Vector2 = grid_to_iso(cell) + Vector2(descriptor.get("center_offset", Vector2.ZERO))
+	var scale: float = float(descriptor.get("scale", 1.0))
 	var crack_color: Color = Color(0.06, 0.045, 0.035, 0.92)
 	var glow_color: Color = Color(1.0, 0.72, 0.24, 0.34)
-	draw_circle(crack_center, 8.0, glow_color)
-	draw_line(crack_center + Vector2(-2.0, -12.0), crack_center + Vector2(1.0, -3.0), crack_color, 2.0)
-	draw_line(crack_center + Vector2(1.0, -3.0), crack_center + Vector2(-5.0, 5.0), crack_color, 2.0)
-	draw_line(crack_center + Vector2(1.0, -3.0), crack_center + Vector2(7.0, 7.0), crack_color, 2.0)
-	draw_line(crack_center + Vector2(-5.0, 5.0), crack_center + Vector2(-1.0, 13.0), crack_color, 1.4)
-	draw_line(crack_center + Vector2(7.0, 7.0), crack_center + Vector2(3.0, 14.0), crack_color, 1.4)
+	draw_circle(crack_center, 8.0 * scale, glow_color)
+	draw_line(crack_center + Vector2(-2.0, -12.0) * scale, crack_center + Vector2(1.0, -3.0) * scale, crack_color, 2.0 * scale)
+	draw_line(crack_center + Vector2(1.0, -3.0) * scale, crack_center + Vector2(-5.0, 5.0) * scale, crack_color, 2.0 * scale)
+	draw_line(crack_center + Vector2(1.0, -3.0) * scale, crack_center + Vector2(7.0, 7.0) * scale, crack_color, 2.0 * scale)
+	draw_line(crack_center + Vector2(-5.0, 5.0) * scale, crack_center + Vector2(-1.0, 13.0) * scale, crack_color, 1.4 * scale)
+	draw_line(crack_center + Vector2(7.0, 7.0) * scale, crack_center + Vector2(3.0, 14.0) * scale, crack_color, 1.4 * scale)
 
 func draw_iso_wall_debug_and_mount_overlays(cell: Vector2i, arch: Dictionary, topology: String) -> void:
 	if show_wall_topology_overlay:

@@ -109,6 +109,9 @@ func _cell_has_wall_for_cable(cell: Vector2i) -> bool:
 		return false
 	return bool(manager.call("_is_map_constructor_wall_cell", cell))
 
+func _cell_is_breachable_wall(cell: Vector2i) -> bool:
+	return manager != null and manager.has_method("is_breachable_wall_cell") and bool(manager.call("is_breachable_wall_cell", cell))
+
 func validate_constructor_palette_contract() -> Array[String]:
 	var warnings: Array[String] = []
 	var archetype_counts: Dictionary = {}
@@ -901,7 +904,9 @@ func get_map_constructor_validation_issues() -> Array[Dictionary]:
 				if path_cell.x >= 0 and path_cell.y >= 0 and not cable_wall_cells.has(path_cell):
 					cable_wall_cells.append(path_cell)
 			for cable_wall_cell in cable_wall_cells:
-				if cable_wall_cell.x >= 0 and cable_wall_cell.y >= 0 and not _cell_has_wall_for_cable(cable_wall_cell):
+				if cable_wall_cell.x >= 0 and cable_wall_cell.y >= 0 and _cell_is_breachable_wall(cable_wall_cell):
+					issues.append(_make_map_constructor_issue("cable_on_breachable_wall_%s_%d_%d" % [object_id, cable_wall_cell.x, cable_wall_cell.y], "error", "Cannot route cables on a Breachable Wall.", cable_wall_cell, source_name, entity_kind, object_id, "Move the cable route off the Breachable Wall."))
+				elif cable_wall_cell.x >= 0 and cable_wall_cell.y >= 0 and not _cell_has_wall_for_cable(cable_wall_cell):
 					issues.append(_make_map_constructor_issue("cable_wall_requires_wall_%s_%d_%d" % [object_id, cable_wall_cell.x, cable_wall_cell.y], "warning", "Wall cable requires a wall in this cell.", cable_wall_cell, source_name, entity_kind, object_id, "Place a wall in the same cell or set the cable install mode to Floor/Hidden."))
 		var _cable_health_state_for_validation: String = get_cable_health_state(data) if _is_cable_object_data(data) else "normal"
 		var allow_overlap: bool = bool(data.get("allow_cell_overlap", false)) or _is_cable_object_data(data)
@@ -923,7 +928,9 @@ func get_map_constructor_validation_issues() -> Array[Dictionary]:
 				issues.append(_make_map_constructor_issue("wm_missing_side_%d" % index, "error", "Wall-mounted object missing wall_side.", object_cell, source_name, entity_kind, object_id))
 			if attached_wall_cell.x >= 0 and attached_wall_cell.y >= 0 and has_grid_bounds and not bool(manager.grid_manager.call("is_in_bounds", attached_wall_cell)):
 				issues.append(_make_map_constructor_issue("wm_attached_oob_%d" % index, "error", "Wall-mounted attached wall cell out of bounds.", attached_wall_cell, source_name, entity_kind, object_id))
-			if attached_wall_cell.x >= 0 and attached_wall_cell.y >= 0 and not manager._is_map_constructor_wall_cell(attached_wall_cell):
+			if attached_wall_cell.x >= 0 and attached_wall_cell.y >= 0 and _cell_is_breachable_wall(attached_wall_cell):
+				issues.append(_make_map_constructor_issue("wm_attached_breachable_wall_%d" % index, "error", "Cannot mount on a Breachable Wall.", attached_wall_cell, source_name, entity_kind, object_id, "Move this wall-mounted object to a normal wall."))
+			elif attached_wall_cell.x >= 0 and attached_wall_cell.y >= 0 and not manager._is_map_constructor_wall_cell(attached_wall_cell):
 				issues.append(_make_map_constructor_issue("wm_attached_not_wall_%d" % index, "warning", "Wall-mounted object attached_wall_cell is not a wall tile.", attached_wall_cell, source_name, entity_kind, object_id))
 			if wall_side.is_empty():
 				issues.append(_make_map_constructor_issue("wm_missing_side_warning_%d" % index, "warning", "Wall-mounted object has no wall_side metadata.", object_cell, source_name, entity_kind, object_id))
@@ -939,7 +946,9 @@ func get_map_constructor_validation_issues() -> Array[Dictionary]:
 				issues.append(_make_map_constructor_issue("wm_floating_%d" % index, "warning", "Wall-mounted object is floating without complete wall attachment metadata.", object_cell, source_name, entity_kind, object_id))
 		var normalized_object_type: String = object_type.to_lower()
 		if not _is_cable_object_data(data) and _safe_string(data.get("placement_mode", "")).to_lower() != "wall_mounted" and not normalized_object_type.contains("door") and not normalized_object_type.contains("gate") and manager._is_map_constructor_wall_cell(object_cell):
-			issues.append(_make_map_constructor_issue("grounding_floor_on_wall_%d" % index, "warning", "Floor-standing object is placed on a wall cell.", object_cell, source_name, entity_kind, object_id))
+			var wall_object_severity: String = "error" if _cell_is_breachable_wall(object_cell) else "warning"
+			var wall_object_message: String = "Cannot place objects on a Breachable Wall." if _cell_is_breachable_wall(object_cell) else "Floor-standing object is placed on a wall cell."
+			issues.append(_make_map_constructor_issue("grounding_floor_on_wall_%d" % index, wall_object_severity, wall_object_message, object_cell, source_name, entity_kind, object_id))
 		if (normalized_object_type.contains("door") or normalized_object_type.contains("gate")) and manager.grid_manager != null and manager.grid_manager.has_method("get_tile") and manager._is_valid_grid_cell(object_cell):
 			var door_tile: int = int(manager.grid_manager.call("get_tile", object_cell))
 			if door_tile != GridManager.TILE_DOOR and door_tile != GridManager.TILE_DIGITAL_DOOR and door_tile != GridManager.TILE_POWERED_GATE:

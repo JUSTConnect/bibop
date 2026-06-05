@@ -45,7 +45,9 @@ static func build_connector_target_context(controller: Variant) -> Dictionary:
 
 
 static func build_heavy_claw_target_context(controller: Variant) -> Dictionary:
-	return _build_action_context_for_id(build_action_target_context(controller), "push")
+	var action_target: Dictionary = build_action_target_context(controller)
+	var breach_context: Dictionary = _build_action_context_for_id(action_target, "break_breachable_wall")
+	return breach_context if not breach_context.is_empty() else _build_action_context_for_id(action_target, "push")
 
 
 static func build_targeting_snapshot(controller: Variant) -> Dictionary:
@@ -57,7 +59,7 @@ static func build_targeting_snapshot(controller: Variant) -> Dictionary:
 		"facing_item": get_facing_item(controller),
 		"action_target": action_target,
 		"connector_target": _build_action_context_for_id(action_target, "connect"),
-		"heavy_claw_target": _build_action_context_for_id(action_target, "push")
+		"heavy_claw_target": build_heavy_claw_target_context(controller)
 	}
 
 
