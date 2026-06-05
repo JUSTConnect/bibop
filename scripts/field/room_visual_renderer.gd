@@ -3948,7 +3948,7 @@ func _get_breachable_wall_data_for_cell(cell: Vector2i) -> Dictionary:
 	var object_data: Dictionary = Dictionary(mission_manager.call("get_world_object_at_cell", cell))
 	if object_data.is_empty() or not bool(object_data.get("is_breachable_wall", false)):
 		return {}
-	if str(object_data.get("state", "active")).strip_edges().to_lower() in ["open", "destroyed", "breached"]:
+	if str(object_data.get("state", "active")).strip_edges().to_lower() in ["open", "destroyed", "breached", "removed"]:
 		return {}
 	return object_data
 
@@ -3956,18 +3956,18 @@ func draw_iso_breachable_wall_overlay(cell: Vector2i) -> void:
 	var object_data: Dictionary = _get_breachable_wall_data_for_cell(cell)
 	if object_data.is_empty():
 		return
-	var side: String = str(object_data.get("breach_side", "north")).strip_edges().to_lower()
+	var side: String = str(object_data.get("breach_side", "sw")).strip_edges().to_lower()
 	var center: Vector2 = grid_to_iso(cell) + Vector2(0.0, -iso_wall_height * 0.44)
 	var side_offset: Vector2 = Vector2.ZERO
 	match side:
-		"north":
-			side_offset = Vector2(0.0, -iso_wall_height * 0.14)
-		"east":
+		"sw", "south", "southwest", "south_west":
+			side_offset = Vector2(-get_iso_tile_half_size().x * 0.18, iso_wall_height * 0.10)
+		"se", "east", "southeast", "south_east":
 			side_offset = Vector2(get_iso_tile_half_size().x * 0.26, -iso_wall_height * 0.02)
-		"south":
-			side_offset = Vector2(0.0, iso_wall_height * 0.12)
-		"west":
+		"nw", "west", "northwest", "north_west":
 			side_offset = Vector2(-get_iso_tile_half_size().x * 0.26, -iso_wall_height * 0.02)
+		"ne", "north", "northeast", "north_east":
+			side_offset = Vector2(get_iso_tile_half_size().x * 0.18, -iso_wall_height * 0.16)
 	var crack_center: Vector2 = center + side_offset
 	var crack_color: Color = Color(0.06, 0.045, 0.035, 0.92)
 	var glow_color: Color = Color(1.0, 0.72, 0.24, 0.34)

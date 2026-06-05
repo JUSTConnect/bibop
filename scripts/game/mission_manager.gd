@@ -3213,6 +3213,8 @@ func normalize_breach_side(value: String) -> String:
 	return "sw"
 
 func get_grid_side_for_breach_side(breach_side: String) -> String:
+	# grid_to_iso projects +x as visual SE and +y as visual SW, so the
+	# breach-side ids are visual iso sides mapped back to gameplay grid sides.
 	match normalize_breach_side(breach_side):
 		"sw":
 			return "south"
