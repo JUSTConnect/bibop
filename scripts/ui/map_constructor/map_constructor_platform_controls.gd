@@ -71,7 +71,7 @@ static func _add_placement(ui: Variant, parent: VBoxContainer, entity_kind: Stri
 
 static func _add_configuration(ui: Variant, parent: VBoxContainer, entity_kind: String, entity_id: String, data: Dictionary) -> void:
 	var section: VBoxContainer = ui._create_inspector_section("3. Platform Configuration")
-	ui._add_enum_property(section, "Mode", entity_kind, entity_id, "platform_mode", data.get("platform_mode", "elevator"), _options(["elevator", "rotator"]))
+	ui._add_enum_property(section, "Mode", entity_kind, entity_id, "platform_mode", data.get("platform_mode", "elevator"), _options(["elevator", "rotate"]))
 	ui._add_text_property(section, "Platform level", entity_kind, entity_id, "platform_level", data.get("platform_level", 0))
 	ui._add_text_property(section, "Max level", entity_kind, entity_id, "max_level", data.get("max_level", 1))
 	parent.add_child(section)

@@ -143,6 +143,12 @@ static func _is_connector_workflow_action(action_id: String) -> bool:
 	return action_id in ["connect", "scan", "hack", "download", "activate_platform", "open_door", "close_door", "unlock_door", "apply_digital_key", "input_password"] or action_id.begins_with("access_code_")
 
 
+static func _is_terminal_control_action(action_id: String) -> bool:
+	if action_id in ["open_door", "close_door", "unlock_door"]:
+		return true
+	return BipobTerminalControlExecutionServiceRef.is_terminal_platform_control_action(action_id)
+
+
 static func handle_runtime_action_interact(controller: Variant, target_position: Vector2i, _target_tile: int) -> bool:
 	if controller.mission_manager == null:
 		return false
@@ -221,7 +227,7 @@ static func _execute_world_object_action(controller: Variant, world_object: Dict
 				controller.hint_requested.emit(str(preflight.get("message", "Action unavailable.")))
 				controller.status_changed.emit()
 				return
-	if str(world_object.get("object_group", "")) == "terminal" and action_id in ["open_door", "close_door", "unlock_door"]:
+	if str(world_object.get("object_group", "")) == "terminal" and _is_terminal_control_action(action_id):
 		_apply_terminal_control_execution(controller, world_object, target_position, action_id)
 		return
 	if action_id in ["push", "pull"] and WorldObjectCatalogRef.can_world_object_be_moved_by_heavy_claw(world_object):
@@ -244,7 +250,7 @@ static func _emit_no_action_available(controller: Variant, world_object: Diction
 
 static func _apply_terminal_control_execution(controller: Variant, world_object: Dictionary, target_position: Vector2i, action_id: String) -> void:
 	var terminal_execution: Dictionary = BipobTerminalControlExecutionServiceRef.execute_terminal_control_action(controller, world_object, target_position, action_id)
-	controller.hint_requested.emit(str(terminal_execution.get("message", "Door control unavailable.")))
+	controller.hint_requested.emit(str(terminal_execution.get("message", "Terminal control unavailable.")))
 	if bool(terminal_execution.get("refresh_action_panel", true)):
 		refresh_world_action_panel(controller)
 	if bool(terminal_execution.get("emit_status", true)):
