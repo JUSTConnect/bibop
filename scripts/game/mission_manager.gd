@@ -1374,6 +1374,7 @@ func _normalize_map_constructor_floor_visual_state_row(row: Dictionary) -> Dicti
 		"overlay_variant": int(row.get("overlay_variant", -1)),
 		"mirror_h": bool(row.get("mirror_h", false)),
 		"mirror_v": bool(row.get("mirror_v", false)),
+		"floor_height": normalize_floor_height_level(str(row.get("floor_height", row.get("floor_visual_height", row.get("ground_height", "default"))))),
 	}
 
 func _serialize_map_constructor_floor_visual_state_row(row: Dictionary) -> Dictionary:
@@ -1705,7 +1706,7 @@ func compare_map_constructor_patch(patch: Dictionary) -> Dictionary:
 		if grid_manager != null and grid_manager.has_method("get_floor_visual_state"):
 			current_floor_state = _safe_dictionary(grid_manager.call("get_floor_visual_state", floor_cell))
 		var floor_changes: Array[Dictionary] = []
-		for field_name in ["family", "wear", "base_variant", "overlay_variant", "mirror_h", "mirror_v"]:
+		for field_name in ["family", "wear", "base_variant", "overlay_variant", "mirror_h", "mirror_v", "floor_height"]:
 			if current_floor_state.get(field_name, null) != floor_state_row.get(field_name, null):
 				floor_changes.append({"field": field_name, "current": current_floor_state.get(field_name, null), "incoming": floor_state_row.get(field_name, null)})
 		if floor_changes.is_empty():
@@ -3194,6 +3195,27 @@ func normalize_map_constructor_wall_height(value: String) -> String:
 			return "low"
 	return ""
 
+func normalize_floor_height_level(value: String) -> String:
+	var normalized_value: String = value.strip_edges().to_lower()
+	normalized_value = normalized_value.replace(" ", "")
+	normalized_value = normalized_value.replace("-", "")
+	normalized_value = normalized_value.replace("_", "")
+	match normalized_value:
+		"", "empty", "default", "flat", "normal":
+			return "default"
+		"1", "step1", "low", "groundlow":
+			return "step_1"
+		"2", "step2", "halflow", "groundhalflow":
+			return "step_2"
+	return "default"
+
+func get_map_constructor_floor_height_catalog() -> Dictionary:
+	return {"ok": true, "heights": [
+		{"id":"default", "display_name":"Default", "description":"Normal flat floor with no raised ground base."},
+		{"id":"step_1", "display_name":"1 Step", "description":"Raised low ground visual base below the floor material."},
+		{"id":"step_2", "display_name":"2 Step", "description":"Raised half-low ground visual base below the floor material."}
+	], "message": "Floor height catalog ready."}
+
 func get_map_constructor_wall_material_catalog() -> Dictionary:
 	var materials: Array[Dictionary] = [
 		{"id":"concrete","display_name":"Concrete","description":"Concrete wall using production concrete height assets.","tags":["concrete","default"],"style":"concrete","texture_asset_id":"wall_concrete","fallback_color":Color(0.66, 0.72, 0.76, 0.98),"edge_color":Color(0.86, 0.9, 0.94, 1.0),"damage_level":0,"is_default":true},
@@ -4089,17 +4111,19 @@ func _get_map_constructor_floor_visual_state_for_material_id(material_id: String
 		base_variant = maxi(1, overlay_variant)
 	return {"family": family, "wear": wear, "base_variant": base_variant, "overlay_variant": overlay_variant, "mirror_h": mirror_h, "mirror_v": mirror_v}
 
-func _sync_map_constructor_floor_visual_state(cell: Vector2i, material_id: String) -> void:
+func _sync_map_constructor_floor_visual_state(cell: Vector2i, material_id: String, floor_height: String = "default") -> void:
 	if grid_manager == null or not grid_manager.has_method("set_floor_visual_state"):
 		return
-	grid_manager.call("set_floor_visual_state", cell, _get_map_constructor_floor_visual_state_for_material_id(material_id))
+	var floor_state: Dictionary = _get_map_constructor_floor_visual_state_for_material_id(material_id)
+	floor_state["floor_height"] = normalize_floor_height_level(floor_height)
+	grid_manager.call("set_floor_visual_state", cell, floor_state)
 
 func _clear_map_constructor_floor_visual_state(cell: Vector2i) -> void:
 	if grid_manager == null or not grid_manager.has_method("clear_floor_visual_state"):
 		return
 	grid_manager.call("clear_floor_visual_state", cell)
 
-func set_map_constructor_floor_material(cell: Vector2i, material_id: String) -> Dictionary:
+func set_map_constructor_floor_material(cell: Vector2i, material_id: String, floor_height: String = "default") -> Dictionary:
 	if not _is_task_test_constructor_context():
 		return {"ok": false, "message": "Floor material overrides are available only in TASK TEST constructor mode."}
 	if not _is_valid_grid_cell(cell):
@@ -4114,11 +4138,12 @@ func set_map_constructor_floor_material(cell: Vector2i, material_id: String) -> 
 	var normalized_material_id: String = material_id.to_lower().strip_edges()
 	if not _is_known_map_constructor_floor_material_id(normalized_material_id):
 		return {"ok": false, "message": "Unknown floor material id: %s" % material_id}
+	var normalized_floor_height: String = normalize_floor_height_level(floor_height)
 	var key: String = _serialize_cell_key(cell)
-	var entry: Dictionary = {"cell": cell, "material_id": normalized_material_id}
+	var entry: Dictionary = {"cell": cell, "material_id": normalized_material_id, "floor_height": normalized_floor_height}
 	_map_constructor_floor_material_overrides[key] = entry
-	_sync_map_constructor_floor_visual_state(cell, normalized_material_id)
-	_record_map_constructor_change("floor_material", {"cell":cell, "summary":"Set floor material %s at %s" % [normalized_material_id, _format_map_constructor_cell(cell)], "details":{"material_id":normalized_material_id}})
+	_sync_map_constructor_floor_visual_state(cell, normalized_material_id, normalized_floor_height)
+	_record_map_constructor_change("floor_material", {"cell":cell, "summary":"Set floor material %s height %s at %s" % [normalized_material_id, normalized_floor_height, _format_map_constructor_cell(cell)], "details":{"material_id":normalized_material_id, "floor_height":normalized_floor_height}})
 	return {"ok": true, "message": "Floor material applied.", "override": entry}
 
 func clear_map_constructor_floor_material(cell: Vector2i) -> Dictionary:
@@ -4159,6 +4184,7 @@ func get_map_constructor_floor_material_for_cell(cell: Vector2i) -> Dictionary:
 
 func get_map_constructor_floor_material_summary() -> Dictionary:
 	var material_counts: Dictionary = {}
+	var floor_height_counts: Dictionary = {}
 	var affected_cells: Array[Vector2i] = []
 	var preset_generated_floor_override_count: int = 0
 	for key_variant in _map_constructor_floor_material_overrides.keys():
@@ -4167,6 +4193,8 @@ func get_map_constructor_floor_material_summary() -> Dictionary:
 		if material_id.is_empty():
 			material_id = "unknown"
 		material_counts[material_id] = int(material_counts.get(material_id, 0)) + 1
+		var floor_height: String = normalize_floor_height_level(str(row.get("floor_height", row.get("floor_visual_height", row.get("ground_height", "default")))))
+		floor_height_counts[floor_height] = int(floor_height_counts.get(floor_height, 0)) + 1
 		if bool(row.get("created_by_room_visual_preset", false)):
 			preset_generated_floor_override_count += 1
 		var floor_cell: Vector2i = Vector2i(row.get("cell", _deserialize_cell_key(str(key_variant))))
@@ -4177,7 +4205,7 @@ func get_map_constructor_floor_material_summary() -> Dictionary:
 			return a.x < b.x
 		return a.y < b.y
 	)
-	return {"override_count": _map_constructor_floor_material_overrides.size(), "material_counts": material_counts, "preset_generated_floor_override_count": preset_generated_floor_override_count, "affected_cells": affected_cells}
+	return {"override_count": _map_constructor_floor_material_overrides.size(), "material_counts": material_counts, "floor_height_counts": floor_height_counts, "preset_generated_floor_override_count": preset_generated_floor_override_count, "affected_cells": affected_cells}
 
 func _resolve_floor_material_id_for_room_visual_preset(preset: Dictionary) -> String:
 	var floor_style: String = str(preset.get("floor_style", "")).to_lower().strip_edges()

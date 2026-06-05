@@ -252,6 +252,11 @@ const ISO_FLOOR_ASSET_CATALOG: Dictionary = {
 	"ground_low": "ground_low_01.png",
 	"ground_halflow": "ground_halflow_01.png"
 }
+const ISO_GROUND_ASSET_PACK_DIR: String = "res://assets/visual/isometric/ground/"
+const ISO_GROUND_ASSET_CATALOG: Dictionary = {
+	"ground_low": "ground_low_01.png",
+	"ground_halflow": "ground_halflow_01.png"
+}
 
 # Floor PNGs are authored on a larger transparent canvas. The renderer crops to
 # the measured visible alpha bounds and maps every material to the same active
@@ -263,6 +268,10 @@ const ISO_FLOOR_ASSET_PLACEMENT: Dictionary = {
 	"floor_concrete": {"visible_bounds": Rect2i(18, 95, 1227, 1016), "target_footprint": ISO_FLOOR_ASSET_TARGET_FOOTPRINT, "overlap": ISO_FLOOR_ASSET_NORMALIZED_OVERLAP, "offset": Vector2.ZERO, "fallback_color": Color(0.08, 0.085, 0.09, 0.96)},
 	"floor_steel": {"visible_bounds": Rect2i(18, 95, 1227, 1011), "target_footprint": ISO_FLOOR_ASSET_TARGET_FOOTPRINT, "overlap": ISO_FLOOR_ASSET_NORMALIZED_OVERLAP, "offset": Vector2.ZERO, "fallback_color": Color(0.07, 0.085, 0.1, 0.96)},
 	"floor_titan": {"visible_bounds": Rect2i(11, 95, 1232, 1011), "target_footprint": ISO_FLOOR_ASSET_TARGET_FOOTPRINT, "overlap": ISO_FLOOR_ASSET_NORMALIZED_OVERLAP, "offset": Vector2.ZERO, "fallback_color": Color(0.075, 0.085, 0.11, 0.96)}
+}
+const ISO_GROUND_ASSET_PLACEMENT: Dictionary = {
+	"ground_low": {"visible_bounds": Rect2(0, 353, 512, 415), "target_base_width": 128.0, "scale": 1.0, "offset": Vector2.ZERO},
+	"ground_halflow": {"visible_bounds": Rect2(0, 238, 512, 532), "target_base_width": 128.0, "scale": 1.0, "offset": Vector2.ZERO}
 }
 
 # Wall PNGs contain intentionally large transparent margins.  These bounds are
@@ -398,6 +407,7 @@ var _iso_placeholder_texture_cache: Dictionary = {}
 var _iso_object_png_texture_cache: Dictionary = {}
 var _iso_wall_asset_texture_cache: Dictionary = {}
 var _iso_floor_asset_texture_cache: Dictionary = {}
+var _iso_ground_asset_texture_cache: Dictionary = {}
 var _grid_manager: GridManager = null
 var _rebuild_requested: bool = false
 
@@ -1548,6 +1558,79 @@ func get_iso_floor_asset_placement(asset_key: String) -> Dictionary:
 		return Dictionary(ISO_FLOOR_ASSET_PLACEMENT.get(asset_key, {}))
 	return {"visible_bounds": Rect2i(0, 0, int(get_iso_tile_size().x), int(get_iso_tile_size().y)), "target_footprint": get_iso_tile_size(), "overlap": ISO_FLOOR_ASSET_NORMALIZED_OVERLAP, "offset": Vector2.ZERO, "fallback_color": Color(0.08, 0.085, 0.09, 0.96)}
 
+func normalize_floor_height_level(value: String) -> String:
+	var normalized_value: String = value.strip_edges().to_lower()
+	normalized_value = normalized_value.replace(" ", "")
+	normalized_value = normalized_value.replace("-", "")
+	normalized_value = normalized_value.replace("_", "")
+	match normalized_value:
+		"", "empty", "default", "flat", "normal":
+			return ""
+		"1", "step1", "low", "groundlow":
+			return "step_1"
+		"2", "step2", "halflow", "groundhalflow":
+			return "step_2"
+	return ""
+
+func get_iso_ground_asset_key_for_floor_height(floor_height: String) -> String:
+	match normalize_floor_height_level(floor_height):
+		"step_1":
+			return "ground_low"
+		"step_2":
+			return "ground_halflow"
+	return ""
+
+func get_iso_ground_texture_for_asset_key(asset_key: String) -> Texture2D:
+	if not ISO_GROUND_ASSET_CATALOG.has(asset_key):
+		return null
+	if _iso_ground_asset_texture_cache.has(asset_key):
+		var cached_value: Variant = _iso_ground_asset_texture_cache.get(asset_key)
+		if cached_value is Texture2D:
+			return cached_value as Texture2D
+		return null
+	var asset_file: String = str(ISO_GROUND_ASSET_CATALOG.get(asset_key, ""))
+	var texture_path: String = ISO_GROUND_ASSET_PACK_DIR + asset_file
+	if ResourceLoader.exists(texture_path):
+		var loaded_resource: Resource = ResourceLoader.load(texture_path)
+		if loaded_resource is Texture2D:
+			var loaded_texture: Texture2D = loaded_resource as Texture2D
+			_iso_ground_asset_texture_cache[asset_key] = loaded_texture
+			return loaded_texture
+	_iso_ground_asset_texture_cache[asset_key] = null
+	return null
+
+func get_iso_ground_texture_draw_rect_for_cell(cell: Vector2i, texture: Texture2D, asset_key: String) -> Rect2:
+	var source_size: Vector2 = texture.get_size()
+	if source_size.x <= 0.0 or source_size.y <= 0.0:
+		return Rect2()
+	var placement: Dictionary = Dictionary(ISO_GROUND_ASSET_PLACEMENT.get(asset_key, {}))
+	if placement.is_empty():
+		placement = {"visible_bounds": Rect2(Vector2.ZERO, source_size), "target_base_width": get_iso_tile_size().x, "scale": 1.0, "offset": Vector2.ZERO}
+	var visible_bounds: Rect2 = Rect2(placement.get("visible_bounds", Rect2(Vector2.ZERO, source_size)))
+	if visible_bounds.size.x <= 0.0 or visible_bounds.size.y <= 0.0:
+		visible_bounds = Rect2(Vector2.ZERO, source_size)
+	var target_base_width: float = maxf(float(placement.get("target_base_width", get_iso_tile_size().x)), get_iso_tile_size().x)
+	var placement_scale: float = maxf(float(placement.get("scale", 1.0)), 0.01)
+	var scale_value: float = (target_base_width / visible_bounds.size.x) * placement_scale
+	var destination_size: Vector2 = source_size * scale_value
+	var visible_bottom_center_in_source: Vector2 = visible_bounds.position + Vector2(visible_bounds.size.x * 0.5, visible_bounds.size.y)
+	var visible_bottom_center_in_destination: Vector2 = visible_bottom_center_in_source * scale_value
+	var base_anchor: Vector2 = (grid_to_iso(cell) + Vector2(0.0, get_iso_tile_half_size().y) + Vector2(placement.get("offset", Vector2.ZERO))).round()
+	return Rect2((base_anchor - visible_bottom_center_in_destination).round(), destination_size)
+
+func draw_iso_ground_asset_texture_for_cell(cell: Vector2i, asset_key: String) -> bool:
+	if asset_key.is_empty():
+		return false
+	var texture: Texture2D = get_iso_ground_texture_for_asset_key(asset_key)
+	if texture == null:
+		return false
+	var destination_rect: Rect2 = get_iso_ground_texture_draw_rect_for_cell(cell, texture, asset_key)
+	if destination_rect.size.x <= 0.0 or destination_rect.size.y <= 0.0:
+		return false
+	draw_texture_rect(texture, destination_rect, false)
+	draw_iso_asset_alignment_overlay(asset_key, destination_rect.position + Vector2(destination_rect.size.x * 0.5, destination_rect.size.y), destination_rect)
+	return true
+
 func draw_iso_floor_asset_safe_base(cell: Vector2i, color: Color) -> void:
 	var base_points: PackedVector2Array = get_iso_diamond_points_with_overlap(cell, ISO_FLOOR_UNDERLAY_OVERLAP)
 	draw_colored_polygon(base_points, color)
@@ -2209,6 +2292,7 @@ func clear_iso_placeholder_texture_cache() -> void:
 	_iso_object_png_texture_cache.clear()
 	_iso_wall_asset_texture_cache.clear()
 	_iso_floor_asset_texture_cache.clear()
+	_iso_ground_asset_texture_cache.clear()
 
 func get_explicit_iso_texture_for_asset_key(asset_key: String) -> Texture2D:
 	match asset_key:
@@ -2329,6 +2413,8 @@ func get_iso_visual_texture_debug_state() -> Dictionary:
 		var placeholder_available: bool = false
 		var wall_catalog_path: String = ""
 		var wall_catalog_available: bool = false
+		var ground_catalog_path: String = ""
+		var ground_catalog_available: bool = false
 		var gray_test_placeholder_object_skipped: bool = should_skip_placeholder_object_texture_in_gray_test(texture_key)
 		if texture_key == ISO_FLOOR_TEST_ASSET_KEY:
 			wall_catalog_path = get_iso_gray_test_asset_path(texture_key)
@@ -2338,6 +2424,10 @@ func get_iso_visual_texture_debug_state() -> Dictionary:
 			if wall_catalog.has(texture_key):
 				wall_catalog_path = get_iso_gray_test_asset_path(texture_key) if texture_key.begins_with("wall_gray_") else ISO_WALL_ASSET_PACK_DIR + str(wall_catalog.get(texture_key, ""))
 				wall_catalog_available = ResourceLoader.exists(wall_catalog_path)
+		elif texture_key.begins_with("ground_"):
+			if ISO_GROUND_ASSET_CATALOG.has(texture_key):
+				ground_catalog_path = ISO_GROUND_ASSET_PACK_DIR + str(ISO_GROUND_ASSET_CATALOG.get(texture_key, ""))
+				ground_catalog_available = ResourceLoader.exists(ground_catalog_path)
 		elif placeholder_preset_enabled and placeholder_path != "" and not gray_test_placeholder_object_skipped:
 			placeholder_available = ResourceLoader.exists(placeholder_path)
 		var object_png_path: String = get_iso_object_png_asset_path(texture_key)
@@ -2350,6 +2440,8 @@ func get_iso_visual_texture_debug_state() -> Dictionary:
 			active_texture_source = "object_png"
 		elif wall_catalog_available:
 			active_texture_source = "wall_catalog"
+		elif ground_catalog_available:
+			active_texture_source = "ground_catalog"
 		elif has_explicit_texture:
 			active_texture_source = "explicit"
 		elif gray_test_placeholder_object_skipped:
@@ -2366,6 +2458,8 @@ func get_iso_visual_texture_debug_state() -> Dictionary:
 			"object_png_available": object_png_available,
 			"wall_catalog_path": wall_catalog_path,
 			"wall_catalog_available": wall_catalog_available,
+			"ground_catalog_path": ground_catalog_path,
+			"ground_catalog_available": ground_catalog_available,
 			"active_texture_source": active_texture_source
 		}
 	return debug_state
@@ -2403,8 +2497,8 @@ func validate_iso_object_png_assets() -> Dictionary:
 
 func get_iso_visual_texture_debug_keys() -> Array[String]:
 	return [
-		"floor_gray_test", "floor_concrete", "floor_steel", "floor_titan", "floor_default", "floor_stepped", "floor_clean_lab", "floor_dark_service", "floor_hazard", "floor_power", "floor_damaged", "floor_reinforced", "floor_diagnostic", "floor_door_underlay", "ground_low", "ground_halflow",
-		"wall_gray_tallest", "wall_gray_tall", "wall_gray_mid", "wall_gray_halfmid", "wall_gray_low",
+		"floor_concrete", "floor_steel", "floor_titan", "floor_default", "floor_stepped", "floor_clean_lab", "floor_dark_service", "floor_hazard", "floor_power", "floor_damaged", "floor_reinforced", "floor_diagnostic", "floor_door_underlay",
+		"ground_low", "ground_halflow",
 		"wall_concrete_low", "wall_concrete_halflow", "wall_concrete_mid", "wall_concrete_halfmid", "wall_concrete_tall",
 		"wall_steel_low", "wall_steel_halflow", "wall_steel_mid", "wall_steel_halfmid", "wall_steel_tall",
 		"wall_titan_low", "wall_titan_halflow", "wall_titan_mid", "wall_titan_halfmid", "wall_titan_tall",
@@ -2471,6 +2565,7 @@ func get_iso_visual_cell_stats() -> Dictionary:
 		"object_profile_counts": {},
 		"wall_profile_counts": {},
 		"floor_profile_counts": {},
+		"floor_height_counts": {},
 		"asset_key_counts": {}
 	}
 	if _grid_manager == null:
@@ -2487,7 +2582,9 @@ func get_iso_visual_cell_stats() -> Dictionary:
 	var object_profile_counts: Dictionary = Dictionary(stats.get("object_profile_counts", {}))
 	var wall_profile_counts: Dictionary = Dictionary(stats.get("wall_profile_counts", {}))
 	var floor_profile_counts: Dictionary = Dictionary(stats.get("floor_profile_counts", {}))
+	var floor_height_counts: Dictionary = Dictionary(stats.get("floor_height_counts", {}))
 	var asset_key_counts: Dictionary = Dictionary(stats.get("asset_key_counts", {}))
+	var mission_manager: Node = get_mission_manager_ref()
 
 	for y in range(map_height):
 		for x in range(map_width):
@@ -2499,6 +2596,21 @@ func get_iso_visual_cell_stats() -> Dictionary:
 				stats["floor_like_cells"] = int(stats.get("floor_like_cells", 0)) + 1
 				_increment_iso_debug_count(floor_profile_counts, get_iso_floor_visual_profile_key_for_cell(cell))
 				_increment_iso_debug_count(asset_key_counts, get_iso_floor_asset_key_for_tile(tile_type))
+				var floor_height_level: String = ""
+				if mission_manager != null and mission_manager.has_method("get_map_constructor_floor_material_for_cell"):
+					var floor_material_result: Dictionary = _safe_variant_dictionary(mission_manager.call("get_map_constructor_floor_material_for_cell", cell))
+					if bool(floor_material_result.get("ok", false)):
+						var floor_override: Dictionary = _safe_variant_dictionary(floor_material_result.get("override", {}))
+						floor_height_level = normalize_floor_height_level(str(floor_override.get("floor_height", floor_override.get("floor_visual_height", floor_override.get("ground_height", "")))))
+				if floor_height_level.is_empty() and _grid_manager != null and _grid_manager.has_method("get_floor_height_for_cell"):
+					floor_height_level = normalize_floor_height_level(str(_grid_manager.call("get_floor_height_for_cell", cell)))
+				var floor_height_count_key: String = "default"
+				if not floor_height_level.is_empty():
+					floor_height_count_key = floor_height_level
+				_increment_iso_debug_count(floor_height_counts, floor_height_count_key)
+				var ground_asset_key: String = get_iso_ground_asset_key_for_floor_height(floor_height_level)
+				if not ground_asset_key.is_empty():
+					_increment_iso_debug_count(asset_key_counts, ground_asset_key)
 			if is_wall_tile(tile_type):
 				stats["wall_cells"] = int(stats.get("wall_cells", 0)) + 1
 				var wall_profile_key: String = get_wall_visual_profile_key_for_cell(cell)
@@ -2526,6 +2638,7 @@ func get_iso_visual_cell_stats() -> Dictionary:
 	stats["object_profile_counts"] = object_profile_counts
 	stats["wall_profile_counts"] = wall_profile_counts
 	stats["floor_profile_counts"] = floor_profile_counts
+	stats["floor_height_counts"] = floor_height_counts
 	stats["asset_key_counts"] = asset_key_counts
 	return stats
 
@@ -2549,6 +2662,10 @@ func get_iso_visual_cell_stats_text() -> String:
 	lines.append("Asset keys:")
 	for asset_key in asset_key_counts.keys():
 		lines.append("- %s: %s" % [str(asset_key), str(asset_key_counts.get(asset_key, 0))])
+	var floor_height_counts: Dictionary = Dictionary(stats.get("floor_height_counts", {}))
+	lines.append("Floor heights:")
+	for floor_height_key in floor_height_counts.keys():
+		lines.append("- %s: %s" % [str(floor_height_key), str(floor_height_counts.get(floor_height_key, 0))])
 	return "\n".join(lines)
 
 func validate_iso_visual_cell_stats() -> Array[String]:
@@ -2598,12 +2715,17 @@ func get_iso_visual_debug_report() -> Dictionary:
 	var fog_overlay_will_draw: bool = should_draw_iso_fog_cell_shapes()
 	var constructor_fog_suppressed: bool = should_suppress_iso_fog_for_constructor()
 	var duplicate_overlay_risk: bool = is_iso_visual_preview_active() and (floor_enabled or wall_enabled or object_enabled) and fog_overlay_will_draw
+	var ground_low_path: String = ISO_GROUND_ASSET_PACK_DIR + str(ISO_GROUND_ASSET_CATALOG.get("ground_low", ""))
+	var ground_halflow_path: String = ISO_GROUND_ASSET_PACK_DIR + str(ISO_GROUND_ASSET_CATALOG.get("ground_halflow", ""))
 	return {
 		"single_render_path": not (legacy_grid_should_draw and iso_active),
 		"legacy_grid_should_draw": legacy_grid_should_draw,
 		"iso_renderer_active": iso_active,
 		"placeholder_assets_enabled": should_use_iso_placeholder_asset_preset(),
 		"procedural_wall_under_texture_enabled": false,
+		"ground_assets_enabled": floor_enabled,
+		"ground_low_loaded": ResourceLoader.exists(ground_low_path),
+		"ground_halflow_loaded": ResourceLoader.exists(ground_halflow_path),
 		"fog_enabled": fog_enabled,
 		"fog_overlay_will_draw": fog_overlay_will_draw,
 		"fog_cell_shapes_enabled": iso_fog_draw_cell_shapes,
@@ -2653,6 +2775,9 @@ func get_iso_visual_debug_report_text() -> String:
 	lines.append("- iso_renderer_active: %s" % str(report.get("iso_renderer_active", false)))
 	lines.append("- placeholder_assets_enabled: %s" % str(report.get("placeholder_assets_enabled", false)))
 	lines.append("- procedural_wall_under_texture_enabled: %s" % str(report.get("procedural_wall_under_texture_enabled", false)))
+	lines.append("- ground_assets_enabled: %s" % str(report.get("ground_assets_enabled", false)))
+	lines.append("- ground_low_loaded: %s" % str(report.get("ground_low_loaded", false)))
+	lines.append("- ground_halflow_loaded: %s" % str(report.get("ground_halflow_loaded", false)))
 	lines.append("Fog overlay diagnostics:")
 	lines.append("- fog_enabled: %s" % str(report.get("fog_enabled", false)))
 	lines.append("- fog_overlay_will_draw: %s" % str(report.get("fog_overlay_will_draw", false)))
@@ -2690,6 +2815,7 @@ func get_iso_visual_debug_report_text() -> String:
 	lines.append("- map_size: %sx%s" % [str(grid.get("map_width", 0)), str(grid.get("map_height", 0))])
 	lines.append("Cell stats:")
 	lines.append("- floor_like: %s" % str(cell_stats.get("floor_like_cells", 0)))
+	lines.append("- floor_height_counts: %s" % str(cell_stats.get("floor_height_counts", {})))
 	lines.append("- walls: %s" % str(cell_stats.get("wall_cells", 0)))
 	lines.append("- objects: %s" % str(cell_stats.get("object_cells", 0)))
 	lines.append("- fog_overlay: %s" % str(cell_stats.get("fog_overlay_cells", 0)))
@@ -3959,6 +4085,7 @@ func draw_iso_floor_prototype() -> void:
 			var mission_manager: Node = get_mission_manager_ref()
 			var floor_texture_asset_id: String = ""
 			var floor_material_key: String = "concrete"
+			var floor_height_level: String = ""
 			if mission_manager != null and mission_manager.has_method("get_map_constructor_floor_material_for_cell"):
 				var floor_material_result: Dictionary = _safe_variant_dictionary(mission_manager.call("get_map_constructor_floor_material_for_cell", cell))
 				if bool(floor_material_result.get("ok", false)):
@@ -3966,16 +4093,21 @@ func draw_iso_floor_prototype() -> void:
 					fill_color = Color(floor_material.get("fallback_color", fill_color))
 					floor_texture_asset_id = str(floor_material.get("texture_asset_id", "")).strip_edges()
 					floor_material_key = normalize_floor_material_key(str(floor_material.get("material", floor_material.get("id", "concrete"))))
-			if use_gray_room_visual_test_assets:
-				floor_asset_key = ISO_FLOOR_TEST_ASSET_KEY
-			elif floor_texture_asset_id.begins_with("floor_") or floor_texture_asset_id.begins_with("ground_"):
-				floor_asset_key = get_iso_floor_asset_key_for_material_key(floor_texture_asset_id)
+					var floor_override: Dictionary = _safe_variant_dictionary(floor_material_result.get("override", {}))
+					floor_height_level = normalize_floor_height_level(str(floor_override.get("floor_height", floor_override.get("floor_visual_height", floor_override.get("ground_height", "")))))
+			if floor_height_level.is_empty() and _grid_manager != null and _grid_manager.has_method("get_floor_height_for_cell"):
+				floor_height_level = normalize_floor_height_level(str(_grid_manager.call("get_floor_height_for_cell", cell)))
+			if floor_texture_asset_id.begins_with("floor_"):
+				floor_asset_key = floor_texture_asset_id
 			else:
 				var height_asset_key: String = get_iso_floor_asset_key_for_visual_state(cell)
 				floor_asset_key = height_asset_key if not height_asset_key.is_empty() else get_iso_floor_asset_key_for_material_key(floor_material_key)
 			if use_procedural_floor_debug_tiles:
 				draw_procedural_floor_debug_tile(cell, fill_color)
 				continue
+			var ground_asset_key: String = get_iso_ground_asset_key_for_floor_height(floor_height_level)
+			if not ground_asset_key.is_empty():
+				draw_iso_ground_asset_texture_for_cell(cell, ground_asset_key)
 			if draw_iso_floor_asset_texture_for_cell(cell, floor_asset_key):
 				if debug_floor_tile_bounds:
 					draw_floor_tile_bounds_debug(cell)

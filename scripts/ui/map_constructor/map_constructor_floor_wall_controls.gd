@@ -11,6 +11,20 @@ static func compose_floor_visual_id(material_id: String, _coating_id: String = "
 		_:
 			return "concrete"
 
+static func normalize_floor_height_level(value: String) -> String:
+	var normalized_value: String = value.strip_edges().to_lower()
+	normalized_value = normalized_value.replace(" ", "")
+	normalized_value = normalized_value.replace("-", "")
+	normalized_value = normalized_value.replace("_", "")
+	match normalized_value:
+		"", "empty", "default", "flat", "normal":
+			return "default"
+		"1", "step1", "low", "groundlow":
+			return "step_1"
+		"2", "step2", "halflow", "groundhalflow":
+			return "step_2"
+	return "default"
+
 static func parse_floor_visual_id(visual_id: String) -> Dictionary:
 	var normalized: String = visual_id.to_lower().strip_edges()
 	var legacy: Dictionary = {
@@ -172,9 +186,12 @@ static func add_floor_coverage_section(ui: Variant, parent: VBoxContainer) -> vo
 			{"id":"titan", "label":"Titan"}
 		]
 		var selected_floor_material_id: String = "concrete"
+		var selected_floor_height: String = "default"
 		if ui.mission_manager_runtime != null and ui.mission_manager_runtime.has_method("get_map_constructor_floor_material"):
 			var current_floor_override: Dictionary = ui._safe_ui_dictionary(ui.mission_manager_runtime.call("get_map_constructor_floor_material", floor_target_cell))
-			selected_floor_material_id = ui._safe_ui_string(ui._safe_ui_dictionary(current_floor_override.get("override", {})).get("material_id", "concrete"), "concrete")
+			var current_floor_override_data: Dictionary = ui._safe_ui_dictionary(current_floor_override.get("override", {}))
+			selected_floor_material_id = ui._safe_ui_string(current_floor_override_data.get("material_id", "concrete"), "concrete")
+			selected_floor_height = normalize_floor_height_level(ui._safe_ui_string(current_floor_override_data.get("floor_height", current_floor_override_data.get("floor_visual_height", current_floor_override_data.get("ground_height", "default"))), "default"))
 		var parsed_floor: Dictionary = parse_floor_visual_id(selected_floor_material_id)
 		var floor_material_option: OptionButton = OptionButton.new()
 		for floor_material in floor_materials:
@@ -184,22 +201,39 @@ static func add_floor_coverage_section(ui: Variant, parent: VBoxContainer) -> vo
 				floor_material_option.select(floor_material_option.item_count - 1)
 		if floor_material_option.selected < 0:
 			floor_material_option.select(0)
+		var floor_height_option: OptionButton = OptionButton.new()
+		var floor_heights: Array[Dictionary] = [
+			{"id":"default", "label":"Default"},
+			{"id":"step_1", "label":"1 Step"},
+			{"id":"step_2", "label":"2 Step"}
+		]
+		for floor_height in floor_heights:
+			floor_height_option.add_item(str(floor_height.get("label", "")))
+			floor_height_option.set_item_metadata(floor_height_option.item_count - 1, str(floor_height.get("id", "default")))
+			if str(floor_height.get("id", "default")) == selected_floor_height:
+				floor_height_option.select(floor_height_option.item_count - 1)
+		if floor_height_option.selected < 0:
+			floor_height_option.select(0)
 		var floor_row: HBoxContainer = HBoxContainer.new()
 		floor_row.add_theme_constant_override("separation", 6)
 		floor_material_option.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+		floor_height_option.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 		floor_row.add_child(ui._create_property_row("Material", floor_material_option))
+		floor_row.add_child(ui._create_property_row("Height", floor_height_option))
 		floor_section.add_child(floor_row)
 		var floor_summary_label: Label = Label.new()
 		floor_summary_label.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
-		floor_summary_label.text = "Floor visual id: %s" % compose_floor_visual_id(str(floor_material_option.get_selected_metadata()))
+		floor_summary_label.text = "Floor visual id: %s / height: %s" % [compose_floor_visual_id(str(floor_material_option.get_selected_metadata())), normalize_floor_height_level(str(floor_height_option.get_selected_metadata()))]
 		var update_floor_summary := func(_idx: int = 0) -> void:
-			floor_summary_label.text = "Floor visual id: %s" % compose_floor_visual_id(str(floor_material_option.get_selected_metadata()))
+			floor_summary_label.text = "Floor visual id: %s / height: %s" % [compose_floor_visual_id(str(floor_material_option.get_selected_metadata())), normalize_floor_height_level(str(floor_height_option.get_selected_metadata()))]
 		floor_material_option.item_selected.connect(update_floor_summary)
+		floor_height_option.item_selected.connect(update_floor_summary)
 		floor_section.add_child(floor_summary_label)
 		var apply_floor_button: Button = Button.new(); apply_floor_button.text = "Apply Floor Material"
 		apply_floor_button.pressed.connect(func() -> void:
 			var floor_material_id_apply: String = compose_floor_visual_id(str(floor_material_option.get_selected_metadata()))
-			MapConstructorActions.apply_floor_material(ui, floor_target_cell, floor_material_id_apply)
+			var floor_height_apply: String = normalize_floor_height_level(str(floor_height_option.get_selected_metadata()))
+			MapConstructorActions.apply_floor_material(ui, floor_target_cell, floor_material_id_apply, floor_height_apply)
 		)
 		var clear_floor_button: Button = Button.new(); clear_floor_button.text = "Clear Floor Material"
 		clear_floor_button.pressed.connect(func() -> void:
