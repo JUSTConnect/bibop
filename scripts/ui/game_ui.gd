@@ -14,6 +14,7 @@ const MapConstructorInspectorRef = preload("res://scripts/ui/map_constructor/map
 const MapConstructorPropertyControlsRef = preload("res://scripts/ui/map_constructor/map_constructor_property_controls.gd")
 const MapConstructorPropertyUpdateServiceRef = preload("res://scripts/game/map_constructor_property_update_service.gd")
 const MapConstructorLinkControlsRef = preload("res://scripts/ui/map_constructor/map_constructor_link_controls.gd")
+const MapConstructorInspectorVisibilityServiceRef = preload("res://scripts/ui/map_constructor/map_constructor_inspector_visibility_service.gd")
 const MapConstructorSessionStateRef = preload("res://scripts/ui/map_constructor/map_constructor_session_state.gd")
 const MapConstructorRefreshCoordinatorRef = preload("res://scripts/ui/map_constructor/map_constructor_refresh_coordinator.gd")
 const MapConstructorUIBridgeRef = preload("res://scripts/ui/map_constructor/map_constructor_ui_bridge.gd")
@@ -12102,18 +12103,18 @@ func _add_map_constructor_active_settings(parent: VBoxContainer, entity_kind: St
 	if not (type_group in ["door", "terminal", "power", "control"]):
 		return
 	var section: VBoxContainer = parent
-	var power_mode: String = _safe_ui_string(data.get("power_mode", "external" if bool(data.get("requires_external_power", false)) else "internal")).to_lower()
+	var power_mode: String = MapConstructorInspectorVisibilityServiceRef.normalize_power_type(data)
 	var power_options: Array[Dictionary] = [{"label":"Internal", "value":"internal"}, {"label":"External", "value":"external"}]
 	if type_group in ["power", "control"]:
 		power_options.push_front({"label":"Non", "value":"none"})
 	_add_enum_property(section, "Power type", entity_kind, entity_id, "power_mode", power_mode, power_options)
-	MapConstructorLinkControlsRef.add_active_settings_power_link(self, section, entity_kind, entity_id, power_mode)
-	var control_mode: String = _safe_ui_string(data.get("control_mode", "external" if bool(data.get("requires_external_control", false)) else "internal")).to_lower()
+	MapConstructorLinkControlsRef.add_active_settings_power_link(self, section, entity_kind, entity_id, data)
+	var control_mode: String = MapConstructorInspectorVisibilityServiceRef.normalize_control_type(data)
 	var control_options: Array[Dictionary] = [{"label":"Internal", "value":"internal"}, {"label":"External", "value":"external"}]
 	if type_group in ["power", "control"]:
 		control_options.push_front({"label":"Non", "value":"none"})
 	_add_enum_property(section, "Control type", entity_kind, entity_id, "control_mode", control_mode, control_options)
-	MapConstructorLinkControlsRef.add_active_settings_control_link(self, section, entity_kind, entity_id, control_mode)
+	MapConstructorLinkControlsRef.add_active_settings_control_link(self, section, entity_kind, entity_id, data)
 	if type_group == "door":
 		var state_note: Label = Label.new()
 		state_note.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART

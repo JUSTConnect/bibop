@@ -2,6 +2,7 @@ extends RefCounted
 class_name MapConstructorLinkControls
 
 const MapConstructorLinkReadModelServiceRef = preload("res://scripts/game/map_constructor_link_read_model_service.gd")
+const MapConstructorInspectorVisibilityServiceRef = preload("res://scripts/ui/map_constructor/map_constructor_inspector_visibility_service.gd")
 
 static func add_link_picker(ui: Variant, section: VBoxContainer, entity_kind: String, entity_id: String, link_type: String, title: String) -> void:
 	var model: Dictionary = MapConstructorLinkReadModelServiceRef.build_link_picker_model(ui.mission_manager_runtime, entity_kind, entity_id, link_type)
@@ -243,12 +244,12 @@ static func add_door_required_key_picker(ui: Variant, parent: VBoxContainer, ent
 	section.add_child(actions)
 	parent.add_child(section)
 
-static func add_active_settings_power_link(ui: Variant, section: VBoxContainer, entity_kind: String, entity_id: String, power_mode: String) -> void:
-	if power_mode == "external":
+static func add_active_settings_power_link(ui: Variant, section: VBoxContainer, entity_kind: String, entity_id: String, data: Dictionary) -> void:
+	if MapConstructorInspectorVisibilityServiceRef.should_show_external_power_source_selector(data):
 		add_link_picker(ui, section, entity_kind, entity_id, "power_source", "Power Source Binding")
 
-static func add_active_settings_control_link(ui: Variant, section: VBoxContainer, entity_kind: String, entity_id: String, control_mode: String) -> void:
-	if control_mode == "external":
+static func add_active_settings_control_link(ui: Variant, section: VBoxContainer, entity_kind: String, entity_id: String, data: Dictionary) -> void:
+	if MapConstructorInspectorVisibilityServiceRef.should_show_external_control_selector(data):
 		add_link_picker(ui, section, entity_kind, entity_id, "control_terminal", "Control Terminal Binding")
 
 static func add_door_access_link_controls(ui: Variant, section: VBoxContainer, entity_kind: String, entity_id: String, data: Dictionary, access_type: String) -> void:
@@ -292,13 +293,13 @@ static func add_same_circuit_linked_section(ui: Variant, link_section: VBoxConta
 	link_section.add_child(section)
 
 static func add_map_constructor_object_link_sections(ui: Variant, link_section: VBoxContainer, entity_kind: String, entity_id: String, data: Dictionary, type_group: String) -> void:
-	add_same_circuit_linked_section(ui, link_section, entity_kind, entity_id)
+	if MapConstructorInspectorVisibilityServiceRef.should_show_same_circuit_summary(data):
+		add_same_circuit_linked_section(ui, link_section, entity_kind, entity_id)
 	if is_map_constructor_key_item(ui, data, type_group):
 		add_key_door_link_section(ui, link_section, entity_kind, entity_id, data)
 	if type_group == "door":
 		add_door_linked_key_section(ui, link_section, entity_id, data)
-		var door_control_type: String = ui._safe_ui_string(data.get("control_type", data.get("control_mode", "internal"))).strip_edges().to_lower()
-		if door_control_type in ["external", "terminal", "external_control", "external control"]:
+		if MapConstructorInspectorVisibilityServiceRef.should_show_external_control_selector(data):
 			add_link_picker(ui, link_section, entity_kind, entity_id, "linked_terminal", "Linked Terminal")
 	if type_group == "terminal":
 		var controlled_target_type: String = ui._safe_ui_string(data.get("controlled_target_type", "none")).to_lower()
@@ -306,13 +307,11 @@ static func add_map_constructor_object_link_sections(ui: Variant, link_section: 
 			add_link_picker(ui, link_section, entity_kind, entity_id, "linked_door", "Linked Door")
 		elif controlled_target_type == "platform":
 			add_link_picker(ui, link_section, entity_kind, entity_id, "platform_target", "Platform Target")
-	var object_type: String = ui._safe_ui_string(data.get("object_type", "")).strip_edges().to_lower()
-	var power_type: String = ui._safe_ui_string(data.get("power_type", data.get("power_mode", "internal"))).strip_edges().to_lower().trim_suffix("_power")
-	var is_power_source: bool = object_type.begins_with("power_source")
-	if power_type == "external" and not is_power_source:
-		add_link_picker(ui, link_section, entity_kind, entity_id, "power_network", "Power Network")
+	if MapConstructorInspectorVisibilityServiceRef.should_show_external_power_source_selector(data):
 		add_link_picker(ui, link_section, entity_kind, entity_id, "power_source", "Power Source Binding")
-	var control_visible: bool = type_group == "control"
+		if MapConstructorInspectorVisibilityServiceRef.should_show_external_circuit_selector(data):
+			add_link_picker(ui, link_section, entity_kind, entity_id, "power_network", "Power Network")
+	var control_visible: bool = type_group == "control" and MapConstructorInspectorVisibilityServiceRef.should_show_external_control_selector(data)
 	if control_visible:
 		add_link_picker(ui, link_section, entity_kind, entity_id, "control_source", "Control Source")
 		add_link_picker(ui, link_section, entity_kind, entity_id, "linked_door", "Linked Door")
