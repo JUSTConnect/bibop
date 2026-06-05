@@ -4,6 +4,8 @@ class_name IsoVisualAlignmentService
 const STANDARD_TILE_SIZE: Vector2 = Vector2(128.0, 71.0)
 const MIN_SCALE_VALUE: float = 0.01
 const GROUND_TOP_SURFACE_SAFETY_OVERLAP: float = 1.0
+const DEFAULT_PLATFORM_LEVEL_HEIGHT_PIXELS: float = 32.0
+const DEFAULT_SURFACE_LEVEL_HEIGHT_PIXELS: float = 16.0
 
 static func clamp_visible_bounds(visible_bounds: Rect2, texture_size: Vector2) -> Rect2:
 	if texture_size.x <= 0.0 or texture_size.y <= 0.0:
@@ -61,3 +63,38 @@ static func get_ground_top_surface_y_offset(tile_size: Vector2, texture_size: Ve
 	if side_height <= 0.0:
 		return 0.0
 	return -(side_height + GROUND_TOP_SURFACE_SAFETY_OVERLAP)
+
+static func get_platform_surface_y_offset(platform_data: Dictionary, level_height_pixels: float = DEFAULT_PLATFORM_LEVEL_HEIGHT_PIXELS) -> float:
+	var level: float = float(platform_data.get("visual_level", platform_data.get("platform_level", platform_data.get("current_level", 0))))
+	return -maxf(level, 0.0) * maxf(level_height_pixels, 1.0)
+
+static func get_object_surface_y_offset(surface_context: Dictionary) -> float:
+	if bool(surface_context.get("wall_mounted", false)):
+		return 0.0
+	if surface_context.has("explicit_surface_y_offset"):
+		return float(surface_context.get("explicit_surface_y_offset", 0.0))
+	var ground_offset: float = float(surface_context.get("ground_surface_y_offset", 0.0))
+	var platform_offset: float = float(surface_context.get("platform_surface_y_offset", 0.0))
+	if not is_equal_approx(platform_offset, 0.0):
+		return platform_offset
+	if not is_equal_approx(ground_offset, 0.0):
+		return ground_offset
+	var surface_level: int = int(surface_context.get("surface_level", 0))
+	return -float(maxi(surface_level, 0)) * DEFAULT_SURFACE_LEVEL_HEIGHT_PIXELS
+
+static func apply_surface_y_offset_to_center(cell_center: Vector2, surface_context: Dictionary) -> Vector2:
+	return cell_center + Vector2(0.0, get_object_surface_y_offset(surface_context))
+
+static func build_surface_context(surface_level: int = 0, ground_surface_y_offset: float = 0.0, platform_surface_y_offset: float = 0.0, wall_mounted: bool = false) -> Dictionary:
+	return {
+		"surface_level": surface_level,
+		"ground_surface_y_offset": ground_surface_y_offset,
+		"platform_surface_y_offset": platform_surface_y_offset,
+		"wall_mounted": wall_mounted,
+		"object_surface_y_offset": get_object_surface_y_offset({"surface_level": surface_level, "ground_surface_y_offset": ground_surface_y_offset, "platform_surface_y_offset": platform_surface_y_offset, "wall_mounted": wall_mounted})
+	}
+
+static func get_surface_layer_bias(surface_context: Dictionary) -> float:
+	var offset: float = absf(get_object_surface_y_offset(surface_context))
+	var surface_level: float = float(surface_context.get("surface_level", 0))
+	return surface_level * 0.1 + offset * 0.001
