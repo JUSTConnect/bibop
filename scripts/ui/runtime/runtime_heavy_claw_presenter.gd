@@ -73,7 +73,7 @@ static func _refresh_drag_action_row(ui, dragging: bool) -> void:
 	for child in ui.runtime_interaction_actions_row.get_children():
 		child.queue_free()
 	ui.runtime_interaction_actions_row.visible = true
-	var title := Label.new()
+	var title: Label = Label.new()
 	title.name = "RuntimeHeavyClawDragLabel"
 	title.text = "Dragging: %s" % object_name
 	title.tooltip_text = "Forward/Back move Bipob and the grabbed object. Cancel releases for 0 actions."
@@ -86,6 +86,3 @@ static func _refresh_drag_action_row(ui, dragging: bool) -> void:
 	back_button.disabled = not has_actions_left
 	back_button.tooltip_text = "Move backward with grabbed object." if has_actions_left else "No actions left. End turn."
 	ui.runtime_interaction_actions_row.add_child(back_button)
-	var cancel_button: Button = ui._create_runtime_control_button("Cancel", Callable(ui, "_on_runtime_heavy_claw_cancel_pressed"), "danger")
-	cancel_button.tooltip_text = "Release object. Cost: 0 actions."
-	ui.runtime_interaction_actions_row.add_child(cancel_button)
