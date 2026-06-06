@@ -38,7 +38,7 @@ static func _add_access_code_controls(ui: Variant, section: VBoxContainer, entit
 	apply_button.text = "Apply"
 	apply_button.pressed.connect(func() -> void:
 		var next_code: String = code_edit.text.strip_edges()
-		if next_code.length() != 4 or not next_code.is_valid_int():
+		if not InformationTerminalServiceRef.is_four_digit_code(next_code):
 			ui.show_hint("Access code must be exactly 4 digits.")
 			return
 		ui._apply_map_constructor_property_updates(entity_kind, entity_id, {"stored_access_code":next_code, "access_code_value":next_code, "access_code":next_code, "encrypted":false, "damaged":false})

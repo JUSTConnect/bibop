@@ -49,7 +49,7 @@ static func build_link_picker_model(mission_manager: Variant, entity_kind: Strin
 	elif mission_manager.has_method("get_map_constructor_link_candidates"):
 		for candidate_variant in _to_array(mission_manager.call("get_map_constructor_link_candidates", entity_kind, entity_id, link_type)):
 			var candidate: Dictionary = _to_dictionary(candidate_variant)
-			if _is_link_candidate_allowed(mission_manager, link_type, candidate):
+			if _is_link_candidate_allowed(mission_manager, link_type, candidate, data):
 				candidate_rows.append(_make_candidate_row(candidate, current_target_id))
 	model["candidates"] = candidate_rows
 	var target_cell: Vector2i = Vector2i(-1, -1)

@@ -50,5 +50,5 @@ static func can_information_terminal_store_for_door(terminal_data: Dictionary, d
 			return false
 		var terminal_code: String = str(terminal_data.get("access_code_value", terminal_data.get("stored_access_code", terminal_data.get("access_code", "")))).strip_edges()
 		var door_code: String = str(door_data.get("access_code_value", door_data.get("access_code", door_data.get("password", "")))).strip_edges()
-		return terminal_code.length() == 4 and terminal_code.is_valid_int() and (door_code.is_empty() or door_code == terminal_code)
+		return InformationTerminalServiceRef.is_four_digit_code(terminal_code) and (door_code.is_empty() or door_code == terminal_code)
 	return false
