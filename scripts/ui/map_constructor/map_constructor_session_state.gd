@@ -113,10 +113,14 @@ var map_constructor_picker_entity_kind: String = ""
 var map_constructor_picker_entity_id: String = ""
 var map_constructor_picker_field_name: String = ""
 var map_constructor_preset_name: String = "preset"
-var map_constructor_preset_entries: Array[Dictionary] = []
+var map_constructor_preset_entries: Variant = []:
+	set(value):
+		map_constructor_preset_entries = _normalize_dictionary_array(value, "presets")
 var map_constructor_selected_preset_name: String = ""
 var map_constructor_patch_name: String = "mission_patch"
-var map_constructor_patch_entries: Array[Dictionary] = []
+var map_constructor_patch_entries: Variant = []:
+	set(value):
+		map_constructor_patch_entries = _normalize_dictionary_array(value, "patches")
 var map_constructor_selected_patch_name: String = ""
 var map_constructor_geometry_width_text: String = "20"
 var map_constructor_geometry_height_text: String = "12"
@@ -174,6 +178,27 @@ var map_constructor_overview_show_power: bool = true
 var map_constructor_overview_show_items: bool = true
 var map_constructor_overview_show_wall_mounted: bool = true
 var map_constructor_overview_show_history: bool = true
+
+static func _normalize_dictionary_array(value: Variant, preferred_key: String = "") -> Array[Dictionary]:
+	var source: Variant = value
+	if source is Dictionary:
+		var source_dict: Dictionary = Dictionary(source)
+		if not preferred_key.is_empty() and source_dict.has(preferred_key):
+			source = source_dict.get(preferred_key, [])
+		elif source_dict.has("presets"):
+			source = source_dict.get("presets", [])
+		elif source_dict.has("patches"):
+			source = source_dict.get("patches", [])
+		elif source_dict.has("entries"):
+			source = source_dict.get("entries", [])
+		else:
+			return []
+	var normalized: Array[Dictionary] = []
+	if source is Array:
+		for entry_variant in Array(source):
+			if entry_variant is Dictionary:
+				normalized.append(Dictionary(entry_variant))
+	return normalized
 
 func reset_selection() -> void:
 	selected_map_constructor_prefab_id = ""
