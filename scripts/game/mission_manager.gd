@@ -10,6 +10,7 @@ const TaskTestWorldBuilderRef = preload("res://scripts/game/task_test_world_buil
 const MapConstructorServiceRef = preload("res://scripts/game/map_constructor_service.gd")
 const MapConstructorValidationServiceRef = preload("res://scripts/game/map_constructor_validation_service.gd")
 const MapConstructorPresetServiceRef = preload("res://scripts/game/map_constructor_preset_service.gd")
+const MapConstructorKeyDoorLinkServiceRef = preload("res://scripts/game/map_constructor_key_door_link_service.gd")
 const CableTopologyServiceRef = preload("res://scripts/game/cable_topology_service.gd")
 const PlatformTypesRef = preload("res://scripts/game/platform/platform_types.gd")
 const PlatformMechanismServiceRef = preload("res://scripts/game/platform/platform_mechanism_service.gd")
@@ -5585,6 +5586,16 @@ func _set_map_constructor_key_door_link(entity_kind: String, key_id: String, doo
 		var door_entity: Dictionary = get_map_constructor_entity_by_id("world_object", normalized_door_id)
 		if not bool(door_entity.get("ok", false)):
 			return {"ok": false, "message": "Linked door not found.", "target_id": normalized_door_id}
+		var key_data: Dictionary = _safe_dictionary(key_entity.get("data", key_entity.get("item_data", {})))
+		if key_data.is_empty():
+			key_data = _safe_dictionary(key_entity.get("item_data", {}))
+		var door_data: Dictionary = _safe_dictionary(door_entity.get("data", {}))
+		if not MapConstructorKeyDoorLinkServiceRef.can_key_link_to_door(key_data, door_data):
+			return {
+				"ok": false,
+				"message": "Selected key cannot unlock this door access type.",
+				"target_id": normalized_door_id
+			}
 		var existing_key: String = _map_constructor_get_linked_key_for_door(normalized_door_id)
 		if not existing_key.is_empty() and existing_key != key_id:
 			return {"ok": false, "message": "Door already has a linked key.", "target_id": normalized_door_id}
