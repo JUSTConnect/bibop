@@ -80,7 +80,8 @@ static func can_apply_action(actor: Dictionary, module: Dictionary, target_objec
 	if action_type == "download":
 		if str(module.get("id", "")) != "storage_buffer":
 			return _result(false, "Storage buffer required.")
-		if str(target_object.get("state", "")) != "hacked" and not bool(target_object.get("download_unlocked", false)):
+		var is_information_terminal_payload: bool = str(target_object.get("object_group", "")) == "terminal" and str(target_object.get("terminal_type", "")).strip_edges().to_lower() == "information" and str(target_object.get("stored_data_type", target_object.get("digital_payload_type", ""))).strip_edges().to_lower() in ["none", "access_code", "digital_key", "data_file"]
+		if not is_information_terminal_payload and str(target_object.get("state", "")) != "hacked" and not bool(target_object.get("download_unlocked", false)):
 			return _result(false, "Hack device first.")
 		var record_id: String = str(target_object.get("stored_key_id", target_object.get("access_key_id", target_object.get("download_record_id", "")))).strip_edges()
 		if record_id.is_empty():
@@ -89,7 +90,7 @@ static func can_apply_action(actor: Dictionary, module: Dictionary, target_objec
 				if stored_ids_value is Array and not Array(stored_ids_value).is_empty():
 					record_id = str(Array(stored_ids_value)[0]).strip_edges()
 					break
-		if record_id.is_empty():
+		if record_id.is_empty() and not is_information_terminal_payload:
 			return _result(false, "No downloadable key or data found.")
 	return _result(true, "Action possible.")
 

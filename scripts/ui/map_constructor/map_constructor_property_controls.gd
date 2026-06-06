@@ -1,6 +1,8 @@
 extends RefCounted
 class_name MapConstructorPropertyControls
 
+const TerminalVisibilityServiceRef = preload("res://scripts/ui/map_constructor/map_constructor_inspector_visibility_service.gd")
+
 static func add_map_constructor_description_editor(ui: Variant, section: VBoxContainer, data: Dictionary, entity_kind: String, entity_id: String) -> void:
 	var description_text: String = MapConstructorUiSafe.safe_string(data.get("description", data.get("custom_description", ""))).strip_edges()
 	var desc_edit: TextEdit = TextEdit.new()
@@ -342,6 +344,8 @@ static func add_archetype_schema_properties(ui: Variant, section: VBoxContainer,
 	for row_variant in schema_rows:
 		var row: Dictionary = MapConstructorUiSafe.safe_dictionary(row_variant)
 		var field_name: String = MapConstructorUiSafe.safe_string(row.get("field", ""))
+		if field_name == "controlled_target_type" and TerminalVisibilityServiceRef.is_information_terminal(data):
+			continue
 		var field_type: String = MapConstructorUiSafe.safe_string(row.get("type", "string"))
 		var current_value: Variant = data.get(field_name, row.get("default"))
 		if field_type == "enum":
@@ -349,7 +353,12 @@ static func add_archetype_schema_properties(ui: Variant, section: VBoxContainer,
 			var labels: Dictionary = MapConstructorUiSafe.safe_dictionary(row.get("labels", {}))
 			for value_variant in MapConstructorUiSafe.safe_array(row.get("values", [])):
 				var value: String = MapConstructorUiSafe.safe_string(value_variant)
-				options.append({"label":MapConstructorUiSafe.safe_string(labels.get(value, value.replace("_", " ").capitalize())), "value":value})
+				var option_row: Dictionary = {"label":MapConstructorUiSafe.safe_string(labels.get(value, value.replace("_", " ").capitalize())), "value":value}
+				if field_name == "terminal_type" and value == "information":
+					option_row["updates"] = {"terminal_type":"information", "controlled_target_type":"none", "target_door_id":"", "target_platform_id":""}
+				elif field_name == "terminal_type" and value == "control":
+					option_row["updates"] = {"terminal_type":"control"}
+				options.append(option_row)
 			add_enum_property(ui, section, get_display_label(field_name), entity_kind, entity_id, field_name, current_value, options)
 		elif field_type == "enum_array":
 			add_enum_array_property(ui, section, get_display_label(field_name), entity_kind, entity_id, field_name, current_value, MapConstructorUiSafe.safe_array(row.get("values", [])))

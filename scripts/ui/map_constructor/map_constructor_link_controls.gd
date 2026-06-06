@@ -347,7 +347,7 @@ static func add_map_constructor_object_link_sections(ui: Variant, link_section: 
 		add_door_linked_key_section(ui, link_section, entity_id, data)
 		if MapConstructorInspectorVisibilityServiceRef.should_show_external_control_selector(data):
 			add_link_picker(ui, link_section, entity_kind, entity_id, "linked_terminal", "Linked Terminal")
-	if type_group == "terminal":
+	if type_group == "terminal" and MapConstructorInspectorVisibilityServiceRef.should_show_terminal_controlled_target(data):
 		var controlled_target_type: String = ui._safe_ui_string(data.get("controlled_target_type", "none")).to_lower()
 		if controlled_target_type == "door":
 			add_link_picker(ui, link_section, entity_kind, entity_id, "linked_door", "Linked Door")
