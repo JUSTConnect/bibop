@@ -12,6 +12,7 @@ const MapConstructorValidationServiceRef = preload("res://scripts/game/map_const
 const MapConstructorPresetServiceRef = preload("res://scripts/game/map_constructor_preset_service.gd")
 const MapConstructorKeyDoorLinkServiceRef = preload("res://scripts/game/map_constructor_key_door_link_service.gd")
 const MapConstructorTerminalLinkFilterServiceRef = preload("res://scripts/game/map_constructor_terminal_link_filter_service.gd")
+const MapConstructorInformationTerminalServiceRef = preload("res://scripts/game/map_constructor_information_terminal_service.gd")
 const CableTopologyServiceRef = preload("res://scripts/game/cable_topology_service.gd")
 const PlatformTypesRef = preload("res://scripts/game/platform/platform_types.gd")
 const PlatformMechanismServiceRef = preload("res://scripts/game/platform/platform_mechanism_service.gd")
@@ -5653,7 +5654,7 @@ func set_map_constructor_entity_link(entity_kind: String, entity_id: String, lin
 				return {"ok": false, "message": "Selected terminal does not store compatible access data.", "target_id": target_id}
 			if MapConstructorKeyDoorLinkServiceRef.get_door_access_type(source_data) == MapConstructorKeyDoorLinkServiceRef.ACCESS_TYPE_ACCESS_CODE and str(source_data.get("access_code_value", source_data.get("access_code", ""))).strip_edges().is_empty():
 				var terminal_code: String = str(target_data.get("access_code_value", target_data.get("stored_access_code", target_data.get("access_code", "")))).strip_edges()
-				if terminal_code.length() == 4 and terminal_code.is_valid_int():
+				if MapConstructorInformationTerminalServiceRef.is_four_digit_code(terminal_code):
 					apply_map_constructor_property_update(entity_kind, entity_id, "access_code_value", terminal_code)
 	var apply: Dictionary = apply_map_constructor_link_target(entity_kind, entity_id, str(field_map[link_type]), target_id)
 	var target_cell: Vector2i = Vector2i(-1, -1)
@@ -9619,7 +9620,7 @@ func _validate_runtime_inventory_storage_item(item_id: String, storage_name: Str
 
 func acquire_runtime_access_code(code_value: String) -> Dictionary:
 	var code: String = code_value.strip_edges()
-	if code.length() != 4 or not code.is_valid_int():
+	if not MapConstructorInformationTerminalServiceRef.is_four_digit_code(code):
 		return {"ok": false, "message": "Access code unavailable."}
 	var codes: Array = Array(runtime_inventory_state.get("acquired_access_codes", []))
 	if not codes.has(code):

@@ -15,7 +15,17 @@ static func normalize_terminal_type(value: Variant) -> String:
 			return TYPE_CONTROL
 		"info", "information", "information_terminal", "data", "storage":
 			return TYPE_INFORMATION
-	return TYPE_INFORMATION
+	return TYPE_CONTROL
+
+static func is_four_digit_code(value: Variant) -> bool:
+	var text: String = str(value).strip_edges()
+	if text.length() != 4:
+		return false
+	for i in range(text.length()):
+		var codepoint: int = text.unicode_at(i)
+		if codepoint < 48 or codepoint > 57:
+			return false
+	return true
 
 static func normalize_stored_data_type(value: Variant) -> String:
 	var normalized: String = str(value).strip_edges().to_lower().replace(" ", "_").replace("-", "_")
@@ -93,7 +103,7 @@ static func validate_information_terminal_data(data: Dictionary) -> Dictionary:
 	match get_stored_data_type(sanitized):
 		DATA_ACCESS_CODE:
 			var code: String = str(sanitized.get("access_code_value", "")).strip_edges()
-			if code.length() != 4 or not code.is_valid_int():
+			if not is_four_digit_code(code):
 				errors.append("Access code must be exactly 4 digits.")
 		DATA_DIGITAL_KEY:
 			if str(sanitized.get("stored_digital_key_id", "")).strip_edges().is_empty():
