@@ -66,7 +66,7 @@ static func build_link_picker_model(mission_manager: Variant, entity_kind: Strin
 	model["message"] = "Link candidates ready."
 	return model
 
-static func _is_link_candidate_allowed(mission_manager: Variant, link_type: String, candidate: Dictionary) -> bool:
+static func _is_link_candidate_allowed(mission_manager: Variant, link_type: String, candidate: Dictionary, source_data: Dictionary = {}) -> bool:
 	var candidate_id: String = _to_safe_string(candidate.get("id", "")).strip_edges()
 	if candidate_id.is_empty() or candidate_id == "__none__":
 		return true
@@ -83,6 +83,14 @@ static func _is_link_candidate_allowed(mission_manager: Variant, link_type: Stri
 	if link_type == "linked_terminal" or link_type == "control_terminal":
 		return TerminalLinkFilterServiceRef.is_control_terminal(data)
 	if link_type == "access_terminal":
+		if TerminalLinkFilterServiceRef.is_door_data(source_data):
+			return TerminalLinkFilterServiceRef.can_information_terminal_store_for_door(data, source_data, func(key_id: String) -> Dictionary:
+				if mission_manager != null and mission_manager.has_method("find_map_constructor_key_item_by_id"):
+					var key_entity: Dictionary = mission_manager.call("find_map_constructor_key_item_by_id", key_id)
+					if bool(key_entity.get("ok", false)):
+						return _to_dictionary(key_entity.get("data", key_entity.get("item_data", {})))
+				return {}
+			)
 		return TerminalLinkFilterServiceRef.is_information_terminal(data)
 	return true
 

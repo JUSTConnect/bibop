@@ -7623,6 +7623,8 @@ func get_available_world_actions(world_object: Dictionary, target_position: Vect
 		elif _has_manipulator_cable_end():
 			actions.append("connect_wire_end")
 		if bool(world_object.get("has_connector_jack", false)):
+			if str(world_object.get("terminal_type", "")).strip_edges().to_lower() == "information" and _world_object_has_download_payload(world_object):
+				actions.append("download")
 			if not bool(world_object.get("connected", false)):
 				actions.append("connect")
 			elif int(world_object.get("scan_level", 0)) < 2:
@@ -7730,6 +7732,9 @@ func get_available_world_actions(world_object: Dictionary, target_position: Vect
 	return actions
 
 func _world_object_has_download_payload(world_object: Dictionary) -> bool:
+	var stored_type: String = str(world_object.get("stored_data_type", world_object.get("digital_payload_type", ""))).strip_edges().to_lower()
+	if stored_type in ["none", "access_code", "digital_key", "data_file"]:
+		return true
 	if not str(world_object.get("stored_key_id", world_object.get("access_key_id", world_object.get("download_record_id", "")))).strip_edges().is_empty():
 		return true
 	for field_name in ["stored_key_ids", "stored_access_ids", "stored_item_ids", "digital_key_ids", "access_code_ids"]:
@@ -7767,6 +7772,9 @@ func get_world_action_module(action_id: String, world_object: Dictionary) -> Dic
 			var level := get_installed_connector_level(connection_type)
 			return _module_dict("%s_connector_v%d" % [connection_type, level] if level > 0 else "")
 		"apply_digital_key":
+			var required_digital_key_id: String = str(world_object.get("required_key_id", world_object.get("required_digital_key_id", ""))).strip_edges()
+			if mission_manager != null and mission_manager.has_method("has_acquired_digital_key") and bool(mission_manager.call("has_acquired_digital_key", required_digital_key_id)):
+				return _module_dict("digital_key_opened")
 			return _module_dict("digital_key_opened" if has_required_digital_key(world_object) else "")
 		"open_door", "close_door", "unlock_door":
 			return _module_dict("terminal_control")

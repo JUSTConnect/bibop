@@ -2,24 +2,29 @@ extends RefCounted
 class_name MapConstructorTerminalStoredDataControls
 
 const TerminalVisibilityServiceRef = preload("res://scripts/ui/map_constructor/map_constructor_inspector_visibility_service.gd")
+const InformationTerminalServiceRef = preload("res://scripts/game/map_constructor_information_terminal_service.gd")
 
 static func add_stored_data_section(ui: Variant, parent: VBoxContainer, entity_kind: String, entity_id: String, data: Dictionary) -> void:
 	if not TerminalVisibilityServiceRef.should_show_terminal_stored_data(data):
 		return
 	var section: VBoxContainer = ui._create_inspector_section("Stored Data")
-	var stored_data_type: String = TerminalVisibilityServiceRef.normalize_stored_data_type(data)
+	var sanitized: Dictionary = InformationTerminalServiceRef.sanitize_information_terminal_data(data)
+	var stored_data_type: String = InformationTerminalServiceRef.get_stored_data_type(sanitized)
 	var options: Array[Dictionary] = [
-		{"label":"Access Code", "value":"access_code", "updates":{"stored_data_type":"access_code", "digital_payload_type":"access_code", "encrypted":false, "damaged":false}},
-		{"label":"Digital Key", "value":"digital_key", "updates":{"stored_data_type":"digital_key", "digital_payload_type":"digital_key", "encrypted":false, "damaged":false}},
-		{"label":"Data File", "value":"data_file", "updates":{"stored_data_type":"data_file", "digital_payload_type":"data_file"}}
+		{"label":"None", "value":"none", "updates":{"stored_data_type":"none", "digital_payload_type":"none", "stored_access_code":"", "access_code_value":"", "access_code":"", "stored_digital_key_id":"", "stored_key_id":"", "stored_item_id":"", "stored_data_file_id":"", "payload_id":"", "encrypted":false, "damaged":false}},
+		{"label":"Access Code", "value":"access_code", "updates":{"stored_data_type":"access_code", "digital_payload_type":"access_code", "stored_digital_key_id":"", "stored_key_id":"", "stored_item_id":"", "stored_data_file_id":"", "payload_id":"", "encrypted":false, "damaged":false}},
+		{"label":"Digital Key", "value":"digital_key", "updates":{"stored_data_type":"digital_key", "digital_payload_type":"digital_key", "stored_access_code":"", "access_code_value":"", "access_code":"", "stored_data_file_id":"", "payload_id":"", "encrypted":false, "damaged":false}},
+		{"label":"Data File", "value":"data_file", "updates":{"stored_data_type":"data_file", "digital_payload_type":"data_file", "stored_access_code":"", "access_code_value":"", "access_code":"", "stored_digital_key_id":"", "stored_key_id":"", "stored_item_id":""}}
 	]
 	MapConstructorPropertyControls.add_enum_updates_property(ui, section, "Stored data type", entity_kind, entity_id, stored_data_type, options)
 	if stored_data_type == "access_code":
-		_add_access_code_controls(ui, section, entity_kind, entity_id, data)
+		_add_access_code_controls(ui, section, entity_kind, entity_id, sanitized)
 	elif stored_data_type == "digital_key":
-		_add_digital_key_controls(ui, section, entity_kind, entity_id, data)
+		_add_digital_key_controls(ui, section, entity_kind, entity_id, sanitized)
+	elif stored_data_type == "data_file":
+		_add_data_file_controls(ui, section, entity_kind, entity_id, sanitized)
 	else:
-		_add_data_file_controls(ui, section, entity_kind, entity_id, data)
+		_add_note(ui, section, "No data payload is stored in this information terminal.", false)
 	parent.add_child(section)
 
 static func _add_access_code_controls(ui: Variant, section: VBoxContainer, entity_kind: String, entity_id: String, data: Dictionary) -> void:

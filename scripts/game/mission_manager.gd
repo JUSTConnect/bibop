@@ -11,6 +11,7 @@ const MapConstructorServiceRef = preload("res://scripts/game/map_constructor_ser
 const MapConstructorValidationServiceRef = preload("res://scripts/game/map_constructor_validation_service.gd")
 const MapConstructorPresetServiceRef = preload("res://scripts/game/map_constructor_preset_service.gd")
 const MapConstructorKeyDoorLinkServiceRef = preload("res://scripts/game/map_constructor_key_door_link_service.gd")
+const MapConstructorTerminalLinkFilterServiceRef = preload("res://scripts/game/map_constructor_terminal_link_filter_service.gd")
 const CableTopologyServiceRef = preload("res://scripts/game/cable_topology_service.gd")
 const PlatformTypesRef = preload("res://scripts/game/platform/platform_types.gd")
 const PlatformMechanismServiceRef = preload("res://scripts/game/platform/platform_mechanism_service.gd")
@@ -5542,6 +5543,18 @@ func update_map_constructor_entity_properties(entity_kind: String, entity_id: St
 			warnings.append("Field %s is restricted." % str(k))
 	var safe: Dictionary = updates.duplicate(true)
 	safe.erase("id"); safe.erase("position"); safe.erase("wall_side")
+	if safe.has("stored_digital_key_id") or safe.has("stored_key_id") or safe.has("stored_item_id"):
+		var stored_key_id: String = str(safe.get("stored_digital_key_id", safe.get("stored_key_id", safe.get("stored_item_id", "")))).strip_edges()
+		if not stored_key_id.is_empty():
+			var terminal_entity: Dictionary = get_map_constructor_entity_by_id(entity_kind, entity_id)
+			var terminal_data: Dictionary = _safe_dictionary(terminal_entity.get("data", {}))
+			var next_stored_type: String = str(safe.get("stored_data_type", terminal_data.get("stored_data_type", terminal_data.get("digital_payload_type", "")))).strip_edges().to_lower()
+			if next_stored_type != "digital_key":
+				return {"ok": false, "message": "Stored digital key requires digital_key payload.", "warnings": warnings}
+			var key_entity: Dictionary = find_map_constructor_key_item_by_id(stored_key_id)
+			var key_data: Dictionary = _safe_dictionary(key_entity.get("data", key_entity.get("item_data", {})))
+			if not bool(key_entity.get("ok", false)) or not MapConstructorKeyDoorLinkServiceRef.is_digital_key(key_data):
+				return {"ok": false, "message": "Stored key must be a digital key item.", "warnings": warnings}
 	for k in safe.keys():
 		var r: Dictionary = apply_map_constructor_property_update(entity_kind, entity_id, str(k), safe[k])
 		if not bool(r.get("ok", false)):
@@ -5627,6 +5640,21 @@ func set_map_constructor_entity_link(entity_kind: String, entity_id: String, lin
 	if not field_map.has(link_type): return {"ok":false,"message":"Unsupported link type.","target_id":target_id}
 	if link_type == "key_door":
 		return _set_map_constructor_key_door_link(entity_kind, entity_id, target_id)
+	if link_type == "access_terminal" and not target_id.strip_edges().is_empty():
+		var source_entity: Dictionary = get_map_constructor_entity_by_id(entity_kind, entity_id)
+		var target_entity: Dictionary = get_map_constructor_entity_by_id("world_object", target_id.strip_edges())
+		if bool(source_entity.get("ok", false)) and bool(target_entity.get("ok", false)):
+			var source_data: Dictionary = _safe_dictionary(source_entity.get("data", {}))
+			var target_data: Dictionary = _safe_dictionary(target_entity.get("data", {}))
+			if MapConstructorTerminalLinkFilterServiceRef.is_door_data(source_data) and not MapConstructorTerminalLinkFilterServiceRef.can_information_terminal_store_for_door(target_data, source_data, func(key_id: String) -> Dictionary:
+				var key_entity: Dictionary = find_map_constructor_key_item_by_id(key_id)
+				return _safe_dictionary(key_entity.get("data", key_entity.get("item_data", {}))) if bool(key_entity.get("ok", false)) else {}
+			):
+				return {"ok": false, "message": "Selected terminal does not store compatible access data.", "target_id": target_id}
+			if MapConstructorKeyDoorLinkServiceRef.get_door_access_type(source_data) == MapConstructorKeyDoorLinkServiceRef.ACCESS_TYPE_ACCESS_CODE and str(source_data.get("access_code_value", source_data.get("access_code", ""))).strip_edges().is_empty():
+				var terminal_code: String = str(target_data.get("access_code_value", target_data.get("stored_access_code", target_data.get("access_code", "")))).strip_edges()
+				if terminal_code.length() == 4 and terminal_code.is_valid_int():
+					apply_map_constructor_property_update(entity_kind, entity_id, "access_code_value", terminal_code)
 	var apply: Dictionary = apply_map_constructor_link_target(entity_kind, entity_id, str(field_map[link_type]), target_id)
 	var target_cell: Vector2i = Vector2i(-1, -1)
 	var target_entity: Dictionary = get_map_constructor_entity_by_id("world_object", target_id)
@@ -9589,11 +9617,52 @@ func _validate_runtime_inventory_storage_item(item_id: String, storage_name: Str
 	if storage_class != expected_class:
 		warnings.append("inventory_storage_class_mismatch_%s_%s_%s" % [storage_name, item_id, storage_class])
 
+func acquire_runtime_access_code(code_value: String) -> Dictionary:
+	var code: String = code_value.strip_edges()
+	if code.length() != 4 or not code.is_valid_int():
+		return {"ok": false, "message": "Access code unavailable."}
+	var codes: Array = Array(runtime_inventory_state.get("acquired_access_codes", []))
+	if not codes.has(code):
+		codes.append(code)
+	runtime_inventory_state["acquired_access_codes"] = codes
+	return {"ok": true, "message": "Access code acquired.", "access_code_value": code}
+
+func has_acquired_access_code(code_value: String) -> bool:
+	var code: String = code_value.strip_edges()
+	return not code.is_empty() and Array(runtime_inventory_state.get("acquired_access_codes", [])).has(code)
+
+func acquire_runtime_digital_key(key_id: String) -> Dictionary:
+	var normalized_id: String = key_id.strip_edges()
+	if normalized_id.is_empty():
+		return {"ok": false, "message": "Digital key unavailable."}
+	var keys: Array = Array(runtime_inventory_state.get("acquired_digital_key_ids", []))
+	if not keys.has(normalized_id):
+		keys.append(normalized_id)
+	runtime_inventory_state["acquired_digital_key_ids"] = keys
+	return {"ok": true, "message": "Digital key acquired.", "key_id": normalized_id}
+
+func has_acquired_digital_key(key_id: String) -> bool:
+	var normalized_id: String = key_id.strip_edges()
+	return not normalized_id.is_empty() and Array(runtime_inventory_state.get("acquired_digital_key_ids", [])).has(normalized_id)
+
+func acquire_runtime_data_file(file_id: String) -> Dictionary:
+	var normalized_id: String = file_id.strip_edges()
+	if normalized_id.is_empty():
+		return {"ok": false, "message": "Data file unavailable."}
+	var files: Array = Array(runtime_inventory_state.get("acquired_data_file_ids", []))
+	if not files.has(normalized_id):
+		files.append(normalized_id)
+	runtime_inventory_state["acquired_data_file_ids"] = files
+	return {"ok": true, "message": "Data file acquired.", "data_file_id": normalized_id}
+
 func get_inventory_state() -> Dictionary:
 	var snapshot: Dictionary = runtime_inventory_state.duplicate(true)
 	snapshot["manipulator_hold"] = get_manipulator_item_id()
 	snapshot["pocket_items"] = get_pocket_items()
 	snapshot["collected_key_ids"] = get_keychain_ids()
+	snapshot["acquired_access_codes"] = Array(runtime_inventory_state.get("acquired_access_codes", [])).duplicate()
+	snapshot["acquired_digital_key_ids"] = Array(runtime_inventory_state.get("acquired_digital_key_ids", [])).duplicate()
+	snapshot["acquired_data_file_ids"] = Array(runtime_inventory_state.get("acquired_data_file_ids", [])).duplicate()
 	snapshot["digital_buffer"] = get_digital_buffer_items()
 	snapshot["digital_storage"] = get_digital_storage_items()
 	return snapshot
