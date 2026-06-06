@@ -109,6 +109,12 @@ static func is_map_constructor_key_item(ui: Variant, data: Dictionary, type_grou
 	var id_token: String = ui._safe_ui_string(data.get("id", "")).strip_edges().to_lower()
 	return id_token == "key" or id_token.begins_with("key_") or id_token.ends_with("_key") or id_token.contains("_key_")
 
+static func _can_bind_key_to_door(ui: Variant, key_data: Dictionary, door_id: String) -> bool:
+	var door_data: Dictionary = get_map_constructor_door_entity_data_by_id(ui, door_id)
+	if door_data.is_empty():
+		return false
+	return MapConstructorKeyDoorLinkServiceRef.can_key_link_to_door(key_data, door_data)
+
 static func add_key_door_link_section(ui: Variant, parent: VBoxContainer, entity_kind: String, entity_id: String, data: Dictionary) -> void:
 	if ui.mission_manager_runtime == null or not ui.mission_manager_runtime.has_method("get_map_constructor_key_door_link_candidates"):
 		return
@@ -126,8 +132,7 @@ static func add_key_door_link_section(ui: Variant, parent: VBoxContainer, entity
 		var door_id: String = ui._safe_ui_string(door.get("id", "")).strip_edges()
 		if door_id.is_empty():
 			continue
-		var door_data: Dictionary = get_map_constructor_door_entity_data_by_id(ui, door_id)
-		if door_data.is_empty() or not MapConstructorKeyDoorLinkServiceRef.can_key_link_to_door(data, door_data):
+		if not _can_bind_key_to_door(ui, data, door_id):
 			continue
 		filtered_doors.append(door)
 	if filtered_doors.is_empty():
@@ -151,7 +156,10 @@ static func add_key_door_link_section(ui: Variant, parent: VBoxContainer, entity
 		var link_button: Button = Button.new()
 		link_button.text = "Link Selected Door"
 		link_button.pressed.connect(func() -> void:
-			var door_id: String = ui._safe_ui_string(option.get_selected_metadata())
+			var door_id: String = ui._safe_ui_string(option.get_selected_metadata()).strip_edges()
+			if not _can_bind_key_to_door(ui, data, door_id):
+				ui.show_hint("Selected key cannot unlock this door access type.")
+				return
 			var result: Dictionary = ui.mission_manager_runtime.call("set_map_constructor_entity_link", entity_kind, entity_id, "key_door", door_id)
 			ui.show_hint(ui._safe_ui_string(result.get("message", "Door linked."), "Door linked."))
 			ui._refresh_map_constructor_panels()
@@ -244,8 +252,6 @@ static func add_door_required_key_picker(ui: Variant, parent: VBoxContainer, ent
 	apply_button.pressed.connect(func() -> void:
 		var selected: Dictionary = ui._safe_ui_dictionary(option.get_selected_metadata())
 		var selected_key_id: String = ui._safe_ui_string(selected.get("id", "")).strip_edges()
-		if not current_key_id.is_empty() and current_key_id != selected_key_id and ui.mission_manager_runtime.has_method("set_map_constructor_entity_link"):
-			ui.mission_manager_runtime.call("set_map_constructor_entity_link", "item", current_key_id, "key_door", "")
 		if selected_key_id.is_empty():
 			if ui.mission_manager_runtime.has_method("set_map_constructor_entity_link") and not current_key_id.is_empty():
 				var clear_result: Dictionary = ui.mission_manager_runtime.call("set_map_constructor_entity_link", "item", current_key_id, "key_door", "")
@@ -253,6 +259,12 @@ static func add_door_required_key_picker(ui: Variant, parent: VBoxContainer, ent
 			else:
 				ui.show_hint("No key selected.")
 		else:
+			var selected_key_data: Dictionary = get_map_constructor_key_entity_data_by_id(ui, selected_key_id)
+			if selected_key_data.is_empty() or not MapConstructorKeyDoorLinkServiceRef.can_key_link_to_door(selected_key_data, data):
+				ui.show_hint("Selected key cannot unlock this door access type.")
+				return
+			if not current_key_id.is_empty() and current_key_id != selected_key_id and ui.mission_manager_runtime.has_method("set_map_constructor_entity_link"):
+				ui.mission_manager_runtime.call("set_map_constructor_entity_link", "item", current_key_id, "key_door", "")
 			var selected_kind: String = ui._safe_ui_string(selected.get("entity_kind", "item"), "item")
 			var result: Dictionary = ui.mission_manager_runtime.call("set_map_constructor_entity_link", selected_kind, selected_key_id, "key_door", entity_id)
 			ui.show_hint(ui._safe_ui_string(result.get("message", "Key binding updated."), "Key binding updated."))
