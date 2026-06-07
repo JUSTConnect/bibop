@@ -83,6 +83,20 @@ static func infer_default_mount_height(object_data: Dictionary) -> String:
 		_:
 			return HEIGHT_UNSPECIFIED
 
+static func normalize_direct_wall_cell_mount_object(object_data: Dictionary, wall_side: String, selected_wall_cell: Vector2i, anchor_floor_cell: Vector2i = Vector2i(-1, -1)) -> Dictionary:
+	var result: Dictionary = normalize_wall_mounted_object(object_data, wall_side)
+	result["placement_mode"] = PLACEMENT_WALL_MOUNTED
+	result["direct_wall_cell_mount"] = true
+	result["attached_wall_cell"] = selected_wall_cell
+	result["anchor_floor_cell"] = anchor_floor_cell
+	result["position"] = selected_wall_cell
+	result["is_wall_mounted"] = true
+	result["does_not_block_movement"] = true
+	result["blocks_movement"] = false
+	result["changes_passability"] = false
+	result["interaction_side"] = result["wall_side"]
+	return result
+
 static func can_share_wall_side(existing_objects: Array[Dictionary], new_object: Dictionary, wall_side: String, max_objects: int = DEFAULT_MAX_OBJECTS_PER_WALL_SIDE) -> Dictionary:
 	var normalized_side: String = FacingSideUtilsRef.normalize_wall_side(wall_side)
 	var count_on_side: int = 0

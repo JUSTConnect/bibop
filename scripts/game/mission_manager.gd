@@ -24,6 +24,7 @@ const BipobCableRuntimeServiceRef = preload("res://scripts/game/bipob_cable_runt
 const BipobAirflowRuntimeServiceRef = preload("res://scripts/game/bipob_airflow_runtime_service.gd")
 const BreachableWallServiceRef = preload("res://scripts/game/wall/breachable_wall_service.gd")
 const BreachableWallRulesServiceRef = preload("res://scripts/game/wall/breachable_wall_rules_service.gd")
+const WallMountedPlacementRulesServiceRef = preload("res://scripts/game/wall/wall_mounted_placement_rules_service.gd")
 const VisualAssetCatalogRef = preload("res://scripts/visual/visual_asset_catalog.gd")
 const DEVICE_INTERACTION_FLOW_STATES: Array[String] = ["no_target", "unknown", "scanned", "diagnosed", "ready", "blocked", "executed_unavailable"]
 
@@ -3496,6 +3497,46 @@ func _resolve_wall_mounted_attachment(anchor_floor_cell: Vector2i, preferred_sid
 		"available_wall_sides": available_sides
 	}
 
+func _resolve_direct_wall_mounted_attachment(selected_wall_cell: Vector2i, preferred_side: String = "") -> Dictionary:
+	if grid_manager == null:
+		return {"ok": false, "reason": "grid_unavailable", "message": "Blocked: grid unavailable."}
+	var normalized_preferred: String = preferred_side.to_lower().strip_edges()
+	var candidate_sides: Array[String] = []
+	if not normalized_preferred.is_empty() and _get_map_constructor_wall_side_delta(normalized_preferred) != Vector2i.ZERO:
+		candidate_sides.append(normalized_preferred)
+	for side_entry in MAP_CONSTRUCTOR_WALL_SIDE_DELTAS:
+		var side_id: String = str(side_entry.get("side", ""))
+		if candidate_sides.has(side_id):
+			continue
+		candidate_sides.append(side_id)
+	var available_sides: Array[String] = []
+	var selected_side: String = normalized_preferred if candidate_sides.has(normalized_preferred) else ""
+	var anchor_floor_cell: Vector2i = Vector2i(-1, -1)
+	for side_id in candidate_sides:
+		var direct_floor_cell: Vector2i = selected_wall_cell - _get_map_constructor_wall_side_delta(side_id)
+		if _is_valid_grid_cell(direct_floor_cell) and not _is_map_constructor_wall_cell(direct_floor_cell):
+			available_sides.append(side_id)
+	if not selected_side.is_empty():
+		var preferred_floor_cell: Vector2i = selected_wall_cell - _get_map_constructor_wall_side_delta(selected_side)
+		if _is_valid_grid_cell(preferred_floor_cell) and not _is_map_constructor_wall_cell(preferred_floor_cell):
+			anchor_floor_cell = preferred_floor_cell
+	else:
+		if not available_sides.is_empty():
+			selected_side = available_sides[0]
+			anchor_floor_cell = selected_wall_cell - _get_map_constructor_wall_side_delta(selected_side)
+	if selected_side.is_empty():
+		selected_side = "south"
+	return {
+		"ok": true,
+		"direct_wall_cell_mount": true,
+		"selected_wall_cell": selected_wall_cell,
+		"anchor_floor_cell": anchor_floor_cell,
+		"attached_wall_cell": selected_wall_cell,
+		"wall_side": selected_side,
+		"interaction_side": selected_side,
+		"available_wall_sides": available_sides
+	}
+
 func is_breachable_wall_cell(cell: Vector2i) -> bool:
 	var wall_data: Dictionary = get_breachable_wall_action_target_at_cell(cell)
 	return not wall_data.is_empty()
@@ -3548,16 +3589,21 @@ func can_place_map_constructor_prefab(prefab_id: String, cell: Vector2i, preferr
 	var prefab_is_wall: bool = str(canonical_prefab_template.get("group", "")) == "wall"
 	var prefab_is_door_or_gate: bool = str(canonical_prefab_template.get("group", "")) == "door"
 	var prefab_is_floor_replacement: bool = prefab_id == "floor" or prefab_id == "stepped_floor"
+	var direct_wall_cell_mount: bool = prefab_is_wall_mounted and tile_is_wall
+	if direct_wall_cell_mount and is_breachable_wall_cell(cell):
+		result["reason"] = "breachable_wall_blocks_wall_mount"
+		result["message"] = "Cannot mount on a Breachable Wall."
+		return result
 	if tile_is_exit and prefab_id != "powered_gate":
 		result["reason"] = "exit_cell"
 		result["message"] = "Blocked: exit cell."
 		return result
 	var has_static_wall_or_blocked_tile: bool = tile_is_wall or (not bool(cell_state.get("static_walkable", true)) and not tile_is_door_or_gate and not tile_is_exit)
-	if has_static_wall_or_blocked_tile and not prefab_is_floor_replacement and not prefab_is_cable_layer:
+	if has_static_wall_or_blocked_tile and not prefab_is_floor_replacement and not prefab_is_cable_layer and not direct_wall_cell_mount:
 		result["reason"] = "wall_or_static"
 		result["message"] = "Blocked: wall/static obstacle."
 		return result
-	var prefab_can_replace_non_floor: bool = prefab_is_wall or prefab_is_door_or_gate or prefab_is_floor_replacement or prefab_is_cable_layer
+	var prefab_can_replace_non_floor: bool = prefab_is_wall or prefab_is_door_or_gate or prefab_is_floor_replacement or prefab_is_cable_layer or direct_wall_cell_mount
 	if not tile_is_floor_like and not tile_is_exit and not prefab_can_replace_non_floor:
 		result["reason"] = "non_floor_tile"
 		result["message"] = "Blocked: non-floor tile."
@@ -3600,45 +3646,69 @@ func can_place_map_constructor_prefab(prefab_id: String, cell: Vector2i, preferr
 			return result
 	if prefab_is_wall_mounted:
 		result["placement_mode"] = "wall_mounted"
-		result["anchor_floor_cell"] = _serialize_cell_key(cell)
-		result["attached_wall_cell"] = "-1,-1"
 		var normalized_side: String = preferred_wall_side.to_lower().strip_edges()
-		if not normalized_side.is_empty() and _get_map_constructor_wall_side_delta(normalized_side) == Vector2i.ZERO:
-			result["reason"] = "wall_mounted_wrong_side"
-			result["message"] = "Cannot mount on %s: adjacent cell is not a wall." % _get_map_constructor_wall_side_label(preferred_wall_side)
-			return result
-		var available_sides: Array[String] = []
-		for side_entry in MAP_CONSTRUCTOR_WALL_SIDE_DELTAS:
-			var side_id: String = str(side_entry.get("side", ""))
-			var wall_cell: Vector2i = cell + _get_map_constructor_wall_side_delta(side_id)
-			if _is_map_constructor_wall_cell(wall_cell) and not is_breachable_wall_cell(wall_cell):
-				available_sides.append(side_id)
-		result["available_wall_sides"] = available_sides
-		if available_sides.is_empty():
-			result["reason"] = "wall_mounted_no_wall"
-			result["message"] = "Cannot mount here: no adjacent wall around anchor cell."
-			return result
-		if normalized_side.is_empty():
-			normalized_side = available_sides[0]
-		if not available_sides.has(normalized_side):
-			result["wall_side"] = normalized_side
-			result["reason"] = "wall_mounted_wrong_side"
-			result["message"] = "Cannot mount on %s: adjacent cell is not a wall." % _get_map_constructor_wall_side_label(normalized_side)
-			return result
-		var attached_wall_cell: Vector2i = cell + _get_map_constructor_wall_side_delta(normalized_side)
-		if is_breachable_wall_cell(attached_wall_cell):
-			result["reason"] = "breachable_wall_blocks_wall_mount"
-			result["message"] = "Cannot mount on a Breachable Wall."
-			return result
-		result["attached_wall_cell"] = _serialize_cell_key(attached_wall_cell)
-		result["wall_side"] = normalized_side
-		for object_data in mission_world_objects:
-			if str(object_data.get("placement_mode", "")) != "wall_mounted":
-				continue
-			if _deserialize_cell_variant(object_data.get("anchor_floor_cell", "")) == cell and str(object_data.get("wall_side", "")).to_lower() == normalized_side:
-				result["reason"] = "wall_mounted_side_occupied"
-				result["message"] = "Cannot mount on %s: wall side already has a mounted object." % _get_map_constructor_wall_side_label(normalized_side)
+		if direct_wall_cell_mount:
+			var direct_attachment: Dictionary = _resolve_direct_wall_mounted_attachment(cell, normalized_side)
+			if not bool(direct_attachment.get("ok", false)):
+				return {"ok": false, "reason": str(direct_attachment.get("reason", "no_adjacent_wall")), "message": str(direct_attachment.get("message", "Blocked: no adjacent wall.")), "object_id": "", "warnings": []}
+			var direct_anchor_cell: Vector2i = Vector2i(direct_attachment.get("anchor_floor_cell", Vector2i(-1, -1)))
+			result["direct_wall_cell_mount"] = true
+			result["blocks_movement"] = false
+			result["changes_passability"] = false
+			result["anchor_floor_cell"] = _serialize_cell_key(direct_anchor_cell) if _is_valid_grid_cell(direct_anchor_cell) else "-1,-1"
+			result["attached_wall_cell"] = _serialize_cell_key(cell)
+			result["wall_side"] = str(direct_attachment.get("wall_side", "south"))
+			result["interaction_side"] = result["wall_side"]
+			result["required_interaction_direction"] = WallMountedPlacementRulesServiceRef.get_required_interaction_direction({"wall_side": result["wall_side"], "interaction_side": result["wall_side"]})
+			result["available_wall_sides"] = Array(direct_attachment.get("available_wall_sides", []))
+			for object_data in mission_world_objects:
+				if str(object_data.get("placement_mode", "")) != "wall_mounted":
+					continue
+				if _deserialize_cell_variant(object_data.get("attached_wall_cell", "")) == cell and str(object_data.get("wall_side", "")).to_lower() == result["wall_side"]:
+					result["reason"] = "wall_mounted_side_occupied"
+					result["message"] = "Cannot mount on %s: wall side already has a mounted object." % _get_map_constructor_wall_side_label(result["wall_side"])
+					return result
+		else:
+			result["anchor_floor_cell"] = _serialize_cell_key(cell)
+			result["attached_wall_cell"] = "-1,-1"
+			if not normalized_side.is_empty() and _get_map_constructor_wall_side_delta(normalized_side) == Vector2i.ZERO:
+				result["reason"] = "wall_mounted_wrong_side"
+				result["message"] = "Cannot mount on %s: adjacent cell is not a wall." % _get_map_constructor_wall_side_label(preferred_wall_side)
 				return result
+			var available_sides: Array[String] = []
+			for side_entry in MAP_CONSTRUCTOR_WALL_SIDE_DELTAS:
+				var side_id: String = str(side_entry.get("side", ""))
+				var wall_cell: Vector2i = cell + _get_map_constructor_wall_side_delta(side_id)
+				if _is_map_constructor_wall_cell(wall_cell) and not is_breachable_wall_cell(wall_cell):
+					available_sides.append(side_id)
+			result["available_wall_sides"] = available_sides
+			if available_sides.is_empty():
+				result["reason"] = "wall_mounted_no_wall"
+				result["message"] = "Cannot mount here: no adjacent wall around anchor cell."
+				return result
+			if normalized_side.is_empty():
+				normalized_side = available_sides[0]
+			if not available_sides.has(normalized_side):
+				result["wall_side"] = normalized_side
+				result["reason"] = "wall_mounted_wrong_side"
+				result["message"] = "Cannot mount on %s: adjacent cell is not a wall." % _get_map_constructor_wall_side_label(normalized_side)
+				return result
+			var attached_wall_cell: Vector2i = cell + _get_map_constructor_wall_side_delta(normalized_side)
+			if is_breachable_wall_cell(attached_wall_cell):
+				result["reason"] = "breachable_wall_blocks_wall_mount"
+				result["message"] = "Cannot mount on a Breachable Wall."
+				return result
+			result["attached_wall_cell"] = _serialize_cell_key(attached_wall_cell)
+			result["wall_side"] = normalized_side
+			result["interaction_side"] = normalized_side
+			result["required_interaction_direction"] = WallMountedPlacementRulesServiceRef.get_required_interaction_direction({"wall_side": normalized_side, "interaction_side": normalized_side})
+			for object_data in mission_world_objects:
+				if str(object_data.get("placement_mode", "")) != "wall_mounted":
+					continue
+				if _deserialize_cell_variant(object_data.get("anchor_floor_cell", "")) == cell and str(object_data.get("wall_side", "")).to_lower() == normalized_side:
+					result["reason"] = "wall_mounted_side_occupied"
+					result["message"] = "Cannot mount on %s: wall side already has a mounted object." % _get_map_constructor_wall_side_label(normalized_side)
+					return result
 	if prefab_id != "powered_gate":
 		var tile_name: String = str(cell_state.get("tile_name", "")).to_lower()
 		if tile_name.find("exit") >= 0 or tile_name.find("extraction") >= 0:
