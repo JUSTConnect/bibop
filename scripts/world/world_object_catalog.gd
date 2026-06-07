@@ -1403,8 +1403,6 @@ static func can_heavy_claw_breach_wall_from_side(object_data: Dictionary, actor_
 	if str(object_data.get("breach_state", object_data.get("state", "active"))).strip_edges().to_lower() in ["open", "destroyed", "breached", "removed"]:
 		return false
 	var breach_side: String = normalize_breachable_wall_breach_side(object_data.get("breach_side", "sw"))
-	if breach_side not in ["sw", "se"]:
-		return false
 	return normalize_breach_side(actor_side) == get_grid_side_for_breachable_wall_breach_side(breach_side)
 
 static func _label_for_id(value: Variant) -> String:
