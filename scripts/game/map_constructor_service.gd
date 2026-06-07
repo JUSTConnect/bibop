@@ -1,6 +1,8 @@
 extends RefCounted
 class_name MapConstructorService
 
+const DEBUG_WALL_MOUNTED_PLACEMENT_TRACE := false
+
 const WorldObjectCatalogRef = preload("res://scripts/world/world_object_catalog.gd")
 const PowerSystemRef = preload("res://scripts/world/power_system.gd")
 const CableTopologyServiceRef = preload("res://scripts/game/cable_topology_service.gd")
@@ -36,12 +38,18 @@ func _set_wall_tile_for_constructor(cell: Vector2i, tile_type: int) -> void:
 	if manager.grid_manager != null and manager.grid_manager.has_method("set_tile"):
 		manager.grid_manager.call("set_tile", cell, tile_type)
 
+func _trace_wall_mounted_placement(event_name: String, payload: Dictionary) -> void:
+	if not DEBUG_WALL_MOUNTED_PLACEMENT_TRACE:
+		return
+	print("[WallMountedPlacementService:%s] %s" % [event_name, JSON.stringify(payload)])
+
 func place_map_constructor_prefab(prefab_id: String, cell: Vector2i, preferred_wall_side: String = "", rotation_degrees: int = 0, placement_mode_override: String = "") -> Dictionary:
 	if not manager._is_task_test_constructor_context():
 		return {"ok": false, "message": "Operation is available only in TASK TEST constructor mode."}
 	var check: Dictionary = manager.can_place_map_constructor_prefab(prefab_id, cell, preferred_wall_side, placement_mode_override)
 	if not bool(check.get("ok", false)):
 		return check
+	_trace_wall_mounted_placement("place_start", {"clicked_cell": cell, "selected_cell": cell, "placement_mode_override": placement_mode_override, "prefab_id": prefab_id, "is_wall_cell": manager._is_map_constructor_wall_cell(cell), "direct_wall_cell_mount": bool(check.get("direct_wall_cell_mount", false)), "wall_side": preferred_wall_side})
 	var result: Dictionary = {"ok": true, "message": "Placed %s." % prefab_id, "object_id": "", "warnings": []}
 	var previous_tile_type: int = GridManager.TILE_FLOOR
 	if manager.grid_manager != null and manager.grid_manager.has_method("get_tile"):
@@ -143,6 +151,8 @@ func place_map_constructor_prefab(prefab_id: String, cell: Vector2i, preferred_w
 			object_data["wall_side"] = str(attachment.get("wall_side", "north"))
 			object_data["interaction_side"] = object_data["wall_side"]
 		object_data["is_wall_mounted"] = true
+		object_data["mount"] = "wall"
+		object_data["install_mode"] = "wall"
 		object_data["blocks_movement"] = false
 		object_data["changes_passability"] = false
 		object_data["does_not_block_movement"] = true
@@ -157,6 +167,7 @@ func place_map_constructor_prefab(prefab_id: String, cell: Vector2i, preferred_w
 	object_data = manager._normalize_map_constructor_active_object_fields(object_data)
 	object_data = WorldObjectCatalogRef.normalize_world_object_contract(object_data)
 	object_data = WorldObjectCatalogRef.normalize_door_state_fields(object_data)
+	_trace_wall_mounted_placement("place_final", {"prefab_id": prefab_id, "direct_wall_cell_mount": bool(check.get("direct_wall_cell_mount", false)), "final_object_position": object_data.get("position", cell), "attached_wall_cell": object_data.get("attached_wall_cell", ""), "wall_side": str(object_data.get("wall_side", "")), "interaction_side": str(object_data.get("interaction_side", "")), "placement_mode": str(object_data.get("placement_mode", "")), "is_wall_mounted": bool(object_data.get("is_wall_mounted", false))})
 	manager.set_world_object_at_cell(cell, object_data)
 	PowerSystemRef.recalculate_network(manager.mission_world_objects, str(object_data.get("power_network_id", "")))
 	manager.refresh_world_cooling_received()

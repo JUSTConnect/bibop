@@ -69,6 +69,8 @@ static func normalize_wall_mounted_object(object_data: Dictionary, wall_side: St
 	else:
 		result["wall_side"] = FacingSideUtilsRef.WALL_SIDE_SW
 	result["interaction_side"] = result["wall_side"]
+	result["mount"] = "wall"
+	result["install_mode"] = "wall"
 	if not result.has("mount_height"):
 		result["mount_height"] = infer_default_mount_height(result)
 	return result
