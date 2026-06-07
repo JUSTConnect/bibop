@@ -3161,18 +3161,7 @@ func normalize_breach_side(value: String) -> String:
 	return BreachableWallServiceRef.normalize_breach_side(value)
 
 func get_grid_side_for_breach_side(breach_side: String) -> String:
-	# grid_to_iso projects +x as visual SE and +y as visual SW, so the
-	# breach-side ids are visual iso sides mapped back to gameplay grid sides.
-	match normalize_breach_side(breach_side):
-		"sw":
-			return "south"
-		"se":
-			return "east"
-		"nw":
-			return "west"
-		"ne":
-			return "north"
-	return "south"
+	return BreachableWallServiceRef.get_grid_side_for_breach_side(breach_side)
 
 func get_cell_for_breach_side(wall_cell: Vector2i, breach_side: String) -> Vector2i:
 	return wall_cell + _get_map_constructor_wall_side_delta(get_grid_side_for_breach_side(breach_side))

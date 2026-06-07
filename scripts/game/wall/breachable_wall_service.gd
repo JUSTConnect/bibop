@@ -29,6 +29,21 @@ static func normalize_breach_state(value: Variant) -> String:
 	return state if state in ["intact", "breached", "destroyed", "removed"] else "intact"
 
 
+static func get_grid_side_for_breach_side(breach_side: Variant) -> String:
+	# Grid-to-isometric projection maps grid north/east/south/west to visual
+	# NE/SE/SW/NW respectively. Breachable Wall side ids are visual iso sides.
+	match normalize_breach_side(breach_side):
+		"sw":
+			return "south"
+		"se":
+			return "east"
+		"nw":
+			return "west"
+		"ne":
+			return "north"
+	return "south"
+
+
 static func is_visible_breach_side(side: Variant) -> bool:
 	return VISIBLE_BREACH_SIDES.has(normalize_breach_side(side))
 
