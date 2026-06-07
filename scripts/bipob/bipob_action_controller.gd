@@ -159,8 +159,7 @@ static func handle_runtime_action_interact(controller: Variant, target_position:
 		return true
 
 	var world_object: Dictionary = Dictionary(controller.mission_manager.get_world_object_at_cell(target_position))
-	if world_object.is_empty() and controller.mission_manager.has_method("get_breachable_wall_action_target_at_cell"):
-		world_object = Dictionary(controller.mission_manager.call("get_breachable_wall_action_target_at_cell", target_position))
+	world_object = BipobTargetingServiceRef.resolve_runtime_action_target_for_cell(controller, target_position, world_object)
 	if world_object.is_empty():
 		return false
 	if controller.mission_manager.has_method("is_visual_only_floor_ground_object") and bool(controller.mission_manager.call("is_visual_only_floor_ground_object", world_object)):
