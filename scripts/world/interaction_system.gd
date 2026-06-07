@@ -3,6 +3,7 @@ class_name InteractionSystem
 const WorldObjectCatalogRef = preload("res://scripts/world/world_object_catalog.gd")
 const ObjectFacingServiceRef = preload("res://scripts/game/object/object_facing_service.gd")
 const BreachableWallRulesServiceRef = preload("res://scripts/game/wall/breachable_wall_rules_service.gd")
+const WallMountedPlacementRulesServiceRef = preload("res://scripts/game/wall/wall_mounted_placement_rules_service.gd")
 
 const SUPPORTED_ACTIONS := ["open","close","unlock","input_password","apply_digital_key","access_code_0","access_code_1","access_code_2","access_code_3","access_code_4","access_code_5","access_code_6","access_code_7","access_code_8","access_code_9","cut","impact","force_open","connect","scan","hack","download","drain_energy","pickup","use_item","insert_fuse","remove_fuse","repair","plug_in","plug_out","take_end_1","take_end_2","connect_wire_end","connect_wire_1","connect_wire_2","disconnect_power_wire","disconnect_wire_1","disconnect_wire_2","circuit_1","circuit_2","circuit_3","open_door","close_door","unlock_door","push","pull","breach","break_breachable_wall","switch","disable","enable","attack","stun","repair_ally"]
 
@@ -21,13 +22,22 @@ static func can_apply_action(actor: Dictionary, module: Dictionary, target_objec
 		return _result(false, "No target object.", [], "target_missing")
 	if BreachableWallRulesServiceRef.is_breachable_wall(target_object) and not BreachableWallRulesServiceRef.is_destroyed(target_object) and action_type != "break_breachable_wall":
 		return _result(false, "Use Heavy Claw from the cracked side.", [], "heavy_claw_breach_only")
-	var front_side_gate: Dictionary = ObjectFacingServiceRef.build_interaction_gate(
-		target_object,
-		WorldObjectCatalogRef.to_world_cell(target_object.get("position", actor.get("target_position", Vector2i(-1, -1))), Vector2i(-1, -1)),
-		WorldObjectCatalogRef.to_world_cell(actor.get("actor_position", Vector2i(-1, -1)), Vector2i(-1, -1))
-	)
-	if not bool(front_side_gate.get("success", true)):
-		return _result(false, str(front_side_gate.get("message", ObjectFacingServiceRef.FRONT_SIDE_HINT)), [], str(front_side_gate.get("reason", ObjectFacingServiceRef.FRONT_SIDE_REQUIRED_REASON)))
+	var target_placement_mode: String = str(target_object.get("placement_mode", target_object.get("placement", ""))).strip_edges().to_lower()
+	var is_wall_mounted_target: bool = target_placement_mode == "wall_mounted" or bool(target_object.get("is_wall_mounted", false))
+	if is_wall_mounted_target:
+		var actor_position_for_wall_mount: Vector2i = WorldObjectCatalogRef.to_world_cell(actor.get("actor_position", Vector2i(-1, -1)), Vector2i(-1, -1))
+		var wall_position_for_mount: Vector2i = WorldObjectCatalogRef.to_world_cell(target_object.get("attached_wall_cell", target_object.get("position", actor.get("target_position", Vector2i(-1, -1)))), Vector2i(-1, -1))
+		var wall_mount_gate: Dictionary = WallMountedPlacementRulesServiceRef.build_interaction_payload(target_object, actor_position_for_wall_mount - wall_position_for_mount)
+		if not bool(wall_mount_gate.get("can_interact", false)):
+			return _result(false, str(wall_mount_gate.get("message", "Object can be used only from its mounted side.")), [], "wrong_wall_side")
+	if not is_wall_mounted_target:
+		var front_side_gate: Dictionary = ObjectFacingServiceRef.build_interaction_gate(
+			target_object,
+			WorldObjectCatalogRef.to_world_cell(target_object.get("position", actor.get("target_position", Vector2i(-1, -1))), Vector2i(-1, -1)),
+			WorldObjectCatalogRef.to_world_cell(actor.get("actor_position", Vector2i(-1, -1)), Vector2i(-1, -1))
+		)
+		if not bool(front_side_gate.get("success", true)):
+			return _result(false, str(front_side_gate.get("message", ObjectFacingServiceRef.FRONT_SIDE_HINT)), [], str(front_side_gate.get("reason", ObjectFacingServiceRef.FRONT_SIDE_REQUIRED_REASON)))
 	if _is_door_object(target_object):
 		target_object = _normalize_runtime_door_data(target_object)
 		if action_type in ["open", "close"]:
