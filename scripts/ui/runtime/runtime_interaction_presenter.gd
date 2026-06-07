@@ -12,22 +12,29 @@ static func refresh(ui) -> void:
 		return
 	var target_data: Dictionary = RuntimeInteractionPanelRef.get_target_data(ui)
 	var target_object: Dictionary = ui._safe_ui_dictionary(target_data.get("target_object", {}))
+	var action_view_model: Dictionary = ui._safe_ui_dictionary(target_data.get("action_view_model", {}))
 	var actions: Array = ui._safe_ui_array(target_data.get("actions", []))
 	var physical_actions: Array[String] = RuntimeInteractionPanelRef.get_physical_actions(actions)
 	var connect_descriptor: Dictionary = RuntimeInteractionPanelRef.get_connect_descriptor(target_data)
 	var heavy_claw_descriptor: Dictionary = RuntimeInteractionPanelRef.get_heavy_claw_descriptor(target_data)
-	var has_interactable: bool = not target_object.is_empty() and not physical_actions.is_empty()
+	var has_interactable: bool = not target_object.is_empty() and bool(action_view_model.get("has_interaction_target", false))
+	var has_enabled_physical_action: bool = not physical_actions.is_empty()
 	if has_interactable and not ui.runtime_interaction_mode_active and ui.runtime_action_button != null:
 		ui._apply_selected_pulse(ui.runtime_action_button)
 	elif not has_interactable and ui.runtime_action_button != null:
 		ui._clear_selected_pulse(ui.runtime_action_button)
 	var has_actions_left: bool = ui.bipob != null and int(ui.bipob.actions_left) > 0
-	if ui.runtime_interaction_mode_active and (not has_interactable or not has_actions_left):
+	if ui.runtime_interaction_mode_active and (not has_enabled_physical_action or not has_actions_left):
 		ui.runtime_interaction_mode_active = false
 	if ui.runtime_action_button != null:
+		var button_hint: String = str(action_view_model.get("primary_action_label", ""))
+		if button_hint.is_empty():
+			button_hint = str(action_view_model.get("disabled_reason", "No physical action available."))
+		if button_hint.is_empty():
+			button_hint = "No physical action available."
 		ui.runtime_action_button.text = "Cancel" if ui.runtime_interaction_mode_active else "Action"
 		ui.runtime_action_button.disabled = not ui.runtime_interaction_mode_active and not has_interactable
-		ui.runtime_action_button.tooltip_text = "" if has_interactable else "No physical action available."
+		ui.runtime_action_button.tooltip_text = "" if has_enabled_physical_action else button_hint
 		ui._apply_action_button_style(ui.runtime_action_button, "danger" if ui.runtime_interaction_mode_active else ("primary" if has_interactable else "disabled"), ui.runtime_interaction_mode_active or has_interactable)
 		if ui.runtime_interaction_mode_active:
 			ui._apply_selected_pulse(ui.runtime_action_button)

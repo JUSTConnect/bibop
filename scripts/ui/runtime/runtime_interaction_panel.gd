@@ -92,6 +92,7 @@ static func press_interact(ui) -> void:
 		return
 	var target_data: Dictionary = get_target_data(ui)
 	var target_object: Dictionary = ui._safe_ui_dictionary(target_data.get("target_object", {}))
+	var action_view_model: Dictionary = ui._safe_ui_dictionary(target_data.get("action_view_model", {}))
 	var actions: Array[String] = get_physical_actions(ui._safe_ui_array(target_data.get("actions", [])))
 	if not target_object.is_empty() and not actions.is_empty():
 		if is_manipulator_blocked(ui, target_object, actions):
@@ -99,6 +100,16 @@ static func press_interact(ui) -> void:
 			refresh_controls(ui)
 			return
 		enter_mode(ui)
+		return
+	if not target_object.is_empty() and bool(action_view_model.get("has_interaction_target", false)):
+		var unavailable_label: String = str(action_view_model.get("primary_action_label", ""))
+		if unavailable_label.is_empty() or unavailable_label == "Action":
+			unavailable_label = str(action_view_model.get("disabled_reason", ""))
+		if unavailable_label.is_empty():
+			unavailable_label = "No physical action available."
+		ui.show_hint(unavailable_label)
+		refresh_controls(ui)
+		ui.update_status()
 		return
 	ui.show_hint("No physical action available. Face an interactable object first.")
 	refresh_controls(ui)

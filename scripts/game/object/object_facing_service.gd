@@ -45,8 +45,11 @@ static func should_require_front_side(object_data: Dictionary) -> bool:
 		return false
 	var object_type: String = str(object_data.get("object_type", object_data.get("type", ""))).strip_edges().to_lower()
 	var object_group: String = str(object_data.get("object_group", object_data.get("group", ""))).strip_edges().to_lower()
-	if object_group in FRONT_ACCESS_OBJECT_GROUPS:
+	if object_group in FRONT_ACCESS_OBJECT_GROUPS or object_type in ["terminal", "door"]:
 		return true
+	var placement_mode: String = str(object_data.get("placement_mode", object_data.get("placement", ""))).strip_edges().to_lower()
+	if placement_mode != "wall_mounted":
+		return false
 	for required_type in FRONT_ACCESS_OBJECT_TYPES:
 		if object_type == required_type or object_type.contains(required_type):
 			return true
