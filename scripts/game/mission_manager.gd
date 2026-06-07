@@ -23,6 +23,7 @@ const PlatformRotationServiceRef = preload("res://scripts/game/platform/platform
 const BipobCableRuntimeServiceRef = preload("res://scripts/game/bipob_cable_runtime_service.gd")
 const BipobAirflowRuntimeServiceRef = preload("res://scripts/game/bipob_airflow_runtime_service.gd")
 const BreachableWallServiceRef = preload("res://scripts/game/wall/breachable_wall_service.gd")
+const BreachableWallRulesServiceRef = preload("res://scripts/game/wall/breachable_wall_rules_service.gd")
 const VisualAssetCatalogRef = preload("res://scripts/visual/visual_asset_catalog.gd")
 const DEVICE_INTERACTION_FLOW_STATES: Array[String] = ["no_target", "unknown", "scanned", "diagnosed", "ready", "blocked", "executed_unavailable"]
 
@@ -4129,16 +4130,30 @@ func break_breachable_wall_at_cell(cell: Vector2i, tool_id: String = "heavy_claw
 	var wall_data: Dictionary = get_breachable_wall_action_target_at_cell(cell)
 	if wall_data.is_empty():
 		return {"ok": false, "message": "No Breachable Wall at target cell."}
-	if not Array(wall_data.get("breach_tools", [])).has(tool_id):
+	if tool_id != BreachableWallRulesServiceRef.BREACH_TOOL_HEAVY_CLAW:
 		return {"ok": false, "message": "Heavy Claw required."}
-	if actor_cell.x >= 0 and actor_cell.y >= 0 and not is_bipob_on_breach_side(cell, actor_cell, str(wall_data.get("breach_side", "sw"))):
-		return {"ok": false, "message": "Break is available only from the selected Breach Side."}
+	if not Array(wall_data.get("breach_tools", [BreachableWallRulesServiceRef.BREACH_TOOL_HEAVY_CLAW])).has(tool_id):
+		return {"ok": false, "message": "Heavy Claw cannot breach this wall."}
 	if grid_manager == null or not grid_manager.has_method("set_tile"):
 		return {"ok": false, "message": "Grid is unavailable."}
+	var approach_direction: Vector2i = Vector2i.ZERO
+	if actor_cell.x >= 0 and actor_cell.y >= 0:
+		approach_direction = actor_cell - cell
+	var rules_wall: Dictionary = _build_breachable_wall_rules_data(wall_data)
+	var breach_result: Dictionary = BreachableWallRulesServiceRef.apply_heavy_claw_breach(rules_wall, approach_direction, true)
+	if not bool(breach_result.get("ok", false)):
+		return {"ok": false, "message": str(breach_result.get("message", "Cannot break wall.")), "cell": cell, "tool_id": tool_id}
 	grid_manager.call("set_tile", cell, GridManager.TILE_FLOOR)
 	_clear_map_constructor_wall_material_overrides_for_wall_cell(cell)
-	_record_map_constructor_change("breach_wall", {"cell":cell, "summary":"Breachable Wall cleared at %s" % _format_map_constructor_cell(cell), "details":{"tool_id":tool_id}})
-	return {"ok": true, "message": "Wall breached. Breachable Wall broken.", "cell": cell, "tool_id": tool_id}
+	_record_map_constructor_change("breach_wall", {"cell":cell, "summary":"Breachable Wall cleared at %s" % _format_map_constructor_cell(cell), "details":{"tool_id":tool_id, "wall_state":BreachableWallRulesServiceRef.WALL_STATE_DESTROYED}})
+	return {"ok": true, "message": "Wall breached. Breachable Wall broken.", "cell": cell, "tool_id": tool_id, "wall_data": Dictionary(breach_result.get("wall_data", {})), "requires_visual_refresh": bool(breach_result.get("requires_visual_refresh", true))}
+
+func _build_breachable_wall_rules_data(wall_data: Dictionary) -> Dictionary:
+	var rules_wall: Dictionary = wall_data.duplicate(true)
+	rules_wall["is_breachable"] = BreachableWallServiceRef.is_breachable_wall_data(wall_data)
+	rules_wall["wall_state"] = str(wall_data.get("wall_state", wall_data.get("breach_state", wall_data.get("state", "intact"))))
+	rules_wall["crack_side"] = get_grid_side_for_breach_side(str(wall_data.get("breach_side", wall_data.get("crack_side", "sw"))))
+	return rules_wall
 
 func get_map_constructor_wall_material_overrides() -> Dictionary:
 	if not _is_task_test_constructor_context():

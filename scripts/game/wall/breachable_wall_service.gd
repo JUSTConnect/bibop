@@ -93,8 +93,10 @@ static func normalize_runtime_breachable_wall_data(data: Dictionary) -> Dictiona
 	var state: String = normalize_breach_state(normalized.get("breach_state", normalized.get("state", "intact")))
 	normalized["breach_state"] = state
 	normalized["state"] = state
-	normalized["blocks_movement"] = not is_breachable_wall_destroyed(normalized)
-	normalized["blocks_vision"] = not is_breachable_wall_destroyed(normalized)
+	var destroyed: bool = is_breachable_wall_destroyed(normalized)
+	normalized["blocks_movement"] = not destroyed
+	normalized["blocks_vision"] = not destroyed
+	normalized["blocks_line_of_sight"] = not destroyed
 	normalized["supports_embedded_objects"] = false
 	normalized["supports_cables"] = false
 	if not normalized.has("breach_tools"):
