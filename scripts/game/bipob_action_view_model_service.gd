@@ -179,6 +179,8 @@ static func _runtime_action_disabled_label(controller: Variant, action_id: Strin
 	match reason:
 		"key_card_required": return "Key-card required"
 		"free_manipulator_required": return "Free manipulator required"
+		"manipulator_required": return "Manipulator required"
+		"fuse_required": return "Fuse required"
 		"power_must_be_cut": return "Cut power to open"
 		"terminal_control_required": return "Use linked terminal"
 		"digital_access_required": return "Digital access required"

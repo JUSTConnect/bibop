@@ -322,10 +322,7 @@ const MAP_CONSTRUCTOR_WALL_MOUNTED_PREFABS: Dictionary = {
 	"light": true,
 	"light_switch": true,
 	"circuit_breaker": true,
-	"fuse_box": true,
-	"firewall": true,
-	"power_socket": true,
-	"power_switcher": true
+	"firewall": true
 }
 
 # Compatibility-only inventory of historic constructor solids. Runtime placement
@@ -3809,7 +3806,8 @@ func preview_map_constructor_batch_operation(operation_type: String, entities: A
 		elif op == "move_selected" or op == "duplicate_selected":
 			op_row["operation"] = "move" if op == "move_selected" else "duplicate"
 			var prefab_id: String = str(data.get("map_constructor_prefab_id", data.get("object_type", "")))
-			var check: Dictionary = can_place_map_constructor_prefab(prefab_id, to_cell, str(data.get("wall_side", "")))
+			var placement_mode_override: String = str(data.get("placement_mode", data.get("placement", "")))
+			var check: Dictionary = can_place_map_constructor_prefab(prefab_id, to_cell, str(data.get("wall_side", "")), placement_mode_override)
 			if not bool(check.get("ok", false)):
 				conflicts.append({"entity_id":entity_id, "from_cell":from_cell, "to_cell":to_cell, "reason":str(check.get("reason", "blocked")), "message":str(check.get("message", "Blocked."))})
 				continue
@@ -14126,7 +14124,8 @@ func _preview_map_constructor_entry_set(entries: Array, anchor_cell: Vector2i, o
 		if bool(MAP_CONSTRUCTOR_WALL_MOUNTED_PREFABS.get(str(entry.get("prefab_id", "")), false)) and wall_side.is_empty():
 			conflicts.append({"prefab_id":str(entry.get("prefab_id", "")), "cell": cell, "reason":"missing_wall_side", "message":"Wall-mounted prefab requires wall_side."})
 			continue
-		var check: Dictionary = can_place_map_constructor_prefab(str(entry.get("prefab_id", "")), cell, wall_side)
+		var placement_mode_override: String = str(entry.get("placement_mode", entry.get("mounting_mode", "")))
+		var check: Dictionary = can_place_map_constructor_prefab(str(entry.get("prefab_id", "")), cell, wall_side, placement_mode_override)
 		if not bool(check.get("ok", false)):
 			conflicts.append({"prefab_id":str(entry.get("prefab_id", "")),"cell":cell,"reason":str(check.get("reason", "blocked")),"message":str(check.get("message", "Blocked."))})
 		affected.append({"prefab_id":str(entry.get("prefab_id", "")), "cell": cell})

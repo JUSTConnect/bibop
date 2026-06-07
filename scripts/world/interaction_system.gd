@@ -94,6 +94,14 @@ static func can_apply_action(actor: Dictionary, module: Dictionary, target_objec
 			return _result(false, "Connector Version too low.", [], "connector_level_too_low")
 	if action_type == "pickup" and actor.get("manipulator_occupied", false) and not _is_keycard_item(target_object):
 		return _result(false, "Free manipulator required.")
+	if action_type in ["switch", "remove_fuse", "plug_in", "plug_out"]:
+		if not module_id.begins_with("manipulator_arm_v"):
+			return _result(false, "Manipulator required.", [], "manipulator_required")
+		if bool(actor.get("manipulator_occupied", false)):
+			return _result(false, "Free manipulator required.", [], "free_manipulator_required")
+	if action_type == "insert_fuse":
+		if module_id != "fuse":
+			return _result(false, "Fuse required.", [], "fuse_required")
 	if action_type == "hack" and actor.get("processor_level", 0) < target_object.get("required_processor_level", 1):
 		return _result(false, "Hacking impossible")
 	if action_type == "download":
@@ -340,7 +348,7 @@ static func apply_action(actor: Dictionary, module: Dictionary, target_object: D
 			if bool(target_object.get("fuse_installed", false)) or str(target_object.get("state", "")) == "installed":
 				return _result(false, "Fuse already installed.")
 			if module_id != "fuse":
-				return _result(false, "Manipulator does not contain a fuse.")
+				return _result(false, "Fuse required.", [], "fuse_required")
 			target_object["state"] = "installed"
 			target_object["fuse_installed"] = true
 			return _result(true, "Fuse installed.", [{"type":"set_state","state":"installed"},{"type":"set_bool","field":"fuse_installed","value":true},{"type":"set_bool","field":"fuse_present","value":true},{"type":"power_recalc_needed"}])
