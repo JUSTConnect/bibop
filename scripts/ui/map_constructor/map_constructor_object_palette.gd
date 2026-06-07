@@ -335,7 +335,7 @@ static func select_prefab(ui: Variant, prefab_id: String) -> void:
 			if ui._safe_ui_string(entry.get("placement_mode", "")).to_lower() == "wall_mounted":
 				ui.selected_map_constructor_mounting_mode = "wall_mounted"
 			break
-	var wall_mounted_prefab_defaults: Dictionary = {"light": true, "light_switch": true, "fuse_box": true, "circuit_breaker": true}
+	var wall_mounted_prefab_defaults: Dictionary = {"light": true, "light_switch": true, "fuse_box": true, "circuit_breaker": true, "power_socket": true, "power_switcher": true}
 	if bool(wall_mounted_prefab_defaults.get(prefab_id.strip_edges().to_lower(), false)):
 		ui.selected_map_constructor_mounting_mode = "wall_mounted"
 	ui.available_map_constructor_wall_sides.clear()

@@ -323,7 +323,9 @@ const MAP_CONSTRUCTOR_WALL_MOUNTED_PREFABS: Dictionary = {
 	"light_switch": true,
 	"circuit_breaker": true,
 	"fuse_box": true,
-	"firewall": true
+	"firewall": true,
+	"power_socket": true,
+	"power_switcher": true
 }
 
 # Compatibility-only inventory of historic constructor solids. Runtime placement
@@ -2433,6 +2435,8 @@ func _get_world_object_lookup_priority(object_data: Dictionary) -> int:
 		score += 10
 	if CableTopologyServiceRef.is_cable_object(object_data):
 		score -= 8
+	if str(object_data.get("placement_mode", object_data.get("placement", ""))).to_lower() == "wall_mounted" or bool(object_data.get("is_wall_mounted", false)):
+		score += 30
 	if object_type.find("door") != -1 or object_type.find("gate") != -1 or object_type.find("terminal") != -1 or object_type.find("device") != -1:
 		score += 5
 	return score
@@ -3541,6 +3545,13 @@ func is_breachable_wall_cell(cell: Vector2i) -> bool:
 	var wall_data: Dictionary = get_breachable_wall_action_target_at_cell(cell)
 	return not wall_data.is_empty()
 
+const DEBUG_WALL_MOUNTED_PLACEMENT_TRACE := false
+
+func _trace_wall_mounted_placement(event_name: String, payload: Dictionary) -> void:
+	if not DEBUG_WALL_MOUNTED_PLACEMENT_TRACE:
+		return
+	print("[WallMountedPlacement:%s] %s" % [event_name, JSON.stringify(payload)])
+
 func can_place_map_constructor_prefab(prefab_id: String, cell: Vector2i, preferred_wall_side: String = "", placement_mode_override: String = "") -> Dictionary:
 	var result: Dictionary = {"ok": false, "reason": "unsupported_prefab", "message": "Blocked: unsupported prefab.", "cell_state": get_runtime_cell_state(cell)}
 	var is_supported: bool = false
@@ -3557,7 +3568,7 @@ func can_place_map_constructor_prefab(prefab_id: String, cell: Vector2i, preferr
 	var requested_mounting_mode: String = placement_mode_override.strip_edges().to_lower()
 	var prefab_metadata: Dictionary = get_map_constructor_prefab_metadata(prefab_id)
 	var prefab_metadata_row: Dictionary = _safe_dictionary(prefab_metadata.get("prefab", {}))
-	var prefab_is_wall_mounted: bool = str(prefab_metadata_row.get("placement_mode", "")) == "wall_mounted" or bool(MAP_CONSTRUCTOR_WALL_MOUNTED_PREFABS.get(prefab_id, false))
+	var prefab_is_wall_mounted: bool = str(prefab_metadata_row.get("placement_mode", "")) == "wall_mounted"
 	if requested_mounting_mode == "wall_mounted":
 		prefab_is_wall_mounted = true
 	elif requested_mounting_mode == "stationary":
@@ -3590,6 +3601,7 @@ func can_place_map_constructor_prefab(prefab_id: String, cell: Vector2i, preferr
 	var prefab_is_door_or_gate: bool = str(canonical_prefab_template.get("group", "")) == "door"
 	var prefab_is_floor_replacement: bool = prefab_id == "floor" or prefab_id == "stepped_floor"
 	var direct_wall_cell_mount: bool = prefab_is_wall_mounted and tile_is_wall
+	_trace_wall_mounted_placement("can_place", {"clicked_cell": cell, "selected_cell": cell, "placement_mode_override": placement_mode_override, "prefab_id": prefab_id, "is_wall_cell": tile_is_wall, "direct_wall_cell_mount": direct_wall_cell_mount, "wall_side": preferred_wall_side})
 	if direct_wall_cell_mount and is_breachable_wall_cell(cell):
 		result["reason"] = "breachable_wall_blocks_wall_mount"
 		result["message"] = "Cannot mount on a Breachable Wall."
@@ -3619,11 +3631,12 @@ func can_place_map_constructor_prefab(prefab_id: String, cell: Vector2i, preferr
 	var existing_object: Dictionary = get_world_object_at_cell(cell)
 	var existing_object_is_cable_layer: bool = CableTopologyServiceRef.is_cable_object(existing_object)
 	var allow_cable_layer_stack: bool = prefab_is_cable_layer or (existing_object_is_cable_layer and not prefab_is_item)
-	if not prefab_is_item and not existing_object.is_empty() and not allow_cable_layer_stack:
+	var existing_object_is_wall_mount: bool = str(existing_object.get("placement_mode", existing_object.get("placement", ""))).to_lower() == "wall_mounted" or bool(existing_object.get("is_wall_mounted", false))
+	if not prefab_is_item and not existing_object.is_empty() and not allow_cable_layer_stack and not (direct_wall_cell_mount and (str(existing_object.get("object_group", "")).to_lower() == "wall" or existing_object_is_wall_mount)):
 		result["reason"] = "existing_object"
 		result["message"] = "Blocked: existing object."
 		return result
-	if bool(cell_state.get("has_object", false)) and bool(cell_state.get("blocks_movement", false)) and WorldObjectCatalogRef.is_constructor_solid_prefab(prefab_id) and not prefab_is_cable_layer and not existing_object_is_cable_layer:
+	if bool(cell_state.get("has_object", false)) and bool(cell_state.get("blocks_movement", false)) and WorldObjectCatalogRef.is_constructor_solid_prefab(prefab_id) and not prefab_is_cable_layer and not existing_object_is_cable_layer and not direct_wall_cell_mount:
 		result["reason"] = "wall_or_static"
 		result["message"] = "Blocked: wall/static obstacle."
 		return result

@@ -4699,6 +4699,9 @@ func get_iso_object_visual_profiles() -> Dictionary:
 		"circuit_breaker": {"base": Color(0.22, 0.23, 0.24, 0.97), "accent": Color(0.95, 0.88, 0.52, 0.99), "outline": Color(0.13, 0.14, 0.15, 0.94), "label": "Circuit Breaker", "shape": "wall_breaker_box"},
 		"fuse_box": {"base": Color(0.2, 0.21, 0.24, 0.97), "accent": Color(0.72, 0.82, 0.92, 0.99), "outline": Color(0.12, 0.13, 0.16, 0.94), "label": "Fuse Box", "shape": "wall_fuse_box"},
 		"light_switch": {"base": Color(0.26, 0.25, 0.23, 0.97), "accent": Color(0.98, 0.94, 0.75, 0.99), "outline": Color(0.14, 0.13, 0.12, 0.94), "label": "Light Switch", "shape": "wall_light_switch"},
+		"power_switcher": {"base": Color(0.26, 0.25, 0.23, 0.97), "accent": Color(0.98, 0.94, 0.75, 0.99), "outline": Color(0.14, 0.13, 0.12, 0.94), "label": "Power Switcher", "shape": "wall_light_switch"},
+		"power_socket": {"base": Color(0.21, 0.22, 0.25, 0.97), "accent": Color(0.78, 0.88, 1.0, 0.99), "outline": Color(0.11, 0.12, 0.15, 0.94), "label": "Power Socket", "shape": "wall_socket"},
+		"light": {"base": Color(0.92, 0.86, 0.48, 0.97), "accent": Color(1.0, 0.96, 0.65, 0.99), "outline": Color(0.42, 0.36, 0.14, 0.94), "label": "Light", "shape": "wall_light"},
 		"power_cable_reel": {"base": Color(0.2, 0.2, 0.22, 0.97), "accent": Color(0.89, 0.76, 0.47, 0.99), "outline": Color(0.11, 0.11, 0.12, 0.94), "label": "Power Cable Reel", "shape": "wall_cable_reel"},
 		"exit": {"base": Color(0.14, 0.3, 0.21, 0.95), "accent": Color(0.48, 0.95, 0.69, 0.95), "outline": Color(0.07, 0.16, 0.11, 0.92), "label": "Exit", "shape": "slab"},
 		"key": {"base": Color(0.31, 0.26, 0.12, 0.95), "accent": Color(0.95, 0.83, 0.35, 0.95), "outline": Color(0.2, 0.16, 0.08, 0.92), "label": "Key", "shape": "small_marker"},
@@ -5256,7 +5259,7 @@ func get_wall_mounted_object_profile_key(cell: Vector2i) -> String:
 	for candidate in candidates:
 		var normalized: String = candidate.strip_edges().to_lower()
 		match normalized:
-			"door_terminal", "platform_terminal", "cooling_terminal", "firewall", "circuit_breaker", "fuse_box", "light_switch", "power_cable_reel":
+			"door_terminal", "platform_terminal", "cooling_terminal", "firewall", "circuit_breaker", "fuse_box", "light_switch", "power_switcher", "power_socket", "light", "power_cable_reel":
 				return normalized
 	return ""
 
@@ -5362,6 +5365,28 @@ func draw_iso_wall_light_switch(center: Vector2, profile: Dictionary) -> void:
 	if debug_draw_iso_object_outlines:
 		draw_rect(plate, outline_color, false, 1.0)
 
+func draw_iso_socket(center: Vector2, profile: Dictionary) -> void:
+	var base_color: Color = _get_color_from_dict(profile, "base", Color.WHITE)
+	var accent_color: Color = _get_color_from_dict(profile, "accent", Color.WHITE)
+	var outline_color: Color = _get_color_from_dict(profile, "outline", Color.WHITE)
+	var plate: Rect2 = Rect2(center + Vector2(-5.0, -13.0), Vector2(10.0, 9.0))
+	draw_rect(plate, base_color, true)
+	draw_circle(plate.position + Vector2(3.2, 4.5), 1.1, accent_color)
+	draw_circle(plate.position + Vector2(6.8, 4.5), 1.1, accent_color)
+	if debug_draw_iso_object_outlines:
+		draw_rect(plate, outline_color, false, 1.0)
+
+func draw_iso_light_marker(center: Vector2, profile: Dictionary) -> void:
+	var base_color: Color = _get_color_from_dict(profile, "base", Color.WHITE)
+	var accent_color: Color = _get_color_from_dict(profile, "accent", Color.WHITE)
+	var outline_color: Color = _get_color_from_dict(profile, "outline", Color.WHITE)
+	var lamp_center: Vector2 = center + Vector2(0.0, -11.0)
+	draw_circle(lamp_center, 5.0, base_color)
+	draw_circle(lamp_center, 2.7, accent_color)
+	draw_line(lamp_center + Vector2(-5.0, 4.0), lamp_center + Vector2(5.0, 4.0), outline_color, 1.0)
+	if debug_draw_iso_object_outlines:
+		draw_arc(lamp_center, 5.0, 0.0, PI * 2.0, 24, outline_color, 1.0)
+
 func draw_iso_wall_cable_reel(center: Vector2, profile: Dictionary) -> void:
 	var base_color: Color = _get_color_from_dict(profile, "base", Color.WHITE)
 	var accent_color: Color = _get_color_from_dict(profile, "accent", Color.WHITE)
@@ -5394,8 +5419,14 @@ func draw_wall_mounted_object_shape(_cell: Vector2i, profile_key: String, profil
 		"fuse_box":
 			draw_iso_wall_fuse_box(visual_center, profile)
 			return true
-		"light_switch":
+		"light_switch", "power_switcher":
 			draw_iso_wall_light_switch(visual_center, profile)
+			return true
+		"power_socket":
+			draw_iso_socket(visual_center, profile)
+			return true
+		"light":
+			draw_iso_light_marker(visual_center, profile)
 			return true
 		"power_cable_reel":
 			draw_iso_wall_cable_reel(visual_center, profile)
