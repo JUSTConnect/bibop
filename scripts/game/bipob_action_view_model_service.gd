@@ -7,6 +7,7 @@ const WorldObjectCatalogRef = preload("res://scripts/world/world_object_catalog.
 const BreachableWallServiceRef = preload("res://scripts/game/wall/breachable_wall_service.gd")
 const BreachableWallRulesServiceRef = preload("res://scripts/game/wall/breachable_wall_rules_service.gd")
 const WallMountedPlacementRulesServiceRef = preload("res://scripts/game/wall/wall_mounted_placement_rules_service.gd")
+const BipobTargetingServiceRef = preload("res://scripts/game/bipob_targeting_service.gd")
 
 const DEBUG_BREACHABLE_WALL_RUNTIME_TRACE := false
 const DEBUG_WALL_MOUNTED_INTERACTION_TRACE := false
@@ -21,7 +22,7 @@ static func build_runtime_action_view_model(controller: Variant, target_object: 
 		normalized_target = WorldObjectCatalogRef.normalize_door_state_fields(normalized_target)
 	var wall_mount_gate: Dictionary = _build_wall_mounted_interaction_payload(controller, normalized_target, target_position)
 	if not wall_mount_gate.is_empty() and not bool(wall_mount_gate.get("can_interact", false)):
-		return {"target":normalized_target, "actions":[], "available_action_ids":[], "primary_action_id":"", "primary_action_label":"Action", "has_available_action":false, "disabled_reason":"wrong_wall_side", "wall_mounted_interaction":wall_mount_gate}
+		return {"target":normalized_target, "actions":[], "raw_action_ids":[], "available_action_ids":[], "primary_action_id":"", "primary_action_label":ObjectFacingServiceRef.FRONT_SIDE_HINT, "has_available_action":false, "has_interaction_target":true, "disabled_reason":"wrong_wall_side", "wall_mounted_interaction":wall_mount_gate}
 	var raw_action_ids: Array = []
 	if not normalized_target.is_empty():
 		raw_action_ids = controller.get_available_world_actions(normalized_target, target_position)
@@ -73,7 +74,7 @@ static func build_runtime_action_view_model(controller: Variant, target_object: 
 			enabled = false
 			reason = "unpowered"
 		var label: String = controller.get_world_action_display_label(action_id, normalized_target) if enabled else _runtime_action_disabled_label(controller, action_id, reason, normalized_target)
-		descriptors.append({"id":action_id, "label":label, "enabled":enabled, "reason":reason, "target_id":target_id, "target_type":target_type, "target_cell":target_position, "source":"world_object", "priority":100, "requires_free_manipulator":requires_free_manipulator})
+		descriptors.append({"id":action_id, "label":label, "enabled":enabled, "reason":reason, "target_id":target_id, "target_type":target_type, "target_cell":target_position, "source":"world_object", "priority":100, "requires_free_manipulator":requires_free_manipulator, "module_id":str(module.get("id", "")), "module":module, "gate":gate})
 		if enabled:
 			available_action_ids.append(action_id)
 	var primary: Dictionary = {}
@@ -84,10 +85,12 @@ static func build_runtime_action_view_model(controller: Variant, target_object: 
 	if primary.is_empty() and not descriptors.is_empty():
 		primary = descriptors[0]
 	var disabled_reason: String = str(primary.get("reason", "target_missing" if normalized_target.is_empty() else "no_available_action"))
-	var view_model: Dictionary = {"target":normalized_target, "actions":descriptors, "available_action_ids":available_action_ids, "primary_action_id":str(primary.get("id", "")), "primary_action_label":str(primary.get("label", "Action")), "has_available_action":not available_action_ids.is_empty(), "disabled_reason":disabled_reason}
+	var has_interaction_target: bool = not normalized_target.is_empty() and (not descriptors.is_empty() or not wall_mount_gate.is_empty())
+	var view_model: Dictionary = {"target":normalized_target, "actions":descriptors, "raw_action_ids":raw_action_ids, "available_action_ids":available_action_ids, "primary_action_id":str(primary.get("id", "")), "primary_action_label":str(primary.get("label", "Action")), "has_available_action":not available_action_ids.is_empty(), "has_interaction_target":has_interaction_target, "disabled_reason":disabled_reason}
 	if not wall_mount_gate.is_empty():
 		_trace_wall_mounted_interaction({"target_position": target_position, "object_id": target_id, "object_type": target_type, "actor_cell": wall_mount_gate.get("actor_cell", Vector2i(-1, -1)), "wall_cell": wall_mount_gate.get("wall_cell", Vector2i(-1, -1)), "approach_direction": wall_mount_gate.get("approach_direction", Vector2i.ZERO), "wall_side": str(wall_mount_gate.get("wall_side", "")), "interaction_side": str(wall_mount_gate.get("interaction_side", "")), "available_actions": available_action_ids})
 	_trace_breachable_wall_runtime_view_model(controller, target_position, normalized_target, raw_action_ids, view_model)
+	_trace_runtime_action_view_model(controller, target_position, normalized_target, raw_action_ids, available_action_ids, view_model)
 	return view_model
 
 
@@ -138,6 +141,40 @@ static func _trace_breachable_wall_runtime_view_model(controller: Variant, targe
 	print("[breachable_wall_runtime] %s" % var_to_str(trace))
 
 
+static func _trace_runtime_action_view_model(controller: Variant, target_position: Vector2i, target_object: Dictionary, raw_action_ids: Array, filtered_action_ids: Array, view_model: Dictionary) -> void:
+	if not BipobTargetingServiceRef.DEBUG_RUNTIME_ACTION_TARGET_TRACE:
+		return
+	var grid_position: Vector2i = Vector2i.ZERO
+	var direction_text: String = ""
+	if controller != null:
+		grid_position = Vector2i(controller.grid_position)
+		if controller.has_method("get_direction"):
+			direction_text = str(controller.call("get_direction"))
+	var action_descriptors: Array = Array(view_model.get("actions", []))
+	var rejected_actions: Array[Dictionary] = []
+	for descriptor_variant in action_descriptors:
+		if descriptor_variant is Dictionary:
+			var descriptor: Dictionary = Dictionary(descriptor_variant)
+			if not bool(descriptor.get("enabled", false)):
+				rejected_actions.append({"action_id": str(descriptor.get("id", "")), "module_id": str(descriptor.get("module_id", "")), "module": descriptor.get("module", {}), "gate": descriptor.get("gate", {}), "reason": str(descriptor.get("reason", "")), "message": str(Dictionary(descriptor.get("gate", {})).get("message", ""))})
+	var trace: Dictionary = {
+		"bipob_cell": grid_position,
+		"facing_cell": target_position,
+		"direction": direction_text,
+		"raw_object": {"id": str(target_object.get("id", "")), "object_type": str(target_object.get("object_type", "")), "object_group": str(target_object.get("object_group", "")), "state": str(target_object.get("state", "")), "placement_mode": str(target_object.get("placement_mode", target_object.get("placement", "")))},
+		"normalized_object": {"id": str(Dictionary(view_model.get("target", {})).get("id", target_object.get("id", ""))), "object_type": str(Dictionary(view_model.get("target", {})).get("object_type", target_object.get("object_type", ""))), "object_group": str(Dictionary(view_model.get("target", {})).get("object_group", target_object.get("object_group", ""))), "state": str(Dictionary(view_model.get("target", {})).get("state", target_object.get("state", ""))), "placement_mode": str(Dictionary(view_model.get("target", {})).get("placement_mode", Dictionary(view_model.get("target", {})).get("placement", target_object.get("placement_mode", target_object.get("placement", "")))))},
+		"raw_action_ids": raw_action_ids,
+		"actions_after_filtering": filtered_action_ids,
+		"action_descriptors": action_descriptors,
+		"rejected_or_disabled_actions": rejected_actions,
+		"primary_action_id": str(view_model.get("primary_action_id", "")),
+		"primary_action_label": str(view_model.get("primary_action_label", "")),
+		"has_interaction_target": bool(view_model.get("has_interaction_target", false)),
+		"disabled_reason": str(view_model.get("disabled_reason", ""))
+	}
+	print("[runtime_action_view_model] %s" % var_to_str(trace))
+
+
 static func _has_heavy_claw_for_breach(controller: Variant) -> bool:
 	return controller != null and controller.has_method("has_heavy_claw_capability") and bool(controller.call("has_heavy_claw_capability"))
 
@@ -186,6 +223,7 @@ static func _runtime_action_disabled_label(controller: Variant, action_id: Strin
 		"digital_access_required": return "Digital access required"
 		"unpowered": return "Unpowered"
 		"wrong_breach_side": return "Cracked side only"
+		"wrong_wall_side": return ObjectFacingServiceRef.FRONT_SIDE_HINT
 		"wrong_front_side": return ObjectFacingServiceRef.FRONT_SIDE_HINT
 		"heavy_claw_required": return "Heavy Claw required"
 	if BreachableWallServiceRef.is_breachable_wall_data(target_object) and action_id == BreachableWallServiceRef.ACTION_BREAK_BREACHABLE_WALL:

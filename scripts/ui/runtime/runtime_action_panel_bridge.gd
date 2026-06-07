@@ -58,9 +58,10 @@ func process_feedback(delta: float) -> void:
 		return
 	var target_data: Dictionary = get_target_data()
 	var target_object: Dictionary = Dictionary(target_data.get("target_object", {}))
+	var action_view_model: Dictionary = get_action_view_model()
 	var actions: Array = Array(target_data.get("actions", []))
 	var physical_actions: Array[String] = RuntimeInteractionPanelRef.get_physical_actions(actions)
-	var has_interactable: bool = not target_object.is_empty() and not physical_actions.is_empty()
+	var has_interactable: bool = not target_object.is_empty() and bool(action_view_model.get("has_interaction_target", false))
 	if has_interactable and not ui.runtime_interaction_mode_active and ui.runtime_action_button != null:
 		ui._apply_selected_pulse(ui.runtime_action_button)
 	var has_actions_left: bool = int(ui.bipob.actions_left) > 0

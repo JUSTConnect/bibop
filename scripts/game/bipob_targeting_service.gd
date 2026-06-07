@@ -78,15 +78,28 @@ static func build_action_target_context(controller: Variant) -> Dictionary:
 			target_object = Dictionary(items[0])
 	var view_model: Dictionary = controller.build_runtime_action_view_model(target_object, target_position)
 	var resolved_target: Dictionary = Dictionary(view_model.get("target", target_object))
+	var direction_text: String = ""
+	if controller.has_method("get_direction"):
+		direction_text = str(controller.get_direction())
 	_trace_runtime_action_target({
-		"target_cell": target_position,
-		"actor_cell": controller.grid_position,
-		"raw_world_object": {
+		"bipob_cell": str(controller.grid_position),
+		"facing_cell": str(target_position),
+		"direction": direction_text,
+		"raw_object": {
 			"id": str(raw_world_object.get("id", "")),
 			"object_type": str(raw_world_object.get("object_type", "")),
 			"object_group": str(raw_world_object.get("object_group", "")),
+			"state": str(raw_world_object.get("state", "")),
 			"placement_mode": str(raw_world_object.get("placement_mode", raw_world_object.get("placement", "")))
 		},
+		"normalized_object": {
+			"id": str(resolved_target.get("id", target_object.get("id", ""))),
+			"object_type": str(resolved_target.get("object_type", target_object.get("object_type", ""))),
+			"object_group": str(resolved_target.get("object_group", target_object.get("object_group", ""))),
+			"state": str(resolved_target.get("state", target_object.get("state", ""))),
+			"placement_mode": str(resolved_target.get("placement_mode", resolved_target.get("placement", target_object.get("placement_mode", target_object.get("placement", "")))))
+		},
+		"raw_object_dump": var_to_str(raw_world_object),
 		"wall_mounted_candidate": {
 			"id": str(wall_mounted_candidate.get("id", "")),
 			"object_type": str(wall_mounted_candidate.get("object_type", "")),
@@ -99,13 +112,9 @@ static func build_action_target_context(controller: Variant) -> Dictionary:
 			"object_group": str(breachable_wall_candidate.get("object_group", "")),
 			"placement_mode": str(breachable_wall_candidate.get("placement_mode", breachable_wall_candidate.get("placement", "")))
 		},
-		"resolved_target": {
-			"id": str(resolved_target.get("id", target_object.get("id", ""))),
-			"object_type": str(resolved_target.get("object_type", target_object.get("object_type", ""))),
-			"object_group": str(resolved_target.get("object_group", target_object.get("object_group", ""))),
-			"placement_mode": str(resolved_target.get("placement_mode", resolved_target.get("placement", target_object.get("placement_mode", target_object.get("placement", "")))))
-		},
-		"available_actions": Array(view_model.get("available_action_ids", []))
+		"actions_returned_by_get_available_world_actions": Array(view_model.get("raw_action_ids", [])),
+		"actions_after_filtering": Array(view_model.get("available_action_ids", [])),
+		"action_descriptors": Array(view_model.get("actions", []))
 	})
 	return {"target_position": target_position, "target_object": view_model.get("target", {}), "actions": view_model.get("available_action_ids", []), "action_view_model": view_model}
 

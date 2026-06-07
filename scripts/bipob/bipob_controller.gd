@@ -7662,7 +7662,9 @@ func get_available_world_actions(world_object: Dictionary, target_position: Vect
 			actions.append("cut")
 		if has_sledgehammer():
 			actions.append("impact")
-		if has_heavy_claw() and (state == "damaged" or str(world_object.get("material", "")) == "brick"):
+		var wall_state: String = state.strip_edges().to_lower()
+		var force_openable: bool = wall_state in ["damaged", "broken", "jammed", "half_open", "breached"] or bool(world_object.get("heavy_claw_breachable", false)) or bool(world_object.get("force_openable", false))
+		if has_heavy_claw() and force_openable:
 			actions.append("force_open")
 	elif str(world_object.get("object_type", "")) == "power_cable":
 		if has_plasma_cutter():
