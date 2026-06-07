@@ -19,6 +19,8 @@ static func can_apply_action(actor: Dictionary, module: Dictionary, target_objec
 		return _result(false, "Action not supported.", [], "unsupported_action")
 	if target_object.is_empty():
 		return _result(false, "No target object.", [], "target_missing")
+	if BreachableWallRulesServiceRef.is_breachable_wall(target_object) and not BreachableWallRulesServiceRef.is_destroyed(target_object) and action_type != "break_breachable_wall":
+		return _result(false, "Use Heavy Claw from the cracked side.", [], "heavy_claw_breach_only")
 	var front_side_gate: Dictionary = ObjectFacingServiceRef.build_interaction_gate(
 		target_object,
 		WorldObjectCatalogRef.to_world_cell(target_object.get("position", actor.get("target_position", Vector2i(-1, -1))), Vector2i(-1, -1)),
@@ -235,6 +237,8 @@ static func apply_action(actor: Dictionary, module: Dictionary, target_object: D
 				target_object["state"] = "damaged"
 				return _result(true, "Wall damaged.", [{"type":"set_state","state":"damaged"}])
 		"force_open":
+			if BreachableWallRulesServiceRef.is_breachable_wall(target_object) and not BreachableWallRulesServiceRef.is_destroyed(target_object):
+				return _result(false, "Use Heavy Claw from the cracked side.")
 			if group == "door" and target_object.get("state", "") in ["damaged", "half_open", "jammed"] and module_id == "manipulator_heavy_claw_v1":
 				target_object["state"] = "open"
 				return _result(true, "Door forced open.", [{"type":"set_state","state":"open"},{"type":"set_blocks_movement","value":false}])
@@ -292,8 +296,8 @@ static func apply_action(actor: Dictionary, module: Dictionary, target_object: D
 			var record_name: String = str(target_object.get("download_display_name", record_id)).strip_edges()
 			return _result(true, "Downloaded %s." % record_name, [{"type":"store_digital_record","record_id":record_id,"display_name":record_name,"description":"Downloaded from %s" % str(target_object.get("display_name", target_object.get("id", "device")))}])
 		"break_breachable_wall":
-			if group == "wall" and str(target_object.get("wall_archetype", "")) == "breachable" and module_id == "manipulator_heavy_claw_v1":
-				return _result(true, "Breachable Wall broken.", [{"type":"set_state","state":"removed"},{"type":"set_blocks_movement","value":false}])
+			if group == "wall" and BreachableWallRulesServiceRef.is_breachable_wall(target_object) and module_id == "manipulator_heavy_claw_v1":
+				return _result(true, "Breachable Wall broken.", [{"type":"set_state","state":"removed"},{"type":"set_bool","field":"is_passable","value":true},{"type":"set_blocks_movement","value":false},{"type":"set_bool","field":"blocks_vision","value":false},{"type":"set_bool","field":"blocks_line_of_sight","value":false}])
 			return _result(false, "Cannot break this wall.")
 		"push", "pull":
 			if action_type == "push" and not WorldObjectCatalogRef.can_world_object_be_moved_by_heavy_claw(target_object):

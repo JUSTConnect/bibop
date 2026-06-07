@@ -21,6 +21,8 @@ static func normalize_wall_state(value: String) -> String:
 	var normalized: String = str(value).strip_edges().to_lower()
 	if normalized in [WALL_STATE_INTACT, WALL_STATE_BREACHED, WALL_STATE_DESTROYED]:
 		return normalized
+	if normalized in ["open", "opened", "removed"]:
+		return WALL_STATE_DESTROYED
 	return WALL_STATE_INTACT
 
 static func normalize_overlay_height(value: String) -> String:
@@ -33,7 +35,11 @@ static func normalize_crack_side(value: String) -> String:
 	return FacingSideUtilsRef.normalize_wall_side(value)
 
 static func is_breachable_wall(wall_data: Dictionary) -> bool:
-	return bool(wall_data.get("is_breachable", wall_data.get("is_breachable_wall", wall_data.get("breachable", false))))
+	if bool(wall_data.get("is_breachable", wall_data.get("is_breachable_wall", wall_data.get("breachable", false)))):
+		return true
+	if str(wall_data.get("wall_archetype", "")).strip_edges().to_lower() == "breachable":
+		return true
+	return str(wall_data.get("object_type", "")).strip_edges().to_lower() == "breachable_wall"
 
 static func is_destroyed(wall_data: Dictionary) -> bool:
 	var raw_state: String = str(wall_data.get("wall_state", wall_data.get("breach_state", wall_data.get("state", WALL_STATE_INTACT))))
@@ -140,18 +146,18 @@ static func get_overlay_adjustment(overlay_height: String) -> Dictionary:
 		BREACH_OVERLAY_MID:
 			return {
 				"overlay_height": height,
-				"scale_y": 0.96,
-				"offset_y": -2.0,
-				"bottom_trim_px": 3,
-				"notes": "Mid overlay is slightly reduced at the bottom to avoid spilling onto neighboring floor."
+				"scale_y": 0.86,
+				"offset_y": -7.0,
+				"bottom_trim_px": 10,
+				"notes": "Mid overlay is strongly shortened and lifted so the crack does not spill onto neighboring floor."
 			}
 		BREACH_OVERLAY_HALFMID:
 			return {
 				"overlay_height": height,
-				"scale_y": 0.88,
-				"offset_y": -4.0,
-				"bottom_trim_px": 5,
-				"notes": "Halfmid overlay needs stronger vertical correction and face alignment."
+				"scale_y": 1.08,
+				"offset_y": -12.0,
+				"bottom_trim_px": 3,
+				"notes": "Halfmid overlay is taller and lifted to align with the visible wall face."
 			}
 		_:
 			return {}
