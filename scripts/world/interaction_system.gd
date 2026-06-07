@@ -2,6 +2,7 @@ extends RefCounted
 class_name InteractionSystem
 const WorldObjectCatalogRef = preload("res://scripts/world/world_object_catalog.gd")
 const ObjectFacingServiceRef = preload("res://scripts/game/object/object_facing_service.gd")
+const BreachableWallRulesServiceRef = preload("res://scripts/game/wall/breachable_wall_rules_service.gd")
 
 const SUPPORTED_ACTIONS := ["open","close","unlock","input_password","apply_digital_key","access_code_0","access_code_1","access_code_2","access_code_3","access_code_4","access_code_5","access_code_6","access_code_7","access_code_8","access_code_9","cut","impact","force_open","connect","scan","hack","download","drain_energy","pickup","use_item","insert_fuse","remove_fuse","repair","plug_in","plug_out","take_end_1","take_end_2","connect_wire_end","connect_wire_1","connect_wire_2","disconnect_power_wire","disconnect_wire_1","disconnect_wire_2","circuit_1","circuit_2","circuit_3","open_door","close_door","unlock_door","push","pull","breach","break_breachable_wall","switch","disable","enable","attack","stun","repair_ally"]
 
@@ -63,9 +64,15 @@ static func can_apply_action(actor: Dictionary, module: Dictionary, target_objec
 			return _result(false, "Heavy Claw required.", [], "heavy_claw_required")
 		if not Array(target_object.get("breach_tools", [])).has("heavy_claw"):
 			return _result(false, "Heavy Claw cannot breach this wall.", [], "tool_not_allowed")
-		var break_actor_side: String = WorldObjectCatalogRef.get_wall_side_for_adjacent_actor(Vector2i(target_object.get("position", actor.get("target_position", Vector2i(-1, -1)))), Vector2i(actor.get("actor_position", Vector2i(-1, -1))))
-		if not WorldObjectCatalogRef.can_heavy_claw_breach_wall_from_side(target_object, break_actor_side):
-			return _result(false, "Heavy Claw must attack the cracked side.", [], "wrong_breach_side")
+		var wall_position: Vector2i = Vector2i(target_object.get("position", actor.get("target_position", Vector2i(-1, -1))))
+		var actor_position: Vector2i = Vector2i(actor.get("actor_position", Vector2i(-1, -1)))
+		var rules_wall: Dictionary = target_object.duplicate(true)
+		rules_wall["is_breachable"] = true
+		rules_wall["wall_state"] = str(target_object.get("wall_state", target_object.get("breach_state", target_object.get("state", "intact"))))
+		rules_wall["crack_side"] = WorldObjectCatalogRef.get_grid_side_for_breachable_wall_breach_side(target_object.get("breach_side", target_object.get("crack_side", "sw")))
+		var breach_check: Dictionary = BreachableWallRulesServiceRef.can_heavy_claw_breach(rules_wall, actor_position - wall_position, true)
+		if not bool(breach_check.get("ok", false)):
+			return _result(false, str(breach_check.get("message", "Heavy Claw must attack the cracked side.")), [], "wrong_breach_side")
 	if action_type == "connect" or action_type == "apply_digital_key" or action_type == "input_password" or action_type.begins_with("access_code_"):
 		if not bool(target_object.get("has_connector_jack", false)):
 			return _result(false, "Connector jack unavailable.", [], "connector_jack_required")

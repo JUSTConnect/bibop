@@ -5,6 +5,7 @@ const InteractionSystemRef = preload("res://scripts/world/interaction_system.gd"
 const ObjectFacingServiceRef = preload("res://scripts/game/object/object_facing_service.gd")
 const WorldObjectCatalogRef = preload("res://scripts/world/world_object_catalog.gd")
 const BreachableWallServiceRef = preload("res://scripts/game/wall/breachable_wall_service.gd")
+const BreachableWallRulesServiceRef = preload("res://scripts/game/wall/breachable_wall_rules_service.gd")
 
 
 static func build_runtime_action_view_model(controller: Variant, target_object: Dictionary, target_position: Vector2i) -> Dictionary:
@@ -54,9 +55,11 @@ static func build_runtime_action_view_model(controller: Variant, target_object: 
 		if enabled and requires_free_manipulator and not controller.can_use_physical_hand():
 			enabled = false
 			reason = "free_manipulator_required"
-		if enabled and BreachableWallServiceRef.is_breachable_wall_data(normalized_target) and action_id == BreachableWallServiceRef.ACTION_BREAK_BREACHABLE_WALL and not _has_heavy_claw_for_breach(controller):
-			enabled = false
-			reason = "heavy_claw_required"
+		if BreachableWallServiceRef.is_breachable_wall_data(normalized_target) and action_id == BreachableWallServiceRef.ACTION_BREAK_BREACHABLE_WALL:
+			var breach_payload: Dictionary = _build_breachable_wall_action_payload(controller, normalized_target, target_position)
+			if not bool(breach_payload.get("show_heavy_claw", false)):
+				enabled = false
+				reason = _get_breachable_wall_disabled_reason(breach_payload)
 		if enabled and group == "terminal" and action_id in ["hack", "activate_platform"] and not controller._is_terminal_powered_for_interaction(normalized_target):
 			enabled = false
 			reason = "unpowered"
@@ -77,6 +80,33 @@ static func build_runtime_action_view_model(controller: Variant, target_object: 
 
 static func _has_heavy_claw_for_breach(controller: Variant) -> bool:
 	return controller != null and controller.has_method("has_heavy_claw_capability") and bool(controller.call("has_heavy_claw_capability"))
+
+
+static func _build_breachable_wall_action_payload(controller: Variant, wall_data: Dictionary, target_position: Vector2i) -> Dictionary:
+	var approach_direction: Vector2i = Vector2i.ZERO
+	if controller != null:
+		approach_direction = Vector2i(controller.grid_position) - target_position
+	var rules_wall: Dictionary = _build_rules_wall_data(wall_data)
+	return BreachableWallRulesServiceRef.build_action_payload(rules_wall, approach_direction, _has_heavy_claw_for_breach(controller))
+
+
+static func _build_rules_wall_data(wall_data: Dictionary) -> Dictionary:
+	var rules_wall: Dictionary = wall_data.duplicate(true)
+	rules_wall["is_breachable"] = BreachableWallServiceRef.is_breachable_wall_data(wall_data)
+	rules_wall["wall_state"] = str(wall_data.get("wall_state", wall_data.get("breach_state", wall_data.get("state", "intact"))))
+	rules_wall["crack_side"] = WorldObjectCatalogRef.get_grid_side_for_breachable_wall_breach_side(wall_data.get("breach_side", wall_data.get("crack_side", "sw")))
+	return rules_wall
+
+
+static func _get_breachable_wall_disabled_reason(action_payload: Dictionary) -> String:
+	var message: String = str(action_payload.get("message", "")).to_lower()
+	if message.find("not installed") >= 0:
+		return "heavy_claw_required"
+	if message.find("cracked side") >= 0:
+		return "wrong_breach_side"
+	if message.find("already") >= 0:
+		return "already_destroyed"
+	return "action_unavailable"
 
 
 static func _runtime_action_requires_free_manipulator(action_id: String, target_object: Dictionary) -> bool:

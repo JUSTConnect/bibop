@@ -2,6 +2,7 @@ extends Node2D
 class_name RoomVisualRenderer
 
 const BreachableWallServiceRef = preload("res://scripts/game/wall/breachable_wall_service.gd")
+const BreachableWallRulesServiceRef = preload("res://scripts/game/wall/breachable_wall_rules_service.gd")
 
 const CableTopologyServiceRef = preload("res://scripts/game/cable_topology_service.gd")
 const PlatformTypesRef = preload("res://scripts/game/platform/platform_types.gd")
@@ -2174,10 +2175,11 @@ func get_breach_overlay_texture_for_asset_key(asset_key: String) -> Texture2D:
 	_iso_wall_breach_overlay_texture_cache[normalized_key] = null
 	return null
 
-func get_breach_overlay_transform_for_side(side: String) -> Dictionary:
+func get_breach_overlay_transform_for_side(side: String, height_level: String = "") -> Dictionary:
 	var normalized_side: String = normalize_breach_side(side)
 	var flip_h: bool = false
 	var flip_v: bool = false
+	var offset: Vector2 = Vector2.ZERO
 	match normalized_side:
 		"se":
 			flip_h = true
@@ -2186,7 +2188,9 @@ func get_breach_overlay_transform_for_side(side: String) -> Dictionary:
 		"ne":
 			flip_h = true
 			flip_v = true
-	return {"side": normalized_side, "flip_h": flip_h, "flip_v": flip_v, "offset": Vector2.ZERO, "visible": true}
+	if BreachableWallRulesServiceRef.normalize_overlay_height(height_level) == BreachableWallRulesServiceRef.BREACH_OVERLAY_HALFMID:
+		offset.x = -2.0 if normalized_side == "sw" else 2.0
+	return {"side": normalized_side, "flip_h": flip_h, "flip_v": flip_v, "offset": offset, "visible": true}
 
 func is_breach_side_visible_for_wall(_cell: Vector2i, breach_side: String, _topology: Dictionary) -> bool:
 	return BreachableWallServiceRef.is_visible_breach_side(breach_side)
@@ -2203,7 +2207,23 @@ func get_breach_overlay_destination_rect(base_texture_rect: Rect2, base_source_r
 	if base_texture == null or overlay_texture == null:
 		return Rect2()
 	var layout: Dictionary = BreachableWallServiceRef.get_texture_overlay_layout(base_texture_rect, base_source_rect, base_texture.get_size(), overlay_texture.get_size(), height_level, ISO_WALL_HEIGHT_VISIBLE_BOUNDS, ISO_WALL_BASELINE_VISIBLE_BOUNDS)
-	return Rect2(layout.get("rect", Rect2())) if bool(layout.get("ok", false)) else Rect2()
+	if not bool(layout.get("ok", false)):
+		return Rect2()
+	return _apply_breach_overlay_rules_adjustment(Rect2(layout.get("rect", Rect2())), height_level)
+
+func _apply_breach_overlay_rules_adjustment(destination_rect: Rect2, height_level: String) -> Rect2:
+	if destination_rect.size.x <= 0.0 or destination_rect.size.y <= 0.0:
+		return destination_rect
+	var adjustment: Dictionary = BreachableWallRulesServiceRef.get_overlay_adjustment(height_level)
+	var scale_y: float = float(adjustment.get("scale_y", 1.0))
+	var offset_y: float = float(adjustment.get("offset_y", 0.0))
+	if is_equal_approx(scale_y, 1.0) and is_equal_approx(offset_y, 0.0):
+		return destination_rect
+	var adjusted: Rect2 = destination_rect
+	var bottom_y: float = adjusted.position.y + adjusted.size.y + offset_y
+	adjusted.size.y = maxf(1.0, adjusted.size.y * scale_y)
+	adjusted.position.y = bottom_y - adjusted.size.y
+	return adjusted
 
 func draw_breach_overlay_texture_rect(texture: Texture2D, destination_rect: Rect2, source_rect: Rect2, transform: Dictionary) -> void:
 	if destination_rect.size.x <= 0.0 or destination_rect.size.y <= 0.0:
@@ -2245,7 +2265,7 @@ func draw_breachable_wall_overlay_for_cell(cell: Vector2i, wall_data: Dictionary
 	var source_rect: Rect2 = get_iso_wall_visible_source_rect(wall_asset_key, base_texture)
 	var height_level: String = get_normalized_breachable_wall_height(wall_data)
 	var destination_rect: Rect2 = get_breach_overlay_destination_rect(texture_rect, source_rect, base_texture, overlay_texture, height_level)
-	var side_transform: Dictionary = get_breach_overlay_transform_for_side(breach_side)
+	var side_transform: Dictionary = get_breach_overlay_transform_for_side(breach_side, height_level)
 	var offset: Vector2 = Vector2(side_transform.get("offset", Vector2.ZERO))
 	destination_rect.position += offset
 	draw_breach_overlay_texture_rect(overlay_texture, destination_rect, Rect2(Vector2.ZERO, overlay_texture.get_size()), side_transform)

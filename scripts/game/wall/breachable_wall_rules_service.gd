@@ -33,10 +33,11 @@ static func normalize_crack_side(value: String) -> String:
 	return FacingSideUtilsRef.normalize_wall_side(value)
 
 static func is_breachable_wall(wall_data: Dictionary) -> bool:
-	return bool(wall_data.get("is_breachable", wall_data.get("breachable", false)))
+	return bool(wall_data.get("is_breachable", wall_data.get("is_breachable_wall", wall_data.get("breachable", false))))
 
 static func is_destroyed(wall_data: Dictionary) -> bool:
-	return normalize_wall_state(str(wall_data.get("wall_state", wall_data.get("state", WALL_STATE_INTACT)))) == WALL_STATE_DESTROYED
+	var raw_state: String = str(wall_data.get("wall_state", wall_data.get("breach_state", wall_data.get("state", WALL_STATE_INTACT))))
+	return normalize_wall_state(raw_state) in [WALL_STATE_DESTROYED, WALL_STATE_BREACHED]
 
 static func is_passable_after_state(wall_data: Dictionary) -> bool:
 	if is_destroyed(wall_data):
@@ -92,9 +93,11 @@ static func apply_heavy_claw_breach(
 		return {"ok": false, "message": str(check.get("message", "Cannot breach wall.")), "wall_data": wall_data.duplicate(true), "check": check}
 	var next_wall: Dictionary = wall_data.duplicate(true)
 	next_wall["wall_state"] = WALL_STATE_DESTROYED
+	next_wall["breach_state"] = WALL_STATE_DESTROYED
 	next_wall["state"] = WALL_STATE_DESTROYED
 	next_wall["is_passable"] = true
 	next_wall["blocks_movement"] = false
+	next_wall["blocks_vision"] = false
 	next_wall["blocks_line_of_sight"] = false
 	next_wall["needs_visual_refresh"] = true
 	next_wall["breached_by"] = BREACH_TOOL_HEAVY_CLAW
@@ -154,10 +157,10 @@ static func get_overlay_adjustment(overlay_height: String) -> Dictionary:
 			return {}
 
 static func build_overlay_payload(wall_data: Dictionary) -> Dictionary:
-	var overlay_height: String = normalize_overlay_height(str(wall_data.get("breach_overlay_height", wall_data.get("height", BREACH_OVERLAY_TALL))))
+	var overlay_height: String = normalize_overlay_height(str(wall_data.get("breach_overlay_height", wall_data.get("wall_height", wall_data.get("height", BREACH_OVERLAY_TALL)))))
 	return {
 		"is_breachable": is_breachable_wall(wall_data),
-		"wall_state": normalize_wall_state(str(wall_data.get("wall_state", wall_data.get("state", WALL_STATE_INTACT)))),
+		"wall_state": normalize_wall_state(str(wall_data.get("wall_state", wall_data.get("breach_state", wall_data.get("state", WALL_STATE_INTACT))))),
 		"crack_side": get_crack_side(wall_data),
 		"overlay_height": overlay_height,
 		"overlay_adjustment": get_overlay_adjustment(overlay_height),
