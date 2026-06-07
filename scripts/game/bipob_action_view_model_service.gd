@@ -6,6 +6,7 @@ const ObjectFacingServiceRef = preload("res://scripts/game/object/object_facing_
 const WorldObjectCatalogRef = preload("res://scripts/world/world_object_catalog.gd")
 const BreachableWallServiceRef = preload("res://scripts/game/wall/breachable_wall_service.gd")
 const BreachableWallRulesServiceRef = preload("res://scripts/game/wall/breachable_wall_rules_service.gd")
+const WallMountedPlacementRulesServiceRef = preload("res://scripts/game/wall/wall_mounted_placement_rules_service.gd")
 
 const DEBUG_BREACHABLE_WALL_RUNTIME_TRACE := false
 
@@ -17,6 +18,9 @@ static func build_runtime_action_view_model(controller: Variant, target_object: 
 	if str(normalized_target.get("object_group", "")) == "door":
 		normalized_target = WorldObjectCatalogRef.normalize_door_contract(normalized_target)
 		normalized_target = WorldObjectCatalogRef.normalize_door_state_fields(normalized_target)
+	var wall_mount_gate: Dictionary = _build_wall_mounted_interaction_payload(controller, normalized_target, target_position)
+	if not wall_mount_gate.is_empty() and not bool(wall_mount_gate.get("can_interact", false)):
+		return {"target":normalized_target, "actions":[], "available_action_ids":[], "primary_action_id":"", "primary_action_label":"Action", "has_available_action":false, "disabled_reason":"wrong_wall_side", "wall_mounted_interaction":wall_mount_gate}
 	var raw_action_ids: Array = []
 	if not normalized_target.is_empty():
 		raw_action_ids = controller.get_available_world_actions(normalized_target, target_position)
@@ -83,6 +87,21 @@ static func build_runtime_action_view_model(controller: Variant, target_object: 
 	_trace_breachable_wall_runtime_view_model(controller, target_position, normalized_target, raw_action_ids, view_model)
 	return view_model
 
+
+static func _build_wall_mounted_interaction_payload(controller: Variant, target_object: Dictionary, target_position: Vector2i) -> Dictionary:
+	if target_object.is_empty():
+		return {}
+	var placement_mode: String = str(target_object.get("placement_mode", target_object.get("placement", ""))).strip_edges().to_lower()
+	if placement_mode != "wall_mounted" and not bool(target_object.get("is_wall_mounted", false)):
+		return {}
+	var actor_cell: Vector2i = Vector2i(-1, -1)
+	if controller != null:
+		actor_cell = Vector2i(controller.grid_position)
+	var wall_cell: Vector2i = WorldObjectCatalogRef.to_world_cell(target_object.get("attached_wall_cell", target_object.get("position", target_position)), target_position)
+	var payload: Dictionary = WallMountedPlacementRulesServiceRef.build_interaction_payload(target_object, actor_cell - wall_cell)
+	payload["actor_cell"] = actor_cell
+	payload["wall_cell"] = wall_cell
+	return payload
 
 static func _trace_breachable_wall_runtime_view_model(controller: Variant, target_position: Vector2i, target_object: Dictionary, raw_action_ids: Array, view_model: Dictionary) -> void:
 	if not DEBUG_BREACHABLE_WALL_RUNTIME_TRACE or not BreachableWallServiceRef.is_breachable_wall_data(target_object):

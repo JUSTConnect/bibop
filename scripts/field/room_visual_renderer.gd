@@ -3,6 +3,7 @@ class_name RoomVisualRenderer
 
 const BreachableWallServiceRef = preload("res://scripts/game/wall/breachable_wall_service.gd")
 const BreachableWallRulesServiceRef = preload("res://scripts/game/wall/breachable_wall_rules_service.gd")
+const WallMountedPlacementRulesServiceRef = preload("res://scripts/game/wall/wall_mounted_placement_rules_service.gd")
 
 const CableTopologyServiceRef = preload("res://scripts/game/cable_topology_service.gd")
 const PlatformTypesRef = preload("res://scripts/game/platform/platform_types.gd")
@@ -2363,9 +2364,41 @@ func get_iso_object_profile_key_for_object_data(object_data: Dictionary, fallbac
 		return "generic_object"
 	return fallback_profile_key
 
+func is_wall_mounted_runtime_object(object_data: Dictionary) -> bool:
+	return str(object_data.get("placement_mode", object_data.get("placement", ""))).strip_edges().to_lower() == "wall_mounted" or bool(object_data.get("is_wall_mounted", false))
+
+func get_wall_mounted_cardinal_side(object_data: Dictionary) -> String:
+	var wall_side: String = str(object_data.get("interaction_side", object_data.get("wall_side", ""))).strip_edges().to_lower()
+	var required_direction: Vector2i = WallMountedPlacementRulesServiceRef.get_required_interaction_direction(object_data)
+	if required_direction == Vector2i(0, -1):
+		return "north"
+	if required_direction == Vector2i(1, 0):
+		return "east"
+	if required_direction == Vector2i(0, 1):
+		return "south"
+	if required_direction == Vector2i(-1, 0):
+		return "west"
+	if wall_side in WALL_SIDE_ORDER:
+		return wall_side
+	return "west"
+
+func get_wall_mounted_visual_center(object_data: Dictionary, fallback_cell: Vector2i) -> Vector2:
+	var wall_cell: Vector2i = _try_parse_cell_variant(object_data.get("attached_wall_cell", Vector2i(-1, -1)), Vector2i(-1, -1))
+	if wall_cell.x < 0 or wall_cell.y < 0:
+		wall_cell = _try_parse_cell_variant(object_data.get("position", fallback_cell), fallback_cell)
+	var wall_side: String = get_wall_mounted_cardinal_side(object_data)
+	for zone_variant in get_wall_mounted_anchor_zones(wall_cell):
+		var zone: Dictionary = Dictionary(zone_variant)
+		if str(zone.get("wall_side", "")) == wall_side:
+			return Vector2(zone.get("mount_zone_center", grid_to_iso(wall_cell))) + Vector2(0.0, -maxf(iso_wall_height * 0.34, 14.0))
+	var delta: Vector2i = _get_wall_side_delta(wall_side)
+	var half_size: Vector2 = get_iso_tile_half_size()
+	var side_offset: Vector2 = Vector2(float(delta.x) * half_size.x * 0.34, float(delta.y) * half_size.y * 0.34)
+	return grid_to_iso(wall_cell) + side_offset + Vector2(0.0, -maxf(iso_wall_height * 0.34, 14.0))
+
 func _get_object_mount_mode(object_data: Dictionary) -> String:
-	var mount: String = str(object_data.get("mount", object_data.get("cable_install_mode", object_data.get("install_mode", object_data.get("placement_mode", "floor"))))).to_lower().strip_edges()
-	if mount in ["wall", "wall_mounted"]:
+	var mount: String = str(object_data.get("mount", object_data.get("cable_install_mode", object_data.get("install_mode", object_data.get("placement_mode", object_data.get("placement", "floor")))))).to_lower().strip_edges()
+	if mount in ["wall", "wall_mounted"] or bool(object_data.get("is_wall_mounted", false)):
 		return "wall"
 	return "floor"
 
@@ -5383,16 +5416,12 @@ func get_iso_object_grounding_profile(object_data: Dictionary, fallback_cell: Ve
 	if anchor_cell.x < 0 or anchor_cell.y < 0:
 		anchor_cell = Vector2i(0, 0)
 	var center: Vector2 = grid_to_iso(anchor_cell)
-	if placement_mode == "wall_mounted" and attached_wall_cell.x >= 0 and attached_wall_cell.y >= 0 and not wall_side.is_empty():
-		for zone_variant in get_wall_mounted_anchor_zones(attached_wall_cell):
-			var zone: Dictionary = Dictionary(zone_variant)
-			if str(zone.get("wall_side", "")) == wall_side and Vector2i(zone.get("anchor_floor_cell", Vector2i(-1, -1))) == anchor_cell:
-				center = Vector2(zone.get("mount_zone_center", center))
-				break
+	if is_wall_mounted_runtime_object(object_data):
+		center = get_wall_mounted_visual_center(object_data, fallback_cell)
 	var grounding_type: String = "floor_standing"
 	if object_data.is_empty():
 		grounding_type = "unknown"
-	if placement_mode == "wall_mounted":
+	if is_wall_mounted_runtime_object(object_data):
 		grounding_type = "wall_mounted"
 	elif object_type.contains("door") or object_type.contains("gate"):
 		grounding_type = "door_insert"
@@ -5577,16 +5606,18 @@ func draw_iso_object_marker(cell: Vector2i, tile_type: int, override_object_data
 	if is_door_like_tile(tile_type) and override_object_data.is_empty():
 		draw_iso_door_insert(cell, tile_type, Dictionary(object_meta.get("data", {})))
 		return
-	var profile_data: Dictionary = get_iso_object_grounding_profile(Dictionary(object_meta.get("data", {})), cell)
-	var visual_center: Vector2 = Vector2(profile_data.get("visual_center", get_world_object_visual_position(cell)))
-	var shadow_polygon: PackedVector2Array = PackedVector2Array(profile_data.get("shadow_polygon", PackedVector2Array()))
-	if shadow_polygon.size() >= 3:
-		draw_colored_polygon(shadow_polygon, Color(0.03, 0.05, 0.08, 0.26))
-	var footprint_polygon: PackedVector2Array = PackedVector2Array(profile_data.get("footprint_polygon", PackedVector2Array()))
-	if footprint_polygon.size() >= 3:
-		draw_colored_polygon(footprint_polygon, Color(0.2, 0.24, 0.28, 0.2))
 	var object_id: String = str(object_meta.get("object_id", ""))
 	var object_data: Dictionary = Dictionary(object_meta.get("data", {}))
+	var is_wall_mounted_object_visual: bool = is_wall_mounted_runtime_object(object_data)
+	var profile_data: Dictionary = get_iso_object_grounding_profile(object_data, cell)
+	var visual_center: Vector2 = Vector2(profile_data.get("visual_center", get_world_object_visual_position(cell)))
+	if not is_wall_mounted_object_visual:
+		var shadow_polygon: PackedVector2Array = PackedVector2Array(profile_data.get("shadow_polygon", PackedVector2Array()))
+		if shadow_polygon.size() >= 3:
+			draw_colored_polygon(shadow_polygon, Color(0.03, 0.05, 0.08, 0.26))
+		var footprint_polygon: PackedVector2Array = PackedVector2Array(profile_data.get("footprint_polygon", PackedVector2Array()))
+		if footprint_polygon.size() >= 3:
+			draw_colored_polygon(footprint_polygon, Color(0.2, 0.24, 0.28, 0.2))
 	if PlatformTypesRef.is_platform_data(object_data):
 		return
 	var profile_key: String = get_iso_object_profile_key_for_tile(tile_type)
@@ -5606,6 +5637,8 @@ func draw_iso_object_marker(cell: Vector2i, tile_type: int, override_object_data
 			terminal_visual = Dictionary(mission_manager.call("get_map_constructor_terminal_visual_state", object_id))
 			has_terminal_visual = bool(terminal_visual.get("ok", false))
 	var wall_mounted_profile_key: String = get_wall_mounted_object_profile_key(cell)
+	if is_wall_mounted_object_visual and wall_mounted_profile_key.is_empty():
+		wall_mounted_profile_key = profile_key
 	if not wall_mounted_profile_key.is_empty():
 		profile_key = wall_mounted_profile_key
 		object_asset_key = get_iso_object_asset_key_for_object_data(object_data, profile_key)
@@ -5760,6 +5793,8 @@ func build_iso_object_draw_entries() -> Array[Dictionary]:
 	var runtime_objects_by_cell: Dictionary = {}
 	for object_data in _get_runtime_world_objects_for_iso_render(is_map_constructor_editor_render()):
 		var object_cell: Vector2i = _try_parse_cell_variant(object_data.get("position", Vector2i(-1, -1)))
+		if is_wall_mounted_runtime_object(object_data):
+			object_cell = _try_parse_cell_variant(object_data.get("attached_wall_cell", object_cell), object_cell)
 		if object_cell.x < 0 or object_cell.y < 0:
 			continue
 		var cell_objects: Array = Array(runtime_objects_by_cell.get(object_cell, []))
@@ -5778,8 +5813,8 @@ func build_iso_object_draw_entries() -> Array[Dictionary]:
 			for object_index in range(runtime_objects.size()):
 				var object_data: Dictionary = Dictionary(runtime_objects[object_index])
 				var profile_key: String = get_iso_object_profile_key_for_object_data(object_data, "generic_object")
-				var layer_name: String = "cable" if CableTopologyServiceRef.is_cable_object(object_data) else ("terminal" if is_terminal_like_profile(profile_key) else "item")
-				var layer_bias: float = ISO_LAYER_BIAS_CABLE if layer_name == "cable" else (ISO_LAYER_BIAS_TERMINAL if layer_name == "terminal" else ISO_LAYER_BIAS_ITEM)
+				var layer_name: String = "wall_mounted" if is_wall_mounted_runtime_object(object_data) else ("cable" if CableTopologyServiceRef.is_cable_object(object_data) else ("terminal" if is_terminal_like_profile(profile_key) else "item"))
+				var layer_bias: float = ISO_LAYER_BIAS_WALL_MOUNTED if layer_name == "wall_mounted" else (ISO_LAYER_BIAS_CABLE if layer_name == "cable" else (ISO_LAYER_BIAS_TERMINAL if layer_name == "terminal" else ISO_LAYER_BIAS_ITEM))
 				draw_entries.append({"cell":cell, "layer":layer_name, "layer_bias":layer_bias + float(object_index) * 0.01, "kind":"object", "payload":{"object_cell":cell, "tile_type":tile_type, "profile_key":profile_key, "object_data":object_data}})
 			if not runtime_objects.is_empty() or not is_iso_object_tile(tile_type):
 				continue

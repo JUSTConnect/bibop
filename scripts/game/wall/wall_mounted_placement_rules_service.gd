@@ -28,6 +28,8 @@ const DEFAULT_MAX_OBJECTS_PER_WALL_SIDE: int = 99
 static func is_wall_mounted_object(object_data: Dictionary) -> bool:
 	if str(object_data.get("placement", "")) == PLACEMENT_WALL_MOUNTED:
 		return true
+	if str(object_data.get("placement_mode", "")) == PLACEMENT_WALL_MOUNTED:
+		return true
 	if bool(object_data.get("is_wall_mounted", false)):
 		return true
 	var kind: String = str(object_data.get("device_kind", object_data.get("kind", ""))).strip_edges().to_lower()
