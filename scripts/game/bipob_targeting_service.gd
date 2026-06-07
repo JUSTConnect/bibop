@@ -1,6 +1,8 @@
 extends RefCounted
 class_name BipobTargetingService
 
+const BreachableWallServiceRef = preload("res://scripts/game/wall/breachable_wall_service.gd")
+
 
 static func get_facing_cell(controller: Variant) -> Vector2i:
 	return controller.grid_position + controller.get_direction_vector(controller.direction)
@@ -11,11 +13,26 @@ static func get_facing_object(controller: Variant) -> Dictionary:
 		return {}
 	var facing_cell: Vector2i = get_facing_cell(controller)
 	var world_object: Dictionary = Dictionary(controller.mission_manager.get_world_object_at_cell(facing_cell))
-	if not world_object.is_empty():
+	return resolve_runtime_action_target_for_cell(controller, facing_cell, world_object)
+
+
+static func resolve_runtime_action_target_for_cell(controller: Variant, target_cell: Vector2i, world_object: Dictionary = {}) -> Dictionary:
+	if controller == null or controller.mission_manager == null:
 		return world_object
+	var breachable_wall_target: Dictionary = {}
 	if controller.mission_manager.has_method("get_breachable_wall_action_target_at_cell"):
-		return Dictionary(controller.mission_manager.call("get_breachable_wall_action_target_at_cell", facing_cell))
-	return {}
+		breachable_wall_target = Dictionary(controller.mission_manager.call("get_breachable_wall_action_target_at_cell", target_cell))
+	if breachable_wall_target.is_empty():
+		return world_object
+	if world_object.is_empty():
+		return breachable_wall_target
+	if BreachableWallServiceRef.is_active_breachable_wall_data(world_object):
+		return world_object
+	var object_group: String = str(world_object.get("object_group", "")).strip_edges().to_lower()
+	var object_type: String = str(world_object.get("object_type", "")).strip_edges().to_lower()
+	if object_group == "wall" or object_type == "wall" or object_type == "breachable_wall":
+		return breachable_wall_target
+	return world_object
 
 
 static func get_facing_item(controller: Variant) -> Dictionary:

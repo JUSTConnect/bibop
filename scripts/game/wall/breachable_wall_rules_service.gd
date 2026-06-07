@@ -146,18 +146,18 @@ static func get_overlay_adjustment(overlay_height: String) -> Dictionary:
 		BREACH_OVERLAY_MID:
 			return {
 				"overlay_height": height,
-				"scale_y": 0.86,
-				"offset_y": -7.0,
-				"bottom_trim_px": 10,
-				"notes": "Mid overlay is strongly shortened and lifted so the crack does not spill onto neighboring floor."
+				"scale_y": 0.74,
+				"offset_y": -13.0,
+				"bottom_trim_px": 24,
+				"notes": "Mid overlay is compressed, bottom-trimmed, and lifted so the crack stays inside the wall face."
 			}
 		BREACH_OVERLAY_HALFMID:
 			return {
 				"overlay_height": height,
-				"scale_y": 1.08,
-				"offset_y": -12.0,
-				"bottom_trim_px": 3,
-				"notes": "Halfmid overlay is taller and lifted to align with the visible wall face."
+				"scale_y": 1.28,
+				"offset_y": -28.0,
+				"bottom_trim_px": 2,
+				"notes": "Halfmid overlay is vertically stretched and lifted to cover more of the visible wall face."
 			}
 		_:
 			return {}

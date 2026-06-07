@@ -4,6 +4,8 @@ class_name RuntimeInteractionPresenter
 const RuntimeInteractionPanelRef = preload("res://scripts/ui/runtime/runtime_interaction_panel.gd")
 const RuntimeHeavyClawPresenterRef = preload("res://scripts/ui/runtime/runtime_heavy_claw_presenter.gd")
 
+const DEBUG_BREACHABLE_WALL_RUNTIME_TRACE := false
+
 
 static func refresh(ui) -> void:
 	if ui.runtime_action_button == null or ui.runtime_end_turn_button == null:
@@ -65,6 +67,7 @@ static func refresh_world_actions_panel(ui, payload: Dictionary = {}) -> void:
 			action_ids.append(str(action_variant))
 		var actions_key: String = "|".join(action_ids)
 		var state_key: String = "%s|%s|%s" % [str(target_object.get("state", "")), str(target_object.get("power_state", "")), str(target_object.get("connected", ""))]
+		_trace_breachable_wall_game_ui_payload(target_object, actions, selected_action)
 		clear_selected_action_if_stale(ui, target_id, actions_key, state_key)
 		ui.last_world_action_target_id = target_id
 		ui.last_world_action_actions_key = actions_key
@@ -72,6 +75,27 @@ static func refresh_world_actions_panel(ui, payload: Dictionary = {}) -> void:
 		ui.last_world_action_state_key = state_key
 	if ui.runtime_world_actions_panel != null:
 		ui.runtime_world_actions_panel.visible = false
+
+
+static func _trace_breachable_wall_game_ui_payload(target_object: Dictionary, actions: Array, selected_action: String) -> void:
+	if not DEBUG_BREACHABLE_WALL_RUNTIME_TRACE:
+		return
+	var wall_archetype: String = str(target_object.get("wall_archetype", "")).strip_edges().to_lower()
+	var is_breachable: bool = bool(target_object.get("is_breachable_wall", false)) or wall_archetype == "breachable"
+	if not is_breachable:
+		return
+	var trace: Dictionary = {
+		"target_position": target_object.get("position", Vector2i(-1, -1)),
+		"object_group": str(target_object.get("object_group", "")),
+		"object_type": str(target_object.get("object_type", "")),
+		"wall_archetype": wall_archetype,
+		"breach_side": str(target_object.get("breach_side", "")),
+		"state": str(target_object.get("state", "")),
+		"breach_state": str(target_object.get("breach_state", "")),
+		"actions_received": actions,
+		"selected_action": selected_action
+	}
+	print("[breachable_wall_game_ui] %s" % var_to_str(trace))
 
 
 static func clear_selected_action_if_stale(ui, target_id: String, actions_key: String, state_key: String) -> void:

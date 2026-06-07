@@ -7,6 +7,8 @@ const WorldObjectCatalogRef = preload("res://scripts/world/world_object_catalog.
 const BreachableWallServiceRef = preload("res://scripts/game/wall/breachable_wall_service.gd")
 const BreachableWallRulesServiceRef = preload("res://scripts/game/wall/breachable_wall_rules_service.gd")
 
+const DEBUG_BREACHABLE_WALL_RUNTIME_TRACE := false
+
 
 static func build_runtime_action_view_model(controller: Variant, target_object: Dictionary, target_position: Vector2i) -> Dictionary:
 	var normalized_target: Dictionary = WorldObjectCatalogRef.normalize_world_object_contract(target_object)
@@ -77,7 +79,33 @@ static func build_runtime_action_view_model(controller: Variant, target_object: 
 	if primary.is_empty() and not descriptors.is_empty():
 		primary = descriptors[0]
 	var disabled_reason: String = str(primary.get("reason", "target_missing" if normalized_target.is_empty() else "no_available_action"))
-	return {"target":normalized_target, "actions":descriptors, "available_action_ids":available_action_ids, "primary_action_id":str(primary.get("id", "")), "primary_action_label":str(primary.get("label", "Action")), "has_available_action":not available_action_ids.is_empty(), "disabled_reason":disabled_reason}
+	var view_model: Dictionary = {"target":normalized_target, "actions":descriptors, "available_action_ids":available_action_ids, "primary_action_id":str(primary.get("id", "")), "primary_action_label":str(primary.get("label", "Action")), "has_available_action":not available_action_ids.is_empty(), "disabled_reason":disabled_reason}
+	_trace_breachable_wall_runtime_view_model(controller, target_position, normalized_target, raw_action_ids, view_model)
+	return view_model
+
+
+static func _trace_breachable_wall_runtime_view_model(controller: Variant, target_position: Vector2i, target_object: Dictionary, raw_action_ids: Array, view_model: Dictionary) -> void:
+	if not DEBUG_BREACHABLE_WALL_RUNTIME_TRACE or not BreachableWallServiceRef.is_breachable_wall_data(target_object):
+		return
+	var grid_position: Vector2i = Vector2i.ZERO
+	if controller != null:
+		grid_position = Vector2i(controller.grid_position)
+	var trace: Dictionary = {
+		"grid_position": grid_position,
+		"target_position": target_position,
+		"object_group": str(target_object.get("object_group", "")),
+		"object_type": str(target_object.get("object_type", "")),
+		"wall_archetype": str(target_object.get("wall_archetype", "")),
+		"breach_side": str(target_object.get("breach_side", "")),
+		"crack_side": BreachableWallServiceRef.get_grid_side_for_breach_side(target_object.get("breach_side", target_object.get("crack_side", "sw"))),
+		"state": str(target_object.get("state", "")),
+		"breach_state": str(target_object.get("breach_state", "")),
+		"wall_state": str(target_object.get("wall_state", "")),
+		"get_available_world_actions": raw_action_ids,
+		"view_model_available_action_ids": Array(view_model.get("available_action_ids", [])),
+		"primary_action_label": str(view_model.get("primary_action_label", ""))
+	}
+	print("[breachable_wall_runtime] %s" % var_to_str(trace))
 
 
 static func _has_heavy_claw_for_breach(controller: Variant) -> bool:
