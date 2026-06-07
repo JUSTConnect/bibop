@@ -156,6 +156,20 @@ func place_map_constructor_prefab(prefab_id: String, cell: Vector2i, preferred_w
 		object_data["blocks_movement"] = false
 		object_data["changes_passability"] = false
 		object_data["does_not_block_movement"] = true
+	else:
+		object_data.erase("anchor_floor_cell")
+		object_data.erase("attached_wall_cell")
+		object_data.erase("wall_side")
+		object_data.erase("interaction_side")
+		object_data.erase("required_interaction_direction")
+		object_data.erase("direct_wall_cell_mount")
+		object_data.erase("is_wall_mounted")
+		if str(object_data.get("mount", "")).strip_edges().to_lower() == "wall":
+			object_data["mount"] = "floor"
+		if str(object_data.get("install_mode", "")).strip_edges().to_lower() == "wall":
+			object_data["install_mode"] = "floor"
+		if str(object_data.get("placement_mode", "")).strip_edges().to_lower() == "wall_mounted":
+			object_data["placement_mode"] = "object"
 	if CableTopologyServiceRef.is_cable_object(object_data):
 		if _normalize_cable_install_mode(object_data.get("cable_install_mode", object_data.get("install_mode", "floor"))) == "wall" and not manager._is_map_constructor_wall_cell(cell):
 			return {"ok": false, "reason": "wall_cable_requires_wall", "message": "Wall cable requires a wall in this cell.", "object_id": "", "warnings": []}

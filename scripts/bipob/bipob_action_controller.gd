@@ -12,6 +12,14 @@ const BipobTerminalControlExecutionServiceRef = preload("res://scripts/game/bipo
 const BipobWorldObjectExecutionServiceRef = preload("res://scripts/game/bipob_world_object_execution_service.gd")
 const InteractionActionCostServiceRef = preload("res://scripts/game/interaction/interaction_action_cost_service.gd")
 
+const DEBUG_WORLD_ACTION_TRACE := false
+
+
+static func _trace_world_action_path(event_name: String, payload: Dictionary) -> void:
+	if not DEBUG_WORLD_ACTION_TRACE:
+		return
+	print("[WorldActionPath:%s] %s" % [event_name, JSON.stringify(payload)])
+
 
 static func normalize_world_action_id(action_id: String) -> String:
 	match action_id.strip_edges().to_lower():
@@ -158,8 +166,9 @@ static func handle_runtime_action_interact(controller: Variant, target_position:
 		_apply_pickup_execution(controller, pickup_execution, target_position)
 		return true
 
-	var world_object: Dictionary = Dictionary(controller.mission_manager.get_world_object_at_cell(target_position))
-	world_object = BipobTargetingServiceRef.resolve_runtime_action_target_for_cell(controller, target_position, world_object)
+	var initial_world_object: Dictionary = Dictionary(controller.mission_manager.get_world_object_at_cell(target_position))
+	var world_object: Dictionary = BipobTargetingServiceRef.resolve_runtime_action_target_for_cell(controller, target_position, initial_world_object)
+	_trace_world_action_path("target_lookup", {"target_position": target_position, "actor_cell": controller.grid_position, "initial_object_id": str(initial_world_object.get("id", "")), "resolved_object_id": str(world_object.get("id", "")), "object_group": str(world_object.get("object_group", "")), "object_type": str(world_object.get("object_type", "")), "placement_mode": str(world_object.get("placement_mode", world_object.get("placement", ""))), "is_wall_mounted": bool(world_object.get("is_wall_mounted", false))})
 	if world_object.is_empty():
 		return false
 	if controller.mission_manager.has_method("is_visual_only_floor_ground_object") and bool(controller.mission_manager.call("is_visual_only_floor_ground_object", world_object)):
@@ -192,9 +201,12 @@ static func _execute_world_object_action(controller: Variant, world_object: Dict
 		target_platform = world_object
 	var actor: Dictionary = build_runtime_action_actor(controller, world_object, target_position)
 	actor["platform_switch_access"] = controller.mission_manager.can_bipob_access_platform_switch(target_platform, controller.grid_position, controller.get_direction_id(controller.direction))
+	var raw_action_ids: Array[String] = controller.get_available_world_actions(world_object, target_position)
 	var action_id: String = normalize_world_action_id(get_world_object_action_for_context(controller, world_object, target_position))
 	controller.allow_connector_workflow_action_once = false
 	var module: Dictionary = Dictionary(controller.get_world_action_module(action_id, world_object))
+	var action_gate: Dictionary = InteractionSystemRef.can_apply_action(actor, module, world_object, action_id) if not action_id.is_empty() else {"success": false, "reason": "empty_action"}
+	_trace_world_action_path("action_gate", {"target_object_id": str(world_object.get("id", "")), "object_group": str(world_object.get("object_group", "")), "object_type": str(world_object.get("object_type", "")), "placement_mode": str(world_object.get("placement_mode", world_object.get("placement", ""))), "is_wall_mounted": bool(world_object.get("is_wall_mounted", false)), "target_position": target_position, "actor_cell": controller.grid_position, "raw_action_ids": raw_action_ids, "selected_action_id": action_id, "module_id": str(module.get("id", "")), "can_apply_success": bool(action_gate.get("success", false)), "can_apply_reason": str(action_gate.get("reason", ""))})
 	if str(world_object.get("object_group", "")) == "terminal" and (action_id == "hack" or action_id == "activate_platform") and not controller._is_terminal_powered_for_interaction(world_object):
 		controller.hint_requested.emit("Terminal is unpowered.")
 		controller.status_changed.emit()
