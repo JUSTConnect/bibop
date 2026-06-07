@@ -147,7 +147,7 @@ static func get_overlay_adjustment(overlay_height: String) -> Dictionary:
 			return {
 				"overlay_height": height,
 				"scale_y": 0.74,
-				"offset_y": -13.0,
+				"offset_y": -18.0,
 				"bottom_trim_px": 24,
 				"notes": "Mid overlay is compressed, bottom-trimmed, and lifted so the crack stays inside the wall face."
 			}
@@ -155,7 +155,7 @@ static func get_overlay_adjustment(overlay_height: String) -> Dictionary:
 			return {
 				"overlay_height": height,
 				"scale_y": 1.28,
-				"offset_y": -28.0,
+				"offset_y": -21.0,
 				"bottom_trim_px": 2,
 				"notes": "Halfmid overlay is vertically stretched and lifted to cover more of the visible wall face."
 			}

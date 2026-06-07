@@ -4078,17 +4078,59 @@ func get_map_constructor_wall_material_for_wall_cell(wall_cell: Vector2i) -> Dic
 	return {"ok": false, "message": "No wall material override.", "override": {}, "material": {}}
 
 
-func _clear_map_constructor_wall_material_overrides_for_wall_cell(wall_cell: Vector2i) -> void:
+func _clear_map_constructor_wall_material_overrides_for_wall_cell(wall_cell: Vector2i) -> int:
 	var keys_to_erase: Array[String] = []
 	for key_variant in _map_constructor_wall_material_overrides.keys():
 		var key: String = str(key_variant)
 		var entry: Dictionary = Dictionary(_map_constructor_wall_material_overrides.get(key, {}))
 		var side: String = str(entry.get("side", "")).to_lower().strip_edges()
 		var anchor_cell: Vector2i = _deserialize_cell_variant(entry.get("cell", Vector2i(-1, -1)))
-		if anchor_cell + _get_map_constructor_wall_side_delta(side) == wall_cell:
+		var attached_wall_cell: Vector2i = anchor_cell + _get_map_constructor_wall_side_delta(side)
+		if attached_wall_cell == wall_cell or anchor_cell == wall_cell:
 			keys_to_erase.append(key)
 	for key in keys_to_erase:
 		_map_constructor_wall_material_overrides.erase(key)
+	return keys_to_erase.size()
+
+func _is_wall_source_object_data(object_data: Dictionary) -> bool:
+	if object_data.is_empty():
+		return false
+	if BreachableWallServiceRef.is_breachable_wall_data(object_data) or BreachableWallRulesServiceRef.is_breachable_wall(object_data):
+		return true
+	var object_group: String = str(object_data.get("object_group", object_data.get("group", ""))).to_lower().strip_edges()
+	var object_type: String = str(object_data.get("object_type", object_data.get("type", ""))).to_lower().strip_edges()
+	var wall_archetype: String = str(object_data.get("wall_archetype", object_data.get("archetype_id", ""))).to_lower().strip_edges()
+	return object_group == "wall" or object_type == "wall" or object_type == "breachable_wall" or wall_archetype == "breachable"
+
+func _clear_runtime_wall_sources_at_cell(cell: Vector2i) -> int:
+	var removed_count: int = 0
+	for index in range(mission_world_objects.size() - 1, -1, -1):
+		var object_data: Dictionary = Dictionary(mission_world_objects[index])
+		if _get_world_object_cell_from_data(object_data) != cell:
+			continue
+		if not _is_wall_source_object_data(object_data):
+			continue
+		mission_world_objects.remove_at(index)
+		removed_count += 1
+	var by_cell: Dictionary = Dictionary(world_objects_by_cell.get(cell, {}))
+	if _is_wall_source_object_data(by_cell):
+		world_objects_by_cell.erase(cell)
+		removed_count += 1
+	return removed_count
+
+func _clear_breachable_wall_sources_after_breach(cell: Vector2i) -> Dictionary:
+	var cleared: Dictionary = {"removed_wall_objects": 0, "removed_wall_material_overrides": 0, "grid_tile": -1}
+	if grid_manager != null and grid_manager.has_method("set_tile"):
+		grid_manager.call("set_tile", cell, GridManager.TILE_FLOOR)
+	if grid_manager != null and grid_manager.has_method("get_tile"):
+		cleared["grid_tile"] = int(grid_manager.call("get_tile", cell))
+	cleared["removed_wall_objects"] = _clear_runtime_wall_sources_at_cell(cell)
+	cleared["removed_wall_material_overrides"] = _clear_map_constructor_wall_material_overrides_for_wall_cell(cell)
+	if grid_manager != null and grid_manager.has_method("request_visual_refresh"):
+		grid_manager.call("request_visual_refresh")
+	refresh_generic_cable_runtime_state()
+	refresh_world_cooling_received()
+	return cleared
 
 func get_breachable_wall_action_target_at_cell(cell: Vector2i) -> Dictionary:
 	if grid_manager == null or not grid_manager.has_method("get_tile") or not grid_manager.has_method("is_in_bounds"):
@@ -4132,13 +4174,9 @@ func break_breachable_wall_at_cell(cell: Vector2i, tool_id: String = "heavy_claw
 	var breach_result: Dictionary = BreachableWallRulesServiceRef.apply_heavy_claw_breach(rules_wall, approach_direction, true)
 	if not bool(breach_result.get("ok", false)):
 		return {"ok": false, "message": str(breach_result.get("message", "Cannot break wall.")), "cell": cell, "tool_id": tool_id}
-	grid_manager.call("set_tile", cell, GridManager.TILE_FLOOR)
-	var existing_object: Dictionary = get_world_object_at_cell(cell)
-	if BreachableWallRulesServiceRef.is_breachable_wall(existing_object) or (str(existing_object.get("object_group", "")) == "wall" and str(existing_object.get("wall_archetype", "")) == "breachable"):
-		remove_world_object_at_cell(cell)
-	_clear_map_constructor_wall_material_overrides_for_wall_cell(cell)
-	_record_map_constructor_change("breach_wall", {"cell":cell, "summary":"Breachable Wall cleared at %s" % _format_map_constructor_cell(cell), "details":{"tool_id":tool_id, "wall_state":BreachableWallRulesServiceRef.WALL_STATE_DESTROYED}})
-	return {"ok": true, "message": "Wall breached. Breachable Wall broken.", "cell": cell, "tool_id": tool_id, "wall_data": Dictionary(breach_result.get("wall_data", {})), "requires_visual_refresh": bool(breach_result.get("requires_visual_refresh", true))}
+	var cleared_sources: Dictionary = _clear_breachable_wall_sources_after_breach(cell)
+	_record_map_constructor_change("breach_wall", {"cell":cell, "summary":"Breachable Wall cleared at %s" % _format_map_constructor_cell(cell), "details":{"tool_id":tool_id, "wall_state":BreachableWallRulesServiceRef.WALL_STATE_DESTROYED, "cleared_sources":cleared_sources}})
+	return {"ok": true, "message": "Wall breached. Breachable Wall broken.", "cell": cell, "tool_id": tool_id, "wall_data": Dictionary(breach_result.get("wall_data", {})), "cleared_sources": cleared_sources, "requires_visual_refresh": bool(breach_result.get("requires_visual_refresh", true))}
 
 func _build_breachable_wall_rules_data(wall_data: Dictionary) -> Dictionary:
 	var rules_wall: Dictionary = wall_data.duplicate(true)
