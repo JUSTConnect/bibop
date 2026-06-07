@@ -4133,6 +4133,9 @@ func break_breachable_wall_at_cell(cell: Vector2i, tool_id: String = "heavy_claw
 	if not bool(breach_result.get("ok", false)):
 		return {"ok": false, "message": str(breach_result.get("message", "Cannot break wall.")), "cell": cell, "tool_id": tool_id}
 	grid_manager.call("set_tile", cell, GridManager.TILE_FLOOR)
+	var existing_object: Dictionary = get_world_object_at_cell(cell)
+	if BreachableWallRulesServiceRef.is_breachable_wall(existing_object) or (str(existing_object.get("object_group", "")) == "wall" and str(existing_object.get("wall_archetype", "")) == "breachable"):
+		remove_world_object_at_cell(cell)
 	_clear_map_constructor_wall_material_overrides_for_wall_cell(cell)
 	_record_map_constructor_change("breach_wall", {"cell":cell, "summary":"Breachable Wall cleared at %s" % _format_map_constructor_cell(cell), "details":{"tool_id":tool_id, "wall_state":BreachableWallRulesServiceRef.WALL_STATE_DESTROYED}})
 	return {"ok": true, "message": "Wall breached. Breachable Wall broken.", "cell": cell, "tool_id": tool_id, "wall_data": Dictionary(breach_result.get("wall_data", {})), "requires_visual_refresh": bool(breach_result.get("requires_visual_refresh", true))}

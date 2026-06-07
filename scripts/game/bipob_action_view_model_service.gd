@@ -31,7 +31,9 @@ static func build_runtime_action_view_model(controller: Variant, target_object: 
 		if not action_ids.has(action_id):
 			action_ids.append(action_id)
 	if BreachableWallServiceRef.is_active_breachable_wall_data(normalized_target) and not action_ids.has(BreachableWallServiceRef.ACTION_BREAK_BREACHABLE_WALL):
-		action_ids.append(BreachableWallServiceRef.ACTION_BREAK_BREACHABLE_WALL)
+		var breach_payload_for_append: Dictionary = _build_breachable_wall_action_payload(controller, normalized_target, target_position)
+		if bool(breach_payload_for_append.get("show_heavy_claw", false)):
+			action_ids.append(BreachableWallServiceRef.ACTION_BREAK_BREACHABLE_WALL)
 	var group: String = str(normalized_target.get("object_group", ""))
 	var state: String = str(normalized_target.get("state", ""))
 	if group == "door":

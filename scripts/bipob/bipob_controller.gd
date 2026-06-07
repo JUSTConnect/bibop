@@ -51,6 +51,8 @@ const BipobModulePresenterRef = preload("res://scripts/bipob/bipob_module_presen
 const BipobTargetingServiceRef = preload("res://scripts/game/bipob_targeting_service.gd")
 const BipobActionControllerRef = preload("res://scripts/bipob/bipob_action_controller.gd")
 const BipobCapabilityServiceRef = preload("res://scripts/game/bipob_capability_service.gd")
+const BreachableWallRulesServiceRef = preload("res://scripts/game/wall/breachable_wall_rules_service.gd")
+const BreachableWallServiceRef = preload("res://scripts/game/wall/breachable_wall_service.gd")
 const BipobLegacyTileInteractionServiceRef = preload("res://scripts/game/bipob_legacy_tile_interaction_service.gd")
 const BipobScanHackServiceRef = preload("res://scripts/game/bipob_scan_hack_service.gd")
 const BipobMovementControllerRef = preload("res://scripts/bipob/bipob_movement_controller.gd")
@@ -7647,8 +7649,15 @@ func get_available_world_actions(world_object: Dictionary, target_position: Vect
 				if str(terminal_door.get("control_type", terminal_door.get("control_mode", "internal"))) == "external":
 					actions.append("close_door" if str(terminal_door.get("state", "")) == "open" else "open_door")
 	elif group == "wall":
-		if str(world_object.get("wall_archetype", "")) == "breachable" and Array(world_object.get("breach_tools", [])).has("heavy_claw") and has_heavy_claw_capability():
-			actions.append("break_breachable_wall")
+		if BreachableWallRulesServiceRef.is_breachable_wall(world_object) and not BreachableWallRulesServiceRef.is_destroyed(world_object):
+			var breach_rules_wall: Dictionary = world_object.duplicate(true)
+			breach_rules_wall["is_breachable"] = true
+			breach_rules_wall["wall_state"] = str(world_object.get("wall_state", world_object.get("breach_state", world_object.get("state", "intact"))))
+			breach_rules_wall["crack_side"] = BreachableWallServiceRef.get_grid_side_for_breach_side(world_object.get("breach_side", world_object.get("crack_side", "sw")))
+			var approach_direction: Vector2i = grid_position - target_position
+			if BreachableWallRulesServiceRef.should_show_heavy_claw_action(breach_rules_wall, approach_direction, has_heavy_claw_capability()):
+				actions.append("break_breachable_wall")
+			return actions
 		if has_plasma_cutter():
 			actions.append("cut")
 		if has_sledgehammer():

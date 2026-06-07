@@ -2265,10 +2265,15 @@ func draw_breachable_wall_overlay_for_cell(cell: Vector2i, wall_data: Dictionary
 	var source_rect: Rect2 = get_iso_wall_visible_source_rect(wall_asset_key, base_texture)
 	var height_level: String = get_normalized_breachable_wall_height(wall_data)
 	var destination_rect: Rect2 = get_breach_overlay_destination_rect(texture_rect, source_rect, base_texture, overlay_texture, height_level)
+	var overlay_source_rect: Rect2 = Rect2(Vector2.ZERO, overlay_texture.get_size())
+	var overlay_adjustment: Dictionary = BreachableWallRulesServiceRef.get_overlay_adjustment(height_level)
+	var bottom_trim_px: int = maxi(0, int(overlay_adjustment.get("bottom_trim_px", 0)))
+	if bottom_trim_px > 0:
+		overlay_source_rect.size.y = maxf(1.0, overlay_source_rect.size.y - float(bottom_trim_px))
 	var side_transform: Dictionary = get_breach_overlay_transform_for_side(breach_side, height_level)
 	var offset: Vector2 = Vector2(side_transform.get("offset", Vector2.ZERO))
 	destination_rect.position += offset
-	draw_breach_overlay_texture_rect(overlay_texture, destination_rect, Rect2(Vector2.ZERO, overlay_texture.get_size()), side_transform)
+	draw_breach_overlay_texture_rect(overlay_texture, destination_rect, overlay_source_rect, side_transform)
 	draw_iso_asset_alignment_overlay(overlay_asset_key, destination_rect.position + Vector2(destination_rect.size.x * 0.5, destination_rect.size.y), destination_rect)
 
 func get_iso_object_asset_key_for_profile(profile_key: String) -> String:
