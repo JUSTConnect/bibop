@@ -128,6 +128,8 @@ func place_map_constructor_prefab(prefab_id: String, cell: Vector2i, preferred_w
 			object_data = WallMountedPlacementRulesServiceRef.normalize_direct_wall_cell_mount_object(object_data, direct_wall_side, cell, direct_anchor_floor_cell)
 			object_data["placement_mode"] = "wall_mounted"
 			object_data["is_wall_mounted"] = true
+			object_data["mount"] = "wall"
+			object_data["install_mode"] = "wall"
 			object_data["attached_wall_cell"] = manager._serialize_cell_key(cell)
 			object_data["anchor_floor_cell"] = manager._serialize_cell_key(direct_anchor_floor_cell) if manager._is_valid_grid_cell(direct_anchor_floor_cell) else "-1,-1"
 			object_data["position"] = cell
@@ -141,11 +143,11 @@ func place_map_constructor_prefab(prefab_id: String, cell: Vector2i, preferred_w
 			if not bool(attachment.get("ok", false)):
 				return {"ok": false, "reason": str(attachment.get("reason", "no_adjacent_wall")), "message": str(attachment.get("message", "Blocked: no adjacent wall.")), "object_id": "", "warnings": []}
 			var attached_wall_cell: Vector2i = Vector2i(attachment.get("attached_wall_cell", Vector2i(-1, -1)))
-			if manager.has_method("is_breachable_wall_cell") and bool(manager.call("is_breachable_wall_cell", attached_wall_cell)):
-				return {"ok": false, "reason": "breachable_wall_blocks_wall_mount", "message": "Cannot mount on a Breachable Wall.", "object_id": "", "warnings": []}
 			if not manager._is_wall_or_boundary_cell(attached_wall_cell):
 				return {"ok": false, "reason": "invalid_wall_attachment", "message": "Blocked: attached wall cell is not wall/boundary.", "object_id": "", "warnings": []}
 			object_data["placement_mode"] = "wall_mounted"
+			object_data["mount"] = "wall"
+			object_data["install_mode"] = "wall"
 			object_data["anchor_floor_cell"] = manager._serialize_cell_key(cell)
 			object_data["attached_wall_cell"] = manager._serialize_cell_key(attached_wall_cell)
 			object_data["wall_side"] = str(attachment.get("wall_side", "north"))
@@ -181,6 +183,18 @@ func place_map_constructor_prefab(prefab_id: String, cell: Vector2i, preferred_w
 	object_data = manager._normalize_map_constructor_active_object_fields(object_data)
 	object_data = WorldObjectCatalogRef.normalize_world_object_contract(object_data)
 	object_data = WorldObjectCatalogRef.normalize_door_state_fields(object_data)
+	if str(check.get("placement_mode", "")) == "wall_mounted":
+		object_data["placement_mode"] = "wall_mounted"
+		object_data["is_wall_mounted"] = true
+		object_data["mount"] = "wall"
+		object_data["install_mode"] = "wall"
+		object_data["position"] = cell
+		object_data["attached_wall_cell"] = manager._serialize_cell_key(cell) if bool(check.get("direct_wall_cell_mount", false)) else object_data.get("attached_wall_cell", "")
+		object_data["wall_side"] = str(object_data.get("wall_side", check.get("wall_side", "")))
+		object_data["interaction_side"] = str(object_data.get("interaction_side", object_data.get("wall_side", check.get("wall_side", ""))))
+		object_data["blocks_movement"] = false
+		object_data["changes_passability"] = false
+		object_data["does_not_block_movement"] = true
 	_trace_wall_mounted_placement("place_final", {"prefab_id": prefab_id, "direct_wall_cell_mount": bool(check.get("direct_wall_cell_mount", false)), "final_object_position": object_data.get("position", cell), "attached_wall_cell": object_data.get("attached_wall_cell", ""), "wall_side": str(object_data.get("wall_side", "")), "interaction_side": str(object_data.get("interaction_side", "")), "placement_mode": str(object_data.get("placement_mode", "")), "is_wall_mounted": bool(object_data.get("is_wall_mounted", false))})
 	manager.set_world_object_at_cell(cell, object_data)
 	PowerSystemRef.recalculate_network(manager.mission_world_objects, str(object_data.get("power_network_id", "")))

@@ -20,6 +20,7 @@ static func can_apply_action(actor: Dictionary, module: Dictionary, target_objec
 		return _result(false, "Action not supported.", [], "unsupported_action")
 	if target_object.is_empty():
 		return _result(false, "No target object.", [], "target_missing")
+	var module_id: String = str(module.get("id", "")).strip_edges()
 	if BreachableWallRulesServiceRef.is_breachable_wall(target_object) and not BreachableWallRulesServiceRef.is_destroyed(target_object) and action_type != "break_breachable_wall":
 		return _result(false, "Use Heavy Claw from the cracked side.", [], "heavy_claw_breach_only")
 	var target_placement_mode: String = str(target_object.get("placement_mode", target_object.get("placement", ""))).strip_edges().to_lower()

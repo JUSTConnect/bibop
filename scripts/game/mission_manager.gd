@@ -221,6 +221,7 @@ const VISUAL_TEXTURE_ASSET_ALIASES: Dictionary = {
 
 var mission_world_objects: Array[Dictionary] = []
 var world_objects_by_cell: Dictionary = {}
+var wall_mounted_objects_by_cell: Dictionary = {}
 var generic_cable_runtime_report: Dictionary = {}
 var generic_airflow_runtime_report: Dictionary = {}
 var cell_items: Dictionary = {}
@@ -1142,6 +1143,7 @@ func setup_world_objects_for_mission(mission_id: String) -> void:
 func _clear_world_object_runtime_state() -> void:
 	mission_world_objects.clear()
 	world_objects_by_cell.clear()
+	wall_mounted_objects_by_cell.clear()
 	cell_items.clear()
 	_map_constructor_wall_material_overrides.clear()
 	_map_constructor_floor_material_overrides.clear()
@@ -1819,6 +1821,7 @@ func rollback_last_map_constructor_patch() -> Dictionary:
 	mission_world_objects = Array(_map_constructor_last_patch_snapshot.get("mission_world_objects", [])).duplicate(true)
 	cell_items = Dictionary(_map_constructor_last_patch_snapshot.get("cell_items", {})).duplicate(true)
 	world_objects_by_cell = Dictionary(_map_constructor_last_patch_snapshot.get("world_objects_by_cell", {})).duplicate(true)
+	_rebuild_wall_mounted_world_object_lookup()
 	if grid_manager != null and grid_manager.has_method("clear_floor_visual_states"):
 		grid_manager.call("clear_floor_visual_states")
 	for floor_state_variant in Array(_map_constructor_last_patch_snapshot.get("floor_visual_states", [])):
@@ -1838,6 +1841,7 @@ func create_map_constructor_empty_map(width: int, height: int) -> Dictionary:
 	constructor_map_height = maxi(6, height)
 	mission_world_objects.clear()
 	world_objects_by_cell.clear()
+	wall_mounted_objects_by_cell.clear()
 	cell_items.clear()
 	constructor_start_marker.clear()
 	constructor_exit_marker.clear()
@@ -2086,6 +2090,7 @@ func _sync_map_constructor_grid_snapshot_state() -> void:
 
 func _refresh_map_constructor_state_after_preset_apply() -> void:
 	world_objects_by_cell.clear()
+	wall_mounted_objects_by_cell.clear()
 	for object_variant in mission_world_objects:
 		if not (object_variant is Dictionary):
 			continue
@@ -2097,6 +2102,7 @@ func _refresh_map_constructor_state_after_preset_apply() -> void:
 		grid_manager.call("enforce_boundary_walls")
 	if grid_manager != null and grid_manager.has_method("request_visual_refresh"):
 		grid_manager.call("request_visual_refresh")
+	_rebuild_wall_mounted_world_object_lookup()
 	PowerSystemRef.recalculate_network(mission_world_objects, "task_test_power_main")
 	var networks: Dictionary = {}
 	for object_data_variant in mission_world_objects:
@@ -2438,7 +2444,45 @@ func _get_world_object_lookup_priority(object_data: Dictionary) -> int:
 		score += 5
 	return score
 
+func _is_wall_mounted_world_object(object_data: Dictionary) -> bool:
+	var placement_mode: String = str(object_data.get("placement_mode", object_data.get("placement", ""))).strip_edges().to_lower()
+	return placement_mode == "wall_mounted" or bool(object_data.get("is_wall_mounted", false))
+
+func _rebuild_wall_mounted_world_object_lookup() -> void:
+	wall_mounted_objects_by_cell.clear()
+	for object_data_variant in mission_world_objects:
+		if typeof(object_data_variant) != TYPE_DICTIONARY:
+			continue
+		var object_data: Dictionary = Dictionary(object_data_variant)
+		if not _is_wall_mounted_world_object(object_data):
+			continue
+		var object_cell: Vector2i = _get_world_object_cell_from_data(object_data)
+		if object_cell.x < 0 or object_cell.y < 0:
+			continue
+		var candidates_at_cell: Array = Array(wall_mounted_objects_by_cell.get(object_cell, []))
+		candidates_at_cell.append(object_data)
+		wall_mounted_objects_by_cell[object_cell] = candidates_at_cell
+
+func get_wall_mounted_world_object_at_cell(cell: Vector2i) -> Dictionary:
+	var wall_mounted_candidates: Array = Array(wall_mounted_objects_by_cell.get(cell, []))
+	if wall_mounted_candidates.is_empty():
+		return {}
+	var selected_object: Dictionary = {}
+	var selected_score: int = -1
+	for candidate_variant in wall_mounted_candidates:
+		if typeof(candidate_variant) != TYPE_DICTIONARY:
+			continue
+		var candidate: Dictionary = Dictionary(candidate_variant)
+		var candidate_score: int = _get_world_object_lookup_priority(candidate)
+		if selected_object.is_empty() or candidate_score > selected_score:
+			selected_object = candidate
+			selected_score = candidate_score
+	return selected_object
+
 func _select_world_object_for_cell(cell: Vector2i) -> Dictionary:
+	var wall_mounted_object: Dictionary = get_wall_mounted_world_object_at_cell(cell)
+	if not wall_mounted_object.is_empty():
+		return wall_mounted_object
 	var selected_object: Dictionary = {}
 	var selected_score: int = -1
 	for object_data_variant in mission_world_objects:
@@ -2700,10 +2744,15 @@ func set_world_object_at_cell(cell: Vector2i, object_data: Dictionary) -> void:
 				world_objects_by_cell.erase(existing_cell)
 			mission_world_objects.remove_at(index)
 	var incoming_is_cable_layer: bool = CableTopologyServiceRef.is_cable_object(object_data)
+	var incoming_is_wall_mounted: bool = _is_wall_mounted_world_object(object_data)
 	var current_lookup: Dictionary = Dictionary(world_objects_by_cell.get(cell, {}))
-	if not incoming_is_cable_layer or current_lookup.is_empty() or CableTopologyServiceRef.is_cable_object(current_lookup):
+	if incoming_is_wall_mounted:
+		if current_lookup.is_empty() or _is_wall_mounted_world_object(current_lookup):
+			world_objects_by_cell[cell] = object_data
+	elif not incoming_is_cable_layer or current_lookup.is_empty() or CableTopologyServiceRef.is_cable_object(current_lookup):
 		world_objects_by_cell[cell] = object_data
 	mission_world_objects.append(object_data)
+	_rebuild_wall_mounted_world_object_lookup()
 	refresh_generic_cable_runtime_state(str(object_data.get("power_network_id", "")))
 	refresh_world_cooling_received()
 
@@ -2711,7 +2760,10 @@ func remove_world_object_at_cell(cell: Vector2i) -> void:
 	var object_data := get_world_object_at_cell(cell)
 	if not object_data.is_empty():
 		mission_world_objects.erase(object_data)
-	world_objects_by_cell.erase(cell)
+		var lookup_object: Dictionary = Dictionary(world_objects_by_cell.get(cell, {}))
+		if not lookup_object.is_empty() and str(lookup_object.get("id", "")) == str(object_data.get("id", "")):
+			world_objects_by_cell.erase(cell)
+		_rebuild_wall_mounted_world_object_lookup()
 	refresh_generic_cable_runtime_state()
 	refresh_world_cooling_received()
 
@@ -3599,10 +3651,6 @@ func can_place_map_constructor_prefab(prefab_id: String, cell: Vector2i, preferr
 	var prefab_is_floor_replacement: bool = prefab_id == "floor" or prefab_id == "stepped_floor"
 	var direct_wall_cell_mount: bool = prefab_is_wall_mounted and tile_is_wall
 	_trace_wall_mounted_placement("can_place", {"clicked_cell": cell, "selected_cell": cell, "placement_mode_override": placement_mode_override, "prefab_id": prefab_id, "is_wall_cell": tile_is_wall, "direct_wall_cell_mount": direct_wall_cell_mount, "wall_side": preferred_wall_side})
-	if direct_wall_cell_mount and is_breachable_wall_cell(cell):
-		result["reason"] = "breachable_wall_blocks_wall_mount"
-		result["message"] = "Cannot mount on a Breachable Wall."
-		return result
 	if tile_is_exit and prefab_id != "powered_gate":
 		result["reason"] = "exit_cell"
 		result["message"] = "Blocked: exit cell."
@@ -3704,10 +3752,6 @@ func can_place_map_constructor_prefab(prefab_id: String, cell: Vector2i, preferr
 				result["message"] = "Cannot mount on %s: adjacent cell is not a wall." % _get_map_constructor_wall_side_label(normalized_side)
 				return result
 			var attached_wall_cell: Vector2i = cell + _get_map_constructor_wall_side_delta(normalized_side)
-			if is_breachable_wall_cell(attached_wall_cell):
-				result["reason"] = "breachable_wall_blocks_wall_mount"
-				result["message"] = "Cannot mount on a Breachable Wall."
-				return result
 			result["attached_wall_cell"] = _serialize_cell_key(attached_wall_cell)
 			result["wall_side"] = normalized_side
 			result["interaction_side"] = normalized_side
@@ -3888,6 +3932,7 @@ func undo_last_map_constructor_batch_operation() -> Dictionary:
 	mission_world_objects = Array(_map_constructor_last_batch_snapshot.get("mission_world_objects", [])).duplicate(true)
 	cell_items = Dictionary(_map_constructor_last_batch_snapshot.get("cell_items", {})).duplicate(true)
 	world_objects_by_cell = Dictionary(_map_constructor_last_batch_snapshot.get("world_objects_by_cell", {})).duplicate(true)
+	_rebuild_wall_mounted_world_object_lookup()
 	_map_constructor_last_batch_snapshot.clear()
 	PowerSystemRef.recalculate_network(mission_world_objects, "")
 	refresh_world_cooling_received()
@@ -6245,6 +6290,7 @@ func undo_last_map_constructor_cleanup() -> Dictionary:
 	mission_world_objects = Array(_map_constructor_last_cleanup_snapshot.get("mission_world_objects", [])).duplicate(true)
 	cell_items = Dictionary(_map_constructor_last_cleanup_snapshot.get("cell_items", {})).duplicate(true)
 	world_objects_by_cell = Dictionary(_map_constructor_last_cleanup_snapshot.get("world_objects_by_cell", {})).duplicate(true)
+	_rebuild_wall_mounted_world_object_lookup()
 	_map_constructor_last_cleanup_snapshot.clear()
 	PowerSystemRef.recalculate_network(mission_world_objects, "")
 	refresh_world_cooling_received()
@@ -6483,6 +6529,7 @@ func undo_last_map_constructor_autofix() -> Dictionary:
 	mission_world_objects = Array(_map_constructor_last_autofix_snapshot.get("mission_world_objects", [])).duplicate(true)
 	cell_items = Dictionary(_map_constructor_last_autofix_snapshot.get("cell_items", {})).duplicate(true)
 	world_objects_by_cell = Dictionary(_map_constructor_last_autofix_snapshot.get("world_objects_by_cell", {})).duplicate(true)
+	_rebuild_wall_mounted_world_object_lookup()
 	_map_constructor_last_autofix_snapshot.clear()
 	PowerSystemRef.recalculate_network(mission_world_objects, "")
 	refresh_world_cooling_received()
@@ -6552,9 +6599,12 @@ func update_world_object_by_id(id: String, data: Dictionary) -> void:
 			object_data[key] = data[key]
 		mission_world_objects[index] = object_data
 		var new_position := Vector2i(object_data.get("position", old_position))
+		var updated_lookup: Dictionary = Dictionary(world_objects_by_cell.get(new_position, {}))
 		if old_position != new_position:
 			world_objects_by_cell.erase(old_position)
-		world_objects_by_cell[new_position] = object_data
+		if not _is_wall_mounted_world_object(object_data) or updated_lookup.is_empty() or _is_wall_mounted_world_object(updated_lookup):
+			world_objects_by_cell[new_position] = object_data
+		_rebuild_wall_mounted_world_object_lookup()
 		refresh_generic_cable_runtime_state(str(object_data.get("power_network_id", "")))
 		refresh_world_cooling_received()
 		return
@@ -13606,6 +13656,7 @@ func undo_last_map_constructor_prefab_kit() -> Dictionary:
 	mission_world_objects = Array(_map_constructor_last_kit_snapshot.get("mission_world_objects", [])).duplicate(true)
 	cell_items = Dictionary(_map_constructor_last_kit_snapshot.get("cell_items", {})).duplicate(true)
 	world_objects_by_cell = Dictionary(_map_constructor_last_kit_snapshot.get("world_objects_by_cell", {})).duplicate(true)
+	_rebuild_wall_mounted_world_object_lookup()
 	_map_constructor_last_kit_snapshot.clear()
 	_record_map_constructor_change("kit_undo", {"summary":"Undid last kit."})
 	return {"ok":true,"message":"Kit undo completed."}
@@ -13736,6 +13787,7 @@ func undo_last_map_constructor_room_template() -> Dictionary:
 	mission_world_objects = Array(_map_constructor_last_template_snapshot.get("mission_world_objects", [])).duplicate(true)
 	cell_items = Dictionary(_map_constructor_last_template_snapshot.get("cell_items", {})).duplicate(true)
 	world_objects_by_cell = Dictionary(_map_constructor_last_template_snapshot.get("world_objects_by_cell", {})).duplicate(true)
+	_rebuild_wall_mounted_world_object_lookup()
 	var warnings: Array[String] = []
 	var tile_snapshot: Array = Array(_map_constructor_last_template_snapshot.get("tile_snapshot", []))
 	if not tile_snapshot.is_empty():

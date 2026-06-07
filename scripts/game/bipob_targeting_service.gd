@@ -2,6 +2,13 @@ extends RefCounted
 class_name BipobTargetingService
 
 const BreachableWallServiceRef = preload("res://scripts/game/wall/breachable_wall_service.gd")
+const DEBUG_RUNTIME_ACTION_TARGET_TRACE := false
+
+
+static func _trace_runtime_action_target(payload: Dictionary) -> void:
+	if not DEBUG_RUNTIME_ACTION_TARGET_TRACE:
+		return
+	print("[RuntimeActionTarget] %s" % JSON.stringify(payload))
 
 
 static func get_facing_cell(controller: Variant) -> Vector2i:
@@ -16,9 +23,18 @@ static func get_facing_object(controller: Variant) -> Dictionary:
 	return resolve_runtime_action_target_for_cell(controller, facing_cell, world_object)
 
 
+static func _get_wall_mounted_object_candidate(controller: Variant, target_cell: Vector2i) -> Dictionary:
+	if controller == null or controller.mission_manager == null or not controller.mission_manager.has_method("get_wall_mounted_world_object_at_cell"):
+		return {}
+	return Dictionary(controller.mission_manager.call("get_wall_mounted_world_object_at_cell", target_cell))
+
+
 static func resolve_runtime_action_target_for_cell(controller: Variant, target_cell: Vector2i, world_object: Dictionary = {}) -> Dictionary:
 	if controller == null or controller.mission_manager == null:
 		return world_object
+	var wall_mounted_candidate: Dictionary = _get_wall_mounted_object_candidate(controller, target_cell)
+	if not wall_mounted_candidate.is_empty():
+		return wall_mounted_candidate
 	var breachable_wall_target: Dictionary = {}
 	if controller.mission_manager.has_method("get_breachable_wall_action_target_at_cell"):
 		breachable_wall_target = Dictionary(controller.mission_manager.call("get_breachable_wall_action_target_at_cell", target_cell))
@@ -44,7 +60,14 @@ static func get_facing_item(controller: Variant) -> Dictionary:
 
 static func build_action_target_context(controller: Variant) -> Dictionary:
 	var target_position: Vector2i = get_facing_cell(controller)
-	var target_object: Dictionary = get_facing_object(controller)
+	var raw_world_object: Dictionary = {}
+	if controller.mission_manager != null:
+		raw_world_object = Dictionary(controller.mission_manager.get_world_object_at_cell(target_position))
+	var wall_mounted_candidate: Dictionary = _get_wall_mounted_object_candidate(controller, target_position)
+	var breachable_wall_candidate: Dictionary = {}
+	if controller.mission_manager != null and controller.mission_manager.has_method("get_breachable_wall_action_target_at_cell"):
+		breachable_wall_candidate = Dictionary(controller.mission_manager.call("get_breachable_wall_action_target_at_cell", target_position))
+	var target_object: Dictionary = resolve_runtime_action_target_for_cell(controller, target_position, raw_world_object)
 	if target_object.is_empty() and controller.mission_manager != null:
 		var items: Array = controller.mission_manager.get_items_at_cell(target_position)
 		if items.is_empty() and target_position != controller.grid_position:
@@ -54,6 +77,36 @@ static func build_action_target_context(controller: Variant) -> Dictionary:
 		if not items.is_empty():
 			target_object = Dictionary(items[0])
 	var view_model: Dictionary = controller.build_runtime_action_view_model(target_object, target_position)
+	var resolved_target: Dictionary = Dictionary(view_model.get("target", target_object))
+	_trace_runtime_action_target({
+		"target_cell": target_position,
+		"actor_cell": controller.grid_position,
+		"raw_world_object": {
+			"id": str(raw_world_object.get("id", "")),
+			"object_type": str(raw_world_object.get("object_type", "")),
+			"object_group": str(raw_world_object.get("object_group", "")),
+			"placement_mode": str(raw_world_object.get("placement_mode", raw_world_object.get("placement", "")))
+		},
+		"wall_mounted_candidate": {
+			"id": str(wall_mounted_candidate.get("id", "")),
+			"object_type": str(wall_mounted_candidate.get("object_type", "")),
+			"object_group": str(wall_mounted_candidate.get("object_group", "")),
+			"placement_mode": str(wall_mounted_candidate.get("placement_mode", wall_mounted_candidate.get("placement", "")))
+		},
+		"breachable_wall_candidate": {
+			"id": str(breachable_wall_candidate.get("id", "")),
+			"object_type": str(breachable_wall_candidate.get("object_type", "")),
+			"object_group": str(breachable_wall_candidate.get("object_group", "")),
+			"placement_mode": str(breachable_wall_candidate.get("placement_mode", breachable_wall_candidate.get("placement", "")))
+		},
+		"resolved_target": {
+			"id": str(resolved_target.get("id", target_object.get("id", ""))),
+			"object_type": str(resolved_target.get("object_type", target_object.get("object_type", ""))),
+			"object_group": str(resolved_target.get("object_group", target_object.get("object_group", ""))),
+			"placement_mode": str(resolved_target.get("placement_mode", resolved_target.get("placement", target_object.get("placement_mode", target_object.get("placement", "")))))
+		},
+		"available_actions": Array(view_model.get("available_action_ids", []))
+	})
 	return {"target_position": target_position, "target_object": view_model.get("target", {}), "actions": view_model.get("available_action_ids", []), "action_view_model": view_model}
 
 
