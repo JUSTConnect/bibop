@@ -23,49 +23,111 @@ static func _get_runtime_item_data(inventory_state: Dictionary, item_id: String)
 
 
 static func _get_item_type_from_data(item_data: Dictionary, fallback_id: String = "") -> String:
-	return str(item_data.get("item_type", item_data.get("object_type", item_data.get("id", fallback_id)))).strip_edges().to_lower()
+	for field_name in ["item_type", "object_type", "item_class", "id", "item_id"]:
+		var value: String = str(item_data.get(field_name, "")).strip_edges().to_lower()
+		if value.is_empty():
+			continue
 
+		if value == "fuse" or value.contains("fuse"):
+			return "fuse"
+
+		if value == "cable_end" or value.contains("cable_end") or value.contains("wire_end"):
+			return "cable_end"
+
+		return value
+
+	var fallback: String = fallback_id.strip_edges().to_lower()
+
+	if fallback == "fuse" or fallback.contains("fuse"):
+		return "fuse"
+
+	if fallback == "cable_end" or fallback.contains("cable_end") or fallback.contains("wire_end"):
+		return "cable_end"
+
+	return fallback
 
 static func _get_visible_held_item(controller: Variant, inventory_state: Dictionary) -> Dictionary:
 	var held_id: String = _runtime_inventory_value_id(controller, inventory_state.get("manipulator_hold", ""))
+
 	if not held_id.is_empty():
 		var item_data: Dictionary = _get_runtime_item_data(inventory_state, held_id)
+		var held_item_type: String = _get_item_type_from_data(item_data, held_id)
+
+		if held_item_type == "fuse":
+			item_data["item_type"] = "fuse"
+			item_data["item_form"] = "physical"
+
+		if held_item_type == "fuse" or held_id.to_lower().contains("fuse"):
+			print("[FUSE_ACTOR_HELD] held_id=", held_id, " held_item_type=", held_item_type, " item_data=", item_data)
+
 		return {
 			"held_item_id": held_id,
-			"held_item_type": _get_item_type_from_data(item_data, held_id),
+			"held_item_type": held_item_type,
 			"held_item_data": item_data
 		}
+
 	if controller != null and controller.has_method("get_runtime_manipulator_items"):
 		var visible_items_variant: Variant = controller.call("get_runtime_manipulator_items")
 		if visible_items_variant is Array:
 			for item_variant in Array(visible_items_variant):
 				if item_variant == null:
 					continue
+
 				if item_variant is Dictionary:
 					var item_dictionary: Dictionary = Dictionary(item_variant)
 					var item_id: String = str(item_dictionary.get("id", item_dictionary.get("item_id", ""))).strip_edges()
+					var item_type: String = _get_item_type_from_data(item_dictionary, item_id)
+
+					if item_type == "fuse":
+						item_dictionary["item_type"] = "fuse"
+						item_dictionary["item_form"] = "physical"
+
+					if item_type == "fuse" or item_id.to_lower().contains("fuse"):
+						print("[FUSE_ACTOR_VISIBLE] item_id=", item_id, " item_type=", item_type, " item_data=", item_dictionary)
+
 					return {
 						"held_item_id": item_id,
-						"held_item_type": _get_item_type_from_data(item_dictionary, item_id),
+						"held_item_type": item_type,
 						"held_item_data": item_dictionary
 					}
+
 				var object_id: String = ""
 				var object_display_name: String = ""
+
 				if "id" in item_variant:
 					object_id = str(item_variant.id).strip_edges()
 				if "display_name" in item_variant:
 					object_display_name = str(item_variant.display_name).strip_edges()
+
 				if not object_id.is_empty() or not object_display_name.is_empty():
 					var inferred_type: String = object_id.strip_edges().to_lower()
 					if inferred_type.is_empty():
 						inferred_type = object_display_name.strip_edges().to_lower().replace(" ", "_")
+
+					if inferred_type == "fuse" or inferred_type.contains("fuse"):
+						inferred_type = "fuse"
+
+					var inferred_data: Dictionary = {
+						"id": object_id,
+						"display_name": object_display_name,
+						"item_type": inferred_type
+					}
+
+					if inferred_type == "fuse":
+						inferred_data["item_form"] = "physical"
+						print("[FUSE_ACTOR_OBJECT] object_id=", object_id, " inferred_type=", inferred_type, " item_data=", inferred_data)
+
 					return {
 						"held_item_id": object_id,
 						"held_item_type": inferred_type,
-						"held_item_data": {"id": object_id, "display_name": object_display_name, "item_type": inferred_type}
+						"held_item_data": inferred_data
 					}
-	return {"held_item_id": "", "held_item_type": "", "held_item_data": {}}
 
+	return {
+		"held_item_id": "",
+		"held_item_type": "",
+		"held_item_data": {}
+	}
 
 static func get_visible_held_item(controller: Variant) -> Dictionary:
 	if controller == null:
