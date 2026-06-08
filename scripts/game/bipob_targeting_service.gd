@@ -116,7 +116,7 @@ static func build_action_target_context(controller: Variant) -> Dictionary:
 		"actions_after_filtering": Array(view_model.get("available_action_ids", [])),
 		"action_descriptors": Array(view_model.get("actions", []))
 	})
-	return {"target_position": target_position, "target_object": view_model.get("target", {}), "actions": view_model.get("available_action_ids", []), "action_view_model": view_model}
+	return {"target_position": target_position, "target_object": view_model.get("target", {}), "actions": view_model.get("raw_action_ids", []), "available_action_ids": view_model.get("available_action_ids", []), "action_view_model": view_model}
 
 
 static func build_connector_target_context(controller: Variant) -> Dictionary:

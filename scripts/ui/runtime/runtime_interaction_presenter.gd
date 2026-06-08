@@ -18,14 +18,12 @@ static func refresh(ui) -> void:
 	var connect_descriptor: Dictionary = RuntimeInteractionPanelRef.get_connect_descriptor(target_data)
 	var heavy_claw_descriptor: Dictionary = RuntimeInteractionPanelRef.get_heavy_claw_descriptor(target_data)
 	var has_interactable: bool = not target_object.is_empty() and bool(action_view_model.get("has_interaction_target", false))
-	var has_enabled_physical_action: bool = not physical_actions.is_empty()
+	var has_enabled_physical_action: bool = bool(action_view_model.get("has_available_action", false))
 	if has_interactable and not ui.runtime_interaction_mode_active and ui.runtime_action_button != null:
 		ui._apply_selected_pulse(ui.runtime_action_button)
 	elif not has_interactable and ui.runtime_action_button != null:
 		ui._clear_selected_pulse(ui.runtime_action_button)
 	var has_actions_left: bool = ui.bipob != null and int(ui.bipob.actions_left) > 0
-	if ui.runtime_interaction_mode_active and (not has_enabled_physical_action or not has_actions_left):
-		ui.runtime_interaction_mode_active = false
 	if ui.runtime_action_button != null:
 		var button_hint: String = str(action_view_model.get("primary_action_label", ""))
 		if button_hint.is_empty():
@@ -63,25 +61,90 @@ static func refresh(ui) -> void:
 
 
 static func refresh_world_actions_panel(ui, payload: Dictionary = {}) -> void:
-	if not payload.is_empty():
-		var target_object: Dictionary = ui._safe_ui_dictionary(payload.get("target_object", {}))
-		var actions: Array = ui._safe_ui_array(payload.get("actions", []))
-		var selected_action: String = str(payload.get("selected_action", ""))
-		var fallback_name: String = str(target_object.get("name", target_object.get("label", "")))
-		var target_id: String = ui._get_runtime_world_action_target_id(target_object, fallback_name)
-		var action_ids: Array[String] = []
-		for action_variant in actions:
-			action_ids.append(str(action_variant))
-		var actions_key: String = "|".join(action_ids)
-		var state_key: String = "%s|%s|%s" % [str(target_object.get("state", "")), str(target_object.get("power_state", "")), str(target_object.get("connected", ""))]
-		_trace_breachable_wall_game_ui_payload(target_object, actions, selected_action)
-		clear_selected_action_if_stale(ui, target_id, actions_key, state_key)
-		ui.last_world_action_target_id = target_id
-		ui.last_world_action_actions_key = actions_key
-		ui.last_world_action_selected = selected_action
-		ui.last_world_action_state_key = state_key
-	if ui.runtime_world_actions_panel != null:
-		ui.runtime_world_actions_panel.visible = false
+	if ui.runtime_world_actions_panel == null or ui.runtime_world_actions_list == null:
+		return
+	var target_data: Dictionary = RuntimeInteractionPanelRef.get_target_data(ui)
+	var target_object: Dictionary = ui._safe_ui_dictionary(target_data.get("target_object", {}))
+	var action_view_model: Dictionary = ui._safe_ui_dictionary(target_data.get("action_view_model", {}))
+	var action_ids: Array[String] = RuntimeInteractionPanelRef.get_physical_actions(ui._safe_ui_array(target_data.get("actions", [])))
+	var selected_action: String = str(payload.get("selected_action", ui.last_world_action_selected if not ui.last_world_action_selected.is_empty() else ""))
+	var fallback_name: String = str(target_object.get("display_name", target_object.get("name", target_object.get("label", ""))))
+	var target_id: String = ui._get_runtime_world_action_target_id(target_object, fallback_name)
+	var action_descriptors: Array[Dictionary] = []
+	for action_id in action_ids:
+		var descriptor: Dictionary = RuntimeInteractionPanelRef.get_action_descriptor(target_data, action_id)
+		if descriptor.is_empty():
+			descriptor = {"id": action_id, "label": action_id.capitalize(), "enabled": true, "reason": ""}
+		action_descriptors.append(descriptor)
+	var actions_key: String = "|".join(action_ids)
+	var state_key: String = "%s|%s|%s|%s" % [str(target_object.get("state", "")), str(target_object.get("power_state", "")), str(target_object.get("connected", "")), str(target_object.get("access_code_entry", ""))]
+	_trace_breachable_wall_game_ui_payload(target_object, action_ids, selected_action)
+	clear_selected_action_if_stale(ui, target_id, actions_key, state_key)
+	if selected_action.is_empty() or not action_ids.has(selected_action):
+		selected_action = str(ui.last_world_action_selected)
+	ui.last_world_action_target_id = target_id
+	ui.last_world_action_actions_key = actions_key
+	ui.last_world_action_selected = selected_action
+	ui.last_world_action_state_key = state_key
+	_clear_runtime_world_actions_list(ui)
+	var is_open: bool = ui.runtime_interaction_mode_active
+	ui.runtime_world_actions_panel.visible = is_open
+	if not is_open:
+		return
+	var title_text: String = fallback_name if not fallback_name.is_empty() else "Interactable"
+	if not target_id.is_empty() and target_id != title_text:
+		title_text = "%s (%s)" % [title_text, target_id]
+	ui.runtime_world_actions_target_label.text = "Target: %s" % title_text
+	var cell_text: String = "Cell: -"
+	var target_cell_source: Variant = target_data.get("target_position", target_object.get("position", Vector2i(-1, -1)))
+	var target_cell: Vector2i = ui._safe_ui_vector2i(target_cell_source)
+	cell_text = "Cell: (%d, %d)" % [target_cell.x, target_cell.y]
+	var state_text: String = "State: %s" % str(target_object.get("state", "unknown"))
+	if str(target_object.get("power_state", "")).strip_edges() != "":
+		state_text += " | Power: %s" % str(target_object.get("power_state", ""))
+	if str(target_object.get("connected", "")).strip_edges() != "":
+		state_text += " | Connected: %s" % str(target_object.get("connected", false))
+	ui.runtime_world_actions_state_label.text = "%s | %s" % [cell_text, state_text]
+	var summary_bits: Array[String] = []
+	if bool(action_view_model.get("has_available_action", false)):
+		summary_bits.append("Available actions: %d" % int(action_view_model.get("available_action_ids", []).size()))
+	else:
+		summary_bits.append(str(action_view_model.get("disabled_reason", "No actions available.")))
+	ui.runtime_world_actions_behavior_label.text = " | ".join(summary_bits)
+	var no_actions_visible: bool = action_descriptors.is_empty()
+	if no_actions_visible:
+		ui.runtime_world_actions_no_actions_label.visible = true
+		ui.runtime_world_actions_no_actions_label.text = str(action_view_model.get("disabled_reason", "No available actions"))
+	else:
+		ui.runtime_world_actions_no_actions_label.visible = false
+	for descriptor in action_descriptors:
+		var action_id: String = str(descriptor.get("id", ""))
+		if action_id.is_empty():
+			continue
+		var button_label: String = action_id.capitalize()
+		if ui.bipob != null and ui.bipob.has_method("get_world_action_display_label"):
+			button_label = str(ui.bipob.call("get_world_action_display_label", action_id, target_object))
+		if button_label.is_empty():
+			button_label = action_id.capitalize()
+		var action_enabled: bool = bool(descriptor.get("enabled", false))
+		var action_reason: String = str(descriptor.get("reason", ""))
+		var button := ui._create_runtime_control_button(button_label, Callable(ui, "_on_world_action_button_pressed").bind(action_id), "primary" if action_enabled else "disabled")
+		button.disabled = false
+		button.tooltip_text = "" if action_enabled or action_reason.is_empty() else action_reason
+		button.custom_minimum_size = Vector2(0, 28)
+		button.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+		button.size_flags_vertical = Control.SIZE_EXPAND_FILL
+		if action_id == selected_action:
+			ui.runtime_world_actions_selected_button = button
+			ui._apply_selected_pulse(button)
+		elif action_enabled:
+			ui._clear_selected_pulse(button)
+		ui.runtime_world_actions_list.add_child(button)
+	var cancel_button := ui._create_runtime_control_button("Cancel", Callable(ui, "_on_world_action_panel_cancel_pressed"), "danger")
+	cancel_button.custom_minimum_size = Vector2(0, 28)
+	cancel_button.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	cancel_button.size_flags_vertical = Control.SIZE_EXPAND_FILL
+	ui.runtime_world_actions_list.add_child(cancel_button)
 
 
 static func _trace_breachable_wall_game_ui_payload(target_object: Dictionary, actions: Array, selected_action: String) -> void:
@@ -103,6 +166,14 @@ static func _trace_breachable_wall_game_ui_payload(target_object: Dictionary, ac
 		"selected_action": selected_action
 	}
 	print("[breachable_wall_game_ui] %s" % var_to_str(trace))
+
+
+static func _clear_runtime_world_actions_list(ui) -> void:
+	if ui.runtime_world_actions_list == null:
+		return
+	for child in ui.runtime_world_actions_list.get_children():
+		child.queue_free()
+	ui.runtime_world_actions_selected_button = null
 
 
 static func clear_selected_action_if_stale(ui, target_id: String, actions_key: String, state_key: String) -> void:
@@ -137,8 +208,13 @@ static func on_use_selected_world_action_pressed(ui) -> void:
 	RuntimeInteractionPanelRef.use_selected_world_action(ui)
 
 
+static func on_world_action_cancel_pressed(ui) -> void:
+	RuntimeInteractionPanelRef.exit_mode(ui)
+	ui.update_status()
+
+
 static func on_world_action_button_pressed(ui, action_id: String) -> void:
-	RuntimeInteractionPanelRef.select_world_action(ui, action_id)
+	RuntimeInteractionPanelRef.press_action(ui, action_id)
 
 
 static func _refresh_action_row(ui, target_object: Dictionary, physical_actions: Array[String]) -> void:

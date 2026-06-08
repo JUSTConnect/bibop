@@ -128,7 +128,7 @@ static func clear_selected_world_action_if_invalid(controller: Variant, target_o
 		controller.selected_world_action = ""
 		return
 	var view_model: Dictionary = build_runtime_action_view_model(controller, target_object, target_position)
-	var actions: Array = Array(view_model.get("available_action_ids", []))
+	var actions: Array = Array(view_model.get("raw_action_ids", []))
 	if actions.is_empty() or not actions.has(controller.selected_world_action):
 		controller.selected_world_action = ""
 
@@ -136,7 +136,7 @@ static func clear_selected_world_action_if_invalid(controller: Variant, target_o
 static func get_world_object_action_for_context(controller: Variant, world_object: Dictionary, target_position: Vector2i) -> String:
 	controller.selected_world_action = normalize_world_action_id(controller.selected_world_action)
 	var view_model: Dictionary = build_runtime_action_view_model(controller, world_object, target_position)
-	var actions: Array = Array(view_model.get("available_action_ids", []))
+	var actions: Array = Array(view_model.get("raw_action_ids", []))
 	if not controller.selected_world_action.is_empty() and actions.has(controller.selected_world_action):
 		if not _is_connector_workflow_action(controller.selected_world_action) or bool(controller.allow_connector_workflow_action_once):
 			return controller.selected_world_action

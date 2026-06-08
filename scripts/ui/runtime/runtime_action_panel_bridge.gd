@@ -127,6 +127,10 @@ func on_use_selected_world_action_pressed() -> void:
 	RuntimeInteractionPresenterRef.on_use_selected_world_action_pressed(ui)
 
 
+func on_world_action_cancel_pressed() -> void:
+	RuntimeInteractionPresenterRef.on_world_action_cancel_pressed(ui)
+
+
 func on_world_action_button_pressed(action_id: String) -> void:
 	RuntimeInteractionPresenterRef.on_world_action_button_pressed(ui, action_id)
 
