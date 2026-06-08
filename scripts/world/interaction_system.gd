@@ -32,12 +32,6 @@ static func _actor_held_item_matches(actor: Dictionary, expected_type: String) -
 		if held_type.contains("fuse"):
 			return true
 
-	if normalized_expected == "cable_end":
-		if held_id.contains("cable_end") or held_id.contains("wire_end"):
-			return true
-		if held_type.contains("cable_end") or held_type.contains("wire_end"):
-			return true
-
 	for field_name in ["item_type", "object_type", "item_class", "id", "item_id", "display_name"]:
 		var value: String = str(held_data.get(field_name, "")).strip_edges().to_lower()
 		if value.is_empty():
@@ -47,9 +41,6 @@ static func _actor_held_item_matches(actor: Dictionary, expected_type: String) -
 			return true
 
 		if normalized_expected == "fuse" and value.contains("fuse"):
-			return true
-
-		if normalized_expected == "cable_end" and (value.contains("cable_end") or value.contains("wire_end")):
 			return true
 
 	return false
@@ -162,8 +153,10 @@ static func can_apply_action(actor: Dictionary, module: Dictionary, target_objec
 		if not _actor_has_visible_cable_item(actor):
 			return _result(false, "Cable required.", [], "cable_required")
 	if action_type == "insert_fuse":
-		if not _actor_held_item_matches(actor, "fuse"):
-			return _result(false, "Fuse required.", [], "fuse_required")
+		var fuse_match: bool = _actor_held_item_matches(actor, "fuse")
+
+		if not fuse_match:
+			return _result(false, "FUSE_GATE: Fuse required.", [], "fuse_required")
 	if action_type == "hack" and actor.get("processor_level", 0) < target_object.get("required_processor_level", 1):
 		return _result(false, "Hacking impossible")
 	if action_type == "download":
