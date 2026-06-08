@@ -405,12 +405,18 @@ static func handle_take_pocket_item(ui, slot_index: int = -1) -> Dictionary:
 		return _storage_unavailable(ui, "Storage action is unavailable.")
 	if slot_index >= 0:
 		ui.selected_pocket_slot = slot_index
+
+	# Runtime physical inventory has one canonical held slot:
+	# mission_manager.runtime_inventory_state["manipulator_hold"].
+	# Do not let a stale selected_manipulator_slot (-1, 1, 2) bypass runtime move logic.
+	ui.selected_manipulator_slot = 0
+
 	if ui.bipob.has_method("move_or_swap_pocket_slot_with_manipulator"):
 		return _apply_storage_result(ui, ui.bipob.call("move_or_swap_pocket_slot_with_manipulator", ui.selected_pocket_slot, ui.selected_manipulator_slot))
-	if ui.bipob.has_method("move_pocket_to_manipulator"):
-		ui.bipob.call("move_pocket_to_manipulator", ui.selected_pocket_slot)
-		_refresh_host_after_storage_action(ui)
-		return {"ok": true}
+		if ui.bipob.has_method("move_pocket_to_manipulator"):
+			ui.bipob.call("move_pocket_to_manipulator", ui.selected_pocket_slot)
+			_refresh_host_after_storage_action(ui)
+			return {"ok": true}
 	return _storage_unavailable(ui, "Storage action is unavailable.")
 
 
