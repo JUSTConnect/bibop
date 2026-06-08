@@ -232,7 +232,6 @@ static func on_heavy_claw_pressed(ui) -> void:
 
 
 static func on_runtime_action_pressed(ui, action_id: String) -> void:
-	print("[RUNTIME_ACTION_PRESENTER_PRESSED] action_id=", action_id)
 	RuntimeInteractionPanelRef.press_action(ui, action_id)
 
 
