@@ -207,6 +207,13 @@ static func _execute_world_object_action(controller: Variant, world_object: Dict
 	var module: Dictionary = Dictionary(controller.get_world_action_module(action_id, world_object))
 	var action_gate: Dictionary = InteractionSystemRef.can_apply_action(actor, module, world_object, action_id) if not action_id.is_empty() else {"success": false, "reason": "empty_action"}
 	_trace_world_action_path("action_gate", {"target_object_id": str(world_object.get("id", "")), "object_group": str(world_object.get("object_group", "")), "object_type": str(world_object.get("object_type", "")), "placement_mode": str(world_object.get("placement_mode", world_object.get("placement", ""))), "is_wall_mounted": bool(world_object.get("is_wall_mounted", false)), "target_position": target_position, "actor_cell": controller.grid_position, "raw_action_ids": raw_action_ids, "selected_action_id": action_id, "module_id": str(module.get("id", "")), "can_apply_success": bool(action_gate.get("success", false)), "can_apply_reason": str(action_gate.get("reason", ""))})
+	if action_id.is_empty():
+		_emit_no_action_available(controller, world_object, target_position)
+		return
+	if not bool(action_gate.get("success", false)):
+		controller.hint_requested.emit(str(action_gate.get("message", "Action unavailable.")))
+		controller.status_changed.emit()
+		return
 	if str(world_object.get("object_group", "")) == "terminal" and (action_id == "hack" or action_id == "activate_platform") and not controller._is_terminal_powered_for_interaction(world_object):
 		controller.hint_requested.emit("Terminal is unpowered.")
 		controller.status_changed.emit()
@@ -216,17 +223,6 @@ static func _execute_world_object_action(controller: Variant, world_object: Dict
 			controller.hint_requested.emit("Platform is unpowered.")
 			controller.status_changed.emit()
 			return
-	if action_id in ["plug_in", "connect_wire_end", "connect_wire_1", "connect_wire_2"] and not controller._has_manipulator_cable_end():
-		controller.hint_requested.emit("Cable reel wire end not found.")
-		controller.status_changed.emit()
-		return
-	if action_id == "unlock" and WorldObjectCatalogRef.normalize_access_type(world_object.get("access_type", world_object.get("lock_type", ""))) == WorldObjectCatalogRef.ACCESS_TYPE_KEY_CARD and not controller.can_use_physical_hand():
-		controller.hint_requested.emit("Free manipulator required.")
-		controller.status_changed.emit()
-		return
-	if action_id.is_empty():
-		_emit_no_action_available(controller, world_object, target_position)
-		return
 	if action_id == "break_breachable_wall":
 		_apply_breachable_wall_execution(controller, world_object, target_position, actor, module, action_id)
 		return

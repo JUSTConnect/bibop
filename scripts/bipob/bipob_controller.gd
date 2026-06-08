@@ -58,6 +58,7 @@ const BipobScanHackServiceRef = preload("res://scripts/game/bipob_scan_hack_serv
 const BipobMovementControllerRef = preload("res://scripts/bipob/bipob_movement_controller.gd")
 const HeavyClawDragServiceRef = preload("res://scripts/game/heavy_claw/heavy_claw_drag_service.gd")
 const BipobInventoryControllerRef = preload("res://scripts/bipob/bipob_inventory_controller.gd")
+const BipobRuntimeActionActorServiceRef = preload("res://scripts/game/bipob_runtime_action_actor_service.gd")
 const WorldObjectCatalogRef = preload("res://scripts/world/world_object_catalog.gd")
 const EXTERNAL_MODULE_CATALOG: Dictionary = {
 "wheels_v1":{"name":"Wheels V1","cat":"Gear","size":Vector2i(3,2),"sides":[EXTERNAL_SIDE_BOTTOM],"desc":"Fast movement system for flat and stable surfaces. Ineffective on stairs, mud and debris.","energy":1,"terrain":"Flat surface","movement":"Drive","speed":3},
@@ -7592,6 +7593,15 @@ func return_held_cable_end_to_reel() -> Dictionary:
 		mission_manager.call("clear_manipulator")
 	return {"success": true, "reason": "ok", "reel_id": reel_id, "end_index": end_index}
 
+func _object_supports_external_power_input(world_object: Dictionary) -> bool:
+	if bool(world_object.get("requires_external_power", false)):
+		return true
+	var power_mode: String = str(world_object.get("power_mode", "")).strip_edges().to_lower()
+	if power_mode in ["external", "external_power", "external power"]:
+		return true
+	var object_type: String = str(world_object.get("object_type", "")).strip_edges().to_lower()
+	return object_type in ["power_socket", "outlet"]
+
 func get_available_world_actions(world_object: Dictionary, target_position: Vector2i) -> Array[String]:
 	var actions: Array[String] = []
 	var normalized_world_object: Dictionary = WorldObjectCatalog.normalize_world_object_contract(world_object)
@@ -7626,6 +7636,8 @@ func get_available_world_actions(world_object: Dictionary, target_position: Vect
 		if power_mode in ["external", "external_power", "external power"] and not bool(world_object.get("is_powered", true)) and state != "open":
 			if state == "locked" and access_type in [WorldObjectCatalog.ACCESS_TYPE_NO_KEY, WorldObjectCatalog.ACCESS_TYPE_KEY_CARD]:
 				actions.append("unlock")
+			if not actions.has("plug_in") and _object_supports_external_power_input(world_object):
+				actions.append("plug_in")
 			return actions
 		if state in ["damaged", "half_open", "jammed"] and has_heavy_claw():
 			actions.append("force_open")
@@ -7857,7 +7869,7 @@ func get_world_action_module(action_id: String, world_object: Dictionary) -> Dic
 			# InteractionSystem still gates downloads by hacked/unlocked state and by actual payload presence.
 			return _module_dict("storage_buffer")
 		"insert_fuse":
-			return _module_dict("fuse" if has_held_world_item("fuse") else "")
+			return _module_dict("fuse" if has_visible_held_item_type("fuse") else "")
 		"remove_fuse", "plug_in", "plug_out", "take_end_1", "take_end_2", "connect_wire_end", "connect_wire_1", "connect_wire_2", "disconnect_power_wire", "disconnect_wire_1", "disconnect_wire_2", "circuit_1", "circuit_2", "circuit_3":
 			return _module_dict("manipulator_arm_v1" if has_manipulator_arm() else "")
 	return _module_dict("")
@@ -8635,6 +8647,21 @@ func get_manipulator_items() -> Array:
 
 func get_runtime_manipulator_items() -> Array:
 	return BipobInventoryControllerRef.get_runtime_manipulator_items(self)
+
+func get_visible_held_item() -> Dictionary:
+	return BipobRuntimeActionActorServiceRef.get_visible_held_item(self)
+
+func get_visible_held_item_type() -> String:
+	return BipobRuntimeActionActorServiceRef.get_visible_held_item_type(self)
+
+func has_visible_held_item_type(item_type: String) -> bool:
+	return BipobRuntimeActionActorServiceRef.has_visible_held_item_type(self, item_type)
+
+func consume_visible_held_item_type(item_type: String) -> bool:
+	return BipobRuntimeActionActorServiceRef.consume_visible_held_item_type(self, item_type)
+
+func has_visible_manipulator_slot() -> bool:
+	return get_visible_held_item_type().is_empty()
 
 func _runtime_inventory_value_id(value: Variant) -> String:
 	if value is String or value is StringName:

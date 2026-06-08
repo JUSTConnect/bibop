@@ -9753,7 +9753,7 @@ func can_route_runtime_item(item_variant: Variant, preferred_target: String = ""
 			return {"success": true, "item_id": item_id, "storage": "pocket", "slot_index": slot_index, "message": "Item stored in pocket.", "reasons": ["ok"]}
 	if get_manipulator_item_id().is_empty():
 		return {"success": true, "item_id": item_id, "storage": "manipulator", "slot_index": 0, "message": "Item held in manipulator.", "reasons": ["ok"]}
-	return {"success": false, "item_id": item_id, "storage": "", "slot_index": -1, "message": "No free active pocket or manipulator slot.", "reason": "no_free_pocket_or_manipulator_slot", "reasons": ["no_free_pocket_or_manipulator_slot"]}
+	return {"success": false, "item_id": item_id, "storage": "", "slot_index": -1, "message": "No free pocket or manipulator slot.", "reason": "no_free_pocket_or_manipulator_slot", "reasons": ["no_free_pocket_or_manipulator_slot"]}
 
 func route_runtime_item(item_variant: Variant, preferred_target: String = "") -> Dictionary:
 	var item_data: Dictionary = _normalize_runtime_route_item_data(item_variant)
@@ -12492,9 +12492,12 @@ func validate_inventory_tools_modules_runtime() -> Array[String]:
 	if get_manipulator_held_item_id() == "temp_item_stacked_second": warnings.append("mechanical_keycard_routed_to_manipulator")
 	if not Array(runtime_inventory_state.get("collected_key_ids", [])).has("temp_item_stacked_second"): warnings.append("mechanical_keycard_missing_from_keychain")
 	runtime_inventory_state["manipulator_hold"] = "occupied_slot"
+	runtime_inventory_state["pocket_items"] = []
+	for _slot_index in range(get_available_pocket_slots()):
+		runtime_inventory_state["pocket_items"].append({"id": "temp_full_pocket_%d" % _slot_index})
 	var blocked_physical_pickup := pickup_world_item("temp_item_stacked_first")
-	if bool(blocked_physical_pickup.get("success", false)): warnings.append("occupied_manipulator_pickup_gate_missing")
-	if str(blocked_physical_pickup.get("message", "")) != "Free manipulator required.": warnings.append("occupied_manipulator_pickup_message_missing")
+	if bool(blocked_physical_pickup.get("success", false)): warnings.append("occupied_storage_pickup_gate_missing")
+	if str(blocked_physical_pickup.get("message", "")) != "No free pocket or manipulator slot.": warnings.append("occupied_storage_pickup_message_missing")
 	var stacked_remaining := get_items_at_cell(stacked_cell)
 	if stacked_remaining.size() != 1 or str(Dictionary(stacked_remaining[0]).get("id", "")) != "temp_item_stacked_first": warnings.append("stacked_pickup_removed_wrong_item")
 	if not get_world_object_by_id("temp_item_stacked_second").is_empty(): warnings.append("stacked_pickup_world_copy_remains")

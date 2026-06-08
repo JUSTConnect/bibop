@@ -62,9 +62,6 @@ static func build_runtime_action_view_model(controller: Variant, target_object: 
 		var enabled: bool = bool(gate.get("success", false))
 		var reason: String = str(gate.get("reason", "ok" if enabled else "action_unavailable"))
 		var requires_free_manipulator: bool = _runtime_action_requires_free_manipulator(action_id, normalized_target)
-		if enabled and requires_free_manipulator and not controller.can_use_physical_hand():
-			enabled = false
-			reason = "free_manipulator_required"
 		if BreachableWallServiceRef.is_breachable_wall_data(normalized_target) and action_id == BreachableWallServiceRef.ACTION_BREAK_BREACHABLE_WALL:
 			var breach_payload: Dictionary = _build_breachable_wall_action_payload(controller, normalized_target, target_position)
 			if not bool(breach_payload.get("show_heavy_claw", false)):
@@ -207,9 +204,7 @@ static func _get_breachable_wall_disabled_reason(action_payload: Dictionary) -> 
 
 
 static func _runtime_action_requires_free_manipulator(action_id: String, target_object: Dictionary) -> bool:
-	if action_id == "pickup":
-		return WorldObjectCatalogRef.get_item_storage_class(target_object) == WorldObjectCatalogRef.ITEM_STORAGE_CLASS_PHYSICAL
-	return action_id in ["open", "close", "unlock", "switch", "force_open", "breach", "break_breachable_wall", "push", "pull", "repair", "cut", "impact", "take_end_1", "take_end_2", "plug_in", "plug_out", "connect_wire_end", "connect_wire_1", "connect_wire_2", "disconnect_power_wire", "disconnect_wire_1", "disconnect_wire_2"]
+	return false
 
 
 static func _runtime_action_disabled_label(controller: Variant, action_id: String, reason: String, target_object: Dictionary) -> String:
@@ -217,7 +212,9 @@ static func _runtime_action_disabled_label(controller: Variant, action_id: Strin
 		"key_card_required": return "Key-card required"
 		"free_manipulator_required": return "Free manipulator required"
 		"manipulator_required": return "Manipulator required"
+		"cable_required": return "Cable required"
 		"fuse_required": return "Fuse required"
+		"no_free_pocket_or_manipulator_slot": return "No free pocket or manipulator slot"
 		"power_must_be_cut": return "Cut power to open"
 		"terminal_control_required": return "Use linked terminal"
 		"digital_access_required": return "Digital access required"
