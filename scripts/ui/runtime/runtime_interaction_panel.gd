@@ -78,9 +78,11 @@ static func exit_mode(ui) -> void:
 static func press_action(ui, action_id: String) -> void:
 	if ui.bipob == null or action_id.is_empty() or not ui.bipob.has_method("set_selected_world_action") or not ui.bipob.has_method("interact"):
 		return
+	if not ui.runtime_interaction_mode_active:
+		enter_mode(ui)
 	ui.bipob.call("set_selected_world_action", action_id)
 	ui.bipob.call("interact")
-	exit_mode(ui)
+	refresh_controls(ui)
 	ui.update_status()
 
 
@@ -89,19 +91,17 @@ static func press_interact(ui) -> void:
 		return
 	if ui.runtime_interaction_mode_active:
 		exit_mode(ui)
+		ui.update_status()
 		return
 	var target_data: Dictionary = get_target_data(ui)
 	var target_object: Dictionary = ui._safe_ui_dictionary(target_data.get("target_object", {}))
 	var action_view_model: Dictionary = ui._safe_ui_dictionary(target_data.get("action_view_model", {}))
-	var actions: Array[String] = get_physical_actions(ui._safe_ui_array(target_data.get("actions", [])))
-	if not target_object.is_empty() and not actions.is_empty():
-		if is_manipulator_blocked(ui, target_object, actions):
-			ui.show_hint("Free manipulator required.")
-			refresh_controls(ui)
-			return
-		enter_mode(ui)
-		return
 	if not target_object.is_empty() and bool(action_view_model.get("has_interaction_target", false)):
+		enter_mode(ui)
+		ui.show_hint("")
+		ui.update_status()
+		return
+	if not target_object.is_empty():
 		var unavailable_label: String = str(action_view_model.get("primary_action_label", ""))
 		if unavailable_label.is_empty() or unavailable_label == "Action":
 			unavailable_label = str(action_view_model.get("disabled_reason", ""))
@@ -175,11 +175,12 @@ static func press_heavy_claw(ui) -> void:
 static func use_selected_world_action(ui) -> void:
 	if ui.bipob == null or not ui.bipob.has_method("interact"):
 		return
+	if not ui.runtime_interaction_mode_active:
+		enter_mode(ui)
 	ui.bipob.call("interact")
+	refresh_controls(ui)
 	ui.update_status()
 
 
 static func select_world_action(ui, action_id: String) -> void:
-	if ui.bipob == null or action_id.is_empty() or not ui.bipob.has_method("set_selected_world_action"):
-		return
-	ui.bipob.call("set_selected_world_action", action_id)
+	press_action(ui, action_id)

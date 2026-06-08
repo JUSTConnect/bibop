@@ -5125,8 +5125,8 @@ func _create_runtime_world_actions_panel() -> PanelContainer:
 	runtime_world_actions_no_actions_label.text = "No available actions"
 	runtime_world_actions_list.add_child(runtime_world_actions_no_actions_label)
 	var use_button := Button.new()
-	use_button.text = "Use Selected"
-	use_button.pressed.connect(_on_use_selected_world_action_pressed)
+	use_button.text = "Cancel"
+	use_button.pressed.connect(_on_world_action_panel_cancel_pressed)
 	vbox.add_child(use_button)
 	return panel
 
@@ -12361,6 +12361,10 @@ func _on_heavy_claw_pressed() -> void:
 func _on_use_selected_world_action_pressed() -> void:
 	_ensure_runtime_action_panel_bridge()
 	runtime_action_panel_bridge.on_use_selected_world_action_pressed()
+
+func _on_world_action_panel_cancel_pressed() -> void:
+	_ensure_runtime_action_panel_bridge()
+	runtime_action_panel_bridge.on_world_action_cancel_pressed()
 
 func _on_world_action_button_pressed(action_id: String) -> void:
 	_ensure_runtime_action_panel_bridge()
