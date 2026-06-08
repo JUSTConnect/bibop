@@ -9753,21 +9753,75 @@ func can_route_runtime_item(item_variant: Variant, preferred_target: String = ""
 		return {"success": true, "item_id": item_id, "storage": "keyring", "slot_index": -1, "message": "Key-card collected.", "reasons": ["ok"]}
 	var pocket: Array = Array(runtime_inventory_state.get("pocket_items", []))
 	var pocket_capacity: int = _get_available_runtime_pocket_capacity()
+	var manipulator_hold_id: String = get_manipulator_item_id()
 
 	if target == "manipulator":
-		if get_manipulator_item_id().is_empty():
-			return {"success": true, "item_id": item_id, "storage": "manipulator", "slot_index": 0, "message": "Item held in manipulator.", "reasons": ["ok"]}
-		return {"success": false, "item_id": item_id, "storage": "", "slot_index": -1, "message": "Manipulator is full.", "reason": "manipulator_full", "reasons": ["manipulator_full"]}
+		if manipulator_hold_id.is_empty():
+			return {
+				"success": true,
+				"item_id": item_id,
+				"storage": "manipulator",
+				"slot_index": 0,
+				"message": "Item held in manipulator.",
+				"reasons": ["ok"]
+			}
+
+		return {
+			"success": false,
+			"item_id": item_id,
+			"storage": "",
+			"slot_index": -1,
+			"message": "Manipulator is full.",
+			"reason": "manipulator_full",
+			"reasons": ["manipulator_full"]
+		}
 
 	for slot_index in range(pocket_capacity):
-		if slot_index >= pocket.size() or _get_runtime_inventory_item_id(pocket[slot_index]).is_empty():
-			return {"success": true, "item_id": item_id, "storage": "pocket", "slot_index": slot_index, "message": "Item stored in pocket.", "reasons": ["ok"]}
+		if slot_index >= pocket.size():
+			return {
+				"success": true,
+				"item_id": item_id,
+				"storage": "pocket",
+				"slot_index": slot_index,
+				"message": "Item stored in pocket.",
+				"reasons": ["ok"]
+			}
 
-	if get_manipulator_item_id().is_empty():
-		return {"success": true, "item_id": item_id, "storage": "manipulator", "slot_index": 0, "message": "Item held in manipulator.", "reasons": ["ok"]}
+		var pocket_item_id: String = _get_runtime_inventory_item_id(pocket[slot_index])
+		if pocket_item_id.is_empty():
+			return {
+				"success": true,
+				"item_id": item_id,
+				"storage": "pocket",
+				"slot_index": slot_index,
+				"message": "Item stored in pocket.",
+				"reasons": ["ok"]
+			}
 
-	return {"success": false, "item_id": item_id, "storage": "", "slot_index": -1, "message": "No free pocket or manipulator slot.", "reason": "no_free_pocket_or_manipulator_slot", "reasons": ["no_free_pocket_or_manipulator_slot"]}
-
+	if manipulator_hold_id.is_empty():
+		return {
+			"success": true,
+			"item_id": item_id,
+			"storage": "manipulator",
+			"slot_index": 0,
+			"message": "Item held in manipulator.",
+			"reasons": ["ok"]
+		}
+	print("[ROUTE_BLOCKED] item_id=", item_id,
+		" item_data=", item_data,
+		" pocket_capacity=", pocket_capacity,
+		" pocket=", pocket,
+		" manipulator_hold_id=", manipulator_hold_id,
+		" active_bipob_ref=", active_bipob_ref)
+	return {
+		"success": false,
+		"item_id": item_id,
+		"storage": "",
+		"slot_index": -1,
+		"message": "No free pocket or manipulator slot.",
+		"reason": "no_free_pocket_or_manipulator_slot",
+		"reasons": ["no_free_pocket_or_manipulator_slot"]
+	}
 func route_runtime_item(item_variant: Variant, preferred_target: String = "") -> Dictionary:
 	var item_data: Dictionary = _normalize_runtime_route_item_data(item_variant)
 	var gate: Dictionary = can_route_runtime_item(item_data, preferred_target)
@@ -9790,10 +9844,26 @@ func route_runtime_item(item_variant: Variant, preferred_target: String = "") ->
 			add_keycard_to_keychain(item_id)
 		"pocket":
 			if not set_pocket_item(int(gate.get("slot_index", -1)), item_data):
-				return {"success": false, "item_id": item_id, "storage": "", "slot_index": -1, "message": "Storage failed.", "reason": "storage_failed", "reasons": ["storage_failed"]}
+				return {
+					"success": false,
+					"item_id": item_id,
+					"storage": "",
+					"slot_index": -1,
+					"message": "Storage failed.",
+					"reason": "storage_failed",
+					"reasons": ["storage_failed"]
+				}
 		"manipulator":
 			if not set_manipulator_item(item_data):
-				return {"success": false, "item_id": item_id, "storage": "", "slot_index": -1, "message": "Storage failed.", "reason": "storage_failed", "reasons": ["storage_failed"]}
+				return {
+					"success": false,
+					"item_id": item_id,
+					"storage": "",
+					"slot_index": -1,
+					"message": "Storage failed.",
+					"reason": "storage_failed",
+					"reasons": ["storage_failed"]
+				}
 	gate["success"] = true
 	gate["item_id"] = item_id
 	gate["item_data"] = item_data.duplicate(true)
@@ -9813,11 +9883,6 @@ func _get_available_runtime_pocket_capacity() -> int:
 
 	if pocket_capacity <= 0:
 		pocket_capacity = Array(runtime_inventory_state.get("pocket_items", [])).size()
-
-	# временный безопасный fallback для текущей сборки,
-	# пока конфиг карманов/модулей не стабилизирован
-	if pocket_capacity <= 0:
-		pocket_capacity = 1
 
 	return maxi(pocket_capacity, 0)
 
