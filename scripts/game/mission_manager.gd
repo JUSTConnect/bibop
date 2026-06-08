@@ -9706,9 +9706,18 @@ func _normalize_runtime_route_item_data(item_variant: Variant) -> Dictionary:
 	var item_type: String = str(item_data.get("item_type", item_data.get("object_type", item_data.get("id", "")))).strip_edges()
 	if item_type.is_empty():
 		item_type = "physical_item"
+
+	var item_type_lower: String = item_type.to_lower()
+	if item_type_lower == "fuse" or item_type_lower.contains("fuse"):
+		item_type = "fuse"
+
 	item_data["item_type"] = item_type
+
 	var classification: String = classify_runtime_item(item_data)
-	if classification == WorldObjectCatalogRef.ITEM_STORAGE_CLASS_DIGITAL:
+
+	if item_type == "fuse":
+		item_data["item_form"] = "physical"
+	elif classification == WorldObjectCatalogRef.ITEM_STORAGE_CLASS_DIGITAL:
 		item_data["item_form"] = "digital"
 	elif classification == WorldObjectCatalogRef.ITEM_STORAGE_CLASS_KEY_CARD:
 		item_data["item_form"] = "physical"
@@ -9762,6 +9771,8 @@ func route_runtime_item(item_variant: Variant, preferred_target: String = "") ->
 		return gate
 	var item_id: String = str(gate.get("item_id", _get_runtime_inventory_item_id(item_data))).strip_edges()
 	item_data["id"] = item_id
+	if str(item_data.get("item_type", "")).to_lower() == "fuse":
+		print("[FUSE_ROUTE] item_id=", item_id, " item_data=", item_data, " storage=", str(gate.get("storage", "")))
 	var runtime_map: Dictionary = _get_world_item_runtime_map()
 	runtime_map[item_id] = _build_picked_up_world_item_runtime(item_data)
 	runtime_inventory_state["world_item_runtime"] = runtime_map
@@ -12797,7 +12808,7 @@ func classify_task_test_object_for_audit(object_data: Dictionary) -> Array[Strin
 	if int(object_data.get("required_processor_level", 0)) > 0: tags.append("scan_processor_gated")
 	if bool(object_data.get("mission_exit", false)) or bool(object_data.get("extraction", false)): tags.append("extraction")
 	if item_type == "access_code": tags.append("access_code")
-	if item_type == "fuse": tags.append("fuse")
+	if item_type == "fuse": tags.append("fuse") 
 	if item_type == "repair_kit": tags.append("repair_kit")
 	return tags
 
