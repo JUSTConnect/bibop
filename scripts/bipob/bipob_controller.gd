@@ -8355,47 +8355,127 @@ func get_held_world_item_type() -> String:
 
 func has_held_world_item(item_type: String) -> bool:
 	var normalized_item_type: String = item_type.strip_edges().to_lower()
-	if normalized_item_type != "fuse" and get_held_world_item_type() == normalized_item_type:
-		return true
-	if mission_manager == null or not mission_manager.has_method("get_inventory_state"):
+	if normalized_item_type.is_empty():
 		return false
-	var inventory: Dictionary = Dictionary(mission_manager.call("get_inventory_state"))
-	var held_id: String = _runtime_inventory_value_id(inventory.get("manipulator_hold", ""))
-	if held_id.is_empty():
-		return false
-	var runtime_map: Dictionary = Dictionary(inventory.get("world_item_runtime", {}))
-	var runtime_row: Dictionary = Dictionary(runtime_map.get(held_id, {}))
-	var item_data: Dictionary = Dictionary(runtime_row.get("item_data", {}))
-	var held_type: String = str(item_data.get("item_type", item_data.get("object_type", held_id))).strip_edges()
-	return held_type == normalized_item_type
 
-func consume_held_world_item_if_type(item_type: String) -> bool:
-	var normalized_item_type: String = item_type.strip_edges().to_lower()
-	if normalized_item_type == "fuse":
-		if mission_manager == null or not mission_manager.has_method("get_inventory_state"):
-			return false
-		var inventory: Dictionary = Dictionary(mission_manager.call("get_inventory_state"))
-		var held_id: String = _runtime_inventory_value_id(inventory.get("manipulator_hold", ""))
-		if held_id.is_empty():
-			return false
-		var runtime_map: Dictionary = Dictionary(inventory.get("world_item_runtime", {}))
-		var runtime_row: Dictionary = Dictionary(runtime_map.get(held_id, {}))
-		var item_data: Dictionary = Dictionary(runtime_row.get("item_data", {}))
-		var held_type: String = str(item_data.get("item_type", item_data.get("object_type", held_id))).strip_edges().to_lower()
-		if held_type != normalized_item_type:
-			return false
-		if mission_manager.has_method("clear_manipulator"):
-			mission_manager.call("clear_manipulator")
-		return true
-	if not has_held_world_item(normalized_item_type):
-		return false
-	buffer_item.clear()
 	if mission_manager != null and mission_manager.has_method("get_inventory_state"):
 		var inventory: Dictionary = Dictionary(mission_manager.call("get_inventory_state"))
 		var held_id: String = _runtime_inventory_value_id(inventory.get("manipulator_hold", ""))
-		if not held_id.is_empty() and mission_manager.has_method("clear_manipulator"):
-			mission_manager.call("clear_manipulator")
-	return true
+		if not held_id.is_empty():
+			var runtime_map: Dictionary = Dictionary(inventory.get("world_item_runtime", {}))
+			var runtime_row: Dictionary = Dictionary(runtime_map.get(held_id, {}))
+			var item_data: Dictionary = Dictionary(runtime_row.get("item_data", {}))
+			if item_data.is_empty() and not runtime_row.is_empty():
+				item_data = runtime_row.duplicate(true)
+			for field_name in ["item_type", "object_type", "id"]:
+				var held_type: String = str(item_data.get(field_name, held_id if field_name == "id" else "")).strip_edges().to_lower()
+				if held_type == normalized_item_type:
+					return true
+
+	for runtime_item in get_runtime_manipulator_items():
+		if runtime_item == null:
+			continue
+		if runtime_item is Dictionary:
+			var runtime_item_data: Dictionary = Dictionary(runtime_item)
+			for field_name in ["item_type", "object_type", "id"]:
+				if str(runtime_item_data.get(field_name, "")).strip_edges().to_lower() == normalized_item_type:
+					return true
+		elif runtime_item is BipobModule:
+			var runtime_module: BipobModule = runtime_item
+			if runtime_module.id.strip_edges().to_lower() == normalized_item_type:
+				return true
+
+	for slot_index in range(get_available_manipulator_slots()):
+		if slot_index >= manipulator_items.size():
+			break
+		var manipulator_item: Variant = manipulator_items[slot_index]
+		if manipulator_item == null:
+			continue
+		if manipulator_item is Dictionary:
+			var manipulator_item_data: Dictionary = Dictionary(manipulator_item)
+			for field_name in ["item_type", "object_type", "id"]:
+				if str(manipulator_item_data.get(field_name, "")).strip_edges().to_lower() == normalized_item_type:
+					return true
+		elif manipulator_item is BipobModule:
+			var manipulator_module: BipobModule = manipulator_item
+			if manipulator_module.id.strip_edges().to_lower() == normalized_item_type:
+				return true
+
+	return false
+
+func consume_held_world_item_if_type(item_type: String) -> bool:
+	var normalized_item_type: String = item_type.strip_edges().to_lower()
+	if normalized_item_type.is_empty():
+		return false
+
+	if mission_manager != null and mission_manager.has_method("get_inventory_state"):
+		var inventory: Dictionary = Dictionary(mission_manager.call("get_inventory_state"))
+		var held_id: String = _runtime_inventory_value_id(inventory.get("manipulator_hold", ""))
+		if not held_id.is_empty():
+			var runtime_map: Dictionary = Dictionary(inventory.get("world_item_runtime", {}))
+			var runtime_row: Dictionary = Dictionary(runtime_map.get(held_id, {}))
+			var item_data: Dictionary = Dictionary(runtime_row.get("item_data", {}))
+			if item_data.is_empty() and not runtime_row.is_empty():
+				item_data = runtime_row.duplicate(true)
+			for field_name in ["item_type", "object_type", "id"]:
+				var held_type: String = str(item_data.get(field_name, held_id if field_name == "id" else "")).strip_edges().to_lower()
+				if held_type == normalized_item_type:
+					if mission_manager.has_method("clear_manipulator"):
+						mission_manager.call("clear_manipulator")
+					return true
+
+	var runtime_items: Array = get_runtime_manipulator_items()
+	for runtime_index in range(runtime_items.size()):
+		var runtime_item: Variant = runtime_items[runtime_index]
+		var matches_runtime_item := false
+		if runtime_item is Dictionary:
+			var runtime_item_data: Dictionary = Dictionary(runtime_item)
+			for field_name in ["item_type", "object_type", "id"]:
+				if str(runtime_item_data.get(field_name, "")).strip_edges().to_lower() == normalized_item_type:
+					matches_runtime_item = true
+					break
+		elif runtime_item is BipobModule:
+			var runtime_module: BipobModule = runtime_item
+			matches_runtime_item = runtime_module.id.strip_edges().to_lower() == normalized_item_type
+		if matches_runtime_item and runtime_index < manipulator_items.size():
+			var indexed_manipulator_item: Variant = manipulator_items[runtime_index]
+			var indexed_item_matches := false
+			if indexed_manipulator_item is Dictionary:
+				var indexed_item_data: Dictionary = Dictionary(indexed_manipulator_item)
+				for field_name in ["item_type", "object_type", "id"]:
+					if str(indexed_item_data.get(field_name, "")).strip_edges().to_lower() == normalized_item_type:
+						indexed_item_matches = true
+						break
+			elif indexed_manipulator_item is BipobModule:
+				var indexed_module: BipobModule = indexed_manipulator_item
+				indexed_item_matches = indexed_module.id.strip_edges().to_lower() == normalized_item_type
+			if indexed_item_matches:
+				manipulator_items[runtime_index] = null
+				_sync_legacy_physical_slots()
+				status_changed.emit()
+				return true
+
+	for slot_index in range(get_available_manipulator_slots()):
+		if slot_index >= manipulator_items.size():
+			break
+		var manipulator_item: Variant = manipulator_items[slot_index]
+		var manipulator_item_matches := false
+		if manipulator_item is Dictionary:
+			var manipulator_item_data: Dictionary = Dictionary(manipulator_item)
+			for field_name in ["item_type", "object_type", "id"]:
+				if str(manipulator_item_data.get(field_name, "")).strip_edges().to_lower() == normalized_item_type:
+					manipulator_item_matches = true
+					break
+		elif manipulator_item is BipobModule:
+			var manipulator_module: BipobModule = manipulator_item
+			manipulator_item_matches = manipulator_module.id.strip_edges().to_lower() == normalized_item_type
+		if manipulator_item_matches:
+			manipulator_items[slot_index] = null
+			_sync_legacy_physical_slots()
+			status_changed.emit()
+			return true
+
+	return false
 
 func can_receive_physical_item(item_variant: Variant) -> Dictionary:
 	if mission_manager == null or not mission_manager.has_method("can_receive_physical_item"):
