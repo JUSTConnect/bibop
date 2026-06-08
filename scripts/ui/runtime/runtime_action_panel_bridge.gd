@@ -68,7 +68,7 @@ func process_feedback(delta: float) -> void:
 	var manipulator_blocked: bool = has_interactable and is_manipulator_blocked(target_object, physical_actions)
 	var pulse_alpha: float = 0.72 + 0.28 * abs(sin(float(Time.get_ticks_msec()) / 170.0))
 	if ui.runtime_action_button != null:
-		if manipulator_blocked:
+		if manipulator_blocked and has_actions_left:
 			ui.runtime_action_button.modulate = Color(1.0, 0.38, 0.38, 1.0)
 		elif has_interactable and has_actions_left and not ui.runtime_interaction_mode_active:
 			ui.runtime_action_button.modulate = Color(1.0, 1.0, 1.0, pulse_alpha)
@@ -93,9 +93,15 @@ func on_heavy_claw_drag_cancel_pressed() -> void:
 	RuntimeHeavyClawPresenterRef.on_cancel_pressed(ui)
 
 
+func _close_interaction_before_direction_change() -> void:
+	if ui.runtime_interaction_mode_active:
+		RuntimeInteractionPanelRef.exit_mode(ui)
+
+
 func on_turn_left_pressed() -> void:
 	if ui.map_constructor_state.map_constructor_mode_active or ui.bipob == null:
 		return
+	_close_interaction_before_direction_change()
 	ui.bipob.turn_left()
 	ui.update_status()
 
@@ -103,6 +109,7 @@ func on_turn_left_pressed() -> void:
 func on_turn_right_pressed() -> void:
 	if ui.map_constructor_state.map_constructor_mode_active or ui.bipob == null:
 		return
+	_close_interaction_before_direction_change()
 	ui.bipob.turn_right()
 	ui.update_status()
 
