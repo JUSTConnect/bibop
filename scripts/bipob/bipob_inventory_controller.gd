@@ -386,14 +386,11 @@ static func move_or_swap_pocket_slot_with_manipulator(controller: Variant, pocke
 	
 	if manipulator_index == 0 and controller.mission_manager != null and controller.mission_manager.has_method("get_inventory_state"):
 		var inventory: Dictionary = Dictionary(controller.mission_manager.call("get_inventory_state"))
-		print("[POCKET_MOVE_BEFORE] inventory=", inventory)
 		var runtime_pocket: Array = Array(inventory.get("pocket_items", []))
 
 		var runtime_pocket_id: String = ""
-		print("[POCKET_MOVE_BEFORE] inventory=", inventory)
 		if pocket_index >= 0 and pocket_index < runtime_pocket.size():
 			runtime_pocket_id = controller._runtime_inventory_value_id(runtime_pocket[pocket_index])
-			print("[POCKET_MOVE_ITEM] runtime_pocket=", runtime_pocket, " runtime_pocket_id=", runtime_pocket_id)
 		var manipulator_hold_id: String = controller._runtime_inventory_value_id(inventory.get("manipulator_hold", ""))
 		print("[POCKET_MOVE_HELD_BEFORE] manipulator_hold_id=", manipulator_hold_id)
 		if runtime_pocket_id.is_empty() and manipulator_hold_id.is_empty():
