@@ -12493,7 +12493,13 @@ func validate_inventory_tools_modules_runtime() -> Array[String]:
 	if not Array(runtime_inventory_state.get("collected_key_ids", [])).has("temp_item_stacked_second"): warnings.append("mechanical_keycard_missing_from_keychain")
 	runtime_inventory_state["manipulator_hold"] = "occupied_slot"
 	runtime_inventory_state["pocket_items"] = []
-	for _slot_index in range(get_available_pocket_slots()):
+	var available_pocket_slots: int = 0
+	if active_bipob_ref != null and active_bipob_ref.has_method("get_available_pocket_slots"):
+		available_pocket_slots = int(active_bipob_ref.call("get_available_pocket_slots"))
+	else:
+		available_pocket_slots = Array(runtime_inventory_state.get("pocket_items", [])).size()
+
+	for _slot_index in range(available_pocket_slots):
 		runtime_inventory_state["pocket_items"].append({"id": "temp_full_pocket_%d" % _slot_index})
 	var blocked_physical_pickup := pickup_world_item("temp_item_stacked_first")
 	if bool(blocked_physical_pickup.get("success", false)): warnings.append("occupied_storage_pickup_gate_missing")
