@@ -61,7 +61,35 @@ static func refresh(ui) -> void:
 
 
 static func refresh_world_actions_panel(ui, payload: Dictionary = {}) -> void:
-	if ui.runtime_world_actions_panel == null or ui.runtime_world_actions_list == null:
+	var rebuild_world_actions_panel: bool = false
+	if ui.runtime_world_actions_panel != null and not is_instance_valid(ui.runtime_world_actions_panel):
+		ui.runtime_world_actions_panel = null
+		rebuild_world_actions_panel = true
+	if ui.runtime_world_actions_target_label != null and not is_instance_valid(ui.runtime_world_actions_target_label):
+		ui.runtime_world_actions_target_label = null
+		rebuild_world_actions_panel = true
+	if ui.runtime_world_actions_state_label != null and not is_instance_valid(ui.runtime_world_actions_state_label):
+		ui.runtime_world_actions_state_label = null
+		rebuild_world_actions_panel = true
+	if ui.runtime_world_actions_behavior_label != null and not is_instance_valid(ui.runtime_world_actions_behavior_label):
+		ui.runtime_world_actions_behavior_label = null
+		rebuild_world_actions_panel = true
+	if ui.runtime_world_actions_list != null and not is_instance_valid(ui.runtime_world_actions_list):
+		ui.runtime_world_actions_list = null
+		rebuild_world_actions_panel = true
+	if ui.runtime_world_actions_no_actions_label != null and not is_instance_valid(ui.runtime_world_actions_no_actions_label):
+		ui.runtime_world_actions_no_actions_label = null
+		rebuild_world_actions_panel = true
+	if ui.runtime_world_actions_selected_button != null and not is_instance_valid(ui.runtime_world_actions_selected_button):
+		ui.runtime_world_actions_selected_button = null
+	if rebuild_world_actions_panel:
+		ui.runtime_world_actions_panel = null
+	if ui.runtime_world_actions_panel == null:
+		if ui.has_method("_ensure_runtime_world_actions_panel"):
+			ui.call("_ensure_runtime_world_actions_panel")
+		elif ui.has_method("_build_runtime_world_actions_panel"):
+			ui.call("_build_runtime_world_actions_panel")
+	if ui.runtime_world_actions_panel == null or not is_instance_valid(ui.runtime_world_actions_panel) or ui.runtime_world_actions_target_label == null or not is_instance_valid(ui.runtime_world_actions_target_label) or ui.runtime_world_actions_state_label == null or not is_instance_valid(ui.runtime_world_actions_state_label) or ui.runtime_world_actions_behavior_label == null or not is_instance_valid(ui.runtime_world_actions_behavior_label) or ui.runtime_world_actions_list == null or not is_instance_valid(ui.runtime_world_actions_list) or ui.runtime_world_actions_no_actions_label == null or not is_instance_valid(ui.runtime_world_actions_no_actions_label):
 		return
 	var target_data: Dictionary = RuntimeInteractionPanelRef.get_target_data(ui)
 	var target_object: Dictionary = ui._safe_ui_dictionary(target_data.get("target_object", {}))
@@ -169,6 +197,9 @@ static func _trace_breachable_wall_game_ui_payload(target_object: Dictionary, ac
 
 
 static func _clear_runtime_world_actions_list(ui) -> void:
+	if ui.runtime_world_actions_list != null and not is_instance_valid(ui.runtime_world_actions_list):
+		ui.runtime_world_actions_list = null
+		ui.runtime_world_actions_selected_button = null
 	if ui.runtime_world_actions_list == null:
 		return
 	for child in ui.runtime_world_actions_list.get_children():
