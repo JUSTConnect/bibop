@@ -35,8 +35,6 @@ static func execute_world_object_action(controller: Variant, world_object: Dicti
 		if not consumed_fuse and controller != null and controller.has_method("consume_held_world_item_if_type"):
 			consumed_fuse = bool(controller.call("consume_held_world_item_if_type", "fuse"))
 
-		print("[INSERT_FUSE_CONSUME] consumed_fuse=", consumed_fuse)
-
 		if not consumed_fuse:
 			return _build_result(false, "Manipulator does not contain a fuse.", world_object, target_position, action_result, "fuse_not_held")
 	if action_id == "remove_fuse" and controller.has_method("can_receive_physical_item") and not bool(Dictionary(controller.call("can_receive_physical_item", {"item_type": "fuse"})).get("success", false)):
