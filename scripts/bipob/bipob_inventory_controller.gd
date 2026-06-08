@@ -386,17 +386,45 @@ static func move_or_swap_pocket_slot_with_manipulator(controller: Variant, pocke
 		var inventory: Dictionary = Dictionary(controller.mission_manager.call("get_inventory_state"))
 		var runtime_pocket: Array = Array(inventory.get("pocket_items", []))
 		var runtime_pocket_id: String = ""
+		var manipulator_hold_id: String = controller._runtime_inventory_value_id(inventory.get("manipulator_hold", ""))
+
 		if pocket_index >= 0 and pocket_index < runtime_pocket.size():
 			runtime_pocket_id = controller._runtime_inventory_value_id(runtime_pocket[pocket_index])
-		if not controller._runtime_inventory_value_id(inventory.get("manipulator_hold", "")).is_empty() or not runtime_pocket_id.is_empty():
-			var result: Dictionary = Dictionary(controller.mission_manager.call("move_or_swap_runtime_pocket_slot_with_manipulator", pocket_index, get_available_pocket_slots(controller)))
-			if controller.mission_manager != null and controller.mission_manager.has_method("get_inventory_state"):
-				var inv: Dictionary = Dictionary(controller.mission_manager.call("get_inventory_state"))
-			if controller.has_method("_trace_runtime_inventory_state"):
-				controller.call("_trace_runtime_inventory_state", "swap_pocket_manipulator")
-			controller.status_changed.emit()
-			return result
-		return {"ok": false, "message": "Pocket slot is empty."}
+
+		if runtime_pocket_id.is_empty() and manipulator_hold_id.is_empty():
+			return {"ok": false, "message": "Pocket slot is empty."}
+
+		var result: Dictionary = {}
+		if controller.mission_manager.has_method("move_or_swap_runtime_pocket_slot_with_manipulator"):
+			result = Dictionary(controller.mission_manager.call("move_or_swap_runtime_pocket_slot_with_manipulator", pocket_index, get_available_pocket_slots(controller)))
+
+		# Hard runtime sync fallback:
+		# if the mission-manager swap returned ok but manipulator_hold is still empty,
+		# force the selected runtime pocket item into manipulator_hold.
+		var after_inventory: Dictionary = Dictionary(controller.mission_manager.call("get_inventory_state"))
+		var after_manipulator_id: String = controller._runtime_inventory_value_id(after_inventory.get("manipulator_hold", ""))
+
+		if after_manipulator_id.is_empty() and not runtime_pocket_id.is_empty():
+			if controller.mission_manager.has_method("set_manipulator_item"):
+				controller.mission_manager.call("set_manipulator_item", runtime_pocket_id)
+
+			if controller.mission_manager.has_method("set_pocket_item"):
+				controller.mission_manager.call("set_pocket_item", pocket_index, "")
+
+			result = {
+				"ok": true,
+				"success": true,
+				"message": "Moved pocket item to manipulator.",
+				"item_id": runtime_pocket_id,
+				"storage": "manipulator",
+				"slot_index": 0
+			}
+
+		if controller.has_method("_trace_runtime_inventory_state"):
+			controller.call("_trace_runtime_inventory_state", "swap_pocket_manipulator")
+
+		controller.status_changed.emit()
+		return result
 	if pocket_index < 0 or pocket_index >= get_available_pocket_slots(controller):
 		return {"ok": false, "message": "Pocket slot is unavailable."}
 	if manipulator_index < 0 or manipulator_index >= get_available_manipulator_slots(controller):
