@@ -137,7 +137,29 @@ static func has_visible_held_item_type(controller: Variant, item_type: String) -
 	var normalized_item_type: String = item_type.strip_edges().to_lower()
 	if normalized_item_type.is_empty():
 		return false
-	return get_visible_held_item_type(controller) == normalized_item_type
+
+	var held_item: Dictionary = get_visible_held_item(controller)
+	var held_id: String = str(held_item.get("held_item_id", "")).strip_edges().to_lower()
+	var held_type: String = str(held_item.get("held_item_type", "")).strip_edges().to_lower()
+	var held_data: Dictionary = Dictionary(held_item.get("held_item_data", {}))
+
+	if held_type == normalized_item_type:
+		return true
+
+	if normalized_item_type == "fuse":
+		if held_id.contains("fuse"):
+			return true
+		if held_type.contains("fuse"):
+			return true
+
+	for field_name in ["item_type", "object_type", "item_class", "id", "item_id", "display_name"]:
+		var value: String = str(held_data.get(field_name, "")).strip_edges().to_lower()
+		if value == normalized_item_type:
+			return true
+		if normalized_item_type == "fuse" and value.contains("fuse"):
+			return true
+
+	return false
 
 
 static func consume_visible_held_item_type(controller: Variant, item_type: String) -> bool:
