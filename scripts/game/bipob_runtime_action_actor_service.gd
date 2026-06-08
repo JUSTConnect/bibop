@@ -57,9 +57,6 @@ static func _get_visible_held_item(controller: Variant, inventory_state: Diction
 			item_data["item_type"] = "fuse"
 			item_data["item_form"] = "physical"
 
-		if held_item_type == "fuse" or held_id.to_lower().contains("fuse"):
-			print("[FUSE_ACTOR_HELD] held_id=", held_id, " held_item_type=", held_item_type, " item_data=", item_data)
-
 		return {
 			"held_item_id": held_id,
 			"held_item_type": held_item_type,
@@ -81,9 +78,6 @@ static func _get_visible_held_item(controller: Variant, inventory_state: Diction
 					if item_type == "fuse":
 						item_dictionary["item_type"] = "fuse"
 						item_dictionary["item_form"] = "physical"
-
-					if item_type == "fuse" or item_id.to_lower().contains("fuse"):
-						print("[FUSE_ACTOR_VISIBLE] item_id=", item_id, " item_type=", item_type, " item_data=", item_dictionary)
 
 					return {
 						"held_item_id": item_id,
@@ -115,7 +109,6 @@ static func _get_visible_held_item(controller: Variant, inventory_state: Diction
 
 					if inferred_type == "fuse":
 						inferred_data["item_form"] = "physical"
-						print("[FUSE_ACTOR_OBJECT] object_id=", object_id, " inferred_type=", inferred_type, " item_data=", inferred_data)
 
 					return {
 						"held_item_id": object_id,
