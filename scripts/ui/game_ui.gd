@@ -2,7 +2,6 @@ extends CanvasLayer
 class_name GameUI
 
 const GameUITextHelpersRef = preload("res://scripts/ui/game_ui_text_helpers.gd")
-const WorldObjectCatalogRef = preload("res://scripts/world/world_object_catalog.gd")
 const RuntimeMissionMenuRef = preload("res://scripts/ui/runtime/runtime_mission_menu.gd")
 const CenterScreenRef = preload("res://scripts/ui/screens/center_screen.gd")
 const RuntimeStoragePanelRef = preload("res://scripts/ui/runtime/runtime_storage_panel.gd")
