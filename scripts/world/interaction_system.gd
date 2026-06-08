@@ -95,7 +95,12 @@ static func can_apply_action(actor: Dictionary, module: Dictionary, target_objec
 			return _result(false, "Connector Version too low.", [], "connector_level_too_low")
 	if action_type == "pickup" and actor.get("manipulator_occupied", false) and not _is_keycard_item(target_object):
 		return _result(false, "Free manipulator required.")
-	if action_type in ["switch", "remove_fuse", "plug_in", "plug_out"]:
+	if action_type == "remove_fuse":
+		if not module_id.begins_with("manipulator_arm_v"):
+			return _result(false, "Manipulator required.", [], "manipulator_required")
+		if bool(actor.get("has_free_pocket_slot", false)) == false and bool(actor.get("has_free_manipulator_slot", false)) == false:
+			return _result(false, "No free pocket or manipulator slot.", [], "no_free_pocket_or_manipulator_slot")
+	if action_type in ["switch", "plug_in", "plug_out"]:
 		if not module_id.begins_with("manipulator_arm_v"):
 			return _result(false, "Manipulator required.", [], "manipulator_required")
 		if bool(actor.get("manipulator_occupied", false)):
