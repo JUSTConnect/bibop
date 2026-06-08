@@ -60,6 +60,7 @@ const HeavyClawDragServiceRef = preload("res://scripts/game/heavy_claw/heavy_cla
 const BipobInventoryControllerRef = preload("res://scripts/bipob/bipob_inventory_controller.gd")
 const BipobRuntimeActionActorServiceRef = preload("res://scripts/game/bipob_runtime_action_actor_service.gd")
 const WorldObjectCatalogRef = preload("res://scripts/world/world_object_catalog.gd")
+const DEBUG_RUNTIME_INVENTORY_TRACE := false
 const EXTERNAL_MODULE_CATALOG: Dictionary = {
 "wheels_v1":{"name":"Wheels V1","cat":"Gear","size":Vector2i(3,2),"sides":[EXTERNAL_SIDE_BOTTOM],"desc":"Fast movement system for flat and stable surfaces. Ineffective on stairs, mud and debris.","energy":1,"terrain":"Flat surface","movement":"Drive","speed":3},
 "legs_v1":{"name":"Legs V1","cat":"Gear","size":Vector2i(3,2),"sides":[EXTERNAL_SIDE_BOTTOM],"desc":"Universal movement system that provides stable traversal across uneven terrain, steps, obstacles, and mixed surfaces.","energy":1,"terrain":"Any surface","movement":"Walk","speed":2},
@@ -8670,6 +8671,20 @@ func _runtime_inventory_value_id(value: Variant) -> String:
 		return str(Dictionary(value).get("id", Dictionary(value).get("item_id", ""))).strip_edges()
 	return ""
 
+func _trace_runtime_inventory_state(event_name: String) -> void:
+	if not DEBUG_RUNTIME_INVENTORY_TRACE:
+		return
+	var inventory_state: Dictionary = get_inventory_state()
+	var visible_held_item: Dictionary = get_visible_held_item()
+	print("[RuntimeInventory:%s] pocket_items=%s | manipulator_hold=%s | visible_manipulator_items=%s | held_item_id=%s | held_item_type=%s" % [
+		event_name,
+		JSON.stringify(inventory_state.get("pocket_items", [])),
+		JSON.stringify(inventory_state.get("manipulator_hold", "")),
+		JSON.stringify(get_runtime_manipulator_items()),
+		str(visible_held_item.get("held_item_id", "")),
+		str(visible_held_item.get("held_item_type", ""))
+	])
+
 func _get_held_runtime_world_item_id() -> String:
 	if mission_manager == null or not mission_manager.has_method("get_inventory_state"):
 		return ""
@@ -8689,6 +8704,11 @@ func get_max_pocket_slots() -> int:
 	return BipobInventoryControllerRef.get_max_pocket_slots(self)
 
 func get_pocket_items() -> Array:
+	if mission_manager != null and mission_manager.has_method("get_inventory_state"):
+		var inventory_variant: Variant = mission_manager.call("get_inventory_state")
+		if typeof(inventory_variant) == TYPE_DICTIONARY:
+			var inventory: Dictionary = Dictionary(inventory_variant)
+			return Array(inventory.get("pocket_items", [])).duplicate(true)
 	return pocket_items.duplicate()
 
 func get_key_count() -> int:

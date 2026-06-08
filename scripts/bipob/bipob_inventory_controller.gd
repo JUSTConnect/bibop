@@ -359,9 +359,12 @@ static func move_manipulator_to_first_free_pocket(controller: Variant, manipulat
 			for pocket_index in range(get_available_pocket_slots(controller)):
 				if pocket_index >= runtime_pocket.size() or controller._runtime_inventory_value_id(runtime_pocket[pocket_index]).is_empty():
 					var result: Dictionary = Dictionary(controller.mission_manager.call("move_runtime_manipulator_to_pocket", pocket_index, get_available_pocket_slots(controller)))
+					if controller.has_method("_trace_runtime_inventory_state"):
+						controller.call("_trace_runtime_inventory_state", "manipulator_to_pocket")
 					controller.status_changed.emit()
 					return result
 			return {"ok": false, "message": "No free pocket slot."}
+		return {"ok": false, "message": "No manipulator item selected."}
 	if manipulator_index < 0 or manipulator_index >= get_available_manipulator_slots(controller):
 		return {"ok": false, "message": "Manipulator slot is unavailable."}
 	if controller.manipulator_items[manipulator_index] == null:
@@ -372,6 +375,8 @@ static func move_manipulator_to_first_free_pocket(controller: Variant, manipulat
 	controller.pocket_items[free_index] = controller.manipulator_items[manipulator_index]
 	controller.manipulator_items[manipulator_index] = null
 	sync_legacy_physical_slots(controller)
+	if controller.has_method("_trace_runtime_inventory_state"):
+		controller.call("_trace_runtime_inventory_state", "manipulator_to_pocket")
 	controller.status_changed.emit()
 	return {"ok": true, "message": "Stored manipulator item in pocket."}
 
@@ -385,8 +390,11 @@ static func move_or_swap_pocket_slot_with_manipulator(controller: Variant, pocke
 			runtime_pocket_id = controller._runtime_inventory_value_id(runtime_pocket[pocket_index])
 		if not controller._runtime_inventory_value_id(inventory.get("manipulator_hold", "")).is_empty() or not runtime_pocket_id.is_empty():
 			var result: Dictionary = Dictionary(controller.mission_manager.call("move_or_swap_runtime_pocket_slot_with_manipulator", pocket_index, get_available_pocket_slots(controller)))
+			if controller.has_method("_trace_runtime_inventory_state"):
+				controller.call("_trace_runtime_inventory_state", "swap_pocket_manipulator")
 			controller.status_changed.emit()
 			return result
+		return {"ok": false, "message": "Pocket slot is empty."}
 	if pocket_index < 0 or pocket_index >= get_available_pocket_slots(controller):
 		return {"ok": false, "message": "Pocket slot is unavailable."}
 	if manipulator_index < 0 or manipulator_index >= get_available_manipulator_slots(controller):
@@ -398,6 +406,8 @@ static func move_or_swap_pocket_slot_with_manipulator(controller: Variant, pocke
 	controller.pocket_items[pocket_index] = manipulator_item
 	controller.manipulator_items[manipulator_index] = pocket_item
 	sync_legacy_physical_slots(controller)
+	if controller.has_method("_trace_runtime_inventory_state"):
+		controller.call("_trace_runtime_inventory_state", "swap_pocket_manipulator")
 	controller.status_changed.emit()
 	return {"ok": true, "message": "Moved or swapped pocket and manipulator items."}
 
@@ -455,6 +465,26 @@ static func move_buffer_to_digital_storage(controller: Variant) -> bool:
 static func move_pocket_to_manipulator(controller: Variant, pocket_index: int) -> bool:
 	if pocket_index < 0 or pocket_index >= get_available_pocket_slots(controller):
 		return false
+	if controller.mission_manager != null and controller.mission_manager.has_method("get_inventory_state") and controller.mission_manager.has_method("move_or_swap_runtime_pocket_slot_with_manipulator"):
+		var inventory: Dictionary = Dictionary(controller.mission_manager.call("get_inventory_state"))
+		var runtime_pocket: Array = Array(inventory.get("pocket_items", []))
+		var runtime_pocket_id: String = ""
+		if pocket_index < runtime_pocket.size():
+			runtime_pocket_id = controller._runtime_inventory_value_id(runtime_pocket[pocket_index])
+		if runtime_pocket_id.is_empty():
+			controller.hint_requested.emit("No pocket item selected.")
+			return false
+		if not controller._runtime_inventory_value_id(inventory.get("manipulator_hold", "")).is_empty():
+			controller.hint_requested.emit("No free manipulator slot.")
+			return false
+		var result: Dictionary = Dictionary(controller.mission_manager.call("move_or_swap_runtime_pocket_slot_with_manipulator", pocket_index, get_available_pocket_slots(controller)))
+		if not bool(result.get("ok", false)):
+			controller.hint_requested.emit(str(result.get("message", "Only physical items can move to the manipulator.")))
+			return false
+		if controller.has_method("_trace_runtime_inventory_state"):
+			controller.call("_trace_runtime_inventory_state", "pocket_to_manipulator")
+		controller.status_changed.emit()
+		return true
 	if controller.pocket_items[pocket_index] == null:
 		controller.hint_requested.emit("No pocket item selected.")
 		return false
@@ -465,12 +495,32 @@ static func move_pocket_to_manipulator(controller: Variant, pocket_index: int) -
 	controller.manipulator_items[free_index] = controller.pocket_items[pocket_index]
 	controller.pocket_items[pocket_index] = null
 	sync_legacy_physical_slots(controller)
+	if controller.has_method("_trace_runtime_inventory_state"):
+		controller.call("_trace_runtime_inventory_state", "pocket_to_manipulator")
 	controller.status_changed.emit()
 	return true
 
 
 static func move_manipulator_to_pocket(controller: Variant, manipulator_index: int) -> bool:
 	if manipulator_index < 0 or manipulator_index >= get_available_manipulator_slots(controller):
+		return false
+	if manipulator_index == 0 and controller.mission_manager != null and controller.mission_manager.has_method("get_inventory_state"):
+		var inventory: Dictionary = Dictionary(controller.mission_manager.call("get_inventory_state"))
+		if controller._runtime_inventory_value_id(inventory.get("manipulator_hold", "")).is_empty():
+			controller.hint_requested.emit("No manipulator item selected.")
+			return false
+		var runtime_pocket: Array = Array(inventory.get("pocket_items", []))
+		for pocket_index in range(get_available_pocket_slots(controller)):
+			if pocket_index >= runtime_pocket.size() or controller._runtime_inventory_value_id(runtime_pocket[pocket_index]).is_empty():
+				var result: Dictionary = Dictionary(controller.mission_manager.call("move_runtime_manipulator_to_pocket", pocket_index, get_available_pocket_slots(controller)))
+				if not bool(result.get("ok", false)):
+					controller.hint_requested.emit(str(result.get("message", "No free pocket slot.")))
+					return false
+				if controller.has_method("_trace_runtime_inventory_state"):
+					controller.call("_trace_runtime_inventory_state", "manipulator_to_pocket")
+				controller.status_changed.emit()
+				return true
+		controller.hint_requested.emit("No free pocket slot.")
 		return false
 	if controller.manipulator_items[manipulator_index] == null:
 		controller.hint_requested.emit("No manipulator item selected.")
@@ -482,6 +532,8 @@ static func move_manipulator_to_pocket(controller: Variant, manipulator_index: i
 	controller.pocket_items[free_index] = controller.manipulator_items[manipulator_index]
 	controller.manipulator_items[manipulator_index] = null
 	sync_legacy_physical_slots(controller)
+	if controller.has_method("_trace_runtime_inventory_state"):
+		controller.call("_trace_runtime_inventory_state", "manipulator_to_pocket")
 	controller.status_changed.emit()
 	return true
 
