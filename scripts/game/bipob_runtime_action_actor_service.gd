@@ -150,15 +150,35 @@ static func consume_visible_held_item_type(controller: Variant, item_type: Strin
 
 static func build_runtime_action_actor(controller: Variant, target_object: Dictionary, target_position: Vector2i) -> Dictionary:
 	var inventory_state: Dictionary = controller.get_inventory_state() if controller != null and controller.has_method("get_inventory_state") else {}
+
 	var pocket_items: Array = Array(inventory_state.get("pocket_items", []))
-	var pocket_capacity: int = controller.get_available_pocket_slots() if controller != null and controller.has_method("get_available_pocket_slots") else pocket_items.size()
+	var pocket_capacity: int = 0
+	if controller != null and controller.has_method("get_available_pocket_slots"):
+		pocket_capacity = int(controller.call("get_available_pocket_slots"))
+	if pocket_capacity <= 0:
+		pocket_capacity = pocket_items.size()
+
 	var has_free_pocket_slot: bool = false
 	for slot_index in range(pocket_capacity):
-		if slot_index >= pocket_items.size() or controller._runtime_inventory_value_id(pocket_items[slot_index]).is_empty():
+		if slot_index >= pocket_items.size():
 			has_free_pocket_slot = true
 			break
+
+		var pocket_item_id: String = _runtime_inventory_value_id(controller, pocket_items[slot_index])
+		if pocket_item_id.is_empty():
+			has_free_pocket_slot = true
+			break
+
+	var manipulator_capacity: int = 0
+	if controller != null and controller.has_method("get_available_manipulator_slots"):
+		manipulator_capacity = int(controller.call("get_available_manipulator_slots"))
+
+	var manipulator_hold_id: String = _runtime_inventory_value_id(controller, inventory_state.get("manipulator_hold", ""))
+	var has_free_manipulator_slot: bool = manipulator_capacity > 0 and manipulator_hold_id.is_empty()
+	var manipulator_occupied: bool = not manipulator_hold_id.is_empty()
+	
 	var held_item: Dictionary = _get_visible_held_item(controller, inventory_state)
-	var visible_manipulator_slot_free: bool = str(held_item.get("held_item_type", "")).strip_edges().is_empty()
+	
 	return {
 		"manipulator_level": controller.get_installed_manipulator_arm_level(),
 		"heavy_claw_level": controller.get_installed_heavy_claw_level(),
@@ -170,9 +190,9 @@ static func build_runtime_action_actor(controller: Variant, target_object: Dicti
 		"processor_level": controller.get_installed_processor_level(),
 		"firewall_module_v1": controller.has_module_id("firewall_module_v1"),
 		"power_class": controller.get_bipob_power_class(),
-		"manipulator_occupied": not visible_manipulator_slot_free,
+		"manipulator_occupied": manipulator_occupied,
 		"pocket_full": not has_free_pocket_slot,
-		"has_free_manipulator_slot": visible_manipulator_slot_free,
+		"has_free_manipulator_slot": has_free_manipulator_slot,
 		"has_free_pocket_slot": has_free_pocket_slot,
 		"held_item_id": str(held_item.get("held_item_id", "")),
 		"held_item_type": str(held_item.get("held_item_type", "")),
