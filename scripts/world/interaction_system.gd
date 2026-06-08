@@ -358,6 +358,8 @@ static func apply_action(actor: Dictionary, module: Dictionary, target_object: D
 				return _result(false, "Cannot remove fuse here.")
 			if not bool(target_object.get("fuse_installed", str(target_object.get("state", "")) == "installed")):
 				return _result(false, "No fuse installed.")
+			if bool(actor.get("has_free_pocket_slot", false)) == false and bool(actor.get("has_free_manipulator_slot", false)) == false:
+				return _result(false, "No free pocket or manipulator slot.", [], "no_free_pocket_or_manipulator_slot")
 			target_object["state"] = "empty"
 			target_object["fuse_installed"] = false
 			return _result(true, "Fuse removed.", [{"type":"set_state","state":"empty"},{"type":"set_bool","field":"fuse_installed","value":false},{"type":"set_bool","field":"fuse_present","value":false},{"type":"grant_item","item_type":"fuse"},{"type":"power_recalc_needed"}])
