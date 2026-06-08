@@ -543,7 +543,7 @@ static func move_pocket_to_manipulator(controller: Variant, pocket_index: int) -
 static func move_manipulator_to_pocket(controller: Variant, manipulator_index: int) -> bool:
 	if manipulator_index < 0 or manipulator_index >= get_available_manipulator_slots(controller):
 		return false
-	if manipulator_index == 0 and controller.mission_manager != null and controller.mission_manager.has_method("get_inventory_state"):
+	if controller.mission_manager != null and controller.mission_manager.has_method("get_inventory_state"):
 		var inventory: Dictionary = Dictionary(controller.mission_manager.call("get_inventory_state"))
 		if controller._runtime_inventory_value_id(inventory.get("manipulator_hold", "")).is_empty():
 			controller.hint_requested.emit("No manipulator item selected.")
