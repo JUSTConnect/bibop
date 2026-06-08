@@ -147,6 +147,16 @@ static func build_placement_payload(object_data: Dictionary, wall_cell_data: Dic
 
 static func build_interaction_payload(object_data: Dictionary, approach_direction: Vector2i) -> Dictionary:
 	var normalized_object: Dictionary = normalize_wall_mounted_object(object_data)
+	var object_type: String = str(normalized_object.get("object_type", normalized_object.get("device_kind", normalized_object.get("kind", "")))).strip_edges().to_lower()
+	if object_type in [DEVICE_FUSE_BOX, DEVICE_POWER_SWITCHER, DEVICE_POWER_SOCKET]:
+		return {
+			"can_interact": true,
+			"message": "Interaction available.",
+			"wall_side": str(normalized_object.get("wall_side", "")),
+			"interaction_side": str(normalized_object.get("interaction_side", "")),
+			"required_interaction_direction": get_required_interaction_direction(normalized_object),
+			"approach_direction": approach_direction
+		}
 	var can_interact: bool = can_interact_from_cell_side(normalized_object, approach_direction)
 	return {
 		"can_interact": can_interact,

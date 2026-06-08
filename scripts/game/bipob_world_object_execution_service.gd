@@ -25,6 +25,8 @@ static func execute_world_object_action(controller: Variant, world_object: Dicti
 		return _build_result(false, "Not enough action/energy.", world_object, target_position, action_result, "insufficient_resources")
 	if action_id == "insert_fuse" and not controller.consume_held_world_item_if_type("fuse"):
 		return _build_result(false, "Manipulator does not contain a fuse.", world_object, target_position, action_result, "fuse_not_held")
+	if action_id == "remove_fuse" and controller.has_method("can_receive_physical_item") and not bool(Dictionary(controller.call("can_receive_physical_item", {"item_type": "fuse"})).get("success", false)):
+		return _build_result(false, "No free pocket or manipulator slot.", world_object, target_position, action_result, "no_free_pocket_or_manipulator_slot")
 	if action_id == "repair" and str(module.get("id", "")) == "repair_kit":
 		controller.consume_held_world_item_if_type("repair_kit")
 	var moved: bool = bool(controller._apply_world_object_effects(action_result.get("effects", []), world_object, target_position, actor))

@@ -245,6 +245,7 @@ var runtime_inventory_state := {
 	"collected_key_ids": [],
 	"world_item_runtime": {}
 }
+var _runtime_inventory_item_seq: int = 1
 # Accessed by MapConstructorService when allocating runtime-only constructor IDs.
 @warning_ignore("unused_private_class_variable")
 var _map_constructor_runtime_object_seq: int = 1
@@ -323,7 +324,10 @@ const MAP_CONSTRUCTOR_WALL_MOUNTED_PREFABS: Dictionary = {
 	"light": true,
 	"light_switch": true,
 	"circuit_breaker": true,
-	"firewall": true
+	"firewall": true,
+	"fuse_box": true,
+	"power_switcher": true,
+	"power_socket": true
 }
 
 # Compatibility-only inventory of historic constructor solids. Runtime placement
@@ -1149,6 +1153,7 @@ func _clear_world_object_runtime_state() -> void:
 	_map_constructor_floor_material_overrides.clear()
 	generic_cable_runtime_report.clear()
 	generic_airflow_runtime_report.clear()
+	_runtime_inventory_item_seq = 1
 	if grid_manager != null and grid_manager.has_method("clear_floor_visual_states"):
 		grid_manager.call("clear_floor_visual_states")
 
@@ -3617,7 +3622,7 @@ func can_place_map_constructor_prefab(prefab_id: String, cell: Vector2i, preferr
 	var requested_mounting_mode: String = placement_mode_override.strip_edges().to_lower()
 	var prefab_metadata: Dictionary = get_map_constructor_prefab_metadata(prefab_id)
 	var prefab_metadata_row: Dictionary = _safe_dictionary(prefab_metadata.get("prefab", {}))
-	var prefab_is_wall_mounted: bool = str(prefab_metadata_row.get("placement_mode", "")) == "wall_mounted"
+	var prefab_is_wall_mounted: bool = str(prefab_metadata_row.get("placement_mode", "")) == "wall_mounted" or bool(MAP_CONSTRUCTOR_WALL_MOUNTED_PREFABS.get(prefab_id, false))
 	if requested_mounting_mode == "wall_mounted":
 		prefab_is_wall_mounted = true
 	elif requested_mounting_mode == "stationary":
@@ -9656,6 +9661,75 @@ func set_manipulator_item(item_variant: Variant) -> bool:
 
 func set_manipulator_held_item(item_variant: Variant) -> void:
 	set_manipulator_item(item_variant)
+
+func _allocate_runtime_inventory_item_id(item_type: String) -> String:
+	var normalized_type: String = item_type.strip_edges().to_lower()
+	if normalized_type.is_empty():
+		normalized_type = "physical_item"
+	var item_id: String = "runtime_%s_%d" % [normalized_type, _runtime_inventory_item_seq]
+	_runtime_inventory_item_seq += 1
+	return item_id
+
+func can_receive_physical_item(item_variant: Variant) -> Dictionary:
+	var item_data: Dictionary = Dictionary(item_variant).duplicate(true) if item_variant is Dictionary else {}
+	var item_type: String = ""
+	if item_variant is String or item_variant is StringName:
+		item_type = str(item_variant).strip_edges()
+	else:
+		item_type = str(item_data.get("item_type", item_data.get("object_type", item_data.get("id", "")))).strip_edges()
+	if item_type.is_empty():
+		item_type = "physical_item"
+	if item_data.is_empty():
+		item_data = {"item_type": item_type}
+	item_data["item_form"] = "physical"
+	if not WorldObjectCatalogRef.is_physical_inventory_item(item_data) and item_type != "fuse":
+		return {"success": false, "item_type": item_type, "reason": "item_does_not_fit", "reasons": ["item_does_not_fit"]}
+	var pocket: Array = Array(runtime_inventory_state.get("pocket_items", []))
+	var pocket_capacity: int = 0
+	if active_bipob_ref != null and active_bipob_ref.has_method("get_available_pocket_slots"):
+		pocket_capacity = int(active_bipob_ref.call("get_available_pocket_slots"))
+	if pocket_capacity <= 0:
+		pocket_capacity = pocket.size()
+	for slot_index in range(pocket_capacity):
+		if slot_index >= pocket.size() or _get_runtime_inventory_item_id(pocket[slot_index]).is_empty():
+			return {"success": true, "item_type": item_type, "storage": "pocket", "slot_index": slot_index, "reasons": ["ok"]}
+	if active_bipob_ref != null and active_bipob_ref.has_method("can_use_physical_hand") and bool(active_bipob_ref.call("can_use_physical_hand")):
+		return {"success": true, "item_type": item_type, "storage": "manipulator", "slot_index": 0, "reasons": ["ok"]}
+	if get_manipulator_item_id().is_empty():
+		return {"success": true, "item_type": item_type, "storage": "manipulator", "slot_index": 0, "reasons": ["ok"]}
+	return {"success": false, "item_type": item_type, "reason": "no_free_pocket_or_manipulator_slot", "reasons": ["no_free_pocket_or_manipulator_slot"]}
+
+func receive_physical_item(item_variant: Variant) -> Dictionary:
+	var item_data: Dictionary = Dictionary(item_variant).duplicate(true) if item_variant is Dictionary else {}
+	var item_type: String = ""
+	if item_variant is String or item_variant is StringName:
+		item_type = str(item_variant).strip_edges()
+	else:
+		item_type = str(item_data.get("item_type", item_data.get("object_type", item_data.get("id", "")))).strip_edges()
+	if item_type.is_empty():
+		item_type = "physical_item"
+	item_data["item_type"] = item_type
+	item_data["item_form"] = "physical"
+	if str(item_data.get("display_name", "")).strip_edges().is_empty():
+		item_data["display_name"] = item_type.capitalize()
+	var item_id: String = _get_runtime_inventory_item_id(item_data)
+	if item_id.is_empty():
+		item_id = _allocate_runtime_inventory_item_id(item_type)
+	item_data["id"] = item_id
+	var gate: Dictionary = can_receive_physical_item(item_data)
+	if not bool(gate.get("success", false)):
+		return gate
+	var runtime_map: Dictionary = _get_world_item_runtime_map()
+	runtime_map[item_id] = _build_picked_up_world_item_runtime(item_data)
+	runtime_inventory_state["world_item_runtime"] = runtime_map
+	var pocket_index: int = int(gate.get("slot_index", -1))
+	if str(gate.get("storage", "")).to_lower() == "pocket":
+		if not set_pocket_item(pocket_index, item_data):
+			return {"success": false, "item_id": item_id, "item_type": item_type, "reason": "storage_failed", "reasons": ["storage_failed"]}
+		return {"success": true, "item_id": item_id, "item_type": item_type, "storage": "pocket", "slot_index": pocket_index, "reasons": ["ok"]}
+	if not set_manipulator_item(item_data):
+		return {"success": false, "item_id": item_id, "item_type": item_type, "reason": "storage_failed", "reasons": ["storage_failed"]}
+	return {"success": true, "item_id": item_id, "item_type": item_type, "storage": "manipulator", "slot_index": 0, "reasons": ["ok"]}
 
 func get_pocket_items() -> Array:
 	return Array(runtime_inventory_state.get("pocket_items", [])).duplicate(true)

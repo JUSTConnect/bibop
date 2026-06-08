@@ -58,6 +58,7 @@ const BipobScanHackServiceRef = preload("res://scripts/game/bipob_scan_hack_serv
 const BipobMovementControllerRef = preload("res://scripts/bipob/bipob_movement_controller.gd")
 const HeavyClawDragServiceRef = preload("res://scripts/game/heavy_claw/heavy_claw_drag_service.gd")
 const BipobInventoryControllerRef = preload("res://scripts/bipob/bipob_inventory_controller.gd")
+const WorldObjectCatalogRef = preload("res://scripts/world/world_object_catalog.gd")
 const EXTERNAL_MODULE_CATALOG: Dictionary = {
 "wheels_v1":{"name":"Wheels V1","cat":"Gear","size":Vector2i(3,2),"sides":[EXTERNAL_SIDE_BOTTOM],"desc":"Fast movement system for flat and stable surfaces. Ineffective on stairs, mud and debris.","energy":1,"terrain":"Flat surface","movement":"Drive","speed":3},
 "legs_v1":{"name":"Legs V1","cat":"Gear","size":Vector2i(3,2),"sides":[EXTERNAL_SIDE_BOTTOM],"desc":"Universal movement system that provides stable traversal across uneven terrain, steps, obstacles, and mixed surfaces.","energy":1,"terrain":"Any surface","movement":"Walk","speed":2},
@@ -7956,8 +7957,11 @@ func _apply_world_object_effects(effects: Array, world_object: Dictionary, targe
 			energy = mini(max_energy, energy + drained)
 		elif effect_type == "grant_item":
 			var grant_item_type: String = str(effect.get("item_type", "")).strip_edges()
-			if grant_item_type == "fuse" and can_use_physical_hand():
-				buffer_item = {"id":"runtime_fuse", "item_type":"fuse", "display_name":"Fuse", "item_form":"physical"}
+			if not grant_item_type.is_empty() and has_method("receive_physical_item"):
+				var item_data: Dictionary = {"item_type": grant_item_type, "display_name": grant_item_type.capitalize(), "item_form": "physical"}
+				var grant_result: Dictionary = Dictionary(call("receive_physical_item", item_data))
+				if not bool(grant_result.get("success", false)):
+					push_warning("Grant item failed: %s" % str(grant_result.get("reason", grant_result.get("message", "storage_failed"))))
 		elif effect_type == "take_cable_end":
 			var end_index: int = int(effect.get("end_index", 1))
 			var reel_id: String = str(effect.get("reel_id", world_object.get("id", ""))).strip_edges()
@@ -8351,6 +8355,56 @@ func consume_held_world_item_if_type(item_type: String) -> bool:
 		if not held_id.is_empty() and mission_manager.has_method("clear_manipulator"):
 			mission_manager.call("clear_manipulator")
 	return true
+
+func can_receive_physical_item(item_variant: Variant) -> Dictionary:
+	if mission_manager == null or not mission_manager.has_method("get_inventory_state"):
+		return {"success": false, "reason": "storage_unavailable", "reasons": ["storage_unavailable"]}
+	var item_data: Dictionary = Dictionary(item_variant).duplicate(true) if item_variant is Dictionary else {}
+	var item_type: String = ""
+	if item_variant is String or item_variant is StringName:
+		item_type = str(item_variant).strip_edges()
+	else:
+		item_type = str(item_data.get("item_type", item_data.get("object_type", item_data.get("id", "")))).strip_edges()
+	if item_type.is_empty():
+		item_type = "physical_item"
+	if item_data.is_empty():
+		item_data = {"item_type": item_type}
+	item_data["item_form"] = "physical"
+	if not WorldObjectCatalogRef.is_physical_inventory_item(item_data) and item_type != "fuse":
+		return {"success": false, "item_type": item_type, "reason": "item_does_not_fit", "reasons": ["item_does_not_fit"]}
+	var inventory: Dictionary = Dictionary(mission_manager.call("get_inventory_state"))
+	var pocket_items: Array = Array(inventory.get("pocket_items", []))
+	var pocket_capacity: int = get_available_pocket_slots()
+	var free_pocket_index: int = -1
+	for slot_index in range(pocket_capacity):
+		if slot_index >= pocket_items.size() or _runtime_inventory_value_id(pocket_items[slot_index]).is_empty():
+			free_pocket_index = slot_index
+			break
+	if free_pocket_index != -1:
+		return {"success": true, "item_type": item_type, "storage": "pocket", "slot_index": free_pocket_index, "reasons": ["ok"]}
+	if can_use_physical_hand():
+		return {"success": true, "item_type": item_type, "storage": "manipulator", "slot_index": 0, "reasons": ["ok"]}
+	return {"success": false, "item_type": item_type, "reason": "no_free_pocket_or_manipulator_slot", "reasons": ["no_free_pocket_or_manipulator_slot"]}
+
+func receive_physical_item(item_variant: Variant) -> Dictionary:
+	if mission_manager == null or not mission_manager.has_method("receive_physical_item"):
+		return {"success": false, "reason": "storage_unavailable", "reasons": ["storage_unavailable"]}
+	var item_data: Dictionary = Dictionary(item_variant).duplicate(true) if item_variant is Dictionary else {}
+	var item_type: String = ""
+	if item_variant is String or item_variant is StringName:
+		item_type = str(item_variant).strip_edges()
+	else:
+		item_type = str(item_data.get("item_type", item_data.get("object_type", item_data.get("id", "")))).strip_edges()
+	if item_type.is_empty():
+		item_type = "physical_item"
+	item_data["item_type"] = item_type
+	item_data["item_form"] = "physical"
+	if str(item_data.get("display_name", "")).strip_edges().is_empty():
+		item_data["display_name"] = item_type.capitalize()
+	var gate: Dictionary = can_receive_physical_item(item_data)
+	if not bool(gate.get("success", false)):
+		return gate
+	return _variant_to_dictionary(mission_manager.call("receive_physical_item", item_data))
 
 func infer_digital_item_family(item_type: String) -> String:
 	return BipobInventoryControllerRef.infer_digital_item_family(self, item_type)
