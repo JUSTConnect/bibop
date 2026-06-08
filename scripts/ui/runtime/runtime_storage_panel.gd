@@ -714,7 +714,6 @@ static func _refresh_empty_state(ui) -> void:
 			delete_button.disabled = true
 
 
-
 static func _get_runtime_inventory_item_name(inventory_state: Dictionary, item_id: String) -> String:
 	var runtime_map: Dictionary = Dictionary(inventory_state.get("world_item_runtime", {}))
 	var item_runtime: Dictionary = Dictionary(runtime_map.get(item_id, {}))
@@ -739,6 +738,7 @@ static func _get_module_name(bipob, module_variant: Variant) -> String:
 
 	if module_variant is Dictionary:
 		var item_data: Dictionary = Dictionary(module_variant)
+
 		var display_name: String = str(item_data.get("display_name", "")).strip_edges()
 		if not display_name.is_empty():
 			return display_name
