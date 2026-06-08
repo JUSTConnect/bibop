@@ -172,7 +172,7 @@ static func consume_visible_held_item_type(controller: Variant, item_type: Strin
 
 static func build_runtime_action_actor(controller: Variant, target_object: Dictionary, target_position: Vector2i) -> Dictionary:
 	var inventory_state: Dictionary = controller.get_inventory_state() if controller != null and controller.has_method("get_inventory_state") else {}
-
+	
 	var pocket_items: Array = Array(inventory_state.get("pocket_items", []))
 
 	var pocket_capacity: int = 0
