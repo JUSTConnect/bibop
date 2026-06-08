@@ -7870,7 +7870,7 @@ func get_world_action_module(action_id: String, world_object: Dictionary) -> Dic
 			# InteractionSystem still gates downloads by hacked/unlocked state and by actual payload presence.
 			return _module_dict("storage_buffer")
 		"insert_fuse":
-			return _module_dict("fuse" if has_visible_held_item_type("fuse") else "")
+			return _module_dict("fuse" if has_held_world_item("fuse") else "")
 		"remove_fuse", "plug_in", "plug_out", "take_end_1", "take_end_2", "connect_wire_end", "connect_wire_1", "connect_wire_2", "disconnect_power_wire", "disconnect_wire_1", "disconnect_wire_2", "circuit_1", "circuit_2", "circuit_3":
 			return _module_dict("manipulator_arm_v1" if has_manipulator_arm() else "")
 	return _module_dict("")
