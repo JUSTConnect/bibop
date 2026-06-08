@@ -8,7 +8,7 @@ const FLYOUT_CELL_SIZE: float = 54.0
 const ACTIVE_FRAME_PADDING: float = 3.0
 const MIN_VISIBLE_MANIPULATOR_SLOTS: int = 3
 const MIN_VISIBLE_KEY_SLOTS: int = 6
-const MIN_VISIBLE_POCKET_SLOTS: int = 2
+const MIN_VISIBLE_POCKET_SLOTS: int = 0
 const MANIPULATOR_VISIBLE_SLOTS: int = 3
 const KEY_MINI_HUD_SLOTS: int = 6
 const KEY_MINI_HUD_CELL_SIZE: Vector2 = Vector2(20, 16)
@@ -102,12 +102,17 @@ static func refresh(ui) -> void:
 	var runtime_pocket_items: Array = Array(inventory_state.get("pocket_items", []))
 	var available_pocket_slots: int = bipob.get_available_pocket_slots()
 	for index in range(ui.runtime_pocket_slots.size()):
-		var pocket_item: Variant = pocket_items[index] if index < available_pocket_slots and index < pocket_items.size() else null
-		ui.runtime_pocket_slots[index].text = _get_module_name(bipob, pocket_item)
+		var pocket_slot: Button = ui.runtime_pocket_slots[index]
+		pocket_slot.visible = index < available_pocket_slots
+		if not pocket_slot.visible:
+			pocket_slot.text = ""
+			continue
+		var pocket_item: Variant = pocket_items[index] if index < pocket_items.size() else null
+		pocket_slot.text = _get_module_name(bipob, pocket_item)
 		if index < runtime_pocket_items.size():
 			var runtime_pocket_item_id: String = _get_inventory_item_id(runtime_pocket_items[index])
 			if not runtime_pocket_item_id.is_empty():
-				ui.runtime_pocket_slots[index].text = _get_runtime_inventory_item_name(inventory_state, runtime_pocket_item_id)
+				pocket_slot.text = _get_runtime_inventory_item_name(inventory_state, runtime_pocket_item_id)
 
 	var buffer_item: Variant = bipob.get_buffer_item()
 	if ui.runtime_buffer_content_label != null and is_instance_valid(ui.runtime_buffer_content_label):
@@ -266,7 +271,7 @@ static func _build_flyout(ui, hud_root: Control, margin: float, node_name: Strin
 		bipob = ui.bipob
 	if bipob != null and is_instance_valid(bipob):
 		if is_pocket:
-			slot_count = max(MIN_VISIBLE_POCKET_SLOTS, bipob.get_available_pocket_slots())
+			slot_count = max(0, bipob.get_available_pocket_slots())
 		else:
 			slot_count = max(1, bipob.get_available_digital_storage_slots())
 	var flyout_width: float = _get_safe_width(hud_root, FLYOUT_SIZE.x, margin)
@@ -356,6 +361,9 @@ static func _on_buffer_preview_pressed(ui) -> void:
 
 static func _on_pocket_slot_pressed(ui, slot_index: int) -> void:
 	if not _has_valid_bipob(ui):
+		return
+	if slot_index < 0 or slot_index >= ui.bipob.get_available_pocket_slots():
+		_show_hint(ui, "Pocket slot is inactive.")
 		return
 	var result: Dictionary = handle_take_pocket_item(ui, slot_index)
 	if bool(result.get("ok", false)):

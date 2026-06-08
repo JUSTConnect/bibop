@@ -9670,66 +9670,150 @@ func _allocate_runtime_inventory_item_id(item_type: String) -> String:
 	_runtime_inventory_item_seq += 1
 	return item_id
 
-func can_receive_physical_item(item_variant: Variant) -> Dictionary:
+func classify_runtime_item(item_variant: Variant) -> String:
 	var item_data: Dictionary = Dictionary(item_variant).duplicate(true) if item_variant is Dictionary else {}
-	var item_type: String = ""
-	if item_variant is String or item_variant is StringName:
-		item_type = str(item_variant).strip_edges()
-	else:
-		item_type = str(item_data.get("item_type", item_data.get("object_type", item_data.get("id", "")))).strip_edges()
+	var item_id: String = str(item_variant).strip_edges() if item_variant is String or item_variant is StringName else str(item_data.get("id", item_data.get("item_id", ""))).strip_edges()
+	if item_data.is_empty() and not item_id.is_empty():
+		item_data = _get_known_inventory_item_data(item_id)
+		if item_data.is_empty():
+			item_data = {"id": item_id, "item_type": item_id}
+	var item_form: String = str(item_data.get("item_form", "")).strip_edges().to_lower()
+	var storage_class: String = WorldObjectCatalogRef.get_item_storage_class(item_data)
+	if storage_class == WorldObjectCatalogRef.ITEM_STORAGE_CLASS_DIGITAL or item_form == "digital":
+		return WorldObjectCatalogRef.ITEM_STORAGE_CLASS_DIGITAL
+	for field_name in ["item_type", "item_family", "digital_payload_type", "object_type", "id"]:
+		var item_type: String = str(item_data.get(field_name, "")).strip_edges().to_lower()
+		if item_type in ["digital_key", "data_file", "access_data", "encrypted_file", "damaged_file", "information_file"] or item_type.contains("digital_key") or item_type.contains("data_file"):
+			return WorldObjectCatalogRef.ITEM_STORAGE_CLASS_DIGITAL
+	if storage_class == WorldObjectCatalogRef.ITEM_STORAGE_CLASS_KEY_CARD:
+		return WorldObjectCatalogRef.ITEM_STORAGE_CLASS_KEY_CARD
+	for field_name in ["item_class", "item_type", "object_type", "access_type", "key_type", "key_kind", "id"]:
+		var key_type: String = str(item_data.get(field_name, "")).strip_edges().to_lower()
+		if key_type in ["key_card", "keycard", "mechanical_key", "mechanical_keycard"]:
+			return WorldObjectCatalogRef.ITEM_STORAGE_CLASS_KEY_CARD
+	var access_item_form: String = str(item_data.get("access_item_form", item_data.get("access_form", item_form))).strip_edges().to_lower()
+	if access_item_form == "physical" and str(item_data.get("access_type", "")).strip_edges().to_lower() in ["key_card", "mechanical_key", "mechanical_keycard", "keycard"]:
+		return WorldObjectCatalogRef.ITEM_STORAGE_CLASS_KEY_CARD
+	return WorldObjectCatalogRef.ITEM_STORAGE_CLASS_PHYSICAL
+
+func _normalize_runtime_route_item_data(item_variant: Variant) -> Dictionary:
+	var item_data: Dictionary = Dictionary(item_variant).duplicate(true) if item_variant is Dictionary else {}
+	var item_id: String = str(item_variant).strip_edges() if item_variant is String or item_variant is StringName else str(item_data.get("id", item_data.get("item_id", ""))).strip_edges()
+	if item_data.is_empty() and not item_id.is_empty():
+		item_data = _get_known_inventory_item_data(item_id)
+	if item_data.is_empty():
+		item_data = {"id": item_id, "item_type": item_id}
+	var item_type: String = str(item_data.get("item_type", item_data.get("object_type", item_data.get("id", "")))).strip_edges()
 	if item_type.is_empty():
 		item_type = "physical_item"
-	if item_data.is_empty():
-		item_data = {"item_type": item_type}
-	item_data["item_form"] = "physical"
-	if not WorldObjectCatalogRef.is_physical_inventory_item(item_data) and item_type != "fuse":
-		return {"success": false, "item_type": item_type, "reason": "item_does_not_fit", "reasons": ["item_does_not_fit"]}
+	item_data["item_type"] = item_type
+	var classification: String = classify_runtime_item(item_data)
+	if classification == WorldObjectCatalogRef.ITEM_STORAGE_CLASS_DIGITAL:
+		item_data["item_form"] = "digital"
+	elif classification == WorldObjectCatalogRef.ITEM_STORAGE_CLASS_KEY_CARD:
+		item_data["item_form"] = "physical"
+		item_data["item_class"] = "key_card"
+	else:
+		item_data["item_form"] = "physical"
+	if str(item_data.get("display_name", "")).strip_edges().is_empty():
+		item_data["display_name"] = item_type.capitalize()
+	var normalized_id: String = _get_runtime_inventory_item_id(item_data)
+	if normalized_id.is_empty():
+		normalized_id = _allocate_runtime_inventory_item_id(item_type)
+	item_data["id"] = normalized_id
+	return item_data
+
+func can_route_runtime_item(item_variant: Variant, preferred_target: String = "") -> Dictionary:
+	var item_data: Dictionary = _normalize_runtime_route_item_data(item_variant)
+	var item_id: String = _get_runtime_inventory_item_id(item_data)
+	var classification: String = classify_runtime_item(item_data)
+	var target: String = preferred_target.strip_edges().to_lower()
+	if classification == WorldObjectCatalogRef.ITEM_STORAGE_CLASS_DIGITAL:
+		var digital_buffer: Array = get_digital_buffer_items()
+		if digital_buffer.has(item_id):
+			return {"success": true, "item_id": item_id, "storage": "buffer", "slot_index": 0, "message": "Digital item already in buffer.", "reasons": ["ok"]}
+		var digital_storage: Array = get_digital_storage_items()
+		if digital_storage.has(item_id):
+			return {"success": true, "item_id": item_id, "storage": "digital_storage", "slot_index": digital_storage.find(item_id), "message": "Digital item already in storage.", "reasons": ["ok"]}
+		if digital_buffer.is_empty():
+			return {"success": true, "item_id": item_id, "storage": "buffer", "slot_index": 0, "message": "Digital item stored in buffer.", "reasons": ["ok"]}
+		if digital_storage.size() < _get_available_runtime_digital_storage_capacity():
+			return {"success": true, "item_id": item_id, "storage": "digital_storage", "slot_index": digital_storage.size(), "message": "Digital item stored in storage.", "reasons": ["ok"]}
+		return {"success": false, "item_id": item_id, "storage": "", "slot_index": -1, "message": "No free digital buffer or storage slot.", "reason": "digital_storage_full", "reasons": ["digital_storage_full"]}
+	if classification == WorldObjectCatalogRef.ITEM_STORAGE_CLASS_KEY_CARD:
+		return {"success": true, "item_id": item_id, "storage": "keyring", "slot_index": -1, "message": "Key-card collected.", "reasons": ["ok"]}
+	var pocket: Array = Array(runtime_inventory_state.get("pocket_items", []))
+	var pocket_capacity: int = _get_available_runtime_pocket_capacity()
+	if target == "manipulator":
+		if get_manipulator_item_id().is_empty():
+			return {"success": true, "item_id": item_id, "storage": "manipulator", "slot_index": 0, "message": "Item held in manipulator.", "reasons": ["ok"]}
+		return {"success": false, "item_id": item_id, "storage": "", "slot_index": -1, "message": "Manipulator is full.", "reason": "manipulator_full", "reasons": ["manipulator_full"]}
+	for slot_index in range(pocket_capacity):
+		if slot_index >= pocket.size() or _get_runtime_inventory_item_id(pocket[slot_index]).is_empty():
+			return {"success": true, "item_id": item_id, "storage": "pocket", "slot_index": slot_index, "message": "Item stored in pocket.", "reasons": ["ok"]}
+	if get_manipulator_item_id().is_empty():
+		return {"success": true, "item_id": item_id, "storage": "manipulator", "slot_index": 0, "message": "Item held in manipulator.", "reasons": ["ok"]}
+	return {"success": false, "item_id": item_id, "storage": "", "slot_index": -1, "message": "No free active pocket or manipulator slot.", "reason": "no_free_pocket_or_manipulator_slot", "reasons": ["no_free_pocket_or_manipulator_slot"]}
+
+func route_runtime_item(item_variant: Variant, preferred_target: String = "") -> Dictionary:
+	var item_data: Dictionary = _normalize_runtime_route_item_data(item_variant)
+	var gate: Dictionary = can_route_runtime_item(item_data, preferred_target)
+	if not bool(gate.get("success", false)):
+		return gate
+	var item_id: String = str(gate.get("item_id", _get_runtime_inventory_item_id(item_data))).strip_edges()
+	item_data["id"] = item_id
+	var runtime_map: Dictionary = _get_world_item_runtime_map()
+	runtime_map[item_id] = _build_picked_up_world_item_runtime(item_data)
+	runtime_inventory_state["world_item_runtime"] = runtime_map
+	match str(gate.get("storage", "")):
+		"buffer":
+			runtime_inventory_state["digital_buffer"] = [item_id]
+		"digital_storage":
+			var storage_items: Array = get_digital_storage_items()
+			if not storage_items.has(item_id):
+				storage_items.append(item_id)
+			runtime_inventory_state["digital_storage"] = storage_items
+		"keyring":
+			add_keycard_to_keychain(item_id)
+		"pocket":
+			if not set_pocket_item(int(gate.get("slot_index", -1)), item_data):
+				return {"success": false, "item_id": item_id, "storage": "", "slot_index": -1, "message": "Storage failed.", "reason": "storage_failed", "reasons": ["storage_failed"]}
+		"manipulator":
+			if not set_manipulator_item(item_data):
+				return {"success": false, "item_id": item_id, "storage": "", "slot_index": -1, "message": "Storage failed.", "reason": "storage_failed", "reasons": ["storage_failed"]}
+	gate["success"] = true
+	gate["item_id"] = item_id
+	gate["item_data"] = item_data.duplicate(true)
+	return gate
+
+func _get_available_runtime_pocket_capacity() -> int:
 	var pocket: Array = Array(runtime_inventory_state.get("pocket_items", []))
 	var pocket_capacity: int = 0
 	if active_bipob_ref != null and active_bipob_ref.has_method("get_available_pocket_slots"):
 		pocket_capacity = int(active_bipob_ref.call("get_available_pocket_slots"))
 	if pocket_capacity <= 0:
 		pocket_capacity = pocket.size()
-	for slot_index in range(pocket_capacity):
-		if slot_index >= pocket.size() or _get_runtime_inventory_item_id(pocket[slot_index]).is_empty():
-			return {"success": true, "item_type": item_type, "storage": "pocket", "slot_index": slot_index, "reasons": ["ok"]}
-	if active_bipob_ref != null and active_bipob_ref.has_method("can_use_physical_hand") and bool(active_bipob_ref.call("can_use_physical_hand")):
-		return {"success": true, "item_type": item_type, "storage": "manipulator", "slot_index": 0, "reasons": ["ok"]}
-	if get_manipulator_item_id().is_empty():
-		return {"success": true, "item_type": item_type, "storage": "manipulator", "slot_index": 0, "reasons": ["ok"]}
-	return {"success": false, "item_type": item_type, "reason": "no_free_pocket_or_manipulator_slot", "reasons": ["no_free_pocket_or_manipulator_slot"]}
+	return maxi(pocket_capacity, 0)
+
+func _get_available_runtime_digital_storage_capacity() -> int:
+	var storage_capacity: int = 0
+	if active_bipob_ref != null and active_bipob_ref.has_method("get_available_digital_storage_slots"):
+		storage_capacity = int(active_bipob_ref.call("get_available_digital_storage_slots"))
+	if storage_capacity <= 0:
+		storage_capacity = int(runtime_inventory_state.get("digital_storage_capacity", 0))
+	return maxi(storage_capacity, 0)
+
+func can_receive_physical_item(item_variant: Variant) -> Dictionary:
+	var item_data: Dictionary = _normalize_runtime_route_item_data(item_variant)
+	if classify_runtime_item(item_data) != WorldObjectCatalogRef.ITEM_STORAGE_CLASS_PHYSICAL:
+		return {"success": false, "item_type": str(item_data.get("item_type", "")), "reason": "item_does_not_fit", "reasons": ["item_does_not_fit"], "message": "Only physical items can use pockets or manipulator."}
+	return can_route_runtime_item(item_data)
 
 func receive_physical_item(item_variant: Variant) -> Dictionary:
-	var item_data: Dictionary = Dictionary(item_variant).duplicate(true) if item_variant is Dictionary else {}
-	var item_type: String = ""
-	if item_variant is String or item_variant is StringName:
-		item_type = str(item_variant).strip_edges()
-	else:
-		item_type = str(item_data.get("item_type", item_data.get("object_type", item_data.get("id", "")))).strip_edges()
-	if item_type.is_empty():
-		item_type = "physical_item"
-	item_data["item_type"] = item_type
-	item_data["item_form"] = "physical"
-	if str(item_data.get("display_name", "")).strip_edges().is_empty():
-		item_data["display_name"] = item_type.capitalize()
-	var item_id: String = _get_runtime_inventory_item_id(item_data)
-	if item_id.is_empty():
-		item_id = _allocate_runtime_inventory_item_id(item_type)
-	item_data["id"] = item_id
-	var gate: Dictionary = can_receive_physical_item(item_data)
-	if not bool(gate.get("success", false)):
-		return gate
-	var runtime_map: Dictionary = _get_world_item_runtime_map()
-	runtime_map[item_id] = _build_picked_up_world_item_runtime(item_data)
-	runtime_inventory_state["world_item_runtime"] = runtime_map
-	var pocket_index: int = int(gate.get("slot_index", -1))
-	if str(gate.get("storage", "")).to_lower() == "pocket":
-		if not set_pocket_item(pocket_index, item_data):
-			return {"success": false, "item_id": item_id, "item_type": item_type, "reason": "storage_failed", "reasons": ["storage_failed"]}
-		return {"success": true, "item_id": item_id, "item_type": item_type, "storage": "pocket", "slot_index": pocket_index, "reasons": ["ok"]}
-	if not set_manipulator_item(item_data):
-		return {"success": false, "item_id": item_id, "item_type": item_type, "reason": "storage_failed", "reasons": ["storage_failed"]}
-	return {"success": true, "item_id": item_id, "item_type": item_type, "storage": "manipulator", "slot_index": 0, "reasons": ["ok"]}
+	var item_data: Dictionary = _normalize_runtime_route_item_data(item_variant)
+	if classify_runtime_item(item_data) != WorldObjectCatalogRef.ITEM_STORAGE_CLASS_PHYSICAL:
+		return {"success": false, "item_type": str(item_data.get("item_type", "")), "reason": "item_does_not_fit", "reasons": ["item_does_not_fit"], "message": "Only physical items can use pockets or manipulator."}
+	return route_runtime_item(item_data)
 
 func get_pocket_items() -> Array:
 	return Array(runtime_inventory_state.get("pocket_items", [])).duplicate(true)
@@ -9872,11 +9956,14 @@ func acquire_runtime_access_code(code_value: String) -> Dictionary:
 	var code: String = code_value.strip_edges()
 	if not MapConstructorInformationTerminalServiceRef.is_four_digit_code(code):
 		return {"ok": false, "message": "Access code unavailable."}
+	var route_result: Dictionary = route_runtime_item({"id":"access_code_%s" % code, "item_type":"access_data", "display_name":"Access Code", "item_form":"digital", "access_code_value":code})
+	if not bool(route_result.get("success", false)):
+		return {"ok": false, "message": str(route_result.get("message", "No free digital buffer or storage slot.")), "access_code_value": code}
 	var codes: Array = Array(runtime_inventory_state.get("acquired_access_codes", []))
 	if not codes.has(code):
 		codes.append(code)
 	runtime_inventory_state["acquired_access_codes"] = codes
-	return {"ok": true, "message": "Access code acquired.", "access_code_value": code}
+	return {"ok": true, "message": "Access code acquired.", "access_code_value": code, "storage": str(route_result.get("storage", ""))}
 
 func has_acquired_access_code(code_value: String) -> bool:
 	var code: String = code_value.strip_edges()
@@ -9886,11 +9973,14 @@ func acquire_runtime_digital_key(key_id: String) -> Dictionary:
 	var normalized_id: String = key_id.strip_edges()
 	if normalized_id.is_empty():
 		return {"ok": false, "message": "Digital key unavailable."}
+	var route_result: Dictionary = route_runtime_item({"id":normalized_id, "item_type":"digital_key", "display_name":"Digital Key", "item_form":"digital"})
+	if not bool(route_result.get("success", false)):
+		return {"ok": false, "message": str(route_result.get("message", "No free digital buffer or storage slot.")), "key_id": normalized_id}
 	var keys: Array = Array(runtime_inventory_state.get("acquired_digital_key_ids", []))
 	if not keys.has(normalized_id):
 		keys.append(normalized_id)
 	runtime_inventory_state["acquired_digital_key_ids"] = keys
-	return {"ok": true, "message": "Digital key acquired.", "key_id": normalized_id}
+	return {"ok": true, "message": "Digital key acquired.", "key_id": normalized_id, "storage": str(route_result.get("storage", ""))}
 
 func has_acquired_digital_key(key_id: String) -> bool:
 	var normalized_id: String = key_id.strip_edges()
@@ -9900,11 +9990,14 @@ func acquire_runtime_data_file(file_id: String) -> Dictionary:
 	var normalized_id: String = file_id.strip_edges()
 	if normalized_id.is_empty():
 		return {"ok": false, "message": "Data file unavailable."}
+	var route_result: Dictionary = route_runtime_item({"id":normalized_id, "item_type":"data_file", "display_name":"Data File", "item_form":"digital"})
+	if not bool(route_result.get("success", false)):
+		return {"ok": false, "message": str(route_result.get("message", "No free digital buffer or storage slot.")), "data_file_id": normalized_id}
 	var files: Array = Array(runtime_inventory_state.get("acquired_data_file_ids", []))
 	if not files.has(normalized_id):
 		files.append(normalized_id)
 	runtime_inventory_state["acquired_data_file_ids"] = files
-	return {"ok": true, "message": "Data file acquired.", "data_file_id": normalized_id}
+	return {"ok": true, "message": "Data file acquired.", "data_file_id": normalized_id, "storage": str(route_result.get("storage", ""))}
 
 func get_inventory_state() -> Dictionary:
 	var snapshot: Dictionary = runtime_inventory_state.duplicate(true)
@@ -10401,17 +10494,24 @@ func can_pickup_world_item(item_id: String) -> Dictionary:
 		return {"success": false, "reasons": ["item_missing"], "item_id": normalized_id}
 	if not bool(item.get("can_pickup", true)):
 		return {"success": false, "reasons": ["item_does_not_fit"], "item_id": normalized_id}
-	var storage_class: String = WorldObjectCatalogRef.get_item_storage_class(item)
-	if storage_class == WorldObjectCatalogRef.ITEM_STORAGE_CLASS_DIGITAL:
-		if not bool(item.get("can_place_in_digital_buffer", true)) and str(item.get("storage_type", "")) != "digital_storage":
-			return {"success": false, "reasons": ["digital_storage_full"], "message": "No free digital storage slot.", "item_id": normalized_id}
-		if not get_digital_buffer_items().is_empty():
-			return {"success": false, "reasons": ["digital_buffer_full"], "message": "No free digital buffer slot.", "item_id": normalized_id}
-	elif storage_class != WorldObjectCatalogRef.ITEM_STORAGE_CLASS_KEY_CARD:
-		var hold_gate := can_hold_item_in_manipulator(normalized_id)
-		if not bool(hold_gate.get("success", false)):
-			return {"success": false, "reasons": ["manipulator_occupied"], "message": "Free manipulator required.", "item_id": normalized_id}
-	return {"success": true, "reasons": ["ok"], "item_id": normalized_id}
+	return can_route_runtime_item(item)
+
+func pickup_world_item(item_id: String) -> Dictionary:
+	var normalized_id: String = item_id.strip_edges()
+	var item := get_world_object_by_id(normalized_id)
+	if item.is_empty():
+		item = get_cell_item_by_id(normalized_id)
+	if item.is_empty():
+		return {"success": false, "reasons": ["item_missing"], "item_id": normalized_id}
+	if not bool(item.get("can_pickup", true)):
+		return {"success": false, "reasons": ["item_does_not_fit"], "item_id": normalized_id}
+	var route_result: Dictionary = route_runtime_item(item)
+	if not bool(route_result.get("success", false)):
+		return route_result
+	_remove_world_item_from_lookup_tables(normalized_id, item)
+	refresh_world_cooling_received()
+	var message: String = str(route_result.get("message", "Item collected."))
+	return {"success": true, "reasons": ["ok"], "message": message, "item_id": normalized_id, "storage": str(route_result.get("storage", "")), "slot_index": int(route_result.get("slot_index", -1)), "item_data": Dictionary(route_result.get("item_data", item))}
 
 func _get_world_item_runtime_map() -> Dictionary:
 	var runtime_map: Dictionary = Dictionary(runtime_inventory_state.get("world_item_runtime", {}))
@@ -10459,35 +10559,6 @@ func _get_known_inventory_item_data(item_id: String) -> Dictionary:
 	if item_data.is_empty():
 		item_data = get_cell_item_by_id(normalized_id)
 	return item_data
-
-func pickup_world_item(item_id: String) -> Dictionary:
-	var normalized_id: String = item_id.strip_edges()
-	var gate := can_pickup_world_item(normalized_id)
-	if not bool(gate.get("success", false)):
-		return gate
-	var item := get_world_object_by_id(normalized_id)
-	if item.is_empty():
-		item = get_cell_item_by_id(normalized_id)
-	if item.is_empty():
-		return {"success": false, "reasons": ["item_missing"], "item_id": normalized_id}
-	var storage_class: String = WorldObjectCatalogRef.get_item_storage_class(item)
-	if storage_class == WorldObjectCatalogRef.ITEM_STORAGE_CLASS_DIGITAL:
-		var digital_buffer: Array = get_digital_buffer_items()
-		if not digital_buffer.has(normalized_id):
-			digital_buffer.append(normalized_id)
-		runtime_inventory_state["digital_buffer"] = digital_buffer
-	elif storage_class == WorldObjectCatalogRef.ITEM_STORAGE_CLASS_KEY_CARD:
-		add_keycard_to_keychain(normalized_id)
-	else:
-		set_manipulator_item(item)
-	var runtime_map := _get_world_item_runtime_map()
-	runtime_map[normalized_id] = _build_picked_up_world_item_runtime(item)
-	runtime_inventory_state["world_item_runtime"] = runtime_map
-	_remove_world_item_from_lookup_tables(normalized_id, item)
-	refresh_world_cooling_received()
-	var message: String = "Key-card collected." if storage_class == WorldObjectCatalogRef.ITEM_STORAGE_CLASS_KEY_CARD else "Item collected."
-	return {"success": true, "reasons": ["ok"], "message": message, "item_id": normalized_id}
-
 
 func move_runtime_manipulator_to_pocket(pocket_index: int, pocket_capacity: int) -> Dictionary:
 	var held_id: String = get_manipulator_held_item_id()
@@ -12395,8 +12466,8 @@ func validate_inventory_tools_modules_runtime() -> Array[String]:
 	for obj in [physical_item, digital_item, digital_blocked]:
 		mission_world_objects.append(obj); world_objects_by_cell[Vector2i(obj.get("position", Vector2i(-1, -1)))] = obj; temp_ids.append(str(obj.get("id", "")))
 	if not bool(pickup_world_item("temp_item_physical").get("success", false)): warnings.append("physical_pickup_failed")
-	if get_manipulator_held_item_id() != "temp_item_physical": warnings.append("physical_pickup_not_routed_to_manipulator")
-	if Array(runtime_inventory_state.get("pocket_items", [])).has("temp_item_physical"): warnings.append("physical_pickup_routed_to_pocket")
+	if not Array(runtime_inventory_state.get("pocket_items", [])).has("temp_item_physical"): warnings.append("physical_pickup_not_routed_to_pocket")
+	if get_manipulator_held_item_id() == "temp_item_physical": warnings.append("physical_pickup_routed_to_manipulator_before_pocket")
 	if Array(runtime_inventory_state.get("digital_buffer", [])).has("temp_item_physical"): warnings.append("physical_pickup_routed_to_digital_buffer")
 	runtime_inventory_state["manipulator_hold"] = physical_item.duplicate(true)
 	if get_manipulator_held_item_id() != "temp_item_physical": warnings.append("dictionary_manipulator_id_read_failed")
@@ -12412,7 +12483,7 @@ func validate_inventory_tools_modules_runtime() -> Array[String]:
 	_remove_world_item_from_lookup_tables("temp_item_physical", physical_item)
 	clear_manipulator_held_item()
 	if not bool(pickup_world_item("temp_item_digital").get("success", false)): warnings.append("digital_pickup_allowed_failed")
-	if bool(pickup_world_item("temp_item_digital_blocked").get("success", false)): warnings.append("digital_pickup_block_missing")
+	if not bool(pickup_world_item("temp_item_digital_blocked").get("success", false)): warnings.append("digital_pickup_storage_fallback_failed")
 	var stacked_cell := Vector2i(124, 100)
 	var stacked_first := {"id":"temp_item_stacked_first", "object_group":"item", "object_type":"item", "position":stacked_cell, "item_type":"scrap", "item_form":"physical", "can_pickup":true}
 	var stacked_second := {"id":"temp_item_stacked_second", "object_group":"item", "object_type":"item", "position":stacked_cell, "item_type":"mechanical_key", "key_kind":"mechanical", "item_form":"physical", "can_pickup":true}

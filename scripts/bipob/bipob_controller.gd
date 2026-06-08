@@ -7541,17 +7541,35 @@ func get_collected_runtime_key_ids() -> Array:
 	return BipobInventoryControllerRef.get_collected_runtime_key_ids(self)
 
 
+func classify_runtime_item(item_data: Variant) -> String:
+	if mission_manager != null and mission_manager.has_method("classify_runtime_item"):
+		return str(mission_manager.call("classify_runtime_item", item_data))
+	if item_data is Dictionary:
+		return WorldObjectCatalogRef.get_item_storage_class(Dictionary(item_data))
+	return WorldObjectCatalogRef.ITEM_STORAGE_CLASS_PHYSICAL
+
+func can_route_runtime_item(item_data: Variant, preferred_target: String = "") -> Dictionary:
+	if mission_manager != null and mission_manager.has_method("can_route_runtime_item"):
+		return Dictionary(mission_manager.call("can_route_runtime_item", item_data, preferred_target))
+	return {"success": false, "message": "Runtime storage unavailable.", "reason": "storage_unavailable", "reasons": ["storage_unavailable"]}
+
+func route_runtime_item(item_data: Variant, preferred_target: String = "") -> Dictionary:
+	if mission_manager != null and mission_manager.has_method("route_runtime_item"):
+		return Dictionary(mission_manager.call("route_runtime_item", item_data, preferred_target))
+	return {"success": false, "message": "Runtime storage unavailable.", "reason": "storage_unavailable", "reasons": ["storage_unavailable"]}
+
+
 func _get_held_cable_end_metadata() -> Dictionary:
-	var buffer_type: String = str(buffer_item.get("item_type", buffer_item.get("id", ""))).strip_edges().to_lower()
-	if buffer_type.find("cable_end") >= 0 or buffer_type.find("wire_end") >= 0:
-		return {"held": true, "reel_id": str(buffer_item.get("reel_id", "")), "end_index": int(buffer_item.get("end_index", 0))}
 	if mission_manager == null or not mission_manager.has_method("get_inventory_state"):
 		return {"held": false, "reel_id": "", "end_index": 0}
 	var inventory: Dictionary = Dictionary(mission_manager.call("get_inventory_state"))
 	var held_id: String = _runtime_inventory_value_id(inventory.get("manipulator_hold", ""))
 	var held_id_lower: String = held_id.to_lower()
 	if held_id_lower.find("cable_end") >= 0 or held_id_lower.find("wire_end") >= 0:
-		return {"held": true, "reel_id": str(inventory.get("held_cable_reel_id", "")), "end_index": int(inventory.get("held_cable_end_index", 0)), "held_id": held_id}
+		var runtime_map: Dictionary = Dictionary(inventory.get("world_item_runtime", {}))
+		var runtime_row: Dictionary = Dictionary(runtime_map.get(held_id, {}))
+		var item_data: Dictionary = Dictionary(runtime_row.get("item_data", {}))
+		return {"held": true, "reel_id": str(item_data.get("reel_id", inventory.get("held_cable_reel_id", ""))), "end_index": int(item_data.get("end_index", inventory.get("held_cable_end_index", 0))), "held_id": held_id}
 	return {"held": false, "reel_id": "", "end_index": 0}
 
 func _has_manipulator_cable_end() -> bool:
@@ -7570,7 +7588,8 @@ func return_held_cable_end_to_reel() -> Dictionary:
 		return {"success": false, "reason": "reel_missing"}
 	reel["end_%d_state" % end_index] = "on_reel"
 	reel["end_%d_target_id" % end_index] = ""
-	buffer_item.clear()
+	if mission_manager.has_method("clear_manipulator"):
+		mission_manager.call("clear_manipulator")
 	return {"success": true, "reason": "ok", "reel_id": reel_id, "end_index": end_index}
 
 func get_available_world_actions(world_object: Dictionary, target_position: Vector2i) -> Array[String]:
@@ -7957,19 +7976,22 @@ func _apply_world_object_effects(effects: Array, world_object: Dictionary, targe
 			energy = mini(max_energy, energy + drained)
 		elif effect_type == "grant_item":
 			var grant_item_type: String = str(effect.get("item_type", "")).strip_edges()
-			if not grant_item_type.is_empty() and has_method("receive_physical_item"):
-				var item_data: Dictionary = {"item_type": grant_item_type, "display_name": grant_item_type.capitalize(), "item_form": "physical"}
-				var grant_result: Dictionary = Dictionary(call("receive_physical_item", item_data))
+			if not grant_item_type.is_empty():
+				var item_data: Dictionary = {"item_type": grant_item_type, "display_name": grant_item_type.capitalize()}
+				var grant_result: Dictionary = route_runtime_item(item_data) if has_method("route_runtime_item") else Dictionary(call("receive_physical_item", item_data))
 				if not bool(grant_result.get("success", false)):
 					push_warning("Grant item failed: %s" % str(grant_result.get("reason", grant_result.get("message", "storage_failed"))))
 		elif effect_type == "take_cable_end":
 			var end_index: int = int(effect.get("end_index", 1))
 			var reel_id: String = str(effect.get("reel_id", world_object.get("id", ""))).strip_edges()
-			if can_use_physical_hand():
-				var cable_end_id: String = "%s_cable_end_%d" % [reel_id if not reel_id.is_empty() else str(world_object.get("id", "reel")), end_index]
-				buffer_item = {"id":cable_end_id, "item_type":"cable_end", "display_name":"Cable End %d" % end_index, "item_form":"physical", "reel_id":reel_id, "end_index":end_index}
+			var cable_end_id: String = "%s_cable_end_%d" % [reel_id if not reel_id.is_empty() else str(world_object.get("id", "reel")), end_index]
+			var cable_item: Dictionary = {"id":cable_end_id, "item_type":"cable_end", "display_name":"Cable End %d" % end_index, "item_form":"physical", "reel_id":reel_id, "end_index":end_index}
+			var cable_route: Dictionary = route_runtime_item(cable_item, "manipulator") if has_method("route_runtime_item") else {"success": false, "message": "Runtime storage unavailable."}
+			if bool(cable_route.get("success", false)):
 				world_object["end_%d_state" % end_index] = "held"
 				world_object["end_%d_target_id" % end_index] = ""
+			else:
+				hint_requested.emit(str(cable_route.get("message", "No free manipulator slot.")))
 		elif effect_type == "connect_cable_end_to_target":
 			var held_cable: Dictionary = _get_held_cable_end_metadata()
 			if bool(held_cable.get("held", false)):
@@ -7986,7 +8008,8 @@ func _apply_world_object_effects(effects: Array, world_object: Dictionary, targe
 					world_object["wire_%d_reel_end_index" % wire_side] = end_index_connect
 				if mission_manager != null and mission_manager.has_method("connect_cable_reel_to_target") and not reel_id_connect.is_empty():
 					mission_manager.call("connect_cable_reel_to_target", reel_id_connect, target_id, end_index_connect)
-				buffer_item.clear()
+				if mission_manager != null and mission_manager.has_method("clear_manipulator"):
+					mission_manager.call("clear_manipulator")
 		elif effect_type == "disconnect_cable_end_from_target":
 			var disconnect_side: int = int(effect.get("wire_side", 0))
 			var reel_id_disconnect: String = str(world_object.get("connected_reel_id", "")).strip_edges()
@@ -8375,54 +8398,14 @@ func consume_held_world_item_if_type(item_type: String) -> bool:
 	return true
 
 func can_receive_physical_item(item_variant: Variant) -> Dictionary:
-	if mission_manager == null or not mission_manager.has_method("get_inventory_state"):
+	if mission_manager == null or not mission_manager.has_method("can_receive_physical_item"):
 		return {"success": false, "reason": "storage_unavailable", "reasons": ["storage_unavailable"]}
-	var item_data: Dictionary = Dictionary(item_variant).duplicate(true) if item_variant is Dictionary else {}
-	var item_type: String = ""
-	if item_variant is String or item_variant is StringName:
-		item_type = str(item_variant).strip_edges()
-	else:
-		item_type = str(item_data.get("item_type", item_data.get("object_type", item_data.get("id", "")))).strip_edges()
-	if item_type.is_empty():
-		item_type = "physical_item"
-	if item_data.is_empty():
-		item_data = {"item_type": item_type}
-	item_data["item_form"] = "physical"
-	if not WorldObjectCatalogRef.is_physical_inventory_item(item_data) and item_type != "fuse":
-		return {"success": false, "item_type": item_type, "reason": "item_does_not_fit", "reasons": ["item_does_not_fit"]}
-	var inventory: Dictionary = Dictionary(mission_manager.call("get_inventory_state"))
-	var pocket_items: Array = Array(inventory.get("pocket_items", []))
-	var pocket_capacity: int = get_available_pocket_slots()
-	var free_pocket_index: int = -1
-	for slot_index in range(pocket_capacity):
-		if slot_index >= pocket_items.size() or _runtime_inventory_value_id(pocket_items[slot_index]).is_empty():
-			free_pocket_index = slot_index
-			break
-	if free_pocket_index != -1:
-		return {"success": true, "item_type": item_type, "storage": "pocket", "slot_index": free_pocket_index, "reasons": ["ok"]}
-	if can_use_physical_hand():
-		return {"success": true, "item_type": item_type, "storage": "manipulator", "slot_index": 0, "reasons": ["ok"]}
-	return {"success": false, "item_type": item_type, "reason": "no_free_pocket_or_manipulator_slot", "reasons": ["no_free_pocket_or_manipulator_slot"]}
+	return _variant_to_dictionary(mission_manager.call("can_receive_physical_item", item_variant))
 
 func receive_physical_item(item_variant: Variant) -> Dictionary:
 	if mission_manager == null or not mission_manager.has_method("receive_physical_item"):
 		return {"success": false, "reason": "storage_unavailable", "reasons": ["storage_unavailable"]}
-	var item_data: Dictionary = Dictionary(item_variant).duplicate(true) if item_variant is Dictionary else {}
-	var item_type: String = ""
-	if item_variant is String or item_variant is StringName:
-		item_type = str(item_variant).strip_edges()
-	else:
-		item_type = str(item_data.get("item_type", item_data.get("object_type", item_data.get("id", "")))).strip_edges()
-	if item_type.is_empty():
-		item_type = "physical_item"
-	item_data["item_type"] = item_type
-	item_data["item_form"] = "physical"
-	if str(item_data.get("display_name", "")).strip_edges().is_empty():
-		item_data["display_name"] = item_type.capitalize()
-	var gate: Dictionary = can_receive_physical_item(item_data)
-	if not bool(gate.get("success", false)):
-		return gate
-	return _variant_to_dictionary(mission_manager.call("receive_physical_item", item_data))
+	return _variant_to_dictionary(mission_manager.call("receive_physical_item", item_variant))
 
 func infer_digital_item_family(item_type: String) -> String:
 	return BipobInventoryControllerRef.infer_digital_item_family(self, item_type)
