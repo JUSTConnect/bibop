@@ -722,12 +722,37 @@ static func _get_runtime_inventory_item_name(inventory_state: Dictionary, item_i
 	var display_name: String = str(item_data.get("display_name", item_data.get("item_type", item_id))).strip_edges()
 	return item_id if display_name.is_empty() else display_name.capitalize()
 
-static func _get_module_name(bipob, item: Variant) -> String:
-	if item == null:
-		return "Empty"
-	if typeof(item) == TYPE_DICTIONARY:
-		return _get_record_name(item, "Item")
-	return bipob.get_module_display_name(item)
+static func _get_module_name(bipob, module_variant: Variant) -> String:
+	if module_variant == null:
+		return "Empt"
+
+	if module_variant is String or module_variant is StringName:
+		var item_id: String = str(module_variant).strip_edges()
+		if item_id.is_empty():
+			return "Empt"
+
+		if bipob != null and bipob.has_method("get_inventory_state"):
+			var inventory_state: Dictionary = Dictionary(bipob.call("get_inventory_state"))
+			return _get_runtime_inventory_item_name(inventory_state, item_id)
+
+		return item_id
+
+	if module_variant is Dictionary:
+		var item_data: Dictionary = Dictionary(module_variant)
+		var display_name: String = str(item_data.get("display_name", "")).strip_edges()
+		if not display_name.is_empty():
+			return display_name
+
+		var item_type: String = str(item_data.get("item_type", item_data.get("object_type", item_data.get("id", "")))).strip_edges()
+		if not item_type.is_empty():
+			return item_type.capitalize()
+
+		return "Item"
+
+	if bipob != null and bipob.has_method("get_module_display_name"):
+		return str(bipob.call("get_module_display_name", module_variant))
+
+	return str(module_variant)
 
 
 static func _get_record_name(item: Variant, empty_text: String) -> String:
