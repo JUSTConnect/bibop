@@ -10347,8 +10347,14 @@ func _get_device_interaction_blocking_ids(action_id: String) -> Array[String]:
 			return ["key_card_required", "digital_key_required", "access_code_required", "terminal_required", "free_manipulator_required", "power_must_be_cut", "connector_level_required", "manipulator_level_required"]
 		"connect", "hack", "download", "control", "activate_platform":
 			return ["connector_level_required", "processor_level_required", "power_required", "digital_access_required", "hack_required"]
-		"repair", "insert_fuse", "plug_in", "plug_out", "take_end_1", "take_end_2", "connect_wire_end", "connect_wire_1", "connect_wire_2", "disconnect_power_wire", "disconnect_wire_1", "disconnect_wire_2":
-			return ["free_manipulator_required", "manipulator_level_required", "fuse_required", "cable_connection_required", "repair_required"]
+		"insert_fuse":
+			return ["manipulator_level_required"]
+
+		"repair":
+			return ["manipulator_level_required", "repair_required"]
+
+		"plug_in", "plug_out", "take_end_1", "take_end_2", "connect_wire_end", "connect_wire_1", "connect_wire_2", "disconnect_power_wire", "disconnect_wire_1", "disconnect_wire_2":
+			return ["manipulator_level_required", "cable_connection_required"]
 	return []
 
 func _get_device_interaction_blocked_message(reason: String, missing_item: Dictionary = {}) -> String:
