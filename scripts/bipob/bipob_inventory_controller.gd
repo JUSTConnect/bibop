@@ -213,15 +213,38 @@ static func get_max_digital_storage_slots(controller: Variant) -> int:
 
 static func get_digital_storage_items(controller: Variant) -> Array:
 	var items: Array = []
+	if controller.mission_manager != null and controller.mission_manager.has_method("get_inventory_state"):
+		var inventory: Dictionary = Dictionary(controller.mission_manager.call("get_inventory_state"))
+		var runtime_map: Dictionary = Dictionary(inventory.get("world_item_runtime", {}))
+		for item_id_variant in Array(inventory.get("digital_storage", [])):
+			var item_id: String = controller._runtime_inventory_value_id(item_id_variant)
+			var runtime_row: Dictionary = Dictionary(runtime_map.get(item_id, {}))
+			var item_data: Dictionary = Dictionary(runtime_row.get("item_data", {}))
+			if item_data.is_empty():
+				item_data = Dictionary(controller.digital_storage.get(item_id, {}))
+			if not item_data.is_empty():
+				items.append(item_data)
+		if not items.is_empty():
+			return items
 	for storage_key in controller.digital_storage.keys():
 		items.append(controller.digital_storage[storage_key])
 	return items
 
 
 static func get_buffer_item(controller: Variant) -> Variant:
-	if controller.buffer_item.is_empty():
-		return null
-	return controller.buffer_item
+	if not controller.buffer_item.is_empty():
+		return controller.buffer_item
+	if controller.mission_manager != null and controller.mission_manager.has_method("get_inventory_state"):
+		var inventory: Dictionary = Dictionary(controller.mission_manager.call("get_inventory_state"))
+		var buffer_items: Array = Array(inventory.get("digital_buffer", []))
+		if not buffer_items.is_empty():
+			var item_id: String = controller._runtime_inventory_value_id(buffer_items[0])
+			var runtime_map: Dictionary = Dictionary(inventory.get("world_item_runtime", {}))
+			var runtime_row: Dictionary = Dictionary(runtime_map.get(item_id, {}))
+			var item_data: Dictionary = Dictionary(runtime_row.get("item_data", {}))
+			if not item_data.is_empty():
+				return item_data
+	return null
 
 
 static func is_digital_storage_item(_controller: Variant, item: Dictionary, allow_untyped_storage_record: bool = false) -> bool:

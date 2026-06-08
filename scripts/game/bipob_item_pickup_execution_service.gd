@@ -18,8 +18,9 @@ static func try_pickup_adjacent_or_current_item(controller: Variant, target_posi
 		var item: Dictionary = Dictionary(cell_items[0])
 		var storage_class: String = WorldObjectCatalogRef.get_item_storage_class(item)
 		var is_digital_item: bool = storage_class == WorldObjectCatalogRef.ITEM_STORAGE_CLASS_DIGITAL
-		var requires_free_manipulator: bool = storage_class == WorldObjectCatalogRef.ITEM_STORAGE_CLASS_PHYSICAL
-		var item_actor := {"manipulator_occupied": requires_free_manipulator and not controller.can_use_physical_hand()}
+		if controller.has_method("classify_runtime_item"):
+			is_digital_item = str(controller.call("classify_runtime_item", item)) == WorldObjectCatalogRef.ITEM_STORAGE_CLASS_DIGITAL
+		var item_actor := {"manipulator_occupied": false}
 		var preflight_item: Dictionary = item.duplicate(true)
 		var item_result: Dictionary = InteractionSystemRef.normalize_action_result(Dictionary(InteractionSystemRef.apply_action(item_actor, {"id": active_manipulator.id if active_manipulator != null else ""}, preflight_item, "pickup")), preflight_item, "pickup")
 		if not bool(item_result.get("success", false)):
@@ -33,21 +34,25 @@ static func try_pickup_adjacent_or_current_item(controller: Variant, target_posi
 		if not bool(pickup_result.get("success", false)):
 			var pickup_error_message: String = str(pickup_result.get("message", "Cannot pick up item: %s" % ", ".join(Array(pickup_result.get("reasons", [])))))
 			return _build_result(false, pickup_error_message, item_cell, item, false, "world_item_pickup_failed")
-		var message: String
+		var message: String = str(pickup_result.get("message", ""))
+		var routed_storage: String = str(pickup_result.get("storage", ""))
 		if is_digital_item:
-			controller.buffer_item = item.duplicate(true)
-			controller.buffer_item["item_form"] = "digital"
-			var item_type := str(item.get("item_type", item.get("id", "")))
-			var digital_state := str(item.get("digital_state", item.get("state", "opened")))
-			var item_family := str(item.get("item_family", controller.infer_digital_item_family(item_type)))
+			var routed_item: Dictionary = Dictionary(pickup_result.get("item_data", item)).duplicate(true)
+			routed_item["item_form"] = "digital"
+			if routed_storage == "buffer":
+				controller.buffer_item = routed_item
+			elif routed_storage == "digital_storage":
+				var routed_id: String = str(routed_item.get("id", item_id)).strip_edges()
+				if not routed_id.is_empty():
+					controller.digital_storage[routed_id] = routed_item
+			var item_type := str(routed_item.get("item_type", routed_item.get("id", "")))
+			var digital_state := str(routed_item.get("digital_state", routed_item.get("state", "opened")))
+			var item_family := str(routed_item.get("item_family", controller.infer_digital_item_family(item_type)))
 			controller.digital_world_records[item_family] = {"item_family": item_family, "item_type": item_type, "digital_state": digital_state}
-			message = "Pickup digital: item stored."
-		else:
-			var pickup_message: String = str(pickup_result.get("message", ""))
-			if not pickup_message.is_empty():
-				message = pickup_message
-			else:
-				message = "Picked up %s" % str(item.get("display_name", "item"))
+			if message.is_empty():
+				message = "Pickup digital: item stored."
+		elif message.is_empty():
+			message = "Picked up %s" % str(item.get("display_name", "item"))
 		var result: Dictionary = _build_result(true, message, item_cell, item, true, "ok")
 		result["clear_selected_action"] = true
 		result["refresh_threats"] = true
