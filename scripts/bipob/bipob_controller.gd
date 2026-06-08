@@ -8374,44 +8374,98 @@ func has_held_world_item(item_type: String) -> bool:
 	if mission_manager != null and mission_manager.has_method("get_inventory_state"):
 		var inventory: Dictionary = Dictionary(mission_manager.call("get_inventory_state"))
 		var held_id: String = _runtime_inventory_value_id(inventory.get("manipulator_hold", ""))
+		var held_id_lower: String = held_id.to_lower()
+
 		if not held_id.is_empty():
+			if normalized_item_type == "fuse" and held_id_lower.contains("fuse"):
+				return true
+
+			if normalized_item_type == "cable_end" and (held_id_lower.contains("cable_end") or held_id_lower.contains("wire_end")):
+				return true
+
 			var runtime_map: Dictionary = Dictionary(inventory.get("world_item_runtime", {}))
 			var runtime_row: Dictionary = Dictionary(runtime_map.get(held_id, {}))
 			var item_data: Dictionary = Dictionary(runtime_row.get("item_data", {}))
+
 			if item_data.is_empty() and not runtime_row.is_empty():
 				item_data = runtime_row.duplicate(true)
-			for field_name in ["item_type", "object_type", "id"]:
+
+			for field_name in ["item_type", "object_type", "id", "item_id"]:
 				var held_type: String = str(item_data.get(field_name, held_id if field_name == "id" else "")).strip_edges().to_lower()
+
 				if held_type == normalized_item_type:
+					return true
+
+				if normalized_item_type == "fuse" and held_type.contains("fuse"):
+					return true
+
+				if normalized_item_type == "cable_end" and (held_type.contains("cable_end") or held_type.contains("wire_end")):
 					return true
 
 	for runtime_item in get_runtime_manipulator_items():
 		if runtime_item == null:
 			continue
+
 		if runtime_item is Dictionary:
 			var runtime_item_data: Dictionary = Dictionary(runtime_item)
-			for field_name in ["item_type", "object_type", "id"]:
-				if str(runtime_item_data.get(field_name, "")).strip_edges().to_lower() == normalized_item_type:
+			for field_name in ["item_type", "object_type", "id", "item_id"]:
+				var runtime_type: String = str(runtime_item_data.get(field_name, "")).strip_edges().to_lower()
+
+				if runtime_type == normalized_item_type:
 					return true
+
+				if normalized_item_type == "fuse" and runtime_type.contains("fuse"):
+					return true
+
+				if normalized_item_type == "cable_end" and (runtime_type.contains("cable_end") or runtime_type.contains("wire_end")):
+					return true
+
 		elif runtime_item is BipobModule:
 			var runtime_module: BipobModule = runtime_item
-			if runtime_module.id.strip_edges().to_lower() == normalized_item_type:
+			var runtime_module_id: String = runtime_module.id.strip_edges().to_lower()
+
+			if runtime_module_id == normalized_item_type:
+				return true
+
+			if normalized_item_type == "fuse" and runtime_module_id.contains("fuse"):
+				return true
+
+			if normalized_item_type == "cable_end" and (runtime_module_id.contains("cable_end") or runtime_module_id.contains("wire_end")):
 				return true
 
 	for slot_index in range(get_available_manipulator_slots()):
 		if slot_index >= manipulator_items.size():
 			break
+
 		var manipulator_item: Variant = manipulator_items[slot_index]
 		if manipulator_item == null:
 			continue
+
 		if manipulator_item is Dictionary:
 			var manipulator_item_data: Dictionary = Dictionary(manipulator_item)
-			for field_name in ["item_type", "object_type", "id"]:
-				if str(manipulator_item_data.get(field_name, "")).strip_edges().to_lower() == normalized_item_type:
+			for field_name in ["item_type", "object_type", "id", "item_id"]:
+				var manipulator_type: String = str(manipulator_item_data.get(field_name, "")).strip_edges().to_lower()
+
+				if manipulator_type == normalized_item_type:
 					return true
+
+				if normalized_item_type == "fuse" and manipulator_type.contains("fuse"):
+					return true
+
+				if normalized_item_type == "cable_end" and (manipulator_type.contains("cable_end") or manipulator_type.contains("wire_end")):
+					return true
+
 		elif manipulator_item is BipobModule:
 			var manipulator_module: BipobModule = manipulator_item
-			if manipulator_module.id.strip_edges().to_lower() == normalized_item_type:
+			var manipulator_module_id: String = manipulator_module.id.strip_edges().to_lower()
+
+			if manipulator_module_id == normalized_item_type:
+				return true
+
+			if normalized_item_type == "fuse" and manipulator_module_id.contains("fuse"):
+				return true
+
+			if normalized_item_type == "cable_end" and (manipulator_module_id.contains("cable_end") or manipulator_module_id.contains("wire_end")):
 				return true
 
 	return false
@@ -8424,44 +8478,114 @@ func consume_held_world_item_if_type(item_type: String) -> bool:
 	if mission_manager != null and mission_manager.has_method("get_inventory_state"):
 		var inventory: Dictionary = Dictionary(mission_manager.call("get_inventory_state"))
 		var held_id: String = _runtime_inventory_value_id(inventory.get("manipulator_hold", ""))
+		var held_id_lower: String = held_id.to_lower()
+
 		if not held_id.is_empty():
+			var held_matches: bool = false
+
+			if normalized_item_type == "fuse" and held_id_lower.contains("fuse"):
+				held_matches = true
+
+			if normalized_item_type == "cable_end" and (held_id_lower.contains("cable_end") or held_id_lower.contains("wire_end")):
+				held_matches = true
+
 			var runtime_map: Dictionary = Dictionary(inventory.get("world_item_runtime", {}))
 			var runtime_row: Dictionary = Dictionary(runtime_map.get(held_id, {}))
 			var item_data: Dictionary = Dictionary(runtime_row.get("item_data", {}))
+
 			if item_data.is_empty() and not runtime_row.is_empty():
 				item_data = runtime_row.duplicate(true)
-			for field_name in ["item_type", "object_type", "id"]:
+
+			for field_name in ["item_type", "object_type", "id", "item_id"]:
 				var held_type: String = str(item_data.get(field_name, held_id if field_name == "id" else "")).strip_edges().to_lower()
+
 				if held_type == normalized_item_type:
-					if mission_manager.has_method("clear_manipulator"):
-						mission_manager.call("clear_manipulator")
-					return true
+					held_matches = true
+					break
+
+				if normalized_item_type == "fuse" and held_type.contains("fuse"):
+					held_matches = true
+					break
+
+				if normalized_item_type == "cable_end" and (held_type.contains("cable_end") or held_type.contains("wire_end")):
+					held_matches = true
+					break
+
+			if held_matches:
+				if mission_manager.has_method("clear_manipulator"):
+					mission_manager.call("clear_manipulator")
+				status_changed.emit()
+				return true
 
 	var runtime_items: Array = get_runtime_manipulator_items()
 	for runtime_index in range(runtime_items.size()):
 		var runtime_item: Variant = runtime_items[runtime_index]
-		var matches_runtime_item := false
+		var matches_runtime_item: bool = false
+
 		if runtime_item is Dictionary:
 			var runtime_item_data: Dictionary = Dictionary(runtime_item)
-			for field_name in ["item_type", "object_type", "id"]:
-				if str(runtime_item_data.get(field_name, "")).strip_edges().to_lower() == normalized_item_type:
+			for field_name in ["item_type", "object_type", "id", "item_id"]:
+				var runtime_type: String = str(runtime_item_data.get(field_name, "")).strip_edges().to_lower()
+
+				if runtime_type == normalized_item_type:
 					matches_runtime_item = true
 					break
+
+				if normalized_item_type == "fuse" and runtime_type.contains("fuse"):
+					matches_runtime_item = true
+					break
+
+				if normalized_item_type == "cable_end" and (runtime_type.contains("cable_end") or runtime_type.contains("wire_end")):
+					matches_runtime_item = true
+					break
+
 		elif runtime_item is BipobModule:
 			var runtime_module: BipobModule = runtime_item
-			matches_runtime_item = runtime_module.id.strip_edges().to_lower() == normalized_item_type
+			var runtime_module_id: String = runtime_module.id.strip_edges().to_lower()
+
+			if runtime_module_id == normalized_item_type:
+				matches_runtime_item = true
+
+			if normalized_item_type == "fuse" and runtime_module_id.contains("fuse"):
+				matches_runtime_item = true
+
+			if normalized_item_type == "cable_end" and (runtime_module_id.contains("cable_end") or runtime_module_id.contains("wire_end")):
+				matches_runtime_item = true
+
 		if matches_runtime_item and runtime_index < manipulator_items.size():
 			var indexed_manipulator_item: Variant = manipulator_items[runtime_index]
-			var indexed_item_matches := false
+			var indexed_item_matches: bool = false
+
 			if indexed_manipulator_item is Dictionary:
 				var indexed_item_data: Dictionary = Dictionary(indexed_manipulator_item)
-				for field_name in ["item_type", "object_type", "id"]:
-					if str(indexed_item_data.get(field_name, "")).strip_edges().to_lower() == normalized_item_type:
+				for field_name in ["item_type", "object_type", "id", "item_id"]:
+					var indexed_type: String = str(indexed_item_data.get(field_name, "")).strip_edges().to_lower()
+
+					if indexed_type == normalized_item_type:
 						indexed_item_matches = true
 						break
+
+					if normalized_item_type == "fuse" and indexed_type.contains("fuse"):
+						indexed_item_matches = true
+						break
+
+					if normalized_item_type == "cable_end" and (indexed_type.contains("cable_end") or indexed_type.contains("wire_end")):
+						indexed_item_matches = true
+						break
+
 			elif indexed_manipulator_item is BipobModule:
 				var indexed_module: BipobModule = indexed_manipulator_item
-				indexed_item_matches = indexed_module.id.strip_edges().to_lower() == normalized_item_type
+				var indexed_module_id: String = indexed_module.id.strip_edges().to_lower()
+
+				if indexed_module_id == normalized_item_type:
+					indexed_item_matches = true
+
+				if normalized_item_type == "fuse" and indexed_module_id.contains("fuse"):
+					indexed_item_matches = true
+
+				if normalized_item_type == "cable_end" and (indexed_module_id.contains("cable_end") or indexed_module_id.contains("wire_end")):
+					indexed_item_matches = true
+
 			if indexed_item_matches:
 				manipulator_items[runtime_index] = null
 				_sync_legacy_physical_slots()
@@ -8471,17 +8595,40 @@ func consume_held_world_item_if_type(item_type: String) -> bool:
 	for slot_index in range(get_available_manipulator_slots()):
 		if slot_index >= manipulator_items.size():
 			break
+
 		var manipulator_item: Variant = manipulator_items[slot_index]
-		var manipulator_item_matches := false
+		var manipulator_item_matches: bool = false
+
 		if manipulator_item is Dictionary:
 			var manipulator_item_data: Dictionary = Dictionary(manipulator_item)
-			for field_name in ["item_type", "object_type", "id"]:
-				if str(manipulator_item_data.get(field_name, "")).strip_edges().to_lower() == normalized_item_type:
+			for field_name in ["item_type", "object_type", "id", "item_id"]:
+				var manipulator_type: String = str(manipulator_item_data.get(field_name, "")).strip_edges().to_lower()
+
+				if manipulator_type == normalized_item_type:
 					manipulator_item_matches = true
 					break
+
+				if normalized_item_type == "fuse" and manipulator_type.contains("fuse"):
+					manipulator_item_matches = true
+					break
+
+				if normalized_item_type == "cable_end" and (manipulator_type.contains("cable_end") or manipulator_type.contains("wire_end")):
+					manipulator_item_matches = true
+					break
+
 		elif manipulator_item is BipobModule:
 			var manipulator_module: BipobModule = manipulator_item
-			manipulator_item_matches = manipulator_module.id.strip_edges().to_lower() == normalized_item_type
+			var manipulator_module_id: String = manipulator_module.id.strip_edges().to_lower()
+
+			if manipulator_module_id == normalized_item_type:
+				manipulator_item_matches = true
+
+			if normalized_item_type == "fuse" and manipulator_module_id.contains("fuse"):
+				manipulator_item_matches = true
+
+			if normalized_item_type == "cable_end" and (manipulator_module_id.contains("cable_end") or manipulator_module_id.contains("wire_end")):
+				manipulator_item_matches = true
+
 		if manipulator_item_matches:
 			manipulator_items[slot_index] = null
 			_sync_legacy_physical_slots()
