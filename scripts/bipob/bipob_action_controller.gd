@@ -231,9 +231,6 @@ static func _execute_world_object_action(controller: Variant, world_object: Dict
 		if typeof(preflight_variant) == TYPE_DICTIONARY:
 			var preflight: Dictionary = preflight_variant
 
-			if action_id == "insert_fuse":
-				print("[INSERT_FUSE_PREFLIGHT] preflight=", preflight)
-
 			if not bool(preflight.get("preflight_ok", false)):
 				controller.hint_requested.emit(str(preflight.get("message", "Action unavailable.")))
 				controller.status_changed.emit()
