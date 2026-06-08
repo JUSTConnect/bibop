@@ -392,7 +392,6 @@ static func move_or_swap_pocket_slot_with_manipulator(controller: Variant, pocke
 			var result: Dictionary = Dictionary(controller.mission_manager.call("move_or_swap_runtime_pocket_slot_with_manipulator", pocket_index, get_available_pocket_slots(controller)))
 			if controller.mission_manager != null and controller.mission_manager.has_method("get_inventory_state"):
 				var inv: Dictionary = Dictionary(controller.mission_manager.call("get_inventory_state"))
-				print("[FUSE_MOVE_TO_MANIPULATOR] manipulator_hold=", inv.get("manipulator_hold", ""), " pockets=", inv.get("pocket_items", []))
 			if controller.has_method("_trace_runtime_inventory_state"):
 				controller.call("_trace_runtime_inventory_state", "swap_pocket_manipulator")
 			controller.status_changed.emit()
