@@ -27,6 +27,14 @@ static func _actor_held_item_matches(actor: Dictionary, expected_type: String) -
 			return true
 	return false
 
+
+static func _actor_has_visible_cable_item(actor: Dictionary) -> bool:
+	return _actor_held_item_matches(actor, "cable_end") or _actor_held_item_matches(actor, "wire_end")
+
+
+static func _actor_has_free_storage_slot(actor: Dictionary) -> bool:
+	return bool(actor.get("has_free_pocket_slot", false)) or bool(actor.get("has_free_manipulator_slot", false))
+
 static func can_apply_action(actor: Dictionary, module: Dictionary, target_object: Dictionary, action_type: String) -> Dictionary:
 	action_type = normalize_action_id(action_type)
 	if action_type not in SUPPORTED_ACTIONS:
@@ -75,8 +83,6 @@ static func can_apply_action(actor: Dictionary, module: Dictionary, target_objec
 			var access_type: String = _get_door_access_type(target_object)
 			if access_type not in [WorldObjectCatalogRef.ACCESS_TYPE_NO_KEY, WorldObjectCatalogRef.ACCESS_TYPE_KEY_CARD] and str(module.get("id", "")).is_empty():
 				return _result(false, "Digital access required.", [], "digital_access_required")
-			if _door_requires_key_card(target_object) and bool(actor.get("manipulator_occupied", false)):
-				return _result(false, "Free manipulator required.", [], "free_manipulator_required")
 			var unlock_target: Dictionary = target_object.duplicate(true)
 			if unlock_power_mode in ["external", "external_power", "external power"]:
 				unlock_target["power_mode"] = "internal"
@@ -106,20 +112,22 @@ static func can_apply_action(actor: Dictionary, module: Dictionary, target_objec
 		var interface_field := "%s_connector_level" % connection_type
 		if str(module.get("id", "")).is_empty() or int(actor.get(interface_field, actor.get("connector_level", 0))) < int(target_object.get("required_connector_level", 1)):
 			return _result(false, "Connector Version too low.", [], "connector_level_too_low")
-	if action_type == "pickup" and actor.get("manipulator_occupied", false) and not _is_keycard_item(target_object):
-		return _result(false, "Free manipulator required.")
+	if action_type == "pickup":
+		if not _actor_has_free_storage_slot(actor):
+			return _result(false, "No free pocket or manipulator slot.", [], "no_free_pocket_or_manipulator_slot")
 	if action_type == "remove_fuse":
 		if not module_id.begins_with("manipulator_arm_v"):
 			return _result(false, "Manipulator required.", [], "manipulator_required")
-		if bool(actor.get("has_free_pocket_slot", false)) == false and bool(actor.get("has_free_manipulator_slot", false)) == false:
+		if not _actor_has_free_storage_slot(actor):
 			return _result(false, "No free pocket or manipulator slot.", [], "no_free_pocket_or_manipulator_slot")
 	if action_type in ["switch", "plug_in", "plug_out"]:
 		if not module_id.begins_with("manipulator_arm_v"):
 			return _result(false, "Manipulator required.", [], "manipulator_required")
-		if bool(actor.get("manipulator_occupied", false)):
-			return _result(false, "Free manipulator required.", [], "free_manipulator_required")
+	if action_type in ["plug_in", "connect_wire_end", "connect_wire_1", "connect_wire_2"]:
+		if not _actor_has_visible_cable_item(actor):
+			return _result(false, "Cable required.", [], "cable_required")
 	if action_type == "insert_fuse":
-		if module_id != "fuse" and not _actor_held_item_matches(actor, "fuse"):
+		if not _actor_held_item_matches(actor, "fuse"):
 			return _result(false, "Fuse required.", [], "fuse_required")
 	if action_type == "hack" and actor.get("processor_level", 0) < target_object.get("required_processor_level", 1):
 		return _result(false, "Hacking impossible")
