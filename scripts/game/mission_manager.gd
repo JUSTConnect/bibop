@@ -9753,15 +9753,19 @@ func can_route_runtime_item(item_variant: Variant, preferred_target: String = ""
 		return {"success": true, "item_id": item_id, "storage": "keyring", "slot_index": -1, "message": "Key-card collected.", "reasons": ["ok"]}
 	var pocket: Array = Array(runtime_inventory_state.get("pocket_items", []))
 	var pocket_capacity: int = _get_available_runtime_pocket_capacity()
+
 	if target == "manipulator":
 		if get_manipulator_item_id().is_empty():
 			return {"success": true, "item_id": item_id, "storage": "manipulator", "slot_index": 0, "message": "Item held in manipulator.", "reasons": ["ok"]}
 		return {"success": false, "item_id": item_id, "storage": "", "slot_index": -1, "message": "Manipulator is full.", "reason": "manipulator_full", "reasons": ["manipulator_full"]}
+
 	for slot_index in range(pocket_capacity):
 		if slot_index >= pocket.size() or _get_runtime_inventory_item_id(pocket[slot_index]).is_empty():
 			return {"success": true, "item_id": item_id, "storage": "pocket", "slot_index": slot_index, "message": "Item stored in pocket.", "reasons": ["ok"]}
+
 	if get_manipulator_item_id().is_empty():
 		return {"success": true, "item_id": item_id, "storage": "manipulator", "slot_index": 0, "message": "Item held in manipulator.", "reasons": ["ok"]}
+
 	return {"success": false, "item_id": item_id, "storage": "", "slot_index": -1, "message": "No free pocket or manipulator slot.", "reason": "no_free_pocket_or_manipulator_slot", "reasons": ["no_free_pocket_or_manipulator_slot"]}
 
 func route_runtime_item(item_variant: Variant, preferred_target: String = "") -> Dictionary:
@@ -9771,8 +9775,6 @@ func route_runtime_item(item_variant: Variant, preferred_target: String = "") ->
 		return gate
 	var item_id: String = str(gate.get("item_id", _get_runtime_inventory_item_id(item_data))).strip_edges()
 	item_data["id"] = item_id
-	if str(item_data.get("item_type", "")).to_lower() == "fuse":
-		print("[FUSE_ROUTE] item_id=", item_id, " item_data=", item_data, " storage=", str(gate.get("storage", "")))
 	var runtime_map: Dictionary = _get_world_item_runtime_map()
 	runtime_map[item_id] = _build_picked_up_world_item_runtime(item_data)
 	runtime_inventory_state["world_item_runtime"] = runtime_map
@@ -9798,12 +9800,25 @@ func route_runtime_item(item_variant: Variant, preferred_target: String = "") ->
 	return gate
 
 func _get_available_runtime_pocket_capacity() -> int:
-	var pocket: Array = Array(runtime_inventory_state.get("pocket_items", []))
 	var pocket_capacity: int = 0
+
 	if active_bipob_ref != null and active_bipob_ref.has_method("get_available_pocket_slots"):
 		pocket_capacity = int(active_bipob_ref.call("get_available_pocket_slots"))
+
 	if pocket_capacity <= 0:
-		pocket_capacity = pocket.size()
+		pocket_capacity = int(runtime_inventory_state.get("pocket_capacity", 0))
+
+	if pocket_capacity <= 0:
+		pocket_capacity = int(runtime_inventory_state.get("available_pocket_slots", 0))
+
+	if pocket_capacity <= 0:
+		pocket_capacity = Array(runtime_inventory_state.get("pocket_items", [])).size()
+
+	# временный безопасный fallback для текущей сборки,
+	# пока конфиг карманов/модулей не стабилизирован
+	if pocket_capacity <= 0:
+		pocket_capacity = 1
+
 	return maxi(pocket_capacity, 0)
 
 func _get_available_runtime_digital_storage_capacity() -> int:
@@ -12503,6 +12518,10 @@ func validate_inventory_tools_modules_runtime() -> Array[String]:
 	if get_manipulator_held_item_id() == "temp_item_stacked_second": warnings.append("mechanical_keycard_routed_to_manipulator")
 	if not Array(runtime_inventory_state.get("collected_key_ids", [])).has("temp_item_stacked_second"): warnings.append("mechanical_keycard_missing_from_keychain")
 	runtime_inventory_state["manipulator_hold"] = "occupied_slot"
+	runtime_inventory_state["pocket_items"] = []
+	if bool(pickup_world_item("temp_item_stacked_first").get("success", false)):
+		warnings.append("physical_pickup_allowed_with_no_storage")
+	clear_manipulator_held_item()
 	runtime_inventory_state["pocket_items"] = []
 	var available_pocket_slots: int = 0
 	if active_bipob_ref != null and active_bipob_ref.has_method("get_available_pocket_slots"):
