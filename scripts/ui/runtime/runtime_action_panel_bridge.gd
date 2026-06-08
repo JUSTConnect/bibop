@@ -115,6 +115,7 @@ func on_turn_right_pressed() -> void:
 
 
 func on_runtime_action_pressed(action_id: String) -> void:
+	print("[RUNTIME_ACTION_BRIDGE_PRESSED] action_id=", action_id)
 	RuntimeInteractionPresenterRef.on_runtime_action_pressed(ui, action_id)
 
 
