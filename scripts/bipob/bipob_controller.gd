@@ -8331,7 +8331,8 @@ func get_held_world_item_type() -> String:
 	return str(buffer_item.get("item_type", buffer_item.get("id", "")))
 
 func has_held_world_item(item_type: String) -> bool:
-	if get_held_world_item_type() == item_type:
+	var normalized_item_type: String = item_type.strip_edges().to_lower()
+	if normalized_item_type != "fuse" and get_held_world_item_type() == normalized_item_type:
 		return true
 	if mission_manager == null or not mission_manager.has_method("get_inventory_state"):
 		return false
@@ -8343,10 +8344,27 @@ func has_held_world_item(item_type: String) -> bool:
 	var runtime_row: Dictionary = Dictionary(runtime_map.get(held_id, {}))
 	var item_data: Dictionary = Dictionary(runtime_row.get("item_data", {}))
 	var held_type: String = str(item_data.get("item_type", item_data.get("object_type", held_id))).strip_edges()
-	return held_type == item_type
+	return held_type == normalized_item_type
 
 func consume_held_world_item_if_type(item_type: String) -> bool:
-	if not has_held_world_item(item_type):
+	var normalized_item_type: String = item_type.strip_edges().to_lower()
+	if normalized_item_type == "fuse":
+		if mission_manager == null or not mission_manager.has_method("get_inventory_state"):
+			return false
+		var inventory: Dictionary = Dictionary(mission_manager.call("get_inventory_state"))
+		var held_id: String = _runtime_inventory_value_id(inventory.get("manipulator_hold", ""))
+		if held_id.is_empty():
+			return false
+		var runtime_map: Dictionary = Dictionary(inventory.get("world_item_runtime", {}))
+		var runtime_row: Dictionary = Dictionary(runtime_map.get(held_id, {}))
+		var item_data: Dictionary = Dictionary(runtime_row.get("item_data", {}))
+		var held_type: String = str(item_data.get("item_type", item_data.get("object_type", held_id))).strip_edges().to_lower()
+		if held_type != normalized_item_type:
+			return false
+		if mission_manager.has_method("clear_manipulator"):
+			mission_manager.call("clear_manipulator")
+		return true
+	if not has_held_world_item(normalized_item_type):
 		return false
 	buffer_item.clear()
 	if mission_manager != null and mission_manager.has_method("get_inventory_state"):
