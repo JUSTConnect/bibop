@@ -80,13 +80,6 @@ static func _has_action_points(ui) -> bool:
 
 
 static func press_action(ui, action_id: String) -> void:
-	print("[PRESS_ACTION_ENTER] action_id=", action_id,
-		" bipob_null=", ui.bipob == null,
-		" has_set_selected=", ui.bipob != null and ui.bipob.has_method("set_selected_world_action"),
-		" has_interact=", ui.bipob != null and ui.bipob.has_method("interact"),
-		" actions_left=", int(ui.bipob.actions_left) if ui.bipob != null else -1,
-		" interaction_mode=", ui.runtime_interaction_mode_active)
-
 	if ui.bipob == null or action_id.is_empty() or not ui.bipob.has_method("set_selected_world_action") or not ui.bipob.has_method("interact"):
 		print("[PRESS_ACTION_RETURN] missing bipob/method/action")
 		return
@@ -104,13 +97,10 @@ static func press_action(ui, action_id: String) -> void:
 
 	get_target_data(ui)
 
-	print("[PRESS_ACTION_SET_SELECTED] action_id=", action_id)
 	ui.bipob.call("set_selected_world_action", action_id)
 
-	print("[PRESS_ACTION_INTERACT_CALL] action_id=", action_id)
 	ui.bipob.call("interact")
 
-	print("[PRESS_ACTION_AFTER_INTERACT] action_id=", action_id)
 
 	refresh_controls(ui)
 	ui.update_status()
