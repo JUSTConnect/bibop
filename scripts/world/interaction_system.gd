@@ -53,15 +53,6 @@ static func _actor_has_free_storage_slot(actor: Dictionary) -> bool:
 	var has_free_pocket_slot: bool = bool(actor.get("has_free_pocket_slot", false))
 	var has_free_manipulator_slot: bool = bool(actor.get("has_free_manipulator_slot", false))
 
-	if not has_free_pocket_slot and not has_free_manipulator_slot:
-		print("[STORAGE_GATE_BLOCKED] has_free_pocket_slot=", has_free_pocket_slot,
-			" has_free_manipulator_slot=", has_free_manipulator_slot,
-			" pocket_full=", actor.get("pocket_full", null),
-			" manipulator_occupied=", actor.get("manipulator_occupied", null),
-			" held_item_id=", actor.get("held_item_id", ""),
-			" held_item_type=", actor.get("held_item_type", ""),
-			" actor=", actor)
-
 	return has_free_pocket_slot or has_free_manipulator_slot
 	
 static func can_apply_action(actor: Dictionary, module: Dictionary, target_object: Dictionary, action_type: String) -> Dictionary:
