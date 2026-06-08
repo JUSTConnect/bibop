@@ -16,6 +16,8 @@ static func execute_world_object_action(controller: Variant, world_object: Dicti
 		var access_result: Dictionary = _execute_acquired_door_access(controller, world_object, target_position, action_id)
 		if bool(access_result.get("handled", false)):
 			return access_result
+	if action_id == "insert_fuse" and controller != null and controller.has_method("_trace_runtime_inventory_state"):
+		controller.call("_trace_runtime_inventory_state", "insert_fuse_check")
 	var working_object: Dictionary = world_object.duplicate(true)
 	var action_result: Dictionary = InteractionSystemRef.normalize_action_result(Dictionary(InteractionSystemRef.apply_action(actor, module, working_object, action_id)), working_object, action_id)
 	if not bool(action_result.get("success", false)):
