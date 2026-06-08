@@ -18,23 +18,61 @@ static func _actor_held_item_matches(actor: Dictionary, expected_type: String) -
 	var normalized_expected: String = expected_type.strip_edges().to_lower()
 	if normalized_expected.is_empty():
 		return false
+
+	var held_id: String = str(actor.get("held_item_id", "")).strip_edges().to_lower()
 	var held_type: String = str(actor.get("held_item_type", "")).strip_edges().to_lower()
+	var held_data: Dictionary = Dictionary(actor.get("held_item_data", {}))
+
 	if held_type == normalized_expected:
 		return true
-	var held_data: Dictionary = Dictionary(actor.get("held_item_data", {}))
-	for field_name in ["item_type", "object_type", "id", "item_id"]:
-		if str(held_data.get(field_name, "")).strip_edges().to_lower() == normalized_expected:
-			return true
-	return false
 
+	if normalized_expected == "fuse":
+		if held_id.contains("fuse"):
+			return true
+		if held_type.contains("fuse"):
+			return true
+
+	if normalized_expected == "cable_end":
+		if held_id.contains("cable_end") or held_id.contains("wire_end"):
+			return true
+		if held_type.contains("cable_end") or held_type.contains("wire_end"):
+			return true
+
+	for field_name in ["item_type", "object_type", "item_class", "id", "item_id", "display_name"]:
+		var value: String = str(held_data.get(field_name, "")).strip_edges().to_lower()
+		if value.is_empty():
+			continue
+
+		if value == normalized_expected:
+			return true
+
+		if normalized_expected == "fuse" and value.contains("fuse"):
+			return true
+
+		if normalized_expected == "cable_end" and (value.contains("cable_end") or value.contains("wire_end")):
+			return true
+
+	return false
 
 static func _actor_has_visible_cable_item(actor: Dictionary) -> bool:
 	return _actor_held_item_matches(actor, "cable_end") or _actor_held_item_matches(actor, "wire_end")
 
 
 static func _actor_has_free_storage_slot(actor: Dictionary) -> bool:
-	return bool(actor.get("has_free_pocket_slot", false)) or bool(actor.get("has_free_manipulator_slot", false))
+	var has_free_pocket_slot: bool = bool(actor.get("has_free_pocket_slot", false))
+	var has_free_manipulator_slot: bool = bool(actor.get("has_free_manipulator_slot", false))
 
+	if not has_free_pocket_slot and not has_free_manipulator_slot:
+		print("[STORAGE_GATE_BLOCKED] has_free_pocket_slot=", has_free_pocket_slot,
+			" has_free_manipulator_slot=", has_free_manipulator_slot,
+			" pocket_full=", actor.get("pocket_full", null),
+			" manipulator_occupied=", actor.get("manipulator_occupied", null),
+			" held_item_id=", actor.get("held_item_id", ""),
+			" held_item_type=", actor.get("held_item_type", ""),
+			" actor=", actor)
+
+	return has_free_pocket_slot or has_free_manipulator_slot
+	
 static func can_apply_action(actor: Dictionary, module: Dictionary, target_object: Dictionary, action_type: String) -> Dictionary:
 	action_type = normalize_action_id(action_type)
 	if action_type not in SUPPORTED_ACTIONS:
@@ -113,13 +151,10 @@ static func can_apply_action(actor: Dictionary, module: Dictionary, target_objec
 		if str(module.get("id", "")).is_empty() or int(actor.get(interface_field, actor.get("connector_level", 0))) < int(target_object.get("required_connector_level", 1)):
 			return _result(false, "Connector Version too low.", [], "connector_level_too_low")
 	if action_type == "pickup":
-		if not _actor_has_free_storage_slot(actor):
-			return _result(false, "No free pocket or manipulator slot.", [], "no_free_pocket_or_manipulator_slot")
+		pass
 	if action_type == "remove_fuse":
 		if not module_id.begins_with("manipulator_arm_v"):
 			return _result(false, "Manipulator required.", [], "manipulator_required")
-		if not _actor_has_free_storage_slot(actor):
-			return _result(false, "No free pocket or manipulator slot.", [], "no_free_pocket_or_manipulator_slot")
 	if action_type in ["switch", "plug_in", "plug_out"]:
 		if not module_id.begins_with("manipulator_arm_v"):
 			return _result(false, "Manipulator required.", [], "manipulator_required")
