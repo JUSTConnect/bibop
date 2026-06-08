@@ -392,7 +392,7 @@ static func move_or_swap_pocket_slot_with_manipulator(controller: Variant, pocke
 		if pocket_index >= 0 and pocket_index < runtime_pocket.size():
 			runtime_pocket_id = controller._runtime_inventory_value_id(runtime_pocket[pocket_index])
 		var manipulator_hold_id: String = controller._runtime_inventory_value_id(inventory.get("manipulator_hold", ""))
-		print("[POCKET_MOVE_HELD_BEFORE] manipulator_hold_id=", manipulator_hold_id)
+
 		if runtime_pocket_id.is_empty() and manipulator_hold_id.is_empty():
 			return {"ok": false, "message": "Pocket slot is empty."}
 
@@ -418,13 +418,13 @@ static func move_or_swap_pocket_slot_with_manipulator(controller: Variant, pocke
 			item_data["id"] = runtime_pocket_id
 
 			var set_manipulator_ok: bool = bool(controller.mission_manager.call("set_manipulator_item", item_data))
-			print("[POCKET_MOVE_SET_MANIPULATOR] ok=", set_manipulator_ok, " item_data=", item_data)
+			
 
 			if not set_manipulator_ok:
 				return {"ok": false, "message": "Could not move item to manipulator."}
 
 			var clear_pocket_ok: bool = bool(controller.mission_manager.call("set_pocket_item", pocket_index, ""))
-			print("[POCKET_MOVE_CLEAR_POCKET] ok=", clear_pocket_ok)
+		
 
 			if not clear_pocket_ok:
 				return {"ok": false, "message": "Could not clear pocket slot."}
@@ -434,7 +434,7 @@ static func move_or_swap_pocket_slot_with_manipulator(controller: Variant, pocke
 
 			controller.status_changed.emit()
 			var after_inventory: Dictionary = Dictionary(controller.mission_manager.call("get_inventory_state"))
-			print("[POCKET_MOVE_AFTER] inventory=", after_inventory)
+
 			return {
 				"ok": true,
 				"success": true,
