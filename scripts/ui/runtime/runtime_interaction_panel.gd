@@ -75,11 +75,23 @@ static func exit_mode(ui) -> void:
 	refresh_controls(ui)
 
 
+static func _has_action_points(ui) -> bool:
+	return ui.bipob != null and int(ui.bipob.actions_left) > 0
+
+
 static func press_action(ui, action_id: String) -> void:
 	if ui.bipob == null or action_id.is_empty() or not ui.bipob.has_method("set_selected_world_action") or not ui.bipob.has_method("interact"):
 		return
+	if not _has_action_points(ui):
+		ui.show_hint("No actions left. End turn.")
+		refresh_controls(ui)
+		ui.update_status()
+		return
 	if not ui.runtime_interaction_mode_active:
 		enter_mode(ui)
+	# Rebuild target/action data on every concrete action press. This keeps actions
+	# in sync after the player changes pockets/manipulator while the submenu stays open.
+	get_target_data(ui)
 	ui.bipob.call("set_selected_world_action", action_id)
 	ui.bipob.call("interact")
 	refresh_controls(ui)
@@ -91,6 +103,11 @@ static func press_interact(ui) -> void:
 		return
 	if ui.runtime_interaction_mode_active:
 		exit_mode(ui)
+		ui.update_status()
+		return
+	if not _has_action_points(ui):
+		ui.show_hint("No actions left. End turn.")
+		refresh_controls(ui)
 		ui.update_status()
 		return
 	var target_data: Dictionary = get_target_data(ui)
@@ -123,6 +140,11 @@ static func press_connect(ui) -> void:
 		if ui.bipob.has_method("cancel_terminal_connection"):
 			var cancel_result: Dictionary = Dictionary(ui.bipob.call("cancel_terminal_connection"))
 			ui.show_hint(str(cancel_result.get("message", "Terminal connection cancelled.")))
+		refresh_controls(ui)
+		ui.update_status()
+		return
+	if not _has_action_points(ui):
+		ui.show_hint("No actions left. End turn.")
 		refresh_controls(ui)
 		ui.update_status()
 		return
@@ -161,7 +183,7 @@ static func press_heavy_claw(ui) -> void:
 		refresh_controls(ui)
 		ui.update_status()
 		return
-	if int(ui.bipob.actions_left) <= 0:
+	if not _has_action_points(ui):
 		ui.show_hint("No actions left. End turn.")
 		return
 	var descriptor: Dictionary = get_heavy_claw_descriptor(get_target_data(ui))
@@ -174,6 +196,11 @@ static func press_heavy_claw(ui) -> void:
 
 static func use_selected_world_action(ui) -> void:
 	if ui.bipob == null or not ui.bipob.has_method("interact"):
+		return
+	if not _has_action_points(ui):
+		ui.show_hint("No actions left. End turn.")
+		refresh_controls(ui)
+		ui.update_status()
 		return
 	if not ui.runtime_interaction_mode_active:
 		enter_mode(ui)
