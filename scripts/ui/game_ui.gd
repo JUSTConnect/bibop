@@ -5130,6 +5130,34 @@ func _create_runtime_world_actions_panel() -> PanelContainer:
 	vbox.add_child(use_button)
 	return panel
 
+func _ensure_runtime_world_actions_panel() -> PanelContainer:
+	if runtime_world_actions_panel != null and is_instance_valid(runtime_world_actions_panel):
+		return runtime_world_actions_panel
+	if runtime_hud_root == null or not is_instance_valid(runtime_hud_root):
+		_ensure_runtime_hud_root()
+	var panel: PanelContainer = _create_runtime_world_actions_panel()
+	var margin: float = _get_runtime_margin()
+	var top_panel_height: float = _get_runtime_top_panel_height()
+	var bottom_area_height: float = _get_runtime_bottom_panel_height()
+	var sidebar_width: float = _get_runtime_sidebar_width_adaptive()
+	var viewport: Vector2 = _get_viewport_size()
+	var wa_top: float = margin + top_panel_height + 8.0
+	var mission_reserved: float = bottom_area_height + 8.0
+	var available_wa_height: float = maxf((viewport.y - margin) - wa_top - mission_reserved, 92.0)
+	var wa_left: float = margin
+	panel.anchor_left = 0.0
+	panel.anchor_right = 0.0
+	panel.anchor_top = 0.0
+	panel.anchor_bottom = 0.0
+	panel.offset_left = wa_left
+	panel.offset_top = wa_top
+	panel.offset_right = wa_left + sidebar_width
+	panel.offset_bottom = wa_top + available_wa_height
+	runtime_hud_root.add_child(panel)
+	runtime_world_actions_panel = panel
+	return panel
+
+
 func _create_runtime_storage_panel() -> PanelContainer:
 	return RuntimeStoragePanelRef.build(self, runtime_hud_root, _get_runtime_margin())
 
