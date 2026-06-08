@@ -128,7 +128,7 @@ static func refresh_world_actions_panel(ui, payload: Dictionary = {}) -> void:
 			button_label = action_id.capitalize()
 		var action_enabled: bool = bool(descriptor.get("enabled", false))
 		var action_reason: String = str(descriptor.get("reason", ""))
-		var button := ui._create_runtime_control_button(button_label, Callable(ui, "_on_world_action_button_pressed").bind(action_id), "primary" if action_enabled else "disabled")
+		var button: Button = ui._create_runtime_control_button(button_label, Callable(ui, "_on_world_action_button_pressed").bind(action_id), "primary" if action_enabled else "disabled")
 		button.disabled = false
 		button.tooltip_text = "" if action_enabled or action_reason.is_empty() else action_reason
 		button.custom_minimum_size = Vector2(0, 28)
@@ -140,7 +140,7 @@ static func refresh_world_actions_panel(ui, payload: Dictionary = {}) -> void:
 		elif action_enabled:
 			ui._clear_selected_pulse(button)
 		ui.runtime_world_actions_list.add_child(button)
-	var cancel_button := ui._create_runtime_control_button("Cancel", Callable(ui, "_on_world_action_panel_cancel_pressed"), "danger")
+	var cancel_button: Button = ui._create_runtime_control_button("Cancel", Callable(ui, "_on_world_action_panel_cancel_pressed"), "danger")
 	cancel_button.custom_minimum_size = Vector2(0, 28)
 	cancel_button.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	cancel_button.size_flags_vertical = Control.SIZE_EXPAND_FILL
