@@ -1101,7 +1101,8 @@ static func validate_archetype_object(object_data: Dictionary) -> Array[String]:
 			warnings.append("utility_display_name_not_generated")
 		if _contains_cyrillic(object_data.get("display_name", "")):
 			warnings.append("utility_display_name_contains_localized_text")
-			if archetype_id == "power_cable_reel":
+
+		if archetype_id == "power_cable_reel":
 			for cable_field in ["max_cable_length", "cable_path_cells", "cable_length", "cable_endpoint_a_id", "cable_endpoint_b_id", "connected", "disconnected", "end_1_target_id", "end_2_target_id"]:
 				if not object_data.has(cable_field):
 					warnings.append("power_cable_reel_missing_%s" % cable_field)
