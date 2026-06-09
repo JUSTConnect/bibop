@@ -4731,23 +4731,40 @@ func get_map_constructor_archetype_property_schema(entity_kind: String, entity_i
 func get_map_constructor_editable_fields_for_entity(entity_id: String, entity_kind: String = "") -> Array[Dictionary]:
 	var fields: Array[Dictionary] = []
 	var resolved_kind: String = entity_kind.strip_edges()
+
 	if resolved_kind.is_empty():
 		var world_entity: Dictionary = get_map_constructor_entity_by_id("world_object", entity_id)
 		if bool(world_entity.get("ok", false)):
 			resolved_kind = "world_object"
 		else:
 			resolved_kind = "item"
+
 	var entity_info: Dictionary = get_map_constructor_entity_by_id(resolved_kind, entity_id)
 	if not bool(entity_info.get("ok", false)):
 		return fields
+
 	var data: Dictionary = _safe_dictionary(entity_info.get("data", {}))
 	var schema: Dictionary = _get_map_constructor_editable_field_schema()
+
+	# Visual wall-mounted fields used by constructor wall objects.
+	# These are runtime/editor fields, not gameplay/passability fields.
+	schema["wall_side"] = "string"
+	schema["interaction_side"] = "string"
+	schema["facing_side"] = "string"
+	schema["facing_dir"] = "string"
+	schema["mirror_visual_for_facing_side"] = "bool"
+
 	for field_name_variant in schema.keys():
 		var field_name: String = str(field_name_variant)
 		var value: Variant = data.get(field_name, get_default_map_constructor_field_value(field_name, resolved_kind, data))
 		if value == null:
 			continue
-		fields.append({"name": field_name, "type": str(schema[field_name]), "value": value})
+		fields.append({
+			"name": field_name,
+			"type": str(schema[field_name]),
+			"value": value
+		})
+
 	return fields
 
 func _convert_map_constructor_field_value(field_name: String, raw_value: Variant, target_type: String) -> Dictionary:
@@ -5824,6 +5841,81 @@ func update_map_constructor_entity_properties(entity_kind: String, entity_id: St
 	var safe: Dictionary = updates.duplicate(true)
 	safe.erase("id")
 	safe.erase("position")
+
+	var visual_wall_fields: Array[String] = [
+		"wall_side",
+		"interaction_side",
+		"facing_side",
+		"facing_dir",
+		"mirror_visual_for_facing_side"
+	]
+
+	var has_visual_wall_update: bool = false
+	for visual_field in visual_wall_fields:
+		if safe.has(visual_field):
+			has_visual_wall_update = true
+			break
+
+	if has_visual_wall_update:
+		if entity_kind != "world_object":
+			return {
+				"ok": false,
+				"message": "Wall visual fields support world_object only.",
+				"warnings": warnings
+			}
+
+		var entity_info: Dictionary = get_map_constructor_entity_by_id(entity_kind, entity_id)
+		if not bool(entity_info.get("ok", false)):
+			return {
+				"ok": false,
+				"message": "Entity not found.",
+				"warnings": warnings
+			}
+
+		var data: Dictionary = _safe_dictionary(entity_info.get("data", {}))
+
+		var side_source: Variant = safe.get(
+			"wall_side",
+			safe.get(
+				"interaction_side",
+				safe.get(
+					"facing_side",
+					safe.get("facing_dir", data.get("wall_side", "sw"))
+				)
+			)
+		)
+
+		var normalized_side: String = str(side_source).strip_edges().to_lower()
+		normalized_side = normalized_side.replace("-", "_")
+		normalized_side = normalized_side.replace(" ", "_")
+
+		match normalized_side:
+			"se", "south_east", "southeast", "east", "right":
+				normalized_side = "se"
+			"sw", "south_west", "southwest", "south", "west", "left":
+				normalized_side = "sw"
+			_:
+				normalized_side = "sw"
+
+		if safe.has("wall_side") or safe.has("interaction_side") or safe.has("facing_side") or safe.has("facing_dir"):
+			data["wall_side"] = normalized_side
+			data["interaction_side"] = normalized_side
+			data["facing_side"] = normalized_side
+			data["facing_dir"] = normalized_side
+
+		if safe.has("mirror_visual_for_facing_side"):
+			data["mirror_visual_for_facing_side"] = bool(safe.get("mirror_visual_for_facing_side", true))
+
+		update_world_object_by_id(entity_id, data)
+
+		if has_method("_rebuild_wall_mounted_world_object_lookup"):
+			_rebuild_wall_mounted_world_object_lookup()
+
+		refresh_world_cooling_received()
+
+		for visual_field in visual_wall_fields:
+			safe.erase(visual_field)
+
 	if safe.has("stored_digital_key_id") or safe.has("stored_key_id") or safe.has("stored_item_id"):
 		var stored_key_id: String = str(safe.get("stored_digital_key_id", safe.get("stored_key_id", safe.get("stored_item_id", "")))).strip_edges()
 		if not stored_key_id.is_empty():
@@ -5831,17 +5923,36 @@ func update_map_constructor_entity_properties(entity_kind: String, entity_id: St
 			var terminal_data: Dictionary = _safe_dictionary(terminal_entity.get("data", {}))
 			var next_stored_type: String = str(safe.get("stored_data_type", terminal_data.get("stored_data_type", terminal_data.get("digital_payload_type", "")))).strip_edges().to_lower()
 			if next_stored_type != "digital_key":
-				return {"ok": false, "message": "Stored digital key requires digital_key payload.", "warnings": warnings}
+				return {
+					"ok": false,
+					"message": "Stored digital key requires digital_key payload.",
+					"warnings": warnings
+				}
+
 			var key_entity: Dictionary = find_map_constructor_key_item_by_id(stored_key_id)
 			var key_data: Dictionary = _safe_dictionary(key_entity.get("data", key_entity.get("item_data", {})))
 			if not bool(key_entity.get("ok", false)) or not MapConstructorKeyDoorLinkServiceRef.is_digital_key(key_data):
-				return {"ok": false, "message": "Stored key must be a digital key item.", "warnings": warnings}
+				return {
+					"ok": false,
+					"message": "Stored key must be a digital key item.",
+					"warnings": warnings
+				}
+
 	for k in safe.keys():
 		var r: Dictionary = apply_map_constructor_property_update(entity_kind, entity_id, str(k), safe[k])
 		if not bool(r.get("ok", false)):
-			return {"ok": false, "message": str(r.get("message", "Update failed.")), "warnings": warnings}
-	return {"ok": true, "message": "Updated properties.", "warnings": warnings}
+			return {
+				"ok": false,
+				"message": str(r.get("message", "Update failed.")),
+				"warnings": warnings
+			}
 
+	return {
+		"ok": true,
+		"message": "Updated properties.",
+		"warnings": warnings
+	}
+	
 func get_map_constructor_link_candidates(entity_kind: String, entity_id: String, link_type: String) -> Array[Dictionary]:
 	var field_map := {"linked_terminal":"linked_terminal_id","linked_door":"target_door_id","power_network":"power_network_id","control_source":"control_source_id","terminal_target":"target_door_id","platform_target":"target_platform_id","power_source":"power_source_id","control_terminal":"control_terminal_id","access_terminal":"access_terminal_id"}
 	if not field_map.has(link_type): return []
