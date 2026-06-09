@@ -1,6 +1,8 @@
 extends RefCounted
 class_name MapConstructorPanel
 
+const MapConstructorScrollStateServiceRef = preload("res://scripts/ui/map_constructor/map_constructor_scroll_state_service.gd")
+
 static func build_panel(ui: Variant) -> PanelContainer:
 	var panel: PanelContainer = PanelContainer.new()
 	ui.runtime_map_constructor_palette_panel = panel
@@ -32,7 +34,8 @@ static func build_panel(ui: Variant) -> PanelContainer:
 	list.size_flags_vertical = Control.SIZE_SHRINK_BEGIN
 	scroll.add_child(list)
 	build_active_tab_content(ui, list)
-	MapConstructorTabs.restore_palette_scroll_deferred(ui, scroll, ui.map_constructor_active_tab)
+	var palette_scroll_key: String = MapConstructorScrollStateServiceRef.palette_key(str(ui.map_constructor_active_tab))
+	MapConstructorScrollStateServiceRef.restore_scroll_deferred(ui, palette_scroll_key, scroll)
 	return panel
 
 static func build_active_tab_content(ui: Variant, list: VBoxContainer) -> void:
