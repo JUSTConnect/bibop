@@ -155,8 +155,13 @@ static func add_enum_updates_property(ui: Variant, section: VBoxContainer, label
 		if updates.is_empty() and row.has("field"):
 			updates[MapConstructorUiSafe.safe_string(row.get("field", ""))] = row.get("value", "")
 		if not updates.is_empty():
+			print("[MC_PROP_UI_SEND] entity_kind=", entity_kind,
+				" entity_id=", entity_id,
+				" label=", label,
+				" value=", row.get("value", ""),
+				" updates=", updates)
 			ui._apply_map_constructor_property_updates(entity_kind, entity_id, updates)
-	)
+			)
 	section.add_child(create_property_row(ui, label, option))
 
 static func add_int_property(ui: Variant, section: VBoxContainer, label: String, entity_kind: String, entity_id: String, field_name: String, current_value: Variant) -> void:
