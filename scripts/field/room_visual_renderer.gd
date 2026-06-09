@@ -3333,20 +3333,75 @@ func get_wall_routing_mode(object_data: Dictionary) -> String:
 		mode = mode.replace("-", "_")
 		mode = mode.replace(" ", "_")
 		match mode:
-			"inner", "inside", "embedded", "recessed":
+			"inner", "inside", "internal", "in_wall", "embedded":
 				return "inner"
-			"outer", "outside", "external", "surface":
+			"outer", "outside", "external", "surface", "":
 				return "outer"
 	return "outer"
 
-func _is_wall_routed_visual_object_type(object_type: String) -> bool:
-	return object_type in ["power_cable", "power_cable_reel", "external_air_duct", "external_water_pipe"]
+func _get_wall_routed_object_family(object_data: Dictionary) -> String:
+	var tokens: Array[String] = [
+		str(object_data.get("object_type", object_data.get("type", ""))),
+		str(object_data.get("object_group", object_data.get("group", ""))),
+		str(object_data.get("map_constructor_prefab_id", "")),
+		str(object_data.get("prefab_id", "")),
+		str(object_data.get("id", ""))
+	]
+	for raw_token in tokens:
+		var token: String = raw_token.strip_edges().to_lower()
+		if token.is_empty():
+			continue
+		if token.contains("external_air_duct") or token.contains("air_duct"):
+			return "air_duct"
+		if token.contains("external_water_pipe") or token.contains("water_pipe"):
+			return "water_pipe"
+		if token == "cable" or token.contains("power_cable") or token.contains("cable_reel") or token.contains("cable"):
+			return "cable"
+	return ""
 
-func _is_wall_routed_visual_object(object_data: Dictionary) -> bool:
-	var object_type: String = str(object_data.get("object_type", object_data.get("type", ""))).strip_edges().to_lower()
-	if not _is_wall_routed_visual_object_type(object_type):
+func is_wall_procedural_routed_object(object_data: Dictionary) -> bool:
+	var placement_mode: String = str(object_data.get("placement_mode", object_data.get("placement", ""))).strip_edges().to_lower()
+	var mount_mode: String = str(object_data.get("mount", "")).strip_edges().to_lower()
+	var install_mode: String = str(object_data.get("install_mode", "")).strip_edges().to_lower()
+	var cable_install_mode: String = str(object_data.get("cable_install_mode", "")).strip_edges().to_lower()
+	var wall_mounted: bool = (
+		bool(object_data.get("is_wall_mounted", false))
+		or placement_mode == "wall_mounted"
+		or placement_mode == "wall"
+		or mount_mode == "wall"
+		or install_mode == "wall"
+		or cable_install_mode == "wall"
+		or _get_object_mount_mode(object_data) == "wall"
+	)
+	if not wall_mounted:
 		return false
-	return _get_object_mount_mode(object_data) == "wall" or is_wall_mounted_runtime_object(object_data)
+	return not _get_wall_routed_object_family(object_data).is_empty()
+
+func get_wall_routed_height_source_px(object_data: Dictionary) -> float:
+	match _get_wall_routed_object_family(object_data):
+		"cable":
+			return 50.0
+		"air_duct", "water_pipe":
+			return 400.0
+	return 50.0
+
+func get_wall_route_segment_points(visual_center: Vector2, object_data: Dictionary, source_height_px: float) -> Dictionary:
+	var side: String = normalize_wall_visual_side(object_data)
+	var half: Vector2 = get_iso_tile_half_size()
+	var y: float = -get_wall_mount_height_screen_px(source_height_px)
+	var start: Vector2
+	var end: Vector2
+	if side == "se":
+		start = visual_center + Vector2(0.0, y - half.y * 0.10)
+		end = visual_center + Vector2(half.x * 0.55, y + half.y * 0.15)
+	else:
+		start = visual_center + Vector2(-half.x * 0.55, y + half.y * 0.15)
+		end = visual_center + Vector2(0.0, y - half.y * 0.10)
+	var direction: Vector2 = end - start
+	var normal: Vector2 = Vector2.ZERO
+	if direction.length() > 0.001:
+		normal = Vector2(-direction.y, direction.x).normalized()
+	return {"start": start, "end": end, "side": side, "normal": normal}
 
 func _draw_wall_routed_dashed_line(start: Vector2, end: Vector2, dash_length: float, gap_length: float, color: Color, width: float) -> void:
 	var delta: Vector2 = end - start
@@ -3357,98 +3412,80 @@ func _draw_wall_routed_dashed_line(start: Vector2, end: Vector2, dash_length: fl
 	var cursor: float = 0.0
 	while cursor < length:
 		var dash_end: float = minf(cursor + dash_length, length)
-		var dash_start: Vector2 = start + direction * cursor
-		var dash_stop: Vector2 = start + direction * dash_end
-		draw_line(dash_start, dash_stop, color, width, true)
+		draw_line(start + direction * cursor, start + direction * dash_end, color, width, true)
 		cursor += dash_length + gap_length
 
-func draw_iso_wall_routed_cable(center: Vector2, side: String, routing_mode: String, height_screen_px: float) -> void:
-	var side_sign: float = -1.0 if side == "sw" else 1.0
-	var half_height: float = height_screen_px * 0.5
-	var top_point: Vector2 = center + Vector2(side_sign * 4.0, -half_height)
-	var bottom_point: Vector2 = center + Vector2(-side_sign * 4.0, half_height)
-	var shadow_color: Color = Color(0.02, 0.02, 0.03, 0.28)
+func draw_wall_procedural_cable(segment: Dictionary, routing_mode: String) -> bool:
+	var start: Vector2 = Vector2(segment.get("start", Vector2.ZERO))
+	var end: Vector2 = Vector2(segment.get("end", Vector2.ZERO))
+	var normal: Vector2 = Vector2(segment.get("normal", Vector2.ZERO))
 	if routing_mode == "inner":
-		draw_line(top_point + Vector2(0.0, 1.0), bottom_point + Vector2(0.0, 1.0), shadow_color, 3.6, true)
-		_draw_wall_routed_dashed_line(top_point, bottom_point, 1.9, 1.4, Color(0.84, 0.88, 0.92, 0.52), 1.2)
-		draw_circle(center + Vector2(0.0, 0.2), 1.4, Color(0.35, 0.36, 0.4, 0.82))
-		return
-	draw_line(top_point + Vector2(0.0, 1.0), bottom_point + Vector2(0.0, 1.0), shadow_color, 4.2, true)
-	draw_line(top_point, bottom_point, Color(0.12, 0.13, 0.15, 0.96), 3.0, true)
-	draw_line(top_point, bottom_point, Color(0.84, 0.86, 0.9, 0.97), 1.5, true)
-	draw_circle(center + Vector2(side_sign * 1.2, -half_height * 0.18), 1.1, Color(0.94, 0.8, 0.36, 0.96))
-	draw_circle(center + Vector2(-side_sign * 1.2, half_height * 0.18), 1.0, Color(0.94, 0.8, 0.36, 0.9))
+		draw_line(start + normal * 1.5, end + normal * 1.5, Color(0.01, 0.012, 0.016, 0.46), 6.0, true)
+		_draw_wall_routed_dashed_line(start, end, 7.0, 4.0, Color(0.05, 0.055, 0.065, 0.72), 3.5)
+		_draw_wall_routed_dashed_line(start, end, 5.0, 6.0, Color(0.70, 0.74, 0.78, 0.36), 1.3)
+		return true
+	draw_line(start + normal * 1.5, end + normal * 1.5, Color(0.01, 0.012, 0.016, 0.36), 7.0, true)
+	draw_line(start, end, Color(0.06, 0.065, 0.075, 0.98), 5.0, true)
+	draw_line(start - normal * 0.8, end - normal * 0.8, Color(0.87, 0.73, 0.30, 0.95), 1.6, true)
+	for point in [start.lerp(end, 0.18), start.lerp(end, 0.82)]:
+		draw_circle(point, 3.0, Color(0.015, 0.017, 0.02, 0.94))
+		draw_circle(point, 1.8, Color(0.48, 0.50, 0.52, 0.96))
+	return true
 
-func draw_iso_wall_routed_duct(center: Vector2, side: String, routing_mode: String, height_screen_px: float) -> void:
-	var side_sign: float = -1.0 if side == "sw" else 1.0
-	var half_height: float = height_screen_px * 0.5
-	var top_width: float = 12.0
-	var bottom_width: float = 16.0
-	var top_shift: float = side_sign * 3.0
-	var bottom_shift: float = -side_sign * 3.0
-	var fill_color: Color = Color(0.44, 0.5, 0.56, 0.95) if routing_mode == "outer" else Color(0.05, 0.06, 0.08, 0.92)
-	var accent_color: Color = Color(0.78, 0.84, 0.9, 0.9) if routing_mode == "outer" else Color(0.13, 0.14, 0.16, 0.78)
-	var outline_color: Color = Color(0.12, 0.13, 0.15, 0.96)
-	var points: PackedVector2Array = PackedVector2Array([
-		center + Vector2(-top_width * 0.5 + top_shift, -half_height),
-		center + Vector2(top_width * 0.5 + top_shift, -half_height),
-		center + Vector2(bottom_width * 0.5 + bottom_shift, half_height),
-		center + Vector2(-bottom_width * 0.5 + bottom_shift, half_height)
-	])
-	draw_colored_polygon(points, fill_color)
-	for point_index in range(points.size()):
-		var next_index: int = (point_index + 1) % points.size()
-		draw_line(points[point_index], points[next_index], outline_color, 1.4, true)
-	if routing_mode == "outer":
-		for row_index in range(3):
-			var t: float = float(row_index + 1) / 4.0
-			var y: float = lerp(-half_height * 0.62, half_height * 0.62, t)
-			var x_shift: float = lerp(top_shift, bottom_shift, t)
-			draw_line(center + Vector2(-top_width * 0.28 + x_shift, y), center + Vector2(top_width * 0.28 + x_shift, y), accent_color, 1.0, true)
-	else:
-		draw_line(center + Vector2(-6.0 + side_sign * 1.8, -2.0), center + Vector2(6.0 - side_sign * 1.8, -2.0), accent_color, 1.0, true)
-		draw_line(center + Vector2(-5.0 + side_sign * 1.2, 2.0), center + Vector2(5.0 - side_sign * 1.2, 2.0), Color(0.0, 0.0, 0.0, 0.85), 2.0, true)
-
-func draw_iso_wall_routed_pipe(center: Vector2, side: String, routing_mode: String, height_screen_px: float) -> void:
-	var side_sign: float = -1.0 if side == "sw" else 1.0
-	var half_height: float = height_screen_px * 0.5
-	var top_point: Vector2 = center + Vector2(side_sign * 2.2, -half_height)
-	var bottom_point: Vector2 = center + Vector2(-side_sign * 2.2, half_height)
-	var base_color: Color = Color(0.46, 0.76, 0.86, 0.97) if routing_mode == "outer" else Color(0.05, 0.06, 0.07, 0.9)
-	var outline_color: Color = Color(0.11, 0.12, 0.14, 0.98)
-	var highlight_color: Color = Color(0.9, 0.96, 1.0, 0.88) if routing_mode == "outer" else Color(0.16, 0.18, 0.2, 0.7)
-	var pipe_width: float = 6.0 if routing_mode == "outer" else 4.0
-	draw_line(top_point + Vector2(0.0, 1.0), bottom_point + Vector2(0.0, 1.0), Color(0.02, 0.03, 0.04, 0.28), pipe_width + 3.0, true)
-	draw_line(top_point, bottom_point, outline_color, pipe_width + 1.8, true)
-	draw_line(top_point, bottom_point, base_color, pipe_width, true)
-	draw_line(top_point, bottom_point, highlight_color, 1.2, true)
-	draw_circle(top_point, pipe_width * 0.52, outline_color)
-	draw_circle(bottom_point, pipe_width * 0.52, outline_color)
-	draw_circle(top_point, pipe_width * 0.28, base_color)
-	draw_circle(bottom_point, pipe_width * 0.28, base_color)
+func draw_wall_procedural_air_duct(segment: Dictionary, routing_mode: String) -> bool:
+	var start: Vector2 = Vector2(segment.get("start", Vector2.ZERO))
+	var end: Vector2 = Vector2(segment.get("end", Vector2.ZERO))
+	var normal: Vector2 = Vector2(segment.get("normal", Vector2.ZERO))
 	if routing_mode == "inner":
-		draw_line(center + Vector2(-3.2, -1.2), center + Vector2(3.2, -1.2), Color(0.02, 0.02, 0.02, 0.78), 1.0, true)
+		draw_line(start, end, Color(0.01, 0.012, 0.016, 0.84), 13.0, true)
+		draw_line(start + normal * 1.6, end + normal * 1.6, Color(0.21, 0.25, 0.29, 0.38), 7.0, true)
+		draw_circle(start, 5.0, Color(0.01, 0.012, 0.016, 0.82))
+		draw_circle(end, 5.0, Color(0.01, 0.012, 0.016, 0.82))
+		return true
+	draw_line(start + normal * 2.0, end + normal * 2.0, Color(0.04, 0.045, 0.05, 0.46), 16.0, true)
+	draw_line(start, end, Color(0.13, 0.15, 0.17, 0.98), 15.0, true)
+	draw_line(start, end, Color(0.45, 0.51, 0.57, 0.98), 12.0, true)
+	draw_line(start - normal * 2.3, end - normal * 2.3, Color(0.77, 0.84, 0.90, 0.82), 2.0, true)
+	for point in [start.lerp(end, 0.30), start.lerp(end, 0.55), start.lerp(end, 0.80)]:
+		draw_line(point - normal * 4.0, point + normal * 4.0, Color(0.22, 0.25, 0.28, 0.72), 1.1, true)
+	return true
+
+func draw_wall_procedural_water_pipe(segment: Dictionary, routing_mode: String) -> bool:
+	var start: Vector2 = Vector2(segment.get("start", Vector2.ZERO))
+	var end: Vector2 = Vector2(segment.get("end", Vector2.ZERO))
+	var normal: Vector2 = Vector2(segment.get("normal", Vector2.ZERO))
+	if routing_mode == "inner":
+		draw_line(start + normal, end + normal, Color(0.01, 0.012, 0.016, 0.58), 8.0, true)
+		draw_line(start, end, Color(0.14, 0.36, 0.43, 0.48), 4.0, true)
+		draw_line(start - normal * 0.7, end - normal * 0.7, Color(0.68, 0.88, 0.95, 0.24), 1.2, true)
+		return true
+	draw_line(start + normal * 1.5, end + normal * 1.5, Color(0.02, 0.025, 0.03, 0.38), 12.0, true)
+	draw_line(start, end, Color(0.10, 0.12, 0.14, 0.98), 10.0, true)
+	draw_line(start, end, Color(0.37, 0.69, 0.78, 0.98), 7.0, true)
+	draw_line(start - normal * 1.3, end - normal * 1.3, Color(0.88, 0.97, 1.0, 0.78), 1.5, true)
+	for point in [start.lerp(end, 0.12), start.lerp(end, 0.88)]:
+		draw_circle(point, 5.0, Color(0.10, 0.12, 0.14, 0.98))
+		draw_circle(point, 3.3, Color(0.50, 0.76, 0.83, 0.98))
+	return true
+
+func draw_wall_procedural_routed_object(cell: Vector2i, object_data: Dictionary, visual_center: Vector2) -> bool:
+	if not is_wall_procedural_routed_object(object_data):
+		return false
+	var source_height_px: float = get_wall_routed_height_source_px(object_data)
+	var segment: Dictionary = get_wall_route_segment_points(visual_center, object_data, source_height_px)
+	var routing_mode: String = get_wall_routing_mode(object_data)
+	match _get_wall_routed_object_family(object_data):
+		"cable":
+			return draw_wall_procedural_cable(segment, routing_mode)
+		"air_duct":
+			return draw_wall_procedural_air_duct(segment, routing_mode)
+		"water_pipe":
+			return draw_wall_procedural_water_pipe(segment, routing_mode)
+	return false
 
 func draw_wall_routed_procedural_visual(object_data: Dictionary, profile: Dictionary, fallback_cell: Vector2i) -> bool:
-	var object_type: String = str(object_data.get("object_type", object_data.get("type", ""))).strip_edges().to_lower()
-	if not _is_wall_routed_visual_object_type(object_type):
-		return false
-	if not _is_wall_routed_visual_object(object_data):
-		return false
-	var routing_mode: String = get_wall_routing_mode(object_data)
-	var wall_side: String = normalize_wall_visual_side(object_data)
 	var visual_center: Vector2 = get_wall_mounted_visual_center(object_data, fallback_cell)
-	match object_type:
-		"power_cable", "power_cable_reel":
-			draw_iso_wall_routed_cable(visual_center, wall_side, routing_mode, get_wall_mount_height_screen_px(50.0))
-			return true
-		"external_air_duct":
-			draw_iso_wall_routed_duct(visual_center, wall_side, routing_mode, get_wall_mount_height_screen_px(400.0))
-			return true
-		"external_water_pipe":
-			draw_iso_wall_routed_pipe(visual_center, wall_side, routing_mode, get_wall_mount_height_screen_px(400.0))
-			return true
-	return false
+	return draw_wall_procedural_routed_object(fallback_cell, object_data, visual_center)
 
 func get_safe_iso_object_png_visual_scale(object_data: Dictionary, asset_key: String, rule: Dictionary) -> float:
 	var rule_scale: float = float(rule.get("scale", 1.0))
@@ -3517,14 +3554,6 @@ func build_iso_object_visual_descriptor(object_data: Dictionary, asset_key: Stri
 	var final_draw_position: Vector2 = visual_center + surface_offset - visual_pivot + configured_offset
 	var destination_rect: Rect2 = Rect2(final_draw_position, destination_size)
 	var wall_visual_side: String = normalize_wall_visual_side(object_data) if wall_mounted else ""
-	if wall_mounted and str(object_data.get("object_type", "")).to_lower() == "light":
-		print("[LIGHT_WALL_SIDE_VISUAL] id=", object_data.get("id", ""),
-			" wall_side=", object_data.get("wall_side", ""),
-			" interaction_side=", object_data.get("interaction_side", ""),
-			" facing_side=", object_data.get("facing_side", ""),
-			" facing_dir=", object_data.get("facing_dir", ""),
-			" resolved=", wall_visual_side,
-			" offset=", get_wall_mount_side_visual_offset(object_data))
 	return {
 		"visual_asset_key": asset_key,
 		"texture": texture,
@@ -3677,6 +3706,9 @@ func draw_iso_object_png_texture_asset(cell: Vector2i, asset_key: String, visual
 	var visual_center: Vector2 = grid_to_iso(cell)
 	if visual_center_override != Vector2.INF:
 		visual_center = visual_center_override
+	object_data = enrich_iso_object_surface_context_for_cell(object_data, cell)
+	if is_wall_procedural_routed_object(object_data):
+		return draw_wall_procedural_routed_object(cell, object_data, visual_center)
 	var texture: Texture2D = get_iso_object_png_texture_for_asset_key(normalized_asset_key)
 	if texture == null:
 		var texture_path: String = get_iso_object_png_asset_path(normalized_asset_key)
@@ -3684,7 +3716,6 @@ func draw_iso_object_png_texture_asset(cell: Vector2i, asset_key: String, visual
 		var fallback_rect: Rect2 = get_iso_texture_draw_rect_for_asset_key_with_size(normalized_asset_key, visual_center, get_iso_asset_alignment_expected_size(normalized_asset_key))
 		draw_missing_iso_asset_debug_fallback(cell, normalized_asset_key, fallback_rect)
 		return true
-	object_data = enrich_iso_object_surface_context_for_cell(object_data, cell)
 	var descriptor: Dictionary = build_iso_object_visual_descriptor(object_data, normalized_asset_key, visual_center, texture)
 	draw_iso_object_png_texture_with_descriptor(texture, descriptor)
 	return true
