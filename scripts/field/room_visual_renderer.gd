@@ -3292,22 +3292,35 @@ func normalize_wall_visual_side(object_data: Dictionary) -> String:
 	var candidates: Array[String] = [
 		str(object_data.get("wall_side", "")),
 		str(object_data.get("interaction_side", "")),
+		str(object_data.get("facing_side", "")),
+		str(object_data.get("facing_dir", "")),
+		str(object_data.get("facing", "")),
 		ObjectFacingServiceRef.get_facing_side(object_data)
 	]
+
 	for raw_candidate in candidates:
 		var side: String = raw_candidate.strip_edges().to_lower()
+		side = side.replace("-", "_")
+		side = side.replace(" ", "_")
+
 		match side:
-			"sw", "south_west", "southwest", "south", "west":
+			"sw", "south_west", "southwest", "south", "west", "left":
 				return "sw"
-			"se", "south_east", "southeast", "east":
+			"se", "south_east", "southeast", "east", "right":
 				return "se"
+
 	return "sw"
 
 func get_wall_mount_side_visual_offset(object_data: Dictionary) -> Vector2:
 	var side: String = normalize_wall_visual_side(object_data)
+	var half_size: Vector2 = get_iso_tile_half_size()
+
+	# Wall-mounted objects are drawn on one of the two visible wall planes.
+	# SW shifts toward the left wall plane, SE toward the right wall plane.
 	if side == "se":
-		return WALL_MOUNT_SIDE_OFFSET_SE
-	return WALL_MOUNT_SIDE_OFFSET_SW
+		return Vector2(half_size.x * 0.36, -half_size.y * 0.18)
+
+	return Vector2(-half_size.x * 0.36, -half_size.y * 0.18)
 
 func get_safe_iso_object_png_visual_scale(object_data: Dictionary, asset_key: String, rule: Dictionary) -> float:
 	var rule_scale: float = float(rule.get("scale", 1.0))
@@ -3376,6 +3389,14 @@ func build_iso_object_visual_descriptor(object_data: Dictionary, asset_key: Stri
 	var final_draw_position: Vector2 = visual_center + surface_offset - visual_pivot + configured_offset
 	var destination_rect: Rect2 = Rect2(final_draw_position, destination_size)
 	var wall_visual_side: String = normalize_wall_visual_side(object_data) if wall_mounted else ""
+	if wall_mounted and str(object_data.get("object_type", "")).to_lower() == "light":
+		print("[LIGHT_WALL_SIDE_VISUAL] id=", object_data.get("id", ""),
+			" wall_side=", object_data.get("wall_side", ""),
+			" interaction_side=", object_data.get("interaction_side", ""),
+			" facing_side=", object_data.get("facing_side", ""),
+			" facing_dir=", object_data.get("facing_dir", ""),
+			" resolved=", wall_visual_side,
+			" offset=", get_wall_mount_side_visual_offset(object_data))
 	return {
 		"visual_asset_key": asset_key,
 		"texture": texture,
