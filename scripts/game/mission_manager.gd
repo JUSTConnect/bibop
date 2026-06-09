@@ -3611,18 +3611,28 @@ func _is_map_constructor_wall_stackable_prefab(prefab_id: String) -> bool:
 	var normalized_id: String = prefab_id.strip_edges().to_lower()
 	return normalized_id in [
 		"light",
-		"power_cable"
-	]
+		"power_cable",
+		"power_cable_reel",
+		"power_wire",
+		"wire",
+		"cable",
+		"cable_reel",
+		"generic_power_cable"
+	] or normalized_id.contains("cable") or normalized_id.contains("wire")
+	
 func _is_map_constructor_wall_cell_share_prefab(prefab_id: String) -> bool:
-	var id: String = prefab_id.strip_edges().to_lower()
-	return id in [
+	var normalized_id: String = prefab_id.strip_edges().to_lower()
+	return normalized_id in [
 		"fuse_box",
 		"power_socket",
 		"power_switcher",
+		"power_cable",
+		"power_cable_reel",
 		"light",
 		"external_air_duct",
 		"external_water_pipe"
-	]
+	] or normalized_id.contains("cable") or normalized_id.contains("wire")
+	
 func can_place_map_constructor_prefab(prefab_id: String, cell: Vector2i, preferred_wall_side: String = "", placement_mode_override: String = "") -> Dictionary:
 	if not _is_task_test_constructor_context():
 		return {
@@ -3649,12 +3659,13 @@ func can_place_map_constructor_prefab(prefab_id: String, cell: Vector2i, preferr
 			"warnings": []
 		}
 
+	var tile_type: int = GridManager.TILE_FLOOR
+	if grid_manager != null and grid_manager.has_method("get_tile"):
+		tile_type = int(grid_manager.call("get_tile", cell))
+
+	var is_wall_cell: bool = _is_map_constructor_wall_cell(cell) if has_method("_is_map_constructor_wall_cell") else tile_type == GridManager.TILE_WALL
+
 	var mode_override: String = placement_mode_override.strip_edges().to_lower()
-
-	var clicked_wall_cell: bool = _is_map_constructor_wall_cell(cell) if has_method("_is_map_constructor_wall_cell") else false
-	var stationary_on_wall_cell: bool = mode_override == "stationary" and clicked_wall_cell and _is_map_constructor_wall_cell_share_prefab(normalized_prefab_id)
-
-	var wants_wall_mount: bool = mode_override == "wall" or mode_override == "wall_mounted" or stationary_on_wall_cell
 
 	var wall_only_prefabs: Array[String] = [
 		"light",
@@ -3666,21 +3677,22 @@ func can_place_map_constructor_prefab(prefab_id: String, cell: Vector2i, preferr
 		"fuse_box",
 		"power_socket",
 		"power_switcher",
-		"power_cable"
+		"power_cable",
+		"power_cable_reel"
 	]
 
 	var is_wall_only_prefab: bool = wall_only_prefabs.has(normalized_prefab_id)
-	var is_floor_and_wall_prefab: bool = floor_and_wall_prefabs.has(normalized_prefab_id)
+	var is_floor_and_wall_prefab: bool = floor_and_wall_prefabs.has(normalized_prefab_id) or normalized_prefab_id.contains("cable") or normalized_prefab_id.contains("wire")
 	var can_share_wall_cell: bool = _is_map_constructor_wall_cell_share_prefab(normalized_prefab_id)
 
+	# UI may send "stationary" even when the user selected wall placement.
+	# If the player clicks directly on a wall cell with a wall-compatible prefab,
+	# treat stationary as wall-mounted placement.
+	var stationary_on_wall_cell: bool = mode_override == "stationary" and is_wall_cell and can_share_wall_cell
+
+	var wants_wall_mount: bool = mode_override == "wall" or mode_override == "wall_mounted" or stationary_on_wall_cell
 	if is_wall_only_prefab:
 		wants_wall_mount = true
-
-	var tile_type: int = GridManager.TILE_FLOOR
-	if grid_manager != null and grid_manager.has_method("get_tile"):
-		tile_type = int(grid_manager.call("get_tile", cell))
-
-	var is_wall_cell: bool = _is_map_constructor_wall_cell(cell) if has_method("_is_map_constructor_wall_cell") else tile_type == GridManager.TILE_WALL
 
 	var canonical_prefab_id: String = WorldObjectCatalogRef.canonical_object_type(normalized_prefab_id)
 	var constructor_preview: Dictionary = WorldObjectCatalogRef.create_world_object(normalized_prefab_id, "constructor_preview")
@@ -3692,10 +3704,8 @@ func can_place_map_constructor_prefab(prefab_id: String, cell: Vector2i, preferr
 	var requested_door_type: String = str(constructor_preview.get("door_type", "")).strip_edges().to_lower()
 	var requested_material: String = str(constructor_preview.get("material", "")).strip_edges().to_lower()
 
-	# Special #922 rule:
-	# These objects may share the same grid cell with an existing wall,
-	# but only when they are explicitly in wall/wall_mounted mode,
-	# or when they are wall-only prefabs.
+	# #922 wall-cell sharing:
+	# wall-mounted compatible objects may be placed directly into a cell that already has a wall.
 	if wants_wall_mount and can_share_wall_cell:
 		if not is_wall_cell:
 			return {
@@ -3711,28 +3721,36 @@ func can_place_map_constructor_prefab(prefab_id: String, cell: Vector2i, preferr
 		if wall_side.is_empty():
 			wall_side = "south"
 
-		var existing_wall_mounted_objects: Array = Array(wall_mounted_objects_by_cell.get(cell, []))
-		var has_non_stackable_existing: bool = false
+		var is_stackable_wall_layer: bool = _is_map_constructor_wall_stackable_prefab(normalized_prefab_id)
 
-		for existing_variant in existing_wall_mounted_objects:
-			if not existing_variant is Dictionary:
-				continue
-			var existing_object: Dictionary = Dictionary(existing_variant)
-			var existing_type: String = str(existing_object.get("map_constructor_prefab_id", existing_object.get("object_type", ""))).strip_edges().to_lower()
-			if not _is_map_constructor_wall_stackable_prefab(existing_type):
-				has_non_stackable_existing = true
-				break
+		# Light and cable are wall-layer objects.
+		# They may coexist with wall, cable, light, and non-stackable wall devices.
+		# Non-stackable wall devices still conflict with each other.
+		if not is_stackable_wall_layer:
+			var existing_wall_mounted_objects: Array = Array(wall_mounted_objects_by_cell.get(cell, []))
+			var has_non_stackable_existing: bool = false
 
-		if has_non_stackable_existing and not _is_map_constructor_wall_stackable_prefab(normalized_prefab_id):
-			return {
-				"ok": false,
-				"reason": "wall_mounted_slot_occupied",
-				"message": "Wall cell already has a wall-mounted object.",
-				"placement_mode": "wall_mounted",
-				"direct_wall_cell_mount": true,
-				"wall_side": wall_side,
-				"warnings": []
-			}
+			for existing_variant in existing_wall_mounted_objects:
+				if not existing_variant is Dictionary:
+					continue
+
+				var existing_object: Dictionary = Dictionary(existing_variant)
+				var existing_type: String = str(existing_object.get("map_constructor_prefab_id", existing_object.get("object_type", ""))).strip_edges().to_lower()
+
+				if not _is_map_constructor_wall_stackable_prefab(existing_type):
+					has_non_stackable_existing = true
+					break
+
+			if has_non_stackable_existing:
+				return {
+					"ok": false,
+					"reason": "wall_mounted_slot_occupied",
+					"message": "Wall cell already has a wall-mounted object.",
+					"placement_mode": "wall_mounted",
+					"direct_wall_cell_mount": true,
+					"wall_side": wall_side,
+					"warnings": []
+				}
 
 		return {
 			"ok": true,
@@ -3750,13 +3768,14 @@ func can_place_map_constructor_prefab(prefab_id: String, cell: Vector2i, preferr
 	if is_wall_only_prefab:
 		return {
 			"ok": false,
-			"reason": "wall_only_requires_wall_mode",
+			"reason": "wall_only_requires_wall_cell",
 			"message": "This object can be placed only on a wall cell.",
 			"warnings": []
 		}
 
-	# Floor + wall-capable objects stay floor-placeable when wall mode is not selected.
-	# But floor placement into a wall cell is still rejected.
+	# Floor + wall-capable objects remain floor-placeable.
+	# But if they are in floor/stationary mode and clicked on a wall cell,
+	# they must use the wall-mounted branch above.
 	if is_floor_and_wall_prefab and is_wall_cell:
 		return {
 			"ok": false,
@@ -3858,7 +3877,7 @@ func can_place_map_constructor_prefab(prefab_id: String, cell: Vector2i, preferr
 		"placement_mode": "object",
 		"warnings": []
 	}
-
+	
 func _ensure_map_constructor_service() -> MapConstructorService:
 	if map_constructor_service == null:
 		map_constructor_service = MapConstructorServiceRef.new(self)
