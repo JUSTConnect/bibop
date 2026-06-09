@@ -3716,7 +3716,36 @@ func _draw_sorted_wall_cable_anchor_span(sorted_anchors: Array, profile: Diction
 		Vector2(last_anchor.get("rail_anchor", Vector2.ZERO)),
 		profile
 	)
+func _is_wall_cable_same_side_visible_span(anchor_a: Dictionary, anchor_b: Dictionary) -> bool:
+	var side_a: String = str(anchor_a.get("wall_side", ""))
+	var side_b: String = str(anchor_b.get("wall_side", ""))
 
+	if side_a.is_empty() or side_b.is_empty() or side_a != side_b:
+		return false
+
+	var cell_a: Vector2i = Vector2i(anchor_a.get("cell", Vector2i(-1, -1)))
+	var cell_b: Vector2i = Vector2i(anchor_b.get("cell", Vector2i(-1, -1)))
+
+	if cell_a.x < 0 or cell_a.y < 0 or cell_b.x < 0 or cell_b.y < 0:
+		return false
+
+	var delta: Vector2i = cell_b - cell_a
+
+	# Запрещаем диагональные соединения.
+	# Диагональ визуально проходит через угол / скрытую стену.
+	if delta.x != 0 and delta.y != 0:
+		return false
+
+	# Для se-грани кабель идёт только west/east.
+	if side_a == "se":
+		return delta.y == 0 and absi(delta.x) <= 2
+
+	# Для sw-грани кабель идёт только north/south.
+	if side_a == "sw":
+		return delta.x == 0 and absi(delta.y) <= 2
+
+	return false
+	
 func _draw_wall_cable_side_anchor_segments_clipped(side_anchors: Array, all_circuit_anchors: Array, profile: Dictionary) -> void:
 	if side_anchors.is_empty():
 		return
@@ -3736,16 +3765,11 @@ func _draw_wall_cable_side_anchor_segments_clipped(side_anchors: Array, all_circ
 		var current_anchor: Dictionary = Dictionary(sorted_anchors[index])
 		var next_anchor: Dictionary = Dictionary(sorted_anchors[index + 1])
 
-		var current_cell: Vector2i = Vector2i(current_anchor.get("cell", Vector2i(-1, -1)))
-		var next_cell: Vector2i = Vector2i(next_anchor.get("cell", Vector2i(-1, -1)))
-
-		if current_cell.x < 0 or current_cell.y < 0 or next_cell.x < 0 or next_cell.y < 0:
-			continue
-
-		var delta: Vector2i = next_cell - current_cell
-		var is_neighbor: bool = absi(delta.x) <= 1 and absi(delta.y) <= 1
-
-		if not is_neighbor:
+		# Ключевая правка:
+		# не соединяем anchors диагонально и не соединяем через скрытый угол.
+		if not _is_wall_cable_same_side_visible_span(current_anchor, next_anchor):
+			_draw_wall_cable_local_anchor_segment(current_anchor, profile)
+			_draw_wall_cable_local_anchor_segment(next_anchor, profile)
 			continue
 
 		draw_iso_cable_wall_segment(
