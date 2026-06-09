@@ -3716,6 +3716,8 @@ func _draw_wall_cable_run_graphics(run_cells: Array[Vector2i], object_data: Dict
 	var wall_side: String = get_cable_wall_side(object_data)
 	if anchors.is_empty():
 		anchors = _collect_wall_cable_face_run_anchors(object_data, head_cell)
+		if anchors.size() < 2:
+			anchors = _collect_wall_cable_visual_cluster_anchors(object_data, head_cell)
 	var path_data: Dictionary = {
 		"object_data": object_data,
 		"wall_side": wall_side,
@@ -3754,20 +3756,33 @@ func _draw_wall_cable_run_graphics(run_cells: Array[Vector2i], object_data: Dict
 func draw_wall_cable_visual_path(cell: Vector2i, object_data: Dictionary, visual_center: Vector2, profile: Dictionary, topology: Dictionary = {}) -> bool:
 	if get_cable_install_mode(object_data) != "wall" or not _cell_has_wall_for_iso_cable(cell):
 		return false
+
 	var anchors: Array[Dictionary] = _collect_wall_cable_face_run_anchors(object_data, cell)
+
+	# Important fallback:
+	# Strict face-run grouping often returns only one cable object in TASK TEST,
+	# because attached_wall_cell / face_run_key metadata is not reliable enough.
+	# In that case use visual screen-space clustering.
+	if anchors.size() < 2:
+		anchors = _collect_wall_cable_visual_cluster_anchors(object_data, cell)
+
 	var first_cable_anchor: Dictionary = _get_first_wall_cable_anchor(anchors)
 	if first_cable_anchor.is_empty():
 		return false
+
 	var current_object_id: String = _get_wall_cable_object_id(object_data, cell)
 	if str(first_cable_anchor.get("object_id", "")) != current_object_id:
 		return true
+
 	var run_cells: Array[Vector2i] = []
 	for anchor_variant in anchors:
 		var anchor: Dictionary = Dictionary(anchor_variant)
 		if bool(anchor.get("is_cable", false)):
 			run_cells.append(Vector2i(anchor.get("cell", cell)))
+
 	if run_cells.is_empty():
 		return false
+
 	var head_cell: Vector2i = Vector2i(first_cable_anchor.get("cell", run_cells[0]))
 	_draw_wall_cable_run_graphics(run_cells, object_data, profile, topology, head_cell, anchors)
 	return true
