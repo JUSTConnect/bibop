@@ -3750,23 +3750,23 @@ func _draw_wall_cable_side_anchor_segments_clipped(side_anchors: Array, all_circ
 	if side_anchors.is_empty():
 		return
 
-	var sorted_anchors: Array[Dictionary] = []
+	var cable_anchors: Array[Dictionary] = []
 	for anchor_variant in side_anchors:
-		_insert_sorted_wall_cable_anchor(sorted_anchors, Dictionary(anchor_variant))
+		var anchor: Dictionary = Dictionary(anchor_variant)
+		if bool(anchor.get("is_cable", false)):
+			_insert_sorted_wall_cable_anchor(cable_anchors, anchor)
 
-	if sorted_anchors.is_empty():
+	if cable_anchors.is_empty():
 		return
 
-	if sorted_anchors.size() == 1:
-		_draw_wall_cable_local_anchor_segment(Dictionary(sorted_anchors[0]), profile)
+	if cable_anchors.size() == 1:
+		_draw_wall_cable_local_anchor_segment(Dictionary(cable_anchors[0]), profile)
 		return
 
-	for index in range(sorted_anchors.size() - 1):
-		var current_anchor: Dictionary = Dictionary(sorted_anchors[index])
-		var next_anchor: Dictionary = Dictionary(sorted_anchors[index + 1])
+	for index in range(cable_anchors.size() - 1):
+		var current_anchor: Dictionary = Dictionary(cable_anchors[index])
+		var next_anchor: Dictionary = Dictionary(cable_anchors[index + 1])
 
-		# Ключевая правка:
-		# не соединяем anchors диагонально и не соединяем через скрытый угол.
 		if not _is_wall_cable_same_side_visible_span(current_anchor, next_anchor):
 			_draw_wall_cable_local_anchor_segment(current_anchor, profile)
 			_draw_wall_cable_local_anchor_segment(next_anchor, profile)
