@@ -3339,6 +3339,112 @@ func get_wall_routing_mode(object_data: Dictionary) -> String:
 				return "outer"
 	return "outer"
 
+func is_floor_cable_object(object_data: Dictionary) -> bool:
+	return _get_wall_routed_object_family(object_data) == "cable" and get_cable_install_mode(object_data) == "floor"
+
+func is_wall_cable_object(object_data: Dictionary) -> bool:
+	return _get_wall_routed_object_family(object_data) == "cable" and get_cable_install_mode(object_data) == "wall"
+
+func is_hidden_floor_cable_object(object_data: Dictionary) -> bool:
+	return _get_wall_routed_object_family(object_data) == "cable" and get_cable_install_mode(object_data) == "hidden"
+
+func get_cable_wall_side(object_data: Dictionary) -> String:
+	return normalize_wall_visual_side(object_data)
+
+func get_cable_wall_routing_mode(object_data: Dictionary) -> String:
+	return get_wall_routing_mode(object_data)
+
+func _get_wall_cable_axis_dirs(wall_side: String) -> Array[String]:
+	if wall_side == "se":
+		return ["west", "east"]
+	return ["south", "north"]
+
+func _get_wall_cable_side_dirs(wall_side: String) -> Dictionary:
+	var axis_dirs: Array[String] = _get_wall_cable_axis_dirs(wall_side)
+	return {"prev": axis_dirs[0], "next": axis_dirs[1]}
+
+func _get_cable_object_cell(object_data: Dictionary) -> Vector2i:
+	return _try_parse_cell_variant(object_data.get("position", object_data.get("cell", Vector2i(-1, -1))), Vector2i(-1, -1))
+
+func _get_wall_cable_neighbors(cell: Vector2i, object_data: Dictionary) -> Dictionary:
+	var result: Dictionary = {}
+	var world_objects: Array[Dictionary] = _get_runtime_world_objects_for_iso_render(true)
+	world_objects.append(object_data)
+	var circuit_id: String = CableTopologyServiceRef.get_cable_circuit_id(object_data)
+	for neighbor_object in world_objects:
+		if not (neighbor_object is Dictionary):
+			continue
+		var neighbor_data: Dictionary = Dictionary(neighbor_object)
+		if _get_wall_routed_object_family(neighbor_data) != "cable":
+			continue
+		var neighbor_cell: Vector2i = _get_cable_object_cell(neighbor_data)
+		if neighbor_cell.x < 0 or neighbor_cell.y < 0 or neighbor_cell == cell:
+			continue
+		var delta: Vector2i = neighbor_cell - cell
+		var direction: String = ""
+		if delta == Vector2i(0, -1):
+			direction = "north"
+		elif delta == Vector2i(0, 1):
+			direction = "south"
+		elif delta == Vector2i(-1, 0):
+			direction = "west"
+		elif delta == Vector2i(1, 0):
+			direction = "east"
+		else:
+			continue
+		if not circuit_id.is_empty() and CableTopologyServiceRef.get_cable_circuit_id(neighbor_data) != circuit_id:
+			continue
+		if not result.has(direction):
+			result[direction] = []
+		Array(result[direction]).append(neighbor_data)
+	return result
+
+func classify_wall_cable_topology(cell: Vector2i, object_data: Dictionary) -> Dictionary:
+	var wall_side: String = get_cable_wall_side(object_data)
+	var routing_mode: String = get_cable_wall_routing_mode(object_data)
+	var side_dirs: Dictionary = _get_wall_cable_side_dirs(wall_side)
+	var axis_dirs: Array[String] = [str(side_dirs.get("prev", "")), str(side_dirs.get("next", ""))]
+	var connected_dirs: Dictionary = {"north": false, "south": false, "west": false, "east": false}
+	var floor_transition_dirs: Dictionary = {}
+	var corner_dirs: Dictionary = {}
+	var neighbor_cells: Array[Vector2i] = []
+	var neighbors: Dictionary = _get_wall_cable_neighbors(cell, object_data)
+	for direction in ["north", "south", "west", "east"]:
+		for neighbor_data_variant in Array(neighbors.get(direction, [])):
+			var neighbor_data: Dictionary = Dictionary(neighbor_data_variant)
+			var neighbor_cell: Vector2i = _get_cable_object_cell(neighbor_data)
+			if is_wall_cable_object(neighbor_data):
+				if get_cable_wall_side(neighbor_data) != wall_side:
+					continue
+				if axis_dirs.has(direction):
+					connected_dirs[direction] = true
+				else:
+					corner_dirs[direction] = true
+				neighbor_cells.append(neighbor_cell)
+			elif is_floor_cable_object(neighbor_data) or is_hidden_floor_cable_object(neighbor_data):
+				var transition_mode: String = "floor_to_wall_outer"
+				if is_hidden_floor_cable_object(neighbor_data) and routing_mode == "inner":
+					transition_mode = "hidden_to_wall_inner"
+				elif is_hidden_floor_cable_object(neighbor_data):
+					transition_mode = "hidden_to_wall_outer"
+				elif routing_mode == "inner":
+					transition_mode = "floor_to_wall_inner"
+				floor_transition_dirs[direction] = transition_mode
+				neighbor_cells.append(neighbor_cell)
+	return {
+		"wall_side": wall_side,
+		"routing_mode": routing_mode,
+		"connect_prev": bool(connected_dirs.get(str(side_dirs.get("prev", "")), false)),
+		"connect_next": bool(connected_dirs.get(str(side_dirs.get("next", "")), false)),
+		"connect_floor": not floor_transition_dirs.is_empty(),
+		"connect_corner": not corner_dirs.is_empty(),
+		"floor_transition_mode": "none" if floor_transition_dirs.is_empty() else str(floor_transition_dirs.values()[0]),
+		"connected_dirs": connected_dirs,
+		"floor_transition_dirs": floor_transition_dirs,
+		"corner_dirs": corner_dirs,
+		"neighbor_cells": neighbor_cells
+	}
+
 func _get_wall_routed_object_family(object_data: Dictionary) -> String:
 	var tokens: Array[String] = [
 		str(object_data.get("object_type", object_data.get("type", ""))),
@@ -3415,6 +3521,79 @@ func _draw_wall_routed_dashed_line(start: Vector2, end: Vector2, dash_length: fl
 		draw_line(start + direction * cursor, start + direction * dash_end, color, width, true)
 		cursor += dash_length + gap_length
 
+func _get_wall_cable_center(visual_center: Vector2, object_data: Dictionary) -> Vector2:
+	var segment: Dictionary = get_wall_route_segment_points(visual_center, object_data, get_wall_routed_height_source_px(object_data))
+	return Vector2(segment.get("start", visual_center)).lerp(Vector2(segment.get("end", visual_center)), 0.5)
+
+func _get_wall_cable_endpoint(cell: Vector2i, visual_center: Vector2, object_data: Dictionary, direction: String) -> Vector2:
+	var center: Vector2 = _get_wall_cable_center(visual_center, object_data)
+	var default_center: Vector2 = _get_wall_cable_center(grid_to_iso(cell), object_data)
+	return center + (get_iso_cable_branch_endpoint(cell, direction) - default_center)
+
+func _draw_wall_cable_inner_hint(center: Vector2, normal: Vector2) -> void:
+	draw_line(center - normal * 5.0, center + normal * 5.0, Color(0.01, 0.012, 0.016, 0.72), 4.0, true)
+	draw_line(center - normal * 3.0, center + normal * 3.0, Color(0.70, 0.74, 0.78, 0.25), 1.1, true)
+
+func _draw_wall_cable_transition(cell: Vector2i, visual_center: Vector2, object_data: Dictionary, direction: String, transition_mode: String, profile: Dictionary) -> void:
+	var wall_center: Vector2 = _get_wall_cable_center(visual_center, object_data)
+	var wall_endpoint: Vector2 = _get_wall_cable_endpoint(cell, visual_center, object_data, direction)
+	var floor_endpoint: Vector2 = get_iso_cable_branch_endpoint(cell, direction)
+	var base_point: Vector2 = floor_endpoint.lerp(wall_endpoint, 0.42)
+	var normal: Vector2 = Vector2(Vector2(profile.get("wall_normal", Vector2.UP))).normalized()
+	if normal == Vector2.ZERO:
+		normal = Vector2.UP
+	match transition_mode:
+		"floor_to_wall_inner":
+			draw_iso_cable_mode_segment(floor_endpoint, base_point, profile)
+			_draw_wall_cable_inner_hint(base_point, normal)
+		"hidden_to_wall_outer":
+			_draw_wall_cable_inner_hint(base_point, normal)
+			draw_wall_procedural_cable({"start": base_point, "end": wall_center, "normal": normal}, "outer")
+		"hidden_to_wall_inner":
+			_draw_wall_cable_inner_hint(base_point, normal)
+		_:
+			draw_iso_cable_mode_segment(floor_endpoint, base_point, profile)
+			draw_wall_procedural_cable({"start": base_point, "end": wall_center, "normal": normal}, "outer")
+
+func draw_wall_topology_cable(cell: Vector2i, object_data: Dictionary, visual_center: Vector2, profile: Dictionary) -> bool:
+	if not is_wall_cable_object(object_data):
+		return false
+	var topology: Dictionary = classify_wall_cable_topology(cell, object_data)
+	var routing_mode: String = str(topology.get("routing_mode", "outer"))
+	var segment: Dictionary = get_wall_route_segment_points(visual_center, object_data, get_wall_routed_height_source_px(object_data))
+	var normal: Vector2 = Vector2(segment.get("normal", Vector2.UP))
+	var center: Vector2 = _get_wall_cable_center(visual_center, object_data)
+	var side_dirs: Dictionary = _get_wall_cable_side_dirs(str(topology.get("wall_side", "sw")))
+	var start: Vector2 = center
+	var end: Vector2 = center
+	var isolated_half_width: float = maxf(get_iso_tile_half_size().x * 0.12, 7.0)
+	var axis_vector: Vector2 = (Vector2(segment.get("end", center)) - Vector2(segment.get("start", center))).normalized()
+	if axis_vector == Vector2.ZERO:
+		axis_vector = Vector2.RIGHT
+	if bool(topology.get("connect_prev", false)):
+		start = _get_wall_cable_endpoint(cell, visual_center, object_data, str(side_dirs.get("prev", "")))
+	else:
+		start = center - axis_vector * isolated_half_width
+	if bool(topology.get("connect_next", false)):
+		end = _get_wall_cable_endpoint(cell, visual_center, object_data, str(side_dirs.get("next", "")))
+	else:
+		end = center + axis_vector * isolated_half_width
+	draw_wall_procedural_cable({"start": start, "end": end, "normal": normal}, routing_mode)
+	for direction in Dictionary(topology.get("corner_dirs", {})).keys():
+		var corner_endpoint: Vector2 = _get_wall_cable_endpoint(cell, visual_center, object_data, str(direction))
+		if routing_mode == "inner":
+			_draw_wall_cable_inner_hint(corner_endpoint, normal)
+		else:
+			draw_wall_procedural_cable({"start": center, "end": corner_endpoint, "normal": normal}, routing_mode)
+	var cable_profile: Dictionary = profile.duplicate()
+	cable_profile["install_mode"] = "floor"
+	cable_profile["wall_normal"] = normal
+	for direction in Dictionary(topology.get("floor_transition_dirs", {})).keys():
+		_draw_wall_cable_transition(cell, visual_center, object_data, str(direction), str(Dictionary(topology.get("floor_transition_dirs", {})).get(direction, "floor_to_wall_outer")), cable_profile)
+	if get_cable_health_state(object_data) in ["damaged", "broken", "cut"]:
+		draw_iso_cable_damage_marker(center, get_cable_health_state(object_data), profile)
+	return true
+
 func draw_wall_procedural_cable(segment: Dictionary, routing_mode: String) -> bool:
 	var start: Vector2 = Vector2(segment.get("start", Vector2.ZERO))
 	var end: Vector2 = Vector2(segment.get("end", Vector2.ZERO))
@@ -3476,7 +3655,7 @@ func draw_wall_procedural_routed_object(cell: Vector2i, object_data: Dictionary,
 	var routing_mode: String = get_wall_routing_mode(object_data)
 	match _get_wall_routed_object_family(object_data):
 		"cable":
-			return draw_wall_procedural_cable(segment, routing_mode)
+			return draw_wall_topology_cable(cell, object_data, visual_center, get_iso_object_profile("cable"))
 		"air_duct":
 			return draw_wall_procedural_air_duct(segment, routing_mode)
 		"water_pipe":

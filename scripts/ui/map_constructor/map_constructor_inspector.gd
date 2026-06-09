@@ -179,12 +179,22 @@ static func _is_wall_routed_constructor_object(data: Dictionary) -> bool:
 		MapConstructorUiSafe.safe_string(data.get("prefab_id", "")),
 		MapConstructorUiSafe.safe_string(data.get("id", ""))
 	]
+	var is_cable: bool = false
+	var is_wall_routed_utility: bool = false
 	for raw_token in tokens:
 		var token: String = raw_token.strip_edges().to_lower()
 		if token.is_empty():
 			continue
-		if token == "cable" or token.contains("power_cable") or token.contains("cable_reel") or token.contains("external_air_duct") or token.contains("air_duct") or token.contains("external_water_pipe") or token.contains("water_pipe"):
-			return true
+		if token == "cable" or token.contains("power_cable") or token.contains("cable_reel"):
+			is_cable = true
+		elif token.contains("external_air_duct") or token.contains("air_duct") or token.contains("external_water_pipe") or token.contains("water_pipe"):
+			is_wall_routed_utility = true
+	if is_cable:
+		return _get_cable_install_type(data) == "wall"
+	if is_wall_routed_utility:
+		var placement_mode: String = MapConstructorUiSafe.safe_string(data.get("placement_mode", data.get("placement", ""))).strip_edges().to_lower()
+		var mount_mode: String = MapConstructorUiSafe.safe_string(data.get("mount", data.get("install_mode", ""))).strip_edges().to_lower()
+		return bool(data.get("is_wall_mounted", false)) or placement_mode in ["wall", "wall_mounted"] or mount_mode == "wall"
 	return false
 
 
