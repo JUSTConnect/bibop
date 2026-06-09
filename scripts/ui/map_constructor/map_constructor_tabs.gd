@@ -55,11 +55,11 @@ static func remember_palette_scroll(ui: Variant) -> void:
 	if scroll == null:
 		return
 
-	var tab_id: String = str(ui.map_constructor_active_tab)
+	var tab_id: String = str(ui.map_constructor_state.map_constructor_active_tab)
 	var key: String = MapConstructorScrollStateServiceRef.palette_key(tab_id)
 
-	ui.map_constructor_tab_scroll_positions[tab_id] = scroll.scroll_vertical
-	ui.map_constructor_tab_scroll_positions[key] = scroll.scroll_vertical
+	ui.map_constructor_state.map_constructor_tab_scroll_positions[tab_id] = scroll.scroll_vertical
+	ui.map_constructor_state.map_constructor_tab_scroll_positions[key] = scroll.scroll_verticaltical
 	
 static func find_palette_scroll(root: Node) -> ScrollContainer:
 	if root == null:
@@ -80,6 +80,6 @@ static func restore_palette_scroll(ui: Variant, scroll: ScrollContainer, tab_nam
 		return
 
 	var key: String = MapConstructorScrollStateServiceRef.palette_key(tab_name)
-	var fallback_value: Variant = ui.map_constructor_tab_scroll_positions.get(tab_name, 0)
+	var fallback_value: Variant = ui.map_constructor_state.map_constructor_tab_scroll_positions.get(tab_name, 0)
 
-	scroll.scroll_vertical = int(ui.map_constructor_tab_scroll_positions.get(key, fallback_value))
+	scroll.scroll_vertical = int(ui.map_constructor_state.map_constructor_tab_scroll_positions.get(key, fallback_value))
