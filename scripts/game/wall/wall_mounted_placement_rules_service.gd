@@ -32,18 +32,19 @@ static func is_wall_mounted_object(object_data: Dictionary) -> bool:
 		return true
 	if bool(object_data.get("is_wall_mounted", false)):
 		return true
+	if str(object_data.get("mount", object_data.get("install_mode", ""))).strip_edges().to_lower() == PLACEMENT_WALL:
+		return true
 	var kind: String = str(object_data.get("device_kind", object_data.get("kind", ""))).strip_edges().to_lower()
 	return kind in get_default_wall_mounted_kinds()
 
 static func get_default_wall_mounted_kinds() -> Array[String]:
 	return [
 		DEVICE_LIGHT,
-		DEVICE_POWER_SOCKET,
-		DEVICE_FUSE_BOX,
-		DEVICE_POWER_SWITCHER,
 		DEVICE_CHAIN_SWITCHER,
 		DEVICE_LIGHT_SWITCH,
-		DEVICE_TERMINAL
+		DEVICE_TERMINAL,
+		"external_air_duct",
+		"external_water_pipe"
 	]
 
 static func can_place_in_wall_cell(object_data: Dictionary, wall_cell_data: Dictionary) -> Dictionary:
