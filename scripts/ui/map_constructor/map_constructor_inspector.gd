@@ -526,7 +526,10 @@ static func _render_entity_tab(ui: Variant, parent: VBoxContainer, entity_info: 
 					"value": "sw",
 					"updates": {
 						"wall_side": "sw",
-						"interaction_side": "sw"
+						"interaction_side": "sw",
+						"facing_side": "sw",
+						"facing_dir": "sw",
+						"mirror_visual_for_facing_side": true
 					}
 				},
 				{
@@ -534,7 +537,10 @@ static func _render_entity_tab(ui: Variant, parent: VBoxContainer, entity_info: 
 					"value": "se",
 					"updates": {
 						"wall_side": "se",
-						"interaction_side": "se"
+						"interaction_side": "se",
+						"facing_side": "se",
+						"facing_dir": "se",
+						"mirror_visual_for_facing_side": true
 					}
 				}
 			]
