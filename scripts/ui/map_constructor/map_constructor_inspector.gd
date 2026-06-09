@@ -661,7 +661,8 @@ static func _render_entity_tab(ui: Variant, parent: VBoxContainer, entity_info: 
 	var validation_result: Dictionary = {}
 	if not use_simple_movable_inspector and ui.mission_manager_runtime != null and ui.mission_manager_runtime.has_method("validate_map_constructor_entity_links"):
 		validation_result = ui._safe_ui_dictionary(ui.mission_manager_runtime.call("validate_map_constructor_entity_links", entity_kind, entity_id))
-	if not use_simple_movable_inspector:
+	var show_link_sections: bool = MapConstructorInspectorVisibilityServiceRef.should_show_network_link_controls(data) or MapConstructorInspectorVisibilityServiceRef.is_key_item(data)
+	if show_link_sections:
 		var link_section: VBoxContainer = ui._create_inspector_section("6. Links")
 		ui._add_map_constructor_object_link_sections(link_section, entity_kind, entity_id, data, type_group)
 		MapConstructorValidationView.add_linked_targets(ui, link_section, validation_result)

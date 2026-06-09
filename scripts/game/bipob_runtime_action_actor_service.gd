@@ -178,20 +178,8 @@ static func build_runtime_action_actor(controller: Variant, target_object: Dicti
 	var pocket_capacity: int = 0
 	if controller != null and controller.has_method("get_available_pocket_slots"):
 		pocket_capacity = int(controller.call("get_available_pocket_slots"))
-
 	if pocket_capacity <= 0:
-		pocket_capacity = int(inventory_state.get("pocket_capacity", 0))
-
-	if pocket_capacity <= 0:
-		pocket_capacity = int(inventory_state.get("available_pocket_slots", 0))
-
-	if pocket_capacity <= 0 and not pocket_items.is_empty():
-		pocket_capacity = pocket_items.size()
-
-	# Временный fallback: если UI уже показывает pocket slots, но конфиг не отдал capacity,
-	# не даём gameplay считать, что карманов вообще нет.
-	if pocket_capacity <= 0:
-		pocket_capacity = 1
+		pocket_capacity = int(inventory_state.get("available_pocket_slots", inventory_state.get("pocket_capacity", 0)))
 
 	var has_free_pocket_slot: bool = false
 	for slot_index in range(pocket_capacity):
@@ -207,22 +195,8 @@ static func build_runtime_action_actor(controller: Variant, target_object: Dicti
 	var manipulator_capacity: int = 0
 	if controller != null and controller.has_method("get_available_manipulator_slots"):
 		manipulator_capacity = int(controller.call("get_available_manipulator_slots"))
-
 	if manipulator_capacity <= 0:
-		var visible_manipulator_items: Array = []
-		if controller != null and controller.has_method("get_runtime_manipulator_items"):
-			visible_manipulator_items = Array(controller.call("get_runtime_manipulator_items"))
-		if not visible_manipulator_items.is_empty():
-			manipulator_capacity = visible_manipulator_items.size()
-
-	if manipulator_capacity <= 0 and controller != null:
-		if "manipulator_items" in controller:
-			manipulator_capacity = Array(controller.manipulator_items).size()
-
-	# Временный fallback: если в HUD есть манипулятор, gameplay не должен считать,
-	# что манипулятора нет совсем.
-	if manipulator_capacity <= 0:
-		manipulator_capacity = 1
+		manipulator_capacity = int(inventory_state.get("available_manipulator_slots", inventory_state.get("manipulator_capacity", 0)))
 
 	var manipulator_hold_id: String = _runtime_inventory_value_id(controller, inventory_state.get("manipulator_hold", ""))
 	var has_free_manipulator_slot: bool = manipulator_capacity > 0 and manipulator_hold_id.is_empty()

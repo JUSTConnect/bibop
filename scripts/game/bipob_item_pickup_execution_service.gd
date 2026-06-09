@@ -20,6 +20,8 @@ static func try_pickup_adjacent_or_current_item(controller: Variant, target_posi
 		var is_digital_item: bool = storage_class == WorldObjectCatalogRef.ITEM_STORAGE_CLASS_DIGITAL
 		if controller.has_method("classify_runtime_item"):
 			is_digital_item = str(controller.call("classify_runtime_item", item)) == WorldObjectCatalogRef.ITEM_STORAGE_CLASS_DIGITAL
+		if active_manipulator != null and str(active_manipulator.id).strip_edges() == "manipulator_heavy_claw_v1":
+			return _build_result(false, "Heavy Claw cannot pick up items.", item_cell, item, true, "heavy_claw_cannot_pickup")
 		var item_actor := {"manipulator_occupied": false}
 		var preflight_item: Dictionary = item.duplicate(true)
 		var item_result: Dictionary = InteractionSystemRef.normalize_action_result(Dictionary(InteractionSystemRef.apply_action(item_actor, {"id": active_manipulator.id if active_manipulator != null else ""}, preflight_item, "pickup")), preflight_item, "pickup")
