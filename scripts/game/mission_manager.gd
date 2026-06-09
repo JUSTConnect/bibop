@@ -4720,7 +4720,7 @@ func _get_map_constructor_editable_field_schema() -> Dictionary:
 		"requires_external_power":"bool","current_heat":"int","working_heat":"int","overheat_threshold":"int","power_source_class":"int","source_class":"int","outlet_capacity":"int","active_output_index":"int",
 		"item_class":"string","storage_route":"string","item_type":"string","digital_state":"string","key_kind":"string","key_type":"string","display_name":"string","description":"string","custom_description":"string","linked_door_id":"string","payload_id":"string","access_code":"string","damaged":"bool",
 		"power_mode":"string","power_source_id":"string","control_mode":"string","control_terminal_id":"string","access_type":"string","access_terminal_id":"string","access_code_value":"string","stored_key_ids":"array_string","route_surface":"string","cable_install_mode":"string","install_mode":"string","cable_health_state":"string","health_state":"string","physical_connection_source_id":"string","input_wire_id":"string","input_direction":"string","output_1_wire_id":"string","output_2_wire_id":"string","output_3_wire_id":"string","output_1_direction":"string","output_2_direction":"string","output_3_direction":"string","brightness":"string","color":"string","mount":"string","switch_state":"string","fuse_present":"bool","variant":"string",
-		"platform_mode":"string","platform_level":"int","max_level":"int","mechanism_id":"string","mechanism_role":"string","activation_mode":"string","activation_delay_turns":"int","control_cell_x":"int","control_cell_y":"int","wall_routing_mode":"string"
+		"platform_mode":"string","platform_level":"int","max_level":"int","mechanism_id":"string","mechanism_role":"string","activation_mode":"string","activation_delay_turns":"int","control_cell_x":"int","control_cell_y":"int"
 	}
 
 func get_map_constructor_archetype_property_schema(entity_kind: String, entity_id: String) -> Array[Dictionary]:
@@ -4756,9 +4756,7 @@ func get_map_constructor_editable_fields_for_entity(entity_id: String, entity_ki
 	schema["facing_dir"] = "string"
 	schema["mirror_visual_for_facing_side"] = "bool"
 	if resolved_kind == "world_object":
-		var normalized_object_type: String = str(data.get("object_type", data.get("type", ""))).to_lower().strip_edges()
-		if normalized_object_type in ["power_cable", "power_cable_reel", "external_air_duct", "external_water_pipe"]:
-			schema["wall_routing_mode"] = "string"
+		schema["wall_routing_mode"] = "string"
 
 	for field_name_variant in schema.keys():
 		var field_name: String = str(field_name_variant)
@@ -5853,7 +5851,8 @@ func update_map_constructor_entity_properties(entity_kind: String, entity_id: St
 		"interaction_side",
 		"facing_side",
 		"facing_dir",
-		"mirror_visual_for_facing_side"
+		"mirror_visual_for_facing_side",
+		"wall_routing_mode"
 	]
 
 	var has_visual_wall_update: bool = false
@@ -5911,6 +5910,19 @@ func update_map_constructor_entity_properties(entity_kind: String, entity_id: St
 
 		if safe.has("mirror_visual_for_facing_side"):
 			data["mirror_visual_for_facing_side"] = bool(safe.get("mirror_visual_for_facing_side", true))
+
+		if safe.has("wall_routing_mode"):
+			var normalized_routing_mode: String = str(safe.get("wall_routing_mode", data.get("wall_routing_mode", "outer"))).strip_edges().to_lower()
+			normalized_routing_mode = normalized_routing_mode.replace("-", "_")
+			normalized_routing_mode = normalized_routing_mode.replace(" ", "_")
+			match normalized_routing_mode:
+				"inner", "inside", "internal", "in_wall", "embedded":
+					normalized_routing_mode = "inner"
+				"outer", "outside", "external", "surface", "":
+					normalized_routing_mode = "outer"
+				_:
+					normalized_routing_mode = "outer"
+			data["wall_routing_mode"] = normalized_routing_mode
 
 		update_world_object_by_id(entity_id, data)
 
