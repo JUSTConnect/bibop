@@ -3224,7 +3224,7 @@ const ISO_OBJECT_PNG_MAX_VISUAL_SCALE: float = 1.5
 const ISO_OBJECT_SOURCE_CANVAS_WIDTH := 512.0
 const WALL_MOUNT_HEIGHT_DEVICE_SOURCE_PX := 180.0
 const WALL_MOUNT_HEIGHT_LIGHT_SOURCE_PX := 330.0
-const WALL_MOUNT_SIDE_OFFSET_SW := Vector2(-18.0, -4.0)
+const WALL_MOUNT_SIDE_OFFSET_SW := Vector2(-2.0, -2.0)
 const WALL_MOUNT_SIDE_OFFSET_SE := Vector2(18.0, -4.0)
 
 func get_iso_object_png_visual_rule(asset_key: String) -> Dictionary:
