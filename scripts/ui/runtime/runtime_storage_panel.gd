@@ -91,11 +91,17 @@ static func refresh(ui) -> void:
 	var inventory_state: Dictionary = bipob.get_inventory_state() if bipob.has_method("get_inventory_state") else {}
 	var manipulator_items: Array = bipob.get_manipulator_items()
 	var held_world_item_id: String = _get_inventory_item_id(inventory_state.get("manipulator_hold", ""))
+	var available_manipulator_slots: int = bipob.get_available_manipulator_slots()
 	for index in range(ui.runtime_manipulator_slots.size()):
+		var manipulator_slot: Button = ui.runtime_manipulator_slots[index]
+		manipulator_slot.visible = index < available_manipulator_slots
+		if not manipulator_slot.visible:
+			manipulator_slot.text = ""
+			continue
 		var manipulator_item: Variant = manipulator_items[index] if index < manipulator_items.size() else null
-		ui.runtime_manipulator_slots[index].text = _get_module_name(bipob, manipulator_item)
+		manipulator_slot.text = _get_module_name(bipob, manipulator_item)
 		if index == 0 and not held_world_item_id.is_empty():
-			ui.runtime_manipulator_slots[index].text = _get_runtime_inventory_item_name(inventory_state, held_world_item_id)
+			manipulator_slot.text = _get_runtime_inventory_item_name(inventory_state, held_world_item_id)
 	_refresh_key_mini_hud(ui, bipob)
 
 	var pocket_items: Array = bipob.get_pocket_items()

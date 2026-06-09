@@ -1010,7 +1010,13 @@ static func normalize_world_object_contract(object_data: Dictionary) -> Dictiona
 	data = normalize_item_contract(data)
 	data = normalize_cable_contract(data)
 	var normalized_object_type: String = _normalized_contract_token(data.get("object_type", ""))
-	if normalized_object_type in ["barrel", "explosive_barrel", "fire_barrel", "normal_crate", "heavy_crate", "steel_box"] or bool(data.get("heavy_claw_movable", false)) and str(data.get("weight_class", "")).to_lower() in ["normal", "heavy", "block"]:
+	if is_heavy_claw_movable_object(data):
+		data["movable"] = true
+		data["heavy_claw_movable"] = true
+		if normalized_object_type in ["radiator", "cooling_radiator", "external_radiator", "external_air_cooler", "metal_cooling_block"]:
+			data["object_group"] = "cooling"
+		else:
+			data["object_group"] = "physical_object"
 		data["blocks_movement"] = true
 		data["walkable"] = false
 		data["passable"] = false
@@ -1663,20 +1669,49 @@ static func set_world_object_cooling_received(object_data: Dictionary, cooling_v
 	return update_world_object_heat_state(object_data)
 
 
-static func can_world_object_be_moved_by_heavy_claw(object_data: Dictionary) -> bool:
+static func is_heavy_claw_movable_object(object_data: Dictionary) -> bool:
 	if object_data.is_empty():
 		return false
+	if str(object_data.get("state", "active")) in ["destroyed", "damaged"]:
+		return false
+	var normalized_object_type: String = _normalized_contract_token(object_data.get("object_type", ""))
+	if normalized_object_type in ["radiator", "cooling_radiator", "external_radiator", "external_air_cooler", "metal_cooling_block", "normal_crate", "heavy_crate", "steel_box", "barrel", "explosive_barrel", "fire_barrel"]:
+		return true
 	if not bool(object_data.get("movable", false)):
 		return false
 	if not bool(object_data.get("heavy_claw_movable", false)):
 		return false
-	if str(object_data.get("state", "active")) in ["destroyed", "damaged"]:
+	var object_group: String = _normalized_contract_token(object_data.get("object_group", object_data.get("group", "")))
+	if object_group not in ["cooling", "physical_object"]:
 		return false
-	var object_group := str(object_data.get("object_group", ""))
-	if object_group not in ["cooling", "physical", "physical_object"]:
+	var weight_class: String = _normalized_contract_token(object_data.get("weight_class", ""))
+	return weight_class in ["normal", "heavy", "block"] or normalized_object_type in ["box"]
+
+static func should_show_network_link_controls(object_data: Dictionary) -> bool:
+	if object_data.is_empty():
 		return false
-	var object_type := str(object_data.get("object_type", ""))
-	return object_type in ["external_radiator", "radiator", "cooling_radiator", "external_air_cooler", "metal_cooling_block", "normal_crate", "heavy_crate", "steel_box", "box", "case", "barrel", "explosive_barrel", "fire_barrel"]
+	var normalized_object_type: String = _normalized_contract_token(object_data.get("object_type", object_data.get("item_type", "")))
+	var object_group: String = _normalized_contract_token(object_data.get("object_group", object_data.get("group", "")))
+	if normalized_object_type in ["normal_crate", "heavy_crate", "steel_box", "barrel", "explosive_barrel", "fire_barrel", "radiator", "fuse", "repair_kit", "reinforcement"]:
+		return false
+	if object_group in ["physical_object", "item", "cooling"]:
+		return false
+	if object_group in ["terminal", "door", "platform"]:
+		return true
+	if normalized_object_type in ["terminal", "door", "platform", "power_source", "power_source_class_1", "power_source_class_2", "power_source_class_3", "power_socket", "outlet", "fuse_box", "power_switcher", "light_switch", "light_switcher", "power_cable", "power_cable_reel"]:
+		return true
+	if normalized_object_type.begins_with("power_source"):
+		return true
+	return false
+
+static func can_world_object_be_moved_by_heavy_claw(object_data: Dictionary) -> bool:
+	if object_data.is_empty():
+		return false
+	if not is_heavy_claw_movable_object(object_data):
+		return false
+	if str(object_data.get("object_type", "")).strip_edges().to_lower() == "case":
+		return false
+	return true
 
 static func can_world_object_receive_cooling(object_data: Dictionary) -> bool:
 	if object_data.is_empty():

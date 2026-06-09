@@ -7043,7 +7043,7 @@ func get_world_action_display_label(action_id: String, object_data: Dictionary) 
 		"circuit_3": return "Circuit 3"
 		"access_code_0", "access_code_1", "access_code_2", "access_code_3", "access_code_4", "access_code_5", "access_code_6", "access_code_7", "access_code_8", "access_code_9": return action_id.trim_prefix("access_code_")
 		"repair": return "Repair"
-		"push": return "Push"
+		"push": return "Attach Heavy Claw" if WorldObjectCatalog.can_world_object_be_moved_by_heavy_claw(object_data) else "Push"
 		"pull": return "Pull"
 		"switch": return "Switch"
 		"disable": return "Disable"
@@ -7854,7 +7854,7 @@ func get_world_action_module(action_id: String, world_object: Dictionary) -> Dic
 		"drain_energy":
 			return _module_dict("energy_drain_v1" if has_module_id("energy_drain_v1") else "")
 		"force_open", "breach", "break_breachable_wall", "push":
-			return _module_dict("manipulator_heavy_claw_v1" if has_module_id("manipulator_heavy_claw_v1") else "")
+			return _module_dict("manipulator_heavy_claw_v1" if has_module_id("manipulator_heavy_claw_v1") or has_heavy_claw_capability() else "")
 		"repair":
 			if has_module_id("repair_v1"):
 				return _module_dict("repair_v1")
@@ -7864,7 +7864,7 @@ func get_world_action_module(action_id: String, world_object: Dictionary) -> Dic
 		"pull":
 			if bool(world_object.get("magnetic", false)) or str(world_object.get("pull_mode", "")) == "magnetic":
 				return _module_dict("magnetic_manipulator_v1" if has_module_id("magnetic_manipulator_v1") else "")
-			return _module_dict("manipulator_heavy_claw_v1" if has_module_id("manipulator_heavy_claw_v1") else "")
+			return _module_dict("")
 		"download":
 			# storage_buffer is a virtual runtime capability backed by digital_storage slots, not an installable module id.
 			# InteractionSystem still gates downloads by hacked/unlocked state and by actual payload presence.

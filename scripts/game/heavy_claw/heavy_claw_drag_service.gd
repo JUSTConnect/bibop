@@ -21,8 +21,11 @@ static func start_drag(controller: Variant, object_data: Dictionary) -> Dictiona
 		return {"success": false, "message": "Object is too heavy."}
 	var object_cell: Vector2i = Vector2i(object_data.get("position", Vector2i(-1, -1)))
 	var anchor_direction: Vector2i = controller.get_direction_vector(controller.direction)
+	var object_delta: Vector2i = object_cell - controller.grid_position
+	if abs(object_delta.x) + abs(object_delta.y) != 1:
+		return {"success": false, "message": "Heavy Claw target must be adjacent."}
 	if object_cell != controller.grid_position + anchor_direction:
-		return {"success": false, "message": "Heavy Claw target must stay directly in front."}
+		return {"success": false, "message": "Face the object to attach Heavy Claw."}
 	controller.heavy_claw_active = true
 	controller.heavy_claw_drag_object_id = object_id
 	controller.heavy_claw_attached_object_cell = object_cell
@@ -118,6 +121,9 @@ static func try_move_to(controller: Variant, target_position: Vector2i) -> bool:
 	controller.refresh_platform_height_state_after_move()
 	controller.clear_selected_world_action_if_invalid({}, target_position)
 	BipobMovementControllerRef.update_world_position(controller)
+	if controller.has_method("refresh_world_action_panel"):
+		controller.refresh_world_action_panel()
+	controller.status_changed.emit()
 	controller.check_mission_complete()
 	return true
 

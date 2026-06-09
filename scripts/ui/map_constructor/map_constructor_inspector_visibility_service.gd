@@ -2,6 +2,7 @@ extends RefCounted
 class_name MapConstructorInspectorVisibilityService
 
 const InformationTerminalServiceRef = preload("res://scripts/game/map_constructor_information_terminal_service.gd")
+const WorldObjectCatalogRef = preload("res://scripts/world/world_object_catalog.gd")
 
 static func get_object_type(data: Dictionary) -> String:
 	return _normalize_text(data.get("object_type", data.get("item_type", "")))
@@ -29,6 +30,20 @@ static func should_show_terminal_stored_data(data: Dictionary) -> bool:
 
 static func should_show_terminal_stored_data_damage_flags(data: Dictionary) -> bool:
 	return should_show_terminal_stored_data(data) and normalize_stored_data_type(data) == "data_file"
+
+static func is_key_item(data: Dictionary) -> bool:
+	var object_type: String = get_object_type(data)
+	if object_type == "key":
+		return true
+	for field_name in ["prefab", "prefab_id", "category", "item_category", "metadata_category", "object_group", "item_group", "kind", "role"]:
+		var token: String = _normalize_text(data.get(field_name, ""))
+		if token == "key" or token.begins_with("key_") or token.ends_with("_key") or token.contains("_key_"):
+			return true
+	var id_token: String = _normalize_text(data.get("id", ""))
+	return id_token == "key" or id_token.begins_with("key_") or id_token.ends_with("_key") or id_token.contains("_key_")
+
+static func should_show_network_link_controls(data: Dictionary) -> bool:
+	return WorldObjectCatalogRef.should_show_network_link_controls(data)
 
 static func normalize_control_type(data: Dictionary) -> String:
 	var control_type: String = _normalize_text(data.get("control_type", data.get("control_mode", "")))
