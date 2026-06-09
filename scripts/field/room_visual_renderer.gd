@@ -3219,11 +3219,16 @@ func _get_color_from_dict(data: Dictionary, key: String, fallback: Color) -> Col
 	
 const ISO_OBJECT_PNG_MIN_VISUAL_SCALE: float = 0.25
 const ISO_OBJECT_PNG_MAX_VISUAL_SCALE: float = 1.25
+const ISO_OBJECT_SOURCE_CANVAS_WIDTH := 512.0
+const WALL_MOUNT_HEIGHT_DEVICE_SOURCE_PX := 200.0
+const WALL_MOUNT_HEIGHT_LIGHT_SOURCE_PX := 600.0
+const WALL_MOUNT_SIDE_OFFSET_SW := Vector2(-18.0, -4.0)
+const WALL_MOUNT_SIDE_OFFSET_SE := Vector2(18.0, -4.0)
 
 func get_iso_object_png_visual_rule(asset_key: String) -> Dictionary:
 	var normalized_asset_key: String = asset_key.strip_edges().to_lower()
 	var wall_mounted: bool = normalized_asset_key.contains("_wall_") or normalized_asset_key == "cable_reel_02" or normalized_asset_key == "light_01"
-	var rule: Dictionary = {"anchor": "wall_mount_center" if wall_mounted else "bottom_center", "scale": 1.0, "offset": Vector2(0, -18) if wall_mounted else Vector2.ZERO, "expected_size": Vector2(72, 72), "layer_hint": "object", "notes": "Normalized object PNG draw size/pivot."}
+	var rule: Dictionary = {"anchor": "wall_mount_center" if wall_mounted else "bottom_center", "scale": 1.0, "offset": Vector2.ZERO, "expected_size": Vector2(72, 72), "layer_hint": "object", "notes": "Normalized object PNG draw size/pivot."}
 	match normalized_asset_key:
 		"terminal_01":
 			rule["expected_size"] = Vector2(80, 78)
@@ -3265,6 +3270,45 @@ func _parse_visual_pivot(value: Variant, fallback: Vector2) -> Vector2:
 		var dict: Dictionary = Dictionary(value)
 		return Vector2(float(dict.get("x", fallback.x)), float(dict.get("y", fallback.y)))
 	return fallback
+
+func get_wall_mount_height_screen_px(source_height_px: float) -> float:
+	return source_height_px * (get_iso_tile_size().x / ISO_OBJECT_SOURCE_CANVAS_WIDTH)
+
+func get_wall_mounted_object_height_source_px(object_data: Dictionary, asset_key: String) -> float:
+	var normalized_asset_key: String = asset_key.strip_edges().to_lower()
+	var object_type: String = str(object_data.get("object_type", object_data.get("type", ""))).strip_edges().to_lower()
+	var blob: String = "%s %s" % [object_type, normalized_asset_key]
+	if normalized_asset_key == "light_01" or object_type == "light":
+		return WALL_MOUNT_HEIGHT_LIGHT_SOURCE_PX
+	if normalized_asset_key.contains("fuse_box") or blob.contains("fuse_box"):
+		return WALL_MOUNT_HEIGHT_DEVICE_SOURCE_PX
+	if normalized_asset_key.contains("power_switcher") or blob.contains("power_switcher") or blob.contains("switch"):
+		return WALL_MOUNT_HEIGHT_DEVICE_SOURCE_PX
+	if blob.contains("power_socket") or blob.contains("socket"):
+		return WALL_MOUNT_HEIGHT_DEVICE_SOURCE_PX
+	return WALL_MOUNT_HEIGHT_DEVICE_SOURCE_PX
+
+func normalize_wall_visual_side(object_data: Dictionary) -> String:
+	var candidates: Array[String] = [
+		str(object_data.get("wall_side", "")),
+		str(object_data.get("interaction_side", "")),
+		ObjectFacingServiceRef.get_facing_side(object_data)
+	]
+	for raw_candidate in candidates:
+		var side: String = raw_candidate.strip_edges().to_lower()
+		match side:
+			"sw", "south_west", "southwest", "south", "west":
+				return "sw"
+			"se", "south_east", "southeast", "east":
+				return "se"
+	return "sw"
+
+func get_wall_mount_side_visual_offset(object_data: Dictionary) -> Vector2:
+	var side: String = normalize_wall_visual_side(object_data)
+	if side == "se":
+		return WALL_MOUNT_SIDE_OFFSET_SE
+	return WALL_MOUNT_SIDE_OFFSET_SW
+
 func get_safe_iso_object_png_visual_scale(object_data: Dictionary, asset_key: String, rule: Dictionary) -> float:
 	var rule_scale: float = float(rule.get("scale", 1.0))
 	if not ISO_OBJECT_PNG_ASSET_PATHS.has(asset_key):
@@ -3315,9 +3359,15 @@ func build_iso_object_visual_descriptor(object_data: Dictionary, asset_key: Stri
 	var surface_level: int = get_iso_object_surface_level(object_data)
 	var surface_context: Dictionary = build_iso_object_surface_context(object_data, visual_center)
 	var surface_offset: Vector2 = Vector2(0.0, IsoVisualAlignmentServiceRef.get_object_surface_y_offset(surface_context))
-	var configured_offset: Vector2 = Vector2(rule.get("offset", Vector2.ZERO)) + _parse_visual_pivot(object_data.get("visual_offset", Vector2.ZERO), Vector2.ZERO)
+	var explicit_visual_offset: Vector2 = _parse_visual_pivot(object_data.get("visual_offset", Vector2.ZERO), Vector2.ZERO)
+	var configured_offset: Vector2 = Vector2(rule.get("offset", Vector2.ZERO)) + explicit_visual_offset
+	var wall_mounted: bool = is_wall_mounted_runtime_object(object_data) or _get_object_mount_mode(object_data) == "wall"
+	if wall_mounted:
+		var wall_mount_height_source_px: float = get_wall_mounted_object_height_source_px(object_data, asset_key)
+		configured_offset = Vector2(0.0, -get_wall_mount_height_screen_px(wall_mount_height_source_px)) + get_wall_mount_side_visual_offset(object_data) + explicit_visual_offset
 	var final_draw_position: Vector2 = visual_center + surface_offset - visual_pivot + configured_offset
 	var destination_rect: Rect2 = Rect2(final_draw_position, destination_size)
+	var wall_visual_side: String = normalize_wall_visual_side(object_data) if wall_mounted else ""
 	return {
 		"visual_asset_key": asset_key,
 		"texture": texture,
@@ -3329,7 +3379,7 @@ func build_iso_object_visual_descriptor(object_data: Dictionary, asset_key: Stri
 		"final_draw_position": final_draw_position,
 		"destination_rect": destination_rect,
 		"source_rect": Rect2(Vector2.ZERO, texture.get_size() if texture != null else expected_size),
-		"mirror_h": ObjectFacingServiceRef.get_facing_side(object_data) == ObjectFacingServiceRef.FACING_SIDE_SE and bool(object_data.get("mirror_visual_for_facing_side", true))
+		"mirror_h": (wall_visual_side == "se" and bool(object_data.get("mirror_visual_for_facing_side", true))) if wall_mounted else (ObjectFacingServiceRef.get_facing_side(object_data) == ObjectFacingServiceRef.FACING_SIDE_SE and bool(object_data.get("mirror_visual_for_facing_side", true)))
 	}
 
 func draw_iso_object_png_texture_with_descriptor(texture: Texture2D, descriptor: Dictionary) -> void:
