@@ -216,13 +216,14 @@ static func add_floor_coverage_section(ui: Variant, parent: VBoxContainer) -> vo
 				floor_height_option.select(floor_height_option.item_count - 1)
 		if floor_height_option.selected < 0:
 			floor_height_option.select(0)
-		var floor_row: HBoxContainer = HBoxContainer.new()
-		floor_row.add_theme_constant_override("separation", 6)
-		floor_material_option.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-		floor_height_option.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-		floor_row.add_child(ui._create_property_row("Material", floor_material_option))
-		floor_row.add_child(ui._create_property_row("Height", floor_height_option))
-		floor_section.add_child(floor_row)
+		floor_material_option.custom_minimum_size = Vector2(180, 0)
+		floor_material_option.size_flags_horizontal = Control.SIZE_FILL
+
+		floor_height_option.custom_minimum_size = Vector2(140, 0)
+		floor_height_option.size_flags_horizontal = Control.SIZE_FILL
+
+		floor_section.add_child(ui._create_property_row("Material", floor_material_option))
+		floor_section.add_child(ui._create_property_row("Height", floor_height_option))
 		var floor_summary_label: Label = Label.new()
 		floor_summary_label.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 		floor_summary_label.text = "Floor visual id: %s / height: %s" % [compose_floor_visual_id(str(floor_material_option.get_selected_metadata())), normalize_floor_height_level(str(floor_height_option.get_selected_metadata()))]
