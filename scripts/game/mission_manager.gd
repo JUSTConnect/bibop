@@ -3075,12 +3075,12 @@ func get_default_map_constructor_field_value(field_name: String, entity_kind: St
 			return true
 		"requires_external_control":
 			return false
-		"mirror_visual_for_facing_side":
-			return true	
 		"requires_terminal_enabled":
 			return false
 		"requires_external_power":
 			return false
+		"mirror_visual_for_facing_side":
+			return true		
 		"damaged":
 			return false
 		"current_heat":
@@ -3101,16 +3101,7 @@ func get_default_map_constructor_field_value(field_name: String, entity_kind: St
 		if entity_kind == "item":
 			return null
 		return []
-	if normalized_field in ["state", "power_network_id", "circuit_id", "power_circuit_id", "network_id", 
-		"power_network_id", "chain_id", "link_group", "cable_group", "connected_circuit", "circuit_name", 
-		"required_key_id", "lock_type", "linked_terminal_id", "target_door_id", "target_platform_id", 
-		"control_source_id", "digital_state", "key_kind", "key_type", "display_name", "description", 
-		"custom_description", "linked_door_id", "power_mode", "power_source_id", "control_mode", 
-		"control_terminal_id", "access_type", "access_terminal_id", "access_code_value", "stored_key_ids", 
-		"route_surface", "physical_connection_source_id", "input_wire_id", "input_direction", 
-		"output_1_wire_id", "output_2_wire_id", "output_3_wire_id", "output_1_direction", "output_2_direction", 
-		"output_3_direction", "brightness", "color", "platform_mode", "mechanism_id", "mechanism_role", "activation_mode",
-		"wall_side", "interaction_side", "facing_side", "facing_dir",]:
+	if normalized_field in ["state", "power_network_id", "circuit_id", "power_circuit_id", "network_id", "power_network_id", "chain_id", "link_group", "cable_group", "connected_circuit", "circuit_name", "required_key_id", "lock_type", "linked_terminal_id", "target_door_id", "target_platform_id", "control_source_id", "digital_state", "key_kind", "key_type", "display_name", "description", "custom_description", "linked_door_id", "power_mode", "power_source_id", "control_mode", "control_terminal_id", "access_type", "access_terminal_id", "access_code_value", "stored_key_ids", "route_surface", "physical_connection_source_id", "input_wire_id", "input_direction", "output_1_wire_id", "output_2_wire_id", "output_3_wire_id", "output_1_direction", "output_2_direction", "output_3_direction", "brightness", "color", "wall_side", "interaction_side", "facing_side", "facing_dir", "platform_mode", "mechanism_id", "mechanism_role", "activation_mode"]:
 		return ""
 	return null
 
