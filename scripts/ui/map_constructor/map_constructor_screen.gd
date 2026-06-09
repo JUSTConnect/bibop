@@ -4,7 +4,7 @@ class_name MapConstructorScreen
 const MapConstructorPanelRef = preload("res://scripts/ui/map_constructor/map_constructor_panel.gd")
 const MapConstructorTabsRef = preload("res://scripts/ui/map_constructor/map_constructor_tabs.gd")
 const MapConstructorInspectorRef = preload("res://scripts/ui/map_constructor/map_constructor_inspector.gd")
-
+const MapConstructorScrollStateServiceRef = preload("res://scripts/ui/map_constructor/map_constructor_scroll_state_service.gd")
 
 static func build(ui: Variant) -> Control:
 	var panel: PanelContainer = MapConstructorPanelRef.build_panel(ui)
@@ -17,15 +17,23 @@ static func refresh(ui: Variant) -> void:
 		return
 	if ui.runtime_hud_root == null or not is_instance_valid(ui.runtime_hud_root):
 		return
+
+	var scroll_snapshot: Dictionary = MapConstructorScrollStateServiceRef.capture_snapshot(ui)
+
 	MapConstructorTabsRef.remember_palette_scroll(ui)
 	MapConstructorPanelRef.clear_existing_panel(ui)
+
 	if not ui.map_constructor_mode_active:
 		set_visible(ui, false)
 		return
+
 	set_visible(ui, true)
+
 	if not ["map_settings", "objects", "warnings"].has(ui.map_constructor_active_tab):
 		ui.map_constructor_active_tab = "map_settings"
+
 	build(ui)
+	MapConstructorScrollStateServiceRef.restore_snapshot_deferred(ui, scroll_snapshot)
 
 
 static func set_visible(ui: Variant, visible_state: bool) -> void:
