@@ -195,11 +195,29 @@ func place_map_constructor_prefab(prefab_id: String, cell: Vector2i, preferred_w
 		object_data["blocks_movement"] = false
 		object_data["changes_passability"] = false
 		object_data["does_not_block_movement"] = true
-	_trace_wall_mounted_placement("place_final", {"prefab_id": prefab_id, "direct_wall_cell_mount": bool(check.get("direct_wall_cell_mount", false)), "final_object_position": object_data.get("position", cell), "attached_wall_cell": object_data.get("attached_wall_cell", ""), "wall_side": str(object_data.get("wall_side", "")), "interaction_side": str(object_data.get("interaction_side", "")), "placement_mode": str(object_data.get("placement_mode", "")), "is_wall_mounted": bool(object_data.get("is_wall_mounted", false))})
-	manager.set_world_object_at_cell(cell, object_data)
+	_trace_wall_mounted_placement("place_final", {
+			"prefab_id": prefab_id, 
+			"direct_wall_cell_mount": bool(check.get("direct_wall_cell_mount", false)),
+			"final_object_position": object_data.get("position", cell), 
+			"attached_wall_cell": object_data.get("attached_wall_cell", ""), 
+			"wall_side": str(object_data.get("wall_side", "")), 
+			"interaction_side": str(object_data.get("interaction_side", "")), 
+			"placement_mode": str(object_data.get("placement_mode", "")), 
+			"is_wall_mounted": bool(object_data.get("is_wall_mounted", false))
+	})
+	if str(object_data.get("placement_mode", "")).strip_edges().to_lower() == "wall_mounted" or bool(object_data.get("is_wall_mounted", false)):
+		manager.mission_world_objects.append(object_data)
+
+		var mounted_objects_at_cell: Array = Array(manager.wall_mounted_objects_by_cell.get(cell, []))
+		mounted_objects_at_cell.append(object_data)
+		manager.wall_mounted_objects_by_cell[cell] = mounted_objects_at_cell
+	else:
+		manager.set_world_object_at_cell(cell, object_data)
+		
 	PowerSystemRef.recalculate_network(manager.mission_world_objects, str(object_data.get("power_network_id", "")))
 	manager.refresh_world_cooling_received()
 	result["object_id"] = object_id
+	
 	manager._record_map_constructor_change("place", {"entity_kind":"world_object", "entity_id":object_id, "object_type":canonical_prefab_id, "cell":cell, "summary":"Placed %s at %s" % [prefab_id, manager._format_map_constructor_cell(cell)], "undo_hint":"Can undo by deleting object."})
 	return result
 
