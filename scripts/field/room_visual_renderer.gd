@@ -3721,22 +3721,38 @@ func _draw_wall_cable_side_anchor_segments_clipped(side_anchors: Array, all_circ
 	if side_anchors.is_empty():
 		return
 
-	# ВАЖНО:
-	# Больше нельзя рисовать один общий first -> last для всего wall_side.
-	# Один wall_side может содержать разные видимые wall face runs,
-	# особенно около внутреннего угла / перекрывающей стены.
-	var face_run_groups: Dictionary = _partition_wall_cable_anchors_by_face_run(side_anchors)
+	var sorted_anchors: Array[Dictionary] = []
+	for anchor_variant in side_anchors:
+		_insert_sorted_wall_cable_anchor(sorted_anchors, Dictionary(anchor_variant))
 
-	for group_key in face_run_groups.keys():
-		var group_anchors: Array = Array(face_run_groups.get(group_key, []))
-		if group_anchors.is_empty():
+	if sorted_anchors.is_empty():
+		return
+
+	if sorted_anchors.size() == 1:
+		_draw_wall_cable_local_anchor_segment(Dictionary(sorted_anchors[0]), profile)
+		return
+
+	for index in range(sorted_anchors.size() - 1):
+		var current_anchor: Dictionary = Dictionary(sorted_anchors[index])
+		var next_anchor: Dictionary = Dictionary(sorted_anchors[index + 1])
+
+		var current_cell: Vector2i = Vector2i(current_anchor.get("cell", Vector2i(-1, -1)))
+		var next_cell: Vector2i = Vector2i(next_anchor.get("cell", Vector2i(-1, -1)))
+
+		if current_cell.x < 0 or current_cell.y < 0 or next_cell.x < 0 or next_cell.y < 0:
 			continue
 
-		var sorted_anchors: Array[Dictionary] = []
-		for anchor_variant in group_anchors:
-			_insert_sorted_wall_cable_anchor(sorted_anchors, Dictionary(anchor_variant))
+		var delta: Vector2i = next_cell - current_cell
+		var is_neighbor: bool = absi(delta.x) <= 1 and absi(delta.y) <= 1
 
-		_draw_sorted_wall_cable_anchor_span(sorted_anchors, profile)
+		if not is_neighbor:
+			continue
+
+		draw_iso_cable_wall_segment(
+			Vector2(current_anchor.get("rail_anchor", Vector2.ZERO)),
+			Vector2(next_anchor.get("rail_anchor", Vector2.ZERO)),
+			profile
+		)
 			
 func _get_wall_cable_corner_bridge_match_info(anchor_a: Dictionary, anchor_b: Dictionary) -> Dictionary:
 	var wall_side_a: String = str(anchor_a.get("wall_side", ""))
