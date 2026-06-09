@@ -5816,11 +5816,14 @@ func apply_map_constructor_property_preset(entity_kind: String, entity_id: Strin
 
 func update_map_constructor_entity_properties(entity_kind: String, entity_id: String, updates: Dictionary) -> Dictionary:
 	var warnings: Array[String] = []
+
 	for k in updates.keys():
-		if str(k) == "id" or str(k) == "position" or str(k) == "wall_side":
+		if str(k) == "id" or str(k) == "position":
 			warnings.append("Field %s is restricted." % str(k))
+
 	var safe: Dictionary = updates.duplicate(true)
-	safe.erase("id"); safe.erase("position"); safe.erase("wall_side")
+	safe.erase("id")
+	safe.erase("position")
 	if safe.has("stored_digital_key_id") or safe.has("stored_key_id") or safe.has("stored_item_id"):
 		var stored_key_id: String = str(safe.get("stored_digital_key_id", safe.get("stored_key_id", safe.get("stored_item_id", "")))).strip_edges()
 		if not stored_key_id.is_empty():
