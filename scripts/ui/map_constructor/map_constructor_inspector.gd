@@ -503,47 +503,72 @@ static func _render_entity_tab(ui: Variant, parent: VBoxContainer, entity_info: 
 				_add_cable_note(ui, configurable, "Hidden cables are visible only in the editor.")
 			MapConstructorPropertyControls.add_enum_updates_property(ui, configurable, "Health state", entity_kind, entity_id, _get_power_health_state(data), [{"label":"Normal", "value":"normal", "updates":{"cable_health_state":"normal"}}, {"label":"Damaged", "value":"damaged", "updates":{"cable_health_state":"damaged"}}, {"label":"Broken", "value":"broken", "updates":{"cable_health_state":"broken"}}, {"label":"Cut", "value":"cut", "updates":{"cable_health_state":"cut"}}])
 			MapConstructorPropertyControls.add_enum_updates_property(ui, configurable, "Power state", entity_kind, entity_id, "powered" if bool(data.get("is_powered", false)) else "unpowered", [{"label":"Powered", "value":"powered", "updates":{"is_powered":true}}, {"label":"Unpowered", "value":"unpowered", "updates":{"is_powered":false}}])
-		elif power_object_type == "light":
-			var light_wall_side: String = MapConstructorUiSafe.safe_string(data.get("wall_side", data.get("interaction_side", "sw"))).strip_edges().to_lower()
-			if light_wall_side in ["south_west", "southwest", "south", "west"]:
-				light_wall_side = "sw"
-			elif light_wall_side in ["south_east", "southeast", "east"]:
-				light_wall_side = "se"
-			if light_wall_side not in ["sw", "se"]:
-				light_wall_side = "sw"
+		
+	if type_group == "lighting" or normalized_object_type == "light":
+		var light_wall_side: String = MapConstructorUiSafe.safe_string(data.get("wall_side", data.get("interaction_side", "sw"))).strip_edges().to_lower()
+		if light_wall_side in ["south_west", "southwest", "south", "west"]:
+			light_wall_side = "sw"
+		elif light_wall_side in ["south_east", "southeast", "east"]:
+			light_wall_side = "se"
+		if light_wall_side not in ["sw", "se"]:
+			light_wall_side = "sw"
 
-			MapConstructorPropertyControls.add_enum_updates_property(
-				ui,
-				configurable,
-				"Wall side",
-				entity_kind,
-				entity_id,
-				light_wall_side,
-				[
-					{
-						"label": "SW",
-						"value": "sw",
-						"updates": {
-							"wall_side": "sw",
-							"interaction_side": "sw"
-						}
-					},
-					{
-						"label": "SE",
-						"value": "se",
-						"updates": {
-							"wall_side": "se",
-							"interaction_side": "se"
-						}
+		MapConstructorPropertyControls.add_enum_updates_property(
+			ui,
+			configurable,
+			"Wall side",
+			entity_kind,
+			entity_id,
+			light_wall_side,
+			[
+				{
+					"label": "SW",
+					"value": "sw",
+					"updates": {
+						"wall_side": "sw",
+						"interaction_side": "sw"
 					}
-				]
-			)
+				},
+				{
+					"label": "SE",
+					"value": "se",
+					"updates": {
+						"wall_side": "se",
+						"interaction_side": "se"
+					}
+				}
+			]
+		)
 
-			ui._add_text_property(configurable, "Brightness", entity_kind, entity_id, "brightness", data.get("brightness", "1.0"))
-			ui._add_text_property(configurable, "Color", entity_kind, entity_id, "color", data.get("color", "#ffffff"))
-			MapConstructorPropertyControls.add_enum_updates_property(ui, configurable, "Power state", entity_kind, entity_id, "powered" if bool(data.get("is_powered", false)) else "unpowered", [{"label":"Powered", "value":"powered", "updates":{"is_powered":true}}, {"label":"Unpowered", "value":"unpowered", "updates":{"is_powered":false}}])
-			MapConstructorPropertyControls.add_enum_updates_property(ui, configurable, "Health state", entity_kind, entity_id, _get_power_health_state(data), [{"label":"Normal", "value":"normal", "updates":{"damaged":false}}, {"label":"Damaged", "value":"damaged", "updates":{"damaged":true}}, {"label":"Broken", "value":"broken", "updates":{"state":"broken", "damaged":true}}])
-	
+		ui._add_text_property(configurable, "Brightness", entity_kind, entity_id, "brightness", data.get("brightness", "1.0"))
+		ui._add_text_property(configurable, "Color", entity_kind, entity_id, "color", data.get("color", "#ffffff"))
+
+		MapConstructorPropertyControls.add_enum_updates_property(
+			ui,
+			configurable,
+			"Power state",
+			entity_kind,
+			entity_id,
+			"powered" if bool(data.get("is_powered", false)) else "unpowered",
+			[
+				{"label":"Powered", "value":"powered", "updates":{"is_powered":true}},
+				{"label":"Unpowered", "value":"unpowered", "updates":{"is_powered":false}}
+			]
+		)
+
+		MapConstructorPropertyControls.add_enum_updates_property(
+			ui,
+			configurable,
+			"Health state",
+			entity_kind,
+			entity_id,
+			_get_power_health_state(data),
+			[
+				{"label":"Normal", "value":"normal", "updates":{"damaged":false}},
+				{"label":"Damaged", "value":"damaged", "updates":{"damaged":true}},
+				{"label":"Broken", "value":"broken", "updates":{"state":"broken", "damaged":true}}
+			]
+		)
 	if type_group == "item":
 		var item_type_label: Label = Label.new()
 		item_type_label.text = ui._safe_ui_string(data.get("item_type", data.get("object_type", "item")), "item")
