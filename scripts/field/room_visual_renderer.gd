@@ -5476,32 +5476,43 @@ func draw_iso_cable_segment_shape(cell: Vector2i, topology: Dictionary, profile:
 			draw_line(cable_center, _get_iso_cable_branch_endpoint_for_visual_center(cell, direction, cable_center), outline_color, 1.0, true)
 
 func get_cable_install_mode(object_data: Dictionary) -> String:
-	if object_data.is_empty():
-		return "floor"
-	if bool(object_data.get("hidden_installation", object_data.get("is_hidden", object_data.get("hidden", false)))):
+	if bool(object_data.get("hidden_installation", object_data.get("is_hidden", false))):
 		return "hidden"
-	var raw_mode_value: Variant = object_data.get("cable_install_mode", object_data.get("install_mode", object_data.get("placement_mode", object_data.get("route_surface", "floor"))))
-	var raw_mode: String = str(raw_mode_value).strip_edges().to_lower()
-	match raw_mode:
-		"hidden", "concealed", "embedded":
-			return "hidden"
-		"wall", "wall_cable", "wall_surface":
-			return "wall"
-		_:
-			return "floor"
+
+	var candidates: Array[String] = [
+		str(object_data.get("cable_install_mode", "")),
+		str(object_data.get("install_mode", "")),
+		str(object_data.get("mount", "")),
+		str(object_data.get("route_surface", "")),
+		str(object_data.get("placement_mode", "")),
+		str(object_data.get("placement", ""))
+	]
+
+	for raw_candidate in candidates:
+		var mode: String = raw_candidate.strip_edges().to_lower()
+		mode = mode.replace("-", "_")
+		mode = mode.replace(" ", "_")
+
+		match mode:
+			"wall", "wall_mounted", "on_wall":
+				return "wall"
+			"hidden", "floor_hidden", "under_floor", "embedded_floor":
+				return "hidden"
+			"floor", "ground", "open_floor":
+				return "floor"
+
+	return "floor"
 
 func get_cable_health_state(object_data: Dictionary) -> String:
-	if object_data.is_empty():
-		return "normal"
-	if bool(object_data.get("cut", false)):
+	var state: String = str(object_data.get("cable_health_state", object_data.get("health_state", object_data.get("state", "normal")))).strip_edges().to_lower()
+
+	if bool(object_data.get("cut", false)) or state == "cut":
 		return "cut"
-	if bool(object_data.get("broken", false)):
+	if bool(object_data.get("broken", false)) or state == "broken":
 		return "broken"
-	if bool(object_data.get("damaged", false)):
+	if bool(object_data.get("damaged", false)) or state == "damaged":
 		return "damaged"
-	var raw_state: String = str(object_data.get("cable_health_state", object_data.get("health_state", object_data.get("state", "normal")))).strip_edges().to_lower()
-	if raw_state in ["damaged", "broken", "cut"]:
-		return raw_state
+
 	return "normal"
 
 func is_map_constructor_editor_render() -> bool:
@@ -5524,13 +5535,16 @@ func draw_iso_cable_mode_polyline(points: Array[Vector2], profile: Dictionary) -
 		draw_iso_cable_mode_segment(points[index], points[index + 1], profile)
 
 func draw_iso_cable_mode_segment(start: Vector2, end: Vector2, profile: Dictionary) -> void:
-	match str(profile.get("install_mode", "floor")):
-		"hidden":
-			draw_iso_cable_hidden_segment(start, end, profile)
-		"wall":
-			draw_iso_cable_wall_segment(start, end, profile)
-		_:
-			_draw_iso_cable_polyline([start, end], profile)
+	var install_mode: String = str(profile.get("install_mode", "floor")).strip_edges().to_lower()
+
+	if install_mode == "hidden":
+		_draw_wall_routed_dashed_line(start, end, 7.0, 4.0, Color(0.05, 0.055, 0.065, 0.55), 3.0)
+		_draw_wall_routed_dashed_line(start, end, 5.0, 6.0, Color(0.70, 0.74, 0.78, 0.28), 1.1)
+		return
+
+	draw_line(start + Vector2(0.0, 1.5), end + Vector2(0.0, 1.5), Color(0.01, 0.012, 0.016, 0.34), 7.0, true)
+	draw_line(start, end, Color(0.06, 0.065, 0.075, 0.98), 5.0, true)
+	draw_line(start + Vector2(0.0, -0.8), end + Vector2(0.0, -0.8), Color(0.87, 0.73, 0.30, 0.95), 1.5, true)
 
 func draw_iso_cable_hidden_segment(start: Vector2, end: Vector2, profile: Dictionary) -> void:
 	var delta: Vector2 = end - start
@@ -5552,17 +5566,19 @@ func draw_iso_cable_wall_segment(start: Vector2, end: Vector2, profile: Dictiona
 	_draw_iso_cable_polyline([start, end], profile)
 	draw_line(start + Vector2(0.0, 2.0), end + Vector2(0.0, 2.0), Color(0.0, 0.0, 0.0, 0.18), 2.0, true)
 
-func draw_iso_cable_damage_marker(center: Vector2, health_state: String, profile: Dictionary) -> void:
-	var outline_color: Color = _get_color_from_dict(profile, "outline", Color(0.1, 0.03, 0.02, 0.95))
-	var accent_color: Color = Color(1.0, 0.78, 0.18, 0.98) if health_state == "damaged" else Color(1.0, 0.28, 0.12, 0.98)
-	var break_color: Color = Color(0.04, 0.025, 0.02, 0.92)
-	draw_circle(center, 5.6, break_color)
-	draw_line(center + Vector2(-7.0, -3.0), center + Vector2(-1.5, 1.5), outline_color, 2.2, true)
-	draw_line(center + Vector2(1.5, -1.5), center + Vector2(7.0, 3.0), outline_color, 2.2, true)
-	draw_line(center + Vector2(-2.5, 1.5), center + Vector2(-5.0, 7.0), accent_color, 1.4, true)
-	draw_line(center + Vector2(1.5, 2.0), center + Vector2(2.5, 8.0), accent_color.lightened(0.12), 1.2, true)
-	draw_line(center + Vector2(4.0, 0.5), center + Vector2(7.0, 6.0), accent_color, 1.2, true)
+func draw_iso_cable_damage_marker(center: Vector2, health_state: String, _profile: Dictionary = {}) -> void:
+	var state: String = health_state.strip_edges().to_lower()
+	if state not in ["damaged", "broken", "cut"]:
+		return
 
+	var marker_color: Color = Color(1.0, 0.74, 0.20, 0.96)
+	if state == "broken" or state == "cut":
+		marker_color = Color(1.0, 0.22, 0.16, 0.96)
+
+	draw_circle(center, 4.0, Color(0.02, 0.02, 0.025, 0.86))
+	draw_line(center + Vector2(-4.0, -4.0), center + Vector2(4.0, 4.0), marker_color, 1.8, true)
+	draw_line(center + Vector2(-4.0, 4.0), center + Vector2(4.0, -4.0), marker_color, 1.8, true)
+	
 func draw_iso_cable_object_links(_cell: Vector2i, object_links: Dictionary, cable_center: Vector2, profile: Dictionary) -> void:
 	if object_links.is_empty():
 		return
