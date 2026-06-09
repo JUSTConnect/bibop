@@ -3627,11 +3627,12 @@ func _build_wall_cable_visual_polyline(path_data: Dictionary) -> PackedVector2Ar
 func _draw_wall_cable_run_graphics(run_cells: Array[Vector2i], object_data: Dictionary, profile: Dictionary, topology: Dictionary, head_cell: Vector2i, anchors: Array[Dictionary] = []) -> void:
 	if run_cells.is_empty() and anchors.is_empty():
 		return
+
 	var wall_side: String = get_cable_wall_side(object_data)
+
 	if anchors.is_empty():
 		anchors = _collect_wall_cable_face_run_anchors(object_data, head_cell)
-		if anchors.size() < 2:
-			anchors = _collect_wall_cable_visual_cluster_anchors(object_data, head_cell)
+
 	var path_data: Dictionary = {
 		"object_data": object_data,
 		"wall_side": wall_side,
@@ -3672,14 +3673,6 @@ func draw_wall_cable_visual_path(cell: Vector2i, object_data: Dictionary, visual
 		return false
 
 	var anchors: Array[Dictionary] = _collect_wall_cable_face_run_anchors(object_data, cell)
-
-	# Important fallback:
-	# Strict face-run grouping often returns only one cable object in TASK TEST,
-	# because attached_wall_cell / face_run_key metadata is not reliable enough.
-	# In that case use visual screen-space clustering.
-	if anchors.size() < 2:
-		anchors = _collect_wall_cable_visual_cluster_anchors(object_data, cell)
-
 	var first_cable_anchor: Dictionary = _get_first_wall_cable_anchor(anchors)
 	if first_cable_anchor.is_empty():
 		return false
