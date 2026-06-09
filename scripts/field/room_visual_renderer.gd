@@ -3361,7 +3361,15 @@ func build_iso_object_visual_descriptor(object_data: Dictionary, asset_key: Stri
 	var surface_offset: Vector2 = Vector2(0.0, IsoVisualAlignmentServiceRef.get_object_surface_y_offset(surface_context))
 	var explicit_visual_offset: Vector2 = _parse_visual_pivot(object_data.get("visual_offset", Vector2.ZERO), Vector2.ZERO)
 	var configured_offset: Vector2 = Vector2(rule.get("offset", Vector2.ZERO)) + explicit_visual_offset
-	var wall_mounted: bool = is_wall_mounted_runtime_object(object_data) or _get_object_mount_mode(object_data) == "wall"
+	var placement_mode: String = str(object_data.get("placement_mode", object_data.get("placement", ""))).strip_edges().to_lower()
+	var install_mode: String = str(object_data.get("install_mode", object_data.get("mount", ""))).strip_edges().to_lower()
+	var wall_mounted: bool = (
+		bool(object_data.get("is_wall_mounted", false))
+		or placement_mode == "wall_mounted"
+		or placement_mode == "wall"
+		or install_mode == "wall"
+		or _get_object_mount_mode(object_data) == "wall"
+	)
 	if wall_mounted:
 		var wall_mount_height_source_px: float = get_wall_mounted_object_height_source_px(object_data, asset_key)
 		configured_offset = Vector2(0.0, -get_wall_mount_height_screen_px(wall_mount_height_source_px)) + get_wall_mount_side_visual_offset(object_data) + explicit_visual_offset
