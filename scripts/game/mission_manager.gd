@@ -3607,6 +3607,12 @@ func _trace_wall_mounted_placement(event_name: String, payload: Dictionary) -> v
 		return
 	print("[WallMountedPlacement:%s] %s" % [event_name, JSON.stringify(payload)])
 
+func _is_map_constructor_wall_stackable_prefab(prefab_id: String) -> bool:
+	var normalized_id: String = prefab_id.strip_edges().to_lower()
+	return normalized_id in [
+		"light",
+		"power_cable"
+	]
 func _is_map_constructor_wall_cell_share_prefab(prefab_id: String) -> bool:
 	var id: String = prefab_id.strip_edges().to_lower()
 	return id in [
@@ -3705,11 +3711,19 @@ func can_place_map_constructor_prefab(prefab_id: String, cell: Vector2i, preferr
 		if wall_side.is_empty():
 			wall_side = "south"
 
-		var existing_wall_mounted: Dictionary = {}
-		if has_method("get_wall_mounted_world_object_at_cell"):
-			existing_wall_mounted = get_wall_mounted_world_object_at_cell(cell)
+		var existing_wall_mounted_objects: Array = Array(wall_mounted_objects_by_cell.get(cell, []))
+		var has_non_stackable_existing: bool = false
 
-		if not existing_wall_mounted.is_empty():
+		for existing_variant in existing_wall_mounted_objects:
+			if not existing_variant is Dictionary:
+				continue
+			var existing_object: Dictionary = Dictionary(existing_variant)
+			var existing_type: String = str(existing_object.get("map_constructor_prefab_id", existing_object.get("object_type", ""))).strip_edges().to_lower()
+			if not _is_map_constructor_wall_stackable_prefab(existing_type):
+				has_non_stackable_existing = true
+				break
+
+		if has_non_stackable_existing and not _is_map_constructor_wall_stackable_prefab(normalized_prefab_id):
 			return {
 				"ok": false,
 				"reason": "wall_mounted_slot_occupied",
