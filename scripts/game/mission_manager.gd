@@ -3607,192 +3607,239 @@ func _trace_wall_mounted_placement(event_name: String, payload: Dictionary) -> v
 		return
 	print("[WallMountedPlacement:%s] %s" % [event_name, JSON.stringify(payload)])
 
+func _is_map_constructor_wall_cell_share_prefab(prefab_id: String) -> bool:
+	var id: String = prefab_id.strip_edges().to_lower()
+	return id in [
+		"fuse_box",
+		"power_socket",
+		"power_switcher",
+		"light",
+		"external_air_duct",
+		"external_water_pipe"
+	]
 func can_place_map_constructor_prefab(prefab_id: String, cell: Vector2i, preferred_wall_side: String = "", placement_mode_override: String = "") -> Dictionary:
-	var result: Dictionary = {"ok": false, "reason": "unsupported_prefab", "message": "Blocked: unsupported prefab.", "cell_state": get_runtime_cell_state(cell)}
-	var is_supported: bool = false
-	for entry in get_map_constructor_prefab_catalog():
-		if str(entry.get("id", "")) == prefab_id:
-			is_supported = true
-			break
-	var canonical_prefab_id: String = WorldObjectCatalogRef.canonical_object_type(prefab_id)
-	if not is_supported:
-		return result
-	var cell_state: Dictionary = get_runtime_cell_state(cell)
-	result["cell_state"] = cell_state
-	var prefab_is_item: bool = is_map_constructor_item_prefab(prefab_id)
-	var requested_mounting_mode: String = placement_mode_override.strip_edges().to_lower()
-	var prefab_metadata: Dictionary = get_map_constructor_prefab_metadata(prefab_id)
-	var prefab_metadata_row: Dictionary = _safe_dictionary(prefab_metadata.get("prefab", {}))
-	var prefab_supports_wall_mode: bool = bool(prefab_metadata_row.get("requires_wall", false))
-	var prefab_supports_floor_mode: bool = bool(prefab_metadata_row.get("requires_floor", true))
-	var prefab_is_wall_mounted: bool = str(prefab_metadata_row.get("placement_mode", "")) == "wall_mounted" or bool(MAP_CONSTRUCTOR_WALL_MOUNTED_PREFABS.get(prefab_id, false))
-	if requested_mounting_mode == "wall_mounted":
-		if not prefab_supports_wall_mode:
-			result["reason"] = "wall_mount_not_supported"
-			result["message"] = "Blocked: selected wall mode is not supported for this prefab."
-			return result
-		prefab_is_wall_mounted = true
-	elif requested_mounting_mode == "stationary":
-		if not prefab_supports_floor_mode:
-			result["reason"] = "floor_mount_not_supported"
-			result["message"] = "Blocked: this prefab requires a wall cell."
-			return result
-		prefab_is_wall_mounted = false
-	if not bool(cell_state.get("in_bounds", false)):
-		result["reason"] = "wall_mounted_anchor_out_of_bounds" if prefab_is_wall_mounted else "out_of_bounds"
-		result["message"] = "Cannot mount here: anchor floor cell is outside the map." if prefab_is_wall_mounted else "Blocked: out of bounds."
-		return result
-	var active_bipob_cell: Vector2i = Vector2i(-1, -1)
-	if active_bipob_ref != null:
-		var active_bipob_position_variant: Variant = active_bipob_ref.get("grid_position")
-		if active_bipob_position_variant is Vector2i or active_bipob_position_variant is Vector2:
-			active_bipob_cell = Vector2i(active_bipob_position_variant)
-	if active_bipob_cell == cell:
-		result["reason"] = "blocked_by_bipob" if prefab_is_wall_mounted else "occupied_by_bipob"
-		result["message"] = "Cannot mount here: anchor cell is occupied by Bipob." if prefab_is_wall_mounted else "Blocked: existing object."
-		return result
-	var tile_type_value: int = int(cell_state.get("tile_type", -1))
-	var tile_is_wall: bool = tile_type_value == GridManager.TILE_WALL
-	var tile_is_door_or_gate: bool = tile_type_value == GridManager.TILE_DOOR or tile_type_value == GridManager.TILE_DIGITAL_DOOR or tile_type_value == GridManager.TILE_POWERED_GATE
-	var tile_is_exit: bool = tile_type_value == GridManager.TILE_EXIT
-	var tile_is_floor_like: bool = tile_type_value == GridManager.TILE_FLOOR or tile_type_value == GridManager.TILE_STEPPED_FLOOR
-	if not prefab_supports_floor_mode and not tile_is_wall:
-		result["reason"] = "wall_cell_required"
-		result["message"] = "Blocked: this prefab must be placed on an existing wall cell."
-		return result
-	var canonical_prefab_template: Dictionary = _get_world_object_template(canonical_prefab_id)
-	var prefab_is_cable_layer: bool = canonical_prefab_id == "power_cable" or CableTopologyServiceRef.is_cable_object({"object_type": canonical_prefab_id})
-	if prefab_is_cable_layer and is_breachable_wall_cell(cell):
-		result["reason"] = "breachable_wall_blocks_cable"
-		result["message"] = "Cannot route cables on a Breachable Wall."
-		return result
-	var prefab_is_wall: bool = str(canonical_prefab_template.get("group", "")) == "wall"
-	var prefab_is_door_or_gate: bool = str(canonical_prefab_template.get("group", "")) == "door"
-	var prefab_is_floor_replacement: bool = prefab_id == "floor" or prefab_id == "stepped_floor"
-	var direct_wall_cell_mount: bool = prefab_is_wall_mounted and tile_is_wall
-	_trace_wall_mounted_placement("can_place", {"clicked_cell": cell, "selected_cell": cell, "placement_mode_override": placement_mode_override, "prefab_id": prefab_id, "is_wall_cell": tile_is_wall, "direct_wall_cell_mount": direct_wall_cell_mount, "wall_side": preferred_wall_side})
-	if tile_is_exit and prefab_id != "powered_gate":
-		result["reason"] = "exit_cell"
-		result["message"] = "Blocked: exit cell."
-		return result
-	var has_static_wall_or_blocked_tile: bool = tile_is_wall or (not bool(cell_state.get("static_walkable", true)) and not tile_is_door_or_gate and not tile_is_exit)
-	if has_static_wall_or_blocked_tile and not prefab_is_floor_replacement and not prefab_is_cable_layer and not direct_wall_cell_mount:
-		result["reason"] = "wall_or_static"
-		result["message"] = "Blocked: wall/static obstacle."
-		return result
-	var prefab_can_replace_non_floor: bool = prefab_is_wall or prefab_is_door_or_gate or prefab_is_floor_replacement or prefab_is_cable_layer or direct_wall_cell_mount
-	if not tile_is_floor_like and not tile_is_exit and not prefab_can_replace_non_floor:
-		result["reason"] = "non_floor_tile"
-		result["message"] = "Blocked: non-floor tile."
-		return result
-	if (prefab_is_wall or prefab_is_door_or_gate) and not tile_is_floor_like:
-		result["reason"] = "non_floor_tile"
-		result["message"] = "Blocked: non-floor tile."
-		return result
-	if prefab_is_floor_replacement and not (tile_is_wall or tile_is_door_or_gate or tile_is_floor_like):
-		result["reason"] = "non_floor_tile"
-		result["message"] = "Blocked: non-floor tile."
-		return result
-	var existing_object: Dictionary = get_world_object_at_cell(cell)
-	var existing_object_is_cable_layer: bool = CableTopologyServiceRef.is_cable_object(existing_object)
-	var allow_cable_layer_stack: bool = prefab_is_cable_layer or (existing_object_is_cable_layer and not prefab_is_item)
-	var existing_object_is_wall_mount: bool = str(existing_object.get("placement_mode", existing_object.get("placement", ""))).to_lower() == "wall_mounted" or bool(existing_object.get("is_wall_mounted", false))
-	if not prefab_is_item and not existing_object.is_empty() and not allow_cable_layer_stack and not (direct_wall_cell_mount and (str(existing_object.get("object_group", "")).to_lower() == "wall" or existing_object_is_wall_mount)):
-		result["reason"] = "existing_object"
-		result["message"] = "Blocked: existing object."
-		return result
-	if bool(cell_state.get("has_object", false)) and bool(cell_state.get("blocks_movement", false)) and WorldObjectCatalogRef.is_constructor_solid_prefab(prefab_id) and not prefab_is_cable_layer and not existing_object_is_cable_layer and not direct_wall_cell_mount:
-		result["reason"] = "wall_or_static"
-		result["message"] = "Blocked: wall/static obstacle."
-		return result
-	if bool(cell_state.get("has_object", false)):
-		var existing_data: Dictionary = get_world_object_at_cell(cell)
-		if bool(existing_data.get("mission_exit", false)) or bool(existing_data.get("extraction", false)):
-			result["reason"] = "exit_cell"
-			result["message"] = "Blocked: exit cell."
-			return result
-	if canonical_prefab_id == "power_cable":
-		var cable_preview: Dictionary = WorldObjectCatalogRef.create_world_object(prefab_id, "constructor_preview_cable")
-		if cable_preview.is_empty():
-			cable_preview = {"id": "constructor_preview_cable", "object_type": canonical_prefab_id}
-		cable_preview["position"] = cell
-		var cable_validation: Dictionary = CableTopologyServiceRef.validate_placement(cell, mission_world_objects, cable_preview)
-		if not bool(cable_validation.get("ok", false)):
-			result["reason"] = "invalid_cable_junction"
-			result["message"] = str(cable_validation.get("message", CableTopologyServiceRef.ERROR_MESSAGE_JUNCTION_REQUIRES_SWITCH))
-			result["cable_topology"] = cable_validation
-			return result
-	if prefab_is_wall_mounted:
-		result["placement_mode"] = "wall_mounted"
-		var normalized_side: String = preferred_wall_side.to_lower().strip_edges()
-		if direct_wall_cell_mount:
-			var direct_attachment: Dictionary = _resolve_direct_wall_mounted_attachment(cell, normalized_side)
-			if not bool(direct_attachment.get("ok", false)):
-				return {"ok": false, "reason": str(direct_attachment.get("reason", "no_adjacent_wall")), "message": str(direct_attachment.get("message", "Blocked: no adjacent wall.")), "object_id": "", "warnings": []}
-			var direct_anchor_cell: Vector2i = Vector2i(direct_attachment.get("anchor_floor_cell", Vector2i(-1, -1)))
-			result["direct_wall_cell_mount"] = true
-			result["blocks_movement"] = false
-			result["changes_passability"] = false
-			result["anchor_floor_cell"] = _serialize_cell_key(direct_anchor_cell) if _is_valid_grid_cell(direct_anchor_cell) else "-1,-1"
-			result["attached_wall_cell"] = _serialize_cell_key(cell)
-			result["wall_side"] = str(direct_attachment.get("wall_side", "south"))
-			result["interaction_side"] = result["wall_side"]
-			result["required_interaction_direction"] = WallMountedPlacementRulesServiceRef.get_required_interaction_direction({"wall_side": result["wall_side"], "interaction_side": result["wall_side"]})
-			result["available_wall_sides"] = Array(direct_attachment.get("available_wall_sides", []))
-			for object_data in mission_world_objects:
-				if str(object_data.get("placement_mode", "")) != "wall_mounted":
-					continue
-				if _deserialize_cell_variant(object_data.get("attached_wall_cell", "")) == cell and str(object_data.get("wall_side", "")).to_lower() == result["wall_side"]:
-					result["reason"] = "wall_mounted_side_occupied"
-					result["message"] = "Cannot mount on %s: wall side already has a mounted object." % _get_map_constructor_wall_side_label(result["wall_side"])
-					return result
-		else:
-			result["anchor_floor_cell"] = _serialize_cell_key(cell)
-			result["attached_wall_cell"] = "-1,-1"
-			if not normalized_side.is_empty() and _get_map_constructor_wall_side_delta(normalized_side) == Vector2i.ZERO:
-				result["reason"] = "wall_mounted_wrong_side"
-				result["message"] = "Cannot mount on %s: adjacent cell is not a wall." % _get_map_constructor_wall_side_label(preferred_wall_side)
-				return result
-			var available_sides: Array[String] = []
-			for side_entry in MAP_CONSTRUCTOR_WALL_SIDE_DELTAS:
-				var side_id: String = str(side_entry.get("side", ""))
-				var wall_cell: Vector2i = cell + _get_map_constructor_wall_side_delta(side_id)
-				if _is_map_constructor_wall_cell(wall_cell) and not is_breachable_wall_cell(wall_cell):
-					available_sides.append(side_id)
-			result["available_wall_sides"] = available_sides
-			if available_sides.is_empty():
-				result["reason"] = "wall_mounted_no_wall"
-				result["message"] = "Cannot mount here: no adjacent wall around anchor cell."
-				return result
-			if normalized_side.is_empty():
-				normalized_side = available_sides[0]
-			if not available_sides.has(normalized_side):
-				result["wall_side"] = normalized_side
-				result["reason"] = "wall_mounted_wrong_side"
-				result["message"] = "Cannot mount on %s: adjacent cell is not a wall." % _get_map_constructor_wall_side_label(normalized_side)
-				return result
-			var attached_wall_cell: Vector2i = cell + _get_map_constructor_wall_side_delta(normalized_side)
-			result["attached_wall_cell"] = _serialize_cell_key(attached_wall_cell)
-			result["wall_side"] = normalized_side
-			result["interaction_side"] = normalized_side
-			result["required_interaction_direction"] = WallMountedPlacementRulesServiceRef.get_required_interaction_direction({"wall_side": normalized_side, "interaction_side": normalized_side})
-			for object_data in mission_world_objects:
-				if str(object_data.get("placement_mode", "")) != "wall_mounted":
-					continue
-				if _deserialize_cell_variant(object_data.get("anchor_floor_cell", "")) == cell and str(object_data.get("wall_side", "")).to_lower() == normalized_side:
-					result["reason"] = "wall_mounted_side_occupied"
-					result["message"] = "Cannot mount on %s: wall side already has a mounted object." % _get_map_constructor_wall_side_label(normalized_side)
-					return result
-	if prefab_id != "powered_gate":
-		var tile_name: String = str(cell_state.get("tile_name", "")).to_lower()
-		if tile_name.find("exit") >= 0 or tile_name.find("extraction") >= 0:
-			result["reason"] = "exit_cell"
-			result["message"] = "Blocked: exit cell."
-			return result
-	result["ok"] = true
-	result["reason"] = "ok"
-	result["message"] = "OK"
-	return result
+	if not _is_task_test_constructor_context():
+		return {
+			"ok": false,
+			"reason": "not_constructor_context",
+			"message": "Operation is available only in TASK TEST constructor mode.",
+			"warnings": []
+		}
+
+	var normalized_prefab_id: String = prefab_id.strip_edges().to_lower()
+	if normalized_prefab_id.is_empty():
+		return {
+			"ok": false,
+			"reason": "empty_prefab",
+			"message": "No prefab selected.",
+			"warnings": []
+		}
+
+	if not _is_valid_grid_cell(cell):
+		return {
+			"ok": false,
+			"reason": "cell_out_of_bounds",
+			"message": "Cell is outside the constructor map.",
+			"warnings": []
+		}
+
+	var mode_override: String = placement_mode_override.strip_edges().to_lower()
+	var wants_wall_mount: bool = mode_override == "wall" or mode_override == "wall_mounted"
+
+	var wall_only_prefabs: Array[String] = [
+		"light",
+		"external_air_duct",
+		"external_water_pipe"
+	]
+
+	var floor_and_wall_prefabs: Array[String] = [
+		"fuse_box",
+		"power_socket",
+		"power_switcher",
+		"power_cable"
+	]
+
+	var is_wall_only_prefab: bool = wall_only_prefabs.has(normalized_prefab_id)
+	var is_floor_and_wall_prefab: bool = floor_and_wall_prefabs.has(normalized_prefab_id)
+	var can_share_wall_cell: bool = _is_map_constructor_wall_cell_share_prefab(normalized_prefab_id)
+
+	if is_wall_only_prefab:
+		wants_wall_mount = true
+
+	var tile_type: int = GridManager.TILE_FLOOR
+	if grid_manager != null and grid_manager.has_method("get_tile"):
+		tile_type = int(grid_manager.call("get_tile", cell))
+
+	var is_wall_cell: bool = _is_map_constructor_wall_cell(cell) if has_method("_is_map_constructor_wall_cell") else tile_type == GridManager.TILE_WALL
+
+	var canonical_prefab_id: String = WorldObjectCatalogRef.canonical_object_type(normalized_prefab_id)
+	var constructor_preview: Dictionary = WorldObjectCatalogRef.create_world_object(normalized_prefab_id, "constructor_preview")
+	if constructor_preview.is_empty():
+		constructor_preview = WorldObjectCatalogRef.create_world_object(canonical_prefab_id, "constructor_preview")
+
+	var requested_object_group: String = str(constructor_preview.get("object_group", "")).strip_edges().to_lower()
+	var requested_object_type: String = str(constructor_preview.get("object_type", canonical_prefab_id)).strip_edges().to_lower()
+	var requested_door_type: String = str(constructor_preview.get("door_type", "")).strip_edges().to_lower()
+	var requested_material: String = str(constructor_preview.get("material", "")).strip_edges().to_lower()
+
+	# Special #922 rule:
+	# These objects may share the same grid cell with an existing wall,
+	# but only when they are explicitly in wall/wall_mounted mode,
+	# or when they are wall-only prefabs.
+	if wants_wall_mount and can_share_wall_cell:
+		if not is_wall_cell:
+			return {
+				"ok": false,
+				"reason": "wall_mount_requires_wall_cell",
+				"message": "Wall-mounted object requires a wall cell.",
+				"placement_mode": "wall_mounted",
+				"direct_wall_cell_mount": false,
+				"warnings": []
+			}
+
+		var wall_side: String = preferred_wall_side.strip_edges().to_lower()
+		if wall_side.is_empty():
+			wall_side = "south"
+
+		var existing_wall_mounted: Dictionary = {}
+		if has_method("get_wall_mounted_world_object_at_cell"):
+			existing_wall_mounted = get_wall_mounted_world_object_at_cell(cell)
+
+		if not existing_wall_mounted.is_empty():
+			return {
+				"ok": false,
+				"reason": "wall_mounted_slot_occupied",
+				"message": "Wall cell already has a wall-mounted object.",
+				"placement_mode": "wall_mounted",
+				"direct_wall_cell_mount": true,
+				"wall_side": wall_side,
+				"warnings": []
+			}
+
+		return {
+			"ok": true,
+			"reason": "wall_cell_share_allowed",
+			"message": "Wall-mounted object can share wall cell.",
+			"placement_mode": "wall_mounted",
+			"direct_wall_cell_mount": true,
+			"wall_side": wall_side,
+			"anchor_floor_cell": cell,
+			"attached_wall_cell": cell,
+			"warnings": []
+		}
+
+	# Wall-only objects must never fall back to floor placement.
+	if is_wall_only_prefab:
+		return {
+			"ok": false,
+			"reason": "wall_only_requires_wall_mode",
+			"message": "This object can be placed only on a wall cell.",
+			"warnings": []
+		}
+
+	# Floor + wall-capable objects stay floor-placeable when wall mode is not selected.
+	# But floor placement into a wall cell is still rejected.
+	if is_floor_and_wall_prefab and is_wall_cell:
+		return {
+			"ok": false,
+			"reason": "floor_mode_blocked_by_wall_cell",
+			"message": "Select wall placement mode to place this object on a wall.",
+			"warnings": []
+		}
+
+	if is_map_constructor_item_prefab(normalized_prefab_id):
+		if is_wall_cell:
+			return {
+				"ok": false,
+				"reason": "item_blocked_by_wall_cell",
+				"message": "Items cannot be placed inside a wall cell.",
+				"warnings": []
+			}
+
+		return {
+			"ok": true,
+			"reason": "item_placeable",
+			"message": "Item can be placed.",
+			"placement_mode": "item",
+			"warnings": []
+		}
+
+	var existing_object: Dictionary = Dictionary(world_objects_by_cell.get(cell, {}))
+	if not existing_object.is_empty():
+		return {
+			"ok": false,
+			"reason": "cell_has_world_object",
+			"message": "Cell already has an object.",
+			"warnings": []
+		}
+
+	var items_here: Array[Dictionary] = get_items_at_cell(cell) if has_method("get_items_at_cell") else []
+	if not items_here.is_empty():
+		return {
+			"ok": false,
+			"reason": "cell_has_items",
+			"message": "Cell already has item(s).",
+			"warnings": []
+		}
+
+	if normalized_prefab_id == "stepped_floor":
+		if is_wall_cell:
+			return {
+				"ok": false,
+				"reason": "stepped_floor_blocked_by_wall",
+				"message": "Stepped floor cannot replace a wall cell.",
+				"warnings": []
+			}
+
+		return {
+			"ok": true,
+			"reason": "tile_placeable",
+			"message": "Stepped floor can be placed.",
+			"placement_mode": "tile",
+			"warnings": []
+		}
+
+	if requested_object_group == "wall":
+		if not existing_object.is_empty():
+			return {
+				"ok": false,
+				"reason": "wall_cell_occupied",
+				"message": "Cannot place wall over existing object.",
+				"warnings": []
+			}
+
+		return {
+			"ok": true,
+			"reason": "wall_placeable",
+			"message": "Wall can be placed.",
+			"placement_mode": "object",
+			"warnings": []
+		}
+
+	if requested_object_group == "door" or requested_object_type.contains("door") or requested_object_type.contains("gate") or requested_door_type != "" or requested_material == WorldObjectCatalogRef.DOOR_MATERIAL_ENERGY:
+		return {
+			"ok": true,
+			"reason": "door_placeable",
+			"message": "Door can be placed.",
+			"placement_mode": "object",
+			"warnings": []
+		}
+
+	if is_wall_cell:
+		return {
+			"ok": false,
+			"reason": "object_blocked_by_wall_cell",
+			"message": "Object cannot be placed inside a wall cell.",
+			"warnings": []
+		}
+
+	return {
+		"ok": true,
+		"reason": "object_placeable",
+		"message": "Object can be placed.",
+		"placement_mode": "object",
+		"warnings": []
+	}
 
 func _ensure_map_constructor_service() -> MapConstructorService:
 	if map_constructor_service == null:
