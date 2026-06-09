@@ -172,6 +172,8 @@ func place_map_constructor_prefab(prefab_id: String, cell: Vector2i, preferred_w
 			object_data["install_mode"] = "floor"
 		if str(object_data.get("placement_mode", "")).strip_edges().to_lower() == "wall_mounted":
 			object_data["placement_mode"] = "object"
+	if str(check.get("placement_mode", "")) == "wall_mounted" and CableTopologyServiceRef.is_cable_object(object_data):
+		object_data = _apply_wall_cable_placement_metadata(object_data, object_data.get("wall_side", check.get("wall_side", preferred_wall_side)))
 	if CableTopologyServiceRef.is_cable_object(object_data):
 		if _normalize_cable_install_mode(object_data.get("cable_install_mode", object_data.get("install_mode", "floor"))) == "wall" and not manager._is_map_constructor_wall_cell(cell):
 			return {"ok": false, "reason": "wall_cable_requires_wall", "message": "Wall cable requires a wall in this cell.", "object_id": "", "warnings": []}
@@ -184,6 +186,8 @@ func place_map_constructor_prefab(prefab_id: String, cell: Vector2i, preferred_w
 	object_data = WorldObjectCatalogRef.normalize_world_object_contract(object_data)
 	object_data = WorldObjectCatalogRef.normalize_door_state_fields(object_data)
 	if str(check.get("placement_mode", "")) == "wall_mounted":
+		if CableTopologyServiceRef.is_cable_object(object_data):
+			object_data = _apply_wall_cable_placement_metadata(object_data, object_data.get("wall_side", check.get("wall_side", preferred_wall_side)))
 		object_data["placement_mode"] = "wall_mounted"
 		object_data["is_wall_mounted"] = true
 		object_data["mount"] = "wall"
@@ -220,6 +224,41 @@ func place_map_constructor_prefab(prefab_id: String, cell: Vector2i, preferred_w
 	
 	manager._record_map_constructor_change("place", {"entity_kind":"world_object", "entity_id":object_id, "object_type":canonical_prefab_id, "cell":cell, "summary":"Placed %s at %s" % [prefab_id, manager._format_map_constructor_cell(cell)], "undo_hint":"Can undo by deleting object."})
 	return result
+
+func _normalize_wall_cable_visual_side(value: Variant) -> String:
+	var side: String = str(value).strip_edges().to_lower()
+	side = side.replace("-", "_")
+	side = side.replace(" ", "_")
+	match side:
+		"se", "south_east", "southeast", "east", "right":
+			return "se"
+		"sw", "south_west", "southwest", "south", "west", "left":
+			return "sw"
+	return "sw"
+
+func _apply_wall_cable_placement_metadata(data: Dictionary, selected_wall_side: Variant = "") -> Dictionary:
+	if not CableTopologyServiceRef.is_cable_object(data):
+		return data
+	var wall_side: String = _normalize_wall_cable_visual_side(data.get("wall_side", data.get("interaction_side", selected_wall_side)))
+	if str(selected_wall_side).strip_edges() != "":
+		wall_side = _normalize_wall_cable_visual_side(selected_wall_side)
+	data["mount"] = "wall"
+	data["install_mode"] = "wall"
+	data["cable_install_mode"] = "wall"
+	data["route_surface"] = "wall"
+	data["placement_mode"] = "wall_mounted"
+	data["is_wall_mounted"] = true
+	data["wall_routing_mode"] = str(data.get("wall_routing_mode", "outer")).strip_edges().to_lower()
+	if data["wall_routing_mode"] not in ["outer", "inner"]:
+		data["wall_routing_mode"] = "outer"
+	data["wall_side"] = wall_side
+	data["interaction_side"] = wall_side
+	data["facing_side"] = wall_side
+	data["facing_dir"] = wall_side
+	data["mirror_visual_for_facing_side"] = true
+	data["hidden_installation"] = false
+	data["is_hidden"] = false
+	return data
 
 func _remove_map_constructor_entity_by_id(entity_kind: String, entity_id: String) -> Dictionary:
 	if entity_kind == "item":
@@ -290,6 +329,9 @@ func _clone_map_constructor_entity_data(source_data: Dictionary, target_cell: Ve
 		clone_data["anchor_floor_cell"] = manager._serialize_cell_key(target_cell)
 		clone_data["attached_wall_cell"] = manager._serialize_cell_key(Vector2i(attachment.get("attached_wall_cell", Vector2i(-1, -1))))
 		clone_data["wall_side"] = str(attachment.get("wall_side", "north"))
+		clone_data["interaction_side"] = clone_data["wall_side"]
+		if CableTopologyServiceRef.is_cable_object(clone_data):
+			clone_data = _apply_wall_cable_placement_metadata(clone_data, clone_data.get("wall_side", preferred_wall_side))
 	return {"ok": true, "data": clone_data}
 
 func move_map_constructor_entity_to_cell(entity_kind: String, entity_id: String, target_cell: Vector2i, preferred_wall_side: String = "") -> Dictionary:
