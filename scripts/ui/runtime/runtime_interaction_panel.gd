@@ -1,12 +1,16 @@
 extends RefCounted
 class_name RuntimeInteractionPanel
-
+const WorldObjectCatalogRef = preload("res://scripts/world/world_object_catalog.gd")
 
 static func get_target_data(ui) -> Dictionary:
 	if ui.bipob == null or not ui.bipob.has_method("get_facing_world_action_target"):
 		return {"target_object": {}, "actions": []}
 	return ui._safe_ui_dictionary(ui.bipob.call("get_facing_world_action_target"))
 
+static func is_heavy_claw_movable_target(target_object: Dictionary) -> bool:
+	if target_object.is_empty():
+		return false
+	return WorldObjectCatalogRef.can_world_object_be_moved_by_heavy_claw(target_object)
 
 static func is_connector_action(action_id: String) -> bool:
 	return action_id in ["connect", "scan", "hack", "download", "activate_platform", "open_door", "close_door", "unlock_door", "apply_digital_key", "input_password"] or action_id.begins_with("access_code_")
@@ -109,23 +113,38 @@ static func press_action(ui, action_id: String) -> void:
 static func press_interact(ui) -> void:
 	if ui.map_constructor_state.map_constructor_mode_active or ui.bipob == null:
 		return
+
+	var target_data: Dictionary = get_target_data(ui)
+	var target_object: Dictionary = ui._safe_ui_dictionary(target_data.get("target_object", {}))
+
+	if is_heavy_claw_movable_target(target_object):
+		ui.runtime_interaction_mode_active = false
+
+		if ui.runtime_world_actions_panel != null and is_instance_valid(ui.runtime_world_actions_panel):
+			ui.runtime_world_actions_panel.visible = false
+
+		refresh_controls(ui)
+		ui.update_status()
+		return
+
 	if ui.runtime_interaction_mode_active:
 		exit_mode(ui)
 		ui.update_status()
 		return
+
 	if not _has_action_points(ui):
 		ui.show_hint("No actions left. End turn.")
 		refresh_controls(ui)
 		ui.update_status()
 		return
-	var target_data: Dictionary = get_target_data(ui)
-	var target_object: Dictionary = ui._safe_ui_dictionary(target_data.get("target_object", {}))
+
 	var action_view_model: Dictionary = ui._safe_ui_dictionary(target_data.get("action_view_model", {}))
 	if not target_object.is_empty() and bool(action_view_model.get("has_interaction_target", false)):
 		enter_mode(ui)
 		ui.show_hint("")
 		ui.update_status()
 		return
+
 	if not target_object.is_empty():
 		var unavailable_label: String = str(action_view_model.get("primary_action_label", ""))
 		if unavailable_label.is_empty() or unavailable_label == "Action":
@@ -136,10 +155,10 @@ static func press_interact(ui) -> void:
 		refresh_controls(ui)
 		ui.update_status()
 		return
+
 	ui.show_hint("No physical action available. Face an interactable object first.")
 	refresh_controls(ui)
 	ui.update_status()
-
 
 static func press_connect(ui) -> void:
 	if ui.map_constructor_state.map_constructor_mode_active or ui.bipob == null:
