@@ -7,6 +7,11 @@ const RuntimeInteractionPresenterRef = preload("res://scripts/ui/runtime/runtime
 const RuntimeNotificationsRef = preload("res://scripts/ui/runtime/runtime_notifications.gd")
 const RuntimeHeavyClawPresenterRef = preload("res://scripts/ui/runtime/runtime_heavy_claw_presenter.gd")
 
+const RESOURCE_COLOR_HIGH: Color = Color(0.250, 0.850, 0.480, 1.0)
+const RESOURCE_COLOR_MID: Color = Color(0.950, 0.720, 0.180, 1.0)
+const RESOURCE_COLOR_LOW: Color = Color(0.950, 0.250, 0.250, 1.0)
+const RESOURCE_OUTLINE_COLOR: Color = Color(1.0, 1.0, 1.0, 0.72)
+
 var ui = null
 
 
@@ -35,7 +40,37 @@ func is_manipulator_blocked(target_object: Dictionary, actions: Array) -> bool:
 	return RuntimeInteractionPanelRef.is_manipulator_blocked(ui, target_object, actions)
 
 
+func _get_resource_ratio(current_value: int, max_value: int) -> float:
+	if max_value <= 0:
+		return 1.0
+	return clampf(float(current_value) / float(max_value), 0.0, 1.0)
+
+
+func _get_resource_gradient_color(current_value: int, max_value: int) -> Color:
+	var ratio: float = _get_resource_ratio(current_value, max_value)
+	if ratio >= 0.5:
+		return RESOURCE_COLOR_MID.lerp(RESOURCE_COLOR_HIGH, (ratio - 0.5) * 2.0)
+	return RESOURCE_COLOR_LOW.lerp(RESOURCE_COLOR_MID, ratio * 2.0)
+
+
+func _apply_resource_label_style(label: Label, current_value: int, max_value: int) -> void:
+	if label == null or not is_instance_valid(label):
+		return
+	var resource_color: Color = _get_resource_gradient_color(current_value, max_value)
+	label.add_theme_color_override("font_color", resource_color)
+	label.add_theme_color_override("font_outline_color", RESOURCE_OUTLINE_COLOR)
+	label.add_theme_constant_override("outline_size", 1)
+
+
+func _apply_runtime_resource_label_styles() -> void:
+	if ui == null or ui.bipob == null:
+		return
+	_apply_resource_label_style(ui.runtime_energy_label, int(ui.bipob.energy), maxi(int(ui.bipob.max_energy), 1))
+	_apply_resource_label_style(ui.runtime_actions_label, int(ui.bipob.actions_left), maxi(int(ui.bipob.actions_per_turn), 1))
+
+
 func refresh_controls() -> void:
+	_apply_runtime_resource_label_styles()
 	RuntimeInteractionPresenterRef.refresh(ui)
 
 
