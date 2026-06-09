@@ -3621,28 +3621,109 @@ func _partition_wall_cable_anchors_by_side(anchors: Array) -> Dictionary:
 			continue
 		groups[wall_side].append(anchor)
 	return groups
+func _get_wall_cable_anchor_id(anchor: Dictionary) -> String:
+	return str(anchor.get("object_id", "")).strip_edges()
 
-func _draw_wall_cable_side_anchor_segment(anchors: Array, profile: Dictionary) -> void:
-	if anchors.is_empty():
+
+func _get_wall_cable_corner_boundary_ids(circuit_anchors: Array) -> Dictionary:
+	var boundary_ids: Dictionary = {}
+	var groups: Dictionary = _partition_wall_cable_anchors_by_side(circuit_anchors)
+
+	var sw_anchors: Array = Array(groups.get("sw", []))
+	var se_anchors: Array = Array(groups.get("se", []))
+
+	for sw_anchor_variant in sw_anchors:
+		var sw_anchor: Dictionary = Dictionary(sw_anchor_variant)
+		if not bool(sw_anchor.get("is_cable", false)):
+			continue
+
+		var se_anchor: Dictionary = _find_nearest_wall_cable_corner_anchor(sw_anchor, se_anchors)
+		if se_anchor.is_empty():
+			continue
+
+		var mutual_sw_anchor: Dictionary = _find_nearest_wall_cable_corner_anchor(se_anchor, sw_anchors)
+		if mutual_sw_anchor.is_empty():
+			continue
+
+		if _get_wall_cable_anchor_id(mutual_sw_anchor) != _get_wall_cable_anchor_id(sw_anchor):
+			continue
+
+		boundary_ids[_get_wall_cable_anchor_id(sw_anchor)] = true
+		boundary_ids[_get_wall_cable_anchor_id(se_anchor)] = true
+
+	return boundary_ids
+
+
+func _draw_wall_cable_local_anchor_segment(anchor: Dictionary, profile: Dictionary) -> void:
+	if not bool(anchor.get("is_cable", false)):
 		return
-	var sorted_anchors: Array[Dictionary] = []
-	for anchor_variant in anchors:
-		_insert_sorted_wall_cable_anchor(sorted_anchors, Dictionary(anchor_variant))
-	if sorted_anchors.size() >= 2:
-		var first_anchor: Dictionary = Dictionary(sorted_anchors[0])
-		var last_anchor: Dictionary = Dictionary(sorted_anchors[sorted_anchors.size() - 1])
-		draw_iso_cable_wall_segment(Vector2(first_anchor.get("rail_anchor", Vector2.ZERO)), Vector2(last_anchor.get("rail_anchor", Vector2.ZERO)), profile)
-		return
-	var only_anchor: Dictionary = Dictionary(sorted_anchors[0])
-	if not bool(only_anchor.get("is_cable", false)):
-		return
-	var cell: Vector2i = Vector2i(only_anchor.get("cell", Vector2i(-1, -1)))
+
+	var cell: Vector2i = Vector2i(anchor.get("cell", Vector2i(-1, -1)))
 	if cell.x < 0 or cell.y < 0:
 		return
-	var wall_side: String = str(only_anchor.get("wall_side", "sw"))
-	var rail_segment: Dictionary = _get_wall_cable_rail_segment(cell, wall_side)
-	draw_iso_cable_wall_segment(Vector2(rail_segment.get("start", grid_to_iso(cell))), Vector2(rail_segment.get("end", grid_to_iso(cell))), profile)
 
+	var wall_side: String = str(anchor.get("wall_side", "sw"))
+	var rail_segment: Dictionary = _get_wall_cable_rail_segment(cell, wall_side)
+	draw_iso_cable_wall_segment(
+		Vector2(rail_segment.get("start", grid_to_iso(cell))),
+		Vector2(rail_segment.get("end", grid_to_iso(cell))),
+		profile
+	)
+
+
+func _draw_wall_cable_side_anchor_segments_clipped(side_anchors: Array, all_circuit_anchors: Array, profile: Dictionary) -> void:
+	if side_anchors.is_empty():
+		return
+
+	var sorted_anchors: Array[Dictionary] = []
+	for anchor_variant in side_anchors:
+		_insert_sorted_wall_cable_anchor(sorted_anchors, Dictionary(anchor_variant))
+
+	if sorted_anchors.size() == 1:
+		_draw_wall_cable_local_anchor_segment(Dictionary(sorted_anchors[0]), profile)
+		return
+
+	var boundary_ids: Dictionary = _get_wall_cable_corner_boundary_ids(all_circuit_anchors)
+
+	# Если на этой стороне нет углового boundary, старое поведение безопасно:
+	# одна непрерывная линия от первого до последнего anchor.
+	var has_boundary: bool = false
+	for anchor_variant in sorted_anchors:
+		var anchor: Dictionary = Dictionary(anchor_variant)
+		if boundary_ids.has(_get_wall_cable_anchor_id(anchor)):
+			has_boundary = true
+			break
+
+	if not has_boundary:
+		var first_anchor: Dictionary = Dictionary(sorted_anchors[0])
+		var last_anchor: Dictionary = Dictionary(sorted_anchors[sorted_anchors.size() - 1])
+		draw_iso_cable_wall_segment(
+			Vector2(first_anchor.get("rail_anchor", Vector2.ZERO)),
+			Vector2(last_anchor.get("rail_anchor", Vector2.ZERO)),
+			profile
+		)
+		return
+
+	# Если есть угол, больше нельзя рисовать first->last.
+	# Рисуем только соседние участки, и не протягиваем линию через boundary дальше.
+	for index in range(sorted_anchors.size() - 1):
+		var current_anchor: Dictionary = Dictionary(sorted_anchors[index])
+		var next_anchor: Dictionary = Dictionary(sorted_anchors[index + 1])
+
+		var current_is_boundary: bool = boundary_ids.has(_get_wall_cable_anchor_id(current_anchor))
+		var next_is_boundary: bool = boundary_ids.has(_get_wall_cable_anchor_id(next_anchor))
+
+		draw_iso_cable_wall_segment(
+			Vector2(current_anchor.get("rail_anchor", Vector2.ZERO)),
+			Vector2(next_anchor.get("rail_anchor", Vector2.ZERO)),
+			profile
+		)
+
+		# Важно: если дошли до угла, дальше на этой стороне не продолжаем.
+		# Это и есть визуальное обрезание кабеля перекрывающей стеной.
+		if current_is_boundary or next_is_boundary:
+			break
+			
 func _get_wall_cable_corner_bridge_match_info(anchor_a: Dictionary, anchor_b: Dictionary) -> Dictionary:
 	var wall_side_a: String = str(anchor_a.get("wall_side", ""))
 	var wall_side_b: String = str(anchor_b.get("wall_side", ""))
@@ -3795,8 +3876,8 @@ func _draw_wall_cable_run_graphics(run_cells: Array[Vector2i], object_data: Dict
 		anchors = _collect_wall_cable_circuit_anchors_any_side(object_data, head_cell)
 
 	var side_groups: Dictionary = _partition_wall_cable_anchors_by_side(anchors)
-	_draw_wall_cable_side_anchor_segment(Array(side_groups.get("sw", [])), profile)
-	_draw_wall_cable_side_anchor_segment(Array(side_groups.get("se", [])), profile)
+	_draw_wall_cable_side_anchor_segments_clipped(Array(side_groups.get("sw", [])), anchors, profile)
+	_draw_wall_cable_side_anchor_segments_clipped(Array(side_groups.get("se", [])), anchors, profile)
 	_draw_wall_cable_corner_bridges(anchors, profile)
 
 	var world_objects: Array[Dictionary] = _get_runtime_world_objects_for_iso_render(true)
