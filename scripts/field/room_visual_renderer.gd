@@ -3612,7 +3612,7 @@ func _collect_wall_cable_circuit_anchors_any_side(base_data: Dictionary, base_ce
 		anchors.append(anchor)
 	return anchors
 
-func _partition_wall_cable_anchors_by_side(anchors: Array[Dictionary]) -> Dictionary:
+func _partition_wall_cable_anchors_by_side(anchors: Array) -> Dictionary:
 	var groups: Dictionary = {"sw": [], "se": []}
 	for anchor_variant in anchors:
 		var anchor: Dictionary = Dictionary(anchor_variant)
@@ -3622,7 +3622,7 @@ func _partition_wall_cable_anchors_by_side(anchors: Array[Dictionary]) -> Dictio
 		groups[wall_side].append(anchor)
 	return groups
 
-func _draw_wall_cable_side_anchor_segment(anchors: Array[Dictionary], profile: Dictionary) -> void:
+func _draw_wall_cable_side_anchor_segment(anchors: Array, profile: Dictionary) -> void:
 	if anchors.is_empty():
 		return
 	var sorted_anchors: Array[Dictionary] = []
@@ -3670,7 +3670,7 @@ func _get_wall_cable_corner_bridge_joint(anchor_a: Dictionary, anchor_b: Diction
 		return grid_to_iso(cell_a) + Vector2(0.0, -half_size.y * 0.18 - _get_wall_cable_rail_height_px())
 	return rail_a.lerp(rail_b, 0.5)
 
-func _find_nearest_wall_cable_corner_anchor(anchor: Dictionary, candidates: Array[Dictionary]) -> Dictionary:
+func _find_nearest_wall_cable_corner_anchor(anchor: Dictionary, candidates: Array) -> Dictionary:
 	var nearest_anchor: Dictionary = {}
 	var nearest_distance: float = INF
 	var rail_anchor: Vector2 = Vector2(anchor.get("rail_anchor", Vector2.ZERO))
@@ -3685,7 +3685,7 @@ func _find_nearest_wall_cable_corner_anchor(anchor: Dictionary, candidates: Arra
 			nearest_anchor = candidate
 	return nearest_anchor
 
-func _draw_wall_cable_corner_bridges(circuit_anchors: Array[Dictionary], profile: Dictionary) -> void:
+func _draw_wall_cable_corner_bridges(circuit_anchors: Array, profile: Dictionary) -> void:
 	var groups: Dictionary = _partition_wall_cable_anchors_by_side(circuit_anchors)
 	var sw_anchors: Array[Dictionary] = []
 	for anchor_variant in Array(groups.get("sw", [])):
