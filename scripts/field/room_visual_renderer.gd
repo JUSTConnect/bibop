@@ -3669,60 +3669,74 @@ func _draw_wall_cable_local_anchor_segment(anchor: Dictionary, profile: Dictiona
 		Vector2(rail_segment.get("end", grid_to_iso(cell))),
 		profile
 	)
+func _get_wall_cable_anchor_face_run_key(anchor: Dictionary) -> String:
+	var object_data: Dictionary = Dictionary(anchor.get("object_data", {}))
+	var cell: Vector2i = Vector2i(anchor.get("cell", Vector2i(-1, -1)))
+	var wall_side: String = str(anchor.get("wall_side", ""))
+	var routing_mode: String = str(anchor.get("routing_mode", ""))
+
+	if object_data.is_empty() or cell.x < 0 or cell.y < 0 or wall_side.is_empty():
+		return "invalid"
+
+	var plane_key: String = _get_wall_cable_face_run_span_key(cell, wall_side)
+	return "%s|%s|%s" % [wall_side, routing_mode, plane_key]
 
 
-func _draw_wall_cable_side_anchor_segments_clipped(side_anchors: Array, all_circuit_anchors: Array, profile: Dictionary) -> void:
-	if side_anchors.is_empty():
+func _partition_wall_cable_anchors_by_face_run(anchors: Array) -> Dictionary:
+	var groups: Dictionary = {}
+
+	for anchor_variant in anchors:
+		var anchor: Dictionary = Dictionary(anchor_variant)
+		var key: String = _get_wall_cable_anchor_face_run_key(anchor)
+
+		if key == "invalid":
+			continue
+
+		if not groups.has(key):
+			groups[key] = []
+
+		Array(groups[key]).append(anchor)
+
+	return groups
+
+
+func _draw_sorted_wall_cable_anchor_span(sorted_anchors: Array, profile: Dictionary) -> void:
+	if sorted_anchors.is_empty():
 		return
-
-	var sorted_anchors: Array[Dictionary] = []
-	for anchor_variant in side_anchors:
-		_insert_sorted_wall_cable_anchor(sorted_anchors, Dictionary(anchor_variant))
 
 	if sorted_anchors.size() == 1:
 		_draw_wall_cable_local_anchor_segment(Dictionary(sorted_anchors[0]), profile)
 		return
 
-	var boundary_ids: Dictionary = _get_wall_cable_corner_boundary_ids(all_circuit_anchors)
+	var first_anchor: Dictionary = Dictionary(sorted_anchors[0])
+	var last_anchor: Dictionary = Dictionary(sorted_anchors[sorted_anchors.size() - 1])
 
-	# Если на этой стороне нет углового boundary, старое поведение безопасно:
-	# одна непрерывная линия от первого до последнего anchor.
-	var has_boundary: bool = false
-	for anchor_variant in sorted_anchors:
-		var anchor: Dictionary = Dictionary(anchor_variant)
-		if boundary_ids.has(_get_wall_cable_anchor_id(anchor)):
-			has_boundary = true
-			break
+	draw_iso_cable_wall_segment(
+		Vector2(first_anchor.get("rail_anchor", Vector2.ZERO)),
+		Vector2(last_anchor.get("rail_anchor", Vector2.ZERO)),
+		profile
+	)
 
-	if not has_boundary:
-		var first_anchor: Dictionary = Dictionary(sorted_anchors[0])
-		var last_anchor: Dictionary = Dictionary(sorted_anchors[sorted_anchors.size() - 1])
-		draw_iso_cable_wall_segment(
-			Vector2(first_anchor.get("rail_anchor", Vector2.ZERO)),
-			Vector2(last_anchor.get("rail_anchor", Vector2.ZERO)),
-			profile
-		)
+func _draw_wall_cable_side_anchor_segments_clipped(side_anchors: Array, all_circuit_anchors: Array, profile: Dictionary) -> void:
+	if side_anchors.is_empty():
 		return
 
-	# Если есть угол, больше нельзя рисовать first->last.
-	# Рисуем только соседние участки, и не протягиваем линию через boundary дальше.
-	for index in range(sorted_anchors.size() - 1):
-		var current_anchor: Dictionary = Dictionary(sorted_anchors[index])
-		var next_anchor: Dictionary = Dictionary(sorted_anchors[index + 1])
+	# ВАЖНО:
+	# Больше нельзя рисовать один общий first -> last для всего wall_side.
+	# Один wall_side может содержать разные видимые wall face runs,
+	# особенно около внутреннего угла / перекрывающей стены.
+	var face_run_groups: Dictionary = _partition_wall_cable_anchors_by_face_run(side_anchors)
 
-		var current_is_boundary: bool = boundary_ids.has(_get_wall_cable_anchor_id(current_anchor))
-		var next_is_boundary: bool = boundary_ids.has(_get_wall_cable_anchor_id(next_anchor))
+	for group_key in face_run_groups.keys():
+		var group_anchors: Array = Array(face_run_groups.get(group_key, []))
+		if group_anchors.is_empty():
+			continue
 
-		draw_iso_cable_wall_segment(
-			Vector2(current_anchor.get("rail_anchor", Vector2.ZERO)),
-			Vector2(next_anchor.get("rail_anchor", Vector2.ZERO)),
-			profile
-		)
+		var sorted_anchors: Array[Dictionary] = []
+		for anchor_variant in group_anchors:
+			_insert_sorted_wall_cable_anchor(sorted_anchors, Dictionary(anchor_variant))
 
-		# Важно: если дошли до угла, дальше на этой стороне не продолжаем.
-		# Это и есть визуальное обрезание кабеля перекрывающей стеной.
-		if current_is_boundary or next_is_boundary:
-			break
+		_draw_sorted_wall_cable_anchor_span(sorted_anchors, profile)
 			
 func _get_wall_cable_corner_bridge_match_info(anchor_a: Dictionary, anchor_b: Dictionary) -> Dictionary:
 	var wall_side_a: String = str(anchor_a.get("wall_side", ""))
