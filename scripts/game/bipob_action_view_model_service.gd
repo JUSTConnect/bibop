@@ -222,6 +222,7 @@ static func _runtime_action_disabled_label(controller: Variant, action_id: Strin
 		"wrong_breach_side": return "Cracked side only"
 		"wrong_wall_side": return ObjectFacingServiceRef.FRONT_SIDE_HINT
 		"wrong_front_side": return ObjectFacingServiceRef.FRONT_SIDE_HINT
+		"face_object_to_attach_heavy_claw": return "Face the object to attach Heavy Claw."
 		"heavy_claw_required": return "Heavy Claw required"
 	if BreachableWallServiceRef.is_breachable_wall_data(target_object) and action_id == BreachableWallServiceRef.ACTION_BREAK_BREACHABLE_WALL:
 		return "Heavy Claw required"

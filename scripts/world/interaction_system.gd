@@ -55,6 +55,11 @@ static func _actor_has_free_storage_slot(actor: Dictionary) -> bool:
 
 	return has_free_pocket_slot or has_free_manipulator_slot
 	
+static func _is_heavy_claw_movable_action(action_type: String, target_object: Dictionary) -> bool:
+	if action_type not in ["push", "pull"]:
+		return false
+	return WorldObjectCatalogRef.can_world_object_be_moved_by_heavy_claw(target_object)
+
 static func can_apply_action(actor: Dictionary, module: Dictionary, target_object: Dictionary, action_type: String) -> Dictionary:
 	action_type = normalize_action_id(action_type)
 	if action_type not in SUPPORTED_ACTIONS:
@@ -72,7 +77,13 @@ static func can_apply_action(actor: Dictionary, module: Dictionary, target_objec
 		var wall_mount_gate: Dictionary = WallMountedPlacementRulesServiceRef.build_interaction_payload(target_object, actor_position_for_wall_mount - wall_position_for_mount)
 		if not bool(wall_mount_gate.get("can_interact", false)):
 			return _result(false, str(wall_mount_gate.get("message", "Object can be used only from its mounted side.")), [], "wrong_wall_side")
-	if not is_wall_mounted_target:
+	if _is_heavy_claw_movable_action(action_type, target_object):
+		var object_cell: Vector2i = WorldObjectCatalogRef.to_world_cell(target_object.get("position", actor.get("target_position", Vector2i(-1, -1))), Vector2i(-1, -1))
+		var actor_cell: Vector2i = WorldObjectCatalogRef.to_world_cell(actor.get("actor_position", Vector2i(-1, -1)), Vector2i(-1, -1))
+		var facing_direction: Vector2i = Vector2i(actor.get("facing_direction", Vector2i.ZERO))
+		if object_cell != actor_cell + facing_direction:
+			return _result(false, "Face the object to attach Heavy Claw.", [], "face_object_to_attach_heavy_claw")
+	elif not is_wall_mounted_target:
 		var front_side_gate: Dictionary = ObjectFacingServiceRef.build_interaction_gate(
 			target_object,
 			WorldObjectCatalogRef.to_world_cell(target_object.get("position", actor.get("target_position", Vector2i(-1, -1))), Vector2i(-1, -1)),
@@ -109,6 +120,8 @@ static func can_apply_action(actor: Dictionary, module: Dictionary, target_objec
 			var unlock_gate: Dictionary = _validate_door_class(actor, unlock_target, true)
 			if not bool(unlock_gate.get("success", false)):
 				return unlock_gate
+	if action_type == "open" and str(target_object.get("object_type", "")).strip_edges().to_lower() == "case" and module_id == "manipulator_heavy_claw_v1":
+		return _result(false, "Heavy Claw cannot open cases.", [], "heavy_claw_cannot_open_case")
 	if action_type == "break_breachable_wall":
 		if str(target_object.get("object_group", "")) != "wall" or str(target_object.get("wall_archetype", "")) != "breachable":
 			return _result(false, "Target is not a Breachable Wall.", [], "not_breachable_wall")
@@ -133,6 +146,8 @@ static func can_apply_action(actor: Dictionary, module: Dictionary, target_objec
 		if str(module.get("id", "")).is_empty() or int(actor.get(interface_field, actor.get("connector_level", 0))) < int(target_object.get("required_connector_level", 1)):
 			return _result(false, "Connector Version too low.", [], "connector_level_too_low")
 	if action_type == "pickup":
+		if module_id == "manipulator_heavy_claw_v1":
+			return _result(false, "Heavy Claw cannot pick up items.", [], "heavy_claw_cannot_pickup")
 		pass
 	if action_type == "remove_fuse":
 		if not module_id.begins_with("manipulator_arm_v"):
