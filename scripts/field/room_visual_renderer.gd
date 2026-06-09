@@ -3322,6 +3322,134 @@ func get_wall_mount_side_visual_offset(object_data: Dictionary) -> Vector2:
 
 	return Vector2(-half_size.x * 0.36, -half_size.y * 0.18)
 
+func get_wall_routing_mode(object_data: Dictionary) -> String:
+	var candidates: Array[String] = [
+		str(object_data.get("wall_routing_mode", "")),
+		str(object_data.get("routing_mode", "")),
+		str(object_data.get("routing_style", ""))
+	]
+	for raw_candidate in candidates:
+		var mode: String = raw_candidate.strip_edges().to_lower()
+		mode = mode.replace("-", "_")
+		mode = mode.replace(" ", "_")
+		match mode:
+			"inner", "inside", "embedded", "recessed":
+				return "inner"
+			"outer", "outside", "external", "surface":
+				return "outer"
+	return "outer"
+
+func _is_wall_routed_visual_object_type(object_type: String) -> bool:
+	return object_type in ["power_cable", "power_cable_reel", "external_air_duct", "external_water_pipe"]
+
+func _is_wall_routed_visual_object(object_data: Dictionary) -> bool:
+	var object_type: String = str(object_data.get("object_type", object_data.get("type", ""))).strip_edges().to_lower()
+	if not _is_wall_routed_visual_object_type(object_type):
+		return false
+	return _get_object_mount_mode(object_data) == "wall" or is_wall_mounted_runtime_object(object_data)
+
+func _draw_wall_routed_dashed_line(start: Vector2, end: Vector2, dash_length: float, gap_length: float, color: Color, width: float) -> void:
+	var delta: Vector2 = end - start
+	var length: float = delta.length()
+	if length <= 0.1:
+		return
+	var direction: Vector2 = delta / length
+	var cursor: float = 0.0
+	while cursor < length:
+		var dash_end: float = minf(cursor + dash_length, length)
+		var dash_start: Vector2 = start + direction * cursor
+		var dash_stop: Vector2 = start + direction * dash_end
+		draw_line(dash_start, dash_stop, color, width, true)
+		cursor += dash_length + gap_length
+
+func draw_iso_wall_routed_cable(center: Vector2, side: String, routing_mode: String, height_screen_px: float) -> void:
+	var side_sign: float = -1.0 if side == "sw" else 1.0
+	var half_height: float = height_screen_px * 0.5
+	var top_point: Vector2 = center + Vector2(side_sign * 4.0, -half_height)
+	var bottom_point: Vector2 = center + Vector2(-side_sign * 4.0, half_height)
+	var shadow_color: Color = Color(0.02, 0.02, 0.03, 0.28)
+	if routing_mode == "inner":
+		draw_line(top_point + Vector2(0.0, 1.0), bottom_point + Vector2(0.0, 1.0), shadow_color, 3.6, true)
+		_draw_wall_routed_dashed_line(top_point, bottom_point, 1.9, 1.4, Color(0.84, 0.88, 0.92, 0.52), 1.2)
+		draw_circle(center + Vector2(0.0, 0.2), 1.4, Color(0.35, 0.36, 0.4, 0.82))
+		return
+	draw_line(top_point + Vector2(0.0, 1.0), bottom_point + Vector2(0.0, 1.0), shadow_color, 4.2, true)
+	draw_line(top_point, bottom_point, Color(0.12, 0.13, 0.15, 0.96), 3.0, true)
+	draw_line(top_point, bottom_point, Color(0.84, 0.86, 0.9, 0.97), 1.5, true)
+	draw_circle(center + Vector2(side_sign * 1.2, -half_height * 0.18), 1.1, Color(0.94, 0.8, 0.36, 0.96))
+	draw_circle(center + Vector2(-side_sign * 1.2, half_height * 0.18), 1.0, Color(0.94, 0.8, 0.36, 0.9))
+
+func draw_iso_wall_routed_duct(center: Vector2, side: String, routing_mode: String, height_screen_px: float) -> void:
+	var side_sign: float = -1.0 if side == "sw" else 1.0
+	var half_height: float = height_screen_px * 0.5
+	var top_width: float = 12.0
+	var bottom_width: float = 16.0
+	var top_shift: float = side_sign * 3.0
+	var bottom_shift: float = -side_sign * 3.0
+	var fill_color: Color = Color(0.44, 0.5, 0.56, 0.95) if routing_mode == "outer" else Color(0.05, 0.06, 0.08, 0.92)
+	var accent_color: Color = Color(0.78, 0.84, 0.9, 0.9) if routing_mode == "outer" else Color(0.13, 0.14, 0.16, 0.78)
+	var outline_color: Color = Color(0.12, 0.13, 0.15, 0.96)
+	var points: PackedVector2Array = PackedVector2Array([
+		center + Vector2(-top_width * 0.5 + top_shift, -half_height),
+		center + Vector2(top_width * 0.5 + top_shift, -half_height),
+		center + Vector2(bottom_width * 0.5 + bottom_shift, half_height),
+		center + Vector2(-bottom_width * 0.5 + bottom_shift, half_height)
+	])
+	draw_colored_polygon(points, fill_color)
+	for point_index in range(points.size()):
+		var next_index: int = (point_index + 1) % points.size()
+		draw_line(points[point_index], points[next_index], outline_color, 1.4, true)
+	if routing_mode == "outer":
+		for row_index in range(3):
+			var t: float = float(row_index + 1) / 4.0
+			var y: float = lerp(-half_height * 0.62, half_height * 0.62, t)
+			var x_shift: float = lerp(top_shift, bottom_shift, t)
+			draw_line(center + Vector2(-top_width * 0.28 + x_shift, y), center + Vector2(top_width * 0.28 + x_shift, y), accent_color, 1.0, true)
+	else:
+		draw_line(center + Vector2(-6.0 + side_sign * 1.8, -2.0), center + Vector2(6.0 - side_sign * 1.8, -2.0), accent_color, 1.0, true)
+		draw_line(center + Vector2(-5.0 + side_sign * 1.2, 2.0), center + Vector2(5.0 - side_sign * 1.2, 2.0), Color(0.0, 0.0, 0.0, 0.85), 2.0, true)
+
+func draw_iso_wall_routed_pipe(center: Vector2, side: String, routing_mode: String, height_screen_px: float) -> void:
+	var side_sign: float = -1.0 if side == "sw" else 1.0
+	var half_height: float = height_screen_px * 0.5
+	var top_point: Vector2 = center + Vector2(side_sign * 2.2, -half_height)
+	var bottom_point: Vector2 = center + Vector2(-side_sign * 2.2, half_height)
+	var base_color: Color = Color(0.46, 0.76, 0.86, 0.97) if routing_mode == "outer" else Color(0.05, 0.06, 0.07, 0.9)
+	var outline_color: Color = Color(0.11, 0.12, 0.14, 0.98)
+	var highlight_color: Color = Color(0.9, 0.96, 1.0, 0.88) if routing_mode == "outer" else Color(0.16, 0.18, 0.2, 0.7)
+	var pipe_width: float = 6.0 if routing_mode == "outer" else 4.0
+	draw_line(top_point + Vector2(0.0, 1.0), bottom_point + Vector2(0.0, 1.0), Color(0.02, 0.03, 0.04, 0.28), pipe_width + 3.0, true)
+	draw_line(top_point, bottom_point, outline_color, pipe_width + 1.8, true)
+	draw_line(top_point, bottom_point, base_color, pipe_width, true)
+	draw_line(top_point, bottom_point, highlight_color, 1.2, true)
+	draw_circle(top_point, pipe_width * 0.52, outline_color)
+	draw_circle(bottom_point, pipe_width * 0.52, outline_color)
+	draw_circle(top_point, pipe_width * 0.28, base_color)
+	draw_circle(bottom_point, pipe_width * 0.28, base_color)
+	if routing_mode == "inner":
+		draw_line(center + Vector2(-3.2, -1.2), center + Vector2(3.2, -1.2), Color(0.02, 0.02, 0.02, 0.78), 1.0, true)
+
+func draw_wall_routed_procedural_visual(object_data: Dictionary, profile: Dictionary, fallback_cell: Vector2i) -> bool:
+	var object_type: String = str(object_data.get("object_type", object_data.get("type", ""))).strip_edges().to_lower()
+	if not _is_wall_routed_visual_object_type(object_type):
+		return false
+	if not _is_wall_routed_visual_object(object_data):
+		return false
+	var routing_mode: String = get_wall_routing_mode(object_data)
+	var wall_side: String = normalize_wall_visual_side(object_data)
+	var visual_center: Vector2 = get_wall_mounted_visual_center(object_data, fallback_cell)
+	match object_type:
+		"power_cable", "power_cable_reel":
+			draw_iso_wall_routed_cable(visual_center, wall_side, routing_mode, get_wall_mount_height_screen_px(50.0))
+			return true
+		"external_air_duct":
+			draw_iso_wall_routed_duct(visual_center, wall_side, routing_mode, get_wall_mount_height_screen_px(400.0))
+			return true
+		"external_water_pipe":
+			draw_iso_wall_routed_pipe(visual_center, wall_side, routing_mode, get_wall_mount_height_screen_px(400.0))
+			return true
+	return false
+
 func get_safe_iso_object_png_visual_scale(object_data: Dictionary, asset_key: String, rule: Dictionary) -> float:
 	var rule_scale: float = float(rule.get("scale", 1.0))
 	if not ISO_OBJECT_PNG_ASSET_PATHS.has(asset_key):
@@ -5338,7 +5466,7 @@ func get_wall_mounted_object_profile_key(cell: Vector2i) -> String:
 	for candidate in candidates:
 		var normalized: String = candidate.strip_edges().to_lower()
 		match normalized:
-			"door_terminal", "platform_terminal", "cooling_terminal", "firewall", "circuit_breaker", "fuse_box", "light_switch", "power_switcher", "power_socket", "light", "power_cable_reel":
+			"door_terminal", "platform_terminal", "cooling_terminal", "firewall", "circuit_breaker", "fuse_box", "light_switch", "power_switcher", "power_socket", "light", "power_cable", "power_cable_reel", "external_air_duct", "external_water_pipe":
 				return normalized
 	return ""
 
@@ -5719,9 +5847,13 @@ func draw_iso_object_marker(cell: Vector2i, tile_type: int, override_object_data
 	var object_id: String = str(object_meta.get("object_id", ""))
 	var object_data: Dictionary = Dictionary(object_meta.get("data", {}))
 	var is_wall_mounted_object_visual: bool = is_wall_mounted_runtime_object(object_data)
+	var is_wall_routed_object_visual: bool = _is_wall_routed_visual_object(object_data)
+	var is_wall_visual: bool = is_wall_mounted_object_visual or is_wall_routed_object_visual
 	var profile_data: Dictionary = get_iso_object_grounding_profile(object_data, cell)
 	var visual_center: Vector2 = Vector2(profile_data.get("visual_center", get_world_object_visual_position(cell)))
-	if not is_wall_mounted_object_visual:
+	if is_wall_visual:
+		visual_center = get_wall_mounted_visual_center(object_data, cell)
+	if not is_wall_visual:
 		var shadow_polygon: PackedVector2Array = PackedVector2Array(profile_data.get("shadow_polygon", PackedVector2Array()))
 		if shadow_polygon.size() >= 3:
 			draw_colored_polygon(shadow_polygon, Color(0.03, 0.05, 0.08, 0.26))
@@ -5765,6 +5897,8 @@ func draw_iso_object_marker(cell: Vector2i, tile_type: int, override_object_data
 		profile["base"] = _blend_color(_get_color_from_dict(profile, "base", Color.WHITE), Color(terminal_visual.get("tint", Color.WHITE)), 0.45)
 		profile["accent"] = Color(terminal_visual.get("accent", _get_color_from_dict(profile, "accent", Color.WHITE)))
 	var overlay_accent: Color = _get_color_from_dict(profile, "accent", Color(0.72, 0.78, 0.86, 0.95))
+	if draw_wall_routed_procedural_visual(object_data, profile, cell):
+		return
 	# Topology-aware cable cells are rendered procedurally below so placed and preview
 	# cables share one continuous visual language instead of falling back to the old
 	# per-cell cable icon/marker texture.

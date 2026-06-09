@@ -141,6 +141,77 @@ static func _add_cable_note(ui: Variant, section: VBoxContainer, text: String, i
 	section.add_child(note)
 
 
+static func _normalize_wall_side_value(data: Dictionary) -> String:
+	var wall_side: String = MapConstructorUiSafe.safe_string(data.get("wall_side", data.get("interaction_side", "sw"))).strip_edges().to_lower()
+	wall_side = wall_side.replace("-", "_")
+	wall_side = wall_side.replace(" ", "_")
+	if wall_side in ["south_west", "southwest", "south", "west", "left"]:
+		return "sw"
+	if wall_side in ["south_east", "southeast", "south", "east", "right"]:
+		return "se"
+	if wall_side not in ["sw", "se"]:
+		return "sw"
+	return wall_side
+
+
+static func _normalize_wall_routing_mode_value(data: Dictionary) -> String:
+	var routing_mode: String = MapConstructorUiSafe.safe_string(data.get("wall_routing_mode", "outer")).strip_edges().to_lower()
+	routing_mode = routing_mode.replace("-", "_")
+	routing_mode = routing_mode.replace(" ", "_")
+	if routing_mode in ["inner", "embedded", "recessed"]:
+		return "inner"
+	return "outer"
+
+
+static func _add_wall_side_selector(ui: Variant, parent: VBoxContainer, entity_kind: String, entity_id: String, data: Dictionary) -> void:
+	MapConstructorPropertyControls.add_enum_updates_property(
+		ui,
+		parent,
+		"Wall side",
+		entity_kind,
+		entity_id,
+		_normalize_wall_side_value(data),
+		[
+			{
+				"label": "SW",
+				"value": "sw",
+				"updates": {
+					"wall_side": "sw",
+					"interaction_side": "sw",
+					"facing_side": "sw",
+					"facing_dir": "sw",
+					"mirror_visual_for_facing_side": true
+				}
+			},
+			{
+				"label": "SE",
+				"value": "se",
+				"updates": {
+					"wall_side": "se",
+					"interaction_side": "se",
+					"facing_side": "se",
+					"facing_dir": "se",
+					"mirror_visual_for_facing_side": true
+				}
+			}
+		]
+	)
+
+
+static func _add_wall_routing_selector(ui: Variant, parent: VBoxContainer, entity_kind: String, entity_id: String, data: Dictionary) -> void:
+	MapConstructorPropertyControls.add_enum_updates_property(
+		ui,
+		parent,
+		"Wall routing",
+		entity_kind,
+		entity_id,
+		_normalize_wall_routing_mode_value(data),
+		[
+			{"label": "Outer", "value": "outer", "updates": {"wall_routing_mode": "outer"}},
+			{"label": "Inner", "value": "inner", "updates": {"wall_routing_mode": "inner"}}
+		]
+	)
+
 
 static func _build_cell_panel(ui: Variant, cell: Vector2i) -> PanelContainer:
 	var panel := PanelContainer.new()
@@ -504,47 +575,11 @@ static func _render_entity_tab(ui: Variant, parent: VBoxContainer, entity_info: 
 			MapConstructorPropertyControls.add_enum_updates_property(ui, configurable, "Health state", entity_kind, entity_id, _get_power_health_state(data), [{"label":"Normal", "value":"normal", "updates":{"cable_health_state":"normal"}}, {"label":"Damaged", "value":"damaged", "updates":{"cable_health_state":"damaged"}}, {"label":"Broken", "value":"broken", "updates":{"cable_health_state":"broken"}}, {"label":"Cut", "value":"cut", "updates":{"cable_health_state":"cut"}}])
 			MapConstructorPropertyControls.add_enum_updates_property(ui, configurable, "Power state", entity_kind, entity_id, "powered" if bool(data.get("is_powered", false)) else "unpowered", [{"label":"Powered", "value":"powered", "updates":{"is_powered":true}}, {"label":"Unpowered", "value":"unpowered", "updates":{"is_powered":false}}])
 		
-	if type_group == "lighting" or normalized_object_type == "light":
-		var light_wall_side: String = MapConstructorUiSafe.safe_string(data.get("wall_side", data.get("interaction_side", "sw"))).strip_edges().to_lower()
-		if light_wall_side in ["south_west", "southwest", "south", "west"]:
-			light_wall_side = "sw"
-		elif light_wall_side in ["south_east", "southeast", "east"]:
-			light_wall_side = "se"
-		if light_wall_side not in ["sw", "se"]:
-			light_wall_side = "sw"
-
-		MapConstructorPropertyControls.add_enum_updates_property(
-			ui,
-			configurable,
-			"Wall side",
-			entity_kind,
-			entity_id,
-			light_wall_side,
-			[
-				{
-					"label": "SW",
-					"value": "sw",
-					"updates": {
-						"wall_side": "sw",
-						"interaction_side": "sw",
-						"facing_side": "sw",
-						"facing_dir": "sw",
-						"mirror_visual_for_facing_side": true
-					}
-				},
-				{
-					"label": "SE",
-					"value": "se",
-					"updates": {
-						"wall_side": "se",
-						"interaction_side": "se",
-						"facing_side": "se",
-						"facing_dir": "se",
-						"mirror_visual_for_facing_side": true
-					}
-				}
-			]
-		)
+	if normalized_object_type in ["power_cable", "power_cable_reel", "external_air_duct", "external_water_pipe"]:
+		_add_wall_side_selector(ui, configurable, entity_kind, entity_id, data)
+		_add_wall_routing_selector(ui, configurable, entity_kind, entity_id, data)
+	elif type_group == "lighting" or normalized_object_type == "light":
+		_add_wall_side_selector(ui, configurable, entity_kind, entity_id, data)
 
 		ui._add_text_property(configurable, "Brightness", entity_kind, entity_id, "brightness", data.get("brightness", "1.0"))
 		ui._add_text_property(configurable, "Color", entity_kind, entity_id, "color", data.get("color", "#ffffff"))
