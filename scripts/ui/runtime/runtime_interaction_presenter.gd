@@ -10,6 +10,7 @@ const DEBUG_BREACHABLE_WALL_RUNTIME_TRACE := false
 static func refresh(ui) -> void:
 	if ui.runtime_action_button == null or ui.runtime_end_turn_button == null:
 		return
+
 	var target_data: Dictionary = RuntimeInteractionPanelRef.get_target_data(ui)
 	var target_object: Dictionary = ui._safe_ui_dictionary(target_data.get("target_object", {}))
 	var action_view_model: Dictionary = ui._safe_ui_dictionary(target_data.get("action_view_model", {}))
@@ -17,49 +18,67 @@ static func refresh(ui) -> void:
 	var physical_actions: Array[String] = RuntimeInteractionPanelRef.get_physical_actions(actions)
 	var connect_descriptor: Dictionary = RuntimeInteractionPanelRef.get_connect_descriptor(target_data)
 	var heavy_claw_descriptor: Dictionary = RuntimeInteractionPanelRef.get_heavy_claw_descriptor(target_data)
+
+	var is_heavy_claw_movable_target: bool = RuntimeInteractionPanelRef.is_heavy_claw_movable_target(target_object)
 	var has_interactable: bool = not target_object.is_empty() and bool(action_view_model.get("has_interaction_target", false))
-	var has_enabled_physical_action: bool = bool(action_view_model.get("has_available_action", false))
-	if has_interactable and not ui.runtime_interaction_mode_active and ui.runtime_action_button != null:
-		ui._apply_selected_pulse(ui.runtime_action_button)
-	elif not has_interactable and ui.runtime_action_button != null:
-		ui._clear_selected_pulse(ui.runtime_action_button)
+	var has_physical_interactable: bool = has_interactable and not is_heavy_claw_movable_target and not physical_actions.is_empty()
+
+	if is_heavy_claw_movable_target:
+		ui.runtime_interaction_mode_active = false
+		if ui.runtime_world_actions_panel != null and is_instance_valid(ui.runtime_world_actions_panel):
+			ui.runtime_world_actions_panel.visible = false
+
 	var has_actions_left: bool = ui.bipob != null and int(ui.bipob.actions_left) > 0
+
 	if ui.runtime_action_button != null:
-		var button_hint: String = str(action_view_model.get("primary_action_label", ""))
-		if button_hint.is_empty():
-			button_hint = str(action_view_model.get("disabled_reason", "No physical action available."))
-		if button_hint.is_empty():
-			button_hint = "No physical action available."
-		ui.runtime_action_button.text = "Cancel" if ui.runtime_interaction_mode_active else "Action"
-		ui.runtime_action_button.disabled = not ui.runtime_interaction_mode_active and not has_interactable
-		ui.runtime_action_button.tooltip_text = "" if has_enabled_physical_action else button_hint
-		ui._apply_action_button_style(ui.runtime_action_button, "danger" if ui.runtime_interaction_mode_active else ("primary" if has_interactable else "disabled"), ui.runtime_interaction_mode_active or has_interactable)
-		if ui.runtime_interaction_mode_active:
+		ui.runtime_action_button.text = "Action"
+		ui.runtime_action_button.disabled = not has_physical_interactable
+		ui.runtime_action_button.tooltip_text = "" if has_physical_interactable else ""
+		ui._apply_action_button_style(ui.runtime_action_button, "primary" if has_physical_interactable else "disabled", has_physical_interactable)
+
+		if has_physical_interactable and not ui.runtime_interaction_mode_active:
 			ui._apply_selected_pulse(ui.runtime_action_button)
+		else:
+			ui._clear_selected_pulse(ui.runtime_action_button)
+
 	if ui.runtime_connect_button != null:
 		var terminal_connected: bool = ui.bipob != null and ui.bipob.has_method("is_connected_to_terminal") and bool(ui.bipob.call("is_connected_to_terminal"))
 		var terminal_reopen_enabled: bool = not target_object.is_empty() and str(target_object.get("object_group", "")) == "terminal" and bool(target_object.get("connected", false))
-		var connect_enabled: bool = terminal_connected or terminal_reopen_enabled or (not connect_descriptor.is_empty() and bool(connect_descriptor.get("enabled", false)) and has_actions_left)
+		var connect_enabled: bool = false
+
+		if not is_heavy_claw_movable_target:
+			connect_enabled = terminal_connected or terminal_reopen_enabled or (not connect_descriptor.is_empty() and bool(connect_descriptor.get("enabled", false)) and has_actions_left)
+
 		ui.runtime_connect_button.text = "Cancel" if terminal_connected else "Connect"
 		ui.runtime_connect_button.disabled = not connect_enabled
 		ui.runtime_connect_button.tooltip_text = "" if connect_enabled else str(connect_descriptor.get("label", "Connector jack unavailable."))
 		ui._apply_action_button_style(ui.runtime_connect_button, "danger" if terminal_connected else ("primary" if connect_enabled else "disabled"), connect_enabled)
+
 	if ui.runtime_heavy_claw_button != null:
 		var heavy_claw_drag_active: bool = ui.bipob != null and ui.bipob.has_method("is_heavy_claw_drag_active") and bool(ui.bipob.call("is_heavy_claw_drag_active"))
 		var heavy_claw_enabled: bool = heavy_claw_drag_active or (not heavy_claw_descriptor.is_empty() and bool(heavy_claw_descriptor.get("enabled", false)) and has_actions_left)
+
 		ui.runtime_heavy_claw_button.text = "Cancel" if heavy_claw_drag_active else "Heavy Claw"
 		ui.runtime_heavy_claw_button.disabled = not heavy_claw_enabled
-		ui.runtime_heavy_claw_button.tooltip_text = "" if heavy_claw_enabled else str(heavy_claw_descriptor.get("label", "No heavy object in front."))
+		ui.runtime_heavy_claw_button.tooltip_text = "" if heavy_claw_enabled else str(heavy_claw_descriptor.get("label", ""))
 		ui._apply_action_button_style(ui.runtime_heavy_claw_button, "danger" if heavy_claw_drag_active else ("primary" if heavy_claw_enabled else "disabled"), heavy_claw_enabled)
+
 	if ui.runtime_end_turn_button != null:
 		ui._apply_action_button_style(ui.runtime_end_turn_button, "reference", true)
+
 	if RuntimeHeavyClawPresenterRef.is_drag_active(ui):
 		RuntimeHeavyClawPresenterRef.refresh(ui)
 		return
+
 	RuntimeHeavyClawPresenterRef.refresh(ui)
+
+	if is_heavy_claw_movable_target:
+		if ui.runtime_interaction_actions_row != null:
+			ui.runtime_interaction_actions_row.visible = false
+		return
+
 	_refresh_action_row(ui, target_object, physical_actions)
-
-
+	
 static func refresh_world_actions_panel(ui, payload: Dictionary = {}) -> void:
 	var rebuild_world_actions_panel: bool = false
 	if ui.runtime_world_actions_panel != null and not is_instance_valid(ui.runtime_world_actions_panel):
