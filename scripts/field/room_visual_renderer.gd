@@ -3716,63 +3716,6 @@ func _draw_wall_cable_corner_bridges(circuit_anchors: Array[Dictionary], profile
 		draw_iso_cable_wall_segment(sw_rail, joint, profile)
 		draw_iso_cable_wall_segment(joint, se_rail, profile)
 
-func _collect_wall_cable_circuit_run_anchors(base_data: Dictionary, base_cell: Vector2i) -> Array[Dictionary]:
-	var anchors: Array[Dictionary] = []
-
-	if base_cell.x < 0 or base_cell.y < 0:
-		return anchors
-
-	if not is_wall_cable_object(base_data):
-		return anchors
-
-	var base_wall_side: String = get_cable_wall_side(base_data)
-	var base_routing_mode: String = get_cable_wall_routing_mode(base_data)
-	var base_circuit_id: String = CableTopologyServiceRef.get_cable_circuit_id(base_data)
-
-	if base_circuit_id.is_empty():
-		return anchors
-
-	var seen_ids: Dictionary = {}
-	var world_objects: Array[Dictionary] = _get_runtime_world_objects_for_iso_render(true)
-	world_objects.append(base_data)
-
-	for object_variant in world_objects:
-		if not (object_variant is Dictionary):
-			continue
-
-		var candidate_data: Dictionary = Dictionary(object_variant)
-
-		if not is_wall_cable_object(candidate_data):
-			continue
-
-		var candidate_cell: Vector2i = _get_cable_object_cell(candidate_data)
-		if candidate_cell.x < 0 or candidate_cell.y < 0:
-			continue
-
-		if get_cable_wall_side(candidate_data) != base_wall_side:
-			continue
-
-		if get_cable_wall_routing_mode(candidate_data) != base_routing_mode:
-			continue
-
-		var candidate_circuit_id: String = CableTopologyServiceRef.get_cable_circuit_id(candidate_data)
-		if candidate_circuit_id != base_circuit_id:
-			continue
-
-		var anchor: Dictionary = _build_wall_cable_face_anchor(candidate_data, candidate_cell, base_wall_side, base_routing_mode)
-		if anchor.is_empty():
-			continue
-
-		var object_id: String = str(anchor.get("object_id", ""))
-		if seen_ids.has(object_id):
-			continue
-
-		seen_ids[object_id] = true
-		_insert_sorted_wall_cable_anchor(anchors, anchor)
-
-	return anchors
-		
-
 func _get_first_wall_cable_anchor(anchors: Array[Dictionary]) -> Dictionary:
 	for anchor_variant in anchors:
 		var anchor: Dictionary = Dictionary(anchor_variant)
@@ -3833,9 +3776,6 @@ func _draw_wall_cable_run_graphics(run_cells: Array[Vector2i], object_data: Dict
 	_draw_wall_cable_side_anchor_segment(Array(side_groups.get("sw", [])), profile)
 	_draw_wall_cable_side_anchor_segment(Array(side_groups.get("se", [])), profile)
 	_draw_wall_cable_corner_bridges(anchors, profile)
-		anchors = _collect_wall_cable_circuit_run_anchors(object_data, head_cell)
-		if anchors.size() < 2:
-			anchors = _collect_wall_cable_face_run_anchors(object_data, head_cell)
 
 	var world_objects: Array[Dictionary] = _get_runtime_world_objects_for_iso_render(true)
 	for anchor_variant in anchors:
@@ -3866,7 +3806,6 @@ func draw_wall_cable_visual_path(cell: Vector2i, object_data: Dictionary, visual
 		return false
 
 	var anchors: Array[Dictionary] = _collect_wall_cable_circuit_anchors_any_side(object_data, cell)
-	var anchors: Array[Dictionary] = _collect_wall_cable_circuit_run_anchors(object_data, cell)
 
 	# Fallback: old strict wall-face grouping.
 	if anchors.size() < 2:
