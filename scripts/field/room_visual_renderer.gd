@@ -3644,44 +3644,63 @@ func _draw_wall_cable_side_anchor_segment(anchors: Array[Dictionary], profile: D
 	var rail_segment: Dictionary = _get_wall_cable_rail_segment(cell, wall_side)
 	draw_iso_cable_wall_segment(Vector2(rail_segment.get("start", grid_to_iso(cell))), Vector2(rail_segment.get("end", grid_to_iso(cell))), profile)
 
-func _are_wall_cable_corner_bridge_candidates(anchor_a: Dictionary, anchor_b: Dictionary) -> bool:
-	if str(anchor_a.get("wall_side", "")) == str(anchor_b.get("wall_side", "")):
-		return false
+func _get_wall_cable_corner_bridge_match_info(anchor_a: Dictionary, anchor_b: Dictionary) -> Dictionary:
+	var wall_side_a: String = str(anchor_a.get("wall_side", ""))
+	var wall_side_b: String = str(anchor_b.get("wall_side", ""))
+	if wall_side_a.is_empty() or wall_side_b.is_empty() or wall_side_a == wall_side_b:
+		return {}
 	if not bool(anchor_a.get("is_cable", false)) or not bool(anchor_b.get("is_cable", false)):
-		return false
+		return {}
+	var routing_mode_a: String = str(anchor_a.get("routing_mode", ""))
+	var routing_mode_b: String = str(anchor_b.get("routing_mode", ""))
+	if routing_mode_a.is_empty() or routing_mode_b.is_empty() or routing_mode_a != routing_mode_b:
+		return {}
+	var circuit_id_a: String = str(anchor_a.get("circuit_id", ""))
+	var circuit_id_b: String = str(anchor_b.get("circuit_id", ""))
+	if circuit_id_a.is_empty() or circuit_id_b.is_empty() or circuit_id_a != circuit_id_b:
+		return {}
 	var cell_a: Vector2i = Vector2i(anchor_a.get("cell", Vector2i(-1, -1)))
 	var cell_b: Vector2i = Vector2i(anchor_b.get("cell", Vector2i(-1, -1)))
 	if cell_a.x < 0 or cell_a.y < 0 or cell_b.x < 0 or cell_b.y < 0:
-		return false
+		return {}
 	var cell_delta: Vector2i = cell_a - cell_b
-	if absi(cell_delta.x) <= 1 and absi(cell_delta.y) <= 1:
-		return true
+	var same_cell: bool = cell_a == cell_b
+	var orthogonally_adjacent: bool = (absi(cell_delta.x) == 1 and cell_delta.y == 0) or (absi(cell_delta.y) == 1 and cell_delta.x == 0)
+	if not same_cell and not orthogonally_adjacent:
+		return {}
 	var rail_a: Vector2 = Vector2(anchor_a.get("rail_anchor", Vector2.ZERO))
 	var rail_b: Vector2 = Vector2(anchor_b.get("rail_anchor", Vector2.ZERO))
-	var close_enough: float = maxf(get_iso_tile_half_size().x * 1.25, 32.0)
-	return rail_a.distance_squared_to(rail_b) <= close_enough * close_enough
+	var joint: Vector2 = Vector2.ZERO
+	if same_cell:
+		joint = grid_to_iso(cell_a) + Vector2(0.0, -_get_wall_cable_rail_height_px())
+	else:
+		var shared_center: Vector2 = grid_to_iso(cell_a).lerp(grid_to_iso(cell_b), 0.5)
+		joint = shared_center + Vector2(0.0, -_get_wall_cable_rail_height_px())
+	return {
+		"joint": joint,
+		"relation_rank": 0 if same_cell else 1,
+		"rail_distance": rail_a.distance_squared_to(rail_b)
+	}
 
-func _get_wall_cable_corner_bridge_joint(anchor_a: Dictionary, anchor_b: Dictionary) -> Vector2:
-	var cell_a: Vector2i = Vector2i(anchor_a.get("cell", Vector2i(-1, -1)))
-	var cell_b: Vector2i = Vector2i(anchor_b.get("cell", Vector2i(-1, -1)))
-	var rail_a: Vector2 = Vector2(anchor_a.get("rail_anchor", Vector2.ZERO))
-	var rail_b: Vector2 = Vector2(anchor_b.get("rail_anchor", Vector2.ZERO))
-	if cell_a == cell_b and cell_a.x >= 0 and cell_a.y >= 0:
-		var half_size: Vector2 = get_iso_tile_half_size()
-		return grid_to_iso(cell_a) + Vector2(0.0, -half_size.y * 0.18 - _get_wall_cable_rail_height_px())
-	return rail_a.lerp(rail_b, 0.5)
+func _are_wall_cable_corner_bridge_candidates(anchor_a: Dictionary, anchor_b: Dictionary) -> bool:
+	return not _get_wall_cable_corner_bridge_match_info(anchor_a, anchor_b).is_empty()
+
+func _get_wall_cable_corner_bridge_joint_info(anchor_a: Dictionary, anchor_b: Dictionary) -> Dictionary:
+	return _get_wall_cable_corner_bridge_match_info(anchor_a, anchor_b)
 
 func _find_nearest_wall_cable_corner_anchor(anchor: Dictionary, candidates: Array[Dictionary]) -> Dictionary:
 	var nearest_anchor: Dictionary = {}
+	var nearest_relation_rank: int = 999999
 	var nearest_distance: float = INF
-	var rail_anchor: Vector2 = Vector2(anchor.get("rail_anchor", Vector2.ZERO))
 	for candidate_variant in candidates:
 		var candidate: Dictionary = Dictionary(candidate_variant)
-		if not _are_wall_cable_corner_bridge_candidates(anchor, candidate):
+		var match_info: Dictionary = _get_wall_cable_corner_bridge_match_info(anchor, candidate)
+		if match_info.is_empty():
 			continue
-		var candidate_rail: Vector2 = Vector2(candidate.get("rail_anchor", Vector2.ZERO))
-		var distance: float = rail_anchor.distance_squared_to(candidate_rail)
-		if distance < nearest_distance:
+		var relation_rank: int = int(match_info.get("relation_rank", 999999))
+		var distance: float = float(match_info.get("rail_distance", INF))
+		if relation_rank < nearest_relation_rank or (relation_rank == nearest_relation_rank and distance < nearest_distance):
+			nearest_relation_rank = relation_rank
 			nearest_distance = distance
 			nearest_anchor = candidate
 	return nearest_anchor
@@ -3710,10 +3729,13 @@ func _draw_wall_cable_corner_bridges(circuit_anchors: Array[Dictionary], profile
 		var pair_key: String = "%s|%s" % [str(sw_anchor.get("object_id", "")), str(se_anchor.get("object_id", ""))]
 		if drawn_pairs.has(pair_key):
 			continue
+		var joint_info: Dictionary = _get_wall_cable_corner_bridge_joint_info(sw_anchor, se_anchor)
+		if joint_info.is_empty():
+			continue
 		drawn_pairs[pair_key] = true
 		var sw_rail: Vector2 = Vector2(sw_anchor.get("rail_anchor", Vector2.ZERO))
 		var se_rail: Vector2 = Vector2(se_anchor.get("rail_anchor", Vector2.ZERO))
-		var joint: Vector2 = _get_wall_cable_corner_bridge_joint(sw_anchor, se_anchor)
+		var joint: Vector2 = Vector2(joint_info.get("joint", Vector2.ZERO))
 		draw_iso_cable_wall_segment(sw_rail, joint, profile)
 		draw_iso_cable_wall_segment(joint, se_rail, profile)
 
