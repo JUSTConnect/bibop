@@ -3644,7 +3644,11 @@ func can_place_map_constructor_prefab(prefab_id: String, cell: Vector2i, preferr
 		}
 
 	var mode_override: String = placement_mode_override.strip_edges().to_lower()
-	var wants_wall_mount: bool = mode_override == "wall" or mode_override == "wall_mounted"
+
+	var clicked_wall_cell: bool = _is_map_constructor_wall_cell(cell) if has_method("_is_map_constructor_wall_cell") else false
+	var stationary_on_wall_cell: bool = mode_override == "stationary" and clicked_wall_cell and _is_map_constructor_wall_cell_share_prefab(normalized_prefab_id)
+
+	var wants_wall_mount: bool = mode_override == "wall" or mode_override == "wall_mounted" or stationary_on_wall_cell
 
 	var wall_only_prefabs: Array[String] = [
 		"light",
