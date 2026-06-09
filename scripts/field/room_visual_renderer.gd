@@ -5878,7 +5878,7 @@ func draw_iso_object_marker(cell: Vector2i, tile_type: int, override_object_data
 	var object_id: String = str(object_meta.get("object_id", ""))
 	var object_data: Dictionary = Dictionary(object_meta.get("data", {}))
 	var is_wall_mounted_object_visual: bool = is_wall_mounted_runtime_object(object_data)
-	var is_wall_routed_object_visual: bool = _is_wall_routed_visual_object(object_data)
+	var is_wall_routed_object_visual: bool = is_wall_procedural_routed_object(object_data)
 	var is_wall_visual: bool = is_wall_mounted_object_visual or is_wall_routed_object_visual
 	var profile_data: Dictionary = get_iso_object_grounding_profile(object_data, cell)
 	var visual_center: Vector2 = Vector2(profile_data.get("visual_center", get_world_object_visual_position(cell)))
