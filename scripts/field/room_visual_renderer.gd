@@ -3217,11 +3217,11 @@ func _get_color_from_dict(data: Dictionary, key: String, fallback: Color) -> Col
 		return value
 	return fallback
 	
-const ISO_OBJECT_PNG_MIN_VISUAL_SCALE: float = 0.25
-const ISO_OBJECT_PNG_MAX_VISUAL_SCALE: float = 1.25
+const ISO_OBJECT_PNG_MIN_VISUAL_SCALE: float = 0.5
+const ISO_OBJECT_PNG_MAX_VISUAL_SCALE: float = 1.5
 const ISO_OBJECT_SOURCE_CANVAS_WIDTH := 512.0
-const WALL_MOUNT_HEIGHT_DEVICE_SOURCE_PX := 200.0
-const WALL_MOUNT_HEIGHT_LIGHT_SOURCE_PX := 600.0
+const WALL_MOUNT_HEIGHT_DEVICE_SOURCE_PX := 180.0
+const WALL_MOUNT_HEIGHT_LIGHT_SOURCE_PX := 330.0
 const WALL_MOUNT_SIDE_OFFSET_SW := Vector2(-18.0, -4.0)
 const WALL_MOUNT_SIDE_OFFSET_SE := Vector2(18.0, -4.0)
 
