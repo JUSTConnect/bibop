@@ -160,52 +160,90 @@ static func _platform_contains_cell(platform_data: Dictionary, actor_cell: Vecto
 			return true
 
 	return false
+	
+static func _is_local_platform_action_available(controller: Variant, platform_object: Dictionary, platform_cell: Vector2i) -> bool:
+	if controller == null or platform_object.is_empty():
+		return false
+	if not controller.has_method("get_available_world_actions"):
+		return false
+
+	var actions: Array = Array(controller.call("get_available_world_actions", platform_object, platform_cell))
+	return actions.has("activate_platform")	
 		
 static func _is_platform_action_target_candidate(candidate: Dictionary) -> bool:
 	if candidate.is_empty():
 		return false
+
 	var object_group: String = str(candidate.get("object_group", candidate.get("group", ""))).strip_edges().to_lower()
 	var object_type: String = str(candidate.get("object_type", candidate.get("type", ""))).strip_edges().to_lower()
 	var archetype_id: String = str(candidate.get("archetype_id", candidate.get("map_constructor_prefab_id", ""))).strip_edges().to_lower()
 	var platform_mode: String = str(candidate.get("platform_mode", "")).strip_edges().to_lower()
 	var platform_type: String = str(candidate.get("platform_type", "")).strip_edges().to_lower()
-	return object_group == "platform" or object_type == "platform" or object_type in ["lifting_platform", "rotating_platform"] or archetype_id == "platform" or not platform_mode.is_empty() or platform_type in ["lifting", "rotating"]
 
+	if object_group == "platform":
+		return true
+	if object_type == "platform":
+		return true
+	if object_type in ["lifting_platform", "rotating_platform"]:
+		return true
+	if archetype_id == "platform":
+		return true
+	if not platform_mode.is_empty():
+		return true
+	if platform_type in ["lifting", "rotating", "elevator", "rotator"]:
+		return true
+
+	return false
 
 static func build_action_target_context(controller: Variant) -> Dictionary:
-	var target_position: Vector2i = get_facing_cell(controller)
+	var actor_cell: Vector2i = Vector2i(controller.grid_position)
+	var facing_cell: Vector2i = get_facing_cell(controller)
+
+	# 1. Platform rule:
+	# Platform interaction is checked from Bipob current cell, not facing cell.
+	var platform_under_actor: Dictionary = _get_platform_action_target_under_actor(controller)
+	if not platform_under_actor.is_empty() and _is_local_platform_action_available(controller, platform_under_actor, actor_cell):
+		var platform_view_model: Dictionary = controller.build_runtime_action_view_model(platform_under_actor, actor_cell)
+		return {
+			"target_position": actor_cell,
+			"target_object": platform_under_actor,
+			"action_view_model": platform_view_model,
+			"actions": Array(platform_view_model.get("actions", [])),
+			"available_action_ids": Array(platform_view_model.get("available_action_ids", [])),
+			"raw_action_ids": Array(platform_view_model.get("raw_action_ids", [])),
+			"target_kind": "platform",
+			"interaction_source": "current_cell_platform"
+		}
+
 	var raw_world_object: Dictionary = {}
-
 	if controller.mission_manager != null:
-		raw_world_object = Dictionary(controller.mission_manager.get_world_object_at_cell(target_position))
+		raw_world_object = Dictionary(controller.mission_manager.get_world_object_at_cell(facing_cell))
 
-	var wall_mounted_candidate: Dictionary = _get_wall_mounted_object_candidate(controller, target_position)
+	var wall_mounted_candidate: Dictionary = _get_wall_mounted_object_candidate(controller, facing_cell)
 
 	var breachable_wall_candidate: Dictionary = {}
 	if controller.mission_manager != null and controller.mission_manager.has_method("get_breachable_wall_action_target_at_cell"):
-		breachable_wall_candidate = Dictionary(controller.mission_manager.call("get_breachable_wall_action_target_at_cell", target_position))
+		breachable_wall_candidate = Dictionary(controller.mission_manager.call("get_breachable_wall_action_target_at_cell", facing_cell))
 
+	var target_position: Vector2i = facing_cell
 	var target_object: Dictionary = resolve_runtime_action_target_for_cell(controller, target_position, raw_world_object)
+
+	# 2. Platform in front is ignored for normal facing interaction.
+	# Platform can be controlled only when Bipob stands on it.
+	if _is_platform_action_target_candidate(target_object):
+		target_object = {}
+
 	var view_model: Dictionary = controller.build_runtime_action_view_model(target_object, target_position)
 
-	# Platform-under-Bipob priority:
-	# if Bipob stands on a platform footprint, Action should target that platform.
-	var platform_under_actor: Dictionary = _get_platform_action_target_under_actor(controller)
-	if not platform_under_actor.is_empty():
-		var platform_target_position: Vector2i = Vector2i(controller.grid_position)
-		var platform_view_model: Dictionary = controller.build_runtime_action_view_model(platform_under_actor, platform_target_position)
-
-		target_position = platform_target_position
-		target_object = platform_under_actor
-		view_model = platform_view_model
-
+	# 3. Item rule:
+	# Item can be picked up from facing cell or from Bipob current cell.
 	if target_object.is_empty() and controller.mission_manager != null:
-		var items: Array = controller.mission_manager.get_items_at_cell(target_position)
+		var items: Array = controller.mission_manager.get_items_at_cell(facing_cell)
 
-		if items.is_empty() and target_position != controller.grid_position:
-			items = controller.mission_manager.get_items_at_cell(controller.grid_position)
+		if items.is_empty():
+			items = controller.mission_manager.get_items_at_cell(actor_cell)
 			if not items.is_empty():
-				target_position = controller.grid_position
+				target_position = actor_cell
 
 		if not items.is_empty():
 			target_object = Dictionary(items[0])
@@ -219,7 +257,8 @@ static func build_action_target_context(controller: Variant) -> Dictionary:
 
 	_trace_runtime_action_target({
 		"bipob_cell": str(controller.grid_position),
-		"facing_cell": str(target_position),
+		"facing_cell": str(facing_cell),
+		"target_position": str(target_position),
 		"direction": direction_text,
 		"raw_object": {
 			"id": str(raw_world_object.get("id", "")),
@@ -256,7 +295,9 @@ static func build_action_target_context(controller: Variant) -> Dictionary:
 		"action_view_model": view_model,
 		"actions": Array(view_model.get("actions", [])),
 		"available_action_ids": Array(view_model.get("available_action_ids", [])),
-		"raw_action_ids": Array(view_model.get("raw_action_ids", []))
+		"raw_action_ids": Array(view_model.get("raw_action_ids", [])),
+		"target_kind": "object" if not target_object.is_empty() else "",
+		"interaction_source": "facing_cell"
 	}
 
 static func build_connector_target_context(controller: Variant) -> Dictionary:
