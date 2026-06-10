@@ -194,12 +194,10 @@ static func build_action_target_context(controller: Variant) -> Dictionary:
 	if not platform_under_actor.is_empty():
 		var platform_target_position: Vector2i = Vector2i(controller.grid_position)
 		var platform_view_model: Dictionary = controller.build_runtime_action_view_model(platform_under_actor, platform_target_position)
-		var platform_actions: Array = Array(platform_view_model.get("raw_action_ids", []))
 
-		if platform_actions.has("activate_platform") or bool(platform_view_model.get("has_available_action", false)):
-			target_position = platform_target_position
-			target_object = platform_under_actor
-			view_model = platform_view_model
+		target_position = platform_target_position
+		target_object = platform_under_actor
+		view_model = platform_view_model
 
 	if target_object.is_empty() and controller.mission_manager != null:
 		var items: Array = controller.mission_manager.get_items_at_cell(target_position)
